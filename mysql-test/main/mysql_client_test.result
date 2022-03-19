@@ -137,7 +137,7 @@ def				MAX(a)	MAX(a)	3	11	0	Y	32768	0	63
 # cat MYSQL_TMP_DIR/test_explain_meta.out.log
 # ------------------------------------
 SELECT number of fields: 1
-EXPALIN number of fields: 11
+EXPALIN number of fields: 12
   - 0: name: 'id'/''; table: ''/''; db: ''; catalog: 'def'; length: 3; max_length: 0; type: 8; decimals: 0
   - 1: name: 'select_type'/''; table: ''/''; db: ''; catalog: 'def'; length: 57; max_length: 0; type: 253; decimals: 39
   - 2: name: 'table'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
@@ -148,7 +148,8 @@ EXPALIN number of fields: 11
   - 7: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
   - 8: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
   - 9: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
-  - 10: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
+  - 10: name: 'filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 11: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
 EXPALIN JSON number of fields: 1
   - 0: name: 'EXPLAIN'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
 ANALYZE number of fields: 14
@@ -168,7 +169,7 @@ ANALYZE number of fields: 14
   - 13: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
 ANALYZE JSON number of fields: 1
   - 0: name: 'ANALYZE'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
-EXPALIN INSERT number of fields: 11
+EXPALIN INSERT number of fields: 12
   - 0: name: 'id'/''; table: ''/''; db: ''; catalog: 'def'; length: 3; max_length: 0; type: 8; decimals: 0
   - 1: name: 'select_type'/''; table: ''/''; db: ''; catalog: 'def'; length: 57; max_length: 0; type: 253; decimals: 39
   - 2: name: 'table'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
@@ -179,7 +180,8 @@ EXPALIN INSERT number of fields: 11
   - 7: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
   - 8: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
   - 9: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
-  - 10: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
+  - 10: name: 'filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 11: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
 EXPALIN JSON INSERT number of fields: 1
   - 0: name: 'EXPLAIN'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
 ANALYZE INSERT number of fields: 14
@@ -199,7 +201,7 @@ ANALYZE INSERT number of fields: 14
   - 13: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
 ANALYZE JSON INSERT number of fields: 1
   - 0: name: 'ANALYZE'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
-EXPALIN UPDATE number of fields: 11
+EXPALIN UPDATE number of fields: 12
   - 0: name: 'id'/''; table: ''/''; db: ''; catalog: 'def'; length: 3; max_length: 0; type: 8; decimals: 0
   - 1: name: 'select_type'/''; table: ''/''; db: ''; catalog: 'def'; length: 57; max_length: 0; type: 253; decimals: 39
   - 2: name: 'table'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
@@ -210,7 +212,8 @@ EXPALIN UPDATE number of fields: 11
   - 7: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
   - 8: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
   - 9: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
-  - 10: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
+  - 10: name: 'filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 11: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
 EXPALIN JSON UPDATE number of fields: 1
   - 0: name: 'EXPLAIN'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
 ANALYZE UPDATE number of fields: 14
@@ -230,7 +233,7 @@ ANALYZE UPDATE number of fields: 14
   - 13: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
 ANALYZE JSON UPDATE number of fields: 1
   - 0: name: 'ANALYZE'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
-EXPALIN DELETE number of fields: 11
+EXPALIN DELETE number of fields: 12
   - 0: name: 'id'/''; table: ''/''; db: ''; catalog: 'def'; length: 3; max_length: 0; type: 8; decimals: 0
   - 1: name: 'select_type'/''; table: ''/''; db: ''; catalog: 'def'; length: 57; max_length: 0; type: 253; decimals: 39
   - 2: name: 'table'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
@@ -241,7 +244,8 @@ EXPALIN DELETE number of fields: 11
   - 7: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
   - 8: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
   - 9: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
-  - 10: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
+  - 10: name: 'filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 11: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
 EXPALIN JSON DELETE number of fields: 1
   - 0: name: 'EXPLAIN'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
 ANALYZE DELETE number of fields: 14

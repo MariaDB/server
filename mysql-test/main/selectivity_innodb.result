@@ -1718,8 +1718,8 @@ CREATE INDEX CountryName ON City(Country,Name);
 set @@optimizer_use_condition_selectivity=2;
 EXPLAIN
 SELECT * FROM City WHERE Country='FIN';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	ref	Country,CountryPopulation,CountryName	Country	3	const	7	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	ref	Country,CountryPopulation,CountryName	Country	3	const	7	100.00	Using index condition
 DROP DATABASE world;
 use test;
 CREATE TABLE t1 (
@@ -1750,8 +1750,8 @@ INSERT INTO t1 SELECT a + 640, b, c FROM t1;
 INSERT INTO t1 SELECT a + 1280, b, c FROM t1 LIMIT 80;
 EXPLAIN
 SELECT a FROM t1 WHERE b = 1 ORDER BY c DESC LIMIT 9;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	b,b_2	b	4	NULL	226	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	b,b_2	b	4	NULL	226	98.23	Using where
 SELECT a FROM t1 WHERE b = 1 ORDER BY c DESC LIMIT 9;
 a
 2071
@@ -1859,22 +1859,22 @@ explain SELECT * FROM t1
 WHERE
 EXISTS (SELECT * FROM t1 A INNER JOIN t2 ON t2.a = A.id
 WHERE A.a=t1.a AND t2.b < 20);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	index	NULL	a	5	NULL	100	Using where; Using index
-2	DEPENDENT SUBQUERY	A	NULL	ref	PRIMARY,a	a	5	test.t1.a	1	Using index
-2	DEPENDENT SUBQUERY	t2	NULL	ref|filter	a,b	a|b	5|5	test.A.id	1 (19%)	Using where; Using rowid filter
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	index	NULL	a	5	NULL	100	100.00	Using where; Using index
+2	DEPENDENT SUBQUERY	A	NULL	ref	PRIMARY,a	a	5	test.t1.a	1	100.00	Using index
+2	DEPENDENT SUBQUERY	t2	NULL	ref|filter	a,b	a|b	5|5	test.A.id	1 (19%)	19.00	Using where; Using rowid filter
 EXPLAIN  SELECT * FROM t1 A, t1 B WHERE A.a = B.a and A.id = 65;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	A	NULL	const	PRIMARY,a	PRIMARY	4	const	1	
-1	SIMPLE	B	NULL	ref	a	a	5	const	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	A	NULL	const	PRIMARY,a	PRIMARY	4	const	1	100.00	
+1	SIMPLE	B	NULL	ref	a	a	5	const	1	100.00	Using index
 explain SELECT * FROM t1
 WHERE
 EXISTS (SELECT * FROM t1 A INNER JOIN t2 ON t2.a = A.id
 WHERE A.a=t1.a AND t2.b < 20);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	index	NULL	a	5	NULL	100	Using where; Using index
-2	DEPENDENT SUBQUERY	A	NULL	ref	PRIMARY,a	a	5	test.t1.a	1	Using index
-2	DEPENDENT SUBQUERY	t2	NULL	ref|filter	a,b	a|b	5|5	test.A.id	1 (19%)	Using where; Using rowid filter
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	index	NULL	a	5	NULL	100	100.00	Using where; Using index
+2	DEPENDENT SUBQUERY	A	NULL	ref	PRIMARY,a	a	5	test.t1.a	1	100.00	Using index
+2	DEPENDENT SUBQUERY	t2	NULL	ref|filter	a,b	a|b	5|5	test.A.id	1 (19%)	19.00	Using where; Using rowid filter
 set optimizer_switch= @save_optimizer_switch;
 set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 drop table t1,t2;
@@ -2143,9 +2143,9 @@ TEXT41 TEXT,TEXT42 TEXT,TEXT43 TEXT,TEXT44 TEXT,TEXT45 TEXT,
 TEXT46 TEXT,TEXT47 TEXT,TEXT48 TEXT,TEXT49 TEXT,TEXT50 TEXT
 ) ENGINE=InnoDB;
 EXPLAIN SELECT 1 FROM t1 NATURAL JOIN t1 AS t2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	Using where
-1	SIMPLE	t2	NULL	hash_ALL	NULL	#hash#$hj	150	test.t1.TEXT1,test.t1.TEXT2,test.t1.TEXT3,test.t1.TEXT4,test.t1.TEXT5,test.t1.TEXT6,test.t1.TEXT7,test.t1.TEXT8,test.t1.TEXT9,test.t1.TEXT10,test.t1.TEXT11,test.t1.TEXT12,test.t1.TEXT13,test.t1.TEXT14,test.t1.TEXT15,test.t1.TEXT16,test.t1.TEXT17,test.t1.TEXT18,test.t1.TEXT19,test.t1.TEXT20,test.t1.TEXT21,test.t1.TEXT22,test.t1.TEXT23,test.t1.TEXT24,test.t1.TEXT25,test.t1.TEXT26,test.t1.TEXT27,test.t1.TEXT28,test.t1.TEXT29,test.t1.TEXT30,test.t1.TEXT31,test.t1.TEXT32,test.t1.TEXT33,test.t1.TEXT34,test.t1.TEXT35,test.t1.TEXT36,test.t1.TEXT37,test.t1.TEXT38,test.t1.TEXT39,test.t1.TEXT40,test.t1.TEXT41,test.t1.TEXT42,test.t1.TEXT43,test.t1.TEXT44,test.t1.TEXT45,test.t1.TEXT46,test.t1.TEXT47,test.t1.TEXT48,test.t1.TEXT49,test.t1.TEXT50	1	Using where; Using join buffer (flat, BNLH join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+1	SIMPLE	t2	NULL	hash_ALL	NULL	#hash#$hj	150	test.t1.TEXT1,test.t1.TEXT2,test.t1.TEXT3,test.t1.TEXT4,test.t1.TEXT5,test.t1.TEXT6,test.t1.TEXT7,test.t1.TEXT8,test.t1.TEXT9,test.t1.TEXT10,test.t1.TEXT11,test.t1.TEXT12,test.t1.TEXT13,test.t1.TEXT14,test.t1.TEXT15,test.t1.TEXT16,test.t1.TEXT17,test.t1.TEXT18,test.t1.TEXT19,test.t1.TEXT20,test.t1.TEXT21,test.t1.TEXT22,test.t1.TEXT23,test.t1.TEXT24,test.t1.TEXT25,test.t1.TEXT26,test.t1.TEXT27,test.t1.TEXT28,test.t1.TEXT29,test.t1.TEXT30,test.t1.TEXT31,test.t1.TEXT32,test.t1.TEXT33,test.t1.TEXT34,test.t1.TEXT35,test.t1.TEXT36,test.t1.TEXT37,test.t1.TEXT38,test.t1.TEXT39,test.t1.TEXT40,test.t1.TEXT41,test.t1.TEXT42,test.t1.TEXT43,test.t1.TEXT44,test.t1.TEXT45,test.t1.TEXT46,test.t1.TEXT47,test.t1.TEXT48,test.t1.TEXT49,test.t1.TEXT50	1	100.00	Using where; Using join buffer (flat, BNLH join)
 set join_cache_level=@tmp_jcl;
 drop table t1;
 #

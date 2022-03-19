@@ -70,11 +70,11 @@ a	b
 1	1
 2	2
 explain select * from t2 where a='no-such-key';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 explain select * from t2 where a='abc';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	const	PRIMARY	PRIMARY	12	const	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	const	PRIMARY	PRIMARY	12	const	#	100.00	
 select * from t2 where a='abc';
 a	b
 abc	def
@@ -189,8 +189,8 @@ insert into t8 values
 ('five', 'funf');
 # Delete by PK
 explain delete from t8 where a='three';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t8	NULL	range	PRIMARY	PRIMARY	12	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t8	NULL	range	PRIMARY	PRIMARY	12	NULL	#	100.00	Using where
 delete from t8 where a='three';
 select * from t8;
 a	col1
@@ -279,9 +279,9 @@ j
 4
 EXPLAIN
 SELECT * FROM t10, t11 WHERE i=j;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t10	NULL	index	PRIMARY	PRIMARY	4	NULL	#	Using index
-1	SIMPLE	t11	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t10.i	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t10	NULL	index	PRIMARY	PRIMARY	4	NULL	#	100.00	Using index
+1	SIMPLE	t11	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t10.i	#	100.00	Using index
 SELECT * FROM t10, t11 WHERE i=j;
 i	j
 1	1
@@ -531,22 +531,22 @@ insert into t30 values ('row2', 'row2-key', 'row2-data');
 insert into t30 values ('row3', 'row3-key', 'row3-data');
 explain
 select * from t30 where key1='row2-key';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	NULL	ref	key1	key1	18	const	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t30	NULL	ref	key1	key1	18	const	#	100.00	Using index condition
 select * from t30 where key1='row2-key';
 pk	key1	col1
 row2	row2-key	row2-data
 explain 
 select * from t30 where key1='row1';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	NULL	ref	key1	key1	18	const	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t30	NULL	ref	key1	key1	18	const	#	100.00	Using index condition
 # This will produce nothing:
 select * from t30 where key1='row1';
 pk	key1	col1
 explain
 select key1 from t30;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	NULL	index	NULL	key1	18	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t30	NULL	index	NULL	key1	18	NULL	#	100.00	Using index
 select key1 from t30;
 key1
 row1-key
@@ -575,8 +575,8 @@ insert into t30 values
 ('row5', 'row5-key', 'row5-data');
 explain 
 select * from t30 where key1 <='row3-key';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	NULL	range	key1	key1	18	NULL	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t30	NULL	range	key1	key1	18	NULL	#	100.00	Using index condition
 select * from t30 where key1 <='row3-key';
 pk	key1	col1
 row1	row1-key	row1-data
@@ -584,8 +584,8 @@ row2	row2-key	row2-data
 row3	row3-key	row3-data
 explain 
 select * from t30 where key1 between 'row2-key' and 'row4-key';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	NULL	range	key1	key1	18	NULL	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t30	NULL	range	key1	key1	18	NULL	#	100.00	Using index condition
 select * from t30 where key1 between 'row2-key' and 'row4-key';
 pk	key1	col1
 row2	row2-key	row2-data
@@ -593,32 +593,32 @@ row3	row3-key	row3-data
 row4	row4-key	row4-data
 explain 
 select * from t30 where key1 in ('row2-key','row4-key');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	NULL	range	key1	key1	18	NULL	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t30	NULL	range	key1	key1	18	NULL	#	100.00	Using index condition
 select * from t30 where key1 in ('row2-key','row4-key');
 pk	key1	col1
 row2	row2-key	row2-data
 row4	row4-key	row4-data
 explain 
 select key1 from t30 where key1 in ('row2-key','row4-key');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	NULL	range	key1	key1	18	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t30	NULL	range	key1	key1	18	NULL	#	100.00	Using where; Using index
 select key1 from t30 where key1 in ('row2-key','row4-key');
 key1
 row2-key
 row4-key
 explain 
 select * from t30 where key1 > 'row1-key' and key1 < 'row4-key';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	NULL	range	key1	key1	18	NULL	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t30	NULL	range	key1	key1	18	NULL	#	100.00	Using index condition
 select * from t30 where key1 > 'row1-key' and key1 < 'row4-key';
 pk	key1	col1
 row2	row2-key	row2-data
 row3	row3-key	row3-data
 explain 
 select * from t30 order by key1 limit 3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	NULL	index	NULL	key1	18	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t30	NULL	index	NULL	key1	18	NULL	#	100.00	
 select * from t30 order by key1 limit 3;
 pk	key1	col1
 row1	row1-key	row1-data
@@ -626,8 +626,8 @@ row2	row2-key	row2-data
 row3	row3-key	row3-data
 explain 
 select * from t30 order by key1 desc limit 3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	NULL	index	NULL	key1	18	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t30	NULL	index	NULL	key1	18	NULL	#	100.00	
 select * from t30 order by key1 desc limit 3;
 pk	key1	col1
 row5	row5-key	row5-data
@@ -638,8 +638,8 @@ row3	row3-key	row3-data
 #
 explain 
 select * from t30 where pk <='row3';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	NULL	range	PRIMARY	PRIMARY	18	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t30	NULL	range	PRIMARY	PRIMARY	18	NULL	#	100.00	Using where
 select * from t30 where pk <='row3';
 pk	key1	col1
 row1	row1-key	row1-data
@@ -647,8 +647,8 @@ row2	row2-key	row2-data
 row3	row3-key	row3-data
 explain 
 select * from t30 where pk between 'row2' and 'row4';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	NULL	range	PRIMARY	PRIMARY	18	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t30	NULL	range	PRIMARY	PRIMARY	18	NULL	#	100.00	Using where
 select * from t30 where pk between 'row2' and 'row4';
 pk	key1	col1
 row2	row2-key	row2-data
@@ -656,16 +656,16 @@ row3	row3-key	row3-data
 row4	row4-key	row4-data
 explain 
 select * from t30 where pk in ('row2','row4');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	NULL	range	PRIMARY	PRIMARY	18	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t30	NULL	range	PRIMARY	PRIMARY	18	NULL	#	100.00	Using where
 select * from t30 where pk in ('row2','row4');
 pk	key1	col1
 row2	row2-key	row2-data
 row4	row4-key	row4-data
 explain 
 select * from t30 order by pk limit 3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	NULL	index	NULL	PRIMARY	18	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t30	NULL	index	NULL	PRIMARY	18	NULL	#	100.00	
 select * from t30 order by pk limit 3;
 pk	key1	col1
 row1	row1-key	row1-data
@@ -1078,8 +1078,8 @@ insert into t1 values (-5,-5,-5);
 # INT column uses index-only:
 explain
 select key1 from t1 where key1=2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	key1	key1	5	const	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	key1	key1	5	const	#	100.00	Using index
 select key1 from t1 where key1=2;
 key1
 2
@@ -1092,8 +1092,8 @@ insert into t2 values (1,1,1), (2,2,2);
 # INT UNSIGNED column uses index-only:
 explain
 select key1 from t2 where key1=2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ref	key1	key1	5	const	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ref	key1	key1	5	const	#	100.00	Using index
 select key1 from t2 where key1=2;
 key1
 2
@@ -1103,8 +1103,8 @@ insert into t3 values (1,1,1), (2,2,2);
 # BIGINT uses index-only:
 explain 
 select key1 from t3 where key1=2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	ref	key1	key1	9	const	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ref	key1	key1	9	const	#	100.00	Using index
 select key1 from t3 where key1=2;
 key1
 2
@@ -1121,8 +1121,8 @@ key (key1)
 insert into t1 values(1, 'one',11), (2,'two',22);
 explain 
 select key1 from t1 where key1='one';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	key1	key1	11	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	key1	key1	11	const	#	100.00	Using where; Using index
 # The following will produce no rows. This looks like a bug,
 #  but it is actually correct behavior. Binary strings are end-padded
 #  with \0 character (and not space).  Comparison does not ignore
@@ -1131,8 +1131,8 @@ select key1 from t1 where key1='one';
 key1
 explain
 select hex(key1) from t1 where key1='one\0\0\0\0\0\0\0';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	key1	key1	11	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	key1	key1	11	const	#	100.00	Using where; Using index
 select hex(key1) from t1 where key1='one\0\0\0\0\0\0\0';
 hex(key1)
 6F6E6500000000000000
@@ -1146,8 +1146,8 @@ key (key1)
 insert into t2 values(1, 'one',11), (2,'two',22);
 explain 
 select key1 from t2 where key1='one';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ref	key1	key1	11	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ref	key1	key1	11	const	#	100.00	Using where; Using index
 select key1 from t2 where key1='one';
 key1
 one
@@ -1161,8 +1161,8 @@ key (key1)
 insert into t3 values(1, 'one',11), (2,'two',22);
 explain 
 select key1 from t3 where key1='one';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	ref	key1	key1	31	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ref	key1	key1	31	const	#	100.00	Using where; Using index
 select key1 from t3 where key1='one';
 key1
 one
@@ -1176,8 +1176,8 @@ key(key1)
 insert into t4 values(1, 'one'), (2,'two'),(3,'threee'),(55,'fifty-five');
 explain 
 select key1 from t4 where key1='two';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	NULL	ref	key1	key1	13	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ref	key1	key1	13	const	#	100.00	Using where; Using index
 select key1 from t4 where key1='two';
 key1
 two
@@ -1186,8 +1186,8 @@ key1
 fifty-five
 explain 
 select key1 from t4 where key1 between 's' and 'u';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	NULL	range	key1	key1	13	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	range	key1	key1	13	NULL	#	100.00	Using where; Using index
 select key1 from t4 where key1 between 's' and 'u';
 key1
 threee
@@ -1856,15 +1856,15 @@ key(col2) comment 'cf4'
 insert into t1 values (1,1,1), (2,2,2), (3,3,3), (4,4,4), (5,5,5);
 explain
 select * from t1 where col1=2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	col1	col1	5	const	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	col1	col1	5	const	#	100.00	
 select * from t1 where col1=2;
 pk	col1	col2
 2	2	2
 explain
 select * from t1 where col2=3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	col2	col2	5	const	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	col2	col2	5	const	#	100.00	
 select * from t1 where col2=3;
 pk	col1	col2
 3	3	3
@@ -1886,8 +1886,8 @@ primary key (pk) comment 'cf5'
 insert into t1 values (1,1,1), (2,2,2), (3,3,3), (4,4,4), (5,5,5);
 explain
 select * from t1 where col1=2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	col1	col1	5	const	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	col1	col1	5	const	#	100.00	
 select * from t1 where col1=2;
 pk	col1	col2
 2	2	2
@@ -1933,8 +1933,8 @@ key(id2)
 insert into t1 select A.a, B.a, 31, 1234 from t0 A, t0 B;
 explain 
 select * from t1 where id1=30 and value1=30 for update;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	PRIMARY	PRIMARY	4	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	PRIMARY	PRIMARY	4	const	#	100.00	Using where
 set @var1=(select variable_value 
 from information_schema.global_status 
 where variable_name='rocksdb_number_keys_read');
@@ -1955,8 +1955,8 @@ create table t1 (id int primary key, value int) engine=rocksdb;
 insert into t1 values (1,1),(2,2),(3,3);
 # The following must not use 'Using filesort':
 explain select * from t1 ORDER BY id;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	#	100.00	
 drop table t1;
 #
 # Issue #26: Index-only scans for DATETIME and TIMESTAMP
@@ -1989,8 +1989,8 @@ pk	kp1	kp2	col1
 explain 
 select kp1,kp2 from t1 force index (kp1) 
 where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	kp1	kp1	6	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	kp1	kp1	6	NULL	#	100.00	Using where; Using index
 select kp1,kp2 from t1 force index (kp1) 
 where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
 kp1	kp2
@@ -2012,8 +2012,8 @@ insert into t2 select * from t1;
 explain 
 select kp1,kp2 from t2 force index (kp1) 
 where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	range	kp1	kp1	5	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	kp1	kp1	5	NULL	#	100.00	Using where; Using index
 select kp1,kp2 from t2 force index (kp1) 
 where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
 kp1	kp2
@@ -2049,8 +2049,8 @@ pk	kp1	kp2	col1
 explain 
 select kp1,kp2 from t1 force index (kp1) 
 where kp1 between '2015-01-01' and '2015-01-05';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	kp1	kp1	4	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	kp1	kp1	4	NULL	#	100.00	Using where; Using index
 select kp1,kp2 from t1 force index (kp1) 
 where kp1 between '2015-01-01' and '2015-01-05';
 kp1	kp2
@@ -2072,8 +2072,8 @@ insert into t2 select * from t1;
 explain 
 select kp1,kp2 from t2 force index (kp1) 
 where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	range	kp1	kp1	3	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	kp1	kp1	3	NULL	#	100.00	Using where; Using index
 select kp1,kp2 from t2 force index (kp1) 
 where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
 kp1	kp2
@@ -2111,8 +2111,8 @@ pk	kp1	kp2	col1
 explain 
 select kp1,kp2 from t1 force index (kp1) 
 where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	kp1	kp1	5	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	kp1	kp1	5	NULL	#	100.00	Using where; Using index
 select kp1,kp2 from t1 force index (kp1) 
 where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
 kp1	kp2
@@ -2134,8 +2134,8 @@ insert into t2 select * from t1;
 explain 
 select kp1,kp2 from t2 force index (kp1) 
 where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	range	kp1	kp1	4	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	kp1	kp1	4	NULL	#	100.00	Using where; Using index
 select kp1,kp2 from t2 force index (kp1) 
 where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
 kp1	kp2
@@ -2173,8 +2173,8 @@ pk	kp1	kp2	col1
 explain 
 select kp1,kp2 from t1 force index (kp1) 
 where kp1 between '09:01:00' and '09:05:00';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	kp1	kp1	4	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	kp1	kp1	4	NULL	#	100.00	Using where; Using index
 select kp1,kp2 from t1 force index (kp1) 
 where kp1 between '09:01:00' and '09:05:00';
 kp1	kp2
@@ -2196,8 +2196,8 @@ insert into t2 select * from t1;
 explain 
 select kp1,kp2 from t2 force index (kp1) 
 where kp1 between '09:01:00' and '09:05:00';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	range	kp1	kp1	3	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	kp1	kp1	3	NULL	#	100.00	Using where; Using index
 select kp1,kp2 from t2 force index (kp1) 
 where kp1 between '09:01:00' and '09:05:00';
 kp1	kp2
@@ -2234,8 +2234,8 @@ pk	kp1	kp2	col1
 explain 
 select kp1,kp2 from t1 force index (kp1) 
 where kp1 between '2016' and '2020';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	kp1	kp1	2	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	kp1	kp1	2	NULL	#	100.00	Using where; Using index
 select kp1,kp2 from t1 force index (kp1) 
 where kp1 between '2016' and '2020';
 kp1	kp2
@@ -2257,8 +2257,8 @@ insert into t2 select * from t1;
 explain 
 select kp1,kp2 from t2 force index (kp1) 
 where kp1 between '2016' and '2020';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	range	kp1	kp1	1	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	kp1	kp1	1	NULL	#	100.00	Using where; Using index
 select kp1,kp2 from t2 force index (kp1) 
 where kp1 between '2016' and '2020';
 kp1	kp2
@@ -2308,11 +2308,11 @@ a	b	c
 2	2abcde	2abcde
 3	3abcde	3abcde
 explain select * from t1 where b like '1%';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	b	b	1258	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	b	b	1258	NULL	#	100.00	Using where
 explain select b, a from t1 where b like '1%';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	b	b	1258	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	b	b	1258	NULL	#	100.00	Using where
 update t1 set b= '12345' where b = '2abcde';
 select * from t1;
 a	b	c
@@ -2369,8 +2369,8 @@ INSERT INTO t2 VALUES (1,1,1,1,1,1,1);
 SELECT * FROM t2 WHERE c1 > 4294967295 ORDER BY c1,c6;
 c1	c2	c3	c4	c5	c6	c7
 EXPLAIN SELECT * FROM t2 WHERE c1 > 4294967295 ORDER BY c1,c6;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	range	PRIMARY	PRIMARY	4	NULL	50	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	PRIMARY	PRIMARY	4	NULL	50	100.00	Using where
 drop table t2;
 #
 # Issue #135: register transaction was not being called for statement
@@ -2576,8 +2576,8 @@ c1	c2	c3
 c1-val3	c2-val3	7
 c1-val1	c2-val1	5
 explain SELECT * FROM t1  force index(idx) WHERE c1 <> '1' ORDER BY c1 DESC;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	idx	idx	32	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	idx	idx	32	NULL	#	100.00	Using where
 drop table t1;
 #
 # Issue#267: MyRocks issue with no matching min/max row and count(*)

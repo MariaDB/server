@@ -166,13 +166,13 @@ INDEX idx (a6,a7(239),a5)
 EXPLAIN SELECT a4 FROM t1 WHERE
 a6=NULL AND
 a4='UNcT5pIde4I6c2SheTo4gt92OV1jgJCVkXmzyf325R1DwLURkbYHwhydANIZMbKTgdcR5xS';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 EXPLAIN SELECT t1.a4 FROM t1, t1 t WHERE
 t.a6=t.a6 AND t1.a6=NULL AND
 t1.a4='UNcT5pIde4I6c2SheTo4gt92OV1jgJCVkXmzyf325R1DwLURkbYHwhydANIZMbKTgdcR5xS';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 DROP TABLE t1;
 create table t1m (a int) engine = MEMORY;
 create table t1i (a int);
@@ -190,9 +190,9 @@ select min(7) from DUAL;
 min(7)
 7
 explain select min(7) from t2i join t1i;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1i	NULL	ALL	NULL	NULL	NULL	NULL	0	
-1	SIMPLE	t2i	NULL	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1i	NULL	ALL	NULL	NULL	NULL	NULL	0	0.00	
+1	SIMPLE	t2i	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (flat, BNL join)
 select min(7) from t2i join t1i;
 min(7)
 NULL
@@ -206,9 +206,9 @@ select max(7) from DUAL;
 max(7)
 7
 explain select max(7) from t2i join t1i;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1i	NULL	ALL	NULL	NULL	NULL	NULL	0	
-1	SIMPLE	t2i	NULL	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1i	NULL	ALL	NULL	NULL	NULL	NULL	0	0.00	
+1	SIMPLE	t2i	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (flat, BNL join)
 select max(7) from t2i join t1i;
 max(7)
 NULL
@@ -237,23 +237,23 @@ select 1, max(1) from t1i where 1=99;
 1	max(1)
 1	NULL
 explain select count(*), min(7), max(7) from t1m, t1i;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1m	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	SIMPLE	t1i	NULL	ALL	NULL	NULL	NULL	NULL	0	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1m	NULL	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+1	SIMPLE	t1i	NULL	ALL	NULL	NULL	NULL	NULL	0	0.00	
 select count(*), min(7), max(7) from t1m, t1i;
 count(*)	min(7)	max(7)
 0	NULL	NULL
 explain select count(*), min(7), max(7) from t1m, t2i;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1m	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	SIMPLE	t2i	NULL	ALL	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1m	NULL	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+1	SIMPLE	t2i	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	
 select count(*), min(7), max(7) from t1m, t2i;
 count(*)	min(7)	max(7)
 0	NULL	NULL
 explain select count(*), min(7), max(7) from t2m, t1i;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2m	NULL	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t1i	NULL	ALL	NULL	NULL	NULL	NULL	0	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2m	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t1i	NULL	ALL	NULL	NULL	NULL	NULL	0	0.00	
 select count(*), min(7), max(7) from t2m, t1i;
 count(*)	min(7)	max(7)
 0	NULL	NULL
@@ -345,11 +345,11 @@ create table t1 (f1 int, f2 char(1), primary key(f1,f2)) stats_persistent=0;
 insert into t1 values ( 1,"e"),(2,"a"),( 3,"c"),(4,"d");
 alter table t1 drop primary key, add primary key (f2, f1);
 explain select distinct f1 a, f1 b from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	5	NULL	4	Using index; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	5	NULL	4	100.00	Using index; Using temporary
 explain select distinct f1, f2 from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	5	NULL	4	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	5	NULL	4	100.00	Using index
 drop table t1;
 CREATE TABLE t1 (id int(11) NOT NULL PRIMARY KEY, name varchar(20),
 INDEX (name));
@@ -360,15 +360,15 @@ INSERT INTO t2 VALUES (1,1),(2,2),(3,2),(4,3),(5,3);
 EXPLAIN
 SELECT COUNT(*) FROM t2 LEFT JOIN t1 ON t2.fkey = t1.id
 WHERE t1.name LIKE 'A%';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	PRIMARY,name	name	23	NULL	2	Using where; Using index
-1	SIMPLE	t2	NULL	ref	fkey	fkey	5	test.t1.id	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY,name	name	23	NULL	2	100.00	Using where; Using index
+1	SIMPLE	t2	NULL	ref	fkey	fkey	5	test.t1.id	1	100.00	Using index
 EXPLAIN
 SELECT COUNT(*) FROM t2 LEFT JOIN t1 ON t2.fkey = t1.id
 WHERE t1.name LIKE 'A%' OR FALSE;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	PRIMARY,name	name	23	NULL	2	Using where; Using index
-1	SIMPLE	t2	NULL	ref	fkey	fkey	5	test.t1.id	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY,name	name	23	NULL	2	100.00	Using where; Using index
+1	SIMPLE	t2	NULL	ref	fkey	fkey	5	test.t1.id	1	100.00	Using index
 DROP TABLE t1,t2;
 CREATE TABLE t1 (
 id int NOT NULL,
@@ -395,8 +395,8 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 flush tables;
 EXPLAIN SELECT DISTINCT t1.name, t1.dept FROM t1 WHERE t1.name='rs5';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	name	name	22	const	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	name	name	22	const	2	100.00	Using where; Using index
 SELECT DISTINCT t1.name, t1.dept FROM t1 WHERE t1.name='rs5';
 name	dept
 rs5	cs10
@@ -404,8 +404,8 @@ rs5	cs9
 DELETE FROM t1;
 # Masking (#) number in "rows" column of the following EXPLAIN output, as it may vary (bug#47746).
 EXPLAIN SELECT DISTINCT t1.name, t1.dept FROM t1 WHERE t1.name='rs5';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	name	name	22	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	name	name	22	const	#	100.00	Using where; Using index
 SELECT DISTINCT t1.name, t1.dept FROM t1 WHERE t1.name='rs5';
 name	dept
 DROP TABLE t1;
@@ -986,8 +986,8 @@ SELECT COUNT(*) FROM t1 WHERE acct_id=785;
 COUNT(*)
 8702
 EXPLAIN SELECT COUNT(*) FROM t1 WHERE stat_id IN (1,3) AND acct_id=785;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	idx1,idx2	idx1	9	NULL	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	idx1,idx2	idx1	9	NULL	2	100.00	Using where; Using index
 INSERT INTO t2 SELECT * FROM t1;
 OPTIMIZE TABLE t2;
 Table	Op	Msg_type	Msg_text
@@ -1101,8 +1101,8 @@ COUNT(*)
 EXPLAIN 
 SELECT COUNT(*) FROM t1 
 WHERE (c >= '2007-01-02' AND c <= '2007-01-03') OR b >= 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	idx_b,idx_c	NULL	NULL	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	idx_b,idx_c	NULL	NULL	NULL	#	100.00	Using where
 SELECT COUNT(*) FROM t1 
 WHERE (c >= '2007-01-02' AND c <= '2007-01-03') OR b >= 1;
 COUNT(*)
@@ -1110,8 +1110,8 @@ COUNT(*)
 EXPLAIN 
 SELECT COUNT(*) FROM t1 FORCE INDEX(idx_b, idx_c) 
 WHERE (c >= '2007-01-02' AND c <= '2007-01-03') OR b >= 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index_merge	idx_b,idx_c	idx_c,idx_b	5,4	NULL	#	Using sort_union(idx_c,idx_b); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index_merge	idx_b,idx_c	idx_c,idx_b	5,4	NULL	#	100.00	Using sort_union(idx_c,idx_b); Using where
 SELECT COUNT(*) FROM t1 FORCE INDEX(idx_b, idx_c)
 WHERE (c >= '2007-01-02' AND c <= '2007-01-03') OR b >= 1;
 COUNT(*)
@@ -1192,11 +1192,11 @@ INSERT INTO t1 SELECT  a + 16, MOD(a + 16, 20), 1 FROM t1;
 INSERT INTO t1 SELECT  a + 32, MOD(a + 32, 20), 1 FROM t1;
 INSERT INTO t1 SELECT  a + 64, MOD(a + 64, 20), 1 FROM t1;
 EXPLAIN SELECT b, SUM(c) FROM t1 GROUP BY b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	b	5	NULL	128	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	b	5	NULL	128	100.00	
 EXPLAIN SELECT SQL_BIG_RESULT b, SUM(c) FROM t1 GROUP BY b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	128	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	128	100.00	Using filesort
 DROP TABLE t1;
 drop table if exists t1;
 show variables like 'innodb_rollback_on_timeout';
@@ -1290,6 +1290,7 @@ key	bkey
 key_len	5
 ref	const
 rows	16
+filtered	100.00
 Extra	Using where; Using index
 SELECT * FROM t1 WHERE b=2 ORDER BY a;
 a	b
@@ -1320,6 +1321,7 @@ key	bkey
 key_len	5
 ref	NULL
 rows	32
+filtered	100.00
 Extra	Using where; Using index; Using filesort
 SELECT * FROM t1 WHERE b BETWEEN 1 AND 2 ORDER BY a;
 a	b
@@ -1366,6 +1368,7 @@ key	bkey
 key_len	5
 ref	NULL
 rows	32
+filtered	100.00
 Extra	Using where; Using index
 SELECT * FROM t1 WHERE b BETWEEN 1 AND 2 ORDER BY b,a;
 a	b
@@ -1417,6 +1420,7 @@ key	bkey
 key_len	5
 ref	const
 rows	16
+filtered	100.00
 Extra	Using where; Using index; Using filesort
 SELECT * FROM t2 WHERE b=1 ORDER BY a;
 a	b	c
@@ -1447,6 +1451,7 @@ key	bkey
 key_len	10
 ref	const,const
 rows	16
+filtered	100.00
 Extra	Using where; Using index
 SELECT * FROM t2 WHERE b=1 AND c=1 ORDER BY a;
 a	b	c
@@ -1477,6 +1482,7 @@ key	bkey
 key_len	10
 ref	const,const
 rows	16
+filtered	100.00
 Extra	Using where; Using index
 SELECT * FROM t2 WHERE b=1 AND c=1 ORDER BY b,c,a;
 a	b	c
@@ -1507,6 +1513,7 @@ key	bkey
 key_len	10
 ref	const,const
 rows	16
+filtered	100.00
 Extra	Using where; Using index
 SELECT * FROM t2 WHERE b=1 AND c=1 ORDER BY c,a;
 a	b	c
@@ -1603,40 +1610,40 @@ UNIQUE KEY (c,b)
 ) engine=innodb;
 INSERT INTO t1 VALUES (1,1,1,50), (1,2,3,40), (2,1,3,4);
 EXPLAIN SELECT c,b,d FROM t1 GROUP BY c,b,d;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 SELECT c,b,d FROM t1 GROUP BY c,b,d;
 c	b	d
 1	1	50
 3	1	4
 3	2	40
 EXPLAIN SELECT c,b,d FROM t1 GROUP BY c,b,d ORDER BY NULL;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 SELECT c,b,d FROM t1 GROUP BY c,b,d ORDER BY NULL;
 c	b	d
 1	1	50
 3	1	4
 3	2	40
 EXPLAIN SELECT c,b,d FROM t1 ORDER BY c,b,d;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 SELECT c,b,d FROM t1 ORDER BY c,b,d;
 c	b	d
 1	1	50
 3	1	4
 3	2	40
 EXPLAIN SELECT c,b,d FROM t1 GROUP BY c,b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	c	8	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	c	8	NULL	3	100.00	
 SELECT c,b,d FROM t1 GROUP BY c,b;
 c	b	d
 1	1	50
 3	1	4
 3	2	40
 EXPLAIN SELECT c,b   FROM t1 GROUP BY c,b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	c	8	NULL	3	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	c	8	NULL	3	100.00	Using index
 SELECT c,b   FROM t1 GROUP BY c,b;
 c	b
 1	1
@@ -1656,6 +1663,7 @@ key	b
 key_len	5
 ref	const
 rows	2
+filtered	100.00
 Extra	Using where; Using index
 SELECT * FROM t1 WHERE b=2 ORDER BY a ASC;
 a	b
@@ -1672,6 +1680,7 @@ key	b
 key_len	5
 ref	const
 rows	2
+filtered	100.00
 Extra	Using where; Using index
 SELECT * FROM t1 WHERE b=2 ORDER BY a DESC;
 a	b
@@ -1688,6 +1697,7 @@ key	b
 key_len	5
 ref	NULL
 rows	3
+filtered	100.00
 Extra	Using index
 SELECT * FROM t1 ORDER BY b ASC, a ASC;
 a	b
@@ -1705,6 +1715,7 @@ key	b
 key_len	5
 ref	NULL
 rows	3
+filtered	100.00
 Extra	Using index
 SELECT * FROM t1 ORDER BY b DESC, a DESC;
 a	b
@@ -1722,6 +1733,7 @@ key	b
 key_len	5
 ref	NULL
 rows	3
+filtered	100.00
 Extra	Using index; Using filesort
 SELECT * FROM t1 ORDER BY b ASC, a DESC;
 a	b
@@ -1739,6 +1751,7 @@ key	b
 key_len	5
 ref	NULL
 rows	3
+filtered	100.00
 Extra	Using index; Using filesort
 SELECT * FROM t1 ORDER BY b DESC, a ASC;
 a	b
@@ -1799,8 +1812,8 @@ CREATE TABLE t1 (id int, type char(6), d int, INDEX idx(id,d)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES 
 (191, 'member', 1), (NULL, 'member', 3), (NULL, 'member', 4), (201, 'member', 2);
 EXPLAIN SELECT * FROM t1 WHERE id=191 OR id IS NULL ORDER BY d;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	idx	NULL	NULL	NULL	4	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	idx	NULL	NULL	NULL	4	75.00	Using where; Using filesort
 SELECT * FROM t1 WHERE id=191 OR id IS NULL ORDER BY d;
 id	type	d
 191	member	1
@@ -1815,8 +1828,8 @@ ENGINE=InnoDB;
 INSERT INTO t1 (a,b,c) VALUES (1,1,1), (2,1,1), (3,1,1), (4,1,1);
 INSERT INTO t1 (a,b,c) SELECT a+4,b,c FROM t1;
 EXPLAIN SELECT a, b, c FROM t1 WHERE b = 1 ORDER BY a DESC LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	t1_b	t1_b	5	NULL	8	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	t1_b	t1_b	5	NULL	8	100.00	Using where
 SELECT a, b, c FROM t1 WHERE b = 1 ORDER BY a DESC LIMIT 5;
 a	b	c
 8	1	1
@@ -1876,10 +1889,10 @@ set @save_optimizer_switch=@@optimizer_switch;
 set @@optimizer_switch='in_to_exists=on,materialization=off';
 explain
 select b from t1 where a not in (select max(b) from t1,t2 group by a) group by a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-2	DEPENDENT SUBQUERY	t1	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	DEPENDENT SUBQUERY	t1	NULL	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	
 set optimizer_switch=@save_optimizer_switch;
 DROP TABLE t1,t2;
 End of 5.0 tests
@@ -2177,8 +2190,8 @@ INSERT INTO t1 VALUES
 (4,1,3,'pk',NULL),(5,1,3,'c2',NULL),
 (2,1,4,'c_extra',NULL),(3,1,4,'c_extra',NULL);
 EXPLAIN SELECT * FROM t1 FORCE INDEX (PRIMARY) WHERE tid = 1 AND vid = 3 ORDER BY idx DESC;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	12	NULL	16	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	12	NULL	16	25.00	Using where
 SELECT * FROM t1 FORCE INDEX (PRIMARY) WHERE tid = 1 AND vid = 3 ORDER BY idx DESC;
 vid	tid	idx	name	type
 3	1	4	c_extra	NULL
@@ -2201,9 +2214,9 @@ FROM t1 WHERE c2 IN (1, 1) AND c3 = 2 GROUP BY c2) x;
 EXPLAIN 
 SELECT 1 FROM (SELECT COUNT(DISTINCT c1) 
 FROM t1 WHERE c2 IN (1, 1) AND c3 = 2 GROUP BY c2) x;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	t1	NULL	ref	c3,c2	c3	5	const	2	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	NULL	ref	c3,c2	c3	5	const	2	100.00	Using where; Using filesort
 DROP TABLE t1;
 CREATE TABLE t1 (c1 REAL, c2 REAL, c3 REAL, KEY (c3), KEY (c2, c3))
 ENGINE=InnoDB;
@@ -2215,9 +2228,9 @@ FROM t1 WHERE c2 IN (1, 1) AND c3 = 2 GROUP BY c2) x;
 EXPLAIN 
 SELECT 1 FROM (SELECT COUNT(DISTINCT c1) 
 FROM t1 WHERE c2 IN (1, 1) AND c3 = 2 GROUP BY c2) x;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	t1	NULL	ref	c3,c2	c3	9	const	2	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	NULL	ref	c3,c2	c3	9	const	2	100.00	Using where; Using filesort
 DROP TABLE t1;
 CREATE TABLE t1 (c1 DECIMAL(12,2), c2 DECIMAL(12,2), c3 DECIMAL(12,2), 
 KEY (c3), KEY (c2, c3))
@@ -2230,9 +2243,9 @@ FROM t1 WHERE c2 IN (1, 1) AND c3 = 2 GROUP BY c2) x;
 EXPLAIN 
 SELECT 1 FROM (SELECT COUNT(DISTINCT c1) 
 FROM t1 WHERE c2 IN (1, 1) AND c3 = 2 GROUP BY c2) x;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	t1	NULL	ref	c3,c2	c3	7	const	2	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	NULL	ref	c3,c2	c3	7	const	2	100.00	Using where; Using filesort
 DROP TABLE t1;
 End of 5.1 tests
 #
@@ -2250,9 +2263,9 @@ KEY a (a,b)
 insert into t1 values (0),(1),(2),(3),(4);
 insert into t2 select A.a + 10 *B.a, 1, 'filler' from t1 A, t1 B;
 explain select * from t1, t2 where t2.a=t1.a and t2.b + 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	
-1	SIMPLE	t2	NULL	ref	a	a	4	test.t1.a	1	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+1	SIMPLE	t2	NULL	ref	a	a	4	test.t1.a	1	100.00	Using index condition
 select * from t1, t2 where t2.a=t1.a and t2.b + 1;
 a	a	b	filler
 0	0	1	filler
@@ -2303,8 +2316,8 @@ create table t2 (a int, b int, pk int, key(a,b), primary key(pk)) engine=innodb;
 insert into t2 select @a:=A.a+10*(B.a + 10*C.a),@a, @a from t1 A, t1 B, t1 C;
 # this must use key 'a', not PRIMARY:
 explain select a from t2 where a=b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	index	NULL	a	10	#	1000	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	index	NULL	a	10	#	1000	100.00	Using where; Using index
 drop table t1, t2;
 #
 # Bug #40360: Binlog related errors with binlog off
@@ -2362,6 +2375,7 @@ key	NULL
 key_len	NULL
 ref	NULL
 rows	6
+filtered	83.33
 Extra	Using where
 EXPLAIN SELECT c FROM foo WHERE b>2;;
 id	1
@@ -2374,6 +2388,7 @@ key	NULL
 key_len	NULL
 ref	NULL
 rows	6
+filtered	83.33
 Extra	Using where
 EXPLAIN SELECT c FROM foo2 WHERE b>2;;
 id	1
@@ -2386,6 +2401,7 @@ key	b
 key_len	5
 ref	NULL
 rows	5
+filtered	100.00
 Extra	Using where; Using index
 EXPLAIN SELECT c FROM bar WHERE c>2;;
 id	1
@@ -2398,6 +2414,7 @@ key	NULL
 key_len	NULL
 ref	NULL
 rows	6
+filtered	100.00
 Extra	Using where
 EXPLAIN SELECT c FROM foo WHERE c>2;;
 id	1
@@ -2410,6 +2427,7 @@ key	NULL
 key_len	NULL
 ref	NULL
 rows	6
+filtered	100.00
 Extra	Using where
 EXPLAIN SELECT c FROM foo2 WHERE c>2;;
 id	1
@@ -2422,6 +2440,7 @@ key	b
 key_len	5
 ref	NULL
 rows	6
+filtered	100.00
 Extra	Using where; Using index
 DROP TABLE foo, bar, foo2;
 #
@@ -2735,11 +2754,11 @@ test.t1	analyze	status	OK
 SELECT * FROM t1 WHERE c1 = 99999999 AND c3 > 1 ORDER BY c3;
 c1	c2	c3
 EXPLAIN SELECT * FROM t1 WHERE c1 = 99999999 AND c3 > 1 ORDER BY c3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	PRIMARY,c3	PRIMARY	4	const	1	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	PRIMARY,c3	PRIMARY	4	const	1	100.00	Using where; Using filesort
 EXPLAIN SELECT * FROM t1 FORCE INDEX (PRIMARY) WHERE c1 = 99999999 AND c3 > 1 ORDER BY c3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	PRIMARY	PRIMARY	4	const	1	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	PRIMARY	PRIMARY	4	const	1	100.00	Using where; Using filesort
 CREATE TABLE t2 (
 c1 int NOT NULL,
 c2 int NOT NULL,
@@ -2748,8 +2767,8 @@ KEY (c1,c2),
 KEY (c3)
 ) ENGINE=InnoDB;
 explain SELECT * FROM t2 WHERE c1 = 99999999 AND c3 > 1 ORDER BY c3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ref	c1,c3	c1	4	const	1	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ref	c1,c3	c1	4	const	1	100.00	Using where; Using filesort
 DROP TABLE t1,t2;
 #
 # 36259: Optimizing with ORDER BY
@@ -2771,14 +2790,14 @@ INSERT INTO t1 (b,c,d,e) SELECT RAND()*10000, RAND()*10000, d, e FROM t1;
 INSERT INTO t1 (b,c,d,e) SELECT RAND()*10000, RAND()*10000, d, e FROM t1;
 ANALYZE TABLE t1;
 EXPLAIN SELECT * FROM t1 WHERE b=1 AND c=1 ORDER BY a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	i2	i2	8	const,const	1	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	i2	i2	8	const,const	1	100.00	Using where; Using filesort
 EXPLAIN SELECT * FROM t1 FORCE INDEX(i2) WHERE b=1 and c=1 ORDER BY a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	i2	i2	8	const,const	1	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	i2	i2	8	const,const	1	100.00	Using where; Using filesort
 EXPLAIN SELECT * FROM t1 FORCE INDEX(PRIMARY) WHERE b=1 AND c=1 ORDER BY a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	{checked}	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	{checked}	0.01	Using where
 DROP TABLE t1;
 #
 # Bug #47963: Wrong results when index is used
@@ -2819,8 +2838,8 @@ c >= '2009-10-09 00:00:00.001' AND c <= '2009-10-09 00:00:00.00';
 a	b	c
 EXPLAIN SELECT * FROM t1 WHERE a = 'TEST' AND 
 c >= '2009-10-09 00:00:00.001' AND c <= '2009-10-09 00:00:00.00';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 DROP TABLE t1;
 #
 # Bug #46175: NULL read_view and consistent read assertion
@@ -2866,9 +2885,9 @@ insert into t2 values (1),(2),(3);
 analyze table t1;
 analyze table t2;
 explain select t1.* from t1 left join t2 using(f1) group by t1.f1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	3	
-1	SIMPLE	t2	NULL	ref	f1	f1	4	test.t1.f1	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ref	f1	f1	4	test.t1.f1	1	100.00	Using index
 drop table t1,t2;
 #
 #
@@ -2896,6 +2915,7 @@ key	b
 key_len	10
 ref	NULL
 rows	10
+filtered	100.00
 Extra	Using index
 DROP TABLE t1;
 #
@@ -2989,9 +3009,9 @@ id	id
 NULL	75
 EXPLAIN SELECT t1.id,t2.id FROM t2 LEFT JOIN t1 ON t1.id>=74 AND t1.id<=0
 WHERE t2.id=75 AND t1.id IS NULL;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	const	PRIMARY	NULL	NULL	NULL	1	Impossible ON condition
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	const	PRIMARY	NULL	NULL	NULL	1	100.00	Impossible ON condition
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 DROP TABLE t1,t2;
 #
 # Bug#38999 valgrind warnings for update statement in function compare_record()
@@ -3052,8 +3072,8 @@ EXPLAIN SELECT * FROM t1 WHERE f1 IN
 3470988,3305175,3329875,3817277,3856380,3796193,
 3784744,4180925,4559596,3963734,3856391,4494153)
 AND f5 = 'abcdefghijklmnopwrst' AND f2 = 1221457 AND f4 = 0 ;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index_merge	PRIMARY,idx1,idx2	idx2,idx1,PRIMARY	7,60,4	NULL	1	Using intersect(idx2,idx1,PRIMARY); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index_merge	PRIMARY,idx1,idx2	idx2,idx1,PRIMARY	7,60,4	NULL	1	69.39	Using intersect(idx2,idx1,PRIMARY); Using where
 set optimizer_switch=@tmp_innodb_mysql;
 DROP TABLE t1;
 #
@@ -3085,8 +3105,8 @@ f1	f2	f3	f4
 23	1	9918	1
 EXPLAIN SELECT * FROM t1 WHERE f2 = 1 AND f4 = TRUE
 ORDER BY f1 DESC LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	f2,f4	f4	1	NULL	22	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	f2,f4	f4	1	NULL	22	100.00	Using where
 DROP TABLE t1;
 #
 # Bug#54117 crash in thr_multi_unlock, temporary table
@@ -3113,6 +3133,7 @@ key	b
 key_len	4
 ref	NULL
 rows	3
+filtered	100.00
 Extra	Using index
 DROP INDEX b ON t1;
 CREATE INDEX b ON t1(a,b);
@@ -3127,6 +3148,7 @@ key	b
 key_len	8
 ref	NULL
 rows	3
+filtered	100.00
 Extra	Using index
 DROP INDEX b ON t1;
 CREATE INDEX b ON t1(a,b,c);
@@ -3141,6 +3163,7 @@ key	PRIMARY
 key_len	8
 ref	NULL
 rows	3
+filtered	100.00
 Extra	Using index
 DROP INDEX b ON t1;
 CREATE INDEX b ON t1(a,b,c,d);
@@ -3155,6 +3178,7 @@ key	PRIMARY
 key_len	8
 ref	NULL
 rows	3
+filtered	100.00
 Extra	Using index
 DROP TABLE t1;
 #
@@ -3202,9 +3226,9 @@ EXPLAIN
 SELECT COUNT(*) FROM
 (SELECT * FROM t1 FORCE INDEX (idx,PRIMARY)
 WHERE a BETWEEN 2 AND 7 OR pk=1000000) AS t;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	#	1537	
-2	DERIVED	t1	NULL	index_merge	PRIMARY,idx	idx,PRIMARY	5,4	#	1537	Using sort_union(idx,PRIMARY); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	#	1537	100.00	
+2	DERIVED	t1	NULL	index_merge	PRIMARY,idx	idx,PRIMARY	5,4	#	1537	100.00	Using sort_union(idx,PRIMARY); Using where
 SELECT COUNT(*) FROM
 (SELECT * FROM t1 FORCE INDEX (idx,PRIMARY)
 WHERE a BETWEEN 2 AND 7 OR pk=1000000) AS t;
@@ -3312,10 +3336,10 @@ INSERT INTO t1 VALUES ('1'), (NULL);
 INSERT INTO t2 VALUES (1, '1');
 EXPLAIN
 SELECT t2.b FROM t1,t2 WHERE t1.a IN (SELECT 1 FROM t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	t2	NULL	index	NULL	PRIMARY	4	NULL	1	Using index; FirstMatch(t1); Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	NULL	index	NULL	PRIMARY	4	NULL	1	100.00	Using index; FirstMatch(t1); Using join buffer (incremental, BNL join)
 SELECT t2.b FROM t1,t2 WHERE t1.a IN (SELECT 1 FROM t2);
 b
 1
@@ -3348,8 +3372,8 @@ EXPLAIN
 SELECT v2  
 FROM t1
 WHERE v1  IN  ('f', 'd', 'h', 'u' ) AND i  =  2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	i,v	i	5	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	i,v	i	5	const	2	100.00	Using where
 DROP TABLE t1;
 #
 # Bug#54606 innodb fast alter table + pack_keys=0 

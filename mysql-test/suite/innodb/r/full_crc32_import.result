@@ -49,8 +49,8 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB AUTO_INCREMENT=57 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 UPDATE t1 set b = repeat("de", 100) where b = repeat("cd", 200);
 explain SELECT a FROM t1 where b = repeat("de", 100);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	100.00	Using where
 SELECT a FROM t1 where b = repeat("de", 100);
 a
 3
