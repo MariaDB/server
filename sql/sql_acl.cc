@@ -3908,7 +3908,7 @@ bool check_some_access(THD *thd, privilege_t want_access, TABLE_LIST *table)
     1	Access denied.  In this case an error is sent to the client
 */
 
-bool check_global_access(THD *thd, privilege_t want_access, bool no_errors)
+bool check_global_access(THD *thd, const privilege_t want_access, bool no_errors)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   char command[128];
