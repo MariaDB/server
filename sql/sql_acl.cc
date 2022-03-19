@@ -146,21 +146,15 @@ public:
   const privilege_t access; // Privilege bits that need to be applied / removed.
   PRIV_TYPE spec_type;
   const LEX_CSTRING db;
-  const LEX_CSTRING table;
-  const LEX_CSTRING column;
-  const LEX_CSTRING routine;
 
   Priv_spec(privilege_t access, bool revoke, bool deny=false):
     revoke{revoke}, deny{deny}, access{access}, spec_type{PRIV_TYPE::GLOBAL_PRIV},
-    db({.str= nullptr, .length= 0}), table({.str= nullptr, .length= 0}),
-    column({.str= nullptr, .length= 0}), routine({.str= nullptr, .length= 0})
-  { }
+    db({.str= nullptr, .length= 0})
+  {}
 
   Priv_spec(privilege_t access, bool revoke, const LEX_CSTRING &db, bool deny=false):
     revoke{revoke}, deny{deny}, access{access},
-    spec_type{PRIV_TYPE::DATABASE_PRIV}, db{db},
-    table({.str= nullptr, .length= 0}), column({.str= nullptr, .length= 0}),
-    routine({.str= nullptr, .length= 0})
+    spec_type{PRIV_TYPE::DATABASE_PRIV}, db{db}
   { /* TODO(cvicentiu) hack */
      if (!db.str)
        spec_type= PRIV_TYPE::GLOBAL_PRIV;
