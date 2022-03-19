@@ -110,6 +110,10 @@ bool check_access(THD *thd, privilege_t want_access,
                   const char *db, privilege_t *save_priv,
                   GRANT_INTERNAL_INFO *grant_internal_info,
                   bool dont_check_global_grants, bool no_errors);
+bool check_fk_parent_table_access(THD *thd,
+                                  HA_CREATE_INFO *create_info,
+                                  Alter_info *alter_info,
+                                  const char* create_db);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 bool check_one_table_access(THD *thd, privilege_t privilege, TABLE_LIST *tables);
 bool check_single_table_access(THD *thd, privilege_t privilege,
