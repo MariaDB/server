@@ -152,12 +152,15 @@ public:
 
   Priv_spec(privilege_t access, bool revoke, bool deny=false):
     revoke{revoke}, deny{deny}, access{access}, spec_type{PRIV_TYPE::GLOBAL_PRIV},
-    db{}, table{}, column{}, routine{}
+    db{.str= nullptr, .length= 0}, table{.str= nullptr, .length= 0},
+    column{.str= nullptr, .length= 0}, routine{.str= nullptr, .length= 0}
   { }
 
   Priv_spec(privilege_t access, bool revoke, const LEX_CSTRING &db, bool deny=false):
     revoke{revoke}, deny{deny}, access{access},
-    spec_type{PRIV_TYPE::DATABASE_PRIV}, db{db}, table{}, column{}, routine{}
+    spec_type{PRIV_TYPE::DATABASE_PRIV}, db{db},
+    table{.str= nullptr, .length= 0}, column{.str= nullptr, .length= 0},
+    routine{.str= nullptr, .length= 0}
   { /* TODO(cvicentiu) hack */
      if (!db.str)
        spec_type= PRIV_TYPE::GLOBAL_PRIV;
