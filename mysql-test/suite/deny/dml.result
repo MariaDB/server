@@ -1,0 +1,144 @@
+create user foo;
+create database deny_db;
+create table deny_db.t1 (a int, b int, secret int);
+insert into deny_db.t1 values (1, 2, 3);
+create table deny_db.t2 (a int, b int, secret int);
+insert into deny_db.t2 values (10, 20, 30);
+grant select (a) on deny_db.t1 to foo;
+grant insert (a) on deny_db.t1 to foo;
+grant update (a) on deny_db.t1 to foo;
+grant delete on deny_db.t1 to foo;
+connect  con1,localhost,foo,,;
+insert into deny_db.t1 (a) values (1), (2), (3);
+disconnect con1;
+connection default;
+deny insert on deny_db.* to foo;
+connect  con1,localhost,foo,,;
+insert into deny_db.t1 (a) values (1), (2), (3);
+ERROR 42000: INSERT command denied to user 'foo'@'localhost' for table 't1'
+update deny_db.t1 set a=a*10;
+delete from deny_db.t1 where a = 20;
+disconnect con1;
+connection default;
+select * from deny_db.t1 order by a;
+a	b	secret
+10	2	3
+10	NULL	NULL
+30	NULL	NULL
+truncate deny_db.t1;
+revoke deny insert on deny_db.* from foo;
+connect  con1,localhost,foo,,;
+insert into deny_db.t1 (a) values (1), (2), (3);
+#
+# Test that revoking insert deny allows inserting only into allowed
+# to insert columns.
+#
+insert into deny_db.t1 (a) values (1), (2), (3);
+insert into deny_db.t1 (a,b) values (1,10), (2, 20), (3, 30);
+ERROR 42000: INSERT command denied to user 'foo'@'localhost' for column 'b' in table 't1'
+disconnect con1;
+connection default;
+#
+# Test delete/update command denies.
+#
+deny select on deny_db.* to foo;
+connect  con1,localhost,foo,,;
+#
+# Test not allowed to delete / update because of lack of select
+# rights.
+#
+update deny_db.t1 set a=a*10 where a = 1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'a' in table 't1'
+delete from deny_db.t1 where a = 20;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'a' in table 't1'
+disconnect con1;
+connection default;
+#
+# Now deny update and delete directly, but keep select.
+#
+revoke deny select on deny_db.* from foo;
+deny delete, update on deny_db.* to foo;
+connect  con1,localhost,foo,,;
+#
+# Test not allowed to delete / update because of lack of delete/update
+# rights.
+#
+update deny_db.t1 set a=a*10;
+ERROR 42000: UPDATE command denied to user 'foo'@'localhost' for table 't1'
+delete from deny_db.t1 where a = 20;
+ERROR 42000: DELETE command denied to user 'foo'@'localhost' for table 't1'
+disconnect con1;
+#
+# Test masking table level grants.
+#
+connection default;
+grant select on deny_db.t1 to foo;
+grant insert on deny_db.t1 to foo;
+grant update on deny_db.t1 to foo;
+grant delete on deny_db.t1 to foo;
+connect  con1,localhost,foo,,;
+insert into deny_db.t1 (a,b) values (1,10), (2, 20), (3, 30);
+disconnect con1;
+connection default;
+deny insert on deny_db.* to foo;
+connect  con1,localhost,foo,,;
+insert into deny_db.t1 (a,b) values (1,10), (2, 20), (3, 30);
+ERROR 42000: INSERT command denied to user 'foo'@'localhost' for table 't1'
+update deny_db.t1 set a=a*10;
+ERROR 42000: UPDATE command denied to user 'foo'@'localhost' for table 't1'
+delete from deny_db.t1 where a = 20;
+ERROR 42000: DELETE command denied to user 'foo'@'localhost' for table 't1'
+disconnect con1;
+connection default;
+revoke deny update, delete on deny_db.* from foo;
+connect  con1,localhost,foo,,;
+insert into deny_db.t1 (a,b) values (1,10), (2, 20), (3, 30);
+ERROR 42000: INSERT command denied to user 'foo'@'localhost' for table 't1'
+update deny_db.t1 set a=a*10;
+delete from deny_db.t1 where a = 20;
+disconnect con1;
+#
+# Test masking database & global level grants.
+#
+connection default;
+grant select on *.* to foo;
+grant insert on *.* to foo;
+grant update on *.* to foo;
+grant delete on *.* to foo;
+grant select on deny_db.* to foo;
+grant insert on deny_db.* to foo;
+grant update on deny_db.* to foo;
+grant delete on deny_db.* to foo;
+deny select, insert on deny_db.* to foo;
+connect  con1,localhost,foo,,;
+insert into deny_db.t1 (a,b) values (1,10), (2, 20), (3, 30);
+ERROR 42000: INSERT command denied to user 'foo'@'localhost' for table 't1'
+update deny_db.t1 set a=a*10;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'a' in table 't1'
+delete from deny_db.t1 where a = 20;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'a' in table 't1'
+disconnect con1;
+connection default;
+revoke deny select on deny_db.* from foo;
+deny update, delete on deny_db.* to foo;
+connect  con1,localhost,foo,,;
+insert into deny_db.t1 (a,b) values (1,10), (2, 20), (3, 30);
+ERROR 42000: INSERT command denied to user 'foo'@'localhost' for table 't1'
+update deny_db.t1 set a=a*10;
+ERROR 42000: UPDATE command denied to user 'foo'@'localhost' for table 't1'
+delete from deny_db.t1 where a = 20;
+ERROR 42000: DELETE command denied to user 'foo'@'localhost' for table 't1'
+disconnect con1;
+connection default;
+deny select on deny_db.* to foo;
+connect  con1,localhost,foo,,;
+insert into deny_db.t1 (a,b) values (1,10), (2, 20), (3, 30);
+ERROR 42000: INSERT command denied to user 'foo'@'localhost' for table 't1'
+update deny_db.t1 set a=a*10;
+ERROR 42000: UPDATE command denied to user 'foo'@'localhost' for table 't1'
+delete from deny_db.t1 where a = 20;
+ERROR 42000: DELETE command denied to user 'foo'@'localhost' for table 't1'
+disconnect con1;
+connection default;
+drop database deny_db;
+drop user foo;

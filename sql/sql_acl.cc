@@ -9768,6 +9768,10 @@ bool check_grant_column(const Security_context *sctx,
   if (!want_access)
     DBUG_RETURN(0);				// Already checked
 
+  privilege_t deny_mask= acl_get_effective_deny_mask(sctx, db_name);
+  if (want_access & deny_mask)
+    goto err;
+
   mysql_rwlock_rdlock(&LOCK_grant);
 
   /* reload table if someone has modified any grants */
@@ -9785,6 +9789,7 @@ bool check_grant_column(const Security_context *sctx,
     grant->version= grant_version;		/* purecov: inspected */
   }
 
+  /* TODO(cvicentiu) table / column level denies need to be checked here. */
   check_grant_column_int(grant->grant_table_user, field_name, &want_access);
   check_grant_column_int(grant->grant_table_role, field_name, &want_access);
 
@@ -9792,6 +9797,7 @@ bool check_grant_column(const Security_context *sctx,
   if (!want_access)
     DBUG_RETURN(0);
 
+err:
   char command[128];
   get_privilege_desc(command, sizeof(command), want_access);
   /* TODO perhaps error should print current rolename aswell */
