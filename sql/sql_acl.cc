@@ -13596,6 +13596,8 @@ bool Sql_cmd_grant_table::execute_grant_database(THD *thd)
   if (!result)
     my_ok(thd);
 
+  return result;
+
 #ifdef WITH_WSREP
 wsrep_error_label:
   return true;
