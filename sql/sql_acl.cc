@@ -9054,7 +9054,7 @@ static bool mysql_grant_global(THD *thd,
                                bool no_auto_create_users)
 {
   List_iterator<LEX_USER> it(list);
-  bool result;
+  bool result= false;
   DBUG_ENTER("mysql_grant_global");
 
   /* go through users in user_list */
@@ -9084,7 +9084,7 @@ static bool mysql_grant_db(THD *thd,
                            bool no_auto_create_users)
 {
   List_iterator<LEX_USER> it(list);
-  bool result;
+  bool result= false;
   DBUG_ENTER("mysql_grant_db");
   mysql_mutex_assert_owner(&acl_cache->lock);
   DBUG_ASSERT((priv_spec.access & DB_ACLS) == priv_spec.access);  // Only DB_ACLs are accepted.
@@ -9118,7 +9118,7 @@ static bool mysql_grant_proxy(THD *thd,
 {
   List_iterator<LEX_USER> it(list);
   LEX_USER *proxied_user= it++;
-  bool result;
+  bool result= false;
   bool with_grant_option= priv_spec.access & GRANT_ACL ? true : false;
   DBUG_ASSERT(!(priv_spec.access & ~GRANT_ACL)); // Only WITH GRANT OPTION
   DBUG_ENTER("mysql_grant_proxy");
