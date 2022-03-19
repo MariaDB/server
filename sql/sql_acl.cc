@@ -9246,15 +9246,18 @@ err:
 }
 
 
-static void check_grant_column_int(GRANT_TABLE *grant_table, const char *name,
-                                   uint length, privilege_t *want_access)
+static void check_grant_column_int(GRANT_TABLE *grant_table,
+                                   const LEX_CSTRING &field_name,
+                                   privilege_t *want_access)
 {
   if (grant_table)
   {
     *want_access&= ~grant_table->privs;
     if (*want_access & grant_table->cols)
     {
-      GRANT_COLUMN *grant_column= column_hash_search(grant_table, name, length);
+      GRANT_COLUMN *grant_column= column_hash_search(grant_table,
+                                                     field_name.str,
+                                                     field_name.length);
       if (grant_column)
         *want_access&= ~grant_column->rights;
     }
@@ -9319,9 +9322,11 @@ void GRANT_INFO::read(const Security_context *sctx,
     TRUE  access denied
 */
 
-bool check_grant_column(THD *thd, GRANT_INFO *grant,
-			const char *db_name, const char *table_name,
-			const char *name, size_t length,  Security_context *sctx)
+bool check_grant_column(const Security_context *sctx,
+                        GRANT_INFO *grant,
+                        const LEX_CSTRING &db_name,
+                        const LEX_CSTRING &table_name,
+                        const LEX_CSTRING &field_name)
 {
   privilege_t want_access(grant->want_privilege & ~grant->privilege);
   DBUG_ENTER("check_grant_column");
@@ -9334,14 +9339,12 @@ bool check_grant_column(THD *thd, GRANT_INFO *grant,
   mysql_rwlock_rdlock(&LOCK_grant);
 
   /* reload table if someone has modified any grants */
-  grant->refresh(sctx, db_name, table_name);
+  grant->refresh(sctx, db_name.str, table_name.str);
 
-  check_grant_column_int(grant->grant_table_user, name, (uint)length,
-                         &want_access);
-  check_grant_column_int(grant->grant_table_role, name, (uint)length,
-                         &want_access);
-  check_grant_column_int(grant->grant_public, name, (uint)length,
-                         &want_access);
+  check_grant_column_int(grant->grant_table_user, field_name, &want_access);
+  check_grant_column_int(grant->grant_table_role, field_name, &want_access);
+  check_grant_column_int(grant->grant_public, field_name, &want_access);
+
 
   mysql_rwlock_unlock(&LOCK_grant);
   if (!want_access)
@@ -9351,7 +9354,7 @@ bool check_grant_column(THD *thd, GRANT_INFO *grant,
   get_privilege_desc(command, sizeof(command), want_access);
   /* TODO perhaps error should print current rolename aswell */
   my_error(ER_COLUMNACCESS_DENIED_ERROR, MYF(0), command, sctx->priv_user,
-           sctx->host_or_ip, name, table_name);
+           sctx->host_or_ip, field_name.str, table_name.str);
   DBUG_RETURN(1);
 }
 
@@ -9385,8 +9388,8 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
                                      Field *fld)
 {
   GRANT_INFO *grant;
-  const char *db_name;
-  const char *table_name;
+  LEX_CSTRING *db_name;
+  LEX_CSTRING *table_name;
   Security_context *sctx= table_ref->security_ctx ?
                           table_ref->security_ctx : thd->security_ctx;
   if (fld && fld != not_found_field && fld != view_ref_found
@@ -9397,38 +9400,37 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
   {
     /* View or derived information schema table. */
     privilege_t view_privs(NO_ACL);
-    grant= &(table_ref->grant);
-    db_name= table_ref->view_db.str;
-    table_name= table_ref->view_name.str;
+    grant= &table_ref->grant;
+    db_name= &table_ref->view_db;
+    table_name= &table_ref->view_name;
     if (table_ref->belong_to_view &&
         thd->lex->sql_command == SQLCOM_SHOW_FIELDS)
     {
-      view_privs= get_column_grant(thd, grant, db_name, table_name, name);
+      view_privs= get_column_grant(thd, grant,
+                                   db_name->str, table_name->str, name);
       if (view_privs & VIEW_ANY_ACL)
       {
         table_ref->belong_to_view->allowed_show= TRUE;
-        return FALSE;
+        return false;
       }
       table_ref->belong_to_view->allowed_show= FALSE;
       my_message(ER_VIEW_NO_EXPLAIN, ER_THD(thd, ER_VIEW_NO_EXPLAIN), MYF(0));
-      return TRUE;
+      return true;
     }
   }
   else
   {
     /* Normal or temporary table. */
     TABLE *table= table_ref->table;
-    grant= &(table->grant);
-    db_name= table->s->db.str;
-    table_name= table->s->table_name.str;
+    grant= &table->grant;
+    db_name= &table->s->db;
+    table_name= &table->s->table_name;
   }
 
   if (grant->want_privilege)
-    return check_grant_column(thd, grant, db_name, table_name, name,
-                              length, sctx);
-  else
-    return FALSE;
-
+    return check_grant_column(sctx, grant, *db_name, *table_name,
+                              {name, length});
+  return false;
 }
 
 
