@@ -13548,13 +13548,12 @@ bool Sql_cmd_grant_proxy::check_access_proxy(THD *thd,
 
 bool Sql_cmd_grant_proxy::execute(THD *thd)
 {
-  LEX  *lex= thd->lex;
   bool result;
   const bool no_auto_create_users= MY_TEST(thd->variables.sql_mode &
                                            MODE_NO_AUTO_CREATE_USER);
   Grant_tables tables;
 
-  DBUG_ASSERT(lex->first_select_lex()->table_list.first == NULL);
+  DBUG_ASSERT(thd->lex->first_select_lex()->table_list.first == NULL);
   DBUG_ASSERT((m_grant_option & ~GRANT_ACL) == NO_ACL); // only WITH GRANT OPTION
 
   if (grant_stage0(thd))
@@ -13594,7 +13593,7 @@ bool Sql_cmd_grant_proxy::execute(THD *thd)
   if (!is_revoke())
     user_list_reset_mqh();
 
-  return false;
+  return result;
 
 #ifdef WITH_WSREP
 wsrep_error_label:
@@ -13744,7 +13743,7 @@ static bool maria_deny(THD *thd, const User_table &user_table,
                          bool create_new_users, bool no_auto_create_users)
 {
   List_iterator<LEX_USER> it(list);
-  bool result;
+  bool result= false;
   DBUG_ENTER("maria_deny");
 
   /* Only allow DB level denies. */
@@ -13853,7 +13852,7 @@ bool Sql_cmd_grant_table::execute_deny(THD *thd)
   if (!result)
     my_ok(thd);
 
-  return false;
+  return result;
 
 #ifdef WITH_WSREP
 wsrep_error_label:
@@ -13892,7 +13891,7 @@ bool Sql_cmd_grant_table::execute_grant_global(THD *thd)
   if (!result)
     my_ok(thd);
 
-  return false;
+  return result;
 
 #ifdef WITH_WSREP
 wsrep_error_label:
