@@ -248,9 +248,9 @@ d1 > '2019-02-06 00:00:00'
 dd.d1, dd.d2, dd.id limit 1
 );
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	NULL	index	NULL	PRIMARY	4	NULL	#	100.00	Using index
-1	PRIMARY	t2	NULL	eq_ref	PRIMARY,id2	PRIMARY	4	func	#	100.00	Using where
-2	DEPENDENT SUBQUERY	dd	NULL	range	id2,for_latest_sort	for_latest_sort	6	NULL	#	100.00	Using where
+1	PRIMARY	t1	NULL	index	NULL	PRIMARY	4	NULL	#	#	Using index
+1	PRIMARY	t2	NULL	eq_ref	PRIMARY,id2	PRIMARY	4	func	#	#	Using where
+2	DEPENDENT SUBQUERY	dd	NULL	range	id2,for_latest_sort	for_latest_sort	6	NULL	#	#	Using where
 drop table t1,t2,t3;
 # End of 10.2 tests
 #

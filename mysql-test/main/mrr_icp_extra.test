@@ -225,14 +225,14 @@ explain
 SELECT * FROM City
 WHERE Name LIKE 'M%' AND Population > 7000000;
 
---replace_column 7 # 8 # 10 #
+--replace_column 7 # 8 # 10 # 11 #
 explain 
 SELECT * FROM City 
 WHERE Name BETWEEN 'G' AND 'K' AND Population > 500000 AND Country LIKE 'C%';
 SELECT * FROM City 
 WHERE Name BETWEEN 'G' AND 'K' AND Population > 500000 AND Country LIKE 'C%';
 
---replace_column 7 # 8 # 10 #
+--replace_column 7 # 8 # 10 # 11 #
 explain
 SELECT * FROM City 
 WHERE  Name BETWEEN 'G' AND 'J' AND Population > 500000 AND Country LIKE 'C%';

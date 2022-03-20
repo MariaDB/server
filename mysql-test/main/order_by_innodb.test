@@ -224,7 +224,7 @@ from
 
 --echo # This must NOT have "Range checked for each record" without any
 --echo #   provisions to produce rows in the required ordering:
---replace_column 10 #
+--replace_column 10 # 11 #
 explain
 select
   t1.id,t2.id
