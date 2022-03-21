@@ -150,7 +150,7 @@ slave-bin.000001	#	Query	#	#	use `test`; create table t4 (server_2_to_be_delete 
 slave-bin.000001	#	Gtid	#	#	GTID #-#-#
 slave-bin.000001	#	Query	#	#	use `test`; create table t1 (new_table int)
 slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-slave-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `t2` (
+slave-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE `t2` (
   `a` int(11) DEFAULT NULL
 )
 slave-bin.000001	#	Annotate_rows	#	#	create table t2 select * from t9
