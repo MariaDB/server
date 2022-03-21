@@ -1373,7 +1373,7 @@ static int handle_match(json_engine_t *je, json_path_t *p,
       (int) (next_step->type & JSON_PATH_KEY_OR_ARRAY))
     return json_skip_level(je);
 
-  if (next_step->type == JSON_PATH_ARRAY)
+  if (next_step->type & JSON_PATH_ARRAY)
   {
     int array_size;
     if (next_step->n_item >= 0)
@@ -1418,6 +1418,7 @@ int json_find_path(json_engine_t *je,
                    int *array_counters)
 {
   json_string_t key_name;
+  int res= 0;
 
   json_string_set_cs(&key_name, p->s.cs);
 
@@ -1444,8 +1445,15 @@ int json_find_path(json_engine_t *je,
       break;
     case JST_VALUE:
       DBUG_ASSERT(cur_step->type & JSON_PATH_ARRAY);
-      if (cur_step->type & (JSON_PATH_WILD | JSON_PATH_ARRAY_RANGE) ||
-          cur_step->n_item == array_counters[cur_step - p->steps]++)
+      if (cur_step->type & JSON_PATH_ARRAY_RANGE)
+      {
+        res= (cur_step->n_item <= array_counters[cur_step - p->steps] &&
+              cur_step->n_item_end >= array_counters[cur_step - p->steps]);
+        array_counters[cur_step - p->steps]++;
+      }
+      else
+        res= cur_step->n_item == array_counters[cur_step - p->steps]++;
+      if ((cur_step->type & JSON_PATH_WILD) || res)
       {
         /* Array item matches. */
         if (cur_step == p->last_step ||

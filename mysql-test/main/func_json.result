@@ -1751,11 +1751,6 @@ JSON_OVERLAPS('true','tr')
 Warnings:
 Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_overlaps'
 #
-# End of 10.9 test
-#
-#
-# Beginning of 10.9 Test
-#
 # MDEV-22224: Support JSON Path negative index
 #
 SET @json='{
@@ -2217,6 +2212,1090 @@ JSON_KEYS(@json, '$.A[8][1 to 3]')
 NULL
 Warnings:
 Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_keys'
+#
+# MDEV-28071: JSON_EXISTS returns always 1 if it is used range notation
+# for json path
+#
+<<<<<<< HEAD
+||||||| parent of 3834536ced0... MDEV-28071: JSON_EXISTS returns always 1 if it is used range notation for
+||||||| constructed merge base
+=======
+#
+# Beginning of 10.9 Test
+#
+# MDEV-22224: Support JSON Path negative index
+#
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_ARRAY_APPEND(@json, '$.A[-2][-1]', 5);
+JSON_ARRAY_APPEND(@json, '$.A[-2][-1]', 5)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, 13, {"key1": "value1"}, [15, 5]], true], "B": {"C": 1}, "D": 2}
+SELECT JSON_ARRAY_APPEND(@json, '$.A[last-1][last]', 5);
+JSON_ARRAY_APPEND(@json, '$.A[last-1][last]', 5)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, 13, {"key1": "value1"}, [15, 5]], true], "B": {"C": 1}, "D": 2}
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_ARRAY_INSERT(@json, '$.A[-2][-2]', 5);
+JSON_ARRAY_INSERT(@json, '$.A[-2][-2]', 5)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, 13, {"key1": "value1"}, 5, [15]], true], "B": {"C": 1}, "D": 2}
+SELECT JSON_ARRAY_INSERT(@json, '$.A[last-1][last-1]', 5);
+JSON_ARRAY_INSERT(@json, '$.A[last-1][last-1]', 5)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, 13, {"key1": "value1"}, 5, [15]], true], "B": {"C": 1}, "D": 2}
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_CONTAINS(@json, '15', '$.A[-2][-1]');
+JSON_CONTAINS(@json, '15', '$.A[-2][-1]')
+1
+SELECT JSON_CONTAINS(@json, '15', '$.A[last-1][last]');
+JSON_CONTAINS(@json, '15', '$.A[last-1][last]')
+1
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_CONTAINS_PATH(@json, 'one', '$.A[-2]');
+JSON_CONTAINS_PATH(@json, 'one', '$.A[-2]')
+1
+SELECT JSON_CONTAINS_PATH(@json, 'one', '$.A[last-1]');
+JSON_CONTAINS_PATH(@json, 'one', '$.A[last-1]')
+1
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_EXISTS(@json, '$.A[-2][-1]');
+JSON_EXISTS(@json, '$.A[-2][-1]')
+1
+SELECT JSON_EXISTS(@json, '$.A[last-1][last]');
+JSON_EXISTS(@json, '$.A[last-1][last]')
+1
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_EXTRACT(@json, '$.A[-8][1]');
+JSON_EXTRACT(@json, '$.A[-8][1]')
+5
+SELECT JSON_EXTRACT(@json, '$.A[last-7][1]');
+JSON_EXTRACT(@json, '$.A[last-7][1]')
+5
+SET @json= '[{"A": 1, "B": 2, "C": {"D": 3}},{"A": 1, "B": 2, "C": {"D": 3}}]';
+SELECT JSON_KEYS(@json, '$[-1].C');
+JSON_KEYS(@json, '$[-1].C')
+["D"]
+SELECT JSON_KEYS(@json, '$[last].C');
+JSON_KEYS(@json, '$[last].C')
+["D"]
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_LENGTH(@json, '$.A[-2][-3]');
+JSON_LENGTH(@json, '$.A[-2][-3]')
+2
+SELECT JSON_LENGTH(@json, '$.A[last-1][last-2]');
+JSON_LENGTH(@json, '$.A[last-1][last-2]')
+2
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_QUERY(@json, '$.A[-8]');
+JSON_QUERY(@json, '$.A[-8]')
+[4, 5, 6]
+SELECT JSON_QUERY(@json, '$.A[last-7]');
+JSON_QUERY(@json, '$.A[last-7]')
+[4, 5, 6]
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_REMOVE(@json, '$.A[-10]');
+JSON_REMOVE(@json, '$.A[-10]')
+{"A": [[1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], true], "B": {"C": 1}, "D": 2}
+SELECT JSON_REMOVE(@json, '$.A[last-9]');
+JSON_REMOVE(@json, '$.A[last-9]')
+{"A": [[1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], true], "B": {"C": 1}, "D": 2}
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_REPLACE(@json, '$.A[-1]', 4);
+JSON_REPLACE(@json, '$.A[-1]', 4)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], 4], "B": {"C": 1}, "D": 2}
+SELECT JSON_REPLACE(@json, '$.A[last]', 4);
+JSON_REPLACE(@json, '$.A[last]', 4)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], 4], "B": {"C": 1}, "D": 2}
+SET @json = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';
+SELECT JSON_SEARCH(@json, 'all', 'abc', NULL, '$[-2]');
+JSON_SEARCH(@json, 'all', 'abc', NULL, '$[-2]')
+"$[2].x"
+SELECT JSON_SEARCH(@json, 'all', 'abc', NULL, '$[last-1]');
+JSON_SEARCH(@json, 'all', 'abc', NULL, '$[last-1]')
+"$[2].x"
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_SET(@json, '$.A[-4]', 100);
+JSON_SET(@json, '$.A[-4]', 100)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, 100, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], true], "B": {"C": 1}, "D": 2}
+SELECT JSON_SET(@json, '$.A[last-3]', 100);
+JSON_SET(@json, '$.A[last-3]', 100)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, 100, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], true], "B": {"C": 1}, "D": 2}
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":123},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_VALUE(@json, '$.A[-2][-2].key1');
+JSON_VALUE(@json, '$.A[-2][-2].key1')
+123
+SELECT JSON_VALUE(@json, '$.A[last-1][last-1].key1');
+JSON_VALUE(@json, '$.A[last-1][last-1].key1')
+123
+#
+# End of 10.9 Test
+#
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [15, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20],
+             21, 22
+            ]';
+SELECT JSON_EXISTS(@json, '$[2][2][1 to 2]');
+JSON_EXISTS(@json, '$[2][2][1 to 2]')
+1
+SELECT JSON_EXISTS(@json, '$[2][2][4 to 6]');
+JSON_EXISTS(@json, '$[2][2][4 to 6]')
+0
+SELECT JSON_EXISTS(@json, '$[2][2][1 to 4]');
+JSON_EXISTS(@json, '$[2][2][1 to 4]')
+1
+#
+# MDEV-22224: Support JSON Path negative index
+#
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_ARRAY_APPEND(@json, '$.A[-2][-1]', 5);
+JSON_ARRAY_APPEND(@json, '$.A[-2][-1]', 5)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, 13, {"key1": "value1"}, [15, 5]], true], "B": {"C": 1}, "D": 2}
+SELECT JSON_ARRAY_APPEND(@json, '$.A[last-1][last]', 5);
+JSON_ARRAY_APPEND(@json, '$.A[last-1][last]', 5)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, 13, {"key1": "value1"}, [15, 5]], true], "B": {"C": 1}, "D": 2}
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_ARRAY_INSERT(@json, '$.A[-2][-2]', 5);
+JSON_ARRAY_INSERT(@json, '$.A[-2][-2]', 5)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, 13, {"key1": "value1"}, 5, [15]], true], "B": {"C": 1}, "D": 2}
+SELECT JSON_ARRAY_INSERT(@json, '$.A[last-1][last-1]', 5);
+JSON_ARRAY_INSERT(@json, '$.A[last-1][last-1]', 5)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, 13, {"key1": "value1"}, 5, [15]], true], "B": {"C": 1}, "D": 2}
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_CONTAINS(@json, '15', '$.A[-2][-1]');
+JSON_CONTAINS(@json, '15', '$.A[-2][-1]')
+1
+SELECT JSON_CONTAINS(@json, '15', '$.A[last-1][last]');
+JSON_CONTAINS(@json, '15', '$.A[last-1][last]')
+1
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_CONTAINS_PATH(@json, 'one', '$.A[-2]');
+JSON_CONTAINS_PATH(@json, 'one', '$.A[-2]')
+1
+SELECT JSON_CONTAINS_PATH(@json, 'one', '$.A[last-1]');
+JSON_CONTAINS_PATH(@json, 'one', '$.A[last-1]')
+1
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_EXISTS(@json, '$.A[-2][-1]');
+JSON_EXISTS(@json, '$.A[-2][-1]')
+1
+SELECT JSON_EXISTS(@json, '$.A[last-1][last]');
+JSON_EXISTS(@json, '$.A[last-1][last]')
+1
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_EXTRACT(@json, '$.A[-8][1]');
+JSON_EXTRACT(@json, '$.A[-8][1]')
+5
+SELECT JSON_EXTRACT(@json, '$.A[last-7][1]');
+JSON_EXTRACT(@json, '$.A[last-7][1]')
+5
+SET @json= '[{"A": 1, "B": 2, "C": {"D": 3}},{"A": 1, "B": 2, "C": {"D": 3}}]';
+SELECT JSON_KEYS(@json, '$[-1].C');
+JSON_KEYS(@json, '$[-1].C')
+["D"]
+SELECT JSON_KEYS(@json, '$[last].C');
+JSON_KEYS(@json, '$[last].C')
+["D"]
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_LENGTH(@json, '$.A[-2][-3]');
+JSON_LENGTH(@json, '$.A[-2][-3]')
+2
+SELECT JSON_LENGTH(@json, '$.A[last-1][last-2]');
+JSON_LENGTH(@json, '$.A[last-1][last-2]')
+2
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_QUERY(@json, '$.A[-8]');
+JSON_QUERY(@json, '$.A[-8]')
+[4, 5, 6]
+SELECT JSON_QUERY(@json, '$.A[last-7]');
+JSON_QUERY(@json, '$.A[last-7]')
+[4, 5, 6]
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_REMOVE(@json, '$.A[-10]');
+JSON_REMOVE(@json, '$.A[-10]')
+{"A": [[1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], true], "B": {"C": 1}, "D": 2}
+SELECT JSON_REMOVE(@json, '$.A[last-9]');
+JSON_REMOVE(@json, '$.A[last-9]')
+{"A": [[1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], true], "B": {"C": 1}, "D": 2}
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_REPLACE(@json, '$.A[-1]', 4);
+JSON_REPLACE(@json, '$.A[-1]', 4)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], 4], "B": {"C": 1}, "D": 2}
+SELECT JSON_REPLACE(@json, '$.A[last]', 4);
+JSON_REPLACE(@json, '$.A[last]', 4)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], 4], "B": {"C": 1}, "D": 2}
+SET @json = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';
+SELECT JSON_SEARCH(@json, 'all', 'abc', NULL, '$[-2]');
+JSON_SEARCH(@json, 'all', 'abc', NULL, '$[-2]')
+"$[2].x"
+SELECT JSON_SEARCH(@json, 'all', 'abc', NULL, '$[last-1]');
+JSON_SEARCH(@json, 'all', 'abc', NULL, '$[last-1]')
+"$[2].x"
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_SET(@json, '$.A[-4]', 100);
+JSON_SET(@json, '$.A[-4]', 100)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, 100, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], true], "B": {"C": 1}, "D": 2}
+SELECT JSON_SET(@json, '$.A[last-3]', 100);
+JSON_SET(@json, '$.A[last-3]', 100)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, 100, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], true], "B": {"C": 1}, "D": 2}
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":123},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_VALUE(@json, '$.A[-2][-2].key1');
+JSON_VALUE(@json, '$.A[-2][-2].key1')
+123
+SELECT JSON_VALUE(@json, '$.A[last-1][last-1].key1');
+JSON_VALUE(@json, '$.A[last-1][last-1].key1')
+123
+#
+# MDEV-22224: Support JSON Path negative index
+#
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_ARRAY_APPEND(@json, '$.A[-2][-1]', 5);
+JSON_ARRAY_APPEND(@json, '$.A[-2][-1]', 5)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, 13, {"key1": "value1"}, [15, 5]], true], "B": {"C": 1}, "D": 2}
+SELECT JSON_ARRAY_APPEND(@json, '$.A[last-1][last]', 5);
+JSON_ARRAY_APPEND(@json, '$.A[last-1][last]', 5)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, 13, {"key1": "value1"}, [15, 5]], true], "B": {"C": 1}, "D": 2}
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_ARRAY_INSERT(@json, '$.A[-2][-2]', 5);
+JSON_ARRAY_INSERT(@json, '$.A[-2][-2]', 5)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, 13, {"key1": "value1"}, 5, [15]], true], "B": {"C": 1}, "D": 2}
+SELECT JSON_ARRAY_INSERT(@json, '$.A[last-1][last-1]', 5);
+JSON_ARRAY_INSERT(@json, '$.A[last-1][last-1]', 5)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, 13, {"key1": "value1"}, 5, [15]], true], "B": {"C": 1}, "D": 2}
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_CONTAINS(@json, '15', '$.A[-2][-1]');
+JSON_CONTAINS(@json, '15', '$.A[-2][-1]')
+1
+SELECT JSON_CONTAINS(@json, '15', '$.A[last-1][last]');
+JSON_CONTAINS(@json, '15', '$.A[last-1][last]')
+1
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_CONTAINS_PATH(@json, 'one', '$.A[-2]');
+JSON_CONTAINS_PATH(@json, 'one', '$.A[-2]')
+1
+SELECT JSON_CONTAINS_PATH(@json, 'one', '$.A[last-1]');
+JSON_CONTAINS_PATH(@json, 'one', '$.A[last-1]')
+1
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_EXISTS(@json, '$.A[-2][-1]');
+JSON_EXISTS(@json, '$.A[-2][-1]')
+1
+SELECT JSON_EXISTS(@json, '$.A[last-1][last]');
+JSON_EXISTS(@json, '$.A[last-1][last]')
+1
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_EXTRACT(@json, '$.A[-8][1]');
+JSON_EXTRACT(@json, '$.A[-8][1]')
+5
+SELECT JSON_EXTRACT(@json, '$.A[last-7][1]');
+JSON_EXTRACT(@json, '$.A[last-7][1]')
+5
+SET @json= '[{"A": 1, "B": 2, "C": {"D": 3}},{"A": 1, "B": 2, "C": {"D": 3}}]';
+SELECT JSON_KEYS(@json, '$[-1].C');
+JSON_KEYS(@json, '$[-1].C')
+["D"]
+SELECT JSON_KEYS(@json, '$[last].C');
+JSON_KEYS(@json, '$[last].C')
+["D"]
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_LENGTH(@json, '$.A[-2][-3]');
+JSON_LENGTH(@json, '$.A[-2][-3]')
+2
+SELECT JSON_LENGTH(@json, '$.A[last-1][last-2]');
+JSON_LENGTH(@json, '$.A[last-1][last-2]')
+2
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_QUERY(@json, '$.A[-8]');
+JSON_QUERY(@json, '$.A[-8]')
+[4, 5, 6]
+SELECT JSON_QUERY(@json, '$.A[last-7]');
+JSON_QUERY(@json, '$.A[last-7]')
+[4, 5, 6]
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_REMOVE(@json, '$.A[-10]');
+JSON_REMOVE(@json, '$.A[-10]')
+{"A": [[1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], true], "B": {"C": 1}, "D": 2}
+SELECT JSON_REMOVE(@json, '$.A[last-9]');
+JSON_REMOVE(@json, '$.A[last-9]')
+{"A": [[1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], true], "B": {"C": 1}, "D": 2}
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_REPLACE(@json, '$.A[-1]', 4);
+JSON_REPLACE(@json, '$.A[-1]', 4)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], 4], "B": {"C": 1}, "D": 2}
+SELECT JSON_REPLACE(@json, '$.A[last]', 4);
+JSON_REPLACE(@json, '$.A[last]', 4)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], 4], "B": {"C": 1}, "D": 2}
+SET @json = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';
+SELECT JSON_SEARCH(@json, 'all', 'abc', NULL, '$[-2]');
+JSON_SEARCH(@json, 'all', 'abc', NULL, '$[-2]')
+"$[2].x"
+SELECT JSON_SEARCH(@json, 'all', 'abc', NULL, '$[last-1]');
+JSON_SEARCH(@json, 'all', 'abc', NULL, '$[last-1]')
+"$[2].x"
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_SET(@json, '$.A[-4]', 100);
+JSON_SET(@json, '$.A[-4]', 100)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, 100, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], true], "B": {"C": 1}, "D": 2}
+SELECT JSON_SET(@json, '$.A[last-3]', 100);
+JSON_SET(@json, '$.A[last-3]', 100)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, 100, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], true], "B": {"C": 1}, "D": 2}
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":123},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_VALUE(@json, '$.A[-2][-2].key1');
+JSON_VALUE(@json, '$.A[-2][-2].key1')
+123
+SELECT JSON_VALUE(@json, '$.A[last-1][last-1].key1');
+JSON_VALUE(@json, '$.A[last-1][last-1].key1')
+123
+#
+# MDEV-28075: JSON_VALUE returns first value from array not from range
+#
+SET @json1= '[
+             [{"key1": "value1"}, {"key2": "value2"}],
+             [{"key3": "value3"}, {"key1": "value4"}],
+             [{"key1": "value5"}, {"key4": "value6"}, {"key1": "value7"}]
+            ]';
+SELECT JSON_VALUE(@json1, '$[2][1 to 2].key1');
+JSON_VALUE(@json1, '$[2][1 to 2].key1')
+value7
+SET @json= '[
+             [1.1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [11, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20]
+            ]';
+SELECT JSON_VALUE(@json, '$[*][0]');
+JSON_VALUE(@json, '$[*][0]')
+1.1
+SELECT JSON_VALUE(@json, '$[2 to 3][0]');
+JSON_VALUE(@json, '$[2 to 3][0]')
+7
+#
+# Beginning of 10.9 Test
+#
+# MDEV-22224: Support JSON Path negative index
+#
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_ARRAY_APPEND(@json, '$.A[-2][-1]', 5);
+JSON_ARRAY_APPEND(@json, '$.A[-2][-1]', 5)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, 13, {"key1": "value1"}, [15, 5]], true], "B": {"C": 1}, "D": 2}
+SELECT JSON_ARRAY_APPEND(@json, '$.A[last-1][last]', 5);
+JSON_ARRAY_APPEND(@json, '$.A[last-1][last]', 5)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, 13, {"key1": "value1"}, [15, 5]], true], "B": {"C": 1}, "D": 2}
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_ARRAY_INSERT(@json, '$.A[-2][-2]', 5);
+JSON_ARRAY_INSERT(@json, '$.A[-2][-2]', 5)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, 13, {"key1": "value1"}, 5, [15]], true], "B": {"C": 1}, "D": 2}
+SELECT JSON_ARRAY_INSERT(@json, '$.A[last-1][last-1]', 5);
+JSON_ARRAY_INSERT(@json, '$.A[last-1][last-1]', 5)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, 13, {"key1": "value1"}, 5, [15]], true], "B": {"C": 1}, "D": 2}
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_CONTAINS(@json, '15', '$.A[-2][-1]');
+JSON_CONTAINS(@json, '15', '$.A[-2][-1]')
+1
+SELECT JSON_CONTAINS(@json, '15', '$.A[last-1][last]');
+JSON_CONTAINS(@json, '15', '$.A[last-1][last]')
+1
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_CONTAINS_PATH(@json, 'one', '$.A[-2]');
+JSON_CONTAINS_PATH(@json, 'one', '$.A[-2]')
+1
+SELECT JSON_CONTAINS_PATH(@json, 'one', '$.A[last-1]');
+JSON_CONTAINS_PATH(@json, 'one', '$.A[last-1]')
+1
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_EXISTS(@json, '$.A[-2][-1]');
+JSON_EXISTS(@json, '$.A[-2][-1]')
+1
+SELECT JSON_EXISTS(@json, '$.A[last-1][last]');
+JSON_EXISTS(@json, '$.A[last-1][last]')
+1
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_EXTRACT(@json, '$.A[-8][1]');
+JSON_EXTRACT(@json, '$.A[-8][1]')
+5
+SELECT JSON_EXTRACT(@json, '$.A[last-7][1]');
+JSON_EXTRACT(@json, '$.A[last-7][1]')
+5
+SET @json= '[{"A": 1, "B": 2, "C": {"D": 3}},{"A": 1, "B": 2, "C": {"D": 3}}]';
+SELECT JSON_KEYS(@json, '$[-1].C');
+JSON_KEYS(@json, '$[-1].C')
+["D"]
+SELECT JSON_KEYS(@json, '$[last].C');
+JSON_KEYS(@json, '$[last].C')
+["D"]
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_LENGTH(@json, '$.A[-2][-3]');
+JSON_LENGTH(@json, '$.A[-2][-3]')
+2
+SELECT JSON_LENGTH(@json, '$.A[last-1][last-2]');
+JSON_LENGTH(@json, '$.A[last-1][last-2]')
+2
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_QUERY(@json, '$.A[-8]');
+JSON_QUERY(@json, '$.A[-8]')
+[4, 5, 6]
+SELECT JSON_QUERY(@json, '$.A[last-7]');
+JSON_QUERY(@json, '$.A[last-7]')
+[4, 5, 6]
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_REMOVE(@json, '$.A[-10]');
+JSON_REMOVE(@json, '$.A[-10]')
+{"A": [[1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], true], "B": {"C": 1}, "D": 2}
+SELECT JSON_REMOVE(@json, '$.A[last-9]');
+JSON_REMOVE(@json, '$.A[last-9]')
+{"A": [[1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], true], "B": {"C": 1}, "D": 2}
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_REPLACE(@json, '$.A[-1]', 4);
+JSON_REPLACE(@json, '$.A[-1]', 4)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], 4], "B": {"C": 1}, "D": 2}
+SELECT JSON_REPLACE(@json, '$.A[last]', 4);
+JSON_REPLACE(@json, '$.A[last]', 4)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, false, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], 4], "B": {"C": 1}, "D": 2}
+SET @json = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';
+SELECT JSON_SEARCH(@json, 'all', 'abc', NULL, '$[-2]');
+JSON_SEARCH(@json, 'all', 'abc', NULL, '$[-2]')
+"$[2].x"
+SELECT JSON_SEARCH(@json, 'all', 'abc', NULL, '$[last-1]');
+JSON_SEARCH(@json, 'all', 'abc', NULL, '$[last-1]')
+"$[2].x"
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_SET(@json, '$.A[-4]', 100);
+JSON_SET(@json, '$.A[-4]', 100)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, 100, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], true], "B": {"C": 1}, "D": 2}
+SELECT JSON_SET(@json, '$.A[last-3]', 100);
+JSON_SET(@json, '$.A[last-3]', 100)
+{"A": [0, [1, 2, 3], [4, 5, 6], "seven", 0.8, true, 100, "eleven", [12, [13, 14], {"key1": "value1"}, [15]], true], "B": {"C": 1}, "D": 2}
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":123},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_VALUE(@json, '$.A[-2][-2].key1');
+JSON_VALUE(@json, '$.A[-2][-2].key1')
+123
+SELECT JSON_VALUE(@json, '$.A[last-1][last-1].key1');
+JSON_VALUE(@json, '$.A[last-1][last-1].key1')
+123
 #
 # End of 10.9 Test
 #
