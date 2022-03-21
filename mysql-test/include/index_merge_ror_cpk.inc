@@ -60,6 +60,7 @@ commit;
 
 # Verify that range scan on CPK is ROR
 # (use index_intersection because it is impossible to check that for index union)
+--replace_column 11 FLTRD
 explain select * from t1 where pk1 = 1 and pk2 < 80  and key1=0;
 # CPK scan + 1 ROR range scan is a special case
 select * from t1 where pk1 = 1 and pk2 < 80  and key1=0;
