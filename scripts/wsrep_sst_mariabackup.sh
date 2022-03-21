@@ -40,7 +40,7 @@ tcert=""
 tcap=""
 tpem=""
 tkey=""
-tmode="DISABLED"
+tmode=""
 sockopt=""
 progress=""
 ttime=0
@@ -85,9 +85,9 @@ backup_threads=""
 encrypt_threads=""
 encrypt_chunk=""
 
-readonly SECRET_TAG="secret"
-readonly TOTAL_TAG="total"
-readonly COMPLETE_TAG="complete"
+readonly SECRET_TAG='secret'
+readonly TOTAL_TAG='total'
+readonly COMPLETE_TAG='complete'
 
 # Required for backup locks
 # For backup locks it is 1 sent by joiner
@@ -102,16 +102,13 @@ if [ -z "$BACKUP_BIN" ]; then
 fi
 
 DATA="$WSREP_SST_OPT_DATA"
-INFO_FILE="xtrabackup_galera_info"
-IST_FILE="xtrabackup_ist"
+INFO_FILE='xtrabackup_galera_info'
+IST_FILE='xtrabackup_ist'
 MAGIC_FILE="$DATA/$INFO_FILE"
 
 INNOAPPLYLOG="$DATA/mariabackup.prepare.log"
 INNOMOVELOG="$DATA/mariabackup.move.log"
 INNOBACKUPLOG="$DATA/mariabackup.backup.log"
-
-# Setting the path for ss and ip
-export PATH="/usr/sbin:/sbin:$PATH"
 
 timeit()
 {
@@ -423,23 +420,22 @@ get_transfer()
 
 get_footprint()
 {
-    pushd "$WSREP_SST_OPT_DATA" 1>/dev/null
+    cd "$DATA_DIR"
     local payload_data=$(find . \
         -regex '.*undo[0-9]+$\|.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
         -type f -print0 | du --files0-from=- --block-size=1 -c -s | \
         awk 'END { print $1 }')
-    popd 1>/dev/null
 
-    ib_undo_dir=$(parse_cnf 'mysqld' 'innodb-undo-directory' "")
+    local payload_undo=0
     if [ -n "$ib_undo_dir" -a -d "$ib_undo_dir" ]; then
-        pushd "$ib_undo_dir" 1>/dev/null
-        local payload_undo=$(find . -regex '.*undo[0-9]+$' -type f -print0 | \
+        cd "$ib_undo_dir"
+        payload_undo=$(find . -regex '.*undo[0-9]+$' -type f -print0 | \
             du --files0-from=- --block-size=1 -c -s | awk 'END { print $1 }')
-        popd 1>/dev/null
-    else
-        local payload_undo=0
     fi
-    wsrep_log_info "SST footprint estimate: data: $payload_data, undo: $payload_undo"
+    cd "$OLD_PWD"
+
+    wsrep_log_info \
+        "SST footprint estimate: data: $payload_data, undo: $payload_undo"
 
     payload=$(( $payload_data + $payload_undo ))
 
@@ -456,20 +452,19 @@ get_footprint()
 
 adjust_progress()
 {
+    if [ "$progress" = "none" ]; then
+        wsrep_log_info "All progress/rate-limiting disabled by configuration"
+        pcmd=""
+        rlimit=""
+        return
+    fi
+
     if [ -z "$(commandex pv)" ]; then
         wsrep_log_info "Progress reporting tool pv not found in path: $PATH"
         wsrep_log_info "Disabling all progress/rate-limiting"
         pcmd=""
         rlimit=""
-        progress=""
-        return
-    fi
-
-    if [[ "$progress" == "none" ]]; then
-        wsrep_log_info "All progress/rate-limiting disabled by configuration"
-        pcmd=""
-        rlimit=""
-        progress=""
+        progress="none"
         return
     fi
 
@@ -482,7 +477,7 @@ adjust_progress()
 
     if [ -n "$progress" ]; then
         # Backward compatibility: user configured progress output
-        if pv --help | grep -qw -- '-F'; then
+        if pv --help | grep -qw -F -- '-F'; then
             pvopts="$pvopts $pvformat"
         fi
 
@@ -503,8 +498,8 @@ adjust_progress()
         rcmd=":"
     else
         # Default progress output parseable by parent
-        pvopts="-f -i 1 -n -b$rlimitopts"
-        pcmd="pv $pvopts"
+        pvopts="-f -i 1 -n -b"
+        pcmd="pv $pvopts$rlimitopts"
 
         # read progress data, add tag and post to stdout
         # for the parent
@@ -1297,7 +1292,7 @@ then
 
     adjust_progress
     if [ -n "$pcmd" ]; then
-        if [ "$rcmd" != ":" ]; then
+        if [ "$rcmd" != ':' ]; then
             # redirect pv stderr to rcmd for tagging and output to parent
             strmcmd="{ $pcmd 2>&3 | $strmcmd; } 3>&1 | $rcmd"
         else
@@ -1412,14 +1407,14 @@ then
 
             dcmd="xargs -n 2 qpress -dT$nproc"
 
-            if [ -n "$progress" ] && pv --help | grep -qw -- '--line-mode'; then
-                count=$(find "$DATA" -type f -name '*.qp' | wc -l)
+            if [ -n "$progress" -a "$progress" != 'none' ] && \
+               pv --help | grep -qw -F -- '--line-mode'
+            then
+                count=$(find "$DATA" -maxdepth 1 -type f -name '*.qp' | wc -l)
                 count=$(( count*2 ))
-                pvopts="-f -s $count -l -N Decompression"
-                if pv --help | grep -qw -- '-F'; then
-                    pvopts="$pvopts -F '%N => Rate:%r Elapsed:%t %e Progress: [%b/$count]'"
-                fi
-                pcmd="pv $pvopts"
+                pvopts='-f -l -N Decompression'
+                pvformat="-F '%N => Rate:%r Elapsed:%t %e Progress: [%b/$count]'"
+                payload=$count
                 adjust_progress
                 dcmd="$pcmd | $dcmd"
             fi
