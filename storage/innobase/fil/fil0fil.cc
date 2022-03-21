@@ -2136,7 +2136,7 @@ a remote tablespace is found it will be changed to true.
 If the fix_dict boolean is set, then it is safe to use an internal SQL
 statement to update the dictionary tables if they are incorrect.
 
-@param[in]	validate	true if we should validate the tablespace
+@param[in]	validate	0=maybe missing, 1=do not validate, 2=validate
 @param[in]	purpose		FIL_TYPE_TABLESPACE or FIL_TYPE_TEMPORARY
 @param[in]	id		tablespace ID
 @param[in]	flags		expected FSP_SPACE_FLAGS
@@ -2148,7 +2148,7 @@ If file-per-table, it is the table name in the databasename/tablename format
 @retval	NULL	if the tablespace could not be opened */
 fil_space_t*
 fil_ibd_open(
-	bool			validate,
+	unsigned		validate,
 	fil_type_t		purpose,
 	ulint			id,
 	ulint			flags,
@@ -2160,7 +2160,7 @@ fil_ibd_open(
 	fil_space_t* space = fil_space_get_by_id(id);
 	mysql_mutex_unlock(&fil_system.mutex);
 	if (space) {
-		if (validate && !srv_read_only_mode) {
+		if (validate > 1 && !srv_read_only_mode) {
 			fsp_flags_try_adjust(space,
 					     flags & ~FSP_FLAGS_MEM_MASK);
 		}
@@ -2197,8 +2197,9 @@ func_exit:
 
 	/* Look for a filepath embedded in an ISL where the default file
 	would be. */
-	if (df_remote.open_link_file(name)) {
-		validate = true;
+	bool must_validate = df_remote.open_link_file(name);
+
+	if (must_validate) {
 		if (df_remote.open_read_only(true) == DB_SUCCESS) {
 			ut_ad(df_remote.is_open());
 			++tablespaces_found;
@@ -2211,15 +2212,12 @@ func_exit:
 				    << df_remote.filepath()
 				    << "' could not be opened read-only.";
 		}
-	}
-
-	/* Attempt to open the tablespace at the dictionary filepath. */
-	if (path_in) {
-		if (!df_default.same_filepath_as(path_in)) {
-			/* Dict path is not the default path. Always validate
-			remote files. If default is opened, it was moved. */
-			validate = true;
-		}
+	} else if (path_in && !df_default.same_filepath_as(path_in)) {
+		/* Dict path is not the default path. Always validate
+		remote files. If default is opened, it was moved. */
+		must_validate = true;
+	} else if (validate > 1) {
+		must_validate = true;
 	}
 
 	/* Always look for a file at the default location. But don't log
@@ -2231,7 +2229,7 @@ func_exit:
 	the first server startup. The tables ought to be dropped by
 	drop_garbage_tables_after_restore() a little later. */
 
-	const bool strict = !tablespaces_found
+	const bool strict = validate && !tablespaces_found
 		&& !(srv_operation == SRV_OPERATION_NORMAL
 		     && srv_start_after_restore
 		     && srv_force_recovery < SRV_FORCE_NO_BACKGROUND
@@ -2257,7 +2255,7 @@ func_exit:
 	normal, we only found 1. */
 	/* For encrypted tablespace, we need to check the
 	encryption in header of first page. */
-	if (!validate && tablespaces_found == 1) {
+	if (!must_validate && tablespaces_found == 1) {
 		goto skip_validate;
 	}
 
@@ -2273,7 +2271,8 @@ func_exit:
 	First, bail out if no tablespace files were found. */
 	if (valid_tablespaces_found == 0) {
 		if (!strict
-		    && IF_WIN(GetLastError() == ERROR_FILE_NOT_FOUND,
+		    && IF_WIN(GetLastError() == ERROR_FILE_NOT_FOUND
+			      || GetLastError() == ERROR_PATH_NOT_FOUND,
 			      errno == ENOENT)) {
 			/* Suppress a message about a missing file. */
 			goto corrupted;
@@ -2286,7 +2285,7 @@ func_exit:
 				TROUBLESHOOT_DATADICT_MSG);
 		goto corrupted;
 	}
-	if (!validate) {
+	if (!must_validate) {
 		goto skip_validate;
 	}
 
@@ -2369,7 +2368,7 @@ skip_validate:
 		df_remote.is_open() ? df_remote.filepath() :
 		df_default.filepath(), OS_FILE_CLOSED, 0, false, true);
 
-	if (validate && !srv_read_only_mode) {
+	if (must_validate && !srv_read_only_mode) {
 		df_remote.close();
 		df_default.close();
 		if (space->acquire()) {

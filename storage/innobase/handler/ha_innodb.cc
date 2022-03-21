@@ -12793,7 +12793,8 @@ int create_table_info_t::create_table(bool create_fk)
 	if (err == DB_SUCCESS) {
 		/* Check that also referencing constraints are ok */
 		dict_names_t	fk_tables;
-		err = dict_load_foreigns(m_table_name, NULL, false, true,
+		err = dict_load_foreigns(m_table_name, nullptr,
+					 m_trx->id, true,
 					 DICT_ERR_IGNORE_NONE, fk_tables);
 		while (err == DB_SUCCESS && !fk_tables.empty()) {
 			dict_sys.load_table(
@@ -13245,9 +13246,7 @@ ha_innobase::create(
 	}
 
 	if (error) {
-		/* Drop the being-created table before rollback,
-		so that rollback can possibly rename back a table
-		that could have been renamed before the failed creation. */
+		/* Rollback will drop the being-created table. */
 		trx_rollback_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);
 	} else {
