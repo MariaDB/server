@@ -49,24 +49,6 @@ else
     WSREP_LOG_DIR=$(cd $WSREP_SST_OPT_DATA; pwd -P)
 fi
 
-INNODB_DATA_HOME_DIR=${INNODB_DATA_HOME_DIR:-""}
-# Try to set INNODB_DATA_HOME_DIR from the command line:
-if [ ! -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
-    INNODB_DATA_HOME_DIR=$INNODB_DATA_HOME_DIR_ARG
-fi
-# if INNODB_DATA_HOME_DIR env. variable is not set, try to get it from my.cnf
-if [ -z "$INNODB_DATA_HOME_DIR" ]; then
-    INNODB_DATA_HOME_DIR=$(parse_cnf mysqld innodb-data-home-dir '')
-fi
-
-if [ -n "$INNODB_DATA_HOME_DIR" ]; then
-    # handle both relative and absolute paths
-    INNODB_DATA_HOME_DIR=$(cd $WSREP_SST_OPT_DATA; mkdir -p "$INNODB_DATA_HOME_DIR"; cd $INNODB_DATA_HOME_DIR; pwd -P)
-else
-    # default to datadir
-    INNODB_DATA_HOME_DIR=$(cd $WSREP_SST_OPT_DATA; pwd -P)
-fi
-
 if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]
 then
 
