@@ -214,8 +214,8 @@ SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	Country	NULL	ALL	NULL	NULL	NULL	NULL	239	3.77	Using where
-1	SIMPLE	City	NULL	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	4079	87.23	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	Country	NULL	ALL	NULL	NULL	NULL	NULL	239	FLTRD	Using where
+1	SIMPLE	City	NULL	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	4079	FLTRD	Using where; Using join buffer (flat, BNLH join)
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -244,9 +244,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	Country	NULL	ALL	NULL	NULL	NULL	NULL	239	55.23	Using where
-1	SIMPLE	CountryLanguage	NULL	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	984	17.09	Using where; Using join buffer (flat, BNLH join)
-1	SIMPLE	City	NULL	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	4079	4.17	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	Country	NULL	ALL	NULL	NULL	NULL	NULL	239	FLTRD	Using where
+1	SIMPLE	CountryLanguage	NULL	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	984	FLTRD	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	City	NULL	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	4079	FLTRD	Using where; Using join buffer (flat, BNLH join)
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -895,8 +895,8 @@ SELECT Name FROM City
 WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
 City.Population > 100000;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	Country	NULL	range	PRIMARY,Name	Name	52	NULL	10	100.00	Using index condition; Rowid-ordered scan
-1	PRIMARY	City	NULL	hash_ALL	Population,Country	#hash#Country	3	world.Country.Code	4079	87.60	Using where; Using join buffer (flat, BNLH join)
+1	PRIMARY	Country	NULL	range	PRIMARY,Name	Name	52	NULL	10	FLTRD	Using index condition; Rowid-ordered scan
+1	PRIMARY	City	NULL	hash_ALL	Population,Country	#hash#Country	3	world.Country.Code	4079	FLTRD	Using where; Using join buffer (flat, BNLH join)
 SELECT Name FROM City
 WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
 City.Population > 100000;

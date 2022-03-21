@@ -113,6 +113,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
 set join_cache_level=3;
 show variables like 'join_cache_level';
 
+--replace_column 11 FLTRD
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
@@ -123,6 +124,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--replace_column 11 FLTRD
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -400,6 +402,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--replace_column 11 FLTRD
 EXPLAIN
 SELECT Name FROM City
   WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
