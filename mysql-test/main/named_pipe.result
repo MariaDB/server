@@ -1360,82 +1360,82 @@ select count(*) from t2 left join t4 using (companynr) where t4.companynr is not
 count(*)
 1199
 explain select t2.companynr,companyname from t2 left join t4 using (companynr) where t4.companynr is null;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1200	
-1	SIMPLE	t4	NULL	eq_ref	PRIMARY	PRIMARY	1	test.t2.companynr	1	Using where; Not exists
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1200	100.00	
+1	SIMPLE	t4	NULL	eq_ref	PRIMARY	PRIMARY	1	test.t2.companynr	1	100.00	Using where; Not exists
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr is null;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	12	
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1200	Using where; Not exists
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1200	100.00	Using where; Not exists
 select companynr,companyname from t2 left join t4 using (companynr) where companynr is null;
 companynr	companyname
 select count(*) from t2 left join t4 using (companynr) where companynr is not null;
 count(*)
 1200
 explain select companynr,companyname from t2 left join t4 using (companynr) where companynr is null;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr is null;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 delete from t2 where fld1=999999;
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	Using where
-1	SIMPLE	t4	NULL	eq_ref	PRIMARY	PRIMARY	1	test.t2.companynr	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	100.00	Using where
+1	SIMPLE	t4	NULL	eq_ref	PRIMARY	PRIMARY	1	test.t2.companynr	1	100.00	
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0 or t2.companynr < 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	Using where
-1	SIMPLE	t4	NULL	eq_ref	PRIMARY	PRIMARY	1	test.t2.companynr	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	100.00	Using where
+1	SIMPLE	t4	NULL	eq_ref	PRIMARY	PRIMARY	1	test.t2.companynr	1	100.00	
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0 and t4.companynr > 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	Using where
-1	SIMPLE	t4	NULL	eq_ref	PRIMARY	PRIMARY	1	test.t2.companynr	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	100.00	Using where
+1	SIMPLE	t4	NULL	eq_ref	PRIMARY	PRIMARY	1	test.t2.companynr	1	100.00	
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr > 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	Using where
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	91.67	Using where
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	100.00	Using where
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr > 0 or companynr < 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	Using where
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	100.00	Using where
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	100.00	Using where
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr > 0 and companynr > 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	Using where
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	91.67	Using where
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	100.00	Using where
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0 or t2.companynr is null;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	12	
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	100.00	Using where
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0 or t2.companynr < 0 or t4.companynr > 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	100.00	Using where
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where ifnull(t2.companynr,1)>0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	12	
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	100.00	Using where
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr > 0 or companynr is null;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	Using where
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	91.67	Using where
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	100.00	Using where
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr > 0 or companynr < 0 or companynr > 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	Using where
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	100.00	Using where
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	100.00	Using where
 explain select companynr,companyname from t4 left join t2 using (companynr) where ifnull(companynr,1)>0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	100.00	Using where
 SET @@optimizer_switch=@local_optimizer_switch;
 select distinct t2.companynr,t4.companynr from t2,t4 where t2.companynr=t4.companynr+1;
 companynr	companynr
 37	36
 41	40
 explain select distinct t2.companynr,t4.companynr from t2,t4 where t2.companynr=t4.companynr+1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	NULL	index	NULL	PRIMARY	1	NULL	12	Using index; Using temporary
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	index	NULL	PRIMARY	1	NULL	12	100.00	Using index; Using temporary
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	100.00	Using where; Using join buffer (flat, BNL join)
 SET @@join_cache_level=@local_join_cache_level;
 select t2.fld1,t2.companynr,fld3,period from t3,t2 where t2.fld1 = 38208 and t2.fld1=t3.t2nr and period = 1008 or t2.fld1 = 38008 and t2.fld1 =t3.t2nr and period = 1008;
 fld1	companynr	fld3	period
@@ -1950,11 +1950,11 @@ select t2.fld1,sum(price) from t3,t2 where t2.fld1 = t3.t2nr and t3.companynr = 
 fld1	sum(price)
 038008	234298
 explain select fld3 from t2 where 1>2 or 2>3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 explain select fld3 from t2 where fld1=fld1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1199	100.00	
 select companynr,fld1 from t2 HAVING fld1=250501 or fld1=250502;
 companynr	fld1
 34	250501
@@ -2005,8 +2005,8 @@ select count(*) from t3 where companynr=512 and price2=76234234;
 count(*)
 4181
 explain select min(fld1),max(fld1),count(*) from t2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 select min(fld1),max(fld1),count(*) from t2;
 min(fld1)	max(fld1)	count(*)
 0	1232609	1199
