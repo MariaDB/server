@@ -1751,6 +1751,53 @@ JSON_OVERLAPS('true','tr')
 Warnings:
 Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_overlaps'
 #
+<<<<<<< HEAD
+||||||| parent of 970dba92c3d... MDEV-28072: JSON_EXTRACT has inconsistent behavior with '0' value in json
+<<<<<<< HEAD
+<<<<<<< HEAD
+||||||| constructed merge base
+# End of 10.9 test
+#
+#
+||||||| constructed merge base
+# End of 10.9 test
+#
+#
+=======
+>>>>>>> MDEV-22224: Support JSON Path negative index
+# Beginning of 10.9 Test
+#
+=======
+# Beginning of 10.9 Test
+#
+>>>>>>> MDEV-28071: JSON_EXISTS returns always 1 if it is used range notation for
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+||||||| constructed merge base
+# End of 10.9 test
+#
+#
+||||||| constructed merge base
+# End of 10.9 test
+#
+#
+=======
+>>>>>>> MDEV-22224: Support JSON Path negative index
+||||||| constructed merge base
+=======
+# End of 10.9 test
+#
+#
+>>>>>>> MDEV-28072: JSON_EXTRACT has inconsistent behavior with '0' value in json
+# Beginning of 10.9 Test
+#
+=======
+# Beginning of 10.9 Test
+#
+>>>>>>> MDEV-28071: JSON_EXISTS returns always 1 if it is used range notation for
+>>>>>>> 970dba92c3d... MDEV-28072: JSON_EXTRACT has inconsistent behavior with '0' value in json
 # MDEV-22224: Support JSON Path negative index
 #
 SET @json='{
@@ -2024,6 +2071,7 @@ SELECT JSON_VALUE(@json,'$.x[0]');
 JSON_VALUE(@json,'$.x[0]')
 0
 #
+<<<<<<< HEAD
 # MDEV-27911: Implement range notation for json path
 #
 SET @json= '[
@@ -3014,7 +3062,21 @@ SELECT JSON_VALUE(@json, '$.A[last-1][last-1].key1');
 JSON_VALUE(@json, '$.A[last-1][last-1].key1')
 123
 #
+<<<<<<< HEAD
 # MDEV-28075: JSON_VALUE returns first value from array not from range
+||||||| parent of 970dba92c3d... MDEV-28072: JSON_EXTRACT has inconsistent behavior with '0' value in json
+# MDEV-22224: Support JSON Path negative index
+#
+# MDEV-27911: Implement range notation for json path
+=======
+# MDEV-22224: Support JSON Path negative index
+#
+# Beginning of 10.9 Test
+#
+# MDEV-22224: Support JSON Path negative index
+#
+# MDEV-27911: Implement range notation for json path
+>>>>>>> 970dba92c3d... MDEV-28072: JSON_EXTRACT has inconsistent behavior with '0' value in json
 #
 SET @json1= '[
              [{"key1": "value1"}, {"key2": "value2"}],
@@ -3038,9 +3100,32 @@ SELECT JSON_VALUE(@json, '$[2 to 3][0]');
 JSON_VALUE(@json, '$[2 to 3][0]')
 7
 #
+<<<<<<< HEAD
 # Beginning of 10.9 Test
 #
 # MDEV-22224: Support JSON Path negative index
+||||||| parent of 970dba92c3d... MDEV-28072: JSON_EXTRACT has inconsistent behavior with '0' value in json
+# MDEV-27911: Implement range notation for json path
+=======
+# MDEV-28072: JSON_EXTRACT has inconsistent behavior with '0' value in
+# json path (when range is used)
+#
+SET @json= '[ 11, 22 , 33]';
+SELECT JSON_EXTRACT(@json, '$[0 to 0]');
+JSON_EXTRACT(@json, '$[0 to 0]')
+[11]
+SELECT JSON_EXTRACT(@json, '$[0 to -0]');
+JSON_EXTRACT(@json, '$[0 to -0]')
+[11]
+SELECT JSON_EXTRACT(@json, '$[-0 to 0]');
+JSON_EXTRACT(@json, '$[-0 to 0]')
+[11]
+SELECT JSON_EXTRACT(@json, '$[-0 to -0]');
+JSON_EXTRACT(@json, '$[-0 to -0]')
+[11]
+#
+# MDEV-22224: Support JSON Path negative index
+>>>>>>> 970dba92c3d... MDEV-28072: JSON_EXTRACT has inconsistent behavior with '0' value in json
 #
 SET @json='{
             "A": [0,
