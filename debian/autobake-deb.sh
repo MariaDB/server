@@ -65,6 +65,12 @@ disable_pmem()
   sed '/-DWITH_PMEM=yes/d' -i debian/rules
 }
 
+disable_libfmt()
+{
+  # 0.7+ required
+  sed '/libfmt-dev/d' -i debian/control
+}
+
 architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
 
 CODENAME="$(lsb_release -sc)"
@@ -77,6 +83,7 @@ case "${CODENAME}" in
     disable_pmem
     ;&
   buster)
+    disable_libfmt
     replace_uring_with_aio
     if [ ! "$architecture" = amd64 ]
     then
@@ -106,6 +113,7 @@ case "${CODENAME}" in
     ;&
   focal)
     replace_uring_with_aio
+    disable_libfmt
     ;&
   impish|jammy)
     # mariadb-plugin-rocksdb s390x not supported by us (yet)
