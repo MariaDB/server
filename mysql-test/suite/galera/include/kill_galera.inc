@@ -16,7 +16,7 @@ if (!$kill_signal)
 --let KILL_NODE_PIDFILE = `SELECT @@pid_file`
 
 --perl
-        my $kill_sig = $ENV{'KILL_SIGNAL_VALUE'}
+        my $kill_sig = $ENV{'KILL_SIGNAL_VALUE'};
         my $pid_filename = $ENV{'KILL_NODE_PIDFILE'};
         my $mysqld_pid = `cat $pid_filename`;
         chomp($mysqld_pid);

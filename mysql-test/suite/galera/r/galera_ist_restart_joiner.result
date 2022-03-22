@@ -16,6 +16,7 @@ SET SESSION wsrep_on=ON;
 connection node_1;
 UPDATE t1 SET f2 = 'd' WHERE f1 > 3;
 connection node_2;
+Killing server ...
 connection node_1;
 UPDATE t1 SET f2 = 'e' WHERE f1 > 4;
 connection node_2;
