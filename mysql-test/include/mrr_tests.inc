@@ -89,6 +89,7 @@ insert into t4 (a,b,c,filler)
 insert into t4 (a,b,c,filler) 
   select 'zz-1',NULL,'cc-2', 'filler-data' from t2 order by a limit 500;
 
+--replace_column 11 FLTRD
 explain 
   select * from t4 where a IS NULL and b IS NULL and (c IS NULL or c='no-such-row1'
                                                       or c='no-such-row2');

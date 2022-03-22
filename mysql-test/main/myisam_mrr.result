@@ -189,7 +189,7 @@ explain
 select * from t4 where a IS NULL and b IS NULL and (c IS NULL or c='no-such-row1'
                                                       or c='no-such-row2');
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t4	NULL	range	idx1	idx1	29	NULL	10	1.79	Using index condition; Rowid-ordered scan
+1	SIMPLE	t4	NULL	range	idx1	idx1	29	NULL	10	FLTRD	Using index condition; Rowid-ordered scan
 select * from t4 where a IS NULL and b IS NULL and (c IS NULL or c='no-such-row1'
                                                     or c='no-such-row2');
 a	b	c	filler

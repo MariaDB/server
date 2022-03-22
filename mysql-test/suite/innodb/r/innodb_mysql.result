@@ -3373,7 +3373,7 @@ SELECT v2
 FROM t1
 WHERE v1  IN  ('f', 'd', 'h', 'u' ) AND i  =  2;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	NULL	ref	i,v	i	5	const	2	100.00	Using where
+1	SIMPLE	t1	NULL	ref	i,v	i	5	const	2	FLTRD	Using where
 DROP TABLE t1;
 #
 # Bug#54606 innodb fast alter table + pack_keys=0 

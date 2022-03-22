@@ -1015,6 +1015,7 @@ WHERE v1  IN  ('f', 'd', 'h', 'u' ) AND i  =  2;
 
 --echo
 --echo # Should not use index_merge
+--replace_column 11 FLTRD
 EXPLAIN
 SELECT v2  
 FROM t1
