@@ -2,6 +2,11 @@
 -- source include/have_innodb_lzma.inc
 -- source include/not_embedded.inc
 
+--disable_query_log
+# This may be triggered on a slow system or one that lacks native AIO.
+call mtr.add_suppression("InnoDB: Trying to delete tablespace.*pending operations");
+--enable_query_log
+
 # lzma
 set global innodb_compression_algorithm = 4;
 

@@ -4,6 +4,11 @@
 # The test can take very long time with valgrind
 --source include/not_valgrind.inc
 
+--disable_query_log
+# This may be triggered on a slow system or one that lacks native AIO.
+call mtr.add_suppression("InnoDB: Trying to delete tablespace.*pending operations");
+--enable_query_log
+
 # lz4
 set global innodb_compression_algorithm = 2;
 
