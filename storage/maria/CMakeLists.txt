@@ -117,7 +117,7 @@ SET(S3_SOURCES s3_func.c
     libmarias3/src/sha256-internal.c libmarias3/src/xml.c
     libmarias3/src/assume_role.c)
 
-IF(NOT PLUGIN_S3 STREQUAL NO)
+IF(NOT PLUGIN_S3 STREQUAL NO AND NOT WIN32)
   FIND_PACKAGE(CURL)
 ENDIF()
 
