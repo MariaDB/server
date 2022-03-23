@@ -1,0 +1,49 @@
+create user foo;
+create database some_db comment="This is a database comment.";
+connect  con1,localhost,foo,,;
+show create database some_db;
+ERROR 42000: Access denied for user 'foo'@'localhost' to database 'some_db'
+disconnect con1;
+connection default;
+grant references on some_db.* to foo;
+connect  con1,localhost,foo,,;
+show create database some_db;
+Database	Create Database
+some_db	CREATE DATABASE `some_db` /*!40100 DEFAULT CHARACTER SET latin1 */ COMMENT 'This is a database comment.'
+disconnect con1;
+connection default;
+deny all on some_db.* to foo;
+connect  con1,localhost,foo,,;
+show create database some_db;
+ERROR 42000: Access denied for user 'foo'@'localhost' to database 'some_db'
+disconnect con1;
+connection default;
+revoke deny all on some_db.* from foo;
+connect  con1,localhost,foo,,;
+show create database some_db;
+Database	Create Database
+some_db	CREATE DATABASE `some_db` /*!40100 DEFAULT CHARACTER SET latin1 */ COMMENT 'This is a database comment.'
+disconnect con1;
+connection default;
+revoke all on some_db.* from foo;
+grant select, insert, update on some_db.* to foo;
+grant select, insert, update on *.* to foo;
+connect  con1,localhost,foo,,;
+show create database some_db;
+Database	Create Database
+some_db	CREATE DATABASE `some_db` /*!40100 DEFAULT CHARACTER SET latin1 */ COMMENT 'This is a database comment.'
+show create database mysql;
+Database	Create Database
+mysql	CREATE DATABASE `mysql` /*!40100 DEFAULT CHARACTER SET latin1 */
+disconnect con1;
+connection default;
+deny select, insert, update on *.* to foo;
+connect  con1,localhost,foo,,;
+show create database some_db;
+ERROR 42000: Access denied for user 'foo'@'localhost' to database 'some_db'
+show create database mysql;
+ERROR 42000: Access denied for user 'foo'@'localhost' to database 'mysql'
+disconnect con1;
+connection default;
+drop database some_db;
+drop user foo;
