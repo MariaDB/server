@@ -1029,6 +1029,7 @@ static const char *expected_errors[]=
   "ERROR 1347", /* 'mysql.user' is not of type 'BASE TABLE' */
   "ERROR 1348", /* Column 'Show_db_priv' is not updatable */
   "ERROR 1356", /* definer of view lack rights (UPDATE) */
+  "ERROR 1449", /* definer ('mariadb.sys'@'localhost') of mysql.user does not exist */
   0
 };
 
