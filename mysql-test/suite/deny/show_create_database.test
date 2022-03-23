@@ -1,0 +1,58 @@
+--source include/not_embedded.inc
+
+
+create user foo;
+create database some_db comment="This is a database comment.";
+
+--connect (con1,localhost,foo,,)
+--error ER_DBACCESS_DENIED_ERROR
+show create database some_db;
+disconnect con1;
+
+connection default;
+
+grant references on some_db.* to foo;
+
+--connect (con1,localhost,foo,,)
+show create database some_db;
+disconnect con1;
+
+connection default;
+deny all on some_db.* to foo;
+
+--connect (con1,localhost,foo,,)
+--error ER_DBACCESS_DENIED_ERROR
+show create database some_db;
+disconnect con1;
+
+connection default;
+revoke deny all on some_db.* from foo;
+
+--connect (con1,localhost,foo,,)
+show create database some_db;
+disconnect con1;
+
+connection default;
+revoke all on some_db.* from foo;
+grant select, insert, update on some_db.* to foo;
+grant select, insert, update on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+show create database some_db;
+show create database mysql;
+disconnect con1;
+
+connection default;
+deny select, insert, update on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+--error ER_DBACCESS_DENIED_ERROR
+show create database some_db;
+--error ER_DBACCESS_DENIED_ERROR
+show create database mysql;
+disconnect con1;
+
+connection default;
+
+drop database some_db;
+drop user foo;
