@@ -1567,10 +1567,13 @@ static void fts_table_no_ref_count(const char *table_name)
 
 /** Stop the purge thread and check n_ref_count of all auxiliary
 and common table associated with the fts table.
-@param	table	parent FTS table */
-void purge_sys_t::stop_FTS(const dict_table_t &table)
+@param	table		parent FTS table
+@param	already_stopped	True indicates purge threads were
+			already stopped*/
+void purge_sys_t::stop_FTS(const dict_table_t &table, bool already_stopped)
 {
-  purge_sys.stop_FTS();
+  if (!already_stopped)
+    purge_sys.stop_FTS();
   fts_table_t fts_table;
   char table_name[MAX_FULL_NAME_LEN];
 

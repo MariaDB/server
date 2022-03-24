@@ -6186,13 +6186,13 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   bool is_rows_event= false;
   /*
     The flag has replicate_same_server_id semantics and is raised to accept
-    a same-server-id event on the semisync slave, for both the gtid and legacy
-    connection modes.
-    Such events can appear as result of this server recovery so the event
-    was created there and replicated elsewhere right before the crash. At recovery
-    it could be evicted from the server's binlog.
-  */
-  bool do_accept_own_server_id= false;
+    a same-server-id event group by the gtid strict mode semisync slave.
+    Own server-id events can appear as result of this server crash-recovery:
+    the transaction was created on this server then being master, got replicated
+    elsewhere right before the crash before commit;
+    finally at recovery the transaction gets evicted from the server's binlog.
+ */
+  bool do_accept_own_server_id;
   /*
     FD_q must have been prepared for the first R_a event
     inside get_master_version_and_clock()
@@ -6281,6 +6281,8 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
                     dbug_rows_event_count = 0;
                   };);
 #endif
+  s_id= uint4korr(buf + SERVER_ID_OFFSET);
+
   mysql_mutex_lock(&mi->data_lock);
 
   switch (buf[EVENT_TYPE_OFFSET]) {
@@ -6722,6 +6724,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
 
     ++mi->events_queued_since_last_gtid;
     inc_pos= event_len;
+
   }
   break;
   /*
@@ -6864,6 +6867,10 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
     break;
   }
 
+  do_accept_own_server_id= (s_id == global_system_variables.server_id
+    && rpl_semi_sync_slave_enabled && opt_gtid_strict_mode
+    && mi->using_gtid != Master_info::USE_GTID_NO);
+
   /*
     Integrity of Rows- event group check.
     A sequence of Rows- events must end with STMT_END_F flagged one.
@@ -6909,7 +6916,6 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   */
 
   mysql_mutex_lock(log_lock);
-  s_id= uint4korr(buf + SERVER_ID_OFFSET);
   /*
     Write the event to the relay log, unless we reconnected in the middle
     of an event group and now need to skip the initial part of the group that
@@ -6955,7 +6961,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   else
   if ((s_id == global_system_variables.server_id &&
        !(mi->rli.replicate_same_server_id ||
-         (do_accept_own_server_id= rpl_semi_sync_slave_enabled))) ||
+         do_accept_own_server_id)) ||
       event_that_should_be_ignored(buf) ||
       /*
         the following conjunction deals with IGNORE_SERVER_IDS, if set

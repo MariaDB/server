@@ -4155,6 +4155,8 @@ public:
   bool convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
 		      const char *from, size_t from_length,
 		      CHARSET_INFO *from_cs);
+  bool reinterpret_string_from_binary(LEX_CSTRING *to, CHARSET_INFO *to_cs,
+                                      const char *from, size_t from_length);
   bool convert_string(LEX_CSTRING *to, CHARSET_INFO *to_cs,
                       const char *from, size_t from_length,
                       CHARSET_INFO *from_cs)
@@ -4171,6 +4173,8 @@ public:
   {
     if (!simple_copy_is_possible)
       return unlikely(convert_string(to, tocs, from->str, from->length, fromcs));
+    if (fromcs == &my_charset_bin)
+      return reinterpret_string_from_binary(to, tocs, from->str, from->length);
     *to= *from;
     return false;
   }

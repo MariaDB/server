@@ -192,6 +192,22 @@ enum extra2_index_flags {
   EXTRA2_IGNORED_KEY
 };
 
+
+static inline size_t extra2_read_len(const uchar **extra2, const uchar *end)
+{
+  size_t length= *(*extra2)++;
+  if (length)
+    return length;
+
+  if ((*extra2) + 2 >= end)
+    return 0;
+  length= uint2korr(*extra2);
+  (*extra2)+= 2;
+  if (length < 256 || *extra2 + length > end)
+    return 0;
+  return length;
+}
+
 LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
                              HA_CREATE_INFO *create_info,
                              List<Create_field> &create_fields,

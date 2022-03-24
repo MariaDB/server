@@ -10903,12 +10903,14 @@ ha_innobase::commit_inplace_alter_table(
 		}
 	}
 
+	bool already_stopped= false;
 	for (inplace_alter_handler_ctx** pctx = ctx_array; *pctx; pctx++) {
 		auto ctx = static_cast<ha_innobase_inplace_ctx*>(*pctx);
 		dberr_t error = DB_SUCCESS;
 
 		if (fts_exist) {
-			purge_sys.stop_FTS(*ctx->old_table);
+			purge_sys.stop_FTS(*ctx->old_table, already_stopped);
+			already_stopped = true;
 		}
 
 		if (new_clustered && ctx->old_table->fts) {
