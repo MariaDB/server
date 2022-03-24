@@ -85,23 +85,10 @@ void aio::synchronous(aiocb *cb)
 #endif
   cb->m_ret_len = ret_len;
   cb->m_err = err;
-  if (!err && cb->m_ret_len != cb->m_len)
+  if (ret_len)
     finish_synchronous(cb);
 }
 
-
-/**
-  A partial read/write has occured, continue synchronously.
-*/
-void aio::finish_synchronous(aiocb *cb)
-{
-  assert(cb->m_ret_len != (unsigned int) cb->m_len && !cb->m_err);
-  /* partial read/write */
-  cb->m_buffer= (char *) cb->m_buffer + cb->m_ret_len;
-  cb->m_len-= (unsigned int) cb->m_ret_len;
-  cb->m_offset+= cb->m_ret_len;
-  synchronous(cb);
-}
 
 /**
   Implementation of generic threadpool.
