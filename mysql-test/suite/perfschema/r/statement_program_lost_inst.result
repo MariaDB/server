@@ -166,7 +166,7 @@ data INT NOT NULL
 CREATE TABLE t2(
 n INT UNSIGNED NOT NULL, 
 f BIGINT UNSIGNED
-) engine=innodb;
+);
 ############################
 # Creating Stored Programs #
 ############################

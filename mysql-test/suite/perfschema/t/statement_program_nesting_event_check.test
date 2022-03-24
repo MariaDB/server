@@ -7,6 +7,7 @@
 
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
+--source include/have_innodb.inc
 
 TRUNCATE TABLE performance_schema.events_statements_history_long;
 
@@ -14,6 +15,7 @@ TRUNCATE TABLE performance_schema.events_statements_history_long;
 --echo # Non-nested Stored programs.
 --echo #----------------------------
 --source suite/perfschema/include/program_setup.inc
+ALTER TABLE t2 ENGINE=InnoDB;
 --source suite/perfschema/include/program_execution.inc
 
 SELECT EVENT_NAME, SQL_TEXT, OBJECT_NAME, NESTING_EVENT_TYPE, NESTING_EVENT_LEVEL
@@ -31,6 +33,7 @@ TRUNCATE TABLE performance_schema.events_statements_history_long;
 --echo # Nested stored programs.
 --echo #------------------------
 --source suite/perfschema/include/program_nested_setup.inc
+ALTER TABLE t2 ENGINE=InnoDB;
 --source suite/perfschema/include/program_nested_execution.inc
 
 SELECT EVENT_NAME, SQL_TEXT, OBJECT_NAME, NESTING_EVENT_TYPE, NESTING_EVENT_LEVEL
