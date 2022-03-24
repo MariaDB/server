@@ -14277,6 +14277,7 @@ void JOIN::cleanup(bool full)
           if (curr_tab->aggr)
           {
             free_tmp_table(thd, curr_tab->table);
+            curr_tab->table= NULL;
             delete curr_tab->tmp_table_param;
             curr_tab->tmp_table_param= NULL;
             curr_tab->aggr= NULL;

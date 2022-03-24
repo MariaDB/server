@@ -4705,4 +4705,18 @@ SET sql_buffer_result=1;
 SELECT grp,GROUP_CONCAT(c ORDER BY 2) FROM t1 GROUP BY grp;
 DROP TABLE t1;
 
+--echo #
+--echo # Bug MDEV-28077 "Wrong create options" with "big_tables" option enabled
+--echo #
+CREATE TABLE t1(a VARCHAR(16383) CHARACTER SET UTF32, KEY k(a));
+INSERT INTO t1 VALUES ('abc'), ('def'), ('FFF'), ('abc'), ('FFF');
+SET SESSION big_tables=ON;
+SELECT DISTINCT COUNT(DISTINCT a) FROM t1;
+
+PREPARE stmt FROM 'SELECT DISTINCT COUNT(DISTINCT a) FROM t1';
+EXECUTE stmt;
+EXECUTE stmt;
+
+DROP TABLE t1;
+
 --echo End of 10.0 tests
