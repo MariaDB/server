@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1535,9 +1535,10 @@ public:
   /** Remove the sentinel block for the watch before replacing it with a
   real block. watch_unset() or watch_occurred() will notice
   that the block has been replaced with the real block.
-  @param watch      sentinel
-  @param chain      locked hash table chain */
-  inline void watch_remove(buf_page_t *watch, hash_chain &chain);
+  @param w          sentinel
+  @param chain      locked hash table chain
+  @return           w->state() */
+  inline uint32_t watch_remove(buf_page_t *w, hash_chain &chain);
 
   /** @return whether less than 1/4 of the buffer pool is available */
   TPOOL_SUPPRESS_TSAN
