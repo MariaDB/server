@@ -2624,11 +2624,6 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
   */
   DBUG_ASSERT(static_cast<uint>(buf - buf_0) <= event_len);
   /* and the last of them is tested. */
-#ifdef MYSQL_SERVER
-#ifdef WITH_WSREP
-  if (!WSREP_ON)
-#endif
-#endif
   DBUG_ASSERT(static_cast<uint>(buf - buf_0) == event_len ||
               buf_0[event_len - 1] == 0);
 }
