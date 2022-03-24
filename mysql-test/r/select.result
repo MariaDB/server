@@ -5575,4 +5575,23 @@ SET sql_buffer_result=1;
 SELECT grp,GROUP_CONCAT(c ORDER BY 2) FROM t1 GROUP BY grp;
 grp	GROUP_CONCAT(c ORDER BY 2)
 DROP TABLE t1;
+#
+# Bug MDEV-28077 "Wrong create options" with "big_tables" option enabled
+#
+CREATE TABLE t1(a VARCHAR(16383) CHARACTER SET UTF32, KEY k(a));
+Warnings:
+Note	1071	Specified key was too long; max key length is 1000 bytes
+INSERT INTO t1 VALUES ('abc'), ('def'), ('FFF'), ('abc'), ('FFF');
+SET SESSION big_tables=ON;
+SELECT DISTINCT COUNT(DISTINCT a) FROM t1;
+COUNT(DISTINCT a)
+3
+PREPARE stmt FROM 'SELECT DISTINCT COUNT(DISTINCT a) FROM t1';
+EXECUTE stmt;
+COUNT(DISTINCT a)
+3
+EXECUTE stmt;
+COUNT(DISTINCT a)
+3
+DROP TABLE t1;
 End of 10.0 tests
