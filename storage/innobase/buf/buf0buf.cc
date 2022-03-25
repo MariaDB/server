@@ -2160,17 +2160,21 @@ void buf_pool_t::watch_unset(const page_id_t id, buf_pool_t::hash_chain &chain)
   buf_page_t *w;
   {
     transactional_lock_guard<page_hash_latch> g{page_hash.lock_get(chain)};
-    /* The page must exist because watch_set() increments buf_fix_count. */
+    /* The page must exist because watch_set() did fix(). */
     w= page_hash.get(id, chain);
-    const auto state= w->state();
-    ut_ad(state >= buf_page_t::UNFIXED);
-    ut_ad(~buf_page_t::LRU_MASK & state);
     ut_ad(w->in_page_hash);
-    if (state != buf_page_t::UNFIXED + 1 || !watch_is_sentinel(*w))
+    if (!watch_is_sentinel(*w))
     {
-      w->unfix();
+    no_watch:
+      ut_d(const auto s=) w->unfix();
+      ut_ad(~buf_page_t::LRU_MASK & s);
       w= nullptr;
     }
+    const auto state= w->state();
+    ut_ad(~buf_page_t::LRU_MASK & state);
+    ut_ad(state >= buf_page_t::UNFIXED);
+    if (state != buf_page_t::UNFIXED + 1)
+      goto no_watch;
   }
 
   if (!w)
