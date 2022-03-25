@@ -3,6 +3,11 @@
 # This test is slow on buildbot.
 --source include/big_test.inc
 
+--disable_query_log
+# This may be triggered on a slow system or one that lacks native AIO.
+call mtr.add_suppression("InnoDB: Trying to delete tablespace.*pending operations");
+--enable_query_log
+
 # zlib
 set global innodb_compression_algorithm = 1;
 

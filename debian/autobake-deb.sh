@@ -11,26 +11,17 @@
 # Exit immediately on any error
 set -e
 
-source ./VERSION
-
-CODENAME="$(lsb_release -sc)"
-case "${CODENAME}" in
-	stretch)
-		# MDEV-28022 libzstd-dev-1.1.3 minimum version
-		sed -i -e '/libzstd-dev/d' debian/control
-		;;
-esac
-
-# This file is invoked from Buildbot and Travis-CI to build deb packages.
-# As both of those CI systems have many parallel jobs that include different
-# parts of the test suite, we don't need to run the mysql-test-run at all when
-# building the deb packages here.
+# On Buildbot, don't run the mysql-test-run test suite as part of build.
+# It takes a lot of time, and we will do a better test anyway in
+# Buildbot, running the test suite from installed .debs on a clean VM.
 export DEB_BUILD_OPTIONS="nocheck $DEB_BUILD_OPTIONS"
 
+source ./VERSION
+
 # General CI optimizations to keep build output smaller
-if [[ $TRAVIS ]] || [[ $GITLAB_CI ]]
+if [[ $GITLAB_CI ]]
 then
-  # On both Travis and Gitlab the output log must stay under 4MB so make the
+  # On Gitlab the output log must stay under 4MB so make the
   # build less verbose
   sed '/Add support for verbose builds/,/^$/d' -i debian/rules
 elif [ -d storage/columnstore/columnstore/debian ]
@@ -45,67 +36,106 @@ then
   sed "s/10.6/${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}/" <storage/columnstore/columnstore/debian/control >> debian/control
 fi
 
-# Don't build or try to put files in a package for selected plugins and components on Travis-CI
-# in order to keep build small (in both duration and disk space)
-if [[ $TRAVIS ]]
-then
-  # Test suite package not relevant on Travis-CI
-  sed 's|DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test|DINSTALL_MYSQLTESTDIR=false|' -i debian/rules
-  sed '/Package: mariadb-test-data/,/^$/d' -i debian/control
-  sed '/Package: mariadb-test$/,/^$/d' -i debian/control
+# Look up distro-version specific stuff
+#
+# Always keep the actual packaging as up-to-date as possible following the latest
+# Debian policy and targeting Debian Sid. Then case-by-case run in autobake-deb.sh
+# tests for backwards compatibility and strip away parts on older builders.
 
-  # Extra plugins such as Mroonga, Spider, OQgraph, Sphinx and the embedded build can safely be skipped
-  sed 's|-DDEB|-DPLUGIN_MROONGA=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_SPIDER=NO -DPLUGIN_OQGRAPH=NO -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_SPHINX=NO -DWITH_EMBEDDED_SERVER=OFF -DDEB|' -i debian/rules
-  sed "/Package: mariadb-plugin-mroonga/,/^$/d" -i debian/control
-  sed "/Package: mariadb-plugin-rocksdb/,/^$/d" -i debian/control
-  sed "/Package: mariadb-plugin-spider/,/^$/d" -i debian/control
-  sed "/Package: mariadb-plugin-oqgraph/,/^$/d" -i debian/control
-  sed "/ha_sphinx.so/d" -i debian/mariadb-server-${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.install
-  sed "/Package: libmariadbd19/,/^$/d" -i debian/control
-  sed "/Package: libmariadbd-dev/,/^$/d" -i debian/control
-fi
-
-# If rocksdb-tools is not available (before Debian Buster and Ubuntu Disco)
-# remove the dependency from the RocksDB plugin so it can install properly
-# and instead ship the one built from MariaDB sources
-if ! apt-cache madison rocksdb-tools | grep 'rocksdb-tools' >/dev/null 2>&1
-then
+remove_rocksdb_tools()
+{
   sed '/rocksdb-tools/d' -i debian/control
   sed '/sst_dump/d' -i debian/not-installed
-  echo "usr/bin/sst_dump" >> debian/mariadb-plugin-rocksdb.install
-fi
+  if ! grep -q sst_dump debian/mariadb-plugin-rocksdb.install
+  then
+    echo "usr/bin/sst_dump" >> debian/mariadb-plugin-rocksdb.install
+  fi
+}
 
-# If libcurl4 is not available (before Debian Buster and Ubuntu Bionic)
-# use older libcurl3 instead
-if ! apt-cache madison libcurl4 | grep 'libcurl4' >/dev/null 2>&1
-then
-  sed 's/libcurl4/libcurl3/g' -i debian/control
-fi
-
-# From Debian Bullseye/Ubuntu Groovy, liburing replaces libaio
-if ! apt-cache madison liburing-dev | grep 'liburing-dev' >/dev/null 2>&1
-then
+replace_uring_with_aio()
+{
   sed 's/liburing-dev/libaio-dev/g' -i debian/control
-  sed '/-DIGNORE_AIO_CHECK=YES/d' -i debian/rules
-  sed '/-DWITH_URING=yes/d' -i debian/rules
-fi
+  sed -e '/-DIGNORE_AIO_CHECK=YES/d' \
+      -e '/-DWITH_URING=yes/d' -i debian/rules
+}
 
-# From Debian Buster/Ubuntu Focal onwards libpmem-dev is available
-# Don't reference it when built in distro releases that lack it
-if ! apt-cache madison libpmem-dev | grep 'libpmem-dev' >/dev/null 2>&1
-then
+disable_pmem()
+{
   sed '/libpmem-dev/d' -i debian/control
   sed '/-DWITH_PMEM=yes/d' -i debian/rules
-fi
+}
 
-# Debian stretch doesn't support the zstd version 1.1.3 required
-# for RocksDB. zstd isn't enabled in Mroonga even though code exists
-# for it. If someone happens to have a non-default zstd installed
-# (not 1.1.2), assume its a backport and build with it.
-if [ "$(lsb_release -sc)" = stretch ] && [ "$(apt-cache madison 'libzstd-dev' | grep -v 1.1.2)" = '' ]
-then
-  sed '/libzstd-dev/d' -i debian/control
-fi
+disable_libfmt()
+{
+  # 0.7+ required
+  sed '/libfmt-dev/d' -i debian/control
+}
+
+architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
+
+CODENAME="$(lsb_release -sc)"
+case "${CODENAME}" in
+  stretch)
+    # MDEV-16525 libzstd-dev-1.1.3 minimum version
+    sed -e '/libzstd-dev/d' \
+        -e 's/libcurl4/libcurl3/g' -i debian/control
+    remove_rocksdb_tools
+    disable_pmem
+    ;&
+  buster)
+    disable_libfmt
+    replace_uring_with_aio
+    if [ ! "$architecture" = amd64 ]
+    then
+      disable_pmem
+    fi
+    ;&
+  bullseye|bookworm)
+    # mariadb-plugin-rocksdb in control is 4 arches covered by the distro rocksdb-tools
+    # so no removal is necessary.
+    if [[ ! "$architecture" =~ amd64|arm64|ppc64el ]]
+    then
+      disable_pmem
+    fi
+    if [[ ! "$architecture" =~ amd64|arm64|armel|armhf|i386|mips64el|mipsel|ppc64el|s390x ]]
+    then
+      replace_uring_with_aio
+    fi
+    ;&
+  sid)
+    # should always be empty here.
+    # need to match here to avoid the default Error however
+    ;;
+    # UBUNTU
+  bionic)
+    remove_rocksdb_tools
+    [ "$architecture" != amd64 ] && disable_pmem
+    ;&
+  focal)
+    replace_uring_with_aio
+    disable_libfmt
+    ;&
+  impish|jammy)
+    # mariadb-plugin-rocksdb s390x not supported by us (yet)
+    # ubuntu doesn't support mips64el yet, so keep this just
+    # in case something changes.
+    if [[ ! "$architecture" =~ amd64|arm64|ppc64el|s390x ]]
+    then
+      remove_rocksdb_tools
+    fi
+    if [[ ! "$architecture" =~ amd64|arm64|ppc64el ]]
+    then
+      disable_pmem
+    fi
+    if [[ ! "$architecture" =~ amd64|arm64|armhf|ppc64el|s390x ]]
+    then
+      replace_uring_with_aio
+    fi
+    ;;
+  *)
+    echo "Error - unknown release codename $CODENAME" >&2
+    exit 1
+esac
 
 # Adjust changelog, add new version
 echo "Incrementing changelog and starting build scripts"
@@ -121,9 +151,9 @@ dch -b -D "${CODENAME}" -v "${VERSION}" "Automatic build with ${LOGSTRING}." --c
 
 echo "Creating package version ${VERSION} ... "
 
-# On Travis CI and Gitlab-CI, use -b to build binary only packages as there is
+# On Gitlab-CI, use -b to build binary only packages as there is
 # no need to waste time on generating the source package.
-if [[ $TRAVIS ]]
+if [[ $GITLAB_CI ]]
 then
   BUILDPACKAGE_FLAGS="-b"
 fi
@@ -143,8 +173,8 @@ fakeroot $BUILDPACKAGE_PREPEND dpkg-buildpackage -us -uc -I $BUILDPACKAGE_FLAGS
 # If the step above fails due to missing dependencies, you can manually run
 #   sudo mk-build-deps debian/control -r -i
 
-# Don't log package contents on Travis-CI or Gitlab-CI to save time and log size
-if [[ ! $TRAVIS ]] && [[ ! $GITLAB_CI ]]
+# Don't log package contents on Gitlab-CI to save time and log size
+if [[ ! $GITLAB_CI ]]
 then
   echo "List package contents ..."
   cd ..

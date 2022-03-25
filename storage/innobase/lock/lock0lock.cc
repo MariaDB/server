@@ -3627,52 +3627,50 @@ static void lock_table_dequeue(lock_t *in_lock, bool owns_wait_mutex)
 	}
 }
 
+
 /** Sets a lock on a table based on the given mode.
-@param[in]	table	table to lock
-@param[in,out]	trx	transaction
-@param[in]	mode	LOCK_X or LOCK_S
-@return error code or DB_SUCCESS. */
-dberr_t
-lock_table_for_trx(
-	dict_table_t*	table,
-	trx_t*		trx,
-	enum lock_mode	mode)
+@param table	table to lock
+@param trx	transaction
+@param mode	LOCK_X or LOCK_S
+@param no_wait  whether to skip handling DB_LOCK_WAIT
+@return error code */
+dberr_t lock_table_for_trx(dict_table_t *table, trx_t *trx, lock_mode mode,
+                           bool no_wait)
 {
-	mem_heap_t*	heap;
-	que_thr_t*	thr;
-	dberr_t		err;
-	sel_node_t*	node;
-	heap = mem_heap_create(512);
+  mem_heap_t *heap= mem_heap_create(512);
+  sel_node_t *node= sel_node_create(heap);
+  que_thr_t *thr= pars_complete_graph_for_exec(node, trx, heap, nullptr);
+  thr->graph->state= QUE_FORK_ACTIVE;
 
-	node = sel_node_create(heap);
-	thr = pars_complete_graph_for_exec(node, trx, heap, NULL);
-	thr->graph->state = QUE_FORK_ACTIVE;
-
-	/* We use the select query graph as the dummy graph needed
-	in the lock module call */
-
-	thr = static_cast<que_thr_t*>(
-		que_fork_get_first_thr(
-			static_cast<que_fork_t*>(que_node_get_parent(thr))));
+  thr= static_cast<que_thr_t*>
+    (que_fork_get_first_thr(static_cast<que_fork_t*>
+                            (que_node_get_parent(thr))));
 
 run_again:
-	thr->run_node = thr;
-	thr->prev_node = thr->common.parent;
+  thr->run_node= thr;
+  thr->prev_node= thr->common.parent;
+  dberr_t err= lock_table(table, mode, thr);
 
-	err = lock_table(table, mode, thr);
+  switch (err) {
+  case DB_SUCCESS:
+    break;
+  case DB_LOCK_WAIT:
+    if (no_wait)
+    {
+      lock_sys.cancel_lock_wait_for_trx(trx);
+      break;
+    }
+    /* fall through */
+  default:
+    trx->error_state= err;
+    if (row_mysql_handle_errors(&err, trx, thr, nullptr))
+      goto run_again;
+  }
 
-	trx->error_state = err;
+  que_graph_free(thr->graph);
+  trx->op_info= "";
 
-	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
-		if (row_mysql_handle_errors(&err, trx, thr, NULL)) {
-			goto run_again;
-		}
-	}
-
-	que_graph_free(thr->graph);
-	trx->op_info = "";
-
-	return(err);
+  return err;
 }
 
 /** Exclusively lock the data dictionary tables.
@@ -5639,8 +5637,7 @@ static void lock_cancel_waiting_and_release(lock_t *lock)
   lock_wait_end(trx);
   trx->mutex_unlock();
 }
-#ifdef WITH_WSREP
-TRANSACTIONAL_TARGET
+
 void lock_sys_t::cancel_lock_wait_for_trx(trx_t *trx)
 {
   lock_sys.wr_lock(SRW_LOCK_CALL);
@@ -5654,7 +5651,6 @@ void lock_sys_t::cancel_lock_wait_for_trx(trx_t *trx)
   lock_sys.wr_unlock();
   mysql_mutex_unlock(&lock_sys.wait_mutex);
 }
-#endif /* WITH_WSREP */
 
 /** Cancel a waiting lock request.
 @tparam check_victim  whether to check for DB_DEADLOCK

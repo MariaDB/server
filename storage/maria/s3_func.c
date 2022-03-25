@@ -1310,7 +1310,7 @@ my_bool set_database_and_table_from_path(S3_INFO *s3, const char *path)
     if (path[length-1] == FN_LIBCHAR || path[length-1] == '/')
       break;
 #ifdef FN_DEVCHAR
-    if (path[length-1] == FN_DECVHAR)
+    if (path[length-1] == FN_DEVCHAR)
       break;
 #endif
   }

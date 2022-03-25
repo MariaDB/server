@@ -5142,7 +5142,7 @@ static Sys_var_have Sys_have_symlink(
 
 # ifdef __SANITIZE_ADDRESS__
 #  ifdef WITH_UBSAN
-#   define SANITIZER_MODE "ASAN+UBSAN"
+#   define SANITIZER_MODE "ASAN,UBSAN"
 #  else
 #   define SANITIZER_MODE "ASAN"
 #  endif
@@ -6700,7 +6700,7 @@ static Sys_var_ulong Sys_log_tc_size(
        DEFAULT(my_getpagesize() * 6), BLOCK_SIZE(my_getpagesize()));
 #endif
 
-static Sys_var_ulonglong Sys_max_thread_mem(
+static Sys_var_ulonglong Sys_max_session_mem_used(
        "max_session_mem_used", "Amount of memory a single user session "
        "is allowed to allocate. This limits the value of the "
        "session variable MEM_USED", SESSION_VAR(max_mem_used),

@@ -1,4 +1,4 @@
-
+--source include/have_partition.inc
 --source include/have_debug.inc
 
 if (!$HA_ARCHIVE_SO) {
@@ -13,18 +13,25 @@ SET debug_dbug='+d,unstable_db_type';
 install soname 'ha_archive';
 create table t1 (a int) engine=archive;
 insert t1 values (1),(2),(3);
+
+create table t2 (a int) engine=archive partition by hash(a) partitions 3;
+
 flush tables;
 uninstall soname 'ha_archive';
 
---vertical_results
-select table_schema, table_name from information_schema.tables where table_name like 't1';
-select table_schema, table_name, engine, version from information_schema.tables where table_name like 't1';
-select table_schema, table_name, engine, row_format from information_schema.tables where table_name like 't1';
---horizontal_results
+select table_schema, table_name from information_schema.tables where table_name like 't_' order by 1,2;
+--replace_result $mysqld_datadir ./
+select table_schema, table_name, engine, version from information_schema.tables where table_name like 't_' order by 1,2;
+--replace_result $mysqld_datadir ./
+select table_schema, table_name, engine, row_format from information_schema.tables where table_name like 't_' order by 1,2;
 
 install soname 'ha_archive';
+show create table t1;
+show create table t2;
+
 --list_files $mysqld_datadir/test
 drop table t1;
+drop table t2;
 --list_files $mysqld_datadir/test
 uninstall soname 'ha_archive';
 

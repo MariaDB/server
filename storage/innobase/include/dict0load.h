@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -53,9 +53,8 @@ We also scan the biggest space id, and store it to fil_system. */
 void dict_check_tablespaces_and_store_max_id();
 
 /** Make sure the data_file_name is saved in dict_table_t if needed.
-@param[in,out]	table		Table object
-@param[in]	dict_locked	dict_sys.frozen() */
-void dict_get_and_save_data_dir_path(dict_table_t* table, bool dict_locked);
+@param[in,out]	table		Table object */
+void dict_get_and_save_data_dir_path(dict_table_t* table);
 
 /***********************************************************************//**
 Loads a table object based on the table id.

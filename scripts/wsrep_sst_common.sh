@@ -1214,16 +1214,6 @@ verify_ca_matches_cert()
         return
     fi
 
-    local readable=1; [ ! -r "$cert" ] && readable=0
-    [ -n "$ca"  ] &&  [ ! -r "$ca"   ] && readable=0
-    [ -n "$cap" ] &&  [ ! -r "$cap"  ] && readable=0
-
-    if [ readable -eq 0 ]; then
-        wsrep_log_error \
-            "Both PEM file and CA file (or path) must be readable"
-        exit 22
-    fi
-
     local not_match=0
     local errmsg
     errmsg=$("$OPENSSL_BINARY" verify -verbose \
