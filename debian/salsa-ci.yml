@@ -7,7 +7,7 @@ include:
 # Override Salsa-CI with MariaDB specific variations
 variables:
   DEB_BUILD_OPTIONS: "nocheck noautodbgsym"
-  RELEASE: sid
+  RELEASE: bullseye
   SALSA_CI_DISABLE_REPROTEST: 1
   SALSA_CI_DISABLE_MISSING_BREAKS: 0
   SALSA_CI_DISABLE_RC_BUGS: 1
@@ -20,8 +20,8 @@ stages:
   - provisioning
   - build
   - test
-  - upgrade in Sid
-  - upgrade from Bullseye/Buster/Stretch
+  - upgrade in Bullseye
+  - upgrade from Buster/Stretch
   - upgrade extras
   - test extras
   - publish # Stage referenced by Salsa-CI template aptly stanza, so must exist even though not used
@@ -46,10 +46,9 @@ build:
     - ccache -s # Show ccache stats to validate it worked
     - mv ${CCACHE_TMP_DIR} ${CCACHE_WORK_DIR}
 
-build bullseye-backports:
-  extends: .build-package
-  variables:
-    RELEASE: bullseye-backports
+# build jobs often needs more than default GitLab timeout (1h)
+.build-package:
+  timeout: 3h
 
 build buster-backports:
   extends: .build-package
@@ -100,14 +99,14 @@ blhc:
   dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
   service mysql status || service mariadb status # Early MariaDB 10.5 only had 'mariadb'
   mysql --skip-column-names -e "select @@version, @@version_comment" # Show version
-  mysql --table -e 'SHOW DATABASES;' # List databases before upgrade
+  mysql --table -e "SHOW DATABASES;" # List databases before upgrade
   mysql --table -e "SELECT host,user,plugin,authentication_string FROM user;" mysql
   mysql --table -e "SELECT * FROM plugin;" mysql
   mysql --table -e "SHOW PLUGINS;" mysql
 
-.test-enable-sid-repos: &test-enable-sid-repos |
-  # Replace any old repos with just Sid
-  echo 'deb http://deb.debian.org/debian sid main' > /etc/apt/sources.list
+.test-enable-bullseye-repos: &test-enable-bullseye-repos |
+  # Replace any old repos with just Bullseye
+  echo "deb http://deb.debian.org/debian bullseye main" > /etc/apt/sources.list
   # Upgrade minimal stack first
   apt-get update
   apt-get install -y apt
@@ -125,7 +124,7 @@ blhc:
   cp -ra /etc/mysql debug/etc-mysql
   cp -ra /var/log/mysql debug/var-log-mysql
   mariadb --skip-column-names -e "select @@version, @@version_comment" # Show version
-  mariadb --table -e 'SHOW DATABASES;' # List databases
+  mariadb --table -e "SHOW DATABASES;" # List databases
   mariadb --table -e "SELECT host,user,plugin,authentication_string FROM user;" mysql
   mariadb --table -e "SELECT * FROM plugin;" mysql
   mariadb --table -e "SHOW PLUGINS;" mysql
@@ -262,7 +261,7 @@ mariadb-10.3 Buster to mariadb-10.6 upgrade:
     - apt-get install -y 'default-mysql*' 'mariadb-*' 'libmariadb*'
     # Verify installation of MariaDB from Buster
     - *test-verify-initial
-    - *test-enable-sid-repos
+    - *test-enable-bullseye-repos
     - *test-install
     - service mysql status
     - *test-verify-final
@@ -289,8 +288,7 @@ mariadb-10.1 Stretch to mariadb-10.6 upgrade:
     - apt-get install -y 'default-mysql*' 'mariadb-*' 'libmariadbd*' 'libmariadbclient*'
     # Verify installation of MariaDB from Stretch
     - *test-verify-initial
-    - apt-get remove -y manpages  # Workaround for Bug#99375
-    - *test-enable-sid-repos
+    - *test-enable-bullseye-repos
     - *test-install
     - service mysql status
     - *test-verify-final
@@ -404,41 +402,8 @@ build mariadbclient consumer Python-MySQLdb:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-libmysql* to libmariadb* upgrade:
-  stage: upgrade in Sid
-  needs:
-    - job: build
-  image: debian:${RELEASE}
-  artifacts:
-    when: always
-    name: "$CI_BUILD_NAME"
-    paths:
-      - ${WORKING_DIR}/debug
-  script:
-    - *test-prepare-container
-    # Install all libmysql* available in Debian unstable
-    - apt-get install -y pkg-config libmysqlclient-dev
-    - pkg-config --list-all
-    - pkg-config --cflags mysqlclient # mysqlclient.pc from original package
-    - apt-get install -y ./libmariadb3_*.deb ./mariadb-common_*.deb
-    - pkg-config --list-all
-    - apt-get install -y ./libmariadb-dev_*.deb
-    - pkg-config --list-all
-    - apt-get install -y ./libmariadb-dev-compat_*.deb
-    - pkg-config --cflags mysqlclient # mysqlclient.pc from compat package
-    - pkg-config --list-all
-    - apt-get install -y ./libmariadbd19_*.deb
-    - pkg-config --list-all
-    - apt-get install -y ./libmariadbd-dev_*.deb
-    - pkg-config --list-all
-    - apt-get install -y default-libmysqlclient-dev default-libmysqld-dev
-    - *test-verify-libs
-  except:
-    variables:
-      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
-
-default-libmysqlclient-dev Sid upgrade:
-  stage: upgrade in Sid
+default-libmysqlclient-dev Bullseye upgrade:
+  stage: upgrade in Bullseye
   needs:
     - job: build
   image: debian:${RELEASE}
@@ -458,7 +423,7 @@ default-libmysqlclient-dev Sid upgrade:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
 default-libmysqlclient-dev Buster upgrade:
-  stage: upgrade from Bullseye/Buster/Stretch
+  stage: upgrade from Buster/Stretch
   needs:
     - job: build
   image: debian:buster
@@ -471,7 +436,7 @@ default-libmysqlclient-dev Buster upgrade:
     - *test-prepare-container
     - apt-get install -y pkg-config default-libmysqlclient-dev
     - pkg-config --list-all
-    - *test-enable-sid-repos
+    - *test-enable-bullseye-repos
     - *test-install-all-libs
     - *test-verify-libs
   except:
@@ -479,7 +444,7 @@ default-libmysqlclient-dev Buster upgrade:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
 default-libmysqlclient-dev Stretch upgrade:
-  stage: upgrade from Bullseye/Buster/Stretch
+  stage: upgrade from Buster/Stretch
   needs:
     - job: build
   image: debian:stretch
@@ -492,8 +457,7 @@ default-libmysqlclient-dev Stretch upgrade:
     - *test-prepare-container
     - apt-get install -y pkg-config default-libmysqlclient-dev
     - pkg-config --list-all
-    - apt-get remove -y manpages  # Workaround for Bug#99375
-    - *test-enable-sid-repos
+    - *test-enable-bullseye-repos
     - *test-install-all-libs
     - *test-verify-libs
   except:
@@ -501,7 +465,7 @@ default-libmysqlclient-dev Stretch upgrade:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
 mariadb-connector-c Stretch upgrade:
-  stage: upgrade from Bullseye/Buster/Stretch
+  stage: upgrade from Buster/Stretch
   needs:
     - job: build
   image: debian:stretch
@@ -514,8 +478,7 @@ mariadb-connector-c Stretch upgrade:
     - *test-prepare-container
     - apt-get install -y pkg-config libmariadb2 libmariadb-dev libmariadb-dev-compat
     - pkg-config --list-all
-    - apt-get remove -y manpages  # Workaround for Bug#99375
-    - *test-enable-sid-repos
+    - *test-enable-bullseye-repos
     - *test-install-all-libs
     - *test-verify-libs
   except:
@@ -568,14 +531,14 @@ mysql-8.0 Focal to mariadb-10.6 upgrade:
     # Add Ubuntu Focal archive keys and repository
     - apt-get install --no-install-recommends --yes gpg gpg-agent dirmngr ca-certificates # Bare minimal (<4MB) for apt-key to work
     - apt-key adv --recv-keys --keyserver hkps://keyserver.ubuntu.com:443 871920D1991BC93C 3B4FE6ACC0B21F32
-    - echo 'deb http://archive.ubuntu.com/ubuntu/ focal main restricted' > /etc/apt/sources.list.d/ubuntu.list
+    - echo "deb http://archive.ubuntu.com/ubuntu/ focal main restricted" > /etc/apt/sources.list.d/ubuntu.list
     - apt-get update
     # First install often fail due to bug in mysql-8.0
     - apt-get install -y mysql-server 'libmysqlc*' || true
     - sleep 10 && apt-get install -f
     - *test-verify-initial
     # Enable backports to make galera-4 available
-    - echo 'deb http://deb.debian.org/debian buster-backports main' > /etc/apt/sources.list.d/backports.list && apt-get update
+    - echo "deb http://deb.debian.org/debian buster-backports main" > /etc/apt/sources.list.d/backports.list && apt-get update
     - *test-install
     - service mysql status
     - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server
@@ -590,7 +553,7 @@ mariadb.org-10.5 to mariadb-10.6 upgrade:
   stage: upgrade extras
   needs:
     - job: build
-  image: debian:sid
+  image: debian:${RELEASE}
   artifacts:
     when: always
     name: "$CI_BUILD_NAME"
@@ -600,14 +563,14 @@ mariadb.org-10.5 to mariadb-10.6 upgrade:
     - *test-prepare-container
     - apt install -y curl
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo 'deb http://mirror.one.com/mariadb/repo/10.5/debian sid main' > /etc/apt/sources.list.d/mariadb.list
+    - echo "deb https://deb.mariadb.org/repo/10.5/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     # The 10.5.9 release is missing mariadb-plugin-columnstore, define all other packages but it to avoid hitting the error:
     #   The following packages have unmet dependencies:
     #   mariadb-plugin-columnstore : Depends: mariadb-server-10.5 (= 1:10.5.8+maria~sid) but 1:10.5.9+maria~sid is to be installed
     - apt-get install -y libmariadb3 'libmariadb-*' 'libmariadbd*' 'mariadb-c*' 'mariadb-b*' 'mariadb-s*' 'mariadb-t*' 'mariadb-plugin-con*' 'mariadb-plugin-cr*' 'mariadb-plugin-g*' 'mariadb-plugin-m*' 'mariadb-plugin-o*' 'mariadb-plugin-s*'
     # Once 10.5.10 is out, revert back to:
-    # Package libmariadbclient-dev from mariadb.org conflicts with libmariadb-dev in Sid, so cannot use wildcard that would include it
+    # Package libmariadbclient-dev from mariadb.org conflicts with libmariadb-dev in Bullseye, so cannot use wildcard that would include it
     #- apt-get install -y 'mariadb*' libmariadb3 'libmariadb-*' 'libmariadbd*'
     - *test-verify-initial
     # Install MariaDB built in this commit
@@ -620,6 +583,7 @@ mariadb.org-10.5 to mariadb-10.6 upgrade:
     - *test-verify-final
   variables:
     GIT_STRATEGY: none
+    RELEASE: bullseye # Last Debian release that MariaDB.org publised 10.5 binaries for
   except:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
@@ -627,8 +591,8 @@ mariadb.org-10.5 to mariadb-10.6 upgrade:
 mariadb.org-10.4 to mariadb-10.6 upgrade:
   stage: upgrade extras
   needs:
-    - job: build
-  image: debian:sid
+    - job: build buster-backports
+  image: debian:${RELEASE}
   artifacts:
     when: always
     name: "$CI_BUILD_NAME"
@@ -636,9 +600,9 @@ mariadb.org-10.4 to mariadb-10.6 upgrade:
       - ${WORKING_DIR}/debug
   script:
     - *test-prepare-container
-    - apt install -y curl systemctl # systemctl shim needed on platforms that don't have systemd
+    - apt install -y curl
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo 'deb http://mirror.one.com/mariadb/repo/10.4/debian sid main' > /etc/apt/sources.list.d/mariadb.list
+    - echo "deb https://deb.mariadb.org/repo/10.4/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - apt-get install -y mariadb-server-10.4
     # MariaDB.org version of 10.4 and early 10.5 do not install an init file, so
@@ -652,6 +616,7 @@ mariadb.org-10.4 to mariadb-10.6 upgrade:
     - *test-verify-final
   variables:
     GIT_STRATEGY: none
+    RELEASE: buster # Last Debian release that MariaDB.org publised 10.4 binaries for
   except:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
@@ -659,8 +624,8 @@ mariadb.org-10.4 to mariadb-10.6 upgrade:
 mariadb.org-10.3 to mariadb-10.6 upgrade:
   stage: upgrade extras
   needs:
-    - job: build
-  image: debian:sid
+    - job: build buster-backports
+  image: debian:${RELEASE}
   artifacts:
     when: always
     name: "$CI_BUILD_NAME"
@@ -670,23 +635,21 @@ mariadb.org-10.3 to mariadb-10.6 upgrade:
     - *test-prepare-container
     - apt install -y curl
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo 'deb http://mirror.one.com/mariadb/repo/10.3/debian sid main' > /etc/apt/sources.list.d/mariadb.list
+    - echo "deb https://deb.mariadb.org/repo/10.3/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - apt-get install -y mariadb-server-10.3
-    # Verify initial state before upgrade
-    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
-    - service mysql status
-    # prepending with --defaults-file=/etc/mysql/debian.cnf is needed in upstream 5.5–10.3
-    - mysql --defaults-file=/etc/mysql/debian.cnf --skip-column-names -e "SELECT @@version, @@version_comment"
-    - echo 'SHOW DATABASES;' | mysql --defaults-file=/etc/mysql/debian.cnf
-    - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
-    - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT * FROM plugin;" mysql
+    - *test-verify-initial
+    # Enable backports to make galera-4 available
+    - echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list.d/backports.list && apt-get update
     - *test-install
     - service mysql status
-    - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server
+    # Give the mariadb-upgrade plenty of time to complete, otherwise next commands
+    # fail on non-existing mariadb.sys user
+    - sleep 15
     - *test-verify-final
   variables:
     GIT_STRATEGY: none
+    RELEASE: buster # Last Debian release that MariaDB.org publised 10.3 binaries for
   except:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
@@ -694,8 +657,8 @@ mariadb.org-10.3 to mariadb-10.6 upgrade:
 mariadb.org-10.2 to mariadb-10.6 upgrade:
   stage: upgrade extras
   needs:
-    - job: build
-  image: debian:sid
+    - job: build stretch-backports
+  image: debian:${RELEASE}
   artifacts:
     when: always
     name: "$CI_BUILD_NAME"
@@ -703,25 +666,42 @@ mariadb.org-10.2 to mariadb-10.6 upgrade:
       - ${WORKING_DIR}/debug
   script:
     - *test-prepare-container
-    - apt install -y curl
+    - apt install -y curl apt-transport-https
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo 'deb http://mirror.one.com/mariadb/repo/10.2/debian sid main' > /etc/apt/sources.list.d/mariadb.list
+    - echo "deb https://deb.mariadb.org/repo/10.2/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - apt-get install -y mariadb-server-10.2
     # Verify initial state before upgrade
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - service mysql status
     # prepending with --defaults-file=/etc/mysql/debian.cnf is needed in upstream 5.5–10.3
-    - mysql --defaults-file=/etc/mysql/debian.cnf --skip-column-names -e "SELECT @@version, @@version_comment"
-    - echo 'SHOW DATABASES;' | mysql --defaults-file=/etc/mysql/debian.cnf
-    - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT * FROM mysql.user; SHOW CREATE USER root@localhost"
-    - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT * FROM mysql.plugin; SHOW PLUGINS"
+    - |
+      mysql --defaults-file=/etc/mysql/debian.cnf --skip-column-names -e "SELECT @@version, @@version_comment"
+      mysql --defaults-file=/etc/mysql/debian.cnf --table -e "SHOW DATABASES;"
+      mysql --defaults-file=/etc/mysql/debian.cnf --table -e "SELECT * FROM mysql.user; SHOW CREATE USER root@localhost;"
+      mysql --defaults-file=/etc/mysql/debian.cnf --table -e "SELECT * FROM mysql.plugin; SHOW PLUGINS;"
+    # Enable backports to make libzstd1, rocksdb-tools
+    - echo "deb http://deb.debian.org/debian stretch-backports main" >> /etc/apt/sources.list.d/backports.list
+    # Enable backports to make galera-4 available
+    - echo "deb http://deb.debian.org/debian stretch-backports-sloppy main" >> /etc/apt/sources.list.d/backports.list && apt-get update
+    # Increase default backports priority policy from '100' to '500' so it can actually be used
+    - |
+      cat << EOF > /etc/apt/preferences.d/enable-backports-to-satisfy-dependencies
+      Package: *
+      Pin: release n=stretch-*
+      Pin-Priority: 500
+      EOF
+    # Remove plugin that requires libcurl4, not available in Debian Stretch
+    - rm mariadb-plugin-s3*.deb
     - *test-install
     - service mysql status
-    - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server
+    # Give the mariadb-upgrade plenty of time to complete, otherwise next commands
+    # fail on non-existing mariadb.sys user
+    - sleep 15
     - *test-verify-final
   variables:
     GIT_STRATEGY: none
+    RELEASE: stretch # Last Debian release that MariaDB.org publised 10.2 binaries for
   except:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
@@ -740,16 +720,16 @@ mysql.com-5.7 to mariadb-10.6 upgrade:
     - *test-prepare-container
     - |
       apt-get install --no-install-recommends --yes gpg gpg-agent dirmngr ca-certificates # Bare minimal (<4MB) for apt-key to work
-      apt-key adv --recv-keys --keyserver hkps://keyserver.ubuntu.com:443 8C718D3B5072E1F5
-      echo 'deb https://repo.mysql.com/apt/debian/ buster mysql-5.7' > /etc/apt/sources.list.d/mysql.list
+      apt-key adv --recv-keys --keyserver hkps://keyserver.ubuntu.com:443 467B942D3A79BD29
+      echo "deb https://repo.mysql.com/apt/debian/ buster mysql-5.7" > /etc/apt/sources.list.d/mysql.list
       apt-get update
       apt-get install -y 'mysql*' 'libmysqlc*'
     - *test-verify-initial
     # Enable backports to make galera-4 available
-    - echo 'deb http://deb.debian.org/debian buster-backports main' >> /etc/apt/sources.list.d/backports.list && apt-get update
+    - echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list.d/backports.list && apt-get update
     - *test-install
     - service mysql status
-    - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server
+    - sleep 15 # Give the mysql_upgrade a bit of extra time to complete with MySQL 5.7 before querying the server
     - *test-verify-final
   variables:
     GIT_STRATEGY: none
@@ -772,16 +752,16 @@ percona-xtradb-5.7 to mariadb-10.6 upgrade (MDEV-22679):
     - |
       apt-get install --no-install-recommends --yes gpg gpg-agent dirmngr ca-certificates # Bare minimal (<4MB) for apt-key to work
       apt-key adv --recv-keys --keyserver hkps://keyserver.ubuntu.com:443 9334A25F8507EFA5
-      echo 'deb https://repo.percona.com/apt/ buster main' > /etc/apt/sources.list.d/mysql.list
+      echo "deb https://repo.percona.com/apt/ buster main" > /etc/apt/sources.list.d/mysql.list
       apt-get update
       apt-get install -y percona-xtradb-cluster-full-57 percona-xtrabackup-24 percona-toolkit pmm2-client
     - service mysql status
     - *test-verify-initial
     # Enable backports to make galera-4 available
-    - echo 'deb http://deb.debian.org/debian buster-backports main' >> /etc/apt/sources.list.d/backports.list && apt-get update
+    - echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list.d/backports.list && apt-get update
     - *test-install
     - service mysql status
-    - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server
+    - sleep 15 # Give the mysql_upgrade a bit of extra time to complete with MySQL 5.7 before querying the server
     - *test-verify-final
   variables:
     GIT_STRATEGY: none

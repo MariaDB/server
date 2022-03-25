@@ -16,6 +16,7 @@ set -e
 # Buildbot, running the test suite from installed .debs on a clean VM.
 export DEB_BUILD_OPTIONS="nocheck $DEB_BUILD_OPTIONS"
 
+source ./VERSION
 # General CI optimizations to keep build output smaller
 if [[ $GITLAB_CI ]]
 then
@@ -50,24 +51,45 @@ remove_rocksdb_tools()
   fi
 }
 
+architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
 
 CODENAME="$(lsb_release -sc)"
 case "${CODENAME}" in
-	stretch)
-		# MDEV-28022 libzstd-dev-1.1.3 minimum version
-		sed -i -e '/libzstd-dev/d' \
-                       -e 's/libcurl4/libcurl3/g' -i debian/control
-		remove_rocksdb_tools
-		;;
-	bionic)
-		remove_rocksdb_tools
-		;;
+  stretch)
+    # MDEV-16525 libzstd-dev-1.1.3 minimum version
+    sed -e '/libzstd-dev/d' \
+        -e 's/libcurl4/libcurl3/g' -i debian/control
+    remove_rocksdb_tools
+    ;&
+  buster)
+    ;&
+  bullseye|bookworm)
+    # mariadb-plugin-rocksdb in control is 4 arches covered by the distro rocksdb-tools
+    # so no removal is necessary.
+    ;&
+  sid)
+    # should always be empty here.
+    # need to match here to avoid the default Error however
+    ;;
+  # UBUNTU
+  bionic)
+    remove_rocksdb_tools
+    ;&
+  focal)
+    ;&
+  impish|jammy)
+    # mariadb-plugin-rocksdb s390x not supported by us (yet)
+    # ubuntu doesn't support mips64el yet, so keep this just
+    # in case something changes.
+    if [[ ! "$architecture" =~ amd64|arm64|ppc64el|s390x ]]
+    then
+      remove_rocksdb_tools
+    fi
+    ;;
+  *)
+    echo "Error - unknown release codename $CODENAME" >&2
+    exit 1
 esac
-
-if [[ ! "$(dpkg-architecture -q DEB_BUILD_ARCH)" =~ amd64|arm64|ppc64el|s390x ]]
-then
-  remove_rocksdb_tools
-fi
 
 # From Debian Bullseye/Ubuntu Groovy, liburing replaces libaio
 if ! apt-cache madison liburing-dev | grep 'liburing-dev' >/dev/null 2>&1
@@ -89,7 +111,6 @@ fi
 echo "Incrementing changelog and starting build scripts"
 
 # Find major.minor version
-source ./VERSION
 UPSTREAM="${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.${MYSQL_VERSION_PATCH}${MYSQL_VERSION_EXTRA}"
 PATCHLEVEL="+maria"
 LOGSTRING="MariaDB build"

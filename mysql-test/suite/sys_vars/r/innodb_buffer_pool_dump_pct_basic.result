@@ -4,6 +4,11 @@ SELECT @orig;
 25
 SET GLOBAL innodb_buffer_pool_dump_pct=3;
 # Do the dump
+SELECT @@global.innodb_buffer_pool_dump_now;
+SELECT variable_value INTO @old_dump_status FROM information_schema.global_status
+WHERE LOWER(variable_name) = 'innodb_buffer_pool_dump_status';
+SET GLOBAL innodb_buffer_pool_dump_now = ON;
+SELECT @@global.innodb_buffer_pool_dump_now;
 SET GLOBAL innodb_buffer_pool_dump_pct=20;
 SELECT @@global.innodb_buffer_pool_dump_pct;
 @@global.innodb_buffer_pool_dump_pct

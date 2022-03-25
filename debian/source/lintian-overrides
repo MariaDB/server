@@ -23,8 +23,10 @@ version-substvar-for-external-package libmariadbd-dev -> libmariadbclient-dev
 # ColumnStore not used in Debian, safe to ignore. Reported upstream in https://jira.mariadb.org/browse/MDEV-24124
 source-is-missing storage/columnstore/columnstore/utils/jemalloc/libjemalloc.so.2
 # Must be fixed upstream
-source-is-missing storage/mroonga/vendor/groonga/examples/dictionary/html/js/jquery-ui-1.8.18.custom.js line 58 is 273 characters long (>256)
+source-is-missing storage/mroonga/vendor/groonga/examples/dictionary/html/js/jquery-ui-1.8.18.custom.js *
 # Intentional control relationships
 version-substvar-for-external-package Replaces (line 216) ${source:Version} libmariadbd-dev -> libmariadbclient-dev
 version-substvar-for-external-package Replaces (line 66) ${source:Version} libmariadb-dev -> libmysqlclient-dev
 version-substvar-for-external-package Replaces (line 66) ${source:Version} libmariadb-dev -> libmysqld-dev
+# We can't change build dependencies on a stable branch (10.5..10.8) so just override this
+missing-build-dependency-for-dh-addon systemd *
