@@ -2925,3 +2925,213 @@ END $$
 CALL xyz.xyz123(17,18,@R);
 DROP PACKAGE xyz;
 DROP TABLE t1;
+#
+# MDEV-28166 sql_mode=ORACLE: fully qualified package function calls do not work: db.pkg.func()
+#
+SELECT `db `.pkg.func();
+ERROR 42000: Incorrect database name 'db '
+SELECT db.`pkg `.func();
+ERROR 42000: Incorrect routine name 'pkg '
+SELECT db.pkg.`func `();
+ERROR 42000: Incorrect routine name 'func '
+CREATE DATABASE db1;
+USE db1;
+CREATE PACKAGE pkg1 AS
+FUNCTION f1 RETURN TEXT;
+FUNCTION f2_db1_pkg1_f1 RETURN TEXT;
+FUNCTION f2_pkg1_f1 RETURN TEXT;
+FUNCTION f2_f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+FUNCTION f1 RETURN TEXT IS
+BEGIN
+RETURN 'This is db1.pkg1.f1';
+END;
+FUNCTION f2_db1_pkg1_f1 RETURN TEXT IS
+BEGIN
+RETURN db1.pkg1.f1();
+END;
+FUNCTION f2_pkg1_f1 RETURN TEXT IS
+BEGIN
+RETURN pkg1.f1();
+END;
+FUNCTION f2_f1 RETURN TEXT IS
+BEGIN
+RETURN f1();
+END;
+END;
+$$
+USE db1;
+SELECT pkg1.f2_db1_pkg1_f1();
+pkg1.f2_db1_pkg1_f1()
+This is db1.pkg1.f1
+SELECT pkg1.f2_pkg1_f1();
+pkg1.f2_pkg1_f1()
+This is db1.pkg1.f1
+SELECT pkg1.f2_f1();
+pkg1.f2_f1()
+This is db1.pkg1.f1
+SELECT db1.pkg1.f2_db1_pkg1_f1();
+db1.pkg1.f2_db1_pkg1_f1()
+This is db1.pkg1.f1
+SELECT db1.pkg1.f2_pkg1_f1();
+db1.pkg1.f2_pkg1_f1()
+This is db1.pkg1.f1
+SELECT db1.pkg1.f2_f1();
+db1.pkg1.f2_f1()
+This is db1.pkg1.f1
+USE test;
+SELECT db1.pkg1.f2_db1_pkg1_f1();
+db1.pkg1.f2_db1_pkg1_f1()
+This is db1.pkg1.f1
+SELECT db1.pkg1.f2_pkg1_f1();
+db1.pkg1.f2_pkg1_f1()
+This is db1.pkg1.f1
+SELECT db1.pkg1.f2_f1();
+db1.pkg1.f2_f1()
+This is db1.pkg1.f1
+DROP DATABASE db1;
+CREATE DATABASE db1;
+CREATE DATABASE db2;
+CREATE PACKAGE db1.pkg1 AS
+FUNCTION f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY db1.pkg1 AS
+FUNCTION f1 RETURN TEXT AS
+BEGIN
+RETURN 'This is db1.pkg1.f1';
+END;
+END;
+$$
+CREATE PACKAGE db2.pkg1 AS
+FUNCTION f1 RETURN TEXT;
+FUNCTION var1 RETURN TEXT;
+FUNCTION var2 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY db2.pkg1 AS
+m_var1 TEXT;
+m_var2 TEXT;
+FUNCTION f1 RETURN TEXT AS
+BEGIN
+RETURN 'This is db2.pkg1.f1';
+END;
+FUNCTION var1 RETURN TEXT AS
+BEGIN
+RETURN m_var1;
+END;
+FUNCTION var2 RETURN TEXT AS
+BEGIN
+RETURN m_var2;
+END;
+BEGIN
+m_var1:= db1.pkg1.f1();
+m_var2:= db2.pkg1.f1();
+END;
+$$
+SELECT db2.pkg1.var1(), db2.pkg1.var2();
+db2.pkg1.var1()	db2.pkg1.var2()
+This is db1.pkg1.f1	This is db2.pkg1.f1
+DROP DATABASE db1;
+DROP DATABASE db2;
+CREATE PACKAGE pkg1 AS
+FUNCTION f1(a TEXT) RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+FUNCTION f1(a TEXT) RETURN TEXT AS
+BEGIN
+RETURN a;
+END;
+END;
+$$
+SELECT test.pkg1.f1('xxx');
+test.pkg1.f1('xxx')
+xxx
+SELECT test.pkg1.f1('xxx' AS a);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'AS a)' at line 1
+DROP PACKAGE pkg1;
+#
+# MDEV-19328 sql_mode=ORACLE: Package function in VIEW
+#
+SET sql_mode=ORACLE;
+CREATE PACKAGE test1 AS
+FUNCTION f_test RETURN number;
+END test1;
+$$
+CREATE PACKAGE BODY test1
+AS
+FUNCTION f_test RETURN NUMBER IS
+BEGIN
+RETURN 1;
+END;
+END test1;
+$$
+SET sql_mode=ORACLE;
+CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test1.f_test();
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE VIEW "v_test" AS select 1 AS "c1" from DUAL  where 1 = "test"."test1"."f_test"()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+SET sql_mode=DEFAULT;
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_test` AS select 1 AS `c1` from DUAL  where 1 = `test`.`test1`.`f_test`()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+DROP VIEW v_test;
+SET sql_mode=DEFAULT;
+CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test1.f_test();
+ERROR 42000: FUNCTION test1.f_test does not exist
+SET sql_mode=ORACLE;
+CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test.test1.f_test();
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE VIEW "v_test" AS select 1 AS "c1" from DUAL  where 1 = "test"."test1"."f_test"()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+SET sql_mode=DEFAULT;
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_test` AS select 1 AS `c1` from DUAL  where 1 = `test`.`test1`.`f_test`()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+DROP VIEW v_test;
+SET sql_mode=DEFAULT;
+CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test.test1.f_test();
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_test` AS select 1 AS `c1` from DUAL  where 1 = `test`.`test1`.`f_test`()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+SET sql_mode=ORACLE;
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE VIEW "v_test" AS select 1 AS "c1" from DUAL  where 1 = "test"."test1"."f_test"()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+DROP VIEW v_test;
+SET sql_mode=ORACLE;
+DROP PACKAGE test1;
