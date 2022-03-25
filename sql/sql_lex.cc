@@ -7893,6 +7893,40 @@ bool LEX::call_statement_start(THD *thd, const LEX_CSTRING *name1,
 }
 
 
+bool LEX::call_statement_start(THD *thd, const LEX_CSTRING &db,
+                                         const LEX_CSTRING &pkg,
+                                         const LEX_CSTRING &proc)
+{
+  Database_qualified_name q_db_pkg(db, pkg);
+  Database_qualified_name q_pkg_proc(pkg, proc);
+  sp_name *spname;
+
+  sql_command= SQLCOM_CALL;
+
+  if (check_db_name((LEX_STRING*) const_cast<LEX_CSTRING*>(&db)))
+  {
+    my_error(ER_WRONG_DB_NAME, MYF(0), db.str);
+    return NULL;
+  }
+  if (check_routine_name(&pkg) ||
+      check_routine_name(&proc))
+    return NULL;
+
+  // Concat `pkg` and `name` to `pkg.name`
+  LEX_CSTRING pkg_dot_proc;
+  if (q_pkg_proc.make_qname(thd->mem_root, &pkg_dot_proc) ||
+      check_ident_length(&pkg_dot_proc) ||
+      !(spname= new (thd->mem_root) sp_name(&db, &pkg_dot_proc, true)))
+    return NULL;
+
+  sp_handler_package_function.add_used_routine(thd->lex, thd, spname);
+  sp_handler_package_body.add_used_routine(thd->lex, thd, &q_db_pkg);
+
+  return !(m_sql_cmd= new (thd->mem_root) Sql_cmd_call(spname,
+                                              &sp_handler_package_procedure));
+}
+
+
 sp_package *LEX::get_sp_package() const
 {
   return sphead ? sphead->get_package() : NULL;

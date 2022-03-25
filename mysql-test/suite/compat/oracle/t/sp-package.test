@@ -2895,3 +2895,117 @@ DROP VIEW v_test;
 
 SET sql_mode=ORACLE;
 DROP PACKAGE test1;
+
+
+--echo #
+--echo # MDEV-19804 sql_mode=ORACLE: call procedure in packages
+--echo #
+
+--error ER_WRONG_DB_NAME
+CALL `db1 `.pkg.p;
+--error ER_SP_WRONG_NAME
+CALL db1.`pkg `.p;
+--error ER_SP_WRONG_NAME
+CALL db1.pkg.`p `;
+
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE PACKAGE pkg1 as
+  PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY pkg1 as
+  PROCEDURE p1() as
+  BEGIN
+    SELECT 'test-function' AS c1;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CALL pkg1.p1;
+CALL test.pkg1.p1;
+
+# In sql_mode=DEFAULT we support fully qualified package function names
+# (this is needed for VIEWs). Let's make sure we also support fully
+# qualified package procedure names, for symmetry
+
+SET sql_mode=DEFAULT;
+CALL test.pkg1.p1;
+SET sql_mode=ORACLE;
+
+DELIMITER $$;
+BEGIN
+  CALL pkg1.p1;
+  CALL test.pkg1.p1;
+END
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+BEGIN
+  pkg1.p1;
+  test.pkg1.p1;
+END
+$$
+DELIMITER ;$$
+
+DROP PACKAGE pkg1;
+
+
+#
+# Testing packages in different databases calling each other
+# in routines and in the initialization section.
+#
+
+CREATE DATABASE db1;
+DELIMITER $$;
+CREATE PACKAGE db1.pkg1 AS
+  PROCEDURE p1(a OUT TEXT);
+END;
+$$
+CREATE PACKAGE BODY db1.pkg1 AS
+  PROCEDURE p1(a OUT TEXT) AS
+  BEGIN
+    a:= 'This is db1.pkg1.p1';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CREATE DATABASE db2;
+DELIMITER $$;
+CREATE PACKAGE db2.pkg1 AS
+  FUNCTION var1 RETURN TEXT;
+  PROCEDURE p1(a OUT TEXT);
+  PROCEDURE p2_db1_pkg1_p1;
+END;
+$$
+CREATE PACKAGE BODY db2.pkg1 AS
+  m_var1 TEXT;
+  FUNCTION var1 RETURN TEXT AS
+  BEGIN
+    RETURN m_var1;
+  END;
+  PROCEDURE p1(a OUT TEXT) AS
+  BEGIN
+    a:= 'This is db2.pkg1.p1';
+  END;
+  PROCEDURE p2_db1_pkg1_p1 AS
+    a TEXT;
+  BEGIN
+    db1.pkg1.p1(a);
+    SELECT a;
+  END;
+BEGIN
+  db1.pkg1.p1(m_var1);
+END;
+$$
+DELIMITER ;$$
+
+SELECT db2.pkg1.var1();
+CALL db2.pkg1.p2_db1_pkg1_p1;
+
+DROP DATABASE db1;
+DROP DATABASE db2;

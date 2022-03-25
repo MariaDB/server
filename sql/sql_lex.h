@@ -3478,6 +3478,9 @@ public:
   bool call_statement_start(THD *thd, const LEX_CSTRING *name);
   bool call_statement_start(THD *thd, const LEX_CSTRING *name1,
                                       const LEX_CSTRING *name2);
+  bool call_statement_start(THD *thd, const LEX_CSTRING &name1,
+                                      const LEX_CSTRING &name2,
+                                      const LEX_CSTRING &name3);
   sp_variable *find_variable(const LEX_CSTRING *name,
                              sp_pcontext **ctx,
                              const Sp_rcontext_handler **rh) const;
