@@ -796,3 +796,10 @@ ALTER TABLE help_topic MODIFY url TEXT NOT NULL;
 
 # MDEV-7383 - varbinary on mix/max of column_stats
 alter table column_stats modify min_value varbinary(255) DEFAULT NULL, modify max_value varbinary(255) DEFAULT NULL;
+
+# MDEV-21873: 10.2 to 10.3 upgrade doesn't remove semi-sync reference from
+# mysql.plugin table.
+# As per suggested fix, check INFORMATION_SCHEMA.PLUGINS
+# and if semisync plugins aren't there, delete them from mysql.plugin.
+DELETE FROM mysql.plugin WHERE name="rpl_semi_sync_master" AND NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME="rpl_semi_sync_master");
+DELETE FROM mysql.plugin WHERE name="rpl_semi_sync_slave" AND NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME="rpl_semi_sync_slave");
