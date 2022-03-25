@@ -1,0 +1,24 @@
+#!/bin/bash
+
+set -e
+
+if [ "$1" = "purge" ]; then
+    rm -rf /var/lib/columnstore
+    rm -rf /etc/columnstore
+    rm -f /etc/mysql/mariadb.conf.d/columnstore.cnf.rpmsave
+fi
+
+# Automatically restart MariaDB after ColumnStore plugin has been removed
+case "$1" in
+  purge|remove|disappear)
+    if [ -d /run/systemd/system ]; then
+      # If systemd
+      deb-systemd-invoke restart mariadb.service >/dev/null
+    elif [ -x "/etc/init.d/mariadb" ]; then
+      # Fall-back to SysV init
+      invoke-rc.d mariadb restart || exit $?
+    fi
+  ;;
+esac
+
+#DEBHELPER#

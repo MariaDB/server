@@ -5134,7 +5134,7 @@ static Sys_var_have Sys_have_symlink(
 
 # ifdef __SANITIZE_ADDRESS__
 #  ifdef WITH_UBSAN
-#   define SANITIZER_MODE "ASAN+UBSAN"
+#   define SANITIZER_MODE "ASAN,UBSAN"
 #  else
 #   define SANITIZER_MODE "ASAN"
 #  endif

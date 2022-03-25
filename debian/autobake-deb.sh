@@ -52,39 +52,82 @@ remove_rocksdb_tools()
   fi
 }
 
-CODENAME="$(lsb_release -sc)"
-case "${CODENAME}" in
-	stretch)
-		# MDEV-28022 libzstd-dev-1.1.3 minimum version
-		sed -i -e '/libzstd-dev/d' \
-                       -e 's/libcurl4/libcurl3/g' -i debian/control
-		remove_rocksdb_tools
-		;;
-	bionic)
-		remove_rocksdb_tools
-		;;
-esac
-
-if [[ ! "$(dpkg-architecture -q DEB_BUILD_ARCH)" =~ amd64|arm64|ppc64el|s390x ]]
-then
-  remove_rocksdb_tools
-fi
-
-# From Debian Bullseye/Ubuntu Groovy, liburing replaces libaio
-if ! apt-cache madison liburing-dev | grep 'liburing-dev' >/dev/null 2>&1
-then
+replace_uring_with_aio()
+{
   sed 's/liburing-dev/libaio-dev/g' -i debian/control
-  sed '/-DIGNORE_AIO_CHECK=YES/d' -i debian/rules
-  sed '/-DWITH_URING=yes/d' -i debian/rules
-fi
+  sed -e '/-DIGNORE_AIO_CHECK=YES/d' \
+      -e '/-DWITH_URING=yes/d' -i debian/rules
+}
 
-# From Debian Buster/Ubuntu Focal onwards libpmem-dev is available
-# Don't reference it when built in distro releases that lack it
-if ! apt-cache madison libpmem-dev | grep 'libpmem-dev' >/dev/null 2>&1
-then
+disable_pmem()
+{
   sed '/libpmem-dev/d' -i debian/control
   sed '/-DWITH_PMEM=yes/d' -i debian/rules
-fi
+}
+
+architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
+
+CODENAME="$(lsb_release -sc)"
+case "${CODENAME}" in
+  stretch)
+    # MDEV-16525 libzstd-dev-1.1.3 minimum version
+    sed -e '/libzstd-dev/d' \
+        -e 's/libcurl4/libcurl3/g' -i debian/control
+    remove_rocksdb_tools
+    disable_pmem
+    ;&
+  buster)
+    replace_uring_with_aio
+    if [ ! "$architecture" = amd64 ]
+    then
+      disable_pmem
+    fi
+    ;&
+  bullseye|bookworm)
+    # mariadb-plugin-rocksdb in control is 4 arches covered by the distro rocksdb-tools
+    # so no removal is necessary.
+    if [[ ! "$architecture" =~ amd64|arm64|ppc64el ]]
+    then
+      disable_pmem
+    fi
+    if [[ ! "$architecture" =~ amd64|arm64|armel|armhf|i386|mips64el|mipsel|ppc64el|s390x ]]
+    then
+      replace_uring_with_aio
+    fi
+    ;&
+  sid)
+    # should always be empty here.
+    # need to match here to avoid the default Error however
+    ;;
+    # UBUNTU
+  bionic)
+    remove_rocksdb_tools
+    [ "$architecture" != amd64 ] && disable_pmem
+    ;&
+  focal)
+    replace_uring_with_aio
+    ;&
+  impish|jammy)
+    # mariadb-plugin-rocksdb s390x not supported by us (yet)
+    # ubuntu doesn't support mips64el yet, so keep this just
+    # in case something changes.
+    if [[ ! "$architecture" =~ amd64|arm64|ppc64el|s390x ]]
+    then
+      remove_rocksdb_tools
+    fi
+    if [[ ! "$architecture" =~ amd64|arm64|ppc64el ]]
+    then
+      disable_pmem
+    fi
+    if [[ ! "$architecture" =~ amd64|arm64|armhf|ppc64el|s390x ]]
+    then
+      replace_uring_with_aio
+    fi
+    ;;
+  *)
+    echo "Error - unknown release codename $CODENAME" >&2
+    exit 1
+esac
 
 # Adjust changelog, add new version
 echo "Incrementing changelog and starting build scripts"

@@ -2263,29 +2263,66 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
 lookup:
   for (bool discard_attempted= false;;)
   {
+#ifndef NO_ELISION
+    if (xbegin())
     {
-      transactional_shared_lock_guard<page_hash_latch> g{hash_lock};
+      if (hash_lock.is_locked())
+        xabort();
       bpage= buf_pool.page_hash.get(page_id, chain);
       if (!bpage || buf_pool.watch_is_sentinel(*bpage))
+      {
+        xend();
         goto must_read_page;
+      }
+      if (!bpage->zip.data)
+      {
+        /* There is no ROW_FORMAT=COMPRESSED page. */
+        xend();
+        return nullptr;
+      }
+      if (discard_attempted || !bpage->frame)
+      {
+        if (!bpage->lock.s_lock_try())
+          xabort();
+        xend();
+        break;
+      }
+      xend();
+    }
+    else
+#endif
+    {
+      hash_lock.lock_shared();
+      bpage= buf_pool.page_hash.get(page_id, chain);
+      if (!bpage || buf_pool.watch_is_sentinel(*bpage))
+      {
+        hash_lock.unlock_shared();
+        goto must_read_page;
+      }
 
       ut_ad(bpage->in_file());
       ut_ad(page_id == bpage->id());
 
       if (!bpage->zip.data)
+      {
         /* There is no ROW_FORMAT=COMPRESSED page. */
+        hash_lock.unlock_shared();
         return nullptr;
+      }
 
       if (discard_attempted || !bpage->frame)
       {
-        /* Even when we are holding a page_hash latch, it should be
+        /* Even when we are holding a hash_lock, it should be
         acceptable to wait for a page S-latch here, because
         buf_page_t::read_complete() will not wait for buf_pool.mutex,
         and because S-latch would not conflict with a U-latch
         that would be protecting buf_page_t::write_complete(). */
         bpage->lock.s_lock();
+        hash_lock.unlock_shared();
         break;
       }
+
+      hash_lock.unlock_shared();
     }
 
     discard_attempted= true;
