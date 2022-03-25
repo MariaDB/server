@@ -17,9 +17,9 @@ MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
 stop_server() {
     # Return immediately if there are no mysql processes running
     # as there is no point in trying to shutdown in that case.
-    if ! pgrep -x mariadbd > /dev/null; then return; fi
+    if ! pgrep -x --ns $$ mariadbd > /dev/null; then return; fi
     # Compatibility with versions that ran 'mysqld'
-    if ! pgrep -x mysqld > /dev/null; then return; fi
+    if ! pgrep -x --ns $$ mysqld > /dev/null; then return; fi
 
     set +e
     invoke-rc.d mariadb stop
