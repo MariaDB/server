@@ -25,7 +25,7 @@ stop_server() {
 
     # Return immediately if there are no mysql processes running
     # as there is no point in trying to shutdown in that case.
-    if ! pgrep --ns $$ mysqld > /dev/null; then return; fi
+    if ! pgrep -x --ns $$ mysqld > /dev/null; then return; fi
 
     set +e
     if [ -x /usr/sbin/invoke-rc.d ]; then
