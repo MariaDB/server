@@ -159,6 +159,16 @@ void Explain_query::query_plan_ready()
   apc_enabled= true;
 }
 
+
+void Explain_query::notify_item_objects_about_to_be_freed()
+{
+  if (apc_enabled)
+  {
+    thd->apc_target.disable();
+    apc_enabled= false;
+  }
+}
+
 /*
   Send EXPLAIN output to the client.
 */

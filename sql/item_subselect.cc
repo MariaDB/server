@@ -1068,7 +1068,13 @@ bool Item_subselect::const_item() const
 Item *Item_subselect::get_tmp_table_item(THD *thd_arg)
 {
   if (!with_sum_func() && !const_item())
-    return new (thd->mem_root) Item_temptable_field(thd_arg, result_field);
+  {
+    auto item_field=
+        new (thd->mem_root) Item_field(thd_arg, result_field);
+    if (item_field)
+      item_field->set_refers_to_temp_table(true);
+    return item_field;
+  }
   return copy_or_same(thd_arg);
 }
 
@@ -5324,10 +5330,12 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
     /* New equi-join condition for the current column. */
     Item_func_eq *eq_cond;
     /* Item for the corresponding field from the materialized temp table. */
-    Item_field *right_col_item;
+    Item_field *right_col_item= new (thd->mem_root)
+        Item_field(thd, context, tmp_table->field[i]);
+    if (right_col_item)
+      right_col_item->set_refers_to_temp_table(true);
 
-    if (!(right_col_item= new (thd->mem_root)
-          Item_temptable_field(thd, context, tmp_table->field[i])) ||
+    if (!right_col_item ||
         !(eq_cond= new (thd->mem_root)
           Item_func_eq(thd, item_in->left_expr->element_index(i),
                        right_col_item)) ||

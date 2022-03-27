@@ -186,6 +186,9 @@ bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call,
   }
   else
   {
+#ifndef DBUG_OFF
+    n_calls_processed++;
+#endif
     mysql_mutex_unlock(LOCK_thd_kill_ptr);
   }
   return res;

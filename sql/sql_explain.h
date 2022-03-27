@@ -486,6 +486,8 @@ public:
 
   void query_plan_ready();
 
+  void notify_item_objects_about_to_be_freed();
+
   MEM_ROOT *mem_root;
 
   Explain_update *get_upd_del_plan() { return upd_del_plan; }

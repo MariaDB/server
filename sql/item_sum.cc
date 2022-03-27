@@ -552,10 +552,18 @@ Item *Item_sum::get_tmp_table_item(THD *thd)
       Item *arg= sum_item->args[i];
       if (!arg->const_item())
       {
-	if (arg->type() == Item::FIELD_ITEM)
-	  ((Item_field*) arg)->field= result_field_tmp++;
-	else
-	  sum_item->args[i]= new (thd->mem_root) Item_temptable_field(thd, result_field_tmp++);
+        if (arg->type() == Item::FIELD_ITEM)
+        {
+          ((Item_field*) arg)->field= result_field_tmp++;
+        }
+        else
+        {
+          auto item_field=
+            new (thd->mem_root) Item_field(thd, result_field_tmp++);
+          if (item_field)
+            item_field->set_refers_to_temp_table(true);
+          sum_item->args[i]= item_field;
+        }
       }
     }
   }

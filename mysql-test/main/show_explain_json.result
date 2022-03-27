@@ -1288,6 +1288,20 @@ set names default;
 drop table if exists t0,t1,t2;
 Warnings:
 Note	1051	Unknown table 'test.t2'
+#
+# MDEV-28124: Server crashes in Explain_aggr_filesort::print_json_members
+# upon SHOW ANALYZE/EXPLAIN FORMAT=JSON
+#
+connection con1;
+set @show_explain_probe_query= 'SELECT count(*) - count(*) FROM sys.waits_by_user_by_latency';
+set debug_dbug='+d,log_slow_statement_end';
+SELECT count(*) - count(*) FROM sys.waits_by_user_by_latency;
+connection default;
+SHOW EXPLAIN FORMAT=JSON FOR $thr2;
+ERROR HY000: Target is not executing an operation with a query plan
+connection con1;
+count(*) - count(*)
+0
 # End
 connection default;
 disconnect con1;

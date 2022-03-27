@@ -470,6 +470,26 @@ set names default;
 
 drop table if exists t0,t1,t2;
 
+--echo #
+--echo # MDEV-28124: Server crashes in Explain_aggr_filesort::print_json_members
+--echo # upon SHOW ANALYZE/EXPLAIN FORMAT=JSON
+--echo #
+
+let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr2;
+connection con1;
+set @show_explain_probe_query= 'SELECT count(*) - count(*) FROM sys.waits_by_user_by_latency';
+set debug_dbug='+d,log_slow_statement_end';
+
+# Statement guarantees to produce 0 on every run
+send SELECT count(*) - count(*) FROM sys.waits_by_user_by_latency;
+connection default;
+--source include/wait_condition.inc
+--error ER_TARGET_NOT_EXPLAINABLE
+evalp SHOW EXPLAIN FORMAT=JSON FOR $thr2;
+
+connection con1;
+reap;
+
 --echo # End
 connection default;
 disconnect con1;

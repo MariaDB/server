@@ -3529,6 +3529,32 @@ public:
   privilege_t have_privileges;
   /* field need any privileges (for VIEW creation) */
   bool any_privileges;
+
+private:
+  /*
+    Setting this member to TRUE (via set_refers_to_temp_table())
+    ensures print() function continues to work even if the table
+    has been dropped.
+
+    We need this for "ANALYZE statement" feature. Query execution has
+    these steps:
+      1. Run the query.
+      2. Cleanup starts. Temporary tables are destroyed
+      3. print "ANALYZE statement" output, if needed
+      4. Call close_thread_table() for regular tables.
+
+    Step #4 is done after step #3, so "ANALYZE stmt" has no problem printing
+    Item_field objects that refer to regular tables.
+
+    However, Step #3 is done after Step #2. Attempt to print Item_field objects
+    that refer to temporary tables will cause access to freed memory.
+
+    To resolve this, we use refers_to_temp_table member to refer to items 
+    in temporary (work) tables.
+  */
+  bool refers_to_temp_table= false;
+
+public:
   Item_field(THD *thd, Name_resolution_context *context_arg,
              const LEX_CSTRING &db_arg, const LEX_CSTRING &table_name_arg,
 	     const LEX_CSTRING &field_name_arg);
@@ -3753,6 +3779,7 @@ public:
     return field->table->pos_in_table_list->outer_join;
   }
   bool check_index_dependence(void *arg) override;
+  void set_refers_to_temp_table(bool value);
   friend class Item_default_value;
   friend class Item_insert_value;
   friend class st_select_lex_unit;
@@ -3788,46 +3815,6 @@ public:
     return false;
   }
   bool row_create_items(THD *thd, List<Spvar_definition> *list);
-};
-
-
-/*
-  @brief 
-    Item_temptable_field is the same as Item_field, except that print() 
-    continues to work even if the table has been dropped.
-
-  @detail
-
-    We need this item for "ANALYZE statement" feature. Query execution has 
-    these steps:
-
-      1. Run the query.
-      2. Cleanup starts. Temporary tables are destroyed
-      3. print "ANALYZE statement" output, if needed
-      4. Call close_thread_table() for regular tables.
-
-    Step #4 is done after step #3, so "ANALYZE stmt" has no problem printing
-    Item_field objects that refer to regular tables.
-
-    However, Step #3 is done after Step #2. Attempt to print Item_field objects
-    that refer to temporary tables will cause access to freed memory. 
-    
-    To resolve this, we use Item_temptable_field to refer to items in temporary
-    (work) tables.
-*/
-
-class Item_temptable_field :public Item_field
-{
-public:
-  Item_temptable_field(THD *thd, Name_resolution_context *context_arg, Field *field)
-   : Item_field(thd, context_arg, field) {}
-
-  Item_temptable_field(THD *thd, Field *field)
-   : Item_field(thd, field) {}
-
-  Item_temptable_field(THD *thd, Item_field *item) : Item_field(thd, item) {};
-
-  void print(String *str, enum_query_type query_type) override;
 };
 
 
