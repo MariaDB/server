@@ -25400,14 +25400,20 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
 
   if (unit->is_union() || unit->fake_select_lex)
   {
+    ulonglong save_options= 0;
+
     if (unit->union_needs_tmp_table() && unit->fake_select_lex)
     {
+      save_options= unit->fake_select_lex->options;
       unit->fake_select_lex->select_number= FAKE_SELECT_LEX_ID; // just for initialization
       unit->fake_select_lex->type= "UNION RESULT";
       unit->fake_select_lex->options|= SELECT_DESCRIBE;
     }
     if (!(res= unit->prepare(thd, result, SELECT_NO_UNLOCK | SELECT_DESCRIBE)))
       res= unit->exec();
+
+    if (unit->union_needs_tmp_table() && unit->fake_select_lex)
+      unit->fake_select_lex->options= save_options;
   }
   else
   {

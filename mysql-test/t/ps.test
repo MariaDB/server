@@ -4976,6 +4976,19 @@ DEALLOCATE PREPARE stmt;
 DROP VIEW v1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-19631: Assertion `0' failed in st_select_lex_unit::optimize or
+--echo #             different plan upon 2nd execution of PS with EXPLAIN
+--echo #
+CREATE TABLE t1 (a INT);
+PREPARE stmt FROM 'EXPLAIN SELECT * FROM t1 HAVING 6 IN ( SELECT 6 UNION SELECT 5 )';
+EXECUTE stmt;
+--echo # Without the patch the second execution of the 'stmt' prepared statement
+--echo # would result in server crash.
+EXECUTE stmt;
+# Cleanup
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
 
 --echo # End of 10.2 tests
 --echo #
