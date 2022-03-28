@@ -1343,6 +1343,12 @@ static int get_options(int *argc, char ***argv)
                                             MY_CS_PRIMARY,
                                             MYF(MY_UTF8_IS_UTF8MB3 | MY_WME))))
     exit(1);
+  if (opt_order_by_size && (*argc > 1 && !opt_databases))
+  {
+    fprintf(stderr, "%s: --order-by-size can't be used when dumping selected tables\n",
+              my_progname_short);
+    return EX_USAGE;
+  }
   if ((*argc < 1 && (!opt_alldbs && !opt_system)) || (*argc > 0 && opt_alldbs))
   {
     short_usage(stderr);
