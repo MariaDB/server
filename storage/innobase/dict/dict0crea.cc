@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -846,7 +846,7 @@ uint32_t dict_drop_index_tree(btr_pcur_t *pcur, trx_t *trx, mtr_t *mtr)
       len > DICT_NUM_FIELDS__SYS_INDEXES)
   {
 rec_corrupted:
-    ib::error() << "Corrupted SYS_INDEXES record";
+    sql_print_error("InnoDB: Corrupted SYS_INDEXES record");
     return 0;
   }
 
@@ -1330,7 +1330,7 @@ bool dict_sys_t::load_sys_tables()
   {
     sys_foreign= nullptr;
     mismatch= true;
-    ib::error() << "Invalid definition of SYS_FOREIGN";
+    sql_print_error("InnoDB: Invalid definition of SYS_FOREIGN");
   }
   if (!(sys_foreign_cols= load_table(SYS_TABLE[SYS_FOREIGN_COLS],
                                      DICT_ERR_IGNORE_FK_NOKEY)));
@@ -1342,7 +1342,7 @@ bool dict_sys_t::load_sys_tables()
   {
     sys_foreign_cols= nullptr;
     mismatch= true;
-    ib::error() << "Invalid definition of SYS_FOREIGN_COLS";
+    sql_print_error("InnoDB: Invalid definition of SYS_FOREIGN_COLS");
   }
   if (!(sys_virtual= load_table(SYS_TABLE[SYS_VIRTUAL],
                                 DICT_ERR_IGNORE_FK_NOKEY)));
@@ -1353,7 +1353,7 @@ bool dict_sys_t::load_sys_tables()
   {
     sys_virtual= nullptr;
     mismatch= true;
-    ib::error() << "Invalid definition of SYS_VIRTUAL";
+    sql_print_error("InnoDB: Invalid definition of SYS_VIRTUAL");
   }
   unlock();
   return mismatch;
@@ -1369,8 +1369,8 @@ dberr_t dict_sys_t::create_or_check_sys_tables()
 
   if (load_sys_tables())
   {
-    ib::info() << "Set innodb_read_only=1 or innodb_force_recovery=3"
-                  " to start up";
+    sql_print_information("InnoDB: Set innodb_read_only=1 "
+                          "or innodb_force_recovery=3 to start up");
     return DB_CORRUPTION;
   }
 
@@ -1402,7 +1402,7 @@ dberr_t dict_sys_t::create_or_check_sys_tables()
   const auto srv_file_per_table_backup= srv_file_per_table;
   srv_file_per_table= 0;
   dberr_t error;
-  const char *tablename;
+  span<const char> tablename;
 
   if (!sys_foreign)
   {
@@ -1420,9 +1420,11 @@ dberr_t dict_sys_t::create_or_check_sys_tables()
                         "END;\n", trx);
     if (UNIV_UNLIKELY(error != DB_SUCCESS))
     {
-      tablename= SYS_TABLE[SYS_FOREIGN].data();
+      tablename= SYS_TABLE[SYS_FOREIGN];
 err_exit:
-      ib::error() << "Creation of " << tablename << " failed: " << error;
+      sql_print_error("InnoDB: Creation of %.*s failed: %s",
+                      int(tablename.size()), tablename.data(),
+                      ut_strerr(error));
       trx->rollback();
       row_mysql_unlock_data_dictionary(trx);
       trx->free();
@@ -1442,7 +1444,7 @@ err_exit:
                         "END;\n", trx);
     if (UNIV_UNLIKELY(error != DB_SUCCESS))
     {
-      tablename= SYS_TABLE[SYS_FOREIGN_COLS].data();
+      tablename= SYS_TABLE[SYS_FOREIGN_COLS];
       goto err_exit;
     }
   }
@@ -1457,7 +1459,7 @@ err_exit:
                         "END;\n", trx);
     if (UNIV_UNLIKELY(error != DB_SUCCESS))
     {
-      tablename= SYS_TABLE[SYS_VIRTUAL].data();
+      tablename= SYS_TABLE[SYS_VIRTUAL];
       goto err_exit;
     }
   }
@@ -1471,10 +1473,11 @@ err_exit:
   if (sys_foreign);
   else if (!(sys_foreign= load_table(SYS_TABLE[SYS_FOREIGN])))
   {
-    tablename= SYS_TABLE[SYS_FOREIGN].data();
+    tablename= SYS_TABLE[SYS_FOREIGN];
 load_fail:
     unlock();
-    ib::error() << "Failed to CREATE TABLE " << tablename;
+    sql_print_error("InnoDB: Failed to CREATE TABLE %.*s",
+                    int(tablename.size()), tablename.data());
     return DB_TABLE_NOT_FOUND;
   }
   else
@@ -1483,7 +1486,7 @@ load_fail:
   if (sys_foreign_cols);
   else if (!(sys_foreign_cols= load_table(SYS_TABLE[SYS_FOREIGN_COLS])))
   {
-    tablename= SYS_TABLE[SYS_FOREIGN_COLS].data();
+    tablename= SYS_TABLE[SYS_FOREIGN_COLS];
     goto load_fail;
   }
   else
@@ -1492,7 +1495,7 @@ load_fail:
   if (sys_virtual);
   else if (!(sys_virtual= load_table(SYS_TABLE[SYS_VIRTUAL])))
   {
-    tablename= SYS_TABLE[SYS_VIRTUAL].data();
+    tablename= SYS_TABLE[SYS_VIRTUAL];
     goto load_fail;
   }
   else
@@ -1515,12 +1518,14 @@ dict_foreign_eval_sql(
 	const char*	id,	/*!< in: foreign key id */
 	trx_t*		trx)	/*!< in/out: transaction */
 {
-	dberr_t	error;
 	FILE*	ef	= dict_foreign_err_file;
 
-	error = que_eval_sql(info, sql, trx);
+	dberr_t error = que_eval_sql(info, sql, trx);
 
-	if (error == DB_DUPLICATE_KEY) {
+	switch (error) {
+	case DB_SUCCESS:
+		break;
+	case DB_DUPLICATE_KEY:
 		mysql_mutex_lock(&dict_foreign_err_mutex);
 		rewind(ef);
 		ut_print_timestamp(ef);
@@ -1540,15 +1545,11 @@ dict_foreign_eval_sql(
 		      "names can occur. Workaround: name your constraints\n"
 		      "explicitly with unique names.\n",
 		      ef);
-
-		mysql_mutex_unlock(&dict_foreign_err_mutex);
-
-		return(error);
-	}
-
-	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
-		ib::error() << "Foreign key constraint creation failed: "
-			<< error;
+		goto release;
+	default:
+		sql_print_error("InnoDB: "
+				"Foreign key constraint creation failed: %s",
+				ut_strerr(error));
 
 		mysql_mutex_lock(&dict_foreign_err_mutex);
 		ut_print_timestamp(ef);
@@ -1558,12 +1559,11 @@ dict_foreign_eval_sql(
 		fputs(".\n"
 		      "See the MariaDB .err log in the datadir"
 		      " for more information.\n", ef);
+release:
 		mysql_mutex_unlock(&dict_foreign_err_mutex);
-
-		return(error);
 	}
 
-	return(DB_SUCCESS);
+	return error;
 }
 
 /********************************************************************//**
