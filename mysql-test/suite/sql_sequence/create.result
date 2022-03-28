@@ -167,11 +167,11 @@ drop sequence if exists t1;
 Warnings:
 Note	4091	Unknown SEQUENCE: 'test.t1'
 create sequence t1 start with 10 maxvalue=9;
-ERROR HY000: Sequence 'test.t1' values are conflicting
+ERROR HY000: Sequence 'test.t1' has out of range value for options
 create sequence t1 minvalue= 100 maxvalue=10;
-ERROR HY000: Sequence 'test.t1' values are conflicting
+ERROR HY000: Sequence 'test.t1' has out of range value for options
 create sequence t1 start with 9 minvalue=10;
-ERROR HY000: Sequence 'test.t1' values are conflicting
+ERROR HY000: Sequence 'test.t1' has out of range value for options
 create or replace sequence t1 maxvalue=13, increment by -1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ' increment by -1' at line 1
 create or replace sequence t1 start with= 10 maxvalue=13;
@@ -183,7 +183,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 create or replace sequence t1 start with 10 min_value=1 NO MINVALUE;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NO MINVALUE' at line 1
 create sequence t1 start with 10 maxvalue=9223372036854775807;
-ERROR HY000: Sequence 'test.t1' values are conflicting
+ERROR HY000: Sequence 'test.t1' has out of range value for options
 create sequence t1 start with 10 minvalue=-9223372036854775808;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '9223372036854775808' at line 1
 create sequence t1 RESTART WITH 10;
@@ -695,3 +695,6 @@ DROP SEQUENCE s1;
 # Task 1:
 SET @x = PREVIOUS VALUE FOR x;
 ERROR 42S02: Unknown SEQUENCE: 'x'
+# Task 2:
+CREATE SEQUENCE x START WITH 1 INCREMENT BY 123456789012345678;
+ERROR HY000: Sequence 'test.x' has out of range value for options

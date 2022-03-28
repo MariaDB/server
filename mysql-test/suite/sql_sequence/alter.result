@@ -29,7 +29,7 @@ select * from t1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 3	-100	9223372036854775806	50	1	0	0	0
 alter sequence t1 minvalue=100 start=100;
-ERROR HY000: Sequence 'test.t1' values are conflicting
+ERROR HY000: Sequence 'test.t1' has out of range value for options
 alter sequence t1 minvalue=100 start=100 restart=100;
 show create sequence t1;
 Table	Create Table
@@ -200,11 +200,11 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 drop sequence t1;
 CREATE SEQUENCE t1 engine=myisam;
 alter sequence t1 minvalue=100;
-ERROR HY000: Sequence 'test.t1' values are conflicting
+ERROR HY000: Sequence 'test.t1' has out of range value for options
 drop sequence t1;
 CREATE SEQUENCE t1 engine=myisam;
 alter sequence t1 minvalue=25 maxvalue=20;
-ERROR HY000: Sequence 'test.t1' values are conflicting
+ERROR HY000: Sequence 'test.t1' has out of range value for options
 drop sequence t1;
 create table t1 (a int);
 alter sequence t1 minvalue=100;

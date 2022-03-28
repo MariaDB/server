@@ -109,28 +109,28 @@ maxvalue 100000
 increment by 1
 nocache
 nocycle;
-ERROR HY000: Sequence 's_db.s2' values are conflicting
+ERROR HY000: Sequence 's_db.s2' has out of range value for options
 create sequence s2 start with 1
 minvalue 5
 maxvalue 5
 increment by 1
 nocache
 nocycle;
-ERROR HY000: Sequence 's_db.s2' values are conflicting
+ERROR HY000: Sequence 's_db.s2' has out of range value for options
 create sequence s2 start with 1
 minvalue 5
 maxvalue 4
 increment by 1
 nocache
 nocycle;
-ERROR HY000: Sequence 's_db.s2' values are conflicting
+ERROR HY000: Sequence 's_db.s2' has out of range value for options
 create sequence s2 start with 1
 minvalue 5
 maxvalue 4
 increment by 0
 nocache
 nocycle;
-ERROR HY000: Sequence 's_db.s2' values are conflicting
+ERROR HY000: Sequence 's_db.s2' has out of range value for options
 ###########################################
 global read lock prevent query sequence
 ###########################################
@@ -314,7 +314,7 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 update s_t set next_not_cached_value= 11,start_value=10, minimum_value=11;
 ERROR HY000: Storage engine SEQUENCE of the table `s_db`.`s_t` doesn't have this option
 ALTER SEQUENCE s_t restart with 11 start=10 minvalue=11;
-ERROR HY000: Sequence 's_db.s_t' values are conflicting
+ERROR HY000: Sequence 's_db.s_t' has out of range value for options
 commit;
 create table t_1(id int);
 insert into t_1 value(1111);

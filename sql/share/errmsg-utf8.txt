@@ -7762,7 +7762,7 @@ ER_END_IDENTIFIER_DOES_NOT_MATCH
 ER_SEQUENCE_RUN_OUT
         eng "Sequence '%-.64s.%-.64s' has run out"
 ER_SEQUENCE_INVALID_DATA
-        eng "Sequence '%-.64s.%-.64s' values are conflicting"
+        eng "Sequence '%-.64s.%-.64s' has out of range value for options"
 ER_SEQUENCE_INVALID_TABLE_STRUCTURE
         eng "Sequence '%-.64s.%-.64s' table structure is invalid (%s)"
 ER_SEQUENCE_ACCESS_ERROR
