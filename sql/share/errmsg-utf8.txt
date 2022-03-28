@@ -5421,8 +5421,8 @@ ER_TRG_DOES_NOT_EXIST
         ger "Trigger existiert nicht"
         hindi "TRIGGER मौजूद नहीं है"
 ER_TRG_ON_VIEW_OR_TEMP_TABLE  
-        eng "Trigger's '%-.192s' is view or temporary table"
-        ger "'%-.192s' des Triggers ist View oder temporäre Tabelle"
+        eng "Trigger's '%-.192s' is view, temporary table or sequence"
+        hindi "'%-.192s' एक व्यू, टेम्पररी टेबल या सीक्वेंस है"
 ER_TRG_CANT_CHANGE_ROW  
         eng "Updating of %s row is not allowed in %strigger"
         ger "Aktualisieren einer %s-Zeile ist in einem %s-Trigger nicht erlaubt"

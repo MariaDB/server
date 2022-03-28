@@ -711,3 +711,9 @@ CREATE TEMPORARY TABLE s1 (s1 INT);
 CREATE TEMPORARY SEQUENCE s1 (s1 INT);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(s1 INT)' at line 1
 DROP TEMPORARY TABLE s1;
+# Task 6:
+CREATE SEQUENCE seq1 START WITH 2;
+CREATE TRIGGER s1 BEFORE UPDATE ON seq1 FOR EACH ROW SET @a= 5;
+ERROR HY000: Trigger's 'seq1' is view, temporary table or sequence
+DROP SEQUENCE seq1;
+# End of 10.4 test
