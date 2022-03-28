@@ -68,9 +68,9 @@ shutdown_server;
 --echo # Wait until disconnected.
 --source include/wait_until_disconnected.inc
 
---echo # Run innochecksum on t1
 -- disable_result_log
---exec $INNOCHECKSUM $t1_IBD
+--echo # Run innochecksum on t1, check -S does not cause crash for encrypted file
+--exec $INNOCHECKSUM -S $t1_IBD
 
 --echo # Run innochecksum on t2
 
