@@ -382,7 +382,7 @@ drop view v1;
 CREATE TEMPORARY SEQUENCE t1;
 select next value for t1;
 drop temporary table t1;
---error ER_NO_SUCH_TABLE
+--error ER_UNKNOWN_SEQUENCES
 select previous value for t1;
 CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 10;
 select next value for t1;
@@ -398,7 +398,7 @@ drop sequence t1;
 CREATE TEMPORARY SEQUENCE t1 engine=innodb;
 select next value for t1;
 drop temporary table t1;
---error ER_NO_SUCH_TABLE
+--error ER_UNKNOWN_SEQUENCES
 select previous value for t1;
 CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 10 engine=innodb;
 select next value for t1;
@@ -515,3 +515,13 @@ set global innodb_force_primary_key=default;
 --error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
 ALTER TABLE s1 ADD PRIMARY KEY (next_not_cached_value);
 DROP SEQUENCE s1;
+
+--echo #
+--echo # Beginning of 10.4 Test
+--echo #
+--echo # MDEV-13005: Fixing bugs in SEQUENCE, part 3
+--echo #
+
+--echo # Task 1:
+--error ER_UNKNOWN_SEQUENCES
+SET @x = PREVIOUS VALUE FOR x;

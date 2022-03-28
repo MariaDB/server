@@ -211,10 +211,9 @@ alter sequence t1 minvalue=100;
 ERROR 42S02: 'test.t1' is not a SEQUENCE
 drop table t1;
 alter sequence if exists t1 minvalue=100;
-Warnings:
-Note	4091	Unknown SEQUENCE: 'test.t1'
+ERROR 42S02: Unknown SEQUENCE: 't1'
 alter sequence t1 minvalue=100;
-ERROR 42S02: Table 'test.t1' doesn't exist
+ERROR 42S02: Unknown SEQUENCE: 't1'
 create sequence t1;
 alter sequence t1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1

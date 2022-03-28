@@ -478,7 +478,7 @@ next value for t1
 1
 drop temporary table t1;
 select previous value for t1;
-ERROR 42S02: Table 'test.t1' doesn't exist
+ERROR 42S02: Unknown SEQUENCE: 't1'
 CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 10;
 select next value for t1;
 next value for t1
@@ -507,7 +507,7 @@ next value for t1
 1
 drop temporary table t1;
 select previous value for t1;
-ERROR 42S02: Table 'test.t1' doesn't exist
+ERROR 42S02: Unknown SEQUENCE: 't1'
 CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 10 engine=innodb;
 select next value for t1;
 next value for t1
@@ -687,3 +687,11 @@ set global innodb_force_primary_key=default;
 ALTER TABLE s1 ADD PRIMARY KEY (next_not_cached_value);
 ERROR HY000: Sequence 'test.s1' table structure is invalid (Sequence tables cannot have any keys)
 DROP SEQUENCE s1;
+#
+# Beginning of 10.4 Test
+#
+# MDEV-13005: Fixing bugs in SEQUENCE, part 3
+#
+# Task 1:
+SET @x = PREVIOUS VALUE FOR x;
+ERROR 42S02: Unknown SEQUENCE: 'x'
