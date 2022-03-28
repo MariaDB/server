@@ -701,3 +701,13 @@ ERROR HY000: Sequence 'test.x' has out of range value for options
 # Task 3:
 CREATE SEQUENCE seq1 START WITH 1 cache -1;
 ERROR HY000: Sequence 'test.seq1' has out of range value for options
+# Task 4:
+CREATE TEMPORARY TABLE s1 (s1 INT);
+DROP TEMPORARY SEQUENCE s1;
+ERROR 42S02: 'test.s1' is not a SEQUENCE
+DROP TEMPORARY TABLE s1;
+# Task 5:
+CREATE TEMPORARY TABLE s1 (s1 INT);
+CREATE TEMPORARY SEQUENCE s1 (s1 INT);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(s1 INT)' at line 1
+DROP TEMPORARY TABLE s1;
