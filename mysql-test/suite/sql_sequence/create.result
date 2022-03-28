@@ -698,3 +698,6 @@ ERROR 42S02: Unknown SEQUENCE: 'x'
 # Task 2:
 CREATE SEQUENCE x START WITH 1 INCREMENT BY 123456789012345678;
 ERROR HY000: Sequence 'test.x' has out of range value for options
+# Task 3:
+CREATE SEQUENCE seq1 START WITH 1 cache -1;
+ERROR HY000: Sequence 'test.seq1' has out of range value for options
