@@ -11,3 +11,4 @@
 ##############################################################################
 
 galera-features#56 : MDEV-24896
+GCF-1060 : MDEV-26528 wrong usage of mutex LOCK_thd_kill and LOCK_thd_kill
