@@ -2082,6 +2082,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
       if (flags & VERS_SYSTEM_FIELD)
       {
+        if (DBUG_EVALUATE_IF("error_vers_wrong_type", 1, 0))
+          field_type= MYSQL_TYPE_BLOB;
+
         switch (field_type)
         {
         case MYSQL_TYPE_TIMESTAMP2:
@@ -2094,9 +2097,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           }
           /* Fallthrough */
         default:
-          my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), fieldnames.type_names[i],
-            versioned == VERS_TIMESTAMP ? "TIMESTAMP(6)" : "BIGINT(20) UNSIGNED",
-            table_name.str);
+          my_error(ER_VERS_FIELD_WRONG_TYPE,
+                   (field_type == MYSQL_TYPE_LONGLONG ?
+                    MYF(0) : MYF(ME_WARNING)),
+                   fieldnames.type_names[i],
+                   (versioned == VERS_TIMESTAMP ?
+                    "TIMESTAMP(6)" : "BIGINT(20) UNSIGNED"),
+                   table_name.str);
           goto err;
         }
       }

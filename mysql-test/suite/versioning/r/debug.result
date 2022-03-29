@@ -50,5 +50,17 @@ t4	CREATE TABLE `t4` (
   `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-set global debug_dbug=@old_dbug;
 drop table t1, t2, t3, t4;
+#
+# MDEV-19525 remove ER_VERS_FIELD_WRONG_TYPE from init_from_binary_frm_image()
+#
+create table t1 (x int) with system versioning;
+set debug_dbug='+d,error_vers_wrong_type';
+show create table t1;
+ERROR HY000: Incorrect information in file: './test/t1.frm'
+show warnings;
+Level	Code	Message
+Warning	4110	`row_start` must be of type TIMESTAMP(6) for system-versioned table `t1`
+Error	1033	Incorrect information in file: './test/t1.frm'
+drop table t1;
+set global debug_dbug=@old_dbug;
