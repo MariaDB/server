@@ -1229,6 +1229,7 @@ int Repl_semi_sync_master::flush_net(THD *thd,
 
   net_clear(net, 0);
   net->pkt_nr++;
+  net->compress_pkt_nr++;
   result = 0;
   rpl_semi_sync_master_net_wait_num++;
 

@@ -2518,6 +2518,7 @@ static Exit_status handle_event_raw_mode(PRINT_EVENT_INFO *print_event_info,
     error("Could not write into log file '%s'", out_file_name);
     DBUG_RETURN(ERROR_STOP);
   }
+  fflush(result_file);
 
   DBUG_RETURN(OK_CONTINUE);
 }

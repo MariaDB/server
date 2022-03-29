@@ -1967,9 +1967,10 @@ fil_make_filepath(
 	if (path != NULL) {
 		memcpy(full_name, path, path_len);
 		len = path_len;
-		full_name[len] = '\0';
-		os_normalize_path(full_name);
 	}
+
+	full_name[len] = '\0';
+	os_normalize_path(full_name);
 
 	if (trim_name) {
 		/* Find the offset of the last DIR separator and set it to

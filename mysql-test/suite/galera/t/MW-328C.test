@@ -7,6 +7,7 @@
 # masks all deadlock errors
 #
 
+--source include/no_protocol.inc
 --source include/galera_cluster.inc
 --source suite/galera/t/MW-328-header.inc
 
