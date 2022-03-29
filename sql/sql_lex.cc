@@ -8493,6 +8493,40 @@ bool LEX::call_statement_start(THD *thd, const LEX_CSTRING *name1,
 }
 
 
+bool LEX::call_statement_start(THD *thd, const LEX_CSTRING &db,
+                                         const LEX_CSTRING &pkg,
+                                         const LEX_CSTRING &proc)
+{
+  Database_qualified_name q_db_pkg(db, pkg);
+  Database_qualified_name q_pkg_proc(pkg, proc);
+  sp_name *spname;
+
+  sql_command= SQLCOM_CALL;
+
+  if (check_db_name((LEX_STRING*) const_cast<LEX_CSTRING*>(&db)))
+  {
+    my_error(ER_WRONG_DB_NAME, MYF(0), db.str);
+    return NULL;
+  }
+  if (check_routine_name(&pkg) ||
+      check_routine_name(&proc))
+    return NULL;
+
+  // Concat `pkg` and `name` to `pkg.name`
+  LEX_CSTRING pkg_dot_proc;
+  if (q_pkg_proc.make_qname(thd->mem_root, &pkg_dot_proc) ||
+      check_ident_length(&pkg_dot_proc) ||
+      !(spname= new (thd->mem_root) sp_name(&db, &pkg_dot_proc, true)))
+    return NULL;
+
+  sp_handler_package_function.add_used_routine(thd->lex, thd, spname);
+  sp_handler_package_body.add_used_routine(thd->lex, thd, &q_db_pkg);
+
+  return !(m_sql_cmd= new (thd->mem_root) Sql_cmd_call(spname,
+                                              &sp_handler_package_procedure));
+}
+
+
 sp_package *LEX::get_sp_package() const
 {
   return sphead ? sphead->get_package() : NULL;
@@ -8747,6 +8781,56 @@ Item *LEX::make_item_func_call_generic(THD *thd, Lex_ident_cli_st *cdb,
   Create_qfunc *builder= find_qualified_function_builder(thd);
   DBUG_ASSERT(builder);
   return builder->create_with_db(thd, &db, &name, true, args);
+}
+
+
+/*
+  Create a 3-step qualified function call.
+  Currently it's possible for package routines only, e.g.:
+     SELECT db.pkg.func();
+*/
+Item *LEX::make_item_func_call_generic(THD *thd,
+                                       Lex_ident_cli_st *cdb,
+                                       Lex_ident_cli_st *cpkg,
+                                       Lex_ident_cli_st *cfunc,
+                                       List<Item> *args)
+{
+  static Lex_cstring dot(".", 1);
+  Lex_ident_sys db(thd, cdb), pkg(thd, cpkg), func(thd, cfunc);
+  Database_qualified_name q_db_pkg(db, pkg);
+  Database_qualified_name q_pkg_func(pkg, func);
+  sp_name *qname;
+
+  if (db.is_null() || pkg.is_null() || func.is_null())
+    return NULL; // EOM
+
+  if (check_db_name((LEX_STRING*) static_cast<LEX_CSTRING*>(&db)))
+  {
+    my_error(ER_WRONG_DB_NAME, MYF(0), db.str);
+    return NULL;
+  }
+  if (check_routine_name(&pkg) ||
+      check_routine_name(&func))
+    return NULL;
+
+  // Concat `pkg` and `name` to `pkg.name`
+  LEX_CSTRING pkg_dot_func;
+  if (q_pkg_func.make_qname(thd->mem_root, &pkg_dot_func) ||
+      check_ident_length(&pkg_dot_func) ||
+      !(qname= new (thd->mem_root) sp_name(&db, &pkg_dot_func, true)))
+    return NULL;
+
+  sp_handler_package_function.add_used_routine(thd->lex, thd, qname);
+  sp_handler_package_body.add_used_routine(thd->lex, thd, &q_db_pkg);
+
+  thd->lex->safe_to_cache_query= 0;
+
+  if (args && args->elements > 0)
+    return new (thd->mem_root) Item_func_sp(thd, thd->lex->current_context(),
+                                            qname, &sp_handler_package_function,
+                                            *args);
+  return new (thd->mem_root) Item_func_sp(thd, thd->lex->current_context(),
+                                          qname, &sp_handler_package_function);
 }
 
 

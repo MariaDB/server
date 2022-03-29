@@ -899,8 +899,6 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   if (!transform_into_subq)
     return this;
   
-  transform_into_subq= false;
-
   List<List_item> values;
 
   LEX *lex= thd->lex;
@@ -1057,14 +1055,37 @@ uint32 Item_func_in::max_length_of_left_expr()
 
 bool Item_func_in::to_be_transformed_into_in_subq(THD *thd)
 {
+  bool is_row_list= args[1]->type() == Item::ROW_ITEM;
   uint values_count= arg_count-1;
 
-  if (args[1]->type() == Item::ROW_ITEM)
+  if (is_row_list)
     values_count*= ((Item_row *)(args[1]))->cols();
 
   if (thd->variables.in_subquery_conversion_threshold == 0 ||
       thd->variables.in_subquery_conversion_threshold > values_count)
     return false;
+
+  if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
+    return true;
+
+  /* Occurence of '?' in IN list is checked only for PREPARE <stmt> commands */
+  for (uint i=1; i < arg_count; i++)
+  {
+    if (!is_row_list)
+    {
+      if (args[i]->type() == Item::PARAM_ITEM)
+        return false;
+    }
+    else
+    {
+      Item_row *row_list= (Item_row *)(args[i]);
+      for (uint j=0; j < row_list->cols(); j++)
+      {
+        if (row_list->element_index(j)->type() == Item::PARAM_ITEM)
+          return false;
+      }
+    }
+  }
 
   return true;
 }

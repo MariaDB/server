@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1627,6 +1627,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   MEM_ROOT *old_root= thd->mem_root;
   Virtual_column_info **table_check_constraints;
+  bool *interval_unescaped= NULL;
   extra2_fields extra2;
 
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
@@ -2047,6 +2048,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     goto err;
 
+  if (interval_count)
+  {
+    if (!(interval_unescaped= (bool*) my_alloca(interval_count * sizeof(bool))))
+      goto err;
+    bzero(interval_unescaped, interval_count * sizeof(bool));
+  }
+
   field_ptr= share->field;
   table_check_constraints= share->check_constraints;
   read_length=(uint) (share->fields * field_pack_length +
@@ -2323,11 +2331,17 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (share->mysql_version < 100200)
       attr.pack_flag&= ~FIELDFLAG_LONG_DECIMAL;
 
-    if (interval_nr && attr.charset->mbminlen > 1)
+    if (interval_nr && attr.charset->mbminlen > 1 &&
+        !interval_unescaped[interval_nr - 1])
     {
-      /* Unescape UCS2 intervals from HEX notation */
+      /*
+        Unescape UCS2/UTF16/UTF32 intervals from HEX notation.
+        Note, ENUM/SET columns with equal value list share a single
+        copy of TYPELIB. Unescape every TYPELIB only once.
+      */
       TYPELIB *interval= share->intervals + interval_nr - 1;
       unhex_type2(interval);
+      interval_unescaped[interval_nr - 1]= true;
     }
 
 #ifndef TO_BE_DELETED_ON_PRODUCTION
@@ -3060,6 +3074,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->error= OPEN_FRM_OK;
   thd->status_var.opened_shares++;
   thd->mem_root= old_root;
+  my_afree(interval_unescaped);
   DBUG_RETURN(0);
 
 err:
@@ -3074,6 +3089,7 @@ err:
     open_table_error(share, OPEN_FRM_CORRUPTED, share->open_errno);
 
   thd->mem_root= old_root;
+  my_afree(interval_unescaped);
   DBUG_RETURN(HA_ERR_NOT_A_TABLE);
 }
 

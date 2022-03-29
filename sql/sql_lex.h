@@ -3798,6 +3798,9 @@ public:
   bool call_statement_start(THD *thd, const LEX_CSTRING *name);
   bool call_statement_start(THD *thd, const LEX_CSTRING *name1,
                                       const LEX_CSTRING *name2);
+  bool call_statement_start(THD *thd, const LEX_CSTRING &name1,
+                                      const LEX_CSTRING &name2,
+                                      const LEX_CSTRING &name3);
   sp_variable *find_variable(const LEX_CSTRING *name,
                              sp_pcontext **ctx,
                              const Sp_rcontext_handler **rh) const;
@@ -4024,6 +4027,11 @@ public:
   Item *make_item_func_substr(THD *thd, Item *a, Item *b);
   Item *make_item_func_call_generic(THD *thd, Lex_ident_cli_st *db,
                                     Lex_ident_cli_st *name, List<Item> *args);
+  Item *make_item_func_call_generic(THD *thd,
+                                    Lex_ident_cli_st *db,
+                                    Lex_ident_cli_st *pkg,
+                                    Lex_ident_cli_st *name,
+                                    List<Item> *args);
   my_var *create_outvar(THD *thd, const LEX_CSTRING *name);
 
   /*

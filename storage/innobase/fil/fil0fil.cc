@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2021, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2625,9 +2625,10 @@ fil_make_filepath(
 	if (path != NULL) {
 		memcpy(full_name, path, path_len);
 		len = path_len;
-		full_name[len] = '\0';
-		os_normalize_path(full_name);
 	}
+
+	full_name[len] = '\0';
+	os_normalize_path(full_name);
 
 	if (trim_name) {
 		/* Find the offset of the last DIR separator and set it to

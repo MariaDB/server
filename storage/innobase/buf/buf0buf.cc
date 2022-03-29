@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2021, Oracle and/or its affiliates.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1021,9 +1021,6 @@ buf_page_is_corrupted(
 
 	size_t		checksum_field1 = 0;
 	size_t		checksum_field2 = 0;
-	uint32_t	crc32 = 0;
-	bool		crc32_inited = false;
-	bool		crc32_chksum = false;
 	const ulint zip_size = fil_space_t::zip_size(fsp_flags);
 	ulint page_type = mach_read_from_2(read_buf + FIL_PAGE_TYPE);
 
@@ -1119,9 +1116,14 @@ buf_page_is_corrupted(
 	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
 		return !buf_page_is_checksum_valid_none(
 			read_buf, checksum_field1, checksum_field2);
+	case SRV_CHECKSUM_ALGORITHM_NONE:
+		/* should have returned false earlier */
+		break;
 	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
+		const uint32_t crc32 = buf_calc_page_crc32(read_buf);
+
 		if (buf_page_is_checksum_valid_none(read_buf,
 			checksum_field1, checksum_field2)) {
 #ifdef UNIV_INNOCHECKSUM
@@ -1137,15 +1139,12 @@ buf_page_is_corrupted(
 					" crc32 = " UINT32PF "; recorded = " ULINTPF ";\n",
 					cur_page_num,
 					buf_calc_page_new_checksum(read_buf),
-					buf_calc_page_crc32(read_buf),
+					crc32,
 					checksum_field1);
 			}
 #endif /* UNIV_INNOCHECKSUM */
 			return false;
 		}
-
-		crc32_chksum = curr_algo == SRV_CHECKSUM_ALGORITHM_CRC32
-			|| curr_algo == SRV_CHECKSUM_ALGORITHM_FULL_CRC32;
 
 		/* Very old versions of InnoDB only stored 8 byte lsn to the
 		start and the end of the page. */
@@ -1157,81 +1156,33 @@ buf_page_is_corrupted(
 		    != mach_read_from_4(read_buf + FIL_PAGE_LSN)
 		    && checksum_field2 != BUF_NO_CHECKSUM_MAGIC) {
 
-			if (crc32_chksum) {
-				crc32 = buf_calc_page_crc32(read_buf);
-				crc32_inited = true;
+			DBUG_EXECUTE_IF(
+				"page_intermittent_checksum_mismatch", {
+				static int page_counter;
+				if (page_counter++ == 2) return true;
+			});
 
-				DBUG_EXECUTE_IF(
-					"page_intermittent_checksum_mismatch", {
-					static int page_counter;
-					if (page_counter++ == 2) {
-						crc32++;
-					}
-				});
-
-				if (checksum_field2 != crc32
-				    && checksum_field2
-				       != buf_calc_page_old_checksum(read_buf)) {
-					return true;
-				}
-			} else {
-				ut_ad(curr_algo
-				      == SRV_CHECKSUM_ALGORITHM_INNODB);
-
-				if (checksum_field2
-				    != buf_calc_page_old_checksum(read_buf)) {
-					crc32 = buf_calc_page_crc32(read_buf);
-					crc32_inited = true;
-
-					if (checksum_field2 != crc32) {
-						return true;
-					}
-				}
+			if ((checksum_field1 != crc32
+			     || checksum_field2 != crc32)
+			    && checksum_field2
+			    != buf_calc_page_old_checksum(read_buf)) {
+				return true;
 			}
 		}
 
-		if (checksum_field1 == 0
-		    || checksum_field1 == BUF_NO_CHECKSUM_MAGIC) {
-		} else if (crc32_chksum) {
-
-			if (!crc32_inited) {
-				crc32 = buf_calc_page_crc32(read_buf);
-				crc32_inited = true;
-			}
-
-			if (checksum_field1 != crc32
+		switch (checksum_field1) {
+		case 0:
+		case BUF_NO_CHECKSUM_MAGIC:
+			break;
+		default:
+			if ((checksum_field1 != crc32
+			     || checksum_field2 != crc32)
 			    && checksum_field1
 			    != buf_calc_page_new_checksum(read_buf)) {
 				return true;
 			}
-		} else {
-			ut_ad(curr_algo == SRV_CHECKSUM_ALGORITHM_INNODB);
-
-			if (checksum_field1
-			    != buf_calc_page_new_checksum(read_buf)) {
-
-				if (!crc32_inited) {
-					crc32 = buf_calc_page_crc32(read_buf);
-					crc32_inited = true;
-				}
-
-				if (checksum_field1 != crc32) {
-					return true;
-				}
-			}
 		}
 
-		if (crc32_inited
-		    && ((checksum_field1 == crc32
-			 && checksum_field2 != crc32)
-			|| (checksum_field1 != crc32
-			    && checksum_field2 == crc32))) {
-			return true;
-		}
-
-		break;
-	case SRV_CHECKSUM_ALGORITHM_NONE:
-		/* should have returned false earlier */
 		break;
 	}
 

@@ -2345,6 +2345,7 @@ protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value);
   bool transform_into_subq;
+  bool transform_into_subq_checked;
 public:
   /// An array of values, created when the bisection lookup method is used
   in_vector *array;
@@ -2367,6 +2368,7 @@ public:
     Item_func_opt_neg(thd, list),
     Predicant_to_list_comparator(thd, arg_count - 1),
     transform_into_subq(false),
+    transform_into_subq_checked(false),
     array(0), have_null(0),
     arg_types_compatible(FALSE), emb_on_expr_nest(0)
   { }

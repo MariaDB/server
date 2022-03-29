@@ -1669,7 +1669,7 @@ end:
   {
     table->file->ha_index_or_rnd_end();
     ha_commit_trans(thd, FALSE);
-    ha_commit_trans(thd, TRUE);
+    trans_commit(thd);
   }
   if (table_opened)
   {

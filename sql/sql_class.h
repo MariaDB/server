@@ -4195,13 +4195,13 @@ public:
     */
     DBUG_PRINT("debug",
                ("temporary_tables: %s, in_sub_stmt: %s, system_thread: %s",
-                YESNO(has_thd_temporary_tables()), YESNO(in_sub_stmt),
+                YESNO(has_temporary_tables()), YESNO(in_sub_stmt),
                 show_system_thread(system_thread)));
     if (in_sub_stmt == 0)
     {
       if (wsrep_binlog_format() == BINLOG_FORMAT_ROW)
         set_current_stmt_binlog_format_row();
-      else if (!has_thd_temporary_tables())
+      else if (!has_temporary_tables())
         set_current_stmt_binlog_format_stmt();
     }
     DBUG_VOID_RETURN;
@@ -6852,6 +6852,19 @@ public:
   }
   void copy(MEM_ROOT *mem_root, const LEX_CSTRING &db,
                                 const LEX_CSTRING &name);
+
+  static Database_qualified_name split(const LEX_CSTRING &txt)
+  {
+    DBUG_ASSERT(txt.str[txt.length] == '\0'); // Expect 0-terminated input
+    const char *dot= strchr(txt.str, '.');
+    if (!dot)
+      return Database_qualified_name(NULL, 0, txt.str, txt.length);
+    size_t dblen= dot - txt.str;
+    Lex_cstring db(txt.str, dblen);
+    Lex_cstring name(txt.str + dblen + 1, txt.length - dblen - 1);
+    return Database_qualified_name(db, name);
+  }
+
   // Export db and name as a qualified name string: 'db.name'
   size_t make_qname(char *dst, size_t dstlen) const
   {

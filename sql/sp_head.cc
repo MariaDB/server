@@ -3471,6 +3471,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     lex_query_tables_own_last= m_lex->query_tables_own_last;
     prelocking_tables= *lex_query_tables_own_last;
     *lex_query_tables_own_last= NULL;
+    m_lex->query_tables_last= m_lex->query_tables_own_last;
     m_lex->mark_as_requiring_prelocking(NULL);
   }
   thd->rollback_item_tree_changes();
