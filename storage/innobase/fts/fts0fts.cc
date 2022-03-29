@@ -2285,9 +2285,7 @@ fts_trx_table_create(
 	fts_trx_table_t*	ftt;
 
 	ftt = static_cast<fts_trx_table_t*>(
-		mem_heap_alloc(fts_trx->heap, sizeof(*ftt)));
-
-	memset(ftt, 0x0, sizeof(*ftt));
+		mem_heap_zalloc(fts_trx->heap, sizeof *ftt));
 
 	ftt->table = table;
 	ftt->fts_trx = fts_trx;

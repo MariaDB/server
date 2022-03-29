@@ -876,7 +876,7 @@ void THD::restore_tmp_table_share(TMP_TABLE_SHARE *share)
   @return false                       Temporary tables exist
           true                        No temporary table exist
 */
-inline bool THD::has_temporary_tables()
+bool THD::has_temporary_tables()
 {
   DBUG_ENTER("THD::has_temporary_tables");
   bool result= (rgi_slave
