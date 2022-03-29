@@ -2383,10 +2383,8 @@ void buf_pool_t::watch_unset(const page_id_t id)
   page_hash_latch *hash_lock= page_hash.lock<true>(fold);
   /* The page must exist because watch_set() increments buf_fix_count. */
   buf_page_t *w= page_hash_get_low(id, fold);
-  const auto buf_fix_count= w->buf_fix_count();
-  ut_ad(buf_fix_count);
-  const bool must_remove= buf_fix_count == 1 && watch_is_sentinel(*w);
   ut_ad(w->in_page_hash);
+  const bool must_remove= watch_is_sentinel(*w) && w->buf_fix_count() == 1;
   if (!must_remove)
     w->unfix();
   hash_lock->write_unlock();
