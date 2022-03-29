@@ -595,11 +595,10 @@ public:
 					/*!< next checkpoint number */
   /** latest completed checkpoint (protected by log_sys.mutex) */
   Atomic_relaxed<lsn_t> last_checkpoint_lsn;
-	lsn_t		next_checkpoint_lsn;
-					/*!< next checkpoint lsn */
-	ulint		n_pending_checkpoint_writes;
-					/*!< number of currently pending
-					checkpoint writes */
+  /** next checkpoint LSN (protected by log_sys.mutex) */
+  lsn_t next_checkpoint_lsn;
+  /** whether a checkpoint is pending */
+  Atomic_relaxed<bool> checkpoint_pending;
 
   /** buffer for checkpoint header */
   byte *checkpoint_buf;

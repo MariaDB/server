@@ -1820,7 +1820,7 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
 
   ut_ad(log_sys.get_flushed_lsn() >= flush_lsn);
 
-  if (log_sys.n_pending_checkpoint_writes)
+  if (log_sys.checkpoint_pending)
   {
     /* A checkpoint write is running */
     mysql_mutex_unlock(&log_sys.mutex);

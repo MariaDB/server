@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1909,10 +1909,7 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_PENDING_CHECKPOINT_WRITE:
-		mysql_mutex_lock(&log_sys.mutex);
-		value = static_cast<mon_type_t>(
-		    log_sys.n_pending_checkpoint_writes);
-		mysql_mutex_unlock(&log_sys.mutex);
+		value = log_sys.checkpoint_pending;
 		break;
 
 	case MONITOR_LOG_IO:
