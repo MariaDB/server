@@ -142,13 +142,6 @@ dch -b -D "${CODENAME}" -v "${VERSION}" "Automatic build with ${LOGSTRING}." --c
 
 echo "Creating package version ${VERSION} ... "
 
-# On Gitlab-CI, use -b to build binary only packages as there is
-# no need to waste time on generating the source package.
-if [[ $GITLAB_CI ]]
-then
-  BUILDPACKAGE_FLAGS="-b"
-fi
-
 # Use eatmydata is available to build faster with less I/O, skipping fsync()
 # during the entire build process (safe because a build can always be restarted)
 if which eatmydata > /dev/null

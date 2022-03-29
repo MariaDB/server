@@ -635,10 +635,6 @@ buf_page_is_corrupted(
 		return false;
 	}
 
-#ifndef UNIV_INNOCHECKSUM
-	uint32_t	crc32 = 0;
-	bool		crc32_inited = false;
-#endif /* !UNIV_INNOCHECKSUM */
 	const ulint zip_size = fil_space_t::zip_size(fsp_flags);
 	const uint16_t page_type = fil_page_get_type(read_buf);
 
@@ -733,6 +729,8 @@ buf_page_is_corrupted(
 			return false;
 		}
 
+		const uint32_t crc32 = buf_calc_page_crc32(read_buf);
+
 		/* Very old versions of InnoDB only stored 8 byte lsn to the
 		start and the end of the page. */
 
@@ -743,18 +741,14 @@ buf_page_is_corrupted(
 		    != mach_read_from_4(read_buf + FIL_PAGE_LSN)
 		    && checksum_field2 != BUF_NO_CHECKSUM_MAGIC) {
 
-			crc32 = buf_calc_page_crc32(read_buf);
-			crc32_inited = true;
-
 			DBUG_EXECUTE_IF(
 				"page_intermittent_checksum_mismatch", {
-					static int page_counter;
-					if (page_counter++ == 2) {
-						crc32++;
-					}
-				});
+				static int page_counter;
+				if (page_counter++ == 2) return true;
+			});
 
-			if (checksum_field2 != crc32
+			if ((checksum_field1 != crc32
+			     || checksum_field2 != crc32)
 			    && checksum_field2
 			    != buf_calc_page_old_checksum(read_buf)) {
 				return true;
@@ -764,25 +758,11 @@ buf_page_is_corrupted(
 		switch (checksum_field1) {
 		case 0:
 		case BUF_NO_CHECKSUM_MAGIC:
-			break;
-		default:
-			if (!crc32_inited) {
-				crc32 = buf_calc_page_crc32(read_buf);
-				crc32_inited = true;
-			}
-
-			if (checksum_field1 != crc32
-			    && checksum_field1
-			    != buf_calc_page_new_checksum(read_buf)) {
-				return true;
-			}
+			return false;
 		}
-
-		return crc32_inited
-			&& ((checksum_field1 == crc32
-			     && checksum_field2 != crc32)
-			    || (checksum_field1 != crc32
-				&& checksum_field2 == crc32));
+		return (checksum_field1 != crc32 || checksum_field2 != crc32)
+			&& checksum_field1
+			!= buf_calc_page_new_checksum(read_buf);
 	}
 #endif /* !UNIV_INNOCHECKSUM */
 }

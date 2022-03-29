@@ -1775,8 +1775,9 @@ char* fil_make_filepath(const char *path, const fil_space_t::name_type &name,
 	if (path != NULL) {
 		memcpy(full_name, path, path_len);
 		len = path_len;
-		full_name[len] = '\0';
 	}
+
+	full_name[len] = '\0';
 
 	if (trim_name) {
 		/* Find the offset of the last DIR separator and set it to

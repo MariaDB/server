@@ -9342,7 +9342,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 {
   bool engine_changed, error, frm_is_created= false, error_handler_pushed= false;
   bool no_ha_table= true;  /* We have not created table in storage engine yet */
-  TABLE *table, *new_table;
+  TABLE *table, *new_table= nullptr;
   DDL_LOG_STATE ddl_log_state;
   Turn_errors_to_warnings_handler errors_to_warnings;
 
@@ -9368,7 +9368,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   bool varchar= create_info->varchar, table_creation_was_logged= 0;
   bool binlog_as_create_select= 0, log_if_exists= 0;
   uint tables_opened;
-  handlerton *new_db_type, *old_db_type= nullptr;
+  handlerton *new_db_type= create_info->db_type, *old_db_type;
   ha_rows copied=0, deleted=0;
   LEX_CUSTRING frm= {0,0};
   LEX_CSTRING backup_name;
@@ -9717,22 +9717,24 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     create_info->used_fields |= HA_CREATE_USED_ROW_FORMAT;
   }
 
+  old_db_type= table->s->db_type();
+  new_db_type= create_info->db_type;
+
   DBUG_PRINT("info", ("old type: %s  new type: %s",
-             ha_resolve_storage_engine_name(table->s->db_type()),
-             ha_resolve_storage_engine_name(create_info->db_type)));
-  if (ha_check_storage_engine_flag(table->s->db_type(), HTON_ALTER_NOT_SUPPORTED))
+             ha_resolve_storage_engine_name(old_db_type),
+             ha_resolve_storage_engine_name(new_db_type)));
+  if (ha_check_storage_engine_flag(old_db_type, HTON_ALTER_NOT_SUPPORTED))
   {
     DBUG_PRINT("info", ("doesn't support alter"));
-    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(table->s->db_type())->str,
+    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(old_db_type)->str,
              alter_ctx.db.str, alter_ctx.table_name.str);
     DBUG_RETURN(true);
   }
 
-  if (ha_check_storage_engine_flag(create_info->db_type,
-                                   HTON_ALTER_NOT_SUPPORTED))
+  if (ha_check_storage_engine_flag(new_db_type, HTON_ALTER_NOT_SUPPORTED))
   {
     DBUG_PRINT("info", ("doesn't support alter"));
-    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(create_info->db_type)->str,
+    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(new_db_type)->str,
              alter_ctx.new_db.str, alter_ctx.new_name.str);
     DBUG_RETURN(true);
   }
@@ -9894,6 +9896,17 @@ do_continue:;
       DBUG_RETURN(true);
     }
   }
+  /*
+    If the old table had partitions and we are doing ALTER TABLE ...
+    engine= <new_engine>, the new table must preserve the original
+    partitioning. This means that the new engine is still the
+    partitioning engine, not the engine specified in the parser.
+    This is discovered in prep_alter_part_table, which in such case
+    updates create_info->db_type.
+    It's therefore important that the assignment below is done
+    after prep_alter_part_table.
+  */
+  new_db_type= create_info->db_type;
 #endif
 
   if (mysql_prepare_alter_table(thd, table, create_info, alter_info,
@@ -9974,7 +9987,7 @@ do_continue:;
        Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
       || is_inplace_alter_impossible(table, create_info, alter_info)
       || IF_PARTITIONING((partition_changed &&
-          !(table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION)), 0))
+          !(old_db_type->partition_flags() & HA_USE_AUTO_PARTITION)), 0))
   {
     if (alter_info->algorithm(thd) ==
         Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
@@ -9992,23 +10005,9 @@ do_continue:;
     request table rebuild. Set ALTER_RECREATE flag to force table
     rebuild.
   */
-  if (create_info->db_type == table->s->db_type() &&
+  if (new_db_type == old_db_type &&
       create_info->used_fields & HA_CREATE_USED_ENGINE)
     alter_info->flags|= ALTER_RECREATE;
-
-  /*
-    If the old table had partitions and we are doing ALTER TABLE ...
-    engine= <new_engine>, the new table must preserve the original
-    partitioning. This means that the new engine is still the
-    partitioning engine, not the engine specified in the parser.
-    This is discovered in prep_alter_part_table, which in such case
-    updates create_info->db_type.
-    It's therefore important that the assignment below is done
-    after prep_alter_part_table.
-  */
-  new_db_type= create_info->db_type;
-  old_db_type= table->s->db_type();
-  new_table= NULL;
 
   /*
     Handling of symlinked tables:

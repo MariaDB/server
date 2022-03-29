@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3324,6 +3324,16 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
       arg->table->field[10]->store((longlong) tmp->progress.max_stage, 1);
       arg->table->field[11]->store((double) tmp->progress.counter /
                                    (double) max_counter*100.0);
+    }
+    else
+    {
+      /*
+        This is a DECIMAL column without DEFAULT.
+        restore_record() fills its Field::ptr to zero bytes,
+        according to pack_length(). But an array of zero bytes
+        is not a valid decimal. Set it explicitly to 0.
+      */
+      arg->table->field[11]->store((longlong) 0, true);
     }
     mysql_mutex_unlock(&tmp->LOCK_thd_data);
   }

@@ -2295,6 +2295,11 @@ multi_update::initialize_tables(JOIN *join)
   if (unlikely((thd->variables.option_bits & OPTION_SAFE_UPDATES) &&
                error_if_full_join(join)))
     DBUG_RETURN(1);
+  if (join->implicit_grouping)
+  {
+    my_error(ER_INVALID_GROUP_FUNC_USE, MYF(0));
+    DBUG_RETURN(1);
+  }
   main_table=join->join_tab->table;
   table_to_update= 0;
 
