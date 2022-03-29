@@ -296,9 +296,9 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
 
 #ifndef WITH_S3_STORAGE_ENGINE
   DBUG_ASSERT(!s3);
-#endif /* WITH_S3_STORAGE_ENGINE */
-
+#else
   if (!s3)
+#endif /* WITH_S3_STORAGE_ENGINE */
   {
     realpath_err= my_realpath(name_buff, fn_format(org_name, name, "",
                                                    MARIA_NAME_IEXT,
