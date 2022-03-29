@@ -28,6 +28,7 @@ PS_execute;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 PS_execute;
 commit;
+PS_close;
 select * from t;
 i	j
 1	node2

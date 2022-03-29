@@ -53,6 +53,8 @@ update t set j='node2' where i=1;
 --PS_execute
 commit;
 
+--PS_close
+
 select * from t;
 
 drop table t;
