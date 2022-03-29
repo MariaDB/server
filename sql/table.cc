@@ -8161,9 +8161,6 @@ void TABLE::evaluate_update_default_function()
 
 void TABLE::vers_update_fields()
 {
-  bitmap_set_bit(write_set, vers_start_field()->field_index);
-  bitmap_set_bit(write_set, vers_end_field()->field_index);
-
   if (!vers_write)
   {
     file->column_bitmaps_signal();
@@ -8172,17 +8169,21 @@ void TABLE::vers_update_fields()
 
   if (versioned(VERS_TIMESTAMP))
   {
+    bitmap_set_bit(write_set, vers_start_field()->field_index);
     if (vers_start_field()->store_timestamp(in_use->query_start(),
                                           in_use->query_start_sec_part()))
     {
       DBUG_ASSERT(0);
     }
     vers_start_field()->set_has_explicit_value();
+    bitmap_set_bit(read_set, vers_start_field()->field_index);
   }
 
+  bitmap_set_bit(write_set, vers_end_field()->field_index);
   vers_end_field()->set_max();
   vers_end_field()->set_has_explicit_value();
   bitmap_set_bit(read_set, vers_end_field()->field_index);
+
   file->column_bitmaps_signal();
   if (vfield)
     update_virtual_fields(file, VCOL_UPDATE_FOR_READ);
