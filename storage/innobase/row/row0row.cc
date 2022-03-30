@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -531,7 +531,11 @@ row_build_low(
 			continue;
 		}
 
-		ut_ad(ind_field < &index->fields[index->n_fields]);
+		if (UNIV_UNLIKELY(ind_field
+				  >= &index->fields[index->n_fields])) {
+			ut_ad(rec_is_metadata(rec, *index));
+			continue;
+		}
 
 		const dict_col_t* col = dict_field_get_col(ind_field);
 
@@ -745,11 +749,15 @@ row_rec_to_index_entry_impl(
 	if (mblob == 2) {
 		ut_ad(info_bits == REC_INFO_METADATA_ALTER
 		      || info_bits == REC_INFO_METADATA_ADD);
-		ut_ad(rec_len <= ulint(index->n_fields + got));
 		if (pad) {
+			ut_ad(rec_len <= ulint(index->n_fields + got));
 			rec_len = ulint(index->n_fields)
 				+ (info_bits == REC_INFO_METADATA_ALTER);
-		} else if (!got && info_bits == REC_INFO_METADATA_ALTER) {
+		} else if (got) {
+			rec_len = std::min(rec_len,
+					   ulint(index->n_fields + got));
+		} else if (info_bits == REC_INFO_METADATA_ALTER) {
+			ut_ad(rec_len <= index->n_fields);
 			rec_len++;
 		}
 	} else {

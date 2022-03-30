@@ -89,7 +89,8 @@ dict_load_foreigns(
 	const char*		table_name,	/*!< in: table name */
 	const char**		col_names,	/*!< in: column names, or NULL
 						to use table->col_names */
-	bool			check_recursive,/*!< in: Whether to check
+	trx_id_t		trx_id,		/*!< in: DDL transaction id,
+						or 0 to check
 						recursive load of tables
 						chained by FK */
 	bool			check_charsets,	/*!< in: whether to check
@@ -123,12 +124,12 @@ dict_getnext_system(
 
 /** Load a table definition from a SYS_TABLES record to dict_table_t.
 Do not load any columns or indexes.
-@param[in]	name		Table name
+@param[in,out]	mtr		mini-transaction
 @param[in]	rec		SYS_TABLES record
 @param[out,own]	table		table, or nullptr
 @return	error message
 @retval	nullptr on success */
-const char *dict_load_table_low(const span<const char> &name,
+const char *dict_load_table_low(mtr_t *mtr,
                                 const rec_t *rec, dict_table_t **table)
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 

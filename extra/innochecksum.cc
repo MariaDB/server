@@ -1189,6 +1189,8 @@ static struct my_option innochecksum_options[] = {
   {"allow-mismatches", 'a', "Maximum checksum mismatch allowed.",
     &allow_mismatches, &allow_mismatches, 0,
     GET_ULL, REQUIRED_ARG, 0, 0, ULLONG_MAX, 0, 1, 0},
+  {"write", 'w', "Rewrite the checksum.",
+    &do_write, &do_write, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"page-type-summary", 'S', "Display a count of each page type "
    "in a tablespace.", &page_type_summary, &page_type_summary, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},

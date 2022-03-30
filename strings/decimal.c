@@ -1136,13 +1136,21 @@ int decimal2ulonglong(const decimal_t *from, ulonglong *to)
 
   for (intg=from->intg; intg > 0; intg-=DIG_PER_DEC1)
   {
-    ulonglong y=x;
-    x=x*DIG_BASE + *buf++;
-    if (unlikely(y > ((ulonglong) ULONGLONG_MAX/DIG_BASE) || x < y))
+    /*
+      Check that the decimal is bigger than any possible integer.
+      Do it before we do the x*=DIB_BASE to avoid integer
+      overflow.
+    */
+    if (unlikely (
+          x >= ULONGLONG_MAX/DIG_BASE &&
+          (x > ULONGLONG_MAX/DIG_BASE ||
+             *buf > (dec1) (ULONGLONG_MAX%DIG_BASE))))
     {
       *to=ULONGLONG_MAX;
       return E_DEC_OVERFLOW;
     }
+
+    x=x*DIG_BASE + *buf++;
   }
   *to=x;
   for (frac=from->frac; unlikely(frac > 0); frac-=DIG_PER_DEC1)
@@ -1159,23 +1167,29 @@ int decimal2longlong(const decimal_t *from, longlong *to)
 
   for (intg=from->intg; intg > 0; intg-=DIG_PER_DEC1)
   {
-    longlong y=x;
     /*
+      Check that the decimal is less than any possible integer.
+      Do it before we do the x*=DIB_BASE to avoid integer
+      overflow.
       Attention: trick!
       we're calculating -|from| instead of |from| here
       because |LONGLONG_MIN| > LONGLONG_MAX
-      so we can convert -9223372036854775808 correctly
+      so we can convert -9223372036854775808 correctly.
     */
-    x=x*DIG_BASE - *buf++;
-    if (unlikely(y < (LONGLONG_MIN/DIG_BASE) || x > y))
+    if (unlikely (
+          x <= LONGLONG_MIN/DIG_BASE &&
+          (x < LONGLONG_MIN/DIG_BASE ||
+            *buf > (dec1) (-(LONGLONG_MIN%DIG_BASE)))))
     {
       /*
-        the decimal is bigger than any possible integer
-        return border integer depending on the sign
+         the decimal is bigger than any possible integer
+         return border integer depending on the sign
       */
       *to= from->sign ? LONGLONG_MIN : LONGLONG_MAX;
       return E_DEC_OVERFLOW;
     }
+
+    x=x*DIG_BASE - *buf++;
   }
   /* boundary case: 9223372036854775808 */
   if (unlikely(from->sign==0 && x == LONGLONG_MIN))

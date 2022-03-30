@@ -14,7 +14,8 @@ FOUND 1 /Error: --no-check must be associated with --write option./ in my_restar
 FOUND 1 /unknown variable 'strict-check=innodb'/ in my_restart.err
 [7]: check the innochecksum with short form strict-check & no-check , an error is expected
 FOUND 1 /unknown option '-C'/ in my_restart.err
-FOUND 1 /unknown variable 'write=crc32'/ in my_restart.err
+FOUND 1 /ignoring option '--write' due to invalid value 'crc32'/ in my_restart.err
+FOUND 1 /Error: --no-check must be associated with --write option/ in my_restart.err
 # restart
 SELECT * FROM tab1;
 c1	c2

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4497,7 +4497,7 @@ row_import_for_mysql(
 	fil_space_t::set_imported() to declare it a persistent tablespace. */
 
 	table->space = fil_ibd_open(
-		true, FIL_TYPE_IMPORT, table->space_id,
+		2, FIL_TYPE_IMPORT, table->space_id,
 		dict_tf_to_fsp_flags(table->flags), name, filepath, &err);
 
 	ut_ad((table->space == NULL) == (err != DB_SUCCESS));

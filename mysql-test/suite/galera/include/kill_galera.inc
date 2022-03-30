@@ -2,7 +2,7 @@
 
 if (!$kill_signal)
 {
---let $kill_signal = 9
+--let $kill_signal = KILL
 }
 
 # Write file to make mysql-test-run.pl expect the crash, but don't start it

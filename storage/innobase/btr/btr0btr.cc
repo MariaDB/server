@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1334,11 +1334,23 @@ static void btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
   else
     ut_ad(cursor->rec == page_get_infimum_rec(block->page.frame));
 
-  if (block->page.id().page_no() == index->page &&
-      fil_page_get_type(old->page.frame) == FIL_PAGE_TYPE_INSTANT)
+  mtr->set_log_mode(log_mode);
+
+  if (block->page.id().page_no() != index->page ||
+      fil_page_get_type(old->page.frame) != FIL_PAGE_TYPE_INSTANT)
+    ut_ad(!memcmp(old->page.frame, block->page.frame, PAGE_HEADER));
+  else if (!index->is_instant())
+  {
+    ut_ad(!memcmp(old->page.frame, block->page.frame, FIL_PAGE_TYPE));
+    ut_ad(!memcmp(old->page.frame + FIL_PAGE_TYPE + 2,
+                  block->page.frame + FIL_PAGE_TYPE + 2,
+                  PAGE_HEADER - FIL_PAGE_TYPE - 2));
+    mtr->write<2,mtr_t::FORCED>(*block, FIL_PAGE_TYPE + block->page.frame,
+                                FIL_PAGE_INDEX);
+  }
+  else
   {
     /* Preserve the PAGE_INSTANT information. */
-    ut_ad(index->is_instant());
     memcpy_aligned<2>(FIL_PAGE_TYPE + block->page.frame,
                       FIL_PAGE_TYPE + old->page.frame, 2);
     memcpy_aligned<2>(PAGE_HEADER + PAGE_INSTANT + block->page.frame,
@@ -1358,9 +1370,10 @@ static void btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
       memcpy(PAGE_OLD_SUPREMUM + block->page.frame,
              PAGE_OLD_SUPREMUM + old->page.frame, 8);
     }
+
+    ut_ad(!memcmp(old->page.frame, block->page.frame, PAGE_HEADER));
   }
 
-  ut_ad(!memcmp(old->page.frame, block->page.frame, PAGE_HEADER));
   ut_ad(!memcmp(old->page.frame + PAGE_MAX_TRX_ID + PAGE_HEADER,
                 block->page.frame + PAGE_MAX_TRX_ID + PAGE_HEADER,
                 PAGE_DATA - (PAGE_MAX_TRX_ID + PAGE_HEADER)));
@@ -1369,7 +1382,6 @@ static void btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
     lock_move_reorganize_page(block, old);
 
   /* Write log for the changes, if needed. */
-  mtr->set_log_mode(log_mode);
   if (log_mode == MTR_LOG_ALL)
   {
     /* Check and log the changes in the page header. */
