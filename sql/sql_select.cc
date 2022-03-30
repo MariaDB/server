@@ -4035,6 +4035,7 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   tab->join= this;
   DBUG_ASSERT(tab > tab->join->join_tab || !top_join_tab_count ||
               !tables_list);
+  tab->table= table;
   if (tab > join_tab)
     (tab - 1)->next_select= sub_select_postjoin_aggr;
 
@@ -4087,13 +4088,13 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   }
   if (!(tab->aggr= new (thd->mem_root) AGGR_OP(tab)))
     goto err;
-  tab->table= table;
   table->reginfo.join_tab= tab;
   DBUG_RETURN(false);
 
 err:
   if (table != NULL)
     free_tmp_table(thd, table);
+  tab->table= nullptr;
   DBUG_RETURN(true);
 }
 
