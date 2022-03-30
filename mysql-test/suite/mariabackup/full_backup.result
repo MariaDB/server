@@ -1,6 +1,7 @@
 CREATE TABLE t(i INT) ENGINE INNODB;
 INSERT INTO t VALUES(1);
 # xtrabackup backup
+NOT FOUND /InnoDB: Allocated tablespace ID/ in backup.log
 INSERT INTO t VALUES(2);
 # xtrabackup prepare
 # shutdown server

@@ -1418,10 +1418,12 @@ fil_space_create(
 
 		if (!fil_system->space_id_reuse_warned) {
 			fil_system->space_id_reuse_warned = true;
-
-			ib::warn() << "Allocated tablespace ID " << id
-				<< " for " << name << ", old maximum was "
-				<< fil_system->max_assigned_id;
+			if (srv_operation != SRV_OPERATION_BACKUP) {
+				ib::warn() << "Allocated tablespace ID " << id
+					<< " for " << name
+					<< ", old maximum was "
+					<< fil_system->max_assigned_id;
+			}
 		}
 
 		fil_system->max_assigned_id = id;
