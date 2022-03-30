@@ -1,0 +1,6 @@
+ALTER TABLE mysql.gtid_slave_pos ENGINE=innodb;
+# Restart the server so mysqld reads the gtid_slave_pos using innodb
+# Set gtid_slave_pos should not hang
+SET GLOBAL gtid_slave_pos=@@gtid_binlog_pos;
+COMMIT;
+RESET MASTER;

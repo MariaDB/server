@@ -4497,7 +4497,7 @@ row_import_for_mysql(
 	fil_space_t::set_imported() to declare it a persistent tablespace. */
 
 	table->space = fil_ibd_open(
-		true, FIL_TYPE_IMPORT, table->space_id,
+		2, FIL_TYPE_IMPORT, table->space_id,
 		dict_tf_to_fsp_flags(table->flags), name, filepath, &err);
 
 	ut_ad((table->space == NULL) == (err != DB_SUCCESS));

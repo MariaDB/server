@@ -133,6 +133,7 @@ end-page                          0
 page                              0
 no-check                          FALSE
 allow-mismatches                  0
+write                             FALSE
 page-type-summary                 FALSE
 page-type-dump                    MYSQLTEST_VARDIR/tmp/dump.txt
 per-page-details                  FALSE

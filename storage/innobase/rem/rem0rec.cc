@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -478,7 +478,7 @@ rec_offs_make_valid(
 {
 	const bool is_alter_metadata = leaf
 		&& rec_is_alter_metadata(rec, *index);
-	ut_ad(is_alter_metadata
+	ut_ad((leaf && rec_is_metadata(rec, *index))
 	      || index->is_dummy || index->is_ibuf()
 	      || (leaf
 		  ? rec_offs_n_fields(offsets)
@@ -572,7 +572,8 @@ rec_offs_validate(
 		}
 		/* index->n_def == 0 for dummy indexes if !comp */
 		ut_ad(!comp || index->n_def);
-		ut_ad(!index->n_def || i <= max_n_fields);
+		ut_ad(!index->n_def || i <= max_n_fields
+		      || rec_is_metadata(rec, *index));
 	}
 	while (i--) {
 		ulint curr = get_value(rec_offs_base(offsets)[1 + i]);
@@ -897,9 +898,7 @@ rec_get_offsets_func(
 		ut_ad(!is_user_rec || !n_core || index->is_dummy
 		      || dict_index_is_ibuf(index)
 		      || n == n_fields /* btr_pcur_restore_position() */
-		      || (n + (index->id == DICT_INDEXES_ID)
-			  >= n_core && n <= index->n_fields
-			  + unsigned(rec_is_alter_metadata(rec, false))));
+		      || (n + (index->id == DICT_INDEXES_ID) >= n_core));
 
 		if (is_user_rec && n_core && n < index->n_fields) {
 			ut_ad(!index->is_dummy);

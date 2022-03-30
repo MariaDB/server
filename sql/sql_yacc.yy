@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, 2021, MariaDB
+   Copyright (c) 2010, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2989,9 +2989,29 @@ sp_suid:
         ;
 
 call:
-          CALL_SYM sp_name
+          CALL_SYM ident
           {
-            if (unlikely(Lex->call_statement_start(thd, $2)))
+            if (unlikely(Lex->call_statement_start(thd, &$2)))
+              MYSQL_YYABORT;
+          }
+          opt_sp_cparam_list
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
+        | CALL_SYM ident '.' ident
+          {
+            if (unlikely(Lex->call_statement_start(thd, &$2, &$4)))
+              MYSQL_YYABORT;
+          }
+          opt_sp_cparam_list
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
+        | CALL_SYM ident '.' ident '.' ident
+          {
+            if (unlikely(Lex->call_statement_start(thd, &$2, &$4, &$6)))
               MYSQL_YYABORT;
           }
           opt_sp_cparam_list
@@ -10441,6 +10461,11 @@ function_call_generic:
         | ident_cli '.' ident_cli '(' opt_expr_list ')'
           {
             if (unlikely(!($$= Lex->make_item_func_call_generic(thd, &$1, &$3, $5))))
+              MYSQL_YYABORT;
+          }
+        | ident_cli '.' ident_cli '.' ident_cli '(' opt_expr_list ')'
+          {
+            if (unlikely(!($$= Lex->make_item_func_call_generic(thd, &$1, &$3, &$5, $7))))
               MYSQL_YYABORT;
           }
         ;
@@ -18298,6 +18323,10 @@ sp_statement:
               MYSQL_YYABORT;
           }
           opt_sp_cparam_list
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         | ident_cli_directly_assignable '.' ident
           {
             Lex_ident_sys tmp(thd, &$1);
@@ -18306,6 +18335,21 @@ sp_statement:
               MYSQL_YYABORT;
           }
           opt_sp_cparam_list
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
+        | ident_cli_directly_assignable '.' ident '.' ident
+          {
+            Lex_ident_sys tmp(thd, &$1);
+            if (unlikely(Lex->call_statement_start(thd, &tmp, &$3, &$5)))
+              MYSQL_YYABORT;
+          }
+          opt_sp_cparam_list
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         ;
 
 sp_if_then_statements:

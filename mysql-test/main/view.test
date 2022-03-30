@@ -6577,6 +6577,32 @@ Drop View v1;
 Drop table t1;
 
 --echo #
+--echo # MDEV-24281: Execution of PREPARE from CREATE VIEW statement
+--echo #
+
+create table t1 (s1 int);
+insert into t1 values (3), (7), (1);
+
+prepare stmt from "
+create view v1 as select 's1', s1, 1 as My_exp_s1 from t1;
+";
+execute stmt;
+deallocate prepare stmt;
+show create view v1;
+select * from v1;
+drop view v1;
+
+prepare stmt from "
+create view v1 as select 's1', s1, 1 as My_exp_s1 from t1;
+";
+execute stmt;
+--error ER_TABLE_EXISTS_ERROR
+execute stmt;
+deallocate prepare stmt;
+drop view v1;
+drop table t1;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
 

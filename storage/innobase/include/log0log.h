@@ -268,12 +268,12 @@ public:
 					new query step is started */
   /** latest completed checkpoint (protected by latch.wr_lock()) */
   Atomic_relaxed<lsn_t> last_checkpoint_lsn;
-	lsn_t		next_checkpoint_lsn;
-					/*!< next checkpoint lsn */
+  /** next checkpoint LSN (protected by log_sys.mutex) */
+  lsn_t next_checkpoint_lsn;
   /** next checkpoint number (protected by latch.wr_lock()) */
   ulint next_checkpoint_no;
-  /** number of pending checkpoint writes */
-  ulint n_pending_checkpoint_writes;
+  /** whether a checkpoint is pending */
+  Atomic_relaxed<bool> checkpoint_pending;
 
   /** buffer for checkpoint header */
   byte *checkpoint_buf;

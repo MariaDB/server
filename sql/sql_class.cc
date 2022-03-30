@@ -707,6 +707,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_was_on(false),
    wsrep_ignore_table(false),
    wsrep_aborter(0),
+   wsrep_delayed_BF_abort(false),
 
 /* wsrep-lib */
    m_wsrep_next_trx_id(WSREP_UNDEFINED_TRX_ID),

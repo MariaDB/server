@@ -1045,12 +1045,12 @@ dberr_t srv_start(bool create_new_db)
 	recv_sys.create();
 	lock_sys.create(srv_lock_table_size);
 
+	srv_startup_is_before_trx_rollback_phase = true;
+
 	if (!srv_read_only_mode) {
 		buf_flush_page_cleaner_init();
 		ut_ad(buf_page_cleaner_is_active);
 	}
-
-	srv_startup_is_before_trx_rollback_phase = true;
 
 	/* Check if undo tablespaces and redo log files exist before creating
 	a new system tablespace */

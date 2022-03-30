@@ -4808,12 +4808,13 @@ i_s_dict_fill_sys_tables(
 
 /** Convert one SYS_TABLES record to dict_table_t.
 @param pcur      persistent cursor position on SYS_TABLES record
+@param mtr       mini-transaction (nullptr=use the dict_sys cache)
 @param rec       record to read from (nullptr=use the dict_sys cache)
 @param table     the converted dict_table_t
 @return error message
 @retval nullptr on success */
-static const char *i_s_sys_tables_rec(const btr_pcur_t &pcur, const rec_t *rec,
-                                      dict_table_t **table)
+static const char *i_s_sys_tables_rec(const btr_pcur_t &pcur, mtr_t *mtr,
+                                      const rec_t *rec, dict_table_t **table)
 {
   static_assert(DICT_FLD__SYS_TABLES__NAME == 0, "compatibility");
   size_t len;
@@ -4831,12 +4832,11 @@ static const char *i_s_sys_tables_rec(const btr_pcur_t &pcur, const rec_t *rec,
       return "corrupted SYS_TABLES.NAME";
   }
 
-  const span<const char>name{reinterpret_cast<const char*>(pcur.old_rec), len};
-
   if (rec)
-    return dict_load_table_low(name, rec, table);
+    return dict_load_table_low(mtr, rec, table);
 
-  *table= dict_sys.load_table(name);
+  *table= dict_sys.load_table
+    (span<const char>{reinterpret_cast<const char*>(pcur.old_rec), len});
   return *table ? nullptr : "Table not found in cache";
 }
 
@@ -4878,7 +4878,7 @@ i_s_sys_tables_fill_table(
 
 		/* Create and populate a dict_table_t structure with
 		information from SYS_TABLES row */
-		err_msg = i_s_sys_tables_rec(pcur, rec, &table_rec);
+		err_msg = i_s_sys_tables_rec(pcur, &mtr, rec, &table_rec);
 		mtr.commit();
 		dict_sys.unlock();
 
@@ -5116,7 +5116,8 @@ i_s_sys_tables_fill_table_stats(
 		mtr.commit();
 		/* Fetch the dict_table_t structure corresponding to
 		this SYS_TABLES record */
-		err_msg = i_s_sys_tables_rec(pcur, nullptr, &table_rec);
+		err_msg = i_s_sys_tables_rec(pcur, nullptr, nullptr,
+                                             &table_rec);
 
 		if (UNIV_LIKELY(!err_msg)) {
 			bool evictable = dict_sys.prevent_eviction(table_rec);

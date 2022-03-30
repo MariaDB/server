@@ -131,7 +131,7 @@ void log_t::create()
   max_modified_age_async= 0;
   max_checkpoint_age= 0;
   next_checkpoint_lsn= 0;
-  n_pending_checkpoint_writes= 0;
+  checkpoint_pending= false;
 
   buf_free= 0;
 
@@ -912,22 +912,6 @@ wait_suspend_loop:
 		goto loop;
 	} else {
 		buf_flush_buffer_pool();
-	}
-
-	if (log_sys.is_initialised()) {
-		log_sys.latch.rd_lock(SRW_LOCK_CALL);
-		const ulint	n_write	= log_sys.n_pending_checkpoint_writes;
-		log_sys.latch.rd_unlock();
-
-		if (n_write) {
-			if (srv_print_verbose_log && count > 600) {
-				sql_print_information(
-					"InnoDB: Pending checkpoint writes: "
-					ULINTPF, n_write);
-				count = 0;
-			}
-			goto loop;
-		}
 	}
 
 	if (srv_fast_shutdown == 2 || !srv_was_started) {

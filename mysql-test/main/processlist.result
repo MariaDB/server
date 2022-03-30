@@ -40,3 +40,23 @@ utf8mb4_string	xxx😎yyy
 #
 # End of 10.1 tests
 #
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-28131 Unexpected warning while selecting from information_schema.processlist
+#
+connect  conn1, localhost, root,,;
+connection conn1;
+SELECT SLEEP(1000);
+connection default;
+SELECT progress FROM information_schema.processlist WHERE info='SELECT SLEEP(1000)';
+progress
+0.000
+connection conn1;
+Got one of the listed errors
+connection default;
+disconnect conn1;
+#
+# End of 10.3 tests
+#
