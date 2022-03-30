@@ -226,6 +226,7 @@ extern bool wsrep_check_mode_after_open_table (THD *thd, const handlerton *hton,
 extern bool wsrep_check_mode_before_cmd_execute (THD *thd);
 extern bool wsrep_must_sync_wait (THD* thd, uint mask= WSREP_SYNC_WAIT_BEFORE_READ);
 extern bool wsrep_sync_wait (THD* thd, uint mask= WSREP_SYNC_WAIT_BEFORE_READ);
+extern bool wsrep_sync_wait (THD* thd, enum enum_sql_command command);
 extern enum wsrep::provider::status
 wsrep_sync_wait_upto (THD* thd, wsrep_gtid_t* upto, int timeout);
 extern int  wsrep_check_opts();

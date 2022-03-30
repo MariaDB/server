@@ -131,7 +131,7 @@ void log_t::create()
   max_modified_age_async= 0;
   max_checkpoint_age= 0;
   next_checkpoint_lsn= 0;
-  n_pending_checkpoint_writes= 0;
+  checkpoint_pending= false;
 
   buf_free= 0;
 
@@ -234,7 +234,9 @@ void log_t::attach(log_file_t file, os_offset_t size)
   if (!block_size)
     set_block_size(512);
 # ifdef __linux__
-  else if (srv_file_flush_method != SRV_O_DSYNC)
+  else if (srv_file_flush_method != SRV_O_DSYNC &&
+           srv_file_flush_method != SRV_O_DIRECT &&
+           srv_file_flush_method != SRV_O_DIRECT_NO_FSYNC)
     sql_print_information("InnoDB: Buffered log writes (block size=%u bytes)",
                           block_size);
 #endif
@@ -1134,22 +1136,6 @@ wait_suspend_loop:
 		goto loop;
 	} else {
 		buf_flush_buffer_pool();
-	}
-
-	if (log_sys.is_initialised()) {
-		log_sys.latch.rd_lock(SRW_LOCK_CALL);
-		const ulint	n_write	= log_sys.n_pending_checkpoint_writes;
-		log_sys.latch.rd_unlock();
-
-		if (n_write) {
-			if (srv_print_verbose_log && count > 600) {
-				sql_print_information(
-					"InnoDB: Pending checkpoint writes: "
-					ULINTPF, n_write);
-				count = 0;
-			}
-			goto loop;
-		}
 	}
 
 	if (srv_fast_shutdown == 2 || !srv_was_started) {

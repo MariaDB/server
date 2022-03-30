@@ -11361,7 +11361,7 @@ ha_innobase::update_create_info(
 		return;
 	}
 
-	dict_get_and_save_data_dir_path(m_prebuilt->table, false);
+	dict_get_and_save_data_dir_path(m_prebuilt->table);
 
 	if (m_prebuilt->table->data_dir_path) {
 		create_info->data_file_name = m_prebuilt->table->data_dir_path;
@@ -12729,7 +12729,8 @@ int create_table_info_t::create_table(bool create_fk)
 	if (err == DB_SUCCESS) {
 		/* Check that also referencing constraints are ok */
 		dict_names_t	fk_tables;
-		err = dict_load_foreigns(m_table_name, NULL, false, true,
+		err = dict_load_foreigns(m_table_name, nullptr,
+					 m_trx->id, true,
 					 DICT_ERR_IGNORE_NONE, fk_tables);
 		while (err == DB_SUCCESS && !fk_tables.empty()) {
 			dict_sys.load_table(
@@ -13181,9 +13182,7 @@ ha_innobase::create(
 	}
 
 	if (error) {
-		/* Drop the being-created table before rollback,
-		so that rollback can possibly rename back a table
-		that could have been renamed before the failed creation. */
+		/* Rollback will drop the being-created table. */
 		trx_rollback_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);
 	} else {
@@ -13483,29 +13482,26 @@ int ha_innobase::delete_table(const char *name)
       dict_sys.unfreeze();
     }
 
-    auto &timeout= THDVAR(thd, lock_wait_timeout);
-    const auto save_timeout= timeout;
-    if (table->name.is_temporary())
-      timeout= 0;
+    const bool skip_wait{table->name.is_temporary()};
 
     if (table_stats && index_stats &&
         !strcmp(table_stats->name.m_name, TABLE_STATS_NAME) &&
         !strcmp(index_stats->name.m_name, INDEX_STATS_NAME) &&
-        !(err= lock_table_for_trx(table_stats, trx, LOCK_X)))
-      err= lock_table_for_trx(index_stats, trx, LOCK_X);
+        !(err= lock_table_for_trx(table_stats, trx, LOCK_X, skip_wait)))
+      err= lock_table_for_trx(index_stats, trx, LOCK_X, skip_wait);
 
-    if (err != DB_SUCCESS && !timeout)
+    if (err != DB_SUCCESS && skip_wait)
     {
       /* We may skip deleting statistics if we cannot lock the tables,
       when the table carries a temporary name. */
+      ut_ad(err == DB_LOCK_WAIT);
+      ut_ad(trx->error_state == DB_SUCCESS);
       err= DB_SUCCESS;
       dict_table_close(table_stats, false, thd, mdl_table);
       dict_table_close(index_stats, false, thd, mdl_index);
       table_stats= nullptr;
       index_stats= nullptr;
     }
-
-    timeout= save_timeout;
   }
 
   if (err == DB_SUCCESS)
@@ -13778,7 +13774,7 @@ int ha_innobase::truncate()
 
 	mem_heap_t*	heap = mem_heap_create(1000);
 
-	dict_get_and_save_data_dir_path(ib_table, false);
+	dict_get_and_save_data_dir_path(ib_table);
 	info.data_file_name = ib_table->data_dir_path;
 	const char* temp_name = dict_mem_create_temporary_tablename(
 		heap, ib_table->name.m_name, ib_table->id);
@@ -14011,17 +14007,15 @@ ha_innobase::rename_table(
 		if (error == DB_SUCCESS && table_stats && index_stats
 		    && !strcmp(table_stats->name.m_name, TABLE_STATS_NAME)
 		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME)) {
-			auto &timeout = THDVAR(thd, lock_wait_timeout);
-			const auto save_timeout = timeout;
-			if (from_temp) {
-				timeout = 0;
-			}
-			error = lock_table_for_trx(table_stats, trx, LOCK_X);
+			error = lock_table_for_trx(table_stats, trx, LOCK_X,
+						   from_temp);
 			if (error == DB_SUCCESS) {
 				error = lock_table_for_trx(index_stats, trx,
-							   LOCK_X);
+							   LOCK_X, from_temp);
 			}
 			if (error != DB_SUCCESS && from_temp) {
+				ut_ad(error == DB_LOCK_WAIT);
+				ut_ad(trx->error_state == DB_SUCCESS);
 				error = DB_SUCCESS;
 				/* We may skip renaming statistics if
 				we cannot lock the tables, when the
@@ -14034,7 +14028,6 @@ ha_innobase::rename_table(
 				table_stats = nullptr;
 				index_stats = nullptr;
 			}
-			timeout = save_timeout;
 		}
 	}
 

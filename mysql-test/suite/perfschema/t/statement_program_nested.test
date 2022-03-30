@@ -4,6 +4,7 @@
 
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
+--source include/have_innodb.inc
 
 TRUNCATE TABLE performance_schema.events_statements_summary_by_program;
 TRUNCATE TABLE performance_schema.events_statements_history_long;
@@ -13,6 +14,7 @@ TRUNCATE TABLE performance_schema.events_statements_history_long;
 --echo #################################################
 
 --source suite/perfschema/include/program_nested_setup.inc
+ALTER TABLE t2 ENGINE=InnoDB;
 --source suite/perfschema/include/program_nested_execution.inc
 
 SELECT EVENT_NAME, SQL_TEXT, CURRENT_SCHEMA, OBJECT_TYPE, OBJECT_SCHEMA,

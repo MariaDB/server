@@ -100,7 +100,8 @@ static void make_unique_view_field_name(THD *thd, Item *target,
     itc.rewind();
   }
 
-  target->orig_name= target->name.str;
+  if (!target->orig_name)
+    target->orig_name= target->name.str;
   target->set_name(thd, buff, name_len, system_charset_info);
 }
 

@@ -9749,7 +9749,7 @@ innobase_update_foreign_cache(
 	dict_names_t	fk_tables;
 
 	err = dict_load_foreigns(user_table->name.m_name,
-				 ctx->col_names, false, true,
+				 ctx->col_names, 1, true,
 				 DICT_ERR_IGNORE_NONE,
 				 fk_tables);
 
@@ -9760,7 +9760,7 @@ innobase_update_foreign_cache(
 		loaded with "foreign_key checks" off,
 		so let's retry the loading with charset_check is off */
 		err = dict_load_foreigns(user_table->name.m_name,
-					 ctx->col_names, false, false,
+					 ctx->col_names, 1, false,
 					 DICT_ERR_IGNORE_NONE,
 					 fk_tables);
 
@@ -10922,12 +10922,14 @@ ha_innobase::commit_inplace_alter_table(
 		}
 	}
 
+	bool already_stopped= false;
 	for (inplace_alter_handler_ctx** pctx = ctx_array; *pctx; pctx++) {
 		auto ctx = static_cast<ha_innobase_inplace_ctx*>(*pctx);
 		dberr_t error = DB_SUCCESS;
 
 		if (fts_exist) {
-			purge_sys.stop_FTS(*ctx->old_table);
+			purge_sys.stop_FTS(*ctx->old_table, already_stopped);
+			already_stopped = true;
 		}
 
 		if (new_clustered && ctx->old_table->fts) {

@@ -1,0 +1,13 @@
+!include ../galera_3nodes.cnf
+
+[mysqld]
+wsrep_sst_method=rsync
+
+[mysqld.1]
+wsrep_node_name=node1
+
+[mysqld.2]
+wsrep_node_name=node2
+
+[mysqld.3]
+wsrep_node_name=node3

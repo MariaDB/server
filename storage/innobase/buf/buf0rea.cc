@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -50,19 +50,30 @@ i/o-fixed buffer blocks */
 /** Remove the sentinel block for the watch before replacing it with a
 real block. watch_unset() or watch_occurred() will notice
 that the block has been replaced with the real block.
-@param watch      sentinel
-@param chain      locked hash table chain */
-inline void buf_pool_t::watch_remove(buf_page_t *watch,
-                                     buf_pool_t::hash_chain &chain)
+@param w          sentinel
+@param chain      locked hash table chain
+@return           w->state() */
+inline uint32_t buf_pool_t::watch_remove(buf_page_t *w,
+                                         buf_pool_t::hash_chain &chain)
 {
   mysql_mutex_assert_owner(&buf_pool.mutex);
-  ut_ad(page_hash.lock_get(chain).is_write_locked());
-  ut_a(watch_is_sentinel(*watch));
-  if (watch->buf_fix_count())
-    page_hash.remove(chain, watch);
-  ut_ad(!watch->in_page_hash);
-  watch->set_state(buf_page_t::NOT_USED);
-  watch->id_= page_id_t(~0ULL);
+  ut_ad(xtest() || page_hash.lock_get(chain).is_write_locked());
+  ut_ad(w >= &watch[0]);
+  ut_ad(w < &watch[array_elements(watch)]);
+  ut_ad(!w->in_zip_hash);
+  ut_ad(!w->zip.data);
+
+  uint32_t s{w->state()};
+  w->set_state(buf_page_t::NOT_USED);
+  ut_ad(s >= buf_page_t::UNFIXED);
+  ut_ad(s < buf_page_t::READ_FIX);
+
+  if (~buf_page_t::LRU_MASK & s)
+    page_hash.remove(chain, w);
+
+  ut_ad(!w->in_page_hash);
+  w->id_= page_id_t(~0ULL);
+  return s;
 }
 
 /** Initialize a page for read to the buffer buf_pool. If the page is
@@ -139,14 +150,8 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
         {buf_pool.page_hash.lock_get(chain)};
 
       if (hash_page)
-      {
-        /* Preserve the reference count. */
-        uint32_t buf_fix_count= hash_page->state();
-        ut_a(buf_fix_count >= buf_page_t::UNFIXED);
-        ut_a(buf_fix_count < buf_page_t::READ_FIX);
-        buf_pool.watch_remove(hash_page, chain);
-        block->page.fix(buf_fix_count - buf_page_t::UNFIXED);
-      }
+        bpage->set_state(buf_pool.watch_remove(hash_page, chain) +
+                         (buf_page_t::READ_FIX - buf_page_t::UNFIXED));
 
       buf_pool.page_hash.append(chain, &block->page);
     }
@@ -209,16 +214,8 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
         {buf_pool.page_hash.lock_get(chain)};
 
       if (hash_page)
-      {
-        /* Preserve the reference count. It can be 0 if
-        buf_pool_t::watch_unset() is executing concurrently,
-        waiting for buf_pool.mutex, which we are holding. */
-        uint32_t buf_fix_count= hash_page->state();
-        ut_a(buf_fix_count >= buf_page_t::UNFIXED);
-        ut_a(buf_fix_count < buf_page_t::READ_FIX);
-        bpage->fix(buf_fix_count - buf_page_t::UNFIXED);
-        buf_pool.watch_remove(hash_page, chain);
-      }
+        bpage->set_state(buf_pool.watch_remove(hash_page, chain) +
+                         (buf_page_t::READ_FIX - buf_page_t::UNFIXED));
 
       buf_pool.page_hash.append(chain, bpage);
     }

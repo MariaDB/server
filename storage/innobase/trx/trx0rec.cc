@@ -2055,7 +2055,8 @@ trx_undo_report_row_operation(
 	} else if (!m.second || !trx->bulk_insert) {
 		bulk = false;
 	} else if (index->table->is_temporary()) {
-	} else if (trx_has_lock_x(*trx, *index->table)) {
+	} else if (trx_has_lock_x(*trx, *index->table)
+		   && index->table->bulk_trx_id == trx->id) {
 		m.first->second.start_bulk_insert(index->table);
 
 		if (dberr_t err = m.first->second.bulk_insert_buffered(

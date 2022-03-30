@@ -394,15 +394,13 @@ lock_table(
 void lock_table_resurrect(dict_table_t *table, trx_t *trx, lock_mode mode);
 
 /** Sets a lock on a table based on the given mode.
-@param[in]	table	table to lock
-@param[in,out]	trx	transaction
-@param[in]	mode	LOCK_X or LOCK_S
-@return error code or DB_SUCCESS. */
-dberr_t
-lock_table_for_trx(
-	dict_table_t*	table,
-	trx_t*		trx,
-	enum lock_mode	mode)
+@param table	table to lock
+@param trx	transaction
+@param mode	LOCK_X or LOCK_S
+@param no_wait  whether to skip handling DB_LOCK_WAIT
+@return error code */
+dberr_t lock_table_for_trx(dict_table_t *table, trx_t *trx, lock_mode mode,
+                           bool no_wait= false)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Exclusively lock the data dictionary tables.
@@ -915,10 +913,8 @@ public:
   @param page whether to discard also from lock_sys.prdt_hash */
   void prdt_page_free_from_discard(const page_id_t id, bool all= false);
 
-#ifdef WITH_WSREP
   /** Cancel possible lock waiting for a transaction */
   static void cancel_lock_wait_for_trx(trx_t *trx);
-#endif /* WITH_WSREP */
 };
 
 /** The lock system */

@@ -1,0 +1,56 @@
+#
+# MDEV-24667 LOAD DATA INFILE/inserted rows not written to binlog
+#
+#  In this test we will have a replication configuration like 1->2->3
+#   1 will have statement format
+#   2 and 3 will have mixed format
+#  We will make some updates on temporary table which are unsafe , So 2 must
+#  Log these queries in row format, Since it is on tmp table , It wont be logged
+#  So the next query which copies the data from tmp table to normal must be logged
+#  into the row format. Instead of checking for the binlog We will compare the
+#  results on the 3, If no binlog is lost(ie it is logged into row format), There
+#  should not be any data loss.
+--let $rpl_topology=1->2->3
+--source include/rpl_init.inc
+--source include/have_binlog_format_mixed.inc
+call mtr.add_suppression('Unsafe statement written to the binary log using ');
+--connection server_1
+
+set binlog_format=statement;
+--echo #first bug
+create table t1 (a int);
+create temporary table tmp like t1;
+--write_file $MYSQLTEST_VARDIR/load_data
+1
+2
+EOF
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval load data local infile '$MYSQLTEST_VARDIR/load_data' INTO TABLE tmp;
+insert into t1 select * from tmp;
+
+--echo #second bug
+create table t2 (a int);
+#insert into t2 values(10);
+create temporary table tmp2 like t2;
+insert into tmp2 values(10);
+update tmp2 set a = 20 limit 1;
+insert into t2 select * from tmp2;
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--save_master_pos
+
+--connection server_3
+--sync_with_master
+--echo #t1 should have 2 rows
+select count(*) = 2 from t1;
+--echo #t2 should have 1 rows with a = 20
+select * from t2;
+
+
+# cleanup
+--connection server_1
+drop table t1, t2, tmp, tmp2;
+--remove_file $MYSQLTEST_VARDIR/load_data
+--source include/rpl_end.inc

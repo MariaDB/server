@@ -3114,7 +3114,7 @@ and apply it to dict_table_t
 static dberr_t handle_instant_metadata(dict_table_t *table,
                                        const row_import &cfg)
 {
-  dict_get_and_save_data_dir_path(table, false);
+  dict_get_and_save_data_dir_path(table);
 
   char *filepath;
   if (DICT_TF_HAS_DATA_DIR(table->flags))
@@ -4149,7 +4149,7 @@ fil_tablespace_iterate(
 			return(DB_CORRUPTION););
 
 	/* Make sure the data_dir_path is set. */
-	dict_get_and_save_data_dir_path(table, false);
+	dict_get_and_save_data_dir_path(table);
 
 	ut_ad(!DICT_TF_HAS_DATA_DIR(table->flags) || table->data_dir_path);
 
@@ -4470,7 +4470,7 @@ row_import_for_mysql(
 	/* If the table is stored in a remote tablespace, we need to
 	determine that filepath from the link file and system tables.
 	Find the space ID in SYS_TABLES since this is an ALTER TABLE. */
-	dict_get_and_save_data_dir_path(table, true);
+	dict_get_and_save_data_dir_path(table);
 
 	ut_ad(!DICT_TF_HAS_DATA_DIR(table->flags) || table->data_dir_path);
 	const char *data_dir_path = DICT_TF_HAS_DATA_DIR(table->flags)
@@ -4497,7 +4497,7 @@ row_import_for_mysql(
 	fil_space_t::set_imported() to declare it a persistent tablespace. */
 
 	table->space = fil_ibd_open(
-		true, FIL_TYPE_IMPORT, table->space_id,
+		2, FIL_TYPE_IMPORT, table->space_id,
 		dict_tf_to_fsp_flags(table->flags), name, filepath, &err);
 
 	ut_ad((table->space == NULL) == (err != DB_SUCCESS));

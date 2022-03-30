@@ -630,10 +630,6 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 		return false;
 	}
 
-#ifndef UNIV_INNOCHECKSUM
-	uint32_t	crc32 = 0;
-	bool		crc32_inited = false;
-#endif /* !UNIV_INNOCHECKSUM */
 	const ulint zip_size = fil_space_t::zip_size(fsp_flags);
 	const uint16_t page_type = fil_page_get_type(read_buf);
 
@@ -728,6 +724,8 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 			return false;
 		}
 
+		const uint32_t crc32 = buf_calc_page_crc32(read_buf);
+
 		/* Very old versions of InnoDB only stored 8 byte lsn to the
 		start and the end of the page. */
 
@@ -738,18 +736,14 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 		    != mach_read_from_4(read_buf + FIL_PAGE_LSN)
 		    && checksum_field2 != BUF_NO_CHECKSUM_MAGIC) {
 
-			crc32 = buf_calc_page_crc32(read_buf);
-			crc32_inited = true;
-
 			DBUG_EXECUTE_IF(
 				"page_intermittent_checksum_mismatch", {
-					static int page_counter;
-					if (page_counter++ == 2) {
-						crc32++;
-					}
-				});
+				static int page_counter;
+				if (page_counter++ == 2) return true;
+			});
 
-			if (checksum_field2 != crc32
+			if ((checksum_field1 != crc32
+			     || checksum_field2 != crc32)
 			    && checksum_field2
 			    != buf_calc_page_old_checksum(read_buf)) {
 				return true;
@@ -759,25 +753,11 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 		switch (checksum_field1) {
 		case 0:
 		case BUF_NO_CHECKSUM_MAGIC:
-			break;
-		default:
-			if (!crc32_inited) {
-				crc32 = buf_calc_page_crc32(read_buf);
-				crc32_inited = true;
-			}
-
-			if (checksum_field1 != crc32
-			    && checksum_field1
-			    != buf_calc_page_new_checksum(read_buf)) {
-				return true;
-			}
+			return false;
 		}
-
-		return crc32_inited
-			&& ((checksum_field1 == crc32
-			     && checksum_field2 != crc32)
-			    || (checksum_field1 != crc32
-				&& checksum_field2 == crc32));
+		return (checksum_field1 != crc32 || checksum_field2 != crc32)
+			&& checksum_field1
+			!= buf_calc_page_new_checksum(read_buf);
 	}
 #endif /* !UNIV_INNOCHECKSUM */
 }
@@ -2150,17 +2130,21 @@ void buf_pool_t::watch_unset(const page_id_t id, buf_pool_t::hash_chain &chain)
   buf_page_t *w;
   {
     transactional_lock_guard<page_hash_latch> g{page_hash.lock_get(chain)};
-    /* The page must exist because watch_set() increments buf_fix_count. */
+    /* The page must exist because watch_set() did fix(). */
     w= page_hash.get(id, chain);
-    const auto state= w->state();
-    ut_ad(state >= buf_page_t::UNFIXED);
-    ut_ad(~buf_page_t::LRU_MASK & state);
     ut_ad(w->in_page_hash);
-    if (state != buf_page_t::UNFIXED + 1 || !watch_is_sentinel(*w))
+    if (!watch_is_sentinel(*w))
     {
-      w->unfix();
+    no_watch:
+      ut_d(const auto s=) w->unfix();
+      ut_ad(~buf_page_t::LRU_MASK & s);
       w= nullptr;
     }
+    const auto state= w->state();
+    ut_ad(~buf_page_t::LRU_MASK & state);
+    ut_ad(state >= buf_page_t::UNFIXED);
+    if (state != buf_page_t::UNFIXED + 1)
+      goto no_watch;
   }
 
   if (!w)
@@ -2259,29 +2243,66 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
 lookup:
   for (bool discard_attempted= false;;)
   {
+#ifndef NO_ELISION
+    if (xbegin())
     {
-      transactional_shared_lock_guard<page_hash_latch> g{hash_lock};
+      if (hash_lock.is_locked())
+        xabort();
       bpage= buf_pool.page_hash.get(page_id, chain);
       if (!bpage || buf_pool.watch_is_sentinel(*bpage))
+      {
+        xend();
         goto must_read_page;
+      }
+      if (!bpage->zip.data)
+      {
+        /* There is no ROW_FORMAT=COMPRESSED page. */
+        xend();
+        return nullptr;
+      }
+      if (discard_attempted || !bpage->frame)
+      {
+        if (!bpage->lock.s_lock_try())
+          xabort();
+        xend();
+        break;
+      }
+      xend();
+    }
+    else
+#endif
+    {
+      hash_lock.lock_shared();
+      bpage= buf_pool.page_hash.get(page_id, chain);
+      if (!bpage || buf_pool.watch_is_sentinel(*bpage))
+      {
+        hash_lock.unlock_shared();
+        goto must_read_page;
+      }
 
       ut_ad(bpage->in_file());
       ut_ad(page_id == bpage->id());
 
       if (!bpage->zip.data)
+      {
         /* There is no ROW_FORMAT=COMPRESSED page. */
+        hash_lock.unlock_shared();
         return nullptr;
+      }
 
       if (discard_attempted || !bpage->frame)
       {
-        /* Even when we are holding a page_hash latch, it should be
+        /* Even when we are holding a hash_lock, it should be
         acceptable to wait for a page S-latch here, because
         buf_page_t::read_complete() will not wait for buf_pool.mutex,
         and because S-latch would not conflict with a U-latch
         that would be protecting buf_page_t::write_complete(). */
         bpage->lock.s_lock();
+        hash_lock.unlock_shared();
         break;
       }
+
+      hash_lock.unlock_shared();
     }
 
     discard_attempted= true;

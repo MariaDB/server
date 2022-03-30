@@ -3862,6 +3862,10 @@ public:
   bool call_statement_start(THD *thd, const Lex_ident_sys_st *name);
   bool call_statement_start(THD *thd, const Lex_ident_sys_st *name1,
                                       const Lex_ident_sys_st *name2);
+  bool call_statement_start(THD *thd,
+                            const Lex_ident_sys_st *db,
+                            const Lex_ident_sys_st *pkg,
+                            const Lex_ident_sys_st *proc);
   sp_variable *find_variable(const LEX_CSTRING *name,
                              sp_pcontext **ctx,
                              const Sp_rcontext_handler **rh) const;
@@ -4106,6 +4110,11 @@ public:
   Item *make_item_func_sysdate(THD *thd, uint fsp);
   Item *make_item_func_call_generic(THD *thd, Lex_ident_cli_st *db,
                                     Lex_ident_cli_st *name, List<Item> *args);
+  Item *make_item_func_call_generic(THD *thd,
+                                    Lex_ident_cli_st *db,
+                                    Lex_ident_cli_st *pkg,
+                                    Lex_ident_cli_st *name,
+                                    List<Item> *args);
   Item *make_item_func_call_native_or_parse_error(THD *thd,
                                                   Lex_ident_cli_st &name,
                                                   List<Item> *args);

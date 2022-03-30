@@ -1778,7 +1778,8 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   else
 #endif
   {
-    n_pending_checkpoint_writes++;
+    ut_ad(!checkpoint_pending);
+    checkpoint_pending= true;
     latch.wr_unlock();
     log_write_and_flush_prepare();
     resizing= resize_lsn.load(std::memory_order_relaxed);
@@ -1797,11 +1798,12 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     if (srv_file_flush_method != SRV_O_DSYNC)
       ut_a(log.flush());
     latch.wr_lock(SRW_LOCK_CALL);
-    n_pending_checkpoint_writes--;
+    ut_ad(checkpoint_pending);
+    checkpoint_pending= false;
     resizing= resize_lsn.load(std::memory_order_relaxed);
   }
 
-  ut_ad(!n_pending_checkpoint_writes);
+  ut_ad(!checkpoint_pending);
   next_checkpoint_no++;
   const lsn_t checkpoint_lsn{next_checkpoint_lsn};
   last_checkpoint_lsn= checkpoint_lsn;
@@ -1938,7 +1940,7 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
 
   ut_ad(log_sys.get_flushed_lsn() >= flush_lsn);
 
-  if (log_sys.n_pending_checkpoint_writes)
+  if (log_sys.checkpoint_pending)
   {
     /* A checkpoint write is running */
     log_sys.latch.wr_unlock();

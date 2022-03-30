@@ -297,6 +297,7 @@ ELSE()
       wsrep_sst_mysqldump
       wsrep_sst_rsync
       wsrep_sst_mariabackup
+      wsrep_sst_backup
     )
     # The following script is sourced from other SST scripts, so it should
     # not be made executable.

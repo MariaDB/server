@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB Corporation.
+   Copyright (c) 2010, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2758,9 +2758,11 @@ LEX_CSTRING Item_sp::func_name_cstring(THD *thd) const
   /* Calculate length to avoid reallocation of string for sure */
   size_t len= (((m_name->m_explicit_name ? m_name->m_db.length : 0) +
               m_name->m_name.length)*2 + //characters*quoting
-             2 +                         // ` and `
+             2 +                         // quotes for the function name
+             2 +                         // quotes for the package name
              (m_name->m_explicit_name ?
               3 : 0) +                   // '`', '`' and '.' for the db
+             1 +                         // '.' between package and function
              1 +                         // end of string
              ALIGN_SIZE(1));             // to avoid String reallocation
   String qname((char *)alloc_root(thd->mem_root, len), len,
@@ -2772,7 +2774,21 @@ LEX_CSTRING Item_sp::func_name_cstring(THD *thd) const
     append_identifier(thd, &qname, &m_name->m_db);
     qname.append('.');
   }
-  append_identifier(thd, &qname, &m_name->m_name);
+  if (m_sp && m_sp->m_handler == &sp_handler_package_function)
+  {
+    /*
+      In case of a package function split `pkg.func` and print
+      quoted `pkg` and `func` separately, so the entire result looks like:
+         `db`.`pkg`.`func`
+    */
+    Database_qualified_name tmp= Database_qualified_name::split(m_name->m_name);
+    DBUG_ASSERT(tmp.m_db.length);
+    append_identifier(thd, &qname, &tmp.m_db);
+    qname.append('.');
+    append_identifier(thd, &qname, &tmp.m_name);
+  }
+  else
+    append_identifier(thd, &qname, &m_name->m_name);
   return { qname.c_ptr_safe(), qname.length() };
 }
 

@@ -6,6 +6,9 @@
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Difficult to find free blocks in the buffer pool");
+--disable_query_log
+# This may be triggered on a slow system.
+call mtr.add_suppression("InnoDB: Trying to delete tablespace.*pending operations");
 --enable_query_log
 
 SET GLOBAL innodb_undo_log_truncate = 0;

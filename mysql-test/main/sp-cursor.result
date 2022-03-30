@@ -738,6 +738,69 @@ c
 DROP PROCEDURE p1;
 DROP TABLE t1;
 #
+# MDEV-26009: Server crash when calling twice procedure using FOR-loop
+#
+CREATE TABLE t1 ( id int, name varchar(24));
+INSERT INTO t1 values (1, 'x'), (2, 'y'), (3, 'z');
+create function get_name(_id int) returns varchar(24)
+return (select name from t1 where id = _id);
+select get_name(id) from t1;
+get_name(id)
+x
+y
+z
+create  procedure test_proc()
+begin
+declare _cur cursor for select get_name(id) from t1;
+for row in _cur do select 1; end for;
+end;
+^^
+call test_proc();
+1
+1
+1
+1
+1
+1
+call test_proc();
+1
+1
+1
+1
+1
+1
+drop procedure test_proc;
+drop function get_name;
+drop table t1;
+CREATE TABLE t1 (id int, name varchar(24));
+INSERT INTO t1 (id, name) VALUES (1, 'x'),(2, 'y'),(3, 'z');
+create function get_name(_id int) returns varchar(24) 
+return (select name from t1 where id = _id);
+create view v1 as select get_name(id) from t1;
+create  procedure test_proc()
+begin
+declare _cur cursor for select 1 from v1;   
+for row in _cur do select 1; end for;
+end$$
+call test_proc();
+1
+1
+1
+1
+1
+1
+call test_proc();
+1
+1
+1
+1
+1
+1
+drop procedure test_proc;
+drop view v1;
+drop function get_name;
+drop table t1;
+#
 # Start of 10.8 tests
 #
 #

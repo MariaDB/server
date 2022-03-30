@@ -17,7 +17,7 @@ let $MYSQLD_DATADIR= `SELECT @@datadir`;
 --copy_file std_data/parts/t1_blackhole.par $MYSQLD_DATADIR/test/t1.par
 SHOW TABLES;
 --replace_result $MYSQLD_DATADIR ./
---error ER_FAILED_READ_FROM_PAR_FILE
+--error ER_NOT_FORM_FILE
 SHOW CREATE TABLE t1;
 
 # The replace is needed for Solaris
