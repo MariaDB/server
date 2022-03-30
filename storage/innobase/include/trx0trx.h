@@ -860,6 +860,10 @@ public:
 	bool		auto_commit;	/*!< true if it is an autocommit */
 	bool		will_lock;	/*!< set to inform trx_start_low() that
 					the transaction may acquire locks */
+	/* True if transaction has to read the undo log and
+	log the DML changes for online DDL table */
+	bool		apply_online_log = false;
+
 	/*------------------------------*/
 	fts_trx_t*	fts_trx;	/*!< FTS information, or NULL if
 					transaction hasn't modified tables
@@ -885,6 +889,7 @@ public:
 					error, or empty. */
 	rw_trx_hash_element_t *rw_trx_hash_element;
 	LF_PINS *rw_trx_hash_pins;
+
 	ulint		magic_n;
 
 	/** @return whether any persistent undo log has been generated */
@@ -933,6 +938,8 @@ public:
   @retval false if the rollback was aborted by shutdown */
   inline bool rollback_finish();
 private:
+  /** Apply any changes to tables for which online DDL is in progress. */
+  ATTRIBUTE_COLD void apply_log() const;
   /** Process tables that were modified by the committing transaction. */
   inline void commit_tables();
   /** Mark a transaction committed in the main memory data structures. */

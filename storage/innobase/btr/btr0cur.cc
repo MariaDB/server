@@ -5401,10 +5401,6 @@ btr_cur_del_mark_set_clust_rec(
 		 << ib::hex(trx->id) << ": "
 		 << rec_printer(rec, offsets).str());
 
-	if (dict_index_is_online_ddl(index)) {
-		row_log_table_delete(rec, index, offsets, NULL);
-	}
-
 	btr_cur_upd_rec_sys(block, rec, index, offsets, trx, roll_ptr, mtr);
 	return(err);
 }
@@ -7061,8 +7057,6 @@ btr_store_big_rec_extern_fields(
 						     + prev_block->page.frame,
 						     page_no);
 				}
-			} else if (dict_index_is_online_ddl(index)) {
-				row_log_table_blob_alloc(index, page_no);
 			}
 
 			ut_ad(!page_has_siblings(block->page.frame));
@@ -7312,8 +7306,6 @@ btr_free_externally_stored_field(
 	page_t*		page;
 	const uint32_t	space_id	= mach_read_from_4(
 		field_ref + BTR_EXTERN_SPACE_ID);
-	const uint32_t	start_page	= mach_read_from_4(
-		field_ref + BTR_EXTERN_PAGE_NO);
 	uint32_t	page_no;
 	uint32_t	next_page_no;
 	mtr_t		mtr;
@@ -7381,10 +7373,6 @@ btr_free_externally_stored_field(
 			mtr_commit(&mtr);
 
 			return;
-		}
-
-		if (page_no == start_page && dict_index_is_online_ddl(index)) {
-			row_log_table_blob_free(index, start_page);
 		}
 
 		ext_block = buf_page_get(

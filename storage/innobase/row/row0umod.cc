@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -36,7 +36,6 @@ Created 2/27/1997 Heikki Tuuri
 #include "ibuf0ibuf.h"
 #include "row0undo.h"
 #include "row0vers.h"
-#include "row0log.h"
 #include "trx0trx.h"
 #include "trx0rec.h"
 #include "row0row.h"
@@ -80,11 +79,6 @@ row_undo_mod_clust_low(
 	mem_heap_t**	offsets_heap,
 				/*!< in/out: memory heap that can be emptied */
 	mem_heap_t*	heap,	/*!< in/out: memory heap */
-	const dtuple_t**rebuilt_old_pk,
-				/*!< out: row_log_table_get_pk()
-				before the update, or NULL if
-				the table is not being rebuilt online or
-				the PRIMARY KEY definition does not change */
 	byte*		sys,	/*!< out: DB_TRX_ID, DB_ROLL_PTR
 				for row_log_table_delete() */
 	que_thr_t*	thr,	/*!< in: query thread */
@@ -110,15 +104,6 @@ row_undo_mod_clust_low(
 	ut_ad(node->ref != &trx_undo_metadata
 	      || node->update->info_bits == REC_INFO_METADATA_ADD
 	      || node->update->info_bits == REC_INFO_METADATA_ALTER);
-
-	if (mode != BTR_MODIFY_LEAF
-	    && dict_index_is_online_ddl(btr_cur_get_index(btr_cur))) {
-		*rebuilt_old_pk = row_log_table_get_pk(
-			btr_cur_get_rec(btr_cur),
-			btr_cur_get_index(btr_cur), NULL, sys, &heap);
-	} else {
-		*rebuilt_old_pk = NULL;
-	}
 
 	if (mode != BTR_MODIFY_TREE) {
 		ut_ad((mode & ulint(~BTR_ALREADY_S_LATCHED))
@@ -269,7 +254,6 @@ row_undo_mod_clust(
 	bool		have_latch = false;
 	dberr_t		err;
 	dict_index_t*	index;
-	bool		online;
 
 	ut_ad(thr_get_trx(thr) == node->trx);
 	ut_ad(node->trx->in_rollback);
@@ -287,26 +271,16 @@ row_undo_mod_clust(
 		ut_ad(lock_table_has_locks(index->table));
 	}
 
-	online = dict_index_is_online_ddl(index);
-	if (online) {
-		ut_ad(!node->trx->dict_operation_lock_mode);
-		mtr_s_lock_index(index, &mtr);
-	}
-
 	mem_heap_t*	heap		= mem_heap_create(1024);
 	mem_heap_t*	offsets_heap	= NULL;
 	rec_offs*	offsets		= NULL;
-	const dtuple_t*	rebuilt_old_pk;
 	byte		sys[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN];
 
 	/* Try optimistic processing of the record, keeping changes within
 	the index page */
 
 	err = row_undo_mod_clust_low(node, &offsets, &offsets_heap,
-				     heap, &rebuilt_old_pk, sys,
-				     thr, &mtr, online
-				     ? BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
-				     : BTR_MODIFY_LEAF);
+				     heap, sys, thr, &mtr, BTR_MODIFY_LEAF);
 
 	if (err != DB_SUCCESS) {
 		btr_pcur_commit_specify_mtr(pcur, &mtr);
@@ -321,32 +295,10 @@ row_undo_mod_clust(
 			index->set_modified(mtr);
 		}
 
-		err = row_undo_mod_clust_low(
-			node, &offsets, &offsets_heap,
-			heap, &rebuilt_old_pk, sys,
-			thr, &mtr, BTR_MODIFY_TREE);
+		err = row_undo_mod_clust_low(node, &offsets, &offsets_heap,
+					     heap, sys, thr, &mtr,
+					     BTR_MODIFY_TREE);
 		ut_ad(err == DB_SUCCESS || err == DB_OUT_OF_FILE_SPACE);
-	}
-
-	if (err == DB_SUCCESS && online && dict_index_is_online_ddl(index)) {
-		switch (node->rec_type) {
-		case TRX_UNDO_DEL_MARK_REC:
-			row_log_table_insert(
-				btr_pcur_get_rec(pcur), index, offsets);
-			break;
-		case TRX_UNDO_UPD_EXIST_REC:
-			row_log_table_update(
-				btr_pcur_get_rec(pcur), index, offsets,
-				rebuilt_old_pk);
-			break;
-		case TRX_UNDO_UPD_DEL_REC:
-			row_log_table_delete(
-				btr_pcur_get_rec(pcur), index, offsets, sys);
-			break;
-		default:
-			ut_ad(0);
-			break;
-		}
 	}
 
 	/**
@@ -570,10 +522,6 @@ row_undo_mod_del_mark_or_remove_sec_low(
 			ut_ad(mode == (BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE));
 			mtr_sx_lock_index(index, &mtr);
 		}
-
-		if (row_log_online_op_try(index, entry, 0)) {
-			goto func_exit_no_pcur;
-		}
 	} else {
 		/* For secondary indexes,
 		index->online_status==ONLINE_INDEX_COMPLETE if
@@ -669,7 +617,6 @@ row_undo_mod_del_mark_or_remove_sec_low(
 
 func_exit:
 	btr_pcur_close(&pcur);
-func_exit_no_pcur:
 	mtr_commit(&mtr);
 
 	return(err);
@@ -753,28 +700,6 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 try_again:
 	row_mtr_start(&mtr, index, !(mode & BTR_MODIFY_LEAF));
 
-	if (!index->is_committed()) {
-		/* The index->online_status may change if the index is
-		or was being created online, but not committed yet. It
-		is protected by index->lock. */
-		if (mode == BTR_MODIFY_LEAF) {
-			mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
-			mtr_s_lock_index(index, &mtr);
-		} else {
-			ut_ad(mode == BTR_MODIFY_TREE);
-			mtr_sx_lock_index(index, &mtr);
-		}
-
-		if (row_log_online_op_try(index, entry, trx->id)) {
-			goto func_exit_no_pcur;
-		}
-	} else {
-		/* For secondary indexes,
-		index->online_status==ONLINE_INDEX_COMPLETE if
-		index->is_committed(). */
-		ut_ad(!dict_index_is_online_ddl(index));
-	}
-
 	btr_cur->thr = thr;
 
 	search_result = row_search_index_entry(index, entry, mode,
@@ -802,33 +727,25 @@ try_again:
 			}
 		}
 
-		if (index->is_committed()) {
-			/* During online secondary index creation, it
-			is possible that MySQL is waiting for a
-			meta-data lock upgrade before invoking
-			ha_innobase::commit_inplace_alter_table()
-			while this ROLLBACK is executing. InnoDB has
-			finished building the index, but it does not
-			yet exist in MySQL. In this case, we suppress
-			the printout to the error log. */
-			ib::warn() << "Record in index " << index->name
-				<< " of table " << index->table->name
-				<< " was not found on rollback, trying to"
-				" insert: " << *entry
-				<< " at: " << rec_index_print(
-					btr_cur_get_rec(btr_cur), index);
-		}
-
 		if (btr_cur->up_match >= dict_index_get_n_unique(index)
 		    || btr_cur->low_match >= dict_index_get_n_unique(index)) {
-			if (index->is_committed()) {
-				ib::warn() << "Record in index " << index->name
-					<< " was not found on rollback, and"
-					" a duplicate exists";
-			}
+			ib::warn() << "Record in index " << index->name
+				<< " of table " << index->table->name
+				<< " was not found on rollback, and"
+				" a duplicate exists: "
+				<< *entry
+				<< " at: " << rec_index_print(
+					btr_cur_get_rec(btr_cur), index);
 			err = DB_DUPLICATE_KEY;
 			break;
 		}
+
+		ib::warn() << "Record in index " << index->name
+			<< " of table " << index->table->name
+			<< " was not found on rollback, trying to insert: "
+			<< *entry
+			<< " at: " << rec_index_print(
+				btr_cur_get_rec(btr_cur), index);
 
 		/* Insert the missing record that we were trying to
 		delete-unmark. */
@@ -912,7 +829,6 @@ try_again:
 	}
 
 	btr_pcur_close(&pcur);
-func_exit_no_pcur:
 	mtr_commit(&mtr);
 
 	return(err);
@@ -940,7 +856,7 @@ row_undo_mod_upd_del_sec(
 		dict_index_t*	index	= node->index;
 		dtuple_t*	entry;
 
-		if (index->type & DICT_FTS) {
+		if (index->type & DICT_FTS || !index->is_committed()) {
 			dict_table_next_uncorrupted_index(node->index);
 			continue;
 		}
@@ -1006,7 +922,7 @@ row_undo_mod_del_mark_sec(
 		dict_index_t*	index	= node->index;
 		dtuple_t*	entry;
 
-		if (index->type == DICT_FTS) {
+		if (index->type == DICT_FTS || !index->is_committed()) {
 			dict_table_next_uncorrupted_index(node->index);
 			continue;
 		}
@@ -1076,6 +992,12 @@ row_undo_mod_upd_exist_sec(
 
 
 	while (node->index != NULL) {
+
+		if (!node->index->is_committed()) {
+			dict_table_next_uncorrupted_index(node->index);
+			continue;
+		}
+
 		dict_index_t*	index	= node->index;
 		dtuple_t*	entry;
 

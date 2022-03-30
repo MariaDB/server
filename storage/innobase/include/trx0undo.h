@@ -326,6 +326,34 @@ struct trx_undo_t {
 					/*!< undo log objects in the rollback
 					segment are chained into lists */
 };
+
+/** Undo record information like rollback segment id, page_id, offset */
+struct trx_undo_rec_info
+{
+  trx_id_t trx_id;
+  buf_block_t *block;
+  ulint offset;
+  ulint type;
+  ulint cmpl_info;
+  bool updated_extern;
+  undo_no_t undo_no;
+  trx_undo_rec_t *undo_rec;
+  upd_t *update= nullptr;
+
+  trx_undo_rec_info(trx_id_t trx_id_, buf_block_t *block_,
+                    ulint offset_):
+                    trx_id(trx_id_), block(block_), offset(offset_) {}
+
+  void assign_value(ulint type_, ulint cmpl_info_, bool updated_ext,
+                    undo_no_t undo_no_)
+  {
+    type= type_;
+    cmpl_info= cmpl_info_;
+    updated_extern= updated_ext;
+    undo_no= undo_no_;
+  }
+};
+
 #endif /* !UNIV_INNOCHECKSUM */
 
 /** The offset of the undo log page header on pages of the undo log */

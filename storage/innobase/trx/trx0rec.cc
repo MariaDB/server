@@ -2037,6 +2037,10 @@ trx_undo_report_row_operation(
 	auto m = trx->mod_tables.emplace(index->table, trx->undo_no);
 	ut_ad(m.first->second.valid(trx->undo_no));
 
+	if (m.second && index->table->is_active_ddl()) {
+		trx->apply_online_log= true;
+	}
+
 	bool bulk = !rec;
 
 	if (!bulk) {
@@ -2226,12 +2230,14 @@ err_exit:
 
 /** Copy an undo record to heap.
 @param[in]	roll_ptr	roll pointer to a record that exists
-@param[in,out]	heap		memory heap where copied */
+@param[in,out]	heap		memory heap where copied
+@param[in]	undo_rec_info	undo log record information */
 static
 trx_undo_rec_t*
 trx_undo_get_undo_rec_low(
-	roll_ptr_t	roll_ptr,
-	mem_heap_t*	heap)
+	roll_ptr_t		roll_ptr,
+	mem_heap_t*		heap,
+	const trx_undo_rec_info*undo_rec_info= nullptr)
 {
 	trx_undo_rec_t*	undo_rec;
 	ulint		rseg_id;
@@ -2247,14 +2253,21 @@ trx_undo_get_undo_rec_low(
 	trx_rseg_t* rseg = &trx_sys.rseg_array[rseg_id];
 	ut_ad(rseg->is_persistent());
 
-	mtr.start();
+	if (undo_rec_info
+	    && undo_rec_info->block->page.id().page_no() == page_no) {
+		undo_rec = trx_undo_rec_copy(
+			undo_rec_info->block->page.frame + offset, heap);
+	} else {
+		mtr.start();
 
-	buf_block_t* undo_page = trx_undo_page_get_s_latched(
-		page_id_t(rseg->space->id, page_no), &mtr);
+		buf_block_t *undo_page = trx_undo_page_get_s_latched(
+			page_id_t(rseg->space->id, page_no), &mtr);
 
-	undo_rec = trx_undo_rec_copy(undo_page->page.frame + offset, heap);
+		undo_rec = trx_undo_rec_copy(
+			undo_page->page.frame + offset, heap);
 
-	mtr.commit();
+		mtr.commit();
+	}
 
 	return(undo_rec);
 }
@@ -2278,13 +2291,15 @@ trx_undo_get_undo_rec(
 	mem_heap_t*		heap,
 	trx_id_t		trx_id,
 	const table_name_t&	name,
-	trx_undo_rec_t**	undo_rec)
+	trx_undo_rec_t**	undo_rec,
+	const trx_undo_rec_info*undo_rec_info= nullptr)
 {
 	purge_sys.latch.rd_lock(SRW_LOCK_CALL);
 
 	bool missing_history = purge_sys.changes_visible(trx_id, name);
 	if (!missing_history) {
-		*undo_rec = trx_undo_get_undo_rec_low(roll_ptr, heap);
+		*undo_rec = trx_undo_get_undo_rec_low(
+				roll_ptr, heap, undo_rec_info);
 	}
 
 	purge_sys.latch.rd_unlock();
@@ -2298,41 +2313,47 @@ trx_undo_get_undo_rec(
 #define ATTRIB_USED_ONLY_IN_DEBUG	MY_ATTRIBUTE((unused))
 #endif /* UNIV_DEBUG */
 
-/*******************************************************************//**
-Build a previous version of a clustered index record. The caller must
-hold a latch on the index page of the clustered index record.
+/** Build a previous version of a clustered index record. The caller
+must hold a latch on the index page of the clustered index record.
+@param	index_rec	clustered index record in the index tree
+@param	index_mtr	mtr which contains the latch to index_rec page
+			and purge_view
+@param	rec		version of a clustered index record
+@param	index		clustered index
+@param	offsets		rec_get_offsets(rec, index)
+@param	heap		memory heap from which the memory needed is
+			allocated
+@param	old_vers	previous version or NULL if rec is the
+			first inserted version, or if history data
+			has been deleted (an error), or if the purge
+			could have removed the version
+			though it has not yet done so
+@param	v_heap		memory heap used to create vrow
+			dtuple if it is not yet created. This heap
+                        diffs from "heap" above in that it could be
+                        prebuilt->old_vers_heap for selection
+@param	v_row		virtual column info, if any
+@param	v_status	status determine if it is going into this
+			function by purge thread or not.
+			And if we read "after image" of undo log
+@param	undo_rec_info	undo record info or NULL
 @retval true if previous version was built, or if it was an insert
 or the table has been rebuilt
 @retval false if the previous version is earlier than purge_view,
 or being purged, which means that it may have been removed */
 bool
 trx_undo_prev_version_build(
-/*========================*/
-	const rec_t*	index_rec ATTRIB_USED_ONLY_IN_DEBUG,
-				/*!< in: clustered index record in the
-				index tree */
-	mtr_t*		index_mtr ATTRIB_USED_ONLY_IN_DEBUG,
-				/*!< in: mtr which contains the latch to
-				index_rec page and purge_view */
-	const rec_t*	rec,	/*!< in: version of a clustered index record */
-	dict_index_t*	index,	/*!< in: clustered index */
-	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
-	mem_heap_t*	heap,	/*!< in: memory heap from which the memory
-				needed is allocated */
-	rec_t**		old_vers,/*!< out, own: previous version, or NULL if
-				rec is the first inserted version, or if
-				history data has been deleted (an error),
-				or if the purge COULD have removed the version
-				though it has not yet done so */
-	mem_heap_t*	v_heap,	/* !< in: memory heap used to create vrow
-				dtuple if it is not yet created. This heap
-				diffs from "heap" above in that it could be
-				prebuilt->old_vers_heap for selection */
-	dtuple_t**	vrow,	/*!< out: virtual column info, if any */
-	ulint		v_status)
-				/*!< in: status determine if it is going
-				into this function by purge thread or not.
-				And if we read "after image" of undo log */
+	const rec_t	*index_rec ATTRIB_USED_ONLY_IN_DEBUG,
+	mtr_t		*index_mtr ATTRIB_USED_ONLY_IN_DEBUG,
+	const rec_t 	*rec,
+	dict_index_t	*index,
+	rec_offs	*offsets,
+	mem_heap_t	*heap,
+	rec_t		**old_vers,
+	mem_heap_t	*v_heap,
+	dtuple_t	**vrow,
+	ulint		v_status,
+	const trx_undo_rec_info *undo_rec_info)
 {
 	trx_undo_rec_t*	undo_rec	= NULL;
 	dtuple_t*	entry;
@@ -2371,7 +2392,7 @@ trx_undo_prev_version_build(
 
 	if (trx_undo_get_undo_rec(
 		    roll_ptr, heap, rec_trx_id, index->table->name,
-		    &undo_rec)) {
+		    &undo_rec, undo_rec_info)) {
 		if (v_status & TRX_UNDO_PREV_IN_PURGE) {
 			/* We are fetching the record being purged */
 			undo_rec = trx_undo_get_undo_rec_low(roll_ptr, heap);
@@ -2633,4 +2654,18 @@ trx_undo_read_v_cols(
 	}
 
 	ut_ad(ptr == end_ptr);
+}
+
+bool trx_undo_rec_is_equal(roll_ptr_t roll_ptr,
+                           const trx_undo_rec_info *undo_info)
+{
+  bool is_insert;
+  ulint rseg_id;
+  uint16_t offset;
+  uint32_t page_no;
+
+  trx_undo_decode_roll_ptr(roll_ptr, &is_insert, &rseg_id,
+                           &page_no, &offset);
+  return page_no == undo_info->block->page.id().page_no()
+	 && offset == undo_info->offset;
 }

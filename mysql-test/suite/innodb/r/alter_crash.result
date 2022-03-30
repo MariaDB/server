@@ -169,9 +169,6 @@ INSERT INTO t1(f1, f2) VALUES(2, "This is column2 value");
 ROLLBACK;
 set DEBUG_SYNC = 'now SIGNAL insert_done';
 connection default;
-Warnings:
-Warning	1265	Data truncated for column 'f3' at row 3
-Warning	1265	Data truncated for column 'f4' at row 3
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -202,6 +199,7 @@ connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR scanned';
 BEGIN;
 INSERT INTO t1 VALUES(2,1);
+COMMIT;
 SET DEBUG_SYNC = 'now SIGNAL commit';
 SET DEBUG_SYNC = 'now WAIT_FOR c';
 SET GLOBAL innodb_fil_make_page_dirty_debug=0;
@@ -221,4 +219,5 @@ t1	CREATE TABLE `t1` (
 SELECT * FROM t1;
 a	b
 1	1
+2	1
 DROP TABLE t1;

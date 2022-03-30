@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1399,6 +1399,25 @@ public:
   rollback of TRX_UNDO_EMPTY. The BTR_SEG_LEAF is freed and reinitialized.
   @param thr query thread */
   void clear(que_thr_t *thr);
+
+  /** Assign the clustered index online log to table.
+  It can be used by concurrent DML to identify whether
+  the table has any active DDL */
+  void assign_dummy_log()
+  {
+    ut_ad(this->is_clust());
+    lock.s_lock(SRW_LOCK_CALL);
+    online_log= reinterpret_cast<row_log_t*>(table);
+    lock.s_unlock();
+  }
+
+  /** Clear the online log for the clustered index */
+  void clear_dummy_log()
+  {
+    lock.s_lock(SRW_LOCK_CALL);
+    online_log= nullptr;
+    lock.s_unlock();
+  }
 };
 
 /** Detach a virtual column from an index.
@@ -2358,6 +2377,12 @@ public:
       if (lock->trx != trx)
         return true;
     return false;
+  }
+
+  /** @return whether a DDL operation is in progress on this table */
+  bool is_active_ddl() const
+  {
+    return UT_LIST_GET_FIRST(indexes)->online_log;
   }
 
   /** @return whether the name is

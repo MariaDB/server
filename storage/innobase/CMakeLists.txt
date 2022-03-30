@@ -1,6 +1,6 @@
 
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2014, 2021, MariaDB Corporation.
+# Copyright (c) 2014, 2022, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -214,7 +214,6 @@ SET(INNOBASE_SOURCES
 	include/row0import.h
 	include/row0ins.h
 	include/row0log.h
-	include/row0log.inl
 	include/row0merge.h
 	include/row0mysql.h
 	include/row0purge.h

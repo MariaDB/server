@@ -290,6 +290,149 @@ trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
                                               mtr);
 }
 
+typedef std::map<table_id_t, dict_table_t*> table_id_map;
+
+/** Apply the TRX_UNDO_INSERT_REC undo log record
+@param	rec		undo log record
+@param	rec_info	undo log record info
+@param	table		table to be logged
+@param	heap		memory heap */
+static void trx_undo_rec_apply_insert(trx_undo_rec_t *rec,
+                                      trx_undo_rec_info *rec_info,
+                                      dict_table_t *table,
+                                      mem_heap_t *heap)
+{
+  dict_index_t *index= dict_table_get_first_index(table);
+  const dtuple_t *undo_tuple;
+  rec= trx_undo_rec_get_row_ref(rec, index, &undo_tuple, heap);
+  rec_info->undo_rec= rec;
+  row_log_insert_handle(undo_tuple, rec_info, index, heap);
+}
+
+/** Apply the TRX_UNDO_UPD & TRX_UNDO_DEL undo log record
+@param	rec		undo log record
+@param	undo_info	undo log record info
+@param	table		table which does online ddl
+@param	heap		memory heap */
+static void trx_undo_rec_apply_update(trx_undo_rec_t *rec,
+                                      trx_undo_rec_info *rec_info,
+                                      dict_table_t *table,
+                                      mem_heap_t *heap)
+{
+  dict_index_t *index= dict_table_get_first_index(table);
+  const dtuple_t *undo_tuple;
+  trx_id_t trx_id;
+  roll_ptr_t roll_ptr;
+  byte info_bits;
+  rec= trx_undo_update_rec_get_sys_cols(rec, &trx_id, &roll_ptr,
+                                        &info_bits);
+  rec= trx_undo_rec_get_row_ref(rec, index, &undo_tuple, heap);
+
+  rec= trx_undo_update_rec_get_update(rec, index, rec_info->type,
+                                      trx_id, roll_ptr, info_bits,
+                                      heap, &rec_info->update);
+  rec_info->undo_rec= rec;
+  if (rec_info->type == TRX_UNDO_UPD_DEL_REC)
+    row_log_insert_handle(undo_tuple, rec_info, index, heap);
+  else
+    row_log_update_handle(undo_tuple, rec_info, index, heap);
+}
+
+/** Apply all DML undo log records to the online DDL tables
+@param	rec			undo log record
+@param	online_log_tables	table list which does online DDL
+@param	rec_info		undo log record info
+@param	heap			heap which used to create tuple
+				for the undo log record */
+static void trx_undo_rec_apply_log(trx_undo_rec_t *rec,
+                                   const table_id_map &online_log_tables,
+                                   trx_undo_rec_info *undo_info,
+                                   mem_heap_t *heap)
+{
+  ulint type, cmpl_info= 0;
+  bool updated_extern= false;
+  undo_no_t undo_no= 0;
+  table_id_t table_id= 0;
+  rec_t *ptr= trx_undo_rec_get_pars(rec, &type, &cmpl_info,
+                                    &updated_extern, &undo_no, &table_id);
+  auto it= online_log_tables.find(table_id);
+  if (it == online_log_tables.end())
+    return;
+
+
+  if (!it->second->is_active_ddl())
+    return;
+  undo_info->assign_value(type, cmpl_info, updated_extern,
+                          undo_no);
+  switch(type)
+  {
+    case TRX_UNDO_INSERT_REC:
+      trx_undo_rec_apply_insert(ptr, undo_info, it->second, heap);
+    break;
+    case TRX_UNDO_UPD_EXIST_REC:
+    case TRX_UNDO_UPD_DEL_REC:
+    case TRX_UNDO_DEL_MARK_REC:
+      trx_undo_rec_apply_update(ptr, undo_info, it->second, heap);
+    break;
+    default:
+      ut_ad(0);
+  }
+
+  mem_heap_empty(heap);
+}
+
+
+/** Apply any changes to tables for which online DDL is in progress. */
+ATTRIBUTE_COLD void trx_t::apply_log() const
+{
+  if (undo_no == 0 || apply_online_log == false)
+    return;
+  const trx_undo_t *undo= rsegs.m_redo.undo;
+  if (!undo)
+    return;
+  table_id_map online_log_tables;
+  for (auto& t : mod_tables)
+  {
+    if (t.first->is_active_ddl())
+      online_log_tables[t.first->id]= t.first;
+  }
+  page_id_t page_id{rsegs.m_redo.rseg->space->id, undo->hdr_page_no};
+  page_id_t next_page_id(page_id);
+  mtr_t mtr;
+  mem_heap_t *heap= mem_heap_create(100);
+  mtr.start();
+  buf_block_t *block= buf_page_get(page_id, 0, RW_S_LATCH, &mtr);
+  ut_ad(block);
+
+  while (block)
+  {
+    trx_undo_rec_t *rec= trx_undo_page_get_first_rec(block, page_id.page_no(),
+                                                     undo->hdr_offset);
+    while (rec)
+    {
+      trx_undo_rec_info undo_rec_info(id, block, page_offset(rec));
+      trx_undo_rec_apply_log(rec, online_log_tables, &undo_rec_info,
+		             heap);
+      rec= trx_undo_page_get_next_rec(block, page_offset(rec),
+                                      page_id.page_no(),
+                                      undo->hdr_offset);
+    }
+
+    uint32_t next= mach_read_from_4(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE +
+                                    FLST_NEXT + FIL_ADDR_PAGE +
+                                    block->page.frame);
+    if (next == FIL_NULL)
+      break;
+    next_page_id.set_page_no(next);
+    mtr.commit();
+    mtr.start();
+    block= buf_page_get(next_page_id, 0, RW_S_LATCH, &mtr);
+    ut_ad(block);
+  }
+  mtr.commit();
+  mem_heap_free(heap);
+}
+
 /*============== UNDO LOG FILE COPY CREATION AND FREEING ==================*/
 
 /** Initialize an undo log page.

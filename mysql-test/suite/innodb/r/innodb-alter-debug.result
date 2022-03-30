@@ -43,9 +43,8 @@ SET DEBUG_SYNC = 'now SIGNAL s2';
 /* connection default */
 connection default;
 /* reap */ alter table t1 force, add b int, ALGORITHM=inplace;
-ERROR 23000: Duplicate entry '1' for key 'uk'
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL s1 WAIT_FOR s2';
-alter table t1 force, add b int, ALGORITHM=inplace;;
+alter table t1 force, add c int, ALGORITHM=inplace;;
 /* connection con1 */
 connection con1;
 set DEBUG_SYNC = 'now WAIT_FOR s1';
@@ -55,7 +54,6 @@ SET DEBUG_SYNC = 'now SIGNAL s2';
 /* connection default */
 connection default;
 /* reap */ alter table t1 force, add b int, ALGORITHM=inplace;
-ERROR 23000: Duplicate entry '1' for key 'uk'
 SET DEBUG_SYNC = 'RESET';
 drop table t1;
 #
@@ -72,7 +70,6 @@ ERROR 23000: Duplicate entry '1' for key 'a'
 SET DEBUG_SYNC = 'now SIGNAL S2';
 disconnect con1;
 connection default;
-ERROR 23000: Duplicate entry '1' for key 'a'
 SET DEBUG_SYNC='RESET';
 DROP TABLE t1;
 #

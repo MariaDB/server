@@ -2088,7 +2088,6 @@ dict_index_remove_from_cache_low(
 	there can't be any active operations on this index (or table). */
 
 	if (index->online_log) {
-		ut_ad(index->online_status == ONLINE_INDEX_CREATION);
 		row_log_free(index->online_log);
 		index->online_log = NULL;
 	}
