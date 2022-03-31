@@ -8936,19 +8936,22 @@ void translog_hard_group_commit(my_bool mode)
 
 void translog_sync()
 {
-  uint32 max= get_current_logfile()->number;
-  uint32 min;
   DBUG_ENTER("ma_translog_sync");
 
-  min= soft_sync_min;
-  if (!min)
-    min= max;
+  /* The following is only true if initalization of translog succeded */
+  if (log_descriptor.open_files.elements != 0)
+  {
+    uint32 max= get_current_logfile()->number;
+    uint32 min;
 
-  translog_sync_files(min, max, sync_log_dir >= TRANSLOG_SYNC_DIR_ALWAYS);
+    min= soft_sync_min;
+    if (!min)
+      min= max;
 
+    translog_sync_files(min, max, sync_log_dir >= TRANSLOG_SYNC_DIR_ALWAYS);
+  }
   DBUG_VOID_RETURN;
 }
-
 
 /**
   @brief set rate for group commit
