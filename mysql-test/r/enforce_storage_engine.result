@@ -158,5 +158,12 @@ t3	CREATE TABLE `t3` (
   PRIMARY KEY (`c1`)
 ) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=latin1
 DROP TABLE t3;
+#
+# MDEV-21618 CREATE UNIQUE INDEX fails with "ERROR 1286 (42000): Unknown storage engine 'partition'"
+#
+SET SESSION enforce_storage_engine=MyISAM;
+CREATE TABLE t4 (a INT) ENGINE=MyISAM PARTITION BY HASH(a);
+CREATE INDEX x on t4 (a);
+DROP TABLE t4;
 SET SESSION enforce_storage_engine=NULL;
 SET GLOBAL enforce_storage_engine=NULL;

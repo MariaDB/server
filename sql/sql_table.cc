@@ -10728,13 +10728,18 @@ bool check_engine(THD *thd, const char *db_name,
   if (!*new_engine)
     DBUG_RETURN(true);
 
-  /* Enforced storage engine should not be used in
-  ALTER TABLE that does not use explicit ENGINE = x to
-  avoid unwanted unrelated changes.*/
-  if (!(thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
-        !(create_info->used_fields & HA_CREATE_USED_ENGINE)))
-    enf_engine= thd->variables.enforced_table_plugin ?
-       plugin_hton(thd->variables.enforced_table_plugin) : NULL;
+  /*
+    Enforced storage engine should not be used in ALTER TABLE that does not
+    use explicit ENGINE = x to avoid unwanted unrelated changes. It should not
+    be used in CREATE INDEX too.
+  */
+  if (!((thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
+             !(create_info->used_fields & HA_CREATE_USED_ENGINE)) ||
+         thd->lex->sql_command == SQLCOM_CREATE_INDEX))
+  {
+    plugin_ref enf_plugin= thd->variables.enforced_table_plugin;
+    enf_engine= enf_plugin ? plugin_hton(enf_plugin) : NULL;
+  }
 
   if (enf_engine && enf_engine != *new_engine)
   {
