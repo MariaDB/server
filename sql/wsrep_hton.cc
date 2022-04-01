@@ -1,4 +1,4 @@
-/* Copyright 2008-2015 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -155,7 +155,7 @@ void wsrep_post_commit(THD* thd, bool all)
       */
       if (all && thd->wsrep_conflict_state != MUST_REPLAY &&
          thd->wsrep_conflict_state != REPLAYING &&
-         wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
+         wsrep && wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
       {
         WSREP_WARN("post_rollback fail: %llu %d",
 		(long long)thd->thread_id, thd->get_stmt_da()->status());
