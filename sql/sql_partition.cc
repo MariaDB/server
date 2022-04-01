@@ -6999,7 +6999,8 @@ static int alter_close_table(ALTER_PARTITION_PARAM_TYPE *lpt)
 static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
                                     bool action_completed,
                                     bool drop_partition,
-                                    bool frm_install)
+                                    bool frm_install,
+                                    bool reopen)
 {
   THD *thd= lpt->thd;
   partition_info *part_info= lpt->part_info->get_clone(thd);
@@ -7042,6 +7043,9 @@ static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
     /* Ensure the share is destroyed and reopened. */
     close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
   }
+
+  if (!reopen)
+    DBUG_VOID_RETURN;
 
   if (part_info->list &&
       ddl_log_execute_entry(thd, part_info->list->entry_pos))
@@ -7473,7 +7477,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
                         thd->query(), thd->query_length()), FALSE)) ||
         ERROR_INJECT("drop_partition_9"))
     {
-      handle_alter_part_error(lpt, action_completed, TRUE, frm_install);
+      handle_alter_part_error(lpt, action_completed, TRUE, frm_install, true);
       goto err;
     }
     if (alter_partition_lock_handling(lpt))
@@ -7509,9 +7513,12 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
            (thd->binlog_xid= 0))) ||
         ERROR_INJECT("convert_partition_9"))
     {
+      DDL_LOG_STATE main_state= *lpt->part_info;
+      handle_alter_part_error(lpt, true, true, false, false);
       ddl_log_complete(&chain_drop_backup);
-      (void) ddl_log_revert(thd, lpt->part_info);
-      handle_alter_part_error(lpt, true, true, false);
+      (void) ddl_log_revert(thd, &main_state);
+      if (thd->locked_tables_mode)
+        thd->locked_tables_list.reopen_tables(thd, false);
       goto err;
     }
     ddl_log_complete(lpt->part_info);
@@ -7558,9 +7565,12 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
            (thd->binlog_xid= 0))) ||
         ERROR_INJECT("convert_partition_9"))
     {
+      DDL_LOG_STATE main_state= *lpt->part_info;
+      handle_alter_part_error(lpt, true, true, false, false);
       ddl_log_complete(&chain_drop_backup);
-      (void) ddl_log_revert(thd, lpt->part_info);
-      handle_alter_part_error(lpt, true, true, false);
+      (void) ddl_log_revert(thd, &main_state);
+      if (thd->locked_tables_mode)
+        thd->locked_tables_list.reopen_tables(thd, false);
       goto err;
     }
     ddl_log_complete(lpt->part_info);
@@ -7632,7 +7642,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
                         thd->query(), thd->query_length()), FALSE)) ||
         ERROR_INJECT("add_partition_10"))
     {
-      handle_alter_part_error(lpt, action_completed, FALSE, frm_install);
+      handle_alter_part_error(lpt, action_completed, FALSE, frm_install, true);
       goto err;
     }
     if (alter_partition_lock_handling(lpt))
@@ -7725,7 +7735,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
                         thd->query(), thd->query_length()), FALSE)) ||
         ERROR_INJECT("change_partition_12"))
     {
-      handle_alter_part_error(lpt, action_completed, FALSE, frm_install);
+      handle_alter_part_error(lpt, action_completed, FALSE, frm_install, true);
       goto err;
     }
     if (alter_partition_lock_handling(lpt))
