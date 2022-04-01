@@ -387,7 +387,8 @@ ENDIF()
 # s390x because of the way it defines the high level intrinsics
 # as not-inline in the header file can only be included by one
 # source file that has -mhtm enabled.
-IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64|s390x")
+IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64|s390x"
+   OR CMAKE_SYSTEM_NAME MATCHES "AIX")
   ADD_COMPILE_FLAGS(
       sync/srw_lock.cc
       COMPILE_FLAGS "-mhtm"
