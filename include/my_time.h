@@ -220,9 +220,12 @@ static inline void my_time_trunc(MYSQL_TIME *ltime, uint decimals)
 {
   ltime->second_part-= my_time_fraction_remainder(ltime->second_part, decimals);
 }
+#ifdef _WIN32
+#define suseconds_t long
+#endif
 static inline void my_timeval_trunc(struct timeval *tv, uint decimals)
 {
-  tv->tv_usec-= my_time_fraction_remainder(tv->tv_usec, decimals);
+  tv->tv_usec-= (suseconds_t) my_time_fraction_remainder(tv->tv_usec, decimals);
 }
 
 
