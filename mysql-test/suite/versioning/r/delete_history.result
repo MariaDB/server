@@ -187,3 +187,15 @@ x
 1
 drop prepare stmt;
 drop table t1;
+#
+# MDEV-28201 Server crashes upon SHOW ANALYZE/EXPLAIN FORMAT=JSON
+#
+CREATE TABLE t1 (a INT) WITH SYSTEM VERSIONING;
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+SET optimizer_trace= 'enabled=on';
+DELETE HISTORY FROM v1 BEFORE SYSTEM_TIME '2021-01-01';
+ERROR HY000: The target table v1 of the DELETE is not updatable
+DELETE HISTORY FROM v1;
+ERROR HY000: The target table v1 of the DELETE is not updatable
+DROP VIEW v1;
+DROP TABLE t1;
