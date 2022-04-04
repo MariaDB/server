@@ -146,6 +146,7 @@ dict_acquire_mdl_shared(dict_table_t *table,
 @param[in,out]  thd             background thread, or NULL to not acquire MDL
 @param[out]     mdl             mdl ticket, or NULL
 @return table, NULL if does not exist */
+template<bool purge_thd= false>
 dict_table_t*
 dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                       dict_table_op_t table_op, THD *thd= nullptr,
