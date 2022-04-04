@@ -3351,16 +3351,6 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
           table->field[11]->store((double) tmp->progress.counter /
                                   (double) max_counter*100.0);
         }
-        else
-        {
-          /*
-            This is a DECIMAL column without DEFAULT.
-            restore_record() fills its Field::ptr to zero bytes,
-            according to pack_length(). But an array of zero bytes
-            is not a valid decimal. Set it explicitly to 0.
-          */
-          table->field[11]->store((longlong) 0, true);
-        }
         mysql_mutex_unlock(&tmp->LOCK_thd_data);
       }
 
