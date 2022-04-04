@@ -2407,6 +2407,15 @@ public:
   void reduce_digest_token(uint token_left, uint token_right);
 
 private:
+
+  enum Ident_mode
+  {
+    GENERAL_KEYWORD_OR_FUNC_LPAREN,
+    QUALIFIED_SPECIAL_FUNC_LPAREN
+  };
+
+  int scan_ident_common(THD *thd, Lex_ident_cli_st *str, Ident_mode mode);
+
   /**
     Set the echo mode.
 
@@ -2733,8 +2742,8 @@ private:
   bool consume_comment(int remaining_recursions_permitted);
   int lex_one_token(union YYSTYPE *yylval, THD *thd);
   int find_keyword(Lex_ident_cli_st *str, uint len, bool function) const;
+  int find_keyword_qualified_special_func(Lex_ident_cli_st *str, uint len) const;
   LEX_CSTRING get_token(uint skip, uint length);
-  int scan_ident_sysvar(THD *thd, Lex_ident_cli_st *str);
   int scan_ident_start(THD *thd, Lex_ident_cli_st *str);
   int scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
                         CHARSET_INFO **cs, my_lex_states *);
@@ -4045,8 +4054,41 @@ public:
 
   Item *create_item_query_expression(THD *thd, st_select_lex_unit *unit);
 
-  Item *make_item_func_call_generic(THD *thd, Lex_ident_cli_st *db,
-                                    Lex_ident_cli_st *name, List<Item> *args);
+  static const Schema *
+    find_func_schema_by_name_or_error(const Lex_ident_sys &schema_name,
+                                      const Lex_ident_sys &func_name);
+  Item *make_item_func_replace(THD *thd,
+                               const Lex_ident_cli_st &schema_name,
+                               const Lex_ident_cli_st &func_name,
+                               Item *org, Item *find, Item *replace);
+  Item *make_item_func_replace(THD *thd,
+                               const Lex_ident_cli_st &schema_name,
+                               const Lex_ident_cli_st &func_name,
+                               List<Item> *args);
+  Item *make_item_func_substr(THD *thd,
+                              const Lex_ident_cli_st &schema_name,
+                              const Lex_ident_cli_st &func_name,
+                              const Lex_substring_spec_st &spec);
+  Item *make_item_func_substr(THD *thd,
+                              const Lex_ident_cli_st &schema_name,
+                              const Lex_ident_cli_st &func_name,
+                              List<Item> *args);
+  Item *make_item_func_trim(THD *thd,
+                            const Lex_ident_cli_st &schema_name,
+                            const Lex_ident_cli_st &func_name,
+                            const Lex_trim_st &spec);
+  Item *make_item_func_trim(THD *thd,
+                            const Lex_ident_cli_st &schema_name,
+                            const Lex_ident_cli_st &func_name,
+                            List<Item> *args);
+  Item *make_item_func_call_generic(THD *thd,
+                                    const Lex_ident_cli_st *db,
+                                    const Lex_ident_cli_st *name,
+                                    List<Item> *args);
+  Item *make_item_func_call_generic(THD *thd,
+                                    const Lex_ident_sys &db,
+                                    const Lex_ident_sys &name,
+                                    List<Item> *args);
   Item *make_item_func_call_generic(THD *thd,
                                     Lex_ident_cli_st *db,
                                     Lex_ident_cli_st *pkg,
