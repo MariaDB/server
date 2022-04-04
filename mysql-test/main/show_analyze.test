@@ -335,7 +335,7 @@ drop table t0,t1;
 let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr2;
 connection con1;
 set @show_explain_probe_query= 'SELECT count(*) - count(*) FROM sys.waits_by_user_by_latency';
-set debug_dbug='+d,log_slow_statement_end';
+set debug_dbug='+d,explain_notify_tables_are_closed';
 
 # Statement guarantees to produce 0 on every run
 send SELECT count(*) - count(*) FROM sys.waits_by_user_by_latency;
@@ -351,3 +351,15 @@ reap;
 connection default;
 disconnect con1;
 set debug_sync='RESET';
+
+
+--echo #
+--echo # MDEV-28201: Server crashes upon SHOW ANALYZE/EXPLAIN FORMAT=JSON
+--echo #
+CREATE TABLE t1 ( a varchar(1));
+INSERT INTO t1 VALUES ('a'),('b');
+--source include/analyze-format.inc
+ANALYZE format=json 
+SELECT 1 FROM t1 GROUP BY convert_tz('1969-12-31 22:00:00',a,'+10:00');
+DROP TABLE t1;
+

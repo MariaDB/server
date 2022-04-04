@@ -3141,10 +3141,11 @@ void Item_field::set_field(Field *field_par)
 
   base_flags|= item_base_t::FIXED;
   if (field->table->s->tmp_table == SYSTEM_TMP_TABLE)
-  {
     any_privileges= 0;
-    refers_to_temp_table= true;
-  }
+
+  if (field->table->s->tmp_table == SYSTEM_TMP_TABLE ||
+      field->table->s->tmp_table == INTERNAL_TMP_TABLE)
+    set_refers_to_temp_table(true);
 }
 
 
@@ -7832,7 +7833,15 @@ Item_direct_view_ref::grouping_field_transformer_for_where(THD *thd,
 
 void Item_field::print(String *str, enum_query_type query_type)
 {
-  if (!refers_to_temp_table && field && field->table->const_table &&
+  /*
+    If the field refers to a constant table, print the value.
+    (1): But don't attempt to do that if
+          * the field refers to a temporary (work) table, and
+          * temp. tables might already have been dropped.
+  */
+  if (!(refers_to_temp_table &&                      // (1)
+        (query_type & QT_DONT_ACCESS_TMP_TABLES)) && // (1)
+      field && field->table->const_table &&
       !(query_type & (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL)))
   {
     print_value(str);
@@ -7840,7 +7849,8 @@ void Item_field::print(String *str, enum_query_type query_type)
   }
   /*
     Item_ident doesn't have references to the underlying Field/TABLE objects,
-    so it's safe to use the following even for a temporary table:
+    so it's safe to make the following call even when the table is not
+    available already:
   */
   Item_ident::print(str, query_type);
 }

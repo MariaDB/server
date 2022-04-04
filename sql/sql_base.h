@@ -161,6 +161,7 @@ TABLE_LIST *find_table_in_list(TABLE_LIST *table,
                                const LEX_CSTRING *db_name,
                                const LEX_CSTRING *table_name);
 int close_thread_tables(THD *thd);
+int close_thread_tables_for_query(THD *thd);
 void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *);
 void switch_defaults_to_nullable_trigger_fields(TABLE *table);
 bool fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,

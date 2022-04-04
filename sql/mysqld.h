@@ -903,6 +903,10 @@ enum enum_query_type
   // it evaluates to. Should be used for error messages, so that they
   // don't reveal values.
   QT_NO_DATA_EXPANSION= (1 << 9),
+
+  // The temporary tables used by the query might be freed by the time
+  // this print() call is made.
+  QT_DONT_ACCESS_TMP_TABLES= (1 << 12)
 };
 
 

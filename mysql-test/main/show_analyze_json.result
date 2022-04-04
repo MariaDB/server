@@ -1228,7 +1228,7 @@ drop table t0,t1;
 #
 connection con1;
 set @show_explain_probe_query= 'SELECT count(*) - count(*) FROM sys.waits_by_user_by_latency';
-set debug_dbug='+d,log_slow_statement_end';
+set debug_dbug='+d,explain_notify_tables_are_closed';
 SELECT count(*) - count(*) FROM sys.waits_by_user_by_latency;
 connection default;
 SHOW ANALYZE FORMAT=JSON FOR $thr2;

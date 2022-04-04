@@ -379,7 +379,7 @@ drop table t0,t1;
 #
 connection con1;
 set @show_explain_probe_query= 'SELECT count(*) - count(*) FROM sys.waits_by_user_by_latency';
-set debug_dbug='+d,log_slow_statement_end';
+set debug_dbug='+d,explain_notify_tables_are_closed';
 SELECT count(*) - count(*) FROM sys.waits_by_user_by_latency;
 connection default;
 SHOW ANALYZE FOR $thr2;
@@ -391,3 +391,45 @@ count(*) - count(*)
 connection default;
 disconnect con1;
 set debug_sync='RESET';
+#
+# MDEV-28201: Server crashes upon SHOW ANALYZE/EXPLAIN FORMAT=JSON
+#
+CREATE TABLE t1 ( a varchar(1));
+INSERT INTO t1 VALUES ('a'),('b');
+ANALYZE format=json 
+SELECT 1 FROM t1 GROUP BY convert_tz('1969-12-31 22:00:00',a,'+10:00');
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "filesort": {
+      "sort_key": "convert_tz('1969-12-31 22:00:00',t1.a,'+10:00')",
+      "r_loops": 1,
+      "r_total_time_ms": "REPLACED",
+      "r_used_priority_queue": false,
+      "r_output_rows": 1,
+      "r_buffer_size": "REPLACED",
+      "r_sort_mode": "sort_key,rowid",
+      "temporary_table": {
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 2,
+              "r_rows": 2,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+DROP TABLE t1;

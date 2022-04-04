@@ -26922,6 +26922,7 @@ int print_explain_message_line(select_result_sink *result,
                                ha_rows *rows,
                                const char *message)
 {
+  /* Note: for SHOW EXPLAIN, this is caller thread's THD */
   THD *thd= result->thd;
   MEM_ROOT *mem_root= thd->mem_root;
   Item *item_null= new (mem_root) Item_null(thd);

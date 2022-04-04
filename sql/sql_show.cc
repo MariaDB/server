@@ -2998,14 +2998,18 @@ void Show_explain_request::call_in_target_thread()
                  target_thd->query_charset());
 
   DBUG_ASSERT(current_thd == target_thd);
-  set_current_thd(request_thd);
+
+  /*
+    When producing JSON output, one should not change current_thd.
+    (If one does that, they will hit an assert when printing constant item
+    fields).
+  */
   if (target_thd->lex->print_explain(explain_buf, 0 /* explain flags*/,
                                      is_analyze, is_json_format,
                                      &printed_anything))
   {
     failed_to_produce= TRUE;
   }
-  set_current_thd(target_thd);
 
   if (!printed_anything)
     failed_to_produce= TRUE;
@@ -3024,6 +3028,8 @@ int select_result_explain_buffer::send_data(List<Item> &items)
     Switch to the receiveing thread, so that we correctly count memory used
     by it. This is needed as it's the receiving thread that will free the
     memory.
+    (TODO: Now that we don't change current_thd in
+    Show_explain_request::call_in_target_thread, is this necessary anymore?)
   */
   set_current_thd(thd);
   fill_record(thd, dst_table, dst_table->field, items, TRUE, FALSE);

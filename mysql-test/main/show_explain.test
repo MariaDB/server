@@ -1312,7 +1312,7 @@ drop table t0,t1,t2;
 let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr2;
 connection con1;
 set @show_explain_probe_query= 'SELECT count(*) - count(*) FROM sys.waits_by_user_by_latency';
-set debug_dbug='+d,log_slow_statement_end';
+set debug_dbug='+d,explain_notify_tables_are_closed';
 
 # Statement guarantees to produce 0 on every run
 send SELECT count(*) - count(*) FROM sys.waits_by_user_by_latency;

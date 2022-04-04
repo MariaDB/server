@@ -2242,9 +2242,6 @@ void THD::cleanup_after_query()
 
   thd_progress_end(this);
 
-  if (lex && lex->explain)
-    lex->explain->notify_item_objects_about_to_be_freed();
-
   /*
     Reset rand_used so that detection of calls to rand() will save random 
     seeds if needed by the slave.
