@@ -7,6 +7,8 @@
 --source suite/galera/include/galera_st_shutdown_slave.inc
 --source suite/galera/include/galera_st_clean_slave.inc
 
+--let $wsrep_recover_additional=--log-bin=$MYSQLTEST_VARDIR/mysqld.2/server2_binlog --log-bin-index=$MYSQLTEST_VARDIR/tmp/server2_binlog_index.index
+
 --source suite/galera/include/galera_st_kill_slave.inc
 --source suite/galera/include/galera_st_kill_slave_ddl.inc
 --source include/auto_increment_offset_restore.inc
