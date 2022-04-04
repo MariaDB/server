@@ -2382,6 +2382,16 @@ public:
   static dict_table_t *create(const span<const char> &name, fil_space_t *space,
                               ulint n_cols, ulint n_v_cols, ulint flags,
                               ulint flags2);
+
+  /** Check whether the table has any spatial indexes */
+  bool has_spatial_index() const
+  {
+    for (auto i= UT_LIST_GET_FIRST(indexes);
+         (i= UT_LIST_GET_NEXT(indexes, i)) != nullptr; )
+      if (i->is_spatial())
+        return true;
+    return false;
+  }
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const
