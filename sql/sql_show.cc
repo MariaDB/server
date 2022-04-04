@@ -8803,6 +8803,7 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
         if (bitmap_is_set(table->read_set, i))
         {
           field->move_field(cur);
+          field->reset();
           *to_recinfo++= *from_recinfo;
           cur+= from_recinfo->length;
         }
@@ -8823,6 +8824,7 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
         table->s->reclength= to_recinfo->length= 1;
         to_recinfo++;
       }
+      store_record(table, s->default_values);
       p->recinfo= to_recinfo;
 
       // TODO switch from Aria to Memory if all blobs were optimized away?
