@@ -3570,7 +3570,7 @@ simple_target_specification:
             if (!$2.length)
             {
               thd->parse_error();
-              YYABORT;
+              MYSQL_YYABORT;
             }
             $$= new (thd->mem_root) Item_func_get_user_var(thd, &$2);
             if (unlikely($$ == NULL))
@@ -11001,7 +11001,7 @@ variable_aux:
             if (!$1.length)
             {
               thd->parse_error();
-              YYABORT;
+              MYSQL_YYABORT;
             }
             $$= item= new (thd->mem_root) Item_func_set_user_var(thd, &$1, $3);
             if (unlikely($$ == NULL))
@@ -11015,7 +11015,7 @@ variable_aux:
             if (!$1.length)
             {
               thd->parse_error();
-              YYABORT;
+              MYSQL_YYABORT;
             }
             $$= new (thd->mem_root) Item_func_get_user_var(thd, &$1);
             if (unlikely($$ == NULL))
@@ -12653,7 +12653,7 @@ select_outvar:
             if (!$2.length)
             {
               thd->parse_error();
-              YYABORT;
+              MYSQL_YYABORT;
             }
 
             $$ = Lex->result ? new (thd->mem_root) my_var_user(&$2) : NULL;
@@ -14644,7 +14644,7 @@ field_or_var:
             if (!$2.length)
             {
               thd->parse_error();
-              YYABORT;
+              MYSQL_YYABORT;
             }
 
             $$= new (thd->mem_root) Item_user_var_as_out_param(thd, &$2);
@@ -16465,7 +16465,7 @@ option_value_no_option_type:
             if (!$2.length)
             {
               thd->parse_error();
-              YYABORT;
+              MYSQL_YYABORT;
             }
 
             if (sp_create_assignment_lex(thd, $1.str))
