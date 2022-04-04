@@ -272,3 +272,12 @@ SPATIAL INDEX(f2))ENGINE=InnoDB;
 --error ER_DUP_ENTRY
 INSERT INTO t1(f1) VALUES(0), (1), (2);
 DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-28237  Assertion `0' failed in row_upd_sec_index_entry on DELETE
+--echo #
+CREATE TABLE t1 (c0 YEAR UNIQUE) ENGINE=InnoDB;
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 VALUES (0),(0),(0),(0),(0),(0),(0);
+DELETE FROM t1;
+DROP TABLE t1;

@@ -260,3 +260,11 @@ SPATIAL INDEX(f2))ENGINE=InnoDB;
 INSERT INTO t1(f1) VALUES(0), (1), (2);
 ERROR 23000: Duplicate entry '1' for key 'f1'
 DROP TABLE t1;
+#
+#  MDEV-28237  Assertion `0' failed in row_upd_sec_index_entry on DELETE
+#
+CREATE TABLE t1 (c0 YEAR UNIQUE) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0),(0),(0),(0),(0),(0),(0);
+ERROR HY000: Got error 1 "Operation not permitted" during COMMIT
+DELETE FROM t1;
+DROP TABLE t1;

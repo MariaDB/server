@@ -17000,6 +17000,10 @@ innobase_xa_prepare(
 		SQL statement */
 
 		trx_mark_sql_stat_end(trx);
+		if (UNIV_UNLIKELY(trx->error_state != DB_SUCCESS)) {
+			trx_rollback_for_mysql(trx);
+			return 1;
+		}
 	}
 
 	if (thd_sql_command(thd) != SQLCOM_XA_PREPARE
