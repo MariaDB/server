@@ -172,14 +172,6 @@ row_log_table_insert(
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
 	const rec_offs*	offsets);/*!< in: rec_get_offsets(rec,index) */
-/******************************************************//**
-Notes that a BLOB is being freed during online ALTER TABLE. */
-void
-row_log_table_blob_free(
-/*====================*/
-	dict_index_t*	index,	/*!< in/out: clustered index, X-latched */
-	ulint		page_no)/*!< in: starting page number of the BLOB */
-	ATTRIBUTE_COLD __attribute__((nonnull));
 
 /** Apply the row_log_table log to a table upon completing rebuild.
 @param[in]	thr		query graph

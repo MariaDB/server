@@ -89,79 +89,6 @@ struct row_log_buf_t {
 				row_log_apply(). */
 };
 
-/** Tracks BLOB allocation during online ALTER TABLE */
-class row_log_table_blob_t {
-public:
-	/** Constructor (declaring a BLOB freed)
-	@param offset_arg row_log_t::tail::total */
-#ifdef UNIV_DEBUG
-	row_log_table_blob_t(ulonglong offset_arg) :
-		old_offset (0), free_offset (offset_arg),
-		offset (BLOB_FREED) {}
-#else /* UNIV_DEBUG */
-	row_log_table_blob_t() :
-		offset (BLOB_FREED) {}
-#endif /* UNIV_DEBUG */
-
-	/** Declare a BLOB freed again.
-	@param offset_arg row_log_t::tail::total */
-#ifdef UNIV_DEBUG
-	void blob_free(ulonglong offset_arg)
-#else /* UNIV_DEBUG */
-	void blob_free()
-#endif /* UNIV_DEBUG */
-	{
-		ut_ad(offset < offset_arg);
-		ut_ad(offset != BLOB_FREED);
-		ut_d(old_offset = offset);
-		ut_d(free_offset = offset_arg);
-		offset = BLOB_FREED;
-	}
-	/** Declare a freed BLOB reused.
-	@param offset_arg row_log_t::tail::total */
-	void blob_alloc(ulonglong offset_arg) {
-		ut_ad(free_offset <= offset_arg);
-		ut_d(old_offset = offset);
-		offset = offset_arg;
-	}
-	/** Determine if a BLOB was freed at a given log position
-	@param offset_arg row_log_t::head::total after the log record
-	@return true if freed */
-	bool is_freed(ulonglong offset_arg) const {
-		/* This is supposed to be the offset at the end of the
-		current log record. */
-		ut_ad(offset_arg > 0);
-		/* We should never get anywhere close the magic value. */
-		ut_ad(offset_arg < BLOB_FREED);
-		return(offset_arg < offset);
-	}
-private:
-	/** Magic value for a freed BLOB */
-	static const ulonglong BLOB_FREED = ~0ULL;
-#ifdef UNIV_DEBUG
-	/** Old offset, in case a page was freed, reused, freed, ... */
-	ulonglong	old_offset;
-	/** Offset of last blob_free() */
-	ulonglong	free_offset;
-#endif /* UNIV_DEBUG */
-	/** Byte offset to the log file */
-	ulonglong	offset;
-};
-
-/** @brief Map of off-page column page numbers to 0 or log byte offsets.
-
-If there is no mapping for a page number, it is safe to access.
-If a page number maps to 0, it is an off-page column that has been freed.
-If a page number maps to a nonzero number, the number is a byte offset
-into the index->online_log, indicating that the page is safe to access
-when applying log records starting from that offset. */
-typedef std::map<
-	ulint,
-	row_log_table_blob_t,
-	std::less<ulint>,
-	ut_allocator<std::pair<const ulint, row_log_table_blob_t> > >
-	page_no_map;
-
 /** @brief Buffer for logging modifications during online index creation
 
 All modifications to an index that is being created will be logged by
@@ -178,10 +105,6 @@ struct row_log_t {
 	pfs_os_file_t	fd;	/*!< file descriptor */
 	mysql_mutex_t	mutex;	/*!< mutex protecting error,
 				max_trx and tail */
-	page_no_map*	blobs;	/*!< map of page numbers of off-page columns
-				that have been freed during table-rebuilding
-				ALTER TABLE (row_log_table_*); protected by
-				index->lock X-latch only */
 	dict_table_t*	table;	/*!< table that is being rebuilt,
 				or NULL when this is a secondary
 				index that is being created online */
@@ -339,8 +262,6 @@ static void row_log_empty(dict_index_t *index)
   row_log_t *log= index->online_log;
 
   mysql_mutex_lock(&log->mutex);
-  UT_DELETE(log->blobs);
-  log->blobs= nullptr;
   row_log_block_free(log->tail);
   row_log_block_free(log->head);
   row_merge_file_destroy_low(log->fd);
@@ -1481,48 +1402,6 @@ row_log_table_insert(
 }
 
 /******************************************************//**
-Notes that a BLOB is being freed during online ALTER TABLE. */
-void
-row_log_table_blob_free(
-/*====================*/
-	dict_index_t*	index,	/*!< in/out: clustered index, X-latched */
-	ulint		page_no)/*!< in: starting page number of the BLOB */
-{
-	ut_ad(dict_index_is_clust(index));
-	ut_ad(dict_index_is_online_ddl(index));
-	ut_ad(index->lock.have_u_or_x());
-	ut_ad(page_no != FIL_NULL);
-
-	if (index->online_log->error != DB_SUCCESS) {
-		return;
-	}
-
-	page_no_map*	blobs	= index->online_log->blobs;
-
-	if (blobs == NULL) {
-		index->online_log->blobs = blobs = UT_NEW_NOKEY(page_no_map());
-	}
-
-#ifdef UNIV_DEBUG
-	const ulonglong	log_pos = index->online_log->tail.total;
-#else
-# define log_pos /* empty */
-#endif /* UNIV_DEBUG */
-
-	const page_no_map::value_type v(page_no,
-					row_log_table_blob_t(log_pos));
-
-	std::pair<page_no_map::iterator,bool> p = blobs->insert(v);
-
-	if (!p.second) {
-		/* Update the existing mapping. */
-		ut_ad(p.first->first == page_no);
-		p.first->second.blob_free(log_pos);
-	}
-#undef log_pos
-}
-
-/******************************************************//**
 Converts a log record to a table row.
 @return converted row, or NULL if the conversion fails */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
@@ -1598,34 +1477,13 @@ row_log_table_apply_convert_mrec(
 			ut_ad(rec_offs_any_extern(offsets));
 			index->lock.x_lock(SRW_LOCK_CALL);
 
-			if (const page_no_map* blobs = log->blobs) {
-				data = rec_get_nth_field(
-					mrec, offsets, i, &len);
-				ut_ad(len >= BTR_EXTERN_FIELD_REF_SIZE);
-
-				ulint	page_no = mach_read_from_4(
-					data + len - (BTR_EXTERN_FIELD_REF_SIZE
-						      - BTR_EXTERN_PAGE_NO));
-				page_no_map::const_iterator p = blobs->find(
-					page_no);
-				if (p != blobs->end()
-				    && p->second.is_freed(log->head.total)) {
-					/* This BLOB has been freed.
-					We must not access the row. */
-					*error = DB_MISSING_HISTORY;
-					dfield_set_data(dfield, data, len);
-					dfield_set_ext(dfield);
-					goto blob_done;
-				}
-			}
-
 			data = btr_rec_copy_externally_stored_field(
 				mrec, offsets,
 				index->table->space->zip_size(),
 				i, &len, heap);
 			ut_a(data);
 			dfield_set_data(dfield, data, len);
-blob_done:
+
 			index->lock.x_unlock();
 		} else {
 			data = rec_get_nth_field(mrec, offsets, i, &len);
@@ -1798,15 +1656,6 @@ row_log_table_apply_insert(
 		mrec, dup->index, offsets, log, heap, &error);
 
 	switch (error) {
-	case DB_MISSING_HISTORY:
-		ut_ad(log->blobs);
-		/* Because some BLOBs are missing, we know that the
-		transaction was rolled back later (a rollback of
-		an insert can free BLOBs).
-		We can simply skip the insert: the subsequent
-		ROW_T_DELETE will be ignored, or a ROW_T_UPDATE will
-		be interpreted as ROW_T_INSERT. */
-		return(DB_SUCCESS);
 	case DB_SUCCESS:
 		ut_ad(row != NULL);
 		break;
@@ -2081,20 +1930,6 @@ row_log_table_apply_update(
 		mrec, dup->index, offsets, log, heap, &error);
 
 	switch (error) {
-	case DB_MISSING_HISTORY:
-		/* The record contained BLOBs that are now missing. */
-		ut_ad(log->blobs);
-		/* Whether or not we are updating the PRIMARY KEY, we
-		know that there should be a subsequent
-		ROW_T_DELETE for rolling back a preceding ROW_T_INSERT,
-		overriding this ROW_T_UPDATE record. (*1)
-
-		This allows us to interpret this ROW_T_UPDATE
-		as ROW_T_DELETE.
-
-		When applying the subsequent ROW_T_DELETE, no matching
-		record will be found. */
-		/* fall through */
 	case DB_SUCCESS:
 		ut_ad(row != NULL);
 		break;
@@ -2124,79 +1959,16 @@ row_log_table_apply_update(
 	}
 #endif /* UNIV_DEBUG */
 
-	if (page_rec_is_infimum(btr_pcur_get_rec(&pcur))
-	    || btr_pcur_get_low_match(&pcur) < index->n_uniq) {
-		/* The record was not found. This should only happen
-		when an earlier ROW_T_INSERT or ROW_T_UPDATE was
-		diverted because BLOBs were freed when the insert was
-		later rolled back. */
-
-		ut_ad(log->blobs);
-
-		if (error == DB_SUCCESS) {
-			/* An earlier ROW_T_INSERT could have been
-			skipped because of a missing BLOB, like this:
-
-			BEGIN;
-			INSERT INTO t SET blob_col='blob value';
-			UPDATE t SET blob_col='';
-			ROLLBACK;
-
-			This would generate the following records:
-			ROW_T_INSERT (referring to 'blob value')
-			ROW_T_UPDATE
-			ROW_T_UPDATE (referring to 'blob value')
-			ROW_T_DELETE
-			[ROLLBACK removes the 'blob value']
-
-			The ROW_T_INSERT would have been skipped
-			because of a missing BLOB. Now we are
-			executing the first ROW_T_UPDATE.
-			The second ROW_T_UPDATE (for the ROLLBACK)
-			would be interpreted as ROW_T_DELETE, because
-			the BLOB would be missing.
-
-			We could probably assume that the transaction
-			has been rolled back and simply skip the
-			'insert' part of this ROW_T_UPDATE record.
-			However, there might be some complex scenario
-			that could interfere with such a shortcut.
-			So, we will insert the row (and risk
-			introducing a bogus duplicate key error
-			for the ALTER TABLE), and a subsequent
-			ROW_T_UPDATE or ROW_T_DELETE will delete it. */
-			mtr_commit(&mtr);
-			error = row_log_table_apply_insert_low(
-				thr, row, offsets_heap, heap, dup);
-		} else {
-			/* Some BLOBs are missing, so we are interpreting
-			this ROW_T_UPDATE as ROW_T_DELETE (see *1).
-			Because the record was not found, we do nothing. */
-			ut_ad(error == DB_MISSING_HISTORY);
-			error = DB_SUCCESS;
-func_exit:
-			mtr_commit(&mtr);
-		}
-func_exit_committed:
-		ut_ad(mtr.has_committed());
-
-		if (error != DB_SUCCESS) {
-			/* Report the erroneous row using the new
-			version of the table. */
-			innobase_row_to_mysql(dup->table, log->table, row);
-		}
-
-		return(error);
-	}
+	ut_ad(!page_rec_is_infimum(btr_pcur_get_rec(&pcur))
+	      && btr_pcur_get_low_match(&pcur) >= index->n_uniq);
 
 	/* Prepare to update (or delete) the record. */
 	rec_offs*		cur_offsets	= rec_get_offsets(
 		btr_pcur_get_rec(&pcur), index, nullptr, index->n_core_fields,
 		ULINT_UNDEFINED, &offsets_heap);
 
+#ifdef UNIV_DEBUG
 	if (!log->same_pk) {
-		/* Only update the record if DB_TRX_ID,DB_ROLL_PTR match what
-		was buffered. */
 		ulint		len;
 		const byte*	rec_trx_id
 			= rec_get_nth_field(btr_pcur_get_rec(&pcur),
@@ -2211,60 +1983,29 @@ func_exit_committed:
 		      + static_cast<const char*>(old_pk_trx_id->data)
 		      == old_pk_trx_id[1].data);
 		ut_d(trx_id_check(old_pk_trx_id->data, log->min_trx));
-
-		if (memcmp(rec_trx_id, old_pk_trx_id->data,
-			   DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN)) {
-			/* The ROW_T_UPDATE was logged for a different
-			DB_TRX_ID,DB_ROLL_PTR. This is possible if an
-			earlier ROW_T_INSERT or ROW_T_UPDATE was diverted
-			because some BLOBs were missing due to rolling
-			back the initial insert or due to purging
-			the old BLOB values of an update. */
-			ut_ad(log->blobs);
-			if (error != DB_SUCCESS) {
-				ut_ad(error == DB_MISSING_HISTORY);
-				/* Some BLOBs are missing, so we are
-				interpreting this ROW_T_UPDATE as
-				ROW_T_DELETE (see *1).
-				Because this is a different row,
-				we will do nothing. */
-				error = DB_SUCCESS;
-			} else {
-				/* Because the user record is missing due to
-				BLOBs that were missing when processing
-				an earlier log record, we should
-				interpret the ROW_T_UPDATE as ROW_T_INSERT.
-				However, there is a different user record
-				with the same PRIMARY KEY value already. */
-				error = DB_DUPLICATE_KEY;
-			}
-
-			goto func_exit;
-		}
+		ut_ad(!memcmp(rec_trx_id, old_pk_trx_id->data,
+			      DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN));
 	}
-
-	if (error != DB_SUCCESS) {
-		ut_ad(error == DB_MISSING_HISTORY);
-		ut_ad(log->blobs);
-		/* Some BLOBs are missing, so we are interpreting
-		this ROW_T_UPDATE as ROW_T_DELETE (see *1). */
-		error = row_log_table_apply_delete_low(
-			&pcur, cur_offsets, heap, &mtr);
-		goto func_exit_committed;
-	}
+#endif
 
 	dtuple_t*	entry	= row_build_index_entry_low(
 		row, NULL, index, heap, ROW_BUILD_NORMAL);
 	upd_t*		update	= row_upd_build_difference_binary(
 		index, entry, btr_pcur_get_rec(&pcur), cur_offsets,
 		false, NULL, heap, dup->table, &error);
-	if (error != DB_SUCCESS) {
-		goto func_exit;
-	}
+	if (error != DB_SUCCESS || !update->n_fields) {
+func_exit:
+		mtr.commit();
+func_exit_committed:
+		ut_ad(mtr.has_committed());
 
-	if (!update->n_fields) {
-		/* Nothing to do. */
-		goto func_exit;
+		if (error != DB_SUCCESS) {
+			/* Report the erroneous row using the new
+			version of the table. */
+			innobase_row_to_mysql(dup->table, log->table, row);
+		}
+
+		return error;
 	}
 
 	const bool	pk_updated
@@ -3211,7 +2952,6 @@ row_log_allocate(
 	log->fd = OS_FILE_CLOSED;
 	mysql_mutex_init(index_online_log_key, &log->mutex, nullptr);
 
-	log->blobs = NULL;
 	log->table = table;
 	log->same_pk = same_pk;
 	log->defaults = defaults;
@@ -3287,7 +3027,6 @@ row_log_free(
 {
 	MONITOR_ATOMIC_DEC(MONITOR_ONLINE_CREATE_INDEX);
 
-	UT_DELETE(log->blobs);
 	UT_DELETE_ARRAY(log->non_core_fields);
 	row_log_block_free(log->tail);
 	row_log_block_free(log->head);
