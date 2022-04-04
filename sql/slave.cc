@@ -4801,6 +4801,10 @@ pthread_handler_t handle_slave_sql(void *arg)
   const char *errmsg;
   rpl_group_info *serial_rgi;
   rpl_sql_thread_info sql_info(mi->rpl_filter);
+  MDL_request mdl_req_gtid_slave_state;
+  mdl_req_gtid_slave_state.init(MDL_key::TABLE, "mysql",
+                                rpl_gtid_slave_state_table_name.str,
+                                MDL_SHARED_WRITE, MDL_EXPLICIT);
 
   // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
   my_thread_init();
@@ -4840,13 +4844,25 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   pthread_detach_this_thread();
 
-  if (opt_slave_parallel_threads > 0 && 
-      rpl_parallel_activate_pool(&global_rpl_thread_pool))
+  if (opt_slave_parallel_threads > 0)
   {
-    mysql_cond_broadcast(&rli->start_cond);
-    rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
-                "Failed during parallel slave pool activation");
-    goto err_during_init;
+    if (rpl_parallel_activate_pool(&global_rpl_thread_pool))
+    {
+      mysql_cond_broadcast(&rli->start_cond);
+      rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
+                  "Failed during parallel slave pool activation");
+      goto err_during_init;
+    }
+    /*
+      Prevent the gtid_slave_pos from having its engine altered while the SQL
+      thread is running.
+    */
+     if (thd->mdl_context.acquire_lock(&mdl_req_gtid_slave_state,
+                                       thd->variables.lock_wait_timeout))
+    {
+       my_error(ER_CANT_LOCK, MYF(0));
+       goto err;
+     }
   }
 
   if (init_slave_thread(thd, mi, SLAVE_THD_SQL))
@@ -5299,6 +5315,9 @@ err_during_init:
   mysql_mutex_lock(&LOCK_thread_count);
   delete serial_rgi;
   mysql_mutex_unlock(&LOCK_thread_count);
+
+  if (mdl_req_gtid_slave_state.ticket)
+    thd->mdl_context.release_lock(mdl_req_gtid_slave_state.ticket);
 
   delete thd;
   thread_safe_decrement32(&service_thread_count);

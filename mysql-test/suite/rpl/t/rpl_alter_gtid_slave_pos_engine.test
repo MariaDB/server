@@ -1,0 +1,221 @@
+#
+# Purpose:
+#   This test ensures that the engine/table_name of the mysql.gtid_slave_pos
+# table can only be changed if the slave is in serial mode (no parallel
+# threads).
+#
+# References:
+#   MDEV-25768: ALTER gtid_slave_pos table storage engine should not be allowed
+#               when slave is running
+
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+# Changing gtid_slave_pos table is format independent so just use one for
+# reduced test time
+--source include/have_binlog_format_row.inc
+
+--connection slave
+--let old_slave_pos_engine= query_get_value(SHOW TABLE STATUS FROM mysql LIKE 'gtid_slave_pos', Engine, 1)
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+call mtr.add_suppression("Slave: This operation cannot be performed as you have a running slave with parallel threads.*");
+
+
+--echo #
+--echo # Trying to alter gtid_slave_pos table while slave has parallel threads
+--echo # should result in an error
+--echo #
+--connection slave
+--let slave_sql_running= query_get_value(SHOW SLAVE STATUS, Slave_SQL_Running, 1)
+
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=1;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+--echo # Slave_SQL_Running: $slave_sql_running
+--error 4054
+ALTER TABLE mysql.gtid_slave_pos ENGINE=innodb;
+--let slave_pos_engine= query_get_value(SHOW TABLE STATUS FROM mysql LIKE 'gtid_slave_pos', Engine, 1)
+if ($old_slave_pos_engine != $slave_pos_engine)
+{
+    --die gtid_slave_pos engine should not have changed if slave has active parallel threads
+}
+
+
+--echo #
+--echo # Altering gtid_slave_pos engine while slave SQL thread is stopped should
+--echo # succeed
+--echo #
+--source include/stop_slave.inc
+--let slave_sql_running= query_get_value(SHOW SLAVE STATUS, Slave_SQL_Running, 1)
+--echo # Slave_SQL_Running: $slave_sql_running
+ALTER TABLE mysql.gtid_slave_pos ENGINE=innodb;
+--source include/start_slave.inc
+--let slave_pos_engine= query_get_value(SHOW TABLE STATUS FROM mysql LIKE 'gtid_slave_pos', Engine, 1)
+if ($old_slave_pos_engine == $slave_pos_engine)
+{
+    --die gtid_slave_pos engine should have changed with a stopped slave
+}
+
+--echo # Reset gtid_slave_pos engine
+--source include/stop_slave.inc
+--eval ALTER TABLE mysql.gtid_slave_pos ENGINE=$old_slave_pos_engine
+--source include/start_slave.inc
+
+
+--echo #
+--echo # Altering gtid_slave_pos engine on serial slave should succeed
+--echo #
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=0;
+--source include/start_slave.inc
+--let slave_sql_running= query_get_value(SHOW SLAVE STATUS, Slave_SQL_Running, 1)
+--echo # Slave_SQL_Running: $slave_sql_running
+ALTER TABLE mysql.gtid_slave_pos ENGINE=innodb;
+--source include/start_slave.inc
+--let slave_pos_engine= query_get_value(SHOW TABLE STATUS FROM mysql LIKE 'gtid_slave_pos', Engine, 1)
+if ($old_slave_pos_engine == $slave_pos_engine)
+{
+    --die gtid_slave_pos engine should have changed on a serial slave
+}
+
+--echo # Reset gtid_slave_pos engine
+--source include/stop_slave.inc
+--eval ALTER TABLE mysql.gtid_slave_pos ENGINE=$old_slave_pos_engine
+--source include/start_slave.inc
+
+
+--echo #
+--echo # Replicating gtid_slave_pos engine change from master to serial slave
+--echo # should succeed
+--echo #
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=0;
+--source include/start_slave.inc
+
+--connection master
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let slave_pos_engine= query_get_value(SHOW TABLE STATUS FROM mysql LIKE 'gtid_slave_pos', Engine, 1)
+if ($old_slave_pos_engine == $slave_pos_engine)
+{
+    --die gtid_slave_pos engine change should have replicated from master on serial slave
+}
+
+--echo # Reset gtid_slave_pos engine
+--connection master
+--eval ALTER TABLE mysql.gtid_slave_pos ENGINE=$old_slave_pos_engine
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+
+--echo #
+--echo # Replicating gtid_slave_pos engine change from master to parallel slave
+--echo # should fail
+--echo #
+--connection slave
+--source include/stop_slave.inc
+--eval ALTER TABLE mysql.gtid_slave_pos ENGINE=$old_slave_pos_engine
+SET GLOBAL slave_parallel_threads=1;
+--source include/start_slave.inc
+
+--connection master
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+--source include/save_master_gtid.inc
+
+--connection slave
+--let $slave_sql_errno=4054
+--source include/wait_for_slave_sql_error.inc
+
+--let slave_pos_engine= query_get_value(SHOW TABLE STATUS FROM mysql LIKE 'gtid_slave_pos', Engine, 1)
+if ($old_slave_pos_engine != $slave_pos_engine)
+{
+    --die gtid_slave_pos engine change from master should fail on parallel slave
+}
+
+--echo # Skip the problem event from the master.
+--source include/stop_slave.inc
+#SET GLOBAL gtid_slave_pos= "0-1-3";
+SET sql_slave_skip_counter=1;
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+
+--echo #
+--echo # Renaming gtid_slave_pos table while slave has parallel threads should
+--echo # result in an error
+--echo #
+--connection slave
+--let slave_sql_running= query_get_value(SHOW SLAVE STATUS, Slave_SQL_Running, 1)
+
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=1;
+--source include/start_slave.inc
+
+--echo # Slave_SQL_Running: $slave_sql_running
+--error 4054
+RENAME TABLE mysql.gtid_slave_pos TO mysql.gtid_slave_pos_v2;
+--let slave_pos_engine= query_get_value(SHOW TABLE STATUS FROM mysql LIKE 'gtid_slave_pos', Engine, 1)
+if (`SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE table_schema='mysql' AND table_name='gtid_slave_pos_v2'`)
+{
+    --die gtid_slave_pos rename should fail on slave with active parallel threads
+}
+
+
+--echo #
+--echo # Renaming gtid_slave_pos table on serial slave should succeed
+--echo #
+--connection slave
+--let slave_sql_running= query_get_value(SHOW SLAVE STATUS, Slave_SQL_Running, 1)
+
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=0;
+--source include/start_slave.inc
+
+--echo # Slave_SQL_Running: $slave_sql_running
+RENAME TABLE mysql.gtid_slave_pos TO mysql.gtid_slave_pos_v2;
+--let slave_pos_engine= query_get_value(SHOW TABLE STATUS FROM mysql LIKE 'gtid_slave_pos', Engine, 1)
+if (`SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE table_schema='mysql' AND table_name='gtid_slave_pos'`)
+{
+    --die gtid_slave_pos rename should succeed for serial slave
+}
+--echo # Revert table name
+RENAME TABLE mysql.gtid_slave_pos_v2 TO mysql.gtid_slave_pos;
+
+
+--echo #
+--echo # Renaming gtid_slave_pos table should succeed on stopped slave
+--echo #
+--connection slave
+--let slave_sql_running= query_get_value(SHOW SLAVE STATUS, Slave_SQL_Running, 1)
+
+--echo # Slave_SQL_Running: $slave_sql_running
+--source include/stop_slave.inc
+RENAME TABLE mysql.gtid_slave_pos TO mysql.gtid_slave_pos_v2;
+--source include/start_slave.inc
+--let slave_pos_engine= query_get_value(SHOW TABLE STATUS FROM mysql LIKE 'gtid_slave_pos', Engine, 1)
+if (`SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE table_schema='mysql' AND table_name='gtid_slave_pos'`)
+{
+    --die gtid_slave_pos rename should succeed for stopped slave
+}
+--echo # Revert table name
+--source include/stop_slave.inc
+RENAME TABLE mysql.gtid_slave_pos_v2 TO mysql.gtid_slave_pos;
+--source include/start_slave.inc
+
+--echo #
+--echo # Cleanup
+--echo #
+--connection slave
+--source include/stop_slave.inc
+--eval ALTER TABLE mysql.gtid_slave_pos ENGINE=$old_slave_pos_engine
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+--source include/start_slave.inc
+
+--source include/rpl_end.inc

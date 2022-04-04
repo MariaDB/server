@@ -7664,6 +7664,8 @@ ER_SLAVE_SAME_ID
         eng "A slave with the same server_uuid/server_id as this slave has connected to the master"
 ER_FLASHBACK_NOT_SUPPORTED
         eng "Flashback does not support %s %s"
+ER_SLAVE_IS_PARALLEL
+        eng "This operation cannot be performed as you have a running slave with parallel threads. Either stop the slave or disable parallelism first."
 
 
 

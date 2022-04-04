@@ -2,13 +2,18 @@ include/rpl_init.inc [topology=1->2]
 connection server_2;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
-SET GLOBAL slave_parallel_threads=10;
-SET @old_max_relay= @@GLOBAL.max_relay_log_size;
-SET GLOBAL max_relay_log_size = 4096;
+SET GLOBAL slave_parallel_threads=0;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 include/start_slave.inc
 connection server_1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+SET @old_max_relay= @@GLOBAL.max_relay_log_size;
+SET GLOBAL max_relay_log_size = 4096;
+include/start_slave.inc
+connection server_1;
 CREATE TABLE t1 (a int PRIMARY KEY, b VARCHAR(100)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1, "a");
 connection server_2;

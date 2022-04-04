@@ -30,6 +30,8 @@
 #include "sql_base.h"   // tdc_remove_table, lock_table_names,
 #include "sql_handler.h"                        // mysql_ha_rm_tables
 #include "sql_statistics.h" 
+#include "rpl_rli.h"
+#include "rpl_gtid.h"
 
 static TABLE_LIST *rename_tables(THD *thd, TABLE_LIST *table_list,
 				 bool skip_error);
@@ -51,6 +53,10 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent)
   TABLE_LIST *ren_table= 0;
   int to_table;
   char *rename_log_table[2]= {NULL, NULL};
+#ifdef HAVE_REPLICATION
+  MDL_request mdl_req_gtid_slave_state;
+  mdl_req_gtid_slave_state.ticket= NULL;
+#endif
   DBUG_ENTER("mysql_rename_tables");
 
   /*
@@ -139,6 +145,28 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent)
       goto err;
     }
   }
+
+#ifdef HAVE_REPLICATION
+  /*
+    The gtid slave state table (gtid_slave_pos) cannot be renamed if the slave
+    has parallel threads. The table's MDL lock is held when the slave is
+    running with parallel threads.
+  */
+  if (!(strncmp(table_list->db, C_STRING_WITH_LEN("mysql")) ||
+        strncmp(table_list->table_name, rpl_gtid_slave_state_table_name.str,
+                rpl_gtid_slave_state_table_name.length)))
+  {
+    mdl_req_gtid_slave_state.init(MDL_key::TABLE, "mysql",
+                                  rpl_gtid_slave_state_table_name.str,
+                                  MDL_SHARED_NO_WRITE, MDL_TRANSACTION);
+    if (!thd->mdl_context.try_acquire_lock(&mdl_req_gtid_slave_state) &&
+        !mdl_req_gtid_slave_state.ticket)
+    {
+      my_error(ER_SLAVE_IS_PARALLEL, MYF(0));
+      goto err;
+    }
+  }
+#endif
 
   if (lock_table_names(thd, table_list, 0, thd->variables.lock_wait_timeout,
                        0))
