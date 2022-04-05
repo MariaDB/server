@@ -50,6 +50,19 @@ DROP TABLE tbl_b;
 SET spider_xa_register_mode = 0;
 SHOW VARIABLES LIKE "spider_xa_register_mode";
 
+--echo # MDEV-28007 Deprecate Spider plugin variables regarding statistics persistence
+SET GLOBAL spider_store_last_sts = 0;
+SHOW VARIABLES LIKE "spider_store_last_sts";
+
+SET GLOBAL spider_store_last_crd = 0;
+SHOW VARIABLES LIKE "spider_store_last_crd";
+
+SET GLOBAL spider_load_sts_at_startup = 0;
+SHOW VARIABLES LIKE "spider_load_sts_at_startup";
+
+SET GLOBAL spider_load_crd_at_startup = 0;
+SHOW VARIABLES LIKE "spider_load_crd_at_startup";
+
 DROP DATABASE auto_test_local;
 
 --disable_query_log

@@ -81,6 +81,31 @@ Warning	1287	'@@spider_xa_register_mode' is deprecated and will be removed in a 
 SHOW VARIABLES LIKE "spider_xa_register_mode";
 Variable_name	Value
 spider_xa_register_mode	0
+# MDEV-28007 Deprecate Spider plugin variables regarding statistics persistence
+SET GLOBAL spider_store_last_sts = 0;
+Warnings:
+Warning	1287	'@@spider_store_last_sts' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_store_last_sts";
+Variable_name	Value
+spider_store_last_sts	0
+SET GLOBAL spider_store_last_crd = 0;
+Warnings:
+Warning	1287	'@@spider_store_last_crd' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_store_last_crd";
+Variable_name	Value
+spider_store_last_crd	0
+SET GLOBAL spider_load_sts_at_startup = 0;
+Warnings:
+Warning	1287	'@@spider_load_sts_at_startup' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_load_sts_at_startup";
+Variable_name	Value
+spider_load_sts_at_startup	0
+SET GLOBAL spider_load_crd_at_startup = 0;
+Warnings:
+Warning	1287	'@@spider_load_crd_at_startup' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_load_crd_at_startup";
+Variable_name	Value
+spider_load_crd_at_startup	0
 DROP DATABASE auto_test_local;
 for master_1
 for child2
