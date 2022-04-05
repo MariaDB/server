@@ -75,7 +75,7 @@ public:
   inline static double get_search_cost(ulonglong tree_elems,
                                        double compare_factor)
   {
-    return log((double) tree_elems) / (compare_factor * M_LN2);
+    return log((double) tree_elems) * compare_factor / M_LN2;
   }  
 
   static double get_use_cost(uint *buffer, size_t nkeys, uint key_size,
