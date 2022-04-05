@@ -23,17 +23,16 @@
 
 PSI_memory_key key_memory_Filesort_buffer_sort_keys;
 
-namespace {
 /**
   A local helper function. See comments for get_merge_buffers_cost().
- */
-double get_merge_cost(ha_rows num_elements, ha_rows num_buffers, uint elem_size)
+*/
+
+static double get_merge_cost(double rowid_compare_cost, ha_rows num_elements,
+                      ha_rows num_buffers, uint elem_size)
 {
-  return 
-    2.0 * ((double) num_elements * elem_size) / IO_SIZE
-    + (double) num_elements * log((double) num_buffers) /
-      (TIME_FOR_COMPARE_ROWID * M_LN2);
-}
+  return (2.0 * ((double) num_elements * elem_size) / IO_SIZE
+          + (double) num_elements * log((double) num_buffers) *
+          rowid_compare_cost / M_LN2);
 }
 
 /**
@@ -43,20 +42,21 @@ double get_merge_cost(ha_rows num_elements, ha_rows num_buffers, uint elem_size)
   see comments for get_merge_buffers_cost().
   TODO: Use this function for Unique::get_use_cost().
 */
-double get_merge_many_buffs_cost_fast(ha_rows num_rows,
+
+double get_merge_many_buffs_cost_fast(THD *thd,
+                                      ha_rows num_rows,
                                       ha_rows num_keys_per_buffer,
                                       uint    elem_size)
 {
   ha_rows num_buffers= num_rows / num_keys_per_buffer;
   ha_rows last_n_elems= num_rows % num_keys_per_buffer;
-  double total_cost;
+  double total_cost, rowid_compare_cost= ROWID_COMPARE_COST_THD(thd);
 
   // Calculate CPU cost of sorting buffers.
   total_cost=
     ((num_buffers * num_keys_per_buffer * log(1.0 + num_keys_per_buffer) +
-      last_n_elems * log(1.0 + last_n_elems)) /
-     TIME_FOR_COMPARE_ROWID);
-  
+      last_n_elems * log(1.0 + last_n_elems)) * rowid_compare_cost);
+
   // Simulate behavior of merge_many_buff().
   while (num_buffers >= MERGEBUFF2)
   {
@@ -69,14 +69,16 @@ double get_merge_many_buffs_cost_fast(ha_rows num_rows,
     // Cost of merge sort 'num_merge_calls'.
     total_cost+=
       num_merge_calls *
-      get_merge_cost(num_keys_per_buffer * MERGEBUFF, MERGEBUFF, elem_size);
+      get_merge_cost(rowid_compare_cost, num_keys_per_buffer * MERGEBUFF,
+                     MERGEBUFF, elem_size);
 
     // # of records in remaining buffers.
     last_n_elems+= num_remaining_buffs * num_keys_per_buffer;
 
     // Cost of merge sort of remaining buffers.
     total_cost+=
-      get_merge_cost(last_n_elems, 1 + num_remaining_buffs, elem_size);
+      get_merge_cost(rowid_compare_cost, last_n_elems, 1 + num_remaining_buffs,
+                     elem_size);
 
     num_buffers= num_merge_calls;
     num_keys_per_buffer*= MERGEBUFF;
@@ -84,7 +86,8 @@ double get_merge_many_buffs_cost_fast(ha_rows num_rows,
 
   // Simulate final merge_buff call.
   last_n_elems+= num_keys_per_buffer * num_buffers;
-  total_cost+= get_merge_cost(last_n_elems, 1 + num_buffers, elem_size);
+  total_cost+= get_merge_cost(rowid_compare_cost, last_n_elems, 1 + num_buffers,
+                              elem_size);
   return total_cost;
 }
 
