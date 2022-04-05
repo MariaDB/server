@@ -199,14 +199,6 @@
 #define MIN_ROWS_TO_USE_TABLE_CACHE	 100
 #define MIN_ROWS_TO_USE_BULK_INSERT	 100
 
-/**
-  The following is used to decide if MariaDB should use table scanning
-  instead of reading with keys.  The number says how many evaluation of the
-  WHERE clause is comparable to reading one extra row from a table.
-*/
-#define TIME_FOR_COMPARE         5.0	//  5 WHERE compares == one read
-#define TIME_FOR_COMPARE_IDX    20.0
-
 /*
   The table/index cache hit ratio in %. 0 means that a searched for key or row
   will never be in the cache while 100 means it always in the cache.
@@ -217,12 +209,12 @@
   or other seek structure.
 
   Increasing CACHE_HIT_RATIO will make MariaDB prefer key lookups over
-  table scans as the impact of RECORD_COPY_COST and INDEX_COPY cost will
+  table scans as the impact of ROW_COPY_COST and INDEX_COPY cost will
   have a larger impact when more rows are exmined..
 
   Note that avg_io_cost() is multipled with this constant!
 */
-#define CACHE_HIT_RATIO 50
+#define DEFAULT_CACHE_HIT_RATIO 50
 
 /* Convert ratio to cost */
 
@@ -232,14 +224,23 @@ static inline double cache_hit_cost(uint ratio)
 }
 
 /*
-  Cost of finding and copying keys of a total length of 'blocksize'
-  used in handler::keyread_time()
- */
-#define INDEX_BLOCK_COPY_COST  ((double) 1 / 5.0)
+  Base cost for finding keys and rows from the engine is 1.0
+  All other costs should be proportional to these
+*/
+
 /* Cost for finding the first key in a key scan */
 #define INDEX_LOOKUP_COST      ((double) 1.0)
 /* Cost of finding a key from a row_ID (not used for clustered keys) */
 #define ROW_LOOKUP_COST      ((double) 1.0)
+
+/*
+  Cost of finding and copying keys from the storage engine index cache to
+  an internal cache as part of an index scan.
+  Used in handler::keyread_time()
+*/
+#define DEFAULT_INDEX_BLOCK_COPY_COST  ((double) 1 / 5.0)
+#define INDEX_BLOCK_COPY_COST(THD) ((THD)->variables.optimizer_index_block_copy_cost)
+
 /*
   Cost of finding the next row during table scan and copying it to
   'table->record'.
@@ -249,7 +250,10 @@ static inline double cache_hit_cost(uint ratio)
   too big then MariaDB will used key lookup even when table scan is
   better.
 */
-#define RECORD_COPY_COST     ((double) 1.0 / 20.0)
+#define DEFAULT_ROW_COPY_COST     ((double) 1.0 / 20.0)
+#define ROW_COPY_COST             optimizer_row_copy_cost
+#define ROW_COPY_COST_THD(THD)    ((THD)->variables.optimizer_row_copy_cost)
+
 /*
   Cost of finding the next key during index scan and copying it to
   'table->record'
@@ -258,13 +262,40 @@ static inline double cache_hit_cost(uint ratio)
   as with table scans there are no key read (INDEX_LOOKUP_COST) and
   fewer disk reads.
 */
-#define INDEX_COPY_COST     ((double) 1.0 / 40.0)
+#define DEFAULT_KEY_COPY_COST     ((double) 1.0 / 40.0)
+#define KEY_COPY_COST             optimizer_key_copy_cost
+#define KEY_COPY_COST_THD(THD)    ((THD)->variables.optimizer_key_copy_cost)
+
 /*
   Cost of finding the next index entry and checking it against filter
   This cost is very low as it's done inside the storage engine.
-  Should be smaller than INDEX_COPY_COST.
+  Should be smaller than KEY_COPY_COST.
  */
-#define INDEX_NEXT_FIND_COST ((double) 1.0 / 80.0)
+#define DEFAULT_INDEX_NEXT_FIND_COST ((double) 1.0 / 80.0)
+#define INDEX_NEXT_FIND_COST         optimizer_next_find_cost
+
+
+/**
+  The following is used to decide if MariaDB should use table scanning
+  instead of reading with keys.  The number says how many evaluation of the
+  WHERE clause is comparable to reading one extra row from a table.
+*/
+#define DEFAULT_WHERE_COMPARE_COST      (1 / 5.0)
+#define WHERE_COMPARE_COST              optimizer_where_cmp_cost
+#define WHERE_COMPARE_COST_THD(THD)     ((THD)->variables.optimizer_where_cmp_cost)
+
+#define DEFAULT_KEY_COMPARE_COST        (1 / 20.0)
+#define KEY_COMPARE_COST                optimizer_key_cmp_cost
+
+/*
+  Cost of comparing two rowids. This is set relative to WHERE_COMPARE_COST
+*/
+#define ROWID_COMPARE_COST          (WHERE_COMPARE_COST / 100.0)
+#define ROWID_COMPARE_COST_THD(THD) ((THD)->variables.optimizer_where_cmp_cost / 100.0)
+
+/*
+  Setup cost for different operations
+*/
 
 /* Extra cost for doing a range scan. Used to prefer 'ref' over range */
 #define MULTI_RANGE_READ_SETUP_COST (double) (1.0 / 50.0)
@@ -283,12 +314,6 @@ static inline double cache_hit_cost(uint ratio)
   This is used to ensure that filters are not too agressive.
 */
 #define MIN_ROWS_AFTER_FILTERING 1.0
-
-/**
-  Number of comparisons of table rowids equivalent to reading one row from a 
-  table.
-*/
-#define TIME_FOR_COMPARE_ROWID  (TIME_FOR_COMPARE*100)
 
 /*
   cost1 is better that cost2 only if cost1 + COST_EPS < cost2

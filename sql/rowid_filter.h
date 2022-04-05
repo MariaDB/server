@@ -395,6 +395,7 @@ class Range_rowid_filter_cost_info final: public Sql_alloc
   /* The index whose range scan would be used to build the range filter */
   uint key_no;
   double cost_of_building_range_filter;
+  double where_cmp_cost, index_next_find_cost;
   /*
      (gain*row_combinations)-cost_of_building_range_filter yields the gain of
      the filter for 'row_combinations' key tuples of the index key_no
@@ -455,7 +456,7 @@ public:
   */
   inline double get_cmp_gain(double row_combinations)
   {
-    return row_combinations * (1 - selectivity) / TIME_FOR_COMPARE;
+    return (row_combinations * (1 - selectivity) * where_cmp_cost);
   }
 
   Rowid_filter_container *create_container();
