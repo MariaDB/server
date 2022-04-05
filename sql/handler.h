@@ -3220,6 +3220,10 @@ public:
     Updated from THD in open_tables()
    */
   double optimizer_cache_cost;
+  double optimizer_key_next_find_cost;
+  double optimizer_row_copy_cost, optimizer_key_copy_cost;
+  double optimizer_where_cost, optimizer_key_cmp_cost;
+
   ha_copy_info copy_info;
 
 private:
@@ -3355,7 +3359,7 @@ public:
     ref_length(sizeof(my_off_t)),
     ft_handler(0), inited(NONE), pre_inited(NONE),
     pushed_cond(0), next_insert_id(0), insert_id_for_cur_row(0),
-    optimizer_cache_cost((100-CACHE_HIT_RATIO)/100.0),
+    optimizer_cache_cost((100-DEFAULT_CACHE_HIT_RATIO)/100.0),
     tracker(NULL),
     pushed_idx_cond(NULL),
     pushed_idx_cond_keyno(MAX_KEY),
@@ -3619,7 +3623,7 @@ public:
   inline double ha_scan_and_compare_time(ha_rows records)
   {
     return (ha_scan_time() +
-            (double) records * (ROW_COPY_COST + 1/TIME_FOR_COMPARE));
+            (double) records * (ROW_COPY_COST + WHERE_COST));
   }
 
   virtual double avg_io_cost()
@@ -3627,6 +3631,13 @@ public:
    return 1.0;
   }
 
+  virtual void set_optimizer_costs(THD *thd);
+
+  /*
+    Set cost for finding a row in the engine cache
+    This allows the handler to override the cost if there is no
+    caching of rows, like in heap or federatedx.
+  */
   virtual void set_optimizer_cache_cost(double cost)
   {
     optimizer_cache_cost= cost;
@@ -3673,7 +3684,7 @@ public:
   inline double ha_read_and_compare_time(uint index, uint ranges, ha_rows rows)
   {
     return (ha_read_time(index, ranges, rows) +
-            rows2double(rows) * (ROW_COPY_COST + 1/TIME_FOR_COMPARE));
+            rows2double(rows) * (ROW_COPY_COST + WHERE_COST));
   }
 
   /* Cost of reading a row with rowid */
@@ -3749,7 +3760,7 @@ public:
   inline double ha_key_scan_and_compare_time(uint index, ha_rows rows)
   {
     return (ha_key_scan_time(index) +
-            (double) rows * (KEY_COPY_COST + 1/TIME_FOR_COMPARE));
+            (double) rows * (KEY_COPY_COST + WHERE_COST));
   }
 
   virtual const key_map *keys_to_use_for_scanning() { return &key_map_empty; }
