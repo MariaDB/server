@@ -29,6 +29,7 @@ perl;
                collation-server character-set-server log-tc-size table-cache
                table-open-cache table-open-cache-instances max-connections
                tls-version version.* password-reuse-check
+               provider-bzip2 provider-lzma provider-lzo
                password-reuse-check-interval/;
 
   # Plugins which may or may not be there:

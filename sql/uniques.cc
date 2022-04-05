@@ -156,7 +156,7 @@ inline double log2_n_fact(double x)
     the same length, so each of total_buf_size elements will be added to a sort
     heap with (n_buffers-1) elements. This gives the comparison cost:
 
-      total_buf_elems* log2(n_buffers) / TIME_FOR_COMPARE_ROWID;
+      total_buf_elems* log2(n_buffers) * ROWID_COMPARE_COST;
 */
 
 static double get_merge_buffers_cost(uint *buff_elems, uint elem_size,
@@ -171,8 +171,8 @@ static double get_merge_buffers_cost(uint *buff_elems, uint elem_size,
   size_t n_buffers= last - first + 1;
 
   /* Using log2(n)=log(n)/log(2) formula */
-  return 2*((double)total_buf_elems*elem_size) / IO_SIZE +
-     total_buf_elems*log((double) n_buffers) / (compare_factor * M_LN2);
+  return (2*((double)total_buf_elems*elem_size) / IO_SIZE +
+          total_buf_elems*log((double) n_buffers) * compare_factor / M_LN2);
 }
 
 
@@ -327,7 +327,7 @@ double Unique::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
   result= 2*log2_n_fact(last_tree_elems + 1.0);
   if (n_full_trees)
     result+= n_full_trees * log2_n_fact(max_elements_in_tree + 1.0);
-  result /= compare_factor;
+  result *= compare_factor;
 
   DBUG_PRINT("info",("unique trees sizes: %u=%u*%u + %u", (uint)nkeys,
                      (uint)n_full_trees, 

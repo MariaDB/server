@@ -1636,5 +1636,6 @@ public:
 
   bool can_convert_nocopy(const Field &field,
                           const Column_definition &new_field) const override;
+  void set_optimizer_costs(THD *thd) override;
 };
 #endif /* HA_PARTITION_INCLUDED */

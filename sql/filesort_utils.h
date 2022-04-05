@@ -39,7 +39,7 @@ class Sort_param;
     See also comments get_merge_many_buffs_cost().
 */
 
-double get_merge_many_buffs_cost_fast(ha_rows num_rows,
+double get_merge_many_buffs_cost_fast(THD *thd, ha_rows num_rows,
                                       ha_rows num_keys_per_buffer,
                                       uint    elem_size);
 
