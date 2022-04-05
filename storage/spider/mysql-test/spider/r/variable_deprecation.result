@@ -137,6 +137,35 @@ Warnings:
 Warning	1287	The table parameter 'sts_mode' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
+# MDEV-28010 Deprecate spider_crd_type and spider_crd_weight
+SET spider_crd_type = 1;
+Warnings:
+Warning	1287	'@@spider_crd_type' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_crd_type";
+Variable_name	Value
+spider_crd_type	1
+CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='ctp "1"';
+Warnings:
+Warning	1287	The table parameter 'ctp' is deprecated and will be removed in a future release
+CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='crd_type "1"';
+Warnings:
+Warning	1287	The table parameter 'crd_type' is deprecated and will be removed in a future release
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+SET spider_crd_weight = 1;
+Warnings:
+Warning	1287	'@@spider_crd_weight' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_crd_weight";
+Variable_name	Value
+spider_crd_weight	1
+CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='cwg "1"';
+Warnings:
+Warning	1287	The table parameter 'cwg' is deprecated and will be removed in a future release
+CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='crd_weight "1"';
+Warnings:
+Warning	1287	The table parameter 'crd_weight' is deprecated and will be removed in a future release
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
 DROP DATABASE auto_test_local;
 for master_1
 for child2

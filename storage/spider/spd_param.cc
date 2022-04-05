@@ -1707,7 +1707,7 @@ int spider_param_crd_sync(
  */
 static MYSQL_THDVAR_INT(
   crd_type, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Type of cardinality calculation.", /* comment */
   NULL, /* check */
   spider_use_table_value_deprecated, /* update */
@@ -1732,7 +1732,7 @@ int spider_param_crd_type(
  */
 static MYSQL_THDVAR_INT(
   crd_weight, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Weight coefficient to calculate effectiveness of index from cardinality of column.", /* comment */
   NULL, /* check */
   spider_use_table_value_deprecated, /* update */
