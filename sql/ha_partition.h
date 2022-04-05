@@ -1644,5 +1644,6 @@ public:
   bool can_convert_blob(
       const Field_blob* field,
       const Column_definition& new_field) const override;
+  void set_optimizer_costs(THD *thd);
 };
 #endif /* HA_PARTITION_INCLUDED */

@@ -1399,10 +1399,7 @@ public:
       Cost of fetching keys with index only read and returning them to the
       sql level.
     */
-    double index_only_fetch_cost()
-    {
-      return index_only_cost + (double) rows * KEY_COPY_COST;
-    }
+    double index_only_fetch_cost(THD *thd);
   } *opt_range;
   /* 
      Bitmaps of key parts that =const for the duration of join execution. If

@@ -708,11 +708,22 @@ The following specify which files/extra groups are read (specified before remain
  Expected hit rate of the row and index cache in storage
  engines. The value should be an integer between 0 and 99,
  where 0 means cache is empty and 99 means that value is
- almost always in the cache
+ almost always in the cache.
  --optimizer-extra-pruning-depth=# 
  If the optimizer needs to enumerate join prefix of this
  size or larger, then it will try agressively prune away
  the search space.
+ --optimizer-index-block-copy-cost=# 
+ Cost of copying a key block from the cache to intern
+ storage as part of an index scan.
+ --optimizer-key-compare-cost=# 
+ Cost of checking a key against the end key condition.
+ --optimizer-key-copy-cost=# 
+ Cost of finding the next key in the engine and copying it
+ to the SQL layer.
+ --optimizer-key-next-find-cost=# 
+ Cost of finding the next key and rowid when using
+ filters.
  --optimizer-max-sel-arg-weight=# 
  The maximum weight of the SEL_ARG graph. Set to 0 for no
  limit
@@ -723,6 +734,9 @@ The following specify which files/extra groups are read (specified before remain
  heuristic, thus perform exhaustive search: 1 - prune
  plans based on cost and number of retrieved rows eq_ref:
  2 - prune also if we find an eq_ref chain
+ --optimizer-row-copy-cost=# 
+ Cost of copying a row from the engine or the join cache
+ to the SQL layer.
  --optimizer-search-depth=# 
  Maximum depth of search performed by the query optimizer.
  Values larger than the number of relations in a query
@@ -775,6 +789,8 @@ The following specify which files/extra groups are read (specified before remain
  the cardinality of a partial join.5 - additionally use
  selectivity of certain non-range predicates calculated on
  record samples
+ --optimizer-where-cost=# 
+ Cost of checking the row against the WHERE clause.
  --performance-schema 
  Enable the performance schema.
  --performance-schema-accounts-size=# 
@@ -1683,14 +1699,20 @@ old-passwords FALSE
 old-style-user-limits FALSE
 optimizer-cache-hit-ratio 50
 optimizer-extra-pruning-depth 8
+optimizer-index-block-copy-cost 0.2
+optimizer-key-compare-cost 0.05
+optimizer-key-copy-cost 0.025
+optimizer-key-next-find-cost 0.0125
 optimizer-max-sel-arg-weight 32000
 optimizer-prune-level 2
+optimizer-row-copy-cost 0.05
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
 optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on
 optimizer-trace 
 optimizer-trace-max-mem-size 1048576
 optimizer-use-condition-selectivity 4
+optimizer-where-cost 0.2
 performance-schema FALSE
 performance-schema-accounts-size -1
 performance-schema-consumer-events-stages-current FALSE

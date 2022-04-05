@@ -23,7 +23,7 @@
 #include "opt_trace.h"
 
 /*
-  KEY_NEXT_FIND_COST below is the cost of finding the next possible key
+  key_next_find_cost below is the cost of finding the next possible key
   and calling handler_rowid_filter_check() to check it against the filter
 */
 
@@ -32,7 +32,7 @@ lookup_cost(Rowid_filter_container_type cont_type)
 {
   switch (cont_type) {
   case SORTED_ARRAY_CONTAINER:
-    return log(est_elements)*0.01+KEY_NEXT_FIND_COST;
+    return log(est_elements)*0.01+key_next_find_cost;
   default:
     DBUG_ASSERT(0);
     return 0;
@@ -51,7 +51,7 @@ double Range_rowid_filter_cost_info::
 avg_access_and_eval_gain_per_row(Rowid_filter_container_type cont_type,
                                  double cost_of_row_fetch)
 {
-  return (cost_of_row_fetch+1.0/TIME_FOR_COMPARE) * (1 - selectivity) -
+  return (cost_of_row_fetch + where_cost) * (1 - selectivity) -
          lookup_cost(cont_type);
 }
 
@@ -125,6 +125,8 @@ void Range_rowid_filter_cost_info::init(Rowid_filter_container_type cont_type,
   key_no= idx;
   est_elements= (ulonglong) table->opt_range[key_no].rows;
   cost_of_building_range_filter= build_cost(container_type);
+  where_cost= tab->in_use->variables.optimizer_where_cost;
+  key_next_find_cost= tab->in_use->variables.optimizer_key_next_find_cost;
   selectivity= est_elements/((double) table->stat_records());
   gain= avg_access_and_eval_gain_per_row(container_type,
                                          tab->file->optimizer_cache_cost);
@@ -147,7 +149,7 @@ Range_rowid_filter_cost_info::build_cost(Rowid_filter_container_type cont_type)
   double cost;
   DBUG_ASSERT(table->opt_range_keys.is_set(key_no));
 
-  cost= table->opt_range[key_no].index_only_fetch_cost();
+  cost= table->opt_range[key_no].index_only_fetch_cost(table->in_use);
 
   switch (cont_type) {
 
@@ -523,7 +525,8 @@ TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
     cost_of_rejected_rows= index_only_cost * (1 - filter->selectivity);
     new_cost= (cost_of_accepted_rows + cost_of_rejected_rows +
                records * filter->lookup_cost());
-    new_total_cost= ((new_cost + new_records/TIME_FOR_COMPARE) * prev_records +
+    new_total_cost= ((new_cost + new_records *
+                      in_use->variables.optimizer_where_cost) * prev_records +
                      filter->get_setup_cost());
 
     if (best_filter_gain > new_total_cost)
