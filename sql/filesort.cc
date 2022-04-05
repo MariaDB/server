@@ -1594,17 +1594,18 @@ static bool check_if_pq_applicable(Sort_param *param,
         scanning the table and comparing the rows with the where clause!
       */
       const double sort_merge_cost=
-        get_merge_many_buffs_cost_fast(num_rows,
+        get_merge_many_buffs_cost_fast(table->in_use, num_rows,
                                        num_available_keys,
                                        (uint)row_length);
       /*
         PQ has cost:
-        (insert + qsort) * log(queue size) / TIME_FOR_COMPARE_ROWID +
+        (insert + qsort) * log(queue size) * ROWID_COMPARE_COST
         cost of rowid lookup of the original row to find the addon fields.
       */
       const double pq_cpu_cost= 
         (PQ_slowness * num_rows + param->max_keys_per_buffer) *
-        log((double) param->max_keys_per_buffer) / TIME_FOR_COMPARE_ROWID;
+        log((double) param->max_keys_per_buffer) *
+        ROWID_COMPARE_COST_THD(table->in_use);
       const double pq_io_cost= table->file->ha_rnd_pos_time(param->max_rows);
       const double pq_cost= pq_cpu_cost + pq_io_cost;
 

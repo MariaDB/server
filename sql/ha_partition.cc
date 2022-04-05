@@ -12138,6 +12138,15 @@ ha_partition::can_convert_blob(const Field_blob* field,
   return true;
 }
 
+void ha_partition::set_optimizer_costs(THD *thd)
+{
+  handler::set_optimizer_costs(thd);
+  for (uint i= bitmap_get_first_set(&m_part_info->read_partitions);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+    m_file[i]->set_optimizer_costs(thd);
+}
+
 struct st_mysql_storage_engine partition_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
