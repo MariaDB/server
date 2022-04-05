@@ -469,12 +469,12 @@ EXPLAIN
 SELECT * FROM City
 WHERE ID BETWEEN 501 AND 1000 AND Population > 700000 AND Country LIKE 'C%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	PRIMARY,Population,Country	PRIMARY,Population,Country	4,4,7	NULL	#	Using sort_intersect(PRIMARY,Population,Country); Using where
+1	SIMPLE	City	index_merge	PRIMARY,Population,Country	PRIMARY,Population	4,4	NULL	#	Using sort_intersect(PRIMARY,Population); Using where
 EXPLAIN
 SELECT * FROM City
 WHERE ID BETWEEN 1 AND 500 AND Population > 700000 AND Country LIKE 'C%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	PRIMARY,Population,Country	PRIMARY,Population,Country	4,4,7	NULL	#	Using sort_intersect(PRIMARY,Population,Country); Using where
+1	SIMPLE	City	index_merge	PRIMARY,Population,Country	PRIMARY,Population	4,4	NULL	#	Using sort_intersect(PRIMARY,Population); Using where
 EXPLAIN
 SELECT * FROM City 
 WHERE ID BETWEEN 2001 AND 2500 AND Population > 300000 AND Country LIKE 'H%';
@@ -718,12 +718,12 @@ EXPLAIN
 SELECT * FROM City 
 WHERE  Name BETWEEN 'G' AND 'J' AND Population > 500000 AND Country LIKE 'C%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	Population,Country,Name	Name,Population,Country	35,4,3	NULL	#	Using sort_intersect(Name,Population,Country); Using where
+1	SIMPLE	City	index_merge	Population,Country,Name	Name,Population	35,4	NULL	#	Using sort_intersect(Name,Population); Using where
 EXPLAIN
 SELECT * FROM City
 WHERE ID BETWEEN 1 AND 500 AND Population > 700000 AND Country LIKE 'C%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	PRIMARY,Population,Country	PRIMARY,Population,Country	4,4,7	NULL	#	Using sort_intersect(PRIMARY,Population,Country); Using where
+1	SIMPLE	City	index_merge	PRIMARY,Population,Country	PRIMARY,Population	4,4	NULL	#	Using sort_intersect(PRIMARY,Population); Using where
 EXPLAIN
 SELECT * FROM City 
 WHERE ID BETWEEN 3001 AND 4000 AND Population > 600000

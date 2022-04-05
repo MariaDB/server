@@ -5069,7 +5069,7 @@ static void dbug_print_singlepoint_range(SEL_ARG **start, uint num)
     get_sweep_read_cost()
       param                 Parameter from test_quick_select
       records               # of records to be retrieved
-      add_time_for_compare  If set, add cost of WHERE clause (TIME_FOR_COMPARE)
+      add_time_for_compare  If set, add cost of WHERE clause (WHERE_COST)
   RETURN
     cost of sweep
 */
@@ -5080,7 +5080,8 @@ static double get_sweep_read_cost(const PARAM *param, ha_rows records,
   DBUG_ENTER("get_sweep_read_cost");
 #ifndef OLD_SWEEP_COST
   double cost= (param->table->file->ha_rnd_pos_time(records) +
-              (add_time_for_compare ? records / TIME_FOR_COMPARE : 0));
+                (add_time_for_compare ?
+                 records * param->thd->variables.optimizer_where_cost : 0));
   DBUG_PRINT("return", ("cost: %g", cost));
   DBUG_RETURN(cost);
 #else
@@ -5132,7 +5133,7 @@ static double get_sweep_read_cost(const PARAM *param, ha_rows records,
       */
       result= busy_blocks;
     }
-    result+= rows2double(n_rows) * ROW_COPY_COST;
+    result+= rows2double(n_rows) * ROW_COPY_COST_THD(param->table->thd);
   }
   DBUG_PRINT("return",("cost: %g", result));
   DBUG_RETURN(result);
@@ -5345,8 +5346,8 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
       Add one ROWID comparison for each row retrieved on non-CPK scan.  (it
       is done in QUICK_RANGE_SELECT::row_in_ranges)
      */
-    double rid_comp_cost= (rows2double(non_cpk_scan_records) /
-                           TIME_FOR_COMPARE_ROWID);
+    double rid_comp_cost= (rows2double(non_cpk_scan_records) *
+                           ROWID_COMPARE_COST_THD(param->thd));
     imerge_cost+= rid_comp_cost;
     trace_best_disjunct.add("cost_of_mapping_rowid_in_non_clustered_pk_scan",
                             rid_comp_cost);
@@ -5354,7 +5355,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
 
   /* Calculate cost(rowid_to_row_scan) */
   {
-    /* imerge_cost already includes TIME_FOR_COMPARE */
+    /* imerge_cost already includes WHERE_COST */
     double sweep_cost= get_sweep_read_cost(param, non_cpk_scan_records, 0);
     imerge_cost+= sweep_cost;
     trace_best_disjunct.
@@ -5392,7 +5393,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
                            param->imerge_cost_buff, (uint)non_cpk_scan_records,
                            param->table->file->ref_length,
                            (size_t)param->thd->variables.sortbuff_size,
-                           TIME_FOR_COMPARE_ROWID,
+                           ROWID_COMPARE_COST_THD(param->thd),
                            FALSE, NULL);
     imerge_cost+= dup_removal_cost;
     if (unlikely(trace_best_disjunct.trace_started()))
@@ -5506,8 +5507,8 @@ skip_to_ror_scan:
 
   double roru_total_cost;
   roru_total_cost= (roru_index_costs +
-                    rows2double(roru_total_records)*log((double)n_child_scans) /
-                    (TIME_FOR_COMPARE_ROWID * M_LN2) +
+                    rows2double(roru_total_records)*log((double)n_child_scans) *
+                    ROWID_COMPARE_COST_THD(param->thd) / M_LN2 +
                     get_sweep_read_cost(param, roru_total_records, 0));
 
   DBUG_PRINT("info", ("ROR-union: cost %g, %zu members",
@@ -5663,8 +5664,8 @@ typedef struct st_common_index_intersect_info
 {
   PARAM *param;           /* context info for range optimizations            */
   uint key_size;          /* size of a ROWID element stored in Unique object */
-  double compare_factor;  /* 1/compare - cost to compare two ROWIDs     */
-  size_t max_memory_size;   /* maximum space allowed for Unique objects   */   
+  double compare_factor;  /* cost to compare two ROWIDs                      */
+  size_t max_memory_size;   /* maximum space allowed for Unique objects      */
   ha_rows table_cardinality;   /* estimate of the number of records in table */
   double cutoff_cost;        /* discard index intersects with greater costs  */ 
   INDEX_SCAN_INFO *cpk_scan;  /* clustered primary key used in intersection  */
@@ -5877,7 +5878,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
 
   common->param= param;
   common->key_size= table->file->ref_length;
-  common->compare_factor= TIME_FOR_COMPARE_ROWID;
+  common->compare_factor= ROWID_COMPARE_COST_THD(param->thd);
   common->max_memory_size= (size_t)param->thd->variables.sortbuff_size;
   common->cutoff_cost= cutoff_cost;
   common->cpk_scan= NULL;
@@ -5934,7 +5935,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
       continue;
     }
 
-    cost= table->opt_range[(*index_scan)->keynr].index_only_fetch_cost();
+    cost= table->opt_range[(*index_scan)->keynr].index_only_fetch_cost(thd);
 
     idx_scan.add("cost", cost);
 
@@ -6298,8 +6299,8 @@ double get_cpk_filter_cost(ha_rows filtered_records,
                            INDEX_SCAN_INFO *cpk_scan,
                            double compare_factor)
 {
-  return log((double) (cpk_scan->range_count+1)) / (compare_factor * M_LN2) *
-           filtered_records;
+  return (log((double) (cpk_scan->range_count+1)) * compare_factor / M_LN2 *
+          filtered_records);
 }
 
 
@@ -7054,11 +7055,11 @@ static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
   {
     /*
       CPK scan is used to filter out rows. We apply filtering for 
-      each record of every scan. Assuming 1/TIME_FOR_COMPARE_ROWID
+      each record of every scan. Assuming ROWID_COMPARE_COST
       per check this gives us:
     */
-    const double idx_cost= (rows2double(info->index_records) /
-                            TIME_FOR_COMPARE_ROWID);
+    const double idx_cost= (rows2double(info->index_records) *
+                            ROWID_COMPARE_COST_THD(info->param->thd));
     info->index_scan_costs+= idx_cost;
     trace_costs->add("index_scan_cost", idx_cost);
   }
@@ -7367,7 +7368,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     Adjust row count and add the cost of comparing the final rows to the
     WHERE clause
   */
-  cmp_cost= intersect_best->out_rows/TIME_FOR_COMPARE;
+  cmp_cost= intersect_best->out_rows * thd->variables.optimizer_where_cost;
 
   /* Ok, return ROR-intersect plan if we have found one */
   TRP_ROR_INTERSECT *trp= NULL;
@@ -7536,9 +7537,9 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
                                            tree->ror_scans, ror_scan_mark););
 
   /* Add priority queue use cost. */
-  total_cost += rows2double(records)*
-                log((double)(ror_scan_mark - tree->ror_scans)) /
-                (TIME_FOR_COMPARE_ROWID * M_LN2);
+  total_cost += (rows2double(records) *
+                 log((double)(ror_scan_mark - tree->ror_scans)) *
+                 ROWID_COMPARE_COST_THD(param->thd) / M_LN2);
   DBUG_PRINT("info", ("Covering ROR-intersect full cost: %g", total_cost));
 
   /* TODO: Add TIME_FOR_COMPARE cost to total_cost */
@@ -15093,7 +15094,7 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
     group. To make the CPU cost reflect this, we estimate the CPU cost
     as the sum of:
     1. Cost for evaluating the condition for each num_group
-       (1/TIME_FOR_COMPARE_IDX) (similarly as for index scan).
+       KEY_COMPARE_COST (similarly as for index scan).
     2. Cost for navigating the index structure (assuming a b-tree).
        Note: We only add the cost for one index comparision per block. For a
              b-tree the number of comparisons will be larger. However the cost
@@ -15102,13 +15103,15 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
        TODO: This cost should be provided by the storage engine.
     3. Cost for comparing the row with the where clause
   */
+  const THD *thd= table->in_use;
   const double tree_traversal_cost=
     ceil(log(static_cast<double>(table_records))/
          log(static_cast<double>(keys_per_block))) * 
-    1/(TIME_FOR_COMPARE_IDX);
+    thd->variables.optimizer_key_cmp_cost;
 
   const double cpu_cost= (num_groups *
-                          (tree_traversal_cost + 1/TIME_FOR_COMPARE));
+                          (tree_traversal_cost +
+                           thd->variables.optimizer_where_cost));
 
   *read_cost= io_cost + cpu_cost;
   *records= num_groups;

@@ -3249,7 +3249,7 @@ LEX_CSTRING *handler::engine_name()
   those key entries into the engine buffers.
 
  This function doesn't take in account into copying the key to record
- (KEY_COPY_COST) or comparing the key to the where clause (TIME_FOR_COMPARE)
+ (KEY_COPY_COST) or comparing the key to the where clause (WHERE_COST)
 */
 
 double handler::keyread_time(uint index, uint ranges, ha_rows rows)
@@ -3261,7 +3261,8 @@ double handler::keyread_time(uint index, uint ranges, ha_rows rows)
   if (table->file->is_clustering_key(index))
     len= table->s->stored_rec_length;
 
-  cost= ((double)rows*len/(stats.block_size+1)*INDEX_BLOCK_COPY_COST);
+  cost= ((double)rows*len/(stats.block_size+1) *
+         INDEX_BLOCK_COPY_COST(table->in_use));
   /*
     We divide the cost with optimizer_cache_cost as ha_keyread_time()
     and ha_key_scan_time() will multiply the result value with
@@ -3413,9 +3414,18 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
     else
       dup_ref=ref+ALIGN_SIZE(ref_length);
     cached_table_flags= table_flags();
+
+    /* Copy current optimizer costs. Needed in case clone() is used */
+    set_optimizer_costs(table->in_use);
+    DBUG_ASSERT(optimizer_key_copy_cost >= 0.0);
+    DBUG_ASSERT(optimizer_key_next_find_cost >= 0.0);
+    DBUG_ASSERT(optimizer_row_copy_cost >= 0.0);
+    DBUG_ASSERT(optimizer_where_cost >= 0.0);
+    DBUG_ASSERT(optimizer_key_cmp_cost >= 0.0);
+    reset_statistics();
   }
-  reset_statistics();
   internal_tmp_table= MY_TEST(test_if_locked & HA_OPEN_INTERNAL_TABLE);
+
   DBUG_RETURN(error);
 }
 
@@ -8754,4 +8764,31 @@ Table_scope_and_contents_source_st::fix_period_fields(THD *thd,
     }
   }
   return false;
+}
+
+/*
+  Copy common optimizer cost variables to the engine
+
+  This is needed to provide fast acccess to these variables during
+  optimization (as we refer to them multiple times).
+
+  The other option would be to access them from thd, but that
+  would require a function call (as we cannot access THD from
+  an inline handler function) and two extra memory accesses
+  for each variable.
+
+  index_block_copy_cost is not copied as it is used so seldom.
+*/
+
+
+void handler::set_optimizer_costs(THD *thd)
+{
+  optimizer_key_copy_cost= thd->variables.optimizer_key_copy_cost;
+  optimizer_key_next_find_cost=
+    thd->variables.optimizer_key_next_find_cost;
+  optimizer_row_copy_cost= thd->variables.optimizer_row_copy_cost;
+  optimizer_where_cost= thd->variables.optimizer_where_cost;
+  optimizer_key_cmp_cost= thd->variables.optimizer_key_cmp_cost;
+  set_optimizer_cache_cost(cache_hit_cost(thd->variables.
+                                          optimizer_cache_hit_ratio));
 }
