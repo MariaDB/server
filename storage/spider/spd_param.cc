@@ -446,7 +446,7 @@ uint spider_param_force_commit(
  */
 static MYSQL_THDVAR_UINT(
   xa_register_mode, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Mode of XA transaction register into system table", /* comment */
   NULL, /* check */
   NULL, /* update */

@@ -74,6 +74,13 @@ Warnings:
 Warning	1287	The table parameter 'internal_limit' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
+# MDEV-28244 Deprecate spider_xa_register_mode
+SET spider_xa_register_mode = 0;
+Warnings:
+Warning	1287	'@@spider_xa_register_mode' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_xa_register_mode";
+Variable_name	Value
+spider_xa_register_mode	0
 DROP DATABASE auto_test_local;
 for master_1
 for child2

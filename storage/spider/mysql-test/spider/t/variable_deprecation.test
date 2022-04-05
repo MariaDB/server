@@ -46,6 +46,10 @@ eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='internal_limit "1"';
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 
+--echo # MDEV-28244 Deprecate spider_xa_register_mode
+SET spider_xa_register_mode = 0;
+SHOW VARIABLES LIKE "spider_xa_register_mode";
+
 DROP DATABASE auto_test_local;
 
 --disable_query_log
