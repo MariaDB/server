@@ -1433,6 +1433,7 @@ void get_delayed_table_estimates(TABLE *table,
   Item_in_subselect *item= table->pos_in_table_list->jtbm_subselect;
   Table_function_json_table *table_function=
                                table->pos_in_table_list->table_function;
+  handler *file= table->file;
 
   if (table_function)
   {
@@ -1452,9 +1453,10 @@ void get_delayed_table_estimates(TABLE *table,
   /* Calculate cost of scanning the temptable */
   double data_size= COST_MULT(item->jtbm_record_count,
                               hash_sj_engine->tmp_table->s->reclength);
+
   /* Do like in handler::ha_scan_and_compare_time, but ignore the where cost */
   *scan_time= ((data_size/table->file->stats.block_size+2) *
-               table->file->avg_io_cost()) + *out_rows * RECORD_COPY_COST;
+               table->file->avg_io_cost()) + *out_rows * file->ROW_COPY_COST;
 }
 
 

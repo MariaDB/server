@@ -683,6 +683,10 @@ typedef struct system_variables
   ulonglong slave_skip_counter;
   ulonglong max_relay_log_size;
 
+  double optimizer_index_block_copy_cost, optimizer_index_next_find_cost;
+  double optimizer_row_copy_cost, optimizer_key_copy_cost;
+  double optimizer_where_cmp_cost, optimizer_key_cmp_cost;
+
   ha_rows select_limit;
   ha_rows max_join_size;
   ha_rows expensive_subquery_limit;
@@ -766,7 +770,7 @@ typedef struct system_variables
 
   uint group_concat_max_len;
   uint eq_range_index_dive_limit;
-  uint optimizer_cache_hit_ratio;
+  uint optimizer_cache_hit_ratio;  // Stored in handler::optimizer_cache_cost
   int max_user_connections;
 
   /**
