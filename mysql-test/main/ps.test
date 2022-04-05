@@ -5083,5 +5083,24 @@ SET GLOBAL disconnect_on_expired_password=@disconnect_on_expired_password_save;
 DROP USER user1@localhost;
 
 --echo #
+--echo # MDEV-21173: Assertion `m_thd == __null' failed in sp_head::~sp_head
+--echo #
+CREATE TABLE t1 (a INT);
+
+--error ER_SUBQUERIES_NOT_SUPPORTED
+EXECUTE IMMEDIATE "CREATE PROCEDURE p1() SELECT 1 FROM t1  PROCEDURE ANALYSE( 10, (SELECT a FROM t1));";
+DROP TABLE t1;
+
+delimiter $;
+--error ER_SUBQUERIES_NOT_SUPPORTED
+BEGIN NOT ATOMIC
+  PREPARE stmt FROM 'SELECT ?';
+  EXECUTE stmt USING ((SELECT 1));
+END;
+$
+
+delimiter ;$
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

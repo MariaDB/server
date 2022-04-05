@@ -5650,5 +5650,18 @@ connection default;
 SET GLOBAL disconnect_on_expired_password=@disconnect_on_expired_password_save;
 DROP USER user1@localhost;
 #
+# MDEV-21173: Assertion `m_thd == __null' failed in sp_head::~sp_head
+#
+CREATE TABLE t1 (a INT);
+EXECUTE IMMEDIATE "CREATE PROCEDURE p1() SELECT 1 FROM t1  PROCEDURE ANALYSE( 10, (SELECT a FROM t1));";
+ERROR 42000: PROCEDURE does not support subqueries or stored functions
+DROP TABLE t1;
+BEGIN NOT ATOMIC
+PREPARE stmt FROM 'SELECT ?';
+EXECUTE stmt USING ((SELECT 1));
+END;
+$
+ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
+#
 # End of 10.4 tests
 #

@@ -10481,7 +10481,14 @@ END;
 $$
 DELIMITER ;$$
 
-
 --echo #
+--echo # MDEV-21173: Assertion `m_thd == __null' failed in sp_head::~sp_head
+--echo #
+CREATE TABLE t1 (a INT);
+--error ER_SUBQUERIES_NOT_SUPPORTED
+CREATE PROCEDURE p1() SELECT 1 FROM t1 PROCEDURE ANALYSE( 10, (SELECT a FROM t1));
+
+DROP TABLE t1;
+
 --echo # End of 10.4 tests
 --echo #

@@ -9610,7 +9610,7 @@ subselect:
           query_expression
           {
             if (!($$= Lex->parsed_subselect($1)))
-              YYABORT;
+              MYSQL_YYABORT;
           }
         ;
 
@@ -9655,14 +9655,14 @@ subquery:
             else
               $1->fake_select_lex->braces= false;
             if (!($$= Lex->parsed_subselect($1)))
-              YYABORT;
+              MYSQL_YYABORT;
           }
         | '(' with_clause query_expression_no_with_clause ')'
           {
             $3->set_with_clause($2);
             $2->attach_to($3->first_select());
             if (!($$= Lex->parsed_subselect($3)))
-              YYABORT;
+              MYSQL_YYABORT;
           }
         ;
 
