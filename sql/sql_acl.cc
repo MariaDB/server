@@ -3674,23 +3674,25 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
   case SCH_TRIGGERS:
   case SCH_EVENTS:
   {
-    const char *dst_db_name= table->schema_select_lex->db.str;
+    const LEX_CSTRING &dst_db_name= table->schema_select_lex->db;
 
-    DBUG_ASSERT(dst_db_name);
+    DBUG_ASSERT(dst_db_name.str);
     privilege_t cur_access;
 
-    if (check_access(thd, SELECT_ACL, dst_db_name,
+    if (check_access(thd, SELECT_ACL, dst_db_name.str,
                      &cur_access, NULL, FALSE, FALSE))
       return TRUE;
 
+    privilege_t deny_mask= acl_get_effective_deny_mask(thd->security_ctx,
+                                                       dst_db_name);
     //TODO(cvicentiu) compute correct deny mask...
-    if (!cur_access && check_grant_db(thd->security_ctx, dst_db_name, NO_ACL))
+    if (!cur_access && check_grant_db(thd->security_ctx, dst_db_name.str, NO_ACL))
     {
       status_var_increment(thd->status_var.access_denied_errors);
       my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
                thd->security_ctx->priv_user,
                thd->security_ctx->priv_host,
-               dst_db_name);
+               dst_db_name.str);
       return TRUE;
     }
 
