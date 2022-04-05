@@ -661,7 +661,6 @@ typedef struct system_variables
   ulonglong max_statement_time;
   ulonglong optimizer_switch;
   ulonglong optimizer_trace;
-  ulong optimizer_trace_max_mem_size;
   sql_mode_t sql_mode; ///< which non-standard SQL behaviour should be enabled
   sql_mode_t old_behavior; ///< which old SQL behaviour should be enabled
   ulonglong option_bits; ///< OPTION_xxx constants, e.g. OPTION_PROFILING
@@ -675,6 +674,7 @@ typedef struct system_variables
   ulonglong sortbuff_size;
   ulonglong default_regex_flags;
   ulonglong max_mem_used;
+  ulonglong max_rowid_filter_size;
 
   /**
      Place holders to store Multi-source variables in sys_var.cc during
@@ -686,11 +686,13 @@ typedef struct system_variables
   double optimizer_index_block_copy_cost, optimizer_index_next_find_cost;
   double optimizer_row_copy_cost, optimizer_key_copy_cost;
   double optimizer_where_cmp_cost, optimizer_key_cmp_cost;
+  double long_query_time_double, max_statement_time_double;
+  double sample_percentage;
 
   ha_rows select_limit;
   ha_rows max_join_size;
   ha_rows expensive_subquery_limit;
-  ulong auto_increment_increment, auto_increment_offset;
+
 #ifdef WITH_WSREP
   /*
     Stored values of the auto_increment_increment and auto_increment_offset
@@ -699,10 +701,12 @@ typedef struct system_variables
     original values (which are set by the user) by calculated ones (which
     are based on the cluster size):
   */
+  ulonglong wsrep_gtid_seq_no;
   ulong saved_auto_increment_increment, saved_auto_increment_offset;
   ulong saved_lock_wait_timeout;
-  ulonglong wsrep_gtid_seq_no;
 #endif /* WITH_WSREP */
+
+  ulong auto_increment_increment, auto_increment_offset;
   ulong column_compression_zlib_strategy;
   ulong lock_wait_timeout;
   ulong join_cache_level;
@@ -724,8 +728,8 @@ typedef struct system_variables
   ulong optimizer_search_depth;
   ulong optimizer_selectivity_sampling_limit;
   ulong optimizer_use_condition_selectivity;
+  ulong optimizer_trace_max_mem_size;
   ulong use_stat_tables;
-  double sample_percentage;
   ulong histogram_size;
   ulong histogram_type;
   ulong preload_buff_size;
@@ -756,6 +760,15 @@ typedef struct system_variables
   ulong updatable_views_with_limit;
   ulong alter_algorithm;
   ulong server_id;
+  ulong session_track_transaction_info;
+  ulong threadpool_priority;
+  ulong optimizer_max_sel_arg_weight;
+  ulong vers_alter_history;
+
+  /* deadlock detection */
+  ulong wt_timeout_short, wt_deadlock_search_depth_short;
+  ulong wt_timeout_long, wt_deadlock_search_depth_long;
+
   /**
     In slave thread we need to know in behalf of which
     thread the query is being run to replicate temp tables properly
@@ -771,6 +784,12 @@ typedef struct system_variables
   uint group_concat_max_len;
   uint eq_range_index_dive_limit;
   uint optimizer_cache_hit_ratio;  // Stored in handler::optimizer_cache_cost
+  uint idle_transaction_timeout;
+  uint idle_readonly_transaction_timeout;
+  uint idle_write_transaction_timeout;
+  uint column_compression_threshold;
+  uint column_compression_zlib_level;
+  uint in_subquery_conversion_threshold;
   int max_user_connections;
 
   /**
@@ -791,6 +810,17 @@ typedef struct system_variables
   my_bool binlog_annotate_row_events;
   my_bool binlog_direct_non_trans_update;
   my_bool column_compression_zlib_wrap;
+  my_bool sysdate_is_now;
+  my_bool wsrep_on;
+  my_bool wsrep_causal_reads;
+  my_bool wsrep_dirty_reads;
+  my_bool pseudo_slave_mode;
+  my_bool session_track_schema;
+  my_bool session_track_state_change;
+#ifdef USER_VAR_TRACKING
+  my_bool session_track_user_variables;
+#endif // USER_VAR_TRACKING
+  my_bool tcp_nodelay;
 
   plugin_ref table_plugin;
   plugin_ref tmp_table_plugin;
@@ -817,47 +847,16 @@ typedef struct system_variables
   MY_LOCALE *lc_time_names;
 
   Time_zone *time_zone;
+  char *session_track_system_variables;
 
-  my_bool sysdate_is_now;
-
-  /* deadlock detection */
-  ulong wt_timeout_short, wt_deadlock_search_depth_short;
-  ulong wt_timeout_long, wt_deadlock_search_depth_long;
-
-  my_bool wsrep_on;
-  my_bool wsrep_causal_reads;
-  uint    wsrep_sync_wait;
-  ulong   wsrep_retry_autocommit;
+  /* Some wsrep variables */
   ulonglong wsrep_trx_fragment_size;
+  ulong   wsrep_retry_autocommit;
   ulong   wsrep_trx_fragment_unit;
   ulong   wsrep_OSU_method;
-  my_bool wsrep_dirty_reads;
-  double long_query_time_double, max_statement_time_double;
-
-  my_bool pseudo_slave_mode;
-
-  char *session_track_system_variables;
-  ulong session_track_transaction_info;
-  my_bool session_track_schema;
-  my_bool session_track_state_change;
-#ifdef USER_VAR_TRACKING
-  my_bool session_track_user_variables;
-#endif // USER_VAR_TRACKING
-  my_bool tcp_nodelay;
-
-  ulong threadpool_priority;
-
-  uint idle_transaction_timeout;
-  uint idle_readonly_transaction_timeout;
-  uint idle_write_transaction_timeout;
-  uint column_compression_threshold;
-  uint column_compression_zlib_level;
-  uint in_subquery_conversion_threshold;
-  ulong optimizer_max_sel_arg_weight;
-  ulonglong max_rowid_filter_size;
+  uint    wsrep_sync_wait;
 
   vers_asof_timestamp_t vers_asof_timestamp;
-  ulong vers_alter_history;
 } SV;
 
 /**
