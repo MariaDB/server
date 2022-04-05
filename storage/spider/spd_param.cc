@@ -1650,7 +1650,7 @@ double spider_param_crd_interval(
  */
 static MYSQL_THDVAR_INT(
   crd_mode, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Mode of cardinality confirmation.", /* comment */
   NULL, /* check */
   spider_use_table_value_deprecated, /* update */
@@ -1814,7 +1814,7 @@ double spider_param_sts_interval(
  */
 static MYSQL_THDVAR_INT(
   sts_mode, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Mode of table state confirmation.", /* comment */
   NULL, /* check */
   spider_use_table_value_deprecated, /* update */

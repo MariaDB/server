@@ -106,6 +106,37 @@ Warning	1287	'@@spider_load_crd_at_startup' is deprecated and will be removed in
 SHOW VARIABLES LIKE "spider_load_crd_at_startup";
 Variable_name	Value
 spider_load_crd_at_startup	0
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+# MDEV-28008 Deprecate spider_crd_mode and spider_sts_mode
+SET spider_crd_mode = 1;
+Warnings:
+Warning	1287	'@@spider_crd_mode' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_crd_mode";
+Variable_name	Value
+spider_crd_mode	1
+CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='cmd "3"';
+Warnings:
+Warning	1287	The table parameter 'cmd' is deprecated and will be removed in a future release
+CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='crd_mode "3"';
+Warnings:
+Warning	1287	The table parameter 'crd_mode' is deprecated and will be removed in a future release
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+SET spider_sts_mode = 1;
+Warnings:
+Warning	1287	'@@spider_sts_mode' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_sts_mode";
+Variable_name	Value
+spider_sts_mode	1
+CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='smd "3"';
+Warnings:
+Warning	1287	The table parameter 'smd' is deprecated and will be removed in a future release
+CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='sts_mode "3"';
+Warnings:
+Warning	1287	The table parameter 'sts_mode' is deprecated and will be removed in a future release
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
 DROP DATABASE auto_test_local;
 for master_1
 for child2

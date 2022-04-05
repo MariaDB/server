@@ -63,6 +63,26 @@ SHOW VARIABLES LIKE "spider_load_sts_at_startup";
 SET GLOBAL spider_load_crd_at_startup = 0;
 SHOW VARIABLES LIKE "spider_load_crd_at_startup";
 
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
+--echo # MDEV-28008 Deprecate spider_crd_mode and spider_sts_mode
+SET spider_crd_mode = 1;
+SHOW VARIABLES LIKE "spider_crd_mode";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='cmd "3"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='crd_mode "3"';
+
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
+SET spider_sts_mode = 1;
+SHOW VARIABLES LIKE "spider_sts_mode";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='smd "3"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='sts_mode "3"';
+
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
 DROP DATABASE auto_test_local;
 
 --disable_query_log
