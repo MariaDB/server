@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -880,7 +880,6 @@ loop:
 #endif
 
 	log_write_mutex_enter();
-	ut_ad(!recv_no_log_write);
 
 	lsn_t	limit_lsn = flush_to_disk
 		? log_sys.flushed_to_disk_lsn
@@ -890,6 +889,8 @@ loop:
 		log_write_mutex_exit();
 		return;
 	}
+
+	ut_ad(!recv_no_log_write);
 
 	/* If it is a write call we should just go ahead and do it
 	as we checked that write_lsn is not where we'd like it to
@@ -1447,7 +1448,6 @@ bool log_checkpoint(bool sync)
 
 	log_mutex_enter();
 
-	ut_ad(!recv_no_log_write);
 	oldest_lsn = log_buf_pool_get_oldest_modification();
 
 	/* Because log also contains headers and dummy log records,
@@ -1459,9 +1459,16 @@ bool log_checkpoint(bool sync)
 	flushed up to oldest_lsn. */
 
 	ut_ad(oldest_lsn >= log_sys.last_checkpoint_lsn);
-	if (oldest_lsn
-	    > log_sys.last_checkpoint_lsn + SIZE_OF_MLOG_CHECKPOINT) {
+	const lsn_t age = oldest_lsn - log_sys.last_checkpoint_lsn;
+	if (age > SIZE_OF_MLOG_CHECKPOINT
+	    + LOG_BLOCK_HDR_SIZE + LOG_BLOCK_CHECKSUM) {
 		/* Some log has been written since the previous checkpoint. */
+	} else if (age > SIZE_OF_MLOG_CHECKPOINT
+		   && !((log_sys.log.calc_lsn_offset(oldest_lsn)
+			 ^ log_sys.log.calc_lsn_offset(
+				   log_sys.last_checkpoint_lsn))
+			& ~lsn_t(OS_FILE_LOG_BLOCK_SIZE - 1))) {
+		/* Some log has been written to the same log block. */
 	} else if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		/* MariaDB 10.3 startup expects the redo log file to be
 		logically empty (not even containing a MLOG_CHECKPOINT record)
@@ -1473,6 +1480,9 @@ bool log_checkpoint(bool sync)
 		log_mutex_exit();
 		return(true);
 	}
+
+	ut_ad(!recv_no_log_write);
+
 	/* Repeat the MLOG_FILE_NAME records after the checkpoint, in
 	case some log records between the checkpoint and log_sys.lsn
 	need them. Finally, write a MLOG_CHECKPOINT marker. Redo log

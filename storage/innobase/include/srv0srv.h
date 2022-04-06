@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -349,11 +349,6 @@ extern uint	srv_flush_log_at_timeout;
 extern ulong	srv_log_write_ahead_size;
 extern my_bool	srv_adaptive_flushing;
 extern my_bool	srv_flush_sync;
-
-#ifdef WITH_INNODB_DISALLOW_WRITES
-/* When this event is reset we do not allow any file writes to take place. */
-extern os_event_t	srv_allow_writes_event;
-#endif /* WITH_INNODB_DISALLOW_WRITES */
 
 /* If this flag is TRUE, then we will load the indexes' (and tables') metadata
 even if they are marked as "corrupted". Mostly it is for DBA to process
