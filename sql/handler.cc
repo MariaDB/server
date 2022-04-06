@@ -927,6 +927,22 @@ void ha_kill_query(THD* thd, enum thd_kill_levels level)
 }
 
 
+static my_bool plugin_disable_internal_writes(THD *, plugin_ref plugin,
+                                              void *disable)
+{
+  if (void(*diw)(bool)= plugin_hton(plugin)->disable_internal_writes)
+    diw(*static_cast<bool*>(disable));
+  return FALSE;
+}
+
+
+void ha_disable_internal_writes(bool disable)
+{
+  plugin_foreach(NULL, plugin_disable_internal_writes,
+                 MYSQL_STORAGE_ENGINE_PLUGIN, &disable);
+}
+
+
 /*****************************************************************************
   Backup functions
 ******************************************************************************/

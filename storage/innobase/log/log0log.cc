@@ -690,13 +690,14 @@ mutex is released in the function.
 static void log_write(bool rotate_key)
 {
 	mysql_mutex_assert_owner(&log_sys.mutex);
-	ut_ad(!recv_no_log_write);
 	lsn_t write_lsn;
 	if (log_sys.buf_free == log_sys.buf_next_to_write) {
 		/* Nothing to write */
 		mysql_mutex_unlock(&log_sys.mutex);
 		return;
 	}
+
+	ut_ad(!recv_no_log_write);
 
 	ulint		start_offset;
 	ulint		end_offset;
