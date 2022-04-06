@@ -1,37 +1,32 @@
-use mysql;
-RENAME TABLE time_zone TO time_zone_orig,
-time_zone_name TO time_zone_name_orig,
-time_zone_transition TO time_zone_transition_orig,
-time_zone_transition_type TO time_zone_transition_type_orig,
-time_zone_leap_second TO time_zone_leap_second_orig;
-CREATE TABLE time_zone LIKE time_zone_orig;
-CREATE TABLE time_zone_name LIKE time_zone_name_orig;
-CREATE TABLE time_zone_transition LIKE time_zone_transition_orig;
-CREATE TABLE time_zone_transition_type LIKE time_zone_transition_type_orig;
-CREATE TABLE time_zone_leap_second LIKE time_zone_leap_second_orig;
+CREATE TABLE time_zone LIKE mysql.time_zone;
+CREATE TABLE time_zone_name LIKE mysql.time_zone_name;
+CREATE TABLE time_zone_transition LIKE mysql.time_zone_transition;
+CREATE TABLE time_zone_transition_type LIKE mysql.time_zone_transition_type;
+CREATE TABLE time_zone_leap_second LIKE mysql.time_zone_leap_second;
 #
 # MDEV-5226 mysql_tzinfo_to_sql errors with tzdata 2013f and above
 #
 # Verbose run
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone ENGINE=InnoDB;
-ALTER TABLE time_zone_name ENGINE=InnoDB;
-ALTER TABLE time_zone_transition ENGINE=InnoDB;
-ALTER TABLE time_zone_transition_type ENGINE=InnoDB;
+set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone ENGINE=InnoDB', 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_name_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_name'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_name ENGINE=InnoDB', 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_transition_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_transition'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_transition ENGINE=InnoDB', 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_transition_type_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_transition_type'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_transition_type ENGINE=InnoDB', 'do 0');
 TRUNCATE TABLE time_zone;
 TRUNCATE TABLE time_zone_name;
 TRUNCATE TABLE time_zone_transition;
 TRUNCATE TABLE time_zone_transition_type;
-START TRANSACTION;
-ELSE
-TRUNCATE TABLE time_zone;
-TRUNCATE TABLE time_zone_name;
-TRUNCATE TABLE time_zone_transition;
-TRUNCATE TABLE time_zone_transition_type;
-END IF|
-\d ;
+/*M!100602 execute immediate if(@wsrep_cannot_replicate_tz, 'start transaction', 'LOCK TABLES time_zone WRITE,
+  time_zone_leap_second WRITE,
+  time_zone_name WRITE,
+  time_zone_transition WRITE,
+  time_zone_transition_type WRITE')*/;
 INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
 SET @time_zone_id= LAST_INSERT_ID();
 INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('GMT', @time_zone_id);
@@ -53,50 +48,34 @@ UNLOCK TABLES;
 COMMIT;
 ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time;
 ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone ENGINE=Aria;
-ALTER TABLE time_zone_name ENGINE=Aria;
-ALTER TABLE time_zone_transition ENGINE=Aria, ORDER BY Time_zone_id, Transition_time;
-ALTER TABLE time_zone_transition_type ENGINE=Aria, ORDER BY Time_zone_id, Transition_type_id;
-END IF|
-\d ;
-SELECT COUNT(*) FROM time_zone;
-COUNT(*)
-0
-SELECT COUNT(*) FROM time_zone_name;
-COUNT(*)
-0
-SELECT COUNT(*) FROM time_zone_transition;
-COUNT(*)
-0
-SELECT COUNT(*) FROM time_zone_transition_type;
-COUNT(*)
-0
-SELECT COUNT(*) FROM time_zone_leap_second;
-COUNT(*)
-0
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone ENGINE=', @time_zone_engine), 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_name ENGINE=', @time_zone_name_engine), 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_transition ENGINE=', @time_zone_transition_engine, ', ORDER BY Time_zone_id, Transition_time'), 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_transition_type ENGINE=', @time_zone_transition_type_engine, ', ORDER BY Time_zone_id, Transition_type_id'), 'do 0');
+#
+# MDEV-28263: mariadb-tzinfo-to-sql improve wsrep and binlog cases
+#
 # Run on zoneinfo directory
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone ENGINE=InnoDB;
-ALTER TABLE time_zone_name ENGINE=InnoDB;
-ALTER TABLE time_zone_transition ENGINE=InnoDB;
-ALTER TABLE time_zone_transition_type ENGINE=InnoDB;
+set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone ENGINE=InnoDB', 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_name_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_name'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_name ENGINE=InnoDB', 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_transition_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_transition'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_transition ENGINE=InnoDB', 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_transition_type_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_transition_type'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_transition_type ENGINE=InnoDB', 'do 0');
 TRUNCATE TABLE time_zone;
 TRUNCATE TABLE time_zone_name;
 TRUNCATE TABLE time_zone_transition;
 TRUNCATE TABLE time_zone_transition_type;
-START TRANSACTION;
-ELSE
-TRUNCATE TABLE time_zone;
-TRUNCATE TABLE time_zone_name;
-TRUNCATE TABLE time_zone_transition;
-TRUNCATE TABLE time_zone_transition_type;
-END IF|
-\d ;
+/*M!100602 execute immediate if(@wsrep_cannot_replicate_tz, 'start transaction', 'LOCK TABLES time_zone WRITE,
+  time_zone_leap_second WRITE,
+  time_zone_name WRITE,
+  time_zone_transition WRITE,
+  time_zone_transition_type WRITE')*/;
 INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
 SET @time_zone_id= LAST_INSERT_ID();
 INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('GMT', @time_zone_id);
@@ -115,15 +94,10 @@ UNLOCK TABLES;
 COMMIT;
 ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time;
 ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone ENGINE=Aria;
-ALTER TABLE time_zone_name ENGINE=Aria;
-ALTER TABLE time_zone_transition ENGINE=Aria, ORDER BY Time_zone_id, Transition_time;
-ALTER TABLE time_zone_transition_type ENGINE=Aria, ORDER BY Time_zone_id, Transition_type_id;
-END IF|
-\d ;
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone ENGINE=', @time_zone_engine), 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_name ENGINE=', @time_zone_name_engine), 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_transition ENGINE=', @time_zone_transition_engine, ', ORDER BY Time_zone_id, Transition_time'), 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_transition_type ENGINE=', @time_zone_transition_type_engine, ', ORDER BY Time_zone_id, Transition_type_id'), 'do 0');
 SELECT COUNT(*) FROM time_zone;
 COUNT(*)
 2
@@ -142,9 +116,12 @@ COUNT(*)
 #
 # Run on zoneinfo directory --skip-write-binlog
 #
-set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');
-prepare set_wsrep_write_binlog from @prep1;
-set @toggle=0; execute set_wsrep_write_binlog using @toggle;
+set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+execute immediate if(@wsrep_is_on, 'SET @save_wsrep_on=@@WSREP_ON, WSREP_ON=OFF', 'do 0');
+SET @save_sql_log_bin=@@SQL_LOG_BIN;
+SET SESSION SQL_LOG_BIN=0;
 TRUNCATE TABLE time_zone;
 TRUNCATE TABLE time_zone_name;
 TRUNCATE TABLE time_zone_transition;
@@ -172,6 +149,8 @@ UNLOCK TABLES;
 COMMIT;
 ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time;
 ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
+SET SESSION SQL_LOG_BIN=@save_sql_log_bin;
+execute immediate if(@wsrep_is_on, 'SET SESSION WSREP_ON=@save_wsrep_on', 'do 0');
 SELECT COUNT(*) FROM time_zone;
 COUNT(*)
 2
@@ -187,6 +166,19 @@ COUNT(*)
 SELECT COUNT(*) FROM time_zone_leap_second;
 COUNT(*)
 0
+SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@SQL_LOG_BIN;
+@wsrep_is_on	@wsrep_cannot_replicate_tz	@save_wsrep_on	@save_sql_log_bin	@@SQL_LOG_BIN
+0	0	NULL	1	1
+SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
+FROM information_schema.global_status g
+JOIN baseline b USING (VARIABLE_NAME)
+ORDER BY g.VARIABLE_NAME;
+VARIABLE_NAME	diff
+COM_ALTER_TABLE	2
+COM_BEGIN	0
+COM_INSERT	6
+COM_LOCK_TABLES	1
+COM_TRUNCATE	4
 TRUNCATE TABLE time_zone;
 TRUNCATE TABLE time_zone_name;
 TRUNCATE TABLE time_zone_transition;
@@ -195,19 +187,22 @@ TRUNCATE TABLE time_zone_leap_second;
 #
 # Testing with explicit timezonefile
 #
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone ENGINE=InnoDB;
-ALTER TABLE time_zone_name ENGINE=InnoDB;
-ALTER TABLE time_zone_transition ENGINE=InnoDB;
-ALTER TABLE time_zone_transition_type ENGINE=InnoDB;
-SELECT 'skip truncate tables';
-START TRANSACTION;
-ELSE
-SELECT 'skip truncate tables';
-END IF|
-\d ;
+set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone ENGINE=InnoDB', 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_name_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_name'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_name ENGINE=InnoDB', 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_transition_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_transition'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_transition ENGINE=InnoDB', 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_transition_type_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_transition_type'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_transition_type ENGINE=InnoDB', 'do 0');
+/*M!100602 execute immediate if(@wsrep_cannot_replicate_tz, 'start transaction', 'LOCK TABLES time_zone WRITE,
+  time_zone_leap_second WRITE,
+  time_zone_name WRITE,
+  time_zone_transition WRITE,
+  time_zone_transition_type WRITE')*/;
 INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
 SET @time_zone_id= LAST_INSERT_ID();
 INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('XXX', @time_zone_id);
@@ -216,17 +211,10 @@ INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, `Offset
 ;
 UNLOCK TABLES;
 COMMIT;
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone ENGINE=Aria;
-ALTER TABLE time_zone_name ENGINE=Aria;
-ALTER TABLE time_zone_transition ENGINE=Aria, ORDER BY Time_zone_id, Transition_time;
-ALTER TABLE time_zone_transition_type ENGINE=Aria, ORDER BY Time_zone_id, Transition_type_id;
-END IF|
-\d ;
-skip truncate tables
-skip truncate tables
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone ENGINE=', @time_zone_engine), 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_name ENGINE=', @time_zone_name_engine), 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_transition ENGINE=', @time_zone_transition_engine, ', ORDER BY Time_zone_id, Transition_time'), 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_transition_type ENGINE=', @time_zone_transition_type_engine, ', ORDER BY Time_zone_id, Transition_type_id'), 'do 0');
 SELECT COUNT(*) FROM time_zone;
 COUNT(*)
 1
@@ -242,6 +230,19 @@ COUNT(*)
 SELECT COUNT(*) FROM time_zone_leap_second;
 COUNT(*)
 0
+SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@SQL_LOG_BIN;
+@wsrep_is_on	@wsrep_cannot_replicate_tz	@save_wsrep_on	@save_sql_log_bin	@@SQL_LOG_BIN
+0	0	NULL	1	1
+SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
+FROM information_schema.global_status g
+JOIN baseline b USING (VARIABLE_NAME)
+ORDER BY g.VARIABLE_NAME;
+VARIABLE_NAME	diff
+COM_ALTER_TABLE	0
+COM_BEGIN	0
+COM_INSERT	3
+COM_LOCK_TABLES	1
+COM_TRUNCATE	0
 TRUNCATE TABLE time_zone;
 TRUNCATE TABLE time_zone_name;
 TRUNCATE TABLE time_zone_transition;
@@ -250,10 +251,12 @@ TRUNCATE TABLE time_zone_leap_second;
 #
 # Testing with explicit timezonefile --skip-write-binlog
 #
-set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');
-prepare set_wsrep_write_binlog from @prep1;
-set @toggle=0; execute set_wsrep_write_binlog using @toggle;
-SELECT 'skip truncate tables';
+set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+execute immediate if(@wsrep_is_on, 'SET @save_wsrep_on=@@WSREP_ON, WSREP_ON=OFF', 'do 0');
+SET @save_sql_log_bin=@@SQL_LOG_BIN;
+SET SESSION SQL_LOG_BIN=0;
 LOCK TABLES time_zone WRITE,
   time_zone_leap_second WRITE,
   time_zone_name WRITE,
@@ -267,21 +270,36 @@ INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, `Offset
 ;
 UNLOCK TABLES;
 COMMIT;
+SET SESSION SQL_LOG_BIN=@save_sql_log_bin;
+execute immediate if(@wsrep_is_on, 'SET SESSION WSREP_ON=@save_wsrep_on', 'do 0');
 SELECT COUNT(*) FROM time_zone;
 COUNT(*)
-0
+1
 SELECT COUNT(*) FROM time_zone_name;
 COUNT(*)
-0
+1
 SELECT COUNT(*) FROM time_zone_transition;
 COUNT(*)
 0
 SELECT COUNT(*) FROM time_zone_transition_type;
 COUNT(*)
-0
+1
 SELECT COUNT(*) FROM time_zone_leap_second;
 COUNT(*)
 0
+SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@SQL_LOG_BIN;
+@wsrep_is_on	@wsrep_cannot_replicate_tz	@save_wsrep_on	@save_sql_log_bin	@@SQL_LOG_BIN
+0	0	NULL	1	1
+SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
+FROM information_schema.global_status g
+JOIN baseline b USING (VARIABLE_NAME)
+ORDER BY g.VARIABLE_NAME;
+VARIABLE_NAME	diff
+COM_ALTER_TABLE	0
+COM_BEGIN	0
+COM_INSERT	3
+COM_LOCK_TABLES	1
+COM_TRUNCATE	0
 TRUNCATE TABLE time_zone;
 TRUNCATE TABLE time_zone_name;
 TRUNCATE TABLE time_zone_transition;
@@ -290,46 +308,33 @@ TRUNCATE TABLE time_zone_leap_second;
 #
 # Testing --leap
 #
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone ENGINE=InnoDB;
-ALTER TABLE time_zone_name ENGINE=InnoDB;
-ALTER TABLE time_zone_transition ENGINE=InnoDB;
-ALTER TABLE time_zone_transition_type ENGINE=InnoDB;
-SELECT 'skip truncate tables';
-START TRANSACTION;
-ELSE
-SELECT 'skip truncate tables';
-END IF|
-\d ;
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone_leap_second ENGINE=InnoDB;
-END IF|
-\d ;
+set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone ENGINE=InnoDB', 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_name_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_name'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_name ENGINE=InnoDB', 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_transition_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_transition'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_transition ENGINE=InnoDB', 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_transition_type_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_transition_type'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_transition_type ENGINE=InnoDB', 'do 0');
+/*M!100602 execute immediate if(@wsrep_cannot_replicate_tz, 'start transaction', 'LOCK TABLES time_zone WRITE,
+  time_zone_leap_second WRITE,
+  time_zone_name WRITE,
+  time_zone_transition WRITE,
+  time_zone_transition_type WRITE')*/;
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_leap_second_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_leap_second'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_leap_second ENGINE=InnoDB', 'do 0');
 TRUNCATE TABLE time_zone_leap_second;
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone_leap_second ENGINE=Aria;
-END IF|
-\d ;
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_leap_second ENGINE=', @time_zone_leap_second_engine), 'do 0');
 ALTER TABLE time_zone_leap_second ORDER BY Transition_time;
 UNLOCK TABLES;
 COMMIT;
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone ENGINE=Aria;
-ALTER TABLE time_zone_name ENGINE=Aria;
-ALTER TABLE time_zone_transition ENGINE=Aria, ORDER BY Time_zone_id, Transition_time;
-ALTER TABLE time_zone_transition_type ENGINE=Aria, ORDER BY Time_zone_id, Transition_type_id;
-END IF|
-\d ;
-skip truncate tables
-skip truncate tables
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone ENGINE=', @time_zone_engine), 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_name ENGINE=', @time_zone_name_engine), 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_transition ENGINE=', @time_zone_transition_engine, ', ORDER BY Time_zone_id, Transition_time'), 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_transition_type ENGINE=', @time_zone_transition_type_engine, ', ORDER BY Time_zone_id, Transition_type_id'), 'do 0');
 SELECT COUNT(*) FROM time_zone;
 COUNT(*)
 0
@@ -345,6 +350,19 @@ COUNT(*)
 SELECT COUNT(*) FROM time_zone_leap_second;
 COUNT(*)
 0
+SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@SQL_LOG_BIN;
+@wsrep_is_on	@wsrep_cannot_replicate_tz	@save_wsrep_on	@save_sql_log_bin	@@SQL_LOG_BIN
+0	0	NULL	1	1
+SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
+FROM information_schema.global_status g
+JOIN baseline b USING (VARIABLE_NAME)
+ORDER BY g.VARIABLE_NAME;
+VARIABLE_NAME	diff
+COM_ALTER_TABLE	1
+COM_BEGIN	0
+COM_INSERT	0
+COM_LOCK_TABLES	1
+COM_TRUNCATE	1
 TRUNCATE TABLE time_zone;
 TRUNCATE TABLE time_zone_name;
 TRUNCATE TABLE time_zone_transition;
@@ -353,10 +371,12 @@ TRUNCATE TABLE time_zone_leap_second;
 #
 # Testing --skip-write-binlog --leap
 #
-set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');
-prepare set_wsrep_write_binlog from @prep1;
-set @toggle=0; execute set_wsrep_write_binlog using @toggle;
-SELECT 'skip truncate tables';
+set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+execute immediate if(@wsrep_is_on, 'SET @save_wsrep_on=@@WSREP_ON, WSREP_ON=OFF', 'do 0');
+SET @save_sql_log_bin=@@SQL_LOG_BIN;
+SET SESSION SQL_LOG_BIN=0;
 LOCK TABLES time_zone WRITE,
   time_zone_leap_second WRITE,
   time_zone_name WRITE,
@@ -366,8 +386,8 @@ TRUNCATE TABLE time_zone_leap_second;
 ALTER TABLE time_zone_leap_second ORDER BY Transition_time;
 UNLOCK TABLES;
 COMMIT;
-skip truncate tables
-skip truncate tables
+SET SESSION SQL_LOG_BIN=@save_sql_log_bin;
+execute immediate if(@wsrep_is_on, 'SET SESSION WSREP_ON=@save_wsrep_on', 'do 0');
 SELECT COUNT(*) FROM time_zone;
 COUNT(*)
 0
@@ -383,48 +403,56 @@ COUNT(*)
 SELECT COUNT(*) FROM time_zone_leap_second;
 COUNT(*)
 0
+SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@SQL_LOG_BIN;
+@wsrep_is_on	@wsrep_cannot_replicate_tz	@save_wsrep_on	@save_sql_log_bin	@@SQL_LOG_BIN
+0	0	NULL	1	1
+SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
+FROM information_schema.global_status g
+JOIN baseline b USING (VARIABLE_NAME)
+ORDER BY g.VARIABLE_NAME;
+VARIABLE_NAME	diff
+COM_ALTER_TABLE	1
+COM_BEGIN	0
+COM_INSERT	0
+COM_LOCK_TABLES	1
+COM_TRUNCATE	1
 #
 # MDEV-6236 - [PATCH] mysql_tzinfo_to_sql may produce invalid SQL
 #
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone ENGINE=InnoDB;
-ALTER TABLE time_zone_name ENGINE=InnoDB;
-ALTER TABLE time_zone_transition ENGINE=InnoDB;
-ALTER TABLE time_zone_transition_type ENGINE=InnoDB;
+set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone ENGINE=InnoDB', 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_name_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_name'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_name ENGINE=InnoDB', 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_transition_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_transition'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_transition ENGINE=InnoDB', 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_transition_type_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_transition_type'", 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_transition_type ENGINE=InnoDB', 'do 0');
 TRUNCATE TABLE time_zone;
 TRUNCATE TABLE time_zone_name;
 TRUNCATE TABLE time_zone_transition;
 TRUNCATE TABLE time_zone_transition_type;
-START TRANSACTION;
-ELSE
-TRUNCATE TABLE time_zone;
-TRUNCATE TABLE time_zone_name;
-TRUNCATE TABLE time_zone_transition;
-TRUNCATE TABLE time_zone_transition_type;
-END IF|
-\d ;
+/*M!100602 execute immediate if(@wsrep_cannot_replicate_tz, 'start transaction', 'LOCK TABLES time_zone WRITE,
+  time_zone_leap_second WRITE,
+  time_zone_name WRITE,
+  time_zone_transition WRITE,
+  time_zone_transition_type WRITE')*/;
 UNLOCK TABLES;
 COMMIT;
 ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time;
 ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
-\d |
-IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on' and variable_value='ON') = 1 THEN
-ALTER TABLE time_zone ENGINE=Aria;
-ALTER TABLE time_zone_name ENGINE=Aria;
-ALTER TABLE time_zone_transition ENGINE=Aria, ORDER BY Time_zone_id, Transition_time;
-ALTER TABLE time_zone_transition_type ENGINE=Aria, ORDER BY Time_zone_id, Transition_type_id;
-END IF|
-\d ;
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone ENGINE=', @time_zone_engine), 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_name ENGINE=', @time_zone_name_engine), 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_transition ENGINE=', @time_zone_transition_engine, ', ORDER BY Time_zone_id, Transition_time'), 'do 0');
+execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_transition_type ENGINE=', @time_zone_transition_type_engine, ', ORDER BY Time_zone_id, Transition_type_id'), 'do 0');
+DROP TABLE baseline;
 DROP TABLE time_zone;
 DROP TABLE time_zone_name;
 DROP TABLE time_zone_transition;
 DROP TABLE time_zone_transition_type;
 DROP TABLE time_zone_leap_second;
-RENAME TABLE time_zone_orig TO time_zone,
-time_zone_name_orig TO time_zone_name,
-time_zone_transition_orig TO time_zone_transition,
-time_zone_transition_type_orig TO time_zone_transition_type,
-time_zone_leap_second_orig TO time_zone_leap_second;
+#
+# End of 10.6 tests
+#
