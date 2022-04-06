@@ -20,27 +20,58 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "univ.i"
 #include "rw_lock.h"
 
+#if defined __linux__
+/* futex(2): FUTEX_WAIT_PRIVATE, FUTEX_WAKE_PRIVATE */
+#elif defined __OpenBSD__ || defined __FreeBSD__ || defined __DragonFly__
+/* system calls similar to Linux futex(2) */
+#elif defined _WIN32
+/* SRWLOCK as well as WaitOnAddress(), WakeByAddressSingle() */
+#else
+# define SUX_LOCK_GENERIC /* fall back to generic synchronization primitives */
+#endif
+
+#if !defined SUX_LOCK_GENERIC && 0 /* defined SAFE_MUTEX */
+# define SUX_LOCK_GENERIC /* Use dummy implementation for debugging purposes */
+#endif
+
 #ifdef SUX_LOCK_GENERIC
 /** An exclusive-only variant of srw_lock */
 template<bool spinloop>
-class srw_mutex_impl final
+class pthread_mutex_wrapper final
 {
   pthread_mutex_t lock;
+public:
+  void init()
+  {
+    if (spinloop)
+      pthread_mutex_init(&lock, MY_MUTEX_INIT_FAST);
+    else
+      pthread_mutex_init(&lock, nullptr);
+  }
+  void destroy() { pthread_mutex_destroy(&lock); }
+# ifdef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
+  void wr_lock() { pthread_mutex_lock(&lock); }
+# else
+private:
   void wr_wait();
 public:
-  void init() { pthread_mutex_init(&lock, nullptr); }
-  void destroy() { pthread_mutex_destroy(&lock); }
   inline void wr_lock();
+# endif
   void wr_unlock() { pthread_mutex_unlock(&lock); }
   bool wr_lock_try() { return !pthread_mutex_trylock(&lock); }
 };
 
-template<> void srw_mutex_impl<true>::wr_wait();
+# ifndef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
+template<> void pthread_mutex_wrapper<true>::wr_wait();
 template<>
-inline void srw_mutex_impl<false>::wr_lock() { pthread_mutex_lock(&lock); }
+inline void pthread_mutex_wrapper<false>::wr_lock()
+{ pthread_mutex_lock(&lock); }
 template<>
-inline void srw_mutex_impl<true>::wr_lock() { if (!wr_lock_try()) wr_wait(); }
-#else
+inline void pthread_mutex_wrapper<true>::wr_lock()
+{ if (!wr_lock_try()) wr_wait(); }
+# endif
+#endif
+
 /** Futex-based mutex */
 template<bool spinloop>
 class srw_mutex_impl final
@@ -50,6 +81,15 @@ class srw_mutex_impl final
   std::atomic<uint32_t> lock;
   /** Identifies that the lock is being held */
   static constexpr uint32_t HOLDER= 1U << 31;
+
+#ifdef SUX_LOCK_GENERIC
+public:
+  /** The mutex for the condition variables. */
+  pthread_mutex_t mutex;
+private:
+  /** Condition variable for the lock word. Used with mutex. */
+  pthread_cond_t cond;
+#endif
 
   /** Wait until the mutex has been acquired */
   void wait_and_lock();
@@ -65,8 +105,22 @@ public:
   bool is_locked() const
   { return (lock.load(std::memory_order_acquire) & HOLDER) != 0; }
 
-  void init() { DBUG_ASSERT(!is_locked_or_waiting()); }
-  void destroy() { DBUG_ASSERT(!is_locked_or_waiting()); }
+  void init()
+  {
+    DBUG_ASSERT(!is_locked_or_waiting());
+#ifdef SUX_LOCK_GENERIC
+    pthread_mutex_init(&mutex, nullptr);
+    pthread_cond_init(&cond, nullptr);
+#endif
+  }
+  void destroy()
+  {
+    DBUG_ASSERT(!is_locked_or_waiting());
+#ifdef SUX_LOCK_GENERIC
+    pthread_mutex_destroy(&mutex);
+    pthread_cond_destroy(&cond);
+#endif
+  }
 
   /** @return whether the mutex was acquired */
   bool wr_lock_try()
@@ -88,19 +142,20 @@ public:
     }
   }
 };
-#endif
 
+#ifdef SUX_LOCK_GENERIC
+typedef pthread_mutex_wrapper<true> srw_spin_mutex;
+typedef pthread_mutex_wrapper<false> srw_mutex;
+#else
 typedef srw_mutex_impl<true> srw_spin_mutex;
 typedef srw_mutex_impl<false> srw_mutex;
+#endif
 
 template<bool spinloop> class srw_lock_impl;
 
 /** Slim shared-update-exclusive lock with no recursion */
 template<bool spinloop>
 class ssux_lock_impl final
-#ifdef SUX_LOCK_GENERIC
-  : private rw_lock
-#endif
 {
 #ifdef UNIV_PFS_RWLOCK
   friend class ssux_lock;
@@ -110,50 +165,12 @@ class ssux_lock_impl final
   friend srw_lock_impl<spinloop>;
 # endif
 #endif
-#ifdef SUX_LOCK_GENERIC
-  pthread_mutex_t mutex;
-  pthread_cond_t cond_shared;
-  pthread_cond_t cond_exclusive;
-
-  /** Wait for a read lock.
-  @param l lock word from a failed read_trylock() */
-  void read_lock(uint32_t l);
-  /** Wait for an update lock.
-  @param l lock word from a failed update_trylock() */
-  void update_lock(uint32_t l);
-  /** Wait for a write lock after a failed write_trylock() or upgrade_trylock()
-  @param holding_u  whether we already hold u_lock() */
-  void write_lock(bool holding_u);
-  /** Wait for signal
-  @param l lock word from a failed acquisition */
-  inline void writer_wait(uint32_t l);
-  /** Wait for signal
-  @param l lock word from a failed acquisition */
-  inline void readers_wait(uint32_t l);
-  /** Wake waiters */
-  inline void wake();
-public:
-  void init();
-  void destroy();
-  /** @return whether any writer is waiting */
-  bool is_waiting() const { return (value() & WRITER_WAITING) != 0; }
-  bool is_write_locked() const { return rw_lock::is_write_locked(); }
-  bool is_locked_or_waiting() const { return rw_lock::is_locked_or_waiting(); }
-
-  bool rd_lock_try() { uint32_t l; return read_trylock(l); }
-  bool wr_lock_try() { return write_trylock(); }
-  void rd_lock() { uint32_t l; if (!read_trylock(l)) read_lock(l); }
-  void u_lock() { uint32_t l; if (!update_trylock(l)) update_lock(l); }
-  bool u_lock_try() { uint32_t l; return update_trylock(l); }
-  void u_wr_upgrade() { if (!upgrade_trylock()) write_lock(true); }
-  void wr_u_downgrade() { downgrade(); }
-  void wr_lock() { if (!write_trylock()) write_lock(false); }
-  void rd_unlock();
-  void u_unlock();
-  void wr_unlock();
-#else
   /** mutex for synchronization; held by U or X lock holders */
   srw_mutex_impl<spinloop> writer;
+#ifdef SUX_LOCK_GENERIC
+  /** Condition variable for "readers"; used with writer.mutex. */
+  pthread_cond_t readers_cond;
+#endif
   /** S or U holders, and WRITER flag for X holder or waiter */
   std::atomic<uint32_t> readers;
   /** indicates an X request; readers=WRITER indicates granted X lock */
@@ -169,15 +186,29 @@ public:
   /** Acquire a read lock */
   void rd_wait();
 public:
-  void init() { DBUG_ASSERT(is_vacant()); }
-  void destroy() { DBUG_ASSERT(is_vacant()); }
+  void init()
+  {
+    writer.init();
+    DBUG_ASSERT(is_vacant());
+#ifdef SUX_LOCK_GENERIC
+    pthread_cond_init(&readers_cond, nullptr);
+#endif
+  }
+  void destroy()
+  {
+    DBUG_ASSERT(is_vacant());
+    writer.destroy();
+#ifdef SUX_LOCK_GENERIC
+    pthread_cond_destroy(&readers_cond);
+#endif
+  }
   /** @return whether any writer is waiting */
   bool is_waiting() const
   { return (readers.load(std::memory_order_relaxed) & WRITER) != 0; }
-# ifndef DBUG_OFF
+#ifndef DBUG_OFF
   /** @return whether the lock is being held or waited for */
   bool is_vacant() const { return !is_locked_or_waiting(); }
-# endif /* !DBUG_OFF */
+#endif /* !DBUG_OFF */
 
   bool rd_lock_try()
   {
@@ -288,7 +319,6 @@ public:
   void unlock_shared() { rd_unlock(); }
   void lock() { wr_lock(); }
   void unlock() { wr_unlock(); }
-#endif
 };
 
 #if defined _WIN32 || defined SUX_LOCK_GENERIC
