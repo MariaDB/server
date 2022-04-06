@@ -7,7 +7,7 @@ CREATE TABLE t3 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB ROW_FOR
 CREATE TABLE t4 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB PAGE_COMPRESSED=1;
 CREATE TABLE t5 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB PAGE_COMPRESSED=1 ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
 CREATE TABLE t6 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
-# Run innochecksum on t1
+# Run innochecksum on t1, check -S does not cause crash for encrypted file
 # Run innochecksum on t2
 # Run innochecksum on t3
 # Run innochecksum on t4

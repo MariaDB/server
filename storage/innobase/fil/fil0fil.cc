@@ -1363,6 +1363,7 @@ fil_space_create(
 
 	if ((purpose == FIL_TYPE_TABLESPACE || purpose == FIL_TYPE_IMPORT)
 	    && !recv_recovery_is_on()
+	    && srv_operation != SRV_OPERATION_BACKUP
 	    && id > fil_system.max_assigned_id) {
 		if (!fil_system.space_id_reuse_warned) {
 			fil_system.space_id_reuse_warned = true;
