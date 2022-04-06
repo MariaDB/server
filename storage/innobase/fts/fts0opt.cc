@@ -40,11 +40,9 @@ Completed 2011/7/10 Sunny and Jimmy Yang
 #include "wsrep.h"
 
 #ifdef WITH_WSREP
-extern uint32 wsrep_sst_disable_writes;
-# define wsrep_sst_disable_writes \
-  my_atomic_load32_explicit(&wsrep_sst_disable_writes, MY_MEMORY_ORDER_RELAXED)
+extern Atomic_relaxed<bool> wsrep_sst_disable_writes;
 #else
-# define wsrep_sst_disable_writes false
+constexpr bool wsrep_sst_disable_writes= false;
 #endif
 
 /** The FTS optimize thread's work queue. */

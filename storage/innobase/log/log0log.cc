@@ -1460,14 +1460,13 @@ bool log_checkpoint(bool sync)
 
 	ut_ad(oldest_lsn >= log_sys.last_checkpoint_lsn);
 	const lsn_t age = oldest_lsn - log_sys.last_checkpoint_lsn;
-	if (age > SIZE_OF_MLOG_CHECKPOINT
-	    + LOG_BLOCK_HDR_SIZE + LOG_BLOCK_CHECKSUM) {
+	if (age > SIZE_OF_MLOG_CHECKPOINT + log_sys.framing_size()) {
 		/* Some log has been written since the previous checkpoint. */
 	} else if (age > SIZE_OF_MLOG_CHECKPOINT
 		   && !((log_sys.log.calc_lsn_offset(oldest_lsn)
 			 ^ log_sys.log.calc_lsn_offset(
 				   log_sys.last_checkpoint_lsn))
-			& ~lsn_t(OS_FILE_LOG_BLOCK_SIZE - 1))) {
+			& ~lsn_t{OS_FILE_LOG_BLOCK_SIZE - 1})) {
 		/* Some log has been written to the same log block. */
 	} else if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		/* MariaDB 10.3 startup expects the redo log file to be

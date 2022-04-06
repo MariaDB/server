@@ -37,11 +37,9 @@ Created Apr 25, 2012 Vasil Dimov
 # include "wsrep.h"
 # include "log.h"
 # include "wsrep_mysqld.h"
-extern uint32 wsrep_sst_disable_writes;
-# define wsrep_sst_disable_writes \
-  my_atomic_load32_explicit(&wsrep_sst_disable_writes, MY_MEMORY_ORDER_RELAXED)
+extern Atomic_relaxed<bool> wsrep_sst_disable_writes;
 #else
-# define wsrep_sst_disable_writes false
+constexpr bool wsrep_sst_disable_writes= false;
 #endif
 
 #include <vector>
