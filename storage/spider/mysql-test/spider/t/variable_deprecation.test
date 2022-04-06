@@ -13,10 +13,26 @@ CREATE DATABASE auto_test_local;
 USE auto_test_local;
 
 --echo # MDEV-27923 Deprecate spider_use_handler
-SET spider_use_handler= 3;
+SET spider_use_handler = 3;
 SHOW VARIABLES LIKE "spider_use_handler";
 eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='uhd "3"';
 eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='use_handler "3"';
+
+--echo # MDEV-28005 Deprecate Spider plugin variables regarding UDFs
+SET GLOBAL spider_udf_ds_bulk_insert_rows = 1;
+SHOW VARIABLES LIKE "spider_udf_ds_bulk_insert_rows";
+
+SET spider_udf_ds_table_loop_mode = 1;
+SHOW VARIABLES LIKE "spider_udf_ds_table_loop_mode";
+
+SET spider_udf_ds_use_real_table = 1;
+SHOW VARIABLES LIKE "spider_udf_ds_use_real_table";
+
+SET GLOBAL spider_udf_ct_bulk_insert_interval = 1;
+SHOW VARIABLES LIKE "spider_udf_ct_bulk_insert_interval";
+
+SET GLOBAL spider_udf_ct_bulk_insert_rows = 1;
+SHOW VARIABLES LIKE "spider_udf_ct_bulk_insert_rows";
 
 DROP DATABASE auto_test_local;
 

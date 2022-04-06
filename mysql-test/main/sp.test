@@ -10484,3 +10484,20 @@ DELIMITER ;$$
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-28129: MariaDB UAF issue at lex_end_nops(LEX*)
+--echo #
+
+--error ER_PARSE_ERROR
+CREATE PROCEDURE sp() SELECT 1 INTO @;
+
+--error ER_PARSE_ERROR
+CREATE PROCEDURE sp() SET @=1;
+
+--error ER_PARSE_ERROR
+CREATE PROCEDURE sp() SELECT @;
+
+--echo #
+--echo # End of 10.7 tests
+--echo #
