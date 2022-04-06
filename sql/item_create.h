@@ -58,7 +58,8 @@ public:
     @param item_list The list of arguments to the function, can be NULL
     @return An item representing the parsed function call, or NULL
   */
-  virtual Item *create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list) = 0;
+  virtual Item *create_func(THD *thd, const LEX_CSTRING *name,
+                            List<Item> *item_list) = 0;
 
 protected:
   /** Constructor */
@@ -79,7 +80,7 @@ protected:
 class Create_native_func : public Create_func
 {
 public:
-  virtual Item *create_func(THD *thd, LEX_CSTRING *name,
+  virtual Item *create_func(THD *thd, const LEX_CSTRING *name,
                             List<Item> *item_list);
 
   /**
@@ -89,7 +90,7 @@ public:
     @param item_list The function parameters, none of which are named
     @return An item representing the function call
   */
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name,
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
                               List<Item> *item_list) = 0;
 
 protected:
@@ -117,7 +118,7 @@ public:
     @param item_list The list of arguments to the function, can be NULL
     @return An item representing the parsed function call
   */
-  virtual Item *create_func(THD *thd, LEX_CSTRING *name,
+  virtual Item *create_func(THD *thd, const LEX_CSTRING *name,
                             List<Item> *item_list);
 
   /**
@@ -129,7 +130,9 @@ public:
     @param item_list The list of arguments to the function, can be NULL
     @return An item representing the parsed function call
   */
-  virtual Item *create_with_db(THD *thd, LEX_CSTRING *db, LEX_CSTRING *name,
+  virtual Item *create_with_db(THD *thd,
+                               const LEX_CSTRING *db,
+                               const LEX_CSTRING *name,
                                bool use_explicit_name,
                                List<Item> *item_list) = 0;
 
@@ -167,7 +170,7 @@ extern Create_qfunc * find_qualified_function_builder(THD *thd);
 class Create_udf_func : public Create_func
 {
 public:
-  virtual Item *create_func(THD *thd, LEX_CSTRING *name,
+  virtual Item *create_func(THD *thd, const LEX_CSTRING *name,
                             List<Item> *item_list);
 
   /**

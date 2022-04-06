@@ -1745,7 +1745,7 @@ ha_rows ha_federatedx::records_in_range(uint inx, key_range *start_key,
 
 federatedx_txn *ha_federatedx::get_txn(THD *thd, bool no_create)
 {
-  federatedx_txn **txnp= (federatedx_txn **) ha_data(thd);
+  federatedx_txn **txnp= (federatedx_txn **) thd_ha_data(thd, ht);
   if (!*txnp && !no_create)
     *txnp= new federatedx_txn();
   return *txnp;

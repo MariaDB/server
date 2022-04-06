@@ -8506,18 +8506,18 @@ bool LEX::call_statement_start(THD *thd, const LEX_CSTRING &db,
   if (check_db_name((LEX_STRING*) const_cast<LEX_CSTRING*>(&db)))
   {
     my_error(ER_WRONG_DB_NAME, MYF(0), db.str);
-    return NULL;
+    return true;
   }
   if (check_routine_name(&pkg) ||
       check_routine_name(&proc))
-    return NULL;
+    return true;
 
   // Concat `pkg` and `name` to `pkg.name`
   LEX_CSTRING pkg_dot_proc;
   if (q_pkg_proc.make_qname(thd->mem_root, &pkg_dot_proc) ||
       check_ident_length(&pkg_dot_proc) ||
       !(spname= new (thd->mem_root) sp_name(&db, &pkg_dot_proc, true)))
-    return NULL;
+    return true;
 
   sp_handler_package_function.add_used_routine(thd->lex, thd, spname);
   sp_handler_package_body.add_used_routine(thd->lex, thd, &q_db_pkg);

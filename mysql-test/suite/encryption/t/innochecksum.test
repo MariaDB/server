@@ -58,9 +58,9 @@ let MYSQLD_DATADIR=`select @@datadir`;
 
 --source include/shutdown_mysqld.inc
 
---echo # Run innochecksum on t1
 -- disable_result_log
---exec $INNOCHECKSUM $t1_IBD
+--echo # Run innochecksum on t1, check -S does not cause crash for encrypted file
+--exec $INNOCHECKSUM -S $t1_IBD
 
 --echo # Run innochecksum on t2
 
