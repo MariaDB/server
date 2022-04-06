@@ -9,6 +9,7 @@ Depends: mariadb-plugin-rocksdb | mariadb-server-10.8,
          mariadb-plugin-provider-lzma,
          mariadb-plugin-provider-lzo,
          mariadb-plugin-provider-snappy
+Restrictions: allow-stderr needs-root isolation-container
 
 Tests: upstream
 Depends: mariadb-test, eatmydata
