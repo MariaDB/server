@@ -1461,10 +1461,9 @@ file_checked:
 			if (err != DB_SUCCESS) {
 				return srv_init_abort(err);
 			}
-			if (srv_operation == SRV_OPERATION_RESTORE) {
-				break;
+			if (srv_operation != SRV_OPERATION_RESTORE) {
+				dict_sys.load_sys_tables();
 			}
-			dict_sys.load_sys_tables();
 			err = trx_lists_init_at_db_start();
 			if (err != DB_SUCCESS) {
 				return srv_init_abort(err);
