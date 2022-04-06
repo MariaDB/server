@@ -703,7 +703,7 @@ ERROR HY000: Sequence 'test.seq1' has out of range value for options
 # Task 4:
 CREATE TEMPORARY TABLE s1 (s1 INT);
 DROP TEMPORARY SEQUENCE s1;
-ERROR 42S02: 'test.s1' is not a SEQUENCE
+ERROR 42S02: Unknown SEQUENCE: 'test.s1'
 DROP TEMPORARY TABLE s1;
 # Task 5:
 CREATE TEMPORARY TABLE s1 (s1 INT);
