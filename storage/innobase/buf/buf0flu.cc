@@ -1718,11 +1718,9 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
   mysql_mutex_assert_owner(&log_sys.mutex);
   ut_ad(oldest_lsn <= end_lsn);
   ut_ad(end_lsn == log_sys.get_lsn());
-  ut_ad(!recv_no_log_write);
 
   ut_ad(oldest_lsn >= log_sys.last_checkpoint_lsn);
   const lsn_t age= oldest_lsn - log_sys.last_checkpoint_lsn;
-
 
   if (age > SIZE_OF_FILE_CHECKPOINT + log_sys.framing_size())
     /* Some log has been written since the previous checkpoint. */;
@@ -1742,6 +1740,8 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
     mysql_mutex_unlock(&log_sys.mutex);
     return true;
   }
+
+  ut_ad(!recv_no_log_write);
 
   /* Repeat the FILE_MODIFY records after the checkpoint, in case some
   log records between the checkpoint and log_sys.lsn need them.
