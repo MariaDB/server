@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2016, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2017, 2021, MariaDB Corporation.
+# Copyright (c) 2017, 2022, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -114,13 +114,6 @@ IF(NOT MSVC)
 ENDIF()
 
 CHECK_FUNCTION_EXISTS(vasprintf  HAVE_VASPRINTF)
-
-OPTION(WITH_INNODB_DISALLOW_WRITES "InnoDB freeze writes patch from Google" ${WITH_WSREP})
-IF (WITH_INNODB_DISALLOW_WRITES)
-  ADD_DEFINITIONS(-DWITH_INNODB_DISALLOW_WRITES)
-ENDIF()
-ADD_FEATURE_INFO(INNODB_DISALLOW_WRITES WITH_INNODB_DISALLOW_WRITES "Expose innodb_disallow_writes switch to stop innodb from writing to disk")
-
 
 # Include directories under innobase
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include

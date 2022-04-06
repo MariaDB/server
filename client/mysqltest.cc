@@ -8612,7 +8612,10 @@ void run_prepare_stmt(struct st_connection *cn, struct st_command *command, cons
     separate string
   */
   if (!disable_warnings)
+  {
     append_warnings(&ds_prepare_warnings, mysql);
+    dynstr_free(&ds_prepare_warnings);
+  }
  end:
   DBUG_VOID_RETURN;
 }
@@ -8691,7 +8694,7 @@ void run_bind_stmt(struct st_connection *cn, struct st_command *command,
       else
       {
         ps_params[i].buffer_type= MYSQL_TYPE_STRING;
-        ps_params[i].buffer= strdup(p);
+        ps_params[i].buffer= my_strdup(PSI_NOT_INSTRUMENTED, p, MYF(MY_WME));
         ps_params[i].buffer_length= (unsigned long)strlen(p);
       }
     }

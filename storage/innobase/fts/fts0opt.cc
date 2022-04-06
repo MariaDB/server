@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,6 +37,13 @@ Completed 2011/7/10 Sunny and Jimmy Yang
 #include "zlib.h"
 #include "fts0opt.h"
 #include "fts0vlc.h"
+#include "wsrep.h"
+
+#ifdef WITH_WSREP
+extern Atomic_relaxed<bool> wsrep_sst_disable_writes;
+#else
+constexpr bool wsrep_sst_disable_writes= false;
+#endif
 
 /** The FTS optimize thread's work queue. */
 ib_wqueue_t* fts_optimize_wq;
@@ -2831,6 +2838,20 @@ static void fts_optimize_callback(void *)
 		    && ib_wqueue_is_empty(fts_optimize_wq)
 		    && n_tables > 0
 		    && n_optimize > 0) {
+
+			/* The queue is empty but we have tables
+			to optimize. */
+			if (UNIV_UNLIKELY(wsrep_sst_disable_writes)) {
+retry_later:
+				if (fts_is_sync_needed()) {
+					fts_need_sync = true;
+				}
+				if (n_tables) {
+					timer->set_time(5000, 0);
+				}
+				return;
+			}
+
 			fts_slot_t* slot = static_cast<fts_slot_t*>(
 				ib_vector_get(fts_slots, current));
 
@@ -2845,19 +2866,13 @@ static void fts_optimize_callback(void *)
 				n_optimize = fts_optimize_how_many();
 				current = 0;
 			}
-
 		} else if (n_optimize == 0
 			   || !ib_wqueue_is_empty(fts_optimize_wq)) {
 			fts_msg_t* msg = static_cast<fts_msg_t*>
 				(ib_wqueue_nowait(fts_optimize_wq));
 			/* Timeout ? */
-			if (msg == NULL) {
-				if (fts_is_sync_needed()) {
-					fts_need_sync = true;
-				}
-				if (n_tables)
-					timer->set_time(5000, 0);
-				return;
+			if (!msg) {
+				goto retry_later;
 			}
 
 			switch (msg->type) {
@@ -2883,6 +2898,11 @@ static void fts_optimize_callback(void *)
 				break;
 
 			case FTS_MSG_SYNC_TABLE:
+				if (UNIV_UNLIKELY(wsrep_sst_disable_writes)) {
+					add_msg(msg);
+					goto retry_later;
+				}
+
 				DBUG_EXECUTE_IF(
 					"fts_instrument_msg_sync_sleep",
 					std::this_thread::sleep_for(
@@ -2941,7 +2961,6 @@ fts_optimize_init(void)
 
 	/* Create FTS optimize work queue */
 	fts_optimize_wq = ib_wqueue_create();
-  ut_a(fts_optimize_wq != NULL);
 	timer = srv_thread_pool->create_timer(timer_callback);
 
 	/* Create FTS vector to store fts_slot_t */

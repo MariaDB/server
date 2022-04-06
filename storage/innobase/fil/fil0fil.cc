@@ -987,6 +987,9 @@ fil_space_t *fil_space_t::create(uint32_t id, uint32_t flags,
 		if (UNIV_LIKELY(id <= fil_system.max_assigned_id)) {
 			break;
 		}
+		if (UNIV_UNLIKELY(srv_operation == SRV_OPERATION_BACKUP)) {
+			break;
+		}
 		if (!fil_system.space_id_reuse_warned) {
 			ib::warn() << "Allocated tablespace ID " << id
 				<< ", old maximum was "

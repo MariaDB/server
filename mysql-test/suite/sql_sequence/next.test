@@ -166,7 +166,7 @@ select previous value for t1;
 flush tables;
 select previous value for t1;
 drop sequence t1;
---error ER_NO_SUCH_TABLE
+--error ER_UNKNOWN_SEQUENCES
 select previous value for t1;
 CREATE SEQUENCE t1 start with 5 minvalue 1 maxvalue 10 increment by 1 cache 5 cycle;
 select previous value for t1;

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2004, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB
+   Copyright (c) 2010, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -439,6 +439,8 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   Query_tables_list backup;
   DDL_LOG_STATE ddl_log_state, ddl_log_state_tmp_file;
   char trn_path_buff[FN_REFLEN];
+  char path[FN_REFLEN + 1];
+
   DBUG_ENTER("mysql_create_or_drop_trigger");
 
   /* Charset of the buffer for statement must be system one. */
@@ -568,8 +570,12 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   /* We should have only one table in table list. */
   DBUG_ASSERT(tables->next_global == 0);
 
-  /* We do not allow creation of triggers on temporary tables. */
-  if (create && thd->find_tmp_table_share(tables))
+  build_table_filename(path, sizeof(path) - 1, tables->db.str, tables->alias.str, ".frm", 0);
+  tables->required_type= dd_frm_type(NULL, path, NULL, NULL, NULL);
+
+  /* We do not allow creation of triggers on temporary tables or sequence. */
+  if (tables->required_type == TABLE_TYPE_SEQUENCE ||
+      (create && thd->find_tmp_table_share(tables)))
   {
     my_error(ER_TRG_ON_VIEW_OR_TEMP_TABLE, MYF(0), tables->alias.str);
     goto end;
