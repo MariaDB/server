@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -9219,7 +9219,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
   THD *tmp;
   uint error= (type == KILL_TYPE_QUERY ? ER_NO_SUCH_QUERY : ER_NO_SUCH_THREAD);
   DBUG_ENTER("kill_one_thread");
-  DBUG_PRINT("enter", ("id: %lld  signal: %u", id, (uint) kill_signal));
+  DBUG_PRINT("enter", ("id: %lld  signal: %d", id, kill_signal));
   tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY);
   if (!tmp)
     DBUG_RETURN(error);
@@ -9270,7 +9270,8 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
       else
 #endif /* WITH_WSREP */
       {
-        WSREP_DEBUG("kill_one_thread victim: %lld wsrep_aborter %lu by signal %d",
+        WSREP_DEBUG("kill_one_thread victim: %lld wsrep_aborter %lu"
+                    " by signal %d",
                     id, tmp->wsrep_aborter, kill_signal);
         tmp->awake_no_mutex(kill_signal);
         error= 0;
@@ -9283,7 +9284,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
     mysql_mutex_unlock(&tmp->LOCK_thd_data);
   }
   mysql_mutex_unlock(&tmp->LOCK_thd_kill);
-  DBUG_PRINT("exit", ("%d", error));
+  DBUG_PRINT("exit", ("%u", error));
   DBUG_RETURN(error);
 }
 

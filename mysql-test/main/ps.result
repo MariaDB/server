@@ -5576,6 +5576,28 @@ a
 DEALLOCATE PREPARE stmt;
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# MDEV-19631: Assertion `0' failed in st_select_lex_unit::optimize or
+#             different plan upon 2nd execution of PS with EXPLAIN
+#
+CREATE TABLE t1 (a INT);
+PREPARE stmt FROM 'EXPLAIN SELECT * FROM t1 HAVING 6 IN ( SELECT 6 UNION SELECT 5 )';
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+# Without the patch the second execution of the 'stmt' prepared statement
+# would result in server crash.
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
 # End of 10.2 tests
 #
 #
@@ -5639,6 +5661,19 @@ disconnect con1;
 connection default;
 SET GLOBAL disconnect_on_expired_password=@disconnect_on_expired_password_save;
 DROP USER user1@localhost;
+#
+# MDEV-21173: Assertion `m_thd == __null' failed in sp_head::~sp_head
+#
+CREATE TABLE t1 (a INT);
+EXECUTE IMMEDIATE "CREATE PROCEDURE p1() SELECT 1 FROM t1  PROCEDURE ANALYSE( 10, (SELECT a FROM t1));";
+ERROR 42000: PROCEDURE does not support subqueries or stored functions
+DROP TABLE t1;
+BEGIN NOT ATOMIC
+PREPARE stmt FROM 'SELECT ?';
+EXECUTE stmt USING ((SELECT 1));
+END;
+$
+ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
 #
 # End of 10.4 tests
 #

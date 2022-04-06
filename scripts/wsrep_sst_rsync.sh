@@ -224,7 +224,7 @@ SSTCERT="$tpem"
 SSTCA="$tcert"
 SSTCAP="$tcap"
 
-SSLMODE=$(parse_cnf "$encgroups" 'ssl-mode' | tr [:lower:] [:upper:])
+SSLMODE=$(parse_cnf "$encgroups" 'ssl-mode' | tr '[[:lower:]]' '[[:upper:]]')
 
 if [ -z "$SSLMODE" ]; then
     # Implicit verification if CA is set and the SSL mode
