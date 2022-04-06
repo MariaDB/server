@@ -10461,6 +10461,21 @@ END;
 $$
 DELIMITER ;$$
 
+--echo #
+--echo # MDEV-28220: Assert failure in sp_head::~sp_head on parsing a syntax incorrect statement CREATE SEQUENCE ... RESTART inside CREATE PROCEDURE/CREATE FUNCTION
+--echo
+
+--echo # Specifying the RESTART clause for the statement CREATE SEQUENCE is a syntax error.
+--echo # Check that CREATE PROCEDURE doesn't crash server if the statement
+--echo # CREATE SEQUNCE ... RESTART is specified in its body.
+--echo #
+--error ER_PARSE_ERROR
+CREATE PROCEDURE sp1() CREATE SEQUENCE s1 START WITH 300 INCREMENT BY 30 RESTART;
+--echo # CREATE SEQUNCE ... RESTART and CREATE SEQUNCE ... RESTART WITH ... are
+--echo # handled by different grammar rules, so check the both cases.
+--error ER_PARSE_ERROR
+CREATE PROCEDURE sp1() CREATE SEQUENCE s1 START WITH 300 INCREMENT BY 30 RESTART WITH 100;
+
 --echo # End of 10.3 tests
 
 
@@ -10481,7 +10496,14 @@ END;
 $$
 DELIMITER ;$$
 
-
 --echo #
+--echo # MDEV-21173: Assertion `m_thd == __null' failed in sp_head::~sp_head
+--echo #
+CREATE TABLE t1 (a INT);
+--error ER_SUBQUERIES_NOT_SUPPORTED
+CREATE PROCEDURE p1() SELECT 1 FROM t1 PROCEDURE ANALYSE( 10, (SELECT a FROM t1));
+
+DROP TABLE t1;
+
 --echo # End of 10.4 tests
 --echo #

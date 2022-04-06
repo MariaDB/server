@@ -5005,6 +5005,19 @@ DEALLOCATE PREPARE stmt;
 DROP VIEW v1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-19631: Assertion `0' failed in st_select_lex_unit::optimize or
+--echo #             different plan upon 2nd execution of PS with EXPLAIN
+--echo #
+CREATE TABLE t1 (a INT);
+PREPARE stmt FROM 'EXPLAIN SELECT * FROM t1 HAVING 6 IN ( SELECT 6 UNION SELECT 5 )';
+EXECUTE stmt;
+--echo # Without the patch the second execution of the 'stmt' prepared statement
+--echo # would result in server crash.
+EXECUTE stmt;
+# Cleanup
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
 
 --echo # End of 10.2 tests
 --echo #
@@ -5081,6 +5094,25 @@ connection default;
 
 SET GLOBAL disconnect_on_expired_password=@disconnect_on_expired_password_save;
 DROP USER user1@localhost;
+
+--echo #
+--echo # MDEV-21173: Assertion `m_thd == __null' failed in sp_head::~sp_head
+--echo #
+CREATE TABLE t1 (a INT);
+
+--error ER_SUBQUERIES_NOT_SUPPORTED
+EXECUTE IMMEDIATE "CREATE PROCEDURE p1() SELECT 1 FROM t1  PROCEDURE ANALYSE( 10, (SELECT a FROM t1));";
+DROP TABLE t1;
+
+delimiter $;
+--error ER_SUBQUERIES_NOT_SUPPORTED
+BEGIN NOT ATOMIC
+  PREPARE stmt FROM 'SELECT ?';
+  EXECUTE stmt USING ((SELECT 1));
+END;
+$
+
+delimiter ;$
 
 --echo #
 --echo # End of 10.4 tests

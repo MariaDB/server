@@ -2102,7 +2102,10 @@ DROP TABLE t1;
 DROP TABLE t1;
 SET SQL_MODE=DEFAULT;
 
-
+--echo #
+--echo # MDEV-27673 Warning after "select progress from information_schema.processlist"
+--echo #
+select progress from information_schema.processlist limit 1;
 
 --echo #
 --echo # End of 10.3 tests

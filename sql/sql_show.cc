@@ -3296,16 +3296,6 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
       arg->table->field[11]->store((double) tmp->progress.counter /
                                    (double) max_counter*100.0);
     }
-    else
-    {
-      /*
-        This is a DECIMAL column without DEFAULT.
-        restore_record() fills its Field::ptr to zero bytes,
-        according to pack_length(). But an array of zero bytes
-        is not a valid decimal. Set it explicitly to 0.
-      */
-      arg->table->field[11]->store((longlong) 0, true);
-    }
     mysql_mutex_unlock(&tmp->LOCK_thd_data);
   }
 
@@ -8633,6 +8623,7 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
         if (bitmap_is_set(table->read_set, i))
         {
           field->move_field(cur);
+          field->reset();
           *to_recinfo++= *from_recinfo;
           cur+= from_recinfo->length;
         }
@@ -8654,6 +8645,7 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
         to_recinfo->type= FIELD_NORMAL;
         to_recinfo++;
       }
+      store_record(table, s->default_values);
       p->recinfo= to_recinfo;
 
       // TODO switch from Aria to Memory if all blobs were optimized away?

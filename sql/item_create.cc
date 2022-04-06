@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB Corporation.
+   Copyright (c) 2008, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -80,7 +80,9 @@ extern Native_func_registry_array native_func_registry_array_geom;
 class Create_sp_func : public Create_qfunc
 {
 public:
-  virtual Item *create_with_db(THD *thd, LEX_CSTRING *db, LEX_CSTRING *name,
+  virtual Item *create_with_db(THD *thd,
+                               const LEX_CSTRING *db,
+                               const LEX_CSTRING *name,
                                bool use_explicit_name, List<Item> *item_list);
 
   static Create_sp_func s_singleton;
@@ -180,7 +182,8 @@ protected:
 class Create_func_atan : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_atan s_singleton;
 
@@ -371,7 +374,8 @@ protected:
 class Create_func_concat : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_concat s_singleton;
 
@@ -384,7 +388,8 @@ protected:
 class Create_func_concat_operator_oracle : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_concat_operator_oracle s_singleton;
 
@@ -410,7 +415,8 @@ protected:
 class Create_func_decode_oracle : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_decode_oracle s_singleton;
 
@@ -423,7 +429,8 @@ protected:
 class Create_func_concat_ws : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_concat_ws s_singleton;
 
@@ -605,7 +612,8 @@ protected:
 class Create_func_des_decrypt : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_des_decrypt s_singleton;
 
@@ -618,7 +626,8 @@ protected:
 class Create_func_des_encrypt : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_des_encrypt s_singleton;
 
@@ -631,7 +640,8 @@ protected:
 class Create_func_elt : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_elt s_singleton;
 
@@ -657,7 +667,8 @@ protected:
 class Create_func_encrypt : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_encrypt s_singleton;
 
@@ -683,7 +694,8 @@ protected:
 class Create_func_export_set : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_export_set s_singleton;
 
@@ -696,7 +708,8 @@ protected:
 class Create_func_field : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_field s_singleton;
 
@@ -735,7 +748,8 @@ protected:
 class Create_func_format : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_format s_singleton;
 
@@ -787,7 +801,8 @@ protected:
 class Create_func_from_unixtime : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_from_unixtime s_singleton;
 
@@ -813,7 +828,8 @@ protected:
 class Create_func_greatest : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_greatest s_singleton;
 
@@ -956,7 +972,8 @@ protected:
 class Create_func_json_detailed: public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_json_detailed s_singleton;
 
@@ -1021,7 +1038,8 @@ protected:
 class Create_func_json_keys: public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_json_keys s_singleton;
 
@@ -1034,7 +1052,8 @@ protected:
 class Create_func_json_contains: public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_json_contains s_singleton;
 
@@ -1047,7 +1066,8 @@ protected:
 class Create_func_json_contains_path : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_json_contains_path s_singleton;
 
@@ -1060,7 +1080,8 @@ protected:
 class Create_func_json_extract : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_json_extract s_singleton;
 
@@ -1073,7 +1094,8 @@ protected:
 class Create_func_json_search : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_json_search s_singleton;
 
@@ -1086,7 +1108,8 @@ protected:
 class Create_func_json_array : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_json_array s_singleton;
 
@@ -1099,7 +1122,8 @@ protected:
 class Create_func_json_array_append : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_json_array_append s_singleton;
 
@@ -1112,7 +1136,8 @@ protected:
 class Create_func_json_array_insert : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_json_array_insert s_singleton;
 
@@ -1125,7 +1150,8 @@ protected:
 class Create_func_json_insert : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_json_insert s_singleton;
 
@@ -1138,7 +1164,8 @@ protected:
 class Create_func_json_set : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_json_set s_singleton;
 
@@ -1151,7 +1178,8 @@ protected:
 class Create_func_json_replace : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_json_replace s_singleton;
 
@@ -1164,7 +1192,8 @@ protected:
 class Create_func_json_remove : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_json_remove s_singleton;
 
@@ -1177,7 +1206,8 @@ protected:
 class Create_func_json_object : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_json_object s_singleton;
 
@@ -1190,7 +1220,8 @@ protected:
 class Create_func_json_length : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_json_length s_singleton;
 
@@ -1203,7 +1234,8 @@ protected:
 class Create_func_json_merge : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_json_merge s_singleton;
 
@@ -1216,7 +1248,8 @@ protected:
 class Create_func_json_merge_patch : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_json_merge_patch s_singleton;
 
@@ -1268,7 +1301,8 @@ protected:
 class Create_func_last_insert_id : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_last_insert_id s_singleton;
 
@@ -1294,7 +1328,8 @@ protected:
 class Create_func_least : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_least s_singleton;
 
@@ -1386,7 +1421,8 @@ protected:
 class Create_func_locate : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_locate s_singleton;
 
@@ -1399,7 +1435,8 @@ protected:
 class Create_func_log : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_log s_singleton;
 
@@ -1438,7 +1475,7 @@ protected:
 class Create_func_lpad : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name,
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
                               List<Item> *item_list)
   {
     return thd->variables.sql_mode & MODE_ORACLE ?
@@ -1450,15 +1487,18 @@ public:
 protected:
   Create_func_lpad() {}
   virtual ~Create_func_lpad() {}
-  Item *create_native_std(THD *thd, LEX_CSTRING *name, List<Item> *items);
-  Item *create_native_oracle(THD *thd, LEX_CSTRING *name, List<Item> *items);
+  Item *create_native_std(THD *thd, const LEX_CSTRING *name,
+                          List<Item> *items);
+  Item *create_native_oracle(THD *thd, const LEX_CSTRING *name,
+                             List<Item> *items);
 };
 
 
 class Create_func_lpad_oracle : public Create_func_lpad
 {
 public:
-  Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                      List<Item> *item_list)
   {
     return create_native_oracle(thd, name, item_list);
   }
@@ -1521,7 +1561,8 @@ protected:
 class Create_func_make_set : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_make_set s_singleton;
 
@@ -1534,7 +1575,8 @@ protected:
 class Create_func_master_pos_wait : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_master_pos_wait s_singleton;
 
@@ -1547,7 +1589,8 @@ protected:
 class Create_func_master_gtid_wait : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_master_gtid_wait s_singleton;
 
@@ -1755,7 +1798,8 @@ protected:
 class Create_func_rand : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_rand s_singleton;
 
@@ -1816,7 +1860,8 @@ protected:
 class Create_func_round : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_round s_singleton;
 
@@ -1829,7 +1874,7 @@ protected:
 class Create_func_rpad : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name,
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
                               List<Item> *item_list)
   {
     return thd->variables.sql_mode & MODE_ORACLE ?
@@ -1841,15 +1886,18 @@ public:
 protected:
   Create_func_rpad() {}
   virtual ~Create_func_rpad() {}
-  Item *create_native_std(THD *thd, LEX_CSTRING *name, List<Item> *items);
-  Item *create_native_oracle(THD *thd, LEX_CSTRING *name, List<Item> *items);
+  Item *create_native_std(THD *thd, const LEX_CSTRING *name,
+                          List<Item> *items);
+  Item *create_native_oracle(THD *thd, const LEX_CSTRING *name,
+                             List<Item> *items);
 };
 
 
 class Create_func_rpad_oracle : public Create_func_rpad
 {
 public:
-  Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                      List<Item> *item_list)
   {
     return create_native_oracle(thd, name, item_list);
   }
@@ -2042,7 +2090,7 @@ protected:
 class Create_func_substr_oracle : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name,
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
                               List<Item> *item_list);
 
   static Create_func_substr_oracle s_singleton;
@@ -2211,7 +2259,8 @@ protected:
 class Create_func_unix_timestamp : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_unix_timestamp s_singleton;
 
@@ -2316,7 +2365,8 @@ protected:
 class Create_func_wsrep_sync_wait_upto : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name, List<Item> *item_list)
+    override;
 
   static Create_func_wsrep_sync_wait_upto s_singleton;
 
@@ -2356,7 +2406,8 @@ protected:
 class Create_func_year_week : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_year_week s_singleton;
 
@@ -2397,7 +2448,8 @@ static bool has_named_parameters(List<Item> *params)
 
 
 Item*
-Create_qfunc::create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
+Create_qfunc::create_func(THD *thd, const LEX_CSTRING *name,
+                          List<Item> *item_list)
 {
   LEX_CSTRING db;
 
@@ -2430,7 +2482,8 @@ Create_qfunc::create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
 Create_udf_func Create_udf_func::s_singleton;
 
 Item*
-Create_udf_func::create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
+Create_udf_func::create_func(THD *thd, const LEX_CSTRING *name,
+                             List<Item> *item_list)
 {
   udf_func *udf= find_udf(name->str,  name->length);
   DBUG_ASSERT(udf);
@@ -2540,7 +2593,9 @@ Create_udf_func::create(THD *thd, udf_func *udf, List<Item> *item_list)
 Create_sp_func Create_sp_func::s_singleton;
 
 Item*
-Create_sp_func::create_with_db(THD *thd, LEX_CSTRING *db, LEX_CSTRING *name,
+Create_sp_func::create_with_db(THD *thd,
+                               const LEX_CSTRING *db,
+                               const LEX_CSTRING *name,
                                bool use_explicit_name, List<Item> *item_list)
 {
   int arg_count= 0;
@@ -2587,7 +2642,8 @@ Create_sp_func::create_with_db(THD *thd, LEX_CSTRING *db, LEX_CSTRING *name,
 
 
 Item*
-Create_native_func::create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
+Create_native_func::create_func(THD *thd, const LEX_CSTRING *name,
+                                List<Item> *item_list)
 {
   if (unlikely(has_named_parameters(item_list)))
   {
@@ -2600,7 +2656,8 @@ Create_native_func::create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_li
 
 
 Item*
-Create_func_arg0::create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
+Create_func_arg0::create_func(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list)
 {
   int arg_count= 0;
 
@@ -2618,7 +2675,8 @@ Create_func_arg0::create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list
 
 
 Item*
-Create_func_arg1::create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
+Create_func_arg1::create_func(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list)
 {
   int arg_count= 0;
 
@@ -2644,7 +2702,8 @@ Create_func_arg1::create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list
 
 
 Item*
-Create_func_arg2::create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
+Create_func_arg2::create_func(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list)
 {
   int arg_count= 0;
 
@@ -2672,7 +2731,8 @@ Create_func_arg2::create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list
 
 
 Item*
-Create_func_arg3::create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
+Create_func_arg3::create_func(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list)
 {
   int arg_count= 0;
 
@@ -2758,7 +2818,7 @@ Create_func_asin::create_1_arg(THD *thd, Item *arg1)
 Create_func_atan Create_func_atan::s_singleton;
 
 Item*
-Create_func_atan::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_atan::create_native(THD *thd, const LEX_CSTRING *name,
                                 List<Item> *item_list)
 {
   Item* func= NULL;
@@ -2920,7 +2980,7 @@ Create_func_dyncol_json::create_1_arg(THD *thd, Item *arg1)
 Create_func_concat Create_func_concat::s_singleton;
 
 Item*
-Create_func_concat::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_concat::create_native(THD *thd, const LEX_CSTRING *name,
                                   List<Item> *item_list)
 {
   int arg_count= 0;
@@ -2943,7 +3003,7 @@ Create_func_concat_operator_oracle
   Create_func_concat_operator_oracle::s_singleton;
 
 Item*
-Create_func_concat_operator_oracle::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_concat_operator_oracle::create_native(THD *thd, const LEX_CSTRING *name,
                                                   List<Item> *item_list)
 {
   int arg_count= 0;
@@ -2971,7 +3031,7 @@ Create_func_decode_histogram::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 Create_func_decode_oracle Create_func_decode_oracle::s_singleton;
 
 Item*
-Create_func_decode_oracle::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_decode_oracle::create_native(THD *thd, const LEX_CSTRING *name,
                                          List<Item> *item_list)
 {
   uint arg_count= item_list ? item_list->elements : 0;
@@ -2986,7 +3046,7 @@ Create_func_decode_oracle::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_concat_ws Create_func_concat_ws::s_singleton;
 
 Item*
-Create_func_concat_ws::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_concat_ws::create_native(THD *thd, const LEX_CSTRING *name,
                                      List<Item> *item_list)
 {
   int arg_count= 0;
@@ -3138,7 +3198,7 @@ Create_func_degrees::create_1_arg(THD *thd, Item *arg1)
 Create_func_des_decrypt Create_func_des_decrypt::s_singleton;
 
 Item*
-Create_func_des_decrypt::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_des_decrypt::create_native(THD *thd, const LEX_CSTRING *name,
                                        List<Item> *item_list)
 {
   Item *func= NULL;
@@ -3175,7 +3235,7 @@ Create_func_des_decrypt::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_des_encrypt Create_func_des_encrypt::s_singleton;
 
 Item*
-Create_func_des_encrypt::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_des_encrypt::create_native(THD *thd, const LEX_CSTRING *name,
                                        List<Item> *item_list)
 {
   Item *func= NULL;
@@ -3212,7 +3272,7 @@ Create_func_des_encrypt::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_elt Create_func_elt::s_singleton;
 
 Item*
-Create_func_elt::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_elt::create_native(THD *thd, const LEX_CSTRING *name,
                                List<Item> *item_list)
 {
   int arg_count= 0;
@@ -3242,7 +3302,7 @@ Create_func_encode::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 Create_func_encrypt Create_func_encrypt::s_singleton;
 
 Item*
-Create_func_encrypt::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_encrypt::create_native(THD *thd, const LEX_CSTRING *name,
                                    List<Item> *item_list)
 {
   Item *func= NULL;
@@ -3289,7 +3349,7 @@ Create_func_exp::create_1_arg(THD *thd, Item *arg1)
 Create_func_export_set Create_func_export_set::s_singleton;
 
 Item*
-Create_func_export_set::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_export_set::create_native(THD *thd, const LEX_CSTRING *name,
                                       List<Item> *item_list)
 {
   Item *func= NULL;
@@ -3342,7 +3402,7 @@ Create_func_export_set::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_field Create_func_field::s_singleton;
 
 Item*
-Create_func_field::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_field::create_native(THD *thd, const LEX_CSTRING *name,
                                  List<Item> *item_list)
 {
   int arg_count= 0;
@@ -3381,7 +3441,7 @@ Create_func_floor::create_1_arg(THD *thd, Item *arg1)
 Create_func_format Create_func_format::s_singleton;
 
 Item*
-Create_func_format::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_format::create_native(THD *thd, const LEX_CSTRING *name,
                                   List<Item> *item_list)
 {
   Item *func= NULL;
@@ -3446,7 +3506,7 @@ Create_func_from_days::create_1_arg(THD *thd, Item *arg1)
 Create_func_from_unixtime Create_func_from_unixtime::s_singleton;
 
 Item*
-Create_func_from_unixtime::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_from_unixtime::create_native(THD *thd, const LEX_CSTRING *name,
                                          List<Item> *item_list)
 {
   Item *func= NULL;
@@ -3496,7 +3556,7 @@ Create_func_get_lock::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 Create_func_greatest Create_func_greatest::s_singleton;
 
 Item*
-Create_func_greatest::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_greatest::create_native(THD *thd, const LEX_CSTRING *name,
                                     List<Item> *item_list)
 {
   int arg_count= 0;
@@ -3585,8 +3645,8 @@ Create_func_json_exists::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 Create_func_json_detailed Create_func_json_detailed::s_singleton;
 
 Item*
-Create_func_json_detailed::create_native(THD *thd, LEX_CSTRING *name,
-                                     List<Item> *item_list)
+Create_func_json_detailed::create_native(THD *thd, const LEX_CSTRING *name,
+                                         List<Item> *item_list)
 {
   Item *func= NULL;
   int arg_count= 0;
@@ -3712,7 +3772,7 @@ Create_func_last_day::create_1_arg(THD *thd, Item *arg1)
 Create_func_json_array Create_func_json_array::s_singleton;
 
 Item*
-Create_func_json_array::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_json_array::create_native(THD *thd, const LEX_CSTRING *name,
                                       List<Item> *item_list)
 {
   Item *func;
@@ -3734,8 +3794,8 @@ Create_func_json_array::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_json_array_append Create_func_json_array_append::s_singleton;
 
 Item*
-Create_func_json_array_append::create_native(THD *thd, LEX_CSTRING *name,
-                                                 List<Item> *item_list)
+Create_func_json_array_append::create_native(THD *thd, const LEX_CSTRING *name,
+                                             List<Item> *item_list)
 {
   Item *func= NULL;
   int arg_count= 0;
@@ -3760,8 +3820,8 @@ Create_func_json_array_append::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_json_array_insert Create_func_json_array_insert::s_singleton;
 
 Item*
-Create_func_json_array_insert::create_native(THD *thd, LEX_CSTRING *name,
-                                                 List<Item> *item_list)
+Create_func_json_array_insert::create_native(THD *thd, const LEX_CSTRING *name,
+                                             List<Item> *item_list)
 {
   Item *func= NULL;
   int arg_count= 0;
@@ -3786,8 +3846,8 @@ Create_func_json_array_insert::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_json_insert Create_func_json_insert::s_singleton;
 
 Item*
-Create_func_json_insert::create_native(THD *thd, LEX_CSTRING *name,
-                                                 List<Item> *item_list)
+Create_func_json_insert::create_native(THD *thd, const LEX_CSTRING *name,
+                                       List<Item> *item_list)
 {
   Item *func= NULL;
   int arg_count= 0;
@@ -3813,7 +3873,7 @@ Create_func_json_insert::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_json_set Create_func_json_set::s_singleton;
 
 Item*
-Create_func_json_set::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_json_set::create_native(THD *thd, const LEX_CSTRING *name,
                                     List<Item> *item_list)
 {
   Item *func= NULL;
@@ -3840,7 +3900,7 @@ Create_func_json_set::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_json_replace Create_func_json_replace::s_singleton;
 
 Item*
-Create_func_json_replace::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_json_replace::create_native(THD *thd, const LEX_CSTRING *name,
                                         List<Item> *item_list)
 {
   Item *func= NULL;
@@ -3867,7 +3927,7 @@ Create_func_json_replace::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_json_remove Create_func_json_remove::s_singleton;
 
 Item*
-Create_func_json_remove::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_json_remove::create_native(THD *thd, const LEX_CSTRING *name,
                                        List<Item> *item_list)
 {
   Item *func= NULL;
@@ -3893,7 +3953,7 @@ Create_func_json_remove::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_json_object Create_func_json_object::s_singleton;
 
 Item*
-Create_func_json_object::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_json_object::create_native(THD *thd, const LEX_CSTRING *name,
                                        List<Item> *item_list)
 {
   Item *func;
@@ -3926,7 +3986,7 @@ Create_func_json_object::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_json_length Create_func_json_length::s_singleton;
 
 Item*
-Create_func_json_length::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_json_length::create_native(THD *thd, const LEX_CSTRING *name,
                                        List<Item> *item_list)
 {
   Item *func;
@@ -3951,7 +4011,7 @@ Create_func_json_length::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_json_merge Create_func_json_merge::s_singleton;
 
 Item*
-Create_func_json_merge::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_json_merge::create_native(THD *thd, const LEX_CSTRING *name,
                                       List<Item> *item_list)
 {
   Item *func;
@@ -3976,8 +4036,8 @@ Create_func_json_merge::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_json_merge_patch Create_func_json_merge_patch::s_singleton;
 
 Item*
-Create_func_json_merge_patch::create_native(THD *thd, LEX_CSTRING *name,
-                                           List<Item> *item_list)
+Create_func_json_merge_patch::create_native(THD *thd, const LEX_CSTRING *name,
+                                            List<Item> *item_list)
 {
   Item *func;
   int arg_count;
@@ -4000,7 +4060,7 @@ Create_func_json_merge_patch::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_json_contains Create_func_json_contains::s_singleton;
 
 Item*
-Create_func_json_contains::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_json_contains::create_native(THD *thd, const LEX_CSTRING *name,
                                          List<Item> *item_list)
 {
   Item *func= NULL;
@@ -4026,7 +4086,7 @@ Create_func_json_contains::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_json_keys Create_func_json_keys::s_singleton;
 
 Item*
-Create_func_json_keys::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_json_keys::create_native(THD *thd, const LEX_CSTRING *name,
                                      List<Item> *item_list)
 {
   Item *func= NULL;
@@ -4052,8 +4112,8 @@ Create_func_json_keys::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_json_contains_path Create_func_json_contains_path::s_singleton;
 
 Item*
-Create_func_json_contains_path::create_native(THD *thd, LEX_CSTRING *name,
-                                                 List<Item> *item_list)
+Create_func_json_contains_path::create_native(THD *thd, const LEX_CSTRING *name,
+                                              List<Item> *item_list)
 {
   Item *func= NULL;
   int arg_count= 0;
@@ -4078,8 +4138,8 @@ Create_func_json_contains_path::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_json_extract Create_func_json_extract::s_singleton;
 
 Item*
-Create_func_json_extract::create_native(THD *thd, LEX_CSTRING *name,
-                                                 List<Item> *item_list)
+Create_func_json_extract::create_native(THD *thd, const LEX_CSTRING *name,
+                                        List<Item> *item_list)
 {
   Item *func= NULL;
   int arg_count= 0;
@@ -4104,7 +4164,7 @@ Create_func_json_extract::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_json_search Create_func_json_search::s_singleton;
 
 Item*
-Create_func_json_search::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_json_search::create_native(THD *thd, const LEX_CSTRING *name,
                                        List<Item> *item_list)
 {
   Item *func= NULL;
@@ -4130,7 +4190,7 @@ Create_func_json_search::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_last_insert_id Create_func_last_insert_id::s_singleton;
 
 Item*
-Create_func_last_insert_id::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_last_insert_id::create_native(THD *thd, const LEX_CSTRING *name,
                                           List<Item> *item_list)
 {
   Item *func= NULL;
@@ -4176,7 +4236,7 @@ Create_func_lcase::create_1_arg(THD *thd, Item *arg1)
 Create_func_least Create_func_least::s_singleton;
 
 Item*
-Create_func_least::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_least::create_native(THD *thd, const LEX_CSTRING *name,
                                  List<Item> *item_list)
 {
   int arg_count= 0;
@@ -4258,7 +4318,7 @@ Create_func_load_file::create_1_arg(THD *thd, Item *arg1)
 Create_func_locate Create_func_locate::s_singleton;
 
 Item*
-Create_func_locate::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_locate::create_native(THD *thd, const LEX_CSTRING *name,
                                   List<Item> *item_list)
 {
   Item *func= NULL;
@@ -4299,7 +4359,7 @@ Create_func_locate::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_log Create_func_log::s_singleton;
 
 Item*
-Create_func_log::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_log::create_native(THD *thd, const LEX_CSTRING *name,
                                List<Item> *item_list)
 {
   Item *func= NULL;
@@ -4356,7 +4416,7 @@ Create_func_lpad Create_func_lpad::s_singleton;
 Create_func_lpad_oracle Create_func_lpad_oracle::s_singleton;
 
 Item*
-Create_func_lpad::create_native_std(THD *thd, LEX_CSTRING *name,
+Create_func_lpad::create_native_std(THD *thd, const LEX_CSTRING *name,
                                     List<Item> *item_list)
 {
   Item *func= NULL;
@@ -4388,7 +4448,7 @@ Create_func_lpad::create_native_std(THD *thd, LEX_CSTRING *name,
 
 
 Item*
-Create_func_lpad::create_native_oracle(THD *thd, LEX_CSTRING *name,
+Create_func_lpad::create_native_oracle(THD *thd, const LEX_CSTRING *name,
                                        List<Item> *item_list)
 {
   int arg_count= item_list ? item_list->elements : 0;
@@ -4454,7 +4514,7 @@ Create_func_maketime::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
 Create_func_make_set Create_func_make_set::s_singleton;
 
 Item*
-Create_func_make_set::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_make_set::create_native(THD *thd, const LEX_CSTRING *name,
                                     List<Item> *item_list)
 {
   int arg_count= 0;
@@ -4475,7 +4535,7 @@ Create_func_make_set::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_master_pos_wait Create_func_master_pos_wait::s_singleton;
 
 Item*
-Create_func_master_pos_wait::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_master_pos_wait::create_native(THD *thd, const LEX_CSTRING *name,
                                            List<Item> *item_list)
 
 {
@@ -4526,7 +4586,7 @@ Create_func_master_pos_wait::create_native(THD *thd, LEX_CSTRING *name,
 Create_func_master_gtid_wait Create_func_master_gtid_wait::s_singleton;
 
 Item*
-Create_func_master_gtid_wait::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_master_gtid_wait::create_native(THD *thd, const LEX_CSTRING *name,
                                             List<Item> *item_list)
 {
   Item *func= NULL;
@@ -4724,7 +4784,7 @@ Create_func_radians::create_1_arg(THD *thd, Item *arg1)
 Create_func_rand Create_func_rand::s_singleton;
 
 Item*
-Create_func_rand::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_rand::create_native(THD *thd, const LEX_CSTRING *name,
                                 List<Item> *item_list)
 {
   Item *func= NULL;
@@ -4815,7 +4875,7 @@ Create_func_reverse::create_1_arg(THD *thd, Item *arg1)
 Create_func_round Create_func_round::s_singleton;
 
 Item*
-Create_func_round::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_round::create_native(THD *thd, const LEX_CSTRING *name,
                                  List<Item> *item_list)
 {
   Item *func= NULL;
@@ -4855,7 +4915,7 @@ Create_func_rpad Create_func_rpad::s_singleton;
 Create_func_rpad_oracle Create_func_rpad_oracle::s_singleton;
 
 Item*
-Create_func_rpad::create_native_std(THD *thd, LEX_CSTRING *name,
+Create_func_rpad::create_native_std(THD *thd, const LEX_CSTRING *name,
                                     List<Item> *item_list)
 {
   Item *func= NULL;
@@ -4887,7 +4947,7 @@ Create_func_rpad::create_native_std(THD *thd, LEX_CSTRING *name,
 
 
 Item*
-Create_func_rpad::create_native_oracle(THD *thd, LEX_CSTRING *name,
+Create_func_rpad::create_native_oracle(THD *thd, const LEX_CSTRING *name,
                                        List<Item> *item_list)
 {
   int arg_count= item_list ? item_list->elements : 0;
@@ -5045,8 +5105,8 @@ Create_func_substr_index::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *a
 Create_func_substr_oracle Create_func_substr_oracle::s_singleton;
 
 Item*
-Create_func_substr_oracle::create_native(THD *thd, LEX_CSTRING *name,
-                                List<Item> *item_list)
+Create_func_substr_oracle::create_native(THD *thd, const LEX_CSTRING *name,
+                                         List<Item> *item_list)
 {
   Item *func= NULL;
   int arg_count= item_list ? item_list->elements : 0;
@@ -5187,7 +5247,7 @@ Create_func_unhex::create_1_arg(THD *thd, Item *arg1)
 Create_func_unix_timestamp Create_func_unix_timestamp::s_singleton;
 
 Item*
-Create_func_unix_timestamp::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_unix_timestamp::create_native(THD *thd, const LEX_CSTRING *name,
                                           List<Item> *item_list)
 {
   Item *func= NULL;
@@ -5305,8 +5365,8 @@ Create_func_wsrep_sync_wait_upto::s_singleton;
 
 Item*
 Create_func_wsrep_sync_wait_upto::create_native(THD *thd,
-                                         LEX_CSTRING *name,
-                                         List<Item> *item_list)
+                                                const LEX_CSTRING *name,
+                                                List<Item> *item_list)
 {
   Item *func= NULL;
   int arg_count= 0;
@@ -5356,7 +5416,7 @@ Create_func_xml_update::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg
 Create_func_year_week Create_func_year_week::s_singleton;
 
 Item*
-Create_func_year_week::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_year_week::create_native(THD *thd, const LEX_CSTRING *name,
                                      List<Item> *item_list)
 {
   Item *func= NULL;

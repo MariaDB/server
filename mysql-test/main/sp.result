@@ -8900,6 +8900,19 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 BEGIN
 RETURN '';
 END' at line 2
+#
+# MDEV-28220: Assert failure in sp_head::~sp_head on parsing a syntax incorrect statement CREATE SEQUENCE ... RESTART inside CREATE PROCEDURE/CREATE FUNCTION
+
+# Specifying the RESTART clause for the statement CREATE SEQUENCE is a syntax error.
+# Check that CREATE PROCEDURE doesn't crash server if the statement
+# CREATE SEQUNCE ... RESTART is specified in its body.
+#
+CREATE PROCEDURE sp1() CREATE SEQUENCE s1 START WITH 300 INCREMENT BY 30 RESTART;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'RESTART' at line 1
+# CREATE SEQUNCE ... RESTART and CREATE SEQUNCE ... RESTART WITH ... are
+# handled by different grammar rules, so check the both cases.
+CREATE PROCEDURE sp1() CREATE SEQUENCE s1 START WITH 300 INCREMENT BY 30 RESTART WITH 100;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'RESTART' at line 1
 # End of 10.3 tests
 #
 # Start of 10.4 tests
@@ -8914,5 +8927,11 @@ END;
 $$
 ERROR 42000: Incorrect usage/placement of 'HIGH_PRIORITY'
 #
+# MDEV-21173: Assertion `m_thd == __null' failed in sp_head::~sp_head
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1() SELECT 1 FROM t1 PROCEDURE ANALYSE( 10, (SELECT a FROM t1));
+ERROR 42000: PROCEDURE does not support subqueries or stored functions
+DROP TABLE t1;
 # End of 10.4 tests
 #
