@@ -27,6 +27,13 @@ Created 7/19/1997 Heikki Tuuri
 #include "ibuf0ibuf.h"
 #include "sync0sync.h"
 #include "btr0sea.h"
+#ifdef WITH_WSREP
+extern uint32 wsrep_sst_disable_writes;
+# define wsrep_sst_disable_writes \
+  my_atomic_load32_explicit(&wsrep_sst_disable_writes, MY_MEMORY_ORDER_RELAXED)
+#else
+# define wsrep_sst_disable_writes false
+#endif
 
 using st_::span;
 
@@ -2652,6 +2659,10 @@ ibuf_merge_in_background(
 		return(0);
 	}
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
+
+	if (wsrep_sst_disable_writes) {
+		return(0);
+	}
 
 	if (full) {
 		/* Caller has requested a full batch */
