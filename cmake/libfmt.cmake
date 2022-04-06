@@ -26,6 +26,7 @@ ENDMACRO()
 
 MACRO (CHECK_LIBFMT)
   IF(WITH_LIBFMT STREQUAL "system" OR WITH_LIBFMT STREQUAL "auto")
+    SET(CMAKE_REQUIRED_INCLUDES ${LIBFMT_INCLUDE_DIR})
     CHECK_CXX_SOURCE_COMPILES(
     "#define FMT_STATIC_THOUSANDS_SEPARATOR ','
      #define FMT_HEADER_ONLY 1
@@ -37,6 +38,7 @@ MACRO (CHECK_LIBFMT)
          std::cout << fmt::vformat(\"The answer is {}.\",
                                    fmt::format_args(&arg, 1));
      }" HAVE_SYSTEM_LIBFMT)
+    SET(CMAKE_REQUIRED_INCLUDES)
   ENDIF()
   IF(NOT HAVE_SYSTEM_LIBFMT OR WITH_LIBFMT STREQUAL "bundled")
     IF (WITH_LIBFMT STREQUAL "system")

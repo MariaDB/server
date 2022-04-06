@@ -2003,7 +2003,7 @@ uint spider_param_udf_table_mon_mutex_count()
  */
 static MYSQL_THDVAR_LONGLONG(
   udf_ds_bulk_insert_rows, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Number of rows for bulk inserting", /* comment */
   NULL, /* check */
   NULL, /* update */
@@ -2030,7 +2030,7 @@ longlong spider_param_udf_ds_bulk_insert_rows(
  */
 static MYSQL_THDVAR_INT(
   udf_ds_table_loop_mode, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Table loop mode if the number of tables in table list are less than the number of result sets", /* comment */
   NULL, /* check */
   NULL, /* update */
@@ -2289,7 +2289,7 @@ static int spider_udf_ct_bulk_insert_interval;
 static MYSQL_SYSVAR_INT(
   udf_ct_bulk_insert_interval,
   spider_udf_ct_bulk_insert_interval,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "The interval time between bulk insert and next bulk insert at coping",
   NULL,
   NULL,
@@ -2315,7 +2315,7 @@ static longlong spider_udf_ct_bulk_insert_rows;
 static MYSQL_SYSVAR_LONGLONG(
   udf_ct_bulk_insert_rows,
   spider_udf_ct_bulk_insert_rows,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "The number of rows inserted with bulk insert of one time at coping",
   NULL,
   NULL,
@@ -2525,7 +2525,7 @@ int spider_param_read_only_mode(
  */
 static MYSQL_THDVAR_INT(
   udf_ds_use_real_table, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Use real table for temporary table list", /* comment */
   NULL, /* check */
   NULL, /* update */

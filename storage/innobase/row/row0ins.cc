@@ -2641,6 +2641,7 @@ commit_exit:
 	    && block->page.id().page_no() == index->page
 	    && !index->table->skip_alter_undo
 	    && !index->table->n_rec_locks
+	    && !index->table->has_spatial_index()
 	    && !trx->is_wsrep() /* FIXME: MDEV-24623 */
 	    && !thd_is_slave(trx->mysql_thd) /* FIXME: MDEV-24622 */) {
 		DEBUG_SYNC_C("empty_root_page_insert");

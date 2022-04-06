@@ -8913,3 +8913,15 @@ ERROR 42000: Incorrect usage/placement of 'HIGH_PRIORITY'
 #
 # End of 10.4 tests
 #
+#
+# MDEV-28129: MariaDB UAF issue at lex_end_nops(LEX*)
+#
+CREATE PROCEDURE sp() SELECT 1 INTO @;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+CREATE PROCEDURE sp() SET @=1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '=1' at line 1
+CREATE PROCEDURE sp() SELECT @;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+#
+# End of 10.7 tests
+#
