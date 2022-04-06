@@ -1537,6 +1537,9 @@ struct handlerton
    @return transaction commit ID
    @retval 0 if no system-versioned data was affected by the transaction */
    ulonglong (*prepare_commit_versioned)(THD *thd, ulonglong *trx_id);
+
+  /** Disable or enable the internal writes of a storage engine */
+  void (*disable_internal_writes)(bool disable);
 };
 
 
@@ -4712,6 +4715,8 @@ int ha_create_table(THD *thd, const char *path,
                     HA_CREATE_INFO *create_info, LEX_CUSTRING *frm);
 int ha_delete_table(THD *thd, handlerton *db_type, const char *path,
                     const LEX_CSTRING *db, const LEX_CSTRING *alias, bool generate_warning);
+
+void ha_disable_internal_writes(bool disable);
 
 /* statistics and info */
 bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat);

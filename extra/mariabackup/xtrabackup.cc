@@ -4372,11 +4372,6 @@ fail:
 	crc_init();
 	recv_sys_init();
 
-#ifdef WITH_INNODB_DISALLOW_WRITES
-	srv_allow_writes_event = os_event_create(0);
-	os_event_set(srv_allow_writes_event);
-#endif
-
 	xb_filters_init();
 
 	xb_fil_io_init();
@@ -5837,10 +5832,6 @@ static bool xtrabackup_prepare_func(char** argv)
 		log_sys.create();
 		recv_recovery_on = true;
 
-#ifdef WITH_INNODB_DISALLOW_WRITES
-		srv_allow_writes_event = os_event_create(0);
-		os_event_set(srv_allow_writes_event);
-#endif
 		dberr_t err = xb_data_files_init();
 		if (err != DB_SUCCESS) {
 			msg("mariabackup: error: xb_data_files_init() failed "
@@ -5862,9 +5853,6 @@ static bool xtrabackup_prepare_func(char** argv)
 		xb_filter_hash_free(inc_dir_tables_hash);
 
 		fil_system.close();
-#ifdef WITH_INNODB_DISALLOW_WRITES
-		os_event_destroy(srv_allow_writes_event);
-#endif
 		innodb_free_param();
 		log_sys.close();
 		sync_check_close();

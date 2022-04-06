@@ -1,0 +1,34 @@
+#
+# This test verifies that the server can be shut down even if
+# some of the wsrep transactions are in QUERY_COMMITTING state.
+# In this case the shutdown sequence may do a BF abort for the
+# connection.
+#
+
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INT PRIMARY KEY);
+
+--connection node_2
+call mtr.add_suppression("WSREP: Failed to scan the last segment to the end. Last events may be missing. Last recovered event:.*");
+SET DEBUG_SYNC = 'wsrep_before_certification WAIT_FOR continue';
+--send INSERT INTO t1 VALUES (1)
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--source include/restart_mysqld.inc
+
+# Restore original auto_increment_offset values.
+--let $node_2=node_2a
+--source include/auto_increment_offset_restore.inc
+
+--connection node_1
+
+DROP TABLE t1;
