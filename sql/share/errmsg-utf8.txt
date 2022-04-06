@@ -5499,9 +5499,10 @@ ER_TRG_DOES_NOT_EXIST
         hindi "TRIGGER मौजूद नहीं है"
         spa "El disparador no existe"
 ER_TRG_ON_VIEW_OR_TEMP_TABLE  
-        eng "Trigger's '%-.192s' is view or temporary table"
-        ger "'%-.192s' des Triggers ist View oder temporäre Tabelle"
-        spa "El disparador '%-.192s' es una vista o tabla temporal"
+        eng "Trigger's '%-.192s' is a view, temporary table or sequence"
+        ger "'%-.192s' des Triggers ist ein View, temporäre Tabelle oder Sequence"
+        spa "El disparador '%-.192s' es una vista, tabla temporal o secuencia"
+        hindi "Trigger का '%-.192s' एक व्यू, टेम्पररी टेबल या सीक्वेंस है"
 ER_TRG_CANT_CHANGE_ROW  
         eng "Updating of %s row is not allowed in %strigger"
         ger "Aktualisieren einer %s-Zeile ist in einem %s-Trigger nicht erlaubt"
@@ -8574,8 +8575,8 @@ ER_SEQUENCE_RUN_OUT
         eng "Sequence '%-.64s.%-.64s' has run out"
         spa "La secuencia '%-.64s.%-.64s' se ha agotado"
 ER_SEQUENCE_INVALID_DATA
-        eng "Sequence '%-.64s.%-.64s' values are conflicting"
-        spa "Los valores de secuencia '%-.64s.%-.64s' son conflictivos"
+        eng "Sequence '%-.64s.%-.64s' has out of range value for options"
+        spa "La secuencia '%-.64s.%-.64s' tiene un valor fuera de rango para las opciones"
 ER_SEQUENCE_INVALID_TABLE_STRUCTURE
         eng "Sequence '%-.64s.%-.64s' table structure is invalid (%s)"
         spa "La estuctura de tabla de secuencia '%-.64s.%-.64s' es inválida (%s)"

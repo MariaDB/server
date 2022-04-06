@@ -1,4 +1,5 @@
 /* Copyright 2008-2022 Codership Oy <http://www.codership.com>
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1581,43 +1582,13 @@ static int run_sql_command(THD *thd, const char *query)
   if (thd->is_error())
   {
     int const err= thd->get_stmt_da()->sql_errno();
-    WSREP_WARN ("Error executing '%s': %d (%s)%s",
-                query, err, thd->get_stmt_da()->message(),
-                err == ER_UNKNOWN_SYSTEM_VARIABLE ?
-                ". Was mysqld built with --with-innodb-disallow-writes ?" : "");
+    WSREP_WARN ("Error executing '%s': %d (%s)",
+                query, err, thd->get_stmt_da()->message());
     thd->clear_error();
     return -1;
   }
   return 0;
 }
-
-static void sst_disallow_writes (THD* thd, bool yes)
-{
-  char query_str[64]= { 0, };
-  ssize_t const query_max= sizeof(query_str) - 1;
-  CHARSET_INFO *current_charset;
-
-  current_charset= thd->variables.character_set_client;
-
-  if (!is_supported_parser_charset(current_charset))
-  {
-      /* Do not use non-supported parser character sets */
-      WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->cs_name.str);
-      thd->variables.character_set_client= &my_charset_latin1;
-      WSREP_WARN("For SST temporally setting character set to : %s",
-                 my_charset_latin1.cs_name.str);
-  }
-
-  snprintf (query_str, query_max, "SET GLOBAL innodb_disallow_writes=%d",
-            yes ? 1 : 0);
-
-  if (run_sql_command(thd, query_str))
-  {
-    WSREP_ERROR("Failed to disallow InnoDB writes");
-  }
-  thd->variables.character_set_client= current_charset;
-}
-
 
 static int sst_flush_tables(THD* thd)
 {
@@ -1678,16 +1649,11 @@ static int sst_flush_tables(THD* thd)
   }
   else
   {
+    ha_disable_internal_writes(true);
+
     WSREP_INFO("Tables flushed.");
 
-    /* disable further disk IO */
-    sst_disallow_writes(thd, true);
-    WSREP_INFO("Disabled further disk IO.");
-
-    /*
-      Tables have been flushed. Create a file with cluster state ID and
-      wsrep_gtid_domain_id.
-    */
+    // Create a file with cluster state ID and wsrep_gtid_domain_id.
     char content[100];
     snprintf(content, sizeof(content), "%s:%lld %d\n", wsrep_cluster_state_uuid,
              (long long)wsrep_locked_seqno, wsrep_gtid_server.domain_id);
@@ -1730,6 +1696,8 @@ static int sst_flush_tables(THD* thd)
     }
     free(real_name);
     free(tmp_name);
+    if (err)
+      ha_disable_internal_writes(false);
   }
 
   return err;
@@ -1802,31 +1770,30 @@ wait_signal:
       else if (!strcasecmp (out, magic_flush))
       {
         err= sst_flush_tables (thd.ptr);
+
         if (!err)
         {
-           /*
+          locked= true;
+          /*
             Lets also keep statements that modify binary logs (like RESET LOGS,
             RESET MASTER) from proceeding until the files have been transferred
             to the joiner node.
           */
           if (mysql_bin_log.is_open())
-          {
             mysql_mutex_lock(mysql_bin_log.get_log_lock());
-          }
 
-          locked= true;
-
-	  WSREP_INFO("Donor state reached");
+          WSREP_INFO("Donor state reached");
 
           DBUG_EXECUTE_IF("sync.wsrep_donor_state",
-                  {
-                    const char act[]=
-                      "now "
-                      "SIGNAL sync.wsrep_donor_state_reached "
-                      "WAIT_FOR signal.wsrep_donor_state";
-                    assert(!debug_sync_set_action(thd.ptr,
-                                                  STRING_WITH_LEN(act)));
-                  };);
+          {
+            const char act[]=
+                             "now "
+                             "SIGNAL sync.wsrep_donor_state_reached "
+                             "WAIT_FOR signal.wsrep_donor_state";
+            assert(!debug_sync_set_action(thd.ptr,
+                                          STRING_WITH_LEN(act)));
+          };);
+
           goto wait_signal;
         }
       }
@@ -1834,14 +1801,11 @@ wait_signal:
       {
         if (locked)
         {
-          if (mysql_bin_log.is_open())
-          {
-            mysql_mutex_assert_owner(mysql_bin_log.get_log_lock());
-            mysql_mutex_unlock(mysql_bin_log.get_log_lock());
-          }
-          sst_disallow_writes (thd.ptr, false);
-          thd.ptr->global_read_lock.unlock_global_read_lock(thd.ptr);
           locked= false;
+          ha_disable_internal_writes(false);
+          if (mysql_bin_log.is_open())
+            mysql_mutex_unlock(mysql_bin_log.get_log_lock());
+          thd.ptr->global_read_lock.unlock_global_read_lock(thd.ptr);
         }
         err=  0;
         goto wait_signal;
@@ -1873,12 +1837,12 @@ wait_signal:
 
   if (locked) // don't forget to unlock server before return
   {
+    ha_disable_internal_writes(false);
     if (mysql_bin_log.is_open())
     {
       mysql_mutex_assert_owner(mysql_bin_log.get_log_lock());
       mysql_mutex_unlock(mysql_bin_log.get_log_lock());
     }
-    sst_disallow_writes (thd.ptr, false);
     thd.ptr->global_read_lock.unlock_global_read_lock(thd.ptr);
   }
 

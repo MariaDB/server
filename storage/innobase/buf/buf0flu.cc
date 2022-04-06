@@ -1902,7 +1902,6 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
 #endif
   ut_ad(oldest_lsn <= end_lsn);
   ut_ad(end_lsn == log_sys.get_lsn());
-  ut_ad(!recv_no_log_write);
 
   if (oldest_lsn == log_sys.last_checkpoint_lsn ||
       (oldest_lsn == end_lsn &&
@@ -1918,6 +1917,7 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
     return true;
   }
 
+  ut_ad(!recv_no_log_write);
   ut_ad(oldest_lsn > log_sys.last_checkpoint_lsn);
   /* Repeat the FILE_MODIFY records after the checkpoint, in case some
   log records between the checkpoint and log_sys.lsn need them.

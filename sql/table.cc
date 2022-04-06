@@ -2660,8 +2660,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
       if (flags & VERS_SYSTEM_FIELD)
       {
-        switch (handler->real_field_type())
-        {
+        auto field_type= handler->real_field_type();
+
+        DBUG_EXECUTE_IF("error_vers_wrong_type", field_type= MYSQL_TYPE_BLOB;);
+
+        switch (field_type) {
         case MYSQL_TYPE_TIMESTAMP2:
           break;
         case MYSQL_TYPE_LONGLONG:
@@ -2672,9 +2675,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           }
           /* Fallthrough */
         default:
-          my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), fieldnames.type_names[i],
-            versioned == VERS_TIMESTAMP ? "TIMESTAMP(6)" : "BIGINT(20) UNSIGNED",
-            table_name.str);
+          my_error(ER_VERS_FIELD_WRONG_TYPE,
+                   (field_type == MYSQL_TYPE_LONGLONG ?
+                    MYF(0) : MYF(ME_WARNING)),
+                   fieldnames.type_names[i],
+                   (versioned == VERS_TIMESTAMP ?
+                    "TIMESTAMP(6)" : "BIGINT(20) UNSIGNED"),
+                   table_name.str);
           goto err;
         }
       }
@@ -8983,9 +8990,6 @@ bool TABLE::check_period_overlaps(const KEY &key,
 
 void TABLE::vers_update_fields()
 {
-  bitmap_set_bit(write_set, vers_start_field()->field_index);
-  bitmap_set_bit(write_set, vers_end_field()->field_index);
-
   if (!vers_write)
   {
     file->column_bitmaps_signal();
@@ -8994,17 +8998,21 @@ void TABLE::vers_update_fields()
 
   if (versioned(VERS_TIMESTAMP))
   {
+    bitmap_set_bit(write_set, vers_start_field()->field_index);
     if (vers_start_field()->store_timestamp(in_use->query_start(),
                                           in_use->query_start_sec_part()))
     {
       DBUG_ASSERT(0);
     }
     vers_start_field()->set_has_explicit_value();
+    bitmap_set_bit(read_set, vers_start_field()->field_index);
   }
 
+  bitmap_set_bit(write_set, vers_end_field()->field_index);
   vers_end_field()->set_max();
   vers_end_field()->set_has_explicit_value();
   bitmap_set_bit(read_set, vers_end_field()->field_index);
+
   file->column_bitmaps_signal();
   if (vfield)
     update_virtual_fields(file, VCOL_UPDATE_FOR_READ);

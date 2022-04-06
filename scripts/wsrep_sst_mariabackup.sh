@@ -516,7 +516,7 @@ read_cnf()
 
     encrypt=$(parse_cnf "$encgroups" 'encrypt' 0)
     tmode=$(parse_cnf "$encgroups" 'ssl-mode' 'DISABLED' | \
-            tr [:lower:] [:upper:])
+            tr '[[:lower:]]' '[[:upper:]]')
 
     case "$tmode" in
     'VERIFY_IDENTITY'|'VERIFY_CA'|'REQUIRED'|'DISABLED')
