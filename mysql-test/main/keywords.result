@@ -391,3 +391,424 @@ END
 $$
 compressed
 1
+#
+# Testing various keywords in various contexts
+#
+CREATE PROCEDURE p1(query TEXT, var TEXT)
+BEGIN
+DECLARE errmsg TEXT DEFAULT '';
+DECLARE CONTINUE HANDLER
+FOR SQLEXCEPTION
+BEGIN
+GET DIAGNOSTICS CONDITION 1 errmsg = MESSAGE_TEXT;
+SET errmsg= REPLACE(errmsg, 'You have an error in your SQL ', '..');
+SET errmsg= REPLACE(errmsg, '; check the manual that corresponds to your MariaDB server version for the right syntax to use', '..');
+END;
+SET query=REPLACE(query, '$(VAR)', var);
+EXECUTE IMMEDIATE query;
+SELECT CONCAT(query, '; -- ', LEFT(COALESCE(errmsg,''),40)) AS `--------`;
+END;
+$$
+CREATE PROCEDURE p2(query TEXT)
+BEGIN
+FOR row IN (SELECT word FROM t1 ORDER BY category, word)
+DO
+CALL p1(query, row.word);
+END FOR;
+END;
+$$
+CREATE TABLE t1 (word TEXT, category TEXT);
+INSERT INTO t1 VALUES ('non_keyword', '00 Simple identifier');
+INSERT INTO t1 VALUES ('lpad', '01 Built-in native function');
+INSERT INTO t1 VALUES ('rpad', '01 Built-in native function');
+INSERT INTO t1 VALUES ('adddate',     '02 function_call_nonkeyword');
+INSERT INTO t1 VALUES ('substr',      '02 function_call_nonkeyword');
+INSERT INTO t1 VALUES ('substring',   '02 function_call_nonkeyword');
+INSERT INTO t1 VALUES ('trim_oracle', '02 function_call_nonkeyword');
+INSERT INTO t1 VALUES ('ascii',         '03 function_call_conflict');
+INSERT INTO t1 VALUES ('replace',       '03 function_call_conflict');
+INSERT INTO t1 VALUES ('weight_string', '03 function_call_conflict');
+INSERT INTO t1 VALUES ('char', '04 function_call_keyword');
+INSERT INTO t1 VALUES ('trim', '04 function_call_keyword');
+INSERT INTO t1 VALUES ('year', '04 function_call_keyword');
+INSERT INTO t1 VALUES ('create', '05 Reserved keyword');
+CALL p2('SELECT @@$(VAR)');
+--------
+SELECT @@non_keyword; -- Unknown system variable 'non_keyword'
+--------
+SELECT @@lpad; -- Unknown system variable 'lpad'
+--------
+SELECT @@rpad; -- Unknown system variable 'rpad'
+--------
+SELECT @@adddate; -- Unknown system variable 'adddate'
+--------
+SELECT @@substr; -- Unknown system variable 'substr'
+--------
+SELECT @@substring; -- Unknown system variable 'substring'
+--------
+SELECT @@trim_oracle; -- Unknown system variable 'trim_oracle'
+--------
+SELECT @@ascii; -- Unknown system variable 'ascii'
+--------
+SELECT @@replace; -- ..syntax.. near 'replace' at line 1
+--------
+SELECT @@weight_string; -- Unknown system variable 'weight_string'
+--------
+SELECT @@char; -- ..syntax.. near 'char' at line 1
+--------
+SELECT @@trim; -- Unknown system variable 'trim'
+--------
+SELECT @@year; -- Unknown system variable 'year'
+--------
+SELECT @@create; -- ..syntax.. near 'create' at line 1
+CALL p2('SELECT @@global.$(VAR)');
+--------
+SELECT @@global.non_keyword; -- Unknown system variable 'non_keyword'
+--------
+SELECT @@global.lpad; -- Unknown system variable 'lpad'
+--------
+SELECT @@global.rpad; -- Unknown system variable 'rpad'
+--------
+SELECT @@global.adddate; -- Unknown system variable 'adddate'
+--------
+SELECT @@global.substr; -- Unknown system variable 'substr'
+--------
+SELECT @@global.substring; -- Unknown system variable 'substring'
+--------
+SELECT @@global.trim_oracle; -- Unknown system variable 'trim_oracle'
+--------
+SELECT @@global.ascii; -- Unknown system variable 'ascii'
+--------
+SELECT @@global.replace; -- Unknown system variable 'replace'
+--------
+SELECT @@global.weight_string; -- Unknown system variable 'weight_string'
+--------
+SELECT @@global.char; -- Unknown system variable 'char'
+--------
+SELECT @@global.trim; -- Unknown system variable 'trim'
+--------
+SELECT @@global.year; -- Unknown system variable 'year'
+--------
+SELECT @@global.create; -- Unknown system variable 'create'
+CALL p2('SELECT @@global.$(VAR)()');
+--------
+SELECT @@global.non_keyword(); -- Unknown system variable 'non_keyword'
+--------
+SELECT @@global.lpad(); -- Unknown system variable 'lpad'
+--------
+SELECT @@global.rpad(); -- Unknown system variable 'rpad'
+--------
+SELECT @@global.adddate(); -- Unknown system variable 'adddate'
+--------
+SELECT @@global.substr(); -- Unknown system variable 'substr'
+--------
+SELECT @@global.substring(); -- Unknown system variable 'substring'
+--------
+SELECT @@global.trim_oracle(); -- Unknown system variable 'trim_oracle'
+--------
+SELECT @@global.ascii(); -- Unknown system variable 'ascii'
+--------
+SELECT @@global.replace(); -- Unknown system variable 'replace'
+--------
+SELECT @@global.weight_string(); -- Unknown system variable 'weight_string'
+--------
+SELECT @@global.char(); -- Unknown system variable 'char'
+--------
+SELECT @@global.trim(); -- Unknown system variable 'trim'
+--------
+SELECT @@global.year(); -- Unknown system variable 'year'
+--------
+SELECT @@global.create(); -- Unknown system variable 'create'
+CALL p2('SELECT $(VAR)()');
+--------
+SELECT non_keyword(); -- FUNCTION test.non_keyword does not exist
+--------
+SELECT lpad(); -- Incorrect parameter count in the call to
+--------
+SELECT rpad(); -- Incorrect parameter count in the call to
+--------
+SELECT adddate(); -- ..syntax.. near ')' at line 1
+--------
+SELECT substr(); -- ..syntax.. near ')' at line 1
+--------
+SELECT substring(); -- ..syntax.. near ')' at line 1
+--------
+SELECT trim_oracle(); -- ..syntax.. near ')' at line 1
+--------
+SELECT ascii(); -- ..syntax.. near ')' at line 1
+--------
+SELECT replace(); -- ..syntax.. near ')' at line 1
+--------
+SELECT weight_string(); -- ..syntax.. near ')' at line 1
+--------
+SELECT char(); -- ..syntax.. near ')' at line 1
+--------
+SELECT trim(); -- ..syntax.. near ')' at line 1
+--------
+SELECT year(); -- ..syntax.. near ')' at line 1
+--------
+SELECT create(); -- ..syntax.. near 'create()' at line 1
+CALL p2('SELECT test.$(VAR)()');
+--------
+SELECT test.non_keyword(); -- FUNCTION test.non_keyword does not exist
+--------
+SELECT test.lpad(); -- FUNCTION test.lpad does not exist
+--------
+SELECT test.rpad(); -- FUNCTION test.rpad does not exist
+--------
+SELECT test.adddate(); -- FUNCTION test.adddate does not exist. Ch
+--------
+SELECT test.substr(); -- FUNCTION test.substr does not exist. Che
+--------
+SELECT test.substring(); -- FUNCTION test.substring does not exist. 
+--------
+SELECT test.trim_oracle(); -- FUNCTION test.trim_oracle does not exist
+--------
+SELECT test.ascii(); -- FUNCTION test.ascii does not exist. Chec
+--------
+SELECT test.replace(); -- FUNCTION test.replace does not exist. Ch
+--------
+SELECT test.weight_string(); -- FUNCTION test.weight_string does not exi
+--------
+SELECT test.char(); -- FUNCTION test.char does not exist. Check
+--------
+SELECT test.trim(); -- FUNCTION test.trim does not exist. Check
+--------
+SELECT test.year(); -- FUNCTION test.year does not exist. Check
+--------
+SELECT test.create(); -- FUNCTION test.create does not exist. Che
+CALL p2('SELECT $(VAR) FROM t1');
+--------
+SELECT non_keyword FROM t1; -- Unknown column 'non_keyword' in 'field l
+--------
+SELECT lpad FROM t1; -- Unknown column 'lpad' in 'field list'
+--------
+SELECT rpad FROM t1; -- Unknown column 'rpad' in 'field list'
+--------
+SELECT adddate FROM t1; -- Unknown column 'adddate' in 'field list'
+--------
+SELECT substr FROM t1; -- Unknown column 'substr' in 'field list'
+--------
+SELECT substring FROM t1; -- Unknown column 'substring' in 'field lis
+--------
+SELECT trim_oracle FROM t1; -- Unknown column 'trim_oracle' in 'field l
+--------
+SELECT ascii FROM t1; -- Unknown column 'ascii' in 'field list'
+--------
+SELECT replace FROM t1; -- ..syntax.. near 'FROM t1' at line 1
+--------
+SELECT weight_string FROM t1; -- Unknown column 'weight_string' in 'field
+--------
+SELECT char FROM t1; -- ..syntax.. near 'FROM t1' at line 1
+--------
+SELECT trim FROM t1; -- Unknown column 'trim' in 'field list'
+--------
+SELECT year FROM t1; -- Unknown column 'year' in 'field list'
+--------
+SELECT create FROM t1; -- ..syntax.. near 'create FROM t1' at line
+CALL p2('SELECT t1.$(VAR) FROM t1');
+--------
+SELECT t1.non_keyword FROM t1; -- Unknown column 't1.non_keyword' in 'fiel
+--------
+SELECT t1.lpad FROM t1; -- Unknown column 't1.lpad' in 'field list'
+--------
+SELECT t1.rpad FROM t1; -- Unknown column 't1.rpad' in 'field list'
+--------
+SELECT t1.adddate FROM t1; -- Unknown column 't1.adddate' in 'field li
+--------
+SELECT t1.substr FROM t1; -- Unknown column 't1.substr' in 'field lis
+--------
+SELECT t1.substring FROM t1; -- Unknown column 't1.substring' in 'field 
+--------
+SELECT t1.trim_oracle FROM t1; -- Unknown column 't1.trim_oracle' in 'fiel
+--------
+SELECT t1.ascii FROM t1; -- Unknown column 't1.ascii' in 'field list
+--------
+SELECT t1.replace FROM t1; -- Unknown column 't1.replace' in 'field li
+--------
+SELECT t1.weight_string FROM t1; -- Unknown column 't1.weight_string' in 'fi
+--------
+SELECT t1.char FROM t1; -- Unknown column 't1.char' in 'field list'
+--------
+SELECT t1.trim FROM t1; -- Unknown column 't1.trim' in 'field list'
+--------
+SELECT t1.year FROM t1; -- Unknown column 't1.year' in 'field list'
+--------
+SELECT t1.create FROM t1; -- Unknown column 't1.create' in 'field lis
+CALL p2('DROP TABLE $(VAR)');
+--------
+DROP TABLE non_keyword; -- Unknown table 'test.non_keyword'
+--------
+DROP TABLE lpad; -- Unknown table 'test.lpad'
+--------
+DROP TABLE rpad; -- Unknown table 'test.rpad'
+--------
+DROP TABLE adddate; -- Unknown table 'test.adddate'
+--------
+DROP TABLE substr; -- Unknown table 'test.substr'
+--------
+DROP TABLE substring; -- Unknown table 'test.substring'
+--------
+DROP TABLE trim_oracle; -- Unknown table 'test.trim_oracle'
+--------
+DROP TABLE ascii; -- Unknown table 'test.ascii'
+--------
+DROP TABLE replace; -- ..syntax.. near 'replace' at line 1
+--------
+DROP TABLE weight_string; -- Unknown table 'test.weight_string'
+--------
+DROP TABLE char; -- ..syntax.. near 'char' at line 1
+--------
+DROP TABLE trim; -- Unknown table 'test.trim'
+--------
+DROP TABLE year; -- Unknown table 'test.year'
+--------
+DROP TABLE create; -- ..syntax.. near 'create' at line 1
+CALL p2('DROP TABLE test.$(VAR)');
+--------
+DROP TABLE test.non_keyword; -- Unknown table 'test.non_keyword'
+--------
+DROP TABLE test.lpad; -- Unknown table 'test.lpad'
+--------
+DROP TABLE test.rpad; -- Unknown table 'test.rpad'
+--------
+DROP TABLE test.adddate; -- Unknown table 'test.adddate'
+--------
+DROP TABLE test.substr; -- Unknown table 'test.substr'
+--------
+DROP TABLE test.substring; -- Unknown table 'test.substring'
+--------
+DROP TABLE test.trim_oracle; -- Unknown table 'test.trim_oracle'
+--------
+DROP TABLE test.ascii; -- Unknown table 'test.ascii'
+--------
+DROP TABLE test.replace; -- Unknown table 'test.replace'
+--------
+DROP TABLE test.weight_string; -- Unknown table 'test.weight_string'
+--------
+DROP TABLE test.char; -- Unknown table 'test.char'
+--------
+DROP TABLE test.trim; -- Unknown table 'test.trim'
+--------
+DROP TABLE test.year; -- Unknown table 'test.year'
+--------
+DROP TABLE test.create; -- Unknown table 'test.create'
+CALL p2('CREATE FUNCTION $(VAR)() RETURNS OOPS');
+--------
+CREATE FUNCTION non_keyword() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION lpad() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION rpad() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION adddate() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION substr() RETURNS OOPS; -- ..syntax.. near 'substr() RETURNS OOPS' 
+--------
+CREATE FUNCTION substring() RETURNS OOPS; -- ..syntax.. near 'substring() RETURNS OOP
+--------
+CREATE FUNCTION trim_oracle() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION ascii() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION replace() RETURNS OOPS; -- ..syntax.. near 'replace() RETURNS OOPS'
+--------
+CREATE FUNCTION weight_string() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION char() RETURNS OOPS; -- ..syntax.. near 'char() RETURNS OOPS' at
+--------
+CREATE FUNCTION trim() RETURNS OOPS; -- ..syntax.. near 'trim() RETURNS OOPS' at
+--------
+CREATE FUNCTION year() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION create() RETURNS OOPS; -- ..syntax.. near 'create() RETURNS OOPS' 
+CALL p2('CREATE FUNCTION test.$(VAR)() RETURNS OOPS');
+--------
+CREATE FUNCTION test.non_keyword() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION test.lpad() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION test.rpad() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION test.adddate() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION test.substr() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION test.substring() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION test.trim_oracle() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION test.ascii() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION test.replace() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION test.weight_string() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION test.char() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION test.trim() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION test.year() RETURNS OOPS; -- Unknown data type: 'OOPS'
+--------
+CREATE FUNCTION test.create() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CALL p2('DROP FUNCTION $(VAR)');
+--------
+DROP FUNCTION non_keyword; -- This command is not supported in the pre
+--------
+DROP FUNCTION lpad; -- This command is not supported in the pre
+--------
+DROP FUNCTION rpad; -- This command is not supported in the pre
+--------
+DROP FUNCTION adddate; -- This command is not supported in the pre
+--------
+DROP FUNCTION substr; -- This command is not supported in the pre
+--------
+DROP FUNCTION substring; -- This command is not supported in the pre
+--------
+DROP FUNCTION trim_oracle; -- This command is not supported in the pre
+--------
+DROP FUNCTION ascii; -- This command is not supported in the pre
+--------
+DROP FUNCTION replace; -- ..syntax.. near 'replace' at line 1
+--------
+DROP FUNCTION weight_string; -- This command is not supported in the pre
+--------
+DROP FUNCTION char; -- ..syntax.. near 'char' at line 1
+--------
+DROP FUNCTION trim; -- This command is not supported in the pre
+--------
+DROP FUNCTION year; -- This command is not supported in the pre
+--------
+DROP FUNCTION create; -- ..syntax.. near 'create' at line 1
+CALL p2('DROP FUNCTION test.$(VAR)');
+--------
+DROP FUNCTION test.non_keyword; -- This command is not supported in the pre
+--------
+DROP FUNCTION test.lpad; -- This command is not supported in the pre
+--------
+DROP FUNCTION test.rpad; -- This command is not supported in the pre
+--------
+DROP FUNCTION test.adddate; -- This command is not supported in the pre
+--------
+DROP FUNCTION test.substr; -- This command is not supported in the pre
+--------
+DROP FUNCTION test.substring; -- This command is not supported in the pre
+--------
+DROP FUNCTION test.trim_oracle; -- This command is not supported in the pre
+--------
+DROP FUNCTION test.ascii; -- This command is not supported in the pre
+--------
+DROP FUNCTION test.replace; -- This command is not supported in the pre
+--------
+DROP FUNCTION test.weight_string; -- This command is not supported in the pre
+--------
+DROP FUNCTION test.char; -- This command is not supported in the pre
+--------
+DROP FUNCTION test.trim; -- This command is not supported in the pre
+--------
+DROP FUNCTION test.year; -- This command is not supported in the pre
+--------
+DROP FUNCTION test.create; -- This command is not supported in the pre
+DROP TABLE t1;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
