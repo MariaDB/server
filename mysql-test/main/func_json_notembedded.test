@@ -4,6 +4,25 @@ source include/not_embedded.inc;
 set global max_allowed_packet=1073741824;
 connect u,localhost,root;
 
+delimiter |;
+
+create procedure kill_soon(IN t INT, IN C INT)
+begin
+  select sleep(t);
+  execute immediate 'kill connection ?' using c;
+end|
+
+delimiter ;|
+
+--let $con=`SELECT CONNECTION_ID()`
+
+connection default;
+set @timeout= 5;
+--replace_result $con THE_OTHER_CONNECTION
+--send_eval call kill_soon(@timeout, $con);
+
+connection u;
+
 --echo #
 --echo # MDEV-24909 JSON functions don't respect KILL QUERY / max_statement_time limit
 --echo #
@@ -30,6 +49,11 @@ select json_set(@arr,'$[1000]',1);
 enable_abort_on_error;
 disconnect u;
 connection default;
+--replace_result $con THE_OTHER_CONNECTION
+--error ER_NO_SUCH_THREAD
+reap;
+
+drop procedure kill_soon;
 set global max_allowed_packet=default;
 
 --echo #

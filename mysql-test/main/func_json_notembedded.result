@@ -1,5 +1,14 @@
 set global max_allowed_packet=1073741824;
 connect u,localhost,root;
+create procedure kill_soon(IN t INT, IN C INT)
+begin
+select sleep(t);
+execute immediate 'kill connection ?' using c;
+end|
+connection default;
+set @timeout= 5;
+call kill_soon(@timeout, THE_OTHER_CONNECTION);;
+connection u;
 #
 # MDEV-24909 JSON functions don't respect KILL QUERY / max_statement_time limit
 #
@@ -36,6 +45,10 @@ select json_set(@arr,'$[1000]',1);
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 disconnect u;
 connection default;
+sleep(t)
+0
+ERROR HY000: Unknown thread id: THE_OTHER_CONNECTION
+drop procedure kill_soon;
 set global max_allowed_packet=default;
 #
 # End of 10.6 tests
