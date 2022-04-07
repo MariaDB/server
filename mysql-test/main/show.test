@@ -45,3 +45,14 @@ drop table t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-28253 Mysqldump - INVISIBLE column error
+--echo #
+create table t1 (a int, b datetime invisible on update now() without system versioning) with system versioning;
+desc t1;
+drop table t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
