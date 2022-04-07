@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,6 +27,11 @@ Created 7/19/1997 Heikki Tuuri
 #include "ibuf0ibuf.h"
 #include "sync0sync.h"
 #include "btr0sea.h"
+#ifdef WITH_WSREP
+extern Atomic_relaxed<bool> wsrep_sst_disable_writes;
+#else
+constexpr bool wsrep_sst_disable_writes= false;
+#endif
 
 using st_::span;
 
@@ -2604,6 +2609,10 @@ ibuf_merge_in_background(
 		return(0);
 	}
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
+
+	if (wsrep_sst_disable_writes) {
+		return(0);
+	}
 
 	if (full) {
 		/* Caller has requested a full batch */
