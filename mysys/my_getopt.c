@@ -41,6 +41,7 @@ static void fini_one_value(const struct my_option *, void *, longlong);
 static int setval(const struct my_option *, void *, char *, my_bool);
 static char *check_struct_option(char *cur_arg, char *key_name);
 
+int tolower (int c){ return (c >= 'A' && c <= 'Z')?(c - 'A' + 'a'):c; }
 /*
   The following three variables belong to same group and the number and
   order of their arguments must correspond to each other.
@@ -960,7 +961,8 @@ my_bool getopt_compare_strings(register const char *s, register const char *t,
 
   for (;s != end ; s++, t++)
   {
-    if ((*s != '-' ? *s : '_') != (*t != '-' ? *t : '_'))
+    if ((*s != '-' ? tolower((unsigned char)*s) : '_') !=
+        (*t != '-' ? tolower((unsigned char)*t) : '_'))
       DBUG_RETURN(1);
   }
   DBUG_RETURN(0);
