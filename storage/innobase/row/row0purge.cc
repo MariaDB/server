@@ -933,11 +933,11 @@ row_purge_parse_undo_rec(
 	}
 
 try_again:
-	node->table = dict_table_open_on_id(
+	node->table = dict_table_open_on_id<true>(
 		table_id, false, DICT_TABLE_OP_NORMAL, node->purge_thd,
 		&node->mdl_ticket);
 
-	if (node->table == NULL || node->table->name.is_temporary()) {
+	if (!node->table) {
 		/* The table has been dropped: no need to do purge and
 		release mdl happened as a part of open process itself */
 		goto err_exit;

@@ -921,12 +921,14 @@ template dict_table_t*
 dict_acquire_mdl_shared<true>(dict_table_t*,THD*,MDL_ticket**,dict_table_op_t);
 
 /** Look up a table by numeric identifier.
+@tparam purge_thd Whether the function is called by purge thread
 @param[in]      table_id        table identifier
 @param[in]      dict_locked     data dictionary locked
 @param[in]      table_op        operation to perform when opening
 @param[in,out]  thd             background thread, or NULL to not acquire MDL
 @param[out]     mdl             mdl ticket, or NULL
 @return table, NULL if does not exist */
+template<bool purge_thd>
 dict_table_t*
 dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                       dict_table_op_t table_op, THD *thd,
@@ -948,6 +950,10 @@ dict_table_open_on_id(table_id_t table_id, bool dict_locked,
 		table_op == DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
 
 	if (table != NULL) {
+		if (purge_thd && table->name.is_temporary()) {
+			mutex_exit(&dict_sys.mutex);
+			return nullptr;
+		}
 		dict_sys.acquire(table);
 		MONITOR_INC(MONITOR_TABLE_REFERENCE);
 	}
@@ -964,6 +970,11 @@ dict_table_open_on_id(table_id_t table_id, bool dict_locked,
 
 	return table;
 }
+
+template dict_table_t* dict_table_open_on_id<false>
+(table_id_t, bool, dict_table_op_t, THD *, MDL_ticket **);
+template dict_table_t* dict_table_open_on_id<true>
+(table_id_t, bool, dict_table_op_t, THD *, MDL_ticket **);
 
 /********************************************************************//**
 Looks for column n position in the clustered index.

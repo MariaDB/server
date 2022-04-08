@@ -140,12 +140,14 @@ dict_acquire_mdl_shared(dict_table_t *table,
                         dict_table_op_t table_op= DICT_TABLE_OP_NORMAL);
 
 /** Look up a table by numeric identifier.
+@tparam	purge_thd Whether the function is called by purge thread
 @param[in]      table_id        table identifier
 @param[in]      dict_locked     data dictionary locked
 @param[in]      table_op        operation to perform when opening
 @param[in,out]  thd             background thread, or NULL to not acquire MDL
 @param[out]     mdl             mdl ticket, or NULL
 @return table, NULL if does not exist */
+template<bool purge_thd= false>
 dict_table_t*
 dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                       dict_table_op_t table_op, THD *thd= nullptr,
