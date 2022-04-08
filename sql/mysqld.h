@@ -968,6 +968,7 @@ extern int mysqld_main(int argc, char **argv);
 extern HANDLE hEventShutdown;
 extern void mysqld_win_initiate_shutdown();
 extern void mysqld_win_set_startup_complete();
+extern void mysqld_win_extend_service_timeout(DWORD sec);
 extern void mysqld_set_service_status_callback(void (*)(DWORD, DWORD, DWORD));
 extern void mysqld_win_set_service_name(const char *name);
 #endif

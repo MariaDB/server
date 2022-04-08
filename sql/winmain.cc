@@ -81,7 +81,8 @@ static void report_svc_status(DWORD current_state, DWORD exit_code, DWORD wait_h
     return;
 
   static DWORD check_point= 1;
-  svc_status.dwCurrentState= current_state;
+  if (current_state != (DWORD)-1)
+    svc_status.dwCurrentState= current_state;
   svc_status.dwWaitHint= wait_hint;
 
   if (exit_code)
