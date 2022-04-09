@@ -2893,7 +2893,7 @@ Item_sp::Item_sp(THD *thd, Item_sp *item):
 }
 
 const char *
-Item_sp::func_name(THD *thd) const
+Item_sp::func_name(THD *thd, bool is_package_function) const
 {
   /* Calculate length to avoid reallocation of string for sure */
   size_t len= (((m_name->m_explicit_name ? m_name->m_db.length : 0) +
@@ -2914,7 +2914,7 @@ Item_sp::func_name(THD *thd) const
     append_identifier(thd, &qname, &m_name->m_db);
     qname.append('.');
   }
-  if (m_sp && m_sp->m_handler == &sp_handler_package_function)
+  if (is_package_function)
   {
     /*
       In case of a package function split `pkg.func` and print
