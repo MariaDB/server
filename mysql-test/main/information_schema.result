@@ -2400,3 +2400,24 @@ progress
 #
 # End of 10.3 tests
 #
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-26507 Assertion `tmp != ((long long) 0x8000000000000000LL)' failed in TIME_from_longlong_datetime_packed
+#
+CREATE TABLE t1 (a int);
+CREATE ALGORITHM=TEMPTABLE VIEW i AS
+SELECT a.created
+FROM t1 w JOIN INFORMATION_SCHEMA.routines a
+WHERE a.routine_name='not existing'
+  ORDER BY a.last_altered;
+SET SESSION sql_mode='ALLOW_INVALID_DATES';
+SELECT * FROM i;
+created
+SET SESSION sql_mode=DEFAULT;
+DROP VIEW i;
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#
