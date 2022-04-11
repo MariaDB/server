@@ -956,7 +956,7 @@ try_again:
 	bool has_v_cols = node->table
 			&& dict_table_has_indexed_v_cols(node->table);
 	if (has_v_cols) {
-		if (!innobase_ready()) {
+		if (unlikely(!innobase_ready())) {
 			node->table->release();
 			rw_lock_s_unlock(&dict_sys.latch);
 			node->table = NULL;
@@ -965,11 +965,16 @@ try_again:
 		// Unlocks dict_sys.latch
 		TABLE *maria_table= innodb_acquire_mdl(current_thd,
 						       &node->table);
-		if (!maria_table) {
-			node->table = NULL;
-			goto table_not_found;
+		has_v_cols = node->table
+			     && dict_table_has_indexed_v_cols(node->table);
+
+		if (likely(has_v_cols)) {
+			if (!maria_table) {
+				node->table = NULL;
+				goto table_not_found;
+			}
+			node->vcol_info.set_table(maria_table);
 		}
-		node->vcol_info.set_table(maria_table);
 	}
 
 	if (node->table == NULL) {

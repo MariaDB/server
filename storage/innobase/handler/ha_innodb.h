@@ -943,6 +943,7 @@ bool innobase_ready();
 
 /** Acquire metadata lock and MariaDB table handle for an InnoDB table.
 Unlocks dict_sys.latch and requires it locked before the call.
+Leaves the latch locked if new table has no vcol indexes, or in case of error.
 @param[in,out]	thd		thread handle
 @param[in,out]	table_ref	InnoDB table will be reopened, new instance is
                                 returned
