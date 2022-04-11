@@ -937,6 +937,10 @@ dict_vcol_templ_t *innobase_create_v_templ(const TABLE *table,
   return s_templ;
 }
 
+/** Reports whether innodb plugin is considered fully initialized.
+@return true if fully initialized; false otherwise. */
+bool innobase_ready();
+
 /** Acquire metadata lock and MariaDB table handle for an InnoDB table.
 Unlocks dict_sys.latch and requires it locked before the call.
 @param[in,out]	thd		thread handle

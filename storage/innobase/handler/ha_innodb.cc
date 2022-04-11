@@ -4397,6 +4397,11 @@ static int innodb_init(void* p)
 	DBUG_RETURN(0);
 }
 
+extern my_bool plugins_are_initialized;
+/** Reports whether innodb plugin is considered fully initialized.
+@return true if fully initialized; false otherwise. */
+bool innobase_ready() { return plugins_are_initialized; }
+
 /** Shut down the InnoDB storage engine.
 @return	0 */
 static

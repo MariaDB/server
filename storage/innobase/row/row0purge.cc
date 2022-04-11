@@ -956,6 +956,12 @@ try_again:
 	bool has_v_cols = node->table
 			&& dict_table_has_indexed_v_cols(node->table);
 	if (has_v_cols) {
+		if (!innobase_ready()) {
+			node->table->release();
+			rw_lock_s_unlock(&dict_sys.latch);
+			node->table = NULL;
+			return false;
+		}
 		// Unlocks dict_sys.latch
 		TABLE *maria_table= innodb_acquire_mdl(current_thd,
 						       &node->table);
