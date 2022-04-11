@@ -223,7 +223,7 @@ fresh install:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb-10.9 Sid upgrade:
+mariadb Sid upgrade:
   stage: upgrade in Sid
   needs:
     - job: build
@@ -244,7 +244,7 @@ mariadb-10.9 Sid upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb-10.5 Bullseye to mariadb-10.9 upgrade:
+mariadb-10.5 Bullseye to mariadb upgrade:
   stage: upgrade from Bullseye/Buster
   needs:
     - job: build
@@ -270,7 +270,7 @@ mariadb-10.5 Bullseye to mariadb-10.9 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb-10.3 Buster to mariadb-10.9 upgrade:
+mariadb-10.3 Buster to mariadb upgrade:
   stage: upgrade from Bullseye/Buster
   needs:
     - job: build
@@ -497,7 +497,7 @@ default-libmysqlclient-dev Buster upgrade:
 
 # Upgrading from MySQL 8.0 with datadir in place is not possible. Users need to do a data dump.
 # The Debian maintainer scripts detect this situation and simply moves old datadir aside and start fresh.
-mysql-8.0 Sid to mariadb-10.9 upgrade:
+mysql-8.0 Sid to mariadb upgrade:
   stage: upgrade in Sid
   needs:
     - job: build
@@ -524,7 +524,7 @@ mysql-8.0 Sid to mariadb-10.9 upgrade:
 
 # Upgrading from MySQL 8.0 with datadir in place is not possible. Users need to do a data dump.
 # The Debian maintainer scripts detect this situation and simply moves old datadir aside and start fresh.
-mysql-8.0 Focal to mariadb-10.9 upgrade:
+mysql-8.0 Focal to mariadb upgrade:
   stage: upgrade extras
   needs:
     - job: build buster-backports
@@ -557,7 +557,7 @@ mysql-8.0 Focal to mariadb-10.9 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb.org-10.6 to mariadb-10.9 upgrade:
+mariadb.org-10.6 to mariadb upgrade:
   stage: upgrade extras
   needs:
     - job: build
@@ -627,7 +627,7 @@ mariadb.org-10.5 to mariadb-10.9 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb.org-10.4 to mariadb-10.9 upgrade:
+mariadb.org-10.4 to mariadb upgrade:
   stage: upgrade extras
   needs:
     - job: build
@@ -660,7 +660,7 @@ mariadb.org-10.4 to mariadb-10.9 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb.org-10.3 to mariadb-10.9 upgrade:
+mariadb.org-10.3 to mariadb upgrade:
   stage: upgrade extras
   needs:
     - job: build
@@ -691,7 +691,7 @@ mariadb.org-10.3 to mariadb-10.9 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb.org-10.2 to mariadb-10.9 upgrade:
+mariadb.org-10.2 to mariadb upgrade:
   stage: upgrade extras
   needs:
     - job: build
@@ -730,7 +730,7 @@ mariadb.org-10.2 to mariadb-10.9 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mysql.com-5.7 to mariadb-10.9 upgrade:
+mysql.com-5.7 to mariadb upgrade:
   stage: upgrade extras
   needs:
     - job: build buster-backports
@@ -761,7 +761,7 @@ mysql.com-5.7 to mariadb-10.9 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-percona-xtradb-5.7 to mariadb-10.9 upgrade (MDEV-22679):
+percona-xtradb-5.7 to mariadb upgrade (MDEV-22679):
   stage: upgrade extras
   needs:
     - job: build buster-backports
