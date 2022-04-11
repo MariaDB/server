@@ -108,7 +108,8 @@ select * from db1.t1	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 3,
+                    "records_read": 3,
+                    "records_out": 3,
                     "cost": 1.752563477,
                     "uses_join_buffering": false
                   }
@@ -238,7 +239,8 @@ select * from db1.v1	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 3,
+                    "records_read": 3,
+                    "records_out": 3,
                     "cost": 1.752563477,
                     "uses_join_buffering": false
                   }
