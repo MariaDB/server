@@ -602,13 +602,13 @@ dict_index_get_nth_field_pos(
 }
 
 /** Parse the table file name into table name and database name.
-@tparam		dict_locked	whether dict_sys.lock() was called
-@param[in,out]	db_name		database name buffer
-@param[in,out]	tbl_name	table name buffer
-@param[out]	db_name_len	database name length
-@param[out]	tbl_name_len	table name length
+@tparam        dict_frozen  whether the caller holds dict_sys.latch
+@param[in,out] db_name      database name buffer
+@param[in,out] tbl_name     table name buffer
+@param[out] db_name_len     database name length
+@param[out] tbl_name_len    table name length
 @return whether the table name is visible to SQL */
-template<bool dict_locked>
+template<bool dict_frozen>
 bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
                               char (&tbl_name)[NAME_LEN + 1],
                               size_t *db_name_len, size_t *tbl_name_len) const
@@ -616,7 +616,7 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   char db_buf[MAX_DATABASE_NAME_LEN + 1];
   char tbl_buf[MAX_TABLE_NAME_LEN + 1];
 
-  if (!dict_locked)
+  if (!dict_frozen)
     dict_sys.freeze(SRW_LOCK_CALL); /* protect against renaming */
   ut_ad(dict_sys.frozen());
   const size_t db_len= name.dblen();
@@ -636,7 +636,7 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   memcpy(tbl_buf, mdl_name.m_name + db_len + 1, tbl_len);
   tbl_buf[tbl_len]= 0;
 
-  if (!dict_locked)
+  if (!dict_frozen)
     dict_sys.unfreeze();
 
   *db_name_len= filename_to_tablename(db_buf, db_name,
@@ -782,7 +782,7 @@ return_without_mdl:
 
   size_t db1_len, tbl1_len;
 
-  if (!table->parse_name<!trylock>(db_buf1, tbl_buf1, &db1_len, &tbl1_len))
+  if (!table->parse_name<true>(db_buf1, tbl_buf1, &db1_len, &tbl1_len))
   {
     /* The table was renamed to #sql prefix.
     Release MDL (if any) for the old name and return. */
