@@ -6322,7 +6322,7 @@ int spider_db_init(
   spider_hton_ptr = spider_hton;
 
   spider_hton->state = SHOW_OPTION_YES;
-  spider_hton->flags = HTON_NO_FLAGS;
+  spider_hton->flags = HTON_TEMPORARY_NOT_SUPPORTED;
   /* spider_hton->db_type = DB_TYPE_SPIDER; */
   /*
   spider_hton->savepoint_offset;
