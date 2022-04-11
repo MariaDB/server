@@ -480,7 +480,8 @@ public:
                                                   double records,
                                                   double fetch_cost,
                                                   double index_only_cost,
-                                                  double prev_records);
+                                                  double prev_records,
+                                                  double *records_out);
   Range_rowid_filter_cost_info *
     apply_filter(THD *thd, TABLE *table, double *cost, double *records_arg,
                  double *startup_cost, double fetch_cost,
