@@ -339,3 +339,20 @@ select hex(b) from t1 where b<'zzz' order by b;
 
 drop table t1;
 
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+--echo #
+
+CREATE TABLE t1 (a CHAR(10) CHARACTER SET latin1 COLLATE DEFAULT);
+DROP TABLE t1;
+SELECT CAST('a' AS CHAR(10) CHARACTER SET latin1 COLLATE DEFAULT);
+SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET latin1 COLLATE DEFAULT) AS c1;
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
