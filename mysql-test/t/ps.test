@@ -4990,5 +4990,21 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-16128: Server crash in Item_func::print_op on 2nd execution of PS
+--echo #
+
+CREATE TABLE t1 (a2 varchar(10));
+CREATE TABLE t2 (u1 varchar(10) CHARACTER SET utf8 );
+CREATE TABLE t3 (u2 varchar(10) CHARACTER SET utf8);
+PREPARE stmt FROM "SELECT t1.* FROM (t1 JOIN t2 ON (t2.u1 = t1.a2)) WHERE (EXISTS (SELECT 1 FROM t3 WHERE t3.u2 = t1.a2))";
+EXECUTE stmt;
+--echo # Without the patch second execution of the prepared statement
+--echo # would lead to server crash.
+EXECUTE stmt;
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2, t3;
+
 --echo # End of 10.2 tests
 --echo #
