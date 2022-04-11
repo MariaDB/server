@@ -9,8 +9,8 @@
 
 . /usr/share/debconf/confmodule
 
-# Automatically set version to ease maintenance of this file
-MAJOR_VER="${DPKG_MAINTSCRIPT_PACKAGE#mariadb-server-}"
+# This set by debian/rules during 'override_dh_auto_configure'
+MAJOR_VER="__MARIADB_MAJOR_VER__"
 
 # Just kill the invalid insserv.conf.d directory without fallback
 if [ -d "/etc/insserv.conf.d/mariadb/" ]; then

@@ -3,8 +3,8 @@ set -e
 
 . /usr/share/debconf/confmodule
 
-# Automatically set version to ease maintenance of this file
-MAJOR_VER="${DPKG_MAINTSCRIPT_PACKAGE#mariadb-server-}"
+# This set by debian/rules during 'override_dh_auto_configure'
+MAJOR_VER="__MARIADB_MAJOR_VER__"
 
 if [ -n "$DEBIAN_SCRIPT_DEBUG" ]; then set -v -x; DEBIAN_SCRIPT_TRACE=1; fi
 ${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }

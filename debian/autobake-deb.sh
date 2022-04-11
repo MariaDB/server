@@ -35,7 +35,7 @@ then
   then
     cp -v storage/columnstore/columnstore/debian/mariadb-plugin-columnstore.* debian/
     echo >> debian/control
-    sed "s/10.6/${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}/" <storage/columnstore/columnstore/debian/control >> debian/control
+    sed "s/-10.6//" <storage/columnstore/columnstore/debian/control >> debian/control
   fi
 fi
 
