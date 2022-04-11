@@ -1,0 +1,38 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t (i int primary key auto_increment, j varchar(20) character set utf8);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+SET SESSION wsrep_sync_wait = 0;
+connection node_1;
+insert into t values (1, 'first');
+PS_prepare INSERT INTO t(j) VALUES (?);;
+PS_bind node1;
+PS_execute;
+PS_execute;
+select * from t;
+i	j
+1	first
+3	node1
+5	node1
+PS_close;
+PS_prepare INSERT INTO t(j) VALUES (?);;
+PS_bind node1;
+begin;
+update t set j='node1' where i=1;
+connection node_2;
+update t set j='node2' where i=1;
+connection node_1a;
+connection node_1;
+PS_execute;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+PS_execute;
+commit;
+PS_close;
+select * from t;
+i	j
+1	node2
+3	node1
+5	node1
+7	node1
+drop table t;

@@ -14,7 +14,7 @@ connection master_1;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
 # MDEV-27923 Deprecate spider_use_handler
-SET spider_use_handler= 3;
+SET spider_use_handler = 3;
 Warnings:
 Warning	1287	'@@spider_use_handler' is deprecated and will be removed in a future release
 SHOW VARIABLES LIKE "spider_use_handler";
@@ -26,6 +26,37 @@ Warning	1287	The table parameter 'uhd' is deprecated and will be removed in a fu
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='use_handler "3"';
 Warnings:
 Warning	1287	The table parameter 'use_handler' is deprecated and will be removed in a future release
+# MDEV-28005 Deprecate Spider plugin variables regarding UDFs
+SET GLOBAL spider_udf_ds_bulk_insert_rows = 1;
+Warnings:
+Warning	1287	'@@spider_udf_ds_bulk_insert_rows' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_udf_ds_bulk_insert_rows";
+Variable_name	Value
+spider_udf_ds_bulk_insert_rows	-1
+SET spider_udf_ds_table_loop_mode = 1;
+Warnings:
+Warning	1287	'@@spider_udf_ds_table_loop_mode' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_udf_ds_table_loop_mode";
+Variable_name	Value
+spider_udf_ds_table_loop_mode	1
+SET spider_udf_ds_use_real_table = 1;
+Warnings:
+Warning	1287	'@@spider_udf_ds_use_real_table' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_udf_ds_use_real_table";
+Variable_name	Value
+spider_udf_ds_use_real_table	1
+SET GLOBAL spider_udf_ct_bulk_insert_interval = 1;
+Warnings:
+Warning	1287	'@@spider_udf_ct_bulk_insert_interval' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_udf_ct_bulk_insert_interval";
+Variable_name	Value
+spider_udf_ct_bulk_insert_interval	1
+SET GLOBAL spider_udf_ct_bulk_insert_rows = 1;
+Warnings:
+Warning	1287	'@@spider_udf_ct_bulk_insert_rows' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_udf_ct_bulk_insert_rows";
+Variable_name	Value
+spider_udf_ct_bulk_insert_rows	1
 DROP DATABASE auto_test_local;
 for master_1
 for child2

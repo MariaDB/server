@@ -4,10 +4,17 @@ CREATE TABLE t(i INT) ENGINE INNODB;
 INSERT INTO t VALUES(1);
 echo # xtrabackup backup;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--let $backup_log=$MYSQLTEST_VARDIR/tmp/backup.log
 
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir > $backup_log 2>&1;
 --enable_result_log
+
+# The following warning must not appear after MDEV-27343 fix
+--let SEARCH_PATTERN=InnoDB: Allocated tablespace ID
+--let SEARCH_FILE=$backup_log
+--source include/search_pattern_in_file.inc
+--remove_file $backup_log
 
 INSERT INTO t VALUES(2);
 

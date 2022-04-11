@@ -297,6 +297,13 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 			PTDB utp;
 
 			if (!(utp = tdbp->Duplicate(g))) {
+        /* If table type is of type virtual retrieve global parameter as it was.*/
+        if (tdbp->GetAmType() == TYPE_AM_VIR) {
+          if (tdbp->OpenDB(g)) {
+            printf("%s\n", g->Message);
+            throw 7;
+          }
+        }
 				sprintf(g->Message, MSG(INV_UPDT_TABLE), tdbp->GetName());
 				throw 4;
 			} // endif tp

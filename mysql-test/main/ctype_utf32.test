@@ -1068,5 +1068,24 @@ SET NAMES utf8;
 
 
 --echo #
+--echo # MDEV-28078 Garbage on multiple equal ENUMs with tricky character sets
+--echo #
+
+CREATE TABLE t1 (
+  c1 ENUM ('a','b') CHARACTER SET utf32 DEFAULT 'a',
+  c2 ENUM ('a','b') CHARACTER SET utf32 DEFAULT 'a'
+);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  c1 ENUM ('00000061','00000062') DEFAULT '00000061' COLLATE latin1_bin,
+  c2 ENUM ('a','b') DEFAULT 'a' COLLATE utf32_general_ci
+);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

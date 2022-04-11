@@ -980,7 +980,16 @@ static uint get_interval_id(uint *int_count,List<Create_field> &create_fields,
 
   while ((field=it++) != last_field)
   {
-    if (field->interval_id && field->interval->count == interval->count)
+    /*
+      ENUM/SET columns with equal value lists share a single
+      copy of the underlying TYPELIB.
+      Fields with different mbminlen can't reuse TYPELIBs, because:
+      - mbminlen==1 are written to FRM as is
+      - mbminlen>1 are written to FRM in hex-encoded format
+    */
+    if (field->interval_id &&
+        field->interval->count == interval->count &&
+        field->charset->mbminlen == last_field->charset->mbminlen)
     {
       const char **a,**b;
       for (a=field->interval->type_names, b=interval->type_names ;

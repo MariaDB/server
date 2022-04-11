@@ -1,6 +1,6 @@
 /*
 Copyright (c) 2008-2009, Patrick Galbraith & Antony Curtis
-Copyright (c) 2020, MariaDB Corporation.
+Copyright (c) 2020, 2022, MariaDB Corporation.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

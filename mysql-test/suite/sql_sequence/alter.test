@@ -119,8 +119,9 @@ create table t1 (a int);
 alter sequence t1 minvalue=100;
 drop table t1;
 
+--error ER_UNKNOWN_SEQUENCES
 alter sequence if exists t1 minvalue=100;
---error ER_NO_SUCH_TABLE
+--error ER_UNKNOWN_SEQUENCES
 alter sequence t1 minvalue=100;
 
 create sequence t1;

@@ -128,8 +128,7 @@ class aio_linux final : public aio
           {
             iocb->m_ret_len= event.res;
             iocb->m_err= 0;
-            if (iocb->m_ret_len != iocb->m_len)
-              finish_synchronous(iocb);
+            finish_synchronous(iocb);
           }
           iocb->m_internal_task.m_func= iocb->m_callback;
           iocb->m_internal_task.m_arg= iocb;

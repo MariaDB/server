@@ -1,5 +1,5 @@
 -- Copyright (C) 2003, 2013 Oracle and/or its affiliates.
--- Copyright (C) 2010, 2018 MariaDB Corporation
+-- Copyright (C) 2010, 2022, MariaDB Corporation
 --
 -- This program is free software; you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
@@ -30,6 +30,13 @@ set enforce_storage_engine=NULL;
 set alter_algorithm=DEFAULT;
 
 set @have_innodb= (select count(engine) from information_schema.engines where engine='INNODB' and support != 'NO');
+
+# MDEV-21873: 10.2 to 10.3 upgrade doesn't remove semi-sync reference from
+# mysql.plugin table.
+# As per suggested fix, check INFORMATION_SCHEMA.PLUGINS
+# and if semisync plugins aren't there, delete them from mysql.plugin.
+DELETE FROM mysql.plugin WHERE name="rpl_semi_sync_master" AND NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME="rpl_semi_sync_master");
+DELETE FROM mysql.plugin WHERE name="rpl_semi_sync_slave" AND NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME="rpl_semi_sync_slave");
 
 --
 -- Ensure that all tables are of type Aria and transactional

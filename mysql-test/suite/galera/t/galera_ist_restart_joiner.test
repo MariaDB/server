@@ -61,19 +61,7 @@ UPDATE t1 SET f2 = 'd' WHERE f1 > 3;
 
 # Kill node #2 while IST is in progress
 --connection node_2
-
-# Kill the connected server
---disable_reconnect
-
---perl
-        my $pid_filename = $ENV{'KILL_NODE_PIDFILE'};
-        my $mysqld_pid = `cat $pid_filename`;
-        chomp($mysqld_pid);
-        system("kill -9 $mysqld_pid");
-        exit(0);
-EOF
-
---source include/wait_until_disconnected.inc
+--source include/kill_galera.inc
 
 --connection node_1
 --source include/wait_until_connected_again.inc

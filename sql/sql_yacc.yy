@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB
+   Copyright (c) 2010, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2679,7 +2679,7 @@ sequence_def:
             if (unlikely(Lex->sql_command != SQLCOM_ALTER_SEQUENCE))
             {
               thd->parse_error(ER_SYNTAX_ERROR, "RESTART");
-              YYABORT;
+              MYSQL_YYABORT;
             }
             if (unlikely(Lex->create_info.seq_create_info->used_fields &
                          seq_field_used_restart))
@@ -2691,7 +2691,7 @@ sequence_def:
             if (unlikely(Lex->sql_command != SQLCOM_ALTER_SEQUENCE))
             {
               thd->parse_error(ER_SYNTAX_ERROR, "RESTART");
-              YYABORT;
+              MYSQL_YYABORT;
             }
             if (unlikely(Lex->create_info.seq_create_info->used_fields &
                          seq_field_used_restart))
@@ -2987,9 +2987,29 @@ sp_suid:
         ;
 
 call:
-          CALL_SYM sp_name
+          CALL_SYM ident
           {
-            if (unlikely(Lex->call_statement_start(thd, $2)))
+            if (unlikely(Lex->call_statement_start(thd, &$2)))
+              MYSQL_YYABORT;
+          }
+          opt_sp_cparam_list
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
+        | CALL_SYM ident '.' ident
+          {
+            if (unlikely(Lex->call_statement_start(thd, &$2, &$4)))
+              MYSQL_YYABORT;
+          }
+          opt_sp_cparam_list
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
+        | CALL_SYM ident '.' ident '.' ident
+          {
+            if (unlikely(Lex->call_statement_start(thd, &$2, &$4, &$6)))
               MYSQL_YYABORT;
           }
           opt_sp_cparam_list
@@ -3550,7 +3570,7 @@ simple_target_specification:
             if (!$2.length)
             {
               thd->parse_error();
-              YYABORT;
+              MYSQL_YYABORT;
             }
             $$= new (thd->mem_root) Item_func_get_user_var(thd, &$2);
             if (unlikely($$ == NULL))
@@ -8644,7 +8664,7 @@ subselect:
           query_expression
           {
             if (!($$= Lex->parsed_subselect($1)))
-              YYABORT;
+              MYSQL_YYABORT;
           }
         ;
 
@@ -8689,14 +8709,14 @@ subquery:
             else
               $1->fake_select_lex->braces= false;
             if (!($$= Lex->parsed_subselect($1)))
-              YYABORT;
+              MYSQL_YYABORT;
           }
         | '(' with_clause query_expression_no_with_clause ')'
           {
             $3->set_with_clause($2);
             $2->attach_to($3->first_select());
             if (!($$= Lex->parsed_subselect($3)))
-              YYABORT;
+              MYSQL_YYABORT;
           }
         ;
 
@@ -10483,6 +10503,11 @@ function_call_generic:
             if (unlikely(!($$= Lex->make_item_func_call_generic(thd, &$1, &$3, $5))))
               MYSQL_YYABORT;
           }
+        | ident_cli '.' ident_cli '.' ident_cli '(' opt_expr_list ')'
+          {
+            if (unlikely(!($$= Lex->make_item_func_call_generic(thd, &$1, &$3, &$5, $7))))
+              MYSQL_YYABORT;
+          }
         ;
 
 fulltext_options:
@@ -10976,7 +11001,7 @@ variable_aux:
             if (!$1.length)
             {
               thd->parse_error();
-              YYABORT;
+              MYSQL_YYABORT;
             }
             $$= item= new (thd->mem_root) Item_func_set_user_var(thd, &$1, $3);
             if (unlikely($$ == NULL))
@@ -10990,7 +11015,7 @@ variable_aux:
             if (!$1.length)
             {
               thd->parse_error();
-              YYABORT;
+              MYSQL_YYABORT;
             }
             $$= new (thd->mem_root) Item_func_get_user_var(thd, &$1);
             if (unlikely($$ == NULL))
@@ -12628,7 +12653,7 @@ select_outvar:
             if (!$2.length)
             {
               thd->parse_error();
-              YYABORT;
+              MYSQL_YYABORT;
             }
 
             $$ = Lex->result ? new (thd->mem_root) my_var_user(&$2) : NULL;
@@ -14619,7 +14644,7 @@ field_or_var:
             if (!$2.length)
             {
               thd->parse_error();
-              YYABORT;
+              MYSQL_YYABORT;
             }
 
             $$= new (thd->mem_root) Item_user_var_as_out_param(thd, &$2);
@@ -16440,7 +16465,7 @@ option_value_no_option_type:
             if (!$2.length)
             {
               thd->parse_error();
-              YYABORT;
+              MYSQL_YYABORT;
             }
 
             if (sp_create_assignment_lex(thd, $1.str))
@@ -18320,6 +18345,10 @@ sp_statement:
               MYSQL_YYABORT;
           }
           opt_sp_cparam_list
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         | ident_cli_directly_assignable '.' ident
           {
             Lex_ident_sys tmp(thd, &$1);
@@ -18328,6 +18357,21 @@ sp_statement:
               MYSQL_YYABORT;
           }
           opt_sp_cparam_list
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
+        | ident_cli_directly_assignable '.' ident '.' ident
+          {
+            Lex_ident_sys tmp(thd, &$1);
+            if (unlikely(Lex->call_statement_start(thd, &tmp, &$3, &$5)))
+              MYSQL_YYABORT;
+          }
+          opt_sp_cparam_list
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         ;
 
 sp_if_then_statements:

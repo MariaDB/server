@@ -122,7 +122,7 @@ bool sequence_definition::check_and_adjust(bool set_reserved_until)
       start >= min_value &&
       max_value != LONGLONG_MAX &&
       min_value != LONGLONG_MIN &&
-      cache < (LONGLONG_MAX - max_increment) / max_increment &&
+      cache >= 0 && cache < (LONGLONG_MAX - max_increment) / max_increment &&
       ((real_increment > 0 && reserved_until >= min_value) ||
        (real_increment < 0 && reserved_until <= max_value)))
     DBUG_RETURN(FALSE);
