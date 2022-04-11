@@ -343,7 +343,10 @@ typedef struct st_join_table {
   
   /* Copy of POSITION::records_read, set by get_best_combination() */
   double        records_read;
-  
+
+  /* Copy of POSITION::records_out, set by get_best_combination() */
+  double        records_out;
+
   /* The selectivity of the conditions that can be pushed to the table */ 
   double        cond_selectivity;  
   
@@ -939,11 +942,22 @@ public:
   JOIN_TAB *table;
 
   /*
+    The number of rows that will be read from the table
+  */
+  double records_read;
+
+  /*
     The "fanout": number of output rows that will be produced (after
     pushed down selection condition is applied) per each row combination of
     previous tables.
+
+    This takes into account table->cond_selectivity, the WHERE clause
+    related to this table calculated in
+    calculate_cond_selectivity_for_table(), and the used rowid filter but
+    does not take into account the WHERE clause involving preceding tables
+    calculated in table_after_join_selectivity().
   */
-  double records_read;
+  double records_out;
 
   /* The selectivity of the pushed down conditions */
   double cond_selectivity;
@@ -1007,6 +1021,7 @@ public:
 
   /* Type of join (EQ_REF, REF etc) */
   enum join_type type;
+
   /*
     Valid only after fix_semijoin_strategies_for_picked_join_order() call:
     if sj_strategy!=SJ_OPT_NONE, this is the number of subsequent tables that
