@@ -460,10 +460,16 @@ void Range_rowid_filter_cost_info::trace_info(THD *thd)
   @brief
     Choose the best range filter for the given access of the table
 
-  @param access_key_no    The index by which the table is accessed
-  @param records   The estimated total number of key tuples with this access
-  @param access_cost_factor the cost of a random seek to access the table
-
+  @param access_key_no      The index by which the table is accessed
+  @param records            The estimated total number of key tuples with
+                            this access
+  @param fetch_cost_factor  The cost of fetching 'records' rows
+  @param index_only_cost    The cost of fetching 'records' rows with
+                            index only reads
+  @param prev_records       How many row combinations we have in
+                            preceding tables
+  @parma records_out        Will be updated to the minimum result rows for any
+                            usable filter.
   @details
     The function looks through the array of cost info for range filters
     and chooses the element for the range filter that promise the greatest
@@ -478,7 +484,8 @@ TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
                                                 double records,
                                                 double fetch_cost,
                                                 double index_only_cost,
-                                                double prev_records)
+                                                double prev_records,
+                                                double *records_out)
 {
   if (range_rowid_filter_cost_info_elems == 0 ||
       covering_keys.is_set(access_key_no))
@@ -521,13 +528,14 @@ TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
       continue;
 
     new_records= records * filter->selectivity;
+    set_if_smaller(*records_out, new_records);
     cost_of_accepted_rows= fetch_cost * filter->selectivity;
     cost_of_rejected_rows= index_only_cost * (1 - filter->selectivity);
     new_cost= (cost_of_accepted_rows + cost_of_rejected_rows +
                records * filter->lookup_cost());
     new_total_cost= ((new_cost + new_records *
-                      in_use->variables.optimizer_where_cmp_cost) * prev_records +
-                     filter->get_setup_cost());
+                      in_use->variables.optimizer_where_cmp_cost) *
+                     prev_records + filter->get_setup_cost());
 
     if (best_filter_gain > new_total_cost)
     {

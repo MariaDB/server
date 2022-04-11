@@ -224,7 +224,8 @@ explain select * from t1 where a=1 or b=1	{
                   ],
                   "chosen_access_method": {
                     "type": "index_merge",
-                    "records": 2,
+                    "records_read": 2,
+                    "records_out": 2,
                     "cost": 2.595171589,
                     "uses_join_buffering": false
                   }
