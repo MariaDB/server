@@ -928,3 +928,37 @@ set optimizer_trace='enabled=off';
 
 --echo # End of 10.6 tests
 
+
+--echo #
+--echo # Testing of records_out
+--echo #
+
+set @save_optimizer_switch= @@optimizer_switch;
+set @save_use_stat_tables= @@use_stat_tables;
+set @save_histogram_size= @@histogram_size;
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set optimizer_switch='rowid_filter=on';
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+set histogram_size=127;
+create table t1 (a int, b int, c int, key(a),key(b));
+insert into t1 select seq, seq*2, seq/10 from seq_1_to_1000;
+analyze table t1;
+--optimizer_trace
+explain select * from t1 where a<10 and b between 10 and 50 and c < 10;
+drop table t1;
+
+create table three (a int);
+insert into three values (1),(2),(3);
+create table t1 (a int, b int, c int, key(a),key(b));
+insert into t1 select mod(seq,10), seq, seq from seq_1_to_10000;
+analyze table t1;
+
+--optimizer_trace
+explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and t1.c<1000;
+drop table three, t1;
+
+set  @@optimizer_switch= @save_optimizer_switch;
+set  @@use_stat_tables= @save_use_stat_tables;
+set  @@histogram_size= @save_histogram_size;
+set  @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;

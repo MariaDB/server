@@ -1801,7 +1801,8 @@ public:
                                            double records,
                                            double fetch_cost,
                                            double index_only_cost,
-                                           double prev_records);
+                                           double prev_records,
+                                           double *records_out);
   /**
     System Versioning support
    */

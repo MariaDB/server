@@ -226,7 +226,8 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                       ],
                       "chosen_access_method": {
                         "type": "ref",
-                        "records": 1,
+                        "records_read": 1,
+                        "records_out": 1,
                         "cost": 1.250146475,
                         "uses_join_buffering": false
                       }
