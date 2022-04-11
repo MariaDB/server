@@ -46,6 +46,7 @@ public:
   const char* get_address() { return m_address; }
   size_t get_address_len() { return m_address_len; }
   int get_port() { return m_port; }
+  void set_port(int port) { m_port= port; }
 
 private:
   enum family {

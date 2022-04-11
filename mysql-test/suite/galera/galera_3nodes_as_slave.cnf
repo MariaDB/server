@@ -23,9 +23,9 @@ wsrep-on=1
 innodb-autoinc-lock-mode=2
 default-storage-engine=innodb
 wsrep-provider=@ENV.WSREP_PROVIDER
-wsrep_node_address=127.0.0.1
 wsrep-cluster-address=gcomm://
 wsrep_provider_options='base_port=@mysqld.2.#galera_port;evs.install_timeout = PT15S;evs.max_install_timeouts=1;gcache.size=10M'
+wsrep_node_address='127.0.0.1:@mysqld.2.#galera_port'
 wsrep_node_incoming_address=127.0.0.1:@mysqld.2.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.2.#sst_port'
 
@@ -45,9 +45,9 @@ wsrep-on=1
 innodb-autoinc-lock-mode=2
 default-storage-engine=innodb
 wsrep-provider=@ENV.WSREP_PROVIDER
-wsrep_node_address=127.0.0.1
 wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.2.#galera_port'
 wsrep_provider_options='base_port=@mysqld.3.#galera_port;evs.install_timeout=PT15S;evs.max_install_timeouts=1;gcache.size=10M'
+wsrep_node_address='127.0.0.1:@mysqld.3.#galera_port'
 wsrep_node_incoming_address=127.0.0.1:@mysqld.3.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.3.#sst_port'
 
@@ -67,9 +67,9 @@ wsrep-on=1
 innodb-autoinc-lock-mode=2
 default-storage-engine=innodb
 wsrep-provider=@ENV.WSREP_PROVIDER
-wsrep_node_address=127.0.0.1
 wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.2.#galera_port'
 wsrep_provider_options='base_port=@mysqld.4.#galera_port;evs.install_timeout=PT15S;evs.max_install_timeouts=1;gcache.size=10M'
+wsrep_node_address='127.0.0.1:@mysqld.4.#galera_port'
 wsrep_node_incoming_address=127.0.0.1:@mysqld.4.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.4.#sst_port'
 
@@ -90,11 +90,3 @@ NODE_MYSOCK_3= @mysqld.3.socket
 
 NODE_MYPORT_4= @mysqld.4.port
 NODE_MYSOCK_4= @mysqld.4.socket
-
-NODE_GALERAPORT_2= @mysqld.2.#galera_port
-NODE_GALERAPORT_3= @mysqld.3.#galera_port
-NODE_GALERAPORT_4= @mysqld.4.#galera_port
-
-NODE_SSTPORT_2= @mysqld.2.#sst_port
-NODE_SSTPORT_3= @mysqld.3.#sst_port
-NODE_SSTPORT_4= @mysqld.4.#sst_port
