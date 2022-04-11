@@ -90,7 +90,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                 "chosen_access_method": 
                 {
                     "type": "index_merge",
-                    "records": 7,
+                    "records_read": 7,
+                    "records_out": 7,
                     "cost": 13.79559815,
                     "uses_join_buffering": false
                 }
@@ -183,7 +184,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                 "chosen_access_method": 
                 {
                     "type": "ref",
-                    "records": 6,
+                    "records_read": 6,
+                    "records_out": 0.6,
                     "cost": 5.002343464,
                     "uses_join_buffering": false
                 }

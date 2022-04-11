@@ -88,6 +88,18 @@
 */
 #define HASH_FANOUT 0.1
 
+/*
+  The following is used to check that A <= B, but with some margin as the
+  calculation is done slightly differently (mathematically correct, but
+  double calculations are not exact).
+  This is only used when comparing read rows and output rows, which
+  means that we can assume that both values are >= 0 and B cannot be notable
+  smaller than A.
+*/
+
+#define crash_if_first_double_is_bigger(A,B) DBUG_ASSERT(((A) == 0.0 && (B) == 0.0) || (A)/(B) <  1.0000001)
+
+
 /* Cost for reading a row through an index */
 struct INDEX_READ_COST
 {
@@ -311,7 +323,7 @@ static JOIN_TAB *next_breadth_first_tab(JOIN_TAB *first_top_tab,
 static bool find_order_in_list(THD *, Ref_ptr_array, TABLE_LIST *, ORDER *,
                                List<Item> &, List<Item> &, bool, bool, bool);
 
-static double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
+static double table_after_join_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
                                      table_map rem_tables);
 void set_postjoin_aggr_write_func(JOIN_TAB *tab);
 
@@ -387,7 +399,7 @@ bool dbug_user_var_equals_int(THD *thd, const char *name, int value)
 POSITION::POSITION()
 {
   table= 0;
-  records_read= cond_selectivity= read_time= 0.0;
+  records_read= cond_selectivity= read_time= records_out= 0.0;
   prefix_record_count= 0.0;
   key= 0;
   use_join_buffer= 0;
@@ -5723,7 +5735,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
         Json_writer_object table_records(thd);
         /* Only one matching row */
-        s->found_records= s->records= 1;
+        s->found_records= s->records= s->records_out= 1;
         s->read_time=1.0;
         s->worst_seeks=1.0;
         table_records.add_table_name(s)
@@ -7527,6 +7539,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
   join->positions[idx].table= table;
   join->positions[idx].key=key;
   join->positions[idx].records_read=1.0;	/* This is a const table */
+  join->positions[idx].records_out=1.0;	        /* This is a const table */
   join->positions[idx].cond_selectivity= 1.0;
   join->positions[idx].ref_depend_map= 0;
 
@@ -7863,6 +7876,7 @@ best_access_path(JOIN      *join,
   my_bool found_constraint= 0;
   double best_cost=         DBL_MAX;
   double records=           DBL_MAX;
+  double records_out=       table->stat_records() * table->cond_selectivity;
   table_map best_ref_depends_map= 0;
   Range_rowid_filter_cost_info *best_filter= 0;
   double tmp;
@@ -8138,9 +8152,12 @@ best_access_path(JOIN      *join,
                    (1.0 +
                     ((double) (table->s->max_key_length-keyinfo->key_length) /
                      (double) table->s->max_key_length)));
+                set_if_smaller(records, s->records);
+                set_if_smaller(records_out, records);
                 if (records < 2.0)
                   records=2.0;               /* Can't be as good as a unique */
               }
+
               /*
                 ReuseRangeEstimateForRef-2:  We get here if we could not reuse
                 E(#rows) from range optimizer. Make another try:
@@ -8178,9 +8195,10 @@ best_access_path(JOIN      *join,
               }
             }
             /* Calculate the cost of the index access */
-            INDEX_READ_COST cost= cost_for_index_read(thd, table, key,
-                                                      (ha_rows) records,
-                                                      (ha_rows) s->worst_seeks);
+            INDEX_READ_COST cost=
+              cost_for_index_read(thd, table, key,
+                                  (ha_rows) records,
+                                  (ha_rows) s->worst_seeks);
             tmp= cost.read_cost;
             index_only_cost= cost.index_only_cost;
           }
@@ -8412,7 +8430,8 @@ best_access_path(JOIN      *join,
                                                           records,
                                                           tmp,
                                                           index_only_cost,
-                                                          record_count);
+                                                          record_count,
+                                                          &records_out);
         if (filter)
           filter= filter->apply_filter(thd, table, &tmp, &records_after_filter,
                                        &startup_cost,
@@ -8454,6 +8473,7 @@ best_access_path(JOIN      *join,
           add("chosen", false).
           add("cause", cause ? cause : "cost");
       }
+      set_if_smaller(records_out, records);
     } /* for each key */
 
     records= best_records;
@@ -8481,6 +8501,8 @@ best_access_path(JOIN      *join,
     /* Estimate the cost of the hash join access to the table */
     double rnd_records= matching_candidates_in_table(s, found_constraint,
                                                      use_cond_selectivity);
+    set_if_smaller(records_out, rnd_records);
+
     /*
       The following cost calculation is identical to the cost calculation for
       the join cache later on, except for the HASH_FANOUT
@@ -8630,7 +8652,8 @@ best_access_path(JOIN      *join,
         table->best_range_rowid_filter_for_partial_join(key_no, range->rows,
                                                         range->find_cost,
                                                         range->index_only_cost,
-                                                        record_count);
+                                                        record_count,
+                                                        &records_out);
         if (filter)
         {
           double filter_cost= range->fetch_cost;
@@ -8659,6 +8682,7 @@ best_access_path(JOIN      *join,
       {
         type= JT_INDEX_MERGE;
       }
+      set_if_smaller(records_out, records_after_filter);
       loose_scan_opt.check_range_access(join, idx, s->quick);
     }
     else
@@ -8667,6 +8691,8 @@ best_access_path(JOIN      *join,
       rnd_records= matching_candidates_in_table(s, found_constraint,
                                                 use_cond_selectivity);
       records_after_filter= rnd_records;
+      set_if_smaller(records_out, rnd_records);
+
       org_records= s->records;
       DBUG_ASSERT(rnd_records <= s->records);
 
@@ -8797,9 +8823,12 @@ best_access_path(JOIN      *join,
   }
 
   /* Update the cost information for the current partial plan */
+  crash_if_first_double_is_bigger(records_out, records);
   pos->records_read= records;
+  pos->records_out=  records_out;
   pos->read_time=    best_cost;
   pos->key=          best_key;
+  pos->type=         best_type;
   pos->table=        s;
   pos->ref_depend_map= best_ref_depends_map;
   pos->loosescan_picker.loosescan_key= MAX_KEY;
@@ -8821,7 +8850,7 @@ best_access_path(JOIN      *join,
   trace_paths.end();
 
   if (unlikely(thd->trace_started()))
-    print_best_access_for_table(thd, pos, best_type);
+    print_best_access_for_table(thd, pos);
 
   DBUG_VOID_RETURN;
 }
@@ -9322,8 +9351,8 @@ optimize_straight_join(JOIN *join, table_map join_tables)
     join_tables&= ~(s->table->map);
     double pushdown_cond_selectivity= 1.0;
     if (use_cond_selectivity > 1)
-      pushdown_cond_selectivity= table_cond_selectivity(join, idx, s,
-                                                        join_tables);
+      pushdown_cond_selectivity= table_after_join_selectivity(join, idx, s,
+                                                              join_tables);
     position->cond_selectivity= pushdown_cond_selectivity;
     ++idx;
   }
@@ -9846,8 +9875,8 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
 */
 
 static
-double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
-                              table_map rem_tables)
+double table_after_join_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
+                                    table_map rem_tables)
 {
   uint16 ref_keyuse_steps_buf[MAX_REF_PARTS];
   uint   ref_keyuse_size= MAX_REF_PARTS;
@@ -10339,21 +10368,22 @@ best_extension_by_limited_search(JOIN      *join,
 
       pushdown_cond_selectivity= 1.0;
       if (use_cond_selectivity > 1)
-        pushdown_cond_selectivity= table_cond_selectivity(join, idx, s,
-				                          remaining_tables &
-                                                          ~real_table_bit);
+        pushdown_cond_selectivity=
+          table_after_join_selectivity(join, idx, s,
+                                       remaining_tables & ~real_table_bit);
+
       join->positions[idx].cond_selectivity= pushdown_cond_selectivity;
+
+      partial_join_cardinality= (current_record_count *
+                                 pushdown_cond_selectivity);
 
       if (unlikely(thd->trace_started()) && pushdown_cond_selectivity < 1.0)
       {
         trace_one_table.
           add("selectivity", pushdown_cond_selectivity).
-          add("remaining_rows_for_plan",
-              current_record_count * pushdown_cond_selectivity);
+          add("remaining_rows_for_plan", partial_join_cardinality);
       }
 
-      partial_join_cardinality= (current_record_count *
-                                 pushdown_cond_selectivity);
       if (search_depth > 1 && ((remaining_tables & ~real_table_bit) &
                                allowed_tables))
       { /* Recursively expand the current partial plan */
@@ -11126,6 +11156,7 @@ bool JOIN::get_best_combination()
       */
       SJ_MATERIALIZATION_INFO *sjm= cur_pos->table->emb_sj_nest->sj_mat_info;
       j->records_read= (sjm->is_sj_scan? sjm->rows : 1.0);
+      j->records_out= j->records_read;
       j->records= (ha_rows) j->records_read;
       j->cond_selectivity= 1.0;
       JOIN_TAB *jt;
@@ -11181,8 +11212,15 @@ bool JOIN::get_best_combination()
       to access join->best_positions[]. 
     */
     j->records_read= best_positions[tablenr].records_read;
+    j->records_out=  best_positions[tablenr].records_out;
     j->cond_selectivity= best_positions[tablenr].cond_selectivity;
     DBUG_ASSERT(j->cond_selectivity <= 1.0);
+    crash_if_first_double_is_bigger(j->records_out,
+                                    j->records_read *
+                                    (j->range_rowid_filter_info ?
+                                     j->range_rowid_filter_info->selectivity :
+                                     1.0));
+
     map2table[j->table->tablenr]= j;
 
     /* If we've reached the end of sjm nest, switch back to main sequence */
@@ -12482,7 +12520,12 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 
 	    /* Fix for EXPLAIN */
 	    if (sel->quick)
-	      join->best_positions[i].records_read= (double)sel->quick->records;
+            {
+	      join->best_positions[i].records_read=
+                (double) sel->quick->records;
+              set_if_smaller(join->best_positions[i].records_out,
+                             join->best_positions[i].records_read);
+            }
 	  }
 	  else
 	  {
@@ -17810,9 +17853,10 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
     table_map real_table_bit= rs->table->map;
     if (join->thd->variables.optimizer_use_condition_selectivity > 1)
     {
-      pushdown_cond_selectivity= table_cond_selectivity(join, i, rs,
-                                                        reopt_remaining_tables &
-                                                        ~real_table_bit);
+      pushdown_cond_selectivity=
+        table_after_join_selectivity(join, i, rs,
+                                     reopt_remaining_tables &
+                                     ~real_table_bit);
     }
     (*outer_rec_count) *= pushdown_cond_selectivity;
     if (!rs->emb_sj_nest)
@@ -21929,7 +21973,7 @@ join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos)
     {						// Info for DESCRIBE
       tab->info= ET_CONST_ROW_NOT_FOUND;
       /* Mark for EXPLAIN that the row was not found */
-      pos->records_read=0.0;
+      pos->records_read= pos->records_out= 0.0;
       pos->ref_depend_map= 0;
       if (!table->pos_in_table_list->outer_join || error > 0)
 	DBUG_RETURN(error);
@@ -21947,7 +21991,7 @@ join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos)
     {
       tab->info= ET_UNIQUE_ROW_NOT_FOUND;
       /* Mark for EXPLAIN that the row was not found */
-      pos->records_read=0.0;
+      pos->records_read= pos->records_out= 0.0;
       pos->ref_depend_map= 0;
       if (!table->pos_in_table_list->outer_join || error > 0)
 	DBUG_RETURN(error);

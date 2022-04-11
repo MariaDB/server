@@ -146,7 +146,8 @@ select * from v1	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 1,
+                    "records_read": 1,
+                    "records_out": 1,
                     "cost": 1.502197266,
                     "uses_join_buffering": false
                   }
@@ -308,7 +309,8 @@ select * from (select * from t1 where t1.a=1)q	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 1,
+                    "records_read": 1,
+                    "records_out": 1,
                     "cost": 1.502197266,
                     "uses_join_buffering": false
                   }
@@ -476,7 +478,8 @@ select * from v2	{
                         ],
                         "chosen_access_method": {
                           "type": "scan",
-                          "records": 1,
+                          "records_read": 1,
+                          "records_out": 1,
                           "cost": 1.502197266,
                           "uses_join_buffering": false
                         }
@@ -559,7 +562,8 @@ select * from v2	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 2,
+                    "records_read": 2,
+                    "records_out": 2,
                     "cost": 2.5,
                     "uses_join_buffering": false
                   }
@@ -707,7 +711,8 @@ explain select * from v2	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 10,
+                    "records_read": 10,
+                    "records_out": 10,
                     "cost": 3.510986328,
                     "uses_join_buffering": false
                   }
@@ -835,7 +840,8 @@ explain select * from v1	{
                         ],
                         "chosen_access_method": {
                           "type": "scan",
-                          "records": 10,
+                          "records_read": 10,
+                          "records_out": 10,
                           "cost": 3.510986328,
                           "uses_join_buffering": false
                         }
@@ -912,7 +918,8 @@ explain select * from v1	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 10,
+                    "records_read": 10,
+                    "records_out": 10,
                     "cost": 12.5,
                     "uses_join_buffering": false
                   }
@@ -1094,7 +1101,8 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 100,
+                    "records_read": 100,
+                    "records_out": 100,
                     "cost": 26.15869141,
                     "uses_join_buffering": false
                   }
@@ -1131,7 +1139,8 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                       ],
                       "chosen_access_method": {
                         "type": "ref",
-                        "records": 1,
+                        "records_read": 1,
+                        "records_out": 1,
                         "cost": 125.0585794,
                         "uses_join_buffering": false
                       }
@@ -1162,7 +1171,8 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 100,
+                    "records_read": 100,
+                    "records_out": 100,
                     "cost": 26.15869141,
                     "uses_join_buffering": false
                   }
@@ -1199,7 +1209,8 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                       ],
                       "chosen_access_method": {
                         "type": "ref",
-                        "records": 1,
+                        "records_read": 1,
+                        "records_out": 1,
                         "cost": 125.0585794,
                         "uses_join_buffering": false
                       }
@@ -1383,7 +1394,8 @@ EXPLAIN SELECT DISTINCT a FROM t1	{
                   ],
                   "chosen_access_method": {
                     "type": "index_merge",
-                    "records": 5,
+                    "records_read": 5,
+                    "records_out": 5,
                     "cost": 6.5,
                     "uses_join_buffering": false
                   }
@@ -1584,7 +1596,8 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 1,
+                    "records_read": 1,
+                    "records_out": 0.584899902,
                     "cost": 2.084226263,
                     "uses_join_buffering": false
                   }
@@ -1811,7 +1824,8 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
                   ],
                   "chosen_access_method": {
                     "type": "index_merge",
-                    "records": 9,
+                    "records_read": 9,
+                    "records_out": 9,
                     "cost": 3.25,
                     "uses_join_buffering": false
                   }
@@ -2008,7 +2022,8 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
                   ],
                   "chosen_access_method": {
                     "type": "index_merge",
-                    "records": 9,
+                    "records_read": 9,
+                    "records_out": 9,
                     "cost": 3.25,
                     "uses_join_buffering": false
                   }
@@ -2299,7 +2314,8 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   ],
                   "chosen_access_method": {
                     "type": "ref",
-                    "records": 21,
+                    "records_read": 21,
+                    "records_out": 21,
                     "cost": 16.26742739,
                     "uses_join_buffering": false
                   }
@@ -2562,7 +2578,8 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 4,
+                    "records_read": 4,
+                    "records_out": 4,
                     "cost": 2.003417969,
                     "uses_join_buffering": false
                   }
@@ -2713,7 +2730,8 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 4,
+                    "records_read": 4,
+                    "records_out": 4,
                     "cost": 2.003417969,
                     "uses_join_buffering": false
                   }
@@ -2748,7 +2766,8 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
                       ],
                       "chosen_access_method": {
                         "type": "eq_ref",
-                        "records": 1,
+                        "records_read": 1,
+                        "records_out": 1,
                         "cost": 5.002147913,
                         "uses_join_buffering": false
                       }
@@ -2939,7 +2958,8 @@ explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 4,
+                    "records_read": 4,
+                    "records_out": 4,
                     "cost": 2.003417969,
                     "uses_join_buffering": false
                   }
@@ -3159,7 +3179,8 @@ explain extended select * from t1 where a in (select pk from t10)	{
                         ],
                         "chosen_access_method": {
                           "type": "scan",
-                          "records": 10,
+                          "records_read": 10,
+                          "records_out": 10,
                           "cost": 3.510986328,
                           "uses_join_buffering": false
                         }
@@ -3195,7 +3216,8 @@ explain extended select * from t1 where a in (select pk from t10)	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 3,
+                    "records_read": 3,
+                    "records_out": 3,
                     "cost": 1.753295898,
                     "uses_join_buffering": false
                   }
@@ -3224,7 +3246,8 @@ explain extended select * from t1 where a in (select pk from t10)	{
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "records": 10,
+                        "records_read": 10,
+                        "records_out": 10,
                         "cost": 11.01098633,
                         "uses_join_buffering": true
                       }
@@ -3278,7 +3301,8 @@ explain extended select * from t1 where a in (select pk from t10)	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 10,
+                    "records_read": 10,
+                    "records_out": 10,
                     "cost": 3.510986328,
                     "uses_join_buffering": false
                   }
@@ -3665,7 +3689,8 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                   ],
                   "chosen_access_method": {
                     "type": "ref",
-                    "records": 1,
+                    "records_read": 1,
+                    "records_out": 1,
                     "cost": 0.726073957,
                     "uses_join_buffering": false
                   }
@@ -3805,7 +3830,8 @@ select f1(a) from t1	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 4,
+                    "records_read": 4,
+                    "records_out": 4,
                     "cost": 2.003417969,
                     "uses_join_buffering": false
                   }
@@ -3913,7 +3939,8 @@ select f2(a) from t1	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 4,
+                    "records_read": 4,
+                    "records_out": 4,
                     "cost": 2.003417969,
                     "uses_join_buffering": false
                   }
@@ -3970,7 +3997,7 @@ a
 2
 select length(trace) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 length(trace)
-2530
+2573
 set optimizer_trace_max_mem_size=100;
 select * from t1;
 a
@@ -3984,7 +4011,7 @@ select * from t1	{
       "join_preparation": {
         "select_id": 1,
         "steps": [
-        	2430	0
+        	2473	0
 set optimizer_trace_max_mem_size=0;
 select * from t1;
 a
@@ -3992,7 +4019,7 @@ a
 2
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
-select * from t1		2530	0
+select * from t1		2573	0
 drop table t1;
 set optimizer_trace='enabled=off';
 set @@optimizer_trace_max_mem_size= @save_optimizer_trace_max_mem_size;
@@ -4303,7 +4330,8 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                   ],
                   "chosen_access_method": {
                     "type": "range",
-                    "records": 3,
+                    "records_read": 3,
+                    "records_out": 3,
                     "cost": 1.196757383,
                     "uses_join_buffering": false
                   }
@@ -4336,7 +4364,8 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       ],
                       "chosen_access_method": {
                         "type": "ref",
-                        "records": 1,
+                        "records_read": 1,
+                        "records_out": 1,
                         "cost": 2.176757383,
                         "uses_join_buffering": false
                       }
@@ -4366,7 +4395,8 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                   ],
                   "chosen_access_method": {
                     "type": "range",
-                    "records": 3,
+                    "records_read": 3,
+                    "records_out": 3,
                     "cost": 1.196757383,
                     "uses_join_buffering": false
                   }
@@ -4400,7 +4430,8 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       ],
                       "chosen_access_method": {
                         "type": "ref",
-                        "records": 2,
+                        "records_read": 2,
+                        "records_out": 1.166666667,
                         "cost": 2.853514767,
                         "uses_join_buffering": false
                       }
@@ -4555,7 +4586,8 @@ explain select * from (select rand() from t1)q	{
                         ],
                         "chosen_access_method": {
                           "type": "scan",
-                          "records": 3,
+                          "records_read": 3,
+                          "records_out": 3,
                           "cost": 1.752563477,
                           "uses_join_buffering": false
                         }
@@ -4631,7 +4663,8 @@ explain select * from (select rand() from t1)q	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 3,
+                    "records_read": 3,
+                    "records_out": 3,
                     "cost": 3.75,
                     "uses_join_buffering": false
                   }
@@ -4851,7 +4884,8 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                         ],
                         "chosen_access_method": {
                           "type": "scan",
-                          "records": 3,
+                          "records_read": 3,
+                          "records_out": 3,
                           "cost": 1.752563477,
                           "uses_join_buffering": false
                         }
@@ -4879,7 +4913,8 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                             ],
                             "chosen_access_method": {
                               "type": "scan",
-                              "records": 3,
+                              "records_read": 3,
+                              "records_out": 3,
                               "cost": 4.002563477,
                               "uses_join_buffering": true
                             }
@@ -4910,7 +4945,8 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                         ],
                         "chosen_access_method": {
                           "type": "scan",
-                          "records": 3,
+                          "records_read": 3,
+                          "records_out": 3,
                           "cost": 1.752563477,
                           "uses_join_buffering": false
                         }
@@ -4946,7 +4982,8 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 3,
+                    "records_read": 3,
+                    "records_out": 3,
                     "cost": 1.752563477,
                     "uses_join_buffering": false
                   }
@@ -4975,7 +5012,8 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "records": 3,
+                        "records_read": 3,
+                        "records_out": 3,
                         "cost": 4.002563477,
                         "uses_join_buffering": true
                       }
@@ -5004,7 +5042,8 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                           ],
                           "chosen_access_method": {
                             "type": "scan",
-                            "records": 3,
+                            "records_read": 3,
+                            "records_out": 3,
                             "cost": 9.852563477,
                             "uses_join_buffering": true
                           }
@@ -5058,7 +5097,8 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "records": 3,
+                        "records_read": 3,
+                        "records_out": 3,
                         "cost": 4.002563477,
                         "uses_join_buffering": true
                       }
@@ -5090,7 +5130,8 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 3,
+                    "records_read": 3,
+                    "records_out": 3,
                     "cost": 1.752563477,
                     "uses_join_buffering": false
                   }
@@ -5120,7 +5161,8 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 3,
+                    "records_read": 3,
+                    "records_out": 3,
                     "cost": 1.752563477,
                     "uses_join_buffering": false
                   }
@@ -5450,7 +5492,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 3,
+                    "records_read": 3,
+                    "records_out": 3,
                     "cost": 1.752563477,
                     "uses_join_buffering": false
                   }
@@ -5479,7 +5522,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "records": 3,
+                        "records_read": 3,
+                        "records_out": 3,
                         "cost": 4.002563477,
                         "uses_join_buffering": true
                       }
@@ -5508,7 +5552,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                           ],
                           "chosen_access_method": {
                             "type": "scan",
-                            "records": 9,
+                            "records_read": 9,
+                            "records_out": 9,
                             "cost": 27.55769043,
                             "uses_join_buffering": true
                           }
@@ -5554,7 +5599,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 9,
+                                "records_read": 9,
+                                "records_out": 9,
                                 "cost": 12.70769043,
                                 "uses_join_buffering": true
                               }
@@ -5588,7 +5634,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
-                                    "records": 3,
+                                    "records_read": 3,
+                                    "records_out": 3,
                                     "cost": 34.15256348,
                                     "uses_join_buffering": true
                                   }
@@ -5623,7 +5670,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       ],
                                       "chosen_access_method": {
                                         "type": "scan",
-                                        "records": 9,
+                                        "records_read": 9,
+                                        "records_out": 9,
                                         "cost": 331.3076904,
                                         "uses_join_buffering": true
                                       }
@@ -5677,7 +5725,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
-                                    "records": 9,
+                                    "records_read": 9,
+                                    "records_out": 9,
                                     "cost": 100.4576904,
                                     "uses_join_buffering": true
                                   }
@@ -5709,7 +5758,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 3,
+                                "records_read": 3,
+                                "records_out": 3,
                                 "cost": 4.902563477,
                                 "uses_join_buffering": true
                               }
@@ -5743,7 +5793,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
-                                    "records": 9,
+                                    "records_read": 9,
+                                    "records_out": 9,
                                     "cost": 35.65769043,
                                     "uses_join_buffering": true
                                   }
@@ -5778,7 +5829,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       ],
                                       "chosen_access_method": {
                                         "type": "scan",
-                                        "records": 9,
+                                        "records_read": 9,
+                                        "records_out": 9,
                                         "cost": 331.3076904,
                                         "uses_join_buffering": true
                                       }
@@ -5827,7 +5879,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
-                                    "records": 9,
+                                    "records_read": 9,
+                                    "records_out": 9,
                                     "cost": 35.65769043,
                                     "uses_join_buffering": true
                                   }
@@ -5859,7 +5912,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 9,
+                                "records_read": 9,
+                                "records_out": 9,
                                 "cost": 12.70769043,
                                 "uses_join_buffering": true
                               }
@@ -5891,7 +5945,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                           ],
                           "chosen_access_method": {
                             "type": "scan",
-                            "records": 9,
+                            "records_read": 9,
+                            "records_out": 9,
                             "cost": 27.55769043,
                             "uses_join_buffering": true
                           }
@@ -5920,7 +5975,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 9,
+                                "records_read": 9,
+                                "records_out": 9,
                                 "cost": 258.4076904,
                                 "uses_join_buffering": true
                               }
@@ -5962,7 +6018,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 3,
+                                "records_read": 3,
+                                "records_out": 3,
                                 "cost": 86.80256348,
                                 "uses_join_buffering": true
                               }
@@ -5996,7 +6053,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
-                                    "records": 9,
+                                    "records_read": 9,
+                                    "records_out": 9,
                                     "cost": 878.0576904,
                                     "uses_join_buffering": true
                                   }
@@ -6031,7 +6089,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
-                                    "records": 9,
+                                    "records_read": 9,
+                                    "records_out": 9,
                                     "cost": 878.0576904,
                                     "uses_join_buffering": true
                                   }
@@ -6063,7 +6122,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 9,
+                                "records_read": 9,
+                                "records_out": 9,
                                 "cost": 258.4076904,
                                 "uses_join_buffering": true
                               }
@@ -6095,7 +6155,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                           ],
                           "chosen_access_method": {
                             "type": "scan",
-                            "records": 3,
+                            "records_read": 3,
+                            "records_out": 3,
                             "cost": 9.852563477,
                             "uses_join_buffering": true
                           }
@@ -6124,7 +6185,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 9,
+                                "records_read": 9,
+                                "records_out": 9,
                                 "cost": 88.30769043,
                                 "uses_join_buffering": true
                               }
@@ -6158,7 +6220,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
-                                    "records": 9,
+                                    "records_read": 9,
+                                    "records_out": 9,
                                     "cost": 878.0576904,
                                     "uses_join_buffering": true
                                   }
@@ -6193,7 +6256,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
-                                    "records": 9,
+                                    "records_read": 9,
+                                    "records_out": 9,
                                     "cost": 878.0576904,
                                     "uses_join_buffering": true
                                   }
@@ -6225,7 +6289,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 9,
+                                "records_read": 9,
+                                "records_out": 9,
                                 "cost": 88.30769043,
                                 "uses_join_buffering": true
                               }
@@ -6255,7 +6320,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 9,
+                                "records_read": 9,
+                                "records_out": 9,
                                 "cost": 88.30769043,
                                 "uses_join_buffering": true
                               }
@@ -6287,7 +6353,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                           ],
                           "chosen_access_method": {
                             "type": "scan",
-                            "records": 9,
+                            "records_read": 9,
+                            "records_out": 9,
                             "cost": 27.55769043,
                             "uses_join_buffering": true
                           }
@@ -6316,7 +6383,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 9,
+                                "records_read": 9,
+                                "records_out": 9,
                                 "cost": 258.4076904,
                                 "uses_join_buffering": true
                               }
@@ -6350,7 +6418,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
-                                    "records": 3,
+                                    "records_read": 3,
+                                    "records_out": 3,
                                     "cost": 876.5525635,
                                     "uses_join_buffering": true
                                   }
@@ -6385,7 +6454,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
-                                    "records": 9,
+                                    "records_read": 9,
+                                    "records_out": 9,
                                     "cost": 2627.65769,
                                     "uses_join_buffering": true
                                   }
@@ -6417,7 +6487,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 3,
+                                "records_read": 3,
+                                "records_out": 3,
                                 "cost": 86.80256348,
                                 "uses_join_buffering": true
                               }
@@ -6451,7 +6522,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
-                                    "records": 9,
+                                    "records_read": 9,
+                                    "records_out": 9,
                                     "cost": 878.0576904,
                                     "uses_join_buffering": true
                                   }
@@ -6486,7 +6558,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
-                                    "records": 9,
+                                    "records_read": 9,
+                                    "records_out": 9,
                                     "cost": 878.0576904,
                                     "uses_join_buffering": true
                                   }
@@ -6518,7 +6591,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 9,
+                                "records_read": 9,
+                                "records_out": 9,
                                 "cost": 258.4076904,
                                 "uses_join_buffering": true
                               }
@@ -6552,7 +6626,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "records": 9,
+                        "records_read": 9,
+                        "records_out": 9,
                         "cost": 10.00769043,
                         "uses_join_buffering": true
                       }
@@ -6582,7 +6657,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "records": 9,
+                        "records_read": 9,
+                        "records_out": 9,
                         "cost": 10.00769043,
                         "uses_join_buffering": true
                       }
@@ -6612,7 +6688,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "records": 3,
+                        "records_read": 3,
+                        "records_out": 3,
                         "cost": 4.002563477,
                         "uses_join_buffering": true
                       }
@@ -6642,7 +6719,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "records": 9,
+                        "records_read": 9,
+                        "records_out": 9,
                         "cost": 10.00769043,
                         "uses_join_buffering": true
                       }
@@ -6674,7 +6752,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 3,
+                    "records_read": 3,
+                    "records_out": 3,
                     "cost": 1.752563477,
                     "uses_join_buffering": false
                   }
@@ -6704,7 +6783,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 9,
+                    "records_read": 9,
+                    "records_out": 9,
                     "cost": 3.25769043,
                     "uses_join_buffering": false
                   }
@@ -6734,7 +6814,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 9,
+                    "records_read": 9,
+                    "records_out": 9,
                     "cost": 3.25769043,
                     "uses_join_buffering": false
                   }
@@ -6764,7 +6845,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 3,
+                    "records_read": 3,
+                    "records_out": 3,
                     "cost": 1.752563477,
                     "uses_join_buffering": false
                   }
@@ -6794,7 +6876,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 9,
+                    "records_read": 9,
+                    "records_out": 9,
                     "cost": 3.25769043,
                     "uses_join_buffering": false
                   }
@@ -6830,7 +6913,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "records": 3,
+                        "records_read": 3,
+                        "records_out": 3,
                         "cost": 47.31921387,
                         "uses_join_buffering": false
                       }
@@ -6855,7 +6939,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "records": 9,
+                        "records_read": 9,
+                        "records_out": 9,
                         "cost": 263.8729248,
                         "uses_join_buffering": false
                       }
@@ -6885,7 +6970,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "records": 3,
+                        "records_read": 3,
+                        "records_out": 3,
                         "cost": 5.25769043,
                         "uses_join_buffering": false
                       }
@@ -6910,7 +6996,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "records": 9,
+                        "records_read": 9,
+                        "records_out": 9,
                         "cost": 29.31921387,
                         "uses_join_buffering": false
                       }
@@ -7233,7 +7320,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         ],
                         "chosen_access_method": {
                           "type": "scan",
-                          "records": 3,
+                          "records_read": 3,
+                          "records_out": 3,
                           "cost": 1.752563477,
                           "uses_join_buffering": false
                         }
@@ -7261,7 +7349,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             ],
                             "chosen_access_method": {
                               "type": "scan",
-                              "records": 9,
+                              "records_read": 9,
+                              "records_out": 9,
                               "cost": 10.00769043,
                               "uses_join_buffering": true
                             }
@@ -7292,7 +7381,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         ],
                         "chosen_access_method": {
                           "type": "scan",
-                          "records": 9,
+                          "records_read": 9,
+                          "records_out": 9,
                           "cost": 3.25769043,
                           "uses_join_buffering": false
                         }
@@ -7325,7 +7415,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         ],
                         "chosen_access_method": {
                           "type": "scan",
-                          "records": 3,
+                          "records_read": 3,
+                          "records_out": 3,
                           "cost": 1.752563477,
                           "uses_join_buffering": false
                         }
@@ -7353,7 +7444,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             ],
                             "chosen_access_method": {
                               "type": "scan",
-                              "records": 9,
+                              "records_read": 9,
+                              "records_out": 9,
                               "cost": 10.00769043,
                               "uses_join_buffering": true
                             }
@@ -7384,7 +7476,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         ],
                         "chosen_access_method": {
                           "type": "scan",
-                          "records": 9,
+                          "records_read": 9,
+                          "records_out": 9,
                           "cost": 3.25769043,
                           "uses_join_buffering": false
                         }
@@ -7420,7 +7513,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 3,
+                    "records_read": 3,
+                    "records_out": 3,
                     "cost": 1.752563477,
                     "uses_join_buffering": false
                   }
@@ -7449,7 +7543,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "records": 3,
+                        "records_read": 3,
+                        "records_out": 3,
                         "cost": 4.002563477,
                         "uses_join_buffering": true
                       }
@@ -7478,7 +7573,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                           ],
                           "chosen_access_method": {
                             "type": "scan",
-                            "records": 9,
+                            "records_read": 9,
+                            "records_out": 9,
                             "cost": 27.55769043,
                             "uses_join_buffering": true
                           }
@@ -7529,7 +7625,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 9,
+                                "records_read": 9,
+                                "records_out": 9,
                                 "cost": 12.70769043,
                                 "uses_join_buffering": true
                               }
@@ -7563,7 +7660,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
-                                    "records": 3,
+                                    "records_read": 3,
+                                    "records_out": 3,
                                     "cost": 34.15256348,
                                     "uses_join_buffering": true
                                   }
@@ -7598,7 +7696,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       ],
                                       "chosen_access_method": {
                                         "type": "scan",
-                                        "records": 9,
+                                        "records_read": 9,
+                                        "records_out": 9,
                                         "cost": 331.3076904,
                                         "uses_join_buffering": true
                                       }
@@ -7657,7 +7756,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
-                                    "records": 9,
+                                    "records_read": 9,
+                                    "records_out": 9,
                                     "cost": 100.4576904,
                                     "uses_join_buffering": true
                                   }
@@ -7689,7 +7789,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 3,
+                                "records_read": 3,
+                                "records_out": 3,
                                 "cost": 4.902563477,
                                 "uses_join_buffering": true
                               }
@@ -7723,7 +7824,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
-                                    "records": 9,
+                                    "records_read": 9,
+                                    "records_out": 9,
                                     "cost": 35.65769043,
                                     "uses_join_buffering": true
                                   }
@@ -7758,7 +7860,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ],
                                   "chosen_access_method": {
                                     "type": "scan",
-                                    "records": 9,
+                                    "records_read": 9,
+                                    "records_out": 9,
                                     "cost": 35.65769043,
                                     "uses_join_buffering": true
                                   }
@@ -7790,7 +7893,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 9,
+                                "records_read": 9,
+                                "records_out": 9,
                                 "cost": 12.70769043,
                                 "uses_join_buffering": true
                               }
@@ -7822,7 +7926,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                           ],
                           "chosen_access_method": {
                             "type": "scan",
-                            "records": 9,
+                            "records_read": 9,
+                            "records_out": 9,
                             "cost": 27.55769043,
                             "uses_join_buffering": true
                           }
@@ -7852,7 +7957,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                           ],
                           "chosen_access_method": {
                             "type": "scan",
-                            "records": 3,
+                            "records_read": 3,
+                            "records_out": 3,
                             "cost": 9.852563477,
                             "uses_join_buffering": true
                           }
@@ -7881,7 +7987,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 9,
+                                "records_read": 9,
+                                "records_out": 9,
                                 "cost": 88.30769043,
                                 "uses_join_buffering": true
                               }
@@ -7911,7 +8018,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 9,
+                                "records_read": 9,
+                                "records_out": 9,
                                 "cost": 88.30769043,
                                 "uses_join_buffering": true
                               }
@@ -7941,7 +8049,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ],
                               "chosen_access_method": {
                                 "type": "scan",
-                                "records": 9,
+                                "records_read": 9,
+                                "records_out": 9,
                                 "cost": 88.30769043,
                                 "uses_join_buffering": true
                               }
@@ -7973,7 +8082,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                           ],
                           "chosen_access_method": {
                             "type": "scan",
-                            "records": 9,
+                            "records_read": 9,
+                            "records_out": 9,
                             "cost": 27.55769043,
                             "uses_join_buffering": true
                           }
@@ -8005,7 +8115,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "records": 9,
+                        "records_read": 9,
+                        "records_out": 9,
                         "cost": 10.00769043,
                         "uses_join_buffering": true
                       }
@@ -8035,7 +8146,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "records": 9,
+                        "records_read": 9,
+                        "records_out": 9,
                         "cost": 10.00769043,
                         "uses_join_buffering": true
                       }
@@ -8065,7 +8177,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "records": 3,
+                        "records_read": 3,
+                        "records_out": 3,
                         "cost": 4.002563477,
                         "uses_join_buffering": true
                       }
@@ -8095,7 +8208,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "records": 9,
+                        "records_read": 9,
+                        "records_out": 9,
                         "cost": 10.00769043,
                         "uses_join_buffering": true
                       }
@@ -8127,7 +8241,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 3,
+                    "records_read": 3,
+                    "records_out": 3,
                     "cost": 1.752563477,
                     "uses_join_buffering": false
                   }
@@ -8157,7 +8272,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 9,
+                    "records_read": 9,
+                    "records_out": 9,
                     "cost": 3.25769043,
                     "uses_join_buffering": false
                   }
@@ -8187,7 +8303,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 9,
+                    "records_read": 9,
+                    "records_out": 9,
                     "cost": 3.25769043,
                     "uses_join_buffering": false
                   }
@@ -8217,7 +8334,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 3,
+                    "records_read": 3,
+                    "records_out": 3,
                     "cost": 1.752563477,
                     "uses_join_buffering": false
                   }
@@ -8247,7 +8365,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 9,
+                    "records_read": 9,
+                    "records_out": 9,
                     "cost": 3.25769043,
                     "uses_join_buffering": false
                   }
@@ -8958,7 +9077,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                 "chosen_access_method": 
                 {
                     "type": "scan",
-                    "records": 5.9375,
+                    "records_read": 5.9375,
+                    "records_out": 5.9375,
                     "cost": 3.508544922,
                     "uses_join_buffering": false
                 }
@@ -8996,7 +9116,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                         "chosen_access_method": 
                         {
                             "type": "scan",
-                            "records": 804.6875,
+                            "records_read": 804.6875,
+                            "records_out": 804.6875,
                             "cost": 1496.835632,
                             "uses_join_buffering": false
                         }
@@ -9035,7 +9156,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                 "chosen_access_method": 
                 {
                     "type": "scan",
-                    "records": 804.6875,
+                    "records_read": 804.6875,
+                    "records_out": 804.6875,
                     "cost": 252.0986328,
                     "uses_join_buffering": false
                 }
@@ -9085,7 +9207,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                 "chosen_access_method": 
                 {
                     "type": "scan",
-                    "records": 10,
+                    "records_read": 10,
+                    "records_out": 10,
                     "cost": 3.508544922,
                     "uses_join_buffering": false
                 }
@@ -9133,7 +9256,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                         "chosen_access_method": 
                         {
                             "type": "ref",
-                            "records": 1,
+                            "records_read": 1,
+                            "records_out": 1,
                             "cost": 12.50585794,
                             "uses_join_buffering": false
                         }
@@ -9174,7 +9298,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                 "chosen_access_method": 
                 {
                     "type": "scan",
-                    "records": 804.6875,
+                    "records_read": 804.6875,
+                    "records_out": 804.6875,
                     "cost": 252.0986328,
                     "uses_join_buffering": false
                 }
@@ -9331,7 +9456,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                 "chosen_access_method": 
                 {
                     "type": "scan",
-                    "records": 10,
+                    "records_read": 10,
+                    "records_out": 10,
                     "cost": 3.510986328,
                     "uses_join_buffering": false
                 }
@@ -9379,7 +9505,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                         "chosen_access_method": 
                         {
                             "type": "ref",
-                            "records": 1,
+                            "records_read": 1,
+                            "records_out": 1,
                             "cost": 12.50585794,
                             "uses_join_buffering": false
                         }
@@ -9420,7 +9547,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                 "chosen_access_method": 
                 {
                     "type": "scan",
-                    "records": 100,
+                    "records_read": 100,
+                    "records_out": 100,
                     "cost": 26.10986328,
                     "uses_join_buffering": false
                 }
@@ -9672,7 +9800,8 @@ select count(*) from seq_1_to_10000000	{
                   ],
                   "chosen_access_method": {
                     "type": "scan",
-                    "records": 10000000,
+                    "records_read": 10000000,
+                    "records_out": 10000000,
                     "cost": 7250000,
                     "uses_join_buffering": false
                   }
@@ -10093,7 +10222,8 @@ json_detailed(json_extract(trace, '$**.choose_best_splitting'))
                         "chosen_access_method": 
                         {
                             "type": "ref",
-                            "records": 1.8367,
+                            "records_read": 1.8367,
+                            "records_out": 1.8367,
                             "cost": 1.417925794,
                             "uses_join_buffering": false
                         }
@@ -10178,3 +10308,707 @@ left(trace, 100)
         
 # End of 10.6 tests
 set optimizer_trace='enabled=off';
+#
+# Testing of records_out
+#
+set @save_optimizer_switch= @@optimizer_switch;
+set @save_use_stat_tables= @@use_stat_tables;
+set @save_histogram_size= @@histogram_size;
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set optimizer_switch='rowid_filter=on';
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+set histogram_size=127;
+create table t1 (a int, b int, c int, key(a),key(b));
+insert into t1 select seq, seq*2, seq/10 from seq_1_to_1000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+explain select * from t1 where a<10 and b between 10 and 50 and c < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range|filter	a,b	a|b	5|5	NULL	9 (2%)	Using index condition; Using where; Using rowid filter
+QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
+explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
+  "steps": [
+    {
+      "join_preparation": {
+        "select_id": 1,
+        "steps": [
+          {
+            "expanded_query": "select t1.a AS a,t1.b AS b,t1.c AS c from t1 where t1.a < 10 and t1.b between 10 and 50 and t1.c < 10"
+          }
+        ]
+      }
+    },
+    {
+      "join_optimization": {
+        "select_id": 1,
+        "steps": [
+          {
+            "condition_processing": {
+              "condition": "WHERE",
+              "original_condition": "t1.a < 10 and t1.b between 10 and 50 and t1.c < 10",
+              "steps": [
+                {
+                  "transformation": "equality_propagation",
+                  "resulting_condition": "t1.a < 10 and t1.b between 10 and 50 and t1.c < 10"
+                },
+                {
+                  "transformation": "constant_propagation",
+                  "resulting_condition": "t1.a < 10 and t1.b between 10 and 50 and t1.c < 10"
+                },
+                {
+                  "transformation": "trivial_condition_removal",
+                  "resulting_condition": "t1.a < 10 and t1.b between 10 and 50 and t1.c < 10"
+                }
+              ]
+            }
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              }
+            ]
+          },
+          {
+            "ref_optimizer_key_uses": []
+          },
+          {
+            "rows_estimation": [
+              {
+                "table": "t1",
+                "range_analysis": {
+                  "table_scan": {
+                    "rows": 1000,
+                    "cost": 252.5869141
+                  },
+                  "potential_range_indexes": [
+                    {
+                      "index": "a",
+                      "usable": true,
+                      "key_parts": ["a"]
+                    },
+                    {
+                      "index": "b",
+                      "usable": true,
+                      "key_parts": ["b"]
+                    }
+                  ],
+                  "setup_range_conditions": [],
+                  "analyzing_range_alternatives": {
+                    "range_scan_alternatives": [
+                      {
+                        "index": "a",
+                        "ranges": ["(NULL) < (a) < (10)"],
+                        "rowid_ordered": false,
+                        "using_mrr": false,
+                        "index_only": false,
+                        "rows": 9,
+                        "cost": 7.27527215,
+                        "chosen": true
+                      },
+                      {
+                        "index": "b",
+                        "ranges": ["(10) <= (b) <= (50)"],
+                        "rowid_ordered": false,
+                        "using_mrr": false,
+                        "index_only": false,
+                        "rows": 21,
+                        "cost": 16.28230168,
+                        "chosen": false,
+                        "cause": "cost"
+                      }
+                    ],
+                    "analyzing_roworder_intersect": {
+                      "cause": "too few roworder scans"
+                    },
+                    "analyzing_index_merge_union": []
+                  },
+                  "group_index_range": {
+                    "chosen": false,
+                    "cause": "no group by or distinct"
+                  },
+                  "chosen_range_access_summary": {
+                    "range_access_plan": {
+                      "type": "range_scan",
+                      "index": "a",
+                      "rows": 9,
+                      "ranges": ["(NULL) < (a) < (10)"]
+                    },
+                    "rows_for_plan": 9,
+                    "cost_for_plan": 7.27527215,
+                    "chosen": true
+                  }
+                }
+              },
+              {
+                "table": "t1",
+                "rowid_filters": [
+                  {
+                    "key": "a",
+                    "build_cost": 0.759047172,
+                    "rows": 9
+                  },
+                  {
+                    "key": "b",
+                    "build_cost": 1.122236655,
+                    "rows": 21
+                  }
+                ]
+              },
+              {
+                "selectivity_for_indexes": [
+                  {
+                    "index_name": "a",
+                    "selectivity_from_index": 0.009
+                  },
+                  {
+                    "index_name": "b",
+                    "selectivity_from_index": 0.021
+                  }
+                ],
+                "selectivity_for_columns": [
+                  {
+                    "column_name": "c",
+                    "ranges": ["NULL < c < 10"],
+                    "selectivity_from_histogram": 0.109375
+                  }
+                ],
+                "cond_selectivity": 2.067187e-5
+              }
+            ]
+          },
+          {
+            "considered_execution_plans": [
+              {
+                "plan_prefix": [],
+                "table": "t1",
+                "best_access_path": {
+                  "plan_details": {
+                    "record_count": 1
+                  },
+                  "considered_access_paths": [
+                    {
+                      "filter": {
+                        "rowid_filter_key": "b",
+                        "index_only_cost": 0.50527215,
+                        "filter_startup_cost": 1.122236655,
+                        "find_key_and_filter_lookup_cost": 0.386507019,
+                        "filter_selectivity": 0.021,
+                        "orginal_rows": 9,
+                        "new_rows": 0.189,
+                        "original_found_rows_cost": 5.45527215,
+                        "new_found_rows_cost": 1.381168455,
+                        "cost": 2.54120511,
+                        "filter_used": true
+                      },
+                      "access_type": "range",
+                      "rows": 9,
+                      "rows_after_scan": 9,
+                      "rows_after_filter": 0.189,
+                      "cost": 2.54120511,
+                      "chosen": true
+                    }
+                  ],
+                  "chosen_access_method": {
+                    "type": "range",
+                    "records_read": 9,
+                    "records_out": 0.020671875,
+                    "cost": 2.54120511,
+                    "uses_join_buffering": false,
+                    "rowid_filter_key": "b"
+                  }
+                },
+                "rows_for_plan": 9,
+                "cost_for_plan": 2.54120511,
+                "estimated_join_cardinality": 9
+              }
+            ]
+          },
+          {
+            "best_join_order": ["t1"],
+            "best_access_method": {
+              "rows": 9,
+              "cost": 2.54120511
+            }
+          },
+          {
+            "table": "t1",
+            "range_analysis": {
+              "table_scan": {
+                "rows": 1000,
+                "cost": 1.79769e308
+              },
+              "potential_range_indexes": [
+                {
+                  "index": "a",
+                  "usable": false,
+                  "cause": "not applicable"
+                },
+                {
+                  "index": "b",
+                  "usable": true,
+                  "key_parts": ["b"]
+                }
+              ],
+              "setup_range_conditions": [],
+              "analyzing_range_alternatives": {
+                "range_scan_alternatives": [
+                  {
+                    "index": "b",
+                    "ranges": ["(10) <= (b) <= (50)"],
+                    "rowid_ordered": false,
+                    "using_mrr": false,
+                    "index_only": true,
+                    "rows": 21,
+                    "cost": 5.257301684,
+                    "chosen": true
+                  }
+                ]
+              },
+              "chosen_range_access_summary": {
+                "range_access_plan": {
+                  "type": "range_scan",
+                  "index": "b",
+                  "rows": 21,
+                  "ranges": ["(10) <= (b) <= (50)"]
+                },
+                "rows_for_plan": 21,
+                "cost_for_plan": 5.257301684,
+                "chosen": true
+              }
+            }
+          },
+          {
+            "substitute_best_equal": {
+              "condition": "WHERE",
+              "resulting_condition": "t1.a < 10 and t1.b between 10 and 50 and t1.c < 10"
+            }
+          },
+          {
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached": "t1.a < 10 and t1.b between 10 and 50 and t1.c < 10"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "join_execution": {
+        "select_id": 1,
+        "steps": []
+      }
+    }
+  ]
+}	0	0
+drop table t1;
+create table three (a int);
+insert into three values (1),(2),(3);
+create table t1 (a int, b int, c int, key(a),key(b));
+insert into t1 select mod(seq,10), seq, seq from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and t1.c<1000;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "three",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "three.a is not null"
+    },
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["a", "b"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.three.a"],
+      "rowid_filter": {
+        "range": {
+          "key": "b",
+          "used_key_parts": ["b"]
+        },
+        "rows": 4312,
+        "selectivity_pct": 43.12
+      },
+      "rows": 1000,
+      "filtered": 4.716249943,
+      "attached_condition": "t1.b < 5000 and t1.c < 1000"
+    }
+  }
+}
+QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
+explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and t1.c<1000	{
+  "steps": [
+    {
+      "join_preparation": {
+        "select_id": 1,
+        "steps": [
+          {
+            "expanded_query": "select three.a AS a,t1.a AS a,t1.b AS b,t1.c AS c from three join t1 where t1.a = three.a and t1.b < 5000 and t1.c < 1000"
+          }
+        ]
+      }
+    },
+    {
+      "join_optimization": {
+        "select_id": 1,
+        "steps": [
+          {
+            "condition_processing": {
+              "condition": "WHERE",
+              "original_condition": "t1.a = three.a and t1.b < 5000 and t1.c < 1000",
+              "steps": [
+                {
+                  "transformation": "equality_propagation",
+                  "resulting_condition": "t1.b < 5000 and t1.c < 1000 and multiple equal(t1.a, three.a)"
+                },
+                {
+                  "transformation": "constant_propagation",
+                  "resulting_condition": "t1.b < 5000 and t1.c < 1000 and multiple equal(t1.a, three.a)"
+                },
+                {
+                  "transformation": "trivial_condition_removal",
+                  "resulting_condition": "t1.b < 5000 and t1.c < 1000 and multiple equal(t1.a, three.a)"
+                }
+              ]
+            }
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "three",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 1,
+                "depends_on_map_bits": []
+              }
+            ]
+          },
+          {
+            "ref_optimizer_key_uses": [
+              {
+                "table": "t1",
+                "field": "a",
+                "equals": "three.a",
+                "null_rejecting": true
+              }
+            ]
+          },
+          {
+            "rows_estimation": [
+              {
+                "table": "three",
+                "table_scan": {
+                  "rows": 3,
+                  "read_cost": 1.002563477,
+                  "read_and_compare_cost": 1.752563477
+                }
+              },
+              {
+                "table": "t1",
+                "range_analysis": {
+                  "table_scan": {
+                    "rows": 10000,
+                    "cost": 2516.869141
+                  },
+                  "potential_range_indexes": [
+                    {
+                      "index": "a",
+                      "usable": false,
+                      "cause": "not applicable"
+                    },
+                    {
+                      "index": "b",
+                      "usable": true,
+                      "key_parts": ["b"]
+                    }
+                  ],
+                  "setup_range_conditions": [],
+                  "analyzing_range_alternatives": {
+                    "range_scan_alternatives": [
+                      {
+                        "index": "b",
+                        "ranges": ["(NULL) < (b) < (5000)"],
+                        "rowid_ordered": false,
+                        "using_mrr": false,
+                        "index_only": false,
+                        "rows": 4312,
+                        "cost": 3260.045946,
+                        "chosen": false,
+                        "cause": "cost"
+                      }
+                    ],
+                    "analyzing_roworder_intersect": {
+                      "cause": "too few roworder scans"
+                    },
+                    "analyzing_index_merge_union": []
+                  },
+                  "group_index_range": {
+                    "chosen": false,
+                    "cause": "not single_table"
+                  }
+                }
+              },
+              {
+                "table": "t1",
+                "rowid_filters": [
+                  {
+                    "key": "b",
+                    "build_cost": 174.2257513,
+                    "rows": 4312
+                  }
+                ]
+              },
+              {
+                "selectivity_for_indexes": [
+                  {
+                    "index_name": "b",
+                    "selectivity_from_index": 0.4312
+                  }
+                ],
+                "selectivity_for_columns": [
+                  {
+                    "column_name": "c",
+                    "ranges": ["NULL < c < 1000"],
+                    "selectivity_from_histogram": 0.109375
+                  }
+                ],
+                "cond_selectivity": 0.0471625
+              }
+            ]
+          },
+          {
+            "considered_execution_plans": [
+              {
+                "plan_prefix": [],
+                "table": "three",
+                "best_access_path": {
+                  "plan_details": {
+                    "record_count": 1
+                  },
+                  "considered_access_paths": [
+                    {
+                      "access_type": "scan",
+                      "rows": 3,
+                      "rows_after_scan": 3,
+                      "rows_after_filter": 3,
+                      "cost": 1.752563477,
+                      "index_only": false,
+                      "chosen": true
+                    }
+                  ],
+                  "chosen_access_method": {
+                    "type": "scan",
+                    "records_read": 3,
+                    "records_out": 3,
+                    "cost": 1.752563477,
+                    "uses_join_buffering": false
+                  }
+                },
+                "rows_for_plan": 3,
+                "cost_for_plan": 1.752563477,
+                "rest_of_plan": [
+                  {
+                    "plan_prefix": ["three"],
+                    "table": "t1",
+                    "best_access_path": {
+                      "plan_details": {
+                        "record_count": 3
+                      },
+                      "considered_access_paths": [
+                        {
+                          "access_type": "ref",
+                          "index": "a",
+                          "used_range_estimates": false,
+                          "cause": "not available",
+                          "filter": {
+                            "rowid_filter_key": "b",
+                            "index_only_cost": 2.585794484,
+                            "filter_startup_cost": 174.2257513,
+                            "find_key_and_filter_lookup_cost": 96.19157113,
+                            "filter_selectivity": 0.4312,
+                            "orginal_rows": 1000,
+                            "new_rows": 431.2,
+                            "original_found_rows_cost": 552.5857945,
+                            "new_found_rows_cost": 335.9373656,
+                            "cost": 1440.757848,
+                            "filter_used": true
+                          },
+                          "rows": 431.2,
+                          "cost": 1440.757848,
+                          "chosen": true
+                        },
+                        {
+                          "access_type": "scan_with_join_cache",
+                          "rows": 10000,
+                          "rows_after_scan": 353.71875,
+                          "rows_after_filter": 353.71875,
+                          "cost": 2782.158203,
+                          "index_only": false,
+                          "chosen": false
+                        }
+                      ],
+                      "chosen_access_method": {
+                        "type": "ref",
+                        "records_read": 1000,
+                        "records_out": 353.71875,
+                        "cost": 1440.757848,
+                        "uses_join_buffering": false,
+                        "rowid_filter_key": "b"
+                      }
+                    },
+                    "rows_for_plan": 3000,
+                    "cost_for_plan": 1442.510412,
+                    "selectivity": 0.0471625,
+                    "remaining_rows_for_plan": 141.4875,
+                    "estimated_join_cardinality": 141.4875
+                  }
+                ]
+              },
+              {
+                "plan_prefix": [],
+                "table": "t1",
+                "best_access_path": {
+                  "plan_details": {
+                    "record_count": 1
+                  },
+                  "considered_access_paths": [
+                    {
+                      "access_type": "scan",
+                      "rows": 10000,
+                      "rows_after_scan": 471.625,
+                      "rows_after_filter": 471.625,
+                      "cost": 2516.869141,
+                      "index_only": false,
+                      "chosen": true
+                    }
+                  ],
+                  "chosen_access_method": {
+                    "type": "scan",
+                    "records_read": 471.625,
+                    "records_out": 471.625,
+                    "cost": 2516.869141,
+                    "uses_join_buffering": false
+                  }
+                },
+                "rows_for_plan": 471.625,
+                "cost_for_plan": 2516.869141,
+                "pruned_by_cost": true
+              }
+            ]
+          },
+          {
+            "best_join_order": ["three", "t1"],
+            "best_access_method": {
+              "rows": 141.4875,
+              "cost": 1442.510412
+            }
+          },
+          {
+            "table": "t1",
+            "range_analysis": {
+              "table_scan": {
+                "rows": 10000,
+                "cost": 1.79769e308
+              },
+              "potential_range_indexes": [
+                {
+                  "index": "a",
+                  "usable": false,
+                  "cause": "not applicable"
+                },
+                {
+                  "index": "b",
+                  "usable": true,
+                  "key_parts": ["b"]
+                }
+              ],
+              "setup_range_conditions": [],
+              "analyzing_range_alternatives": {
+                "range_scan_alternatives": [
+                  {
+                    "index": "b",
+                    "ranges": ["(NULL) < (b) < (5000)"],
+                    "rowid_ordered": false,
+                    "using_mrr": false,
+                    "index_only": true,
+                    "rows": 4312,
+                    "cost": 996.2459458,
+                    "chosen": true
+                  }
+                ]
+              },
+              "chosen_range_access_summary": {
+                "range_access_plan": {
+                  "type": "range_scan",
+                  "index": "b",
+                  "rows": 4312,
+                  "ranges": ["(NULL) < (b) < (5000)"]
+                },
+                "rows_for_plan": 4312,
+                "cost_for_plan": 996.2459458,
+                "chosen": true
+              }
+            }
+          },
+          {
+            "substitute_best_equal": {
+              "condition": "WHERE",
+              "resulting_condition": "t1.a = three.a and t1.b < 5000 and t1.c < 1000"
+            }
+          },
+          {
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "three",
+                  "attached": "three.a is not null"
+                },
+                {
+                  "table": "t1",
+                  "attached": "t1.b < 5000 and t1.c < 1000"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "join_execution": {
+        "select_id": 1,
+        "steps": []
+      }
+    }
+  ]
+}	0	0
+drop table three, t1;
+set  @@optimizer_switch= @save_optimizer_switch;
+set  @@use_stat_tables= @save_use_stat_tables;
+set  @@histogram_size= @save_histogram_size;
+set  @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;

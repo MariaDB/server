@@ -691,15 +691,15 @@ void print_final_join_order(JOIN *join)
 }
 
 
-void print_best_access_for_table(THD *thd, POSITION *pos,
-                                 enum join_type type)
+void print_best_access_for_table(THD *thd, POSITION *pos)
 {
   DBUG_ASSERT(thd->trace_started());
 
   Json_writer_object obj(thd, "chosen_access_method");
   obj.
-    add("type", type == JT_ALL ? "scan" : join_type_str[type]).
-    add("records", pos->records_read).
+    add("type", pos->type == JT_ALL ? "scan" : join_type_str[pos->type]).
+    add("records_read", pos->records_read).
+    add("records_out", pos->records_out).
     add("cost", pos->read_time).
     add("uses_join_buffering", pos->use_join_buffer);
   if (pos->range_rowid_filter_info)
