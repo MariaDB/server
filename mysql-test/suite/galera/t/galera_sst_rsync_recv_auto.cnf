@@ -1,0 +1,18 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+wsrep_sst_method=rsync
+bind-address=::
+
+[mysqld.1]
+wsrep_provider_options='base_port=@mysqld.1.#galera_port;gmcast.listen_addr=tcp://[::]:@mysqld.1.#galera_port;ist.recv_addr=[::1]:@mysqld.1.#ist_port;gcache.size=1;pc.ignore_sb=true'
+wsrep_node_incoming_address='[::1]:@mysqld.1.port'
+wsrep_node_address=::1
+wsrep_sst_receive_address='[::1]:@mysqld.1.#sst_port'
+
+[mysqld.2]
+wsrep_cluster_address='gcomm://[::1]:@mysqld.1.#galera_port'
+wsrep_provider_options='base_port=@mysqld.2.#galera_port;gmcast.listen_addr=tcp://[::]:@mysqld.2.#galera_port;ist.recv_addr=[::1]:@mysqld.2.#ist_port;gcache.size=1;pc.ignore_sb=true'
+wsrep_node_address=::1
+wsrep_node_incoming_address='[::1]:@mysqld.2.port'
+wsrep_sst_receive_address=AUTO

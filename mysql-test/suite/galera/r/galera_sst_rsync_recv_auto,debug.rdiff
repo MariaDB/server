@@ -1,6 +1,6 @@
---- r/galera_sst_mariabackup_logarchive.result
-+++ r/galera_sst_mariabackup_logarchive.reject
-@@ -286,5 +286,113 @@
+--- galera_sst_rsync_recv_auto.result
++++ galera_sst_rsync_recv_auto.reject
+@@ -286,3 +286,111 @@
  DROP TABLE t1;
  COMMIT;
  SET AUTOCOMMIT=ON;
@@ -112,5 +112,3 @@
 +COMMIT;
 +SET AUTOCOMMIT=ON;
 +SET GLOBAL debug_dbug = $debug_orig;
- disconnect node_2;
- disconnect node_1;

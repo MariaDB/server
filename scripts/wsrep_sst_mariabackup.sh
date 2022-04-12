@@ -889,12 +889,12 @@ else
                 if ! mkdir -p "$sstlogarchivedir"; then
                     sstlogarchivedir=""
                     wsrep_log_warning \
-                       "Unable to create '$sstlogarchivedir' directory"
+                        "Unable to create '$sstlogarchivedir' directory"
                 fi
             elif [ ! -w "$sstlogarchivedir" ]; then
                 sstlogarchivedir=""
                 wsrep_log_warning \
-                  "The '$sstlogarchivedir' directory is not writtable"
+                    "The '$sstlogarchivedir' directory is not writtable"
             fi
         fi
 
@@ -918,7 +918,7 @@ else
                 newfile="$INNOMOVELOG.$ARCHIVETIMESTAMP"
             fi
             wsrep_log_info "Moving '$INNOMOVELOG' to '$newfile'"
-            mv "$INNOMOVELOG" "$newfile" && gzip "$newfile" ||
+            mv "$INNOMOVELOG" "$newfile" && gzip "$newfile" || \
                 wsrep_log_warning "Failed to archive log file ('$newfile')"
         fi
 
@@ -930,7 +930,7 @@ else
                 newfile="$INNOBACKUPLOG.$ARCHIVETIMESTAMP"
             fi
             wsrep_log_info "Moving '$INNOBACKUPLOG' to '$newfile'"
-            mv "$INNOBACKUPLOG" "$newfile" && gzip "$newfile" ||
+            mv "$INNOBACKUPLOG" "$newfile" && gzip "$newfile" || \
                 wsrep_log_warning "Failed to archive log file ('$newfile')"
         fi
     fi
