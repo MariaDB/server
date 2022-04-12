@@ -30,9 +30,12 @@ then
   # build is not running on Travis or Gitlab-CI
   sed '/-DPLUGIN_COLUMNSTORE=NO/d' -i debian/rules
   # Take the files and part of control from MCS directory
-  cp -v storage/columnstore/columnstore/debian/mariadb-plugin-columnstore.* debian/
-  echo >> debian/control
-  cat storage/columnstore/columnstore/debian/control >> debian/control
+  if [ ! -f debian/mariadb-plugin-columnstore.install ]
+  then
+    cp -v storage/columnstore/columnstore/debian/mariadb-plugin-columnstore.* debian/
+    echo >> debian/control
+    cat storage/columnstore/columnstore/debian/control >> debian/control
+  fi
 fi
 
 # Look up distro-version specific stuff
@@ -127,6 +130,11 @@ case "${CODENAME}" in
     echo "Error - unknown release codename $CODENAME" >&2
     exit 1
 esac
+
+if [ -n "${AUTOBAKE_PREP_CONTROL_RULES_ONLY:-}" ]
+then
+  exit 0
+fi
 
 # Adjust changelog, add new version
 echo "Incrementing changelog and starting build scripts"

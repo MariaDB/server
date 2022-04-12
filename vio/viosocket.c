@@ -613,7 +613,7 @@ enum enum_vio_type vio_type(Vio* vio)
 
 static const LEX_CSTRING vio_type_names[] =
 {
-  { STRING_WITH_LEN("Error") }, // cannot happen
+  { STRING_WITH_LEN("") }, // internal threads
   { STRING_WITH_LEN("TCP/IP") },
   { STRING_WITH_LEN("Socket") },
   { STRING_WITH_LEN("Named Pipe") },
