@@ -209,8 +209,11 @@ DROP TABLE t1, t2;
 # on table with virtual columns and indexes
 #
 InnoDB		0 transactions not purged
-SET @saved_dbug= @@GLOBAL.debug_dbug;
-set global debug_dbug= "d,ib_purge_virtual_mdev_16222_1,ib_purge_virtual_mdev_16222_2";
+set global innodb_debug_sync = "ib_purge_virtual_got_no_such_table"
+                               " SIGNAL got_no_such_table";
+set global innodb_debug_sync = "ib_purge_virtual_latch_released"
+                               " SIGNAL latch_released"
+                               " WAIT_FOR drop_started";
 create table t1 (
 pk serial, vb tinyblob as (b) virtual, b tinyblob,
 primary key(pk), index (vb(64)))
@@ -233,6 +236,7 @@ set debug_sync= "now WAIT_FOR got_no_such_table";
 set global debug_dbug= @saved_dbug;
 drop table t1;
 set debug_sync=reset;
+set global innodb_debug_sync=reset;
 #
 # MDEV-18546 ASAN heap-use-after-free
 # in innobase_get_computed_value / row_purge
@@ -247,15 +251,15 @@ UNIQUE(v)
 INSERT IGNORE INTO t1 (b) VALUES
 (NULL),(b'011'),(b'000110100'),
 (b'01101101010'),(b'01111001001011'),(NULL);
-SET GLOBAL innodb_debug_sync = "ib_clust_v_col_before_row_allocated "
-                               "SIGNAL before_row_allocated "
+SET GLOBAL innodb_debug_sync = "ib_purge_virtual_latch_released "
+                               "SIGNAL latch_released "
                                "WAIT_FOR flush_unlock";
 SET GLOBAL innodb_debug_sync = "ib_open_after_dict_open "
                                "SIGNAL purge_open "
                                "WAIT_FOR select_open";
 set global debug_dbug= "d,ib_purge_virtual_index_callback";
 connect purge_waiter,localhost,root;
-SET debug_sync= "now WAIT_FOR before_row_allocated";
+SET debug_sync= "now WAIT_FOR latch_released";
 connection default;
 REPLACE INTO t1 (pk, b) SELECT pk, b FROM t1;
 connection purge_waiter;

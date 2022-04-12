@@ -266,8 +266,12 @@ DROP TABLE t1, t2;
 
 --source suite/innodb/include/wait_all_purged.inc
 --let $datadir= `select @@datadir`
-SET @saved_dbug= @@GLOBAL.debug_dbug;
-set global debug_dbug= "d,ib_purge_virtual_mdev_16222_1,ib_purge_virtual_mdev_16222_2";
+
+set global innodb_debug_sync = "ib_purge_virtual_got_no_such_table"
+                               " SIGNAL got_no_such_table";
+set global innodb_debug_sync = "ib_purge_virtual_latch_released"
+                               " SIGNAL latch_released"
+                               " WAIT_FOR drop_started";
 
 create table t1 (
   pk serial, vb tinyblob as (b) virtual, b tinyblob,
@@ -310,6 +314,7 @@ drop table t1;
 
 --source include/wait_until_count_sessions.inc
 set debug_sync=reset;
+set global innodb_debug_sync=reset;
 
 --echo #
 --echo # MDEV-18546 ASAN heap-use-after-free
@@ -327,8 +332,8 @@ INSERT IGNORE INTO t1 (b) VALUES
   (NULL),(b'011'),(b'000110100'),
   (b'01101101010'),(b'01111001001011'),(NULL);
 
-SET GLOBAL innodb_debug_sync = "ib_clust_v_col_before_row_allocated "
-                               "SIGNAL before_row_allocated "
+SET GLOBAL innodb_debug_sync = "ib_purge_virtual_latch_released "
+                               "SIGNAL latch_released "
                                "WAIT_FOR flush_unlock";
 SET GLOBAL innodb_debug_sync = "ib_open_after_dict_open "
                                "SIGNAL purge_open "
@@ -342,13 +347,13 @@ set global debug_dbug= "d,ib_purge_virtual_index_callback";
 # connection is used.
 --connect(purge_waiter,localhost,root)
 --send
-SET debug_sync= "now WAIT_FOR before_row_allocated";
+SET debug_sync= "now WAIT_FOR latch_released";
 
 --connection default
 REPLACE INTO t1 (pk, b) SELECT pk, b FROM t1;
 
 --connection purge_waiter
-# Now we will definitely catch ib_clust_v_col_before_row_allocated
+# Now we will definitely catch ib_purge_virtual_latch_released
 --reap
 --connection default
 --disconnect purge_waiter
