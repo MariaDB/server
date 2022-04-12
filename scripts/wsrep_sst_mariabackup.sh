@@ -86,15 +86,13 @@ encrypt_threads=""
 encrypt_chunk=""
 
 readonly SECRET_TAG='secret'
+readonly TOTAL_TAG='total'
+readonly COMPLETE_TAG='complete'
 
 # Required for backup locks
 # For backup locks it is 1 sent by joiner
 sst_ver=1
 
-if [ -n "$(commandex pv)" ] && pv --help | grep -qw -F -- '-F'; then
-    pvopts="$pvopts $pvformat"
-fi
-pcmd="pv $pvopts"
 declare -a RC
 
 BACKUP_BIN=$(commandex 'mariabackup')
@@ -121,18 +119,19 @@ timeit()
 
     if [ $ttime -eq 1 ]; then
         x1=$(date +%s)
-        wsrep_log_info "Evaluating $cmd"
-        eval "$cmd"
-        extcode=$?
+    fi
+
+    wsrep_log_info "Evaluating $cmd"
+    eval $cmd
+    extcode=$?
+
+    if [ $ttime -eq 1 ]; then
         x2=$(date +%s)
         took=$(( x2-x1 ))
         wsrep_log_info "NOTE: $stage took $took seconds"
         totime=$(( totime+took ))
-    else
-        wsrep_log_info "Evaluating $cmd"
-        eval "$cmd"
-        extcode=$?
     fi
+
     return $extcode
 }
 
@@ -421,45 +420,90 @@ get_transfer()
 
 get_footprint()
 {
-    pushd "$WSREP_SST_OPT_DATA" 1>/dev/null
-    payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
-              -type f -print0 | du --files0-from=- --block-size=1 -c -s | \
-              awk 'END { print $1 }')
+    cd "$DATA_DIR"
+    local payload_data=$(find . \
+        -regex '.*undo[0-9]+$\|.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
+        -type f -print0 | du --files0-from=- --block-size=1 -c -s | \
+        awk 'END { print $1 }')
+
+    local payload_undo=0
+    if [ -n "$ib_undo_dir" -a -d "$ib_undo_dir" ]; then
+        cd "$ib_undo_dir"
+        payload_undo=$(find . -regex '.*undo[0-9]+$' -type f -print0 | \
+            du --files0-from=- --block-size=1 -c -s | awk 'END { print $1 }')
+    fi
+    cd "$OLD_PWD"
+
+    wsrep_log_info \
+        "SST footprint estimate: data: $payload_data, undo: $payload_undo"
+
+    payload=$(( $payload_data + $payload_undo ))
+
     if [ "$compress" != 'none' ]; then
         # QuickLZ has around 50% compression ratio
         # When compression/compaction used, the progress is only an approximate.
         payload=$(( payload*1/2 ))
     fi
-    popd 1>/dev/null
-    pcmd="$pcmd -s $payload"
+
+    # report to parent the total footprint of the SST
+    echo "$TOTAL_TAG $payload"
     adjust_progress
 }
 
 adjust_progress()
 {
-    if [ -z "$(commandex pv)" ]; then
-        wsrep_log_error "pv not found in path: $PATH"
-        wsrep_log_error "Disabling all progress/rate-limiting"
+    if [ "$progress" = 'none' ]; then
+        wsrep_log_info "All progress/rate-limiting disabled by configuration"
         pcmd=""
         rlimit=""
-        progress=""
         return
     fi
 
-    if [ -n "$progress" -a "$progress" != '1' ]; then
-        if [ -e "$progress" ]; then
-            pcmd="$pcmd 2>>'$progress'"
-        else
-            pcmd="$pcmd 2>'$progress'"
-        fi
-    elif [ -z "$progress" -a -n "$rlimit" ]; then
-            # When rlimit is non-zero
-            pcmd='pv -q'
+    if [ -z "$(commandex pv)" ]; then
+        wsrep_log_info "Progress reporting tool pv not found in path: $PATH"
+        wsrep_log_info "Disabling all progress/rate-limiting"
+        pcmd=""
+        rlimit=""
+        progress='none'
+        return
     fi
 
     if [ -n "$rlimit" -a "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         wsrep_log_info "Rate-limiting SST to $rlimit"
-        pcmd="$pcmd -L \$rlimit"
+        rlimitopts=" -L $rlimit"
+    else
+        rlimitopts=""
+    fi
+
+    if [ -n "$progress" ]; then
+        # Backward compatibility: user configured progress output
+        if pv --help | grep -qw -F -- '-F'; then
+            pvopts="$pvopts $pvformat"
+        fi
+
+        if [ $payload -ne 0 ]; then
+            pvopts="$pvopts -s $payload"
+        fi
+
+        pcmd="pv $pvopts$rlimitopts"
+
+        if [ "$progress" != '1' ]; then
+            if [ -e "$progress" ]; then
+                pcmd="$pcmd 2>>'$progress'"
+            else
+                pcmd="$pcmd 2>'$progress'"
+            fi
+        fi
+
+        rcmd=":"
+    else
+        # Default progress output parseable by parent
+        pvopts="-f -i 1 -n -b"
+        pcmd="pv $pvopts$rlimitopts"
+
+        # read progress data, add tag and post to stdout
+        # for the parent
+        rcmd="stdbuf -oL tr '\r' '\n' | xargs -n1 echo complete"
     fi
 }
 
@@ -472,7 +516,7 @@ read_cnf()
 
     encrypt=$(parse_cnf "$encgroups" 'encrypt' 0)
     tmode=$(parse_cnf "$encgroups" 'ssl-mode' 'DISABLED' | \
-            tr [:lower:] [:upper:])
+            tr '[[:lower:]]' '[[:upper:]]')
 
     case "$tmode" in
     'VERIFY_IDENTITY'|'VERIFY_CA'|'REQUIRED'|'DISABLED')
@@ -780,8 +824,16 @@ recv_joiner()
             exit 32
         fi
 
-        # remove secret from the magic file
-        grep -v -F -- "$SECRET_TAG " "$MAGIC_FILE" > "$MAGIC_FILE.new"
+        # check total SST footprint
+        total=$(grep -F -- "$TOTAL_TAG " "$MAGIC_FILE" 2>/dev/null | cut -d ' ' -f 2)
+        if [ $total -ge 0 ]; then
+            # report to parent
+            echo "$TOTAL_TAG $total"
+        fi
+
+        # remove secret and total from the magic file
+        grep -v -F -- "$SECRET_TAG " "$MAGIC_FILE" | \
+        grep -v -F -- "$TOTAL_TAG " > "$MAGIC_FILE.new"
         mv "$MAGIC_FILE.new" "$MAGIC_FILE"
     fi
 }
@@ -984,11 +1036,18 @@ then
 
         check_extra
 
+        wsrep_log_info "Estimating total transfer size"
+        get_footprint
+        wsrep_log_info "To transfer: $payload"
+
         wsrep_log_info "Streaming GTID file before SST"
 
         # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
         # (separated by a space).
         echo "$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID" > "$MAGIC_FILE"
+
+        # Tell joiner what to expect:
+        echo "$TOTAL_TAG $payload" >> "$MAGIC_FILE"
 
         if [ -n "$WSREP_SST_OPT_REMOTE_PSWD" ]; then
             # Let joiner know that we know its secret
@@ -1011,12 +1070,14 @@ then
         # Restore the transport commmand to its original state
         tcmd="$ttcmd"
 
-        if [ -n "$progress" ]; then
-            get_footprint
-            tcmd="$pcmd | $tcmd"
-        elif [ -n "$rlimit" ]; then
-            adjust_progress
-            tcmd="$pcmd | $tcmd"
+        if [ -n "$pcmd" ]; then
+            if [ "$rcmd" != ":" ]; then
+                # redirect pv stderr to rcmd for tagging and output to parent
+                tcmd="{ $pcmd 2>&3 | $tcmd; } 3>&1 | $rcmd"
+            else
+                # use user-configured pv output
+                tcmd="$pcmd | $tcmd"
+            fi
         fi
 
         wsrep_log_info "Sleeping before data transfer for SST"
@@ -1220,11 +1281,6 @@ then
     trap sig_joiner_cleanup HUP PIPE INT TERM
     trap cleanup_at_exit EXIT
 
-    if [ -n "$progress" ]; then
-        adjust_progress
-        tcmd="$tcmd | $pcmd"
-    fi
-
     get_keys
     if [ $encrypt -eq 1 ]; then
         strmcmd="$ecmd | $strmcmd"
@@ -1232,6 +1288,17 @@ then
 
     if [ -n "$sdecomp" ]; then
         strmcmd="$sdecomp | $strmcmd"
+    fi
+
+    adjust_progress
+    if [ -n "$pcmd" ]; then
+        if [ "$rcmd" != ':' ]; then
+            # redirect pv stderr to rcmd for tagging and output to parent
+            strmcmd="{ $pcmd 2>&3 | $strmcmd; } 3>&1 | $rcmd"
+        else
+            # use user-configured pv output
+            strmcmd="$pcmd | $strmcmd"
+        fi
     fi
 
     check_sockets_utils
@@ -1340,16 +1407,14 @@ then
 
             dcmd="xargs -n 2 qpress -dT$nproc"
 
-            if [ -n "$progress" ] && \
+            if [ -n "$progress" -a "$progress" != 'none' ] && \
                pv --help | grep -qw -F -- '--line-mode'
             then
-                count=$(find "$DATA" -type f -name '*.qp' | wc -l)
+                count=$(find "$DATA" -maxdepth 1 -type f -name '*.qp' | wc -l)
                 count=$(( count*2 ))
-                pvopts="-f -s $count -l -N Decompression"
-                if pv --help | grep -qw -F -- '-F'; then
-                    pvopts="$pvopts -F '%N => Rate:%r Elapsed:%t %e Progress: [%b/$count]'"
-                fi
-                pcmd="pv $pvopts"
+                pvopts='-f -l -N Decompression'
+                pvformat="-F '%N => Rate:%r Elapsed:%t %e Progress: [%b/$count]'"
+                payload=$count
                 adjust_progress
                 dcmd="$pcmd | $dcmd"
             fi

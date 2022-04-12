@@ -143,7 +143,7 @@ BEGIN
 SET @v1 = f1;
 SELECT @v1;
 END//
-ERROR 42000: Too big precision 256 specified for 'f1'. Maximum is 65
+ERROR 42000: Too big precision specified for 'f1'. Maximum is 65
 DROP PROCEDURE IF EXISTS sp1//
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
@@ -153,7 +153,7 @@ BEGIN
 SET @v1 = f1;
 SELECT @v1;
 END//
-ERROR 42000: Too big precision 66 specified for 'f1'. Maximum is 65
+ERROR 42000: Too big precision specified for 'f1'. Maximum is 65
 DROP PROCEDURE IF EXISTS sp1//
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
@@ -1549,7 +1549,7 @@ BEGIN
 SET f1 = 1000000 + f1;
 RETURN f1;
 END//
-ERROR 42000: Too big scale 61 specified for 'f1'. Maximum is 38
+ERROR 42000: Too big scale specified for 'f1'. Maximum is 38
 SELECT fn1( 1.3326e+8 );
 ERROR 42000: FUNCTION db_storedproc.fn1 does not exist
 CREATE FUNCTION fn1( f1 DECIMAL(63, 30) ) RETURNS DECIMAL(63, 30)
@@ -5837,7 +5837,7 @@ fetch cur1 into e;
 SELECT x, y, z, a, b, c, d, e;
 close cur1;
 END//
-ERROR 42000: Too big scale 255 specified for 'b'. Maximum is 38
+ERROR 42000: Too big scale specified for 'b'. Maximum is 38
 CALL sp6();
 ERROR 42000: PROCEDURE db_storedproc.sp6 does not exist
 DROP PROCEDURE IF EXISTS sp6;

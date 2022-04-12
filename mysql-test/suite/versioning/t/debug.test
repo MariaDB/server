@@ -1,5 +1,7 @@
 --source include/have_debug.inc
 
+--let $datadir=`select @@datadir`
+
 create table t1 (a int);
 show create table t1;
 
@@ -30,6 +32,18 @@ set debug_dbug='+d,sysvers_show';
 show create table t3;
 create table t4 (a int);
 show create table t4;
-
-set global debug_dbug=@old_dbug;
 drop table t1, t2, t3, t4;
+
+
+--echo #
+--echo # MDEV-19525 remove ER_VERS_FIELD_WRONG_TYPE from init_from_binary_frm_image()
+--echo #
+create table t1 (x int) with system versioning;
+set debug_dbug='+d,error_vers_wrong_type';
+--replace_result $datadir ./
+--error ER_NOT_FORM_FILE
+show create table t1;
+--replace_result $datadir ./
+show warnings;
+drop table t1;
+set global debug_dbug=@old_dbug;

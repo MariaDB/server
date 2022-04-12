@@ -20,6 +20,7 @@
 #include "wsrep/mutex.hpp"
 
 /* implementation */
+#include "my_global.h"
 #include "my_pthread.h"
 
 class Wsrep_mutex : public wsrep::mutex

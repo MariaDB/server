@@ -1628,7 +1628,6 @@ group_by_handler *spider_create_group_by_handler(
       break;
   }
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   from = query->from;
   do {
     DBUG_PRINT("info",("spider from=%p", from));
@@ -1647,7 +1646,6 @@ group_by_handler *spider_create_group_by_handler(
       }
     }
   } while ((from = from->next_local));
-#endif
 
   table_idx = 0;
   from = query->from;

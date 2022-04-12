@@ -1269,6 +1269,15 @@ extern struct charset_info_st my_charset_utf8mb4_general_nopad_ci;
 extern struct charset_info_st my_charset_utf8mb4_unicode_ci;
 extern struct charset_info_st my_charset_utf8mb4_unicode_nopad_ci;
 
+/*
+  Contextually typed collations, e.g.:
+    CHAR(10) COLLATE DEFAULT
+    CHAR(10) BINARY
+*/
+extern struct charset_info_st my_collation_contextually_typed_default;
+extern struct charset_info_st my_collation_contextually_typed_binary;
+
+
 #define MY_UTF8MB3                 "utf8mb3"
 #define MY_UTF8MB4                 "utf8mb4"
 

@@ -243,4 +243,23 @@ DROP VIEW v1;
 DROP TABLE t3,t4;
 SET @@sql_mode=@save_sql_mode;
 
+--echo #
 --echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-28095 crash in multi-update and implicit grouping
+--echo #
+CREATE TABLE t1 (a int) engine=innodb;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b int);
+INSERT INTO t2 VALUES (1),(2);
+--error ER_INVALID_GROUP_FUNC_USE
+UPDATE t1 NATURAL JOIN t2 SET a = 1 ORDER BY AVG (a) ;
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+

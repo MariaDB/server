@@ -10410,17 +10410,15 @@ bool Column_definition::prepare_interval_field(MEM_ROOT *mem_root,
 
 bool Column_definition::set_attributes(THD *thd,
                                        const Lex_field_type_st &def,
-                                       CHARSET_INFO *cs,
                                        column_definition_type_t type)
 {
   DBUG_ASSERT(type_handler() == &type_handler_null);
-  DBUG_ASSERT(charset == &my_charset_bin || charset == NULL);
   DBUG_ASSERT(length == 0);
   DBUG_ASSERT(decimals == 0);
 
   set_handler(def.type_handler());
   return type_handler()->Column_definition_set_attributes(thd, this,
-                                                          def, cs, type);
+                                                          def, type);
 }
 
 
@@ -10428,16 +10426,12 @@ void
 Column_definition_attributes::set_length_and_dec(const Lex_length_and_dec_st
                                                  &type)
 {
-  if (type.length())
-  {
-    int err;
-    length= my_strtoll10(type.length(), NULL, &err);
-    if (err)
-      length= ~0ULL; // safety
-  }
+  if (type.has_explicit_length())
+    length= type.length_overflowed() ? (ulonglong) UINT_MAX32 + 1 :
+                                       (ulonglong) type.length();
 
-  if (type.dec())
-    decimals= (uint) atoi(type.dec());
+  if (type.has_explicit_dec())
+    decimals= type.dec();
 }
 
 
@@ -10536,7 +10530,7 @@ bool Column_definition::fix_attributes_real(uint default_length)
   }
   if (decimals != NOT_FIXED_DEC && decimals >= FLOATING_POINT_DECIMALS)
   {
-    my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
+    my_error(ER_TOO_BIG_SCALE, MYF(0),
              field_name.str, static_cast<uint>(FLOATING_POINT_DECIMALS-1));
     return true;
   }
@@ -10548,14 +10542,14 @@ bool Column_definition::fix_attributes_decimal()
 {
   if (decimals >= NOT_FIXED_DEC)
   {
-    my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
+    my_error(ER_TOO_BIG_SCALE, MYF(0),
              field_name.str, static_cast<uint>(NOT_FIXED_DEC - 1));
     return true;
   }
   my_decimal_trim(&length, &decimals);
   if (length > DECIMAL_MAX_PRECISION)
   {
-    my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name.str,
+    my_error(ER_TOO_BIG_PRECISION, MYF(0), field_name.str,
              DECIMAL_MAX_PRECISION);
     return true;
   }
@@ -10584,7 +10578,7 @@ bool Column_definition::fix_attributes_temporal_with_time(uint int_part_length)
 {
   if (length > MAX_DATETIME_PRECISION)
   {
-    my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name.str,
+    my_error(ER_TOO_BIG_PRECISION, MYF(0), field_name.str,
              MAX_DATETIME_PRECISION);
     return true;
   }

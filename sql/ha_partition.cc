@@ -3198,11 +3198,12 @@ err1:
     @retval true   Failure
 */
 
-bool ha_partition::setup_engine_array(MEM_ROOT *mem_root)
+bool ha_partition::setup_engine_array(MEM_ROOT *mem_root,
+                                      handlerton* first_engine)
 {
   uint i;
   uchar *buff;
-  handlerton **engine_array, *first_engine;
+  handlerton **engine_array;
   enum legacy_db_type db_type, first_db_type;
 
   DBUG_ASSERT(!m_file);
@@ -3212,11 +3213,8 @@ bool ha_partition::setup_engine_array(MEM_ROOT *mem_root)
     DBUG_RETURN(true);
 
   buff= (uchar *) (m_file_buffer + PAR_ENGINES_OFFSET);
-  first_db_type= (enum legacy_db_type) buff[0];
-  first_engine= ha_resolve_by_legacy_type(ha_thd(), first_db_type);
-  if (!first_engine)
-    goto err;
 
+  first_db_type= (enum legacy_db_type) buff[0];
   if (!(m_engine_array= (plugin_ref*)
         alloc_root(&m_mem_root, m_tot_parts * sizeof(plugin_ref))))
     goto err;
@@ -3257,6 +3255,75 @@ err:
 }
 
 
+handlerton *ha_partition::get_def_part_engine(const char *name)
+{
+  if (table_share)
+  {
+    if (table_share->default_part_plugin)
+      return plugin_data(table_share->default_part_plugin, handlerton *);
+  }
+  else
+  {
+    // DROP TABLE, for example
+    char buff[FN_REFLEN];
+    File file;
+    MY_STAT state;
+    uchar *frm_image= 0;
+    handlerton *hton= 0;
+    bool use_legacy_type= false;
+
+    fn_format(buff, name, "", reg_ext, MY_APPEND_EXT);
+
+    file= mysql_file_open(key_file_frm, buff, O_RDONLY | O_SHARE, MYF(0));
+    if (file < 0)
+      return NULL;
+
+    if (mysql_file_fstat(file, &state, MYF(MY_WME)))
+      goto err;
+    if (state.st_size <= 64)
+      goto err;
+    if (!(frm_image= (uchar*)my_malloc(key_memory_Partition_share,
+                                       state.st_size, MYF(MY_WME))))
+      goto err;
+    if (mysql_file_read(file, frm_image, state.st_size, MYF(MY_NABP)))
+      goto err;
+
+    if (frm_image[64] != '/')
+    {
+      const uchar *e2= frm_image + 64;
+      const uchar *e2end = e2 + uint2korr(frm_image + 4);
+      if (e2end > frm_image + state.st_size)
+        goto err;
+      while (e2 + 3 < e2end)
+      {
+        uchar type= *e2++;
+        size_t length= extra2_read_len(&e2, e2end);
+        if (!length)
+          goto err;
+        if (type == EXTRA2_DEFAULT_PART_ENGINE)
+        {
+          LEX_CSTRING name= { (char*)e2, length };
+          plugin_ref plugin= ha_resolve_by_name(ha_thd(), &name, false);
+          if (plugin)
+            hton= plugin_data(plugin, handlerton *);
+          goto err;
+        }
+        e2+= length;
+      }
+    }
+    use_legacy_type= true;
+err:
+    my_free(frm_image);
+    mysql_file_close(file, MYF(0));
+    if (!use_legacy_type)
+      return hton;
+  }
+
+  return ha_resolve_by_legacy_type(ha_thd(),
+                  (enum legacy_db_type)m_file_buffer[PAR_ENGINES_OFFSET]);
+}
+
+
 /**
   Get info about partition engines and their names from the .par file
 
@@ -3284,7 +3351,11 @@ bool ha_partition::get_from_handler_file(const char *name, MEM_ROOT *mem_root,
   if (read_par_file(name))
     DBUG_RETURN(true);
 
-  if (!is_clone && setup_engine_array(mem_root))
+  handlerton *default_engine= get_def_part_engine(name);
+  if (!default_engine)
+    DBUG_RETURN(true);
+
+  if (!is_clone && setup_engine_array(mem_root, default_engine))
     DBUG_RETURN(true);
 
   DBUG_RETURN(false);

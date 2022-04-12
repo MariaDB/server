@@ -23,7 +23,7 @@ set spider_same_server_link= on;
 #
 select @@spider_auto_increment_mode;
 @@spider_auto_increment_mode
--1
+0
 create or replace table auto_test_local.t (id int primary key) engine=InnoDB;
 create or replace table t_sp1 (id int auto_increment, primary key(id desc))
 engine=Spider COMMENT='wrapper "mysql", srv "s_1", table "t"';
@@ -63,10 +63,14 @@ insert into auto_test_local.t VALUES (1,'f'),(2,'g'),(3,'j'), (4,'i'),(5,'h');
 create table ts (a int, b char(1), primary key(a desc))
 engine=spider comment='wrapper "mysql", srv "s_1", table "t"';
 set spider_use_handler=3;
+Warnings:
+Warning	1287	'@@spider_use_handler' is deprecated and will be removed in a future release
 select a, b from ts where a > 0 and b = 'g' order by a;
 a	b
 2	g
 set spider_use_handler=default;
+Warnings:
+Warning	1287	'@@spider_use_handler' is deprecated and will be removed in a future release
 select a, b from ts where a > 0 and b = 'g' order by a;
 a	b
 2	g

@@ -716,7 +716,7 @@ bool Create_json_table::add_json_table_fields(THD *thd, TABLE *table,
   uint fieldnr= 0;
   MEM_ROOT *mem_root_save= thd->mem_root;
   List_iterator_fast<Json_table_column> jc_i(jt->m_columns);
-  Column_derived_attributes da(NULL);
+  Column_derived_attributes da(&my_charset_utf8mb4_general_ci);
   DBUG_ENTER("add_json_table_fields");
 
   thd->mem_root= &table->mem_root;
@@ -733,8 +733,6 @@ bool Create_json_table::add_json_table_fields(THD *thd, TABLE *table,
        executing a prepared statement for the second time.
     */
     sql_f->length= sql_f->char_length;
-    if (!sql_f->charset)
-      sql_f->charset= &my_charset_utf8mb4_general_ci;
 
     if (sql_f->prepare_stage1(thd, thd->mem_root, table->file,
                               table->file->ha_table_flags(), &da))
@@ -873,6 +871,19 @@ int Json_table_column::set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
 }
 
 
+int Json_table_column::set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
+                           const Lex_charset_collation_st &cl)
+{
+  if (cl.is_empty() || cl.is_contextually_typed_collate_default())
+    return set(thd, ctype, path, nullptr);
+
+  CHARSET_INFO *tmp;
+  if (!(tmp= cl.resolved_to_character_set(&my_charset_utf8mb4_general_ci)))
+    return 1;
+  return set(thd, ctype, path, tmp);
+}
+
+
 static int print_path(String *str, const json_path_t *p)
 {
   return str->append('\'') ||
@@ -915,7 +926,10 @@ int Json_table_column::print(THD *thd, Field **f, String *str)
     if (str->append(column_type) ||
         ((*f)->has_charset() && m_explicit_cs &&
          (str->append(STRING_WITH_LEN(" CHARSET ")) ||
-          str->append(&m_explicit_cs->cs_name))) ||
+          str->append(&m_explicit_cs->cs_name) ||
+          (!(m_explicit_cs->state & MY_CS_PRIMARY) &&
+           (str->append(STRING_WITH_LEN(" COLLATE ")) ||
+            str->append(&m_explicit_cs->coll_name))))) ||
         str->append(m_column_type == PATH ? &path : &exists_path) ||
         print_path(str, &m_path))
       return 1;

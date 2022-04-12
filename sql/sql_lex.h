@@ -3192,8 +3192,6 @@ public:
   /* Query Plan Footprint of a currently running select  */
   Explain_query *explain;
 
-  // type information
-  CHARSET_INFO *charset;
   /*
     LEX which represents current statement (conventional, SP or PS)
 
@@ -3800,14 +3798,12 @@ public:
                     bool is_analyze, bool *printed_anything);
   bool restore_set_statement_var();
 
-  void init_last_field(Column_definition *field, const LEX_CSTRING *name,
-                       const CHARSET_INFO *cs);
+  void init_last_field(Column_definition *field, const LEX_CSTRING *name);
   bool last_field_generated_always_as_row_start_or_end(Lex_ident *p,
                                                        const char *type,
                                                        uint flags);
   bool last_field_generated_always_as_row_start();
   bool last_field_generated_always_as_row_end();
-  bool set_bincmp(CHARSET_INFO *cs, bool bin);
 
   bool new_sp_instr_stmt(THD *, const LEX_CSTRING &prefix,
                          const LEX_CSTRING &suffix);
@@ -3866,6 +3862,10 @@ public:
   bool call_statement_start(THD *thd, const Lex_ident_sys_st *name);
   bool call_statement_start(THD *thd, const Lex_ident_sys_st *name1,
                                       const Lex_ident_sys_st *name2);
+  bool call_statement_start(THD *thd,
+                            const Lex_ident_sys_st *db,
+                            const Lex_ident_sys_st *pkg,
+                            const Lex_ident_sys_st *proc);
   sp_variable *find_variable(const LEX_CSTRING *name,
                              sp_pcontext **ctx,
                              const Sp_rcontext_handler **rh) const;
@@ -4110,6 +4110,11 @@ public:
   Item *make_item_func_sysdate(THD *thd, uint fsp);
   Item *make_item_func_call_generic(THD *thd, Lex_ident_cli_st *db,
                                     Lex_ident_cli_st *name, List<Item> *args);
+  Item *make_item_func_call_generic(THD *thd,
+                                    Lex_ident_cli_st *db,
+                                    Lex_ident_cli_st *pkg,
+                                    Lex_ident_cli_st *name,
+                                    List<Item> *args);
   Item *make_item_func_call_native_or_parse_error(THD *thd,
                                                   Lex_ident_cli_st &name,
                                                   List<Item> *args);

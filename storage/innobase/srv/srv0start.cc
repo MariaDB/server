@@ -1043,12 +1043,12 @@ dberr_t srv_start(bool create_new_db)
 	recv_sys.create();
 	lock_sys.create(srv_lock_table_size);
 
+	srv_startup_is_before_trx_rollback_phase = true;
+
 	if (!srv_read_only_mode) {
 		buf_flush_page_cleaner_init();
 		ut_ad(buf_page_cleaner_is_active);
 	}
-
-	srv_startup_is_before_trx_rollback_phase = true;
 
 	/* Check if undo tablespaces and redo log files exist before creating
 	a new system tablespace */
@@ -1211,10 +1211,9 @@ dberr_t srv_start(bool create_new_db)
 			if (err != DB_SUCCESS) {
 				return srv_init_abort(err);
 			}
-			if (srv_operation == SRV_OPERATION_RESTORE) {
-				break;
+			if (srv_operation != SRV_OPERATION_RESTORE) {
+				dict_sys.load_sys_tables();
 			}
-			dict_sys.load_sys_tables();
 			err = trx_lists_init_at_db_start();
 			if (err != DB_SUCCESS) {
 				return srv_init_abort(err);
@@ -1792,7 +1791,7 @@ srv_get_meta_data_filename(
 	char*		path;
 
 	/* Make sure the data_dir_path is set. */
-	dict_get_and_save_data_dir_path(table, false);
+	dict_get_and_save_data_dir_path(table);
 
 	const char* data_dir_path = DICT_TF_HAS_DATA_DIR(table->flags)
 		? table->data_dir_path : nullptr;

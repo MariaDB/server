@@ -14,3 +14,20 @@ SELECT * FROM t1;
 ALTER TABLE t1 TABLE_TYPE=NON_EXISTING;
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-23626: CONNECT VIR tables return inconsistent error for UPDATE
+--echo #
+
+CREATE TABLE numbers
+ENGINE=CONNECT,
+TABLE_TYPE=VIR,
+BLOCK_SIZE=3;
+
+--error ER_GET_ERRMSG
+TRUNCATE TABLE numbers;
+--error ER_GET_ERRMSG
+DELETE FROM numbers WHERE n = 1;
+--error ER_GET_ERRMSG
+UPDATE numbers SET n = 10 WHERE n = 1;
+DROP TABLE numbers;

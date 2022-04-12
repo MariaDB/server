@@ -845,3 +845,70 @@ SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+--echo #
+--echo # Start of 10.9 tests
+--echo #
+
+--echo #
+--echo #  MDEV-27743 Remove Lex::charset
+--echo #
+
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) PATH '$.name'
+  )
+) AS jt;
+
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) BINARY PATH '$.name'
+  )
+) AS jt;
+
+
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+SELECT collation(name) FROM v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+SELECT collation(name) FROM v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) BINARY PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+SELECT collation(name) FROM v1;
+DROP VIEW v1;
+
+--echo #
+--echo # End of 10.9 tests
+--echo #

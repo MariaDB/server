@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -8645,6 +8645,7 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
         if (bitmap_is_set(table->read_set, i))
         {
           field->move_field(cur);
+          field->reset();
           *to_recinfo++= *from_recinfo;
           cur+= from_recinfo->length;
         }
@@ -8666,6 +8667,7 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
         to_recinfo->type= FIELD_NORMAL;
         to_recinfo++;
       }
+      store_record(table, s->default_values);
       p->recinfo= to_recinfo;
 
       // TODO switch from Aria to Memory if all blobs were optimized away?

@@ -131,7 +131,7 @@ void log_t::create()
   max_modified_age_async= 0;
   max_checkpoint_age= 0;
   next_checkpoint_lsn= 0;
-  n_pending_checkpoint_writes= 0;
+  checkpoint_pending= false;
 
   buf_free= 0;
 
@@ -183,11 +183,16 @@ static void *log_mmap(os_file_t file, os_offset_t size)
     struct stat st;
     if (!fstat(file, &st))
     {
+      MSAN_STAT_WORKAROUND(&st);
       const auto st_dev= st.st_dev;
-      if (!stat("/dev/shm", &st) && st.st_dev == st_dev)
-        ptr= my_mmap(0, size_t(size),
-                     srv_read_only_mode ? PROT_READ : PROT_READ | PROT_WRITE,
-                     MAP_SHARED, file, 0);
+      if (!stat("/dev/shm", &st))
+      {
+        MSAN_STAT_WORKAROUND(&st);
+        if (st.st_dev == st_dev)
+          ptr= my_mmap(0, size_t(size),
+                       srv_read_only_mode ? PROT_READ : PROT_READ | PROT_WRITE,
+                       MAP_SHARED, file, 0);
+      }
     }
   }
 #endif /* __linux__ */
@@ -229,7 +234,9 @@ void log_t::attach(log_file_t file, os_offset_t size)
   if (!block_size)
     set_block_size(512);
 # ifdef __linux__
-  else if (srv_file_flush_method != SRV_O_DSYNC)
+  else if (srv_file_flush_method != SRV_O_DSYNC &&
+           srv_file_flush_method != SRV_O_DIRECT &&
+           srv_file_flush_method != SRV_O_DIRECT_NO_FSYNC)
     sql_print_information("InnoDB: Buffered log writes (block size=%u bytes)",
                           block_size);
 #endif
@@ -455,7 +462,7 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
         {
           memcpy_aligned<16>(resize_buf, buf, (buf_free + 15) & ~15);
           start_lsn= first_lsn +
-            (~lsn_t{block_size - 1} & (write_lsn - first_lsn));
+            (~lsn_t{get_block_size() - 1} & (write_lsn - first_lsn));
         }
       }
       resize_lsn.store(start_lsn, std::memory_order_relaxed);
@@ -708,21 +715,22 @@ inline void log_t::persist(lsn_t lsn) noexcept
 @param length  the used length of resize_buf */
 ATTRIBUTE_COLD void log_t::resize_write_buf(size_t length) noexcept
 {
-  ut_ad(!(resize_target & (block_size - 1)));
-  ut_ad(!(length & (block_size - 1)));
-  ut_ad(length >= block_size);
+  const size_t block_size_1= get_block_size() - 1;
+  ut_ad(!(resize_target & block_size_1));
+  ut_ad(!(length & block_size_1));
+  ut_ad(length > block_size_1);
   ut_ad(length <= resize_target);
   const lsn_t resizing{resize_in_progress()};
   ut_ad(resizing <= write_lsn);
   lsn_t offset= START_OFFSET +
-    ((write_lsn - resizing) & ~lsn_t{block_size - 1}) %
+    ((write_lsn - resizing) & ~lsn_t{block_size_1}) %
     (resize_target - START_OFFSET);
 
   if (UNIV_UNLIKELY(offset + length > resize_target))
   {
     offset= START_OFFSET;
     resize_lsn.store(first_lsn +
-                     (~lsn_t{block_size - 1} & (write_lsn - first_lsn)),
+                     (~lsn_t{block_size_1} & (write_lsn - first_lsn)),
                      std::memory_order_relaxed);
   }
 
@@ -1128,22 +1136,6 @@ wait_suspend_loop:
 		goto loop;
 	} else {
 		buf_flush_buffer_pool();
-	}
-
-	if (log_sys.is_initialised()) {
-		log_sys.latch.rd_lock(SRW_LOCK_CALL);
-		const ulint	n_write	= log_sys.n_pending_checkpoint_writes;
-		log_sys.latch.rd_unlock();
-
-		if (n_write) {
-			if (srv_print_verbose_log && count > 600) {
-				sql_print_information(
-					"InnoDB: Pending checkpoint writes: "
-					ULINTPF, n_write);
-				count = 0;
-			}
-			goto loop;
-		}
 	}
 
 	if (srv_fast_shutdown == 2 || !srv_was_started) {

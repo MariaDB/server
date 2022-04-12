@@ -296,6 +296,50 @@ struct ReleaseAll {
   }
 };
 
+/** Stops iteration is savepoint is reached */
+template <typename Functor> struct TillSavepoint
+{
+
+  /** Constructor
+  @param[in] functor functor which is called if savepoint is not reached
+  @param[in] savepoint savepoint value to rollback
+  @param[in] used current position in slots container */
+  TillSavepoint(const Functor &functor, ulint savepoint, ulint used)
+      : functor(functor),
+        m_slots_count((used - savepoint) / sizeof(mtr_memo_slot_t))
+  {
+    ut_ad(savepoint);
+    ut_ad(used >= savepoint);
+  }
+
+  /** @return true if savepoint is not reached, false otherwise */
+  bool operator()(mtr_memo_slot_t *slot)
+  {
+#ifdef UNIV_DEBUG
+    /** This check is added because the code is invoked only from
+    row_search_mvcc() to release latches acquired during clustered index search
+    for secondary index record. To make it more universal we could add one more
+    member in this functor for debug build to pass only certain slot types,
+    but this is currently not necessary. */
+    switch (slot->type)
+    {
+    case MTR_MEMO_S_LOCK:
+    case MTR_MEMO_PAGE_S_FIX:
+      break;
+    default:
+      ut_a(false);
+    }
+#endif
+    return m_slots_count-- && functor(slot);
+  }
+
+private:
+  /** functor to invoke */
+  const Functor &functor;
+  /** slots count left till savepoint */
+  ulint m_slots_count;
+};
+
 #ifdef UNIV_DEBUG
 /** Check that all slots have been handled. */
 struct DebugCheck {
@@ -377,6 +421,7 @@ void mtr_t::start()
   new(&m_log) mtr_buf_t();
 
   m_made_dirty= false;
+  m_latch_ex= false;
   m_inside_ibuf= false;
   m_modifications= false;
   m_log_mode= MTR_LOG_ALL;
@@ -405,6 +450,7 @@ void mtr_t::commit()
   /* This is a dirty read, for debugging. */
   ut_ad(!m_modifications || !recv_no_log_write);
   ut_ad(!m_modifications || m_log_mode != MTR_LOG_NONE);
+  ut_ad(!m_latch_ex);
 
   if (m_modifications && (m_log_mode == MTR_LOG_NO_REDO || !m_log.empty()))
   {
@@ -414,8 +460,14 @@ void mtr_t::commit()
 
     if (UNIV_LIKELY(m_log_mode == MTR_LOG_ALL))
     {
-      lsns= do_write(false);
-      if (!m_made_dirty)
+      lsns= do_write();
+      if (m_made_dirty);
+      else if (m_latch_ex)
+      {
+        log_sys.latch.wr_unlock();
+        m_latch_ex= false;
+      }
+      else
         log_sys.latch.rd_unlock();
     }
     else
@@ -452,7 +504,13 @@ void mtr_t::commit()
 
     Iterate<ReleaseBlocks> rb{ReleaseBlocks{lsns.first, m_commit_lsn}};
     m_memo.for_each_block_in_reverse(rb);
-    if (m_made_dirty)
+    if (!m_made_dirty);
+    else if (m_latch_ex)
+    {
+      log_sys.latch.wr_unlock();
+      m_latch_ex= false;
+    }
+    else
       log_sys.latch.rd_unlock();
 
     m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>());
@@ -472,6 +530,21 @@ void mtr_t::commit()
     m_memo.for_each_block_in_reverse(CIterate<ReleaseAll>());
 
   release_resources();
+}
+
+/** Release latches till savepoint. To simplify the code only
+MTR_MEMO_S_LOCK and MTR_MEMO_PAGE_S_FIX slot types are allowed to be
+released, otherwise it would be neccesary to add one more argument in the
+function to point out what slot types are allowed for rollback, and this
+would be overengineering as corrently the function is used only in one place
+in the code.
+@param savepoint   savepoint, can be obtained with get_savepoint */
+void mtr_t::rollback_to_savepoint(ulint savepoint)
+{
+  Iterate<TillSavepoint<ReleaseLatches>> iteration(
+      TillSavepoint<ReleaseLatches>(ReleaseLatches(), savepoint,
+                                    get_savepoint()));
+  m_memo.for_each_block_in_reverse(iteration);
 }
 
 /** Shrink a tablespace. */
@@ -535,9 +608,10 @@ void mtr_t::commit_shrink(fil_space_t &space)
   ut_ad(UT_LIST_GET_LEN(space.chain) == 1);
 
   log_write_and_flush_prepare();
+  m_latch_ex= true;
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
 
-  const lsn_t start_lsn= do_write(true).first;
+  const lsn_t start_lsn= do_write().first;
 
   /* Durably write the reduced FSP_SIZE before truncating the data file. */
   log_write_and_flush();
@@ -574,6 +648,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
   m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
                                    (ReleaseBlocks{start_lsn, m_commit_lsn}));
   log_sys.latch.wr_unlock();
+  m_latch_ex= false;
 
   mysql_mutex_lock(&fil_system.mutex);
   ut_ad(space.is_being_truncated);
@@ -608,6 +683,9 @@ lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
   ut_ad(!m_freed_space);
   ut_ad(!m_freed_pages);
   ut_ad(!m_user_space);
+  ut_ad(!m_latch_ex);
+
+  m_latch_ex= true;
 
   if (checkpoint_lsn)
   {
@@ -632,7 +710,7 @@ lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
   m_crc= 0;
   m_log.for_each_block([this](const mtr_buf_t::block_t *b)
   { m_crc= my_crc32c(m_crc, b->begin(), b->used()); return true; });
-  finish_write(size, true);
+  finish_write(size);
   release_resources();
 
   if (checkpoint_lsn)
@@ -883,12 +961,12 @@ static mtr_t::page_flush_ahead log_close(lsn_t lsn) noexcept
   return mtr_t::PAGE_FLUSH_SYNC;
 }
 
-std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write(bool ex)
+std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
 {
   ut_ad(!recv_no_log_write);
   ut_ad(m_log_mode == MTR_LOG_ALL);
 #ifndef SUX_LOCK_GENERIC
-  ut_ad(!ex || log_sys.latch.is_write_locked());
+  ut_ad(!m_latch_ex || log_sys.latch.is_write_locked());
 #endif
 
   size_t len= m_log.size() + 5;
@@ -906,28 +984,24 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write(bool ex)
     { m_crc= my_crc32c(m_crc, b->begin(), b->used()); return true; });
   }
 
-  if (!ex)
+  if (!m_latch_ex)
     log_sys.latch.rd_lock(SRW_LOCK_CALL);
 
   if (UNIV_UNLIKELY(m_user_space && !m_user_space->max_lsn &&
                     !is_predefined_tablespace(m_user_space->id)))
   {
-    if (!ex)
+    if (!m_latch_ex)
     {
+      m_latch_ex= true;
       log_sys.latch.rd_unlock();
       log_sys.latch.wr_lock(SRW_LOCK_CALL);
-      if (UNIV_LIKELY(!m_user_space->max_lsn))
-        name_write();
-      std::pair<lsn_t,mtr_t::page_flush_ahead> p{finish_write(len, true)};
-      log_sys.latch.wr_unlock();
-      log_sys.latch.rd_lock(SRW_LOCK_CALL);
-      return p;
+      if (UNIV_UNLIKELY(m_user_space->max_lsn != 0))
+        goto func_exit;
     }
-    else
-      name_write();
+    name_write();
   }
-
-  return finish_write(len, ex);
+func_exit:
+  return finish_write(len);
 }
 
 inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
@@ -1042,20 +1116,24 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
 
 /** Write the mini-transaction log to the redo log buffer.
 @param len   number of bytes to write
-@param ex    whether log_sys.latch is exclusively locked
 @return {start_lsn,flush_ahead} */
 std::pair<lsn_t,mtr_t::page_flush_ahead>
-mtr_t::finish_write(size_t len, bool ex)
+mtr_t::finish_write(size_t len)
 {
   ut_ad(!recv_no_log_write);
   ut_ad(m_log_mode == MTR_LOG_ALL);
+#ifndef SUX_LOCK_GENERIC
+# ifndef _WIN32 // there is no accurate is_write_locked() on SRWLOCK
+  ut_ad(m_latch_ex == log_sys.latch.is_write_locked());
+# endif
+#endif
 
   const size_t size{m_commit_lsn ? 5U + 8U : 5U};
   std::pair<lsn_t, byte*> start;
 
   if (!log_sys.is_pmem())
   {
-    start= log_sys.append_prepare<false>(len, ex);
+    start= log_sys.append_prepare<false>(len, m_latch_ex);
     m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
     { log_sys.append(start.second, b->begin(), b->used()); return true; });
 
@@ -1075,7 +1153,7 @@ mtr_t::finish_write(size_t len, bool ex)
 #ifdef HAVE_PMEM
   else
   {
-    start= log_sys.append_prepare<true>(len, ex);
+    start= log_sys.append_prepare<true>(len, m_latch_ex);
     if (UNIV_LIKELY(start.second + len <= &log_sys.buf[log_sys.file_size]))
     {
       m_log.for_each_block([&start](const mtr_buf_t::block_t *b)

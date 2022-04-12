@@ -121,8 +121,8 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_autocommit=0,opt_disable_keys=1,opt_xml=0,
                 opt_delete_master_logs=0, tty_password=0,
                 opt_single_transaction=0, opt_comments= 0, opt_compact= 0,
-                opt_hex_blob=0, opt_order_by_primary=0, opt_ignore=0,
-                opt_complete_insert= 0, opt_drop_database= 0,
+                opt_hex_blob=0, opt_order_by_primary=0, opt_order_by_size = 0,
+                opt_ignore=0, opt_complete_insert= 0, opt_drop_database= 0,
                 opt_replace_into= 0,
                 opt_dump_triggers= 0, opt_routines=0, opt_tz_utc=1,
                 opt_slave_apply= 0, 
@@ -504,6 +504,10 @@ static struct my_option my_long_options[] =
   {"order-by-primary", OPT_ORDER_BY_PRIMARY,
    "Sorts each table's rows by primary key, or first unique key, if such a key exists.  Useful when dumping a MyISAM table to be loaded into an InnoDB table, but will make the dump itself take considerably longer.",
    &opt_order_by_primary, &opt_order_by_primary, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"order-by-size", 0,
+   "Dump tables in the order of their size, smaller first. Useful when using --single-transaction on tables which get truncated often. "
+   "Dumping smaller tables first reduces chances of often truncated tables to get altered before being dumped.",
+    &opt_order_by_size, &opt_order_by_size, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"password", 'p',
    "Password to use when connecting to server. If password is not given it's solicited on the tty.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
@@ -1339,6 +1343,12 @@ static int get_options(int *argc, char ***argv)
                                             MY_CS_PRIMARY,
                                             MYF(MY_UTF8_IS_UTF8MB3 | MY_WME))))
     exit(1);
+  if (opt_order_by_size && (*argc > 1 && !opt_databases))
+  {
+    fprintf(stderr, "%s: --order-by-size can't be used when dumping selected tables\n",
+              my_progname_short);
+    return EX_USAGE;
+  }
   if ((*argc < 1 && (!opt_alldbs && !opt_system)) || (*argc > 0 && opt_alldbs))
   {
     short_usage(stderr);
@@ -4572,12 +4582,18 @@ err:
 static char *getTableName(int reset, int want_sequences)
 {
   MYSQL_ROW row;
+  const char *query;
 
   if (!get_table_name_result)
   {
-    if (mysql_get_server_version(mysql) >= FIRST_SEQUENCE_VERSION)
+    if (opt_order_by_size || mysql_get_server_version(mysql) >= FIRST_SEQUENCE_VERSION)
     {
-      const char *query= "SHOW FULL TABLES";
+      if (opt_order_by_size) {
+        query= "SELECT table_name, table_type FROM INFORMATION_SCHEMA.TABLES "
+               "WHERE table_schema = DATABASE() ORDER BY data_length, table_name";
+      } else {
+        query = "SHOW FULL TABLES";
+      }
       if (mysql_query_with_error_report(mysql, 0, query))
         return (NULL);
 

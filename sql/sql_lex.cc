@@ -543,36 +543,10 @@ bool LEX::add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name, bool exists)
 
 
 void LEX::init_last_field(Column_definition *field,
-                          const LEX_CSTRING *field_name,
-                          const CHARSET_INFO *cs)
+                          const LEX_CSTRING *field_name)
 {
   last_field= field;
-
   field->field_name= *field_name;
-
-  /* reset LEX fields that are used in Create_field::set_and_check() */
-  charset= cs;
-}
-
-
-bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
-{
-  /*
-     if charset is NULL - we're parsing a field declaration.
-     we cannot call find_bin_collation for a field here, because actual
-     field charset is determined in get_sql_field_charset() much later.
-     so we only set a flag.
-  */
-  if (!charset)
-  {
-    charset= cs;
-    last_field->flags|= bin ? BINCMP_FLAG : 0;
-    return false;
-  }
-
-  charset= bin ? find_bin_collation(cs ? cs : charset)
-               :                    cs ? cs : charset;
-  return charset == NULL;
 }
 
 
@@ -6392,8 +6366,7 @@ sp_variable *LEX::sp_param_init(LEX_CSTRING *name)
     return NULL;
   }
   sp_variable *spvar= spcont->add_variable(thd, name);
-  init_last_field(&spvar->field_def, name,
-                  thd->variables.collation_database);
+  init_last_field(&spvar->field_def, name);
   return spvar;
 }
 
@@ -6402,8 +6375,7 @@ bool LEX::sp_param_fill_definition(sp_variable *spvar,
                                    const Lex_field_type_st &def)
 {
   return
-    last_field->set_attributes(thd, def, charset,
-                               COLUMN_DEFINITION_ROUTINE_PARAM) ||
+    last_field->set_attributes(thd, def, COLUMN_DEFINITION_ROUTINE_PARAM) ||
     sphead->fill_spvar_definition(thd, last_field, &spvar->name);
 }
 
@@ -6411,8 +6383,7 @@ bool LEX::sp_param_fill_definition(sp_variable *spvar,
 bool LEX::sf_return_fill_definition(const Lex_field_type_st &def)
 {
   return
-    last_field->set_attributes(thd, def, charset,
-                               COLUMN_DEFINITION_FUNCTION_RETURN) ||
+    last_field->set_attributes(thd, def, COLUMN_DEFINITION_FUNCTION_RETURN) ||
     sphead->fill_field_definition(thd, last_field);
 }
 
@@ -6492,8 +6463,7 @@ void LEX::sp_variable_declarations_init(THD *thd, int nvars)
 
   sphead->reset_lex(thd);
   spcont->declare_var_boundary(nvars);
-  thd->lex->init_last_field(&spvar->field_def, &spvar->name,
-                            thd->variables.collation_database);
+  thd->lex->init_last_field(&spvar->field_def, &spvar->name);
 }
 
 
@@ -9269,6 +9239,43 @@ bool LEX::call_statement_start(THD *thd, const Lex_ident_sys_st *name1,
 }
 
 
+bool LEX::call_statement_start(THD *thd,
+                               const Lex_ident_sys_st *db,
+                               const Lex_ident_sys_st *pkg,
+                               const Lex_ident_sys_st *proc)
+{
+  Database_qualified_name q_db_pkg(db, pkg);
+  Database_qualified_name q_pkg_proc(pkg, proc);
+  sp_name *spname;
+
+  sql_command= SQLCOM_CALL;
+
+  if (check_db_name(reinterpret_cast<LEX_STRING*>
+                    (const_cast<LEX_CSTRING*>
+                     (static_cast<const LEX_CSTRING*>(db)))))
+  {
+    my_error(ER_WRONG_DB_NAME, MYF(0), db->str);
+    return true;
+  }
+  if (check_routine_name(pkg) ||
+      check_routine_name(proc))
+    return true;
+
+  // Concat `pkg` and `name` to `pkg.name`
+  LEX_CSTRING pkg_dot_proc;
+  if (q_pkg_proc.make_qname(thd->mem_root, &pkg_dot_proc) ||
+      check_ident_length(&pkg_dot_proc) ||
+      !(spname= new (thd->mem_root) sp_name(db, &pkg_dot_proc, true)))
+    return true;
+
+  sp_handler_package_function.add_used_routine(thd->lex, thd, spname);
+  sp_handler_package_body.add_used_routine(thd->lex, thd, &q_db_pkg);
+
+  return !(m_sql_cmd= new (thd->mem_root) Sql_cmd_call(spname,
+                                              &sp_handler_package_procedure));
+}
+
+
 sp_package *LEX::get_sp_package() const
 {
   return sphead ? sphead->get_package() : NULL;
@@ -9540,6 +9547,56 @@ Item *LEX::make_item_func_call_generic(THD *thd, Lex_ident_cli_st *cdb,
   Create_qfunc *builder= find_qualified_function_builder(thd);
   DBUG_ASSERT(builder);
   return builder->create_with_db(thd, &db, &name, true, args);
+}
+
+
+/*
+  Create a 3-step qualified function call.
+  Currently it's possible for package routines only, e.g.:
+     SELECT db.pkg.func();
+*/
+Item *LEX::make_item_func_call_generic(THD *thd,
+                                       Lex_ident_cli_st *cdb,
+                                       Lex_ident_cli_st *cpkg,
+                                       Lex_ident_cli_st *cfunc,
+                                       List<Item> *args)
+{
+  static Lex_cstring dot(".", 1);
+  Lex_ident_sys db(thd, cdb), pkg(thd, cpkg), func(thd, cfunc);
+  Database_qualified_name q_db_pkg(db, pkg);
+  Database_qualified_name q_pkg_func(pkg, func);
+  sp_name *qname;
+
+  if (db.is_null() || pkg.is_null() || func.is_null())
+    return NULL; // EOM
+
+  if (check_db_name((LEX_STRING*) static_cast<LEX_CSTRING*>(&db)))
+  {
+    my_error(ER_WRONG_DB_NAME, MYF(0), db.str);
+    return NULL;
+  }
+  if (check_routine_name(&pkg) ||
+      check_routine_name(&func))
+    return NULL;
+
+  // Concat `pkg` and `name` to `pkg.name`
+  LEX_CSTRING pkg_dot_func;
+  if (q_pkg_func.make_qname(thd->mem_root, &pkg_dot_func) ||
+      check_ident_length(&pkg_dot_func) ||
+      !(qname= new (thd->mem_root) sp_name(&db, &pkg_dot_func, true)))
+    return NULL;
+
+  sp_handler_package_function.add_used_routine(thd->lex, thd, qname);
+  sp_handler_package_body.add_used_routine(thd->lex, thd, &q_db_pkg);
+
+  thd->lex->safe_to_cache_query= 0;
+
+  if (args && args->elements > 0)
+    return new (thd->mem_root) Item_func_sp(thd, thd->lex->current_context(),
+                                            qname, &sp_handler_package_function,
+                                            *args);
+  return new (thd->mem_root) Item_func_sp(thd, thd->lex->current_context(),
+                                          qname, &sp_handler_package_function);
 }
 
 
@@ -11465,16 +11522,15 @@ Spvar_definition *LEX::row_field_name(THD *thd, const Lex_ident_sys_st &name)
   }
   if (unlikely(!(res= new (thd->mem_root) Spvar_definition())))
     return NULL;
-  init_last_field(res, &name, thd->variables.collation_database);
+  init_last_field(res, &name);
   return res;
 }
 
 
 Item *
-Lex_cast_type_st::create_typecast_item_or_error(THD *thd, Item *item,
-                                                CHARSET_INFO *cs) const
+Lex_cast_type_st::create_typecast_item_or_error(THD *thd, Item *item) const
 {
-  Item *tmp= create_typecast_item(thd, item, cs);
+  Item *tmp= create_typecast_item(thd, item);
   if (!tmp)
   {
     Name name= m_type_handler->name();
@@ -11488,14 +11544,42 @@ Lex_cast_type_st::create_typecast_item_or_error(THD *thd, Item *item,
 }
 
 
-void Lex_field_type_st::set_handler_length_flags(const Type_handler *handler,
-                                                 const char *length,
-                                                 uint32 flags)
+void
+Lex_length_and_dec_st::set(const char *plength, const char *pdec)
+{
+  reset();
+
+  if ((m_has_explicit_length= (plength != nullptr)))
+  {
+    int err;
+    ulonglong tmp= my_strtoll10(plength, NULL, &err);
+    if ((m_length_overflowed= (tmp > UINT_MAX32 || err)))
+      m_length= UINT_MAX32;
+    else
+      m_length= (uint32) tmp;
+  }
+
+  if ((m_has_explicit_dec= (pdec != nullptr)))
+  {
+    int err;
+    ulonglong tmp= my_strtoll10(pdec, NULL, &err);
+    if ((m_dec_overflowed= (tmp > 255 || err)))
+      m_dec= 255;
+    else
+      m_dec= (uint8) tmp;
+  }
+}
+
+
+void
+Lex_field_type_st::set_handler_length_flags(const Type_handler *handler,
+                                            const Lex_length_and_dec_st &attr,
+                                            uint32 flags)
 {
   DBUG_ASSERT(!handler->is_unsigned());
+  set(handler, attr);
   if (flags & UNSIGNED_FLAG)
-    handler= handler->type_handler_unsigned();
-  set(handler, length, NULL);
+    m_handler= m_handler->type_handler_unsigned();
 }
 
 
@@ -11506,8 +11590,7 @@ bool LEX::set_field_type_udt(Lex_field_type_st *type,
   const Type_handler *h;
   if (!(h= Type_handler::handler_by_name_or_error(thd, name)))
     return true;
-  type->set(h, attr);
-  charset= &my_charset_bin;
+  type->set(h, attr, &my_charset_bin);
   return false;
 }
 
@@ -11519,7 +11602,6 @@ bool LEX::set_cast_type_udt(Lex_cast_type_st *type,
   if (!(h= Type_handler::handler_by_name_or_error(thd, name)))
     return true;
   type->set(h);
-  charset= NULL;
   return false;
 }
 

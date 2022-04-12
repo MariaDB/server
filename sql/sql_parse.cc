@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1141,8 +1141,7 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
 
 static bool wsrep_command_no_result(char command)
 {
-  return (command == COM_STMT_PREPARE          ||
-          command == COM_STMT_FETCH            ||
+  return (command == COM_STMT_FETCH            ||
           command == COM_STMT_SEND_LONG_DATA   ||
           command == COM_STMT_CLOSE);
 }
@@ -1188,7 +1187,7 @@ static enum enum_server_command fetch_command(THD *thd, char *packet)
     DISPATCH_COMMAND_CLOSE_CONNECTION  request of THD shutdown
           (s. dispatch_command() description)
   @retval
-    DISPATCH_COMMAND_WOULDBLOCK - need to wait for asyncronous operations
+    DISPATCH_COMMAND_WOULDBLOCK - need to wait for asynchronous operations
                                   to finish. Only returned if parameter
                                   'blocking' is false.
 */
@@ -1340,7 +1339,13 @@ dispatch_command_return do_command(THD *thd, bool blocking)
     DBUG_ASSERT(!thd->mdl_context.has_locks());
     DBUG_ASSERT(!thd->get_stmt_da()->is_set());
     /* We let COM_QUIT and COM_STMT_CLOSE to execute even if wsrep aborted. */
-    if (command != COM_STMT_CLOSE &&
+    if (command == COM_STMT_EXECUTE)
+    {
+      WSREP_DEBUG("PS BF aborted at do_command");
+      thd->wsrep_delayed_BF_abort= true;
+    }
+    if (command != COM_STMT_CLOSE   &&
+	command != COM_STMT_EXECUTE &&
         command != COM_QUIT)
     {
       my_error(ER_LOCK_DEADLOCK, MYF(0));
@@ -1422,6 +1427,17 @@ out:
     /* there was a command to process, and before_command() has been called */
     if (unlikely(wsrep_service_started))
       wsrep_after_command_after_result(thd);
+  }
+
+  if (thd->wsrep_delayed_BF_abort)
+  {
+      my_error(ER_LOCK_DEADLOCK, MYF(0));
+      WSREP_DEBUG("Deadlock error for PS query: %s", thd->query());
+      thd->reset_killed();
+      thd->mysys_var->abort     = 0;
+      thd->wsrep_retry_counter  = 0;
+
+      thd->wsrep_delayed_BF_abort= false;
   }
 #endif /* WITH_WSREP */
   DBUG_RETURN(return_value);
@@ -9185,6 +9201,7 @@ THD *find_thread_by_id(longlong id, bool query_id)
   return arg.thd;
 }
 
+
 /**
   kill one thread.
 
@@ -9200,7 +9217,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
   THD *tmp;
   uint error= (type == KILL_TYPE_QUERY ? ER_NO_SUCH_QUERY : ER_NO_SUCH_THREAD);
   DBUG_ENTER("kill_one_thread");
-  DBUG_PRINT("enter", ("id: %lld  signal: %u", id, (uint) kill_signal));
+  DBUG_PRINT("enter", ("id: %lld  signal: %d", id, kill_signal));
   tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY);
   if (!tmp)
     DBUG_RETURN(error);
@@ -9228,7 +9245,8 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
       faster and do a harder kill than KILL_SYSTEM_THREAD;
     */
 
-    mysql_mutex_lock(&tmp->LOCK_thd_data); // for various wsrep* checks below
+    mysql_mutex_lock(&tmp->LOCK_thd_data); // Lock from concurrent usage
+
 #ifdef WITH_WSREP
     if (((thd->security_ctx->master_access & PRIV_KILL_OTHER_USER_PROCESS) ||
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
@@ -9243,27 +9261,28 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
       if (tmp->wsrep_aborter && tmp->wsrep_aborter != thd->thread_id)
       {
         /* victim is in hit list already, bail out */
-	WSREP_DEBUG("victim has wsrep aborter: %lu, skipping awake()",
-                    tmp->wsrep_aborter);
+	WSREP_DEBUG("victim %lld has wsrep aborter: %lu, skipping awake()",
+		    id, tmp->wsrep_aborter);
         error= 0;
       }
       else
 #endif /* WITH_WSREP */
       {
-        WSREP_DEBUG("kill_one_thread %llu, victim: %llu wsrep_aborter %llu by signal %d",
-                    thd->thread_id, id, tmp->wsrep_aborter, kill_signal);
+        WSREP_DEBUG("kill_one_thread victim: %lld wsrep_aborter %lu"
+                    " by signal %d",
+                    id, tmp->wsrep_aborter, kill_signal);
         tmp->awake_no_mutex(kill_signal);
-        WSREP_DEBUG("victim: %llu taken care of", id);
         error= 0;
       }
     }
     else
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
                                         ER_KILL_DENIED_ERROR);
+
     mysql_mutex_unlock(&tmp->LOCK_thd_data);
   }
   mysql_mutex_unlock(&tmp->LOCK_thd_kill);
-  DBUG_PRINT("exit", ("%d", error));
+  DBUG_PRINT("exit", ("%u", error));
   DBUG_RETURN(error);
 }
 
@@ -9374,6 +9393,18 @@ static
 void sql_kill(THD *thd, longlong id, killed_state state, killed_type type)
 {
   uint error;
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    WSREP_DEBUG("sql_kill called");
+    if (thd->wsrep_applier)
+    {
+      WSREP_DEBUG("KILL in applying, bailing out here");
+      return;
+    }
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  }
+#endif /* WITH_WSREP */
   if (likely(!(error= kill_one_thread(thd, id, state, type))))
   {
     if (!thd->killed)
@@ -9383,6 +9414,11 @@ void sql_kill(THD *thd, longlong id, killed_state state, killed_type type)
   }
   else
     my_error(error, MYF(0), id);
+#ifdef WITH_WSREP
+  return;
+ wsrep_error_label:
+  my_error(ER_KILL_DENIED_ERROR, MYF(0), (long long) thd->thread_id);
+#endif /* WITH_WSREP */
 }
 
 
@@ -9391,16 +9427,35 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
 {
   uint error;
   ha_rows rows;
-  if (likely(!(error= kill_threads_for_user(thd, user, state, &rows))))
-    my_ok(thd, rows);
-  else
+#ifdef WITH_WSREP
+  if (WSREP(thd))
   {
-    /*
-      This is probably ER_OUT_OF_RESOURCES, but in the future we may
-      want to write the name of the user we tried to kill
-    */
-    my_error(error, MYF(0), user->host.str, user->user.str);
+    WSREP_DEBUG("sql_kill_user called");
+    if (thd->wsrep_applier)
+    {
+      WSREP_DEBUG("KILL in applying, bailing out here");
+      return;
+    }
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
   }
+#endif /* WITH_WSREP */
+  switch (error= kill_threads_for_user(thd, user, state, &rows))
+  {
+  case 0:
+    my_ok(thd, rows);
+    break;
+  case ER_KILL_DENIED_ERROR:
+    my_error(error, MYF(0), (long long) thd->thread_id);
+    break;
+  case ER_OUT_OF_RESOURCES:
+  default:
+    my_error(error, MYF(0));
+  }
+#ifdef WITH_WSREP
+  return;
+ wsrep_error_label:
+  my_error(ER_KILL_DENIED_ERROR, MYF(0), (long long) thd->thread_id);
+#endif /* WITH_WSREP */
 }
 
 
@@ -10459,24 +10514,6 @@ merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl)
       return NULL;
     }
     return cl;
-  }
-  return cs;
-}
-
-/** find a collation with binary comparison rules
-*/
-CHARSET_INFO *find_bin_collation(CHARSET_INFO *cs)
-{
-  const char *csname= cs->cs_name.str;
-  THD *thd= current_thd;
-  myf utf8_flag= thd->get_utf8_flag();
-
-  cs= get_charset_by_csname(csname, MY_CS_BINSORT, MYF(utf8_flag));
-  if (!cs)
-  {
-    char tmp[65];
-    strxnmov(tmp, sizeof(tmp)-1, csname, "_bin", NULL);
-    my_error(ER_UNKNOWN_COLLATION, MYF(0), tmp);
   }
   return cs;
 }

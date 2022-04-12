@@ -5,9 +5,13 @@ SELECT @@wsrep_slave_threads;
 @@wsrep_slave_threads
 1
 SET GLOBAL wsrep_slave_threads=2;
+KILL ID;
 Got one of the listed errors
+KILL QUERY ID;
 Got one of the listed errors
+KILL ID;
 Got one of the listed errors
+KILL QUERY ID;
 Got one of the listed errors
 SET GLOBAL wsrep_slave_threads=DEFAULT;
 connection node_1;

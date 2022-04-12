@@ -8889,6 +8889,38 @@ a	b
 111	111
 DROP TABLE t1;
 #
+# MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+#
+CREATE TABLE t1 (a CHAR(10) CHARACTER SET latin1 COLLATE DEFAULT);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SELECT CAST('a' AS CHAR(10) CHARACTER SET latin1 COLLATE DEFAULT);
+CAST('a' AS CHAR(10) CHARACTER SET latin1 COLLATE DEFAULT)
+a
+CREATE TABLE t1 AS
+SELECT CAST('a' AS CHAR(10) CHARACTER SET latin1 COLLATE DEFAULT) AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET latin1 COLLATE DEFAULT) AS c1;
+c1
+string
+CREATE TABLE t1 AS
+SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET latin1 COLLATE DEFAULT) AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
 #
@@ -8949,4 +8981,32 @@ Warnings:
 Warning	1292	Truncated incorrect INTEGER value: 'aÿb'
 #
 # End of 10.5 tests
+#
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+#
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) CHARACTER SET latin1 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+name
+Jeans
+CREATE TABLE t1 AS
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) CHARACTER SET latin1 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `name` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# End of 10.6 tests
 #

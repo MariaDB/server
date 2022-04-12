@@ -630,3 +630,7 @@ struct charset_info_st my_charset_bin =
     &my_charset_handler,
     &my_collation_binary_handler
 };
+
+
+struct charset_info_st my_collation_contextually_typed_binary= {0};
+struct charset_info_st my_collation_contextually_typed_default= {0};

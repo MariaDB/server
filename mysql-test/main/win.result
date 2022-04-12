@@ -3925,7 +3925,7 @@ DROP TABLE t1;
 # MDEV-18916: crash in Window_spec::print_partition() with decimals
 #
 SELECT cast((rank() over w1) as decimal (53,56));
-ERROR 42000: Too big scale 56 specified for 'rank() over w1'. Maximum is 38
+ERROR 42000: Too big scale specified for 'rank() over w1'. Maximum is 38
 SELECT cast((rank() over w1) as decimal (53,30));
 ERROR HY000: Window specification with name 'w1' is not defined
 #

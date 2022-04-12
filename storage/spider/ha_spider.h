@@ -79,9 +79,7 @@ public:
   spider_string      *blob_buff;
   SPIDER_POSITION    *pushed_pos;
   SPIDER_POSITION    pushed_pos_buf;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   SPIDER_PARTITION_HANDLER *partition_handler;
-#endif
   bool                wide_handler_owner = FALSE;
   SPIDER_WIDE_HANDLER *wide_handler = NULL;
 
@@ -123,9 +121,7 @@ public:
   bool               use_pre_action;
   bool               pre_bitmap_checked;
   bool               bulk_insert;
-#ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
   bool               info_auto_called;
-#endif
 #ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
   bool               auto_inc_temporary;
 #endif
@@ -372,9 +368,7 @@ public:
   uint max_supported_key_length() const;
   uint max_supported_key_part_length() const;
   uint8 table_cache_type();
-#ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
   bool need_info_for_auto_inc();
-#endif
 #ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
   bool can_use_for_auto_inc_init();
 #endif
@@ -544,9 +538,7 @@ public:
   void set_clone_searched_bitmap();
   void set_searched_bitmap_from_item_list();
   void set_select_column_mode();
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   void check_select_column(bool rnd);
-#endif
   bool check_and_start_bulk_update(
     spider_bulk_upd_start bulk_upd_start
   );

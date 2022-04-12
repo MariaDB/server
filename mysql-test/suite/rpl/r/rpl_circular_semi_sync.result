@@ -1,0 +1,76 @@
+include/master-slave.inc
+[connection master]
+# Master server_1 and Slave server_2 initialiation ...
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+set @@sql_log_bin = off;
+call mtr.add_suppression("Slave: An attempt was made to binlog GTID 10-1-1 which would create an out-of-order sequence number with existing GTID");
+set @@sql_log_bin = on;
+RESET MASTER;
+set @@session.gtid_domain_id=10;
+set @@global.rpl_semi_sync_master_enabled = 1;
+set @@global.rpl_semi_sync_master_wait_point=AFTER_SYNC;
+connection server_2;
+RESET MASTER;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+set @@session.gtid_domain_id=20;
+set @@global.rpl_semi_sync_slave_enabled = 1;
+# a 1948 warning is expected
+set @@global.gtid_slave_pos = "";
+Warnings:
+Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-1. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
+CHANGE MASTER TO master_use_gtid= slave_pos;
+include/start_slave.inc
+# ... server_1 -> server_2 is set up
+connection server_1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=Innodb;
+INSERT INTO t1 VALUES (1);
+connection server_2;
+# Circular configuration server_2 -> server_1 initialiation ...
+connection server_1;
+# A. ... first when server_1 is in gtid strict mode...
+set @@global.gtid_strict_mode = true;
+set @@global.rpl_semi_sync_slave_enabled = 1;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_use_gtid=SLAVE_POS;
+# ...  only for it to fail 'cos if its inconsistent (empty) slave's gtid state:
+SELECT @@global.gtid_slave_pos;
+@@global.gtid_slave_pos
+
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1950]
+# B. ... Resume on the circular setup with the server_id now in the non-strict mode ...
+set @@global.gtid_strict_mode = false;
+include/start_slave.inc
+# ... to have succeeded.
+connection server_2;
+INSERT INTO t1 VALUES (2);
+connection server_1;
+INSERT INTO t1 VALUES (3);
+connection server_2;
+# The gtid states on server_2 must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-2-1,10-1-3,20-2-1
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-2-1,10-1-3,20-2-1
+connection server_1;
+# ... the gtid states on server_1
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-2-1,10-1-3,20-2-1
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-2-1,10-1-3,20-2-1
+# Cleanup
+connection server_1;
+include/stop_slave.inc
+set @@global.rpl_semi_sync_master_enabled = default;
+set @@global.rpl_semi_sync_slave_enabled = default;
+set @@global.rpl_semi_sync_master_wait_point=default;
+DROP TABLE t1;
+connection server_2;
+set @@global.rpl_semi_sync_master_enabled = default;
+set @@global.rpl_semi_sync_slave_enabled = default;
+include/rpl_end.inc

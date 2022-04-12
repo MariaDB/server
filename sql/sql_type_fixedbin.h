@@ -1537,7 +1537,7 @@ public:
       str->append(type_handler_fbt()->name().lex_cstring());
       str->append(')');
     }
-    bool fix_length_and_dec() override
+    bool fix_length_and_dec(THD *thd) override
     {
       Type_std_attributes::operator=(Type_std_attributes_fbt());
       if (Fbt::fix_fields_maybe_null_on_conversion_to_fbt(args[0]))

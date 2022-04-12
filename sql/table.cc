@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1553,21 +1553,6 @@ bool TABLE_SHARE::init_period_from_extra2(period_info_t *period,
 }
 
 
-static size_t extra2_read_len(const uchar **extra2, const uchar *extra2_end)
-{
-  size_t length= *(*extra2)++;
-  if (length)
-    return length;
-
-  if ((*extra2) + 2 >= extra2_end)
-    return 0;
-  length= uint2korr(*extra2);
-  (*extra2)+= 2;
-  if (length < 256 || *extra2 + length > extra2_end)
-    return 0;
-  return length;
-}
-
 static
 bool read_extra2_section_once(const uchar *extra2, size_t len, LEX_CUSTRING *section)
 {
@@ -1795,6 +1780,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   Field_data_type_info_array field_data_type_info_array;
   MEM_ROOT *old_root= thd->mem_root;
   Virtual_column_info **table_check_constraints;
+  bool *interval_unescaped= NULL;
   extra2_fields extra2;
   bool extra_index_flags_present= FALSE;
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
@@ -1867,7 +1853,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (frm_image[61] && !share->default_part_plugin)
   {
     enum legacy_db_type db_type= (enum legacy_db_type) (uint) frm_image[61];
-    share->default_part_plugin= ha_lock_engine(NULL, ha_checktype(thd, db_type));
+    share->default_part_plugin= ha_lock_engine(NULL, ha_checktype(thd, db_type, 1));
     if (!share->default_part_plugin)
       goto err;
   }
@@ -2257,6 +2243,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     goto err;
 
+  if (interval_count)
+  {
+    if (!(interval_unescaped= (bool*) my_alloca(interval_count * sizeof(bool))))
+      goto err;
+    bzero(interval_unescaped, interval_count * sizeof(bool));
+  }
+
   field_ptr= share->field;
   table_check_constraints= share->check_constraints;
   read_length=(uint) (share->fields * field_pack_length +
@@ -2611,11 +2604,17 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (share->mysql_version < 100200)
       attr.pack_flag&= ~FIELDFLAG_LONG_DECIMAL;
 
-    if (interval_nr && attr.charset->mbminlen > 1)
+    if (interval_nr && attr.charset->mbminlen > 1 &&
+        !interval_unescaped[interval_nr - 1])
     {
-      /* Unescape UCS2 intervals from HEX notation */
+      /*
+        Unescape UCS2/UTF16/UTF32 intervals from HEX notation.
+        Note, ENUM/SET columns with equal value list share a single
+        copy of TYPELIB. Unescape every TYPELIB only once.
+      */
       TYPELIB *interval= share->intervals + interval_nr - 1;
       unhex_type2(interval);
+      interval_unescaped[interval_nr - 1]= true;
     }
 
 #ifndef TO_BE_DELETED_ON_PRODUCTION
@@ -2661,8 +2660,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
       if (flags & VERS_SYSTEM_FIELD)
       {
-        switch (handler->real_field_type())
-        {
+        auto field_type= handler->real_field_type();
+
+        DBUG_EXECUTE_IF("error_vers_wrong_type", field_type= MYSQL_TYPE_BLOB;);
+
+        switch (field_type) {
         case MYSQL_TYPE_TIMESTAMP2:
           break;
         case MYSQL_TYPE_LONGLONG:
@@ -2673,9 +2675,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           }
           /* Fallthrough */
         default:
-          my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), fieldnames.type_names[i],
-            versioned == VERS_TIMESTAMP ? "TIMESTAMP(6)" : "BIGINT(20) UNSIGNED",
-            table_name.str);
+          my_error(ER_VERS_FIELD_WRONG_TYPE,
+                   (field_type == MYSQL_TYPE_LONGLONG ?
+                    MYF(0) : MYF(ME_WARNING)),
+                   fieldnames.type_names[i],
+                   (versioned == VERS_TIMESTAMP ?
+                    "TIMESTAMP(6)" : "BIGINT(20) UNSIGNED"),
+                   table_name.str);
           goto err;
         }
       }
@@ -3363,6 +3369,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->error= OPEN_FRM_OK;
   thd->status_var.opened_shares++;
   thd->mem_root= old_root;
+  my_afree(interval_unescaped);
   DBUG_RETURN(0);
 
 err:
@@ -3390,6 +3397,7 @@ err:
     open_table_error(share, OPEN_FRM_CORRUPTED, share->open_errno);
 
   thd->mem_root= old_root;
+  my_afree(interval_unescaped);
   DBUG_RETURN(HA_ERR_NOT_A_TABLE);
 }
 
@@ -8982,9 +8990,6 @@ bool TABLE::check_period_overlaps(const KEY &key,
 
 void TABLE::vers_update_fields()
 {
-  bitmap_set_bit(write_set, vers_start_field()->field_index);
-  bitmap_set_bit(write_set, vers_end_field()->field_index);
-
   if (!vers_write)
   {
     file->column_bitmaps_signal();
@@ -8993,17 +8998,21 @@ void TABLE::vers_update_fields()
 
   if (versioned(VERS_TIMESTAMP))
   {
+    bitmap_set_bit(write_set, vers_start_field()->field_index);
     if (vers_start_field()->store_timestamp(in_use->query_start(),
                                           in_use->query_start_sec_part()))
     {
       DBUG_ASSERT(0);
     }
     vers_start_field()->set_has_explicit_value();
+    bitmap_set_bit(read_set, vers_start_field()->field_index);
   }
 
+  bitmap_set_bit(write_set, vers_end_field()->field_index);
   vers_end_field()->set_max();
   vers_end_field()->set_has_explicit_value();
   bitmap_set_bit(read_set, vers_end_field()->field_index);
+
   file->column_bitmaps_signal();
   if (vfield)
     update_virtual_fields(file, VCOL_UPDATE_FOR_READ);

@@ -16,3 +16,17 @@ SELECT * FROM t1;
 a
 10
 DROP TABLE t1;
+#
+# MDEV-23626: CONNECT VIR tables return inconsistent error for UPDATE
+#
+CREATE TABLE numbers
+ENGINE=CONNECT,
+TABLE_TYPE=VIR,
+BLOCK_SIZE=3;
+TRUNCATE TABLE numbers;
+ERROR HY000: Got error 174 'Virtual tables are read only' from CONNECT
+DELETE FROM numbers WHERE n = 1;
+ERROR HY000: Got error 174 'Virtual tables are read only' from CONNECT
+UPDATE numbers SET n = 10 WHERE n = 1;
+ERROR HY000: Got error 174 'Virtual tables are read only' from CONNECT
+DROP TABLE numbers;

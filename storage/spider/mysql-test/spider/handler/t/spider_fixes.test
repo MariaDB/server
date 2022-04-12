@@ -1049,6 +1049,8 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+SET @original_spider_auto_increment_mode = @@SESSION.spider_auto_increment_mode;
+SET SESSION spider_auto_increment_mode = -1;
 if ($USE_REPLICATION)
 {
   save_master_pos;
@@ -1120,6 +1122,7 @@ SELECT MAX(id) FROM t1;
 INSERT INTO t1 (id) VALUES (1000);
 SELECT LAST_INSERT_ID();
 SELECT MAX(id) FROM t1;
+SET SESSION spider_auto_increment_mode = @original_spider_auto_increment_mode;
 if ($USE_REPLICATION)
 {
   save_master_pos;
@@ -1172,6 +1175,8 @@ let $MASTER_1_ENGINE_IS_SPIDER=
 if ($MASTER_1_ENGINE_IS_SPIDER)
 {
   --connection master_1
+  SET @original_spider_read_only_mode = @@SESSION.spider_read_only_mode;
+  SET SESSION spider_read_only_mode = -1;
   --disable_warnings
   DROP TABLE IF EXISTS t1;
   --enable_warnings
@@ -1197,6 +1202,7 @@ if ($MASTER_1_ENGINE_IS_SPIDER)
   DELETE FROM t1;
   --error 12518
   TRUNCATE t1;
+  SET SESSION spider_read_only_mode = @original_spider_read_only_mode;
 }
 if (!$MASTER_1_ENGINE_IS_SPIDER)
 {
@@ -1210,6 +1216,10 @@ if (!$MASTER_1_ENGINE_IS_SPIDER)
 if ($MASTER_1_ENGINE_IS_SPIDER)
 {
   --connection master_1
+  SET @original_spider_error_read_mode = @@SESSION.spider_error_read_mode;
+  SET @original_spider_error_write_mode = @@SESSION.spider_error_write_mode;
+  SET SESSION spider_error_read_mode = -1;
+  SET SESSION spider_error_write_mode = -1;
   --disable_warnings
   DROP TABLE IF EXISTS t1;
   --enable_warnings
@@ -1227,6 +1237,8 @@ if ($MASTER_1_ENGINE_IS_SPIDER)
   INSERT INTO t1 (id) VALUES (1);
   DELETE FROM t1;
   TRUNCATE t1;
+  SET SESSION spider_error_read_mode = @original_spider_error_read_mode;
+  SET SESSION spider_error_write_mode = @original_spider_error_write_mode;
 }
 if (!$MASTER_1_ENGINE_IS_SPIDER)
 {

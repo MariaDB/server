@@ -402,18 +402,14 @@ int spider_increase_longlong_list(
 int spider_parse_connect_info(
   SPIDER_SHARE *share,
   TABLE_SHARE *table_share,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *part_info,
-#endif
   uint create_table
 );
 
 int spider_set_connect_info_default(
   SPIDER_SHARE *share,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_element *part_elem,
   partition_element *sub_elem,
-#endif
   TABLE_SHARE *table_share
 );
 
@@ -459,9 +455,7 @@ void spider_free_lgtm_tblhnd_share_alloc(
 SPIDER_SHARE *spider_create_share(
   const char *table_name,
   TABLE_SHARE *table_share,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *part_info,
-#endif
   my_hash_value_type hash_value,
   int *error_num
 );
@@ -572,7 +566,6 @@ char *spider_create_table_name_string(
   const char *sub_name
 );
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
 void spider_get_partition_info(
   const char *table_name,
   uint table_name_length,
@@ -581,7 +574,6 @@ void spider_get_partition_info(
   partition_element **part_elem,
   partition_element **sub_elem
 );
-#endif
 
 int spider_get_sts(
   SPIDER_SHARE *share,
@@ -590,9 +582,7 @@ int spider_get_sts(
   ha_spider *spider,
   double sts_interval,
   int sts_mode,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   int sts_sync,
-#endif
   int sts_sync_level,
   uint flag
 );
@@ -605,9 +595,7 @@ int spider_get_crd(
   TABLE *table,
   double crd_interval,
   int crd_mode,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   int crd_sync,
-#endif
   int crd_sync_level
 );
 

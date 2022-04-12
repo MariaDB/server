@@ -13,7 +13,7 @@ data INT NOT NULL
 CREATE TABLE t2(
 n INT UNSIGNED NOT NULL, 
 f BIGINT UNSIGNED
-) engine=innodb;
+);
 ############################
 # Creating Stored Programs #
 ############################
@@ -67,6 +67,7 @@ END WHILE;
 END|
 CREATE TRIGGER trg AFTER INSERT ON t1 FOR EACH ROW
 CALL ifac(10)|
+ALTER TABLE t2 ENGINE=InnoDB;
 #####################
 # Executing queries #
 #####################
@@ -1199,7 +1200,7 @@ data INT NOT NULL
 CREATE TABLE t2(
 n INT UNSIGNED NOT NULL, 
 f BIGINT UNSIGNED
-) engine=innodb;
+);
 ############################
 # Creating Stored Programs #
 ############################

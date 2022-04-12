@@ -1,0 +1,115 @@
+# ==== References ====
+#
+# MDEV-27760 event may non stop replicate in circular semisync setup
+#
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+# The following tests prove
+# A. out-of-order gtid error when the stict gtid mode semisync slave
+#    receives the same server-id gtid event inconsistent
+#    (rpl_semi_sync_fail_over tests the consistent case) with its state;
+# B. in the non-strict mode the same server-id events remains ignored
+#    by default as usual.
+#
+--echo # Master server_1 and Slave server_2 initialiation ...
+--connection server_2
+--source include/stop_slave.inc
+
+# Initial master
+--connection server_1
+set @@sql_log_bin = off;
+call mtr.add_suppression("Slave: An attempt was made to binlog GTID 10-1-1 which would create an out-of-order sequence number with existing GTID");
+set @@sql_log_bin = on;
+
+RESET MASTER;
+
+set @@session.gtid_domain_id=10;
+
+set @@global.rpl_semi_sync_master_enabled = 1;
+set @@global.rpl_semi_sync_master_wait_point=AFTER_SYNC;
+
+--connection server_2
+RESET MASTER;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+
+set @@session.gtid_domain_id=20;
+
+set @@global.rpl_semi_sync_slave_enabled = 1;
+--echo # a 1948 warning is expected
+set @@global.gtid_slave_pos = "";
+CHANGE MASTER TO master_use_gtid= slave_pos;
+--source include/start_slave.inc
+--echo # ... server_1 -> server_2 is set up
+
+--connection server_1
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=Innodb;
+INSERT INTO t1 VALUES (1);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+--echo # Circular configuration server_2 -> server_1 initialiation ...
+--connection server_1
+--echo # A. ... first when server_1 is in gtid strict mode...
+set @@global.gtid_strict_mode = true;
+set @@global.rpl_semi_sync_slave_enabled = 1;
+
+evalp CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_use_gtid=SLAVE_POS;
+
+--echo # ...  only for it to fail 'cos if its inconsistent (empty) slave's gtid state:
+SELECT @@global.gtid_slave_pos;
+START SLAVE;
+#  ER_GTID_STRICT_OUT_OF_ORDER
+--let $slave_sql_errno = 1950
+--source include/wait_for_slave_sql_error.inc
+
+--echo # B. ... Resume on the circular setup with the server_id now in the non-strict mode ...
+set @@global.gtid_strict_mode = false;
+--source include/start_slave.inc
+
+--echo # ... to have succeeded.
+
+--connection server_2
+INSERT INTO t1 VALUES (2);
+--save_master_pos
+
+--connection server_1
+--sync_with_master
+
+INSERT INTO t1 VALUES (3);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--echo # The gtid states on server_2 must be equal to ...
+--let $wait_condition=select @@gtid_slave_pos=@@gtid_binlog_pos
+--source include/wait_condition.inc
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+
+--connection server_1
+--echo # ... the gtid states on server_1
+--let $wait_condition=select @@gtid_slave_pos=@@gtid_binlog_pos
+--source include/wait_condition.inc
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+
+--echo # Cleanup
+--connection server_1
+--source include/stop_slave.inc
+set @@global.rpl_semi_sync_master_enabled = default;
+set @@global.rpl_semi_sync_slave_enabled = default;
+set @@global.rpl_semi_sync_master_wait_point=default;
+
+DROP TABLE t1;
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+set @@global.rpl_semi_sync_master_enabled = default;
+set @@global.rpl_semi_sync_slave_enabled = default;
+
+--source include/rpl_end.inc

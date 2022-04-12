@@ -3336,28 +3336,21 @@ class Type_cast_attributes
   bool m_length_specified;
   bool m_decimals_specified;
 public:
-  Type_cast_attributes(const char *c_len, const char *c_dec, CHARSET_INFO *cs)
+  Type_cast_attributes(const Lex_length_and_dec_st &length_and_dec,
+                       CHARSET_INFO *cs)
     :m_charset(cs), m_length(0), m_decimals(0),
      m_length_specified(false), m_decimals_specified(false)
   {
-    set_length_and_dec(c_len, c_dec);
+    m_length= length_and_dec.length_overflowed() ? (ulonglong) UINT_MAX32 + 1 :
+                                                   length_and_dec.length();
+    m_decimals= length_and_dec.dec();
+    m_length_specified= length_and_dec.has_explicit_length();
+    m_decimals_specified= length_and_dec.has_explicit_dec();
   }
   Type_cast_attributes(CHARSET_INFO *cs)
     :m_charset(cs), m_length(0), m_decimals(0),
      m_length_specified(false), m_decimals_specified(false)
   { }
-  void set_length_and_dec(const char *c_len, const char *c_dec)
-  {
-    int error;
-    /*
-      We don't have to check for error here as sql_yacc.yy has guaranteed
-      that the values are in range of ulonglong
-    */
-    if ((m_length_specified= (c_len != NULL)))
-      m_length= (ulonglong) my_strtoll10(c_len, NULL, &error);
-    if ((m_decimals_specified= (c_dec != NULL)))
-      m_decimals= (ulonglong) my_strtoll10(c_dec, NULL, &error);
-  }
   CHARSET_INFO *charset() const { return m_charset; }
   bool length_specified() const { return m_length_specified; }
   bool decimals_specified() const { return m_decimals_specified; }
@@ -3931,7 +3924,6 @@ public:
   virtual bool Column_definition_set_attributes(THD *thd,
                                                 Column_definition *def,
                                                 const Lex_field_type_st &attr,
-                                                CHARSET_INFO *cs,
                                                 column_definition_type_t type)
                                                 const;
   // Fix attributes after the parser
@@ -6666,7 +6658,6 @@ public:
   bool Column_definition_set_attributes(THD *thd,
                                         Column_definition *def,
                                         const Lex_field_type_st &attr,
-                                        CHARSET_INFO *cs,
                                         column_definition_type_t type)
                                         const override;
 };
@@ -6919,7 +6910,6 @@ public:
   bool Column_definition_set_attributes(THD *thd,
                                         Column_definition *def,
                                         const Lex_field_type_st &attr,
-                                        CHARSET_INFO *cs,
                                         column_definition_type_t type)
                                         const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
@@ -7016,7 +7006,6 @@ public:
   bool Column_definition_set_attributes(THD *thd,
                                         Column_definition *def,
                                         const Lex_field_type_st &attr,
-                                        CHARSET_INFO *cs,
                                         column_definition_type_t type)
                                         const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;

@@ -119,7 +119,7 @@ TRANSACTIONAL_INLINE inline bool TrxUndoRsegsIterator::set_next()
 	trx_id_t last_trx_no, tail_trx_no;
 	{
 #ifdef SUX_LOCK_GENERIC
-		purge_sys.rseg->latch.rd_lock();
+		purge_sys.rseg->latch.rd_lock(SRW_LOCK_CALL);
 #else
 		transactional_shared_lock_guard<srw_spin_lock> rg
 			{purge_sys.rseg->latch};
@@ -636,7 +636,7 @@ TRANSACTIONAL_TARGET static void trx_purge_truncate_history()
       if (rseg.space != &space)
         continue;
 #ifdef SUX_LOCK_GENERIC
-      rseg.latch.rd_lock();
+      rseg.latch.rd_lock(SRW_LOCK_CALL);
 #else
       transactional_shared_lock_guard<srw_spin_lock> g{rseg.latch};
 #endif

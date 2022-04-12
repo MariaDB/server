@@ -15667,7 +15667,7 @@ COND *Item_func_eq::build_equal_items(THD *thd,
       List_iterator_fast<Item_equal> it(cond_equal.current_level);
       while ((item_equal= it++))
       {
-        if (item_equal->fix_length_and_dec())
+        if (item_equal->fix_length_and_dec(thd))
           return NULL;
         item_equal->update_used_tables();
         set_if_bigger(thd->lex->current_select->max_equal_elems,
@@ -27790,8 +27790,11 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
 
   if (unit->is_unit_op() || unit->fake_select_lex)
   {
+    ulonglong save_options= 0;
+
     if (unit->union_needs_tmp_table() && unit->fake_select_lex)
     {
+      save_options= unit->fake_select_lex->options;
       unit->fake_select_lex->select_number= FAKE_SELECT_LEX_ID; // just for initialization
       unit->fake_select_lex->type= unit_operation_text[unit->common_op()];
       unit->fake_select_lex->options|= SELECT_DESCRIBE;
@@ -27802,6 +27805,9 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
       if (!is_pushed_union)
         res= unit->exec();
     }
+
+    if (unit->union_needs_tmp_table() && unit->fake_select_lex)
+      unit->fake_select_lex->options= save_options;
   }
   else
   {

@@ -62,6 +62,7 @@
 #include "wsrep_mysqld.h"
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
+#include "wsrep_status.h"
 #endif /* WITH_WSREP */
 
 #ifdef HAVE_REPLICATION
@@ -5999,6 +6000,8 @@ THD::binlog_start_trans_and_stmt()
         }
         Gtid_log_event gtid_event(this, seqno, domain_id, true,
                                   LOG_EVENT_SUPPRESS_USE_F, true, 0);
+        // Replicated events in writeset doesn't have checksum
+        gtid_event.checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
         gtid_event.server_id= server_id;
         writer.write(&gtid_event);
         wsrep_write_cache_buf(&tmp_io_cache, &buf, &len);
@@ -9283,6 +9286,16 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
           (int) length, buffer);
 
   fflush(stderr);
+
+#ifdef WITH_WSREP
+  if (level <= WARNING_LEVEL)
+  {
+    wsrep::reporter::log_level const lvl = (level <= ERROR_LEVEL ?
+                                            wsrep::reporter::error :
+                                            wsrep::reporter::warning);
+    Wsrep_status::report_log_msg(lvl, tag, tag_length, buffer, length, skr);
+  }
+#endif /* WITH_WSREP */
 
   mysql_mutex_unlock(&LOCK_error_log);
   DBUG_VOID_RETURN;
