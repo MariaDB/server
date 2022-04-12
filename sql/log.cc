@@ -1561,13 +1561,9 @@ bool Log_to_csv_event_handler::init()
   return 0;
 }
 
-int LOGGER::set_handlers(ulonglong error_log_printer,
-                         ulonglong slow_log_printer,
+int LOGGER::set_handlers(ulonglong slow_log_printer,
                          ulonglong general_log_printer)
 {
-  /* error log table is not supported yet */
-  DBUG_ASSERT(error_log_printer < LOG_TABLE);
-
   lock_exclusive();
 
   if ((slow_log_printer & LOG_TABLE || general_log_printer & LOG_TABLE) &&
@@ -1580,7 +1576,6 @@ int LOGGER::set_handlers(ulonglong error_log_printer,
                     "Falling back to the old-fashioned logs");
   }
 
-  init_error_log(error_log_printer);
   init_slow_log(slow_log_printer);
   init_general_log(general_log_printer);
 
