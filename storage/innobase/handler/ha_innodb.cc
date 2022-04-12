@@ -2418,7 +2418,7 @@ innobase_get_cset_width(
 	ut_ad(mbminlen);
 	ut_ad(mbmaxlen);
 
-	cs = all_charsets[cset];
+	cs = cset ? get_charset((uint)cset, MYF(MY_WME)) : NULL;
 	if (cs) {
 		*mbminlen = cs->mbminlen;
 		*mbmaxlen = cs->mbmaxlen;
