@@ -10437,7 +10437,16 @@ bool ha_partition::commit_inplace_alter_table(TABLE *altered_table,
         Loop over all other partitions as to follow the protocol!
       */
       uint i;
-      DBUG_ASSERT(0);
+      /*
+        InnoDB does not set ha_alter_info->group_commit_ctx to NULL in the
+        case if autoincrement attribute is necessary to reset for all
+        partitions for INNOBASE_INPLACE_IGNORE handler flags. It does not
+        affect durability, because it is solely about updating the InnoDB data
+        dictionary caches (one InnoDB dict_table_t per partition or
+        sub-partition).
+      */
+      DBUG_ASSERT(table->found_next_number_field
+          && !altered_table->found_next_number_field);
       for (i= 1; i < m_tot_parts; i++)
       {
         ha_alter_info->handler_ctx= part_inplace_ctx->handler_ctx_array[i];
