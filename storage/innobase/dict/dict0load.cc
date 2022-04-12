@@ -668,6 +668,7 @@ dict_sys_tables_rec_read(
 	ut_ad(len == 6 || len == UNIV_SQL_NULL);
 	trx_id_t id = len == 6 ? trx_read_trx_id(field) : 0;
 	if (id && trx_sys.find(nullptr, id, false)) {
+		const auto savepoint = mtr->get_savepoint();
 		heap = mem_heap_create(1024);
 		dict_index_t* index = UT_LIST_GET_FIRST(
 			dict_sys.sys_tables->indexes);
@@ -677,6 +678,7 @@ dict_sys_tables_rec_read(
 		row_vers_build_for_semi_consistent_read(
 			nullptr, rec, mtr, index, &offsets, &heap,
 			heap, &old_vers, nullptr);
+		mtr->rollback_to_savepoint(savepoint);
 		rec = old_vers;
 		if (!rec) {
 			mem_heap_free(heap);
@@ -1074,6 +1076,7 @@ err_len:
 	const trx_id_t trx_id = trx_read_trx_id(field);
 
 	if (trx_id && mtr && trx_sys.find(nullptr, trx_id, false)) {
+		const auto savepoint = mtr->get_savepoint();
 		dict_index_t* index = UT_LIST_GET_FIRST(
 			dict_sys.sys_columns->indexes);
 		rec_offs* offsets = rec_get_offsets(
@@ -1082,6 +1085,7 @@ err_len:
 		row_vers_build_for_semi_consistent_read(
 			nullptr, rec, mtr, index, &offsets, &heap,
 			heap, &old_vers, nullptr);
+		mtr->rollback_to_savepoint(savepoint);
 		rec = old_vers;
 		if (!old_vers) {
 			return dict_load_column_none;
@@ -1618,6 +1622,7 @@ err_len:
 	if (!trx_id) {
 		ut_ad(!rec_get_deleted_flag(rec, 0));
 	} else if (mtr && trx_sys.find(nullptr, trx_id, false)) {
+		const auto savepoint = mtr->get_savepoint();
 		dict_index_t* sys_field = UT_LIST_GET_FIRST(
 			dict_sys.sys_fields->indexes);
 		rec_offs* offsets = rec_get_offsets(
@@ -1626,6 +1631,7 @@ err_len:
 		row_vers_build_for_semi_consistent_read(
 			nullptr, rec, mtr, sys_field, &offsets, &heap,
 			heap, &old_vers, nullptr);
+		mtr->rollback_to_savepoint(savepoint);
 		rec = old_vers;
 		if (!old_vers || rec_get_deleted_flag(rec, 0)) {
 			return dict_load_field_none;
@@ -1828,6 +1834,7 @@ err_len:
 		ut_ad(!rec_get_deleted_flag(rec, 0));
 	} else if (!mtr) {
 	} else if (trx_sys.find(nullptr, trx_id, false)) {
+		const auto savepoint = mtr->get_savepoint();
 		dict_index_t* sys_index = UT_LIST_GET_FIRST(
 			dict_sys.sys_indexes->indexes);
 		rec_offs* offsets = rec_get_offsets(
@@ -1836,6 +1843,7 @@ err_len:
 		row_vers_build_for_semi_consistent_read(
 			nullptr, rec, mtr, sys_index, &offsets, &heap,
 			heap, &old_vers, nullptr);
+		mtr->rollback_to_savepoint(savepoint);
 		rec = old_vers;
 		if (!old_vers || rec_get_deleted_flag(rec, 0)) {
 			return dict_load_index_none;
@@ -2700,6 +2708,7 @@ retry:
 		const trx_id_t id = trx_read_trx_id(field);
 		if (!id) {
 		} else if (id != trx_id && trx_sys.find(nullptr, id, false)) {
+			const auto savepoint = mtr.get_savepoint();
 			rec_offs* offsets = rec_get_offsets(
 				rec, sys_index, nullptr, true, ULINT_UNDEFINED,
 				&heap);
@@ -2707,6 +2716,7 @@ retry:
 			row_vers_build_for_semi_consistent_read(
 				nullptr, rec, &mtr, sys_index, &offsets, &heap,
 				heap, &old_vers, nullptr);
+			mtr.rollback_to_savepoint(savepoint);
 			rec = old_vers;
 			if (!rec || rec_get_deleted_flag(rec, 0)) {
 				goto next;
@@ -2874,12 +2884,14 @@ dict_load_foreign(
 	const trx_id_t tid = trx_read_trx_id(field);
 
 	if (tid && tid != trx_id && trx_sys.find(nullptr, tid, false)) {
+		const auto savepoint = mtr.get_savepoint();
 		rec_offs* offsets = rec_get_offsets(
 			rec, sys_index, nullptr, true, ULINT_UNDEFINED, &heap);
 		const rec_t* old_vers;
 		row_vers_build_for_semi_consistent_read(
 			nullptr, rec, &mtr, sys_index, &offsets, &heap,
 			heap, &old_vers, nullptr);
+		mtr.rollback_to_savepoint(savepoint);
 		rec = old_vers;
 		if (!rec) {
 			goto not_found;

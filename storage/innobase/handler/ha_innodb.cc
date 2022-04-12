@@ -1960,6 +1960,57 @@ thd_to_trx_id(
 	return(thd_to_trx(thd)->id);
 }
 
+Atomic_relaxed<bool> wsrep_sst_disable_writes;
+
+static void sst_disable_innodb_writes()
+{
+  const uint old_count= srv_n_fil_crypt_threads;
+  fil_crypt_set_thread_cnt(0);
+  srv_n_fil_crypt_threads= old_count;
+
+  wsrep_sst_disable_writes= true;
+  dict_stats_shutdown();
+  purge_sys.stop();
+  /* We are holding a global MDL thanks to FLUSH TABLES WITH READ LOCK.
+
+  That will prevent any writes from arriving into InnoDB, but it will
+  not prevent writes of modified pages from the buffer pool, or log
+  checkpoints.
+
+  Let us perform a log checkpoint to ensure that the entire buffer
+  pool is clean, so that no writes to persistent files will be
+  possible during the snapshot, and to guarantee that no crash
+  recovery will be necessary when starting up on the snapshot. */
+  log_make_checkpoint();
+  /* If any FILE_MODIFY records were written by the checkpoint, an
+  extra write of a FILE_CHECKPOINT record could still be invoked by
+  buf_flush_page_cleaner(). Let us prevent that by invoking another
+  checkpoint (which will write the FILE_CHECKPOINT record). */
+  log_make_checkpoint();
+  ut_d(recv_no_log_write= true);
+  /* If this were not a no-op, an assertion would fail due to
+  recv_no_log_write. */
+  ut_d(log_make_checkpoint());
+}
+
+static void sst_enable_innodb_writes()
+{
+  ut_ad(recv_no_log_write);
+  ut_d(recv_no_log_write= false);
+  dict_stats_start();
+  purge_sys.resume();
+  wsrep_sst_disable_writes= false;
+  fil_crypt_set_thread_cnt(srv_n_fil_crypt_threads);
+}
+
+static void innodb_disable_internal_writes(bool disable)
+{
+  if (disable)
+    sst_disable_innodb_writes();
+  else
+    sst_enable_innodb_writes();
+}
+
 static void wsrep_abort_transaction(handlerton*, THD *, THD *, my_bool);
 static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
@@ -3623,11 +3674,6 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	m_prebuilt->trx->bulk_insert = false;
 }
 
-#ifdef WITH_INNODB_DISALLOW_WRITES
-/** Condition variable for innodb_disallow_writes */
-static pthread_cond_t allow_writes_cond;
-#endif /* WITH_INNODB_DISALLOW_WRITES */
-
 /*********************************************************************//**
 Free any resources that were allocated and return failure.
 @return always return 1 */
@@ -3645,9 +3691,6 @@ static int innodb_init_abort()
 	}
 	srv_tmp_space.shutdown();
 
-#ifdef WITH_INNODB_DISALLOW_WRITES
-	pthread_cond_destroy(&allow_writes_cond);
-#endif /* WITH_INNODB_DISALLOW_WRITES */
 	DBUG_RETURN(1);
 }
 
@@ -4165,6 +4208,7 @@ static int innodb_init(void* p)
 	innobase_hton->abort_transaction=wsrep_abort_transaction;
 	innobase_hton->set_checkpoint=innobase_wsrep_set_checkpoint;
 	innobase_hton->get_checkpoint=innobase_wsrep_get_checkpoint;
+	innobase_hton->disable_internal_writes=innodb_disable_internal_writes;
 #endif /* WITH_WSREP */
 
 	innobase_hton->check_version = innodb_check_version;
@@ -4209,10 +4253,6 @@ static int innodb_init(void* p)
 
 	/* After this point, error handling has to use
 	innodb_init_abort(). */
-
-#ifdef WITH_INNODB_DISALLOW_WRITES
-	pthread_cond_init(&allow_writes_cond, nullptr);
-#endif /* WITH_INNODB_DISALLOW_WRITES */
 
 #ifdef HAVE_PSI_INTERFACE
 	/* Register keys with MySQL performance schema */
@@ -4326,9 +4366,6 @@ innobase_end(handlerton*, ha_panic_function)
 
 
 		innodb_shutdown();
-#ifdef WITH_INNODB_DISALLOW_WRITES
-		pthread_cond_destroy(&allow_writes_cond);
-#endif /* WITH_INNODB_DISALLOW_WRITES */
 		mysql_mutex_destroy(&log_requests.mutex);
 	}
 
@@ -19501,42 +19538,6 @@ static MYSQL_SYSVAR_ULONG(buf_dump_status_frequency, srv_buf_dump_status_frequen
   "dumped. Default is 0 (only start and end status is printed).",
   NULL, NULL, 0, 0, 100, 0);
 
-#ifdef WITH_INNODB_DISALLOW_WRITES
-my_bool innodb_disallow_writes;
-
-void innodb_wait_allow_writes()
-{
-  if (UNIV_UNLIKELY(innodb_disallow_writes))
-  {
-    mysql_mutex_lock(&LOCK_global_system_variables);
-    while (innodb_disallow_writes)
-      my_cond_wait(&allow_writes_cond, &LOCK_global_system_variables.m_mutex);
-    mysql_mutex_unlock(&LOCK_global_system_variables);
-  }
-}
-
-/**************************************************************************
-An "update" method for innobase_disallow_writes variable. */
-static
-void
-innobase_disallow_writes_update(THD*, st_mysql_sys_var*,
-				void* var_ptr, const void* save)
-{
-	const my_bool val = *static_cast<const my_bool*>(save);
-	*static_cast<my_bool*>(var_ptr) = val;
-	mysql_mutex_unlock(&LOCK_global_system_variables);
-	if (!val) {
-		pthread_cond_broadcast(&allow_writes_cond);
-	}
-	mysql_mutex_lock(&LOCK_global_system_variables);
-}
-
-static MYSQL_SYSVAR_BOOL(disallow_writes, innodb_disallow_writes,
-  PLUGIN_VAR_NOCMDOPT,
-  "Tell InnoDB to stop any writes to disk",
-  NULL, innobase_disallow_writes_update, FALSE);
-#endif /* WITH_INNODB_DISALLOW_WRITES */
-
 static MYSQL_SYSVAR_BOOL(random_read_ahead, srv_random_read_ahead,
   PLUGIN_VAR_NOCMDARG,
   "Whether to use read ahead for random access within an extent.",
@@ -19882,9 +19883,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(change_buffer_dump),
   MYSQL_SYSVAR(change_buffering_debug),
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
-#ifdef WITH_INNODB_DISALLOW_WRITES
-  MYSQL_SYSVAR(disallow_writes),
-#endif /* WITH_INNODB_DISALLOW_WRITES */
   MYSQL_SYSVAR(random_read_ahead),
   MYSQL_SYSVAR(read_ahead_threshold),
   MYSQL_SYSVAR(read_only),

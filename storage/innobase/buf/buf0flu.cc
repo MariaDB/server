@@ -1718,12 +1718,17 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
   mysql_mutex_assert_owner(&log_sys.mutex);
   ut_ad(oldest_lsn <= end_lsn);
   ut_ad(end_lsn == log_sys.get_lsn());
-  ut_ad(!recv_no_log_write);
 
   ut_ad(oldest_lsn >= log_sys.last_checkpoint_lsn);
+  const lsn_t age= oldest_lsn - log_sys.last_checkpoint_lsn;
 
-  if (oldest_lsn > log_sys.last_checkpoint_lsn + SIZE_OF_FILE_CHECKPOINT)
+  if (age > SIZE_OF_FILE_CHECKPOINT + log_sys.framing_size())
     /* Some log has been written since the previous checkpoint. */;
+  else if (age > SIZE_OF_FILE_CHECKPOINT &&
+           !((log_sys.log.calc_lsn_offset(oldest_lsn) ^
+              log_sys.log.calc_lsn_offset(log_sys.last_checkpoint_lsn)) &
+             ~lsn_t{OS_FILE_LOG_BLOCK_SIZE - 1}))
+    /* Some log has been written to the same log block. */;
   else if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED)
     /* MariaDB startup expects the redo log file to be logically empty
     (not even containing a FILE_CHECKPOINT record) after a clean shutdown.
@@ -1735,6 +1740,8 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
     mysql_mutex_unlock(&log_sys.mutex);
     return true;
   }
+
+  ut_ad(!recv_no_log_write);
 
   /* Repeat the FILE_MODIFY records after the checkpoint, in case some
   log records between the checkpoint and log_sys.lsn need them.
@@ -1767,7 +1774,7 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
 
   ut_ad(log_sys.get_flushed_lsn() >= flush_lsn);
 
-  if (log_sys.n_pending_checkpoint_writes)
+  if (log_sys.checkpoint_pending)
   {
     /* A checkpoint write is running */
     mysql_mutex_unlock(&log_sys.mutex);

@@ -5842,6 +5842,8 @@ THD::binlog_start_trans_and_stmt()
         }
         Gtid_log_event gtid_event(this, seqno, domain_id, true,
                                   LOG_EVENT_SUPPRESS_USE_F, true, 0);
+        // Replicated events in writeset doesn't have checksum
+        gtid_event.checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
         gtid_event.server_id= server_id;
         writer.write(&gtid_event);
         wsrep_write_cache_buf(&tmp_io_cache, &buf, &len);

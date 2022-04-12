@@ -1555,12 +1555,16 @@ have any other reference count.
 static void fts_table_no_ref_count(const char *table_name)
 {
   dict_table_t *table= dict_table_open_on_name(
-    table_name, false, DICT_ERR_IGNORE_TABLESPACE);
+    table_name, true, DICT_ERR_IGNORE_TABLESPACE);
   if (!table)
     return;
 
   while (table->get_ref_count() > 1)
+  {
+    dict_sys.unlock();
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    dict_sys.lock(SRW_LOCK_CALL);
+  }
 
   table->release();
 }
@@ -1572,8 +1576,10 @@ and common table associated with the fts table.
 			already stopped*/
 void purge_sys_t::stop_FTS(const dict_table_t &table, bool already_stopped)
 {
+  dict_sys.lock(SRW_LOCK_CALL);
   if (!already_stopped)
     purge_sys.stop_FTS();
+
   fts_table_t fts_table;
   char table_name[MAX_FULL_NAME_LEN];
 
@@ -1582,28 +1588,31 @@ void purge_sys_t::stop_FTS(const dict_table_t &table, bool already_stopped)
   for (const char **suffix= fts_common_tables; *suffix; suffix++)
   {
     fts_table.suffix= *suffix;
-    fts_get_table_name(&fts_table, table_name, false);
+    fts_get_table_name(&fts_table, table_name, true);
     fts_table_no_ref_count(table_name);
   }
 
-  if (!table.fts)
-    return;
-  auto indexes= table.fts->indexes;
-  if (!indexes)
-    return;
-  for (ulint i= 0;i < ib_vector_size(indexes); ++i)
+  if (table.fts)
   {
-    const dict_index_t *index= static_cast<const dict_index_t*>(
-      ib_vector_getp(indexes, i));
-    FTS_INIT_INDEX_TABLE(&fts_table, nullptr, FTS_INDEX_TABLE, index);
-    for (const fts_index_selector_t *s= fts_index_selector;
-         s->suffix; s++)
+    if (auto indexes= table.fts->indexes)
     {
-      fts_table.suffix= s->suffix;
-      fts_get_table_name(&fts_table, table_name, false);
-      fts_table_no_ref_count(table_name);
+      for (ulint i= 0;i < ib_vector_size(indexes); ++i)
+      {
+        const dict_index_t *index= static_cast<const dict_index_t*>(
+          ib_vector_getp(indexes, i));
+        FTS_INIT_INDEX_TABLE(&fts_table, nullptr, FTS_INDEX_TABLE, index);
+        for (const fts_index_selector_t *s= fts_index_selector;
+             s->suffix; s++)
+        {
+          fts_table.suffix= s->suffix;
+          fts_get_table_name(&fts_table, table_name, true);
+          fts_table_no_ref_count(table_name);
+        }
+      }
     }
   }
+
+  dict_sys.unlock();
 }
 
 /** Lock the internal FTS_ tables for table, before fts_drop_tables().
@@ -2219,9 +2228,7 @@ fts_trx_table_create(
 	fts_trx_table_t*	ftt;
 
 	ftt = static_cast<fts_trx_table_t*>(
-		mem_heap_alloc(fts_trx->heap, sizeof(*ftt)));
-
-	memset(ftt, 0x0, sizeof(*ftt));
+		mem_heap_zalloc(fts_trx->heap, sizeof *ftt));
 
 	ftt->table = table;
 	ftt->fts_trx = fts_trx;

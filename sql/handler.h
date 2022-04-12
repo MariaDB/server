@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -1143,31 +1143,6 @@ extern MYSQL_PLUGIN_IMPORT st_plugin_int *hton2plugin[MAX_HA];
 
 #define view_pseudo_hton ((handlerton *)1)
 
-/* Transaction log maintains type definitions */
-enum log_status
-{
-  HA_LOG_STATUS_FREE= 0,      /* log is free and can be deleted */
-  HA_LOG_STATUS_INUSE= 1,     /* log can't be deleted because it is in use */
-  HA_LOG_STATUS_NOSUCHLOG= 2  /* no such log (can't be returned by
-                                the log iterator status) */
-};
-/*
-  Function for signaling that the log file changed its state from
-  LOG_STATUS_INUSE to LOG_STATUS_FREE
-
-  Now it do nothing, will be implemented as part of new transaction
-  log management for engines.
-  TODO: implement the function.
-*/
-void signal_log_not_needed(struct handlerton, char *log_file);
-/*
-  Data of transaction log iterator.
-*/
-struct handler_log_file_data {
-  LEX_STRING filename;
-  enum log_status status;
-};
-
 /*
   Definitions for engine-specific table/field/index options in the CREATE TABLE.
 
@@ -1281,46 +1256,6 @@ typedef struct st_ha_create_table_option {
   const char *values;
   struct st_mysql_sys_var *var;
 } ha_create_table_option;
-
-enum handler_iterator_type
-{
-  /* request of transaction log iterator */
-  HA_TRANSACTLOG_ITERATOR= 1
-};
-enum handler_create_iterator_result
-{
-  HA_ITERATOR_OK,          /* iterator created */
-  HA_ITERATOR_UNSUPPORTED, /* such type of iterator is not supported */
-  HA_ITERATOR_ERROR        /* error during iterator creation */
-};
-
-/*
-  Iterator structure. Can be used by handler/handlerton for different purposes.
-
-  Iterator should be created in the way to point "before" the first object
-  it iterate, so next() call move it to the first object or return !=0 if
-  there is nothing to iterate through.
-*/
-struct handler_iterator {
-  /*
-    Moves iterator to next record and return 0 or return !=0
-    if there is no records.
-    iterator_object will be filled by this function if next() returns 0.
-    Content of the iterator_object depend on iterator type.
-  */
-  int (*next)(struct handler_iterator *, void *iterator_object);
-  /*
-    Free resources allocated by iterator, after this call iterator
-    is not usable.
-  */
-  void (*destroy)(struct handler_iterator *);
-  /*
-    Pointer to buffer for the iterator to use.
-    Should be allocated by function which created the iterator and
-    destroyed by freed by above "destroy" call
-  */
-  void *buffer;
-};
 
 class handler;
 class group_by_handler;
@@ -1586,22 +1521,6 @@ struct handlerton
                             const char *query, uint query_length,
                             const char *db, const char *table_name);
 
-   /*
-     Get log status.
-     If log_status is null then the handler do not support transaction
-     log information (i.e. log iterator can't be created).
-     (see example of implementation in handler.cc, TRANS_LOG_MGM_EXAMPLE_CODE)
-
-   */
-   enum log_status (*get_log_status)(handlerton *hton, char *log);
-
-   /*
-     Iterators creator.
-     Presence of the pointer should be checked before using
-   */
-   enum handler_create_iterator_result
-     (*create_iterator)(handlerton *hton, enum handler_iterator_type type,
-                        struct handler_iterator *fill_this_in);
    void (*abort_transaction)(handlerton *hton, THD *bf_thd,
 			    THD *victim_thd, my_bool signal);
    int (*set_checkpoint)(handlerton *hton, const XID* xid);
@@ -1797,6 +1716,9 @@ struct handlerton
    @return transaction commit ID
    @retval 0 if no system-versioned data was affected by the transaction */
    ulonglong (*prepare_commit_versioned)(THD *thd, ulonglong *trx_id);
+
+  /** Disable or enable the internal writes of a storage engine */
+  void (*disable_internal_writes)(bool disable);
 
   /* backup */
   void (*prepare_for_backup)(void);
@@ -4144,14 +4066,12 @@ public:
   inline int ha_read_first_row(uchar *buf, uint primary_key);
 
   /**
-    The following 3 function is only needed for tables that may be
+    The following 2 function is only needed for tables that may be
     internal temporary tables during joins.
   */
   virtual int remember_rnd_pos()
     { return HA_ERR_WRONG_COMMAND; }
   virtual int restart_rnd_next(uchar *buf)
-    { return HA_ERR_WRONG_COMMAND; }
-  virtual int rnd_same(uchar *buf, uint inx)
     { return HA_ERR_WRONG_COMMAND; }
 
   virtual ha_rows records_in_range(uint inx, const key_range *min_key,
@@ -5328,7 +5248,7 @@ static inline const char *ha_resolve_storage_engine_name(const handlerton *db_ty
 
 static inline bool ha_check_storage_engine_flag(const handlerton *db_type, uint32 flag)
 {
-  return db_type == NULL ? FALSE : MY_TEST(db_type->flags & flag);
+  return db_type && (db_type->flags & flag);
 }
 
 static inline bool ha_storage_engine_is_enabled(const handlerton *db_type)
@@ -5364,6 +5284,8 @@ int ha_delete_table_force(THD *thd, const char *path, const LEX_CSTRING *db,
 void ha_prepare_for_backup();
 void ha_end_backup();
 void ha_pre_shutdown();
+
+void ha_disable_internal_writes(bool disable);
 
 /* statistics and info */
 bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat);

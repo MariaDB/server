@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -146,6 +146,7 @@ dict_acquire_mdl_shared(dict_table_t *table,
 @param[in,out]  thd             background thread, or NULL to not acquire MDL
 @param[out]     mdl             mdl ticket, or NULL
 @return table, NULL if does not exist */
+template<bool purge_thd= false>
 dict_table_t*
 dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                       dict_table_op_t table_op, THD *thd= nullptr,
@@ -1569,7 +1570,7 @@ public:
     }
     else
       lock_wait(SRW_LOCK_ARGS(file, line));
-   }
+  }
 
 #ifdef UNIV_PFS_RWLOCK
   /** Unlock the data dictionary cache. */

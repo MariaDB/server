@@ -1,4 +1,5 @@
 /* Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2017, 2022, MariaDB corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -105,16 +106,12 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
     goto err;
   }
 
-  /* engine_name is 0 if we only want to know if table is view or not */
-  if (!engine_name)
-    goto err;
-
   if (!is_binary_frm_header(header))
     goto err;
 
   dbt= header[3];
 
-  if (((header[39] >> 4) & 3) == HA_CHOICE_YES)
+  if ((header[39] & 0x30) == (HA_CHOICE_YES << 4))
   {
     DBUG_PRINT("info", ("Sequence found"));
     type= TABLE_TYPE_SEQUENCE;
@@ -134,7 +131,8 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
     handlerton *ht= ha_resolve_by_legacy_type(thd, (legacy_db_type) dbt);
     if (ht)
     {
-      *engine_name= hton2plugin[ht->slot]->name;
+      if (engine_name)
+        *engine_name= hton2plugin[ht->slot]->name;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
       if (partition_engine_name && dbt == DB_TYPE_PARTITION_DB)
       {
@@ -155,6 +153,7 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
 cont:
 #endif
   /* read the true engine name */
+  if (engine_name)
   {
     MY_STAT state;
     uchar *frm_image= 0;

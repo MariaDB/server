@@ -992,6 +992,9 @@ fil_space_t *fil_space_t::create(ulint id, ulint flags,
 		if (UNIV_LIKELY(id <= fil_system.max_assigned_id)) {
 			break;
 		}
+		if (UNIV_UNLIKELY(srv_operation == SRV_OPERATION_BACKUP)) {
+			break;
+		}
 		if (!fil_system.space_id_reuse_warned) {
 			ib::warn() << "Allocated tablespace ID " << id
 				<< ", old maximum was "
@@ -1775,8 +1778,9 @@ char* fil_make_filepath(const char *path, const fil_space_t::name_type &name,
 	if (path != NULL) {
 		memcpy(full_name, path, path_len);
 		len = path_len;
-		full_name[len] = '\0';
 	}
+
+	full_name[len] = '\0';
 
 	if (trim_name) {
 		/* Find the offset of the last DIR separator and set it to

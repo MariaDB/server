@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4141,7 +4141,6 @@ pfs_os_file_t
 row_merge_file_create_low(
 	const char*	path)
 {
-	innodb_wait_allow_writes();
 	if (!path) {
 		path = mysql_tmpdir;
 	}
