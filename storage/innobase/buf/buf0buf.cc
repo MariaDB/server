@@ -2140,15 +2140,17 @@ void buf_pool_t::watch_unset(const page_id_t id, buf_pool_t::hash_chain &chain)
     if (!watch_is_sentinel(*w))
     {
     no_watch:
-      ut_d(const auto s=) w->unfix();
-      ut_ad(~buf_page_t::LRU_MASK & s);
+      w->unfix();
       w= nullptr;
     }
-    const auto state= w->state();
-    ut_ad(~buf_page_t::LRU_MASK & state);
-    ut_ad(state >= buf_page_t::UNFIXED);
-    if (state != buf_page_t::UNFIXED + 1)
-      goto no_watch;
+    else
+    {
+      const auto state= w->state();
+      ut_ad(~buf_page_t::LRU_MASK & state);
+      ut_ad(state >= buf_page_t::UNFIXED + 1);
+      if (state != buf_page_t::UNFIXED + 1)
+        goto no_watch;
+    }
   }
 
   if (!w)

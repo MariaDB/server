@@ -112,7 +112,7 @@ override_dh_auto_build:
 	@echo "RULES.$@"
 	# Print build env info to help debug builds on different platforms
 	dpkg-architecture
-	cd $(BUILDDIR) && $(MAKE)
+	cd $(BUILDDIR) && $(MAKE) --output-sync=target
 
 override_dh_auto_test:
 	@echo "RULES.$@"

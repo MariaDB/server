@@ -2000,7 +2000,8 @@ inline void buf_page_t::set_state(uint32_t s)
 {
   mysql_mutex_assert_owner(&buf_pool.mutex);
   ut_ad(s <= REMOVE_HASH || s >= UNFIXED);
-  ut_ad(s <= READ_FIX);
+  ut_ad(s < WRITE_FIX);
+  ut_ad(s <= READ_FIX || zip.fix == READ_FIX);
   zip.fix= s;
 }
 

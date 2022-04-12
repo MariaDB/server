@@ -1027,9 +1027,13 @@ row_purge_parse_undo_rec(
 try_again:
 	purge_sys.check_stop_FTS();
 
-	node->table = dict_table_open_on_id(
+	node->table = dict_table_open_on_id<true>(
 		table_id, false, DICT_TABLE_OP_NORMAL, node->purge_thd,
 		&node->mdl_ticket);
+
+	if (!node->table && purge_sys.must_wait_FTS()) {
+		goto try_again;
+	}
 
 	if (!node->table) {
 		/* The table has been dropped: no need to do purge and
