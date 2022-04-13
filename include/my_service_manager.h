@@ -43,7 +43,12 @@
 #define SD_LISTEN_FDS_START (0)
 #define sd_notify(X, Y)
 #define sd_notifyf(E, F, ...)
-#define service_manager_extend_timeout(I, FMTSTR, ...)
+#ifdef _WIN32
+  #define service_manager_extend_timeout(I, F, ...) \
+    mysqld_win_extend_service_timeout(I)
+#else
+  #define service_manager_extend_timeout(I, FMTSTR, ...)
+#endif
 #endif
 
 #endif /* MY_SERVICE_MANAGER_INCLUDED */

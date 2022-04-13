@@ -15788,6 +15788,12 @@ ha_innobase::start_stmt(
 		if (!trx->bulk_insert) {
 			break;
 		}
+
+		/* Trigger could've initiated another stmt.
+		So apply all bulk operation and mark as
+		end bulk insert for all tables */
+		trx->bulk_insert_apply();
+		trx->end_bulk_insert();
 		trx->bulk_insert = false;
 		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
 	}

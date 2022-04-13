@@ -1784,6 +1784,18 @@ unexpected_eof:
 			}
 
 			if (ferror(fil_in)) {
+#ifdef _AIX
+				/*
+				  AIX fseeko can go past eof without error.
+				  the error occurs on read, hence output the
+				  same error here as would show up on other
+				  platforms. This shows up in the mtr test
+				  innodb_zip.innochecksum_3-4k,crc32,innodb
+				*/
+				if (errno == EFBIG) {
+					goto unexpected_eof;
+				}
+#endif
 				fprintf(stderr, "Error reading " ULINTPF " bytes",
 					physical_page_size);
 				perror(" ");

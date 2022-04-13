@@ -68,6 +68,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "srv0mon.h"
 #include "srv0start.h"
 #include "trx0undo.h"
+#include "trx0purge.h"
 
 #include <vector>
 #include <algorithm>
@@ -601,13 +602,13 @@ dict_index_get_nth_field_pos(
 }
 
 /** Parse the table file name into table name and database name.
-@tparam		dict_locked	whether dict_sys.lock() was called
-@param[in,out]	db_name		database name buffer
-@param[in,out]	tbl_name	table name buffer
-@param[out]	db_name_len	database name length
-@param[out]	tbl_name_len	table name length
+@tparam        dict_frozen  whether the caller holds dict_sys.latch
+@param[in,out] db_name      database name buffer
+@param[in,out] tbl_name     table name buffer
+@param[out] db_name_len     database name length
+@param[out] tbl_name_len    table name length
 @return whether the table name is visible to SQL */
-template<bool dict_locked>
+template<bool dict_frozen>
 bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
                               char (&tbl_name)[NAME_LEN + 1],
                               size_t *db_name_len, size_t *tbl_name_len) const
@@ -615,7 +616,7 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   char db_buf[MAX_DATABASE_NAME_LEN + 1];
   char tbl_buf[MAX_TABLE_NAME_LEN + 1];
 
-  if (!dict_locked)
+  if (!dict_frozen)
     dict_sys.freeze(SRW_LOCK_CALL); /* protect against renaming */
   ut_ad(dict_sys.frozen());
   const size_t db_len= name.dblen();
@@ -635,7 +636,7 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   memcpy(tbl_buf, mdl_name.m_name + db_len + 1, tbl_len);
   tbl_buf[tbl_len]= 0;
 
-  if (!dict_locked)
+  if (!dict_frozen)
     dict_sys.unfreeze();
 
   *db_name_len= filename_to_tablename(db_buf, db_name,
@@ -781,7 +782,7 @@ return_without_mdl:
 
   size_t db1_len, tbl1_len;
 
-  if (!table->parse_name<!trylock>(db_buf1, tbl_buf1, &db1_len, &tbl1_len))
+  if (!table->parse_name<true>(db_buf1, tbl_buf1, &db1_len, &tbl1_len))
   {
     /* The table was renamed to #sql prefix.
     Release MDL (if any) for the old name and return. */
@@ -819,12 +820,14 @@ template dict_table_t* dict_acquire_mdl_shared<true>
 (dict_table_t*,THD*,MDL_ticket**,dict_table_op_t);
 
 /** Look up a table by numeric identifier.
+@tparam purge_thd Whether the function is called by purge thread
 @param[in]      table_id        table identifier
 @param[in]      dict_locked     data dictionary locked
 @param[in]      table_op        operation to perform when opening
 @param[in,out]  thd             background thread, or NULL to not acquire MDL
 @param[out]     mdl             mdl ticket, or NULL
 @return table, NULL if does not exist */
+template <bool purge_thd>
 dict_table_t*
 dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                       dict_table_op_t table_op, THD *thd,
@@ -837,6 +840,12 @@ dict_table_open_on_id(table_id_t table_id, bool dict_locked,
 
   if (table)
   {
+    if (purge_thd && purge_sys.must_wait_FTS())
+    {
+      table= nullptr;
+      goto func_exit;
+    }
+
     table->acquire();
     if (thd && !dict_locked)
       table= dict_acquire_mdl_shared<false>(table, thd, mdl, table_op);
@@ -853,7 +862,14 @@ dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                                  ? DICT_ERR_IGNORE_RECOVER_LOCK
                                  : DICT_ERR_IGNORE_FK_NOKEY);
     if (table)
+    {
+      if (purge_thd && purge_sys.must_wait_FTS())
+      {
+        dict_sys.unlock();
+        return nullptr;
+      }
       table->acquire();
+    }
     if (!dict_locked)
     {
       dict_sys.unlock();
@@ -867,11 +883,21 @@ dict_table_open_on_id(table_id_t table_id, bool dict_locked,
     }
   }
 
+func_exit:
   if (!dict_locked)
     dict_sys.unfreeze();
 
   return table;
 }
+
+template dict_table_t* dict_table_open_on_id<false>
+(table_id_t table_id, bool dict_locked,
+ dict_table_op_t table_op, THD *thd,
+ MDL_ticket **mdl);
+template dict_table_t* dict_table_open_on_id<true>
+(table_id_t table_id, bool dict_locked,
+ dict_table_op_t table_op, THD *thd,
+ MDL_ticket **mdl);
 
 /********************************************************************//**
 Looks for column n position in the clustered index.

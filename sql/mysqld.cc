@@ -2788,6 +2788,12 @@ void mysqld_win_set_startup_complete()
 }
 
 
+void mysqld_win_extend_service_timeout(DWORD sec)
+{
+  my_report_svc_status((DWORD)-1, 0, 2*1000*sec);
+}
+
+
 void mysqld_win_set_service_name(const char *name)
 {
   if (stricmp(name, "mysql"))

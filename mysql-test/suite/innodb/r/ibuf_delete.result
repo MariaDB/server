@@ -1,0 +1,53 @@
+SET @buffering= @@innodb_change_buffering;
+SET GLOBAL innodb_change_buffering= deletes;
+Warnings:
+Warning	1287	'@@innodb_change_buffering' is deprecated and will be removed in a future release
+SET @flush= @@innodb_flush_log_at_trx_commit;
+SET GLOBAL innodb_flush_log_at_trx_commit= 0;
+CREATE TABLE t1 (
+a varchar(1024),
+b varchar(1024),
+c varchar(1024),
+d varchar(1024),
+e varchar(1024),
+f varchar(1024),
+g varchar(1024),
+h varchar(1024),
+key (a),
+key (b),
+key (c),
+key (d)
+) ENGINE=InnoDB;
+INSERT INTO t1
+SELECT REPEAT('x',10), REPEAT('x',13), REPEAT('x',427), REPEAT('x',244),
+REPEAT('x',9), REPEAT('x',112), REPEAT('x',814), REPEAT('x',633)
+FROM seq_1_to_1024;
+CREATE TEMPORARY TABLE t2 (
+a varchar(1024),
+b varchar(1024),
+c varchar(1024),
+d varchar(1024),
+e varchar(1024),
+f varchar(1024),
+g varchar(1024),
+h varchar(1024),
+i varchar(1024),
+j varchar(1024),
+k varchar(1024),
+l varchar(1024),
+m varchar(1024),
+key (a),
+key (b),
+key (c),
+key (d),
+key (e),
+key (f)
+) ENGINE=InnoDB;
+SET @x=REPEAT('x',512);
+INSERT INTO t2 SELECT @x, @x, @x, @x, @x, @x, @x, @x, @x, @x, @x, @x, @x
+FROM seq_1_to_768;
+DROP TABLE t1, t2;
+SET GLOBAL innodb_change_buffering= @buffering;
+Warnings:
+Warning	1287	'@@innodb_change_buffering' is deprecated and will be removed in a future release
+SET GLOBAL innodb_flush_log_at_trx_commit= @flush;

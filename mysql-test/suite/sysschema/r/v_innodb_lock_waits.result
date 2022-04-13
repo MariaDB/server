@@ -56,3 +56,15 @@ blocking_trx_rows_modified	bigint(21) unsigned	NO		NULL
 sql_kill_blocking_query	varchar(32)	YES		NULL	
 sql_kill_blocking_connection	varchar(26)	YES		NULL	
 SELECT * FROM sys.x$innodb_lock_waits;
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-26507 Assertion `tmp != ((long long) 0x8000000000000000LL)' failed in TIME_from_longlong_datetime_packed
+#
+SET SESSION sql_mode='ALLOW_INVALID_DATES';
+SELECT * FROM sys.x$innodb_lock_waits;
+SET SESSION sql_mode=DEFAULT;
+#
+# End of 10.6 tests
+#
