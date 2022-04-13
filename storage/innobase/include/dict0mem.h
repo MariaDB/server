@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1947,17 +1947,17 @@ struct dict_table_t {
 	/** For overflow fields returns potential max length stored inline */
 	inline size_t get_overflow_field_local_len() const;
 
-	/** Parse the table file name into table name and database name.
-	@tparam		dict_locked	whether dict_sys.lock() was called
-	@param[in,out]	db_name		database name buffer
-	@param[in,out]	tbl_name	table name buffer
-	@param[out]	db_name_len	database name length
-	@param[out]	tbl_name_len	table name length
-	@return whether the table name is visible to SQL */
-	template<bool dict_locked= false>
-	bool parse_name(char (&db_name)[NAME_LEN + 1],
-			char (&tbl_name)[NAME_LEN + 1],
-			size_t *db_name_len, size_t *tbl_name_len) const;
+  /** Parse the table file name into table name and database name.
+  @tparam        dict_frozen  whether the caller holds dict_sys.latch
+  @param[in,out] db_name      database name buffer
+  @param[in,out] tbl_name     table name buffer
+  @param[out] db_name_len     database name length
+  @param[out] tbl_name_len    table name length
+  @return whether the table name is visible to SQL */
+  template<bool dict_frozen= false>
+  bool parse_name(char (&db_name)[NAME_LEN + 1],
+                  char (&tbl_name)[NAME_LEN + 1],
+                  size_t *db_name_len, size_t *tbl_name_len) const;
 
   /** Clear the table when rolling back TRX_UNDO_EMPTY */
   void clear(que_thr_t *thr);
