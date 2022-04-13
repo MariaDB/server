@@ -5405,6 +5405,7 @@ static int init_server_components()
     unireg_abort(1);
   }
 
+  start_handle_manager();
   if (opt_bin_log)
   {
     int error;
@@ -5864,7 +5865,6 @@ int mysqld_main(int argc, char **argv)
   }
 
   create_shutdown_event();
-  start_handle_manager();
 
   /* Copy default global rpl_filter to global_rpl_filter */
   copy_filter_setting(global_rpl_filter, get_or_create_rpl_filter("", 0));
