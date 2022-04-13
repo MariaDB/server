@@ -806,9 +806,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
                (my_hash_get_key) get_var_key,
                (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
 
-  sp_proc_cache= NULL;
-  sp_func_cache= NULL;
-
   /* For user vars replication*/
   if (opt_bin_log)
     my_init_dynamic_array(&user_var_events,
@@ -1353,8 +1350,7 @@ void THD::change_user(void)
   my_hash_init(&user_vars, system_charset_info, USER_VARS_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_var_key,
                (my_hash_free_key) free_user_var, 0);
-  sp_cache_clear(&sp_proc_cache);
-  sp_cache_clear(&sp_func_cache);
+  sp_caches_clear();
 }
 
 
@@ -1410,8 +1406,7 @@ void THD::cleanup(void)
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
   my_hash_free(&user_vars);
-  sp_cache_clear(&sp_proc_cache);
-  sp_cache_clear(&sp_func_cache);
+  sp_caches_clear();
   auto_inc_intervals_forced.empty();
   auto_inc_intervals_in_cur_stmt_for_binlog.empty();
 

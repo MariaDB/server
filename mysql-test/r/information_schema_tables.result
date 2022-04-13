@@ -1,0 +1,77 @@
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-25243 ASAN heap-use-after-free in Item_func_sp::execute_impl upon concurrent view DDL and I_S query with view and function
+#
+# The originally reported non-deterministic test.
+# It did not fail reliably on every run.
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+CREATE FUNCTION f(b INT) RETURNS INT RETURN 1;
+CREATE VIEW v AS SELECT f(SUM(a)) FROM t;
+connect  con1,localhost,root,,test;
+LOOP
+CREATE OR REPLACE VIEW vv AS SELECT 1;
+END LOOP $
+connection default;
+SELECT v.* FROM v JOIN INFORMATION_SCHEMA.TABLES WHERE DATA_LENGTH = -1;
+f(SUM(a))
+KILL CONID;
+disconnect con1;
+connection default;
+DROP VIEW IF EXISTS vv;
+DROP VIEW v;
+DROP FUNCTION f;
+DROP TABLE t;
+# The second test version from the MDEV.
+# It failed more reliably, but still was not deterministic.
+CREATE FUNCTION f() RETURNS INT RETURN 1;
+CREATE VIEW v AS SELECT f() FROM seq_1_to_10;
+SELECT * FROM INFORMATION_SCHEMA.TABLES, v;;
+connect con1,localhost,root,,;
+CREATE VIEW v2 AS SELECT 1;
+connection default;
+disconnect con1;
+DROP VIEW v;
+DROP VIEW v2;
+DROP FUNCTION f;
+# The third test version from the MDEV.
+# It failed reliably, and should be deterninistic.
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+CREATE VIEW v01 AS SELECT f1();
+CREATE VIEW v02 AS SELECT f1();
+connect con1,localhost,root,,;
+SELECT GET_LOCK('v01',30);
+GET_LOCK('v01',30)
+1
+SELECT GET_LOCK('v02',30);
+GET_LOCK('v02',30)
+1
+connection default;
+SELECT * FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='test'
+    AND TABLE_NAME LIKE 'v0%'
+    AND GET_LOCK(TABLE_NAME,30)
+AND RELEASE_LOCK(TABLE_NAME)
+AND f1()=1
+ORDER BY TABLE_NAME;
+connection con1;
+SELECT RELEASE_LOCK('v01')                /* Let the first row evaluate f1 */;
+RELEASE_LOCK('v01')
+1
+CREATE FUNCTION f2() RETURNS INT RETURN 1 /* Invalidate SP cache*/;
+SELECT RELEASE_LOCK('v02')                /* Let the second row evaluate f1() */;
+RELEASE_LOCK('v02')
+1
+DROP FUNCTION f2;
+disconnect con1;
+connection default;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT
+def	test	v01	VIEW	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	VIEW
+def	test	v02	VIEW	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	VIEW
+DROP VIEW v01, v02;
+DROP FUNCTION f1;
+#
+# End of 10.2 tests
+#

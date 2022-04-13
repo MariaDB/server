@@ -2116,6 +2116,51 @@ struct wait_for_commit
 };
 
 
+class Sp_caches
+{
+public:
+  sp_cache *sp_proc_cache;
+  sp_cache *sp_func_cache;
+#if MYSQL_VERSION_ID >= 100300
+#error Remove the preprocessor condition, !!!but keep the code!!!
+  sp_cache *sp_package_spec_cache;
+  sp_cache *sp_package_body_cache;
+#endif
+  Sp_caches()
+   :sp_proc_cache(NULL),
+    sp_func_cache(NULL)
+#if MYSQL_VERSION_ID >= 100300
+#error Remove the preprocessor condition, !!!but keep the code!!!
+    ,
+    sp_package_spec_cache(NULL),
+    sp_package_body_cache(NULL)
+#endif
+  { }
+  ~Sp_caches()
+  {
+    // All caches must be freed by the caller explicitly
+    DBUG_ASSERT(sp_proc_cache == NULL);
+    DBUG_ASSERT(sp_func_cache == NULL);
+#if MYSQL_VERSION_ID >= 100300
+#error Remove the preprocessor condition, !!!but keep the code!!!
+    DBUG_ASSERT(sp_package_spec_cache == NULL);
+    DBUG_ASSERT(sp_package_body_cache == NULL);
+#endif
+  }
+  void sp_caches_swap(Sp_caches &rhs)
+  {
+    swap_variables(sp_cache*, sp_proc_cache, rhs.sp_proc_cache);
+    swap_variables(sp_cache*, sp_func_cache, rhs.sp_func_cache);
+#if MYSQL_VERSION_ID >= 100300
+#error Remove the preprocessor condition, !!!but keep the code!!!
+    swap_variables(sp_cache*, sp_package_spec_cache, rhs.sp_package_spec_cache);
+    swap_variables(sp_cache*, sp_package_body_cache, rhs.sp_package_body_cache);
+#endif
+  }
+  void sp_caches_clear();
+};
+
+
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
 class THD;
@@ -2139,7 +2184,8 @@ class THD :public Statement,
            */
            public Item_change_list,
            public MDL_context_owner,
-           public Open_tables_state
+           public Open_tables_state,
+           public Sp_caches
 {
 private:
   inline bool is_stmt_prepare() const
@@ -3089,8 +3135,6 @@ public:
   int	     slave_expected_error;
 
   sp_rcontext *spcont;		// SP runtime context
-  sp_cache   *sp_proc_cache;
-  sp_cache   *sp_func_cache;
 
   /** number of name_const() substitutions, see sp_head.cc:subst_spvars() */
   uint       query_name_consts;
