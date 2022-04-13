@@ -743,3 +743,62 @@ SELECT id, ts, vc INTO OUTFILE 'load_t1' FROM t1;
 LOAD DATA INFILE 'load_t1' REPLACE INTO TABLE t1 (id, ts, vc);
 INSERT IGNORE INTO t1 (id) VALUES (2);
 DROP TABLE t1;
+# MDEV-26281 ASAN use-after-poison when complex conversion involved 
+# in blob
+CREATE TEMPORARY TABLE v0 (
+v2 TINYBLOB AS (CURRENT_USER IS NULL IS UNKNOWN) VIRTUAL,
+v1 TINYINT ZEROFILL ,
+MEDIUM NCHAR BINARY GENERATED ALWAYS AS ( CONVERT(
+v1 IN (FALSE, CURRENT_USER() IS NULL IS NULL, 34),
+BINARY (97015438.000000)) IS NOT UNKNOWN )
+);
+ALTER TABLE v0
+ADD COLUMN v0 MEDIUMINT ZEROFILL KEY UNIQUE COMMENT 'x';
+INSERT IGNORE INTO v0 VALUES
+(CONVERT('x' LIKE v1 IS UNKNOWN, TIME), 'x',
+v2 IN (v2 SOUNDS LIKE v1 IS FALSE) IS UNKNOWN,
+CONVERT('x' REGEXP 'x' IS NOT FALSE USING BINARY) IN
+(TRUE LIKE v1 IS NOT UNKNOWN));
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column `test`.`v0`.`v1` at row 1
+Warning	1301	Result of cast_as_binary() was larger than max_allowed_packet (16777216) - truncated
+SELECT * FROM v0;
+v2	v1	MEDIUM	v0
+0	000	1	00000001
+DROP TABLE v0;
+CREATE TABLE t1 (
+v2 BLOB AS ('a' IS NULL),
+a1 INT,
+a  CHAR(1) AS (CAST(a1 IN (0, current_user() IS NULL) AS CHAR(16777216)))
+);
+INSERT IGNORE INTO t1 VALUES ('x', 'x', v2);
+Warnings:
+Warning	1906	The value specified for generated column 'v2' in table 't1' has been ignored
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`a1` at row 1
+Warning	1906	The value specified for generated column 'a' in table 't1' has been ignored
+SELECT * FROM t1;
+v2	a1	a
+0	0	1
+DROP TABLE t1;
+CREATE TABLE `t1`
+(
+`v2`     TINYBLOB GENERATED ALWAYS AS (current_user() IS NULL IS NULL) VIRTUAL,
+`v1`     TINYINT(3) UNSIGNED ZEROFILL DEFAULT NULL,
+`MEDIUM` char(1) CHARACTER SET utf8 COLLATE utf8_bin GENERATED ALWAYS AS (cast(
+`v1` in (0, current_user() IS NULL IS NULL,
+34) AS CHAR(16777216) CHARSET binary) IS NOT NULL) VIRTUAL,
+`t1`     MEDIUMINT(8) UNSIGNED ZEROFILL NOT NULL COMMENT 'x',
+PRIMARY KEY (`t1`)
+);
+INSERT IGNORE INTO t1 VALUES
+(CONVERT('x' LIKE v1 IS UNKNOWN, TIME), 'x',
+v2 IN (v2 SOUNDS LIKE v1 IS FALSE) IS UNKNOWN,
+1);
+Warnings:
+Warning	1906	The value specified for generated column 'v2' in table 't1' has been ignored
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`v1` at row 1
+Warning	1906	The value specified for generated column 'MEDIUM' in table 't1' has been ignored
+SELECT * FROM t1;
+v2	v1	MEDIUM	t1
+0	000	1	00000001
+DROP TABLE t1;

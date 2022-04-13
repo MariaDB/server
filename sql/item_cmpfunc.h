@@ -1170,7 +1170,7 @@ public:
 
 /* A vector of values of some type  */
 
-class in_vector :public Sql_alloc
+class in_vector
 {
 public:
   char *base;
@@ -1179,13 +1179,17 @@ public:
   CHARSET_INFO *collation;
   uint count;
   uint used_count;
-  in_vector() {}
-  in_vector(THD *thd, uint elements, uint element_length, qsort2_cmp cmp_func,
+  in_vector(): base(NULL) {}
+  in_vector(uint elements, uint element_length, qsort2_cmp cmp_func,
   	    CHARSET_INFO *cmp_coll)
-    :base((char*) thd_calloc(thd, elements * element_length)),
+    :base((char*)calloc(elements, element_length)),
      size(element_length), compare(cmp_func), collation(cmp_coll),
      count(elements), used_count(elements) {}
-  virtual ~in_vector() {}
+  virtual ~in_vector()
+  {
+	  free(base);
+	  base= NULL;
+  }
   virtual void set(uint pos,Item *item)=0;
   virtual uchar *get_value(Item *item)=0;
   void sort()
@@ -1239,7 +1243,7 @@ class in_string :public in_vector
     }
   };
 public:
-  in_string(THD *thd, uint elements, qsort2_cmp cmp_func, CHARSET_INFO *cs);
+  in_string(uint elements, qsort2_cmp cmp_func, CHARSET_INFO *cs);
   ~in_string();
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
@@ -1267,7 +1271,7 @@ protected:
     longlong unsigned_flag;  // Use longlong, not bool, to preserve alignment
   } tmp;
 public:
-  in_longlong(THD *thd, uint elements);
+  in_longlong(uint elements);
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
   Item* create_item(THD *thd);
@@ -1292,8 +1296,8 @@ public:
   /* An item used to issue warnings. */
   Item *warn_item;
 
-  in_datetime(THD *thd, Item *warn_item_arg, uint elements)
-    :in_longlong(thd, elements), warn_item(warn_item_arg) {}
+  in_datetime(Item *warn_item_arg, uint elements)
+    :in_longlong(elements), warn_item(warn_item_arg) {}
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
   Item *create_item(THD *thd);
@@ -1311,7 +1315,7 @@ class in_double :public in_vector
 {
   double tmp;
 public:
-  in_double(THD *thd, uint elements);
+  in_double(uint elements);
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
   Item *create_item(THD *thd);
@@ -1327,7 +1331,7 @@ class in_decimal :public in_vector
 {
   my_decimal val;
 public:
-  in_decimal(THD *thd, uint elements);
+  in_decimal(uint elements);
   void set(uint pos, Item *item);
   uchar *get_value(Item *item);
   Item *create_item(THD *thd);
@@ -1734,7 +1738,7 @@ class in_row :public in_vector
 {
   cmp_item_row tmp;
 public:
-  in_row(THD *thd, uint elements, Item *);
+  in_row(uint elements, Item *);
   ~in_row();
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
