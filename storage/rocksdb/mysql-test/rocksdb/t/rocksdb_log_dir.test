@@ -12,4 +12,4 @@ DROP DATABASE mysqltest;
 --list_files $MYSQL_TMP_DIR *LOG
 
 # Clean up
-remove_files_wildcard $MYSQL_TMP_DIR *LOG;
+remove_files_wildcard $MYSQL_TMP_DIR/./ *LOG;
