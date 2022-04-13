@@ -4050,10 +4050,6 @@ ANALYZE
 {
   "query_block": {
     "union_result": {
-      "table_name": "<union1,4>",
-      "access_type": "ALL",
-      "r_loops": 0,
-      "r_rows": null,
       "query_specifications": [
         {
           "query_block": {
