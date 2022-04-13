@@ -2406,7 +2406,7 @@ innobase_mysql_print_thd(
 
 /******************************************************************//**
 Get the variable length bounds of the given character set. */
-void
+static void
 innobase_get_cset_width(
 /*====================*/
 	ulint	cset,		/*!< in: MySQL charset-collation code */
@@ -2442,6 +2442,29 @@ innobase_get_cset_width(
 			ut_a(cset == 0);
 		}
 
+		*mbminlen = *mbmaxlen = 0;
+	}
+}
+
+/*********************************************************************//**
+Compute the mbminlen and mbmaxlen members of a data type structure. */
+void
+dtype_get_mblen(
+/*============*/
+	ulint	mtype,		/*!< in: main type */
+	ulint	prtype,		/*!< in: precise type (and collation) */
+	unsigned*mbminlen,	/*!< out: minimum length of a
+				multi-byte character */
+	unsigned*mbmaxlen)	/*!< out: maximum length of a
+				multi-byte character */
+{
+	if (dtype_is_string_type(mtype)) {
+		innobase_get_cset_width(dtype_get_charset_coll(prtype),
+					mbminlen, mbmaxlen);
+		ut_ad(*mbminlen <= *mbmaxlen);
+		ut_ad(*mbminlen < DATA_MBMAX);
+		ut_ad(*mbmaxlen < DATA_MBMAX);
+	} else {
 		*mbminlen = *mbmaxlen = 0;
 	}
 }
