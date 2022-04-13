@@ -1761,7 +1761,7 @@ public:
   void fix_length_and_dec_int();
   void fix_length_and_dec_double();
   void fix_length_and_dec_decimal();
-  bool fix_length_and_dec(THD *thd) override;
+  bool fix_length_and_dec(THD *thd);
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_dummy>(thd, this); }
 };

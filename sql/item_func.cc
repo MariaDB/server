@@ -2013,7 +2013,14 @@ void Item_func_dummy::fix_length_and_dec_decimal()
 
 bool Item_func_dummy::fix_length_and_dec(THD *thd)
 {
-  return true;
+  // DBUG_ENTER("Item_func_dummy::fix_length_and_dec");
+  // DBUG_PRINT("info", ("name %s", func_name()));
+  // if (args[0]->cast_to_int_type_handler()->
+  //     Item_func_dummy_fix_length_and_dec(this))
+  //   DBUG_RETURN(TRUE);
+  // DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
+  // DBUG_RETURN(FALSE);
+  return false;
 }
 
 
