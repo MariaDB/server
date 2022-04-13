@@ -2197,6 +2197,296 @@ double Stddev::result(bool is_sample_variance)
 }
 
 
+void Regression_result::recurrence_next(double nr_y, double nr_x)
+{
+
+  if (N++)
+  {
+    sx+= nr_x;
+    sy+= nr_y;
+    double diff = nr_x - sxx.get_m();
+    sxx.recurrence_next(nr_x);
+    syy.recurrence_next(nr_y);
+    sxy= sxy + diff * (nr_y - syy.get_m());
+  }
+  else
+  {
+    sx= nr_x;
+    sy= nr_y;
+    sxx.recurrence_next(nr_x);
+    syy.recurrence_next(nr_y);
+  }
+}
+
+Item *Item_sum_regr_count::copy_or_same(THD* thd)
+{
+  DBUG_ENTER("Item_sum_regr_count::copy_or_same");
+  DBUG_RETURN(new (thd->mem_root) Item_sum_regr_count(thd, this));
+}
+
+void Item_sum_regr_count::clear()
+{
+  DBUG_ENTER("Item_sum_regr_count::clear");
+  count= 0;
+  DBUG_VOID_RETURN;
+}
+
+bool Item_sum_regr_count::add()
+{
+  DBUG_ENTER("Item_sum_regr_count::add");
+  if ((args[0]->is_null() && args[0]->maybe_null()) ||
+      (args[1]->is_null() && args[1]->maybe_null()))
+    DBUG_RETURN(0);
+  count++;
+  DBUG_RETURN(0);
+}
+
+longlong Item_sum_regr_count::val_int()
+{
+  DBUG_ENTER("Item_sum_regr_count::val_int");
+  DBUG_ASSERT(fixed());
+  // if (aggr)
+  //   aggr->endup();
+  DBUG_RETURN((longlong)count);
+}
+
+void Item_sum_regr_count::cleanup()
+{
+  DBUG_ENTER("Item_sum_regr_count::cleanup");
+  count= 0;
+  Item_sum_int::cleanup();
+  DBUG_VOID_RETURN;
+}
+
+void Item_sum_regr_count::reset_field()
+{
+  DBUG_ENTER("Item_sum_regr_count::reset_field");
+  uchar *res=result_field->ptr;
+  longlong nr=0;
+  if ((!args[0]->is_null() || !args[0]->maybe_null()) &&
+      (!args[1]->is_null() || !args[1]->maybe_null()))
+    nr= 1;
+  DBUG_PRINT("info", ("nr: %lld", nr));
+  int8store(res,nr);
+  DBUG_VOID_RETURN;
+}
+
+void Item_sum_regr_count::update_field()
+{
+  DBUG_ENTER("Item_sum_regr_count::update_field");
+  longlong nr;
+  uchar *res=result_field->ptr;
+  nr=sint8korr(res);
+  if ((!args[0]->is_null() || !args[0]->maybe_null()) &&
+      (!args[1]->is_null() || !args[1]->maybe_null()))
+    nr++;
+  DBUG_PRINT("info", ("nr: %lld", nr));
+  int8store(res,nr);
+  DBUG_VOID_RETURN;
+}
+
+Item_sum_regr_sxx::Item_sum_regr_sxx(THD *thd, Item_sum_regr_sxx *item):
+  Item_sum_double(thd, item), regr_result(item->regr_result),
+  prec_increment(item->prec_increment)
+  { }
+
+void Item_sum_regr_sxx::clear()
+{
+  regr_result = Regression_result();
+}
+
+bool Item_sum_regr_sxx::add()
+{
+  double nr_y= args[0]->val_real();
+  double nr_x= args[1]->val_real();
+
+  if ((!args[0]->is_null() || !args[0]->maybe_null()) &&
+      (!args[1]->is_null() || !args[1]->maybe_null()))
+  {
+    regr_result.recurrence_next(nr_y, nr_x);
+  }
+  return 0;
+}
+
+void Item_sum_regr_sxx::reset_field()
+{
+  double nr_x, nr_y;
+  uchar *res= result_field->ptr;
+
+  nr_y= args[0]->val_real();              /* sets null_value as side-effect */
+  nr_x= args[1]->val_real();              /* sets null_value as side-effect */
+
+  if ((args[0]->is_null() && args[0]->maybe_null()) ||
+      (args[1]->is_null() && args[1]->maybe_null()))
+    bzero(res,Regression_result::binary_size());
+  else
+    Regression_result(nr_y, nr_x).to_binary(res);
+}
+
+void Item_sum_regr_sxx::update_field()
+{
+  uchar *res=result_field->ptr;
+
+  double nr_y= args[0]->val_real();       /* sets null_value as side-effect */
+  double nr_x= args[1]->val_real();
+  if ((args[0]->is_null() && args[0]->maybe_null()) ||
+      (args[1]->is_null() && args[1]->maybe_null()))
+    return;
+
+  /* Serialize format is (double)m, (double)s, (longlong)count */
+  Regression_result field_trans(res);
+  field_trans.recurrence_next(nr_y, nr_x);
+  field_trans.to_binary(res);
+}
+
+Item *Item_sum_regr_sxx::copy_or_same(THD* thd)
+{
+  return new (thd->mem_root) Item_sum_regr_sxx(thd, this);
+}
+
+/*
+  Create a new field to match the type of value we're expected to yield.
+  If we're grouping, then we need some space to serialize variables into, to
+  pass around.
+*/
+Field *Item_sum_regr_sxx::create_tmp_field(MEM_ROOT *root,
+                                           bool group, TABLE *table)
+{
+  Field *field;
+  if (group)
+  {
+    /*
+      We must store both value and counter in the temporary table in one field.
+      The easiest way is to do this is to store both value in a string
+      and unpack on access.
+    */
+    field= new (root) Field_string(Regression_result::binary_size(), 0,
+                                   &name, &my_charset_bin);
+  }
+  else
+    field= new (root) Field_double(max_length, maybe_null(), &name, decimals,
+                                   TRUE);
+
+  if (field != NULL)
+    field->init(table);
+
+  return field;
+}
+
+void Item_sum_regr_sxx::fix_length_and_dec_double()
+{
+  DBUG_ASSERT(Item_sum_regr_sxx::type_handler() == &type_handler_double);
+  decimals= MY_MIN(args[0]->decimals + 4, FLOATING_POINT_DECIMALS);
+}
+
+
+void Item_sum_regr_sxx::fix_length_and_dec_decimal()
+{
+  DBUG_ASSERT(Item_sum_regr_sxx::type_handler() == &type_handler_double);
+  int precision= args[0]->decimal_precision() * 2 + prec_increment;
+  decimals= MY_MIN(args[0]->decimals + prec_increment,
+                   FLOATING_POINT_DECIMALS - 1);
+  max_length= my_decimal_precision_to_length_no_truncation(precision,
+                                                           decimals,
+                                                           unsigned_flag);
+}
+
+bool Item_sum_regr_sxx::fix_length_and_dec(THD *thd)
+{
+  DBUG_ENTER("Item_sum_regr_sxx::fix_length_and_dec");
+  set_maybe_null();
+  null_value= 1;
+  prec_increment= current_thd->variables.div_precincrement;
+
+  /*
+    According to the SQL2003 standard (Part 2, Foundations; sec 10.9,
+    aggregate function; paragraph 7h of Syntax Rules), "the declared
+    type of the result is an implementation-defined approximate numeric
+    type.
+  */
+  if (args[0]->type_handler()->Item_sum_regr_sxx_fix_length_and_dec(this))
+    DBUG_RETURN(TRUE);
+  DBUG_PRINT("info", ("Type: %s (%d, %d)", type_handler()->name().ptr(),
+                      max_length, (int)decimals));
+  DBUG_RETURN(FALSE);
+}
+
+Item *Item_sum_regr_sxx::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_regr_sxx_field(thd, this);
+}
+
+Item *Item_sum_regr_syy::copy_or_same(THD* thd)
+{
+  return new (thd->mem_root) Item_sum_regr_syy(thd, this);
+}
+
+Item *Item_sum_regr_syy::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_regr_syy_field(thd, this);
+}
+
+Item *Item_sum_regr_sxy::copy_or_same(THD* thd)
+{
+  return new (thd->mem_root) Item_sum_regr_sxy(thd, this);
+}
+
+Item *Item_sum_regr_sxy::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_regr_sxy_field(thd, this);
+}
+
+Item *Item_sum_regr_avgx::copy_or_same(THD* thd)
+{
+  return new (thd->mem_root) Item_sum_regr_avgx(thd, this);
+}
+
+Item *Item_sum_regr_avgx::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_regr_avgx_field(thd, this);
+}
+
+Item *Item_sum_regr_avgy::copy_or_same(THD* thd)
+{
+  return new (thd->mem_root) Item_sum_regr_avgy(thd, this);
+}
+
+Item *Item_sum_regr_avgy::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_regr_avgy_field(thd, this);
+}
+
+Item *Item_sum_regr_slope::copy_or_same(THD* thd)
+{
+  return new (thd->mem_root) Item_sum_regr_slope(thd, this);
+}
+
+Item *Item_sum_regr_slope::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_regr_slope_field(thd, this);
+}
+
+Item *Item_sum_regr_intercept::copy_or_same(THD* thd)
+{
+  return new (thd->mem_root) Item_sum_regr_intercept(thd, this);
+}
+
+Item *Item_sum_regr_intercept::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_regr_intercept_field(thd, this);
+}
+
+Item *Item_sum_regr_r2::copy_or_same(THD* thd)
+{
+  return new (thd->mem_root) Item_sum_regr_r2(thd, this);
+}
+
+Item *Item_sum_regr_r2::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_regr_r2_field(thd, this);
+}
+
+
 Item_sum_variance::Item_sum_variance(THD *thd, Item_sum_variance *item):
   Item_sum_double(thd, item),
     m_stddev(item->m_stddev), sample(item->sample),
@@ -2376,6 +2666,21 @@ Item *Item_sum_variance::result_item(THD *thd, Field *field)
   return new (thd->mem_root) Item_variance_field(thd, this);
 }
 
+
+void Regression_result::to_binary(uchar *ptr) const
+{
+  sxx.to_binary(ptr);
+  ptr+= sizeof(Stddev);
+  syy.to_binary(ptr);
+  ptr+= sizeof(Stddev);
+  float8store(ptr, sxy);
+  float8store(ptr + sizeof(double), sx);
+  float8store(ptr + sizeof(double) * 2, sy);
+  ptr+= sizeof(double) * 3;
+  int8store(ptr, N);
+}
+
+
 /* min & max */
 
 void Item_sum_min_max::clear()
@@ -2384,6 +2689,91 @@ void Item_sum_min_max::clear()
   value->clear();
   null_value= 1;
   DBUG_VOID_RETURN;
+}
+
+
+double Item_regr_sxx_field::val_real()
+{
+  // fix_fields() never calls for this Item
+  Regression_result tmp(field->ptr);
+  if ((null_value= (tmp.count() == 0)))
+    return 0.0;
+
+  return tmp.get_sxx();
+}
+
+double Item_regr_syy_field::val_real()
+{
+  // fix_fields() never calls for this Item
+  Regression_result tmp(field->ptr);
+  if ((null_value= (tmp.count() == 0)))
+    return 0.0;
+
+  return tmp.get_syy();
+}
+
+double Item_regr_sxy_field::val_real()
+{
+  // fix_fields() never calls for this Item
+  Regression_result tmp(field->ptr);
+  if ((null_value= (tmp.count() == 0)))
+    return 0.0;
+
+  return tmp.get_sxy();
+}
+
+double Item_regr_avgx_field::val_real()
+{
+  // fix_fields() never calls for this Item
+  Regression_result tmp(field->ptr);
+  if ((null_value= (tmp.count() == 0)))
+    return 0.0;
+
+  return tmp.get_sx() / ulonglong2double(tmp.count());
+}
+
+double Item_regr_avgy_field::val_real()
+{
+  // fix_fields() never calls for this Item
+  Regression_result tmp(field->ptr);
+  if ((null_value= (tmp.count() == 0)))
+    return 0.0;
+
+  return tmp.get_sy() / ulonglong2double(tmp.count());
+}
+
+double Item_regr_slope_field::val_real()
+{
+  // fix_fields() never calls for this Item
+  Regression_result tmp(field->ptr);
+  if ((null_value= (tmp.count() == 0) || tmp.get_sxx() == 0))
+    return 0.0;
+
+   return tmp.get_sxy() / tmp.get_sxx();
+}
+
+double Item_regr_intercept_field::val_real()
+{
+  // fix_fields() never calls for this Item
+  Regression_result tmp(field->ptr);
+  if ((null_value= (tmp.count() == 0) || tmp.get_sxx() == 0))
+    return 0.0;
+
+  return tmp.get_sy() / (double) tmp.count() -
+         tmp.get_sxy() / tmp.get_sxx() *
+         tmp.get_sx() / (double) tmp.count();
+}
+
+double Item_regr_r2_field::val_real()
+{
+  // fix_fields() never calls for this Item
+  Regression_result tmp(field->ptr);
+  if ((null_value= (tmp.count() == 0) || tmp.get_sxx() == 0 ||
+                    tmp.get_syy() == 0))
+    return 0.0;
+
+  return tmp.get_sxy() * tmp.get_sxy() /
+         tmp.get_sxx() / tmp.get_syy();
 }
 
 

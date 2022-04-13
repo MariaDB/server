@@ -356,8 +356,10 @@ public:
     CUME_DIST_FUNC, NTILE_FUNC, FIRST_VALUE_FUNC, LAST_VALUE_FUNC,
     NTH_VALUE_FUNC, LEAD_FUNC, LAG_FUNC, PERCENTILE_CONT_FUNC,
     PERCENTILE_DISC_FUNC, SP_AGGREGATE_FUNC, JSON_ARRAYAGG_FUNC,
-    JSON_OBJECTAGG_FUNC
-  };
+    JSON_OBJECTAGG_FUNC, REGR_COUNT_FUNC, REGR_AVGX_FUNC, REGR_AVGY_FUNC,
+    REGR_SXX_FUNC, REGR_SYY_FUNC, REGR_SXY_FUNC, REGR_SLOPE_FUNC,
+    REGR_INTERCEPT_FUNC, REGR_R2_FUNC  
+    };
 
   Item **ref_by; /* pointer to a ref to the object used to register it */
   Item_sum *next; /* next in the circular chain of registered objects  */
@@ -430,6 +432,15 @@ public:
     case UDF_SUM_FUNC:
     case GROUP_CONCAT_FUNC:
     case JSON_ARRAYAGG_FUNC:
+    case REGR_AVGX_FUNC:
+    case REGR_AVGY_FUNC:
+    case REGR_COUNT_FUNC:
+    case REGR_INTERCEPT_FUNC:
+    case REGR_R2_FUNC:
+    case REGR_SLOPE_FUNC:
+    case REGR_SXX_FUNC:
+    case REGR_SXY_FUNC:
+    case REGR_SYY_FUNC:
       return true;
     default:
       return false;
@@ -746,6 +757,8 @@ class Item_sum_double :public Item_sum_num
 public:
   Item_sum_double(THD *thd): Item_sum_num(thd) {}
   Item_sum_double(THD *thd, Item *item_par): Item_sum_num(thd, item_par) {}
+  Item_sum_double(THD *thd, Item *item_0, Item *item_1):
+    Item_sum_num(thd, item_0, item_1) {}
   Item_sum_double(THD *thd, List<Item> &list): Item_sum_num(thd, list) {}
   Item_sum_double(THD *thd, Item_sum_double *item) :Item_sum_num(thd, item) {}
   longlong val_int() override
@@ -775,6 +788,7 @@ public:
   Item_sum_int(THD *thd): Item_sum_num(thd) {}
   Item_sum_int(THD *thd, Item *item_par): Item_sum_num(thd, item_par) {}
   Item_sum_int(THD *thd, List<Item> &list): Item_sum_num(thd, list) {}
+  Item_sum_int(THD *thd, Item *a, Item *b): Item_sum_num(thd, a, b) {}
   Item_sum_int(THD *thd, Item_sum_int *item) :Item_sum_num(thd, item) {}
   double val_real() override { DBUG_ASSERT(fixed()); return (double) val_int(); }
   String *val_str(String*str) override;
@@ -932,6 +946,43 @@ public:
 };
 
 
+class Item_sum_regr_count :public Item_sum_int
+{
+longlong count;
+public:
+  Item_sum_regr_count(THD *thd, Item *item_par_y, Item *item_par_x):
+    Item_sum_int(thd, item_par_y, item_par_x), count(0)
+    {}
+  Item_sum_regr_count(THD *thd, Item_sum_regr_count *item):
+    Item_sum_int(thd, item), count(item->count)
+    {}
+  void clear() override;
+  bool add() override;
+  void cleanup() override;
+  // void remove() override;
+  enum Sumfunctype sum_func () const override
+  {
+    return REGR_COUNT_FUNC;
+  }
+  const Type_handler *type_handler() const override
+  { return &type_handler_slonglong; }
+  longlong val_int() override;
+  void reset_field() override;
+  void update_field() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name_normal=   { STRING_WITH_LEN("regr_count(") };
+    return name_normal;
+  }
+  // Item *result_item(THD *thd, Field *field) override;
+  void no_rows_in_result() override { count= 0; }
+  Item *copy_or_same(THD* thd) override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_sum_regr_count>(thd, this); }
+
+};
+
+
 class Item_sum_avg :public Item_sum_sum
 {
 public:
@@ -1021,12 +1072,54 @@ public:
   Stddev(const uchar *);
   void to_binary(uchar *) const;
   void recurrence_next(double nr);
+  double get_m() const { return m_m; }
+  double get_s() const { return m_s; }
   double result(bool is_simple_variance);
   ulonglong count() const { return m_count; }
   static uint32 binary_size()
   {
     return (uint32) (sizeof(double) * 2 + sizeof(ulonglong));
   };
+};
+
+
+/**
+  Combine 6 fields aggregate transition data into a single transition data,
+  including sx, sy, sxx, syy, sxy, N
+*/
+class Regression_result
+{
+  Stddev sxx, syy;
+  double sxy;
+  double sx, sy;
+  ulonglong N;
+public:
+  Regression_result() :sxx(), syy(), sxy(0), sx(0), sy(0), N(0)
+    { }
+  Regression_result(double nr_y, double nr_x) :sxx(nr_x), syy(nr_y), sxy(0),
+    sx(nr_x), sy(nr_y), N(1)
+    { }
+  Regression_result(const uchar *ptr) :sxx(ptr), syy(ptr + sizeof(Stddev))
+  {
+    ptr+= sizeof(Stddev) * 2;
+    float8get(sxy, ptr);
+    float8get(sx, ptr + sizeof(double));
+    float8get(sy, ptr + sizeof(double) * 2);
+    N= sint8korr(ptr + sizeof(double) * 3);
+  }
+  void to_binary(uchar *) const;
+  void recurrence_next(double nr_y, double nr_x);
+  double get_sx() const { return sx; }
+  double get_sy() const { return sy; }
+  double get_sxx() const { return sxx.get_s(); }
+  double get_syy() const { return syy.get_s(); }
+  double get_sxy() const { return sxy; }
+  ulonglong count() const { return N; }
+  static uint32 binary_size()
+  {
+    return (uint32) (sizeof(Stddev) * 2 + sizeof(double) * 3 + sizeof(ulonglong));
+  };
+
 };
 
 
@@ -1096,6 +1189,273 @@ class Item_sum_std final :public Item_sum_variance
   Item *copy_or_same(THD* thd) override final;
   Item *get_copy(THD *thd) override final
   { return get_item_copy<Item_sum_std>(thd, this); }
+};
+
+
+class Item_sum_regr_sxx :public Item_sum_double
+{
+  bool fix_length_and_dec(THD *thd) override;
+protected:
+  Regression_result regr_result;
+public:
+  uint prec_increment;
+  Item_sum_regr_sxx(THD *thd, Item *item_par_y, Item *item_par_x):
+    Item_sum_double(thd, item_par_y, item_par_x)
+    {}
+  Item_sum_regr_sxx(THD *thd, Item_sum_regr_sxx *item);
+  Sumfunctype sum_func () const override { return REGR_SXX_FUNC; }
+  void fix_length_and_dec_double();
+  void fix_length_and_dec_decimal();
+  void clear() override;
+  bool add() override;
+  double val_real() override
+  {
+    if (regr_result.count() > 0) {
+      null_value= 0;
+      return regr_result.get_sxx();
+    }
+    null_value= 1;
+    return 0;
+  }
+  void reset_field() override;
+  void update_field() override;
+  Item *result_item(THD *thd, Field *field) override;
+  void no_rows_in_result() override final {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name_normal=   { STRING_WITH_LEN("regr_sxx(") };
+    return name_normal;
+  }
+  Item *copy_or_same(THD* thd) override;
+  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table) override
+    final;
+  void cleanup() override
+  {
+    regr_result= Regression_result();
+    Item_sum_double::cleanup();
+  }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_sum_regr_sxx>(thd, this); }
+};
+
+class Item_sum_regr_syy :public Item_sum_regr_sxx
+{
+public:
+  Item_sum_regr_syy(THD *thd, Item *item_par_y, Item *item_par_x):
+    Item_sum_regr_sxx(thd, item_par_y, item_par_x)
+    {}
+  Item_sum_regr_syy(THD *thd, Item_sum_regr_syy *item):
+    Item_sum_regr_sxx(thd, item)
+    {}
+  Sumfunctype sum_func () const override { return REGR_SYY_FUNC; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name_normal=   { STRING_WITH_LEN("regr_syy(") };
+    return name_normal;
+  }
+  double val_real() override
+  {
+    if (regr_result.count() > 0) {
+      null_value= 0;
+      return regr_result.get_syy();
+    }
+    null_value= 1;
+    return 0;
+  }
+  Item *result_item(THD *thd, Field *field) override;
+  Item *copy_or_same(THD* thd) override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_sum_regr_syy>(thd, this); }
+};
+
+class Item_sum_regr_sxy :public Item_sum_regr_sxx
+{
+public:
+  Item_sum_regr_sxy(THD *thd, Item *item_par_y, Item *item_par_x):
+    Item_sum_regr_sxx(thd, item_par_y, item_par_x)
+    {}
+  Item_sum_regr_sxy(THD *thd, Item_sum_regr_sxy *item):
+    Item_sum_regr_sxx(thd, item)
+    {}
+  Sumfunctype sum_func () const override { return REGR_SXY_FUNC; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name_normal=   { STRING_WITH_LEN("regr_sxy(") };
+    return name_normal;
+  }
+  double val_real() override
+  {
+    if (regr_result.count() > 0)
+    {
+      null_value= 0;
+      return regr_result.get_sxy();
+    }
+    null_value= 1;
+    return 0;
+  }
+  Item *result_item(THD *thd, Field *field) override;
+  Item *copy_or_same(THD* thd) override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_sum_regr_sxy>(thd, this); }
+};
+
+class Item_sum_regr_avgx :public Item_sum_regr_sxx
+{
+public:
+  Item_sum_regr_avgx(THD *thd, Item *item_par_y, Item *item_par_x):
+    Item_sum_regr_sxx(thd, item_par_y, item_par_x)
+    {}
+  Item_sum_regr_avgx(THD *thd, Item_sum_regr_avgx *item):
+    Item_sum_regr_sxx(thd, item)
+    {}
+  Sumfunctype sum_func () const override { return REGR_AVGX_FUNC; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name_normal=   { STRING_WITH_LEN("regr_avgx(") };
+    return name_normal;
+  }
+  double val_real() override
+  {
+    if (regr_result.count() > 0)
+    {
+      null_value= 0;
+      return regr_result.get_sx() / ulonglong2double(regr_result.count());
+    }
+    null_value= 1;
+    return 0;
+  }
+  Item *result_item(THD *thd, Field *field) override;
+  Item *copy_or_same(THD* thd) override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_sum_regr_avgx>(thd, this); }
+};
+
+class Item_sum_regr_avgy :public Item_sum_regr_sxx
+{
+public:
+  Item_sum_regr_avgy(THD *thd, Item *item_par_y, Item *item_par_x):
+    Item_sum_regr_sxx(thd, item_par_y, item_par_x)
+    {}
+  Item_sum_regr_avgy(THD *thd, Item_sum_regr_avgy *item):
+    Item_sum_regr_sxx(thd, item)
+    {}
+  Sumfunctype sum_func () const override { return REGR_AVGY_FUNC; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name_normal=   { STRING_WITH_LEN("regr_avgy(") };
+    return name_normal;
+  }
+  double val_real() override
+  {
+    if (regr_result.count() > 0)
+    {
+      null_value= 0;
+      return regr_result.get_sy() / ulonglong2double(regr_result.count());
+    }
+    null_value= 1;
+    return 0;
+  }
+  Item *result_item(THD *thd, Field *field) override;
+  Item *copy_or_same(THD* thd) override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_sum_regr_avgy>(thd, this); }
+};
+
+class Item_sum_regr_slope :public Item_sum_regr_sxx
+{
+public:
+  Item_sum_regr_slope(THD *thd, Item *item_par_y, Item *item_par_x):
+    Item_sum_regr_sxx(thd, item_par_y, item_par_x)
+    {}
+  Item_sum_regr_slope(THD *thd, Item_sum_regr_slope *item):
+    Item_sum_regr_sxx(thd, item)
+    {}
+  Sumfunctype sum_func () const override { return REGR_SLOPE_FUNC; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name_normal=   { STRING_WITH_LEN("regr_slope(") };
+    return name_normal;
+  }
+  double val_real() override
+  {
+    if (regr_result.count() == 0 || regr_result.get_sxx() == 0)
+    {
+      null_value= 1;
+      return 0.0;
+    }
+    null_value= 0;
+    return regr_result.get_sxy() / regr_result.get_sxx();
+  }
+  Item *result_item(THD *thd, Field *field) override;
+  Item *copy_or_same(THD* thd) override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_sum_regr_slope>(thd, this); }
+};
+
+class Item_sum_regr_intercept :public Item_sum_regr_sxx
+{
+public:
+  Item_sum_regr_intercept(THD *thd, Item *item_par_y, Item *item_par_x):
+    Item_sum_regr_sxx(thd, item_par_y, item_par_x)
+    {}
+  Item_sum_regr_intercept(THD *thd, Item_sum_regr_intercept *item):
+    Item_sum_regr_sxx(thd, item)
+    {}
+  Sumfunctype sum_func () const override { return REGR_INTERCEPT_FUNC; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name_normal=   { STRING_WITH_LEN("regr_intercept(") };
+    return name_normal;
+  }
+  double val_real() override
+  {
+    if (regr_result.count() == 0 || regr_result.get_sxx() == 0)
+    {
+      null_value= 1;
+      return 0.0;
+    }
+    null_value= 0;
+    return regr_result.get_sy() / (double) regr_result.count() -
+           regr_result.get_sxy() / regr_result.get_sxx() *
+           regr_result.get_sx() / (double) regr_result.count();
+  }
+  Item *result_item(THD *thd, Field *field) override;
+  Item *copy_or_same(THD* thd) override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_sum_regr_intercept>(thd, this); }
+};
+
+class Item_sum_regr_r2 :public Item_sum_regr_sxx
+{
+public:
+  Item_sum_regr_r2(THD *thd, Item *item_par_y, Item *item_par_x):
+    Item_sum_regr_sxx(thd, item_par_y, item_par_x)
+    {}
+  Item_sum_regr_r2(THD *thd, Item_sum_regr_r2 *item):
+    Item_sum_regr_sxx(thd, item)
+    {}
+  Sumfunctype sum_func () const override { return REGR_R2_FUNC; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name_normal=   { STRING_WITH_LEN("regr_r2(") };
+    return name_normal;
+  }
+  double val_real() override
+  {
+    if (regr_result.count() == 0 || regr_result.get_sxx() == 0 ||
+        regr_result.get_syy() == 0)
+    {
+      null_value= 1;
+      return 0.0;
+    }
+    null_value= 0;
+    return regr_result.get_sxy() * regr_result.get_sxy() /
+           regr_result.get_sxx() / regr_result.get_syy();
+  }
+  Item *result_item(THD *thd, Field *field) override;
+  Item *copy_or_same(THD* thd) override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_sum_regr_r2>(thd, this); }
 };
 
 
@@ -1626,6 +1986,113 @@ public:
   double val_real() override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_std_field>(thd, this); }
+};
+
+
+/* Items to get the value of a stored regression function */
+class Item_regr_sxx_field :public Item_sum_field
+{
+public:
+  Item_regr_sxx_field(THD *thd, Item_sum_regr_sxx *item)
+   :Item_sum_field(thd, item)
+  { }
+  enum Type type() const override {return FIELD_REGR_ITEM; }
+  double val_real() override;
+  longlong val_int() override { return val_int_from_real(); }
+  String *val_str(String *str) override
+  { return val_string_from_real(str); }
+  my_decimal *val_decimal(my_decimal *dec_buf) override
+  { return val_decimal_from_real(dec_buf); }
+  bool is_null() override { update_null_value(); return null_value; }
+  const Type_handler *type_handler() const override
+  { return &type_handler_double; }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_regr_sxx_field>(thd, this); }
+};
+
+
+class Item_regr_syy_field :public Item_regr_sxx_field
+{
+public:
+  Item_regr_syy_field(THD *thd, Item_sum_regr_syy *item)
+   :Item_regr_sxx_field(thd, item)
+  { }
+  enum Type type() const override {return FIELD_REGR_ITEM; }
+  double val_real() override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_regr_syy_field>(thd, this); }
+};
+
+class Item_regr_sxy_field :public Item_regr_sxx_field
+{
+public:
+  Item_regr_sxy_field(THD *thd, Item_sum_regr_sxy *item)
+   :Item_regr_sxx_field(thd, item)
+  { }
+  enum Type type() const override {return FIELD_REGR_ITEM; }
+  double val_real() override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_regr_sxy_field>(thd, this); }
+};
+
+class Item_regr_avgx_field :public Item_regr_sxx_field
+{
+public:
+  Item_regr_avgx_field(THD *thd, Item_sum_regr_avgx *item)
+   :Item_regr_sxx_field(thd, item)
+  { }
+  enum Type type() const override {return FIELD_REGR_ITEM; }
+  double val_real() override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_regr_avgx_field>(thd, this); }
+};
+
+class Item_regr_avgy_field :public Item_regr_sxx_field
+{
+public:
+  Item_regr_avgy_field(THD *thd, Item_sum_regr_avgy *item)
+   :Item_regr_sxx_field(thd, item)
+  { }
+  enum Type type() const override {return FIELD_REGR_ITEM; }
+  double val_real() override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_regr_avgy_field>(thd, this); }
+};
+
+class Item_regr_slope_field :public Item_regr_sxx_field
+{
+public:
+  Item_regr_slope_field(THD *thd, Item_sum_regr_slope *item)
+   :Item_regr_sxx_field(thd, item)
+  { }
+  enum Type type() const override {return FIELD_REGR_ITEM; }
+  double val_real() override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_regr_slope_field>(thd, this); }
+};
+
+class Item_regr_intercept_field :public Item_regr_sxx_field
+{
+public:
+  Item_regr_intercept_field(THD *thd, Item_sum_regr_intercept *item)
+   :Item_regr_sxx_field(thd, item)
+  { }
+  enum Type type() const override {return FIELD_REGR_ITEM; }
+  double val_real() override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_regr_intercept_field>(thd, this); }
+};
+
+class Item_regr_r2_field :public Item_regr_sxx_field
+{
+public:
+  Item_regr_r2_field(THD *thd, Item_sum_regr_r2 *item)
+   :Item_regr_sxx_field(thd, item)
+  { }
+  enum Type type() const override {return FIELD_REGR_ITEM; }
+  double val_real() override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_regr_r2_field>(thd, this); }
 };
 
 

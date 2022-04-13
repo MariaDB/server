@@ -629,6 +629,15 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> REFERENCES                    /* SQL-2003-R */
 %token  <kwd> REF_SYSTEM_ID_SYM
 %token  <kwd> REGEXP
+%token  <kwd> REGR_COUNT_SYM
+%token  <kwd> REGR_AVGX_SYM
+%token  <kwd> REGR_AVGY_SYM
+%token  <kwd> REGR_SXX_SYM
+%token  <kwd> REGR_SYY_SYM
+%token  <kwd> REGR_SXY_SYM
+%token  <kwd> REGR_SLOPE_SYM
+%token  <kwd> REGR_INTERCEPT_SYM
+%token  <kwd> REGR_R2_SYM
 %token  <kwd> RELEASE_SYM                   /* SQL-2003-R */
 %token  <kwd> RENAME
 %token  <kwd> REPEAT_SYM                    /* MYSQL-FUNC */
@@ -10671,6 +10680,60 @@ sum_expr:
         | STD_SYM '(' in_sum_expr ')'
           {
             $$= new (thd->mem_root) Item_sum_std(thd, $3, 0);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | REGR_COUNT_SYM '(' in_sum_expr ',' in_sum_expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_regr_count(thd, $3, $5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | REGR_AVGX_SYM '(' in_sum_expr ',' in_sum_expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_regr_avgx(thd, $3, $5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        |  REGR_AVGY_SYM '(' in_sum_expr ',' in_sum_expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_regr_avgy(thd, $3, $5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | REGR_SXX_SYM '(' in_sum_expr ',' in_sum_expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_regr_sxx(thd, $3, $5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | REGR_SYY_SYM '(' in_sum_expr ',' in_sum_expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_regr_syy(thd, $3, $5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | REGR_SXY_SYM '(' in_sum_expr ',' in_sum_expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_regr_sxy(thd, $3, $5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | REGR_SLOPE_SYM '(' in_sum_expr ',' in_sum_expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_regr_slope(thd, $3, $5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | REGR_INTERCEPT_SYM '(' in_sum_expr ',' in_sum_expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_regr_intercept(thd, $3, $5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | REGR_R2_SYM '(' in_sum_expr ',' in_sum_expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_regr_r2(thd, $3, $5);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }

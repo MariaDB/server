@@ -1,0 +1,123 @@
+#
+# Various tests for regression functions
+#
+
+
+CREATE TABLE t1 (
+  id INTEGER,
+  age INTEGER,
+  weight INTEGER
+);
+
+
+INSERT INTO t1 (id, age, weight) VALUES (1, 1, 1), (1, 2, 1), (1, 3, 1), (1, 4, 4);
+INSERT INTO t1 (id, age, weight) VALUES (2, 1, 1), (2, 2, 1), (2, 3, 1), (2, 4, 4);
+
+# test for query without GROUP
+SELECT
+  REGR_COUNT(age, weight),
+  REGR_AVGX(age, weight),
+  REGR_AVGY(age, weight),
+  REGR_SXX(age, weight),
+  REGR_SYY(age, weight),
+  REGR_SXY(age, weight),
+  REGR_SLOPE(age, weight),
+  REGR_INTERCEPT(age, weight)
+FROM t1;
+
+# test for query with GROUP BY
+
+SELECT
+  REGR_COUNT(age, weight),
+  REGR_AVGX(age, weight),
+  REGR_AVGY(age, weight),
+  REGR_SXX(age, weight),
+  REGR_SYY(age, weight),
+  REGR_SXY(age, weight),
+  REGR_SLOPE(age, weight),
+  REGR_INTERCEPT(age, weight),
+  REGR_R2(age, weight)
+FROM t1 GROUP BY id;
+
+# test for non-null pairs
+INSERT INTO t1 (id, age, weight) VALUES (1, 1, NULL);
+INSERT INTO t1 (id, age, weight) VALUES (1, NULL, NULL);
+
+SELECT
+  REGR_COUNT(age, weight),
+  REGR_AVGX(age, weight),
+  REGR_AVGY(age, weight),
+  REGR_SXX(age, weight),
+  REGR_SYY(age, weight),
+  REGR_SXY(age, weight),
+  REGR_SLOPE(age, weight),
+  REGR_INTERCEPT(age, weight)
+FROM t1;
+
+SELECT
+  REGR_COUNT(age, weight),
+  REGR_AVGX(age, weight),
+  REGR_AVGY(age, weight),
+  REGR_SXX(age, weight),
+  REGR_SYY(age, weight),
+  REGR_SXY(age, weight),
+  REGR_SLOPE(age, weight),
+  REGR_INTERCEPT(age, weight),
+  REGR_R2(age, weight)
+FROM t1 GROUP BY id;
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  id INTEGER,
+  age INTEGER,
+  weight INTEGER
+);
+
+INSERT INTO t1 (id, age, weight) VALUES (1, 1, 1), (1, 1, 1), (1, 1, 1), (1, 1, 1);
+
+SELECT
+  REGR_COUNT(age, weight),
+  REGR_AVGX(age, weight),
+  REGR_AVGY(age, weight),
+  REGR_SXX(age, weight),
+  REGR_SYY(age, weight),
+  REGR_SXY(age, weight),
+  REGR_SLOPE(age, weight),
+  REGR_INTERCEPT(age, weight)
+FROM t1;
+DROP TABLE t1;
+
+# test for window functions
+CREATE TABLE t1 (
+  id INTEGER,
+  age INTEGER,
+  weight FLOAT
+);
+
+INSERT INTO t1 (id, age, weight) VALUES (1, 1, 1), (1, 2, 1), (1, 3, 1), (1, 4, 4);
+INSERT INTO t1 (id, age, weight) VALUES (2, 1, 1), (2, 2, 1), (2, 3, 1), (2, 4, 4);
+
+SELECT
+  REGR_COUNT(age, weight) OVER(),
+  REGR_AVGX(age, weight)  OVER(),
+  REGR_AVGY(age, weight)  OVER(),
+  REGR_SXX(age, weight)  OVER(),
+  REGR_SYY(age, weight)  OVER(),
+  REGR_SXY(age, weight)  OVER(),
+  REGR_SLOPE(age, weight)  OVER(),
+  REGR_INTERCEPT(age, weight)  OVER()
+FROM t1;
+
+SELECT
+  id,
+  REGR_COUNT(age, weight) OVER(PARTITION BY id),
+  REGR_AVGX(age, weight) OVER(PARTITION BY id),
+  REGR_AVGY(age, weight) OVER(PARTITION BY id),
+  REGR_SYY(age, weight) OVER(PARTITION BY id),
+  REGR_SXY(age, weight) OVER(PARTITION BY id),
+  REGR_SLOPE(age, weight) OVER(PARTITION BY id),
+  REGR_INTERCEPT(age, weight) OVER(PARTITION BY id)
+FROM t1;
+
+DROP TABLE t1;

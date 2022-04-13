@@ -799,6 +799,15 @@ SYMBOL sql_functions[] = {
   { "VARIANCE",		SYM(VARIANCE_SYM)},
   { "VAR_POP",		SYM(VARIANCE_SYM)},
   { "VAR_SAMP",		SYM(VAR_SAMP_SYM)},
+  { "REGR_COUNT",     SYM(REGR_COUNT_SYM)},
+  { "REGR_AVGX",     SYM(REGR_AVGX_SYM)},
+  { "REGR_AVGY",     SYM(REGR_AVGY_SYM)},
+  { "REGR_SXX",     SYM(REGR_SXX_SYM)},
+  { "REGR_SYY",     SYM(REGR_SYY_SYM)},
+  { "REGR_SXY",     SYM(REGR_SXY_SYM)},
+  { "REGR_SLOPE",     SYM(REGR_SLOPE_SYM)},
+  { "REGR_INTERCEPT",     SYM(REGR_INTERCEPT_SYM)},
+  { "REGR_R2",     SYM(REGR_R2_SYM)}
 };
 
 size_t symbols_length= sizeof(symbols) / sizeof(SYMBOL);
