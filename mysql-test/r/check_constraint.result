@@ -235,3 +235,18 @@ a	b
 insert t1 (b) values (1);
 ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
 drop table t1;
+#
+# MDEV-26061 MariaDB server crash at Field::set_default
+#
+create table t1 (v2 date check (v1 like default (v1)), v1 date default (from_days ('x')));
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'x'
+insert ignore into t1 values ( 'x' , 'x' ) ;
+Warnings:
+Warning	1265	Data truncated for column 'v2' at row 1
+Warning	1265	Data truncated for column 'v1' at row 1
+Warning	1292	Truncated incorrect INTEGER value: 'x'
+drop table t1;
+#
+# End of 10.2 tests
+#

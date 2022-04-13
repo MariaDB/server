@@ -5507,6 +5507,7 @@ public:
   Item *get_tmp_table_item(THD *thd) { return this; }
   Item_field *field_for_view_update() { return 0; }
   bool update_vcol_processor(void *arg) { return 0; }
+  bool check_field_expression_processor(void *arg);
   bool check_func_default_processor(void *arg) { return true; }
   bool enchant_default_with_arg_processor(void *arg);
 
