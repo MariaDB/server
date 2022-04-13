@@ -638,8 +638,6 @@ EXPLAIN
                                     "materialized": {
                                       "query_block": {
                                         "union_result": {
-                                          "table_name": "<union5,6>",
-                                          "access_type": "ALL",
                                           "query_specifications": [
                                             {
                                               "query_block": {
