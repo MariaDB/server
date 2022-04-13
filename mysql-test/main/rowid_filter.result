@@ -2219,3 +2219,49 @@ a	b
 drop table t1;
 SET @@optimizer_switch=@save_optimizer_switch;
 set @@use_stat_tables=@save_use_stat_tables;
+#
+# MDEV-21633
+# Assertion `tmp >= 0' failed in best_access_path with rowid_filter=ON
+#
+set @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch='rowid_filter=on';
+CREATE TABLE t1 (
+pk INT AUTO_INCREMENT,
+a INT,
+b VARCHAR(8),
+KEY(a),
+PRIMARY KEY(pk),
+KEY (a,pk)
+) ENGINE=MyISAM;
+INSERT INTO t1 (a,b) VALUES
+(NULL,'d'),(9,'b'),(2,'x'),(5,'k'),(NULL,'d'),(3,'s'),(5,'k'),(1,'r'),
+(8,'l'),(3,'z'),(1,'c'),(1,'q'),(NULL,'x'),(NULL,'p'),(NULL,'z'),(7,'a'),
+(0,'i'),(3,'s'),(NULL,'h'),(4,'p'),(1,'i'),(4,'f'),(1,'c'),(NULL,'a'),
+(NULL,'x'),(1,'b'),(NULL,'n'),(NULL,'h'),(5,'i'),(6,'e'),(NULL,'i'),
+(7,'e'),(1,'r'),(NULL,'z'),(1,'i'),(14,'c'),(6,'u'),(3,'b'),(4,'z'),
+(2,'c'),(70,'d'),(NULL,'p'),(21,'j'),(6,'e'),(5,'c'),(13,'i'),(42,'d'),
+(80,'s'),(14,'t'),(9,'a'),(0,'2'),(0,NULL),(0,NULL),(0,NULL),(0,''),
+(0,''),(0,'1'),(0,''),(0,''),(0,''),(0,''),(0,NULL),(0,''),(0,''),(0,''),
+(0,NULL),(0,''),(0,''),(0,''),(0,''),(0,''),(0,''),(0,NULL),(0,NULL),
+(0,NULL),(0,''),(0,''),(0,''),(0,''),(0,NULL),(0,''),(0,NULL),(0,NULL),
+(0,''),(0,''),(0,''),(0,NULL),(0,''),(0,NULL),(0,''),(0,''),(0,''),(0,''),
+(0,''),(0,''),(0,''),(0,NULL),(0,''),(0,NULL),(0,'');
+CREATE TABLE t2 (c INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(2),(3),(4),(5),(6);
+SELECT * FROM t1 JOIN t2 WHERE a = c AND pk BETWEEN 4 AND 7 AND a BETWEEN 2 AND 12 AND b != 'foo';
+pk	a	b	c
+6	3	s	3
+4	5	k	5
+7	5	k	5
+explain SELECT * FROM t1 JOIN t2 WHERE a = c AND pk BETWEEN 4 AND 7 AND a BETWEEN 2 AND 12 AND b != 'foo';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	Using where
+1	SIMPLE	t1	ref|filter	PRIMARY,a,a_2	a|PRIMARY	5|4	test.t2.c	3 (4%)	Using where; Using rowid filter
+SET optimizer_switch='rowid_filter=off';
+SELECT * FROM t1 JOIN t2 WHERE a = c AND pk BETWEEN 4 AND 7 AND a BETWEEN 2 AND 12 AND b != 'foo';
+pk	a	b	c
+6	3	s	3
+4	5	k	5
+7	5	k	5
+SET @@optimizer_switch=@save_optimizer_switch;
+DROP TABLE t1, t2;
