@@ -1,0 +1,7 @@
+--echo #
+--echo # Create a dummy function which always returns 0
+--echo #
+
+SELECT DUMMY(1);
+SELECT DUMMY(1.1);
+SELECT DUMMY("1");

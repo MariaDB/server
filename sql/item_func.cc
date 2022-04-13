@@ -1967,6 +1967,55 @@ bool Item_func_abs::fix_length_and_dec(THD *thd)
   DBUG_RETURN(FALSE);
 }
 
+double Item_func_dummy::real_op()
+{
+  null_value= false;
+  return 0;
+}
+
+longlong Item_func_dummy::int_op()
+{
+  null_value = false;
+  return 0;
+}
+
+my_decimal *Item_func_dummy::decimal_op(my_decimal *decimal_value)
+{
+  null_value = false;
+  return 0;
+}
+
+void Item_func_dummy::fix_length_and_dec_int()
+{
+  max_length= args[0]->max_length;
+  unsigned_flag= args[0]->unsigned_flag;
+  set_handler(type_handler_long_or_longlong());
+}
+
+
+void Item_func_dummy::fix_length_and_dec_double()
+{
+  set_handler(&type_handler_double);
+  decimals= args[0]->decimals; // Preserve NOT_FIXED_DEC
+  max_length= float_length(decimals);
+  unsigned_flag= args[0]->unsigned_flag;
+}
+
+
+void Item_func_dummy::fix_length_and_dec_decimal()
+{
+  set_handler(&type_handler_newdecimal);
+  decimals= args[0]->decimal_scale(); // Do not preserve NOT_FIXED_DEC
+  max_length= args[0]->max_length;
+  unsigned_flag= args[0]->unsigned_flag;
+}
+
+
+bool Item_func_dummy::fix_length_and_dec(THD *thd)
+{
+  return true;
+}
+
 
 /** Gateway to natural LOG function. */
 double Item_func_ln::val_real()

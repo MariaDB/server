@@ -310,6 +310,18 @@ protected:
   virtual ~Create_func_coercibility() {}
 };
 
+class Create_func_dummy : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_dummy s_singleton;
+
+protected:
+  Create_func_dummy() {}
+  virtual ~Create_func_dummy() {}
+};
+
 class Create_func_dyncol_check : public Create_func_arg1
 {
 public:
@@ -2833,6 +2845,14 @@ Create_func_arg3::create_func(THD *thd, const LEX_CSTRING *name,
   }
 
   return create_3_arg(thd, param_1, param_2, param_3);
+}
+
+Create_func_dummy Create_func_dummy::s_singleton;
+
+Item*
+Create_func_dummy::create_1_arg(THD *thd, Item* arg1)
+{
+  return new (thd->mem_root) Item_func_dummy(thd, arg1); 
 }
 
 
@@ -5709,6 +5729,7 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("DECODE_ORACLE") }, BUILDER(Create_func_decode_oracle)},
   { { STRING_WITH_LEN("DES_DECRYPT") }, BUILDER(Create_func_des_decrypt)},
   { { STRING_WITH_LEN("DES_ENCRYPT") }, BUILDER(Create_func_des_encrypt)},
+  { { STRING_WITH_LEN("DUMMY") }, BUILDER(Create_func_dummy)},
   { { STRING_WITH_LEN("ELT") }, BUILDER(Create_func_elt)},
   { { STRING_WITH_LEN("ENCODE") }, BUILDER(Create_func_encode)},
   { { STRING_WITH_LEN("ENCRYPT") }, BUILDER(Create_func_encrypt)},

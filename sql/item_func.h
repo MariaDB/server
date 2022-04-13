@@ -1746,6 +1746,26 @@ public:
   { return get_item_copy<Item_func_abs>(thd, this); }
 };
 
+class Item_func_dummy :public Item_func_num1
+{
+public:
+  Item_func_dummy(THD *thd, Item *a): Item_func_num1(thd, a) {}
+  double real_op() override;
+  longlong int_op() override;
+  my_decimal *decimal_op(my_decimal *) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("dummy") };
+    return name;
+  }
+  void fix_length_and_dec_int();
+  void fix_length_and_dec_double();
+  void fix_length_and_dec_decimal();
+  bool fix_length_and_dec(THD *thd) override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_dummy>(thd, this); }
+};
+
 // A class to handle logarithmic and trigonometric functions
 
 class Item_dec_func :public Item_real_func
