@@ -433,10 +433,10 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
 
     /* table->read_set may not be set if we come here from a CREATE TABLE */
     if (table && table->read_set)
-      dbug_tmp_use_all_columns(table, old_maps, 
+      dbug_tmp_use_all_columns(table, old_maps,
                                &table->read_set, &table->write_set);
     /* For comparison purposes allow invalid dates like 2000-01-32 */
-    thd->variables.sql_mode= (orig_sql_mode & ~MODE_NO_ZERO_DATE) | 
+    thd->variables.sql_mode= (orig_sql_mode & ~MODE_NO_ZERO_DATE) |
                              MODE_INVALID_DATES;
     thd->count_cuted_fields= CHECK_FIELD_IGNORE;
 
@@ -3230,7 +3230,7 @@ bool Item_func_case::fix_length_and_dec()
   }
   else
     fix_attributes(rets, nrets);
-  
+
   /*
     Aggregate first expression and all WHEN expression types
     and collations when string comparison
@@ -3493,7 +3493,7 @@ void Item_hybrid_func::fix_attributes(Item **items, uint nitems)
   case STRING_RESULT:
     if (count_string_result_length(Item_hybrid_func::field_type(),
                                    items, nitems))
-      return;          
+      return;
     break;
   case DECIMAL_RESULT:
     collation.set_numeric();
@@ -3659,9 +3659,9 @@ bool in_vector::find(Item *item)
   return ((*compare)(collation, base+start*size, result) == 0);
 }
 
-in_string::in_string(THD *thd, uint elements, qsort2_cmp cmp_func,
+in_string::in_string(uint elements, qsort2_cmp cmp_func,
                      CHARSET_INFO *cs)
-  :in_vector(thd, elements, sizeof(String), cmp_func, cs),
+  :in_vector(elements, sizeof(String), cmp_func, cs),
    tmp(buff, sizeof(buff), &my_charset_bin)
 {}
 
@@ -3709,9 +3709,9 @@ Item *in_string::create_item(THD *thd)
 }
 
 
-in_row::in_row(THD *thd, uint elements, Item * item)
+in_row::in_row(uint elements, Item * item)
 {
-  base= (char*) new (thd->mem_root) cmp_item_row[count= elements];
+  base= (char*) new cmp_item_row[count= elements];
   size= sizeof(cmp_item_row);
   compare= (qsort2_cmp) cmp_row;
   /*
@@ -3744,9 +3744,8 @@ void in_row::set(uint pos, Item *item)
   DBUG_VOID_RETURN;
 }
 
-in_longlong::in_longlong(THD *thd, uint elements)
-  :in_vector(thd, elements, sizeof(packed_longlong),
-             (qsort2_cmp) cmp_longlong, 0)
+in_longlong::in_longlong(uint elements)
+  :in_vector(elements, sizeof(packed_longlong), (qsort2_cmp) cmp_longlong, 0)
 {}
 
 void in_longlong::set(uint pos,Item *item)
@@ -3776,6 +3775,53 @@ Item *in_longlong::create_item(THD *thd)
 }
 
 
+static int cmp_timestamp(void *cmp_arg,
+                         Timestamp_or_zero_datetime *a,
+                         Timestamp_or_zero_datetime *b)
+{
+  return a->cmp(*b);
+}
+
+
+in_timestamp::in_timestamp(THD *thd, uint elements)
+  :in_vector(thd, elements, sizeof(Value), (qsort2_cmp) cmp_timestamp, 0)
+{}
+
+
+void in_timestamp::set(uint pos, Item *item)
+{
+  Timestamp_or_zero_datetime *buff= &((Timestamp_or_zero_datetime *) base)[pos];
+  Timestamp_or_zero_datetime_native_null native(current_thd, item, true);
+  if (native.is_null())
+    *buff= Timestamp_or_zero_datetime();
+  else
+    *buff= Timestamp_or_zero_datetime(native);
+}
+
+
+uchar *in_timestamp::get_value(Item *item)
+{
+  Timestamp_or_zero_datetime_native_null native(current_thd, item, true);
+  if (native.is_null())
+    return 0;
+  tmp= Timestamp_or_zero_datetime(native);
+  return (uchar*) &tmp;
+}
+
+
+Item *in_timestamp::create_item(THD *thd)
+{
+  return new (thd->mem_root) Item_timestamp_literal(thd);
+}
+
+
+void in_timestamp::value_to_item(uint pos, Item *item)
+{
+  const Timestamp_or_zero_datetime &buff= (((Timestamp_or_zero_datetime*) base)[pos]);
+  static_cast<Item_timestamp_literal*>(item)->set_value(buff);
+}
+
+
 void in_datetime::set(uint pos,Item *item)
 {
   struct packed_longlong *buff= &((packed_longlong*) base)[pos];
@@ -3800,8 +3846,8 @@ Item *in_datetime::create_item(THD *thd)
 }
 
 
-in_double::in_double(THD *thd, uint elements)
-  :in_vector(thd, elements, sizeof(double), (qsort2_cmp) cmp_double, 0)
+in_double::in_double(uint elements)
+  :in_vector(elements, sizeof(double), (qsort2_cmp) cmp_double, 0)
 {}
 
 void in_double::set(uint pos,Item *item)
@@ -3823,8 +3869,8 @@ Item *in_double::create_item(THD *thd)
 }
 
 
-in_decimal::in_decimal(THD *thd, uint elements)
-  :in_vector(thd, elements, sizeof(my_decimal), (qsort2_cmp) cmp_decimal, 0)
+in_decimal::in_decimal(uint elements)
+  :in_vector(elements, sizeof(my_decimal), (qsort2_cmp) cmp_decimal, 0)
 {}
 
 
@@ -4245,7 +4291,7 @@ bool Item_func_in::fix_length_and_dec()
   left_cmp_type= args[0]->cmp_type();
   if (!(found_types= collect_cmp_types(args, arg_count, true)))
     return TRUE;
-  
+
   for (arg= args + 1, arg_end= args + arg_count; arg != arg_end ; arg++)
   {
     if (!arg[0]->const_item())
@@ -4340,12 +4386,12 @@ bool Item_func_in::fix_length_and_dec()
     /*
       IN must compare INT columns and constants as int values (the same
       way as equality does).
-      So we must check here if the column on the left and all the constant 
-      values on the right can be compared as integers and adjust the 
+      So we must check here if the column on the left and all the constant
+      values on the right can be compared as integers and adjust the
       comparison type accordingly.
 
       And see the comment for Item_func::convert_const_compared_to_int_field
-    */  
+    */
     if (args[0]->real_item()->type() == FIELD_ITEM &&
         !thd->lex->is_view_context_analysis() && m_compare_type != INT_RESULT)
     {
