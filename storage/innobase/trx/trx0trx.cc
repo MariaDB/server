@@ -47,6 +47,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0xa.h"
 #include "ut0pool.h"
 #include "ut0vec.h"
+#include "log.h"
 
 #include <set>
 #include <new>
@@ -98,6 +99,8 @@ trx_init(
 	trx_t*	trx)
 {
 	trx->state = TRX_STATE_NOT_STARTED;
+
+	trx->no = TRX_ID_MAX;
 
 	trx->is_recovered = false;
 
@@ -162,16 +165,13 @@ struct TrxFactory {
 	static void init(trx_t* trx)
 	{
 		/* Explicitly call the constructor of the already
-		allocated object. trx_t objects are allocated by
-		ut_zalloc_nokey() in Pool::Pool() which would not call
-		the constructors of the trx_t members. */
+		allocated and zero-initialized memory. */
 		new(&trx->mod_tables) trx_mod_tables_t();
 
 		new(&trx->lock.table_locks) lock_list();
 
 		new(&trx->read_view) ReadView();
 
-		trx->rw_trx_hash_pins = 0;
 		trx_init(trx);
 
 		trx->dict_operation_lock_mode = false;
@@ -293,7 +293,7 @@ typedef PoolManager<trx_pool_t, TrxPoolManagerLock > trx_pools_t;
 static trx_pools_t* trx_pools;
 
 /** Size of on trx_t pool in bytes. */
-static const ulint MAX_TRX_BLOCK_SIZE = 1024 * 1024 * 4;
+static constexpr size_t MAX_TRX_BLOCK_SIZE = 1024 * 1024 * 4;
 
 /** Create the trx_t pool */
 void
@@ -338,7 +338,6 @@ trx_t *trx_create()
 
 	/* We just got trx from pool, it should be non locking */
 	ut_ad(!trx->will_lock);
-	ut_ad(!trx->rw_trx_hash_pins);
 
 	DBUG_LOG("trx", "Create: " << trx);
 
@@ -382,8 +381,9 @@ void trx_t::free()
 
   dict_operation= false;
   trx_sys.deregister_trx(this);
+  ut_ad(no == TRX_ID_MAX);
+  ut_ad(state == TRX_STATE_NOT_STARTED);
   assert_freed();
-  trx_sys.rw_trx_hash.put_pins(this);
 
   mysql_thd= nullptr;
 
@@ -397,9 +397,11 @@ void trx_t::free()
   }
 
   MEM_NOACCESS(&n_ref, sizeof n_ref);
-  /* do not poison mutex */
-  MEM_NOACCESS(&id, sizeof id);
   MEM_NOACCESS(&state, sizeof state);
+  MEM_NOACCESS(&id, sizeof id);
+  MEM_NOACCESS(&no, sizeof no);
+  MEM_NOACCESS(&rw_trx_hash, sizeof rw_trx_hash);
+  /* do not poison mutex */
   MEM_NOACCESS(&is_recovered, sizeof is_recovered);
 #ifdef WITH_WSREP
   MEM_NOACCESS(&wsrep, sizeof wsrep);
@@ -541,7 +543,6 @@ void trx_disconnect_prepared(trx_t *trx)
   trx->mysql_thd= NULL;
   /* todo/fixme: suggest to do it at innodb prepare */
   trx->will_lock= false;
-  trx_sys.rw_trx_hash.put_pins(trx);
 }
 
 /****************************************************************//**
@@ -650,8 +651,8 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
       Prepared transactions are left in the prepared state
       waiting for a commit or abort decision from MySQL
     */
-    ib::info() << "Transaction " << undo->trx_id
-               << " was in the XA prepared state.";
+    sql_print_information("InnoDB: Transaction " TRX_ID_FMT
+                          " was in the XA prepared state.", undo->trx_id);
 
     state= TRX_STATE_PREPARED;
     break;
@@ -681,7 +682,6 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
   trx->dict_operation= undo->dict_operation;
 
   trx_sys.rw_trx_hash.insert(trx);
-  trx_sys.rw_trx_hash.put_pins(trx);
   trx_resurrect_table_locks(trx, undo);
   if (trx_state_eq(trx, TRX_STATE_ACTIVE))
     *rows_to_undo+= trx->undo_no;
@@ -707,7 +707,8 @@ dberr_t trx_lists_init_at_db_start()
 
 	purge_sys.create();
 	if (dberr_t err = trx_rseg_array_init()) {
-		ib::info() << "Retry with innodb_force_recovery=5";
+		sql_print_information("InnoDB: Retry with "
+				      "innodb_force_recovery=5");
 		return err;
 	}
 
@@ -730,7 +731,7 @@ dberr_t trx_lists_init_at_db_start()
 		for (undo = UT_LIST_GET_FIRST(rseg.undo_list);
 		     undo != NULL;
 		     undo = UT_LIST_GET_NEXT(undo_list, undo)) {
-			trx_t *trx = trx_sys.find(0, undo->trx_id, false);
+			trx_t *trx = trx_sys.find(undo->trx_id, false);
 			if (!trx) {
 				trx_resurrect(undo, &rseg, start_time,
 					      start_time_micro, &rows_to_undo);
@@ -967,6 +968,15 @@ trx_start_low(
 	ut_a(trx->error_state == DB_SUCCESS);
 }
 
+inline void trx_sys_t::assign_new_trx_no(trx_t &trx)
+{
+  auto &lk= rw_trx_hash.lock_get(trx.id);
+  lk.lock();
+  trx.no= get_new_trx_id_no_refresh();
+  lk.unlock();
+  refresh_rw_trx_hash_version();
+}
+
 /** Set the serialisation number for a persistent committed transaction.
 @param[in,out]	trx	committed transaction with persistent changes */
 static
@@ -980,15 +990,14 @@ trx_serialise(trx_t* trx)
 		mysql_mutex_lock(&purge_sys.pq_mutex);
 	}
 
-	trx_sys.assign_new_trx_no(trx);
+	trx_sys.assign_new_trx_no(*trx);
 
 	/* If the rollback segment is not empty then the
 	new trx_t::no can't be less than any trx_t::no
 	already in the rollback segment. User threads only
 	produce events when a rollback segment is empty. */
 	if (rseg->last_page_no == FIL_NULL) {
-		purge_sys.purge_queue.push(TrxUndoRsegs(trx->rw_trx_hash_element->no,
-							*rseg));
+		purge_sys.purge_queue.push(TrxUndoRsegs(trx->no, *rseg));
 		mysql_mutex_unlock(&purge_sys.pq_mutex);
 	}
 }
@@ -1372,9 +1381,7 @@ void trx_t::commit_cleanup()
   dict_operation= false;
 
   DBUG_LOG("trx", "Commit in memory: " << this);
-  state= TRX_STATE_NOT_STARTED;
   mod_tables.clear();
-
   assert_freed();
   trx_init(this);
   mutex.wr_unlock();
@@ -1894,64 +1901,6 @@ void trx_prepare_for_mysql(trx_t* trx)
 }
 
 
-struct trx_recover_for_mysql_callback_arg
-{
-  XID *xid_list;
-  uint len;
-  uint count;
-};
-
-
-static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
-  trx_recover_for_mysql_callback_arg *arg)
-{
-  DBUG_ASSERT(arg->len > 0);
-  element->mutex.wr_lock();
-  if (trx_t *trx= element->trx)
-  {
-    /*
-      The state of a read-write transaction can only change from ACTIVE to
-      PREPARED while we are holding the element->mutex. But since it is
-      executed at startup no state change should occur.
-    */
-    if (trx_state_eq(trx, TRX_STATE_PREPARED))
-    {
-      ut_ad(trx->is_recovered);
-      ut_ad(trx->id);
-      if (arg->count == 0)
-        ib::info() << "Starting recovery for XA transactions...";
-      XID& xid= arg->xid_list[arg->count];
-      if (arg->count++ < arg->len)
-      {
-        trx->state= TRX_STATE_PREPARED_RECOVERED;
-        ib::info() << "Transaction " << trx->id
-                   << " in prepared state after recovery";
-        ib::info() << "Transaction contains changes to " << trx->undo_no
-                   << " rows";
-        xid= trx->xid;
-      }
-    }
-  }
-  element->mutex.wr_unlock();
-  /* Do not terminate upon reaching arg->len; count all transactions */
-  return false;
-}
-
-
-static my_bool trx_recover_reset_callback(rw_trx_hash_element_t *element,
-  void*)
-{
-  element->mutex.wr_lock();
-  if (trx_t *trx= element->trx)
-  {
-    if (trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED))
-      trx->state= TRX_STATE_PREPARED;
-  }
-  element->mutex.wr_unlock();
-  return false;
-}
-
-
 /**
   Find prepared transaction objects for recovery.
 
@@ -1963,64 +1912,57 @@ static my_bool trx_recover_reset_callback(rw_trx_hash_element_t *element,
 
 int trx_recover_for_mysql(XID *xid_list, uint len)
 {
-  trx_recover_for_mysql_callback_arg arg= { xid_list, len, 0 };
-
   ut_ad(xid_list);
   ut_ad(len);
 
+  uint count= 0;
+
   /* Fill xid_list with PREPARED transactions. */
-  trx_sys.rw_trx_hash.iterate_no_dups(trx_recover_for_mysql_callback, &arg);
-  if (arg.count)
+  trx_sys.rw_trx_hash.for_each([&](trx_t &trx)
   {
-    ib::info() << arg.count
-        << " transactions in prepared state after recovery";
+    /*
+      The state of a read-write transaction can only change from ACTIVE to
+      PREPARED while we are holding the element->mutex. But since it is
+      executed at startup no state change should occur.
+    */
+    if (trx_state_eq(&trx, TRX_STATE_PREPARED))
+    {
+      ut_ad(trx.is_recovered);
+      ut_ad(trx.id);
+      if (count++ == 0)
+        sql_print_information("InnoDB: Starting recovery for XA"
+                              " transactions...");
+      if (count <= len)
+      {
+        trx.state= TRX_STATE_PREPARED_RECOVERED;
+        sql_print_information("InnoDB: Transaction " TRX_ID_FMT
+                              " in prepared state after recovery",
+                              trx.id);
+        sql_print_information("InnoDB: Transaction contains changes to "
+                              IB_ID_FMT " rows", trx.undo_no);
+        xid_list[count - 1]= trx.xid;
+      }
+    }
+  });
+
+  if (count)
+  {
+    sql_print_information("InnoDB: %u transactions in prepared state"
+                          " after recovery", count);
     /* After returning the full list, reset the state, because
     init_server_components() wants to recover the collection of
     transactions twice, by first calling tc_log->open() and then
     ha_recover() directly. */
-    if (arg.count <= len)
-      trx_sys.rw_trx_hash.iterate(trx_recover_reset_callback);
+    if (count <= len)
+      trx_sys.rw_trx_hash.for_each([](trx_t &trx)
+      {
+        if (trx.state == TRX_STATE_PREPARED_RECOVERED)
+          trx.state= TRX_STATE_PREPARED;
+      });
   }
-  return int(std::min(arg.count, len));
+  return int(std::min(count, len));
 }
 
-
-struct trx_get_trx_by_xid_callback_arg
-{
-  const XID *xid;
-  trx_t *trx;
-};
-
-
-static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
-  trx_get_trx_by_xid_callback_arg *arg)
-{
-  my_bool found= 0;
-  element->mutex.wr_lock();
-  if (trx_t *trx= element->trx)
-  {
-    trx->mutex_lock();
-    if (trx->is_recovered &&
-	(trx_state_eq(trx, TRX_STATE_PREPARED) ||
-	 trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)) &&
-        arg->xid->eq(&trx->xid))
-    {
-#ifdef WITH_WSREP
-      /* The commit of a prepared recovered Galera
-      transaction needs a valid trx->xid for
-      invoking trx_sys_update_wsrep_checkpoint(). */
-      if (!wsrep_is_wsrep_xid(&trx->xid))
-#endif /* WITH_WSREP */
-      /* Invalidate the XID, so that subsequent calls will not find it. */
-      trx->xid.null();
-      arg->trx= trx;
-      found= 1;
-    }
-    trx->mutex_unlock();
-  }
-  element->mutex.wr_unlock();
-  return found;
-}
 
 /** Look up an X/Open distributed transaction in XA PREPARE state.
 @param[in]	xid	X/Open XA transaction identifier
@@ -2028,15 +1970,34 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
 note that the trx may have been committed before the caller acquires
 trx_t::mutex
 @retval	NULL if no match */
-trx_t* trx_get_trx_by_xid(const XID* xid)
+trx_t *trx_get_trx_by_xid(const XID *xid)
 {
-  trx_get_trx_by_xid_callback_arg arg= { xid, 0 };
-
+  trx_t *trx_by_xid= nullptr;
   if (xid)
-    trx_sys.rw_trx_hash.iterate(trx_get_trx_by_xid_callback, &arg);
-  return arg.trx;
-}
+    trx_sys.rw_trx_hash.for_each_until([xid, &trx_by_xid](trx_t &trx)
+    {
+      trx.mutex_lock();
+      if (trx.is_recovered &&
+          (trx_state_eq(&trx, TRX_STATE_PREPARED) ||
+           trx_state_eq(&trx, TRX_STATE_PREPARED_RECOVERED)) &&
+          xid->eq(&trx.xid))
+      {
+#ifdef WITH_WSREP
+        /* The commit of a prepared recovered Galera
+        transaction needs a valid trx.xid for
+        invoking trx_sys_update_wsrep_checkpoint(). */
+        if (!wsrep_is_wsrep_xid(&trx.xid))
+#endif /* WITH_WSREP */
+          /* Invalidate the XID, so that subsequent calls will not find it. */
+          trx.xid.null();
+        trx_by_xid= &trx;
+      }
+      trx.mutex_unlock();
+      return trx_by_xid;
+    });
 
+  return trx_by_xid;
+}
 
 /*************************************************************//**
 Starts the transaction if it is not yet started. */

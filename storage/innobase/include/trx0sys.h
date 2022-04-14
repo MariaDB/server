@@ -121,15 +121,12 @@ trx_sys_update_mysql_binlog_offset(
 	int64_t		offset,	/*!< in: position in that log file */
 	buf_block_t*	sys_header, /*!< in,out: trx sys header */
 	mtr_t*		mtr);	/*!< in,out: mini-transaction */
-/** Display the MySQL binlog offset info if it is present in the trx
-system header. */
-void
-trx_sys_print_mysql_binlog_offset();
+/** Display the binlog offset info if it is present in the undo pages. */
+void trx_sys_print_mysql_binlog_offset();
 
 /** Create the rollback segments.
 @return	whether the creation succeeded */
-bool
-trx_sys_create_rsegs();
+bool trx_sys_create_rsegs();
 
 /** The automatically created system rollback segment has this id */
 #define TRX_SYS_SYSTEM_RSEG_ID	0
@@ -330,172 +327,181 @@ constexpr uint32_t TRX_SYS_DOUBLEWRITE_MAGIC_N= 536853855;
 constexpr uint32_t TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N= 1783657386;
 /* @} */
 
-trx_t* current_trx();
-
-struct rw_trx_hash_element_t
-{
-  rw_trx_hash_element_t()
-  {
-    memset(reinterpret_cast<void*>(this), 0, sizeof *this);
-    mutex.init();
-  }
-
-
-  ~rw_trx_hash_element_t() { mutex.destroy(); }
-
-
-  trx_id_t id; /* lf_hash_init() relies on this to be first in the struct */
-
-  /**
-    Transaction serialization number.
-
-    Assigned shortly before the transaction is moved to COMMITTED_IN_MEMORY
-    state. Initially set to TRX_ID_MAX.
-  */
-  Atomic_counter<trx_id_t> no;
-  trx_t *trx;
-  srw_mutex mutex;
-};
-
-
-/**
-  Wrapper around LF_HASH to store set of in memory read-write transactions.
-*/
-
 class rw_trx_hash_t
 {
-  LF_HASH hash;
-
-
-  template <typename T>
-  using walk_action= my_bool(rw_trx_hash_element_t *element, T *action);
-
-
-  /**
-    Constructor callback for lock-free allocator.
-
-    Object is just allocated and is not yet accessible via rw_trx_hash by
-    concurrent threads. Object can be reused multiple times before it is freed.
-    Every time object is being reused initializer() callback is called.
-  */
-
-  static void rw_trx_hash_constructor(uchar *arg)
+  /** number of payload elements in array[] */
+  static constexpr size_t n_cells= 64;
+  /** Hash cell chain */
+  struct hash_chain
   {
-    new(arg + LF_HASH_OVERHEAD) rw_trx_hash_element_t();
-  }
+    /** pointer to the first transaction */
+    trx_t *first;
 
-
-  /**
-    Destructor callback for lock-free allocator.
-
-    Object is about to be freed and is not accessible via rw_trx_hash by
-    concurrent threads.
-  */
-
-  static void rw_trx_hash_destructor(uchar *arg)
-  {
-    reinterpret_cast<rw_trx_hash_element_t*>
-      (arg + LF_HASH_OVERHEAD)->~rw_trx_hash_element_t();
-  }
-
-
-  /**
-    Destructor callback for lock-free allocator.
-
-    This destructor is used at shutdown. It frees remaining transaction
-    objects.
-
-    XA PREPARED transactions may remain if they haven't been committed or
-    rolled back. ACTIVE transactions may remain if startup was interrupted or
-    server is running in read-only mode or for certain srv_force_recovery
-    levels.
-  */
-
-  static void rw_trx_hash_shutdown_destructor(uchar *arg)
-  {
-    rw_trx_hash_element_t *element=
-      reinterpret_cast<rw_trx_hash_element_t*>(arg + LF_HASH_OVERHEAD);
-    if (trx_t *trx= element->trx)
+    /** Append a transaction. */
+    void append(trx_t *trx)
     {
-      ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED) ||
-            trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED) ||
-            (trx_state_eq(trx, TRX_STATE_ACTIVE) &&
-             (!srv_was_started ||
-              srv_read_only_mode ||
-              srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)));
-      trx_free_at_shutdown(trx);
+      ut_d(validate_element(trx));
+      ut_ad(!trx->rw_trx_hash);
+      trx_t **prev= &first;
+      while (*prev)
+        prev= &(*prev)->rw_trx_hash;
+      *prev= trx;
     }
-    element->~rw_trx_hash_element_t();
-  }
 
-
-  /**
-    Initializer callback for lock-free hash.
-
-    Object is not yet accessible via rw_trx_hash by concurrent threads, but is
-    about to become such. Object id can be changed only by this callback and
-    remains the same until all pins to this object are released.
-
-    Object trx can be changed to 0 by erase() under object mutex protection,
-    which indicates it is about to be removed from lock-free hash and become
-    not accessible by concurrent threads.
-  */
-
-  static void rw_trx_hash_initializer(LF_HASH *,
-                                      rw_trx_hash_element_t *element,
-                                      trx_t *trx)
-  {
-    ut_ad(element->trx == 0);
-    element->trx= trx;
-    element->id= trx->id;
-    element->no= TRX_ID_MAX;
-    trx->rw_trx_hash_element= element;
-  }
-
-
-  /**
-    Gets LF_HASH pins.
-
-    Pins are used to protect object from being destroyed or reused. They are
-    normally stored in trx object for quick access. If caller doesn't have trx
-    available, we try to get it using currnet_trx(). If caller doesn't have trx
-    at all, temporary pins are allocated.
-  */
-
-  LF_PINS *get_pins(trx_t *trx)
-  {
-    if (!trx->rw_trx_hash_pins)
+    /** Remove a transaction. */
+    void remove(trx_t *trx)
     {
-      trx->rw_trx_hash_pins= lf_hash_get_pins(&hash);
-      ut_a(trx->rw_trx_hash_pins);
+      ut_d(validate_element(trx));
+      trx_t **prev= &first;
+      while (*prev != trx)
+        prev= &(*prev)->rw_trx_hash;
+      *prev= trx->rw_trx_hash;
+      trx->rw_trx_hash= nullptr;
     }
-    return trx->rw_trx_hash_pins;
-  }
-
-
-  template <typename T> struct eliminate_duplicates_arg
-  {
-    trx_ids_t ids;
-    walk_action<T> *action;
-    T *argument;
-    eliminate_duplicates_arg(size_t size, walk_action<T> *act, T *arg):
-      action(act), argument(arg) { ids.reserve(size); }
   };
 
+  /** Number of array[] elements per page_hash_latch.
+  Must be one less than a power of 2. */
+  static constexpr size_t ELEMENTS_PER_LATCH= 64 / sizeof(void*) - 1;
+  static constexpr size_t EMPTY_SLOTS_PER_LATCH=
+    ((CPU_LEVEL1_DCACHE_LINESIZE / 64) - 1) * (64 / sizeof(void*));
 
-  template <typename T>
-  static my_bool eliminate_duplicates(rw_trx_hash_element_t *element,
-                                      eliminate_duplicates_arg<T> *arg)
+  /** @return raw array index converted to padded index */
+  static constexpr ulint pad(ulint h)
   {
-    for (trx_ids_t::iterator it= arg->ids.begin(); it != arg->ids.end(); it++)
-    {
-      if (*it == element->id)
-        return 0;
-    }
-    arg->ids.push_back(element->id);
-    return arg->action(element, arg->argument);
+    return 1 + h + (h / ELEMENTS_PER_LATCH) * (1 + EMPTY_SLOTS_PER_LATCH);
   }
 
+  static constexpr size_t n_cells_padded= 1 + n_cells +
+    (n_cells / ELEMENTS_PER_LATCH) * (1 + EMPTY_SLOTS_PER_LATCH);
+  static constexpr size_t n_cells_padded_aligned=
+    (n_cells_padded + CPU_LEVEL1_DCACHE_LINESIZE - 1) &
+    ~(CPU_LEVEL1_DCACHE_LINESIZE - 1);
+
+  /** the hash table */
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE)
+  hash_chain array[n_cells_padded_aligned];
+
+  ulint calc_hash(trx_id_t id) const { return calc_hash(ulint(id), n_cells); }
+
+  /** @return the hash value before any ELEMENTS_PER_LATCH padding */
+  static ulint hash(ulint fold, ulint n) { return ut_hash_ulint(fold, n); }
+
+  /** @return the index of an array element */
+  static ulint calc_hash(ulint fold, ulint n_cells)
+  {
+    return pad(hash(fold, n_cells));
+  }
+
+  /** @return the latch covering a hash table chain */
+  static page_hash_latch &lock_get(hash_chain &chain)
+  {
+    static_assert(!((ELEMENTS_PER_LATCH + 1) & ELEMENTS_PER_LATCH),
+                  "must be one less than a power of 2");
+    const size_t addr= reinterpret_cast<size_t>(&chain);
+    ut_ad(addr & (ELEMENTS_PER_LATCH * sizeof chain));
+    return *reinterpret_cast<page_hash_latch*>
+      (addr & ~(ELEMENTS_PER_LATCH * sizeof chain));
+  }
+
+  /** Get a hash table slot. */
+  hash_chain &cell_get(trx_id_t id) { return array[calc_hash(id)]; }
+
+#ifdef NO_ELISION
+  static constexpr bool empty(const page_hash_latch*) { return false; }
+#else
+  /** @return whether the cache line is empty */
+  TRANSACTIONAL_TARGET bool empty(const page_hash_latch *lk) const;
+#endif
+
+public:
+  inline void destroy();
+
+  bool empty() { return !for_each_until([](const trx_t&){return true;}); }
+
+  size_t size()
+  {
+    size_t count= 0;
+    for_each([&count](const trx_t&){count++;});
+    return count;
+  }
+
+  page_hash_latch &lock_get(trx_id_t id) { return lock_get(cell_get(id)); }
+
+  void insert(trx_t *trx)
+  {
+    hash_chain &chain= cell_get(trx->id);
+    auto &lk= lock_get(chain);
+    lk.lock();
+    chain.append(trx);
+    lk.unlock();
+  }
+
+  void erase(trx_t *trx)
+  {
+    hash_chain &chain= cell_get(trx->id);
+    auto &lk= lock_get(chain);
+    lk.lock();
+    chain.remove(trx);
+    lk.unlock();
+  }
+
+  template <typename Callable> void for_each(Callable &&callback)
+  {
+    const ulint n= pad(n_cells);
+    ulint i= 0;
+    do
+    {
+      const ulint k= i + (ELEMENTS_PER_LATCH + 1);
+      auto lk= reinterpret_cast<page_hash_latch*>(&array[i]);
+      if (!empty(lk))
+      {
+        lk->lock_shared();
+        while (++i < k)
+        {
+          for (trx_t* trx= array[i].first; trx; trx= trx->rw_trx_hash)
+          {
+            ut_d(validate_element(trx));
+            callback(*trx);
+          }
+        }
+        lk->unlock_shared();
+      }
+      i= k;
+    }
+    while (i < n);
+  }
+
+  template <typename Callable> bool for_each_until(Callable &&callback)
+  {
+    const ulint n= pad(n_cells);
+    ulint i= 0;
+    do
+    {
+      const ulint k= i + (ELEMENTS_PER_LATCH + 1);
+      auto lk= reinterpret_cast<page_hash_latch*>(&array[i]);
+      if (!empty(lk))
+      {
+        lk->lock_shared();
+        while (++i < k)
+        {
+          for (trx_t* trx= array[i].first; trx; trx= trx->rw_trx_hash)
+          {
+            ut_d(validate_element(trx));
+            if (callback(*trx))
+            {
+              lk->unlock_shared();
+              return true;
+            }
+          }
+        }
+        lk->unlock_shared();
+      }
+      i= k;
+    }
+    while (i < n);
+    return false;
+  }
 
 #ifdef UNIV_DEBUG
   static void validate_element(trx_t *trx)
@@ -510,70 +516,10 @@ class rw_trx_hash_t
           trx_state_eq(trx, TRX_STATE_PREPARED));
     ut_d(trx->mutex_unlock());
   }
-
-
-  template <typename T> struct debug_iterator_arg
-  {
-    walk_action<T> *action;
-    T *argument;
-  };
-
-
-  template <typename T>
-  static my_bool debug_iterator(rw_trx_hash_element_t *element,
-                                debug_iterator_arg<T> *arg)
-  {
-    element->mutex.wr_lock();
-    if (element->trx)
-      validate_element(element->trx);
-    element->mutex.wr_unlock();
-    return arg->action(element, arg->argument);
-  }
 #endif
 
-
-public:
-  void init()
-  {
-    lf_hash_init(&hash, sizeof(rw_trx_hash_element_t), LF_HASH_UNIQUE, 0,
-                 sizeof(trx_id_t), 0, &my_charset_bin);
-    hash.alloc.constructor= rw_trx_hash_constructor;
-    hash.alloc.destructor= rw_trx_hash_destructor;
-    hash.initializer=
-      reinterpret_cast<lf_hash_initializer>(rw_trx_hash_initializer);
-  }
-
-
-  void destroy()
-  {
-    hash.alloc.destructor= rw_trx_hash_shutdown_destructor;
-    lf_hash_destroy(&hash);
-  }
-
-
   /**
-    Releases LF_HASH pins.
-
-    Must be called by thread that owns trx_t object when the latter is being
-    "detached" from thread (e.g. released to the pool by trx_t::free()). Can be
-    called earlier if thread is expected not to use rw_trx_hash.
-
-    Since pins are not allowed to be transferred to another thread,
-    initialisation thread calls this for recovered transactions.
-  */
-
-  void put_pins(trx_t *trx)
-  {
-    if (trx->rw_trx_hash_pins)
-    {
-      lf_hash_put_pins(trx->rw_trx_hash_pins);
-      trx->rw_trx_hash_pins= 0;
-    }
-  }
-
-
-  /**
-    Finds trx object in lock-free hash with given id.
+    Find a transaction.
 
     Only ACTIVE or PREPARED trx objects may participate in hash. Nevertheless
     the transaction may get committed before this method returns.
@@ -585,27 +531,11 @@ public:
     holding lock_sys.latch. Caller is responsible for calling
     trx->release_reference() when it is done playing with trx.
 
-    Ideally this method should get caller rw_trx_hash_pins along with trx
-    object as a parameter, similar to insert() and erase(). However most
-    callers lose trx early in their call chains and it is not that easy to pass
-    them through.
-
-    So we take more expensive approach: get trx through current_thd()->ha_data.
-    Some threads don't have trx attached to THD, and at least server
-    initialisation thread, fts_optimize_thread, srv_master_thread,
-    dict_stats_thread, srv_monitor_thread, btr_defragment_thread don't even
-    have THD at all. For such cases we allocate pins only for duration of
-    search and free them immediately.
-
-    This has negative performance impact and should be fixed eventually (by
-    passing caller_trx as a parameter). Still stream of DML is more or less Ok.
-
-    @return
-      @retval 0 not found
-      @retval pointer to trx
+    @return transaction corresponding to trx_id
+    @retval nullptr if not found
   */
 
-  trx_t *find(trx_t *caller_trx, trx_id_t trx_id, bool do_ref_count)
+  trx_t *find(trx_id_t trx_id, bool do_ref_count)
   {
     /*
       In MariaDB 10.3, purge will reset DB_TRX_ID to 0
@@ -617,21 +547,15 @@ public:
       The caller should already have handled trx_id==0 specially.
     */
     ut_ad(trx_id);
-    ut_ad(!caller_trx || caller_trx->id != trx_id || !do_ref_count);
 
-    trx_t *trx= 0;
-    LF_PINS *pins= caller_trx ? get_pins(caller_trx) : lf_hash_get_pins(&hash);
-    ut_a(pins);
-
-    rw_trx_hash_element_t *element= reinterpret_cast<rw_trx_hash_element_t*>
-      (lf_hash_search(&hash, pins, reinterpret_cast<const void*>(&trx_id),
-                      sizeof(trx_id_t)));
-    if (element)
+    trx_t *trx= nullptr;
+    hash_chain &chain= cell_get(trx_id);
+    auto &lk= lock_get(chain);
+    lk.lock_shared();
+    for (trx= chain.first; trx; trx= trx->rw_trx_hash)
     {
-      element->mutex.wr_lock();
-      lf_hash_search_unpin(pins);
-      if ((trx= element->trx)) {
-        DBUG_ASSERT(trx_id == trx->id);
+      if (trx->id == trx_id)
+      {
         ut_d(validate_element(trx));
         if (do_ref_count)
         {
@@ -648,137 +572,11 @@ public:
           else
             trx->reference();
         }
+        break;
       }
-      element->mutex.wr_unlock();
     }
-    if (!caller_trx)
-      lf_hash_put_pins(pins);
+    lk.unlock_shared();
     return trx;
-  }
-
-
-  /**
-    Inserts trx to lock-free hash.
-
-    Object becomes accessible via rw_trx_hash.
-  */
-
-  void insert(trx_t *trx)
-  {
-    ut_d(validate_element(trx));
-    int res= lf_hash_insert(&hash, get_pins(trx),
-                            reinterpret_cast<void*>(trx));
-    ut_a(res == 0);
-  }
-
-
-  /**
-    Removes trx from lock-free hash.
-
-    Object becomes not accessible via rw_trx_hash. But it still can be pinned
-    by concurrent find(), which is supposed to release it immediately after
-    it sees object trx is 0.
-  */
-
-  void erase(trx_t *trx)
-  {
-    ut_d(validate_element(trx));
-    trx->rw_trx_hash_element->mutex.wr_lock();
-    trx->rw_trx_hash_element->trx= nullptr;
-    trx->rw_trx_hash_element->mutex.wr_unlock();
-    int res= lf_hash_delete(&hash, get_pins(trx),
-                            reinterpret_cast<const void*>(&trx->id),
-                            sizeof(trx_id_t));
-    ut_a(res == 0);
-  }
-
-
-  /**
-    Returns the number of elements in the hash.
-
-    The number is exact only if hash is protected against concurrent
-    modifications (e.g. single threaded startup or hash is protected
-    by some mutex). Otherwise the number may be used as a hint only,
-    because it may change even before this method returns.
-  */
-
-  uint32_t size() { return uint32_t(lf_hash_size(&hash)); }
-
-
-  /**
-    Iterates the hash.
-
-    @param caller_trx  used to get/set pins
-    @param action      called for every element in hash
-    @param argument    opque argument passed to action
-
-    May return the same element multiple times if hash is under contention.
-    If caller doesn't like to see the same transaction multiple times, it has
-    to call iterate_no_dups() instead.
-
-    May return element with committed transaction. If caller doesn't like to
-    see committed transactions, it has to skip those under element mutex:
-
-      element->mutex.wr_lock();
-      if (trx_t trx= element->trx)
-      {
-        // trx is protected against commit in this branch
-      }
-      element->mutex.wr_unlock();
-
-    May miss concurrently inserted transactions.
-
-    @return
-      @retval 0 iteration completed successfully
-      @retval 1 iteration was interrupted (action returned 1)
-  */
-
-  template <typename T>
-  int iterate(trx_t *caller_trx, walk_action<T> *action, T *argument= nullptr)
-  {
-    LF_PINS *pins= caller_trx ? get_pins(caller_trx) : lf_hash_get_pins(&hash);
-    ut_a(pins);
-#ifdef UNIV_DEBUG
-    debug_iterator_arg<T> debug_arg= { action, argument };
-    action= reinterpret_cast<decltype(action)>(debug_iterator<T>);
-    argument= reinterpret_cast<T*>(&debug_arg);
-#endif
-    int res= lf_hash_iterate(&hash, pins,
-                             reinterpret_cast<my_hash_walk_action>(action),
-                             const_cast<void*>(static_cast<const void*>
-                             (argument)));
-    if (!caller_trx)
-      lf_hash_put_pins(pins);
-    return res;
-  }
-
-
-  template <typename T>
-  int iterate(walk_action<T> *action, T *argument= nullptr)
-  {
-    return iterate(current_trx(), action, argument);
-  }
-
-
-  /**
-    Iterates the hash and eliminates duplicate elements.
-
-    @sa iterate()
-  */
-
-  template <typename T>
-  int iterate_no_dups(trx_t *caller_trx, walk_action<T> *action,
-                      T *argument= nullptr)
-  {
-    eliminate_duplicates_arg<T> arg(size() + 32, action, argument);
-    return iterate(caller_trx, eliminate_duplicates<T>, &arg);
-  }
-
-
-  template <typename T>
-  int iterate_no_dups(walk_action<T> *action, T *argument= nullptr)
-  {
-    return iterate_no_dups(current_trx(), action, argument);
   }
 };
 
@@ -889,16 +687,6 @@ public:
 
 
   /**
-    Constructor.
-
-    Some members may require late initialisation, thus we just mark object as
-    uninitialised. Real initialisation happens in create().
-  */
-
-  trx_sys_t(): m_initialised(false) {}
-
-
-  /**
     @return TRX_RSEG_HISTORY length (number of committed transactions to purge)
   */
   uint32_t history_size();
@@ -923,7 +711,6 @@ public:
   */
   TPOOL_SUPPRESS_TSAN bool history_exists();
 
-
   /**
     Returns the minimum trx id in rw trx list.
 
@@ -937,10 +724,14 @@ public:
   trx_id_t get_min_trx_id()
   {
     trx_id_t id= get_max_trx_id();
-    rw_trx_hash.iterate(get_min_trx_id_callback, &id);
+    rw_trx_hash.for_each([&id](const trx_t &trx)
+    {
+      /* We don't care about read-only transactions here. */
+      if (trx.id < id && trx.rsegs.m_redo.rseg)
+        id= trx.id;
+    });
     return id;
   }
-
 
   /**
     Determines the maximum transaction id.
@@ -990,11 +781,7 @@ public:
 
     @param trx transaction
   */
-  void assign_new_trx_no(trx_t *trx)
-  {
-    trx->rw_trx_hash_element->no= get_new_trx_id_no_refresh();
-    refresh_rw_trx_hash_version();
-  }
+  inline void assign_new_trx_no(trx_t &trx);
 
 
   /**
@@ -1009,31 +796,30 @@ public:
     We rely on get_rw_trx_hash_version() to issue ACQUIRE memory barrier so
     that loading of m_rw_trx_hash_version happens before accessing rw_trx_hash.
 
-    To optimise snapshot creation rw_trx_hash.iterate() is being used instead
-    of rw_trx_hash.iterate_no_dups(). It means that some transaction
-    identifiers may appear multiple times in ids.
-
-    @param[in,out] caller_trx used to get access to rw_trx_hash_pins
     @param[out]    ids        array to store registered transaction identifiers
     @param[out]    max_trx_id variable to store m_max_trx_id value
     @param[out]    mix_trx_no variable to store min(no) value
   */
 
-  void snapshot_ids(trx_t *caller_trx, trx_ids_t *ids, trx_id_t *max_trx_id,
-                    trx_id_t *min_trx_no)
+  void snapshot_ids(trx_ids_t *ids, trx_id_t *max_trx_id, trx_id_t *min_trx_no)
   {
-    snapshot_ids_arg arg(ids);
-
-    while ((arg.m_id= get_rw_trx_hash_version()) != get_max_trx_id())
+    trx_id_t max_id;
+    while ((max_id= get_rw_trx_hash_version()) != get_max_trx_id())
       ut_delay(1);
-    arg.m_no= arg.m_id;
-
+    trx_id_t min_no= max_id;
     ids->clear();
     ids->reserve(rw_trx_hash.size() + 32);
-    rw_trx_hash.iterate(caller_trx, copy_one_id, &arg);
-
-    *max_trx_id= arg.m_id;
-    *min_trx_no= arg.m_no;
+    rw_trx_hash.for_each([max_id,&min_no,&ids](const trx_t &trx)
+    {
+      if (trx.id < max_id)
+      {
+        ids->push_back(trx.id);
+        if (trx.no < min_no)
+          min_no= trx.no;
+      }
+    });
+    *max_trx_id= max_id;
+    *min_trx_no= min_no;
   }
 
 
@@ -1115,15 +901,12 @@ public:
   }
 
 
-  bool is_registered(trx_t *caller_trx, trx_id_t id)
-  {
-    return id && find(caller_trx, id, false);
-  }
+  bool is_registered(trx_id_t id) { return id && find(id, false); }
 
 
-  trx_t *find(trx_t *caller_trx, trx_id_t id, bool do_ref_count= true)
+  trx_t *find(trx_id_t id, bool do_ref_count= true)
   {
-    return rw_trx_hash.find(caller_trx, id, do_ref_count);
+    return rw_trx_hash.find(id, do_ref_count);
   }
 
 
@@ -1173,44 +956,6 @@ public:
   }
 
 private:
-  static my_bool get_min_trx_id_callback(rw_trx_hash_element_t *element,
-                                         trx_id_t *id)
-  {
-    if (element->id < *id)
-    {
-      element->mutex.wr_lock();
-      /* We don't care about read-only transactions here. */
-      if (element->trx && element->trx->rsegs.m_redo.rseg)
-        *id= element->id;
-      element->mutex.wr_unlock();
-    }
-    return 0;
-  }
-
-
-  struct snapshot_ids_arg
-  {
-    snapshot_ids_arg(trx_ids_t *ids): m_ids(ids) {}
-    trx_ids_t *m_ids;
-    trx_id_t m_id;
-    trx_id_t m_no;
-  };
-
-
-  static my_bool copy_one_id(rw_trx_hash_element_t *element,
-                             snapshot_ids_arg *arg)
-  {
-    if (element->id < arg->m_id)
-    {
-      trx_id_t no= element->no;
-      arg->m_ids->push_back(element->id);
-      if (no < arg->m_no)
-        arg->m_no= no;
-    }
-    return 0;
-  }
-
-
   /** Getter for m_rw_trx_hash_version, must issue ACQUIRE memory barrier. */
   trx_id_t get_rw_trx_hash_version()
   {

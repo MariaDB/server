@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -875,7 +875,7 @@ row_sel_build_committed_vers_for_mysql(
 			rec_offs_size(*offsets));
 	}
 
-	row_vers_build_for_semi_consistent_read(prebuilt->trx,
+	row_vers_build_for_semi_consistent_read(
 		rec, mtr, clust_index, offsets, offset_heap,
 		prebuilt->old_vers_heap, old_vers, vrow);
 }
@@ -5121,7 +5121,7 @@ wrong_offs:
 				/* In delete-marked records, DB_TRX_ID must
 				always refer to an existing undo log record. */
 				ut_ad(trx_id);
-				if (!trx_sys.is_registered(trx, trx_id)) {
+				if (!trx_sys.is_registered(trx_id)) {
 					/* The clustered index record
 					was delete-marked in a committed
 					transaction. Ignore the record. */

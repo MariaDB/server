@@ -1628,7 +1628,7 @@ public:
       ((CPU_LEVEL1_DCACHE_LINESIZE / 64) - 1) * (64 / sizeof(void*));
 
     /** number of payload elements in array[] */
-    Atomic_relaxed<ulint> n_cells;
+    ulint n_cells;
     /** the hash table, with pad(n_cells) elements, aligned to L1 cache size */
     hash_chain *array;
 

@@ -118,7 +118,7 @@ loop:
 
     @param[in,out] trx transaction
   */
-  inline void snapshot(trx_t *trx);
+  inline void snapshot();
 
 
   /**

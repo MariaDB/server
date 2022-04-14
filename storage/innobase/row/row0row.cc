@@ -456,8 +456,7 @@ row_build_low(
 	times, and the cursor restore can happen multiple times for single
 	insert or update statement.  */
 	ut_a(!rec_offs_any_null_extern(rec, offsets)
-	     || trx_sys.is_registered(current_trx(),
-				      row_get_rec_trx_id(rec, index,
+	     || trx_sys.is_registered(row_get_rec_trx_id(rec, index,
 							 offsets)));
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 

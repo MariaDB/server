@@ -1432,7 +1432,7 @@ invalid:
 		}
 
 		const auto bulk_trx_id = index->table->bulk_trx_id;
-		if (bulk_trx_id && trx_sys.find(nullptr, bulk_trx_id, false)) {
+		if (bulk_trx_id && trx_sys.find(bulk_trx_id, false)) {
 			goto invalid;
 		}
 
@@ -2547,7 +2547,7 @@ empty_index:
 	}
 
 	const auto bulk_trx_id = index->table->bulk_trx_id;
-	if (bulk_trx_id && trx_sys.find(nullptr, bulk_trx_id, false)) {
+	if (bulk_trx_id && trx_sys.find(bulk_trx_id, false)) {
 		result.index_size = 1;
 		result.n_leaf_pages = 1;
 		goto empty_index;
@@ -3827,7 +3827,7 @@ dict_stats_update(
 	}
 
 	if (trx_id_t bulk_trx_id = table->bulk_trx_id) {
-		if (trx_sys.find(nullptr, bulk_trx_id, false)) {
+		if (trx_sys.find(bulk_trx_id, false)) {
 			dict_stats_empty_table(table, false);
 			return DB_SUCCESS;
 		}

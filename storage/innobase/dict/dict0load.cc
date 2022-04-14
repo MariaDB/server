@@ -665,7 +665,7 @@ dict_sys_tables_rec_read(
 		rec, DICT_FLD__SYS_TABLES__DB_TRX_ID, &len);
 	ut_ad(len == 6 || len == UNIV_SQL_NULL);
 	trx_id_t id = len == 6 ? trx_read_trx_id(field) : 0;
-	if (id && trx_sys.find(nullptr, id, false)) {
+	if (id && trx_sys.find(id, false)) {
 		const auto savepoint = mtr->get_savepoint();
 		heap = mem_heap_create(1024);
 		dict_index_t* index = UT_LIST_GET_FIRST(
@@ -674,7 +674,7 @@ dict_sys_tables_rec_read(
 			rec, index, nullptr, true, ULINT_UNDEFINED, &heap);
 		const rec_t* old_vers;
 		row_vers_build_for_semi_consistent_read(
-			nullptr, rec, mtr, index, &offsets, &heap,
+			rec, mtr, index, &offsets, &heap,
 			heap, &old_vers, nullptr);
 		mtr->rollback_to_savepoint(savepoint);
 		rec = old_vers;
@@ -1073,7 +1073,7 @@ err_len:
 
 	const trx_id_t trx_id = trx_read_trx_id(field);
 
-	if (trx_id && mtr && trx_sys.find(nullptr, trx_id, false)) {
+	if (trx_id && mtr && trx_sys.find(trx_id, false)) {
 		const auto savepoint = mtr->get_savepoint();
 		dict_index_t* index = UT_LIST_GET_FIRST(
 			dict_sys.sys_columns->indexes);
@@ -1081,7 +1081,7 @@ err_len:
 			rec, index, nullptr, true, ULINT_UNDEFINED, &heap);
 		const rec_t* old_vers;
 		row_vers_build_for_semi_consistent_read(
-			nullptr, rec, mtr, index, &offsets, &heap,
+			rec, mtr, index, &offsets, &heap,
 			heap, &old_vers, nullptr);
 		mtr->rollback_to_savepoint(savepoint);
 		rec = old_vers;
@@ -1276,7 +1276,7 @@ err_len:
 
 	const trx_id_t trx_id = trx_read_trx_id(field);
 
-	if (trx_id && column && trx_sys.find(nullptr, trx_id, false)) {
+	if (trx_id && column && trx_sys.find(trx_id, false)) {
 		if (!rec_get_deleted_flag(rec, 0)) {
 			return dict_load_virtual_none;
                 }
@@ -1622,7 +1622,7 @@ err_len:
 
 	if (!trx_id) {
 		ut_ad(!rec_get_deleted_flag(rec, 0));
-	} else if (mtr && trx_sys.find(nullptr, trx_id, false)) {
+	} else if (mtr && trx_sys.find(trx_id, false)) {
 		const auto savepoint = mtr->get_savepoint();
 		dict_index_t* sys_field = UT_LIST_GET_FIRST(
 			dict_sys.sys_fields->indexes);
@@ -1630,7 +1630,7 @@ err_len:
 			rec, sys_field, nullptr, true, ULINT_UNDEFINED, &heap);
 		const rec_t* old_vers;
 		row_vers_build_for_semi_consistent_read(
-			nullptr, rec, mtr, sys_field, &offsets, &heap,
+			rec, mtr, sys_field, &offsets, &heap,
 			heap, &old_vers, nullptr);
 		mtr->rollback_to_savepoint(savepoint);
 		rec = old_vers;
@@ -1835,7 +1835,7 @@ err_len:
 	if (!trx_id) {
 		ut_ad(!rec_get_deleted_flag(rec, 0));
 	} else if (!mtr) {
-	} else if (trx_sys.find(nullptr, trx_id, false)) {
+	} else if (trx_sys.find(trx_id, false)) {
 		const auto savepoint = mtr->get_savepoint();
 		dict_index_t* sys_index = UT_LIST_GET_FIRST(
 			dict_sys.sys_indexes->indexes);
@@ -1843,7 +1843,7 @@ err_len:
 			rec, sys_index, nullptr, true, ULINT_UNDEFINED, &heap);
 		const rec_t* old_vers;
 		row_vers_build_for_semi_consistent_read(
-			nullptr, rec, mtr, sys_index, &offsets, &heap,
+			rec, mtr, sys_index, &offsets, &heap,
 			heap, &old_vers, nullptr);
 		mtr->rollback_to_savepoint(savepoint);
 		rec = old_vers;
@@ -2705,14 +2705,14 @@ retry:
 
 		const trx_id_t id = trx_read_trx_id(field);
 		if (!id) {
-		} else if (id != trx_id && trx_sys.find(nullptr, id, false)) {
+		} else if (id != trx_id && trx_sys.find(id, false)) {
 			const auto savepoint = mtr.get_savepoint();
 			rec_offs* offsets = rec_get_offsets(
 				rec, sys_index, nullptr, true, ULINT_UNDEFINED,
 				&heap);
 			const rec_t* old_vers;
 			row_vers_build_for_semi_consistent_read(
-				nullptr, rec, &mtr, sys_index, &offsets, &heap,
+				rec, &mtr, sys_index, &offsets, &heap,
 				heap, &old_vers, nullptr);
 			mtr.rollback_to_savepoint(savepoint);
 			rec = old_vers;
@@ -2881,13 +2881,13 @@ dict_load_foreign(
 
 	const trx_id_t tid = trx_read_trx_id(field);
 
-	if (tid && tid != trx_id && trx_sys.find(nullptr, tid, false)) {
+	if (tid && tid != trx_id && trx_sys.find(tid, false)) {
 		const auto savepoint = mtr.get_savepoint();
 		rec_offs* offsets = rec_get_offsets(
 			rec, sys_index, nullptr, true, ULINT_UNDEFINED, &heap);
 		const rec_t* old_vers;
 		row_vers_build_for_semi_consistent_read(
-			nullptr, rec, &mtr, sys_index, &offsets, &heap,
+			rec, &mtr, sys_index, &offsets, &heap,
 			heap, &old_vers, nullptr);
 		mtr.rollback_to_savepoint(savepoint);
 		rec = old_vers;
