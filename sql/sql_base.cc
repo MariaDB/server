@@ -5010,16 +5010,13 @@ static bool fix_all_session_vcol_exprs(THD *thd, TABLE_LIST *tables)
     if (!table->placeholder() && t->s->vcols_need_refixing &&
          table->lock_type >= TL_WRITE_ALLOW_WRITE)
     {
-      Query_arena *stmt_backup= thd->stmt_arena;
-      if (thd->stmt_arena->is_conventional())
-        thd->stmt_arena= t->expr_arena;
+      Query_arena backup_arena;
+      thd->set_n_backup_active_arena(t->expr_arena, &backup_arena);
       if (table->security_ctx)
         thd->security_ctx= table->security_ctx;
-
       error= t->fix_vcol_exprs(thd);
-
       thd->security_ctx= save_security_ctx;
-      thd->stmt_arena= stmt_backup;
+      thd->restore_active_arena(t->expr_arena, &backup_arena);
     }
   }
   DBUG_RETURN(error);
