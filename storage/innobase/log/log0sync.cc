@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2020 MariaDB Corporation.
+Copyright (c) 2020, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -72,12 +72,8 @@ Note that if write operation is very fast, a) or b) can be fine as alternative.
 #include <thread>
 #include <mutex>
 #include <condition_variable>
-#include <my_cpu.h>
 
-#include <log0types.h>
 #include "log0sync.h"
-#include <mysql/service_thd_wait.h>
-#include <sql_class.h>
 /**
   Helper class , used in group commit lock.
 
@@ -166,7 +162,7 @@ struct group_commit_waiter_t
 };
 
 group_commit_lock::group_commit_lock() :
-  m_mtx(), m_value(0), m_pending_value(0), m_lock(false), m_waiters_list()
+  m_mtx(), m_value(0), m_lock(false), m_waiters_list()
 {
 }
 
@@ -175,60 +171,32 @@ group_commit_lock::value_type group_commit_lock::value() const
   return m_value.load(std::memory_order::memory_order_relaxed);
 }
 
-group_commit_lock::value_type group_commit_lock::pending() const
-{
-  return m_pending_value.load(std::memory_order::memory_order_relaxed);
-}
 
-void group_commit_lock::set_pending(group_commit_lock::value_type num)
-{
-  ut_a(num >= value());
-  m_pending_value.store(num, std::memory_order::memory_order_relaxed);
-}
-
-const unsigned int MAX_SPINS = 1; /** max spins in acquire */
 thread_local group_commit_waiter_t thread_local_waiter;
 
 static inline void do_completion_callback(const completion_callback* cb)
 {
-  if (cb)
+  if (cb && cb->m_callback)
     cb->m_callback(cb->m_param);
+}
+
+inline void store_callback(lsn_t num, const completion_callback *cb,
+                         std::vector<std::pair<lsn_t, completion_callback>> &v)
+{
+  if (!cb || !cb->m_callback)
+    return;
+  v.push_back({num, *cb});
 }
 
 group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num, const completion_callback *callback)
 {
-  unsigned int spins = MAX_SPINS;
-
-  for(;;)
-  {
-    if (num <= value())
-    {
-      /* No need to wait.*/
-      do_completion_callback(callback);
-      return lock_return_code::EXPIRED;
-    }
-
-    if(spins-- == 0)
-      break;
-    if (num > pending())
-    {
-      /* Longer wait expected (longer than currently running operation),
-        don't spin.*/
-      break;
-    }
-    ut_delay(1);
-  }
-
-  thread_local_waiter.m_value = num;
-  thread_local_waiter.m_group_commit_leader= false;
+  bool group_commit_leader= false;
   std::unique_lock<std::mutex> lk(m_mtx, std::defer_lock);
-  while (num > value() || thread_local_waiter.m_group_commit_leader)
+  while (num > value() || group_commit_leader)
   {
     lk.lock();
-
     /* Re-read current value after acquiring the lock*/
-    if (num <= value() &&
-       (!thread_local_waiter.m_group_commit_leader || m_lock))
+    if (num <= value() && (!group_commit_leader || m_lock))
     {
       lk.unlock();
       do_completion_callback(callback);
@@ -239,40 +207,30 @@ group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num, c
     {
       /* Take the lock, become group commit leader.*/
       m_lock = true;
-#ifndef DBUG_OFF
-      m_owner_id = std::this_thread::get_id();
-#endif
-      if (callback)
-        m_pending_callbacks.push_back({num,*callback});
+      ut_d(set_owner());
+      store_callback(num, callback,m_pending_callbacks);
       return lock_return_code::ACQUIRED;
     }
 
-    if (callback && (m_waiters_list || num <= pending()))
+    if (callback)
     {
-      /*
-      If num > pending(), we have a good candidate for the next group
-      commit lead, that will be taking over the lock after current owner
-      releases it.  We put current thread into waiter's list so it sleeps
-      and can be signaled and marked as group commit lead  during lock release.
-
-      For this to work well, pending() must deliver a good approximation for N
-      in the next call to group_commit_lock::release(N).
-      */
-      m_pending_callbacks.push_back({num, *callback});
+      store_callback(num, callback, m_pending_callbacks);
       return lock_return_code::CALLBACK_QUEUED;
     }
 
     /* Add yourself to waiters list.*/
-    thread_local_waiter.m_group_commit_leader= false;
-    thread_local_waiter.m_next = m_waiters_list;
-    m_waiters_list = &thread_local_waiter;
+    auto *waiter= &thread_local_waiter;
+    waiter->m_value= num;
+    waiter->m_group_commit_leader= false;
+    waiter->m_next= m_waiters_list;
+    m_waiters_list= waiter;
     lk.unlock();
 
     /* Sleep until woken in release().*/
     thd_wait_begin(0,THD_WAIT_GROUP_COMMIT);
-    thread_local_waiter.m_sema.wait();
+    waiter->m_sema.wait();
     thd_wait_end(0);
-
+    group_commit_leader= waiter->m_group_commit_leader;
   }
   do_completion_callback(callback);
   return lock_return_code::EXPIRED;
@@ -282,9 +240,8 @@ group_commit_lock::value_type group_commit_lock::release(value_type num)
 {
   completion_callback callbacks[1000];
   size_t callback_count = 0;
-  value_type ret = 0;
+  value_type ret= 0;
   std::unique_lock<std::mutex> lk(m_mtx);
-  m_lock = false;
 
   /* Update current value. */
   ut_a(num >= value());
@@ -306,6 +263,12 @@ group_commit_lock::value_type group_commit_lock::release(value_type num)
         c.second.m_callback(c.second.m_param);
     }
   }
+
+  auto it=
+      std::remove_if(m_pending_callbacks.begin(), m_pending_callbacks.end(),
+                     [num](const pending_cb &c) { return c.first <= num; });
+
+  m_pending_callbacks.erase(it, m_pending_callbacks.end());
 
   for (prev= nullptr, cur= m_waiters_list; cur; cur= next)
   {
@@ -334,12 +297,6 @@ group_commit_lock::value_type group_commit_lock::release(value_type num)
       prev= cur;
     }
   }
-
-  auto it= std::remove_if(
-      m_pending_callbacks.begin(), m_pending_callbacks.end(),
-      [num](const pending_cb &c) { return c.first <= num; });
-
-  m_pending_callbacks.erase(it, m_pending_callbacks.end());
 
   if (m_pending_callbacks.size() || m_waiters_list)
   {
@@ -370,7 +327,8 @@ group_commit_lock::value_type group_commit_lock::release(value_type num)
       ret= m_pending_callbacks[0].first;
     }
   }
-
+  ut_d(reset_owner();)
+  m_lock= false;
   lk.unlock();
 
   /*
@@ -396,9 +354,29 @@ group_commit_lock::value_type group_commit_lock::release(value_type num)
 }
 
 #ifndef DBUG_OFF
-bool group_commit_lock::is_owner()
+#include <tpool_structs.h>
+TPOOL_SUPPRESS_TSAN
+bool group_commit_lock::locked() const noexcept { return m_lock; }
+
+TPOOL_SUPPRESS_TSAN bool group_commit_lock::is_owner() const noexcept
 {
-  return m_lock && std::this_thread::get_id() == m_owner_id;
+  return locked() && std::this_thread::get_id() == m_owner_id;
+}
+
+void TPOOL_SUPPRESS_TSAN group_commit_lock::set_owner()
+{
+  DBUG_ASSERT(locked() && !has_owner());
+  m_owner_id= std::this_thread::get_id();
+}
+
+void TPOOL_SUPPRESS_TSAN group_commit_lock::reset_owner()
+{
+  DBUG_ASSERT(is_owner());
+  m_owner_id= std::thread::id();
+}
+
+bool TPOOL_SUPPRESS_TSAN group_commit_lock::has_owner() const noexcept
+{
+  return m_owner_id != std::thread::id();
 }
 #endif
-
