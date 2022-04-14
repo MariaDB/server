@@ -5455,18 +5455,17 @@ protected:
   Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a)
           :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                       (const char *)NULL),
-           arg(a), cached_field(NULL) {}
+           arg(a) {}
 public:
   Item *arg;
-  Field *cached_field;
   Item_default_value(THD *thd, Name_resolution_context *context_arg)
     :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                (const char *)NULL),
-    arg(NULL), cached_field(NULL) {}
+    arg(NULL) {}
   Item_default_value(THD *thd, Name_resolution_context *context_arg, Field *a)
     :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                 (const char *)NULL),
-    arg(NULL),cached_field(NULL) {}
+    arg(NULL) {}
   enum Type type() const { return DEFAULT_VALUE_ITEM; }
   bool vcol_assignment_allowed_value() const { return true; }
   bool eq(const Item *item, bool binary_cmp) const;
@@ -5498,7 +5497,7 @@ public:
     return false;
   }
   table_map used_tables() const;
-  virtual void update_used_tables()
+  void update_used_tables()
   {
     if (field && field->default_value)
       field->default_value->expr->update_used_tables();

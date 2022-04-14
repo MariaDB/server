@@ -1055,8 +1055,7 @@ bool Item_field::check_field_expression_processor(void *arg)
           (!field->vcol_info && !org_field->vcol_info)) &&
          field->field_index >= org_field->field_index))
     {
-      my_error(ER_EXPRESSION_REFERS_TO_UNINIT_FIELD,
-               MYF(0),
+      my_error(ER_EXPRESSION_REFERS_TO_UNINIT_FIELD, MYF(0),
                org_field->field_name, field->field_name);
       return 1;
     }
@@ -9024,7 +9023,6 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   }
   if (!(def_field= (Field*) thd->alloc(field_arg->field->size_of())))
     goto error;
-  cached_field= def_field;
   memcpy((void *)def_field, (void *)field_arg->field,
          field_arg->field->size_of());
   def_field->reset_fields();
@@ -9063,8 +9061,7 @@ bool Item_default_value::enchant_default_with_arg_processor(void *proc_arg)
 
 void Item_default_value::cleanup()
 {
-  delete cached_field;                        // Free cached blob data
-  cached_field= 0;
+  delete field;                        // Free cached blob data
   Item_field::cleanup();
 }
 
