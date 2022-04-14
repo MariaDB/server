@@ -55,7 +55,7 @@ Created 10/10/1995 Heikki Tuuri
 /** Simple non-atomic counter
 @tparam	Type  the integer type of the counter */
 template <typename Type>
-struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
+struct alignas(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
 {
   /** Increment the counter */
   Type inc() { return add(1); }

@@ -81,7 +81,7 @@ void trx_temp_rseg_create();
 #define TRX_RSEG_MAX_N_TRXS	(TRX_RSEG_N_SLOTS / 2)
 
 /** The rollback segment memory object */
-struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) trx_rseg_t
+struct alignas(CPU_LEVEL1_DCACHE_LINESIZE) trx_rseg_t
 {
   /** tablespace containing the rollback segment; constant after init() */
   fil_space_t *space;

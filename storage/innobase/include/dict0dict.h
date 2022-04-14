@@ -1354,7 +1354,7 @@ class dict_sys_t
   std::atomic<ulonglong> latch_ex_wait_start;
 
   /** the rw-latch protecting the data dictionary cache */
-  MY_ALIGNED(CACHE_LINE_SIZE) srw_lock latch;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_lock latch;
 #ifdef UNIV_DEBUG
   /** whether latch is being held in exclusive mode (by any thread) */
   bool latch_ex;

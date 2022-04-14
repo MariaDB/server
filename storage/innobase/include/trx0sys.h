@@ -830,8 +830,8 @@ public:
   void unfreeze() const { mysql_mutex_unlock(&mutex); }
 
 private:
-  alignas(CACHE_LINE_SIZE) mutable mysql_mutex_t mutex;
-  alignas(CACHE_LINE_SIZE) ilist<trx_t> trx_list;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mutable mysql_mutex_t mutex;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) ilist<trx_t> trx_list;
 };
 
 /** The transaction system central memory data structure. */
@@ -841,7 +841,7 @@ class trx_sys_t
     The smallest number not yet assigned as a transaction id or transaction
     number. Accessed and updated with atomic operations.
   */
-  MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<trx_id_t> m_max_trx_id;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) Atomic_counter<trx_id_t> m_max_trx_id;
 
 
   /**
@@ -852,7 +852,8 @@ class trx_sys_t
     @sa assign_new_trx_no()
     @sa snapshot_ids()
   */
-  MY_ALIGNED(CACHE_LINE_SIZE) std::atomic<trx_id_t> m_rw_trx_hash_version;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE)
+  std::atomic<trx_id_t> m_rw_trx_hash_version;
 
 
   bool m_initialised;
@@ -872,7 +873,7 @@ public:
     Works faster when it is on it's own cache line (tested).
   */
 
-  MY_ALIGNED(CACHE_LINE_SIZE) rw_trx_hash_t rw_trx_hash;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) rw_trx_hash_t rw_trx_hash;
 
 
 #ifdef WITH_WSREP

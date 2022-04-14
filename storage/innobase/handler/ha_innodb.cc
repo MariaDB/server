@@ -1229,7 +1229,7 @@ struct log_flush_request
 };
 
 /** Buffer of pending innodb_log_flush_request() */
-MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) static
+alignas(CPU_LEVEL1_DCACHE_LINESIZE) static
 struct
 {
   /** first request */

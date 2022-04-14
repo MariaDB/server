@@ -1,4 +1,4 @@
-/* Copyright (C) 2019, 2021, MariaDB Corporation.
+/* Copyright (C) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute itand /or modify
 it under the terms of the GNU General Public License as published by
@@ -128,7 +128,7 @@ enum worker_wake_reason
 
 
 /* A per-worker  thread structure.*/
-struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
+struct alignas(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
 {
   /** Condition variable to wakeup this worker.*/
   std::condition_variable m_cv;
