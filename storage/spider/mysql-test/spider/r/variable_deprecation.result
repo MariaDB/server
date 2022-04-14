@@ -28,6 +28,21 @@ Warnings:
 Warning	1287	The table parameter 'use_handler' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
+# MDEV-28297 Deprecate spider_internal_offset
+SET spider_internal_offset = 1;
+Warnings:
+Warning	1287	'@@spider_internal_offset' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_internal_offset";
+Variable_name	Value
+spider_internal_offset	1
+CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='ios "1"';
+Warnings:
+Warning	1287	The table parameter 'ios' is deprecated and will be removed in a future release
+CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='internal_offset "1"';
+Warnings:
+Warning	1287	The table parameter 'internal_offset' is deprecated and will be removed in a future release
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
 # MDEV-28005 Deprecate Spider plugin variables regarding UDFs
 SET GLOBAL spider_udf_ds_bulk_insert_rows = 1;
 Warnings:

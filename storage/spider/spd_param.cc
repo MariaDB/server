@@ -469,7 +469,7 @@ uint spider_param_xa_register_mode(
  */
 static MYSQL_THDVAR_LONGLONG(
   internal_offset, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Internal offset", /* comment */
   NULL, /* check */
   spider_use_table_value_deprecated, /* update */
