@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -631,7 +631,7 @@ struct trx_roll_count_callback_arg
 static my_bool trx_roll_count_callback(rw_trx_hash_element_t *element,
                                        trx_roll_count_callback_arg *arg)
 {
-  mysql_mutex_lock(&element->mutex);
+  element->mutex.wr_lock();
   if (trx_t *trx= element->trx)
   {
     if (trx->is_recovered && trx_state_eq(trx, TRX_STATE_ACTIVE))
@@ -640,7 +640,7 @@ static my_bool trx_roll_count_callback(rw_trx_hash_element_t *element,
       arg->n_rows+= trx->undo_no;
     }
   }
-  mysql_mutex_unlock(&element->mutex);
+  element->mutex.wr_unlock();
   return 0;
 }
 
@@ -678,7 +678,7 @@ void trx_roll_report_progress()
 static my_bool trx_rollback_recovered_callback(rw_trx_hash_element_t *element,
                                                std::vector<trx_t*> *trx_list)
 {
-  mysql_mutex_lock(&element->mutex);
+  element->mutex.wr_lock();
   if (trx_t *trx= element->trx)
   {
     trx->mutex_lock();
@@ -686,7 +686,7 @@ static my_bool trx_rollback_recovered_callback(rw_trx_hash_element_t *element,
       trx_list->push_back(trx);
     trx->mutex_unlock();
   }
-  mysql_mutex_unlock(&element->mutex);
+  element->mutex.wr_unlock();
   return 0;
 }
 

@@ -68,30 +68,6 @@ dtype_get_mysql_type(
 Compute the mbminlen and mbmaxlen members of a data type structure. */
 UNIV_INLINE
 void
-dtype_get_mblen(
-/*============*/
-	ulint	mtype,		/*!< in: main type */
-	ulint	prtype,		/*!< in: precise type (and collation) */
-	unsigned*mbminlen,	/*!< out: minimum length of a
-				multi-byte character */
-	unsigned*mbmaxlen)	/*!< out: maximum length of a
-				multi-byte character */
-{
-	if (dtype_is_string_type(mtype)) {
-		innobase_get_cset_width(dtype_get_charset_coll(prtype),
-					mbminlen, mbmaxlen);
-		ut_ad(*mbminlen <= *mbmaxlen);
-		ut_ad(*mbminlen < DATA_MBMAX);
-		ut_ad(*mbmaxlen < DATA_MBMAX);
-	} else {
-		*mbminlen = *mbmaxlen = 0;
-	}
-}
-
-/*********************************************************************//**
-Compute the mbminlen and mbmaxlen members of a data type structure. */
-UNIV_INLINE
-void
 dtype_set_mblen(
 /*============*/
 	dtype_t*	type)	/*!< in/out: type */
@@ -374,16 +350,6 @@ dtype_get_fixed_size_low(
 		} else if (!comp) {
 			return static_cast<unsigned>(len);
 		} else {
-#ifdef UNIV_DEBUG
-			unsigned i_mbminlen, i_mbmaxlen;
-
-			innobase_get_cset_width(
-				dtype_get_charset_coll(prtype),
-				&i_mbminlen, &i_mbmaxlen);
-
-			ut_ad(i_mbminlen == mbminlen);
-			ut_ad(i_mbmaxlen == mbmaxlen);
-#endif /* UNIV_DEBUG */
 			if (mbminlen == mbmaxlen) {
 				return static_cast<unsigned>(len);
 			}

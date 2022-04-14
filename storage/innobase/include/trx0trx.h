@@ -388,13 +388,13 @@ struct trx_lock_t
 					only be modified by the thread that is
 					serving the running transaction. */
 
-	/** Pre-allocated record locks */
-	struct {
-		ib_lock_t lock; byte pad[256];
-	} rec_pool[8];
+  /** Pre-allocated record locks */
+  struct {
+    alignas(CPU_LEVEL1_DCACHE_LINESIZE) ib_lock_t lock;
+  } rec_pool[8];
 
-	/** Pre-allocated table locks */
-	ib_lock_t	table_pool[8];
+  /** Pre-allocated table locks */
+  ib_lock_t table_pool[8];
 
   /** Memory heap for trx_locks. Protected by lock_sys.assert_locked()
   and lock_sys.is_writer() || trx->mutex_is_owner(). */
@@ -623,6 +623,7 @@ private:
     that it is no longer "active".
   */
 
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE)
   Atomic_counter<int32_t> n_ref;
 
 
@@ -738,7 +739,7 @@ public:
 
   /** The locks of the transaction. Protected by lock_sys.latch
   (insertions also by trx_t::mutex). */
-  trx_lock_t lock;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) trx_lock_t lock;
 
 #ifdef WITH_WSREP
   /** whether wsrep_on(mysql_thd) held at the start of transaction */
