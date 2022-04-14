@@ -546,7 +546,6 @@ mysql_pfs_key_t	trx_sys_mutex_key;
 mysql_pfs_key_t	srv_threads_mutex_key;
 mysql_pfs_key_t	thread_mutex_key;
 mysql_pfs_key_t row_drop_list_mutex_key;
-mysql_pfs_key_t	rw_trx_hash_element_mutex_key;
 mysql_pfs_key_t	read_view_mutex_key;
 
 /* all_innodb_mutexes array contains mutexes that are

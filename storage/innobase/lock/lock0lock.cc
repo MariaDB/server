@@ -4868,7 +4868,7 @@ static void lock_rec_block_validate(const page_id_t page_id)
 static my_bool lock_validate_table_locks(rw_trx_hash_element_t *element, void*)
 {
   lock_sys.assert_locked();
-  mysql_mutex_lock(&element->mutex);
+  element->mutex.wr_lock();
   if (element->trx)
   {
     check_trx_state(element->trx);
@@ -4878,7 +4878,7 @@ static my_bool lock_validate_table_locks(rw_trx_hash_element_t *element, void*)
       if (lock->is_table())
         lock_table_queue_validate(lock->un_member.tab_lock.table);
   }
-  mysql_mutex_unlock(&element->mutex);
+  element->mutex.wr_unlock();
   return 0;
 }
 
@@ -5075,7 +5075,7 @@ static my_bool lock_rec_other_trx_holds_expl_callback(
   rw_trx_hash_element_t *element,
   lock_rec_other_trx_holds_expl_arg *arg)
 {
-  mysql_mutex_lock(&element->mutex);
+  element->mutex.wr_lock();
   if (element->trx)
   {
     element->trx->mutex_lock();
@@ -5091,7 +5091,7 @@ static my_bool lock_rec_other_trx_holds_expl_callback(
     ut_ad(!expl_lock || expl_lock->trx == &arg->impl_trx);
     element->trx->mutex_unlock();
   }
-  mysql_mutex_unlock(&element->mutex);
+  element->mutex.wr_unlock();
   return 0;
 }
 
@@ -5835,7 +5835,7 @@ static my_bool lock_table_locks_lookup(rw_trx_hash_element_t *element,
                                        const dict_table_t *table)
 {
   lock_sys.assert_locked();
-  mysql_mutex_lock(&element->mutex);
+  element->mutex.wr_lock();
   if (element->trx)
   {
     element->trx->mutex_lock();
@@ -5859,7 +5859,7 @@ static my_bool lock_table_locks_lookup(rw_trx_hash_element_t *element,
     }
     element->trx->mutex_unlock();
   }
-  mysql_mutex_unlock(&element->mutex);
+  element->mutex.wr_unlock();
   return 0;
 }
 #endif /* UNIV_DEBUG */
