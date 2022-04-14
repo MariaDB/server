@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -285,8 +285,7 @@ row_fts_psort_info_init(
 		psort_info[j].psort_common = common_info;
 		psort_info[j].error = DB_SUCCESS;
 		psort_info[j].memory_used = 0;
-		mysql_mutex_init(fts_pll_tokenize_mutex_key,
-				 &psort_info[j].mutex, nullptr);
+		mysql_mutex_init(0, &psort_info[j].mutex, nullptr);
 	}
 
 	/* Initialize merge_info structures parallel merge and insert
