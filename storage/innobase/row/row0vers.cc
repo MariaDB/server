@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -134,8 +134,8 @@ row_vers_impl_x_locked_low(
 		trx = caller_trx;
 		trx->reference();
 	} else {
-		trx = trx_sys.find(caller_trx, trx_id);
-		if (trx == 0) {
+		trx = trx_sys.find(trx_id);
+		if (!trx) {
 			/* The transaction that modified or inserted
 			clust_rec is no longer active, or it is
 			corrupt: no implicit lock on rec */
@@ -424,13 +424,13 @@ row_vers_impl_x_locked(
 		a rollback we always undo the modifications to secondary index
 		records before the clustered index record. */
 
-		trx = 0;
+		trx = nullptr;
 	} else {
 		trx = row_vers_impl_x_locked_low(
 				caller_trx, clust_rec, clust_index, rec, index,
 				offsets, &mtr);
 
-		ut_ad(trx == 0 || trx->is_referenced());
+		ut_ad(!trx || trx->is_referenced());
 	}
 
 	mtr_commit(&mtr);
@@ -1217,7 +1217,6 @@ which should be seen by a semi-consistent read. */
 void
 row_vers_build_for_semi_consistent_read(
 /*====================================*/
-	trx_t*		caller_trx,/*!<in/out: trx of current thread */
 	const rec_t*	rec,	/*!< in: record in a clustered index; the
 				caller must have a latch on the page; this
 				latch locks the top of the stack of versions
@@ -1262,7 +1261,7 @@ row_vers_build_for_semi_consistent_read(
 			rec_trx_id = version_trx_id;
 		}
 
-		if (!trx_sys.is_registered(caller_trx, version_trx_id)) {
+		if (!trx_sys.is_registered(version_trx_id)) {
 committed_version_trx:
 			/* We found a version that belongs to a
 			committed transaction: return it. */

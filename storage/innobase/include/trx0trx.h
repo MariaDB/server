@@ -41,7 +41,7 @@ Created 3/26/1996 Heikki Tuuri
 
 // Forward declaration
 struct mtr_t;
-struct rw_trx_hash_element_t;
+class rw_trx_hash_t;
 
 /******************************************************************//**
 Set detailed error message for the transaction. */
@@ -585,55 +585,7 @@ private:
 
   alignas(CPU_LEVEL1_DCACHE_LINESIZE)
   Atomic_counter<int32_t> n_ref;
-
-
 public:
-  /** Transaction identifier (0 if no locks were acquired).
-  Set by trx_sys_t::register_rw() or trx_resurrect() before
-  the transaction is added to trx_sys.rw_trx_hash.
-  Cleared in commit_in_memory() after commit_state(),
-  trx_sys_t::deregister_rw(), release_locks(). */
-  trx_id_t id;
-
-private:
-  /** mutex protecting state and some of lock
-  (some are protected by lock_sys.latch) */
-  srw_spin_mutex mutex;
-#ifdef UNIV_DEBUG
-  /** The owner of mutex (0 if none); protected by mutex */
-  std::atomic<os_thread_id_t> mutex_owner{0};
-#endif /* UNIV_DEBUG */
-public:
-  void mutex_init() { mutex.init(); }
-  void mutex_destroy() { mutex.destroy(); }
-
-  /** Acquire the mutex */
-  void mutex_lock()
-  {
-    ut_ad(!mutex_is_owner());
-    mutex.wr_lock();
-    ut_ad(!mutex_owner.exchange(os_thread_get_curr_id(),
-                                std::memory_order_relaxed));
-  }
-  /** Release the mutex */
-  void mutex_unlock()
-  {
-    ut_ad(mutex_owner.exchange(0, std::memory_order_relaxed)
-	  == os_thread_get_curr_id());
-    mutex.wr_unlock();
-  }
-#ifndef SUX_LOCK_GENERIC
-  bool mutex_is_locked() const noexcept { return mutex.is_locked(); }
-#endif
-#ifdef UNIV_DEBUG
-  /** @return whether the current thread holds the mutex */
-  bool mutex_is_owner() const
-  {
-    return mutex_owner.load(std::memory_order_relaxed) ==
-      os_thread_get_curr_id();
-  }
-#endif /* UNIV_DEBUG */
-
   /** State of the trx from the point of view of concurrency control
   and the valid state transitions.
 
@@ -696,6 +648,62 @@ public:
 
   Transitions to COMMITTED are protected by trx_t::mutex. */
   Atomic_relaxed<trx_state_t> state;
+
+  /** Transaction identifier (0 if no locks were acquired).
+  Set by trx_sys_t::register_rw() or trx_resurrect() before
+  the transaction is added to trx_sys.rw_trx_hash.
+  Cleared in commit_in_memory() after commit_state(),
+  trx_sys_t::deregister_rw(), release_locks(). */
+  trx_id_t id;
+  /**
+    Transaction commit number for read view creation.
+
+    Assigned shortly before trx is moved to TRX_STATE_COMMITTED_IN_MEMORY.
+    Initially set to TRX_ID_MAX.
+  */
+  trx_id_t no;
+private:
+  friend class rw_trx_hash_t;
+  /** Next element in trx_sys.rw_trx_hash bucket chain */
+  trx_t *rw_trx_hash;
+
+  /** mutex protecting state and some of lock
+  (some are protected by lock_sys.latch) */
+  srw_spin_mutex mutex;
+#ifdef UNIV_DEBUG
+  /** The owner of mutex (0 if none); protected by mutex */
+  std::atomic<os_thread_id_t> mutex_owner{0};
+#endif /* UNIV_DEBUG */
+public:
+  void mutex_init() { mutex.init(); }
+  void mutex_destroy() { mutex.destroy(); }
+
+  /** Acquire the mutex */
+  void mutex_lock()
+  {
+    ut_ad(!mutex_is_owner());
+    mutex.wr_lock();
+    ut_ad(!mutex_owner.exchange(os_thread_get_curr_id(),
+                                std::memory_order_relaxed));
+  }
+  /** Release the mutex */
+  void mutex_unlock()
+  {
+    ut_ad(mutex_owner.exchange(0, std::memory_order_relaxed)
+	  == os_thread_get_curr_id());
+    mutex.wr_unlock();
+  }
+#ifndef SUX_LOCK_GENERIC
+  bool mutex_is_locked() const noexcept { return mutex.is_locked(); }
+#endif
+#ifdef UNIV_DEBUG
+  /** @return whether the current thread holds the mutex */
+  bool mutex_is_owner() const
+  {
+    return mutex_owner.load(std::memory_order_relaxed) ==
+      os_thread_get_curr_id();
+  }
+#endif /* UNIV_DEBUG */
 
   /** The locks of the transaction. Protected by lock_sys.latch
   (insertions also by trx_t::mutex). */
@@ -884,8 +892,6 @@ public:
 	/*------------------------------*/
 	char*		detailed_error;	/*!< detailed error message for last
 					error, or empty. */
-	rw_trx_hash_element_t *rw_trx_hash_element;
-	LF_PINS *rw_trx_hash_pins;
 	ulint		magic_n;
 
 	/** @return whether any persistent undo log has been generated */
@@ -1010,11 +1016,11 @@ public:
 
   void assert_freed() const
   {
-    ut_ad(state == TRX_STATE_NOT_STARTED);
+    ut_ad(!is_referenced());
     ut_ad(!id);
+    ut_ad(!rw_trx_hash);
     ut_ad(!mutex_is_owner());
     ut_ad(!has_logged());
-    ut_ad(!is_referenced());
     ut_ad(!is_wsrep());
     ut_ad(!lock.was_chosen_as_deadlock_victim);
     ut_ad(mod_tables.empty());

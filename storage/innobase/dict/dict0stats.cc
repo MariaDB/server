@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2009, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1432,7 +1432,7 @@ invalid:
 		}
 
 		const auto bulk_trx_id = index->table->bulk_trx_id;
-		if (bulk_trx_id && trx_sys.find(nullptr, bulk_trx_id, false)) {
+		if (bulk_trx_id && trx_sys.find(bulk_trx_id, false)) {
 			goto invalid;
 		}
 
@@ -2548,7 +2548,7 @@ empty_index:
 	}
 
 	const auto bulk_trx_id = index->table->bulk_trx_id;
-	if (bulk_trx_id && trx_sys.find(nullptr, bulk_trx_id, false)) {
+	if (bulk_trx_id && trx_sys.find(bulk_trx_id, false)) {
 		result.index_size = 1;
 		result.n_leaf_pages = 1;
 		goto empty_index;

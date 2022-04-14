@@ -43,6 +43,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0sys.h"
 #include "trx0trx.h"
 #include "trx0undo.h"
+#include "log.h"
 
 #ifdef UNIV_PFS_THREAD
 mysql_pfs_key_t	trx_rollback_clean_thread_key;
@@ -620,75 +621,43 @@ trx_rollback_active(
 }
 
 
-struct trx_roll_count_callback_arg
-{
-  uint32_t n_trx;
-  uint64_t n_rows;
-  trx_roll_count_callback_arg(): n_trx(0), n_rows(0) {}
-};
-
-
-static my_bool trx_roll_count_callback(rw_trx_hash_element_t *element,
-                                       trx_roll_count_callback_arg *arg)
-{
-  element->mutex.wr_lock();
-  if (trx_t *trx= element->trx)
-  {
-    if (trx->is_recovered && trx_state_eq(trx, TRX_STATE_ACTIVE))
-    {
-      arg->n_trx++;
-      arg->n_rows+= trx->undo_no;
-    }
-  }
-  element->mutex.wr_unlock();
-  return 0;
-}
-
 /** Report progress when rolling back a row of a recovered transaction. */
 void trx_roll_report_progress()
 {
-	time_t now = time(NULL);
-	mysql_mutex_lock(&recv_sys.mutex);
-	bool report = recv_sys.report(now);
-	mysql_mutex_unlock(&recv_sys.mutex);
+  time_t now= time(nullptr);
+  mysql_mutex_lock(&recv_sys.mutex);
+  const bool report{recv_sys.report(now)};
+  mysql_mutex_unlock(&recv_sys.mutex);
 
-	if (report) {
-		trx_roll_count_callback_arg arg;
-
-		/* Get number of recovered active transactions and number of
-		rows they modified. Numbers must be accurate, because only this
-		thread is allowed to touch recovered transactions. */
-		trx_sys.rw_trx_hash.iterate_no_dups(
-			trx_roll_count_callback, &arg);
-
-		if (arg.n_rows > 0) {
-			service_manager_extend_timeout(
-				INNODB_EXTEND_TIMEOUT_INTERVAL,
-				"To roll back: " UINT32PF " transactions, "
-				UINT64PF " rows", arg.n_trx, arg.n_rows);
-		}
-
-		ib::info() << "To roll back: " << arg.n_trx
-			   << " transactions, " << arg.n_rows << " rows";
-
-	}
-}
-
-
-static my_bool trx_rollback_recovered_callback(rw_trx_hash_element_t *element,
-                                               std::vector<trx_t*> *trx_list)
-{
-  element->mutex.wr_lock();
-  if (trx_t *trx= element->trx)
+  if (report)
   {
-    trx->mutex_lock();
-    if (trx_state_eq(trx, TRX_STATE_ACTIVE) && trx->is_recovered)
-      trx_list->push_back(trx);
-    trx->mutex_unlock();
+    size_t n_trx= 0;
+    uint64_t n_rows= 0;
+
+    /* Get number of recovered active transactions and number of
+    rows they modified. Numbers must be accurate, because only this
+    thread is allowed to touch recovered transactions. */
+    trx_sys.rw_trx_hash.for_each([&n_trx, &n_rows](const trx_t &trx)
+    {
+      if (trx.is_recovered && trx_state_eq(&trx, TRX_STATE_ACTIVE))
+      {
+        n_trx++;
+        n_rows+= trx.undo_no;
+      }
+    });
+
+    if (n_rows)
+    {
+      service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+                                     "To roll back: %zu transactions, "
+                                     UINT64PF " rows", n_trx, n_rows);
+    }
+
+    sql_print_information("InnoDB: To roll back: %zu transactions, "
+                          UINT64PF " rows", n_trx, n_rows);
   }
-  element->mutex.wr_unlock();
-  return 0;
 }
+
 
 /**
   Rollback any incomplete transactions which were encountered in crash recovery.
@@ -717,8 +686,13 @@ void trx_rollback_recovered(bool all)
     other thread is allowed to modify or remove these transactions from
     rw_trx_hash.
   */
-  trx_sys.rw_trx_hash.iterate_no_dups(trx_rollback_recovered_callback,
-                                      &trx_list);
+  trx_sys.rw_trx_hash.for_each([&trx_list](trx_t &trx)
+  {
+    trx.mutex_lock();
+    if (trx_state_eq(&trx, TRX_STATE_ACTIVE) && trx.is_recovered)
+      trx_list.push_back(&trx);
+    trx.mutex_unlock();
+  });
 
   while (!trx_list.empty())
   {
@@ -780,7 +754,7 @@ void trx_rollback_all_recovered(void*)
 {
 	ut_ad(!srv_read_only_mode);
 
-	if (trx_sys.rw_trx_hash.size()) {
+	if (!trx_sys.rw_trx_hash.empty()) {
 		ib::info() << "Starting in background the rollback of"
 			" recovered transactions";
 		trx_rollback_recovered(true);

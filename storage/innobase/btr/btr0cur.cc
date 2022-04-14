@@ -598,8 +598,7 @@ inconsistent:
 	trx_sys.is_registered(DB_TRX_ID). */
 	if (rec_offs_n_fields(offsets)
 	    > ulint(index->n_fields) + !!index->table->instant
-	    && !trx_sys.is_registered(current_trx(),
-				      row_get_rec_trx_id(rec, index,
+	    && !trx_sys.is_registered(row_get_rec_trx_id(rec, index,
 							 offsets))) {
 		goto inconsistent;
 	}

@@ -3392,8 +3392,7 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
     trx_sys.is_registered(DB_TRX_ID). */
     if (rec_offs_n_fields(offsets) >
             ulint(index->n_fields) + !!index->table->instant &&
-        !trx_sys.is_registered(current_trx(),
-                               row_get_rec_trx_id(rec, index, offsets)))
+        !trx_sys.is_registered(row_get_rec_trx_id(rec, index, offsets)))
       goto inconsistent;
 
     for (unsigned i= index->n_core_fields; i < index->n_fields; i++)

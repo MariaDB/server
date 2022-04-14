@@ -4603,8 +4603,8 @@ func_exit:
 		: 0;
 
 	if (trx_t *impl_trx = impl_trx_id
-	    ? trx_sys.find(current_trx(), impl_trx_id, false)
-	    : 0) {
+	    ? trx_sys.find(impl_trx_id, false)
+	    : nullptr) {
 		/* impl_trx could have been committed before we
 		acquire its mutex, but not thereafter. */
 
@@ -4664,7 +4664,7 @@ func_exit:
 	}
 
 	for (lock = lock_sys_t::get_first(cell, id, heap_no);
-	     lock != NULL;
+	     lock;
 	     lock = lock_rec_get_next_const(heap_no, lock)) {
 		ut_ad(!lock->trx->read_only
 		      || !lock->trx->is_autocommit_non_locking());
@@ -4865,24 +4865,6 @@ static void lock_rec_block_validate(const page_id_t page_id)
 	}
 }
 
-static my_bool lock_validate_table_locks(rw_trx_hash_element_t *element, void*)
-{
-  lock_sys.assert_locked();
-  element->mutex.wr_lock();
-  if (element->trx)
-  {
-    check_trx_state(element->trx);
-    for (const lock_t *lock= UT_LIST_GET_FIRST(element->trx->lock.trx_locks);
-         lock != NULL;
-         lock= UT_LIST_GET_NEXT(trx_locks, lock))
-      if (lock->is_table())
-        lock_table_queue_validate(lock->un_member.tab_lock.table);
-  }
-  element->mutex.wr_unlock();
-  return 0;
-}
-
-
 /** Validate the transactional locks. */
 static void lock_validate()
 {
@@ -4890,7 +4872,14 @@ static void lock_validate()
   {
     LockMutexGuard g{SRW_LOCK_CALL};
     /* Validate table locks */
-    trx_sys.rw_trx_hash.iterate(lock_validate_table_locks);
+    trx_sys.rw_trx_hash.for_each([](const trx_t &trx)
+    {
+      check_trx_state(&trx);
+      for (const lock_t *lock= UT_LIST_GET_FIRST(trx.lock.trx_locks);
+           lock; lock= UT_LIST_GET_NEXT(trx_locks, lock))
+        if (lock->is_table())
+          lock_table_queue_validate(lock->un_member.tab_lock.table);
+    });
 
     for (ulint i= 0; i < lock_sys.rec_hash.n_cells; i++)
     {
@@ -5062,40 +5051,6 @@ lock_rec_convert_impl_to_expl_for_trx(
 
 
 #ifdef UNIV_DEBUG
-struct lock_rec_other_trx_holds_expl_arg
-{
-  const ulint heap_no;
-  const hash_cell_t &cell;
-  const page_id_t id;
-  const trx_t &impl_trx;
-};
-
-
-static my_bool lock_rec_other_trx_holds_expl_callback(
-  rw_trx_hash_element_t *element,
-  lock_rec_other_trx_holds_expl_arg *arg)
-{
-  element->mutex.wr_lock();
-  if (element->trx)
-  {
-    element->trx->mutex_lock();
-    ut_ad(element->trx->state != TRX_STATE_NOT_STARTED);
-    lock_t *expl_lock= element->trx->state == TRX_STATE_COMMITTED_IN_MEMORY
-      ? nullptr
-      : lock_rec_has_expl(LOCK_S | LOCK_REC_NOT_GAP,
-                          arg->cell, arg->id, arg->heap_no, element->trx);
-    /*
-      An explicit lock is held by trx other than the trx holding the implicit
-      lock.
-    */
-    ut_ad(!expl_lock || expl_lock->trx == &arg->impl_trx);
-    element->trx->mutex_unlock();
-  }
-  element->mutex.wr_unlock();
-  return 0;
-}
-
-
 /**
   Checks if some transaction, other than given trx_id, has an explicit
   lock on the given rec.
@@ -5104,29 +5059,37 @@ static my_bool lock_rec_other_trx_holds_expl_callback(
   subsequent locking read should not convert it to explicit. See also
   MDEV-11215.
 
-  @param      caller_trx  trx of current thread
-  @param[in]  trx         trx holding implicit lock on rec
-  @param[in]  rec         user record
-  @param[in]  id          page identifier
+  @param impl_trx    trx holding implicit lock on rec
+  @param rec         user record
+  @param id          page identifier
 */
-static void lock_rec_other_trx_holds_expl(trx_t *caller_trx, trx_t *trx,
+static void lock_rec_other_trx_holds_expl(trx_t *impl_trx,
                                           const rec_t *rec,
                                           const page_id_t id)
 {
-  if (trx)
+  if (impl_trx)
   {
     ut_ad(!page_rec_is_metadata(rec));
     LockGuard g{lock_sys.rec_hash, id};
-    ut_ad(trx->is_referenced());
-    const trx_state_t state{trx->state};
+    ut_ad(impl_trx->is_referenced());
+    const trx_state_t state{impl_trx->state};
     ut_ad(state != TRX_STATE_NOT_STARTED);
     if (state == TRX_STATE_COMMITTED_IN_MEMORY)
       /* The transaction was committed before we acquired LockGuard. */
       return;
-    lock_rec_other_trx_holds_expl_arg arg=
-    { page_rec_get_heap_no(rec), g.cell(), id, *trx };
-    trx_sys.rw_trx_hash.iterate(caller_trx,
-                                lock_rec_other_trx_holds_expl_callback, &arg);
+    const ulint heap_no{page_rec_get_heap_no(rec)};
+
+    trx_sys.rw_trx_hash.for_each([&](trx_t &trx)
+    {
+      trx.mutex_lock();
+      ut_ad(trx.state != TRX_STATE_NOT_STARTED);
+      if (lock_t *expl_lock= trx.state == TRX_STATE_COMMITTED_IN_MEMORY
+          ? nullptr
+          : lock_rec_has_expl(LOCK_S | LOCK_REC_NOT_GAP,
+                              g.cell(), id, heap_no, &trx))
+        ut_ad(expl_lock->trx == impl_trx);
+      trx.mutex_unlock();
+    });
   }
 }
 #endif /* UNIV_DEBUG */
@@ -5179,7 +5142,7 @@ lock_rec_convert_impl_to_expl(
 			return true;
 		}
 
-		trx = trx_sys.find(caller_trx, trx_id);
+		trx = trx_sys.find(trx_id);
 	} else {
 		ut_ad(!dict_index_is_online_ddl(index));
 
@@ -5190,7 +5153,7 @@ lock_rec_convert_impl_to_expl(
 			return true;
 		}
 
-		ut_d(lock_rec_other_trx_holds_expl(caller_trx, trx, rec, id));
+		ut_d(lock_rec_other_trx_holds_expl(trx, rec, id));
 	}
 
 	if (trx) {
@@ -5823,47 +5786,6 @@ dberr_t lock_trx_handle_wait(trx_t *trx)
   return err;
 }
 
-#ifdef UNIV_DEBUG
-/**
-  Do an exhaustive check for any locks (table or rec) against the table.
-
-  @param[in]  table  check if there are any locks held on records in this table
-                     or on the table itself
-*/
-
-static my_bool lock_table_locks_lookup(rw_trx_hash_element_t *element,
-                                       const dict_table_t *table)
-{
-  lock_sys.assert_locked();
-  element->mutex.wr_lock();
-  if (element->trx)
-  {
-    element->trx->mutex_lock();
-    check_trx_state(element->trx);
-    if (element->trx->state != TRX_STATE_COMMITTED_IN_MEMORY)
-    {
-      for (const lock_t *lock= UT_LIST_GET_FIRST(element->trx->lock.trx_locks);
-           lock != NULL;
-           lock= UT_LIST_GET_NEXT(trx_locks, lock))
-      {
-        ut_ad(lock->trx == element->trx);
-        if (!lock->is_table())
-        {
-          ut_ad(lock->index->online_status != ONLINE_INDEX_CREATION ||
-                lock->index->is_primary());
-          ut_ad(lock->index->table != table);
-        }
-        else
-          ut_ad(lock->un_member.tab_lock.table != table);
-      }
-    }
-    element->trx->mutex_unlock();
-  }
-  element->mutex.wr_unlock();
-  return 0;
-}
-#endif /* UNIV_DEBUG */
-
 /** Check if there are any locks on a table.
 @return true if table has either table or record locks. */
 TRANSACTIONAL_TARGET
@@ -5887,16 +5809,35 @@ bool lock_table_has_locks(dict_table_t *table)
     len= UT_LIST_GET_LEN(table->locks);
     table->lock_mutex_unlock();
   }
-  if (len)
-    return true;
 #ifdef UNIV_DEBUG
+  if (!len)
   {
     LockMutexGuard g{SRW_LOCK_CALL};
-    trx_sys.rw_trx_hash.iterate(lock_table_locks_lookup,
-                                const_cast<const dict_table_t*>(table));
+    trx_sys.rw_trx_hash.for_each([table](trx_t &trx)
+    {
+      trx.mutex_lock();
+      check_trx_state(&trx);
+      if (trx.state != TRX_STATE_COMMITTED_IN_MEMORY)
+      {
+        for (const lock_t *lock= UT_LIST_GET_FIRST(trx.lock.trx_locks);
+             lock; lock= UT_LIST_GET_NEXT(trx_locks, lock))
+        {
+          ut_ad(lock->trx == &trx);
+          if (!lock->is_table())
+          {
+            ut_ad(lock->index->online_status != ONLINE_INDEX_CREATION ||
+                  lock->index->is_primary());
+            ut_ad(lock->index->table != table);
+          }
+          else
+            ut_ad(lock->un_member.tab_lock.table != table);
+        }
+      }
+      trx.mutex_unlock();
+    });
   }
 #endif /* UNIV_DEBUG */
-  return false;
+  return len;
 }
 
 /*******************************************************************//**

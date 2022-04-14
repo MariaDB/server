@@ -2946,23 +2946,6 @@ check_trx_exists(
 	}
 }
 
-/**
-  Gets current trx.
-
-  This function may be called during InnoDB initialisation, when
-  innodb_hton_ptr->slot is not yet set to meaningful value.
-*/
-
-trx_t *current_trx()
-{
-	THD *thd=current_thd;
-	if (likely(thd != 0) && innodb_hton_ptr->slot != HA_SLOT_UNDEF) {
-		return thd_to_trx(thd);
-	} else {
-		return(NULL);
-	}
-}
-
 /*********************************************************************//**
 Note that a transaction has been registered with MySQL.
 @return true if transaction is registered with MySQL 2PC coordinator */

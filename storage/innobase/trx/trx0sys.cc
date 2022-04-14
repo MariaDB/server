@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -40,6 +40,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "log0log.h"
 #include "log0recv.h"
 #include "os0file.h"
+#include "log.h"
 
 /** The transaction system */
 trx_sys_t		trx_sys;
@@ -83,19 +84,13 @@ ReadViewBase::check_trx_id_sanity(
 uint	trx_rseg_n_slots_debug = 0;
 #endif
 
-/** Display the MySQL binlog offset info if it is present in the trx
-system header. */
-void
-trx_sys_print_mysql_binlog_offset()
+/** Display the binlog offset info if it is present in the undo pages. */
+void trx_sys_print_mysql_binlog_offset()
 {
-	if (!*trx_sys.recovered_binlog_filename) {
-		return;
-	}
-
-	ib::info() << "Last binlog file '"
-		<< trx_sys.recovered_binlog_filename
-		<< "', position "
-		<< trx_sys.recovered_binlog_offset;
+  if (*trx_sys.recovered_binlog_filename)
+    sql_print_information("InnoDB: Last binlog file '%s', position " UINT64PF,
+                          trx_sys.recovered_binlog_filename,
+                          trx_sys.recovered_binlog_offset);
 }
 
 /** Find an available rollback segment.
@@ -197,13 +192,55 @@ trx_sysf_create(
 	ut_a(rblock->page.id() == page_id_t(0, FSP_FIRST_RSEG_PAGE_NO));
 }
 
+inline void rw_trx_hash_t::destroy()
+{
+  for (ulint i= 0; i < n_cells_padded; i++)
+  {
+    if (trx_t *trx= array[i].first)
+    {
+      ut_ad(i % (ELEMENTS_PER_LATCH + 1));
+      do
+      {
+        ut_d(validate_element(trx));
+        ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED) ||
+              trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED) ||
+              (trx_state_eq(trx, TRX_STATE_ACTIVE) &&
+               (!srv_was_started ||
+                srv_read_only_mode ||
+                srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)));
+        trx_t *next= trx->rw_trx_hash;
+        trx_free_at_shutdown(trx);
+        trx= next;
+      }
+      while (trx);
+      array[i].first= nullptr;
+    }
+  }
+}
+
+#ifndef NO_ELISION
+TRANSACTIONAL_TARGET bool rw_trx_hash_t::empty(const page_hash_latch *lk) const
+{
+  if (!xbegin())
+    return false;
+
+  const hash_chain *b= reinterpret_cast<const hash_chain*>(lk);
+  const hash_chain *const end= b + (ELEMENTS_PER_LATCH + 1);
+
+  while (!b->first && b < end)
+    b++;
+
+  xend();
+  return b >= end;
+}
+#endif
+
 void trx_sys_t::create()
 {
   ut_ad(this == &trx_sys);
   ut_ad(!is_initialised());
   m_initialised= true;
   trx_list.create();
-  rw_trx_hash.init();
 }
 
 uint32_t trx_sys_t::history_size()
@@ -373,33 +410,31 @@ bool trx_sys_create_rsegs()
 }
 
 /** Close the transaction system on shutdown */
-void
-trx_sys_t::close()
+void trx_sys_t::close()
 {
-	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS);
-	if (!is_initialised()) {
-		return;
-	}
+  ut_ad(srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS);
+  if (!is_initialised())
+    return;
 
-	if (size_t size = view_count()) {
-		ib::error() << "All read views were not closed before"
-			" shutdown: " << size << " read views open";
-	}
+  if (size_t size = view_count())
+  {
+    sql_print_error("InnoDB: %zu read views were not closed before shutdown",
+                    size);
+    ut_ad("read view leak" == 0);
+  }
 
-	rw_trx_hash.destroy();
+  rw_trx_hash.destroy();
 
-	/* There can't be any active transactions. */
+  /* There can't be any active transactions. */
 
-	for (ulint i = 0; i < array_elements(temp_rsegs); ++i) {
-		temp_rsegs[i].destroy();
-	}
-	for (ulint i = 0; i < array_elements(rseg_array); ++i) {
-		rseg_array[i].destroy();
-	}
+  for (size_t i= 0; i < array_elements(temp_rsegs); ++i)
+    temp_rsegs[i].destroy();
+  for (size_t i= 0; i < array_elements(rseg_array); ++i)
+    rseg_array[i].destroy();
 
-	ut_a(trx_list.empty());
-	trx_list.close();
-	m_initialised = false;
+  ut_a(trx_list.empty());
+  trx_list.close();
+  m_initialised= false;
 }
 
 /** @return total number of active (non-prepared) transactions */
