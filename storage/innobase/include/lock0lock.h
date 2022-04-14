@@ -684,7 +684,7 @@ private:
   bool m_initialised;
 
   /** mutex proteting the locks */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) srw_spin_lock latch;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_spin_lock latch;
 #ifdef UNIV_DEBUG
   /** The owner of exclusive latch (0 if none); protected by latch */
   std::atomic<os_thread_id_t> writer{0};
@@ -707,7 +707,7 @@ public:
   hash_table prdt_page_hash;
 
   /** mutex covering lock waits; @see trx_lock_t::wait_lock */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t wait_mutex;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t wait_mutex;
 private:
   /** The increment of wait_count for a wait. Anything smaller is a
   pending wait count. */

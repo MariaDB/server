@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -226,10 +226,10 @@ void ReadView::open(trx_t *trx)
       m_open.store(true, std::memory_order_relaxed);
     else
     {
-      mysql_mutex_lock(&m_mutex);
+      m_mutex.wr_lock();
       snapshot(trx);
       m_open.store(true, std::memory_order_relaxed);
-      mysql_mutex_unlock(&m_mutex);
+      m_mutex.wr_unlock();
     }
   }
 }

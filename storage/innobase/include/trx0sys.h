@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -40,7 +40,6 @@ Created 3/26/1996 Heikki Tuuri
 
 #ifdef UNIV_PFS_MUTEX
 extern mysql_pfs_key_t trx_sys_mutex_key;
-extern mysql_pfs_key_t rw_trx_hash_element_mutex_key;
 #endif
 
 /** Checks if a page address is the trx sys header page.
@@ -335,16 +334,14 @@ trx_t* current_trx();
 
 struct rw_trx_hash_element_t
 {
-  rw_trx_hash_element_t(): trx(0)
+  rw_trx_hash_element_t()
   {
-    mysql_mutex_init(rw_trx_hash_element_mutex_key, &mutex, nullptr);
+    memset(reinterpret_cast<void*>(this), 0, sizeof *this);
+    mutex.init();
   }
 
 
-  ~rw_trx_hash_element_t()
-  {
-    mysql_mutex_destroy(&mutex);
-  }
+  ~rw_trx_hash_element_t() { mutex.destroy(); }
 
 
   trx_id_t id; /* lf_hash_init() relies on this to be first in the struct */
@@ -357,7 +354,7 @@ struct rw_trx_hash_element_t
   */
   Atomic_counter<trx_id_t> no;
   trx_t *trx;
-  mysql_mutex_t mutex;
+  srw_mutex mutex;
 };
 
 
@@ -526,10 +523,10 @@ class rw_trx_hash_t
   static my_bool debug_iterator(rw_trx_hash_element_t *element,
                                 debug_iterator_arg<T> *arg)
   {
-    mysql_mutex_lock(&element->mutex);
+    element->mutex.wr_lock();
     if (element->trx)
       validate_element(element->trx);
-    mysql_mutex_unlock(&element->mutex);
+    element->mutex.wr_unlock();
     return arg->action(element, arg->argument);
   }
 #endif
@@ -631,7 +628,7 @@ public:
                       sizeof(trx_id_t)));
     if (element)
     {
-      mysql_mutex_lock(&element->mutex);
+      element->mutex.wr_lock();
       lf_hash_search_unpin(pins);
       if ((trx= element->trx)) {
         DBUG_ASSERT(trx_id == trx->id);
@@ -652,7 +649,7 @@ public:
             trx->reference();
         }
       }
-      mysql_mutex_unlock(&element->mutex);
+      element->mutex.wr_unlock();
     }
     if (!caller_trx)
       lf_hash_put_pins(pins);
@@ -686,9 +683,9 @@ public:
   void erase(trx_t *trx)
   {
     ut_d(validate_element(trx));
-    mysql_mutex_lock(&trx->rw_trx_hash_element->mutex);
-    trx->rw_trx_hash_element->trx= 0;
-    mysql_mutex_unlock(&trx->rw_trx_hash_element->mutex);
+    trx->rw_trx_hash_element->mutex.wr_lock();
+    trx->rw_trx_hash_element->trx= nullptr;
+    trx->rw_trx_hash_element->mutex.wr_unlock();
     int res= lf_hash_delete(&hash, get_pins(trx),
                             reinterpret_cast<const void*>(&trx->id),
                             sizeof(trx_id_t));
@@ -722,12 +719,12 @@ public:
     May return element with committed transaction. If caller doesn't like to
     see committed transactions, it has to skip those under element mutex:
 
-      mysql_mutex_lock(&element->mutex);
+      element->mutex.wr_lock();
       if (trx_t trx= element->trx)
       {
         // trx is protected against commit in this branch
       }
-      mysql_mutex_unlock(&element->mutex);
+      element->mutex.wr_unlock();
 
     May miss concurrently inserted transactions.
 
@@ -833,8 +830,8 @@ public:
   void unfreeze() const { mysql_mutex_unlock(&mutex); }
 
 private:
-  alignas(CACHE_LINE_SIZE) mutable mysql_mutex_t mutex;
-  alignas(CACHE_LINE_SIZE) ilist<trx_t> trx_list;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mutable mysql_mutex_t mutex;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) ilist<trx_t> trx_list;
 };
 
 /** The transaction system central memory data structure. */
@@ -844,7 +841,7 @@ class trx_sys_t
     The smallest number not yet assigned as a transaction id or transaction
     number. Accessed and updated with atomic operations.
   */
-  MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<trx_id_t> m_max_trx_id;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) Atomic_counter<trx_id_t> m_max_trx_id;
 
 
   /**
@@ -855,7 +852,8 @@ class trx_sys_t
     @sa assign_new_trx_no()
     @sa snapshot_ids()
   */
-  MY_ALIGNED(CACHE_LINE_SIZE) std::atomic<trx_id_t> m_rw_trx_hash_version;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE)
+  std::atomic<trx_id_t> m_rw_trx_hash_version;
 
 
   bool m_initialised;
@@ -875,7 +873,7 @@ public:
     Works faster when it is on it's own cache line (tested).
   */
 
-  MY_ALIGNED(CACHE_LINE_SIZE) rw_trx_hash_t rw_trx_hash;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) rw_trx_hash_t rw_trx_hash;
 
 
 #ifdef WITH_WSREP
@@ -1180,11 +1178,11 @@ private:
   {
     if (element->id < *id)
     {
-      mysql_mutex_lock(&element->mutex);
+      element->mutex.wr_lock();
       /* We don't care about read-only transactions here. */
       if (element->trx && element->trx->rsegs.m_redo.rseg)
         *id= element->id;
-      mysql_mutex_unlock(&element->mutex);
+      element->mutex.wr_unlock();
     }
     return 0;
   }

@@ -325,7 +325,6 @@ dtype_get_prtype(
 
 /*********************************************************************//**
 Compute the mbminlen and mbmaxlen members of a data type structure. */
-UNIV_INLINE
 void
 dtype_get_mblen(
 /*============*/
