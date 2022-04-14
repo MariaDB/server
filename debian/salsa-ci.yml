@@ -34,7 +34,7 @@ build:
     - mv ${CCACHE_WORK_DIR} ${CCACHE_TMP_DIR}
     # Run Salsa-CI .build-script equivalent, with extra devscripts so autobake-deb.sh can run 'dch'
     - export CCACHE_DIR=${CCACHE_TMP_DIR}
-    - apt-get update && eatmydata apt-get install --no-install-recommends -y ccache fakeroot build-essential devscripts
+    - apt-get update && eatmydata apt-get install --no-install-recommends -y ccache fakeroot build-essential devscripts lsb-release
     - cd ${WORKING_DIR}/${SOURCE_DIR}
     - eatmydata apt-get build-dep --no-install-recommends -y .
     - update-ccache-symlinks; ccache -z # Zero out ccache counters
