@@ -5726,7 +5726,7 @@ sub usage ($) {
   {
     print STDERR "$message\n";
     print STDERR "For full list of options, use $0 --help\n";
-    exit;      
+    exit(1);
   }
 
   local $"= ','; # for @DEFAULT_SUITES below
