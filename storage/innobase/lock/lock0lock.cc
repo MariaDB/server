@@ -4750,25 +4750,25 @@ loop:
 	holding a tablespace latch. */
 	if (!latched)
 	for (i = nth_bit; i < lock_rec_get_n_bits(lock); i++) {
-
-		if (i == PAGE_HEAP_NO_SUPREMUM
-		    || lock_rec_get_nth_bit(lock, i)) {
+		bool locked = lock_rec_get_nth_bit(lock, i);
+		if (i == PAGE_HEAP_NO_SUPREMUM || locked) {
 
 			rec = page_find_rec_with_heap_no(block->page.frame, i);
 			ut_a(rec);
-			ut_ad(!lock_rec_get_nth_bit(lock, i)
-			      || page_rec_is_leaf(rec));
-			offsets = rec_get_offsets(rec, lock->index, offsets,
-						  lock->index->n_core_fields,
-						  ULINT_UNDEFINED, &heap);
+			ut_ad(!locked || page_rec_is_leaf(rec));
 
 			/* If this thread is holding the file space
 			latch (fil_space_t::latch), the following
 			check WILL break the latching order and may
 			cause a deadlock of threads. */
 
-			lock_rec_queue_validate(
-				true, id, rec, lock->index, offsets);
+			if (locked) {
+			  offsets = rec_get_offsets(rec, lock->index, offsets,
+			      lock->index->n_core_fields, ULINT_UNDEFINED,
+			      &heap);
+			  lock_rec_queue_validate(true, id, rec, lock->index,
+			      offsets);
+			}
 
 			nth_bit = i + 1;
 
@@ -4849,12 +4849,6 @@ static void lock_rec_block_validate(const page_id_t page_id)
 			RW_X_LATCH, NULL,
 			BUF_GET_POSSIBLY_FREED,
 			&mtr, &err);
-
-		if (err != DB_SUCCESS) {
-			ib::error() << "Lock rec block validate failed for tablespace "
-				   << space->chain.start->name
-				   << page_id << " err " << err;
-		}
 
 		ut_ad(!block || block->page.is_freed()
 		      || lock_rec_validate_page(block, space->is_latched()));
