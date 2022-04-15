@@ -55,6 +55,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include "xtrabackup.h"
 #include "common.h"
 #include "backup_copy.h"
+#include "backup_debug.h"
 #include "backup_mysql.h"
 #include <btr0btr.h>
 
@@ -1443,6 +1444,13 @@ bool backup_start(CorruptedPages &corrupted_pages)
 
 	msg("Waiting for log copy thread to read lsn %llu", (ulonglong)server_lsn_after_lock);
 	backup_wait_for_lsn(server_lsn_after_lock);
+	DBUG_EXECUTE_FOR_KEY("sleep_after_waiting_for_lsn", {},
+		{
+			ulong milliseconds = strtoul(dbug_val, NULL, 10);
+			msg("sleep_after_waiting_for_lsn");
+			my_sleep(milliseconds*1000UL);
+		});
+
 	backup_fix_ddl(corrupted_pages);
 
 	// There is no need to stop slave thread before coping non-Innodb data when

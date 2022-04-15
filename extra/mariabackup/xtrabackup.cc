@@ -3098,7 +3098,7 @@ static void log_copying_thread()
          (!metadata_to_lsn || metadata_to_lsn > log_copy_scanned_lsn))
   {
     timespec abstime;
-    set_timespec_nsec(abstime, 1000ULL * xtrabackup_log_copy_interval);
+    set_timespec_nsec(abstime, 1000000ULL * xtrabackup_log_copy_interval);
     mysql_cond_timedwait(&log_copying_stop, &log_sys.mutex, &abstime);
   }
   log_copying_running= false;
