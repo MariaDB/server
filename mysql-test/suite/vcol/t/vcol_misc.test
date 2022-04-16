@@ -497,5 +497,20 @@ select 1 from t1 x natural join t1;
 drop table t1;
 
 --echo #
+--echo # CONTEXT_ANALYSIS_ONLY_VCOL_EXPR
+--echo #
+
+--source include/have_ucs2.inc
+create table t1 (c1 char(1) character set ucs2 collate ucs2_test_ci,
+                 v1 char(1) character set ucs2 collate ucs2_test_ci as (c1),
+                 v2 int as (c1 = 'b'),
+                 v3 int as (v1 = 'b'));
+insert into t1 (c1) values ('a');
+select * from t1 where v1 = 'b';
+show create table t1;
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
+
