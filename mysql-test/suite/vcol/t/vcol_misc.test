@@ -488,6 +488,14 @@ SELECT * FROM t1;
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 
+#
+# MDEV-28092 MariaDB SEGV issue
+#
+create table t1 (b timestamp, a int as (1 in (dayofmonth (b between 'x' and current_user) = b)));
+insert into t1(b) values ('2022-03-17 14:55:37');
+select 1 from t1 x natural join t1;
+drop table t1;
+
 --echo #
 --echo # End of 10.2 tests
 --echo #

@@ -510,6 +510,17 @@ a	b
 13	14
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
+create table t1 (b timestamp, a int as (1 in (dayofmonth (b between 'x' and current_user) = b)));
+insert into t1(b) values ('2022-03-17 14:55:37');
+select 1 from t1 x natural join t1;
+1
+1
+Warnings:
+Warning	1292	Incorrect datetime value: 'x'
+Warning	1292	Incorrect datetime value: 'root@localhost'
+Warning	1292	Incorrect datetime value: 'x'
+Warning	1292	Incorrect datetime value: 'root@localhost'
+drop table t1;
 #
 # End of 10.2 tests
 #
