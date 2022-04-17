@@ -1009,7 +1009,7 @@ static inline void store_length(uchar *to, uint length, uint pack_length)
 }
 
 
-void
+bool
 Type_handler_string_result::make_sort_key(uchar *to, Item *item,
                                           const SORT_FIELD_ATTR *sort_field,
                                           Sort_param *param) const
@@ -1025,23 +1025,13 @@ Type_handler_string_result::make_sort_key(uchar *to, Item *item,
   String *res= item->str_result(&tmp);
   if (!res)
   {
-    if (maybe_null)
-      memset(to - 1, 0, sort_field->length + 1);
-    else
+    if (unlikely(!maybe_null))
     {
-      /* purecov: begin deadcode */
-      /*
-        This should only happen during extreme conditions if we run out
-        of memory or have an item marked not null when it can be null.
-        This code is here mainly to avoid a hard crash in this case.
-      */
-      DBUG_ASSERT(0);
-      DBUG_PRINT("warning",
-                 ("Got null on something that shouldn't be null"));
-      memset(to, 0, sort_field->length);	// Avoid crash
-      /* purecov: end */
+      // This indicates an error during item->str_result() call
+      return true;
     }
-    return;
+    memset(to - 1, 0, sort_field->length + 1);
+    return false;
   }
 
   if (use_strnxfrm(cs))
@@ -1077,10 +1067,11 @@ Type_handler_string_result::make_sort_key(uchar *to, Item *item,
     char fill_char= ((cs->state & MY_CS_BINSORT) ? (char) 0 : ' ');
     cs->cset->fill(cs, (char *)to+length,diff,fill_char);
   }
+  return false;
 }
 
 
-void
+bool
 Type_handler_int_result::make_sort_key(uchar *to, Item *item,
                                        const SORT_FIELD_ATTR *sort_field,
                                        Sort_param *param) const
@@ -1088,10 +1079,11 @@ Type_handler_int_result::make_sort_key(uchar *to, Item *item,
   longlong value= item->val_int_result();
   make_sort_key_longlong(to, item->maybe_null, item->null_value,
                          item->unsigned_flag, value);
+  return false;
 }
 
 
-void
+bool
 Type_handler_temporal_result::make_sort_key(uchar *to, Item *item,
                                             const SORT_FIELD_ATTR *sort_field,
                                             Sort_param *param) const
@@ -1103,10 +1095,13 @@ Type_handler_temporal_result::make_sort_key(uchar *to, Item *item,
     DBUG_ASSERT(item->null_value);
     make_sort_key_longlong(to, item->maybe_null, true,
                            item->unsigned_flag, 0);
+    // If both flags set, it is NOT an error. Otherwise it is an error
+    return !(item->maybe_null && item->null_value);
   }
   else
     make_sort_key_longlong(to, item->maybe_null, false,
                            item->unsigned_flag, pack_time(&buf));
+  return false;
 }
 
 
@@ -1141,7 +1136,7 @@ Type_handler::make_sort_key_longlong(uchar *to,
 }
 
 
-void
+bool
 Type_handler_decimal_result::make_sort_key(uchar *to, Item *item,
                                            const SORT_FIELD_ATTR *sort_field,
                                            Sort_param *param) const
@@ -1152,17 +1147,23 @@ Type_handler_decimal_result::make_sort_key(uchar *to, Item *item,
     if (item->null_value)
     {
       memset(to, 0, sort_field->length + 1);
-      return;
+      return false;
     }
     *to++= 1;
   }
-  my_decimal2binary(E_DEC_FATAL_ERROR, dec_val, to,
+  else if (item->null_value)
+  {
+    // Error during item->val_decimal_result()
+    DBUG_ASSERT(!dec_val);
+    return true;
+  }
+  return my_decimal2binary(E_DEC_FATAL_ERROR, dec_val, to,
                     item->max_length - (item->decimals ? 1 : 0),
                     item->decimals);
 }
 
 
-void
+bool
 Type_handler_real_result::make_sort_key(uchar *to, Item *item,
                                         const SORT_FIELD_ATTR *sort_field,
                                         Sort_param *param) const
@@ -1173,11 +1174,12 @@ Type_handler_real_result::make_sort_key(uchar *to, Item *item,
     if (item->null_value)
     {
       memset(to, 0, sort_field->length + 1);
-      return;
+      return false;
     }
     *to++= 1;
   }
   change_double_for_sort(value, to);
+  return false;
 }
 
 
