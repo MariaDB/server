@@ -835,7 +835,6 @@ bool Item_ident::remove_dependence_processor(void * arg)
   DBUG_RETURN(0);
 }
 
-
 bool Item_ident::collect_outer_ref_processor(void *param)
 {
   Collect_deps_prm *prm= (Collect_deps_prm *)param;
@@ -6376,9 +6375,6 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   }
 #endif
   fixed= 1;
-  if (field->vcol_info &&
-      field->vcol_info->fix_session_expr_for_read(thd, field))
-    goto error;
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !outer_fixed && !thd->lex->in_sum_func &&
       select &&
@@ -9499,12 +9495,6 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   {
     uchar *newptr= (uchar*) thd->alloc(1+def_field->pack_length());
     if (!newptr)
-      goto error;
-    /*
-      Even if DEFAULT() do not read tables fields, the default value
-      expression can do it.
-    */
-    if (def_field->default_value->fix_session_expr_for_read(thd, def_field))
       goto error;
     if (should_mark_column(thd->column_usage))
       def_field->default_value->expr->update_used_tables();

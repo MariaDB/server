@@ -749,6 +749,8 @@ void close_thread_tables(THD *thd)
     /* Table might be in use by some outer statement. */
     DBUG_PRINT("tcache", ("table: '%s'  query_id: %lu",
                           table->s->table_name.str, (ulong) table->query_id));
+    if (thd->locked_tables_mode)
+      table->vcol_cleanup_expr(thd);
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES ||
         table->query_id == thd->query_id)
     {
@@ -884,6 +886,8 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
                                              table->s->db.str,
                                              table->s->table_name.str,
                                              MDL_SHARED));
+
+  table->vcol_cleanup_expr(thd);
   table->mdl_ticket= NULL;
 
   if (table->file)
@@ -1610,6 +1614,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
   MDL_ticket *mdl_ticket;
   TABLE_SHARE *share;
   uint gts_flags;
+  bool from_share= false;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   int part_names_error=0;
 #endif
@@ -2021,6 +2026,7 @@ retry_share:
 
     /* Add table to the share's used tables list. */
     tc_add_table(thd, table);
+    from_share= true;
   }
 
   table->mdl_ticket= mdl_ticket;
@@ -2040,7 +2046,7 @@ retry_share:
   table_list->updatable= 1; // It is not derived table nor non-updatable VIEW
   table_list->table= table;
 
-  if (table->vcol_fix_exprs(thd))
+  if (!from_share && table->vcol_fix_expr(thd))
     goto err_lock;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -5291,46 +5297,6 @@ static void mark_real_tables_as_free_for_reuse(TABLE_LIST *table_list)
       */
       table->table->file->extra(HA_EXTRA_DETACH_CHILDREN);
     }
-}
-
-bool TABLE::vcol_fix_exprs(THD *thd)
-{
-  if (pos_in_table_list->placeholder() || !s->vcols_need_refixing ||
-      pos_in_table_list->lock_type < TL_WRITE_ALLOW_WRITE)
-    return false;
-
-  DBUG_ASSERT(pos_in_table_list != thd->lex->first_not_own_table());
-
-  bool result= true;
-  Security_context *save_security_ctx= thd->security_ctx;
-  Query_arena *stmt_backup= thd->stmt_arena;
-  if (thd->stmt_arena->is_conventional())
-    thd->stmt_arena= expr_arena;
-
-  if (pos_in_table_list->security_ctx)
-    thd->security_ctx= pos_in_table_list->security_ctx;
-
-
-  for (Field **vf= vfield; vf && *vf; vf++)
-    if ((*vf)->vcol_info->fix_session_expr(thd))
-      goto end;
-
-  for (Field **df= default_field; df && *df; df++)
-    if ((*df)->default_value &&
-        (*df)->default_value->fix_session_expr(thd))
-      goto end;
-
-  for (Virtual_column_info **cc= check_constraints; cc && *cc; cc++)
-    if ((*cc)->fix_session_expr(thd))
-      goto end;
-
-  result= false;
-
-end:
-  thd->security_ctx= save_security_ctx;
-  thd->stmt_arena= stmt_backup;
-
-  return result;
 }
 
 

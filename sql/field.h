@@ -616,9 +616,13 @@ public:
   {
     in_partitioning_expr= TRUE;
   }
+  bool need_refix() const
+  {
+    return flags & VCOL_SESSION_FUNC;
+  }
   bool fix_expr(THD *thd);
   bool fix_session_expr(THD *thd);
-  bool fix_session_expr_for_read(THD *thd, Field *field);
+  bool cleanup_session_expr();
   bool fix_and_check_expr(THD *thd, TABLE *table);
   inline bool is_equal(const Virtual_column_info* vcol) const;
   inline void print(String*);

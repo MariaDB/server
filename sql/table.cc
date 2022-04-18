@@ -2990,33 +2990,131 @@ bool Virtual_column_info::fix_expr(THD *thd)
 */
 bool Virtual_column_info::fix_session_expr(THD *thd)
 {
-  DBUG_ENTER("fix_session_vcol_expr");
-  if (!(flags & (VCOL_TIME_FUNC|VCOL_SESSION_FUNC)))
-    DBUG_RETURN(0);
+  if (!need_refix())
+    return false;
 
-  expr->walk(&Item::cleanup_excluding_fields_processor, 0, 0);
   DBUG_ASSERT(!expr->fixed);
-  DBUG_RETURN(fix_expr(thd));
+  if (fix_expr(thd))
+    return true;
+  return false;
 }
 
 
-/** invoke fix_session_vcol_expr for a vcol
-
-    @note this is called for generated column or a DEFAULT expression from
-    their corresponding fix_fields on SELECT.
-*/
-bool Virtual_column_info::fix_session_expr_for_read(THD *thd, Field *field)
+bool Virtual_column_info::cleanup_session_expr()
 {
-  DBUG_ENTER("fix_session_vcol_expr_for_read");
-  TABLE_LIST *tl= field->table->pos_in_table_list;
-  if (!tl || tl->lock_type >= TL_WRITE_ALLOW_WRITE)
-    DBUG_RETURN(0);
-  Security_context *save_security_ctx= thd->security_ctx;
-  if (tl->security_ctx)
+  DBUG_ASSERT(need_refix());
+  if (expr->walk(&Item::cleanup_excluding_fields_processor, 0, 0))
+    return true;
+  return false;
+}
+
+
+
+class Vcol_expr_context
+{
+  bool inited;
+  THD *thd;
+  TABLE *table;
+  LEX *old_lex;
+  LEX lex;
+  table_map old_map;
+  Security_context *save_security_ctx;
+  sql_mode_t save_sql_mode;
+
+public:
+  Vcol_expr_context(THD *_thd, TABLE *_table) :
+    inited(false),
+    thd(_thd),
+    table(_table),
+    old_lex(thd->lex),
+    old_map(table->map),
+    save_security_ctx(thd->security_ctx),
+    save_sql_mode(thd->variables.sql_mode) {}
+  bool init();
+
+  ~Vcol_expr_context();
+};
+
+
+bool Vcol_expr_context::init()
+{
+  /*
+      As this is vcol expression we must narrow down name resolution to
+      single table.
+  */
+  if (init_lex_with_single_table(thd, table, &lex))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    table->map= old_map;
+    return true;
+  }
+
+  lex.sql_command= old_lex->sql_command;
+  thd->variables.sql_mode= 0;
+
+  TABLE_LIST const *tl= table->pos_in_table_list;
+  DBUG_ASSERT(table->pos_in_table_list);
+
+  if (table->pos_in_table_list->security_ctx)
     thd->security_ctx= tl->security_ctx;
-  bool res= fix_session_expr(thd);
+
+  inited= true;
+  return false;
+}
+
+Vcol_expr_context::~Vcol_expr_context()
+{
+  if (!inited)
+    return;
+  end_lex_with_single_table(thd, table, old_lex);
+  table->map= old_map;
   thd->security_ctx= save_security_ctx;
-  DBUG_RETURN(res);
+  thd->variables.sql_mode= save_sql_mode;
+}
+
+
+bool TABLE::vcol_fix_expr(THD *thd)
+{
+  if (pos_in_table_list->placeholder() || vcol_refix_list.is_empty())
+    return false;
+
+  if (!thd->stmt_arena->is_conventional() &&
+      vcol_refix_list.head()->expr->fixed)
+  {
+    /* NOTE: Under trigger we already have fixed expressions */
+    return false;
+  }
+
+  Vcol_expr_context expr_ctx(thd, this);
+  if (expr_ctx.init())
+    return true;
+
+  List_iterator_fast<Virtual_column_info> it(vcol_refix_list);
+  while (Virtual_column_info *vcol= it++)
+    if (vcol->fix_session_expr(thd))
+      goto error;
+
+  return false;
+
+error:
+  DBUG_ASSERT(thd->get_stmt_da()->is_error());
+  return true;
+}
+
+
+bool TABLE::vcol_cleanup_expr(THD *thd)
+{
+  if (vcol_refix_list.is_empty())
+    return false;
+
+  List_iterator<Virtual_column_info> it(vcol_refix_list);
+  bool result= false;
+
+  while (Virtual_column_info *vcol= it++)
+    result|= vcol->cleanup_session_expr();
+
+  DBUG_ASSERT(!result || thd->get_stmt_da()->is_error());
+  return result;
 }
 
 
@@ -3047,6 +3145,7 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
   DBUG_PRINT("info", ("vcol: %p", this));
   DBUG_ASSERT(expr);
 
+  /* NOTE: constants are fixed when constructed */
   if (expr->fixed)
     DBUG_RETURN(0); // nothing to do
 
@@ -3097,8 +3196,8 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
   }
   flags= res.errors;
 
-  if (flags & VCOL_SESSION_FUNC)
-    table->s->vcols_need_refixing= true;
+  if (!table->s->tmp_table && need_refix())
+    table->vcol_refix_list.push_back(this, &table->mem_root);
 
   DBUG_RETURN(0);
 }
@@ -3263,6 +3362,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   outparam->covering_keys.init();
   outparam->intersect_keys.init();
   outparam->keys_in_use_for_query.init();
+  outparam->vcol_refix_list.empty();
 
   /* Allocate handler */
   outparam->file= 0;
@@ -7961,14 +8061,21 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
   Field **vfield_ptr, *vf;
   Query_arena backup_arena;
   Turn_errors_to_warnings_handler Suppress_errors;
-  int error;
   bool handler_pushed= 0, update_all_columns= 1;
   DBUG_ASSERT(vfield);
 
   if (h->keyread_enabled())
     DBUG_RETURN(0);
+  /*
+    TODO: this imposes memory leak until table flush when save_in_field()
+          does expr_arena allocation. F.ex. case in
+          gcol.gcol_supported_sql_funcs_innodb (see CONVERT_TZ):
 
-  error= 0;
+          create table t1 (
+            a datetime, b datetime generated always as
+            (convert_tz(a, 'MET', 'UTC')) virtual);
+          insert into t1 values ('2008-08-31', default);
+  */
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
 
   /* When reading or deleting row, ignore errors from virtual columns */
@@ -8042,7 +8149,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
       int field_error __attribute__((unused)) = 0;
       /* Compute the actual value of the virtual fields */
       if (vcol_info->expr->save_in_field(vf, 0))
-        field_error= error= 1;
+        field_error= 1;
       DBUG_PRINT("info", ("field '%s' - updated  error: %d",
                           vf->field_name.str, field_error));
       if (swap_values && (vf->flags & BLOB_FLAG))
@@ -8075,6 +8182,11 @@ int TABLE::update_virtual_field(Field *vf)
   Query_arena backup_arena;
   Counting_error_handler count_errors;
   in_use->push_internal_handler(&count_errors);
+  /*
+    TODO: this may impose memory leak until table flush.
+          See comment in
+          TABLE::update_virtual_fields(handler *, enum_vcol_update_mode).
+  */
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
   bitmap_clear_all(&tmp_set);
   vf->vcol_info->expr->walk(&Item::update_vcol_processor, 0, &tmp_set);
@@ -8113,6 +8225,11 @@ int TABLE::update_default_fields(bool ignore_errors)
   DBUG_ENTER("TABLE::update_default_fields");
   DBUG_ASSERT(default_field);
 
+  /*
+    TODO: this may impose memory leak until table flush.
+          See comment in
+          TABLE::update_virtual_fields(handler *, enum_vcol_update_mode).
+  */
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
 
   /* Iterate over fields with default functions in the table */
