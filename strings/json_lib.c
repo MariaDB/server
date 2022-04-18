@@ -1943,12 +1943,14 @@ step_fits:
 
     /* Double wild handling needs recursions. */
     res= json_path_parts_compare(a+1, a_end, b, b_end, vt,
-                                 array_sizes + (b - temp_b));
+                                 array_sizes ? array_sizes + (b - temp_b) :
+                                               NULL);
     if (res == 0)
       return 0;
 
     res2= json_path_parts_compare(a, a_end, b, b_end, vt,
-                                  array_sizes + (b - temp_b));
+                                  array_sizes ? array_sizes + (b - temp_b) :
+                                                NULL);
 
     return (res2 >= 0) ? res2 : res;
 
@@ -1961,12 +1963,14 @@ step_fits_autowrap:
 
     /* Double wild handling needs recursions. */
     res= json_path_parts_compare(a+1, a_end, b+1, b_end, vt,
-                                 array_sizes + (b - temp_b));
+                                 array_sizes ? array_sizes + (b - temp_b) :
+                                               NULL);
     if (res == 0)
       return 0;
 
     res2= json_path_parts_compare(a, a_end, b+1, b_end, vt,
-                                  array_sizes + (b - temp_b));
+                                  array_sizes ? array_sizes + (b - temp_b) :
+                                                NULL);
 
     return (res2 >= 0) ? res2 : res;
 

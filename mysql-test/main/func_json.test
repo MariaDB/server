@@ -1526,6 +1526,13 @@ SELECT JSON_EXISTS(@json, '$[2][2][1 to 2]');
 SELECT JSON_EXISTS(@json, '$[2][2][4 to 6]');
 SELECT JSON_EXISTS(@json, '$[2][2][1 to 4]');
 
+
+--echo #
+--echo # MDEV-28326: Server crashes in json_path_parts_compare
+--echo #
+
+SELECT * FROM JSON_TABLE('{"foo":["bar","qux"]}','$**.*[0]' COLUMNS(col1 CHAR(8) PATH '$[0]')) AS jt;
+
 --echo #
 --echo # End of 10.9 Test
 --echo #
