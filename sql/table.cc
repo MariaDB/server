@@ -60,10 +60,8 @@ public:
   }
 };
 
-static Virtual_column_info * unpack_vcol_info_from_frm(THD *, MEM_ROOT *,
+static Virtual_column_info * unpack_vcol_info_from_frm(THD *,
               TABLE *, String *, Virtual_column_info **, bool *);
-static bool check_vcol_forward_refs(Field *, Virtual_column_info *,
-                                    bool check_constraint);
 
 /* INFORMATION_SCHEMA name */
 LEX_CSTRING INFORMATION_SCHEMA_NAME= {STRING_WITH_LEN("information_schema")};
@@ -1015,6 +1013,31 @@ static void mysql57_calculate_null_position(TABLE_SHARE *share,
 bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
                      bool *error_reported, vcol_init_mode mode)
 {
+  struct check_vcol_forward_refs
+  {
+    static bool check(Field *field, Virtual_column_info *vcol)
+    {
+      return vcol &&
+             vcol->expr->walk(&Item::check_field_expression_processor, 0, field);
+    }
+    static bool check_constraint(Field *field, Virtual_column_info *vcol)
+    {
+      uint32 flags= field->flags;
+      /* Check constraints can refer it itself */
+      field->flags|= NO_DEFAULT_VALUE_FLAG;
+      const bool res= check(field, vcol);
+      field->flags= flags;
+      return res;
+    }
+    static bool check(Field *field)
+    {
+      if (check(field, field->vcol_info) ||
+          check_constraint(field, field->check_constraint) ||
+          check(field, field->default_value))
+        return true;
+      return false;
+    }
+  };
   CHARSET_INFO *save_character_set_client= thd->variables.character_set_client;
   CHARSET_INFO *save_collation= thd->variables.collation_connection;
   Query_arena  *backup_stmt_arena_ptr= thd->stmt_arena;
@@ -1095,7 +1118,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     switch (type) {
     case VCOL_GENERATED_VIRTUAL:
     case VCOL_GENERATED_STORED:
-      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
+      vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
                                     &((*field_ptr)->vcol_info), error_reported);
       *(vfield_ptr++)= *field_ptr;
       if (vcol && field_ptr[0]->check_vcol_sql_mode_dependency(thd, mode))
@@ -1106,7 +1129,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       }
       break;
     case VCOL_DEFAULT:
-      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
+      vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
                                       &((*field_ptr)->default_value),
                                       error_reported);
       *(dfield_ptr++)= *field_ptr;
@@ -1114,13 +1137,13 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
         table->s->non_determinstic_insert= true;
       break;
     case VCOL_CHECK_FIELD:
-      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
+      vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
                                       &((*field_ptr)->check_constraint),
                                       error_reported);
       *check_constraint_ptr++= (*field_ptr)->check_constraint;
       break;
     case VCOL_CHECK_TABLE:
-      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
+      vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
                                       check_constraint_ptr, error_reported);
       check_constraint_ptr++;
       break;
@@ -1140,7 +1163,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       expr_str.append(STRING_WITH_LEN("current_timestamp("));
       expr_str.append_ulonglong(field->decimals());
       expr_str.append(')');
-      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
+      vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
                                       &((*field_ptr)->default_value),
                                       error_reported);
       *(dfield_ptr++)= *field_ptr;
@@ -1162,16 +1185,11 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
 
   /* Check that expressions aren't referring to not yet initialized fields */
   for (field_ptr= table->field; *field_ptr; field_ptr++)
-  {
-    Field *field= *field_ptr;
-    if (check_vcol_forward_refs(field, field->vcol_info, 0) ||
-        check_vcol_forward_refs(field, field->check_constraint, 1) ||
-        check_vcol_forward_refs(field, field->default_value, 0))
+    if (check_vcol_forward_refs::check(*field_ptr))
     {
       *error_reported= true;
       goto end;
     }
-  }
 
   res=0;
 end:
@@ -2943,21 +2961,21 @@ void TABLE_SHARE::free_frm_image(const uchar *frm)
 }
 
 
-static bool fix_vcol_expr(THD *thd, Virtual_column_info *vcol)
+bool Virtual_column_info::fix_expr(THD *thd)
 {
   DBUG_ENTER("fix_vcol_expr");
 
   const enum enum_column_usage saved_column_usage= thd->column_usage;
   thd->column_usage= COLUMNS_WRITE;
 
-  int error= vcol->expr->fix_fields(thd, &vcol->expr);
+  int error= expr->fix_fields(thd, &expr);
 
   thd->column_usage= saved_column_usage;
 
   if (unlikely(error))
   {
     StringBuffer<MAX_FIELD_WIDTH> str;
-    vcol->print(&str);
+    print(&str);
     my_error(ER_ERROR_EVALUATING_EXPRESSION, MYF(0), str.c_ptr_safe());
     DBUG_RETURN(1);
   }
@@ -2970,15 +2988,15 @@ static bool fix_vcol_expr(THD *thd, Virtual_column_info *vcol)
     @note this is done for all vcols for INSERT/UPDATE/DELETE,
     and only as needed for SELECTs.
 */
-bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol)
+bool Virtual_column_info::fix_session_expr(THD *thd)
 {
   DBUG_ENTER("fix_session_vcol_expr");
-  if (!(vcol->flags & (VCOL_TIME_FUNC|VCOL_SESSION_FUNC)))
+  if (!(flags & (VCOL_TIME_FUNC|VCOL_SESSION_FUNC)))
     DBUG_RETURN(0);
 
-  vcol->expr->walk(&Item::cleanup_excluding_fields_processor, 0, 0);
-  DBUG_ASSERT(!vcol->expr->fixed);
-  DBUG_RETURN(fix_vcol_expr(thd, vcol));
+  expr->walk(&Item::cleanup_excluding_fields_processor, 0, 0);
+  DBUG_ASSERT(!expr->fixed);
+  DBUG_RETURN(fix_expr(thd));
 }
 
 
@@ -2987,8 +3005,7 @@ bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol)
     @note this is called for generated column or a DEFAULT expression from
     their corresponding fix_fields on SELECT.
 */
-bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
-                                    Virtual_column_info *vcol)
+bool Virtual_column_info::fix_session_expr_for_read(THD *thd, Field *field)
 {
   DBUG_ENTER("fix_session_vcol_expr_for_read");
   TABLE_LIST *tl= field->table->pos_in_table_list;
@@ -2997,7 +3014,7 @@ bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
   Security_context *save_security_ctx= thd->security_ctx;
   if (tl->security_ctx)
     thd->security_ctx= tl->security_ctx;
-  bool res= fix_session_vcol_expr(thd, vcol);
+  bool res= fix_session_expr(thd);
   thd->security_ctx= save_security_ctx;
   DBUG_RETURN(res);
 }
@@ -3024,28 +3041,24 @@ bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
     FALSE          Otherwise
 */
 
-static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
-                                    Virtual_column_info *vcol)
+bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
 {
-  Item* func_expr= vcol->expr;
   DBUG_ENTER("fix_and_check_vcol_expr");
-  DBUG_PRINT("info", ("vcol: %p", vcol));
-  DBUG_ASSERT(func_expr);
+  DBUG_PRINT("info", ("vcol: %p", this));
+  DBUG_ASSERT(expr);
 
-  if (func_expr->fixed)
+  if (expr->fixed)
     DBUG_RETURN(0); // nothing to do
 
-  if (fix_vcol_expr(thd, vcol))
+  if (fix_expr(thd))
     DBUG_RETURN(1);
 
-  if (vcol->flags)
+  if (flags)
     DBUG_RETURN(0); // already checked, no need to do it again
 
-  /* fix_fields could've changed the expression */
-  func_expr= vcol->expr;
 
   /* this was checked in check_expression(), but the frm could be mangled... */
-  if (unlikely(func_expr->result_type() == ROW_RESULT))
+  if (unlikely(expr->result_type() == ROW_RESULT))
   {
     my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
     DBUG_RETURN(1);
@@ -3058,12 +3071,12 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
   Item::vcol_func_processor_result res;
   res.errors= 0;
 
-  int error= func_expr->walk(&Item::check_vcol_func_processor, 0, &res);
+  int error= expr->walk(&Item::check_vcol_func_processor, 0, &res);
   if (unlikely(error || (res.errors & VCOL_IMPOSSIBLE)))
   {
     // this can only happen if the frm was corrupted
     my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
-             vcol->get_vcol_type_name(), vcol->name.str);
+             get_vcol_type_name(), name.str);
     DBUG_RETURN(1);
   }
   else if (unlikely(res.errors & VCOL_AUTO_INC))
@@ -3078,13 +3091,13 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
     */
     myf warn= table->s->frm_version < FRM_VER_EXPRESSSIONS ? ME_JUST_WARNING : 0;
     my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(warn),
-             "AUTO_INCREMENT", vcol->get_vcol_type_name(), res.name);
+             "AUTO_INCREMENT", get_vcol_type_name(), res.name);
     if (!warn)
       DBUG_RETURN(1);
   }
-  vcol->flags= res.errors;
+  flags= res.errors;
 
-  if (vcol->flags & VCOL_SESSION_FUNC)
+  if (flags & VCOL_SESSION_FUNC)
     table->s->vcols_need_refixing= true;
 
   DBUG_RETURN(0);
@@ -3123,7 +3136,7 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
 */
 
 static Virtual_column_info *
-unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root, TABLE *table,
+unpack_vcol_info_from_frm(THD *thd, TABLE *table,
                           String *expr_str, Virtual_column_info **vcol_ptr,
                           bool *error_reported)
 {
@@ -3162,7 +3175,7 @@ unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   vcol_storage.vcol_info->stored_in_db=      vcol->stored_in_db;
   vcol_storage.vcol_info->name=              vcol->name;
   vcol_storage.vcol_info->utf8=              vcol->utf8;
-  if (!fix_and_check_vcol_expr(thd, table, vcol_storage.vcol_info))
+  if (!vcol_storage.vcol_info->fix_and_check_expr(thd, table))
   {
     *vcol_ptr= vcol_info= vcol_storage.vcol_info;   // Expression ok
     DBUG_ASSERT(vcol_info->expr);
@@ -3174,22 +3187,6 @@ end:
   end_lex_with_single_table(thd, table, old_lex);
 
   DBUG_RETURN(vcol_info);
-}
-
-static bool check_vcol_forward_refs(Field *field, Virtual_column_info *vcol,
-                                    bool check_constraint)
-{
-  bool res;
-  uint32 flags= field->flags;
-  if (check_constraint)
-  {
-    /* Check constraints can refer it itself */
-    field->flags|= NO_DEFAULT_VALUE_FLAG;
-  }
-  res= (vcol &&
-        vcol->expr->walk(&Item::check_field_expression_processor, 0, field));
-  field->flags= flags;
-  return res;
 }
 
 /*

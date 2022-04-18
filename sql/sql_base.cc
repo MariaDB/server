@@ -2040,6 +2040,9 @@ retry_share:
   table_list->updatable= 1; // It is not derived table nor non-updatable VIEW
   table_list->table= table;
 
+  if (table->vcol_fix_exprs(thd))
+    goto err_lock;
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (unlikely(table->part_info))
   {
@@ -5290,52 +5293,44 @@ static void mark_real_tables_as_free_for_reuse(TABLE_LIST *table_list)
     }
 }
 
-int TABLE::fix_vcol_exprs(THD *thd)
+bool TABLE::vcol_fix_exprs(THD *thd)
 {
+  if (pos_in_table_list->placeholder() || !s->vcols_need_refixing ||
+      pos_in_table_list->lock_type < TL_WRITE_ALLOW_WRITE)
+    return false;
+
+  DBUG_ASSERT(pos_in_table_list != thd->lex->first_not_own_table());
+
+  bool result= true;
+  Security_context *save_security_ctx= thd->security_ctx;
+  Query_arena *stmt_backup= thd->stmt_arena;
+  if (thd->stmt_arena->is_conventional())
+    thd->stmt_arena= expr_arena;
+
+  if (pos_in_table_list->security_ctx)
+    thd->security_ctx= pos_in_table_list->security_ctx;
+
+
   for (Field **vf= vfield; vf && *vf; vf++)
-    if (fix_session_vcol_expr(thd, (*vf)->vcol_info))
-      return 1;
+    if ((*vf)->vcol_info->fix_session_expr(thd))
+      goto end;
 
   for (Field **df= default_field; df && *df; df++)
     if ((*df)->default_value &&
-        fix_session_vcol_expr(thd, (*df)->default_value))
-      return 1;
+        (*df)->default_value->fix_session_expr(thd))
+      goto end;
 
   for (Virtual_column_info **cc= check_constraints; cc && *cc; cc++)
-    if (fix_session_vcol_expr(thd, (*cc)))
-      return 1;
+    if ((*cc)->fix_session_expr(thd))
+      goto end;
 
-  return 0;
-}
+  result= false;
 
+end:
+  thd->security_ctx= save_security_ctx;
+  thd->stmt_arena= stmt_backup;
 
-static bool fix_all_session_vcol_exprs(THD *thd, TABLE_LIST *tables)
-{
-  Security_context *save_security_ctx= thd->security_ctx;
-  TABLE_LIST *first_not_own= thd->lex->first_not_own_table();
-  DBUG_ENTER("fix_session_vcol_expr");
-
-  int error= 0;
-  for (TABLE_LIST *table= tables; table && table != first_not_own && !error;
-       table= table->next_global)
-  {
-    TABLE *t= table->table;
-    if (!table->placeholder() && t->s->vcols_need_refixing &&
-         table->lock_type >= TL_WRITE_ALLOW_WRITE)
-    {
-      Query_arena *stmt_backup= thd->stmt_arena;
-      if (thd->stmt_arena->is_conventional())
-        thd->stmt_arena= t->expr_arena;
-      if (table->security_ctx)
-        thd->security_ctx= table->security_ctx;
-
-      error= t->fix_vcol_exprs(thd);
-
-      thd->security_ctx= save_security_ctx;
-      thd->stmt_arena= stmt_backup;
-    }
-  }
-  DBUG_RETURN(error);
+  return result;
 }
 
 
@@ -5500,9 +5495,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count,
     }
   }
 
-  bool res= fix_all_session_vcol_exprs(thd, tables);
-  if (!res)
-    res= thd->decide_logging_format(tables);
+  const bool res= thd->decide_logging_format(tables);
 
   DBUG_RETURN(res);
 }

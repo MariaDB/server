@@ -2924,6 +2924,12 @@ public:
   const char *db_name;
   const char *table_name;
   LEX_CSTRING field_name;
+  /*
+     NOTE: came from TABLE::alias_name_used and this is only a hint! It works
+     only in need_correct_ident() condition. On other cases it is FALSE even if
+     table_name is alias! It cannot be TRUE in these cases, lots of spaghetti
+     logic depends on that.
+  */
   bool alias_name_used; /* true if item was resolved against alias */
   /* 
     Cached value of index for this field in table->field array, used by prep. 
