@@ -1060,5 +1060,11 @@ collation(name)
 utf8mb4_bin
 DROP VIEW v1;
 #
+# MDEV-28319: Assertion `cur_step->type & JSON_PATH_KEY' failed in json_find_path
+#
+SELECT * FROM JSON_TABLE('{"foo":{"bar":1},"qux":2}', '$' COLUMNS(c1 VARCHAR(8) PATH '$[0]', c2 CHAR(8) PATH '$.*.x')) AS js;
+c1	c2
+NULL	NULL
+#
 # End of 10.9 tests
 #

@@ -910,5 +910,11 @@ SELECT collation(name) FROM v1;
 DROP VIEW v1;
 
 --echo #
+--echo # MDEV-28319: Assertion `cur_step->type & JSON_PATH_KEY' failed in json_find_path
+--echo #
+
+SELECT * FROM JSON_TABLE('{"foo":{"bar":1},"qux":2}', '$' COLUMNS(c1 VARCHAR(8) PATH '$[0]', c2 CHAR(8) PATH '$.*.x')) AS js;
+
+--echo #
 --echo # End of 10.9 tests
 --echo #

@@ -1374,7 +1374,6 @@ static int handle_match(json_engine_t *je, json_path_t *p,
     return json_skip_level(je);
 
   array_counters[next_step - p->steps]= 0;
-
   if (next_step->type & JSON_PATH_ARRAY)
   {
     int array_size;
