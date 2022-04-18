@@ -5686,8 +5686,9 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   }
 #endif
   fixed= 1;
-  if (field->vcol_info)
-    fix_session_vcol_expr_for_read(thd, field, field->vcol_info);
+  if (field->vcol_info &&
+      field->vcol_info->fix_session_expr_for_read(thd, field))
+    goto error;
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !outer_fixed && !thd->lex->in_sum_func &&
       select &&
@@ -9036,7 +9037,8 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
       Even if DEFAULT() do not read tables fields, the default value
       expression can do it.
     */
-    fix_session_vcol_expr_for_read(thd, def_field, def_field->default_value);
+    if (def_field->default_value->fix_session_expr_for_read(thd, def_field))
+      goto error;
     if (thd->mark_used_columns != MARK_COLUMNS_NONE)
       def_field->default_value->expr->update_used_tables();
     def_field->move_field(newptr+1, def_field->maybe_null() ? newptr : 0, 1);
