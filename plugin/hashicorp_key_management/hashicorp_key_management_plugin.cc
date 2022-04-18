@@ -594,7 +594,7 @@ static int hex2buf (unsigned int max_length, unsigned char *dstbuf,
   return 0;
 }
 
-static const char * get_data (const std::string response_str,
+static const char * get_data (const std::string &response_str,
                               const char **js, int *js_len)
 {
   const char *response = response_str.c_str();
