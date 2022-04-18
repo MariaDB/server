@@ -1004,6 +1004,10 @@ static int hashicorp_key_management_plugin_init(void *p)
   }
   snprintf(token_header, buf_len, "%s%s", x_vault_token, token);
   vault_url_len = strlen(vault_url);
+  if (vault_url_len && vault_url[vault_url_len - 1] == '/')
+  {
+    vault_url_len--;
+  }
   /*
     Checking the maximum allowable length to protect
     against allocating too much memory on the stack:
@@ -1011,8 +1015,7 @@ static int hashicorp_key_management_plugin_init(void *p)
   if (vault_url_len > MAX_URL_SIZE)
   {
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
-                    "Maximum allowed vault URL length exceeded",
-                    0);
+                    "Maximum allowed vault URL length exceeded", 0);
 Failure:
     free(token_header);
     token_header = NULL;
@@ -1024,9 +1027,49 @@ Failure2:
     }
     return 1;
   }
-  if (vault_url_len && vault_url[vault_url_len - 1] == '/')
+  /* We need to check that the path inside the URL starts with "/v1/": */
+  if (vault_url_len < 3)
   {
-    vault_url_len--;
+Bad_url:
+    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                    "According to the Hashicorp Vault API rules, "
+                    "the path inside the URL must start with "
+                    "the \"/v1/\" prefix, while the supplied "
+                    "URL value is: \"%s\"", 0, vault_url);
+    goto Failure;
+  }
+  const char *slash = strchr(vault_url, '/');
+  if (slash == NULL)
+  {
+    goto Bad_url;
+  }
+  if (slash != vault_url && *(slash - 1) == ':' && slash[1] == '/')
+  {
+    /* We need to skip the leading slashes that separate */
+    /* the scheme name in the URL: */
+    slash = strchr(slash + 2, '/');
+  }
+  size_t prefix_len = (size_t) (slash - vault_url);
+  if (prefix_len == 0)
+  {
+    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                    "Supplied URL does not contain a hostname: \"%s\"",
+                    0, vault_url);
+    goto Failure;
+  }
+  if (vault_url_len - 3 < prefix_len || slash[1] != 'v' || slash[2] != '1')
+  {
+    goto Bad_url;
+  }
+  if (vault_url_len - 3 == prefix_len) {
+    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                    "Supplied URL does not contain a secret name: \"%s\"",
+                    0, vault_url);
+    goto Failure;
+  }
+  if (slash[3] != '/')
+  {
+    goto Bad_url;
   }
   /*
     In advance, we create a buffer containing the URL for vault
