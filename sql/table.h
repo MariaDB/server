@@ -801,7 +801,6 @@ struct TABLE_SHARE
   bool can_cmp_whole_record;
   bool table_creation_was_logged;
   bool non_determinstic_insert;
-  bool vcols_need_refixing;
   bool has_update_default_function;
   ulong table_map_id;                   /* for row-based replication */
 
@@ -1376,12 +1375,13 @@ public:
   bool insert_or_update;             /* Can be used by the handler */
   /*
      NOTE: alias_name_used is only a hint! It works only in need_correct_ident()
-     condition. On other cases it is FALSE even if table_name is alias!
-     It cannot be TRUE in these cases, lots of spaghetti logic depends on that
-     (TODO).
+     condition. On other cases it is FALSE even if table_name is alias.
+
+     E.g. in update t1 as x set a = 1
   */
   bool alias_name_used;              /* true if table_name is alias */
   bool get_fields_in_item_tree;      /* Signal to fix_field */
+  List<Virtual_column_info> vcol_refix_list;
 private:
   bool m_needs_reopen;
   bool created;    /* For tmp tables. TRUE <=> tmp table was actually created.*/
@@ -1573,7 +1573,8 @@ public:
                                       TABLE *tmp_table,
                                       TMP_TABLE_PARAM *tmp_table_param,
                                       bool with_cleanup);
-  bool vcol_fix_exprs(THD *thd);
+  bool vcol_fix_expr(THD *thd);
+  bool vcol_cleanup_expr(THD *thd);
 };
 
 
