@@ -1,0 +1,54 @@
+# MDEV-28276: Checking for kv version=2 as mandatory
+
+# The test presumes that the local vault is running at $VAULT_ADDR,
+# and the token is configured in $VAULT_TOKEN.
+
+--source include/have_innodb.inc
+--source hashicorp_plugin.inc
+
+--exec vault secrets disable bug1 > /dev/null
+--exec vault secrets disable good > /dev/null
+--exec vault secrets enable -path /bug1 -version=1 kv > /dev/null
+--exec vault secrets enable -path /good -version=2 kv > /dev/null
+--exec vault kv put /bug1/1 data=01234567890123456789012345678901 > /dev/null
+--exec vault kv put /good/1 data=01234567890123456789012345678901 > /dev/null
+--exec vault kv put /good/2 data=012345678901234567890123456789ab > /dev/null
+
+--source include/shutdown_mysqld.inc
+
+--let $LOG_FILE=$MYSQLTEST_VARDIR/log/vault.err
+--error 0,1
+--remove_file $LOG_FILE
+
+--let $vault_defaults=--plugin-load-add=hashicorp_key_management --hashicorp_key_management=force --hashicorp-key-management-check-kv-version=on --hashicorp-key-management-token="$VAULT_TOKEN"
+--let $defaults=--defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf $vault_defaults --log-error=$LOG_FILE
+
+--error 1
+--exec $MYSQLD $defaults --hashicorp-key-management-vault-url="$VAULT_ADDR/v1/bug1"
+
+--exec grep -oE "\[ERROR\] .*: hashicorp: .*" -- $LOG_FILE
+
+--remove_file $LOG_FILE
+
+--let $restart_parameters=$vault_defaults --hashicorp-key-management-vault-url="$VAULT_ADDR/v1/good"
+--let $restart_noprint=1
+--source include/start_mysqld.inc
+
+CREATE TABLE t1 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=1;
+INSERT INTO t1 VALUES ('foo'),('bar');
+
+--let $restart_parameters=$vault_defaults --hashicorp-key-management-vault-url="$VAULT_ADDR/v1/good//"
+--source include/restart_mysqld.inc
+
+CREATE TABLE t2 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=2;
+INSERT INTO t2 VALUES ('foo'),('bar');
+
+# Cleanup
+
+DROP TABLE t1, t2;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+--exec vault secrets disable bug1 > /dev/null
+--exec vault secrets disable good > /dev/null

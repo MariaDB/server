@@ -172,3 +172,10 @@ operation:
   numbers for the keys stored in the cache are considered always
   invalid, except when the vault server is unavailable and use
   of the cache is allowed on server failures.
+
+--[loose-]hashicorp-key-management-check-kv-version="on"|"off"
+
+  This parameter enables ("on", this is the default value) or disables
+  ("off") checking the kv storage version during plugin initialization.
+  The plugin requires storage to be version 2 or older in order for it
+  to work properly.
