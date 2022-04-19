@@ -1904,7 +1904,9 @@ static void sst_enable_innodb_writes()
   ut_d(recv_no_log_write= false);
   purge_sys.resume();
   wsrep_sst_disable_writes= false;
-  fil_crypt_set_thread_cnt(srv_n_fil_crypt_threads);
+  const uint old_count= srv_n_fil_crypt_threads;
+  srv_n_fil_crypt_threads= 0;
+  fil_crypt_set_thread_cnt(old_count);
 }
 
 static void innodb_disable_internal_writes(bool disable)
