@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -64,7 +64,7 @@ enum dict_err_ignore_t {
 	DICT_ERR_IGNORE_INDEX_ROOT = 2,	/*!< ignore error if index root
 					page is FIL_NULL or incorrect value */
 	DICT_ERR_IGNORE_CORRUPT = 4,	/*!< skip corrupted indexes */
-	DICT_ERR_IGNORE_RECOVER_LOCK = 8,
+	DICT_ERR_IGNORE_RECOVER_LOCK = 8 | DICT_ERR_IGNORE_FK_NOKEY,
 					/*!< Used when recovering table locks
 					for resurrected transactions.
 					Silently load a missing

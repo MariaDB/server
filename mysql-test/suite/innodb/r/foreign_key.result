@@ -137,6 +137,33 @@ SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 unique_constraint_name
 PRIMARY
+#
+# MDEV-28317 Assertion failure on rollback of FOREIGN KEY operation
+#
+SET foreign_key_checks=0;
+CREATE TABLE parent(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE child(a INT,FOREIGN KEY(a) REFERENCES parent(a) ON DELETE CASCADE)
+ENGINE=InnoDB;
+INSERT INTO child VALUES(1);
+ALTER TABLE child DROP INDEX a;
+connect incomplete, localhost, root,,;
+BEGIN;
+DELETE FROM child;
+connection default;
+INSERT INTO parent SET a=0;
+FLUSH TABLES;
+disconnect incomplete;
+INSERT INTO child SET a=0;
+INSERT INTO child SET a=1;
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON DELETE CASCADE)
+DELETE FROM parent;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON DELETE CASCADE)
+ALTER TABLE child ADD INDEX(a);
+DELETE FROM parent;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON DELETE CASCADE)
+ALTER TABLE child FORCE;
+DELETE FROM parent;
+DROP TABLE child,parent;
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SELECT unique_constraint_name FROM information_schema.referential_constraints
