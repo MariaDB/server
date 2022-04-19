@@ -602,7 +602,9 @@ static int hex2buf (unsigned int max_length, unsigned char *dstbuf,
 }
 
 static const char * get_data (const std::string &response_str,
-                              const char **js, int *js_len)
+                              const char **js, int *js_len,
+                              unsigned int key_id,
+                              unsigned int key_version)
 {
   const char *response = response_str.c_str();
   size_t response_len = response_str.size();
@@ -612,9 +614,18 @@ static const char * get_data (const std::string &response_str,
   */
   if (response_len == 0)
   {
-    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
-                    "Key not found",
-                    ME_ERROR_LOG_ONLY | ME_NOTE);
+    if (key_version == ENCRYPTION_KEY_VERSION_INVALID)
+    {
+      my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                      "Key not found (key id: %u)",
+                      ME_ERROR_LOG_ONLY | ME_NOTE, key_id);
+    }
+    else
+    {
+      my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                      "Key not found (key id: %u, key version: %u)",
+                      ME_ERROR_LOG_ONLY | ME_NOTE, key_id, key_version);
+    }
     return NULL;
   }
   if (json_get_object_key(response, response + response_len, "data",
@@ -734,7 +745,8 @@ static unsigned int get_latest_version (unsigned int key_id)
   }
   const char *js;
   int js_len;
-  const char *response = get_data(response_str, &js, &js_len);
+  const char *response = get_data(response_str, &js, &js_len, key_id,
+                                  ENCRYPTION_KEY_VERSION_INVALID);
   if (response == NULL)
   {
     return ENCRYPTION_KEY_VERSION_INVALID;
@@ -816,7 +828,8 @@ static unsigned int get_key_from_vault (unsigned int key_id,
   }
   const char *js;
   int js_len;
-  const char *response = get_data(response_str, &js, &js_len);
+  const char *response = get_data(response_str, &js, &js_len,
+                                  key_id, key_version);
   if (response == NULL)
   {
     return ENCRYPTION_KEY_VERSION_INVALID;
