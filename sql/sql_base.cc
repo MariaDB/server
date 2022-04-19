@@ -2047,7 +2047,7 @@ retry_share:
   table_list->table= table;
 
   if (!from_share && table->vcol_fix_expr(thd))
-    goto err_lock;
+    DBUG_RETURN(true);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (unlikely(table->part_info))
