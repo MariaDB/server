@@ -1373,6 +1373,8 @@ static int handle_match(json_engine_t *je, json_path_t *p,
       (int) (next_step->type & JSON_PATH_KEY_OR_ARRAY))
     return json_skip_level(je);
 
+  array_counters[next_step - p->steps]= 0;
+
   if (next_step->type & JSON_PATH_ARRAY)
   {
     int array_size;
@@ -1891,21 +1893,22 @@ int json_path_parts_compare(
     {
       if (b->type & JSON_PATH_ARRAY)
       {
-        int res= 0, corrected_n_item_a= 0, corrected_n_item_end_a= 0;
+        int res= 0, corrected_n_item_a= 0;
         if (array_sizes)
-        {
-          corrected_n_item_a= a->n_item < 0 ? array_sizes[b-temp_b] +
-                                                          a->n_item :
-                                              a->n_item;
-          corrected_n_item_end_a= a->n_item_end < 0 ? array_sizes[b-temp_b] +
-                                                              a->n_item_end :
-                                                      a->n_item_end;
-        }
+          corrected_n_item_a= a->n_item < 0 ?
+                                array_sizes[b-temp_b] + a->n_item : a->n_item;
         if (a->type & JSON_PATH_ARRAY_RANGE)
+        {
+          int corrected_n_item_end_a= 0;
+          if (array_sizes)
+            corrected_n_item_end_a= a->n_item_end < 0 ?
+                                    array_sizes[b-temp_b] + a->n_item_end :
+                                    a->n_item_end;
           res= b->n_item >= corrected_n_item_a &&
-               b->n_item <= corrected_n_item_end_a;
+                b->n_item <= corrected_n_item_end_a;
+        }
         else
-          res= corrected_n_item_a == b->n_item;
+         res= corrected_n_item_a == b->n_item;
 
         if ((a->type & JSON_PATH_WILD) || res)
           goto step_fits;

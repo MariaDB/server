@@ -844,18 +844,21 @@ String *Item_func_json_extract::read_json(String *str,
   for (n_arg=1; n_arg < arg_count; n_arg++)
   {
     json_path_with_flags *c_path= paths + n_arg - 1;
+    c_path->p.types_used= JSON_PATH_KEY_NULL;
     if (!c_path->parsed)
     {
       String *s_p= args[n_arg]->val_str(tmp_paths + (n_arg-1));
-      if (s_p &&
-          json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
-                          (const uchar *) s_p->ptr() + s_p->length()))
+      if (s_p)
       {
-        report_path_error(s_p, &c_path->p, n_arg);
-        goto return_null;
+       if (json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
+                          (const uchar *) s_p->ptr() + s_p->length()))
+       {
+         report_path_error(s_p, &c_path->p, n_arg);
+         goto return_null;
+       }
+       c_path->parsed= c_path->constant;
+       has_negative_path|= c_path->p.types_used & JSON_PATH_NEGATIVE_INDEX;
       }
-      c_path->parsed= c_path->constant;
-      has_negative_path|= c_path->p.types_used & JSON_PATH_NEGATIVE_INDEX;
     }
 
     if (args[n_arg]->null_value)
@@ -1391,15 +1394,18 @@ longlong Item_func_json_contains_path::val_int()
     json_path_with_flags *c_path= paths + n_arg - 2;
     if (!c_path->parsed)
     {
-      String *s_p= args[n_arg]->val_str(tmp_paths+(n_arg-2));
-      if (s_p &&
-          json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
-                          (const uchar *) s_p->ptr() + s_p->length()))
+      String *s_p= args[n_arg]->val_str(tmp_paths + (n_arg-2));
+      if (s_p)
       {
-        report_path_error(s_p, &c_path->p, n_arg-2);
-        goto return_null;
+       if (json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
+                          (const uchar *) s_p->ptr() + s_p->length()))
+       {
+         report_path_error(s_p, &c_path->p, n_arg);
+         goto null_return;
+       }
+       c_path->parsed= c_path->constant;
+       has_negative_path|= c_path->p.types_used & JSON_PATH_NEGATIVE_INDEX;
       }
-      c_path->parsed= c_path->constant;
     }
 
     if (args[n_arg]->null_value)
@@ -1460,18 +1466,21 @@ longlong Item_func_json_contains_path::val_int()
   for (n_arg=2; n_arg < arg_count; n_arg++)
   {
     json_path_with_flags *c_path= paths + n_arg - 2;
+    c_path->p.types_used= JSON_PATH_KEY_NULL;
     if (!c_path->parsed)
     {
       String *s_p= args[n_arg]->val_str(tmp_paths + (n_arg-2));
-      if (s_p &&
-          json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
-                          (const uchar *) s_p->ptr() + s_p->length()))
+      if (s_p)
       {
-        report_path_error(s_p, &c_path->p, n_arg);
-        goto null_return;
+       if (json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
+                          (const uchar *) s_p->ptr() + s_p->length()))
+       {
+         report_path_error(s_p, &c_path->p, n_arg);
+         goto null_return;
+       }
+       c_path->parsed= c_path->constant;
+       has_negative_path|= c_path->p.types_used & JSON_PATH_NEGATIVE_INDEX;
       }
-      c_path->parsed= c_path->constant;
-      has_negative_path|= c_path->p.types_used & JSON_PATH_NEGATIVE_INDEX;
     }
     if (args[n_arg]->null_value)
       goto null_return;
@@ -3633,18 +3642,21 @@ String *Item_func_json_search::val_str(String *str)
   for (n_arg=4; n_arg < arg_count; n_arg++)
   {
     json_path_with_flags *c_path= paths + n_arg - 4;
+    c_path->p.types_used= JSON_PATH_KEY_NULL;
     if (!c_path->parsed)
     {
       String *s_p= args[n_arg]->val_str(tmp_paths + (n_arg-4));
-      if (s_p &&
-          json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
-                          (const uchar *) s_p->ptr() + s_p->length()))
+      if (s_p)
       {
-        report_path_error(s_p, &c_path->p, n_arg);
-        goto null_return;
+       if (json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
+                          (const uchar *) s_p->ptr() + s_p->length()))
+       {
+         report_path_error(s_p, &c_path->p, n_arg);
+         goto null_return;
+       }
+       c_path->parsed= c_path->constant;
+       has_negative_path|= c_path->p.types_used & JSON_PATH_NEGATIVE_INDEX;
       }
-      c_path->parsed= c_path->constant;
-      has_negative_path|= c_path->p.types_used & JSON_PATH_NEGATIVE_INDEX;
     }
     if (args[n_arg]->null_value)
       goto null_return;
