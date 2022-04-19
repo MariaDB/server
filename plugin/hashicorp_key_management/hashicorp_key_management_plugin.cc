@@ -307,6 +307,7 @@ static char* vault_ca;
 static int timeout;
 static int max_retries;
 static char caching_enabled;
+static char check_kv_version;
 static long cache_timeout;
 static long cache_version_timeout;
 static char use_cache_on_timeout;
@@ -343,6 +344,11 @@ static MYSQL_SYSVAR_BOOL(caching_enabled, caching_enabled,
   PLUGIN_VAR_RQCMDARG,
   "Enable key caching (storing key values received from "
   "the Hashicorp Vault server in the local memory)",
+  NULL, NULL, 1);
+
+static MYSQL_SYSVAR_BOOL(check_kv_version, check_kv_version,
+  PLUGIN_VAR_RQCMDARG,
+  "Enable kv storage version check during plugin initialization",
   NULL, NULL, 1);
 
 static void cache_timeout_update (MYSQL_THD thd,
@@ -388,6 +394,7 @@ static struct st_mysql_sys_var *settings[] = {
   MYSQL_SYSVAR(cache_timeout),
   MYSQL_SYSVAR(cache_version_timeout),
   MYSQL_SYSVAR(use_cache_on_timeout),
+  MYSQL_SYSVAR(check_kv_version),
   NULL
 };
 
@@ -492,8 +499,8 @@ static int curl_run (char *url, std::string *response, bool soft_timeout)
       return OPERATION_TIMEOUT;
     }
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
-                    "CURL returned this error code: %u "
-                    " with error message: %s", 0, curl_res,
+                    "curl returned this error code: %u "
+                    "with the following error message: %s", 0, curl_res,
                     curl_errbuf[0] ? curl_errbuf :
                                      curl_easy_strerror(curl_res));
     return OPERATION_ERROR;
@@ -714,7 +721,7 @@ static unsigned int get_latest_version (unsigned int key_id)
   }
   std::string response_str;
   /*
-    Maximum buffer length = url length plus 20 characters of
+    Maximum buffer length = URL length plus 20 characters of
     a 64-bit unsigned integer, plus a slash character, plus
     a length of the "/data/" string and plus a zero byte:
   */
@@ -791,7 +798,7 @@ static unsigned int get_key_from_vault (unsigned int key_id,
   }
   std::string response_str;
   /*
-    Maximum buffer length = url length plus 40 characters of the
+    Maximum buffer length = URL length plus 40 characters of the
     two 64-bit unsigned integers, plus a slash character, plus a
     question mark, plus length of the "/data/" and the "?version="
     strings and plus a zero byte:
@@ -1127,6 +1134,7 @@ No_Secret:
   while (vault_url[vault_url_len - 1] == '/')
   {
     vault_url_len--;
+    suffix_len--;
   }
   /*
     Checking the maximum allowable length to protect
@@ -1154,14 +1162,119 @@ No_Secret:
   cache_max_time = ms_to_ticks(cache_timeout);
   cache_max_ver_time = ms_to_ticks(cache_version_timeout);
   /* Initialize curl: */
-  curl_global_init(CURL_GLOBAL_ALL);
+  CURLcode curl_res = curl_global_init(CURL_GLOBAL_ALL);
+  if (curl_res != CURLE_OK)
+  {
+    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                    "unable to initialize curl library, "
+                    "curl returned this error code: %u "
+                    "with the following error message: %s",
+                    0, curl_res, curl_easy_strerror(curl_res));
+curl_error:
+    free(vault_url_data);
+    vault_url_data = NULL;
+    goto Failure;
+  }
   list = curl_slist_append(list, token_header);
   if (list == NULL)
   {
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "curl: unable to construct slist", 0);
+Failure3:
     curl_global_cleanup();
-    goto Failure;
+    goto curl_error;
+  }
+  /*
+    If we do not need to check the key-value storage version,
+    then we immediately return from this function:
+  */
+  if (check_kv_version == 0) {
+    return 0;
+  }
+  /*
+    Let's construct a URL to check the version of the key-value storage:
+  */
+  char *mount_url = (char *) malloc(vault_url_len + 11 + 6);
+  if (mount_url == NULL)
+  {
+    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                    "Memory allocation error", 0);
+Failure4:
+    curl_slist_free_all(list);
+    list = NULL;
+    goto Failure3;
+  }
+  /*
+    The prefix length must be recalculated, as it may have
+    changed in the process of discarding trailing slashes:
+  */
+  prefix_len = vault_url_len - suffix_len;
+  memcpy(mount_url, vault_url_data, prefix_len);
+  memcpy(mount_url + prefix_len, "sys/mounts/", 11);
+  memcpy(mount_url + prefix_len + 11, vault_url_data + prefix_len, suffix_len);
+  memcpy(mount_url + prefix_len + 11 + suffix_len, "/tune", 6);
+#if HASICORP_DEBUG_LOGGING
+  my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                  "storage mount url: [%s]",
+                  ME_ERROR_LOG_ONLY | ME_NOTE, mount_url);
+#endif
+  std::string response_str;
+  int rc = curl_run(mount_url, &response_str, false);
+  if (rc != OPERATION_OK)
+  {
+storage_error:
+    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                    "Unable to get storage options for \"%s\"",
+                    0, mount_url);
+    free(mount_url);
+    goto Failure4;
+  }
+  const char *response = response_str.c_str();
+  size_t response_len = response_str.size();
+  /*
+    If the key is not found, this is not considered a fatal error,
+    but we need to add an informational message to the log:
+  */
+  if (response_len == 0)
+  {
+    goto storage_error;
+  }
+  free(mount_url);
+  const char *js;
+  int js_len;
+  if (json_get_object_key(response, response + response_len, "options",
+                          &js, &js_len) != JSV_OBJECT)
+  {
+    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                    "Unable to get storage options (http response is: %s)",
+                    0, response);
+    goto Failure4;
+  }
+  const char *ver;
+  int ver_len;
+  enum json_types jst =
+    json_get_object_key(js, js + js_len, "version", &ver, &ver_len);
+  if (jst != JSV_STRING && jst != JSV_NUMBER)
+  {
+    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                    "Unable to get storage version (http response is: %s)",
+                    0, response);
+    goto Failure4;
+  }
+  unsigned long version = strtoul(ver, NULL, 10);
+  if (version > UINT_MAX || (version == ULONG_MAX && errno))
+  {
+    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                    "Integer conversion error (for version number) "
+                    "(http response is: %s)", 0, response);
+    goto Failure4;
+  }
+  if (version < 2)
+  {
+    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                    "Key-value storage must be version "
+                    "number 2 or later", 0);
+    goto Failure4;
   }
   return 0;
 }
@@ -1208,10 +1321,10 @@ maria_declare_plugin(hashicorp_key_management)
   PLUGIN_LICENSE_GPL,
   hashicorp_key_management_plugin_init,
   hashicorp_key_management_plugin_deinit,
-  0x0104 /* 1.04 */,
+  0x0105 /* 1.05 */,
   NULL, /* status variables */
   settings,
-  "1.04",
+  "1.05",
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;

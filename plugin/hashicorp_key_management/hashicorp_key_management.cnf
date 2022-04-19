@@ -107,3 +107,11 @@
 # of the cache is allowed on server failures.
 #
 #hashicorp-key-management-cache-version-timeout=0
+
+#
+# This parameter enables ("on", this is the default value) or disables
+# ("off") checking the kv storage version during plugin initialization.
+# The plugin requires storage to be version 2 or older in order for it
+# to work properly.
+#
+#hashicorp-key-management-check-kv-version=on
