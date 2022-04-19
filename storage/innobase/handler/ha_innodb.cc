@@ -1933,7 +1933,9 @@ static void sst_enable_innodb_writes()
   purge_sys.resume();
   my_atomic_store32_explicit(&wsrep_sst_disable_writes, false,
                              MY_MEMORY_ORDER_RELAXED);
-  fil_crypt_set_thread_cnt(srv_n_fil_crypt_threads);
+  const uint old_count= srv_n_fil_crypt_threads;
+  srv_n_fil_crypt_threads= 0;
+  fil_crypt_set_thread_cnt(old_count);
 }
 
 static void innodb_disable_internal_writes(bool disable)
