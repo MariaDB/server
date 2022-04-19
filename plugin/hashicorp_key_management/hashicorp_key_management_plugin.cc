@@ -356,7 +356,9 @@ static void cache_timeout_update (MYSQL_THD thd,
                                   void *var_ptr,
                                   const void *save)
 {
-  cache_max_time = ms_to_ticks(* (long *) var_ptr);
+  long timeout = * (long *) save;
+  * (long *) var_ptr = timeout;
+  cache_max_time = ms_to_ticks(timeout);
 }
 
 static MYSQL_SYSVAR_LONG(cache_timeout, cache_timeout,
@@ -370,7 +372,9 @@ static void
                                 void *var_ptr,
                                 const void *save)
 {
-  cache_max_ver_time = ms_to_ticks(* (long *) var_ptr);
+  long timeout = * (long *) save;
+  * (long *) var_ptr = timeout;
+  cache_max_ver_time = ms_to_ticks(timeout);
 }
 
 static MYSQL_SYSVAR_LONG(cache_version_timeout, cache_version_timeout,
