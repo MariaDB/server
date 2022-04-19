@@ -16333,7 +16333,8 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
       table->s->db_create_options|= HA_OPTION_PACK_RECORD;
     else if (org_field->type() == FIELD_TYPE_DOUBLE)
       ((Field_double *) new_field)->not_fixed= TRUE;
-    new_field->vcol_info= 0;
+    new_field->vcol_info= new_field->default_value=
+      new_field->check_constraint= 0;
     new_field->cond_selectivity= 1.0;
     new_field->next_equal_field= NULL;
     new_field->option_list= NULL;
