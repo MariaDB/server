@@ -522,7 +522,7 @@ no longer be associated with a session when the server is restarted.
 
 A session may be served by at most one thread at a time. The serving
 thread of a session might change in some MySQL implementations.
-Therefore we do not have os_thread_get_curr_id() assertions in the code.
+Therefore we do not have pthread_self() assertions in the code.
 
 Normally, only the thread that is currently associated with a running
 transaction may access (read and modify) the trx object, and it may do
@@ -601,7 +601,7 @@ private:
   srw_spin_mutex mutex;
 #ifdef UNIV_DEBUG
   /** The owner of mutex (0 if none); protected by mutex */
-  std::atomic<os_thread_id_t> mutex_owner{0};
+  std::atomic<pthread_t> mutex_owner{0};
 #endif /* UNIV_DEBUG */
 public:
   void mutex_init() { mutex.init(); }
@@ -612,14 +612,14 @@ public:
   {
     ut_ad(!mutex_is_owner());
     mutex.wr_lock();
-    ut_ad(!mutex_owner.exchange(os_thread_get_curr_id(),
+    ut_ad(!mutex_owner.exchange(pthread_self(),
                                 std::memory_order_relaxed));
   }
   /** Release the mutex */
   void mutex_unlock()
   {
     ut_ad(mutex_owner.exchange(0, std::memory_order_relaxed)
-	  == os_thread_get_curr_id());
+	  == pthread_self());
     mutex.wr_unlock();
   }
 #ifndef SUX_LOCK_GENERIC
@@ -630,7 +630,7 @@ public:
   bool mutex_is_owner() const
   {
     return mutex_owner.load(std::memory_order_relaxed) ==
-      os_thread_get_curr_id();
+      pthread_self();
   }
 #endif /* UNIV_DEBUG */
 

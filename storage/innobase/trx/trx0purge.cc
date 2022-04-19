@@ -29,7 +29,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "fut0fut.h"
 #include "mach0data.h"
 #include "mtr0log.h"
-#include "os0thread.h"
 #include "que0que.h"
 #include "row0purge.h"
 #include "row0upd.h"
@@ -1093,7 +1092,7 @@ trx_purge_fetch_next_rec(
 	}
 
 	/* fprintf(stderr, "Thread %lu purging trx %llu undo record %llu\n",
-	os_thread_get_curr_id(), iter->trx_no, iter->undo_no); */
+	pthread_self(), iter->trx_no, iter->undo_no); */
 
 	*roll_ptr = trx_undo_build_roll_ptr(
 		/* row_purge_record_func() will later set

@@ -418,13 +418,13 @@ void lock_sys_t::wr_lock(const char *file, unsigned line)
 {
   mysql_mutex_assert_not_owner(&wait_mutex);
   latch.wr_lock(file, line);
-  ut_ad(!writer.exchange(os_thread_get_curr_id(), std::memory_order_relaxed));
+  ut_ad(!writer.exchange(pthread_self(), std::memory_order_relaxed));
 }
 /** Release exclusive lock_sys.latch */
 void lock_sys_t::wr_unlock()
 {
   ut_ad(writer.exchange(0, std::memory_order_relaxed) ==
-        os_thread_get_curr_id());
+        pthread_self());
   latch.wr_unlock();
 }
 

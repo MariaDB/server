@@ -687,7 +687,7 @@ private:
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_spin_lock latch;
 #ifdef UNIV_DEBUG
   /** The owner of exclusive latch (0 if none); protected by latch */
-  std::atomic<os_thread_id_t> writer{0};
+  std::atomic<pthread_t> writer{0};
   /** Number of shared latches */
   std::atomic<ulint> readers{0};
 #endif
@@ -751,14 +751,14 @@ public:
     mysql_mutex_assert_not_owner(&wait_mutex);
     ut_ad(!is_writer());
     latch.wr_lock();
-    ut_ad(!writer.exchange(os_thread_get_curr_id(),
+    ut_ad(!writer.exchange(pthread_self(),
                            std::memory_order_relaxed));
   }
   /** Release exclusive lock_sys.latch */
   void wr_unlock()
   {
     ut_ad(writer.exchange(0, std::memory_order_relaxed) ==
-          os_thread_get_curr_id());
+          pthread_self());
     latch.wr_unlock();
   }
   /** Acquire shared lock_sys.latch */
@@ -784,7 +784,7 @@ public:
   {
     ut_ad(!is_writer());
     if (!latch.wr_lock_try()) return false;
-    ut_ad(!writer.exchange(os_thread_get_curr_id(),
+    ut_ad(!writer.exchange(pthread_self(),
                            std::memory_order_relaxed));
     return true;
   }
@@ -808,9 +808,9 @@ public:
   bool is_writer() const
   {
 # ifdef SUX_LOCK_GENERIC
-    return writer.load(std::memory_order_relaxed) == os_thread_get_curr_id();
+    return writer.load(std::memory_order_relaxed) == pthread_self();
 # else
-    return writer.load(std::memory_order_relaxed) == os_thread_get_curr_id() ||
+    return writer.load(std::memory_order_relaxed) == pthread_self() ||
       (xtest() && !latch.is_locked_or_waiting());
 # endif
   }

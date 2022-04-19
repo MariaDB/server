@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -35,7 +35,6 @@ Created April 08, 2011 Vasil Dimov
 #include "buf0dump.h"
 #include "dict0dict.h"
 #include "os0file.h"
-#include "os0thread.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "ut0byte.h"

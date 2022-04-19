@@ -1952,10 +1952,10 @@ struct dict_table_t {
 #ifdef UNIV_DEBUG
   /** @return whether the current thread holds the lock_mutex */
   bool lock_mutex_is_owner() const
-  { return lock_mutex_owner == os_thread_get_curr_id(); }
+  { return lock_mutex_owner == pthread_self(); }
   /** @return whether the current thread holds the stats_mutex (lock_mutex) */
   bool stats_mutex_is_owner() const
-  { return lock_mutex_owner == os_thread_get_curr_id(); }
+  { return lock_mutex_owner == pthread_self(); }
 #endif /* UNIV_DEBUG */
   void lock_mutex_init() { lock_mutex.init(); }
   void lock_mutex_destroy() { lock_mutex.destroy(); }
@@ -1964,20 +1964,20 @@ struct dict_table_t {
   {
     ut_ad(!lock_mutex_is_owner());
     lock_mutex.wr_lock();
-    ut_ad(!lock_mutex_owner.exchange(os_thread_get_curr_id()));
+    ut_ad(!lock_mutex_owner.exchange(pthread_self()));
   }
   /** Try to acquire lock_mutex */
   bool lock_mutex_trylock()
   {
     ut_ad(!lock_mutex_is_owner());
     bool acquired= lock_mutex.wr_lock_try();
-    ut_ad(!acquired || !lock_mutex_owner.exchange(os_thread_get_curr_id()));
+    ut_ad(!acquired || !lock_mutex_owner.exchange(pthread_self()));
     return acquired;
   }
   /** Release lock_mutex */
   void lock_mutex_unlock()
   {
-    ut_ad(lock_mutex_owner.exchange(0) == os_thread_get_curr_id());
+    ut_ad(lock_mutex_owner.exchange(0) == pthread_self());
     lock_mutex.wr_unlock();
   }
 #ifndef SUX_LOCK_GENERIC
@@ -2279,7 +2279,7 @@ private:
   srw_spin_mutex lock_mutex;
 #ifdef UNIV_DEBUG
   /** The owner of lock_mutex (0 if none) */
-  Atomic_relaxed<os_thread_id_t> lock_mutex_owner{0};
+  Atomic_relaxed<pthread_t> lock_mutex_owner{0};
 #endif
 public:
   /** Autoinc counter value to give to the next inserted row. */
