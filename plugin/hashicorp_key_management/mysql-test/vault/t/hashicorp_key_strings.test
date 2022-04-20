@@ -1,0 +1,21 @@
+# The test presumes that the local vault is running at $VAULT_ADDR,
+# and the token is configured in $VAULT_TOKEN
+--source include/have_innodb.inc
+--source hashicorp_plugin.inc
+
+--exec vault secrets disable mariadbtest > /dev/null
+--exec vault secrets enable -path /mariadbtest -version=2 kv > /dev/null
+--exec vault kv put /mariadbtest/1 data=aa2345678901234Q > /dev/null
+--exec vault kv put /mariadbtest/2 data=zz2345678901234P > /dev/null
+
+SELECT @@HASHICORP_KEY_MANAGEMENT_KEY_CONVERSION_RULES;
+
+CREATE TABLE t1 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=1;
+CREATE TABLE t2 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=2;
+
+INSERT INTO t1 VALUES ('foo'),('bar');
+INSERT INTO t2 VALUES ('foo'),('bar');
+
+DROP TABLE IF EXISTS t1, t2;
+
+--exec vault secrets disable mariadbtest > /dev/null

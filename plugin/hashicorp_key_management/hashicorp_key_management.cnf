@@ -114,4 +114,25 @@
 # The plugin requires storage to be version 2 or older in order for it
 # to work properly.
 #
-#hashicorp-key-management-check-kv-version=on
+#hashicorp-key-management-check-kv-version="on"
+
+#
+# This parameter This setting controls the rules for interpreting
+# key values (the rules for converting them to a binary value that
+# is used by the server during encryption). By default, key values
+# are interpreted as numbers written in the hexadecimal number system
+# ("hexadecimal"). However, the user can select "strings" mode, where
+# strings received from Hashicorp Vault will be directly interpreted
+# as raw key values for encryption, without any conversion between
+# number systems, etc. Also, the user can select the "old" mode,
+# which instructs to use an algorithm that compatible with the key
+# conversion rules that were used by the plugin before version 1.05.
+# The old key conversion rules are incompatible with other plugins
+# and reduce the effective information capacity of the keys, but
+# they should be used if the data in the tables has already been
+# encrypted using a plugin version less than 1.05. For new bases,
+# the "hexadecimal" rules (which are set by default) are preferred -
+# in this case, the keys are written as numbers in hexadecimal
+# notation.
+#
+#hashicorp-key-management-key-conversion-rules="hexadecimal"

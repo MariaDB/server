@@ -15,6 +15,7 @@
 
 #include <mysql/plugin_encryption.h>
 #include <mysqld_error.h>
+#include <typelib.h>
 #include <string.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -311,6 +312,7 @@ static char check_kv_version;
 static long cache_timeout;
 static long cache_version_timeout;
 static char use_cache_on_timeout;
+static unsigned long key_conversion_rules;
 
 static MYSQL_SYSVAR_STR(vault_ca, vault_ca,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -350,6 +352,31 @@ static MYSQL_SYSVAR_BOOL(check_kv_version, check_kv_version,
   PLUGIN_VAR_RQCMDARG,
   "Enable kv storage version check during plugin initialization",
   NULL, NULL, 1);
+
+enum {
+  KEY_CONVERSION_HEXADECIMAL,
+  KEY_CONVERSION_STRING,
+  KEY_CONVERSION_OLD
+};
+
+static const char *key_conversion_rules_names[]=
+{
+  "hexadecimal",
+  "strings",
+  "old",
+  0
+};
+
+static TYPELIB key_conversion_rules_typelib=
+{
+  sizeof(key_conversion_rules_names) / sizeof(const char *) - 1, "",
+  key_conversion_rules_names, NULL
+};
+
+static MYSQL_SYSVAR_ENUM(key_conversion_rules, key_conversion_rules,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Key conversion rules to use",
+  NULL, NULL, 0, &key_conversion_rules_typelib);
 
 static void cache_timeout_update (MYSQL_THD thd,
                                   struct st_mysql_sys_var *var,
@@ -399,6 +426,7 @@ static struct st_mysql_sys_var *settings[] = {
   MYSQL_SYSVAR(cache_version_timeout),
   MYSQL_SYSVAR(use_cache_on_timeout),
   MYSQL_SYSVAR(check_kv_version),
+  MYSQL_SYSVAR(key_conversion_rules),
   NULL
 };
 
@@ -551,7 +579,7 @@ static int curl_run (char *url, std::string *response, bool soft_timeout)
   return is_error ? OPERATION_ERROR : OPERATION_OK;
 }
 
-static inline int c2xdigit (int c)
+static inline int c2xdigit_old (int c)
 {
   if (c > 9)
   {
@@ -564,45 +592,109 @@ static inline int c2xdigit (int c)
   return c;
 }
 
+static inline int c2xdigit (int c)
+{
+  if (c > 9)
+  {
+    c -= 'A' - '0' - 10;
+    if (c > 15)
+    {
+      c -= 'a' - 'A';
+    }
+  }
+  return c;
+}
+
 static int hex2buf (unsigned int max_length, unsigned char *dstbuf,
                     int key_len, const char *key)
 {
+  if (key_conversion_rules == KEY_CONVERSION_STRING) {
+     if (max_length) {
+       memcpy(dstbuf, key, key_len);
+     }
+     return 0;
+  }
   int length = 0;
-  while (key_len >= 2)
+  /* An odd number of characters in a hex string requires
+     special handling of the first byte: */
+  if (key_len & 1)
   {
     int c1 = key[0];
-    int c2 = key[1];
-    if (! isxdigit(c1) || ! isxdigit(c2))
+    if (isxdigit(c1))
     {
-      break;
-    }
-    if (max_length)
-    {
-      c1 = c2xdigit(c1 - '0');
-      c2 = c2xdigit(c2 - '0');
-      dstbuf[length++] = (c1 << 4) + c2;
-    }
-    key += 2;
-    key_len -= 2;
-  }
-  if (key_len)
-  {
-    if (key_len != 1)
-    {
-      my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
-                      "Syntax error - the key data should contain only "
-                      "hexadecimal digits",
-                      0);
+      if (max_length)
+      {
+        c1 = key_conversion_rules != KEY_CONVERSION_OLD ?
+             c2xdigit(c1 - '0') : c2xdigit_old(c1 - '0');
+        dstbuf[length++] = c1;
+      }
+      key++;
+      key_len--;
     }
     else
     {
-      my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
-                      "Syntax error - extra character in the key data",
-                      0);
+      goto Not_Hex;
     }
-    return -1;
+  }
+  if (max_length)
+  {
+    /* below, two copies of the loop are made in order
+       to avoid invariant expression checking inside
+       the loop body: */
+    if (key_conversion_rules != KEY_CONVERSION_OLD)
+    {
+      while (key_len)
+      {
+        int c1 = key[0];
+        int c2 = key[1];
+        if (! isxdigit(c1) || ! isxdigit(c2))
+        {
+          goto Not_Hex;
+        }
+        c1 = c2xdigit(c1 - '0');
+        c2 = c2xdigit(c2 - '0');
+        dstbuf[length++] = (c1 << 4) + c2;
+        key += 2;
+        key_len -= 2;
+      }
+    }
+    else
+    {
+      while (key_len)
+      {
+        int c1 = key[0];
+        int c2 = key[1];
+        if (! isxdigit(c1) || ! isxdigit(c2))
+        {
+          goto Not_Hex;
+        }
+        c1 = c2xdigit_old(c1 - '0');
+        c2 = c2xdigit_old(c2 - '0');
+        dstbuf[length++] = (c1 << 4) + c2;
+        key += 2;
+        key_len -= 2;
+      }
+    }
+  }
+  else
+  {
+    while (key_len)
+    {
+      if (! isxdigit(key[0]) || ! isxdigit(key[1]))
+      {
+        goto Not_Hex;
+      }
+      key += 2;
+      key_len -= 2;
+    }
   }
   return 0;
+Not_Hex:
+  my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                  "Syntax error - the key data should contain only "
+                  "hexadecimal digits",
+                  0);
+  return -1;
 }
 
 static const char * get_data (const std::string &response_str,
@@ -766,7 +858,13 @@ static unsigned int get_latest_version (unsigned int key_id)
   {
      return ENCRYPTION_KEY_VERSION_INVALID;
   }
-  unsigned int length = (unsigned int) key_len >> 1;
+  unsigned int length = key_len;
+  /* if the keys are hexadecimal values, then the length
+     should be halved with rounding up: */
+  if (key_conversion_rules != KEY_CONVERSION_STRING)
+  {
+    length = (length + 1) >> 1;
+  }
   KEY_INFO info(key_id, version, clock(), length);
   if (length > sizeof(info.data))
   {
@@ -874,7 +972,13 @@ static unsigned int get_key_from_vault (unsigned int key_id,
      return ENCRYPTION_KEY_VERSION_INVALID;
   }
   unsigned int max_length = dstbuf ? *buflen : 0;
-  unsigned int length = (unsigned int) key_len >> 1;
+  unsigned int length = key_len;
+  /* if the keys are hexadecimal values, then the length
+     should be halved with rounding up: */
+  if (key_conversion_rules != KEY_CONVERSION_STRING)
+  {
+    length = (length + 1) >> 1;
+  }
   *buflen = length;
   if (length > max_length)
   {
