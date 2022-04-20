@@ -46,8 +46,8 @@ Warning: Unable to load 'MYSQLTEST_VARDIR/zoneinfo/posix/ignored.tab' as time zo
 Warning: Skipping directory 'MYSQLTEST_VARDIR/zoneinfo/posix/posix': to avoid infinite symlink recursion.
 UNLOCK TABLES;
 COMMIT;
-ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time;
-ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
+execute immediate if(@wsrep_cannot_replicate_tz, 'do 0','ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time');
+execute immediate if(@wsrep_cannot_replicate_tz, 'do 0','ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id');
 execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone ENGINE=', @time_zone_engine), 'do 0');
 execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_name ENGINE=', @time_zone_name_engine), 'do 0');
 execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_transition ENGINE=', @time_zone_transition_engine, ', ORDER BY Time_zone_id, Transition_time'), 'do 0');
@@ -92,8 +92,8 @@ INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, `Offset
 Warning: Unable to load 'MYSQLTEST_VARDIR/zoneinfo/posix/garbage' as time zone. Skipping it.
 UNLOCK TABLES;
 COMMIT;
-ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time;
-ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
+execute immediate if(@wsrep_cannot_replicate_tz, 'do 0','ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time');
+execute immediate if(@wsrep_cannot_replicate_tz, 'do 0','ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id');
 execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone ENGINE=', @time_zone_engine), 'do 0');
 execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_name ENGINE=', @time_zone_name_engine), 'do 0');
 execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_transition ENGINE=', @time_zone_transition_engine, ', ORDER BY Time_zone_id, Transition_time'), 'do 0');
@@ -122,6 +122,7 @@ set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep
 execute immediate if(@wsrep_is_on, 'SET @save_wsrep_on=@@WSREP_ON, WSREP_ON=OFF', 'do 0');
 SET @save_sql_log_bin=@@SQL_LOG_BIN;
 SET SESSION SQL_LOG_BIN=0;
+SET @wsrep_cannot_replicate_tz=0;
 TRUNCATE TABLE time_zone;
 TRUNCATE TABLE time_zone_name;
 TRUNCATE TABLE time_zone_transition;
@@ -147,8 +148,8 @@ INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, `Offset
 Warning: Unable to load 'MYSQLTEST_VARDIR/zoneinfo/posix/garbage' as time zone. Skipping it.
 UNLOCK TABLES;
 COMMIT;
-ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time;
-ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
+execute immediate if(@wsrep_cannot_replicate_tz, 'do 0','ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time');
+execute immediate if(@wsrep_cannot_replicate_tz, 'do 0','ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id');
 SET SESSION SQL_LOG_BIN=@save_sql_log_bin;
 execute immediate if(@wsrep_is_on, 'SET SESSION WSREP_ON=@save_wsrep_on', 'do 0');
 SELECT COUNT(*) FROM time_zone;
@@ -257,6 +258,7 @@ set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep
 execute immediate if(@wsrep_is_on, 'SET @save_wsrep_on=@@WSREP_ON, WSREP_ON=OFF', 'do 0');
 SET @save_sql_log_bin=@@SQL_LOG_BIN;
 SET SESSION SQL_LOG_BIN=0;
+SET @wsrep_cannot_replicate_tz=0;
 LOCK TABLES time_zone WRITE,
   time_zone_leap_second WRITE,
   time_zone_name WRITE,
@@ -377,6 +379,7 @@ set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep
 execute immediate if(@wsrep_is_on, 'SET @save_wsrep_on=@@WSREP_ON, WSREP_ON=OFF', 'do 0');
 SET @save_sql_log_bin=@@SQL_LOG_BIN;
 SET SESSION SQL_LOG_BIN=0;
+SET @wsrep_cannot_replicate_tz=0;
 LOCK TABLES time_zone WRITE,
   time_zone_leap_second WRITE,
   time_zone_name WRITE,
@@ -441,8 +444,8 @@ TRUNCATE TABLE time_zone_transition_type;
   time_zone_transition_type WRITE')*/;
 UNLOCK TABLES;
 COMMIT;
-ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time;
-ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
+execute immediate if(@wsrep_cannot_replicate_tz, 'do 0','ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time');
+execute immediate if(@wsrep_cannot_replicate_tz, 'do 0','ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id');
 execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone ENGINE=', @time_zone_engine), 'do 0');
 execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_name ENGINE=', @time_zone_name_engine), 'do 0');
 execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_transition ENGINE=', @time_zone_transition_engine, ', ORDER BY Time_zone_id, Transition_time'), 'do 0');

@@ -2785,6 +2785,7 @@ main(int argc, char **argv)
     printf("execute immediate if(@wsrep_is_on, 'SET @save_wsrep_on=@@WSREP_ON, WSREP_ON=OFF', 'do 0');\n"
            "SET @save_sql_log_bin=@@SQL_LOG_BIN;\n"
            "SET SESSION SQL_LOG_BIN=0;\n"
+           "SET @wsrep_cannot_replicate_tz=0;\n"
            "%s%s;\n", trunc_tables, lock_tables);
   else
     // Alter time zone tables to InnoDB if wsrep_on is enabled
@@ -2820,10 +2821,13 @@ main(int argc, char **argv)
 
     printf("UNLOCK TABLES;\n"
            "COMMIT;\n");
-    printf("ALTER TABLE time_zone_transition "
-           "ORDER BY Time_zone_id, Transition_time;\n");
-    printf("ALTER TABLE time_zone_transition_type "
-           "ORDER BY Time_zone_id, Transition_type_id;\n");
+    printf(
+      "execute immediate if(@wsrep_cannot_replicate_tz, 'do 0',"
+        "'ALTER TABLE time_zone_transition "
+          "ORDER BY Time_zone_id, Transition_time');\n"
+      "execute immediate if(@wsrep_cannot_replicate_tz, 'do 0',"
+        "'ALTER TABLE time_zone_transition_type "
+          "ORDER BY Time_zone_id, Transition_type_id');\n");
   }
   else
   {
