@@ -29,7 +29,7 @@ Warning	1478	Table storage engine 'MyISAM' does not support the create option 'T
 'binlog stationary as expected'
 SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@WSREP_ON, @@SQL_LOG_BIN;
 @wsrep_is_on	@wsrep_cannot_replicate_tz	@save_wsrep_on	@save_sql_log_bin	@@WSREP_ON	@@SQL_LOG_BIN
-1	1	1	1	1	1
+1	0	1	1	1	1
 SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
 FROM information_schema.global_status g
 JOIN baseline b USING (VARIABLE_NAME)
@@ -197,10 +197,6 @@ TRUNCATE TABLE time_zone_leap_second;
 connection node_1;
 SET GLOBAL WSREP_MODE='';
 Warnings:
-Warning	1105	ORDER BY ignored as there is a user-defined clustered index in the table 'time_zone_transition'
-Warnings:
-Warning	1105	ORDER BY ignored as there is a user-defined clustered index in the table 'time_zone_transition_type'
-Warnings:
 Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
 Warnings:
 Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
@@ -213,7 +209,7 @@ FROM information_schema.global_status g
 JOIN baseline b USING (VARIABLE_NAME)
 ORDER BY g.VARIABLE_NAME;
 VARIABLE_NAME	diff
-COM_ALTER_TABLE	10
+COM_ALTER_TABLE	8
 COM_BEGIN	1
 COM_INSERT	6
 COM_LOCK_TABLES	0
