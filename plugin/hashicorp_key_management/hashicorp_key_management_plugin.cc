@@ -556,7 +556,7 @@ static int curl_run (char *url, std::string *response, bool soft_timeout)
     {
       const char *err;
       int err_len;
-      if (json_get_object_key(res, res + strlen(res),
+      if (json_get_object_key(res, res + response->size(),
                               "errors", &err, &err_len) == JSV_ARRAY)
       {
         const char *ev;
@@ -697,10 +697,10 @@ Not_Hex:
   return -1;
 }
 
-static const char * get_data (const std::string &response_str,
-                              const char **js, int *js_len,
-                              unsigned int key_id,
-                              unsigned int key_version)
+static int get_data (const std::string &response_str,
+                     const char **js, int *js_len,
+                     unsigned int key_id,
+                     unsigned int key_version)
 {
   const char *response = response_str.c_str();
   size_t response_len = response_str.size();
@@ -722,7 +722,7 @@ static const char * get_data (const std::string &response_str,
                       "Key not found (key id: %u, key version: %u)",
                       ME_ERROR_LOG_ONLY | ME_NOTE, key_id, key_version);
     }
-    return NULL;
+    return 1;
   }
   if (json_get_object_key(response, response + response_len, "data",
                           js, js_len) != JSV_OBJECT)
@@ -730,13 +730,14 @@ static const char * get_data (const std::string &response_str,
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Unable to get data object (http response is: %s)",
                     0, response);
-    return NULL;
+    return 2;
   }
-  return response;
+  return 0;
 }
 
 static unsigned int get_version (const char *js, int js_len,
-                                 const char *response, int *rc)
+                                 const std::string &response_str,
+                                 int *rc)
 {
   const char *ver;
   int ver_len;
@@ -746,7 +747,7 @@ static unsigned int get_version (const char *js, int js_len,
   {
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Unable to get metadata object (http response is: %s)",
-                    0, response);
+                    0, response_str.c_str());
     return ENCRYPTION_KEY_VERSION_INVALID;
   }
   if (json_get_object_key(ver, ver + ver_len, "version",
@@ -754,7 +755,7 @@ static unsigned int get_version (const char *js, int js_len,
   {
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Unable to get version number (http response is: %s)",
-                    0, response);
+                    0, response_str.c_str());
     return ENCRYPTION_KEY_VERSION_INVALID;
   }
   errno = 0;
@@ -764,7 +765,7 @@ static unsigned int get_version (const char *js, int js_len,
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Integer conversion error (for version number) "
                     "(http response is: %s)",
-                    0, response);
+                    0, response_str.c_str());
     return ENCRYPTION_KEY_VERSION_INVALID;
   }
   *rc = 0;
@@ -773,7 +774,7 @@ static unsigned int get_version (const char *js, int js_len,
 
 static int get_key_data (const char *js, int js_len,
                          const char **key, int *key_len,
-                         const char *response)
+                         const std::string &response_str)
 {
   if (json_get_object_key(js, js + js_len, "data",
                           &js, &js_len) != JSV_OBJECT)
@@ -781,7 +782,7 @@ static int get_key_data (const char *js, int js_len,
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Unable to get second-level data object "
                     "(http response is: %s)",
-                    0, response);
+                    0, response_str.c_str());
     return 1;
   }
   if (json_get_object_key(js, js + js_len, "data",
@@ -789,7 +790,7 @@ static int get_key_data (const char *js, int js_len,
   {
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Unable to get data string (http response is: %s)",
-                    0, response);
+                    0, response_str.c_str());
     return 1;
   }
   return 0;
@@ -841,20 +842,19 @@ static unsigned int get_latest_version (unsigned int key_id)
   }
   const char *js;
   int js_len;
-  const char *response = get_data(response_str, &js, &js_len, key_id,
-                                  ENCRYPTION_KEY_VERSION_INVALID);
-  if (response == NULL)
+  if (get_data(response_str, &js, &js_len, key_id,
+               ENCRYPTION_KEY_VERSION_INVALID))
   {
     return ENCRYPTION_KEY_VERSION_INVALID;
   }
-  version = get_version(js, js_len, response, &rc);
+  version = get_version(js, js_len, response_str, &rc);
   if (!caching_enabled || rc)
   {
     return version;
   }
   const char* key;
   int key_len;
-  if (get_key_data(js, js_len, &key, &key_len, response))
+  if (get_key_data(js, js_len, &key, &key_len, response_str))
   {
      return ENCRYPTION_KEY_VERSION_INVALID;
   }
@@ -930,9 +930,7 @@ static unsigned int get_key_from_vault (unsigned int key_id,
   }
   const char *js;
   int js_len;
-  const char *response = get_data(response_str, &js, &js_len,
-                                  key_id, key_version);
-  if (response == NULL)
+  if (get_data(response_str, &js, &js_len, key_id, key_version))
   {
     return ENCRYPTION_KEY_VERSION_INVALID;
   }
@@ -945,7 +943,7 @@ static unsigned int get_key_from_vault (unsigned int key_id,
 #endif
   {
     int rc;
-    version = get_version(js, js_len, response, &rc);
+    version = get_version(js, js_len, response_str, &rc);
     if (rc)
     {
       return version;
@@ -967,7 +965,7 @@ static unsigned int get_key_from_vault (unsigned int key_id,
 #endif
   const char* key;
   int key_len;
-  if (get_key_data(js, js_len, &key, &key_len, response))
+  if (get_key_data(js, js_len, &key, &key_len, response_str))
   {
      return ENCRYPTION_KEY_VERSION_INVALID;
   }
