@@ -1,0 +1,48 @@
+# MDEV-28277: Checking for mandatory "/v1/" prefix in the URL
+# The test presumes that the local vault is running at $VAULT_ADDR,
+# and the token is configured in $VAULT_TOKEN
+--source include/have_innodb.inc
+--source hashicorp_plugin.inc
+
+--exec vault secrets disable bug > /dev/null
+--exec vault secrets enable -path /bug -version=2 kv > /dev/null
+--exec vault kv put /bug/1 data=01234567890123456789012345678901 > /dev/null
+
+--let $_server_id= `SELECT @@server_id`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+
+--source include/shutdown_mysqld.inc
+--let $restart_parameters=--plugin-load-add=hashicorp_key_management --hashicorp-key-management-vault-url="$VAULT_ADDR/bug/" --hashicorp-key-management-token="$VAULT_TOKEN"
+--let $restart_noprint=1
+--exec echo "wait" > $_expect_file_name
+--source include/start_mysqld.inc
+
+--source include/shutdown_mysqld.inc
+--let $restart_parameters=--plugin-load-add=hashicorp_key_management --hashicorp-key-management-vault-url="/v1/bug/" --hashicorp-key-management-token="$VAULT_TOKEN"
+--let $restart_noprint=1
+--exec echo "wait" > $_expect_file_name
+--source include/start_mysqld.inc
+
+--source include/shutdown_mysqld.inc
+--let $restart_parameters=--plugin-load-add=hashicorp_key_management --hashicorp-key-management-vault-url="$VAULT_ADDR/v1/" --hashicorp-key-management-token="$VAULT_TOKEN"
+--let $restart_noprint=1
+--exec echo "wait" > $_expect_file_name
+--source include/start_mysqld.inc
+
+--let $restart_parameters=--plugin-load-add=hashicorp_key_management --hashicorp-key-management-vault-url="$VAULT_ADDR/v1/bug/" --hashicorp-key-management-token="$VAULT_TOKEN"
+--let $restart_noprint=1
+--source include/restart_mysqld.inc
+
+CREATE TABLE t1 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=1;
+INSERT INTO t1 VALUES ('foo'),('bar');
+
+# Cleanup
+DROP TABLE t1;
+
+--exec vault secrets disable bug > /dev/null
+
+CALL mtr.add_suppression("the path inside the URL must start with the \"/v1/\" prefix");
+CALL mtr.add_suppression("Supplied URL does not contain a hostname: \"/v1/bug/\"");
+CALL mtr.add_suppression("Supplied URL does not contain a secret name: \".*/v1/\"");
+CALL mtr.add_suppression("registration as a ENCRYPTION failed.");
+CALL mtr.add_suppression("init function returned error.");

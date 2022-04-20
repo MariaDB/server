@@ -1,0 +1,12 @@
+# restart: with restart_parameters
+# restart: with restart_parameters
+# restart: with restart_parameters
+# restart: with restart_parameters
+CREATE TABLE t1 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=1;
+INSERT INTO t1 VALUES ('foo'),('bar');
+DROP TABLE t1;
+CALL mtr.add_suppression("the path inside the URL must start with the \"/v1/\" prefix");
+CALL mtr.add_suppression("Supplied URL does not contain a hostname: \"/v1/bug/\"");
+CALL mtr.add_suppression("Supplied URL does not contain a secret name: \".*/v1/\"");
+CALL mtr.add_suppression("registration as a ENCRYPTION failed.");
+CALL mtr.add_suppression("init function returned error.");
