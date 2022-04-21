@@ -1,0 +1,34 @@
+#
+# MDEV-28267 ASAN heap-use-after-free in Item_sp::func_name_cstring
+#
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION test.f1(a INT) RETURNS TEXT RETURN '';
+CREATE FUNCTION test.f2(a INT) RETURNS TEXT RETURN '';
+CREATE VIEW v1 AS SELECT f1(a) AS v1 FROM t1;
+CREATE VIEW v2 AS SELECT f1(a) AS v2 FROM t1;
+CREATE VIEW v3 AS SELECT f1(a) AS v3 FROM t1;
+CREATE VIEW v4 AS SELECT f1(a) AS v4 FROM t1;
+BEGIN NOT ATOMIC
+FOR i IN 1..10
+DO
+ANALYZE FORMAT=JSON SELECT *
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE
+TABLE_SCHEMA='test'
+    AND
+TABLE_NAME LIKE 'v%'
+    AND
+(SLEEP(0.01)=0 OR f1(ordinal_position) >'')
+ORDER BY TABLE_NAME;
+END FOR;
+END;
+$$
+connect  con1,localhost,root,,test;
+CREATE OR REPLACE FUNCTION f2(a INT) RETURNS TEXT RETURN '';
+connection default;
+disconnect con1;
+connection default;
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP TABLE t1;
+DROP VIEW v1, v2, v3, v4;

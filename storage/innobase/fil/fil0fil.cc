@@ -1144,7 +1144,10 @@ err_exit:
     }
 
     if (create_new_db)
+    {
+      node->find_metadata(node->handle);
       continue;
+    }
     if (skip_read)
     {
       size+= node->size;

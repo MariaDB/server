@@ -1302,8 +1302,6 @@ EXPLAIN
 {
   "query_block": {
     "union_result": {
-      "table_name": "<unit1>",
-      "access_type": "ALL",
       "query_specifications": [
         {
           "query_block": {
@@ -1523,8 +1521,6 @@ EXPLAIN
 {
   "query_block": {
     "union_result": {
-      "table_name": "<union1,2>",
-      "access_type": "ALL",
       "query_specifications": [
         {
           "query_block": {
@@ -1587,8 +1583,6 @@ EXPLAIN
 {
   "query_block": {
     "union_result": {
-      "table_name": "<union1,2>",
-      "access_type": "ALL",
       "query_specifications": [
         {
           "query_block": {
@@ -1631,8 +1625,6 @@ EXPLAIN
 {
   "query_block": {
     "union_result": {
-      "table_name": "<union1,2,3>",
-      "access_type": "ALL",
       "query_specifications": [
         {
           "query_block": {
@@ -1675,10 +1667,6 @@ ANALYZE
 {
   "query_block": {
     "union_result": {
-      "table_name": "<unit1>",
-      "access_type": "ALL",
-      "r_loops": 0,
-      "r_rows": null,
       "query_specifications": [
         {
           "query_block": {
@@ -1906,10 +1894,6 @@ ANALYZE
 {
   "query_block": {
     "union_result": {
-      "table_name": "<union1,2>",
-      "access_type": "ALL",
-      "r_loops": 0,
-      "r_rows": null,
       "query_specifications": [
         {
           "query_block": {
@@ -1974,10 +1958,6 @@ ANALYZE
 {
   "query_block": {
     "union_result": {
-      "table_name": "<union1,2>",
-      "access_type": "ALL",
-      "r_loops": 0,
-      "r_rows": null,
       "query_specifications": [
         {
           "query_block": {
@@ -2020,10 +2000,6 @@ ANALYZE
 {
   "query_block": {
     "union_result": {
-      "table_name": "<union1,2,3>",
-      "access_type": "ALL",
-      "r_loops": 0,
-      "r_rows": null,
       "query_specifications": [
         {
           "query_block": {

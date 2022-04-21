@@ -36,12 +36,43 @@ ALTER TABLE t1 REORGANIZE PARTITION p1 INTO
 );
 DROP TABLE t1;
 
-#
-# MDEV-15456 Server crashes upon adding or dropping a partition in ALTER under LOCK TABLE after ER_SAME_NAME_PARTITION
-#
+--echo #
+--echo # MDEV-15456 Server crashes upon adding or dropping a partition in ALTER under LOCK TABLE after ER_SAME_NAME_PARTITION
+--echo #
 --eval create table t1 (i int) engine=$engine partition by range(i) (partition p0 values less than (10))
 lock table t1 write;
 --error ER_SAME_NAME_PARTITION
 alter table t1 add partition (partition p0 values less than (20));
 alter table t1 add partition (partition p1 values less than (20)) /* comment */;
 drop table t1;
+
+--echo #
+--echo # MDEV-27065 Partitioning tables with custom data directories moves data back to default directory
+--echo #
+
+--mkdir $MYSQLTEST_VARDIR/tmp/mdev_27065
+
+--disable_query_log
+--eval CREATE TABLE t1 (id INT) ENGINE=$engine DATA DIRECTORY='$MYSQLTEST_VARDIR/tmp/mdev_27065'
+--enable_query_log
+ALTER TABLE t1 PARTITION BY RANGE(id)(
+  PARTITION p0 VALUES LESS THAN (1000),
+  PARTITION p1 VALUES LESS THAN MAXVALUE
+);
+DROP TABLE t1;
+
+# InnoDB doesn't support INDEX DIRECTORY.
+if (`SELECT IF('$engine' != 'InnoDB', 1, 0)`)
+{
+  --disable_query_log
+  --eval CREATE TABLE t2 (id INT) ENGINE=$engine INDEX DIRECTORY='$MYSQLTEST_VARDIR/tmp/mdev_27065'
+  --enable_query_log
+  ALTER TABLE t2 PARTITION BY RANGE(id)(
+    PARTITION p0 VALUES LESS THAN (1000),
+    PARTITION p1 VALUES LESS THAN MAXVALUE
+  );
+  DROP TABLE t2;
+}
+
+--remove_files_wildcard $MYSQLTEST_VARDIR/tmp/mdev_27065 *
+--rmdir $MYSQLTEST_VARDIR/tmp/mdev_27065

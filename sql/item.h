@@ -2,7 +2,7 @@
 #define SQL_ITEM_INCLUDED
 
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3485,6 +3485,10 @@ public:
     this variable.
   */
   bool can_be_depended;
+  /*
+     NOTE: came from TABLE::alias_name_used and this is only a hint!
+     See comment for TABLE::alias_name_used.
+  */
   bool alias_name_used; /* true if item was resolved against alias */
 
   Item_ident(THD *thd, Name_resolution_context *context_arg,
@@ -5487,7 +5491,7 @@ public:
   Field *sp_result_field;
   Item_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name_arg);
   Item_sp(THD *thd, Item_sp *item);
-  LEX_CSTRING func_name_cstring(THD *thd) const;
+  LEX_CSTRING func_name_cstring(THD *thd, bool is_package_function) const;
   void cleanup();
   bool sp_check_access(THD *thd);
   bool execute(THD *thd, bool *null_value, Item **args, uint arg_count);

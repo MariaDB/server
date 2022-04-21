@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1470,8 +1470,7 @@ Item_sum_sp::fix_length_and_dec()
 
 LEX_CSTRING Item_sum_sp::func_name_cstring() const
 {
-  THD *thd= current_thd;
-  return Item_sp::func_name_cstring(thd);
+  return Item_sp::func_name_cstring(current_thd, false);
 }
 
 Item* Item_sum_sp::copy_or_same(THD *thd)
