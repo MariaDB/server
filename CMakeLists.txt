@@ -429,14 +429,12 @@ IF(WITH_UNIT_TESTS)
  ENDIF()
 ENDIF()
 
-INCLUDE(cpack_tgz)
-INCLUDE(cpack_rpm)
-INCLUDE(cpack_deb)
 
 UNSET (MYSQLD_STATIC_PLUGIN_LIBS CACHE)
 
 INCLUDE(mariadb_connector_c) # this does ADD_SUBDIRECTORY(libmariadb)
 
+INCLUDE(cpack_tgz)
 INCLUDE(cpack_rpm)
 INCLUDE(cpack_deb)
 

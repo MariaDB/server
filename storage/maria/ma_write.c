@@ -731,7 +731,10 @@ static int w_search(register MARIA_HA *info, uint32 comp_flag, MARIA_KEY *key,
     }
   }
   if (flag == MARIA_FOUND_WRONG_KEY)
+  {
+    my_errno= HA_ERR_CRASHED;
     goto err;
+  }
   if (!was_last_key)
     insert_last=0;
   next_page= _ma_kpos(page.node, keypos);

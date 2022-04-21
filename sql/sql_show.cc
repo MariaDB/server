@@ -2607,7 +2607,8 @@ static int show_create_view(THD *thd, TABLE_LIST *table, String *buff)
          tbl;
          tbl= tbl->next_global)
     {
-      if (cmp(&table->view_db, tbl->view ? &tbl->view_db : &tbl->db))
+      if (!tbl->is_derived() &&
+          cmp(&table->view_db, tbl->view ? &tbl->view_db : &tbl->db))
       {
         table->compact_view_format= FALSE;
         break;
@@ -9045,7 +9046,7 @@ ST_FIELD_INFO columns_fields_info[]=
   Column("COLLATION_NAME",          CSName(),    NULLABLE, "Collation", OPEN_FRM_ONLY),
   Column("COLUMN_TYPE",         Longtext(65535), NOT_NULL, "Type",  OPEN_FRM_ONLY),
   Column("COLUMN_KEY",              Varchar(3),  NOT_NULL, "Key",   OPEN_FRM_ONLY),
-  Column("EXTRA",                   Varchar(30), NOT_NULL, "Extra", OPEN_FRM_ONLY),
+  Column("EXTRA",                   Varchar(80), NOT_NULL, "Extra", OPEN_FRM_ONLY),
   Column("PRIVILEGES",              Varchar(80), NOT_NULL, "Privileges", OPEN_FRM_ONLY),
   Column("COLUMN_COMMENT", Varchar(COLUMN_COMMENT_MAXLEN), NOT_NULL, "Comment",
                                                                  OPEN_FRM_ONLY),

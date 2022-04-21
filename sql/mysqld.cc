@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2978,7 +2978,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       sql_print_information("Got signal %d to shutdown mysqld",sig);
 #endif
       /* switch to the old log message processing */
-      logger.set_handlers(LOG_FILE, global_system_variables.sql_log_slow ? LOG_FILE:LOG_NONE,
+      logger.set_handlers(global_system_variables.sql_log_slow ? LOG_FILE:LOG_NONE,
                           opt_log ? LOG_FILE:LOG_NONE);
       DBUG_PRINT("info",("Got signal: %d  abort_loop: %d",sig,abort_loop));
       if (!abort_loop)
@@ -3020,8 +3020,8 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
         ulonglong fixed_log_output_options=
           log_output_options & LOG_NONE ? LOG_TABLE : log_output_options;
 
-        logger.set_handlers(LOG_FILE, global_system_variables.sql_log_slow
-                                      ? fixed_log_output_options : LOG_NONE,
+        logger.set_handlers(global_system_variables.sql_log_slow
+                            ? fixed_log_output_options : LOG_NONE,
                             opt_log ? fixed_log_output_options : LOG_NONE);
       }
       break;
@@ -5043,7 +5043,7 @@ static int init_server_components()
       sql_print_warning("There were other values specified to "
                         "log-output besides NONE. Disabling slow "
                         "and general logs anyway.");
-    logger.set_handlers(LOG_FILE, LOG_NONE, LOG_NONE);
+    logger.set_handlers(LOG_NONE, LOG_NONE);
   }
   else
   {
@@ -5059,8 +5059,7 @@ static int init_server_components()
       /* purecov: end */
     }
 
-    logger.set_handlers(LOG_FILE,
-                        global_system_variables.sql_log_slow ?
+    logger.set_handlers(global_system_variables.sql_log_slow ?
                         log_output_options:LOG_NONE,
                         opt_log ? log_output_options:LOG_NONE);
   }

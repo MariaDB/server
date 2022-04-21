@@ -1109,8 +1109,7 @@ public:
                          const char *query, size_t query_length);
 
   /* we use this function to setup all enabled log event handlers */
-  int set_handlers(ulonglong error_log_printer,
-                   ulonglong slow_log_printer,
+  int set_handlers(ulonglong slow_log_printer,
                    ulonglong general_log_printer);
   void init_error_log(ulonglong error_log_printer);
   void init_slow_log(ulonglong slow_log_printer);

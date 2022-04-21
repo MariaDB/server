@@ -6707,7 +6707,7 @@ int main(int argc, char **argv)
 	key_map_full.set_all();
 
 	logger.init_base();
-	logger.set_handlers(LOG_FILE, LOG_NONE, LOG_NONE);
+	logger.set_handlers(LOG_NONE, LOG_NONE);
 	mysql_mutex_init(key_LOCK_error_log, &LOCK_error_log,
 			 MY_MUTEX_INIT_FAST);
 

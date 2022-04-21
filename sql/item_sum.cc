@@ -1461,7 +1461,7 @@ const char *
 Item_sum_sp::func_name() const
 {
   THD *thd= current_thd;
-  return Item_sp::func_name(thd);
+  return Item_sp::func_name(thd, false);
 }
 
 Item* Item_sum_sp::copy_or_same(THD *thd)

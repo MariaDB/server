@@ -1,10 +1,14 @@
 --source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/innodb_page_size_small.inc
 
 call mtr.add_suppression("InnoDB: Cannot add field .* in table .* because after adding it, the row size is .* which is greater than maximum allowed size (.*) for a record on index leaf page.");
 
 SET innodb_strict_mode = 0;
 SET @@global.log_warnings = 3;
 
+# Check the Warning |  139 | Row size too large (> 16318)
+--replace_regex /> [0-9]+/> NNNN/
 CREATE TABLE t1 (
   col_1 TEXT
   ,col_2 TEXT
@@ -19,14 +23,65 @@ CREATE TABLE t1 (
   ,col_11 TEXT
 ) ENGINE=INNODB ROW_FORMAT=COMPACT;
 --enable_warnings
+--replace_regex /> [0-9]+/> NNNN/
 TRUNCATE TABLE t1;
+--replace_regex /> [0-9]+/> NNNN/
 OPTIMIZE TABLE t1;
+--replace_regex /> [0-9]+/> NNNN/
 ALTER TABLE t1 FORCE;
 SET innodb_strict_mode = ON;
+--replace_regex /> [0-9]+/> NNNN/
 TRUNCATE TABLE t1;
+--replace_regex /> [0-9]+/> NNNN/
 OPTIMIZE TABLE t1;
+--replace_regex /> [0-9]+/> NNNN/
 ALTER TABLE t1 FORCE;
 DROP TABLE t1;
 --disable_warnings
 
 SET @@global.log_warnings = 2;
+
+--echo #
+--echo # MDEV-20194 Warnings inconsistently issued upon CHECK on
+--echo #		table from older versions
+--echo #
+set global innodb_compression_level=1;
+CREATE TABLE t1(
+        f1 INT, f2 CHAR(200), f3 CHAR(200),
+        f4 CHAR(200), f5 CHAR(200), f6 CHAR(200),
+        f7 CHAR(200), f8 CHAR(200), f9 CHAR(200),
+        f10 CHAR(200), PRIMARY KEY(f1, f2(20), f3(20), f4(20))
+        ) ROW_FORMAT=COMPRESSED, ENGINE=InnoDB;
+
+INSERT INTO t1 SELECT seq, repeat('a', 200), repeat('b', 200),
+		      repeat('c', 200), repeat('d', 200),
+		      repeat('d', 200), repeat('e', 200),
+		      repeat('e', 200), repeat('f', 200),
+		      repeat('g', 200) FROM seq_1_to_20;
+DROP TABLE t1;
+set global innodb_compression_level=default;
+
+# Maximum field in the index
+
+--error ER_TOO_MANY_KEY_PARTS
+CREATE TABLE t1(f1 char(200), f2 char(200), f3 char(200),
+                f4 char(200), f5 char(200), f6 char(200),
+                f7 char(200), f8 char(200), f9 char(200),
+                f10 char(200), f11 char(200), f12 char(200),
+                f13 char(200), f14 char(200), f15 char(200),
+                f16 char(200), f17 char(200), f18 char(200),
+                f19 char(200), f20 char(200), f21 char(200),
+                f22 char(200), f23 char(200), f24 char(200),
+                f25 char(200), f26 char(200), f27 char(200),
+                f28 char(200), f29 char(200), f30 char(200),
+                f31 char(200), f32 char(200), f33 char(200),
+		primary key(f1(10), f2(10), f3(10), f4(10),
+                            f5(10), f6(10), f7(10), f8(10),
+                            f9(10), f10(10), f11(10), f12(10),
+                            f13(10), f14(10), f15(10), f16(10),
+                            f17(10), f18(10), f19(10), f20(10),
+                            f21(10), f22(10), f23(10), f24(10),
+                            f25(10), f26(10), f27(10), f28(10),
+                            f29(10), f30(10), f31(10), f32(10),
+                            f33(10)))
+                ENGINE=InnoDB;

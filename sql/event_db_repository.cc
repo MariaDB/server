@@ -615,6 +615,8 @@ Event_db_repository::open_event_table(THD *thd, enum thr_lock_type lock_type,
 
   *table= tables.table;
   tables.table->use_all_columns();
+  /* NOTE: &tables pointer will be invalid after return */
+  tables.table->pos_in_table_list= NULL;
 
   if (table_intact.check(*table, &event_table_def))
   {
