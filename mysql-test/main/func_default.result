@@ -159,5 +159,48 @@ a
 10
 DROP TABLE t1;
 #
+# MDEV-21028 Server crashes in Query_arena::set_query_arena upon SELECT from view
+#
+create table t1 (a datetime default current_timestamp);
+insert into t1 () values (),();
+create algorithm=temptable view v1 as select * from t1;
+create algorithm=merge     view v2 as select * from t1;
+select default(a) = now() from v1;
+default(a) = now()
+NULL
+NULL
+select default(a) = now() from v2;
+default(a) = now()
+1
+1
+select table_name,is_updatable from information_schema.views;
+table_name	is_updatable
+v1	NO
+v2	YES
+drop view v1, v2;
+drop table t1;
+create table t1 (v1 timestamp) select 'x';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `v1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `x` varchar(1) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select default(v1) from (select v1 from t1) dt;
+default(v1)
+2001-01-01 10:20:30
+select default(v1) from (select v1 from t1 group by v1) dt;
+default(v1)
+0000-00-00 00:00:00
+drop table t1;
+create table t1 (a text default '');
+create algorithm=temptable view v1 as select * from t1;
+insert into t1 values ('a');
+select default(a) from v1;
+default(a)
+NULL
+drop view v1;
+drop table t1;
+#
 # End of 10.2 tests
 #
