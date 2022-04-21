@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All rights reserved.
-Copyright (c) 2019, 2021, MariaDB Corporation.
+Copyright (c) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -162,7 +162,7 @@ public:
 
   /** Retrieve the fold value.
   @return fold value */
-  ulint fold() const { return (space() << 20) + space() + page_no(); }
+  ulint fold() const { return (ulint{space()} << 20) + space() + page_no(); }
 
   /** Reset the page number only.
   @param[in]	page_no	page number */
