@@ -798,8 +798,10 @@ void vers_select_conds_t::print(String *str, enum_query_type query_type) const
     end.print(str, query_type, STRING_WITH_LEN(" AND "));
     break;
   case SYSTEM_TIME_BEFORE:
+    start.print(str, query_type, STRING_WITH_LEN(" FOR SYSTEM_TIME BEFORE "));
+    break;
   case SYSTEM_TIME_HISTORY:
-    DBUG_ASSERT(0);
+    // nothing to add
     break;
   case SYSTEM_TIME_ALL:
     str->append(" FOR SYSTEM_TIME ALL");

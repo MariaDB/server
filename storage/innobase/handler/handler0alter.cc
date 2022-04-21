@@ -2821,7 +2821,7 @@ no_match:
 				= key_part.field->pack_length();
 
 			/* Any index on virtual columns cannot be used
-			for reference constaint */
+			for reference constraint */
 			if (!key_part.field->stored_in_db()) {
 				goto no_match;
 			}

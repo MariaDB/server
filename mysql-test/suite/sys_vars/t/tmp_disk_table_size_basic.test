@@ -193,6 +193,22 @@ SELECT global.tmp_disk_table_size;
 --Error ER_BAD_FIELD_ERROR
 SELECT tmp_disk_table_size = @@session.tmp_disk_table_size;
 
+--echo #
+--echo # Beginning of 10.4 test
+--echo #
+--echo # Diagnostics_area::sql_errno() const: Assertion `m_status == DA_ERROR'
+--echo # failed on SELECT after setting tmp_disk_table_size.
+--echo #
+
+SET @@tmp_disk_table_size=16384;
+CREATE VIEW v AS SELECT 'a';
+
+--error ER_RECORD_FILE_FULL
+SELECT table_name FROM INFORMATION_SCHEMA.views;
+
+DROP VIEW v;
+
+--echo # End of 10.4 test
 
 ####################################
 #     Restore initial value        #

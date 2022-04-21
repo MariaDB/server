@@ -5068,7 +5068,8 @@ end:
   */
   DBUG_ASSERT(thd->open_tables == NULL);
   thd->mdl_context.rollback_to_savepoint(open_tables_state_backup->mdl_system_tables_svp);
-  thd->clear_error();
+  if (!thd->is_fatal_error)
+    thd->clear_error();
   return res;
 }
 
@@ -5284,6 +5285,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
               error= 0;
               goto err;
             }
+            if (thd->is_fatal_error)
+              goto err;
 
             DEBUG_SYNC(thd, "before_open_in_get_all_tables");
             if (fill_schema_table_by_open(thd, &tmp_mem_root, FALSE,
