@@ -987,9 +987,16 @@ try_again:
 
 	write_buf = buf_dblwr->write_buf;
 
-	for (ulint len2 = 0, i = 0;
+	for (ulint
+#if defined(UNIV_DEBUG) || !defined(DBUG_OFF)
+	     len2 = 0,
+#endif
+	     i = 0;
 	     i < buf_dblwr->first_free;
-	     len2 += srv_page_size, i++) {
+#if defined(UNIV_DEBUG) || !defined(DBUG_OFF)
+	     len2 += srv_page_size,
+#endif
+	     i++) {
 
 		const buf_block_t*	block;
 
