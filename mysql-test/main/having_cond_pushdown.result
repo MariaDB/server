@@ -4924,3 +4924,18 @@ SELECT a FROM t1 GROUP BY a HAVING a = ( SELECT MIN(c) FROM t2 );
 a
 2
 DROP TABLE t1,t2;
+#
+# MDEV-26402: A SEGV in Item_field::used_tables/update_depend_map_for_order or Assertion `fixed == 1'
+#
+CREATE TABLE t1 (i int NOT NULL);
+SELECT * FROM t1 GROUP BY i HAVING i IN ( i IS NULL);
+i
+SELECT * FROM t1 GROUP BY i HAVING i IN ( i IS NULL AND 'x' = 0);
+i
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+SELECT * FROM t1 GROUP BY i HAVING i='1' IN ( i IS NULL AND 'x' = 0);
+i
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+DROP TABLE t1;

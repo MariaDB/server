@@ -1938,6 +1938,12 @@ public:
     return 0;
   }
 
+  virtual bool set_extraction_flag_processor(void *arg)
+  {
+    set_extraction_flag(*(int*)arg);
+    return 0;
+  }
+
   /**
     Check db/table_name if they defined in item and match arg values
 

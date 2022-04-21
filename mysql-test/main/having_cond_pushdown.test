@@ -1440,3 +1440,13 @@ eval EXPLAIN FORMAT=JSON $q;
 eval $q;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-26402: A SEGV in Item_field::used_tables/update_depend_map_for_order or Assertion `fixed == 1'
+--echo #
+
+CREATE TABLE t1 (i int NOT NULL);
+SELECT * FROM t1 GROUP BY i HAVING i IN ( i IS NULL);
+SELECT * FROM t1 GROUP BY i HAVING i IN ( i IS NULL AND 'x' = 0);
+SELECT * FROM t1 GROUP BY i HAVING i='1' IN ( i IS NULL AND 'x' = 0);
+DROP TABLE t1;
