@@ -2453,14 +2453,16 @@ bool Item_func_round::fix_length_and_dec()
   if (!args[1]->const_item())
   {
     decimals= args[0]->decimals;
-    max_length= float_length(decimals);
     if (args[0]->result_type() == DECIMAL_RESULT)
     {
-      max_length++;
+      max_length= args[0]->max_length;
       set_handler_by_result_type(DECIMAL_RESULT);
     }
     else
+    {
+      max_length= float_length(decimals);
       set_handler_by_result_type(REAL_RESULT);
+    }
     return FALSE;
   }
 
