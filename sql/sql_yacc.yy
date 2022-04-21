@@ -1035,10 +1035,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 98 shift/reduce conflicts.
+  Currently there are 119 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 115
+%expect 119
 
 /*
    Comments for TOKENS.
@@ -1258,6 +1258,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  FOLLOWS_SYM                   /* MYSQL trigger*/
 %token  FOLLOWING_SYM                 /* SQL-2011-N */
 %token  FORCE_SYM
+%token  FORCE_LOOKAHEAD               /* INTERNAL never returned by the lexer */
 %token  FOREIGN                       /* SQL-2003-R */
 %token  FOR_SYM                       /* SQL-2003-R */
 %token  FORMAT_SYM
@@ -2710,6 +2711,9 @@ server_option:
           }
         ;
 
+/* this rule is used to force look-ahead in the parser */
+force_lookahead: {} | FORCE_LOOKAHEAD {} ;
+
 event_tail:
           remember_name EVENT_SYM opt_if_not_exists sp_name
           {
@@ -2854,7 +2858,7 @@ ev_sql_stmt:
             lex->sp_chistics.suid= SP_IS_SUID;  //always the definer!
             lex->sphead->set_body_start(thd, lip->get_cpp_ptr());
           }
-          sp_proc_stmt
+          sp_proc_stmt force_lookahead
           {
             LEX *lex= thd->lex;
 
@@ -16838,8 +16842,8 @@ trigger_tail:
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
-          sp_proc_stmt /* $20 */
-          { /* $21 */
+          sp_proc_stmt force_lookahead
+          {
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
 
@@ -16939,7 +16943,7 @@ sf_tail:
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
-          sp_proc_stmt_in_returns_clause /* $15 */
+          sp_proc_stmt_in_returns_clause /* $15 */ force_lookahead
           {
             LEX *lex= thd->lex;
             sp_head *sp= lex->sphead;
@@ -17020,7 +17024,7 @@ sp_tail:
           {
             Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
-          sp_proc_stmt
+          sp_proc_stmt force_lookahead
           {
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
