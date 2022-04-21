@@ -615,7 +615,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(fts_doc_id_mutex),
 	PSI_KEY(log_flush_order_mutex),
 	PSI_KEY(hash_table_mutex),
-	PSI_KEY(ibuf_bitmap_mutex),
 	PSI_KEY(ibuf_mutex),
 	PSI_KEY(ibuf_pessimistic_insert_mutex),
 	PSI_KEY(index_online_log),
@@ -1904,7 +1903,9 @@ static void sst_enable_innodb_writes()
   ut_d(recv_no_log_write= false);
   purge_sys.resume();
   wsrep_sst_disable_writes= false;
-  fil_crypt_set_thread_cnt(srv_n_fil_crypt_threads);
+  const uint old_count= srv_n_fil_crypt_threads;
+  srv_n_fil_crypt_threads= 0;
+  fil_crypt_set_thread_cnt(old_count);
 }
 
 static void innodb_disable_internal_writes(bool disable)
@@ -12659,7 +12660,6 @@ bool create_table_info_t::row_size_is_acceptable(
   return true;
 }
 
-/* FIXME: row size check has some flaws and should be improved */
 dict_index_t::record_size_info_t dict_index_t::record_size_info() const
 {
   ut_ad(!(type & DICT_FTS));
@@ -12749,6 +12749,8 @@ dict_index_t::record_size_info_t dict_index_t::record_size_info() const
     {
       /* dict_index_add_col() should guarantee this */
       ut_ad(!f.prefix_len || f.fixed_len == f.prefix_len);
+      if (f.prefix_len)
+        field_max_size= f.prefix_len;
       /* Fixed lengths are not encoded
       in ROW_FORMAT=COMPACT. */
       goto add_field_size;
@@ -12802,7 +12804,8 @@ dict_index_t::record_size_info_t dict_index_t::record_size_info() const
     unique columns, result.shortest_size equals the size of the
     node pointer record minus the node pointer column. */
     if (i + 1 == dict_index_get_n_unique_in_tree(this) &&
-        result.shortest_size + REC_NODE_PTR_SIZE >= page_ptr_max)
+        result.shortest_size + REC_NODE_PTR_SIZE + (comp ? 0 : 2) >=
+        page_ptr_max)
     {
       result.set_too_big(i);
     }

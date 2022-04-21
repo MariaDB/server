@@ -68,9 +68,11 @@ select * from t1;
 
 show variables like 'binlog_format';
 show variables like 'auto_increment_increment';
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format");
 
 --connection node_3
 DROP TABLE t1;
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format");
 
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';

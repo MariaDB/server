@@ -7557,7 +7557,7 @@ static void test_explain_bug()
   verify_prepare_field(result, 5, "Extra", "EXTRA",
                        mysql_get_server_version(mysql) <= 50000 ?
                        MYSQL_TYPE_STRING : MYSQL_TYPE_VAR_STRING,
-                       0, 0, "information_schema", 30, 0);
+                       0, 0, "information_schema", 80, 0);
 
   mysql_free_result(result);
   mysql_stmt_close(stmt);

@@ -3281,6 +3281,10 @@ public:
   const char *db_name;
   const char *table_name;
   LEX_CSTRING field_name;
+  /*
+     NOTE: came from TABLE::alias_name_used and this is only a hint!
+     See comment for TABLE::alias_name_used.
+  */
   bool alias_name_used; /* true if item was resolved against alias */
   /* 
     Cached value of index for this field in table->field array, used by prep. 
@@ -5315,7 +5319,7 @@ public:
   Field *sp_result_field;
   Item_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name_arg);
   Item_sp(THD *thd, Item_sp *item);
-  const char *func_name(THD *thd) const;
+  const char *func_name(THD *thd, bool is_package_function) const;
   void cleanup();
   bool sp_check_access(THD *thd);
   bool execute(THD *thd, bool *null_value, Item **args, uint arg_count);

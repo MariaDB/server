@@ -473,7 +473,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_LOCK_WAIT_SYS);
 	LEVEL_MAP_INSERT(SYNC_INDEX_ONLINE_LOG);
 	LEVEL_MAP_INSERT(SYNC_IBUF_BITMAP);
-	LEVEL_MAP_INSERT(SYNC_IBUF_BITMAP_MUTEX);
 	LEVEL_MAP_INSERT(SYNC_IBUF_TREE_NODE);
 	LEVEL_MAP_INSERT(SYNC_IBUF_TREE_NODE_NEW);
 	LEVEL_MAP_INSERT(SYNC_IBUF_INDEX_TREE);
@@ -747,7 +746,6 @@ LatchDebug::check_order(
 	case SYNC_LOCK_WAIT_SYS:
 	case SYNC_RW_TRX_HASH_ELEMENT:
 	case SYNC_TRX_SYS:
-	case SYNC_IBUF_BITMAP_MUTEX:
 	case SYNC_REDO_RSEG:
 	case SYNC_NOREDO_RSEG:
 	case SYNC_PURGE_LATCH:
@@ -830,22 +828,13 @@ LatchDebug::check_order(
 		break;
 
 	case SYNC_IBUF_BITMAP:
-
-		/* Either the thread must own the master mutex to all
-		the bitmap pages, or it is allowed to latch only ONE
-		bitmap page. */
-
-		if (find(latches, SYNC_IBUF_BITMAP_MUTEX) != 0) {
-
-			basic_check(latches, level, SYNC_IBUF_BITMAP - 1);
-
-		} else if (!srv_is_being_started) {
+		if (!srv_is_being_started) {
 
 			/* This is violated during trx_sys_create_rsegs()
 			when creating additional rollback segments during
 			upgrade. */
 
-			basic_check(latches, level, SYNC_IBUF_BITMAP);
+			basic_check(latches, level, SYNC_IBUF_BITMAP - 1);
 		}
 		break;
 
@@ -1281,9 +1270,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(HASH_TABLE_MUTEX, SYNC_BUF_PAGE_HASH,
 			hash_table_mutex_key);
-
-	LATCH_ADD_MUTEX(IBUF_BITMAP, SYNC_IBUF_BITMAP_MUTEX,
-			ibuf_bitmap_mutex_key);
 
 	LATCH_ADD_MUTEX(IBUF, SYNC_IBUF_MUTEX, ibuf_mutex_key);
 

@@ -247,8 +247,6 @@ EXPLAIN
 {
   "query_block": {
     "union_result": {
-      "table_name": "<union1,2>",
-      "access_type": "ALL",
       "query_specifications": [
         {
           "query_block": {

@@ -2685,7 +2685,8 @@ static int show_create_view(THD *thd, TABLE_LIST *table, String *buff)
          tbl;
          tbl= tbl->next_global)
     {
-      if (cmp(&table->view_db, tbl->view ? &tbl->view_db : &tbl->db))
+      if (!tbl->is_derived() &&
+          cmp(&table->view_db, tbl->view ? &tbl->view_db : &tbl->db))
       {
         table->compact_view_format= FALSE;
         break;
@@ -9288,7 +9289,7 @@ ST_FIELD_INFO columns_fields_info[]=
    OPEN_FRM_ONLY},
   {"COLUMN_TYPE", 65535, MYSQL_TYPE_STRING, 0, 0, "Type", OPEN_FRM_ONLY},
   {"COLUMN_KEY", 3, MYSQL_TYPE_STRING, 0, 0, "Key", OPEN_FRM_ONLY},
-  {"EXTRA", 30, MYSQL_TYPE_STRING, 0, 0, "Extra", OPEN_FRM_ONLY},
+  {"EXTRA", 80, MYSQL_TYPE_STRING, 0, 0, "Extra", OPEN_FRM_ONLY},
   {"PRIVILEGES", 80, MYSQL_TYPE_STRING, 0, 0, "Privileges", OPEN_FRM_ONLY},
   {"COLUMN_COMMENT", COLUMN_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 
    "Comment", OPEN_FRM_ONLY},

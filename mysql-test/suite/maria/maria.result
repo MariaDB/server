@@ -2893,3 +2893,15 @@ key(c, a), unique(b)
 partition by hash (b);
 replace into t1 values (1, 0, 0), (2, 0, 0), (0, 0, 0);
 drop table t1;
+#
+# MDEV-28269 Assertion `save_errno' in maria_write or ER_GET_ERRNO
+#
+connect  session1,localhost,root,,;
+SET big_tables= on;
+SET NAMES 'sjis';
+SELECT 'למטה' AS a UNION SELECT 'Wetter' AS a;
+a
+למט�?
+Wetter
+connection default;
+disconnect session1;

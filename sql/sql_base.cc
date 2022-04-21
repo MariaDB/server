@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB
+   Copyright (c) 2010, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -906,6 +906,9 @@ void close_thread_tables(THD *thd)
     DBUG_PRINT("tcache", ("table: '%s'  query_id: %lu",
                           table->s->table_name.str, (ulong) table->query_id));
 
+    if (thd->locked_tables_mode)
+      table->vcol_cleanup_expr(thd);
+
     /* Detach MERGE children after every statement. Even under LOCK TABLES. */
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES ||
         table->query_id == thd->query_id)
@@ -1042,6 +1045,8 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
                                              table->s->db.str,
                                              table->s->table_name.str,
                                              MDL_SHARED));
+
+  table->vcol_cleanup_expr(thd);
   table->mdl_ticket= NULL;
 
   if (table->file)
@@ -1768,6 +1773,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
   MDL_ticket *mdl_ticket;
   TABLE_SHARE *share;
   uint gts_flags;
+  bool from_share= false;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   int part_names_error=0;
 #endif
@@ -2124,6 +2130,7 @@ retry_share:
 
     /* Add table to the share's used tables list. */
     tc_add_table(thd, table);
+    from_share= true;
   }
 
   if (!(flags & MYSQL_OPEN_HAS_MDL_LOCK) &&
@@ -2214,6 +2221,9 @@ retry_share:
   DBUG_ASSERT(table->file->pushed_cond == NULL);
   table_list->updatable= 1; // It is not derived table nor non-updatable VIEW
   table_list->table= table;
+
+  if (!from_share && table->vcol_fix_expr(thd))
+    DBUG_RETURN(true);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (unlikely(table->part_info))
@@ -5478,54 +5488,6 @@ static void mark_real_tables_as_free_for_reuse(TABLE_LIST *table_list)
     }
 }
 
-int TABLE::fix_vcol_exprs(THD *thd)
-{
-  for (Field **vf= vfield; vf && *vf; vf++)
-    if (fix_session_vcol_expr(thd, (*vf)->vcol_info))
-      return 1;
-
-  for (Field **df= default_field; df && *df; df++)
-    if ((*df)->default_value &&
-        fix_session_vcol_expr(thd, (*df)->default_value))
-      return 1;
-
-  for (Virtual_column_info **cc= check_constraints; cc && *cc; cc++)
-    if (fix_session_vcol_expr(thd, (*cc)))
-      return 1;
-
-  return 0;
-}
-
-
-static bool fix_all_session_vcol_exprs(THD *thd, TABLE_LIST *tables)
-{
-  Security_context *save_security_ctx= thd->security_ctx;
-  TABLE_LIST *first_not_own= thd->lex->first_not_own_table();
-  DBUG_ENTER("fix_session_vcol_expr");
-
-  int error= 0;
-  for (TABLE_LIST *table= tables; table && table != first_not_own && !error;
-       table= table->next_global)
-  {
-    TABLE *t= table->table;
-    if (!table->placeholder() && t->s->vcols_need_refixing &&
-         table->lock_type >= TL_WRITE_ALLOW_WRITE)
-    {
-      Query_arena *stmt_backup= thd->stmt_arena;
-      if (thd->stmt_arena->is_conventional())
-        thd->stmt_arena= t->expr_arena;
-      if (table->security_ctx)
-        thd->security_ctx= table->security_ctx;
-
-      error= t->fix_vcol_exprs(thd);
-
-      thd->security_ctx= save_security_ctx;
-      thd->stmt_arena= stmt_backup;
-    }
-  }
-  DBUG_RETURN(error);
-}
-
 
 /**
   Lock all tables in a list.
@@ -5687,9 +5649,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
     }
   }
 
-  bool res= fix_all_session_vcol_exprs(thd, tables);
-  if (!res)
-    res= thd->decide_logging_format(tables);
+  const bool res= thd->decide_logging_format(tables);
 
   DBUG_RETURN(res);
 }

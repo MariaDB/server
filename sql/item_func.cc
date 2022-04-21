@@ -6431,7 +6431,7 @@ const char *
 Item_func_sp::func_name() const
 {
   THD *thd= current_thd;
-  return Item_sp::func_name(thd);
+  return Item_sp::func_name(thd, m_handler == &sp_handler_package_function);
 }
 
 
