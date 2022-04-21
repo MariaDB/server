@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -227,7 +227,6 @@ enum latch_level_t {
 	SYNC_INDEX_ONLINE_LOG,
 
 	SYNC_IBUF_BITMAP,
-	SYNC_IBUF_BITMAP_MUTEX,
 	SYNC_IBUF_TREE_NODE,
 	SYNC_IBUF_TREE_NODE_NEW,
 	SYNC_IBUF_INDEX_TREE,
@@ -295,7 +294,6 @@ enum latch_id_t {
 	LATCH_ID_FTS_DOC_ID,
 	LATCH_ID_FTS_PLL_TOKENIZE,
 	LATCH_ID_HASH_TABLE_MUTEX,
-	LATCH_ID_IBUF_BITMAP,
 	LATCH_ID_IBUF,
 	LATCH_ID_IBUF_PESSIMISTIC_INSERT,
 	LATCH_ID_LOG_SYS,

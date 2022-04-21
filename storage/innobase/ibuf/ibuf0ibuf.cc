@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -253,9 +253,6 @@ static ib_mutex_t	ibuf_pessimistic_insert_mutex;
 /** The mutex protecting the insert buffer structs */
 static ib_mutex_t	ibuf_mutex;
 
-/** The mutex protecting the insert buffer bitmaps */
-static ib_mutex_t	ibuf_bitmap_mutex;
-
 /** The area in pages from which contract looks for page numbers for merge */
 const ulint		IBUF_MERGE_AREA = 8;
 
@@ -402,8 +399,6 @@ ibuf_close(void)
 
 	mutex_free(&ibuf_mutex);
 
-	mutex_free(&ibuf_bitmap_mutex);
-
 	dict_table_t*	ibuf_table = ibuf->index->table;
 	rw_lock_free(&ibuf->index->lock);
 	dict_mem_index_free(ibuf->index);
@@ -458,8 +453,6 @@ ibuf_init_at_db_start(void)
 			  * CHANGE_BUFFER_DEFAULT_SIZE) / 100;
 
 	mutex_create(LATCH_ID_IBUF, &ibuf_mutex);
-
-	mutex_create(LATCH_ID_IBUF_BITMAP, &ibuf_bitmap_mutex);
 
 	mutex_create(LATCH_ID_IBUF_PESSIMISTIC_INSERT,
 		     &ibuf_pessimistic_insert_mutex);
@@ -1035,26 +1028,16 @@ ibuf_update_free_bits_for_two_pages_low(
 	buf_block_t*	block2,	/*!< in: index page */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	ulint	state;
+  ut_ad(mtr->is_named_space(block1->page.id.space()));
+  ut_ad(block1->page.id.space() == block2->page.id.space());
 
-	ut_ad(mtr->is_named_space(block1->page.id.space()));
-	ut_ad(block1->page.id.space() == block2->page.id.space());
+  /* Avoid deadlocks by acquiring multiple bitmap page latches in
+  a consistent order (smaller pointer first). */
+  if (block1 > block2)
+    std::swap(block1, block2);
 
-	/* As we have to x-latch two random bitmap pages, we have to acquire
-	the bitmap mutex to prevent a deadlock with a similar operation
-	performed by another OS thread. */
-
-	mutex_enter(&ibuf_bitmap_mutex);
-
-	state = ibuf_index_page_calc_free(block1);
-
-	ibuf_set_free_bits_low(block1, state, mtr);
-
-	state = ibuf_index_page_calc_free(block2);
-
-	ibuf_set_free_bits_low(block2, state, mtr);
-
-	mutex_exit(&ibuf_bitmap_mutex);
+  ibuf_set_free_bits_low(block1, ibuf_index_page_calc_free(block1), mtr);
+  ibuf_set_free_bits_low(block2, ibuf_index_page_calc_free(block2), mtr);
 }
 
 /** Returns TRUE if the page is one of the fixed address ibuf pages.
