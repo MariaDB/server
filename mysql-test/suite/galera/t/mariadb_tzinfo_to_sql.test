@@ -1,6 +1,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
---source include/not_psprotocol.inc
+--source include/no_protocol.inc
 
 --echo #
 --echo # MDEV-28263: mariadb-tzinfo-to-sql improve wsrep and binlog cases

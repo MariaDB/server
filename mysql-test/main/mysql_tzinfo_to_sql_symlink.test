@@ -1,7 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_symlink.inc
 --source include/not_windows.inc
---source include/not_psprotocol.inc
+--source include/no_protocol.inc
 
 CREATE TABLE time_zone LIKE mysql.time_zone;
 CREATE TABLE time_zone_name LIKE mysql.time_zone_name;
