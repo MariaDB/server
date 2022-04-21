@@ -54,8 +54,6 @@ build bullseye-backports:
 build buster-backports:
   extends: .build-package
   script:
-    # Force installation of liburing-dev from buster-backports
-    - apt-get update && apt-cache policy && eatmydata apt-get install liburing-dev
     # Increase default backports priority policy from '100' to '500' so it can actually be used
     - |
       cat << EOF > /etc/apt/preferences.d/enable-backports-to-satisfy-dependencies
