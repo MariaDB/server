@@ -752,6 +752,7 @@ bool Item_subselect::exec()
 
   DBUG_ENTER("Item_subselect::exec");
   DBUG_ASSERT(fixed);
+  DBUG_ASSERT(!eliminated);
 
   /*
     Do not execute subselect in case of a fatal error
@@ -1312,6 +1313,16 @@ Item* Item_singlerow_subselect::expr_cache_insert_transformer(THD *tmp_thd,
   DBUG_ENTER("Item_singlerow_subselect::expr_cache_insert_transformer");
 
   DBUG_ASSERT(thd == tmp_thd);
+
+  /*
+    Do not create subquery cache if the subquery was eliminated.
+    The optimizer may eliminate subquery items (see
+    eliminate_subselect_processor). However it does not update
+    all query's data structures, so the eliminated item may be
+    still reachable.
+  */
+  if (eliminated)
+    DBUG_RETURN(this);
 
   if (expr_cache)
     DBUG_RETURN(expr_cache);
