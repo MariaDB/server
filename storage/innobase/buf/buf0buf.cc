@@ -333,9 +333,6 @@ buf_pool_t::chunk_t::map *buf_pool_t::chunk_t::map_reg;
 buf_pool_t::chunk_t::map *buf_pool_t::chunk_t::map_ref;
 
 #ifdef UNIV_DEBUG
-/** Disable resizing buffer pool to make assertion code not expensive. */
-my_bool			buf_disable_resize_buffer_pool_debug = TRUE;
-
 /** This is used to insert validation operations in execution
 in the debug version */
 static ulint buf_dbg_counter;

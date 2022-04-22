@@ -40,13 +40,6 @@ extern ulint buf_lru_flush_page_count;
 /** Flag indicating if the page_cleaner is in active state. */
 extern bool buf_page_cleaner_is_active;
 
-#ifdef UNIV_DEBUG
-
-/** Value of MySQL global variable used to disable page cleaner. */
-extern my_bool		innodb_page_cleaner_disabled_debug;
-
-#endif /* UNIV_DEBUG */
-
 /** Remove all dirty pages belonging to a given tablespace when we are
 deleting the data file of that tablespace.
 The pages still remain a part of LRU and are evicted from

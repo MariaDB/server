@@ -3668,12 +3668,6 @@ fil_names_clear(
 	bool	do_write)
 {
 	mtr_t	mtr;
-	ulint	mtr_checkpoint_size = RECV_SCAN_SIZE - 1;
-
-	DBUG_EXECUTE_IF(
-		"increase_mtr_checkpoint_size",
-		mtr_checkpoint_size = 75 * 1024;
-		);
 
 	mysql_mutex_assert_owner(&log_sys.mutex);
 	ut_ad(lsn);
@@ -3683,8 +3677,8 @@ fil_names_clear(
 	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.named_spaces);
 	     space != NULL; ) {
 		if (mtr.get_log()->size()
-		    + (3 + 5 + 1) + strlen(space->chain.start->name)
-		    >= mtr_checkpoint_size) {
+		    + strlen(space->chain.start->name)
+		    >= RECV_SCAN_SIZE - (3 + 5 + 1)) {
 			/* Prevent log parse buffer overflow */
 			mtr.commit_files();
 			mtr.start();

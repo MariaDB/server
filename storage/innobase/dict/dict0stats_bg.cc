@@ -45,11 +45,6 @@ Created Apr 25, 2012 Vasil Dimov
 #define MIN_RECALC_INTERVAL	10 /* seconds */
 static void dict_stats_schedule(int ms);
 
-#ifdef UNIV_DEBUG
-/** Used by SET GLOBAL innodb_dict_stats_disabled_debug = 1; */
-my_bool				innodb_dict_stats_disabled_debug;
-#endif /* UNIV_DEBUG */
-
 /** This mutex protects the "recalc_pool" variable. */
 static ib_mutex_t		recalc_pool_mutex;
 
@@ -415,21 +410,6 @@ next_table_id:
 	mutex_exit(&dict_sys.mutex);
 	return ret;
 }
-
-#ifdef UNIV_DEBUG
-/** Disables dict stats thread. It's used by:
-	SET GLOBAL innodb_dict_stats_disabled_debug = 1 (0).
-@param[in]	save		immediate result from check function */
-void dict_stats_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
-				      const void* save)
-{
-	const bool disable = *static_cast<const my_bool*>(save);
-	if (disable)
-		dict_stats_shutdown();
-	else
-		dict_stats_start();
-}
-#endif /* UNIV_DEBUG */
 
 static tpool::timer* dict_stats_timer;
 static std::mutex dict_stats_mutex;

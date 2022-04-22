@@ -19838,32 +19838,10 @@ static MYSQL_SYSVAR_UINT(saved_page_number_debug,
   "An InnoDB page number.",
   NULL, NULL, 0, 0, UINT_MAX32, 0);
 
-static MYSQL_SYSVAR_BOOL(disable_resize_buffer_pool_debug,
-  buf_disable_resize_buffer_pool_debug, PLUGIN_VAR_NOCMDARG,
-  "Disable resizing buffer pool to make assertion code not expensive.",
-  NULL, NULL, TRUE);
-
-static MYSQL_SYSVAR_BOOL(page_cleaner_disabled_debug,
-  innodb_page_cleaner_disabled_debug, PLUGIN_VAR_OPCMDARG,
-  "Disable page cleaner",
-  NULL, NULL, FALSE);
-
 static MYSQL_SYSVAR_BOOL(sync_debug, srv_sync_debug,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
   "Enable the sync debug checks",
   NULL, NULL, FALSE);
-
-static MYSQL_SYSVAR_BOOL(dict_stats_disabled_debug,
-  innodb_dict_stats_disabled_debug,
-  PLUGIN_VAR_OPCMDARG,
-  "Disable dict_stats thread",
-  NULL, dict_stats_disabled_debug_update, FALSE);
-
-static MYSQL_SYSVAR_BOOL(master_thread_disabled_debug,
-  srv_master_thread_disabled_debug,
-  PLUGIN_VAR_OPCMDARG,
-  "Disable master thread",
-  NULL, srv_master_thread_disabled_debug_update, FALSE);
 #endif /* UNIV_DEBUG */
 
 static MYSQL_SYSVAR_BOOL(force_primary_key,
@@ -20148,10 +20126,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(data_file_size_debug),
   MYSQL_SYSVAR(fil_make_page_dirty_debug),
   MYSQL_SYSVAR(saved_page_number_debug),
-  MYSQL_SYSVAR(disable_resize_buffer_pool_debug),
-  MYSQL_SYSVAR(page_cleaner_disabled_debug),
-  MYSQL_SYSVAR(dict_stats_disabled_debug),
-  MYSQL_SYSVAR(master_thread_disabled_debug),
   MYSQL_SYSVAR(sync_debug),
 #endif /* UNIV_DEBUG */
   MYSQL_SYSVAR(force_primary_key),
@@ -21156,21 +21130,6 @@ innodb_buffer_pool_size_validate(
 				    " because InnoDB is not started.");
 		return(1);
 	}
-
-#ifdef UNIV_DEBUG
-	if (buf_disable_resize_buffer_pool_debug == TRUE) {
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			ER_WRONG_ARGUMENTS,
-			"Cannot update innodb_buffer_pool_size,"
-			" because innodb_disable_resize_buffer_pool_debug"
-			" is set.");
-		ib::warn() << "Cannot update innodb_buffer_pool_size,"
-			" because innodb_disable_resize_buffer_pool_debug"
-			" is set.";
-		return(1);
-	}
-#endif /* UNIV_DEBUG */
-
 
 	mysql_mutex_lock(&buf_pool.mutex);
 
