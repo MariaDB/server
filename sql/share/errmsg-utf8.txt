@@ -7681,11 +7681,11 @@ ER_TABLE_IN_SYSTEM_TABLESPACE
         eng "Table %-.192s in system tablespace"
 
 ER_IO_READ_ERROR
-        chi "IO读取错误:(%lu，%s）%s"
+        chi "IO读取错误:(%lu，%s)%s"
         eng "IO Read error: (%lu, %s) %s"
 
 ER_IO_WRITE_ERROR
-        chi "IO写错错误:(%lu，%s）%s"
+        chi "IO写错错误:(%lu，%s)%s"
         eng "IO Write error: (%lu, %s) %s"
 
 ER_TABLESPACE_MISSING
@@ -8570,7 +8570,7 @@ ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED
         eng "Reference to recursive WITH table '%s' in materialized derived"
 ER_NOT_STANDARD_COMPLIANT_RECURSIVE
         chi "表'%s'R_WRONG_WINDOW_SPEC_NAME违反了递归定义的限制"
-        eng "Restrictions imposed on recursive definitions are violated for table '%s'"R_WRONG_WINDOW_SPEC_NAME
+        eng "Restrictions imposed on recursive definitions are violated for table '%s'"
 ER_WRONG_WINDOW_SPEC_NAME
         chi "没有定义名称'%s'的窗口规范"
         eng "Window specification with name '%s' is not defined"
