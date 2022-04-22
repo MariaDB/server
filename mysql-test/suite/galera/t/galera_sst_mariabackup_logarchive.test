@@ -1,6 +1,5 @@
 --source include/big_test.inc
 --source include/galera_cluster.inc
---source include/galera_have_debug_sync.inc
 --source include/have_innodb.inc
 --source include/have_mariabackup.inc
 
@@ -33,10 +32,10 @@
 # Restore original auto_increment_offset values.
 --source include/auto_increment_offset_restore.inc
 
---let sst_test_true_count=7
+--let sst_test_true_count=6
 if (`select version() like '%debug%'`)
 {
-  --let sst_test_true_count=10
+  --let sst_test_true_count=4
 }
 
 --source include/galera_end.inc
@@ -46,16 +45,17 @@ if (`select version() like '%debug%'`)
 --perl
   use strict;
   use warnings;
-  my $file= $ENV{'MYSQLTEST_VARDIR'}.'/tmp/logarchive_list';
-  my $count= 0;
+  my $file=$ENV{'MYSQLTEST_VARDIR'}.'/tmp/logarchive_list';
+  my $count=0;
   open(FILE, "$file") or die("Error $? opening $file: $!\n");
   while (<FILE>) {
     my $line = $_;
     $count++;
   }
   close(FILE) or die("Error $? closing $file: $!");
-  if ($count != $ENV{'sst_test_true_count'}) {
-    die("Wrong log archives counter: $count");
+  my $true_count=$ENV{'sst_test_true_count'};
+  if ($count != $true_count) {
+    die("Wrong log archives counter: $count instead of $true_count");
   }
 EOF
 
