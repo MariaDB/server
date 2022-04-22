@@ -1,3 +1,5 @@
+set @save_persistent=@@global.innodb_stats_persistent;
+set global innodb_stats_persistent= 0;
 set system_versioning_alter_history=keep;
 # Check conventional partitioning on temporal tables
 create or replace table t1 (
@@ -799,4 +801,43 @@ delete from t1 partition (p0, p1, pn);
 ERROR HY000: Not allowed for system-versioned table `test`.`t1`
 drop table t1;
 set timestamp= default;
+#
+# MDEV-25546 LIMIT partitioning does not respect ROLLBACK
+#
+create or replace table t1 (pk int primary key)
+with system versioning engine innodb
+partition by system_time limit 100 (
+partition p0 history,
+partition p1 history,
+partition pn current);
+insert into t1 select seq from seq_1_to_90;
+start transaction;
+replace into t1 select seq from seq_1_to_80;
+replace into t1 select seq from seq_1_to_70;
+replace into t1 select seq from seq_1_to_60;
+select partition_name, table_rows
+from information_schema.partitions
+where table_name = 't1';
+partition_name	table_rows
+p0	150
+p1	60
+pn	90
+rollback;
+select partition_name, table_rows
+from information_schema.partitions
+where table_name = 't1';
+partition_name	table_rows
+p0	0
+p1	0
+pn	90
+replace into t1 select seq from seq_1_to_10;
+select partition_name, table_rows
+from information_schema.partitions
+where table_name = 't1';
+partition_name	table_rows
+p0	10
+p1	0
+pn	90
+drop table t1;
 # End of 10.3 tests
+set global innodb_stats_persistent= @save_persistent;

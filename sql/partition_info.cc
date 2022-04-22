@@ -843,12 +843,10 @@ int partition_info::vers_set_hist_part(THD *thd)
   if (vers_info->limit)
   {
     ha_partition *hp= (ha_partition*)(table->file);
-    partition_element *next= NULL;
+    partition_element *next;
     List_iterator<partition_element> it(partitions);
-    while (next != vers_info->hist_part)
-      next= it++;
-    DBUG_ASSERT(bitmap_is_set(&read_partitions, next->id));
-    ha_rows records= hp->part_records(next);
+    ha_rows records= 0;
+    vers_info->hist_part= partitions.head();
     while ((next= it++) != vers_info->now_part)
     {
       DBUG_ASSERT(bitmap_is_set(&read_partitions, next->id));
