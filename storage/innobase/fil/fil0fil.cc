@@ -3077,10 +3077,6 @@ ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void mtr_t::name_write()
   fil_name_write(m_user_space->id,
                  UT_LIST_GET_FIRST(m_user_space->chain)->name,
                  &mtr);
-
-  DBUG_EXECUTE_IF("fil_names_write_bogus",
-                  {fil_name_write(SRV_SPACE_ID_UPPER_BOUND,
-                                  "./test/bogus file.ibd", &mtr);});
   mtr.commit_files();
 }
 
