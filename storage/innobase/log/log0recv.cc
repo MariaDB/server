@@ -1871,7 +1871,7 @@ dberr_t recv_sys_t::find_checkpoint()
     sql_print_error("%s The redo log was created with %s%s",
                     srv_operation == SRV_OPERATION_NORMAL
                     ? "InnoDB: Upgrade after a crash is not supported."
-                    : "mariadb-backup --prepare is not possible", creator,
+                    : "mariadb-backup --prepare is not possible.", creator,
                     (err == DB_ERROR ? "." : ", and it appears corrupted."));
     return err;
   }

@@ -474,7 +474,7 @@ longlong spider_param_internal_offset(
  */
 static MYSQL_THDVAR_LONGLONG(
   internal_limit, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Internal limit", /* comment */
   NULL, /* check */
   spider_use_table_value_deprecated, /* update */
