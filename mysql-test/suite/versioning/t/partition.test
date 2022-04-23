@@ -822,6 +822,66 @@ from information_schema.partitions
 where table_name = 't1';
  # Cleanup
 drop table t1;
+
+--echo #
+--echo # MDEV-28271 Assertion on TRUNCATE PARTITION for PARTITION BY SYSTEM_TIME
+--echo #
+create table t1 (x int) with system versioning
+partition by system_time limit 1 (
+  partition p0 history,
+  partition p1 history,
+  partition pn current);
+
+insert into t1 values (0);
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+
+select * from t1 partition (p0);
+select * from t1 partition (p1);
+select * from t1 partition (pn);
+
+--echo # TRUNCATE TABLE deletes history and current data
+--disable_warnings
+truncate table t1;
+--enable_warnings
+select * from t1 partition (p0);
+select * from t1 partition (p1);
+select * from t1 partition (pn);
+
+insert into t1 values (0);
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+
+--echo # TRUNCATE PARTITION ALL does the same
+alter table t1 truncate partition all;
+select * from t1 partition (p0);
+select * from t1 partition (p1);
+select * from t1 partition (pn);
+
+insert into t1 values (0);
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+
+--echo # TRUNCATE PARTITION deletes data from HISTORY partition
+alter table t1 truncate partition p1;
+select * from t1 partition (p0);
+select * from t1 partition (p1);
+select * from t1 partition (pn);
+
+--echo # or from CURRENT partition
+alter table t1 truncate partition pn;
+select * from t1 partition (p0);
+select * from t1 partition (p1);
+select * from t1 partition (pn);
+
+drop table t1;
+
 --echo # End of 10.3 tests
 
 set global innodb_stats_persistent= @save_persistent;

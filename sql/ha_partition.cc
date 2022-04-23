@@ -4034,6 +4034,7 @@ int ha_partition::external_lock(THD *thd, int lock_type)
          only for versioned DML. */
       thd->lex->sql_command != SQLCOM_SELECT &&
       thd->lex->sql_command != SQLCOM_INSERT_SELECT &&
+      thd->lex->sql_command != SQLCOM_ALTER_TABLE &&
       (error= m_part_info->vers_set_hist_part(thd)))
       goto err_handler;
   }
