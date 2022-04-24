@@ -1164,6 +1164,8 @@ row_purge(
 	if (undo_rec != &trx_purge_dummy_rec) {
 		bool	updated_extern;
 
+                DEBUG_SYNC(current_thd, "ib_purge_parse");
+
 		while (row_purge_parse_undo_rec(
 			       node, undo_rec, &updated_extern, thr)) {
 

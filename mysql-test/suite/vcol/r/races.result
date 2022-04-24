@@ -1,4 +1,7 @@
 create table t1 (f text, vf tinytext as (f), key (vf(64))) engine=innodb;
+# purge now opens a table unconditionally. It should wait until delete
+# to leave the table flushed
+set global innodb_debug_sync= "ib_purge_parse WAIT_FOR purge_go";
 insert t1 (f) values ('foo');
 flush tables;
 connect con1,localhost,root,,test;
@@ -9,8 +12,10 @@ select * from t1;
 f	vf
 foo	foo
 set debug_sync='now SIGNAL go';
+set global innodb_debug_sync='now SIGNAL purge_go';
 connection con1;
 disconnect con1;
 connection default;
 drop table t1;
 set debug_sync='reset';
+set global innodb_debug_sync='reset';
