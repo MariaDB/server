@@ -20497,6 +20497,9 @@ static TABLE* innodb_acquire_mdl(THD* thd, dict_table_t* table)
 		return NULL;
 	}
 
+
+	DBUG_EXECUTE_IF("ib_purge_chaos", os_thread_sleep(random() % 2000););
+
 	DEBUG_SYNC(thd, "ib_purge_virtual_latch_released");
 
 	const table_id_t table_id = table->id;
@@ -20512,6 +20515,8 @@ retry_mdl:
 						 tbl_buf, tbl_buf_len);
 	if (!mariadb_table)
 		thd_clear_error(thd);
+
+	DBUG_EXECUTE_IF("ib_purge_chaos", os_thread_sleep(random() % 2000););
 
 	DEBUG_SYNC(thd, "ib_purge_virtual_got_no_such_table");
 

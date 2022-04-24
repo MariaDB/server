@@ -6,6 +6,9 @@ call mtr.add_suppression("\\[Warning\\] InnoDB: Compute virtual");
 
 set default_storage_engine=innodb;
 
+set @old_dbug=@@global.debug_dbug;
+SET global debug_dbug="d,ib_purge_chaos";
+
 CREATE TABLE t (a INT, b INT GENERATED ALWAYS AS (a), c CHAR(10), d CHAR(20), e CHAR(10) GENERATED ALWAYS AS (c), g INT);
 INSERT INTO t VALUES(10, DEFAULT, "aa", "bb", DEFAULT, 20);
 INSERT INTO t VALUES(11, DEFAULT, "jj", "kk", DEFAULT, 21);
@@ -1438,3 +1441,5 @@ SELECT * FROM t1;
 INSERT INTO t1 SET c=3;
 SELECT * FROM t1;
 DROP TABLE t1;
+
+SET global debug_dbug=@old_dbug;
