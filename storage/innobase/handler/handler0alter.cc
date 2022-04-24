@@ -8539,10 +8539,8 @@ ok_exit:
 		if (ctx->new_table->vc_templ != NULL && !ctx->need_rebuild()) {
 			old_templ = ctx->new_table->vc_templ;
 		}
-		s_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
-
-		innobase_build_v_templ(
-			altered_table, ctx->new_table, s_templ, NULL, false);
+		s_templ = innobase_create_v_templ(
+			altered_table, ctx->new_table, NULL, false);
 
 		ctx->new_table->vc_templ = s_templ;
 	} else if (ctx->num_to_add_vcol > 0 && ctx->num_to_drop_vcol == 0) {
@@ -8551,7 +8549,6 @@ ok_exit:
 		not need to come in here to rebuild template with add_v.
 		Please also see the assertion in innodb_v_adjust_idx_col() */
 
-		s_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
 
 		add_v = static_cast<dict_add_v_col_t*>(
 			mem_heap_alloc(ctx->heap, sizeof *add_v));
@@ -8559,8 +8556,9 @@ ok_exit:
 		add_v->v_col = ctx->add_vcol;
 		add_v->v_col_name = ctx->add_vcol_name;
 
-		innobase_build_v_templ(
-			altered_table, ctx->new_table, s_templ, add_v, false);
+		s_templ = innobase_create_v_templ(altered_table,
+						  ctx->new_table,
+						  add_v, false);
 		old_templ = ctx->new_table->vc_templ;
 		ctx->new_table->vc_templ = s_templ;
 	}
@@ -10916,12 +10914,8 @@ static bool alter_rebuild_apply_log(
 	dict_vcol_templ_t* s_templ  = NULL;
 
 	if (ctx->new_table->n_v_cols > 0) {
-		s_templ = UT_NEW_NOKEY(
-				dict_vcol_templ_t());
-		s_templ->vtempl = NULL;
-
-		innobase_build_v_templ(altered_table, ctx->new_table, s_templ,
-				       NULL, true);
+		s_templ= innobase_create_v_templ(altered_table, ctx->new_table,
+						 NULL, true);
 		ctx->new_table->vc_templ = s_templ;
 	}
 

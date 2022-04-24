@@ -6279,9 +6279,8 @@ ha_innobase::open(const char* name, int, uint)
 	if (ib_table->n_v_cols) {
 		mutex_enter(&dict_sys.mutex);
 		if (ib_table->vc_templ == NULL) {
-			ib_table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
-			innobase_build_v_templ(
-				table, ib_table, ib_table->vc_templ, NULL,
+			ib_table->vc_templ = innobase_create_v_templ(
+				table, ib_table, NULL,
 				true);
 		}
 
@@ -20480,47 +20479,65 @@ static bool table_name_parse(
 
 
 /** Acquire metadata lock and MariaDB table handle for an InnoDB table.
-@param[in,out]	thd	thread handle
-@param[in,out]	table	InnoDB table
+Unlocks dict_sys.latch and requires it locked before the call.
+@param[in,out]	thd		thread handle
+@param[in,out]	table_ref	InnoDB table will be reopened, new instance is
+				returned
 @return MariaDB table handle
 @retval NULL if the table does not exist, is unaccessible or corrupted. */
-static TABLE* innodb_acquire_mdl(THD* thd, dict_table_t* table)
+TABLE* innodb_acquire_mdl(THD* thd, dict_table_t** table_ref)
 {
 	char	db_buf[NAME_LEN + 1], db_buf1[NAME_LEN + 1];
 	char	tbl_buf[NAME_LEN + 1], tbl_buf1[NAME_LEN + 1];
 	ulint	db_buf_len, db_buf1_len;
 	ulint	tbl_buf_len, tbl_buf1_len;
 
-	if (!table_name_parse(table->name, db_buf, tbl_buf,
-			      db_buf_len, tbl_buf_len)) {
+	dict_table_t *table = *table_ref;
+
+	/* Protect against possible table renaming. */
+	ut_ad(rw_lock_own(&dict_sys.latch, RW_LOCK_S));
+
+	bool parsed = table_name_parse(table->name, db_buf, tbl_buf,
+					db_buf_len, tbl_buf_len);
+
+	if (!parsed || !table->is_readable() || table->corrupted){
 		table->release();
+		rw_lock_s_unlock(&dict_sys.latch);
 		return NULL;
 	}
 
+	const table_id_t table_id = table->id;
+	table->release();
+
+	/* Purge thread acquires dict_sys.latch while
+	processing undo log record. Release it
+	before acquiring MDL on the table. */
+	rw_lock_s_unlock(&dict_sys.latch);
 
 	DBUG_EXECUTE_IF("ib_purge_chaos", os_thread_sleep(random() % 2000););
 
 	DEBUG_SYNC(thd, "ib_purge_virtual_latch_released");
 
-	const table_id_t table_id = table->id;
 retry_mdl:
-	const bool unaccessible = !table->is_readable() || table->corrupted;
-	table->release();
-
-	if (unaccessible) {
-		return NULL;
-	}
-
 	TABLE*	mariadb_table = open_purge_table(thd, db_buf, db_buf_len,
 						 tbl_buf, tbl_buf_len);
-	if (!mariadb_table)
+	if (!mariadb_table) {
+		if (thd_get_error_number(current_thd) != ER_NO_SUCH_TABLE)
+			ib::error() << "open_purge_table: Wrong error code "
+				<< thd_get_error_number(current_thd);
+		ut_ad(thd_get_error_number(current_thd) == ER_NO_SUCH_TABLE);
 		thd_clear_error(thd);
+        }
 
 	DBUG_EXECUTE_IF("ib_purge_chaos", os_thread_sleep(random() % 2000););
 
 	DEBUG_SYNC(thd, "ib_purge_virtual_got_no_such_table");
 
+	/* Again we have to protect against possible table renaming */
+	rw_lock_s_lock_inline(&dict_sys.latch, 0, __FILE__, __LINE__);
+
 	table = dict_table_open_on_id(table_id, false, DICT_TABLE_OP_NORMAL);
+	*table_ref = table;
 
 	if (table == NULL) {
 		/* Table is dropped. */
@@ -20531,6 +20548,7 @@ retry_mdl:
 release_fail:
 		table->release();
 fail:
+		rw_lock_s_unlock(&dict_sys.latch);
 		if (mariadb_table) {
 			close_thread_tables(thd);
 		}
@@ -20540,15 +20558,22 @@ fail:
 
 	if (!table_name_parse(table->name, db_buf1, tbl_buf1,
 			      db_buf1_len, tbl_buf1_len)) {
+		/* This can happen when the table is renamed for dropping */
 		goto release_fail;
 	}
 
-	if (!mariadb_table) {
-	} else if (!strcmp(db_buf, db_buf1) && !strcmp(tbl_buf, tbl_buf1)) {
+	if (mariadb_table && !strcmp(db_buf, db_buf1)
+			&& !strcmp(tbl_buf, tbl_buf1)) {
+		rw_lock_s_unlock(&dict_sys.latch);
 		return mariadb_table;
-	} else {
-		/* Table is renamed. So release MDL for old name and try
-		to acquire the MDL for new table name. */
+	}
+
+	/* Table is renamed. So release MDL and latch for old name and try
+	to acquire the MDL for new table name. */
+
+	table->release();
+	rw_lock_s_unlock(&dict_sys.latch);
+	if (mariadb_table) {
 		close_thread_tables(thd);
 	}
 
@@ -20556,6 +20581,7 @@ fail:
 	strcpy(db_buf, db_buf1);
 	tbl_buf_len = tbl_buf1_len;
 	db_buf_len = db_buf1_len;
+
 	goto retry_mdl;
 }
 
@@ -20568,31 +20594,10 @@ fail:
 for purge thread */
 static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 {
-	DBUG_EXECUTE_IF(
-		"ib_purge_virtual_mdev_16222_1",
-		DBUG_ASSERT(!debug_sync_set_action(
-			    thd,
-			    STRING_WITH_LEN("ib_purge_virtual_latch_released "
-					    "SIGNAL latch_released "
-					    "WAIT_FOR drop_started"))););
-	DBUG_EXECUTE_IF(
-		"ib_purge_virtual_mdev_16222_2",
-		DBUG_ASSERT(!debug_sync_set_action(
-			    thd,
-			    STRING_WITH_LEN("ib_purge_virtual_got_no_such_table "
-					    "SIGNAL got_no_such_table"))););
-
-	if (THDVAR(thd, background_thread)) {
-		/* Purge thread acquires dict_sys.latch while
-		processing undo log record. Release it
-		before acquiring MDL on the table. */
-		rw_lock_s_unlock(&dict_sys.latch);
-		return innodb_acquire_mdl(thd, table);
-	} else {
-		if (table->vc_templ->mysql_table_query_id
-		    == thd_get_query_id(thd)) {
-			return table->vc_templ->mysql_table;
-		}
+	ut_ad(!THDVAR(thd, background_thread));
+	if (table->vc_templ != NULL &&
+	    table->vc_templ->mysql_table_query_id == thd_get_query_id(thd)) {
+		return table->vc_templ->mysql_table;
 	}
 
 	char	db_buf[NAME_LEN + 1];
@@ -20611,31 +20616,6 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 	table->vc_templ->mysql_table = mysql_table;
 	table->vc_templ->mysql_table_query_id = thd_get_query_id(thd);
 	return mysql_table;
-}
-
-/** Get the computed value by supplying the base column values.
-@param[in,out]	table		table whose virtual column
-				template to be built */
-TABLE* innobase_init_vc_templ(dict_table_t* table)
-{
-	if (table->vc_templ != NULL) {
-		return NULL;
-	}
-	DBUG_ENTER("innobase_init_vc_templ");
-
-	table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
-
-	TABLE	*mysql_table= innodb_find_table_for_vc(current_thd, table);
-
-	ut_ad(mysql_table);
-	if (!mysql_table) {
-		DBUG_RETURN(NULL);
-	}
-
-	mutex_enter(&dict_sys.mutex);
-	innobase_build_v_templ(mysql_table, table, table->vc_templ, NULL, true);
-	mutex_exit(&dict_sys.mutex);
-	DBUG_RETURN(mysql_table);
 }
 
 /** Change dbname and table name in table->vc_templ.
@@ -20702,10 +20682,11 @@ bool innobase_allocate_row_for_vcol(THD *thd, dict_index_t *index,
   if (!*table)
     *table = innodb_find_table_for_vc(thd, index->table);
 
-  /* For purge thread, there is a possiblity that table could have
-     dropped, corrupted or unaccessible. */
-  if (!*table)
-    return false;
+  /*
+     For purge thread, table is now preopened in row_purge_parse_undo_rec.
+     For other cases it should be always there.
+  */
+  ut_ad(*table);
   maria_table = *table;
   if (!*heap && !(*heap = mem_heap_create(srv_page_size)))
     return false;

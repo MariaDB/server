@@ -154,11 +154,6 @@ public:
 	bool validate_pcur();
 #endif
 
-	/** Whether purge failed to open the maria table for virtual column
-	computation.
-	@return true if the table failed to open. */
-	bool vcol_op_failed() const { return !vcol_info.validate(); }
-
 	/** Determine if a table should be skipped in purge.
 	@param[in]	table_id	table identifier
 	@return	whether to skip the table lookup and processing */

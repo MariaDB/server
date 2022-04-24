@@ -884,7 +884,7 @@ row_ins_foreign_fill_virtual(
 	const rec_offs*	offsets =
 		rec_get_offsets(rec, index, offsets_, index->n_core_fields,
 				ULINT_UNDEFINED, &cascade->heap);
-	TABLE*		mysql_table= NULL;
+	TABLE*		maria_table= NULL;
 	upd_t*		update = cascade->update;
 	ulint		n_v_fld = index->table->n_v_def;
 	ulint		n_diff;
@@ -896,17 +896,23 @@ row_ins_foreign_fill_virtual(
 		&ext, update->heap);
 	n_diff = update->n_fields;
 
-	if (index->table->vc_templ == NULL) {
-		/** This can occur when there is a cascading
-		delete or update after restart. */
-		innobase_init_vc_templ(index->table);
-	}
+
 
 	ib_vcol_row vc(NULL);
-	uchar *record = vc.record(thd, index, &mysql_table);
+	uchar *record = vc.record(thd, index, &maria_table);
 	if (!record) {
 		return DB_OUT_OF_MEMORY;
 	}
+
+	if (index->table->vc_templ == NULL) {
+		/** This can occur when there is a cascading
+		delete or update after restart. */
+		dict_vcol_templ_t *s_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
+		innobase_build_v_templ(maria_table, node->table, s_templ, NULL,
+				       true);
+		node->table->vc_templ = s_templ;
+	}
+
 	ut_ad(!node->is_delete
 	      || (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL));
 	ut_ad(foreign->type & (DICT_FOREIGN_ON_DELETE_SET_NULL
@@ -926,7 +932,7 @@ row_ins_foreign_fill_virtual(
 
 		dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
-				&vc.heap, update->heap, NULL, thd, mysql_table,
+				&vc.heap, update->heap, NULL, thd, maria_table,
 				record, NULL, NULL);
 
 		if (vfield == NULL) {
@@ -946,7 +952,7 @@ row_ins_foreign_fill_virtual(
 		dfield_t* new_vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
 				&vc.heap, update->heap, NULL, thd,
-				mysql_table, record, NULL,
+				maria_table, record, NULL,
 				update);
 
 		if (new_vfield == NULL) {

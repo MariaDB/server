@@ -919,6 +919,33 @@ innobase_build_v_templ(
 	const dict_add_v_col_t*	add_v,
 	bool			locked);
 
+/** Create and build template for the virtual columns and their base columns
+@param[in]	table		MySQL TABLE
+@param[in]	ib_table	InnoDB dict_table_t
+@param[in]	add_v		new virtual columns added along with
+				add index call
+@param[in]	locked		true if innobase_share_mutex is held
+@return InnoDb vcol template structure */
+static
+dict_vcol_templ_t *innobase_create_v_templ(const TABLE *table,
+                                           const dict_table_t *ib_table,
+                                           const dict_add_v_col_t *add_v,
+                                           bool locked)
+{
+  dict_vcol_templ_t *s_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
+  innobase_build_v_templ(table, ib_table, s_templ, add_v, locked);
+  return s_templ;
+}
+
+/** Acquire metadata lock and MariaDB table handle for an InnoDB table.
+Unlocks dict_sys.latch and requires it locked before the call.
+@param[in,out]	thd		thread handle
+@param[in,out]	table_ref	InnoDB table will be reopened, new instance is
+                                returned
+@return MariaDB table handle
+@retval NULL if the table does not exist, is unaccessible or corrupted. */
+TABLE* innodb_acquire_mdl(THD* thd, dict_table_t** table_ref);
+
 /** callback used by MySQL server layer to initialized
 the table virtual columns' template
 @param[in]	table		MySQL TABLE

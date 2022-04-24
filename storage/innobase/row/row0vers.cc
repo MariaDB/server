@@ -463,19 +463,13 @@ row_vers_build_clust_v_col(
 	ut_ad(index->table == clust_index->table);
 
 	if (vcol_info != NULL) {
-		vcol_info->set_used();
 		maria_table = vcol_info->table();
+		ut_ad(maria_table);
 	}
 	DEBUG_SYNC(current_thd, "ib_clust_v_col_before_row_allocated");
 
 	ib_vcol_row vc(NULL);
 	byte *record = vc.record(thd, index, &maria_table);
-
-	if (vcol_info && !vcol_info->table()) {
-		vcol_info->set_table(maria_table);
-		// wait for second fetch
-		return true;
-	}
 
 	for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
 		const dict_field_t* ind_field = dict_index_get_nth_field(
@@ -831,17 +825,9 @@ row_vers_build_cur_vrow(
 					  rec, *clust_offsets,
 					  NULL, NULL, NULL, NULL, heap);
 
-		if (vcol_info && !vcol_info->is_used()) {
-			mtr->commit();
-		}
-
 		bool res = row_vers_build_clust_v_col(
 			row, clust_index, index, heap, vcol_info);
 		if (!res) {
-			return NULL;
-		}
-
-		if (vcol_info != NULL && vcol_info->is_first_fetch()) {
 			return NULL;
 		}
 
@@ -957,20 +943,11 @@ row_vers_old_has_index_entry(
 			columns need to be computed */
 			if (trx_undo_roll_ptr_is_insert(t_roll_ptr)
 			    || dbug_v_purge) {
-
-				if (vcol_info && !vcol_info->is_used()) {
-					mtr->commit();
-				}
-
 				bool res = row_vers_build_clust_v_col(
 					row, clust_index, index, heap,
 					vcol_info);
 
 				if (!res) {
-					goto unsafe_to_purge;
-				}
-
-				if (vcol_info && vcol_info->is_first_fetch()) {
 					goto unsafe_to_purge;
 				}
 
@@ -1050,10 +1027,6 @@ unsafe_to_purge:
 		cur_vrow = row_vers_build_cur_vrow(
 			also_curr, rec, clust_index, &clust_offsets,
 			index, roll_ptr, trx_id, heap, v_heap, mtr, vcol_info);
-
-		if (vcol_info && vcol_info->is_first_fetch()) {
-			goto unsafe_to_purge;
-		}
 	}
 
 	version = rec;

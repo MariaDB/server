@@ -39,6 +39,7 @@ Created 9/17/2000 Heikki Tuuri
 
 #include "sql_list.h"
 #include "sql_cmd.h"
+#include "dict0mem.h"
 
 extern ibool row_rollback_on_timeout;
 
@@ -937,10 +938,13 @@ innobase_get_computed_value(
 	const dict_table_t*	old_table,
 	const upd_t*		update);
 
-/** Get the computed value by supplying the base column values.
-@param[in,out]	table		the table whose virtual column
-				template to be built */
-TABLE* innobase_init_vc_templ(dict_table_t* table);
+void
+innobase_build_v_templ(
+	const TABLE*		table,
+	const dict_table_t*	ib_table,
+	dict_vcol_templ_t*	s_templ,
+	const dict_add_v_col_t*	add_v,
+	bool			locked);
 
 /** Change dbname and table name in table->vc_templ.
 @param[in,out]	table	the table whose virtual column template
