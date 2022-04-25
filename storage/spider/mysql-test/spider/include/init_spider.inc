@@ -2,7 +2,7 @@ let $VERSION_COMPILE_OS_WIN=
   `SELECT IF(@@version_compile_os like 'Win%', 1, 0)`;
 if ($VERSION_COMPILE_OS_WIN)
 {
-  INSTALL PLUGIN spider SONAME 'ha_spider.dll';
+  INSTALL SONAME 'ha_spider.dll';
   if ($CHILD2_1_MYPORT)
   {
     eval CREATE SERVER s_2_1 FOREIGN DATA WRAPPER mysql OPTIONS (
@@ -66,7 +66,7 @@ if ($VERSION_COMPILE_OS_WIN)
 }
 if (!$VERSION_COMPILE_OS_WIN)
 {
-  INSTALL PLUGIN spider SONAME 'ha_spider.so';
+  INSTALL SONAME 'ha_spider.so';
   if ($CHILD2_1_MYSOCK)
   {
     eval CREATE SERVER s_2_1 FOREIGN DATA WRAPPER mysql OPTIONS (
