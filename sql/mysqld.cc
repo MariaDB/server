@@ -6729,7 +6729,7 @@ struct my_option my_long_options[]=
      Also disable by default on Windows, due to high overhead for checking .sym 
      files.
    */
-   IF_VALGRIND(0,IF_WIN(0,1)), 0, 0, 0, 0, 0},
+   IF_WIN(0,1), 0, 0, 0, 0, 0},
   {"sysdate-is-now", 0,
    "Non-default option to alias SYSDATE() to NOW() to make it safe-replicable. "
    "Since 5.0, SYSDATE() returns a `dynamic' value different for different "
