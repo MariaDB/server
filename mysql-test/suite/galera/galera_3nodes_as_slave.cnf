@@ -46,9 +46,9 @@ default-storage-engine=innodb
 wsrep-provider=@ENV.WSREP_PROVIDER
 wsrep_node_address=127.0.0.1
 wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.1.#galera_port'
-wsrep_provider_options='base_port=@mysqld.1.#galera_port;evs.install_timeout=PT15S;evs.max_install_timeouts=1;gcache.size=10M'
-wsrep_node_incoming_address=127.0.0.1:@mysqld.1.port
-wsrep_sst_receive_address='127.0.0.1:@mysqld.1.#sst_port'
+wsrep_provider_options='base_port=@mysqld.2.#galera_port;evs.install_timeout=PT15S;evs.max_install_timeouts=1;gcache.size=10M'
+wsrep_node_incoming_address=127.0.0.1:@mysqld.2.port
+wsrep_sst_receive_address='127.0.0.1:@mysqld.2.#sst_port'
 
 # enforce read-committed characteristics across the cluster
 wsrep-causal-reads=ON
@@ -78,26 +78,12 @@ wsrep-causal-reads=ON
 wsrep-sync-wait=15
 server-id=3
 
+# Node_4 is not galera node
 [mysqld.4]
-#galera_port=@OPT.port
-#ist_port=@OPT.port
-#sst_port=@OPT.port
-
+log-bin
 log-slave-updates
-wsrep-on=1
-
-innodb-autoinc-lock-mode=2
+wsrep-on=0
 default-storage-engine=innodb
-wsrep-provider=@ENV.WSREP_PROVIDER
-wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.1.#galera_port'
-wsrep_provider_options='base_port=@mysqld.4.#galera_port;evs.install_timeout=PT15S;evs.max_install_timeouts=1;gcache.size=10M'
-wsrep_node_address='127.0.0.1:@mysqld.4.#galera_port'
-wsrep_node_incoming_address=127.0.0.1:@mysqld.4.port
-wsrep_sst_receive_address='127.0.0.1:@mysqld.4.#sst_port'
-
-# enforce read-committed characteristics across the cluster
-wsrep-causal-reads=ON
-wsrep-sync-wait=15
 server-id=4
 
 [ENV]

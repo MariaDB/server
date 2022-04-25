@@ -2743,8 +2743,12 @@ int wsrep_ignored_error_code(Log_event* ev, int error)
   const THD* thd= ev->thd;
 
   DBUG_ASSERT(error);
-  DBUG_ASSERT(wsrep_thd_is_applying(thd) &&
-              !wsrep_thd_is_local_toi(thd));
+  WSREP_DEBUG("Error '%s' on %s event. Error_code: %d, client_state %s, client_mode %s",
+             thd->get_stmt_da()->message(),
+             ev->get_type_str(),
+             error,
+             wsrep_thd_client_state_str(thd),
+             wsrep_thd_client_mode_str(thd));
 
   if ((wsrep_ignore_apply_errors & WSREP_IGNORE_ERRORS_ON_RECONCILING_DML))
   {
