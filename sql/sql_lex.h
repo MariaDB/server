@@ -4084,6 +4084,28 @@ public:
   {
     return create_info.vers_info;
   }
+  /* The list of history-generating DML commands */
+  bool vers_history_generating() const
+  {
+    switch (sql_command)
+    {
+      case SQLCOM_DELETE:
+        return !vers_conditions.delete_history;
+      case SQLCOM_UPDATE:
+      case SQLCOM_UPDATE_MULTI:
+      case SQLCOM_DELETE_MULTI:
+      case SQLCOM_REPLACE:
+      case SQLCOM_REPLACE_SELECT:
+        return true;
+      case SQLCOM_INSERT:
+      case SQLCOM_INSERT_SELECT:
+        return duplicates == DUP_UPDATE;
+      case SQLCOM_LOAD:
+        return duplicates == DUP_REPLACE;
+      default:
+        return false;
+    }
+  }
   sp_package *get_sp_package() const;
 
   /**

@@ -244,6 +244,9 @@ x
 6
 delete from t1 where x < 4;
 delete from t1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+# You see warning above ^
 select * from t1 partition (p0);
 x
 1
@@ -255,12 +258,11 @@ x
 5
 6
 insert into t1 values (7), (8);
-Warnings:
-Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
 ### warn about full partition
 delete from t1;
 Warnings:
 Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+# You see warning above ^
 select * from t1 partition (p1) order by x;
 x
 4
@@ -320,20 +322,26 @@ x
 ### warn about full partition
 delete from t1 where x < 3;
 delete from t1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+# You see warning above ^
 delete from t1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+# You see warning above ^ (no matter if nothing was deleted)
 select * from t1 partition (p0sp0);
 x
 1
-3
-5
 select * from t1 partition (p0sp1);
 x
 2
-4
 select * from t1 partition (p1sp0);
 x
+3
+5
 select * from t1 partition (p1sp1);
 x
+4
 create or replace table t1 (
 a bigint,
 row_start SYS_DATATYPE as row start invisible,
@@ -415,7 +423,13 @@ partition p1 history,
 partition p2 history,
 partition pn current);
 delete from t1 where x = 1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p2` is full, add more HISTORY partitions
+# You see warning above ^
 delete from t1 where x = 2;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p2` is full, add more HISTORY partitions
+# You see warning above ^
 # MDEV-14923 Assertion upon INSERT into locked versioned partitioned table
 create or replace table t1 (x int) with system versioning
 partition by system_time (partition p1 history, partition pn current);
@@ -577,9 +591,13 @@ create or replace table t1 (x int) with system versioning partition by system_ti
 lock tables t1 write;
 insert into t1 values (0), (1), (2), (3);
 delete from t1 where x < 3;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+# You see warning above ^
 delete from t1;
 Warnings:
 Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+# You see warning above ^
 unlock tables;
 #
 # MDEV-20336 Assertion bitmap_is_set(read_partitions) upon SELECT FOR UPDATE from versioned table
@@ -680,6 +698,9 @@ partition by system_time limit 1
 insert into t1 values (null);
 update t1 set f= 'foo';
 update t1 set f= 'bar';
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p2` is full, add more HISTORY partitions
+# You see warning above ^
 create or replace view v1 as select * from t1 for system_time all;
 update v1 set f= '';
 ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
@@ -846,23 +867,20 @@ create table t1 (x int) with system versioning
 partition by system_time limit 1 (
 partition p0 history,
 partition p1 history,
+partition p2 history, # p2 just disables warning about p1 partition full
 partition pn current);
 insert into t1 values (0);
-update t1 set x= x + 1;
-update t1 set x= x + 1;
 update t1 set x= x + 1;
 update t1 set x= x + 1;
 select * from t1 partition (p0);
 x
 0
-1
 select * from t1 partition (p1);
 x
-2
-3
+1
 select * from t1 partition (pn);
 x
-4
+2
 # TRUNCATE TABLE deletes history and current data
 truncate table t1;
 select * from t1 partition (p0);
@@ -872,8 +890,6 @@ x
 select * from t1 partition (pn);
 x
 insert into t1 values (0);
-update t1 set x= x + 1;
-update t1 set x= x + 1;
 update t1 set x= x + 1;
 update t1 set x= x + 1;
 # TRUNCATE PARTITION ALL does the same
@@ -887,29 +903,235 @@ x
 insert into t1 values (0);
 update t1 set x= x + 1;
 update t1 set x= x + 1;
-update t1 set x= x + 1;
-update t1 set x= x + 1;
 # TRUNCATE PARTITION deletes data from HISTORY partition
 alter table t1 truncate partition p1;
 select * from t1 partition (p0);
 x
 0
-1
 select * from t1 partition (p1);
 x
 select * from t1 partition (pn);
 x
-4
+2
 # or from CURRENT partition
 alter table t1 truncate partition pn;
 select * from t1 partition (p0);
 x
 0
-1
 select * from t1 partition (p1);
 x
 select * from t1 partition (pn);
 x
+drop table t1;
+#
+# MDEV-20077 Warning on full history partition is delayed until next DML statement
+#
+# DELETE
+create table t1 (x int) with system versioning
+partition by system_time limit 100 (
+partition p0 history,
+partition p1 history,
+partition pn current);
+insert into t1 select seq from seq_0_to_200;
+# p0 is filled with 100 records (no warnings):
+delete from t1 where x <= 99;
+# p1 is filled with 1 + 100 records (warning is printed):
+delete from t1 where x <= 100;
+delete from t1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+# You see warning above ^
+select count(*) from t1 partition (p0);
+count(*)
+100
+select count(*) from t1 partition (p1);
+count(*)
+101
+drop table t1;
+# DELETE under LOCK TABLES
+create table t1 (x int) with system versioning
+partition by system_time limit 100 (
+partition p0 history,
+partition p1 history,
+partition pn current);
+insert into t1 select seq from seq_0_to_200;
+lock tables t1 write;
+# (LOCK TABLES) p0 is filled with 100 records (no warnings):
+delete from t1 where x <= 99;
+# (LOCK TABLES) p1 is filled with 1 + 100 records (warning is printed):
+delete from t1 where x <= 100;
+delete from t1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+# You see warning above ^
+unlock tables;
+select count(*) from t1 partition (p0);
+count(*)
+100
+select count(*) from t1 partition (p1);
+count(*)
+101
+drop table t1;
+# DELETE multitable
+create table t1 (x int) with system versioning
+partition by system_time limit 100 (
+partition p0 history,
+partition p1 history,
+partition pn current);
+create table t2 (y int);
+insert into t1 select seq from seq_0_to_200;
+insert into t2 select seq from seq_0_to_3;
+delete t1, t2 from t1 join t2 where x < 50 and y = 0;
+delete t1, t2 from t1 join t2 where x < 100 and y = 1;
+delete t1, t2 from t1 join t2 where x < 150 and y = 2;
+delete t1, t2 from t1 join t2;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+# You see warning above ^
+select count(*) from t1 partition (p0);
+count(*)
+100
+select count(*) from t1 partition (p1);
+count(*)
+101
+drop table t1;
+# UDPATE
+create table t1 (x int) with system versioning
+partition by system_time limit 100 (
+partition p0 history,
+partition p1 history,
+partition pn current);
+insert into t1 select seq from seq_0_to_49;
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+# You see warning above ^
+select count(*) from t1 partition (p0);
+count(*)
+100
+select count(*) from t1 partition (p1);
+count(*)
+100
+drop tables t1, t2;
+# UPDATE multitable
+create table t1 (x int) with system versioning
+partition by system_time limit 100 (
+partition p0 history,
+partition p1 history,
+partition pn current);
+create table t2 (y int);
+insert into t1 select seq from seq_0_to_49;
+insert into t2 values (5);
+update t1, t2 set x= x + 1;
+update t1, t2 set x= x + 1;
+update t1, t2 set x= x + 1;
+update t1, t2 set x= x + 1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+# You see warning above ^
+select count(*) from t1 partition (p0);
+count(*)
+100
+select count(*) from t1 partition (p1);
+count(*)
+100
+drop tables t1, t2;
+# INSERT .. ON DUPLICATE KEY UPDATE (ODKU)
+create table t1 (x int primary key) with system versioning
+partition by system_time limit 100 (
+partition p0 history,
+partition p1 history,
+partition pn current);
+insert into t1 select seq from seq_0_to_100;
+delete from t1 where x <= 99;
+insert into t1 values (100) on duplicate key update x= 400;
+select count(*) from t1 partition (p0);
+count(*)
+100
+select count(*) from t1 partition (p1);
+count(*)
+1
+drop table t1;
+# INSERT .. SELECT .. ON DUPLICATE KEY UPDATE (ODKU)
+create table t1 (x int primary key) with system versioning
+partition by system_time limit 100 (
+partition p0 history,
+partition p1 history,
+partition pn current);
+create table t2 (y int);
+insert into t2 values (100);
+insert into t1 select seq from seq_0_to_100;
+delete from t1 where x <= 99;
+insert into t1 select * from t2 on duplicate key update x= 500;
+select count(*) from t1 partition (p0);
+count(*)
+100
+select count(*) from t1 partition (p1);
+count(*)
+1
+drop tables t1, t2;
+# REPLACE
+create table t1 (x int primary key) with system versioning
+partition by system_time limit 100 (
+partition p0 history,
+partition p1 history,
+partition pn current);
+insert into t1 select seq from seq_0_to_100;
+delete from t1 where x < 99;
+replace t1 values (100);
+replace t1 values (100);
+select count(*) from t1 partition (p0);
+count(*)
+100
+select count(*) from t1 partition (p1);
+count(*)
+1
+drop table t1;
+# LOAD DATA .. REPLACE
+create table t1 (x int primary key) with system versioning
+partition by system_time limit 100 (
+partition p0 history,
+partition p1 history,
+partition pn current);
+insert into t1 select seq from seq_0_to_49;
+select x into outfile 'MDEV-20077.data' from t1;
+load data infile 'MDEV-20077.data' replace into table t1 (x);
+load data infile 'MDEV-20077.data' replace into table t1 (x);
+load data infile 'MDEV-20077.data' replace into table t1 (x);
+load data infile 'MDEV-20077.data' replace into table t1 (x);
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+# You see warning above ^
+select count(*) from t1 partition (p0);
+count(*)
+100
+select count(*) from t1 partition (p1);
+count(*)
+100
+drop table t1;
+# REPLACE .. SELECT
+create table t1 (x int primary key) with system versioning
+partition by system_time limit 100 (
+partition p0 history,
+partition p1 history,
+partition pn current);
+insert into t1 select seq from seq_0_to_49;
+replace t1 select * from t1;
+replace t1 select * from t1;
+replace t1 select * from t1;
+replace t1 select * from t1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+# You see warning above ^
+select count(*) from t1 partition (p0);
+count(*)
+100
+select count(*) from t1 partition (p1);
+count(*)
+100
 drop table t1;
 # End of 10.3 tests
 set global innodb_stats_persistent= @save_persistent;

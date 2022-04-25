@@ -835,6 +835,9 @@ bool partition_info::has_unique_name(partition_element *element)
 
 int partition_info::vers_set_hist_part(THD *thd)
 {
+  if (!vers_require_hist_part(thd))
+    return 0;
+
   if (table->pos_in_table_list &&
       table->pos_in_table_list->partition_names)
   {
@@ -856,12 +859,8 @@ int partition_info::vers_set_hist_part(THD *thd)
       vers_info->hist_part= next;
       records= next_records;
     }
-    if (records > vers_info->limit)
-    {
-      if (next == vers_info->now_part)
-        goto warn;
+    if (records >= vers_info->limit && next != vers_info->now_part)
       vers_info->hist_part= next;
-    }
     return 0;
   }
 
@@ -883,11 +882,45 @@ int partition_info::vers_set_hist_part(THD *thd)
     }
   }
   return 0;
-warn:
-  my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
-           table->s->db.str, table->s->table_name.str,
-           vers_info->hist_part->partition_name);
-  return 0;
+}
+
+
+/**
+  Warn at the end of DML command if the last history partition is out of LIMIT.
+*/
+void partition_info::vers_check_limit(THD *thd)
+{
+  if (!vers_info->limit ||
+      vers_info->hist_part->id + 1 < vers_info->now_part->id)
+    return;
+
+  /*
+    NOTE: at this point read_partitions bitmap is already pruned by DML code,
+    we have to set read bits for working history partition. We could use
+    bitmap_set_all(), but this is not optimal since there can be quite a number
+    of partitions.
+  */
+  const uint32 sub_factor= num_subparts ? num_subparts : 1;
+  uint32 part_id= vers_info->hist_part->id * sub_factor;
+  const uint32 part_id_end= part_id + sub_factor;
+  DBUG_ASSERT(part_id_end <= num_parts * sub_factor);
+  for (; part_id < part_id_end; ++part_id)
+    bitmap_set_bit(&read_partitions, part_id);
+
+  ha_partition *hp= (ha_partition*)(table->file);
+  ha_rows hist_rows= hp->part_records(vers_info->hist_part);
+  if (hist_rows >= vers_info->limit)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        WARN_VERS_PART_FULL,
+                        ER_THD(thd, WARN_VERS_PART_FULL),
+                        table->s->db.str, table->s->table_name.str,
+                        vers_info->hist_part->partition_name);
+
+    sql_print_warning(ER_THD(thd, WARN_VERS_PART_FULL),
+                      table->s->db.str, table->s->table_name.str,
+                      vers_info->hist_part->partition_name);
+  }
 }
 
 
