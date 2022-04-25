@@ -1,0 +1,86 @@
+-- source include/have_innodb.inc
+
+SET @save_algorithm = @@GLOBAL.innodb_compression_algorithm;
+let $alg=`select regexp_replace('$MTR_COMBINATIONS', 'innodb,\|,innodb', '')`;
+
+if (!`select '$alg' = 'zlib'`)
+{
+  if (!`SELECT COUNT(*) FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE LOWER(variable_name) = 'innodb_have_$alg' AND variable_value = 'ON'`)
+  {
+    --skip Test requires InnoDB compiled with $alg
+  }
+  --disable_query_log
+  eval SET GLOBAL innodb_compression_algorithm=$alg;
+  --enable_query_log
+}
+
+create table innodb_normal (c1 int not null auto_increment primary key, b char(200)) engine=innodb;
+create table innodb_page_compressed1 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=1;
+create table innodb_page_compressed2 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=2;
+create table innodb_page_compressed3 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=3;
+create table innodb_page_compressed4 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=4;
+create table innodb_page_compressed5 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=5;
+create table innodb_page_compressed6 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=6;
+create table innodb_page_compressed7 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=7;
+create table innodb_page_compressed8 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=8;
+create table innodb_page_compressed9 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=9;
+
+connect (prevent_purge,localhost,root);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+
+begin;
+insert into innodb_normal SET b=REPEAT('Aa',50);
+insert into innodb_page_compressed1 SET b=REPEAT('Aa',50);
+insert into innodb_page_compressed2 SET b=REPEAT('Aa',50);
+insert into innodb_page_compressed3 SET b=REPEAT('Aa',50);
+insert into innodb_page_compressed4 SET b=REPEAT('Aa',50);
+insert into innodb_page_compressed5 SET b=REPEAT('Aa',50);
+insert into innodb_page_compressed6 SET b=REPEAT('Aa',50);
+insert into innodb_page_compressed7 SET b=REPEAT('Aa',50);
+insert into innodb_page_compressed8 SET b=REPEAT('Aa',50);
+insert into innodb_page_compressed9 SET b=REPEAT('Aa',50);
+commit;
+
+FLUSH TABLES innodb_normal,
+innodb_page_compressed1, innodb_page_compressed2, innodb_page_compressed3,
+innodb_page_compressed4, innodb_page_compressed5, innodb_page_compressed6,
+innodb_page_compressed7, innodb_page_compressed8, innodb_page_compressed9
+FOR EXPORT;
+
+--let $MYSQLD_DATADIR=`select @@datadir`
+--let SEARCH_PATTERN=AaAaAaAa
+--let SEARCH_FILE=$MYSQLD_DATADIR/test/innodb_normal.ibd
+--source include/search_pattern_in_file.inc
+--let SEARCH_FILE=$MYSQLD_DATADIR/test/innodb_page_compressed1.ibd
+--source include/search_pattern_in_file.inc
+--let SEARCH_FILE=$MYSQLD_DATADIR/test/innodb_page_compressed2.ibd
+--source include/search_pattern_in_file.inc
+--let SEARCH_FILE=$MYSQLD_DATADIR/test/innodb_page_compressed3.ibd
+--source include/search_pattern_in_file.inc
+--let SEARCH_FILE=$MYSQLD_DATADIR/test/innodb_page_compressed4.ibd
+--source include/search_pattern_in_file.inc
+--let SEARCH_FILE=$MYSQLD_DATADIR/test/innodb_page_compressed5.ibd
+--source include/search_pattern_in_file.inc
+--let SEARCH_FILE=$MYSQLD_DATADIR/test/innodb_page_compressed6.ibd
+--source include/search_pattern_in_file.inc
+--let SEARCH_FILE=$MYSQLD_DATADIR/test/innodb_page_compressed7.ibd
+--source include/search_pattern_in_file.inc
+--let SEARCH_FILE=$MYSQLD_DATADIR/test/innodb_page_compressed8.ibd
+--source include/search_pattern_in_file.inc
+--let SEARCH_FILE=$MYSQLD_DATADIR/test/innodb_page_compressed9.ibd
+--source include/search_pattern_in_file.inc
+
+UNLOCK TABLES;
+
+drop table innodb_normal;
+drop table innodb_page_compressed1;
+drop table innodb_page_compressed2;
+drop table innodb_page_compressed3;
+drop table innodb_page_compressed4;
+drop table innodb_page_compressed5;
+drop table innodb_page_compressed6;
+drop table innodb_page_compressed7;
+drop table innodb_page_compressed8;
+drop table innodb_page_compressed9;
+SET GLOBAL innodb_compression_algorithm=@save_algorithm;
