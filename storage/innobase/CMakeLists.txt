@@ -213,7 +213,6 @@ SET(INNOBASE_SOURCES
 	include/row0import.h
 	include/row0ins.h
 	include/row0log.h
-	include/row0log.inl
 	include/row0merge.h
 	include/row0mysql.h
 	include/row0purge.h

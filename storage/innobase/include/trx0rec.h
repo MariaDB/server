@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -82,6 +82,7 @@ trx_undo_rec_get_pars(
 	undo_no_t*	undo_no,	/*!< out: undo log record number */
 	table_id_t*	table_id)	/*!< out: table id */
 	MY_ATTRIBUTE((nonnull));
+
 /*******************************************************************//**
 Builds a row reference from an undo log record.
 @return pointer to remaining part of undo record */
@@ -208,37 +209,48 @@ fetching the purge record */
 the undo log (which is the after image for an update) */
 #define		TRX_UNDO_GET_OLD_V_VALUE	0x2
 
-/*******************************************************************//**
-Build a previous version of a clustered index record. The caller must
-hold a latch on the index page of the clustered index record.
+/** Build a previous version of a clustered index record. The caller
+must hold a latch on the index page of the clustered index record.
+@param	index_rec	clustered index record in the index tree
+@param	index_mtr	mtr which contains the latch to index_rec page
+			and purge_view
+@param	rec		version of a clustered index record
+@param	index		clustered index
+@param	offsets		rec_get_offsets(rec, index)
+@param	heap		memory heap from which the memory needed is
+			allocated
+@param	old_vers	previous version or NULL if rec is the
+			first inserted version, or if history data
+			has been deleted (an error), or if the purge
+			could have removed the version
+			though it has not yet done so
+@param	v_heap		memory heap used to create vrow
+			dtuple if it is not yet created. This heap
+                        diffs from "heap" above in that it could be
+                        prebuilt->old_vers_heap for selection
+@param	vrow		virtual column info, if any
+@param	v_status	status determine if it is going into this
+			function by purge thread or not.
+			And if we read "after image" of undo log
+@param	undo_block	undo log block which was cached during
+			online dml apply or nullptr
 @retval true if previous version was built, or if it was an insert
 or the table has been rebuilt
 @retval false if the previous version is earlier than purge_view,
-which means that it may have been removed */
+or being purged, which means that it may have been removed */
 bool
 trx_undo_prev_version_build(
-/*========================*/
-	const rec_t*	index_rec,/*!< in: clustered index record in the
-				index tree */
-	mtr_t*		index_mtr,/*!< in: mtr which contains the latch to
-				index_rec page and purge_view */
-	const rec_t*	rec,	/*!< in: version of a clustered index record */
-	dict_index_t*	index,	/*!< in: clustered index */
-	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
-	mem_heap_t*	heap,	/*!< in: memory heap from which the memory
-				needed is allocated */
-	rec_t**		old_vers,/*!< out, own: previous version, or NULL if
-				rec is the first inserted version, or if
-				history data has been deleted */
-	mem_heap_t*	v_heap,	/* !< in: memory heap used to create vrow
-				dtuple if it is not yet created. This heap
-				diffs from "heap" above in that it could be
-				prebuilt->old_vers_heap for selection */
-	dtuple_t**	vrow,	/*!< out: virtual column info, if any */
-	ulint		v_status);
-				/*!< in: status determine if it is going
-				into this function by purge thread or not.
-				And if we read "after image" of undo log */
+	const rec_t	*index_rec,
+	mtr_t		*index_mtr,
+	const rec_t 	*rec,
+	dict_index_t	*index,
+	rec_offs	*offsets,
+	mem_heap_t	*heap,
+	rec_t		**old_vers,
+	mem_heap_t	*v_heap,
+	dtuple_t	**vrow,
+	ulint		v_status,
+	const buf_block_t *undo_block= nullptr);
 
 /** Read from an undo log record a non-virtual column value.
 @param[in,out]	ptr		pointer to remaining part of the undo record

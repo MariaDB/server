@@ -861,6 +861,10 @@ public:
 	bool		auto_commit;	/*!< true if it is an autocommit */
 	bool		will_lock;	/*!< set to inform trx_start_low() that
 					the transaction may acquire locks */
+	/* True if transaction has to read the undo log and
+	log the DML changes for online DDL table */
+	bool		apply_online_log = false;
+
 	/*------------------------------*/
 	fts_trx_t*	fts_trx;	/*!< FTS information, or NULL if
 					transaction hasn't modified tables
@@ -934,6 +938,8 @@ public:
   @retval false if the rollback was aborted by shutdown */
   inline bool rollback_finish();
 private:
+  /** Apply any changes to tables for which online DDL is in progress. */
+  ATTRIBUTE_COLD void apply_log();
   /** Process tables that were modified by the committing transaction. */
   inline void commit_tables();
   /** Mark a transaction committed in the main memory data structures. */
@@ -1026,6 +1032,7 @@ public:
     ut_ad(!autoinc_locks || ib_vector_is_empty(autoinc_locks));
     ut_ad(UT_LIST_GET_LEN(lock.evicted_tables) == 0);
     ut_ad(!dict_operation);
+    ut_ad(!apply_online_log);
   }
 
   /** This has to be invoked on SAVEPOINT or at the end of a statement.

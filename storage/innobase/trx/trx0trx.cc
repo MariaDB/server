@@ -133,6 +133,8 @@ trx_init(
 
 	trx->bulk_insert = false;
 
+	trx->apply_online_log = false;
+
 	ut_d(trx->start_file = 0);
 
 	ut_d(trx->start_line = 0);
@@ -452,6 +454,7 @@ void trx_t::free()
   MEM_NOACCESS(&mod_tables, sizeof mod_tables);
   MEM_NOACCESS(&detailed_error, sizeof detailed_error);
   MEM_NOACCESS(&magic_n, sizeof magic_n);
+  MEM_NOACCESS(&apply_online_log, sizeof apply_online_log);
   trx_pools->mem_free(this);
 }
 
@@ -512,6 +515,7 @@ TRANSACTIONAL_TARGET void trx_free_at_shutdown(trx_t *trx)
 		         && !srv_undo_sources && srv_fast_shutdown))));
 	ut_a(trx->magic_n == TRX_MAGIC_N);
 
+	ut_d(trx->apply_online_log = false);
 	trx->commit_state();
 	trx->release_locks();
 	trx->mod_tables.clear();
@@ -1396,7 +1400,7 @@ void trx_t::commit_cleanup()
 TRANSACTIONAL_TARGET void trx_t::commit_low(mtr_t *mtr)
 {
   ut_ad(!mtr || mtr->is_active());
-  ut_d(bool aborted = in_rollback && error_state == DB_DEADLOCK);
+  ut_d(bool aborted= in_rollback && error_state == DB_DEADLOCK);
   ut_ad(!mtr == (aborted || !has_logged()));
   ut_ad(!mtr || !aborted);
 
@@ -1415,12 +1419,13 @@ TRANSACTIONAL_TARGET void trx_t::commit_low(mtr_t *mtr)
       ut_ad(error == DB_DUPLICATE_KEY || error == DB_LOCK_WAIT_TIMEOUT);
   }
 
-#ifndef DBUG_OFF
+#ifdef ENABLED_DEBUG_SYNC
   const bool debug_sync= mysql_thd && has_logged_persistent();
 #endif
 
   if (mtr)
   {
+    apply_log();
     trx_write_serialisation_history(this, mtr);
 
     /* The following call commits the mini-transaction, making the
@@ -1440,7 +1445,7 @@ TRANSACTIONAL_TARGET void trx_t::commit_low(mtr_t *mtr)
 
     mtr->commit();
   }
-#ifndef DBUG_OFF
+#ifdef ENABLED_DEBUG_SYNC
   if (debug_sync)
     DEBUG_SYNC_C("before_trx_state_committed_in_memory");
 #endif

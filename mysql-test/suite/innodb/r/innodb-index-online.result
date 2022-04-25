@@ -85,7 +85,8 @@ ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	0
 BEGIN;
 INSERT INTO t1 VALUES(7,4,2);
-ROLLBACK;
+COMMIT;
+DELETE FROM t1 where c1 = 7;
 SET DEBUG_SYNC = 'now SIGNAL rollback_done';
 connection con1;
 ERROR 23000: Duplicate entry '4' for key 'c2'
@@ -96,14 +97,14 @@ SET DEBUG_SYNC = 'now WAIT_FOR created';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_online_create_index	0
+ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	0
 INSERT INTO t1 VALUES(6,3,1);
 SET DEBUG_SYNC = 'now SIGNAL dml_done';
 connection con1;
-ERROR 23000: Duplicate entry for key 'c2'
+ERROR 23000: Duplicate entry '' for key '*UNKNOWN*'
 DELETE FROM t1 WHERE c1=6;
 ALTER TABLE t1 ADD UNIQUE INDEX(c2);
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
@@ -243,38 +244,22 @@ ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	0
-BEGIN;
-DELETE FROM t1;
-ROLLBACK;
 UPDATE t1 SET c2 = c2 + 1;
-BEGIN;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
-BEGIN;
-DELETE FROM t1;
-ROLLBACK;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-BEGIN;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
-BEGIN;
-DELETE FROM t1;
-ROLLBACK;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-BEGIN;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
-BEGIN;
-DELETE FROM t1;
-ROLLBACK;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-BEGIN;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
+UPDATE t1 SET c2 = c2 + 2;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
@@ -310,7 +295,7 @@ ERROR HY000: Creating index 'c2e' required more than 'innodb_online_alter_log_ma
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	1
-ddl_online_create_index	0
+ddl_online_create_index	1
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	1
@@ -321,7 +306,7 @@ name	pos
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	1
-ddl_online_create_index	0
+ddl_online_create_index	1
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	1
@@ -361,19 +346,45 @@ ddl_log_file_alter_table	1
 BEGIN;
 INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 160;
 DELETE FROM t1 WHERE c1 > 320;
-ROLLBACK;
+COMMIT;
 BEGIN;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
+COMMIT;
 BEGIN;
 INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 160;
 DELETE FROM t1 WHERE c1 > 320;
-ROLLBACK;
+COMMIT;
 BEGIN;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
+COMMIT;
+BEGIN;
+INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 160;
+DELETE FROM t1 WHERE c1 > 320;
+COMMIT;
+BEGIN;
+UPDATE t1 SET c2 = c2 + 1;
+COMMIT;
+BEGIN;
+INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 160;
+DELETE FROM t1 WHERE c1 > 320;
+COMMIT;
+BEGIN;
+UPDATE t1 SET c2 = c2 + 1;
+COMMIT;
+BEGIN;
+INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 160;
+DELETE FROM t1 WHERE c1 > 320;
+COMMIT;
+BEGIN;
+UPDATE t1 SET c2 = c2 + 1;
+COMMIT;
+BEGIN;
+INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 160;
+DELETE FROM t1 WHERE c1 > 320;
+COMMIT;
+BEGIN;
+UPDATE t1 SET c2 = c2 + 1;
+COMMIT;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
@@ -452,7 +463,7 @@ name	pos
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	1
-ddl_online_create_index	0
+ddl_online_create_index	1
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	2
@@ -460,7 +471,7 @@ connection default;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	1
-ddl_online_create_index	0
+ddl_online_create_index	1
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	2
@@ -498,7 +509,6 @@ SET DEBUG_SYNC = 'row_log_apply_before SIGNAL t1u_created WAIT_FOR dup_done';
 ALTER TABLE t1 ADD UNIQUE(c);
 connection con1;
 SET DEBUG_SYNC = 'now WAIT_FOR t1u_created';
-BEGIN;
 INSERT INTO t1 VALUES('bar'),('bar');
 SET DEBUG_SYNC = 'now SIGNAL dup_done';
 connection default;

@@ -290,6 +290,107 @@ trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
                                               mtr);
 }
 
+void UndorecApplier::assign_rec(trx_undo_rec_t *rec)
+{
+  this->undo_rec= rec;
+  this->offset= page_offset(rec);
+}
+
+void UndorecApplier::apply_undo_rec()
+{
+  bool updated_extern= false;
+  undo_no_t undo_no= 0;
+  table_id_t table_id= 0;
+  undo_rec= trx_undo_rec_get_pars(undo_rec, &type,
+                                  &cmpl_info,
+                                  &updated_extern, &undo_no, &table_id);
+  dict_sys.freeze(SRW_LOCK_CALL);
+  dict_table_t *table= dict_sys.find_table(table_id);
+  dict_sys.unfreeze();
+
+  ut_ad(table);
+  if (!table->is_active_ddl())
+    return;
+
+  dict_index_t *index= dict_table_get_first_index(table);
+  const dtuple_t *undo_tuple;
+  switch (type) {
+  default:
+    ut_ad("invalid type" == 0);
+    MY_ASSERT_UNREACHABLE();
+  case TRX_UNDO_INSERT_REC:
+    undo_rec= trx_undo_rec_get_row_ref(undo_rec, index, &undo_tuple, heap);
+  insert:
+    log_insert(*undo_tuple, index);
+    break;
+  case TRX_UNDO_UPD_EXIST_REC:
+  case TRX_UNDO_UPD_DEL_REC:
+  case TRX_UNDO_DEL_MARK_REC:
+    trx_id_t trx_id;
+    roll_ptr_t roll_ptr;
+    byte info_bits;
+    undo_rec= trx_undo_update_rec_get_sys_cols(
+      undo_rec, &trx_id, &roll_ptr, &info_bits);
+
+    undo_rec= trx_undo_rec_get_row_ref(undo_rec, index, &undo_tuple, heap);
+    undo_rec= trx_undo_update_rec_get_update(undo_rec, index, type, trx_id,
+                                             roll_ptr, info_bits,
+                                             heap, &update);
+    if (type == TRX_UNDO_UPD_DEL_REC)
+      goto insert;
+    log_update(*undo_tuple, index);
+  }
+
+  clear_undo_rec();
+}
+
+/** Apply any changes to tables for which online DDL is in progress. */
+ATTRIBUTE_COLD void trx_t::apply_log()
+{
+  if (undo_no == 0 || apply_online_log == false)
+    return;
+  const trx_undo_t *undo= rsegs.m_redo.undo;
+  if (!undo)
+    return;
+  page_id_t page_id{rsegs.m_redo.rseg->space->id, undo->hdr_page_no};
+  page_id_t next_page_id(page_id);
+  mtr_t mtr;
+  mem_heap_t *heap= mem_heap_create(100);
+  mtr.start();
+  buf_block_t *block= buf_page_get(page_id, 0, RW_S_LATCH, &mtr);
+  ut_ad(block);
+
+  UndorecApplier log_applier(block, id);
+
+  for (;;)
+  {
+    trx_undo_rec_t *rec= trx_undo_page_get_first_rec(block, page_id.page_no(),
+                                                     undo->hdr_offset);
+    while (rec)
+    {
+      log_applier.assign_rec(rec);
+      log_applier.apply_undo_rec();
+      rec= trx_undo_page_get_next_rec(block, page_offset(rec),
+                                      page_id.page_no(), undo->hdr_offset);
+    }
+
+    uint32_t next= mach_read_from_4(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE +
+                                    FLST_NEXT + FIL_ADDR_PAGE +
+                                    block->page.frame);
+    if (next == FIL_NULL)
+      break;
+    next_page_id.set_page_no(next);
+    mtr.commit();
+    mtr.start();
+    block= buf_page_get(next_page_id, 0, RW_S_LATCH, &mtr);
+    log_applier.assign_block(block);
+    ut_ad(block);
+  }
+  mtr.commit();
+  mem_heap_free(heap);
+  apply_online_log= false;
+}
+
 /*============== UNDO LOG FILE COPY CREATION AND FREEING ==================*/
 
 /** Initialize an undo log page.

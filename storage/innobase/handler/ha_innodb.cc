@@ -5240,33 +5240,26 @@ ha_innobase::keys_to_use_for_scanning()
 	return(&key_map_full);
 }
 
-/****************************************************************//**
-Ensures that if there's a concurrent inplace ADD INDEX, being-indexed virtual
-columns are computed. They are not marked as indexed in the old table, so the
-server won't add them to the read_set automatically */
-void
-ha_innobase::column_bitmaps_signal()
-/*================================*/
+/** Ensure that indexed virtual columns will be computed. */
+void ha_innobase::column_bitmaps_signal()
 {
-	if (!table->vfield || table->current_lock != F_WRLCK) {
-		return;
-	}
+  if (!table->vfield || table->current_lock != F_WRLCK)
+    return;
 
-	dict_index_t*	clust_index = dict_table_get_first_index(m_prebuilt->table);
-	uint	num_v = 0;
-	for (uint j = 0; j < table->s->virtual_fields; j++) {
-		if (table->vfield[j]->stored_in_db()) {
-			continue;
-		}
+  dict_index_t* clust_index= dict_table_get_first_index(m_prebuilt->table);
+  uint num_v= 0;
+  for (uint j = 0; j < table->s->virtual_fields; j++)
+  {
+    if (table->vfield[j]->stored_in_db())
+      continue;
 
-		dict_col_t*	col = &m_prebuilt->table->v_cols[num_v].m_col;
-		if (col->ord_part ||
-		    (dict_index_is_online_ddl(clust_index) &&
-		     row_log_col_is_indexed(clust_index, num_v))) {
-			table->mark_virtual_column_with_deps(table->vfield[j]);
-		}
-		num_v++;
-	}
+    dict_col_t *col= &m_prebuilt->table->v_cols[num_v].m_col;
+    if (col->ord_part ||
+        (dict_index_is_online_ddl(clust_index) &&
+         row_log_col_is_indexed(clust_index, num_v)))
+      table->mark_virtual_column_with_deps(table->vfield[j]);
+    num_v++;
+  }
 }
 
 
@@ -8251,34 +8244,13 @@ calc_row_difference(
 			}
 		}
 
-#ifdef UNIV_DEBUG
-		bool	online_ord_part = false;
-#endif
-
 		if (is_virtual) {
 			/* If the virtual column is not indexed,
 			we shall ignore it for update */
 			if (!col->ord_part) {
-				/* Check whether there is a table-rebuilding
-				online ALTER TABLE in progress, and this
-				virtual column could be newly indexed, thus
-				it will be materialized. Then we will have
-				to log its update.
-				Note, we do not support online dropping virtual
-				column while adding new index, nor with
-				online alter column order while adding index,
-				so the virtual column sequence must not change
-				if it is online operation */
-				if (dict_index_is_online_ddl(clust_index)
-				    && row_log_col_is_indexed(clust_index,
-							      num_v)) {
-#ifdef UNIV_DEBUG
-					online_ord_part = true;
-#endif
-				} else {
-					num_v++;
-					continue;
-				}
+			next:
+				num_v++;
+				continue;
 			}
 
 			if (!uvect->old_vrow) {
@@ -8304,8 +8276,7 @@ calc_row_difference(
 					prebuilt, vfield, o_len,
 					col, old_mysql_row_col,
 					col_pack_len, buf);
-			       num_v++;
-			       continue;
+				goto next;
 			}
 		}
 
@@ -8354,7 +8325,7 @@ calc_row_difference(
 				upd_fld_set_virtual_col(ufield);
 				ufield->field_no = num_v;
 
-				ut_ad(col->ord_part || online_ord_part);
+				ut_ad(col->ord_part);
 				ufield->old_v_val = static_cast<dfield_t*>(
 					mem_heap_alloc(
 						uvect->heap,
@@ -8439,7 +8410,7 @@ calc_row_difference(
 				prebuilt, vfield, o_len,
 				col, old_mysql_row_col,
 				col_pack_len, buf);
-			ut_ad(col->ord_part || online_ord_part);
+			ut_ad(col->ord_part);
 			num_v++;
 		}
 	}

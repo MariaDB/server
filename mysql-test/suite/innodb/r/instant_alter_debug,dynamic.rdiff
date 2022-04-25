@@ -1,6 +1,0 @@
-@@ -470,4 +470,4 @@
- FROM information_schema.global_status
- WHERE variable_name = 'innodb_instant_alter_column';
- instants
--33
-+32
