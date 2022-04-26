@@ -15,7 +15,7 @@ fi
 
 MYSQL="/usr/bin/mysql --defaults-file=/etc/mysql/debian.cnf"
 MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
-MYUPGRADE="/usr/bin/mysql_upgrade --defaults-extra-file=/etc/mysql/debian.cnf --version-check"
+MYUPGRADE="/usr/bin/mysql_upgrade --defaults-extra-file=/etc/mysql/debian.cnf --version-check --silent"
 MYCHECK="/usr/bin/mysqlcheck --defaults-file=/etc/mysql/debian.cnf"
 MYCHECK_SUBJECT="WARNING: mysqlcheck has found corrupt tables"
 MYCHECK_PARAMS="--all-databases --fast --silent"
