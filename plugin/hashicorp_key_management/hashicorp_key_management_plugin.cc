@@ -725,7 +725,7 @@ static unsigned int get_latest_version (unsigned int key_id)
   }
   std::string response_str;
   /*
-    Maximum buffer length = url length plus 20 characters of
+    Maximum buffer length = URL length plus 20 characters of
     a 64-bit unsigned integer, plus a slash character, plus
     a length of the "/data/" string and plus a zero byte:
   */
@@ -802,7 +802,7 @@ static unsigned int get_key_from_vault (unsigned int key_id,
   }
   std::string response_str;
   /*
-    Maximum buffer length = url length plus 40 characters of the
+    Maximum buffer length = URL length plus 40 characters of the
     two 64-bit unsigned integers, plus a slash character, plus a
     question mark, plus length of the "/data/" and the "?version="
     strings and plus a zero byte:
@@ -1138,6 +1138,7 @@ No_Secret:
   while (vault_url[vault_url_len - 1] == '/')
   {
     vault_url_len--;
+    suffix_len--;
   }
   /*
     Checking the maximum allowable length to protect
@@ -1187,6 +1188,16 @@ Failure3:
     curl_global_cleanup();
     goto curl_error;
   }
+  /*
+    If we do not need to check the key-value storage version,
+    then we immediately return from this function:
+  */
+  if (check_kv_version == 0) {
+    return 0;
+  }
+  /*
+    Let's construct a URL to check the version of the key-value storage:
+  */
   char *mount_url = (char *) malloc(vault_url_len + 11 + 6);
   if (mount_url == NULL)
   {
@@ -1197,16 +1208,15 @@ Failure4:
     list = NULL;
     goto Failure3;
   }
-  if (check_kv_version == 0) {
-    return 0;
-  }
-  /* Let's construct a url to check the version of kv storage: */
-  prefix_len += 4;
-  size_t mount_len = vault_url_len - prefix_len;
+  /*
+    The prefix length must be recalculated, as it may have
+    changed in the process of discarding trailing slashes:
+  */
+  prefix_len = vault_url_len - suffix_len;
   memcpy(mount_url, vault_url_data, prefix_len);
   memcpy(mount_url + prefix_len, "sys/mounts/", 11);
-  memcpy(mount_url + prefix_len + 11, vault_url_data + prefix_len, mount_len);
-  memcpy(mount_url + prefix_len + 11 + mount_len, "/tune", 6);
+  memcpy(mount_url + prefix_len + 11, vault_url_data + prefix_len, suffix_len);
+  memcpy(mount_url + prefix_len + 11 + suffix_len, "/tune", 6);
 #if HASICORP_DEBUG_LOGGING
   my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                   "storage mount url: [%s]",
