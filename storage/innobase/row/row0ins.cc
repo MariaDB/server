@@ -1000,7 +1000,8 @@ row_ins_foreign_check_on_constraint(
 {
 	upd_node_t*	node;
 	upd_node_t*	cascade;
-	dict_table_t*	table		= foreign->foreign_table;
+	dict_table_t*const*const fktable = &foreign->foreign_table;
+	dict_table_t*	table = *fktable;
 	dict_index_t*	index;
 	dict_index_t*	clust_index;
 	dtuple_t*	ref;
@@ -1168,7 +1169,7 @@ row_ins_foreign_check_on_constraint(
 
 	/* Set an X-lock on the row to delete or update in the child table */
 
-	err = lock_table(table, LOCK_IX, thr);
+	err = lock_table(table, fktable, LOCK_IX, thr);
 
 	if (err == DB_SUCCESS) {
 		/* Here it suffices to use a LOCK_REC_NOT_GAP type lock;
@@ -1454,10 +1455,7 @@ row_ins_check_foreign_constraint(
 	dtuple_t*	entry,	/*!< in: index entry for index */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	dberr_t		err;
 	upd_node_t*	upd_node;
-	dict_table_t*	check_table;
-	dict_index_t*	check_index;
 	ulint		n_fields_cmp;
 	btr_pcur_t	pcur;
 	int		cmp;
@@ -1479,12 +1477,10 @@ row_ins_check_foreign_constraint(
 	upd_node= NULL;
 #endif /* WITH_WSREP */
 
-	err = DB_SUCCESS;
-
-	if (trx->check_foreigns == FALSE) {
+	if (!trx->check_foreigns) {
 		/* The user has suppressed foreign key checks currently for
 		this session */
-		goto exit_func;
+		DBUG_RETURN(DB_SUCCESS);
 	}
 
 	/* If any of the foreign key fields in entry is SQL NULL, we
@@ -1493,12 +1489,12 @@ row_ins_check_foreign_constraint(
 	for (ulint i = 0; i < entry->n_fields; i++) {
 		dfield_t* field = dtuple_get_nth_field(entry, i);
 		if (i < foreign->n_fields && dfield_is_null(field)) {
-			goto exit_func;
+			DBUG_RETURN(DB_SUCCESS);
 		}
 		/* System Versioning: if row_end != Inf, we
 		suppress the foreign key check */
 		if (field->type.vers_sys_end() && field->vers_history_row()) {
-			goto exit_func;
+			DBUG_RETURN(DB_SUCCESS);
 		}
 	}
 
@@ -1523,7 +1519,7 @@ row_ins_check_foreign_constraint(
 			another, and the user has problems predicting in
 			which order they are performed. */
 
-			goto exit_func;
+			DBUG_RETURN(DB_SUCCESS);
 		}
 	}
 
@@ -1535,23 +1531,32 @@ row_ins_check_foreign_constraint(
 			dfield_t* row_end = dtuple_get_nth_field(
 				insert_node->row, table->vers_end);
 			if (row_end->vers_history_row()) {
-				goto exit_func;
+				DBUG_RETURN(DB_SUCCESS);
 			}
 		}
 	}
 
-	if (check_ref) {
-		check_table = foreign->referenced_table;
-		check_index = foreign->referenced_index;
-	} else {
-		check_table = foreign->foreign_table;
-		check_index = foreign->foreign_index;
+	dict_table_t *check_table;
+	dict_index_t *check_index;
+	dberr_t err = DB_SUCCESS;
+
+	{
+		dict_table_t*& fktable = check_ref
+			? foreign->referenced_table : foreign->foreign_table;
+		check_table = fktable;
+		if (check_table) {
+			err = lock_table(check_table, &fktable, LOCK_IS, thr);
+			if (err != DB_SUCCESS) {
+				goto do_possible_lock_wait;
+			}
+		}
+		check_table = fktable;
 	}
 
-	if (check_table == NULL
-	    || !check_table->is_readable()
-	    || check_index == NULL) {
+	check_index = check_ref
+		? foreign->referenced_index : foreign->foreign_index;
 
+	if (!check_table || !check_table->is_readable() || !check_index) {
 		FILE*	ef = dict_foreign_err_file;
 		std::string fk_str;
 
@@ -1598,18 +1603,6 @@ row_ins_check_foreign_constraint(
 
 		mysql_mutex_unlock(&dict_foreign_err_mutex);
 		goto exit_func;
-	}
-
-	if (check_table != table) {
-		/* We already have a LOCK_IX on table, but not necessarily
-		on check_table */
-
-		err = lock_table(check_table, LOCK_IS, thr);
-
-		if (err != DB_SUCCESS) {
-
-			goto do_possible_lock_wait;
-		}
 	}
 
 	mtr_start(&mtr);
@@ -1824,10 +1817,7 @@ do_possible_lock_wait:
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
 
-		if (err != DB_SUCCESS) {
-		} else if (check_table->name.is_temporary()) {
-			err = DB_LOCK_WAIT_TIMEOUT;
-		} else {
+		if (err == DB_SUCCESS) {
 			err = DB_LOCK_WAIT;
 		}
 	}
@@ -2632,7 +2622,7 @@ commit_exit:
 		DEBUG_SYNC_C("empty_root_page_insert");
 
 		if (!index->table->is_temporary()) {
-			err = lock_table(index->table, LOCK_X, thr);
+			err = lock_table(index->table, NULL, LOCK_X, thr);
 
 			if (err != DB_SUCCESS) {
 				trx->error_state = err;
@@ -3694,7 +3684,7 @@ row_ins_step(
 			goto same_trx;
 		}
 
-		err = lock_table(node->table, LOCK_IX, thr);
+		err = lock_table(node->table, NULL, LOCK_IX, thr);
 
 		DBUG_EXECUTE_IF("ib_row_ins_ix_lock_wait",
 				err = DB_LOCK_WAIT;);

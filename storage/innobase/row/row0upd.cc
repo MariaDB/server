@@ -241,12 +241,9 @@ row_upd_check_references_constraints(
 			|| row_upd_changes_first_fields_binary(
 				entry, index, node->update,
 				foreign->n_fields))) {
-			dict_table_t*	foreign_table = foreign->foreign_table;
+			dict_table_t*	ref_table = nullptr;
 
-			dict_table_t*	ref_table = NULL;
-
-			if (foreign_table == NULL) {
-
+			if (!foreign->foreign_table) {
 				ref_table = dict_table_open_on_name(
 					foreign->foreign_table_name_lookup,
 					false, DICT_ERR_IGNORE_NONE);
@@ -293,7 +290,6 @@ wsrep_row_upd_check_foreign_constraints(
 	dtuple_t*	entry;
 	const rec_t*	rec;
 	dberr_t		err;
-	ibool		opened     	= FALSE;
 
 	if (table->foreign_set.empty()) {
 		return(DB_SUCCESS);
@@ -328,27 +324,21 @@ wsrep_row_upd_check_foreign_constraints(
 				entry, index, node->update,
 				foreign->n_fields))) {
 
-			if (foreign->referenced_table == NULL) {
+			dict_table_t *opened = nullptr;
+
+			if (!foreign->referenced_table) {
 				foreign->referenced_table =
 					dict_table_open_on_name(
 					  foreign->referenced_table_name_lookup,
 					  false, DICT_ERR_IGNORE_NONE);
-				opened = (foreign->referenced_table) ? TRUE : FALSE;
+				opened = foreign->referenced_table;
 			}
-
-			/* NOTE that if the thread ends up waiting for a lock
-			we will release dict_sys.latch temporarily!
-			But the counter on the table protects 'foreign' from
-			being dropped while the check is running. */
 
 			err = row_ins_check_foreign_constraint(
 				TRUE, foreign, table, entry, thr);
 
-			if (foreign->referenced_table) {
-				if (opened) {
-					dict_table_close(foreign->referenced_table);
-					opened = FALSE;
-				}
+			if (opened) {
+				dict_table_close(opened);
 			}
 
 			if (err != DB_SUCCESS) {
@@ -2893,7 +2883,7 @@ row_upd_step(
 			/* It may be that the current session has not yet
 			started its transaction, or it has been committed: */
 
-			err = lock_table(node->table, LOCK_IX, thr);
+			err = lock_table(node->table, nullptr, LOCK_IX, thr);
 
 			if (err != DB_SUCCESS) {
 

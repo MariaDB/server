@@ -4030,7 +4030,6 @@ static MY_ATTRIBUTE((warn_unused_result, nonnull))
 bool ibuf_delete_rec(const page_id_t page_id, btr_pcur_t* pcur,
 		     const dtuple_t* search_tuple, mtr_t* mtr)
 {
-	ibool		success;
 	page_t*		root;
 	dberr_t		err;
 
@@ -4041,10 +4040,8 @@ bool ibuf_delete_rec(const page_id_t page_id, btr_pcur_t* pcur,
 	ut_ad(ibuf_rec_get_space(mtr, btr_pcur_get_rec(pcur))
 	      == page_id.space());
 
-	success = btr_cur_optimistic_delete(btr_pcur_get_btr_cur(pcur),
-					    0, mtr);
-
-	if (success) {
+	if (btr_cur_optimistic_delete(btr_pcur_get_btr_cur(pcur),
+				      BTR_CREATE_FLAG, mtr)) {
 		if (page_is_empty(btr_pcur_get_page(pcur))) {
 			/* If a B-tree page is empty, it must be the root page
 			and the whole B-tree must be empty. InnoDB does not
@@ -4088,8 +4085,8 @@ bool ibuf_delete_rec(const page_id_t page_id, btr_pcur_t* pcur,
 
 	root = ibuf_tree_root_get(mtr)->page.frame;
 
-	btr_cur_pessimistic_delete(&err, TRUE, btr_pcur_get_btr_cur(pcur), 0,
-				   false, mtr);
+	btr_cur_pessimistic_delete(&err, TRUE, btr_pcur_get_btr_cur(pcur),
+				   BTR_CREATE_FLAG, false, mtr);
 	ut_a(err == DB_SUCCESS);
 
 	ibuf_size_update(root);

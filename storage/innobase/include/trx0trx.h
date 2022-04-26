@@ -766,8 +766,12 @@ public:
 					flush the log in
 					trx_commit_complete_for_mysql() */
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
-	bool		dict_operation;	/**< whether this modifies InnoDB
-					data dictionary */
+  /** whether this modifies InnoDB dictionary tables */
+  bool dict_operation;
+#ifdef UNIV_DEBUG
+  /** copy of dict_operation during commit() */
+  bool was_dict_operation;
+#endif
 	/** whether dict_sys.latch is held exclusively; protected by
 	dict_sys.latch */
 	bool dict_operation_lock_mode;
@@ -942,7 +946,8 @@ private:
   ATTRIBUTE_COLD void apply_log();
   /** Process tables that were modified by the committing transaction. */
   inline void commit_tables();
-  /** Mark a transaction committed in the main memory data structures. */
+  /** Mark a transaction committed in the main memory data structures.
+  @param mtr  mini-transaction (if there are any persistent modifications) */
   inline void commit_in_memory(const mtr_t *mtr);
   /** Write log for committing the transaction. */
   void commit_persist();
