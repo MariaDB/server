@@ -147,13 +147,6 @@ my_bool	srv_use_atomic_writes;
 /** innodb_compression_algorithm; used with page compression */
 ulong	innodb_compression_algorithm;
 
-#ifdef UNIV_DEBUG
-/** Used by SET GLOBAL innodb_master_thread_disabled_debug = X. */
-my_bool	srv_master_thread_disabled_debug;
-/** Event used to inform that master thread is disabled. */
-static pthread_cond_t srv_master_thread_disabled_cond;
-#endif /* UNIV_DEBUG */
-
 /*------------------------- LOG FILES ------------------------ */
 char*	srv_log_group_home_dir;
 
@@ -662,7 +655,6 @@ static void srv_init()
 	UT_LIST_INIT(srv_sys.tasks, &que_thr_t::queue);
 
 	need_srv_free = true;
-	ut_d(pthread_cond_init(&srv_master_thread_disabled_cond, nullptr));
 
 	mysql_mutex_init(page_zip_stat_per_index_mutex_key,
 			 &page_zip_stat_per_index_mutex, nullptr);
@@ -684,8 +676,6 @@ srv_free(void)
 	mysql_mutex_destroy(&srv_innodb_monitor_mutex);
 	mysql_mutex_destroy(&page_zip_stat_per_index_mutex);
 	mysql_mutex_destroy(&srv_sys.tasks_mutex);
-
-	ut_d(pthread_cond_destroy(&srv_master_thread_disabled_cond));
 
 	trx_i_s_cache_free(trx_i_s_cache);
 	srv_thread_pool_end();
@@ -1528,48 +1518,6 @@ srv_shutdown_print_master_pending(
 	}
 }
 
-#ifdef UNIV_DEBUG
-/** Waits in loop as long as master thread is disabled (debug) */
-static void srv_master_do_disabled_loop()
-{
-  if (!srv_master_thread_disabled_debug)
-    return;
-  srv_main_thread_op_info = "disabled";
-  mysql_mutex_lock(&LOCK_global_system_variables);
-  while (srv_master_thread_disabled_debug)
-    my_cond_wait(&srv_master_thread_disabled_cond,
-                 &LOCK_global_system_variables.m_mutex);
-  mysql_mutex_unlock(&LOCK_global_system_variables);
-  srv_main_thread_op_info = "";
-}
-
-/** Disables master thread. It's used by:
-	SET GLOBAL innodb_master_thread_disabled_debug = 1 (0).
-@param[in]	save		immediate result from check function */
-void
-srv_master_thread_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
-                                        const void* save)
-{
-  mysql_mutex_assert_owner(&LOCK_global_system_variables);
-  const bool disable= *static_cast<const my_bool*>(save);
-  srv_master_thread_disabled_debug= disable;
-  if (!disable)
-    pthread_cond_signal(&srv_master_thread_disabled_cond);
-}
-
-/** Enable the master thread on shutdown. */
-void srv_master_thread_enable()
-{
-  if (srv_master_thread_disabled_debug)
-  {
-    mysql_mutex_lock(&LOCK_global_system_variables);
-    srv_master_thread_disabled_debug= FALSE;
-    pthread_cond_signal(&srv_master_thread_disabled_cond);
-    mysql_mutex_unlock(&LOCK_global_system_variables);
-  }
-}
-#endif /* UNIV_DEBUG */
-
 /** Perform periodic tasks whenever the server is active.
 @param counter_time  microsecond_interval_timer() */
 static void srv_master_do_active_tasks(ulonglong counter_time)
@@ -1646,7 +1594,6 @@ void srv_master_callback(void*)
   ut_a(srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
 
   MONITOR_INC(MONITOR_MASTER_THREAD_SLEEP);
-  ut_d(srv_master_do_disabled_loop());
   if (!purge_state.m_running)
     srv_wake_purge_thread_if_not_active();
   ulonglong counter_time= microsecond_interval_timer();

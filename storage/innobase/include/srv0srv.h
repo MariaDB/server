@@ -445,8 +445,6 @@ extern ulint	srv_log_writes_and_flush;
 extern my_bool	innodb_evict_tables_on_commit_debug;
 extern my_bool	srv_purge_view_update_only_debug;
 
-/** Value of MySQL global used to disable master thread. */
-extern my_bool	srv_master_thread_disabled_debug;
 /** InnoDB system tablespace to set during recovery */
 extern uint	srv_sys_space_size_debug;
 /** whether redo log file has been created at startup */
@@ -671,18 +669,6 @@ void srv_purge_shutdown();
 
 /** Init purge tasks*/
 void srv_init_purge_tasks();
-
-#ifdef UNIV_DEBUG
-/** Disables master thread. It's used by:
-	SET GLOBAL innodb_master_thread_disabled_debug = 1 (0).
-@param[in]	save		immediate result from check function */
-void
-srv_master_thread_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
-					const void* save);
-
-/** Enable the master thread on shutdown. */
-void srv_master_thread_enable();
-#endif /* UNIV_DEBUG */
 
 /** Status variables to be passed to MySQL */
 struct export_var_t{

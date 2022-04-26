@@ -74,11 +74,6 @@ the blocks on free list. If LRU list is very small then we can end up
 in thrashing. */
 #define BUF_LRU_MIN_LEN		256
 
-# ifdef UNIV_DEBUG
-extern my_bool	buf_disable_resize_buffer_pool_debug; /*!< if TRUE, resizing
-					buffer pool is not allowed. */
-# endif /* UNIV_DEBUG */
-
 /** This structure defines information we will fetch from each buffer pool. It
 will be used to print table IO stats */
 struct buf_pool_info_t

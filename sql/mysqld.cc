@@ -6649,7 +6649,7 @@ struct my_option my_long_options[]=
      Also disable by default on Windows, due to high overhead for checking .sym 
      files.
    */
-   IF_VALGRIND(0,IF_WIN(0,1)), 0, 0, 0, 0, 0},
+   IF_WIN(0,1), 0, 0, 0, 0, 0},
   {"sysdate-is-now", 0,
    "Non-default option to alias SYSDATE() to NOW() to make it safe-replicable. "
    "Since 5.0, SYSDATE() returns a `dynamic' value different for different "
@@ -8664,12 +8664,16 @@ void set_server_version(char *buf, size_t size)
 {
   bool is_log= opt_log || global_system_variables.sql_log_slow || opt_bin_log;
   bool is_debug= IF_DBUG(!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"), 0);
-  bool is_valgrind= IF_VALGRIND(!strstr(MYSQL_SERVER_SUFFIX_STR, "-valgrind"), 0);
+  const char *is_valgrind=
+#ifdef HAVE_VALGRIND
+    !strstr(MYSQL_SERVER_SUFFIX_STR, "-valgrind") ? "-valgrind" :
+#endif
+    "";
   strxnmov(buf, size - 1,
            MYSQL_SERVER_VERSION,
            MYSQL_SERVER_SUFFIX_STR,
            IF_EMBEDDED("-embedded", ""),
-           is_valgrind ? "-valgrind" : "",
+           is_valgrind,
            is_debug ? "-debug" : "",
            is_log ? "-log" : "",
            NullS);

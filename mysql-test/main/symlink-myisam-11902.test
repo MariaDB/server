@@ -56,5 +56,8 @@ flush tables;
 drop table if exists t1;
 exec rm -r $MYSQLTEST_VARDIR/tmp/foo;
 
+# Under Valgrind, this could display a warning ER_FILE_NOT_FOUND
+--disable_warnings
 drop table mysql.t1;
+--enable_warnings
 set debug_sync='RESET';

@@ -86,10 +86,6 @@ static struct
   ulint flush_pass;
 } page_cleaner;
 
-#ifdef UNIV_DEBUG
-my_bool innodb_page_cleaner_disabled_debug;
-#endif /* UNIV_DEBUG */
-
 /* @} */
 
 #ifdef UNIV_DEBUG
@@ -2378,12 +2374,6 @@ do_checkpoint:
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
       goto unemployed;
     }
-
-#ifdef UNIV_DEBUG
-    while (innodb_page_cleaner_disabled_debug && !buf_flush_sync_lsn &&
-           srv_shutdown_state == SRV_SHUTDOWN_NONE)
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-#endif /* UNIV_DEBUG */
 
 #ifndef DBUG_OFF
 next:
