@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2009, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3115,7 +3115,9 @@ release_and_exit:
 		ret = lock_table_for_trx(index_stats, trx, LOCK_X);
 	}
 	if (ret != DB_SUCCESS) {
-		trx->commit();
+		if (trx->state != TRX_STATE_NOT_STARTED) {
+			trx->commit();
+		}
 		goto unlocked_free_and_exit;
 	}
 
