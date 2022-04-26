@@ -1,14 +1,8 @@
+# MDEV-28291: Cache variables claim to be dynamic but changes are ignored
 # The test presumes that the local vault is running at $VAULT_ADDR,
 # and the token is configured in $VAULT_TOKEN
 --source hashicorp_plugin.inc
-
---exec vault secrets disable bug > /dev/null
---exec vault secrets enable -path /bug -version=2 kv > /dev/null
---exec vault kv put /bug/1 data=0123456789012345678901234567890A > /dev/null
-
---let $restart_parameters=--plugin-load-add=hashicorp_key_management --hashicorp-key-management-vault-url="$VAULT_ADDR/v1/bug/" --hashicorp-key-management-token="$VAULT_TOKEN"
---let $restart_noprint=1
---source include/restart_mysqld.inc
+--source hashicorp_init.inc
 
 --let $ct=`SELECT @@HASHICORP_KEY_MANAGEMENT_CACHE_TIMEOUT`
 --let $vt=`SELECT @@HASHICORP_KEY_MANAGEMENT_CACHE_VERSION_TIMEOUT`
@@ -22,11 +16,9 @@ SET GLOBAL
 SELECT
   @@HASHICORP_KEY_MANAGEMENT_CACHE_VERSION_TIMEOUT,
   @@HASHICORP_KEY_MANAGEMENT_CACHE_TIMEOUT;
---disable_query_log
 --eval SET GLOBAL HASHICORP_KEY_MANAGEMENT_CACHE_VERSION_TIMEOUT=$vt, HASHICORP_KEY_MANAGEMENT_CACHE_TIMEOUT=$ct
---enable_query_log
 SELECT
   @@HASHICORP_KEY_MANAGEMENT_CACHE_VERSION_TIMEOUT,
   @@HASHICORP_KEY_MANAGEMENT_CACHE_TIMEOUT;
 
---exec vault secrets disable bug > /dev/null
+--source hashicorp_deinit.inc
