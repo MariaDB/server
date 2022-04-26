@@ -2425,6 +2425,21 @@ set optimizer_switch=@tmp_os;
 
 drop table t1, t10, t11;
 
+--echo #
+--echo # MDEV-28268: Server crashes in Expression_cache_tracker::fetch_current_stats
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2),(3,4);
+
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON
+SELECT DISTINCT
+  (SELECT MIN(a) FROM t1 WHERE b <= ANY (SELECT a FROM t1)) AS f
+FROM t1;
+
+# Cleanup
+DROP TABLE t1;
+
 --echo # End of 10.2 tests
 
 --echo # End of 10.3 tests
@@ -2470,3 +2485,4 @@ select * from t1 where t1.a in (select t2.a from t2 order by t2.b);
 drop table t0, t1, t2;
 
 --echo # End of 10.4 tests
+
