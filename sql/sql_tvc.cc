@@ -406,9 +406,11 @@ bool table_value_constr::exec(SELECT_LEX *sl)
 
   while ((elem= li++))
   {
+    THD *cur_thd= sl->parent_lex->thd;
     if (send_records >= sl->master_unit()->select_limit_cnt)
       break;
     int rc= result->send_data(*elem);
+    cur_thd->get_stmt_da()->inc_current_row_for_warning();
     if (!rc)
       send_records++;
     else if (rc > 0)
