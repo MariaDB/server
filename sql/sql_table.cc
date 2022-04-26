@@ -10631,6 +10631,8 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
             for (uint i= 0; i < t->s->fields; i++ )
             {
               Field *f= t->field[i];
+              if (!f->stored_in_db())
+                continue;
 
               if (! thd->variables.old_mode && f->is_real_null(0))
               {

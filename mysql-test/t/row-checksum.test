@@ -2,12 +2,8 @@
 # Test checksum
 #
 
--- source include/have_innodb.inc
--- source include/have_maria.inc
-
---disable_warnings
-drop table if exists t1;
---enable_warnings
+--source include/have_innodb.inc
+--source include/have_maria.inc
 
 create table t1 (a int null, v varchar(100)) engine=myisam checksum=0;
 insert into t1 values(null, null), (1, "hello");
@@ -76,4 +72,31 @@ CHECKSUM TABLE t1 EXTENDED;
 
 drop table t1;
 
+--echo #
 --echo # End of 5.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-28020 CHECKSUM TABLE calculates different checksums
+--echo #
+create table t1 ( a int, b int as (a) virtual, c text) engine=myisam checksum=1;
+insert ignore t1 values (1,2,'foo'),(2,3,'bar');
+checksum table t1 extended;
+checksum table t1;
+drop table t1;
+
+create table t1 ( a int, b int as (a) virtual, c text, key(b)) engine=myisam checksum=1;
+insert ignore t1 values (1,2,'foo'),(2,3,'bar');
+checksum table t1 extended;
+checksum table t1;
+drop table t1;
+
+create table t1 ( a int, b int as (a) stored, c text) engine=myisam checksum=1;
+insert ignore t1 values (1,2,'foo'),(2,3,'bar');
+checksum table t1 extended;
+checksum table t1;
+drop table t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
