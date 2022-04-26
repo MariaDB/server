@@ -6223,8 +6223,10 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       DBUG_EXECUTE_IF("slave_discard_xid_for_gtid_0_x_1000",
       {
         /* Inject an event group that is missing its XID commit event. */
-        if (mi->last_queued_gtid.domain_id == 0 &&
-            mi->last_queued_gtid.seq_no == 1000)
+        if ((mi->last_queued_gtid.domain_id == 0 &&
+             mi->last_queued_gtid.seq_no == 1000) ||
+            (mi->last_queued_gtid.domain_id == 1 &&
+             mi->last_queued_gtid.seq_no == 32))
         {
           sql_print_warning(
             "Unexpected break of being relay-logged GTID %u-%u-%llu "
