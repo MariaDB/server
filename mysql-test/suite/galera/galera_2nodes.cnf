@@ -7,47 +7,31 @@ binlog-format=row
 innodb-autoinc-lock-mode=2
 default-storage-engine=innodb
 wsrep-provider=@ENV.WSREP_PROVIDER
-wsrep_node_address=127.0.0.1
 # enforce read-committed characteristics across the cluster
+# wsrep-causal-reads=ON
 wsrep-sync-wait=15
 
 [mysqld.1]
-loose-innodb
+wsrep-on=1
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
-wsrep-on=1
-wsrep-cluster-address=gcomm://
+wsrep_cluster_address=gcomm://
 wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;gcache.size=10M'
+wsrep_node_address='127.0.0.1:@mysqld.1.#galera_port'
 wsrep_node_incoming_address=127.0.0.1:@mysqld.1.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.1.#sst_port'
 
-# enforce read-committed characteristics across the cluster
-wsrep_causal_reads=ON
-wsrep_sync_wait = 15
-
 [mysqld.2]
-loose-innodb
-# debug=d:t:i:o,/tmp/mysqld.2.trace
+wsrep-on=1
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
-wsrep-on=1
 wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.1.#galera_port'
-wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S'
-
-# enforce read-committed characteristics across the cluster
-wsrep_causal_reads=ON
-wsrep_sync_wait = 15
-
-wsrep_node_address=127.0.0.1
-wsrep_sst_receive_address=127.0.0.2:@mysqld.2.#sst_port
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;gcache.size=10M'
+wsrep_node_address='127.0.0.1:@mysqld.2.#galera_port'
 wsrep_node_incoming_address=127.0.0.1:@mysqld.2.port
-wsrep_sst_receive_address='127.0.0.2:@mysqld.2.#sst_port'
-
-# enforce read-committed characteristics across the cluster
-wsrep_causal_reads=ON
-wsrep_sync_wait = 15
+wsrep_sst_receive_address='127.0.0.1:@mysqld.2.#sst_port'
 
 [ENV]
 NODE_MYPORT_1= @mysqld.1.port

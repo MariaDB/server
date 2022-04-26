@@ -28,7 +28,7 @@ Created 2012/04/12 by Sunny Bains
 #ifndef ut0counter_h
 #define ut0counter_h
 
-#include "os0thread.h"
+#include "univ.i"
 #include "my_rdtsc.h"
 
 /** Use the result of my_timer_cycles(), which mainly uses RDTSC for cycles
@@ -46,7 +46,7 @@ get_rnd_value()
 	/* We may go here if my_timer_cycles() returns 0,
 	so we have to have the plan B for the counter. */
 #if !defined(_WIN32)
-	return (size_t)os_thread_get_curr_id();
+	return (size_t)pthread_self();
 #else
 	LARGE_INTEGER cnt;
 	QueryPerformanceCounter(&cnt);

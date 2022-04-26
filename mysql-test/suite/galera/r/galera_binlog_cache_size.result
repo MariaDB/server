@@ -10,6 +10,6 @@ SET AUTOCOMMIT=ON;
 START TRANSACTION;
 INSERT INTO t1 SELECT REPEAT('a', 767) FROM ten;
 INSERT INTO t1 SELECT REPEAT('a', 767) FROM ten;
-ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mariadbd variable and try again
 DROP TABLE t1;
 DROP TABLE ten;

@@ -50,7 +50,6 @@ Created 10/21/1995 Heikki Tuuri
 #ifdef HAVE_LINUX_UNISTD_H
 #include "unistd.h"
 #endif
-#include "os0thread.h"
 #include "buf0dblwr.h"
 
 #include <tpool_structs.h>

@@ -133,6 +133,8 @@ trx_init(
 
 	trx->bulk_insert = false;
 
+	trx->apply_online_log = false;
+
 	ut_d(trx->start_file = 0);
 
 	ut_d(trx->start_line = 0);
@@ -452,6 +454,7 @@ void trx_t::free()
   MEM_NOACCESS(&mod_tables, sizeof mod_tables);
   MEM_NOACCESS(&detailed_error, sizeof detailed_error);
   MEM_NOACCESS(&magic_n, sizeof magic_n);
+  MEM_NOACCESS(&apply_online_log, sizeof apply_online_log);
   trx_pools->mem_free(this);
 }
 
@@ -494,6 +497,13 @@ inline void trx_t::release_locks()
   }
 
   lock.table_locks.clear();
+  id= 0;
+  while (dict_table_t *table= UT_LIST_GET_FIRST(lock.evicted_tables))
+  {
+    UT_LIST_REMOVE(lock.evicted_tables, table);
+    dict_mem_table_free(table);
+  }
+  DEBUG_SYNC_C("after_trx_committed_in_memory");
 }
 
 /** At shutdown, frees a transaction object. */
@@ -512,6 +522,7 @@ TRANSACTIONAL_TARGET void trx_free_at_shutdown(trx_t *trx)
 		         && !srv_undo_sources && srv_fast_shutdown))));
 	ut_a(trx->magic_n == TRX_MAGIC_N);
 
+	ut_d(trx->apply_online_log = false);
 	trx->commit_state();
 	trx->release_locks();
 	trx->mod_tables.clear();
@@ -522,7 +533,6 @@ TRANSACTIONAL_TARGET void trx_free_at_shutdown(trx_t *trx)
 	DBUG_LOG("trx", "Free prepared: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;
 	ut_ad(!UT_LIST_GET_LEN(trx->lock.trx_locks));
-	trx->id = 0;
 	trx->free();
 }
 
@@ -1225,9 +1235,10 @@ void trx_t::evict_table(table_id_t table_id, bool reset_only)
 	}
 }
 
-/** Mark a transaction committed in the main memory data structures. */
 TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
 {
+  /* We already detached from rseg in trx_write_serialisation_history() */
+  ut_ad(!rsegs.m_redo.undo);
   must_flush_log_later= false;
   read_view.close();
 
@@ -1238,12 +1249,14 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
     ut_ad(!will_lock);
     ut_a(!is_recovered);
     ut_ad(!rsegs.m_redo.rseg);
+    ut_ad(!rsegs.m_redo.undo);
     ut_ad(mysql_thd);
     ut_ad(state == TRX_STATE_ACTIVE);
 
     /* Note: We do not have to hold any lock_sys latch here, because
     this is a non-locking transaction. */
     ut_a(UT_LIST_GET_LEN(lock.trx_locks) == 0);
+    ut_ad(UT_LIST_GET_LEN(lock.evicted_tables) == 0);
 
     /* This state change is not protected by any mutex, therefore
     there is an inherent race here around state transition during
@@ -1289,20 +1302,9 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
       is_recovered= false;
     }
 
-    release_locks();
-    id= 0;
-    DEBUG_SYNC_C("after_trx_committed_in_memory");
-
-    while (dict_table_t *table= UT_LIST_GET_FIRST(lock.evicted_tables))
-    {
-      UT_LIST_REMOVE(lock.evicted_tables, table);
-      dict_mem_table_free(table);
-    }
+    if (UNIV_LIKELY(!dict_operation))
+      release_locks();
   }
-
-  /* We already detached from rseg in trx_write_serialisation_history() */
-  ut_ad(!rsegs.m_redo.undo);
-  ut_ad(UT_LIST_GET_LEN(lock.evicted_tables) == 0);
 
   if (trx_rseg_t *rseg= rsegs.m_redo.rseg)
     /* This is safe due to us having detached the persistent undo log. */
@@ -1377,10 +1379,10 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
 
 void trx_t::commit_cleanup()
 {
-  mutex.wr_lock();
-  dict_operation= false;
+  ut_ad(!dict_operation);
+  ut_ad(!was_dict_operation);
 
-  DBUG_LOG("trx", "Commit in memory: " << this);
+  mutex.wr_lock();
   state= TRX_STATE_NOT_STARTED;
   mod_tables.clear();
 
@@ -1396,7 +1398,7 @@ void trx_t::commit_cleanup()
 TRANSACTIONAL_TARGET void trx_t::commit_low(mtr_t *mtr)
 {
   ut_ad(!mtr || mtr->is_active());
-  ut_d(bool aborted = in_rollback && error_state == DB_DEADLOCK);
+  ut_d(bool aborted= in_rollback && error_state == DB_DEADLOCK);
   ut_ad(!mtr == (aborted || !has_logged()));
   ut_ad(!mtr || !aborted);
 
@@ -1415,12 +1417,13 @@ TRANSACTIONAL_TARGET void trx_t::commit_low(mtr_t *mtr)
       ut_ad(error == DB_DUPLICATE_KEY || error == DB_LOCK_WAIT_TIMEOUT);
   }
 
-#ifndef DBUG_OFF
+#ifdef ENABLED_DEBUG_SYNC
   const bool debug_sync= mysql_thd && has_logged_persistent();
 #endif
 
   if (mtr)
   {
+    apply_log();
     trx_write_serialisation_history(this, mtr);
 
     /* The following call commits the mini-transaction, making the
@@ -1440,7 +1443,7 @@ TRANSACTIONAL_TARGET void trx_t::commit_low(mtr_t *mtr)
 
     mtr->commit();
   }
-#ifndef DBUG_OFF
+#ifdef ENABLED_DEBUG_SYNC
   if (debug_sync)
     DEBUG_SYNC_C("before_trx_state_committed_in_memory");
 #endif
@@ -1465,7 +1468,11 @@ void trx_t::commit_persist()
 
 void trx_t::commit()
 {
+  ut_ad(!was_dict_operation);
+  ut_d(was_dict_operation= dict_operation);
+  dict_operation= false;
   commit_persist();
+  ut_d(was_dict_operation= false);
   ut_d(for (const auto &p : mod_tables) ut_ad(!p.second.is_dropped()));
   commit_cleanup();
 }

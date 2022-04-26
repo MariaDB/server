@@ -1,0 +1,64 @@
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_2
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+--source include/wait_condition.inc
+
+--connection node_1
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+--source include/wait_condition.inc
+
+--remove_files_wildcard $MYSQLTEST_VARDIR/tmp/logarchive *
+
+--source suite/galera/include/galera_st_shutdown_slave.inc
+--source suite/galera/include/galera_st_clean_slave.inc
+
+--source suite/galera/include/galera_st_kill_slave.inc
+--source suite/galera/include/galera_st_kill_slave_ddl.inc
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc
+
+--let sst_test_true_count=6
+--source include/maybe_debug.inc
+if ($have_debug) {
+  --let sst_test_true_count=6
+}
+
+--source include/galera_end.inc
+
+--list_files_write_file $MYSQLTEST_VARDIR/tmp/logarchive_list $MYSQLTEST_VARDIR/tmp/logarchive mariabackup.*.log.*.gz
+
+--perl
+  use strict;
+  use warnings;
+  my $file=$ENV{'MYSQLTEST_VARDIR'}.'/tmp/logarchive_list';
+  my $count=0;
+  open(FILE, "$file") or die("Error $? opening $file: $!\n");
+  while (<FILE>) {
+    my $line = $_;
+    $count++;
+  }
+  close(FILE) or die("Error $? closing $file: $!");
+  my $true_count=$ENV{'sst_test_true_count'};
+  if ($count != $true_count) {
+    die("Wrong log archives counter: $count instead of $true_count");
+  }
+EOF
+
+--remove_file $MYSQLTEST_VARDIR/tmp/logarchive_list
+--remove_files_wildcard $MYSQLTEST_VARDIR/tmp/logarchive *
+--rmdir $MYSQLTEST_VARDIR/tmp/logarchive

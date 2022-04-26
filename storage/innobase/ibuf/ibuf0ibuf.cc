@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -239,9 +239,7 @@ static
 /** The mutex protecting the insert buffer */
 mysql_mutex_t ibuf_mutex,
 	/** The mutex covering pessimistic inserts into the change buffer */
-	ibuf_pessimistic_insert_mutex,
-	/** mutex covering all change buffer bitmap pages */
-	ibuf_bitmap_mutex;
+	ibuf_pessimistic_insert_mutex;
 
 /** The area in pages from which contract looks for page numbers for merge */
 const ulint		IBUF_MERGE_AREA = 8;
@@ -358,7 +356,6 @@ ibuf_close(void)
 
 	mysql_mutex_destroy(&ibuf_pessimistic_insert_mutex);
 	mysql_mutex_destroy(&ibuf_mutex);
-	mysql_mutex_destroy(&ibuf_bitmap_mutex);
 
 	dict_table_t*	ibuf_table = ibuf.index->table;
 	ibuf.index->lock.free();
@@ -422,7 +419,6 @@ ibuf_init_at_db_start(void)
 			  * CHANGE_BUFFER_DEFAULT_SIZE) / 100;
 
 	mysql_mutex_init(ibuf_mutex_key, &ibuf_mutex, nullptr);
-	mysql_mutex_init(ibuf_bitmap_mutex_key, &ibuf_bitmap_mutex, nullptr);
 	mysql_mutex_init(ibuf_pessimistic_insert_mutex_key,
 			 &ibuf_pessimistic_insert_mutex, nullptr);
 
@@ -868,26 +864,16 @@ ibuf_update_free_bits_for_two_pages_low(
 	buf_block_t*	block2,	/*!< in: index page */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	ulint	state;
+  ut_ad(mtr->is_named_space(block1->page.id().space()));
+  ut_ad(block1->page.id().space() == block2->page.id().space());
 
-	ut_ad(mtr->is_named_space(block1->page.id().space()));
-	ut_ad(block1->page.id().space() == block2->page.id().space());
+  /* Avoid deadlocks by acquiring multiple bitmap page latches in
+  a consistent order (smaller pointer first). */
+  if (block1 > block2)
+    std::swap(block1, block2);
 
-	/* As we have to x-latch two random bitmap pages, we have to acquire
-	the bitmap mutex to prevent a deadlock with a similar operation
-	performed by another OS thread. */
-
-	mysql_mutex_lock(&ibuf_bitmap_mutex);
-
-	state = ibuf_index_page_calc_free(block1);
-
-	ibuf_set_free_bits_low(block1, state, mtr);
-
-	state = ibuf_index_page_calc_free(block2);
-
-	ibuf_set_free_bits_low(block2, state, mtr);
-
-	mysql_mutex_unlock(&ibuf_bitmap_mutex);
+  ibuf_set_free_bits_low(block1, ibuf_index_page_calc_free(block1), mtr);
+  ibuf_set_free_bits_low(block2, ibuf_index_page_calc_free(block2), mtr);
 }
 
 /** Returns TRUE if the page is one of the fixed address ibuf pages.
@@ -4044,7 +4030,6 @@ static MY_ATTRIBUTE((warn_unused_result, nonnull))
 bool ibuf_delete_rec(const page_id_t page_id, btr_pcur_t* pcur,
 		     const dtuple_t* search_tuple, mtr_t* mtr)
 {
-	ibool		success;
 	page_t*		root;
 	dberr_t		err;
 
@@ -4055,10 +4040,8 @@ bool ibuf_delete_rec(const page_id_t page_id, btr_pcur_t* pcur,
 	ut_ad(ibuf_rec_get_space(mtr, btr_pcur_get_rec(pcur))
 	      == page_id.space());
 
-	success = btr_cur_optimistic_delete(btr_pcur_get_btr_cur(pcur),
-					    0, mtr);
-
-	if (success) {
+	if (btr_cur_optimistic_delete(btr_pcur_get_btr_cur(pcur),
+				      BTR_CREATE_FLAG, mtr)) {
 		if (page_is_empty(btr_pcur_get_page(pcur))) {
 			/* If a B-tree page is empty, it must be the root page
 			and the whole B-tree must be empty. InnoDB does not
@@ -4102,8 +4085,8 @@ bool ibuf_delete_rec(const page_id_t page_id, btr_pcur_t* pcur,
 
 	root = ibuf_tree_root_get(mtr)->page.frame;
 
-	btr_cur_pessimistic_delete(&err, TRUE, btr_pcur_get_btr_cur(pcur), 0,
-				   false, mtr);
+	btr_cur_pessimistic_delete(&err, TRUE, btr_pcur_get_btr_cur(pcur),
+				   BTR_CREATE_FLAG, false, mtr);
 	ut_a(err == DB_SUCCESS);
 
 	ibuf_size_update(root);

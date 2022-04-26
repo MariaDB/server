@@ -6511,10 +6511,15 @@ binary:
         | BINARY charset_or_alias { bincmp_collation($2, true); }
         | charset_or_alias collate
           {
-            if (!my_charset_same($2, $1))
-              my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-                                $2->coll_name.str, $1->cs_name.str));
-            Lex->charset= $2;
+            if (!$2)
+              Lex->charset= $1; // CHARACTER SET cs COLLATE DEFAULT
+            else
+            {
+              if (!my_charset_same($2, $1))
+                my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),
+                                  $2->coll_name.str, $1->cs_name.str));
+              Lex->charset= $2;
+            }
           }
         | collate { Lex->charset= $1; }
         ;

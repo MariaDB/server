@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -241,12 +241,9 @@ row_upd_check_references_constraints(
 			|| row_upd_changes_first_fields_binary(
 				entry, index, node->update,
 				foreign->n_fields))) {
-			dict_table_t*	foreign_table = foreign->foreign_table;
+			dict_table_t*	ref_table = nullptr;
 
-			dict_table_t*	ref_table = NULL;
-
-			if (foreign_table == NULL) {
-
+			if (!foreign->foreign_table) {
 				ref_table = dict_table_open_on_name(
 					foreign->foreign_table_name_lookup,
 					false, DICT_ERR_IGNORE_NONE);
@@ -293,7 +290,6 @@ wsrep_row_upd_check_foreign_constraints(
 	dtuple_t*	entry;
 	const rec_t*	rec;
 	dberr_t		err;
-	ibool		opened     	= FALSE;
 
 	if (table->foreign_set.empty()) {
 		return(DB_SUCCESS);
@@ -328,27 +324,21 @@ wsrep_row_upd_check_foreign_constraints(
 				entry, index, node->update,
 				foreign->n_fields))) {
 
-			if (foreign->referenced_table == NULL) {
+			dict_table_t *opened = nullptr;
+
+			if (!foreign->referenced_table) {
 				foreign->referenced_table =
 					dict_table_open_on_name(
 					  foreign->referenced_table_name_lookup,
 					  false, DICT_ERR_IGNORE_NONE);
-				opened = (foreign->referenced_table) ? TRUE : FALSE;
+				opened = foreign->referenced_table;
 			}
-
-			/* NOTE that if the thread ends up waiting for a lock
-			we will release dict_sys.latch temporarily!
-			But the counter on the table protects 'foreign' from
-			being dropped while the check is running. */
 
 			err = row_ins_check_foreign_constraint(
 				TRUE, foreign, table, entry, thr);
 
-			if (foreign->referenced_table) {
-				if (opened) {
-					dict_table_close(foreign->referenced_table);
-					opened = FALSE;
-				}
+			if (opened) {
+				dict_table_close(opened);
 			}
 
 			if (err != DB_SUCCESS) {
@@ -1081,16 +1071,7 @@ row_upd_replace_vcol(
 		/* If there is no index on the column, do not bother for
 		value update */
 		if (!col->m_col.ord_part) {
-			dict_index_t*	clust_index
-				= dict_table_get_first_index(table);
-
-			/* Skip the column if there is no online alter
-			table in progress or it is not being indexed
-			in new table */
-			if (!dict_index_is_online_ddl(clust_index)
-			    || !row_log_col_is_indexed(clust_index, col_no)) {
-				continue;
-			}
+			continue;
 		}
 
 		dfield = dtuple_get_nth_v_field(row, col_no);
@@ -1906,6 +1887,13 @@ row_upd_sec_index_entry(
 	ut_ad(trx->id != 0);
 
 	index = node->index;
+	if (!index->is_committed()) {
+		return DB_SUCCESS;
+	}
+
+	/* For secondary indexes, index->online_status==ONLINE_INDEX_COMPLETE
+	if index->is_committed(). */
+	ut_ad(!dict_index_is_online_ddl(index));
 
 	const bool referenced = row_upd_index_is_referenced(index, trx);
 #ifdef WITH_WSREP
@@ -1929,75 +1917,22 @@ row_upd_sec_index_entry(
 	case SRV_TMP_SPACE_ID:
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 		flags = BTR_NO_LOCKING_FLAG;
+		mode = index->is_spatial()
+			? ulint(BTR_MODIFY_LEAF | BTR_RTREE_DELETE_MARK)
+			: ulint(BTR_MODIFY_LEAF);
 		break;
 	default:
 		index->set_modified(mtr);
 		/* fall through */
 	case IBUF_SPACE_ID:
 		flags = index->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
+		/* We can only buffer delete-mark operations if there
+		are no foreign key constraints referring to the index. */
+		mode = index->is_spatial()
+			? ulint(BTR_MODIFY_LEAF | BTR_RTREE_DELETE_MARK)
+			: referenced
+			? ulint(BTR_MODIFY_LEAF) : ulint(BTR_DELETE_MARK_LEAF);
 		break;
-	}
-
-	bool uncommitted = !index->is_committed();
-
-	if (uncommitted) {
-		/* The index->online_status may change if the index is
-		or was being created online, but not committed yet. It
-		is protected by index->lock. */
-
-		mtr_s_lock_index(index, &mtr);
-
-		switch (dict_index_get_online_status(index)) {
-		case ONLINE_INDEX_COMPLETE:
-			/* This is a normal index. Do not log anything.
-			Perform the update on the index tree directly. */
-			break;
-		case ONLINE_INDEX_CREATION:
-			/* Log a DELETE and optionally INSERT. */
-			row_log_online_op(index, entry, 0);
-
-			if (!node->is_delete) {
-				mem_heap_empty(heap);
-				entry = row_build_index_entry(
-					node->upd_row, node->upd_ext,
-					index, heap);
-				ut_a(entry);
-				row_log_online_op(index, entry, trx->id);
-			}
-			/* fall through */
-		case ONLINE_INDEX_ABORTED:
-		case ONLINE_INDEX_ABORTED_DROPPED:
-			mtr_commit(&mtr);
-			goto func_exit;
-		}
-
-		/* We can only buffer delete-mark operations if there
-		are no foreign key constraints referring to the index.
-		Change buffering is disabled for temporary tables and
-		spatial index. */
-		mode = (referenced || index->table->is_temporary()
-			|| dict_index_is_spatial(index))
-			? BTR_MODIFY_LEAF_ALREADY_S_LATCHED
-			: BTR_DELETE_MARK_LEAF_ALREADY_S_LATCHED;
-	} else {
-		/* For secondary indexes,
-		index->online_status==ONLINE_INDEX_COMPLETE if
-		index->is_committed(). */
-		ut_ad(!dict_index_is_online_ddl(index));
-
-		/* We can only buffer delete-mark operations if there
-		are no foreign key constraints referring to the index.
-		Change buffering is disabled for temporary tables and
-		spatial index. */
-		mode = (referenced || index->table->is_temporary()
-			|| dict_index_is_spatial(index))
-			? BTR_MODIFY_LEAF
-			: BTR_DELETE_MARK_LEAF;
-	}
-
-	if (dict_index_is_spatial(index)) {
-		ut_ad(mode & BTR_MODIFY_LEAF);
-		mode |= BTR_RTREE_DELETE_MARK;
 	}
 
 	/* Set the query thread, so that ibuf_insert_low() will be
@@ -2020,19 +1955,6 @@ row_upd_sec_index_entry(
 		break;
 
 	case ROW_NOT_FOUND:
-		if (!index->is_committed()) {
-			/* When online CREATE INDEX copied the update
-			that we already made to the clustered index,
-			and completed the secondary index creation
-			before we got here, the old secondary index
-			record would not exist. The CREATE INDEX
-			should be waiting for a MySQL meta-data lock
-			upgrade at least until this UPDATE returns.
-			After that point, set_committed(true) would be
-			invoked by commit_inplace_alter_table(). */
-			break;
-		}
-
 		if (dict_index_is_spatial(index) && btr_cur->rtr_info->fd_del) {
 			/* We found the record, but a delete marked */
 			break;
@@ -2139,34 +2061,10 @@ row_upd_sec_index_entry(
 	DEBUG_SYNC_C_IF_THD(trx->mysql_thd,
 			    "before_row_upd_sec_new_index_entry");
 
-	uncommitted = !index->is_committed();
-	if (uncommitted) {
-		mtr.start();
-		/* The index->online_status may change if the index is
-		being rollbacked. It is protected by index->lock. */
-
-		mtr_s_lock_index(index, &mtr);
-
-		switch (dict_index_get_online_status(index)) {
-		case ONLINE_INDEX_COMPLETE:
-		case ONLINE_INDEX_CREATION:
-		       break;
-		case ONLINE_INDEX_ABORTED:
-		case ONLINE_INDEX_ABORTED_DROPPED:
-		       mtr_commit(&mtr);
-		       goto func_exit;
-		}
-
-	}
-
 	/* Build a new index entry */
 	entry = row_build_index_entry(node->upd_row, node->upd_ext,
 				      index, heap);
 	ut_a(entry);
-
-	if (uncommitted) {
-		mtr_commit(&mtr);
-	}
 
 	/* Insert new index entry */
 	err = row_ins_sec_index_entry(index, entry, thr, !node->is_delete);
@@ -2488,7 +2386,6 @@ row_upd_clust_rec(
 	btr_pcur_t*	pcur;
 	btr_cur_t*	btr_cur;
 	dberr_t		err;
-	const dtuple_t*	rebuilt_old_pk	= NULL;
 
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(!thr_get_trx(thr)->in_rollback);
@@ -2501,11 +2398,6 @@ row_upd_clust_rec(
 	ut_ad(!rec_get_deleted_flag(btr_cur_get_rec(btr_cur),
 				    dict_table_is_comp(index->table)));
 	ut_ad(rec_offs_validate(btr_cur_get_rec(btr_cur), index, offsets));
-
-	if (dict_index_is_online_ddl(index)) {
-		rebuilt_old_pk = row_log_table_get_pk(
-			btr_cur_get_rec(btr_cur), index, offsets, NULL, &heap);
-	}
 
 	/* Try optimistic updating of the record, keeping changes within
 	the page; we do not check locks because we assume the x-lock on the
@@ -2524,7 +2416,7 @@ row_upd_clust_rec(
 	}
 
 	if (err == DB_SUCCESS) {
-		goto success;
+		goto func_exit;
 	}
 
 	if (buf_pool.running_out()) {
@@ -2575,15 +2467,6 @@ row_upd_clust_rec(
 		err = btr_store_big_rec_extern_fields(
 			pcur, offsets, big_rec, mtr, BTR_STORE_UPDATE);
 		DEBUG_SYNC_C("after_row_upd_extern");
-	}
-
-	if (err == DB_SUCCESS) {
-success:
-		if (dict_index_is_online_ddl(index)) {
-			row_log_table_update(
-				btr_cur_get_rec(btr_cur),
-				index, offsets, rebuilt_old_pk);
-		}
 	}
 
 func_exit:
@@ -2932,7 +2815,8 @@ row_upd(
 			break;
 		}
 
-		if (node->index->type != DICT_FTS) {
+		if (!(node->index->type & DICT_FTS)
+		    && node->index->is_committed()) {
 			err = row_upd_sec_step(node, thr);
 
 			if (err != DB_SUCCESS) {
@@ -2999,7 +2883,7 @@ row_upd_step(
 			/* It may be that the current session has not yet
 			started its transaction, or it has been committed: */
 
-			err = lock_table(node->table, LOCK_IX, thr);
+			err = lock_table(node->table, nullptr, LOCK_IX, thr);
 
 			if (err != DB_SUCCESS) {
 

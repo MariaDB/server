@@ -767,6 +767,7 @@ int ha_partition::create(const char *name, TABLE *table_arg,
 			 HA_CREATE_INFO *create_info)
 {
   int error;
+  THD *thd= ha_thd();
   char name_buff[FN_REFLEN + 1], name_lc_buff[FN_REFLEN];
   char *name_buffer_ptr;
   const char *path;
@@ -785,8 +786,27 @@ int ha_partition::create(const char *name, TABLE *table_arg,
     my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0), "CREATE TEMPORARY TABLE");
     DBUG_RETURN(TRUE);
   }
+  /*
+    The following block should be removed once the table-level data directory
+    specification is supported by the partitioning engine (MDEV-28108).
+  */
+  if (thd_sql_command(thd) == SQLCOM_ALTER_TABLE && create_info)
+  {
+    if (create_info->data_file_name)
+    {
+      push_warning_printf(
+          thd, Sql_condition::WARN_LEVEL_WARN, WARN_OPTION_IGNORED,
+          "<DATA DIRECTORY> table option of old schema is ignored");
+    }
+    if (create_info->index_file_name)
+    {
+      push_warning_printf(
+          thd, Sql_condition::WARN_LEVEL_WARN, WARN_OPTION_IGNORED,
+          "<INDEX DIRECTORY> table option of old schema is ignored");
+    }
+  }
 
-  if (get_from_handler_file(name, ha_thd()->mem_root, false))
+  if (get_from_handler_file(name, thd->mem_root, false))
     DBUG_RETURN(TRUE);
   DBUG_ASSERT(m_file_buffer);
   name_buffer_ptr= m_name_buffer_ptr;

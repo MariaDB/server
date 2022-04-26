@@ -418,13 +418,13 @@ void lock_sys_t::wr_lock(const char *file, unsigned line)
 {
   mysql_mutex_assert_not_owner(&wait_mutex);
   latch.wr_lock(file, line);
-  ut_ad(!writer.exchange(os_thread_get_curr_id(), std::memory_order_relaxed));
+  ut_ad(!writer.exchange(pthread_self(), std::memory_order_relaxed));
 }
 /** Release exclusive lock_sys.latch */
 void lock_sys_t::wr_unlock()
 {
   ut_ad(writer.exchange(0, std::memory_order_relaxed) ==
-        os_thread_get_curr_id());
+        pthread_self());
   latch.wr_unlock();
 }
 
@@ -3460,59 +3460,53 @@ static dberr_t lock_table_wsrep(dict_table_t *table, lock_mode mode,
 }
 #endif
 
-/*********************************************************************//**
-Locks the specified database table in the mode given. If the lock cannot
-be granted immediately, the query thread is put to wait.
-@return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
-dberr_t
-lock_table(
-/*=======*/
-	dict_table_t*	table,	/*!< in/out: database table
-				in dictionary cache */
-	lock_mode	mode,	/*!< in: lock mode */
-	que_thr_t*	thr)	/*!< in: query thread */
+/** Acquire a table lock.
+@param table   table to be locked
+@param fktable pointer to table, in case of a FOREIGN key check
+@param mode    lock mode
+@param thr     SQL execution thread
+@retval DB_SUCCESS    if the lock was acquired
+@retval DB_DEADLOCK   if a deadlock occurred, or fktable && *fktable != table
+@retval DB_LOCK_WAIT  if lock_wait() must be invoked */
+dberr_t lock_table(dict_table_t *table, dict_table_t *const*fktable,
+                   lock_mode mode, que_thr_t *thr)
 {
-	trx_t*		trx;
+  ut_ad(table);
 
-	if (table->is_temporary()) {
-		return DB_SUCCESS;
-	}
+  if (!fktable && table->is_temporary())
+    return DB_SUCCESS;
 
-	trx = thr_get_trx(thr);
+  ut_ad(fktable || table->get_ref_count() || !table->can_be_evicted);
 
-	/* Look for equal or stronger locks the same trx already
-	has on the table. No need to acquire LockMutexGuard here
-	because only this transaction can add/access table locks
-	to/from trx_t::table_locks. */
+  trx_t *trx= thr_get_trx(thr);
 
-	if (lock_table_has(trx, table, mode) || srv_read_only_mode) {
-		return(DB_SUCCESS);
-	}
+  /* Look for equal or stronger locks the same trx already has on the
+  table. No need to acquire LockMutexGuard here because only the
+  thread that is executing a transaction can access trx_t::table_locks. */
+  if (lock_table_has(trx, table, mode) || srv_read_only_mode)
+    return DB_SUCCESS;
 
-	/* Read only transactions can write to temp tables, we don't want
-	to promote them to RW transactions. Their updates cannot be visible
-	to other transactions. Therefore we can keep them out
-	of the read views. */
-
-	if ((mode == LOCK_IX || mode == LOCK_X)
-	    && !trx->read_only
-	    && trx->rsegs.m_redo.rseg == 0) {
-
-		trx_set_rw_mode(trx);
-	}
+  if ((mode == LOCK_IX || mode == LOCK_X) &&
+      !trx->read_only && !trx->rsegs.m_redo.rseg)
+    trx_set_rw_mode(trx);
 
 #ifdef WITH_WSREP
-	if (trx->is_wsrep()) {
-		return lock_table_wsrep(table, mode, thr, trx);
-	}
+  if (trx->is_wsrep())
+    return lock_table_wsrep(table, mode, thr, trx);
 #endif
-	lock_sys.rd_lock(SRW_LOCK_CALL);
-	table->lock_mutex_lock();
-	dberr_t err = lock_table_low(table, mode, thr, trx);
-	table->lock_mutex_unlock();
-	lock_sys.rd_unlock();
+  lock_sys.rd_lock(SRW_LOCK_CALL);
+  dberr_t err;
+  if (fktable != nullptr && *fktable != table)
+    err= DB_DEADLOCK;
+  else
+  {
+    table->lock_mutex_lock();
+    err= lock_table_low(table, mode, thr, trx);
+    table->lock_mutex_unlock();
+  }
+  lock_sys.rd_unlock();
 
-	return err;
+  return err;
 }
 
 /** Create a table lock object for a resurrected transaction.
@@ -3649,7 +3643,7 @@ dberr_t lock_table_for_trx(dict_table_t *table, trx_t *trx, lock_mode mode,
 run_again:
   thr->run_node= thr;
   thr->prev_node= thr->common.parent;
-  dberr_t err= lock_table(table, mode, thr);
+  dberr_t err= lock_table(table, nullptr, mode, thr);
 
   switch (err) {
   case DB_SUCCESS:
@@ -3820,7 +3814,7 @@ restart:
       ut_ad(!lock->index->table->is_temporary());
       ut_ad(lock->mode() != LOCK_X ||
             lock->index->table->id >= DICT_HDR_FIRST_ID ||
-            trx->dict_operation);
+            trx->dict_operation || trx->was_dict_operation);
       auto &lock_hash= lock_sys.hash_get(lock->type_mode);
       auto cell= lock_hash.cell_get(lock->un_member.rec_lock.page_id.fold());
       auto latch= lock_sys_t::hash_table::latch(cell);
@@ -3838,7 +3832,7 @@ restart:
       ut_ad(!table->is_temporary());
       ut_ad(table->id >= DICT_HDR_FIRST_ID ||
             (lock->mode() != LOCK_IX && lock->mode() != LOCK_X) ||
-            trx->dict_operation);
+            trx->dict_operation || trx->was_dict_operation);
       if (!table->lock_mutex_trylock())
         all_released= false;
       else
@@ -3895,7 +3889,7 @@ restart:
       ut_ad(!lock->index->table->is_temporary());
       ut_ad(lock->mode() != LOCK_X ||
             lock->index->table->id >= DICT_HDR_FIRST_ID ||
-            trx->dict_operation);
+            trx->dict_operation || trx->was_dict_operation);
       lock_rec_dequeue_from_page(lock, false);
     }
     else
@@ -3904,7 +3898,7 @@ restart:
       ut_ad(!table->is_temporary());
       ut_ad(table->id >= DICT_HDR_FIRST_ID ||
             (lock->mode() != LOCK_IX && lock->mode() != LOCK_X) ||
-            trx->dict_operation);
+            trx->dict_operation || trx->was_dict_operation);
       lock_table_dequeue(lock, false);
     }
 
@@ -3939,6 +3933,38 @@ released:
         dict_sys.remove(table, true);
   dict_sys.unlock();
 #endif
+}
+
+/** Release the explicit locks of a committing transaction while
+dict_sys.latch is exclusively locked,
+and release possible other transactions waiting because of these locks. */
+void lock_release_on_drop(trx_t *trx)
+{
+  ut_ad(lock_sys.is_writer());
+  ut_ad(trx->mutex_is_owner());
+  ut_ad(trx->dict_operation);
+
+  while (lock_t *lock= UT_LIST_GET_LAST(trx->lock.trx_locks))
+  {
+    ut_ad(lock->trx == trx);
+    if (!lock->is_table())
+    {
+      ut_ad(!lock->index->table->is_temporary());
+      ut_ad(lock->mode() != LOCK_X ||
+            lock->index->table->id >= DICT_HDR_FIRST_ID ||
+            trx->dict_operation);
+      lock_rec_dequeue_from_page(lock, false);
+    }
+    else
+    {
+      ut_d(dict_table_t *table= lock->un_member.tab_lock.table);
+      ut_ad(!table->is_temporary());
+      ut_ad(table->id >= DICT_HDR_FIRST_ID ||
+            (lock->mode() != LOCK_IX && lock->mode() != LOCK_X) ||
+            trx->dict_operation);
+      lock_table_dequeue(lock, false);
+    }
+  }
 }
 
 /** Release non-exclusive locks on XA PREPARE,

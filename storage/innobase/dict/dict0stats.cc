@@ -3115,7 +3115,9 @@ release_and_exit:
 		ret = lock_table_for_trx(index_stats, trx, LOCK_X);
 	}
 	if (ret != DB_SUCCESS) {
-		trx->commit();
+		if (trx->state != TRX_STATE_NOT_STARTED) {
+			trx->commit();
+		}
 		goto unlocked_free_and_exit;
 	}
 

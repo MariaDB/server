@@ -1,5 +1,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/no_protocol.inc
 
 CREATE TABLE t (i int primary key auto_increment, j varchar(20) character set utf8);
 

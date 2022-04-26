@@ -836,6 +836,117 @@ inline void dict_table_t::rollback_instant(
 	}
 }
 
+/* Report an InnoDB error to the client by invoking my_error(). */
+static ATTRIBUTE_COLD __attribute__((nonnull))
+void
+my_error_innodb(
+/*============*/
+	dberr_t		error,	/*!< in: InnoDB error code */
+	const char*	table,	/*!< in: table name */
+	ulint		flags)	/*!< in: table flags */
+{
+	switch (error) {
+	case DB_MISSING_HISTORY:
+		my_error(ER_TABLE_DEF_CHANGED, MYF(0));
+		break;
+	case DB_RECORD_NOT_FOUND:
+		my_error(ER_KEY_NOT_FOUND, MYF(0), table);
+		break;
+	case DB_DEADLOCK:
+		my_error(ER_LOCK_DEADLOCK, MYF(0));
+		break;
+	case DB_LOCK_WAIT_TIMEOUT:
+		my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+		break;
+	case DB_INTERRUPTED:
+		my_error(ER_QUERY_INTERRUPTED, MYF(0));
+		break;
+	case DB_OUT_OF_MEMORY:
+		my_error(ER_OUT_OF_RESOURCES, MYF(0));
+		break;
+	case DB_OUT_OF_FILE_SPACE:
+		my_error(ER_RECORD_FILE_FULL, MYF(0), table);
+		break;
+	case DB_TEMP_FILE_WRITE_FAIL:
+		my_error(ER_TEMP_FILE_WRITE_FAILURE, MYF(0));
+		break;
+	case DB_TOO_BIG_INDEX_COL:
+		my_error(ER_INDEX_COLUMN_TOO_LONG, MYF(0),
+			 (ulong) DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(flags));
+		break;
+	case DB_TOO_MANY_CONCURRENT_TRXS:
+		my_error(ER_TOO_MANY_CONCURRENT_TRXS, MYF(0));
+		break;
+	case DB_LOCK_TABLE_FULL:
+		my_error(ER_LOCK_TABLE_FULL, MYF(0));
+		break;
+	case DB_UNDO_RECORD_TOO_BIG:
+		my_error(ER_UNDO_RECORD_TOO_BIG, MYF(0));
+		break;
+	case DB_CORRUPTION:
+		my_error(ER_NOT_KEYFILE, MYF(0), table);
+		break;
+	case DB_TOO_BIG_RECORD: {
+		/* Note that in page0zip.ic page_zip_rec_needs_ext() rec_size
+		is limited to COMPRESSED_REC_MAX_DATA_SIZE (16K) or
+		REDUNDANT_REC_MAX_DATA_SIZE (16K-1). */
+		bool comp = !!(flags & DICT_TF_COMPACT);
+		ulint free_space = page_get_free_space_of_empty(comp) / 2;
+
+		if (free_space >= ulint(comp ? COMPRESSED_REC_MAX_DATA_SIZE :
+					  REDUNDANT_REC_MAX_DATA_SIZE)) {
+			free_space = (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
+				REDUNDANT_REC_MAX_DATA_SIZE) - 1;
+		}
+
+		my_error(ER_TOO_BIG_ROWSIZE, MYF(0), free_space);
+		break;
+	}
+	case DB_INVALID_NULL:
+		/* TODO: report the row, as we do for DB_DUPLICATE_KEY */
+		my_error(ER_INVALID_USE_OF_NULL, MYF(0));
+		break;
+	case DB_CANT_CREATE_GEOMETRY_OBJECT:
+		my_error(ER_CANT_CREATE_GEOMETRY_OBJECT, MYF(0));
+		break;
+	case DB_TABLESPACE_EXISTS:
+		my_error(ER_TABLESPACE_EXISTS, MYF(0), table);
+		break;
+
+#ifdef UNIV_DEBUG
+	case DB_SUCCESS:
+	case DB_DUPLICATE_KEY:
+	case DB_ONLINE_LOG_TOO_BIG:
+		/* These codes should not be passed here. */
+		ut_error;
+#endif /* UNIV_DEBUG */
+	default:
+		my_error(ER_GET_ERRNO, MYF(0), error, "InnoDB");
+		break;
+	}
+}
+
+/** Get the name of an erroneous key.
+@param[in]	error_key_num	InnoDB number of the erroneus key
+@param[in]	ha_alter_info	changes that were being performed
+@param[in]	table		InnoDB table
+@return	the name of the erroneous key */
+static
+const char*
+get_error_key_name(
+	ulint				error_key_num,
+	const Alter_inplace_info*	ha_alter_info,
+	const dict_table_t*		table)
+{
+	if (error_key_num == ULINT_UNDEFINED) {
+		return(FTS_DOC_ID_INDEX_NAME);
+	} else if (ha_alter_info->key_count == 0) {
+		return(dict_table_get_first_index(table)->name);
+	} else {
+		return(ha_alter_info->key_info_buffer[error_key_num].name.str);
+	}
+}
+
 struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 {
 	/** Dummy query graph */
@@ -1173,102 +1284,51 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
         return true;
     return false;
   }
+
+  /** Handle the apply log failure for online DDL operation.
+  @param ha_alter_info    handler alter inplace info
+  @param altered_table    MySQL table that is being altered
+  @param error            error code
+  @retval false if error value is DB_SUCCESS or
+  TRUE in case of error */
+  bool log_failure(Alter_inplace_info *ha_alter_info,
+                   TABLE *altered_table, dberr_t error)
+  {
+    ulint err_key= thr_get_trx(thr)->error_key_num;
+    switch (error) {
+      KEY *dup_key;
+    case DB_SUCCESS:
+      return false;
+    case DB_DUPLICATE_KEY:
+      if (err_key == ULINT_UNDEFINED)
+        /* This should be the hidden index on FTS_DOC_ID */
+        dup_key= nullptr;
+      else
+      {
+        DBUG_ASSERT(err_key < ha_alter_info->key_count);
+        dup_key= &ha_alter_info->key_info_buffer[err_key];
+      }
+      print_keydup_error(altered_table, dup_key, MYF(0));
+      break;
+    case DB_ONLINE_LOG_TOO_BIG:
+      my_error(ER_INNODB_ONLINE_LOG_TOO_BIG, MYF(0),
+               get_error_key_name(err_key, ha_alter_info, new_table));
+      break;
+    case DB_INDEX_CORRUPT:
+      my_error(ER_INDEX_CORRUPT, MYF(0),
+               get_error_key_name(err_key, ha_alter_info, new_table));
+      break;
+    default:
+      my_error_innodb(error, old_table->name.m_name, old_table->flags);
+    }
+    return true;
+  }
 };
 
 /********************************************************************//**
 Get the upper limit of the MySQL integral and floating-point type.
 @return maximum allowed value for the field */
 ulonglong innobase_get_int_col_max_value(const Field *field);
-
-/* Report an InnoDB error to the client by invoking my_error(). */
-static ATTRIBUTE_COLD __attribute__((nonnull))
-void
-my_error_innodb(
-/*============*/
-	dberr_t		error,	/*!< in: InnoDB error code */
-	const char*	table,	/*!< in: table name */
-	ulint		flags)	/*!< in: table flags */
-{
-	switch (error) {
-	case DB_MISSING_HISTORY:
-		my_error(ER_TABLE_DEF_CHANGED, MYF(0));
-		break;
-	case DB_RECORD_NOT_FOUND:
-		my_error(ER_KEY_NOT_FOUND, MYF(0), table);
-		break;
-	case DB_DEADLOCK:
-		my_error(ER_LOCK_DEADLOCK, MYF(0));
-		break;
-	case DB_LOCK_WAIT_TIMEOUT:
-		my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
-		break;
-	case DB_INTERRUPTED:
-		my_error(ER_QUERY_INTERRUPTED, MYF(0));
-		break;
-	case DB_OUT_OF_MEMORY:
-		my_error(ER_OUT_OF_RESOURCES, MYF(0));
-		break;
-	case DB_OUT_OF_FILE_SPACE:
-		my_error(ER_RECORD_FILE_FULL, MYF(0), table);
-		break;
-	case DB_TEMP_FILE_WRITE_FAIL:
-		my_error(ER_TEMP_FILE_WRITE_FAILURE, MYF(0));
-		break;
-	case DB_TOO_BIG_INDEX_COL:
-		my_error(ER_INDEX_COLUMN_TOO_LONG, MYF(0),
-			 (ulong) DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(flags));
-		break;
-	case DB_TOO_MANY_CONCURRENT_TRXS:
-		my_error(ER_TOO_MANY_CONCURRENT_TRXS, MYF(0));
-		break;
-	case DB_LOCK_TABLE_FULL:
-		my_error(ER_LOCK_TABLE_FULL, MYF(0));
-		break;
-	case DB_UNDO_RECORD_TOO_BIG:
-		my_error(ER_UNDO_RECORD_TOO_BIG, MYF(0));
-		break;
-	case DB_CORRUPTION:
-		my_error(ER_NOT_KEYFILE, MYF(0), table);
-		break;
-	case DB_TOO_BIG_RECORD: {
-		/* Note that in page0zip.ic page_zip_rec_needs_ext() rec_size
-		is limited to COMPRESSED_REC_MAX_DATA_SIZE (16K) or
-		REDUNDANT_REC_MAX_DATA_SIZE (16K-1). */
-		bool comp = !!(flags & DICT_TF_COMPACT);
-		ulint free_space = page_get_free_space_of_empty(comp) / 2;
-
-		if (free_space >= ulint(comp ? COMPRESSED_REC_MAX_DATA_SIZE :
-					  REDUNDANT_REC_MAX_DATA_SIZE)) {
-			free_space = (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
-				REDUNDANT_REC_MAX_DATA_SIZE) - 1;
-		}
-
-		my_error(ER_TOO_BIG_ROWSIZE, MYF(0), free_space);
-		break;
-	}
-	case DB_INVALID_NULL:
-		/* TODO: report the row, as we do for DB_DUPLICATE_KEY */
-		my_error(ER_INVALID_USE_OF_NULL, MYF(0));
-		break;
-	case DB_CANT_CREATE_GEOMETRY_OBJECT:
-		my_error(ER_CANT_CREATE_GEOMETRY_OBJECT, MYF(0));
-		break;
-	case DB_TABLESPACE_EXISTS:
-		my_error(ER_TABLESPACE_EXISTS, MYF(0), table);
-		break;
-
-#ifdef UNIV_DEBUG
-	case DB_SUCCESS:
-	case DB_DUPLICATE_KEY:
-	case DB_ONLINE_LOG_TOO_BIG:
-		/* These codes should not be passed here. */
-		ut_error;
-#endif /* UNIV_DEBUG */
-	default:
-		my_error(ER_GET_ERRNO, MYF(0), error, "InnoDB");
-		break;
-	}
-}
 
 /** Determine if fulltext indexes exist in a given table.
 @param table MySQL table
@@ -2828,7 +2888,7 @@ no_match:
 				= key_part.field->pack_length();
 
 			/* Any index on virtual columns cannot be used
-			for reference constaint */
+			for reference constraint */
 			if (!key_part.field->stored_in_db()) {
 				goto no_match;
 			}
@@ -7011,6 +7071,8 @@ error_handling_drop_uncached:
 						row_log_free(
 							index->online_log);
 						index->online_log = NULL;
+						ctx->old_table->indexes.start
+							->online_log = nullptr;
 						ok = false;
 					});
 
@@ -7133,24 +7195,8 @@ error_handling:
 
 	ctx->trx->rollback();
 
-	if (ctx->need_rebuild()) {
-		/* Free the log for online table rebuild, if
-		one was allocated. */
-
-		dict_index_t* clust_index = dict_table_get_first_index(
-			user_table);
-
-		clust_index->lock.x_lock(SRW_LOCK_CALL);
-
-		if (clust_index->online_log) {
-			ut_ad(ctx->online);
-			row_log_abort_sec(clust_index);
-			clust_index->online_status
-				= ONLINE_INDEX_COMPLETE;
-		}
-
-		clust_index->lock.x_unlock();
-	}
+	ut_ad(!ctx->need_rebuild()
+	      || !user_table->indexes.start->online_log);
 
 	ctx->prebuilt->trx->error_info = NULL;
 	ctx->trx->error_state = DB_SUCCESS;
@@ -8323,27 +8369,6 @@ alter_templ_needs_rebuild(
 	return(false);
 }
 
-/** Get the name of an erroneous key.
-@param[in]	error_key_num	InnoDB number of the erroneus key
-@param[in]	ha_alter_info	changes that were being performed
-@param[in]	table		InnoDB table
-@return	the name of the erroneous key */
-static
-const char*
-get_error_key_name(
-	ulint				error_key_num,
-	const Alter_inplace_info*	ha_alter_info,
-	const dict_table_t*		table)
-{
-	if (error_key_num == ULINT_UNDEFINED) {
-		return(FTS_DOC_ID_INDEX_NAME);
-	} else if (ha_alter_info->key_count == 0) {
-		return(dict_table_get_first_index(table)->name);
-	} else {
-		return(ha_alter_info->key_info_buffer[error_key_num].name.str);
-	}
-}
-
 /** Alter the table structure in-place with operations
 specified using Alter_inplace_info.
 The level of concurrency allowed during this operation depends
@@ -8708,6 +8733,7 @@ inline bool rollback_inplace_alter_table(Alter_inplace_info *ha_alter_info,
 
   DBUG_ENTER("rollback_inplace_alter_table");
 
+  DEBUG_SYNC_C("innodb_rollback_inplace_alter_table");
   if (!ctx)
     /* If we have not started a transaction yet,
     (almost) nothing has been or needs to be done. */
@@ -8771,7 +8797,10 @@ inline bool rollback_inplace_alter_table(Alter_inplace_info *ha_alter_info,
         thd_lock_wait_timeout(ctx->trx->mysql_thd);
       const uint save_timeout= innodb_lock_wait_timeout;
       innodb_lock_wait_timeout= ~0U; /* infinite  */
-
+      dict_index_t *old_clust_index= ctx->old_table->indexes.start;
+      old_clust_index->lock.x_lock(SRW_LOCK_CALL);
+      old_clust_index->online_log= nullptr;
+      old_clust_index->lock.x_unlock();
       if (fts_exist)
       {
         const dict_index_t *fts_index= nullptr;
@@ -8855,7 +8884,6 @@ free_and_exit:
     }
   }
 
-  DBUG_ASSERT(!prebuilt->table->indexes.start->online_log);
   DBUG_ASSERT(prebuilt->table->indexes.start->online_status ==
               ONLINE_INDEX_COMPLETE);
 
@@ -10734,7 +10762,6 @@ static bool alter_rebuild_apply_log(
 	dropped were not created in the copy of the table. Apply any
 	last bit of the rebuild log and then rename the tables. */
 	dict_table_t*	user_table = ctx->old_table;
-	dict_table_t*	rebuilt_table = ctx->new_table;
 
 	DEBUG_SYNC_C("row_log_table_apply2_before");
 
@@ -10763,41 +10790,8 @@ static bool alter_rebuild_apply_log(
 		ctx->new_table->vc_templ = NULL;
 	}
 
-	ulint	err_key = thr_get_trx(ctx->thr)->error_key_num;
-
-	switch (error) {
-		KEY*	dup_key;
-	case DB_SUCCESS:
-		break;
-	case DB_DUPLICATE_KEY:
-		if (err_key == ULINT_UNDEFINED) {
-			/* This should be the hidden index on
-			   FTS_DOC_ID. */
-			dup_key = NULL;
-		} else {
-			DBUG_ASSERT(err_key < ha_alter_info->key_count);
-			dup_key = &ha_alter_info->key_info_buffer[err_key];
-		}
-
-		print_keydup_error(altered_table, dup_key, MYF(0));
-		DBUG_RETURN(true);
-	case DB_ONLINE_LOG_TOO_BIG:
-		my_error(ER_INNODB_ONLINE_LOG_TOO_BIG, MYF(0),
-			 get_error_key_name(err_key, ha_alter_info,
-					    rebuilt_table));
-		DBUG_RETURN(true);
-	case DB_INDEX_CORRUPT:
-		my_error(ER_INDEX_CORRUPT, MYF(0),
-			 get_error_key_name(err_key, ha_alter_info,
-					    rebuilt_table));
-		DBUG_RETURN(true);
-	default:
-		my_error_innodb(error, ctx->old_table->name.m_name,
-				user_table->flags);
-		DBUG_RETURN(true);
-	}
-
-	DBUG_RETURN(false);
+	DBUG_RETURN(ctx->log_failure(
+			ha_alter_info, altered_table, error));
 }
 
 /** Commit or rollback the changes made during
@@ -10988,6 +10982,72 @@ lock_fail:
 				DBUG_RETURN(true);
 			}
 		}
+	} else {
+		dberr_t error= DB_SUCCESS;
+		for (inplace_alter_handler_ctx** pctx= ctx_array; *pctx;
+		     pctx++) {
+			auto ctx= static_cast<ha_innobase_inplace_ctx*>(*pctx);
+
+			if (!ctx->online || !ctx->old_table->space
+			    || !ctx->old_table->is_readable()) {
+				continue;
+			}
+
+			for (ulint i = 0; i < ctx->num_to_add_index; i++) {
+				dict_index_t *index= ctx->add_index[i];
+
+				ut_ad(!(index->type &
+					(DICT_FTS | DICT_SPATIAL)));
+
+				index->lock.x_lock(SRW_LOCK_CALL);
+				if (!index->online_log) {
+					/* online log would've cleared
+					when we detect the error in
+					other index */
+					index->lock.x_unlock();
+					continue;
+				}
+
+				if (index->is_corrupted()) {
+					/* Online index log has been
+					preserved to show the error
+					when it happened via
+					row_log_apply() by DML thread */
+					error= row_log_get_error(index);
+err_index:
+					ut_ad(error != DB_SUCCESS);
+					ctx->log_failure(
+						ha_alter_info,
+						altered_table, error);
+					row_log_free(index->online_log);
+					index->online_log= nullptr;
+					index->lock.x_unlock();
+
+					ctx->old_table->indexes.start
+						->online_log= nullptr;
+					if (fts_exist) {
+						purge_sys.resume_FTS();
+					}
+					MONITOR_ATOMIC_INC(
+						MONITOR_BACKGROUND_DROP_INDEX);
+					DBUG_RETURN(true);
+				}
+
+				error = row_log_apply(
+					m_prebuilt->trx, index, altered_table,
+					ctx->m_stage);
+
+				if (error != DB_SUCCESS) {
+					goto err_index;
+				}
+
+				row_log_free(index->online_log);
+				index->online_log= nullptr;
+				index->lock.x_unlock();
+			}
+
+			ctx->old_table->indexes.start->online_log= nullptr;
+		}
 	}
 
 	dict_table_t *table_stats = nullptr, *index_stats = nullptr;
@@ -11020,6 +11080,10 @@ lock_fail:
 			error = lock_table_for_trx(index_stats, trx, LOCK_X);
 		}
 	}
+
+	DBUG_EXECUTE_IF("stats_lock_fail",
+			error = DB_LOCK_WAIT;);
+
 	if (error == DB_SUCCESS) {
 		error = lock_sys_tables(trx);
 	}

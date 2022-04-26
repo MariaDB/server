@@ -213,6 +213,7 @@ connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR scanned';
 BEGIN;
 INSERT INTO t1 VALUES(2,1);
+COMMIT;
 SET DEBUG_SYNC = 'now SIGNAL commit';
 SET DEBUG_SYNC = 'now WAIT_FOR c';
 # Make all pending changes durable for recovery.

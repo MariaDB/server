@@ -412,7 +412,7 @@ private:
   static constexpr uint32_t PENDING= ~(STOPPING | CLOSING | NEEDS_FSYNC);
   /** latch protecting all page allocation bitmap pages */
   srw_lock latch;
-  os_thread_id_t latch_owner;
+  pthread_t latch_owner;
   ut_d(Atomic_relaxed<uint32_t> latch_count;)
 public:
 	/** MariaDB encryption data */
@@ -990,20 +990,20 @@ public:
 #ifdef UNIV_DEBUG
   bool is_latched() const { return latch_count != 0; }
 #endif
-  bool is_owner() const { return latch_owner == os_thread_get_curr_id(); }
+  bool is_owner() const { return latch_owner == pthread_self(); }
   /** Acquire the allocation latch in exclusive mode */
   void x_lock()
   {
     latch.wr_lock(SRW_LOCK_CALL);
     ut_ad(!latch_owner);
-    latch_owner= os_thread_get_curr_id();
+    latch_owner= pthread_self();
     ut_ad(!latch_count.fetch_add(1));
   }
   /** Release the allocation latch from exclusive mode */
   void x_unlock()
   {
     ut_ad(latch_count.fetch_sub(1) == 1);
-    ut_ad(latch_owner == os_thread_get_curr_id());
+    ut_ad(latch_owner == pthread_self());
     latch_owner= 0;
     latch.wr_unlock();
   }
