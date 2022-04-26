@@ -31,33 +31,6 @@ ROLLBACK;
 connection default;
 SELECT * FROM t1;
 SHOW CREATE TABLE t1;
-
-# Online alter logs ROW_LOG_EMPTY when table does bulk insert
-INSERT INTO t1 VALUES(1, 1);
-connection con1;
-START TRANSACTION WITH CONSISTENT SNAPSHOT;
-connect(con2,localhost,root,,,);
-DELETE FROM t1;
-connection default;
-SET DEBUG_SYNC="innodb_inplace_alter_table_enter SIGNAL purge_resume WAIT_FOR dml_commit";
-send ALTER TABLE t1 ADD INDEX(f2, f1);
-connection con1;
-COMMIT;
-connection con2;
-let $wait_all_purged=1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
---source include/wait_all_purged.inc
-SET unique_checks=0, foreign_key_checks=0;
-BEGIN;
-INSERT INTO t1 VALUES(2, 2);
-ROLLBACK;
-SET DEBUG_SYNC="now SIGNAL dml_commit";
-
-connection default;
-reap;
-SHOW CREATE TABLE t1;
 disconnect con1;
-disconnect con2;
 DROP TABLE t1;
 SET DEBUG_SYNC=RESET;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=default;

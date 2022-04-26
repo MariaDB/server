@@ -27,35 +27,6 @@ t1	CREATE TABLE `t1` (
   `f2` int(11) NOT NULL,
   PRIMARY KEY (`f1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-INSERT INTO t1 VALUES(1, 1);
-connection con1;
-START TRANSACTION WITH CONSISTENT SNAPSHOT;
-connect con2,localhost,root,,,;
-DELETE FROM t1;
-connection default;
-SET DEBUG_SYNC="innodb_inplace_alter_table_enter SIGNAL purge_resume WAIT_FOR dml_commit";
-ALTER TABLE t1 ADD INDEX(f2, f1);
-connection con1;
-COMMIT;
-connection con2;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
-InnoDB		1 transactions not purged
-SET unique_checks=0, foreign_key_checks=0;
-BEGIN;
-INSERT INTO t1 VALUES(2, 2);
-ROLLBACK;
-SET DEBUG_SYNC="now SIGNAL dml_commit";
-connection default;
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `f1` int(11) NOT NULL,
-  `f2` int(11) NOT NULL,
-  PRIMARY KEY (`f1`),
-  KEY `f2` (`f2`,`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
 disconnect con1;
-disconnect con2;
 DROP TABLE t1;
 SET DEBUG_SYNC=RESET;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=default;

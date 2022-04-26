@@ -85,7 +85,7 @@ inline void row_log_abort_sec(dict_index_t *index)
 
 /** Logs an operation to a secondary index that is (or was) being created.
 @param	index	index, S or X latched
-@param	tuple	index tuple (NULL= empty the index)
+@param	tuple	index tuple
 @param	trx_id	transaction ID for insert, or 0 for delete
 @retval false if row_log_apply() failure happens
 or true otherwise */

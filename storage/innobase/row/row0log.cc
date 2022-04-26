@@ -54,9 +54,7 @@ enum row_tab_op {
 	/** Update a record in place */
 	ROW_T_UPDATE,
 	/** Delete (purge) a record */
-	ROW_T_DELETE,
-	/** Empty the table */
-	ROW_T_EMPTY
+	ROW_T_DELETE
 };
 
 /** Index record modification operations during online index creation */
@@ -64,9 +62,7 @@ enum row_op {
 	/** Insert a record */
 	ROW_OP_INSERT = 0x61,
 	/** Delete a record */
-	ROW_OP_DELETE,
-	/** Empy the index */
-	ROW_OP_EMPTY
+	ROW_OP_DELETE
 };
 
 /** Size of the modification log entry header, in bytes */
@@ -254,26 +250,9 @@ row_log_block_free(
 	DBUG_VOID_RETURN;
 }
 
-/** Empty the online log.
-@param index	index log to be cleared */
-static void row_log_empty(dict_index_t *index)
-{
-  ut_ad(index->lock.have_s());
-  row_log_t *log= index->online_log;
-
-  mysql_mutex_lock(&log->mutex);
-  row_log_block_free(log->tail);
-  row_log_block_free(log->head);
-  row_merge_file_destroy_low(log->fd);
-  log->fd= OS_FILE_CLOSED;
-  log->tail.total= log->tail.blocks= log->tail.bytes= 0;
-  log->head.total= log->head.blocks= log->head.bytes= 0;
-  mysql_mutex_unlock(&log->mutex);
-}
-
 /** Logs an operation to a secondary index that is (or was) being created.
 @param  index   index, S or X latched
-@param  tuple   index tuple (NULL= empty the index)
+@param  tuple   index tuple
 @param  trx_id  transaction ID for insert, or 0 for delete
 @retval false if row_log_apply() failure happens
 or true otherwise */
@@ -288,8 +267,8 @@ bool row_log_online_op(dict_index_t *index, const dtuple_t *tuple,
 	row_log_t*	log;
 	bool		success= true;
 
-	ut_ad(!tuple || dtuple_validate(tuple));
-	ut_ad(!tuple || dtuple_get_n_fields(tuple) == dict_index_get_n_fields(index));
+	ut_ad(dtuple_validate(tuple));
+	ut_ad(dtuple_get_n_fields(tuple) == dict_index_get_n_fields(index));
 	ut_ad(index->lock.have_x() || index->lock.have_s());
 
 	if (index->is_corrupted()) {
@@ -304,21 +283,14 @@ bool row_log_online_op(dict_index_t *index, const dtuple_t *tuple,
 	row_merge_buf_encode(), because here we do not encode
 	extra_size+1 (and reserve 0 as the end-of-chunk marker). */
 
-	if (!tuple) {
-		row_log_empty(index);
-		mrec_size = 4;
-		extra_size = 0;
-		size = 2;
-	} else {
-		size = rec_get_converted_size_temp<false>(
-			index, tuple->fields, tuple->n_fields, &extra_size);
-		ut_ad(size >= extra_size);
-		ut_ad(size <= sizeof log->tail.buf);
+	size = rec_get_converted_size_temp<false>(
+		index, tuple->fields, tuple->n_fields, &extra_size);
+	ut_ad(size >= extra_size);
+	ut_ad(size <= sizeof log->tail.buf);
 
-		mrec_size = ROW_LOG_HEADER_SIZE
-			+ (extra_size >= 0x80) + size
-			+ (trx_id ? DATA_TRX_ID_LEN : 0);
-	}
+	mrec_size = ROW_LOG_HEADER_SIZE
+		+ (extra_size >= 0x80) + size
+		+ (trx_id ? DATA_TRX_ID_LEN : 0);
 
 	log = index->online_log;
 	mysql_mutex_lock(&log->mutex);
@@ -348,8 +320,6 @@ start_log:
 		*b++ = ROW_OP_INSERT;
 		trx_write_trx_id(b, trx_id);
 		b += DATA_TRX_ID_LEN;
-	} else if (!tuple) {
-		*b++ = ROW_OP_EMPTY;
 	} else {
 		*b++ = ROW_OP_DELETE;
 	}
@@ -362,13 +332,8 @@ start_log:
 		*b++ = (byte) extra_size;
 	}
 
-	if (tuple) {
-		rec_convert_dtuple_to_temp<false>(
-			b + extra_size, index, tuple->fields,
-			tuple->n_fields);
-	} else {
-		memset(b, 0, 2);
-	}
+	rec_convert_dtuple_to_temp<false>(
+		b + extra_size, index, tuple->fields, tuple->n_fields);
 
 	b += size;
 
@@ -2416,11 +2381,6 @@ row_log_table_apply_op(
 			thr, new_trx_id_col,
 			mrec, offsets, offsets_heap, heap, dup, old_pk);
 		break;
-	case ROW_T_EMPTY:
-		dup->index->online_log->table->clear(thr);
-		log->head.total += 1;
-		next_mrec = mrec;
-		break;
 	}
 
 	ut_ad(log->head.total <= log->tail.total);
@@ -3210,9 +3170,6 @@ row_log_apply_op_low(
 			}
 
 			goto duplicate;
-		case ROW_OP_EMPTY:
-			ut_ad(0);
-			break;
 		}
 	} else {
 		switch (op) {
@@ -3282,9 +3239,6 @@ insert_the_rec:
 				&rec, &big_rec,
 				0, NULL, &mtr);
 			ut_ad(!big_rec);
-			break;
-		case ROW_OP_EMPTY:
-			ut_ad(0);
 			break;
 		}
 		mem_heap_empty(offsets_heap);
@@ -3360,15 +3314,6 @@ row_log_apply_op(
 		op = static_cast<enum row_op>(*mrec++);
 		trx_id = 0;
 		break;
-	case ROW_OP_EMPTY:
-	{
-		mem_heap_t* heap = mem_heap_create(512);
-		que_fork_t* fork = que_fork_create(heap);
-		que_thr_t* thr = que_thr_create(fork, heap, nullptr);
-		index->clear(thr);
-		mem_heap_free(heap);
-		return mrec + 4;
-	}
 	default:
 corrupted:
 		ut_ad(0);
@@ -3828,21 +3773,6 @@ unsigned row_log_get_n_core_fields(const dict_index_t *index)
   return index->online_log->n_core_fields;
 }
 
-/** Notify that the table was emptied by concurrent rollback or purge.
-@param index  clustered index */
-static void row_log_table_empty(dict_index_t *index)
-{
-  ut_ad(index->lock.have_s());
-  row_log_empty(index);
-  row_log_t* log= index->online_log;
-  ulint	avail_size;
-  if (byte *b= row_log_table_open(log, 1, &avail_size))
-  {
-    *b++ = ROW_T_EMPTY;
-    row_log_table_close(index, b, 1, avail_size);
-  }
-}
-
 dberr_t row_log_get_error(const dict_index_t *index)
 {
   ut_ad(index->online_log);
@@ -3851,7 +3781,6 @@ dberr_t row_log_get_error(const dict_index_t *index)
 
 void dict_table_t::clear(que_thr_t *thr)
 {
-  bool rebuild= false;
   for (dict_index_t *index= UT_LIST_GET_FIRST(indexes); index;
        index= UT_LIST_GET_NEXT(indexes, index))
   {
@@ -3862,26 +3791,13 @@ void dict_table_t::clear(que_thr_t *thr)
     case ONLINE_INDEX_ABORTED:
     case ONLINE_INDEX_ABORTED_DROPPED:
       continue;
-
     case ONLINE_INDEX_COMPLETE:
       break;
-
     case ONLINE_INDEX_CREATION:
-      index->lock.s_lock(SRW_LOCK_CALL);
-      if (dict_index_get_online_status(index) == ONLINE_INDEX_CREATION)
-      {
-        if (index->is_clust())
-        {
-          row_log_table_empty(index);
-          rebuild= true;
-        }
-        else if (!rebuild)
-          row_log_online_op(index, nullptr, 0);
-      }
-
-      index->lock.s_unlock();
+      ut_ad("invalid type" == 0);
+      MY_ASSERT_UNREACHABLE();
+      break;
     }
-
     index->clear(thr);
   }
 }
