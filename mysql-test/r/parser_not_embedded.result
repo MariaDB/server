@@ -102,3 +102,23 @@ ROLLBACK AND NO CHAIN NO RELEASE;
 #
 # End of 5.5 tests
 #
+#
+# MDEV-6899 extra semicolon in show create event syntax
+#
+set timestamp=unix_timestamp('2020-10-10 5:5:5');
+create event a on schedule every 1 day do set @a:=1;select 2$
+2
+2
+show create event a;
+Event	a
+sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+time_zone	SYSTEM
+Create Event	CREATE DEFINER=`root`@`localhost` EVENT `a` ON SCHEDULE EVERY 1 DAY STARTS '2020-10-10 05:05:05' ON COMPLETION NOT PRESERVE ENABLE DO set @a:=1
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+Database Collation	latin1_swedish_ci
+drop event a;
+set timestamp=default;
+#
+# End of 10.2 tests
+#
