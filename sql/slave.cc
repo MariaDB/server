@@ -6594,8 +6594,6 @@ dbug_gtid_accept:
            Query_log_event::peek_is_commit_rollback(buf, event_len,
                                                     checksum_alg))))))
     {
-      DBUG_ASSERT(mi->events_queued_since_last_gtid > 1);
-
       if (unlikely(gtid_skip_enqueue))
       {
         error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
