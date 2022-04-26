@@ -701,6 +701,7 @@ void LEX::start(THD *thd_arg)
   context_stack.empty();
   //empty select_stack
   select_stack_top= 0;
+  select_stack_outer_barrier= 0;
   unit.init_query();
   current_select_number= 0;
   curr_with_clause= 0;

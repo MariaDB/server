@@ -751,3 +751,19 @@ REPLACE INTO v1 SET f = NULL;
 ERROR 22007: Truncated incorrect DOUBLE value: 'foo'
 DROP VIEW v1;
 DROP TABLE t1;
+# End of 10.0 tests
+#
+# MDEV-26412: INSERT CREATE with subquery in ON expression
+#
+create table t1 (a int);
+create table t2 (b int);
+create table t3 (c int);
+create table t4 (d1 int, d2 int);
+insert into t4
+select * from t1 left join t2 on (select t1.i from t3);
+ERROR 42S22: Unknown column 't1.i' in 'field list'
+replace t4
+select * from t1 left join t2 on (select t1.i from t3);
+ERROR 42S22: Unknown column 't1.i' in 'field list'
+drop table t1,t2,t3,t4;
+# End of 10.4 tests

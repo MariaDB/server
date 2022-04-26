@@ -3246,6 +3246,12 @@ public:
   List<Name_resolution_context> context_stack;
   SELECT_LEX *select_stack[MAX_SELECT_NESTING + 1];
   uint select_stack_top;
+  /*
+    Usually this is set to 0, but for INSERT/REPLACE SELECT it is set to 1.
+    When parsing such statements the pointer to the most outer select is placed
+    into the second element of select_stack rather than into the first.
+  */
+  uint select_stack_outer_barrier;
 
   SQL_I_List<ORDER> proc_list;
   SQL_I_List<TABLE_LIST> auxiliary_table_list, save_list;
@@ -3685,6 +3691,17 @@ public:
   }
 
   bool copy_db_to(LEX_CSTRING *to);
+
+  void inc_select_stack_outer_barrier()
+  {
+    select_stack_outer_barrier++;
+  }
+
+  SELECT_LEX *parser_current_outer_select()
+  {
+    return select_stack_top - 1 == select_stack_outer_barrier ?
+             0 : select_stack[select_stack_top - 1];
+  }
 
   Name_resolution_context *current_context()
   {

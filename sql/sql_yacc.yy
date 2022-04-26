@@ -13608,6 +13608,7 @@ insert:
             if (Lex->main_select_push())
               MYSQL_YYABORT;
             mysql_init_select(lex);
+            lex->inc_select_stack_outer_barrier();
             lex->current_select->parsing_place= BEFORE_OPT_LIST;
           }
           insert_lock_option
@@ -13634,6 +13635,7 @@ replace:
             if (Lex->main_select_push())
               MYSQL_YYABORT;
             mysql_init_select(lex);
+            lex->inc_select_stack_outer_barrier();
             lex->current_select->parsing_place= BEFORE_OPT_LIST;
           }
           replace_lock_option insert2

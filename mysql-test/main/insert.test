@@ -612,3 +612,25 @@ CREATE VIEW v1 AS SELECT * FROM t1 WHERE f <=> 'foo' WITH CHECK OPTION;
 REPLACE INTO v1 SET f = NULL;
 DROP VIEW v1;
 DROP TABLE t1;
+
+--echo # End of 10.0 tests
+
+--echo #
+--echo # MDEV-26412: INSERT CREATE with subquery in ON expression
+--echo #
+
+create table t1 (a int);
+create table t2 (b int);
+create table t3 (c int);
+create table t4 (d1 int, d2 int);
+
+--error ER_BAD_FIELD_ERROR
+insert into t4
+  select * from t1 left join t2 on (select t1.i from t3);
+--error ER_BAD_FIELD_ERROR
+replace t4
+  select * from t1 left join t2 on (select t1.i from t3);
+
+drop table t1,t2,t3,t4;
+
+--echo # End of 10.4 tests
