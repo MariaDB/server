@@ -16,7 +16,6 @@ MW-328A : MDEV-22666 galera.MW-328A MTR failed: "Semaphore wait has lasted > 600
 MW-328B : MDEV-22666 galera.MW-328A MTR failed: "Semaphore wait has lasted > 600 seconds" and do not release port 16002
 MW-329 : MDEV-19962 Galera test failure on MW-329
 galera_as_slave_ctas : MDEV-28378 timeout
-galera_as_slave_nonprim : MDEV-28377 bind: Address already in use
 galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid_log_event::do_apply_event()
 galera_bf_abort_group_commit : MDEV-18282 Galera test failure on galera.galera_bf_abort_group_commit
 galera_bf_kill_debug : MDEV-24485 wsrep::client_state::do_acquire_ownership(): Assertion `state_ == s_idle || mode_ != m_local' failed
