@@ -281,4 +281,40 @@ pk	b	v
 DROP TABLE t1;
 SET debug_sync= reset;
 set global debug_dbug= @old_dbug;
+# MDEV-26951 gcol.innodb_virtual_basic fails
+# BUG 1
+CREATE TABLE t (a INT, b INT AS(a), m INT AS(b), INDEX idx1(b), INDEX idx2 (m));
+INSERT INTO t VALUES(11, DEFAULT, DEFAULT),
+(12, DEFAULT, DEFAULT);
+set global innodb_debug_sync= "ib_purge_parse WAIT_FOR flush";
+set global innodb_debug_sync= "ib_purge_virtual_latch_released"
+    " SIGNAL purge WAIT_FOR reached";
+update t set a = 13 where a =11;
+delete from t where a =13;
+set debug_sync = "alter_table_inplace_after_commit"
+    " SIGNAL flush WAIT_FOR purge";
+DROP INDEX idx1 ON t;
+# Second ALTER TABLE call causes free of uninitialized momory
+DROP INDEX idx2 ON t;
+DROP TABLE t;
+set debug_sync= "now SIGNAL reached";
+set debug_sync=reset;
+set global innodb_debug_sync= reset;
+# BUG 2
+CREATE TABLE t (a INT, b INT AS(a), m INT AS(b), INDEX idx1(b), INDEX idx2 (m));
+INSERT INTO t VALUES(11, DEFAULT, DEFAULT),
+(12, DEFAULT, DEFAULT);
+set global innodb_debug_sync= "ib_purge_parse WAIT_FOR flush";
+set global innodb_debug_sync= "ib_purge_virtual_latch_released"
+                              " SIGNAL purge WAIT_FOR reached";
+update t set a = 13 where a =11;
+delete from t where a =13;
+set debug_sync = "alter_table_inplace_after_commit"
+    " SIGNAL flush WAIT_FOR purge";
+DROP INDEX idx1 ON t;
+# DROP TABLE causes rename and triggers missing maria_table
+DROP TABLE t;
+set debug_sync= "now SIGNAL reached";
+set debug_sync=reset;
+set global innodb_debug_sync= reset;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
