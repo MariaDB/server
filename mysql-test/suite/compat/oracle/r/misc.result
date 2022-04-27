@@ -1,5 +1,25 @@
 SET sql_mode=ORACLE;
 #
+# Start of 10.2 tests
+#
+#
+# MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+#
+CREATE TABLE t1 (a CHAR(10) CHARACTER SET latin1 COLLATE DEFAULT);
+DROP TABLE t1;
+SELECT CAST('a' AS CHAR(10) CHARACTER SET latin1 COLLATE DEFAULT);
+CAST('a' AS CHAR(10) CHARACTER SET latin1 COLLATE DEFAULT)
+a
+SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET latin1 COLLATE DEFAULT) AS c1;
+c1
+string
+#
+# End of 10.2 tests
+#
+#
+# Start of 10.3 tests
+#
+#
 # MDEV-12086 sql_mode=ORACLE: allow SELECT UNIQUE as a synonym for SELECT DISTINCT
 #
 CREATE TABLE t1 (a INT);
@@ -10,3 +30,6 @@ a
 20
 30
 DROP TABLE t1;
+#
+# End of 10.3 tests
+#

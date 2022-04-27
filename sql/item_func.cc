@@ -6570,8 +6570,8 @@ Item_func_sp::cleanup()
 LEX_CSTRING
 Item_func_sp::func_name_cstring() const
 {
-  THD *thd= current_thd;
-  return Item_sp::func_name_cstring(thd);
+  return Item_sp::func_name_cstring(current_thd,
+                                    m_handler == &sp_handler_package_function);
 }
 
 

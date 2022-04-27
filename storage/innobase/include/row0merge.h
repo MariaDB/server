@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,8 +24,7 @@ Index build routines using a merge sort
 Created 13/06/2005 Jan Lindstrom
 *******************************************************/
 
-#ifndef row0merge_h
-#define row0merge_h
+#pragma once
 
 #include "que0types.h"
 #include "trx0types.h"
@@ -36,7 +35,8 @@ Created 13/06/2005 Jan Lindstrom
 #include "row0mysql.h"
 #include "lock0types.h"
 #include "srv0srv.h"
-#include "ut0stage.h"
+
+class ut_stage_alter_t;
 
 /* Reserve free space from every block for key_version */
 #define ROW_MERGE_RESERVE_SIZE 4
@@ -483,5 +483,3 @@ public:
   /** Init temporary files for each index */
   void init_tmp_file();
 };
-
-#endif /* row0merge.h */

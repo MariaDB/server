@@ -74,7 +74,7 @@ connection con1;
 SET DEBUG_SYNC='now WAIT_FOR dml';
 BEGIN;
 INSERT INTO t1 SET a=NULL;
-ROLLBACK;
+COMMIT;
 set DEBUG_SYNC='now SIGNAL dml_done';
 connection default;
 ERROR 22004: Invalid use of NULL value

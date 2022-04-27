@@ -79,7 +79,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "dict0load.h"
 #include "btr0defragment.h"
 #include "dict0crea.h"
-#include "dict0dict.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
 #include "fil0fil.h"
@@ -94,9 +93,9 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "mtr0mtr.h"
 #include "os0file.h"
 #include "page0zip.h"
-#include "rem0types.h"
 #include "row0import.h"
 #include "row0ins.h"
+#include "row0log.h"
 #include "row0merge.h"
 #include "row0mysql.h"
 #include "row0quiesce.h"
@@ -530,7 +529,6 @@ mysql_pfs_key_t	fts_cache_mutex_key;
 mysql_pfs_key_t	fts_cache_init_mutex_key;
 mysql_pfs_key_t	fts_delete_mutex_key;
 mysql_pfs_key_t	fts_doc_id_mutex_key;
-mysql_pfs_key_t	fts_pll_tokenize_mutex_key;
 mysql_pfs_key_t	ibuf_bitmap_mutex_key;
 mysql_pfs_key_t	ibuf_mutex_key;
 mysql_pfs_key_t	ibuf_pessimistic_insert_mutex_key;
@@ -550,10 +548,6 @@ mysql_pfs_key_t	trx_pool_manager_mutex_key;
 mysql_pfs_key_t	lock_wait_mutex_key;
 mysql_pfs_key_t	trx_sys_mutex_key;
 mysql_pfs_key_t	srv_threads_mutex_key;
-mysql_pfs_key_t	thread_mutex_key;
-mysql_pfs_key_t row_drop_list_mutex_key;
-mysql_pfs_key_t	rw_trx_hash_element_mutex_key;
-mysql_pfs_key_t	read_view_mutex_key;
 
 /* all_innodb_mutexes array contains mutexes that are
 performance schema instrumented if "UNIV_PFS_MUTEX"
@@ -569,7 +563,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(fts_cache_init_mutex),
 	PSI_KEY(fts_delete_mutex),
 	PSI_KEY(fts_doc_id_mutex),
-	PSI_KEY(ibuf_bitmap_mutex),
 	PSI_KEY(ibuf_mutex),
 	PSI_KEY(ibuf_pessimistic_insert_mutex),
 	PSI_KEY(index_online_log),
@@ -1229,7 +1222,7 @@ struct log_flush_request
 };
 
 /** Buffer of pending innodb_log_flush_request() */
-MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) static
+alignas(CPU_LEVEL1_DCACHE_LINESIZE) static
 struct
 {
   /** first request */
@@ -1950,7 +1943,9 @@ static void sst_enable_innodb_writes()
   dict_stats_start();
   purge_sys.resume();
   wsrep_sst_disable_writes= false;
-  fil_crypt_set_thread_cnt(srv_n_fil_crypt_threads);
+  const uint old_count= srv_n_fil_crypt_threads;
+  srv_n_fil_crypt_threads= 0;
+  fil_crypt_set_thread_cnt(old_count);
 }
 
 static void innodb_disable_internal_writes(bool disable)
@@ -2356,7 +2351,7 @@ innobase_mysql_print_thd(
 
 /******************************************************************//**
 Get the variable length bounds of the given character set. */
-void
+static void
 innobase_get_cset_width(
 /*====================*/
 	ulint	cset,		/*!< in: MySQL charset-collation code */
@@ -2368,7 +2363,7 @@ innobase_get_cset_width(
 	ut_ad(mbminlen);
 	ut_ad(mbmaxlen);
 
-	cs = all_charsets[cset];
+	cs = cset ? get_charset((uint)cset, MYF(MY_WME)) : NULL;
 	if (cs) {
 		*mbminlen = cs->mbminlen;
 		*mbmaxlen = cs->mbmaxlen;
@@ -2392,6 +2387,29 @@ innobase_get_cset_width(
 			ut_a(cset == 0);
 		}
 
+		*mbminlen = *mbmaxlen = 0;
+	}
+}
+
+/*********************************************************************//**
+Compute the mbminlen and mbmaxlen members of a data type structure. */
+void
+dtype_get_mblen(
+/*============*/
+	ulint	mtype,		/*!< in: main type */
+	ulint	prtype,		/*!< in: precise type (and collation) */
+	unsigned*mbminlen,	/*!< out: minimum length of a
+				multi-byte character */
+	unsigned*mbmaxlen)	/*!< out: maximum length of a
+				multi-byte character */
+{
+	if (dtype_is_string_type(mtype)) {
+		innobase_get_cset_width(dtype_get_charset_coll(prtype),
+					mbminlen, mbmaxlen);
+		ut_ad(*mbminlen <= *mbmaxlen);
+		ut_ad(*mbminlen < DATA_MBMAX);
+		ut_ad(*mbmaxlen < DATA_MBMAX);
+	} else {
 		*mbminlen = *mbmaxlen = 0;
 	}
 }
@@ -5149,33 +5167,26 @@ ha_innobase::keys_to_use_for_scanning()
 	return(&key_map_full);
 }
 
-/****************************************************************//**
-Ensures that if there's a concurrent inplace ADD INDEX, being-indexed virtual
-columns are computed. They are not marked as indexed in the old table, so the
-server won't add them to the read_set automatically */
-void
-ha_innobase::column_bitmaps_signal()
-/*================================*/
+/** Ensure that indexed virtual columns will be computed. */
+void ha_innobase::column_bitmaps_signal()
 {
-	if (!table->vfield || table->current_lock != F_WRLCK) {
-		return;
-	}
+  if (!table->vfield || table->current_lock != F_WRLCK)
+    return;
 
-	dict_index_t*	clust_index = dict_table_get_first_index(m_prebuilt->table);
-	uint	num_v = 0;
-	for (uint j = 0; j < table->s->virtual_fields; j++) {
-		if (table->vfield[j]->stored_in_db()) {
-			continue;
-		}
+  dict_index_t* clust_index= dict_table_get_first_index(m_prebuilt->table);
+  uint num_v= 0;
+  for (uint j = 0; j < table->s->virtual_fields; j++)
+  {
+    if (table->vfield[j]->stored_in_db())
+      continue;
 
-		dict_col_t*	col = &m_prebuilt->table->v_cols[num_v].m_col;
-		if (col->ord_part ||
-		    (dict_index_is_online_ddl(clust_index) &&
-		     row_log_col_is_indexed(clust_index, num_v))) {
-			table->mark_virtual_column_with_deps(table->vfield[j]);
-		}
-		num_v++;
-	}
+    dict_col_t *col= &m_prebuilt->table->v_cols[num_v].m_col;
+    if (col->ord_part ||
+        (dict_index_is_online_ddl(clust_index) &&
+         row_log_col_is_indexed(clust_index, num_v)))
+      table->mark_virtual_column_with_deps(table->vfield[j]);
+    num_v++;
+  }
 }
 
 
@@ -8165,34 +8176,13 @@ calc_row_difference(
 			}
 		}
 
-#ifdef UNIV_DEBUG
-		bool	online_ord_part = false;
-#endif
-
 		if (is_virtual) {
 			/* If the virtual column is not indexed,
 			we shall ignore it for update */
 			if (!col->ord_part) {
-				/* Check whether there is a table-rebuilding
-				online ALTER TABLE in progress, and this
-				virtual column could be newly indexed, thus
-				it will be materialized. Then we will have
-				to log its update.
-				Note, we do not support online dropping virtual
-				column while adding new index, nor with
-				online alter column order while adding index,
-				so the virtual column sequence must not change
-				if it is online operation */
-				if (dict_index_is_online_ddl(clust_index)
-				    && row_log_col_is_indexed(clust_index,
-							      num_v)) {
-#ifdef UNIV_DEBUG
-					online_ord_part = true;
-#endif
-				} else {
-					num_v++;
-					continue;
-				}
+			next:
+				num_v++;
+				continue;
 			}
 
 			if (!uvect->old_vrow) {
@@ -8218,8 +8208,7 @@ calc_row_difference(
 					prebuilt, vfield, o_len,
 					col, old_mysql_row_col,
 					col_pack_len, buf);
-			       num_v++;
-			       continue;
+				goto next;
 			}
 		}
 
@@ -8268,7 +8257,7 @@ calc_row_difference(
 				upd_fld_set_virtual_col(ufield);
 				ufield->field_no = num_v;
 
-				ut_ad(col->ord_part || online_ord_part);
+				ut_ad(col->ord_part);
 				ufield->old_v_val = static_cast<dfield_t*>(
 					mem_heap_alloc(
 						uvect->heap,
@@ -8353,7 +8342,7 @@ calc_row_difference(
 				prebuilt, vfield, o_len,
 				col, old_mysql_row_col,
 				col_pack_len, buf);
-			ut_ad(col->ord_part || online_ord_part);
+			ut_ad(col->ord_part);
 			num_v++;
 		}
 	}
@@ -12835,7 +12824,6 @@ bool create_table_info_t::row_size_is_acceptable(
   return true;
 }
 
-/* FIXME: row size check has some flaws and should be improved */
 dict_index_t::record_size_info_t dict_index_t::record_size_info() const
 {
   ut_ad(!(type & DICT_FTS));
@@ -12925,6 +12913,8 @@ dict_index_t::record_size_info_t dict_index_t::record_size_info() const
     {
       /* dict_index_add_col() should guarantee this */
       ut_ad(!f.prefix_len || f.fixed_len == f.prefix_len);
+      if (f.prefix_len)
+        field_max_size= f.prefix_len;
       /* Fixed lengths are not encoded
       in ROW_FORMAT=COMPACT. */
       goto add_field_size;
@@ -12978,7 +12968,8 @@ dict_index_t::record_size_info_t dict_index_t::record_size_info() const
     unique columns, result.shortest_size equals the size of the
     node pointer record minus the node pointer column. */
     if (i + 1 == dict_index_get_n_unique_in_tree(this) &&
-        result.shortest_size + REC_NODE_PTR_SIZE >= page_ptr_max)
+        result.shortest_size + REC_NODE_PTR_SIZE + (comp ? 0 : 2) >=
+        page_ptr_max)
     {
       result.set_too_big(i);
     }
@@ -13434,6 +13425,7 @@ int ha_innobase::delete_table(const char *name)
   dict_sys.unlock();
 
   trx_t *trx= parent_trx;
+  dberr_t err= DB_SUCCESS;
   if (!trx->lock.table_locks.empty() &&
       thd_ddl_options(trx->mysql_thd)->is_create_select())
   {
@@ -13453,11 +13445,28 @@ int ha_innobase::delete_table(const char *name)
   {
     trx= innobase_trx_allocate(thd);
     trx_start_for_ddl(trx);
+
+    if (table->name.is_temporary())
+      /* There is no need to lock any FOREIGN KEY child tables. */;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    else if (table->name.part())
+      /* FOREIGN KEY constraints cannot exist on partitioned tables. */;
+#endif
+    else
+    {
+      dict_sys.freeze(SRW_LOCK_CALL);
+      for (const dict_foreign_t* f : table->referenced_set)
+        if (dict_table_t* child= f->foreign_table)
+          if ((err= lock_table_for_trx(child, trx, LOCK_X)) != DB_SUCCESS)
+            break;
+      dict_sys.unfreeze();
+    }
   }
 
   dict_table_t *table_stats= nullptr, *index_stats= nullptr;
   MDL_ticket *mdl_table= nullptr, *mdl_index= nullptr;
-  dberr_t err= lock_table_for_trx(table, trx, LOCK_X);
+  if (err == DB_SUCCESS)
+    err= lock_table_for_trx(table, trx, LOCK_X);
 
   const bool fts= err == DB_SUCCESS &&
     (table->flags2 & (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS));
@@ -19564,7 +19573,7 @@ static MYSQL_SYSVAR_UINT(saved_page_number_debug,
   srv_saved_page_number_debug, PLUGIN_VAR_OPCMDARG,
   "An InnoDB page number.",
   NULL, NULL, 0, 0, UINT_MAX32, 0);
-#endif
+#endif /* UNIV_DEBUG */
 
 static MYSQL_SYSVAR_BOOL(force_primary_key,
   srv_force_primary_key,

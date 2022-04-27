@@ -960,11 +960,30 @@ ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 ALTER TABLE parent ADD COLUMN b INT, ALGORITHM=INSTANT;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-disconnect con1;
+connection con1;
+COMMIT;
+connection default;
 SET innodb_lock_wait_timeout=DEFAULT;
 TRUNCATE TABLE parent;
 ALTER TABLE parent FORCE, ALGORITHM=COPY;
 ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
 ALTER TABLE parent ADD COLUMN b INT, ALGORITHM=INSTANT;
 DROP TABLE child, parent;
+#
+# MDEV-26217 Failing assertion: list.count > 0 in ut_list_remove
+# or Assertion `lock->trx == this' failed in dberr_t trx_t::drop_table
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (pk INT PRIMARY KEY, FOREIGN KEY(pk) REFERENCES t1(pk))
+ENGINE=InnoDB;
+connection con1;
+SET FOREIGN_KEY_CHECKS=OFF;
+CREATE OR REPLACE TABLE t1 (b INT) ENGINE=InnoDB;
+connection default;
+INSERT INTO t2 VALUES (1);
+connection con1;
+disconnect con1;
+connection default;
+DROP TABLE IF EXISTS t2, t1;
 # End of 10.6 tests

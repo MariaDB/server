@@ -965,7 +965,9 @@ ALTER TABLE parent FORCE, ALGORITHM=COPY;
 ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
 --error ER_LOCK_WAIT_TIMEOUT
 ALTER TABLE parent ADD COLUMN b INT, ALGORITHM=INSTANT;
-disconnect con1;
+connection con1;
+COMMIT;
+connection default;
 # Restore the timeout to avoid occasional races with purge.
 SET innodb_lock_wait_timeout=DEFAULT;
 TRUNCATE TABLE parent;
@@ -973,6 +975,37 @@ ALTER TABLE parent FORCE, ALGORITHM=COPY;
 ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
 ALTER TABLE parent ADD COLUMN b INT, ALGORITHM=INSTANT;
 DROP TABLE child, parent;
+
+--echo #
+--echo # MDEV-26217 Failing assertion: list.count > 0 in ut_list_remove
+--echo # or Assertion `lock->trx == this' failed in dberr_t trx_t::drop_table
+--echo #
+
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+CREATE TABLE t2 (pk INT PRIMARY KEY, FOREIGN KEY(pk) REFERENCES t1(pk))
+ENGINE=InnoDB;
+
+--connection con1
+SET FOREIGN_KEY_CHECKS=OFF;
+--send
+CREATE OR REPLACE TABLE t1 (b INT) ENGINE=InnoDB;
+
+--connection default
+--error 0,ER_NO_REFERENCED_ROW_2,ER_LOCK_DEADLOCK
+INSERT INTO t2 VALUES (1);
+
+--connection con1
+--error 0,ER_CANT_CREATE_TABLE
+--reap
+
+# Cleanup
+--disconnect con1
+--connection default
+--disable_warnings
+DROP TABLE IF EXISTS t2, t1;
+--enable_warnings
 
 --echo # End of 10.6 tests
 

@@ -140,15 +140,6 @@ uint8_t
 get_innobase_type_from_mysql_type(unsigned *unsigned_flag, const Field *field);
 
 /******************************************************************//**
-Get the variable length bounds of the given character set. */
-void
-innobase_get_cset_width(
-/*====================*/
-	ulint	cset,		/*!< in: MySQL charset-collation code */
-	unsigned*mbminlen,	/*!< out: minimum length of a char (in bytes) */
-	unsigned*mbmaxlen);	/*!< out: maximum length of a char (in bytes) */
-
-/******************************************************************//**
 Compares NUL-terminated UTF-8 strings case insensitively.
 @return 0 if a=b, <0 if a<b, >1 if a>b */
 int

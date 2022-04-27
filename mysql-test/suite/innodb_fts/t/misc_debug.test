@@ -95,3 +95,15 @@ TRUNCATE t1;
 SET debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
 --echo # End of 10.3 tests
+
+# Fulltext fails in commit phase
+
+CREATE TABLE t1(f1 INT NOT NULL, f2 CHAR(100))ENGINE=InnoDB;
+SET DEBUG_DBUG="+d,stats_lock_fail";
+--error ER_GET_ERRNO
+ALTER TABLE t1 ADD FULLTEXT(f2);
+SET DEBUG_DBUG="-d,stats_lock_fail";
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+ALTER TABLE t1 ADD FULLTEXT(f2);
+DROP TABLE t1;

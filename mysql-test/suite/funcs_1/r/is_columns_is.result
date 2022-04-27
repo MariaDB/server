@@ -74,7 +74,7 @@ def	information_schema	COLUMNS	COLUMN_NAME	4	NULL	NO	varchar	64	192	NULL	NULL	NU
 def	information_schema	COLUMNS	COLUMN_TYPE	16	NULL	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	longtext			select		NEVER	NULL
 def	information_schema	COLUMNS	DATA_TYPE	8	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
 def	information_schema	COLUMNS	DATETIME_PRECISION	13	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select		NEVER	NULL
-def	information_schema	COLUMNS	EXTRA	18	NULL	NO	varchar	30	90	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(30)			select		NEVER	NULL
+def	information_schema	COLUMNS	EXTRA	18	NULL	NO	varchar	80	240	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(80)			select		NEVER	NULL
 def	information_schema	COLUMNS	GENERATION_EXPRESSION	22	NULL	YES	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	longtext			select		NEVER	NULL
 def	information_schema	COLUMNS	IS_GENERATED	21	NULL	NO	varchar	6	18	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(6)			select		NEVER	NULL
 def	information_schema	COLUMNS	IS_NULLABLE	7	NULL	NO	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)			select		NEVER	NULL
@@ -628,7 +628,7 @@ NULL	information_schema	COLUMNS	DATETIME_PRECISION	bigint	NULL	NULL	NULL	NULL	bi
 3.0000	information_schema	COLUMNS	COLLATION_NAME	varchar	32	96	utf8mb3	utf8mb3_general_ci	varchar(32)
 1.0000	information_schema	COLUMNS	COLUMN_TYPE	longtext	4294967295	4294967295	utf8mb3	utf8mb3_general_ci	longtext
 3.0000	information_schema	COLUMNS	COLUMN_KEY	varchar	3	9	utf8mb3	utf8mb3_general_ci	varchar(3)
-3.0000	information_schema	COLUMNS	EXTRA	varchar	30	90	utf8mb3	utf8mb3_general_ci	varchar(30)
+3.0000	information_schema	COLUMNS	EXTRA	varchar	80	240	utf8mb3	utf8mb3_general_ci	varchar(80)
 3.0000	information_schema	COLUMNS	PRIVILEGES	varchar	80	240	utf8mb3	utf8mb3_general_ci	varchar(80)
 3.0000	information_schema	COLUMNS	COLUMN_COMMENT	varchar	1024	3072	utf8mb3	utf8mb3_general_ci	varchar(1024)
 3.0000	information_schema	COLUMNS	IS_GENERATED	varchar	6	18	utf8mb3	utf8mb3_general_ci	varchar(6)

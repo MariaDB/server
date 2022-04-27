@@ -7,7 +7,7 @@ let $sql_mode = `SELECT @@SQL_MODE`;
 let $error_code = 0;
 
 if ($sql_mode == "STRICT_TRANS_TABLES") {
- let $error_code = WARN_DATA_TRUNCATED;
+ let $error_code = ER_INVALID_USE_OF_NULL;
 }
 
 

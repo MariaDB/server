@@ -422,7 +422,9 @@ bool table_value_constr::exec(SELECT_LEX *sl)
   DBUG_ENTER("table_value_constr::exec");
   List_iterator_fast<List_item> li(lists_of_values);
   List_item *elem;
+  THD *cur_thd= sl->parent_lex->thd;
   ha_rows send_records= 0;
+  int rc=0;
   
   if (select_options & SELECT_DESCRIBE)
     DBUG_RETURN(false);
@@ -438,10 +440,10 @@ bool table_value_constr::exec(SELECT_LEX *sl)
 
   while ((elem= li++))
   {
+    cur_thd->get_stmt_da()->inc_current_row_for_warning();
     if (send_records >= sl->master_unit()->lim.get_select_limit())
       break;
-    int rc=
-      result->send_data_with_check(*elem, sl->master_unit(), send_records);
+    rc= result->send_data_with_check(*elem, sl->master_unit(), send_records);
     if (!rc)
       send_records++;
     else if (rc > 0)

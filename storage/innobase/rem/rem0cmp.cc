@@ -289,8 +289,7 @@ int cmp_data(ulint mtype, ulint prtype, bool descending,
     /* fall through */
   case DATA_VARMYSQL:
     DBUG_ASSERT(is_strnncoll_compatible(prtype & DATA_MYSQL_TYPE_MASK));
-    if (CHARSET_INFO *cs= get_charset(dtype_get_charset_coll(prtype),
-                                      MYF(MY_WME)))
+    if (CHARSET_INFO *cs= all_charsets[dtype_get_charset_coll(prtype)])
     {
       cmp= cs->coll->strnncollsp(cs, data1, len1, data2, len2);
       goto func_exit;
@@ -299,8 +298,7 @@ int cmp_data(ulint mtype, ulint prtype, bool descending,
     ib::fatal() << "Unable to find charset-collation for " << prtype;
   case DATA_MYSQL:
     DBUG_ASSERT(is_strnncoll_compatible(prtype & DATA_MYSQL_TYPE_MASK));
-    if (CHARSET_INFO *cs= get_charset(dtype_get_charset_coll(prtype),
-                                      MYF(MY_WME)))
+    if (CHARSET_INFO *cs= all_charsets[dtype_get_charset_coll(prtype)])
     {
       cmp= cs->coll->strnncollsp_nchars(cs, data1, len1, data2, len2,
                                         std::max(len1, len2));

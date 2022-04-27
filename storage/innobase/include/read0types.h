@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,11 +28,8 @@ Created 2/16/1997 Heikki Tuuri
 
 #include "dict0mem.h"
 #include "trx0types.h"
+#include "srw_lock.h"
 #include <algorithm>
-
-#ifdef UNIV_PFS_MUTEX
-extern mysql_pfs_key_t read_view_mutex_key;
-#endif
 
 /**
   Read view lists the trx ids of those transactions for which a consistent read
@@ -44,7 +41,7 @@ class ReadViewBase
     The read should not see any transaction with trx id >= this value.
     In other words, this is the "high water mark".
   */
-  trx_id_t m_low_limit_id;
+  trx_id_t m_low_limit_id= 0;
 
   /**
     The read should see all trx ids which are strictly
@@ -70,9 +67,6 @@ protected:
   trx_id_t up_limit_id() const { return m_up_limit_id; }
 
 public:
-  ReadViewBase(): m_low_limit_id(0) {}
-
-
   /**
     Append state from another view.
 
@@ -206,7 +200,7 @@ class ReadView: public ReadViewBase
   std::atomic<bool> m_open;
 
   /** For synchronisation with purge coordinator. */
-  mutable mysql_mutex_t m_mutex;
+  mutable srw_mutex m_mutex;
 
   /**
     trx id of creating transaction.
@@ -215,9 +209,12 @@ class ReadView: public ReadViewBase
   trx_id_t m_creator_trx_id;
 
 public:
-  ReadView(): m_open(false)
-  { mysql_mutex_init(read_view_mutex_key, &m_mutex, nullptr); }
-  ~ReadView() { mysql_mutex_destroy(&m_mutex); }
+  ReadView()
+  {
+    memset(reinterpret_cast<void*>(this), 0, sizeof *this);
+    m_mutex.init();
+  }
+  ~ReadView() { m_mutex.destroy(); }
 
 
   /**
@@ -265,12 +262,12 @@ public:
   */
   void print_limits(FILE *file) const
   {
-    mysql_mutex_lock(&m_mutex);
+    m_mutex.wr_lock();
     if (is_open())
       fprintf(file, "Trx read view will not see trx with"
                     " id >= " TRX_ID_FMT ", sees < " TRX_ID_FMT "\n",
                     low_limit_id(), up_limit_id());
-    mysql_mutex_unlock(&m_mutex);
+    m_mutex.wr_unlock();
   }
 
 
@@ -289,10 +286,10 @@ public:
   */
   void append_to(ReadViewBase *to) const
   {
-    mysql_mutex_lock(&m_mutex);
+    m_mutex.wr_lock();
     if (is_open())
       to->append(*this);
-    mysql_mutex_unlock(&m_mutex);
+    m_mutex.wr_unlock();
   }
 
   /**

@@ -2006,6 +2006,7 @@ dict_load_indexes(
 			goto func_exit;
 		} else if (rec[8 + 8 + DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN]
 			   == static_cast<byte>(*TEMP_INDEX_PREFIX_STR)) {
+			dict_mem_index_free(index);
 			goto next_rec;
 		} else {
 			const trx_id_t id = trx_read_trx_id(rec + 8 + 8);
