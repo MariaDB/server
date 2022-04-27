@@ -5,6 +5,9 @@
 #include "sql_insert.h"
 #include "create_options.h"
 
+#define NO_YACC_SYMBOLS
+#include "lex_analyzer.h"
+
 #define MYSQL_SERVER 1
 #define MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL 0x0400
 
@@ -28,8 +31,8 @@ class Show_create_table
 {
 protected:
   LEX_CSTRING db;
-  ulong sql_mode;
   ulong option_bits;
+  ulong sql_mode;
   int get_quote_char_for_identifier(const char *name, size_t length);
   bool append_identifier(String *packet, const char *name, size_t length);
   bool append_identifier(String *packet, const LEX_CSTRING *name)
@@ -59,6 +62,45 @@ public:
               String *packet, Table_specification_st *create_info_arg,
               enum_with_db_name with_db_name);
 };
+
+/*
+  Go through all character combinations and ensure that sql_lex.cc can
+  parse it as an identifier.
+
+  SYNOPSIS
+  require_quotes()
+  name			attribute name
+  name_length		length of name
+
+  RETURN
+    #	Pointer to conflicting character
+    0	No conflicting character
+*/
+
+static const char *require_quotes(const char *name, uint name_length)
+{
+  bool pure_digit= TRUE;
+  const char *end= name + name_length;
+
+  for (; name < end ; name++)
+  {
+    uchar chr= (uchar) *name;
+    int length= system_charset_info->charlen(name, end);
+    if (length == 1 && !system_charset_info->ident_map[chr])
+      return name;
+    if (length == 1 && (chr < '0' || chr > '9'))
+      pure_digit= FALSE;
+  }
+  if (pure_digit)
+    return name;
+  return 0;
+}
+
+bool is_keyword(const char *name, uint len)
+{
+  DBUG_ASSERT(len != 0);
+  return get_hash_symbol(name,len,0)!=0;
+}
 
 int Show_create_table::get_quote_char_for_identifier(const char *name,
                                                      size_t length)
