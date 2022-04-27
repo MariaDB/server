@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 1996, 2022, Oracle and/or its affiliates.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3042,6 +3042,17 @@ lock_update_split_right(
 				PAGE_HEAP_NO_SUPREMUM, heap_no);
 
 	lock_mutex_exit();
+}
+
+void lock_update_node_pointer(const buf_block_t *left_block,
+                              const buf_block_t *right_block)
+{
+  const ulint h= lock_get_min_heap_no(right_block);
+
+  lock_mutex_enter();
+  lock_rec_inherit_to_gap(right_block, left_block,
+                          h, PAGE_HEAP_NO_SUPREMUM);
+  lock_mutex_exit();
 }
 
 /*************************************************************//**
