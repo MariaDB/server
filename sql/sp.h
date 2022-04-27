@@ -22,6 +22,7 @@
 #include "sql_string.h"                         // LEX_STRING
 #include "sql_cmd.h"
 #include "mdl.h"
+#include "sql_lex.h"
 
 class Field;
 class Open_tables_backup;
@@ -38,7 +39,6 @@ class sp_name;
 class Database_qualified_name;
 struct st_sp_chistics;
 class Stored_program_creation_ctx;
-struct LEX;
 struct TABLE;
 struct TABLE_LIST;
 typedef struct st_hash HASH;

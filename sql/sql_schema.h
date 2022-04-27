@@ -28,8 +28,7 @@ public:
   { }
   virtual ~Schema() { }
   const LEX_CSTRING &name() const { return m_name; }
-  virtual const Type_handler *map_data_type(THD *thd, const Type_handler *src)
-                                            const
+  virtual const Type_handler *map_data_type(const Type_handler *src) const
   {
     return src;
   }
@@ -51,7 +50,7 @@ public:
                                            name.str, name.length);
   }
   static Schema *find_by_name(const LEX_CSTRING &name);
-  static Schema *find_implied(THD *thd);
+  static Schema *find_implied(ulong sql_mode);
 };
 
 

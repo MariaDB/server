@@ -134,14 +134,6 @@ static TYPELIB grant_types = { sizeof(grant_names)/sizeof(char **),
                                grant_names, NULL};
 #endif
 
-/* Match the values of enum ha_choice */
-static const LEX_CSTRING ha_choice_values[]=
-{
-  { STRING_WITH_LEN("") },
-  { STRING_WITH_LEN("0") },
-  { STRING_WITH_LEN("1") }
-};
-
 static void store_key_options(THD *, String *, TABLE *, KEY *);
 
 static int show_create_view(THD *thd, TABLE_LIST *table, String *buff);

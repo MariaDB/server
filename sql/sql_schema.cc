@@ -25,11 +25,11 @@ public:
   Schema_oracle(const LEX_CSTRING &name)
    :Schema(name)
   { }
-  const Type_handler *map_data_type(THD *thd, const Type_handler *src)
+  const Type_handler *map_data_type(const Type_handler *src)
                                     const
   {
     if (src == &type_handler_newdate)
-      return thd->type_handler_for_datetime();
+      return type_handler_for_datetime();
     return src;
   }
 };
@@ -41,12 +41,12 @@ public:
   Schema_maxdb(const LEX_CSTRING &name)
    :Schema(name)
   { }
-  const Type_handler *map_data_type(THD *thd, const Type_handler *src)
+  const Type_handler *map_data_type(const Type_handler *src)
                                     const
   {
     if (src == &type_handler_timestamp ||
         src == &type_handler_timestamp2)
-      return thd->type_handler_for_datetime();
+      return type_handler_for_datetime();
     return src;
   }
 };
@@ -70,11 +70,11 @@ Schema *Schema::find_by_name(const LEX_CSTRING &name)
 }
 
 
-Schema *Schema::find_implied(THD *thd)
+Schema *Schema::find_implied(ulong sql_mode)
 {
-  if (thd->variables.sql_mode & MODE_ORACLE)
+  if (sql_mode & MODE_ORACLE)
     return &oracle_schema;
-  if (thd->variables.sql_mode & MODE_MAXDB)
+  if (sql_mode & MODE_MAXDB)
     return &maxdb_schema;
   return &mariadb_schema;
 }
