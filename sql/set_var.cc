@@ -936,6 +936,14 @@ int set_var_password::update(THD *thd)
 #endif
 }
 
+void set_var_password::get_modified_tables(TABLE_LIST **tables)
+{
+  size_t n_tables;
+  acl_get_tables_set_password(&user_table, &n_tables);
+  DBUG_ASSERT(n_tables == 1);
+  *tables= &user_table;
+}
+
 /*****************************************************************************
   Functions to handle SET ROLE
 *****************************************************************************/
@@ -999,6 +1007,14 @@ int set_var_default_role::update(THD *thd)
 #else
   return 0;
 #endif
+}
+
+void set_var_default_role::get_modified_tables(TABLE_LIST **tables)
+{
+  size_t n_tables;
+  acl_get_tables_set_default_role(&roles_mapping_table, &n_tables);
+  DBUG_ASSERT(n_tables == 1);
+  *tables= &roles_mapping_table;
 }
 
 /*****************************************************************************

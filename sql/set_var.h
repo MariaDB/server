@@ -274,6 +274,21 @@ public:
   virtual int update(THD *thd)=0;                  /* To set the value */
   virtual int light_check(THD *thd) { return check(thd); }   /* for PS */
   virtual bool is_system() { return FALSE; }
+
+  /*
+    Output any tables that will be modified during the update process. This is
+    used for rpl_filter validation to ignore SET commands which should not be
+    replicated.
+
+    @param tables [out] The address of the pointer which should be updated to
+                  reference the list of modified tables. Will be NULL if no
+                  tables will be modified.
+
+  */
+  virtual void get_modified_tables(TABLE_LIST **tables)
+  {
+    *tables= NULL;
+  }
 };
 
 
@@ -325,11 +340,15 @@ public:
 class set_var_password: public set_var_base
 {
   LEX_USER *user;
+  TABLE_LIST user_table;
 public:
   set_var_password(LEX_USER *user_arg) :user(user_arg)
-  {}
+  {
+    user_table.next_local= user_table.next_global= NULL;
+  }
   int check(THD *thd);
   int update(THD *thd);
+  void get_modified_tables(TABLE_LIST **tables);
 };
 
 /* For SET ROLE */
@@ -351,11 +370,16 @@ class set_var_default_role: public set_var_base
   LEX_USER *user, *real_user;
   LEX_STRING role;
   const char *real_role;
+  TABLE_LIST roles_mapping_table;
 public:
   set_var_default_role(LEX_USER *user_arg, LEX_STRING role_arg) :
-    user(user_arg), role(role_arg) {}
+    user(user_arg), role(role_arg)
+    {
+      roles_mapping_table.next_local= roles_mapping_table.next_global= NULL;
+    }
   int check(THD *thd);
   int update(THD *thd);
+  void get_modified_tables(TABLE_LIST **tables);
 };
 
 /* For SET NAMES and SET CHARACTER SET */

@@ -412,6 +412,8 @@ int acl_check_setrole(THD *thd, char *rolename, ulonglong *access);
 int acl_check_set_default_role(THD *thd, const char *host, const char *user, const char *role);
 int acl_set_default_role(THD *thd, const char *host, const char *user,
                          const char *rolename);
+void acl_get_tables_set_password(TABLE_LIST *out, size_t *n_tables);
+void acl_get_tables_set_default_role(TABLE_LIST *out, size_t *n_tables);
 
 extern SHOW_VAR acl_statistics[];
 
