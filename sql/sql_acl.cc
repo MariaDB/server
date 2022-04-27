@@ -1346,18 +1346,8 @@ class Grant_tables
     DBUG_ENTER("Grant_tables::open_and_lock");
     DBUG_ASSERT(first_table_in_list);
 #ifdef HAVE_REPLICATION
-    if (first_table_in_list->tl.lock_type >= TL_WRITE_ALLOW_WRITE &&
-        thd->slave_thread && !thd->spcont)
-    {
-      /*
-        GRANT and REVOKE are applied the slave in/exclusion rules as they are
-        some kind of updates to the mysql.% tables.
-      */
-      Rpl_filter *rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
-      if (rpl_filter->is_on() &&
-          !rpl_filter->tables_ok(0, &first_table_in_list->tl))
-        DBUG_RETURN(1);
-    }
+    if (int ignore_ret= rpl_ignore_tables(thd))
+      DBUG_RETURN(ignore_ret);
 #endif
     if (open_and_lock_tables(thd, &first_table_in_list->tl, FALSE,
                              MYSQL_LOCK_IGNORE_TIMEOUT))
@@ -1386,6 +1376,32 @@ class Grant_tables
     m_roles_mapping_table.compute_num_privilege_cols();
     DBUG_RETURN(0);
   }
+
+#ifdef HAVE_REPLICATION
+  /* Checks if the tables targeted by a grant command should be ignored because
+     of the configured replication filters
+
+     @retval 1 Tables are excluded for replication
+     @retval 0 tables are included for replication
+  */
+  int rpl_ignore_tables(THD *thd)
+  {
+    DBUG_ENTER("Grant_tables::rpl_ignore_tables");
+    if (first_table_in_list->tl.lock_type >= TL_WRITE_ALLOW_WRITE &&
+        thd->slave_thread && !thd->spcont)
+    {
+      /*
+        GRANT and REVOKE are applied the slave in/exclusion rules as they are
+        some kind of updates to the mysql.% tables.
+      */
+      Rpl_filter *rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
+      if (rpl_filter->is_on() &&
+          !rpl_filter->tables_ok(0, &first_table_in_list->tl))
+        DBUG_RETURN(1);
+    }
+    DBUG_RETURN(0);
+  }
+#endif
 
   inline const User_table& user_table() const
   {
@@ -3562,6 +3578,16 @@ int acl_check_set_default_role(THD *thd, const char *host, const char *user,
                                const char *role)
 {
   DBUG_ENTER("acl_check_set_default_role");
+#ifdef HAVE_REPLICATION
+  /*
+    If the roles_mapping table is excluded by the replication filter, we return
+    successful without validating the user/role data because the command will
+    be ignored in a later call to `acl_set_default_role()` for a graceful exit.
+  */
+  Grant_tables tables(Table_roles_mapping, TL_WRITE);
+  if (tables.rpl_ignore_tables(thd))
+    DBUG_RETURN(0);
+#endif
   DBUG_RETURN(check_alter_user(thd, host, user) ||
               check_user_can_set_role(thd, user, host, NULL, role, NULL));
 }
