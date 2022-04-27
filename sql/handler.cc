@@ -3834,6 +3834,7 @@ void handler::print_error(int error, myf errflag)
       if ((int) key_nr >= 0 && key_nr < table->s->keys)
       {
         print_keydup_error(table, &table->key_info[key_nr], errflag);
+        table->file->errkey= -1;
         DBUG_VOID_RETURN;
       }
     }

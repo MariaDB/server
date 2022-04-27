@@ -302,4 +302,18 @@ c
 1
 DELETE FROM t;
 DROP TABLE t;
+#
+# MDEV-28098 incorrect key in "dup value" error after long unique
+#
+create table t1 (v3 int primary key, v2 text(100) unique not null, v1 int unique) engine=innodb;
+insert into t1 values ( -32768 , -128 , 58 ) , ( -1 , 44 , -128 );
+create table t2 (v6 int primary key, v5 text, a int not null) engine=innodb;
+insert into t2 values ( 50 , 61 , -1 ) , ( -2147483648 , -128 , 0 );
+update t1 set v2 = 1, v3 = -128;
+ERROR 23000: Duplicate entry '1' for key 'v2'
+update t1,t2 set v1 = v2 , v5 = 0;
+ERROR 23000: Duplicate entry '-128' for key 'v1'
+drop table t1, t2;
+#
 # End of 10.4 tests
+#

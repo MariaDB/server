@@ -233,7 +233,6 @@ DROP TABLE t1;
 #
 # MDEV-18901 Wrong results after ADD UNIQUE INDEX(blob_column)
 #
---source include/have_innodb.inc
 CREATE TABLE t1 (data VARCHAR(7961)) ENGINE=InnoDB;
 
 INSERT INTO t1 VALUES ('f'), ('o'), ('o');
@@ -279,7 +278,6 @@ DROP TABLE t1;
 # MDEV-18820 Assertion `lock_table_has(trx, index->table, LOCK_IX)' failed in lock_rec_insert_check_and_lock upon INSERT into table with blob key'
 #
 
---source include/have_innodb.inc
 set innodb_lock_wait_timeout= 10;
 
 CREATE TABLE t1 (
@@ -385,4 +383,19 @@ DELETE FROM t;
 
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-28098 incorrect key in "dup value" error after long unique
+--echo #
+create table t1 (v3 int primary key, v2 text(100) unique not null, v1 int unique) engine=innodb;
+insert into t1 values ( -32768 , -128 , 58 ) , ( -1 , 44 , -128 );
+create table t2 (v6 int primary key, v5 text, a int not null) engine=innodb;
+insert into t2 values ( 50 , 61 , -1 ) , ( -2147483648 , -128 , 0 );
+--error ER_DUP_ENTRY
+update t1 set v2 = 1, v3 = -128;
+--error ER_DUP_ENTRY
+update t1,t2 set v1 = v2 , v5 = 0;
+drop table t1, t2;
+
+--echo #
 --echo # End of 10.4 tests
+--echo #
