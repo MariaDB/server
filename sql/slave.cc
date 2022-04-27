@@ -2914,9 +2914,9 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     protocol->store((uint32) mi->master_id);
     // SQL_Delay
     // Master_Ssl_Crl
-    protocol->store(mi->ssl_ca, &my_charset_bin);
+    protocol->store(mi->ssl_crl, &my_charset_bin);
     // Master_Ssl_Crlpath
-    protocol->store(mi->ssl_capath, &my_charset_bin);
+    protocol->store(mi->ssl_crlpath, &my_charset_bin);
     // Using_Gtid
     protocol->store(mi->using_gtid_astext(mi->using_gtid), &my_charset_bin);
     // Gtid_IO_Pos
@@ -3004,7 +3004,7 @@ bool show_all_master_info(THD* thd)
   String gtid_pos;
   Master_info **tmp;
   List<Item> field_list;
-  DBUG_ENTER("show_master_info");
+  DBUG_ENTER("show_all_master_info");
   mysql_mutex_assert_owner(&LOCK_active_mi);
 
   gtid_pos.length(0);
