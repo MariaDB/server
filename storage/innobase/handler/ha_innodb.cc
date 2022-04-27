@@ -4195,6 +4195,8 @@ static int innodb_init_params()
 	DBUG_RETURN(0);
 }
 
+bool resolve_sysvar_table_options(handlerton *hton);
+
 /** Initialize the InnoDB storage engine plugin.
 @param[in,out]	p	InnoDB handlerton
 @return error code
@@ -4327,6 +4329,8 @@ static int innodb_init(void* p)
 	if (err != DB_SUCCESS) {
 		DBUG_RETURN(innodb_init_abort());
 	}
+
+	resolve_sysvar_table_options(innobase_hton);
 
 	err = srv_start(create_new_db);
 
