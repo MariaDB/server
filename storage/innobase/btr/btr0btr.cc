@@ -2597,8 +2597,8 @@ btr_insert_into_right_sibling(
 	max_size = page_get_max_insert_size_after_reorganize(next_page, 1);
 
 	/* Extends gap lock for the next page */
-	if (cursor->index->has_locking()) {
-		lock_update_split_left(next_block, block);
+	if (is_leaf && cursor->index->has_locking()) {
+		lock_update_node_pointer(block, next_block);
 	}
 
 	rec = page_cur_tuple_insert(

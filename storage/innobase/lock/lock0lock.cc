@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2022, Oracle and/or its affiliates.
 Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -2767,6 +2767,22 @@ lock_update_split_right(
   of the infimum on right page */
   lock_rec_inherit_to_gap(g.cell1(), l, g.cell2(), r, left_block->page.frame,
                           PAGE_HEAP_NO_SUPREMUM, h);
+}
+
+void lock_update_node_pointer(const buf_block_t *left_block,
+                              const buf_block_t *right_block)
+{
+  const ulint h= lock_get_min_heap_no(right_block);
+  const page_id_t l{left_block->page.id()};
+  const page_id_t r{right_block->page.id()};
+
+  /* This would likely be too large for a memory transaction. */
+  LockMultiGuard g{lock_sys.rec_hash, l, r};
+
+  /* Inherit locks from the gap before supremum of the left page to the gap
+  before the successor of the infimum of the right page */
+  lock_rec_inherit_to_gap(g.cell2(), r, g.cell1(), l, right_block->page.frame,
+                          h, PAGE_HEAP_NO_SUPREMUM);
 }
 
 #ifdef UNIV_DEBUG
