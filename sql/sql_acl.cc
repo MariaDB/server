@@ -1916,6 +1916,48 @@ class Grant_tables
   inline const Roles_mapping_table& roles_mapping_table() const
   { return m_roles_mapping_table; }
 
+  /*
+    Outputs the TABLE_LIST corresponding to the table specification of
+    which_tables.
+
+    @param which_tables [in]  Bit map specifying which tables to include in the
+                              output. See enum_acl_tables
+
+    @param lock_type [in]     Lock type for the tables
+
+    @param tbls_out [out]     Empty TABLE_LIST which will be populated using
+                              the specification from which_tables
+
+    @param n_tables [out]     The number of tables output in tbls_out
+  */
+  static void get_table_list(uint which_tables, enum thr_lock_type lock_type,
+                             TABLE_LIST *tbls_out, size_t *n_tables)
+  {
+    DBUG_ENTER("Grant_tables::get_table_list");
+    uint tmp_which_tables= which_tables;
+    *n_tables= 0;
+    DBUG_ASSERT(tbls_out && which_tables < (1 << (USER_TABLE + 1)));
+
+    for (int i=USER_TABLE; i >=0 && tmp_which_tables; i--)
+    {
+      if (tmp_which_tables & 1)
+      {
+        tbls_out->init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_TABLE_NAME[i],
+                           NULL, lock_type);
+        *n_tables+= 1;
+        /*
+          Stop if this was the last table to populate
+        */
+        if (!(tbls_out->next_local))
+          break;
+
+        tbls_out= tbls_out->next_local;
+      }
+      tmp_which_tables >>= 1;
+    }
+    DBUG_VOID_RETURN;
+  }
+
  private:
 
   /* Before any operation is possible on grant tables, they must be opened.
@@ -3930,6 +3972,21 @@ wsrep_error_label:
   thd->restore_stmt_binlog_format(save_binlog_format);
 
   DBUG_RETURN(result);
+}
+
+void acl_get_tables_set_password(TABLE_LIST *tables, size_t *n_tables)
+{
+  DBUG_ENTER("acl_get_tables_set_password");
+  Grant_tables::get_table_list(Table_user, TL_WRITE, tables, n_tables);
+  DBUG_VOID_RETURN;
+}
+
+void acl_get_tables_set_default_role(TABLE_LIST *tables, size_t *n_tables)
+{
+  DBUG_ENTER("acl_get_tables_set_default_role");
+  Grant_tables::get_table_list(Table_roles_mapping, TL_WRITE, tables,
+                               n_tables);
+  DBUG_VOID_RETURN;
 }
 
 int acl_check_set_default_role(THD *thd, const char *host, const char *user,

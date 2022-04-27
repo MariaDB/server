@@ -3661,6 +3661,39 @@ mysql_execute_command(THD *thd)
                  MYF(0));
       DBUG_RETURN(0);
     }
+
+    /*
+      Check if the SET command will modify a table that should be ignored in
+      replication.
+    */
+    if (lex->sql_command == SQLCOM_SET_OPTION)
+    {
+      List<set_var_base> *lex_var_list= &lex->var_list;
+      List_iterator_fast<set_var_base> it(*lex_var_list);
+      set_var_base *set_var;
+      while ((set_var=it++))
+      {
+        TABLE_LIST *tables;
+        set_var->get_modified_tables(&tables);
+        if (tables && all_tables_not_ok(thd, tables))
+        {
+          /*
+            Used in MTR to prove that the event was ignored _here_
+          */
+          DBUG_EXECUTE_IF(
+              "sync_set_var_rpl_filtered",
+              DBUG_ASSERT(!debug_sync_set_action(
+                  thd, STRING_WITH_LEN("now SIGNAL ignoring_event WAIT_FOR "
+                                       "ack_event_ignored"))););
+          /* warn the slave SQL thread */
+          my_message(ER_SLAVE_IGNORED_TABLE,
+                     ER_THD(thd, ER_SLAVE_IGNORED_TABLE), MYF(0));
+          DBUG_RETURN(0);
+        }
+      }
+    }
+
+
     /* 
        Execute deferred events first
     */
