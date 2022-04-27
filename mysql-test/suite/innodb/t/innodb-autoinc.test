@@ -1,10 +1,4 @@
 --source include/have_innodb.inc
-# embedded server ignores 'delayed', so skip this
--- source include/not_embedded.inc
-
---disable_warnings
-drop table if exists t1;
---enable_warnings
 
 #
 # Bug #34335
@@ -770,3 +764,20 @@ DROP TABLE t1;
 
 SET @engine='INNODB';
 --source include/autoinc_mdev15353.inc
+
+--echo #
+--echo # MDEV-28416 Incorrect AUTO_INCREMENT may be issued
+--echo #
+
+SET @aii=@@auto_increment_increment;
+SET auto_increment_increment=300;
+CREATE TABLE t1 (a SERIAL) ENGINE=innodb;
+INSERT INTO t1 VALUES (18446744073709551613);
+SHOW CREATE TABLE t1;
+--error HA_ERR_AUTOINC_ERANGE
+INSERT INTO t1 VALUES (NULL);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET auto_increment_increment=@aii;
+
+--echo # End of 10.2 tests
