@@ -142,5 +142,17 @@ SELECT global.tmp_disk_table_size;
 ERROR 42S02: Unknown table 'global' in field list
 SELECT tmp_disk_table_size = @@session.tmp_disk_table_size;
 ERROR 42S22: Unknown column 'tmp_disk_table_size' in 'field list'
+#
+# Beginning of 10.4 test
+#
+# Diagnostics_area::sql_errno() const: Assertion `m_status == DA_ERROR'
+# failed on SELECT after setting tmp_disk_table_size.
+#
+SET @@tmp_disk_table_size=16384;
+CREATE VIEW v AS SELECT 'a';
+SELECT table_name FROM INFORMATION_SCHEMA.views;
+ERROR HY000: The table '(temporary)' is full
+DROP VIEW v;
+# End of 10.4 test
 SET @@global.tmp_disk_table_size = @start_global_value;
 SET @@session.tmp_disk_table_size = @start_session_value;

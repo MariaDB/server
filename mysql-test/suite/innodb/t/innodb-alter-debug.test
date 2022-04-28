@@ -52,11 +52,10 @@ SET DEBUG_SYNC = 'now SIGNAL s2';
 --echo /* connection default */
 connection default;
 --echo /* reap */ alter table t1 force, add b int, ALGORITHM=inplace;
---error ER_DUP_ENTRY
 --reap
 
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL s1 WAIT_FOR s2';
---send alter table t1 force, add b int, ALGORITHM=inplace;
+--send alter table t1 force, add c int, ALGORITHM=inplace;
 
 --echo /* connection con1 */
 connection con1;
@@ -68,7 +67,6 @@ SET DEBUG_SYNC = 'now SIGNAL s2';
 --echo /* connection default */
 connection default;
 --echo /* reap */ alter table t1 force, add b int, ALGORITHM=inplace;
---error ER_DUP_ENTRY
 --reap
 SET DEBUG_SYNC = 'RESET';
 
@@ -92,7 +90,6 @@ SET DEBUG_SYNC = 'now SIGNAL S2';
 disconnect con1;
 
 CONNECTION default;
---error ER_DUP_ENTRY
 reap;
 SET DEBUG_SYNC='RESET';
 

@@ -1,10 +1,8 @@
 CREATE TABLE t1 (a INT NOT NULL) ENGINE=InnoDB STATS_PERSISTENT=0;
 connect ddl,localhost,root;
-SET DEBUG_SYNC='after_trx_committed_in_memory SIGNAL stuck WAIT_FOR ever EXECUTE 2';
+SET DEBUG_SYNC='after_trx_committed_in_memory SIGNAL stuck WAIT_FOR ever';
 ALTER TABLE t1 ADD PRIMARY KEY(a);
 connection default;
-SET DEBUG_SYNC='now WAIT_FOR stuck';
-SET DEBUG_SYNC='now SIGNAL ever';
 SET DEBUG_SYNC='now WAIT_FOR stuck';
 SET GLOBAL innodb_log_checkpoint_now=ON;
 # restart

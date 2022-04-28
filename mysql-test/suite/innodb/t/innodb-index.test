@@ -1,7 +1,6 @@
 -- source include/have_innodb.inc
 # Embedded server tests do not support restarting.
 -- source include/not_embedded.inc
--- source include/maybe_debug.inc
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
@@ -1126,9 +1125,6 @@ drop table t1;
 --echo #
 
 --source include/no_checkpoint_start.inc
-if ($have_debug) {
-SET GLOBAL DEBUG_DBUG='+d,fil_names_write_bogus';
-}
 CREATE TABLE t1(f1 INT PRIMARY KEY)ENGINE=InnoDB;
 
 CREATE TABLE t2(f1 INT PRIMARY KEY)ENGINE=InnoDB;
@@ -1156,13 +1152,6 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 --move_file $MYSQLD_DATADIR/test/t0.ibd $MYSQLD_DATADIR/test/t1.ibd
 
 --source include/start_mysqld.inc
-if ($have_debug) {
-# Initiate shutdown in order to issue a redo log checkpoint and to discard
-# the redo log record that was emitted due to '+d,fil_names_write_bogus'.
---let $restart_noprint=2
---source include/restart_mysqld.inc
---let $restart_noprint=0
-}
 
 SELECT * FROM t1;
 SELECT * FROM t2;

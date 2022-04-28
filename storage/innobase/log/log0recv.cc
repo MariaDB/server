@@ -781,11 +781,18 @@ processed:
   @param flags      FSP_SPACE_FLAGS
   @param crypt_data encryption metadata
   @param size       tablespace size in pages
-  @return tablespace */
+  @return tablespace
+  @retval nullptr   if crypt_data is invalid */
   static fil_space_t *create(const recv_spaces_t::const_iterator &it,
                              const std::string &name, uint32_t flags,
                              fil_space_crypt_t *crypt_data, uint32_t size)
   {
+    if (crypt_data && !crypt_data->is_key_found())
+    {
+      crypt_data->~fil_space_crypt_t();
+      ut_free(crypt_data);
+      return nullptr;
+    }
     fil_space_t *space= fil_space_t::create(it->first, flags,
                                             FIL_TYPE_TABLESPACE, crypt_data);
     ut_ad(space);
@@ -830,6 +837,9 @@ processed:
           fil_space_read_crypt_data(fil_space_t::zip_size(flags), page),
           size);
 
+        if (!space)
+          goto next_item;
+
         space->free_limit= fsp_header_get_field(page, FSP_FREE_LIMIT);
         space->free_len= flst_get_len(FSP_HEADER_OFFSET + FSP_FREE + page);
         fil_node_t *node= UT_LIST_GET_FIRST(space->chain);
@@ -840,7 +850,8 @@ free_space:
           goto next_item;
 	}
         if (os_file_write(IORequestWrite, node->name, node->handle,
-                          page, 0, fil_space_t::physical_size(flags)) !=            DB_SUCCESS)
+                          page, 0, fil_space_t::physical_size(flags)) !=
+            DB_SUCCESS)
         {
           space->release();
           goto free_space;
@@ -900,6 +911,11 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
                                                  fil_space_read_crypt_data
                                                  (fil_space_t::zip_size(flags),
                                                   page), size);
+      if (!space)
+      {
+        block->page.lock.x_unlock();
+        goto fail;
+      }
       space->free_limit= fsp_header_get_field(page, FSP_FREE_LIMIT);
       space->free_len= flst_get_len(FSP_HEADER_OFFSET + FSP_FREE + page);
       block->page.lock.x_unlock();
@@ -1355,7 +1371,7 @@ inline void recv_sys_t::clear()
   mysql_mutex_assert_owner(&mutex);
   apply_log_recs= false;
   apply_batch_on= false;
-  ut_ad(!after_apply || !UT_LIST_GET_LAST(blocks));
+  ut_ad(!after_apply || found_corrupt_fs || !UT_LIST_GET_LAST(blocks));
   pages.clear();
 
   for (buf_block_t *block= UT_LIST_GET_LAST(blocks); block; )

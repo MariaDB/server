@@ -958,13 +958,13 @@ FOREIGN KEY (c3,c2) REFERENCES t1(c1,c1), ALGORITHM=COPY;
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c1,c1);
-ERROR HY000: Failed to add the foreign key constaint. Missing index for constraint 'fk_t2_ca' in the referenced table 't1'
+ERROR HY000: Failed to add the foreign key constraint. Missing index for constraint 'fk_t2_ca' in the referenced table 't1'
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c1,c2), ALGORITHM=COPY;
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c1,c2);
-ERROR HY000: Failed to add the foreign key constaint. Missing index for constraint 'fk_t2_ca' in the referenced table 't1'
+ERROR HY000: Failed to add the foreign key constraint. Missing index for constraint 'fk_t2_ca' in the referenced table 't1'
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c2,c1), ALGORITHM=INPLACE;
 ERROR HY000: Failed to add the foreign key constraint on table 't2'. Incorrect options in FOREIGN KEY constraint 'test/fk_t2_ca'
@@ -979,7 +979,7 @@ FOREIGN KEY (c3,c2) REFERENCES t1(c1,c2), ALGORITHM=COPY;
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c1,c2);
-ERROR HY000: Failed to add the foreign key constaint. Missing index for constraint 'fk_t2_ca' in the referenced table 't1'
+ERROR HY000: Failed to add the foreign key constraint. Missing index for constraint 'fk_t2_ca' in the referenced table 't1'
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c2,c1);
 affected rows: 0

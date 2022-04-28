@@ -83,12 +83,6 @@ https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 # define MSAN_STAT_WORKAROUND(st) ((void) 0)
 #endif /* __has_feature(memory_sanitizer) */
 
-#ifdef HAVE_valgrind
-#define IF_VALGRIND(A,B) A
-#else
-#define IF_VALGRIND(A,B) B
-#endif
-
 #ifdef TRASH_FREED_MEMORY
 /*
   _TRASH_FILL() has to call MEM_MAKE_ADDRESSABLE() to cancel any effect of

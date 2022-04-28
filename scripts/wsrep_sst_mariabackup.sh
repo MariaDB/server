@@ -579,7 +579,14 @@ read_cnf()
     ssystag=$(parse_cnf mysqld_safe syslog-tag "${SST_SYSLOG_TAG:-}")
     ssystag="$ssystag-"
     sstlogarchive=$(parse_cnf sst sst-log-archive 1)
-    sstlogarchivedir=$(parse_cnf sst sst-log-archive-dir '/tmp/sst_log_archive')
+    sstlogarchivedir=""
+    if [ $sstlogarchive -ne 0 ]; then
+        sstlogarchivedir=$(parse_cnf sst sst-log-archive-dir \
+                           '/tmp/sst_log_archive')
+        if [ -n "$sstlogarchivedir" ]; then
+            sstlogarchivedir=$(trim_dir "$sstlogarchivedir")
+        fi
+    fi
 
     if [ $speciald -eq 0 ]; then
         wsrep_log_error \
@@ -931,7 +938,15 @@ else
 
         if [ -n "$sstlogarchivedir" ]; then
             if [ ! -d "$sstlogarchivedir" ]; then
-                mkdir -p "$sstlogarchivedir"
+                if ! mkdir -p "$sstlogarchivedir"; then
+                    sstlogarchivedir=""
+                    wsrep_log_warning \
+                        "Unable to create '$sstlogarchivedir' directory"
+                fi
+            elif [ ! -w "$sstlogarchivedir" ]; then
+                sstlogarchivedir=""
+                wsrep_log_warning \
+                    "The '$sstlogarchivedir' directory is not writtable"
             fi
         fi
 
@@ -943,8 +958,8 @@ else
                 newfile="$INNOAPPLYLOG.$ARCHIVETIMESTAMP"
             fi
             wsrep_log_info "Moving '$INNOAPPLYLOG' to '$newfile'"
-            mv "$INNOAPPLYLOG" "$newfile"
-            gzip "$newfile"
+            mv "$INNOAPPLYLOG" "$newfile" && gzip "$newfile" || \
+                wsrep_log_warning "Failed to archive log file ('$newfile')"
         fi
 
         if [ -e "$INNOMOVELOG" ]; then
@@ -955,8 +970,8 @@ else
                 newfile="$INNOMOVELOG.$ARCHIVETIMESTAMP"
             fi
             wsrep_log_info "Moving '$INNOMOVELOG' to '$newfile'"
-            mv "$INNOMOVELOG" "$newfile"
-            gzip "$newfile"
+            mv "$INNOMOVELOG" "$newfile" && gzip "$newfile" || \
+                wsrep_log_warning "Failed to archive log file ('$newfile')"
         fi
 
         if [ -e "$INNOBACKUPLOG" ]; then
@@ -967,8 +982,8 @@ else
                 newfile="$INNOBACKUPLOG.$ARCHIVETIMESTAMP"
             fi
             wsrep_log_info "Moving '$INNOBACKUPLOG' to '$newfile'"
-            mv "$INNOBACKUPLOG" "$newfile"
-            gzip "$newfile"
+            mv "$INNOBACKUPLOG" "$newfile" && gzip "$newfile" || \
+                wsrep_log_warning "Failed to archive log file ('$newfile')"
         fi
     fi
     INNOAPPLY="> '$INNOAPPLYLOG' 2>&1"

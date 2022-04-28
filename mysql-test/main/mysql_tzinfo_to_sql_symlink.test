@@ -1,18 +1,13 @@
+--source include/have_innodb.inc
 --source include/have_symlink.inc
 --source include/not_windows.inc
---source include/not_embedded.inc
+--source include/no_protocol.inc
 
-use mysql;
-RENAME TABLE time_zone TO time_zone_orig,
-   time_zone_name TO time_zone_name_orig,
-   time_zone_transition TO time_zone_transition_orig,
-   time_zone_transition_type TO time_zone_transition_type_orig,
-   time_zone_leap_second TO time_zone_leap_second_orig;
-CREATE TABLE time_zone LIKE time_zone_orig;
-CREATE TABLE time_zone_name LIKE time_zone_name_orig;
-CREATE TABLE time_zone_transition LIKE time_zone_transition_orig;
-CREATE TABLE time_zone_transition_type LIKE time_zone_transition_type_orig;
-CREATE TABLE time_zone_leap_second LIKE time_zone_leap_second_orig;
+CREATE TABLE time_zone LIKE mysql.time_zone;
+CREATE TABLE time_zone_name LIKE mysql.time_zone_name;
+CREATE TABLE time_zone_transition LIKE mysql.time_zone_transition;
+CREATE TABLE time_zone_transition_type LIKE mysql.time_zone_transition_type;
+CREATE TABLE time_zone_leap_second LIKE mysql.time_zone_leap_second;
 
 --echo #
 --echo # MDEV-5226 mysql_tzinfo_to_sql errors with tzdata 2013f and above
@@ -27,16 +22,18 @@ CREATE TABLE time_zone_leap_second LIKE time_zone_leap_second_orig;
 --echo # Verbose run
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --exec $MYSQL_TZINFO_TO_SQL --verbose $MYSQLTEST_VARDIR/zoneinfo 2>&1
-SELECT COUNT(*) FROM time_zone;
-SELECT COUNT(*) FROM time_zone_name;
-SELECT COUNT(*) FROM time_zone_transition;
-SELECT COUNT(*) FROM time_zone_transition_type;
-SELECT COUNT(*) FROM time_zone_leap_second;
+
+--echo #
+--echo # MDEV-28263: mariadb-tzinfo-to-sql improve wsrep and binlog cases
+--echo #
 
 --echo # Run on zoneinfo directory
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --exec $MYSQL_TZINFO_TO_SQL $MYSQLTEST_VARDIR/zoneinfo 2>&1
---exec $MYSQL_TZINFO_TO_SQL $MYSQLTEST_VARDIR/zoneinfo 2>/dev/null | $MYSQL -S $MASTER_MYSOCK -u root mysql
+--exec $MYSQL_TZINFO_TO_SQL $MYSQLTEST_VARDIR/zoneinfo > $MYSQL_TMP_DIR/tz.sql
+--disable_query_log
+--source $MYSQL_TMP_DIR/tz.sql
+--enable_query_log
 SELECT COUNT(*) FROM time_zone;
 SELECT COUNT(*) FROM time_zone_name;
 SELECT COUNT(*) FROM time_zone_transition;
@@ -49,12 +46,26 @@ SELECT COUNT(*) FROM time_zone_leap_second;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog $MYSQLTEST_VARDIR/zoneinfo 2>&1
---exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog $MYSQLTEST_VARDIR/zoneinfo 2>/dev/null | $MYSQL -S $MASTER_MYSOCK -u root mysql
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog $MYSQLTEST_VARDIR/zoneinfo 2>/dev/null > $MYSQL_TMP_DIR/tz.sql
+--disable_query_log
+CREATE TEMPORARY TABLE baseline AS
+  SELECT VARIABLE_NAME,VARIABLE_VALUE
+    FROM information_schema.global_status
+    WHERE VARIABLE_NAME IN ('COM_BEGIN', 'COM_INSERT', 'COM_LOCK_TABLES', 'COM_ALTER_TABLE', 'COM_TRUNCATE');
+--source $MYSQL_TMP_DIR/tz.sql
+--enable_query_log
+
 SELECT COUNT(*) FROM time_zone;
 SELECT COUNT(*) FROM time_zone_name;
 SELECT COUNT(*) FROM time_zone_transition;
 SELECT COUNT(*) FROM time_zone_transition_type;
 SELECT COUNT(*) FROM time_zone_leap_second;
+
+SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@SQL_LOG_BIN;
+SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
+  FROM information_schema.global_status g
+  JOIN baseline b USING (VARIABLE_NAME)
+  ORDER BY g.VARIABLE_NAME;
 
 # Below tests don't include TRUNCATE TABLE so clear them.
 TRUNCATE TABLE time_zone;
@@ -69,12 +80,26 @@ TRUNCATE TABLE time_zone_leap_second;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --exec $MYSQL_TZINFO_TO_SQL $MYSQLTEST_VARDIR/zoneinfo/GMT XXX 2>&1
---exec $MYSQL_TZINFO_TO_SQL $MYSQLTEST_VARDIR/zoneinfo/GMT XXX 2>/dev/null | $MYSQL -S $MASTER_MYSOCK -u root mysql
+--exec $MYSQL_TZINFO_TO_SQL $MYSQLTEST_VARDIR/zoneinfo/GMT XXX 2>/dev/null > $MYSQL_TMP_DIR/tz.sql
+--disable_query_log
+CREATE OR REPLACE TEMPORARY TABLE baseline AS
+  SELECT VARIABLE_NAME,VARIABLE_VALUE
+    FROM information_schema.global_status
+    WHERE VARIABLE_NAME IN ('COM_BEGIN', 'COM_INSERT', 'COM_LOCK_TABLES', 'COM_ALTER_TABLE', 'COM_TRUNCATE');
+--source $MYSQL_TMP_DIR/tz.sql
+--enable_query_log
+
 SELECT COUNT(*) FROM time_zone;
 SELECT COUNT(*) FROM time_zone_name;
 SELECT COUNT(*) FROM time_zone_transition;
 SELECT COUNT(*) FROM time_zone_transition_type;
 SELECT COUNT(*) FROM time_zone_leap_second;
+
+SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@SQL_LOG_BIN;
+SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
+  FROM information_schema.global_status g
+  JOIN baseline b USING (VARIABLE_NAME)
+  ORDER BY g.VARIABLE_NAME;
 
 TRUNCATE TABLE time_zone;
 TRUNCATE TABLE time_zone_name;
@@ -87,12 +112,26 @@ TRUNCATE TABLE time_zone_leap_second;
 --echo #
 
 --exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog $MYSQLTEST_VARDIR/zoneinfo/GMT XXX 2>&1
---exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog $MYSQLTEST_VARDIR/zoneinfo/GMT 2>/dev/null | $MYSQL -S $MASTER_MYSOCK -u root mysql
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog $MYSQLTEST_VARDIR/zoneinfo/GMT XXX 2>/dev/null > $MYSQL_TMP_DIR/tz.sql
+--disable_query_log
+CREATE OR REPLACE TEMPORARY TABLE baseline AS
+  SELECT VARIABLE_NAME,VARIABLE_VALUE
+    FROM information_schema.global_status
+    WHERE VARIABLE_NAME IN ('COM_BEGIN', 'COM_INSERT', 'COM_LOCK_TABLES', 'COM_ALTER_TABLE', 'COM_TRUNCATE');
+--source $MYSQL_TMP_DIR/tz.sql
+--enable_query_log
+
 SELECT COUNT(*) FROM time_zone;
 SELECT COUNT(*) FROM time_zone_name;
 SELECT COUNT(*) FROM time_zone_transition;
 SELECT COUNT(*) FROM time_zone_transition_type;
 SELECT COUNT(*) FROM time_zone_leap_second;
+
+SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@SQL_LOG_BIN;
+SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
+  FROM information_schema.global_status g
+  JOIN baseline b USING (VARIABLE_NAME)
+  ORDER BY g.VARIABLE_NAME;
 
 TRUNCATE TABLE time_zone;
 TRUNCATE TABLE time_zone_name;
@@ -105,12 +144,26 @@ TRUNCATE TABLE time_zone_leap_second;
 --echo #
 
 --exec $MYSQL_TZINFO_TO_SQL --leap $MYSQLTEST_VARDIR/zoneinfo/GMT 2>&1
---exec $MYSQL_TZINFO_TO_SQL --leap $MYSQLTEST_VARDIR/zoneinfo/GMT 2>/dev/null | $MYSQL -S $MASTER_MYSOCK -u root mysql
+--exec $MYSQL_TZINFO_TO_SQL --leap $MYSQLTEST_VARDIR/zoneinfo/GMT 2>/dev/null > $MYSQL_TMP_DIR/tz.sql
+--disable_query_log
+CREATE OR REPLACE TEMPORARY TABLE baseline AS
+  SELECT VARIABLE_NAME,VARIABLE_VALUE
+    FROM information_schema.global_status
+    WHERE VARIABLE_NAME IN ('COM_BEGIN', 'COM_INSERT', 'COM_LOCK_TABLES', 'COM_ALTER_TABLE', 'COM_TRUNCATE');
+--source $MYSQL_TMP_DIR/tz.sql
+--enable_query_log
+
 SELECT COUNT(*) FROM time_zone;
 SELECT COUNT(*) FROM time_zone_name;
 SELECT COUNT(*) FROM time_zone_transition;
 SELECT COUNT(*) FROM time_zone_transition_type;
 SELECT COUNT(*) FROM time_zone_leap_second;
+
+SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@SQL_LOG_BIN;
+SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
+  FROM information_schema.global_status g
+  JOIN baseline b USING (VARIABLE_NAME)
+  ORDER BY g.VARIABLE_NAME;
 
 TRUNCATE TABLE time_zone;
 TRUNCATE TABLE time_zone_name;
@@ -123,37 +176,51 @@ TRUNCATE TABLE time_zone_leap_second;
 --echo #
 
 --exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog --leap $MYSQLTEST_VARDIR/zoneinfo/GMT 2>&1
---exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog --leap $MYSQLTEST_VARDIR/zoneinfo/GMT 2>/dev/null | $MYSQL -S $MASTER_MYSOCK -u root mysql
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog --leap $MYSQLTEST_VARDIR/zoneinfo/GMT > $MYSQL_TMP_DIR/tz.sql
+--disable_query_log
+CREATE OR REPLACE TEMPORARY TABLE baseline AS
+  SELECT VARIABLE_NAME,VARIABLE_VALUE
+    FROM information_schema.global_status
+    WHERE VARIABLE_NAME IN ('COM_BEGIN', 'COM_INSERT', 'COM_LOCK_TABLES', 'COM_ALTER_TABLE', 'COM_TRUNCATE');
+--source $MYSQL_TMP_DIR/tz.sql
+--enable_query_log
+
 SELECT COUNT(*) FROM time_zone;
 SELECT COUNT(*) FROM time_zone_name;
 SELECT COUNT(*) FROM time_zone_transition;
 SELECT COUNT(*) FROM time_zone_transition_type;
 SELECT COUNT(*) FROM time_zone_leap_second;
 
-#
-#
-# Cleanup
-#
-
---exec rm -rf $MYSQLTEST_VARDIR/zoneinfo
+SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@SQL_LOG_BIN;
+SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
+  FROM information_schema.global_status g
+  JOIN baseline b USING (VARIABLE_NAME)
+  ORDER BY g.VARIABLE_NAME;
 
 --echo #
 --echo # MDEV-6236 - [PATCH] mysql_tzinfo_to_sql may produce invalid SQL
 --echo #
+--exec rm -rf $MYSQLTEST_VARDIR/zoneinfo
 --exec mkdir $MYSQLTEST_VARDIR/zoneinfo
 --copy_file std_data/zoneinfo/GMT $MYSQLTEST_VARDIR/zoneinfo/Factory
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --exec $MYSQL_TZINFO_TO_SQL $MYSQLTEST_VARDIR/zoneinfo 2>&1
 
+#
+#
+# Cleanup
+#
+
+--remove_file $MYSQL_TMP_DIR/tz.sql
 --exec rm -rf $MYSQLTEST_VARDIR/zoneinfo
+DROP TABLE baseline;
 DROP TABLE time_zone;
 DROP TABLE time_zone_name;
 DROP TABLE time_zone_transition;
 DROP TABLE time_zone_transition_type;
 DROP TABLE time_zone_leap_second;
-RENAME TABLE time_zone_orig TO time_zone,
-  time_zone_name_orig TO time_zone_name,
-  time_zone_transition_orig TO time_zone_transition,
-  time_zone_transition_type_orig TO time_zone_transition_type,
-  time_zone_leap_second_orig TO time_zone_leap_second;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

@@ -61,9 +61,9 @@ Every change to a contents of a data page must be done
 through mtr_t, and mtr_t::commit() will write log records
 to the InnoDB redo log. */
 
-MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)
+alignas(CPU_LEVEL1_DCACHE_LINESIZE)
 static group_commit_lock flush_lock;
-MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)
+alignas(CPU_LEVEL1_DCACHE_LINESIZE)
 static group_commit_lock write_lock;
 
 /** Redo log system */

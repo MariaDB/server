@@ -94,6 +94,97 @@ create table t1 (a int, v_a int generated always as (a));
 update t1 as x set a = 1;
 alter table t1 force;
 drop table t1;
+create table t1 (
+id int not null auto_increment primary key,
+order_date_time datetime not null,
+order_date date generated always as (convert(order_date_time, date)),
+language_id binary(16) null
+);
+update t1 as tx set order_date= null;
+alter table t1 modify column language_id binary(16) not null;
+drop table t1;
 #
-# End of 10.2 tests
+# MDEV-24176 Server crashes after insert in the table with virtual column generated using date_format() and if()
 #
+create table t1 (d1 date not null, d2 date not null,
+gd text as (concat(d1,if(d1 <> d2, date_format(d2, 'to %y-%m-%d '), ''))) );
+insert into t1(d1,d2) values
+('2020-09-01','2020-09-01'),('2020-05-01','2020-09-01');
+select * from t1;
+d1	d2	gd
+2020-09-01	2020-09-01	2020-09-01
+2020-05-01	2020-09-01	2020-05-01to 20-09-01 
+drop table t1;
+# MDEV-25772 (duplicate) and LOCK TABLES case
+create table t1 (d1 datetime , v_d1 tinyint(1) as (d1 < curdate()));
+insert into t1 (d1) values ('2021-09-11 08:38:23'), ('2021-09-01 08:38:23');
+lock tables t1 write;
+select * from t1 where v_d1=1;
+d1	v_d1
+2021-09-11 08:38:23	1
+2021-09-01 08:38:23	1
+select * from t1;
+d1	v_d1
+2021-09-11 08:38:23	1
+2021-09-01 08:38:23	1
+unlock tables;
+drop table t1;
+# MDEV-26432 (duplicate)
+create table t1 (v2 int, v1 int as ((user() like 'x'))) ;
+select 1 from t1 where v1=1 ;
+1
+select * from t1;
+v2	v1
+drop table t1;
+create table t1 (v2 int as ( user () like 'x'));
+select 1 from t1 order by v2 ;
+1
+alter table t1 add i int;
+drop table t1;
+# MDEV-26437 (duplicate)
+create table v0 (v2 int not null,
+v1 bigint as (case 'x' when current_user() then v2 end));
+select v2 as v3 from v0 where v1 like 'x' escape 'x';
+v3
+insert into v0 (v2) values (-128);
+drop table v0;
+create table t1 (vi int as (case 'x' when current_user() then 1 end));
+select 1 from t1 where vi=1;
+1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `vi` int(11) GENERATED ALWAYS AS (case 'x' when current_user() then 1 end) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (vi int as (case 'x' when current_user() then 1 end));
+select 1 from t1 where vi=1;
+1
+select 1 from t1 where vi=1;
+1
+drop table t1;
+# MDEV-28092 (duplicate)
+create table t1 (b timestamp, a int as (1 in (dayofmonth (b between 'x' and current_user) = b)));
+insert into t1(b) values ('2022-03-17 14:55:37');
+select 1 from t1 x natural join t1;
+1
+1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'x'
+Warning	1292	Truncated incorrect datetime value: 'root@localhost'
+Warning	1292	Truncated incorrect datetime value: 'x'
+Warning	1292	Truncated incorrect datetime value: 'root@localhost'
+drop table t1;
+# MDEV-28089 (duplicate)
+create table t1 (a int , b date as (1 in ('x' ,(database () = 'x' is null) ))) ;
+select b from t1;
+b
+select a from t1 order by 'x' = b;
+a
+drop table t1;
+create table t1 (a int , b date as (1 in ('x' ,(database ()) ))) ;
+select b from t1;
+b
+select a from t1 order by 'x' = b;
+a
+drop table t1;

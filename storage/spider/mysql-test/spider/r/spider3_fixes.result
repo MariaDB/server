@@ -200,6 +200,14 @@ id
 5000
 10000
 connection master_1;
+#
+# MDEV-28225 Disallow user to create Spider temporary table
+#
+connection master_1;
+CREATE TEMPORARY TABLE t1 (
+a INT
+) ENGINE=Spider;
+ERROR HY000: Table storage engine 'SPIDER' does not support the create option 'TEMPORARY'
 
 deinit
 connection master_1;

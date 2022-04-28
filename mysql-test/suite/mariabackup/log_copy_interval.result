@@ -1,0 +1,2 @@
+# xtrabackup backup
+NOT FOUND /sleep_after_waiting_for_lsn\n(\[\d+\] \d+-\d+-\d+ \d+:\d+:\d+ >> log scanned up to \(\d+\)\n){2}/ in backup.log

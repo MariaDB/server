@@ -279,7 +279,9 @@ static struct my_option my_long_options[] =
    &opt_slave_apply, &opt_slave_apply, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
   {"as-of", OPT_ASOF_TIMESTAMP,
-   "Dump system versioned table as of specified timestamp.",
+   "Dump system versioned table(s) as of specified timestamp. "
+   "Argument is interpreted according to the --tz-utc setting. "
+   "Table structures are always dumped as of current timestamp.",
    &opt_asof_timestamp, &opt_asof_timestamp, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"character-sets-dir", OPT_CHARSETS_DIR,
    "Directory for character set files.", (char **)&charsets_dir,
@@ -581,7 +583,8 @@ static struct my_option my_long_options[] =
    &opt_dump_triggers, &opt_dump_triggers, 0, GET_BOOL,
    NO_ARG, 1, 0, 0, 0, 0, 0},
   {"tz-utc", OPT_TZ_UTC,
-    "SET TIME_ZONE='+00:00' at top of dump to allow dumping of TIMESTAMP data when a server has data in different time zones or data is being moved between servers with different time zones.",
+   "Set connection time zone to UTC before commencing the dump and add "
+   "SET TIME_ZONE=´+00:00´ to the top of the dump file.",
     &opt_tz_utc, &opt_tz_utc, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
 #ifndef DONT_ALLOW_USER_CHANGE
   {"user", 'u', "User for login if not current user.",

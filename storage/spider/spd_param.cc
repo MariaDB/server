@@ -410,7 +410,7 @@ uint spider_param_force_commit(
  */
 static MYSQL_THDVAR_UINT(
   xa_register_mode, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Mode of XA transaction register into system table", /* comment */
   NULL, /* check */
   NULL, /* update */
@@ -433,7 +433,7 @@ uint spider_param_xa_register_mode(
  */
 static MYSQL_THDVAR_LONGLONG(
   internal_offset, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Internal offset", /* comment */
   NULL, /* check */
   spider_use_table_value_deprecated, /* update */
@@ -1575,7 +1575,7 @@ double spider_param_crd_interval(
  */
 static MYSQL_THDVAR_INT(
   crd_mode, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Mode of cardinality confirmation.", /* comment */
   NULL, /* check */
   spider_use_table_value_deprecated, /* update */
@@ -1630,7 +1630,7 @@ int spider_param_crd_sync(
  */
 static MYSQL_THDVAR_INT(
   crd_type, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Type of cardinality calculation.", /* comment */
   NULL, /* check */
   spider_use_table_value_deprecated, /* update */
@@ -1655,7 +1655,7 @@ int spider_param_crd_type(
  */
 static MYSQL_THDVAR_INT(
   crd_weight, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Weight coefficient to calculate effectiveness of index from cardinality of column.", /* comment */
   NULL, /* check */
   spider_use_table_value_deprecated, /* update */
@@ -1735,7 +1735,7 @@ double spider_param_sts_interval(
  */
 static MYSQL_THDVAR_INT(
   sts_mode, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Mode of table state confirmation.", /* comment */
   NULL, /* check */
   spider_use_table_value_deprecated, /* update */
@@ -2837,7 +2837,7 @@ static int spider_store_last_sts;
 static MYSQL_SYSVAR_INT(
   store_last_sts,
   spider_store_last_sts,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "Store last sts result into system table",
   NULL,
   spider_use_table_value_deprecated,
@@ -2864,7 +2864,7 @@ static int spider_store_last_crd;
 static MYSQL_SYSVAR_INT(
   store_last_crd,
   spider_store_last_crd,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "Store last crd result into system table",
   NULL,
   spider_use_table_value_deprecated,
@@ -2891,7 +2891,7 @@ static int spider_load_sts_at_startup;
 static MYSQL_SYSVAR_INT(
   load_sts_at_startup,
   spider_load_sts_at_startup,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "Load sts from system table at startup",
   NULL,
   spider_use_table_value_deprecated,
@@ -2918,7 +2918,7 @@ static int spider_load_crd_at_startup;
 static MYSQL_SYSVAR_INT(
   load_crd_at_startup,
   spider_load_crd_at_startup,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "Load crd from system table at startup",
   NULL,
   spider_use_table_value_deprecated,

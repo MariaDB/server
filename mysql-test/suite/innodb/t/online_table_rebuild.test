@@ -1,0 +1,62 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_sequence.inc
+
+CREATE TABLE t1(f1 INT NOT NULL, f2 CHAR(200), f3 CHAR(200))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(3, "innodb", "alter log");
+
+# InnoDB fails with DUPLICATE KEY error in commit phase
+
+SET DEBUG_SYNC="inplace_after_index_build SIGNAL dml_start WAIT_FOR dml_commit";
+send ALTER TABLE t1 ADD PRIMARY KEY(f3(10)), ADD UNIQUE KEY(f2(10));
+CONNECT(con1,localhost,root,,,);
+SET DEBUG_SYNC="now WAIT_FOR dml_start";
+BEGIN;
+INSERT INTO t1 VALUES(1, repeat('b', 100), repeat('c', 100));
+INSERT INTO t1 VALUES(2, repeat('b', 100), repeat('a', 100));
+COMMIT;
+SET DEBUG_SYNC="now SIGNAL dml_commit";
+
+connection default;
+--error ER_DUP_ENTRY
+reap;
+
+# ONLINE_LOG_TOO_BIG error during commit phase
+
+connection default;
+
+SET DEBUG_SYNC="inplace_after_index_build SIGNAL dml_start WAIT_FOR dml_commit";
+SEND ALTER TABLE t1 ADD PRIMARY KEY(f1);
+
+connection con1;
+SET DEBUG_SYNC="now WAIT_FOR dml_start";
+INSERT INTO t1 SELECT 10, repeat('a', 100), repeat('b', 100) FROM seq_1_to_4800;
+SET DEBUG_SYNC="now SIGNAL dml_commit";
+
+connection default;
+--error ER_INNODB_ONLINE_LOG_TOO_BIG
+reap;
+DELETE FROM t1;
+INSERT INTO t1 VALUES(1, repeat('a', 100), repeat('b', 100));
+ALTER TABLE t1 ADD PRIMARY KEY(f1);
+
+# Update operation leads to duplicate key error
+
+set DEBUG_SYNC="innodb_inplace_alter_table_enter SIGNAL dml_start WAIT_FOR dml_commit";
+SEND ALTER TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY(f3(10));
+
+connection con1;
+SET DEBUG_SYNC="now WAIT_FOR dml_start";
+BEGIN;
+INSERT INTO t1 VALUES(2, repeat('b', 100), repeat('c', 100));
+UPDATE t1 set f3=repeat('c', 100) where f1=1;
+COMMIT;
+SET DEBUG_SYNC="now SIGNAL dml_commit";
+
+connection default;
+--error ER_DUP_ENTRY
+reap;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+disconnect con1;
+SET DEBUG_SYNC=reset;

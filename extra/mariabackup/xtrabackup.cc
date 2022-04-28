@@ -3216,7 +3216,7 @@ static void log_copying_thread()
          (!metadata_to_lsn || metadata_to_lsn > recv_sys.lsn))
   {
     timespec abstime;
-    set_timespec_nsec(abstime, 1000ULL * xtrabackup_log_copy_interval);
+    set_timespec_nsec(abstime, 1000000ULL * xtrabackup_log_copy_interval);
     mysql_cond_timedwait(&log_copying_stop, &recv_sys.mutex, &abstime);
   }
   log_copying_running= false;
@@ -6830,7 +6830,7 @@ int main(int argc, char **argv)
 	key_map_full.set_all();
 
 	logger.init_base();
-	logger.set_handlers(LOG_FILE, LOG_NONE, LOG_NONE);
+	logger.set_handlers(LOG_NONE, LOG_NONE);
 	mysql_mutex_init(key_LOCK_error_log, &LOCK_error_log,
 			 MY_MUTEX_INIT_FAST);
 

@@ -1687,3 +1687,27 @@ GET DIAGNOSTICS CONDITION 3 @n = ROW_NUMBER;
 SELECT @n;
 
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-26695: Number of an invalid row is not calculated for table value constructor
+--echo #
+
+CREATE TABLE t1 (a CHAR(1)) VALUES ('a'),('b'),('foo');
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER;
+SELECT @n;
+CREATE TABLE t2 (a CHAR(1)) VALUES ('a'),('b') UNION VALUES ('foo');
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER;
+SELECT @n;
+
+DROP TABLE t1, t2;
+
+--echo # Checking that CREATE ... SELECT works
+
+CREATE TABLE t1 (val1 CHAR(5));
+INSERT INTO t1 VALUES ('A'),('B'),('C'),('DEF');
+CREATE TABLE t2 (val2 CHAR(1)) SELECT val1 as val2 FROM t1;
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER;
+SELECT @n;
+SELECT * FROM t2;
+
+DROP TABLE t1,t2;

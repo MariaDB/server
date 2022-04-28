@@ -1139,7 +1139,10 @@ err_exit:
     }
 
     if (create_new_db)
+    {
+      node->find_metadata(node->handle);
       continue;
+    }
     if (skip_read)
     {
       size+= node->size;
@@ -2590,6 +2593,13 @@ tablespace_check:
 		? fil_space_read_crypt_data(fil_space_t::zip_size(flags),
 					    first_page)
 		: NULL;
+
+	if (crypt_data && !crypt_data->is_key_found()) {
+		crypt_data->~fil_space_crypt_t();
+		ut_free(crypt_data);
+		return FIL_LOAD_INVALID;
+	}
+
 	space = fil_space_t::create(
 		space_id, flags, FIL_TYPE_TABLESPACE, crypt_data);
 
@@ -3077,10 +3087,6 @@ ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void mtr_t::name_write()
   fil_name_write(m_user_space->id,
                  UT_LIST_GET_FIRST(m_user_space->chain)->name,
                  &mtr);
-
-  DBUG_EXECUTE_IF("fil_names_write_bogus",
-                  {fil_name_write(SRV_SPACE_ID_UPPER_BOUND,
-                                  "./test/bogus file.ibd", &mtr);});
   mtr.commit_files();
 }
 

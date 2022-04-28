@@ -13,3 +13,17 @@ a
 drop table t1;
 rename table mysql.table_stats_save to mysql.table_stats;
 flush tables;
+#
+# MDEV-26753 Assertion state == TRX_STATE_PREPARED ||... failed
+#
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+XA START 'test';
+SELECT COUNT(*)>0 FROM mysql.innodb_index_stats LOCK IN SHARE MODE;
+COUNT(*)>0
+1
+INSERT INTO t1 VALUES (1),(2);
+UPDATE mysql.innodb_table_stats SET last_update=NULL WHERE table_name='t1';
+XA END 'test';
+XA ROLLBACK 'test';
+DROP TABLE t1;
+# End of 10.6 tests

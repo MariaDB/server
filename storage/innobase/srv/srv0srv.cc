@@ -472,7 +472,7 @@ priority of the background thread so that it will be scheduled and it
 can release the resource.  This solution is called priority inheritance
 in real-time programming.  A drawback of this solution is that the overhead
 of acquiring a mutex increases slightly, maybe 0.2 microseconds on a 100
-MHz Pentium, because the thread has to call os_thread_get_curr_id.  This may
+MHz Pentium, because the thread has to call pthread_self.  This may
 be compared to 0.5 microsecond overhead for a mutex lock-unlock pair. Note
 that the thread cannot store the information in the resource , say mutex,
 itself, because competing threads could wipe out the information if it is

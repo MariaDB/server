@@ -12266,8 +12266,6 @@ EXPLAIN
           "materialized": {
             "query_block": {
               "union_result": {
-                "table_name": "<union2,3>",
-                "access_type": "ALL",
                 "query_specifications": [
                   {
                     "query_block": {
@@ -16865,8 +16863,6 @@ EXPLAIN
           "materialized": {
             "query_block": {
               "union_result": {
-                "table_name": "<union2,3>",
-                "access_type": "ALL",
                 "query_specifications": [
                   {
                     "query_block": {
@@ -17115,8 +17111,6 @@ EXPLAIN
           "materialized": {
             "query_block": {
               "union_result": {
-                "table_name": "<union2,3,4>",
-                "access_type": "ALL",
                 "query_specifications": [
                   {
                     "query_block": {
