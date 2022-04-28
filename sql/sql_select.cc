@@ -24546,8 +24546,8 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
       return 1;
     }
 
-    if (from_window_spec && item->with_sum_func() &&
-        item->type() != Item::SUM_FUNC_ITEM)
+    if ((from_window_spec && item->with_sum_func() &&
+         item->type() != Item::SUM_FUNC_ITEM) || item->with_window_func)
     {
       item->split_sum_func(thd, ref_pointer_array,
                            all_fields, SPLIT_SUM_SELECT);
