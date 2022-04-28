@@ -24528,8 +24528,8 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     if (find_order_in_list(thd, ref_pointer_array, tables, order, fields,
                            all_fields, false, true, from_window_spec))
       return 1;
-    if ((*order->item)->with_window_func &&
-        context_analysis_place != IN_ORDER_BY)
+    Item * const item= *order->item;
+    if (item->with_window_func && context_analysis_place != IN_ORDER_BY)
     {
       my_error(ER_WINDOW_FUNCTION_IN_WINDOW_SPEC, MYF(0));
       return 1;
@@ -24540,20 +24540,18 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
       an ORDER BY clause
     */
 
-    if (for_union &&
-        ((*order->item)->with_sum_func() ||
-         (*order->item)->with_window_func))
+    if (for_union && (item->with_sum_func() || item->with_window_func))
     {
       my_error(ER_AGGREGATE_ORDER_FOR_UNION, MYF(0), number);
       return 1;
     }
 
-    if (!(*order->item)->with_sum_func())
-      continue;
-
-    if (from_window_spec && (*order->item)->type() != Item::SUM_FUNC_ITEM)
-      (*order->item)->split_sum_func(thd, ref_pointer_array,
-                                     all_fields, SPLIT_SUM_SELECT);
+    if (from_window_spec && item->with_sum_func() &&
+        item->type() != Item::SUM_FUNC_ITEM)
+    {
+      item->split_sum_func(thd, ref_pointer_array,
+                           all_fields, SPLIT_SUM_SELECT);
+    }
   }
   return 0;
 }

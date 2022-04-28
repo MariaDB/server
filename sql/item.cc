@@ -7874,8 +7874,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
   else if (!ref || ref == not_found_item)
   {
     DBUG_ASSERT(reference_trough_name != 0);
-    if (!(ref= resolve_ref_in_select_and_group(thd, this,
-                                               context->select_lex)))
+    if (!(ref= resolve_ref_in_select_and_group(thd, this, context->select_lex)))
       goto error;             /* Some error occurred (e.g. ambiguous names). */
 
     if (ref == not_found_item) /* This reference was not resolved. */
@@ -7888,8 +7887,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       if (unlikely(!outer_context))
       {
         /* The current reference cannot be resolved in this query. */
-        my_error(ER_BAD_FIELD_ERROR,MYF(0),
-                 this->full_name(), thd->where);
+        my_error(ER_BAD_FIELD_ERROR,MYF(0), full_name(), thd->where);
         goto error;
       }
 

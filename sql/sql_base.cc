@@ -8453,7 +8453,7 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
     select_lex->where= *conds;
   }
   thd->lex->current_select->is_item_list_lookup= save_is_item_list_lookup;
-  DBUG_RETURN(MY_TEST(thd->is_error()));
+  DBUG_RETURN(thd->is_error());
 
 err_no_arena:
   select_lex->is_item_list_lookup= save_is_item_list_lookup;

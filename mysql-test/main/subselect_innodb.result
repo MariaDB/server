@@ -1,6 +1,5 @@
 set @subselect_innodb_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
-drop table if exists t1,t2,t3;
 CREATE TABLE t1
 (
 FOLDERID VARCHAR(32)BINARY NOT NULL
@@ -154,6 +153,9 @@ EXECUTE my_stmt;
 b	count(*)
 deallocate prepare my_stmt;
 drop table t1,t2;
+#
+# End of 4.1 tests
+#
 CREATE TABLE t1 (
 school_name varchar(45) NOT NULL,
 country varchar(45) NOT NULL,    
@@ -287,7 +289,6 @@ LIMIT 10;
 col_time_key	col_datetime_key
 DROP TABLE t1;
 DROP TABLE t2;
-# End of Bug #58756
 #
 # Bug#60085 crash in Item::save_in_field() with time data type
 #
@@ -356,7 +357,9 @@ LIMIT 1;
 maxkey
 NULL
 DROP TABLE t1,t2;
-End of 5.1 tests
+#
+# End of 5.1 tests
+#
 #
 # lp:827416 Crash in select_describe() on EXPLAIN with DISTINCT in nested subqueries
 #
@@ -663,4 +666,6 @@ a	b
 execute stmt;
 a	b
 drop table t1,t2;
+#
 # End of 10.4 tests
+#

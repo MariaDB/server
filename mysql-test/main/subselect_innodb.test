@@ -4,9 +4,6 @@
 #       settings are not relevant.
 set @subselect_innodb_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
 
 #
 # key field overflow test
@@ -164,7 +161,9 @@ EXECUTE my_stmt;
 deallocate prepare my_stmt;
 drop table t1,t2;
 
-# End of 4.1 tests
+--echo #
+--echo # End of 4.1 tests
+--echo #
 
 CREATE TABLE t1 (
   school_name varchar(45) NOT NULL,
@@ -289,8 +288,6 @@ LIMIT 10;
 DROP TABLE t1;
 DROP TABLE t2;
 
---echo # End of Bug #58756
-
 --echo #
 --echo # Bug#60085 crash in Item::save_in_field() with time data type
 --echo #
@@ -354,7 +351,9 @@ eval $query;
 
 DROP TABLE t1,t2;
 
---echo End of 5.1 tests
+--echo #
+--echo # End of 5.1 tests
+--echo #
 
 --echo #
 --echo # lp:827416 Crash in select_describe() on EXPLAIN with DISTINCT in nested subqueries
@@ -507,8 +506,6 @@ drop table t1,t2;
 --echo #             for a subquery from the expression used in ref access 
 --echo #
 
---source include/have_innodb.inc
- 
 CREATE TABLE t1 (i1 INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1),(2);
  
@@ -661,4 +658,6 @@ execute stmt;
 
 drop table t1,t2;
 
+--echo #
 --echo # End of 10.4 tests
+--echo #

@@ -1,4 +1,3 @@
-drop table if exists t1,t2,t3;
 create table t1 (a int);
 select count(a) as b from t1 where a=0 having b > 0;
 b
@@ -880,7 +879,9 @@ h
 #
 #
 drop table t1;
+#
 # End of 10.3 tests
+#
 #
 # MDEV-18681: AND formula in HAVING with several occurances
 #             of the same field f in different conjuncts + f=constant
@@ -906,4 +907,6 @@ INSERT INTO t VALUES ('a'),('b');
 SELECT * FROM t HAVING f = 'foo';
 f
 DROP TABLE t;
+#
 # End of 10.4 tests
+#
