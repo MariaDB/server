@@ -1130,9 +1130,6 @@ static void trx_flush_log_if_needed_low(lsn_t lsn, const trx_t *trx)
   if (!srv_flush_log_at_trx_commit)
     return;
 
-  if (log_sys.get_flushed_lsn(std::memory_order_relaxed) >= lsn)
-    return;
-
   completion_callback cb, *callback= nullptr;
 
   if (trx->state != TRX_STATE_PREPARED && !log_sys.is_pmem() &&

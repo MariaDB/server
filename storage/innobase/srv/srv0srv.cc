@@ -1454,7 +1454,7 @@ static void srv_sync_log_buffer_in_background()
 	srv_main_thread_op_info = "flushing log";
 	if (difftime(current_time, srv_last_log_flush_time)
 	    >= srv_flush_log_at_timeout) {
-		log_buffer_flush_to_disk();
+		log_buffer_flush_to_disk_async();
 		srv_last_log_flush_time = current_time;
 		srv_log_writes_and_flush++;
 	}
@@ -1566,15 +1566,14 @@ void srv_master_callback(void*)
   if (!purge_state.m_running)
     srv_wake_purge_thread_if_not_active();
   ulonglong counter_time= microsecond_interval_timer();
-  srv_sync_log_buffer_in_background();
-  MONITOR_INC_TIME_IN_MICRO_SECS(MONITOR_SRV_LOG_FLUSH_MICROSECOND,
-				 counter_time);
-
   if (srv_check_activity(&old_activity_count))
     srv_master_do_active_tasks(counter_time);
   else
     srv_master_do_idle_tasks(counter_time);
 
+  srv_sync_log_buffer_in_background();
+  MONITOR_INC_TIME_IN_MICRO_SECS(MONITOR_SRV_LOG_FLUSH_MICROSECOND,
+                                 counter_time);
   srv_main_thread_op_info= "sleeping";
 }
 

@@ -1770,6 +1770,7 @@ MYSQL_THD innobase_create_background_thd(const char* name)
 	MYSQL_THD thd= create_background_thd();
 	thd_proc_info(thd, name);
 	THDVAR(thd, background_thread) = true;
+	ut_ad(!thd_get_thread_id(thd));
 	return thd;
 }
 
@@ -1777,7 +1778,7 @@ extern "C" void thd_increment_pending_ops(MYSQL_THD);
 
 THD *innodb_thd_increment_pending_ops(THD *thd)
 {
-  if (!thd || THDVAR(thd, background_thread))
+  if (!thd || !thd_get_thread_id(thd))
     return nullptr;
   thd_increment_pending_ops(thd);
   return thd;
