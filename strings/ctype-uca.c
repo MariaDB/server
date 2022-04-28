@@ -33810,7 +33810,7 @@ static void my_uca_handler_map(struct charset_info_st *cs,
 #define MY_UCA_ASCII_OPTIMIZE 0
 #define MY_UCA_COMPILE_CONTRACTIONS 1
 #define MY_UCA_COLL_INIT my_coll_init_uca
-#include "ctype-uca.ic"
+#include "ctype-uca.inl"
 
 
 /*
@@ -33915,7 +33915,7 @@ ex:
 #define MY_UCA_ASCII_OPTIMIZE 0
 #define MY_UCA_COMPILE_CONTRACTIONS 1
 #define MY_UCA_COLL_INIT my_coll_init_uca
-#include "ctype-uca.ic"
+#include "ctype-uca.inl"
 
 
 #define MY_CS_UCS2_UCA_FLAGS (MY_CS_COMMON_UCA_FLAGS|MY_CS_NONASCII)
@@ -34878,7 +34878,7 @@ my_uca_coll_init_utf8mb3(struct charset_info_st *cs, MY_CHARSET_LOADER *loader);
 #define MY_UCA_ASCII_OPTIMIZE 1
 #define MY_UCA_COMPILE_CONTRACTIONS 1
 #define MY_UCA_COLL_INIT my_uca_coll_init_utf8mb3
-#include "ctype-uca.ic"
+#include "ctype-uca.inl"
 
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _no_contractions_utf8mb3
 #define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf8mb3_quick(wc, beg, end))
@@ -34886,7 +34886,7 @@ my_uca_coll_init_utf8mb3(struct charset_info_st *cs, MY_CHARSET_LOADER *loader);
 #define MY_UCA_ASCII_OPTIMIZE 1
 #define MY_UCA_COMPILE_CONTRACTIONS 0
 #define MY_UCA_COLL_INIT my_uca_coll_init_utf8mb3
-#include "ctype-uca.ic"
+#include "ctype-uca.inl"
 
 
 static my_bool
@@ -35883,7 +35883,7 @@ my_uca_coll_init_utf8mb4(struct charset_info_st *cs, MY_CHARSET_LOADER *loader);
 #define MY_UCA_ASCII_OPTIMIZE 1
 #define MY_UCA_COMPILE_CONTRACTIONS 1
 #define MY_UCA_COLL_INIT my_uca_coll_init_utf8mb4
-#include "ctype-uca.ic"
+#include "ctype-uca.inl"
 
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _no_contractions_utf8mb4
 #define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf8mb4_quick(wc, beg, end))
@@ -35891,7 +35891,7 @@ my_uca_coll_init_utf8mb4(struct charset_info_st *cs, MY_CHARSET_LOADER *loader);
 #define MY_UCA_ASCII_OPTIMIZE 1
 #define MY_UCA_COMPILE_CONTRACTIONS 0
 #define MY_UCA_COLL_INIT my_uca_coll_init_utf8mb4
-#include "ctype-uca.ic"
+#include "ctype-uca.inl"
 
 
 static my_bool
@@ -36859,7 +36859,7 @@ struct charset_info_st my_charset_utf8mb4_unicode_520_nopad_ci=
 #define MY_UCA_ASCII_OPTIMIZE 0
 #define MY_UCA_COMPILE_CONTRACTIONS 1
 #define MY_UCA_COLL_INIT my_coll_init_uca
-#include "ctype-uca.ic"
+#include "ctype-uca.inl"
 
 
 extern MY_CHARSET_HANDLER my_charset_utf32_handler;
@@ -37817,7 +37817,7 @@ struct charset_info_st my_charset_utf32_unicode_520_nopad_ci=
 #define MY_UCA_ASCII_OPTIMIZE 0
 #define MY_UCA_COMPILE_CONTRACTIONS 1
 #define MY_UCA_COLL_INIT my_coll_init_uca
-#include "ctype-uca.ic"
+#include "ctype-uca.inl"
 
 
 extern MY_CHARSET_HANDLER my_charset_utf16_handler;
