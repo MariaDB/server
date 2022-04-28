@@ -102,7 +102,7 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   if (info->user_name == 0)
   {
     if ((pkt_len= vio->read_packet(vio, &pkt)) < 0)
-      return CR_ERROR;
+      goto error_ret;
   }
   else
     pkt= NULL;
