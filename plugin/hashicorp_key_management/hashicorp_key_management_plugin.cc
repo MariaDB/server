@@ -1000,22 +1000,6 @@ static int hashicorp_key_management_plugin_init(void *p)
   {
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Memory allocation error", 0);
-    goto Failure2;
-  }
-  snprintf(token_header, buf_len, "%s%s", x_vault_token, token);
-  vault_url_len = strlen(vault_url);
-  /*
-    Checking the maximum allowable length to protect
-    against allocating too much memory on the stack:
-  */
-  if (vault_url_len > MAX_URL_SIZE)
-  {
-    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
-                    "Maximum allowed vault URL length exceeded",
-                    0);
-Failure:
-    free(token_header);
-    token_header = NULL;
 Failure2:
     if (local_token)
     {
@@ -1024,9 +1008,135 @@ Failure2:
     }
     return 1;
   }
-  if (vault_url_len && vault_url[vault_url_len - 1] == '/')
+  snprintf(token_header, buf_len, "%s%s", x_vault_token, token);
+  /* We need to check that the path inside the URL starts with "/v1/": */
+  const char *suffix = strchr(vault_url, '/');
+  if (suffix == NULL)
+  {
+Bad_url:
+    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                    "According to the Hashicorp Vault API rules, "
+                    "the path inside the URL must start with "
+                    "the \"/v1/\" prefix, while the supplied "
+                    "URL value is: \"%s\"", 0, vault_url);
+Failure:
+    vault_url_len = 0;
+    free(token_header);
+    token_header = NULL;
+    goto Failure2;
+  }
+  size_t prefix_len = (size_t) (suffix - vault_url);
+  if (prefix_len == 0)
+  {
+No_Host:
+    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                    "Supplied URL does not contain a hostname: \"%s\"",
+                    0, vault_url);
+    goto Failure;
+  }
+  /* Check if the suffix consists only of the slash: */
+  size_t suffix_len = strlen(suffix + 1) + 1;
+  if (suffix_len == 1)
+  {
+    goto Bad_url;
+  }
+  vault_url_len = prefix_len + suffix_len;
+  /*
+    The scheme always ends with "://", while the "suffix"
+    points to the first of the slashes:
+  */
+  if (*(suffix - 1) == ':' && suffix[1] == '/')
+  {
+    /* Let's check that only the schema is present: */
+    if (suffix_len == 2)
+    {
+      goto No_Host;
+    }
+    /* Save the current position: */
+    const char *start = suffix + 2;
+    /* We need to find next slash: */
+    suffix = strchr(start, '/');
+    if (suffix == NULL)
+    {
+      goto Bad_url;
+    }
+    /* Update the prefix and suffix lengths: */
+    prefix_len = (size_t) (suffix - vault_url);
+    suffix_len = vault_url_len - prefix_len;
+    /*
+      The slash right after the scheme is the absence of a hostname,
+      this is invalid for all schemes, except for the "file://"
+      (this allowed for debugging purposes only):
+    */
+    if (suffix == start &&
+        (prefix_len != 7 || memcmp(vault_url, "file", 4) != 0))
+    {
+      goto No_Host;
+    }
+    /* Check if the suffix consists only of the slash: */
+    if (suffix_len == 1)
+    {
+      goto Bad_url;
+    }
+  }
+  /* Let's skip all leading slashes: */
+  while (suffix[1] == '/')
+  {
+    suffix++;
+    suffix_len--;
+    if (suffix_len == 1)
+    {
+      goto Bad_url;
+    }
+  }
+  /*
+    Checking for "/v1" sequence (the leading slash has
+    already been checked):
+  */
+  if (suffix_len < 3 || suffix[1] != 'v' || suffix[2] != '1')
+  {
+    goto Bad_url;
+  }
+  /* Let's skip the "/v1" sequence: */
+  suffix_len -= 3;
+  if (suffix_len == 0)
+  {
+No_Secret:
+    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                    "Supplied URL does not contain a secret name: \"%s\"",
+                    0, vault_url);
+    goto Failure;
+  }
+  suffix += 3;
+  /* Checking for a slash at the end of the "/v1/" sequence: */
+  if (suffix[0] != '/')
+  {
+    goto Bad_url;
+  }
+  /* Skip slashes after the "/v1" sequence: */
+  do
+  {
+    suffix++;
+    suffix_len--;
+    if (suffix_len == 0)
+    {
+      goto No_Secret;
+    }
+  } while (suffix[0] == '/');
+  /* Remove trailing slashes at the end of the url: */
+  while (vault_url[vault_url_len - 1] == '/')
   {
     vault_url_len--;
+  }
+  /*
+    Checking the maximum allowable length to protect
+    against allocating too much memory on the stack:
+  */
+  if (vault_url_len > MAX_URL_SIZE)
+  {
+    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                    "Maximum allowed vault URL length exceeded", 0);
+    goto Failure;
   }
   /*
     In advance, we create a buffer containing the URL for vault
