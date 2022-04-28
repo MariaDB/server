@@ -25,8 +25,6 @@ connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 START SLAVE ;
 # No slave error expecting - waiting for slave to catch up to master
-# Wait for slave IO thread to catch up
-# Wait for slave SQL thread to catch up
 # Stop slave so it stops receiving master events.
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -85,8 +83,6 @@ connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0);
 START SLAVE ;
 # No slave error expecting - waiting for slave to catch up to master
-# Wait for slave IO thread to catch up
-# Wait for slave SQL thread to catch up
 # Stop slave so it stops receiving master events.
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -138,8 +134,6 @@ connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0,1);
 START SLAVE ;
 # No slave error expecting - waiting for slave to catch up to master
-# Wait for slave IO thread to catch up
-# Wait for slave SQL thread to catch up
 # Stop slave so it stops receiving master events.
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -196,8 +190,6 @@ connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0);
 START SLAVE ;
 # No slave error expecting - waiting for slave to catch up to master
-# Wait for slave IO thread to catch up
-# Wait for slave SQL thread to catch up
 # Stop slave so it stops receiving master events.
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -252,8 +244,6 @@ connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0,1);
 START SLAVE ;
 # No slave error expecting - waiting for slave to catch up to master
-# Wait for slave IO thread to catch up
-# Wait for slave SQL thread to catch up
 # Stop slave so it stops receiving master events.
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -301,8 +291,6 @@ connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(1);
 START SLAVE ;
 # No slave error expecting - waiting for slave to catch up to master
-# Wait for slave IO thread to catch up
-# Wait for slave SQL thread to catch up
 # Stop slave so it stops receiving master events.
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -354,8 +342,6 @@ connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(0,1);
 START SLAVE ;
 # No slave error expecting - waiting for slave to catch up to master
-# Wait for slave IO thread to catch up
-# Wait for slave SQL thread to catch up
 # Stop slave so it stops receiving master events.
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -458,8 +444,6 @@ set global gtid_slave_pos="1-4-2";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 START SLAVE ;
 # No slave error expecting - waiting for slave to catch up to master
-# Wait for slave IO thread to catch up
-# Wait for slave SQL thread to catch up
 # Stop slave so it stops receiving master events.
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -517,8 +501,6 @@ connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0), IGNORE_SERVER_IDS=(1);
 START SLAVE ;
 # No slave error expecting - waiting for slave to catch up to master
-# Wait for slave IO thread to catch up
-# Wait for slave SQL thread to catch up
 # Stop slave so it stops receiving master events.
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -567,8 +549,6 @@ connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(1,2), IGNORE_SERVER_IDS=(1);
 START SLAVE ;
 # No slave error expecting - waiting for slave to catch up to master
-# Wait for slave IO thread to catch up
-# Wait for slave SQL thread to catch up
 # Stop slave so it stops receiving master events.
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -774,8 +754,6 @@ set global gtid_slave_pos="1-1-2";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(2);
 START SLAVE ;
 # No slave error expecting - waiting for slave to catch up to master
-# Wait for slave IO thread to catch up
-# Wait for slave SQL thread to catch up
 # Stop slave so it stops receiving master events.
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -825,8 +803,6 @@ set global gtid_slave_pos="0-1-1";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0);
 START SLAVE ;
 # No slave error expecting - waiting for slave to catch up to master
-# Wait for slave IO thread to catch up
-# Wait for slave SQL thread to catch up
 # Stop slave so it stops receiving master events.
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -882,8 +858,6 @@ set global gtid_slave_pos="0-1-1";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(1);
 START SLAVE ;
 # No slave error expecting - waiting for slave to catch up to master
-# Wait for slave IO thread to catch up
-# Wait for slave SQL thread to catch up
 # Stop slave so it stops receiving master events.
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -1202,8 +1176,6 @@ connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0), IGNORE_SERVER_IDS=(3);
 START SLAVE ;
 # No slave error expecting - waiting for slave to catch up to master
-# Wait for slave IO thread to catch up
-# Wait for slave SQL thread to catch up
 # Stop slave so it stops receiving master events.
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;

@@ -54,6 +54,7 @@ if ($strict_mode)
 --connection $con1
 --echo # Populating $con1 data
 --source $sql_input_file
+--source include/save_master_gtid.inc
 
 --let $MYSQLD_DATADIR=`select @@datadir`
 --let $MYSQLBINLOG_STDERR=$MYSQLD_DATADIR/mysqlbinlog_stderr.out
@@ -114,15 +115,7 @@ if (!$slave_sql_errno)
     # Stop position was not specified
     if (`SELECT strcmp("$stop_position","") = 0`)
     {
-        --source include/wait_for_slave_to_start.inc
-        --echo # Wait for $con2 IO thread to catch up
-        --let $wait_condition= SELECT STATE="Waiting for master to send event" from information_schema.PROCESSLIST where COMMAND="Slave_IO"
-        --source include/wait_condition.inc
-
-        --echo # Wait for $con2 SQL thread to catch up
-        --let $wait_condition= SELECT STATE="Slave has read all relay log; waiting for more updates" from information_schema.PROCESSLIST where COMMAND="Slave_SQL"
-        --source include/wait_condition.inc
-
+        --source include/sync_with_master_gtid.inc
     }
 
     # Stop position was specified
