@@ -43,22 +43,6 @@
 
 #define PLUGIN_ERROR_HEADER "hashicorp: "
 
-static clock_t cache_max_time;
-static clock_t cache_max_ver_time;
-
-/*
-  Convert milliseconds to timer ticks with rounding
-  to nearest integer:
-*/
-static clock_t ms_to_ticks (long ms)
-{
-  long long ticks_1000 = ms * (long long) CLOCKS_PER_SEC;
-  clock_t ticks = (clock_t) (ticks_1000 / 1000);
-  return ticks + ((clock_t) (ticks_1000 % 1000) >= 500);
-}
-
-static std::mutex mtx;
-
 /* Key version information structure: */
 typedef struct VER_INFO
 {
@@ -88,16 +72,114 @@ typedef struct KEY_INFO
 
 /* Cache for the latest version, per key id: */
 typedef std::unordered_map<unsigned int, VER_INFO> VER_MAP;
-static VER_MAP latest_version_cache;
 
 /* Cache for key information: */
 typedef std::unordered_map<unsigned long long, KEY_INFO> KEY_MAP;
-static KEY_MAP key_info_cache;
 
 #define KEY_ID_AND_VERSION(key_id, version) \
   ((unsigned long long)key_id << 32 | version)
 
-static void cache_add (const KEY_INFO& info, bool update_version)
+class HCData
+{
+private:
+  struct curl_slist *slist;
+  char *vault_url_data;
+  size_t vault_url_len;
+  char *local_token;
+  char *token_header;
+  bool curl_inited;
+public:
+  HCData()
+   :slist(NULL),
+    vault_url_data(NULL),
+    vault_url_len(0),
+    local_token(NULL),
+    token_header(NULL),
+    curl_inited(false)
+  {}
+  unsigned int get_latest_version (unsigned int key_id);
+  unsigned int get_key_from_vault (unsigned int key_id,
+                                   unsigned int key_version,
+                                   unsigned char *dstbuf,
+                                   unsigned int *buflen);
+  int init ();
+  void deinit ()
+  {
+    if (slist)
+    {
+      curl_slist_free_all(slist);
+      slist = NULL;
+    }
+    if (curl_inited)
+    {
+      curl_global_cleanup();
+      curl_inited = false;
+    }
+    vault_url_len = 0;
+    if (vault_url_data)
+    {
+      free(vault_url_data);
+      vault_url_data = NULL;
+    }
+    if (token_header)
+    {
+      free(token_header);
+      token_header = NULL;
+    }
+    if (local_token)
+    {
+      free(local_token);
+      local_token = NULL;
+    }
+  }
+  void cache_clean ()
+  {
+    latest_version_cache.clear();
+    key_info_cache.clear();
+  }
+private:
+  std::mutex mtx;
+  VER_MAP latest_version_cache;
+  KEY_MAP key_info_cache;
+private:
+  void cache_add (const KEY_INFO& info, bool update_version);
+  unsigned int cache_get (unsigned int key_id, unsigned int key_version,
+                          unsigned char* data, unsigned int* buflen,
+                          bool with_timeouts);
+  unsigned int cache_check_version (unsigned int key_id);
+  unsigned int cache_get_version (unsigned int key_id);
+  int curl_run (const char *url, std::string *response,
+                bool soft_timeout) const;
+  int check_version (const char *mount_url) const;
+  void *alloc (size_t nbytes) const
+  {
+    void *res = (char *) malloc(nbytes);
+    if (!res)
+    {
+      my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                      "Memory allocation error", 0);
+    }
+    return res;
+  }
+};
+
+static HCData data;
+
+static clock_t cache_max_time;
+static clock_t cache_max_ver_time;
+
+/*
+  Convert milliseconds to timer ticks with rounding
+  to nearest integer:
+*/
+static clock_t ms_to_ticks (long ms)
+{
+  long long ticks_1000 = ms * (long long) CLOCKS_PER_SEC;
+  clock_t ticks = (clock_t) (ticks_1000 / 1000);
+  return ticks + ((clock_t) (ticks_1000 % 1000) >= 500);
+}
+
+void HCData::cache_add (const KEY_INFO& info, bool update_version)
 {
   unsigned int key_id = info.key_id;
   unsigned int key_version = info.key_version;
@@ -120,10 +202,10 @@ static void cache_add (const KEY_INFO& info, bool update_version)
   mtx.unlock();
 }
 
-static unsigned int
-  cache_get (unsigned int key_id, unsigned int key_version,
-             unsigned char* data, unsigned int* buflen,
-             bool with_timeouts)
+unsigned int
+  HCData::cache_get (unsigned int key_id, unsigned int key_version,
+                     unsigned char* data, unsigned int* buflen,
+                     bool with_timeouts)
 {
   unsigned int version = key_version;
   clock_t current_time = clock();
@@ -223,7 +305,7 @@ static unsigned int
   return 0;
 }
 
-static unsigned int cache_get_version (unsigned int key_id)
+unsigned int HCData::cache_get_version (unsigned int key_id)
 {
   unsigned int version;
   mtx.lock();
@@ -248,7 +330,7 @@ static unsigned int cache_get_version (unsigned int key_id)
   return version;
 }
 
-static unsigned int cache_check_version (unsigned int key_id)
+unsigned int HCData::cache_check_version (unsigned int key_id)
 {
   unsigned int version;
   clock_t timestamp;
@@ -446,9 +528,8 @@ static CURLcode
   return curl_res;
 }
 
-static struct curl_slist *list;
-
-static int curl_run (char *url, std::string *response, bool soft_timeout)
+int HCData::curl_run (const char *url, std::string *response,
+                      bool soft_timeout) const
 {
   char curl_errbuf[CURL_ERROR_SIZE];
   std::ostringstream read_data_stream;
@@ -470,7 +551,7 @@ static int curl_run (char *url, std::string *response, bool soft_timeout)
       (curl_res= curl_easy_setopt(curl, CURLOPT_WRITEDATA,
                                   &read_data_stream)) !=
           CURLE_OK ||
-      (curl_res= curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list)) !=
+      (curl_res= curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist)) !=
           CURLE_OK ||
       /*
         The options CURLOPT_SSL_VERIFYPEER and CURLOPT_SSL_VERIFYHOST are
@@ -704,10 +785,7 @@ static int get_key_data (const char *js, int js_len,
   return 0;
 }
 
-static char *vault_url_data;
-static size_t vault_url_len;
-
-static unsigned int get_latest_version (unsigned int key_id)
+unsigned int HCData::get_latest_version (unsigned int key_id)
 {
   unsigned int version;
 #if HASICORP_DEBUG_LOGGING
@@ -784,10 +862,10 @@ static unsigned int get_latest_version (unsigned int key_id)
   return version;
 }
 
-static unsigned int get_key_from_vault (unsigned int key_id,
-                                        unsigned int key_version,
-                                        unsigned char *dstbuf,
-                                        unsigned int *buflen)
+unsigned int HCData::get_key_from_vault (unsigned int key_id,
+                                         unsigned int key_version,
+                                         unsigned char *dstbuf,
+                                         unsigned int *buflen)
 {
 #if HASICORP_DEBUG_LOGGING
   my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
@@ -900,6 +978,19 @@ static unsigned int get_key_from_vault (unsigned int key_id,
   return 0;
 }
 
+static unsigned int get_latest_version (unsigned int key_id)
+{
+  return data.get_latest_version(key_id);
+}
+
+static unsigned int get_key_from_vault (unsigned int key_id,
+                                        unsigned int key_version,
+                                        unsigned char *dstbuf,
+                                        unsigned int *buflen)
+{
+  return data.get_key_from_vault(key_id, key_version, dstbuf, buflen);
+}
+
 struct st_mariadb_encryption hashicorp_key_management_plugin= {
   MariaDB_ENCRYPTION_INTERFACE_VERSION,
   get_latest_version,
@@ -909,7 +1000,7 @@ struct st_mariadb_encryption hashicorp_key_management_plugin= {
 
 #ifdef _MSC_VER
 
-static int setenv(const char *name, const char *value, int overwrite)
+static int setenv (const char *name, const char *value, int overwrite)
 {
   if (!overwrite)
   {
@@ -932,10 +1023,7 @@ static int setenv(const char *name, const char *value, int overwrite)
 
 #define MAX_URL_SIZE 32768
 
-static char *local_token;
-static char *token_header;
-
-static int hashicorp_key_management_plugin_init(void *p)
+int HCData::init ()
 {
   const static char *x_vault_token = "X-Vault-Token:";
   const static size_t x_vault_token_len = strlen(x_vault_token);
@@ -956,11 +1044,8 @@ static int hashicorp_key_management_plugin_init(void *p)
           of the current process). Therefore, we need to copy the token
           value to the working buffer:
         */
-        token = (char *) malloc(token_len + 1);
-        if (token == NULL)
+        if (!(token = (char *) alloc(token_len + 1)))
         {
-          my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
-                          "Memory allocation error", 0);
           return 1;
         }
         memcpy(token, token_env, token_len + 1);
@@ -1006,17 +1091,8 @@ static int hashicorp_key_management_plugin_init(void *p)
                   ME_ERROR_LOG_ONLY | ME_NOTE, token, (int) token_len);
 #endif
   size_t buf_len = x_vault_token_len + token_len + 1;
-  token_header = (char *) malloc(buf_len);
-  if (token_header == NULL)
+  if (!(token_header = (char *) alloc(buf_len)))
   {
-    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
-                    "Memory allocation error", 0);
-Failure2:
-    if (local_token)
-    {
-      free(local_token);
-      local_token = NULL;
-    }
     return 1;
   }
   snprintf(token_header, buf_len, "%s%s", x_vault_token, token);
@@ -1030,11 +1106,7 @@ Bad_url:
                     "the path inside the URL must start with "
                     "the \"/v1/\" prefix, while the supplied "
                     "URL value is: \"%s\"", 0, vault_url);
-Failure:
-    vault_url_len = 0;
-    free(token_header);
-    token_header = NULL;
-    goto Failure2;
+    return 1;
   }
   size_t prefix_len = (size_t) (suffix - vault_url);
   if (prefix_len == 0)
@@ -1043,7 +1115,7 @@ No_Host:
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Supplied URL does not contain a hostname: \"%s\"",
                     0, vault_url);
-    goto Failure;
+    return 1;
   }
   /* Check if the suffix consists only of the slash: */
   size_t suffix_len = strlen(suffix + 1) + 1;
@@ -1116,7 +1188,7 @@ No_Secret:
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Supplied URL does not contain a secret name: \"%s\"",
                     0, vault_url);
-    goto Failure;
+    return 1;
   }
   suffix += 3;
   /* Checking for a slash at the end of the "/v1/" sequence: */
@@ -1148,18 +1220,15 @@ No_Secret:
   {
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Maximum allowed vault URL length exceeded", 0);
-    goto Failure;
+    return 1;
   }
   /*
     In advance, we create a buffer containing the URL for vault
     + the "/data/" suffix (7 characters):
   */
-  vault_url_data = (char *) malloc(vault_url_len + 7);
-  if (vault_url_data == NULL)
+  if (!(vault_url_data = (char *) alloc(vault_url_len + 7)))
   {
-    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
-                    "Memory allocation error", 0);
-    goto Failure;
+    return 1;
   }
   memcpy(vault_url_data, vault_url, vault_url_len);
   memcpy(vault_url_data + vault_url_len, "/data/", 7);
@@ -1174,19 +1243,15 @@ No_Secret:
                     "curl returned this error code: %u "
                     "with the following error message: %s",
                     0, curl_res, curl_easy_strerror(curl_res));
-curl_error:
-    free(vault_url_data);
-    vault_url_data = NULL;
-    goto Failure;
+    return 1;
   }
-  list = curl_slist_append(list, token_header);
-  if (list == NULL)
+  curl_inited = true;
+  slist = curl_slist_append(slist, token_header);
+  if (slist == NULL)
   {
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "curl: unable to construct slist", 0);
-Failure3:
-    curl_global_cleanup();
-    goto curl_error;
+    return 1;
   }
   /*
     If we do not need to check the key-value storage version,
@@ -1198,15 +1263,12 @@ Failure3:
   /*
     Let's construct a URL to check the version of the key-value storage:
   */
-  char *mount_url = (char *) malloc(vault_url_len + 11 + 6);
+  char *mount_url = (char *) alloc(vault_url_len + 11 + 6);
   if (mount_url == NULL)
   {
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Memory allocation error", 0);
-Failure4:
-    curl_slist_free_all(list);
-    list = NULL;
-    goto Failure3;
+    return 1;
   }
   /*
     The prefix length must be recalculated, as it may have
@@ -1222,6 +1284,13 @@ Failure4:
                   "storage mount url: [%s]",
                   ME_ERROR_LOG_ONLY | ME_NOTE, mount_url);
 #endif
+  int rc = check_version(mount_url);
+  free(mount_url);
+  return rc;
+}
+
+int HCData::check_version (const char *mount_url) const
+{
   std::string response_str;
   int rc = curl_run(mount_url, &response_str, false);
   if (rc != OPERATION_OK)
@@ -1230,8 +1299,7 @@ storage_error:
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Unable to get storage options for \"%s\"",
                     0, mount_url);
-    free(mount_url);
-    goto Failure4;
+    return 1;
   }
   const char *response = response_str.c_str();
   size_t response_len = response_str.size();
@@ -1243,7 +1311,6 @@ storage_error:
   {
     goto storage_error;
   }
-  free(mount_url);
   const char *js;
   int js_len;
   if (json_get_object_key(response, response + response_len, "options",
@@ -1252,7 +1319,7 @@ storage_error:
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Unable to get storage options (http response is: %s)",
                     0, response);
-    goto Failure4;
+    return 1;
   }
   const char *ver;
   int ver_len;
@@ -1263,7 +1330,7 @@ storage_error:
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Unable to get storage version (http response is: %s)",
                     0, response);
-    goto Failure4;
+    return 1;
   }
   unsigned long version = strtoul(ver, NULL, 10);
   if (version > UINT_MAX || (version == ULONG_MAX && errno))
@@ -1271,44 +1338,32 @@ storage_error:
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Integer conversion error (for version number) "
                     "(http response is: %s)", 0, response);
-    goto Failure4;
+    return 1;
   }
   if (version < 2)
   {
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Key-value storage must be version "
                     "number 2 or later", 0);
-    goto Failure4;
+    return 1;
   }
   return 0;
 }
 
+static int hashicorp_key_management_plugin_init(void *p)
+{
+  int rc = data.init();
+  if (rc)
+  {
+    data.deinit();
+  }
+  return rc;
+}
+
 static int hashicorp_key_management_plugin_deinit(void *p)
 {
-  if (list)
-  {
-    curl_slist_free_all(list);
-    list = NULL;
-  }
-  latest_version_cache.clear();
-  key_info_cache.clear();
-  curl_global_cleanup();
-  if (vault_url_data)
-  {
-    free(vault_url_data);
-    vault_url_data = NULL;
-    vault_url_len = 0;
-  }
-  if (token_header)
-  {
-    free(token_header);
-    token_header = NULL;
-  }
-  if (local_token)
-  {
-    free(local_token);
-    local_token = NULL;
-  }
+  data.cache_clean();
+  data.deinit();
   return 0;
 }
 
