@@ -1450,3 +1450,36 @@ SELECT * FROM t1 GROUP BY i HAVING i IN ( i IS NULL);
 SELECT * FROM t1 GROUP BY i HAVING i IN ( i IS NULL AND 'x' = 0);
 SELECT * FROM t1 GROUP BY i HAVING i='1' IN ( i IS NULL AND 'x' = 0);
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-28080: HAVING with NOT EXIST predicate in an equality
+--echo # (fixed by the patch for MDEV-26402)
+--echo #
+
+CREATE TABLE t1 (a int);
+CREATE TABLE t2 (b int);
+INSERT INTO t1 VALUES (0), (1), (1), (0);
+INSERT INTO t2 VALUES (3), (7);
+
+SELECT a FROM t1
+  GROUP BY a HAVING a= (NOT EXISTS (SELECT b FROM t2 WHERE b = 1));
+SELECT a FROM t1
+  GROUP BY a HAVING a= (NOT EXISTS (SELECT b FROM t2 WHERE b = 7));
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-28082: HAVING with IS NULL predicate in an equality
+--echo # (fixed by the patch for MDEV-26402)
+--echo #
+
+CREATE TABLE t1 (a int, b int NOT NULL) ;
+INSERT INTO t1 VALUES (1,10), (0,11), (0,11), (1,10);
+
+SELECT a,b FROM t1 GROUP BY a HAVING a = (b IS NULL);
+
+SELECT a,b FROM t1 GROUP BY a,b HAVING a = (b IS NULL);
+
+DROP TABLE t1;
+
+--echo End of 10.4 tests
