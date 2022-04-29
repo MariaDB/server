@@ -338,7 +338,7 @@ extern const char *pushed_derived_text;
 extern const char *pushed_select_text;
 
 /*
-  Explain structure for a UNION.
+  Explain structure for a UNION [ALL].
 
   A UNION may or may not have "Using filesort".
 */
