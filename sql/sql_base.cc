@@ -751,9 +751,11 @@ void close_thread_tables(THD *thd)
                           table->s->table_name.str, (ulong) table->query_id));
     if (thd->locked_tables_mode)
     {
+#ifdef WITH_PARTITION_STORAGE_ENGINE
       if (table->part_info && table->part_info->vers_require_hist_part(thd) &&
           !thd->stmt_arena->is_stmt_prepare())
         table->part_info->vers_check_limit(thd);
+#endif
       table->vcol_cleanup_expr(thd);
     }
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES ||
