@@ -1045,39 +1045,22 @@ lock_sec_rec_some_has_impl(
 	dict_index_t*	index,	/*!< in: secondary index */
 	const rec_offs*	offsets)/*!< in: rec_get_offsets(rec, index) */
 {
-	trx_t*		trx;
-	trx_id_t	max_trx_id;
-	const page_t*	page = page_align(rec);
+  lock_sys.assert_unlocked();
+  ut_ad(!dict_index_is_clust(index));
+  ut_ad(page_rec_is_user_rec(rec));
+  ut_ad(rec_offs_validate(rec, index, offsets));
+  ut_ad(!rec_is_metadata(rec, *index));
 
-	lock_sys.assert_unlocked();
-	ut_ad(!dict_index_is_clust(index));
-	ut_ad(page_rec_is_user_rec(rec));
-	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(!rec_is_metadata(rec, *index));
+  const trx_id_t max_trx_id= page_get_max_trx_id(page_align(rec));
 
-	max_trx_id = page_get_max_trx_id(page);
+  if ((caller_trx->id > max_trx_id &&
+       !trx_sys.find_same_or_older(caller_trx, max_trx_id)) ||
+      !lock_check_trx_id_sanity(max_trx_id, rec, index, offsets))
+    return nullptr;
 
-	/* Some transaction may have an implicit x-lock on the record only
-	if the max trx id for the page >= min trx id for the trx list, or
-	database recovery is running. */
-
-	if (max_trx_id < trx_sys.get_min_trx_id()) {
-
-		trx = 0;
-
-	} else if (!lock_check_trx_id_sanity(max_trx_id, rec, index, offsets)) {
-
-		/* The page is corrupt: try to avoid a crash by returning 0 */
-		trx = 0;
-
-	/* In this case it is possible that some transaction has an implicit
-	x-lock. We have to look in the clustered index. */
-
-	} else {
-		trx = row_vers_impl_x_locked(caller_trx, rec, index, offsets);
-	}
-
-	return(trx);
+  /* In this case it is possible that some transaction has an implicit
+  x-lock. We have to look in the clustered index. */
+  return row_vers_impl_x_locked(caller_trx, rec, index, offsets);
 }
 
 /*********************************************************************//**
@@ -5413,7 +5396,6 @@ lock_sec_rec_read_check_and_lock(
 	que_thr_t*		thr)	/*!< in: query thread */
 {
 	dberr_t	err;
-	ulint	heap_no;
 
 	ut_ad(!dict_index_is_clust(index));
 	ut_ad(!dict_index_is_online_ddl(index));
@@ -5433,17 +5415,10 @@ lock_sec_rec_read_check_and_lock(
 	const page_id_t id{block->page.id()};
 
 	ut_ad(!rec_is_metadata(rec, *index));
-	heap_no = page_rec_get_heap_no(rec);
-
-	/* Some transaction may have an implicit x-lock on the record only
-	if the max trx id for the page >= min trx id for the trx list or a
-	database recovery is running. */
 
 	trx_t *trx = thr_get_trx(thr);
-	if (!lock_table_has(trx, index->table, LOCK_X)
-	    && !page_rec_is_supremum(rec)
-	    && page_get_max_trx_id(block->page.frame)
-	    >= trx_sys.get_min_trx_id()
+	if (!page_rec_is_supremum(rec)
+	    && !lock_table_has(trx, index->table, LOCK_X)
 	    && lock_rec_convert_impl_to_expl(thr_get_trx(thr), id, rec,
 					     index, offsets)
 	    && gap_mode == LOCK_REC_NOT_GAP) {
@@ -5464,7 +5439,7 @@ lock_sec_rec_read_check_and_lock(
 #endif /* WITH_WSREP */
 
 	err = lock_rec_lock(false, gap_mode | mode,
-			    block, heap_no, index, thr);
+			    block, page_rec_get_heap_no(rec), index, thr);
 
 #ifdef WITH_WSREP
 	if (trx->wsrep == 3) trx->wsrep = 1;
