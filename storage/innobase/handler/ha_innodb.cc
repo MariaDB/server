@@ -13616,7 +13616,28 @@ int ha_innobase::delete_table(const char *name)
   }
 
   if (err == DB_SUCCESS)
+  {
+    if (!table->space)
+    {
+      const char *data_dir_path= DICT_TF_HAS_DATA_DIR(table->flags)
+        ? table->data_dir_path : nullptr;
+      char *path= fil_make_filepath(data_dir_path, table->name, CFG,
+                                    data_dir_path != nullptr);
+      os_file_delete_if_exists(innodb_data_file_key, path, nullptr);
+      ut_free(path);
+      path= fil_make_filepath(data_dir_path, table->name, IBD,
+                              data_dir_path != nullptr);
+      os_file_delete_if_exists(innodb_data_file_key, path, nullptr);
+      ut_free(path);
+      if (data_dir_path)
+      {
+        path= fil_make_filepath(nullptr, table->name, ISL, false);
+        os_file_delete_if_exists(innodb_data_file_key, path, nullptr);
+        ut_free(path);
+      }
+    }
     err= lock_sys_tables(trx);
+  }
 
   dict_sys.lock(SRW_LOCK_CALL);
 
