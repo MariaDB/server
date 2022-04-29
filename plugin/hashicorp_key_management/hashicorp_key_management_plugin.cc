@@ -39,7 +39,7 @@
 #define HASHICORP_HAVE_EXCEPTIONS 0
 #endif
 
-#define HASICORP_DEBUG_LOGGING 0
+#define HASHICORP_DEBUG_LOGGING 0
 
 #define PLUGIN_ERROR_HEADER "hashicorp: "
 
@@ -191,7 +191,7 @@ void HCData::cache_add (const KEY_INFO& info, bool update_version)
     ver_info.timestamp = info.timestamp;
   }
   key_info_cache[KEY_ID_AND_VERSION(key_id, key_version)] = info;
-#if HASICORP_DEBUG_LOGGING
+#if HASHICORP_DEBUG_LOGGING
   my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                   "cache_add: key_id = %u, key_version = %u, "
                   "timestamp = %u, update_version = %u, new version = %u",
@@ -234,7 +234,7 @@ unsigned int
       mtx.unlock();
       return ENCRYPTION_KEY_VERSION_INVALID;
     }
-#if HASICORP_DEBUG_LOGGING
+#if HASHICORP_DEBUG_LOGGING
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "cache_get: key_id = %u, key_version = %u, "
                     "last version = %u, version timestamp = %u, "
@@ -270,7 +270,7 @@ unsigned int
     return ENCRYPTION_KEY_VERSION_INVALID;
   }
   mtx.unlock();
-#if HASICORP_DEBUG_LOGGING
+#if HASHICORP_DEBUG_LOGGING
   my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                   "cache_get: key_id = %u, key_version = %u, "
                   "effective version = %u, key data timestamp = %u, "
@@ -354,7 +354,7 @@ unsigned int HCData::cache_check_version (unsigned int key_id)
 #endif
   {
     mtx.unlock();
-#if HASICORP_DEBUG_LOGGING
+#if HASHICORP_DEBUG_LOGGING
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "cache_check_version: key_id = %u (not in the cache)",
                     ME_ERROR_LOG_ONLY | ME_NOTE,
@@ -364,7 +364,7 @@ unsigned int HCData::cache_check_version (unsigned int key_id)
   }
   mtx.unlock();
   clock_t current_time = clock();
-#if HASICORP_DEBUG_LOGGING
+#if HASHICORP_DEBUG_LOGGING
   my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                   "cache_check_version: key_id = %u, "
                   "last version = %u, version timestamp = %u, "
@@ -788,7 +788,7 @@ static int get_key_data (const char *js, int js_len,
 unsigned int HCData::get_latest_version (unsigned int key_id)
 {
   unsigned int version;
-#if HASICORP_DEBUG_LOGGING
+#if HASHICORP_DEBUG_LOGGING
   my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                   "get_latest_version: key_id = %u",
                   ME_ERROR_LOG_ONLY | ME_NOTE, key_id);
@@ -867,7 +867,7 @@ unsigned int HCData::get_key_from_vault (unsigned int key_id,
                                          unsigned char *dstbuf,
                                          unsigned int *buflen)
 {
-#if HASICORP_DEBUG_LOGGING
+#if HASHICORP_DEBUG_LOGGING
   my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                   "get_latest_version: key_id = %u, key_version = %u",
                   ME_ERROR_LOG_ONLY | ME_NOTE, key_id, key_version);
@@ -1085,7 +1085,7 @@ int HCData::init ()
       }
     }
   }
-#if HASICORP_DEBUG_LOGGING
+#if HASHICORP_DEBUG_LOGGING
   my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                   "plugin_init: token = %s, token_len = %d",
                   ME_ERROR_LOG_ONLY | ME_NOTE, token, (int) token_len);
@@ -1279,7 +1279,7 @@ No_Secret:
   memcpy(mount_url + prefix_len, "sys/mounts/", 11);
   memcpy(mount_url + prefix_len + 11, vault_url_data + prefix_len, suffix_len);
   memcpy(mount_url + prefix_len + 11 + suffix_len, "/tune", 6);
-#if HASICORP_DEBUG_LOGGING
+#if HASHICORP_DEBUG_LOGGING
   my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                   "storage mount url: [%s]",
                   ME_ERROR_LOG_ONLY | ME_NOTE, mount_url);
