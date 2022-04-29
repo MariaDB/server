@@ -1074,7 +1074,9 @@ TABLE_LIST* find_dup_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
   */
   if (table->table &&
       thd->lex->sql_command != SQLCOM_UPDATE &&
-      thd->lex->sql_command != SQLCOM_UPDATE_MULTI)
+      thd->lex->sql_command != SQLCOM_UPDATE_MULTI &&
+      thd->lex->sql_command != SQLCOM_DELETE &&
+      thd->lex->sql_command != SQLCOM_DELETE_MULTI)
   {
     /* All MyISAMMRG children are plain MyISAM tables. */
     DBUG_ASSERT(table->table->file->ht->db_type != DB_TYPE_MRG_MYISAM);
@@ -7568,6 +7570,9 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
   DBUG_ENTER("setup_wild");
 
   if (!select_lex->with_wild)
+    DBUG_RETURN(0);
+
+  if (!fields.elements)
     DBUG_RETURN(0);
 
   /*

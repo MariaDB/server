@@ -17,6 +17,9 @@
 #define SQL_DELETE_INCLUDED
 
 #include "my_base.h"                            /* ha_rows */
+#include "sql_class.h"                          /* enum_duplicates */
+#include "sql_cmd.h"                            // Sql_cmd_dml
+#include "sql_base.h"
 
 class THD;
 struct TABLE_LIST;
@@ -43,6 +46,11 @@ public:
     return multitable ? SQLCOM_DELETE_MULTI : SQLCOM_DELETE;
   }
 
+  DML_prelocking_strategy *get_dml_prelocking_strategy()
+  {
+    return &dml_prelocking_strategy;
+  }
+
 protected:
   bool precheck(THD *thd) override;
 
@@ -55,5 +63,6 @@ protected:
 
   bool multitable;
 
+  DML_prelocking_strategy dml_prelocking_strategy;
 };
 #endif /* SQL_DELETE_INCLUDED */

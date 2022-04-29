@@ -262,6 +262,7 @@ class LEX;
 class select_result;
 class Prelocking_strategy;
 class DML_prelocking_strategy;
+class Protocol;
 
 class Sql_cmd_dml : public Sql_cmd
 {
@@ -289,7 +290,9 @@ public:
 
 protected:
   Sql_cmd_dml()
-      : Sql_cmd(), lex(nullptr), result(nullptr), m_empty_query(false) {}
+      : Sql_cmd(), lex(nullptr), result(nullptr),
+    m_empty_query(false), save_protocol(NULL)
+  {}
 
   /// @return true if query is guaranteed to return no data
   /**
@@ -347,12 +350,14 @@ protected:
 
   virtual DML_prelocking_strategy *get_dml_prelocking_strategy() = 0;
 
-   uint table_count;
+  uint table_count;
 
  protected:
   LEX *lex;              ///< Pointer to LEX for this statement
   select_result *result; ///< Pointer to object for handling of the result
   bool m_empty_query;    ///< True if query will produce no rows
+  List<Item> empty_list;
+  Protocol *save_protocol;
 };
 
 

@@ -3029,12 +3029,10 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
 {
   JOIN *join;
   int err= 0;
-  //  uint table_cnt= 0;
   SELECT_LEX *const select_lex = thd->lex->first_select_lex();
   TABLE_LIST *const table_list = select_lex->get_table_list();
   ulonglong select_options= select_lex->options;
   bool free_join= 1;
-  //  bool orig_multitable= multitable;
   DBUG_ENTER("Sql_cmd_update::prepare_inner");
 
   if (!multitable)
@@ -3088,8 +3086,8 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
     DBUG_RETURN(TRUE);
   }
 
-    if (((multi_update *)result)->init(thd))
-      DBUG_RETURN(TRUE);
+  if (((multi_update *)result)->init(thd))
+    DBUG_RETURN(TRUE);
 
   if (setup_tables(thd, &select_lex->context, &select_lex->top_join_list,
                    table_list, select_lex->leaf_tables, false, false))
@@ -3147,6 +3145,7 @@ err:
 
 bool Sql_cmd_update::execute_inner(THD *thd)
 {
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
   bool res= multitable ? Sql_cmd_dml::execute_inner(thd)
                          : update_single_table(thd);
 

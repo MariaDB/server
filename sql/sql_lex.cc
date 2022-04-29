@@ -3328,34 +3328,6 @@ void st_select_lex_unit::exclude_level()
 }
 
 
-#if 0
-/*
-  Exclude subtree of current unit from tree of SELECTs
-
-  SYNOPSYS
-    st_select_lex_unit::exclude_tree()
-*/
-void st_select_lex_unit::exclude_tree()
-{
-  for (SELECT_LEX *sl= first_select(); sl; sl= sl->next_select())
-  {
-    // unlink current level from global SELECTs list
-    if (sl->link_prev && (*sl->link_prev= sl->link_next))
-      sl->link_next->link_prev= sl->link_prev;
-
-    // unlink underlay levels
-    for (SELECT_LEX_UNIT *u= sl->first_inner_unit(); u; u= u->next_unit())
-    {
-      u->exclude_level();
-    }
-  }
-  // exclude currect unit from list of nodes
-  (*prev)= next;
-  if (next)
-    next->prev= prev;
-}
-#endif
-
 
 /*
   st_select_lex_node::mark_as_dependent mark all st_select_lex struct from 
@@ -3577,7 +3549,7 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
                        select_n_where_fields +
                        order_group_num +
                        hidden_bit_fields +
-                       fields_in_window_functions) * (size_t) 5;
+                       fields_in_window_functions + 1) * (size_t) 5;
   DBUG_ASSERT(n_elems % 5 == 0);
   if (!ref_pointer_array.is_null())
   {

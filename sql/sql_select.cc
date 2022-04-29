@@ -30345,7 +30345,6 @@ bool Sql_cmd_dml::execute(THD *thd)
 
   THD_STAGE_INFO(thd, stage_init);
 
-  DBUG_ASSERT(!lex->is_query_tables_locked());
   /*
     Locking of tables is done after preparation but before optimization.
     This allows to do better partition pruning and avoid locking unused
