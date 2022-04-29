@@ -2757,6 +2757,9 @@ static uint dump_routines_for_db(char *db)
                             create_caption_xml[i]);
               continue;
             }
+
+            switch_sql_mode(sql_file, ";", row[1]);
+
             if (opt_drop)
               fprintf(sql_file, "/*!50003 DROP %s IF EXISTS %s */;\n",
                       routine_type[i], routine_name);
@@ -2795,9 +2798,6 @@ static uint dump_routines_for_db(char *db)
                         "The following dump may be incomplete.\n"
                       "--\n");
             }
-
-
-            switch_sql_mode(sql_file, ";", row[1]);
 
             fprintf(sql_file,
                     "DELIMITER ;;\n"

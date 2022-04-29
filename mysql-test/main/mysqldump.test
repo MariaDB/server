@@ -2885,4 +2885,35 @@ INSERT INTO t VALUES (1,1),(2,2),(3,3),(4,4);
 DROP DATABASE IF EXISTS test1;
 DROP DATABASE IF EXISTS test2;
 
+--echo #
+--echo # MDEV-27186 Server fails to load a dump, taken on the same version
+--echo # Oracle mode with packages
+--echo #
+
+CREATE DATABASE test1;
+CREATE DATABASE test2;
+USE test1;
+SET @save_sql_mode=@@sql_mode;
+SET sql_mode=ORACLE;
+
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE pkg AS
+END;
+$$
+
+DELIMITER ;$$
+
+--echo # Dump database 1
+--exec $MYSQL_DUMP --routines test1 > $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+--echo # Restore from database 1 to database 2
+
+--exec $MYSQL test2 < $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+use test2;
+SHOW CREATE PACKAGE pkg;
+
+DROP DATABASE test1;
+DROP DATABASE test2;
+SET sql_mode=@save_sql_mode;
+--remove_file $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+
 --echo # End of 10.3 tests
