@@ -279,11 +279,7 @@ select t1.col1 as tmp_col from t1
 where t1.col2 in 
 (select t2.col2 from t2 
 group by t2.col1, t2.col2 having tmp_col <= 10);
-tmp_col
-10
-10
-10
-10
+ERROR 42S22: Unknown column 'tmp_col' in 'having clause'
 select t1.col1 from t1
 where t1.col2 in 
 (select t2.col2 from t2 

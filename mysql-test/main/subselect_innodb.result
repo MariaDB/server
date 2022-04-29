@@ -667,5 +667,17 @@ execute stmt;
 a	b
 drop table t1,t2;
 #
+# MDEV-28097 use-after-free when WHERE has subquery with an outer reference in HAVING
+#
+create table t1 (a text(60) not null) engine=innodb;
+insert into t1 values ('1'),('0');
+select distinct a from t1 where '' in (select 'x' like a having a like a);
+a
+1
+0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: ''
+drop table t1;
+#
 # End of 10.4 tests
 #

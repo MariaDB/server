@@ -8398,9 +8398,11 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
     thd->lex->which_check_option_applicable();
   bool save_is_item_list_lookup= select_lex->is_item_list_lookup;
   TABLE_LIST *derived= select_lex->master_unit()->derived;
+  bool save_resolve_in_select_list= select_lex->context.resolve_in_select_list;
   DBUG_ENTER("setup_conds");
 
   select_lex->is_item_list_lookup= 0;
+  select_lex->context.resolve_in_select_list= false;
 
   thd->column_usage= MARK_COLUMNS_READ;
   DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
@@ -8453,6 +8455,7 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
     select_lex->where= *conds;
   }
   thd->lex->current_select->is_item_list_lookup= save_is_item_list_lookup;
+  select_lex->context.resolve_in_select_list= save_resolve_in_select_list;
   DBUG_RETURN(thd->is_error());
 
 err_no_arena:
