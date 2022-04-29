@@ -759,6 +759,18 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
 }
 
 
+int close_thread_tables_for_query(THD *thd)
+{
+  if (thd->lex && thd->lex->explain)
+    thd->lex->explain->notify_tables_are_closed();
+
+  DBUG_EXECUTE_IF("explain_notify_tables_are_closed",
+                  if (dbug_user_var_equals_str(thd, "show_explain_probe_query",
+                                               thd->query()))
+                      dbug_serve_apcs(thd, 1);
+                 );
+  return close_thread_tables(thd);
+}
 /*
   Close all tables used by the current substatement, or all tables
   used by this thread if we are on the upper level.
@@ -8804,6 +8816,8 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
       continue;
 
     value=v++;
+    /* Ensure the end of the list of values is not reached */
+    DBUG_ASSERT(value);
 
     bool vers_sys_field= table->versioned() && field->vers_sys_field();
 

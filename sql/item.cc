@@ -3060,8 +3060,7 @@ Item_field::Item_field(THD *thd, Name_resolution_context *context_arg,
                        Field *f)
   :Item_ident(thd, context_arg, f->table->s->db,
               Lex_cstring_strlen(*f->table_name), f->field_name),
-   item_equal(0),
-   have_privileges(NO_ACL), any_privileges(0)
+   item_equal(0), have_privileges(NO_ACL), any_privileges(0)
 {
   /*
     We always need to provide Item_field with a fully qualified field
@@ -3134,7 +3133,7 @@ void Item_field::set_field(Field *field_par)
 {
   field=result_field=field_par;			// for easy coding with fields
   set_maybe_null(field->maybe_null());
-  Type_std_attributes::set(field_par->type_std_attributes());
+  Type_std_attributes::set(field_par->type_std_attributes()); 
   table_name= Lex_cstring_strlen(*field_par->table_name);
   field_name= field_par->field_name;
   db_name= field_par->table->s->db;
@@ -3143,6 +3142,10 @@ void Item_field::set_field(Field *field_par)
   base_flags|= item_base_t::FIXED;
   if (field->table->s->tmp_table == SYSTEM_TMP_TABLE)
     any_privileges= 0;
+
+  if (field->table->s->tmp_table == SYSTEM_TMP_TABLE ||
+      field->table->s->tmp_table == INTERNAL_TMP_TABLE)
+    set_refers_to_temp_table(true);
 }
 
 
@@ -3620,9 +3623,12 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref,
 
 Item *Item_field::get_tmp_table_item(THD *thd)
 {
-  Item_field *new_item= new (thd->mem_root) Item_temptable_field(thd, this);
+  Item_field *new_item= new (thd->mem_root) Item_field(thd, this);
   if (new_item)
+  {
     new_item->field= new_item->result_field;
+    new_item->set_refers_to_temp_table(true);
+  }
   return new_item;
 }
 
@@ -3630,6 +3636,11 @@ longlong Item_field::val_int_endpoint(bool left_endp, bool *incl_endp)
 {
   longlong res= val_int();
   return null_value? LONGLONG_MIN : res;
+}
+
+void Item_field::set_refers_to_temp_table(bool value)
+{
+  refers_to_temp_table= value;
 }
 
 
@@ -6275,6 +6286,7 @@ void Item_field::cleanup()
   field= 0;
   item_equal= NULL;
   null_value= FALSE;
+  refers_to_temp_table= FALSE;
   DBUG_VOID_RETURN;
 }
 
@@ -7821,21 +7833,24 @@ Item_direct_view_ref::grouping_field_transformer_for_where(THD *thd,
 
 void Item_field::print(String *str, enum_query_type query_type)
 {
-  if (field && field->table->const_table &&
+  /*
+    If the field refers to a constant table, print the value.
+    (1): But don't attempt to do that if
+          * the field refers to a temporary (work) table, and
+          * temp. tables might already have been dropped.
+  */
+  if (!(refers_to_temp_table &&                      // (1)
+        (query_type & QT_DONT_ACCESS_TMP_TABLES)) && // (1)
+      field && field->table->const_table &&
       !(query_type & (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL)))
   {
     print_value(str);
     return;
   }
-  Item_ident::print(str, query_type);
-}
-
-
-void Item_temptable_field::print(String *str, enum_query_type query_type)
-{
   /*
     Item_ident doesn't have references to the underlying Field/TABLE objects,
-    so it's ok to use the following:
+    so it's safe to make the following call even when the table is not
+    available already:
   */
   Item_ident::print(str, query_type);
 }
@@ -9101,7 +9116,12 @@ int Item_cache_wrapper::save_in_field(Field *to, bool no_conversions)
 Item* Item_cache_wrapper::get_tmp_table_item(THD *thd)
 {
   if (!orig_item->with_sum_func() && !orig_item->const_item())
-    return new (thd->mem_root) Item_temptable_field(thd, result_field);
+  {
+    auto item_field= new (thd->mem_root) Item_field(thd, result_field);
+    if (item_field)
+      item_field->set_refers_to_temp_table(true);
+    return item_field;
+  }
   return copy_or_same(thd);
 }
 

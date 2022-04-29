@@ -1692,6 +1692,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         normal_key_options normal_key_opts all_key_opt 
         spatial_key_options fulltext_key_options normal_key_opt 
         fulltext_key_opt spatial_key_opt fulltext_key_opts spatial_key_opts
+        explain_for_connection
 	keep_gcc_happy
         key_using_alg
         part_column_list
@@ -1942,6 +1943,7 @@ verb_clause:
         | do
         | drop
         | execute
+        | explain_for_connection
         | flush
         | get_diagnostics
         | grant
@@ -13934,12 +13936,25 @@ show_param:
             Lex->spname= $3;
             Lex->sql_command = SQLCOM_SHOW_CREATE_EVENT;
           }
-        | describe_command FOR_SYM expr
+        | describe_command opt_format_json FOR_SYM expr
+          /*
+            The alternaltive syntax for this command is MySQL-compatible
+            EXPLAIN FOR CONNECTION
+          */
           {
             Lex->sql_command= SQLCOM_SHOW_EXPLAIN;
-            if (unlikely(prepare_schema_table(thd, Lex, 0, SCH_EXPLAIN)))
+            if (unlikely(prepare_schema_table(thd, Lex, 0,
+                Lex->explain_json ? SCH_EXPLAIN_JSON : SCH_EXPLAIN_TABULAR)))
               MYSQL_YYABORT;
-            add_value_to_list(thd, $3);
+            add_value_to_list(thd, $4);
+          }
+        | ANALYZE_SYM opt_format_json FOR_SYM expr
+          {
+            Lex->sql_command= SQLCOM_SHOW_ANALYZE;
+            if (unlikely(prepare_schema_table(thd, Lex, 0,
+                Lex->explain_json ? SCH_ANALYZE_JSON : SCH_ANALYZE_TABULAR)))
+              MYSQL_YYABORT;
+            add_value_to_list(thd, $4);
           }
         | IDENT_sys remember_tok_start wild_and_where
            {
@@ -14093,8 +14108,8 @@ opt_format_json:
             else if (lex_string_eq(&$3, STRING_WITH_LEN("TRADITIONAL")))
               DBUG_ASSERT(Lex->explain_json==false);
             else
-              my_yyabort_error((ER_UNKNOWN_EXPLAIN_FORMAT, MYF(0), "EXPLAIN",
-                               $3.str));
+              my_yyabort_error((ER_UNKNOWN_EXPLAIN_FORMAT, MYF(0),
+                                "EXPLAIN/ANALYZE", $3.str));
           }
         ;
 
@@ -14111,6 +14126,31 @@ opt_describe_column:
           }
         ;
 
+explain_for_connection:
+          /*
+            EXPLAIN FOR CONNECTION is an alternative syntax for
+            SHOW EXPLAIN FOR command. It was introduced for compatibility
+            with MySQL which implements EXPLAIN FOR CONNECTION command
+          */
+          describe_command opt_format_json FOR_SYM CONNECTION_SYM expr
+          {
+            LEX *lex=Lex;
+            lex->wild=0;
+            lex->ident= null_clex_str;
+            if (Lex->main_select_push())
+              MYSQL_YYABORT;
+            mysql_init_select(lex);
+            lex->current_select->parsing_place= SELECT_LIST;
+            lex->create_info.init();
+            Select->parsing_place= NO_MATTER;
+            Lex->pop_select(); //main select
+            Lex->sql_command= SQLCOM_SHOW_EXPLAIN;
+            if (unlikely(prepare_schema_table(thd, Lex, 0,
+                Lex->explain_json ? SCH_EXPLAIN_JSON : SCH_EXPLAIN_TABULAR)))
+              MYSQL_YYABORT;
+            add_value_to_list(thd, $5);
+          }
+        ;
 
 /* flush things */
 

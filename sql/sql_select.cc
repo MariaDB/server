@@ -363,6 +363,33 @@ bool dbug_user_var_equals_int(THD *thd, const char *name, int value)
   }
   return FALSE;
 }
+
+/*
+  Debugging : check if @name= value, comparing as string
+
+  Intended usage :
+
+  DBUG_EXECUTE_IF("log_slow_statement_end",
+                  if (dbug_user_var_equals_str(thd, "show_explain_probe_query",
+                                               thd->query()))
+                      dbug_serve_apcs(thd, 1);
+                  );
+*/
+
+bool dbug_user_var_equals_str(THD *thd, const char *name, const char* value)
+{
+  user_var_entry *var;
+  LEX_CSTRING varname= {name, strlen(name)};
+  if ((var= get_variable(&thd->user_vars, &varname, FALSE)))
+  {
+    bool null_value;
+    String str;
+    auto var_value= var->val_str(&null_value, &str, 10)->ptr();
+    if (!null_value && !strncmp(var_value, value, strlen(value)))
+      return TRUE;
+  }
+  return FALSE;
+}
 #endif /* DBUG_OFF */
 
 /*
@@ -18958,8 +18985,9 @@ bool Create_tmp_table::add_fields(THD *thd,
 
           thd->mem_root= mem_root_save;
           if (!(tmp_item= new (thd->mem_root)
-                Item_temptable_field(thd, new_field)))
+                Item_field(thd, new_field)))
             goto err;
+          ((Item_field*) tmp_item)->set_refers_to_temp_table(true);
           arg= sum_item->set_arg(i, thd, tmp_item);
           thd->mem_root= &table->mem_root;
 
@@ -26056,9 +26084,10 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
          */
         Item_func_set_user_var* suv=
           new (thd->mem_root) Item_func_set_user_var(thd, (Item_func_set_user_var*) item);
-        Item_field *new_field= new (thd->mem_root) Item_temptable_field(thd, field);
+        Item_field *new_field= new (thd->mem_root) Item_field(thd, field);
         if (!suv || !new_field)
           DBUG_RETURN(true);                  // Fatal error
+        new_field->set_refers_to_temp_table(true);
         List<Item> list;
         list.push_back(new_field, thd->mem_root);
         suv->set_arguments(thd, list);
@@ -26070,9 +26099,15 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
     else if ((field= item->get_tmp_table_field()))
     {
       if (item->type() == Item::SUM_FUNC_ITEM && field->table->group)
+      {
         item_field= ((Item_sum*) item)->result_item(thd, field);
+      }
       else
-        item_field= (Item *) new (thd->mem_root) Item_temptable_field(thd, field);
+      {
+        item_field= (Item*) new (thd->mem_root) Item_field(thd, field);
+        if (item_field)
+          ((Item_field*) item_field)->set_refers_to_temp_table(true);
+      }
       if (!item_field)
         DBUG_RETURN(true);                    // Fatal error
 
@@ -26887,6 +26922,7 @@ int print_explain_message_line(select_result_sink *result,
                                ha_rows *rows,
                                const char *message)
 {
+  /* Note: for SHOW EXPLAIN, this is caller thread's THD */
   THD *thd= result->thd;
   MEM_ROOT *mem_root= thd->mem_root;
   Item *item_null= new (mem_root) Item_null(thd);

@@ -93,6 +93,8 @@ public:
     return 1000.0 * static_cast<double>(cycles) /
       static_cast<double>(sys_timer_info.cycles.frequency);
   }
+
+  bool has_timed_statistics() const { return cycles > 0; }
 };
 
 
