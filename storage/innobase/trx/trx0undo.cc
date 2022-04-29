@@ -290,10 +290,12 @@ trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
                                               mtr);
 }
 
-void UndorecApplier::assign_rec(trx_undo_rec_t *rec)
+inline void UndorecApplier::assign_rec(const buf_block_t &block,
+                                       uint16_t offset)
 {
-  this->undo_rec= rec;
-  this->offset= page_offset(rec);
+  ut_ad(block.page.lock.have_s());
+  this->offset= offset;
+  this->undo_rec= trx_undo_rec_copy(block.page.frame + offset, heap);
 }
 
 void UndorecApplier::apply_undo_rec()
@@ -355,12 +357,11 @@ ATTRIBUTE_COLD void trx_t::apply_log()
   page_id_t page_id{rsegs.m_redo.rseg->space->id, undo->hdr_page_no};
   page_id_t next_page_id(page_id);
   mtr_t mtr;
-  mem_heap_t *heap= mem_heap_create(100);
   mtr.start();
   buf_block_t *block= buf_page_get(page_id, 0, RW_S_LATCH, &mtr);
   ut_ad(block);
 
-  UndorecApplier log_applier(block, id);
+  UndorecApplier log_applier(page_id, id);
 
   for (;;)
   {
@@ -368,9 +369,12 @@ ATTRIBUTE_COLD void trx_t::apply_log()
                                                      undo->hdr_offset);
     while (rec)
     {
-      log_applier.assign_rec(rec);
+      log_applier.assign_rec(*block, page_offset(rec));
+      mtr.commit();
       log_applier.apply_undo_rec();
-      rec= trx_undo_page_get_next_rec(block, page_offset(rec),
+      mtr.start();
+      block= buf_page_get(log_applier.get_page_id(), 0, RW_S_LATCH, &mtr);
+      rec= trx_undo_page_get_next_rec(block, log_applier.get_offset(),
                                       page_id.page_no(), undo->hdr_offset);
     }
 
@@ -382,12 +386,11 @@ ATTRIBUTE_COLD void trx_t::apply_log()
     next_page_id.set_page_no(next);
     mtr.commit();
     mtr.start();
-    block= buf_page_get(next_page_id, 0, RW_S_LATCH, &mtr);
-    log_applier.assign_block(block);
+    block= buf_page_get_gen(next_page_id, 0, RW_S_LATCH, block, BUF_GET, &mtr);
+    log_applier.assign_next(next_page_id);
     ut_ad(block);
   }
   mtr.commit();
-  mem_heap_free(heap);
   apply_online_log= false;
 }
 
