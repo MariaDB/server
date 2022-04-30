@@ -633,4 +633,9 @@ replace t4
 
 drop table t1,t2,t3,t4;
 
+create table t (a int);
+--error ER_BAD_FIELD_ERROR
+select 1 in (select count(*) from t t1 join (t t2 join t t3 on (t1.a != 0)));
+drop table t;
+
 --echo # End of 10.4 tests

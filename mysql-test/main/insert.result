@@ -766,4 +766,8 @@ replace t4
 select * from t1 left join t2 on (select t1.i from t3);
 ERROR 42S22: Unknown column 't1.i' in 'field list'
 drop table t1,t2,t3,t4;
+create table t (a int);
+select 1 in (select count(*) from t t1 join (t t2 join t t3 on (t1.a != 0)));
+ERROR 42S22: Unknown column 't1.a' in 'on clause'
+drop table t;
 # End of 10.4 tests

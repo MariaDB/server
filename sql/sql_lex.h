@@ -3700,7 +3700,7 @@ public:
   SELECT_LEX *parser_current_outer_select()
   {
     return select_stack_top - 1 == select_stack_outer_barrier ?
-             0 : select_stack[select_stack_top - 1];
+             0 : select_stack[select_stack_top - 2];
   }
 
   Name_resolution_context *current_context()
