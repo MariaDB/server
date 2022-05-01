@@ -1,4 +1,4 @@
-Source: mariadb-10.9
+Source: mariadb
 Section: database
 Priority: optional
 Maintainer: MariaDB Developers <maria-developers@lists.launchpad.net>

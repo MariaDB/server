@@ -3,9 +3,6 @@ set -e
 
 . /usr/share/debconf/confmodule
 
-# This set by debian/rules during 'override_dh_auto_configure'
-MAJOR_VER="__MARIADB_MAJOR_VER__"
-
 if [ -n "$DEBIAN_SCRIPT_DEBUG" ]; then set -v -x; DEBIAN_SCRIPT_TRACE=1; fi
 ${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }
 
@@ -56,14 +53,14 @@ esac
 # - Remove the mysql user only after all his owned files are purged.
 # - Cleanup the initscripts only if this was the last provider of them
 #
-if [ "$1" = "purge" ] && [ -f "/var/lib/mysql/debian-$MAJOR_VER.flag" ]; then
+if [ "$1" = "purge" ] && [ -f "/var/lib/mysql/debian-__MARIADB_MAJOR_VER__.flag" ]; then
   # we remove the mysql user only after all his owned files are purged
   rm -f /var/log/mysql.{log,err}{,.0,.[1234567].gz}
   rm -rf /var/log/mysql
 
-  db_input high "mariadb-server-$MAJOR_VER/postrm_remove_databases" || true
+  db_input high "mariadb-server/postrm_remove_databases" || true
   db_go || true
-  db_get "mariadb-server-$MAJOR_VER/postrm_remove_databases" || true
+  db_get "mariadb-server/postrm_remove_databases" || true
   if [ "$RET" = "true" ]; then
     # never remove the debian.cnf when the databases are still existing
     # else we ran into big trouble on the next install!
