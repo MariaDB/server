@@ -9,9 +9,6 @@
 
 . /usr/share/debconf/confmodule
 
-# This set by debian/rules during 'override_dh_auto_configure'
-MAJOR_VER="__MARIADB_MAJOR_VER__"
-
 # Just kill the invalid insserv.conf.d directory without fallback
 if [ -d "/etc/insserv.conf.d/mariadb/" ]; then
     rm -rf "/etc/insserv.conf.d/mariadb/"
@@ -52,7 +49,9 @@ stop_server() {
 
 ################################ main() ##########################
 
-this_version=$MAJOR_VER
+# @TODO: Rewrite this to use the new upstream /var/lib/mysql_upgrade_info file
+# instead of the legacy /var/lib/debian-XX.X.flag file
+this_version=__MARIADB_MAJOR_VER__
 max_upgradeable_version=5.7
 
 # Check if a flag file is found that indicates a previous MariaDB or MySQL
@@ -125,7 +124,7 @@ fi
 # Instead simply move the old datadir and create a new for this_version.
 if [ ! -z "$downgrade_detected" ]
 then
-  db_input critical "mariadb-server-$MAJOR_VER/old_data_directory_saved" || true
+  db_input critical "mariadb-server/old_data_directory_saved" || true
   db_go
   echo "The file $mysql_datadir/debian-$found_version.flag indicates a" 1>&2
   echo "version that cannot automatically be upgraded. Therefore the" 1>&2
