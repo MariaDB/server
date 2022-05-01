@@ -14,6 +14,23 @@ version-substvar-for-external-package mariadb-client -> mysql-client-core-5.6
 version-substvar-for-external-package mariadb-client -> mysql-client-core-5.7
 version-substvar-for-external-package mariadb-client -> mysql-client-core-8.0
 version-substvar-for-external-package libmariadbd-dev -> libmariadbclient-dev
+# Intentional version-substvar-for-external-package as long as mariadb-server
+# provides mariadb-server-10.9 and mariadb-client provides mariadb-client-10.9
+version-substvar-for-external-package Conflicts (line 408) ${source:Version} mariadb-client -> mariadb-client-10.9
+version-substvar-for-external-package Conflicts (line 575) ${source:Version} mariadb-server-core -> mariadb-server-core-10.9
+version-substvar-for-external-package Conflicts (line 711) ${source:Version} mariadb-server -> mariadb-server-10.9
+version-substvar-for-external-package Conflicts (line 95) ${source:Version} libmariadb-dev-compat -> libmariadbclient-dev
+version-substvar-for-external-package Replaces (line 109) ${source:Version} libmariadb-dev-compat -> libmariadbclient-dev
+version-substvar-for-external-package Replaces (line 330) ${source:Version} mariadb-client-core -> mariadb-client-10.9
+version-substvar-for-external-package Replaces (line 330) ${source:Version} mariadb-client-core -> mariadb-server-core-10.9
+version-substvar-for-external-package Replaces (line 481) ${source:Version} mariadb-client -> mariadb-client-10.9
+version-substvar-for-external-package Replaces (line 481) ${source:Version} mariadb-client -> mariadb-client-core-10.9
+version-substvar-for-external-package Replaces (line 481) ${source:Version} mariadb-client -> mariadb-server-10.9
+version-substvar-for-external-package Replaces (line 481) ${source:Version} mariadb-client -> mariadb-server-core-10.9
+version-substvar-for-external-package Replaces (line 626) ${source:Version} mariadb-server-core -> mariadb-client-10.9
+version-substvar-for-external-package Replaces (line 626) ${source:Version} mariadb-server-core -> mariadb-server-10.9
+version-substvar-for-external-package Replaces (line 748) ${source:Version} mariadb-server -> mariadb-client-10.9
+version-substvar-for-external-package Replaces (line 748) ${source:Version} mariadb-server -> mariadb-server-10.9
 # ColumnStore not used in Debian, safe to ignore. Reported upstream in https://jira.mariadb.org/browse/MDEV-24124
 source-is-missing storage/columnstore/columnstore/utils/jemalloc/libjemalloc.so.2
 # Must be fixed upstream
