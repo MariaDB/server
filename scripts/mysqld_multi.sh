@@ -241,7 +241,7 @@ sub init_log
   }
   if (!defined($logdir))
   {
-    $logdir= "@datadir@" if (-d "@datadir@" && -w "@datadir@");
+    $logdir= "@localstatedir@" if (-d "@localstatedir@" && -w "@localstatedir@");
   }
   if (!defined($logdir))
   {
