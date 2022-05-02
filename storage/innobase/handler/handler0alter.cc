@@ -11050,9 +11050,13 @@ err_index:
 					DBUG_RETURN(true);
 				}
 
+				index->lock.x_unlock();
+
 				error = row_log_apply(
 					m_prebuilt->trx, index, altered_table,
 					ctx->m_stage);
+
+				index->lock.x_lock(SRW_LOCK_CALL);
 
 				if (error != DB_SUCCESS) {
 					goto err_index;
