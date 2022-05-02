@@ -2379,8 +2379,10 @@ int spider_parse_connect_info(
           SPIDER_PARAM_DEPRECATED_WARNING("sts_mode");
           SPIDER_PARAM_INT_WITH_MAX("sts_mode", sts_mode, 1, 2);
           SPIDER_PARAM_INT_WITH_MAX("sts_sync", sts_sync, 0, 2);
+          SPIDER_PARAM_DEPRECATED_WARNING("crd_mode");
           SPIDER_PARAM_INT_WITH_MAX("crd_mode", crd_mode, 0, 3);
           SPIDER_PARAM_INT_WITH_MAX("crd_sync", crd_sync, 0, 2);
+          SPIDER_PARAM_DEPRECATED_WARNING("crd_type");
           SPIDER_PARAM_INT_WITH_MAX("crd_type", crd_type, 0, 2);
           SPIDER_PARAM_LONGLONG("priority", priority, 0);
           SPIDER_PARAM_INT("bgs_mode", bgs_mode, 0);
