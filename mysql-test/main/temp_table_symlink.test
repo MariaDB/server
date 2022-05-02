@@ -14,6 +14,7 @@ for (<#sql*.MYI>) {
   symlink "$ENV{datadir}/test/d1.MYI", sprintf "#sql$1_$2%x.MYI", hex($3)+1;
   symlink "$ENV{datadir}/test/d1.MYI", sprintf "#sql$1_$2%x.MAI", hex($3)+1;
   symlink "$ENV{datadir}/test/d1.MYI", sprintf "#sql$1_$2%x.MAI", hex($3)+2;
+  symlink "$ENV{datadir}/test/d1.MYI", sprintf "#sql$1_$2%x.MAI", hex($3)+3;
   symlink "$ENV{datadir}/test/d1.MYI", "#sql_$1_0.MAI";
 }
 EOF
