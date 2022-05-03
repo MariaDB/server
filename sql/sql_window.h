@@ -108,6 +108,13 @@ class Window_spec : public Sql_alloc
 
   Window_spec *referenced_win_spec;
 
+  /*
+    Window_spec objects are numbered by the number of their appearance in the
+    query. This is used by compare_order_elements() to provide a predictable
+    ordering of PARTITION/ORDER BY clauses.
+  */
+  int win_spec_number;
+
   Window_spec(LEX_STRING *win_ref, 
               SQL_I_List<ORDER> *part_list,
               SQL_I_List<ORDER> *ord_list,
