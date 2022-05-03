@@ -1,0 +1,32 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (id INT PRIMARY KEY AUTO_INCREMENT, a INT, b INT, c INT,
+UNIQUE (a), UNIQUE (b)) ENGINE=innodb;
+INSERT INTO t1 (`a`,`c`) VALUES (1,1), (2,1) ON DUPLICATE KEY UPDATE c = 1;
+# UNSAFE
+INSERT INTO t1 (`a`,`c`) VALUES (3, 1),(2,1), (1,1) ON DUPLICATE KEY UPDATE c = a * 10 + VALUES(c);
+SELECT * from t1;
+id	a	b	c
+1	1	NULL	11
+2	2	NULL	21
+3	3	NULL	1
+connection slave;
+include/diff_tables.inc [master:t1,slave:t1]
+connection master;
+CREATE OR REPLACE TABLE t1 (a INT, b INT, c INT, UNIQUE (a), UNIQUE (b)) ENGINE=innodb;
+INSERT INTO t1 VALUES (1,10,1);
+# eligable for the statement format run unsafe warning
+INSERT INTO t1 VALUES (2,20,2) ON DUPLICATE KEY UPDATE c = 100;
+# not eligable: no warning in the statement format run
+INSERT INTO t1 (`a`,`c`) VALUES (3, 1) ON DUPLICATE KEY UPDATE c = 99;
+SELECT * from t1;
+a	b	c
+1	10	1
+2	20	2
+3	NULL	1
+connection slave;
+include/diff_tables.inc [master:t1,slave:t1]
+connection master;
+DROP TABLE t1;
+connection slave;
+include/rpl_end.inc
