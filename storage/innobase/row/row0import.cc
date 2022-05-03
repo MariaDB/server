@@ -2373,7 +2373,6 @@ row_import_set_sys_max_row_id(
 		row_id = mach_read_from_6(rec);
 	}
 
-	btr_pcur_close(&pcur);
 	mtr_commit(&mtr);
 
 	if (row_id) {

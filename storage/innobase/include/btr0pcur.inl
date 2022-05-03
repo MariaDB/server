@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -329,8 +329,7 @@ btr_pcur_free(
 }
 
 /**************************************************************//**
-Initializes and opens a persistent cursor to an index tree. It should be
-closed with btr_pcur_close. */
+Initializes and opens a persistent cursor to an index tree. */
 UNIV_INLINE
 dberr_t
 btr_pcur_open_low(
@@ -518,9 +517,7 @@ cursor is currently positioned. The latch is acquired by the
 are not allowed, you must take care (if using the cursor in S-mode) to
 manually release the latch by either calling
 btr_leaf_page_release(btr_pcur_get_block(&pcur), pcur.latch_mode, mtr)
-or by committing the mini-transaction right after btr_pcur_close().
-A subsequent attempt to crawl the same page in the same mtr would cause
-an assertion failure. */
+or by mtr_t::commit(). */
 UNIV_INLINE
 void
 btr_pcur_close(

@@ -1800,9 +1800,8 @@ row_ins_check_foreign_constraint(
 	}
 
 end_scan:
-	btr_pcur_close(&pcur);
-
 	mtr_commit(&mtr);
+	ut_free(pcur.old_rec_buf);
 
 	/* Restore old value */
 	dtuple_set_n_fields_cmp(entry, n_fields_cmp);
@@ -2470,8 +2469,7 @@ row_ins_index_entry_big_rec(
 
 	mtr.commit();
 
-	btr_pcur_close(&pcur);
-
+	ut_free(pcur.old_rec_buf);
 	return(error);
 }
 
@@ -2782,8 +2780,7 @@ func_exit:
 		mem_heap_free(offsets_heap);
 	}
 
-	btr_pcur_close(&pcur);
-
+	ut_free(pcur.old_rec_buf);
 	DBUG_RETURN(err);
 }
 

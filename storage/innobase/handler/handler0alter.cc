@@ -5983,7 +5983,7 @@ add_all_virtual:
 		if (offsets_heap) {
 			mem_heap_free(offsets_heap);
 		}
-		btr_pcur_close(&pcur);
+		ut_free(pcur.old_rec_buf);
 		goto func_exit;
 	} else if (is_root && page_rec_is_supremum(rec)
 		   && !index->table->instant) {

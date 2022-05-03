@@ -2161,9 +2161,9 @@ fail:
     pcur.restore_position(BTR_SEARCH_LEAF, &mtr);
   }
 
-  btr_pcur_close(&pcur);
   mtr.commit();
   trx->free();
+  ut_free(pcur.old_rec_buf);
   ut_d(purge_sys.resume_FTS());
 }
 

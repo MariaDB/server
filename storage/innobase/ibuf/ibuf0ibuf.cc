@@ -2332,13 +2332,11 @@ loop:
 
 			if (btr_pcur_is_after_last_on_page(&pcur)) {
 				ibuf_mtr_commit(&mtr);
-				btr_pcur_close(&pcur);
 				goto loop;
 			}
 		}
 done:
 		ibuf_mtr_commit(&mtr);
-		btr_pcur_close(&pcur);
 		mem_heap_empty(heap);
 #endif
 	}
@@ -2390,7 +2388,6 @@ ibuf_merge_pages(
 		      == page_id_t(IBUF_SPACE_ID, FSP_IBUF_TREE_ROOT_PAGE_NO));
 
 		ibuf_mtr_commit(&mtr);
-		btr_pcur_close(&pcur);
 
 		return(0);
 	}
@@ -2400,7 +2397,6 @@ ibuf_merge_pages(
 					    space_ids,
 					    page_nos, n_pages);
 	ibuf_mtr_commit(&mtr);
-	btr_pcur_close(&pcur);
 
 	ibuf_read_merge_pages(space_ids, page_nos, *n_pages);
 
@@ -2457,8 +2453,6 @@ ibuf_merge_space(
 	}
 
 	ibuf_mtr_commit(&mtr);
-
-	btr_pcur_close(&pcur);
 
 	if (n_pages > 0) {
 		ut_ad(n_pages <= UT_ARR_SIZE(pages));
@@ -3431,8 +3425,7 @@ commit_exit:
 
 func_exit:
 	ibuf_mtr_commit(&mtr);
-	btr_pcur_close(&pcur);
-
+	ut_free(pcur.old_rec_buf);
 	mem_heap_free(heap);
 
 	if (err == DB_SUCCESS
@@ -4423,8 +4416,7 @@ loop:
 			goto loop;
 		} else if (btr_pcur_is_after_last_on_page(&pcur)) {
 			ibuf_mtr_commit(&mtr);
-			btr_pcur_close(&pcur);
-
+			ut_free(pcur.old_rec_buf);
 			goto loop;
 		}
 	}
@@ -4435,12 +4427,12 @@ reset_bit:
 	}
 
 	ibuf_mtr_commit(&mtr);
+	ut_free(pcur.old_rec_buf);
 
 	if (space) {
 		space->release();
 	}
 
-	btr_pcur_close(&pcur);
 	mem_heap_free(heap);
 
 	ibuf.n_merges++;
@@ -4506,20 +4498,20 @@ loop:
 			we start from the beginning again */
 
 			ut_ad(mtr.has_committed());
+clear:
+			ut_free(pcur.old_rec_buf);
 			goto loop;
 		}
 
 		if (btr_pcur_is_after_last_on_page(&pcur)) {
 			ibuf_mtr_commit(&mtr);
-			btr_pcur_close(&pcur);
-
-			goto loop;
+			goto clear;
 		}
 	}
 
 leave_loop:
 	ibuf_mtr_commit(&mtr);
-	btr_pcur_close(&pcur);
+	ut_free(pcur.old_rec_buf);
 
 	ibuf_add_ops(ibuf.n_discarded_ops, dops);
 

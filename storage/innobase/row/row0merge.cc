@@ -2813,8 +2813,7 @@ wait_again:
 	row_fts_free_pll_merge_buf(psort_info);
 
 	ut_free(merge_buf);
-
-	btr_pcur_close(&pcur);
+	ut_free(pcur.old_rec_buf);
 
 	if (sp_tuples != NULL) {
 		for (ulint i = 0; i < num_spatial; i++) {
