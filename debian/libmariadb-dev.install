@@ -1,3 +1,4 @@
+usr/bin/mariadb-config
 usr/bin/mariadb_config
 usr/include/mariadb/errmsg.h
 usr/include/mariadb/ma_list.h

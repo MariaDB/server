@@ -1,53 +1,185 @@
 etc/columnstore/storagemanager.cnf.example # Copy of etc/columnstore/storagemanager.cnf that is installed
+etc/logrotate.d/mysql # Debian packaging uses mariadb-server.mysql-server.logrotate
+etc/my.cnf # Debian packaging has /etc/mysql/my.cnf, which is a symlink to mariadb.cnf
+etc/mysql/mariadb.conf.d/client.cnf # Debian packaging uses files from debian/additions/mariadb.cnf.d/
+etc/mysql/mariadb.conf.d/enable_encryption.preset # Debian packaging uses files from debian/additions/mariadb.cnf.d/
+etc/mysql/mariadb.conf.d/mysql-clients.cnf # Debian packaging uses files from debian/additions/mariadb.cnf.d/
+etc/mysql/mariadb.conf.d/server.cnf # Debian packaging uses files from debian/additions/mariadb.cnf.d/
+lib/systemd/system/mariadb-extra.socket # Installed by rules file
+lib/systemd/system/mariadb-extra@.socket # Installed by rules file
 lib/systemd/system/mariadb.service # Installed by rules file
 lib/systemd/system/mariadb.socket # Installed by rules file
-lib/systemd/system/mariadb-extra.socket # Installed by rules file
 lib/systemd/system/mariadb@.service # Installed by rules file
 lib/systemd/system/mariadb@.socket # Installed by rules file
-lib/systemd/system/mariadb-extra@.socket # Installed by rules file
-usr/bin/mysql_config # We already have the MariaDB variant
-usr/bin/mytop # Mytop is distributed from a separate source package
+usr/bin/mariadb-embedded # Shipping the embedded server in distro packaging does not make sense
+usr/bin/mysql_config # Debian packaging has mysql_config as symlink to mariadb_config
+usr/bin/mysql_embedded # Symlink to mariadb-embeded which is intentionally not included
 usr/bin/sst_dump # Use the one from rocksdb-tools package
-usr/lib/mysql/plugin/JavaWrappers.jar # These are only built if JNI/libjawt.so is installed from e.g. openjdk-8-jre-headless
-usr/lib/mysql/plugin/JdbcInterface.jar # These are only built if JNI/libjawt.so is installed from e.g. openjdk-8-jre-headless
-usr/lib/sysusers.d/sysusers.conf
-usr/lib/tmpfiles.d/tmpfiles.conf
 usr/lib/*/libdbbc.a # ColumnStore header file
 usr/lib/*/libidbboot.a # ColumnStore header file
 usr/lib/*/libprocessor.a # ColumnStore header file
 usr/lib/*/libwe_xml.a # ColumnStore header file
-usr/share/doc/mariadb-server-10.9/COPYING
-usr/share/doc/mariadb-server-10.9/COPYING.AGPLv3
-usr/share/doc/mariadb-server-10.9/COPYING.GPLv2
-usr/share/doc/mariadb-server-10.9/COPYING.thirdparty
+usr/bin/test-connect-t
+usr/bin/wsrep_sst_backup
+usr/lib/mysql/plugin/type_test.so
+usr/lib/sysusers.d/mariadb.conf # Not used (yet) in Debian systemd
+usr/lib/tmpfiles.d/mariadb.conf # Not used (yet) in Debian systemd
+usr/sbin/rcmysql
+usr/share/doc/mariadb-server-10.9/COPYING (related file: "debian/tmp/usr/share/mysql/mroonga/COPYING")
 usr/share/doc/mariadb-server-10.9/CREDITS
-usr/share/doc/mariadb-server-10.9/EXCEPTIONS-CLIENT
 usr/share/doc/mariadb-server-10.9/INSTALL-BINARY
-usr/share/doc/mariadb-server-10.9/PATENTS
 usr/share/doc/mariadb-server-10.9/README-wsrep
-usr/share/groonga/COPYING
-usr/share/groonga-normalizer-mysql/lgpl-2.0.txt
+usr/share/doc/mariadb-server-10.9/README.md
+usr/share/doc/mariadb-server-10.9/THIRDPARTY
 usr/share/groonga-normalizer-mysql/README.md
+usr/share/groonga-normalizer-mysql/lgpl-2.0.txt
+usr/share/groonga/COPYING
 usr/share/groonga/README.md
+usr/share/man/man1/mariadb-embedded.1 # Shipping the embedded server in distro packaging does not make sense
+usr/share/man/man1/mysql_embedded.1 # Symlink to mariadb-embeded.1 which is intentionally not included
 usr/share/man/man1/my_safe_process.1
+usr/share/man/man1/mysql-stress-test.pl.1
 usr/share/man/man1/mysql.server.1
+usr/share/man/man3/mariadb_cancel.3
+usr/share/man/man3/mariadb_connection.3
+usr/share/man/man3/mariadb_dyncol_check.3
+usr/share/man/man3/mariadb_dyncol_column_cmp_named.3
+usr/share/man/man3/mariadb_dyncol_column_count.3
+usr/share/man/man3/mariadb_dyncol_create_many_named.3
+usr/share/man/man3/mariadb_dyncol_create_many_num.3
+usr/share/man/man3/mariadb_dyncol_exists_named.3
+usr/share/man/man3/mariadb_dyncol_exists_num.3
+usr/share/man/man3/mariadb_dyncol_free.3
+usr/share/man/man3/mariadb_dyncol_list_named.3
+usr/share/man/man3/mariadb_dyncol_list_num.3
+usr/share/man/man3/mariadb_dyncol_unpack.3
+usr/share/man/man3/mariadb_dyncol_update_many_named.3
+usr/share/man/man3/mariadb_dyncol_update_many_num.3
+usr/share/man/man3/mariadb_get_infov.3
+usr/share/man/man3/mariadb_reconnect.3
+usr/share/man/man3/mariadb_rpl_close.3
+usr/share/man/man3/mariadb_rpl_fetch.3
+usr/share/man/man3/mariadb_rpl_get_optionsv.3
+usr/share/man/man3/mariadb_rpl_open.3
+usr/share/man/man3/mariadb_rpl_optionsv.3
+usr/share/man/man3/mariadb_stmt_execute_direct.3
+usr/share/man/man3/mariadb_stmt_fetch_fields.3
+usr/share/man/man3/mysql_affected_rows.3
+usr/share/man/man3/mysql_autocommit.3
+usr/share/man/man3/mysql_change_user.3
+usr/share/man/man3/mysql_close.3
+usr/share/man/man3/mysql_commit.3
+usr/share/man/man3/mysql_data_seek.3
+usr/share/man/man3/mysql_errno.3
+usr/share/man/man3/mysql_error.3
+usr/share/man/man3/mysql_fetch_field.3
+usr/share/man/man3/mysql_fetch_field_direct.3
+usr/share/man/man3/mysql_fetch_fields.3
+usr/share/man/man3/mysql_fetch_lengths.3
+usr/share/man/man3/mysql_fetch_row.3
+usr/share/man/man3/mysql_field_count.3
+usr/share/man/man3/mysql_field_seek.3
+usr/share/man/man3/mysql_field_tell.3
+usr/share/man/man3/mysql_free_result.3
+usr/share/man/man3/mysql_get_character_set_info.3
+usr/share/man/man3/mysql_get_client_info.3
+usr/share/man/man3/mysql_get_client_version.3
+usr/share/man/man3/mysql_get_host_info.3
+usr/share/man/man3/mysql_get_proto_info.3
+usr/share/man/man3/mysql_get_server_info.3
+usr/share/man/man3/mysql_get_server_version.3
+usr/share/man/man3/mysql_get_socket.3
+usr/share/man/man3/mysql_get_ssl_cipher.3
+usr/share/man/man3/mysql_hex_string.3
+usr/share/man/man3/mysql_info.3
+usr/share/man/man3/mysql_init.3
+usr/share/man/man3/mysql_kill.3
+usr/share/man/man3/mysql_more_results.3
+usr/share/man/man3/mysql_next_result.3
+usr/share/man/man3/mysql_num_fields.3
+usr/share/man/man3/mysql_num_rows.3
+usr/share/man/man3/mysql_options.3
+usr/share/man/man3/mysql_options4.3
+usr/share/man/man3/mysql_optionsv.3
+usr/share/man/man3/mysql_ping.3
+usr/share/man/man3/mysql_query.3
+usr/share/man/man3/mysql_read_query_result.3
+usr/share/man/man3/mysql_real_connect.3
+usr/share/man/man3/mysql_real_escape_string.3
+usr/share/man/man3/mysql_real_query.3
+usr/share/man/man3/mysql_refresh.3
+usr/share/man/man3/mysql_reset_connection.3
+usr/share/man/man3/mysql_rollback.3
+usr/share/man/man3/mysql_row_seek.3
+usr/share/man/man3/mysql_row_tell.3
+usr/share/man/man3/mysql_select_db.3
+usr/share/man/man3/mysql_send_query.3
+usr/share/man/man3/mysql_server_end.3
+usr/share/man/man3/mysql_server_init.3
+usr/share/man/man3/mysql_session_track_get_first.3
+usr/share/man/man3/mysql_session_track_get_next.3
+usr/share/man/man3/mysql_set_character_set.3
+usr/share/man/man3/mysql_set_server_option.3
+usr/share/man/man3/mysql_shutdown.3
+usr/share/man/man3/mysql_sqlstate.3
+usr/share/man/man3/mysql_ssl_set.3
+usr/share/man/man3/mysql_stat.3
+usr/share/man/man3/mysql_stmt_affected_rows.3
+usr/share/man/man3/mysql_stmt_attr_get.3
+usr/share/man/man3/mysql_stmt_attr_set.3
+usr/share/man/man3/mysql_stmt_bind_param.3
+usr/share/man/man3/mysql_stmt_bind_result.3
+usr/share/man/man3/mysql_stmt_close.3
+usr/share/man/man3/mysql_stmt_data_seek.3
+usr/share/man/man3/mysql_stmt_errno.3
+usr/share/man/man3/mysql_stmt_error.3
+usr/share/man/man3/mysql_stmt_execute.3
+usr/share/man/man3/mysql_stmt_fetch.3
+usr/share/man/man3/mysql_stmt_fetch_column.3
+usr/share/man/man3/mysql_stmt_field_count.3
+usr/share/man/man3/mysql_stmt_free_result.3
+usr/share/man/man3/mysql_stmt_init.3
+usr/share/man/man3/mysql_stmt_insert_id.3
+usr/share/man/man3/mysql_stmt_more_results.3
+usr/share/man/man3/mysql_stmt_next_result.3
+usr/share/man/man3/mysql_stmt_num_rows.3
+usr/share/man/man3/mysql_stmt_param_count.3
+usr/share/man/man3/mysql_stmt_param_metadata.3
+usr/share/man/man3/mysql_stmt_prepare.3
+usr/share/man/man3/mysql_stmt_reset.3
+usr/share/man/man3/mysql_stmt_result_metadata.3
+usr/share/man/man3/mysql_stmt_row_seek.3
+usr/share/man/man3/mysql_stmt_row_tell.3
+usr/share/man/man3/mysql_stmt_send_long_data.3
+usr/share/man/man3/mysql_stmt_sqlstate.3
+usr/share/man/man3/mysql_stmt_store_result.3
+usr/share/man/man3/mysql_stmt_warning_count.3
+usr/share/man/man3/mysql_store_result.3
+usr/share/man/man3/mysql_thread_end.3
+usr/share/man/man3/mysql_thread_id.3
+usr/share/man/man3/mysql_thread_init.3
+usr/share/man/man3/mysql_use_result.3
+usr/share/man/man3/mysql_warning_count.3
 usr/share/mysql/binary-configure
 usr/share/mysql/magic
-usr/share/mysql/maria_add_gis_sp.sql
+usr/share/mysql/maria_add_gis_sp.sql # mariadb-server-core.install has *_bootstrap.sql
+usr/share/mysql/mysql-log-rotate # Debian packaging uses mariadb-server.mysql-server.logrotate
+usr/share/mysql/mysql-test/asan.supp
+usr/share/mysql/mysql-test/lsan.supp
+usr/share/mysql/mysql-test/unstable-tests
+usr/share/mysql/mysql.server # Debian packaging uses mariadb-server.mariadb.init
 usr/share/mysql/mysqld_multi.server
-usr/share/mysql/mysql-log-rotate
-usr/share/mysql/mysql.server
-usr/share/mysql/mysql-test/mtr # Already created by mariadb-test.links
-usr/share/mysql/mysql-test/mysql-test-run # Already created by mariadb-test.links
-usr/share/mysql/mysql_to_mariadb.sql
 usr/share/mysql/policy/apparmor/README # In MariaDB we don't want to use AppArmor at the moment
 usr/share/mysql/policy/apparmor/usr.sbin.mysqld # In MariaDB we don't want to use AppArmor at the moment
 usr/share/mysql/policy/apparmor/usr.sbin.mysqld.local # In MariaDB we don't want to use AppArmor at the moment
+usr/share/mysql/policy/selinux/README # In MariaDB we don't want to use SELinux at the moment
 usr/share/mysql/policy/selinux/mariadb-server.fc # In MariaDB we don't want to use SELinux at the moment
 usr/share/mysql/policy/selinux/mariadb-server.te # In MariaDB we don't want to use SELinux at the moment
 usr/share/mysql/policy/selinux/mariadb.te # In MariaDB we don't want to use SELinux at the moment
-usr/share/mysql/policy/selinux/README # In MariaDB we don't want to use SELinux at the moment
+usr/share/mysql/systemd/mariadb-extra@.socket # Installed by rules file
 usr/share/mysql/systemd/mariadb.service # Installed by rules file
 usr/share/mysql/systemd/mariadb@.service # Installed by rules file
+usr/share/mysql/systemd/mariadb@.socket # Installed by rules file
+usr/share/mysql/systemd/mysql.service  # Installed by rules file
+usr/share/mysql/systemd/mysqld.service  # Installed by rules file
 usr/share/mysql/systemd/use_galera_new_cluster.conf
-usr/share/mysql/wsrep.cnf
