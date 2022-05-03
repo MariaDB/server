@@ -44,8 +44,6 @@ Created 6/2/1994 Heikki Tuuri
 #include "dict0boot.h"
 #include "row0sel.h" /* row_search_max_autoinc() */
 
-Atomic_counter<uint32_t> btr_validate_index_running;
-
 /**************************************************************//**
 Checks if the page in the cursor can be merged with given page.
 If necessary, re-organize the merge_page.
@@ -5035,7 +5033,6 @@ btr_validate_index(
 
 	ulint	n = btr_page_get_level(root);
 
-	btr_validate_index_running++;
 	for (ulint i = 0; i <= n; ++i) {
 
 		if (!btr_validate_level(index, trx, n - i, lockout)) {
@@ -5044,15 +5041,6 @@ btr_validate_index(
 	}
 
 	mtr_commit(&mtr);
-	/* In theory we need release barrier here, so that
-	btr_validate_index_running decrement is guaranteed to
-	happen after latches are released.
-
-	Original code issued SEQ_CST on update and non-atomic
-	access on load. Which means it had broken synchronisation
-	as well. */
-	btr_validate_index_running--;
-
 	return(err);
 }
 
