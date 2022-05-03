@@ -21,7 +21,7 @@ stages:
   - build
   - test
   - upgrade in Sid
-  - upgrade from Bullseye/Buster
+  - upgrade from Bullseye
   - upgrade extras
   - test extras
   - publish # Stage referenced by Salsa-CI template aptly stanza, so must exist even though not used
@@ -199,7 +199,7 @@ fresh install:
   script:
     - *test-prepare-container
     - *test-install
-    - service mariadb status # There is no init.d/mysql in MariaDB 10.9
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
     - *test-verify-final
   variables:
     GIT_STRATEGY: none
@@ -220,7 +220,7 @@ mariadb Sid upgrade:
   script:
     - *test-prepare-container
     - *test-install
-    - service mariadb status # There is no init.d/mysql in MariaDB 10.9
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
     - *test-verify-final
   variables:
     GIT_STRATEGY: none
@@ -229,7 +229,7 @@ mariadb Sid upgrade:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
 mariadb-10.5 Bullseye to mariadb upgrade:
-  stage: upgrade from Bullseye/Buster
+  stage: upgrade from Bullseye
   needs:
     - job: build
   image: debian:bullseye
@@ -254,32 +254,6 @@ mariadb-10.5 Bullseye to mariadb upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb-10.3 Buster to mariadb upgrade:
-  stage: upgrade from Bullseye/Buster
-  needs:
-    - job: build
-  image: debian:buster
-  artifacts:
-    when: always
-    name: "$CI_BUILD_NAME"
-    paths:
-      - ${WORKING_DIR}/debug
-  script:
-    - *test-prepare-container
-    # Install everything MariaDB currently in Debian Buster
-    - apt-get install -y 'default-mysql*' 'mariadb-*' 'libmariadb*'
-    # Verify installation of MariaDB from Buster
-    - *test-verify-initial
-    - *test-enable-sid-repos
-    - *test-install
-    - service mysql status
-    - *test-verify-final
-  variables:
-    GIT_STRATEGY: none
-  except:
-    variables:
-      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
-
 test basic features:
   stage: test
   needs:
@@ -293,7 +267,7 @@ test basic features:
   script:
     - *test-prepare-container
     - *test-install
-    - service mariadb status # There is no init.d/mysql in MariaDB 10.9
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
     - *test-verify-final
     - |
       # Print info about server
@@ -438,31 +412,10 @@ default-libmysqlclient-dev Sid upgrade:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
 default-libmysqlclient-dev Bullseye upgrade:
-  stage: upgrade from Bullseye/Buster
+  stage: upgrade from Bullseye
   needs:
     - job: build
   image: debian:bullseye
-  artifacts:
-    when: always
-    name: "$CI_BUILD_NAME"
-    paths:
-      - ${WORKING_DIR}/debug
-  script:
-    - *test-prepare-container
-    - apt-get install -y pkg-config default-libmysqlclient-dev
-    - pkg-config --list-all
-    - *test-enable-sid-repos
-    - *test-install-all-libs
-    - *test-verify-libs
-  except:
-    variables:
-      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
-
-default-libmysqlclient-dev Buster upgrade:
-  stage: upgrade from Bullseye/Buster
-  needs:
-    - job: build
-  image: debian:buster
   artifacts:
     when: always
     name: "$CI_BUILD_NAME"
@@ -568,7 +521,7 @@ mariadb.org-10.7 to mariadb-10.9 upgrade:
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - mariadb --version # Client version
-    - service mariadb status # There is no init.d/mysql in MariaDB 10.8
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
     - *test-verify-final
   variables:
     GIT_STRATEGY: none
@@ -608,7 +561,7 @@ mariadb.org-10.6 to mariadb-10.8 upgrade:
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - mariadb --version # Client version
-    - service mariadb status # There is no init.d/mysql in MariaDB 10.9
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
     - *test-verify-final
   variables:
     GIT_STRATEGY: none
@@ -643,7 +596,7 @@ mariadb.org-10.5 to mariadb-10.9 upgrade:
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - mariadb --version # Client version
-    - service mariadb status # There is no init.d/mysql in MariaDB 10.5
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
     - *test-verify-final
   variables:
     GIT_STRATEGY: none
@@ -776,7 +729,7 @@ mysql.com-5.7 to mariadb upgrade:
     # Enable backports to make galera-4 available
     - echo "deb http://deb.debian.org/debian bullseye-backports main" >> /etc/apt/sources.list.d/backports.list && apt-get update
     - *test-install
-    - service mysql status
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
     - sleep 15 # Give the mysql_upgrade a bit of extra time to complete with MySQL 5.7 before querying the server
     - *test-verify-final
   variables:
