@@ -3299,9 +3299,15 @@ fail_exit:
 commit_exit:
 		ibuf_mtr_commit(&bitmap_mtr);
 		goto fail_exit;
+	} else if (!lock_sys.rd_lock_try()) {
+		goto commit_exit;
 	} else {
-		LockGuard g{lock_sys.rec_hash, page_id};
-		if (lock_sys_t::get_first(g.cell(), page_id)) {
+		hash_cell_t* cell = lock_sys.rec_hash.cell_get(page_id.fold());
+		lock_sys.rec_hash.latch(cell)->acquire();
+		const lock_t* lock = lock_sys_t::get_first(*cell, page_id);
+		lock_sys.rec_hash.latch(cell)->release();
+		lock_sys.rd_unlock();
+		if (lock) {
 			goto commit_exit;
 		}
 	}
@@ -3804,7 +3810,6 @@ dump:
 		/* Delete the different-length record, and insert the
 		buffered one. */
 
-		lock_rec_store_on_page_infimum(block, rec);
 		page_cur_delete_rec(&page_cur, index, offsets, mtr);
 		page_cur_move_to_prev(&page_cur);
 		rec = ibuf_insert_to_index_page_low(entry, block, index,
@@ -3812,8 +3817,6 @@ dump:
 						    &page_cur);
 
 		ut_ad(!cmp_dtuple_rec(entry, rec, offsets));
-		lock_rec_restore_from_page_infimum(*block, rec,
-						   block->page.id());
 	} else {
 		offsets = NULL;
 		ibuf_insert_to_index_page_low(entry, block, index,
@@ -3945,8 +3948,6 @@ ibuf_delete(
 			ut_ad(0);
 			return;
 		}
-
-		lock_update_delete(block, rec);
 
 		if (!page_zip) {
 			max_ins_size
