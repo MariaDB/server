@@ -167,8 +167,8 @@ create algorithm=temptable view v1 as select * from t1;
 create algorithm=merge     view v2 as select * from t1;
 select default(a) = now() from v1;
 default(a) = now()
-NULL
-NULL
+1
+1
 select default(a) = now() from v2;
 default(a) = now()
 1
@@ -191,16 +191,29 @@ default(v1)
 2001-01-01 10:20:30
 select default(v1) from (select v1 from t1 group by v1) dt;
 default(v1)
-0000-00-00 00:00:00
+2001-01-01 10:20:30
 drop table t1;
 create table t1 (a text default '');
 create algorithm=temptable view v1 as select * from t1;
 insert into t1 values ('a');
 select default(a) from v1;
 default(a)
-NULL
+
 drop view v1;
 drop table t1;
+#
+# MDEV-28403 ASAN heap-use-after-free in String::copy / get_field_default_value
+#
+create table t (a blob default 'x');
+create view v as select * from t;
+insert into t () values ();
+update t set a = default;
+select table_name,column_name,column_default from information_schema.columns where table_name = 'v';
+table_name	v
+column_name	a
+column_default	'x'
+drop view v;
+drop table t;
 #
 # End of 10.2 tests
 #

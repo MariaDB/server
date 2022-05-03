@@ -1360,6 +1360,48 @@ SELECT tmp 1.e.test FROM scientific_notation AS tmp;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e.test FROM scientific_notation AS tmp' at line 1
 DROP TABLE scientific_notation;
 #
+# MDEV-6899 extra semicolon in show create event syntax
+#
+set timestamp=unix_timestamp('2020-10-10 5:5:5');
+create table t1 (a int);
+create trigger a before insert on t1 for each row set @a:=1;select 2$
+2
+2
+show create trigger a;
+Trigger	a
+sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+SQL Original Statement	CREATE DEFINER=`root`@`localhost` trigger a before insert on t1 for each row set @a:=1
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+Database Collation	latin1_swedish_ci
+Created	2020-10-10 05:05:05.00
+drop table t1;
+create procedure a() select 1;select 2$
+2
+2
+show create procedure a;
+Procedure	a
+sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+Create Procedure	CREATE DEFINER=`root`@`localhost` PROCEDURE `a`()
+select 1
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+Database Collation	latin1_swedish_ci
+drop procedure a;
+create function a() returns int return 1;select 2$
+2
+2
+show create function a;
+Function	a
+sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+Create Function	CREATE DEFINER=`root`@`localhost` FUNCTION `a`() RETURNS int(11)
+return 1
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+Database Collation	latin1_swedish_ci
+drop function a;
+set timestamp=default;
+#
 # End of 10.2 tests
 #
 #

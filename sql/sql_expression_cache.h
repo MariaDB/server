@@ -83,7 +83,11 @@ public:
     cache(c), hit(0), miss(0), state(UNINITED)
   {}
 
+private:
+  // This can be NULL if the cache is already deleted
   Expression_cache *cache;
+
+public:
   ulong hit, miss;
   enum expr_cache_state state;
 
@@ -91,6 +95,7 @@ public:
   void set(ulong h, ulong m, enum expr_cache_state s)
   {hit= h; miss= m; state= s;}
 
+  void detach_from_cache() { cache= NULL; }
   void fetch_current_stats()
   {
     if (cache)
