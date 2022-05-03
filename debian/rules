@@ -215,6 +215,6 @@ override_dh_gencontrol:
 # white list file only starting from Debian Stretch and Ubuntu Xenial.
 # To find more, grep build logs for 'but is not installed to anywhere'.
 %:
-	dh $@ --parallel --with systemd --list-missing
+	dh $@ --parallel --with systemd --fail-missing
 
 # vim: ts=8
