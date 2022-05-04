@@ -9489,6 +9489,42 @@ ha_innobase::rnd_next(
 	DBUG_RETURN(error);
 }
 
+#include "../row/row0sel.cc"
+
+int
+ha_innobase::sample_next(
+/*=====================*/
+    uchar *buf)
+{
+        int rc= ha_rnd_init(TRUE);
+        rc = rc;
+        mtr_t		mtr;
+        btr_pcur_t*	pcur = m_prebuilt->pcur;
+        rec_t*          rec;
+
+
+        rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+        rec_offs*	offsets				= offsets_;
+        rec_offs_init(offsets_);
+        mtr.start();
+        dict_index_t*	index = innobase_get_index(MAX_KEY);
+        bool res = btr_pcur_open_at_rnd_pos(index, BTR_SEARCH_LEAF, pcur, &mtr);
+
+        rec = btr_pcur_get_rec(pcur);
+
+        mem_heap_t*	heap	= NULL;
+        offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields, ULINT_UNDEFINED, &heap);
+        res = row_sel_store_mysql_rec(
+            buf, m_prebuilt, rec, NULL, true,
+            index, offsets);
+
+        res = res;
+
+        mtr.commit();
+        ha_rnd_end();
+        return 0;
+}
+
 /**********************************************************************//**
 Fetches a row from the table based on a row reference.
 @return 0, HA_ERR_KEY_NOT_FOUND, or error code */

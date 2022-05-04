@@ -4030,6 +4030,10 @@ public:
   virtual int ft_read(uchar *buf) { return HA_ERR_WRONG_COMMAND; }
   virtual int rnd_next(uchar *buf)=0;
   virtual int rnd_pos(uchar * buf, uchar *pos)=0;
+
+  virtual int sample_next(uchar *buf) { return 0;}
+
+
   /**
     This function only works for handlers having
     HA_PRIMARY_KEY_REQUIRED_FOR_POSITION set.

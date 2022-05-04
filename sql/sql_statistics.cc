@@ -2634,6 +2634,11 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   table->collected_stats->cardinality_is_null= TRUE;
   table->collected_stats->cardinality= 0;
 
+  int b = file->sample_next(table->record[0]);
+
+  b += 1;
+
+
   if (thd->variables.sample_percentage == 0)
   {
     if (file->records() < MIN_THRESHOLD_FOR_SAMPLING)
@@ -2650,13 +2655,17 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
 
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
-    table_field= *field_ptr;   
+    table_field= *field_ptr;
     if (!table_field->collected_stats)
-      continue; 
+      continue;
     table_field->collected_stats->init(thd, table_field);
   }
 
   restore_record(table, s->default_values);
+
+
+
+
 
   /* Perform a full table scan to collect statistics on 'table's columns */
   if (!(rc= file->ha_rnd_init(TRUE)))
