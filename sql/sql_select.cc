@@ -23727,12 +23727,14 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   for (uint i= 0; (item= it++); i++)
   {
     Field *field;
-    if ((item->with_sum_func && item->type() != Item::SUM_FUNC_ITEM) ||
+    enum Item::Type item_type= item->type();
+    if ((item->with_sum_func && item_type != Item::SUM_FUNC_ITEM) ||
        item->with_window_func)
       item_field= item;
-    else if (item->type() == Item::FIELD_ITEM)
+    else if (item_type == Item::FIELD_ITEM ||
+             item_type == Item::DEFAULT_VALUE_ITEM)
       item_field= item->get_tmp_table_item(thd);
-    else if (item->type() == Item::FUNC_ITEM &&
+    else if (item_type == Item::FUNC_ITEM &&
              ((Item_func*)item)->functype() == Item_func::SUSERVAR_FUNC)
     {
       field= item->get_tmp_table_field();

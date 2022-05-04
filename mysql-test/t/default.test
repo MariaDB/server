@@ -2125,4 +2125,21 @@ CREATE TABLE t1 (pk varchar(36) DEFAULT uuid());
 INSERT INTO t1 VALUES (),();
 SELECT 1 FROM t1 GROUP BY DEFAULT(pk);
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-28402: ASAN heap-use-after-free in create_tmp_table,
+--echo # Assertion `l_offset >= 0 && table->s->rec_buff_length - l_offset > 0'
+--echo #
+CREATE TABLE t (a INT, KEY (a));
+INSERT INTO t VALUES (1),(2);
+SELECT DISTINCT DEFAULT(a), CASE a WHEN 0 THEN 1 ELSE 2 END FROM t GROUP BY a WITH ROLLUP;
+DROP TABLE t;
+
+CREATE TABLE t (a INT, KEY (a));
+INSERT INTO t VALUES (1),(2);
+CREATE ALGORITHM=TEMPTABLE VIEW v AS SELECT * FROM t;
+SELECT DISTINCT DEFAULT(a), CASE a WHEN 0 THEN 1 ELSE 2 END FROM v GROUP BY a WITH ROLLUP;
+DROP TABLE t;
+DROP VIEW v;
 --echo # end of 10.2 test
