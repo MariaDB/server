@@ -705,11 +705,11 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
     goto err;
   wrapper_sl->select_number= ++thd->lex->stmt_lex->current_select_number;
   wrapper_sl->parent_lex= lex; /* Used in init_query. */
-  wrapper_sl->init_query();
-  wrapper_sl->init_select();
+  wrapper_sl->make_empty_select();
 
   wrapper_sl->nest_level= tvc_sl->nest_level;
   wrapper_sl->parsing_place= tvc_sl->parsing_place;
+  wrapper_sl->distinct=      tvc_sl->distinct;
   wrapper_sl->set_linkage(tvc_sl->get_linkage());
   wrapper_sl->exclude_from_table_unique_test=
                                  tvc_sl->exclude_from_table_unique_test;
@@ -737,6 +737,7 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
   derived_unit->init_query();
   derived_unit->thd= thd;
   derived_unit->include_down(wrapper_sl);
+  derived_unit->distinct= tvc_sl->distinct;
 
   /*
     Attach the select used of TVC as the only slave to the unit for
@@ -1011,7 +1012,9 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   lex->init_select();
   tvc_select= lex->current_select;
   derived_unit= tvc_select->master_unit();
+  derived_unit->distinct= 1;
   tvc_select->set_linkage(DERIVED_TABLE_TYPE);
+  tvc_select->distinct= 1;
 
   /* Create TVC used in the transformation */
   if (create_value_list_for_tvc(thd, &values))
