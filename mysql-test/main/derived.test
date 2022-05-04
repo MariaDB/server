@@ -259,6 +259,10 @@ insert into t2 values(2),(2);
 insert into t3 values(3),(3);
 select * from t1 union distinct select * from t2 union all select * from t3;
 select * from (select * from t1 union distinct select * from t2 union all select * from t3) X;
+set @save2_derived_optimizer_switch_bug=@@optimizer_switch;
+set @@optimizer_switch=default;
+select * from (select * from t1 union distinct select * from t2 union all select * from t3) X;
+set @@optimizer_switch=@save2_derived_optimizer_switch_bug;
 drop table t1, t2, t3;
 
 #

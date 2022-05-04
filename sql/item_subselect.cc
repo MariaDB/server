@@ -1625,8 +1625,9 @@ Item_exists_subselect::Item_exists_subselect(THD *thd,
 {
   DBUG_ENTER("Item_exists_subselect::Item_exists_subselect");
 
-
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
+  select_lex->distinct= 1;
+  select_lex->master_unit()->distinct= 1;
   max_columns= UINT_MAX;
   null_value= FALSE; //can't be NULL
   base_flags&= ~item_base_t::MAYBE_NULL; //can't be NULL
@@ -1677,6 +1678,13 @@ Item_in_subselect::Item_in_subselect(THD *thd, Item * left_exp,
       Item_row(thd, static_cast<Item_row*>(left_exp));
   func= &eq_creator;
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
+  select_lex->distinct= 1;
+  /*
+    If this is is 'xxx IN (SELECT ...) mark that the we are only interested in
+    unique values for the select
+  */
+  if (select_lex->first_inner_unit())
+    select_lex->first_inner_unit()->distinct= 1;
   max_columns= UINT_MAX;
   set_maybe_null();
   reset();
@@ -1704,6 +1712,13 @@ Item_allany_subselect::Item_allany_subselect(THD *thd, Item * left_exp,
       Item_row(thd, static_cast<Item_row*>(left_exp));
   func= func_creator(all_arg);
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
+  select_lex->distinct= 1;
+  /*
+    If this is is 'xxx IN (SELECT ...) mark that the we are only interested in
+    unique values for the select
+  */
+  if (select_lex->first_inner_unit())
+    select_lex->first_inner_unit()->distinct= 1;
   max_columns= 1;
   reset();
   //if test_limit will fail then error will be reported to client
