@@ -1994,11 +1994,10 @@ static void DBUGOpenFile(CODE_STATE *cs,
 static void DBUGCloseFile(CODE_STATE *cs, sFILE *new_value)
 {
   sFILE *fp;
-  if (!cs || !cs->stack || !cs->stack->out_file)
+  if (!cs || !cs->stack || !(fp= cs->stack->out_file))
     return;
 
-  fp= cs->stack->out_file;
-  if (--fp->used == 0)
+  if (fp != sstdout && fp != sstderr && --fp->used == 0)
   {
     if (fclose(fp->file) == EOF)
     {
