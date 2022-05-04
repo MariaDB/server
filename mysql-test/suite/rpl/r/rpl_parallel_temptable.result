@@ -132,8 +132,13 @@ connection server_1;
 INSERT INTO t1 VALUES (0, 1);
 include/save_master_gtid.inc
 connection server_2;
+set @@sql_log_bin=0;
+call mtr.add_suppression("Unexpected break of being relay-logged GTID 1-1-32 event group by the current GTID event 0-1-4");
+set @@sql_log_bin=1;
+set @@global.debug_dbug="+d,slave_discard_xid_for_gtid_0_x_1000";
 include/start_slave.inc
 include/sync_with_master_gtid.inc
+set @@global.debug_dbug="";
 SELECT * FROM t1 ORDER BY a;
 a	b
 0	1

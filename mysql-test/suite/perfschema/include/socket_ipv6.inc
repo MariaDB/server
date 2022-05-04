@@ -20,6 +20,7 @@ let $check_ipv6_just_check= 1;
 #==============================================================================
 --disable_query_log
 --disable_result_log
+--disable_connect_log
 --disable_abort_on_error
 
 let $check_ipv6_supported= 1;
@@ -44,6 +45,7 @@ if(!$mysql_errno)
 connection default;
 
 --enable_abort_on_error
+--enable_connect_log
 --enable_result_log
 --enable_query_log
 
@@ -62,6 +64,7 @@ let $check_ipv4_mapped_just_check= 1;
 #==============================================================================
 --disable_query_log
 --disable_result_log
+--disable_connect_log
 --disable_abort_on_error
 
 let $check_ipv4_mapped_supported= 1;
@@ -86,6 +89,7 @@ if(!$mysql_errno)
 connection default;
 
 --enable_abort_on_error
+--enable_connect_log
 --enable_result_log
 --enable_query_log
 

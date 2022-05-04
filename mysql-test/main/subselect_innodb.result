@@ -629,3 +629,35 @@ a	b
 2019-03-10 02:55:05	2019-03-10 02:55:05
 DROP TABLE t1,t2;
 set character_set_connection=@save_character_set_connection;
+#
+# MDEV-26047: MariaDB server crash at Item_subselect::init_expr_cache_tracker
+#
+CREATE TABLE t1 (a int) engine=innodb;
+SELECT 1 IN (
+SELECT NULL
+FROM t1
+WHERE
+a IS NOT NULL
+GROUP BY
+(SELECT NULL from dual WHERE a = 1)
+);
+1 IN (
+SELECT NULL
+FROM t1
+WHERE
+a IS NOT NULL
+GROUP BY
+(SELECT NULL from dual WHERE a = 1)
+)
+0
+drop table t1;
+# Testcase from MDEV-26164
+create table t1(a int);
+# Disable the warning as it includes current time and changes for every test run.
+select 1 from t1 where not exists
+(
+select 1 from t1 where binary current_time()
+group by (select a),(select 1)
+);
+1
+drop table t1;

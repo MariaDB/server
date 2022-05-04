@@ -3508,6 +3508,26 @@ DELETE FROM t1 ORDER BY c;
 DROP TABLE t1;
 SET @@SESSION.max_sort_length=DEFAULT;
 SET sql_mode=DEFAULT;
+#
+# MDEV-25994 Crash with union of my_decimal type in ORDER BY clause
+#
+CREATE TABLE t1 (v1 INTEGER) ;
+INSERT INTO t1 (v1) VALUES (8);
+UPDATE t1 SET v1 = 1 ORDER BY (SELECT 1.1 UNION SELECT -1);
+ERROR 21000: Subquery returns more than 1 row
+# This one must be successful
+UPDATE t1 SET v1 = 2 ORDER BY (SELECT 1 UNION SELECT 1);
+UPDATE t1 SET v1 = 3 ORDER BY (SELECT 'a' UNION SELECT 'b');
+ERROR 21000: Subquery returns more than 1 row
+# Insert some more data
+INSERT INTO t1 (v1) VALUES (8),(9),(100),(-234),(46584),(0);
+UPDATE t1 SET v1 = v1+1 ORDER BY (SELECT 100.122 UNION SELECT -189.2);
+ERROR 21000: Subquery returns more than 1 row
+# This one must be successful
+UPDATE t1 SET v1 = v1-200 ORDER BY (SELECT 1 UNION SELECT 1);
+UPDATE t1 SET v1 = v1 ORDER BY (SELECT 'abc' UNION SELECT 'bbb');
+ERROR 21000: Subquery returns more than 1 row
+DROP TABLE t1;
 # End of 10.2 tests
 #
 # MDEV-16214: Incorrect plan taken by the optimizer , uses INDEX instead of ref access with ORDER BY

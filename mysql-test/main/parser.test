@@ -1400,6 +1400,30 @@ SELECT tmp 1.e.test FROM scientific_notation AS tmp;
 DROP TABLE scientific_notation;
 
 --echo #
+--echo # MDEV-6899 extra semicolon in show create event syntax
+--echo #
+set timestamp=unix_timestamp('2020-10-10 5:5:5');
+create table t1 (a int);
+delimiter $;
+create trigger a before insert on t1 for each row set @a:=1;select 2$
+delimiter ;$
+query_vertical show create trigger a;
+drop table t1;
+
+delimiter $;
+create procedure a() select 1;select 2$
+delimiter ;$
+query_vertical show create procedure a;
+drop procedure a;
+
+delimiter $;
+create function a() returns int return 1;select 2$
+delimiter ;$
+query_vertical show create function a;
+drop function a;
+set timestamp=default;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

@@ -2463,7 +2463,7 @@ void Item_func_round::fix_arg_decimal()
     set_handler(&type_handler_newdecimal);
     unsigned_flag= args[0]->unsigned_flag;
     decimals= args[0]->decimals;
-    max_length= float_length(args[0]->decimals) + 1;
+    max_length= args[0]->max_length;
   }
 }
 

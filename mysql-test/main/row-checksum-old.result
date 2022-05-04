@@ -1,4 +1,3 @@
-drop table if exists t1;
 create table t1 (a int null, v varchar(100)) engine=myisam checksum=0;
 insert into t1 values(null, null), (1, "hello");
 checksum table t1;
@@ -98,4 +97,48 @@ CHECKSUM TABLE t1 EXTENDED;
 Table	Checksum
 test.t1	2326430205
 drop table t1;
+#
 # End of 5.5 tests
+#
+#
+# MDEV-28020 CHECKSUM TABLE calculates different checksums
+#
+create table t1 ( a int, b int as (a) virtual, c text) engine=myisam checksum=1;
+insert ignore t1 values (1,2,'foo'),(2,3,'bar');
+Warnings:
+Warning	1906	The value specified for generated column 'b' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' has been ignored
+checksum table t1 extended;
+Table	Checksum
+test.t1	4101438232
+checksum table t1;
+Table	Checksum
+test.t1	4101438232
+drop table t1;
+create table t1 ( a int, b int as (a) virtual, c text, key(b)) engine=myisam checksum=1;
+insert ignore t1 values (1,2,'foo'),(2,3,'bar');
+Warnings:
+Warning	1906	The value specified for generated column 'b' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' has been ignored
+checksum table t1 extended;
+Table	Checksum
+test.t1	4101438232
+checksum table t1;
+Table	Checksum
+test.t1	4101438232
+drop table t1;
+create table t1 ( a int, b int as (a) stored, c text) engine=myisam checksum=1;
+insert ignore t1 values (1,2,'foo'),(2,3,'bar');
+Warnings:
+Warning	1906	The value specified for generated column 'b' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' has been ignored
+checksum table t1 extended;
+Table	Checksum
+test.t1	2897795735
+checksum table t1;
+Table	Checksum
+test.t1	2897795735
+drop table t1;
+#
+# End of 10.2 tests
+#

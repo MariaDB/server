@@ -2634,7 +2634,7 @@ static struct my_option my_long_options[] =
    &opt_verbose, &opt_verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"skip-write-binlog", 'S', "Do not replicate changes to time zone tables to other nodes in a Galera cluster.",
+  {"skip-write-binlog", 'S', "Do not replicate changes to time zone tables to the binary log, or to other nodes in a Galera cluster.",
    &opt_skip_write_binlog,&opt_skip_write_binlog, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
@@ -2730,9 +2730,9 @@ main(int argc, char **argv)
        sql_log_bin and wsrep_on to avoid Galera replicating below
        truncate table clauses. This will allow user to set different
        time zones to nodes in Galera cluster. */
-    printf("set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');\n"
-           "prepare set_wsrep_write_binlog from @prep1;\n"
-           "set @toggle=0; execute set_wsrep_write_binlog using @toggle;\n");
+    printf("set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION WSREP_ON=OFF', 'do 0');\n"
+           "SET SESSION SQL_LOG_BIN=0;\n"
+           "execute immediate @prep1;\n");
   }
   else
   {

@@ -5118,6 +5118,9 @@ int handler::calculate_checksum()
     for (uint i= 0; i < table->s->fields; i++ )
     {
       Field *f= table->field[i];
+      if (!f->stored_in_db())
+        continue;
+
 
       if (! thd->variables.old_mode && f->is_real_null(0))
       {

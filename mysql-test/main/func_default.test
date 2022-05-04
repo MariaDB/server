@@ -167,5 +167,16 @@ drop view v1;
 drop table t1;
 
 --echo #
+--echo # MDEV-28403 ASAN heap-use-after-free in String::copy / get_field_default_value
+--echo #
+create table t (a blob default 'x');
+create view v as select * from t;
+insert into t () values ();
+update t set a = default;
+query_vertical select table_name,column_name,column_default from information_schema.columns where table_name = 'v';
+drop view v;
+drop table t;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
