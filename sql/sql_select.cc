@@ -21343,6 +21343,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   TABLE_SHARE share;
   const char *save_proc_info;
   int write_err= 0;
+  String tmp_alias;
   DBUG_ENTER("create_internal_tmp_table_from_heap");
   if (is_duplicate)
     *is_duplicate= FALSE;
@@ -21435,9 +21436,18 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   plugin_unlock(0, table->s->db_plugin);
   share.db_plugin= my_plugin_lock(0, share.db_plugin);
   new_table.s= table->s;                       // Keep old share
+
+  /*
+    The following work with alias has to be done as new_table.alias() may have
+    been reallocated and we want to keep the original one.
+  */
+  tmp_alias.move(table->alias);
   *table= new_table;
+  table->alias.move(tmp_alias);
+  new_table.alias.free();
+  /* Get the new share */
   *table->s= share;
-  
+
   table->file->change_table_ptr(table, table->s);
   table->use_all_columns();
   if (save_proc_info)
