@@ -2547,8 +2547,12 @@ int JOIN::optimize_stage2()
   if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
     DBUG_RETURN(1);
 
-  if (optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_WITH_KEYS))
-    drop_unused_derived_keys();
+  /*
+    We have to call drop_unused_derived_keys() even if we don't have any
+    generated keys (enabled with OPTIMIZER_SWITCH_DERIVED_WITH_KEYS)
+    as we may still have unique constraints we have to get rid of.
+  */
+  drop_unused_derived_keys();
 
   if (rollup.state != ROLLUP::STATE_NONE)
   {
@@ -5605,7 +5609,14 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
             base_const_ref.intersect(base_part);
             base_eq_part= eq_part;
             base_eq_part.intersect(base_part);
-            if (table->actual_key_flags(keyinfo) & HA_NOSAME)
+
+            /*
+              We can read the const record if we are using a full unique key and
+              if the table is not an unopened to be materialized table/view.
+            */
+            if ((table->actual_key_flags(keyinfo) & HA_NOSAME) &&
+                (!s->table->pos_in_table_list->is_materialized_derived() ||
+                 s->table->pos_in_table_list->fill_me))
             {
               
 	      if (base_const_ref == base_eq_part &&
@@ -12980,9 +12991,12 @@ void JOIN::drop_unused_derived_keys()
       if (tab->ref.key >= 0 && tab->ref.key < MAX_KEY)
         tab->ref.key= 0;
       else
+      {
         tmp_tbl->s->keys= 0;
+        tmp_tbl->s->uniques= 0;
+      }
     }
-    tab->keys= (key_map) (tmp_tbl->s->keys ? 1 : 0);
+    tab->keys= (key_map) (tmp_tbl->s->keys || tmp_tbl->s->uniques ? 1 : 0);
   }
 }
 
@@ -21965,12 +21979,16 @@ join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos)
   if (tab->table->pos_in_table_list->is_materialized_derived() &&
       !tab->table->pos_in_table_list->fill_me)
   {
+    DBUG_ASSERT(0);
     //TODO: don't get here at all
-    /* Skip materialized derived tables/views. */
+    /*
+      Skip materialized derived tables/views as they temporary table is not
+      opened yet.
+    */
     DBUG_RETURN(0);
   }
-  else if (tab->table->pos_in_table_list->jtbm_subselect && 
-          tab->table->pos_in_table_list->jtbm_subselect->is_jtbm_const_tab)
+  else if (tab->table->pos_in_table_list->jtbm_subselect &&
+           tab->table->pos_in_table_list->jtbm_subselect->is_jtbm_const_tab)
   {
     /* Row will not be found */
     int res;

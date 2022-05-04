@@ -1,6 +1,8 @@
 #
 # Test of unions
 #
+--source include/have_sequence.inc
+
 
 --disable_warnings
 drop table if exists t1,t2,t3,t4,t5,t6;
@@ -1916,3 +1918,21 @@ set @@default_storage_engine=@save_default_storage_engine;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo
+--echo # check union all & union disctinct
+--echo
+
+select 1 as res union select 2 union select 1 union select 2;
+select 1 as res union distinct select 2 union distinct select 1 union distinct select 2;
+select 1 as res union all select 2 union all select 1 union all select 2;
+
+select truncate(seq/2,0)+1 as res from seq_1_to_6 union select 2;
+select truncate(seq/2,0)+1 as res from seq_1_to_6 union distinct select 2;
+select truncate(seq/2,0)+1 as res from seq_1_to_6 union all select 2;
+
+select 1 as res union all select 2 union distinct select 1 union all select 2;
+select 1 as res union select 2 union all select 1 union distinct select 3;
+select 1 as res union select 2 union all select 1 union distinct select 3 union all select 2;
+select 1 as res union select 2 union all select 1 union distinct select 3 union all select 2 union distinct select 5;
+select truncate(seq/2,0)+1 as res from seq_1_to_6 union all select 2 union all select 1 union distinct select 3 union all select 2;

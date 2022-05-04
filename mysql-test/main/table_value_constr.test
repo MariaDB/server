@@ -1560,6 +1560,9 @@ values ((values (4)), (select 5)), ((select 2), (values (8)));
 
 values ((values (1) union values (1)));
 
+--error ER_SUBQUERY_NO_1_ROW
+values ((values (1) union all values (1)));
+
 values ((values (1) union values (1) union values (1)));
 
 values ((values ((values (4)))));
