@@ -292,7 +292,7 @@ SELECT * FROM federated.t1 WHERE id >= 5) t
 WHERE federated.t3.name=t.name;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	7	
-1	PRIMARY	<derived2>	ref	key0	key0	18	federated.t3.name	2	
+1	PRIMARY	<derived2>	ref	key1	key1	18	federated.t3.name	2	
 2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 #
 # MDEV-21887: federatedx crashes on SELECT ... INTO query in select_handler code
