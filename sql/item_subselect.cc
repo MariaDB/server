@@ -1625,8 +1625,9 @@ Item_exists_subselect::Item_exists_subselect(THD *thd,
 {
   DBUG_ENTER("Item_exists_subselect::Item_exists_subselect");
 
-
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
+  select_lex->distinct= 1;
+  select_lex->master_unit()->distinct= 1;
   max_columns= UINT_MAX;
   null_value= FALSE; //can't be NULL
   base_flags&= ~item_base_t::MAYBE_NULL; //can't be NULL
@@ -1677,6 +1678,39 @@ Item_in_subselect::Item_in_subselect(THD *thd, Item * left_exp,
       Item_row(thd, static_cast<Item_row*>(left_exp));
   func= &eq_creator;
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
+  select_lex->distinct= 1;
+
+  /*
+    If the IN subquery (xxx IN (SELECT ...) is a join without grouping,
+    we don't need duplicates from the tables it is joining. These
+    tables can be derived tables, like shown in the following
+    example. In this case, it's useful to indicate that we don't need
+    duplicates from them either.
+
+    Example:
+     col IN (SELECT ...   -- this is the select_lex
+              FROM
+                (SELECT ... FROM t1) AS t1, -- child1, first_inner_init().
+                (SELECT ... FROM t2) AS t2, -- child2
+              WHERE
+                ...
+            )
+
+     We don't need duplicates from either child1 or child2.
+     We only indicate this to child1 (select_lex->first_inner_unit()), as that
+     catches most of practically important use cases.
+
+     (The check for item==NULL is to make sure the subquery is a derived table
+     and not any other kind of subquery like another IN (SELECT ...) or a scalar-
+     context (SELECT 'foo'))
+  */
+
+  select_lex->master_unit()->distinct= 1;
+  if (!select_lex->with_sum_func &&
+      select_lex->first_inner_unit() &&
+      select_lex->first_inner_unit()->item == NULL)
+    select_lex->first_inner_unit()->distinct= 1;
+
   max_columns= UINT_MAX;
   set_maybe_null();
   reset();
@@ -1704,6 +1738,16 @@ Item_allany_subselect::Item_allany_subselect(THD *thd, Item * left_exp,
       Item_row(thd, static_cast<Item_row*>(left_exp));
   func= func_creator(all_arg);
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
+  select_lex->distinct= 1;
+  /*
+    If this is is 'xxx IN (SELECT ...) mark that the we are only interested in
+    unique values for the select
+  */
+  select_lex->master_unit()->distinct= 1;
+  if (!select_lex->with_sum_func &&
+      select_lex->first_inner_unit() &&
+      select_lex->first_inner_unit()->item == NULL)
+    select_lex->first_inner_unit()->distinct= 1;
   max_columns= 1;
   reset();
   //if test_limit will fail then error will be reported to client
