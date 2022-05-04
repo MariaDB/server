@@ -870,18 +870,20 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     goto exit;
 
   /*
-    Temp table is created so that it hounours if UNION without ALL is to be 
+    Temp table is created so that it honors if UNION without ALL is to be
     processed
 
-    As 'distinct' parameter we always pass FALSE (0), because underlying
-    query will control distinct condition by itself. Correct test of
-    distinct underlying query will be is_unit_op &&
+    As 'distinct' parameter we pass unit->distinct, which tells us if
+    the values should be uniq.
+    Note that the underlying query will also control distinct condition.
+    Correct test of distinct underlying query will be is_unit_op &&
     !unit->union_distinct->next_select() (i.e. it is union and last distinct
     SELECT is last SELECT of UNION).
   */
   thd->create_tmp_table_for_derived= TRUE;
   if (!(derived->table) &&
-      derived->derived_result->create_result_table(thd, &unit->types, FALSE,
+      derived->derived_result->create_result_table(thd, &unit->types,
+                                                   unit->distinct,
                                                    (first_select->options |
                                                    thd->variables.option_bits |
                                                    TMP_TABLE_ALL_COLUMNS),

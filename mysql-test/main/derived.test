@@ -260,6 +260,10 @@ insert into t2 values(2),(2);
 insert into t3 values(3),(3);
 select * from t1 union distinct select * from t2 union all select * from t3;
 select * from (select * from t1 union distinct select * from t2 union all select * from t3) X;
+set @save2_derived_optimizer_switch_bug=@@optimizer_switch;
+set @@optimizer_switch=default;
+select * from (select * from t1 union distinct select * from t2 union all select * from t3) X;
+set @@optimizer_switch=@save2_derived_optimizer_switch_bug;
 drop table t1, t2, t3;
 
 #
@@ -1127,3 +1131,57 @@ analyze select * from t1 , ( (select t2.a from t2 order by c) union all (select 
 select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except(select t3.a from t3 order by b))q  where t1.a=q.a;
 
 drop table t1,t2,t3;
+
+--echo #
+--echo # Test of "Derived tables and union can now create distinct keys"
+--echo #
+
+create table t1 (a int);
+insert into t1 values (100),(100);
+
+create table duplicates_tbl (a int);
+insert into duplicates_tbl select seq/100 from seq_1_to_10000;
+
+explain
+select
+  t1.a IN ( SELECT COUNT(*)
+              from (select a
+                    from duplicates_tbl
+                    limit 10000
+                   ) T
+              where T.a=5
+            ) as 'A'
+from t1;
+
+select
+  t1.a IN ( SELECT COUNT(*)
+              from (select a
+                    from duplicates_tbl
+                    limit 10000
+                   ) T
+              where T.a=5
+            ) as 'A'
+from t1;
+
+explain
+select
+  t1.a = all ( SELECT COUNT(*)
+              from (select a
+                    from duplicates_tbl
+                    limit 10000
+                   ) T
+              where T.a=5
+            ) as 'A'
+from t1;
+
+select
+  t1.a = all ( SELECT COUNT(*)
+              from (select a
+                    from duplicates_tbl
+                    limit 10000
+                   ) T
+              where T.a=5
+            ) as 'A'
+from t1;
+
+drop table t1, duplicates_tbl;
