@@ -42,3 +42,31 @@ ERROR 22001: Data too long for column 'in_db' at row 1
 CALL sys.table_exists('test', @identifier, @exists);
 ERROR 22001: Data too long for column 'in_table' at row 1
 SET @identifier := NULL;
+#
+# MDEV-28391: table_exists procedure fails with
+#             Incorrect table name with backtick identifiers
+#
+CREATE TABLE `ab``c` (t1_id int PRIMARY KEY, t1_val varchar(10));
+CALL sys.table_exists('test', 'ab`c', @tbl_type);
+SELECT @tbl_type;
+@tbl_type
+BASE TABLE
+DROP TABLE `ab``c`;
+CREATE TEMPORARY TABLE `ab``c` (t1_id int PRIMARY KEY, t1_val varchar(10));
+CALL sys.table_exists('test', 'ab`c', @tbl_type);
+SELECT @tbl_type;
+@tbl_type
+TEMPORARY
+DROP TABLE `ab``c`;
+CREATE TABLE `ab``c` (t1_id int PRIMARY KEY, t1_val varchar(10));
+CREATE TEMPORARY TABLE `ab``c` (t1_id int PRIMARY KEY, t1_val varchar(10));
+CALL sys.table_exists('test', 'ab`c', @tbl_type);
+SELECT @tbl_type;
+@tbl_type
+TEMPORARY
+# We cannot send quoted identifer to the procedure, no table will be found
+CALL sys.table_exists('test', '`ab``c`', @tbl_type);
+SELECT @tbl_type;
+@tbl_type
+
+DROP TABLE `ab``c`;
