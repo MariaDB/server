@@ -1290,6 +1290,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
   bool instantiate_tmp_table= false;
   bool single_tvc= !first_sl->next_select() && first_sl->tvc;
   bool single_tvc_wo_order= single_tvc && !first_sl->order_list.elements;
+  bool distinct_key= 0;
   DBUG_ENTER("st_select_lex_unit::prepare");
   DBUG_ASSERT(thd == current_thd);
 
@@ -1393,15 +1394,17 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
     {
     case INTERSECT_TYPE:
       have_intersect= TRUE;
-      if (!s->distinct){
-        have_except_all_or_intersect_all= true;
-      }
+      if (!s->distinct)
+        have_except_all_or_intersect_all= TRUE;
       break;
     case EXCEPT_TYPE:
       have_except= TRUE;
-      if (!s->distinct){
+      if (!s->distinct)
         have_except_all_or_intersect_all= TRUE;
-      }
+      break;
+    case DERIVED_TABLE_TYPE:
+      if (s->distinct)
+        distinct_key= 1;
       break;
     default:
       break;
@@ -1608,7 +1611,8 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
         if (join_union_item_types(thd, types, union_part_count + 1))
           goto err;
         if (union_result->create_result_table(thd, &types,
-                                              MY_TEST(union_distinct),
+                                              (MY_TEST(union_distinct) ||
+                                               distinct_key),
                                               create_options,
                                               &derived_arg->alias, false,
                                               instantiate_tmp_table, false,
@@ -1631,7 +1635,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
 
           res= derived_arg->derived_result->create_result_table(thd,
                                                             &types,
-                                                            FALSE,
+                                                            distinct_key,
                                                             create_options,
                                                             &derived_arg->alias,
                                                             FALSE, FALSE,
@@ -1755,9 +1759,9 @@ cont:
         union_result->create_result_table(thd, &types,
                                           MY_TEST(union_distinct) ||
                                             have_except_all_or_intersect_all ||
-                                            have_intersect,
-                                          create_options, &empty_clex_str, false,
-                                          instantiate_tmp_table, false,
+                                            have_intersect || distinct_key,
+                                          create_options, &empty_clex_str,
+                                          false, instantiate_tmp_table, false,
                                           hidden);
       union_result->addon_cnt= hidden;
       for (uint i= 0; i < hidden; i++)   
