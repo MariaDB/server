@@ -65,6 +65,44 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0`) where 1
+select * from t1 where a in (1,2,2,2,3,4,5,6,7);
+a	b
+1	2
+4	6
+1	1
+2	5
+7	8
+select * from t1
+where a in
+(
+select *
+from (values (1),(2),(2),(2),(2),(3),(4),(5),(6),(7)) as tvc_0
+);
+a	b
+1	2
+4	6
+1	1
+2	5
+7	8
+explain extended select * from t1 where a in (1,2,2,2,3,4,5,6,7);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	4	test.t1.a	2	100.00	FirstMatch(t1)
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2),(2),(2),(3),(4),(5),(6),(7)) `tvc_0`) where `tvc_0`.`_col_1` = `test`.`t1`.`a`
+explain extended select * from t1
+where a in
+(
+select *
+from (values (1),(2),(2),(2),(2),(3),(4),(5),(6),(7)) as tvc_0
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	4	test.t1.a	2	100.00	FirstMatch(t1)
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2),(2),(2),(2),(3),(4),(5),(6),(7)) `tvc_0`) where `tvc_0`.`1` = `test`.`t1`.`a`
 # AND-condition with IN-predicates in WHERE-part
 select * from t1
 where a in (1,2) and
