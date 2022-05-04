@@ -2330,4 +2330,6 @@ int create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort);
 JOIN_TAB *first_explain_order_tab(JOIN* join);
 JOIN_TAB *next_explain_order_tab(JOIN* join, JOIN_TAB* tab);
 
+bool is_eliminated_table(table_map eliminated_tables, TABLE_LIST *tbl);
+
 #endif /* SQL_SELECT_INCLUDED */
