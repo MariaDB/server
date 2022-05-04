@@ -2873,7 +2873,7 @@ void st_select_lex_node::init_query_common()
 {
   options= 0;
   set_linkage(UNSPECIFIED_TYPE);
-  distinct= TRUE;
+  distinct= FALSE;
   no_table_names_allowed= 0;
   uncacheable= 0;
 }
@@ -10144,6 +10144,7 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_start(SELECT_LEX *s1, SELECT_LEX *s2,
   if (res == NULL)
     return NULL;
   res->pre_last_parse= sel1;
+  res->distinct= distinct;
   push_select(res->fake_select_lex);
   return res;
 }
@@ -10390,7 +10391,6 @@ bool LEX::parsed_TVC_start()
   insert_list= 0;
   if (!(sel= alloc_select(TRUE)) || push_select(sel))
     return true;
-  sel->init_select();
   sel->braces= FALSE; // just initialisation
   return false;
 }
