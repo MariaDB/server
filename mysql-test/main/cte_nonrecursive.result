@@ -183,7 +183,7 @@ where c in (select c from (select count(*) as c from t1
 where b >= 'c' group by a) as t);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	8	test.t2.c	2	Using where; FirstMatch(t2)
+1	PRIMARY	<derived3>	eq_ref	distinct_key	distinct_key	8	test.t2.c	1	Using where
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 # two references to t specified by a query
 # selecting a field:  both in main query
@@ -369,7 +369,7 @@ select c as a from t2 where c < 4)
 select * from t2,t where t2.c=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	
+1	PRIMARY	<derived2>	eq_ref	distinct_key	distinct_key	5	test.t2.c	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
 3	UNION	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -381,7 +381,7 @@ select c as a from t2 where c < 4) as t
 where t2.c=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	
+1	PRIMARY	<derived2>	eq_ref	distinct_key	distinct_key	5	test.t2.c	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
 3	UNION	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
