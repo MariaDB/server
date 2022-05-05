@@ -52,7 +52,6 @@ usr/share/mysql/Mongo3.jar
 usr/share/mysql/binary-configure
 usr/share/mysql/magic
 usr/share/mysql/maria_add_gis_sp.sql # mariadb-server-core.install has *_bootstrap.sql
-usr/share/mysql/mysql-log-rotate # Debian packaging uses mariadb-server.mysql-server.logrotate
 usr/share/mysql/mysql-test/asan.supp
 usr/share/mysql/mysql-test/lsan.supp
 usr/share/mysql/mysql-test/unstable-tests

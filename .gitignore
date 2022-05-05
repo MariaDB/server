@@ -261,7 +261,7 @@ support-files/my-innodb-heavy-4G.cnf
 support-files/my-large.cnf
 support-files/my-medium.cnf
 support-files/my-small.cnf
-support-files/mysql-log-rotate
+support-files/mariadb.logrotate
 support-files/mysql.10.0.11.spec
 support-files/mysql.server
 support-files/mysql.service
