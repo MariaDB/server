@@ -190,9 +190,6 @@ endif
 	# Move test plugins that are only needed by the client to the libmariadb path
 	mv -v $(TMP)/usr/lib/mysql/plugin/qa_auth_client.so $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb3/plugin/
 
-override_dh_installlogrotate-arch:
-	dh_installlogrotate --name mysql-server
-
 override_dh_systemd_enable:
 	dh_systemd_enable --name=mariadb
 	dh_systemd_enable --no-enable --name=mariadb mariadb.socket
