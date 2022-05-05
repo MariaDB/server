@@ -220,6 +220,13 @@ EOF
       fi
     fi
 
+    # The introduction of /etc/logrotate.d/mariadb has made the old config
+    # obsolete and it needs to be disabled to prevent logrotate running twice.
+    if [ -f /etc/logrotate.d/mysql-server ]
+    then
+      mv -vf /etc/logrotate.d/mysql-server /etc/logrotate.d/mysql-server.dpkg-bak
+    fi
+
     # @TODO: Remove once buildbot.askmonty.org has been updated not to expect this file
     mkdir -p /etc/systemd/system/mariadb.service.d/
     # Note that file cannot be empty, otherwise systemd version in Ubuntu Bionic
