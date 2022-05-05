@@ -1018,3 +1018,19 @@ IF(NOT MSVC)
   HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE
   )
 ENDIF()
+
+MY_CHECK_C_COMPILER_FLAG("-Werror")
+IF(have_C__Werror)
+  SET(SAVE_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
+  SET(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -Werror")
+  CHECK_C_SOURCE_COMPILES("
+    #include <unistd.h>
+    int main()
+    {
+      pid_t pid=vfork();
+      return (int)pid;
+    }"
+    HAVE_VFORK
+  )
+  SET(CMAKE_REQUIRED_FLAGS ${SAVE_CMAKE_REQUIRED_FLAGS})
+ENDIF()

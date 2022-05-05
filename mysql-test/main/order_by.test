@@ -2331,6 +2331,31 @@ DROP TABLE t1;
 SET @@SESSION.max_sort_length=DEFAULT;
 SET sql_mode=DEFAULT;
 
+--echo #
+--echo # MDEV-25994 Crash with union of my_decimal type in ORDER BY clause
+--echo #
+
+CREATE TABLE t1 (v1 INTEGER) ;
+INSERT INTO t1 (v1) VALUES (8);
+--error ER_SUBQUERY_NO_1_ROW
+UPDATE t1 SET v1 = 1 ORDER BY (SELECT 1.1 UNION SELECT -1);
+--echo # This one must be successful
+UPDATE t1 SET v1 = 2 ORDER BY (SELECT 1 UNION SELECT 1);
+--error ER_SUBQUERY_NO_1_ROW
+UPDATE t1 SET v1 = 3 ORDER BY (SELECT 'a' UNION SELECT 'b');
+
+-- echo # Insert some more data
+INSERT INTO t1 (v1) VALUES (8),(9),(100),(-234),(46584),(0);
+--error ER_SUBQUERY_NO_1_ROW
+UPDATE t1 SET v1 = v1+1 ORDER BY (SELECT 100.122 UNION SELECT -189.2);
+--echo # This one must be successful
+UPDATE t1 SET v1 = v1-200 ORDER BY (SELECT 1 UNION SELECT 1);
+--error ER_SUBQUERY_NO_1_ROW
+UPDATE t1 SET v1 = v1 ORDER BY (SELECT 'abc' UNION SELECT 'bbb');
+
+
+DROP TABLE t1;
+
 
 --echo # End of 10.2 tests
 

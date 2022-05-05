@@ -1,4 +1,7 @@
-drop table if exists t1, t2;
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+#
+# Testcase for BUG#4551
+#
 CREATE TABLE t1 ( a int );
 INSERT INTO t1 VALUES (1),(2),(1);
 CREATE TABLE t2 ( PRIMARY KEY (a) ) ENGINE=INNODB SELECT a FROM t1;
@@ -18,3 +21,17 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 select * from t2;
 ERROR 42S02: Table 'test.t2' doesn't exist
 drop table t1;
+#
+# End of 4.1 tests
+#
+#
+# MDEV-28393 Server crashes in TABLE::mark_default_fields_for_write
+#
+create table t1 (a int, b text not null default '');
+alter table t1 character set = utf8;
+create table t2 select * from t1;
+insert into t1 values (1,'');
+drop table t1, t2;
+#
+# End of 10.2 tests
+#

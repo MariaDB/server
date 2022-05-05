@@ -17144,8 +17144,7 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
       table->s->db_create_options|= HA_OPTION_PACK_RECORD;
     else if (org_field->type() == FIELD_TYPE_DOUBLE)
       ((Field_double *) new_field)->not_fixed= TRUE;
-    new_field->vcol_info= new_field->default_value=
-      new_field->check_constraint= 0;
+    new_field->vcol_info= 0;
     new_field->cond_selectivity= 1.0;
     new_field->next_equal_field= NULL;
     new_field->option_list= NULL;
@@ -17740,6 +17739,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   table->intersect_keys.init();
   table->keys_in_use_for_query.init();
   table->no_rows_with_nulls= param->force_not_null_cols;
+  table->expr_arena= thd;
 
   table->s= share;
   init_tmp_table_share(thd, share, "", 0, "(temporary)", tmpname);

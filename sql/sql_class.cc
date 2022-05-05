@@ -812,11 +812,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
                (my_hash_get_key) get_sequence_last_key,
                (my_hash_free_key) free_sequence_last, HASH_THREAD_SPECIFIC);
 
-  sp_proc_cache= NULL;
-  sp_func_cache= NULL;
-  sp_package_spec_cache= NULL;
-  sp_package_body_cache= NULL;
-
   /* For user vars replication*/
   if (opt_bin_log)
     my_init_dynamic_array(&user_var_events,
@@ -1383,10 +1378,7 @@ void THD::change_user(void)
   my_hash_init(&sequences, system_charset_info, SEQUENCES_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_sequence_last_key,
                (my_hash_free_key) free_sequence_last, HASH_THREAD_SPECIFIC);
-  sp_cache_clear(&sp_proc_cache);
-  sp_cache_clear(&sp_func_cache);
-  sp_cache_clear(&sp_package_spec_cache);
-  sp_cache_clear(&sp_package_body_cache);
+  sp_caches_clear();
 }
 
 /**
@@ -1512,10 +1504,7 @@ void THD::cleanup(void)
 
   my_hash_free(&user_vars);
   my_hash_free(&sequences);
-  sp_cache_clear(&sp_proc_cache);
-  sp_cache_clear(&sp_func_cache);
-  sp_cache_clear(&sp_package_spec_cache);
-  sp_cache_clear(&sp_package_body_cache);
+  sp_caches_clear();
   auto_inc_intervals_forced.empty();
   auto_inc_intervals_in_cur_stmt_for_binlog.empty();
 
