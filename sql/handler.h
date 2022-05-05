@@ -2636,10 +2636,10 @@ public:
   double import_cost;     /* cost of remote operations     */
   double mem_cost;        /* cost of used memory           */
   
-  enum { IO_COEFF=1 };
-  enum { CPU_COEFF=1 };
-  enum { MEM_COEFF=1 };
-  enum { IMPORT_COEFF=1 };
+  static const int IO_COEFF=1;
+  static const int CPU_COEFF=1;
+  static const int MEM_COEFF=1;
+  static const int IMPORT_COEFF=1;
 
   Cost_estimate()
   {

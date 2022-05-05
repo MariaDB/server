@@ -22,6 +22,8 @@ ENDIF()
 SET(MY_WARNING_FLAGS
   -Wall
   -Wdeclaration-after-statement
+  -Wenum-compare
+  -Wenum-conversion
   -Wextra
   -Wformat-security
   -Wno-format-truncation
