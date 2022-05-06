@@ -87,7 +87,6 @@ encrypt_chunk=""
 
 readonly SECRET_TAG='secret'
 readonly TOTAL_TAG='total'
-readonly COMPLETE_TAG='complete'
 
 # Required for backup locks
 # For backup locks it is 1 sent by joiner
@@ -323,7 +322,8 @@ get_transfer()
             if [ -z "$ssl_dhparams" ]; then
                 # Determine the socat version
                 SOCAT_VERSION=$(socat -V 2>&1 | \
-                                grep -m1 -owE '[0-9]+(\.[0-9]+)+' | head -n1)
+                                grep -m1 -owE '[0-9]+(\.[0-9]+)+' | \
+                                head -n1 || :)
                 if [ -z "$SOCAT_VERSION" ]; then
                     wsrep_log_error "******** FATAL ERROR ******************"
                     wsrep_log_error "* Cannot determine the socat version. *"
@@ -814,17 +814,17 @@ recv_joiner()
 
     if [ $checkf -eq 1 ]; then
         if [ ! -r "$MAGIC_FILE" ]; then
-            # this message should cause joiner to abort
+            # this message should cause joiner to abort:
             wsrep_log_error "receiving process ended without creating" \
-                            "'$MAGIC_FILE'"
-            wsrep_log_info "Contents of datadir"
+                            "magic file ($MAGIC_FILE)"
+            wsrep_log_info "Contents of datadir:"
             wsrep_log_info $(ls -l "$dir/"*)
             exit 32
         fi
 
         # check donor supplied secret
-        SECRET=$(grep -F -- "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | \
-                 cut -d ' ' -f2)
+        SECRET=$(grep -m1 -E "^$SECRET_TAG[[:space:]]" -- "$MAGIC_FILE" || :)
+        SECRET=$(trim_string "${SECRET#$SECRET_TAG}")
         if [ "$SECRET" != "$MY_SECRET" ]; then
             wsrep_log_error "Donor does not know my secret!"
             wsrep_log_info "Donor: '$SECRET', my: '$MY_SECRET'"
@@ -832,15 +832,15 @@ recv_joiner()
         fi
 
         # check total SST footprint
-        total=$(grep -F -- "$TOTAL_TAG " "$MAGIC_FILE" 2>/dev/null | cut -d ' ' -f 2)
+        total=$(grep -m1 -E "^$TOTAL_TAG[[:space:]]" -- "$MAGIC_FILE" || :)
+        total=$(trim_string "${total#$TOTAL_TAG}")
         if [ $total -ge 0 ]; then
             # report to parent
             echo "$TOTAL_TAG $total"
         fi
 
-        # remove secret and total from the magic file
-        grep -v -F -- "$SECRET_TAG " "$MAGIC_FILE" | \
-        grep -v -F -- "$TOTAL_TAG " > "$MAGIC_FILE.new"
+        grep -v -E "^($SECRET_TAG|$TOTAL_TAG)[[:space:]]" -- \
+             "$MAGIC_FILE" > "$MAGIC_FILE.new"
         mv "$MAGIC_FILE.new" "$MAGIC_FILE"
     fi
 }
@@ -1323,8 +1323,7 @@ then
 
     recv_joiner "$STATDIR" "$stagemsg-gtid" $stimeout 1 1
 
-    if ! ps -p "$WSREP_SST_OPT_PARENT" >/dev/null 2>&1
-    then
+    if ! ps -p "$WSREP_SST_OPT_PARENT" >/dev/null 2>&1; then
         wsrep_log_error "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT)" \
                         "terminated unexpectedly."
         exit 32
