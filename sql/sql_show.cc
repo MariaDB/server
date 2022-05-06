@@ -9058,7 +9058,7 @@ ST_FIELD_INFO columns_fields_info[]=
   Column("ORDINAL_POSITION",        ULonglong(), NOT_NULL,          OPEN_FRM_ONLY),
   Column("COLUMN_DEFAULT", Longtext(MAX_FIELD_VARCHARLENGTH),
                                                  NULLABLE, "Default",OPEN_FRM_ONLY),
-  Column("IS_NULLABLE",             Yesno(),     NOT_NULL, "Null",  OPEN_FRM_ONLY),
+  Column("IS_NULLABLE",          Yes_or_empty(), NOT_NULL, "Null",  OPEN_FRM_ONLY),
   Column("DATA_TYPE",               Name(),      NOT_NULL,          OPEN_FRM_ONLY),
   Column("CHARACTER_MAXIMUM_LENGTH",ULonglong(), NULLABLE,          OPEN_FRM_ONLY),
   Column("CHARACTER_OCTET_LENGTH",  ULonglong(), NULLABLE,          OPEN_FRM_ONLY),
@@ -9095,8 +9095,8 @@ ST_FIELD_INFO collation_fields_info[]=
   Column("COLLATION_NAME",               CSName(),     NOT_NULL, "Collation"),
   Column("CHARACTER_SET_NAME",           CSName(),     NOT_NULL, "Charset"),
   Column("ID", SLonglong(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL, "Id"),
-  Column("IS_DEFAULT",                   Yesno(),      NOT_NULL, "Default"),
-  Column("IS_COMPILED",                  Yesno(),      NOT_NULL, "Compiled"),
+  Column("IS_DEFAULT",                 Yes_or_empty(), NOT_NULL, "Default"),
+  Column("IS_COMPILED",                Yes_or_empty(), NOT_NULL, "Compiled"),
   Column("SORTLEN",                      SLonglong(3), NOT_NULL, "Sortlen"),
   CEnd()
 };
@@ -9104,10 +9104,10 @@ ST_FIELD_INFO collation_fields_info[]=
 
 ST_FIELD_INFO applicable_roles_fields_info[]=
 {
-  Column("GRANTEE",                  Userhost(), NOT_NULL),
+  Column("GRANTEE",                  Userhost(),     NOT_NULL),
   Column("ROLE_NAME", Varchar(USERNAME_CHAR_LENGTH), NOT_NULL),
-  Column("IS_GRANTABLE",             Yesno(),    NOT_NULL),
-  Column("IS_DEFAULT",               Yesno(),    NULLABLE),
+  Column("IS_GRANTABLE",             Yes_or_empty(), NOT_NULL),
+  Column("IS_DEFAULT",               Yes_or_empty(), NULLABLE),
   CEnd()
 };
 
@@ -9251,7 +9251,7 @@ ST_FIELD_INFO view_fields_info[]=
   Column("TABLE_NAME",           Name(),     NOT_NULL, OPEN_FRM_ONLY),
   Column("VIEW_DEFINITION", Longtext(65535), NOT_NULL, OPEN_FRM_ONLY),
   Column("CHECK_OPTION",         Varchar(8), NOT_NULL, OPEN_FRM_ONLY),
-  Column("IS_UPDATABLE",         Yesno(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("IS_UPDATABLE",     Yes_or_empty(), NOT_NULL, OPEN_FULL_TABLE),
   Column("DEFINER",              Definer(),  NOT_NULL, OPEN_FRM_ONLY),
   Column("SECURITY_TYPE",        Varchar(7), NOT_NULL, OPEN_FRM_ONLY),
   Column("CHARACTER_SET_CLIENT", CSName(),   NOT_NULL, OPEN_FRM_ONLY),
@@ -9263,46 +9263,46 @@ ST_FIELD_INFO view_fields_info[]=
 
 ST_FIELD_INFO user_privileges_fields_info[]=
 {
-  Column("GRANTEE",        Userhost(), NOT_NULL),
-  Column("TABLE_CATALOG",  Catalog(),  NOT_NULL),
-  Column("PRIVILEGE_TYPE", Name(),     NOT_NULL),
-  Column("IS_GRANTABLE",   Yesno(),    NOT_NULL),
+  Column("GRANTEE",        Userhost(),     NOT_NULL),
+  Column("TABLE_CATALOG",  Catalog(),      NOT_NULL),
+  Column("PRIVILEGE_TYPE", Name(),         NOT_NULL),
+  Column("IS_GRANTABLE",   Yes_or_empty(), NOT_NULL),
   CEnd()
 };
 
 
 ST_FIELD_INFO schema_privileges_fields_info[]=
 {
-  Column("GRANTEE",        Userhost(), NOT_NULL),
-  Column("TABLE_CATALOG",  Catalog(),  NOT_NULL),
-  Column("TABLE_SCHEMA",   Name(),     NOT_NULL),
-  Column("PRIVILEGE_TYPE", Name(),     NOT_NULL),
-  Column("IS_GRANTABLE",   Yesno(),    NOT_NULL),
+  Column("GRANTEE",        Userhost(),     NOT_NULL),
+  Column("TABLE_CATALOG",  Catalog(),      NOT_NULL),
+  Column("TABLE_SCHEMA",   Name(),         NOT_NULL),
+  Column("PRIVILEGE_TYPE", Name(),         NOT_NULL),
+  Column("IS_GRANTABLE",   Yes_or_empty(), NOT_NULL),
   CEnd()
 };
 
 
 ST_FIELD_INFO table_privileges_fields_info[]=
 {
-  Column("GRANTEE",        Userhost(), NOT_NULL),
-  Column("TABLE_CATALOG",  Catalog(),  NOT_NULL),
-  Column("TABLE_SCHEMA",   Name(),     NOT_NULL),
-  Column("TABLE_NAME",     Name(),     NOT_NULL),
-  Column("PRIVILEGE_TYPE", Name(),     NOT_NULL),
-  Column("IS_GRANTABLE",   Yesno(),    NOT_NULL),
+  Column("GRANTEE",        Userhost(),     NOT_NULL),
+  Column("TABLE_CATALOG",  Catalog(),      NOT_NULL),
+  Column("TABLE_SCHEMA",   Name(),         NOT_NULL),
+  Column("TABLE_NAME",     Name(),         NOT_NULL),
+  Column("PRIVILEGE_TYPE", Name(),         NOT_NULL),
+  Column("IS_GRANTABLE",   Yes_or_empty(), NOT_NULL),
   CEnd()
 };
 
 
 ST_FIELD_INFO column_privileges_fields_info[]=
 {
-  Column("GRANTEE",        Userhost(), NOT_NULL),
-  Column("TABLE_CATALOG",  Catalog(),  NOT_NULL),
-  Column("TABLE_SCHEMA",   Name(),     NOT_NULL),
-  Column("TABLE_NAME",     Name(),     NOT_NULL),
-  Column("COLUMN_NAME",    Name(),     NOT_NULL),
-  Column("PRIVILEGE_TYPE", Name(),     NOT_NULL),
-  Column("IS_GRANTABLE",   Yesno(),    NOT_NULL),
+  Column("GRANTEE",        Userhost(),     NOT_NULL),
+  Column("TABLE_CATALOG",  Catalog(),      NOT_NULL),
+  Column("TABLE_SCHEMA",   Name(),         NOT_NULL),
+  Column("TABLE_NAME",     Name(),         NOT_NULL),
+  Column("COLUMN_NAME",    Name(),         NOT_NULL),
+  Column("PRIVILEGE_TYPE", Name(),         NOT_NULL),
+  Column("IS_GRANTABLE",   Yes_or_empty(), NOT_NULL),
   CEnd()
 };
 
@@ -9443,7 +9443,7 @@ ST_FIELD_INFO sysvars_fields_info[]=
   Column("NUMERIC_MAX_VALUE",    Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
   Column("NUMERIC_BLOCK_SIZE",   Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
   Column("ENUM_VALUE_LIST",      Longtext(65535),                  NULLABLE),
-  Column("READ_ONLY",            Yesno(),                          NOT_NULL),
+  Column("READ_ONLY",            Yes_or_empty(),                   NOT_NULL),
   Column("COMMAND_LINE_ARGUMENT",Name(),                           NULLABLE),
   Column("GLOBAL_VALUE_PATH",    Varchar(2048),                    NULLABLE),
   CEnd()
