@@ -1,0 +1,57 @@
+# MDEV-28279: Cannot migrate hexadecimal keys from file key management
+
+# The test presumes that the local vault is running at $VAULT_ADDR,
+# and the token is configured in $VAULT_TOKEN.
+
+--source include/have_innodb.inc
+--source hashicorp_plugin.inc
+
+--let $my_key=012345678901234567890123456789aB
+--exec echo "1;$my_key" > $MYSQL_TMP_DIR/mykeys.txt
+--let $restart_parameters=--plugin-load-add=file_key_management --loose-file-key-management-filename=$MYSQL_TMP_DIR/mykeys.txt --hashicorp-key-management=off
+--let $restart_noprint=1
+--source include/restart_mysqld.inc
+
+if (`SELECT COUNT(*)=0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'file_key_management' AND PLUGIN_STATUS='ACTIVE'`)
+{
+  --skip Test requires file_key_management plugin
+}
+
+CREATE TABLE t1 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=1;
+INSERT INTO t1 VALUES ('foo'),('bar');
+SELECT * FROM t1;
+
+--exec vault secrets disable bug > /dev/null
+--exec vault secrets enable -path /bug -version=2 kv > /dev/null
+--exec vault kv put /bug/1 data=$my_key > /dev/null
+--let $restart_parameters=--plugin-load-add=hashicorp_key_management --hashicorp-key-management-vault-url="$VAULT_ADDR/v1/bug/" --hashicorp-key-management-token="$VAULT_TOKEN"
+--source include/restart_mysqld.inc
+
+CREATE TABLE t2 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=1;
+INSERT INTO t2 VALUES ('baz'),('qux');
+SELECT * FROM t2;
+--echo #
+--echo # This should not fail, but it does if the bug is not fixed
+--echo #
+--error 0,1932,1877
+SELECT * FROM t1;
+SHOW WARNINGS;
+
+--let $restart_parameters=--plugin-load-add=file_key_management --file-key-management-filename=$MYSQL_TMP_DIR/mykeys.txt --hashicorp-key-management=off
+--source include/restart_mysqld.inc
+
+SELECT * FROM t1;
+--echo #
+--echo # This should not fail, but it does if the bug is not fixed
+--echo #
+--error 0,1932,1877
+SELECT * FROM t2;
+SHOW WARNINGS;
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--exec vault secrets disable bug > /dev/null
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc

@@ -636,7 +636,7 @@ static inline int c2xdigit (int c)
 {
   if (c > 9)
   {
-    c -= 'A' - '0';
+    c -= 'A' - '0' - 10;
     if (c > 15)
     {
       c -= 'a' - 'A';
@@ -1380,10 +1380,10 @@ maria_declare_plugin(hashicorp_key_management)
   PLUGIN_LICENSE_GPL,
   hashicorp_key_management_plugin_init,
   hashicorp_key_management_plugin_deinit,
-  0x0105 /* 1.05 */,
+  0x0200 /* 2.0 */,
   NULL, /* status variables */
   settings,
-  "1.05",
+  "2.0",
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
