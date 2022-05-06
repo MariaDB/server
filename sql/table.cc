@@ -10270,5 +10270,5 @@ void TABLE::mark_table_for_reopen()
 {
   THD *thd= in_use;
   DBUG_ASSERT(thd);
-  thd->locked_tables_list.mark_table_for_reopen(thd, this);
+  thd->locked_tables_list.mark_table_for_reopen(this);
 }

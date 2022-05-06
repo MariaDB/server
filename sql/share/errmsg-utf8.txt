@@ -10061,3 +10061,5 @@ ER_SF_OUT_INOUT_ARG_NOT_ALLOWED
 	eng "OUT or INOUT argument %d for function %s is not allowed here"
 ER_INCONSISTENT_SLAVE_TEMP_TABLE
         eng "Replicated query '%s' table `%s.%s` can not be temporary"
+ER_VERS_HIST_PART_FAILED
+        eng "Versioned table %`s.%`s: adding HISTORY partition(s) failed"

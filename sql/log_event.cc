@@ -4142,3 +4142,16 @@ bool copy_event_cache_to_file_and_reinit(IO_CACHE *cache, FILE *file)
   return (my_b_copy_all_to_file(cache, file) ||
           reinit_io_cache(cache, WRITE_CACHE, 0, FALSE, TRUE));
 }
+
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+int Log_event::apply_event(rpl_group_info* rgi)
+{
+  int res;
+  THD_STAGE_INFO(thd, stage_apply_event);
+  rgi->current_event= this;
+  res= do_apply_event(rgi);
+  rgi->current_event= NULL;
+  THD_STAGE_INFO(thd, stage_after_apply_event);
+  return res;
+}
+#endif

@@ -4193,19 +4193,9 @@ int ha_partition::external_lock(THD *thd, int lock_type)
       (void) (*file)->ha_external_lock(thd, lock_type);
     } while (*(++file));
   }
-  if (lock_type == F_WRLCK)
-  {
-    if (m_part_info->part_expr)
-      m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
-    if (m_part_info->part_type == VERSIONING_PARTITION &&
-      /* TODO: MDEV-20345 exclude more inapproriate commands like INSERT
-         These commands may be excluded because working history partition is needed
-         only for versioned DML. */
-      thd->lex->sql_command != SQLCOM_SELECT &&
-      thd->lex->sql_command != SQLCOM_INSERT_SELECT &&
-      (error= m_part_info->vers_set_hist_part(thd)))
-      goto err_handler;
-  }
+  if (lock_type == F_WRLCK && m_part_info->part_expr)
+    m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
+
   DBUG_RETURN(0);
 
 err_handler:
@@ -4349,11 +4339,6 @@ int ha_partition::start_stmt(THD *thd, thr_lock_type lock_type)
   {
     if (m_part_info->part_expr)
       m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
-    if (m_part_info->part_type == VERSIONING_PARTITION &&
-      // TODO: MDEV-20345 (see above)
-      thd->lex->sql_command != SQLCOM_SELECT &&
-      thd->lex->sql_command != SQLCOM_INSERT_SELECT)
-      error= m_part_info->vers_set_hist_part(thd);
   }
   DBUG_RETURN(error);
 }

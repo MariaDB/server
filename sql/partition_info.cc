@@ -38,6 +38,8 @@
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
+#include "sql_table.h"
+#include "transaction.h"
 
 
 partition_info *partition_info::get_clone(THD *thd, bool empty_data_and_index_file)
@@ -325,13 +327,11 @@ bool partition_info::set_partition_bitmaps_from_table(TABLE_LIST *table_list)
     The external routine needing this code is check_partition_info
 */
 
-#define MAX_PART_NAME_SIZE 8
-
 char *partition_info::create_default_partition_names(THD *thd, uint part_no,
                                                      uint num_parts_arg,
                                                      uint start_no)
 {
-  char *ptr= (char*) thd->calloc(num_parts_arg * MAX_PART_NAME_SIZE);
+  char *ptr= (char*) thd->calloc(num_parts_arg * MAX_PART_NAME_SIZE + 1);
   char *move_ptr= ptr;
   uint i= 0;
   DBUG_ENTER("create_default_partition_names");
@@ -818,15 +818,16 @@ bool partition_info::has_unique_name(partition_element *element)
     vers_info->interval   Limit by fixed time interval
     vers_info->hist_part  (out) Working history partition
 */
-int partition_info::vers_set_hist_part(THD *thd)
+bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
 {
-  if (table->pos_in_table_list &&
-      table->pos_in_table_list->partition_names)
-  {
-    return HA_ERR_PARTITION_LIST;
-  }
+  DBUG_ASSERT(!thd->lex->last_table() ||
+              !thd->lex->last_table()->vers_conditions.delete_history);
+
+  const bool auto_hist= create_count && vers_info->auto_hist;
+
   if (vers_info->limit)
   {
+    DBUG_ASSERT(!vers_info->interval.is_set());
     ha_partition *hp= (ha_partition*)(table->file);
     partition_element *next= NULL;
     List_iterator<partition_element> it(partitions);
@@ -847,22 +848,22 @@ int partition_info::vers_set_hist_part(THD *thd)
     {
       if (next == vers_info->now_part)
       {
-        my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
-                table->s->db.str, table->s->table_name.str,
-                vers_info->hist_part->partition_name, "LIMIT");
+        if (auto_hist)
+          *create_count= 1;
+        else
+          my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
+                  table->s->db.str, table->s->table_name.str,
+                  vers_info->hist_part->partition_name, "LIMIT");
       }
       else
         vers_info->hist_part= next;
     }
-    return 0;
   }
-
-  if (vers_info->interval.is_set())
+  else if (vers_info->interval.is_set() &&
+           vers_info->hist_part->range_value <= thd->query_start())
   {
-    if (vers_info->hist_part->range_value > thd->query_start())
-      return 0;
-
     partition_element *next= NULL;
+    bool error= true;
     List_iterator<partition_element> it(partitions);
     while (next != vers_info->hist_part)
       next= it++;
@@ -871,10 +872,166 @@ int partition_info::vers_set_hist_part(THD *thd)
     {
       vers_info->hist_part= next;
       if (next->range_value > thd->query_start())
-        return 0;
+      {
+        error= false;
+        break;
+      }
+    }
+    if (error)
+    {
+      if (auto_hist)
+      {
+        *create_count= 0;
+        const my_time_t hist_end= (my_time_t) vers_info->hist_part->range_value;
+        DBUG_ASSERT(thd->query_start() >= hist_end);
+        MYSQL_TIME h0, q0;
+        my_tz_OFFSET0->gmt_sec_to_TIME(&h0, hist_end);
+        my_tz_OFFSET0->gmt_sec_to_TIME(&q0, thd->query_start());
+        longlong q= pack_time(&q0);
+        longlong h= pack_time(&h0);
+        while (h <= q)
+        {
+          if (date_add_interval(thd, &h0, vers_info->interval.type,
+                                vers_info->interval.step))
+            return true;
+          h= pack_time(&h0);
+          ++*create_count;
+          if (*create_count == MAX_PARTITIONS - 2)
+          {
+            my_error(ER_TOO_MANY_PARTITIONS_ERROR, MYF(ME_WARNING));
+            my_error(ER_VERS_HIST_PART_FAILED, MYF(0),
+                     table->s->db.str, table->s->table_name.str);
+            return true;
+          }
+        }
+      }
+      else
+      {
+        my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
+                table->s->db.str, table->s->table_name.str,
+                vers_info->hist_part->partition_name, "INTERVAL");
+      }
     }
   }
-  return 0;
+
+  return false;
+}
+
+
+/**
+  @brief Run fast_alter_partition_table() to add new history partitions
+         for tables requiring them.
+*/
+bool vers_create_partitions(THD *thd, TABLE_LIST* tl, uint num_parts)
+{
+  bool result= true;
+  HA_CREATE_INFO create_info;
+  Alter_info alter_info;
+  partition_info *save_part_info= thd->work_part_info;
+  Query_tables_list save_query_tables;
+  Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
+  bool save_no_write_to_binlog= thd->lex->no_write_to_binlog;
+  thd->m_reprepare_observer= NULL;
+  thd->lex->reset_n_backup_query_tables_list(&save_query_tables);
+  thd->lex->no_write_to_binlog= true;
+  TABLE *table= tl->table;
+
+  DBUG_ASSERT(!thd->is_error());
+
+  {
+    DBUG_ASSERT(table->s->get_table_ref_type() == TABLE_REF_BASE_TABLE);
+    DBUG_ASSERT(table->versioned());
+    DBUG_ASSERT(table->part_info);
+    DBUG_ASSERT(table->part_info->vers_info);
+    alter_info.reset();
+    alter_info.partition_flags= ALTER_PARTITION_ADD|ALTER_PARTITION_AUTO_HIST;
+    create_info.init();
+    create_info.alter_info= &alter_info;
+    Alter_table_ctx alter_ctx(thd, tl, 1, &table->s->db, &table->s->table_name);
+
+    MDL_REQUEST_INIT(&tl->mdl_request, MDL_key::TABLE, tl->db.str,
+                    tl->table_name.str, MDL_SHARED_NO_WRITE, MDL_TRANSACTION);
+    if (thd->mdl_context.acquire_lock(&tl->mdl_request,
+                                      thd->variables.lock_wait_timeout))
+      goto exit;
+    table->mdl_ticket= tl->mdl_request.ticket;
+
+    create_info.db_type= table->s->db_type();
+    create_info.options|= HA_VERSIONED_TABLE;
+    DBUG_ASSERT(create_info.db_type);
+
+    create_info.vers_info.set_start(table->s->vers_start_field()->field_name);
+    create_info.vers_info.set_end(table->s->vers_end_field()->field_name);
+
+    partition_info *part_info= new partition_info();
+    if (unlikely(!part_info))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      goto exit;
+    }
+    part_info->use_default_num_partitions= false;
+    part_info->use_default_num_subpartitions= false;
+    part_info->num_parts= num_parts;
+    part_info->num_subparts= table->part_info->num_subparts;
+    part_info->subpart_type= table->part_info->subpart_type;
+    if (unlikely(part_info->vers_init_info(thd)))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      goto exit;
+    }
+
+    thd->work_part_info= part_info;
+    if (part_info->set_up_defaults_for_partitioning(thd, table->file, NULL,
+                                    table->part_info->next_part_no(num_parts)))
+    {
+      my_error(ER_VERS_HIST_PART_FAILED, MYF(ME_WARNING),
+               tl->db.str, tl->table_name.str);
+      goto exit;
+    }
+    bool partition_changed= false;
+    bool fast_alter_partition= false;
+    if (prep_alter_part_table(thd, table, &alter_info, &create_info,
+                              &partition_changed, &fast_alter_partition))
+    {
+      my_error(ER_VERS_HIST_PART_FAILED, MYF(ME_WARNING),
+               tl->db.str, tl->table_name.str);
+      goto exit;
+    }
+    if (!fast_alter_partition)
+    {
+      my_error(ER_VERS_HIST_PART_FAILED, MYF(ME_WARNING),
+               tl->db.str, tl->table_name.str);
+      goto exit;
+    }
+    DBUG_ASSERT(partition_changed);
+    if (mysql_prepare_alter_table(thd, table, &create_info, &alter_info,
+                                  &alter_ctx))
+    {
+      my_error(ER_VERS_HIST_PART_FAILED, MYF(ME_WARNING),
+               tl->db.str, tl->table_name.str);
+      goto exit;
+    }
+
+    if (fast_alter_partition_table(thd, table, &alter_info, &alter_ctx,
+                                   &create_info, tl))
+    {
+      my_error(ER_VERS_HIST_PART_FAILED, MYF(ME_WARNING),
+               tl->db.str, tl->table_name.str);
+      goto exit;
+    }
+  }
+
+  result= false;
+  // NOTE: we have to return DA_EMPTY for new command
+  DBUG_ASSERT(thd->get_stmt_da()->is_ok());
+  thd->get_stmt_da()->reset_diagnostics_area();
+
+exit:
+  thd->work_part_info= save_part_info;
+  thd->m_reprepare_observer= save_reprepare_observer;
+  thd->lex->restore_backup_query_tables_list(&save_query_tables);
+  thd->lex->no_write_to_binlog= save_no_write_to_binlog;
+  return result;
 }
 
 
@@ -2649,13 +2806,14 @@ bool partition_info::vers_init_info(THD * thd)
 
 bool partition_info::vers_set_interval(THD* thd, Item* interval,
                                        interval_type int_type, Item* starts,
-                                       const char *table_name)
+                                       bool auto_hist, const char *table_name)
 {
   DBUG_ASSERT(part_type == VERSIONING_PARTITION);
 
   MYSQL_TIME ltime;
   uint err;
   vers_info->interval.type= int_type;
+  vers_info->auto_hist= auto_hist;
 
   /* 1. assign INTERVAL to interval.step */
   if (interval->fix_fields_if_needed_for_scalar(thd, &interval))
@@ -2734,6 +2892,23 @@ interval_set_starts:
 interval_starts_error:
   my_error(ER_PART_WRONG_VALUE, MYF(0), table_name, "STARTS");
   return true;
+}
+
+
+bool partition_info::vers_set_limit(ulonglong limit, bool auto_hist,
+                                    const char *table_name)
+{
+  DBUG_ASSERT(part_type == VERSIONING_PARTITION);
+
+  if (limit < 1)
+  {
+    my_error(ER_PART_WRONG_VALUE, MYF(0), table_name, "LIMIT");
+    return true;
+  }
+
+  vers_info->limit= limit;
+  vers_info->auto_hist= auto_hist;
+  return !limit;
 }
 
 

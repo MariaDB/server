@@ -845,7 +845,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
-  reset_open_tables_state(this);
+  reset_open_tables_state();
 
   init();
   debug_sync_init_thread(this);
@@ -4589,7 +4589,7 @@ void THD::reset_n_backup_open_tables_state(Open_tables_backup *backup)
   DBUG_ENTER("reset_n_backup_open_tables_state");
   backup->set_open_tables_state(this);
   backup->mdl_system_tables_svp= mdl_context.mdl_savepoint();
-  reset_open_tables_state(this);
+  reset_open_tables_state();
   state_flags|= Open_tables_state::BACKUPS_AVAIL;
   DBUG_VOID_RETURN;
 }

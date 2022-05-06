@@ -1651,9 +1651,10 @@ int ha_commit_trans(THD *thd, bool all)
   DBUG_ASSERT(thd->transaction->stmt.ha_list == NULL ||
               trans == &thd->transaction->stmt);
 
+  DBUG_ASSERT(!thd->in_sub_stmt);
+
   if (thd->in_sub_stmt)
   {
-    DBUG_ASSERT(0);
     /*
       Since we don't support nested statement transactions in 5.0,
       we can't commit or rollback stmt transactions while we are inside

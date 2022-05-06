@@ -133,4 +133,23 @@ sync_slave_with_master;
 connection master;
 drop table t1;
 
+--echo #
+--echo # MDEV-17554 Auto-create new partition for system versioned tables
+--echo #            with history partitioned by INTERVAL/LIMIT
+--echo #
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour auto;
+insert t1 values ();
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+delete from t1;
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t1;
+--sync_slave_with_master
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t1;
+--connection master
+drop table t1;
+set timestamp= default;
+
 --source include/rpl_end.inc

@@ -1,6 +1,7 @@
 #
 # MDEV-15330 Server crash or assertion `table->insert_values' failure in write_record upon LOAD DATA
 #
+--let $datadir= `select @@datadir`
 CREATE TABLE t1 (a INT, b INT, c INT, vc INT AS (c), UNIQUE(a), UNIQUE(b)) WITH SYSTEM VERSIONING;
 INSERT IGNORE INTO t1 (a,b,c) VALUES (1,2,3);
 
@@ -12,3 +13,4 @@ LOAD DATA INFILE '15330.data' REPLACE INTO TABLE t1 (a,b,c);
 
 # Cleanup
 DROP TABLE t1;
+--remove_file $datadir/test/15330.data

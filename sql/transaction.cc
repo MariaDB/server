@@ -463,7 +463,7 @@ bool trans_commit_stmt(THD *thd)
     a savepoint for each nested statement, and release the
     savepoint when statement has succeeded.
   */
-  DBUG_ASSERT(! thd->in_sub_stmt);
+  DBUG_ASSERT(!(thd->in_sub_stmt));
 
   thd->merge_unsafe_rollback_flags();
 

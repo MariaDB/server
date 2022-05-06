@@ -9782,7 +9782,11 @@ bool LEX::part_values_history(THD *thd)
   }
   else
   {
-    part_info->vers_init_info(thd);
+    if (unlikely(part_info->vers_init_info(thd)))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return true;
+    }
     elem->id= UINT_MAX32;
   }
   DBUG_ASSERT(part_info->vers_info);

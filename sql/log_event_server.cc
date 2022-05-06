@@ -5817,6 +5817,18 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         lex->query_tables_last= &tables->next_global;
       }
     }
+
+    /*
+      It is needed to set_time():
+      1) it continues the property that "Time" in SHOW PROCESSLIST shows how
+      much slave is behind
+      2) it will be needed when we allow replication from a table with no
+      TIMESTAMP column to a table with one.
+      So we call set_time(), like in SBR. Presently it changes nothing.
+      3) vers_set_hist_part() requires proper query time.
+    */
+    thd->set_time(when, when_sec_part);
+
     if (unlikely(open_and_lock_tables(thd, rgi->tables_to_lock, FALSE, 0)))
     {
 #ifdef WITH_WSREP
@@ -5992,16 +6004,6 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       (this was set up by Table_map_log_event::do_apply_event()
       which tested replicate-* rules).
     */
-
-    /*
-      It's not needed to set_time() but
-      1) it continues the property that "Time" in SHOW PROCESSLIST shows how
-      much slave is behind
-      2) it will be needed when we allow replication from a table with no
-      TIMESTAMP column to a table with one.
-      So we call set_time(), like in SBR. Presently it changes nothing.
-    */
-    thd->set_time(when, when_sec_part);
 
      if (m_width == table->s->fields && bitmap_is_set_all(&m_cols))
       set_flags(COMPLETE_ROWS_F);
