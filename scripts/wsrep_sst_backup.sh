@@ -98,15 +98,11 @@ then
 
     echo "done $STATE"
 
-elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]
-then
-    wsrep_log_error "Unrecognized role: '$WSREP_SST_OPT_ROLE'"
+else # joiner
+
+    wsrep_log_error "Unsupported role: '$WSREP_SST_OPT_ROLE'"
     exit 22 # EINVAL
 
-
-else
-    wsrep_log_error "Unrecognized role: '$WSREP_SST_OPT_ROLE'"
-    exit 22 # EINVAL
 fi
 
 exit 0
