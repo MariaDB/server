@@ -32,3 +32,4 @@ usr/lib/*/pkgconfig/libmariadb.pc
 usr/share/aclocal/mysql.m4
 usr/share/man/man1/mariadb_config.1
 usr/share/man/man1/mysql_config.1
+usr/share/man/man3/*.3
