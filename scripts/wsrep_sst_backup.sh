@@ -2,7 +2,7 @@
 
 set -ue
 
-# Copyright (C) 2017-2021 MariaDB
+# Copyright (C) 2017-2022 MariaDB
 # Copyright (C) 2010-2014 Codership Oy
 #
 # This program is free software; you can redistribute it and/or modify
@@ -21,40 +21,48 @@ set -ue
 
 # This is a reference script for rsync-based state snapshot transfer
 
-RSYNC_REAL_PID=0   # rsync process id
-STUNNEL_REAL_PID=0 # stunnel process id
-
 OS="$(uname)"
 [ "$OS" = 'Darwin' ] && export -n LD_LIBRARY_PATH
 
-# Setting the path for lsof on CentOS
-export PATH="/usr/sbin:/sbin:$PATH"
-
 . $(dirname "$0")/wsrep_sst_common
+wsrep_check_datadir
+
+OLD_PWD="$(pwd)"
+
+DATA="$WSREP_SST_OPT_DATA"
+if [ -n "$DATA" -a "$DATA" != '.' ]; then
+    [ ! -d "$DATA" ] && mkdir -p "$DATA"
+    cd "$DATA"
+fi
+DATA_DIR="$(pwd)"
+
+cd "$OLD_PWD"
 
 MAGIC_FILE="$WSREP_SST_OPT_DATA/backup_sst_complete"
-rm -rf "$MAGIC_FILE"
 
-WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
-# if WSREP_LOG_DIR env. variable is not set, try to get it from my.cnf
-if [ -z "$WSREP_LOG_DIR" ]; then
-    WSREP_LOG_DIR=$(parse_cnf mysqld innodb-log-group-home-dir '')
+[ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
+
+WSREP_LOG_DIR=$(trim_dir "$WSREP_LOG_DIR");
+
+ib_log_dir="$DATA_DIR"
+
+# if no command line argument and INNODB_LOG_GROUP_HOME is not set,
+# then try to get it from the my.cnf:
+if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
+    INNODB_LOG_GROUP_HOME=$(parse_cnf '--mysqld' 'innodb-log-group-home-dir')
+    INNODB_LOG_GROUP_HOME=$(trim_dir "$INNODB_LOG_GROUP_HOME")
 fi
 
-if [ -n "$WSREP_LOG_DIR" ]; then
-    # handle both relative and absolute paths
-    WSREP_LOG_DIR=$(cd $WSREP_SST_OPT_DATA; mkdir -p "$WSREP_LOG_DIR"; cd $WSREP_LOG_DIR; pwd -P)
-else
-    # default to datadir
-    WSREP_LOG_DIR=$(cd $WSREP_SST_OPT_DATA; pwd -P)
+if [ -n "$INNODB_LOG_GROUP_HOME" -a "$INNODB_LOG_GROUP_HOME" != '.' ]; then
+    # handle both relative and absolute paths:
+    cd "$DATA"
+    [ ! -d "$INNODB_LOG_GROUP_HOME" ] && mkdir -p "$INNODB_LOG_GROUP_HOME"
+    cd "$INNODB_LOG_GROUP_HOME"
+    ib_log_dir="$(pwd)"
+    cd "$OLD_PWD"
 fi
 
-if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]
-then
-
-    [ -f "$MAGIC_FILE"      ] && rm -f "$MAGIC_FILE"
-
-    RC=0
+if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]; then
 
@@ -64,7 +72,7 @@ then
         [ -f "$FLUSHED" ] && rm -f "$FLUSHED"
         [ -f "$ERROR"   ] && rm -f "$ERROR"
 
-         echo "flush tables"
+        echo 'flush tables'
 
         # Wait for :
         # (a) Tables to be flushed, AND
@@ -72,7 +80,7 @@ then
         # (c) ERROR file, in case flush tables operation failed.
 
         while [ ! -r "$FLUSHED" ] && \
-                ! grep -q -F ':' '--' "$FLUSHED" >/dev/null 2>&1
+                ! grep -q -F ':' -- "$FLUSHED" 2>/dev/null
         do
             # Check whether ERROR file exists.
             if [ -f "$ERROR" ]; then
@@ -86,12 +94,19 @@ then
         STATE=$(cat "$FLUSHED")
         rm -f "$FLUSHED"
 
+        wsrep_log_info "Tables flushed"
 
     else # BYPASS
 
         wsrep_log_info "Bypassing state dump."
+
+        # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
+        # (separated by a space).
+        STATE="$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID"
+
     fi
 
+    wsrep_log_info "Sending continue to donor"
     echo 'continue' # now server can resume updating data
 
     echo "$STATE" > "$MAGIC_FILE"
@@ -105,4 +120,5 @@ else # joiner
 
 fi
 
+wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE completed on $WSREP_SST_OPT_ROLE"
 exit 0
