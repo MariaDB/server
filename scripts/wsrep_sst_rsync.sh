@@ -804,8 +804,7 @@ EOF
         sleep 1
     done
 
-    if ! ps -p $MYSQLD_PID >/dev/null 2>&1
-    then
+    if ! ps -p $MYSQLD_PID >/dev/null 2>&1; then
         wsrep_log_error \
             "Parent mysqld process (PID: $MYSQLD_PID) terminated unexpectedly."
         kill -- -$MYSQLD_PID
@@ -813,22 +812,22 @@ EOF
         exit 32
     fi
 
-    if [ -r "$MAGIC_FILE" ]; then
-        if [ -n "$MY_SECRET" ]; then
-            # Check donor supplied secret:
-            SECRET=$(grep -F -- "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | \
-                     cut -d ' ' -f2)
-            if [ "$SECRET" != "$MY_SECRET" ]; then
-                wsrep_log_error "Donor does not know my secret!"
-                wsrep_log_info "Donor: '$SECRET', my: '$MY_SECRET'"
-                exit 32
-            fi
-        fi
-    else
+    if [ ! -r "$MAGIC_FILE" ]; then
         # This message should cause joiner to abort:
-        wsrep_log_info "rsync process ended without creating magic file"
-        echo "rsync process ended without creating '$MAGIC_FILE'"
+        wsrep_log_info "rsync process ended without creating" \
+                       "magic file ($MAGIC_FILE)"
         exit 32
+    fi
+
+    if [ -n "$MY_SECRET" ]; then
+        # Check donor supplied secret:
+        SECRET=$(grep -m1 -E "^$SECRET_TAG[[:space:]]" -- "$MAGIC_FILE" || :)
+        SECRET=$(trim_string "${SECRET#$SECRET_TAG}")
+        if [ "$SECRET" != "$MY_SECRET" ]; then
+            wsrep_log_error "Donor does not know my secret!"
+            wsrep_log_info "Donor: '$SECRET', my: '$MY_SECRET'"
+            exit 32
+        fi
     fi
 
     if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
@@ -907,7 +906,7 @@ EOF
     if [ -n "$MY_SECRET" ]; then
         # remove secret from the magic file, and output
         # the UUID:seqno & wsrep_gtid_domain_id:
-        grep -v -F -- "$SECRET_TAG " "$MAGIC_FILE"
+        grep -v -E "^$SECRET_TAG[[:space:]]" -- "$MAGIC_FILE"
     else
         # Output the UUID:seqno and wsrep_gtid_domain_id:
         cat "$MAGIC_FILE"
