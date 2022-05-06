@@ -34,6 +34,12 @@ wsrep_check_programs rsync
 
 cleanup_joiner()
 {
+    # Since this is invoked just after exit NNN
+    local estatus=$?
+    if [ $estatus -ne 0 ]; then
+        wsrep_log_error "Cleanup after exit with status: $estatus"
+    fi
+
     local failure=0
 
     [ "$(pwd)" != "$OLD_PWD" ] && cd "$OLD_PWD"
@@ -72,7 +78,9 @@ cleanup_joiner()
         wsrep_cleanup_progress_file
     fi
 
-    [ -f "$SST_PID" ] && rm -f "$SST_PID"
+    [ -f "$SST_PID" ] && rm -f "$SST_PID" || :
+
+    exit $estatus
 }
 
 check_pid_and_port()
@@ -325,6 +333,7 @@ while check_pid "$SST_PID" 0; do
     sleep 1
 done
 
+trap simple_cleanup EXIT
 echo $$ > "$SST_PID"
 
 # give some time for stunnel from the previous SST to complete:
@@ -508,9 +517,8 @@ EOF
         fi
 
         # Use deltaxfer only for WAN:
-        inv=$(basename "$0")
         WHOLE_FILE_OPT=""
-        if [ "${inv%wsrep_sst_rsync_wan*}" = "$inv" ]; then
+        if [ "${WSREP_METHOD%_wan}" = "$WSREP_METHOD" ]; then
             WHOLE_FILE_OPT='--whole-file'
         fi
 
@@ -620,7 +628,6 @@ FILTER="-f '- /lost+found'
 
         wsrep_log_info "Transfer of data done"
 
-
     else # BYPASS
 
         wsrep_log_info "Bypassing state dump."
@@ -657,10 +664,6 @@ FILTER="-f '- /lost+found'
         [ -f "$STUNNEL_PID"  ] && rm -f "$STUNNEL_PID"
     fi
 
-    [ -f "$SST_PID" ] && rm -f "$SST_PID"
-
-    wsrep_log_info "rsync SST/IST completed on donor"
-
 elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]
 then
     check_sockets_utils
@@ -670,8 +673,6 @@ then
     RSYNC_ADDR="$WSREP_SST_OPT_HOST"
     RSYNC_ADDR_UNESCAPED="$WSREP_SST_OPT_HOST_UNESCAPED"
 
-    trap 'exit 32' HUP PIPE
-    trap 'exit 3'  INT TERM ABRT
     trap cleanup_joiner EXIT
 
     touch "$SST_PROGRESS_FILE"
@@ -912,8 +913,6 @@ EOF
         cat "$MAGIC_FILE"
     fi
 
-    wsrep_log_info "rsync SST/IST completed on joiner"
-
 #   wsrep_cleanup_progress_file
 #   cleanup_joiner
 else
@@ -923,4 +922,5 @@ fi
 
 [ -f "$BINLOG_TAR_FILE" ] && rm -f "$BINLOG_TAR_FILE"
 
+wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE completed on $WSREP_SST_OPT_ROLE"
 exit 0

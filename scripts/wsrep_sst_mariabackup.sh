@@ -638,18 +638,6 @@ get_stream()
     wsrep_log_info "Streaming with $sfmt"
 }
 
-sig_joiner_cleanup()
-{
-    local estatus=$?
-    if [ $estatus -ne 0 ]; then
-        wsrep_log_error "Cleanup after exit with status: $estatus"
-    fi
-    wsrep_log_error "Removing $MAGIC_FILE file due to signal"
-    [ "$(pwd)" != "$OLD_PWD" ] && cd "$OLD_PWD"
-    [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
-    exit $estatus
-}
-
 cleanup_at_exit()
 {
     # Since this is invoked just after exit NNN
@@ -659,6 +647,11 @@ cleanup_at_exit()
     fi
 
     [ "$(pwd)" != "$OLD_PWD" ] && cd "$OLD_PWD"
+
+    if [ $estatus -ne 0 ]; then
+        wsrep_log_error "Removing $MAGIC_FILE file due to signal"
+        [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE" || :
+    fi
 
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
         wsrep_log_info "Removing the sst_in_progress file"
@@ -785,17 +778,15 @@ recv_joiner()
         fi
     fi
 
-    pushd "$dir" 1>/dev/null
-    set +e
-
     if [ $wait -ne 0 ]; then
         wait_for_listen &
     fi
 
+    cd "$dir"
+    set +e
     timeit "$msg" "$ltcmd | $strmcmd; RC=( "\${PIPESTATUS[@]}" )"
-
     set -e
-    popd 1>/dev/null
+    cd "$OLD_PWD"
 
     if [ ${RC[0]} -eq 124 ]; then
         wsrep_log_error "Possible timeout in receiving first data from" \
@@ -852,11 +843,11 @@ send_donor()
     local dir="$1"
     local msg="$2"
 
-    pushd "$dir" 1>/dev/null
+    cd "$dir"
     set +e
     timeit "$msg" "$strmcmd | $tcmd; RC=( "\${PIPESTATUS[@]}" )"
     set -e
-    popd 1>/dev/null
+    cd "$OLD_PWD"
 
     for ecode in "${RC[@]}"; do
         if [ $ecode -ne 0 ]; then
@@ -871,7 +862,7 @@ monitor_process()
 {
     local sst_stream_pid=$1
 
-    while true ; do
+    while :; do
         if ! ps -p "$WSREP_SST_OPT_PARENT" >/dev/null 2>&1; then
             wsrep_log_error \
                 "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT)" \
@@ -1142,6 +1133,7 @@ then
         fi
 
         setup_commands
+
         set +e
         timeit "$stagemsg-SST" "$INNOBACKUP | $tcmd; RC=( "\${PIPESTATUS[@]}" )"
         set -e
@@ -1185,7 +1177,6 @@ then
 
     echo "done $WSREP_SST_OPT_GTID"
     wsrep_log_info "Total time on donor: $totime seconds"
-    wsrep_log_info "mariabackup SST/IST completed on donor"
 
 elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]
 then
@@ -1259,6 +1250,7 @@ then
         sleep 1
     done
 
+    trap simple_cleanup EXIT
     echo $$ > "$SST_PID"
 
     stagemsg='Joiner-Recv'
@@ -1295,7 +1287,6 @@ then
         MY_SECRET="" # for check down in recv_joiner()
     fi
 
-    trap sig_joiner_cleanup HUP PIPE INT TERM
     trap cleanup_at_exit EXIT
 
     get_keys
@@ -1459,7 +1450,6 @@ then
         wsrep_log_info "Preparing the backup at $DATA"
         setup_commands
         timeit 'mariabackup prepare stage' "$INNOAPPLY"
-
         if [ $? -ne 0 ]; then
             wsrep_log_error "mariabackup apply finished with errors." \
                             "Check syslog or '$INNOAPPLYLOG' for details."
@@ -1529,7 +1519,7 @@ then
     cat "$MAGIC_FILE" # Output : UUID:seqno wsrep_gtid_domain_id
 
     wsrep_log_info "Total time on joiner: $totime seconds"
-    wsrep_log_info "mariabackup SST/IST completed on joiner"
 fi
 
+wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE completed on $WSREP_SST_OPT_ROLE"
 exit 0

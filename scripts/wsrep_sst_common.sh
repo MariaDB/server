@@ -17,7 +17,8 @@
 
 # This is a common command line parser to be sourced by other SST scripts
 
-set -ue
+trap 'exit 32' HUP PIPE
+trap 'exit 3'  INT QUIT TERM
 
 # Setting the path for some utilities on CentOS
 export PATH="$PATH:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -511,7 +512,19 @@ case "$1" in
 esac
 shift
 done
+
 readonly WSREP_SST_OPT_BYPASS
+WSREP_TRANSFER_TYPE='SST'
+[ $WSREP_SST_OPT_BYPASS -ne 0 ] && WSREP_TRANSFER_TYPE='IST'
+readonly WSREP_TRANSFER_TYPE
+# Let's take the name of the current script as a base,
+# removing the directory, extension and "wsrep_sst_" prefix:
+WSREP_METHOD="${0##*/}"
+WSREP_METHOD="${WSREP_METHOD%.*}"
+WSREP_METHOD="${WSREP_METHOD#wsrep_sst_}"
+readonly WSREP_METHOD
+[ -z "${WSREP_SST_OPT_ROLE:-}" ] && WSREP_SST_OPT_ROLE='donor'
+readonly WSREP_SST_OPT_ROLE
 
 # The same argument can be present on the command line several
 # times, in this case we must take its last value:
@@ -1452,3 +1465,19 @@ check_server_ssl_config()
         fi
     fi
 }
+
+simple_cleanup()
+{
+    # Since this is invoked just after exit NNN
+    local estatus=$?
+    if [ $estatus -ne 0 ]; then
+        wsrep_log_error "Cleanup after exit with status: $estatus"
+    fi
+    if [ -n "${SST_PID:-}" ]; then
+        [ "$(pwd)" != "$OLD_PWD" ] && cd "$OLD_PWD"
+        [ -f "$SST_PID" ] && rm -f "$SST_PID" || :
+    fi
+    exit $estatus
+}
+
+wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE started on $WSREP_SST_OPT_ROLE"
