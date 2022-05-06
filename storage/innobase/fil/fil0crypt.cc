@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1973,7 +1973,7 @@ fil_crypt_flush_space(
 	if (buf_block_t* block = buf_page_get_gen(
 		    page_id_t(space->id, 0), space->zip_size(),
 		    RW_X_LATCH, NULL, BUF_GET_POSSIBLY_FREED, &mtr)) {
-		if (block->page.is_freed()) {
+		if (!block->page.is_freed()) {
 			mtr.set_named_space(space);
 			crypt_data->write_page0(block, &mtr);
 		}
