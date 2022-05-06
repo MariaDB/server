@@ -15,10 +15,10 @@ usr/bin/mariadb-embedded # Shipping the embedded server in distro packaging does
 usr/bin/mysql_config # Debian packaging has mysql_config as symlink to mariadb_config
 usr/bin/mysql_embedded # Symlink to mariadb-embeded which is intentionally not included
 usr/bin/sst_dump # Use the one from rocksdb-tools package
-usr/lib/*/libdbbc.a # ColumnStore header file
-usr/lib/*/libidbboot.a # ColumnStore header file
-usr/lib/*/libprocessor.a # ColumnStore header file
-usr/lib/*/libwe_xml.a # ColumnStore header file
+usr/lib/x86_64-linux-gnu/libdbbc.a # ColumnStore header file
+usr/lib/x86_64-linux-gnu/libidbboot.a # ColumnStore header file
+usr/lib/x86_64-linux-gnu/libprocessor.a # ColumnStore header file
+usr/lib/x86_64-linux-gnu/libwe_xml.a # ColumnStore header file
 usr/bin/test-connect-t
 usr/bin/wsrep_sst_backup
 usr/lib/mysql/plugin/type_test.so
