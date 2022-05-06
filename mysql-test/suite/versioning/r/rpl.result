@@ -192,4 +192,196 @@ PARTITIONS 3
 connection master;
 drop table t1;
 set timestamp= default;
+#
+# MDEV-25477 Auto-create breaks replication when triggering event was not replicated
+#
+set timestamp= unix_timestamp('2001-01-01 01:00:00');
+# ROLLBACK
+create table t (a int) with system versioning
+partition by system_time interval 1 hour auto;
+insert into t values (1), (2);
+set @@timestamp= @@timestamp + 3601;
+start transaction;
+delete from t;
+rollback;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 01:00:00' AUTO
+PARTITIONS 3
+connection slave;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 01:00:00' AUTO
+PARTITIONS 3
+connection master;
+alter table t drop partition p0;
+connection slave;
+# INSERT .. ODKU
+connection master;
+create or replace table t (a int primary key) with system versioning
+partition by system_time interval 1 hour auto;
+insert into t values (1), (2);
+set @@timestamp= @@timestamp + 3601;
+insert into t values (1) on duplicate key update a= a;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 02:00:00' AUTO
+PARTITIONS 3
+connection slave;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 02:00:00' AUTO
+PARTITIONS 3
+connection master;
+alter table t drop partition p0;
+connection slave;
+# INSERT .. SELECT .. ODKU
+connection master;
+create or replace table t (a int primary key) with system versioning
+partition by system_time interval 1 hour auto;
+insert into t values (1), (2);
+set @@timestamp= @@timestamp + 3601;
+call mtr.add_suppression("Unsafe statement written to the binary log");
+insert t select a from t where a = 1 limit 0 on duplicate key update a= 1;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 03:00:00' AUTO
+PARTITIONS 3
+connection slave;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 03:00:00' AUTO
+PARTITIONS 3
+connection master;
+alter table t drop partition p0;
+connection slave;
+# UPDATE
+connection master;
+create or replace table t (a int) with system versioning
+partition by system_time interval 1 hour auto;
+insert into t values (1), (2);
+set @@timestamp= @@timestamp + 3601;
+update t set a= 3 limit 0;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 04:00:00' AUTO
+PARTITIONS 3
+connection slave;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 04:00:00' AUTO
+PARTITIONS 3
+connection master;
+alter table t drop partition p0;
+connection slave;
+# DELETE
+connection master;
+create or replace table t (a int) with system versioning
+partition by system_time interval 1 hour auto;
+insert into t values (1), (2);
+set @@timestamp= @@timestamp + 3601;
+delete from t limit 0;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 05:00:00' AUTO
+PARTITIONS 3
+connection slave;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 05:00:00' AUTO
+PARTITIONS 3
+connection master;
+alter table t drop partition p0;
+connection slave;
+# Multi-update
+connection master;
+create or replace table t (a int) with system versioning
+partition by system_time interval 1 hour auto;
+create or replace table t2 (b int);
+insert into t values (0), (1);
+insert into t2 values (10), (20);
+set @@timestamp= @@timestamp + 3601;
+update t left join t2 on a > b set a= 4;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 06:00:00' AUTO
+PARTITIONS 3
+connection slave;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 06:00:00' AUTO
+PARTITIONS 3
+connection master;
+alter table t drop partition p0;
+connection slave;
+# Multi-delete
+connection master;
+create or replace table t (a int) with system versioning
+partition by system_time interval 1 hour auto;
+create or replace table t2 (b int);
+insert into t values (0), (1);
+insert into t2 values (10), (20);
+set @@timestamp= @@timestamp + 3601;
+delete t, t2 from t join t2 where a > b;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 07:00:00' AUTO
+PARTITIONS 3
+connection slave;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 07:00:00' AUTO
+PARTITIONS 3
+connection master;
+alter table t drop partition p0;
+connection slave;
+connection master;
+drop tables t, t2;
+set timestamp= default;
 include/rpl_end.inc

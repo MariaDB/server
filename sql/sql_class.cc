@@ -7327,6 +7327,26 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
 }
 
 
+/*
+  DML that doesn't change the table normally is not logged,
+  but it needs to be logged if it auto-created a partition as a side effect.
+*/
+bool THD::binlog_for_noop_dml(bool transactional_table)
+{
+  if (log_current_statement())
+  {
+    reset_unsafe_warnings();
+    if (binlog_query(THD::STMT_QUERY_TYPE, query(), query_length(),
+                      transactional_table, FALSE, FALSE, 0) > 0)
+    {
+      my_error(ER_ERROR_ON_WRITE, MYF(0), "binary log", -1);
+      return true;
+    }
+  }
+  return false;
+}
+
+
 #if !defined(DBUG_OFF) && !defined(_lint)
 static const char *
 show_query_type(THD::enum_binlog_query_type qtype)

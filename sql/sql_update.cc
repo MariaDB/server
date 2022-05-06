@@ -552,6 +552,7 @@ int mysql_update(THD *thd,
 
   // Don't count on usage of 'only index' when calculating which key to use
   table->covering_keys.clear_all();
+  transactional_table= table->file->has_transactions_and_rollback();
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (prune_partitions(thd, table, conds))
@@ -562,6 +563,9 @@ int mysql_update(THD *thd,
     if (thd->lex->describe || thd->lex->analyze_stmt)
       goto produce_explain_and_leave;
     if (thd->is_error())
+      DBUG_RETURN(1);
+
+    if (thd->binlog_for_noop_dml(transactional_table))
       DBUG_RETURN(1);
 
     my_ok(thd);				// No matching records
@@ -593,6 +597,10 @@ int mysql_update(THD *thd,
     {
       DBUG_RETURN(1);				// Error in where
     }
+
+    if (thd->binlog_for_noop_dml(transactional_table))
+      DBUG_RETURN(1);
+
     my_ok(thd);				// No matching records
     DBUG_RETURN(0);
   }
@@ -957,7 +965,6 @@ update_begin:
   thd->count_cuted_fields= CHECK_FIELD_WARN;
   thd->cuted_fields=0L;
 
-  transactional_table= table->file->has_transactions_and_rollback();
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
   if (do_direct_update)
@@ -1296,7 +1303,8 @@ update_end:
     Sometimes we want to binlog even if we updated no rows, in case user used
     it to be sure master and slave are in same state.
   */
-  if (likely(error < 0) || thd->transaction->stmt.modified_non_trans_table)
+  if (likely(error < 0) || thd->transaction->stmt.modified_non_trans_table ||
+      thd->log_current_statement())
   {
     if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
@@ -1306,9 +1314,8 @@ update_end:
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
 
-      ScopedStatementReplication scoped_stmt_rpl(
-          table->versioned(VERS_TRX_ID) ? thd : NULL);
-
+      StatementBinlog stmt_binlog(thd, table->versioned(VERS_TRX_ID) ||
+                                       thd->binlog_need_stmt_format(transactional_table));
       if (thd->binlog_query(THD::ROW_QUERY_TYPE,
                             thd->query(), thd->query_length(),
                             transactional_table, FALSE, FALSE, errcode) > 0)
@@ -2722,7 +2729,8 @@ void multi_update::abort_result_set()
       (void) do_updates();
     }
   }
-  if (thd->transaction->stmt.modified_non_trans_table)
+  if (thd->transaction->stmt.modified_non_trans_table ||
+      thd->log_current_statement())
   {
     /*
       The query has to binlog because there's a modified non-transactional table
@@ -2730,6 +2738,7 @@ void multi_update::abort_result_set()
     */
     if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
+      StatementBinlog stmt_binlog(thd, thd->binlog_need_stmt_format(transactional_tables));
       /*
         THD::killed status might not have been set ON at time of an error
         got caught and if happens later the killed error is written
@@ -3058,7 +3067,8 @@ bool multi_update::send_eof()
     (thd->transaction->stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 
   if (likely(local_error == 0 ||
-             thd->transaction->stmt.modified_non_trans_table))
+             thd->transaction->stmt.modified_non_trans_table) ||
+      thd->log_current_statement())
   {
     if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
@@ -3068,25 +3078,21 @@ bool multi_update::send_eof()
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
 
-      bool force_stmt= false;
-      for (TABLE *table= all_tables->table; table; table= table->next)
-      {
-        if (table->versioned(VERS_TRX_ID))
+      bool force_stmt= thd->binlog_need_stmt_format(transactional_tables);
+      if (!force_stmt)
+        for (TABLE *table= all_tables->table; table; table= table->next)
         {
-          force_stmt= true;
-          break;
+          if (table->versioned(VERS_TRX_ID))
+          {
+            force_stmt= true;
+            break;
+          }
         }
-      }
-      enum_binlog_format save_binlog_format;
-      save_binlog_format= thd->get_current_stmt_binlog_format();
-      if (force_stmt)
-        thd->set_current_stmt_binlog_format_stmt();
-
+      StatementBinlog stmt_binlog(thd, force_stmt);
       if (thd->binlog_query(THD::ROW_QUERY_TYPE, thd->query(),
                             thd->query_length(), transactional_tables, FALSE,
                             FALSE, errcode) > 0)
 	local_error= 1;				// Rollback update
-      thd->set_current_stmt_binlog_format(save_binlog_format);
     }
   }
   DBUG_ASSERT(trans_safe || !updated ||
