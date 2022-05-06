@@ -1073,15 +1073,15 @@ is_local_ip()
     if [ -n "$ip_util" ]; then
         # ip address show ouput format is " inet[6] <address>/<mask>":
         "$ip_util" address show \
-             | grep -E '^[[:space:]]*inet.? [^[:space:]]+/' -o \
-             | grep -F " $1/" >/dev/null && return 0
+             | grep -o -E '^[[:space:]]*inet.? [^[:space:]]+/' \
+             | grep -q -F -- " $1/" && return 0
     else
         local ifconfig_util=$(commandex 'ifconfig')
         if [ -n "$ifconfig_util" ]; then
             # ifconfig output format is " inet[6] <address> ...":
             "$ifconfig_util" \
-                 | grep -E '^[[:space:]]*inet.? [^[:space:]]+ ' -o \
-                 | grep -F " $1 " >/dev/null && return 0
+                 | grep -o -E '^[[:space:]]*inet.? [^[:space:]]+ ' \
+                 | grep -q -F -- " $1 " && return 0
         fi
     fi
     return 1
@@ -1403,7 +1403,7 @@ get_proc()
     if [ -z "$nproc" ]; then
         set +e
         if [ "$OS" = 'Linux' ]; then
-            nproc=$(grep -c processor /proc/cpuinfo 2>/dev/null)
+            nproc=$(grep -cw -E '^processor' /proc/cpuinfo 2>/dev/null)
         elif [ "$OS" = 'Darwin' -o "$OS" = 'FreeBSD' ]; then
             nproc=$(sysctl -n hw.ncpu)
         fi

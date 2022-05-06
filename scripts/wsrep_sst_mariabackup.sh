@@ -689,7 +689,7 @@ cleanup_at_exit()
     fi
 
     # Final cleanup
-    pgid=$(ps -o pgid= $$ 2>/dev/null | grep -o -E '[0-9]*' || :)
+    pgid=$(ps -o pgid= $$ 2>/dev/null | grep -o -E '[0-9]+' || :)
 
     # This means no setsid done in mysqld.
     # We don't want to kill mysqld here otherwise.
