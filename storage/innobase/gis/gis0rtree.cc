@@ -1,13 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
-<<<<<<< HEAD
-Copyright (c) 2018, 2021, MariaDB Corporation.
-||||||| parent of 20ae4816bba (MDEV-28478: INSERT into SPATIAL INDEX in TEMPORARY table writes log)
-Copyright (c) 2019, 2020, MariaDB Corporation.
-=======
 Copyright (c) 2019, 2022, MariaDB Corporation.
->>>>>>> 20ae4816bba (MDEV-28478: INSERT into SPATIAL INDEX in TEMPORARY table writes log)
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
