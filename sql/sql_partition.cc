@@ -5058,6 +5058,10 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
             my_error(ER_PARTITION_WRONG_VALUES_ERROR, MYF(0),
                      "LIST", "IN");
           }
+          /*
+            Adding history partitions to non-history partitioning or
+            non-history parittions to history partitioning is prohibited.
+          */
           else if (thd->work_part_info->part_type == VERSIONING_PARTITION ||
                    tab_part_info->part_type == VERSIONING_PARTITION)
           {
@@ -5340,6 +5344,7 @@ that are reorganised.
           {
             if (el->type == partition_element::CURRENT)
             {
+              /* now_part is always last partition, we add it to the end of partitions list. */
               it.remove();
               now_part= el;
             }
@@ -5967,11 +5972,35 @@ the generated partition syntax in a correct manner.
     {
       partition_info *part_info= thd->work_part_info;
       bool is_native_partitioned= FALSE;
+      if (tab_part_info && tab_part_info->part_type == VERSIONING_PARTITION &&
+          tab_part_info != part_info && part_info->part_type == VERSIONING_PARTITION &&
+          part_info->num_parts == 0)
+      {
+        if (part_info->vers_info->interval.is_set() &&
+            /* TODO: equivalent intervals like 1 hour and 60 mins should be considered equal */
+            memcmp(&part_info->vers_info->interval,
+                   &tab_part_info->vers_info->interval,
+                   sizeof(Vers_part_info::interval)))
+        {
+          /* If interval is changed we can not do fast alter */
+          tab_part_info= tab_part_info->get_clone(thd);
+        }
+        else
+        {
+          /* NOTE: fast_alter_partition_table() works on existing TABLE data. */
+          *fast_alter_table= true;
+          table->mark_table_for_reopen();
+        }
+        *tab_part_info->vers_info= *part_info->vers_info;
+        thd->work_part_info= part_info= tab_part_info;
+        *partition_changed= true;
+      }
+
       /*
         Need to cater for engine types that can handle partition without
         using the partition handler.
       */
-      if (part_info != tab_part_info)
+      else if (part_info != tab_part_info)
       {
         if (part_info->fix_parser_data(thd))
         {

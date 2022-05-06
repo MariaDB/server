@@ -46,12 +46,21 @@ struct Vers_part_info : public Sql_alloc
   {
     interval.type= INTERVAL_LAST;
   }
-  Vers_part_info(Vers_part_info &src) :
+  Vers_part_info(const Vers_part_info &src) :
     interval(src.interval),
     limit(src.limit),
     now_part(NULL),
     hist_part(NULL)
   {
+  }
+  Vers_part_info& operator= (const Vers_part_info &src)
+  {
+    interval= src.interval;
+    limit= src.limit;
+    auto_hist= src.auto_hist;
+    now_part= src.now_part;
+    hist_part= src.hist_part;
+    return *this;
   }
   bool initialized()
   {

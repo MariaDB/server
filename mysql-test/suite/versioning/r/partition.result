@@ -1334,6 +1334,126 @@ t1	CREATE TABLE `t1` (
  PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
 drop tables t1;
 #
+# MDEV-27328 Change of SYSTEM_TIME partitioning options is not possible without data copy
+#
+create or replace table t1 (f int) with system versioning
+partition by hash(f);
+alter table t1 partition by system_time;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME 
+PARTITIONS 2
+create or replace table t1 (f int) with system versioning
+partition by system_time;
+alter table t1 partition by hash(f);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY HASH (`f`)
+create or replace table t1 (x int) with system versioning;
+alter table t1 partition by system_time;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME 
+PARTITIONS 2
+create or replace table t1 (x int) with system versioning
+partition by system_time limit 100 partitions 4;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 100
+PARTITIONS 4
+alter table t1 add partition partitions 2;
+alter table t1 partition by system_time;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME 
+PARTITIONS 6
+alter table t1 partition by system_time limit 33;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 33
+PARTITIONS 6
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 00:10:00');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 01:30:00');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 1;
+alter table t1 partition by system_time interval 1 hour
+starts '2000-01-01 00:00:00';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00'
+PARTITIONS 6
+select * from t1 partition (p0);
+x
+0
+select * from t1 partition (p1);
+x
+1
+2
+select * from t1 partition (p2);
+x
+3
+select * from t1 partition (pn);
+x
+4
+set timestamp= default;
+alter table t1 partition by system_time limit 1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1
+PARTITIONS 6
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+select * from t1 partition (p0);
+x
+0
+select * from t1 partition (p1);
+x
+1
+2
+select * from t1 partition (p2);
+x
+3
+select * from t1 partition (p3);
+x
+4
+select * from t1 partition (p4);
+x
+5
+select * from t1 partition (pn);
+x
+6
+drop table t1;
+#
 # End of 10.5 tests
 #
 SET GLOBAL innodb_stats_persistent=@save_persistent;

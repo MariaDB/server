@@ -1158,6 +1158,76 @@ drop tables t1;
 --disable_prepare_warnings
 
 --echo #
+--echo # MDEV-27328 Change of SYSTEM_TIME partitioning options is not possible without data copy
+--echo #
+create or replace table t1 (f int) with system versioning
+partition by hash(f);
+alter table t1 partition by system_time;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+create or replace table t1 (f int) with system versioning
+partition by system_time;
+alter table t1 partition by hash(f);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+create or replace table t1 (x int) with system versioning;
+alter table t1 partition by system_time;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+create or replace table t1 (x int) with system versioning
+partition by system_time limit 100 partitions 4;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+alter table t1 add partition partitions 2;
+alter table t1 partition by system_time;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+alter table t1 partition by system_time limit 33;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 00:10:00');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 01:30:00');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 1;
+
+# When we switch to INTERVAL we must reorganize partitions.
+# Otherwise pruning won't work correctly.
+alter table t1 partition by system_time interval 1 hour
+starts '2000-01-01 00:00:00';
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+select * from t1 partition (p0);
+select * from t1 partition (p1);
+select * from t1 partition (p2);
+select * from t1 partition (pn);
+set timestamp= default;
+
+# When we switch to LIMIT we probably don't want to reorganize old partitions.
+# Note: reorganize for LIMIT is broken, it pushes all history into first partition.
+# TODO: MDEV-27337
+alter table t1 partition by system_time limit 1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+select * from t1 partition (p0);
+select * from t1 partition (p1);
+select * from t1 partition (p2);
+select * from t1 partition (p3);
+select * from t1 partition (p4);
+select * from t1 partition (pn);
+
+drop table t1;
+--echo #
 --echo # End of 10.5 tests
 --echo #
 
