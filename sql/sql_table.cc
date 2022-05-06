@@ -4437,8 +4437,7 @@ int create_table_impl(THD *thd,
       */
       if (table_creation_was_logged)
       {
-        thd->variables.option_bits|= OPTION_KEEP_LOG;
-        thd->log_current_statement= 1;
+        thd->variables.option_bits|= OPTION_BINLOG_THIS;
         create_info->table_was_deleted= 1;
       }
     }
@@ -4496,8 +4495,7 @@ int create_table_impl(THD *thd,
           We have to log this query, even if it failed later to ensure the
           drop is done.
         */
-        thd->variables.option_bits|= OPTION_KEEP_LOG;
-        thd->log_current_statement= 1;
+        thd->variables.option_bits|= OPTION_BINLOG_THIS;
         create_info->table_was_deleted= 1;
         lex_string_set(&create_info->org_storage_engine_name,
                        ha_resolve_storage_engine_name(db_type));
@@ -4520,9 +4518,9 @@ int create_table_impl(THD *thd,
         */
 
         /* Log CREATE IF NOT EXISTS on slave for distributed engines */
-        if (thd->slave_thread && (db_type && db_type->flags &
-                                  HTON_IGNORE_UPDATES))
-          thd->log_current_statement= 1;
+        if (thd->slave_thread && db_type &&
+            db_type->flags & HTON_IGNORE_UPDATES)
+          thd->variables.option_bits|= OPTION_BINLOG_THIS;
         goto warn;
       }
       else
@@ -4887,7 +4885,7 @@ err:
     thd->transaction->stmt.mark_created_temp_table();
 
   /* Write log if no error or if we already deleted a table */
-  if (likely(!result) || thd->log_current_statement)
+  if (!result || thd->log_current_statement())
   {
     if (unlikely(result) && create_info->table_was_deleted &&
         pos_in_locked_tables)
@@ -5353,7 +5351,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
                                     &is_trans, C_ORDINARY_CREATE,
                                     table)) > 0);
   /* Remember to log if we deleted something */
-  do_logging= thd->log_current_statement;
+  do_logging= thd->log_current_statement();
   if (res)
     goto err;
 
@@ -12285,7 +12283,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
         if (!(res= handle_select(thd, lex, result, 0)))
         {
           if (create_info.tmp_table())
-            thd->variables.option_bits|= OPTION_KEEP_LOG;
+            thd->variables.option_bits|= OPTION_BINLOG_THIS_TRX;
         }
         delete result;
       }
@@ -12345,7 +12343,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
     {
       /* So that CREATE TEMPORARY TABLE gets to binlog at commit/rollback */
       if (create_info.tmp_table())
-        thd->variables.option_bits|= OPTION_KEEP_LOG;
+        thd->variables.option_bits|= OPTION_BINLOG_THIS_TRX;
       /* in case of create temp tables if @@session_track_state_change is
          ON then send session state notification in OK packet */
       if (create_info.options & HA_LEX_CREATE_TMP_TABLE)

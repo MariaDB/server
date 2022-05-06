@@ -1368,13 +1368,13 @@ static bool sql_slave_killed(rpl_group_info *rgi)
   if (rli->sql_driver_thd->killed || rli->abort_slave)
   {
     /*
-      The transaction should always be binlogged if OPTION_KEEP_LOG is
+      The transaction should always be binlogged if OPTION_BINLOG_THIS_TRX is
       set (it implies that something can not be rolled back). And such
       case should be regarded similarly as modifing a
       non-transactional table because retrying of the transaction will
       lead to an error or inconsistency as well.
 
-      Example: OPTION_KEEP_LOG is set if a temporary table is created
+      Example: OPTION_BINLOG_THIS_TRX is set if a temporary table is created
       or dropped.
 
       Note that transaction.all.modified_non_trans_table may be 1
@@ -1384,7 +1384,7 @@ static bool sql_slave_killed(rpl_group_info *rgi)
     */
 
     if ((thd->transaction->all.modified_non_trans_table ||
-         (thd->variables.option_bits & OPTION_KEEP_LOG)) &&
+         (thd->variables.option_bits & OPTION_BINLOG_THIS_TRX)) &&
         rli->is_in_group())
     {
       char msg_stopped[]=
@@ -1396,10 +1396,10 @@ static bool sql_slave_killed(rpl_group_info *rgi)
         "documentation for details).";
 
       DBUG_PRINT("info", ("modified_non_trans_table: %d  OPTION_BEGIN: %d  "
-                          "OPTION_KEEP_LOG: %d  is_in_group: %d",
+                          "OPTION_BINLOG_THIS_TRX: %d  is_in_group: %d",
                           thd->transaction->all.modified_non_trans_table,
                           MY_TEST(thd->variables.option_bits & OPTION_BEGIN),
-                          MY_TEST(thd->variables.option_bits & OPTION_KEEP_LOG),
+                          MY_TEST(thd->variables.option_bits & OPTION_BINLOG_THIS_TRX),
                           rli->is_in_group()));
 
       if (rli->abort_slave)

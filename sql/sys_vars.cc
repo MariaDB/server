@@ -4441,7 +4441,7 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
       transaction implicitly at the end (@sa stmt_causes_implicitcommit()).
     */
     thd->variables.option_bits&=
-                 ~(OPTION_BEGIN | OPTION_KEEP_LOG | OPTION_NOT_AUTOCOMMIT |
+                 ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX | OPTION_NOT_AUTOCOMMIT |
                    OPTION_GTID_BEGIN);
     thd->transaction->all.modified_non_trans_table= false;
     thd->transaction->all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;

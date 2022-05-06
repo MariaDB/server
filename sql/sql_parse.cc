@@ -4931,7 +4931,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       status_var_increment(thd->status_var.com_drop_tmp_table);
 
       /* So that DROP TEMPORARY TABLE gets to binlog at commit/rollback */
-      thd->variables.option_bits|= OPTION_KEEP_LOG;
+      thd->variables.option_bits|= OPTION_BINLOG_THIS_TRX;
     }
     /*
       If we are a slave, we should add IF EXISTS if the query executed
@@ -7586,7 +7586,7 @@ void THD::reset_for_next_command(bool do_clear_error)
 #endif /* WITH_WSREP */
   query_start_sec_part_used= 0;
   is_fatal_error= time_zone_used= 0;
-  log_current_statement= 0;
+  variables.option_bits&= ~OPTION_BINLOG_THIS_STMT;
 
   /*
     Clear the status flag that are expected to be cleared at the
@@ -7595,12 +7595,12 @@ void THD::reset_for_next_command(bool do_clear_error)
   server_status&= ~SERVER_STATUS_CLEAR_SET;
   /*
     If in autocommit mode and not in a transaction, reset
-    OPTION_STATUS_NO_TRANS_UPDATE | OPTION_KEEP_LOG to not get warnings
+    OPTION_STATUS_NO_TRANS_UPDATE | OPTION_BINLOG_THIS_TRX to not get warnings
     in ha_rollback_trans() about some tables couldn't be rolled back.
   */
   if (!in_multi_stmt_transaction_mode())
   {
-    variables.option_bits&= ~OPTION_KEEP_LOG;
+    variables.option_bits&= ~OPTION_BINLOG_THIS_TRX;
     transaction->all.reset();
   }
   DBUG_ASSERT(security_ctx== &main_security_ctx);

@@ -133,7 +133,7 @@ bool trans_begin(THD *thd, uint flags)
 #endif /* WITH_WSREP */
   }
 
-  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX);
 
   /*
     The following set should not be needed as transaction state should
@@ -280,7 +280,7 @@ bool trans_commit(THD *thd)
   else
     repl_semisync_master.wait_after_commit(thd, FALSE);
 #endif
-  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX);
   thd->transaction->all.reset();
   thd->lex->start_transaction_opt= 0;
 
@@ -329,7 +329,7 @@ bool trans_commit_implicit(THD *thd)
     res= MY_TEST(ha_commit_trans(thd, TRUE));
   }
 
-  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX);
   thd->transaction->all.reset();
 
   /* The transaction should be marked as complete in P_S. */
@@ -374,7 +374,7 @@ bool trans_rollback(THD *thd)
   repl_semisync_master.wait_after_rollback(thd, FALSE);
 #endif
   /* Reset the binlog transaction marker */
-  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG |
+  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX |
                                  OPTION_GTID_BEGIN);
   thd->transaction->all.reset();
   thd->lex->start_transaction_opt= 0;
@@ -424,7 +424,7 @@ bool trans_rollback_implicit(THD *thd)
     of new transacton in @@autocommit=1 mode. This is necessary to
     preserve backward compatibility.
   */
-  thd->variables.option_bits&= ~(OPTION_KEEP_LOG);
+  thd->variables.option_bits&= ~(OPTION_BINLOG_THIS_TRX);
   thd->transaction->all.reset();
 
   /* Rollback should clear transaction_rollback_request flag. */
@@ -669,7 +669,7 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
 
   if (ha_rollback_to_savepoint(thd, sv))
     res= TRUE;
-  else if (((thd->variables.option_bits & OPTION_KEEP_LOG) ||
+  else if (((thd->variables.option_bits & OPTION_BINLOG_THIS_TRX) ||
             thd->transaction->all.modified_non_trans_table) &&
            !thd->slave_thread)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,

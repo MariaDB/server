@@ -4344,7 +4344,7 @@ void select_insert::abort_result_set()
     changed= (info.copied || info.deleted || info.updated);
     transactional_table= table->file->has_transactions_and_rollback();
     if (thd->transaction->stmt.modified_non_trans_table ||
-        thd->log_current_statement)
+        thd->log_current_statement())
     {
         if (!can_rollback_data())
           thd->transaction->all.modified_non_trans_table= TRUE;
@@ -5225,7 +5225,7 @@ void select_create::abort_result_set()
 
     drop_open_table(thd, table, &create_table->db, &create_table->table_name);
     table=0;                                    // Safety
-    if (thd->log_current_statement)
+    if (thd->log_current_statement())
     {
       if (mysql_bin_log.is_open())
       {

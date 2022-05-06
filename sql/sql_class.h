@@ -3560,8 +3560,10 @@ public:
   /* set during loop of derived table processing */
   bool       derived_tables_processing;
   bool       tablespace_op;	/* This is TRUE in DISCARD/IMPORT TABLESPACE */
-  /* True if we have to log the current statement */
-  bool	     log_current_statement;
+  bool       log_current_statement() const
+  {
+    return variables.option_bits & OPTION_BINLOG_THIS_STMT;
+  }
   /**
     True if a slave error. Causes the slave to stop. Not the same
     as the statement execution error (is_error()), since

@@ -2157,7 +2157,7 @@ inline bool is_prepared_xa(THD *thd)
 /*
   We flush the cache wrapped in a beging/rollback if:
     . aborting a single or multi-statement transaction and;
-    . the OPTION_KEEP_LOG is active or;
+    . the OPTION_BINLOG_THIS_TRX is active or;
     . the format is STMT and a non-trans table was updated or;
     . the format is MIXED and a temporary non-trans table was
       updated or;
@@ -2168,7 +2168,7 @@ static bool trans_cannot_safely_rollback(THD *thd, bool all)
 {
   DBUG_ASSERT(ending_trans(thd, all));
 
-  return ((thd->variables.option_bits & OPTION_KEEP_LOG) ||
+  return ((thd->variables.option_bits & OPTION_BINLOG_THIS_TRX) ||
           (trans_has_updated_non_trans_table(thd) &&
            thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT) ||
           (thd->transaction->all.has_modified_non_trans_temp_table() &&
@@ -2567,10 +2567,10 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
    */
   if (unlikely(thd->wsrep_trx().is_streaming() ||
                (trans_has_updated_non_trans_table(thd)) ||
-               (thd->variables.option_bits & OPTION_KEEP_LOG)))
+               (thd->variables.option_bits & OPTION_BINLOG_THIS_TRX)))
 #else
   if (unlikely(trans_has_updated_non_trans_table(thd) ||
-               (thd->variables.option_bits & OPTION_KEEP_LOG)))
+               (thd->variables.option_bits & OPTION_BINLOG_THIS_TRX)))
 #endif /* WITH_WSREP */
   {
     char buf[1024];
