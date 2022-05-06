@@ -1,7 +1,13 @@
 /*****************************************************************************
 
 Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
+<<<<<<< HEAD
 Copyright (c) 2018, 2021, MariaDB Corporation.
+||||||| parent of 20ae4816bba (MDEV-28478: INSERT into SPATIAL INDEX in TEMPORARY table writes log)
+Copyright (c) 2019, 2020, MariaDB Corporation.
+=======
+Copyright (c) 2019, 2022, MariaDB Corporation.
+>>>>>>> 20ae4816bba (MDEV-28478: INSERT into SPATIAL INDEX in TEMPORARY table writes log)
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -185,9 +191,8 @@ rtr_index_build_node_ptr(
 }
 
 /**************************************************************//**
-Update the mbr field of a spatial index row.
-@return true if update is successful */
-bool
+Update the mbr field of a spatial index row. */
+void
 rtr_update_mbr_field(
 /*=================*/
 	btr_cur_t*	cursor,		/*!< in/out: cursor pointed to rec.*/
@@ -535,8 +540,6 @@ update_mbr:
 			  page_is_comp(page))));
 
 	mem_heap_free(heap);
-
-	return(true);
 }
 
 /**************************************************************//**
@@ -1264,12 +1267,8 @@ rtr_ins_enlarge_mbr(
 		page = buf_block_get_frame(block);
 
 		/* Update the mbr field of the rec. */
-		if (!rtr_update_mbr_field(&cursor, offsets, NULL, page,
-					  &new_mbr, NULL, mtr)) {
-			err = DB_ERROR;
-			break;
-		}
-
+		rtr_update_mbr_field(&cursor, offsets, NULL, page,
+				     &new_mbr, NULL, mtr);
 		page_cursor = btr_cur_get_page_cur(&cursor);
 		block = page_cur_get_block(page_cursor);
 	}
@@ -1579,7 +1578,7 @@ rtr_merge_mbr_changed(
 
 /****************************************************************//**
 Merge 2 mbrs and update the the mbr that cursor is on. */
-dberr_t
+void
 rtr_merge_and_update_mbr(
 /*=====================*/
 	btr_cur_t*		cursor,		/*!< in/out: cursor */
@@ -1589,27 +1588,15 @@ rtr_merge_and_update_mbr(
 	page_t*			child_page,	/*!< in: the page. */
 	mtr_t*			mtr)		/*!< in: mtr */
 {
-	dberr_t			err = DB_SUCCESS;
 	rtr_mbr_t		new_mbr;
-	bool			changed = false;
 
-	ut_ad(dict_index_is_spatial(cursor->index));
-
-	changed = rtr_merge_mbr_changed(cursor, cursor2, offsets, offsets2,
-					&new_mbr);
-
-	/* Update the mbr field of the rec. And will delete the record
-	pointed by cursor2 */
-	if (changed) {
-		if (!rtr_update_mbr_field(cursor, offsets, cursor2, child_page,
-					  &new_mbr, NULL, mtr)) {
-			err = DB_ERROR;
-		}
+	if (rtr_merge_mbr_changed(cursor, cursor2, offsets, offsets2,
+                                  &new_mbr)) {
+		rtr_update_mbr_field(cursor, offsets, cursor2, child_page,
+				     &new_mbr, NULL, mtr);
 	} else {
 		rtr_node_ptr_delete(cursor2, mtr);
 	}
-
-	return(err);
 }
 
 /*************************************************************//**

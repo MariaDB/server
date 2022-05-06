@@ -3588,17 +3588,9 @@ retry:
 			}
 
 			if (mbr_changed) {
-#ifdef UNIV_DEBUG
-				bool	success = rtr_update_mbr_field(
-					&cursor2, offsets2, &father_cursor,
-					merge_page, &new_mbr, NULL, mtr);
-
-				ut_ad(success);
-#else
 				rtr_update_mbr_field(
 					&cursor2, offsets2, &father_cursor,
 					merge_page, &new_mbr, NULL, mtr);
-#endif
 			} else {
 				rtr_node_ptr_delete(&father_cursor, mtr);
 			}
