@@ -67,3 +67,4 @@ usr/share/mysql/systemd/mariadb@.socket # Installed by rules file
 usr/share/mysql/systemd/mysql.service  # Installed by rules file
 usr/share/mysql/systemd/mysqld.service  # Installed by rules file
 usr/share/mysql/systemd/use_galera_new_cluster.conf
+usr/share/doc/mariadb-hashicorp-key-management-10.9/hashicorp_key_management.txt
