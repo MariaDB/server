@@ -694,6 +694,10 @@ void print_keyuse_array_for_trace(THD *thd, DYNAMIC_ARRAY *keyuse_array)
     KEYUSE *keyuse= (KEYUSE*)dynamic_array_ptr(keyuse_array, i);
     Json_writer_object keyuse_elem(thd);
     keyuse_elem.add_table_name(keyuse->table->reginfo.join_tab);
+    if (keyuse->keypart != FT_KEYPART && !keyuse->is_for_hash_join())
+    {
+      keyuse_elem.add("index", keyuse->table->key_info[keyuse->key].name);
+    }
     keyuse_elem.add("field", (keyuse->keypart == FT_KEYPART) ? "<fulltext>":
                                         (keyuse->is_for_hash_join() ?
                                         keyuse->table->field[keyuse->keypart]

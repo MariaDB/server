@@ -75,6 +75,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
             "ref_optimizer_key_uses": [
               {
                 "table": "t1",
+                "index": "key1",
                 "field": "key1",
                 "equals": "1",
                 "null_rejecting": false
