@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB Corporation
+   Copyright (c) 2010, 2022, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -945,6 +945,12 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   }
 
   THD_STAGE_INFO(thd, stage_update);
+
+  if  (duplic == DUP_UPDATE)
+  {
+    restore_record(table,s->default_values);	// Get empty record
+    thd->reconsider_logging_format_for_iodup(table);
+  }
   do
   {
     DBUG_PRINT("info", ("iteration %llu", iteration));
@@ -1057,7 +1063,6 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
         break;
       }
 
-      thd->decide_logging_format_low(table);
 #ifndef EMBEDDED_LIBRARY
       if (lock_type == TL_WRITE_DELAYED)
       {

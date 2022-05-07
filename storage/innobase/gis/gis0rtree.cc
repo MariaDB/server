@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -376,6 +376,7 @@ rtr_update_mbr_field(
 
 		if (!rtr_update_mbr_field_in_place(index, rec,
 						   offsets, mbr, mtr)) {
+			mem_heap_free(heap);
 			return(false);
 		}
 
