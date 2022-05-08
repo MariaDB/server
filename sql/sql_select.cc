@@ -17343,7 +17343,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
   case Item::DEFAULT_VALUE_ITEM:
   {
     Field *field= ((Item_default_value*) item)->field;
-    if (field->default_value && (field->flags & BLOB_FLAG))
+    if (field->default_value || (field->flags & BLOB_FLAG))
     {
       /*
         We have to use a copy function when using a blob with default value
