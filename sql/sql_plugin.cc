@@ -355,7 +355,8 @@ bool check_valid_path(const char *path, size_t len)
 static void fix_dl_name(MEM_ROOT *root, LEX_CSTRING *dl)
 {
   const size_t so_ext_len= sizeof(SO_EXT) - 1;
-  if (my_strcasecmp(&my_charset_latin1, dl->str + dl->length - so_ext_len,
+  if (dl->length < so_ext_len ||
+      my_strcasecmp(&my_charset_latin1, dl->str + dl->length - so_ext_len,
                     SO_EXT))
   {
     char *s= (char*)alloc_root(root, dl->length + so_ext_len + 1);

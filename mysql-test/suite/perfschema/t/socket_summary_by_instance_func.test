@@ -38,8 +38,6 @@
 # prepared statement.
 --source include/no_protocol.inc
 
-set global session_track_schema=FALSE;
-
 #===================================
 # Set IP address defaults with respect to IPV6 support
 #
@@ -73,6 +71,7 @@ if($my_socket_debug)
   --echo IPV6=$check_ipv6_supported, IPV4_MAPPED = $check_ipv4_mapped_supported, LOCALHOST = $my_localhost
 }
 #===================================
+set global session_track_schema=FALSE;
 
 --echo # The logging of commands and result sets is mostly disabled.
 --echo # There are some messages which help to observe the progress of the test.

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -209,7 +209,6 @@ init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
     return TRUE;
   context->resolve_in_table_list_only(table_list);
   lex->use_only_table_context= TRUE;
-  lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VCOL_EXPR;
   select_lex->cur_pos_in_select_list= UNDEF_POS;
   table->map= 1; //To ensure correct calculation of const item
   table_list->table= table;
@@ -4608,17 +4607,21 @@ void SELECT_LEX::update_used_tables()
   while ((tl= ti++))
   {
     TABLE_LIST *embedding= tl;
-    do
+    if (!is_eliminated_table(join->eliminated_tables, tl))
     {
-      bool maybe_null;
-      if ((maybe_null= MY_TEST(embedding->outer_join)))
+      do
       {
-        tl->table->maybe_null= maybe_null;
-        break;
+        bool maybe_null;
+        if ((maybe_null= MY_TEST(embedding->outer_join)))
+        {
+          tl->table->maybe_null= maybe_null;
+          break;
+        }
       }
+      while ((embedding= embedding->embedding));
     }
-    while ((embedding= embedding->embedding));
-    if (tl->on_expr)
+
+    if (tl->on_expr && !is_eliminated_table(join->eliminated_tables, tl))
     {
       tl->on_expr->update_used_tables();
       tl->on_expr->walk(&Item::eval_not_null_tables, 0, NULL);
@@ -4642,8 +4645,11 @@ void SELECT_LEX::update_used_tables()
       if (embedding->on_expr && 
           embedding->nested_join->join_list.head() == tl)
       {
-        embedding->on_expr->update_used_tables();
-        embedding->on_expr->walk(&Item::eval_not_null_tables, 0, NULL);
+        if (!is_eliminated_table(join->eliminated_tables, embedding))
+        {
+          embedding->on_expr->update_used_tables();
+          embedding->on_expr->walk(&Item::eval_not_null_tables, 0, NULL);
+        }
       }
       tl= embedding;
       embedding= tl->embedding;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1134,15 +1134,10 @@ buf_flush_page(
 		/* For table residing in temporary tablespace sync is done
 		using IO_FIX and so before scheduling for flush ensure that
 		page is not fixed. */
-		flush = FALSE;
+		return FALSE;
 	} else {
 		rw_lock = &reinterpret_cast<buf_block_t*>(bpage)->lock;
-		if (flush_type != BUF_FLUSH_LIST) {
-			flush = rw_lock_sx_lock_nowait(rw_lock, BUF_IO_WRITE);
-		} else {
-			/* Will SX lock later */
-			flush = TRUE;
-		}
+		flush = rw_lock_sx_lock_nowait(rw_lock, BUF_IO_WRITE);
 	}
 
 	if (flush) {
@@ -1163,22 +1158,6 @@ buf_flush_page(
 		mutex_exit(block_mutex);
 
 		buf_pool_mutex_exit(buf_pool);
-
-		if (flush_type == BUF_FLUSH_LIST
-		    && is_uncompressed
-		    && !rw_lock_sx_lock_nowait(rw_lock, BUF_IO_WRITE)) {
-
-			if (!fsp_is_system_temporary(bpage->id.space())) {
-				/* avoiding deadlock possibility involves
-				doublewrite buffer, should flush it, because
-				it might hold the another block->lock. */
-				buf_dblwr_flush_buffered_writes();
-			} else {
-				buf_dblwr_sync_datafiles();
-			}
-
-			rw_lock_sx_lock_gen(rw_lock, BUF_IO_WRITE);
-		}
 
 		/* If there is an observer that want to know if the asynchronous
 		flushing was sent then notify it.

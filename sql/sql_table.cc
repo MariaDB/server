@@ -8100,6 +8100,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 {
   /* New column definitions are added here */
   List<Create_field> new_create_list;
+  /* System-invisible fields must be added last */
+  List<Create_field> new_create_tail;
   /* New key definitions are added here */
   List<Key> new_key_list;
   List_iterator<Alter_drop> drop_it(alter_info->drop_list);
@@ -8325,7 +8327,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       dropped_sys_vers_fields|= field->flags;
       drop_it.remove();
     }
-    else
+    else if (field->invisible < INVISIBLE_SYSTEM)
     {
       /*
         This field was not dropped and not changed, add it to the list
@@ -8349,6 +8351,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           def->flags|= NO_DEFAULT_VALUE_FLAG;
 	alter_it.remove();
       }
+    }
+    else
+    {
+      DBUG_ASSERT(field->invisible == INVISIBLE_SYSTEM);
+      def= new (thd->mem_root) Create_field(thd, field, field);
+      new_create_tail.push_back(def, thd->mem_root);
     }
   }
   dropped_sys_vers_fields &= VERS_SYSTEM_FIELD;
@@ -8482,6 +8490,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       alter_it.remove();
     }
   }
+
+  new_create_list.append(&new_create_tail);
+
   if (unlikely(alter_info->alter_list.elements))
   {
     my_error(ER_BAD_FIELD_ERROR, MYF(0),

@@ -65,6 +65,9 @@ partition pn current);
 insert into t values (1);
 update t set a= 2;
 update t set a= 3;
+Warnings:
+Warning	4114	Versioned table `test`.`t`: partition `p1` is full, add more HISTORY partitions
+# You see warning above ^
 delete history from t;
 select * from t for system_time all;
 a

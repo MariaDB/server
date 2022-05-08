@@ -8852,6 +8852,7 @@ bool st_select_lex::add_window_def(THD *thd,
     fields_in_window_functions+= win_part_list_ptr->elements +
                                  win_order_list_ptr->elements;
   }
+  win_def->win_spec_number= window_specs.elements;
   return (win_def == NULL || window_specs.push_back(win_def));
 }
 
@@ -8879,6 +8880,7 @@ bool st_select_lex::add_window_spec(THD *thd,
                                  win_order_list_ptr->elements;
   }
   thd->lex->win_spec= win_spec;
+  win_spec->win_spec_number= window_specs.elements;
   return (win_spec == NULL || window_specs.push_back(win_spec));
 }
 

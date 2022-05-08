@@ -11,6 +11,11 @@ MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
 # do it himself. No database directories should be removed while the server
 # is running!
 stop_server() {
+  # Return immediately if there are no mysql processes running
+  # as there is no point in trying to shutdown in that case.
+  # Compatibility with versions that ran 'mariadbd'
+  if ! pgrep -x --nslist pid --ns $$ "mysqld|mariadbd" > /dev/null; then return; fi
+
   set +e
   systemctl stop mysql
   errno=$?

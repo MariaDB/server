@@ -6457,12 +6457,11 @@ class Item_default_value : public Item_field
   void calculate();
 public:
   Item *arg;
-  Field *cached_field;
   Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a,
                      bool vcol_assignment_arg)
     :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                 &null_clex_str), vcol_assignment_ok(vcol_assignment_arg),
-     arg(a), cached_field(NULL) {}
+     arg(a) {}
   enum Type type() const { return DEFAULT_VALUE_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const;
   bool fix_fields(THD *, Item **);
@@ -6475,6 +6474,10 @@ public:
   bool get_date(THD *thd, MYSQL_TIME *ltime,date_mode_t fuzzydate);
   bool val_native(THD *thd, Native *to);
   bool val_native_result(THD *thd, Native *to);
+  longlong val_datetime_packed(THD *thd)
+  { return Item::val_datetime_packed(thd); }
+  longlong val_time_packed(THD *thd)
+  { return Item::val_time_packed(thd); }
 
   /* Result variants */
   double val_result();
@@ -6495,16 +6498,16 @@ public:
     return false;
   }
   table_map used_tables() const;
-  virtual void update_used_tables()
+  void update_used_tables()
   {
     if (field && field->default_value)
       field->default_value->expr->update_used_tables();
   }
   bool vcol_assignment_allowed_value() const { return vcol_assignment_ok; }
-  Field *get_tmp_table_field() { return 0; }
   Item *get_tmp_table_item(THD *thd) { return this; }
   Item_field *field_for_view_update() { return 0; }
   bool update_vcol_processor(void *arg) { return 0; }
+  bool check_field_expression_processor(void *arg);
   bool check_func_default_processor(void *arg) { return true; }
 
   bool walk(Item_processor processor, bool walk_subquery, void *args)
@@ -6782,7 +6785,7 @@ public:
   for any value.
 */
 
-class Item_cache: public Item,
+class Item_cache: public Item_fixed_hybrid,
                   public Type_handler_hybrid_field_type
 {
 protected:
@@ -6813,7 +6816,7 @@ public:
   bool null_value_inside;
 
   Item_cache(THD *thd):
-    Item(thd),
+    Item_fixed_hybrid(thd),
     Type_handler_hybrid_field_type(&type_handler_string),
     example(0), cached_field(0),
     value_cached(0),
@@ -6822,10 +6825,11 @@ public:
     maybe_null= 1;
     null_value= 1;
     null_value_inside= true;
+    fixed= 1;
   }
 protected:
   Item_cache(THD *thd, const Type_handler *handler):
-    Item(thd),
+    Item_fixed_hybrid(thd),
     Type_handler_hybrid_field_type(handler),
     example(0), cached_field(0),
     value_cached(0),
@@ -6834,6 +6838,7 @@ protected:
     maybe_null= 1;
     null_value= 1;
     null_value_inside= true;
+    fixed= 1;
   }
 
 public:
@@ -6885,10 +6890,17 @@ public:
     }
     return mark_unsupported_function("cache", arg, VCOL_IMPOSSIBLE);
   }
+  bool fix_fields(THD *thd, Item **ref)
+  {
+    fixed= 1;
+    if (example && !example->is_fixed())
+      return example->fix_fields(thd, ref);
+    return 0;
+  }
   void cleanup()
   {
     clear();
-    Item::cleanup();
+    Item_fixed_hybrid::cleanup();
   }
   /**
      Check if saved item has a non-NULL value.

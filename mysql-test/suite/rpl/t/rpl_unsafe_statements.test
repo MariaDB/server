@@ -24,7 +24,7 @@
 --source include/have_innodb.inc
 --source include/have_binlog_format_mixed.inc
 --source include/master-slave.inc
-call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+
 # Case-1: BINLOG_STMT_UNSAFE_AUTOINC_COLUMNS
 #  Statement is unsafe because it invokes a trigger or a
 #  stored function that inserts into an AUTO_INCREMENT column.

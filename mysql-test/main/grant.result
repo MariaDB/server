@@ -3,8 +3,6 @@ set LOCAL sql_mode="";
 SET @old_log_bin_trust_function_creators= @@global.log_bin_trust_function_creators;
 SET GLOBAL log_bin_trust_function_creators = 1;
 select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
-drop table if exists t1;
-drop database if exists mysqltest;
 connect  master,localhost,root,,;
 connection master;
 SET NAMES binary;
@@ -2783,6 +2781,14 @@ disconnect con1;
 DROP USER foo;
 DROP TABLE db.t;
 DROP DATABASE db;
+#
+# Bug#33578113: DROP privilege on performance_schema.* can't be revoked
+#
+connection default;
+CREATE USER bug33578113;
+GRANT DROP ON performance_schema.* TO bug33578113;
+REVOKE DROP ON performance_schema.* FROM bug33578113;
+DROP USER bug33578113;
 #
 # End of 10.2 tests
 #

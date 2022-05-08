@@ -16611,8 +16611,8 @@ ha_innobase::get_auto_increment(
 
 	(3) It is restricted only for insert operations. */
 
-	if (increment > 1 && thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE
-	    && autoinc < col_max_value) {
+	if (increment > 1 && increment <= ~autoinc && autoinc < col_max_value
+	    && thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE) {
 
 		ulonglong prev_auto_inc = autoinc;
 

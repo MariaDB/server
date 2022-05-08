@@ -310,7 +310,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 /*
   We should not introduce any further shift/reduce conflicts.
 */
-%expect 70
+%expect 73
 
 /*
    Comments for TOKENS.
@@ -423,6 +423,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  FIRST_VALUE_SYM               /* SQL-2011 */
 %token  FLOAT_NUM
 %token  FLOAT_SYM                     /* SQL-2003-R */
+%token  FORCE_LOOKAHEAD               /* INTERNAL never returned by the lexer */
 %token  FOREIGN                       /* SQL-2003-R */
 %token  FOR_SYM                       /* SQL-2003-R */
 %token  FOR_SYSTEM_TIME_SYM           /* INTERNAL */
@@ -2832,6 +2833,9 @@ sequence_def:
           }
         ;
 
+/* this rule is used to force look-ahead in the parser */
+force_lookahead: {} | FORCE_LOOKAHEAD {} ;
+
 server_def:
           SERVER_SYM opt_if_not_exists ident_or_text
           {
@@ -3033,7 +3037,7 @@ ev_sql_stmt:
 
             lex->sphead->set_body_start(thd, lip->get_cpp_ptr());
           }
-          sp_proc_stmt
+          sp_proc_stmt force_lookahead
           {
             /* return back to the original memory root ASAP */
             if (Lex->sp_body_finalize_event(thd))
@@ -18286,8 +18290,8 @@ trigger_tail:
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
-          sp_proc_stmt /* $19 */
-          { /* $20 */
+          sp_proc_stmt /* $19 */ force_lookahead /* $20 */
+          { /* $21 */
             LEX *lex= Lex;
 
             lex->sql_command= SQLCOM_CREATE_TRIGGER;
@@ -18336,7 +18340,7 @@ sf_c_chistics_and_body_standalone:
             lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
           sp_tail_is
-          sp_body
+          sp_body force_lookahead
           {
             if (unlikely(Lex->sp_body_finalize_function(thd)))
               MYSQL_YYABORT;

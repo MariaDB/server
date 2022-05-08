@@ -1,6 +1,6 @@
 create table t1 (a int) engine=myisam data directory='MYSQL_TMP_DIR';
 insert t1 values (1);
-# Some systems fail with errcode 40, or 90 (MIPS) when doing openat,
+# Some systems fail with errcode 31 (FreeBSD), 40, or 90 (MIPS) when doing openat,
 # while others don't have openat and fail with errcode 20.
 repair table t1;
 Table	Op	Msg_type	Msg_text

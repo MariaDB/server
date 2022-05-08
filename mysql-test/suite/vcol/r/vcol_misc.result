@@ -247,7 +247,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bigint(20) DEFAULT NULL,
-  `b` bigint(20) GENERATED ALWAYS AS (`a` > '2') VIRTUAL
+  `b` bigint(20) GENERATED ALWAYS AS (`a` > 2) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 (a) values (1),(3);
 select * from t1;
@@ -530,6 +530,26 @@ a	b
 13	14
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
+#
+# CONTEXT_ANALYSIS_ONLY_VCOL_EXPR
+#
+create table t1 (c1 char(1) character set ucs2 collate ucs2_test_ci,
+v1 char(1) character set ucs2 collate ucs2_test_ci as (c1),
+v2 int as (c1 = 'b'),
+v3 int as (v1 = 'b'));
+insert into t1 (c1) values ('a');
+select * from t1 where v1 = 'b';
+c1	v1	v2	v3
+a	a	1	1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` char(1) CHARACTER SET ucs2 COLLATE ucs2_test_ci DEFAULT NULL,
+  `v1` char(1) CHARACTER SET ucs2 GENERATED ALWAYS AS (`c1`) VIRTUAL,
+  `v2` int(11) GENERATED ALWAYS AS (`c1` = 'b') VIRTUAL,
+  `v3` int(11) GENERATED ALWAYS AS (`v1` = 'b') VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
 #
 # End of 10.2 tests
 #

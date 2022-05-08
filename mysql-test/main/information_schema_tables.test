@@ -1,0 +1,100 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-25243 ASAN heap-use-after-free in Item_func_sp::execute_impl upon concurrent view DDL and I_S query with view and function
+--echo #
+
+--echo # The originally reported non-deterministic test.
+--echo # It did not fail reliably on every run.
+
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+CREATE FUNCTION f(b INT) RETURNS INT RETURN 1;
+CREATE VIEW v AS SELECT f(SUM(a)) FROM t;
+--connect (con1,localhost,root,,test)
+--let $conid= `SELECT CONNECTION_ID()`
+--delimiter $
+--send
+LOOP
+  CREATE OR REPLACE VIEW vv AS SELECT 1;
+END LOOP $
+--delimiter ;
+--connection default
+# Avoid "Prepared statement needs to be re-prepared"
+# Note, the code could probably eventually fixed to avoid forcing re-pepare if
+# the *temporary* instance of Sp_caches (not the permanent one) was invalidated.
+--disable_ps_protocol
+--disable_warnings
+SELECT v.* FROM v JOIN INFORMATION_SCHEMA.TABLES WHERE DATA_LENGTH = -1;
+--enable_warnings
+--enable_ps_protocol
+# Cleanup
+--replace_result $conid CONID
+--eval KILL $conid
+--disconnect con1
+--connection default
+DROP VIEW IF EXISTS vv;
+DROP VIEW v;
+DROP FUNCTION f;
+DROP TABLE t;
+
+
+--echo # The second test version from the MDEV.
+--echo # It failed more reliably, but still was not deterministic.
+
+
+CREATE FUNCTION f() RETURNS INT RETURN 1;
+CREATE VIEW v AS SELECT f() FROM seq_1_to_10;
+--send SELECT * FROM INFORMATION_SCHEMA.TABLES, v;
+--connect(con1,localhost,root,,)
+CREATE VIEW v2 AS SELECT 1;
+--connection default
+--disable_result_log
+--reap
+--enable_result_log
+--disconnect con1
+DROP VIEW v;
+DROP VIEW v2;
+DROP FUNCTION f;
+
+--echo # The third test version from the MDEV.
+--echo # It failed reliably, and should be deterninistic.
+
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+CREATE VIEW v01 AS SELECT f1();
+CREATE VIEW v02 AS SELECT f1();
+
+--connect(con1,localhost,root,,)
+SELECT GET_LOCK('v01',30);
+SELECT GET_LOCK('v02',30);
+--connection default
+
+--send
+  SELECT * FROM INFORMATION_SCHEMA.TABLES
+  WHERE TABLE_SCHEMA='test'
+    AND TABLE_NAME LIKE 'v0%'
+    AND GET_LOCK(TABLE_NAME,30)
+    AND RELEASE_LOCK(TABLE_NAME)
+    AND f1()=1
+  ORDER BY TABLE_NAME;
+
+--connection con1
+SELECT RELEASE_LOCK('v01')                /* Let the first row evaluate f1 */;
+CREATE FUNCTION f2() RETURNS INT RETURN 1 /* Invalidate SP cache*/;
+SELECT RELEASE_LOCK('v02')                /* Let the second row evaluate f1() */;
+DROP FUNCTION f2;
+--disconnect con1
+--connection default
+--reap
+
+
+DROP VIEW v01, v02;
+DROP FUNCTION f1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

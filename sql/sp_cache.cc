@@ -312,3 +312,12 @@ sp_cache::cleanup()
 {
   my_hash_free(&m_hashtable);
 }
+
+
+void Sp_caches::sp_caches_clear()
+{
+  sp_cache_clear(&sp_proc_cache);
+  sp_cache_clear(&sp_func_cache);
+  sp_cache_clear(&sp_package_spec_cache);
+  sp_cache_clear(&sp_package_body_cache);
+}

@@ -421,7 +421,13 @@ public:
     vers_info->limit= limit;
     return !limit;
   }
+  bool vers_require_hist_part(THD *thd) const
+  {
+    return part_type == VERSIONING_PARTITION &&
+      thd->lex->vers_history_generating();
+  }
   int vers_set_hist_part(THD *thd);
+  void vers_check_limit(THD *thd);
   bool vers_setup_expression(THD *thd, uint32 alter_add= 0); /* Stage 1. */
   partition_element *get_partition(uint part_id)
   {

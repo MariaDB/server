@@ -18087,7 +18087,7 @@ Field *Item_default_value::create_tmp_field_ex(TABLE *table,
                                                 Tmp_field_src *src,
                                                 const Tmp_field_param *param)
 {
-  if (field->default_value && (field->flags & BLOB_FLAG))
+  if (field->default_value || (field->flags & BLOB_FLAG))
   {
     /*
       We have to use a copy function when using a blob with default value
@@ -18488,6 +18488,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   table->copy_blobs= 1;
   table->in_use= thd;
   table->no_rows_with_nulls= param->force_not_null_cols;
+  table->expr_arena= thd;
   table->update_handler= NULL;
   table->check_unique_buf= NULL;
 
@@ -25483,15 +25484,17 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   for (uint i= 0; (item= it++); i++)
   {
     Field *field;
-    if ((item->with_sum_func() && item->type() != Item::SUM_FUNC_ITEM) ||
+    enum Item::Type item_type= item->type();
+    if ((item->with_sum_func() && item_type != Item::SUM_FUNC_ITEM) ||
        item->with_window_func)
       item_field= item;
-    else if (item->type() == Item::FIELD_ITEM)
+    else if (item_type == Item::FIELD_ITEM ||
+             item_type == Item::DEFAULT_VALUE_ITEM)
     {
       if (!(item_field= item->get_tmp_table_item(thd)))
         DBUG_RETURN(true);
     }
-    else if (item->type() == Item::FUNC_ITEM &&
+    else if (item_type == Item::FUNC_ITEM &&
              ((Item_func*)item)->functype() == Item_func::SUSERVAR_FUNC)
     {
       field= item->get_tmp_table_field();
@@ -27369,7 +27372,7 @@ static void print_table_array(THD *thd,
      too)
 */
 
-static bool is_eliminated_table(table_map eliminated_tables, TABLE_LIST *tbl)
+bool is_eliminated_table(table_map eliminated_tables, TABLE_LIST *tbl)
 {
   return eliminated_tables &&
     ((tbl->table && (tbl->table->map & eliminated_tables)) ||
