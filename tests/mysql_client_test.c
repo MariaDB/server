@@ -20241,6 +20241,7 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
 
   // normalize IPv4-mapped IPv6 addresses, e.g ::ffff:127.0.0.2 to 127.0.0.2
   const char *normalized_addr= strncmp(ipaddr, "::ffff:", 7)?ipaddr : ipaddr + 7;
+  myheader("test_proxy_header_tcp");
 
   memset(&v2_header, 0, sizeof(v2_header));
   sprintf(text_header,"PROXY %s %s %s %d 3306\r\n",family == AF_INET?"TCP4":"TCP6", ipaddr, ipaddr, port);
@@ -20319,6 +20320,7 @@ static void test_proxy_header_localhost()
   MYSQL_RES *result;
   MYSQL_ROW row;
   int rc;
+  myheader("test_proxy_header_localhost");
 
   memset(&v2_header, 0, sizeof(v2_header));
   memcpy(v2_header.sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A", 12);
@@ -20351,6 +20353,7 @@ static void test_proxy_header_ignore()
   int rc;
   MYSQL *m = mysql_client_init(NULL);
   v2_proxy_header v2_header;
+  myheader("test_ps_params_in_ctes");
   DIE_UNLESS(m != NULL);
   mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, "PROXY UNKNOWN\r\n",15);
   DIE_UNLESS(mysql_real_connect(m, opt_host, "root", "", NULL, opt_port, opt_unix_socket, 0) == m);
@@ -20381,6 +20384,7 @@ static void test_proxy_header_ignore()
 
 static void test_proxy_header()
 {
+  myheader("test_proxy_header");
   test_proxy_header_tcp("192.0.2.1",3333);
   test_proxy_header_tcp("2001:db8:85a3::8a2e:370:7334",2222);
   test_proxy_header_tcp("::ffff:192.0.2.1",2222);
@@ -20400,6 +20404,7 @@ static void test_bulk_autoinc()
   int        i, id[]= {2, 3, 777}, count= sizeof(id)/sizeof(id[0]);
   MYSQL_RES *result;
 
+  myheader("test_bulk_autoinc");
   rc= mysql_query(mysql, "DROP TABLE IF EXISTS ai_field_value");
   myquery(rc);
   rc= mysql_query(mysql, "CREATE TABLE ai_field_value (id int not null primary key auto_increment)");
@@ -20453,6 +20458,7 @@ static void test_bulk_delete()
   int        i, id[]= {1, 2, 4}, count= sizeof(id)/sizeof(id[0]);
   MYSQL_RES *result;
 
+  myheader("test_bulk_delete");
   rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
   myquery(rc);
   rc= mysql_query(mysql, "CREATE TABLE t1 (id int not null primary key)");
@@ -20515,6 +20521,7 @@ static void test_bulk_replace()
              count= sizeof(id)/sizeof(id[0]);
   MYSQL_RES *result;
 
+  myheader("test_bulk_replace");
   rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
   myquery(rc);
   rc= mysql_query(mysql, "CREATE TABLE t1 (id int not null primary key, active int)");
@@ -20745,6 +20752,7 @@ static void test_ps_params_in_ctes()
   int int_data[1];
   MYSQL_STMT *stmt;
 
+  myheader("test_ps_params_in_ctes");
   rc= mysql_query(mysql, "create table t1(a int, b int, key(a))");
   myquery(rc);
 

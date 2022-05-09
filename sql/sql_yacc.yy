@@ -346,11 +346,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 
 %ifdef MARIADB
-%expect 67
+%expect 71
 %else
-%expect 69
+%expect 72
 %endif
-
 
 /*
    Comments for TOKENS.
@@ -379,6 +378,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 %token  <NONE> ABORT_SYM              /* INTERNAL (used in lex) */
 %token  <NONE> IMPOSSIBLE_ACTION      /* To avoid warning for yyerrlab1 */
+%token  <NONE> FORCE_LOOKAHEAD        /* INTERNAL never returned by the lexer */
 %token  <NONE> END_OF_INPUT           /* INTERNAL */
 %token  <kwd>  COLON_ORACLE_SYM       /* INTERNAL */
 %token  <kwd>  PARAM_MARKER           /* INTERNAL */
@@ -391,7 +391,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <NONE> WITH_CUBE_SYM          /* INTERNAL */
 %token  <NONE> WITH_ROLLUP_SYM        /* INTERNAL */
 %token  <NONE> WITH_SYSTEM_SYM        /* INTERNAL */
-
 
 /*
   Identifiers
@@ -2655,6 +2654,9 @@ sequence_def:
           }
         ;
 
+/* this rule is used to force look-ahead in the parser */
+force_lookahead: {} | FORCE_LOOKAHEAD {} ;
+
 server_def:
           SERVER_SYM opt_if_not_exists ident_or_text
           {
@@ -2856,7 +2858,7 @@ ev_sql_stmt:
 
             lex->sphead->set_body_start(thd, lip->get_cpp_ptr());
           }
-          sp_proc_stmt
+          sp_proc_stmt force_lookahead
           {
             /* return back to the original memory root ASAP */
             if (Lex->sp_body_finalize_event(thd))
@@ -12907,6 +12909,7 @@ insert_start: {
                 if (Lex->main_select_push())
                   MYSQL_YYABORT;
                 mysql_init_select(Lex);
+                Lex->inc_select_stack_outer_barrier();
                 Lex->current_select->parsing_place= BEFORE_OPT_LIST;
               }
               ;
@@ -17666,8 +17669,8 @@ trigger_tail:
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
-          sp_proc_stmt /* $19 */
-          { /* $20 */
+          sp_proc_stmt /* $19 */ force_lookahead /* $20 */
+          { /* $21 */
             LEX *lex= Lex;
 
             lex->sql_command= SQLCOM_CREATE_TRIGGER;
@@ -17707,7 +17710,6 @@ sf_return_type:
               MYSQL_YYABORT;
           }
         ;
-
 
 /*************************************************************************/
 
@@ -18026,7 +18028,7 @@ sf_c_chistics_and_body_standalone:
             lex->sphead->set_c_chistics(lex->sp_chistics);
             lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
-          sp_proc_stmt_in_returns_clause
+          sp_proc_stmt_in_returns_clause force_lookahead
           {
             if (unlikely(Lex->sp_body_finalize_function(thd)))
               MYSQL_YYABORT;
@@ -18047,7 +18049,7 @@ sp_tail_standalone:
             Lex->sphead->set_c_chistics(Lex->sp_chistics);
             Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
-          sp_proc_stmt
+          sp_proc_stmt force_lookahead
           {
             if (unlikely(Lex->sp_body_finalize_procedure(thd)))
               MYSQL_YYABORT;
@@ -18914,8 +18916,7 @@ sf_c_chistics_and_body_standalone:
             lex->sphead->set_c_chistics(lex->sp_chistics);
             lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
-          sp_tail_is
-          sp_body
+          sp_tail_is sp_body force_lookahead
           {
             if (unlikely(Lex->sp_body_finalize_function(thd)))
               MYSQL_YYABORT;

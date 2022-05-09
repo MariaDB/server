@@ -41,6 +41,7 @@ can be invoked several ways:
 shell> \fBmysql_tzinfo_to_sql \fR\fB\fItz_dir\fR\fR
 shell> \fBmysql_tzinfo_to_sql \fR\fB\fItz_file tz_name\fR\fR
 shell> \fBmysql_tzinfo_to_sql \-\-leap \fR\fB\fItz_file\fR\fR
+shell> \fBmysql_tzinfo_to_sql \-\-skip\-write\-binlog \fR\fB\fItz_dir\fR\fR
 .fi
 .if n \{\
 .RE
@@ -99,6 +100,9 @@ shell> \fBmysql_tzinfo_to_sql \-\-leap \fR\fB\fItz_file\fR\fR\fB | mysql \-u roo
 .if n \{\
 .RE
 .\}
+.PP
+Using the \-\-skip\-write\-binlog option prevents writing of changes to the binary log or to other Galera
+cluster members. This can be used with any form of running \fBmysql_tzinfo_to_sql\fR.
 .PP
 After running
 \fBmysql_tzinfo_to_sql\fR, it is best to restart the server so that it does not continue to use any previously cached time zone data\&.

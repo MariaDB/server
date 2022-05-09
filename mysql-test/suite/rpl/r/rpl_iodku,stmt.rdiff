@@ -1,0 +1,27 @@
+--- r/rpl_iodku.result	2022-05-04 18:51:24.956414404 +0300
++++ r/rpl_iodku,stmt.reject	2022-05-04 18:51:49.520106231 +0300
+@@ -1,10 +1,15 @@
+ include/master-slave.inc
+ [connection master]
++call mtr.add_suppression("Unsafe statement written to the binary log using statement");
+ CREATE TABLE t1 (id INT PRIMARY KEY AUTO_INCREMENT, a INT, b INT, c INT,
+ UNIQUE (a), UNIQUE (b)) ENGINE=innodb;
+ INSERT INTO t1 (`a`,`c`) VALUES (1,1), (2,1) ON DUPLICATE KEY UPDATE c = 1;
++Warnings:
++Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. INSERT... ON DUPLICATE KEY UPDATE  on a table with more than one UNIQUE KEY is unsafe
+ # UNSAFE
+ INSERT INTO t1 (`a`,`c`) VALUES (3, 1),(2,1), (1,1) ON DUPLICATE KEY UPDATE c = a * 10 + VALUES(c);
++Warnings:
++Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. INSERT... ON DUPLICATE KEY UPDATE  on a table with more than one UNIQUE KEY is unsafe
+ SELECT * from t1;
+ id	a	b	c
+ 1	1	NULL	11
+@@ -17,6 +22,8 @@
+ INSERT INTO t1 VALUES (1,10,1);
+ # eligable for the statement format run unsafe warning
+ INSERT INTO t1 VALUES (2,20,2) ON DUPLICATE KEY UPDATE c = 100;
++Warnings:
++Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. INSERT... ON DUPLICATE KEY UPDATE  on a table with more than one UNIQUE KEY is unsafe
+ # not eligable: no warning in the statement format run
+ INSERT INTO t1 (`a`,`c`) VALUES (3, 1) ON DUPLICATE KEY UPDATE c = 99;
+ SELECT * from t1;

@@ -1,0 +1,48 @@
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-25243 ASAN heap-use-after-free in Item_func_sp::execute_impl upon concurrent view DDL and I_S query with view and function
+--echo #
+
+
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+CREATE VIEW v01 AS SELECT f1();
+CREATE VIEW v02 AS SELECT f1();
+
+--connect(con1,localhost,root,,)
+SELECT GET_LOCK('v01',30);
+SELECT GET_LOCK('v02',30);
+--connection default
+
+--send
+  SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA='test'
+    AND TABLE_NAME LIKE 'v0%'
+    AND GET_LOCK(TABLE_NAME,30)
+    AND RELEASE_LOCK(TABLE_NAME)
+    AND f1()=1
+  ORDER BY TABLE_NAME;
+
+--connection con1
+--connection con1
+SELECT RELEASE_LOCK('v01')                /* Let the first row evaluate f1 */;
+CREATE FUNCTION f2() RETURNS INT RETURN 1 /* Invalidate SP cache*/;
+SELECT RELEASE_LOCK('v02')                /* Let the second row evaluate f1() */;
+DROP FUNCTION f2;
+--disconnect con1
+
+--connection default
+--disable_result_log
+--reap
+--enable_result_log
+SELECT RELEASE_LOCK('v01');
+SELECT RELEASE_LOCK('v02');
+
+DROP VIEW v01, v02;
+DROP FUNCTION f1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
