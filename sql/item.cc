@@ -9525,6 +9525,12 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
   return Item_field::save_in_field(field_arg, no_conversions);
 }
 
+void Item_default_value::save_in_result_field(bool no_conversions)
+{
+  calculate();
+  Item_field::save_in_result_field(no_conversions);
+}
+
 double Item_default_value::val_result()
 {
   calculate();
@@ -9582,6 +9588,23 @@ table_map Item_default_value::used_tables() const
   if (!field->default_value->expr)           // not fully parsed field
     return static_cast<table_map>(RAND_TABLE_BIT);
   return field->default_value->expr->used_tables();
+}
+
+bool Item_default_value::register_field_in_read_map(void *arg)
+{
+  TABLE *table= (TABLE *) arg;
+  int res= 0;
+  if (!table || (table && table == field->table))
+  {
+    if (field->default_value && field->default_value->expr)
+      res= field->default_value->expr->walk(&Item::register_field_in_read_map,1,arg);
+  }
+  else if (result_field && table == result_field->table)
+  {
+    bitmap_set_bit(table->read_set, result_field->field_index);
+  }
+
+  return res;
 }
 
 /**

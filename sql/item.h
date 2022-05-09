@@ -6490,6 +6490,7 @@ public:
 
   bool send(Protocol *protocol, st_value *buffer);
   int save_in_field(Field *field_arg, bool no_conversions);
+  void save_in_result_field(bool no_conversions);
   bool save_in_param(THD *thd, Item_param *param)
   {
     // It should not be possible to have "EXECUTE .. USING DEFAULT(a)"
@@ -6509,6 +6510,7 @@ public:
   bool update_vcol_processor(void *arg) { return 0; }
   bool check_field_expression_processor(void *arg);
   bool check_func_default_processor(void *arg) { return true; }
+  bool register_field_in_read_map(void *arg);
 
   bool walk(Item_processor processor, bool walk_subquery, void *args)
   {

@@ -18094,7 +18094,10 @@ Field *Item_default_value::create_tmp_field_ex(TABLE *table,
       as the we have to calculate the default value before we can use it.
     */
      get_tmp_field_src(src, param);
-     return tmp_table_field_from_field_type(table);
+     Field *result= tmp_table_field_from_field_type(table);
+     if (result && param->modify_item())
+       result_field= result;
+     return result;
   }
   /*
     Same code as in Item_field::create_tmp_field_ex, except no default field

@@ -2160,3 +2160,15 @@ drop table t1;
 --echo #
 --echo # End of 10.3 test
 --echo #
+
+--echo #
+--echo # MDEV-26423: MariaDB server crash in Create_tmp_table::finalize
+--echo #
+CREATE TABLE t1 (pk text DEFAULT length(uuid()));
+INSERT INTO t1 VALUES (),();
+SELECT 1 FROM t1 GROUP BY DEFAULT(pk);
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 test
+--echo #

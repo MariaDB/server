@@ -3412,6 +3412,7 @@ INSERT INTO t1 VALUES (),();
 SELECT 1 FROM t1 GROUP BY DEFAULT(pk);
 1
 1
+1
 DROP TABLE t1;
 #
 # MDEV-28402: ASAN heap-use-after-free in create_tmp_table,
@@ -3451,4 +3452,16 @@ INSERT INTO t1 () VALUES ();
 drop table t1;
 #
 # End of 10.3 test
+#
+#
+# MDEV-26423: MariaDB server crash in Create_tmp_table::finalize
+#
+CREATE TABLE t1 (pk text DEFAULT length(uuid()));
+INSERT INTO t1 VALUES (),();
+SELECT 1 FROM t1 GROUP BY DEFAULT(pk);
+1
+1
+DROP TABLE t1;
+#
+# End of 10.4 test
 #
