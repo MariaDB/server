@@ -1577,8 +1577,6 @@ public:
   /* SJM nests that are executed with SJ-Materialization strategy */
   List<SJ_MATERIALIZATION_INFO> sjm_info_list;
 
-  /** TRUE <=> ref_pointer_array is set to items3. */
-  bool set_group_rpa;
   /** Exec time only: TRUE <=> current group has been sent */
   bool group_sent;
   /**
