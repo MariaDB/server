@@ -505,7 +505,6 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
 
   no_const_tables= FALSE;
   first_select= sub_select;
-  set_group_rpa= false;
   group_sent= 0;
 
   outer_ref_cond= pseudo_bits_cond= NULL;
@@ -4407,7 +4406,6 @@ JOIN::reinit()
   if (current_ref_ptrs != items0)
   {
     set_items_ref_array(items0);
-    set_group_rpa= false;
   }
 
   /* need to reset ref access state (see join_read_key) */
@@ -14926,7 +14924,6 @@ void JOIN::cleanup(bool full)
   if (current_ref_ptrs != items0)
   {
     set_items_ref_array(items0);
-    set_group_rpa= false;
   }
   DBUG_VOID_RETURN;
 }
@@ -23046,11 +23043,8 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
   List<Item> *fields= join_tab ? (join_tab-1)->fields : join->fields;
   DBUG_ENTER("end_send_group");
 
-  if (!join->items3.is_null() && !join->set_group_rpa)
-  {
-    join->set_group_rpa= true;
+  if (!join->items3.is_null() && join->current_ref_ptrs != join->items3)
     join->set_items_ref_array(join->items3);
-  }
 
   if (!join->first_record || end_of_records ||
       (idx=test_if_group_changed(join->group_fields)) >= 0)
