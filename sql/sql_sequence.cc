@@ -308,6 +308,11 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
       DBUG_RETURN(TRUE);
   }
 
+#ifdef WITH_WSREP
+  if (WSREP_ON && seq->cache != 0) 
+    WSREP_WARN("CREATE SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
+#endif
+
   /* If not temporary table */
   if (!temporary_table)
   {
@@ -904,11 +909,17 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   No_such_table_error_handler no_such_table_handler;
   DBUG_ENTER("Sql_cmd_alter_sequence::execute");
 
+
   if (check_access(thd, ALTER_ACL, first_table->db.str,
                    &first_table->grant.privilege,
                    &first_table->grant.m_internal,
                    0, 0))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
+
+#ifdef WITH_WSREP
+  if (WSREP_ON && new_seq->cache != 0) 
+    WSREP_WARN("ALTER SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
+#endif
 
   if (check_grant(thd, ALTER_ACL, first_table, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */

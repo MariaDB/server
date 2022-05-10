@@ -10777,13 +10777,13 @@ maria_declare_plugin_end;
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
 
-IO_CACHE *wsrep_get_trans_cache(THD * thd)
+IO_CACHE *wsrep_get_cache(THD * thd, bool is_transactional)
 {
   DBUG_ASSERT(binlog_hton->slot != HA_SLOT_UNDEF);
   binlog_cache_mngr *cache_mngr = (binlog_cache_mngr*)
     thd_get_ha_data(thd, binlog_hton);
   if (cache_mngr)
-    return cache_mngr->get_binlog_cache_log(true);
+    return cache_mngr->get_binlog_cache_log(is_transactional);
 
   WSREP_DEBUG("binlog cache not initialized, conn: %llu",
 	      thd->thread_id);

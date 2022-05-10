@@ -44,6 +44,9 @@ Table	Create Table
 Seq1_1	CREATE SEQUENCE `Seq1_1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB
 select NEXT VALUE FOR Seq1_1;
 NEXT VALUE FOR Seq1_1
-1
+3001
 connection node_1;
 DROP SEQUENCE Seq1_1;
+CALL mtr.add_suppression("SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
+connection node_2;
+CALL mtr.add_suppression("SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
