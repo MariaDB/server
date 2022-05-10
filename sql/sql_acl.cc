@@ -1356,7 +1356,15 @@ class Grant_tables
       Rpl_filter *rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
       if (rpl_filter->is_on() &&
           !rpl_filter->tables_ok(0, &first_table_in_list->tl))
+      {
+        /*
+          If an event is targeting an ignored table, clear the expected error
+          because the query will not be executed.
+        */
+        thd->slave_expected_error= 0;
+
         DBUG_RETURN(1);
+      }
     }
 #endif
     if (open_and_lock_tables(thd, &first_table_in_list->tl, FALSE,

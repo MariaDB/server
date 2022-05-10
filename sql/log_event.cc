@@ -5357,6 +5357,12 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         thd->update_server_status();
         log_slow_statement(thd);
         thd->lex->restore_set_statement_var();
+
+        /*
+          slave_expected_error can be reset if the targeted tables are ignored
+          by the replication filter
+        */
+        expected_error= thd->slave_expected_error;
       }
 
       thd->variables.option_bits&= ~OPTION_MASTER_SQL_ERROR;
