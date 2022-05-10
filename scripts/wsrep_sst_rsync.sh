@@ -452,7 +452,7 @@ EOF
                     elif tar --version | grep -qw -E '^bsdtar'; then
                         tar_type=2
                     fi
-                    if [ $tar_type -ne 2 ]; then
+                    if [ $tar_type -eq 2 ]; then
                         if [ -n "$BASH_VERSION" ]; then
                             printf '%s' "$binlog_files" >&2
                         else
