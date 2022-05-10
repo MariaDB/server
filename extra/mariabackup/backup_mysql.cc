@@ -1090,9 +1090,11 @@ write_slave_info(MYSQL *connection)
 	char *gtid_executed = NULL;
 	char *using_gtid = NULL;
 	char *position = NULL;
+	char *gtid_binlog_state = NULL;
 	char *gtid_slave_pos = NULL;
 	char *ptr;
 	bool result = false;
+	bool with_gtids = false;
 
 	mysql_variable status[] = {
 		{"Master_Host", &master},
@@ -1104,6 +1106,7 @@ write_slave_info(MYSQL *connection)
 	};
 
 	mysql_variable variables[] = {
+	        {"gtid_binlog_state", &gtid_binlog_state},
 		{"gtid_slave_pos", &gtid_slave_pos},
 		{NULL, NULL}
 	};
@@ -1120,10 +1123,12 @@ write_slave_info(MYSQL *connection)
 		goto cleanup;
 	}
 
+	with_gtids = !(using_gtid && !strncmp(using_gtid, "No", 2));
+
 	/* Print slave status to a file.
 	If GTID mode is used, construct a CHANGE MASTER statement with
 	MASTER_AUTO_POSITION and correct a gtid_purged value. */
-	if (gtid_executed != NULL && *gtid_executed) {
+	if (with_gtids && gtid_executed && *gtid_executed) {
 		/* MySQL >= 5.6 with GTID enabled */
 
 		for (ptr = strchr(gtid_executed, '\n');
@@ -1140,8 +1145,15 @@ write_slave_info(MYSQL *connection)
 		ut_a(asprintf(&mysql_slave_position,
 			"master host '%s', purge list '%s'",
 			master, gtid_executed) != -1);
-	} else if (gtid_slave_pos && *gtid_slave_pos &&
-			!(using_gtid && !strncmp(using_gtid, "No", 2))) {
+	} else if (with_gtids && gtid_binlog_state && *gtid_binlog_state) {
+		result = backup_file_printf(XTRABACKUP_SLAVE_INFO,
+			"SET GLOBAL gtid_binlog_state = '%s';\n"
+			"CHANGE MASTER TO master_use_gtid = slave_pos\n",
+			gtid_binlog_state);
+		ut_a(asprintf(&mysql_slave_position,
+			"master host '%s', gtid_binlog_state %s",
+			master, gtid_binlog_state) != -1);
+	} else if (with_gtids && gtid_slave_pos && *gtid_slave_pos) {
 		/* MariaDB >= 10.0 with GTID enabled */
 		result = backup_file_printf(XTRABACKUP_SLAVE_INFO,
 			"SET GLOBAL gtid_slave_pos = '%s';\n"
@@ -1384,7 +1396,7 @@ write_binlog_info(MYSQL *connection, char *log_bin_dir,
 	char *filename = NULL;
 	char *position = NULL;
 	char *gtid_mode = NULL;
-	char *gtid_current_pos = NULL;
+	char *gtid_binlog_state = NULL;
 	char *gtid_executed = NULL;
 	char *gtid = NULL;
 	char *buffer;
@@ -1404,7 +1416,7 @@ write_binlog_info(MYSQL *connection, char *log_bin_dir,
 
 	mysql_variable vars[] = {
 		{"gtid_mode", &gtid_mode},
-		{"gtid_current_pos", &gtid_current_pos},
+		{"gtid_binlog_state", &gtid_binlog_state},
 		{NULL, NULL}
 	};
 
@@ -1412,9 +1424,9 @@ write_binlog_info(MYSQL *connection, char *log_bin_dir,
 	read_mysql_variables(connection, "SHOW VARIABLES", vars, true);
 
 	mysql_gtid = gtid_mode && (strcmp(gtid_mode, "ON") == 0);
-	mariadb_gtid = gtid_current_pos && *gtid_current_pos;
+	mariadb_gtid = gtid_binlog_state && *gtid_binlog_state;
 
-	gtid = (gtid_executed && *gtid_executed) ? gtid_executed : gtid_current_pos;
+	gtid = (gtid_executed && *gtid_executed) ? gtid_executed : gtid_binlog_state;
 
 	with_gtid = mariadb_gtid || mysql_gtid;
 	if (with_gtid) {
