@@ -3121,9 +3121,6 @@ row_ins_clust_index_entry(
 #endif /* WITH_WSREP */
 	const ulint	orig_n_fields = entry->n_fields;
 
-	/* Try first optimistic descent to the B-tree */
-	log_free_check();
-
 	/* For intermediate table during copy alter table,
 	   skip the undo log and record lock checking for
 	   insertion operation.

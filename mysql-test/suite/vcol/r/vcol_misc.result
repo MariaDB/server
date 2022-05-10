@@ -1,4 +1,3 @@
-drop table if exists t1,t2;
 create table t1 (a int, b int, v int as (a+1), index idx(b));
 insert into t1(a, b) values
 (4, 40), (3, 30), (5, 50), (7, 70), (8, 80), (2, 20), (1, 10);
@@ -247,7 +246,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bigint(20) DEFAULT NULL,
-  `b` bigint(20) GENERATED ALWAYS AS (`a` > '2') VIRTUAL
+  `b` bigint(20) GENERATED ALWAYS AS (`a` > 2) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 (a) values (1),(3);
 select * from t1;
@@ -450,9 +449,6 @@ SET sql_mode=DEFAULT;
 # End of 10.1 tests
 #
 #
-# Start of 10.2 tests
-#
-#
 # MDEV-16518 MYSQL57_GENERATED_FIELD: The code in TABLE_SHARE::init_from_binary_frm_image() is not safe
 #
 SHOW TABLES;
@@ -530,6 +526,27 @@ a	b
 13	14
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
+#
+# CONTEXT_ANALYSIS_ONLY_VCOL_EXPR
+#
+call mtr.add_suppression("Charset id.*trying to replace");
+create table t1 (c1 char(1) character set ucs2 collate ucs2_test_ci,
+v1 char(1) character set ucs2 collate ucs2_test_ci as (c1),
+v2 int as (c1 = 'b'),
+v3 int as (v1 = 'b'));
+insert into t1 (c1) values ('a');
+select * from t1 where v1 = 'b';
+c1	v1	v2	v3
+a	a	1	1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` char(1) CHARACTER SET ucs2 COLLATE ucs2_test_ci DEFAULT NULL,
+  `v1` char(1) CHARACTER SET ucs2 GENERATED ALWAYS AS (`c1`) VIRTUAL,
+  `v2` int(11) GENERATED ALWAYS AS (`c1` = 'b') VIRTUAL,
+  `v3` int(11) GENERATED ALWAYS AS (`v1` = 'b') VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
 #
 # End of 10.2 tests
 #

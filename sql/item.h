@@ -2177,6 +2177,12 @@ public:
     return 0;
   }
 
+  virtual bool set_extraction_flag_processor(void *arg)
+  {
+    set_extraction_flag(*(int16*)arg);
+    return 0;
+  }
+
   /**
     Check db/table_name if they defined in item and match arg values
 
@@ -6621,7 +6627,6 @@ class Item_default_value : public Item_field
   void calculate();
 public:
   Item *arg= nullptr;
-  Field *cached_field= nullptr;
   Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a,
                      bool vcol_assignment_arg)
     : Item_field(thd, context_arg),
@@ -6638,6 +6643,10 @@ public:
   bool get_date(THD *thd, MYSQL_TIME *ltime,date_mode_t fuzzydate) override;
   bool val_native(THD *thd, Native *to) override;
   bool val_native_result(THD *thd, Native *to) override;
+  longlong val_datetime_packed(THD *thd)
+  { return Item::val_datetime_packed(thd); }
+  longlong val_time_packed(THD *thd)
+  { return Item::val_time_packed(thd); }
 
   /* Result variants */
   double val_result() override;
@@ -6651,6 +6660,7 @@ public:
 
   bool send(Protocol *protocol, st_value *buffer) override;
   int save_in_field(Field *field_arg, bool no_conversions) override;
+  void save_in_result_field(bool no_conversions) override;
   bool save_in_param(THD *, Item_param *param) override
   {
     // It should not be possible to have "EXECUTE .. USING DEFAULT(a)"
@@ -6666,11 +6676,12 @@ public:
   }
   bool vcol_assignment_allowed_value() const override
   { return vcol_assignment_ok; }
-  Field *get_tmp_table_field() override { return nullptr; }
   Item *get_tmp_table_item(THD *) override { return this; }
   Item_field *field_for_view_update() override { return nullptr; }
   bool update_vcol_processor(void *) override { return false; }
+  bool check_field_expression_processor(void *arg) override;
   bool check_func_default_processor(void *) override { return true; }
+  bool register_field_in_read_map(void *arg) override;
   bool walk(Item_processor processor, bool walk_subquery, void *args) override
   {
     return (arg && arg->walk(processor, walk_subquery, args)) ||
@@ -6949,7 +6960,7 @@ public:
   for any value.
 */
 
-class Item_cache: public Item,
+class Item_cache: public Item_fixed_hybrid,
                   public Type_handler_hybrid_field_type
 {
 protected:
@@ -6980,7 +6991,7 @@ public:
   bool null_value_inside;
 
   Item_cache(THD *thd):
-    Item(thd),
+    Item_fixed_hybrid(thd),
     Type_handler_hybrid_field_type(&type_handler_string),
     example(0), cached_field(0),
     value_cached(0),
@@ -6989,10 +7000,11 @@ public:
     set_maybe_null();
     null_value= 1;
     null_value_inside= true;
+    quick_fix_field();
   }
 protected:
   Item_cache(THD *thd, const Type_handler *handler):
-    Item(thd),
+    Item_fixed_hybrid(thd),
     Type_handler_hybrid_field_type(handler),
     example(0), cached_field(0),
     value_cached(0),
@@ -7001,6 +7013,7 @@ protected:
     set_maybe_null();
     null_value= 1;
     null_value_inside= true;
+    quick_fix_field();
   }
 
 public:
@@ -7053,10 +7066,17 @@ public:
     }
     return mark_unsupported_function("cache", arg, VCOL_IMPOSSIBLE);
   }
+  bool fix_fields(THD *thd, Item **ref) override
+  {
+    quick_fix_field();
+    if (example && !example->fixed())
+      return example->fix_fields(thd, ref);
+    return 0;
+  }
   void cleanup() override
   {
     clear();
-    Item::cleanup();
+    Item_fixed_hybrid::cleanup();
   }
   /**
      Check if saved item has a non-NULL value.

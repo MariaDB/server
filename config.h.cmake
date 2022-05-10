@@ -560,3 +560,5 @@
 #endif  // !defined(__STDC_FORMAT_MACROS)
 
 #endif
+
+#cmakedefine HAVE_VFORK 1

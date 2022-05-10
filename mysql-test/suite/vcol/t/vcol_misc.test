@@ -3,10 +3,6 @@
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
-
 #
 # Bug#601164: DELETE/UPDATE with ORDER BY index and LIMIT
 #             
@@ -419,11 +415,6 @@ SET sql_mode=DEFAULT;
 --echo # End of 10.1 tests
 --echo #
 
-
---echo #
---echo # Start of 10.2 tests
---echo #
-
 --echo #
 --echo # MDEV-16518 MYSQL57_GENERATED_FIELD: The code in TABLE_SHARE::init_from_binary_frm_image() is not safe
 --echo #
@@ -504,6 +495,21 @@ SELECT * FROM t1;
 
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
+
+--echo #
+--echo # CONTEXT_ANALYSIS_ONLY_VCOL_EXPR
+--echo #
+
+--source include/have_ucs2.inc
+call mtr.add_suppression("Charset id.*trying to replace");
+create table t1 (c1 char(1) character set ucs2 collate ucs2_test_ci,
+                 v1 char(1) character set ucs2 collate ucs2_test_ci as (c1),
+                 v2 int as (c1 = 'b'),
+                 v3 int as (v1 = 'b'));
+insert into t1 (c1) values ('a');
+select * from t1 where v1 = 'b';
+show create table t1;
+drop table t1;
 
 --echo #
 --echo # End of 10.2 tests

@@ -13,6 +13,9 @@ connection slave;
 "using_gtid: Slave_Pos"
 FOUND 1 /gtid_slave_pos/ in xtrabackup_slave_info
 NOT FOUND /MASTER_LOG_FILE/ in xtrabackup_slave_info
+lineno	line
+1	SET GLOBAL gtid_slave_pos = '<NUM-NUM-NUM>';
+2	CHANGE MASTER TO master_use_gtid = slave_pos;
 ###############
 # If Using_Gtid != 'No' and !gtid_slave_pos, backup master position
 ########################
@@ -20,6 +23,8 @@ include/stop_slave.inc
 SET GLOBAL gtid_slave_pos="";
 NOT FOUND /gtid_slave_pos/ in xtrabackup_slave_info
 FOUND 1 /MASTER_LOG_FILE/ in xtrabackup_slave_info
+lineno	line
+1	CHANGE MASTER TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=<NUM>;
 ###############
 # If Using_Gtid == 'No', backup Exec_Master_Log_Pos
 ########################
@@ -31,6 +36,8 @@ connection slave;
 "using_gtid: No"
 NOT FOUND /gtid_slave_pos/ in xtrabackup_slave_info
 FOUND 1 /MASTER_LOG_FILE/ in xtrabackup_slave_info
+lineno	line
+1	CHANGE MASTER TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=<NUM>;
 connection master;
 DROP TABLE t;
 connection slave;

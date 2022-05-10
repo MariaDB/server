@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2022, Oracle and/or its affiliates.
 Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -2752,6 +2752,18 @@ lock_update_split_right(
                           PAGE_HEAP_NO_SUPREMUM, h);
 }
 
+void lock_update_node_pointer(const buf_block_t *left_block,
+                              const buf_block_t *right_block)
+{
+  const ulint h= lock_get_min_heap_no(right_block);
+  const page_id_t l{left_block->page.id()};
+  const page_id_t r{right_block->page.id()};
+  LockMultiGuard g{lock_sys.rec_hash, l, r};
+
+  lock_rec_inherit_to_gap(g.cell2(), r, g.cell1(), l, right_block->page.frame,
+                          h, PAGE_HEAP_NO_SUPREMUM);
+}
+
 #ifdef UNIV_DEBUG
 static void lock_assert_no_spatial(const page_id_t id)
 {
@@ -4759,25 +4771,25 @@ loop:
 	holding a tablespace latch. */
 	if (!latched)
 	for (i = nth_bit; i < lock_rec_get_n_bits(lock); i++) {
-
-		if (i == PAGE_HEAP_NO_SUPREMUM
-		    || lock_rec_get_nth_bit(lock, i)) {
+		bool locked = lock_rec_get_nth_bit(lock, i);
+		if (locked || i == PAGE_HEAP_NO_SUPREMUM) {
 
 			rec = page_find_rec_with_heap_no(block->page.frame, i);
 			ut_a(rec);
-			ut_ad(!lock_rec_get_nth_bit(lock, i)
-			      || page_rec_is_leaf(rec));
-			offsets = rec_get_offsets(rec, lock->index, offsets,
-						  lock->index->n_core_fields,
-						  ULINT_UNDEFINED, &heap);
+			ut_ad(!locked || page_rec_is_leaf(rec));
 
 			/* If this thread is holding the file space
 			latch (fil_space_t::latch), the following
 			check WILL break the latching order and may
 			cause a deadlock of threads. */
 
-			lock_rec_queue_validate(
-				true, id, rec, lock->index, offsets);
+			if (locked) {
+				offsets = rec_get_offsets(rec, lock->index,
+					offsets, lock->index->n_core_fields,
+					ULINT_UNDEFINED, &heap);
+				lock_rec_queue_validate(true, id, rec,
+					lock->index, offsets);
+			}
 
 			nth_bit = i + 1;
 
@@ -4858,12 +4870,6 @@ static void lock_rec_block_validate(const page_id_t page_id)
 			RW_X_LATCH, NULL,
 			BUF_GET_POSSIBLY_FREED,
 			&mtr, &err);
-
-		if (err != DB_SUCCESS) {
-			ib::error() << "Lock rec block validate failed for tablespace "
-				   << space->chain.start->name
-				   << page_id << " err " << err;
-		}
 
 		ut_ad(!block || block->page.is_freed()
 		      || lock_rec_validate_page(block, space->is_latched()));

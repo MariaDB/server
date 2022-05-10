@@ -34,6 +34,11 @@ SET DEBUG_SYNC = 'now WAIT_FOR blocked';
 # cause BF abort on other node
 UPDATE t1 SET val=3 WHERE id=1;
 
+--connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
+set session wsrep_sync_wait=0;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1 where id = 1 and val = 3
+--source include/wait_condition.inc
+
 --connection node_2a
 SET DEBUG_SYNC = 'now SIGNAL continue';
 
@@ -47,3 +52,7 @@ SET DEBUG_SYNC = 'RESET';
 --connection node_1
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t1;
+
+--disconnect node_2a
+--disconnect node_2b
+

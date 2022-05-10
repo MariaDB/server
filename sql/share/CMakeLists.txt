@@ -15,30 +15,32 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 SET (dirs 
+bulgarian
+chinese
+czech
 danish
-german 
-slovak
 dutch
-greek
-norwegian
-spanish
 english
+estonian
+french
+german
+greek
+hindi
 hungarian
-norwegian-ny
-swedish
 italian
-polish
-ukrainian
 japanese
+korean
+norwegian-ny
+norwegian
+polish
 portuguese
 romanian
-estonian 
-korean
 russian
-czech
-french
 serbian
-hindi
+slovak
+spanish
+swedish
+ukrainian
 )
 
 SET(files 

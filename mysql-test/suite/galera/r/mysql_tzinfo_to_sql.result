@@ -1,0 +1,154 @@
+connection node_2;
+connection node_1;
+#
+# MDEV-28263: mariadb-tzinfo-to-sql improve wsrep and binlog cases
+#
+
+# On node_1
+connection node_1;
+CREATE TABLE time_zone LIKE mysql.time_zone;
+CREATE TABLE time_zone_name LIKE mysql.time_zone_name;
+CREATE TABLE time_zone_transition LIKE mysql.time_zone_transition;
+CREATE TABLE time_zone_transition_type LIKE mysql.time_zone_transition_type;
+CREATE TABLE time_zone_leap_second LIKE mysql.time_zone_leap_second;
+#
+# Run on zoneinfo directory --skip-write-binlog
+#
+
+# Apply on node_1
+
+load timezones
+'binlog stationary as expected'
+SELECT COUNT(*) FROM time_zone;
+COUNT(*)
+2
+SELECT COUNT(*) FROM time_zone_name;
+COUNT(*)
+2
+SELECT COUNT(*) FROM time_zone_transition;
+COUNT(*)
+0
+SELECT COUNT(*) FROM time_zone_transition_type;
+COUNT(*)
+2
+SELECT COUNT(*) FROM time_zone_leap_second;
+COUNT(*)
+0
+
+# On node_2 (not replicated)
+
+connection node_2;
+SELECT COUNT(*) FROM time_zone;
+COUNT(*)
+0
+SELECT COUNT(*) FROM time_zone_name;
+COUNT(*)
+0
+SELECT COUNT(*) FROM time_zone_transition;
+COUNT(*)
+0
+SELECT COUNT(*) FROM time_zone_transition_type;
+COUNT(*)
+0
+SELECT COUNT(*) FROM time_zone_leap_second;
+COUNT(*)
+0
+#
+# Run on zoneinfo directory without --skip-write-binlog
+#
+
+# Apply on node_1
+
+connection node_1;
+load timezones
+'binlog advanced as expected'
+SELECT COUNT(*) FROM time_zone;
+COUNT(*)
+2
+SELECT COUNT(*) FROM time_zone_name;
+COUNT(*)
+2
+SELECT COUNT(*) FROM time_zone_transition;
+COUNT(*)
+0
+SELECT COUNT(*) FROM time_zone_transition_type;
+COUNT(*)
+2
+SELECT COUNT(*) FROM time_zone_leap_second;
+COUNT(*)
+0
+
+# On node_2 (replicated via InnoDB)
+
+connection node_2;
+SELECT COUNT(*) FROM time_zone;
+COUNT(*)
+2
+SELECT COUNT(*) FROM time_zone_name;
+COUNT(*)
+2
+SELECT COUNT(*) FROM time_zone_transition;
+COUNT(*)
+0
+SELECT COUNT(*) FROM time_zone_transition_type;
+COUNT(*)
+2
+SELECT COUNT(*) FROM time_zone_leap_second;
+COUNT(*)
+0
+TRUNCATE TABLE time_zone;
+TRUNCATE TABLE time_zone_name;
+TRUNCATE TABLE time_zone_transition;
+TRUNCATE TABLE time_zone_transition_type;
+TRUNCATE TABLE time_zone_leap_second;
+
+# Apply on node_1 (with wsrep_on=OFF)
+
+connection node_1;
+SET GLOBAL WSREP_ON=OFF;
+load timezones
+SET GLOBAL WSREP_ON=ON;
+'binlog advanced as expected'
+SELECT COUNT(*) FROM time_zone;
+COUNT(*)
+2
+SELECT COUNT(*) FROM time_zone_name;
+COUNT(*)
+2
+SELECT COUNT(*) FROM time_zone_transition;
+COUNT(*)
+0
+SELECT COUNT(*) FROM time_zone_transition_type;
+COUNT(*)
+2
+SELECT COUNT(*) FROM time_zone_leap_second;
+COUNT(*)
+0
+
+# On node_2 (Should not have been replicated)
+
+connection node_2;
+SELECT COUNT(*) FROM time_zone;
+COUNT(*)
+0
+SELECT COUNT(*) FROM time_zone_name;
+COUNT(*)
+0
+SELECT COUNT(*) FROM time_zone_transition;
+COUNT(*)
+0
+SELECT COUNT(*) FROM time_zone_transition_type;
+COUNT(*)
+0
+SELECT COUNT(*) FROM time_zone_leap_second;
+COUNT(*)
+0
+connection node_1;
+DROP TABLE time_zone;
+DROP TABLE time_zone_name;
+DROP TABLE time_zone_transition;
+DROP TABLE time_zone_transition_type;
+DROP TABLE time_zone_leap_second;
+#
+# End of 10.2 tests
+#

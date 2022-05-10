@@ -5559,11 +5559,23 @@ static ibool prepare_handle_new_files(const char *data_home_dir,
                                       const char *file_name, void *arg)
 {
 	const char *dest_dir = static_cast<const char *>(arg);
-	std::string src_path = std::string(data_home_dir) + '/' + std::string(db_name) + '/' + file_name;
+	std::string src_path = std::string(data_home_dir) + '/' + std::string(db_name) + '/';
 	/* Copy "*.new" files from incremental to base dir for incremental backup */
 	std::string dest_path=
 		dest_dir ? std::string(dest_dir) + '/' + std::string(db_name) +
-			'/' + file_name : src_path;
+			'/' : src_path;
+
+	/*
+	  A CREATE DATABASE could have happened during the base mariabackup run.
+	  In case if the current table file (e.g. `t1.new`) is from such
+	  a new database, the database directory may not exist yet in
+	  the base backup directory. Let's make sure to check if the directory
+	  exists (and create if needed).
+	*/
+	if (!directory_exists(dest_path.c_str(), true/*create if not exists*/))
+		return FALSE;
+	src_path+= file_name;
+	dest_path+= file_name;
 
 	size_t index = dest_path.find(".new");
 	DBUG_ASSERT(index != std::string::npos);
