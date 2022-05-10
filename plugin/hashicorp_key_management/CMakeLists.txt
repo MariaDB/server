@@ -16,5 +16,7 @@ MYSQL_ADD_PLUGIN(HASHICORP_KEY_MANAGEMENT
   CONFIG hashicorp_key_management.cnf
   COMPONENT hashicorp-key-management)
 
+ADD_FEATURE_INFO(HASHICORP_KEY_MANAGEMENT "ON" "Hashicorp Key Management Plugin")
+
 INSTALL_DOCUMENTATION(hashicorp_key_management.txt
-        COMPONENT hashicorp-key-management)
+  COMPONENT plugin-hashicorp-key-management)

@@ -25,12 +25,12 @@ usr/lib/mysql/plugin/type_test.so
 usr/lib/sysusers.d/mariadb.conf # Not used (yet) in Debian systemd
 usr/lib/tmpfiles.d/mariadb.conf # Not used (yet) in Debian systemd
 usr/sbin/rcmysql
-usr/share/doc/mariadb-server-10.9/COPYING (related file: "debian/tmp/usr/share/mysql/mroonga/COPYING")
-usr/share/doc/mariadb-server-10.9/CREDITS
-usr/share/doc/mariadb-server-10.9/INSTALL-BINARY
-usr/share/doc/mariadb-server-10.9/README-wsrep
-usr/share/doc/mariadb-server-10.9/README.md
-usr/share/doc/mariadb-server-10.9/THIRDPARTY
+usr/share/doc/mariadb-server/COPYING (related file: "debian/tmp/usr/share/mysql/mroonga/COPYING")
+usr/share/doc/mariadb-server/CREDITS
+usr/share/doc/mariadb-server/INSTALL-BINARY
+usr/share/doc/mariadb-server/README-wsrep
+usr/share/doc/mariadb-server/README.md
+usr/share/doc/mariadb-server/THIRDPARTY
 usr/share/groonga-normalizer-mysql/README.md
 usr/share/groonga-normalizer-mysql/lgpl-2.0.txt
 usr/share/groonga/COPYING

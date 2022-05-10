@@ -985,7 +985,8 @@ Description: CrackLib Password Validation Plugin for MariaDB
 
 Package: mariadb-plugin-hashicorp-key-management
 Architecture: any
-Depends: mariadb-server-10.9 (= ${binary:Version}),
+Depends: libcurl4,
+         mariadb-server (= ${server:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Hashicorp Key Management plugin for MariaDB
