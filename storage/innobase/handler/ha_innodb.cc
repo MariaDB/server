@@ -19261,15 +19261,44 @@ static MYSQL_SYSVAR_BOOL(optimize_fulltext_only, innodb_optimize_fulltext_only,
   "Only optimize the Fulltext index of the table",
   NULL, NULL, FALSE);
 
+extern int os_aio_resize(ulint n_reader_threads, ulint n_writer_threads);
+static void innodb_update_io_thread_count(THD *thd,ulint n_read, ulint n_write)
+{
+  int res = os_aio_resize(n_read, n_write);
+  if (res)
+  {
+#ifndef __linux__
+    ut_ad(0);
+#else
+    ut_a(srv_use_native_aio);
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+      ER_UNKNOWN_ERROR,
+      "Could not reserve max. number of concurrent ios."
+      "Increase the /proc/sys/fs/aio-max-nr to fix.");
+#endif
+  }
+}
+
+static void innodb_read_io_threads_update(THD* thd, struct st_mysql_sys_var*, void*, const void* save)
+{
+  srv_n_read_io_threads = *static_cast<const uint*>(save);
+  innodb_update_io_thread_count(thd, srv_n_read_io_threads, srv_n_write_io_threads);
+}
+static void innodb_write_io_threads_update(THD* thd, struct st_mysql_sys_var*, void*, const void* save)
+{
+  srv_n_write_io_threads = *static_cast<const uint*>(save);
+  innodb_update_io_thread_count(thd, srv_n_read_io_threads, srv_n_write_io_threads);
+}
+
 static MYSQL_SYSVAR_UINT(read_io_threads, srv_n_read_io_threads,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  PLUGIN_VAR_RQCMDARG,
   "Number of background read I/O threads in InnoDB.",
-  NULL, NULL, 4, 1, 64, 0);
+  NULL, innodb_read_io_threads_update , 4, 1, 64, 0);
 
 static MYSQL_SYSVAR_UINT(write_io_threads, srv_n_write_io_threads,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  PLUGIN_VAR_RQCMDARG,
   "Number of background write I/O threads in InnoDB.",
-  NULL, NULL, 4, 2, 64, 0);
+  NULL, innodb_write_io_threads_update, 4, 2, 64, 0);
 
 static MYSQL_SYSVAR_ULONG(force_recovery, srv_force_recovery,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

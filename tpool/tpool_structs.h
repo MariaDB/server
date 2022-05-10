@@ -94,6 +94,10 @@ public:
     return ret;
   }
 
+  std::mutex& mutex()
+  {
+    return m_mtx;
+  }
 
   void put(T *ele)
   {
@@ -112,19 +116,37 @@ public:
     return ele >= &m_base[0] && ele <= &m_base[m_base.size() -1];
   }
 
-  /* Wait until cache is full.*/
-  void wait()
-  {
-    std::unique_lock<std::mutex> lk(m_mtx);
-    m_waiters++;
-    while(!is_full())
-      m_cv.wait(lk);
-    m_waiters--;
-  }
 
   TPOOL_SUPPRESS_TSAN size_t size()
   {
     return m_cache.size();
+  }
+
+  /** Wait until cache is full
+  @param[in] lk -  lock for the cache mutex
+  (which can be obtained with mutex()) */
+  void wait(std::unique_lock<std::mutex> &lk)
+  {
+    m_waiters++;
+    while (!is_full())
+      m_cv.wait(lk);
+    m_waiters--;
+  }
+
+  /* Wait until cache is full.*/
+  void wait()
+  {
+    std::unique_lock<std::mutex> lk(m_mtx);
+    wait(lk);
+  }
+
+  void resize(size_t count)
+  {
+    assert(is_full());
+    m_base.resize(count);
+    m_cache.resize(count);
+    for (size_t i = 0; i < count; i++)
+      m_cache[i] = &m_base[i];
   }
 };
 

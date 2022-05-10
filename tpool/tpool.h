@@ -231,6 +231,20 @@ public:
       m_aio.reset(create_simulated_aio(this));
     return !m_aio ? -1 : 0;
   }
+
+  int reconfigure_aio(bool use_native_aio, int max_io)
+  {
+    assert(m_aio);
+    if (use_native_aio)
+    {
+      auto new_aio = create_native_aio(max_io);
+      if (!new_aio)
+        return -1;
+      m_aio.reset(new_aio);
+    }
+    return 0;
+  }
+
   void disable_aio()
   {
     m_aio.reset();
