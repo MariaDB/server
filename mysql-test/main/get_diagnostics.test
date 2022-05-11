@@ -855,6 +855,19 @@ GET DIAGNOSTICS @var1 = NUMBER;
 SHOW STATUS LIKE 'Com%get_diagnostics';
 
 --echo #
+--echo # MDEV-26695: Number of an invalid row is not calculated for table value constructor
+--echo #
+
+CREATE TABLE t1 (a CHAR(1)) VALUES ('a'),('b'),('foo');
+CREATE TABLE t2 (a char(1)) VALUES ('a'),('b') UNION VALUES ('foo');
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
+
+--echo #
 --echo # MDEV-10075: Provide index of error causing error in array INSERT
 --echo #
 
@@ -1711,3 +1724,8 @@ SELECT @n;
 SELECT * FROM t2;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # End of 10.7 tests
+--echo #
+

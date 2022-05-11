@@ -1884,11 +1884,8 @@ dict_stats_analyze_index_level(
 	}
 #endif /* UNIV_STATS_DEBUG */
 
-	/* Release the latch on the last page, because that is not done by
-	btr_pcur_close(). This function works also for non-leaf pages. */
 	btr_leaf_page_release(btr_pcur_get_block(&pcur), BTR_SEARCH_LEAF, mtr);
 
-	btr_pcur_close(&pcur);
 	ut_free(prev_rec_buf);
 	mem_heap_free(heap);
 }
@@ -2394,8 +2391,6 @@ dict_stats_analyze_index_for_n_prefix(
 
 		n_diff_data->n_external_pages_sum += n_external_pages;
 	}
-
-	btr_pcur_close(&pcur);
 }
 
 /** statistics for an index */

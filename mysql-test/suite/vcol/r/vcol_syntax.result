@@ -183,8 +183,17 @@ select a from t1 order by 'x' = b;
 a
 drop table t1;
 create table t1 (a int , b date as (1 in ('x' ,(database ()) ))) ;
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'test'
 select b from t1;
 b
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'test'
 select a from t1 order by 'x' = b;
 a
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'test'
 drop table t1;

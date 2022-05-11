@@ -102,7 +102,41 @@ INSERT INTO t2 VALUES (1);
 SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 
+--echo #
+--echo # MDEV-28317 Assertion failure on rollback of FOREIGN KEY operation
+--echo #
+
+SET foreign_key_checks=0;
+CREATE TABLE parent(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE child(a INT,FOREIGN KEY(a) REFERENCES parent(a) ON DELETE CASCADE)
+ENGINE=InnoDB;
+INSERT INTO child VALUES(1);
+ALTER TABLE child DROP INDEX a;
+
+connect(incomplete, localhost, root,,);
+BEGIN;
+DELETE FROM child;
+
+connection default;
+INSERT INTO parent SET a=0;
+FLUSH TABLES;
+
+--let $shutdown_timeout=0
 --source include/restart_mysqld.inc
+--let $shutdown_timeout=
+disconnect incomplete;
+
+INSERT INTO child SET a=0;
+--error ER_NO_REFERENCED_ROW_2
+INSERT INTO child SET a=1;
+--error ER_ROW_IS_REFERENCED_2
+DELETE FROM parent;
+ALTER TABLE child ADD INDEX(a);
+--error ER_ROW_IS_REFERENCED_2
+DELETE FROM parent;
+ALTER TABLE child FORCE;
+DELETE FROM parent;
+DROP TABLE child,parent;
 
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;

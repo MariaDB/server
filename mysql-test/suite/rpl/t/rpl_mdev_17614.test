@@ -2,15 +2,22 @@ source include/have_debug.inc;
 source include/have_innodb.inc;
 -- source include/have_binlog_format_statement.inc
 source include/master-slave.inc;
-# MDEV-17614
-# INSERT on dup key update is replication unsafe
-# There can be three case
-#  1. 2 unique key, Replication is unsafe.
-#  2. 2 unique key , with one auto increment key, Safe to replicate because Innodb will acquire gap lock
-#  3. n no of unique keys (n>1) but insert is only in 1 unique key
-#  4. 2 unique key , with one auto increment key(but user gives auto inc value), unsafe to replicate
+# MDEV-17614 INSERT on dup key update is replication unsafe
+#
+# The following cases are tested below:
+#  1. 2 unique key, replication is UNSAFE
+#  2. 2 unique key, with one auto increment key and implicit value to it.
+#    It is UNSAFE because autoinc column values of being inserted records
+#    are revealed dynamically, so unknown at the binlog-format decision time
+#    and hence this pessimistic expectation
+#  3. 2 unique keys
+#    A. insert is only in 1 unique key, still all colums are specified => UNSAFE
+#    B. both unique keys are specified => UNSAFE
+#    C. only one unique key is specified => SAFE (motivated by MDEV-28310)
+#  4. 2 unique key, with one auto increment key(but user gives auto inc value) =>
+#    UNSAFE to replicate
 
-# Case 1
+--echo # Case 1: UNSAFE
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format");
 CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY , b INT,
 UNIQUE(b),  c int) engine=innodb;
@@ -42,7 +49,8 @@ drop table t1;
 connection slave;
 start slave;
 --source include/wait_for_slave_to_start.inc
-# Case 2
+
+--echo # Case 2: UNSAFE
 --connection master
 CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY auto_increment, b INT,
 UNIQUE(b),  c int) engine=innodb;
@@ -64,7 +72,7 @@ connection master;
 drop table t1;
 --sync_slave_with_master
 
-# Case 3
+--echo # Case 3A: UNSAFE
 --connection master
 CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY, b INT,
 UNIQUE(b),  c int, d int ) engine=innodb;
@@ -85,7 +93,50 @@ connection master;
 drop table t1;
 --sync_slave_with_master
 
-# Case 4
+--echo # Case 3B: UNSAFE - all column specified.
+--connection master
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY, b INT,
+UNIQUE(b),  c int, d int ) engine=innodb;
+sync_slave_with_master;
+connection master;
+INSERT INTO t1 VALUES (1, 1, 1, 1);
+BEGIN;
+INSERT INTO t1 VALUES (2, NULL, 2, 2) ON DUPLICATE KEY UPDATE c=VALUES(c);
+  --connection master1
+  INSERT INTO t1 VALUES(3, NULL, 2, 3) ON DUPLICATE KEY UPDATE c=VALUES(c);
+--connection master
+COMMIT;
+SELECT * FROM t1;
+--sync_slave_with_master
+--echo #same data as master
+SELECT * FROM t1;
+connection master;
+drop table t1;
+--sync_slave_with_master
+
+
+--echo # Case 3C: SAFE - only one unique key (PK) specified.
+--connection master
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY, b INT,
+UNIQUE(b),  c int, d int ) engine=innodb;
+sync_slave_with_master;
+connection master;
+INSERT INTO t1 VALUES (1, 1, 1, 1);
+BEGIN;
+INSERT INTO t1 (`a`, `c`, `d`) VALUES (2, 2, 2) ON DUPLICATE KEY UPDATE c=99;
+  --connection master1
+  INSERT INTO t1  (`a`, `c`, `d`) VALUES(3, 2, 3) ON DUPLICATE KEY UPDATE c=100;
+--connection master
+COMMIT;
+SELECT * FROM t1;
+--sync_slave_with_master
+--echo #same data as master
+SELECT * FROM t1;
+connection master;
+drop table t1;
+--sync_slave_with_master
+
+--echo # Case 4: UNSAFE
 --connection master
 CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY auto_increment, b INT,
 UNIQUE(b),  c int) engine=innodb;

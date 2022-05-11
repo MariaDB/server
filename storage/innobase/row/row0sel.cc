@@ -6120,8 +6120,6 @@ row_search_get_max_rec(
 		btr_pcur_move_before_first_on_page(&pcur);
 	} while (btr_pcur_move_to_prev(&pcur, mtr));
 
-	btr_pcur_close(&pcur);
-
 	ut_ad(!rec
 	      || !(rec_get_info_bits(rec, dict_table_is_comp(index->table))
 		   & (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)));

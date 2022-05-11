@@ -2,7 +2,8 @@
 # This runs the mysql_client_test using the non-blocking API.
 
 # The non-blocking API is not supported in the embedded server.
--- source include/not_embedded.inc
+--source include/not_embedded.inc
+--source include/check_ipv6.inc
 # This test is slow on buildbot.
 --source include/big_test.inc
 

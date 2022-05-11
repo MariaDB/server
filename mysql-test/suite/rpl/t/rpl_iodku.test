@@ -1,0 +1,50 @@
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+if (`select @@binlog_format = "statement"`)
+{
+  call mtr.add_suppression("Unsafe statement written to the binary log using statement");
+}
+
+## MDEV-28310 loss of binlog event for multi-record IODKU
+# Check that the duplicate key error does not cause
+# loss of replication event for IODKU that specifies values
+# for at least two unique columns per record.
+# "Implicit" NULL value of the auto-increment column also counts.
+
+CREATE TABLE t1 (id INT PRIMARY KEY AUTO_INCREMENT, a INT, b INT, c INT,
+                 UNIQUE (a), UNIQUE (b)) ENGINE=innodb;
+INSERT INTO t1 (`a`,`c`) VALUES (1,1), (2,1) ON DUPLICATE KEY UPDATE c = 1;
+--echo # UNSAFE
+# because of two keys involved: a UK and PK even though implicitly via auto-inc
+INSERT INTO t1 (`a`,`c`) VALUES (3, 1),(2,1), (1,1) ON DUPLICATE KEY UPDATE c = a * 10 + VALUES(c);
+SELECT * from t1;
+
+--sync_slave_with_master
+--let $diff_tables = master:t1,slave:t1
+--source include/diff_tables.inc
+
+## MDEV-21810 MBR: Unexpected "Unsafe statement" warning for unsafe IODKU
+#   Unnecessary unsafe statement warning is not error-logged anymore.
+
+
+--connection master
+CREATE OR REPLACE TABLE t1 (a INT, b INT, c INT, UNIQUE (a), UNIQUE (b)) ENGINE=innodb;
+INSERT INTO t1 VALUES (1,10,1);
+--echo # eligable for the statement format run unsafe warning
+INSERT INTO t1 VALUES (2,20,2) ON DUPLICATE KEY UPDATE c = 100;
+--echo # not eligable: no warning in the statement format run
+INSERT INTO t1 (`a`,`c`) VALUES (3, 1) ON DUPLICATE KEY UPDATE c = 99;
+SELECT * from t1;
+
+--sync_slave_with_master
+--let $diff_tables = master:t1,slave:t1
+--source include/diff_tables.inc
+
+# Cleanup
+--connection master
+DROP TABLE t1;
+--sync_slave_with_master
+
+
+--source include/rpl_end.inc

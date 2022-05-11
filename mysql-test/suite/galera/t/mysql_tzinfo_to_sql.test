@@ -1,0 +1,156 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+# merge note: 10.6 change not_embedded.inc to no_protocol.inc
+
+# Unlike the similar galera.mariadb_tzinfo_to_sql.test in 10.6+, this
+# tests that the output can be parsed by the mysql client.
+--echo #
+--echo # MDEV-28263: mariadb-tzinfo-to-sql improve wsrep and binlog cases
+--echo #
+
+--exec mkdir $MYSQLTEST_VARDIR/zoneinfo
+--exec ln -s $MYSQLTEST_VARDIR/zoneinfo $MYSQLTEST_VARDIR/zoneinfo/posix
+--copy_file std_data/zoneinfo/GMT $MYSQLTEST_VARDIR/zoneinfo/GMT
+
+--echo
+--echo # On node_1
+--connection node_1
+
+CREATE TABLE time_zone LIKE mysql.time_zone;
+CREATE TABLE time_zone_name LIKE mysql.time_zone_name;
+CREATE TABLE time_zone_transition LIKE mysql.time_zone_transition;
+CREATE TABLE time_zone_transition_type LIKE mysql.time_zone_transition_type;
+CREATE TABLE time_zone_leap_second LIKE mysql.time_zone_leap_second;
+
+--echo #
+--echo # Run on zoneinfo directory --skip-write-binlog
+--echo #
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog $MYSQLTEST_VARDIR/zoneinfo 2>/dev/null > $MYSQL_TMP_DIR/tz.sql
+
+--echo
+--echo # Apply on node_1
+--echo
+--let $snap_pos= query_get_value(SHOW STATUS LIKE 'binlog_snapshot_position', Value, 1)
+--echo load timezones
+--exec $MYSQL test < "$MYSQL_TMP_DIR/tz.sql"
+--let $new_snap_pos= query_get_value(SHOW STATUS LIKE 'binlog_snapshot_position', Value, 1)
+
+if ($snap_pos == $new_snap_pos)
+{
+--echo 'binlog stationary as expected'
+}
+
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+--echo
+--echo # On node_2 (not replicated)
+--echo
+--connection node_2
+
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+--echo #
+--echo # Run on zoneinfo directory without --skip-write-binlog
+--echo #
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_TZINFO_TO_SQL $MYSQLTEST_VARDIR/zoneinfo 2>/dev/null > $MYSQL_TMP_DIR/tz.sql
+
+--echo
+--echo # Apply on node_1
+--echo
+--connection node_1
+
+--echo load timezones
+--exec $MYSQL test < "$MYSQL_TMP_DIR/tz.sql"
+--let $new_snap_pos= query_get_value(SHOW STATUS LIKE 'binlog_snapshot_position', Value, 1)
+
+if ($snap_pos < $new_snap_pos)
+{
+--echo 'binlog advanced as expected'
+}
+
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+--echo
+--echo # On node_2 (replicated via InnoDB)
+--echo
+--connection node_2
+
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+TRUNCATE TABLE time_zone;
+TRUNCATE TABLE time_zone_name;
+TRUNCATE TABLE time_zone_transition;
+TRUNCATE TABLE time_zone_transition_type;
+TRUNCATE TABLE time_zone_leap_second;
+
+--echo
+--echo # Apply on node_1 (with wsrep_on=OFF)
+--echo
+--connection node_1
+
+SET GLOBAL WSREP_ON=OFF;
+--let $snap_pos= $new_snap_pos
+--echo load timezones
+--exec $MYSQL test < "$MYSQL_TMP_DIR/tz.sql"
+--let $new_snap_pos= query_get_value(SHOW STATUS LIKE 'binlog_snapshot_position', Value, 1)
+SET GLOBAL WSREP_ON=ON;
+
+if ($snap_pos < $new_snap_pos)
+{
+--echo 'binlog advanced as expected'
+}
+
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+--echo
+--echo # On node_2 (Should not have been replicated)
+--echo
+--connection node_2
+
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+#
+# Cleanup
+#
+
+--connection node_1
+--remove_file $MYSQL_TMP_DIR/tz.sql
+--exec rm -rf $MYSQLTEST_VARDIR/zoneinfo
+DROP TABLE time_zone;
+DROP TABLE time_zone_name;
+DROP TABLE time_zone_transition;
+DROP TABLE time_zone_transition_type;
+DROP TABLE time_zone_leap_second;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
