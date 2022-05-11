@@ -963,6 +963,7 @@ typedef struct xid_t XID;
 */
 typedef uint Binlog_file_id;
 const Binlog_file_id MAX_binlog_id= UINT_MAX;
+const my_off_t       MAX_off_t    = (~(my_off_t) 0);
 /*
   Compound binlog-id and byte offset of transaction's first event
   in a sequence (e.g the recovery sequence) of binlog files.
@@ -977,14 +978,22 @@ struct xid_recovery_member
   my_xid xid;
   uint in_engine_prepare;  // number of engines that have xid prepared
   bool decided_to_commit;
-  Binlog_offset binlog_coord; // semisync recovery binlog offset
+  /*
+    Semisync recovery binlog offset. It's initialized with the maximum
+    unreachable offset. The max value will remain for any transaction
+    not found in binlog to yield its rollback decision as it's guaranteed
+    to be within a truncated tail part of the binlog.
+  */
+  Binlog_offset binlog_coord;
   XID *full_xid;           // needed by wsrep or past it recovery
   decltype(::server_id) server_id;         // server id of orginal server
 
   xid_recovery_member(my_xid xid_arg, uint prepare_arg, bool decided_arg,
                       XID *full_xid_arg, decltype(::server_id) server_id_arg)
     : xid(xid_arg), in_engine_prepare(prepare_arg),
-      decided_to_commit(decided_arg), full_xid(full_xid_arg) , server_id(server_id_arg) {};
+      decided_to_commit(decided_arg),
+      binlog_coord(Binlog_offset(MAX_binlog_id, MAX_off_t)),
+      full_xid(full_xid_arg), server_id(server_id_arg) {};
 };
 
 /* for recover() handlerton call */
