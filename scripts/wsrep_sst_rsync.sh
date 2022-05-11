@@ -443,13 +443,6 @@ EOF
                     elif tar --version | grep -q -E '^bsdtar\>'; then
                         tar_type=2
                     fi
-                    if [ $tar_type -ne 2 ]; then
-                        if [ -n "$BASH_VERSION" ]; then
-                            printf '%s' "$binlog_files" >&2
-                        else
-                            echo "$binlog_files" >&2
-                        fi
-                    fi
                     if [ $tar_type -ne 0 ]; then
                         # Preparing list of the binlog file names:
                         echo "$binlog_files" | {

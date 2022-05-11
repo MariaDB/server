@@ -2237,15 +2237,12 @@ err_exit:
 
 /** Copy an undo record to heap.
 @param[in]	roll_ptr	roll pointer to a record that exists
-@param[in,out]	heap		memory heap where copied
-@param[in]	undo_block	undo log block which was cached during
-				DML online log apply */
+@param[in,out]	heap		memory heap where copied */
 static
 trx_undo_rec_t*
 trx_undo_get_undo_rec_low(
 	roll_ptr_t		roll_ptr,
-	mem_heap_t*		heap,
-	const buf_block_t*	undo_block= nullptr)
+	mem_heap_t*		heap)
 {
 	trx_undo_rec_t*	undo_rec;
 	ulint		rseg_id;
@@ -2261,21 +2258,15 @@ trx_undo_get_undo_rec_low(
 	trx_rseg_t* rseg = &trx_sys.rseg_array[rseg_id];
 	ut_ad(rseg->is_persistent());
 
-	if (undo_block
-            && undo_block->page.id().page_no() == page_no) {
-		undo_rec = trx_undo_rec_copy(
-			undo_block->page.frame + offset, heap);
-	} else {
-		mtr.start();
+	mtr.start();
 
-		buf_block_t *undo_page = trx_undo_page_get_s_latched(
-			page_id_t(rseg->space->id, page_no), &mtr);
+	buf_block_t *undo_page = trx_undo_page_get_s_latched(
+		page_id_t(rseg->space->id, page_no), &mtr);
 
-		undo_rec = trx_undo_rec_copy(
-			undo_page->page.frame + offset, heap);
+	undo_rec = trx_undo_rec_copy(
+		undo_page->page.frame + offset, heap);
 
-		mtr.commit();
-	}
+	mtr.commit();
 
 	return(undo_rec);
 }
@@ -2288,8 +2279,6 @@ trx_undo_get_undo_rec_low(
 				undo log of this transaction
 @param[in]	name		table name
 @param[out]	undo_rec	own: copy of the record
-@param[in]	undo_block	undo log block which was cached during
-				DML online log apply
 @retval true if the undo log has been
 truncated and we cannot fetch the old version
 @retval false if the undo log record is available
@@ -2301,15 +2290,13 @@ trx_undo_get_undo_rec(
 	mem_heap_t*		heap,
 	trx_id_t		trx_id,
 	const table_name_t&	name,
-	trx_undo_rec_t**	undo_rec,
-	const buf_block_t*	undo_block)
+	trx_undo_rec_t**	undo_rec)
 {
 	purge_sys.latch.rd_lock(SRW_LOCK_CALL);
 
 	bool missing_history = purge_sys.changes_visible(trx_id, name);
 	if (!missing_history) {
-		*undo_rec = trx_undo_get_undo_rec_low(
-				roll_ptr, heap, undo_block);
+		*undo_rec = trx_undo_get_undo_rec_low(roll_ptr, heap);
 	}
 
 	purge_sys.latch.rd_unlock();
@@ -2363,8 +2350,7 @@ trx_undo_prev_version_build(
 	rec_t		**old_vers,
 	mem_heap_t	*v_heap,
 	dtuple_t	**vrow,
-	ulint		v_status,
-	const buf_block_t*undo_block)
+	ulint		v_status)
 {
 	trx_undo_rec_t*	undo_rec	= NULL;
 	dtuple_t*	entry;
@@ -2403,7 +2389,7 @@ trx_undo_prev_version_build(
 
 	if (trx_undo_get_undo_rec(
 		    roll_ptr, heap, rec_trx_id, index->table->name,
-		    &undo_rec, undo_block)) {
+		    &undo_rec)) {
 		if (v_status & TRX_UNDO_PREV_IN_PURGE) {
 			/* We are fetching the record being purged */
 			undo_rec = trx_undo_get_undo_rec_low(roll_ptr, heap);

@@ -67,13 +67,13 @@ test/t2
 test/t3
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
 NAME
-innodb_system
-mysql/innodb_table_stats
-mysql/innodb_index_stats
-mysql/transaction_registry
 test/t4
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+mysql/transaction_registry
 test/t1
 test/t2
 test/t3

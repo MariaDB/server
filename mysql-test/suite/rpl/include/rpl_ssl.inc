@@ -37,7 +37,7 @@ select * from t1;
 
 # The slave is synced and waiting/reading from master
 # SHOW SLAVE STATUS will show "Waiting for master to send event"
-let $status_items= Master_SSL_Allowed, Master_SSL_CA_Path, Master_SSL_CA_File, Master_SSL_Cert, Master_SSL_Key;
+let $status_items= Master_SSL_Allowed, Master_SSL_CA_Path, Master_SSL_CA_File, Master_SSL_Crl, Master_SSL_Crlpath, Master_SSL_Cert, Master_SSL_Key;
 source include/show_slave_status.inc;
 source include/check_slave_is_running.inc;
 

@@ -6132,8 +6132,6 @@ row_search_get_max_rec(
 	rec = nullptr;
 
 found:
-	btr_pcur_close(&pcur);
-
 	ut_ad(!rec
 	      || !(rec_get_info_bits(rec, dict_table_is_comp(index->table))
 		   & (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)));

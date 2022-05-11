@@ -1,0 +1,27 @@
+include/master-slave.inc
+[connection master]
+connection master;
+# Create a GTID event so the binlog background thread will submit a
+# mysql handler job the next time mysqld is restarted.
+create table t1 (a int);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+# Set a debug point that forces the main mysqld thread to sleep before
+# anything is initialized for the mysql handle manager
+# Restart the slave mysqld instance so it re-initializes with the
+# binlog background thread submitting a mysql handler job and the
+# mysql handler initialization suspending for a second. Without the fix
+# associated with this test/patch, the following restart will error
+# with a failed assertion.
+include/rpl_restart_server.inc [server_number=2 parameters: --debug_dbug="+d,delay_start_handle_manager"]
+include/start_slave.inc
+#
+# Cleanup
+#
+connection master;
+drop table t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc

@@ -3494,13 +3494,13 @@ fts_add_doc_by_id(
 		}
 
 		if (!is_id_cluster) {
-			btr_pcur_close(doc_pcur);
+			ut_free(doc_pcur->old_rec_buf);
 		}
 	}
 func_exit:
 	mtr_commit(&mtr);
 
-	btr_pcur_close(&pcur);
+	ut_free(pcur.old_rec_buf);
 
 	mem_heap_free(heap);
 	return(TRUE);
@@ -3581,7 +3581,6 @@ fts_get_max_doc_id(
 	}
 
 func_exit:
-	btr_pcur_close(&pcur);
 	mtr_commit(&mtr);
 	return(doc_id);
 }

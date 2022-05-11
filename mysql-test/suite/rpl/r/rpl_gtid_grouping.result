@@ -1,0 +1,54 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+call mtr.add_suppression("Unexpected break of being relay-logged GTID 0-27697-1000");
+call mtr.add_suppression("Relay log write failure: could not queue event from master");
+call mtr.add_suppression("The current group of events starts with a non-GTID");
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+connection master;
+CREATE TABLE t (a INT) ENGINE=innodb;
+INSERT INTO t VALUES(1);
+### A. Simulate an unnoticeable loss of Xid event
+connection slave;
+SET @@global.debug_dbug="+d,slave_discard_xid_for_gtid_0_x_1000";
+connection master;
+SET @@gtid_seq_no=1000;
+set @@server_id=27697;
+INSERT INTO t VALUES(1000);
+set @@server_id=default;
+INSERT INTO t VALUES(1001);
+## Prove the error occurs.
+connection slave;
+include/wait_for_slave_io_error.inc [errno=1595]
+## Prove the slave recovers after the simulation condtion is lifted.
+SET @@global.debug_dbug=default;
+include/start_slave.inc
+### B. Do the same to GTID event.
+connection slave;
+SET @@global.debug_dbug="+d,slave_discard_gtid_0_x_1002";
+connection master;
+SET @@gtid_seq_no=1002;
+set @@server_id=27697;
+INSERT INTO t VALUES(1002);
+set @@server_id=default;
+INSERT INTO t VALUES(1003);
+## Prove the error occurs.
+connection slave;
+include/wait_for_slave_io_error.inc [errno=1595]
+## Prove the slave recovers after the simulation condtion is lifted.
+SET @@global.debug_dbug=default;
+include/start_slave.inc
+connection master;
+connection slave;
+include/diff_tables.inc [master:t,slave:t]
+"===== Clean up ====="
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=no;
+include/start_slave.inc
+connection master;
+DROP TABLE t;
+SET GLOBAL LOG_WARNINGS=default;
+include/rpl_end.inc

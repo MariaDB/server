@@ -44,8 +44,6 @@ Created 6/2/1994 Heikki Tuuri
 #include "dict0boot.h"
 #include "row0sel.h" /* row_search_max_autoinc() */
 
-Atomic_counter<uint32_t> btr_validate_index_running;
-
 /**************************************************************//**
 Checks if the page in the cursor can be merged with given page.
 If necessary, re-organize the merge_page.
@@ -2598,8 +2596,8 @@ btr_insert_into_right_sibling(
 	max_size = page_get_max_insert_size_after_reorganize(next_page, 1);
 
 	/* Extends gap lock for the next page */
-	if (cursor->index->has_locking()) {
-		lock_update_split_left(next_block, block);
+	if (is_leaf && cursor->index->has_locking()) {
+		lock_update_node_pointer(block, next_block);
 	}
 
 	rec = page_cur_tuple_insert(
@@ -3534,17 +3532,9 @@ retry:
 			}
 
 			if (mbr_changed) {
-#ifdef UNIV_DEBUG
-				bool	success = rtr_update_mbr_field(
-					&cursor2, offsets2, &father_cursor,
-					merge_page, &new_mbr, NULL, mtr);
-
-				ut_ad(success);
-#else
 				rtr_update_mbr_field(
 					&cursor2, offsets2, &father_cursor,
 					merge_page, &new_mbr, NULL, mtr);
-#endif
 			} else {
 				rtr_node_ptr_delete(&father_cursor, mtr);
 			}
@@ -5036,7 +5026,6 @@ btr_validate_index(
 
 	ulint	n = btr_page_get_level(root);
 
-	btr_validate_index_running++;
 	for (ulint i = 0; i <= n; ++i) {
 
 		if (!btr_validate_level(index, trx, n - i, lockout)) {
@@ -5045,15 +5034,6 @@ btr_validate_index(
 	}
 
 	mtr_commit(&mtr);
-	/* In theory we need release barrier here, so that
-	btr_validate_index_running decrement is guaranteed to
-	happen after latches are released.
-
-	Original code issued SEQ_CST on update and non-atomic
-	access on load. Which means it had broken synchronisation
-	as well. */
-	btr_validate_index_running--;
-
 	return(err);
 }
 

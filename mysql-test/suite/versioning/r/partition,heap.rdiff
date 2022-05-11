@@ -1,6 +1,6 @@
---- partition.result
-+++ partition,heap.reject
-@@ -1545,82 +1545,3 @@
+--- suite/versioning/r/partition.result	2022-05-10 13:02:50.307581925 +0200
++++ suite/versioning/r/partition,heap.reject	2022-05-10 13:05:19.288575863 +0200
+@@ -1957,85 +1957,6 @@
  (PARTITION `p0` HISTORY ENGINE = X,
   PARTITION `pn` CURRENT ENGINE = X)
  drop tables t1, tp1;
@@ -83,3 +83,6 @@
 -(PARTITION `p0` VALUES LESS THAN (10) ENGINE = X,
 - PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
 -drop tables t1, tp1;
+ #
+ # End of 10.7 tests
+ #

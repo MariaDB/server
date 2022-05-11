@@ -7668,7 +7668,17 @@ bool Item_equal::create_pushable_equalities(THD *thd,
     if (!eq ||  equalities->push_back(eq, thd->mem_root))
       return true;
     if (!clone_const)
-      right_item->set_extraction_flag(MARKER_IMMUTABLE);
+    {
+      /*
+        Also set IMMUTABLE_FL for any sub-items of the right_item.
+        This is needed to prevent Item::cleanup_excluding_immutables_processor
+        from peforming cleanup of the sub-items and so creating an item tree
+        where a fixed item has non-fixed items inside it.
+      */
+      int16 new_flag= MARKER_IMMUTABLE;
+      right_item->walk(&Item::set_extraction_flag_processor, false,
+                       (void*)&new_flag);
+    }
   }
 
   while ((item=it++))

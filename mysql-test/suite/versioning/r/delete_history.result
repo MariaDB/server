@@ -62,10 +62,10 @@ partition by system_time limit 1 partitions 3;
 insert into t values (1);
 update t set a= 2;
 update t set a= 3;
-delete history from t;
 Warnings:
 Warning	4114	Versioned table `test`.`t`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
-# The above warning is one command late (MDEV-20345) ^^^
+# You see warning above ^
+delete history from t;
 select * from t for system_time all;
 a
 3

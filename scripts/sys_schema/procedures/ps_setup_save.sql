@@ -80,14 +80,11 @@ BEGIN
         DROP TEMPORARY TABLE IF EXISTS tmp_setup_instruments;
         DROP TEMPORARY TABLE IF EXISTS tmp_threads;
 
-        CREATE TEMPORARY TABLE tmp_setup_actors LIKE performance_schema.setup_actors;
-        CREATE TEMPORARY TABLE tmp_setup_consumers LIKE performance_schema.setup_consumers;
-        CREATE TEMPORARY TABLE tmp_setup_instruments LIKE performance_schema.setup_instruments;
+        CREATE TEMPORARY TABLE tmp_setup_actors AS SELECT * FROM performance_schema.setup_actors;
+        CREATE TEMPORARY TABLE tmp_setup_consumers AS SELECT * FROM  performance_schema.setup_consumers;
+        CREATE TEMPORARY TABLE tmp_setup_instruments AS SELECT * FROM  performance_schema.setup_instruments;
         CREATE TEMPORARY TABLE tmp_threads (THREAD_ID bigint unsigned NOT NULL PRIMARY KEY, INSTRUMENTED enum('YES','NO') NOT NULL);
 
-        INSERT INTO tmp_setup_actors SELECT * FROM performance_schema.setup_actors;
-        INSERT INTO tmp_setup_consumers SELECT * FROM performance_schema.setup_consumers;
-        INSERT INTO tmp_setup_instruments SELECT * FROM performance_schema.setup_instruments;
         INSERT INTO tmp_threads SELECT THREAD_ID, INSTRUMENTED FROM performance_schema.threads;
     ELSE
         SIGNAL SQLSTATE VALUE '90000'

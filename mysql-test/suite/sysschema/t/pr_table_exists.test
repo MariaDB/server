@@ -46,3 +46,24 @@ CALL sys.table_exists(@identifier, 't1', @exists);
 CALL sys.table_exists('test', @identifier, @exists);
 
 SET @identifier := NULL;
+
+--echo #
+--echo # MDEV-28391: table_exists procedure fails with
+--echo #             Incorrect table name with backtick identifiers
+--echo #
+CREATE TABLE `ab``c` (t1_id int PRIMARY KEY, t1_val varchar(10));
+CALL sys.table_exists('test', 'ab`c', @tbl_type);
+SELECT @tbl_type;
+DROP TABLE `ab``c`;
+CREATE TEMPORARY TABLE `ab``c` (t1_id int PRIMARY KEY, t1_val varchar(10));
+CALL sys.table_exists('test', 'ab`c', @tbl_type);
+SELECT @tbl_type;
+DROP TABLE `ab``c`;
+CREATE TABLE `ab``c` (t1_id int PRIMARY KEY, t1_val varchar(10));
+CREATE TEMPORARY TABLE `ab``c` (t1_id int PRIMARY KEY, t1_val varchar(10));
+CALL sys.table_exists('test', 'ab`c', @tbl_type);
+SELECT @tbl_type;
+--echo # We cannot send quoted identifer to the procedure, no table will be found
+CALL sys.table_exists('test', '`ab``c`', @tbl_type);
+SELECT @tbl_type;
+DROP TABLE `ab``c`;
