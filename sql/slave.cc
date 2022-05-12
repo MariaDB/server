@@ -6586,8 +6586,9 @@ dbug_gtid_accept:
       mi->using_gtid != Master_info::USE_GTID_NO &&
       mi->events_queued_since_last_gtid > 0 &&
       ( (mi->last_queued_gtid_standalone &&
-         !Log_event::is_part_of_group((Log_event_type)(uchar)
-                                      buf[EVENT_TYPE_OFFSET])) ||
+         (LOG_EVENT_IS_QUERY((Log_event_type)(uchar)
+                             buf[EVENT_TYPE_OFFSET]) ||
+          (uchar)buf[EVENT_TYPE_OFFSET] == INCIDENT_EVENT)) ||
         (!mi->last_queued_gtid_standalone &&
          ((uchar)buf[EVENT_TYPE_OFFSET] == XID_EVENT ||
           ((uchar)buf[EVENT_TYPE_OFFSET] == QUERY_EVENT &&    /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
