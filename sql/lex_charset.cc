@@ -41,10 +41,11 @@ CHARSET_INFO *Lex_charset_collation_st::find_bin_collation(CHARSET_INFO *cs)
     return cs;
 
   // CREATE TABLE t1 (a CHAR(10) BINARY) CHARACTER SET utf8mb4;
+  const LEX_CSTRING &cs_name= cs->cs_name;
   if (!(cs= get_charset_by_csname(cs->cs_name.str, MY_CS_BINSORT, MYF(0))))
   {
     char tmp[65];
-    strxnmov(tmp, sizeof(tmp)-1, cs->cs_name.str, "_bin", NULL);
+    strxnmov(tmp, sizeof(tmp)-1, cs_name.str, "_bin", NULL);
     my_error(ER_UNKNOWN_COLLATION, MYF(0), tmp);
   }
   return cs;
