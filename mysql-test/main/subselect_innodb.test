@@ -655,3 +655,17 @@ select 1 from t1 where not exists
 --enable_warnings
 drop table t1;
 
+--echo #
+--echo # MDEV-28437: Assertion `!eliminated' failed in Item_subselect::exec
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (3),(4);
+ 
+SELECT 1 IN (SELECT a FROM t1 LEFT JOIN t2 ON (a = b AND EXISTS (SELECT * FROM t1)));
+
+drop table t1,t2;
+
+# End of 10.2 tests
+
