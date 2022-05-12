@@ -30,3 +30,25 @@ SELECT NEXTVAL(seq) = 102;
 NEXTVAL(seq) = 102
 1
 DROP SEQUENCE seq;
+CREATE TABLE t1(f1 INT);
+CREATE SEQUENCE seq_transaction NOCACHE ENGINE=InnoDB;
+START TRANSACTION;
+INSERT INTO t1 VALUES (0);
+SELECT NEXTVAL(seq_transaction);
+NEXTVAL(seq_transaction)
+1
+INSERT INTO t1 VALUES (NEXTVAL(seq_transaction));
+COMMIT;
+connection node_2;
+SELECT COUNT(*) = 2 FROM t1;
+COUNT(*) = 2
+1
+SELECT NEXTVAL(seq_transaction) = 3;
+NEXTVAL(seq_transaction) = 3
+1
+connection node_1;
+SELECT NEXTVAL(seq_transaction) = 4;
+NEXTVAL(seq_transaction) = 4
+1
+DROP SEQUENCE seq_transaction;
+DROP TABLE t1;

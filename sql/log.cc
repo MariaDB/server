@@ -2013,7 +2013,13 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all)
 
   thd->backup_stage(&org_stage);
   THD_STAGE_INFO(thd, stage_binlog_write);
+#ifdef WITH_WSREP
+  // DON'T clear stmt cache in case we are in transaction
+  if (!cache_mngr->stmt_cache.empty() &&
+      (!wsrep_on(thd) || ending_trans(thd, all)))
+#else
   if (!cache_mngr->stmt_cache.empty())
+#endif
   {
     error= binlog_commit_flush_stmt_cache(thd, all, cache_mngr);
   }
