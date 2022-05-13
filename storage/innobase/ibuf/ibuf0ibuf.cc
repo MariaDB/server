@@ -1218,6 +1218,7 @@ static
 void
 ibuf_print_ops(
 /*===========*/
+	const char*			op_name,/*!< in: operation name */
 	const Atomic_counter<ulint>*	ops,	/*!< in: operation counts */
 	FILE*				file)	/*!< in: file where to print */
 {
@@ -1226,11 +1227,11 @@ ibuf_print_ops(
 		"delete mark",
 		"delete"
 	};
-	ulint	i;
 
-	ut_a(UT_ARR_SIZE(op_names) == IBUF_OP_COUNT);
+	static_assert(array_elements(op_names) == IBUF_OP_COUNT, "");
+	fputs(op_name, file);
 
-	for (i = 0; i < IBUF_OP_COUNT; i++) {
+	for (ulint i = 0; i < IBUF_OP_COUNT; i++) {
 		fprintf(file, "%s " ULINTPF "%s", op_names[i],
 			ulint{ops[i]}, (i < (IBUF_OP_COUNT - 1)) ? ", " : "");
 	}
@@ -4547,23 +4548,28 @@ ibuf_print(
 /*=======*/
 	FILE*	file)	/*!< in: file where to print */
 {
-	mysql_mutex_lock(&ibuf_mutex);
 
-	fprintf(file,
-		"Ibuf: size " ULINTPF ", free list len " ULINTPF ","
-		" seg size " ULINTPF ", " ULINTPF " merges\n",
-		ibuf.size,
-		ibuf.free_list_len,
-		ibuf.seg_size,
-		ulint{ibuf.n_merges});
+  mysql_mutex_lock(&ibuf_mutex);
+  if (ibuf.empty)
+  {
+    mysql_mutex_unlock(&ibuf_mutex);
+    return;
+  }
 
-	fputs("merged operations:\n ", file);
-	ibuf_print_ops(ibuf.n_merged_ops, file);
+  const ulint size= ibuf.size;
+  const ulint free_list_len= ibuf.free_list_len;
+  const ulint seg_size= ibuf.seg_size;
+  mysql_mutex_unlock(&ibuf_mutex);
 
-	fputs("discarded operations:\n ", file);
-	ibuf_print_ops(ibuf.n_discarded_ops, file);
-
-	mysql_mutex_unlock(&ibuf_mutex);
+  fprintf(file,
+          "-------------\n"
+          "INSERT BUFFER\n"
+          "-------------\n"
+          "size " ULINTPF ", free list len " ULINTPF ","
+          " seg size " ULINTPF ", " ULINTPF " merges\n",
+          size, free_list_len, seg_size, ulint{ibuf.n_merges});
+  ibuf_print_ops("merged operations:\n", ibuf.n_merged_ops, file);
+  ibuf_print_ops("discarded operations:\n", ibuf.n_discarded_ops, file);
 }
 
 /** Check the insert buffer bitmaps on IMPORT TABLESPACE.
