@@ -3337,9 +3337,6 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 	*out_rec = NULL;
 	trx = thr_get_trx(thr);
 
-	srv_stats.n_sec_rec_cluster_reads.inc(
-		thd_get_thread_id(trx->mysql_thd));
-
 	row_build_row_ref_in_tuple(prebuilt->clust_ref, rec,
 				   sec_index, *offsets);
 
@@ -4205,11 +4202,9 @@ bool row_search_with_covering_prefix(
 	const dict_index_t*	index = prebuilt->index;
 	ut_ad(!dict_index_is_clust(index));
 
-	if (dict_index_is_spatial(index)) {
-		return false;
-	}
-
-	if (!srv_prefix_index_cluster_optimization) {
+	/* In ha_innobase::build_template() we choose to access the
+	whole row when using exclusive row locks. */
+	if (prebuilt->select_lock_type == LOCK_X || !index->is_btree()) {
 		return false;
 	}
 
@@ -4276,7 +4271,6 @@ bool row_search_with_covering_prefix(
 		ut_a(templ->rec_field_no != ULINT_UNDEFINED);
 	}
 
-	srv_stats.n_sec_rec_cluster_reads_avoided.inc();
 	return true;
 }
 

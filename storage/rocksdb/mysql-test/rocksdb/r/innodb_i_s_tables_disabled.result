@@ -52,8 +52,6 @@ buffer_pool_pages_free	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	N
 buffer_pages_created	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of pages created (innodb_pages_created)
 buffer_pages_written	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of pages written (innodb_pages_written)
 buffer_pages_read	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of pages read (innodb_pages_read)
-buffer_index_sec_rec_cluster_reads	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of secondary record reads triggered cluster read
-buffer_index_sec_rec_cluster_reads_avoided	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of secondary record reads avoided triggering cluster read
 buffer_data_reads	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Amount of data read in bytes (innodb_data_reads)
 buffer_data_written	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Amount of data written in bytes (innodb_data_written)
 buffer_flush_batch_scanned	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	set_owner	Total pages scanned as part of flush batch

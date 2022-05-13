@@ -1052,13 +1052,6 @@ static SHOW_VAR innodb_status_variables[]= {
   {"onlineddl_pct_progress",
    &export_vars.innodb_onlineddl_pct_progress, SHOW_SIZE_T},
 
-  /* Times secondary index lookup triggered cluster lookup and
-  times prefix optimization avoided triggering cluster lookup */
-  {"secondary_index_triggered_cluster_reads",
-   &export_vars.innodb_sec_rec_cluster_reads, SHOW_SIZE_T},
-  {"secondary_index_triggered_cluster_reads_avoided",
-   &export_vars.innodb_sec_rec_cluster_reads_avoided, SHOW_SIZE_T},
-
   /* Encryption */
   {"encryption_rotation_pages_read_from_cache",
    &export_vars.innodb_encryption_rotation_pages_read_from_cache, SHOW_SIZE_T},
@@ -19349,11 +19342,13 @@ static MYSQL_SYSVAR_UINT(spin_wait_delay, srv_spin_wait_delay,
   "Maximum delay between polling for a spin lock (4 by default)",
   NULL, NULL, 4, 0, 6000, 0);
 
+static my_bool innodb_prefix_index_cluster_optimization;
+
 static MYSQL_SYSVAR_BOOL(prefix_index_cluster_optimization,
-  srv_prefix_index_cluster_optimization,
-  PLUGIN_VAR_OPCMDARG,
-  "Enable prefix optimization to sometimes avoid cluster index lookups.",
-  NULL, NULL, FALSE);
+  innodb_prefix_index_cluster_optimization,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED,
+  "Deprecated parameter with no effect",
+  nullptr, nullptr, TRUE);
 
 static MYSQL_SYSVAR_STR(data_file_path, innobase_data_file_path,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
