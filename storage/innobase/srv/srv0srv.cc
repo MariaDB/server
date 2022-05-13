@@ -327,16 +327,6 @@ ulong	srv_n_spin_wait_rounds;
 /** innodb_spin_wait_delay */
 uint	srv_spin_wait_delay;
 
-static ulint		srv_n_rows_inserted_old;
-static ulint		srv_n_rows_updated_old;
-static ulint		srv_n_rows_deleted_old;
-static ulint		srv_n_rows_read_old;
-static ulint		srv_n_system_rows_inserted_old;
-static ulint		srv_n_system_rows_updated_old;
-static ulint		srv_n_system_rows_deleted_old;
-static ulint		srv_n_system_rows_read_old;
-
-ulint	srv_truncated_status_writes;
 /** Number of initialized rollback segments for persistent undo log */
 ulong	srv_available_undo_logs;
 
@@ -391,9 +381,6 @@ FILE*	srv_monitor_file;
 mysql_mutex_t srv_misc_tmpfile_mutex;
 /** Temporary file for miscellanous diagnostic output */
 FILE*	srv_misc_tmpfile;
-
-static ulint	srv_main_thread_process_no;
-static ulint	srv_main_thread_id;
 
 /* The following counts are used by the srv_master_callback. */
 
@@ -695,7 +682,7 @@ static void srv_refresh_innodb_monitor_stats(time_t current_time)
 	mysql_mutex_lock(&srv_innodb_monitor_mutex);
 
 	if (difftime(current_time, srv_last_monitor_time) < 60) {
-		/* We referesh InnoDB Monitor values so that averages are
+		/* We refresh InnoDB Monitor values so that averages are
 		printed from at most 60 last seconds */
 		mysql_mutex_unlock(&srv_innodb_monitor_mutex);
 		return;
@@ -711,16 +698,6 @@ static void srv_refresh_innodb_monitor_stats(time_t current_time)
 #endif /* BTR_CUR_HASH_ADAPT */
 
 	buf_refresh_io_stats();
-
-	srv_n_rows_inserted_old = srv_stats.n_rows_inserted;
-	srv_n_rows_updated_old = srv_stats.n_rows_updated;
-	srv_n_rows_deleted_old = srv_stats.n_rows_deleted;
-	srv_n_rows_read_old = srv_stats.n_rows_read;
-
-	srv_n_system_rows_inserted_old = srv_stats.n_system_rows_inserted;
-	srv_n_system_rows_updated_old = srv_stats.n_system_rows_updated;
-	srv_n_system_rows_deleted_old = srv_stats.n_system_rows_deleted;
-	srv_n_system_rows_read_old = srv_stats.n_system_rows_read;
 
 	mysql_mutex_unlock(&srv_innodb_monitor_mutex);
 }
@@ -889,68 +866,7 @@ srv_printf_innodb_monitor(
 			n_reserved);
 	}
 
-	fprintf(file,
-		"Process ID=" ULINTPF
-		", Main thread ID=" ULINTPF
-		", state: %s\n",
-		srv_main_thread_process_no,
-		srv_main_thread_id,
-		srv_main_thread_op_info);
-	fprintf(file,
-		"Number of rows inserted " ULINTPF
-		", updated " ULINTPF
-		", deleted " ULINTPF
-		", read " ULINTPF "\n",
-		(ulint) srv_stats.n_rows_inserted,
-		(ulint) srv_stats.n_rows_updated,
-		(ulint) srv_stats.n_rows_deleted,
-		(ulint) srv_stats.n_rows_read);
-	fprintf(file,
-		"%.2f inserts/s, %.2f updates/s,"
-		" %.2f deletes/s, %.2f reads/s\n",
-		static_cast<double>(srv_stats.n_rows_inserted
-				    - srv_n_rows_inserted_old)
-		/ time_elapsed,
-		static_cast<double>(srv_stats.n_rows_updated
-				    - srv_n_rows_updated_old)
-		/ time_elapsed,
-		static_cast<double>(srv_stats.n_rows_deleted
-				    - srv_n_rows_deleted_old)
-		/ time_elapsed,
-		static_cast<double>(srv_stats.n_rows_read
-				    - srv_n_rows_read_old)
-		/ time_elapsed);
-	fprintf(file,
-		"Number of system rows inserted " ULINTPF
-		", updated " ULINTPF ", deleted " ULINTPF
-		", read " ULINTPF "\n",
-		(ulint) srv_stats.n_system_rows_inserted,
-		(ulint) srv_stats.n_system_rows_updated,
-		(ulint) srv_stats.n_system_rows_deleted,
-		(ulint) srv_stats.n_system_rows_read);
-	fprintf(file,
-		"%.2f inserts/s, %.2f updates/s,"
-		" %.2f deletes/s, %.2f reads/s\n",
-		static_cast<double>(srv_stats.n_system_rows_inserted
-				    - srv_n_system_rows_inserted_old)
-		/ time_elapsed,
-		static_cast<double>(srv_stats.n_system_rows_updated
-				    - srv_n_system_rows_updated_old)
-		/ time_elapsed,
-		static_cast<double>(srv_stats.n_system_rows_deleted
-				    - srv_n_system_rows_deleted_old)
-		/ time_elapsed,
-		static_cast<double>(srv_stats.n_system_rows_read
-				    - srv_n_system_rows_read_old)
-		/ time_elapsed);
-	srv_n_rows_inserted_old = srv_stats.n_rows_inserted;
-	srv_n_rows_updated_old = srv_stats.n_rows_updated;
-	srv_n_rows_deleted_old = srv_stats.n_rows_deleted;
-	srv_n_rows_read_old = srv_stats.n_rows_read;
-	srv_n_system_rows_inserted_old = srv_stats.n_system_rows_inserted;
-	srv_n_system_rows_updated_old = srv_stats.n_system_rows_updated;
-	srv_n_system_rows_deleted_old = srv_stats.n_system_rows_deleted;
-	srv_n_system_rows_read_old = srv_stats.n_system_rows_read;
+	fprintf(file, ", state: %s\n", srv_main_thread_op_info);
 
 	fputs("----------------------------\n"
 	      "END OF INNODB MONITOR OUTPUT\n"
@@ -1087,28 +1003,6 @@ srv_export_innodb_status(void)
 		? static_cast<ulint>(export_vars.innodb_row_lock_time
 				     / export_vars.innodb_row_lock_waits)
 		: 0;
-
-	export_vars.innodb_rows_read = srv_stats.n_rows_read;
-
-	export_vars.innodb_rows_inserted = srv_stats.n_rows_inserted;
-
-	export_vars.innodb_rows_updated = srv_stats.n_rows_updated;
-
-	export_vars.innodb_rows_deleted = srv_stats.n_rows_deleted;
-
-	export_vars.innodb_system_rows_read = srv_stats.n_system_rows_read;
-
-	export_vars.innodb_system_rows_inserted =
-		srv_stats.n_system_rows_inserted;
-
-	export_vars.innodb_system_rows_updated =
-		srv_stats.n_system_rows_updated;
-
-	export_vars.innodb_system_rows_deleted =
-		srv_stats.n_system_rows_deleted;
-
-	export_vars.innodb_truncated_status_writes =
-		srv_truncated_status_writes;
 
 	export_vars.innodb_page_compression_saved = srv_stats.page_compression_saved;
 	export_vars.innodb_pages_page_compressed = srv_stats.pages_page_compressed;

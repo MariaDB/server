@@ -1393,12 +1393,6 @@ error_exit:
 		}
 	}
 
-	if (table->is_system_db) {
-		srv_stats.n_system_rows_inserted.inc(size_t(trx->id));
-	} else {
-		srv_stats.n_rows_inserted.inc(size_t(trx->id));
-	}
-
 	/* Not protected by dict_sys.latch or table->stats_mutex_lock()
 	for performance
 	reasons, we would rather get garbage in stat_n_rows (which is
@@ -1744,20 +1738,8 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 		with a latch. */
 		dict_table_n_rows_dec(prebuilt->table);
 
-		if (table->is_system_db) {
-			srv_stats.n_system_rows_deleted.inc(size_t(trx->id));
-		} else {
-			srv_stats.n_rows_deleted.inc(size_t(trx->id));
-		}
-
 		update_statistics = !srv_stats_include_delete_marked;
 	} else {
-		if (table->is_system_db) {
-			srv_stats.n_system_rows_updated.inc(size_t(trx->id));
-		} else {
-			srv_stats.n_rows_updated.inc(size_t(trx->id));
-		}
-
 		update_statistics
 			= !(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE);
 	}
@@ -2010,8 +1992,6 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 			goto exit;
 
 		case DB_SUCCESS:
-			srv_stats.n_rows_inserted.inc(
-				static_cast<size_t>(trx->id));
 			dict_stats_update_if_needed(table, *trx);
 			goto exit;
 		}
@@ -2095,11 +2075,9 @@ row_update_cascade_for_mysql(
 				dict_table_n_rows_dec(node->table);
 
 				stats = !srv_stats_include_delete_marked;
-				srv_stats.n_rows_deleted.inc(size_t(trx->id));
 			} else {
 				stats = !(node->cmpl_info
 					  & UPD_NODE_NO_ORD_CHANGE);
-				srv_stats.n_rows_updated.inc(size_t(trx->id));
 			}
 
 			if (stats) {
