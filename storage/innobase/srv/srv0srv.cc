@@ -291,10 +291,6 @@ uint	srv_fast_shutdown;
 /** copy of innodb_status_file; generate a innodb_status.<pid> file */
 ibool	srv_innodb_status;
 
-/** innodb_prefix_index_cluster_optimization; whether to optimize
-prefix index queries to skip cluster index lookup when possible */
-my_bool	srv_prefix_index_cluster_optimization;
-
 /** innodb_stats_transient_sample_pages;
 When estimating number of different key values in an index, sample
 this many index pages, there are 2 ways to calculate statistics:
@@ -1030,11 +1026,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_onlineddl_rowlog_rows = onlineddl_rowlog_rows;
 	export_vars.innodb_onlineddl_rowlog_pct_used = onlineddl_rowlog_pct_used;
 	export_vars.innodb_onlineddl_pct_progress = onlineddl_pct_progress;
-
-	export_vars.innodb_sec_rec_cluster_reads =
-		srv_stats.n_sec_rec_cluster_reads;
-	export_vars.innodb_sec_rec_cluster_reads_avoided =
-		srv_stats.n_sec_rec_cluster_reads_avoided;
 
 	if (!srv_read_only_mode) {
 		export_vars.innodb_encryption_rotation_pages_read_from_cache =

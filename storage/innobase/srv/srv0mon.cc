@@ -278,18 +278,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_READ},
 
-	{"buffer_index_sec_rec_cluster_reads", "buffer",
-	 "Number of secondary record reads triggered cluster read",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS},
-
-	{"buffer_index_sec_rec_cluster_reads_avoided", "buffer",
-	 "Number of secondary record reads avoided triggering cluster read",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS_AVOIDED},
-
 	{"buffer_data_reads", "buffer",
 	 "Amount of data read in bytes (innodb_data_reads)",
 	 static_cast<monitor_type_t>(
@@ -1423,16 +1411,6 @@ srv_mon_process_existing_counter(
 	/* innodb_pages_read */
 	case MONITOR_OVLD_PAGES_READ:
 		value = buf_pool.stat.n_pages_read;
-		break;
-
-	/* Number of times secondary index lookup triggered cluster lookup */
-	case MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS:
-		value = srv_stats.n_sec_rec_cluster_reads;
-		break;
-	/* Number of times prefix optimization avoided triggering cluster
-	lookup */
-	case MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS_AVOIDED:
-		value = srv_stats.n_sec_rec_cluster_reads_avoided;
 		break;
 
 	/* innodb_data_reads, the total number of data reads */
