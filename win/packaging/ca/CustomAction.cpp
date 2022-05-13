@@ -664,6 +664,12 @@ unsigned long long GetMaxBufferSize(unsigned long long totalPhys)
 
 
 /*
+  Magic undocumented number for bufferpool minimum,
+  allows innodb to start also for all page sizes.
+*/
+static constexpr unsigned long long minBufferpoolMB= 20;
+
+/*
   Checks SERVICENAME, PORT and BUFFERSIZE parameters
 */
 extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
@@ -791,34 +797,37 @@ extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
      unsigned long long availableMemory=
        GetMaxBufferSize(memstatus.ullTotalPhys)/ONE_MB;
      swprintf_s(invalidValueMsg,
-        L"Invalid buffer pool size. Please use a number between 1 and %llu",
-         availableMemory);
-     if(BufferPoolSizeLen == 0 || BufferPoolSizeLen > 15)
+        L"Invalid buffer pool size. Please use a number between %llu and %llu",
+         minBufferpoolMB, availableMemory);
+     if (BufferPoolSizeLen == 0 || BufferPoolSizeLen > 15 || !BufferPoolSize[0])
      {
        ErrorMsg= invalidValueMsg;
        goto LExit;
      }
-     for (DWORD i=0; i < BufferPoolSizeLen && BufferPoolSize[BufferPoolSizeLen];
-       i++)
-     {
-       if(BufferPoolSize[i]< '0' || BufferPoolSize[i] > '9')
-       {
-         ErrorMsg= invalidValueMsg;
-         goto LExit;
-       }
-     }
+
      BufferPoolSize[BufferPoolSizeLen]=0;
      MsiSetPropertyW(hInstall, L"BUFFERPOOLSIZE", BufferPoolSize);
-     long long sz = _wtoi64(BufferPoolSize);
-     if(sz <= 0 || sz > (long long)availableMemory)
+     wchar_t *end;
+     unsigned long long sz = wcstoull(BufferPoolSize, &end, 10);
+     if (sz > availableMemory || sz < minBufferpoolMB || *end)
      {
-       if(sz > 0)
+       if (*end == 0)
        {
-         swprintf_s(invalidValueMsg,
-           L"Value for buffer pool size is too large."
-           L"Only approximately %llu MB is available for allocation."
-           L"Please use a number between 1 and %llu.",
-          availableMemory, availableMemory);
+         if(sz > availableMemory)
+         {
+           swprintf_s(invalidValueMsg,
+             L"Value for buffer pool size is too large."
+             L"Only approximately %llu MB is available for allocation."
+             L"Please use a number between %llu and %llu.",
+             availableMemory, minBufferpoolMB, availableMemory);
+         }
+         else if(sz < minBufferpoolMB)
+         {
+           swprintf_s(invalidValueMsg,
+             L"Value for buffer pool size is too small."
+             L"Please use a number between %llu and %llu.",
+             minBufferpoolMB, availableMemory);
+         }
        }
        ErrorMsg= invalidValueMsg;
        goto LExit;
