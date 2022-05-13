@@ -898,6 +898,8 @@ static MYSQL_THDVAR_STR(tmpdir,
   "Directory for temporary non-tablespace files.",
   innodb_tmpdir_validate, NULL, NULL);
 
+static size_t truncated_status_writes;
+
 static SHOW_VAR innodb_status_variables[]= {
 #ifdef BTR_CUR_HASH_ADAPT
   {"adaptive_hash_hash_searches", &export_vars.innodb_ahi_hit, SHOW_SIZE_T},
@@ -1006,19 +1008,8 @@ static SHOW_VAR innodb_status_variables[]= {
   {"row_lock_time_avg", &export_vars.innodb_row_lock_time_avg, SHOW_SIZE_T},
   {"row_lock_time_max", &export_vars.innodb_row_lock_time_max, SHOW_SIZE_T},
   {"row_lock_waits", &export_vars.innodb_row_lock_waits, SHOW_SIZE_T},
-  {"rows_deleted", &export_vars.innodb_rows_deleted, SHOW_SIZE_T},
-  {"rows_inserted", &export_vars.innodb_rows_inserted, SHOW_SIZE_T},
-  {"rows_read", &export_vars.innodb_rows_read, SHOW_SIZE_T},
-  {"rows_updated", &export_vars.innodb_rows_updated, SHOW_SIZE_T},
-  {"system_rows_deleted", &export_vars.innodb_system_rows_deleted,SHOW_SIZE_T},
-  {"system_rows_inserted", &export_vars.innodb_system_rows_inserted,
-   SHOW_SIZE_T},
-  {"system_rows_read", &export_vars.innodb_system_rows_read, SHOW_SIZE_T},
-  {"system_rows_updated", &export_vars.innodb_system_rows_updated,
-   SHOW_SIZE_T},
   {"num_open_files", &fil_system.n_open, SHOW_SIZE_T},
-  {"truncated_status_writes", &export_vars.innodb_truncated_status_writes,
-   SHOW_SIZE_T},
+  {"truncated_status_writes", &truncated_status_writes, SHOW_SIZE_T},
   {"available_undo_logs", &srv_available_undo_logs, SHOW_ULONG},
   {"undo_truncations", &export_vars.innodb_undo_truncations, SHOW_ULONG},
 
@@ -8995,13 +8986,6 @@ ha_innobase::index_read(
 	case DB_SUCCESS:
 		error = 0;
 		table->status = 0;
-		if (m_prebuilt->table->is_system_db) {
-			srv_stats.n_system_rows_read.add(
-				thd_get_thread_id(m_prebuilt->trx->mysql_thd), 1);
-		} else {
-			srv_stats.n_rows_read.add(
-				thd_get_thread_id(m_prebuilt->trx->mysql_thd), 1);
-		}
 		break;
 
 	case DB_RECORD_NOT_FOUND:
@@ -9256,13 +9240,6 @@ ha_innobase::general_fetch(
 	case DB_SUCCESS:
 		error = 0;
 		table->status = 0;
-		if (m_prebuilt->table->is_system_db) {
-			srv_stats.n_system_rows_read.add(
-				thd_get_thread_id(trx->mysql_thd), 1);
-		} else {
-			srv_stats.n_rows_read.add(
-				thd_get_thread_id(trx->mysql_thd), 1);
-		}
 		break;
 	case DB_RECORD_NOT_FOUND:
 		error = HA_ERR_END_OF_FILE;
@@ -16231,7 +16208,7 @@ innodb_show_status(
 
 	if (flen > MAX_STATUS_SIZE) {
 		usable_len = MAX_STATUS_SIZE;
-		srv_truncated_status_writes++;
+		truncated_status_writes++;
 	} else {
 		usable_len = flen;
 	}

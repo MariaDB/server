@@ -116,30 +116,6 @@ struct srv_stats_t
 	/** Number of data read in total (in bytes) */
 	ulint_ctr_1_t		data_read;
 
-	/** Number of rows read. */
-	ulint_ctr_n_t		n_rows_read;
-
-	/** Number of rows updated */
-	ulint_ctr_n_t		n_rows_updated;
-
-	/** Number of rows deleted */
-	ulint_ctr_n_t		n_rows_deleted;
-
-	/** Number of rows inserted */
-	ulint_ctr_n_t		n_rows_inserted;
-
-	/** Number of system rows read. */
-	ulint_ctr_n_t		n_system_rows_read;
-
-	/** Number of system rows updated */
-	ulint_ctr_n_t		n_system_rows_updated;
-
-	/** Number of system rows deleted */
-	ulint_ctr_n_t		n_system_rows_deleted;
-
-	/** Number of system rows inserted */
-	ulint_ctr_n_t		n_system_rows_inserted;
-
 	/** Number of times secondary index lookup triggered cluster lookup */
 	ulint_ctr_n_t		n_sec_rec_cluster_reads;
 
@@ -399,7 +375,6 @@ extern bool	srv_monitor_active;
 extern ulong	srv_n_spin_wait_rounds;
 extern uint	srv_spin_wait_delay;
 
-extern ulint	srv_truncated_status_writes;
 /** Number of initialized rollback segments for persistent undo log */
 extern ulong	srv_available_undo_logs;
 /** Iterations of the loop bounded by 'srv_active' label. */
@@ -701,15 +676,6 @@ struct export_var_t{
 						/ srv_n_lock_wait_count */
 	ulint innodb_row_lock_time_max;		/*!< srv_n_lock_max_wait_time
 						/ 1000 */
-	ulint innodb_rows_read;			/*!< srv_n_rows_read */
-	ulint innodb_rows_inserted;		/*!< srv_n_rows_inserted */
-	ulint innodb_rows_updated;		/*!< srv_n_rows_updated */
-	ulint innodb_rows_deleted;		/*!< srv_n_rows_deleted */
-	ulint innodb_system_rows_read; /*!< srv_n_system_rows_read */
-	ulint innodb_system_rows_inserted; /*!< srv_n_system_rows_inserted */
-	ulint innodb_system_rows_updated; /*!< srv_n_system_rows_updated */
-	ulint innodb_system_rows_deleted; /*!< srv_n_system_rows_deleted*/
-	ulint innodb_truncated_status_writes;	/*!< srv_truncated_status_writes */
 
 	/** Number of undo tablespace truncation operations */
 	ulong innodb_undo_truncations;
