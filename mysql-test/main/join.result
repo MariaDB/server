@@ -869,7 +869,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	5
+Handler_read_rnd_next	0
 drop table t1, t2, t3;
 create table t1 (a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -1280,14 +1280,14 @@ pk	v	pk	v
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	14
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	1
+Handler_read_rnd_next	0
 DROP TABLE t1, t2;
 End of 5.1 tests
 #

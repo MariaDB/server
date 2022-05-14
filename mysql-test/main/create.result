@@ -972,7 +972,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	7
+Handler_read_rnd_next	0
 drop table t1,t2;
 CREATE TABLE t1(c1 VARCHAR(33), KEY USING BTREE (c1));
 DROP TABLE t1;

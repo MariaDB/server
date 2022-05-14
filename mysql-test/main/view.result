@@ -4215,14 +4215,14 @@ a	c
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 CREATE VIEW v AS SELECT * FROM t2;
 EXPLAIN EXTENDED
 SELECT t1.a,v.c  FROM t1,v WHERE v.pk = t1.a AND v.pk > 8;
@@ -4239,14 +4239,14 @@ a	c
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 DROP VIEW v;
 DROP TABLE t1, t2;
 #

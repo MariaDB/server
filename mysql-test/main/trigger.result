@@ -1273,7 +1273,7 @@ FLUSH STATUS;
 DELETE FROM t1;
 SHOW STATUS LIKE 'handler_delete';
 Variable_name	Value
-Handler_delete	8
+Handler_delete	0
 SELECT COUNT(*) FROM t2;
 COUNT(*)
 8

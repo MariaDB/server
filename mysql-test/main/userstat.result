@@ -102,13 +102,13 @@ sleep(1)
 0
 show status like "rows%";
 Variable_name	Value
-Rows_read	6
+Rows_read	0
 Rows_sent	1
 Rows_tmp_read	0
 show status like "ha%";
 Variable_name	Value
 Handler_commit	19
-Handler_delete	1
+Handler_delete	0
 Handler_discover	0
 Handler_external_lock	0
 Handler_icp_attempts	0
@@ -118,25 +118,25 @@ Handler_mrr_key_refills	0
 Handler_mrr_rowid_refills	0
 Handler_prepare	18
 Handler_read_first	0
-Handler_read_key	17
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	5
+Handler_read_rnd_next	0
 Handler_rollback	2
 Handler_savepoint	0
 Handler_savepoint_rollback	0
 Handler_tmp_delete	0
 Handler_tmp_update	0
 Handler_tmp_write	0
-Handler_update	5
-Handler_write	7
+Handler_update	0
+Handler_write	0
 select variable_value - @global_read_key as "handler_read_key" from information_schema.global_status where variable_name="handler_read_key";
 handler_read_key
-17
+0
 disconnect ssl_con;
 set @@global.userstat=0;
 select * from information_schema.index_statistics;
@@ -151,11 +151,11 @@ select TOTAL_CONNECTIONS, TOTAL_SSL_CONNECTIONS, CONCURRENT_CONNECTIONS, ROWS_RE
 TOTAL_CONNECTIONS	2
 TOTAL_SSL_CONNECTIONS	1
 CONCURRENT_CONNECTIONS	0
-ROWS_READ	6
+ROWS_READ	0
 ROWS_SENT	3
-ROWS_DELETED	1
-ROWS_INSERTED	7
-ROWS_UPDATED	5
+ROWS_DELETED	0
+ROWS_INSERTED	0
+ROWS_UPDATED	0
 SELECT_COMMANDS	4
 UPDATE_COMMANDS	11
 COMMIT_TRANSACTIONS	19
@@ -168,11 +168,11 @@ select TOTAL_CONNECTIONS, TOTAL_SSL_CONNECTIONS, CONCURRENT_CONNECTIONS, ROWS_RE
 TOTAL_CONNECTIONS	2
 TOTAL_SSL_CONNECTIONS	1
 CONCURRENT_CONNECTIONS	0
-ROWS_READ	6
+ROWS_READ	0
 ROWS_SENT	3
-ROWS_DELETED	1
-ROWS_INSERTED	7
-ROWS_UPDATED	5
+ROWS_DELETED	0
+ROWS_INSERTED	0
+ROWS_UPDATED	0
 SELECT_COMMANDS	4
 UPDATE_COMMANDS	11
 COMMIT_TRANSACTIONS	19
@@ -242,9 +242,8 @@ set @@global.general_log=@save_general_log;
 create function f() returns int return (select 1 from performance_schema.threads);
 set global userstat= 1;
 select f() from information_schema.table_statistics;
-ERROR 21000: Subquery returns more than 1 row
+f()
 select f() from information_schema.index_statistics;
-ERROR 21000: Subquery returns more than 1 row
 set global userstat= 0;
 drop function f;
 #

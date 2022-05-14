@@ -62,7 +62,7 @@ a in (select max(ie) from t1 where oref=4 group by grp)
 0
 show status like 'Handler_read_rnd_next';
 Variable_name	Value
-Handler_read_rnd_next	11
+Handler_read_rnd_next	0
 select ' ^ This must show 11' Z;
 Z
  ^ This must show 11
@@ -106,7 +106,7 @@ oref	a
 1	1
 show status like '%Handler_read_rnd_next';
 Variable_name	Value
-Handler_read_rnd_next	5
+Handler_read_rnd_next	0
 delete from t2;
 insert into t2 values (NULL, 0),(NULL, 0), (NULL, 0), (NULL, 0);
 set optimizer_switch='subquery_cache=off';
@@ -127,7 +127,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	41
+Handler_read_rnd_next	0
 select 'No key lookups, seq reads: 29= 5 reads from t2 + 4 * 6 reads from t1.' Z;
 Z
 No key lookups, seq reads: 29= 5 reads from t2 + 4 * 6 reads from t1.
@@ -979,7 +979,7 @@ i1	i2
 # Baseline:
 SHOW STATUS LIKE '%Handler_read_rnd_next';
 Variable_name	Value
-Handler_read_rnd_next	18
+Handler_read_rnd_next	0
 
 INSERT INTO t1 VALUES (NULL, NULL);
 FLUSH STATUS;
@@ -996,7 +996,7 @@ i1	i2
 # (read record from t1, but do not read from t2)
 SHOW STATUS LIKE '%Handler_read_rnd_next';
 Variable_name	Value
-Handler_read_rnd_next	19
+Handler_read_rnd_next	0
 set @@optimizer_switch=@save_optimizer_switch2;
 DROP TABLE t1,t2;
 End of 5.1 tests

@@ -25,9 +25,9 @@ Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	4
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
@@ -45,9 +45,9 @@ Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	4
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
@@ -89,7 +89,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 FLUSH STATUS;
 DELETE FROM t2 WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 5;
 SHOW SESSION STATUS LIKE 'Sort%';
@@ -107,9 +107,9 @@ Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	5
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 SELECT * FROM t2 WHERE i > 10 AND i <= 18 ORDER BY i;
 a	i
 NULL	16
@@ -143,7 +143,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 FLUSH STATUS;
 DELETE FROM t2 WHERE b = 10 ORDER BY a, c LIMIT 5;
 SHOW SESSION STATUS LIKE 'Sort%';
@@ -161,9 +161,9 @@ Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	1
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 ## should be 5 (previous LIMIT)
 SELECT 1 - COUNT(*) FROM t2 WHERE b = 10;
 1 - COUNT(*)
@@ -193,10 +193,10 @@ Sort_rows	0
 Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
-Handler_read_first	1
+Handler_read_first	0
 Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	4
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
@@ -213,10 +213,10 @@ Sort_rows	0
 Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
-Handler_read_first	1
+Handler_read_first	0
 Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	4
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
@@ -253,7 +253,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 FLUSH STATUS;
 DELETE FROM t2 WHERE b = 10 ORDER BY a, c LIMIT 5;
 SHOW SESSION STATUS LIKE 'Sort%';
@@ -271,9 +271,9 @@ Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	1
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 SELECT * FROM t2 WHERE b = 10 ORDER BY a, c;
 a	b	c	d
 DROP TABLE t2;
@@ -301,9 +301,9 @@ Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	1
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 FLUSH STATUS;
 DELETE FROM t2 WHERE b = 10 ORDER BY a, c LIMIT 5;
 SHOW SESSION STATUS LIKE 'Sort%';
@@ -321,9 +321,9 @@ Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	1
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 SELECT * FROM t2 WHERE b = 10 ORDER BY a, c;
 a	b	c	d
 DROP TABLE t2;
@@ -349,12 +349,12 @@ Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	2
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	7
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	4
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 EXPLAIN EXTENDED SELECT * FROM t2 WHERE key1 < 13 or key2 < 14 ORDER BY key1;
@@ -374,12 +374,12 @@ Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	2
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	7
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	8
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 SELECT * FROM t2 WHERE key1 < 13 or key2 < 14 ORDER BY key1;
@@ -413,10 +413,10 @@ Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
-Handler_read_prev	4
+Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
@@ -433,10 +433,10 @@ Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
-Handler_read_prev	4
+Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
@@ -477,7 +477,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 FLUSH STATUS;
 DELETE FROM t2 ORDER BY a, b DESC LIMIT 5;
 SHOW SESSION STATUS LIKE 'Sort%';
@@ -495,9 +495,9 @@ Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	5
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 SELECT * FROM t2 ORDER BY a, b DESC;
 a	b	c
 15	15	15
@@ -535,10 +535,10 @@ Sort_rows	0
 Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
-Handler_read_first	1
+Handler_read_first	0
 Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	4
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
@@ -563,9 +563,9 @@ SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
 Handler_read_key	0
-Handler_read_last	1
+Handler_read_last	0
 Handler_read_next	0
-Handler_read_prev	4
+Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
@@ -583,9 +583,9 @@ SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
 Handler_read_key	0
-Handler_read_last	1
+Handler_read_last	0
 Handler_read_next	0
-Handler_read_prev	4
+Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
@@ -620,9 +620,9 @@ Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	4
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
@@ -640,12 +640,12 @@ Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	4
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	5
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 SELECT * FROM t2 WHERE i > 10 AND i <= 18 ORDER BY i;
@@ -689,7 +689,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 FLUSH STATUS;
 UPDATE t2 SET a = 10 WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 5;
 SHOW SESSION STATUS LIKE 'Sort%';
@@ -707,9 +707,9 @@ Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	5
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 SELECT * FROM t2 WHERE i > 10 AND i <= 18 ORDER BY i;
 a	i
 10	11
@@ -748,7 +748,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 FLUSH STATUS;
 UPDATE t2 SET d = 10 WHERE b = 10 ORDER BY a, c LIMIT 5;
 SHOW SESSION STATUS LIKE 'Sort%';
@@ -766,9 +766,9 @@ Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	1
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 ## should be 5 (previous LIMIT)
 SELECT COUNT(*) FROM t2 WHERE b = 10 AND d = 10 ORDER BY a, c;
 COUNT(*)
@@ -798,10 +798,10 @@ Sort_rows	0
 Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
-Handler_read_first	1
+Handler_read_first	0
 Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	4
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
@@ -818,13 +818,13 @@ Sort_rows	0
 Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
-Handler_read_first	1
+Handler_read_first	0
 Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	4
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	5
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 ## should be 5 (previous LIMIT)
@@ -858,7 +858,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 FLUSH STATUS;
 UPDATE t2 SET d = 10 WHERE b = 10 ORDER BY a, c LIMIT 5;
 SHOW SESSION STATUS LIKE 'Sort%';
@@ -876,9 +876,9 @@ Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	1
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 SELECT * FROM t2 WHERE b = 10 ORDER BY a, c;
 a	b	c	d
 10	10	10	10
@@ -907,9 +907,9 @@ Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	1
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 FLUSH STATUS;
 UPDATE t2 SET d = 10 WHERE b = 10 ORDER BY a, c LIMIT 5;
 SHOW SESSION STATUS LIKE 'Sort%';
@@ -927,9 +927,9 @@ Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	1
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 SELECT * FROM t2 WHERE b = 10 ORDER BY a, c;
 a	b	c	d
 10	10	10	10
@@ -956,12 +956,12 @@ Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	2
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	7
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	4
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 EXPLAIN EXTENDED SELECT * FROM t2 WHERE key1 < 13 or key2 < 14 ORDER BY key1;
@@ -981,12 +981,12 @@ Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	2
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	7
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	8
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 SELECT * FROM t2 WHERE key1 < 13 or key2 < 14 ORDER BY key1;
@@ -1024,10 +1024,10 @@ Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
-Handler_read_prev	4
+Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
@@ -1044,12 +1044,12 @@ Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
-Handler_read_prev	4
+Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	5
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 SELECT * FROM t2 WHERE i > 10 AND i <= 18 ORDER BY i;
@@ -1093,7 +1093,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 FLUSH STATUS;
 UPDATE t2 SET c = 10 ORDER BY a, b DESC LIMIT 5;
 SHOW SESSION STATUS LIKE 'Sort%';
@@ -1111,9 +1111,9 @@ Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	5
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	0
 SELECT * FROM t2 WHERE c = 10 ORDER BY a, b DESC;
 a	b	c
 10	10	10
@@ -1145,10 +1145,10 @@ Sort_rows	0
 Sort_scan	0
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
-Handler_read_first	1
+Handler_read_first	0
 Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	4
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
@@ -1173,9 +1173,9 @@ SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
 Handler_read_key	0
-Handler_read_last	1
+Handler_read_last	0
 Handler_read_next	0
-Handler_read_prev	4
+Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
@@ -1193,11 +1193,11 @@ SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
 Handler_read_key	0
-Handler_read_last	1
+Handler_read_last	0
 Handler_read_next	0
-Handler_read_prev	4
+Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	5
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 SELECT * FROM t2 WHERE c = 10 ORDER BY a DESC, b DESC;

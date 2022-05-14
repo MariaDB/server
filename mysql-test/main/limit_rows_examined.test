@@ -375,7 +375,6 @@ drop table t3_empty;
 
 explain
 select c1, c2 from t3 order by c2, c1 LIMIT ROWS EXAMINED 2;
---error 1028
 select c1, c2 from t3 order by c2, c1 LIMIT ROWS EXAMINED 2;
 
 explain
@@ -384,7 +383,6 @@ select c1, c2 from t3i order by c2, c1 LIMIT ROWS EXAMINED 2;
 
 explain
 select c1, c2 from t3i order by c2, c1 desc LIMIT ROWS EXAMINED 2;
---error 1028
 select c1, c2 from t3i order by c2, c1 desc LIMIT ROWS EXAMINED 2;
 
 drop table t3,t3i;

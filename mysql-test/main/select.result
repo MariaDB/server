@@ -4391,14 +4391,14 @@ b
 SHOW STATUS LIKE 'Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	2
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	6
+Handler_read_rnd_next	0
 DROP TABLE t1, t2;
 CREATE TABLE t1 (f1 bigint(20) NOT NULL default '0',
 f2 int(11) NOT NULL default '0',

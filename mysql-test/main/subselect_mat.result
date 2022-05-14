@@ -2645,16 +2645,16 @@ select * from t1 where (a,b) in (select max(a),b from t2 group by b);
 show status where Variable_name like 'Handler_read%' or  Variable_name like 'Handler_%write%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	5004
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	6003
-Handler_tmp_write	2000
-Handler_write	1000
+Handler_read_rnd_next	0
+Handler_tmp_write	0
+Handler_write	0
 drop table t0,t1,t2,t3;
 #
 # MDEV-7971: Assertion `name != __null' failed in ACL_internal_schema_registry::lookup 

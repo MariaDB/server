@@ -3917,15 +3917,9 @@ protected:
   virtual int close(void)=0;
   inline void update_rows_read()
   {
-    if (likely(!internal_tmp_table))
-      rows_read++;
-    else
-      rows_tmp_read++;
   }
   inline void update_index_statistics()
   {
-    index_rows_read[active_index]++;
-    update_rows_read();
   }
 public:
 

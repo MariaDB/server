@@ -32,14 +32,14 @@ Subquery_cache_miss	4
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	7
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	31
+Handler_read_rnd_next	0
 analyze format=json
 select a, (select d from t2 where b=c) from t1;
 ANALYZE
@@ -340,7 +340,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	61
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=on';
 #single value subquery test (where)
 flush status;
@@ -361,14 +361,14 @@ Subquery_cache_miss	4
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	7
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	31
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=off';
 flush status;
 select a from t1 where (select d from t2 where b=c);
@@ -395,7 +395,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	61
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=on';
 #single value subquery test (having)
 flush status;
@@ -416,14 +416,14 @@ Subquery_cache_miss	4
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	7
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	31
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=off';
 flush status;
 select a from t1 where a > 0 having (select d from t2 where b=c);
@@ -450,7 +450,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	61
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=on';
 #single value subquery test (OUTER JOIN ON)
 flush status;
@@ -543,14 +543,14 @@ Subquery_cache_miss	4
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	7
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	442
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=off';
 flush status;
 select ta.a, tb.a from t1 ta join t1 tb on (select d from t2 where tb.b=c);
@@ -649,7 +649,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	472
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=on';
 #single value subquery test (GROUP BY)
 flush status;
@@ -666,14 +666,14 @@ Subquery_cache_miss	4
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	17
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	4
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	36
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=off';
 flush status;
 select max(a) from t1  GROUP BY (select d from t2 where b=c);
@@ -689,14 +689,14 @@ Subquery_cache_miss	0
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	10
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	4
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	86
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=on';
 #single value subquery test (distinct GROUP BY)
 flush status;
@@ -713,14 +713,14 @@ Subquery_cache_miss	4
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	17
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	4
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	41
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=off';
 flush status;
 select distinct max(a) from t1  GROUP BY (select d from t2 where b=c);
@@ -736,14 +736,14 @@ Subquery_cache_miss	0
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	10
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	4
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	91
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=on';
 #single value subquery test (ORDER BY)
 flush status;
@@ -766,14 +766,14 @@ Subquery_cache_miss	4
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	7
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	31
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=off';
 flush status;
 select a from t1 ORDER BY (select d from t2 where b=c);
@@ -802,7 +802,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	61
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=on';
 #single value subquery test (distinct ORDER BY)
 flush status;
@@ -819,14 +819,14 @@ Subquery_cache_miss	4
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	7
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	4
+Handler_read_rnd	0
 Handler_read_rnd_deleted	1
-Handler_read_rnd_next	36
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=off';
 flush status;
 select distinct a from t1 ORDER BY (select d from t2 where b=c);
@@ -847,9 +847,9 @@ Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	4
+Handler_read_rnd	0
 Handler_read_rnd_deleted	1
-Handler_read_rnd_next	66
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=on';
 #single value subquery test (LEFT JOIN ON)
 flush status;
@@ -942,14 +942,14 @@ Subquery_cache_miss	4
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	70
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	141
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=off';
 flush status;
 select ta.a, tb.a from t1 ta left join t1 tb on (select d from t2 where tb.b=c);
@@ -1048,7 +1048,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	671
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=on';
 #single value subquery test (PS)
 prepare stmt1 from 'select a, (select d from t2 where b=c) + 1 from t1';
@@ -1667,14 +1667,14 @@ Subquery_cache_miss	0
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	11
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	145
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=on';
 flush status;
 select a, b , exists (select * from t2 where b=d) as SUBSE, b in (select d from t2) as SUBSI, (select d from t2 where b=c) SUBSR from t1;
@@ -1698,14 +1698,14 @@ Subquery_cache_miss	18
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	32
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	84
+Handler_read_rnd_next	0
 #several subqueries (several levels)
 set optimizer_switch='subquery_cache=off';
 flush status;
@@ -1739,7 +1739,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	127
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=on';
 flush status;
 select a, b, (select exists (select * from t2 where b=d) from t2 where b=c) as SUNS1 from t1;
@@ -1763,14 +1763,14 @@ Subquery_cache_miss	10
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	13
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	69
+Handler_read_rnd_next	0
 #clean up
 drop table t1,t2;
 test different types
@@ -1955,14 +1955,14 @@ Subquery_cache_miss	0
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	15
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	8
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	57
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=on';
 flush status;
 select max(a), (select max(a) from t2 where max(a)=c) from t1 group by b;
@@ -1982,14 +1982,14 @@ Subquery_cache_miss	3
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	21
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	8
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	37
+Handler_read_rnd_next	0
 argument of aggregate function as parameter of subquery (illegal use)
 set optimizer_switch='subquery_cache=off';
 flush status;
@@ -2010,14 +2010,14 @@ Subquery_cache_miss	0
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	15
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	8
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	57
+Handler_read_rnd_next	0
 set optimizer_switch='subquery_cache=on';
 flush status;
 select max(a), (select a from t2 where a=c) from t1 group by b;
@@ -2037,14 +2037,14 @@ Subquery_cache_miss	4
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	22
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	8
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	41
+Handler_read_rnd_next	0
 drop table t1,t2;
 #test of flattening subquery optimisations and cache
 create table t0 (a int);
@@ -2080,14 +2080,14 @@ Subquery_cache_miss	0
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	15
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	16
+Handler_read_rnd_next	0
 alter table t2 drop primary key;
 set optimizer_switch='default,semijoin=off,materialization=off,subquery_cache=off';
 explain select * from t1 where a in (select pk from t2);
@@ -2126,7 +2126,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	151
+Handler_read_rnd_next	0
 set optimizer_switch='default,semijoin=off,materialization=off,subquery_cache=on';
 explain select * from t1 where a in (select pk from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -2157,14 +2157,14 @@ Subquery_cache_miss	3
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	15
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	43
+Handler_read_rnd_next	0
 set optimizer_switch='default,semijoin=off,materialization=on,subquery_cache=on';
 explain select * from t1 where a in (select pk from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -2195,14 +2195,14 @@ Subquery_cache_miss	3
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	18
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	27
+Handler_read_rnd_next	0
 drop table t0,t1,t2;
 set optimizer_switch='default';
 #launchpad BUG#608834

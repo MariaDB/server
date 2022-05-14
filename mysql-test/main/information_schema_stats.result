@@ -17,24 +17,21 @@ count(*)
 2
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
 TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
-test	just_a_test	IND_just_a_test_first_name_last_name	1
-test	just_a_test	IND_just_a_test_state	2
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
 TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
-test	just_a_test	18	5	5
+test	just_a_test	0	5	5
 alter table just_a_test drop key IND_just_a_test_first_name_last_name;
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
 TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
-test	just_a_test	IND_just_a_test_state	2
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
 TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
-test	just_a_test	23	5	5
+test	just_a_test	0	5	5
 alter table just_a_test drop column state;
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
 TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
 TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
-test	just_a_test	28	5	5
+test	just_a_test	0	5	5
 drop table just_a_test;
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
 TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
@@ -57,12 +54,9 @@ count(*)
 3
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
 TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
-test	just_a_test	PRIMARY	4
-test	just_a_test	first_name	1
-test	just_a_test	state	2
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
 TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
-test	just_a_test	7	5	15
+test	just_a_test	0	5	15
 drop table just_a_test;
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
 TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ

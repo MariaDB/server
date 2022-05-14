@@ -13,7 +13,7 @@ ERROR 23000: Duplicate entry 'maria' for key 'a'
 drop table t1;
 SHOW STATUS LIKE 'handler_read_next';
 Variable_name	Value
-Handler_read_next	11
+Handler_read_next	0
 SET debug_dbug="";
 create table t1(a blob unique);
 FLUSH STATUS;

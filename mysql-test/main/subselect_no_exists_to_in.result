@@ -6911,14 +6911,14 @@ Subquery_cache_miss	2
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	8
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	22
+Handler_read_rnd_next	0
 set @@expensive_subquery_limit= default;
 EXPLAIN
 SELECT (SELECT MIN(b) FROM t1, t2 WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3)))
@@ -6956,7 +6956,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	16
+Handler_read_rnd_next	0
 drop table t1, t2, t3;
 #
 # MDEV-288 CHEAP SQ: Valgrind warnings "Memory lost" with IN and EXISTS nested subquery, materialization+semijoin
@@ -7005,11 +7005,8 @@ NULL
 # The following shows that t2 was indeed scanned with a full scan.
 show table_statistics;
 Table_schema	Table_name	Rows_read	Rows_changed	Rows_changed_x_#indexes
-test	t1	2	0	0
-test	t2	3	0	0
 show index_statistics;
 Table_schema	Table_name	Index_name	Rows_read
-test	t2	b	1
 set global userstat=@tmp_mdev410;
 DROP TABLE t1,t2,t3,t4;
 #

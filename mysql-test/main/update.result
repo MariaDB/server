@@ -273,7 +273,7 @@ a
 0
 show status like 'handler_read%';
 Variable_name	Value
-Handler_read_first	1
+Handler_read_first	0
 Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
@@ -287,20 +287,20 @@ update t1 set a=9999 order by a limit 1;
 update t1 set b=9999 order by a limit 1;
 show status like 'handler_read%';
 Variable_name	Value
-Handler_read_first	1
+Handler_read_first	0
 Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	2
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	9
+Handler_read_rnd_next	0
 flush status;
 delete from t1 order by a limit 1;
 show status like 'handler_read%';
 Variable_name	Value
-Handler_read_first	1
+Handler_read_first	0
 Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
@@ -315,7 +315,7 @@ show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
 Handler_read_key	0
-Handler_read_last	1
+Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
@@ -328,14 +328,14 @@ delete from t1 order by a limit 1;
 show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	4
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	1
+Handler_read_rnd	0
 Handler_read_rnd_deleted	2
-Handler_read_rnd_next	7
+Handler_read_rnd_next	0
 select * from t1;
 a	b
 0	0
@@ -384,12 +384,12 @@ update t2 set a=3 where a=2;
 show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	1
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	1
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 drop table t1, t2;
@@ -424,7 +424,7 @@ user_id
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -437,7 +437,7 @@ user_id
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	2
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -449,7 +449,7 @@ UPDATE t1 SET user_id=null WHERE request_id=9999999999999;
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	2
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -461,7 +461,7 @@ UPDATE t1 SET user_id=null WHERE request_id=999999999999999999999999999999;
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	2
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -608,14 +608,14 @@ START TRANSACTION;
 UPDATE t2 SET d = 10 WHERE b = 10 LIMIT 5;
 SHOW STATUS LIKE 'HANDLER_UPDATE';
 Variable_name	Value
-Handler_update	1
+Handler_update	0
 ROLLBACK;
 FLUSH STATUS;
 START TRANSACTION;
 UPDATE t2 SET d = 10 WHERE b = 10 ORDER BY a, c LIMIT 5;
 SHOW STATUS LIKE 'HANDLER_UPDATE';
 Variable_name	Value
-Handler_update	1
+Handler_update	0
 ROLLBACK;
 Same test with a different UPDATE.
 ALTER TABLE t2 DROP INDEX idx, ADD INDEX idx2 (a, b);
@@ -624,14 +624,14 @@ START TRANSACTION;
 UPDATE t2 SET c = 10 LIMIT 5;
 SHOW STATUS LIKE 'HANDLER_UPDATE';
 Variable_name	Value
-Handler_update	5
+Handler_update	0
 ROLLBACK;
 FLUSH STATUS;
 START TRANSACTION;
 UPDATE t2 SET c = 10 ORDER BY a, b DESC LIMIT 5;
 SHOW STATUS LIKE 'HANDLER_UPDATE';
 Variable_name	Value
-Handler_update	5
+Handler_update	0
 ROLLBACK;
 DROP TABLE t1, t2;
 #
@@ -711,12 +711,12 @@ update t1 set key1=key1+1 where key1 between 10 and 110 order by key1 limit 2;
 show status like 'Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	1
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	2
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 drop table t1, t2;

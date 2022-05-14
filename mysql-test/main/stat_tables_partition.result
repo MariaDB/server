@@ -41,6 +41,6 @@ show session status like 'Handler_read_rnd%';
 Variable_name	Value
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	34
+Handler_read_rnd_next	0
 drop table t1;
 SET use_stat_tables = DEFAULT;

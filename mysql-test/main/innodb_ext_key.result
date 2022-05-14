@@ -17,9 +17,9 @@ count(*)
 show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	1
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
@@ -38,7 +38,7 @@ count(*)
 show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -59,9 +59,9 @@ count(*)
 show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	1
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
@@ -82,9 +82,9 @@ l_orderkey	l_linenumber
 show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	3
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
@@ -101,7 +101,7 @@ min(l_orderkey)
 show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -122,7 +122,7 @@ min(l_orderkey)
 show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -143,7 +143,7 @@ max(l_linenumber)
 show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -169,12 +169,12 @@ l_orderkey	l_linenumber
 show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	2
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	2
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	2
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 explain
@@ -196,12 +196,12 @@ l_orderkey	l_linenumber
 show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	2
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	3
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	3
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 explain
@@ -220,7 +220,7 @@ l_orderkey	l_linenumber
 5959	3
 show status like 'handler_read_next';
 Variable_name	Value
-Handler_read_next	3
+Handler_read_next	0
 explain 
 select max(l_orderkey) from lineitem
 where l_partkey between 1 and 10 group by l_partkey;
@@ -243,8 +243,8 @@ max(l_orderkey)
 show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	21
-Handler_read_last	1
+Handler_read_key	0
+Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
@@ -265,8 +265,8 @@ max(l_orderkey)
 show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	6
-Handler_read_last	1
+Handler_read_key	0
+Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
@@ -295,9 +295,9 @@ o_orderkey	p_partkey
 show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	3
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	3
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
@@ -460,14 +460,14 @@ a	pk	a	b
 show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	10
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	11
+Handler_read_rnd_next	0
 drop table t1,t2;
 create table t1(a int) engine=myisam;
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);

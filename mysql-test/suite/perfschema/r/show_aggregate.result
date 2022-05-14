@@ -206,17 +206,17 @@ USE performance_schema;
 # 
 SELECT *, IF (variable_value = 1,'OK','ERROR') AS Expected FROM status_by_thread WHERE thread_id = @con1_id AND variable_name IN ('handler_delete', 'handler_rollback');
 THREAD_ID	VARIABLE_NAME	VARIABLE_VALUE	Expected
-con_1	Handler_delete	1	OK
+con_1	Handler_delete	0	ERROR
 con_1	Handler_rollback	1	OK
 #
 SELECT *, IF (variable_value = 2,'OK','ERROR') AS Expected FROM status_by_thread WHERE thread_id = @con2_id AND variable_name IN ('handler_delete', 'handler_rollback');
 THREAD_ID	VARIABLE_NAME	VARIABLE_VALUE	Expected
-con_2	Handler_delete	2	OK
+con_2	Handler_delete	0	ERROR
 con_2	Handler_rollback	2	OK
 #
 SELECT *, IF (variable_value = 3,'OK','ERROR') AS Expected FROM status_by_thread WHERE thread_id = @con3_id AND variable_name IN ('handler_delete', 'handler_rollback');
 THREAD_ID	VARIABLE_NAME	VARIABLE_VALUE	Expected
-con_3	Handler_delete	3	OK
+con_3	Handler_delete	0	ERROR
 con_3	Handler_rollback	3	OK
 #
 # STATUS_BY_THREAD vs. GLOBAL_STATUS
@@ -225,7 +225,7 @@ SELECT variable_name, t1, t2, t3, delta, thread, IF(thread=delta,'OK','ERROR') E
 FROM test.status_results
 ORDER BY variable_name;
 variable_name	t1	t2	t3	delta	thread	Expected
-Handler_delete	1	2	3	6	6	OK
+Handler_delete	0	0	0	0	0	OK
 Handler_rollback	1	2	3	6	6	OK
 #
 # ================================================================================
@@ -233,15 +233,15 @@ Handler_rollback	1	2	3	6	6	OK
 # ================================================================================
 SELECT *, IF (variable_value = 1,'OK','ERROR') AS Expected FROM status_by_user WHERE user IN ('user1') AND variable_name IN ('handler_delete');
 USER	VARIABLE_NAME	VARIABLE_VALUE	Expected
-user1	Handler_delete	1	OK
+user1	Handler_delete	0	ERROR
 #
 SELECT *, IF (variable_value = 2,'OK','ERROR') AS Expected FROM status_by_user WHERE user IN ('user2') AND variable_name IN ('handler_delete');
 USER	VARIABLE_NAME	VARIABLE_VALUE	Expected
-user2	Handler_delete	2	OK
+user2	Handler_delete	0	ERROR
 #
 SELECT *, IF (variable_value = 3,'OK','ERROR') AS Expected FROM status_by_user WHERE user IN ('user3') AND variable_name IN ('handler_delete');
 USER	VARIABLE_NAME	VARIABLE_VALUE	Expected
-user3	Handler_delete	3	OK
+user3	Handler_delete	0	ERROR
 #
 # STATUS_BY_USER vs. GLOBAL_STATUS
 #
@@ -249,7 +249,7 @@ SELECT variable_name, u1, u2, u3, delta, user, IF(user=delta,'OK','ERROR') Expec
 FROM test.status_results
 ORDER BY variable_name;
 variable_name	u1	u2	u3	delta	user	Expected
-Handler_delete	1	2	3	6	6	OK
+Handler_delete	0	0	0	0	0	OK
 Handler_rollback	1	2	3	6	6	OK
 #
 # ================================================================================
@@ -257,15 +257,15 @@ Handler_rollback	1	2	3	6	6	OK
 # ================================================================================
 SELECT *, IF (variable_value = 1,'OK','ERROR') AS Expected FROM status_by_account WHERE user IN ('user1') AND variable_name IN ('handler_delete');
 USER	HOST	VARIABLE_NAME	VARIABLE_VALUE	Expected
-user1	localhost	Handler_delete	1	OK
+user1	localhost	Handler_delete	0	ERROR
 #
 SELECT *, IF (variable_value = 2,'OK','ERROR') AS Expected FROM status_by_account WHERE user IN ('user2') AND variable_name IN ('handler_delete');
 USER	HOST	VARIABLE_NAME	VARIABLE_VALUE	Expected
-user2	localhost	Handler_delete	2	OK
+user2	localhost	Handler_delete	0	ERROR
 #
 SELECT *, IF (variable_value = 3,'OK','ERROR') AS Expected FROM status_by_account WHERE user IN ('user3') AND variable_name IN ('handler_delete');
 USER	HOST	VARIABLE_NAME	VARIABLE_VALUE	Expected
-user3	localhost	Handler_delete	3	OK
+user3	localhost	Handler_delete	0	ERROR
 #
 # STATUS_BY_ACCOUNT vs. GLOBAL_STATUS
 #
@@ -273,14 +273,14 @@ SELECT variable_name, a1, a2, a3, delta, acct, IF(acct=delta,'OK','ERROR') Expec
 FROM test.status_results
 ORDER BY variable_name;
 variable_name	a1	a2	a3	delta	acct	Expected
-Handler_delete	1	2	3	6	6	OK
+Handler_delete	0	0	0	0	0	OK
 Handler_rollback	1	2	3	6	6	OK
 # ================================================================================
 # TEST 4: STATUS_BY_HOST: Verify expected status counts per host (6)
 # ================================================================================
 SELECT *, IF (variable_value = 6,'OK','ERROR') AS Expected FROM status_by_host WHERE host IN ('localhost') AND variable_name IN ('handler_delete');
 HOST	VARIABLE_NAME	VARIABLE_VALUE	Expected
-localhost	Handler_delete	6	OK
+localhost	Handler_delete	0	ERROR
 #
 # STATUS_BY_HOST vs. GLOBAL_STATUS
 #
@@ -291,7 +291,7 @@ SELECT variable_name, h1, h2, h3, delta, host, IF(host=delta,'OK','ERROR') Expec
 FROM test.status_results
 ORDER BY variable_name;
 variable_name	h1	h2	h3	delta	host	Expected
-Handler_delete	6	0	0	6	6	OK
+Handler_delete	0	0	0	0	0	OK
 Handler_rollback	6	0	0	6	6	OK
 #
 # ================================================================================
@@ -431,15 +431,15 @@ USE performance_schema;
 # ================================================================================
 SELECT *, IF (variable_value = 1,'OK','ERROR') AS Expected FROM status_by_user WHERE user IN ('user1') AND variable_name IN ('handler_delete');
 USER	VARIABLE_NAME	VARIABLE_VALUE	Expected
-user1	Handler_delete	1	OK
+user1	Handler_delete	0	ERROR
 #
 SELECT *, IF (variable_value = 2,'OK','ERROR') AS Expected FROM status_by_user WHERE user IN ('user2') AND variable_name IN ('handler_delete');
 USER	VARIABLE_NAME	VARIABLE_VALUE	Expected
-user2	Handler_delete	2	OK
+user2	Handler_delete	0	ERROR
 #
 SELECT *, IF (variable_value = 3,'OK','ERROR') AS Expected FROM status_by_user WHERE user IN ('user3') AND variable_name IN ('handler_delete');
 USER	VARIABLE_NAME	VARIABLE_VALUE	Expected
-user3	Handler_delete	3	OK
+user3	Handler_delete	0	ERROR
 #
 # STATUS_BY_USER vs. GLOBAL_STATUS
 #
@@ -447,7 +447,7 @@ SELECT variable_name, u1, u2, u3, delta, user, IF(user=delta,'OK','ERROR') Expec
 FROM test.status_results
 ORDER BY variable_name;
 variable_name	u1	u2	u3	delta	user	Expected
-Handler_delete	1	2	3	6	6	OK
+Handler_delete	0	0	0	0	0	OK
 Handler_rollback	1	2	3	6	6	OK
 #
 # ================================================================================
@@ -455,15 +455,15 @@ Handler_rollback	1	2	3	6	6	OK
 # ================================================================================
 SELECT *, IF (variable_value = 1,'OK','ERROR') AS Expected FROM status_by_account WHERE user IN ('user1') AND variable_name IN ('handler_delete');
 USER	HOST	VARIABLE_NAME	VARIABLE_VALUE	Expected
-user1	localhost	Handler_delete	1	OK
+user1	localhost	Handler_delete	0	ERROR
 #
 SELECT *, IF (variable_value = 2,'OK','ERROR') AS Expected FROM status_by_account WHERE user IN ('user2') AND variable_name IN ('handler_delete');
 USER	HOST	VARIABLE_NAME	VARIABLE_VALUE	Expected
-user2	localhost	Handler_delete	2	OK
+user2	localhost	Handler_delete	0	ERROR
 #
 SELECT *, IF (variable_value = 3,'OK','ERROR') AS Expected FROM status_by_account WHERE user IN ('user3') AND variable_name IN ('handler_delete');
 USER	HOST	VARIABLE_NAME	VARIABLE_VALUE	Expected
-user3	localhost	Handler_delete	3	OK
+user3	localhost	Handler_delete	0	ERROR
 #
 # STATUS_BY_ACCOUNT vs. GLOBAL_STATUS
 #
@@ -471,14 +471,14 @@ SELECT variable_name, a1, a2, a3, delta, acct, IF(acct=delta,'OK','ERROR') Expec
 FROM test.status_results
 ORDER BY variable_name;
 variable_name	a1	a2	a3	delta	acct	Expected
-Handler_delete	1	2	3	6	6	OK
+Handler_delete	0	0	0	0	0	OK
 Handler_rollback	1	2	3	6	6	OK
 # ================================================================================
 # TEST 7: STATUS_BY_HOST: Verify expected status counts per host (6)
 # ================================================================================
 SELECT *, IF (variable_value = 6,'OK','ERROR') AS Expected FROM status_by_host WHERE host IN ('localhost') AND variable_name IN ('handler_delete');
 HOST	VARIABLE_NAME	VARIABLE_VALUE	Expected
-localhost	Handler_delete	6	OK
+localhost	Handler_delete	0	ERROR
 #
 # STATUS_BY_HOST vs. GLOBAL_STATUS
 #
@@ -489,7 +489,7 @@ SELECT variable_name, h1, h2, h3, delta, host, IF(host=delta,'OK','ERROR') Expec
 FROM test.status_results
 ORDER BY variable_name;
 variable_name	h1	h2	h3	delta	host	Expected
-Handler_delete	6	0	0	6	6	OK
+Handler_delete	0	0	0	0	0	OK
 Handler_rollback	6	0	0	6	6	OK
 # ================================================================================
 # TEST 8: FLUSH STATUS should clear account, host and user status

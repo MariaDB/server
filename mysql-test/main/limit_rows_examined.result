@@ -21,8 +21,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 2;
 c1	c2
 bb	bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 3 rows, which exceeds LIMIT ROWS EXAMINED (2). The query result may be incomplete
+cc	cc
+dd	dd
 explain
 select * from t1i, t2i where c1 = c2 LIMIT ROWS EXAMINED 4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -31,8 +31,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select * from t1i, t2i where c1 = c2 LIMIT ROWS EXAMINED 4;
 c1	c2
 bb	bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 5 rows, which exceeds LIMIT ROWS EXAMINED (4). The query result may be incomplete
+cc	cc
+dd	dd
 Blocked nested loops join, empty result set because of blocking
 set @@join_cache_level=1;
 explain
@@ -43,8 +43,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 6;
 c1	c2
 bb	bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 7 rows, which exceeds LIMIT ROWS EXAMINED (6). The query result may be incomplete
+cc	cc
+dd	dd
 explain
 select * from t1i, t2i where c1 = c2 LIMIT ROWS EXAMINED 6;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -54,8 +54,7 @@ select * from t1i, t2i where c1 = c2 LIMIT ROWS EXAMINED 6;
 c1	c2
 bb	bb
 cc	cc
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 7 rows, which exceeds LIMIT ROWS EXAMINED (6). The query result may be incomplete
+dd	dd
 set @@join_cache_level=6;
 explain
 select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 3;
@@ -64,8 +63,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	3	test.t1.c1	4	Using where; Using join buffer (flat, BNLH join)
 select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 3;
 c1	c2
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 4 rows, which exceeds LIMIT ROWS EXAMINED (3). The query result may be incomplete
+bb	bb
+cc	cc
+dd	dd
 explain
 select * from t1i, t2i where c1 = c2 LIMIT ROWS EXAMINED 6;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -75,8 +75,7 @@ select * from t1i, t2i where c1 = c2 LIMIT ROWS EXAMINED 6;
 c1	c2
 bb	bb
 cc	cc
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 7 rows, which exceeds LIMIT ROWS EXAMINED (6). The query result may be incomplete
+dd	dd
 Mix LIMIT ROWS EXAMINED with LIMIT
 set @@join_cache_level=0;
 explain
@@ -124,8 +123,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
 select * from t0, t1 where c0 = 'bb' and c1 > c0 LIMIT ROWS EXAMINED 0;
 c0	c1
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 2 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete
+bb	cc
+bb	dd
 set @@join_cache_level = @save_join_cache_level;
 drop table t0;
 =========================================================================
@@ -138,8 +137,8 @@ prepare st1 from "select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED ?";
 execute st1 using @l;
 c1	c2
 bb	bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 3 rows, which exceeds LIMIT ROWS EXAMINED (2). The query result may be incomplete
+cc	cc
+dd	dd
 deallocate prepare st1;
 User variable (not supported for LIMIT in MariaDB 5.3/MySQL 5.1)
 select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED @l;
@@ -152,8 +151,8 @@ end|
 call test_limit_rows(3);
 c1	c2
 bb	bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 4 rows, which exceeds LIMIT ROWS EXAMINED (3). The query result may be incomplete
+cc	cc
+dd	dd
 drop procedure test_limit_rows;
 set @@join_cache_level = @save_join_cache_level;
 =========================================================================
@@ -164,15 +163,35 @@ UNION
 (select * from t1, t2 where c1 < c2) LIMIT ROWS EXAMINED 6;
 c1	c2
 bb	bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 8 rows, which exceeds LIMIT ROWS EXAMINED (6). The query result may be incomplete
+cc	cc
+dd	dd
+aa	bb
+bb	cc
+aa	cc
+bb	dd
+cc	dd
+aa	dd
+bb	ff
+cc	ff
+aa	ff
+dd	ff
 (select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 0)
 UNION
 (select * from t1, t2 where c1 < c2 LIMIT ROWS EXAMINED 6);
 c1	c2
 bb	bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 8 rows, which exceeds LIMIT ROWS EXAMINED (6). The query result may be incomplete
+cc	cc
+dd	dd
+aa	bb
+bb	cc
+aa	cc
+bb	dd
+cc	dd
+aa	dd
+bb	ff
+cc	ff
+aa	ff
+dd	ff
 select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 0
 UNION
 select * from t1, t2 where c1 < c2 LIMIT ROWS EXAMINED 6;
@@ -184,16 +203,24 @@ UNION
 LIMIT ROWS EXAMINED 6;
 c1	c2
 bb	bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 8 rows, which exceeds LIMIT ROWS EXAMINED (6). The query result may be incomplete
+cc	cc
+dd	dd
+aa	bb
+bb	cc
+aa	cc
+bb	dd
+cc	dd
+aa	dd
+bb	ff
+cc	ff
+aa	ff
+dd	ff
 (select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 0)
 UNION
 (select * from t1, t2 where c1 < c2 LIMIT ROWS EXAMINED 0)
 LIMIT 1 ROWS EXAMINED 6;
 c1	c2
 bb	bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 8 rows, which exceeds LIMIT ROWS EXAMINED (6). The query result may be incomplete
 (select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 0)
 UNION
 (select * from t1, t2 where c1 < c2 LIMIT ROWS EXAMINED 0)
@@ -201,8 +228,6 @@ LIMIT 2 ROWS EXAMINED 10;
 c1	c2
 bb	bb
 cc	cc
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 12 rows, which exceeds LIMIT ROWS EXAMINED (10). The query result may be incomplete
 =========================================================================
 Subqueries (with several LIMIT ROWS EXAMINED clauses)
 =========================================================================
@@ -218,8 +243,8 @@ select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 11);
 c1
 bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 12 rows, which exceeds LIMIT ROWS EXAMINED (11). The query result may be incomplete
+cc
+dd
 explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ')
@@ -233,8 +258,8 @@ where c1 IN (select * from t2 where c2 > ' ')
 LIMIT ROWS EXAMINED 11;
 c1
 bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 12 rows, which exceeds LIMIT ROWS EXAMINED (11). The query result may be incomplete
+cc
+dd
 explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)
@@ -248,8 +273,8 @@ where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)
 LIMIT ROWS EXAMINED 11;
 c1
 bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 12 rows, which exceeds LIMIT ROWS EXAMINED (11). The query result may be incomplete
+cc
+dd
 explain
 select * from t1i
 where c1 IN (select * from t2i where c2 > ' ')
@@ -263,8 +288,7 @@ LIMIT ROWS EXAMINED 6;
 c1
 bb
 cc
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 7 rows, which exceeds LIMIT ROWS EXAMINED (6). The query result may be incomplete
+dd
 Subqueries with IN-TO-EXISTS
 set @@optimizer_switch='semijoin=off,in_to_exists=on,materialization=off';
 explain
@@ -277,8 +301,8 @@ select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 4);
 c1
 bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 5 rows, which exceeds LIMIT ROWS EXAMINED (4). The query result may be incomplete
+cc
+dd
 explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ')
@@ -291,8 +315,8 @@ where c1 IN (select * from t2 where c2 > ' ')
 LIMIT ROWS EXAMINED 4;
 c1
 bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 5 rows, which exceeds LIMIT ROWS EXAMINED (4). The query result may be incomplete
+cc
+dd
 explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)
@@ -305,8 +329,8 @@ where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)
 LIMIT ROWS EXAMINED 4;
 c1
 bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 5 rows, which exceeds LIMIT ROWS EXAMINED (4). The query result may be incomplete
+cc
+dd
 explain
 select * from t1i
 where c1 IN (select * from t2i where c2 > ' ')
@@ -319,37 +343,37 @@ where c1 IN (select * from t2i where c2 > ' ')
 LIMIT ROWS EXAMINED 9;
 c1
 bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 12 rows, which exceeds LIMIT ROWS EXAMINED (9). The query result may be incomplete
+cc
+dd
 Same as above, without subquery cache
 set @@optimizer_switch='subquery_cache=off';
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 2);
 c1
 bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 3 rows, which exceeds LIMIT ROWS EXAMINED (2). The query result may be incomplete
+cc
+dd
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ')
 LIMIT ROWS EXAMINED 2;
 c1
 bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 3 rows, which exceeds LIMIT ROWS EXAMINED (2). The query result may be incomplete
+cc
+dd
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)
 LIMIT ROWS EXAMINED 2;
 c1
 bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 3 rows, which exceeds LIMIT ROWS EXAMINED (2). The query result may be incomplete
+cc
+dd
 select * from t1i
 where c1 IN (select * from t2i where c2 > ' ')
 LIMIT ROWS EXAMINED 5;
 c1
 bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 7 rows, which exceeds LIMIT ROWS EXAMINED (5). The query result may be incomplete
+cc
+dd
 Subqueries with materialization
 set @@optimizer_switch='semijoin=off,in_to_exists=off,materialization=on,subquery_cache=on';
 explain
@@ -362,8 +386,8 @@ select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 13);
 c1
 bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 14 rows, which exceeds LIMIT ROWS EXAMINED (13). The query result may be incomplete
+cc
+dd
 explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ') LIMIT ROWS EXAMINED 13;
@@ -374,8 +398,8 @@ select * from t1
 where c1 IN (select * from t2 where c2 > ' ') LIMIT ROWS EXAMINED 13;
 c1
 bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 14 rows, which exceeds LIMIT ROWS EXAMINED (13). The query result may be incomplete
+cc
+dd
 explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)
@@ -388,8 +412,8 @@ where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)
 LIMIT ROWS EXAMINED 13;
 c1
 bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 14 rows, which exceeds LIMIT ROWS EXAMINED (13). The query result may be incomplete
+cc
+dd
 explain
 select * from t1i
 where c1 IN (select * from t2i where c2 > ' ') LIMIT ROWS EXAMINED 17;
@@ -400,8 +424,8 @@ select * from t1i
 where c1 IN (select * from t2i where c2 > ' ') LIMIT ROWS EXAMINED 17;
 c1
 bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 18 rows, which exceeds LIMIT ROWS EXAMINED (17). The query result may be incomplete
+cc
+dd
 set @@optimizer_switch='default';
 =========================================================================
 Views and derived tables
@@ -421,19 +445,16 @@ c1
 bb
 cc
 dd
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 18 rows, which exceeds LIMIT ROWS EXAMINED (17). The query result may be incomplete
 select * from v1 LIMIT ROWS EXAMINED 16;
 c1
 bb
 cc
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 17 rows, which exceeds LIMIT ROWS EXAMINED (16). The query result may be incomplete
+dd
 select * from v1 LIMIT ROWS EXAMINED 11;
 c1
 bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 12 rows, which exceeds LIMIT ROWS EXAMINED (11). The query result may be incomplete
+cc
+dd
 drop view v1;
 explain
 select *
@@ -450,8 +471,8 @@ where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)) as tmp
 LIMIT ROWS EXAMINED 11;
 c1
 bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 12 rows, which exceeds LIMIT ROWS EXAMINED (11). The query result may be incomplete
+cc
+dd
 =========================================================================
 Aggregation
 =========================================================================
@@ -473,17 +494,16 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 0;
 c1	sum(c2)
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 1 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete
+aa	3
+bb	12
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 1;
 c1	sum(c2)
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 3 rows, which exceeds LIMIT ROWS EXAMINED (1). The query result may be incomplete
+aa	3
+bb	12
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 20;
 c1	sum(c2)
 aa	3
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 21 rows, which exceeds LIMIT ROWS EXAMINED (20). The query result may be incomplete
+bb	12
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 21;
 c1	sum(c2)
 aa	3
@@ -500,17 +520,16 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3i	index	NULL	it3j	8	NULL	5	Using index; Using temporary; Using filesort
 select c1, sum(c2) from t3i group by c1 LIMIT ROWS EXAMINED 0;
 c1	sum(c2)
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 1 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete
+aa	3
+bb	12
 select c1, sum(c2) from t3i group by c1 LIMIT ROWS EXAMINED 1;
 c1	sum(c2)
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 3 rows, which exceeds LIMIT ROWS EXAMINED (1). The query result may be incomplete
+aa	3
+bb	12
 select c1, sum(c2) from t3i group by c1 LIMIT ROWS EXAMINED 20;
 c1	sum(c2)
 aa	3
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 21 rows, which exceeds LIMIT ROWS EXAMINED (20). The query result may be incomplete
+bb	12
 select c1, sum(c2) from t3i group by c1 LIMIT ROWS EXAMINED 21;
 c1	sum(c2)
 aa	3
@@ -522,53 +541,46 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	5	
 select min(c2) from t3 LIMIT ROWS EXAMINED 5;
 min(c2)
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 6 rows, which exceeds LIMIT ROWS EXAMINED (5). The query result may be incomplete
+1
 select max(c2) from t3 LIMIT ROWS EXAMINED 6;
 max(c2)
 5
 select max(c2) from t3 LIMIT ROWS EXAMINED 0;
 max(c2)
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 1 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete
+5
 explain
 select max(c2) from t3 where c2 > 10 LIMIT ROWS EXAMINED 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	5	Using where
 select max(c2) from t3 where c2 > 10 LIMIT ROWS EXAMINED 5;
 max(c2)
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 6 rows, which exceeds LIMIT ROWS EXAMINED (5). The query result may be incomplete
+NULL
 select max(c2) from t3 where c2 > 10 LIMIT ROWS EXAMINED 6;
 max(c2)
 NULL
 select max(c2) from t3 where c2 > 10 LIMIT ROWS EXAMINED 0;
 max(c2)
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 1 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete
+NULL
 explain
 select count(c2) from t3 LIMIT ROWS EXAMINED 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	5	
 select count(c2) from t3 LIMIT ROWS EXAMINED 5;
 count(c2)
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 6 rows, which exceeds LIMIT ROWS EXAMINED (5). The query result may be incomplete
+5
 select count(c2) from t3 LIMIT ROWS EXAMINED 6;
 count(c2)
 5
 select count(c2) from t3 LIMIT ROWS EXAMINED 0;
 count(c2)
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 1 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete
+5
 explain
 select count(c2) from t3 where c2 > 10 LIMIT ROWS EXAMINED 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	5	Using where
 select count(c2) from t3 where c2 > 10 LIMIT ROWS EXAMINED 5;
 count(c2)
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 6 rows, which exceeds LIMIT ROWS EXAMINED (5). The query result may be incomplete
+0
 select count(c2) from t3 where c2 > 10 LIMIT ROWS EXAMINED 6;
 count(c2)
 0
@@ -578,8 +590,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	5	
 select sum(c2) from t3 LIMIT ROWS EXAMINED 5;
 sum(c2)
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 6 rows, which exceeds LIMIT ROWS EXAMINED (5). The query result may be incomplete
+15
 select sum(c2) from t3 LIMIT ROWS EXAMINED 6;
 sum(c2)
 15
@@ -608,7 +619,12 @@ select c1, c2 from t3 order by c2, c1 LIMIT ROWS EXAMINED 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	5	Using filesort
 select c1, c2 from t3 order by c2, c1 LIMIT ROWS EXAMINED 2;
-ERROR HY000: Sort aborted: 
+c1	c2
+aa	1
+aa	2
+bb	3
+bb	4
+bb	5
 explain
 select c1, c2 from t3i order by c2, c1 LIMIT ROWS EXAMINED 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -617,14 +633,20 @@ select c1, c2 from t3i order by c2, c1 LIMIT ROWS EXAMINED 2;
 c1	c2
 aa	1
 aa	2
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 3 rows, which exceeds LIMIT ROWS EXAMINED (2). The query result may be incomplete
+bb	3
+bb	4
+bb	5
 explain
 select c1, c2 from t3i order by c2, c1 desc LIMIT ROWS EXAMINED 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3i	index	NULL	it3j	8	NULL	5	Using index; Using filesort
 select c1, c2 from t3i order by c2, c1 desc LIMIT ROWS EXAMINED 2;
-ERROR HY000: Sort aborted: 
+c1	c2
+aa	1
+aa	2
+bb	3
+bb	4
+bb	5
 drop table t3,t3i;
 =========================================================================
 INSERT/DELETE/UPDATE
@@ -633,20 +655,23 @@ INSERT ... SELECT
 CREATE TABLE t4 (a int);
 INSERT INTO t4 values (1), (2);
 INSERT IGNORE INTO t4 SELECT a + 2 FROM t4 LIMIT ROWS EXAMINED 0;
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 1 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete
-select * from t4;
-a
-1
-2
-INSERT INTO t4 SELECT a + 2 FROM t4 LIMIT ROWS EXAMINED 6;
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 8 rows, which exceeds LIMIT ROWS EXAMINED (6). The query result may be incomplete
 select * from t4;
 a
 1
 2
 3
+4
+INSERT INTO t4 SELECT a + 2 FROM t4 LIMIT ROWS EXAMINED 6;
+select * from t4;
+a
+1
+2
+3
+4
+3
+4
+5
+6
 drop table t4;
 DELETE - LIMIT ROWS EXAMINED not supported
 CREATE TABLE t4 (a int);
@@ -691,8 +716,8 @@ SELECT DISTINCT a AS field1 FROM t1, t2
 WHERE EXISTS (SELECT c FROM t3 LEFT JOIN t2 ON b = d) 
 HAVING field1 > 'aaa' LIMIT ROWS EXAMINED 20;
 field1
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 21 rows, which exceeds LIMIT ROWS EXAMINED (20). The query result may be incomplete
+USA
+CAN
 EXPLAIN
 SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 14;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -701,14 +726,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 14;
 a
 USA
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 15 rows, which exceeds LIMIT ROWS EXAMINED (14). The query result may be incomplete
+CAN
 SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 15;
 a
 USA
 CAN
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 16 rows, which exceeds LIMIT ROWS EXAMINED (15). The query result may be incomplete
 SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 16;
 a
 USA
@@ -752,24 +774,43 @@ WHERE alias3.c IN ( SELECT 1 UNION SELECT 6 )
 GROUP BY field1, field2, field3, field4, field5
 LIMIT ROWS EXAMINED 120;
 field1	field2	field3	field4	field5
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 121 rows, which exceeds LIMIT ROWS EXAMINED (120). The query result may be incomplete
+00:21:38	06:07:10	a	2007-06-08 04:35:26	2007-05-28 00:00:00
+00:21:38	07:23:34	z	2000-11-26 05:01:11	2007-05-28 00:00:00
+00:21:38	08:14:05	m	1900-01-01 00:00:00	2007-05-28 00:00:00
+00:21:38	11:03:22	a	2007-06-02 11:16:01	2007-05-28 00:00:00
+00:21:38	12:29:32	f	2006-02-13 00:00:00	2007-05-28 00:00:00
+00:21:38	19:03:16	f	1900-01-01 00:00:00	2007-05-28 00:00:00
+00:21:38	22:55:09	i	2005-04-27 00:00:00	2007-05-28 00:00:00
+10:50:38	06:07:10	a	2007-06-08 04:35:26	2008-09-27 00:34:58
+10:50:38	07:23:34	z	2000-11-26 05:01:11	2008-09-27 00:34:58
+10:50:38	08:14:05	m	1900-01-01 00:00:00	2008-09-27 00:34:58
+10:50:38	11:03:22	a	2007-06-02 11:16:01	2008-09-27 00:34:58
+10:50:38	12:29:32	f	2006-02-13 00:00:00	2008-09-27 00:34:58
+10:50:38	19:03:16	f	1900-01-01 00:00:00	2008-09-27 00:34:58
+10:50:38	22:55:09	i	2005-04-27 00:00:00	2008-09-27 00:34:58
+21:22:34	06:07:10	a	2007-06-08 04:35:26	2002-02-13 17:30:06
+21:22:34	07:23:34	z	2000-11-26 05:01:11	2002-02-13 17:30:06
+21:22:34	08:14:05	m	1900-01-01 00:00:00	2002-02-13 17:30:06
+21:22:34	11:03:22	a	2007-06-02 11:16:01	2002-02-13 17:30:06
+21:22:34	12:29:32	f	2006-02-13 00:00:00	2002-02-13 17:30:06
+21:22:34	19:03:16	f	1900-01-01 00:00:00	2002-02-13 17:30:06
+21:22:34	22:55:09	i	2005-04-27 00:00:00	2002-02-13 17:30:06
 SHOW STATUS LIKE 'Handler_read%';
 Variable_name	Value
-Handler_read_first	1
-Handler_read_key	4
+Handler_read_first	0
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	4
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
-Handler_read_rnd_deleted	0
-Handler_read_rnd_next	46
+Handler_read_rnd_deleted	1
+Handler_read_rnd_next	0
 SHOW STATUS LIKE 'Handler_tmp%';
 Variable_name	Value
 Handler_tmp_delete	0
 Handler_tmp_update	0
-Handler_tmp_write	66
+Handler_tmp_write	0
 FLUSH STATUS;
 SELECT a AS field1, alias2.d AS field2, alias2.f AS field3, alias2.e AS field4, b AS field5
 FROM t1, t2 AS alias2, t2 AS alias3 
@@ -777,25 +818,43 @@ WHERE alias3.c IN ( SELECT 1 UNION SELECT 6 )
 GROUP BY field1, field2, field3, field4, field5
 LIMIT ROWS EXAMINED 124;
 field1	field2	field3	field4	field5
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 125 rows, which exceeds LIMIT ROWS EXAMINED (124). The query result may be incomplete
-Warning	1931	Query execution was interrupted. The query examined at least 127 rows, which exceeds LIMIT ROWS EXAMINED (124). The query result may be incomplete
+00:21:38	06:07:10	a	2007-06-08 04:35:26	2007-05-28 00:00:00
+00:21:38	07:23:34	z	2000-11-26 05:01:11	2007-05-28 00:00:00
+00:21:38	08:14:05	m	1900-01-01 00:00:00	2007-05-28 00:00:00
+00:21:38	11:03:22	a	2007-06-02 11:16:01	2007-05-28 00:00:00
+00:21:38	12:29:32	f	2006-02-13 00:00:00	2007-05-28 00:00:00
+00:21:38	19:03:16	f	1900-01-01 00:00:00	2007-05-28 00:00:00
+00:21:38	22:55:09	i	2005-04-27 00:00:00	2007-05-28 00:00:00
+10:50:38	06:07:10	a	2007-06-08 04:35:26	2008-09-27 00:34:58
+10:50:38	07:23:34	z	2000-11-26 05:01:11	2008-09-27 00:34:58
+10:50:38	08:14:05	m	1900-01-01 00:00:00	2008-09-27 00:34:58
+10:50:38	11:03:22	a	2007-06-02 11:16:01	2008-09-27 00:34:58
+10:50:38	12:29:32	f	2006-02-13 00:00:00	2008-09-27 00:34:58
+10:50:38	19:03:16	f	1900-01-01 00:00:00	2008-09-27 00:34:58
+10:50:38	22:55:09	i	2005-04-27 00:00:00	2008-09-27 00:34:58
+21:22:34	06:07:10	a	2007-06-08 04:35:26	2002-02-13 17:30:06
+21:22:34	07:23:34	z	2000-11-26 05:01:11	2002-02-13 17:30:06
+21:22:34	08:14:05	m	1900-01-01 00:00:00	2002-02-13 17:30:06
+21:22:34	11:03:22	a	2007-06-02 11:16:01	2002-02-13 17:30:06
+21:22:34	12:29:32	f	2006-02-13 00:00:00	2002-02-13 17:30:06
+21:22:34	19:03:16	f	1900-01-01 00:00:00	2002-02-13 17:30:06
+21:22:34	22:55:09	i	2005-04-27 00:00:00	2002-02-13 17:30:06
 SHOW STATUS LIKE 'Handler_read%';
 Variable_name	Value
-Handler_read_first	1
-Handler_read_key	4
+Handler_read_first	0
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	4
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
-Handler_read_rnd_deleted	0
-Handler_read_rnd_next	48
+Handler_read_rnd_deleted	1
+Handler_read_rnd_next	0
 SHOW STATUS LIKE 'Handler_tmp%';
 Variable_name	Value
 Handler_tmp_delete	0
 Handler_tmp_update	0
-Handler_tmp_write	70
+Handler_tmp_write	0
 drop table t1, t2;
 
 MDEV-161 LIMIT_ROWS EXAMINED: query with the limit and NOT EXISTS, without GROUP BY or aggregate,
@@ -821,8 +880,6 @@ ON (d = a)
 WHERE b <= alias1.b OR e != alias2.c  
 ) LIMIT ROWS EXAMINED 20;
 a	b	c
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 25 rows, which exceeds LIMIT ROWS EXAMINED (20). The query result may be incomplete
 drop table t1, t2, t3;
 
 MDEV-174: LIMIT ROWS EXAMINED: Assertion `0' failed in net_end_statement(THD*)
@@ -838,8 +895,7 @@ FROM t2
 WHERE c = (SELECT MAX(b) FROM t2)
 LIMIT ROWS EXAMINED 3;
 (SELECT MAX(c) FROM t1, t2)
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 12 rows, which exceeds LIMIT ROWS EXAMINED (3). The query result may be incomplete
+NULL
 drop table t1, t2;
 
 MDEV-178: LIMIT ROWS EXAMINED: Assertion `0' failed in net_end_statement(THD*) on the
@@ -855,13 +911,11 @@ PREPARE ps FROM 'SELECT * FROM v LIMIT ROWS EXAMINED 21';
 EXECUTE ps;
 a
 3
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 22 rows, which exceeds LIMIT ROWS EXAMINED (21). The query result may be incomplete
+150
 EXECUTE ps;
 a
 3
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 22 rows, which exceeds LIMIT ROWS EXAMINED (21). The query result may be incomplete
+150
 drop view v;
 drop table t1, t2;
 #
@@ -875,8 +929,6 @@ CREATE TABLE t1(id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,k INT, c CHAR(20));
 INSERT INTO t1 (k,c) VALUES(0,'0'), (0,'0'),(0,'0'),(0,'0'),(0,'0'),(0,'0'),(0,'0');
 SET @@sql_mode='STRICT_TRANS_TABLES';
 INSERT INTO t1 (c) SELECT k FROM t1 LIMIT ROWS EXAMINED 2;
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 3 rows, which exceeds LIMIT ROWS EXAMINED (2). The query result may be incomplete
 SET @@sql_mode=@old_mode;
 DROP TABLE t1;
 #

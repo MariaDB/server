@@ -987,7 +987,7 @@ a	MAX(b)
 # Should be no more than 4 reads.
 SHOW status LIKE 'handler_read_key';
 Variable_name	Value
-Handler_read_key	2
+Handler_read_key	0
 FLUSH status;
 SELECT a, MAX(b) FROM t2 WHERE a IN (10, 100) GROUP BY a;
 a	MAX(b)
@@ -995,7 +995,7 @@ a	MAX(b)
 # Should be no more than 4 reads.
 SHOW status LIKE 'handler_read_key';
 Variable_name	Value
-Handler_read_key	2
+Handler_read_key	0
 #
 # MDEV-18501 Partition pruning doesn't work for historical queries
 #

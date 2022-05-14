@@ -2398,7 +2398,7 @@ max(b)	a
 6	4
 SHOW STATUS LIKE 'handler_read__e%';
 Variable_name	Value
-Handler_read_key	8
+Handler_read_key	0
 Handler_read_next	0
 Handler_read_retry	0
 EXPLAIN SELECT max(b), a FROM t1 GROUP BY a;
@@ -2408,7 +2408,7 @@ FLUSH STATUS;
 CREATE TABLE t2 SELECT max(b), a FROM t1 GROUP BY a;
 SHOW STATUS LIKE 'handler_read__e%';
 Variable_name	Value
-Handler_read_key	8
+Handler_read_key	0
 Handler_read_next	0
 Handler_read_retry	0
 FLUSH STATUS;
@@ -2420,7 +2420,7 @@ max(b)	a
 6	4
 SHOW STATUS LIKE 'handler_read__e%';
 Variable_name	Value
-Handler_read_key	8
+Handler_read_key	0
 Handler_read_next	0
 Handler_read_retry	0
 FLUSH STATUS;
@@ -2433,7 +2433,7 @@ max(b)	a
 6	4
 SHOW STATUS LIKE 'handler_read__e%';
 Variable_name	Value
-Handler_read_key	16
+Handler_read_key	0
 Handler_read_next	0
 Handler_read_retry	0
 EXPLAIN (SELECT max(b), a FROM t1 GROUP BY a) UNION 
@@ -2486,7 +2486,7 @@ FLUSH STATUS;
 INSERT INTO t3 SELECT a,MAX(b) FROM t1 GROUP BY a;
 SHOW STATUS LIKE 'handler_read__e%';
 Variable_name	Value
-Handler_read_key	13
+Handler_read_key	0
 Handler_read_next	0
 Handler_read_retry	0
 DELETE FROM t3;
@@ -2495,14 +2495,14 @@ INSERT INTO t3 SELECT 1, (SELECT MAX(b) FROM t1 GROUP BY a HAVING a < 2)
 FROM t1 LIMIT 1;
 SHOW STATUS LIKE 'handler_read__e%';
 Variable_name	Value
-Handler_read_key	8
+Handler_read_key	0
 Handler_read_next	0
 Handler_read_retry	0
 FLUSH STATUS;
 DELETE FROM t3 WHERE (SELECT MAX(b) FROM t1 GROUP BY a HAVING a < 2) > 10000;
 SHOW STATUS LIKE 'handler_read__e%';
 Variable_name	Value
-Handler_read_key	8
+Handler_read_key	0
 Handler_read_next	0
 Handler_read_retry	0
 FLUSH STATUS;
@@ -2511,8 +2511,8 @@ FROM t1) > 10000;
 ERROR 21000: Subquery returns more than 1 row
 SHOW STATUS LIKE 'handler_read__e%';
 Variable_name	Value
-Handler_read_key	8
-Handler_read_next	1
+Handler_read_key	0
+Handler_read_next	0
 Handler_read_retry	0
 DROP TABLE t1,t2,t3;
 CREATE TABLE t1 (a int, INDEX idx(a));

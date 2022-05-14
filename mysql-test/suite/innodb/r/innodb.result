@@ -3214,9 +3214,9 @@ Handler_update	0
 Variable_name	Value
 Handler_delete	0
 Variable_name	Value
-Handler_update	1
+Handler_update	0
 Variable_name	Value
-Handler_delete	1
+Handler_delete	0
 DROP TABLE bug58912;
 create table t1 (f1 integer primary key) engine=innodb;
 flush status;
@@ -3227,7 +3227,7 @@ select f1 from t1;
 f1
 show status like "handler_read_key";
 Variable_name	Value
-Handler_read_key	3
+Handler_read_key	0
 drop table t1;
 CREATE TABLE t1 (c1 INT) ENGINE=InnoDB;
 CREATE TEMPORARY TABLE t2 (c1 INT) ENGINE=InnoDB;

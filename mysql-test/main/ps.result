@@ -3988,7 +3988,7 @@ a	b
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -4003,7 +4003,7 @@ a	b
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -4025,7 +4025,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	8
+Handler_read_rnd_next	0
 flush status;
 execute st;
 a	b
@@ -4033,7 +4033,7 @@ a	b
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -4181,9 +4181,9 @@ id	c
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	1
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
@@ -4196,9 +4196,9 @@ id	c
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	1
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0

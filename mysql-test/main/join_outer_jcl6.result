@@ -1245,14 +1245,14 @@ id	a
 show status like 'Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	5
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	9
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	3
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	6
+Handler_read_rnd_next	0
 DROP TABLE t1,t2;
 CREATE TABLE t1 (c int  PRIMARY KEY, e int NOT NULL);
 INSERT INTO t1 VALUES (1,0), (2,1);
@@ -1810,14 +1810,14 @@ sum(t3.b)
 show status like "handler_read%";
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	13
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	5
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	5
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	1048581
+Handler_read_rnd_next	0
 flush status;
 select sum(t3.b) from t2 left join t3 on t3.a=t2.a and t2.a <> 10;
 sum(t3.b)
@@ -1825,14 +1825,14 @@ sum(t3.b)
 show status like "handler_read%";
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	7
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	5
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	5
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	1048581
+Handler_read_rnd_next	0
 drop table t1,t2,t3;
 #
 # Bug#57688 Assertion `!table || (!table->write_set || bitmap_is_set(table->write_set, field
