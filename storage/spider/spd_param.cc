@@ -1419,21 +1419,17 @@ static MYSQL_THDVAR_INT(
   bgs_mode, /* name */
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Mode of background search", /* comment */
-  NULL, /* check */
-  spider_use_table_value_deprecated, /* update */
+  nullptr, /* check */
+  nullptr, /* update */
   0, /* def */
-  -1, /* min */
+  0, /* min */
   3, /* max */
   0 /* blk */
 );
 
-int spider_param_bgs_mode(
-  THD *thd,
-  int bgs_mode
-) {
+int spider_param_bgs_mode(THD *thd) {
   DBUG_ENTER("spider_param_bgs_mode");
-  DBUG_RETURN(THDVAR(thd, bgs_mode) < 0 ?
-    bgs_mode : THDVAR(thd, bgs_mode));
+  DBUG_RETURN(THDVAR(thd, bgs_mode));
 }
 
 /*
@@ -1445,21 +1441,17 @@ static MYSQL_THDVAR_LONGLONG(
   bgs_first_read, /* name */
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Number of first read records when background search is used", /* comment */
-  NULL, /* check */
-  spider_use_table_value_deprecated, /* update */
+  nullptr, /* check */
+  nullptr, /* update */
   2, /* def */
-  -1, /* min */
+  0, /* min */
   9223372036854775807LL, /* max */
   0 /* blk */
 );
 
-longlong spider_param_bgs_first_read(
-  THD *thd,
-  longlong bgs_first_read
-) {
+longlong spider_param_bgs_first_read(THD *thd) {
   DBUG_ENTER("spider_param_bgs_first_read");
-  DBUG_RETURN(THDVAR(thd, bgs_first_read) < 0 ?
-    bgs_first_read : THDVAR(thd, bgs_first_read));
+  DBUG_RETURN(THDVAR(thd, bgs_first_read));
 }
 
 /*
@@ -1471,21 +1463,18 @@ static MYSQL_THDVAR_LONGLONG(
   bgs_second_read, /* name */
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Number of second read records when background search is used", /* comment */
-  NULL, /* check */
-  spider_use_table_value_deprecated, /* update */
+  nullptr, /* check */
+  nullptr, /* update */
   100, /* def */
-  -1, /* min */
+  0, /* min */
   9223372036854775807LL, /* max */
   0 /* blk */
 );
 
-longlong spider_param_bgs_second_read(
-  THD *thd,
-  longlong bgs_second_read
-) {
+longlong spider_param_bgs_second_read(THD *thd)
+{
   DBUG_ENTER("spider_param_bgs_second_read");
-  DBUG_RETURN(THDVAR(thd, bgs_second_read) < 0 ?
-    bgs_second_read : THDVAR(thd, bgs_second_read));
+  DBUG_RETURN(THDVAR(thd, bgs_second_read));
 }
 
 /*

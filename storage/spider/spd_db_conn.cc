@@ -5769,7 +5769,7 @@ int spider_db_simple_action(
   DBUG_ENTER("spider_db_simple_action");
   if (pre_call)
   {
-    if (spider_param_bgs_mode(thd, spider->share->bgs_mode))
+    if (spider_param_bgs_mode(thd))
     {
       if ((error_num = spider_check_and_get_casual_read_conn(thd, spider,
         link_idx)))
@@ -5794,7 +5794,7 @@ int spider_db_simple_action(
     conn = spider->conns[link_idx];
     if (spider->use_pre_action)
     {
-      if (spider_param_bgs_mode(thd, spider->share->bgs_mode))
+      if (spider_param_bgs_mode(thd))
       {
         spider_bg_conn_wait(conn);
         error_num = spider->result_list.bgs_error;

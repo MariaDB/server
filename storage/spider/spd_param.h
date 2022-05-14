@@ -182,18 +182,9 @@ int spider_param_select_column_mode(
   THD *thd,
   int select_column_mode
 );
-int spider_param_bgs_mode(
-  THD *thd,
-  int bgs_mode
-);
-longlong spider_param_bgs_first_read(
-  THD *thd,
-  longlong bgs_first_read
-);
-longlong spider_param_bgs_second_read(
-  THD *thd,
-  longlong bgs_second_read
-);
+int spider_param_bgs_mode(THD *thd);
+longlong spider_param_bgs_first_read(THD *thd);
+longlong spider_param_bgs_second_read(THD *thd);
 longlong spider_param_first_read(
   THD *thd,
   longlong first_read

@@ -2078,9 +2078,6 @@ int spider_parse_connect_info(
   share->low_mem_read = -1;
   share->table_count_mode = -1;
   share->select_column_mode = -1;
-  share->bgs_mode = -1;
-  share->bgs_first_read = -1;
-  share->bgs_second_read = -1;
   share->first_read = -1;
   share->second_read = -1;
   share->auto_increment_mode = -1;
@@ -2219,9 +2216,6 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT_WITH_MAX("aim", auto_increment_mode, 0, 3);
           SPIDER_PARAM_INT("alc", active_link_count, 1);
           SPIDER_PARAM_INT("bfz", buffer_size, 0);
-          SPIDER_PARAM_LONGLONG("bfr", bgs_first_read, 0);
-          SPIDER_PARAM_INT("bmd", bgs_mode, 0);
-          SPIDER_PARAM_LONGLONG("bsr", bgs_second_read, 0);
           SPIDER_PARAM_STR("bke", bka_engine);
           SPIDER_PARAM_INT_WITH_MAX("bkm", bka_mode, 0, 2);
           SPIDER_PARAM_INT("bsz", bulk_size, 0);
@@ -2385,7 +2379,6 @@ int spider_parse_connect_info(
           SPIDER_PARAM_DEPRECATED_WARNING("crd_type");
           SPIDER_PARAM_INT_WITH_MAX("crd_type", crd_type, 0, 2);
           SPIDER_PARAM_LONGLONG("priority", priority, 0);
-          SPIDER_PARAM_INT("bgs_mode", bgs_mode, 0);
           SPIDER_PARAM_STR_LIST("ssl_cert", tgt_ssl_certs);
           SPIDER_PARAM_INT_WITH_MAX("bka_mode", bka_mode, 0, 2);
           error_num = connect_string_parse.print_param_error();
@@ -2434,7 +2427,6 @@ int spider_parse_connect_info(
         case 14:
           SPIDER_PARAM_DEPRECATED_WARNING("internal_limit");
           SPIDER_PARAM_LONGLONG("internal_limit", internal_limit, 0);
-          SPIDER_PARAM_LONGLONG("bgs_first_read", bgs_first_read, 0);
           SPIDER_PARAM_INT_WITH_MAX("read_only_mode", read_only_mode, 0, 1);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("access_balance", access_balances, 0,
             2147483647);
@@ -2450,7 +2442,6 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT_WITH_MAX("semi_table_lock", semi_table_lock, 0, 1);
           SPIDER_PARAM_LONGLONG("quick_page_byte", quick_page_byte, 0);
           SPIDER_PARAM_LONGLONG("quick_page_size", quick_page_size, 0);
-          SPIDER_PARAM_LONGLONG("bgs_second_read", bgs_second_read, 0);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("monitoring_flag", monitoring_flag, 0, 1);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("monitoring_kind", monitoring_kind, 0, 3);
           SPIDER_PARAM_DOUBLE("semi_split_read", semi_split_read, 0);
@@ -3906,12 +3897,6 @@ int spider_set_connect_info_default(
     share->table_count_mode = 0;
   if (share->select_column_mode == -1)
     share->select_column_mode = 1;
-  if (share->bgs_mode == -1)
-    share->bgs_mode = 0;
-  if (share->bgs_first_read == -1)
-    share->bgs_first_read = 2;
-  if (share->bgs_second_read == -1)
-    share->bgs_second_read = 100;
   if (share->first_read == -1)
     share->first_read = 0;
   if (share->second_read == -1)

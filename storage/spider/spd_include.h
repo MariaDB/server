@@ -840,9 +840,6 @@ typedef struct st_spider_share
   int                low_mem_read;
   int                table_count_mode;
   int                select_column_mode;
-  int                bgs_mode;
-  longlong           bgs_first_read;
-  longlong           bgs_second_read;
   longlong           first_read;
   longlong           second_read;
   int                auto_increment_mode;
