@@ -1,5 +1,5 @@
 /* Copyright (c) 2013, Kristian Nielsen and MariaDB Services Ab.
-   Copyright (c) 2020, MariaDB Corporation.
+   Copyright (c) 2020, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3603,12 +3603,9 @@ int Id_delegating_gtid_event_filter<T>::set_id_restrictions(
 
   size_t id_ctr;
   int err;
-  Gtid_event_filter::gtid_event_filter_type filter_type;
   const char *filter_name, *opposite_filter_name;
   Gtid_event_filter *(*construct_filter)(void);
   Gtid_event_filter *(*construct_default_filter)(void);
-
-  DBUG_ASSERT(mode > id_restriction_mode::MODE_NOT_SET);
 
   /*
     Set up variables which help this filter either be in whitelist or blacklist
@@ -3616,7 +3613,6 @@ int Id_delegating_gtid_event_filter<T>::set_id_restrictions(
   */
   if (mode == Gtid_event_filter::id_restriction_mode::WHITELIST_MODE)
   {
-    filter_type= Gtid_event_filter::ACCEPT_ALL_GTID_FILTER_TYPE;
     filter_name= WHITELIST_NAME;
     opposite_filter_name= BLACKLIST_NAME;
     construct_filter=
@@ -3624,19 +3620,16 @@ int Id_delegating_gtid_event_filter<T>::set_id_restrictions(
     construct_default_filter=
         create_event_filter<Reject_all_gtid_filter>;
   }
-  else if (mode == Gtid_event_filter::id_restriction_mode::BLACKLIST_MODE)
+  else
   {
-    filter_type= Gtid_event_filter::REJECT_ALL_GTID_FILTER_TYPE;
+    DBUG_ASSERT(mode ==
+                Gtid_event_filter::id_restriction_mode::BLACKLIST_MODE);
     filter_name= BLACKLIST_NAME;
     opposite_filter_name= WHITELIST_NAME;
     construct_filter=
         create_event_filter<Reject_all_gtid_filter>;
     construct_default_filter=
         create_event_filter<Accept_all_gtid_filter>;
-  }
-  else
-  {
-    DBUG_ASSERT(0);
   }
 
   if (m_id_restriction_mode !=
@@ -3683,7 +3676,10 @@ int Id_delegating_gtid_event_filter<T>::set_id_restrictions(
     else
     {
       DBUG_ASSERT(map_element->filter->get_filter_type() ==
-                  filter_type);
+                  (mode ==
+                   Gtid_event_filter::id_restriction_mode::WHITELIST_MODE)
+                  ? Gtid_event_filter::ACCEPT_ALL_GTID_FILTER_TYPE
+                  : Gtid_event_filter::REJECT_ALL_GTID_FILTER_TYPE);
     }
   }
 
