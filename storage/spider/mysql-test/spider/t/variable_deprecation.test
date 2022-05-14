@@ -29,22 +29,6 @@ eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='internal_offset "1"';
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 
---echo # MDEV-28005 Deprecate Spider plugin variables regarding UDFs
-SET GLOBAL spider_udf_ds_bulk_insert_rows = 1;
-SHOW VARIABLES LIKE "spider_udf_ds_bulk_insert_rows";
-
-SET spider_udf_ds_table_loop_mode = 1;
-SHOW VARIABLES LIKE "spider_udf_ds_table_loop_mode";
-
-SET spider_udf_ds_use_real_table = 1;
-SHOW VARIABLES LIKE "spider_udf_ds_use_real_table";
-
-SET GLOBAL spider_udf_ct_bulk_insert_interval = 1;
-SHOW VARIABLES LIKE "spider_udf_ct_bulk_insert_interval";
-
-SET GLOBAL spider_udf_ct_bulk_insert_rows = 1;
-SHOW VARIABLES LIKE "spider_udf_ct_bulk_insert_rows";
-
 --echo # MDEV-27981 Deprecate spider_internal_limit 
 SET spider_internal_limit = 1;
 SHOW VARIABLES LIKE "spider_internal_limit";

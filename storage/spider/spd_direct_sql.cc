@@ -1594,10 +1594,9 @@ long long spider_direct_sql_body(
   }
     trx->updated_in_this_trx = TRUE;
     DBUG_PRINT("info",("spider trx->updated_in_this_trx=TRUE"));
-  use_real_table = spider_param_udf_ds_use_real_table(thd,
-    direct_sql->use_real_table);
-  for (roop_count = 0; roop_count < direct_sql->table_count; roop_count++)
-  {
+    use_real_table= direct_sql->use_real_table;
+    for (roop_count= 0; roop_count < direct_sql->table_count; roop_count++)
+    {
 #ifdef SPIDER_NEED_INIT_ONE_TABLE_FOR_FIND_TEMPORARY_TABLE
 #ifdef SPIDER_use_LEX_CSTRING_for_database_tablename_alias
     LEX_CSTRING db_name =

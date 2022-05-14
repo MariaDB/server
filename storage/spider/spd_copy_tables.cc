@@ -1000,8 +1000,7 @@ long long spider_copy_tables_body(
   else
     copy_tables->access_charset = system_charset_info;
 
-  bulk_insert_rows = spider_param_udf_ct_bulk_insert_rows(
-    copy_tables->bulk_insert_rows);
+  bulk_insert_rows= copy_tables->bulk_insert_rows;
   for (src_tbl_conn = copy_tables->table_conn[0]; src_tbl_conn;
     src_tbl_conn = src_tbl_conn->next)
   {

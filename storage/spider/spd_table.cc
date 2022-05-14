@@ -4386,7 +4386,7 @@ SPIDER_SHARE *spider_create_share(
         (uint) (sizeof(*tmp_cardinality_upd) * bitmap_size),
       &tmp_table_mon_mutex_bitmap,
         (uint) (sizeof(*tmp_table_mon_mutex_bitmap) *
-          ((spider_param_udf_table_mon_mutex_count() + 7) / 8)),
+          ((spider_udf_table_mon_mutex_count + 7) / 8)),
       NullS))
   ) {
     *error_num = HA_ERR_OUT_OF_MEM;
@@ -4436,7 +4436,7 @@ SPIDER_SHARE *spider_create_share(
     buf_pos = strmov(buf_pos, link_idx_str);
     *buf_pos = '\0';
     spider_set_bit(tmp_table_mon_mutex_bitmap,
-      spider_udf_calc_hash(buf, spider_param_udf_table_mon_mutex_count())
+      spider_udf_calc_hash(buf, spider_udf_table_mon_mutex_count)
     );
   }
 
@@ -4667,7 +4667,7 @@ SPIDER_SHARE *spider_get_share(
     {
       pthread_mutex_lock(&share->mutex);
       for (roop_count = 0;
-        roop_count < (int) spider_param_udf_table_mon_mutex_count();
+        roop_count < (int) spider_udf_table_mon_mutex_count;
         roop_count++
       ) {
         if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
@@ -4699,7 +4699,7 @@ SPIDER_SHARE *spider_get_share(
               FALSE, error_num))
           ) {
             for (roop_count = 0;
-              roop_count < (int) spider_param_udf_table_mon_mutex_count();
+              roop_count < (int) spider_udf_table_mon_mutex_count;
               roop_count++
             ) {
               if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
@@ -4721,7 +4721,7 @@ SPIDER_SHARE *spider_get_share(
               *error_num != HA_ERR_END_OF_FILE
             ) {
               for (roop_count = 0;
-                roop_count < (int) spider_param_udf_table_mon_mutex_count();
+                roop_count < (int) spider_udf_table_mon_mutex_count;
                 roop_count++
               ) {
                 if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
@@ -4754,7 +4754,7 @@ SPIDER_SHARE *spider_get_share(
         }
       }
       for (roop_count = 0;
-        roop_count < (int) spider_param_udf_table_mon_mutex_count();
+        roop_count < (int) spider_udf_table_mon_mutex_count;
         roop_count++
       ) {
         if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
@@ -5147,7 +5147,7 @@ SPIDER_SHARE *spider_get_share(
     {
       pthread_mutex_lock(&share->mutex);
       for (roop_count = 0;
-        roop_count < (int) spider_param_udf_table_mon_mutex_count();
+        roop_count < (int) spider_udf_table_mon_mutex_count;
         roop_count++
       ) {
         if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
@@ -5180,7 +5180,7 @@ SPIDER_SHARE *spider_get_share(
               FALSE, error_num))
           ) {
             for (roop_count = 0;
-              roop_count < (int) spider_param_udf_table_mon_mutex_count();
+              roop_count < (int) spider_udf_table_mon_mutex_count;
               roop_count++
             ) {
               if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
@@ -5199,7 +5199,7 @@ SPIDER_SHARE *spider_get_share(
               *error_num != HA_ERR_END_OF_FILE
             ) {
               for (roop_count = 0;
-                roop_count < (int) spider_param_udf_table_mon_mutex_count();
+                roop_count < (int) spider_udf_table_mon_mutex_count;
                 roop_count++
               ) {
                 if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
@@ -5229,7 +5229,7 @@ SPIDER_SHARE *spider_get_share(
         }
       }
       for (roop_count = 0;
-        roop_count < (int) spider_param_udf_table_mon_mutex_count();
+        roop_count < (int) spider_udf_table_mon_mutex_count;
         roop_count++
       ) {
         if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
@@ -6399,7 +6399,7 @@ int spider_db_done(
   }
   spider_free(NULL, spider_table_sts_threads, MYF(0));
 
-  for (roop_count = spider_param_udf_table_mon_mutex_count() - 1;
+  for (roop_count= spider_udf_table_mon_mutex_count - 1;
     roop_count >= 0; roop_count--)
   {
     while ((table_mon_list = (SPIDER_TABLE_MON_LIST *) my_hash_element(
@@ -6415,10 +6415,10 @@ int spider_db_done(
       spider_udf_table_mon_list_hash[roop_count].array.size_of_element);
     my_hash_free(&spider_udf_table_mon_list_hash[roop_count]);
   }
-  for (roop_count = spider_param_udf_table_mon_mutex_count() - 1;
+  for (roop_count= spider_udf_table_mon_mutex_count - 1;
     roop_count >= 0; roop_count--)
     pthread_cond_destroy(&spider_udf_table_mon_conds[roop_count]);
-  for (roop_count = spider_param_udf_table_mon_mutex_count() - 1;
+  for (roop_count= spider_udf_table_mon_mutex_count - 1;
     roop_count >= 0; roop_count--)
     pthread_mutex_destroy(&spider_udf_table_mon_mutexes[roop_count]);
   spider_free(NULL, spider_udf_table_mon_mutexes, MYF(0));
@@ -6768,17 +6768,17 @@ int spider_db_init(
   if (!(spider_udf_table_mon_mutexes = (pthread_mutex_t *)
     spider_bulk_malloc(NULL, 53, MYF(MY_WME | MY_ZEROFILL),
       &spider_udf_table_mon_mutexes, (uint) (sizeof(pthread_mutex_t) *
-        spider_param_udf_table_mon_mutex_count()),
+        spider_udf_table_mon_mutex_count),
       &spider_udf_table_mon_conds, (uint) (sizeof(pthread_cond_t) *
-        spider_param_udf_table_mon_mutex_count()),
+        spider_udf_table_mon_mutex_count),
       &spider_udf_table_mon_list_hash, (uint) (sizeof(HASH) *
-        spider_param_udf_table_mon_mutex_count()),
+        spider_udf_table_mon_mutex_count),
       NullS))
   )
     goto error_alloc_mon_mutxes;
 
   for (roop_count = 0;
-    roop_count < (int) spider_param_udf_table_mon_mutex_count();
+    roop_count < (int) spider_udf_table_mon_mutex_count;
     roop_count++)
   {
     if (mysql_mutex_init(spd_key_mutex_udf_table_mon,
@@ -6786,7 +6786,7 @@ int spider_db_init(
       goto error_init_udf_table_mon_mutex;
   }
   for (roop_count = 0;
-    roop_count < (int) spider_param_udf_table_mon_mutex_count();
+    roop_count < (int) spider_udf_table_mon_mutex_count;
     roop_count++)
   {
     if (mysql_cond_init(spd_key_cond_udf_table_mon,
@@ -6794,7 +6794,7 @@ int spider_db_init(
       goto error_init_udf_table_mon_cond;
   }
   for (roop_count = 0;
-    roop_count < (int) spider_param_udf_table_mon_mutex_count();
+    roop_count < (int) spider_udf_table_mon_mutex_count;
     roop_count++)
   {
     if (my_hash_init(PSI_INSTRUMENT_ME, &spider_udf_table_mon_list_hash[roop_count],
@@ -6880,7 +6880,7 @@ error_init_table_sts_threads:
     spider_free_sts_threads(&spider_table_sts_threads[roop_count]);
   }
   spider_free(NULL, spider_table_sts_threads, MYF(0));
-  roop_count = spider_param_udf_table_mon_mutex_count() - 1;
+  roop_count= spider_udf_table_mon_mutex_count - 1;
 error_init_udf_table_mon_list_hash:
   for (; roop_count >= 0; roop_count--)
   {
@@ -6890,11 +6890,11 @@ error_init_udf_table_mon_list_hash:
       spider_udf_table_mon_list_hash[roop_count].array.size_of_element);
     my_hash_free(&spider_udf_table_mon_list_hash[roop_count]);
   }
-  roop_count = spider_param_udf_table_mon_mutex_count() - 1;
+  roop_count= spider_udf_table_mon_mutex_count - 1;
 error_init_udf_table_mon_cond:
   for (; roop_count >= 0; roop_count--)
     pthread_cond_destroy(&spider_udf_table_mon_conds[roop_count]);
-  roop_count = spider_param_udf_table_mon_mutex_count() - 1;
+  roop_count= spider_udf_table_mon_mutex_count - 1;
 error_init_udf_table_mon_mutex:
   for (; roop_count >= 0; roop_count--)
     pthread_mutex_destroy(&spider_udf_table_mon_mutexes[roop_count]);

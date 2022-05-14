@@ -97,8 +97,8 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_mon_list(
     free_root(&mem_root, MYF(0));
   }
 
-  mutex_hash = spider_udf_calc_hash(str->c_ptr(),
-    spider_param_udf_table_mon_mutex_count());
+  mutex_hash=
+      spider_udf_calc_hash(str->c_ptr(), spider_udf_table_mon_mutex_count);
   DBUG_PRINT("info",("spider hash key=%s", str->c_ptr()));
   DBUG_PRINT("info",("spider hash key length=%u", str->length()));
   hash_value = my_calc_hash(
@@ -224,8 +224,8 @@ int spider_release_ping_table_mon_list(
   conv_name_str.q_append(conv_name, conv_name_length);
   conv_name_str.q_append(link_idx_str, link_idx_str_length);
 
-  mutex_hash = spider_udf_calc_hash(conv_name_str.c_ptr_safe(),
-    spider_param_udf_table_mon_mutex_count());
+  mutex_hash= spider_udf_calc_hash(conv_name_str.c_ptr_safe(),
+                                   spider_udf_table_mon_mutex_count);
   my_hash_value_type hash_value = my_calc_hash(
     &spider_udf_table_mon_list_hash[mutex_hash],
     (uchar*) conv_name_str.c_ptr(), conv_name_str.length());

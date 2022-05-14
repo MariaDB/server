@@ -14,6 +14,9 @@
   along with this program); if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
+constexpr uint spider_udf_table_lock_mutex_count= 20;
+constexpr uint spider_udf_table_mon_mutex_count= 20;
+
 my_bool spider_param_support_xa();
 my_bool spider_param_connect_mutex();
 uint spider_param_connect_error_interval();
@@ -263,16 +266,6 @@ int spider_param_direct_dup_insert(
   THD *thd,
   int direct_dup_insert
 );
-uint spider_param_udf_table_lock_mutex_count();
-uint spider_param_udf_table_mon_mutex_count();
-longlong spider_param_udf_ds_bulk_insert_rows(
-  THD *thd,
-  longlong udf_ds_bulk_insert_rows
-);
-int spider_param_udf_ds_table_loop_mode(
-  THD *thd,
-  int udf_ds_table_loop_mode
-);
 char *spider_param_remote_access_charset();
 int spider_param_remote_autocommit();
 char *spider_param_remote_time_zone();
@@ -292,12 +285,6 @@ char *spider_param_bka_engine(
 int spider_param_bka_mode(
   THD *thd,
   int bka_mode
-);
-int spider_param_udf_ct_bulk_insert_interval(
-  int udf_ct_bulk_insert_interval
-);
-longlong spider_param_udf_ct_bulk_insert_rows(
-  longlong udf_ct_bulk_insert_rows
 );
 int spider_param_use_handler(
   THD *thd,
@@ -326,10 +313,6 @@ longlong spider_param_direct_order_limit(
 int spider_param_read_only_mode(
   THD *thd,
   int read_only_mode
-);
-int spider_param_udf_ds_use_real_table(
-  THD *thd,
-  int udf_ds_use_real_table
 );
 my_bool spider_param_general_log();
 my_bool spider_param_index_hint_pushdown(

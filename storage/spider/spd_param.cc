@@ -1952,103 +1952,6 @@ int spider_param_direct_dup_insert(
     direct_dup_insert : THDVAR(thd, direct_dup_insert));
 }
 
-static uint spider_udf_table_lock_mutex_count;
-/*
-  1-: mutex count
- */
-static MYSQL_SYSVAR_UINT(
-  udf_table_lock_mutex_count,
-  spider_udf_table_lock_mutex_count,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Mutex count of table lock for Spider UDFs",
-  NULL,
-  NULL,
-  20,
-  1,
-  4294967295U,
-  0
-);
-
-uint spider_param_udf_table_lock_mutex_count()
-{
-  DBUG_ENTER("spider_param_udf_table_lock_mutex_count");
-  DBUG_RETURN(spider_udf_table_lock_mutex_count);
-}
-
-static uint spider_udf_table_mon_mutex_count;
-/*
-  1-: mutex count
- */
-static MYSQL_SYSVAR_UINT(
-  udf_table_mon_mutex_count,
-  spider_udf_table_mon_mutex_count,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Mutex count of table mon for Spider UDFs",
-  NULL,
-  NULL,
-  20,
-  1,
-  4294967295U,
-  0
-);
-
-uint spider_param_udf_table_mon_mutex_count()
-{
-  DBUG_ENTER("spider_param_udf_table_mon_mutex_count");
-  DBUG_RETURN(spider_udf_table_mon_mutex_count);
-}
-
-/*
-  1-:number of rows
- */
-static MYSQL_THDVAR_LONGLONG(
-  udf_ds_bulk_insert_rows, /* name */
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
-  "Number of rows for bulk inserting", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
-  -1, /* min */
-  9223372036854775807LL, /* max */
-  0 /* blk */
-);
-
-longlong spider_param_udf_ds_bulk_insert_rows(
-  THD *thd,
-  longlong udf_ds_bulk_insert_rows
-) {
-  DBUG_ENTER("spider_param_udf_ds_bulk_insert_rows");
-  DBUG_RETURN(THDVAR(thd, udf_ds_bulk_insert_rows) <= 0 ?
-    udf_ds_bulk_insert_rows : THDVAR(thd, udf_ds_bulk_insert_rows));
-}
-
-/*
- -1 :use table parameter
-  0 :drop records
-  1 :insert last table
-  2 :insert first table and loop again
- */
-static MYSQL_THDVAR_INT(
-  udf_ds_table_loop_mode, /* name */
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
-  "Table loop mode if the number of tables in table list are less than the number of result sets", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
-  -1, /* min */
-  2, /* max */
-  0 /* blk */
-);
-
-int spider_param_udf_ds_table_loop_mode(
-  THD *thd,
-  int udf_ds_table_loop_mode
-) {
-  DBUG_ENTER("spider_param_udf_ds_table_loop_mode");
-  DBUG_RETURN(THDVAR(thd, udf_ds_table_loop_mode) == -1 ?
-    udf_ds_table_loop_mode : THDVAR(thd, udf_ds_table_loop_mode));
-}
-
 static char *spider_remote_access_charset;
 /*
  */
@@ -2281,58 +2184,6 @@ int spider_param_bka_mode(
     bka_mode : THDVAR(thd, bka_mode));
 }
 
-static int spider_udf_ct_bulk_insert_interval;
-/*
- -1         : The UDF parameter is adopted.
-  0 or more : Milliseconds.
- */
-static MYSQL_SYSVAR_INT(
-  udf_ct_bulk_insert_interval,
-  spider_udf_ct_bulk_insert_interval,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
-  "The interval time between bulk insert and next bulk insert at coping",
-  NULL,
-  NULL,
-  -1,
-  -1,
-  2147483647,
-  0
-);
-
-int spider_param_udf_ct_bulk_insert_interval(
-  int udf_ct_bulk_insert_interval
-) {
-  DBUG_ENTER("spider_param_udf_ct_bulk_insert_interval");
-  DBUG_RETURN(spider_udf_ct_bulk_insert_interval < 0 ?
-    udf_ct_bulk_insert_interval : spider_udf_ct_bulk_insert_interval);
-}
-
-static longlong spider_udf_ct_bulk_insert_rows;
-/*
- -1,0       : The UDF parameter is adopted.
-  1 or more : Number of rows.
- */
-static MYSQL_SYSVAR_LONGLONG(
-  udf_ct_bulk_insert_rows,
-  spider_udf_ct_bulk_insert_rows,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
-  "The number of rows inserted with bulk insert of one time at coping",
-  NULL,
-  NULL,
-  -1,
-  -1,
-  9223372036854775807LL,
-  0
-);
-
-longlong spider_param_udf_ct_bulk_insert_rows(
-  longlong udf_ct_bulk_insert_rows
-) {
-  DBUG_ENTER("spider_param_udf_ct_bulk_insert_rows");
-  DBUG_RETURN(spider_udf_ct_bulk_insert_rows <= 0 ?
-    udf_ct_bulk_insert_rows : spider_udf_ct_bulk_insert_rows);
-}
-
 /*
  -1 :use table parameter
   0 :not use
@@ -2515,33 +2366,6 @@ int spider_param_read_only_mode(
   DBUG_ENTER("spider_param_read_only_mode");
   DBUG_RETURN(THDVAR(thd, read_only_mode) == -1 ?
     read_only_mode : THDVAR(thd, read_only_mode));
-}
-
-
-/*
- -1 :use UDF parameter
-  0 :can not use
-  1 :can use
- */
-static MYSQL_THDVAR_INT(
-  udf_ds_use_real_table, /* name */
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
-  "Use real table for temporary table list", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
-  -1, /* min */
-  1, /* max */
-  0 /* blk */
-);
-
-int spider_param_udf_ds_use_real_table(
-  THD *thd,
-  int udf_ds_use_real_table
-) {
-  DBUG_ENTER("spider_param_udf_ds_use_real_table");
-  DBUG_RETURN(THDVAR(thd, udf_ds_use_real_table) == -1 ?
-    udf_ds_use_real_table : THDVAR(thd, udf_ds_use_real_table));
 }
 
 static my_bool spider_general_log;
@@ -3182,10 +3006,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(local_lock_table),
   MYSQL_SYSVAR(use_pushdown_udf),
   MYSQL_SYSVAR(direct_dup_insert),
-  MYSQL_SYSVAR(udf_table_lock_mutex_count),
-  MYSQL_SYSVAR(udf_table_mon_mutex_count),
-  MYSQL_SYSVAR(udf_ds_bulk_insert_rows),
-  MYSQL_SYSVAR(udf_ds_table_loop_mode),
   MYSQL_SYSVAR(remote_access_charset),
   MYSQL_SYSVAR(remote_autocommit),
   MYSQL_SYSVAR(remote_time_zone),
@@ -3197,8 +3017,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(connect_mutex),
   MYSQL_SYSVAR(bka_engine),
   MYSQL_SYSVAR(bka_mode),
-  MYSQL_SYSVAR(udf_ct_bulk_insert_interval),
-  MYSQL_SYSVAR(udf_ct_bulk_insert_rows),
   MYSQL_SYSVAR(use_handler),
   MYSQL_SYSVAR(error_read_mode),
   MYSQL_SYSVAR(error_write_mode),
@@ -3206,7 +3024,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(skip_parallel_search),
   MYSQL_SYSVAR(direct_order_limit),
   MYSQL_SYSVAR(read_only_mode),
-  MYSQL_SYSVAR(udf_ds_use_real_table),
   MYSQL_SYSVAR(general_log),
   MYSQL_SYSVAR(index_hint_pushdown),
   MYSQL_SYSVAR(max_connections),

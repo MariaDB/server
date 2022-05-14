@@ -43,37 +43,6 @@ Warnings:
 Warning	1287	The table parameter 'internal_offset' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
-# MDEV-28005 Deprecate Spider plugin variables regarding UDFs
-SET GLOBAL spider_udf_ds_bulk_insert_rows = 1;
-Warnings:
-Warning	1287	'@@spider_udf_ds_bulk_insert_rows' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_udf_ds_bulk_insert_rows";
-Variable_name	Value
-spider_udf_ds_bulk_insert_rows	-1
-SET spider_udf_ds_table_loop_mode = 1;
-Warnings:
-Warning	1287	'@@spider_udf_ds_table_loop_mode' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_udf_ds_table_loop_mode";
-Variable_name	Value
-spider_udf_ds_table_loop_mode	1
-SET spider_udf_ds_use_real_table = 1;
-Warnings:
-Warning	1287	'@@spider_udf_ds_use_real_table' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_udf_ds_use_real_table";
-Variable_name	Value
-spider_udf_ds_use_real_table	1
-SET GLOBAL spider_udf_ct_bulk_insert_interval = 1;
-Warnings:
-Warning	1287	'@@spider_udf_ct_bulk_insert_interval' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_udf_ct_bulk_insert_interval";
-Variable_name	Value
-spider_udf_ct_bulk_insert_interval	1
-SET GLOBAL spider_udf_ct_bulk_insert_rows = 1;
-Warnings:
-Warning	1287	'@@spider_udf_ct_bulk_insert_rows' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_udf_ct_bulk_insert_rows";
-Variable_name	Value
-spider_udf_ct_bulk_insert_rows	1
 # MDEV-27981 Deprecate spider_internal_limit 
 SET spider_internal_limit = 1;
 Warnings:

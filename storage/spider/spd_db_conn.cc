@@ -9138,10 +9138,8 @@ int spider_db_udf_direct_sql(
   SPIDER_CONN *conn = direct_sql->conn;
   SPIDER_DB_RESULT *result = NULL;
   TABLE *table;
-  int bulk_insert_rows = (int) spider_param_udf_ds_bulk_insert_rows(thd,
-    direct_sql->bulk_insert_rows);
-  int table_loop_mode = spider_param_udf_ds_table_loop_mode(thd,
-    direct_sql->table_loop_mode);
+  int bulk_insert_rows= (int) direct_sql->bulk_insert_rows;
+  int table_loop_mode= direct_sql->table_loop_mode;
   double ping_interval_at_trx_start =
     spider_param_ping_interval_at_trx_start(thd);
   time_t tmp_time = (time_t) time((time_t*) 0);
@@ -9255,14 +9253,13 @@ int spider_db_udf_direct_sql(
           {
             while (!error_num && !end_of_file)
             {
-              udf_table_mutex_index = spider_udf_calc_hash(
-                direct_sql->db_names[roop_count],
-                spider_param_udf_table_lock_mutex_count());
-              udf_table_mutex_index += spider_udf_calc_hash(
-                direct_sql->table_names[roop_count],
-                spider_param_udf_table_lock_mutex_count());
-              udf_table_mutex_index %=
-                spider_param_udf_table_lock_mutex_count();
+              udf_table_mutex_index=
+                  spider_udf_calc_hash(direct_sql->db_names[roop_count],
+                                       spider_udf_table_lock_mutex_count);
+              udf_table_mutex_index+=
+                  spider_udf_calc_hash(direct_sql->table_names[roop_count],
+                                       spider_udf_table_lock_mutex_count);
+              udf_table_mutex_index%= spider_udf_table_lock_mutex_count;
               pthread_mutex_lock(
                 &trx->udf_table_mutexes[udf_table_mutex_index]);
               table = direct_sql->tables[roop_count];
@@ -10313,8 +10310,7 @@ int spider_db_udf_copy_tables(
               pthread_mutex_unlock(&tmp_conn->mta_conn_mutex);
               goto error_db_query;
             }
-            bulk_insert_rows = spider_param_udf_ct_bulk_insert_rows(
-              copy_tables->bulk_insert_rows);
+            bulk_insert_rows= copy_tables->bulk_insert_rows;
             if (
               select_ct->append_key_order_str(key_info, 0, FALSE) ||
               select_ct->append_limit(0, bulk_insert_rows) ||
@@ -10526,8 +10522,7 @@ int spider_db_udf_copy_tables(
         insert_ct->set_sql_to_pos();
       }
       DBUG_PRINT("info",("spider sleep"));
-      bulk_insert_interval = spider_param_udf_ct_bulk_insert_interval(
-        copy_tables->bulk_insert_interval);
+      bulk_insert_interval= copy_tables->bulk_insert_interval;
       my_sleep(bulk_insert_interval);
     }
   }

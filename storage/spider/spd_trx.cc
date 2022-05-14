@@ -1123,7 +1123,7 @@ int spider_free_trx_alloc(
     spider_free_tmp_share_alloc(trx->tmp_share);
   }
   spider_db_udf_free_set_names(trx);
-  for (roop_count = spider_param_udf_table_lock_mutex_count() - 1;
+  for (roop_count = spider_udf_table_lock_mutex_count - 1;
     roop_count >= 0; roop_count--)
     pthread_mutex_destroy(&trx->udf_table_mutexes[roop_count]);
   spider_free_trx_ha(trx);
@@ -1176,7 +1176,7 @@ SPIDER_TRX *spider_get_trx(
         &tmp_share, (uint) (sizeof(SPIDER_SHARE)),
         &tmp_wide_handler, (uint) sizeof(SPIDER_WIDE_HANDLER),
         &udf_table_mutexes, (uint) (sizeof(pthread_mutex_t) *
-          spider_param_udf_table_lock_mutex_count()),
+          spider_udf_table_lock_mutex_count),
         NullS))
     )
       goto error_alloc_trx;
@@ -1186,7 +1186,7 @@ SPIDER_TRX *spider_get_trx(
     trx->udf_table_mutexes = udf_table_mutexes;
 
     for (roop_count = 0;
-      roop_count < (int) spider_param_udf_table_lock_mutex_count();
+      roop_count < (int) spider_udf_table_lock_mutex_count;
       roop_count++)
     {
       if (mysql_mutex_init(spd_key_mutex_udf_table,
