@@ -3677,9 +3677,9 @@ int Id_delegating_gtid_event_filter<T>::set_id_restrictions(
     {
       DBUG_ASSERT(map_element->filter->get_filter_type() ==
                   (mode ==
-                   Gtid_event_filter::id_restriction_mode::WHITELIST_MODE)
-                  ? Gtid_event_filter::ACCEPT_ALL_GTID_FILTER_TYPE
-                  : Gtid_event_filter::REJECT_ALL_GTID_FILTER_TYPE);
+                   Gtid_event_filter::id_restriction_mode::WHITELIST_MODE
+                   ? Gtid_event_filter::ACCEPT_ALL_GTID_FILTER_TYPE
+                   : Gtid_event_filter::REJECT_ALL_GTID_FILTER_TYPE));
     }
   }
 
