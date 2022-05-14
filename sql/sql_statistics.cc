@@ -2660,12 +2660,32 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
 
   if(file->ha_table_flags() & HA_NATIVE_SAMPLING)
   {
-    rc = -1;
+    if(!(rc= file->ha_sample_init())) {
+      DEBUG_SYNC(table->in_use, "statistics_collection_start");
+      rows = file->records() * (thd->variables.sample_percentage / 100);
 
-    int b = file->sample_next(table->record[0]);
+      for (ulonglong i= 0; i < rows; ++i)
+      {
+        rc = file->ha_sample_next(table->record[0]);
+        if (thd->killed)
+          break;
 
-    b += 1;
-
+        if (rc)
+          break;
+        for (field_ptr= table->field; *field_ptr; field_ptr++)
+        {
+          table_field= *field_ptr;
+          if (!table_field->collected_stats)
+            continue;
+          if ((rc= table_field->collected_stats->add()))
+            break;
+        }
+        if (rc)
+          break;
+      }
+      file->ha_sample_end();
+    }
+    rc= (rc == 0 && !thd->killed) ? 0 : 1;
   }
   else
   {
@@ -2700,8 +2720,9 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
       }
       file->ha_rnd_end();
     }
+    rc= (rc == HA_ERR_END_OF_FILE && !thd->killed) ? 0 : 1;
   }
-  rc= (rc == HA_ERR_END_OF_FILE && !thd->killed) ? 0 : 1;
+
 
   /* 
     Calculate values for all statistical characteristics on columns and

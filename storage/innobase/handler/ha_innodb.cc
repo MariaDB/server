@@ -9493,23 +9493,46 @@ ha_innobase::rnd_next(
 #include "../row/row0sel.cc"
 
 int
+ha_innobase::sample_init()
+{
+  int		err;
+
+  /* Store the active index value so that we can restore the original
+  value after a scan */
+
+  if (m_prebuilt->clust_index_was_generated) {
+    err = change_active_index(MAX_KEY);
+  } else {
+    err = change_active_index(m_primary_key);
+  }
+
+  return(err);
+}
+
+int
+ha_innobase::sample_end()
+{
+  return(index_end());
+}
+int
 ha_innobase::sample_next(
 /*=====================*/
     uchar *buf)
 {
-        int rc= ha_rnd_init(TRUE);
-        rc = rc;
+
         mtr_t		mtr;
         btr_pcur_t*	pcur = m_prebuilt->pcur;
         rec_t*          rec;
-
-
         rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
         rec_offs*	offsets				= offsets_;
         rec_offs_init(offsets_);
         mtr.start();
         dict_index_t*	index = innobase_get_index(MAX_KEY);
         bool res = btr_pcur_open_at_rnd_pos(index, BTR_SEARCH_LEAF, pcur, &mtr);
+        if(!res) {
+          mtr.commit();
+          return -1;
+        }
 
         rec = btr_pcur_get_rec(pcur);
 
@@ -9519,11 +9542,8 @@ ha_innobase::sample_next(
             buf, m_prebuilt, rec, NULL, true,
             index, offsets);
 
-        res = res;
-
         mtr.commit();
-        ha_rnd_end();
-        return 0;
+        return res ? 0 : -1;
 }
 
 /**********************************************************************//**

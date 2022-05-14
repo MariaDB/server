@@ -155,6 +155,10 @@ public:
 
 	int rnd_next(uchar *buf) override;
 
+        int sample_init() override;
+
+        int sample_end() override;
+
         int sample_next(uchar *buf) override;
 
 	int rnd_pos(uchar * buf, uchar *pos) override;
