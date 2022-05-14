@@ -366,7 +366,10 @@ enum chf_create_flags {
 /* Implements SELECT ... FOR UPDATE SKIP LOCKED */
 #define HA_CAN_SKIP_LOCKED  (1ULL << 61)
 
-#define HA_LAST_TABLE_FLAG HA_CAN_SKIP_LOCKED
+/* Implements native sampling (MDEV-19556) */
+#define HA_NATIVE_SAMPLING (1ULL << 62)
+
+#define HA_LAST_TABLE_FLAG HA_NATIVE_SAMPLING
 
 
 /* bits in index_flags(index_number) for what you can do with index */

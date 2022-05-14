@@ -3020,7 +3020,8 @@ ha_innobase::ha_innobase(
                           | HA_CAN_ONLINE_BACKUPS
 			  | HA_CONCURRENT_OPTIMIZE
 			  | HA_CAN_SKIP_LOCKED
-			  |  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0)
+			  |  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0
+                          | HA_NATIVE_SAMPLING)
 		  ),
 	m_start_of_scan(),
         m_mysql_has_locked()

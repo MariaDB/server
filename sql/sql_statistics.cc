@@ -2634,11 +2634,6 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   table->collected_stats->cardinality_is_null= TRUE;
   table->collected_stats->cardinality= 0;
 
-  int b = file->sample_next(table->record[0]);
-
-  b += 1;
-
-
   if (thd->variables.sample_percentage == 0)
   {
     if (file->records() < MIN_THRESHOLD_FOR_SAMPLING)
@@ -2663,39 +2658,48 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
 
   restore_record(table, s->default_values);
 
-
-
-
-
-  /* Perform a full table scan to collect statistics on 'table's columns */
-  if (!(rc= file->ha_rnd_init(TRUE)))
+  if(file->ha_table_flags() & HA_NATIVE_SAMPLING)
   {
-    DEBUG_SYNC(table->in_use, "statistics_collection_start");
+    rc = -1;
 
-    while ((rc= file->ha_rnd_next(table->record[0])) != HA_ERR_END_OF_FILE)
+    int b = file->sample_next(table->record[0]);
+
+    b += 1;
+
+  }
+  else
+  {
+
+    /* Perform a full table scan to collect statistics on 'table's columns */
+    if (!(rc= file->ha_rnd_init(TRUE)))
     {
-      if (thd->killed)
-        break;
+      DEBUG_SYNC(table->in_use, "statistics_collection_start");
 
-      if (rc)
-        break;
-
-      if (thd_rnd(thd) <= sample_fraction)
+      while ((rc= file->ha_rnd_next(table->record[0])) != HA_ERR_END_OF_FILE)
       {
-        for (field_ptr= table->field; *field_ptr; field_ptr++)
-        {
-          table_field= *field_ptr;
-          if (!table_field->collected_stats)
-            continue;
-          if ((rc= table_field->collected_stats->add()))
-            break;
-        }
+        if (thd->killed)
+          break;
+
         if (rc)
           break;
-        rows++;
+
+        if (thd_rnd(thd) <= sample_fraction)
+        {
+          for (field_ptr= table->field; *field_ptr; field_ptr++)
+          {
+            table_field= *field_ptr;
+            if (!table_field->collected_stats)
+              continue;
+            if ((rc= table_field->collected_stats->add()))
+              break;
+          }
+          if (rc)
+            break;
+          rows++;
+        }
       }
+      file->ha_rnd_end();
     }
-    file->ha_rnd_end();
   }
   rc= (rc == HA_ERR_END_OF_FILE && !thd->killed) ? 0 : 1;
 
