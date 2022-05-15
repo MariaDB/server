@@ -5405,7 +5405,9 @@ static int init_server_components()
     unireg_abort(1);
   }
 
+#ifndef EMBEDDED_LIBRARY
   start_handle_manager();
+#endif
   if (opt_bin_log)
   {
     int error;
