@@ -4242,9 +4242,9 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
   result.set_charset(collation.collation);
   result_field= 0;
   null_value= 1;
-  max_length= (uint32)MY_MIN(thd->variables.group_concat_max_len
-                             / collation.collation->mbminlen
-                             * collation.collation->mbmaxlen, UINT_MAX32);
+  max_length= (uint32) MY_MIN((ulonglong) thd->variables.group_concat_max_len
+                              / collation.collation->mbminlen
+                              * collation.collation->mbmaxlen, UINT_MAX32);
 
   uint32 offset;
   if (separator->needs_conversion(separator->length(), separator->charset(),
