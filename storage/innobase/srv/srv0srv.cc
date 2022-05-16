@@ -1575,8 +1575,6 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_available_undo_logs = srv_available_undo_logs;
 	export_vars.innodb_page_compression_saved = srv_stats.page_compression_saved;
-	export_vars.innodb_index_pages_written = srv_stats.index_pages_written;
-	export_vars.innodb_non_index_pages_written = srv_stats.non_index_pages_written;
 	export_vars.innodb_pages_page_compressed = srv_stats.pages_page_compressed;
 	export_vars.innodb_page_compressed_trim_op = srv_stats.page_compressed_trim_op;
 	export_vars.innodb_pages_page_decompressed = srv_stats.pages_page_decompressed;

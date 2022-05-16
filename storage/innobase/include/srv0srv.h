@@ -109,10 +109,6 @@ struct srv_stats_t
 
 	/** Number of bytes saved by page compression */
 	ulint_ctr_64_t          page_compression_saved;
-	/* Number of index pages written */
-	ulint_ctr_64_t          index_pages_written;
-	/* Number of non index pages written */
-	ulint_ctr_64_t          non_index_pages_written;
 	/* Number of pages compressed with page compression */
         ulint_ctr_64_t          pages_page_compressed;
 	/* Number of TRIM operations induced by page compression */
@@ -1030,10 +1026,6 @@ struct export_var_t{
 
 	int64_t innodb_page_compression_saved;/*!< Number of bytes saved
 						by page compression */
-	int64_t innodb_index_pages_written;  /*!< Number of index pages
-						written */
-	int64_t innodb_non_index_pages_written;  /*!< Number of non index pages
-						written */
 	int64_t innodb_pages_page_compressed;/*!< Number of pages
 						compressed by page compression */
 	int64_t innodb_page_compressed_trim_op;/*!< Number of TRIM operations

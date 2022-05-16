@@ -1142,10 +1142,6 @@ static SHOW_VAR innodb_status_variables[]= {
   /* Status variables for page compression */
   {"page_compression_saved",
    (char*) &export_vars.innodb_page_compression_saved,    SHOW_LONGLONG},
-  {"num_index_pages_written",
-   (char*) &export_vars.innodb_index_pages_written,       SHOW_LONGLONG},
-  {"num_non_index_pages_written",
-   (char*) &export_vars.innodb_non_index_pages_written,       SHOW_LONGLONG},
   {"num_pages_page_compressed",
    (char*) &export_vars.innodb_pages_page_compressed,     SHOW_LONGLONG},
   {"num_page_compressed_trim_op",

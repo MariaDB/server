@@ -36,8 +36,6 @@ buffer_pool_bytes_dirty	disabled
 buffer_pool_pages_free	disabled
 buffer_pages_created	disabled
 buffer_pages_written	disabled
-buffer_index_pages_written	disabled
-buffer_non_index_pages_written	disabled
 buffer_pages_read	disabled
 buffer_pages0_read	disabled
 buffer_index_sec_rec_cluster_reads	disabled
