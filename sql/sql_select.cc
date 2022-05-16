@@ -8144,6 +8144,7 @@ best_access_path(JOIN      *join,
       {
         tmp= s->scan_time();
         type= JT_ALL;
+        best_filter= 0;
       }
 
       if ((s->table->map & join->outer_join) || disable_jbuf)     // Can't use join cache

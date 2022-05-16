@@ -40,7 +40,7 @@ analyze table t2,t3;
 explain
 select * from t2, t3
 where 
-  t3.key1=t2.a and t3.key2 in (2,3);
+  t3.key1=t2.a and t3.key2 in (2);
 
 let $target_id= `select connection_id()`;
 
@@ -48,7 +48,7 @@ set debug_sync='handler_rowid_filter_check SIGNAL at_rowid_filter_check WAIT_FOR
 send
 select * from t2, t3
 where 
-  t3.key1=t2.a and t3.key2 in (2,3);
+ t3.key1=t2.a and t3.key2 in (2);
 
 connect (con1, localhost, root,,);
 connection con1;

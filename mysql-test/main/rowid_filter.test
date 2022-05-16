@@ -351,6 +351,20 @@ eval $q;
 eval EXPLAIN EXTENDED $q;
 eval EXPLAIN FORMAT=JSON $q;
 
+# After fix for MDEV-27366 the explain plan above has stopped displaying
+# rowid_filter as it did before. The reason is selectivity of condition
+# on "b1" is not worth applying rowid filter using index "b1", so the optimizer
+# skips it. To force usage of rowid filter the following tweaks are made
+# for the data and the query:
+
+DELETE FROM t2 WHERE pk2 >= 50;
+let $q=
+SELECT * FROM t1 INNER JOIN t2 ON ( pk1 <> pk2 AND pk1 = a2 )
+  WHERE b1 <= ( SELECT MIN(b2) FROM t2 );
+eval $q;
+eval EXPLAIN EXTENDED $q;
+eval EXPLAIN FORMAT=JSON $q;
+
 DROP TABLE t1,t2;
 
 --echo #

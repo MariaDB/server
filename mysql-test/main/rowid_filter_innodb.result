@@ -2032,7 +2032,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 INNER JOIN t2 ON ( pk1 <> pk2 AND pk1 = a2 )
 WHERE b1 <= ( SELECT MAX(b2) FROM t2 WHERE pk2 <= 1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	101	100.00	Using where
-1	PRIMARY	t1	eq_ref|filter	PRIMARY,b1	PRIMARY|b1	4|4	test.t2.a2	1 (87%)	87.00	Using where; Using rowid filter
+1	PRIMARY	t1	eq_ref	PRIMARY,b1	PRIMARY	4	test.t2.a2	1	87.00	Using where
 2	SUBQUERY	t2	range	PRIMARY	PRIMARY	4	NULL	1	100.00	Using index condition
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`pk1` AS `pk1`,`test`.`t1`.`a1` AS `a1`,`test`.`t1`.`b1` AS `b1`,`test`.`t2`.`pk2` AS `pk2`,`test`.`t2`.`a2` AS `a2`,`test`.`t2`.`b2` AS `b2` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`pk1` = `test`.`t2`.`a2` and `test`.`t1`.`b1` <= (/* select#2 */ select max(`test`.`t2`.`b2`) from `test`.`t2` where `test`.`t2`.`pk2` <= 1) and `test`.`t2`.`a2` <> `test`.`t2`.`pk2`
@@ -2057,14 +2057,6 @@ EXPLAIN
       "key_length": "4",
       "used_key_parts": ["pk1"],
       "ref": ["test.t2.a2"],
-      "rowid_filter": {
-        "range": {
-          "key": "b1",
-          "used_key_parts": ["b1"]
-        },
-        "rows": 87,
-        "selectivity_pct": 87
-      },
       "rows": 1,
       "filtered": 87,
       "attached_condition": "t1.b1 <= (subquery#2)"
@@ -2083,6 +2075,66 @@ EXPLAIN
             "rows": 1,
             "filtered": 100,
             "index_condition": "t2.pk2 <= 1"
+          }
+        }
+      }
+    ]
+  }
+}
+DELETE FROM t2 WHERE pk2 >= 50;
+SELECT * FROM t1 INNER JOIN t2 ON ( pk1 <> pk2 AND pk1 = a2 )
+WHERE b1 <= ( SELECT MIN(b2) FROM t2 );
+pk1	a1	b1	pk2	a2	b2
+EXPLAIN EXTENDED SELECT * FROM t1 INNER JOIN t2 ON ( pk1 <> pk2 AND pk1 = a2 )
+WHERE b1 <= ( SELECT MIN(b2) FROM t2 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	41	100.00	Using where
+1	PRIMARY	t1	eq_ref|filter	PRIMARY,b1	PRIMARY|b1	4|4	test.t2.a2	1 (4%)	4.00	Using where; Using rowid filter
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	41	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`pk1` AS `pk1`,`test`.`t1`.`a1` AS `a1`,`test`.`t1`.`b1` AS `b1`,`test`.`t2`.`pk2` AS `pk2`,`test`.`t2`.`a2` AS `a2`,`test`.`t2`.`b2` AS `b2` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`pk1` = `test`.`t2`.`a2` and `test`.`t1`.`b1` <= (/* select#2 */ select min(`test`.`t2`.`b2`) from `test`.`t2`) and `test`.`t2`.`a2` <> `test`.`t2`.`pk2`
+EXPLAIN FORMAT=JSON SELECT * FROM t1 INNER JOIN t2 ON ( pk1 <> pk2 AND pk1 = a2 )
+WHERE b1 <= ( SELECT MIN(b2) FROM t2 );
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 41,
+      "filtered": 100,
+      "attached_condition": "t2.a2 <> t2.pk2 and t2.a2 is not null"
+    },
+    "table": {
+      "table_name": "t1",
+      "access_type": "eq_ref",
+      "possible_keys": ["PRIMARY", "b1"],
+      "key": "PRIMARY",
+      "key_length": "4",
+      "used_key_parts": ["pk1"],
+      "ref": ["test.t2.a2"],
+      "rowid_filter": {
+        "range": {
+          "key": "b1",
+          "used_key_parts": ["b1"]
+        },
+        "rows": 4,
+        "selectivity_pct": 4
+      },
+      "rows": 1,
+      "filtered": 4,
+      "attached_condition": "t1.b1 <= (subquery#2)"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "rows": 41,
+            "filtered": 100
           }
         }
       }
@@ -3003,7 +3055,7 @@ WHERE t1.c1 NOT IN (SELECT t2.c1 FROM t2, t1 AS a1
 WHERE t2.i1 = t1.pk AND t2.i1 IS NOT NULL);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	15	100.00	Using where
-2	DEPENDENT SUBQUERY	t2	ref|filter	c1,i1	c1|i1	3|5	func	6 (33%)	33.33	Using where; Full scan on NULL key; Using rowid filter
+2	DEPENDENT SUBQUERY	t2	ref	c1,i1	c1	3	func	6	33.33	Using where; Full scan on NULL key
 2	DEPENDENT SUBQUERY	a1	ALL	NULL	NULL	NULL	NULL	15	100.00	Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'test.t1.pk' of SELECT #2 was resolved in SELECT #1
