@@ -74,3 +74,4 @@ cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHER
 SELECT COUNT(*) AS EXPECT_3 FROM mysql.wsrep_cluster_members;
 EXPECT_3
 3
+disconnect node_3;
