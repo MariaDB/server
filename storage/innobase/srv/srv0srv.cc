@@ -1619,8 +1619,6 @@ srv_export_innodb_status(void)
 		crypt_stat.estimated_iops;
 	export_vars.innodb_encryption_key_requests =
 		srv_stats.n_key_requests;
-	export_vars.innodb_key_rotation_list_length =
-		srv_stats.key_rotation_list_length;
 
 	export_vars.innodb_scrub_page_reorganizations =
 		scrub_stat.page_reorganizations;

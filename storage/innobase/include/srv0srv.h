@@ -181,9 +181,6 @@ struct srv_stats_t
 	/** Number of log scrub operations */
 	ulint_ctr_64_t		n_log_scrubs;
 
-	/** Number of spaces in keyrotation list */
-	ulint_ctr_64_t		key_rotation_list_length;
-
 	/** Number of temporary tablespace blocks encrypted */
 	ulint_ctr_64_t		n_temp_blocks_encrypted;
 
@@ -1064,7 +1061,6 @@ struct export_var_t{
 	ulint innodb_encryption_rotation_pages_flushed;
 	ulint innodb_encryption_rotation_estimated_iops;
 	int64_t innodb_encryption_key_requests;
-	int64_t innodb_key_rotation_list_length;
 
 	ulint innodb_scrub_page_reorganizations;
 	ulint innodb_scrub_page_splits;
