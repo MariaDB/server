@@ -9519,31 +9519,31 @@ ha_innobase::sample_next(
 /*=====================*/
     uchar *buf)
 {
+  mtr_t		mtr;
+  btr_pcur_t*	pcur= m_prebuilt->pcur;
+  rec_t*          rec;
+  rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+  rec_offs*	offsets= offsets_;
+  rec_offs_init(offsets_);
+  mtr.start();
+  dict_index_t*	index= innobase_get_index(MAX_KEY);
+  bool res= btr_pcur_open_at_rnd_pos(index, BTR_SEARCH_LEAF, pcur, &mtr);
+  if(!res) {
+    mtr.commit();
+    return HA_ERR_KEY_NOT_FOUND;
+  }
 
-        mtr_t		mtr;
-        btr_pcur_t*	pcur = m_prebuilt->pcur;
-        rec_t*          rec;
-        rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
-        rec_offs*	offsets				= offsets_;
-        rec_offs_init(offsets_);
-        mtr.start();
-        dict_index_t*	index = innobase_get_index(MAX_KEY);
-        bool res = btr_pcur_open_at_rnd_pos(index, BTR_SEARCH_LEAF, pcur, &mtr);
-        if(!res) {
-          mtr.commit();
-          return -1;
-        }
+  rec= btr_pcur_get_rec(pcur);
 
-        rec = btr_pcur_get_rec(pcur);
-
-        mem_heap_t*	heap	= NULL;
-        offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields, ULINT_UNDEFINED, &heap);
-        res = row_sel_store_mysql_rec(
-            buf, m_prebuilt, rec, NULL, true,
-            index, offsets);
-
-        mtr.commit();
-        return res ? 0 : -1;
+  mem_heap_t*	heap= NULL;
+  offsets= rec_get_offsets(rec, index, offsets, index->n_core_fields, ULINT_UNDEFINED, &heap);
+  ut_ad(offsets != NULL);
+  ut_ad(heap == NULL);
+  res= row_sel_store_mysql_rec(
+      buf, m_prebuilt, rec, NULL, true,
+      index, offsets);
+  mtr.commit();
+  return res ? 0 : HA_ERR_INTERNAL_ERROR;
 }
 
 /**********************************************************************//**
