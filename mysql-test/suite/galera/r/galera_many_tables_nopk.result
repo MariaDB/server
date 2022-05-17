@@ -6,8 +6,8 @@ START TRANSACTION;
 COMMIT;
 connection node_2;
 CREATE TABLE sum_table (f1 INTEGER);
-SELECT SUM(f1) = 900 FROM sum_table;
-SUM(f1) = 900
+SELECT SUM(f1) = 100 FROM sum_table;
+SUM(f1) = 100
 1
 connection node_1;
 SET AUTOCOMMIT=OFF;
@@ -15,7 +15,7 @@ START TRANSACTION;
 connection node_2;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
-UPDATE t900 SET f1 = 3;
+UPDATE t100 SET f1 = 3;
 connection node_1;
 COMMIT;
 connection node_2;

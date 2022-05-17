@@ -2307,6 +2307,7 @@ create:
             lex->create_info.default_table_charset= NULL;
             lex->name= null_clex_str;
             lex->create_last_non_select_table= lex->last_table();
+            lex->inc_select_stack_outer_barrier();
           }
           create_body
           {

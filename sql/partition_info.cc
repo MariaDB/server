@@ -888,8 +888,6 @@ void partition_info::vers_check_limit(THD *thd)
   uint32 part_id= vers_info->hist_part->id * sub_factor;
   const uint32 part_id_end= part_id + sub_factor;
   DBUG_ASSERT(part_id_end <= num_parts * sub_factor);
-  for (; part_id < part_id_end; ++part_id)
-    bitmap_set_bit(&read_partitions, part_id);
 
   ha_partition *hp= (ha_partition*)(table->file);
   ha_rows hist_rows= hp->part_records(vers_info->hist_part);

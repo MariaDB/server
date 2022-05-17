@@ -7716,7 +7716,7 @@ bool LEX::maybe_start_compound_statement(THD *thd)
     if (!make_sp_head(thd, NULL, &sp_handler_procedure, DEFAULT_AGGREGATE))
       return true;
     sphead->set_suid(SP_IS_NOT_SUID);
-    sphead->set_body_start(thd, thd->m_parser_state->m_lip.get_cpp_ptr());
+    sphead->set_body_start(thd, thd->m_parser_state->m_lip.get_cpp_tok_start());
   }
   return false;
 }
