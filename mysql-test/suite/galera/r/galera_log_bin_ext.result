@@ -1,6 +1,4 @@
 connection node_1;
-connection node_2;
-connection node_1;
 reset master;
 connection node_2;
 reset master;
@@ -42,12 +40,6 @@ hostname1-bin.000001	#	Xid	#	#	COMMIT /* XID */
 hostname1-bin.000001	#	Gtid	#	#	GTID #-#-#
 hostname1-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN f2 INTEGER
 connection node_2;
-Shutting down server ...
-connection node_1;
-Cleaning var directory ...
-connection node_2;
-Starting server ...
-connection node_2;
 SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
 COUNT(*) = 2
 1
@@ -74,7 +66,6 @@ hostname1-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 hostname1-bin.000001	#	Xid	#	#	COMMIT /* XID */
 hostname1-bin.000001	#	Gtid	#	#	GTID #-#-#
 hostname1-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN f2 INTEGER
-hostname1-bin.000001	#	Rotate	#	#	hostname1-bin.000002;pos=4
 DROP TABLE t1;
 DROP TABLE t2;
 #cleanup

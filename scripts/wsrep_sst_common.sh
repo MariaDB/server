@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2022 MariaDB
+# Copyright (C) 2017-2021 MariaDB
 # Copyright (C) 2012-2015 Codership Oy
 #
 # This program is free software; you can redistribute it and/or modify
@@ -44,39 +44,6 @@ trim_string()
     fi
 }
 
-trim_dir()
-{
-    local t=$(trim_string "$1")
-    if [ "$t" != '/' ]; then
-        if [ "${t%/}" != "$t" ]; then
-            t=$(trim_string "${t%/}")
-        fi
-    else
-        t='.'
-    fi
-    if [ -n "$BASH_VERSION" ]; then
-        printf '%s' "$t"
-    else
-        echo "$t"
-    fi
-}
-
-to_minuses()
-{
-    local x="$1"
-    local t="${1#*_}"
-    local r=""
-    while [ "$t" != "$x" ]; do
-       r="$r${x%%_*}-"
-       x="$t"
-       t="${t#*_}"
-    done
-    if [ -n "$BASH_VERSION" ]; then
-        printf '%s' "$r$x"
-    else
-        echo "$r$x"
-    fi
-}
 
 WSREP_SST_OPT_BYPASS=0
 WSREP_SST_OPT_BINLOG=""
@@ -99,9 +66,9 @@ WSREP_SST_OPT_ADDR=""
 WSREP_SST_OPT_ADDR_PORT=""
 WSREP_SST_OPT_HOST=""
 WSREP_SST_OPT_HOST_UNESCAPED=""
-INNODB_DATA_HOME_DIR=$(trim_dir "${INNODB_DATA_HOME_DIR:-}")
-INNODB_LOG_GROUP_HOME=$(trim_dir "${INNODB_LOG_GROUP_HOME:-}")
-INNODB_UNDO_DIR=$(trim_dir "${INNODB_UNDO_DIR:-}")
+INNODB_DATA_HOME_DIR="${INNODB_DATA_HOME_DIR:-}"
+INNODB_LOG_GROUP_HOME="${INNODB_LOG_GROUP_HOME:-}"
+INNODB_UNDO_DIR="${INNODB_UNDO_DIR:-}"
 INNODB_FORCE_RECOVERY=""
 INNOEXTRA=""
 
@@ -188,22 +155,22 @@ case "$1" in
         ;;
     '--datadir')
         # Let's remove the trailing slash:
-        readonly WSREP_SST_OPT_DATA=$(trim_dir "$2")
+        readonly WSREP_SST_OPT_DATA="${2%/}"
         shift
         ;;
     '--innodb-data-home-dir')
         # Let's remove the trailing slash:
-        readonly INNODB_DATA_HOME_DIR=$(trim_dir "$2")
+        readonly INNODB_DATA_HOME_DIR="${2%/}"
         shift
         ;;
     '--innodb-log-group-home-dir')
         # Let's remove the trailing slash:
-        readonly INNODB_LOG_GROUP_HOME=$(trim_dir "$2")
+        readonly INNODB_LOG_GROUP_HOME="${2%/}"
         shift
         ;;
     '--innodb-undo-directory')
         # Let's remove the trailing slash:
-        readonly INNODB_UNDO_DIR=$(trim_dir "$2")
+        readonly INNODB_UNDO_DIR="${2%/}"
         shift
         ;;
     '--defaults-file')
@@ -295,7 +262,6 @@ case "$1" in
     '--mysqld-args')
         original_cmd=""
         shift
-        cmd_tail=0
         while [ $# -gt 0 ]; do
            lname="${1#--}"
            # "--" is interpreted as the end of the list of options:
@@ -310,7 +276,7 @@ case "$1" in
                        shift
                    done
                fi
-               break
+               break;
            fi
            # Make sure the argument does not start with "--", otherwise it
            # is a long option, which is processed after this "if":
@@ -350,25 +316,15 @@ case "$1" in
                                if [ "${2#-}" = "$2" ]; then
                                    shift
                                    value="$1"
-                               elif [ "$2" = '--' ]; then
-                                   shift
-                                   if [ $# -gt 1 ]; then
-                                       cmd_tail=1
-                                       shift
-                                       value="$1"
-                                   fi
                                fi
                            fi
-                           if [ "$option" = 'h' ]; then
+                           if [ $option = 'h' ]; then
                                if [ -z "$WSREP_SST_OPT_DATA" ]; then
-                                   MYSQLD_OPT_DATADIR=$(trim_dir "$value")
+                                   MYSQLD_OPT_DATADIR="${value%/}"
                                fi
-                           elif [ "$option" != 'u' -a \
-                                  "$option" != 'P' ]
+                           elif [ $option != 'u' -a \
+                                  $option != 'P' ]
                            then
-                               if [ $cmd_tail -ne 0 ]; then
-                                   option="$option --"
-                               fi
                                if [ -z "$value" ]; then
                                    slist="$slist$option"
                                elif [ -z "$slist" ]; then
@@ -376,16 +332,9 @@ case "$1" in
                                else
                                    slist="$slist -$option '$value'"
                                fi
-                               break
-                           fi
-                           if [ $cmd_tail -ne 0 ]; then
-                               if [ -n "$slist" ]; then
-                                   slist="$slist --"
-                               else
-                                   slist='-'
-                               fi
                            fi
                            break
+
                        else
                            slist="$slist$option"
                        fi
@@ -395,7 +344,7 @@ case "$1" in
                        original_cmd="$original_cmd -$slist"
                    fi
                elif [ -z "$options" ]; then
-                   # We found an minus sign without any characters after it:
+                   # We found an equal sign without any characters after it:
                    original_cmd="$original_cmd -"
                else
                    # We found a value that does not start with a minus -
@@ -404,25 +353,12 @@ case "$1" in
                    original_cmd="$original_cmd '$1'"
                fi
                shift
-               if [ $cmd_tail -ne 0 ]; then
-                   # All other arguments must be copied unchanged:
-                   while [ $# -gt 0 ]; do
-                       original_cmd="$original_cmd '$1'"
-                       shift
-                   done
-                   break
-               fi
-               continue
+               continue;
            fi
            # Now we are sure that we are working with an option
            # that has a "long" name, so remove all characters after
            # the first equal sign:
            option="${1%%=*}"
-           # If the option name contains underscores, then replace
-           # them to minuses:
-           if [ "${option#*_}" != "$option" ]; then
-               option=$(to_minuses "$option")
-           fi
            # The "--loose-" prefix should not affect the recognition
            # of the option name:
            if [ "${option#--loose-}" != "$option" ]; then
@@ -449,19 +385,19 @@ case "$1" in
                case "$option" in
                    '--innodb-data-home-dir')
                        if [ -z "$INNODB_DATA_HOME_DIR" ]; then
-                           MYSQLD_OPT_INNODB_DATA_HOME_DIR=$(trim_dir "$value")
+                           MYSQLD_OPT_INNODB_DATA_HOME_DIR="${value%/}"
                        fi
                        skip_mysqld_arg=1
                        ;;
                    '--innodb-log-group-home-dir')
                        if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
-                           MYSQLD_OPT_INNODB_LOG_GROUP_HOME=$(trim_dir "$value")
+                           MYSQLD_OPT_INNODB_LOG_GROUP_HOME="${value%/}"
                        fi
                        skip_mysqld_arg=1
                        ;;
                    '--innodb-undo-directory')
                        if [ -z "$INNODB_UNDO_DIR" ]; then
-                           MYSQLD_OPT_INNODB_UNDO_DIR=$(trim_dir "$value")
+                           MYSQLD_OPT_INNODB_UNDO_DIR="${value%/}"
                        fi
                        skip_mysqld_arg=1
                        ;;
@@ -491,7 +427,7 @@ case "$1" in
                        ;;
                    '--datadir')
                        if [ -z "$WSREP_SST_OPT_DATA" ]; then
-                           MYSQLD_OPT_DATADIR=$(trim_dir "$value")
+                           MYSQLD_OPT_DATADIR="${value%/}"
                        fi
                        skip_mysqld_arg=1
                        ;;
@@ -550,8 +486,8 @@ if [ -z "$WSREP_SST_OPT_BINLOG" -a -n "${MYSQLD_OPT_LOG_BIN+x}" ]; then
     if [ -n "$WSREP_SST_OPT_LOG_BASENAME" ]; then
         # If the WSREP_SST_OPT_BINLOG variable is not set, but
         # --log-basename is present among the arguments to mysqld,
-        # then set WSREP_SST_OPT_BINLOG equal to the base name
-        # with the "-bin" suffix:
+        # then set WSREP_SST_OPT_BINLOG equal to the base name with
+        # the "-bin" suffix:
         readonly WSREP_SST_OPT_BINLOG="$WSREP_SST_OPT_LOG_BASENAME-bin"
     else
         # Take the default name:
@@ -604,23 +540,26 @@ get_binlog()
         WSREP_SST_OPT_BINLOG_INDEX=$(parse_cnf '--mysqld' 'log-bin-index')
     fi
     # if no command line argument and WSREP_SST_OPT_LOG_BASENAME is not set,
-    # then try to get it from my.cnf:
+    # try to get it from my.cnf:
     if [ -z "$WSREP_SST_OPT_LOG_BASENAME" ]; then
         WSREP_SST_OPT_LOG_BASENAME=$(parse_cnf '--mysqld' 'log-basename')
     fi
     if [ -z "$WSREP_SST_OPT_BINLOG" ]; then
-        # If the log-bin option is specified without a parameter,
+        # If the --log-bin option is specified without a parameter,
         # then we need to build the name of the index file according
         # to the rules described in the server documentation:
-        if [ $(in_config '--mysqld' 'log-bin') -ne 0 ]; then
+        if [ -n "${MYSQLD_OPT_LOG_BIN+x}" -o \
+             $(in_config '--mysqld' 'log-bin') -eq 1 ]
+        then
             if [ -n "$WSREP_SST_OPT_LOG_BASENAME" ]; then
                 # If the WSREP_SST_OPT_BINLOG variable is not set, but
                 # --log-basename is present among the arguments of mysqld,
-                # then set WSREP_SST_OPT_BINLOG equal to the base name
-                # with the "-bin" suffix:
+                # then set WSREP_SST_OPT_BINLOG equal to the base name with
+                # the "-bin" suffix:
                 readonly WSREP_SST_OPT_BINLOG="$WSREP_SST_OPT_LOG_BASENAME-bin"
             else
-                # Take the default name:
+                # If the --log-bin option is present without a value, then
+                # we take the default name:
                 readonly WSREP_SST_OPT_BINLOG='mysql-bin'
             fi
         fi
@@ -630,13 +569,13 @@ get_binlog()
         # it according to the specifications for the server:
         if [ -z "$WSREP_SST_OPT_BINLOG_INDEX" ]; then
             if [ -n "$WSREP_SST_OPT_LOG_BASENAME" ]; then
-                # If the WSREP_SST_OPT_BINLOG_INDEX variable is not set, but
+                # If the WSREP_SST_OPT_BINLOG variable is not set, but
                 # --log-basename is present among the arguments of mysqld,
-                # then set WSREP_SST_OPT_BINLOG_INDEX equal to the base name
-                # with the "-bin" suffix:
+                # then set WSREP_SST_OPT_BINLOG equal to the base name with
+                # the "-bin" suffix:
                 readonly WSREP_SST_OPT_BINLOG_INDEX="$WSREP_SST_OPT_LOG_BASENAME-bin.index"
             else
-                # Use the default name (note that base of this name
+                # the default name (note that base of this name
                 # is already defined above):
                 readonly WSREP_SST_OPT_BINLOG_INDEX="$WSREP_SST_OPT_BINLOG.index"
             fi
@@ -699,7 +638,7 @@ commandex()
 # try to use my_print_defaults, mysql and mysqldump that come
 # with the sources (for MTR suite):
 script_binary=$(dirname "$0")
-SCRIPTS_DIR=$(cd "$script_binary"; pwd)
+SCRIPTS_DIR=$(cd "$script_binary"; pwd -P)
 EXTRA_DIR="$SCRIPTS_DIR/../extra"
 CLIENT_DIR="$SCRIPTS_DIR/../client"
 
@@ -826,11 +765,7 @@ parse_cnf()
     # Truncate spaces:
     [ -n "$reval" ] && reval=$(trim_string "$reval")
 
-    if [ -n "$BASH_VERSION" ]; then
-        printf '%s' "$reval"
-    else
-        echo "$reval"
-    fi
+    echo "$reval"
 }
 
 #
@@ -883,11 +818,7 @@ in_config()
             break
         fi
     done
-    if [ -n "$BASH_VERSION" ]; then
-        printf '%s' $found
-    else
-        echo $found
-    fi
+    echo $found
 }
 
 wsrep_auth_not_set()
@@ -1020,22 +951,11 @@ wsrep_gen_secret()
 {
     get_openssl
     if [ -n "$OPENSSL_BINARY" ]; then
-        "$OPENSSL_BINARY" rand -hex 16
-    elif [ -n "$BASH_VERSION" ]; then
-        printf '%04x%04x%04x%04x%04x%04x%04x%04x' \
+        echo $("$OPENSSL_BINARY" rand -hex 16)
+    else
+        printf "%04x%04x%04x%04x%04x%04x%04x%04x" \
                $RANDOM $RANDOM $RANDOM $RANDOM \
                $RANDOM $RANDOM $RANDOM $RANDOM
-    elif [ -n "$(commandex cksum)" -a \
-           -n "$(commandex printf)" ]
-    then
-        printf '%08x%08x%08x%08x' \
-            $(head -8 /dev/urandom | cksum | cut -d ' ' -f1) \
-            $(head -8 /dev/urandom | cksum | cut -d ' ' -f1) \
-            $(head -8 /dev/urandom | cksum | cut -d ' ' -f1) \
-            $(head -8 /dev/urandom | cksum | cut -d ' ' -f1)
-    else
-        wsrep_log_error "Unable to generate 16-byte secret"
-        exit 22
     fi
 }
 
@@ -1073,14 +993,14 @@ is_local_ip()
     if [ -n "$ip_util" ]; then
         # ip address show ouput format is " inet[6] <address>/<mask>":
         "$ip_util" address show \
-             | grep -E '^[[:space:]]*inet.? [^[:space:]]+/' -o \
+             | grep -E "^[[:space:]]*inet.? [^[:space:]]+/" -o \
              | grep -F " $1/" >/dev/null && return 0
     else
         local ifconfig_util=$(commandex 'ifconfig')
         if [ -n "$ifconfig_util" ]; then
             # ifconfig output format is " inet[6] <address> ...":
             "$ifconfig_util" \
-                 | grep -E '^[[:space:]]*inet.? [^[:space:]]+ ' -o \
+                 | grep -E "^[[:space:]]*inet.? [^[:space:]]+ " -o \
                  | grep -F " $1 " >/dev/null && return 0
         fi
     fi
@@ -1143,7 +1063,7 @@ check_port()
         ss -nlpH "( sport = :$port )" 2>/dev/null | \
         grep -q -E "users:\\(.*\\(\"($utils)[^[:space:]]*\"[^)]*,pid=$pid(,[^)]*)?\\)" && rc=0
     else
-        wsrep_log_error "Unknown sockets utility"
+        wsrep_log_error "unknown sockets utility"
         exit 2 # ENOENT
     fi
 
@@ -1252,6 +1172,13 @@ verify_cert_matches_key()
         exit 22
     fi
 
+    # If the diff utility is not installed, then
+    # we will not do this certificate check:
+    if [ -z "$(commandex diff)" ]; then
+        wsrep_log_info "diff utility not found"
+        return
+    fi
+
     # If the openssl utility is not installed, then
     # we will not do this certificate check:
     get_openssl
@@ -1262,9 +1189,9 @@ verify_cert_matches_key()
 
     # Generate the public key from the cert and the key.
     # They should match (otherwise we can't create an SSL connection).
-    local pk1=$("$OPENSSL_BINARY" x509 -in "$cert" -pubkey -noout 2>/dev/null || :)
-    local pk2=$("$OPENSSL_BINARY" pkey -in "$key" -pubout 2>/dev/null || :)
-    if [ "$pk1" != "$pk2" ]; then
+    if ! diff <("$OPENSSL_BINARY" x509 -in "$cert" -pubkey -noout 2>/dev/null) \
+              <("$OPENSSL_BINARY" pkey -in "$key" -pubout 2>/dev/null) >/dev/null 2>&1
+    then
         wsrep_log_error "******************* FATAL ERROR *****************"
         wsrep_log_error "* The certificate and private key do not match. *"
         wsrep_log_error "* Please check your certificate and key files.  *"
@@ -1336,10 +1263,6 @@ check_pid()
         if [ $remove -ne 0 ]; then
             rm -f "$pid_file" || :
         fi
-    fi
-    local config="${3:-}"
-    if [ -n "$config" -a -f "$config" ]; then
-        rm -f "$config" || :
     fi
     CHECK_PID=0
     return 1
