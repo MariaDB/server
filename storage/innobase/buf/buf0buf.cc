@@ -1933,9 +1933,8 @@ calc_buf_pool_size:
 
 	if (srv_buf_pool_old_size != srv_buf_pool_size) {
 
-		ib::info() << "Completed resizing buffer pool from "
-			<< srv_buf_pool_old_size
-			<< " to " << srv_buf_pool_size << " bytes.";
+	        buf_resize_status("Completed resizing buffer pool from %zu to %zu bytes."
+			    ,srv_buf_pool_old_size, srv_buf_pool_size);
 		srv_buf_pool_old_size = srv_buf_pool_size;
 	}
 
@@ -1947,11 +1946,8 @@ calc_buf_pool_size:
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
-	if (!warning) {
-		buf_resize_status("Completed resizing buffer pool.");
-	} else {
+	if (warning)
 		buf_resize_status("Resizing buffer pool failed");
-	}
 
 	ut_d(validate());
 
