@@ -22,7 +22,7 @@ EOF
 fi
 
 systemctl set-environment _WSREP_NEW_CLUSTER='--wsrep-new-cluster' && \
-    systemctl start ${1:-mariadb}
+    systemctl restart ${1:-mariadb}
 
 extcode=$?
 

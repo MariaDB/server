@@ -9587,10 +9587,11 @@ best_extension_by_limited_search(JOIN      *join,
   for (JOIN_TAB **pos= join->best_ref + idx ; (s= *pos) ; pos++)
   {
     table_map real_table_bit= s->table->map;
-    if ((remaining_tables & real_table_bit) && 
-        (allowed_tables & real_table_bit) &&
+    DBUG_ASSERT(remaining_tables & real_table_bit);
+
+    if ((allowed_tables & real_table_bit) &&
         !(remaining_tables & s->dependent) && 
-        (!idx || !check_interleaving_with_nj(s)))
+        !check_interleaving_with_nj(s))
     {
       double current_record_count, current_read_time;
       POSITION *position= join->positions + idx;
@@ -16861,7 +16862,6 @@ static uint reset_nj_counters(JOIN *join, List<TABLE_LIST> *join_list)
 
 static bool check_interleaving_with_nj(JOIN_TAB *next_tab)
 {
-  TABLE_LIST *next_emb= next_tab->table->pos_in_table_list->embedding;
   JOIN *join= next_tab->join;
 
   if (join->cur_embedding_map & ~next_tab->embedding_map)
@@ -16873,6 +16873,7 @@ static bool check_interleaving_with_nj(JOIN_TAB *next_tab)
     return TRUE;
   }
    
+  TABLE_LIST *next_emb= next_tab->table->pos_in_table_list->embedding;
   /*
     Do update counters for "pairs of brackets" that we've left (marked as
     X,Y,Z in the above picture)

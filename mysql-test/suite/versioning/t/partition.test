@@ -1073,6 +1073,23 @@ select count(*) from t1 partition (p1);
 drop table t1;
 
 --echo #
+--echo # MDEV-28552 Assertion `inited==RND' failed in handler::ha_rnd_end
+--echo #
+create table tcount (c int unsigned);
+insert into tcount values (0);
+
+create table t (f int) with system versioning
+partition by system_time limit 1000
+(partition p1 history, partition pn current);
+insert into t values (1),(2);
+create trigger tr before insert on t for each row update tcount set c = c + 1;
+
+insert into t select * from t;
+
+# cleanup
+drop table tcount, t;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
 
