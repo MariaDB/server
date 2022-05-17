@@ -272,7 +272,7 @@ private:
   /**
     Clean up and destroy owned LEX object.
   */
-  void free_lex();
+  void free_lex(THD *thd);
 
 
   /**

@@ -213,7 +213,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
 }
 
 
-void sp_lex_keeper::free_lex()
+void sp_lex_keeper::free_lex(THD *thd)
 {
   if (!m_lex_resp || !m_lex) return;
 
@@ -222,6 +222,9 @@ void sp_lex_keeper::free_lex()
   lex_end(m_lex);
 
   delete (st_lex_local *)m_lex;
+
+  if (thd->lex == m_lex)
+    thd->lex= nullptr;
 
   m_lex= nullptr;
   m_lex_resp= false;
@@ -250,7 +253,7 @@ int sp_lex_keeper::validate_lex_and_exec_core(THD *thd, uint *nextp,
     if (instr->is_invalid())
     {
       thd->clear_error();
-      free_lex();
+      free_lex(thd);
       LEX *lex= instr->parse_expr(thd, thd->spcont->m_sp);
 
       if (!lex) return true;
