@@ -86,7 +86,7 @@ encrypt_threads=""
 encrypt_chunk=""
 
 readonly SECRET_TAG='secret'
-readonly TOTAL_TAG='total'
+readonly TOTAL_TAG='secret /total'
 
 # Required for backup locks
 # For backup locks it is 1 sent by joiner
@@ -166,12 +166,10 @@ get_keys()
         exit 3
     fi
 
-    if [ -z "$ekey" ]; then
-        if [ ! -r "$ekeyfile" ]; then
-            wsrep_log_error "FATAL: Either key must be specified" \
-                            "or keyfile must be readable"
-            exit 3
-        fi
+    if [ -z "$ekey" -a ! -r "$ekeyfile" ]; then
+        wsrep_log_error "FATAL: Either key must be specified" \
+                        "or keyfile must be readable"
+        exit 3
     fi
 
     if [ "$eformat" = 'openssl' ]; then
@@ -218,9 +216,7 @@ get_keys()
         exit 2
     fi
 
-    if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
-        ecmd="$ecmd -d"
-    fi
+    [ "$WSREP_SST_OPT_ROLE" = 'joiner' ] && ecmd="$ecmd -d"
 
     stagemsg="$stagemsg-XB-Encrypted"
 }
@@ -597,18 +593,6 @@ get_stream()
     wsrep_log_info "Streaming with $sfmt"
 }
 
-sig_joiner_cleanup()
-{
-    local estatus=$?
-    if [ $estatus -ne 0 ]; then
-        wsrep_log_error "Cleanup after exit with status: $estatus"
-    fi
-    wsrep_log_error "Removing $MAGIC_FILE file due to signal"
-    [ "$(pwd)" != "$OLD_PWD" ] && cd "$OLD_PWD"
-    [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
-    exit $estatus
-}
-
 cleanup_at_exit()
 {
     # Since this is invoked just after exit NNN
@@ -618,6 +602,11 @@ cleanup_at_exit()
     fi
 
     [ "$(pwd)" != "$OLD_PWD" ] && cd "$OLD_PWD"
+
+    if [ $estatus -ne 0 ]; then
+        wsrep_log_error "Removing $MAGIC_FILE file due to signal"
+        [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE" || :
+    fi
 
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
         wsrep_log_info "Removing the sst_in_progress file"
@@ -648,7 +637,7 @@ cleanup_at_exit()
     fi
 
     # Final cleanup
-    pgid=$(ps -o pgid= $$ 2>/dev/null | grep -o -E '[0-9]*' || :)
+    pgid=$(ps -o pgid= $$ 2>/dev/null | grep -o -E '[0-9]+' || :)
 
     # This means no setsid done in mysqld.
     # We don't want to kill mysqld here otherwise.
@@ -744,17 +733,15 @@ recv_joiner()
         fi
     fi
 
-    pushd "$dir" 1>/dev/null
-    set +e
-
     if [ $wait -ne 0 ]; then
         wait_for_listen &
     fi
 
+    cd "$dir"
+    set +e
     timeit "$msg" "$ltcmd | $strmcmd; RC=( "\${PIPESTATUS[@]}" )"
-
     set -e
-    popd 1>/dev/null
+    cd "$OLD_PWD"
 
     if [ ${RC[0]} -eq 124 ]; then
         wsrep_log_error "Possible timeout in receiving first data from" \
@@ -779,20 +766,19 @@ recv_joiner()
             wsrep_log_info $(ls -l "$dir/"*)
             exit 32
         fi
-
-        # check donor supplied secret
-        SECRET=$(grep -m1 -E "^$SECRET_TAG[[:space:]]" -- "$MAGIC_FILE" || :)
+        # Select the "secret" tag whose value does not start
+        # with a slash symbol. All new tags must to start with
+        # the space and the slash symbol after the word "secret" -
+        # to be removed by older versions of the SST scripts:
+        SECRET=$(grep -m1 -E "^$SECRET_TAG[[:space:]]+[^/]" \
+                      -- "$MAGIC_FILE" || :)
+        # Check donor supplied secret:
         SECRET=$(trim_string "${SECRET#$SECRET_TAG}")
         if [ "$SECRET" != "$MY_SECRET" ]; then
             wsrep_log_error "Donor does not know my secret!"
             wsrep_log_info "Donor: '$SECRET', my: '$MY_SECRET'"
             exit 32
         fi
-
-        # remove secret and total from the magic file
-        grep -v -E "^($SECRET_TAG|$TOTAL_TAG)[[:space:]]" -- \
-             "$MAGIC_FILE" > "$MAGIC_FILE.new"
-        mv "$MAGIC_FILE.new" "$MAGIC_FILE"
     fi
 }
 
@@ -801,11 +787,11 @@ send_donor()
     local dir="$1"
     local msg="$2"
 
-    pushd "$dir" 1>/dev/null
+    cd "$dir"
     set +e
     timeit "$msg" "$strmcmd | $tcmd; RC=( "\${PIPESTATUS[@]}" )"
     set -e
-    popd 1>/dev/null
+    cd "$OLD_PWD"
 
     for ecode in "${RC[@]}"; do
         if [ $ecode -ne 0 ]; then
@@ -820,7 +806,7 @@ monitor_process()
 {
     local sst_stream_pid=$1
 
-    while true ; do
+    while :; do
         if ! ps -p "$WSREP_SST_OPT_PARENT" >/dev/null 2>&1; then
             wsrep_log_error \
                 "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT)" \
@@ -836,13 +822,6 @@ monitor_process()
 }
 
 [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
-
-if [ "$WSREP_SST_OPT_ROLE" != 'joiner' -a \
-     "$WSREP_SST_OPT_ROLE" != 'donor' ]
-then
-    wsrep_log_error "Invalid role '$WSREP_SST_OPT_ROLE'"
-    exit 22
-fi
 
 read_cnf
 setup_ports
@@ -960,8 +939,8 @@ setup_commands()
 get_stream
 get_transfer
 
-if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]
-then
+if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
+
     trap cleanup_at_exit EXIT
 
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
@@ -1082,6 +1061,7 @@ then
         fi
 
         setup_commands
+
         set +e
         timeit "$stagemsg-SST" "$INNOBACKUP | $tcmd; RC=( "\${PIPESTATUS[@]}" )"
         set -e
@@ -1125,10 +1105,9 @@ then
 
     echo "done $WSREP_SST_OPT_GTID"
     wsrep_log_info "Total time on donor: $totime seconds"
-    wsrep_log_info "mariabackup SST/IST completed on donor"
 
-elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]
-then
+else # joiner
+
     [ -e "$SST_PROGRESS_FILE" ] && \
         wsrep_log_info "Stale sst_in_progress file: $SST_PROGRESS_FILE"
     [ -n "$SST_PROGRESS_FILE" ] && touch "$SST_PROGRESS_FILE"
@@ -1199,6 +1178,7 @@ then
         sleep 1
     done
 
+    trap simple_cleanup EXIT
     echo $$ > "$SST_PID"
 
     stagemsg='Joiner-Recv'
@@ -1208,7 +1188,7 @@ then
     [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE"
 
     # May need xtrabackup_checkpoints later on
-    [ -f "$DATA/xtrabackup_binary"      ] && rm -f "$DATA/xtrabackup_binary"
+    [ -f "$DATA/xtrabackup_binary" ]      && rm -f "$DATA/xtrabackup_binary"
     [ -f "$DATA/xtrabackup_galera_info" ] && rm -f "$DATA/xtrabackup_galera_info"
 
     ADDR="$WSREP_SST_OPT_HOST"
@@ -1235,7 +1215,6 @@ then
         MY_SECRET="" # for check down in recv_joiner()
     fi
 
-    trap sig_joiner_cleanup HUP PIPE INT TERM
     trap cleanup_at_exit EXIT
 
     if [ -n "$progress" ]; then
@@ -1287,13 +1266,13 @@ then
             cd "$DATA"
             wsrep_log_info "Cleaning the old binary logs"
             # If there is a file with binlogs state, delete it:
-            [ -f "$binlog_base.state" ] && rm -fv "$binlog_base.state" 1>&2
+            [ -f "$binlog_base.state" ] && rm -f "$binlog_base.state" >&2
             # Clean up the old binlog files and index:
             if [ -f "$binlog_index" ]; then
                 while read bin_file || [ -n "$bin_file" ]; do
-                    rm -fv "$bin_file" 1>&2 || :
+                    rm -f "$bin_file" >&2 || :
                 done < "$binlog_index"
-                rm -fv "$binlog_index" 1>&2
+                rm -f "$binlog_index" >&2
             fi
             if [ -n "$binlog_dir" -a "$binlog_dir" != '.' -a \
                  -d "$binlog_dir" ]
@@ -1304,7 +1283,7 @@ then
                        "Cleaning the binlog directory '$binlog_dir' as well"
                 fi
             fi
-            rm -fv "$binlog_base".[0-9]* 1>&2 || :
+            rm -f "$binlog_base".[0-9]* >&2 || :
             cd "$OLD_PWD"
         fi
 
@@ -1315,13 +1294,13 @@ then
                     ${ib_undo_dir:+"$ib_undo_dir"} \
                     ${ib_log_dir:+"$ib_log_dir"} \
                     "$DATA" -mindepth 1 -prune -regex "$cpat" \
-                    -o -exec rm -rfv {} 1>&2 \+
+                    -o -exec rm -rf {} >&2 \+
         else
             find ${ib_home_dir:+"$ib_home_dir"} \
                  ${ib_undo_dir:+"$ib_undo_dir"} \
                  ${ib_log_dir:+"$ib_log_dir"} \
                  "$DATA" -mindepth 1 -prune -regex "$cpat" \
-                 -o -exec rm -rfv {} 1>&2 \+
+                 -o -exec rm -rf {} >&2 \+
         fi
 
         TDATA="$DATA"
@@ -1395,7 +1374,6 @@ then
         wsrep_log_info "Preparing the backup at $DATA"
         setup_commands
         timeit 'mariabackup prepare stage' "$INNOAPPLY"
-
         if [ $? -ne 0 ]; then
             wsrep_log_error "mariabackup apply finished with errors." \
                             "Check syslog or '$INNOAPPLYLOG' for details."
@@ -1452,6 +1430,10 @@ then
     else
 
         wsrep_log_info "'$IST_FILE' received from donor: Running IST"
+        if [ $WSREP_SST_OPT_BYPASS -eq 0 ]; then
+            readonly WSREP_SST_OPT_BYPASS=1
+            readonly WSREP_TRANSFER_TYPE='IST'
+        fi
 
     fi
 
@@ -1460,12 +1442,13 @@ then
         exit 2
     fi
 
-    coords=$(cat "$MAGIC_FILE")
+    # Remove special tags from the magic file, and from the output:
+    coords=$(grep -v -E "^$SECRET_TAG[[:space:]]" -- "$MAGIC_FILE")
     wsrep_log_info "Galera co-ords from recovery: $coords"
-    cat "$MAGIC_FILE" # Output : UUID:seqno wsrep_gtid_domain_id
+    echo "$coords" # Output : UUID:seqno wsrep_gtid_domain_id
 
     wsrep_log_info "Total time on joiner: $totime seconds"
-    wsrep_log_info "mariabackup SST/IST completed on joiner"
 fi
 
+wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE completed on $WSREP_SST_OPT_ROLE"
 exit 0
