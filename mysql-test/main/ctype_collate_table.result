@@ -1,0 +1,27 @@
+#
+# MDEV-27896 Wrong result upon `COLLATE latin1_bin CHARACTER SET latin1` on the table or the database level
+#
+CREATE TABLE t1 (a CHAR) COLLATE latin1_bin CHARACTER SET latin1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(1) COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_bin
+DROP TABLE t1;
+#
+# MDEV-27782 Wrong columns when using table level `CHARACTER SET utf8mb4 COLLATE DEFAULT`
+#
+CREATE TABLE t1 (a CHAR(10)) CHARACTER SET latin1 COLLATE DEFAULT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(10)) CHARACTER SET utf8mb4 COLLATE DEFAULT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4
+DROP TABLE t1;

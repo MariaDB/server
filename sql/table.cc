@@ -45,6 +45,7 @@
 #include "ha_sequence.h"
 #include "sql_show.h"
 #include "opt_trace.h"
+#include "sql_db.h"              // get_default_db_collation
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -3503,12 +3504,28 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   else
     thd->set_n_backup_active_arena(arena, &backup);
 
+  /*
+    THD::reset_db() does not set THD::db_charset,
+    so it keeps pointing to the character set and collation
+    of the current database, rather than the database of the
+    new initialized table. After reset_db() the result of
+    get_default_db_collation() can be wrong. The latter is
+    used inside charset_collation_context_create_table_in_db().
+    Let's initialize ctx before calling reset_db().
+    This makes sure the db.opt file to be loaded properly when needed.
+  */
+  Charset_collation_context
+    ctx(thd->charset_collation_context_create_table_in_db(db.str));
+
   thd->reset_db(&db);
   lex_start(thd);
 
   if (unlikely((error= parse_sql(thd, & parser_state, NULL) ||
                 sql_unusable_for_discovery(thd, hton, sql_copy))))
     goto ret;
+
+  if (thd->lex->create_info.resolve_to_charset_collation_context(thd, ctx))
+    DBUG_RETURN(true);
 
   thd->lex->create_info.db_type= hton;
 #ifdef WITH_PARTITION_STORAGE_ENGINE

@@ -38,6 +38,41 @@ public:
 
 
 /*
+  An optional contextually typed character set:
+    [ CHARACTER SET DEFAULT ]
+*/
+class Lex_opt_context_charset_st
+{
+  /*
+    Currently we support only DEFAULT as a possible value.
+    So "bool" is enough.
+  */
+  bool m_had_charset_default;
+public:
+  void init()
+  {
+    m_had_charset_default= false;
+  }
+  void merge_charset_default()
+  {
+    /*
+      Ok to specify CHARACTER SET DEFAULT multiple times.
+      No error raised here.
+    */
+    m_had_charset_default= true;
+  }
+  bool is_empty() const
+  {
+    return !m_had_charset_default;
+  }
+  bool is_contextually_typed_charset_default() const
+  {
+    return m_had_charset_default;
+  }
+};
+
+
+/*
   A contextually typed collation, e.g.:
     COLLATE DEFAULT
     CHAR(10) BINARY
@@ -407,6 +442,132 @@ public:
 };
 
 
+class Charset_collation_context
+{
+  /*
+    Although the goal of m_charset_default is to store the meaning
+    of CHARACTER SET DEFAULT, it does not necessarily point to a
+    default collation of CHARACTER SET DEFAULT. It can point to its any
+    arbitrary collation.
+    For performance purposes we don't need to find the default
+    collation at the instantiation time of "this", because:
+    - m_charset_default may not be even needed during the resolution
+    - when it's needed, in many cases it's passed to my_charset_same(),
+      which does not need the default collation again.
+
+    Note, m_charset_default and m_collate_default are not necessarily equal.
+
+    - The default value for CHARACTER SET is taken from the upper level:
+        CREATE DATABASE db1 CHARACTER SET DEFAULT; <-- @@character_set_server
+        ALTER DATABASE db1 CHARACTER SET DEFAULT;  <-- @@character_set_server
+
+    - The default value for COLLATE is taken from the upper level for CREATE:
+        CREATE DATABASE db1 COLLATE DEFAULT; <-- @@collation_server
+        CREATE TABLE db1.t1 COLLATE DEFAULT; <-- character set of "db1"
+
+    - The default value for COLLATE is taken from the same level for ALTER:
+        ALTER DATABASE db1 COLLATE DEFAULT; <-- the default collation of the
+                                                current db1 character set
+        ALTER TABLE db1.t1 COLLATE DEFAULT; <-- the default collation of the
+                                                current db1.t1 character set
+  */
+
+  // comes from the upper level
+  Lex_exact_charset_opt_extended_collate m_charset_default;
+
+  // comes from the upper or the current level
+  Lex_exact_collation m_collate_default;
+public:
+  Charset_collation_context(CHARSET_INFO *charset_default,
+                            CHARSET_INFO *collate_default)
+   :m_charset_default(charset_default,
+                      !(charset_default->state & MY_CS_PRIMARY)),
+    m_collate_default(collate_default)
+  { }
+  const Lex_exact_charset_opt_extended_collate charset_default() const
+  {
+    return m_charset_default;
+  }
+  const Lex_exact_collation collate_default() const
+  {
+    return m_collate_default;
+  }
+};
+
+
+/*
+  A universal container. It can store at the same time:
+  - CHARACTER SET DEFAULT
+  - CHARACTER SET cs_exact
+  - COLLATE {cl_exact|cl_context}
+  All three parts can co-exist.
+  All three parts are optional.
+  Parts can come in any arbitrary order, e.g:
+
+    CHARACTER SET DEFAULT [CHARACTER SET latin1] COLLATE latin1_bin
+    CHARACTER SET latin1 CHARACTER SET DEFAULT COLLATE latin1_bin
+    COLLATE latin1_bin [CHARACTER SET latin1] CHARACTER SET DEFAULT
+    COLLATE latin1_bin CHARACTER SET DEFAULT [CHARACTER SET latin1]
+*/
+class Lex_extended_charset_extended_collation_attrs_st:
+                        public Lex_opt_context_charset_st,
+                        public Lex_exact_charset_extended_collation_attrs_st
+{
+  enum charset_type_t
+  {
+    CHARSET_TYPE_EMPTY,
+    CHARSET_TYPE_CONTEXT,
+    CHARSET_TYPE_EXACT
+  };
+  /*
+    Which part came first:
+    - CHARACTER SET DEFAULT or
+    - CHARACTER SET cs_exact
+    e.g. to produce error messages preserving the user typed
+    order of CHARACTER SET clauses in case of conflicts.
+  */
+  charset_type_t m_charset_order;
+  /*
+    The parent class Lex_exact_charset_extended_collation_attrs_st
+    does not let know if a "COLLATE cl_exact" was used in combination with
+    "CHARACTER SET cs_exact" or just alone.
+    Here we need to distinguish:
+    - CHARACTER SET cs_exact COLLATE cl_exact, or
+    - COLLATE cl_exact CHARACTER SET cs_exact
+    versus just:
+    - COLLATE cl_exact
+    to produce better error messages in case of conflicts.
+    So let's add a flag member:
+  */
+  bool m_had_charset_exact;
+public:
+  void init()
+  {
+    Lex_opt_context_charset_st::init();
+    Lex_exact_charset_extended_collation_attrs_st::init();
+    m_charset_order= CHARSET_TYPE_EMPTY;
+    m_had_charset_exact= false;
+  }
+  void init(const Lex_exact_charset_opt_extended_collate &c)
+  {
+    Lex_opt_context_charset_st::init();
+    Lex_exact_charset_extended_collation_attrs_st::init(c);
+    m_charset_order= CHARSET_TYPE_EXACT;
+    m_had_charset_exact= true;
+  }
+  bool is_empty() const
+  {
+    return Lex_opt_context_charset_st::is_empty() &&
+           Lex_exact_charset_extended_collation_attrs_st::is_empty();
+  }
+  bool raise_if_charset_conflicts_with_default(
+                        const Lex_exact_charset_opt_extended_collate &def) const;
+  CHARSET_INFO *resolved_to_context(const Charset_collation_context &ctx) const;
+  bool merge_charset_default();
+  bool merge_exact_charset(const Lex_exact_charset &cs);
+};
+
+
 class Lex_exact_charset_extended_collation_attrs:
                         public Lex_exact_charset_extended_collation_attrs_st
 {
@@ -456,11 +617,35 @@ public:
 };
 
 
+class Lex_extended_charset_extended_collation_attrs:
+  public Lex_extended_charset_extended_collation_attrs_st
+{
+public:
+  Lex_extended_charset_extended_collation_attrs()
+  {
+    init();
+  }
+  explicit Lex_extended_charset_extended_collation_attrs(
+    const Lex_exact_charset_opt_extended_collate &c)
+  {
+    init(c);
+  }
+};
+
+
+
 using Lex_column_charset_collation_attrs_st =
         Lex_exact_charset_extended_collation_attrs_st;
 
 using Lex_column_charset_collation_attrs =
         Lex_exact_charset_extended_collation_attrs;
+
+
+using Lex_table_charset_collation_attrs_st =
+        Lex_extended_charset_extended_collation_attrs_st;
+
+using Lex_table_charset_collation_attrs =
+        Lex_extended_charset_extended_collation_attrs;
 
 
 #endif // LEX_CHARSET_INCLUDED

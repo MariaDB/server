@@ -2369,7 +2369,6 @@ create:
               If the table exists, we should either not create it or replace it
             */
             lex->query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
-            lex->create_info.default_table_charset= NULL;
             lex->name= null_clex_str;
             lex->create_last_non_select_table= lex->last_table();
             lex->inc_select_stack_outer_barrier();
@@ -2512,9 +2511,7 @@ create:
           }
         | create_or_replace DATABASE opt_if_not_exists ident
           {
-            Lex->create_info.default_table_charset= NULL;
-            Lex->create_info.schema_comment= NULL;
-            Lex->create_info.used_fields= 0;
+            Lex->create_info.init();
           }
           opt_create_database_options
           {
@@ -5533,17 +5530,9 @@ default_charset:
 default_collation:
           opt_default COLLATE_SYM opt_equal collation_name_or_default
           {
-            HA_CREATE_INFO *cinfo= &Lex->create_info;
-            bool is_exact= $4.type() == Lex_extended_collation_st::TYPE_EXACT;
-            CHARSET_INFO *cl= is_exact ? $4.charset_info() : NULL;
-            if (unlikely((cinfo->used_fields & HA_CREATE_USED_DEFAULT_CHARSET) &&
-                         cinfo->default_table_charset && cl &&
-                         !(cl= merge_charset_and_collation(cinfo->default_table_charset,
-                                                           cl))))
+            Table_specification_st *cinfo= &Lex->create_info;
+            if (unlikely(cinfo->add_table_option_default_collation($4)))
               MYSQL_YYABORT;
-
-            Lex->create_info.default_table_charset= cl;
-            Lex->create_info.used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
           }
         ;
 
@@ -6955,9 +6944,7 @@ alter:
           }
         | ALTER DATABASE ident_or_empty
           {
-            Lex->create_info.default_table_charset= NULL;
-            Lex->create_info.schema_comment= NULL;
-            Lex->create_info.used_fields= 0;
+            Lex->create_info.init();
             if (Lex->main_select_push(true))
               MYSQL_YYABORT;
           }
@@ -6973,8 +6960,7 @@ alter:
           }
         | ALTER DATABASE COMMENT_SYM opt_equal TEXT_STRING_sys
           {
-            Lex->create_info.default_table_charset= NULL;
-            Lex->create_info.used_fields= 0;
+            Lex->create_info.init();
             Lex->create_info.schema_comment= thd->make_clex_string($5);
             Lex->create_info.used_fields|= HA_CREATE_USED_COMMENT;
           }
@@ -7619,29 +7605,14 @@ alter_list_item:
           }
         | CONVERT_SYM TO_SYM charset charset_name_or_default
           {
-            if (!$4)
-            {
-              $4= thd->variables.collation_database;
-            }
-            if (unlikely(Lex->create_info.add_alter_list_item_convert_to_charset($4)))
+            if (Lex->add_alter_list_item_convert_to_charset($4))
               MYSQL_YYABORT;
-            Lex->alter_info.flags|= ALTER_CONVERT_TO;
           }
         | CONVERT_SYM TO_SYM charset charset_name_or_default
                              COLLATE_SYM collation_name_or_default
           {
-            if (!$4)
-            {
-              $4= thd->variables.collation_database;
-            }
-            bool is_exact= $6.type() == Lex_extended_collation_st::TYPE_EXACT;
-            CHARSET_INFO *cl= is_exact ? $6.charset_info() : $4;
-            if (unlikely(!my_charset_same($4,cl)))
-              my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-                                cl->coll_name.str, $4->cs_name.str));
-            if (unlikely(Lex->create_info.add_alter_list_item_convert_to_charset(cl)))
+            if (Lex->add_alter_list_item_convert_to_charset($4, $6))
               MYSQL_YYABORT;
-            Lex->alter_info.flags|= ALTER_CONVERT_TO;
           }
         | create_table_options_space_separated
           {

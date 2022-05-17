@@ -3875,38 +3875,6 @@ bool validate_comment_length(THD *thd, LEX_CSTRING *comment, size_t max_len,
 
 
 /*
-  Set table default charset, if not set
-
-  SYNOPSIS
-    set_table_default_charset()
-    create_info        Table create information
-
-  DESCRIPTION
-    If the table character set was not given explicitly,
-    let's fetch the database default character set and
-    apply it to the table.
-*/
-
-static void set_table_default_charset(THD *thd, HA_CREATE_INFO *create_info,
-                                      const LEX_CSTRING &db)
-{
-  /*
-    If the table character set was not given explicitly,
-    let's fetch the database default character set and
-    apply it to the table.
-  */
-  if (!create_info->default_table_charset)
-  {
-    Schema_specification_st db_info;
-
-    load_db_opt_by_name(thd, db.str, &db_info);
-
-    create_info->default_table_charset= db_info.default_table_charset;
-  }
-}
-
-
-/*
   Extend long VARCHAR fields to blob & prepare field if it's a blob
 
   SYNOPSIS
@@ -4064,13 +4032,13 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
   handler       *file;
   DBUG_ENTER("mysql_create_frm_image");
 
+  DBUG_ASSERT(create_info->default_table_charset);
+
   if (!alter_info->create_list.elements)
   {
     my_error(ER_TABLE_MUST_HAVE_COLUMNS, MYF(0));
     DBUG_RETURN(NULL);
   }
-
-  set_table_default_charset(thd, create_info, db);
 
   db_options= create_info->table_options_with_row_type();
 
@@ -4345,6 +4313,7 @@ err:
   @retval -1 table existed but IF NOT EXISTS was used
 */
 
+static
 int create_table_impl(THD *thd,
                       DDL_LOG_STATE *ddl_log_state_create,
                       DDL_LOG_STATE *ddl_log_state_rm,
@@ -4364,6 +4333,8 @@ int create_table_impl(THD *thd,
   DBUG_ENTER("create_table_impl");
   DBUG_PRINT("enter", ("db: '%s'  table: '%s'  tmp: %d  path: %s",
                        db.str, table_name.str, internal_tmp_table, path.str));
+
+  DBUG_ASSERT(create_info->default_table_charset);
 
   /* Easy check for ddl logging if we are creating a temporary table */
   if (create_info->tmp_table())
@@ -4703,6 +4674,8 @@ int mysql_create_table_no_lock(THD *thd,
   LEX_CSTRING cpath;
   LEX_CUSTRING frm= {0,0};
 
+  DBUG_ASSERT(create_info->default_table_charset);
+
   if (create_info->tmp_table())
     path_length= build_tmptable_filename(thd, path, sizeof(path));
   else
@@ -4771,6 +4744,8 @@ int mysql_create_table_no_lock(THD *thd,
   close of thread tables.
 */
 
+
+static
 bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
                         Table_specification_st *create_info,
                         Alter_info *alter_info)
@@ -4783,6 +4758,8 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   bool is_trans= FALSE;
   bool result;
   DBUG_ENTER("mysql_create_table");
+
+  DBUG_ASSERT(create_info->default_table_charset);
 
   DBUG_ASSERT(create_table == thd->lex->query_tables);
 
@@ -5222,6 +5199,7 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
     TRUE  error
 */
 
+static
 bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
                              TABLE_LIST* src_table,
                              Table_specification_st *create_info)
@@ -5296,6 +5274,14 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   local_create_info.db_type= src_table->table->s->db_type();
   local_create_info.row_type= src_table->table->s->row_type;
   local_create_info.alter_info= &local_alter_info;
+  /*
+    This statement:
+      CREATE TABLE t1 LIKE t2
+    does not support table charset/collation clauses.
+    No needs to copy. Assert they are empty.
+  */
+  DBUG_ASSERT(create_info->default_charset_collation.is_empty());
+  DBUG_ASSERT(create_info->convert_charset_collation.is_empty());
   if (mysql_prepare_alter_table(thd, src_table->table, &local_create_info,
                                 &local_alter_info, &local_alter_ctx))
     goto err;
@@ -7949,7 +7935,7 @@ void append_drop_column(THD *thd, String *str, Field *field)
 
 bool
 mysql_prepare_alter_table(THD *thd, TABLE *table,
-                          HA_CREATE_INFO *create_info,
+                          Table_specification_st *create_info,
                           Alter_info *alter_info,
                           Alter_table_ctx *alter_ctx)
 {
@@ -8015,8 +8001,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     create_info->max_rows= table->s->max_rows;
   if (!(used_fields & HA_CREATE_USED_AVG_ROW_LENGTH))
     create_info->avg_row_length= table->s->avg_row_length;
-  if (!(used_fields & HA_CREATE_USED_DEFAULT_CHARSET))
-    create_info->default_table_charset= table->s->table_charset;
+
+  if (create_info->resolve_to_charset_collation_context(thd,
+        thd->charset_collation_context_alter_table(table->s)))
+    DBUG_RETURN(true);
+
   if (!(used_fields & HA_CREATE_USED_AUTO) && table->found_next_number_field)
   {
     /* Table has an autoincrement, copy value to new table */
@@ -9774,7 +9763,7 @@ static uint64 get_start_alter_id(THD *thd)
 
 bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                        const LEX_CSTRING *new_name,
-                       HA_CREATE_INFO *create_info,
+                       Table_specification_st *create_info,
                        TABLE_LIST *table_list,
                        Alter_info *alter_info,
                        uint order_num, ORDER *order, bool ignore,
@@ -10367,7 +10356,7 @@ do_continue:;
     DBUG_RETURN(true);
   }
 
-  set_table_default_charset(thd, create_info, alter_ctx.db);
+  DBUG_ASSERT(create_info->default_table_charset);
 
   if (create_info->check_fields(thd, alter_info,
                                 table_list->table_name, table_list->db) ||
@@ -11787,7 +11776,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
 bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
 {
-  HA_CREATE_INFO create_info;
+  Table_specification_st create_info;
   Alter_info alter_info;
   TABLE_LIST *next_table= table_list->next_global;
   DBUG_ENTER("mysql_recreate_table");
@@ -11799,9 +11788,8 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
   /* hide following tables from open_tables() */
   table_list->next_global= NULL;
 
-  bzero((char*) &create_info, sizeof(create_info));
+  create_info.init();
   create_info.row_type=ROW_TYPE_NOT_USED;
-  create_info.default_table_charset=default_charset_info;
   create_info.alter_info= &alter_info;
   /* Force alter table to recreate table */
   alter_info.flags= (ALTER_CHANGE_COLUMN | ALTER_RECREATE);
@@ -12058,6 +12046,11 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 
   const bool used_engine= lex->create_info.used_fields & HA_CREATE_USED_ENGINE;
   DBUG_ASSERT((m_storage_engine_name.str != NULL) == used_engine);
+
+  if (lex->create_info.resolve_to_charset_collation_context(thd,
+        thd->charset_collation_context_create_table_in_db(first_table->db.str)))
+    DBUG_RETURN(true);
+
   if (used_engine)
   {
     if (resolve_storage_engine_with_error(thd, &lex->create_info.db_type,
@@ -12130,19 +12123,9 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
   */
   if (!(create_info.used_fields & HA_CREATE_USED_ENGINE))
     create_info.use_default_db_type(thd);
-  /*
-    If we are using SET CHARSET without DEFAULT, add an implicit
-    DEFAULT to not confuse old users. (This may change).
-  */
-  if ((create_info.used_fields &
-       (HA_CREATE_USED_DEFAULT_CHARSET | HA_CREATE_USED_CHARSET)) ==
-      HA_CREATE_USED_CHARSET)
-  {
-    create_info.used_fields&= ~HA_CREATE_USED_CHARSET;
-    create_info.used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
-    create_info.default_table_charset= create_info.alter_table_convert_to_charset;
-    create_info.alter_table_convert_to_charset= 0;
-  }
+
+  DBUG_ASSERT(!(create_info.used_fields & HA_CREATE_USED_CHARSET));
+  DBUG_ASSERT(create_info.convert_charset_collation.is_empty());
 
   /*
     If we are a slave, we should add OR REPLACE if we don't have
@@ -12367,4 +12350,47 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 
 end_with_restore_list:
   DBUG_RETURN(res);
+}
+
+
+bool HA_CREATE_INFO::
+       resolve_to_charset_collation_context(THD *thd,
+             const Lex_table_charset_collation_attrs_st &default_cscl_arg,
+             const Lex_table_charset_collation_attrs_st &convert_cscl,
+             const Charset_collation_context &ctx)
+{
+  /*
+    If CONVERT TO clauses are specified only (without table default clauses),
+    then we copy CONVERT TO clauses to default clauses, so e.g:
+      CONVERT TO CHARACTER SET utf8mb4
+    means
+      CONVERT TO CHARACTER SET utf8mb4, DEFAULT CHARACTER SET utf8mb4
+  */
+  Lex_table_charset_collation_attrs_st default_cscl=
+    !convert_cscl.is_empty() && default_cscl_arg.is_empty() ?
+    convert_cscl : default_cscl_arg;
+
+  if (default_cscl.is_empty())
+    default_table_charset= ctx.collate_default().charset_info();
+  else
+  {
+    // Make sure we don't do double resolution in direct SQL execution
+    DBUG_ASSERT(!default_table_charset || thd->stmt_arena->is_stmt_execute());
+    if (!(default_table_charset=
+            default_cscl.resolved_to_context(ctx)))
+      return true;
+  }
+
+  if (convert_cscl.is_empty())
+    alter_table_convert_to_charset= NULL;
+  else
+  {
+    // Make sure we don't do double resolution in direct SQL execution
+    DBUG_ASSERT(!alter_table_convert_to_charset ||
+                thd->stmt_arena->is_stmt_execute());
+    if (!(alter_table_convert_to_charset=
+            convert_cscl.resolved_to_context(ctx)))
+      return true;
+  }
+  return false;
 }

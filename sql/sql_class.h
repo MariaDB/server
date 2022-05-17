@@ -5521,6 +5521,19 @@ public:
             MY_UTF8_IS_UTF8MB3 : 0);
   }
 
+  Charset_collation_context
+    charset_collation_context_create_db() const
+  {
+    return Charset_collation_context(variables.collation_server,
+                                     variables.collation_server);
+  }
+  Charset_collation_context
+    charset_collation_context_alter_db(const char *db);
+  Charset_collation_context
+    charset_collation_context_create_table_in_db(const char *db);
+  Charset_collation_context
+    charset_collation_context_alter_table(const TABLE_SHARE *s);
+
   /**
     Save current lex to the output parameter and reset it to point to
     main_lex. This method is called from mysql_client_binlog_statement()
@@ -6140,6 +6153,7 @@ public:
     m_plock(NULL), exit_done(0),
     saved_tmp_table_share(0)
     {
+      DBUG_ASSERT(create_info->default_table_charset);
       bzero(&ddl_log_state_create, sizeof(ddl_log_state_create));
       bzero(&ddl_log_state_rm, sizeof(ddl_log_state_rm));
     }

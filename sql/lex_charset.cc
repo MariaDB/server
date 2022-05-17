@@ -37,6 +37,22 @@ raise_ER_CONFLICTING_DECLARATIONS(const char *clause1,
 }
 
 
+static void
+raise_ER_CONFLICTING_DECLARATIONS(const char *clause1,
+                                  const char *name1,
+                                  const char *name1_part2,
+                                  const char *clause2,
+                                  const char *name2,
+                                  bool reverse_order)
+{
+  char def[MY_CS_NAME_SIZE * 2];
+  my_snprintf(def, sizeof(def), "%s (%s)", name1, name1_part2);
+  raise_ER_CONFLICTING_DECLARATIONS(clause1, def,
+                                    clause2, name2,
+                                    reverse_order);
+}
+
+
 bool Lex_exact_charset::raise_if_not_equal(const Lex_exact_charset &rhs) const
 {
   if (m_ci == rhs.m_ci)
@@ -536,4 +552,125 @@ bool Lex_exact_charset_extended_collation_attrs_st::
   }
   DBUG_ASSERT(0);
   return false;
+}
+
+
+bool Lex_extended_charset_extended_collation_attrs_st::merge_charset_default()
+{
+  if (m_charset_order == CHARSET_TYPE_EMPTY)
+    m_charset_order= CHARSET_TYPE_CONTEXT;
+  Lex_opt_context_charset_st::merge_charset_default();
+  return false;
+}
+
+
+bool Lex_extended_charset_extended_collation_attrs_st::
+       merge_exact_charset(const Lex_exact_charset &cs)
+{
+  m_had_charset_exact= true;
+  if (m_charset_order == CHARSET_TYPE_EMPTY)
+    m_charset_order= CHARSET_TYPE_EXACT;
+  return Lex_exact_charset_extended_collation_attrs_st::merge_exact_charset(cs);
+}
+
+
+bool Lex_extended_charset_extended_collation_attrs_st::
+       raise_if_charset_conflicts_with_default(
+         const Lex_exact_charset_opt_extended_collate &def) const
+{
+  DBUG_ASSERT(m_charset_order != CHARSET_TYPE_EMPTY || is_empty());
+  if (!my_charset_same(def.collation().charset_info(), m_ci))
+  {
+    raise_ER_CONFLICTING_DECLARATIONS("CHARACTER SET ", "DEFAULT",
+                                  def.collation().charset_info()->cs_name.str,
+                                  "CHARACTER SET ", m_ci->cs_name.str,
+                                  m_charset_order == CHARSET_TYPE_EXACT);
+    return true;
+  }
+  return false;
+}
+
+
+CHARSET_INFO *
+Lex_extended_charset_extended_collation_attrs_st::
+  resolved_to_context(const Charset_collation_context &ctx) const
+{
+  if (Lex_opt_context_charset_st::is_empty())
+  {
+    // Without CHARACTER SET DEFAULT
+    return Lex_exact_charset_extended_collation_attrs_st::
+             resolved_to_character_set(ctx.collate_default().charset_info());
+  }
+
+  // With CHARACTER SET DEFAULT
+  switch (type()) {
+  case TYPE_EMPTY:
+    // CHARACTER SET DEFAULT;
+    return ctx.charset_default().charset().charset_info();
+
+  case TYPE_CHARACTER_SET:
+    // CHARACTER SET DEFAULT CHARACTER SET cs_exact
+    if (raise_if_charset_conflicts_with_default(ctx.charset_default()))
+    {
+      /*
+        A possible scenario:
+          SET character_set_server=utf8mb4;
+          CREATE DATABASE db1  CHARACTER SET latin1  CHARACTER SET DEFAULT;
+      */
+      return NULL;
+    }
+    return m_ci;
+
+  case TYPE_COLLATE_EXACT:
+  {
+    /*
+      CREATE DATABASE db1
+        COLLATE cl_exact
+        [ CHARACTER SET cs_exact ]
+        CHARACTER SET DEFAULT;
+    */
+    if (m_had_charset_exact &&
+        raise_if_charset_conflicts_with_default(ctx.charset_default()))
+    {
+      /*
+        A possible scenario:
+          SET character_set_server=utf8mb4;
+          CREATE DATABASE db1
+            COLLATE latin1_bin
+            CHARACTER SET latin1
+            CHARACTER SET DEFAULT;
+      */
+      return NULL;
+    }
+    /*
+      Now check that "COLLATE cl_exact" does not conflict with
+      CHARACTER SET DEFAULT.
+    */
+    if (ctx.charset_default().
+          raise_if_not_applicable(Lex_exact_collation(m_ci)))
+    {
+      /*
+        A possible scenario:
+          SET character_set_server=utf8mb4;
+          CREATE DATABASE db1
+            COLLATE latin1_bin
+            CHARACTER SET DEFAULT;
+      */
+      return NULL;
+    }
+    return m_ci;
+  }
+
+  case TYPE_COLLATE_CONTEXTUALLY_TYPED:
+    /*
+      Both CHARACTER SET and COLLATE are contextual:
+        ALTER DATABASE db1 CHARACTER SET DEFAULT COLLATE DEFAULT;
+        ALTER DATABASE db1 COLLATE DEFAULT CHARACTER SET DEFAULT;
+    */
+    return Lex_exact_charset_extended_collation_attrs_st::
+             resolved_to_character_set(ctx.charset_default().
+                                             collation().charset_info());
+  }
+  DBUG_ASSERT(0);
+  return NULL;
 }

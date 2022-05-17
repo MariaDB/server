@@ -56,6 +56,7 @@
 #include "sp_rcontext.h"
 #include "sp_cache.h"
 #include "sql_show.h"                           // append_identifier
+#include "sql_db.h"                             // get_default_db_collation
 #include "transaction.h"
 #include "sql_select.h" /* declares create_tmp_table() */
 #include "debug_sync.h"
@@ -8295,4 +8296,28 @@ bool THD::timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
 THD_list_iterator *THD_list_iterator::iterator()
 {
   return &server_threads;
+}
+
+
+Charset_collation_context
+THD::charset_collation_context_alter_db(const char *db)
+{
+  return Charset_collation_context(variables.collation_server,
+                                   get_default_db_collation(this, db));
+}
+
+
+Charset_collation_context
+THD::charset_collation_context_create_table_in_db(const char *db)
+{
+  CHARSET_INFO *cs= get_default_db_collation(this, db);
+  return Charset_collation_context(cs, cs);
+}
+
+
+Charset_collation_context
+THD::charset_collation_context_alter_table(const TABLE_SHARE *s)
+{
+  return Charset_collation_context(get_default_db_collation(this, s->db.str),
+                                   s->table_charset);
 }
