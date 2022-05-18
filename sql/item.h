@@ -6648,9 +6648,9 @@ public:
   bool get_date(THD *thd, MYSQL_TIME *ltime,date_mode_t fuzzydate) override;
   bool val_native(THD *thd, Native *to) override;
   bool val_native_result(THD *thd, Native *to) override;
-  longlong val_datetime_packed(THD *thd)
+  longlong val_datetime_packed(THD *thd) override
   { return Item::val_datetime_packed(thd); }
-  longlong val_time_packed(THD *thd)
+  longlong val_time_packed(THD *thd) override
   { return Item::val_time_packed(thd); }
 
   /* Result variants */

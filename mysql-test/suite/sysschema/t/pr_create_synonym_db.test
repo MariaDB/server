@@ -50,3 +50,20 @@ DROP TABLE test.t1;
 DROP TABLE test.t2;
 DROP TABLE `is`;
 DROP TABLE `ab``c`;
+
+--echo #
+--echo # MDEV-28342: sys.create_synonym_db fails
+--echo #             when a temporary table masks a base table
+--echo #
+
+create database db;
+use db;
+create table a(a int);
+create table t (b int);
+create table b(a int);
+create temporary table b (a int);
+--error ER_SIGNAL_EXCEPTION
+call sys.create_synonym_db('db','db_copy');
+
+drop database db;
+drop database db_copy;

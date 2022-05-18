@@ -989,6 +989,8 @@ public:
   */
   enum sj_strategy_enum sj_strategy;
 
+  /* Type of join (EQ_REF, REF etc) */
+  enum join_type type;
   /*
     Valid only after fix_semijoin_strategies_for_picked_join_order() call:
     if sj_strategy!=SJ_OPT_NONE, this is the number of subsequent tables that

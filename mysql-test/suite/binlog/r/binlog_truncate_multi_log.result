@@ -22,6 +22,11 @@ SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master2_ready WAIT
 INSERT INTO ti VALUES (3, "not gonna survive");
 connection default;
 SET DEBUG_SYNC= "now WAIT_FOR master2_ready";
+connect master3,localhost,root,,;
+SET DEBUG_SYNC= "ha_commit_trans_before_log_and_order SIGNAL master3_ready WAIT_FOR master3_go_never_arrives";
+INSERT INTO ti VALUES (4, "not gonna be log therefore survive"),(5, "ditto");
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR master3_ready";
 "List of binary logs before crash"
 show binary logs;
 Log_name	File_size
@@ -36,7 +41,8 @@ connection default;
 # Kill the server
 disconnect master1;
 disconnect master2;
-# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+disconnect master3;
+# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1 --log-warnings=3
 FOUND 1 /truncated binlog file:.*master.*000002/ in mysqld.1.err
 "One record should be present in table"
 SELECT * FROM ti;
