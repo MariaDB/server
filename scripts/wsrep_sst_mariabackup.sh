@@ -1333,13 +1333,13 @@ else # joiner
             cd "$DATA"
             wsrep_log_info "Cleaning the old binary logs"
             # If there is a file with binlogs state, delete it:
-            [ -f "$binlog_base.state" ] && rm -f "$binlog_base.state" >&2
+            [ -f "$binlog_base.state" ] && rm "$binlog_base.state" >&2
             # Clean up the old binlog files and index:
             if [ -f "$binlog_index" ]; then
                 while read bin_file || [ -n "$bin_file" ]; do
                     rm -f "$bin_file" >&2 || :
                 done < "$binlog_index"
-                rm -f "$binlog_index" >&2
+                rm "$binlog_index" >&2
             fi
             if [ -n "$binlog_dir" -a "$binlog_dir" != '.' -a \
                  -d "$binlog_dir" ]
