@@ -204,6 +204,7 @@ void Show_create_table::append_create_options(String *packet,
 	bool in_comment= false;
 	for(; opt; opt= opt->next)
 	{
+#ifndef FRM_PARSER 
 		if (check_options)
 		{
 			if (is_engine_option_known(opt, rules))
@@ -219,6 +220,7 @@ void Show_create_table::append_create_options(String *packet,
 				in_comment= true;
 			}
 		}
+#endif
 
 		DBUG_ASSERT(opt->value.str);
 		packet->append(' ');
@@ -580,7 +582,7 @@ int Show_create_table::do_show(TABLE_LIST *table_list,
 		packet->append(STRING_WITH_LEN("  "));
 		append_identifier(packet, &field->field_name);
 		packet->append(' ');
-
+#ifndef FRM_PARSER
 		const Type_handler *th= field->type_handler();
 		const Schema *implied_schema= Schema::find_implied(sql_mode);
 		if (th != implied_schema->map_data_type(th))
@@ -588,6 +590,7 @@ int Show_create_table::do_show(TABLE_LIST *table_list,
 			packet->append(th->schema()->name(), system_charset_info);
 			packet->append(STRING_WITH_LEN("."), system_charset_info);
 		}
+#endif
 		type.set(tmp, sizeof(tmp), system_charset_info);
 		field->sql_type(type);
 		packet->append(type.ptr(), type.length(), system_charset_info);
