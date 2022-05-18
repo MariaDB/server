@@ -392,6 +392,7 @@ POSITION::POSITION()
   ref_depend_map= dups_producing_tables= 0;
   inner_tables_handled_with_other_sjs= 0;
   type= JT_UNKNOWN;
+  key_dependent= 0;
   dups_weedout_picker.set_empty();
   firstmatch_picker.set_empty();
   loosescan_picker.set_empty();
@@ -6291,7 +6292,11 @@ add_key_field(JOIN *join,
          Field IN ...
       */
       if (field->flags & PART_KEY_FLAG)
-        stat[0].key_dependent|=used_tables;
+      {
+        stat[0].key_dependent|= used_tables;
+        if (field->key_start.bits_set())
+          stat[0].key_start_dependent= 1;
+      }
 
       bool is_const=1;
       for (uint i=0; i<num_values; i++)
@@ -7242,6 +7247,7 @@ bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
   use= save_pos= dynamic_element(keyuse,0,KEYUSE*);
   prev= &key_end;
   found_eq_constant= 0;
+  /* Loop over all elements except the last 'key_end' */
   for (i=0 ; i < keyuse->elements-1 ; i++,use++)
   {
     if (!use->is_for_hash_join())
@@ -7699,6 +7705,13 @@ best_access_path(JOIN      *join,
   double best_time=         DBL_MAX;
   double records=           DBL_MAX;
   table_map best_ref_depends_map= 0;
+  /*
+    key_dependent is 0 if all key parts could be used or if there was an
+    EQ_REF table found (which uses all key parts). In other words, we cannot
+    find a better key for the table even if remaining_tables is reduced.
+    Otherwise it's a bitmap of tables that could improve key usage.
+  */
+  table_map key_dependent= 0;
   Range_rowid_filter_cost_info *best_filter= 0;
   double tmp;
   ha_rows rec;
@@ -7750,6 +7763,8 @@ best_access_path(JOIN      *join,
       key_part_map const_part= 0;
       /* The or-null keypart in ref-or-null access: */
       key_part_map ref_or_null_part= 0;
+      key_part_map all_parts= 0;
+
       if (is_hash_join_key_no(key))
       {
         /* 
@@ -7781,15 +7796,16 @@ best_access_path(JOIN      *join,
       do /* For each keypart */
       {
         uint keypart= keyuse->keypart;
-        table_map best_part_found_ref= 0;
+        table_map best_part_found_ref= 0, key_parts_dependent= 0;
         double best_prev_record_reads= DBL_MAX;
-        
+
         do /* For each way to access the keypart */
         {
           /*
             if 1. expression doesn't refer to forward tables
                2. we won't get two ref-or-null's
           */
+          all_parts|= keyuse->keypart_map;
           if (!(remaining_tables & keyuse->used_tables) &&
               (!keyuse->validity_ref || *keyuse->validity_ref) &&
               s->access_from_tables_is_allowed(keyuse->used_tables,
@@ -7798,6 +7814,7 @@ best_access_path(JOIN      *join,
                                      KEY_OPTIMIZE_REF_OR_NULL)))
           {
             found_part|= keyuse->keypart_map;
+            key_parts_dependent= 0;
             if (!(keyuse->used_tables & ~join->const_table_map))
               const_part|= keyuse->keypart_map;
 
@@ -7820,10 +7837,16 @@ best_access_path(JOIN      *join,
             if (keyuse->optimize & KEY_OPTIMIZE_REF_OR_NULL)
               ref_or_null_part |= keyuse->keypart_map;
           }
+          else if (!(found_part & keyuse->keypart_map))
+            key_parts_dependent|= keyuse->used_tables;
+
           loose_scan_opt.add_keyuse(remaining_tables, keyuse);
           keyuse++;
         } while (keyuse->table == table && keyuse->key == key &&
                  keyuse->keypart == keypart);
+        /* If we found a usable key, remember the dependent tables */
+        if (all_parts & 1)
+          key_dependent|= key_parts_dependent;
 	found_ref|= best_part_found_ref;
       } while (keyuse->table == table && keyuse->key == key);
 
@@ -8210,6 +8233,24 @@ best_access_path(JOIN      *join,
     } /* for each key */
     records= best_records;
   }
+  else
+  {
+    /*
+      No usable keys found. However, there may still be an option to use
+      "Range checked for each record" when all depending tables has
+      been read. s->key_dependent tells us which tables these could be and
+      s->key_start_dependent tells us if a first key part was used.
+      s->key_dependent may include more tables than could be used,
+      but this is ok as not having any usable keys is a rare thing and
+      the performance penalty for extra table bits is that
+      best_extension_by_limited_search() would not be able to prune tables
+      earlier.
+      Example query:
+      SELECT * FROM t1,t2 where t1.key1=t2.key1 OR t2.key2<1
+    */
+    if (s->key_start_dependent)
+      key_dependent= s->key_dependent;
+  }
 
   /* 
     If there is no key to access the table, but there is an equi-join
@@ -8461,6 +8502,8 @@ best_access_path(JOIN      *join,
   pos->use_join_buffer= best_uses_jbuf;
   pos->spl_plan= spl_plan;
   pos->range_rowid_filter_info= best_filter;
+  pos->key_dependent= (best_type == JT_EQ_REF ? (table_map) 0 :
+                       key_dependent & remaining_tables);
 
   loose_scan_opt.save_to_position(s, loose_scan_pos);
 
@@ -9401,10 +9444,7 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   double sel= 1.0;
   COND_EQUAL *cond_equal= join->cond_equal;
 
-  if (!cond_equal || !cond_equal->current_level.elements)
-    return sel;
-
-   if (!s->keyuse)
+  if (!cond_equal || !cond_equal->current_level.elements || !s->keyuse)
     return sel;
 
   Item_equal *item_equal;
@@ -10028,11 +10068,18 @@ best_extension_by_limited_search(JOIN      *join,
             (idx == join->const_tables &&  // 's' is the first table in the QEP
             s->table == join->sort_by_table))
         {
+          /*
+            Store the current record count and cost as the best
+            possible cost at this level if the following holds:
+            - It's the lowest record number and cost so far
+              - There is no remaing table that could improve index usage
+                or we found an EQ_REF or REF key with less than 2
+                matching records (good enough).
+          */
           if (best_record_count >= current_record_count &&
               best_read_time >= current_read_time &&
-              /* TODO: What is the reasoning behind this condition? */
-              (!(s->key_dependent & allowed_tables & remaining_tables) ||
-               join->positions[idx].records_read < 2.0))
+              (!(position->key_dependent & allowed_tables) ||
+               position->records_read < 2.0))
           {
             best_record_count= current_record_count;
             best_read_time=    current_read_time;
