@@ -694,21 +694,19 @@ bool THD::rm_temporary_table(handlerton *base, const char *path)
   DBUG_ENTER("THD::rm_temporary_table");
 
   bool error= false;
-  handler *file;
   char frm_path[FN_REFLEN + 1];
 
   strxnmov(frm_path, sizeof(frm_path) - 1, path, reg_ext, NullS);
 
-  file= get_new_handler((TABLE_SHARE*) 0, mem_root, base);
-  if (file && file->ha_delete_table(path))
+  if (base->drop_table(base, path) > 0)
   {
     error= true;
     sql_print_warning("Could not remove temporary table: '%s', error: %d",
                       path, my_errno);
   }
-  delete file;
 
-  if (mysql_file_delete(key_file_frm, frm_path, MYF(0)))
+  if (mysql_file_delete(key_file_frm, frm_path, 
+                        MYF(MY_WME | MY_IGNORE_ENOENT)))
   {
     error= true;
   }

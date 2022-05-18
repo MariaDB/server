@@ -431,6 +431,7 @@ int federatedx_db_init(void *p)
   federatedx_hton->rollback= ha_federatedx::rollback;
   federatedx_hton->discover_table_structure= ha_federatedx::discover_assisted;
   federatedx_hton->create= federatedx_create_handler;
+  federatedx_hton->drop_table= [](handlerton *, const char*) { return -1; };
   federatedx_hton->flags= HTON_ALTER_NOT_SUPPORTED;
 
   if (mysql_mutex_init(fe_key_mutex_federatedx,

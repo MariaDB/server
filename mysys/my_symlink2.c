@@ -170,6 +170,7 @@ int my_rename_with_symlink(const char *from, const char *to, myf MyFlags)
   in this case both the symlink and the symlinked file are deleted,
   but only if the symlinked file is not in the datadir.
 */
+
 int my_handler_delete_with_symlink(const char *filename, myf sync_dir)
 {
   char real[FN_REFLEN];
@@ -182,8 +183,9 @@ int my_handler_delete_with_symlink(const char *filename, myf sync_dir)
       Delete the symlinked file only if the symlink is not
       pointing into datadir.
     */
-    if (!(my_realpath(real, filename, MYF(0)) || mysys_test_invalid_symlink(real)))
+    if (!(my_realpath(real, filename, MYF(0)) ||
+          mysys_test_invalid_symlink(real)))
       res= my_delete(real, MYF(MY_NOSYMLINKS | sync_dir));
   }
-  DBUG_RETURN(my_delete(filename, MYF(sync_dir)) || res);
+  DBUG_RETURN(my_delete(filename, sync_dir) || res);
 }

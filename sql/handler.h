@@ -1375,6 +1375,12 @@ struct handlerton
    void (*close_cursor_read_view)(handlerton *hton, THD *thd, void *read_view);
    handler *(*create)(handlerton *hton, TABLE_SHARE *table, MEM_ROOT *mem_root);
    void (*drop_database)(handlerton *hton, char* path);
+   /*
+     return 0 if dropped successfully,
+           -1 if nothing was done by design (as in e.g. blackhole)
+           an error code (e.g. HA_ERR_NO_SUCH_TABLE) otherwise
+   */
+   int (*drop_table)(handlerton *hton, const char* path);
    int (*panic)(handlerton *hton, enum ha_panic_function flag);
    int (*start_consistent_snapshot)(handlerton *hton, THD *thd);
    bool (*flush_logs)(handlerton *hton);
@@ -3131,7 +3137,6 @@ public:
   int ha_enable_indexes(uint mode);
   int ha_discard_or_import_tablespace(my_bool discard);
   int ha_rename_table(const char *from, const char *to);
-  int ha_delete_table(const char *name);
   void ha_drop_table(const char *name);
 
   int ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info);
@@ -4313,15 +4318,16 @@ protected:
     provide useful functionality.
   */
   virtual int rename_table(const char *from, const char *to);
+
+
+public:
   /**
     Delete a table in the engine. Called for base as well as temporary
     tables.
   */
   virtual int delete_table(const char *name);
 
-public:
-  bool check_table_binlog_row_based(bool binlog_row);
-
+  inline bool check_table_binlog_row_based(bool binlog_row);
   inline void clear_cached_table_binlog_row_based_flag()
   {
     check_table_binlog_row_based_done= 0;
@@ -4715,6 +4721,8 @@ int ha_create_table(THD *thd, const char *path,
                     HA_CREATE_INFO *create_info, LEX_CUSTRING *frm);
 int ha_delete_table(THD *thd, handlerton *db_type, const char *path,
                     const LEX_CSTRING *db, const LEX_CSTRING *alias, bool generate_warning);
+int ha_delete_table_force(THD *thd, const char *path, const LEX_CSTRING *db,
+                          const LEX_CSTRING *alias);
 
 void ha_disable_internal_writes(bool disable);
 
@@ -4844,4 +4852,5 @@ int del_global_table_stat(THD *thd, const  LEX_CSTRING *db, const LEX_CSTRING *t
 @note This does not need to be multi-byte safe or anything */
 char *xid_to_str(char *buf, const XID &xid);
 #endif // !DBUG_OFF
+bool non_existing_table_error(int error);
 #endif /* HANDLER_INCLUDED */

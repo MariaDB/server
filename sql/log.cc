@@ -1667,6 +1667,7 @@ int binlog_init(void *p)
   binlog_hton->prepare= binlog_prepare;
   binlog_hton->start_consistent_snapshot= binlog_start_consistent_snapshot;
   binlog_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN;
+  binlog_hton->drop_table= [](handlerton *, const char*) { return -1; };
   return 0;
 }
 

@@ -1031,10 +1031,10 @@ bool Trigger::add_to_file_list(void* param_arg)
 */
 
 static bool rm_trigger_file(char *path, const LEX_CSTRING *db,
-                            const LEX_CSTRING *table_name)
+                            const LEX_CSTRING *table_name, myf MyFlags)
 {
   build_table_filename(path, FN_REFLEN-1, db->str, table_name->str, TRG_EXT, 0);
-  return mysql_file_delete(key_file_trg, path, MYF(MY_WME));
+  return mysql_file_delete(key_file_trg, path, MyFlags);
 }
 
 
@@ -1053,10 +1053,11 @@ static bool rm_trigger_file(char *path, const LEX_CSTRING *db,
 */
 
 static bool rm_trigname_file(char *path, const LEX_CSTRING *db,
-                             const LEX_CSTRING *trigger_name)
+                       const LEX_CSTRING *trigger_name, myf MyFlags)
 {
-  build_table_filename(path, FN_REFLEN - 1, db->str, trigger_name->str, TRN_EXT, 0);
-  return mysql_file_delete(key_file_trn, path, MYF(MY_WME));
+  build_table_filename(path, FN_REFLEN - 1, db->str, trigger_name->str,
+                       TRN_EXT, 0);
+  return mysql_file_delete(key_file_trn, path, MyFlags);
 }
 
 
@@ -1174,7 +1175,7 @@ bool Table_triggers_list::drop_trigger(THD *thd, TABLE_LIST *tables,
       parse_file.cc functionality (because we will need it
       elsewhere).
     */
-    if (rm_trigger_file(path, &tables->db, &tables->table_name))
+    if (rm_trigger_file(path, &tables->db, &tables->table_name, MYF(MY_WME)))
       return 1;
   }
   else
@@ -1183,7 +1184,7 @@ bool Table_triggers_list::drop_trigger(THD *thd, TABLE_LIST *tables,
       return 1;
   }
 
-  if (rm_trigname_file(path, &tables->db, sp_name))
+  if (rm_trigname_file(path, &tables->db, sp_name, MYF(MY_WME)))
     return 1;
 
   delete trigger;
@@ -1324,9 +1325,9 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
     This could be avoided if there is no triggers for UPDATE and DELETE.
 
   @retval
-    False   success
+    False   no triggers or triggers where correctly loaded
   @retval
-    True    error
+    True    error (wrong trigger file)
 */
 
 bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
@@ -1635,7 +1636,7 @@ err_with_lex_cleanup:
   }
 
 error:
-    if (unlikely(!thd->is_error()))
+  if (unlikely(!thd->is_error()))
   {
     /*
       We don't care about this error message much because .TRG files will
@@ -1812,7 +1813,8 @@ bool add_table_for_trigger(THD *thd,
 */
 
 bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
-                                            const LEX_CSTRING *name)
+                                            const LEX_CSTRING *name,
+                                            myf MyFlags)
 {
   TABLE table;
   char path[FN_REFLEN];
@@ -1821,11 +1823,13 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
 
   table.reset();
   init_sql_alloc(&table.mem_root, "Triggers::drop_all_triggers", 8192, 0,
-                 MYF(0));
+                 MYF(MY_WME));
 
   if (Table_triggers_list::check_n_load(thd, db, name, &table, 1))
   {
     result= 1;
+    /* We couldn't parse trigger file, best to just remove it */
+    rm_trigger_file(path, db, name, MyFlags);
     goto end;
   }
   if (table.triggers)
@@ -1845,7 +1849,7 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
             Such triggers have zero-length name and are skipped here.
           */
           if (trigger->name.length &&
-              rm_trigname_file(path, db, &trigger->name))
+              rm_trigname_file(path, db, &trigger->name, MyFlags))
           {
             /*
               Instead of immediately bailing out with error if we were unable
@@ -1856,7 +1860,7 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
         }
       }
     }
-    if (rm_trigger_file(path, db, name))
+    if (rm_trigger_file(path, db, name, MyFlags))
       result= 1;
     delete table.triggers;
   }
@@ -1917,9 +1921,10 @@ change_table_name_in_triggers(THD *thd,
   if (save_trigger_file(thd, new_db_name, new_table_name))
     return TRUE;
 
-  if (rm_trigger_file(path_buff, old_db_name, old_table_name))
+  if (rm_trigger_file(path_buff, old_db_name, old_table_name, MYF(MY_WME)))
   {
-    (void) rm_trigger_file(path_buff, new_db_name, new_table_name);
+    (void) rm_trigger_file(path_buff, new_db_name, new_table_name,
+                           MYF(MY_WME));
     return TRUE;
   }
   return FALSE;
@@ -2028,9 +2033,11 @@ bool Trigger::change_on_table_name(void* param_arg)
   /* Remove stale .TRN file in case of database upgrade */
   if (param->old_db_name)
   {
-    if (rm_trigname_file(trigname_buff, param->old_db_name, &name))
+    if (rm_trigname_file(trigname_buff, param->old_db_name, &name,
+                         MYF(MY_WME)))
     {
-      (void) rm_trigname_file(trigname_buff, param->new_db_name, &name);
+      (void) rm_trigname_file(trigname_buff, param->new_db_name, &name,
+                              MYF(MY_WME));
       return 1;
     }
   }

@@ -1110,7 +1110,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
   LEX_CSTRING handler_name;
   handler *file= NULL;
   MEM_ROOT mem_root;
-  int error= TRUE;
+  int error= 1;
   char to_path[FN_REFLEN];
   char from_path[FN_REFLEN];
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -1163,28 +1163,26 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
         {
           strxmov(to_path, ddl_log_entry->name, reg_ext, NullS);
           if (unlikely((error= mysql_file_delete(key_file_frm, to_path,
-                                                 MYF(MY_WME)))))
-          {
-            if (my_errno != ENOENT)
-              break;
-          }
+                                                 MYF(MY_WME |
+                                                     MY_IGNORE_ENOENT)))))
+            break;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
           strxmov(to_path, ddl_log_entry->name, par_ext, NullS);
-          (void) mysql_file_delete(key_file_partition, to_path, MYF(MY_WME));
+          (void) mysql_file_delete(key_file_partition, to_path, MYF(0));
 #endif
         }
         else
         {
-          if (unlikely((error= file->ha_delete_table(ddl_log_entry->name))))
+          if (unlikely((error= hton->drop_table(hton, ddl_log_entry->name))))
           {
-            if (error != ENOENT && error != HA_ERR_NO_SUCH_TABLE)
+            if (!non_existing_table_error(error))
               break;
           }
         }
         if ((deactivate_ddl_log_entry_no_lock(ddl_log_entry->entry_pos)))
           break;
         (void) sync_ddl_log_no_lock();
-        error= FALSE;
+        error= 0;
         if (ddl_log_entry->action_type == DDL_LOG_DELETE_ACTION)
           break;
       }
@@ -2224,23 +2222,23 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                             bool dont_free_locks)
 {
   TABLE_LIST *table;
-  char path[FN_REFLEN + 1], wrong_tables_buff[160];
+  char path[FN_REFLEN + 1], unknown_tables_buff[160];
   LEX_CSTRING alias= null_clex_str;
-  String wrong_tables(wrong_tables_buff, sizeof(wrong_tables_buff)-1,
+  String unknown_tables(unknown_tables_buff, sizeof(unknown_tables_buff)-1,
                       system_charset_info);
-  uint path_length= 0, errors= 0;
+  uint not_found_errors= 0;
   int error= 0;
   int non_temp_tables_count= 0;
   bool non_tmp_error= 0;
   bool trans_tmp_table_deleted= 0, non_trans_tmp_table_deleted= 0;
   bool non_tmp_table_deleted= 0;
   bool is_drop_tmp_if_exists_added= 0;
-  bool was_view= 0, was_table= 0, is_sequence;
+  bool was_view= 0;
   String built_query;
   String built_trans_tmp_query, built_non_trans_tmp_query;
   DBUG_ENTER("mysql_rm_table_no_locks");
 
-  wrong_tables.length(0);
+  unknown_tables.length(0);
   /*
     Prepares the drop statements that will be written into the binary
     log as follows:
@@ -2314,14 +2312,18 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
 
   for (table= tables; table; table= table->next_local)
   {
-    bool is_trans= 0;
+    bool is_trans= 0, temporary_table_was_dropped= 0;
     bool table_creation_was_logged= 0;
-    bool real_table= FALSE;
+    bool wrong_drop_sequence= 0;
+    bool local_non_tmp_error= 0;
+    bool table_dropped= 0;
     LEX_CSTRING db= table->db;
-    handlerton *table_type= 0;
-    // reset error state for this table
-    error= 0;
+    handlerton *hton= 0;
+    Table_type table_type;
+    size_t path_length= 0;
+    char *path_end= 0;
 
+    error= 0;
     DBUG_PRINT("table", ("table_l: '%s'.'%s'  table: %p  s: %p",
                          table->db.str, table->table_name.str,  table->table,
                          table->table ?  table->table->s : NULL));
@@ -2336,65 +2338,46 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                   thd->find_temporary_table(table) &&
                   table->mdl_request.ticket != NULL));
 
-    if (table->open_type == OT_BASE_ONLY || !is_temporary_table(table))
-      real_table= TRUE;
-    else if (drop_sequence &&
-            table->table->s->table_type != TABLE_TYPE_SEQUENCE)
-    {
-      was_table= (table->table->s->table_type == TABLE_TYPE_NORMAL);
-      was_view= (table->table->s->table_type == TABLE_TYPE_VIEW);
-      if (if_exists)
-      {
-        char buff[FN_REFLEN];
-        String tbl_name(buff, sizeof(buff), system_charset_info);
-        tbl_name.length(0);
-        tbl_name.append(&db);
-        tbl_name.append('.');
-        tbl_name.append(&table->table_name);
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                            ER_NOT_SEQUENCE2, ER_THD(thd, ER_NOT_SEQUENCE2),
-                            tbl_name.c_ptr_safe());
-
-        /*
-          Our job is done here. This statement was added to avoid executing
-          unnecessary code farther below which in some strange corner cases
-          caused the server to crash (see MDEV-17896).
-        */
-        goto log_query;
-      }
-      error= 1;
-      goto non_critical_err;
-    }
-    else
+    /* First try to delete temporary tables and temporary sequences */
+    if ((table->open_type != OT_BASE_ONLY && is_temporary_table(table)) &&
+        (!drop_sequence || table->table->s->table_type == TABLE_TYPE_SEQUENCE))
     {
       table_creation_was_logged= table->table->s->table_creation_was_logged;
       if (thd->drop_temporary_table(table->table, &is_trans, true))
       {
+        /*
+          This is a very unlikely scenaro as dropping a temporary table
+          should always work. Would be better if we tried to drop all
+          temporary tables before giving the error.
+        */
         error= 1;
         goto err;
       }
       table->table= 0;
+      temporary_table_was_dropped= 1;
     }
 
-    if ((drop_temporary && if_exists) || !real_table)
+    if ((drop_temporary && if_exists) || temporary_table_was_dropped)
     {
       /*
         This handles the case of temporary tables. We have the following cases:
 
-          . "DROP TEMPORARY" was executed and a temporary table was affected
-          (i.e. drop_temporary && !real_table) or the
-          if_exists was specified (i.e. drop_temporary && if_exists).
-
-          . "DROP" was executed but a temporary table was affected (.i.e
-          !real_table).
+          - "DROP TEMPORARY" was executed and table was dropped
+            temporary_table_was_dropped == 1
+          - "DROP TEMPORARY IF EXISTS" was specified but no temporary table
+            existed
+            temporary_table_was_dropped == 0
       */
       if (!dont_log_query && table_creation_was_logged)
       {
         /*
-          If there is an real_table, we don't know the type of the engine
+          DROP TEMPORARY succeded. For the moment when we only come
+          here on success (error == 0)
+
+          If there is an error, we don't know the type of the engine
           at this point. So, we keep it in the trx-cache.
         */
-        is_trans= real_table ? TRUE : is_trans;
+        is_trans= error ? TRUE : is_trans;
         if (is_trans)
           trans_tmp_table_deleted= TRUE;
         else
@@ -2421,7 +2404,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         is no need to proceed with the code that tries to drop a regular
         table.
       */
-      if (!real_table) continue;
+      if (temporary_table_was_dropped)
+        continue;
     }
     else if (!drop_temporary)
     {
@@ -2433,73 +2417,57 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
 
       alias= (lower_case_table_names == 2) ? table->alias : table->table_name;
       /* remove .frm file and engine files */
-      path_length= build_table_filename(path, sizeof(path) - 1, db.str, alias.str,
-                                        reg_ext, 0);
+      path_length= build_table_filename(path, sizeof(path) - 1, db.str,
+                                        alias.str, reg_ext, 0);
+      path_end= path + path_length - reg_ext_length;
     }
+
     DEBUG_SYNC(thd, "rm_table_no_locks_before_delete_table");
-    if (drop_temporary ||
-        (ha_table_exists(thd, &db, &alias, &table_type, &is_sequence) == 0 &&
-         table_type == 0) ||
-        (!drop_view && (was_view= (table_type == view_pseudo_hton))) ||
-        (drop_sequence && !is_sequence))
+    error= 0;
+    if (drop_temporary)
+    {
+      /* "DROP TEMPORARY" but a temporary table was not found */
+      unknown_tables.append(db);
+      unknown_tables.append('.');
+      unknown_tables.append(table->table_name);
+      unknown_tables.append(',');
+      error= ENOENT;
+      not_found_errors++;
+      continue;
+    }
+
+    {
+      char engine_buf[NAME_CHAR_LEN + 1];
+      LEX_CSTRING engine= { engine_buf, 0 };
+
+      table_type= dd_frm_type(thd, path, &engine);
+      if (table_type == TABLE_TYPE_NORMAL || table_type == TABLE_TYPE_SEQUENCE)
+      {
+        plugin_ref p= plugin_lock_by_name(thd, &engine,
+                                           MYSQL_STORAGE_ENGINE_PLUGIN);
+        hton= p ? plugin_hton(p) : NULL;
+      }
+      // note that for TABLE_TYPE_VIEW and TABLE_TYPE_UNKNOWN hton == NULL
+    }
+
+    was_view= table_type == TABLE_TYPE_VIEW;
+    if ((table_type == TABLE_TYPE_UNKNOWN) || (was_view && !drop_view) ||
+        (table_type != TABLE_TYPE_SEQUENCE && drop_sequence))
     {
       /*
         One of the following cases happened:
-          . "DROP TEMPORARY" but a temporary table was not found.
           . "DROP" but table was not found
           . "DROP TABLE" statement, but it's a view. 
           . "DROP SEQUENCE", but it's not a sequence
       */
-      was_table= drop_sequence && table_type;
-      if (if_exists)
-      {
-        char buff[FN_REFLEN];
-        int err= (drop_sequence ? ER_UNKNOWN_SEQUENCES :
-                  ER_BAD_TABLE_ERROR);
-        String tbl_name(buff, sizeof(buff), system_charset_info);
-        tbl_name.length(0);
-        tbl_name.append(&db);
-        tbl_name.append('.');
-        tbl_name.append(&table->table_name);
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                            err, ER_THD(thd, err),
-                            tbl_name.c_ptr_safe());
-
-        /*
-          Our job is done here. This statement was added to avoid executing
-          unnecessary code farther below which in some strange corner cases
-          caused the server to crash (see MDEV-17896).
-        */
-        goto log_query;
-      }
-      else
-      {
-        non_tmp_error = (drop_temporary ? non_tmp_error : TRUE);
-        error= 1;
-        /*
-          non critical error (only for this table), so we continue.
-          Next we write it to wrong_tables and continue this loop
-          The same as "goto non_critical_err".
-        */
-      }
+      wrong_drop_sequence= drop_sequence && table_type; // novikau-todo: drop_sequence && hton ??
+      local_non_tmp_error= 1;
+      error= table_type == TABLE_TYPE_UNKNOWN ? ENOENT : -1;
+      tdc_remove_table(thd, TDC_RT_REMOVE_ALL, table->db.str, table->table_name.str,
+                       false);
     }
     else
     {
-      char *end;
-      int frm_delete_error= 0;
-      /*
-        It could happen that table's share in the table definition cache
-        is the only thing that keeps the engine plugin loaded
-        (if it is uninstalled and waits for the ref counter to drop to 0).
-
-        In this case, the tdc_remove_table() below will release and unload
-        the plugin. And ha_delete_table() will get a dangling pointer.
-
-        Let's lock the plugin till the end of the statement.
-      */
-      if (table_type && table_type != view_pseudo_hton)
-        ha_lock_engine(thd, table_type);
-
       if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
           thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
       {
@@ -2523,10 +2491,17 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                                                  MDL_EXCLUSIVE));
 
       // Remove extension for delete
-      *(end= path + path_length - reg_ext_length)= '\0';
+      *path_end= '\0';
 
-      if ((error= ha_delete_table(thd, table_type, path, &db, &table->table_name,
-                                  !dont_log_query)))
+      bool enoent_warning= !dont_log_query && !(hton && hton->discover_table);
+      error= ha_delete_table(thd, hton, path, &db, &table->table_name,
+                             enoent_warning);
+
+      if (!error)
+        table_dropped= 1;
+      else if (error < 0)
+        error= 0;                            // Table didn't exists
+      else if (error)
       {
         if (thd->is_killed())
         {
@@ -2534,67 +2509,153 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
           goto err;
         }
       }
-      else
+
+      /*
+        Delete the .frm file if we managed to delete the table from the
+        engine or the table didn't exists in the engine
+      */
+      strmov(path_end, reg_ext);
+      if ((likely(!error) || non_existing_table_error(error)) &&
+          !access(path, F_OK))
       {
+        int frm_delete_error= 0;
         /* Delete the table definition file */
-        strmov(end,reg_ext);
-        if (table_type && table_type != view_pseudo_hton &&
-            table_type->discover_table)
+        if (hton && (hton->discover_table || error))
         {
           /*
-            Table type is using discovery and may not need a .frm file.
+            Table type is using discovery and may not need a .frm file
+            or the .frm file existed but no table in engine.
             Delete it silently if it exists
           */
-          (void) mysql_file_delete(key_file_frm, path, MYF(0));
+          if (mysql_file_delete(key_file_frm, path,
+                                MYF(MY_WME | MY_IGNORE_ENOENT)))
+            frm_delete_error= my_errno;
         }
         else if (unlikely(mysql_file_delete(key_file_frm, path,
-                                            MYF(MY_WME))))
+                                            !error ? MYF(MY_WME) :
+                                            MYF(MY_WME | MY_IGNORE_ENOENT))))
         {
           frm_delete_error= my_errno;
           DBUG_ASSERT(frm_delete_error);
         }
-      }
 
-      if (likely(!error))
-      {
-        int trigger_drop_error= 0;
-
-        if (likely(!frm_delete_error))
+        if (frm_delete_error)
         {
-          non_tmp_table_deleted= TRUE;
-          trigger_drop_error=
-            Table_triggers_list::drop_all_triggers(thd, &db, &table->table_name);
+          /* Remember unexpected error from dropping the .frm file */
+          error= frm_delete_error;
         }
-
-        if (unlikely(trigger_drop_error) ||
-            (frm_delete_error && frm_delete_error != ENOENT))
-          error= 1;
-        else if (frm_delete_error && if_exists)
-          thd->clear_error();
+        else
+        {
+          error= 0;                         // We succeeded to delete the frm
+          table_dropped= 1;
+        }
       }
-      non_tmp_error|= MY_TEST(error);
+      local_non_tmp_error|= MY_TEST(error);
     }
-non_critical_err:
+
+    /*
+      If there was no .frm file and the table is not temporary,
+      scan all engines try to drop the table from there.
+      This is to ensure we don't have any partial table files left.
+    */
+    if (non_existing_table_error(error) && !wrong_drop_sequence)
+    {
+      int ferror= 0;
+      DBUG_ASSERT(!was_view);
+
+      /* Remove extension for delete */
+      *path_end= '\0';
+      ferror= ha_delete_table_force(thd, path, &db, &table->table_name);
+      if (!ferror)
+      {
+        /* Table existed and was deleted */
+        local_non_tmp_error= 0;
+        table_dropped= 1;
+        error= 0;
+      }
+      if (ferror <= 0)
+      {
+        ferror= 0;                              // Ignore table not found
+
+        /* Delete the frm file again (just in case it was rediscovered) */
+        strmov(path_end, reg_ext);
+        if (mysql_file_delete(key_file_frm, path, MYF(MY_WME|MY_IGNORE_ENOENT)))
+          ferror= my_errno;
+      }
+      if (!error)
+        error= ferror;
+    }
+
+    if (likely(!error) || non_existing_table_error(error))
+    {
+      if (Table_triggers_list::drop_all_triggers(thd, &db,
+                                                 &table->table_name,
+                                                 MYF(MY_WME |
+                                                     MY_IGNORE_ENOENT)))
+        error= error ? error : -1;
+    }
+
     if (error)
     {
-      if (wrong_tables.length())
-        wrong_tables.append(',');
-      wrong_tables.append(&db);
-      wrong_tables.append('.');
-      wrong_tables.append(&table->table_name);
-      errors++;
+      char buff[FN_REFLEN];
+      String tbl_name(buff, sizeof(buff), system_charset_info);
+      uint is_note= (if_exists && (was_view || wrong_drop_sequence) ?
+                     ME_NOTE : 0);
+
+      tbl_name.length(0);
+      tbl_name.append(&db);
+      tbl_name.append('.');
+      tbl_name.append(&table->table_name);
+
+      if (!non_existing_table_error(error) || is_note)
+      {
+        /*
+          Error from engine already given. Here we only have to take
+          care about errors for trying to drop view or sequence
+        */
+        if (was_view)
+          my_error(ER_IT_IS_A_VIEW, MYF(is_note), tbl_name.c_ptr_safe());
+        else if (wrong_drop_sequence)
+          my_error(ER_NOT_SEQUENCE2, MYF(is_note), tbl_name.c_ptr_safe());
+        if (is_note)
+          error= ENOENT;
+      }
+      else
+      {
+        not_found_errors++;
+        if (unknown_tables.append(tbl_name) || unknown_tables.append(','))
+        {
+          error= 1;
+          goto err;
+        }
+      }
     }
-    else
+
+    /*
+      Don't give an error if we are using IF EXISTS for a table that
+      didn't exists
+    */
+    if (if_exists && non_existing_table_error(error))
     {
-      PSI_CALL_drop_table_share(false, table->db.str, (uint)table->db.length,
-                                table->table_name.str, (uint)table->table_name.length);
+      error= 0;
+      local_non_tmp_error= 0;
+    }
+
+    non_tmp_error|= local_non_tmp_error;
+
+    if (!error && table_dropped)
+    {
+      PSI_CALL_drop_table_share(temporary_table_was_dropped,
+                                table->db.str, (uint)table->db.length,
+                                table->table_name.str,
+                                (uint)table->table_name.length);
       mysql_audit_drop_table(thd, table);
     }
 
-log_query:
-    if (!dont_log_query && !drop_temporary)
+    if (!dont_log_query &&
+        (!error || table_dropped || non_existing_table_error(error)))
     {
-      non_tmp_table_deleted= (if_exists ? TRUE : non_tmp_table_deleted);
+      non_tmp_table_deleted|= (if_exists || table_dropped);
       /*
          Don't write the database name if it is the current one (or if
          thd->db is NULL).
@@ -2614,20 +2675,16 @@ log_query:
   DEBUG_SYNC(thd, "rm_table_no_locks_before_binlog");
   thd->thread_specific_used= TRUE;
   error= 0;
+
 err:
-  if (wrong_tables.length())
+  if (unknown_tables.length() > 1)
   {
-    DBUG_ASSERT(errors);
-    if (errors == 1 && was_view)
-      my_error(ER_IT_IS_A_VIEW, MYF(0), wrong_tables.c_ptr_safe());
-    else if (errors == 1 && drop_sequence && was_table)
-      my_error(ER_NOT_SEQUENCE2, MYF(0), wrong_tables.c_ptr_safe());
-    else if (errors > 1 || !thd->is_error())
-      my_error((drop_sequence ? ER_UNKNOWN_SEQUENCES :
-                ER_BAD_TABLE_ERROR),
-               MYF(0), wrong_tables.c_ptr_safe());
-    error= 1;
+    uint is_note= if_exists ? ME_NOTE : 0;
+    unknown_tables.chop();
+    my_error((drop_sequence ? ER_UNKNOWN_SEQUENCES : ER_BAD_TABLE_ERROR),
+             MYF(is_note), unknown_tables.c_ptr_safe());
   }
+  error= thd->is_error();
 
   /*
     We are always logging drop of temporary tables.
@@ -2741,8 +2798,9 @@ end:
 #ifdef WITH_WSREP
   thd->wsrep_skip_wsrep_GTID = false;
 #endif /* WITH_WSREP */
-  DBUG_RETURN(error);
+  DBUG_RETURN(error || thd->is_error());
 }
+
 
 /**
   Log the drop of a table.
@@ -2818,7 +2876,8 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
     delete file;
   }
   if (!(flags & (FRM_ONLY|NO_HA_TABLE)))
-    error|= ha_delete_table(current_thd, base, path, db, table_name, 0);
+    if (ha_delete_table(thd, base, path, db, table_name, 0) > 0)
+      error= 1;
 
   memcpy(path + path_length, reg_ext, reg_ext_length + 1);
   if (mysql_file_delete(key_file_frm, path, MYF(0)))
@@ -4971,7 +5030,8 @@ int create_table_impl(THD *thd,
       If a table exists, it must have been pre-opened. Try looking for one
       in-use in THD::all_temp_tables list of TABLE_SHAREs.
     */
-    TABLE *tmp_table= thd->find_temporary_table(db->str, table_name->str);
+    TABLE *tmp_table= thd->find_temporary_table(db->str, table_name->str,
+                                                THD::TMP_TABLE_ANY);
 
     if (tmp_table)
     {

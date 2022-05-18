@@ -342,7 +342,7 @@ drop table if exists t1,t2,s1,s2;
 CREATE TABLE t1 (a int);
 CREATE TABLE t2 (a int);
 CREATE SEQUENCE s1;
---error ER_UNKNOWN_SEQUENCES
+--error ER_NOT_SEQUENCE2
 drop sequence t1,t2,s1,s2;
 drop table if exists t1,t2;
 
@@ -489,7 +489,7 @@ drop table s;
 create temporary sequence s;
 drop temporary table s;
 create temporary table s (i int);
---error ER_NOT_SEQUENCE2
+--error ER_UNKNOWN_SEQUENCES
 drop temporary sequence s;
 drop table s;
 

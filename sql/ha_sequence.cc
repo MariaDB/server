@@ -19,13 +19,13 @@
 #include "mariadb.h"
 #include "sql_list.h"
 #include "table.h"
+#include "sql_table.h"
 #include "sql_sequence.h"
 #include "ha_sequence.h"
 #include "sql_plugin.h"
 #include "mysql/plugin.h"
 #include "sql_priv.h"
 #include "sql_parse.h"
-#include "sql_table.h"
 #include "sql_update.h"
 #include "sql_base.h"
 #include "log_event.h"
@@ -373,6 +373,13 @@ static handler *sequence_create_handler(handlerton *hton,
                                         MEM_ROOT *mem_root)
 {
   DBUG_ENTER("sequence_create_handler");
+  if (unlikely(!share))
+  {
+    /*
+      This can happen if we call get_new_handler with a non existing share
+    */
+    DBUG_RETURN(0);
+  }
   DBUG_RETURN(new (mem_root) ha_sequence(hton, share));
 }
 
