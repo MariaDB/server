@@ -8040,7 +8040,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
 	 tables=tables->next_local)
     {
       if (!my_strcasecmp(table_alias_charset, alias_str, tables->alias) &&
-	  !strcmp(ptr->db, tables->db))
+	  !strcmp(safe_str(ptr->db), safe_str(tables->db)))
       {
 	my_error(ER_NONUNIQ_TABLE, MYF(0), alias_str); /* purecov: tested */
 	DBUG_RETURN(0);				/* purecov: tested */
