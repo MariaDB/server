@@ -890,3 +890,36 @@ SELECT t, next_seq_value() r FROM t1 FORCE INDEX(t)
 DROP TABLE t1;
 DROP FUNCTION next_seq_value;
 DROP TABLE series;
+
+--echo #
+--echo # MDEV-24837 HAVING clause yields wrong results in 10.2 and 10.3,
+--echo #       fine in 10.1
+--echo #
+CREATE TABLE t1 (t1_id int, t1_val varchar(20), t1_var varchar(100));
+INSERT INTO t1 VALUES (1,'val','a'),(2,'val','b'),(3,'val','c');
+
+CREATE TABLE t2 (t2_id int, t2_valvar varchar(20), t3_id int );
+INSERT INTO t2 VALUES (1,'valb',1);
+
+CREATE TABLE t3 (t3_id int primary key, t3_lib varchar(20));
+INSERT INTO t3 VALUES (1,'test');
+
+SELECT DISTINCT concat(t1.t1_val,t1.t1_var) as cc, group_concat(t2.t3_id)
+FROM t1	LEFT JOIN (t2, t3) ON concat(t1_val,t1_var) = t2.t2_valvar
+  AND t2.t3_id = t3.t3_id
+GROUP BY t1_id
+HAVING cc = 'vala';
+
+SELECT DISTINCT concat(t1.t1_val,t1.t1_var) as cc, group_concat(t2.t3_id)
+FROM t1	LEFT JOIN (t2, t3) ON concat(t1_val,t1_var) = t2.t2_valvar
+  AND t2.t3_id = t3.t3_id
+GROUP BY t1_id
+HAVING cc = 'valb';
+
+SELECT DISTINCT concat(t1.t1_val,t1.t1_var) as cc, group_concat(t2.t3_id)
+FROM t1	LEFT JOIN (t2, t3) ON concat(t1_val,t1_var) = t2.t2_valvar
+  AND t2.t3_id = t3.t3_id
+GROUP BY t1_id
+HAVING cc = 'valc';
+
+DROP TABLES t1, t2, t3;
