@@ -133,6 +133,7 @@ our $default_vardir;
 our $opt_vardir;                # Path to use for var/ dir
 our $plugindir;
 our $opt_xml_report;            # XML output
+my $opt_rr_backup = '';
 our $client_plugindir;
 my $path_vardir_trace;          # unix formatted opt_vardir for trace files
 my $opt_tmpdir;                 # Path to use for tmp/ dir
@@ -1193,7 +1194,8 @@ sub command_line_setup {
 	     'list-options'             => \$opt_list_options,
              'skip-test-list=s'         => \@opt_skip_test_list,
              'xml-report=s'             => \$opt_xml_report,
-
+             # debug options
+             'rr-backup:s'                => \$opt_rr_backup,
              My::Debugger::options()
            );
 
@@ -2244,7 +2246,14 @@ sub environment_setup {
       "$bindir/extra/mariabackup$multiconfig/mariabackup",
       "$path_client_bindir/mariabackup");
 
-  $ENV{XTRABACKUP}= native_path($exe_mariabackup) if $exe_mariabackup;
+  if ($exe_mariabackup) {
+    if ($opt_rr_backup) {
+      my $rr_dir= "$opt_vardir/rr.mariabackup";
+      $exe_mariabackup=
+        "_RR_TRACE_DIR=$rr_dir rr record $opt_rr_backup $exe_mariabackup";
+    }
+    $ENV{XTRABACKUP}= native_path($exe_mariabackup);
+  }
 
   my $exe_xbstream= mtr_exe_maybe_exists(
         "$bindir/extra/mariabackup/$multiconfig/mbstream",
@@ -5834,6 +5843,7 @@ Options for debugging the product
                         "query,info,error,enter,exit"
   debug-server          Use debug version of server, but without turning on
                         tracing
+  rr-backup             start mariabackup with rr
   max-save-core         Limit the number of core files saved (to avoid filling
                         up disks for heavily crashing server). Defaults to
                         $opt_max_save_core. Set its default with
