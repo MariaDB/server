@@ -272,18 +272,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_WRITTEN},
 
-	{"buffer_index_pages_written", "buffer",
-	 "Number of index pages written (innodb_index_pages_written)",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_INDEX_PAGES_WRITTEN},
-
-	{"buffer_non_index_pages_written", "buffer",
-	 "Number of non index pages written (innodb_non_index_pages_written)",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_NON_INDEX_PAGES_WRITTEN},
-
 	{"buffer_pages_read", "buffer",
 	 "Number of pages read (innodb_pages_read)",
 	 static_cast<monitor_type_t>(
@@ -1466,16 +1454,6 @@ srv_mon_process_existing_counter(
 	/* innodb_pages_written, the number of page written */
 	case MONITOR_OVLD_PAGES_WRITTEN:
 		value = buf_pool.stat.n_pages_written;
-		break;
-
-	/* innodb_index_pages_written, the number of index pages written */
-	case MONITOR_OVLD_INDEX_PAGES_WRITTEN:
-		value = srv_stats.index_pages_written;
-		break;
-
-	/* innodb_non_index_pages_written, the number of non index pages written */
-	case MONITOR_OVLD_NON_INDEX_PAGES_WRITTEN:
-		value = srv_stats.non_index_pages_written;
 		break;
 
 	case MONITOR_LRU_BATCH_FLUSH_TOTAL_PAGE:

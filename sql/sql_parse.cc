@@ -1507,22 +1507,6 @@ static bool deny_updates_if_read_only_option(THD *thd, TABLE_LIST *all_tables)
 }
 
 #ifdef WITH_WSREP
-static my_bool wsrep_read_only_option(THD *thd, TABLE_LIST *all_tables)
-{
-  int opt_readonly_saved = opt_readonly;
-  privilege_t flag_saved= thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY;
-
-  opt_readonly = 0;
-  thd->security_ctx->master_access &= ~PRIV_IGNORE_READ_ONLY;
-
-  my_bool ret = !deny_updates_if_read_only_option(thd, all_tables);
-
-  opt_readonly = opt_readonly_saved;
-  thd->security_ctx->master_access |= flag_saved;
-
-  return ret;
-}
-
 static void wsrep_copy_query(THD *thd)
 {
   thd->wsrep_retry_command   = thd->get_command();
@@ -7852,7 +7836,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
 {
   bool is_autocommit=
     !thd->in_multi_stmt_transaction_mode()                  &&
-    wsrep_read_only_option(thd, thd->lex->query_tables);
+    !thd->wsrep_applier;
   bool retry_autocommit;
   do
   {
@@ -8890,6 +8874,7 @@ bool st_select_lex::add_window_def(THD *thd,
     fields_in_window_functions+= win_part_list_ptr->elements +
                                  win_order_list_ptr->elements;
   }
+  win_def->win_spec_number= window_specs.elements;
   return (win_def == NULL || window_specs.push_back(win_def));
 }
 
@@ -8917,6 +8902,7 @@ bool st_select_lex::add_window_spec(THD *thd,
                                  win_order_list_ptr->elements;
   }
   thd->lex->win_spec= win_spec;
+  win_spec->win_spec_number= window_specs.elements;
   return (win_spec == NULL || window_specs.push_back(win_spec));
 }
 
@@ -9060,9 +9046,7 @@ push_new_name_resolution_context(THD *thd,
     right_op->last_leaf_for_name_resolution();
   LEX *lex= thd->lex;
   on_context->select_lex = lex->current_select;
-  st_select_lex *curr_select= lex->pop_select();
-  st_select_lex *outer_sel= lex->select_stack_head();
-  lex->push_select(curr_select);
+  st_select_lex *outer_sel= lex->parser_current_outer_select();
   on_context->outer_context = outer_sel ? &outer_sel->context : 0;
   return lex->push_context(on_context);
 }

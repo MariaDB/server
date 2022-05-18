@@ -25,6 +25,7 @@ RESET MASTER;
 SET @@global.sync_binlog=1;
 CREATE TABLE t (f INT) ENGINE=INNODB;
 CREATE TABLE t2 (f INT) ENGINE=INNODB;
+CREATE TABLE t4 (f INT) ENGINE=INNODB;
 CREATE TABLE tm (f INT) ENGINE=Aria;
 
 # Old (pre-crash) binlog file index initial value.
@@ -42,14 +43,14 @@ CREATE TABLE tm (f INT) ENGINE=Aria;
 # 'query1' onwards will be removed from the binary log.
 # Show-binlog-events is to prove that.
 
---let $truncate_gtid_pos = 0-1-6
+--let $truncate_gtid_pos = 0-1-7
 --let $query1 = INSERT INTO t VALUES (20)
 --let $query2 = DELETE FROM t2 WHERE f = 0 /* no such record */
 --source binlog_truncate_active_log.inc
 
 --echo # Case B.
 # The inverted sequence ends up to truncate starting from $query2
---let $truncate_gtid_pos = 0-1-10
+--let $truncate_gtid_pos = 0-1-11
 --let $query1 = DELETE FROM t2 WHERE f = 0
 --let $query2 = INSERT INTO t VALUES (20)
 --source binlog_truncate_active_log.inc
@@ -68,7 +69,7 @@ delimiter ;|
 
 # The same as in A with $query2 being the zero-engine XA transaction.
 # Both $query1 and $query2 are going to be truncated.
---let $truncate_gtid_pos = 0-1-14
+--let $truncate_gtid_pos = 0-1-15
 --let $query1 = INSERT INTO t VALUES (20)
 --let $query2 = CALL sp_blank_xa
 --source binlog_truncate_active_log.inc
@@ -89,7 +90,7 @@ delimiter ;|
 
 # The same as in B with $query1 being the prepared XA transaction.
 # Truncation must occurs at $query2.
---let $truncate_gtid_pos = 0-1-20
+--let $truncate_gtid_pos = 0-1-21
 --let $query1 = CALL sp_xa
 --let $query2 = INSERT INTO t2 VALUES (20)
 --source binlog_truncate_active_log.inc

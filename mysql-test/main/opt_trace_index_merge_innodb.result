@@ -228,7 +228,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                 },
                 "rows_for_plan": 1,
                 "cost_for_plan": 1.325146475,
-                "estimated_join_cardinality": 1
+                "pruned_by_hanging_leaf": true
               }
             ]
           },

@@ -5998,7 +5998,7 @@ add_all_virtual:
 		if (offsets_heap) {
 			mem_heap_free(offsets_heap);
 		}
-		btr_pcur_close(&pcur);
+		ut_free(pcur.old_rec_buf);
 		goto func_exit;
 	} else if (is_root && page_rec_is_supremum(rec)
 		   && !index->table->instant) {
@@ -8899,6 +8899,7 @@ free_and_exit:
     }
   }
 
+  DBUG_ASSERT(!prebuilt->table->indexes.start->online_log);
   DBUG_ASSERT(prebuilt->table->indexes.start->online_status ==
               ONLINE_INDEX_COMPLETE);
 
@@ -10687,6 +10688,10 @@ commit_cache_norebuild(
 		: NULL;
 	DBUG_ASSERT((ctx->new_table->fts == NULL)
 		    == (ctx->new_table->fts_doc_id_index == NULL));
+	if (table->found_next_number_field
+		&& !altered_table->found_next_number_field) {
+		ctx->prebuilt->table->persistent_autoinc = 0;
+	}
 	DBUG_RETURN(found);
 }
 
@@ -10868,7 +10873,15 @@ ha_innobase::commit_inplace_alter_table(
 	if (!(ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)) {
 		DBUG_ASSERT(!ctx0);
 		MONITOR_ATOMIC_DEC(MONITOR_PENDING_ALTER_TABLE);
-		ha_alter_info->group_commit_ctx = NULL;
+		if (table->found_next_number_field
+			&& !altered_table->found_next_number_field) {
+			m_prebuilt->table->persistent_autoinc = 0;
+			/* Don't reset ha_alter_info->group_commit_ctx to make
+			partitions engine to call this function for all
+			partitions. */
+		}
+		else
+			ha_alter_info->group_commit_ctx = NULL;
 		DBUG_RETURN(false);
 	}
 
@@ -10957,6 +10970,12 @@ ha_innobase::commit_inplace_alter_table(
 						   LOCK_X);
 		}
 
+		DBUG_EXECUTE_IF("deadlock_table_fail",
+				{
+				  error= DB_DEADLOCK;
+				  trx_rollback_for_mysql(trx);
+				});
+
 		if (error != DB_SUCCESS) {
 lock_fail:
 			my_error_innodb(
@@ -10964,6 +10983,16 @@ lock_fail:
 			if (fts_exist) {
 				purge_sys.resume_FTS();
 			}
+
+			/* Deadlock encountered and rollbacked the
+			transaction. So restart the transaction
+			to remove the newly created table or
+			index from data dictionary and table cache
+			in rollback_inplace_alter_table() */
+			if (trx->state == TRX_STATE_NOT_STARTED) {
+				trx_start_for_ddl(trx);
+			}
+
 			DBUG_RETURN(true);
 		} else if ((ctx->new_table->flags2
 			    & (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS))
@@ -11052,9 +11081,13 @@ err_index:
 					DBUG_RETURN(true);
 				}
 
+				index->lock.x_unlock();
+
 				error = row_log_apply(
 					m_prebuilt->trx, index, altered_table,
 					ctx->m_stage);
+
+				index->lock.x_lock(SRW_LOCK_CALL);
 
 				if (error != DB_SUCCESS) {
 					goto err_index;
@@ -11350,6 +11383,8 @@ foreign_fail:
 			purge_sys.resume_FTS();
 		}
 		MONITOR_ATOMIC_DEC(MONITOR_PENDING_ALTER_TABLE);
+		/* There is no need to reset dict_table_t::persistent_autoinc
+		as the table is reloaded */
 		DBUG_RETURN(false);
 	}
 

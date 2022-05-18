@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2022, Oracle and/or its affiliates.
 Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -136,6 +136,41 @@ void lock_update_root_raise(const buf_block_t &block, const page_id_t root);
 @param new_block  the target page
 @param old        old page (not index root page) */
 void lock_update_copy_and_discard(const buf_block_t &new_block, page_id_t old);
+
+/** Update gap locks between the last record of the left_block and the
+first record of the right_block when a record is about to be inserted
+at the start of the right_block, even though it should "naturally" be
+inserted as the last record of the left_block according to the
+current node pointer in the parent page.
+
+That is, we assume that the lowest common ancestor of the left_block
+and right_block routes the key of the new record to the left_block,
+but a heuristic which tries to avoid overflowing left_block has chosen
+to insert the record into right_block instead. Said ancestor performs
+this routing by comparing the key of the record to a "split point" -
+all records greater or equal to than the split point (node pointer)
+are in right_block, and smaller ones in left_block.
+The split point may be smaller than the smallest key in right_block.
+
+The gap between the last record on the left_block and the first record
+on the right_block is represented as a gap lock attached to the supremum
+pseudo-record of left_block, and a gap lock attached to the new first
+record of right_block.
+
+Thus, inserting the new record, and subsequently adjusting the node
+pointers in parent pages to values smaller or equal to the new
+records' key, will mean that gap will be sliced at a different place
+("moved to the left"): fragment of the 1st gap will now become treated
+as 2nd. Therefore, we must copy any GRANTED locks from 1st gap to the
+2nd gap. Any WAITING locks must be of INSERT_INTENTION type (as no
+other GAP locks ever wait for anything) and can stay at 1st gap, as
+their only purpose is to notify the requester they can retry
+insertion, and there's no correctness requirement to avoid waking them
+up too soon.
+@param left_block   left page
+@param right_block  right page */
+void lock_update_node_pointer(const buf_block_t *left_block,
+                              const buf_block_t *right_block);
 /*************************************************************//**
 Updates the lock table when a page is split to the left. */
 void

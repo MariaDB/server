@@ -43,10 +43,7 @@ DROP TABLE t1;
 set @@SESSION.SQL_LOG_BIN = 1;
 
 --echo # Step-3: Execute MYSQL_BINLOG with --stop-never and source it to mysql client.
---write_file $MYSQL_TMP_DIR/mysqlbinlog_stop_never.sh
-(`$MYSQL_BINLOG --read-from-remote-server --stop-never --user=root --host=127.0.0.1 --port=$MASTER_MYPORT  master-bin.000001 | $MYSQL --user=root --protocol=tcp --host=127.0.0.1 --port=$MASTER_MYPORT`) < /dev/null > /dev/null 2>&1  &
-EOF
---exec /bin/bash $MYSQL_TMP_DIR/mysqlbinlog_stop_never.sh
+--exec ($MYSQL_BINLOG --read-from-remote-server --stop-never --user=root --host=127.0.0.1 --port=$MASTER_MYPORT  master-bin.000001 | $MYSQL --user=root --protocol=tcp --host=127.0.0.1 --port=$MASTER_MYPORT) < /dev/null > /dev/null 2>&1  &
 
 --echo # Step-4: Wait till dump thread transfer is completed.
 let $wait_condition= SELECT id from information_schema.processlist where processlist.command like '%Binlog%' and state like '%Master has sent%';
@@ -62,5 +59,3 @@ source include/wait_until_rows_count.inc;
 --source include/stop_dump_threads.inc
 
 DROP TABLE t1;
---remove_file $MYSQL_TMP_DIR/mysqlbinlog_stop_never.sh
-

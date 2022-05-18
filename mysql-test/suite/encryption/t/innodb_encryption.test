@@ -90,9 +90,6 @@ AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NA
 
 SHOW VARIABLES LIKE 'innodb_encrypt%';
 
---let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
---source include/wait_condition.inc
-
 --sorted_result
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
 AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';

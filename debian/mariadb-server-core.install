@@ -14,6 +14,8 @@ usr/share/man/man1/mysql_upgrade.1
 usr/share/man/man1/resolveip.1
 usr/share/man/man8/mariadbd.8
 usr/share/man/man8/mysqld.8
+usr/share/mysql/bulgarian
+usr/share/mysql/chinese
 usr/share/mysql/charsets
 usr/share/mysql/czech
 usr/share/mysql/danish

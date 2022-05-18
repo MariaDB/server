@@ -1313,7 +1313,7 @@ dict_load_columns(
 
 	ut_ad(dict_sys.locked());
 
-	mtr_start(&mtr);
+	mtr.start();
 
 	dict_index_t* sys_index = dict_sys.sys_columns->indexes.start;
 	ut_ad(!dict_sys.sys_columns->not_redundant());
@@ -1402,8 +1402,7 @@ next_rec:
 		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
 	}
 
-	btr_pcur_close(&pcur);
-	mtr_commit(&mtr);
+	mtr.commit();
 }
 
 /** Loads SYS_VIRTUAL info for one virtual column
@@ -1435,7 +1434,7 @@ dict_load_virtual_one_col(
 		return;
 	}
 
-	mtr_start(&mtr);
+	mtr.start();
 
 	sys_virtual_index = dict_sys.sys_virtual->indexes.start;
 	ut_ad(!dict_sys.sys_virtual->not_redundant());
@@ -1493,8 +1492,7 @@ dict_load_virtual_one_col(
 		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
 	}
 
-	btr_pcur_close(&pcur);
-	mtr_commit(&mtr);
+	mtr.commit();
 }
 
 /** Loads info from SYS_VIRTUAL for virtual columns.
@@ -1684,7 +1682,7 @@ dict_load_fields(
 
 	ut_ad(dict_sys.locked());
 
-	mtr_start(&mtr);
+	mtr.start();
 
 	dict_index_t* sys_index = dict_sys.sys_fields->indexes.start;
 	ut_ad(!dict_sys.sys_fields->not_redundant());
@@ -1732,9 +1730,8 @@ dict_load_fields(
 
 	error = DB_SUCCESS;
 func_exit:
-	btr_pcur_close(&pcur);
-	mtr_commit(&mtr);
-	return(error);
+	mtr.commit();
+	return error;
 }
 
 /** Error message for a delete-marked record in dict_load_index_low() */
@@ -1938,7 +1935,7 @@ dict_load_indexes(
 
 	ut_ad(dict_sys.locked());
 
-	mtr_start(&mtr);
+	mtr.start();
 
 	sys_index = dict_sys.sys_indexes->indexes.start;
 	ut_ad(!dict_sys.sys_indexes->not_redundant());
@@ -2142,10 +2139,8 @@ next_rec:
 	}
 
 func_exit:
-	btr_pcur_close(&pcur);
-	mtr_commit(&mtr);
-
-	return(error);
+	mtr.commit();
+	return error;
 }
 
 /** Load a table definition from a SYS_TABLES record to dict_table_t.
@@ -2318,7 +2313,7 @@ static dict_table_t *dict_load_table_one(const span<const char> &name,
 
 	heap = mem_heap_create(32000);
 
-	mtr_start(&mtr);
+	mtr.start();
 
 	dict_index_t *sys_index = dict_sys.sys_tables->indexes.start;
 	ut_ad(!dict_sys.sys_tables->not_redundant());
@@ -2346,8 +2341,7 @@ static dict_table_t *dict_load_table_one(const span<const char> &name,
 	if (!btr_pcur_is_on_user_rec(&pcur)) {
 		/* Not found */
 err_exit:
-		btr_pcur_close(&pcur);
-		mtr_commit(&mtr);
+		mtr.commit();
 		mem_heap_free(heap);
 
 		DBUG_RETURN(NULL);
@@ -2370,8 +2364,7 @@ err_exit:
 		goto err_exit;
 	}
 
-	btr_pcur_close(&pcur);
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	dict_load_tablespace(table, ignore_err);
 
@@ -2616,10 +2609,8 @@ check_rec:
 		}
 	}
 
-	btr_pcur_close(&pcur);
 	mtr.commit();
-
-	return(table);
+	return table;
 }
 
 /********************************************************************//**
@@ -2676,7 +2667,7 @@ static void dict_load_foreign_cols(dict_foreign_t *foreign, trx_id_t trx_id)
 		mem_heap_alloc(foreign->heap,
 			       foreign->n_fields * sizeof(void*)));
 
-	mtr_start(&mtr);
+	mtr.start();
 
 	dict_index_t* sys_index = dict_sys.sys_foreign_cols->indexes.start;
 	ut_ad(!dict_sys.sys_foreign_cols->not_redundant());
@@ -2787,7 +2778,6 @@ next:
 		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
 	}
 
-	btr_pcur_close(&pcur);
 	mtr.commit();
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
@@ -2860,7 +2850,6 @@ dict_load_foreign(
 
 	if (!btr_pcur_is_on_user_rec(&pcur)) {
 	not_found:
-		btr_pcur_close(&pcur);
 		mtr.commit();
 		if (UNIV_LIKELY_NULL(heap)) {
 			mem_heap_free(heap);
@@ -2948,7 +2937,6 @@ dict_load_foreign(
 		foreign->heap, (const char*) field, len);
 	dict_mem_referenced_table_name_lookup_set(foreign, TRUE);
 
-	btr_pcur_close(&pcur);
 	mtr.commit();
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
@@ -3107,7 +3095,7 @@ loop:
 		rec, DICT_FLD__SYS_FOREIGN_FOR_NAME__ID, &len);
 
 	/* Copy the string because the page may be modified or evicted
-	after mtr_commit() below. */
+	after mtr.commit() below. */
 	char	fk_id[MAX_TABLE_NAME_LEN + 1];
 
 	ut_a(len <= MAX_TABLE_NAME_LEN);
@@ -3134,7 +3122,7 @@ loop:
 				"SYS_FOREIGN", int(len), fk_id);
 		/* fall through */
 	default:
-		btr_pcur_close(&pcur);
+		ut_free(pcur.old_rec_buf);
 		DBUG_RETURN(err);
 	}
 
@@ -3146,8 +3134,8 @@ next_rec:
 	goto loop;
 
 load_next_index:
-	btr_pcur_close(&pcur);
-	mtr_commit(&mtr);
+	mtr.commit();
+	ut_free(pcur.old_rec_buf);
 
 	sec_index = dict_table_get_next_index(sec_index);
 

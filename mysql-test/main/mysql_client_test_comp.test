@@ -1,7 +1,8 @@
 # run mysql_client_test with performance schema
 
 # No need to run this with embedded server
--- source include/not_embedded.inc
+--source include/not_embedded.inc
+--source include/check_ipv6.inc
 
 # need to have the dynamic loading turned on for the client plugin tests
 --source include/have_plugin_auth.inc

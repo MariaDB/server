@@ -332,14 +332,14 @@ parse the undo log record and store the record type, update vector
 and compiler information */
 class UndorecApplier
 {
-  /** undo log block which was latched */
-  const buf_block_t *block;
+  /** Undo log block page id */
+  page_id_t page_id;
   /** Undo log record pointer */
   trx_undo_rec_t *undo_rec;
   /** Offset of the undo log record within the block */
-  ulint offset;
+  uint16_t offset;
   /** Transaction id of the undo log */
-  trx_id_t trx_id;
+  const trx_id_t trx_id;
   /** Undo log record type */
   ulint type;
   /** compiler information */
@@ -353,21 +353,23 @@ class UndorecApplier
   mtr_t mtr;
 
 public:
-  UndorecApplier(const buf_block_t *block, trx_id_t trx_id)
-                : block(block), trx_id(trx_id)
+  UndorecApplier(page_id_t page_id, trx_id_t trx_id) :
+    page_id(page_id), trx_id(trx_id), heap(mem_heap_create(100))
   {
-    ut_ad(block->page.lock.have_any());
-    heap= mem_heap_create(100);
   }
 
-  /** Assign the undo log block */
-  void assign_block(const buf_block_t *undo_block)
+  /** Assign the next page id */
+  void assign_next(const page_id_t next_page_id)
   {
-    block= undo_block;
+    page_id= next_page_id;
   }
 
   /** Assign the undo log record and offset */
-  void assign_rec(trx_undo_rec_t *rec);
+  inline void assign_rec(const buf_block_t &block, uint16_t offset);
+
+  uint16_t get_offset() const { return offset; }
+
+  page_id_t get_page_id() const { return page_id; }
 
   /** Handle the DML undo log and apply it on online indexes */
   void apply_undo_rec();
@@ -396,7 +398,7 @@ private:
   {
     uint16_t offset= static_cast<uint16_t>(roll_ptr);
     uint32_t page_no= static_cast<uint32_t>(roll_ptr >> 16);
-    return page_no == block->page.id().page_no() && offset == this->offset;
+    return page_no == page_id.page_no() && offset == this->offset;
   }
 
   /** Clear the undo log record information */
@@ -406,7 +408,6 @@ private:
     cmpl_info= 0;
     type= 0;
     update= nullptr;
-    offset= 0;
     mem_heap_empty(heap);
   }
 

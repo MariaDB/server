@@ -694,7 +694,7 @@ EXECUTE stmt_1;
 # results in emitting the error ER_FOREIGN_SERVER_EXISTS
 # since a server with same has just been created.
 EXECUTE stmt_1;
-ERROR HY000: The foreign server, s, you are trying to create already exists
+ERROR HY000: Cannot create foreign server 's' as it already exists
 EXECUTE stmt_2;
 # Execute the same prepared statement the second time to check that
 # no internal structures used for handling the 'ALTER SERVER' statement

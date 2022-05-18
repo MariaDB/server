@@ -24,6 +24,9 @@ Mini-transaction log record encoding and decoding
 #pragma once
 #include "mtr0mtr.h"
 
+/** The smallest invalid page identifier for persistent tablespaces */
+constexpr page_id_t end_page_id{SRV_SPACE_ID_UPPER_BOUND, 0};
+
 /** The minimum 2-byte integer (0b10xxxxxx xxxxxxxx) */
 constexpr uint32_t MIN_2BYTE= 1 << 7;
 /** The minimum 3-byte integer (0b110xxxxx xxxxxxxx xxxxxxxx) */
@@ -389,6 +392,7 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
                 type <= FILE_CHECKPOINT, "invalid type");
   ut_ad(type >= FILE_CREATE || is_named_space(id.space()));
   ut_ad(!bpage || bpage->id() == id);
+  ut_ad(id < end_page_id);
   constexpr bool have_len= type != INIT_PAGE && type != FREE_PAGE;
   constexpr bool have_offset= type == WRITE || type == MEMSET ||
     type == MEMMOVE;

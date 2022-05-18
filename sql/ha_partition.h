@@ -1608,9 +1608,6 @@ public:
 
   /**
      Get the number of records in part_elem and its subpartitions, if any.
-     Also sets read_partitions bit for each partition id it uses (that is needed
-     for vers_set_hist_part() because it is called before read_partitions bitmap
-     is initialized).
   */
   ha_rows part_records(partition_element *part_elem)
   {
@@ -1623,7 +1620,6 @@ public:
     for (; part_id < part_id_end; ++part_id)
     {
       handler *file= m_file[part_id];
-      bitmap_set_bit(&(m_part_info->read_partitions), part_id);
       file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK | HA_STATUS_OPEN);
       part_recs+= file->stats.records;
     }

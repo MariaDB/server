@@ -11,8 +11,6 @@ ERROR 42S02: Table 'test.x' doesn't exist
 SET SESSION max_session_mem_used= 8192;
 LOCK TABLE t1 WRITE;
 ALTER TABLE t1 CHANGE COLUMN IF EXISTS b c INT;
-Warnings:
-Note	1054	Unknown column 'b' in 't1'
 SET SESSION max_session_mem_used = @max_session_mem_used_save;
 UNLOCK TABLES;
 DROP TABLE t1;

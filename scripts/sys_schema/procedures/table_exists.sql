@@ -133,6 +133,8 @@ CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE table_exists (
     CONTAINS SQL
 BEGIN
     DECLARE v_error BOOLEAN DEFAULT FALSE;
+    DECLARE db_quoted VARCHAR(64);
+    DECLARE table_quoted VARCHAR(64);
     DECLARE v_table_type VARCHAR(16) DEFAULT '';
     DECLARE v_system_db BOOLEAN
         DEFAULT LOWER(in_db) IN ('information_schema', 'performance_schema');
@@ -140,19 +142,28 @@ BEGIN
     DECLARE CONTINUE HANDLER FOR 1146 SET v_error = TRUE;
 
     SET out_exists = '';
+    SET db_quoted = sys.quote_identifier(in_db);
+    SET table_quoted = sys.quote_identifier(in_table);
 
     -- Verify whether the table name exists as a normal table
     IF (EXISTS(SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = in_db AND TABLE_NAME = in_table)) THEN
         -- Unfortunately the only way to determine whether there is also a temporary table is to try to create
         -- a temporary table with the same name. If it succeeds the table didn't exist as a temporary table.
         IF v_system_db = FALSE THEN
-            SET @sys.tmp.table_exists.SQL = CONCAT('CREATE TEMPORARY TABLE `', in_db, '`.`', in_table, '` (id INT PRIMARY KEY)');
+            SET @sys.tmp.table_exists.SQL = CONCAT('CREATE TEMPORARY TABLE ',
+                                                    db_quoted,
+                                                    '.',
+                                                    table_quoted,
+                                                    '(id INT PRIMARY KEY)');
             PREPARE stmt_create_table FROM @sys.tmp.table_exists.SQL;
             EXECUTE stmt_create_table;
             DEALLOCATE PREPARE stmt_create_table;
 
             -- The temporary table was created, i.e. it didn't exist. Remove it again so we don't leave garbage around.
-            SET @sys.tmp.table_exists.SQL = CONCAT('DROP TEMPORARY TABLE `', in_db, '`.`', in_table, '`');
+            SET @sys.tmp.table_exists.SQL = CONCAT('DROP TEMPORARY TABLE ',
+                                                                db_quoted,
+                                                                '.',
+                                                                table_quoted);
             PREPARE stmt_drop_table FROM @sys.tmp.table_exists.SQL;
             EXECUTE stmt_drop_table;
             DEALLOCATE PREPARE stmt_drop_table;
@@ -174,7 +185,10 @@ BEGIN
         -- If it does it's possible to SELECT from the table without causing an error.
         -- If it does not exist even a PREPARE using the table will fail.
         IF v_system_db = FALSE THEN
-            SET @sys.tmp.table_exists.SQL = CONCAT('SELECT COUNT(*) FROM `', in_db, '`.`', in_table, '`');
+            SET @sys.tmp.table_exists.SQL = CONCAT('SELECT COUNT(*) FROM ',
+                                                            db_quoted,
+                                                            '.',
+                                                            table_quoted);
             PREPARE stmt_select FROM @sys.tmp.table_exists.SQL;
             IF (NOT v_error) THEN
                 DEALLOCATE PREPARE stmt_select;

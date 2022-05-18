@@ -504,10 +504,7 @@ row_purge_remove_sec_if_poss_leaf(
 						btr_cur_get_rec(btr_cur),
 						index);
 				ut_ad(0);
-
-				btr_pcur_close(&pcur);
-
-				goto func_exit_no_pcur;
+				goto func_exit;
 			}
 
 			if (index->is_spatial()) {
@@ -532,10 +529,7 @@ row_purge_remove_sec_if_poss_leaf(
 						 "skip purging last"
 						 " record on page "
 						 << block->page.id());
-
-					btr_pcur_close(&pcur);
-					mtr.commit();
-					return(success);
+					goto func_exit;
 				}
 			}
 
@@ -555,9 +549,9 @@ row_purge_remove_sec_if_poss_leaf(
 		/* The deletion was buffered. */
 	case ROW_NOT_FOUND:
 		/* The index entry does not exist, nothing to do. */
-		btr_pcur_close(&pcur); // FIXME: do we need these? when is btr_cur->rtr_info set?
-func_exit_no_pcur:
+func_exit:
 		mtr.commit();
+		btr_pcur_close(&pcur); // FIXME: do we need these? when is btr_cur->rtr_info set?
 		return(success);
 	}
 

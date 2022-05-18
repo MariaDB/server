@@ -1,0 +1,61 @@
+#
+# MDEV-28053 - Sysbench data load crashes Galera secondary node in
+# async master slave setup
+#
+# Setup: node 3 is a regular MariaDB server, nodes 1 and 2 are members
+# of a Galera cluster. Node 2 connects to node 3 through async replication.
+#
+# Test uses multiple parallel async applier threads (see MDEV-28053.cnf)
+#
+
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+--connection node_3
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+
+#
+# Execute a few INSERTs, to simulate sysbench data load phase
+#
+--let $counter=100
+--disable_query_log
+while ($counter) {
+  --connection node_3
+  INSERT INTO t1 VALUES();
+  --dec $counter
+}
+--enable_query_log
+--let gtid = `SELECT @@last_gtid`
+
+#
+# Start async replication on node 2.
+# If bug is present, expect a crash when applying
+# events concurrently.
+#
+--connection node_2
+--disable_query_log
+--disable_result_log
+--eval CHANGE MASTER TO  MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3;
+START SLAVE;
+--eval SELECT MASTER_GTID_WAIT('$gtid', 600)
+--enable_result_log
+--enable_query_log
+
+#
+# Cleanup
+#
+--connection node_3
+DROP TABLE t1;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--connection node_2
+STOP SLAVE;
+RESET SLAVE ALL;
+
+--connection node_3
+RESET MASTER;

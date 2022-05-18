@@ -1209,4 +1209,3 @@ bool JOIN::transform_in_predicates_into_in_subq(THD *thd)
   thd->lex->current_select= save_current_select;
   DBUG_RETURN(false);
 }
-

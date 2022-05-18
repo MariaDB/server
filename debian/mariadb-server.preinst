@@ -25,11 +25,10 @@ mysql_upgradedir=/var/lib/mysql-upgrade
 # do it himself. No database directories should be removed while the server
 # is running! Another mariadbd in e.g. a different chroot is fine for us.
 stop_server() {
-    # Return immediately if there are no mysql processes running
+    # Return immediately if there are no mysqld processes running on a host
+    # (leave containerized processes with the same name in other namespaces)
     # as there is no point in trying to shutdown in that case.
-    if ! pgrep -x --ns $$ mariadbd > /dev/null; then return; fi
-    # Compatibility with versions that ran 'mysqld'
-    if ! pgrep -x --ns $$ mysqld > /dev/null; then return; fi
+    if ! pgrep -x --nslist pid --ns $$ "mysqld|mariadbd" > /dev/null; then return; fi
 
     set +e
     invoke-rc.d mariadb stop

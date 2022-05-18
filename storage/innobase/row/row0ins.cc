@@ -1800,9 +1800,8 @@ row_ins_check_foreign_constraint(
 	}
 
 end_scan:
-	btr_pcur_close(&pcur);
-
 	mtr_commit(&mtr);
+	ut_free(pcur.old_rec_buf);
 
 	/* Restore old value */
 	dtuple_set_n_fields_cmp(entry, n_fields_cmp);
@@ -2474,8 +2473,7 @@ row_ins_index_entry_big_rec(
 
 	mtr.commit();
 
-	btr_pcur_close(&pcur);
-
+	ut_free(pcur.old_rec_buf);
 	return(error);
 }
 
@@ -2803,8 +2801,7 @@ func_exit:
 		mem_heap_free(offsets_heap);
 	}
 
-	btr_pcur_close(&pcur);
-
+	ut_free(pcur.old_rec_buf);
 	DBUG_RETURN(err);
 }
 
@@ -2904,8 +2901,12 @@ row_ins_sec_index_entry_low(
 			rtr_init_rtr_info(&rtr_info, false, &cursor,
 					  index, false);
 			rtr_info_update_btr(&cursor, &rtr_info);
-			mtr_start(&mtr);
-			index->set_modified(mtr);
+			mtr.start();
+			if (index->table->is_temporary()) {
+				mtr.set_log_mode(MTR_LOG_NO_REDO);
+			} else {
+				index->set_modified(mtr);
+			}
 			search_mode &= ulint(~BTR_MODIFY_LEAF);
 			search_mode |= BTR_MODIFY_TREE;
 			err = btr_cur_search_to_nth_level(
@@ -3140,9 +3141,6 @@ row_ins_clust_index_entry(
 		? BTR_NO_LOCKING_FLAG : 0;
 #endif /* WITH_WSREP */
 	const ulint	orig_n_fields = entry->n_fields;
-
-	/* Try first optimistic descent to the B-tree */
-	log_free_check();
 
 	/* For intermediate table during copy alter table,
 	   skip the undo log and record lock checking for

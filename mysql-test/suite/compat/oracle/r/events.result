@@ -16,3 +16,12 @@ COUNT(*)
 1
 DROP TABLE t1;
 SET GLOBAL event_scheduler=off;
+#
+# MDEV-28588 SIGSEGV in __memmove_avx_unaligned_erms, strmake_root
+#
+CREATE EVENT ev ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO BEGIN END;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
+SELECT EVENT_DEFINITION FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_SCHEMA='test' AND EVENT_NAME='ev';
+EVENT_DEFINITION	BEGIN END
+DROP EVENT ev;
