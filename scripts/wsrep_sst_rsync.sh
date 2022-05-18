@@ -65,20 +65,20 @@ cleanup_joiner()
 
     if [ $failure -eq 0 ]; then
         if cleanup_pid $RSYNC_REAL_PID "$RSYNC_PID" "$RSYNC_CONF"; then
-            [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
-            [ -f "$BINLOG_TAR_FILE" ] && rm -f "$BINLOG_TAR_FILE"
+            [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE" || :
+            [ -f "$BINLOG_TAR_FILE" ] && rm -f "$BINLOG_TAR_FILE" || :
         else
             wsrep_log_warning "rsync cleanup failed."
         fi
     fi
-
-    wsrep_log_info "Joiner cleanup done."
 
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
         wsrep_cleanup_progress_file
     fi
 
     [ -f "$SST_PID" ] && rm -f "$SST_PID" || :
+
+    wsrep_log_info "Joiner cleanup done."
 
     exit $estatus
 }
@@ -373,8 +373,7 @@ done
 
 if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
-    if [ -n "$STUNNEL" ]
-    then
+    if [ -n "$STUNNEL" ]; then
         cat << EOF > "$STUNNEL_CONF"
 key = $SSTKEY
 cert = $SSTCERT
@@ -410,19 +409,19 @@ EOF
         # (c) ERROR file, in case flush tables operation failed.
 
         while [ ! -r "$FLUSHED" ] && \
-                ! grep -q -F ':' -- "$FLUSHED" 2>/dev/null
+                ! grep -q -F ':' -- "$FLUSHED"
         do
             # Check whether ERROR file exists.
             if [ -f "$ERROR" ]; then
                 # Flush tables operation failed.
-                rm -f "$ERROR"
+                rm "$ERROR"
                 exit 255
             fi
             sleep 0.2
         done
 
         STATE=$(cat "$FLUSHED")
-        rm -f "$FLUSHED"
+        rm "$FLUSHED"
 
         sync
 
@@ -629,6 +628,8 @@ FILTER="-f '- /lost+found'
 
         wsrep_log_info "Transfer of data done"
 
+        [ -f "$BINLOG_TAR_FILE" ] && rm "$BINLOG_TAR_FILE"
+
     else # BYPASS
 
         wsrep_log_info "Bypassing state dump."
@@ -657,6 +658,8 @@ FILTER="-f '- /lost+found'
           --archive --quiet --checksum "$MAGIC_FILE" \
           "rsync://$WSREP_SST_OPT_ADDR" >&2 || RC=$?
 
+    rm "$MAGIC_FILE"
+
     if [ $RC -ne 0 ]; then
         wsrep_log_error "rsync $MAGIC_FILE returned code $RC:"
         exit 255 # unknown error
@@ -665,8 +668,8 @@ FILTER="-f '- /lost+found'
     echo "done $STATE"
 
     if [ -n "$STUNNEL" ]; then
-        [ -f "$STUNNEL_CONF" ] && rm -f "$STUNNEL_CONF"
-        [ -f "$STUNNEL_PID" ]  && rm -f "$STUNNEL_PID"
+        rm "$STUNNEL_CONF"
+        [ -f "$STUNNEL_PID" ] && rm "$STUNNEL_PID"
     fi
 
 else # joiner
@@ -842,7 +845,8 @@ EOF
     fi
 
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]; then
-        if grep -m1 -qE "^$BYPASS_TAG([[space]]+.*)?\$" -- "$MAGIC_FILE"; then
+        if grep -m1 -qE "^$BYPASS_TAG([[:space:]]+.*)?\$" -- "$MAGIC_FILE"
+        then
             readonly WSREP_SST_OPT_BYPASS=1
             readonly WSREP_TRANSFER_TYPE='IST'
         fi
@@ -867,7 +871,7 @@ EOF
             while read bin_file || [ -n "$bin_file" ]; do
                 rm -f "$bin_file" || :
             done < "$binlog_index"
-            rm -f "$binlog_index"
+            rm "$binlog_index"
         fi
         binlog_cd=0
         # Change the directory to binlog base (if possible):
@@ -912,7 +916,7 @@ EOF
             fi
             if [ $RC -ne 0 ]; then
                 wsrep_log_error "Error unpacking tar file with binlog files"
-                rm -f "$tmpfile"
+                rm "$tmpfile"
                 exit 32
             fi
             # Rebuild binlog index:
@@ -920,7 +924,7 @@ EOF
             while read bin_file || [ -n "$bin_file" ]; do
                 echo "$binlog_dir${binlog_dir:+/}$bin_file" >> "$binlog_index"
             done < "$tmpfile"
-            rm -f "$tmpfile"
+            rm "$tmpfile"
             cd "$OLD_PWD"
         fi
     fi
@@ -930,8 +934,6 @@ EOF
     wsrep_log_info "Galera co-ords from recovery: $coords"
     echo "$coords" # Output : UUID:seqno wsrep_gtid_domain_id
 fi
-
-[ -f "$BINLOG_TAR_FILE" ] && rm -f "$BINLOG_TAR_FILE"
 
 wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE completed on $WSREP_SST_OPT_ROLE"
 exit 0
