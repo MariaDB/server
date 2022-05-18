@@ -1,0 +1,18 @@
+# MDEV-28583: Galera: binlogs disappear after rsync IST
+
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--source suite/galera/include/galera_st_disconnect_slave.inc
+--source suite/galera/include/galera_st_shutdown_slave.inc
+
+--source suite/galera/include/galera_st_kill_slave.inc
+--source suite/galera/include/galera_st_kill_slave_ddl.inc
+
+--source include/auto_increment_offset_restore.inc

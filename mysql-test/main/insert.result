@@ -776,6 +776,14 @@ select 1 in (select count(*) from t t1 join (t t2 join t t3 on (t1.a != 0)));
 ERROR 42S22: Unknown column 't1.a' in 'on clause'
 drop table t;
 #
+# MDEV-28578 Server crashes in Item_field::fix_outer_field after CREATE SELECT
+#
+create table t1 (i int) ;
+create table t2 (j int) ;
+create table t4 select * from t1 join t2 on (select t3.i);
+ERROR 42S22: Unknown column 't3.i' in 'field list'
+drop table t1, t2;
+#
 # End of 10.4 tests
 #
 #
