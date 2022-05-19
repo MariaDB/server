@@ -2677,6 +2677,20 @@ static Sys_var_mybool Sys_old_mode(
        SESSION_VAR(old_mode), CMD_LINE(OPT_ARG), DEFAULT(FALSE), 0, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(set_old_mode), DEPRECATED("'@@old_mode'"));
 
+static Sys_var_mybool Sys_opt_allow_suspicious_udfs(
+       "allow_suspicious_udfs",
+       "Allows use of user-defined functions (UDFs) consisting of only one symbol xxx() without corresponding xxx_init() or xxx_deinit(). That also means that one can load any function from any library, for example exit() from libc.so",
+       READ_ONLY GLOBAL_VAR(opt_allow_suspicious_udfs),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+#ifndef DISABLE_GRANT_OPTIONS
+static Sys_var_mybool Sys_skip_grant_tables(
+       "skip_grant_tables",
+       "Start without grant tables. This gives all users FULL ACCESS to all tables.",
+       READ_ONLY GLOBAL_VAR(opt_noacl),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+#endif
+
 static const char *alter_algorithm_modes[]= {"DEFAULT", "COPY", "INPLACE",
 "NOCOPY", "INSTANT", NULL};
 
