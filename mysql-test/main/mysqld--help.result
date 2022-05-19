@@ -8,10 +8,11 @@ The following specify which files/extra groups are read (specified before remain
 --defaults-group-suffix=# Additionally read default groups with # appended as a suffix.
 
  --allow-suspicious-udfs 
- Allows use of UDFs consisting of only one symbol xxx()
- without corresponding xxx_init() or xxx_deinit(). That
- also means that one can load any function from any
- library, for example exit() from libc.so
+ Allows use of user-defined functions (UDFs) consisting of
+ only one symbol xxx() without corresponding xxx_init() or
+ xxx_deinit(). That also means that one can load any
+ function from any library, for example exit() from
+ libc.so
  --alter-algorithm[=name] 
  Specify the alter table algorithm. One of: DEFAULT, COPY,
  INPLACE, NOCOPY, INSTANT
