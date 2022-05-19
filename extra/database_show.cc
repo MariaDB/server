@@ -1,3 +1,5 @@
+#include "my_global.h"
+#include "m_ctype.h"
 #include "table.h"
 #include "sql_lex.h"
 #include "protocol.h"
@@ -21,12 +23,22 @@ typedef enum
 
 /* Match the values of enum ha_choice */
 static const LEX_CSTRING ha_choice_values[]=
-        {
-                { STRING_WITH_LEN("") },
-                { STRING_WITH_LEN("0") },
-                { STRING_WITH_LEN("1") }
-        };
+{
+  { STRING_WITH_LEN("") },
+  { STRING_WITH_LEN("0") },
+  { STRING_WITH_LEN("1") }
+};
 
+const LEX_CSTRING ha_row_type[] =
+{
+  {STRING_WITH_LEN("")},
+  {STRING_WITH_LEN("FIXED")},
+  {STRING_WITH_LEN("DYNAMIC")},
+  {STRING_WITH_LEN("COMPRESSED")},
+  {STRING_WITH_LEN("REDUNDANT")},
+  {STRING_WITH_LEN("COMPACT")},
+  {STRING_WITH_LEN("PAGE")}
+};
 class Show_create_table
 {
 protected:
@@ -49,10 +61,15 @@ protected:
                          Table_specification_st *create_info_arg,
                          bool schema_table, bool sequence,
                          String *packet);
-  void append_period(THD *thd, String *packet, const LEX_CSTRING &start,
+  void append_period(String *packet, const LEX_CSTRING &start,
                      const LEX_CSTRING &end, const LEX_CSTRING &period,
                      bool ident);
-
+  void append_directory(String *packet, LEX_CSTRING *dir_type,
+                        const char *filename);
+  bool get_field_default_value(Field *field, String *def_value,
+                               bool quoted);
+  void store_key_options(String *packet, TABLE *table,
+                         KEY *key_info);
 public:
   Show_create_table(LEX_CSTRING db, ulong options, ulong mode)
   : db(db), option_bits(options), sql_mode(mode) 
@@ -187,6 +204,57 @@ bool Show_create_table::append_definer(String *buffer, const LEX_CSTRING *define
 }
 
 /**
+  Store an SQL quoted string.
+
+  SYNOPSIS  
+    append_unescaped()
+    res		result String
+    pos		string to be quoted
+    length	it's length
+
+  NOTE
+    This function works correctly with utf8 or single-byte charset strings.
+    May fail with some multibyte charsets though.
+*/
+
+void append_unescaped(String *res, const char *pos, size_t length)
+{
+  const char *end= pos+length;
+  res->append('\'');
+
+  for (; pos != end ; pos++)
+  {
+    switch (*pos) {
+      case 0:				/* Must be escaped for 'mysql' */
+        res->append('\\');
+        res->append('0');
+        break;
+      case '\n':				/* Must be escaped for logs */
+        res->append('\\');
+        res->append('n');
+        break;
+      case '\r':
+        res->append('\\');		/* This gives better readability */
+        res->append('r');
+        break;
+      case '\\':
+        res->append('\\');		/* Because of the sql syntax */
+        res->append('\\');
+        break;
+      case '\'':
+        res->append('\'');		/* Because of the sql syntax */
+        res->append('\'');
+        break;
+      default:
+        res->append(*pos);
+        break;
+    }
+  }
+  res->append('\'');
+}
+
+
+/**
   Appends list of options to string
 
   @param thd             thread handler
@@ -235,6 +303,9 @@ void Show_create_table::append_create_options(String *packet,
 		packet->append(STRING_WITH_LEN(" */"));
 }
 
+
+LEX_CSTRING DATA_clex_str= { STRING_WITH_LEN("DATA") };
+LEX_CSTRING INDEX_clex_str= { STRING_WITH_LEN("INDEX") };
 /**
    Add table options to end of CREATE statement
 
@@ -409,8 +480,36 @@ void Show_create_table::add_table_options(TABLE *table,
 	append_directory(packet, &INDEX_clex_str, create_info.index_file_name);
 }
 
+/* Append directory name (if exists) to CREATE INFO */
+
+void Show_create_table::append_directory(String *packet,
+                                         LEX_CSTRING *dir_type,
+                                         const char *filename) {
+  if (filename && !(sql_mode & MODE_NO_DIR_IN_CREATE))
+  {
+    size_t length= dirname_length(filename);
+    packet->append(' ');
+    packet->append(dir_type);
+    packet->append(STRING_WITH_LEN(" DIRECTORY='"));
+#ifdef _WIN32
+    /* Convert \ to / to be able to create table on unix */
+    char *winfilename= (char*) thd->memdup(filename, length);
+    char *pos, *end;
+    for (pos= winfilename, end= pos+length ; pos < end ; pos++)
+    {
+      if (*pos == '\\')
+        *pos = '/';
+    }
+    filename= winfilename;
+#endif
+    packet->append(filename, length);
+    packet->append('\'');
+  }
+}
+
+
 // TODO: return OOM result
-void Show_create_table::append_period(THD *thd, String *packet,
+void Show_create_table::append_period(String *packet,
                                       const LEX_CSTRING &start,
                                       const LEX_CSTRING &end,
                                       const LEX_CSTRING &period,
@@ -427,6 +526,156 @@ void Show_create_table::append_period(THD *thd, String *packet,
 	append_identifier(packet, end.str, end.length);
 	packet->append(STRING_WITH_LEN(")"));
 }
+
+
+bool Show_create_table::get_field_default_value(Field *field,
+                                                String *def_value,
+                                                bool quoted)
+{
+  bool has_default;
+  enum enum_field_types field_type= field->type();
+
+  has_default= (field->default_value ||
+                (!(field->flags & NO_DEFAULT_VALUE_FLAG) &&
+                 !field->vers_sys_field() &&
+                 field->unireg_check != Field::NEXT_NUMBER));
+
+  def_value->length(0);
+  if (has_default)
+  {
+    StringBuffer<MAX_FIELD_WIDTH> str(field->charset());
+    if (field->default_value)
+    {
+      field->default_value->print(&str);
+      if (field->default_value->expr->need_parentheses_in_default())
+      {
+        def_value->set_charset(&my_charset_utf8mb4_general_ci);
+        def_value->append('(');
+        def_value->append(str);
+        def_value->append(')');
+      }
+      else
+        def_value->append(str);
+    }
+    else if (!field->is_null())
+    {                                             // Not null by default
+      if (field_type == MYSQL_TYPE_BIT)
+      {
+        str.qs_append('b');
+        str.qs_append('\'');
+        str.qs_append(field->val_int(), 2);
+        str.qs_append('\'');
+        quoted= 0;
+      }
+      else
+      {
+        field->val_str(&str);
+        if (!field->str_needs_quotes())
+          quoted= 0;
+      }
+      if (str.length())
+      {
+        StringBuffer<MAX_FIELD_WIDTH> def_val;
+        uint dummy_errors;
+        /* convert to system_charset_info == utf8 */
+        def_val.copy(str.ptr(), str.length(), field->charset(),
+                     system_charset_info, &dummy_errors);
+        if (quoted)
+          append_unescaped(def_value, def_val.ptr(), def_val.length());
+        else
+          def_value->append(def_val);
+      }
+      else if (quoted)
+        def_value->set(STRING_WITH_LEN("''"), system_charset_info);
+    }
+    else if (field->maybe_null() && quoted)
+      def_value->set(STRING_WITH_LEN("NULL"), system_charset_info);    // Null as default
+    else
+      return 0;
+
+  }
+  return has_default;
+}
+
+/**
+  Print "ON UPDATE" clause of a field into a string.
+
+  @param timestamp_field   Pointer to timestamp field of a table.
+  @param field             The field to generate ON UPDATE clause for.
+  @bool  lcase             Whether to print in lower case.
+  @return                  false on success, true on error.
+*/
+static bool print_on_update_clause(Field *field, String *val, bool lcase)
+{
+  DBUG_ASSERT(val->charset()->mbminlen == 1);
+  val->length(0);
+  if (field->has_update_default_function())
+  {
+    if (lcase)
+      val->append(STRING_WITH_LEN("on update "));
+    else
+      val->append(STRING_WITH_LEN("ON UPDATE "));
+    val->append(STRING_WITH_LEN("current_timestamp"));
+    if (field->decimals() > 0)
+      val->append_parenthesized(field->decimals());
+    else
+      val->append(STRING_WITH_LEN("()"));
+    return true;
+  }
+  return false;
+}
+
+void Show_create_table::store_key_options(String *packet, TABLE *table,
+                                          KEY *key_info)
+{
+  bool limited_mysql_mode= (sql_mode &
+                            (MODE_NO_FIELD_OPTIONS | MODE_MYSQL323 |
+                             MODE_MYSQL40)) != 0;
+  bool foreign_db_mode=  (sql_mode & (MODE_POSTGRESQL |
+                                                     MODE_ORACLE |
+                                                     MODE_MSSQL |
+                                                     MODE_DB2 |
+                                                     MODE_MAXDB |
+                                                     MODE_ANSI)) != 0;
+  char *end, buff[32];
+
+  if (!(sql_mode & MODE_NO_KEY_OPTIONS) &&
+      !limited_mysql_mode && !foreign_db_mode)
+  {
+
+    if (key_info->algorithm == HA_KEY_ALG_BTREE)
+      packet->append(STRING_WITH_LEN(" USING BTREE"));
+
+    if (key_info->algorithm == HA_KEY_ALG_HASH ||
+        key_info->algorithm == HA_KEY_ALG_LONG_HASH)
+      packet->append(STRING_WITH_LEN(" USING HASH"));
+
+    /* send USING only in non-default case: non-spatial rtree */
+    if ((key_info->algorithm == HA_KEY_ALG_RTREE) &&
+        !(key_info->flags & HA_SPATIAL))
+      packet->append(STRING_WITH_LEN(" USING RTREE"));
+
+    if ((key_info->flags & HA_USES_BLOCK_SIZE) &&
+        table->s->key_block_size != key_info->block_size)
+    {
+      packet->append(STRING_WITH_LEN(" KEY_BLOCK_SIZE="));
+      end= longlong10_to_str(key_info->block_size, buff, 10);
+      packet->append(buff, (uint) (end - buff));
+    }
+    DBUG_ASSERT(MY_TEST(key_info->flags & HA_USES_COMMENT) ==
+                (key_info->comment.length > 0));
+    if (key_info->flags & HA_USES_COMMENT)
+    {
+      packet->append(STRING_WITH_LEN(" COMMENT "));
+      append_unescaped(packet, key_info->comment.str,
+                       key_info->comment.length);
+    }
+
+    if (key_info->is_ignored)
+      packet->append(STRING_WITH_LEN(" IGNORED"));
+  }
+}
+
 
 
 /*
@@ -464,7 +713,6 @@ int Show_create_table::do_show(TABLE_LIST *table_list,
                                Table_specification_st *create_info_arg,
                                enum_with_db_name with_db_name)
 {
-	List<Item> field_list;
 	char tmp[MAX_FIELD_WIDTH], *for_str, def_value_buf[MAX_FIELD_WIDTH];
 	LEX_CSTRING alias;
 	String type;
@@ -689,7 +937,7 @@ int Show_create_table::do_show(TABLE_LIST *table_list,
 			append_unescaped(packet, field->comment.str, field->comment.length);
 		}
 
-		append_create_options(thd, packet, field->option_list, check_options,
+		append_create_options(packet, field->option_list, check_options,
 				      hton->field_options);
 
 		if (field->check_constraint)
@@ -705,7 +953,7 @@ int Show_create_table::do_show(TABLE_LIST *table_list,
 
 	if (period.name)
 	{
-		append_period(thd, packet,
+		append_period(packet,
 			      period.start_field(share)->field_name,
 			      period.end_field(share)->field_name,
 			      period.name, true);
@@ -713,7 +961,7 @@ int Show_create_table::do_show(TABLE_LIST *table_list,
 
 	key_info= table->s->key_info;
 	primary_key= share->primary_key;
-
+        const LEX_CSTRING primary_key_name= { STRING_WITH_LEN("PRIMARY") };
 	for (uint i=0 ; i < share->keys ; i++,key_info++)
 	{
 		if (key_info->flags & HA_INVISIBLE_KEY)
@@ -741,7 +989,7 @@ int Show_create_table::do_show(TABLE_LIST *table_list,
 			packet->append(STRING_WITH_LEN("KEY "));
 
 		if (!found_primary)
-			append_identifier(thd, packet, &key_info->name);
+			append_identifier(packet, &key_info->name);
 
 		packet->append(STRING_WITH_LEN(" ("));
 
@@ -759,7 +1007,7 @@ int Show_create_table::do_show(TABLE_LIST *table_list,
 				packet->append(',');
 
 			if (key_part->field)
-				append_identifier(thd, packet, &key_part->field->field_name);
+				append_identifier(packet, &key_part->field->field_name);
 			if (key_part->field &&
 			    (key_part->length !=
 			     table->field[key_part->fieldnr-1]->key_length() &&
@@ -776,20 +1024,20 @@ int Show_create_table::do_show(TABLE_LIST *table_list,
 		if (key_info->without_overlaps)
 		{
 			packet->append(',');
-			append_identifier(thd, packet, &share->period.name);
+			append_identifier(packet, &share->period.name);
 			packet->append(STRING_WITH_LEN(" WITHOUT OVERLAPS"));
 		}
 
 		packet->append(')');
-		store_key_options(thd, packet, table, &table->key_info[i]);
+		store_key_options(packet, table, &table->key_info[i]);
 		if (key_info->parser)
 		{
 			LEX_CSTRING *parser_name= plugin_name(key_info->parser);
 			packet->append(STRING_WITH_LEN(" /*!50100 WITH PARSER "));
-			append_identifier(thd, packet, parser_name);
+			append_identifier(packet, parser_name);
 			packet->append(STRING_WITH_LEN(" */ "));
 		}
-		append_create_options(thd, packet, key_info->option_list, check_options,
+		append_create_options(packet, key_info->option_list, check_options,
 				      hton->index_options);
 	}
 
@@ -803,7 +1051,7 @@ int Show_create_table::do_show(TABLE_LIST *table_list,
 		DBUG_ASSERT(!explicit_fields || fe->invisible < INVISIBLE_SYSTEM);
 		if (explicit_fields)
 		{
-			append_period(thd, packet, fs->field_name, fe->field_name,
+			append_period(packet, fs->field_name, fe->field_name,
 				      table->s->vers.name, false);
 		}
 		else
@@ -844,7 +1092,7 @@ int Show_create_table::do_show(TABLE_LIST *table_list,
 			if (check->name.str)
 			{
 				packet->append(STRING_WITH_LEN("CONSTRAINT "));
-				append_identifier(thd, packet, &check->name);
+				append_identifier(packet, &check->name);
 			}
 			packet->append(STRING_WITH_LEN(" CHECK ("));
 			packet->append(str);
@@ -854,7 +1102,7 @@ int Show_create_table::do_show(TABLE_LIST *table_list,
 
 	packet->append(STRING_WITH_LEN("\n)"));
 	if (show_table_options)
-		add_table_options(thd, table, create_info_arg,
+		add_table_options(table, create_info_arg,
 				  table_list->schema_table != 0, 0, packet);
 
 	if (table->versioned())

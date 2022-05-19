@@ -24,6 +24,8 @@
 
 #include "sql_class.h"
 
+#define FRM_QUOTED_VALUE 0x8000U
+
 enum { ENGINE_OPTION_MAX_LENGTH=32767 };
 
 class engine_option_value: public Sql_alloc

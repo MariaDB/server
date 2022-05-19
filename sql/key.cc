@@ -95,6 +95,7 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
   return(-1);					/* No key is ok */
 }
 
+#ifndef FRM_PARSER
 
 /**
   Copy part of a record that forms a key or key prefix to a buffer.
@@ -900,3 +901,5 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
   }
   return FALSE;
 }
+
+#endif // defined(FRM_PARSER)

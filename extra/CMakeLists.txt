@@ -87,11 +87,23 @@ IF(WITH_INNOBASE_STORAGE_ENGINE)
   ADD_DEPENDENCIES(innochecksum GenError)
 ENDIF()
 
-set(FRM_PARSER_SOURCES frm_parser.cc database_show.cc
+set(FRM_PARSER_SOURCES frm_parser.cc database_show.cc 
+        ../dbug/dbug.c
+        ../sql/strfunc.cc
+        ../sql-common/pack.c
+        ../strings/ctype-bin.c
+        ../sql/init.cc
+        ../sql/key.cc
+        ../sql/sql_string.cc
+        ../sql/sql_list.cc
+        ../sql/frm.cc
+        ../sql/type_handler.cc
+        ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp
         ${CMAKE_CURRENT_BINARY_DIR}/../sql/lex_hash.h)
 MYSQL_ADD_EXECUTABLE(frm_parser ${FRM_PARSER_SOURCES})
 TARGET_COMPILE_DEFINITIONS(frm_parser PUBLIC FRM_PARSER)
 TARGET_INCLUDE_DIRECTORIES(frm_parser PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/../sql)
+TARGET_LINK_LIBRARIES(frm_parser mysys)
 
 MYSQL_ADD_EXECUTABLE(replace replace.c COMPONENT Client)
 TARGET_LINK_LIBRARIES(replace mysys)

@@ -730,7 +730,9 @@ struct TABLE_SHARE
   LEX_CUSTRING tabledef_version;
 
   engine_option_value *option_list;     /* text options for table */
+#ifndef FRM_PARSER
   ha_table_option_struct *option_struct; /* structure with parsed options */
+#endif
 
   /* The following is copied to each TABLE on OPEN */
   Field **field;
@@ -782,12 +784,14 @@ struct TABLE_SHARE
   /* Stored record length. No generated-only virtual fields are included */
   ulong   stored_rec_length;            
 
+#ifndef FRM_PARSER
   plugin_ref db_plugin;			/* storage engine plugin */
   inline handlerton *db_type() const	/* table_type for handler */
   { 
     return is_view   ? view_pseudo_hton :
            db_plugin ? plugin_hton(db_plugin) : NULL;
   }
+#endif
   enum row_type row_type;		/* How rows are stored */
   enum Table_type table_type;
   enum tmp_table_type tmp_table;
@@ -1128,6 +1132,13 @@ struct TABLE_SHARE
   */
   int init_from_binary_frm_image(THD *thd, bool write,
                                  const uchar *frm_image, size_t frm_length,
+                                 MEM_ROOT *local_mem_root,
+                                 CHARSET_INFO *collation_database,
+                                 myf utf8_flag, // thd->get_utf8_flag
+                                 ulong *feature_system_versioning,
+                                 ulong *feature_application_time_periods,
+                                 ulong *feature_invisible_columns,
+                                 ulong *opened_shares,
                                  const uchar *par_image=0,
                                  size_t par_length=0);
 
@@ -3200,6 +3211,13 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
                           const char *table_name, const char *path);
 void free_table_share(TABLE_SHARE *share);
 enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
+                                   MEM_ROOT *mem_root,
+                                   CHARSET_INFO *collation_database,
+                                   myf utf8_flag, // thd->get_utf8_flag
+                                   ulong *feature_system_versioning,
+                                   ulong *feature_application_time_periods,
+                                   ulong *feature_invisible_columns,
+                                   ulong *opened_shares,
                                    uint flags = GTS_TABLE);
 
 void open_table_error(TABLE_SHARE *share, enum open_frm_error error,

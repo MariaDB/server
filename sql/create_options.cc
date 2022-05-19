@@ -25,8 +25,6 @@
 #include <my_getopt.h>
 #include "set_var.h"
 
-#define FRM_QUOTED_VALUE 0x8000U
-
 /**
   Links this item to the given list end
 
@@ -720,109 +718,6 @@ uchar *engine_table_options_frm_image(uchar *buff,
   DBUG_RETURN(buff);
 }
 
-/**
-  Reads name and value from buffer, then link it in the list
-
-  @param buff            the buffer to read from
-  @param start           The list beginning or NULL
-  @param end             The list last element or does not matter
-  @param root            MEM_ROOT for allocating
-
-  @returns pointer to byte after last recorded in the buffer
-*/
-uchar *engine_option_value::frm_read(const uchar *buff, const uchar *buff_end,
-                                     engine_option_value **start,
-                                     engine_option_value **end, MEM_ROOT *root)
-{
-  LEX_CSTRING name, value;
-  uint len;
-#define need_buff(N)  if (buff + (N) >= buff_end) return NULL
-
-  need_buff(3);
-  name.length= buff[0];
-  buff++;
-  need_buff(name.length + 2);
-  if (!(name.str= strmake_root(root, (const char*)buff, name.length)))
-    return NULL;
-  buff+= name.length;
-  len= uint2korr(buff);
-  value.length= len & ~FRM_QUOTED_VALUE;
-  buff+= 2;
-  need_buff(value.length);
-  if (!(value.str= strmake_root(root, (const char*)buff, value.length)))
-    return NULL;
-  buff+= value.length;
-
-  engine_option_value *ptr=
-      new (root) engine_option_value(name, value, len & FRM_QUOTED_VALUE);
-  if (!ptr)
-    return NULL;
-  ptr->link(start, end);
-
-  return (uchar *)buff;
-}
-
-
-/**
-  Reads options from this buffer
-
-  @param buff            the buffer to read from
-  @param length          buffer length
-  @param share           table descriptor
-  @param root            MEM_ROOT for allocating
-
-  @retval TRUE  Error
-  @retval FALSE OK
-*/
-
-bool engine_table_options_frm_read(const uchar *buff, size_t length,
-                                   TABLE_SHARE *share)
-{
-  const uchar *buff_end= buff + length;
-  engine_option_value *UNINIT_VAR(end);
-  MEM_ROOT *root= &share->mem_root;
-  uint count;
-  DBUG_ENTER("engine_table_options_frm_read");
-
-  while (buff < buff_end && *buff)
-  {
-    if (!(buff= engine_option_value::frm_read(buff, buff_end,
-                                              &share->option_list, &end, root)))
-      DBUG_RETURN(TRUE);
-  }
-  buff++;
-
-  for (count=0; count < share->fields; count++)
-  {
-    while (buff < buff_end && *buff)
-    {
-      if (!(buff= engine_option_value::frm_read(buff, buff_end,
-                                                &share->field[count]->option_list,
-                                                &end, root)))
-        DBUG_RETURN(TRUE);
-    }
-    buff++;
-  }
-
-  for (count=0; count < share->keys; count++)
-  {
-    while (buff < buff_end && *buff)
-    {
-      if (!(buff= engine_option_value::frm_read(buff, buff_end,
-                                                &share->key_info[count].option_list,
-                                                &end, root)))
-        DBUG_RETURN(TRUE);
-    }
-    buff++;
-  }
-
-  if (buff < buff_end)
-    sql_print_warning("Table '%s' was created in a later MariaDB version - "
-                      "unknown table attributes were ignored",
-                      share->table_name.str);
-
-  DBUG_RETURN(buff > buff_end);
-}
 
 /**
   Merges two lists of engine_option_value's with duplicate removal.

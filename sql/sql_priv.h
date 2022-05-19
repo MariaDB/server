@@ -387,7 +387,7 @@ enum enum_yes_no_unknown
   TVL_YES, TVL_NO, TVL_UNKNOWN
 };
 
-#ifdef MYSQL_SERVER
+#if defined(MYSQL_SERVER) || defined(FRM_PARSER)
 
 /*
   External variables

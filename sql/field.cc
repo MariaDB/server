@@ -82,9 +82,6 @@ bool Field::marked_for_write_or_computed() const
               ptr < table->record[0] + table->s->reclength))));
 }
 
-
-#define FLAGSTR(S,F) ((S) & (F) ? #F " " : "")
-
 /*
   Rules for merging different types of fields in UNION
 
@@ -10758,38 +10755,6 @@ uint Column_definition_attributes::pack_flag_to_pack_length() const
   }
   return 0; // This should not happen
 }
-
-
-Field *Column_definition_attributes::make_field(TABLE_SHARE *share,
-                                                MEM_ROOT *mem_root,
-                                                const Record_addr *rec,
-                                                const Type_handler *handler,
-                                                const LEX_CSTRING *field_name,
-                                                uint32 flags)
-                                                const
-{
-  DBUG_ASSERT(length <= UINT_MAX32);
-  DBUG_PRINT("debug", ("field_type: %s, field_length: %u, interval: %p, pack_flag: %s%s%s%s%s",
-                       handler->name().ptr(), (uint) length, interval,
-                       FLAGSTR(pack_flag, FIELDFLAG_BINARY),
-                       FLAGSTR(pack_flag, FIELDFLAG_INTERVAL),
-                       FLAGSTR(pack_flag, FIELDFLAG_NUMBER),
-                       FLAGSTR(pack_flag, FIELDFLAG_PACK),
-                       FLAGSTR(pack_flag, FIELDFLAG_BLOB)));
-
-  Record_addr addr(rec->ptr(), f_maybe_null(pack_flag) ? rec->null() :
-                                                         Bit_addr());
-  /*
-    Special code for the BIT-alike data types
-    who store data bits together with NULL-bits.
-  */
-  Bit_addr bit(rec->null());
-  if (f_maybe_null(pack_flag))
-    bit.inc();
-  return handler->make_table_field_from_def(share, mem_root, field_name,
-                                            addr, bit, this, flags);
-}
-
 
 bool Field_vers_trx_id::test_if_equality_guarantees_uniqueness(const Item* item) const
 {

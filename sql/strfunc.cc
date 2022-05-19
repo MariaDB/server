@@ -350,7 +350,7 @@ int find_string_in_array(LEX_CSTRING * const haystack, LEX_CSTRING * const needl
   return -1;
 }
 
-
+#ifdef MYSQL_SERVER
 const char *set_to_string(THD *thd, LEX_CSTRING *result, ulonglong set,
                           const char *lib[])
 {
@@ -408,3 +408,4 @@ const char *flagset_to_string(THD *thd, LEX_CSTRING *result, ulonglong set,
 
   return result->str;
 }
+#endif
