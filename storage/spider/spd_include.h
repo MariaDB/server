@@ -99,7 +99,6 @@
 #define SPIDER_new_THD(A) (new THD(A))
 #define SPIDER_order_direction_is_asc(A) (A->direction == ORDER::ORDER_ASC)
 
-#define SPIDER_HAS_MY_CHARLEN
 #define SPIDER_open_temporary_table
 
 #define SPIDER_generate_partition_syntax(A,B,C,D,E,F,G,H) generate_partition_syntax(A,B,C,E,F,G)

@@ -1344,11 +1344,7 @@ int spider_db_append_name_with_quote_str_internal(
   for (name_end = name + length; name < name_end; name += length)
   {
     head_code = *name;
-#ifdef SPIDER_HAS_MY_CHARLEN
     if ((length = my_ci_charlen(cs, (const uchar *) name, (const uchar *) name_end)) < 1)
-#else
-    if (!(length = my_mbcharlen(cs, (uchar) head_code)))
-#endif
     {
       my_message(ER_SPIDER_WRONG_CHARACTER_IN_NAME_NUM,
         ER_SPIDER_WRONG_CHARACTER_IN_NAME_STR, MYF(0));
