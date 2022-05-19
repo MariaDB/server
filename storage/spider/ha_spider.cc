@@ -996,13 +996,11 @@ int ha_spider::reset()
     {
       delete direct_aggregate_item_current->item;
       direct_aggregate_item_current->item = NULL;
-#ifdef SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY_AND_THDPTR
       if (direct_aggregate_item_current->init_mem_root)
       {
         free_root(&direct_aggregate_item_current->mem_root, MYF(0));
         direct_aggregate_item_current->init_mem_root = FALSE;
       }
-#endif
     }
     direct_aggregate_item_current = direct_aggregate_item_current->next;
   }

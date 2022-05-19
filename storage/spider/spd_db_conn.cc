@@ -2535,9 +2535,7 @@ int spider_db_fetch_for_item_sum_func(
             spider->direct_aggregate_item_first->next = NULL;
             spider->direct_aggregate_item_first->item = NULL;
             spider->direct_aggregate_item_first->tgt_num = 0;
-#ifdef SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY_AND_THDPTR
             spider->direct_aggregate_item_first->init_mem_root = FALSE;
-#endif
           }
           spider->direct_aggregate_item_current =
             spider->direct_aggregate_item_first;
@@ -2554,16 +2552,13 @@ int spider_db_fetch_for_item_sum_func(
             spider->direct_aggregate_item_current->next->item = NULL;
             spider->direct_aggregate_item_current->next->tgt_num =
               spider->direct_aggregate_item_current->tgt_num + 1;
-#ifdef SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY_AND_THDPTR
             spider->direct_aggregate_item_current->next->init_mem_root = FALSE;
-#endif
           }
           spider->direct_aggregate_item_current =
             spider->direct_aggregate_item_current->next;
         }
         if (!spider->direct_aggregate_item_current->item)
         {
-#ifdef SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY_AND_THDPTR
           if (!spider->direct_aggregate_item_current->init_mem_root)
           {
             SPD_INIT_ALLOC_ROOT(
@@ -2571,16 +2566,11 @@ int spider_db_fetch_for_item_sum_func(
               4096, 0, MYF(MY_WME));
             spider->direct_aggregate_item_current->init_mem_root = TRUE;
           }
-#endif
           Item *free_list = thd->free_list;
           spider->direct_aggregate_item_current->item =
 #ifdef SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY
-#ifdef SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY_AND_THDPTR
             new (&spider->direct_aggregate_item_current->mem_root)
               Item_string(thd, "", 0, share->access_charset);
-#else
-            new Item_string("", 0, share->access_charset);
-#endif
 #else
             new Item_string(share->access_charset);
 #endif
