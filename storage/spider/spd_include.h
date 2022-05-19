@@ -1239,10 +1239,8 @@ typedef struct st_spider_item_hld
 {
   uint               tgt_num;
   Item               *item;
-#ifdef SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY_AND_THDPTR
   bool               init_mem_root;
   MEM_ROOT           mem_root;
-#endif
   st_spider_item_hld *next;
 } SPIDER_ITEM_HLD;
 
