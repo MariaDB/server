@@ -900,6 +900,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
 					(keys ? MARIA_INDEX_BLOCK_MARGIN *
 					 share->block_size * keys : 0));
     my_free(disk_cache);
+    disk_cache= 0;
     _ma_setup_functions(share);
     max_data_file_length= share->base.max_data_file_length;
     if ((*share->once_init)(share, info.dfile.file))
