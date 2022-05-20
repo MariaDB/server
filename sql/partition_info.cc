@@ -71,6 +71,7 @@ partition_info *partition_info::get_clone(THD *thd, bool empty_data_and_index_fi
         DBUG_RETURN(NULL);
       if (empty_data_and_index_file)
         subpart_clone->data_file_name= subpart_clone->index_file_name= NULL;
+      subpart_clone->parent_part= part_clone;
       part_clone->subpartitions.push_back(subpart_clone, mem_root);
     }
 
@@ -529,6 +530,8 @@ bool partition_info::set_up_default_subpartitions(THD *thd, handler *file,
           goto end;
         subpart_elem->engine_type= default_engine_type;
         subpart_elem->partition_name= ptr;
+        subpart_elem->id= j;
+        subpart_elem->parent_part= part_elem;
       }
       else
         goto end;
