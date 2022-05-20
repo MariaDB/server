@@ -438,7 +438,10 @@ static constexpr const char* update_root_passwd=
   "UPDATE mysql.global_priv SET priv=json_set(priv,"
   "'$.password_last_changed', UNIX_TIMESTAMP(),"
   "'$.plugin','mysql_native_password',"
-  "'$.authentication_string','%s') where User='root';\n";
+  "'$.authentication_string','%s',"
+  "'$.auth_or', json_array(json_object(), json_object('plugin', 'gssapi','authentication_string','SID:BA'))"
+  ") where User= 'root';\n ";
+
 static constexpr char remove_default_user_cmd[]=
   "DELETE FROM mysql.user where User='';\n";
 static constexpr char allow_remote_root_access_cmd[]=
