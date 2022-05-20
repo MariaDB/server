@@ -1,3 +1,25 @@
 # These should be moved, see https://jira.mariadb.org/browse/MDEV-21654
 arch-dependent-file-in-usr-share usr/share/mysql/mysql-test/suite/plugins/pam/pam_mariadb_mtr.so
 arch-independent-package-contains-binary-or-object usr/share/mysql/mysql-test/suite/plugins/pam/pam_mariadb_mtr.so
+# Intentional for test files
+national-encoding usr/share/mysql/mysql-test/*
+# Extra test documentation files that really need to be kept in context in test directory
+package-contains-documentation-outside-usr-share-doc usr/share/mysql/mysql-test/*
+# Intentional directory structure
+repeated-path-segment auth_gssapi usr/share/mysql/mysql-test/plugin/auth_gssapi/auth_gssapi/
+repeated-path-segment connect usr/share/mysql/mysql-test/plugin/connect/connect/
+repeated-path-segment disks usr/share/mysql/mysql-test/plugin/disks/disks/
+repeated-path-segment func_test usr/share/mysql/mysql-test/plugin/func_test/func_test/
+repeated-path-segment metadata_lock_info usr/share/mysql/mysql-test/plugin/metadata_lock_info/metadata_lock_info/
+repeated-path-segment mroonga usr/share/mysql/mysql-test/plugin/mroonga/mroonga/
+repeated-path-segment mroonga usr/share/mysql/mysql-test/plugin/mroonga/mroonga/include/mroonga/
+repeated-path-segment oqgraph usr/share/mysql/mysql-test/plugin/oqgraph/oqgraph/
+repeated-path-segment query_response_time usr/share/mysql/mysql-test/plugin/query_response_time/query_response_time/
+repeated-path-segment rocksdb usr/share/mysql/mysql-test/plugin/rocksdb/rocksdb/
+repeated-path-segment sequence usr/share/mysql/mysql-test/plugin/sequence/sequence/
+repeated-path-segment sphinx usr/share/mysql/mysql-test/plugin/sphinx/sphinx/
+repeated-path-segment spider usr/share/mysql/mysql-test/plugin/spider/spider/
+repeated-path-segment type_inet usr/share/mysql/mysql-test/plugin/type_inet/type_inet/
+repeated-path-segment type_test usr/share/mysql/mysql-test/plugin/type_test/type_test/
+repeated-path-segment user_variables usr/share/mysql/mysql-test/plugin/user_variables/user_variables/
+repeated-path-segment wsrep_info usr/share/mysql/mysql-test/plugin/wsrep_info/wsrep_info/
