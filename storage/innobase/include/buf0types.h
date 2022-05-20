@@ -89,22 +89,25 @@ this must be equal to srv_page_size */
 class page_id_t
 {
 public:
-
   /** Constructor from (space, page_no).
   @param[in]	space	tablespace id
   @param[in]	page_no	page number */
-  page_id_t(ulint space, uint32_t page_no) : m_id(uint64_t{space} << 32 | page_no)
-  {
-    ut_ad(space <= 0xFFFFFFFFU);
-  }
+  constexpr page_id_t(ulint space, uint32_t page_no) :
+    m_id(uint64_t{space} << 32 | page_no) {}
 
-  page_id_t(uint64_t id) : m_id(id) {}
-  bool operator==(const page_id_t& rhs) const { return m_id == rhs.m_id; }
-  bool operator!=(const page_id_t& rhs) const { return m_id != rhs.m_id; }
-  bool operator<(const page_id_t& rhs) const { return m_id < rhs.m_id; }
-  bool operator>(const page_id_t& rhs) const { return m_id > rhs.m_id; }
-  bool operator<=(const page_id_t& rhs) const { return m_id <= rhs.m_id; }
-  bool operator>=(const page_id_t& rhs) const { return m_id >= rhs.m_id; }
+  constexpr page_id_t(uint64_t id) : m_id(id) {}
+  constexpr bool operator==(const page_id_t& rhs) const
+  { return m_id == rhs.m_id; }
+  constexpr bool operator!=(const page_id_t& rhs) const
+  { return m_id != rhs.m_id; }
+  constexpr bool operator<(const page_id_t& rhs) const
+  { return m_id < rhs.m_id; }
+  constexpr bool operator>(const page_id_t& rhs) const
+  { return m_id > rhs.m_id; }
+  constexpr bool operator<=(const page_id_t& rhs) const
+  { return m_id <= rhs.m_id; }
+  constexpr bool operator>=(const page_id_t& rhs) const
+  { return m_id >= rhs.m_id; }
   page_id_t &operator--() { ut_ad(page_no()); m_id--; return *this; }
   page_id_t &operator++()
   {
@@ -125,15 +128,16 @@ public:
 
   /** Retrieve the tablespace id.
   @return tablespace id */
-  uint32_t space() const { return static_cast<uint32_t>(m_id >> 32); }
+  constexpr uint32_t space() const { return static_cast<uint32_t>(m_id >> 32); }
 
   /** Retrieve the page number.
   @return page number */
-  uint32_t page_no() const { return static_cast<uint32_t>(m_id); }
+  constexpr uint32_t page_no() const { return static_cast<uint32_t>(m_id); }
 
   /** Retrieve the fold value.
   @return fold value */
-  ulint fold() const { return (ulint{space()} << 20) + space() + page_no(); }
+  constexpr ulint fold() const
+  { return (ulint{space()} << 20) + space() + page_no(); }
 
   /** Reset the page number only.
   @param[in]	page_no	page number */
@@ -142,7 +146,7 @@ public:
     m_id= (m_id & ~uint64_t{0} << 32) | page_no;
   }
 
-  ulonglong raw() { return m_id; }
+  constexpr ulonglong raw() const { return m_id; }
 
 private:
   /** The page identifier */

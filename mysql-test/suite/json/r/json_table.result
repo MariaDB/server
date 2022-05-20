@@ -981,5 +981,15 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
   )
 ) AS jt' at line 3
 #
+# MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+#
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) CHARACTER SET latin1 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+name
+Jeans
+#
 # End of 10.6 tests
 #

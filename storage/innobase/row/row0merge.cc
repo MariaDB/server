@@ -853,7 +853,7 @@ row_merge_dup_report(
 	row_merge_dup_t*	dup,	/*!< in/out: for reporting duplicates */
 	const dfield_t*		entry)	/*!< in: duplicate index entry */
 {
-	if (!dup->n_dup++) {
+	if (!dup->n_dup++ && dup->table) {
 		/* Only report the first duplicate record,
 		but count all duplicate records. */
 		innobase_fields_to_mysql(dup->table, dup->index, entry);
@@ -2813,8 +2813,7 @@ wait_again:
 	row_fts_free_pll_merge_buf(psort_info);
 
 	ut_free(merge_buf);
-
-	btr_pcur_close(&pcur);
+	ut_free(pcur.old_rec_buf);
 
 	if (sp_tuples != NULL) {
 		for (ulint i = 0; i < num_spatial; i++) {
@@ -3629,11 +3628,7 @@ row_merge_insert_index_tuples(
 
 			Any modifications after the
 			row_merge_read_clustered_index() scan
-			will go through row_log_table_apply().
-			Any modifications to off-page columns
-			will be tracked by
-			row_log_table_blob_alloc() and
-			row_log_table_blob_free(). */
+			will go through row_log_table_apply(). */
 			row_merge_copy_blobs(
 				mrec, offsets, old_table->space->zip_size(),
 				dtuple, tuple_heap);
@@ -4813,6 +4808,13 @@ func_exit:
 					MONITOR_BACKGROUND_DROP_INDEX);
 			}
 		}
+
+		dict_index_t *clust_index= new_table->indexes.start;
+		clust_index->lock.x_lock(SRW_LOCK_CALL);
+		ut_ad(!clust_index->online_log ||
+		      clust_index->online_log_is_dummy());
+		clust_index->online_log= nullptr;
+		clust_index->lock.x_unlock();
 	}
 
 	DBUG_EXECUTE_IF("ib_index_crash_after_bulk_load", DBUG_SUICIDE(););

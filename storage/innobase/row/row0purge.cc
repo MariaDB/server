@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -41,7 +41,6 @@ Created 3/14/1997 Heikki Tuuri
 #include "row0upd.h"
 #include "row0vers.h"
 #include "row0mysql.h"
-#include "row0log.h"
 #include "log0log.h"
 #include "srv0mon.h"
 #include "srv0start.h"
@@ -359,27 +358,6 @@ row_purge_remove_sec_if_poss_tree(
 	mtr.start();
 	index->set_modified(mtr);
 
-	if (!index->is_committed()) {
-		/* The index->online_status may change if the index is
-		or was being created online, but not committed yet. It
-		is protected by index->lock. */
-		mtr_sx_lock_index(index, &mtr);
-
-		if (dict_index_is_online_ddl(index)) {
-			/* Online secondary index creation will not
-			copy any delete-marked records. Therefore
-			there is nothing to be purged. We must also
-			skip the purge when a completed index is
-			dropped by rollback_inplace_alter_table(). */
-			goto func_exit_no_pcur;
-		}
-	} else {
-		/* For secondary indexes,
-		index->online_status==ONLINE_INDEX_COMPLETE if
-		index->is_committed(). */
-		ut_ad(!dict_index_is_online_ddl(index));
-	}
-
 	search_result = row_search_index_entry(
 				index, entry,
 				BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
@@ -452,7 +430,6 @@ row_purge_remove_sec_if_poss_tree(
 
 func_exit:
 	btr_pcur_close(&pcur); // FIXME: need this?
-func_exit_no_pcur:
 	mtr.commit();
 
 	return(success);
@@ -483,40 +460,10 @@ row_purge_remove_sec_if_poss_leaf(
 	mtr.start();
 	index->set_modified(mtr);
 
-	if (!index->is_committed()) {
-		/* For uncommitted spatial index, we also skip the purge. */
-		if (dict_index_is_spatial(index)) {
-			goto func_exit_no_pcur;
-		}
-
-		/* The index->online_status may change if the the
-		index is or was being created online, but not
-		committed yet. It is protected by index->lock. */
-		mtr_s_lock_index(index, &mtr);
-
-		if (dict_index_is_online_ddl(index)) {
-			/* Online secondary index creation will not
-			copy any delete-marked records. Therefore
-			there is nothing to be purged. We must also
-			skip the purge when a completed index is
-			dropped by rollback_inplace_alter_table(). */
-			goto func_exit_no_pcur;
-		}
-
-		mode = BTR_PURGE_LEAF_ALREADY_S_LATCHED;
-	} else {
-		/* For secondary indexes,
-		index->online_status==ONLINE_INDEX_COMPLETE if
-		index->is_committed(). */
-		ut_ad(!dict_index_is_online_ddl(index));
-
-		/* Change buffering is disabled for spatial index and
-		virtual index. */
-		mode = (dict_index_is_spatial(index)
-			|| dict_index_has_virtual(index))
-			? BTR_MODIFY_LEAF
-			: BTR_PURGE_LEAF;
-	}
+	/* Change buffering is disabled for spatial index and
+	virtual index. */
+	mode = (index->type & (DICT_SPATIAL | DICT_VIRTUAL))
+		? BTR_MODIFY_LEAF : BTR_PURGE_LEAF;
 
 	/* Set the purge node for the call to row_purge_poss_sec(). */
 	pcur.btr_cur.purge_node = node;
@@ -557,10 +504,7 @@ row_purge_remove_sec_if_poss_leaf(
 						btr_cur_get_rec(btr_cur),
 						index);
 				ut_ad(0);
-
-				btr_pcur_close(&pcur);
-
-				goto func_exit_no_pcur;
+				goto func_exit;
 			}
 
 			if (index->is_spatial()) {
@@ -585,10 +529,7 @@ row_purge_remove_sec_if_poss_leaf(
 						 "skip purging last"
 						 " record on page "
 						 << block->page.id());
-
-					btr_pcur_close(&pcur);
-					mtr.commit();
-					return(success);
+					goto func_exit;
 				}
 			}
 
@@ -608,9 +549,9 @@ row_purge_remove_sec_if_poss_leaf(
 		/* The deletion was buffered. */
 	case ROW_NOT_FOUND:
 		/* The index entry does not exist, nothing to do. */
-		btr_pcur_close(&pcur); // FIXME: do we need these? when is btr_cur->rtr_info set?
-func_exit_no_pcur:
+func_exit:
 		mtr.commit();
+		btr_pcur_close(&pcur); // FIXME: do we need these? when is btr_cur->rtr_info set?
 		return(success);
 	}
 

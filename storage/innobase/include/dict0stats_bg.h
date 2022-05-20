@@ -33,11 +33,6 @@ Created Apr 26, 2012 Vasil Dimov
 extern mysql_pfs_key_t	recalc_pool_mutex_key;
 #endif /* HAVE_PSI_INTERFACE */
 
-#ifdef UNIV_DEBUG
-/** Value of MySQL global used to disable dict_stats thread. */
-extern my_bool		innodb_dict_stats_disabled_debug;
-#endif /* UNIV_DEBUG */
-
 /** Delete a table from the auto recalc pool, and ensure that
 no statistics are being updated on it. */
 void dict_stats_recalc_pool_del(table_id_t id, bool have_mdl_exclusive);
@@ -51,14 +46,6 @@ void dict_stats_init();
 Free resources allocated by dict_stats_thread_init(), must be called
 after dict_stats task has exited. */
 void dict_stats_deinit();
-
-#ifdef UNIV_DEBUG
-/** Disables dict stats thread. It's used by:
-	SET GLOBAL innodb_dict_stats_disabled_debug = 1 (0).
-@param[in]	save		immediate result from check function */
-void dict_stats_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
-				      const void* save);
-#endif /* UNIV_DEBUG */
 
 /** Start the dict stats timer. */
 void dict_stats_start();

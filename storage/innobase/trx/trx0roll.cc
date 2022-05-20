@@ -60,7 +60,7 @@ const trx_t*		trx_roll_crash_recv_trx;
 inline bool trx_t::rollback_finish()
 {
   mod_tables.clear();
-
+  apply_online_log= false;
   if (UNIV_LIKELY(error_state == DB_SUCCESS))
   {
     commit();
@@ -137,13 +137,16 @@ inline void trx_t::rollback_low(trx_savept_t *savept)
   {
     ut_a(error_state == DB_SUCCESS);
     const undo_no_t limit= savept->least_undo_no;
+    apply_online_log= false;
     for (trx_mod_tables_t::iterator i= mod_tables.begin();
-	 i != mod_tables.end(); )
+         i != mod_tables.end(); )
     {
       trx_mod_tables_t::iterator j= i++;
       ut_ad(j->second.valid());
       if (j->second.rollback(limit))
         mod_tables.erase(j);
+      else if (!apply_online_log)
+        apply_online_log= j->first->is_active_ddl();
     }
     MONITOR_INC(MONITOR_TRX_ROLLBACK_SAVEPOINT);
   }

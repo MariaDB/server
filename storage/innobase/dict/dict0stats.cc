@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2009, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1884,11 +1884,8 @@ dict_stats_analyze_index_level(
 	}
 #endif /* UNIV_STATS_DEBUG */
 
-	/* Release the latch on the last page, because that is not done by
-	btr_pcur_close(). This function works also for non-leaf pages. */
 	btr_leaf_page_release(btr_pcur_get_block(&pcur), BTR_SEARCH_LEAF, mtr);
 
-	btr_pcur_close(&pcur);
 	ut_free(prev_rec_buf);
 	mem_heap_free(heap);
 }
@@ -2394,8 +2391,6 @@ dict_stats_analyze_index_for_n_prefix(
 
 		n_diff_data->n_external_pages_sum += n_external_pages;
 	}
-
-	btr_pcur_close(&pcur);
 }
 
 /** statistics for an index */
@@ -3115,7 +3110,9 @@ release_and_exit:
 		ret = lock_table_for_trx(index_stats, trx, LOCK_X);
 	}
 	if (ret != DB_SUCCESS) {
-		trx->commit();
+		if (trx->state != TRX_STATE_NOT_STARTED) {
+			trx->commit();
+		}
 		goto unlocked_free_and_exit;
 	}
 

@@ -2779,6 +2779,8 @@ LOCK TABLES `t1` WRITE;
 INSERT INTO `t1` VALUES (1),(2),(3),(4),(5);
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 /*!50003 DROP FUNCTION IF EXISTS `bug9056_func1` */;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
@@ -2786,8 +2788,6 @@ UNLOCK TABLES;
 /*!50003 SET character_set_client  = latin1 */ ;
 /*!50003 SET character_set_results = latin1 */ ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` FUNCTION `bug9056_func1`(a INT, b INT) RETURNS int(11)
 RETURN a+b ;;
@@ -2796,6 +2796,8 @@ DELIMITER ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 /*!50003 DROP FUNCTION IF EXISTS `bug9056_func2` */;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
@@ -2803,8 +2805,6 @@ DELIMITER ;
 /*!50003 SET character_set_client  = latin1 */ ;
 /*!50003 SET character_set_results = latin1 */ ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` FUNCTION `bug9056_func2`(f1 char binary) RETURNS char(1) CHARSET latin1
 begin
@@ -2816,6 +2816,8 @@ DELIMITER ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = 'REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI' */ ;
 /*!50003 DROP PROCEDURE IF EXISTS `a'b` */;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
@@ -2823,8 +2825,6 @@ DELIMITER ;
 /*!50003 SET character_set_client  = latin1 */ ;
 /*!50003 SET character_set_results = latin1 */ ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI' */ ;
 DELIMITER ;;
 CREATE DEFINER="root"@"localhost" PROCEDURE "a'b"()
 select 1 ;;
@@ -2833,6 +2833,8 @@ DELIMITER ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 /*!50003 DROP PROCEDURE IF EXISTS `bug9056_proc1` */;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
@@ -2840,8 +2842,6 @@ DELIMITER ;
 /*!50003 SET character_set_client  = latin1 */ ;
 /*!50003 SET character_set_results = latin1 */ ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `bug9056_proc1`(IN a INT, IN b INT, OUT c INT)
 BEGIN SELECT a+b INTO c; end ;;
@@ -2850,6 +2850,8 @@ DELIMITER ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 /*!50003 DROP PROCEDURE IF EXISTS `bug9056_proc2` */;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
@@ -2857,8 +2859,6 @@ DELIMITER ;
 /*!50003 SET character_set_client  = latin1 */ ;
 /*!50003 SET character_set_results = latin1 */ ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `bug9056_proc2`(OUT a INT)
 BEGIN
@@ -3854,14 +3854,14 @@ create procedure mysqldump_test_db.sp1() select 'hello';
 -- insufficient privileges to SHOW CREATE PROCEDURE `sp1`
 -- does user2 have permissions on mysql.proc?
 
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;
 /*!50003 SET character_set_client  = latin1 */ ;
 /*!50003 SET character_set_results = latin1 */ ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 CREATE DEFINER=`user1`@`%` PROCEDURE `sp1`()
 select 'hello' ;;
@@ -5429,6 +5429,8 @@ CREATE DATABASE `a\"'``b`;
 USE `a\"'``b`;
 CREATE PROCEDURE p1() BEGIN END;
 ALTER DATABASE `a\"'``b` COLLATE utf8_general_ci;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = '' */ ;
 ALTER DATABASE `a\"'``b` CHARACTER SET latin1 COLLATE latin1_swedish_ci ;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
@@ -5436,8 +5438,6 @@ ALTER DATABASE `a\"'``b` CHARACTER SET latin1 COLLATE latin1_swedish_ci ;
 /*!50003 SET character_set_client  = utf8mb3 */ ;
 /*!50003 SET character_set_results = utf8mb3 */ ;
 /*!50003 SET collation_connection  = utf8mb3_general_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
 BEGIN END ;;
@@ -5740,34 +5740,6 @@ DROP TABLE t1;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-DROP TABLE IF EXISTS `innodb_index_stats`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `innodb_index_stats` (
-  `database_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
-  `table_name` varchar(199) COLLATE utf8mb3_bin NOT NULL,
-  `index_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
-  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `stat_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
-  `stat_value` bigint(20) unsigned NOT NULL,
-  `sample_size` bigint(20) unsigned DEFAULT NULL,
-  `stat_description` varchar(1024) COLLATE utf8mb3_bin NOT NULL,
-  PRIMARY KEY (`database_name`,`table_name`,`index_name`,`stat_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0;
-/*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `innodb_table_stats`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `innodb_table_stats` (
-  `database_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
-  `table_name` varchar(199) COLLATE utf8mb3_bin NOT NULL,
-  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `n_rows` bigint(20) unsigned NOT NULL,
-  `clustered_index_size` bigint(20) unsigned NOT NULL,
-  `sum_of_other_index_sizes` bigint(20) unsigned NOT NULL,
-  PRIMARY KEY (`database_name`,`table_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0;
-/*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE IF NOT EXISTS `general_log` (
@@ -5796,6 +5768,34 @@ CREATE TABLE IF NOT EXISTS `slow_log` (
   `thread_id` bigint(21) unsigned NOT NULL,
   `rows_affected` int(11) NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='Slow log';
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `innodb_index_stats`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `innodb_index_stats` (
+  `database_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8mb3_bin NOT NULL,
+  `index_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `stat_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
+  `stat_value` bigint(20) unsigned NOT NULL,
+  `sample_size` bigint(20) unsigned DEFAULT NULL,
+  `stat_description` varchar(1024) COLLATE utf8mb3_bin NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`,`index_name`,`stat_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `innodb_table_stats`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `innodb_table_stats` (
+  `database_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8mb3_bin NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `n_rows` bigint(20) unsigned NOT NULL,
+  `clustered_index_size` bigint(20) unsigned NOT NULL,
+  `sum_of_other_index_sizes` bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -5835,6 +5835,35 @@ CREATE TABLE IF NOT EXISTS `transaction_registry` (
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `general_log` (
+  `event_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `command_type` varchar(64) NOT NULL,
+  `argument` mediumtext NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='General log';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `slow_log` (
+  `start_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `query_time` time(6) NOT NULL,
+  `lock_time` time(6) NOT NULL,
+  `rows_sent` int(11) NOT NULL,
+  `rows_examined` int(11) NOT NULL,
+  `db` varchar(512) NOT NULL,
+  `last_insert_id` int(11) NOT NULL,
+  `insert_id` int(11) NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `sql_text` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `rows_affected` int(11) NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='Slow log';
+/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `innodb_index_stats`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -5873,35 +5902,6 @@ LOCK TABLES `innodb_table_stats` WRITE;
 /*!40000 ALTER TABLE `innodb_table_stats` DISABLE KEYS */;
 /*!40000 ALTER TABLE `innodb_table_stats` ENABLE KEYS */;
 UNLOCK TABLES;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE IF NOT EXISTS `general_log` (
-  `event_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
-  `user_host` mediumtext NOT NULL,
-  `thread_id` bigint(21) unsigned NOT NULL,
-  `server_id` int(10) unsigned NOT NULL,
-  `command_type` varchar(64) NOT NULL,
-  `argument` mediumtext NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='General log';
-/*!40101 SET character_set_client = @saved_cs_client */;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE IF NOT EXISTS `slow_log` (
-  `start_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
-  `user_host` mediumtext NOT NULL,
-  `query_time` time(6) NOT NULL,
-  `lock_time` time(6) NOT NULL,
-  `rows_sent` int(11) NOT NULL,
-  `rows_examined` int(11) NOT NULL,
-  `db` varchar(512) NOT NULL,
-  `last_insert_id` int(11) NOT NULL,
-  `insert_id` int(11) NOT NULL,
-  `server_id` int(10) unsigned NOT NULL,
-  `sql_text` mediumtext NOT NULL,
-  `thread_id` bigint(21) unsigned NOT NULL,
-  `rows_affected` int(11) NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='Slow log';
-/*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE IF NOT EXISTS `transaction_registry` (
@@ -5940,6 +5940,35 @@ CREATE TABLE IF NOT EXISTS `transaction_registry` (
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `general_log` (
+  `event_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `command_type` varchar(64) NOT NULL,
+  `argument` mediumtext NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='General log';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `slow_log` (
+  `start_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `query_time` time(6) NOT NULL,
+  `lock_time` time(6) NOT NULL,
+  `rows_sent` int(11) NOT NULL,
+  `rows_examined` int(11) NOT NULL,
+  `db` varchar(512) NOT NULL,
+  `last_insert_id` int(11) NOT NULL,
+  `insert_id` int(11) NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `sql_text` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `rows_affected` int(11) NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='Slow log';
+/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `innodb_index_stats`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -5978,35 +6007,6 @@ LOCK TABLES `innodb_table_stats` WRITE;
 /*!40000 ALTER TABLE `innodb_table_stats` DISABLE KEYS */;
 /*!40000 ALTER TABLE `innodb_table_stats` ENABLE KEYS */;
 UNLOCK TABLES;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE IF NOT EXISTS `general_log` (
-  `event_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
-  `user_host` mediumtext NOT NULL,
-  `thread_id` bigint(21) unsigned NOT NULL,
-  `server_id` int(10) unsigned NOT NULL,
-  `command_type` varchar(64) NOT NULL,
-  `argument` mediumtext NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='General log';
-/*!40101 SET character_set_client = @saved_cs_client */;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE IF NOT EXISTS `slow_log` (
-  `start_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
-  `user_host` mediumtext NOT NULL,
-  `query_time` time(6) NOT NULL,
-  `lock_time` time(6) NOT NULL,
-  `rows_sent` int(11) NOT NULL,
-  `rows_examined` int(11) NOT NULL,
-  `db` varchar(512) NOT NULL,
-  `last_insert_id` int(11) NOT NULL,
-  `insert_id` int(11) NOT NULL,
-  `server_id` int(10) unsigned NOT NULL,
-  `sql_text` mediumtext NOT NULL,
-  `thread_id` bigint(21) unsigned NOT NULL,
-  `rows_affected` int(11) NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='Slow log';
-/*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE IF NOT EXISTS `transaction_registry` (
@@ -6330,4 +6330,119 @@ SETVAL(`seq_t_i`, 1, 0)
 1
 DROP DATABASE IF EXISTS test1;
 DROP DATABASE IF EXISTS test2;
+#
+# MDEV-27186 Server fails to load a dump, taken on the same version
+# Oracle mode with packages
+#
+CREATE DATABASE test1;
+CREATE DATABASE test2;
+USE test1;
+SET @save_sql_mode=@@sql_mode;
+SET sql_mode=ORACLE;
+CREATE OR REPLACE PACKAGE pkg AS
+END;
+$$
+# Dump database 1
+# Restore from database 1 to database 2
+use test2;
+SHOW CREATE PACKAGE pkg;
+Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
+pkg	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE "pkg" AS
+END	utf8mb3	utf8mb3_general_ci	latin1_swedish_ci
+DROP DATABASE test1;
+DROP DATABASE test2;
+SET sql_mode=@save_sql_mode;
+#
+# MDEV-4875 Can't restore a mysqldump if --add-drop-database meets general_log
+#
+CREATE DATABASE test1;
+# Dump mysql database
+DROP VIEW IF EXISTS mysql.user;
+DROP TABLE IF EXISTS mysql.global_priv;
+DROP TABLE IF EXISTS mysql.user;
+DROP TABLE IF EXISTS mysql.time_zone_transition_type;
+DROP TABLE IF EXISTS mysql.time_zone_transition;
+DROP TABLE IF EXISTS mysql.time_zone_name;
+DROP TABLE IF EXISTS mysql.time_zone_leap_second;
+DROP TABLE IF EXISTS mysql.time_zone;
+DROP TABLE IF EXISTS mysql.tables_priv;
+DROP TABLE IF EXISTS mysql.table_stats;
+DROP TABLE IF EXISTS mysql.servers;
+DROP TABLE IF EXISTS mysql.roles_mapping;
+DROP TABLE IF EXISTS mysql.proxies_priv;
+DROP TABLE IF EXISTS mysql.procs_priv;
+DROP TABLE IF EXISTS mysql.proc;
+DROP TABLE IF EXISTS mysql.plugin;
+DROP TABLE IF EXISTS mysql.innodb_table_stats;
+DROP TABLE IF EXISTS mysql.innodb_index_stats;
+DROP TABLE IF EXISTS mysql.index_stats;
+DROP TABLE IF EXISTS mysql.help_topic;
+DROP TABLE IF EXISTS mysql.help_relation;
+DROP TABLE IF EXISTS mysql.help_keyword;
+DROP TABLE IF EXISTS mysql.help_category;
+DROP TABLE IF EXISTS mysql.gtid_slave_pos;
+DROP TABLE IF EXISTS mysql.func;
+DROP TABLE IF EXISTS mysql.event;
+DROP TABLE IF EXISTS mysql.db;
+DROP TABLE IF EXISTS mysql.columns_priv;
+DROP TABLE IF EXISTS mysql.column_stats;
+# Abbreviated contents
+<?xml version="1.0"?>
+<mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<database name="mysql">
+	<table_structure name="general_log">
+		<field Field="event_time" Type="timestamp(6)" Null="NO" Key="" Default="current_timestamp(6)" Extra="on update current_timestamp(6)" Comment="" />
+		<field Field="user_host" Type="mediumtext" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="thread_id" Type="bigint(21) unsigned" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="server_id" Type="int(10) unsigned" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="command_type" Type="varchar(64)" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="argument" Type="mediumtext" Null="NO" Key="" Extra="" Comment="" />
+		<options Name="general_log" Engine="CSV" Version="10" Row_format="Dynamic" Rows="2" Avg_row_length="0" Data_length="0" Max_data_length="0" Index_length="0" Data_free="0" Collation="utf8mb3_general_ci" Create_options="" Comment="General log" Max_index_length="0" Temporary="N" />
+	</table_structure>
+	<table_structure name="slow_log">
+		<field Field="start_time" Type="timestamp(6)" Null="NO" Key="" Default="current_timestamp(6)" Extra="on update current_timestamp(6)" Comment="" />
+		<field Field="user_host" Type="mediumtext" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="query_time" Type="time(6)" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="lock_time" Type="time(6)" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="rows_sent" Type="int(11)" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="rows_examined" Type="int(11)" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="db" Type="varchar(512)" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="last_insert_id" Type="int(11)" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="insert_id" Type="int(11)" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="server_id" Type="int(10) unsigned" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="sql_text" Type="mediumtext" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="thread_id" Type="bigint(21) unsigned" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="rows_affected" Type="int(11)" Null="NO" Key="" Extra="" Comment="" />
+		<options Name="slow_log" Engine="CSV" Version="10" Row_format="Dynamic" Rows="2" Avg_row_length="0" Data_length="0" Max_data_length="0" Index_length="0" Data_free="0" Collation="utf8mb3_general_ci" Create_options="" Comment="Slow log" Max_index_length="0" Temporary="N" />
+	</table_structure>
+
+/*!50106 SET GLOBAL LOG_OUTPUT=@save_log_output*/;
+
+	<table_structure name="transaction_registry">
+		<field Field="transaction_id" Type="bigint(20) unsigned" Null="NO" Key="PRI" Extra="" Comment="" />
+		<field Field="commit_id" Type="bigint(20) unsigned" Null="NO" Key="UNI" Extra="" Comment="" />
+		<field Field="begin_timestamp" Type="timestamp(6)" Null="NO" Key="MUL" Default="'0000-00-00 00:00:00.000000'" Extra="" Comment="" />
+		<field Field="commit_timestamp" Type="timestamp(6)" Null="NO" Key="MUL" Default="'0000-00-00 00:00:00.000000'" Extra="" Comment="" />
+		<field Field="isolation_level" Type="enum('READ-UNCOMMITTED','READ-COMMITTED','REPEATABLE-READ','SERIALIZABLE')" Null="NO" Key="" Extra="" Comment="" />
+		<key Table="transaction_registry" Non_unique="0" Key_name="PRIMARY" Seq_in_index="1" Column_name="transaction_id" Collation="A" Cardinality="0" Null="" Index_type="BTREE" Comment="" Index_comment="" Ignored="NO" />
+		<key Table="transaction_registry" Non_unique="0" Key_name="commit_id" Seq_in_index="1" Column_name="commit_id" Collation="A" Cardinality="0" Null="" Index_type="BTREE" Comment="" Index_comment="" Ignored="NO" />
+		<key Table="transaction_registry" Non_unique="1" Key_name="begin_timestamp" Seq_in_index="1" Column_name="begin_timestamp" Collation="A" Cardinality="0" Null="" Index_type="BTREE" Comment="" Index_comment="" Ignored="NO" />
+		<key Table="transaction_registry" Non_unique="1" Key_name="commit_timestamp" Seq_in_index="1" Column_name="commit_timestamp" Collation="A" Cardinality="0" Null="" Index_type="BTREE" Comment="" Index_comment="" Ignored="NO" />
+		<key Table="transaction_registry" Non_unique="1" Key_name="commit_timestamp" Seq_in_index="2" Column_name="transaction_id" Collation="A" Cardinality="0" Null="" Index_type="BTREE" Comment="" Index_comment="" Ignored="NO" />
+		<options Name="transaction_registry" Engine="InnoDB" Version="10" Row_format="Dynamic" Rows="0" Avg_row_length="0" Data_length="16384" Max_data_length="0" Index_length="49152" Data_free="0" Create_time="TIMESTAMP" Collation="utf8mb3_bin" Create_options="stats_persistent=0" Comment="" Max_index_length="0" Temporary="N" />
+	</table_structure>
+</database>
+<database name="test1">
+</database>
+</mysqldump>
+SET @save_general_log=@@GENERAL_LOG;
+SET GLOBAL LOG_OUTPUT='TABLE', GLOBAL GENERAL_LOG=1;
+# Restore mysql database while general log is active
+# No failure at this stage is the object of the test
+SELECT @@GLOBAL.LOG_OUTPUT, @@GLOBAL.GENERAL_LOG;
+@@GLOBAL.LOG_OUTPUT	@@GLOBAL.GENERAL_LOG
+TABLE	1
+SET GLOBAL LOG_OUTPUT=DEFAULT, GLOBAL GENERAL_LOG=@save_general_log;
+TRUNCATE TABLE mysql.general_log;
+DROP DATABASE test1;
 # End of 10.3 tests

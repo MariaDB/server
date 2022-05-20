@@ -3,7 +3,7 @@
 [mysqld]
 wsrep_sst_method=mariabackup
 wsrep_sst_auth="root:"
-loose_wsrep_debug=ON
+wsrep_debug=1
 
 [mysqld.1]
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=1;pc.ignore_sb=true'

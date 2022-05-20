@@ -119,8 +119,10 @@ let $restart_noprint=2;
 --source include/start_mysqld.inc
 
 --connection node_1
+--disable_query_log
 --eval SET GLOBAL innodb_max_dirty_pages_pct = $innodb_max_dirty_pages_pct
 --eval SET GLOBAL innodb_max_dirty_pages_pct_lwm = $innodb_max_dirty_pages_pct_lwm
+--enable_query_log
 
 --source ../galera/include/auto_increment_offset_restore.inc
 

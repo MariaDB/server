@@ -843,5 +843,16 @@ SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
 
 
 --echo #
+--echo # MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+--echo #
+
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) CHARACTER SET latin1 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

@@ -1184,6 +1184,9 @@ public:
 	/** @return whether this is the change buffer */
 	bool is_ibuf() const { return UNIV_UNLIKELY(type & DICT_IBUF); }
 
+	/** @return whether this index requires locking */
+	bool has_locking() const { return !is_ibuf(); }
+
 	/** @return whether the index includes virtual columns */
 	bool has_virtual() const { return type & DICT_VIRTUAL; }
 
@@ -1399,6 +1402,20 @@ public:
   rollback of TRX_UNDO_EMPTY. The BTR_SEG_LEAF is freed and reinitialized.
   @param thr query thread */
   void clear(que_thr_t *thr);
+
+  /** Check whether the online log is dummy value to indicate
+  whether table undergoes active DDL.
+  @retval true if online log is dummy value */
+  bool online_log_is_dummy() const
+  {
+    return online_log == reinterpret_cast<const row_log_t*>(this);
+  }
+
+  /** Assign clustered index online log to dummy value */
+  void online_log_make_dummy()
+  {
+    online_log= reinterpret_cast<row_log_t*>(this);
+  }
 };
 
 /** Detach a virtual column from an index.
@@ -2358,6 +2375,12 @@ public:
       if (lock->trx != trx)
         return true;
     return false;
+  }
+
+  /** @return whether a DDL operation is in progress on this table */
+  bool is_active_ddl() const
+  {
+    return UT_LIST_GET_FIRST(indexes)->online_log;
   }
 
   /** @return whether the name is

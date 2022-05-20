@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -654,7 +654,7 @@ page_copy_rec_list_end(
 
 	/* Update the lock table and possible hash index */
 
-	if (dict_table_is_locking_disabled(index->table)) {
+	if (!index->has_locking()) {
 	} else if (rec_move && dict_index_is_spatial(index)) {
 		lock_rtr_move_rec_list(new_block, block, rec_move, num_moved);
 	} else {
@@ -821,7 +821,7 @@ zip_reorganize:
 
 	/* Update the lock table and possible hash index */
 
-	if (dict_table_is_locking_disabled(index->table)) {
+	if (!index->has_locking()) {
 	} else if (dict_index_is_spatial(index)) {
 		lock_rtr_move_rec_list(new_block, block, rec_move, num_moved);
 	} else {

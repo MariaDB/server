@@ -122,17 +122,16 @@ drop table t480;
 --echo # in online table rebuild
 --echo #
 
-CREATE TABLE t1 (j INT UNIQUE, i INT UNIQUE) ENGINE=InnoDB;
+CREATE TABLE t1 (j INT UNIQUE, i INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(2, 2);
 --connect (con1,localhost,root,,test)
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL built WAIT_FOR log';
 --send
-ALTER TABLE t1 DROP j, FORCE;
+ALTER TABLE t1 DROP j, ADD UNIQUE INDEX(i), FORCE;
 
 --connection default
 SET DEBUG_SYNC='now WAIT_FOR built';
 SET DEBUG_DBUG='+d,row_ins_row_level';
---error ER_DUP_ENTRY
 INSERT INTO t1 (i) VALUES (0),(0);
 SET DEBUG_SYNC='now SIGNAL log';
 SET DEBUG_DBUG=@saved_debug_dbug;
@@ -140,6 +139,8 @@ SET DEBUG_DBUG=@saved_debug_dbug;
 --connection con1
 --error ER_DUP_ENTRY
 reap;
+DELETE FROM t1;
+ALTER TABLE t1 ADD UNIQUE INDEX(i);
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL built2 WAIT_FOR log2';
 --send
 ALTER TABLE t1 DROP j, FORCE;
@@ -152,7 +153,6 @@ UPDATE t1 SET i=0;
 SET DEBUG_SYNC='now SIGNAL log2';
 
 --connection con1
---error ER_DUP_ENTRY
 reap;
 --disconnect con1
 --connection default

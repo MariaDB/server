@@ -2332,13 +2332,11 @@ loop:
 
 			if (btr_pcur_is_after_last_on_page(&pcur)) {
 				ibuf_mtr_commit(&mtr);
-				btr_pcur_close(&pcur);
 				goto loop;
 			}
 		}
 done:
 		ibuf_mtr_commit(&mtr);
-		btr_pcur_close(&pcur);
 		mem_heap_empty(heap);
 #endif
 	}
@@ -2390,7 +2388,6 @@ ibuf_merge_pages(
 		      == page_id_t(IBUF_SPACE_ID, FSP_IBUF_TREE_ROOT_PAGE_NO));
 
 		ibuf_mtr_commit(&mtr);
-		btr_pcur_close(&pcur);
 
 		return(0);
 	}
@@ -2400,7 +2397,6 @@ ibuf_merge_pages(
 					    space_ids,
 					    page_nos, n_pages);
 	ibuf_mtr_commit(&mtr);
-	btr_pcur_close(&pcur);
 
 	ibuf_read_merge_pages(space_ids, page_nos, *n_pages);
 
@@ -2457,8 +2453,6 @@ ibuf_merge_space(
 	}
 
 	ibuf_mtr_commit(&mtr);
-
-	btr_pcur_close(&pcur);
 
 	if (n_pages > 0) {
 		ut_ad(n_pages <= UT_ARR_SIZE(pages));
@@ -3299,9 +3293,15 @@ fail_exit:
 commit_exit:
 		ibuf_mtr_commit(&bitmap_mtr);
 		goto fail_exit;
+	} else if (!lock_sys.rd_lock_try()) {
+		goto commit_exit;
 	} else {
-		LockGuard g{lock_sys.rec_hash, page_id};
-		if (lock_sys_t::get_first(g.cell(), page_id)) {
+		hash_cell_t* cell = lock_sys.rec_hash.cell_get(page_id.fold());
+		lock_sys.rec_hash.latch(cell)->acquire();
+		const lock_t* lock = lock_sys_t::get_first(*cell, page_id);
+		lock_sys.rec_hash.latch(cell)->release();
+		lock_sys.rd_unlock();
+		if (lock) {
 			goto commit_exit;
 		}
 	}
@@ -3425,8 +3425,7 @@ commit_exit:
 
 func_exit:
 	ibuf_mtr_commit(&mtr);
-	btr_pcur_close(&pcur);
-
+	ut_free(pcur.old_rec_buf);
 	mem_heap_free(heap);
 
 	if (err == DB_SUCCESS
@@ -3804,7 +3803,6 @@ dump:
 		/* Delete the different-length record, and insert the
 		buffered one. */
 
-		lock_rec_store_on_page_infimum(block, rec);
 		page_cur_delete_rec(&page_cur, index, offsets, mtr);
 		page_cur_move_to_prev(&page_cur);
 		rec = ibuf_insert_to_index_page_low(entry, block, index,
@@ -3812,8 +3810,6 @@ dump:
 						    &page_cur);
 
 		ut_ad(!cmp_dtuple_rec(entry, rec, offsets));
-		lock_rec_restore_from_page_infimum(*block, rec,
-						   block->page.id());
 	} else {
 		offsets = NULL;
 		ibuf_insert_to_index_page_low(entry, block, index,
@@ -3946,8 +3942,6 @@ ibuf_delete(
 			return;
 		}
 
-		lock_update_delete(block, rec);
-
 		if (!page_zip) {
 			max_ins_size
 				= page_get_max_insert_size_after_reorganize(
@@ -4030,7 +4024,6 @@ static MY_ATTRIBUTE((warn_unused_result, nonnull))
 bool ibuf_delete_rec(const page_id_t page_id, btr_pcur_t* pcur,
 		     const dtuple_t* search_tuple, mtr_t* mtr)
 {
-	ibool		success;
 	page_t*		root;
 	dberr_t		err;
 
@@ -4041,10 +4034,8 @@ bool ibuf_delete_rec(const page_id_t page_id, btr_pcur_t* pcur,
 	ut_ad(ibuf_rec_get_space(mtr, btr_pcur_get_rec(pcur))
 	      == page_id.space());
 
-	success = btr_cur_optimistic_delete(btr_pcur_get_btr_cur(pcur),
-					    0, mtr);
-
-	if (success) {
+	if (btr_cur_optimistic_delete(btr_pcur_get_btr_cur(pcur),
+				      BTR_CREATE_FLAG, mtr)) {
 		if (page_is_empty(btr_pcur_get_page(pcur))) {
 			/* If a B-tree page is empty, it must be the root page
 			and the whole B-tree must be empty. InnoDB does not
@@ -4088,8 +4079,8 @@ bool ibuf_delete_rec(const page_id_t page_id, btr_pcur_t* pcur,
 
 	root = ibuf_tree_root_get(mtr)->page.frame;
 
-	btr_cur_pessimistic_delete(&err, TRUE, btr_pcur_get_btr_cur(pcur), 0,
-				   false, mtr);
+	btr_cur_pessimistic_delete(&err, TRUE, btr_pcur_get_btr_cur(pcur),
+				   BTR_CREATE_FLAG, false, mtr);
 	ut_a(err == DB_SUCCESS);
 
 	ibuf_size_update(root);
@@ -4425,8 +4416,7 @@ loop:
 			goto loop;
 		} else if (btr_pcur_is_after_last_on_page(&pcur)) {
 			ibuf_mtr_commit(&mtr);
-			btr_pcur_close(&pcur);
-
+			ut_free(pcur.old_rec_buf);
 			goto loop;
 		}
 	}
@@ -4437,12 +4427,12 @@ reset_bit:
 	}
 
 	ibuf_mtr_commit(&mtr);
+	ut_free(pcur.old_rec_buf);
 
 	if (space) {
 		space->release();
 	}
 
-	btr_pcur_close(&pcur);
 	mem_heap_free(heap);
 
 	ibuf.n_merges++;
@@ -4508,20 +4498,20 @@ loop:
 			we start from the beginning again */
 
 			ut_ad(mtr.has_committed());
+clear:
+			ut_free(pcur.old_rec_buf);
 			goto loop;
 		}
 
 		if (btr_pcur_is_after_last_on_page(&pcur)) {
 			ibuf_mtr_commit(&mtr);
-			btr_pcur_close(&pcur);
-
-			goto loop;
+			goto clear;
 		}
 	}
 
 leave_loop:
 	ibuf_mtr_commit(&mtr);
-	btr_pcur_close(&pcur);
+	ut_free(pcur.old_rec_buf);
 
 	ibuf_add_ops(ibuf.n_discarded_ops, dops);
 

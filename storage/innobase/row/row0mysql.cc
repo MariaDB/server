@@ -1124,7 +1124,7 @@ row_lock_table_autoinc_for_mysql(
 
 		trx_start_if_not_started_xa(trx, true);
 
-		err = lock_table(prebuilt->table, LOCK_AUTO_INC, thr);
+		err = lock_table(prebuilt->table, NULL, LOCK_AUTO_INC, thr);
 
 		trx->error_state = err;
 	} while (err != DB_SUCCESS
@@ -1166,7 +1166,7 @@ row_lock_table(row_prebuilt_t* prebuilt)
 
 		trx_start_if_not_started_xa(trx, false);
 
-		err = lock_table(prebuilt->table, static_cast<lock_mode>(
+		err = lock_table(prebuilt->table, NULL, static_cast<lock_mode>(
 					 prebuilt->select_lock_type), thr);
 		trx->error_state = err;
 	} while (err != DB_SUCCESS

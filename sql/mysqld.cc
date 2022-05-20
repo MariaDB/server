@@ -1526,11 +1526,15 @@ static void kill_thread(THD *thd)
 /**
   First shutdown everything but slave threads and binlog dump connections
 */
-static my_bool kill_thread_phase_1(THD *thd, void *)
+static my_bool kill_thread_phase_1(THD *thd, int *n_threads_awaiting_ack)
 {
   DBUG_PRINT("quit", ("Informing thread %ld that it's time to die",
                       (ulong) thd->thread_id));
-  if (thd->slave_thread || thd->is_binlog_dump_thread())
+
+  if (thd->slave_thread || thd->is_binlog_dump_thread() ||
+      (shutdown_wait_for_slaves &&
+       repl_semisync_master.is_thd_awaiting_semisync_ack(thd) &&
+       ++(*n_threads_awaiting_ack)))
     return 0;
 
   if (DBUG_EVALUATE_IF("only_kill_system_threads", !thd->system_thread, 0))
@@ -1545,7 +1549,7 @@ static my_bool kill_thread_phase_1(THD *thd, void *)
 */
 static my_bool kill_thread_phase_2(THD *thd, void *)
 {
-  if (shutdown_wait_for_slaves)
+  if (shutdown_wait_for_slaves && thd->is_binlog_dump_thread())
   {
     thd->set_killed(KILL_SERVER);
   }
@@ -1718,7 +1722,29 @@ static void close_connections(void)
     This will give the threads some time to gracefully abort their
     statements and inform their clients that the server is about to die.
   */
-  server_threads.iterate(kill_thread_phase_1);
+  DBUG_EXECUTE_IF("mysqld_delay_kill_threads_phase_1", my_sleep(200000););
+  int n_threads_awaiting_ack= 0;
+  server_threads.iterate(kill_thread_phase_1, &n_threads_awaiting_ack);
+
+  /*
+    If we are waiting on any ACKs, delay killing the thread until either an ACK
+    is received or the timeout is hit.
+
+    Allow at max the number of sessions to await a timeout; however, if all
+    ACKs have been received in less iterations, then quit early
+  */
+  if (shutdown_wait_for_slaves && repl_semisync_master.get_master_enabled())
+  {
+    int waiting_threads= repl_semisync_master.sync_get_master_wait_sessions();
+    if (waiting_threads)
+      sql_print_information("Delaying shutdown to await semi-sync ACK");
+
+    while (waiting_threads-- > 0)
+      repl_semisync_master.await_slave_reply();
+  }
+
+  DBUG_EXECUTE_IF("delay_shutdown_phase_2_after_semisync_wait",
+                  my_sleep(500000););
 
   Events::deinit();
   slave_prepare_for_shutdown();
@@ -1741,7 +1767,10 @@ static void close_connections(void)
   */
   DBUG_PRINT("info", ("THD_count: %u", THD_count::value()));
 
-  for (int i= 0; (THD_count::value() - binlog_dump_thread_count) && i < 1000; i++)
+  for (int i= 0; (THD_count::value() - binlog_dump_thread_count -
+                  n_threads_awaiting_ack) &&
+                 i < 1000;
+       i++)
     my_sleep(20000);
 
   if (global_system_variables.log_warnings)
@@ -1755,9 +1784,12 @@ static void close_connections(void)
   wsrep_sst_auth_free();
 #endif
   /* All threads has now been aborted */
-  DBUG_PRINT("quit", ("Waiting for threads to die (count=%u)", THD_count::value()));
+  DBUG_PRINT("quit", ("Waiting for threads to die (count=%u)",
+                      THD_count::value() - binlog_dump_thread_count -
+                          n_threads_awaiting_ack));
 
-  while (THD_count::value() - binlog_dump_thread_count)
+  while (THD_count::value() - binlog_dump_thread_count -
+         n_threads_awaiting_ack)
     my_sleep(1000);
 
   /* Kill phase 2 */
@@ -5312,6 +5344,7 @@ static int init_server_components()
   if (ha_recover(0))
     unireg_abort(1);
 
+  start_handle_manager();
   if (opt_bin_log)
   {
     int error;
@@ -5762,8 +5795,6 @@ int mysqld_main(int argc, char **argv)
       exit(0);
     }
   }
-
-  start_handle_manager();
 
   /* Copy default global rpl_filter to global_rpl_filter */
   copy_filter_setting(global_rpl_filter, get_or_create_rpl_filter("", 0));
@@ -6649,7 +6680,7 @@ struct my_option my_long_options[]=
      Also disable by default on Windows, due to high overhead for checking .sym 
      files.
    */
-   IF_VALGRIND(0,IF_WIN(0,1)), 0, 0, 0, 0, 0},
+   IF_WIN(0,1), 0, 0, 0, 0, 0},
   {"sysdate-is-now", 0,
    "Non-default option to alias SYSDATE() to NOW() to make it safe-replicable. "
    "Since 5.0, SYSDATE() returns a `dynamic' value different for different "
@@ -8664,12 +8695,16 @@ void set_server_version(char *buf, size_t size)
 {
   bool is_log= opt_log || global_system_variables.sql_log_slow || opt_bin_log;
   bool is_debug= IF_DBUG(!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"), 0);
-  bool is_valgrind= IF_VALGRIND(!strstr(MYSQL_SERVER_SUFFIX_STR, "-valgrind"), 0);
+  const char *is_valgrind=
+#ifdef HAVE_VALGRIND
+    !strstr(MYSQL_SERVER_SUFFIX_STR, "-valgrind") ? "-valgrind" :
+#endif
+    "";
   strxnmov(buf, size - 1,
            MYSQL_SERVER_VERSION,
            MYSQL_SERVER_SUFFIX_STR,
            IF_EMBEDDED("-embedded", ""),
-           is_valgrind ? "-valgrind" : "",
+           is_valgrind,
            is_debug ? "-debug" : "",
            is_log ? "-log" : "",
            NullS);

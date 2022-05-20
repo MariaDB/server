@@ -1,4 +1,4 @@
-languages chinese=chi gbk, czech=cze latin2, danish=dan latin1, dutch=nla latin1, english=eng latin1, estonian=est latin7, french=fre latin1, german=ger latin1, greek=greek greek, hungarian=hun latin2, italian=ita latin1, japanese=jpn ujis, korean=kor euckr, norwegian-ny=norwegian-ny latin1, norwegian=nor latin1, polish=pol latin2, portuguese=por latin1, romanian=rum latin2, russian=rus koi8r, serbian=serbian cp1250, slovak=slo latin2, spanish=spa latin1, swedish=swe latin1, ukrainian=ukr koi8u, bulgarian=bgn cp1251, hindi=hindi utf8mb3;
+languages bulgarian=bgn cp1251, chinese=chi gbk, czech=cze latin2, danish=dan latin1, dutch=nla latin1, english=eng latin1, estonian=est latin7, french=fre latin1, german=ger latin1, greek=greek greek, hindi=hindi utf8mb3, hungarian=hun latin2, italian=ita latin1, japanese=jpn ujis, korean=kor euckr, norwegian-ny=norwegian-ny latin1, norwegian=nor latin1, polish=pol latin2, portuguese=por latin1, romanian=rum latin2, russian=rus koi8r, serbian=serbian cp1250, slovak=slo latin2, spanish=spa latin1, swedish=swe latin1, ukrainian=ukr koi8u;
 
 default-language eng
 
@@ -8200,12 +8200,12 @@ ER_TABLE_IN_SYSTEM_TABLESPACE
         spa "Tabla %-.192s en espacio de tablas del sitema"
 
 ER_IO_READ_ERROR
-        chi "IO读取错误:（%lu，%s）%s"
+        chi "IO读取错误:(%lu，%s)%s"
         eng "IO Read error: (%lu, %s) %s"
         spa "Error de Lectura de E/S: (%lu, %s) %s"
 
 ER_IO_WRITE_ERROR
-        chi "IO写错错误:（%lu，%s）%s"
+        chi "IO写错错误:(%lu，%s)%s"
         eng "IO Write error: (%lu, %s) %s"
         spa "Error de Escritura de E/S: (%lu, %s) %s"
 
@@ -9300,7 +9300,7 @@ ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED
         eng "Reference to recursive WITH table '%s' in materialized derived"
         spa "Referencia recursiva con WITH tabla '%s' en derivada materializada"
 ER_NOT_STANDARD_COMPLIANT_RECURSIVE
-        chi "表'%s'违反了递归定义的限制"
+        chi "表'%s'R_WRONG_WINDOW_SPEC_NAME违反了递归定义的限制"
         eng "Restrictions imposed on recursive definitions are violated for table '%s'"
 ER_WRONG_WINDOW_SPEC_NAME
         chi "没有定义名称'%s'的窗口规范"

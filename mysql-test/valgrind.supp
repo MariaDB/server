@@ -1,5 +1,5 @@
 # Copyright (c) 2005, 2015, Oracle and/or its affiliates.
-# Copyright (c) 2008, 2019, MariaDB
+# Copyright (c) 2008, 2022, MariaDB
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Library General Public
@@ -98,137 +98,6 @@
    fun:dl_main
    fun:_dl_sysdep_start
    fun:_dl_start
-}
-
-#
-# Warnings in libz becasue it works with aligned memory(?)
-#
-
-{
-   libz tr_flush_block
-   Memcheck:Cond
-   fun:_tr_flush_block
-   fun:deflate_slow
-   fun:deflate
-   fun:do_flush
-   fun:gzclose
-}
-
-{
-   libz tr_flush_block2
-   Memcheck:Cond
-   fun:_tr_flush_block
-   fun:deflate_slow
-   fun:deflate
-   fun:compress2
-}
-
-{
-   libz longest_match
-   Memcheck:Cond
-   fun:longest_match
-   fun:deflate_slow
-   fun:deflate
-   fun:do_flush
-}
-
-{
-   libz longest_match called from btr_store_big_rec_extern_fields
-   Memcheck:Cond
-   fun:longest_match
-   fun:deflate_slow
-   fun:deflate
-   fun:btr_store_big_rec_extern_fields
-}
-
-{
-   libz longest_match called from page_zip_compress
-   Memcheck:Cond
-   fun:longest_match
-   fun:deflate_slow
-   fun:deflate
-   fun:page_zip_compress
-}
-
-{
-   libz longest_match2
-   Memcheck:Cond
-   fun:longest_match
-   fun:deflate_slow
-   fun:deflate
-   fun:compress2
-}
-
-{
-   libz longest_match 3
-   Memcheck:Cond
-   fun:longest_match
-   fun:deflate_slow
-   fun:deflate
-   fun:gzclose
-}
-
-{
-   libz longest_match 4 
-   Memcheck:Cond
-   fun:longest_match
-   fun:deflate_slow
-   fun:deflate
-   fun:gzflush
-}
-
-{
-   libz longest_match3
-   Memcheck:Cond
-   fun:longest_match
-   fun:deflate_slow
-   fun:deflate
-   fun:azflush
-}
-
-{
-   libz longest_match3
-   Memcheck:Cond
-   fun:longest_match
-   fun:deflate_slow
-   fun:deflate
-   fun:azclose
-}
-
-{
-   libz deflate
-   Memcheck:Cond
-   obj:*/libz.so.*
-   obj:*/libz.so.*
-   fun:deflate
-   fun:compress2
-}
-
-{
-   libz deflate2
-   Memcheck:Cond
-   obj:*/libz.so.*
-   obj:*/libz.so.*
-   fun:deflate
-   obj:*/libz.so.*
-   fun:gzflush
-}
-
-{
-   libz deflate3
-   Memcheck:Cond
-   obj:*/libz.so.*
-   obj:*/libz.so.*
-   fun:deflate
-   fun:do_flush
-}
-
-{
-   libz inflatereset2
-   Memcheck:Cond
-   fun:inflateReset2
-   fun:inflateInit2_
-   fun:uncompress
 }
 
 
@@ -703,39 +572,6 @@
    buf_buddy_relocate peeking (space,page) in potentially free blocks
    Memcheck:Addr1
    fun:buf_buddy_relocate
-}
-
-{
-   Bug 59874 Valgrind warning in InnoDB compression code
-   Memcheck:Cond
-   fun:*
-   fun:*
-   fun:deflate
-   fun:btr_store_big_rec_extern_fields_func
-   fun:row_ins_index_entry_low
-   fun:row_ins_index_entry
-   fun:row_ins_index_entry_step
-   fun:row_ins
-   fun:row_ins_step
-   fun:row_insert_for_mysql
-}
-
-{
-   In page0zip.c we have already checked that the memory is initialized before calling deflate()
-   Memcheck:Cond
-   fun:*
-   fun:*
-   fun:deflate
-   fun:page_zip_compress
-}
-
-{
-   In page0zip.c we have already checked that the memory is initialized before calling deflate()
-   Memcheck:Cond
-   fun:*
-   fun:*
-   fun:deflate
-   fun:page_zip_compress_deflate
 }
 
 {

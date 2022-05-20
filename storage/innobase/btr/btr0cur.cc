@@ -4254,6 +4254,7 @@ btr_cur_update_in_place(
 	ut_ad(page_is_leaf(cursor->page_cur.block->page.frame));
 	rec = btr_cur_get_rec(cursor);
 	index = cursor->index;
+	ut_ad(!index->is_ibuf());
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!!page_rec_is_comp(rec) == dict_table_is_comp(index->table));
 	ut_ad(trx_id > 0 || (flags & BTR_KEEP_SYS_FLAG)
@@ -4554,6 +4555,7 @@ btr_cur_optimistic_update(
 	page = buf_block_get_frame(block);
 	rec = btr_cur_get_rec(cursor);
 	index = cursor->index;
+	ut_ad(index->has_locking());
 	ut_ad(trx_id > 0 || (flags & BTR_KEEP_SYS_FLAG)
 	      || index->table->is_temporary());
 	ut_ad(!!page_rec_is_comp(rec) == dict_table_is_comp(index->table));
@@ -4737,7 +4739,7 @@ any_extern:
 	/* Ok, we may do the replacement. Store on the page infimum the
 	explicit locks on rec, before deleting rec (see the comment in
 	btr_cur_pessimistic_update). */
-	if (!dict_table_is_locking_disabled(index->table)) {
+	if (index->has_locking()) {
 		lock_rec_store_on_page_infimum(block, rec);
 	}
 
@@ -4771,7 +4773,7 @@ any_extern:
 		would have too many fields, and we would be unable to
 		know the size of the freed record. */
 		btr_page_reorganize(page_cursor, index, mtr);
-	} else if (!dict_table_is_locking_disabled(index->table)) {
+	} else {
 		/* Restore the old explicit lock state on the record */
 		lock_rec_restore_from_page_infimum(*block, rec,
 						   block->page.id());
@@ -4901,6 +4903,7 @@ btr_cur_pessimistic_update(
 	block = btr_cur_get_block(cursor);
 	page_zip = buf_block_get_page_zip(block);
 	index = cursor->index;
+	ut_ad(index->has_locking());
 
 	ut_ad(mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK |
 					 MTR_MEMO_SX_LOCK));
@@ -5097,9 +5100,7 @@ btr_cur_pessimistic_update(
 		in the lock system delete the lock structs set on the
 		root page even if the root page carries just node
 		pointers. */
-		if (!dict_table_is_locking_disabled(index->table)) {
-			lock_rec_store_on_page_infimum(block, rec);
-		}
+		lock_rec_store_on_page_infimum(block, rec);
 	}
 
 #ifdef UNIV_ZIP_DEBUG
@@ -5131,7 +5132,7 @@ btr_cur_pessimistic_update(
 				btr_set_instant(page_cursor->block, *index,
 						mtr);
 			}
-		} else if (!dict_table_is_locking_disabled(index->table)) {
+		} else {
 			lock_rec_restore_from_page_infimum(
 				*btr_cur_get_block(cursor), rec,
 				block->page.id());
@@ -5277,7 +5278,7 @@ btr_cur_pessimistic_update(
 		know the size of the freed record. */
 		btr_page_reorganize(page_cursor, index, mtr);
 		rec = page_cursor->rec;
-	} else if (!dict_table_is_locking_disabled(index->table)) {
+	} else {
 		lock_rec_restore_from_page_infimum(
 			*btr_cur_get_block(cursor), rec, block->page.id());
 	}
@@ -5287,7 +5288,7 @@ btr_cur_pessimistic_update(
 	record was nonexistent, the supremum might have inherited its locks
 	from a wrong record. */
 
-	if (!was_first && !dict_table_is_locking_disabled(index->table)) {
+	if (!was_first) {
 		btr_cur_pess_upd_restore_supremum(btr_cur_get_block(cursor),
 						  rec, mtr);
 	}
@@ -5401,10 +5402,6 @@ btr_cur_del_mark_set_clust_rec(
 		 << ib::hex(trx->id) << ": "
 		 << rec_printer(rec, offsets).str());
 
-	if (dict_index_is_online_ddl(index)) {
-		row_log_table_delete(rec, index, offsets, NULL);
-	}
-
 	btr_cur_upd_rec_sys(block, rec, index, offsets, trx, roll_ptr, mtr);
 	return(err);
 }
@@ -5455,15 +5452,13 @@ It is assumed that the mtr has an x-latch on the page where the cursor is
 positioned, but no latch on the whole tree.
 @return TRUE if success, i.e., the page did not become too empty */
 ibool
-btr_cur_optimistic_delete_func(
-/*===========================*/
+btr_cur_optimistic_delete(
+/*======================*/
 	btr_cur_t*	cursor,	/*!< in: cursor on leaf page, on the record to
 				delete; cursor stays valid: if deletion
 				succeeds, on function exit it points to the
 				successor of the deleted record */
-#ifdef UNIV_DEBUG
 	ulint		flags,	/*!< in: BTR_CREATE_FLAG or 0 */
-#endif /* UNIV_DEBUG */
 	mtr_t*		mtr)	/*!< in: mtr; if this function returns
 				TRUE on a leaf page of a secondary
 				index, the mtr must be committed
@@ -5535,7 +5530,7 @@ btr_cur_optimistic_delete_func(
 			|| (first_rec != rec
 			    && rec_is_add_metadata(first_rec, *index));
 		if (UNIV_LIKELY(empty_table)) {
-			if (UNIV_LIKELY(!is_metadata)) {
+			if (UNIV_LIKELY(!is_metadata && !flags)) {
 				lock_update_delete(block, rec);
 			}
 			btr_page_empty(block, buf_block_get_page_zip(block),
@@ -5574,7 +5569,9 @@ btr_cur_optimistic_delete_func(
 					    cursor->index, mtr);
 			goto func_exit;
 		} else {
-			lock_update_delete(block, rec);
+			if (!flags) {
+				lock_update_delete(block, rec);
+			}
 
 			btr_search_update_hash_on_delete(cursor);
 		}
@@ -5814,7 +5811,6 @@ discard_page:
 			rec_t*		father_rec;
 			btr_cur_t	father_cursor;
 			rec_offs*	offsets;
-			bool		upd_ret;
 			ulint		len;
 
 			rtr_page_get_father_block(NULL, heap, index,
@@ -5828,17 +5824,8 @@ discard_page:
 			rtr_read_mbr(rec_get_nth_field(
 				father_rec, offsets, 0, &len), &father_mbr);
 
-			upd_ret = rtr_update_mbr_field(&father_cursor, offsets,
-						       NULL, page, &father_mbr,
-						       next_rec, mtr);
-
-			if (!upd_ret) {
-				*err = DB_ERROR;
-
-				mem_heap_free(heap);
-				return(FALSE);
-			}
-
+			rtr_update_mbr_field(&father_cursor, offsets, NULL,
+					     page, &father_mbr, next_rec, mtr);
 			ut_d(parent_latched = true);
 		} else {
 			/* Otherwise, if we delete the leftmost node pointer
@@ -7061,8 +7048,6 @@ btr_store_big_rec_extern_fields(
 						     + prev_block->page.frame,
 						     page_no);
 				}
-			} else if (dict_index_is_online_ddl(index)) {
-				row_log_table_blob_alloc(index, page_no);
 			}
 
 			ut_ad(!page_has_siblings(block->page.frame));
@@ -7312,8 +7297,6 @@ btr_free_externally_stored_field(
 	page_t*		page;
 	const uint32_t	space_id	= mach_read_from_4(
 		field_ref + BTR_EXTERN_SPACE_ID);
-	const uint32_t	start_page	= mach_read_from_4(
-		field_ref + BTR_EXTERN_PAGE_NO);
 	uint32_t	page_no;
 	uint32_t	next_page_no;
 	mtr_t		mtr;
@@ -7381,10 +7364,6 @@ btr_free_externally_stored_field(
 			mtr_commit(&mtr);
 
 			return;
-		}
-
-		if (page_no == start_page && dict_index_is_online_ddl(index)) {
-			row_log_table_blob_free(index, start_page);
 		}
 
 		ext_block = buf_page_get(

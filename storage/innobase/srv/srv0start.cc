@@ -819,7 +819,6 @@ srv_open_tmp_tablespace(bool create_new_db)
 static void srv_shutdown_threads()
 {
 	ut_ad(!srv_undo_sources);
-	ut_d(srv_master_thread_enable());
 	srv_master_timer.reset();
 	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
 
@@ -1895,8 +1894,6 @@ skip_monitors:
 void srv_shutdown_bg_undo_sources()
 {
 	srv_shutdown_state = SRV_SHUTDOWN_INITIATED;
-
-	ut_d(srv_master_thread_enable());
 
 	if (srv_undo_sources) {
 		ut_ad(!srv_read_only_mode);

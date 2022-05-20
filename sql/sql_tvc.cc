@@ -438,10 +438,12 @@ bool table_value_constr::exec(SELECT_LEX *sl)
 
   while ((elem= li++))
   {
+    THD *cur_thd= sl->parent_lex->thd;
     if (send_records >= sl->master_unit()->lim.get_select_limit())
       break;
     int rc=
       result->send_data_with_check(*elem, sl->master_unit(), send_records);
+    cur_thd->get_stmt_da()->inc_current_row_for_warning();
     if (!rc)
       send_records++;
     else if (rc > 0)
@@ -1207,4 +1209,3 @@ bool JOIN::transform_in_predicates_into_in_subq(THD *thd)
   thd->lex->current_select= save_current_select;
   DBUG_RETURN(false);
 }
-

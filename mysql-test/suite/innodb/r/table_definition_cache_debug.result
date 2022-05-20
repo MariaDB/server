@@ -12,6 +12,7 @@ connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR scanned';
 BEGIN;
 INSERT INTO to_be_evicted VALUES(3, 2);
+COMMIT;
 SET DEBUG_SYNC = 'now SIGNAL got_duplicate';
 connection ddl;
 ERROR 23000: Duplicate entry '2' for key 'b'

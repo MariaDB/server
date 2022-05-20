@@ -1072,7 +1072,6 @@ ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown()
 	dict_stats_shutdown();
 	btr_defragment_shutdown();
 
-	ut_d(srv_master_thread_enable());
 	srv_shutdown_state = SRV_SHUTDOWN_CLEANUP;
 
 	if (srv_buffer_pool_dump_at_shutdown &&

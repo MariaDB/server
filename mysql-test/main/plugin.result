@@ -357,6 +357,15 @@ select * from mysql.plugin WHERE name='unexisting_plugin';
 name	dl
 UNINSTALL PLUGIN unexisting_plugin;
 ERROR 42000: PLUGIN unexisting_plugin does not exist
+#
+# MDEV-26323 use-after-poison issue of MariaDB server
+#
+INSTALL PLUGIN DEALLOCATE SONAME '';
+ERROR HY000: Can't open shared library '.so'
+INSTALL PLUGIN DEALLOCATE SONAME 'x';
+ERROR HY000: Can't open shared library 'x.so'
+INSTALL PLUGIN DEALLOCATE SONAME 'xx';
+ERROR HY000: Can't open shared library 'xx.so'
 # End of 10.2 tests
 #
 # MDEV-16294: INSTALL PLUGIN IF NOT EXISTS / UNINSTALL PLUGIN IF EXISTS

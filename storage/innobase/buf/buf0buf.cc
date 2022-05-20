@@ -330,9 +330,6 @@ buf_pool_t::chunk_t::map *buf_pool_t::chunk_t::map_reg;
 buf_pool_t::chunk_t::map *buf_pool_t::chunk_t::map_ref;
 
 #ifdef UNIV_DEBUG
-/** Disable resizing buffer pool to make assertion code not expensive. */
-my_bool			buf_disable_resize_buffer_pool_debug = TRUE;
-
 /** This is used to insert validation operations in execution
 in the debug version */
 static Atomic_counter<size_t> buf_dbg_counter;
@@ -1119,15 +1116,19 @@ bool buf_pool_t::create()
   ut_ad(srv_buf_pool_size > 0);
   ut_ad(!resizing);
   ut_ad(!chunks_old);
-  ut_ad(!field_ref_zero);
+  /* mariabackup loads tablespaces, and it requires field_ref_zero to be
+  allocated before innodb initialization */
+  ut_ad(srv_operation >= SRV_OPERATION_RESTORE || !field_ref_zero);
 
   NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
 
-  if (auto b= aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096))
-    field_ref_zero= static_cast<const byte*>
-      (memset_aligned<4096>(b, 0, UNIV_PAGE_SIZE_MAX));
-  else
-    return true;
+  if (!field_ref_zero) {
+    if (auto b= aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096))
+      field_ref_zero= static_cast<const byte*>
+        (memset_aligned<4096>(b, 0, UNIV_PAGE_SIZE_MAX));
+    else
+      return true;
+  }
 
   chunk_t::map_reg= UT_NEW_NOKEY(chunk_t::map());
 

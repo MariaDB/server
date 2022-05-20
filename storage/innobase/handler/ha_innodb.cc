@@ -2161,9 +2161,9 @@ fail:
     pcur.restore_position(BTR_SEARCH_LEAF, &mtr);
   }
 
-  btr_pcur_close(&pcur);
   mtr.commit();
   trx->free();
+  ut_free(pcur.old_rec_buf);
   ut_d(purge_sys.resume_FTS());
 }
 
@@ -5240,33 +5240,26 @@ ha_innobase::keys_to_use_for_scanning()
 	return(&key_map_full);
 }
 
-/****************************************************************//**
-Ensures that if there's a concurrent inplace ADD INDEX, being-indexed virtual
-columns are computed. They are not marked as indexed in the old table, so the
-server won't add them to the read_set automatically */
-void
-ha_innobase::column_bitmaps_signal()
-/*================================*/
+/** Ensure that indexed virtual columns will be computed. */
+void ha_innobase::column_bitmaps_signal()
 {
-	if (!table->vfield || table->current_lock != F_WRLCK) {
-		return;
-	}
+  if (!table->vfield || table->current_lock != F_WRLCK)
+    return;
 
-	dict_index_t*	clust_index = dict_table_get_first_index(m_prebuilt->table);
-	uint	num_v = 0;
-	for (uint j = 0; j < table->s->virtual_fields; j++) {
-		if (table->vfield[j]->stored_in_db()) {
-			continue;
-		}
+  dict_index_t* clust_index= dict_table_get_first_index(m_prebuilt->table);
+  uint num_v= 0;
+  for (uint j = 0; j < table->s->virtual_fields; j++)
+  {
+    if (table->vfield[j]->stored_in_db())
+      continue;
 
-		dict_col_t*	col = &m_prebuilt->table->v_cols[num_v].m_col;
-		if (col->ord_part ||
-		    (dict_index_is_online_ddl(clust_index) &&
-		     row_log_col_is_indexed(clust_index, num_v))) {
-			table->mark_virtual_column_with_deps(table->vfield[j]);
-		}
-		num_v++;
-	}
+    dict_col_t *col= &m_prebuilt->table->v_cols[num_v].m_col;
+    if (col->ord_part ||
+        (dict_index_is_online_ddl(clust_index) &&
+         row_log_col_is_indexed(clust_index, num_v)))
+      table->mark_virtual_column_with_deps(table->vfield[j]);
+    num_v++;
+  }
 }
 
 
@@ -8251,34 +8244,13 @@ calc_row_difference(
 			}
 		}
 
-#ifdef UNIV_DEBUG
-		bool	online_ord_part = false;
-#endif
-
 		if (is_virtual) {
 			/* If the virtual column is not indexed,
 			we shall ignore it for update */
 			if (!col->ord_part) {
-				/* Check whether there is a table-rebuilding
-				online ALTER TABLE in progress, and this
-				virtual column could be newly indexed, thus
-				it will be materialized. Then we will have
-				to log its update.
-				Note, we do not support online dropping virtual
-				column while adding new index, nor with
-				online alter column order while adding index,
-				so the virtual column sequence must not change
-				if it is online operation */
-				if (dict_index_is_online_ddl(clust_index)
-				    && row_log_col_is_indexed(clust_index,
-							      num_v)) {
-#ifdef UNIV_DEBUG
-					online_ord_part = true;
-#endif
-				} else {
-					num_v++;
-					continue;
-				}
+			next:
+				num_v++;
+				continue;
 			}
 
 			if (!uvect->old_vrow) {
@@ -8304,8 +8276,7 @@ calc_row_difference(
 					prebuilt, vfield, o_len,
 					col, old_mysql_row_col,
 					col_pack_len, buf);
-			       num_v++;
-			       continue;
+				goto next;
 			}
 		}
 
@@ -8354,7 +8325,7 @@ calc_row_difference(
 				upd_fld_set_virtual_col(ufield);
 				ufield->field_no = num_v;
 
-				ut_ad(col->ord_part || online_ord_part);
+				ut_ad(col->ord_part);
 				ufield->old_v_val = static_cast<dfield_t*>(
 					mem_heap_alloc(
 						uvect->heap,
@@ -8439,7 +8410,7 @@ calc_row_difference(
 				prebuilt, vfield, o_len,
 				col, old_mysql_row_col,
 				col_pack_len, buf);
-			ut_ad(col->ord_part || online_ord_part);
+			ut_ad(col->ord_part);
 			num_v++;
 		}
 	}
@@ -13519,6 +13490,7 @@ int ha_innobase::delete_table(const char *name)
   dict_sys.unlock();
 
   trx_t *trx= parent_trx;
+  dberr_t err= DB_SUCCESS;
   if (!trx->lock.table_locks.empty() &&
       thd_ddl_options(trx->mysql_thd)->is_create_select())
   {
@@ -13538,11 +13510,28 @@ int ha_innobase::delete_table(const char *name)
   {
     trx= innobase_trx_allocate(thd);
     trx_start_for_ddl(trx);
+
+    if (table->name.is_temporary())
+      /* There is no need to lock any FOREIGN KEY child tables. */;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    else if (table->name.part())
+      /* FOREIGN KEY constraints cannot exist on partitioned tables. */;
+#endif
+    else
+    {
+      dict_sys.freeze(SRW_LOCK_CALL);
+      for (const dict_foreign_t* f : table->referenced_set)
+        if (dict_table_t* child= f->foreign_table)
+          if ((err= lock_table_for_trx(child, trx, LOCK_X)) != DB_SUCCESS)
+            break;
+      dict_sys.unfreeze();
+    }
   }
 
   dict_table_t *table_stats= nullptr, *index_stats= nullptr;
   MDL_ticket *mdl_table= nullptr, *mdl_index= nullptr;
-  dberr_t err= lock_table_for_trx(table, trx, LOCK_X);
+  if (err == DB_SUCCESS)
+    err= lock_table_for_trx(table, trx, LOCK_X);
 
   const bool fts= err == DB_SUCCESS &&
     (table->flags2 & (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS));
@@ -13627,7 +13616,28 @@ int ha_innobase::delete_table(const char *name)
   }
 
   if (err == DB_SUCCESS)
+  {
+    if (!table->space)
+    {
+      const char *data_dir_path= DICT_TF_HAS_DATA_DIR(table->flags)
+        ? table->data_dir_path : nullptr;
+      char *path= fil_make_filepath(data_dir_path, table->name, CFG,
+                                    data_dir_path != nullptr);
+      os_file_delete_if_exists(innodb_data_file_key, path, nullptr);
+      ut_free(path);
+      path= fil_make_filepath(data_dir_path, table->name, IBD,
+                              data_dir_path != nullptr);
+      os_file_delete_if_exists(innodb_data_file_key, path, nullptr);
+      ut_free(path);
+      if (data_dir_path)
+      {
+        path= fil_make_filepath(nullptr, table->name, ISL, false);
+        os_file_delete_if_exists(innodb_data_file_key, path, nullptr);
+        ut_free(path);
+      }
+    }
     err= lock_sys_tables(trx);
+  }
 
   dict_sys.lock(SRW_LOCK_CALL);
 
@@ -16686,8 +16696,8 @@ ha_innobase::get_auto_increment(
 
 	(3) It is restricted only for insert operations. */
 
-	if (increment > 1 && thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE
-	    && autoinc < col_max_value) {
+	if (increment > 1 && increment <= ~autoinc && autoinc < col_max_value
+	    && thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE) {
 
 		ulonglong prev_auto_inc = autoinc;
 
@@ -19683,28 +19693,6 @@ static MYSQL_SYSVAR_UINT(saved_page_number_debug,
   srv_saved_page_number_debug, PLUGIN_VAR_OPCMDARG,
   "An InnoDB page number.",
   NULL, NULL, 0, 0, UINT_MAX32, 0);
-
-static MYSQL_SYSVAR_BOOL(disable_resize_buffer_pool_debug,
-  buf_disable_resize_buffer_pool_debug, PLUGIN_VAR_NOCMDARG,
-  "Disable resizing buffer pool to make assertion code not expensive.",
-  NULL, NULL, TRUE);
-
-static MYSQL_SYSVAR_BOOL(page_cleaner_disabled_debug,
-  innodb_page_cleaner_disabled_debug, PLUGIN_VAR_OPCMDARG,
-  "Disable page cleaner",
-  NULL, NULL, FALSE);
-
-static MYSQL_SYSVAR_BOOL(dict_stats_disabled_debug,
-  innodb_dict_stats_disabled_debug,
-  PLUGIN_VAR_OPCMDARG,
-  "Disable dict_stats thread",
-  NULL, dict_stats_disabled_debug_update, FALSE);
-
-static MYSQL_SYSVAR_BOOL(master_thread_disabled_debug,
-  srv_master_thread_disabled_debug,
-  PLUGIN_VAR_OPCMDARG,
-  "Disable master thread",
-  NULL, srv_master_thread_disabled_debug_update, FALSE);
 #endif /* UNIV_DEBUG */
 
 static MYSQL_SYSVAR_BOOL(force_primary_key,
@@ -19942,10 +19930,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(data_file_size_debug),
   MYSQL_SYSVAR(fil_make_page_dirty_debug),
   MYSQL_SYSVAR(saved_page_number_debug),
-  MYSQL_SYSVAR(disable_resize_buffer_pool_debug),
-  MYSQL_SYSVAR(page_cleaner_disabled_debug),
-  MYSQL_SYSVAR(dict_stats_disabled_debug),
-  MYSQL_SYSVAR(master_thread_disabled_debug),
 #endif /* UNIV_DEBUG */
   MYSQL_SYSVAR(force_primary_key),
   MYSQL_SYSVAR(fatal_semaphore_wait_threshold),
@@ -20933,21 +20917,6 @@ innodb_buffer_pool_size_validate(
 				    " because InnoDB is not started.");
 		return(1);
 	}
-
-#ifdef UNIV_DEBUG
-	if (buf_disable_resize_buffer_pool_debug == TRUE) {
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			ER_WRONG_ARGUMENTS,
-			"Cannot update innodb_buffer_pool_size,"
-			" because innodb_disable_resize_buffer_pool_debug"
-			" is set.");
-		ib::warn() << "Cannot update innodb_buffer_pool_size,"
-			" because innodb_disable_resize_buffer_pool_debug"
-			" is set.";
-		return(1);
-	}
-#endif /* UNIV_DEBUG */
-
 
 	mysql_mutex_lock(&buf_pool.mutex);
 

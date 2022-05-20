@@ -132,6 +132,7 @@ scripts/mysqld_safe
 scripts/mysqldumpslow
 scripts/mysqlhotcopy
 scripts/mytop
+scripts/wsrep_sst_backup
 scripts/wsrep_sst_common
 scripts/wsrep_sst_mysqldump
 scripts/wsrep_sst_rsync
