@@ -1769,7 +1769,8 @@ sub collect_mysqld_features {
            and $1 ne "innodb-buffer-page"
            and $1 ne "innodb-lock-waits"
            and $1 ne "innodb-locks"
-           and $1 ne "innodb-trx";
+           and $1 ne "innodb-trx"
+           and $1 ne "gssapi";
       next;
     }
 
