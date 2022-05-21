@@ -1073,7 +1073,7 @@ int spider_param_bulk_update_size(
  */
 static MYSQL_THDVAR_INT(
   buffer_size, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Buffer size", /* comment */
   NULL, /* check */
   spider_use_table_value_deprecated, /* update */
