@@ -181,6 +181,21 @@ Warnings:
 Warning	1287	The table parameter 'crd_weight' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
+# MDEV-28560 Deprecate spider_buffer_size
+SET spider_buffer_size = 1;
+Warnings:
+Warning	1287	'@@spider_buffer_size' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_buffer_size";
+Variable_name	Value
+spider_buffer_size	1
+CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='bfz "1"';
+Warnings:
+Warning	1287	The table parameter 'bfz' is deprecated and will be removed in a future release
+CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='buffer_size "1"';
+Warnings:
+Warning	1287	The table parameter 'buffer_size' is deprecated and will be removed in a future release
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
 DROP DATABASE auto_test_local;
 for master_1
 for child2
