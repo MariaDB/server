@@ -111,12 +111,19 @@ static void optimize_straight_join(JOIN *join, table_map join_tables);
 static bool greedy_search(JOIN *join, table_map remaining_tables,
                           uint depth, uint prune_level,
                           uint use_cond_selectivity);
-static bool best_extension_by_limited_search(JOIN *join,
-                                             table_map remaining_tables,
-                                             uint idx, double record_count,
-                                             double read_time, uint depth,
-                                             uint prune_level,
-                                             uint use_cond_selectivity);
+enum enum_best_search {
+  SEARCH_ABORT= -2,
+  SEARCH_ERROR= -1,
+  SEARCH_OK= 0,
+  SEARCH_FOUND_EDGE=1
+};
+static enum_best_search
+best_extension_by_limited_search(JOIN *join,
+                                 table_map remaining_tables,
+                                 uint idx, double record_count,
+                                 double read_time, uint depth,
+                                 uint prune_level,
+                                 uint use_cond_selectivity);
 static uint determine_search_depth(JOIN* join);
 C_MODE_START
 static int join_tab_cmp(const void *dummy, const void* ptr1, const void* ptr2);
@@ -384,6 +391,7 @@ POSITION::POSITION()
   range_rowid_filter_info= 0;
   ref_depend_map= dups_producing_tables= 0;
   inner_tables_handled_with_other_sjs= 0;
+  type= JT_UNKNOWN;
   dups_weedout_picker.set_empty();
   firstmatch_picker.set_empty();
   loosescan_picker.set_empty();
@@ -8445,6 +8453,7 @@ best_access_path(JOIN      *join,
   pos->records_read= records;
   pos->read_time=    best;
   pos->key=          best_key;
+  pos->type=         best_type;
   pos->table=        s;
   pos->ref_depend_map= best_ref_depends_map;
   pos->loosescan_picker.loosescan_key= MAX_KEY;
@@ -9100,9 +9109,12 @@ greedy_search(JOIN      *join,
   do {
     /* Find the extension of the current QEP with the lowest cost */
     join->best_read= DBL_MAX;
-    if (best_extension_by_limited_search(join, remaining_tables, idx, record_count,
-                                         read_time, search_depth, prune_level,
-                                         use_cond_selectivity))
+    if ((int) best_extension_by_limited_search(join, remaining_tables, idx,
+                                               record_count,
+                                               read_time, search_depth,
+                                               prune_level,
+                                               use_cond_selectivity) <
+        (int) SEARCH_OK)
       DBUG_RETURN(TRUE);
     /*
       'best_read < DBL_MAX' means that optimizer managed to find
@@ -9738,6 +9750,28 @@ exit:
 }
 
 
+/*
+  Check if the table is an EQ_REF or similar table and there is no cost
+  to gain by moveing it to a later stage.
+  We call such a table a edge table (or hanging leaf) as it will read at
+  most one row and will not add to the number of row combinations in the join.
+*/
+
+static inline enum_best_search
+check_if_edge_table(POSITION *pos,
+                    double pushdown_cond_selectivity)
+{
+
+  if ((pos->type == JT_EQ_REF ||
+       (pos->type == JT_REF &&
+        pos->records_read == 1 &&
+        !pos->range_rowid_filter_info)) &&
+      pushdown_cond_selectivity >= 0.999)
+    return SEARCH_FOUND_EDGE;
+  return SEARCH_OK;
+}
+
+
 /**
   Find a good, possibly optimal, query execution plan (QEP) by a possibly
   exhaustive search.
@@ -9852,12 +9886,17 @@ exit:
                           pushed to a table should be taken into account
 
   @retval
-    FALSE       ok
+    enum_best_search::SEARCH_OK          All fine
   @retval
-    TRUE        Fatal error
+    enum_best_search::SEARCH_FOUND_EDGE  All remaning tables are edge tables
+  @retval
+    enum_best_search::SEARCH_ABORT       Killed by user
+  @retval
+    enum_best_search::SEARCH_ERROR       Fatal error
 */
 
-static bool
+
+static enum_best_search
 best_extension_by_limited_search(JOIN      *join,
                                  table_map remaining_tables,
                                  uint      idx,
@@ -9867,9 +9906,17 @@ best_extension_by_limited_search(JOIN      *join,
                                  uint      prune_level,
                                  uint      use_cond_selectivity)
 {
-  DBUG_ENTER("best_extension_by_limited_search");
-
   THD *thd= join->thd;
+  /*
+     'join' is a partial plan with lower cost than the best plan so far,
+     so continue expanding it further with the tables in 'remaining_tables'.
+  */
+  JOIN_TAB *s;
+  double best_record_count= DBL_MAX;
+  double best_read_time=    DBL_MAX;
+  bool disable_jbuf= join->thd->variables.join_cache_level == 0;
+  enum_best_search best_res;
+  DBUG_ENTER("best_extension_by_limited_search");
 
   DBUG_EXECUTE_IF("show_explain_probe_best_ext_lim_search", 
                   if (dbug_user_var_equals_int(thd, 
@@ -9879,19 +9926,7 @@ best_extension_by_limited_search(JOIN      *join,
                  );
 
   if (unlikely(thd->check_killed()))  // Abort
-    DBUG_RETURN(TRUE);
-
-  DBUG_EXECUTE("opt", print_plan(join, idx, read_time, record_count, idx,
-                                 "SOFAR:"););
-
-  /* 
-     'join' is a partial plan with lower cost than the best plan so far,
-     so continue expanding it further with the tables in 'remaining_tables'.
-  */
-  JOIN_TAB *s;
-  double best_record_count= DBL_MAX;
-  double best_read_time=    DBL_MAX;
-  bool disable_jbuf= join->thd->variables.join_cache_level == 0;
+    DBUG_RETURN(SEARCH_ABORT);
 
   DBUG_EXECUTE("opt", print_plan(join, idx, record_count, read_time, read_time,
                                 "part_plan"););
@@ -9907,15 +9942,18 @@ best_extension_by_limited_search(JOIN      *join,
   for (JOIN_TAB **pos= join->best_ref + idx ; (s= *pos) ; pos++)
   {
     table_map real_table_bit= s->table->map;
-    if ((remaining_tables & real_table_bit) &&
-        (allowed_tables & real_table_bit) &&
+    DBUG_ASSERT(remaining_tables & real_table_bit);
+
+    if ((allowed_tables & real_table_bit) &&
         !(remaining_tables & s->dependent) &&
-        (!idx || !check_interleaving_with_nj(s)))
+        !check_interleaving_with_nj(s))
     {
       double current_record_count, current_read_time;
+      double partial_join_cardinality;
       POSITION *position= join->positions + idx;
-
+      POSITION loose_scan_pos;
       Json_writer_object trace_one_table(thd);
+
       if (unlikely(thd->trace_started()))
       {
         trace_plan_prefix(join, idx, remaining_tables);
@@ -9923,7 +9961,6 @@ best_extension_by_limited_search(JOIN      *join,
       }
 
       /* Find the best access method from 's' to the current partial plan */
-      POSITION loose_scan_pos;
       best_access_path(join, s, remaining_tables, join->positions, idx,
                        disable_jbuf, record_count, position, &loose_scan_pos);
 
@@ -9998,32 +10035,51 @@ best_extension_by_limited_search(JOIN      *join,
       double pushdown_cond_selectivity= 1.0;
       if (use_cond_selectivity > 1)
         pushdown_cond_selectivity= table_cond_selectivity(join, idx, s,
-				                          remaining_tables &
+                                                          remaining_tables &
                                                           ~real_table_bit);
       join->positions[idx].cond_selectivity= pushdown_cond_selectivity;
 
-      if (unlikely(thd->trace_started()) && pushdown_cond_selectivity < 1.0)
-        trace_one_table.add("selectivity", pushdown_cond_selectivity);
+      partial_join_cardinality= (current_record_count *
+                                 pushdown_cond_selectivity);
 
-      double partial_join_cardinality= current_record_count *
-                                        pushdown_cond_selectivity;
-      if ( (search_depth > 1) && (remaining_tables & ~real_table_bit) & allowed_tables )
-      { /* Recursively expand the current partial plan */
+      if (unlikely(thd->trace_started()))
+      {
+        if (pushdown_cond_selectivity < 1.0)
+        {
+          trace_one_table.add("selectivity", pushdown_cond_selectivity);
+          trace_one_table.add("estimated_join_cardinality",
+                              partial_join_cardinality);
+        }
+      }
+
+      if ((search_depth > 1) && (remaining_tables & ~real_table_bit) &
+          allowed_tables)
+      {
+        /* Recursively expand the current partial plan */
         swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
         Json_writer_array trace_rest(thd, "rest_of_plan");
-        if (best_extension_by_limited_search(join,
-                                             remaining_tables & ~real_table_bit,
-                                             idx + 1,
-                                             partial_join_cardinality,
-                                             current_read_time,
-                                             search_depth - 1,
-                                             prune_level,
-                                             use_cond_selectivity))
-          DBUG_RETURN(TRUE);
+        best_res=
+          best_extension_by_limited_search(join,
+                                           remaining_tables &
+                                           ~real_table_bit,
+                                           idx + 1,
+                                           partial_join_cardinality,
+                                           current_read_time,
+                                           search_depth - 1,
+                                           prune_level,
+                                           use_cond_selectivity);
+        if ((int) best_res < (int) SEARCH_OK)
+          DBUG_RETURN(best_res);                // Abort
         swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
+        if (best_res == SEARCH_FOUND_EDGE &&
+            check_if_edge_table(join->positions+ idx,
+                                pushdown_cond_selectivity) !=
+            SEARCH_FOUND_EDGE)
+          best_res= SEARCH_OK;
       }
       else
-      { /*
+      {
+        /*
           'join' is either the best partial QEP with 'search_depth' relations,
           or the best complete QEP so far, whichever is smaller.
         */
@@ -10032,15 +10088,13 @@ best_extension_by_limited_search(JOIN      *join,
             join->positions[join->const_tables].table->table)
         {
           /*
-             We may have to make a temp table, note that this is only a
-             heuristic since we cannot know for sure at this point.
-             Hence it may be wrong.
+            We may have to make a temp table, note that this is only a
+            heuristic since we cannot know for sure at this point.
+            Hence it may be wrong.
           */
           trace_one_table.add("cost_for_sorting", current_record_count);
           current_read_time= COST_ADD(current_read_time, current_record_count);
         }
-        trace_one_table.add("estimated_join_cardinality",
-                            partial_join_cardinality);
         if (current_read_time < join->best_read)
         {
           memcpy((uchar*) join->best_positions, (uchar*) join->positions,
@@ -10053,12 +10107,19 @@ best_extension_by_limited_search(JOIN      *join,
                                        read_time,
                                        current_read_time,
                                        "full_plan"););
+        best_res= check_if_edge_table(join->positions + idx,
+                                      pushdown_cond_selectivity);
       }
       restore_prev_nj_state(s);
       restore_prev_sj_state(remaining_tables, s, idx);
+      if (best_res == SEARCH_FOUND_EDGE)
+      {
+        trace_one_table.add("pruned_by_hanging_leaf", true);
+        DBUG_RETURN(best_res);
+      }
     }
   }
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(SEARCH_OK);
 }
 
 
@@ -17210,7 +17271,6 @@ static uint reset_nj_counters(JOIN *join, List<TABLE_LIST> *join_list)
 
 static bool check_interleaving_with_nj(JOIN_TAB *next_tab)
 {
-  TABLE_LIST *next_emb= next_tab->table->pos_in_table_list->embedding;
   JOIN *join= next_tab->join;
 
   if (join->cur_embedding_map & ~next_tab->embedding_map)
@@ -17222,6 +17282,7 @@ static bool check_interleaving_with_nj(JOIN_TAB *next_tab)
     return TRUE;
   }
    
+  TABLE_LIST *next_emb= next_tab->table->pos_in_table_list->embedding;
   /*
     Do update counters for "pairs of brackets" that we've left (marked as
     X,Y,Z in the above picture)

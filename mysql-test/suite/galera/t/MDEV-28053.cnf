@@ -1,0 +1,6 @@
+!include ../galera_2nodes_as_slave.cnf
+
+[mysqld]
+slave_parallel_threads=4
+slave_parallel_mode=optimistic
+gtid_strict_mode=1

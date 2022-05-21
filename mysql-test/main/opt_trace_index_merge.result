@@ -221,8 +221,7 @@ explain select * from t1 where a=1 or b=1	{
                   }
                 },
                 "rows_for_plan": 2,
-                "cost_for_plan": 2.884903732,
-                "estimated_join_cardinality": 2
+                "cost_for_plan": 2.884903732
               }
             ]
           },

@@ -163,10 +163,11 @@ then
      echo "$STOP_WSREP" && $MYSQLDUMP && echo "$CSV_TABLES_FIX" && \
      echo "$RESTORE_GENERAL_LOG" && echo "$RESTORE_SLOW_QUERY_LOG" && \
      echo "$SET_START_POSITION" && echo "$SET_WSREP_GTID_DOMAIN_ID" \
-     || echo "SST failed to complete;") | $MYSQL
+     || echo "SST failed to complete;") | $MYSQL || exit $?
 else
     wsrep_log_info "Bypassing state dump."
-    echo "$SET_START_POSITION" | $MYSQL
+    echo "$SET_START_POSITION" | $MYSQL || exit $?
 fi
 
-#
+wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE completed on $WSREP_SST_OPT_ROLE"
+exit 0

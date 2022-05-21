@@ -52,17 +52,15 @@ private:
   int count_internal(const char *cur_func, uint set_type,
                      const char **end);
 public:
-  enum value
-  {
-    v_empty=   0x0000000,
-    v_find_t=  0x1000000,
-    v_find_f=  0x2000000,
-    v_t_found= 0x3000000,
-    v_f_found= 0x4000000,
-    v_mask=    0x7000000
-  };
   enum op_type
   {
+    v_empty=          0x00000000,
+    v_find_t=         0x01000000,
+    v_find_f=         0x02000000,
+    v_t_found=        0x03000000,
+    v_f_found=        0x04000000,
+    v_mask=           0x07000000,
+
     op_not=           0x80000000,
     op_shape=         0x00000000,
     op_union=         0x10000000,

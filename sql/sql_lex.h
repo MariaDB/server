@@ -2047,8 +2047,7 @@ public:
     @retval nonzero if the statement is a row injection
   */
   inline bool is_stmt_row_injection() const {
-    return binlog_stmt_flags &
-      (1U << (BINLOG_STMT_UNSAFE_COUNT + BINLOG_STMT_TYPE_ROW_INJECTION));
+    return binlog_stmt_flags & (1U << BINLOG_STMT_TYPE_ROW_INJECTION);
   }
 
   /**
@@ -2058,8 +2057,7 @@ public:
   */
   inline void set_stmt_row_injection() {
     DBUG_ENTER("set_stmt_row_injection");
-    binlog_stmt_flags|=
-      (1U << (BINLOG_STMT_UNSAFE_COUNT + BINLOG_STMT_TYPE_ROW_INJECTION));
+    binlog_stmt_flags|= (1U << BINLOG_STMT_TYPE_ROW_INJECTION);
     DBUG_VOID_RETURN;
   }
 
@@ -2335,7 +2333,7 @@ private:
       The statement is a row injection (i.e., either a BINLOG
       statement or a row event executed by the slave SQL thread).
     */
-    BINLOG_STMT_TYPE_ROW_INJECTION = 0,
+    BINLOG_STMT_TYPE_ROW_INJECTION = BINLOG_STMT_UNSAFE_COUNT,
 
     /** The last element of this enumeration type. */
     BINLOG_STMT_TYPE_COUNT
@@ -2349,8 +2347,8 @@ private:
     - The low BINLOG_STMT_UNSAFE_COUNT bits indicate the types of
       unsafeness that the current statement has.
 
-    - The next BINLOG_STMT_TYPE_COUNT bits indicate if the statement
-      is of some special type.
+      - The next BINLOG_STMT_TYPE_COUNT-BINLOG_STMT_TYPE_COUNT bits indicate if
+      the statement is of some special type.
 
     This must be a member of LEX, not of THD: each stored procedure
     needs to remember its unsafeness state between calls and each
