@@ -113,6 +113,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fil0pagecompress.h"
 #include "ut0mem.h"
 #include "row0ext.h"
+#include "row0sel.h"
 
 #include "lz4.h"
 #include "lzo/lzo1x.h"
@@ -9490,8 +9491,6 @@ ha_innobase::rnd_next(
 	DBUG_RETURN(error);
 }
 
-#include "../row/row0sel.cc"
-
 int
 ha_innobase::sample_init()
 {
@@ -9528,7 +9527,8 @@ ha_innobase::sample_next(
   mtr.start();
   dict_index_t*	index= innobase_get_index(MAX_KEY);
   bool res= btr_pcur_open_at_rnd_pos(index, BTR_SEARCH_LEAF, pcur, &mtr);
-  if(!res) {
+  if(!res)
+  {
     mtr.commit();
     return HA_ERR_KEY_NOT_FOUND;
   }
@@ -9537,12 +9537,23 @@ ha_innobase::sample_next(
 
   mem_heap_t*	heap= NULL;
   offsets= rec_get_offsets(rec, index, offsets, index->n_core_fields, ULINT_UNDEFINED, &heap);
-  ut_ad(offsets != NULL);
-  ut_ad(heap == NULL);
+  ut_ad(offsets);
+  if (!offsets)
+  {
+    mtr.commit();
+    if (heap)
+      mem_heap_free(heap);
+    return HA_ERR_INTERNAL_ERROR;
+  }
+
   res= row_sel_store_mysql_rec(
       buf, m_prebuilt, rec, NULL, true,
       index, offsets);
+
   mtr.commit();
+
+  if(heap)
+    mem_heap_free(heap);
   return res ? 0 : HA_ERR_INTERNAL_ERROR;
 }
 
