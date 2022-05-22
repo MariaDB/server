@@ -3092,7 +3092,7 @@ be needed in the query.
 @retval true on success
 @retval false if not all columns could be retrieved */
 MY_ATTRIBUTE((warn_unused_result))
-static bool row_sel_store_mysql_rec(
+bool row_sel_store_mysql_rec(
 	byte*		mysql_rec,
 	row_prebuilt_t*	prebuilt,
 	const rec_t*	rec,
