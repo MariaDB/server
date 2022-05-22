@@ -5789,10 +5789,10 @@ field_type_or_serial:
           }
           field_def
           {
-            Lex_charset_collation tmp= $1.lex_charset_collation();
+            Lex_charset_collation tmp= $1.charset_collation_attrs();
             if (tmp.merge_charset_clause_and_collate_clause($3))
               MYSQL_YYABORT;
-            Lex->last_field->set_lex_charset_collation(tmp);
+            Lex->last_field->set_charset_collation_attrs(tmp);
           }
         | SERIAL_SYM
           {
@@ -11358,7 +11358,7 @@ json_table_column_type:
                                             COLUMN_DEFINITION_TABLE_FIELD);
             if (Lex->json_table->m_cur_json_table_column->
                   set(thd, Json_table_column::PATH, $3,
-                      $1.lex_charset_collation()))
+                      $1.charset_collation_attrs()))
             {
               MYSQL_YYABORT;
             }
@@ -11369,7 +11369,7 @@ json_table_column_type:
                                             COLUMN_DEFINITION_TABLE_FIELD);
             if (Lex->json_table->m_cur_json_table_column->
                   set(thd, Json_table_column::EXISTS_PATH, $4,
-                      $1.lex_charset_collation()))
+                      $1.charset_collation_attrs()))
                MYSQL_YYABORT;
           }
         ;

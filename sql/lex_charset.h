@@ -196,4 +196,8 @@ public:
 };
 
 
+using Lex_column_charset_collation_attrs_st = Lex_charset_collation_st;
+using Lex_column_charset_collation_attrs = Lex_charset_collation;
+
+
 #endif // LEX_CHARSET_INCLUDED

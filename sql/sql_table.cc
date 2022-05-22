@@ -2202,7 +2202,7 @@ bool check_duplicates_in_interval(const char *set_or_name,
 bool Column_definition::
        prepare_charset_for_string(const Column_derived_attributes *dattr)
 {
-  CHARSET_INFO *tmp= lex_charset_collation().
+  CHARSET_INFO *tmp= charset_collation_attrs().
                        resolved_to_character_set(dattr->charset());
   if (!tmp)
     return true;
