@@ -7641,7 +7641,7 @@ double cost_for_index_read(const THD *thd, const TABLE *table, uint key,
   Adjust cost from table->quick_costs calculated by
   multi_range_read_info_const() to be comparable with cost_for_index_read()
 
-  This functions is needed because best_access_patch doesn't add
+  This functions is needed because best_access_path() doesn't add
   TIME_FOR_COMPARE to it's costs until very late.
   Preferably we should fix so that all costs are comparably.
   (All compared costs should include TIME_FOR_COMPARE for all found
@@ -8251,6 +8251,9 @@ best_access_path(JOIN      *join,
     if (s->key_start_dependent)
       key_dependent= s->key_dependent;
   }
+  /* Check that s->key_dependent contains all used_tables found in s->keyuse */
+  key_dependent&= ~PSEUDO_TABLE_BITS;
+  DBUG_ASSERT((key_dependent & s->key_dependent) == key_dependent);
 
   /* 
     If there is no key to access the table, but there is an equi-join
@@ -12600,6 +12603,7 @@ bool generate_derived_keys_for_table(KEYUSE *keyuse, uint count, uint keys)
                                (uchar *) &first_keyuse))
 
       {
+        JOIN_TAB *tab;
         first_keyuse= save_first_keyuse;
         if (table->add_tmp_key(table->s->keys, parts, 
                                get_next_field_for_derived_key, 
@@ -12607,6 +12611,9 @@ bool generate_derived_keys_for_table(KEYUSE *keyuse, uint count, uint keys)
                                FALSE))
           return TRUE;
         table->reginfo.join_tab->keys.set_bit(table->s->keys);
+        tab= table->reginfo.join_tab;
+        for (uint i=0; i < parts; i++)
+          tab->key_dependent|= save_first_keyuse[i].used_tables;
       }
       else
       {
