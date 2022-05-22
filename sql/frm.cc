@@ -1832,10 +1832,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     LEX_CSTRING comment;
     LEX_CSTRING name;
     Virtual_column_info *vcol_info= 0;
-        #undef FRM_PARSER
-#ifndef FRM_PARSER
     const Type_handler *handler;
-#endif
     uint32 flags= 0;
     Column_definition_attributes attr;
 
@@ -1887,10 +1884,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         vcol_info= new (&share->mem_root) Virtual_column_info();
         bool opt_interval_id= (uint)vcol_screen_pos[0] == 2;
         enum_field_types ftype= (enum_field_types) (uchar) vcol_screen_pos[1];
-#ifndef FRM_PARSER
         if (!(handler= Type_handler::get_handler_by_real_type(ftype)))
           goto err;
-#endif
         if (opt_interval_id)
           interval_nr= (uint)vcol_screen_pos[3];
         else if ((uint)vcol_screen_pos[0] != 1)
@@ -1909,9 +1904,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       {
         interval_nr=  (uint) strpos[12];
         enum_field_types field_type= (enum_field_types) strpos[13];
-#ifndef FRM_PARSER
         if (!(handler= Type_handler::get_handler_by_real_type(field_type)))
         {
+#ifndef FRM_PARSER
           if (field_type == 245 &&
               share->mysql_version >= 50700) // a.k.a MySQL 5.7 JSON
           {
@@ -1919,6 +1914,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
             const LEX_CSTRING mysql_json{STRING_WITH_LEN("MYSQL_JSON")};
             handler= Type_handler::handler_by_name_or_error(thd, mysql_json);
           }
+#endif
 
           if (!handler)
             goto err; // Not supported field type
@@ -1928,7 +1924,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                                              strpos,
                                                              &extra2.gis))
           goto err;
-#endif
 
         if (field_data_type_info_array.count())
         {
@@ -2090,11 +2085,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
       if (flags & VERS_SYSTEM_FIELD)
       {
-#ifdef FRM_PARSER
-        auto field_type= field
-#else
         auto field_type= handler->real_field_type();
-#endif
 
         DBUG_EXECUTE_IF("error_vers_wrong_type", field_type= MYSQL_TYPE_BLOB;);
 
@@ -2253,7 +2244,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     }
     uint add_first_key_parts= 0;
 
-    #define FRM_PARSER
+//    #define FRM_PARSER
 #ifndef FRM_PARSER
     longlong ha_option= handler_file->ha_table_flags();
 #endif

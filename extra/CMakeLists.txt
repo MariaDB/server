@@ -97,11 +97,12 @@ set(FRM_PARSER_SOURCES frm_parser.cc database_show.cc
         ../sql/sql_string.cc
         ../sql/sql_list.cc
         ../sql/frm.cc
-        ../sql/type_handler.cc
+        ../sql/sql_type.cc
+        ../sql/field_minimal.cc
         ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp
         ${CMAKE_CURRENT_BINARY_DIR}/../sql/lex_hash.h)
 MYSQL_ADD_EXECUTABLE(frm_parser ${FRM_PARSER_SOURCES})
-TARGET_COMPILE_DEFINITIONS(frm_parser PUBLIC FRM_PARSER)
+TARGET_COMPILE_DEFINITIONS(frm_parser PUBLIC FRM_PARSER TO_BE_DELETED_ON_PRODUCTION)
 TARGET_INCLUDE_DIRECTORIES(frm_parser PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/../sql)
 TARGET_LINK_LIBRARIES(frm_parser mysys)
 

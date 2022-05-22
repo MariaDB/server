@@ -53,6 +53,28 @@ void push_warning_printf(THD *thd, Sql_condition::enum_warning_level level,
   //
 }
 
+
+Compression_method compression_methods[MAX_COMPRESSION_METHODS]=
+{
+  { 0, 0, 0 },
+  { 0, 0, 0 },
+  { 0, 0, 0 },
+  { 0, 0, 0 },
+  { 0, 0, 0 },
+  { 0, 0, 0 },
+  { 0, 0, 0 },
+  { 0, 0, 0 },
+  { "zlib", 0, 0 },
+  { 0, 0, 0 },
+  { 0, 0, 0 },
+  { 0, 0, 0 },
+  { 0, 0, 0 },
+  { 0, 0, 0 },
+  { 0, 0, 0 },
+  { 0, 0, 0 }
+};
+
+
 int main(int argc, char **argv)
 {
   TABLE_SHARE share;

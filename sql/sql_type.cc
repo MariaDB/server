@@ -178,6 +178,7 @@ const Type_collection *Type_handler_row::type_collection() const
 }
 
 
+#ifndef FRM_PARSER
 bool Type_handler_data::init()
 {
 #ifdef HAVE_SPATIAL
@@ -2155,7 +2156,7 @@ Type_handler_hybrid_field_type::aggregate_for_num_op(const Type_aggregator *agg,
   return true;
 }
 
-
+#endif // !FRM_PARSER
 /***************************************************************************/
 
 const Type_handler *
@@ -2185,7 +2186,7 @@ Type_handler::get_handler_by_field_type(enum_field_types type)
   case MYSQL_TYPE_SET:         return &type_handler_varchar; // Map to VARCHAR
   case MYSQL_TYPE_GEOMETRY:
 #ifdef HAVE_SPATIAL
-    return &type_handler_geometry;
+    return NULL; //&type_handler_geometry;
 #else
     return NULL;
 #endif
@@ -2242,7 +2243,7 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   case MYSQL_TYPE_SET:         return &type_handler_set;
   case MYSQL_TYPE_GEOMETRY:
 #ifdef HAVE_SPATIAL
-    return &type_handler_geometry;
+    return NULL; // &type_handler_geometry;
 #else
     return NULL;
 #endif
@@ -2258,6 +2259,7 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   return NULL;
 }
 
+#ifndef FRM_PARSER
 
 /**
   Create a DOUBLE field by default.
@@ -8012,6 +8014,7 @@ void Type_handler_typelib::Item_param_set_param_func(Item_param *param,
   param->set_null(); // Not possible type code in the client-server protocol
 }
 
+#endif // !FRM_PARSER
 
 /***************************************************************************/
 
@@ -8433,6 +8436,7 @@ Field *Type_handler_set::
 
 
 /***************************************************************************/
+#ifndef FRM_PARSER
 
 void Type_handler::
   Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
@@ -9457,4 +9461,89 @@ int initialize_data_type_plugin(st_plugin_int *plugin)
     return 1;
   }
   return 0;
+}
+#endif // !FRM_PARSER
+
+
+static bool is_versioning_timestamp(const Column_definition *f)
+{
+  return f->type_handler() == &type_handler_timestamp2 &&
+         f->length == MAX_DATETIME_FULL_WIDTH;
+}
+
+static bool is_some_bigint(const Column_definition *f)
+{
+  return f->type_handler() == &type_handler_slonglong ||
+         f->type_handler() == &type_handler_ulonglong ||
+         f->type_handler() == &type_handler_vers_trx_id;
+}
+
+static bool is_versioning_bigint(const Column_definition *f)
+{
+  return is_some_bigint(f) && f->flags & UNSIGNED_FLAG &&
+         f->length == MY_INT64_NUM_DECIMAL_DIGITS - 1;
+}
+
+static void require_timestamp_error(const char *field, const char *table)
+{
+  my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), field, "TIMESTAMP(6)", table);
+}
+
+static void require_trx_id_error(const char *field, const char *table)
+{
+  my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), field, "BIGINT(20) UNSIGNED",
+           table);
+}
+
+bool Vers_type_timestamp::check_sys_fields(const LEX_CSTRING &table_name,
+                                           const Column_definition *row_start,
+                                           const Column_definition *row_end) const
+{
+  if (!is_versioning_timestamp(row_start))
+  {
+    require_timestamp_error(row_start->field_name.str, table_name.str);
+    return true;
+  }
+
+  if (row_end->type_handler()->vers() != this ||
+      !is_versioning_timestamp(row_end))
+  {
+    require_timestamp_error(row_end->field_name.str, table_name.str);
+    return true;
+  }
+
+  return false;
+}
+
+
+bool Vers_type_trx::check_sys_fields(const LEX_CSTRING &table_name,
+                                     const Column_definition *row_start,
+                                     const Column_definition *row_end) const
+{
+  if (!is_versioning_bigint(row_start))
+  {
+    require_trx_id_error(row_start->field_name.str, table_name.str);
+    return true;
+  }
+
+  if (row_end->type_handler()->vers() != this ||
+      !is_versioning_bigint(row_end))
+  {
+    require_trx_id_error(row_end->field_name.str, table_name.str);
+    return true;
+  }
+
+  if (!is_some_bigint(row_start))
+  {
+    require_timestamp_error(row_start->field_name.str, table_name.str);
+    return true;
+  }
+
+  if (!TR_table::use_transaction_registry)
+  {
+    my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
+    return true;
+  }
+
+  return false;
 }

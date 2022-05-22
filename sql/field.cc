@@ -54,8 +54,6 @@ const char field_separator=',';
 #define DOUBLE_TO_STRING_CONVERSION_BUFFER_SIZE FLOATING_POINT_BUFFER
 #define LONGLONG_TO_STRING_CONVERSION_BUFFER_SIZE 128
 #define DECIMAL_TO_STRING_CONVERSION_BUFFER_SIZE 128
-#define BLOB_PACK_LENGTH_TO_MAX_LENGH(arg) \
-                        ((ulong) ((1LL << MY_MIN(arg, 4) * 8) - 1))
 
 // Column marked for read or the field set to read out of record[0]
 bool Field::marked_for_read() const
@@ -3326,29 +3324,6 @@ Field *Field_decimal::make_new_field(MEM_ROOT *root, TABLE *new_table,
 /****************************************************************************
 ** Field_new_decimal
 ****************************************************************************/
-
-static decimal_digits_t get_decimal_precision(uint len, decimal_digits_t dec,
-                                              bool unsigned_val)
-{
-  uint precision= my_decimal_length_to_precision(len, dec, unsigned_val);
-  return (decimal_digits_t) MY_MIN(precision, DECIMAL_MAX_PRECISION);
-}
-
-Field_new_decimal::Field_new_decimal(uchar *ptr_arg,
-                                     uint32 len_arg, uchar *null_ptr_arg,
-                                     uchar null_bit_arg,
-                                     enum utype unireg_check_arg,
-                                     const LEX_CSTRING *field_name_arg,
-                                     decimal_digits_t dec_arg,bool zero_arg,
-                                     bool unsigned_arg)
-  :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-             unireg_check_arg, field_name_arg, dec_arg, zero_arg, unsigned_arg)
-{
-  precision= get_decimal_precision(len_arg, dec_arg, unsigned_arg);
-  DBUG_ASSERT((precision <= DECIMAL_MAX_PRECISION) &&
-              (dec <= DECIMAL_MAX_SCALE));
-  bin_size= my_decimal_get_binary_size(precision, dec);
-}
 
 
 int Field_new_decimal::reset(void)
@@ -8540,22 +8515,6 @@ Binlog_type_info Field_varstring_compressed::binlog_type_info() const
 ** packlength slot and may be from 1-4.
 ****************************************************************************/
 
-Field_blob::Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
-		       enum utype unireg_check_arg,
-                       const LEX_CSTRING *field_name_arg,
-                       TABLE_SHARE *share, uint blob_pack_length,
-		       const DTCollation &collation)
-  :Field_longstr(ptr_arg, BLOB_PACK_LENGTH_TO_MAX_LENGH(blob_pack_length),
-                 null_ptr_arg, null_bit_arg, unireg_check_arg, field_name_arg,
-                 collation),
-   packlength(blob_pack_length)
-{
-  DBUG_ASSERT(blob_pack_length <= 4); // Only pack lengths 1-4 supported currently
-  flags|= BLOB_FLAG;
-  share->blob_fields++;
-  /* TODO: why do not fill table->s->blob_field array here? */
-}
-
 
 void Field_blob::store_length(uchar *i_ptr, uint i_packlength, uint32 i_number)
 {
@@ -9723,28 +9682,6 @@ bool Field_enum::can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
   11          one byte for 'd'
 */
 
-Field_bit::Field_bit(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
-                     uchar null_bit_arg, uchar *bit_ptr_arg, uchar bit_ofs_arg,
-                     enum utype unireg_check_arg,
-                     const LEX_CSTRING *field_name_arg)
-  : Field(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-          unireg_check_arg, field_name_arg),
-    bit_ptr(bit_ptr_arg), bit_ofs(bit_ofs_arg), bit_len(len_arg & 7),
-    bytes_in_rec(len_arg / 8)
-{
-  DBUG_ENTER("Field_bit::Field_bit");
-  DBUG_PRINT("enter", ("ptr_arg: %p, null_ptr_arg: %p, len_arg: %u, bit_len: %u, bytes_in_rec: %u",
-                       ptr_arg, null_ptr_arg, len_arg, bit_len, bytes_in_rec));
-  flags|= UNSIGNED_FLAG;
-  /*
-    Ensure that Field::eq() can distinguish between two different bit fields.
-    (two bit fields that are not null, may have same ptr and null_ptr)
-  */
-  if (!null_ptr_arg)
-    null_bit= bit_ofs_arg;
-  DBUG_VOID_RETURN;
-}
-
 
 const DTCollation & Field_bit::dtcollation() const
 {
@@ -10220,19 +10157,6 @@ int Field_bit::set_default()
 /*
   Bit field support for non-MyISAM tables.
 */
-
-Field_bit_as_char::Field_bit_as_char(uchar *ptr_arg, uint32 len_arg,
-                                     uchar *null_ptr_arg, uchar null_bit_arg,
-                                     enum utype unireg_check_arg,
-                                     const LEX_CSTRING *field_name_arg)
-  :Field_bit(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, 0, 0,
-             unireg_check_arg, field_name_arg)
-{
-  flags|= UNSIGNED_FLAG;
-  bit_len= 0;
-  bytes_in_rec= (len_arg + 7) / 8;
-}
-
 
 int Field_bit_as_char::store(const char *from, size_t length, CHARSET_INFO *cs)
 {
@@ -10741,20 +10665,6 @@ uint pack_length_to_packflag(uint type)
   return 0;					// This shouldn't happen
 }
 
-
-uint Column_definition_attributes::pack_flag_to_pack_length() const
-{
-  uint type= f_packtype(pack_flag); // 0..15
-  DBUG_ASSERT(type < 16);
-  switch (type) {
-  case MYSQL_TYPE_TINY:     return 1;
-  case MYSQL_TYPE_SHORT:    return 2;
-  case MYSQL_TYPE_LONG:     return 4;
-  case MYSQL_TYPE_LONGLONG: return 8;
-  case MYSQL_TYPE_INT24:    return 3;
-  }
-  return 0; // This should not happen
-}
 
 bool Field_vers_trx_id::test_if_equality_guarantees_uniqueness(const Item* item) const
 {

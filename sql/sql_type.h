@@ -7381,9 +7381,11 @@ public:
 // A pseudo type handler, mostly for test purposes for now
 class Type_handler_interval_DDhhmmssff: public Type_handler_long_blob
 {
+#ifndef FRM_PARSER
 public:
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const override;
+#endif
 };
 
 
