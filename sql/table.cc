@@ -3405,7 +3405,7 @@ bool TABLE::vcol_fix_expr(THD *thd)
 
   List_iterator_fast<Virtual_column_info> it(vcol_refix_list);
   while (Virtual_column_info *vcol= it++)
-    if (vcol->fix_session_expr(thd))
+    if (!vcol->expr->is_fixed() && vcol->fix_session_expr(thd))
       goto error;
 
   return false;

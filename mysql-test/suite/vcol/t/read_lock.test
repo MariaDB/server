@@ -1,0 +1,10 @@
+#
+# MDEV-28566 Assertion `!expr->is_fixed()' failed in bool Virtual_column_info::fix_session_expr(THD*)
+#
+CREATE TABLE t (c1 CHAR AS (CONCAT (0,DAYNAME (0))));
+FLUSH TABLES WITH READ LOCK;
+--error 1223
+UPDATE t SET c1=1;
+SELECT * FROM t;
+UNLOCK TABLES;
+DROP TABLE t;

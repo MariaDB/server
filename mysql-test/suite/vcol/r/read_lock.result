@@ -1,0 +1,8 @@
+CREATE TABLE t (c1 CHAR AS (CONCAT (0,DAYNAME (0))));
+FLUSH TABLES WITH READ LOCK;
+UPDATE t SET c1=1;
+ERROR HY000: Can't execute the query because you have a conflicting read lock
+SELECT * FROM t;
+c1
+UNLOCK TABLES;
+DROP TABLE t;
