@@ -295,12 +295,12 @@ static void get_basedir(char *basedir, int size, const char *mysqld_path,
                         char slash)
 {
   strcpy_s(basedir, size,  mysqld_path);
-  convert_slashes(basedir, '\\');
-  char *p= strrchr(basedir, '\\');
+  convert_slashes(basedir, slash);
+  char *p= strrchr(basedir, slash);
   if (p)
   {
     *p = 0;
-    p= strrchr(basedir, '\\');
+    p= strrchr(basedir, slash);
     if (p)
       *p= 0;
   }
