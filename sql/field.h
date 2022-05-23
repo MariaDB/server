@@ -5504,7 +5504,7 @@ public:
   void set_charset_collation_attrs(const
                                    Lex_column_charset_collation_attrs_st &lc)
   {
-    charset= lc.charset_collation();
+    charset= lc.charset_info();
     if (lc.is_contextually_typed_collation())
       flags|= CONTEXT_COLLATION_FLAG;
     else
@@ -5512,12 +5512,13 @@ public:
   }
   Lex_column_charset_collation_attrs charset_collation_attrs() const
   {
-    return Lex_charset_collation(
+    if (!charset)
+      return Lex_column_charset_collation_attrs();
+    return Lex_column_charset_collation_attrs(
              charset,
-             !charset ? Lex_charset_collation_st::TYPE_EMPTY :
              flags & CONTEXT_COLLATION_FLAG ?
-             Lex_charset_collation_st::TYPE_COLLATE_CONTEXTUALLY_TYPED :
-             Lex_charset_collation_st::TYPE_CHARACTER_SET);
+             Lex_column_charset_collation_attrs_st::TYPE_COLLATE_CONTEXTUALLY_TYPED :
+             Lex_column_charset_collation_attrs_st::TYPE_CHARACTER_SET);
   }
 };
 

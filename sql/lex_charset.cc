@@ -23,7 +23,8 @@
 
 /** find a collation with binary comparison rules
 */
-CHARSET_INFO *Lex_charset_collation_st::find_bin_collation(CHARSET_INFO *cs)
+CHARSET_INFO *Lex_exact_charset_extended_collation_attrs_st::
+                find_bin_collation(CHARSET_INFO *cs)
 {
   /*
     We don't need to handle old_mode=UTF8_IS_UTF8MB3 here,
@@ -52,7 +53,8 @@ CHARSET_INFO *Lex_charset_collation_st::find_bin_collation(CHARSET_INFO *cs)
 }
 
 
-CHARSET_INFO *Lex_charset_collation_st::find_default_collation(CHARSET_INFO *cs)
+CHARSET_INFO *Lex_exact_charset_extended_collation_attrs_st::
+                find_default_collation(CHARSET_INFO *cs)
 {
   // See comments in find_bin_collation()
   DBUG_ASSERT(cs->cs_name.length !=4 || memcmp(cs->cs_name.str, "utf8", 4));
@@ -79,8 +81,8 @@ CHARSET_INFO *Lex_charset_collation_st::find_default_collation(CHARSET_INFO *cs)
 }
 
 
-bool Lex_charset_collation_st::set_charset_collate_exact(CHARSET_INFO *cs,
-                                                         CHARSET_INFO *cl)
+bool Lex_exact_charset_extended_collation_attrs_st::
+       set_charset_collate_exact(CHARSET_INFO *cs, CHARSET_INFO *cl)
 {
   DBUG_ASSERT(cs != nullptr && cl != nullptr);
   if (!my_charset_same(cl, cs))
@@ -105,8 +107,8 @@ bool Lex_charset_collation_st::set_charset_collate_exact(CHARSET_INFO *cs,
   "this" is the COLLATE clause                  (e.g. of a column)
   "def" is the upper level CHARACTER SET clause (e.g. of a table)
 */
-CHARSET_INFO *
-Lex_charset_collation_st::resolved_to_character_set(CHARSET_INFO *def) const
+CHARSET_INFO *Lex_exact_charset_extended_collation_attrs_st::
+                resolved_to_character_set(CHARSET_INFO *def) const
 {
   DBUG_ASSERT(def);
 
@@ -151,9 +153,9 @@ Lex_charset_collation_st::resolved_to_character_set(CHARSET_INFO *def) const
   "this" corresponds to `CHARACTER SET xxx [BINARY]`
   "cl" corresponds to the COLLATE clause
 */
-bool
-Lex_charset_collation_st::
-  merge_charset_clause_and_collate_clause(const Lex_charset_collation_st &cl)
+bool Lex_exact_charset_extended_collation_attrs_st::
+       merge_charset_clause_and_collate_clause(
+         const Lex_exact_charset_extended_collation_attrs_st &cl)
 {
   if (cl.is_empty()) // No COLLATE clause
     return false;
@@ -170,10 +172,10 @@ Lex_charset_collation_st::
   case TYPE_CHARACTER_SET:
   case TYPE_COLLATE_EXACT:
     {
-      Lex_explicit_charset_opt_collate ecs(m_ci, m_type == TYPE_COLLATE_EXACT);
+      Lex_exact_charset_opt_extended_collate ecs(m_ci, m_type == TYPE_COLLATE_EXACT);
       if (ecs.merge_collate_or_error(cl))
         return true;
-      set_collate_exact(ecs.charset_and_collation());
+      set_collate_exact(ecs.charset_info());
       return false;
     }
   case TYPE_COLLATE_CONTEXTUALLY_TYPED:
@@ -200,19 +202,19 @@ Lex_charset_collation_st::
       CHAR(10) COLLATE uca1400_as_ci .. COLLATE latin1_bin
     */
     if (is_contextually_typed_collate_default() &&
-        !(cl.charset_collation()->state & MY_CS_PRIMARY))
+        !(cl.charset_info()->state & MY_CS_PRIMARY))
     {
       my_error(ER_CONFLICTING_DECLARATIONS, MYF(0),
                "COLLATE ", "DEFAULT", "COLLATE ",
-               cl.charset_collation()->coll_name.str);
+               cl.charset_info()->coll_name.str);
       return true;
     }
 
     if (is_contextually_typed_binary_style() &&
-        !(cl.charset_collation()->state & MY_CS_BINSORT))
+        !(cl.charset_info()->state & MY_CS_BINSORT))
     {
       my_error(ER_CONFLICTING_DECLARATIONS, MYF(0),
-               "", "BINARY", "COLLATE ", cl.charset_collation()->coll_name.str);
+               "", "BINARY", "COLLATE ", cl.charset_info()->coll_name.str);
       return true;
     }
     *this= cl;
@@ -224,19 +226,20 @@ Lex_charset_collation_st::
 }
 
 
-bool
-Lex_explicit_charset_opt_collate::
-  merge_collate_or_error(const Lex_charset_collation_st &cl)
+bool Lex_exact_charset_opt_extended_collate::
+       merge_collate_or_error(
+         const Lex_exact_charset_extended_collation_attrs_st &cl)
 {
-  DBUG_ASSERT(cl.type() != Lex_charset_collation_st::TYPE_CHARACTER_SET);
+  DBUG_ASSERT(cl.type() !=
+              Lex_exact_charset_extended_collation_attrs_st::TYPE_CHARACTER_SET);
 
   switch (cl.type()) {
-  case Lex_charset_collation_st::TYPE_EMPTY:
+  case Lex_exact_charset_extended_collation_attrs_st::TYPE_EMPTY:
     return false;
-  case Lex_charset_collation_st::TYPE_CHARACTER_SET:
+  case Lex_exact_charset_extended_collation_attrs_st::TYPE_CHARACTER_SET:
     DBUG_ASSERT(0);
     return false;
-  case Lex_charset_collation_st::TYPE_COLLATE_EXACT:
+  case Lex_exact_charset_extended_collation_attrs_st::TYPE_COLLATE_EXACT:
     /*
       EXPLICIT + EXPLICIT
       CHAR(10) CHARACTER SET latin1                    .. COLLATE latin1_bin
@@ -245,31 +248,31 @@ Lex_explicit_charset_opt_collate::
       CHAR(10) COLLATE latin1_bin                      .. COLLATE latin1_bin
       CHAR(10) CHARACTER SET latin1 BINARY             .. COLLATE latin1_bin
     */
-    if (m_with_collate && m_ci != cl.charset_collation())
+    if (m_with_collate && m_ci != cl.charset_info())
     {
       my_error(ER_CONFLICTING_DECLARATIONS, MYF(0),
                "COLLATE ", m_ci->coll_name.str,
-               "COLLATE ", cl.charset_collation()->coll_name.str);
+               "COLLATE ", cl.charset_info()->coll_name.str);
       return true;
     }
-    if (!my_charset_same(m_ci, cl.charset_collation()))
+    if (!my_charset_same(m_ci, cl.charset_info()))
     {
       my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-               cl.charset_collation()->coll_name.str, m_ci->cs_name.str);
+               cl.charset_info()->coll_name.str, m_ci->cs_name.str);
       return true;
     }
-    m_ci= cl.charset_collation();
+    m_ci= cl.charset_info();
     m_with_collate= true;
     return false;
 
-  case Lex_charset_collation_st::TYPE_COLLATE_CONTEXTUALLY_TYPED:
+  case Lex_exact_charset_extended_collation_attrs_st::TYPE_COLLATE_CONTEXTUALLY_TYPED:
     if (cl.is_contextually_typed_collate_default())
     {
       /*
         SET NAMES latin1 COLLATE DEFAULT;
         ALTER TABLE t1 CONVERT TO CHARACTER SET latin1 COLLATE DEFAULT;
       */
-      CHARSET_INFO *tmp= Lex_charset_collation_st::find_default_collation(m_ci);
+      CHARSET_INFO *tmp= Lex_exact_charset_extended_collation_attrs_st::find_default_collation(m_ci);
       if (!tmp)
         return true;
       m_ci= tmp;
@@ -298,8 +301,9 @@ Lex_explicit_charset_opt_collate::
   COLLATE clauses (not belonging to a CHARACTER SET clause).
 */
 bool
-Lex_charset_collation_st::
-  merge_collate_clause_and_collate_clause(const Lex_charset_collation_st &cl)
+Lex_exact_charset_extended_collation_attrs_st::
+  merge_collate_clause_and_collate_clause(
+    const Lex_exact_charset_extended_collation_attrs_st &cl)
 {
   /*
     "BINARY" and "COLLATE DEFAULT" are not possible
@@ -329,11 +333,11 @@ Lex_charset_collation_st::
     Note, we should perhaps eventually disallow double COLLATE clauses.
     But for now let's just disallow only conflicting ones.
   */
-  if (charset_collation() != cl.charset_collation())
+  if (charset_info() != cl.charset_info())
   {
     my_error(ER_CONFLICTING_DECLARATIONS, MYF(0),
-             "COLLATE ", charset_collation()->coll_name.str,
-             "COLLATE ", cl.charset_collation()->coll_name.str);
+             "COLLATE ", charset_info()->coll_name.str,
+             "COLLATE ", cl.charset_info()->coll_name.str);
     return true;
   }
   return false;

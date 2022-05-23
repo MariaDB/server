@@ -213,7 +213,8 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   Lex_length_and_dec_st Lex_length_and_dec;
   Lex_cast_type_st Lex_cast_type;
   Lex_field_type_st Lex_field_type;
-  Lex_charset_collation_st Lex_charset_collation;
+  Lex_exact_charset_extended_collation_attrs_st
+                    Lex_exact_charset_extended_collation_attrs;
   Lex_dyncol_type_st Lex_dyncol_type;
   Lex_for_loop_st for_loop;
   Lex_for_loop_bounds_st for_loop_bounds;
@@ -1378,7 +1379,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         field_type_misc
         json_table_field_type
 
-%type <Lex_charset_collation>
+%type <Lex_exact_charset_extended_collation_attrs>
         binary
         opt_binary
         opt_binary_and_compression
@@ -5789,7 +5790,7 @@ field_type_or_serial:
           }
           field_def
           {
-            Lex_charset_collation tmp= $1.charset_collation_attrs();
+            auto tmp= $1.charset_collation_attrs();
             if (tmp.merge_charset_clause_and_collate_clause($3))
               MYSQL_YYABORT;
             Lex->last_field->set_charset_collation_attrs(tmp);
@@ -6079,7 +6080,7 @@ field_type_string:
         | nchar opt_field_length opt_bin_mod
           {
             $$.set(&type_handler_string, $2,
-                   Lex_charset_collation::national($3));
+                   Lex_exact_charset_extended_collation_attrs::national($3));
           }
         | BINARY opt_field_length
           {
@@ -6096,7 +6097,7 @@ field_type_string:
         | nvarchar opt_field_length opt_compressed opt_bin_mod
           {
             $$.set(&type_handler_varchar, $2,
-                   Lex_charset_collation::national($4));
+                   Lex_exact_charset_extended_collation_attrs::national($4));
           }
         | VARBINARY opt_field_length opt_compressed
           {

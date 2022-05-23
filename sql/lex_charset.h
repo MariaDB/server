@@ -44,7 +44,7 @@
 
   Resolution happens in Type_handler::Column_definition_prepare_stage1().
 */
-struct Lex_charset_collation_st
+struct Lex_exact_charset_extended_collation_attrs_st
 {
 public:
   enum Type
@@ -60,7 +60,7 @@ public:
 #define LEX_CHARSET_COLLATION_TYPE_BITS 2
   static_assert(((1<<LEX_CHARSET_COLLATION_TYPE_BITS)-1) >=
                  TYPE_COLLATE_CONTEXTUALLY_TYPED,
-                 "Lex_charset_collation_st::Type bits check");
+                 "Lex_exact_charset_extended_collation_attrs_st::Type bits");
 
 protected:
   CHARSET_INFO *m_ci;
@@ -73,6 +73,12 @@ public:
   {
     m_ci= NULL;
     m_type= TYPE_EMPTY;
+  }
+  void init(CHARSET_INFO *cs, Type type)
+  {
+    DBUG_ASSERT(cs || type == TYPE_EMPTY);
+    m_ci= cs;
+    m_type= type;
   }
   bool is_empty() const
   {
@@ -125,7 +131,7 @@ public:
     m_ci= cl;
     m_type= TYPE_COLLATE_EXACT;
   }
-  CHARSET_INFO *charset_collation() const
+  CHARSET_INFO *charset_info() const
   {
     return m_ci;
   }
@@ -138,20 +144,22 @@ public:
     return m_type == TYPE_COLLATE_CONTEXTUALLY_TYPED;
   }
   CHARSET_INFO *resolved_to_character_set(CHARSET_INFO *cs) const;
-  bool merge_charset_clause_and_collate_clause(const Lex_charset_collation_st &cl);
-  bool merge_collate_clause_and_collate_clause(const Lex_charset_collation_st &cl);
+  bool merge_charset_clause_and_collate_clause(
+                     const Lex_exact_charset_extended_collation_attrs_st &cl);
+  bool merge_collate_clause_and_collate_clause(
+                     const Lex_exact_charset_extended_collation_attrs_st &cl);
 };
 
 
 /*
-  CHARACTER SET cs [COLLATE cl]
+  CHARACTER SET cs_exact [COLLATE cl_exact_or_context]
 */
-class Lex_explicit_charset_opt_collate
+class Lex_exact_charset_opt_extended_collate
 {
   CHARSET_INFO *m_ci;
   bool m_with_collate;
 public:
-  Lex_explicit_charset_opt_collate(CHARSET_INFO *ci, bool with_collate)
+  Lex_exact_charset_opt_extended_collate(CHARSET_INFO *ci, bool with_collate)
    :m_ci(ci), m_with_collate(with_collate)
   {
     DBUG_ASSERT(m_ci);
@@ -159,45 +167,52 @@ public:
     //DBUG_ASSERT(m_ci->default_flag() || m_with_collate);
   }
   /*
-    Merge to another COLLATE clause. So the full syntax looks like:
+    Add another COLLATE clause (exact or context).
+    So the full syntax looks like:
       CHARACTER SET cs [COLLATE cl] ... COLLATE cl2
   */
-  bool merge_collate_or_error(const Lex_charset_collation_st &cl);
-  bool merge_opt_collate_or_error(const Lex_charset_collation_st &cl)
+  bool merge_collate_or_error(
+                     const Lex_exact_charset_extended_collation_attrs_st &cl);
+  bool merge_opt_collate_or_error(
+                     const Lex_exact_charset_extended_collation_attrs_st &cl)
   {
     if (cl.is_empty())
       return false;
     return merge_collate_or_error(cl);
   }
-  CHARSET_INFO *charset_and_collation() const { return m_ci; }
+  CHARSET_INFO *charset_info() const { return m_ci; }
   bool with_collate() const { return m_with_collate; }
 };
 
 
-class Lex_charset_collation: public Lex_charset_collation_st
+class Lex_exact_charset_extended_collation_attrs:
+                        public Lex_exact_charset_extended_collation_attrs_st
 {
 public:
-  Lex_charset_collation()
+  Lex_exact_charset_extended_collation_attrs()
   {
     init();
   }
-  Lex_charset_collation(CHARSET_INFO *collation, Type type)
+  Lex_exact_charset_extended_collation_attrs(CHARSET_INFO *collation, Type type)
   {
-    DBUG_ASSERT(collation || type == TYPE_EMPTY);
-    m_ci= collation;
-    m_type= type;
+    init(collation, type);
   }
-  static Lex_charset_collation national(bool bin_mod)
+  static Lex_exact_charset_extended_collation_attrs national(bool bin_mod)
   {
     return bin_mod ?
-      Lex_charset_collation(&my_charset_utf8mb3_bin, TYPE_COLLATE_EXACT) :
-      Lex_charset_collation(&my_charset_utf8mb3_general_ci, TYPE_CHARACTER_SET);
+      Lex_exact_charset_extended_collation_attrs(&my_charset_utf8mb3_bin,
+                                                 TYPE_COLLATE_EXACT) :
+      Lex_exact_charset_extended_collation_attrs(&my_charset_utf8mb3_general_ci,
+                                                 TYPE_CHARACTER_SET);
   }
 };
 
 
-using Lex_column_charset_collation_attrs_st = Lex_charset_collation_st;
-using Lex_column_charset_collation_attrs = Lex_charset_collation;
+using Lex_column_charset_collation_attrs_st =
+        Lex_exact_charset_extended_collation_attrs_st;
+
+using Lex_column_charset_collation_attrs =
+        Lex_exact_charset_extended_collation_attrs;
 
 
 #endif // LEX_CHARSET_INCLUDED

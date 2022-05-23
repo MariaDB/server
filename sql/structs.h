@@ -702,7 +702,7 @@ public:
            const Lex_column_charset_collation_attrs_st &coll)
   {
     m_handler= handler;
-    m_ci= coll.charset_collation();
+    m_ci= coll.charset_info();
     Lex_length_and_dec_st::operator=(length_and_dec);
     m_collation_type= ((uint8) coll.type()) & 0x3;
   }
@@ -710,7 +710,7 @@ public:
            const Lex_column_charset_collation_attrs_st &coll)
   {
     m_handler= handler;
-    m_ci= coll.charset_collation();
+    m_ci= coll.charset_info();
     Lex_length_and_dec_st::reset();
     m_collation_type= ((uint8) coll.type()) & 0x3;
   }
