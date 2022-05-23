@@ -3,9 +3,9 @@
 # not in the TABLE::expr_arena.
 #
 
-#
-# MDEV-9690 concurrent queries with virtual columns crash in temporal code
-#
+--echo #
+--echo # MDEV-9690 concurrent queries with virtual columns crash in temporal code
+--echo #
 create table t1 (a datetime,
   # get_datetime_value
   b int as (a > 1),                             # Arg_comparator
@@ -40,9 +40,9 @@ connection default;
 select * from t1;
 drop table t1;
 
-#
-# MDEV-13435 Crash when selecting virtual columns generated using JSON functions
-#
+--echo #
+--echo # MDEV-13435 Crash when selecting virtual columns generated using JSON functions
+--echo #
 create table t1 (
   id int  not null ,
   js varchar(1000) not null,
@@ -50,3 +50,14 @@ create table t1 (
 insert  into t1(id,js) values (0, '{"default" : {"start": "00:00:00", "end":"23:59:50"}}');
 select * from t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-26281 ASAN use-after-poison when complex conversion is involved in blob
+--echo #
+create table t1 (v2 blob as ('a' is null), a1 int, a char(1) as (cast(a1 in (0,current_user() is null) as char(16777216) )));
+insert ignore into t1 values ('x','x',v2) ;
+drop table t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

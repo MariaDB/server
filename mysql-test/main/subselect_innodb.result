@@ -1,6 +1,5 @@
 set @subselect_innodb_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
-drop table if exists t1,t2,t3;
 CREATE TABLE t1
 (
 FOLDERID VARCHAR(32)BINARY NOT NULL
@@ -154,6 +153,9 @@ EXECUTE my_stmt;
 b	count(*)
 deallocate prepare my_stmt;
 drop table t1,t2;
+#
+# End of 4.1 tests
+#
 CREATE TABLE t1 (
 school_name varchar(45) NOT NULL,
 country varchar(45) NOT NULL,    
@@ -287,7 +289,6 @@ LIMIT 10;
 col_time_key	col_datetime_key
 DROP TABLE t1;
 DROP TABLE t2;
-# End of Bug #58756
 #
 # Bug#60085 crash in Item::save_in_field() with time data type
 #
@@ -356,7 +357,9 @@ LIMIT 1;
 maxkey
 NULL
 DROP TABLE t1,t2;
-End of 5.1 tests
+#
+# End of 5.1 tests
+#
 #
 # lp:827416 Crash in select_describe() on EXPLAIN with DISTINCT in nested subqueries
 #
@@ -577,7 +580,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DEPENDENT SUBQUERY	t2	ref	key1	key1	5	test.t1.a	#	Using where; Using filesort
 drop table t1,t2;
 #
-# mdev-12931: semi-join in ON expression of STRAIGHT_JOIN 
+# MDEV-12931: semi-join in ON expression of STRAIGHT_JOIN 
 #             joining a base table and a mergeable derived table
 #
 CREATE TABLE t1 (f1 int) ENGINE=InnoDB;
@@ -629,6 +632,52 @@ a	b
 2019-03-10 02:55:05	2019-03-10 02:55:05
 DROP TABLE t1,t2;
 set character_set_connection=@save_character_set_connection;
+#
+# MDEV-26047: MariaDB server crash at Item_subselect::init_expr_cache_tracker
+#
+CREATE TABLE t1 (a int) engine=innodb;
+SELECT 1 IN (
+SELECT NULL
+FROM t1
+WHERE
+a IS NOT NULL
+GROUP BY
+(SELECT NULL from dual WHERE a = 1)
+);
+1 IN (
+SELECT NULL
+FROM t1
+WHERE
+a IS NOT NULL
+GROUP BY
+(SELECT NULL from dual WHERE a = 1)
+)
+0
+drop table t1;
+# Testcase from MDEV-26164
+create table t1(a int);
+# Disable the warning as it includes current time and changes for every test run.
+select 1 from t1 where not exists
+(
+select 1 from t1 where binary current_time()
+group by (select a),(select 1)
+);
+1
+drop table t1;
+#
+# MDEV-28437: Assertion `!eliminated' failed in Item_subselect::exec
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (3),(4);
+SELECT 1 IN (SELECT a FROM t1 LEFT JOIN t2 ON (a = b AND EXISTS (SELECT * FROM t1)));
+1 IN (SELECT a FROM t1 LEFT JOIN t2 ON (a = b AND EXISTS (SELECT * FROM t1)))
+1
+drop table t1,t2;
+#
+# End of 10.2 tests
+#
 # 
 # MDEV-17362: SIGSEGV in JOIN::optimize_inner or Assertion `fixed == 0'
 # failed in  Item_equal::fix_fields, server crashes after 2nd execution
@@ -662,4 +711,18 @@ a	b
 execute stmt;
 a	b
 drop table t1,t2;
+#
+# MDEV-28097 use-after-free when WHERE has subquery with an outer reference in HAVING
+#
+create table t1 (a text(60) not null) engine=innodb;
+insert into t1 values ('1'),('0');
+select distinct a from t1 where '' in (select 'x' like a having a like a);
+a
+1
+0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: ''
+drop table t1;
+#
 # End of 10.4 tests
+#

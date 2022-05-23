@@ -63,8 +63,8 @@ partition by system_time limit 1 partitions 3;
 insert into t values (1);
 update t set a= 2;
 update t set a= 3;
+--echo # You see warning above ^
 delete history from t;
---echo # The above warning is one command late (MDEV-20345) ^^^
 select * from t for system_time all;
 
 --echo # VIEW

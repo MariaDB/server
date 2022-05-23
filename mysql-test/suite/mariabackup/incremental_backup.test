@@ -8,11 +8,20 @@ if (`select @@max_binlog_stmt_cache_size = 4294963200 and @@innodb_page_size = 6
 
 call mtr.add_suppression("InnoDB: New log files created");
 
+let $test_comp=`select @@innodb_page_size < 32768`;
 let basedir=$MYSQLTEST_VARDIR/tmp/backup;
 let incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
 
 CREATE TABLE t_aria(i INT) ENGINE ARIA;
 CREATE TABLE t(i INT PRIMARY KEY) ENGINE INNODB;
+if ($test_comp) {
+  # If MDEV-28474 is not fixed, backup preparing will crash with SIGSEGV.
+  --disable_query_log
+  --disable_result_log
+  CREATE TABLE t_comp(i INT PRIMARY KEY) ENGINE INNODB ROW_FORMAT=COMPRESSED;
+  --enable_query_log
+  --enable_result_log
+}
 BEGIN;
 INSERT INTO t VALUES(2);
 connect (con1,localhost,root,,);
@@ -96,6 +105,13 @@ let $targetdir=$basedir;
 
 SELECT * FROM t;
 DROP TABLE t;
+if ($test_comp) {
+  --disable_query_log
+  --disable_result_log
+  DROP TABLE t_comp;
+  --enable_query_log
+  --enable_result_log
+}
 DROP TABLE t_aria;
 
 # Cleanup

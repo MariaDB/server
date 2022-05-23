@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2660,8 +2660,8 @@ btr_insert_into_right_sibling(
 	max_size = page_get_max_insert_size_after_reorganize(next_page, 1);
 
 	/* Extends gap lock for the next page */
-	if (!dict_table_is_locking_disabled(cursor->index->table)) {
-		lock_update_split_left(next_block, block);
+	if (is_leaf && !dict_table_is_locking_disabled(cursor->index->table)) {
+		lock_update_node_pointer(block, next_block);
 	}
 
 	rec = page_cur_tuple_insert(
@@ -3588,17 +3588,9 @@ retry:
 			}
 
 			if (mbr_changed) {
-#ifdef UNIV_DEBUG
-				bool	success = rtr_update_mbr_field(
-					&cursor2, offsets2, &father_cursor,
-					merge_page, &new_mbr, NULL, mtr);
-
-				ut_ad(success);
-#else
 				rtr_update_mbr_field(
 					&cursor2, offsets2, &father_cursor,
 					merge_page, &new_mbr, NULL, mtr);
-#endif
 			} else {
 				rtr_node_ptr_delete(&father_cursor, mtr);
 			}

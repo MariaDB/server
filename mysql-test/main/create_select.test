@@ -1,0 +1,68 @@
+# This does not work for RBR yet.
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed_or_statement.inc
+
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+
+--echo #
+--echo # Testcase for BUG#4551
+--echo #
+
+# The bug was that when the table was TEMPORARY, it was not deleted if
+# the CREATE SELECT failed (the code intended too, but it actually
+# didn't). And as the CREATE TEMPORARY TABLE was not written to the
+# binlog if it was a transactional table, it resulted in an
+# inconsistency between binlog and the internal list of temp tables.
+
+CREATE TABLE t1 ( a int );
+INSERT INTO t1 VALUES (1),(2),(1);
+--error ER_DUP_ENTRY
+CREATE TABLE t2 ( PRIMARY KEY (a) ) ENGINE=INNODB SELECT a FROM t1;
+--error ER_NO_SUCH_TABLE
+select * from t2;
+--error ER_DUP_ENTRY
+CREATE TEMPORARY TABLE t2 ( PRIMARY KEY (a) ) ENGINE=INNODB SELECT a FROM t1;
+--error ER_NO_SUCH_TABLE
+select * from t2;
+--error ER_DUP_ENTRY
+CREATE TABLE t2 ( PRIMARY KEY (a) ) ENGINE=MYISAM SELECT a FROM t1;
+--error ER_NO_SUCH_TABLE
+select * from t2;
+--error ER_DUP_ENTRY
+CREATE TEMPORARY TABLE t2 ( PRIMARY KEY (a) ) ENGINE=MYISAM SELECT a FROM t1;
+--error ER_NO_SUCH_TABLE
+select * from t2;
+drop table t1;
+
+--echo #
+--echo # End of 4.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-28393 Server crashes in TABLE::mark_default_fields_for_write
+--echo #
+create table t1 (a int, b text not null default '');
+alter table t1 character set = utf8;
+create table t2 select * from t1;
+insert into t1 values (1,'');
+drop table t1, t2;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+set sql_mode='ignore_bad_table_options';
+create table t1 (
+  f1 int invisible,
+  f2 int comment 'a comment',
+  f3 int foo="bar",
+  f4 int check(f4 < 10),
+  f5 int without system versioning
+) with system versioning as select 1 as f1,2 as f2,3 as f3,4 as f4,5 as f5;
+show create table t1;
+drop table t1;
+set sql_mode=default;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

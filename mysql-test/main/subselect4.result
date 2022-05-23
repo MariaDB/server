@@ -2906,6 +2906,84 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DEPENDENT SUBQUERY	tn	eq_ref	PRIMARY	PRIMARY	32	test.tms.key1	1	Using where
 set optimizer_switch=@tmp_os;
 drop table t1, t10, t11;
+#
+# MDEV-28268: Server crashes in Expression_cache_tracker::fetch_current_stats
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2),(3,4);
+ANALYZE FORMAT=JSON
+SELECT DISTINCT
+(SELECT MIN(a) FROM t1 WHERE b <= ANY (SELECT a FROM t1)) AS f
+FROM t1;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "duplicate_removal": {
+      "temporary_table": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 2,
+          "r_rows": 2,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        },
+        "subqueries": [
+          {
+            "expression_cache": {
+              "state": "disabled",
+              "r_loops": 0,
+              "query_block": {
+                "select_id": 2,
+                "r_loops": 1,
+                "r_total_time_ms": "REPLACED",
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "filtered": 100,
+                  "r_filtered": 50,
+                  "attached_condition": "<nop>(<in_optimizer>(t1.b,(subquery#3) >= 4))"
+                },
+                "subqueries": [
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "r_loops": 1,
+                      "r_total_time_ms": "REPLACED",
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "r_loops": 1,
+                        "rows": 2,
+                        "r_rows": 2,
+                        "r_table_time_ms": "REPLACED",
+                        "r_other_time_ms": "REPLACED",
+                        "filtered": 100,
+                        "r_filtered": 100
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+DROP TABLE t1;
 # End of 10.2 tests
 # End of 10.3 tests
 #

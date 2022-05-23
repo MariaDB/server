@@ -1,0 +1,24 @@
+call mtr.add_suppression("InnoDB: New log files created");
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-28446 mariabackup prepare fails for incrementals if a new schema is created after full backup is taken
+#
+CREATE TABLE t1(i INT PRIMARY KEY) ENGINE INNODB;
+# Prepare full backup, apply incremental one
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SELECT COUNT(*) FROM test.t1;
+COUNT(*)
+0
+SELECT COUNT(*) FROM test1.t1;
+COUNT(*)
+10000
+DROP TABLE t1;
+DROP DATABASE test1;
+#
+# End of 10.2 tests
+#

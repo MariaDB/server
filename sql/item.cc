@@ -947,8 +947,7 @@ bool Item_field::check_field_expression_processor(void *arg)
           (!field->vcol_info && !org_field->vcol_info)) &&
          field->field_index >= org_field->field_index))
     {
-      my_error(ER_EXPRESSION_REFERS_TO_UNINIT_FIELD,
-               MYF(0),
+      my_error(ER_EXPRESSION_REFERS_TO_UNINIT_FIELD, MYF(0),
                org_field->field_name.str, field->field_name.str);
       return 1;
     }
@@ -7937,8 +7936,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
   else if (!ref || ref == not_found_item)
   {
     DBUG_ASSERT(reference_trough_name != 0);
-    if (!(ref= resolve_ref_in_select_and_group(thd, this,
-                                               context->select_lex)))
+    if (!(ref= resolve_ref_in_select_and_group(thd, this, context->select_lex)))
       goto error;             /* Some error occurred (e.g. ambiguous names). */
 
     if (ref == not_found_item) /* This reference was not resolved. */
@@ -7951,8 +7949,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       if (unlikely(!outer_context))
       {
         /* The current reference cannot be resolved in this query. */
-        my_error(ER_BAD_FIELD_ERROR,MYF(0),
-                 this->full_name(), thd->where);
+        my_error(ER_BAD_FIELD_ERROR,MYF(0), full_name(), thd->where);
         goto error;
       }
 
@@ -9443,6 +9440,12 @@ bool Item_default_value::eq(const Item *item, bool binary_cmp) const
 }
 
 
+bool Item_default_value::check_field_expression_processor(void *)
+{
+  field->default_value= ((Item_field *)(arg->real_item()))->field->default_value;
+  return 0;
+}
+
 bool Item_default_value::fix_fields(THD *thd, Item **items)
 {
   Item *real_arg;
@@ -9484,7 +9487,6 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   }
   if (!(def_field= (Field*) thd->alloc(field_arg->field->size_of())))
     goto error;
-  cached_field= def_field;
   memcpy((void *)def_field, (void *)field_arg->field,
          field_arg->field->size_of());
   def_field->reset_fields();
@@ -9513,8 +9515,7 @@ error:
 
 void Item_default_value::cleanup()
 {
-  delete cached_field;                        // Free cached blob data
-  cached_field= 0;
+  delete field;                        // Free cached blob data
   Item_field::cleanup();
 }
 
@@ -9589,6 +9590,12 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
   return Item_field::save_in_field(field_arg, no_conversions);
 }
 
+void Item_default_value::save_in_result_field(bool no_conversions)
+{
+  calculate();
+  Item_field::save_in_result_field(no_conversions);
+}
+
 double Item_default_value::val_result()
 {
   calculate();
@@ -9646,6 +9653,23 @@ table_map Item_default_value::used_tables() const
   if (!field->default_value->expr)           // not fully parsed field
     return static_cast<table_map>(RAND_TABLE_BIT);
   return field->default_value->expr->used_tables();
+}
+
+bool Item_default_value::register_field_in_read_map(void *arg)
+{
+  TABLE *table= (TABLE *) arg;
+  int res= 0;
+  if (!table || (table && table == field->table))
+  {
+    if (field->default_value && field->default_value->expr)
+      res= field->default_value->expr->walk(&Item::register_field_in_read_map,1,arg);
+  }
+  else if (result_field && table == result_field->table)
+  {
+    bitmap_set_bit(table->read_set, result_field->field_index);
+  }
+
+  return res;
 }
 
 /**

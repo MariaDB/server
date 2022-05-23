@@ -1614,7 +1614,6 @@ public:
     for (; part_id < part_id_end; ++part_id)
     {
       handler *file= m_file[part_id];
-      DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), part_id));
       file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK | HA_STATUS_OPEN);
       part_recs+= file->stats.records;
     }

@@ -1,0 +1,214 @@
+#
+# Purpose:
+#   This test validates that data is consistent between a primary and replica
+# in semi-sync mode when the primary is issued `SHUTDOWN WAIT FOR SLAVES`
+# during an active communication. More specifically, the primary should not
+# kill the connection until it is sure a replica has received all binlog
+# data, i.e. once the primary receives the ACK. If a primary is issued a
+# shutdown before receiving an ACK, it should wait until either 1) the ACK is
+# received, or 2) the configured timeout (rpl_semi_sync_master_timeout) is
+# reached.
+#
+# Methodology:
+#   Using a topology consisting of one primary with two replicas, all in
+# semi-sync mode, we use DEBUG_DBUG to simulate an error or delay on the
+# replicas during an active communication while the primary is issued
+# `SHUTDOWN WAIT FOR SLAVES`. We create four test cases to ensure the primary
+# will correctly wait for the communication to finish, and use the semi-sync
+# status variables Rpl_semi_sync_master_yes_tx and Rpl_semi_sync_master_no_tx
+# to ensure the connection was not prematurely killed due to the shutdown.
+#   Test Case 1) If both replicas simulate a delay that is within the allowed
+#                timeout, the primary should delay killing the suspended thread
+#                until an ACK is received (Rpl_semi_sync_master_yes_tx should
+#                be 1).
+#   Test Case 2) If both replicas simulate an error before sending an ACK, the
+#                primary should delay killing the suspended thread until the
+#                the timeout is reached (Rpl_semi_sync_master_no_tx should be
+#                1).
+#   Test Case 3) If one replica simulates a delay within the allowed timeout
+#                and the other simulates an error before sending an ACK, the
+#                primary should delay killing the suspended thread until it
+#                receives an ACK from the delayed slave
+#                (Rpl_semi_sync_master_yes_tx should be 1).
+#   Test Case 4) If a replica errors before sending an ACK, it will cause the
+#                IO thread to stop and handle the error. During error handling,
+#                if semi-sync is active, the replica will form a new connection
+#                with the primary to kill the active connection. However, if
+#                the primary is shutting down, it may kill the new connection,
+#                thereby leaving the active semi-sync connection in-tact. The
+#                slave should notice this, and not issue a `QUIT` command to
+#                the primary, which would otherwise be sent to kill an active
+#                connection. This test case validates that the slave does not
+#                send a `QUIT` in this case (Rpl_semi_sync_master_yes_tx should
+#                be 1 because server_3 will send the ACK within a valid
+#                timeout).
+#
+# References:
+#   MDEV-11853: semisync thread can be killed after sync binlog but before ACK
+#               in the sync state
+#   MDEV-28114: Semi-sync Master ACK Receiver Thread Can Error on COM_QUIT
+#
+
+--echo #############################
+--echo # Common setup for all tests
+--echo #############################
+
+--echo # Note: Simulated slave delay is hardcoded to 800 milliseconds
+--echo # Note: Simulated master shutdown delay is hardcoded to 500 milliseconds
+
+--source include/have_debug.inc
+--let $rpl_topology=1->2, 1->3
+--source include/rpl_init.inc
+
+--connection server_1
+
+--echo # Slaves which simulate an error will produce a timeout on the primary
+call mtr.add_suppression("Timeout waiting");
+call mtr.add_suppression("did not exit");
+
+--let $sav_master_timeout= `SELECT @@global.rpl_semi_sync_master_timeout`
+--let $sav_enabled_master= `SELECT @@GLOBAL.rpl_semi_sync_master_enabled`
+--let $sav_master_dbug= `SELECT @@GLOBAL.debug_dbug`
+
+--echo # Suppress slave errors related to the simulated error
+--connection server_2
+call mtr.add_suppression("reply failed");
+call mtr.add_suppression("Replication event checksum verification");
+call mtr.add_suppression("Relay log write failure");
+call mtr.add_suppression("Failed to kill the active semi-sync connection");
+--let $sav_enabled_server_2=`SELECT @@GLOBAL.rpl_semi_sync_slave_enabled`
+--let $sav_server_2_dbug= `SELECT @@GLOBAL.debug_dbug`
+
+--connection server_3
+call mtr.add_suppression("reply failed");
+call mtr.add_suppression("Replication event checksum verification");
+call mtr.add_suppression("Relay log write failure");
+call mtr.add_suppression("Failed to kill the active semi-sync connection");
+--let $sav_enabled_server_3=`SELECT @@GLOBAL.rpl_semi_sync_slave_enabled`
+--let $sav_server_3_dbug= `SELECT @@GLOBAL.debug_dbug`
+
+--connection server_1
+CREATE TABLE t1 (a int);
+--save_master_pos
+
+--let i= 2
+--let slave_last= 3
+while (`SELECT $i <= $slave_last`)
+{
+  --connection server_$i
+  --sync_with_master
+  --inc $i
+}
+
+# Set up the connection used to issue the shutdown
+--connect(server_1_con2, localhost, root,,)
+
+
+--echo #############################
+--echo # Test cases
+--echo #############################
+
+--echo #
+--echo # Test Case 1) If both replicas simulate a delay that is within the
+--echo # allowed timeout, the primary should delay killing the suspended thread
+--echo # until an ACK is received (Rpl_semi_sync_master_yes_tx should be 1).
+--echo #
+--let server_1_dbug= ""
+--let server_2_dbug= "+d,simulate_delay_semisync_slave_reply"
+--let server_3_dbug= "+d,simulate_delay_semisync_slave_reply"
+--let semisync_timeout= 1600
+--let server_2_expect_row_count= 1
+--let server_3_expect_row_count= 1
+--source rpl_semi_sync_shutdown_await_ack.inc
+
+--echo #
+--echo # Test Case 2) If both replicas simulate an error before sending an ACK,
+--echo # the primary should delay killing the suspended thread until the
+--echo # timeout is reached (Rpl_semi_sync_master_no_tx should be 1).
+--echo #
+--let server_1_dbug= "+d,mysqld_delay_kill_threads_phase_1"
+--let server_2_dbug= "+d,corrupt_queue_event"
+--let server_3_dbug= "+d,corrupt_queue_event"
+--let semisync_timeout= 500
+--let server_2_expect_row_count= 0
+--let server_3_expect_row_count= 0
+--source rpl_semi_sync_shutdown_await_ack.inc
+
+--echo #
+--echo # Test Case 3) If one replica simulates a delay within the allowed
+--echo # timeout and the other simulates an error before sending an ACK, the
+--echo # primary should delay killing the suspended thread until it receives an
+--echo # ACK from the delayed slave (Rpl_semi_sync_master_yes_tx should be 1).
+--echo #
+--let server_1_dbug= "+d,mysqld_delay_kill_threads_phase_1"
+--let server_2_dbug= "+d,corrupt_queue_event"
+--let server_3_dbug= "+d,simulate_delay_semisync_slave_reply"
+--let semisync_timeout= 1600
+--let server_2_expect_row_count= 0
+--let server_3_expect_row_count= 1
+--source rpl_semi_sync_shutdown_await_ack.inc
+
+--echo #
+--echo # Test Case 4) If a replica errors before sending an ACK, it will cause
+--echo # the IO thread to stop and handle the error. During error handling, if
+--echo # semi-sync is active, the replica will form a new connection with the
+--echo # primary to kill the active connection. However, if the primary is
+--echo # shutting down, it may kill the new connection, thereby leaving the
+--echo # active semi-sync connection in-tact. The slave should notice this, and
+--echo # not issue a `QUIT` command to the primary, which would otherwise be
+--echo # sent to kill an active connection. This test case validates that the
+--echo # slave does not send a `QUIT` in this case (Rpl_semi_sync_master_yes_tx
+--echo # should be 1 because server_3 will send the ACK within a valid timeout).
+--echo #
+
+# mysqld_delay_kill_threads_phase1 ensures that server_2 will have enough time
+# to start a new connection that has the intent to kill the active semi-sync
+# connection
+--let server_1_dbug= "+d,mysqld_delay_kill_threads_phase_1"
+
+# slave_delay_killing_semisync_connection ensures that the primary has force
+# killed its current connection before it is able to issue `KILL`
+--let server_2_dbug= "+d,corrupt_queue_event,slave_delay_killing_semisync_connection"
+--let server_3_dbug= "+d,simulate_delay_semisync_slave_reply"
+--let semisync_timeout= 1600
+--let server_2_expect_row_count= 0
+--let server_3_expect_row_count= 1
+--source rpl_semi_sync_shutdown_await_ack.inc
+
+--echo #############################
+--echo # Cleanup
+--echo #############################
+
+--connection server_2
+source include/stop_slave.inc;
+source include/start_slave.inc;
+
+--disable_query_log
+--eval SET @@GLOBAL.rpl_semi_sync_slave_enabled = $sav_enabled_server_2
+--eval SET @@GLOBAL.debug_dbug= "$sav_server_2_dbug"
+--enable_query_log
+
+--connection server_3
+source include/stop_slave.inc;
+source include/start_slave.inc;
+
+--disable_query_log
+--eval SET @@GLOBAL.rpl_semi_sync_slave_enabled = $sav_enabled_server_3
+--eval SET @@GLOBAL.debug_dbug= "$sav_server_3_dbug"
+--enable_query_log
+
+
+--connection server_1
+let $status_var= Rpl_semi_sync_master_clients;
+let $status_var_value= 0;
+source include/wait_for_status_var.inc;
+
+--disable_query_log
+--eval SET @@GLOBAL.rpl_semi_sync_master_timeout= $sav_master_timeout
+--eval SET @@GLOBAL.rpl_semi_sync_master_enabled= $sav_enabled_master
+--eval SET @@GLOBAL.debug_dbug= "$sav_master_dbug"
+--enable_query_log
+
+drop table t1;
+
+--source include/rpl_end.inc

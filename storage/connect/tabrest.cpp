@@ -112,7 +112,11 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 
 	} // endif f
 	
-	pID = vfork();
+#ifdef HAVE_VFORK
+       pID = vfork();
+#else
+       pID = fork();
+#endif
 	sprintf(fn, "-o%s", filename);
 
 	if (pID == 0) {

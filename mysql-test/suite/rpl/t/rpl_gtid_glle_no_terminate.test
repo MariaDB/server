@@ -1,0 +1,72 @@
+#
+# Purpose:
+#   If a fake Glle event follows a Gtid event, we need to ensure the rest of
+# the group should not terminate at the Glle event. MDEV-28550 revealed that
+# a Glle would terminate the event and upon reconnect, the DDL would be lost.
+#
+# Methodology:
+#   Force the primary to send a fake GLLE event after a GTID on a "reconnect"
+# and ensure that both 1) the replica does not error, and 2) the original
+# command within the GTID is executed.
+#
+# References:
+#   MDEV-28550: improper handling of replication event group that contains Gtid_log_list_event
+
+--source include/master-slave.inc
+
+# Independent of binlog format
+--source include/have_binlog_format_statement.inc
+
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+
+--echo #
+--echo # Initialize test data
+--connection master
+create table t1 (a int);
+SET @@session.server_id= 3;
+create table t2 (a int);
+--source include/save_master_gtid.inc
+
+--echo #
+--echo # Have the replica "reconnect" and the primary will send Gtid, Glle, DDL
+--connection slave
+eval set global gtid_slave_pos="0-3-1";
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+--echo #
+--echo # Ensure that the replica did not error
+connection slave;
+--source include/sync_with_master_gtid.inc
+let $error= query_get_value(SHOW SLAVE STATUS, Last_SQL_Error, 1);
+--echo Last_SQL_Error = $error
+let $errno= query_get_value(SHOW SLAVE STATUS, Last_SQL_Errno, 1);
+--echo Last_SQL_Errno = $errno
+
+--echo #
+--echo # Ensure that the primary sent a Glle after a Gtid event
+let $binlog_file= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1);
+let $binlog_start= $relaylog_start;
+let $binlog_limit=0,10;
+--source include/show_relaylog_events.inc
+
+--echo #
+--echo # Ensure the DDL was executed on the replica
+if (!`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't2'`)
+{
+    die "t2 should exist on slave";
+}
+
+--echo #
+--echo # Cleanup
+
+--echo # t1 does not make it to the replica
+--connection master
+set sql_log_bin=0;
+DROP TABLE t1;
+set sql_log_bin=1;
+DROP TABLE t2;
+
+--source include/rpl_end.inc

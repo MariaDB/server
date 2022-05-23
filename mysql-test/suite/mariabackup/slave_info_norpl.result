@@ -1,0 +1,59 @@
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-21037 mariabackup does not detect multi-source replication slave
+#
+SELECT @@global.gtid_slave_pos;
+@@global.gtid_slave_pos
+
+
+# Without any masters the file xtrabackup_slave_info is not created
+line
+[00] YYYY-MM-DD hh:mm:ss Failed to get master binlog coordinates from SHOW SLAVE STATUS.This means that the server is not a replication slave. Ignoring the --slave-info option
+
+CHANGE MASTER TO MASTER_HOST='localhost', MASTER_PORT=10000;
+lineno	line
+1	CHANGE MASTER TO MASTER_LOG_FILE='', MASTER_LOG_POS=<NUM>;
+line
+[00] YYYY-MM-DD hh:mm:ss MySQL slave binlog position: master '' filename '' position '0'
+
+CHANGE MASTER 'master2' TO MASTER_HOST='localhost', MASTER_PORT=10002;
+lineno	line
+1	CHANGE MASTER TO MASTER_LOG_FILE='', MASTER_LOG_POS=<NUM>;
+2	CHANGE MASTER 'master2' TO MASTER_LOG_FILE='', MASTER_LOG_POS=<NUM>;
+line
+[00] YYYY-MM-DD hh:mm:ss MySQL slave binlog position: master '' filename '' position '0'; master 'master2' filename '' position '0'
+
+SET GLOBAL gtid_slave_pos='1-1-1,2-2-2';
+CHANGE MASTER 'master3' TO MASTER_HOST='localhost', MASTER_PORT=10003, MASTER_USE_GTID=slave_pos;
+CHANGE MASTER 'master4' TO MASTER_HOST='localhost', MASTER_PORT=10004, MASTER_USE_GTID=no;
+CHANGE MASTER 'master5' TO MASTER_HOST='localhost', MASTER_PORT=10005, MASTER_USE_GTID=slave_pos;
+lineno	line
+1	SET GLOBAL gtid_slave_pos = '<NUM-NUM-NUM>,<NUM-NUM-NUM>';
+2	CHANGE MASTER TO MASTER_LOG_FILE='', MASTER_LOG_POS=<NUM>;
+3	CHANGE MASTER 'master2' TO MASTER_LOG_FILE='', MASTER_LOG_POS=<NUM>;
+4	CHANGE MASTER 'master3' TO master_use_gtid = slave_pos;
+5	CHANGE MASTER 'master4' TO MASTER_LOG_FILE='', MASTER_LOG_POS=<NUM>;
+6	CHANGE MASTER 'master5' TO master_use_gtid = slave_pos;
+line
+[00] YYYY-MM-DD hh:mm:ss MySQL slave binlog position: gtid_slave_pos '<NUM-NUM-NUM>,<NUM-NUM-NUM>'; master '' filename '' position '0'; master 'master2' filename '' position '0'; master 'master3' master_use_gtid = slave_pos; master 'master4' filename '' position '0'; master 'master5' master_use_gtid = slave_pos
+
+CHANGE MASTER TO MASTER_HOST='localhost', MASTER_PORT=10000, MASTER_USE_GTID=slave_pos;
+lineno	line
+1	SET GLOBAL gtid_slave_pos = '<NUM-NUM-NUM>,<NUM-NUM-NUM>';
+2	CHANGE MASTER TO master_use_gtid = slave_pos;
+3	CHANGE MASTER 'master2' TO MASTER_LOG_FILE='', MASTER_LOG_POS=<NUM>;
+4	CHANGE MASTER 'master3' TO master_use_gtid = slave_pos;
+5	CHANGE MASTER 'master4' TO MASTER_LOG_FILE='', MASTER_LOG_POS=<NUM>;
+6	CHANGE MASTER 'master5' TO master_use_gtid = slave_pos;
+line
+[00] YYYY-MM-DD hh:mm:ss MySQL slave binlog position: gtid_slave_pos '<NUM-NUM-NUM>,<NUM-NUM-NUM>'; master '' master_use_gtid = slave_pos; master 'master2' filename '' position '0'; master 'master3' master_use_gtid = slave_pos; master 'master4' filename '' position '0'; master 'master5' master_use_gtid = slave_pos
+RESET SLAVE ALL;
+RESET SLAVE 'master2' ALL;
+RESET SLAVE 'master3' ALL;
+RESET SLAVE 'master4' ALL;
+RESET SLAVE 'master5' ALL;
+#
+# End of 10.2 tests
+#

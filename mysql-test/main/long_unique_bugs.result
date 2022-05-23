@@ -303,7 +303,24 @@ c
 1
 DELETE FROM t;
 DROP TABLE t;
+#
+# MDEV-28098 incorrect key in "dup value" error after long unique
+#
+create table t1 (v3 int primary key, v2 text(100) unique not null, v1 int unique) engine=innodb;
+insert into t1 values ( -32768 , -128 , 58 ) , ( -1 , 44 , -128 );
+create table t2 (v6 int primary key, v5 text, a int not null) engine=innodb;
+insert into t2 values ( 50 , 61 , -1 ) , ( -2147483648 , -128 , 0 );
+update t1 set v2 = 1, v3 = -128;
+ERROR 23000: Duplicate entry '1' for key 'v2'
+update t1,t2 set v1 = v2 , v5 = 0;
+ERROR 23000: Duplicate entry '-128' for key 'v1'
+drop table t1, t2;
+#
 # End of 10.4 tests
+#
+#
+# MDEV-22113 SIGSEGV, ASAN use-after-poison, Assertion `next_insert_id == 0' in handler::ha_external_lock
+#
 create temporary table tmp ( a int, b int, c blob not null, d int, e int default 0, f int, unique key (c)) engine=innodb;
 create table t2 (x int);
 lock table t2 write;
@@ -312,6 +329,9 @@ start transaction;
 alter table tmp alter column a set default 8;
 unlock tables;
 drop table t2;
+#
+# MDEV-22218 InnoDB: Failing assertion: node->pcur->rel_pos == BTR_PCUR_ON upon LOAD DATA with NO_BACKSLASH_ESCAPES in SQL_MODE and unique blob in table
+#
 create table t1 (pk int primary key, f blob, unique(f)) engine=innodb;
 insert t1 values (1, null);
 select * into outfile 't1.data' from t1;
@@ -370,8 +390,13 @@ a	b
 1	foo
 3	bar
 drop table if exists t1, t2;
+#
+# MDEV-22185 Failing assertion: node->pcur->rel_pos == BTR_PCUR_ON or ER_KEY_NOT_FOUND or Assertion `inited==NONE' failed in handler::ha_index_init
+#
 create table t1 (a int, b int, unique (b) using hash) engine=innodb partition by key (a) partitions 2;
 insert into t1 values (1,10),(2,20);
 update t1 set b = 30 limit 1;
 drop table t1;
+#
 # End of 10.5 tests
+#

@@ -2497,6 +2497,8 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
   mpvio.db= db;
   mpvio.plugin= auth_plugin;
 
+  DBUG_EXECUTE_IF("client_delay_run_plugin_auth", my_sleep(400000););
+
   res= auth_plugin->authenticate_user((struct st_plugin_vio *)&mpvio, mysql);
   DBUG_PRINT ("info", ("authenticate_user returned %s", 
                        res == CR_OK ? "CR_OK" : 

@@ -1,0 +1,47 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+call mtr.add_suppression("InnoDB: New log files created");
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-28446 mariabackup prepare fails for incrementals if a new schema is created after full backup is taken
+--echo #
+
+--let $basedir=$MYSQLTEST_VARDIR/tmp/backup
+--let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1
+
+CREATE TABLE t1(i INT PRIMARY KEY) ENGINE INNODB;
+
+--disable_result_log
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir
+--enable_result_log
+
+--let after_load_tablespaces=BEGIN NOT ATOMIC CREATE DATABASE test1; CREATE TABLE test1.t1 ENGINE=INNODB SELECT UUID() from test.seq_1_to_10000; END
+
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$incremental_dir --incremental-basedir=$basedir --dbug=+d,mariabackup_events,mariabackup_inject_code
+--let after_load_tablespaces=
+--disable_result_log
+--echo # Prepare full backup, apply incremental one
+--exec $XTRABACKUP --prepare --target-dir=$basedir
+--exec $XTRABACKUP --prepare --target-dir=$basedir --incremental-dir=$incremental_dir
+--enable_result_log
+
+--let $targetdir=$basedir
+--source include/restart_and_restore.inc
+--enable_result_log
+
+SELECT COUNT(*) FROM test.t1;
+SELECT COUNT(*) FROM test1.t1;
+
+DROP TABLE t1;
+DROP DATABASE test1;
+--rmdir $basedir
+--rmdir $incremental_dir
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

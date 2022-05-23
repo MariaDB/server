@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+# Case 1: UNSAFE
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format");
 CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY , b INT,
 UNIQUE(b),  c int) engine=innodb;
@@ -37,6 +38,7 @@ drop table t1;
 connection slave;
 start slave;
 include/wait_for_slave_to_start.inc
+# Case 2: UNSAFE
 connection master;
 CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY auto_increment, b INT,
 UNIQUE(b),  c int) engine=innodb;
@@ -45,8 +47,12 @@ connection master;
 INSERT INTO t1 VALUES (default, 1, 1);
 BEGIN;
 INSERT INTO t1 VALUES (default, 1, 2) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. INSERT... ON DUPLICATE KEY UPDATE  on a table with more than one UNIQUE KEY is unsafe
 connection master1;
 INSERT INTO t1 VALUES(default, 2, 3) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. INSERT... ON DUPLICATE KEY UPDATE  on a table with more than one UNIQUE KEY is unsafe
 connection master;
 COMMIT;
 SELECT * FROM t1;
@@ -62,6 +68,7 @@ a	b	c
 connection master;
 drop table t1;
 connection slave;
+# Case 3A: UNSAFE
 connection master;
 CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY, b INT,
 UNIQUE(b),  c int, d int ) engine=innodb;
@@ -93,6 +100,67 @@ a	b	c	d
 connection master;
 drop table t1;
 connection slave;
+# Case 3B: UNSAFE - all column specified.
+connection master;
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY, b INT,
+UNIQUE(b),  c int, d int ) engine=innodb;
+connection slave;
+connection master;
+INSERT INTO t1 VALUES (1, 1, 1, 1);
+BEGIN;
+INSERT INTO t1 VALUES (2, NULL, 2, 2) ON DUPLICATE KEY UPDATE c=VALUES(c);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. INSERT... ON DUPLICATE KEY UPDATE  on a table with more than one UNIQUE KEY is unsafe
+connection master1;
+INSERT INTO t1 VALUES(3, NULL, 2, 3) ON DUPLICATE KEY UPDATE c=VALUES(c);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. INSERT... ON DUPLICATE KEY UPDATE  on a table with more than one UNIQUE KEY is unsafe
+connection master;
+COMMIT;
+SELECT * FROM t1;
+a	b	c	d
+1	1	1	1
+2	NULL	2	2
+3	NULL	2	3
+connection slave;
+#same data as master
+SELECT * FROM t1;
+a	b	c	d
+1	1	1	1
+2	NULL	2	2
+3	NULL	2	3
+connection master;
+drop table t1;
+connection slave;
+# Case 3C: SAFE - only one unique key (PK) specified.
+connection master;
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY, b INT,
+UNIQUE(b),  c int, d int ) engine=innodb;
+connection slave;
+connection master;
+INSERT INTO t1 VALUES (1, 1, 1, 1);
+BEGIN;
+INSERT INTO t1 (`a`, `c`, `d`) VALUES (2, 2, 2) ON DUPLICATE KEY UPDATE c=99;
+connection master1;
+INSERT INTO t1  (`a`, `c`, `d`) VALUES(3, 2, 3) ON DUPLICATE KEY UPDATE c=100;
+connection master;
+COMMIT;
+SELECT * FROM t1;
+a	b	c	d
+1	1	1	1
+2	NULL	2	2
+3	NULL	2	3
+connection slave;
+#same data as master
+SELECT * FROM t1;
+a	b	c	d
+1	1	1	1
+2	NULL	2	2
+3	NULL	2	3
+connection master;
+drop table t1;
+connection slave;
+# Case 4: UNSAFE
 connection master;
 CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY auto_increment, b INT,
 UNIQUE(b),  c int) engine=innodb;
@@ -101,8 +169,12 @@ connection master;
 INSERT INTO t1 VALUES (1, 1, 1);
 BEGIN;
 INSERT INTO t1 VALUES (2, 1, 2) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. INSERT... ON DUPLICATE KEY UPDATE  on a table with more than one UNIQUE KEY is unsafe
 connection master1;
 INSERT INTO t1 VALUES(2, 2, 3) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. INSERT... ON DUPLICATE KEY UPDATE  on a table with more than one UNIQUE KEY is unsafe
 connection master;
 COMMIT;
 SELECT * FROM t1;

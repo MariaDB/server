@@ -1,3 +1,5 @@
+--source include/have_symlink.inc
+
 --echo #
 --echo # MDEV-14641 Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine
 --echo #
