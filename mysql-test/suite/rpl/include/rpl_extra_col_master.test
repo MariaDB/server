@@ -450,7 +450,7 @@ connection master;
 --echo ** Stop and Reset Slave **
 --echo
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 --echo
 --echo ** create table slave side **
 eval CREATE TABLE t10 (a INT PRIMARY KEY, b BLOB, c CHAR(5)
@@ -507,7 +507,7 @@ sync_slave_with_master;
 --echo
 --echo  *** Create t11 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 
 eval CREATE TABLE t11 (a INT PRIMARY KEY, b BLOB, c VARCHAR(254)
                        ) ENGINE=$engine_type;
@@ -563,7 +563,7 @@ sync_slave_with_master;
 --echo
 --echo  *** Create t12 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t12 (a INT PRIMARY KEY, b BLOB, c BLOB
                        ) ENGINE=$engine_type;
 
@@ -614,7 +614,7 @@ sync_slave_with_master;
 --echo
 --echo *** Create t14 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t14 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
                        ) ENGINE=$engine_type;
 
@@ -689,7 +689,7 @@ connection slave;
 #***************************
 
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 
 --echo
 --echo *** Drop t14  ***
@@ -711,7 +711,7 @@ START SLAVE;
 --echo
 --echo *** Create t15 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t15 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
                        ) ENGINE=$engine_type;
 
@@ -753,7 +753,7 @@ connection slave;
 --let $show_slave_sql_error= 1
 --source include/wait_for_slave_sql_error.inc
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 
 --echo
 --echo *** Drop t15  ***
@@ -775,7 +775,7 @@ START SLAVE;
 --echo
 --echo *** Create t16 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t16 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
                        ) ENGINE=$engine_type;
 
@@ -830,7 +830,7 @@ connection slave;
 --let $show_slave_sql_error= 1
 --source include/wait_for_slave_sql_error.inc
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 
 --echo
 --echo *** Drop t16  ***
@@ -853,7 +853,7 @@ START SLAVE;
 --echo
 --echo *** Create t17 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t17 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
                        ) ENGINE=$engine_type;
 
@@ -919,7 +919,7 @@ sync_slave_with_master;
 --echo 
 
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t18 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
                        ) ENGINE=$engine_type;
 
@@ -982,7 +982,7 @@ sync_slave_with_master;
 --echo
 --echo *** Create t5 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t5 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
                        ) ENGINE=$engine_type;
 

@@ -16,5 +16,7 @@ zero
 ==== Clean up ====
 include/stop_slave_sql.inc
 include/cleanup_fake_relay_log.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 drop table t1, t3;
 include/rpl_end.inc

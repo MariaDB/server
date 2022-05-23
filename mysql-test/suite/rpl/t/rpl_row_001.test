@@ -14,7 +14,7 @@ connection master;
 RESET MASTER;
 connection slave;
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 
 connection master;
 let $1=5000;

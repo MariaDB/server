@@ -1775,6 +1775,9 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
   }
   else
   {
+    DBUG_EXECUTE_IF("mock_mariadb_primary_v5_in_get_master_version",
+                    version= 5;);
+
     /*
       Note the following switch will bug when we have MySQL branch 30 ;)
     */
@@ -2357,6 +2360,14 @@ past_checksum:
 #ifndef DBUG_OFF
 after_set_capability:
 #endif
+
+  if (!(mi->master_supports_gtid= version >= 10))
+  {
+    sql_print_information(
+        "Slave I/O thread: Falling back to Using_Gtid=No because "
+        "master does not support GTIDs");
+    mi->using_gtid= Master_info::USE_GTID_NO;
+  }
 
   if (mi->using_gtid != Master_info::USE_GTID_NO)
   {

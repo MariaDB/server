@@ -377,6 +377,8 @@ a	b
 connection server_1;
 include/stop_slave.inc
 RESET SLAVE ALL;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
 connection server_2;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_1;
 include/start_slave.inc

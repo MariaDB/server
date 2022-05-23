@@ -12,6 +12,12 @@ set @old_master_binlog_checksum= @@global.binlog_checksum;
 #
 # Test this by binlog rotation before we log any GTIDs.
 connection slave;
+
+# Need to stop/start the master without GTID before setting debug_dbug
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+--source include/start_slave.inc
+
 --source include/stop_slave.inc
 --echo # Test slave with no capability gets dummy event, which is ignored.
 set @old_dbug= @@global.debug_dbug;

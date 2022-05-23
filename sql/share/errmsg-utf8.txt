@@ -10074,3 +10074,7 @@ ER_INCONSISTENT_SLAVE_TEMP_TABLE
         eng "Replicated query '%s' table `%s.%s` can not be temporary"
 ER_VERS_HIST_PART_FAILED
         eng "Versioned table %`s.%`s: adding HISTORY partition(s) failed"
+WARN_OPTION_CHANGING
+        eng "%s is implicitly changing the value of '%s' from '%s' to '%s'"
+ER_CM_OPTION_MISSING_REQUIREMENT
+        eng "CHANGE MASTER TO option '%s=%s' is missing requirement %s"

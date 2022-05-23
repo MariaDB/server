@@ -69,7 +69,9 @@ Note	1254	Slave is already running
 connection slave;
 include/stop_slave.inc
 drop table if exists t1;
-reset slave;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='root';
 connection master;
 drop table if exists t1;

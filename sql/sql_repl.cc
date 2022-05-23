@@ -3420,6 +3420,16 @@ int reset_slave(THD *thd, Master_info* mi)
     goto err;
   }
 
+  if (mi->using_gtid != Master_info::USE_GTID_SLAVE_POS &&
+      mi->master_supports_gtid)
+  {
+    push_warning_printf(
+        thd, Sql_condition::WARN_LEVEL_NOTE, WARN_OPTION_CHANGING,
+        ER_THD(thd, WARN_OPTION_CHANGING), "RESET SLAVE", "Using_Gtid",
+        mi->using_gtid_astext(mi->using_gtid),
+        mi->using_gtid_astext(Master_info::USE_GTID_SLAVE_POS));
+  }
+
   /* Clear master's log coordinates and associated information */
   mi->clear_in_memory_info(thd->lex->reset_slave_info.all);
 
@@ -3816,7 +3826,41 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_NO ||
            lex_mi->log_file_name || lex_mi->pos ||
            lex_mi->relay_log_name || lex_mi->relay_log_pos)
+  {
+    if (lex_mi->use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_NO)
+    {
+      push_warning_printf(
+          thd, Sql_condition::WARN_LEVEL_NOTE, WARN_OPTION_CHANGING,
+          ER_THD(thd, WARN_OPTION_CHANGING), "CHANGE MASTER TO", "Using_Gtid",
+          mi->using_gtid_astext(mi->using_gtid),
+          mi->using_gtid_astext(Master_info::USE_GTID_NO));
+    }
     mi->using_gtid= Master_info::USE_GTID_NO;
+  }
+
+  /*
+    Warn about ignored options if there are GTID/log coordinate option
+    conflicts
+  */
+  if (mi->using_gtid != Master_info::USE_GTID_NO)
+  {
+    if (lex_mi->log_file_name)
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          WARN_OPTION_IGNORED,
+                          ER_THD(thd, WARN_OPTION_IGNORED), "MASTER_LOG_FILE");
+    if (lex_mi->pos)
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          WARN_OPTION_IGNORED,
+                          ER_THD(thd, WARN_OPTION_IGNORED), "MASTER_LOG_POS");
+    if (lex_mi->relay_log_name)
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          WARN_OPTION_IGNORED,
+                          ER_THD(thd, WARN_OPTION_IGNORED), "RELAY_LOG_FILE");
+    if (lex_mi->relay_log_pos)
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          WARN_OPTION_IGNORED,
+                          ER_THD(thd, WARN_OPTION_IGNORED), "RELAY_LOG_POS");
+  }
 
   do_ids= ((lex_mi->repl_do_domain_ids_opt ==
             LEX_MASTER_INFO::LEX_MI_ENABLE) ?

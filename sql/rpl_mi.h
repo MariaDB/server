@@ -361,6 +361,13 @@ class Master_info : public Slave_reporting_capability
     at time its alter info struct is about to be appened to the list.
   */
   bool is_shutdown;
+
+  /*
+    A replica will default to Slave_Pos for using Using_Gtid; however, we
+    first need to test if the master supports GTIDs. If not, fall back to 'No'.
+    Cache the value so future RESET SLAVE commands don't revert to Slave_Pos.
+  */
+  bool master_supports_gtid;
 };
 
 struct start_alter_thd_args

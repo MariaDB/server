@@ -1,4 +1,8 @@
 include/rpl_init.inc [topology=1->2]
+connection server_2;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
 connection server_1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE FUNCTION extract_gtid(d VARCHAR(100), s VARCHAR(100))
@@ -199,6 +203,8 @@ include/start_slave.inc
 connection server_2;
 include/stop_slave.inc
 RESET SLAVE ALL;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
 RESET MASTER;
 SET GLOBAL gtid_slave_pos='';
 connection server_1;

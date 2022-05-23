@@ -11,7 +11,7 @@ ignore server id list:
 change master to IGNORE_SERVER_IDS= (10, 100);
 *** must be 10, 100 ***
 ignore server id list: 10, 100
-reset slave;
+include/reset_slave.inc
 *** must be empty due to reset slave ***
 ignore server id list: 10, 100
 change master to IGNORE_SERVER_IDS= (10, 100);
@@ -33,7 +33,7 @@ Tables_in_test
 *** allowing events from master ***
 stop slave;
 include/wait_for_slave_to_stop.inc
-reset slave;
+include/reset_slave.inc
 change master to IGNORE_SERVER_IDS= (10, 100);
 *** the list must remain (10, 100) after reset slave ***
 change master to IGNORE_SERVER_IDS= ();

@@ -57,7 +57,9 @@ load data  infile '../../std_data/rpl_loaddata.dat' into table t1;
 connection slave;
 include/wait_for_slave_sql_error.inc [errno=1062]
 stop slave;
-reset slave;
+include/reset_slave.inc
+Warnings:
+Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-14. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 include/check_slave_no_error.inc
 connection master;
 reset master;

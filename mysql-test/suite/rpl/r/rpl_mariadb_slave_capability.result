@@ -4,6 +4,9 @@ connection master;
 set @old_master_binlog_checksum= @@global.binlog_checksum;
 connection slave;
 include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
+include/stop_slave.inc
 # Test slave with no capability gets dummy event, which is ignored.
 set @old_dbug= @@global.debug_dbug;
 SET @@global.debug_dbug='+d,simulate_slave_capability_none';

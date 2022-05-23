@@ -10,7 +10,8 @@ multi-master.info
 change master 'master1' to
 master_port=MYPORT_1,
 master_host='127.0.0.1',
-master_user='root';
+master_user='root',
+master_use_gtid=no;
 start slave 'master1';
 set default_master_connection = 'master1';
 include/wait_for_slave_to_start.inc
@@ -28,7 +29,8 @@ master1
 change master 'MASTER 2.2' to
 master_port=MYPORT_2,
 master_host='127.0.0.1',
-master_user='root';
+master_user='root',
+master_use_gtid=no;
 start slave 'MASTER 2.2';
 set default_master_connection = 'MASTER 2.2';
 include/wait_for_slave_to_start.inc
@@ -53,6 +55,8 @@ stop slave 'master1';
 set default_master_connection = 'master1';
 include/wait_for_slave_to_stop.inc
 reset slave 'master1' all;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 #
 # List of files matching '*info*' pattern
 #  after 'master1' was completely reset, 'MASTER 2.2' still running
@@ -69,7 +73,8 @@ set default_master_connection = '';
 change master to
 master_port=MYPORT_1,
 master_host='127.0.0.1',
-master_user='root';
+master_user='root',
+master_use_gtid=no;
 start slave;
 include/wait_for_slave_to_start.inc
 connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
