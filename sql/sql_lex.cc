@@ -11874,6 +11874,21 @@ bool LEX::sp_create_set_password_instr(THD *thd,
 }
 
 
+bool LEX::set_names(const char *pos,
+                    const Lex_exact_charset_opt_extended_collate &cscl,
+                    bool no_lookahead)
+{
+  if (sp_create_assignment_lex(thd, pos))
+    return true;
+  CHARSET_INFO *ci= cscl.collation().charset_info();
+  set_var_collation_client *var;
+  var= new (thd->mem_root) set_var_collation_client(ci, ci, ci);
+  return unlikely(var == NULL) ||
+         unlikely(thd->lex->var_list.push_back(var, thd->mem_root)) ||
+         unlikely(sp_create_assignment_instr(thd, no_lookahead));
+}
+
+
 bool LEX::map_data_type(const Lex_ident_sys_st &schema_name,
                         Lex_field_type_st *type) const
 {

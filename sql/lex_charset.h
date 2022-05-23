@@ -16,8 +16,202 @@
 #ifndef LEX_CHARSET_INCLUDED
 #define LEX_CHARSET_INCLUDED
 
+
 /*
-  Parse time character set and collation.
+  An exact character set, e.g:
+    CHARACTER SET latin1
+*/
+class Lex_exact_charset
+{
+  CHARSET_INFO *m_ci;
+public:
+  explicit Lex_exact_charset(CHARSET_INFO *ci)
+   :m_ci(ci)
+  {
+    DBUG_ASSERT(m_ci);
+    DBUG_ASSERT(m_ci->state & MY_CS_PRIMARY);
+  }
+  CHARSET_INFO *charset_info() const { return m_ci; }
+  bool raise_if_not_equal(const Lex_exact_charset &rhs) const;
+  bool raise_if_not_applicable(const class Lex_exact_collation &cl) const;
+};
+
+
+/*
+  A contextually typed collation, e.g.:
+    COLLATE DEFAULT
+    CHAR(10) BINARY
+*/
+class Lex_context_collation
+{
+  CHARSET_INFO *m_ci;
+public:
+  explicit Lex_context_collation(CHARSET_INFO *ci)
+   :m_ci(ci)
+  {
+    DBUG_ASSERT(ci);
+  }
+  CHARSET_INFO *charset_info() const { return m_ci; }
+  bool is_contextually_typed_collate_default() const
+  {
+    return m_ci == &my_collation_contextually_typed_default;
+  }
+  bool is_contextually_typed_binary_style() const
+  {
+    return m_ci == &my_collation_contextually_typed_binary;
+  }
+  bool raise_if_not_equal(const Lex_context_collation &cl) const;
+};
+
+
+/*
+  An exact collation, e.g.
+    COLLATE latin1_swedish_ci
+*/
+class Lex_exact_collation
+{
+  CHARSET_INFO *m_ci;
+public:
+  explicit Lex_exact_collation(CHARSET_INFO *ci)
+   :m_ci(ci)
+  {
+    DBUG_ASSERT(ci);
+  }
+  CHARSET_INFO *charset_info() const { return m_ci; }
+  // EXACT + EXACT
+  bool raise_if_not_equal(const Lex_exact_collation &cl) const;
+  // EXACT + CONTEXT
+  // CONTEXT + EXACT
+  bool raise_if_conflicts_with_context_collation(const Lex_context_collation &,
+                                                 bool reverse_order) const;
+};
+
+
+/*
+  Parse time COLLATE clause:
+    COLLATE colation_name
+  The collation can be either exact or contextual:
+    COLLATE latin1_bin
+    COLLATE DEFAULT
+*/
+class Lex_extended_collation_st
+{
+public:
+  enum Type
+  {
+    TYPE_EXACT,
+    TYPE_CONTEXTUALLY_TYPED
+  };
+protected:
+  CHARSET_INFO *m_ci;
+  Type m_type;
+public:
+  void init(CHARSET_INFO *ci, Type type)
+  {
+    m_ci= ci;
+    m_type= type;
+  }
+  CHARSET_INFO *charset_info() const { return m_ci; }
+  Type type() const { return m_type; }
+  void set_collate_default()
+  {
+    m_ci= &my_collation_contextually_typed_default;
+    m_type= TYPE_CONTEXTUALLY_TYPED;
+  }
+  bool raise_if_conflicts_with_context_collation(const Lex_context_collation &)
+                                                 const;
+  bool merge_exact_charset(const Lex_exact_charset &rhs);
+  bool merge_exact_collation(const Lex_exact_collation &rhs);
+  bool merge(const Lex_extended_collation_st &rhs);
+};
+
+
+class Lex_extended_collation: public Lex_extended_collation_st
+{
+public:
+  Lex_extended_collation(CHARSET_INFO *ci, Type type)
+  {
+    init(ci, type);
+  }
+  Lex_extended_collation(const Lex_exact_collation &rhs)
+  {
+    init(rhs.charset_info(), TYPE_EXACT);
+  }
+};
+
+
+/*
+  CHARACTER SET cs_exact [COLLATE cl_exact_or_context]
+*/
+class Lex_exact_charset_opt_extended_collate
+{
+  CHARSET_INFO *m_ci;
+  bool m_with_collate;
+public:
+  Lex_exact_charset_opt_extended_collate(CHARSET_INFO *ci, bool with_collate)
+   :m_ci(ci), m_with_collate(with_collate)
+  {
+    DBUG_ASSERT(m_ci);
+    DBUG_ASSERT((m_ci->state & MY_CS_PRIMARY) || m_with_collate);
+  }
+  Lex_exact_charset_opt_extended_collate(const Lex_exact_charset &cs)
+   :m_ci(cs.charset_info()), m_with_collate(false)
+  {
+    DBUG_ASSERT(m_ci);
+    DBUG_ASSERT(m_ci->state & MY_CS_PRIMARY);
+  }
+  Lex_exact_charset_opt_extended_collate(const Lex_exact_collation &cl)
+   :m_ci(cl.charset_info()), m_with_collate(true)
+  {
+    DBUG_ASSERT(m_ci);
+  }
+  bool with_collate() const { return m_with_collate; }
+  CHARSET_INFO *find_bin_collation() const;
+  CHARSET_INFO *find_default_collation() const;
+  bool raise_if_not_applicable(const Lex_exact_collation &cl) const;
+  /*
+    Add another COLLATE clause (exact or context).
+    So the full syntax looks like:
+      CHARACTER SET cs [COLLATE cl] ... COLLATE cl2
+  */
+  bool merge_collation(const Lex_extended_collation_st &cl)
+  {
+    switch (cl.type()) {
+    case Lex_extended_collation_st::TYPE_EXACT:
+      return merge_exact_collation(Lex_exact_collation(cl.charset_info()));
+    case Lex_extended_collation_st::TYPE_CONTEXTUALLY_TYPED:
+      return merge_context_collation(Lex_context_collation(cl.charset_info()));
+    }
+    DBUG_ASSERT(0);
+    return false;
+  }
+  /*
+    Add a context collation:
+      CHARACTER SET cs [COLLATE cl] ... COLLATE DEFAULT
+  */
+  bool merge_context_collation(const Lex_context_collation &cl);
+  bool merge_context_collation_override(const Lex_context_collation &cl);
+  /*
+    Add an exact collation:
+      CHARACTER SET cs [COLLATE cl] ... COLLATE latin1_bin
+  */
+  bool merge_exact_collation(const Lex_exact_collation &cl);
+  Lex_exact_collation collation() const
+  {
+    return Lex_exact_collation(m_ci);
+  }
+  Lex_exact_charset charset() const
+  {
+    if ((m_ci->state & MY_CS_PRIMARY))
+      return Lex_exact_charset(m_ci);
+    return Lex_exact_charset(find_default_collation());
+  }
+};
+
+
+/*
+  Parse time character set and collation for:
+    [CHARACTER SET cs_exact] [COLLATE cl_exact_or_context]
 
   Can be:
 
@@ -65,9 +259,18 @@ public:
 protected:
   CHARSET_INFO *m_ci;
   Type m_type;
-public:
-  static CHARSET_INFO *find_bin_collation(CHARSET_INFO *cs);
-  static CHARSET_INFO *find_default_collation(CHARSET_INFO *cs);
+protected:
+  static Type type_from_lex_collation_type(Lex_extended_collation_st::Type type)
+  {
+    switch (type) {
+    case Lex_extended_collation_st::TYPE_EXACT:
+      return TYPE_COLLATE_EXACT;
+    case Lex_extended_collation_st::TYPE_CONTEXTUALLY_TYPED:
+      return TYPE_COLLATE_CONTEXTUALLY_TYPED;
+    }
+    DBUG_ASSERT(0);
+    return TYPE_COLLATE_EXACT;
+  }
 public:
   void init()
   {
@@ -80,6 +283,21 @@ public:
     m_ci= cs;
     m_type= type;
   }
+  void init(const Lex_exact_charset &cs)
+  {
+    m_ci= cs.charset_info();
+    m_type= TYPE_CHARACTER_SET;
+  }
+  void init(const Lex_exact_collation &cs)
+  {
+    m_ci= cs.charset_info();
+    m_type= TYPE_COLLATE_EXACT;
+  }
+  void init(const Lex_exact_charset_opt_extended_collate &cscl)
+  {
+    cscl.with_collate() ? init(cscl.collation()) :
+                          init(cscl.charset());
+  }
   bool is_empty() const
   {
     return m_type == TYPE_EMPTY;
@@ -90,23 +308,26 @@ public:
     m_ci= cs;
     m_type= TYPE_CHARACTER_SET;
   }
-  void set_charset_collate_default(CHARSET_INFO *cs)
+  bool set_charset_collate_default(CHARSET_INFO *cs)
   {
     DBUG_ASSERT(cs);
-    m_ci= cs;
-    m_type= TYPE_COLLATE_EXACT;
-  }
-  bool set_charset_collate_binary(CHARSET_INFO *cs)
-  {
-    DBUG_ASSERT(cs);
-    if (!(cs= find_bin_collation(cs)))
+    if (!(cs= Lex_exact_charset_opt_extended_collate(cs, true).
+                find_default_collation()))
       return true;
     m_ci= cs;
     m_type= TYPE_COLLATE_EXACT;
     return false;
   }
-  bool set_charset_collate_exact(CHARSET_INFO *cs,
-                                 CHARSET_INFO *cl);
+  bool set_charset_collate_binary(CHARSET_INFO *cs)
+  {
+    DBUG_ASSERT(cs);
+    if (!(cs= Lex_exact_charset_opt_extended_collate(cs, true).
+                find_bin_collation()))
+      return true;
+    m_ci= cs;
+    m_type= TYPE_COLLATE_EXACT;
+    return false;
+  }
   void set_collate_default()
   {
     m_ci= &my_collation_contextually_typed_default;
@@ -119,17 +340,7 @@ public:
   }
   bool is_contextually_typed_collate_default() const
   {
-    return m_ci == &my_collation_contextually_typed_default;
-  }
-  bool is_contextually_typed_binary_style() const
-  {
-    return m_ci == &my_collation_contextually_typed_binary;
-  }
-  void set_collate_exact(CHARSET_INFO *cl)
-  {
-    DBUG_ASSERT(cl);
-    m_ci= cl;
-    m_type= TYPE_COLLATE_EXACT;
+    return Lex_context_collation(m_ci).is_contextually_typed_collate_default();
   }
   CHARSET_INFO *charset_info() const
   {
@@ -144,44 +355,55 @@ public:
     return m_type == TYPE_COLLATE_CONTEXTUALLY_TYPED;
   }
   CHARSET_INFO *resolved_to_character_set(CHARSET_INFO *cs) const;
-  bool merge_charset_clause_and_collate_clause(
-                     const Lex_exact_charset_extended_collation_attrs_st &cl);
-  bool merge_collate_clause_and_collate_clause(
-                     const Lex_exact_charset_extended_collation_attrs_st &cl);
-};
-
-
-/*
-  CHARACTER SET cs_exact [COLLATE cl_exact_or_context]
-*/
-class Lex_exact_charset_opt_extended_collate
-{
-  CHARSET_INFO *m_ci;
-  bool m_with_collate;
-public:
-  Lex_exact_charset_opt_extended_collate(CHARSET_INFO *ci, bool with_collate)
-   :m_ci(ci), m_with_collate(with_collate)
+  /*
+    Merge the column CHARACTER SET clause to:
+    - an exact collation name
+    - a contextually typed collation
+    "this" corresponds to `CHARACTER SET xxx [BINARY]`
+    "cl" corresponds to the COLLATE clause
+  */
+  bool merge_column_charset_clause_and_collate_clause(
+                    const Lex_exact_charset_extended_collation_attrs_st &cl)
   {
-    DBUG_ASSERT(m_ci);
-    // Item_func_set_collation uses non-default collations in "ci"
-    //DBUG_ASSERT(m_ci->default_flag() || m_with_collate);
+    switch (cl.type()) {
+    case TYPE_EMPTY:
+      return false;
+    case TYPE_COLLATE_EXACT:
+      return merge_exact_collation(Lex_exact_collation(cl.charset_info()));
+    case TYPE_COLLATE_CONTEXTUALLY_TYPED:
+    case TYPE_CHARACTER_SET:
+      break;
+    }
+    DBUG_ASSERT(0);
+    return false;
   }
   /*
-    Add another COLLATE clause (exact or context).
-    So the full syntax looks like:
-      CHARACTER SET cs [COLLATE cl] ... COLLATE cl2
+    This method is used in the "attribute_list" rule to merge two independent
+    COLLATE clauses (not belonging to a CHARACTER SET clause).
+    "BINARY" and "COLLATE DEFAULT" are not possible
+    in an independent COLLATE clause in a column attribute.
   */
-  bool merge_collate_or_error(
-                     const Lex_exact_charset_extended_collation_attrs_st &cl);
-  bool merge_opt_collate_or_error(
-                     const Lex_exact_charset_extended_collation_attrs_st &cl)
+  bool merge_column_collate_clause_and_collate_clause(
+                    const Lex_exact_charset_extended_collation_attrs_st &cl)
   {
-    if (cl.is_empty())
+    DBUG_ASSERT(m_type != TYPE_COLLATE_CONTEXTUALLY_TYPED);
+    DBUG_ASSERT(m_type != TYPE_CHARACTER_SET);
+    switch (cl.type()) {
+    case TYPE_EMPTY:
       return false;
-    return merge_collate_or_error(cl);
+    case TYPE_COLLATE_EXACT:
+      return merge_exact_collation(Lex_exact_collation(cl.charset_info()));
+    case TYPE_COLLATE_CONTEXTUALLY_TYPED:
+    case TYPE_CHARACTER_SET:
+      break;
+    }
+    DBUG_ASSERT(0);
+    return false;
   }
-  CHARSET_INFO *charset_info() const { return m_ci; }
-  bool with_collate() const { return m_with_collate; }
+  bool merge_exact_charset(const Lex_exact_charset &cs);
+  bool merge_exact_collation(const Lex_exact_collation &cl);
+  bool merge_context_collation(const Lex_context_collation &cl);
+  bool merge_collation(const Lex_extended_collation_st &cl);
 };
 
 
@@ -196,6 +418,32 @@ public:
   Lex_exact_charset_extended_collation_attrs(CHARSET_INFO *collation, Type type)
   {
     init(collation, type);
+  }
+  explicit
+  Lex_exact_charset_extended_collation_attrs(const Lex_exact_charset &cs)
+  {
+    init(cs.charset_info(), TYPE_CHARACTER_SET);
+  }
+  explicit
+  Lex_exact_charset_extended_collation_attrs(const Lex_exact_collation &cl)
+  {
+    init(cl.charset_info(), TYPE_COLLATE_EXACT);
+  }
+  explicit
+  Lex_exact_charset_extended_collation_attrs(const Lex_context_collation &cl)
+  {
+    init(cl.charset_info(), TYPE_COLLATE_CONTEXTUALLY_TYPED);
+  }
+  explicit
+  Lex_exact_charset_extended_collation_attrs(
+                    const Lex_exact_charset_opt_extended_collate &cscl)
+  {
+    init(cscl);
+  }
+  explicit
+  Lex_exact_charset_extended_collation_attrs(const Lex_extended_collation_st &cl)
+  {
+    init(cl.charset_info(), type_from_lex_collation_type(cl.type()));
   }
   static Lex_exact_charset_extended_collation_attrs national(bool bin_mod)
   {

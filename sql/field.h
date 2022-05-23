@@ -5514,11 +5514,9 @@ public:
   {
     if (!charset)
       return Lex_column_charset_collation_attrs();
-    return Lex_column_charset_collation_attrs(
-             charset,
-             flags & CONTEXT_COLLATION_FLAG ?
-             Lex_column_charset_collation_attrs_st::TYPE_COLLATE_CONTEXTUALLY_TYPED :
-             Lex_column_charset_collation_attrs_st::TYPE_CHARACTER_SET);
+    if (flags & CONTEXT_COLLATION_FLAG)
+      return Lex_column_charset_collation_attrs(Lex_context_collation(charset));
+    return Lex_column_charset_collation_attrs(Lex_exact_collation(charset));
   }
 };
 
