@@ -74,8 +74,7 @@ public:
   }
 
   void process_apc_requests(bool lock=true);
-  void process_apc_requests_lock_owned();
-  /* 
+  /*
     A lightweight function, intended to be used in frequent checks like this:
 
       if (apc_target.have_requests()) apc_target.process_apc_requests()
@@ -140,12 +139,16 @@ public:
 
     /* Condition that will be signalled when the request has been served */
     mysql_cond_t COND_request;
+    mysql_mutex_t LOCK_request;
     
     /* Double linked-list linkage */
     Call_request *next;
     Call_request *prev;
     
     const char *what; /* (debug) state of the request */
+
+    Call_request();
+    ~Call_request();
   };
 private:
   void enqueue_request(Call_request *qe);

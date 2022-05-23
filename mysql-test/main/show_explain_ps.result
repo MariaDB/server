@@ -3,7 +3,6 @@ truncate table performance_schema.events_stages_history_long;
 drop table if exists t0, t1;
 select * from performance_schema.setup_instruments where name like '%show_explain%';
 NAME	ENABLED	TIMED
-wait/synch/cond/sql/show_explain	YES	YES
 stage/sql/Show explain	YES	YES
 statement/sql/show_explain	YES	YES
 # We've got no instances

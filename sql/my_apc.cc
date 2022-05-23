@@ -88,11 +88,17 @@ void Apc_target::dequeue_request(Call_request *qe)
 #ifdef HAVE_PSI_INTERFACE
 
 /* One key for all conds */
-PSI_cond_key key_show_explain_request_COND;
+PSI_cond_key key_APC_request_COND;
+PSI_cond_key key_APC_request_LOCK;
 
-static PSI_cond_info show_explain_psi_conds[]=
+static PSI_cond_info apc_request_psi_conds[]=
 {
-  { &key_show_explain_request_COND, "show_explain", 0 /* not using PSI_FLAG_GLOBAL*/ }
+  { &key_APC_request_COND, "apc_request", 0 /* not using PSI_FLAG_GLOBAL*/ }
+};
+
+static PSI_mutex_info apc_request_psi_locks[]=
+{
+  { &key_APC_request_LOCK, "apc_request", 0 }
 };
 
 void init_show_explain_psi_keys(void)
@@ -100,8 +106,10 @@ void init_show_explain_psi_keys(void)
   if (PSI_server == NULL)
     return;
 
-  PSI_server->register_cond("sql", show_explain_psi_conds,
-                            array_elements(show_explain_psi_conds));
+  PSI_server->register_cond("sql", apc_request_psi_conds,
+                            array_elements(apc_request_psi_conds));
+  PSI_server->register_mutex("sql", apc_request_psi_locks,
+                            array_elements(apc_request_psi_locks));
 }
 #endif
 
@@ -119,14 +127,17 @@ int Apc_target::wait_for_completion(THD *caller_thd, Call_request *apc_request,
   int res = 1;
   int wait_res= 0;
   PSI_stage_info old_stage;
-  caller_thd->ENTER_COND(&apc_request->COND_request, LOCK_thd_kill_ptr,
+
+  mysql_mutex_lock(&apc_request->LOCK_request);
+  mysql_mutex_unlock(LOCK_thd_kill_ptr);
+
+  caller_thd->ENTER_COND(&apc_request->COND_request, &apc_request->LOCK_request,
                          &stage_show_explain, &old_stage);
   /* todo: how about processing other errors here? */
   while (!apc_request->processed && (wait_res != ETIMEDOUT))
   {
-    /* We own LOCK_thd_kill_ptr */
     wait_res= mysql_cond_timedwait(&apc_request->COND_request,
-                                   LOCK_thd_kill_ptr, &abstime);
+                                   &apc_request->LOCK_request, &abstime);
     if (caller_thd->killed)
       break;
   }
@@ -135,11 +146,15 @@ int Apc_target::wait_for_completion(THD *caller_thd, Call_request *apc_request,
   {
     /*
       The wait has timed out, or this thread was KILLed.
-      Remove the request from the queue (ok to do because we own
-      LOCK_thd_kill_ptr)
+      We can't delete it from the queue, because LOCK_thd_kill_ptr is already
+      released. It can't be reacquired because of the ordering with
+      apc_request->LOCK_request.
+      However, apc_request->processed is guarded by this lock.
+      Set processed= TRUE and transfer the ownership to the processor thread.
+      It should free the resources itself.
+      apc_request cannot be referred after unlock anymore in this case.
     */
     apc_request->processed= TRUE;
-    dequeue_request(apc_request);
     res= 1;
   }
   else
@@ -147,13 +162,10 @@ int Apc_target::wait_for_completion(THD *caller_thd, Call_request *apc_request,
     /* Request was successfully executed and dequeued by the target thread */
     res= 0;
   }
-  /*
-    exit_cond() will call mysql_mutex_unlock(LOCK_thd_kill_ptr) for us:
-  */
+
+  /* EXIT_COND() will call mysql_mutex_unlock(LOCK_request) for us */
   caller_thd->EXIT_COND(&old_stage);
 
-  /* Destroy all APC request data */
-  mysql_cond_destroy(&apc_request->COND_request);
   return res;
 }
 
@@ -162,8 +174,6 @@ void Apc_target::enqueue_request(Call_request *request_buff, Apc_call *call)
 {
   request_buff->call= call;
   request_buff->processed= FALSE;
-  mysql_cond_init(key_show_explain_request_COND, &request_buff->COND_request,
-                  NULL);
   enqueue_request(request_buff);
   request_buff->what="enqueued by make_apc_call";
 }
@@ -193,10 +203,12 @@ bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call,
 
   if (enabled)
   {
-    Call_request apc_request;
-    enqueue_request(&apc_request, call);
-    res= wait_for_completion(caller_thd, &apc_request, timeout_sec);
+    Call_request *apc_request= new Call_request;
+    enqueue_request(apc_request, call);
+    res= wait_for_completion(caller_thd, apc_request, timeout_sec);
     *timed_out= res;
+    if (!*timed_out)
+      delete apc_request;
   }
   else
   {
@@ -226,15 +238,28 @@ void Apc_target::process_apc_requests(bool lock)
       Remove the request from the queue (we're holding queue lock so we can be
       sure that request owner won't try to remove it)
     */
-    request->what="dequeued by process_apc_requests";
+    request->what= "dequeued by process_apc_requests";
     dequeue_request(request);
-    request->processed= TRUE;
 
-    request->call->call_in_target_thread();
-    mysql_cond_signal(&request->COND_request);
+    mysql_mutex_lock(&request->LOCK_request);
+    if (likely(!request->processed))
+    {
+      request->processed= TRUE;
+      request->call->call_in_target_thread();
+      request->what="func called by process_apc_requests";
+      mysql_cond_signal(&request->COND_request);
+      mysql_mutex_unlock(&request->LOCK_request);
+    }
+    else
+    {
+      mysql_mutex_unlock(&request->LOCK_request);
+      // The request was timed out.
+      // The ownership is passed and it should be freed.
+      delete request;
+    }
+
     mysql_mutex_unlock(LOCK_thd_kill_ptr);
     mysql_mutex_lock(LOCK_thd_kill_ptr);
-    request->what="func called by process_apc_requests";
 
 #ifndef DBUG_OFF
     n_calls_processed++;
@@ -245,3 +270,14 @@ void Apc_target::process_apc_requests(bool lock)
     mysql_mutex_unlock(LOCK_thd_kill_ptr);
 }
 
+Apc_target::Call_request::Call_request()
+{
+  mysql_cond_init(key_APC_request_COND, &COND_request, NULL);
+  mysql_mutex_init(key_APC_request_LOCK, &LOCK_request, NULL);
+}
+
+Apc_target::Call_request::~Call_request()
+{
+  mysql_cond_destroy(&COND_request);
+  mysql_mutex_destroy(&LOCK_request);
+}
