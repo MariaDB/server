@@ -249,8 +249,13 @@ static bool compare_table_with_partition(THD *thd, TABLE *table,
     my_error(ER_TABLES_DIFFERENT_METADATA, MYF(0));
     DBUG_RETURN(TRUE);
   }
-  DBUG_ASSERT(table->s->db_create_options ==
-              part_table->s->db_create_options);
+
+  if (table->s->db_create_options != part_table->s->db_create_options)
+  {
+    my_error(ER_TABLES_DIFFERENT_METADATA, MYF(0));
+    DBUG_RETURN(TRUE);
+  }
+
   DBUG_ASSERT(table->s->db_options_in_use ==
               part_table->s->db_options_in_use);
 
