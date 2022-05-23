@@ -3884,7 +3884,18 @@ void LEX::cleanup_lex_after_parse_error(THD *thd)
       thd->lex->sphead= NULL;
     }
   }
-
+  else if (thd->lex->sp_mem_root_ptr)
+  {
+    /*
+      A memory root pointed by the data member thd->lex->sp_mem_root_ptr
+      is allocated on compilation of a stored routine. In case the stored
+      routine name is incorrect an instance of the class sp_head hasn't been
+      assigned yet at the moment the error is reported. So, we free here
+      a memory root that allocated for the stored routine having incorrect name.
+    */
+    free_root(thd->lex->sp_mem_root_ptr, MYF(0));
+    thd->lex->sp_mem_root_ptr= nullptr;
+  }
   /*
     json_table must be NULL before the query.
     Didn't want to overload LEX::start, it's enough to put it here.
@@ -3979,7 +3990,8 @@ LEX::LEX()
   : explain(NULL), result(0), part_info(NULL), arena_for_set_stmt(0),
     mem_root_for_set_stmt(0), json_table(NULL), default_used(0),
     with_rownum(0), is_lex_started(0), option_type(OPT_DEFAULT),
-    context_analysis_only(0), sphead(0), limit_rows_examined_cnt(ULONGLONG_MAX)
+    context_analysis_only(0), sphead(0), sp_mem_root_ptr(nullptr),
+    limit_rows_examined_cnt(ULONGLONG_MAX)
 {
 
   init_dynamic_array2(PSI_INSTRUMENT_ME, &plugins, sizeof(plugin_ref),
@@ -7416,7 +7428,7 @@ sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
   sp_head *sp;
 
   /* Order is important here: new - reset - init */
-  if (likely((sp= sp_head::create(package, sph, agg_type))))
+  if (likely((sp= sp_head::create(package, sph, agg_type, sp_mem_root_ptr))))
   {
     sp->reset_thd_mem_root(thd);
     sp->init(this);

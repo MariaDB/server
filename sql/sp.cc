@@ -836,6 +836,43 @@ Silence_deprecated_warning::handle_condition(
 
 
 /**
+  Make a copy of a SQL statement used for creation of a stored routine.
+
+  @param defstr       Original SQL statement that is used for creation
+                      a stored routine
+  @param sp_mem_root  Memory root where a copy of original SQL statement should
+                      be placed.
+
+  @return  a copy of an original CREATE PROCEDURE/FUNCTION/EVENT/TRIGGER
+           SQL statement wrapped into an instance of LEX_STRING.
+           LEX_STRING.str is set nullptr in case of error.
+*/
+static LEX_STRING copy_definition_string(String *defstr,
+                                         MEM_ROOT *sp_mem_root)
+{
+  LEX_STRING definition_string;
+
+  definition_string.str= (char*) alloc_root(sp_mem_root, defstr->length() + 1);
+  if (!definition_string.str)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), defstr->length());
+    return LEX_STRING{nullptr, 0};
+  }
+  memcpy(definition_string.str, defstr->c_ptr_safe(), defstr->length());
+  /*
+    Set the length as an original string has
+  */
+  definition_string.length= defstr->length();
+  /*
+    And terminate the whole string value with 0 be null-terminated c-string.
+  */
+  definition_string.str[definition_string.length]= 0;
+
+  return definition_string;
+}
+
+
+/**
   @brief    The function parses input strings and returns SP stucture.
 
   @param[in]      thd               Thread handler
@@ -864,14 +901,33 @@ static sp_head *sp_compile(THD *thd, String *defstr, sql_mode_t sql_mode,
   thd->variables.sql_mode= sql_mode;
   thd->variables.select_limit= HA_POS_ERROR;
 
-  if (parser_state.init(thd, defstr->c_ptr_safe(), defstr->length()))
+  LEX_STRING definition_string;
+
+  lex_start(thd);
+
+  init_sql_alloc(key_memory_sp_head_main_root, &thd->lex->sp_mem_root,
+                 MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC, MYF(0));
+
+  thd->lex->sp_mem_root_ptr= &thd->lex->sp_mem_root;
+  /*
+    Copy a stored routine definition string to a memory buffer allocated on
+    the stored routine's memory root.
+  */
+  definition_string= copy_definition_string(defstr, thd->lex->sp_mem_root_ptr);
+
+  /*
+    Check for OOM condition
+  */
+  if (!definition_string.str)
+    return nullptr;
+
+  if (parser_state.init(thd, definition_string.str, definition_string.length))
   {
     thd->variables.sql_mode= old_sql_mode;
     thd->variables.select_limit= old_select_limit;
     return NULL;
   }
 
-  lex_start(thd);
   thd->lex->sphead= parent;
   thd->push_internal_handler(&warning_handler);
   thd->spcont= 0;
@@ -885,6 +941,7 @@ static sp_head *sp_compile(THD *thd, String *defstr, sql_mode_t sql_mode,
   else
   {
     sp= thd->lex->sphead;
+    sp->set_definition_string(definition_string);
   }
 
   thd->pop_internal_handler();

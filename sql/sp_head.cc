@@ -489,16 +489,16 @@ check_routine_name(const LEX_CSTRING *ident)
  */
  
 sp_head *sp_head::create(sp_package *parent, const Sp_handler *handler,
-                         enum_sp_aggregate_type agg_type)
+                         enum_sp_aggregate_type agg_type, MEM_ROOT *sp_mem_root)
 {
   MEM_ROOT own_root;
-  init_sql_alloc(key_memory_sp_head_main_root, &own_root, MEM_ROOT_BLOCK_SIZE,
-                 MEM_ROOT_PREALLOC, MYF(0));
-  sp_head *sp;
-  if (!(sp= new (&own_root) sp_head(&own_root, parent, handler, agg_type)))
-    free_root(&own_root, MYF(0));
-
-  return sp;
+  if (!sp_mem_root)
+  {
+    init_sql_alloc(key_memory_sp_head_main_root, &own_root, MEM_ROOT_BLOCK_SIZE,
+                   MEM_ROOT_PREALLOC, MYF(0));
+    sp_mem_root= &own_root;
+  }
+  return new (sp_mem_root) sp_head(sp_mem_root, parent, handler, agg_type);
 }
 
 
@@ -512,7 +512,6 @@ void sp_head::destroy(sp_head *sp)
                         &sp->mem_root, &own_root));
     delete sp;
 
- 
     free_root(&own_root, MYF(0));
   }
 }

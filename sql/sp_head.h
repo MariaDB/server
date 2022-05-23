@@ -330,7 +330,8 @@ protected:
 public:
   static void destroy(sp_head *sp);
   static sp_head *create(sp_package *parent, const Sp_handler *handler,
-                         enum_sp_aggregate_type agg_type);
+                         enum_sp_aggregate_type agg_type,
+                         MEM_ROOT *sp_mem_root);
 
   /// Initialize after we have reset mem_root
   void
@@ -793,6 +794,10 @@ public:
     m_definer.copy(mem_root, user_name, host_name);
   }
 
+  void set_definition_string(LEX_STRING &defstr)
+  {
+    m_definition_string= defstr;
+  }
   void reset_thd_mem_root(THD *thd);
 
   void restore_thd_mem_root(THD *thd);
@@ -937,6 +942,12 @@ protected:
     in prelocked mode and in non-prelocked mode.
   */
   HASH m_sptabs;
+
+  /**
+    Text of the query CREATE PROCEDURE/FUNCTION/TRIGGER/EVENT ...
+    used for DDL parsing.
+  */
+  LEX_STRING m_definition_string;
 
   bool
   execute(THD *thd, bool merge_da_on_success);
