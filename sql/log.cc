@@ -104,8 +104,8 @@ static int binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
                               Log_event *end_ev, bool all, bool using_stmt,
                               bool using_trx, bool is_ro_1pc);
 
-int binlog_online_alter_commit(THD *thd, bool all);
-void binlog_online_alter_rollback(THD *thd, bool all);
+static int binlog_online_alter_commit(THD *thd, bool all);
+static void binlog_online_alter_rollback(THD *thd, bool all);
 
 static const LEX_CSTRING write_error_msg=
     { STRING_WITH_LEN("error writing to the binary log") };
@@ -2271,12 +2271,11 @@ binlog_online_alter_cleanup(ilist<binlog_cache_mngr> &list,
     auto it= list.begin();
     while (it != list.end())
     {
-      auto &cache= *it;
-      it++;
-      list.remove(cache);
+      auto &cache= *it++;
       cache.~binlog_cache_mngr();
       my_free(&cache);
     }
+    list.clear();
     DBUG_ASSERT(list.empty());
   }
 }
@@ -2649,18 +2648,13 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
     Write ROLLBACK TO SAVEPOINT to the binlog cache if we have updated some
     non-transactional table. Otherwise, truncate the binlog cache starting
     from the SAVEPOINT command.
-  */
-#ifdef WITH_WSREP
-  /* for streaming replication, we  must replicate savepoint rollback so that 
-     slaves can maintain SR transactions
+
+    For streaming replication, we  must replicate savepoint rollback so that
+    slaves can maintain SR transactions
    */
-  if (unlikely(thd->wsrep_trx().is_streaming() ||
-               (trans_has_updated_non_trans_table(thd)) ||
-               (thd->variables.option_bits & OPTION_BINLOG_THIS_TRX)))
-#else
-  if (unlikely(trans_has_updated_non_trans_table(thd) ||
-               (thd->variables.option_bits & OPTION_BINLOG_THIS_TRX)))
-#endif /* WITH_WSREP */
+  if (IF_WSREP(thd->wsrep_trx().is_streaming(),0) ||
+               trans_has_updated_non_trans_table(thd) ||
+               (thd->variables.option_bits & OPTION_BINLOG_THIS_TRX))
   {
     char buf[1024];
     String log_query(buf, sizeof(buf), &my_charset_bin);
@@ -3774,40 +3768,20 @@ bool MYSQL_BIN_LOG::open_index_file(const char *index_file_name_arg,
 }
 
 
-bool Event_log::open(const char *log_name,
-                     const char *new_name, ulong next_file_number,
-                     enum cache_type io_cache_type_arg)
+bool Event_log::open(enum cache_type io_cache_type_arg)
 {
-  bool error= false;
-  if (log_name || new_name)
-  {
-    error= MYSQL_LOG::open(
-#ifdef HAVE_PSI_INTERFACE
-          0,
-#endif
-          log_name, LOG_NORMAL, new_name, next_file_number, io_cache_type_arg);
-  }
-  else
-  {
-#ifdef HAVE_PSI_INTERFACE
-    /* Keep the key for reopen */
-    m_log_file_key= 0;
-#endif
-    error= init_io_cache(&log_file, -1, LOG_BIN_IO_SIZE,
-                         io_cache_type_arg, 0, 0,
-                         MYF(MY_WME | MY_NABP | MY_WAIT_IF_FULL));
+  bool error= init_io_cache(&log_file, -1, LOG_BIN_IO_SIZE, io_cache_type_arg,
+                            0, 0, MYF(MY_WME | MY_NABP | MY_WAIT_IF_FULL));
 
-    log_state= LOG_OPENED;
-    inited= true;
-  }
+  log_state= LOG_OPENED;
+  inited= true;
   if (error)
     return error;
 
   longlong bytes_written= write_description_event(
                               (enum_binlog_checksum_alg)binlog_checksum_options,
-                              encrypt_binlog, false, false);
-  error= bytes_written < 0;
-  return error;
+                              encrypt_binlog, true, false);
+  return bytes_written < 0;
 }
 
 longlong
@@ -6419,11 +6393,7 @@ Rows_log_event* binlog_get_pending_rows_event(binlog_cache_mngr *cache_mngr,
                                               bool use_trans_cache)
 {
   DBUG_ASSERT(cache_mngr);
-  Rows_log_event* rows= NULL;
-
-  if (cache_mngr)
-    rows= cache_mngr->get_binlog_cache_data(use_trans_cache)->pending();
-  return rows;
+  return cache_mngr->get_binlog_cache_data(use_trans_cache)->pending();
 }
 
 binlog_cache_data* binlog_get_cache_data(binlog_cache_mngr *cache_mngr,
@@ -6437,14 +6407,14 @@ int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
                                     Event_log *bin_log,
                                     binlog_cache_data *cache_data)
 {
-  /*
-    Mark the event as the last event of a statement if the stmt_end
-    flag is set.
-  */
   int error= 0;
   auto *pending= cache_data->pending();
   if (pending)
   {
+    /*
+      Mark the event as the last event of a statement if the stmt_end
+      flag is set.
+    */
     if (stmt_end)
     {
       pending->set_flags(Rows_log_event::STMT_END_F);
@@ -6492,10 +6462,9 @@ MYSQL_BIN_LOG::remove_pending_rows_event(THD *thd, binlog_cache_data *cache_data
                            otherwise @c false a non-transactional.
 */
 int
-Event_log::flush_and_set_pending_rows_event(THD *thd,
-                                                Rows_log_event* event,
-                                                binlog_cache_data *cache_data,
-                                                bool is_transactional)
+Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
+                                            binlog_cache_data *cache_data,
+                                            bool is_transactional)
 {
   DBUG_ENTER("MYSQL_BIN_LOG::flush_and_set_pending_rows_event(event)");
   DBUG_ASSERT(WSREP_EMULATE_BINLOG(thd) || is_open());
@@ -6553,10 +6522,10 @@ Event_log::flush_and_set_pending_rows_event(THD *thd,
 
 Rows_log_event*
 Event_log::prepare_pending_rows_event(THD *thd, TABLE* table,
-                                          binlog_cache_data *cache_data,
-                                          uint32 serv_id, size_t needed,
-                                          bool is_transactional,
-                                          Rows_event_factory event_factory)
+                                      binlog_cache_data *cache_data,
+                                      uint32 serv_id, size_t needed,
+                                      bool is_transactional,
+                                      Rows_event_factory event_factory)
 {
   DBUG_ENTER("MYSQL_BIN_LOG::prepare_pending_rows_event");
   /* Pre-conditions */
@@ -7658,7 +7627,8 @@ private:
   bool first;
 };
 
-int cache_copy(IO_CACHE *to, IO_CACHE *from)
+#ifdef HAVE_REPLICATION
+static int cache_copy(IO_CACHE *to, IO_CACHE *from)
 {
   DBUG_ENTER("cache_copy");
   if (reinit_io_cache(from, READ_CACHE, 0, 0, 0))
@@ -7677,10 +7647,11 @@ int cache_copy(IO_CACHE *to, IO_CACHE *from)
 
   DBUG_RETURN(0);
 }
+#endif
 
-int binlog_online_alter_commit(THD *thd, bool all)
+static int binlog_online_alter_commit(THD *thd, bool all)
 {
-  DBUG_ENTER("online_alter_commit");
+  DBUG_ENTER("binlog_online_alter_commit");
   int error= 0;
 #ifdef HAVE_REPLICATION
 
@@ -7694,14 +7665,8 @@ int binlog_online_alter_commit(THD *thd, bool all)
     auto *binlog= cache_mngr.share->online_alter_binlog;
     DBUG_ASSERT(binlog);
 
-    error= binlog_flush_pending_rows_event(thd,
-                                           /*
-                                             do not set STMT_END for last event
-                                             to leave table open in altering thd
-                                           */
-                                           false,
-                                           true,
-                                           binlog,
+    // do not set STMT_END for last event to leave table open in altering thd
+    error= binlog_flush_pending_rows_event(thd, false, true, binlog,
                                            is_ending_transaction
                                            ? &cache_mngr.trx_cache
                                            : &cache_mngr.stmt_cache);
@@ -7739,7 +7704,7 @@ int binlog_online_alter_commit(THD *thd, bool all)
   DBUG_RETURN(error);
 }
 
-void binlog_online_alter_rollback(THD *thd, bool all)
+static void binlog_online_alter_rollback(THD *thd, bool all)
 {
 #ifdef HAVE_REPLICATION
   bool is_ending_trans= ending_trans(thd, all);
