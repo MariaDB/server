@@ -23,7 +23,7 @@ t1	CREATE TABLE `t1` (
   SPATIAL KEY `c` (`b`),
   KEY `d` (`d`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-ALTER ONLINE TABLE t1 ADD PRIMARY KEY(a),DROP INDEX d;
+ALTER ONLINE TABLE t1 ADD PRIMARY KEY(a),DROP INDEX d, ALGORITHM=INPLACE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
 show warnings;
 Level	Code	Message

@@ -11,8 +11,8 @@ show errors;
 drop table t1;
 create table t1(a int not null, b geometry not null, d int,spatial key c(b), key d(d)) engine=innodb;
 show create table t1;
---error 1846
-ALTER ONLINE TABLE t1 ADD PRIMARY KEY(a),DROP INDEX d;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER ONLINE TABLE t1 ADD PRIMARY KEY(a),DROP INDEX d, ALGORITHM=INPLACE;
 show warnings;
 show errors;
 ALTER ONLINE TABLE t1 ADD PRIMARY KEY(a),DROP INDEX d, LOCK=SHARED;
