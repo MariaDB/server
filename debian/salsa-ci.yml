@@ -15,6 +15,14 @@ variables:
   SALSA_CI_DISABLE_BUILD_PACKAGE_ANY: 1
   GIT_SUBMODULE_STRATEGY: recursive
   SALSA_CI_GBP_BUILDPACKAGE_ARGS: "--git-submodules" # did not apply to extract-sources
+  MARIADB_BASE_URL: 'deb.mariadb.org'
+  MARIADB_DEBIAN_URL: '${MARIADB_BASE_URL}/debian/'
+  MARIADB_SIGNING_KEY: 'https://mariadb.org/mariadb_release_signing_key.asc'
+  DEBIAN_BASE_URL: 'deb.debian.org'
+  DEBIAN_DEBIAN_URL: '${DEBIAN_BASE_URL}/debian/'
+  UBUNTU_URL: 'http://archive.ubuntu.com/ubuntu/'
+  MYSQL_URL: 'https://repo.mysql.com/apt/debian/'
+  PERCONA_URL: 'https://repo.percona.com/apt/'
 
 stages:
   - provisioning
@@ -113,7 +121,7 @@ blhc:
 
 .test-enable-bullseye-repos: &test-enable-bullseye-repos |
   # Replace any old repos with just Bullseye
-  echo "deb http://deb.debian.org/debian bullseye main" > /etc/apt/sources.list
+  echo "deb http://${DEBIAN_DEBIAN_URL} bullseye main" > /etc/apt/sources.list
   # Upgrade minimal stack first
   apt-get update
   apt-get install -y apt
@@ -449,14 +457,14 @@ mysql-8.0 Focal to mariadb-10.5 upgrade:
     # Add Ubuntu Focal archive keys and repository
     - apt-get install --no-install-recommends --yes gpg gpg-agent dirmngr ca-certificates # Bare minimal (<4MB) for apt-key to work
     - apt-key adv --recv-keys --keyserver hkps://keyserver.ubuntu.com:443 871920D1991BC93C 3B4FE6ACC0B21F32
-    - echo "deb http://archive.ubuntu.com/ubuntu/ focal main restricted" > /etc/apt/sources.list.d/ubuntu.list
+    - echo "deb ${UBUNTU_URL} focal main restricted" > /etc/apt/sources.list.d/ubuntu.list
     - apt-get update
     # First install often fail due to bug in mysql-8.0
     - apt-get install -y mysql-server 'libmysqlc*' || true
     - sleep 10 && apt-get install -f
     - *test-verify-initial
     # Enable backports to make galera-4 available
-    - echo "deb http://deb.debian.org/debian buster-backports main" > /etc/apt/sources.list.d/backports.list && apt-get update
+    - echo "deb http://${DEBIAN_DEBIAN_URL} buster-backports main" > /etc/apt/sources.list.d/backports.list && apt-get update
     - *test-install
     - service mysql status
     - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server
@@ -482,14 +490,14 @@ mysql-5.7 Bionic to mariadb-10.5 upgrade:
     # Add Ubuntu Bionic archive keys and repository
     - apt-get install --no-install-recommends --yes gpg gpg-agent dirmngr ca-certificates # Bare minimal (<4MB) for apt-key to work
     - apt-key adv --recv-keys --keyserver hkps://keyserver.ubuntu.com:443 871920D1991BC93C 3B4FE6ACC0B21F32
-    - echo "deb http://archive.ubuntu.com/ubuntu/ bionic main restricted" > /etc/apt/sources.list.d/ubuntu.list
+    - echo "deb ${UBUNTU_URL} bionic main restricted" > /etc/apt/sources.list.d/ubuntu.list
     - apt-get update
     - apt-get install -y 'mysql*' 'libmysqlc*'
     - *test-verify-initial
     # Enable backports to make libzstd1, rocksdb-tools
-    - echo "deb http://deb.debian.org/debian stretch-backports main" >> /etc/apt/sources.list.d/backports.list
+    - echo "deb http://${DEBIAN_DEBIAN_URL} stretch-backports main" >> /etc/apt/sources.list.d/backports.list
     # Enable backports to make galera-4 available
-    - echo "deb http://deb.debian.org/debian stretch-backports-sloppy main" >> /etc/apt/sources.list.d/backports.list && apt-get update
+    - echo "deb http://${DEBIAN_DEBIAN_URL} stretch-backports-sloppy main" >> /etc/apt/sources.list.d/backports.list && apt-get update
     # Remove plugin that requires libcurl4, not available in Debian Stretch
     - rm mariadb-plugin-s3*.deb
     - *test-install
@@ -518,8 +526,8 @@ mariadb.org-10.5 to mariadb-10.5 upgrade:
   script:
     - *test-prepare-container
     - apt install -y curl
-    - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo "deb https://deb.mariadb.org/10.5/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - curl -sS ${MARIADB_SIGNING_KEY} -o /etc/apt/trusted.gpg.d/mariadb.asc
+    - echo "deb https://${MARIADB_BASE_URL}/10.5/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     # The 10.5.9 release is missing mariadb-plugin-columnstore, define all other packages but it to avoid hitting the error:
     #   The following packages have unmet dependencies:
@@ -557,8 +565,8 @@ mariadb.org-10.4 to mariadb-10.5 upgrade:
   script:
     - *test-prepare-container
     - apt install -y curl
-    - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo "deb https://deb.mariadb.org/10.4/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - curl -sS ${MARIADB_SIGNING_KEY} -o /etc/apt/trusted.gpg.d/mariadb.asc
+    - echo "deb https://${MARIADB_BASE_URL}/10.4/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - apt-get install -y mariadb-server-10.4
     # MariaDB.org version of 10.4 and early 10.5 do not install an init file, so
@@ -590,13 +598,13 @@ mariadb.org-10.3 to mariadb-10.5 upgrade:
   script:
     - *test-prepare-container
     - apt install -y curl
-    - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo "deb https://deb.mariadb.org/10.3/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - curl -sS ${MARIADB_SIGNING_KEY} -o /etc/apt/trusted.gpg.d/mariadb.asc
+    - echo "deb https://${MARIADB_BASE_URL}/10.3/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - apt-get install -y mariadb-server-10.3
     - *test-verify-initial
     # Enable backports to make galera-4 available
-    - echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list.d/backports.list && apt-get update
+    - echo "deb http://${DEBIAN_DEBIAN_URL} buster-backports main" >> /etc/apt/sources.list.d/backports.list && apt-get update
     - *test-install
     - service mysql status
     # Give the mariadb-upgrade plenty of time to complete, otherwise next commands
@@ -623,8 +631,8 @@ mariadb.org-10.2 to mariadb-10.5 upgrade:
   script:
     - *test-prepare-container
     - apt install -y curl apt-transport-https
-    - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo "deb https://deb.mariadb.org/10.2/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - curl -sS ${MARIADB_SIGNING_KEY} -o /etc/apt/trusted.gpg.d/mariadb.asc
+    - echo "deb https://${MARIADB_BASE_URL}/10.2/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - apt-get install -y mariadb-server-10.2
     # Verify initial state before upgrade
@@ -637,9 +645,9 @@ mariadb.org-10.2 to mariadb-10.5 upgrade:
       mysql --defaults-file=/etc/mysql/debian.cnf --table -e "SELECT * FROM mysql.user; SHOW CREATE USER root@localhost;"
       mysql --defaults-file=/etc/mysql/debian.cnf --table -e "SELECT * FROM mysql.plugin; SHOW PLUGINS;"
     # Enable backports to make libzstd1, rocksdb-tools
-    - echo "deb http://deb.debian.org/debian stretch-backports main" >> /etc/apt/sources.list.d/backports.list
+    - echo "deb http://${DEBIAN_DEBIAN_URL} stretch-backports main" >> /etc/apt/sources.list.d/backports.list
     # Enable backports to make galera-4 available
-    - echo "deb http://deb.debian.org/debian stretch-backports-sloppy main" >> /etc/apt/sources.list.d/backports.list && apt-get update
+    - echo "deb http://${DEBIAN_DEBIAN_URL} stretch-backports-sloppy main" >> /etc/apt/sources.list.d/backports.list && apt-get update
     # Increase default backports priority policy from '100' to '500' so it can actually be used
     - |
       cat << EOF > /etc/apt/preferences.d/enable-backports-to-satisfy-dependencies
@@ -677,12 +685,12 @@ mysql.com-5.7 to mariadb-10.5 upgrade:
     - |
       apt-get install --no-install-recommends --yes gpg gpg-agent dirmngr ca-certificates # Bare minimal (<4MB) for apt-key to work
       apt-key adv --recv-keys --keyserver hkps://keyserver.ubuntu.com:443 467B942D3A79BD29
-      echo "deb https://repo.mysql.com/apt/debian/ buster mysql-5.7" > /etc/apt/sources.list.d/mysql.list
+      echo "deb ${MYSQL_URL} buster mysql-5.7" > /etc/apt/sources.list.d/mysql.list
       apt-get update
       apt-get install -y 'mysql*' 'libmysqlc*'
     - *test-verify-initial
     # Enable backports to make galera-4 available
-    - echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list.d/backports.list && apt-get update
+    - echo "deb http://${DEBIAN_DEBIAN_URL} buster-backports main" >> /etc/apt/sources.list.d/backports.list && apt-get update
     - *test-install
     - service mysql status
     - sleep 15 # Give the mysql_upgrade a bit of extra time to complete with MySQL 5.7 before querying the server
@@ -708,13 +716,13 @@ percona-xtradb-5.7 to mariadb-10.5 upgrade (MDEV-22679):
     - |
       apt-get install --no-install-recommends --yes gpg gpg-agent dirmngr ca-certificates # Bare minimal (<4MB) for apt-key to work
       apt-key adv --recv-keys --keyserver hkps://keyserver.ubuntu.com:443 9334A25F8507EFA5
-      echo "deb https://repo.percona.com/apt/ buster main" > /etc/apt/sources.list.d/mysql.list
+      echo "deb ${PERCONA_URL} buster main" > /etc/apt/sources.list.d/mysql.list
       apt-get update
       apt-get install -y percona-xtradb-cluster-full-57 percona-xtrabackup-24 percona-toolkit pmm2-client
     - service mysql status
     - *test-verify-initial
     # Enable backports to make galera-4 available
-    - echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list.d/backports.list && apt-get update
+    - echo "deb http://${DEBIAN_DEBIAN_URL} buster-backports main" >> /etc/apt/sources.list.d/backports.list && apt-get update
     - *test-install
     - service mysql status
     - sleep 15 # Give the mysql_upgrade a bit of extra time to complete with MySQL 5.7 before querying the server
