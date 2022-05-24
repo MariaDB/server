@@ -921,7 +921,7 @@ create table t1(f1 int not null, f2 int not null,
 insert into t1 values(1,3), (2,2);
 alter table t1 drop primary key, lock=none;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table t1 drop index f1, lock=none;
+alter table t1 drop index f1, algorithm=inplace, lock=none;
 drop table t1;
 
 --echo #
