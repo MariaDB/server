@@ -759,17 +759,6 @@ ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 alter table t1 add b geometry not null default st_geomfromtext('POINT(0 0)'),
 add spatial index(b), algorithm=copy;
 DROP table t1;
-#
-# BUG#20111575 ALTER TABLE...ADD SPATIAL INDEX...LOCK NONE IS REFUSED
-# WITHOUT STATING A REASON
-#
-CREATE TABLE t1(p point NOT NULL) ENGINE=innodb;
-ALTER TABLE t1 ADD SPATIAL INDEX(p), LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
-ALTER TABLE t1 ADD SPATIAL INDEX(p);
-ALTER TABLE t1 FORCE, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
-DROP TABLE t1;
 create table t1 (p point not null default if(unix_timestamp()>10,POINT(1,1),LineString(Point(0,0),Point(1,1)))) ENGINE=innodb;
 set timestamp=10;
 insert into t1 values(default);
