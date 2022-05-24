@@ -420,10 +420,7 @@ public:
                      MY_MUTEX_INIT_SLOW);
   }
 
-  bool open(
-          const char *log_name,
-          const char *new_name, ulong next_file_number,
-          enum cache_type io_cache_type_arg);
+  bool open(enum cache_type io_cache_type_arg);
   virtual IO_CACHE *get_log_file() { return &log_file; }
 
   longlong write_description_event(enum_binlog_checksum_alg checksum_alg,
@@ -446,7 +443,7 @@ public:
 
   TODO should be unnecessary after MDEV-24676 is done
  */
-class Cache_flip_event_log: public Event_log {
+class Cache_flip_event_log: public Event_log, public Sql_alloc {
   IO_CACHE alt_buf;
   IO_CACHE *current, *alt;
 public:
@@ -457,7 +454,7 @@ public:
   {
     log_file.dir= mysql_tmpdir;
     alt_buf.dir= log_file.dir;
-    bool res= Event_log::open(NULL, NULL, 0, io_cache_type_arg);
+    bool res= Event_log::open(io_cache_type_arg);
     if (res)
       return res;
 

@@ -950,8 +950,8 @@ struct rpl_group_info
       if (ptr->table == table_arg)
       {
         auto *rpl_table_list= static_cast<RPL_TABLE_LIST*>(ptr);
-        if (rpl_table_list->m_tabledef_valid)
-          *tabledef_var= &rpl_table_list->m_tabledef;
+        DBUG_ASSERT(rpl_table_list->m_tabledef_valid);
+        *tabledef_var= &rpl_table_list->m_tabledef;
         *conv_table_var= rpl_table_list->m_conv_table;
         *copy= rpl_table_list->m_online_alter_copy_fields;
         *copy_end= rpl_table_list->m_online_alter_copy_fields_end;

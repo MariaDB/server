@@ -2001,7 +2001,7 @@ bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
       in the binary log. We log this for non temporary tables, as the slave
       may use a filter to ignore queries for a specific database.
     */
-    error= thd->binlog_query(THD::STMT_QUERY_TYPE, 
+    error= thd->binlog_query(THD::STMT_QUERY_TYPE,
                              query.ptr(), query.length(),
                              FALSE, FALSE, temporary_table, 0) > 0;
   }
@@ -9901,8 +9901,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     has been already processed.
   */
   table_list->required_type= TABLE_TYPE_NORMAL;
-  
-  
+
   if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_SHARED
       || alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE
       || thd->locked_tables_mode == LTM_LOCK_TABLES
@@ -10008,8 +10007,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
       a new one if needed.
     */
     table->s->tdc->flushed= 1;         // Force close of all instances
-    if (thd->mdl_context.upgrade_shared_lock(mdl_ticket,
-                                             MDL_EXCLUSIVE,
+    if (thd->mdl_context.upgrade_shared_lock(mdl_ticket, MDL_EXCLUSIVE,
                                              thd->variables.lock_wait_timeout))
       DBUG_RETURN(1);
     quick_rm_table(thd, table->file->ht, &table_list->db,
@@ -10018,8 +10016,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     goto end_inplace;
   }
   if (!if_exists &&
-      (table->file->partition_ht()->flags &
-       HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE))
+      (table->file->partition_ht()->flags & HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE))
   {
     /*
       Table is a shared table that may not exist on the slave.
@@ -11441,9 +11438,7 @@ static void online_alter_cleanup_binlog(THD *thd, TABLE_SHARE *s)
 #ifdef HAVE_REPLICATION
   if (!s->online_alter_binlog)
     return;
-  // s->online_alter_binlog->reset_logs(thd, false, NULL, 0, 0);
   s->online_alter_binlog->cleanup();
-  s->online_alter_binlog->~Cache_flip_event_log();
   s->online_alter_binlog= NULL;
 #endif
 }
@@ -11490,17 +11485,13 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 #ifdef HAVE_REPLICATION
   if (online)
   {
-    void *buf= alloc_root(thd->mem_root, sizeof (Cache_flip_event_log));
-
-   from->s->online_alter_binlog= new (buf) Cache_flip_event_log();
+    from->s->online_alter_binlog= new (thd->mem_root) Cache_flip_event_log();
     if (!from->s->online_alter_binlog)
       DBUG_RETURN(1);
 
     from->s->online_alter_binlog->init_pthread_objects();
 
     error= from->s->online_alter_binlog->open(WRITE_CACHE);
-
-    DBUG_ASSERT(!error);
 
     if (!error)
     {
@@ -11844,10 +11835,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   to->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
 #ifdef HAVE_REPLICATION
-  if (likely(online && error < 0))
+  if (online && error < 0)
   {
-    Ha_trx_info *trx_info_save= thd->transaction->all.ha_list;
-    thd->transaction->all.ha_list = NULL;
     thd_progress_next_stage(thd);
     Table_map_log_event table_event(thd, from, from->s->table_map_id,
                                     from->file->has_transactions());
@@ -11884,10 +11873,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       thd_progress_next_stage(thd);
       error= online_alter_read_from_binlog(thd, &rgi, binlog);
     }
-
-    thd->transaction->all.ha_list = trx_info_save;
   }
-  else if (unlikely(online)) // error was on copy stage
+  else if (online) // error was on copy stage
   {
     /*
        We need to issue a barrier to clean up gracefully.
