@@ -177,8 +177,8 @@ bool Alter_info::supports_algorithm(THD *thd,
 }
 
 
-bool Alter_info::supports_lock(THD *thd,
-                               const Alter_inplace_info *ha_alter_info)
+bool Alter_info::supports_lock(THD *thd, bool online,
+                               Alter_inplace_info *ha_alter_info)
 {
   switch (ha_alter_info->inplace_supported) {
   case HA_ALTER_INPLACE_EXCLUSIVE_LOCK:
@@ -207,8 +207,13 @@ bool Alter_info::supports_lock(THD *thd,
   case HA_ALTER_INPLACE_SHARED_LOCK:
     if (requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE)
     {
-      ha_alter_info->report_unsupported_error("LOCK=NONE", "LOCK=SHARED");
-      return true;
+      if (online)
+        ha_alter_info->inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
+      else
+      {
+        ha_alter_info->report_unsupported_error("LOCK=NONE", "LOCK=SHARED");
+        return true;
+      }
     }
     return false;
   case HA_ALTER_ERROR:

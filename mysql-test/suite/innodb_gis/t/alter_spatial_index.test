@@ -747,18 +747,6 @@ alter table t1 add b geometry not null default st_geomfromtext('POINT(0 0)'),
 add spatial index(b), algorithm=copy;
 DROP table t1;
 
---echo #
---echo # BUG#20111575 ALTER TABLE...ADD SPATIAL INDEX...LOCK NONE IS REFUSED
---echo # WITHOUT STATING A REASON
---echo #
-CREATE TABLE t1(p point NOT NULL) ENGINE=innodb;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-ALTER TABLE t1 ADD SPATIAL INDEX(p), LOCK=NONE;
-ALTER TABLE t1 ADD SPATIAL INDEX(p);
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-ALTER TABLE t1 FORCE, LOCK=NONE;
-DROP TABLE t1;
-
 create table t1 (p point not null default if(unix_timestamp()>10,POINT(1,1),LineString(Point(0,0),Point(1,1)))) ENGINE=innodb;
 set timestamp=10;
 --error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD

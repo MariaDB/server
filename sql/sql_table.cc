@@ -10697,7 +10697,7 @@ do_continue:;
     }
 
     if (alter_info->supports_algorithm(thd, &ha_alter_info) ||
-        alter_info->supports_lock(thd, &ha_alter_info))
+        alter_info->supports_lock(thd, online, &ha_alter_info))
     {
       cleanup_table_after_inplace_alter(&altered_table);
       goto err_new_table_cleanup;

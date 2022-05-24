@@ -53,7 +53,7 @@ a	b	c	h
 18	1	19	mm
 28	1	29	mm
 NULL	NULL	NULL	mx
-ALTER TABLE t FORCE, LOCK=NONE;
+ALTER TABLE t FORCE, ALGORITHM=INPLACE, LOCK=NONE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: online rebuild with indexed virtual columns. Try LOCK=SHARED
 disconnect con1;
 DROP TABLE t;
