@@ -4168,9 +4168,30 @@ where
 
 drop table t1,t2,t3;
 
+--echo #
+--echo # MDEV-27366: SIGSEGV in handler_index_cond_check on SELECT 
+--echo #             in connection with rowid_filter setting
+--echo #
+
+SET join_cache_level=3;
+CREATE TABLE t (c BIGINT, d INT, KEY c(c), KEY d(d)) ENGINE=InnoDB;
+INSERT INTO t VALUES (0,0),(1,2),(1,3),(2,0),(3,0),(4,6),(5,0);
+
+--replace_column 9 #
+EXPLAIN SELECT * FROM t,t AS b WHERE t.c=0 AND t.d=b.c AND t.c=b.d;
+SELECT * FROM t,t AS b WHERE t.c=0 AND t.d=b.c AND t.c=b.d;
+
+PREPARE stmt FROM 'SELECT * FROM t,t AS b WHERE t.c=0 AND t.d=b.c AND t.c=b.d';
+EXECUTE stmt;
+EXECUTE stmt;
+EXECUTE stmt;
+ 
+DROP TABLE t;
+
 --echo # End of 10.3 tests
 
 # The following command must be the last one in the file
+set join_cache_level=@save_join_cache_level;
 set @@optimizer_switch=@save_optimizer_switch;
 
 set global innodb_stats_persistent= @innodb_stats_persistent_save;

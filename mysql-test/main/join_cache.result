@@ -853,7 +853,7 @@ LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
 1	SIMPLE	Country	hash_ALL	PRIMARY	#hash#PRIMARY	3	world.City.Country	239	Using where; Using join buffer (flat, BNLH join)
-1	SIMPLE	CountryLanguage	hash_ALL|filter	PRIMARY,Percentage	#hash#PRIMARY|Percentage	3|4	world.City.Country	984 (19%)	Using where; Using join buffer (flat, BNLH join); Using rowid filter
+1	SIMPLE	CountryLanguage	hash_ALL	PRIMARY,Percentage	#hash#PRIMARY	3	world.City.Country	984	Using where; Using join buffer (flat, BNLH join)
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -1053,7 +1053,7 @@ LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
 1	SIMPLE	Country	hash_ALL	PRIMARY	#hash#PRIMARY	3	world.City.Country	239	Using where; Using join buffer (flat, BNLH join)
-1	SIMPLE	CountryLanguage	hash_ALL|filter	PRIMARY,Percentage	#hash#PRIMARY|Percentage	3|4	world.City.Country	984 (19%)	Using where; Using join buffer (incremental, BNLH join); Using rowid filter
+1	SIMPLE	CountryLanguage	hash_ALL	PRIMARY,Percentage	#hash#PRIMARY	3	world.City.Country	984	Using where; Using join buffer (incremental, BNLH join)
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -2104,7 +2104,7 @@ LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
 1	SIMPLE	Country	hash_ALL	PRIMARY	#hash#PRIMARY	3	world.City.Country	239	Using where; Using join buffer (flat, BNLH join)
-1	SIMPLE	CountryLanguage	hash_ALL|filter	PRIMARY,Percentage	#hash#PRIMARY|Percentage	3|4	world.City.Country	984 (19%)	Using where; Using join buffer (flat, BNLH join); Using rowid filter
+1	SIMPLE	CountryLanguage	hash_ALL	PRIMARY,Percentage	#hash#PRIMARY	3	world.City.Country	984	Using where; Using join buffer (flat, BNLH join)
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -2208,7 +2208,7 @@ LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
 1	SIMPLE	Country	hash_ALL	PRIMARY	#hash#PRIMARY	3	world.City.Country	239	Using where; Using join buffer (flat, BNLH join)
-1	SIMPLE	CountryLanguage	hash_ALL|filter	PRIMARY,Percentage	#hash#PRIMARY|Percentage	3|4	world.City.Country	984 (19%)	Using where; Using join buffer (incremental, BNLH join); Using rowid filter
+1	SIMPLE	CountryLanguage	hash_ALL	PRIMARY,Percentage	#hash#PRIMARY	3	world.City.Country	984	Using where; Using join buffer (incremental, BNLH join)
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -6228,7 +6228,33 @@ EXPLAIN
   }
 }
 drop table t1,t2,t3;
+#
+# MDEV-27366: SIGSEGV in handler_index_cond_check on SELECT 
+#             in connection with rowid_filter setting
+#
+SET join_cache_level=3;
+CREATE TABLE t (c BIGINT, d INT, KEY c(c), KEY d(d)) ENGINE=InnoDB;
+INSERT INTO t VALUES (0,0),(1,2),(1,3),(2,0),(3,0),(4,6),(5,0);
+EXPLAIN SELECT * FROM t,t AS b WHERE t.c=0 AND t.d=b.c AND t.c=b.d;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	ref	c,d	c	9	const	#	Using where
+1	SIMPLE	b	hash_ALL	c,d	#hash#c	9	test.t.d	#	Using where; Using join buffer (flat, BNLH join)
+SELECT * FROM t,t AS b WHERE t.c=0 AND t.d=b.c AND t.c=b.d;
+c	d	c	d
+0	0	0	0
+PREPARE stmt FROM 'SELECT * FROM t,t AS b WHERE t.c=0 AND t.d=b.c AND t.c=b.d';
+EXECUTE stmt;
+c	d	c	d
+0	0	0	0
+EXECUTE stmt;
+c	d	c	d
+0	0	0	0
+EXECUTE stmt;
+c	d	c	d
+0	0	0	0
+DROP TABLE t;
 # End of 10.3 tests
+set join_cache_level=@save_join_cache_level;
 set @@optimizer_switch=@save_optimizer_switch;
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=

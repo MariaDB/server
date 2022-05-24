@@ -13112,6 +13112,23 @@ restart:
     if (!tab->bush_children)
       idx++;
   }
+
+  for (tab= first_linear_tab(join, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
+       tab;
+       tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
+  {
+    if (tab->cache && tab->cache->get_join_alg() == JOIN_CACHE::BNLH_JOIN_ALG)
+    {
+      tab->type= JT_HASH;
+
+      /*
+        Reset Rowid Filter that may be possibly set
+      */
+      tab->range_rowid_filter_info= NULL;
+      delete tab->rowid_filter;
+      tab->rowid_filter= NULL;
+    }
+  }
 }
 
 /**
@@ -13308,9 +13325,6 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
     if (jcl)
        tab[-1].next_select=sub_select_cache;
 
-    if (tab->cache && tab->cache->get_join_alg() == JOIN_CACHE::BNLH_JOIN_ALG)
-      tab->type= JT_HASH;
-      
     switch (tab->type) {
     case JT_SYSTEM:				// Only happens with left join 
     case JT_CONST:				// Only happens with left join
