@@ -1593,9 +1593,10 @@ void THD::free_connection()
   my_free(const_cast<char*>(db.str));
   db= null_clex_str;
 #ifndef EMBEDDED_LIBRARY
-  if (net.vio)
-    vio_delete(net.vio);
+  Vio *vio= net.vio;
   net.vio= nullptr;
+  if (vio)
+    vio_delete(vio);
   net_end(&net);
 #endif
  if (!cleanup_done)
