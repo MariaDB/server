@@ -611,7 +611,7 @@ ALGORITHM=INPLACE;
 # This would create a hidden FTS_DOC_ID column, which cannot be done online.
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 ALTER TABLE t1o CHANGE FTS_DOC_ID foo_id BIGINT UNSIGNED NOT NULL,
-LOCK=NONE;
+ALGORITHM=INPLACE, LOCK=NONE;
 
 # This should not show duplicates.
 SELECT sc.pos FROM information_schema.innodb_sys_columns sc

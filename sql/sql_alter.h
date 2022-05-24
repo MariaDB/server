@@ -226,7 +226,7 @@ public:
      @retval false  Supported lock type
      @retval true   Not supported value
   */
-  bool supports_lock(THD *thd, const Alter_inplace_info *ha_alter_info);
+  bool supports_lock(THD *thd, bool, Alter_inplace_info *ha_alter_info);
 
   /**
     Return user requested algorithm. If user does not specify
