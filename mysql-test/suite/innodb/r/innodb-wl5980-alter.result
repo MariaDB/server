@@ -1385,8 +1385,8 @@ t1c.ibd
 t1p.ibd
 tt.ibd
 ALTER TABLE t1o CHANGE FTS_DOC_ID foo_id BIGINT UNSIGNED NOT NULL,
-LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Cannot drop or rename FTS_DOC_ID. Try LOCK=SHARED
+ALGORITHM=INPLACE, LOCK=NONE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot drop or rename FTS_DOC_ID. Try ALGORITHM=COPY
 SELECT sc.pos FROM information_schema.innodb_sys_columns sc
 INNER JOIN information_schema.innodb_sys_tables st
 ON sc.TABLE_ID=st.TABLE_ID

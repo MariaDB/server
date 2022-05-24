@@ -1,7 +1,7 @@
 set system_versioning_alter_history=keep;
 create or replace table t (a int);
 alter table t add system versioning, lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned timestamp tables. Try LOCK=SHARED
+alter table t drop system versioning;
 alter table t add system versioning, algorithm=inplace;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned timestamp tables. Try ALGORITHM=COPY
 alter table t add system versioning, lock=shared;

@@ -53,30 +53,11 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`a`)
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new comment'
 alter online table t1 page_checksum=1;
-alter online table t1 page_checksum=0;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
 drop table t1;
 create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);
-alter online table t1 drop column b, add b int;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-alter online table t1 modify b bigint;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-alter online table t1 modify e enum('c','a','b');
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-alter online table t1 modify c varchar(50);
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-alter online table t1 modify c varchar(100);
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-alter online table t1 add f int;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-alter online table t1 engine=memory;
 alter online table t1 rename to t2;
 ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE
-alter online table t1 checksum=1;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-alter online table t1 add constraint check (b > 0);
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
 alter table t1 engine=innodb;
 alter table t1 add index (b);
 alter online table t1 add index c (c);
