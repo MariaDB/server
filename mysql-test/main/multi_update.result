@@ -1161,3 +1161,93 @@ ERROR 21000: Subquery returns more than 1 row
 update t1 set a= (select 2 from t1 having (a = 3));
 ERROR 21000: Subquery returns more than 1 row
 drop tables t1;
+#
+# MDEV-28246 Optimizer uses all partitions during an update in MariaDB 10.6.x but not in 10.2.x
+#
+CREATE TABLE t1 (
+part INT(1),
+a INT(1),
+b INT(1),
+PRIMARY KEY (a,part),
+INDEX b (b,part)
+) PARTITION BY LIST (part) (
+PARTITION Current VALUES IN (0),
+PARTITION Relevant VALUES IN (1),
+PARTITION Archive VALUES IN (2)
+);
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t1 (part,a,b) VALUES (0,0,0),(1,1,1),(2,2,2);
+INSERT INTO t2 (part,a,b) VALUES (0,0,0),(1,1,1),(2,2,2);
+# Expecting partition "Current"
+EXPLAIN FORMAT=JSON UPDATE t2 JOIN t1 USING(a) SET t2.part=3 WHERE t2.part=0 AND t1.part=0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "partitions": ["Current"],
+      "access_type": "system",
+      "possible_keys": ["PRIMARY"],
+      "rows": 1,
+      "filtered": 100
+    },
+    "table": {
+      "table_name": "t1",
+      "partitions": ["Current"],
+      "access_type": "system",
+      "possible_keys": ["PRIMARY"],
+      "rows": 1,
+      "filtered": 100
+    }
+  }
+}
+# Expecting partition "Relevant"
+EXPLAIN FORMAT=JSON UPDATE t2 JOIN t1 USING(a) SET t2.part=2 WHERE t2.part=1 AND t1.part=1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "partitions": ["Relevant"],
+      "access_type": "system",
+      "possible_keys": ["PRIMARY"],
+      "rows": 1,
+      "filtered": 100
+    },
+    "table": {
+      "table_name": "t1",
+      "partitions": ["Relevant"],
+      "access_type": "system",
+      "possible_keys": ["PRIMARY"],
+      "rows": 1,
+      "filtered": 100
+    }
+  }
+}
+# Expecting partition "Archive"
+EXPLAIN FORMAT=JSON UPDATE t2 JOIN t1 USING(a) SET t2.part=3 WHERE t2.part=2 AND t1.part=2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "partitions": ["Archive"],
+      "access_type": "system",
+      "possible_keys": ["PRIMARY"],
+      "rows": 1,
+      "filtered": 100
+    },
+    "table": {
+      "table_name": "t1",
+      "partitions": ["Archive"],
+      "access_type": "system",
+      "possible_keys": ["PRIMARY"],
+      "rows": 1,
+      "filtered": 100
+    }
+  }
+}
+DROP TABLES t1, t2;
