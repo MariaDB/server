@@ -1598,8 +1598,8 @@ create table t1(f1 int not null, f2 int not null,
 primary key (f1), unique key(f1, f2))engine=innodb;
 insert into t1 values(1,3), (2,2);
 alter table t1 drop primary key, lock=none;
-alter table t1 drop index f1, lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Dropping a primary key is not allowed without also adding a new primary key. Try LOCK=SHARED
+alter table t1 drop index f1, algorithm=inplace, lock=none;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Dropping a primary key is not allowed without also adding a new primary key. Try ALGORITHM=COPY
 drop table t1;
 #
 #  BUG#21612714 ALTER TABLE SORTING SKIPPED WHEN CHANGE PK AND DROP

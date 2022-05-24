@@ -33,7 +33,6 @@ drop table t1;
 #
 create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);
-
 alter online table t1 modify b int default 5, alter c set default 'X';
 alter online table t1 change b new_name int;
 alter online table t1 modify e enum('a','b','c');
@@ -54,37 +53,13 @@ alter online table t1 modify e enum('a','b','c');
 alter online table t1 comment "new comment";
 show create table t1;
 alter online table t1 page_checksum=1;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 page_checksum=0;
 drop table t1;
-
-#
-# Test of things that is not possible to do online
-#
 
 create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);
 
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 drop column b, add b int;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 modify b bigint;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 modify e enum('c','a','b');
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 modify c varchar(50);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 modify c varchar(100);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 add f int;
---error 0,ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter online table t1 engine=memory;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 rename to t2;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 checksum=1;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 add constraint check (b > 0);
 
 alter table t1 engine=innodb;
 alter table t1 add index (b);
