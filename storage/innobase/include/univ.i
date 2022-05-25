@@ -33,25 +33,6 @@ Created 1/20/1994 Heikki Tuuri
 
 #pragma once
 
-/* aux macros to convert M into "123" (string) if M is defined like
-#define M 123 */
-#define _IB_TO_STR(s)	#s
-#define IB_TO_STR(s)	_IB_TO_STR(s)
-
-/* The following is the InnoDB version as shown in
-SELECT plugin_version FROM information_schema.plugins;
-calculated in make_version_string() in sql/sql_show.cc like this:
-"version >> 8" . "version & 0xff"
-because the version is shown with only one dot, we skip the last
-component, i.e. we show M.N.P as M.N */
-#define INNODB_VERSION_SHORT	\
-	(MYSQL_VERSION_MAJOR << 8 | MYSQL_VERSION_MINOR)
-
-#define INNODB_VERSION_STR			\
-	IB_TO_STR(MYSQL_VERSION_MAJOR) "."	\
-	IB_TO_STR(MYSQL_VERSION_MINOR) "."	\
-	IB_TO_STR(MYSQL_VERSION_PATCH)
-
 /** How far ahead should we tell the service manager the timeout
 (time in seconds) */
 #define INNODB_EXTEND_TIMEOUT_INTERVAL 30
