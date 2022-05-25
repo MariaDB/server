@@ -925,20 +925,16 @@ public:
 
 
   /**
-    Returns the minimum trx id in rw trx list.
+    Determine if the specified transaction or any older one might be active.
 
-    This is the smallest id for which the trx can possibly be active. (But, you
-    must look at the trx->state to find out if the minimum trx id transaction
-    itself is active, or already committed.)
-
-    @return the minimum trx id, or m_max_trx_id if the trx list is empty
+    @param caller_trx  used to get/set pins
+    @param id          transaction identifier
+    @return whether any transaction not newer than id might be active
   */
 
-  trx_id_t get_min_trx_id()
+  bool find_same_or_older(trx_t *caller_trx, trx_id_t id)
   {
-    trx_id_t id= get_max_trx_id();
-    rw_trx_hash.iterate(get_min_trx_id_callback, &id);
-    return id;
+    return rw_trx_hash.iterate(caller_trx, find_same_or_older_callback, &id);
   }
 
 
@@ -1173,18 +1169,10 @@ public:
   }
 
 private:
-  static my_bool get_min_trx_id_callback(rw_trx_hash_element_t *element,
-                                         trx_id_t *id)
+  static my_bool find_same_or_older_callback(rw_trx_hash_element_t *element,
+                                             trx_id_t *id)
   {
-    if (element->id < *id)
-    {
-      element->mutex.wr_lock();
-      /* We don't care about read-only transactions here. */
-      if (element->trx && element->trx->rsegs.m_redo.rseg)
-        *id= element->id;
-      element->mutex.wr_unlock();
-    }
-    return 0;
+    return element->id <= *id;
   }
 
 

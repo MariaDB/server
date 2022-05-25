@@ -43,9 +43,7 @@
                               // mysql_alter_db,
                               // check_db_dir_existence,
                               // my_dbopt_cleanup
-#include "sql_table.h"        // mysql_create_like_table,
-                              // mysql_create_table,
-                              // mysql_alter_table,
+#include "sql_table.h"        // mysql_alter_table,
                               // mysql_backup_table,
                               // mysql_restore_table
 #include "sql_reload.h"       // reload_acl_and_cache
@@ -1507,22 +1505,6 @@ static bool deny_updates_if_read_only_option(THD *thd, TABLE_LIST *all_tables)
 }
 
 #ifdef WITH_WSREP
-static my_bool wsrep_read_only_option(THD *thd, TABLE_LIST *all_tables)
-{
-  int opt_readonly_saved = opt_readonly;
-  privilege_t flag_saved= thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY;
-
-  opt_readonly = 0;
-  thd->security_ctx->master_access &= ~PRIV_IGNORE_READ_ONLY;
-
-  my_bool ret = !deny_updates_if_read_only_option(thd, all_tables);
-
-  opt_readonly = opt_readonly_saved;
-  thd->security_ctx->master_access |= flag_saved;
-
-  return ret;
-}
-
 static void wsrep_copy_query(THD *thd)
 {
   thd->wsrep_retry_command   = thd->get_command();
@@ -4206,7 +4188,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   */
   {
     /* Prepare stack copies to be re-execution safe */
-    HA_CREATE_INFO create_info;
+    Table_specification_st create_info;
     Alter_info alter_info(lex->alter_info, thd->mem_root);
 
     if (unlikely(thd->is_fatal_error)) /* out of memory creating alter_info */
@@ -4216,10 +4198,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if (check_one_table_access(thd, INDEX_ACL, all_tables))
       goto error; /* purecov: inspected */
 
-    bzero((char*) &create_info, sizeof(create_info));
+    create_info.init();
     create_info.db_type= 0;
     create_info.row_type= ROW_TYPE_NOT_USED;
-    create_info.default_table_charset= thd->variables.collation_database;
     create_info.alter_info= &alter_info;
 
     WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
@@ -5178,6 +5159,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
                           &lex->name))
       break;
 
+    if ((res= lex->create_info.resolve_to_charset_collation_context(thd,
+                                 thd->charset_collation_context_create_db())))
+      break;
+
     WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL);
 
     res= mysql_create_db(thd, &lex->name,
@@ -5237,6 +5222,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   {
     LEX_CSTRING *db= &lex->name;
     if (prepare_db_action(thd, ALTER_ACL, db))
+      break;
+
+    if ((res= lex->create_info.resolve_to_charset_collation_context(thd,
+                     thd->charset_collation_context_alter_db(lex->name.str))))
       break;
 
     WSREP_TO_ISOLATION_BEGIN(db->str, NULL, NULL);
@@ -7852,7 +7841,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
 {
   bool is_autocommit=
     !thd->in_multi_stmt_transaction_mode()                  &&
-    wsrep_read_only_option(thd, thd->lex->query_tables);
+    !thd->wsrep_applier;
   bool retry_autocommit;
   do
   {
@@ -8890,6 +8879,7 @@ bool st_select_lex::add_window_def(THD *thd,
     fields_in_window_functions+= win_part_list_ptr->elements +
                                  win_order_list_ptr->elements;
   }
+  win_def->win_spec_number= window_specs.elements;
   return (win_def == NULL || window_specs.push_back(win_def));
 }
 
@@ -8917,6 +8907,7 @@ bool st_select_lex::add_window_spec(THD *thd,
                                  win_order_list_ptr->elements;
   }
   thd->lex->win_spec= win_spec;
+  win_spec->win_spec_number= window_specs.elements;
   return (win_spec == NULL || window_specs.push_back(win_spec));
 }
 
@@ -9060,9 +9051,7 @@ push_new_name_resolution_context(THD *thd,
     right_op->last_leaf_for_name_resolution();
   LEX *lex= thd->lex;
   on_context->select_lex = lex->current_select;
-  st_select_lex *curr_select= lex->pop_select();
-  st_select_lex *outer_sel= lex->select_stack_head();
-  lex->push_select(curr_select);
+  st_select_lex *outer_sel= lex->parser_current_outer_select();
   on_context->outer_context = outer_sel ? &outer_sel->context : 0;
   return lex->push_context(on_context);
 }
@@ -10487,40 +10476,6 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
   @} (end of group Runtime_Environment)
 */
 
-
-
-/**
-  Check and merge "CHARACTER SET cs [ COLLATE cl ]" clause
-
-  @param cs character set pointer.
-  @param cl collation pointer.
-
-  Check if collation "cl" is applicable to character set "cs".
-
-  If "cl" is NULL (e.g. when COLLATE clause is not specified),
-  then simply "cs" is returned.
-  
-  @return Error status.
-    @retval NULL, if "cl" is not applicable to "cs".
-    @retval pointer to merged CHARSET_INFO on success.
-*/
-
-
-CHARSET_INFO*
-merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl)
-{
-  if (cl)
-  {
-    if (!my_charset_same(cs, cl))
-    {
-      my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0), cl->coll_name.str,
-               cs->cs_name.str);
-      return NULL;
-    }
-    return cl;
-  }
-  return cs;
-}
 
 void LEX::mark_first_table_as_inserting()
 {

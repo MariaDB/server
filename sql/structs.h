@@ -699,17 +699,18 @@ public:
   }
   void set(const Type_handler *handler,
            const Lex_length_and_dec_st &length_and_dec,
-           const Lex_charset_collation_st &coll)
+           const Lex_column_charset_collation_attrs_st &coll)
   {
     m_handler= handler;
-    m_ci= coll.charset_collation();
+    m_ci= coll.charset_info();
     Lex_length_and_dec_st::operator=(length_and_dec);
     m_collation_type= ((uint8) coll.type()) & 0x3;
   }
-  void set(const Type_handler *handler, const Lex_charset_collation_st &coll)
+  void set(const Type_handler *handler,
+           const Lex_column_charset_collation_attrs_st &coll)
   {
     m_handler= handler;
-    m_ci= coll.charset_collation();
+    m_ci= coll.charset_info();
     Lex_length_and_dec_st::reset();
     m_collation_type= ((uint8) coll.type()) & 0x3;
   }
@@ -734,10 +735,10 @@ public:
   }
   const Type_handler *type_handler() const { return m_handler; }
   CHARSET_INFO *charset_collation() const { return m_ci; }
-  Lex_charset_collation lex_charset_collation() const
+  Lex_column_charset_collation_attrs charset_collation_attrs() const
   {
-    return Lex_charset_collation(m_ci,
-                                 (Lex_charset_collation_st::Type)
+    return Lex_column_charset_collation_attrs(m_ci,
+                                 (Lex_column_charset_collation_attrs_st::Type)
                                  m_collation_type);
   }
 };
@@ -768,7 +769,7 @@ public:
     m_ci= cs;
     Lex_length_and_dec_st::reset();
   }
-  bool set(int type, const Lex_charset_collation_st &collation,
+  bool set(int type, const Lex_column_charset_collation_attrs_st &collation,
            CHARSET_INFO *charset)
   {
     CHARSET_INFO *tmp= collation.resolved_to_character_set(charset);

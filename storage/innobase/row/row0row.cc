@@ -1260,8 +1260,6 @@ row_get_clust_rec(
 	dtuple_t*	ref;
 	dict_table_t*	table;
 	btr_pcur_t	pcur;
-	ibool		found;
-	rec_t*		clust_rec;
 
 	ut_ad(!dict_index_is_clust(index));
 
@@ -1271,17 +1269,12 @@ row_get_clust_rec(
 
 	ref = row_build_row_ref(ROW_COPY_POINTERS, index, rec, heap);
 
-	found = row_search_on_row_ref(&pcur, mode, table, ref, mtr);
-
-	clust_rec = found ? btr_pcur_get_rec(&pcur) : NULL;
+	auto found = row_search_on_row_ref(&pcur, mode, table, ref, mtr);
 
 	mem_heap_free(heap);
 
-	btr_pcur_close(&pcur);
-
 	*clust_index = dict_table_get_first_index(table);
-
-	return(clust_rec);
+	return found ? btr_pcur_get_rec(&pcur) : nullptr;
 }
 
 /***************************************************************//**

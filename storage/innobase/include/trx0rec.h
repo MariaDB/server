@@ -232,8 +232,6 @@ must hold a latch on the index page of the clustered index record.
 @param	v_status	status determine if it is going into this
 			function by purge thread or not.
 			And if we read "after image" of undo log
-@param	undo_block	undo log block which was cached during
-			online dml apply or nullptr
 @retval true if previous version was built, or if it was an insert
 or the table has been rebuilt
 @retval false if the previous version is earlier than purge_view,
@@ -249,8 +247,7 @@ trx_undo_prev_version_build(
 	rec_t		**old_vers,
 	mem_heap_t	*v_heap,
 	dtuple_t	**vrow,
-	ulint		v_status,
-	const buf_block_t *undo_block= nullptr);
+	ulint		v_status);
 
 /** Read from an undo log record a non-virtual column value.
 @param[in,out]	ptr		pointer to remaining part of the undo record

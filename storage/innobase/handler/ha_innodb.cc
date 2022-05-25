@@ -1027,10 +1027,6 @@ static SHOW_VAR innodb_status_variables[]= {
   /* Status variables for page compression */
   {"page_compression_saved",
    &export_vars.innodb_page_compression_saved, SHOW_LONGLONG},
-  {"num_index_pages_written",
-   &export_vars.innodb_index_pages_written, SHOW_LONGLONG},
-  {"num_non_index_pages_written",
-   &export_vars.innodb_non_index_pages_written, SHOW_LONGLONG},
   {"num_pages_page_compressed",
    &export_vars.innodb_pages_page_compressed, SHOW_LONGLONG},
   {"num_page_compressed_trim_op",
@@ -1085,8 +1081,6 @@ static SHOW_VAR innodb_status_variables[]= {
    &export_vars.innodb_encryption_rotation_pages_flushed, SHOW_SIZE_T},
   {"encryption_rotation_estimated_iops",
    &export_vars.innodb_encryption_rotation_estimated_iops, SHOW_SIZE_T},
-  {"encryption_key_rotation_list_length",
-   &export_vars.innodb_key_rotation_list_length, SHOW_LONGLONG},
   {"encryption_n_merge_blocks_encrypted",
    &export_vars.innodb_n_merge_blocks_encrypted, SHOW_LONGLONG},
   {"encryption_n_merge_blocks_decrypted",
@@ -2110,9 +2104,9 @@ fail:
     pcur.restore_position(BTR_SEARCH_LEAF, &mtr);
   }
 
-  btr_pcur_close(&pcur);
   mtr.commit();
   trx->free();
+  ut_free(pcur.old_rec_buf);
   ut_d(purge_sys.resume_FTS());
 }
 
@@ -13551,7 +13545,28 @@ int ha_innobase::delete_table(const char *name)
   }
 
   if (err == DB_SUCCESS)
+  {
+    if (!table->space)
+    {
+      const char *data_dir_path= DICT_TF_HAS_DATA_DIR(table->flags)
+        ? table->data_dir_path : nullptr;
+      char *path= fil_make_filepath(data_dir_path, table->name, CFG,
+                                    data_dir_path != nullptr);
+      os_file_delete_if_exists(innodb_data_file_key, path, nullptr);
+      ut_free(path);
+      path= fil_make_filepath(data_dir_path, table->name, IBD,
+                              data_dir_path != nullptr);
+      os_file_delete_if_exists(innodb_data_file_key, path, nullptr);
+      ut_free(path);
+      if (data_dir_path)
+      {
+        path= fil_make_filepath(nullptr, table->name, ISL, false);
+        os_file_delete_if_exists(innodb_data_file_key, path, nullptr);
+        ut_free(path);
+      }
+    }
     err= lock_sys_tables(trx);
+  }
 
   dict_sys.lock(SRW_LOCK_CALL);
 
@@ -16620,8 +16635,8 @@ ha_innobase::get_auto_increment(
 
 	(3) It is restricted only for insert operations. */
 
-	if (increment > 1 && thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE
-	    && autoinc < col_max_value) {
+	if (increment > 1 && increment <= ~autoinc && autoinc < col_max_value
+	    && thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE) {
 
 		ulonglong prev_auto_inc = autoinc;
 

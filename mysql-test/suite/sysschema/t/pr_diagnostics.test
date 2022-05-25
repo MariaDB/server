@@ -19,7 +19,6 @@ SET @sys.debug                        = 'ON',
     @sys.diagnostics.allow_i_s_tables = 'ON',
     @sys.diagnostics.include_raw      = 'ON';
 
---error ER_ILLEGAL_HA_CREATE_OPTION
 CALL sys.diagnostics(4, 2, 'full');
 
 SET @sys.debug                        = 'OFF',

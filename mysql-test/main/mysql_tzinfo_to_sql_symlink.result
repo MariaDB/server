@@ -420,6 +420,55 @@ COM_INSERT	0
 COM_LOCK_TABLES	1
 COM_TRUNCATE	1
 #
+# MDEV-28263: mariadb-tzinfo-to-sql improve wsrep and binlog cases
+#
+#
+# Testing --skip-write-binlog
+#
+set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+execute immediate if(@wsrep_is_on, 'SET @save_wsrep_on=@@WSREP_ON, WSREP_ON=OFF', 'do 0');
+SET @save_sql_log_bin=@@SQL_LOG_BIN;
+SET SESSION SQL_LOG_BIN=0;
+SET @wsrep_cannot_replicate_tz=0;
+LOCK TABLES time_zone WRITE,
+  time_zone_leap_second WRITE,
+  time_zone_name WRITE,
+  time_zone_transition WRITE,
+  time_zone_transition_type WRITE;
+INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
+SET @time_zone_id= LAST_INSERT_ID();
+INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('XXX', @time_zone_id);
+INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, `Offset`, Is_DST, Abbreviation) VALUES
+ (@time_zone_id, 0, 0, 0, 'GMT')
+;
+UNLOCK TABLES;
+COMMIT;
+SET SESSION SQL_LOG_BIN=@save_sql_log_bin;
+execute immediate if(@wsrep_is_on, 'SET SESSION WSREP_ON=@save_wsrep_on', 'do 0');
+set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+execute immediate if(@wsrep_is_on, 'SET @save_wsrep_on=@@WSREP_ON, WSREP_ON=OFF', 'do 0');
+SET @save_sql_log_bin=@@SQL_LOG_BIN;
+SET SESSION SQL_LOG_BIN=0;
+SET @wsrep_cannot_replicate_tz=0;
+LOCK TABLES time_zone WRITE,
+  time_zone_leap_second WRITE,
+  time_zone_name WRITE,
+  time_zone_transition WRITE,
+  time_zone_transition_type WRITE;
+TRUNCATE TABLE time_zone_leap_second;
+ALTER TABLE time_zone_leap_second ORDER BY Transition_time;
+UNLOCK TABLES;
+COMMIT;
+SET SESSION SQL_LOG_BIN=@save_sql_log_bin;
+execute immediate if(@wsrep_is_on, 'SET SESSION WSREP_ON=@save_wsrep_on', 'do 0');
+#
+# End of 10.2 tests
+#
+#
 # MDEV-6236 - [PATCH] mysql_tzinfo_to_sql may produce invalid SQL
 #
 set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);

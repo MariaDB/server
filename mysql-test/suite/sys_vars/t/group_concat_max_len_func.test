@@ -132,4 +132,35 @@ disconnect test_con1;
 
 connection default;
 
+CREATE TABLE t1(val VARCHAR(100) PRIMARY KEY) CHARACTER SET utf8mb4 COLLATE utf8mb4_danish_ci;
+INSERT INTO t1 VALUES('bar');
+INSERT INTO t1 VALUES('foo');
+
+SET group_concat_max_len = 1073741823;
+SHOW VARIABLES LIKE 'group_concat_max_len';
+SELECT GROUP_CONCAT(val) AS simple FROM t1;
+SELECT * FROM ( SELECT GROUP_CONCAT(val) AS nested FROM t1) As tmp;
+
+SET group_concat_max_len = 1073741824;
+SHOW VARIABLES LIKE 'group_concat_max_len';
+SELECT GROUP_CONCAT(val) AS simple FROM t1;
+SELECT * FROM ( SELECT GROUP_CONCAT(val) AS nested FROM t1) As tmp;
+
+SET group_concat_max_len = 1073741825;
+SHOW VARIABLES LIKE 'group_concat_max_len';
+SELECT GROUP_CONCAT(val) AS simple FROM t1;
+SELECT * FROM ( SELECT GROUP_CONCAT(val) AS nested FROM t1) As tmp;
+
+SET group_concat_max_len = 1073741826;
+SHOW VARIABLES LIKE 'group_concat_max_len';
+SELECT GROUP_CONCAT(val) AS simple FROM t1;
+SELECT * FROM ( SELECT GROUP_CONCAT(val) AS nested FROM t1) As tmp;
+
+SET group_concat_max_len = 2147483649;
+SHOW VARIABLES LIKE 'group_concat_max_len';
+SELECT GROUP_CONCAT(val) AS simple FROM t1;
+SELECT * FROM ( SELECT GROUP_CONCAT(val) AS nested FROM t1) As tmp;
+
+DROP TABLE t1;
+
 SET @@global.group_concat_max_len = @save;

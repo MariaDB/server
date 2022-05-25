@@ -407,6 +407,12 @@ public:
                          bool auto_part, const char *table_name);
   bool vers_set_limit(ulonglong limit, bool auto_part, const char *table_name);
   bool vers_set_hist_part(THD* thd, uint *create_count);
+  bool vers_require_hist_part(THD *thd) const
+  {
+    return part_type == VERSIONING_PARTITION &&
+      thd->lex->vers_history_generating();
+  }
+  void vers_check_limit(THD *thd);
   bool vers_fix_field_list(THD *thd);
   void vers_update_el_ids();
   partition_element *get_partition(uint part_id)

@@ -93,3 +93,15 @@ pk	a	c	sum(c) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FO
 126	6	NULL	NULL
 127	6	NULL	NULL
 drop table t1;
+#
+# End of 10.2 tests
+#
+#
+# MDEV-28094 Window function in expression in ORDER BY
+#
+SELECT EXISTS (SELECT 1 ORDER BY 1+sum(2) OVER ());
+EXISTS (SELECT 1 ORDER BY 1+sum(2) OVER ())
+1
+#
+# End of 10.4 tests
+#

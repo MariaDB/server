@@ -2295,7 +2295,6 @@ Type_handler_decimal_result::make_num_distinct_aggregator_field(
                                                             const Item *item)
                                                             const
 {
-  DBUG_ASSERT(item->decimals <= DECIMAL_MAX_SCALE);
   return new (mem_root)
          Field_new_decimal(NULL, item->max_length,
                            (uchar *) (item->maybe_null() ? "" : 0),
@@ -2716,7 +2715,7 @@ Type_handler::Column_definition_set_attributes(THD *thd,
                                                column_definition_type_t type)
                                                const
 {
-  def->set_lex_charset_collation(attr.lex_charset_collation());
+  def->set_charset_collation_attrs(attr.charset_collation_attrs());
   def->set_length_and_dec(attr);
   return false;
 }

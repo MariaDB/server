@@ -161,7 +161,7 @@ public:
   }
   int set(THD *thd, enum_type ctype, const LEX_CSTRING &path, CHARSET_INFO *cs);
   int set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
-          const Lex_charset_collation_st &cl);
+          const Lex_column_charset_collation_attrs_st &cl);
   Json_table_column(Create_field *f, Json_table_nested_path *nest) :
     m_field(f), m_nest(nest), m_explicit_cs(NULL)
   {

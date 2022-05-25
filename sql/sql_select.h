@@ -2,7 +2,7 @@
 #define SQL_SELECT_INCLUDED
 
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB Corporation.
+   Copyright (c) 2008, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -989,6 +989,8 @@ public:
   */
   enum sj_strategy_enum sj_strategy;
 
+  /* Type of join (EQ_REF, REF etc) */
+  enum join_type type;
   /*
     Valid only after fix_semijoin_strategies_for_picked_join_order() call:
     if sj_strategy!=SJ_OPT_NONE, this is the number of subsequent tables that
@@ -2468,6 +2470,8 @@ int create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort);
 
 JOIN_TAB *first_explain_order_tab(JOIN* join);
 JOIN_TAB *next_explain_order_tab(JOIN* join, JOIN_TAB* tab);
+
+bool is_eliminated_table(table_map eliminated_tables, TABLE_LIST *tbl);
 
 bool check_simple_equality(THD *thd, const Item::Context &ctx,
                            Item *left_item, Item *right_item,

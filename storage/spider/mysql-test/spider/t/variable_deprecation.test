@@ -92,6 +92,15 @@ eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='crd_weight "1"';
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 
+--echo # MDEV-28560 Deprecate spider_buffer_size
+SET spider_buffer_size = 1;
+SHOW VARIABLES LIKE "spider_buffer_size";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='bfz "1"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='buffer_size "1"';
+
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
 DROP DATABASE auto_test_local;
 
 --disable_query_log

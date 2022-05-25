@@ -195,7 +195,8 @@ static bool check_exchange_partition(TABLE *table, TABLE *part_table)
 bool compare_table_with_partition(THD *thd, TABLE *table, TABLE *part_table,
                                   partition_element *part_elem, uint part_id)
 {
-  HA_CREATE_INFO table_create_info, part_create_info;
+  HA_CREATE_INFO table_create_info;
+  Table_specification_st part_create_info;
   Alter_info part_alter_info;
   Alter_table_ctx part_alter_ctx; // Not used
   DBUG_ENTER("compare_table_with_partition");
@@ -258,8 +259,13 @@ bool compare_table_with_partition(THD *thd, TABLE *table, TABLE *part_table,
     my_error(ER_TABLES_DIFFERENT_METADATA, MYF(0));
     DBUG_RETURN(TRUE);
   }
-  DBUG_ASSERT(table->s->db_create_options ==
-              part_table->s->db_create_options);
+
+  if (table->s->db_create_options != part_table->s->db_create_options)
+  {
+    my_error(ER_TABLES_DIFFERENT_METADATA, MYF(0));
+    DBUG_RETURN(TRUE);
+  }
+
   DBUG_ASSERT(table->s->db_options_in_use ==
               part_table->s->db_options_in_use);
 

@@ -1,4 +1,4 @@
-languages chinese=chi gbk, czech=cze latin2, danish=dan latin1, dutch=nla latin1, english=eng latin1, estonian=est latin7, french=fre latin1, german=ger latin1, greek=greek greek, hungarian=hun latin2, italian=ita latin1, japanese=jpn ujis, korean=kor euckr, norwegian-ny=norwegian-ny latin1, norwegian=nor latin1, polish=pol latin2, portuguese=por latin1, romanian=rum latin2, russian=rus koi8r, serbian=serbian cp1250, slovak=slo latin2, spanish=spa latin1, swedish=swe latin1, ukrainian=ukr koi8u, bulgarian=bgn cp1251, hindi=hindi utf8mb3;
+languages bulgarian=bgn cp1251, chinese=chi gbk, czech=cze latin2, danish=dan latin1, dutch=nla latin1, english=eng latin1, estonian=est latin7, french=fre latin1, german=ger latin1, greek=greek greek, hindi=hindi utf8mb3, hungarian=hun latin2, italian=ita latin1, japanese=jpn ujis, korean=kor euckr, norwegian-ny=norwegian-ny latin1, norwegian=nor latin1, polish=pol latin2, portuguese=por latin1, romanian=rum latin2, russian=rus koi8r, serbian=serbian cp1250, slovak=slo latin2, spanish=spa latin1, swedish=swe latin1, ukrainian=ukr koi8u;
 
 default-language eng
 
@@ -6450,10 +6450,21 @@ ER_AMBIGUOUS_FIELD_TERM
         ger "Das erste Zeichen der Zeichenkette FIELDS TERMINATED ist mehrdeutig; bitte benutzen Sie nicht optionale und nicht leere FIELDS ENCLOSED BY"
         spa "El primer carácter de la cadena de los FIELDS TERMINATED es ambiguo; por favor, use FIELDS ENCLOSED BY no opcionales y no vacíos"
 ER_FOREIGN_SERVER_EXISTS
-        chi "您正在尝试创建的外来服务器%s已存在"
-        eng "The foreign server, %s, you are trying to create already exists"
-        ger "Der entfernte Server %s, den Sie versuchen zu erzeugen, existiert schon"
-        spa "El servidor foráneo %s que intenta crear ya existe"
+        chi "无法创建外部服务器'%s'，因为它已经存在"
+        eng "Cannot create foreign server '%s' as it already exists"
+        fin "Vieraata palvelinta '%s' ei voida luoda, koska se on jo olemassa"
+        fre "Impossible de créer le serveur étranger '%s' car il existe déjà"
+        ger "Der auswärtige Server '%s' kann nicht erstellt werden, da er bereits vorhanden ist"
+        greek "Δεν είναι δυνατή η δημιουργία ξένου διακομιστή '%s' επειδή υπάρχει ήδη"
+        ita "Impossibile creare il server esterno '%s' poiché esiste già"
+        jpn "外部サーバー '%s'は既に存在するため、作成できません"
+        nla "Kan geen externe server '%s' maken omdat deze al bestaat"
+        nor "Kan ikke opprette utenlandsk server '%s' fordi den allerede eksisterer"
+        pol "Nie można utworzyć obcego serwera '%s', ponieważ już istnieje"
+        por "Não foi possível criar o servidor externo '%s' porque ele já existe"
+        rus "Невозможно создать сторонний сервер '%s', так как он уже существует"
+        spa "No se puede crear el servidor externo '%s' porque ya existe"
+        swe "Det gick inte att skapa främmande server '%s' eftersom den redan finns"
 ER_FOREIGN_SERVER_DOESNT_EXIST
         chi "您尝试引用的外部服务器名称不存在。数据源错误：%-.64s"
         eng "The foreign server name you are trying to reference does not exist. Data source error:  %-.64s"
@@ -8200,12 +8211,12 @@ ER_TABLE_IN_SYSTEM_TABLESPACE
         spa "Tabla %-.192s en espacio de tablas del sitema"
 
 ER_IO_READ_ERROR
-        chi "IO读取错误:（%lu，%s）%s"
+        chi "IO读取错误:(%lu，%s)%s"
         eng "IO Read error: (%lu, %s) %s"
         spa "Error de Lectura de E/S: (%lu, %s) %s"
 
 ER_IO_WRITE_ERROR
-        chi "IO写错错误:（%lu，%s）%s"
+        chi "IO写错错误:(%lu，%s)%s"
         eng "IO Write error: (%lu, %s) %s"
         spa "Error de Escritura de E/S: (%lu, %s) %s"
 
@@ -9300,7 +9311,7 @@ ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED
         eng "Reference to recursive WITH table '%s' in materialized derived"
         spa "Referencia recursiva con WITH tabla '%s' en derivada materializada"
 ER_NOT_STANDARD_COMPLIANT_RECURSIVE
-        chi "表'%s'违反了递归定义的限制"
+        chi "表'%s'R_WRONG_WINDOW_SPEC_NAME违反了递归定义的限制"
         eng "Restrictions imposed on recursive definitions are violated for table '%s'"
 ER_WRONG_WINDOW_SPEC_NAME
         chi "没有定义名称'%s'的窗口规范"

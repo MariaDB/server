@@ -114,10 +114,12 @@ int Repl_semi_sync_slave::slave_start(Master_info *mi)
 
 int Repl_semi_sync_slave::slave_stop(Master_info *mi)
 {
-  if (rpl_semi_sync_slave_status)
-    rpl_semi_sync_slave_status= 0;
   if (get_slave_enabled())
     kill_connection(mi->mysql);
+
+  if (rpl_semi_sync_slave_status)
+    rpl_semi_sync_slave_status= 0;
+
   return 0;
 }
 
@@ -133,6 +135,8 @@ void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
 
   char kill_buffer[30];
   MYSQL *kill_mysql = NULL;
+  size_t kill_buffer_length;
+
   kill_mysql = mysql_init(kill_mysql);
   mysql_options(kill_mysql, MYSQL_OPT_CONNECT_TIMEOUT, &m_kill_conn_timeout);
   mysql_options(kill_mysql, MYSQL_OPT_READ_TIMEOUT, &m_kill_conn_timeout);
@@ -144,13 +148,35 @@ void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
   {
     sql_print_information("cannot connect to master to kill slave io_thread's "
                           "connection");
-    mysql_close(kill_mysql);
-    return;
+    goto failed_graceful_kill;
   }
-  size_t kill_buffer_length = my_snprintf(kill_buffer, 30, "KILL %lu",
-                                        mysql->thread_id);
-  mysql_real_query(kill_mysql, kill_buffer, (ulong)kill_buffer_length);
+
+  DBUG_EXECUTE_IF("slave_delay_killing_semisync_connection", my_sleep(400000););
+
+  kill_buffer_length= my_snprintf(kill_buffer, 30, "KILL %lu",
+                                mysql->thread_id);
+  if (mysql_real_query(kill_mysql, kill_buffer, (ulong)kill_buffer_length))
+  {
+    sql_print_information(
+        "Failed to gracefully kill our active semi-sync connection with "
+        "primary. Silently closing the connection.");
+    goto failed_graceful_kill;
+  }
+
+end:
   mysql_close(kill_mysql);
+  return;
+
+failed_graceful_kill:
+  /*
+    If we fail to issue `KILL` on the primary to kill the active semi-sync
+    connection; we need to locally clean up our side of the connection. This
+    is because mysql_close will send COM_QUIT on the active semi-sync
+    connection, causing the primary to error.
+  */
+  net_clear(&(mysql->net), 0);
+  end_server(mysql);
+  goto end;
 }
 
 int Repl_semi_sync_slave::request_transmit(Master_info *mi)

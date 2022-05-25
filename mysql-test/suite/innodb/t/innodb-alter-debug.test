@@ -180,7 +180,7 @@ DROP TABLE t1;
 
 CREATE TABLE t1(a INT PRIMARY KEY, b INT, INDEX(b)) ENGINE=InnoDB;
 SET @save_dbug=@@debug_dbug;
-SET debug_dbug='+d,innodb_table_deadlock';
+SET debug_dbug='+d,deadlock_table_fail';
 --error ER_LOCK_DEADLOCK
 ALTER TABLE t1 DROP INDEX b, ALGORITHM=INPLACE;
 SET debug_dbug=@save_dbug;

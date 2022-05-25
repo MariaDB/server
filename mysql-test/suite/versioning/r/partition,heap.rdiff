@@ -1,6 +1,6 @@
 --- partition.result
 +++ partition,heap.reject
-@@ -1582,85 +1582,6 @@
+@@ -2120,85 +2120,6 @@
  (PARTITION `p0` HISTORY ENGINE = X,
   PARTITION `pn` CURRENT ENGINE = X)
  drop tables t1, tp1;
@@ -84,9 +84,9 @@
 - PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
 -drop tables t1, tp1;
  #
- # MDEV-17554 Auto-create new partition for system versioned tables with history partitioned by INTERVAL/LIMIT
+ # End of 10.7 tests
  #
-@@ -2193,134 +2114,6 @@
+@@ -2753,134 +2674,6 @@
  Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p0`) is out of INTERVAL, need more HISTORY partitions
  drop prepare s;
  affected rows: 0

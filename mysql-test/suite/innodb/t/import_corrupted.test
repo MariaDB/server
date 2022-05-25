@@ -56,14 +56,10 @@ CREATE TABLE t2 (
 
 ALTER TABLE t2 DISCARD TABLESPACE;
 
---copy_file $MYSQLD_DATADIR/test/tmp.ibd $MYSQLD_DATADIR/test/t2.ibd
---copy_file $MYSQLD_DATADIR/test/tmp.cfg $MYSQLD_DATADIR/test/t2.cfg
+--move_file $MYSQLD_DATADIR/test/tmp.ibd $MYSQLD_DATADIR/test/t2.ibd
+--move_file $MYSQLD_DATADIR/test/tmp.cfg $MYSQLD_DATADIR/test/t2.cfg
 
 --error ER_NOT_KEYFILE
 ALTER TABLE t2 IMPORT TABLESPACE;
 
 DROP TABLE t2;
-
---remove_file $MYSQLD_DATADIR/test/t2.ibd
---remove_file $MYSQLD_DATADIR/test/tmp.ibd
---remove_file $MYSQLD_DATADIR/test/tmp.cfg

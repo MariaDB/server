@@ -1,0 +1,39 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+
+SET @save_frequency=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+
+CREATE TABLE t1(id INT PRIMARY key, val VARCHAR(16000)) ENGINE=InnoDB;
+INSERT INTO t1 (id,val) SELECT 2*seq,'x' FROM seq_0_to_1023;
+
+connect(con1,localhost,root,,);
+# Prevent purge.
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+
+DELETE FROM t1 WHERE id=1788;
+
+BEGIN;
+# This will return no result, but should acquire a gap lock.
+SELECT * FROM t1 WHERE id=1788 FOR UPDATE;
+
+connection con1;
+COMMIT;
+source include/wait_all_purged.inc;
+connection default;
+
+INSERT INTO t1 (id,val) VALUES (1787, REPEAT('x',2000));
+
+connection con1;
+SET innodb_lock_wait_timeout=0;
+--error ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t1 (id,val) VALUES (1788, 'x');
+SELECT * FROM t1 WHERE id=1788 FOR UPDATE;
+disconnect con1;
+
+connection default;
+COMMIT;
+DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;

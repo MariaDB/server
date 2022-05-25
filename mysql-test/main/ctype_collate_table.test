@@ -1,0 +1,22 @@
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # MDEV-27896 Wrong result upon `COLLATE latin1_bin CHARACTER SET latin1` on the table or the database level
+--echo #
+
+CREATE TABLE t1 (a CHAR) COLLATE latin1_bin CHARACTER SET latin1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-27782 Wrong columns when using table level `CHARACTER SET utf8mb4 COLLATE DEFAULT`
+--echo #
+
+CREATE TABLE t1 (a CHAR(10)) CHARACTER SET latin1 COLLATE DEFAULT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a CHAR(10)) CHARACTER SET utf8mb4 COLLATE DEFAULT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

@@ -5984,11 +5984,12 @@ the generated partition syntax in a correct manner.
           tab_part_info != part_info && part_info->part_type == VERSIONING_PARTITION &&
           part_info->num_parts == 0)
       {
-        if (part_info->vers_info->interval.is_set() &&
+        if (part_info->vers_info->interval.is_set() && (
+            !tab_part_info->vers_info->interval.is_set() ||
             /* TODO: equivalent intervals like 1 hour and 60 mins should be considered equal */
             memcmp(&part_info->vers_info->interval,
                    &tab_part_info->vers_info->interval,
-                   sizeof(Vers_part_info::interval)))
+                   sizeof(Vers_part_info::interval))))
         {
           /* If interval is changed we can not do fast alter */
           tab_part_info= tab_part_info->get_clone(thd);

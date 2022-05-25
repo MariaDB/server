@@ -12,8 +12,6 @@
 
 GCF-1081 : MDEV-18283 Galera test failure on galera.GCF-1081
 GCF-939 : MDEV-21520 galera.GCF-939
-MW-328A : MDEV-22666 galera.MW-328A MTR failed: "Semaphore wait has lasted > 600 seconds" and do not release port 16002
-MW-328B : MDEV-22666 galera.MW-328A MTR failed: "Semaphore wait has lasted > 600 seconds" and do not release port 16002
 MW-329 : MDEV-19962 Galera test failure on MW-329
 galera_as_slave_ctas : MDEV-28378 timeout
 galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid_log_event::do_apply_event()
@@ -21,10 +19,8 @@ galera_bf_abort_group_commit : MDEV-18282 Galera test failure on galera.galera_b
 galera_bf_kill_debug : MDEV-24485 wsrep::client_state::do_acquire_ownership(): Assertion `state_ == s_idle || mode_ != m_local' failed
 galera_bf_lock_wait : MDEV-21597 wsrep::transaction::start_transaction(): Assertion `active() == false' failed
 galera_encrypt_tmp_files : Get error failed to enable encryption of temporary files
-galera_ftwrl : MDEV-21525 galera.galera_ftwrl
 galera_gcache_recover_manytrx : MDEV-18834 Galera test failure
 galera_kill_largechanges : MDEV-18179 Galera test failure on galera.galera_kill_largechanges
-galera_many_tables_nopk : MDEV-18182 Galera test failure on galera.galera_many_tables_nopk
 galera_mdl_race : MDEV-21524 galera.galera_mdl_race
 galera_parallel_simple : MDEV-20318 galera.galera_parallel_simple fails
 galera_pc_ignore_sb : MDEV-20888 galera.galera_pc_ignore_sb

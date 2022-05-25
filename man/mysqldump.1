@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQLDUMP\FR" "1" "24 October 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\FBMARIADB-DUMP\FR" "1" "24 October 2020" "MariaDB 10\&.10" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -1539,24 +1539,6 @@ MyISAM
 table to be loaded into an
 InnoDB
 table, but will make the dump operation take considerably longer\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysqldump: order-by-size option
-.\" order-by-size option: mysqldump
-\fB\-\-order\-by\-size\fR
-.sp
-Dump each table according to their size, smallest first\&. Useful when using \-\-single\-transaction on tables which get truncated/altered often\&.
-.sp
-The assumption here is that smaller tables get truncated more often, and by doing dumping those first, this reduces the chance that a \-\-single\-transaction
-dump will fail with with 'Table definition has changed, please retry transaction'\&.
 .RE
 .sp
 .RS 4

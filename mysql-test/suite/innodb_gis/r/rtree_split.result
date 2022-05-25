@@ -61,10 +61,3 @@ select count(*) from t1 where MBRWithin(t1.c2, @g1);
 count(*)
 57344
 drop table t1;
-#
-# MDEV-27417 Spatial index tries to update
-#	change buffer bookkeeping page
-#
-CREATE TEMPORARY TABLE t1 (c POINT NOT NULL, SPATIAL(c)) ENGINE=InnoDB;
-INSERT INTO t1 SELECT PointFromText('POINT(0 0)') FROM seq_1_to_366;
-DROP TABLE t1;

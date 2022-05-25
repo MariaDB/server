@@ -1,0 +1,18 @@
+call mtr.add_suppression("InnoDB: New log files created");
+CREATE TABLE t1 (i INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(0);
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (a INT) ENGINE=InnoDB;
+INSERT INTO test1.t1 VALUES (1000);
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SELECT * FROM t1;
+i
+0
+SELECT * FROM test1.t1;
+a
+1000
+DROP TABLE t1;
+DROP DATABASE test1;

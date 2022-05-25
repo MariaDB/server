@@ -826,6 +826,7 @@ bool Item_subselect::exec()
   DBUG_ENTER("Item_subselect::exec");
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(thd);
+  DBUG_ASSERT(!eliminated);
 
   DBUG_EXECUTE_IF("Item_subselect",
     Item::Print print(this,
@@ -1361,11 +1362,18 @@ bool Item_singlerow_subselect::fix_length_and_dec()
   }
   unsigned_flag= value->unsigned_flag;
   /*
-    If there are not tables in subquery then ability to have NULL value
-    depends on SELECT list (if single row subquery have tables then it
-    always can be NULL if there are not records fetched).
+    If the subquery has no tables (1) and is not a UNION (2), like:
+
+      (SELECT subq_value)
+
+    then its NULLability is the same as subq_value's NULLability.
+
+    (1): A subquery that uses a table will return NULL when the table is empty.
+    (2): A UNION subquery will return NULL if it produces a "Subquery returns
+         more than one row" error.
   */
-  if (engine->no_tables())
+  if (engine->no_tables() &&
+      engine->engine_type() != subselect_engine::UNION_ENGINE)
     set_maybe_null(engine->may_be_null());
   else
   {
@@ -1400,6 +1408,16 @@ Item* Item_singlerow_subselect::expr_cache_insert_transformer(THD *tmp_thd,
   DBUG_ENTER("Item_singlerow_subselect::expr_cache_insert_transformer");
 
   DBUG_ASSERT(thd == tmp_thd);
+
+  /*
+    Do not create subquery cache if the subquery was eliminated.
+    The optimizer may eliminate subquery items (see
+    eliminate_subselect_processor). However it does not update
+    all query's data structures, so the eliminated item may be
+    still reachable.
+  */
+  if (eliminated)
+    DBUG_RETURN(this);
 
   if (expr_cache)
     DBUG_RETURN(expr_cache);

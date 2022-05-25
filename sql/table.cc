@@ -45,21 +45,11 @@
 #include "ha_sequence.h"
 #include "sql_show.h"
 #include "opt_trace.h"
+#include "sql_db.h"              // get_default_db_collation
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
 #define MYSQL57_GCOL_HEADER_SIZE 4
-
-class Table_arena: public Query_arena
-{
-public:
-  Table_arena(MEM_ROOT *mem_root, enum enum_state state_arg) :
-          Query_arena(mem_root, state_arg){}
-  virtual Type type() const
-  {
-    return TABLE_ARENA;
-  }
-};
 
 bool TABLE::init_expr_arena(MEM_ROOT *mem_root)
 {
@@ -67,8 +57,8 @@ bool TABLE::init_expr_arena(MEM_ROOT *mem_root)
     We need to use CONVENTIONAL_EXECUTION here to ensure that
     any new items created by fix_fields() are not reverted.
   */
-  expr_arena= new (alloc_root(mem_root, sizeof(Table_arena)))
-                Table_arena(mem_root, Query_arena::STMT_CONVENTIONAL_EXECUTION);
+  expr_arena= new (alloc_root(mem_root, sizeof(Query_arena)))
+                Query_arena(mem_root, Query_arena::STMT_CONVENTIONAL_EXECUTION);
   return expr_arena == NULL;
 }
 
@@ -3514,12 +3504,28 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   else
     thd->set_n_backup_active_arena(arena, &backup);
 
+  /*
+    THD::reset_db() does not set THD::db_charset,
+    so it keeps pointing to the character set and collation
+    of the current database, rather than the database of the
+    new initialized table. After reset_db() the result of
+    get_default_db_collation() can be wrong. The latter is
+    used inside charset_collation_context_create_table_in_db().
+    Let's initialize ctx before calling reset_db().
+    This makes sure the db.opt file to be loaded properly when needed.
+  */
+  Charset_collation_context
+    ctx(thd->charset_collation_context_create_table_in_db(db.str));
+
   thd->reset_db(&db);
   lex_start(thd);
 
   if (unlikely((error= parse_sql(thd, & parser_state, NULL) ||
                 sql_unusable_for_discovery(thd, hton, sql_copy))))
     goto ret;
+
+  if (thd->lex->create_info.resolve_to_charset_collation_context(thd, ctx))
+    DBUG_RETURN(true);
 
   thd->lex->create_info.db_type= hton;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -3659,8 +3665,7 @@ class Vcol_expr_context
   bool inited;
   THD *thd;
   TABLE *table;
-  LEX *old_lex;
-  LEX lex;
+  Query_arena backup_arena;
   table_map old_map;
   Security_context *save_security_ctx;
   sql_mode_t save_sql_mode;
@@ -3670,7 +3675,6 @@ public:
     inited(false),
     thd(_thd),
     table(_table),
-    old_lex(thd->lex),
     old_map(table->map),
     save_security_ctx(thd->security_ctx),
     save_sql_mode(thd->variables.sql_mode) {}
@@ -3682,18 +3686,6 @@ public:
 
 bool Vcol_expr_context::init()
 {
-  /*
-      As this is vcol expression we must narrow down name resolution to
-      single table.
-  */
-  if (init_lex_with_single_table(thd, table, &lex))
-  {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
-    table->map= old_map;
-    return true;
-  }
-
-  lex.sql_command= old_lex->sql_command;
   thd->variables.sql_mode= 0;
 
   TABLE_LIST const *tl= table->pos_in_table_list;
@@ -3701,6 +3693,8 @@ bool Vcol_expr_context::init()
 
   if (table->pos_in_table_list->security_ctx)
     thd->security_ctx= tl->security_ctx;
+
+  thd->set_n_backup_active_arena(table->expr_arena, &backup_arena);
 
   inited= true;
   return false;
@@ -3710,9 +3704,9 @@ Vcol_expr_context::~Vcol_expr_context()
 {
   if (!inited)
     return;
-  end_lex_with_single_table(thd, table, old_lex);
   table->map= old_map;
   thd->security_ctx= save_security_ctx;
+  thd->restore_active_arena(table->expr_arena, &backup_arena);
   thd->variables.sql_mode= save_sql_mode;
 }
 
@@ -4111,6 +4105,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   outparam->s= share;
   outparam->db_stat= db_stat;
   outparam->write_row_record= NULL;
+  outparam->status= STATUS_NO_RECORD;
 
   if (share->incompatible_version &&
       !(ha_open_flags & (HA_OPEN_FOR_ALTER | HA_OPEN_FOR_REPAIR |
@@ -6960,7 +6955,7 @@ Item *Field_iterator_view::create_item(THD *thd)
 Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
                         LEX_CSTRING *name)
 {
-  bool save_wrapper= thd->lex->first_select_lex()->no_wrap_view_item;
+  bool save_wrapper= thd->lex->current_select->no_wrap_view_item;
   Item *field= *field_ref;
   DBUG_ENTER("create_view_field");
 

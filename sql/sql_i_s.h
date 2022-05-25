@@ -158,10 +158,10 @@ public:
 };
 
 
-class Yesno: public Varchar
+class Yes_or_empty: public Varchar
 {
 public:
-  Yesno(): Varchar(3) { }
+  Yes_or_empty(): Varchar(3) { }
 };
 
 

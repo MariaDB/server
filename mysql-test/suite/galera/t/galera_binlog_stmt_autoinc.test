@@ -3,7 +3,12 @@
 ##
 
 --source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/force_restart.inc
+
+--connection node_1
+SET GLOBAL auto_increment_offset=1;
+--connection node_2
+SET GLOBAL auto_increment_offset=2;
 
 --let $node_1=node_1
 --let $node_2=node_2
@@ -30,23 +35,24 @@ call mtr.add_suppression("Unsafe statement written to the binary log");
 --enable_query_log
 
 CREATE TABLE t1 (
-     i int(11) NOT NULL AUTO_INCREMENT,
-     c char(32) DEFAULT 'dummy_text',
-     PRIMARY KEY (i)
+     i int(11) NOT NULL primary key AUTO_INCREMENT,
+     c char(32) DEFAULT 'dummy_text'
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
+show variables like 'auto_increment%';
 insert into t1(i) values(null);
 
-select * from t1;
+select * from t1 order by i;
 
 insert into t1(i) values(null), (null), (null);
 
-select * from t1;
+select * from t1 order by i;
 
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 4 FROM t1;
 --source include/wait_condition.inc
-select * from t1;
+show variables like 'auto_increment%';
+select * from t1 order by i;
 
 SET GLOBAL wsrep_forced_binlog_format='none';
 
@@ -80,36 +86,31 @@ SET SESSION auto_increment_increment = 3;
 SET SESSION auto_increment_offset = 1;
 
 CREATE TABLE t1 (
-     i int(11) NOT NULL AUTO_INCREMENT,
-     c char(32) DEFAULT 'dummy_text',
-     PRIMARY KEY (i)
+     i int(11) NOT NULL primary key AUTO_INCREMENT,
+     c char(32) DEFAULT 'dummy_text'
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
+show variables like 'auto_increment%';
 insert into t1(i) values(null);
 
-select * from t1;
+select * from t1 order by i;
 
 insert into t1(i) values(null), (null), (null);
 
-select * from t1;
+select * from t1 order by i;
 
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 4 FROM t1;
 --source include/wait_condition.inc
+show variables like 'auto_increment%';
 
-select * from t1;
+select * from t1 order by i;
 
 --connection node_1
-
-##
-## Verify the return to automatic calculation of the step
-## and offset of the auto-increment:
-##
-
 SET GLOBAL wsrep_auto_increment_control='ON';
-
 SET SESSION binlog_format='ROW';
-
+--source include/auto_increment_offset_restore.inc
+--connection node_1
 show variables like 'binlog_format';
 show variables like '%auto_increment%';
 
@@ -127,7 +128,8 @@ show variables like '%auto_increment%';
 ##
 
 SET GLOBAL wsrep_auto_increment_control='ON';
-
+--source include/auto_increment_offset_restore.inc
+--connection node_1
 drop table t1;
 
 ##
@@ -142,24 +144,25 @@ SET GLOBAL wsrep_forced_binlog_format='ROW';
 SET GLOBAL wsrep_forced_binlog_format='ROW';
 
 CREATE TABLE t1 (
-     i int(11) NOT NULL AUTO_INCREMENT,
-     c char(32) DEFAULT 'dummy_text',
-     PRIMARY KEY (i)
+     i int(11) NOT NULL primary key AUTO_INCREMENT,
+     c char(32) DEFAULT 'dummy_text'
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
+show variables like 'auto_increment%';
 insert into t1(i) values(null);
 
-select * from t1;
+select * from t1 order by i;
 
 insert into t1(i) values(null), (null), (null);
 
-select * from t1;
+select * from t1 order by i;
 
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 4 FROM t1;
 --source include/wait_condition.inc
 
-select * from t1;
+show variables like 'auto_increment%';
+select * from t1 order by i;
 
 SET GLOBAL wsrep_forced_binlog_format='none';
 
@@ -189,24 +192,25 @@ SET SESSION auto_increment_increment = 3;
 SET SESSION auto_increment_offset = 1;
 
 CREATE TABLE t1 (
-     i int(11) NOT NULL AUTO_INCREMENT,
-     c char(32) DEFAULT 'dummy_text',
-     PRIMARY KEY (i)
+     i int(11) NOT NULL primary key AUTO_INCREMENT,
+     c char(32) DEFAULT 'dummy_text'
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
+show variables like 'auto_increment%';
 insert into t1(i) values(null);
 
-select * from t1;
+select * from t1 order by i;
 
 insert into t1(i) values(null), (null), (null);
 
-select * from t1;
+select * from t1 order by i;
 
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 4 FROM t1;
 --source include/wait_condition.inc
+show variables like 'auto_increment%';
 
-select * from t1;
+select * from t1 order by i;
 
 --connection node_1
 
@@ -216,6 +220,7 @@ select * from t1;
 ##
 
 SET GLOBAL wsrep_auto_increment_control='ON';
+--source include/auto_increment_offset_restore.inc
 
 show variables like 'binlog_format';
 show variables like '%auto_increment%';
