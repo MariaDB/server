@@ -87,7 +87,60 @@ IF(WITH_INNOBASE_STORAGE_ENGINE)
   ADD_DEPENDENCIES(innochecksum GenError)
 ENDIF()
 
-set(SQL_PARSER_SOURCES frm_parser.cc ${CMAKE_SOURCE_DIR}/sql/sql_class.cc)
+set(SQL_PARSER_SOURCES frm_parser.cc 
+        ${CMAKE_SOURCE_DIR}/sql/sql_class.cc
+        ${CMAKE_SOURCE_DIR}/sql/sql_show.cc
+        ${CMAKE_SOURCE_DIR}/sql/sql_plugin.cc
+        ${CMAKE_SOURCE_DIR}/sql/sql_string.cc
+        ${CMAKE_SOURCE_DIR}/sql/net_serv.cc
+        ${CMAKE_SOURCE_DIR}/sql/sql_state.c
+ ########${CMAKE_SOURCE_DIR}/sql/mysqld.cc
+        ${CMAKE_SOURCE_DIR}/sql/sql_cache.cc
+ ########${CMAKE_SOURCE_DIR}/sql/mdl.cc
+        ${CMAKE_SOURCE_DIR}/sql/handler.cc
+        ${CMAKE_SOURCE_DIR}/sql/log.cc
+        ${CMAKE_SOURCE_DIR}/sql/sql_error.cc
+        ${CMAKE_SOURCE_DIR}/sql/sql_type.cc
+        ${CMAKE_SOURCE_DIR}/sql/table.cc
+        ${CMAKE_SOURCE_DIR}/sql/field.cc
+        ${CMAKE_SOURCE_DIR}/sql/rpl_utility_server.cc
+        ${CMAKE_SOURCE_DIR}/sql/opt_trace.cc
+        ${CMAKE_SOURCE_DIR}/sql/sql_profile.cc
+  #######${CMAKE_SOURCE_DIR}/libmysqld/lib_sql.cc #!!!!!!!!!!!!!!!!!!!!!!
+        ${CMAKE_SOURCE_DIR}/sql/protocol.cc
+        ${CMAKE_SOURCE_DIR}/sql/thr_malloc.cc
+        ${CMAKE_SOURCE_DIR}/sql/session_tracker.cc
+        ${CMAKE_SOURCE_DIR}/sql/backup.cc
+        ${CMAKE_SOURCE_DIR}/sql/xa.cc
+        ${CMAKE_SOURCE_DIR}/sql/my_apc.cc
+        ${CMAKE_SOURCE_DIR}/sql/item.cc
+        ${CMAKE_SOURCE_DIR}/sql/item_func.cc
+        ${CMAKE_SOURCE_DIR}/sql/item_subselect.cc
+        #${CMAKE_SOURCE_DIR}/sql/sql_lex.cc
+        ${CMAKE_SOURCE_DIR}/sql/sql_signal.cc
+        ${CMAKE_SOURCE_DIR}/sql/sql_base.cc
+        ${CMAKE_SOURCE_DIR}/sql/lock.cc
+        ${CMAKE_SOURCE_DIR}/sql/temporary_tables.cc
+        ${CMAKE_SOURCE_DIR}/sql/repl_failsafe.cc
+        ${CMAKE_SOURCE_DIR}/sql/sql_union.cc
+        ${CMAKE_SOURCE_DIR}/sql/sql_acl.cc
+        ${CMAKE_SOURCE_DIR}/sql/sql_handler.cc
+        ${CMAKE_SOURCE_DIR}/sql/rpl_record.cc
+        ${CMAKE_SOURCE_DIR}/sql/log_event_server.cc
+        ${CMAKE_SOURCE_DIR}/sql/rpl_rli.cc
+        ${CMAKE_SOURCE_DIR}/sql/rpl_filter.cc
+ ######${CMAKE_SOURCE_DIR}/sql/slave.cc
+        ${CMAKE_SOURCE_DIR}/sql/sql_audit.cc
+        ${CMAKE_SOURCE_DIR}/sql/sp_head.cc
+        ${CMAKE_SOURCE_DIR}/sql/sp_rcontext.cc
+        ${CMAKE_SOURCE_DIR}/sql/sp_cache.cc
+        ${CMAKE_SOURCE_DIR}/sql/transaction.cc
+        ${CMAKE_SOURCE_DIR}/sql/sql_select.cc
+        ${CMAKE_SOURCE_DIR}/sql/debug_sync.cc
+        ${CMAKE_SOURCE_DIR}/sql/sql_parse.cc
+ #######${CMAKE_SOURCE_DIR}/sql/sql_connect.cc
+        ${CMAKE_SOURCE_DIR}/sql/sql_list.cc
+        ${CMAKE_BINARY_DIR}/sql/yy_mariadb.hh)
 
 MYSQL_ADD_EXECUTABLE(frm_parser ${SQL_PARSER_SOURCES})
 target_compile_definitions(frm_parser PUBLIC -DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER)

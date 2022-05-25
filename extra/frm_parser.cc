@@ -5,6 +5,7 @@
 #define MYSQL_SERVER
 #include "my_global.h"
 #include "mysql_version.h"
+//#include "mysqld.h"
 #include "sql_class.h"
 
 
