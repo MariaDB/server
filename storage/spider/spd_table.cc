@@ -2218,6 +2218,7 @@ int spider_parse_connect_info(
             2147483647);
           SPIDER_PARAM_INT_WITH_MAX("aim", auto_increment_mode, 0, 3);
           SPIDER_PARAM_INT("alc", active_link_count, 1);
+          SPIDER_PARAM_DEPRECATED_WARNING("bfz");
           SPIDER_PARAM_INT("bfz", buffer_size, 0);
           SPIDER_PARAM_LONGLONG("bfr", bgs_first_read, 0);
           SPIDER_PARAM_INT("bmd", bgs_mode, 0);
@@ -2416,6 +2417,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_DEPRECATED_WARNING("use_handler");
           SPIDER_PARAM_LONG_LIST_WITH_MAX("use_handler", use_handlers, 0, 3);
           SPIDER_PARAM_INT_WITH_MAX("casual_read", casual_read, 0, 63);
+          SPIDER_PARAM_DEPRECATED_WARNING("buffer_size");
           SPIDER_PARAM_INT("buffer_size", buffer_size, 0);
           error_num = connect_string_parse.print_param_error();
           goto error;
