@@ -202,8 +202,6 @@ static my_bool	innobase_create_status_file;
 my_bool	innobase_stats_on_metadata;
 static my_bool	innodb_optimize_fulltext_only;
 
-static char*	innodb_version_str = (char*) INNODB_VERSION_STR;
-
 extern uint srv_fil_crypt_rotate_key_age;
 extern uint srv_n_fil_crypt_iops;
 
@@ -19433,10 +19431,6 @@ static MYSQL_SYSVAR_LONG(autoinc_lock_mode, innobase_autoinc_lock_mode,
   AUTOINC_OLD_STYLE_LOCKING,	/* Minimum value */
   AUTOINC_NO_LOCKING, 0);	/* Maximum value */
 
-static MYSQL_SYSVAR_STR(version, innodb_version_str,
-  PLUGIN_VAR_NOCMDOPT | PLUGIN_VAR_READONLY,
-  "InnoDB version", NULL, NULL, INNODB_VERSION_STR);
-
 #ifdef HAVE_URING
 # include <sys/utsname.h>
 static utsname uname_for_io_uring;
@@ -19827,7 +19821,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(prefix_index_cluster_optimization),
   MYSQL_SYSVAR(tmpdir),
   MYSQL_SYSVAR(autoinc_lock_mode),
-  MYSQL_SYSVAR(version),
   MYSQL_SYSVAR(use_native_aio),
 #ifdef HAVE_LIBNUMA
   MYSQL_SYSVAR(numa_interleave),
@@ -19907,10 +19900,10 @@ maria_declare_plugin(innobase)
   PLUGIN_LICENSE_GPL,
   innodb_init, /* Plugin Init */
   NULL, /* Plugin Deinit */
-  INNODB_VERSION_SHORT,
+  MYSQL_VERSION_MAJOR << 8 | MYSQL_VERSION_MINOR,
   innodb_status_variables_export,/* status variables             */
   innobase_system_variables, /* system variables */
-  INNODB_VERSION_STR,         /* string version */
+  PACKAGE_VERSION,
   MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 },
 i_s_innodb_trx,

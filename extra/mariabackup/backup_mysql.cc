@@ -62,16 +62,13 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 char *tool_name;
 char tool_args[2048];
 
-/* mysql flavor and version */
-mysql_flavor_t server_flavor = FLAVOR_UNKNOWN;
-unsigned long mysql_server_version = 0;
+ulong mysql_server_version;
 
 /* server capabilities */
 bool have_changed_page_bitmaps = false;
 bool have_backup_locks = false;
 bool have_lock_wait_timeout = false;
 bool have_galera_enabled = false;
-bool have_flush_engine_logs = false;
 bool have_multi_threaded_slave = false;
 bool have_gtid_slave = false;
 
@@ -297,48 +294,13 @@ read_mysql_one_value(MYSQL *mysql, const char *query)
 
 static
 bool
-check_server_version(unsigned long version_number,
-		     const char *version_string,
-		     const char *version_comment,
-		     const char *innodb_version)
+check_server_version(ulong version_number, const char *version_string)
 {
-	bool version_supported = false;
-	bool mysql51 = false;
+  if (strstr(version_string, "MariaDB") && version_number >= 100800)
+    return true;
 
-	mysql_server_version = version_number;
-
-	server_flavor = FLAVOR_UNKNOWN;
-	if (strstr(version_comment, "Percona") != NULL) {
-		server_flavor = FLAVOR_PERCONA_SERVER;
-	} else if (strstr(version_comment, "MariaDB") != NULL ||
-		   strstr(version_string, "MariaDB") != NULL) {
-		server_flavor = FLAVOR_MARIADB;
-	} else if (strstr(version_comment, "MySQL") != NULL) {
-		server_flavor = FLAVOR_MYSQL;
-	}
-
-	mysql51 = version_number > 50100 && version_number < 50500;
-	version_supported = version_supported
-		|| (mysql51 && innodb_version != NULL);
-	version_supported = version_supported
-		|| (version_number > 50500 && version_number < 50700);
-	version_supported = version_supported
-		|| ((version_number > 100000)
-		    && server_flavor == FLAVOR_MARIADB);
-
-	if (mysql51 && innodb_version == NULL) {
-		msg("Error: Built-in InnoDB in MySQL 5.1 is not "
-		    "supported in this release. You can either use "
-		    "Percona XtraBackup 2.0, or upgrade to InnoDB "
-		    "plugin.");
-	} else if (!version_supported) {
-		msg("Error: Unsupported server version: '%s'. Please "
-		    "report a bug at "
-		    "https://bugs.launchpad.net/percona-xtrabackup",
-		    version_string);
-	}
-
-	return(version_supported);
+  msg("Error: Unsupported server version: '%s'.", version_string);
+  return false;
 }
 
 /*********************************************************************//**
@@ -348,8 +310,6 @@ bool get_mysql_vars(MYSQL *connection)
 {
   char *gtid_mode_var= NULL;
   char *version_var= NULL;
-  char *version_comment_var= NULL;
-  char *innodb_version_var= NULL;
   char *have_backup_locks_var= NULL;
   char *log_bin_var= NULL;
   char *lock_wait_timeout_var= NULL;
@@ -369,7 +329,7 @@ bool get_mysql_vars(MYSQL *connection)
   char *page_zip_level_var= NULL;
   char *ignore_db_dirs= NULL;
   char *endptr;
-  unsigned long server_version= mysql_get_server_version(connection);
+  ulong server_version= mysql_get_server_version(connection);
 
   bool ret= true;
 
@@ -379,8 +339,6 @@ bool get_mysql_vars(MYSQL *connection)
       {"lock_wait_timeout", &lock_wait_timeout_var},
       {"gtid_mode", &gtid_mode_var},
       {"version", &version_var},
-      {"version_comment", &version_comment_var},
-      {"innodb_version", &innodb_version_var},
       {"wsrep_on", &wsrep_on_var},
       {"slave_parallel_workers", &slave_parallel_workers_var},
       {"gtid_slave_pos", &gtid_slave_pos_var},
@@ -423,18 +381,13 @@ bool get_mysql_vars(MYSQL *connection)
     have_galera_enabled= true;
   }
 
-  /* Check server version compatibility and detect server flavor */
-
-  if (!(ret= check_server_version(server_version, version_var,
-                                  version_comment_var, innodb_version_var)))
+  /* Check server version compatibility */
+  if (!(ret= check_server_version(server_version, version_var)))
   {
     goto out;
   }
 
-  if (server_version > 50500)
-  {
-    have_flush_engine_logs= true;
-  }
+  mysql_server_version= server_version;
 
   if (slave_parallel_workers_var != NULL &&
       atoi(slave_parallel_workers_var) > 0)
@@ -564,16 +517,6 @@ detect_mysql_capabilities_for_backup()
 		ut_ad(innodb_changed_pages != NULL);
 
 		have_changed_page_bitmaps = (atoi(innodb_changed_pages) == 1);
-
-		/* INNODB_CHANGED_PAGES are listed in
-		INFORMATION_SCHEMA.PLUGINS in MariaDB, but
-		FLUSH NO_WRITE_TO_BINLOG CHANGED_PAGE_BITMAPS
-		is not supported for versions below 10.1.6
-		(see MDEV-7472) */
-		if (server_flavor == FLAVOR_MARIADB &&
-		    mysql_server_version < 100106) {
-			have_changed_page_bitmaps = false;
-		}
 
 		free_mysql_variables(vars);
 	}
@@ -1381,21 +1324,8 @@ bool
 write_slave_info(MYSQL *connection)
 {
   String sql, comment;
-  bool show_all_slaves_status= false;
 
-  switch (server_flavor)
-  {
-  case FLAVOR_MARIADB:
-    show_all_slaves_status= mysql_server_version >= 100000;
-    break;
-  case FLAVOR_UNKNOWN:
-  case FLAVOR_MYSQL:
-  case FLAVOR_PERCONA_SERVER:
-    break;
-  }
-
-  if (Show_slave_status::get_slave_info(connection, show_all_slaves_status,
-                                        &sql, &comment))
+  if (Show_slave_status::get_slave_info(connection, true, &sql, &comment))
     return false; // Error
 
   if (!sql.length())

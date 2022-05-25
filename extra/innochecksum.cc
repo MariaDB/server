@@ -1209,16 +1209,16 @@ static struct my_option innochecksum_options[] = {
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
-/* Print out the Innodb version and machine information. */
-static void print_version(void)
+/** Print out the version and build information. */
+static void print_version()
 {
 #ifdef DBUG_OFF
 	printf("%s Ver %s, for %s (%s)\n",
-		my_progname, INNODB_VERSION_STR,
+		my_progname, PACKAGE_VERSION,
 		SYSTEM_TYPE, MACHINE_TYPE);
 #else
 	printf("%s-debug Ver %s, for %s (%s)\n",
-		my_progname, INNODB_VERSION_STR,
+		my_progname, PACKAGE_VERSION,
 		SYSTEM_TYPE, MACHINE_TYPE);
 #endif /* DBUG_OFF */
 }

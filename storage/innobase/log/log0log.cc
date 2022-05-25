@@ -261,10 +261,7 @@ void log_t::header_write(byte *buf, lsn_t lsn, bool encrypted)
                   log_sys.FORMAT_10_8);
   mach_write_to_8(my_assume_aligned<8>(buf + LOG_HEADER_START_LSN), lsn);
   static constexpr const char LOG_HEADER_CREATOR_CURRENT[]=
-    "MariaDB "
-    IB_TO_STR(MYSQL_VERSION_MAJOR) "."
-    IB_TO_STR(MYSQL_VERSION_MINOR) "."
-    IB_TO_STR(MYSQL_VERSION_PATCH);
+    "MariaDB " PACKAGE_VERSION;
 
   strcpy(reinterpret_cast<char*>(buf) + LOG_HEADER_CREATOR,
          LOG_HEADER_CREATOR_CURRENT);

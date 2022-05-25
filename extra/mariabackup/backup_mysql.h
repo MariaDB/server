@@ -3,18 +3,14 @@
 
 #include <mysql.h>
 
-/* mysql flavor and version */
-enum mysql_flavor_t { FLAVOR_UNKNOWN, FLAVOR_MYSQL,
-		      FLAVOR_PERCONA_SERVER, FLAVOR_MARIADB };
-extern mysql_flavor_t server_flavor;
-extern unsigned long mysql_server_version;
+/* MariaDB version */
+extern ulong mysql_server_version;
 
 /* server capabilities */
 extern bool have_changed_page_bitmaps;
 extern bool have_backup_locks;
 extern bool have_lock_wait_timeout;
 extern bool have_galera_enabled;
-extern bool have_flush_engine_logs;
 extern bool have_multi_threaded_slave;
 extern bool have_gtid_slave;
 

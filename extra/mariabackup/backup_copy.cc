@@ -1492,7 +1492,7 @@ bool backup_start(CorruptedPages &corrupted_pages)
 		}
 	}
 
-	if (have_flush_engine_logs && !opt_no_lock) {
+	if (!opt_no_lock) {
 		msg("Executing FLUSH NO_WRITE_TO_BINLOG ENGINE LOGS...");
 		xb_mysql_query(mysql_connection,
 			"FLUSH NO_WRITE_TO_BINLOG ENGINE LOGS", false);
