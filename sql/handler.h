@@ -3526,7 +3526,6 @@ public:
   /** to be actually called to get 'check()' functionality*/
   int ha_check(THD *thd, HA_CHECK_OPT *check_opt);
   int ha_repair(THD* thd, HA_CHECK_OPT* check_opt);
-  virtual void open_read_view(){}
   void ha_start_bulk_insert(ha_rows rows, uint flags= 0)
   {
     DBUG_ENTER("handler::ha_start_bulk_insert");
