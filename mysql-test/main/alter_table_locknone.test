@@ -1,5 +1,6 @@
 #
 # Test of ALTER ONLINE TABLE syntax
+# (same as LOCK=NONE)
 #
 
 --source include/have_innodb.inc
