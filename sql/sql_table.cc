@@ -9903,10 +9903,10 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   table_list->required_type= TABLE_TYPE_NORMAL;
 
   if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_SHARED
-      || alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE
+      || alter_info->requested_lock > Alter_info::ALTER_TABLE_LOCK_NONE
       || thd->locked_tables_mode == LTM_LOCK_TABLES
       || thd->lex->sql_command == SQLCOM_OPTIMIZE
-      || alter_info->algorithm(thd) == Alter_info::ALTER_TABLE_ALGORITHM_NOCOPY)
+      || alter_info->algorithm(thd) > Alter_info::ALTER_TABLE_ALGORITHM_COPY)
     online= false;
 
   if (online)
