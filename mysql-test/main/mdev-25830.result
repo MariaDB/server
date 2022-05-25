@@ -1,68 +1,55 @@
-SET SESSION STORAGE_ENGINE='InnoDB';
+SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 set @innodb_stats_persistent_save= @@innodb_stats_persistent;
 set @innodb_stats_persistent_sample_pages_save=
 @@innodb_stats_persistent_sample_pages;
 set global innodb_stats_persistent= 1;
 set global innodb_stats_persistent_sample_pages=100;
+set optimizer_use_condition_selectivity=1;
+analyze SELECT sysapproval_approver0.`sys_id`
+FROM   ((sysapproval_approver sysapproval_approver0
+INNER JOIN task task1
+ON sysapproval_approver0.`sysapproval` = task1.`sys_id`
+                    AND (( task1.`sys_domain_path` = '/'
+                            OR task1.`sys_domain_path` LIKE '!!!/!!#/!!$/%'
+                            OR task1.`sys_domain_path` LIKE '!!!/!!!/%' )))
+INNER JOIN task task2
+ON task1.`parent` = task2.`sys_id`
+                   AND (( task2.`sys_domain_path` = '/'
+                           OR task2.`sys_domain_path` LIKE '!!!/!!#/!!$/%'
+                           OR task2.`sys_domain_path` LIKE '!!!/!!!/%' )))
+WHERE  task2.`sys_id` LIKE '8e7792a7dbfffb00fff8a345ca961934%'
+       AND ( sysapproval_approver0.`sys_domain_path` = '/'
+              OR sysapproval_approver0.`sys_domain_path` LIKE '!!!/!!#/!!$/%'
+              OR sysapproval_approver0.`sys_domain_path` LIKE '!!!/!!!/%' )
+ORDER  BY sysapproval_approver0.`order`
+LIMIT  0, 50 ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	task2	range	PRIMARY,sys_class_name_2,sys_domain_path	PRIMARY	96	NULL	1	0.00	100.00	100.00	Using where; Using temporary; Using filesort
+1	SIMPLE	task1	ref	PRIMARY,task_parent,sys_class_name_2,sys_domain_path	task_parent	99	mdev25830.task2.sys_id	1	NULL	100.00	NULL	Using index condition; Using where
+1	SIMPLE	sysapproval_approver0	ref	sysapproval_approver_ref5,sys_domain_path,sysapproval_approver_CHG1975376	sysapproval_approver_ref5	99	mdev25830.task1.sys_id	1	NULL	100.00	NULL	Using index condition; Using where
 set optimizer_use_condition_selectivity=4;
-explain format= json SELECT sysapproval_approver0.`sys_id` FROM ((sysapproval_approver sysapproval_approver0 INNER JOIN task task1 ON sysapproval_approver0.`sysapproval` = task1.`sys_id` AND ((task1.`sys_domain_path` = '/' OR task1.`sys_domain_path` LIKE '!!!/!!#/!!$/%' OR task1.`sys_domain_path` LIKE '!!!/!!!/%'))) INNER JOIN task task2 ON task1.`parent` = task2.`sys_id` AND ((task2.`sys_domain_path` = '/' OR task2.`sys_domain_path` LIKE '!!!/!!#/!!$/%' OR task2.`sys_domain_path` LIKE '!!!/!!!/%'))) WHERE task2.`sys_id` LIKE '8e7792a7dbfffb00fff8a345ca961934%' AND (sysapproval_approver0.`sys_domain_path` = '/' OR sysapproval_approver0.`sys_domain_path` LIKE '!!!/!!#/!!$/%' OR sysapproval_approver0.`sys_domain_path` LIKE '!!!/!!!/%') ORDER BY sysapproval_approver0.`order` LIMIT 0, 50;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "filesort": {
-      "sort_key": "sysapproval_approver0.`order`",
-      "temporary_table": {
-        "table": {
-          "table_name": "task2",
-          "access_type": "range",
-          "possible_keys": ["PRIMARY", "sys_class_name_2", "sys_domain_path"],
-          "key": "PRIMARY",
-          "key_length": "96",
-          "used_key_parts": ["sys_id"],
-          "rows": 1,
-          "filtered": 98,
-          "attached_condition": "task2.sys_id like '8e7792a7dbfffb00fff8a345ca961934%' and (task2.sys_domain_path = '/' or task2.sys_domain_path like '!!!/!!#/!!$/%' or task2.sys_domain_path like '!!!/!!!/%')"
-        },
-        "table": {
-          "table_name": "task1",
-          "access_type": "ref",
-          "possible_keys": [
-            "PRIMARY",
-            "task_parent",
-            "sys_class_name_2",
-            "sys_domain_path"
-          ],
-          "key": "task_parent",
-          "key_length": "99",
-          "used_key_parts": ["parent"],
-          "ref": ["mdev25830.task2.sys_id"],
-          "rows": 1,
-          "filtered": 100,
-          "index_condition": "task1.parent = task2.sys_id",
-          "attached_condition": "task1.sys_domain_path = '/' or task1.sys_domain_path like '!!!/!!#/!!$/%' or task1.sys_domain_path like '!!!/!!!/%'"
-        },
-        "table": {
-          "table_name": "sysapproval_approver0",
-          "access_type": "ref",
-          "possible_keys": [
-            "sysapproval_approver_ref5",
-            "sys_domain_path",
-            "sysapproval_approver_CHG1975376"
-          ],
-          "key": "sysapproval_approver_ref5",
-          "key_length": "99",
-          "used_key_parts": ["sysapproval"],
-          "ref": ["mdev25830.task1.sys_id"],
-          "rows": 1,
-          "filtered": 100,
-          "index_condition": "sysapproval_approver0.sysapproval = task1.sys_id",
-          "attached_condition": "sysapproval_approver0.sys_domain_path = '/' or sysapproval_approver0.sys_domain_path like '!!!/!!#/!!$/%' or sysapproval_approver0.sys_domain_path like '!!!/!!!/%'"
-        }
-      }
-    }
-  }
-}
+analyze SELECT sysapproval_approver0.`sys_id`
+FROM   ((sysapproval_approver sysapproval_approver0
+INNER JOIN task task1
+ON sysapproval_approver0.`sysapproval` = task1.`sys_id`
+                    AND (( task1.`sys_domain_path` = '/'
+                            OR task1.`sys_domain_path` LIKE '!!!/!!#/!!$/%'
+                            OR task1.`sys_domain_path` LIKE '!!!/!!!/%' )))
+INNER JOIN task task2
+ON task1.`parent` = task2.`sys_id`
+                   AND (( task2.`sys_domain_path` = '/'
+                           OR task2.`sys_domain_path` LIKE '!!!/!!#/!!$/%'
+                           OR task2.`sys_domain_path` LIKE '!!!/!!!/%' )))
+WHERE  task2.`sys_id` LIKE '8e7792a7dbfffb00fff8a345ca961934%'
+       AND ( sysapproval_approver0.`sys_domain_path` = '/'
+              OR sysapproval_approver0.`sys_domain_path` LIKE '!!!/!!#/!!$/%'
+              OR sysapproval_approver0.`sys_domain_path` LIKE '!!!/!!!/%' )
+ORDER  BY sysapproval_approver0.`order`
+LIMIT  0, 50 ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	task2	range	PRIMARY,sys_class_name_2,sys_domain_path	PRIMARY	96	NULL	1	0.00	98.00	100.00	Using where; Using temporary; Using filesort
+1	SIMPLE	task1	ref	PRIMARY,task_parent,sys_class_name_2,sys_domain_path	task_parent	99	mdev25830.task2.sys_id	1	NULL	100.00	NULL	Using index condition; Using where
+1	SIMPLE	sysapproval_approver0	ref	sysapproval_approver_ref5,sys_domain_path,sysapproval_approver_CHG1975376	sysapproval_approver_ref5	99	mdev25830.task1.sys_id	1	NULL	100.00	NULL	Using index condition; Using where
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
 @innodb_stats_persistent_sample_pages_save;

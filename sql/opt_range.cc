@@ -3244,8 +3244,25 @@ double records_in_column_ranges(PARAM *param, uint idx,
     total_rows += rows;
   }    
   return total_rows;
-} 
+}
 
+/*
+  Compare quick select ranges according to number of found rows
+  If there is equal amounts of rows, use the long key part.
+  The idea is that if we have keys (a),(a,b) and (a,b,c) and we have
+  a query like WHERE a=1 and b=1 and c=1,
+  it is better to use key (a,b,c) than (a) as it will ensure we don't also
+  use histograms for columns b and c
+*/
+
+static
+int cmp_quick_ranges(TABLE *table, uint *a, uint *b)
+{
+    int tmp= CMP_NUM(table->quick_rows[*a], table->quick_rows[*b]);
+    if (tmp)
+        return tmp;
+    return -CMP_NUM(table->quick_key_parts[*a], table->quick_key_parts[*b]);
+}
 
 /*
   Calculate the selectivity of the condition imposed on the rows of a table
@@ -3283,10 +3300,10 @@ double records_in_column_ranges(PARAM *param, uint idx,
 
 bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 {
-  uint keynr;
-  uint max_quick_key_parts= 0;
+  uint keynr, range_index, ranges;
   MY_BITMAP *used_fields= &table->cond_set;
-  double table_records= (double)table->stat_records(); 
+  double table_records= (double)table->stat_records();
+  uint optimal_key_order[MAX_KEY];
   DBUG_ENTER("calculate_cond_selectivity_for_table");
 
   table->cond_selectivity= 1.0;
@@ -3325,79 +3342,29 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   Json_writer_object trace_wrapper(thd);
   Json_writer_array selectivity_for_indexes(thd, "selectivity_for_indexes");
 
-  // to store extended keys
-  MY_BITMAP extended_key_columns;
-
-  // if extended keys are enabled, retrieve the primary key info
-  KEY *pk_info = NULL;
-  if ((table->s->use_ext_keys) && // if extended keys enabled
-      (table->s->primary_key != MAX_KEY)) // if primary key is defined
-  {
-    pk_info = table->key_info + table->s->primary_key;
-
-    // also, allocate space for extended key columns
-    my_bitmap_map* extended_key_buf;
-    if (!(extended_key_buf= (my_bitmap_map*)thd->alloc(table->s->column_bitmap_size)))
-      DBUG_RETURN(TRUE);
-    my_bitmap_init(&extended_key_columns, extended_key_buf, table->s->fields, FALSE);
-  }
-
-  for (keynr= 0;  keynr < table->s->keys; keynr++)
-  {
-    if (table->quick_keys.is_set(keynr))
-      set_if_bigger(max_quick_key_parts, table->quick_key_parts[keynr]);
-  }
-
-  /* 
-    Walk through all indexes, indexes where range access uses more keyparts 
-    go first.
+  /*
+    Walk through all quick ranges in the order of least found rows.
   */
-  for (uint quick_key_parts= max_quick_key_parts;
-       quick_key_parts; quick_key_parts--)
+  for (ranges= keynr= 0 ; keynr < table->s->keys; keynr++)
+    if (table->quick_keys.is_set(keynr))
+        optimal_key_order[ranges++]= keynr;
+
+
+  my_qsort2(optimal_key_order, ranges,
+            sizeof(optimal_key_order[0]),
+            (qsort2_cmp) cmp_quick_ranges, table);
+
+  for (range_index= 0 ; range_index < ranges ; range_index++)
   {
-    for (keynr= 0;  keynr < table->s->keys; keynr++)
+    uint keynr= optimal_key_order[range_index];
     {
-      if (table->quick_keys.is_set(keynr) &&
-          table->quick_key_parts[keynr] == quick_key_parts)
       {
         uint i;
+        uint used_key_parts= table->quick_key_parts[keynr];
         double quick_cond_selectivity= table->quick_rows[keynr] / 
 	                               table_records;
         KEY *key_info= table->key_info + keynr;
         KEY_PART_INFO* key_part= key_info->key_part;
-
-        /*
-          If we use the extended keys, some of the range conditions
-          on primary keys will get shadowed and will not be considered and
-          can cause performance degradations due to selecting less performing
-          plans. Therefore, the following code is changed to use only user defined
-          key parts (without primary key extensions)
-         */
-        uint keynr_quick_key_parts= table->quick_key_parts[keynr];
-
-        /*
-          If the current key part is from an extended key, then we need to skip
-          it.
-        */
-        if ((key_info->ext_key_parts > 0) && // current key_info has extended key parts
-            (pk_info != NULL))
-        {
-          // reset extended key column buffer
-          bitmap_clear_all(&extended_key_columns);
-
-          // extended key parts exist
-          uint k;
-          for(k=0; k < pk_info->usable_key_parts; ++k)
-          {
-            if (key_info->ext_key_part_map & (1 << k))
-            {
-              KEY_PART_INFO* pk_key_part= pk_info->key_part + k;
-              // mark column as used.
-              bitmap_set_bit(&extended_key_columns, pk_key_part->fieldnr-1);
-            }
-          }
-        }
-
         /*
           Suppose, there are range conditions on two keys
             KEY1 (col1, col2)
@@ -3408,29 +3375,11 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
           First, find the longest key prefix that's made of columns whose
           selectivity wasn't already accounted for.
         */
-        uint effective_quick_key_parts = keynr_quick_key_parts;
-        for (i= 0; i < keynr_quick_key_parts; i++, key_part++)
+        for (i= 0; i < used_key_parts; i++, key_part++)
         {
-          ulong field_num = key_part->fieldnr;
-
-          /*
-            The current key_part is part of an extended key
-            we do not want to include it in the selectivity calculation
-            of the current key.
-           */
-          if ((key_info->ext_key_parts > 0) && // current key_info has extended key parts
-              (pk_info != NULL))
-          {
-            if (bitmap_is_set(&extended_key_columns, field_num-1)) {
-              --effective_quick_key_parts;
-              break;
-            }
-          }
-
-          if (bitmap_is_set(&handled_columns, field_num-1))
-	    break;
-
-          bitmap_set_bit(&handled_columns, field_num-1);
+          if (bitmap_is_set(&handled_columns, key_part->fieldnr-1))
+	    break; 
+          bitmap_set_bit(&handled_columns, key_part->fieldnr-1);
         }
         if (i)
         {
@@ -3445,7 +3394,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
           selectivity_for_index.add("index_name", key_info->name)
                                .add("selectivity_from_index",
                                     quick_cond_selectivity);
-          if (i != effective_quick_key_parts)
+          if (i != used_key_parts)
 	  {
             /*
               Range access got us estimate for #used_key_parts.
@@ -3475,12 +3424,11 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
             we do it later in this function, in the same way as for the
             fields not used in any indexes.
 	  */
-	  if ((i == 1) && // will be a single component only if effective_quick_key_parts == keynr_quick_key_parts
-              (effective_quick_key_parts == keynr_quick_key_parts))
+	  if (i == 1)
 	  {
             uint fieldnr= key_info->key_part[0].fieldnr;
             table->field[fieldnr-1]->cond_selectivity= quick_cond_selectivity;
-            if (i != keynr_quick_key_parts)
+            if (i != used_key_parts)
 	      table->field[fieldnr-1]->cond_selectivity*= selectivity_mult;
             bitmap_clear_bit(used_fields, fieldnr-1);
 	  }
@@ -3553,7 +3501,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     for (uint idx= 0; idx < param.keys; idx++)
     {
       SEL_ARG *key= tree->keys[idx];
-      if (key && !bitmap_is_set(&handled_columns, key->field->field_index))
+      if (key)
       {
         Json_writer_object selectivity_for_column(thd);
         selectivity_for_column.add("column_name", key->field->field_name);

@@ -6216,7 +6216,7 @@ EXPLAIN
         "key_length": "10",
         "used_key_parts": ["kp1", "kp2"],
         "rows": 836,
-        "filtered": 8.36,
+        "filtered": 76.434,
         "index_condition": "b.kp2 <= 10",
         "attached_condition": "b.kp2 <= 10 and b.col1 + 1 < 33333"
       },

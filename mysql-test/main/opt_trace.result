@@ -2093,7 +2093,18 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                     "selectivity_from_index": 0.021
                   }
                 ],
-                "selectivity_for_columns": [],
+                "selectivity_for_columns": [
+                  {
+                    "column_name": "a",
+                    "ranges": ["1 <= a <= 1"],
+                    "selectivity_from_histogram": 0.1797
+                  },
+                  {
+                    "column_name": "b",
+                    "ranges": ["2 <= b <= 2"],
+                    "selectivity_from_histogram": 0.0156
+                  }
+                ],
                 "cond_selectivity": 0.021
               }
             ]
@@ -3303,7 +3314,18 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                     "selectivity_from_index": 0.1
                   }
                 ],
-                "selectivity_for_columns": [],
+                "selectivity_for_columns": [
+                  {
+                    "column_name": "a",
+                    "ranges": ["5 <= a <= 5"],
+                    "selectivity_from_histogram": 0.1
+                  },
+                  {
+                    "column_name": "b",
+                    "ranges": ["1 <= b <= 1"],
+                    "selectivity_from_histogram": 0.1
+                  }
+                ],
                 "cond_selectivity": 0.1
               }
             ]
