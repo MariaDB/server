@@ -1,4 +1,4 @@
-/* Copyright (C) 2021, MariaDB Corporation.
+/* Copyright (C) 2021, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute itand /or modify
 it under the terms of the GNU General Public License as published by
@@ -137,8 +137,8 @@ private:
       io_uring_cqe *cqe;
       if (int ret= io_uring_wait_cqe(&aio->uring_, &cqe))
       {
-        if (ret == -EINTR) // this may occur during shutdown
-          break;
+        if (ret == -EINTR)
+          continue;
         my_printf_error(ER_UNKNOWN_ERROR,
                         "io_uring_wait_cqe() returned %d\n",
                         ME_ERROR_LOG | ME_FATAL, ret);
@@ -147,7 +147,7 @@ private:
 
       auto *iocb= static_cast<tpool::aiocb*>(io_uring_cqe_get_data(cqe));
       if (!iocb)
-        break;
+        break; // ~aio_uring() told us to terminate
 
       int res= cqe->res;
       if (res < 0)
