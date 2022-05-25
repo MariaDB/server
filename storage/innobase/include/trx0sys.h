@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -876,7 +876,7 @@ public:
   /**
     TRX_RSEG_HISTORY list length (number of committed transactions to purge)
   */
-  MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<uint32_t> rseg_history_len;
+  MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<size_t> rseg_history_len;
 
   /** List of all transactions. */
   thread_safe_trx_ilist_t trx_list;
