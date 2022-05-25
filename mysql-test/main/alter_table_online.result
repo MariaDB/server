@@ -1,10 +1,11 @@
+set default_storage_engine= innodb;
 connect  con2, localhost, root,,;
 connection default;
 #
 # Test insert
 #
 # Insert and add column
-create or replace table t1 (a int) engine=innodb;
+create or replace table t1 (a int);
 insert t1 values (5);
 connection con2;
 set debug_sync= 'now WAIT_FOR ended';
@@ -21,8 +22,30 @@ a	b
 123	NULL
 456	NULL
 789	NULL
+# long transaction and add column
+create or replace table t1 (a int);
+insert t1 values (5);
+connection con2;
+set debug_sync= 'now WAIT_FOR ended';
+connection default;
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+set session lock_wait_timeout=1;
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+connection con2;
+start transaction;
+insert into t1 values (123), (456), (789);
+set debug_sync= 'now SIGNAL end';
+connection default;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+select * from t1;
+a
+5
+set session lock_wait_timeout=default;
+connection con2;
+rollback;
+connection default;
 # Insert and add NOT NULL column without default value
-create or replace table t1 (a int) engine=innodb;
+create or replace table t1 (a int);
 insert t1 values (5);
 connection con2;
 set debug_sync= 'now WAIT_FOR ended';
@@ -44,7 +67,7 @@ a	b
 456	0
 789	0
 # Insert and add a column with a default value
-create or replace table t1 (a int) engine=innodb;
+create or replace table t1 (a int);
 insert t1 values (5);
 connection con2;
 set debug_sync= 'now WAIT_FOR ended';
@@ -65,7 +88,7 @@ a	b
 # Test update
 #
 # Update and add a column
-create or replace table t1 (a int primary key, b int) engine=innodb;
+create or replace table t1 (a int primary key, b int);
 insert t1 values (1, 22);
 insert t1 values (3, 44);
 connection con2;
@@ -82,11 +105,29 @@ select * from t1;
 a	b	c
 1	55	1
 3	44	1
+# Update and add a column in the middle
+create or replace table t1 (a int primary key, b int);
+insert t1 values (1, 22);
+insert t1 values (3, 44);
+connection con2;
+set debug_sync= 'now WAIT_FOR ended';
+connection default;
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+alter table t1 add c int default(1) after a,
+algorithm= copy, lock= none;
+connection con2;
+update t1 set b= 55 where a = 1;
+set debug_sync= 'now SIGNAL end';
+connection default;
+select * from t1;
+a	c	b
+1	1	55
+3	1	44
 #
 # Test primary key change
 #
 # Drop key, add key
-create or replace table t1 (a int primary key, b int) engine=innodb;
+create or replace table t1 (a int primary key, b int);
 insert t1 values (1, 22);
 insert t1 values (3, 44);
 connection con2;
@@ -104,7 +145,7 @@ a	b
 3	44
 1	55
 # Drop key, add key. Two updates
-create or replace table t1 (a int primary key, b int) engine=innodb;
+create or replace table t1 (a int primary key, b int);
 insert t1 values (1, 11);
 insert t1 values (2, 22);
 connection con2;
@@ -125,7 +166,7 @@ a	b
 #
 # Various tests, see below
 #
-create or replace table t1 (a int primary key, b int) engine=innodb;
+create or replace table t1 (a int primary key, b int);
 insert t1 values (1, 11);
 insert t1 values (2, 22);
 insert t1 values (3, 33);
@@ -193,6 +234,7 @@ a	b
 9	99
 #
 # MYISAM. Only Inserts can be tested.
+# (everything else is a table lock disallowing concurrent reads)
 #
 create or replace table t1 (a int) engine=myisam;
 insert t1 values (5);
@@ -212,7 +254,7 @@ a	b
 456	NULL
 789	NULL
 # Test incompatible changes
-create or replace table t1 (a int primary key, b int) engine=innodb;
+create or replace table t1 (a int primary key, b int);
 insert t1 values (1, 22);
 insert t1 values (3, 44);
 connection con2;
@@ -233,7 +275,7 @@ a	b
 # Test log read after EXCLUSIVE lock
 # Transaction is started before ALTER, and UPDATE is made.
 # Then more UPDATEs.
-create or replace table t1 (a int primary key, b int) engine=innodb;
+create or replace table t1 (a int primary key, b int);
 insert t1 values (1, 11);
 insert t1 values (2, 22);
 insert t1 values (3, 33);
@@ -265,7 +307,7 @@ a	b
 #
 # Test progress report.
 #
-create or replace table t1 (a int primary key, b int) engine=innodb;
+create or replace table t1 (a int primary key, b int);
 insert t1 values (1, 11);
 insert t1 values (2, 22);
 insert t1 values (3, 33);
@@ -364,7 +406,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=*SUBSTITUTED* DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select *, UNIX_TIMESTAMP(row_start), UNIX_TIMESTAMP(row_end) from t1 for system_time all;
 a	b	UNIX_TIMESTAMP(row_start)	UNIX_TIMESTAMP(row_end)
 1	55	1.000000	2147483647.999999
@@ -388,7 +430,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=*SUBSTITUTED* DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select *, UNIX_TIMESTAMP(row_start), UNIX_TIMESTAMP(row_end) from t1 for system_time all;
 a	b	UNIX_TIMESTAMP(row_start)	UNIX_TIMESTAMP(row_end)
 1	55	1.000000	3.000000
@@ -412,7 +454,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=*SUBSTITUTED* DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 select * from t1;
 a	b
 1	88
@@ -422,9 +464,9 @@ a	b
 #
 # Test ROLLBACK TO SAVEPOINT
 #
-create or replace table t1 (a int) engine=innodb;
+create or replace table t1 (a int);
 insert t1 values (1), (2);
-create or replace table t2 (a int) engine=innodb;
+create or replace table t2 (a int);
 insert t2 values (1), (2);
 connection con2;
 begin;
