@@ -7407,8 +7407,9 @@ int spider_db_init(
 
   if (my_gethwaddr((uchar *) addr))
   {
-    my_printf_error(ER_SPIDER_CANT_NUM, ER_SPIDER_CANT_STR1, MYF(0),
+    my_printf_error(ER_SPIDER_CANT_NUM, ER_SPIDER_CANT_STR1, MYF(ME_WARNING),
       "get hardware address with error ", errno);
+    bzero(addr,6);
   }
   spider_unique_id.str = spider_unique_id_buf;
   spider_unique_id.length = my_sprintf(spider_unique_id_buf,

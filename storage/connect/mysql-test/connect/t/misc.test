@@ -1,3 +1,4 @@
+--source have_libxml2.inc
 
 # Overlong table type
 --error ER_UNKNOWN_ERROR

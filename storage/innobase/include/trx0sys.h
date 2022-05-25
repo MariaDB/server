@@ -901,7 +901,7 @@ public:
   /**
     @return TRX_RSEG_HISTORY length (number of committed transactions to purge)
   */
-  uint32_t history_size();
+  size_t history_size();
 
 
   /**
@@ -909,13 +909,13 @@ public:
     @param threshold   number of committed transactions
     @return whether TRX_RSEG_HISTORY length exceeds the threshold
   */
-  bool history_exceeds(uint32_t threshold);
+  bool history_exceeds(size_t threshold);
 
 
   /**
     @return approximate history_size(), without latch protection
   */
-  TPOOL_SUPPRESS_TSAN uint32_t history_size_approx() const;
+  TPOOL_SUPPRESS_TSAN size_t history_size_approx() const;
 
 
   /**
