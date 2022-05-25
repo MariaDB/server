@@ -2036,6 +2036,10 @@ trx_undo_report_row_operation(
 	auto m = trx->mod_tables.emplace(index->table, trx->undo_no);
 	ut_ad(m.first->second.valid(trx->undo_no));
 
+	if (m.second && index->table->is_active_ddl()) {
+		trx->apply_online_log= true;
+	}
+
 	bool bulk = !rec;
 
 	if (!bulk) {
@@ -2237,8 +2241,8 @@ err_exit:
 static
 trx_undo_rec_t*
 trx_undo_get_undo_rec_low(
-	roll_ptr_t	roll_ptr,
-	mem_heap_t*	heap)
+	roll_ptr_t		roll_ptr,
+	mem_heap_t*		heap)
 {
 	trx_undo_rec_t*	undo_rec;
 	ulint		rseg_id;
@@ -2256,10 +2260,11 @@ trx_undo_get_undo_rec_low(
 
 	mtr.start();
 
-	buf_block_t* undo_page = trx_undo_page_get_s_latched(
+	buf_block_t *undo_page = trx_undo_page_get_s_latched(
 		page_id_t(rseg->space->id, page_no), &mtr);
 
-	undo_rec = trx_undo_rec_copy(undo_page->page.frame + offset, heap);
+	undo_rec = trx_undo_rec_copy(
+		undo_page->page.frame + offset, heap);
 
 	mtr.commit();
 
@@ -2305,41 +2310,47 @@ trx_undo_get_undo_rec(
 #define ATTRIB_USED_ONLY_IN_DEBUG	MY_ATTRIBUTE((unused))
 #endif /* UNIV_DEBUG */
 
-/*******************************************************************//**
-Build a previous version of a clustered index record. The caller must
-hold a latch on the index page of the clustered index record.
+/** Build a previous version of a clustered index record. The caller
+must hold a latch on the index page of the clustered index record.
+@param	index_rec	clustered index record in the index tree
+@param	index_mtr	mtr which contains the latch to index_rec page
+			and purge_view
+@param	rec		version of a clustered index record
+@param	index		clustered index
+@param	offsets		rec_get_offsets(rec, index)
+@param	heap		memory heap from which the memory needed is
+			allocated
+@param	old_vers	previous version or NULL if rec is the
+			first inserted version, or if history data
+			has been deleted (an error), or if the purge
+			could have removed the version
+			though it has not yet done so
+@param	v_heap		memory heap used to create vrow
+			dtuple if it is not yet created. This heap
+			diffs from "heap" above in that it could be
+			prebuilt->old_vers_heap for selection
+@param	v_row		virtual column info, if any
+@param	v_status	status determine if it is going into this
+			function by purge thread or not.
+			And if we read "after image" of undo log
+@param	undo_block	undo log block which was cached during
+			online dml apply or nullptr
 @retval true if previous version was built, or if it was an insert
 or the table has been rebuilt
 @retval false if the previous version is earlier than purge_view,
 or being purged, which means that it may have been removed */
 bool
 trx_undo_prev_version_build(
-/*========================*/
-	const rec_t*	index_rec ATTRIB_USED_ONLY_IN_DEBUG,
-				/*!< in: clustered index record in the
-				index tree */
-	mtr_t*		index_mtr ATTRIB_USED_ONLY_IN_DEBUG,
-				/*!< in: mtr which contains the latch to
-				index_rec page and purge_view */
-	const rec_t*	rec,	/*!< in: version of a clustered index record */
-	dict_index_t*	index,	/*!< in: clustered index */
-	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
-	mem_heap_t*	heap,	/*!< in: memory heap from which the memory
-				needed is allocated */
-	rec_t**		old_vers,/*!< out, own: previous version, or NULL if
-				rec is the first inserted version, or if
-				history data has been deleted (an error),
-				or if the purge COULD have removed the version
-				though it has not yet done so */
-	mem_heap_t*	v_heap,	/* !< in: memory heap used to create vrow
-				dtuple if it is not yet created. This heap
-				diffs from "heap" above in that it could be
-				prebuilt->old_vers_heap for selection */
-	dtuple_t**	vrow,	/*!< out: virtual column info, if any */
+	const rec_t	*index_rec ATTRIB_USED_ONLY_IN_DEBUG,
+	mtr_t		*index_mtr ATTRIB_USED_ONLY_IN_DEBUG,
+	const rec_t 	*rec,
+	dict_index_t	*index,
+	rec_offs	*offsets,
+	mem_heap_t	*heap,
+	rec_t		**old_vers,
+	mem_heap_t	*v_heap,
+	dtuple_t	**vrow,
 	ulint		v_status)
-				/*!< in: status determine if it is going
-				into this function by purge thread or not.
-				And if we read "after image" of undo log */
 {
 	trx_undo_rec_t*	undo_rec	= NULL;
 	dtuple_t*	entry;

@@ -14,9 +14,13 @@ SELECT * FROM t1;
 ALTER TABLE x MODIFY xx INT;
 
 SET SESSION max_session_mem_used= 8192;
+--error 0,ER_OPTION_PREVENTS_STATEMENT
 LOCK TABLE t1 WRITE;
 
+--disable_warnings
+--error 0,ER_OPTION_PREVENTS_STATEMENT
 ALTER TABLE t1 CHANGE COLUMN IF EXISTS b c INT;
+--enable_warnings
 
 SET SESSION max_session_mem_used = @max_session_mem_used_save;
 UNLOCK TABLES;

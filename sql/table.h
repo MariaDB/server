@@ -64,6 +64,7 @@ class derived_handler;
 class Pushdown_derived;
 struct Name_resolution_context;
 class Table_function_json_table;
+class Open_table_context;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -860,7 +861,6 @@ struct TABLE_SHARE
   /* This is set for temporary tables where CREATE was binary logged */
   bool table_creation_was_logged;
   bool non_determinstic_insert;
-  bool vcols_need_refixing;
   bool has_update_default_function;
   bool can_do_row_logging;              /* 1 if table supports RBR */
   bool long_unique_table;
@@ -915,6 +915,13 @@ struct TABLE_SHARE
   vers_kind_t versioned;
   period_info_t vers;
   period_info_t period;
+  /*
+      Protect multiple threads from repeating partition auto-create over
+      single share.
+
+      TODO: remove it when partitioning metadata will be in TABLE_SHARE.
+  */
+  bool          vers_skip_auto_create;
 
   bool init_period_from_extra2(period_info_t *period, const uchar *data,
                                const uchar *end);
@@ -1492,8 +1499,15 @@ public:
   */
   bool auto_increment_field_not_null;
   bool insert_or_update;             /* Can be used by the handler */
+  /*
+     NOTE: alias_name_used is only a hint! It works only in need_correct_ident()
+     condition. On other cases it is FALSE even if table_name is alias.
+
+     E.g. in update t1 as x set a = 1
+  */
   bool alias_name_used;              /* true if table_name is alias */
   bool get_fields_in_item_tree;      /* Signal to fix_field */
+  List<Virtual_column_info> vcol_refix_list;
 private:
   bool m_needs_reopen;
   bool created;    /* For tmp tables. TRUE <=> tmp table was actually created.*/
@@ -1689,7 +1703,8 @@ public:
                                       TABLE *tmp_table,
                                       TMP_TABLE_PARAM *tmp_table_param,
                                       bool with_cleanup);
-  int fix_vcol_exprs(THD *thd);
+  bool vcol_fix_expr(THD *thd);
+  bool vcol_cleanup_expr(THD *thd);
   Field *find_field_by_name(LEX_CSTRING *str) const;
   bool export_structure(THD *thd, class Row_definition_list *defs);
   bool is_splittable() { return spl_opt_info != NULL; }
@@ -1771,6 +1786,10 @@ public:
 
   ulonglong vers_start_id() const;
   ulonglong vers_end_id() const;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  bool vers_switch_partition(THD *thd, TABLE_LIST *table_list,
+                             Open_table_context *ot_ctx);
+#endif
 
   int update_generated_fields();
   int period_make_insert(Item *src, Field *dst);
@@ -2565,6 +2584,13 @@ struct TABLE_LIST
   bool          merged;
   bool          merged_for_insert;
   bool          sequence;  /* Part of NEXTVAL/CURVAL/LASTVAL */
+  /*
+      Protect single thread from repeating partition auto-create over
+      multiple share instances (as the share is closed on backoff action).
+
+      Skips auto-create only for one given query id.
+  */
+  query_id_t    vers_skip_create;
 
   /*
     Items created by create_view_field and collected to change them in case

@@ -283,8 +283,7 @@ row_fts_psort_info_init(
 		psort_info[j].psort_common = common_info;
 		psort_info[j].error = DB_SUCCESS;
 		psort_info[j].memory_used = 0;
-		mysql_mutex_init(fts_pll_tokenize_mutex_key,
-				 &psort_info[j].mutex, nullptr);
+		mysql_mutex_init(0, &psort_info[j].mutex, nullptr);
 	}
 
 	/* Initialize merge_info structures parallel merge and insert

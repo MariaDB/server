@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -192,6 +192,8 @@ enum enum_binlog_row_image {
 #define OLD_MODE_NO_PROGRESS_INFO			(1 << 1)
 #define OLD_MODE_ZERO_DATE_TIME_CAST                    (1 << 2)
 #define OLD_MODE_UTF8_IS_UTF8MB3      (1 << 3)
+#define OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN          (1 << 4)
+#define OLD_MODE_COMPAT_5_1_CHECKSUM    (1 << 5)
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];
@@ -1183,7 +1185,7 @@ public:
   /* We build without RTTI, so dynamic_cast can't be used. */
   enum Type
   {
-    STATEMENT, PREPARED_STATEMENT, STORED_PROCEDURE, TABLE_ARENA
+    STATEMENT, PREPARED_STATEMENT, STORED_PROCEDURE
   };
 
   Query_arena(MEM_ROOT *mem_root_arg, enum enum_state state_arg) :
@@ -1598,6 +1600,10 @@ enum enum_locked_tables_mode
   LTM_NONE= 0,
   LTM_LOCK_TABLES,
   LTM_PRELOCKED,
+  /*
+     TODO: remove LTM_PRELOCKED_UNDER_LOCK_TABLES: it is never used apart from
+     LTM_LOCK_TABLES.
+  */
   LTM_PRELOCKED_UNDER_LOCK_TABLES,
   LTM_always_last
 };
@@ -1780,7 +1786,7 @@ public:
     *this= *state;
   }
 
-  void reset_open_tables_state(THD *thd)
+  void reset_open_tables_state()
   {
     open_tables= 0;
     temporary_tables= 0;
@@ -2128,7 +2134,7 @@ public:
   bool restore_lock(THD *thd, TABLE_LIST *dst_table_list, TABLE *table,
                     MYSQL_LOCK *lock);
   void add_back_last_deleted_lock(TABLE_LIST *dst_table_list);
-  void mark_table_for_reopen(THD *thd, TABLE *table);
+  void mark_table_for_reopen(TABLE *table);
 };
 
 
@@ -2361,6 +2367,39 @@ struct wait_for_commit
   void reinit();
 };
 
+
+class Sp_caches
+{
+public:
+  sp_cache *sp_proc_cache;
+  sp_cache *sp_func_cache;
+  sp_cache *sp_package_spec_cache;
+  sp_cache *sp_package_body_cache;
+  Sp_caches()
+   :sp_proc_cache(NULL),
+    sp_func_cache(NULL),
+    sp_package_spec_cache(NULL),
+    sp_package_body_cache(NULL)
+  { }
+  ~Sp_caches()
+  {
+    // All caches must be freed by the caller explicitly
+    DBUG_ASSERT(sp_proc_cache == NULL);
+    DBUG_ASSERT(sp_func_cache == NULL);
+    DBUG_ASSERT(sp_package_spec_cache == NULL);
+    DBUG_ASSERT(sp_package_body_cache == NULL);
+  }
+  void sp_caches_swap(Sp_caches &rhs)
+  {
+    swap_variables(sp_cache*, sp_proc_cache, rhs.sp_proc_cache);
+    swap_variables(sp_cache*, sp_func_cache, rhs.sp_func_cache);
+    swap_variables(sp_cache*, sp_package_spec_cache, rhs.sp_package_spec_cache);
+    swap_variables(sp_cache*, sp_package_body_cache, rhs.sp_package_body_cache);
+  }
+  void sp_caches_clear();
+};
+
+
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
 
@@ -2556,7 +2595,8 @@ class THD: public THD_count, /* this must be first */
            */
            public Item_change_list,
            public MDL_context_owner,
-           public Open_tables_state
+           public Open_tables_state,
+           public Sp_caches
 {
 private:
   inline bool is_stmt_prepare() const
@@ -2911,6 +2951,14 @@ public:
   }
   int binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional);
   int binlog_remove_pending_rows_event(bool clear_maps, bool is_transactional);
+
+  bool binlog_need_stmt_format(bool is_transactional) const
+  {
+    return log_current_statement() &&
+           !binlog_get_pending_rows_event(is_transactional);
+  }
+
+  bool binlog_for_noop_dml(bool transactional_table);
 
   /**
     Determine the binlog format of the current statement.
@@ -3558,8 +3606,10 @@ public:
   /* set during loop of derived table processing */
   bool       derived_tables_processing;
   bool       tablespace_op;	/* This is TRUE in DISCARD/IMPORT TABLESPACE */
-  /* True if we have to log the current statement */
-  bool	     log_current_statement;
+  bool       log_current_statement() const
+  {
+    return variables.option_bits & OPTION_BINLOG_THIS_STMT;
+  }
   /**
     True if a slave error. Causes the slave to stop. Not the same
     as the statement execution error (is_error()), since
@@ -3590,10 +3640,6 @@ public:
   enum_sql_command last_sql_command;  // Last sql_command exceuted in mysql_execute_command()
 
   sp_rcontext *spcont;		// SP runtime context
-  sp_cache   *sp_proc_cache;
-  sp_cache   *sp_func_cache;
-  sp_cache   *sp_package_spec_cache;
-  sp_cache   *sp_package_body_cache;
 
   /** number of name_const() substitutions, see sp_head.cc:subst_spvars() */
   uint       query_name_consts;
@@ -4391,8 +4437,7 @@ public:
 
   bool is_item_tree_change_register_required()
   {
-    return !stmt_arena->is_conventional()
-           || stmt_arena->type() == Query_arena::TABLE_ARENA;
+    return !stmt_arena->is_conventional();
   }
 
   void change_item_tree(Item **place, Item *new_value)
@@ -4982,18 +5027,18 @@ public:
       mdl_context.release_transactional_locks(this);
   }
   int decide_logging_format(TABLE_LIST *tables);
-  /*
-   In Some cases when decide_logging_format is called it does not have all
-   information to decide the logging format. So that cases we call decide_logging_format_2
-   at later stages in execution.
-   One example would be binlog format for IODKU but column with unique key is not inserted.
-   We don't have inserted columns info when we call decide_logging_format so on later stage we call
-   decide_logging_format_low
 
-   @returns 0 if no format is changed
-            1 if there is change in binlog format
+  /*
+   In Some cases when decide_logging_format is called it does not have
+   all information to decide the logging format. So that cases we call
+   decide_logging_format_2 at later stages in execution.
+
+   One example would be binlog format for insert on duplicate key
+   (IODKU) but column with unique key is not inserted.  We do not have
+   inserted columns info when we call decide_logging_format so on
+   later stage we call reconsider_logging_format_for_iodup()
   */
-  int decide_logging_format_low(TABLE *table);
+  void reconsider_logging_format_for_iodup(TABLE *table);
 
   enum need_invoker { INVOKER_NONE=0, INVOKER_USER, INVOKER_ROLE};
   void binlog_invoker(bool role) { m_binlog_invoker= role ? INVOKER_ROLE : INVOKER_USER; }
@@ -5243,6 +5288,14 @@ public:
   bool is_binlog_dump_thread();
 #endif
 
+  /*
+    Indicates if this thread is suspended due to awaiting an ACK from a
+    replica. True if suspended, false otherwise.
+
+    Note that this variable is protected by Repl_semi_sync_master::LOCK_binlog
+  */
+  bool is_awaiting_semisync_ack;
+
   inline ulong wsrep_binlog_format() const
   {
     return WSREP_BINLOG_FORMAT(variables.binlog_format);
@@ -5468,6 +5521,19 @@ public:
             MY_UTF8_IS_UTF8MB3 : 0);
   }
 
+  Charset_collation_context
+    charset_collation_context_create_db() const
+  {
+    return Charset_collation_context(variables.collation_server,
+                                     variables.collation_server);
+  }
+  Charset_collation_context
+    charset_collation_context_alter_db(const char *db);
+  Charset_collation_context
+    charset_collation_context_create_table_in_db(const char *db);
+  Charset_collation_context
+    charset_collation_context_alter_table(const TABLE_SHARE *s);
+
   /**
     Save current lex to the output parameter and reset it to point to
     main_lex. This method is called from mysql_client_binlog_statement()
@@ -5565,8 +5631,8 @@ my_eof(THD *thd)
 
 inline date_conv_mode_t sql_mode_for_dates(THD *thd)
 {
-  static_assert((date_conv_mode_t::KNOWN_MODES &
-                time_round_mode_t::KNOWN_MODES) == 0,
+  static_assert((ulonglong(date_conv_mode_t::KNOWN_MODES) &
+                 ulonglong(time_round_mode_t::KNOWN_MODES)) == 0,
                 "date_conv_mode_t and time_round_mode_t must use different "
                 "bit values");
   static_assert(MODE_NO_ZERO_DATE    == date_mode_t::NO_ZERO_DATE &&
@@ -6087,6 +6153,7 @@ public:
     m_plock(NULL), exit_done(0),
     saved_tmp_table_share(0)
     {
+      DBUG_ASSERT(create_info->default_table_charset);
       bzero(&ddl_log_state_create, sizeof(ddl_log_state_create));
       bzero(&ddl_log_state_rm, sizeof(ddl_log_state_rm));
     }
@@ -7730,24 +7797,25 @@ public:
 void dbug_serve_apcs(THD *thd, int n_calls);
 #endif 
 
-class ScopedStatementReplication
+class StatementBinlog
 {
-public:
-  ScopedStatementReplication(THD *thd) :
-    saved_binlog_format(thd
-                        ? thd->set_current_stmt_binlog_format_stmt()
-                        : BINLOG_FORMAT_MIXED),
-    thd(thd)
-  {}
-  ~ScopedStatementReplication()
-  {
-    if (thd)
-      thd->restore_stmt_binlog_format(saved_binlog_format);
-  }
-
-private:
   const enum_binlog_format saved_binlog_format;
   THD *const thd;
+
+public:
+  StatementBinlog(THD *thd, bool need_stmt) :
+    saved_binlog_format(thd->get_current_stmt_binlog_format()),
+    thd(thd)
+  {
+    if (need_stmt && saved_binlog_format != BINLOG_FORMAT_STMT)
+    {
+      thd->set_current_stmt_binlog_format_stmt();
+    }
+  }
+  ~StatementBinlog()
+  {
+    thd->set_current_stmt_binlog_format(saved_binlog_format);
+  }
 };
 
 

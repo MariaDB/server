@@ -97,9 +97,8 @@ BEGIN
     DECLARE v_db_err_msg TEXT;
     DECLARE v_table VARCHAR(64);
     DECLARE v_views_created INT DEFAULT 0;
-
-    DECLARE db_doesnt_exist CONDITION FOR SQLSTATE '42000';
-    DECLARE db_name_exists CONDITION FOR SQLSTATE 'HY000';
+    DECLARE v_table_exists ENUM('', 'BASE TABLE', 'VIEW', 'TEMPORARY') DEFAULT '';
+    DECLARE v_temp_table TEXT;
 
     DECLARE c_table_names CURSOR FOR 
         SELECT TABLE_NAME 
@@ -142,6 +141,21 @@ BEGIN
         FETCH c_table_names INTO v_table;
         IF v_done THEN
             LEAVE c_table_names;
+        END IF;
+
+    -- Check does temporary table shadows the base table. If it is so, terminate.
+        CALL sys.table_exists(in_db_name, v_table, v_table_exists);
+        IF (v_table_exists = 'TEMPORARY') THEN
+            SET v_temp_table =
+            CONCAT(
+                'Table',
+                 sys.quote_identifier(in_db_name),
+                 '.',
+                 sys.quote_identifier(v_table),
+                 'shadows base table. View cannot be created! Terminating!');
+             SIGNAL SQLSTATE 'HY000'
+                 SET MESSAGE_TEXT = v_temp_table;
+             LEAVE c_table_names;
         END IF;
 
         SET @create_view_stmt = CONCAT(

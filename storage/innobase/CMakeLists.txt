@@ -185,7 +185,6 @@ SET(INNOBASE_SOURCES
 	include/mtr0types.h
 	include/os0file.h
 	include/os0file.inl
-	include/os0thread.h
 	include/page0cur.h
 	include/page0cur.inl
 	include/page0page.h
@@ -212,7 +211,6 @@ SET(INNOBASE_SOURCES
 	include/row0import.h
 	include/row0ins.h
 	include/row0log.h
-	include/row0log.inl
 	include/row0merge.h
 	include/row0mysql.h
 	include/row0purge.h
@@ -281,7 +279,6 @@ SET(INNOBASE_SOURCES
 	mem/mem0mem.cc
 	mtr/mtr0mtr.cc
 	os/os0file.cc
-	os/os0thread.cc
 	page/page0cur.cc
 	page/page0page.cc
 	page/page0zip.cc

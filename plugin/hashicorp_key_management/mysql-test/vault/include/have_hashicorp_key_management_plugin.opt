@@ -1,0 +1,6 @@
+--plugin-load-add=$HASHICORP_KEY_MANAGEMENT_SO
+--loose-hashicorp-key-management
+--loose-hashicorp-key-management-vault-url="$VAULT_ADDR/v1/mariadbtest/"
+--loose-hashicorp-key-management-token="$VAULT_TOKEN"
+--loose-hashicorp-key-management-timeout=60
+--loose-hashicorp-key-management-check-kv-version=off

@@ -11,4 +11,97 @@ connection slave;
 connection master;
 drop table t1;
 set binlog_row_image= @old_row_image;
+#
+# MDEV-28254 Wrong position for row_start, row_end after adding column
+#            to implicit versioned table
+#
+set @@system_versioning_alter_history= keep;
+set @@session.time_zone='+00:00';
+create table t1 (x int) with system versioning engine innodb;
+alter table t1 add column y int, algorithm=inplace;
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+connection slave;
+drop table t1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+connection master;
+set timestamp= 12345;
+insert t1 values (1, 1);
+select *, unix_timestamp(row_start) as row_start, unix_timestamp(row_end) as row_end from t1;
+x	y	row_start	row_end
+1	1	12345.000000	2147483647.999999
+set timestamp= default;
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=1
+###   @2=1
+###   @3=12345.000000
+###   @4=2147483647.999999
+connection slave;
+select * from t1;
+x	y
+1	1
+connection master;
+drop table t1;
+#
+# MDEV-25347 DML events for auto-partitioned tables are written into binary log twice
+#
+flush binary logs;
+create table t1 (a int) with system versioning
+partition by system_time limit 1 auto;
+insert into t1 values (1);
+update t1 set a= a + 1;
+update t1 set a= a + 2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1 AUTO
+PARTITIONS 3
+select * from t1;
+a
+4
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000002
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; create table t1 (a int) with system versioning
+partition by system_time limit 1 auto
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Annotate_rows	#	#	insert into t1 values (1)
+master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000002	#	Query	#	#	COMMIT
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Annotate_rows	#	#	update t1 set a= a + 1
+master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000002	#	Update_rows_v1	#	#	table_id: #
+master-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000002	#	Query	#	#	COMMIT
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Annotate_rows	#	#	update t1 set a= a + 2
+master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000002	#	Update_rows_v1	#	#	table_id: #
+master-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000002	#	Query	#	#	COMMIT
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1 AUTO
+PARTITIONS 3
+select * from t1;
+a
+4
+connection master;
+drop table t1;
 include/rpl_end.inc

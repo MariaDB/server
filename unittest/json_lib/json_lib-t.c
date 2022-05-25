@@ -140,7 +140,7 @@ test_search()
   json_path_t p;
   json_path_step_t *cur_step;
   int n_matches, scal_values;
-  uint array_counters[JSON_DEPTH_LIMIT];
+  int array_counters[JSON_DEPTH_LIMIT];
 
   if (json_scan_start(&je, ci, s_e(fj0)) ||
       json_path_setup(&p, ci, s_e(fp0)))

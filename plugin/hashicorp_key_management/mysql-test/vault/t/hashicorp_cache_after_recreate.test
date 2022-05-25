@@ -1,0 +1,35 @@
+# MDEV-28330: Key caching doesn't appear to be working
+
+# The test presumes that the local vault is running at $VAULT_ADDR,
+# and the token is configured in $VAULT_TOKEN.
+
+--source include/have_innodb.inc
+--source hashicorp_plugin.inc
+
+--exec vault secrets disable bug > /dev/null
+--exec vault secrets enable -path /bug -version=2 kv > /dev/null
+--exec vault kv put /bug/1 data=01234567890123456789012345678901 > /dev/null
+--exec vault kv put /bug/4 data=01234567890123456789012345678904 > /dev/null
+
+--let $restart_parameters=--plugin-load-add=hashicorp_key_management --hashicorp-key-management-vault-url="$VAULT_ADDR/v1/bug/" --hashicorp-key-management-token="$VAULT_TOKEN"
+--let $restart_noprint=1
+--source include/restart_mysqld.inc
+
+CREATE TABLE t1 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
+INSERT INTO t1 VALUES ('foo'),('bar');
+
+select @@hashicorp_key_management_caching_enabled, @@hashicorp_key_management_cache_timeout;
+
+--exec vault secrets disable bug > /dev/null
+--exec vault secrets enable -path /bug -version=2 kv > /dev/null
+--exec vault kv put /bug/1 data=01234567890123456789012345678901 > /dev/null
+
+CREATE TABLE t2 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
+
+# Cleanup
+DROP TABLE IF EXISTS t1, t2;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+--exec vault secrets disable bug > /dev/null

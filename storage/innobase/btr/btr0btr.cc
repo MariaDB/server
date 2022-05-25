@@ -44,8 +44,6 @@ Created 6/2/1994 Heikki Tuuri
 #include "dict0boot.h"
 #include "row0sel.h" /* row_search_max_autoinc() */
 
-Atomic_counter<uint32_t> btr_validate_index_running;
-
 /**************************************************************//**
 Checks if the page in the cursor can be merged with given page.
 If necessary, re-organize the merge_page.
@@ -1378,7 +1376,7 @@ static void btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
                 block->page.frame + PAGE_MAX_TRX_ID + PAGE_HEADER,
                 PAGE_DATA - (PAGE_MAX_TRX_ID + PAGE_HEADER)));
 
-  if (!dict_table_is_locking_disabled(index->table))
+  if (index->has_locking())
     lock_move_reorganize_page(block, old);
 
   /* Write log for the changes, if needed. */
@@ -1849,8 +1847,11 @@ btr_root_raise_and_insert(
 				   root->page.frame, index, mtr);
 
 		/* Update the lock table and possible hash index. */
-		lock_move_rec_list_end(new_block, root,
-				       page_get_infimum_rec(root->page.frame));
+		if (index->has_locking()) {
+			lock_move_rec_list_end(
+				new_block, root,
+				page_get_infimum_rec(root->page.frame));
+		}
 
 		/* Move any existing predicate locks */
 		if (dict_index_is_spatial(index)) {
@@ -1898,7 +1899,7 @@ btr_root_raise_and_insert(
 	information of the record to be inserted on the infimum of the
 	root page: we cannot discard the lock structs on the root page */
 
-	if (!dict_table_is_locking_disabled(index->table)) {
+	if (index->has_locking()) {
 		lock_update_root_raise(*new_block, root_id);
 	}
 
@@ -2595,8 +2596,8 @@ btr_insert_into_right_sibling(
 	max_size = page_get_max_insert_size_after_reorganize(next_page, 1);
 
 	/* Extends gap lock for the next page */
-	if (!dict_table_is_locking_disabled(cursor->index->table)) {
-		lock_update_split_left(next_block, block);
+	if (is_leaf && cursor->index->has_locking()) {
+		lock_update_node_pointer(block, next_block);
 	}
 
 	rec = page_cur_tuple_insert(
@@ -2909,9 +2910,11 @@ insert_empty:
 						 ULINT_UNDEFINED, mtr);
 
 			/* Update the lock table and possible hash index. */
-			lock_move_rec_list_start(
-				new_block, block, move_limit,
-				new_page + PAGE_NEW_INFIMUM);
+			if (cursor->index->has_locking()) {
+				lock_move_rec_list_start(
+					new_block, block, move_limit,
+					new_page + PAGE_NEW_INFIMUM);
+			}
 
 			btr_search_move_or_delete_hash_entries(
 				new_block, block);
@@ -2925,7 +2928,7 @@ insert_empty:
 		left_block = new_block;
 		right_block = block;
 
-		if (!dict_table_is_locking_disabled(cursor->index->table)) {
+		if (cursor->index->has_locking()) {
 			lock_update_split_left(right_block, left_block);
 		}
 	} else {
@@ -2951,7 +2954,10 @@ insert_empty:
 						   cursor->index, mtr);
 
 			/* Update the lock table and possible hash index. */
-			lock_move_rec_list_end(new_block, block, move_limit);
+			if (cursor->index->has_locking()) {
+				lock_move_rec_list_end(new_block, block,
+						       move_limit);
+			}
 
 			btr_search_move_or_delete_hash_entries(
 				new_block, block);
@@ -2967,7 +2973,7 @@ insert_empty:
 		left_block = block;
 		right_block = new_block;
 
-		if (!dict_table_is_locking_disabled(cursor->index->table)) {
+		if (cursor->index->has_locking()) {
 			lock_update_split_right(right_block, left_block);
 		}
 	}
@@ -3267,8 +3273,10 @@ btr_lift_page_up(
 
 		/* Update the lock table and possible hash index. */
 
-		lock_move_rec_list_end(father_block, block,
-				       page_get_infimum_rec(page));
+		if (index->has_locking()) {
+			lock_move_rec_list_end(father_block, block,
+					       page_get_infimum_rec(page));
+		}
 
 		/* Also update the predicate locks */
 		if (dict_index_is_spatial(index)) {
@@ -3279,7 +3287,7 @@ btr_lift_page_up(
 		}
 	}
 
-	if (!dict_table_is_locking_disabled(index->table)) {
+	if (index->has_locking()) {
 		const page_id_t id{block->page.id()};
 		/* Free predicate page locks on the block */
 		if (index->is_spatial()) {
@@ -3524,17 +3532,9 @@ retry:
 			}
 
 			if (mbr_changed) {
-#ifdef UNIV_DEBUG
-				bool	success = rtr_update_mbr_field(
-					&cursor2, offsets2, &father_cursor,
-					merge_page, &new_mbr, NULL, mtr);
-
-				ut_ad(success);
-#else
 				rtr_update_mbr_field(
 					&cursor2, offsets2, &father_cursor,
 					merge_page, &new_mbr, NULL, mtr);
-#endif
 			} else {
 				rtr_node_ptr_delete(&father_cursor, mtr);
 			}
@@ -3543,7 +3543,7 @@ retry:
 			lock_sys.prdt_page_free_from_discard(id);
 		} else {
 			btr_cur_node_ptr_delete(&father_cursor, mtr);
-			if (!dict_table_is_locking_disabled(index->table)) {
+			if (index->has_locking()) {
 				lock_update_merge_left(
 					*merge_block, orig_pred, id);
 			}
@@ -3708,7 +3708,7 @@ retry:
 							   mtr);
 			}
 
-			if (!dict_table_is_locking_disabled(index->table)) {
+			if (index->has_locking()) {
 				lock_update_merge_right(
 					merge_block, orig_succ, block);
 			}
@@ -3850,7 +3850,7 @@ btr_discard_only_page_on_level(
 		}
 		father = btr_cur_get_block(&cursor);
 
-		if (!dict_table_is_locking_disabled(index->table)) {
+		if (index->has_locking()) {
 			lock_update_discard(
 				father, PAGE_HEAP_NO_SUPREMUM, block);
 		}
@@ -4028,7 +4028,7 @@ btr_discard_page(
 	}
 #endif /* UNIV_ZIP_DEBUG */
 
-	if (!dict_table_is_locking_disabled(index->table)) {
+	if (index->has_locking()) {
 		if (left_page_no != FIL_NULL) {
 			lock_update_discard(merge_block, PAGE_HEAP_NO_SUPREMUM,
 					    block);
@@ -4037,10 +4037,10 @@ btr_discard_page(
 					    lock_get_min_heap_no(merge_block),
 					    block);
 		}
-	}
 
-	if (dict_index_is_spatial(index)) {
-		rtr_check_discard_page(index, cursor, block);
+		if (index->is_spatial()) {
+			rtr_check_discard_page(index, cursor, block);
+		}
 	}
 
 	/* Free the file page */
@@ -5026,7 +5026,6 @@ btr_validate_index(
 
 	ulint	n = btr_page_get_level(root);
 
-	btr_validate_index_running++;
 	for (ulint i = 0; i <= n; ++i) {
 
 		if (!btr_validate_level(index, trx, n - i, lockout)) {
@@ -5035,15 +5034,6 @@ btr_validate_index(
 	}
 
 	mtr_commit(&mtr);
-	/* In theory we need release barrier here, so that
-	btr_validate_index_running decrement is guaranteed to
-	happen after latches are released.
-
-	Original code issued SEQ_CST on update and non-atomic
-	access on load. Which means it had broken synchronisation
-	as well. */
-	btr_validate_index_running--;
-
 	return(err);
 }
 

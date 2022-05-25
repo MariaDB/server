@@ -719,7 +719,6 @@ init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
     return TRUE;
   context->resolve_in_table_list_only(table_list);
   lex->use_only_table_context= TRUE;
-  lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VCOL_EXPR;
   select_lex->cur_pos_in_select_list= UNDEF_POS;
   table->map= 1; //To ensure correct calculation of const item
   table_list->table= table;
@@ -1212,6 +1211,7 @@ void LEX::start(THD *thd_arg)
   context_stack.empty();
   //empty select_stack
   select_stack_top= 0;
+  select_stack_outer_barrier= 0;
   unit.init_query();
   current_select_number= 0;
   curr_with_clause= 0;
@@ -5296,17 +5296,21 @@ void SELECT_LEX::update_used_tables()
   while ((tl= ti++))
   {
     TABLE_LIST *embedding= tl;
-    do
+    if (!is_eliminated_table(join->eliminated_tables, tl))
     {
-      bool maybe_null;
-      if ((maybe_null= MY_TEST(embedding->outer_join)))
+      do
       {
-        tl->table->maybe_null= maybe_null;
-        break;
+        bool maybe_null;
+        if ((maybe_null= MY_TEST(embedding->outer_join)))
+        {
+          tl->table->maybe_null= maybe_null;
+          break;
+        }
       }
+      while ((embedding= embedding->embedding));
     }
-    while ((embedding= embedding->embedding));
-    if (tl->on_expr)
+
+    if (tl->on_expr && !is_eliminated_table(join->eliminated_tables, tl))
     {
       tl->on_expr->update_used_tables();
       tl->on_expr->walk(&Item::eval_not_null_tables, 0, NULL);
@@ -5333,8 +5337,11 @@ void SELECT_LEX::update_used_tables()
       if (embedding->on_expr && 
           embedding->nested_join->join_list.head() == tl)
       {
-        embedding->on_expr->update_used_tables();
-        embedding->on_expr->walk(&Item::eval_not_null_tables, 0, NULL);
+        if (!is_eliminated_table(join->eliminated_tables, embedding))
+        {
+          embedding->on_expr->update_used_tables();
+          embedding->on_expr->walk(&Item::eval_not_null_tables, 0, NULL);
+        }
       }
       tl= embedding;
       embedding= tl->embedding;
@@ -5815,17 +5822,33 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
 }
 
 /* 
-  This is used by SHOW EXPLAIN. It assuses query plan has been already 
+  This is used by SHOW EXPLAIN|ANALYZE. It assumes query plan has been already
   collected into QPF structures and we only need to print it out.
 */
 
 int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
-                       bool is_analyze, bool *printed_anything)
+                       bool is_analyze, bool is_json_format,
+                       bool *printed_anything)
 {
   int res;
   if (explain && explain->have_query_plan())
   {
-    res= explain->print_explain(output, explain_flags, is_analyze);
+    if (is_json_format)
+    {
+      auto now= microsecond_interval_timer();
+      auto start_time= thd->start_utime;
+      auto query_time_in_progress_ms= 0ULL;
+      if (likely(now > start_time))
+        query_time_in_progress_ms=
+          (now - start_time) / (HRTIME_RESOLUTION / 1000);
+      res= explain->print_explain_json(output, is_analyze,
+                                       true /* is_show_cmd */,
+                                       query_time_in_progress_ms);
+    }
+    else
+    {
+      res= explain->print_explain(output, explain_flags, is_analyze);
+    }
     *printed_anything= true;
   }
   else
@@ -7784,7 +7807,7 @@ bool LEX::maybe_start_compound_statement(THD *thd)
     if (!make_sp_head(thd, NULL, &sp_handler_procedure, DEFAULT_AGGREGATE))
       return true;
     sphead->set_suid(SP_IS_NOT_SUID);
-    sphead->set_body_start(thd, thd->m_parser_state->m_lip.get_cpp_ptr());
+    sphead->set_body_start(thd, thd->m_parser_state->m_lip.get_cpp_tok_start());
   }
   return false;
 }
@@ -9766,7 +9789,11 @@ bool LEX::part_values_history(THD *thd)
   }
   else
   {
-    part_info->vers_init_info(thd);
+    if (unlikely(part_info->vers_init_info(thd)))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return true;
+    }
     elem->id= UINT_MAX32;
   }
   DBUG_ASSERT(part_info->vers_info);
@@ -11844,6 +11871,21 @@ bool LEX::sp_create_set_password_instr(THD *thd,
   if (sphead)
     sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
   return sp_create_assignment_instr(thd, no_lookahead);
+}
+
+
+bool LEX::set_names(const char *pos,
+                    const Lex_exact_charset_opt_extended_collate &cscl,
+                    bool no_lookahead)
+{
+  if (sp_create_assignment_lex(thd, pos))
+    return true;
+  CHARSET_INFO *ci= cscl.collation().charset_info();
+  set_var_collation_client *var;
+  var= new (thd->mem_root) set_var_collation_client(ci, ci, ci);
+  return unlikely(var == NULL) ||
+         unlikely(thd->lex->var_list.push_back(var, thd->mem_root)) ||
+         unlikely(sp_create_assignment_instr(thd, no_lookahead));
 }
 
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -35,7 +35,6 @@ Created 4/20/1996 Heikki Tuuri
 #include "que0que.h"
 #include "row0upd.h"
 #include "row0sel.h"
-#include "row0log.h"
 #include "rem0cmp.h"
 #include "lock0lock.h"
 #include "log0log.h"
@@ -1001,7 +1000,8 @@ row_ins_foreign_check_on_constraint(
 {
 	upd_node_t*	node;
 	upd_node_t*	cascade;
-	dict_table_t*	table		= foreign->foreign_table;
+	dict_table_t*const*const fktable = &foreign->foreign_table;
+	dict_table_t*	table = *fktable;
 	dict_index_t*	index;
 	dict_index_t*	clust_index;
 	dtuple_t*	ref;
@@ -1169,7 +1169,7 @@ row_ins_foreign_check_on_constraint(
 
 	/* Set an X-lock on the row to delete or update in the child table */
 
-	err = lock_table(table, LOCK_IX, thr);
+	err = lock_table(table, fktable, LOCK_IX, thr);
 
 	if (err == DB_SUCCESS) {
 		/* Here it suffices to use a LOCK_REC_NOT_GAP type lock;
@@ -1455,10 +1455,7 @@ row_ins_check_foreign_constraint(
 	dtuple_t*	entry,	/*!< in: index entry for index */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	dberr_t		err;
 	upd_node_t*	upd_node;
-	dict_table_t*	check_table;
-	dict_index_t*	check_index;
 	ulint		n_fields_cmp;
 	btr_pcur_t	pcur;
 	int		cmp;
@@ -1480,12 +1477,10 @@ row_ins_check_foreign_constraint(
 	upd_node= NULL;
 #endif /* WITH_WSREP */
 
-	err = DB_SUCCESS;
-
-	if (trx->check_foreigns == FALSE) {
+	if (!trx->check_foreigns) {
 		/* The user has suppressed foreign key checks currently for
 		this session */
-		goto exit_func;
+		DBUG_RETURN(DB_SUCCESS);
 	}
 
 	/* If any of the foreign key fields in entry is SQL NULL, we
@@ -1494,12 +1489,12 @@ row_ins_check_foreign_constraint(
 	for (ulint i = 0; i < entry->n_fields; i++) {
 		dfield_t* field = dtuple_get_nth_field(entry, i);
 		if (i < foreign->n_fields && dfield_is_null(field)) {
-			goto exit_func;
+			DBUG_RETURN(DB_SUCCESS);
 		}
 		/* System Versioning: if row_end != Inf, we
 		suppress the foreign key check */
 		if (field->type.vers_sys_end() && field->vers_history_row()) {
-			goto exit_func;
+			DBUG_RETURN(DB_SUCCESS);
 		}
 	}
 
@@ -1524,7 +1519,7 @@ row_ins_check_foreign_constraint(
 			another, and the user has problems predicting in
 			which order they are performed. */
 
-			goto exit_func;
+			DBUG_RETURN(DB_SUCCESS);
 		}
 	}
 
@@ -1536,23 +1531,32 @@ row_ins_check_foreign_constraint(
 			dfield_t* row_end = dtuple_get_nth_field(
 				insert_node->row, table->vers_end);
 			if (row_end->vers_history_row()) {
-				goto exit_func;
+				DBUG_RETURN(DB_SUCCESS);
 			}
 		}
 	}
 
-	if (check_ref) {
-		check_table = foreign->referenced_table;
-		check_index = foreign->referenced_index;
-	} else {
-		check_table = foreign->foreign_table;
-		check_index = foreign->foreign_index;
+	dict_table_t *check_table;
+	dict_index_t *check_index;
+	dberr_t err = DB_SUCCESS;
+
+	{
+		dict_table_t*& fktable = check_ref
+			? foreign->referenced_table : foreign->foreign_table;
+		check_table = fktable;
+		if (check_table) {
+			err = lock_table(check_table, &fktable, LOCK_IS, thr);
+			if (err != DB_SUCCESS) {
+				goto do_possible_lock_wait;
+			}
+		}
+		check_table = fktable;
 	}
 
-	if (check_table == NULL
-	    || !check_table->is_readable()
-	    || check_index == NULL) {
+	check_index = check_ref
+		? foreign->referenced_index : foreign->foreign_index;
 
+	if (!check_table || !check_table->is_readable() || !check_index) {
 		FILE*	ef = dict_foreign_err_file;
 		std::string fk_str;
 
@@ -1599,18 +1603,6 @@ row_ins_check_foreign_constraint(
 
 		mysql_mutex_unlock(&dict_foreign_err_mutex);
 		goto exit_func;
-	}
-
-	if (check_table != table) {
-		/* We already have a LOCK_IX on table, but not necessarily
-		on check_table */
-
-		err = lock_table(check_table, LOCK_IS, thr);
-
-		if (err != DB_SUCCESS) {
-
-			goto do_possible_lock_wait;
-		}
 	}
 
 	mtr_start(&mtr);
@@ -1808,9 +1800,8 @@ row_ins_check_foreign_constraint(
 	}
 
 end_scan:
-	btr_pcur_close(&pcur);
-
 	mtr_commit(&mtr);
+	ut_free(pcur.old_rec_buf);
 
 	/* Restore old value */
 	dtuple_set_n_fields_cmp(entry, n_fields_cmp);
@@ -1825,10 +1816,7 @@ do_possible_lock_wait:
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
 
-		if (err != DB_SUCCESS) {
-		} else if (check_table->name.is_temporary()) {
-			err = DB_LOCK_WAIT_TIMEOUT;
-		} else {
+		if (err == DB_SUCCESS) {
 			err = DB_LOCK_WAIT;
 		}
 	}
@@ -2025,7 +2013,6 @@ row_ins_scan_sec_index_for_duplicate(
 	dict_index_t*	index,	/*!< in: non-clustered unique index */
 	dtuple_t*	entry,	/*!< in: index entry */
 	que_thr_t*	thr,	/*!< in: query thread */
-	bool		s_latch,/*!< in: whether index->lock is being held */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
 	mem_heap_t*	offsets_heap)
 				/*!< in/out: memory heap that can be emptied */
@@ -2042,7 +2029,7 @@ row_ins_scan_sec_index_for_duplicate(
 
 	rec_offs_init(offsets_);
 
-	ut_ad(s_latch == (index->lock.have_u_not_x() || index->lock.have_s()));
+	ut_ad(!index->lock.have_any());
 
 	n_unique = dict_index_get_n_unique(index);
 
@@ -2066,11 +2053,7 @@ row_ins_scan_sec_index_for_duplicate(
 
 	dtuple_set_n_fields_cmp(entry, n_unique);
 
-	btr_pcur_open(index, entry, PAGE_CUR_GE,
-		      s_latch
-		      ? BTR_SEARCH_LEAF_ALREADY_S_LATCHED
-		      : BTR_SEARCH_LEAF,
-		      &pcur, mtr);
+	btr_pcur_open(index, entry, PAGE_CUR_GE, BTR_SEARCH_LEAF, &pcur, mtr);
 
 	allow_duplicates = thr_get_trx(thr)->duplicates;
 
@@ -2488,15 +2471,9 @@ row_ins_index_entry_big_rec(
 		&pcur, offsets, big_rec, &mtr, BTR_STORE_INSERT);
 	DEBUG_SYNC_C_IF_THD(thd, "after_row_ins_extern");
 
-	if (error == DB_SUCCESS
-	    && dict_index_is_online_ddl(index)) {
-		row_log_table_insert(btr_pcur_get_rec(&pcur), index, offsets);
-	}
-
 	mtr.commit();
 
-	btr_pcur_close(&pcur);
-
+	ut_free(pcur.old_rec_buf);
 	return(error);
 }
 
@@ -2641,6 +2618,7 @@ commit_exit:
 	    && block->page.id().page_no() == index->page
 	    && !index->table->skip_alter_undo
 	    && !index->table->n_rec_locks
+	    && !index->table->is_active_ddl()
 	    && !index->table->has_spatial_index()
 	    && !trx->is_wsrep() /* FIXME: MDEV-24623 */
 	    && !thd_is_slave(trx->mysql_thd) /* FIXME: MDEV-24622 */) {
@@ -2649,7 +2627,7 @@ commit_exit:
 		trx->bulk_insert = true;
 
 		if (!index->table->is_temporary()) {
-			err = lock_table(index->table, LOCK_X, thr);
+			err = lock_table(index->table, NULL, LOCK_X, thr);
 
 			if (err != DB_SUCCESS) {
 				trx->error_state = err;
@@ -2763,11 +2741,6 @@ err_exit:
 			&pcur, flags, mode, &offsets, &offsets_heap,
 			entry_heap, entry, thr, &mtr);
 
-		if (err == DB_SUCCESS && dict_index_is_online_ddl(index)) {
-			row_log_table_insert(btr_cur_get_rec(cursor),
-					     index, offsets);
-		}
-
 		mtr_commit(&mtr);
 		mem_heap_free(entry_heap);
 	} else {
@@ -2805,9 +2778,9 @@ do_insert:
 			}
 		}
 
-		if (big_rec != NULL) {
-			mtr_commit(&mtr);
+		mtr.commit();
 
+		if (big_rec) {
 			/* Online table rebuild could read (and
 			ignore) the incomplete record at this point.
 			If online rebuild is in progress, the
@@ -2820,14 +2793,6 @@ do_insert:
 				entry, big_rec, offsets, &offsets_heap, index,
 				trx->mysql_thd);
 			dtuple_convert_back_big_rec(index, entry, big_rec);
-		} else {
-			if (err == DB_SUCCESS
-			    && dict_index_is_online_ddl(index)) {
-				row_log_table_insert(
-					insert_rec, index, offsets);
-			}
-
-			mtr_commit(&mtr);
 		}
 	}
 
@@ -2836,24 +2801,14 @@ func_exit:
 		mem_heap_free(offsets_heap);
 	}
 
-	btr_pcur_close(&pcur);
-
+	ut_free(pcur.old_rec_buf);
 	DBUG_RETURN(err);
 }
 
-/** Start a mini-transaction and check if the index will be dropped.
+/** Start a mini-transaction.
 @param[in,out]	mtr		mini-transaction
-@param[in,out]	index		secondary index
-@param[in]	check		whether to check
-@param[in]	search_mode	flags
-@return true if the index is to be dropped */
-static MY_ATTRIBUTE((warn_unused_result))
-bool
-row_ins_sec_mtr_start_and_check_if_aborted(
-	mtr_t*		mtr,
-	dict_index_t*	index,
-	bool		check,
-	ulint		search_mode)
+@param[in,out]	index		secondary index */
+static void row_ins_sec_mtr_start(mtr_t *mtr, dict_index_t *index)
 {
 	ut_ad(!dict_index_is_clust(index));
 	ut_ad(mtr->is_named_space(index->table->space));
@@ -2863,30 +2818,6 @@ row_ins_sec_mtr_start_and_check_if_aborted(
 	mtr->start();
 	index->set_modified(*mtr);
 	mtr->set_log_mode(log_mode);
-
-	if (!check) {
-		return(false);
-	}
-
-	if (search_mode & BTR_ALREADY_S_LATCHED) {
-		mtr_s_lock_index(index, mtr);
-	} else {
-		mtr_sx_lock_index(index, mtr);
-	}
-
-	switch (index->online_status) {
-	case ONLINE_INDEX_ABORTED:
-	case ONLINE_INDEX_ABORTED_DROPPED:
-		ut_ad(!index->is_committed());
-		return(true);
-	case ONLINE_INDEX_COMPLETE:
-		return(false);
-	case ONLINE_INDEX_CREATION:
-		break;
-	}
-
-	ut_error;
-	return(true);
 }
 
 /***************************************************************//**
@@ -2946,28 +2877,6 @@ row_ins_sec_index_entry_low(
 		}
 	}
 
-	/* Ensure that we acquire index->lock when inserting into an
-	index with index->online_status == ONLINE_INDEX_COMPLETE, but
-	could still be subject to rollback_inplace_alter_table().
-	This prevents a concurrent change of index->online_status.
-	The memory object cannot be freed as long as we have an open
-	reference to the table, or index->table->n_ref_count > 0. */
-	const bool	check = !index->is_committed();
-	if (check) {
-		DEBUG_SYNC_C("row_ins_sec_index_enter");
-		if (mode == BTR_MODIFY_LEAF) {
-			search_mode |= BTR_ALREADY_S_LATCHED;
-			mtr_s_lock_index(index, &mtr);
-		} else {
-			mtr_sx_lock_index(index, &mtr);
-		}
-
-		if (row_log_online_op_try(
-			    index, entry, thr_get_trx(thr)->id)) {
-			goto func_exit;
-		}
-	}
-
 	/* Note that we use PAGE_CUR_LE as the search mode, because then
 	the function will return in both low_match and up_match of the
 	cursor sensible values */
@@ -2992,8 +2901,12 @@ row_ins_sec_index_entry_low(
 			rtr_init_rtr_info(&rtr_info, false, &cursor,
 					  index, false);
 			rtr_info_update_btr(&cursor, &rtr_info);
-			mtr_start(&mtr);
-			index->set_modified(mtr);
+			mtr.start();
+			if (index->table->is_temporary()) {
+				mtr.set_log_mode(MTR_LOG_NO_REDO);
+			} else {
+				index->set_modified(mtr);
+			}
 			search_mode &= ulint(~BTR_MODIFY_LEAF);
 			search_mode |= BTR_MODIFY_TREE;
 			err = btr_cur_search_to_nth_level(
@@ -3052,13 +2965,10 @@ row_ins_sec_index_entry_low(
 
 		DEBUG_SYNC_C("row_ins_sec_index_unique");
 
-		if (row_ins_sec_mtr_start_and_check_if_aborted(
-			    &mtr, index, check, search_mode)) {
-			goto func_exit;
-		}
+		row_ins_sec_mtr_start(&mtr, index);
 
 		err = row_ins_scan_sec_index_for_duplicate(
-			flags, index, entry, thr, check, &mtr, offsets_heap);
+			flags, index, entry, thr, &mtr, offsets_heap);
 
 		mtr_commit(&mtr);
 
@@ -3087,10 +2997,7 @@ row_ins_sec_index_entry_low(
 			DBUG_RETURN(err);
 		}
 
-		if (row_ins_sec_mtr_start_and_check_if_aborted(
-			    &mtr, index, check, search_mode)) {
-			goto func_exit;
-		}
+		row_ins_sec_mtr_start(&mtr, index);
 
 		DEBUG_SYNC_C("row_ins_sec_index_entry_dup_locks_created");
 
@@ -3234,9 +3141,6 @@ row_ins_clust_index_entry(
 		? BTR_NO_LOCKING_FLAG : 0;
 #endif /* WITH_WSREP */
 	const ulint	orig_n_fields = entry->n_fields;
-
-	/* Try first optimistic descent to the B-tree */
-	log_free_check();
 
 	/* For intermediate table during copy alter table,
 	   skip the undo log and record lock checking for
@@ -3696,7 +3600,8 @@ row_ins(
 		   FTS_DOC_ID for history is enough.
 		*/
 		const unsigned type = index->type;
-		if (index->type & DICT_FTS) {
+		if (index->type & DICT_FTS
+		    || !index->is_committed()) {
 		} else if (!(type & DICT_UNIQUE) || index->n_uniq > 1
 			   || !node->vers_history_row()) {
 
@@ -3809,7 +3714,7 @@ row_ins_step(
 			goto same_trx;
 		}
 
-		err = lock_table(node->table, LOCK_IX, thr);
+		err = lock_table(node->table, NULL, LOCK_IX, thr);
 
 		DBUG_EXECUTE_IF("ib_row_ins_ix_lock_wait",
 				err = DB_LOCK_WAIT;);

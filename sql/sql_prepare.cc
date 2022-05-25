@@ -4444,7 +4444,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   /* No need to commit statement transaction, it's not started. */
   DBUG_ASSERT(thd->transaction->stmt.is_empty());
 
-  close_thread_tables(thd);
+  close_thread_tables_for_query(thd);
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
 
   /*

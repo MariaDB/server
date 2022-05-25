@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2356,7 +2356,8 @@ row_sel_step(
 					que_node_get_next(table_node))) {
 
 				dberr_t	err = lock_table(
-					table_node->table, i_lock_mode, thr);
+					table_node->table, nullptr,
+					i_lock_mode, thr);
 
 				if (err != DB_SUCCESS) {
 					trx_t*	trx;
@@ -4671,7 +4672,7 @@ aborted:
 			trx->read_view.open(trx);
 		} else {
 wait_table_again:
-			err = lock_table(prebuilt->table,
+			err = lock_table(prebuilt->table, nullptr,
 					 prebuilt->select_lock_type == LOCK_S
 					 ? LOCK_IS : LOCK_IX, thr);
 
@@ -6131,8 +6132,6 @@ row_search_get_max_rec(
 	rec = nullptr;
 
 found:
-	btr_pcur_close(&pcur);
-
 	ut_ad(!rec
 	      || !(rec_get_info_bits(rec, dict_table_is_comp(index->table))
 		   & (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)));

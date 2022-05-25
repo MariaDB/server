@@ -10,7 +10,7 @@ connect (ssl_con,localhost,root,,,,,SSL read_timeout=5);
 SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 
 # --error CR_SERVER_LOST
---error 2013
+--error 2013,2026
 SELECT SLEEP(600);
 
 connection default;

@@ -262,7 +262,6 @@ INSERT INTO t1 SET a=3;
 ROLLBACK;
 SET DEBUG_SYNC = 'now SIGNAL logged';
 connection ddl;
-ERROR 22004: Invalid use of NULL value
 disconnect ddl;
 connection default;
 SET DEBUG_SYNC = RESET;

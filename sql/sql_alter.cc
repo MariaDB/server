@@ -411,7 +411,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     referenced from this structure will be modified.
     @todo move these into constructor...
   */
-  HA_CREATE_INFO create_info(lex->create_info);
+  Table_specification_st create_info(lex->create_info);
   Alter_info alter_info(lex->alter_info, thd->mem_root);
   create_info.alter_info= &alter_info;
   privilege_t priv(NO_ACL);

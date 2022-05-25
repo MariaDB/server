@@ -2639,7 +2639,8 @@ static int show_create_view(THD *thd, TABLE_LIST *table, String *buff)
          tbl;
          tbl= tbl->next_global)
     {
-      if (cmp(&table->view_db, tbl->view ? &tbl->view_db : &tbl->db))
+      if (!tbl->is_derived() &&
+          cmp(&table->view_db, tbl->view ? &tbl->view_db : &tbl->db))
       {
         table->compact_view_format= FALSE;
         break;
@@ -2921,8 +2922,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
                        Item_empty_string(thd, "Info", arg.max_query_length),
                        mem_root);
   field->set_maybe_null();;
-  if (!thd->variables.old_mode &&
-      !(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
+  if (!(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
   {
     field_list.push_back(field= new (mem_root)
                          Item_float(thd, "Progress", 0.0, 3, 7),
@@ -2964,8 +2964,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
                       thd_info->query_string.charset());
     else
       protocol->store_null();
-    if (!thd->variables.old_mode &&
-        !(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
+    if (!(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
       protocol->store_double(thd_info->progress, 3);
     if (protocol->write())
       break; /* purecov: inspected */
@@ -2999,13 +2998,18 @@ void Show_explain_request::call_in_target_thread()
                  target_thd->query_charset());
 
   DBUG_ASSERT(current_thd == target_thd);
-  set_current_thd(request_thd);
+
+  /*
+    When producing JSON output, one should not change current_thd.
+    (If one does that, they will hit an assert when printing constant item
+    fields).
+  */
   if (target_thd->lex->print_explain(explain_buf, 0 /* explain flags*/,
-                                     false /*TODO: analyze? */, &printed_anything))
+                                     is_analyze, is_json_format,
+                                     &printed_anything))
   {
     failed_to_produce= TRUE;
   }
-  set_current_thd(target_thd);
 
   if (!printed_anything)
     failed_to_produce= TRUE;
@@ -3024,6 +3028,8 @@ int select_result_explain_buffer::send_data(List<Item> &items)
     Switch to the receiveing thread, so that we correctly count memory used
     by it. This is needed as it's the receiving thread that will free the
     memory.
+    (TODO: Now that we don't change current_thd in
+    Show_explain_request::call_in_target_thread, is this necessary anymore?)
   */
   set_current_thd(thd);
   fill_record(thd, dst_table, dst_table->field, items, TRUE, FALSE);
@@ -3119,15 +3125,16 @@ void select_result_text_buffer::save_to(String *res)
 
 
 /*
-  Store the SHOW EXPLAIN output in the temporary table.
+  Store the SHOW EXPLAIN/SHOW ANALYZE output in the temporary table.
 */
 
-int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
+int fill_show_explain_or_analyze(THD *thd, TABLE_LIST *table, COND *cond,
+                                 bool json_format, bool is_analyze)
 {
   const char *calling_user;
   THD *tmp;
   my_thread_id  thread_id;
-  DBUG_ENTER("fill_show_explain");
+  DBUG_ENTER("fill_show_explain_or_analyze");
 
   DBUG_ASSERT(cond==NULL);
   thread_id= thd->lex->value_list.head()->val_int();
@@ -3139,10 +3146,10 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
     Security_context *tmp_sctx= tmp->security_ctx;
     /*
       If calling_user==NULL, calling thread has SUPER or PROCESS
-      privilege, and so can do SHOW EXPLAIN on any user.
+      privilege, and so can do SHOW EXPLAIN/SHOW ANALYZE on any user.
       
-      if calling_user!=NULL, he's only allowed to view SHOW EXPLAIN on
-      his own threads.
+      if calling_user!=NULL, he's only allowed to view
+      SHOW EXPLAIN/SHOW ANALYZE on his own threads.
     */
     if (calling_user && (!tmp_sctx->user || strcmp(calling_user, 
                                                    tmp_sctx->user)))
@@ -3162,15 +3169,17 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
     bool bres;
     /* 
       Ok we've found the thread of interest and it won't go away because 
-      we're holding its LOCK_thd_kill. Post it a SHOW EXPLAIN request.
+      we're holding its LOCK_thd_kill. Post it a SHOW EXPLAIN/SHOW ANALYZE request.
     */
     bool timed_out;
     int timeout_sec= 30;
     Show_explain_request explain_req;
+    explain_req.is_json_format= json_format;
     select_result_explain_buffer *explain_buf;
     
     explain_buf= new select_result_explain_buffer(thd, table->table);
 
+    explain_req.is_analyze= is_analyze;
     explain_req.explain_buf= explain_buf;
     explain_req.target_thd= tmp;
     explain_req.request_thd= thd;
@@ -3226,6 +3235,34 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
   }
   my_error(ER_NO_SUCH_THREAD, MYF(0), (ulong) thread_id);
   DBUG_RETURN(1);
+}
+
+
+int fill_show_explain_tabular(THD *thd, TABLE_LIST *table, COND *cond)
+{
+  return fill_show_explain_or_analyze(
+    thd, table, cond, FALSE /* json_format */, FALSE /* is_analyze */);
+}
+
+
+int fill_show_explain_json(THD *thd, TABLE_LIST *table, COND *cond)
+{
+  return fill_show_explain_or_analyze(
+    thd, table, cond, TRUE /* json_format */, FALSE /* is_analyze */);
+}
+
+
+int fill_show_analyze_tabular(THD * thd, TABLE_LIST * table, COND * cond)
+{
+  return fill_show_explain_or_analyze(
+    thd, table, cond, FALSE /* json_format */, TRUE /* is_analyze */);
+}
+
+
+int fill_show_analyze_json(THD * thd, TABLE_LIST * table, COND * cond)
+{
+  return fill_show_explain_or_analyze(
+    thd, table, cond, TRUE /* json_format */, TRUE /* is_analyze */);
 }
 
 
@@ -5105,7 +5142,8 @@ end:
   */
   DBUG_ASSERT(thd->open_tables == NULL);
   thd->mdl_context.rollback_to_savepoint(open_tables_state_backup->mdl_system_tables_svp);
-  thd->clear_error();
+  if (!thd->is_fatal_error)
+    thd->clear_error();
   return res;
 }
 
@@ -5155,6 +5193,7 @@ public:
 
 int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 {
+  DBUG_ENTER("get_all_tables");
   LEX *lex= thd->lex;
   TABLE *table= tables->table;
   TABLE_LIST table_acl_check;
@@ -5172,7 +5211,29 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   uint table_open_method= tables->table_open_method;
   bool can_deadlock;
   MEM_ROOT tmp_mem_root;
-  DBUG_ENTER("get_all_tables");
+  /*
+    We're going to open FRM files for tables.
+    In case of VIEWs that contain stored function calls,
+    these stored functions will be parsed and put to the SP cache.
+
+    Suppose we have a view containing a stored function call:
+      CREATE VIEW v1 AS SELECT f1() AS c1;
+    and now we're running:
+      SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME=f1();
+    If a parallel thread invalidates the cache,
+    e.g. by creating or dropping some stored routine,
+    the SELECT query will re-parse f1() when processing "v1"
+    and replace the outdated cached version of f1() to a new one.
+    But the old version of f1() is referenced from the m_sp member
+    of the Item_func_sp instances used in the WHERE condition.
+    We cannot destroy it. To avoid such clashes, let's remember
+    all old routines into a temporary SP cache collection
+    and process tables with a new empty temporary SP cache collection.
+    Then restore to the old SP cache collection at the end.
+  */
+  Sp_caches old_sp_caches;
+
+  old_sp_caches.sp_caches_swap(*thd);
 
   bzero(&tmp_mem_root, sizeof(tmp_mem_root));
 
@@ -5321,6 +5382,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
               error= 0;
               goto err;
             }
+            if (thd->is_fatal_error)
+              goto err;
 
             DEBUG_SYNC(thd, "before_open_in_get_all_tables");
             if (fill_schema_table_by_open(thd, &tmp_mem_root, FALSE,
@@ -5345,6 +5408,13 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 err:
   thd->restore_backup_open_tables_state(&open_tables_state_backup);
   free_root(&tmp_mem_root, 0);
+
+  /*
+    Now restore to the saved SP cache collection
+    and clear the temporary SP cache collection.
+  */
+  old_sp_caches.sp_caches_swap(*thd);
+  old_sp_caches.sp_caches_clear();
 
   DBUG_RETURN(error);
 }
@@ -9053,7 +9123,7 @@ ST_FIELD_INFO columns_fields_info[]=
   Column("ORDINAL_POSITION",        ULonglong(), NOT_NULL,          OPEN_FRM_ONLY),
   Column("COLUMN_DEFAULT", Longtext(MAX_FIELD_VARCHARLENGTH),
                                                  NULLABLE, "Default",OPEN_FRM_ONLY),
-  Column("IS_NULLABLE",             Yesno(),     NOT_NULL, "Null",  OPEN_FRM_ONLY),
+  Column("IS_NULLABLE",          Yes_or_empty(), NOT_NULL, "Null",  OPEN_FRM_ONLY),
   Column("DATA_TYPE",               Name(),      NOT_NULL,          OPEN_FRM_ONLY),
   Column("CHARACTER_MAXIMUM_LENGTH",ULonglong(), NULLABLE,          OPEN_FRM_ONLY),
   Column("CHARACTER_OCTET_LENGTH",  ULonglong(), NULLABLE,          OPEN_FRM_ONLY),
@@ -9064,7 +9134,7 @@ ST_FIELD_INFO columns_fields_info[]=
   Column("COLLATION_NAME",          CSName(),    NULLABLE, "Collation", OPEN_FRM_ONLY),
   Column("COLUMN_TYPE",         Longtext(65535), NOT_NULL, "Type",  OPEN_FRM_ONLY),
   Column("COLUMN_KEY",              Varchar(3),  NOT_NULL, "Key",   OPEN_FRM_ONLY),
-  Column("EXTRA",                   Varchar(30), NOT_NULL, "Extra", OPEN_FRM_ONLY),
+  Column("EXTRA",                   Varchar(80), NOT_NULL, "Extra", OPEN_FRM_ONLY),
   Column("PRIVILEGES",              Varchar(80), NOT_NULL, "Privileges", OPEN_FRM_ONLY),
   Column("COLUMN_COMMENT", Varchar(COLUMN_COMMENT_MAXLEN), NOT_NULL, "Comment",
                                                                  OPEN_FRM_ONLY),
@@ -9090,8 +9160,8 @@ ST_FIELD_INFO collation_fields_info[]=
   Column("COLLATION_NAME",               CSName(),     NOT_NULL, "Collation"),
   Column("CHARACTER_SET_NAME",           CSName(),     NOT_NULL, "Charset"),
   Column("ID", SLonglong(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL, "Id"),
-  Column("IS_DEFAULT",                   Yesno(),      NOT_NULL, "Default"),
-  Column("IS_COMPILED",                  Yesno(),      NOT_NULL, "Compiled"),
+  Column("IS_DEFAULT",                 Yes_or_empty(), NOT_NULL, "Default"),
+  Column("IS_COMPILED",                Yes_or_empty(), NOT_NULL, "Compiled"),
   Column("SORTLEN",                      SLonglong(3), NOT_NULL, "Sortlen"),
   CEnd()
 };
@@ -9099,10 +9169,10 @@ ST_FIELD_INFO collation_fields_info[]=
 
 ST_FIELD_INFO applicable_roles_fields_info[]=
 {
-  Column("GRANTEE",                  Userhost(), NOT_NULL),
+  Column("GRANTEE",                  Userhost(),     NOT_NULL),
   Column("ROLE_NAME", Varchar(USERNAME_CHAR_LENGTH), NOT_NULL),
-  Column("IS_GRANTABLE",             Yesno(),    NOT_NULL),
-  Column("IS_DEFAULT",               Yesno(),    NULLABLE),
+  Column("IS_GRANTABLE",             Yes_or_empty(), NOT_NULL),
+  Column("IS_DEFAULT",               Yes_or_empty(), NULLABLE),
   CEnd()
 };
 
@@ -9246,7 +9316,7 @@ ST_FIELD_INFO view_fields_info[]=
   Column("TABLE_NAME",           Name(),     NOT_NULL, OPEN_FRM_ONLY),
   Column("VIEW_DEFINITION", Longtext(65535), NOT_NULL, OPEN_FRM_ONLY),
   Column("CHECK_OPTION",         Varchar(8), NOT_NULL, OPEN_FRM_ONLY),
-  Column("IS_UPDATABLE",         Yesno(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("IS_UPDATABLE",     Yes_or_empty(), NOT_NULL, OPEN_FULL_TABLE),
   Column("DEFINER",              Definer(),  NOT_NULL, OPEN_FRM_ONLY),
   Column("SECURITY_TYPE",        Varchar(7), NOT_NULL, OPEN_FRM_ONLY),
   Column("CHARACTER_SET_CLIENT", CSName(),   NOT_NULL, OPEN_FRM_ONLY),
@@ -9258,46 +9328,46 @@ ST_FIELD_INFO view_fields_info[]=
 
 ST_FIELD_INFO user_privileges_fields_info[]=
 {
-  Column("GRANTEE",        Userhost(), NOT_NULL),
-  Column("TABLE_CATALOG",  Catalog(),  NOT_NULL),
-  Column("PRIVILEGE_TYPE", Name(),     NOT_NULL),
-  Column("IS_GRANTABLE",   Yesno(),    NOT_NULL),
+  Column("GRANTEE",        Userhost(),     NOT_NULL),
+  Column("TABLE_CATALOG",  Catalog(),      NOT_NULL),
+  Column("PRIVILEGE_TYPE", Name(),         NOT_NULL),
+  Column("IS_GRANTABLE",   Yes_or_empty(), NOT_NULL),
   CEnd()
 };
 
 
 ST_FIELD_INFO schema_privileges_fields_info[]=
 {
-  Column("GRANTEE",        Userhost(), NOT_NULL),
-  Column("TABLE_CATALOG",  Catalog(),  NOT_NULL),
-  Column("TABLE_SCHEMA",   Name(),     NOT_NULL),
-  Column("PRIVILEGE_TYPE", Name(),     NOT_NULL),
-  Column("IS_GRANTABLE",   Yesno(),    NOT_NULL),
+  Column("GRANTEE",        Userhost(),     NOT_NULL),
+  Column("TABLE_CATALOG",  Catalog(),      NOT_NULL),
+  Column("TABLE_SCHEMA",   Name(),         NOT_NULL),
+  Column("PRIVILEGE_TYPE", Name(),         NOT_NULL),
+  Column("IS_GRANTABLE",   Yes_or_empty(), NOT_NULL),
   CEnd()
 };
 
 
 ST_FIELD_INFO table_privileges_fields_info[]=
 {
-  Column("GRANTEE",        Userhost(), NOT_NULL),
-  Column("TABLE_CATALOG",  Catalog(),  NOT_NULL),
-  Column("TABLE_SCHEMA",   Name(),     NOT_NULL),
-  Column("TABLE_NAME",     Name(),     NOT_NULL),
-  Column("PRIVILEGE_TYPE", Name(),     NOT_NULL),
-  Column("IS_GRANTABLE",   Yesno(),    NOT_NULL),
+  Column("GRANTEE",        Userhost(),     NOT_NULL),
+  Column("TABLE_CATALOG",  Catalog(),      NOT_NULL),
+  Column("TABLE_SCHEMA",   Name(),         NOT_NULL),
+  Column("TABLE_NAME",     Name(),         NOT_NULL),
+  Column("PRIVILEGE_TYPE", Name(),         NOT_NULL),
+  Column("IS_GRANTABLE",   Yes_or_empty(), NOT_NULL),
   CEnd()
 };
 
 
 ST_FIELD_INFO column_privileges_fields_info[]=
 {
-  Column("GRANTEE",        Userhost(), NOT_NULL),
-  Column("TABLE_CATALOG",  Catalog(),  NOT_NULL),
-  Column("TABLE_SCHEMA",   Name(),     NOT_NULL),
-  Column("TABLE_NAME",     Name(),     NOT_NULL),
-  Column("COLUMN_NAME",    Name(),     NOT_NULL),
-  Column("PRIVILEGE_TYPE", Name(),     NOT_NULL),
-  Column("IS_GRANTABLE",   Yesno(),    NOT_NULL),
+  Column("GRANTEE",        Userhost(),     NOT_NULL),
+  Column("TABLE_CATALOG",  Catalog(),      NOT_NULL),
+  Column("TABLE_SCHEMA",   Name(),         NOT_NULL),
+  Column("TABLE_NAME",     Name(),         NOT_NULL),
+  Column("COLUMN_NAME",    Name(),         NOT_NULL),
+  Column("PRIVILEGE_TYPE", Name(),         NOT_NULL),
+  Column("IS_GRANTABLE",   Yes_or_empty(), NOT_NULL),
   CEnd()
 };
 
@@ -9438,7 +9508,7 @@ ST_FIELD_INFO sysvars_fields_info[]=
   Column("NUMERIC_MAX_VALUE",    Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
   Column("NUMERIC_BLOCK_SIZE",   Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
   Column("ENUM_VALUE_LIST",      Longtext(65535),                  NULLABLE),
-  Column("READ_ONLY",            Yesno(),                          NOT_NULL),
+  Column("READ_ONLY",            Yes_or_empty(),                   NOT_NULL),
   Column("COMMAND_LINE_ARGUMENT",Name(),                           NULLABLE),
   Column("GLOBAL_VALUE_PATH",    Varchar(2048),                    NULLABLE),
   CEnd()
@@ -9620,7 +9690,7 @@ ST_FIELD_INFO keycache_fields_info[]=
 };
 
 
-ST_FIELD_INFO show_explain_fields_info[]=
+ST_FIELD_INFO show_explain_tabular_fields_info[]=
 {
   Column("id",            SLonglong(3),                  NULLABLE, "id"),
   Column("select_type",   Varchar(19),                   NOT_NULL, "select_type"),
@@ -9634,6 +9704,41 @@ ST_FIELD_INFO show_explain_fields_info[]=
   Column("Extra",         Varchar(255),                  NOT_NULL, "Extra"),
   CEnd()
 };
+
+
+ST_FIELD_INFO show_explain_json_fields_info[]=
+{
+  Column("EXPLAIN", Longtext(MAX_FIELD_VARCHARLENGTH), NOT_NULL, "SHOW EXPLAIN"),
+  CEnd()
+};
+
+
+ST_FIELD_INFO show_analyze_tabular_fields_info[]=
+{
+  Column("id",            SLonglong(3),                  NULLABLE, "id"),
+  Column("select_type",   Varchar(19),                   NOT_NULL, "select_type"),
+  Column("table",         Name(),                        NULLABLE, "table"),
+  Column("type",          Varchar(15),                   NULLABLE, "type"),
+  Column("possible_keys",Varchar(NAME_CHAR_LEN*MAX_KEY), NULLABLE, "possible_keys"),
+  Column("key",          Varchar(NAME_CHAR_LEN*MAX_KEY), NULLABLE, "key"),
+  Column("key_len",      Varchar(NAME_CHAR_LEN*MAX_KEY), NULLABLE, "key_len"),
+  Column("ref",     Varchar(NAME_CHAR_LEN*MAX_REF_PARTS),NULLABLE, "ref"),
+  Column("rows",          SLonglong(10),                 NULLABLE, "rows"),
+  Column("r_rows",        Varchar(NAME_CHAR_LEN),        NULLABLE, "r_rows"),
+
+  /* Fields of type DECIMAL(5,2) to represent percentage.
+  See Show::Type::decimal_precision() and Show::Type::decimal_scale() to learn
+  how 502 converts to precision and scale (5 and 2)*/
+  Column("filtered",      Decimal(502),                  NULLABLE, "filtered"),
+  Column("r_filtered",    Decimal(502),                  NULLABLE, "r_filtered"),
+  Column("Extra",         Varchar(255),                  NOT_NULL, "Extra"),
+  CEnd()
+};
+
+
+ST_FIELD_INFO show_analyze_json_fields_info[]= {
+    Column("ANALYZE", Longtext(MAX_FIELD_VARCHARLENGTH), NOT_NULL, "SHOW ANALYZE"),
+    CEnd()};
 
 
 ST_FIELD_INFO check_constraints_fields_info[]=
@@ -9696,8 +9801,18 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"EVENTS", Show::events_fields_info, 0,
    0, make_old_format, 0, -1, -1, 0, 0},
 #endif
-  {"EXPLAIN", Show::show_explain_fields_info, 0, fill_show_explain,
-  make_old_format, 0, -1, -1, TRUE /*hidden*/ , 0},
+  {"EXPLAIN", Show::show_explain_tabular_fields_info, 0,
+    fill_show_explain_tabular, make_old_format, 0, -1, -1,
+    TRUE /*hidden*/ , 0},
+  {"EXPLAIN_JSON", Show::show_explain_json_fields_info, 0,
+    fill_show_explain_json, make_old_format, 0, -1, -1,
+    TRUE /*hidden*/ , 0},
+  {"ANALYZE", Show::show_analyze_tabular_fields_info, 0,
+    fill_show_analyze_tabular, make_old_format, 0, -1, -1,
+    TRUE /*hidden*/, 0},
+  {"ANALYZE_JSON", Show::show_analyze_json_fields_info, 0,
+    fill_show_analyze_json, make_old_format, 0, -1, -1,
+    TRUE /*hidden*/, 0},
   {"FILES", Show::files_fields_info, 0,
    hton_fill_schema_table, 0, 0, -1, -1, 0, 0},
   {"GLOBAL_STATUS", Show::variables_fields_info, 0,

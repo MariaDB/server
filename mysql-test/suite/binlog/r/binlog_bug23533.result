@@ -9,7 +9,7 @@ disconnect default;
 connect default,localhost,root,,test;
 START TRANSACTION;
 CREATE TABLE t2 SELECT * FROM t1;
-ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mariadbd variable and try again
 COMMIT;
 SHOW TABLES LIKE 't%';
 Tables_in_test (t%)

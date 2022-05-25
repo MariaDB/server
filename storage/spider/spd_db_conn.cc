@@ -8374,8 +8374,7 @@ int spider_db_open_item_ref(
       }
       DBUG_RETURN(0);
     }
-    DBUG_RETURN(spider_db_print_item_type(*(item_ref->ref), NULL, spider, str,
-      alias, alias_length, dbton_id, use_fields, fields));
+    DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM); // MDEV-25116
   }
   DBUG_RETURN(spider_db_open_item_ident((Item_ident *) item_ref, spider, str,
     alias, alias_length, dbton_id, use_fields, fields));

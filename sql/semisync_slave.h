@@ -23,6 +23,7 @@
 #include "sql_priv.h"
 #include "rpl_mi.h"
 #include "mysql.h"
+#include <sql_common.h>
 
 class Master_info;
 

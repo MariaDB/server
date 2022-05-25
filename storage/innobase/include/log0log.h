@@ -180,7 +180,7 @@ struct log_t
 
 private:
   /** The log sequence number of the last change of durable InnoDB files */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE)
   std::atomic<lsn_t> lsn;
   /** the first guaranteed-durable log sequence number */
   std::atomic<lsn_t> flushed_to_disk_lsn;
@@ -203,7 +203,7 @@ typedef srw_lock log_rwlock_t;
 
 public:
   /** rw-lock protecting buf */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) log_rwlock_t latch;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) log_rwlock_t latch;
 private:
   /** Last written LSN */
   lsn_t write_lsn;
@@ -230,7 +230,7 @@ private:
   byte *resize_flush_buf;
 
   /** spin lock protecting lsn, buf_free in append_prepare() */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) pthread_mutex_t lsn_lock;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) pthread_mutex_t lsn_lock;
   void init_lsn_lock() { pthread_mutex_init(&lsn_lock, LSN_LOCK_ATTR); }
   void lock_lsn() { pthread_mutex_lock(&lsn_lock); }
   void unlock_lsn() { pthread_mutex_unlock(&lsn_lock); }

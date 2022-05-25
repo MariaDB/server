@@ -1,0 +1,94 @@
+#!/bin/bash
+set -e
+
+. /usr/share/debconf/confmodule
+
+if [ -n "$DEBIAN_SCRIPT_DEBUG" ]; then set -v -x; DEBIAN_SCRIPT_TRACE=1; fi
+${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }
+
+MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
+
+# Try to stop the server in a sane way. If it does not success let the admin
+# do it himself. No database directories should be removed while the server
+# is running! Another mariadbd in e.g. a different chroot is fine for us.
+stop_server() {
+    # Return immediately if there are no mysqld processes running
+    # as there is no point in trying to shutdown in that case.
+    if ! pgrep -x --nslist pid --ns $$ "mysqld|mariadbd" > /dev/null; then return; fi
+
+    set +e
+    invoke-rc.d mariadb stop
+    invoke-rc.d mysql stop # Backwards compatibility
+    errno=$?
+    set -e
+
+    # systemctl could emit exit code 100=no init script (fresh install)
+    if [ "$errno" != 0 -a "$errno" != 100 ]; then
+      echo "Attempt to stop MariaDB/MySQL server returned exitcode $errno" 1>&2
+      echo "There is a MariaDB/MySQL server running, but we failed in our attempts to stop it." 1>&2
+      echo "Stop it yourself and try again!" 1>&2
+      db_stop
+      exit 1
+    fi
+}
+
+
+case "$1" in
+  purge|remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+    if [ -n "`$MYADMIN ping 2>/dev/null`" ]; then
+      stop_server
+      sleep 2
+    fi
+  ;;
+  *)
+    echo "postrm called with unknown argument '$1'" 1>&2
+    exit 1
+  ;;
+esac
+
+#
+# - Purge logs and data only if they are ours (#307473)
+# - Remove the mysql user only after all his owned files are purged.
+# - Cleanup the initscripts only if this was the last provider of them
+#
+if [ "$1" = "purge" ] && [ -f "/var/lib/mysql/debian-__MARIADB_MAJOR_VER__.flag" ]; then
+  # we remove the mysql user only after all his owned files are purged
+  rm -f /var/log/mysql.{log,err}{,.0,.[1234567].gz}
+  rm -rf /var/log/mysql
+
+  db_input high "mariadb-server/postrm_remove_databases" || true
+  db_go || true
+  db_get "mariadb-server/postrm_remove_databases" || true
+  if [ "$RET" = "true" ]; then
+    # never remove the debian.cnf when the databases are still existing
+    # else we ran into big trouble on the next install!
+    rm -f /etc/mysql/debian.cnf
+    # Remove all contents from /var/lib/mysql except if it's a
+    # directory with file system data. See #829491 for details and
+    # #608938 for potential mysql-server leftovers which erroneously
+    # had been renamed.
+    # Attempt removal only if the directory hasn't already been removed
+    # by dpkg to avoid failing on "No such file or directory" errors.
+    if [ -d /var/lib/mysql ]
+    then
+      find /var/lib/mysql -mindepth 1 \
+           -not -path '*/lost+found/*'     -not -name 'lost+found' \
+           -not -path '*/lost@002bfound/*' -not -name 'lost@002bfound' \
+           -delete
+
+      # "|| true" still needed as rmdir still exits with non-zero if
+      # /var/lib/mysql is a mount point
+      rmdir --ignore-fail-on-non-empty /var/lib/mysql || true
+    fi
+    rm -rf /run/mysqld # this directory is created by the init script, don't leave behind
+    userdel mysql || true
+  fi
+
+fi
+
+#DEBHELPER#
+
+# Modified dh_systemd_start snippet that's not added automatically
+if [ -d /run/systemd/system ]; then
+	systemctl --system daemon-reload >/dev/null || true
+fi

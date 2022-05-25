@@ -19,6 +19,7 @@
 
 #include <my_sys.h>                             // pthread_mutex_t
 #include "m_string.h"                           // LEX_CUSTRING
+#include "lex_charset.h"
 
 #define ERROR_INJECT(code) \
   ((DBUG_IF("crash_" code) && (DBUG_SUICIDE(), 0)) || \
@@ -90,9 +91,6 @@ void build_lower_case_table_filename(char *buff, size_t bufflen,
                                      const LEX_CSTRING *table,
                                      uint flags);
 uint build_tmptable_filename(THD* thd, char *buff, size_t bufflen);
-bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
-                        Table_specification_st *create_info,
-                        Alter_info *alter_info);
 bool add_keyword_to_query(THD *thd, String *result, const LEX_CSTRING *keyword,
                           const LEX_CSTRING *add);
 
@@ -156,14 +154,14 @@ int mysql_discard_or_import_tablespace(THD *thd,
                                        bool discard);
 
 bool mysql_prepare_alter_table(THD *thd, TABLE *table,
-                               HA_CREATE_INFO *create_info,
+                               Table_specification_st *create_info,
                                Alter_info *alter_info,
                                Alter_table_ctx *alter_ctx);
 bool mysql_trans_prepare_alter_copy_data(THD *thd);
 bool mysql_trans_commit_alter_copy_data(THD *thd);
 bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                        const LEX_CSTRING *new_name,
-                       HA_CREATE_INFO *create_info,
+                       Table_specification_st *create_info,
                        TABLE_LIST *table_list,
                        Alter_info *alter_info,
                        uint order_num, ORDER *order, bool ignore,
@@ -173,9 +171,6 @@ bool mysql_compare_tables(TABLE *table,
                           HA_CREATE_INFO *create_info,
                           bool *metadata_equal);
 bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy);
-bool mysql_create_like_table(THD *thd, TABLE_LIST *table,
-                             TABLE_LIST *src_table,
-                             Table_specification_st *create_info);
 bool mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
                         const LEX_CSTRING *old_name, const LEX_CSTRING *new_db,
                         const LEX_CSTRING *new_name, LEX_CUSTRING *id,

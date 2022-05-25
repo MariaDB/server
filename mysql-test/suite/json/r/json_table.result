@@ -985,6 +985,16 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
   )
 ) AS jt' at line 3
 #
+# MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+#
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) CHARACTER SET latin1 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+name
+Jeans
+#
 # End of 10.6 tests
 #
 #
@@ -1059,6 +1069,12 @@ SELECT collation(name) FROM v1;
 collation(name)
 utf8mb4_bin
 DROP VIEW v1;
+#
+# MDEV-28319: Assertion `cur_step->type & JSON_PATH_KEY' failed in json_find_path
+#
+SELECT * FROM JSON_TABLE('{"foo":{"bar":1},"qux":2}', '$' COLUMNS(c1 VARCHAR(8) PATH '$[0]', c2 CHAR(8) PATH '$.*.x')) AS js;
+c1	c2
+NULL	NULL
 #
 # End of 10.9 tests
 #

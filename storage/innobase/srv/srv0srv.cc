@@ -472,7 +472,7 @@ priority of the background thread so that it will be scheduled and it
 can release the resource.  This solution is called priority inheritance
 in real-time programming.  A drawback of this solution is that the overhead
 of acquiring a mutex increases slightly, maybe 0.2 microseconds on a 100
-MHz Pentium, because the thread has to call os_thread_get_curr_id.  This may
+MHz Pentium, because the thread has to call pthread_self.  This may
 be compared to 0.5 microsecond overhead for a mutex lock-unlock pair. Note
 that the thread cannot store the information in the resource , say mutex,
 itself, because competing threads could wipe out the information if it is
@@ -1109,8 +1109,6 @@ srv_export_innodb_status(void)
 		srv_truncated_status_writes;
 
 	export_vars.innodb_page_compression_saved = srv_stats.page_compression_saved;
-	export_vars.innodb_index_pages_written = srv_stats.index_pages_written;
-	export_vars.innodb_non_index_pages_written = srv_stats.non_index_pages_written;
 	export_vars.innodb_pages_page_compressed = srv_stats.pages_page_compressed;
 	export_vars.innodb_page_compressed_trim_op = srv_stats.page_compressed_trim_op;
 	export_vars.innodb_pages_page_decompressed = srv_stats.pages_page_decompressed;
@@ -1155,8 +1153,6 @@ srv_export_innodb_status(void)
 			crypt_stat.estimated_iops;
 		export_vars.innodb_encryption_key_requests =
 			srv_stats.n_key_requests;
-		export_vars.innodb_key_rotation_list_length =
-			srv_stats.key_rotation_list_length;
 	}
 
 	mysql_mutex_unlock(&srv_innodb_monitor_mutex);

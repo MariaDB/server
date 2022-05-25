@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -552,10 +552,18 @@ Item *Item_sum::get_tmp_table_item(THD *thd)
       Item *arg= sum_item->args[i];
       if (!arg->const_item())
       {
-	if (arg->type() == Item::FIELD_ITEM)
-	  ((Item_field*) arg)->field= result_field_tmp++;
-	else
-	  sum_item->args[i]= new (thd->mem_root) Item_temptable_field(thd, result_field_tmp++);
+        if (arg->type() == Item::FIELD_ITEM)
+        {
+          ((Item_field*) arg)->field= result_field_tmp++;
+        }
+        else
+        {
+          auto item_field=
+            new (thd->mem_root) Item_field(thd, result_field_tmp++);
+          if (item_field)
+            item_field->set_refers_to_temp_table(true);
+          sum_item->args[i]= item_field;
+        }
       }
     }
   }
@@ -1470,8 +1478,7 @@ Item_sum_sp::fix_length_and_dec(THD *thd)
 
 LEX_CSTRING Item_sum_sp::func_name_cstring() const
 {
-  THD *thd= current_thd;
-  return Item_sp::func_name_cstring(thd);
+  return Item_sp::func_name_cstring(current_thd, false);
 }
 
 Item* Item_sum_sp::copy_or_same(THD *thd)
@@ -1552,6 +1559,8 @@ void Item_sum_sum::fix_length_and_dec_decimal()
   decimals= args[0]->decimals;
   /* SUM result can't be longer than length(arg) + length(MAX_ROWS) */
   int precision= args[0]->decimal_precision() + DECIMAL_LONGLONG_DIGITS;
+  decimals= MY_MIN(decimals, DECIMAL_MAX_SCALE);
+  precision= MY_MIN(precision, DECIMAL_MAX_PRECISION);
   max_length= my_decimal_precision_to_length_no_truncation(precision,
                                                            decimals,
                                                            unsigned_flag);
@@ -1963,12 +1972,12 @@ void Item_sum_avg::fix_length_and_dec_decimal()
 {
   Item_sum_sum::fix_length_and_dec_decimal();
   int precision= args[0]->decimal_precision() + prec_increment;
-  decimals= MY_MIN(args[0]->decimals + prec_increment, DECIMAL_MAX_SCALE);
+  decimals= MY_MIN(args[0]->decimal_scale() + prec_increment, DECIMAL_MAX_SCALE);
   max_length= my_decimal_precision_to_length_no_truncation(precision,
                                                            decimals,
                                                            unsigned_flag);
   f_precision= MY_MIN(precision+DECIMAL_LONGLONG_DIGITS, DECIMAL_MAX_PRECISION);
-  f_scale=  args[0]->decimals;
+  f_scale= args[0]->decimal_scale();
   dec_bin_size= my_decimal_get_binary_size(f_precision, f_scale);
 }
 
@@ -4254,9 +4263,9 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
   result.set_charset(collation.collation);
   result_field= 0;
   null_value= 1;
-  max_length= (uint32)MY_MIN(thd->variables.group_concat_max_len
-                             / collation.collation->mbminlen
-                             * collation.collation->mbmaxlen, UINT_MAX32);
+  max_length= (uint32) MY_MIN((ulonglong) thd->variables.group_concat_max_len
+                              / collation.collation->mbminlen
+                              * collation.collation->mbmaxlen, UINT_MAX32);
 
   uint32 offset;
   if (separator->needs_conversion(separator->length(), separator->charset(),

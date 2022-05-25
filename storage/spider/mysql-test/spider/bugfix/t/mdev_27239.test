@@ -1,0 +1,24 @@
+--echo #
+--echo # MDEV-27239 Spider: Assertion `thd->transaction->stmt.ha_list == __null || trans == &thd->transaction->stmt' failed in ha_commit_trans on BEGIN WORK after FTWRL
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+CREATE TABLE tbl_a (a INT) ENGINE=SPIDER;
+FLUSH TABLE tbl_a WITH READ LOCK;
+BEGIN;
+
+DROP DATABASE auto_test_local;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

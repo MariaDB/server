@@ -826,6 +826,7 @@ bool Item_subselect::exec()
   DBUG_ENTER("Item_subselect::exec");
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(thd);
+  DBUG_ASSERT(!eliminated);
 
   DBUG_EXECUTE_IF("Item_subselect",
     Item::Print print(this,
@@ -1068,7 +1069,13 @@ bool Item_subselect::const_item() const
 Item *Item_subselect::get_tmp_table_item(THD *thd_arg)
 {
   if (!with_sum_func() && !const_item())
-    return new (thd->mem_root) Item_temptable_field(thd_arg, result_field);
+  {
+    auto item_field=
+        new (thd->mem_root) Item_field(thd_arg, result_field);
+    if (item_field)
+      item_field->set_refers_to_temp_table(true);
+    return item_field;
+  }
   return copy_or_same(thd_arg);
 }
 
@@ -1355,11 +1362,18 @@ bool Item_singlerow_subselect::fix_length_and_dec()
   }
   unsigned_flag= value->unsigned_flag;
   /*
-    If there are not tables in subquery then ability to have NULL value
-    depends on SELECT list (if single row subquery have tables then it
-    always can be NULL if there are not records fetched).
+    If the subquery has no tables (1) and is not a UNION (2), like:
+
+      (SELECT subq_value)
+
+    then its NULLability is the same as subq_value's NULLability.
+
+    (1): A subquery that uses a table will return NULL when the table is empty.
+    (2): A UNION subquery will return NULL if it produces a "Subquery returns
+         more than one row" error.
   */
-  if (engine->no_tables())
+  if (engine->no_tables() &&
+      engine->engine_type() != subselect_engine::UNION_ENGINE)
     set_maybe_null(engine->may_be_null());
   else
   {
@@ -1394,6 +1408,16 @@ Item* Item_singlerow_subselect::expr_cache_insert_transformer(THD *tmp_thd,
   DBUG_ENTER("Item_singlerow_subselect::expr_cache_insert_transformer");
 
   DBUG_ASSERT(thd == tmp_thd);
+
+  /*
+    Do not create subquery cache if the subquery was eliminated.
+    The optimizer may eliminate subquery items (see
+    eliminate_subselect_processor). However it does not update
+    all query's data structures, so the eliminated item may be
+    still reachable.
+  */
+  if (eliminated)
+    DBUG_RETURN(this);
 
   if (expr_cache)
     DBUG_RETURN(expr_cache);
@@ -2871,6 +2895,8 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
     }
 
     where_item= and_items(thd, join_arg->conds, where_item);
+
+    /* This is the fix_fields() call mentioned in the comment above */
     if (where_item->fix_fields_if_needed(thd, 0))
       DBUG_RETURN(true);
     // TIMOUR TODO: call optimize_cond() for the new where clause
@@ -2881,7 +2907,10 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
     /* Attach back the list of multiple equalities to the new top-level AND. */
     if (and_args && join_arg->cond_equal)
     {
-      /* The argument list of the top-level AND may change after fix fields. */
+      /*
+        The fix_fields() call above may have changed the argument list, so
+        fetch it again:
+      */
       and_args= ((Item_cond*) join_arg->conds)->argument_list();
       ((Item_cond_and *) (join_arg->conds))->m_cond_equal=
                                              *join_arg->cond_equal;
@@ -5319,10 +5348,12 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
     /* New equi-join condition for the current column. */
     Item_func_eq *eq_cond;
     /* Item for the corresponding field from the materialized temp table. */
-    Item_field *right_col_item;
+    Item_field *right_col_item= new (thd->mem_root)
+        Item_field(thd, context, tmp_table->field[i]);
+    if (right_col_item)
+      right_col_item->set_refers_to_temp_table(true);
 
-    if (!(right_col_item= new (thd->mem_root)
-          Item_temptable_field(thd, context, tmp_table->field[i])) ||
+    if (!right_col_item ||
         !(eq_cond= new (thd->mem_root)
           Item_func_eq(thd, item_in->left_expr->element_index(i),
                        right_col_item)) ||

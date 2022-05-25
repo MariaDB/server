@@ -3793,7 +3793,7 @@ public:
   }
   bool set(const Type_handler *handler,
            const Lex_length_and_dec_st & length_and_dec,
-           const Lex_charset_collation_st &cscl,
+           const Lex_column_charset_collation_attrs_st &cscl,
            CHARSET_INFO *defcs)
   {
     CHARSET_INFO *tmp= cscl.resolved_to_character_set(defcs);

@@ -903,6 +903,10 @@ enum enum_query_type
   // it evaluates to. Should be used for error messages, so that they
   // don't reveal values.
   QT_NO_DATA_EXPANSION= (1 << 9),
+
+  // The temporary tables used by the query might be freed by the time
+  // this print() call is made.
+  QT_DONT_ACCESS_TMP_TABLES= (1 << 12)
 };
 
 
@@ -979,6 +983,7 @@ extern int mysqld_main(int argc, char **argv);
 extern HANDLE hEventShutdown;
 extern void mysqld_win_initiate_shutdown();
 extern void mysqld_win_set_startup_complete();
+extern void mysqld_win_extend_service_timeout(DWORD sec);
 extern void mysqld_set_service_status_callback(void (*)(DWORD, DWORD, DWORD));
 extern void mysqld_win_set_service_name(const char *name);
 #endif

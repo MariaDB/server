@@ -312,7 +312,8 @@ handle_new_nested:
 
   while (!json_get_path_next(&m_engine, &m_cur_path))
   {
-    if (json_path_compare(&m_path, &m_cur_path, m_engine.value_type))
+    if (json_path_compare(&m_path, &m_cur_path, m_engine.value_type,
+                          NULL))
       continue;
     /* path found. */
     ++m_ordinality_counter;
@@ -501,7 +502,7 @@ int ha_json_table::fill_column_values(THD *thd, uchar * buf, uchar *pos)
       {
         json_engine_t je;
         json_path_step_t *cur_step;
-        uint array_counters[JSON_DEPTH_LIMIT];
+        int array_counters[JSON_DEPTH_LIMIT];
         int not_found;
         const uchar* node_start;
         const uchar* node_end;
@@ -560,7 +561,8 @@ int ha_json_table::fill_column_values(THD *thd, uchar * buf, uchar *pos)
                 more matches for it in json and report an error if so.
               */
               if (jc->m_path.types_used &
-                    (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD) &&
+                    (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD |
+                     JSON_PATH_ARRAY_RANGE) &&
                   (json_scan_next(&je) ||
                    !json_find_path(&je, &jc->m_path, &cur_step,
                                    array_counters)))
@@ -872,7 +874,7 @@ int Json_table_column::set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
 
 
 int Json_table_column::set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
-                           const Lex_charset_collation_st &cl)
+                           const Lex_column_charset_collation_attrs_st &cl)
 {
   if (cl.is_empty() || cl.is_contextually_typed_collate_default())
     return set(thd, ctype, path, nullptr);

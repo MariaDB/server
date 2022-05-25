@@ -55,7 +55,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "buf0dblwr.h"
 #include "buf0dump.h"
 #include "os0file.h"
-#include "os0thread.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "fsp0fsp.h"

@@ -723,6 +723,8 @@ utf8mb3_general_ci	utf8mb3_general_ci
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 */;
 
 USE `mysqltest1`;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = '' */ ;
 ALTER DATABASE `mysqltest1` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
@@ -730,8 +732,6 @@ ALTER DATABASE `mysqltest1` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;
 /*!50003 SET character_set_client  = koi8r */ ;
 /*!50003 SET character_set_results = koi8r */ ;
 /*!50003 SET collation_connection  = koi8r_general_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`(
 INOUT парам1 CHAR(10),
@@ -757,6 +757,8 @@ DELIMITER ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
 ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = '' */ ;
 ALTER DATABASE `mysqltest1` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
@@ -764,8 +766,6 @@ ALTER DATABASE `mysqltest1` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;
 /*!50003 SET character_set_client  = koi8r */ ;
 /*!50003 SET character_set_results = koi8r */ ;
 /*!50003 SET collation_connection  = koi8r_general_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `p2`(
 INOUT парам1 CHAR(10) CHARACTER SET utf8,
@@ -799,6 +799,8 @@ ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 */;
 
 USE `mysqltest2`;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = '' */ ;
 ALTER DATABASE `mysqltest2` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
@@ -806,8 +808,6 @@ ALTER DATABASE `mysqltest2` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;
 /*!50003 SET character_set_client  = koi8r */ ;
 /*!50003 SET character_set_results = koi8r */ ;
 /*!50003 SET collation_connection  = koi8r_general_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `p3`(
 INOUT парам1 CHAR(10),
@@ -833,6 +833,8 @@ DELIMITER ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
 ALTER DATABASE `mysqltest2` CHARACTER SET cp866 COLLATE cp866_general_ci ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = '' */ ;
 ALTER DATABASE `mysqltest2` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
@@ -840,8 +842,6 @@ ALTER DATABASE `mysqltest2` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;
 /*!50003 SET character_set_client  = koi8r */ ;
 /*!50003 SET character_set_results = koi8r */ ;
 /*!50003 SET collation_connection  = koi8r_general_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `p4`(
 INOUT парам1 CHAR(10) CHARACTER SET utf8,

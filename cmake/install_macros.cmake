@@ -140,7 +140,7 @@ FUNCTION(INSTALL_DOCUMENTATION)
   IF(RPM)
     SET(destination "${destination}/MariaDB-${group}-${VERSION}")
   ELSEIF(DEB)
-    SET(destination "${destination}/mariadb-${group}-${MAJOR_VERSION}.${MINOR_VERSION}")
+    SET(destination "${destination}/mariadb-${group}")
   ENDIF()
 
   INSTALL(FILES ${files} DESTINATION ${destination} COMPONENT ${ARG_COMPONENT})

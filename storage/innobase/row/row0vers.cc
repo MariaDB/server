@@ -1226,6 +1226,10 @@ row_vers_build_for_consistent_read(
 	return(err);
 }
 
+#if defined __aarch64__&&defined __GNUC__&&__GNUC__==4&&!defined __clang__
+/* Avoid GCC 4.8.5 internal compiler error "could not split insn". */
+# pragma GCC optimize ("O0")
+#endif
 /*****************************************************************//**
 Constructs the last committed version of a clustered index record,
 which should be seen by a semi-consistent read. */

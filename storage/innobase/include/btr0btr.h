@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -25,8 +25,7 @@ The B-tree
 Created 6/2/1994 Heikki Tuuri
 *******************************************************/
 
-#ifndef btr0btr_h
-#define btr0btr_h
+#pragma once
 
 #include "dict0dict.h"
 #include "data0data.h"
@@ -681,6 +680,3 @@ btr_lift_page_up(
 /****************************************************************
 Global variable controlling if scrubbing should be performed */
 extern my_bool srv_immediate_scrub_data_uncompressed;
-extern Atomic_counter<uint32_t> btr_validate_index_running;
-
-#endif

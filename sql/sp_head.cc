@@ -221,6 +221,7 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_SHOW_DATABASES:
   case SQLCOM_SHOW_ERRORS:
   case SQLCOM_SHOW_EXPLAIN:
+  case SQLCOM_SHOW_ANALYZE:
   case SQLCOM_SHOW_FIELDS:
   case SQLCOM_SHOW_FUNC_CODE:
   case SQLCOM_SHOW_GENERIC:
@@ -829,7 +830,7 @@ void
 sp_head::set_stmt_end(THD *thd)
 {
   Lex_input_stream *lip= & thd->m_parser_state->m_lip; /* shortcut */
-  const char *end_ptr= lip->get_cpp_ptr(); /* shortcut */
+  const char *end_ptr= lip->get_cpp_tok_start(); /* shortcut */
 
   /* Make the string of parameters. */
 

@@ -239,26 +239,56 @@ sub get_user_mycnf
 
 sub connect_to_MySQL
 {
-   print "connect_to_MySQL\n" if $op{debug};
+    print "connect_to_MySQL\n" if $op{debug};
 
-   my $dsn;
+    if(my @driverList = grep {/mariadb|mysql/i} DBI->available_drivers()) {
+        my $dsn;
+        my $driver = undef;
 
-   if($mycnf{'socket'} && -S $mycnf{'socket'})
-   {
-      $dsn = "DBI:MariaDB:mariadb_socket=$mycnf{socket}";
-   }
-   elsif($mycnf{'host'})
-   {
-      $dsn = "DBI:MariaDB:host=$mycnf{host}" . ($mycnf{port} ? ";port=$mycnf{port}" : "");
-   }
-   else
-   {
-      $dsn = "DBI:MariaDB:host=localhost";
-   }
+        if(grep {/mariadb/i} @driverList)
+        {
+            $driver = "DBI:MariaDB";
+        }
+        elsif(grep {/mysql/i} @driverList)
+        {
+            $driver = "DBI:mysql";
+        }
 
-   print "connect_to_MySQL: DBI DSN: $dsn\n" if $op{debug};
+        if($mycnf{'socket'} && -S $mycnf{'socket'})
+        {
+            if(grep {/mariadb/i} @driverList)
+            {
+                $dsn = $driver . ":mariadb_socket=$mycnf{socket}";
+            }
+            elsif(grep {/mysql/i} @driverList)
+            {
+                $dsn = $driver . ":mysql_socket=$mycnf{socket}";
+            }
+        }
+        elsif($mycnf{'host'})
+        {
+            $dsn = $driver . ":host=$mycnf{host}" . ($mycnf{port} ? ";port=$mycnf{port}" : "");
+        }
+        else
+        {
+            $dsn = $driver . ":host=localhost";
+        }
 
-   $dbh = DBI->connect($dsn, $mycnf{'user'}, $mycnf{'pass'}) or die;
+        print "connect_to_MySQL: DBI DSN: " . $dsn . "\n" if $op{debug};
+
+        $dbh = DBI->connect($dsn, $mycnf{'user'}, $mycnf{'pass'}) or die;
+    }
+    else
+    {
+        print STDERR "Install Perl 5.x driver: DBD:mysql or DBD:MariaDB\n";
+        print STDERR "currently installed Perl DBD drivers:\n";
+        foreach my $driver (DBI->available_drivers())
+        {
+            print STDERR " * " . $driver . "\n";
+        }
+        print STDERR "\n";
+        die("Exit as no MariaDB DBI driver found!\n");
+    }
 }
 
 sub collect_reports

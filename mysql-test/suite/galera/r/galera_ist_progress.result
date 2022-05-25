@@ -7,7 +7,7 @@ connection node_2;
 SET SESSION wsrep_on = OFF;
 SET SESSION wsrep_on = ON;
 connection node_1;
-CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 INSERT INTO t1 VALUES (2);
 INSERT INTO t1 VALUES (3);
@@ -23,8 +23,7 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 0';
 connection node_1;
 connection node_2;
 connection node_1;
-include/assert_grep.inc [Receiving IST: 13 writesets, seqnos 3-15]
-include/assert_grep.inc [Receiving IST\.\.\.  0\.0% \( 0/13 events\) complete]
-include/assert_grep.inc [Receiving IST\.\.\.100\.0% \(13/13 events\) complete]
+"Trying to find IST progress reporting"
+found
 connection node_1;
 DROP TABLE t1;

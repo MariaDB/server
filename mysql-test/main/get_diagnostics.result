@@ -790,6 +790,19 @@ SHOW STATUS LIKE 'Com%get_diagnostics';
 Variable_name	Value
 Com_get_diagnostics	1
 #
+# MDEV-26695: Number of an invalid row is not calculated for table value constructor
+#
+CREATE TABLE t1 (a CHAR(1)) VALUES ('a'),('b'),('foo');
+Warnings:
+Warning	1406	Data too long for column 'a' at row 3
+CREATE TABLE t2 (a char(1)) VALUES ('a'),('b') UNION VALUES ('foo');
+Warnings:
+Warning	1406	Data too long for column 'a' at row 3
+DROP TABLE t1, t2;
+#
+# End of 10.6 tests
+#
+#
 # MDEV-10075: Provide index of error causing error in array INSERT
 #
 #
@@ -1811,3 +1824,41 @@ SELECT @n;
 @n
 4
 DROP TABLE t;
+#
+# MDEV-26695: Number of an invalid row is not calculated for table value constructor
+#
+CREATE TABLE t1 (a CHAR(1)) VALUES ('a'),('b'),('foo');
+Warnings:
+Warning	1406	Data too long for column 'a' at row 3
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER;
+SELECT @n;
+@n
+3
+CREATE TABLE t2 (a CHAR(1)) VALUES ('a'),('b') UNION VALUES ('foo');
+Warnings:
+Warning	1406	Data too long for column 'a' at row 3
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER;
+SELECT @n;
+@n
+3
+DROP TABLE t1, t2;
+# Checking that CREATE ... SELECT works
+CREATE TABLE t1 (val1 CHAR(5));
+INSERT INTO t1 VALUES ('A'),('B'),('C'),('DEF');
+CREATE TABLE t2 (val2 CHAR(1)) SELECT val1 as val2 FROM t1;
+Warnings:
+Warning	1406	Data too long for column 'val2' at row 4
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER;
+SELECT @n;
+@n
+4
+SELECT * FROM t2;
+val2
+A
+B
+C
+D
+DROP TABLE t1,t2;
+#
+# End of 10.7 tests
+#

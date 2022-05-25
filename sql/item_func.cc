@@ -734,7 +734,12 @@ void Item_func::signal_divide_by_null()
 Item *Item_func::get_tmp_table_item(THD *thd)
 {
   if (!with_sum_func() && !const_item())
-    return new (thd->mem_root) Item_temptable_field(thd, result_field);
+  {
+    auto item_field= new (thd->mem_root) Item_field(thd, result_field);
+    if (item_field)
+      item_field->set_refers_to_temp_table(true);
+    return item_field;
+  }
   return copy_or_same(thd);
 }
 
@@ -2552,7 +2557,7 @@ void Item_func_round::fix_arg_decimal()
     set_handler(&type_handler_newdecimal);
     unsigned_flag= args[0]->unsigned_flag;
     decimals= args[0]->decimals;
-    max_length= float_length(args[0]->decimals) + 1;
+    max_length= args[0]->max_length;
   }
 }
 
@@ -6625,8 +6630,8 @@ Item_func_sp::cleanup()
 LEX_CSTRING
 Item_func_sp::func_name_cstring() const
 {
-  THD *thd= current_thd;
-  return Item_sp::func_name_cstring(thd);
+  return Item_sp::func_name_cstring(current_thd,
+                                    m_handler == &sp_handler_package_function);
 }
 
 

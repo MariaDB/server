@@ -801,6 +801,27 @@ drop view v1;
 drop function get_name;
 drop table t1;
 
+--echo #
+--echo # MDEV-28266: Crash in Field_string::type_handler when calling procedures
+--echo #
+
+CREATE TABLE t (f INT);
+
+--delimiter $
+CREATE TRIGGER tr AFTER INSERT ON t FOR EACH ROW
+    FOR x IN (SELECT * FROM json_table(NULL, '$' COLUMNS(a CHAR(1) path '$.*')) tmp)
+    DO set @a=1; END FOR $
+--delimiter ;
+
+INSERT INTO t () values ();
+
+# Cleanup
+DROP TABLE t;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
+
 
 --echo #
 --echo # Start of 10.8 tests

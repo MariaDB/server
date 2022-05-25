@@ -1,0 +1,11 @@
+connection node_2;
+connection node_1;
+connection node_2;
+call mtr.add_suppression("WSREP: Failed to scan the last segment to the end. Last events may be missing. Last recovered event:.*");
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_2;
+SET SESSION wsrep_on = OFF;
+XA START 'xatest';
+ERROR 42000: This version of MariaDB doesn't yet support 'XA transactions with Galera replication'

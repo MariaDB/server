@@ -137,7 +137,34 @@ SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 unique_constraint_name
 PRIMARY
+#
+# MDEV-28317 Assertion failure on rollback of FOREIGN KEY operation
+#
+SET foreign_key_checks=0;
+CREATE TABLE parent(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE child(a INT,FOREIGN KEY(a) REFERENCES parent(a) ON DELETE CASCADE)
+ENGINE=InnoDB;
+INSERT INTO child VALUES(1);
+ALTER TABLE child DROP INDEX a;
+connect incomplete, localhost, root,,;
+BEGIN;
+DELETE FROM child;
+connection default;
+INSERT INTO parent SET a=0;
+FLUSH TABLES;
 # restart
+disconnect incomplete;
+INSERT INTO child SET a=0;
+INSERT INTO child SET a=1;
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON DELETE CASCADE)
+DELETE FROM parent;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON DELETE CASCADE)
+ALTER TABLE child ADD INDEX(a);
+DELETE FROM parent;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON DELETE CASCADE)
+ALTER TABLE child FORCE;
+DELETE FROM parent;
+DROP TABLE child,parent;
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SELECT unique_constraint_name FROM information_schema.referential_constraints
@@ -960,11 +987,30 @@ ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 ALTER TABLE parent ADD COLUMN b INT, ALGORITHM=INSTANT;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-disconnect con1;
+connection con1;
+COMMIT;
+connection default;
 SET innodb_lock_wait_timeout=DEFAULT;
 TRUNCATE TABLE parent;
 ALTER TABLE parent FORCE, ALGORITHM=COPY;
 ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
 ALTER TABLE parent ADD COLUMN b INT, ALGORITHM=INSTANT;
 DROP TABLE child, parent;
+#
+# MDEV-26217 Failing assertion: list.count > 0 in ut_list_remove
+# or Assertion `lock->trx == this' failed in dberr_t trx_t::drop_table
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (pk INT PRIMARY KEY, FOREIGN KEY(pk) REFERENCES t1(pk))
+ENGINE=InnoDB;
+connection con1;
+SET FOREIGN_KEY_CHECKS=OFF;
+CREATE OR REPLACE TABLE t1 (b INT) ENGINE=InnoDB;
+connection default;
+INSERT INTO t2 VALUES (1);
+connection con1;
+disconnect con1;
+connection default;
+DROP TABLE IF EXISTS t2, t1;
 # End of 10.6 tests

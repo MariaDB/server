@@ -1651,9 +1651,10 @@ int ha_commit_trans(THD *thd, bool all)
   DBUG_ASSERT(thd->transaction->stmt.ha_list == NULL ||
               trans == &thd->transaction->stmt);
 
+  DBUG_ASSERT(!thd->in_sub_stmt);
+
   if (thd->in_sub_stmt)
   {
-    DBUG_ASSERT(0);
     /*
       Since we don't support nested statement transactions in 5.0,
       we can't commit or rollback stmt transactions while we are inside
@@ -4364,6 +4365,7 @@ void handler::print_error(int error, myf errflag)
       if ((int) key_nr >= 0 && key_nr < table->s->keys)
       {
         print_keydup_error(table, &table->key_info[key_nr], errflag);
+        table->file->lookup_errkey= -1;
         DBUG_VOID_RETURN;
       }
     }
@@ -5809,8 +5811,12 @@ int handler::calculate_checksum()
     for (uint i= 0; i < table->s->fields; i++ )
     {
       Field *f= table->field[i];
+      if (!f->stored_in_db())
+        continue;
 
-      if (! thd->variables.old_mode && f->is_real_null(0))
+
+      if (! (thd->variables.old_behavior & OLD_MODE_COMPAT_5_1_CHECKSUM) &&
+            f->is_real_null(0))
       {
         flush_checksum(&row_crc, &checksum_start, &checksum_length);
         continue;
@@ -7914,24 +7920,6 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
 }
 #endif /* WITH_WSREP */
 
-
-bool HA_CREATE_INFO::check_conflicting_charset_declarations(CHARSET_INFO *cs)
-{
-  if ((used_fields & HA_CREATE_USED_DEFAULT_CHARSET) &&
-      /* DEFAULT vs explicit, or explicit vs DEFAULT */
-      (((default_table_charset == NULL) != (cs == NULL)) ||
-      /* Two different explicit character sets */
-       (default_table_charset && cs &&
-        !my_charset_same(default_table_charset, cs))))
-  {
-    my_error(ER_CONFLICTING_DECLARATIONS, MYF(0),
-             "CHARACTER SET ", default_table_charset ?
-                               default_table_charset->cs_name.str : "DEFAULT",
-             "CHARACTER SET ", cs ? cs->cs_name.str : "DEFAULT");
-    return true;
-  }
-  return false;
-}
 
 /* Remove all indexes for a given table from global index statistics */
 

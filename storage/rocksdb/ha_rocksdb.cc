@@ -600,6 +600,7 @@ static unsigned long  // NOLINT(runtime/int)
     rocksdb_persistent_cache_size_mb;
 static ulong rocksdb_info_log_level;
 static char *rocksdb_wal_dir;
+static char *rocksdb_log_dir;
 static char *rocksdb_persistent_cache_path;
 static ulong rocksdb_index_type;
 static uint32_t rocksdb_flush_log_at_trx_commit;
@@ -1315,6 +1316,11 @@ static MYSQL_SYSVAR_STR(wal_dir, rocksdb_wal_dir,
                         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
                         "DBOptions::wal_dir for RocksDB", nullptr, nullptr,
                         rocksdb_db_options->wal_dir.c_str());
+
+static MYSQL_SYSVAR_STR(log_dir, rocksdb_log_dir,
+                        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+                        "DBOptions::db_log_dir for RocksDB", nullptr, nullptr,
+                        rocksdb_db_options->db_log_dir.c_str());
 
 static MYSQL_SYSVAR_STR(
     persistent_cache_path, rocksdb_persistent_cache_path,
@@ -2041,6 +2047,7 @@ static struct st_mysql_sys_var *rocksdb_system_variables[] = {
     MYSQL_SYSVAR(max_total_wal_size),
     MYSQL_SYSVAR(use_fsync),
     MYSQL_SYSVAR(wal_dir),
+    MYSQL_SYSVAR(log_dir),
     MYSQL_SYSVAR(persistent_cache_path),
     MYSQL_SYSVAR(persistent_cache_size_mb),
     MYSQL_SYSVAR(delete_obsolete_files_period_micros),
@@ -5381,7 +5388,7 @@ static int rocksdb_init_func(void *const p) {
         rocksdb::NewGenericRateLimiter(rocksdb_rate_limiter_bytes_per_sec));
     rocksdb_db_options->rate_limiter = rocksdb_rate_limiter;
   }
-
+  rocksdb_db_options->db_log_dir = rocksdb_log_dir;
   rocksdb_db_options->delayed_write_rate = rocksdb_delayed_write_rate;
 
   std::shared_ptr<Rdb_logger> myrocks_logger = std::make_shared<Rdb_logger>();

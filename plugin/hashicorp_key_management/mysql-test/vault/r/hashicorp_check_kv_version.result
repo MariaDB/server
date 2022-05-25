@@ -1,0 +1,9 @@
+[ERROR] mariadbd: hashicorp: Key-value storage must be version number 2 or later
+# restart: with restart_parameters
+CREATE TABLE t1 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=1;
+INSERT INTO t1 VALUES ('foo'),('bar');
+# restart: with restart_parameters
+CREATE TABLE t2 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=2;
+INSERT INTO t2 VALUES ('foo'),('bar');
+DROP TABLE t1, t2;
+# restart

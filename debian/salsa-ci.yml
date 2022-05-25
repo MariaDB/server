@@ -21,7 +21,7 @@ stages:
   - build
   - test
   - upgrade in Sid
-  - upgrade from Bullseye/Buster
+  - upgrade from Bullseye
   - upgrade extras
   - test extras
   - publish # Stage referenced by Salsa-CI template aptly stanza, so must exist even though not used
@@ -34,7 +34,7 @@ build:
     - mv ${CCACHE_WORK_DIR} ${CCACHE_TMP_DIR}
     # Run Salsa-CI .build-script equivalent, with extra devscripts so autobake-deb.sh can run 'dch'
     - export CCACHE_DIR=${CCACHE_TMP_DIR}
-    - apt-get update && eatmydata apt-get install --no-install-recommends -y ccache fakeroot build-essential devscripts
+    - apt-get update && eatmydata apt-get install --no-install-recommends -y ccache fakeroot build-essential devscripts lsb-release
     - cd ${WORKING_DIR}/${SOURCE_DIR}
     - eatmydata apt-get build-dep --no-install-recommends -y .
     - update-ccache-symlinks; ccache -z # Zero out ccache counters
@@ -50,22 +50,6 @@ build bullseye-backports:
   extends: .build-package
   variables:
     RELEASE: bullseye-backports
-
-build buster-backports:
-  extends: .build-package
-  script:
-    # Force installation of liburing-dev from buster-backports
-    - apt-get update && apt-cache policy && eatmydata apt-get install liburing-dev
-    # Increase default backports priority policy from '100' to '500' so it can actually be used
-    - |
-      cat << EOF > /etc/apt/preferences.d/enable-backports-to-satisfy-dependencies
-      Package: *
-      Pin: release n=buster-*
-      Pin-Priority: 500
-      EOF
-    - *autobake-deb-steps
-  variables:
-    RELEASE: buster-backports
 
 # base image missing git
 build i386:
@@ -215,7 +199,7 @@ fresh install:
   script:
     - *test-prepare-container
     - *test-install
-    - service mariadb status # There is no init.d/mysql in MariaDB 10.9
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
     - *test-verify-final
   variables:
     GIT_STRATEGY: none
@@ -223,7 +207,7 @@ fresh install:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb-10.9 Sid upgrade:
+mariadb Sid upgrade:
   stage: upgrade in Sid
   needs:
     - job: build
@@ -236,7 +220,7 @@ mariadb-10.9 Sid upgrade:
   script:
     - *test-prepare-container
     - *test-install
-    - service mariadb status # There is no init.d/mysql in MariaDB 10.9
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
     - *test-verify-final
   variables:
     GIT_STRATEGY: none
@@ -244,8 +228,8 @@ mariadb-10.9 Sid upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb-10.5 Bullseye to mariadb-10.9 upgrade:
-  stage: upgrade from Bullseye/Buster
+mariadb-10.5 Bullseye to mariadb upgrade:
+  stage: upgrade from Bullseye
   needs:
     - job: build
   image: debian:bullseye
@@ -270,32 +254,6 @@ mariadb-10.5 Bullseye to mariadb-10.9 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb-10.3 Buster to mariadb-10.9 upgrade:
-  stage: upgrade from Bullseye/Buster
-  needs:
-    - job: build
-  image: debian:buster
-  artifacts:
-    when: always
-    name: "$CI_BUILD_NAME"
-    paths:
-      - ${WORKING_DIR}/debug
-  script:
-    - *test-prepare-container
-    # Install everything MariaDB currently in Debian Buster
-    - apt-get install -y 'default-mysql*' 'mariadb-*' 'libmariadb*'
-    # Verify installation of MariaDB from Buster
-    - *test-verify-initial
-    - *test-enable-sid-repos
-    - *test-install
-    - service mysql status
-    - *test-verify-final
-  variables:
-    GIT_STRATEGY: none
-  except:
-    variables:
-      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
-
 test basic features:
   stage: test
   needs:
@@ -309,7 +267,7 @@ test basic features:
   script:
     - *test-prepare-container
     - *test-install
-    - service mariadb status # There is no init.d/mysql in MariaDB 10.9
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
     - *test-verify-final
     - |
       # Print info about server
@@ -454,7 +412,7 @@ default-libmysqlclient-dev Sid upgrade:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
 default-libmysqlclient-dev Bullseye upgrade:
-  stage: upgrade from Bullseye/Buster
+  stage: upgrade from Bullseye
   needs:
     - job: build
   image: debian:bullseye
@@ -474,30 +432,9 @@ default-libmysqlclient-dev Bullseye upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-default-libmysqlclient-dev Buster upgrade:
-  stage: upgrade from Bullseye/Buster
-  needs:
-    - job: build
-  image: debian:buster
-  artifacts:
-    when: always
-    name: "$CI_BUILD_NAME"
-    paths:
-      - ${WORKING_DIR}/debug
-  script:
-    - *test-prepare-container
-    - apt-get install -y pkg-config default-libmysqlclient-dev
-    - pkg-config --list-all
-    - *test-enable-sid-repos
-    - *test-install-all-libs
-    - *test-verify-libs
-  except:
-    variables:
-      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
-
 # Upgrading from MySQL 8.0 with datadir in place is not possible. Users need to do a data dump.
 # The Debian maintainer scripts detect this situation and simply moves old datadir aside and start fresh.
-mysql-8.0 Sid to mariadb-10.9 upgrade:
+mysql-8.0 Sid to mariadb upgrade:
   stage: upgrade in Sid
   needs:
     - job: build
@@ -524,11 +461,11 @@ mysql-8.0 Sid to mariadb-10.9 upgrade:
 
 # Upgrading from MySQL 8.0 with datadir in place is not possible. Users need to do a data dump.
 # The Debian maintainer scripts detect this situation and simply moves old datadir aside and start fresh.
-mysql-8.0 Focal to mariadb-10.9 upgrade:
+mysql-8.0 Jammy to mariadb upgrade:
   stage: upgrade extras
   needs:
-    - job: build buster-backports
-  image: debian:buster
+    - job: build bullseye-backports
+  image: debian:bullseye
   artifacts:
     when: always
     name: "$CI_BUILD_NAME"
@@ -546,7 +483,7 @@ mysql-8.0 Focal to mariadb-10.9 upgrade:
     - sleep 10 && apt-get install -f
     - *test-verify-initial
     # Enable backports to make galera-4 available
-    - echo "deb http://deb.debian.org/debian buster-backports main" > /etc/apt/sources.list.d/backports.list && apt-get update
+    - echo "deb http://deb.debian.org/debian bullseye-backports main" > /etc/apt/sources.list.d/backports.list && apt-get update
     - *test-install
     - service mysql status
     - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server
@@ -557,7 +494,47 @@ mysql-8.0 Focal to mariadb-10.9 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb.org-10.6 to mariadb-10.9 upgrade:
+mariadb.org-10.7 to mariadb-10.9 upgrade:
+  stage: upgrade extras
+  needs:
+    - job: build
+  image: debian:${RELEASE}
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - *test-prepare-container
+    - apt install -y curl
+    - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
+    - echo "deb https://deb.mariadb.org/10.7/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - apt-get update
+    # Package libmariadbclient-dev from mariadb.org conflicts with libmariadb-dev in Sid, so cannot use wildcard that would include it
+    # Enable this line when there is a way to install them only from the mariadb.org repo
+    # - apt-get install -y 'mariadb*' libmariadb3 'libmariadb-*' 'libmariadbd*'
+    - apt-get install -y mariadb-server-10.7
+    - *test-verify-initial
+    # Install MariaDB built in this commit
+    # Force downgrades so our version installs on top of upstream revision, e.g. 1:10.5.5-1 vs 1:10.5.5+mariadb~sid
+    - apt-get install -y --allow-downgrades ./*.deb
+    # Verify installation of MariaDB built in this commit
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - mariadb --version # Client version
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
+    - *test-verify-final
+  variables:
+    GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+  allow_failure: true
+  # Installation on Sid fails on missing liburing1 because upstream 10.8
+  # MariaDB.org buildbot has not run 'apt upgrade' for a long time.
+  # Remove this allow_failure once buildbot has built a new 10.8
+  # release using latest liburing-dev in Debian Sid.
+
+mariadb.org-10.6 to mariadb-10.8 upgrade:
   stage: upgrade extras
   needs:
     - job: build
@@ -584,7 +561,7 @@ mariadb.org-10.6 to mariadb-10.9 upgrade:
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - mariadb --version # Client version
-    - service mariadb status # There is no init.d/mysql in MariaDB 10.9
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
     - *test-verify-final
   variables:
     GIT_STRATEGY: none
@@ -619,7 +596,7 @@ mariadb.org-10.5 to mariadb-10.9 upgrade:
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - mariadb --version # Client version
-    - service mariadb status # There is no init.d/mysql in MariaDB 10.5
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
     - *test-verify-final
   variables:
     GIT_STRATEGY: none
@@ -627,7 +604,7 @@ mariadb.org-10.5 to mariadb-10.9 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb.org-10.4 to mariadb-10.9 upgrade:
+mariadb.org-10.4 to mariadb upgrade:
   stage: upgrade extras
   needs:
     - job: build
@@ -660,7 +637,7 @@ mariadb.org-10.4 to mariadb-10.9 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb.org-10.3 to mariadb-10.9 upgrade:
+mariadb.org-10.3 to mariadb upgrade:
   stage: upgrade extras
   needs:
     - job: build
@@ -691,7 +668,7 @@ mariadb.org-10.3 to mariadb-10.9 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb.org-10.2 to mariadb-10.9 upgrade:
+mariadb.org-10.2 to mariadb upgrade:
   stage: upgrade extras
   needs:
     - job: build
@@ -730,11 +707,11 @@ mariadb.org-10.2 to mariadb-10.9 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mysql.com-5.7 to mariadb-10.9 upgrade:
+mysql.com-5.7 to mariadb upgrade:
   stage: upgrade extras
   needs:
-    - job: build buster-backports
-  image: debian:buster
+    - job: build bullseye-backports
+  image: debian:bullseye
   artifacts:
     when: always
     name: "$CI_BUILD_NAME"
@@ -745,46 +722,14 @@ mysql.com-5.7 to mariadb-10.9 upgrade:
     - |
       apt-get install --no-install-recommends --yes gpg gpg-agent dirmngr ca-certificates # Bare minimal (<4MB) for apt-key to work
       apt-key adv --recv-keys --keyserver hkps://keyserver.ubuntu.com:443 467B942D3A79BD29
-      echo "deb https://repo.mysql.com/apt/debian/ buster mysql-5.7" > /etc/apt/sources.list.d/mysql.list
+      echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-5.7" > /etc/apt/sources.list.d/mysql.list
       apt-get update
       apt-get install -y 'mysql*' 'libmysqlc*'
     - *test-verify-initial
     # Enable backports to make galera-4 available
-    - echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list.d/backports.list && apt-get update
+    - echo "deb http://deb.debian.org/debian bullseye-backports main" >> /etc/apt/sources.list.d/backports.list && apt-get update
     - *test-install
-    - service mysql status
-    - sleep 15 # Give the mysql_upgrade a bit of extra time to complete with MySQL 5.7 before querying the server
-    - *test-verify-final
-  variables:
-    GIT_STRATEGY: none
-  except:
-    variables:
-      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
-
-percona-xtradb-5.7 to mariadb-10.9 upgrade (MDEV-22679):
-  stage: upgrade extras
-  needs:
-    - job: build buster-backports
-  image: debian:buster
-  artifacts:
-    when: always
-    name: "$CI_BUILD_NAME"
-    paths:
-      - ${WORKING_DIR}/debug
-  script:
-    - *test-prepare-container
-    - |
-      apt-get install --no-install-recommends --yes gpg gpg-agent dirmngr ca-certificates # Bare minimal (<4MB) for apt-key to work
-      apt-key adv --recv-keys --keyserver hkps://keyserver.ubuntu.com:443 9334A25F8507EFA5
-      echo "deb https://repo.percona.com/apt/ buster main" > /etc/apt/sources.list.d/mysql.list
-      apt-get update
-      apt-get install -y percona-xtradb-cluster-full-57 percona-xtrabackup-24 percona-toolkit pmm2-client
-    - service mysql status
-    - *test-verify-initial
-    # Enable backports to make galera-4 available
-    - echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list.d/backports.list && apt-get update
-    - *test-install
-    - service mysql status
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
     - sleep 15 # Give the mysql_upgrade a bit of extra time to complete with MySQL 5.7 before querying the server
     - *test-verify-final
   variables:

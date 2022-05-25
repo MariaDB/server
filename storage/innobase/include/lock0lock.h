@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2022, Oracle and/or its affiliates.
 Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -136,6 +136,41 @@ void lock_update_root_raise(const buf_block_t &block, const page_id_t root);
 @param new_block  the target page
 @param old        old page (not index root page) */
 void lock_update_copy_and_discard(const buf_block_t &new_block, page_id_t old);
+
+/** Update gap locks between the last record of the left_block and the
+first record of the right_block when a record is about to be inserted
+at the start of the right_block, even though it should "naturally" be
+inserted as the last record of the left_block according to the
+current node pointer in the parent page.
+
+That is, we assume that the lowest common ancestor of the left_block
+and right_block routes the key of the new record to the left_block,
+but a heuristic which tries to avoid overflowing left_block has chosen
+to insert the record into right_block instead. Said ancestor performs
+this routing by comparing the key of the record to a "split point" -
+all records greater or equal to than the split point (node pointer)
+are in right_block, and smaller ones in left_block.
+The split point may be smaller than the smallest key in right_block.
+
+The gap between the last record on the left_block and the first record
+on the right_block is represented as a gap lock attached to the supremum
+pseudo-record of left_block, and a gap lock attached to the new first
+record of right_block.
+
+Thus, inserting the new record, and subsequently adjusting the node
+pointers in parent pages to values smaller or equal to the new
+records' key, will mean that gap will be sliced at a different place
+("moved to the left"): fragment of the 1st gap will now become treated
+as 2nd. Therefore, we must copy any GRANTED locks from 1st gap to the
+2nd gap. Any WAITING locks must be of INSERT_INTENTION type (as no
+other GAP locks ever wait for anything) and can stay at 1st gap, as
+their only purpose is to notify the requester they can retry
+insertion, and there's no correctness requirement to avoid waking them
+up too soon.
+@param left_block   left page
+@param right_block  right page */
+void lock_update_node_pointer(const buf_block_t *left_block,
+                              const buf_block_t *right_block);
 /*************************************************************//**
 Updates the lock table when a page is split to the left. */
 void
@@ -374,18 +409,18 @@ lock_clust_rec_read_check_and_lock_alt(
 					LOCK_REC_NOT_GAP */
 	que_thr_t*		thr)	/*!< in: query thread */
 	MY_ATTRIBUTE((warn_unused_result));
-/*********************************************************************//**
-Locks the specified database table in the mode given. If the lock cannot
-be granted immediately, the query thread is put to wait.
-@return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
-dberr_t
-lock_table(
-/*=======*/
-	dict_table_t*	table,	/*!< in/out: database table
-				in dictionary cache */
-	lock_mode	mode,	/*!< in: lock mode */
-	que_thr_t*	thr)	/*!< in: query thread */
-	MY_ATTRIBUTE((warn_unused_result));
+
+/** Acquire a table lock.
+@param table   table to be locked
+@param fktable pointer to table, in case of a FOREIGN key check
+@param mode    lock mode
+@param thr     SQL execution thread
+@retval DB_SUCCESS    if the lock was acquired
+@retval DB_DEADLOCK   if a deadlock occurred, or fktable && *fktable != table
+@retval DB_LOCK_WAIT  if lock_wait() must be invoked */
+dberr_t lock_table(dict_table_t *table, dict_table_t *const*fktable,
+                   lock_mode mode, que_thr_t *thr)
+  MY_ATTRIBUTE((warn_unused_result));
 
 /** Create a table lock object for a resurrected transaction.
 @param table    table to be X-locked
@@ -425,6 +460,11 @@ lock_rec_unlock(
 /** Release the explicit locks of a committing transaction,
 and release possible other transactions waiting because of these locks. */
 void lock_release(trx_t* trx);
+
+/** Release the explicit locks of a committing transaction while
+dict_sys.latch is exclusively locked,
+and release possible other transactions waiting because of these locks. */
+void lock_release_on_drop(trx_t *trx);
 
 /** Release non-exclusive locks on XA PREPARE,
 and release possible other transactions waiting because of these locks. */
@@ -684,10 +724,10 @@ private:
   bool m_initialised;
 
   /** mutex proteting the locks */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) srw_spin_lock latch;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_spin_lock latch;
 #ifdef UNIV_DEBUG
   /** The owner of exclusive latch (0 if none); protected by latch */
-  std::atomic<os_thread_id_t> writer{0};
+  std::atomic<pthread_t> writer{0};
   /** Number of shared latches */
   std::atomic<ulint> readers{0};
 #endif
@@ -707,7 +747,7 @@ public:
   hash_table prdt_page_hash;
 
   /** mutex covering lock waits; @see trx_lock_t::wait_lock */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t wait_mutex;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t wait_mutex;
 private:
   /** The increment of wait_count for a wait. Anything smaller is a
   pending wait count. */
@@ -751,14 +791,14 @@ public:
     mysql_mutex_assert_not_owner(&wait_mutex);
     ut_ad(!is_writer());
     latch.wr_lock();
-    ut_ad(!writer.exchange(os_thread_get_curr_id(),
+    ut_ad(!writer.exchange(pthread_self(),
                            std::memory_order_relaxed));
   }
   /** Release exclusive lock_sys.latch */
   void wr_unlock()
   {
     ut_ad(writer.exchange(0, std::memory_order_relaxed) ==
-          os_thread_get_curr_id());
+          pthread_self());
     latch.wr_unlock();
   }
   /** Acquire shared lock_sys.latch */
@@ -784,7 +824,7 @@ public:
   {
     ut_ad(!is_writer());
     if (!latch.wr_lock_try()) return false;
-    ut_ad(!writer.exchange(os_thread_get_curr_id(),
+    ut_ad(!writer.exchange(pthread_self(),
                            std::memory_order_relaxed));
     return true;
   }
@@ -808,9 +848,9 @@ public:
   bool is_writer() const
   {
 # ifdef SUX_LOCK_GENERIC
-    return writer.load(std::memory_order_relaxed) == os_thread_get_curr_id();
+    return writer.load(std::memory_order_relaxed) == pthread_self();
 # else
-    return writer.load(std::memory_order_relaxed) == os_thread_get_curr_id() ||
+    return writer.load(std::memory_order_relaxed) == pthread_self() ||
       (xtest() && !latch.is_locked_or_waiting());
 # endif
   }

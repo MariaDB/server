@@ -134,7 +134,7 @@
 #define OPTION_BEGIN            (1ULL << 20)    // THD, intern
 #define OPTION_TABLE_LOCK       (1ULL << 21)    // THD, intern
 #define OPTION_QUICK            (1ULL << 22)    // SELECT (for DELETE)
-#define OPTION_KEEP_LOG         (1ULL << 23)    // THD, user
+#define OPTION_BINLOG_THIS_TRX  (1ULL << 23)    // THD
 
 /* The following is used to detect a conflict with DISTINCT */
 #define SELECT_ALL              (1ULL << 24)    // SELECT, user, parser
@@ -174,6 +174,9 @@
   succeeded statement to keep replication consistent.
 */
 #define OPTION_MASTER_SQL_ERROR         (1ULL << 35)
+
+#define OPTION_BINLOG_THIS_STMT         (1ULL << 36) // THD
+#define OPTION_BINLOG_THIS (OPTION_BINLOG_THIS_STMT | OPTION_BINLOG_THIS_TRX)
 
 #define OPTION_SKIP_REPLICATION         (1ULL << 37) // THD, user
 #define OPTION_RPL_SKIP_PARALLEL        (1ULL << 38)

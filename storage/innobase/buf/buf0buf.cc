@@ -1106,15 +1106,19 @@ bool buf_pool_t::create()
   ut_ad(srv_buf_pool_size > 0);
   ut_ad(!resizing);
   ut_ad(!chunks_old);
-  ut_ad(!field_ref_zero);
+  /* mariabackup loads tablespaces, and it requires field_ref_zero to be
+  allocated before innodb initialization */
+  ut_ad(srv_operation >= SRV_OPERATION_RESTORE || !field_ref_zero);
 
   NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
 
-  if (auto b= aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096))
-    field_ref_zero= static_cast<const byte*>
-      (memset_aligned<4096>(b, 0, UNIV_PAGE_SIZE_MAX));
-  else
-    return true;
+  if (!field_ref_zero) {
+    if (auto b= aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096))
+      field_ref_zero= static_cast<const byte*>
+        (memset_aligned<4096>(b, 0, UNIV_PAGE_SIZE_MAX));
+    else
+      return true;
+  }
 
   chunk_t::map_reg= UT_NEW_NOKEY(chunk_t::map());
 
@@ -2136,15 +2140,17 @@ void buf_pool_t::watch_unset(const page_id_t id, buf_pool_t::hash_chain &chain)
     if (!watch_is_sentinel(*w))
     {
     no_watch:
-      ut_d(const auto s=) w->unfix();
-      ut_ad(~buf_page_t::LRU_MASK & s);
+      w->unfix();
       w= nullptr;
     }
-    const auto state= w->state();
-    ut_ad(~buf_page_t::LRU_MASK & state);
-    ut_ad(state >= buf_page_t::UNFIXED);
-    if (state != buf_page_t::UNFIXED + 1)
-      goto no_watch;
+    else
+    {
+      const auto state= w->state();
+      ut_ad(~buf_page_t::LRU_MASK & state);
+      ut_ad(state >= buf_page_t::UNFIXED + 1);
+      if (state != buf_page_t::UNFIXED + 1)
+        goto no_watch;
+    }
   }
 
   if (!w)

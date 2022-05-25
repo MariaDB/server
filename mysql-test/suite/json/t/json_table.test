@@ -843,6 +843,17 @@ SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
 
 
 --echo #
+--echo # MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+--echo #
+
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) CHARACTER SET latin1 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+
+
+--echo #
 --echo # End of 10.6 tests
 --echo #
 
@@ -908,6 +919,12 @@ FROM json_table('[{"name":"Jeans"}]', '$[*]'
 SHOW CREATE VIEW v1;
 SELECT collation(name) FROM v1;
 DROP VIEW v1;
+
+--echo #
+--echo # MDEV-28319: Assertion `cur_step->type & JSON_PATH_KEY' failed in json_find_path
+--echo #
+
+SELECT * FROM JSON_TABLE('{"foo":{"bar":1},"qux":2}', '$' COLUMNS(c1 VARCHAR(8) PATH '$[0]', c2 CHAR(8) PATH '$.*.x')) AS js;
 
 --echo #
 --echo # End of 10.9 tests

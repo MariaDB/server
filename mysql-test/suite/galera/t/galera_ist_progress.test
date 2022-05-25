@@ -3,12 +3,11 @@
 #
 
 --source include/galera_cluster.inc
-# This could cause out of storage if run /dev/shm
---source include/big_test.inc
---source include/force_restart.inc
 
 # Isolate node #2 
 --connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
 
 --connection node_1
@@ -24,7 +23,7 @@ SET SESSION wsrep_on = ON;
 # Node #2 is now isolated. Run some transactions to accumulate writesets for IST
 
 --connection node_1
-CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 INSERT INTO t1 VALUES (2);
 INSERT INTO t1 VALUES (3);
@@ -50,26 +49,15 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 0';
 --source include/wait_condition.inc
 
 #
-# Grep for expected IST output in joiner log
+# sed for expected IST output in joiner log
 #
 
 --connection node_1
 
---let $assert_count = 1
---let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.2.err
---let $assert_only_after = Need state transfer
-
---let $assert_text = Receiving IST: 13 writesets, seqnos 3-15
---let $assert_select = Receiving IST: 13 writesets, seqnos 3-15
---source include/assert_grep.inc
-
---let $assert_text = Receiving IST\.\.\.  0\.0% \( 0/13 events\) complete
---let $assert_select = Receiving IST\.\.\.  0\.0% \( 0/13 events\) complete
---source include/assert_grep.inc
-
---let $assert_text = Receiving IST\.\.\.100\.0% \(13/13 events\) complete
---let $assert_select = Receiving IST\.\.\.100\.0% \(13/13 events\) complete
---source include/assert_grep.inc
+# Grep is not safe always and we are interested that there is at least one progress report (there can be more)
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+--echo "Trying to find IST progress reporting"
+--exec sed -ne 's/.*Receiving IST.*/found/p' $MYSQLD_DATADIR/../../log/mysqld.2.err | tail -1
 
 # Cleanup
 

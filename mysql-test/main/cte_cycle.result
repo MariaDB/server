@@ -67,7 +67,7 @@ FROM t1, cte WHERE t1.from_ = cte.to_
 select * from cte;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with recursive cte(`depth`,`from_`,`to_`) as (select 0 AS `depth`,1 AS `from_`,1 AS `to_` union select `cte`.`depth` + 1 AS `depth+1`,`test`.`t1`.`from_` AS `from_`,`test`.`t1`.`to_` AS `to_` from (`test`.`t1` join `cte`) where `test`.`t1`.`from_` = `cte`.`to_`) CYCLE `from_`,`to_` RESTRICT select `cte`.`depth` AS `depth`,`cte`.`from_` AS `from_`,`cte`.`to_` AS `to_` from `cte`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with recursive cte(`depth`,`from_`,`to_`) as (select 0 AS `depth`,1 AS `from_`,1 AS `to_` union select `cte`.`depth` + 1 AS `depth+1`,`t1`.`from_` AS `from_`,`t1`.`to_` AS `to_` from (`t1` join `cte`) where `t1`.`from_` = `cte`.`to_`) CYCLE `from_`,`to_` RESTRICT select `cte`.`depth` AS `depth`,`cte`.`from_` AS `from_`,`cte`.`to_` AS `to_` from `cte`	latin1	latin1_swedish_ci
 select * from v1;
 depth	from_	to_
 0	1	1

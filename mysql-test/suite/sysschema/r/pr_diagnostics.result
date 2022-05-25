@@ -6,6 +6,8 @@ SET @sys.debug                        = 'OFF',
 @sys.diagnostics.allow_i_s_tables = 'OFF',
 @sys.diagnostics.include_raw      = 'OFF';
 CALL sys.diagnostics(0, 0, 'full');
+summary
+Disabled 1 thread
 ERROR 45000: in_max_runtime must be greater than 0
 CALL sys.diagnostics(2, 0, 'full');
 ERROR 45000: in_interval must be greater than 0

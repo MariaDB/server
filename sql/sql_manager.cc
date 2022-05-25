@@ -134,6 +134,7 @@ void start_handle_manager()
   {
     pthread_t hThread;
     int err;
+    DBUG_EXECUTE_IF("delay_start_handle_manager", my_sleep(1000););
     manager_thread_in_use = 1;
     mysql_cond_init(key_COND_manager, &COND_manager,NULL);
     mysql_mutex_init(key_LOCK_manager, &LOCK_manager, NULL);

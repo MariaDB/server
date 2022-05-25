@@ -638,6 +638,14 @@ public:
   {
     in_partitioning_expr= TRUE;
   }
+  bool need_refix() const
+  {
+    return flags & VCOL_SESSION_FUNC;
+  }
+  bool fix_expr(THD *thd);
+  bool fix_session_expr(THD *thd);
+  bool cleanup_session_expr();
+  bool fix_and_check_expr(THD *thd, TABLE *table);
   inline bool is_equal(const Virtual_column_info* vcol) const;
   inline void print(String*);
 };
@@ -5493,22 +5501,22 @@ public:
 
   bool check_vcol_for_key(THD *thd) const;
 
-  void set_lex_charset_collation(const Lex_charset_collation_st &lc)
+  void set_charset_collation_attrs(const
+                                   Lex_column_charset_collation_attrs_st &lc)
   {
-    charset= lc.charset_collation();
+    charset= lc.charset_info();
     if (lc.is_contextually_typed_collation())
       flags|= CONTEXT_COLLATION_FLAG;
     else
       flags&= ~CONTEXT_COLLATION_FLAG;
   }
-  Lex_charset_collation lex_charset_collation() const
+  Lex_column_charset_collation_attrs charset_collation_attrs() const
   {
-    return Lex_charset_collation(
-             charset,
-             !charset ? Lex_charset_collation_st::TYPE_EMPTY :
-             flags & CONTEXT_COLLATION_FLAG ?
-             Lex_charset_collation_st::TYPE_COLLATE_CONTEXTUALLY_TYPED :
-             Lex_charset_collation_st::TYPE_CHARACTER_SET);
+    if (!charset)
+      return Lex_column_charset_collation_attrs();
+    if (flags & CONTEXT_COLLATION_FLAG)
+      return Lex_column_charset_collation_attrs(Lex_context_collation(charset));
+    return Lex_column_charset_collation_attrs(Lex_exact_collation(charset));
   }
 };
 

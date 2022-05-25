@@ -52,11 +52,10 @@ SET DEBUG_SYNC = 'now SIGNAL s2';
 --echo /* connection default */
 connection default;
 --echo /* reap */ alter table t1 force, add b int, ALGORITHM=inplace;
---error ER_DUP_ENTRY
 --reap
 
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL s1 WAIT_FOR s2';
---send alter table t1 force, add b int, ALGORITHM=inplace;
+--send alter table t1 force, add c int, ALGORITHM=inplace;
 
 --echo /* connection con1 */
 connection con1;
@@ -68,7 +67,6 @@ SET DEBUG_SYNC = 'now SIGNAL s2';
 --echo /* connection default */
 connection default;
 --echo /* reap */ alter table t1 force, add b int, ALGORITHM=inplace;
---error ER_DUP_ENTRY
 --reap
 SET DEBUG_SYNC = 'RESET';
 
@@ -92,7 +90,6 @@ SET DEBUG_SYNC = 'now SIGNAL S2';
 disconnect con1;
 
 CONNECTION default;
---error ER_DUP_ENTRY
 reap;
 SET DEBUG_SYNC='RESET';
 
@@ -183,7 +180,7 @@ DROP TABLE t1;
 
 CREATE TABLE t1(a INT PRIMARY KEY, b INT, INDEX(b)) ENGINE=InnoDB;
 SET @save_dbug=@@debug_dbug;
-SET debug_dbug='+d,innodb_table_deadlock';
+SET debug_dbug='+d,deadlock_table_fail';
 --error ER_LOCK_DEADLOCK
 ALTER TABLE t1 DROP INDEX b, ALGORITHM=INPLACE;
 SET debug_dbug=@save_dbug;

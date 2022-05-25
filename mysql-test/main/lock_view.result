@@ -256,7 +256,7 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET collation_connection      = latin1_swedish_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`u1`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v1` AS select `dt`.`id` AS `id` from (select `test`.`t1`.`id` AS `id` from `test`.`t1`) `dt` */;
+/*!50001 VIEW `v1` AS select `dt`.`id` AS `id` from (select `t1`.`id` AS `id` from `t1`) `dt` */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;

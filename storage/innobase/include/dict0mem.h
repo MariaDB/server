@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1175,6 +1175,9 @@ public:
 	/** @return whether this is the change buffer */
 	bool is_ibuf() const { return UNIV_UNLIKELY(type & DICT_IBUF); }
 
+	/** @return whether this index requires locking */
+	bool has_locking() const { return !is_ibuf(); }
+
 	/** @return whether this is a normal B-tree index
         (not the change buffer, not SPATIAL or FULLTEXT) */
 	bool is_btree() const {
@@ -1397,6 +1400,20 @@ public:
   rollback of TRX_UNDO_EMPTY. The BTR_SEG_LEAF is freed and reinitialized.
   @param thr query thread */
   void clear(que_thr_t *thr);
+
+  /** Check whether the online log is dummy value to indicate
+  whether table undergoes active DDL.
+  @retval true if online log is dummy value */
+  bool online_log_is_dummy() const
+  {
+    return online_log == reinterpret_cast<const row_log_t*>(this);
+  }
+
+  /** Assign clustered index online log to dummy value */
+  void online_log_make_dummy()
+  {
+    online_log= reinterpret_cast<row_log_t*>(this);
+  }
 };
 
 /** Detach a virtual column from an index.
@@ -1947,17 +1964,17 @@ struct dict_table_t {
 	/** For overflow fields returns potential max length stored inline */
 	inline size_t get_overflow_field_local_len() const;
 
-	/** Parse the table file name into table name and database name.
-	@tparam		dict_locked	whether dict_sys.lock() was called
-	@param[in,out]	db_name		database name buffer
-	@param[in,out]	tbl_name	table name buffer
-	@param[out]	db_name_len	database name length
-	@param[out]	tbl_name_len	table name length
-	@return whether the table name is visible to SQL */
-	template<bool dict_locked= false>
-	bool parse_name(char (&db_name)[NAME_LEN + 1],
-			char (&tbl_name)[NAME_LEN + 1],
-			size_t *db_name_len, size_t *tbl_name_len) const;
+  /** Parse the table file name into table name and database name.
+  @tparam        dict_frozen  whether the caller holds dict_sys.latch
+  @param[in,out] db_name      database name buffer
+  @param[in,out] tbl_name     table name buffer
+  @param[out] db_name_len     database name length
+  @param[out] tbl_name_len    table name length
+  @return whether the table name is visible to SQL */
+  template<bool dict_frozen= false>
+  bool parse_name(char (&db_name)[NAME_LEN + 1],
+                  char (&tbl_name)[NAME_LEN + 1],
+                  size_t *db_name_len, size_t *tbl_name_len) const;
 
   /** Clear the table when rolling back TRX_UNDO_EMPTY */
   void clear(que_thr_t *thr);
@@ -1965,10 +1982,10 @@ struct dict_table_t {
 #ifdef UNIV_DEBUG
   /** @return whether the current thread holds the lock_mutex */
   bool lock_mutex_is_owner() const
-  { return lock_mutex_owner == os_thread_get_curr_id(); }
+  { return lock_mutex_owner == pthread_self(); }
   /** @return whether the current thread holds the stats_mutex (lock_mutex) */
   bool stats_mutex_is_owner() const
-  { return lock_mutex_owner == os_thread_get_curr_id(); }
+  { return lock_mutex_owner == pthread_self(); }
 #endif /* UNIV_DEBUG */
   void lock_mutex_init() { lock_mutex.init(); }
   void lock_mutex_destroy() { lock_mutex.destroy(); }
@@ -1977,20 +1994,20 @@ struct dict_table_t {
   {
     ut_ad(!lock_mutex_is_owner());
     lock_mutex.wr_lock();
-    ut_ad(!lock_mutex_owner.exchange(os_thread_get_curr_id()));
+    ut_ad(!lock_mutex_owner.exchange(pthread_self()));
   }
   /** Try to acquire lock_mutex */
   bool lock_mutex_trylock()
   {
     ut_ad(!lock_mutex_is_owner());
     bool acquired= lock_mutex.wr_lock_try();
-    ut_ad(!acquired || !lock_mutex_owner.exchange(os_thread_get_curr_id()));
+    ut_ad(!acquired || !lock_mutex_owner.exchange(pthread_self()));
     return acquired;
   }
   /** Release lock_mutex */
   void lock_mutex_unlock()
   {
-    ut_ad(lock_mutex_owner.exchange(0) == os_thread_get_curr_id());
+    ut_ad(lock_mutex_owner.exchange(0) == pthread_self());
     lock_mutex.wr_unlock();
   }
 #ifndef SUX_LOCK_GENERIC
@@ -2292,7 +2309,7 @@ private:
   srw_spin_mutex lock_mutex;
 #ifdef UNIV_DEBUG
   /** The owner of lock_mutex (0 if none) */
-  Atomic_relaxed<os_thread_id_t> lock_mutex_owner{0};
+  Atomic_relaxed<pthread_t> lock_mutex_owner{0};
 #endif
 public:
   /** Autoinc counter value to give to the next inserted row. */
@@ -2371,6 +2388,12 @@ public:
       if (lock->trx != trx)
         return true;
     return false;
+  }
+
+  /** @return whether a DDL operation is in progress on this table */
+  bool is_active_ddl() const
+  {
+    return UT_LIST_GET_FIRST(indexes)->online_log;
   }
 
   /** @return whether the name is

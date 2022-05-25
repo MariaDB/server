@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connection node_1;
 connection node_1;
 connection node_2;
@@ -31,8 +33,6 @@ DROP TABLE ten;
 Restarting node #3 to satisfy MTR's end-of-test checks
 connection node_3;
 connection node_1;
-SET GLOBAL innodb_max_dirty_pages_pct = 75.000000;
-SET GLOBAL innodb_max_dirty_pages_pct_lwm = 0.000000;
 connection node_1;
 CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
 connection node_2;

@@ -17,6 +17,9 @@
 
 # Make the test fail if table structure has changed
 
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
 SHOW CREATE TABLE mysql.wsrep_cluster;
 SHOW CREATE TABLE mysql.wsrep_cluster_members;
 
@@ -74,3 +77,5 @@ SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STAT
 SELECT COUNT(*) AS EXPECT_3 FROM mysql.wsrep_cluster_members;
 
 --source ../galera/include/auto_increment_offset_restore.inc
+
+--disconnect node_3

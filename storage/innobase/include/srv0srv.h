@@ -55,7 +55,7 @@ Created 10/10/1995 Heikki Tuuri
 /** Simple non-atomic counter
 @tparam	Type  the integer type of the counter */
 template <typename Type>
-struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
+struct alignas(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
 {
   /** Increment the counter */
   Type inc() { return add(1); }
@@ -92,10 +92,6 @@ struct srv_stats_t
 
 	/** Number of bytes saved by page compression */
 	ulint_ctr_n_t          page_compression_saved;
-	/* Number of index pages written */
-	ulint_ctr_n_t          index_pages_written;
-	/* Number of non index pages written */
-	ulint_ctr_n_t          non_index_pages_written;
 	/* Number of pages compressed with page compression */
         ulint_ctr_n_t          pages_page_compressed;
 	/* Number of TRIM operations induced by page compression */
@@ -152,9 +148,6 @@ struct srv_stats_t
 
 	/** Number of encryption_get_latest_key_version calls */
 	ulint_ctr_n_t		n_key_requests;
-
-	/** Number of spaces in keyrotation list */
-	ulint_ctr_n_t		key_rotation_list_length;
 
 	/** Number of temporary tablespace blocks encrypted */
 	ulint_ctr_n_t		n_temp_blocks_encrypted;
@@ -739,10 +732,6 @@ struct export_var_t{
 
 	int64_t innodb_page_compression_saved;/*!< Number of bytes saved
 						by page compression */
-	int64_t innodb_index_pages_written;  /*!< Number of index pages
-						written */
-	int64_t innodb_non_index_pages_written;  /*!< Number of non index pages
-						written */
 	int64_t innodb_pages_page_compressed;/*!< Number of pages
 						compressed by page compression */
 	int64_t innodb_page_compressed_trim_op;/*!< Number of TRIM operations
@@ -781,7 +770,6 @@ struct export_var_t{
 	ulint innodb_encryption_rotation_pages_flushed;
 	ulint innodb_encryption_rotation_estimated_iops;
 	int64_t innodb_encryption_key_requests;
-	int64_t innodb_key_rotation_list_length;
 };
 
 extern tpool::thread_pool *srv_thread_pool;

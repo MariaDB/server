@@ -1,6 +1,6 @@
 /*
   Copyright (c) 2005, 2019, Oracle and/or its affiliates.
-  Copyright (c) 2009, 2021, MariaDB
+  Copyright (c) 2009, 2022, MariaDB
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -767,6 +767,7 @@ int ha_partition::create(const char *name, TABLE *table_arg,
 			 HA_CREATE_INFO *create_info)
 {
   int error;
+  THD *thd= ha_thd();
   char name_buff[FN_REFLEN + 1], name_lc_buff[FN_REFLEN];
   char *name_buffer_ptr;
   const char *path;
@@ -785,8 +786,27 @@ int ha_partition::create(const char *name, TABLE *table_arg,
     my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0), "CREATE TEMPORARY TABLE");
     DBUG_RETURN(TRUE);
   }
+  /*
+    The following block should be removed once the table-level data directory
+    specification is supported by the partitioning engine (MDEV-28108).
+  */
+  if (thd_sql_command(thd) == SQLCOM_ALTER_TABLE && create_info)
+  {
+    if (create_info->data_file_name)
+    {
+      push_warning_printf(
+          thd, Sql_condition::WARN_LEVEL_WARN, WARN_OPTION_IGNORED,
+          "<DATA DIRECTORY> table option of old schema is ignored");
+    }
+    if (create_info->index_file_name)
+    {
+      push_warning_printf(
+          thd, Sql_condition::WARN_LEVEL_WARN, WARN_OPTION_IGNORED,
+          "<INDEX DIRECTORY> table option of old schema is ignored");
+    }
+  }
 
-  if (get_from_handler_file(name, ha_thd()->mem_root, false))
+  if (get_from_handler_file(name, thd->mem_root, false))
     DBUG_RETURN(TRUE);
   DBUG_ASSERT(m_file_buffer);
   name_buffer_ptr= m_name_buffer_ptr;
@@ -4157,6 +4177,8 @@ int ha_partition::external_lock(THD *thd, int lock_type)
   if (lock_type == F_UNLCK)
   {
     bitmap_clear_all(used_partitions);
+    if (m_lock_type == F_WRLCK && m_part_info->vers_require_hist_part(thd))
+      m_part_info->vers_check_limit(thd);
   }
   else
   {
@@ -4173,19 +4195,9 @@ int ha_partition::external_lock(THD *thd, int lock_type)
       (void) (*file)->ha_external_lock(thd, lock_type);
     } while (*(++file));
   }
-  if (lock_type == F_WRLCK)
-  {
-    if (m_part_info->part_expr)
-      m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
-    if (m_part_info->part_type == VERSIONING_PARTITION &&
-      /* TODO: MDEV-20345 exclude more inapproriate commands like INSERT
-         These commands may be excluded because working history partition is needed
-         only for versioned DML. */
-      thd->lex->sql_command != SQLCOM_SELECT &&
-      thd->lex->sql_command != SQLCOM_INSERT_SELECT &&
-      (error= m_part_info->vers_set_hist_part(thd)))
-      goto err_handler;
-  }
+  if (lock_type == F_WRLCK && m_part_info->part_expr)
+    m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
+
   DBUG_RETURN(0);
 
 err_handler:
@@ -4329,11 +4341,6 @@ int ha_partition::start_stmt(THD *thd, thr_lock_type lock_type)
   {
     if (m_part_info->part_expr)
       m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
-    if (m_part_info->part_type == VERSIONING_PARTITION &&
-      // TODO: MDEV-20345 (see above)
-      thd->lex->sql_command != SQLCOM_SELECT &&
-      thd->lex->sql_command != SQLCOM_INSERT_SELECT)
-      error= m_part_info->vers_set_hist_part(thd);
   }
   DBUG_RETURN(error);
 }
@@ -10571,7 +10578,16 @@ bool ha_partition::commit_inplace_alter_table(TABLE *altered_table,
         Loop over all other partitions as to follow the protocol!
       */
       uint i;
-      DBUG_ASSERT(0);
+      /*
+        InnoDB does not set ha_alter_info->group_commit_ctx to NULL in the
+        case if autoincrement attribute is necessary to reset for all
+        partitions for INNOBASE_INPLACE_IGNORE handler flags. It does not
+        affect durability, because it is solely about updating the InnoDB data
+        dictionary caches (one InnoDB dict_table_t per partition or
+        sub-partition).
+      */
+      DBUG_ASSERT(table->found_next_number_field
+          && !altered_table->found_next_number_field);
       for (i= 1; i < m_tot_parts; i++)
       {
         ha_alter_info->handler_ctx= part_inplace_ctx->handler_ctx_array[i];

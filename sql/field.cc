@@ -2620,6 +2620,11 @@ int Field::set_default()
   if (default_value)
   {
     Query_arena backup_arena;
+    /*
+      TODO: this may impose memory leak until table flush.
+          See comment in
+          TABLE::update_virtual_fields(handler *, enum_vcol_update_mode).
+    */
     table->in_use->set_n_backup_active_arena(table->expr_arena, &backup_arena);
     int rc= default_value->expr->save_in_field(this, 0);
     table->in_use->restore_active_arena(table->expr_arena, &backup_arena);
@@ -3340,11 +3345,12 @@ Field_new_decimal::Field_new_decimal(uchar *ptr_arg,
                                      decimal_digits_t dec_arg,bool zero_arg,
                                      bool unsigned_arg)
   :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-             unireg_check_arg, field_name_arg, dec_arg, zero_arg, unsigned_arg)
+             unireg_check_arg, field_name_arg,
+             MY_MIN(dec_arg, DECIMAL_MAX_SCALE), zero_arg, unsigned_arg)
 {
   precision= get_decimal_precision(len_arg, dec_arg, unsigned_arg);
-  DBUG_ASSERT((precision <= DECIMAL_MAX_PRECISION) &&
-              (dec <= DECIMAL_MAX_SCALE));
+  DBUG_ASSERT(precision <= DECIMAL_MAX_PRECISION);
+  DBUG_ASSERT(dec <= DECIMAL_MAX_SCALE);
   bin_size= my_decimal_get_binary_size(precision, dec);
 }
 

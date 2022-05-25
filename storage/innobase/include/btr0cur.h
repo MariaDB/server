@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -459,27 +459,18 @@ that the mtr has an x-latch on the page where the cursor is positioned,
 but no latch on the whole tree.
 @return TRUE if success, i.e., the page did not become too empty */
 ibool
-btr_cur_optimistic_delete_func(
+btr_cur_optimistic_delete(
 /*===========================*/
 	btr_cur_t*	cursor,	/*!< in: cursor on the record to delete;
 				cursor stays valid: if deletion succeeds,
 				on function exit it points to the successor
 				of the deleted record */
-# ifdef UNIV_DEBUG
 	ulint		flags,	/*!< in: BTR_CREATE_FLAG or 0 */
-# endif /* UNIV_DEBUG */
 	mtr_t*		mtr)	/*!< in: mtr; if this function returns
 				TRUE on a leaf page of a secondary
 				index, the mtr must be committed
 				before latching any further pages */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-# ifdef UNIV_DEBUG
-#  define btr_cur_optimistic_delete(cursor, flags, mtr)		\
-	btr_cur_optimistic_delete_func(cursor, flags, mtr)
-# else /* UNIV_DEBUG */
-#  define btr_cur_optimistic_delete(cursor, flags, mtr)		\
-	btr_cur_optimistic_delete_func(cursor, mtr)
-# endif /* UNIV_DEBUG */
 /*************************************************************//**
 Removes the record on which the tree cursor is positioned. Tries
 to compress the page if its fillfactor drops below a threshold
