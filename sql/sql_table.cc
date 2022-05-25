@@ -11574,7 +11574,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       if (ht->start_consistent_snapshot)
       {
         thd->tx_isolation= ISO_REPEATABLE_READ;
-        from->file->open_read_view();
+        error= ht->start_consistent_snapshot(ht, thd);
       }
     }
 
