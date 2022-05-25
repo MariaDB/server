@@ -33,11 +33,6 @@ Created 1/20/1994 Heikki Tuuri
 
 #pragma once
 
-/* aux macros to convert M into "123" (string) if M is defined like
-#define M 123 */
-#define _IB_TO_STR(s)	#s
-#define IB_TO_STR(s)	_IB_TO_STR(s)
-
 /** How far ahead should we tell the service manager the timeout
 (time in seconds) */
 #define INNODB_EXTEND_TIMEOUT_INTERVAL 30
