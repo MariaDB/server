@@ -6506,22 +6506,28 @@ opt_binary:
         ;
 
 binary:
-          BYTE_SYM                     { $$.set_charset(&my_charset_bin); }
-        | charset_or_alias             { $$.set_charset($1); }
+          BYTE_SYM
+          {
+            $$.set_charset(Lex_exact_charset(&my_charset_bin));
+          }
+        | charset_or_alias
+          {
+            $$.set_charset(Lex_exact_charset($1));
+          }
         | charset_or_alias BINARY
           {
-            if ($$.set_charset_collate_binary($1))
+            if ($$.set_charset_collate_binary(Lex_exact_charset($1)))
               MYSQL_YYABORT;
           }
         | BINARY { $$.set_contextually_typed_binary_style(); }
         | BINARY charset_or_alias
           {
-            if ($$.set_charset_collate_binary($2))
+            if ($$.set_charset_collate_binary(Lex_exact_charset($2)))
               MYSQL_YYABORT;
           }
         | charset_or_alias COLLATE_SYM DEFAULT
           {
-            $$.set_charset_collate_default($1);
+            $$.set_charset_collate_default(Lex_exact_charset($1));
           }
         | charset_or_alias COLLATE_SYM collation_name
           {
