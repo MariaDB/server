@@ -2393,7 +2393,7 @@ static bool srv_purge_should_exit()
     return true;
 
   /* Slow shutdown was requested. */
-  if (const uint32_t history_size= trx_sys.rseg_history_len)
+  if (const size_t history_size= trx_sys.rseg_history_len)
   {
     static time_t progress_time;
     time_t now= time(NULL);
@@ -2402,7 +2402,7 @@ static bool srv_purge_should_exit()
       progress_time= now;
 #if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
       service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-				     "InnoDB: to purge %u transactions",
+				     "InnoDB: to purge %zu transactions",
 				     history_size);
       ib::info() << "to purge " << history_size << " transactions";
 #endif
@@ -2516,17 +2516,17 @@ DECLARE_THREAD(srv_worker_thread)(
 /** Do the actual purge operation.
 @param[in,out]	n_total_purged	total number of purged pages
 @return length of history list before the last purge batch. */
-static uint32_t srv_do_purge(ulint* n_total_purged
+static size_t srv_do_purge(ulint* n_total_purged
 #ifdef UNIV_DEBUG
-			     , srv_slot_t* slot /*!< purge coordinator */
+			   , srv_slot_t* slot /*!< purge coordinator */
 #endif
-			     )
+			   )
 {
 	ulint		n_pages_purged;
 
 	static ulint	count = 0;
 	static ulint	n_use_threads = 0;
-	static uint32_t	rseg_history_len = 0;
+	static size_t	rseg_history_len = 0;
 	ulint		old_activity_count = srv_get_activity_count();
 	const ulint	n_threads = srv_n_purge_threads;
 
@@ -2606,7 +2606,7 @@ srv_purge_coordinator_suspend(
 /*==========================*/
 	srv_slot_t*	slot,			/*!< in/out: Purge coordinator
 						thread slot */
-	uint32_t	rseg_history_len)	/*!< in: history list length
+	size_t		rseg_history_len)	/*!< in: history list length
 						before last purge */
 {
 	ut_ad(!srv_read_only_mode);
@@ -2697,7 +2697,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 	rw_lock_create(PFS_NOT_INSTRUMENTED, &slot->debug_sync_lock,
 		       SYNC_NO_ORDER_CHECK);
 #endif
-	uint32_t rseg_history_len = trx_sys.rseg_history_len;
+	size_t rseg_history_len = trx_sys.rseg_history_len;
 
 	do {
 		/* If there are no records to purge or the last
