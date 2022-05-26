@@ -277,7 +277,7 @@ releases the latest clustered index record lock we set.
 void
 row_unlock_for_mysql(
 	row_prebuilt_t*	prebuilt,
-	ibool		has_latches_on_recs);
+	bool		has_latches_on_recs);
 
 /*********************************************************************//**
 Creates an query graph node of 'update' type to be used in the MySQL
@@ -461,6 +461,105 @@ struct mysql_row_templ_t {
 
 #define ROW_PREBUILT_ALLOCATED	78540783
 #define ROW_PREBUILT_FREED	26423527
+
+/** mtr can be used for batch update and delete operations */
+class row_batch_mtr_t
+{
+private:
+  /* Indicate whether the cursor store operation */
+  bool m_batch_cursor_stored= false;
+  /* Indicate whether it does read operation */
+  bool m_read= false;
+  /* mtr used for batch operation */
+  mtr_t *m_batch_mtr= nullptr;
+  /* recent clustered index leaf page savepoint */
+  ulint m_last_clust_savepoint= 0;
+  /* whether the batch mini-transaction is active */
+  bool m_batch_mtr_active= false;
+public:
+  /** Start the batch mtr operation */
+  void start()
+  {
+    m_batch_mtr->start();
+    ut_ad(m_batch_mtr->is_active());
+    m_batch_mtr_active= true;
+  }
+
+  row_batch_mtr_t()
+  {
+    m_batch_mtr = new mtr_t();
+    start();
+  }
+
+  ~row_batch_mtr_t()
+  {
+    if (m_batch_mtr_active)
+      m_batch_mtr->commit();
+    delete m_batch_mtr;
+  }
+
+  mtr_t* get_mtr() { return m_batch_mtr; }
+
+  ulint assign_operation(const dict_index_t *index, ulint lock_type);
+
+  /** @return whether cursor stored */
+  bool cursor_stored() { return m_batch_cursor_stored; }
+
+  /** Finish the read part of the batch mtr operation.
+  In case of read operation, InnoDB rollbacks to savepoint
+  when secondary index is being used
+  @param mtr_extra_clust_savepoint non-zero when secondary
+				   index is being used*/
+  void finish_read(ulint mtr_extra_clust_savepoint)
+  {
+    if (m_read)
+    {
+      /* Uses secondary index scan. In that case, remove
+      the clustered index leaf page latch */
+      if (mtr_extra_clust_savepoint)
+      {
+        m_batch_mtr->rollback_to_savepoint(mtr_extra_clust_savepoint);
+        mtr_extra_clust_savepoint= 0;
+      }
+    }
+
+    m_last_clust_savepoint= mtr_extra_clust_savepoint;
+    m_batch_cursor_stored= false;
+  }
+
+  /** Finish the update part of the batch mtr operation.
+  In case of update operation, commit and start the
+  batch mtr operation */
+  void finish_update()
+  {
+    /* Copy secondary and clustered index position */
+    m_batch_mtr->commit();
+    m_batch_cursor_stored= true;
+    m_batch_mtr->start();
+    m_last_clust_savepoint= 0;
+  }
+
+  /** Start read operation of batch mtr operation
+  In case of update operation, remove the clustered index
+  leaf page latch */
+  void start_read()
+  {
+    if (m_read)
+      return;
+    if (m_last_clust_savepoint)
+    {
+      m_batch_mtr->rollback_to_savepoint(m_last_clust_savepoint);
+      m_last_clust_savepoint= 0;
+    }
+  }
+
+  /** Commit the batch mtr operation */
+  void commit()
+  {
+    m_batch_mtr->commit();
+    m_batch_mtr_active= false;
+  }
+};
 
 /** A struct for (sometimes lazily) prebuilt structures in an Innobase table
 handle used within MySQL; these are used to save CPU time. */
@@ -700,6 +799,9 @@ struct row_prebuilt_t {
 	uint		srch_key_val_len; /*!< Size of search key */
 	/** The MySQL table object */
 	TABLE*		m_mysql_table;
+
+	/** Batch update operation mtr */
+	row_batch_mtr_t	*batch_mtr;
 
 	/** Get template by dict_table_t::cols[] number */
 	const mysql_row_templ_t* get_template_by_col(ulint col) const

@@ -465,6 +465,9 @@ public:
 
   friend class ha_federatedx_derived_handler;
   friend class ha_federatedx_select_handler;
+
+  void start_operations_batch() {}
+  void end_operations_batch() {}
 };
 
 extern const char ident_quote_char;              // Character for quoting

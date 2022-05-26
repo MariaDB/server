@@ -176,5 +176,8 @@ public:
   int encode_quote(const uchar *buf);
   int find_current_row(uchar *buf);
   int chain_append();
+
+  void start_operations_batch() {}
+  void end_operations_batch() {}
 };
 

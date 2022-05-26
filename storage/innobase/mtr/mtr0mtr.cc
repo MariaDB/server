@@ -325,6 +325,7 @@ template <typename Functor> struct TillSavepoint
     {
     case MTR_MEMO_S_LOCK:
     case MTR_MEMO_PAGE_S_FIX:
+    case MTR_MEMO_PAGE_X_FIX:
       break;
     default:
       ut_a(false);

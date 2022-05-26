@@ -284,5 +284,8 @@ public:
   int connection_autocommit(bool state);
   int execute_simple_query(const char *query, int len);
   int reset(void);
+
+  void start_operations_batch() {}
+  void end_operations_batch() {}
 };
 

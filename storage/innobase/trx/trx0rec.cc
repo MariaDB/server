@@ -2071,14 +2071,29 @@ trx_undo_report_row_operation(
 		bulk = false;
 	}
 
-	mtr_t		mtr;
-	mtr.start();
+	mtr_t	*mtr;
+	row_batch_mtr_t *batch_mtr = nullptr;
+
+	/* Use batch mtr for undo log page allocation
+	and writing the undo log record */
+	if (thr->prebuilt && thr->run_node
+	    && thr->run_node == thr->prebuilt->upd_node) {
+		batch_mtr = thr->prebuilt->batch_mtr;
+	}
+
+	if (batch_mtr) {
+		mtr = batch_mtr->get_mtr();
+	} else {
+		mtr = new mtr_t();
+		mtr->start();
+	}
+
 	trx_undo_t**	pundo;
 	trx_rseg_t*	rseg;
 	const bool	is_temp	= index->table->is_temporary();
 
 	if (is_temp) {
-		mtr.set_log_mode(MTR_LOG_NO_REDO);
+		mtr->set_log_mode(MTR_LOG_NO_REDO);
 
 		rseg = trx->get_temp_rseg();
 		pundo = &trx->rsegs.m_noredo.undo;
@@ -2091,12 +2106,17 @@ trx_undo_report_row_operation(
 
 	dberr_t		err;
 	buf_block_t*	undo_block = trx_undo_assign_low(trx, rseg, pundo,
-							 &err, &mtr);
+							 &err, mtr);
 	trx_undo_t*	undo	= *pundo;
 	ut_ad((err == DB_SUCCESS) == (undo_block != NULL));
 	if (UNIV_UNLIKELY(undo_block == NULL)) {
 err_exit:
-		mtr.commit();
+		if (batch_mtr) {
+			batch_mtr->commit();
+		} else {
+			mtr->commit();
+			delete mtr;
+		}
 		return err;
 	}
 
@@ -2105,11 +2125,11 @@ err_exit:
 	do {
 		uint16_t offset = !rec
 			? trx_undo_page_report_insert(
-				undo_block, trx, index, clust_entry, &mtr,
+				undo_block, trx, index, clust_entry, mtr,
 				bulk)
 			: trx_undo_page_report_modify(
 				undo_block, trx, index, rec, offsets, update,
-				cmpl_info, clust_entry, &mtr);
+				cmpl_info, clust_entry, mtr);
 
 		if (UNIV_UNLIKELY(offset == 0)) {
 			const uint16_t first_free = mach_read_from_2(
@@ -2134,14 +2154,20 @@ err_exit:
 				first, because it may be holding lower-level
 				latches, such as SYNC_FSP_PAGE. */
 
-				mtr.commit();
-				mtr.start();
+				if (batch_mtr) {
+					batch_mtr->commit();
+					batch_mtr->start();
+				} else {
+					mtr->commit();
+					mtr->start();
+				}
+
 				if (is_temp) {
-					mtr.set_log_mode(MTR_LOG_NO_REDO);
+					mtr->set_log_mode(MTR_LOG_NO_REDO);
 				}
 
 				rseg->latch.wr_lock(SRW_LOCK_CALL);
-				trx_undo_free_last_page(undo, &mtr);
+				trx_undo_free_last_page(undo, mtr);
 				rseg->latch.wr_unlock();
 
 				if (m.second) {
@@ -2164,16 +2190,22 @@ err_exit:
 				data file and initialized it based on
 				redo log records (which included the
 				write of the previous garbage). */
-				mtr.memset(*undo_block, first_free,
+				mtr->memset(*undo_block, first_free,
 					   srv_page_size - first_free
 					   - FIL_PAGE_DATA_END, 0);
 			}
 
-			mtr.commit();
+			if (batch_mtr) {
+			} else {
+				mtr->commit();
+			}
 		} else {
 			/* Success */
 			undo->top_page_no = undo_block->page.id().page_no();
-			mtr.commit();
+			if (batch_mtr) {
+			} else {
+				mtr->commit();
+			}
 			undo->top_offset  = offset;
 			undo->top_undo_no = trx->undo_no++;
 			undo->guess_block = undo_block;
@@ -2198,6 +2230,10 @@ err_exit:
 					undo->top_page_no, offset);
 			}
 
+			if (!batch_mtr) {
+				delete mtr;
+			}
+
 			return(DB_SUCCESS);
 		}
 
@@ -2206,13 +2242,15 @@ err_exit:
 		/* We have to extend the undo log by one page */
 
 		ut_ad(++loop_count < 2);
-		mtr.start();
-
-		if (is_temp) {
-			mtr.set_log_mode(MTR_LOG_NO_REDO);
+		if (!batch_mtr) {
+			mtr->start();
 		}
 
-		undo_block = trx_undo_add_page(undo, &mtr);
+		if (is_temp) {
+			mtr->set_log_mode(MTR_LOG_NO_REDO);
+		}
+
+		undo_block = trx_undo_add_page(undo, mtr);
 
 		DBUG_EXECUTE_IF("ib_err_ins_undo_page_add_failure",
 				undo_block = NULL;);
