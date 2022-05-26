@@ -125,7 +125,14 @@ int pthread_cancel(pthread_t thread);
 #define pthread_mutex_unlock(A)  (LeaveCriticalSection(A), 0)
 #define pthread_mutex_destroy(A) (DeleteCriticalSection(A), 0)
 #define pthread_kill(A,B) pthread_dummy((A) ? 0 : ESRCH)
-#define pthread_setname_np(T, N) SetThreadDescription(T, N)
+
+static HRESULT pthread_setname_np(DWORD thread_id, char *name)
+{
+  HANDLE h= OpenThread(THREAD_SET_INFORMATION, false, thread_id);
+  HRESULT result= SetThreadDescription(h, (PCWSTR)name);
+  CloseHandle(h);
+  return result;
+}
 
 
 /* Dummy defines for easier code */
