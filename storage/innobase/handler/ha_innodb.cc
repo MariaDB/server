@@ -9526,7 +9526,8 @@ ha_innobase::sample_next(
   rec_offs_init(offsets_);
   mtr.start();
   dict_index_t*	index= innobase_get_index(MAX_KEY);
-  bool res= btr_pcur_open_at_rnd_pos(index, BTR_SEARCH_LEAF, pcur, &mtr);
+  bool probability_correctness;
+  bool res= btr_pcur_open_at_rnd_pos(index, BTR_SEARCH_LEAF, pcur, &mtr, &probability_correctness);
   if(!res)
   {
     mtr.commit();

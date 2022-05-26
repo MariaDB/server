@@ -211,10 +211,11 @@ Positions a cursor at a randomly chosen position within a B-tree.
 if the index is unavailable */
 bool
 btr_cur_open_at_rnd_pos(
-	dict_index_t*	index,		/*!< in: index */
-	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
-	btr_cur_t*	cursor,		/*!< in/out: B-tree cursor */
-	mtr_t*		mtr);		/*!< in: mtr */
+	dict_index_t*	index,		       /*!< in: index */
+	ulint		latch_mode,	       /*!< in: BTR_SEARCH_LEAF, ... */
+	btr_cur_t*	cursor,		       /*!< in/out: B-tree cursor */
+	mtr_t*		mtr,                   /*!< in: mtr */
+        bool* probability_correctness = NULL); /*!< out: flag for A/R check */
 /*************************************************************//**
 Tries to perform an insert to a page in an index tree, next to cursor.
 It is assumed that mtr holds an x-latch on the page. The operation does

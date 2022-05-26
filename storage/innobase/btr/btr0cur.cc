@@ -2854,9 +2854,10 @@ if the index is unavailable */
 bool
 btr_cur_open_at_rnd_pos(
 	dict_index_t*	index,		/*!< in: index */
-	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
+	ulint		latch_mode,     /*!< in: BTR_SEARCH_LEAF, ... */
 	btr_cur_t*	cursor,		/*!< in/out: B-tree cursor */
-	mtr_t*		mtr)		/*!< in: mtr */
+	mtr_t*		mtr,            /*!< in: mtr */
+        bool* probability_correctness)  /*!< out: flag for A/R check */
 {
 	page_cur_t*	page_cursor;
 	ulint		node_ptr_max_size = srv_page_size / 2;

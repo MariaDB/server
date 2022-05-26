@@ -487,7 +487,8 @@ btr_pcur_open_at_rnd_pos(
 	dict_index_t*	index,		/*!< in: index */
 	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor,		/*!< in/out: B-tree pcur */
-	mtr_t*		mtr)		/*!< in: mtr */
+	mtr_t*		mtr,		/*!< in: mtr */
+	bool* probability_correctness) /*!< out: flag for A/R check */
 {
 	/* Initialize the cursor */
 
@@ -500,7 +501,7 @@ btr_pcur_open_at_rnd_pos(
 
 	available = btr_cur_open_at_rnd_pos(index, latch_mode,
 					    btr_pcur_get_btr_cur(cursor),
-					    mtr);
+					    mtr, probability_correctness);
 	cursor->pos_state = BTR_PCUR_IS_POSITIONED;
 	cursor->old_stored = false;
 
