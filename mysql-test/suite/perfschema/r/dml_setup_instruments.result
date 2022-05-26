@@ -5,6 +5,7 @@ where name like 'Wait/Synch/Mutex/sql/%'
 order by name limit 10;
 NAME	ENABLED	TIMED
 wait/synch/mutex/sql/Ack_receiver::mutex	YES	YES
+wait/synch/mutex/sql/apc_request	YES	YES
 wait/synch/mutex/sql/Cversion_lock	YES	YES
 wait/synch/mutex/sql/Delayed_insert::mutex	YES	YES
 wait/synch/mutex/sql/Event_scheduler::LOCK_scheduler_state	YES	YES
@@ -13,7 +14,6 @@ wait/synch/mutex/sql/hash_filo::lock	YES	YES
 wait/synch/mutex/sql/HA_DATA_PARTITION::LOCK_auto_inc	YES	YES
 wait/synch/mutex/sql/LOCK_active_mi	YES	YES
 wait/synch/mutex/sql/LOCK_after_binlog_sync	YES	YES
-wait/synch/mutex/sql/LOCK_audit_mask	YES	YES
 select * from performance_schema.setup_instruments
 where name like 'Wait/Synch/Rwlock/sql/%'
   and name not in (
@@ -42,6 +42,7 @@ where name like 'Wait/Synch/Cond/sql/%'
 order by name limit 10;
 NAME	ENABLED	TIMED
 wait/synch/cond/sql/Ack_receiver::cond	YES	YES
+wait/synch/cond/sql/apc_request	YES	YES
 wait/synch/cond/sql/COND_binlog_send	YES	YES
 wait/synch/cond/sql/COND_flush_thread_cache	YES	YES
 wait/synch/cond/sql/COND_group_commit_orderer	YES	YES
@@ -50,7 +51,6 @@ wait/synch/cond/sql/COND_manager	YES	YES
 wait/synch/cond/sql/COND_parallel_entry	YES	YES
 wait/synch/cond/sql/COND_prepare_ordered	YES	YES
 wait/synch/cond/sql/COND_queue_state	YES	YES
-wait/synch/cond/sql/COND_rpl_thread	YES	YES
 select * from performance_schema.setup_instruments
 where name='Wait';
 select * from performance_schema.setup_instruments

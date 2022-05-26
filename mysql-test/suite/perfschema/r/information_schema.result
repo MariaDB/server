@@ -44,6 +44,7 @@ performance_schema	file_instances	def
 performance_schema	file_summary_by_event_name	def
 performance_schema	file_summary_by_instance	def
 performance_schema	global_status	def
+performance_schema	global_variables	def
 performance_schema	hosts	def
 performance_schema	host_cache	def
 performance_schema	memory_summary_by_account_by_event_name	def
@@ -65,6 +66,7 @@ performance_schema	rwlock_instances	def
 performance_schema	session_account_connect_attrs	def
 performance_schema	session_connect_attrs	def
 performance_schema	session_status	def
+performance_schema	session_variables	def
 performance_schema	setup_actors	def
 performance_schema	setup_consumers	def
 performance_schema	setup_instruments	def
@@ -84,6 +86,7 @@ performance_schema	table_lock_waits_summary_by_table	def
 performance_schema	threads	def
 performance_schema	users	def
 performance_schema	user_variables_by_thread	def
+performance_schema	variables_by_thread	def
 select lower(TABLE_NAME), TABLE_TYPE, ENGINE
 from information_schema.tables
 where TABLE_SCHEMA='performance_schema'
@@ -130,6 +133,7 @@ file_instances	BASE TABLE	PERFORMANCE_SCHEMA
 file_summary_by_event_name	BASE TABLE	PERFORMANCE_SCHEMA
 file_summary_by_instance	BASE TABLE	PERFORMANCE_SCHEMA
 global_status	BASE TABLE	PERFORMANCE_SCHEMA
+global_variables	BASE TABLE	PERFORMANCE_SCHEMA
 hosts	BASE TABLE	PERFORMANCE_SCHEMA
 host_cache	BASE TABLE	PERFORMANCE_SCHEMA
 memory_summary_by_account_by_event_name	BASE TABLE	PERFORMANCE_SCHEMA
@@ -151,6 +155,7 @@ rwlock_instances	BASE TABLE	PERFORMANCE_SCHEMA
 session_account_connect_attrs	BASE TABLE	PERFORMANCE_SCHEMA
 session_connect_attrs	BASE TABLE	PERFORMANCE_SCHEMA
 session_status	BASE TABLE	PERFORMANCE_SCHEMA
+session_variables	BASE TABLE	PERFORMANCE_SCHEMA
 setup_actors	BASE TABLE	PERFORMANCE_SCHEMA
 setup_consumers	BASE TABLE	PERFORMANCE_SCHEMA
 setup_instruments	BASE TABLE	PERFORMANCE_SCHEMA
@@ -170,6 +175,7 @@ table_lock_waits_summary_by_table	BASE TABLE	PERFORMANCE_SCHEMA
 threads	BASE TABLE	PERFORMANCE_SCHEMA
 users	BASE TABLE	PERFORMANCE_SCHEMA
 user_variables_by_thread	BASE TABLE	PERFORMANCE_SCHEMA
+variables_by_thread	BASE TABLE	PERFORMANCE_SCHEMA
 select lower(TABLE_NAME), VERSION, ROW_FORMAT
 from information_schema.tables
 where TABLE_SCHEMA='performance_schema'
@@ -216,6 +222,7 @@ file_instances	10	Dynamic
 file_summary_by_event_name	10	Dynamic
 file_summary_by_instance	10	Dynamic
 global_status	10	Dynamic
+global_variables	10	Dynamic
 hosts	10	Fixed
 host_cache	10	Dynamic
 memory_summary_by_account_by_event_name	10	Dynamic
@@ -237,6 +244,7 @@ rwlock_instances	10	Dynamic
 session_account_connect_attrs	10	Dynamic
 session_connect_attrs	10	Dynamic
 session_status	10	Dynamic
+session_variables	10	Dynamic
 setup_actors	10	Fixed
 setup_consumers	10	Dynamic
 setup_instruments	10	Dynamic
@@ -256,6 +264,7 @@ table_lock_waits_summary_by_table	10	Dynamic
 threads	10	Dynamic
 users	10	Fixed
 user_variables_by_thread	10	Dynamic
+variables_by_thread	10	Dynamic
 select lower(TABLE_NAME), AVG_ROW_LENGTH
 from information_schema.tables
 where TABLE_SCHEMA='performance_schema' and
@@ -344,11 +353,14 @@ lower(TABLE_NAME) regexp '^variables|variables$|^status|session_status|global_st
   order by table_name;
 lower(TABLE_NAME)	TABLE_ROWS	AVG_ROW_LENGTH
 global_status	table_rows	avg_row_len
+global_variables	table_rows	avg_row_len
 session_status	table_rows	avg_row_len
+session_variables	table_rows	avg_row_len
 status_by_account	table_rows	avg_row_len
 status_by_host	table_rows	avg_row_len
 status_by_thread	table_rows	avg_row_len
 status_by_user	table_rows	avg_row_len
+variables_by_thread	table_rows	avg_row_len
 select lower(TABLE_NAME), DATA_LENGTH, MAX_DATA_LENGTH
 from information_schema.tables
 where TABLE_SCHEMA='performance_schema'
@@ -395,6 +407,7 @@ file_instances	0	0
 file_summary_by_event_name	0	0
 file_summary_by_instance	0	0
 global_status	0	0
+global_variables	0	0
 hosts	0	0
 host_cache	0	0
 memory_summary_by_account_by_event_name	0	0
@@ -416,6 +429,7 @@ rwlock_instances	0	0
 session_account_connect_attrs	0	0
 session_connect_attrs	0	0
 session_status	0	0
+session_variables	0	0
 setup_actors	0	0
 setup_consumers	0	0
 setup_instruments	0	0
@@ -435,6 +449,7 @@ table_lock_waits_summary_by_table	0	0
 threads	0	0
 users	0	0
 user_variables_by_thread	0	0
+variables_by_thread	0	0
 select lower(TABLE_NAME), INDEX_LENGTH, DATA_FREE, AUTO_INCREMENT
 from information_schema.tables
 where TABLE_SCHEMA='performance_schema'
@@ -481,6 +496,7 @@ file_instances	0	0	NULL
 file_summary_by_event_name	0	0	NULL
 file_summary_by_instance	0	0	NULL
 global_status	0	0	NULL
+global_variables	0	0	NULL
 hosts	0	0	NULL
 host_cache	0	0	NULL
 memory_summary_by_account_by_event_name	0	0	NULL
@@ -502,6 +518,7 @@ rwlock_instances	0	0	NULL
 session_account_connect_attrs	0	0	NULL
 session_connect_attrs	0	0	NULL
 session_status	0	0	NULL
+session_variables	0	0	NULL
 setup_actors	0	0	NULL
 setup_consumers	0	0	NULL
 setup_instruments	0	0	NULL
@@ -521,6 +538,7 @@ table_lock_waits_summary_by_table	0	0	NULL
 threads	0	0	NULL
 users	0	0	NULL
 user_variables_by_thread	0	0	NULL
+variables_by_thread	0	0	NULL
 select lower(TABLE_NAME), CREATE_TIME, UPDATE_TIME, CHECK_TIME
 from information_schema.tables
 where TABLE_SCHEMA='performance_schema'
@@ -567,6 +585,7 @@ file_instances	NULL	NULL	NULL
 file_summary_by_event_name	NULL	NULL	NULL
 file_summary_by_instance	NULL	NULL	NULL
 global_status	NULL	NULL	NULL
+global_variables	NULL	NULL	NULL
 hosts	NULL	NULL	NULL
 host_cache	NULL	NULL	NULL
 memory_summary_by_account_by_event_name	NULL	NULL	NULL
@@ -588,6 +607,7 @@ rwlock_instances	NULL	NULL	NULL
 session_account_connect_attrs	NULL	NULL	NULL
 session_connect_attrs	NULL	NULL	NULL
 session_status	NULL	NULL	NULL
+session_variables	NULL	NULL	NULL
 setup_actors	NULL	NULL	NULL
 setup_consumers	NULL	NULL	NULL
 setup_instruments	NULL	NULL	NULL
@@ -607,6 +627,7 @@ table_lock_waits_summary_by_table	NULL	NULL	NULL
 threads	NULL	NULL	NULL
 users	NULL	NULL	NULL
 user_variables_by_thread	NULL	NULL	NULL
+variables_by_thread	NULL	NULL	NULL
 select lower(TABLE_NAME), TABLE_COLLATION, CHECKSUM
 from information_schema.tables
 where TABLE_SCHEMA='performance_schema'
@@ -653,6 +674,7 @@ file_instances	utf8mb3_general_ci	NULL
 file_summary_by_event_name	utf8mb3_general_ci	NULL
 file_summary_by_instance	utf8mb3_general_ci	NULL
 global_status	utf8mb3_general_ci	NULL
+global_variables	utf8mb3_general_ci	NULL
 hosts	utf8mb3_general_ci	NULL
 host_cache	utf8mb3_general_ci	NULL
 memory_summary_by_account_by_event_name	utf8mb3_general_ci	NULL
@@ -674,6 +696,7 @@ rwlock_instances	utf8mb3_general_ci	NULL
 session_account_connect_attrs	utf8mb3_bin	NULL
 session_connect_attrs	utf8mb3_bin	NULL
 session_status	utf8mb3_general_ci	NULL
+session_variables	utf8mb3_general_ci	NULL
 setup_actors	utf8mb3_general_ci	NULL
 setup_consumers	utf8mb3_general_ci	NULL
 setup_instruments	utf8mb3_general_ci	NULL
@@ -693,6 +716,7 @@ table_lock_waits_summary_by_table	utf8mb3_general_ci	NULL
 threads	utf8mb3_general_ci	NULL
 users	utf8mb3_general_ci	NULL
 user_variables_by_thread	utf8mb3_general_ci	NULL
+variables_by_thread	utf8mb3_general_ci	NULL
 select lower(TABLE_NAME), CREATE_OPTIONS
 from information_schema.tables
 where TABLE_SCHEMA='performance_schema'
@@ -739,6 +763,7 @@ file_instances
 file_summary_by_event_name	
 file_summary_by_instance	
 global_status	
+global_variables	
 hosts	
 host_cache	
 memory_summary_by_account_by_event_name	
@@ -760,6 +785,7 @@ rwlock_instances
 session_account_connect_attrs	
 session_connect_attrs	
 session_status	
+session_variables	
 setup_actors	
 setup_consumers	
 setup_instruments	
@@ -779,6 +805,7 @@ table_lock_waits_summary_by_table
 threads	
 users	
 user_variables_by_thread	
+variables_by_thread	
 select lower(TABLE_NAME), TABLE_COMMENT
 from information_schema.tables
 where TABLE_SCHEMA='performance_schema'
@@ -825,6 +852,7 @@ file_instances
 file_summary_by_event_name	
 file_summary_by_instance	
 global_status	
+global_variables	
 hosts	
 host_cache	
 memory_summary_by_account_by_event_name	
@@ -846,6 +874,7 @@ rwlock_instances
 session_account_connect_attrs	
 session_connect_attrs	
 session_status	
+session_variables	
 setup_actors	
 setup_consumers	
 setup_instruments	
@@ -865,3 +894,4 @@ table_lock_waits_summary_by_table
 threads	
 users	
 user_variables_by_thread	
+variables_by_thread	
