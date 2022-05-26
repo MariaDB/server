@@ -2871,6 +2871,7 @@ btr_cur_open_at_rnd_pos(
 	mem_heap_t*	heap		= NULL;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets		= offsets_;
+        *probability_correctness = true;
 	rec_offs_init(offsets_);
 
 	ut_ad(!index->is_spatial());
