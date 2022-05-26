@@ -1402,9 +1402,61 @@ static thread_local Thread_apc_context *_THR_APC_CTX= NULL;
 
 class Thread_apc_context
 {
+#ifdef WIN32
+#ifndef SOCKET_ERROR
+#define SOCKET_ERROR -1
+#endif
+  static int create_sock_pair(my_socket out[2])
+  {
+    my_socket listener= socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (listener == INVALID_SOCKET)
+      return 1;
+
+    addrinfo addr_hint, *addr;
+
+    memset(&addr_hint, 0, sizeof addr_hint);
+    addr_hint.ai_family = AF_INET;
+    addr_hint.ai_socktype = SOCK_STREAM;
+    addr_hint.ai_protocol = IPPROTO_TCP;
+    addr_hint.ai_flags = AI_PASSIVE;
+    getaddrinfo(NULL, 0, &addr_hint, &addr);
+
+    int ret= bind(listener, addr->ai_addr, (int)addr->ai_addrlen);
+
+    if (likely(ret != SOCKET_ERROR))
+      ret= listen(listener, 1);
+
+    if (likely(ret != SOCKET_ERROR))
+      out[0] = WSASocketW(AF_INET, SOCK_STREAM, 0, NULL, 0, 0);
+
+    if (unlikely(out[0] == INVALID_SOCKET))
+      ret= SOCKET_ERROR;
+
+    if (likely(ret != SOCKET_ERROR))
+      ret= connect(out[0], addr->ai_addr, (int)addr->ai_addrlen);
+
+    if (likely(ret != SOCKET_ERROR))
+      out[1] = accept(listener, NULL, NULL);
+
+
+    closesocket(listener);
+    freeaddrinfo(addr);
+
+    if (unlikely(ret == SOCKET_ERROR || out[1] == INVALID_SOCKET))
+    {
+      sql_print_error("error pairing socket: %d", socket_errno);
+      closesocket(out[0]);
+      closesocket(out[1]);
+      WSACleanup();
+      return 1;
+    }
+
+    return 0;
+  }
+#endif
 public:
 #ifndef _GNU_SOURCE
-  int self_pipe[2]{};
+  my_socket self_pipe[2]{};
 #endif
 
   bool setup_thread_apc()
@@ -1438,10 +1490,7 @@ public:
     // One can request APC that writes into this pipe to provoke guaranteed
     // connection wakeup. It is used in vio_io_wait() on the other end.
 
-    HANDLE pipeIn, pipeOut;
-    int ret= !CreatePipe(&pipeIn, &pipeOut, NULL, 32);
-    self_pipe[0]= _open_osfhandle((intptr_t)pipeIn, O_RDONLY|_O_BINARY);
-    self_pipe[1]= _open_osfhandle((intptr_t)pipeOut, _O_BINARY);
+    int ret= create_sock_pair(self_pipe);
 #endif
     return ret == 0;
   }
@@ -1458,8 +1507,8 @@ public:
   ~Thread_apc_context()
   {
     _THR_APC_CTX= NULL;
-    close(self_pipe[0]);
-    close(self_pipe[1]);
+    closesocket(self_pipe[0]);
+    closesocket(self_pipe[1]);
   }
 #endif
 };
@@ -1468,12 +1517,10 @@ public:
 static void self_pipe_write()
 {
   // No self-pipe is actually used. Instead, ppoll is used to wake up on signal.
-  printf("Failed to initialize BCM2835 GPIO library.\n");
-
 }
 #else
 
-int threadlocal_get_self_pipe()
+my_socket threadlocal_get_self_pipe()
 {
   return _THR_APC_CTX ? _THR_APC_CTX->self_pipe[0] : 0;
 }
@@ -1482,7 +1529,7 @@ static void self_pipe_write()
 {
   DBUG_ASSERT(_THR_APC_CTX);
   int buf = 0;
-  write(_THR_APC_CTX->self_pipe[1], &buf, sizeof buf);
+  write((int)_THR_APC_CTX->self_pipe[1], &buf, sizeof buf);
 }
 #endif
 

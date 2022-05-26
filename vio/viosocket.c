@@ -32,6 +32,8 @@
   #pragma comment(lib, "ws2_32.lib")
 #endif
 
+#define WSASetLastError(code) do { fprintf(stderr, "new code: %d\n", code); WSASetLastError(code); } while(0)
+
 #ifdef FIONREAD_IN_SYS_FILIO
 # include <sys/filio.h>
 #endif
@@ -180,7 +182,12 @@ size_t vio_read(Vio *vio, uchar *buf, size_t size)
 
     /* Wait for input data to become available. */
     if ((ret= vio_socket_io_wait(vio, VIO_IO_EVENT_READ)))
-      break;
+    {
+      error= socket_errno;
+      fprintf(stderr, "vio_read: socket error is %d\n", error);
+      if (error != SOCKET_EINTR)
+        break;
+    }
   }
 #ifndef DBUG_OFF
   if (ret == -1)
@@ -946,7 +953,7 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   pfd[0].fd= sd;
 
 #ifndef _GNU_SOURCE
-  int self_pipe= threadlocal_get_self_pipe();
+  my_socket self_pipe= threadlocal_get_self_pipe();
   if (self_pipe)
   {
     pfd[1].fd= self_pipe;
@@ -1014,7 +1021,8 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
 }
 
 #else
-
+void my_print_stacktrace(uchar* stack_bottom, ulong thread_stack,
+                         my_bool silent __attribute__((unused)));
 int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
 {
   int ret;
@@ -1038,7 +1046,7 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   /* Always receive notification of exceptions. */
   FD_SET(fd, &exceptfds);
 
-  int pipe_fd= threadlocal_get_self_pipe();
+  my_socket pipe_fd= threadlocal_get_self_pipe();
 
   switch (event)
   {
@@ -1062,21 +1070,27 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   ret= select(0, &readfds, &writefds, &exceptfds, (timeout >= 0) ? &tm : NULL);
 
   END_SOCKET_WAIT(locker, timeout);
-
+  fprintf(stderr, "done select()\n");
   /* Set error code to indicate a timeout error. */
   if (ret == 0)
     WSASetLastError(SOCKET_ETIMEDOUT);
 
-  if (FD_ISSET(pipe_fd, &readfds))
+  if (MY_TEST(FD_ISSET(pipe_fd, &readfds)) == 0)
   {
+    fprintf(stderr, "received self-pipe interrupt\n");
     // Self-pipe trick fakes CancelIo
     ret= -1;
     WSASetLastError(SOCKET_EINTR);
+    my_print_stacktrace(NULL, 0, 0);
   }
 
   /* Error or timeout? */
-  if (ret <= 0)
+  if (ret <= 0){
+    fprintf(stderr, "vio_io_wait: error return: %d\n", ret);
+    fprintf(stderr, "Last error: %d\n", WSAGetLastError());
+    assert(ret == 0);
     DBUG_RETURN(ret);
+  }
 
   /* The requested I/O event is ready? */
   switch (event)
