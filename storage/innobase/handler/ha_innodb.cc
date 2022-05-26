@@ -9527,7 +9527,8 @@ ha_innobase::sample_next(
   mtr.start();
   dict_index_t*	index= innobase_get_index(MAX_KEY);
   bool res= btr_pcur_open_at_rnd_pos(index, BTR_SEARCH_LEAF, pcur, &mtr);
-  if(!res) {
+  if(!res)
+  {
     mtr.commit();
     return HA_ERR_KEY_NOT_FOUND;
   }
@@ -9537,6 +9538,13 @@ ha_innobase::sample_next(
   mem_heap_t*	heap= NULL;
   offsets= rec_get_offsets(rec, index, offsets, index->n_core_fields, ULINT_UNDEFINED, &heap);
   ut_ad(offsets);
+  if (!offsets)
+  {
+    mtr.commit();
+    if (heap)
+      mem_heap_free(heap);
+    return HA_ERR_INTERNAL_ERROR;
+  }
 
   res= row_sel_store_mysql_rec(
       buf, m_prebuilt, rec, NULL, true,
