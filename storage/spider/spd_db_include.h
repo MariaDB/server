@@ -176,11 +176,6 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_TYPE_TMP_SQL (1 << 5)
 #define SPIDER_SQL_TYPE_DROP_TMP_TABLE_SQL (1 << 6)
 #define SPIDER_SQL_TYPE_OTHER_SQL (1 << 7)
-#define SPIDER_SQL_TYPE_SELECT_HS (1 << 9)
-#define SPIDER_SQL_TYPE_INSERT_HS (1 << 10)
-#define SPIDER_SQL_TYPE_UPDATE_HS (1 << 11)
-#define SPIDER_SQL_TYPE_DELETE_HS (1 << 12)
-#define SPIDER_SQL_TYPE_OTHER_HS (1 << 13)
 
 enum spider_bulk_upd_start {
   SPD_BU_NOT_START,
