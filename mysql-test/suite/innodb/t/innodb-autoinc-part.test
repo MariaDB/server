@@ -1,0 +1,24 @@
+--source include/have_partition.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-28416 Incorrect AUTO_INCREMENT may be issued
+--echo #
+
+SET @aii=@@auto_increment_increment;
+SET auto_increment_increment=300;
+
+CREATE TABLE t1 (a SERIAL) ENGINE=innodb
+PARTITION BY RANGE (a) (
+    PARTITION p0 VALUES LESS THAN (6),
+    PARTITION p1 VALUES LESS THAN MAXVALUE
+);
+INSERT INTO t1 VALUES (18446744073709551613);
+SHOW CREATE TABLE t1;
+--error HA_ERR_AUTOINC_ERANGE
+INSERT INTO t1 VALUES (NULL);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET auto_increment_increment=@aii;
+
+--echo # End of 10.2 tests

@@ -149,6 +149,29 @@ ALTER TABLE time_zone_transition_type ENGINE=MyISAM;
 END IF|
 \d ;
 #
+# MDEV-28263: mariadb-tzinfo-to-sql improve wsrep and binlog cases
+#
+#
+# Testing --skip-write-binlog
+#
+set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION WSREP_ON=OFF', 'do 0');
+SET SESSION SQL_LOG_BIN=0;
+execute immediate @prep1;
+INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
+SET @time_zone_id= LAST_INSERT_ID();
+INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('XXX', @time_zone_id);
+INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES
+ (@time_zone_id, 0, 0, 0, 'GMT')
+;
+set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION WSREP_ON=OFF', 'do 0');
+SET SESSION SQL_LOG_BIN=0;
+execute immediate @prep1;
+TRUNCATE TABLE time_zone_leap_second;
+ALTER TABLE time_zone_leap_second ORDER BY Transition_time;
+#
+# End of 10.2 tests
+#
+#
 # MDEV-6236 - [PATCH] mysql_tzinfo_to_sql may produce invalid SQL
 #
 \d |

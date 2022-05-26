@@ -1142,10 +1142,6 @@ static SHOW_VAR innodb_status_variables[]= {
   /* Status variables for page compression */
   {"page_compression_saved",
    (char*) &export_vars.innodb_page_compression_saved,    SHOW_LONGLONG},
-  {"num_index_pages_written",
-   (char*) &export_vars.innodb_index_pages_written,       SHOW_LONGLONG},
-  {"num_non_index_pages_written",
-   (char*) &export_vars.innodb_non_index_pages_written,       SHOW_LONGLONG},
   {"num_pages_page_compressed",
    (char*) &export_vars.innodb_pages_page_compressed,     SHOW_LONGLONG},
   {"num_page_compressed_trim_op",
@@ -1213,9 +1209,6 @@ static SHOW_VAR innodb_status_variables[]= {
   {"encryption_rotation_estimated_iops",
   (char*) &export_vars.innodb_encryption_rotation_estimated_iops,
    SHOW_LONG},
-  {"encryption_key_rotation_list_length",
-  (char*)&export_vars.innodb_key_rotation_list_length,
-   SHOW_LONGLONG},
   {"encryption_n_merge_blocks_encrypted",
   (char*)&export_vars.innodb_n_merge_blocks_encrypted,
    SHOW_LONGLONG},
@@ -16792,8 +16785,8 @@ ha_innobase::get_auto_increment(
 
 	(3) It is restricted only for insert operations. */
 
-	if (increment > 1 && thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE
-	    && autoinc < col_max_value) {
+	if (increment > 1 && increment <= ~autoinc && autoinc < col_max_value
+	    && thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE) {
 
 		ulonglong prev_auto_inc = autoinc;
 

@@ -109,10 +109,6 @@ struct srv_stats_t
 
 	/** Number of bytes saved by page compression */
 	ulint_ctr_64_t          page_compression_saved;
-	/* Number of index pages written */
-	ulint_ctr_64_t          index_pages_written;
-	/* Number of non index pages written */
-	ulint_ctr_64_t          non_index_pages_written;
 	/* Number of pages compressed with page compression */
         ulint_ctr_64_t          pages_page_compressed;
 	/* Number of TRIM operations induced by page compression */
@@ -184,9 +180,6 @@ struct srv_stats_t
 
 	/** Number of log scrub operations */
 	ulint_ctr_64_t		n_log_scrubs;
-
-	/** Number of spaces in keyrotation list */
-	ulint_ctr_64_t		key_rotation_list_length;
 
 	/** Number of temporary tablespace blocks encrypted */
 	ulint_ctr_64_t		n_temp_blocks_encrypted;
@@ -1030,10 +1023,6 @@ struct export_var_t{
 
 	int64_t innodb_page_compression_saved;/*!< Number of bytes saved
 						by page compression */
-	int64_t innodb_index_pages_written;  /*!< Number of index pages
-						written */
-	int64_t innodb_non_index_pages_written;  /*!< Number of non index pages
-						written */
 	int64_t innodb_pages_page_compressed;/*!< Number of pages
 						compressed by page compression */
 	int64_t innodb_page_compressed_trim_op;/*!< Number of TRIM operations
@@ -1072,7 +1061,6 @@ struct export_var_t{
 	ulint innodb_encryption_rotation_pages_flushed;
 	ulint innodb_encryption_rotation_estimated_iops;
 	int64_t innodb_encryption_key_requests;
-	int64_t innodb_key_rotation_list_length;
 
 	ulint innodb_scrub_page_reorganizations;
 	ulint innodb_scrub_page_splits;

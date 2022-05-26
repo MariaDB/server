@@ -1872,6 +1872,7 @@ SET GLOBAL slave_parallel_threads=10;
 SET GLOBAL slave_parallel_threads=1;
 SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,slave_discard_xid_for_gtid_0_x_1000";
+CALL mtr.add_suppression("Unexpected break of being relay-logged GTID");
 
 --connection server_1
 INSERT INTO t2 VALUES (101);

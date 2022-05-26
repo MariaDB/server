@@ -2397,3 +2397,19 @@ $$
 DELIMITER ;$$
 CALL p1();
 DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-28588 SIGSEGV in __memmove_avx_unaligned_erms, strmake_root
+--echo #
+
+SET sql_mode=ORACLE;
+BEGIN END;
+
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW BEGIN END;
+--vertical_results
+SELECT ACTION_STATEMENT FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_SCHEMA='test' AND TRIGGER_NAME='tr';
+--horizontal_results
+DROP TRIGGER tr;
+DROP TABLE t1;

@@ -266,7 +266,8 @@ free_mysql_variables(mysql_variable *vars)
 
 static
 char *
-read_mysql_one_value(MYSQL *connection, const char *query)
+read_mysql_one_value(MYSQL *connection, const char *query,
+                     uint column, uint expect_columns)
 {
 	MYSQL_RES *mysql_result;
 	MYSQL_ROW row;
@@ -274,16 +275,25 @@ read_mysql_one_value(MYSQL *connection, const char *query)
 
 	mysql_result = xb_mysql_query(connection, query, true);
 
-	ut_ad(mysql_num_fields(mysql_result) == 1);
+	ut_ad(mysql_num_fields(mysql_result) == expect_columns);
 
 	if ((row = mysql_fetch_row(mysql_result))) {
-		result = strdup(row[0]);
+		result = strdup(row[column]);
 	}
 
 	mysql_free_result(mysql_result);
 
 	return(result);
 }
+
+
+static
+char *
+read_mysql_one_value(MYSQL *mysql, const char *query)
+{
+  return read_mysql_one_value(mysql, query, 0/*offset*/, 1/*total columns*/);
+}
+
 
 static
 bool
@@ -1197,92 +1207,322 @@ cleanup:
 }
 
 
+class Var
+{
+  const char *m_name;
+  char *m_value;
+  /*
+    Disable copying constructors for safety, as the default binary copying
+    which would be wrong. If we ever want them, the m_value
+    member should be copied using an strdup()-alike function.
+  */
+  Var(const Var &); // Disabled
+  Var(Var &);       // Disabled
+public:
+  ~Var()
+  {
+    free(m_value);
+  }
+  Var(const char *name)
+   :m_name(name),
+    m_value(NULL)
+  { }
+  // Init using a SHOW VARIABLES LIKE 'name' query
+  Var(const char *name, MYSQL *mysql)
+   :m_name(name)
+  {
+    char buf[128];
+    my_snprintf(buf, sizeof(buf), "SHOW VARIABLES LIKE '%s'", m_name);
+    m_value= read_mysql_one_value(mysql, buf, 1/*offset*/, 2/*total columns*/);
+  }
+  /*
+    Init by name from a result set.
+    If the variable name is not found in the result set metadata field names,
+    it's value stays untouched.
+  */
+  bool init(MYSQL_RES *mysql_result, MYSQL_ROW row)
+  {
+    MYSQL_FIELD *field= mysql_fetch_fields(mysql_result);
+    for (uint i= 0; i < mysql_num_fields(mysql_result); i++)
+    {
+      if (!strcmp(field[i].name, m_name))
+      {
+        free(m_value); // In case it was initialized earlier
+        m_value= row[i] ? strdup(row[i]) : NULL;
+        return false;
+      }
+    }
+    return true;
+  }
+  void replace(char from, char to)
+  {
+    ut_ad(m_value);
+    for (char *ptr= strchr(m_value, from); ptr; ptr= strchr(ptr, from))
+      *ptr= to;
+  }
+
+  const char *value() const { return m_value; }
+  bool eq_value(const char *str, size_t length) const
+  {
+    return m_value && !strncmp(m_value, str, length) && m_value[length] == '\0';
+  }
+  bool is_null_or_empty() const { return !m_value || !m_value[0]; }
+  bool print(String *to) const
+  {
+    ut_ad(m_value);
+    return to->append(m_value);
+  }
+  bool print_quoted(String *to) const
+  {
+    ut_ad(m_value);
+    return to->append("'") || to->append(m_value) || to->append("'");
+  }
+  bool print_set_global(String *to) const
+  {
+    ut_ad(m_value);
+    return
+      to->append("SET GLOBAL ") ||
+      to->append(m_name) ||
+      to->append(" = '") ||
+      to->append(m_value) ||
+      to->append("';\n");
+  }
+};
+
+
+class Show_slave_status
+{
+  Var m_mariadb_connection_name; // MariaDB: e.g. 'master1'
+  Var m_master;              // e.g. 'localhost'
+  Var m_filename;            // e.g. 'source-bin.000002'
+  Var m_position;            // a number
+  Var m_mysql_gtid_executed; // MySQL56: e.g. single '<UUID>:1-5" or multiline
+                             // '<UUID1>:1-10,\n<UUID2>:1-20\n<UUID3>:1-30'
+  Var m_mariadb_using_gtid;  // MariaDB: 'No','Slave_Pos','Current_Pos'
+
+public:
+
+  Show_slave_status()
+   :m_mariadb_connection_name("Connection_name"),
+    m_master("Master_Host"),
+    m_filename("Relay_Master_Log_File"),
+    m_position("Exec_Master_Log_Pos"),
+    m_mysql_gtid_executed("Executed_Gtid_Set"),
+    m_mariadb_using_gtid("Using_Gtid")
+  { }
+
+  void init(MYSQL_RES *res, MYSQL_ROW row)
+  {
+    m_mariadb_connection_name.init(res, row);
+    m_master.init(res, row);
+    m_filename.init(res, row);
+    m_position.init(res, row);
+    m_mysql_gtid_executed.init(res, row);
+    m_mariadb_using_gtid.init(res, row);
+    // Normalize
+    if (m_mysql_gtid_executed.value())
+      m_mysql_gtid_executed.replace('\n', ' ');
+  }
+
+  static void msg_is_not_slave()
+  {
+    msg("Failed to get master binlog coordinates "
+        "from SHOW SLAVE STATUS.This means that the server is not a "
+        "replication slave. Ignoring the --slave-info option");
+  }
+
+  bool is_mariadb_using_gtid() const
+  {
+    return !m_mariadb_using_gtid.eq_value("No", 2);
+  }
+
+  static bool start_comment_chunk(String *to)
+  {
+    return to->length() ? to->append("; ") : false;
+  }
+
+  bool print_connection_name_if_set(String *to) const
+  {
+    if (!m_mariadb_connection_name.is_null_or_empty())
+      return m_mariadb_connection_name.print_quoted(to) || to->append(' ');
+    return false;
+  }
+
+  bool print_comment_master_identity(String *comment) const
+  {
+    if (comment->append("master "))
+      return true;
+    if (!m_mariadb_connection_name.is_null_or_empty())
+      return m_mariadb_connection_name.print_quoted(comment);
+    return comment->append("''"); // Default not named master
+  }
+
+  bool print_using_master_log_pos(String *sql, String *comment) const
+  {
+    return
+      sql->append("CHANGE MASTER ") ||
+      print_connection_name_if_set(sql) ||
+      sql->append("TO MASTER_LOG_FILE=") || m_filename.print_quoted(sql) ||
+      sql->append(", MASTER_LOG_POS=")   || m_position.print(sql) ||
+      sql->append(";\n") ||
+      print_comment_master_identity(comment) ||
+      comment->append(" filename ")  || m_filename.print_quoted(comment) ||
+      comment->append(" position ")  || m_position.print_quoted(comment);
+  }
+
+  bool print_mysql56(String *sql, String *comment) const
+  {
+    /*
+      SET @@GLOBAL.gtid_purged = '2174B383-5441-11E8-B90A-C80AA9429562:1-1029, '
+                                 '224DA167-0C0C-11E8-8442-00059A3C7B00:1-2695';
+      CHANGE MASTER TO MASTER_AUTO_POSITION=1;
+    */
+    return
+      sql->append("SET GLOBAL gtid_purged=") ||
+      m_mysql_gtid_executed.print_quoted(sql) ||
+      sql->append(";\n") ||
+      sql->append("CHANGE MASTER TO MASTER_AUTO_POSITION=1;\n") ||
+      print_comment_master_identity(comment) ||
+      comment->append(" purge list ") ||
+      m_mysql_gtid_executed.print_quoted(comment);
+  }
+
+  bool print_mariadb10_using_gtid(String *sql, String *comment) const
+  {
+    return
+      sql->append("CHANGE MASTER ") ||
+      print_connection_name_if_set(sql) ||
+      sql->append("TO master_use_gtid = slave_pos;\n") ||
+      print_comment_master_identity(comment) ||
+      comment->append(" master_use_gtid = slave_pos");
+  }
+
+  bool print(String *sql, String *comment, const Var &gtid_slave_pos) const
+  {
+    if (!m_mysql_gtid_executed.is_null_or_empty())
+    {
+      /* MySQL >= 5.6 with GTID enabled */
+      return print_mysql56(sql, comment);
+    }
+
+    if (!gtid_slave_pos.is_null_or_empty() && is_mariadb_using_gtid())
+    {
+      /* MariaDB >= 10.0 with GTID enabled */
+      return print_mariadb10_using_gtid(sql, comment);
+    }
+
+    return print_using_master_log_pos(sql, comment);
+  }
+
+  /*
+    Get master info into strings "sql" and "comment" from a MYSQL_RES.
+    @return false on success
+    @return true on error
+  */
+  static bool get_slave_info(MYSQL_RES *show_slave_info_result,
+                             const Var &gtid_slave_pos,
+                             String *sql, String *comment)
+  {
+    if (!gtid_slave_pos.is_null_or_empty())
+    {
+      // Print gtid_slave_pos if any of the masters really needs it.
+      while (MYSQL_ROW row= mysql_fetch_row(show_slave_info_result))
+      {
+        Show_slave_status status;
+        status.init(show_slave_info_result, row);
+        if (status.is_mariadb_using_gtid())
+        {
+          if (gtid_slave_pos.print_set_global(sql) ||
+              comment->append("gtid_slave_pos ") ||
+              gtid_slave_pos.print_quoted(comment))
+            return true; // Error
+          break;
+        }
+      }
+    }
+
+    // Print the list of masters
+    mysql_data_seek(show_slave_info_result, 0);
+    while (MYSQL_ROW row= mysql_fetch_row(show_slave_info_result))
+    {
+      Show_slave_status status;
+      status.init(show_slave_info_result, row);
+      if (start_comment_chunk(comment) ||
+          status.print(sql, comment, gtid_slave_pos))
+        return true; // Error
+    }
+    return false; // Success
+  }
+
+  /*
+    Get master info into strings "sql" and "comment".
+    @return false on success
+    @return true on error
+  */
+  static bool get_slave_info(MYSQL *mysql, bool show_all_slave_status,
+                             String *sql, String *comment)
+  {
+    bool rc= false; // Success
+    // gtid_slave_pos - MariaDB variable : e.g. "0-1-1" or "1-10-100,2-20-500"
+    Var gtid_slave_pos("gtid_slave_pos", mysql);
+    const char *query= show_all_slave_status ? "SHOW ALL SLAVES STATUS" :
+                                               "SHOW SLAVE STATUS";
+    MYSQL_RES *mysql_result= xb_mysql_query(mysql, query, true);
+    if (!mysql_num_rows(mysql_result))
+    {
+      msg_is_not_slave();
+      // Don't change rc, we still want to continue the backup
+    }
+    else
+    {
+      rc= get_slave_info(mysql_result, gtid_slave_pos, sql, comment);
+    }
+    mysql_free_result(mysql_result);
+    return rc;
+  }
+};
+
+
+
 /*********************************************************************//**
 Retrieves MySQL binlog position of the master server in a replication
 setup and saves it in a file. It also saves it in mysql_slave_position
-variable. */
+variable.
+@returns false on error
+@returns true on success
+*/
 bool
 write_slave_info(MYSQL *connection)
 {
-	char *master = NULL;
-	char *filename = NULL;
-	char *gtid_executed = NULL;
-	char *using_gtid = NULL;
-	char *position = NULL;
-	char *gtid_slave_pos = NULL;
-	char *ptr;
-	bool result = false;
+  String sql, comment;
+  bool show_all_slaves_status= false;
 
-	mysql_variable status[] = {
-		{"Master_Host", &master},
-		{"Relay_Master_Log_File", &filename},
-		{"Exec_Master_Log_Pos", &position},
-		{"Executed_Gtid_Set", &gtid_executed},
-		{"Using_Gtid", &using_gtid},
-		{NULL, NULL}
-	};
+  switch (server_flavor)
+  {
+  case FLAVOR_MARIADB:
+    show_all_slaves_status= mysql_server_version >= 100000;
+    break;
+  case FLAVOR_UNKNOWN:
+  case FLAVOR_MYSQL:
+  case FLAVOR_PERCONA_SERVER:
+    break;
+  }
 
-	mysql_variable variables[] = {
-		{"gtid_slave_pos", &gtid_slave_pos},
-		{NULL, NULL}
-	};
+  if (Show_slave_status::get_slave_info(connection, show_all_slaves_status,
+                                        &sql, &comment))
+    return false; // Error
 
-	read_mysql_variables(connection, "SHOW SLAVE STATUS", status, false);
-	read_mysql_variables(connection, "SHOW VARIABLES", variables, true);
+  if (!sql.length())
+  {
+    /*
+      SHOW [ALL] SLAVE STATUS returned no rows.
+      Don't create the file, but return success to continue the backup.
+    */
+    return true; // Success
+  }
 
-	if (master == NULL || filename == NULL || position == NULL) {
-		msg("Failed to get master binlog coordinates "
-			"from SHOW SLAVE STATUS.This means that the server is not a "
-			"replication slave. Ignoring the --slave-info option");
-		/* we still want to continue the backup */
-		result = true;
-		goto cleanup;
-	}
-
-	/* Print slave status to a file.
-	If GTID mode is used, construct a CHANGE MASTER statement with
-	MASTER_AUTO_POSITION and correct a gtid_purged value. */
-	if (gtid_executed != NULL && *gtid_executed) {
-		/* MySQL >= 5.6 with GTID enabled */
-
-		for (ptr = strchr(gtid_executed, '\n');
-		     ptr;
-		     ptr = strchr(ptr, '\n')) {
-			*ptr = ' ';
-		}
-
-		result = backup_file_printf(XTRABACKUP_SLAVE_INFO,
-			"SET GLOBAL gtid_purged='%s';\n"
-			"CHANGE MASTER TO MASTER_AUTO_POSITION=1\n",
-			gtid_executed);
-
-		ut_a(asprintf(&mysql_slave_position,
-			"master host '%s', purge list '%s'",
-			master, gtid_executed) != -1);
-	} else if (gtid_slave_pos && *gtid_slave_pos &&
-			!(using_gtid && !strncmp(using_gtid, "No", 2))) {
-		/* MariaDB >= 10.0 with GTID enabled */
-		result = backup_file_printf(XTRABACKUP_SLAVE_INFO,
-			"SET GLOBAL gtid_slave_pos = '%s';\n"
-			"CHANGE MASTER TO master_use_gtid = slave_pos\n",
-			gtid_slave_pos);
-		ut_a(asprintf(&mysql_slave_position,
-			"master host '%s', gtid_slave_pos %s",
-			master, gtid_slave_pos) != -1);
-	} else {
-		result = backup_file_printf(XTRABACKUP_SLAVE_INFO,
-			"CHANGE MASTER TO MASTER_LOG_FILE='%s', "
-			"MASTER_LOG_POS=%s\n", filename, position);
-		ut_a(asprintf(&mysql_slave_position,
-			"master host '%s', filename '%s', position '%s'",
-			master, filename, position) != -1);
-	}
-
-cleanup:
-	free_mysql_variables(status);
-	free_mysql_variables(variables);
-
-	return(result);
+  mysql_slave_position= strdup(comment.c_ptr());
+  return backup_file_print_buf(XTRABACKUP_SLAVE_INFO, sql.ptr(), sql.length());
 }
 
 

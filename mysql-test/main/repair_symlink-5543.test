@@ -9,9 +9,9 @@
 eval create table t1 (a int) engine=myisam data directory='$MYSQL_TMP_DIR';
 insert t1 values (1);
 --system ln -s $MYSQL_TMP_DIR/foobar5543 $MYSQL_TMP_DIR/t1.TMD
---echo # Some systems fail with errcode 40, or 90 (MIPS) when doing openat,
+--echo # Some systems fail with errcode 31 (FreeBSD), 40, or 90 (MIPS) when doing openat,
 --echo # while others don't have openat and fail with errcode 20.
---replace_regex / '.*\/t1/ 'MYSQL_TMP_DIR\/t1/ /[49]0/20/ /".*"/"<errmsg>"/
+--replace_regex / '.*\/t1/ 'MYSQL_TMP_DIR\/t1/ /[49]0|31/20/ /".*"/"<errmsg>"/
 repair table t1;
 drop table t1;
 
@@ -19,7 +19,7 @@ drop table t1;
 eval create table t2 (a int) engine=aria data directory='$MYSQL_TMP_DIR';
 insert t2 values (1);
 --system ln -s $MYSQL_TMP_DIR/foobar5543 $MYSQL_TMP_DIR/t2.TMD
---replace_regex / '.*\/t2/ 'MYSQL_TMP_DIR\/t2/ /[49]0/20/ /".*"/"<errmsg>"/
+--replace_regex / '.*\/t2/ 'MYSQL_TMP_DIR\/t2/ /[49]0|31/20/ /".*"/"<errmsg>"/
 repair table t2;
 drop table t2;
 

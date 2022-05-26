@@ -1,0 +1,14 @@
+#
+# MDEV-27417 Spatial index tries to update
+#	change buffer bookkeeping page
+#
+CREATE TEMPORARY TABLE t1 (c POINT NOT NULL, SPATIAL(c)) ENGINE=InnoDB;
+INSERT INTO t1 SELECT PointFromText('POINT(0 0)') FROM seq_1_to_366;
+DROP TABLE t1;
+#
+# MDEV-28478 Assertion mtr->get_log_mode() == MTR_LOG_NO_REDO
+#
+CREATE TEMPORARY TABLE t1 (c POINT NOT NULL,SPATIAL (c)) ENGINE=InnoDB;
+INSERT INTO t1 SELECT POINT(0,0) FROM seq_1_to_366;
+INSERT INTO t1 VALUES (POINT(1e-270,1e-130));
+DROP TABLE t1;
