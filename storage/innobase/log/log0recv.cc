@@ -262,9 +262,26 @@ public:
       next_not_same_page:
           last_offset= 1; /* the next record must not be same_page  */
         }
-      next:
         l+= rlen;
         continue;
+      case OPTION:
+        ut_ad(rlen == 5);
+        ut_ad(*l == OPT_PAGE_CHECKSUM);
+        ut_ad(!block.page.zip.data);
+        if (UNIV_UNLIKELY(block.page.checksum() != mach_read_from_4(l + 1)))
+        {
+          ib::error() << "InnoDB: OPT_PAGE_CHECKSUM mismatch on "
+                      << block.page.id();
+          if (!srv_force_recovery)
+          {
+            applied= APPLIED_YES;
+page_corrupted:
+            ib::error() << "Set innodb_force_recovery=1 to ignore corruption.";
+            recv_sys.set_corrupt_log();
+            return applied;
+          }
+        }
+        goto next_after_applying;
       }
 
       ut_ad(mach_read_from_4(frame + FIL_PAGE_OFFSET) ==
@@ -275,8 +292,6 @@ public:
       ut_ad(last_offset <= size);
 
       switch (b & 0x70) {
-      case OPTION:
-        goto next;
       case EXTENDED:
         if (UNIV_UNLIKELY(block.page.id().page_no() < 3 ||
                           block.page.zip.ssize))
@@ -305,12 +320,7 @@ public:
           if (UNIV_UNLIKELY(rlen <= 3))
             goto record_corrupted;
           if (undo_append(block, ++l, --rlen) && !srv_force_recovery)
-          {
-page_corrupted:
-            ib::error() << "Set innodb_force_recovery=1 to ignore corruption.";
-            recv_sys.set_corrupt_log();
-            return applied;
-          }
+            goto page_corrupted;
           break;
         case INSERT_HEAP_REDUNDANT:
         case INSERT_REUSE_REDUNDANT:
@@ -2333,7 +2343,8 @@ same_page:
     if (got_page_op)
     {
       const page_id_t id(space_id, page_no);
-      ut_d(if ((b & 0x70) == INIT_PAGE) freed.erase(id));
+      ut_d(if ((b & 0x70) == INIT_PAGE || (b & 0x70) == OPTION)
+             freed.erase(id));
       ut_ad(freed.find(id) == freed.end());
       switch (b & 0x70) {
       case FREE_PAGE:
@@ -2369,8 +2380,11 @@ same_page:
         }
         last_offset= FIL_PAGE_TYPE;
         break;
-      case RESERVED:
       case OPTION:
+        if (rlen == 5 && *l == OPT_PAGE_CHECKSUM)
+          break;
+        /* fall through */
+      case RESERVED:
         continue;
       case WRITE:
       case MEMMOVE:
@@ -2462,9 +2476,9 @@ same_page:
 #if 0 && defined UNIV_DEBUG
       switch (b & 0x70) {
       case RESERVED:
-      case OPTION:
         ut_ad(0); /* we did "continue" earlier */
         break;
+      case OPTION:
       case FREE_PAGE:
         break;
       default:

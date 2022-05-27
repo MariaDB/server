@@ -77,12 +77,8 @@ type. The following record types refer to data pages:
     RESERVED (6): reserved for future use; a subtype code
     (encoded immediately after the length) would be written
     to reserve code space for further extensions
-    OPTION (7): optional record that may be ignored; a subtype code
-    (encoded immediately after the length) would distinguish actual
-    usage, such as:
-     * MDEV-18976 page checksum record
-     * binlog record
-     * SQL statement (at the start of statement)
+    OPTION (7): optional record that may be ignored; a subtype @see mrec_opt
+    (encoded immediately after the length) would distinguish actual usage
 
 Bits 3..0 indicate the redo log record length, excluding the first
 byte, but including additional length bytes and any other bytes,
@@ -229,9 +225,7 @@ enum mrec_type_t
   /** Reserved for future use. */
   RESERVED= 0x60,
   /** Optional record that may be ignored in crash recovery.
-  A subtype code will be encoded immediately after the length.
-  Possible subtypes would include a MDEV-18976 page checksum record,
-  a binlog record, or an SQL statement. */
+  A subtype (@see mrec_opt) will be encoded after the page identifier. */
   OPTION= 0x70
 };
 
@@ -280,6 +274,15 @@ enum mrec_ext_t
   DELETE_ROW_FORMAT_DYNAMIC= 9,
   /** Truncate a data file. */
   TRIM_PAGES= 10
+};
+
+
+/** Recognized OPTION record subtypes. */
+enum mrec_opt
+{
+  /** page checksum at the end of the mini-transaction */
+  OPT_PAGE_CHECKSUM= 0
+  /* Other possible subtypes: a binlog record, or an SQL statement. */
 };
 
 

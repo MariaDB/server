@@ -359,22 +359,10 @@ struct DebugCheck {
 struct ReleaseBlocks
 {
   const lsn_t start, end;
-#ifdef UNIV_DEBUG
-  const mtr_buf_t &memo;
-
-  ReleaseBlocks(lsn_t start, lsn_t end, const mtr_buf_t &memo) :
-    start(start), end(end), memo(memo)
-#else /* UNIV_DEBUG */
-  ReleaseBlocks(lsn_t start, lsn_t end, const mtr_buf_t&) :
-    start(start), end(end)
-#endif /* UNIV_DEBUG */
-  {
-    ut_ad(start);
-    ut_ad(end);
-  }
+  ReleaseBlocks(lsn_t start, lsn_t end) : start(start), end(end) {}
 
   /** @return true always */
-  bool operator()(mtr_memo_slot_t* slot) const
+  bool operator()(mtr_memo_slot_t *slot) const
   {
     if (!slot->object)
       return true;
@@ -387,8 +375,8 @@ struct ReleaseBlocks
       return true;
     }
 
-    buf_flush_note_modification(static_cast<buf_block_t*>(slot->object),
-                                start, end);
+    buf_block_t *block= static_cast<buf_block_t*>(slot->object);
+    buf_flush_note_modification(block, start, end);
     return true;
   }
 };
@@ -492,9 +480,8 @@ void mtr_t::commit()
     else
       ut_ad(!m_freed_space);
 
-    m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
-                                     (ReleaseBlocks(lsns.first, m_commit_lsn,
-                                                    m_memo)));
+    m_memo.for_each_block_in_reverse
+      (CIterate<const ReleaseBlocks>(ReleaseBlocks(lsns.first, m_commit_lsn)));
     if (m_made_dirty)
       mysql_mutex_unlock(&log_sys.flush_order_mutex);
 
@@ -590,6 +577,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
   log_write_and_flush_prepare();
 
   const lsn_t start_lsn= do_write().first;
+  ut_d(m_log.erase());
 
   mysql_mutex_lock(&log_sys.flush_order_mutex);
   /* Durably write the reduced FSP_SIZE before truncating the data file. */
@@ -622,8 +610,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
   m_memo.for_each_block_in_reverse(CIterate<Shrink>{space});
 
   m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
-                                   (ReleaseBlocks(start_lsn, m_commit_lsn,
-                                                  m_memo)));
+                                   (ReleaseBlocks(start_lsn, m_commit_lsn)));
   mysql_mutex_unlock(&log_sys.flush_order_mutex);
 
   mysql_mutex_lock(&fil_system.mutex);
@@ -992,6 +979,55 @@ static mtr_t::page_flush_ahead log_close(lsn_t lsn)
   return mtr_t::PAGE_FLUSH_SYNC;
 }
 
+/** @return checksum for an OPT_PAGE_CHECKSUM record */
+uint32_t buf_page_t::checksum() const
+{
+  /* We have to exclude from the checksum the normal
+  page checksum that is written by buf_flush_init_for_writing()
+  and FIL_PAGE_LSN which would be updated once we have actually
+  allocated the LSN.
+
+  Unfortunately, we cannot access fil_space_t easily here. In order to
+  be compatible with encrypted tablespaces in the pre-full_crc32
+  format we will unconditionally exclude the 8 bytes at
+  FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+  a.k.a. FIL_RTREE_SPLIT_SEQ_NUM. */
+  return my_crc32c(my_crc32c(my_crc32c(0, frame + FIL_PAGE_OFFSET,
+                                       FIL_PAGE_LSN - FIL_PAGE_OFFSET),
+                             frame + FIL_PAGE_TYPE, 2),
+                   frame + FIL_PAGE_SPACE_ID,
+                   srv_page_size - (FIL_PAGE_SPACE_ID + 8));
+}
+
+inline void mtr_t::page_checksum(const buf_page_t &bpage)
+{
+  if (UNIV_LIKELY_NULL(bpage.zip.data))
+    return; /* FIXME: support ROW_FORMAT=COMPRESSED */
+  byte *l= log_write<OPTION>(bpage.id(), nullptr, 5, true, 0);
+  *l++= OPT_PAGE_CHECKSUM;
+  mach_write_to_4(l, bpage.checksum());
+  m_log.close(l + 4);
+}
+
+/** Write OPT_PAGE_CHECKSUM records for modified pages */
+struct Write_OPT_PAGE_CHECKSUM
+{
+  mtr_t &mtr;
+  Write_OPT_PAGE_CHECKSUM(mtr_t &mtr) : mtr(mtr) {}
+
+  /** @return true always */
+  bool operator()(const mtr_memo_slot_t *slot) const
+  {
+    if (slot->type & MTR_MEMO_MODIFY)
+    {
+      const buf_page_t &b= static_cast<const buf_block_t*>(slot->object)->page;
+      if (!b.is_freed())
+        mtr.page_checksum(b);
+    }
+    return true;
+  }
+};
+
 /** Write the block contents to the REDO log */
 struct mtr_write_log
 {
@@ -1011,6 +1047,11 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
 
 	ulint	len	= m_log.size();
 	ut_ad(len > 0);
+
+#ifdef UNIV_DEBUG
+	m_memo.for_each_block(CIterate<Write_OPT_PAGE_CHECKSUM>(*this));
+	len = m_log.size();
+#endif
 
 	if (len > srv_log_buffer_size / 2) {
 		log_buffer_extend(ulong((len + 1) * 2));
@@ -1394,16 +1435,6 @@ mtr_t::memo_contains_page_flagged(
 	return m_memo.for_each_block_in_reverse(iteration)
 		? NULL : iteration.functor.get_block();
 }
-
-/** Print info of an mtr handle. */
-void
-mtr_t::print() const
-{
-	ib::info() << "Mini-transaction handle: memo size "
-		<< m_memo.size() << " bytes log size "
-		<< get_log()->size() << " bytes";
-}
-
 #endif /* UNIV_DEBUG */
 
 

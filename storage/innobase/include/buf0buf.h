@@ -24,8 +24,7 @@ The database buffer pool high-level routines
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef buf0buf_h
-#define buf0buf_h
+#pragma once
 
 /** Magic value to use instead of checksums when they are disabled */
 #define BUF_NO_CHECKSUM_MAGIC 0xDEADBEEFUL
@@ -42,9 +41,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "srv0srv.h"
 #include "transactional_lock_guard.h"
 #include <ostream>
-
-// Forward declaration
-struct fil_addr_t;
 
 /** @name Modes for buf_page_get_gen */
 /* @{ */
@@ -916,6 +912,9 @@ public:
   /** @return ut_time_ms() at the time of first access of a block in buf_pool
   @retval 0 if not accessed */
   unsigned is_accessed() const { ut_ad(in_file()); return access_time; }
+
+  /** @return checksum for an OPT_PAGE_CHECKSUM record */
+  uint32_t checksum() const;
 };
 
 /** The buffer control block structure */
@@ -2220,5 +2219,3 @@ struct	CheckUnzipLRUAndLRUList {
 #include "buf0buf.inl"
 
 #endif /* !UNIV_INNOCHECKSUM */
-
-#endif
