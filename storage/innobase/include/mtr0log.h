@@ -387,7 +387,7 @@ template<byte type>
 inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
                               size_t len, bool alloc, size_t offset)
 {
-  static_assert(!(type & 15) && type != RESERVED && type != OPTION &&
+  static_assert(!(type & 15) && type != RESERVED &&
                 type <= FILE_CHECKPOINT, "invalid type");
   ut_ad(type >= FILE_CREATE || is_named_space(id.space()));
   ut_ad(!bpage || bpage->id() == id);

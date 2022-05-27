@@ -376,8 +376,8 @@ struct ReleaseBlocks
       return true;
     }
 
-    buf_flush_note_modification(static_cast<buf_block_t*>(slot->object),
-                                start, end);
+    buf_block_t *block= static_cast<buf_block_t*>(slot->object);
+    buf_flush_note_modification(block, start, end);
     return true;
   }
 };
@@ -573,6 +573,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
   log_write_and_flush_prepare();
 
   const lsn_t start_lsn= do_write().first;
+  ut_d(m_log.erase());
 
   mysql_mutex_lock(&log_sys.flush_order_mutex);
   /* Durably write the reduced FSP_SIZE before truncating the data file. */
@@ -966,6 +967,55 @@ static mtr_t::page_flush_ahead log_close(lsn_t lsn)
   return mtr_t::PAGE_FLUSH_SYNC;
 }
 
+/** @return checksum for an OPT_PAGE_CHECKSUM record */
+uint32_t buf_block_t::page_checksum() const
+{
+  /* We have to exclude from the checksum the normal
+  page checksum that is written by buf_flush_init_for_writing()
+  and FIL_PAGE_LSN which would be updated once we have actually
+  allocated the LSN.
+
+  Unfortunately, we cannot access fil_space_t easily here. In order to
+  be compatible with encrypted tablespaces in the pre-full_crc32
+  format we will unconditionally exclude the 8 bytes at
+  FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+  a.k.a. FIL_RTREE_SPLIT_SEQ_NUM. */
+  return my_crc32c(my_crc32c(my_crc32c(0, frame + FIL_PAGE_OFFSET,
+                                       FIL_PAGE_LSN - FIL_PAGE_OFFSET),
+                             frame + FIL_PAGE_TYPE, 2),
+                   frame + FIL_PAGE_SPACE_ID,
+                   srv_page_size - (FIL_PAGE_SPACE_ID + 8));
+}
+
+inline void mtr_t::page_checksum(const buf_block_t &block)
+{
+  if (UNIV_LIKELY_NULL(block.page.zip.data))
+    return; /* FIXME: support ROW_FORMAT=COMPRESSED */
+  byte *l= log_write<OPTION>(block.page.id(), nullptr, 5, true, 0);
+  *l++= OPT_PAGE_CHECKSUM;
+  mach_write_to_4(l, block.page_checksum());
+  m_log.close(l + 4);
+}
+
+/** Write OPT_PAGE_CHECKSUM records for modified pages */
+struct Write_OPT_PAGE_CHECKSUM
+{
+  mtr_t &mtr;
+  Write_OPT_PAGE_CHECKSUM(mtr_t &mtr) : mtr(mtr) {}
+
+  /** @return true always */
+  bool operator()(const mtr_memo_slot_t *slot) const
+  {
+    if (slot->type & MTR_MEMO_MODIFY)
+    {
+      const buf_block_t &block= *static_cast<const buf_block_t*>(slot->object);
+      if (block.page.status < buf_page_t::FREED)
+        mtr.page_checksum(block);
+    }
+    return true;
+  }
+};
+
 /** Write the block contents to the REDO log */
 struct mtr_write_log
 {
@@ -985,6 +1035,11 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
 
 	ulint	len	= m_log.size();
 	ut_ad(len > 0);
+
+#ifdef UNIV_DEBUG
+	m_memo.for_each_block(CIterate<Write_OPT_PAGE_CHECKSUM>(*this));
+	len = m_log.size();
+#endif
 
 	if (len > srv_log_buffer_size / 2) {
 		log_buffer_extend(ulong((len + 1) * 2));

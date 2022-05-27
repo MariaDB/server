@@ -24,8 +24,7 @@ The database buffer pool high-level routines
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef buf0buf_h
-#define buf0buf_h
+#pragma once
 
 /** Magic value to use instead of checksums when they are disabled */
 #define BUF_NO_CHECKSUM_MAGIC 0xDEADBEEFUL
@@ -42,9 +41,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "log0log.h"
 #include "srv0srv.h"
 #include <ostream>
-
-// Forward declaration
-struct fil_addr_t;
 
 /** @name Modes for buf_page_get_gen */
 /* @{ */
@@ -1219,6 +1215,9 @@ struct buf_block_t{
   @param zip_size ROW_FORMAT=COMPRESSED page size, or 0
   @param fix      initial buf_fix_count() */
   void initialise(const page_id_t page_id, ulint zip_size, uint32_t fix= 0);
+
+  /** @return checksum for an OPT_PAGE_CHECKSUM record */
+  uint32_t page_checksum() const;
 };
 
 /**********************************************************************//**
@@ -2429,5 +2428,3 @@ struct	CheckUnzipLRUAndLRUList {
 #include "buf0buf.inl"
 
 #endif /* !UNIV_INNOCHECKSUM */
-
-#endif
