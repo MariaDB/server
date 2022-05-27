@@ -470,3 +470,19 @@ SELECT * FROM t2;
 DROP TABLE t2;
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-27766 CONNECT Engine Support for INSERT IGNORE with Mysql Table type
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (10),(20),(30);
+--replace_result $PORT PORT
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://root@localhost:$PORT/test/t1' OPTION_LIST="Delayed=1,Ignored=1"
+INSERT INTO t2 VALUES (10),(20),(30),(40);
+DROP TABLE t2;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
