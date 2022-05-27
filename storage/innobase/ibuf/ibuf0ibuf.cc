@@ -2389,7 +2389,7 @@ ibuf_merge_pages(
 	bool available;
 
 	available = btr_pcur_open_at_rnd_pos(ibuf.index, BTR_SEARCH_LEAF,
-					     &pcur, &mtr);
+					     &pcur, &mtr, false);
 	/* No one should make this index unavailable when server is running */
 	ut_a(available);
 

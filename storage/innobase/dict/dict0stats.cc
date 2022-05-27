@@ -1227,7 +1227,7 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 		bool	available;
 
 		available = btr_cur_open_at_rnd_pos(index, BTR_SEARCH_LEAF,
-						    &cursor, &mtr);
+						    &cursor, &mtr, false);
 
 		if (!available || index->table->bulk_trx_id != bulk_trx_id) {
 			mtr.commit();

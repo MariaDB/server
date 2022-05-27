@@ -2860,7 +2860,7 @@ btr_cur_open_at_rnd_pos(
 	ulint		latch_mode, /*!< in: BTR_SEARCH_LEAF, ... */
 	btr_cur_t*	cursor,	    /*!< in/out: B-tree cursor */
 	mtr_t*		mtr,        /*!< in: mtr */
-        bool simulate_uniform)      /*!< in: flag for uniform simulation */
+        bool sim_uniform_dist)      /*!< in: uniform distribution simulation */
 {
 	page_cur_t*	page_cursor;
 	ulint		node_ptr_max_size = srv_page_size / 2;
@@ -3044,7 +3044,7 @@ btr_cur_open_at_rnd_pos(
 			}
 		}
 
-                if(simulate_uniform) {
+                if(sim_uniform_dist) {
                         if(!start_move_down) {
                                 ulint n_recs = page_get_n_recs(block->page.frame);
                                 double max_fanout = (double)srv_page_size /
@@ -3151,7 +3151,7 @@ btr_cur_open_at_rnd_pos(
 	}
 
         double rand_uniform = (double)(rand() / (double(RAND_MAX)));
-        if(simulate_uniform&& rand_uniform < p)
+        if(sim_uniform_dist && rand_uniform < p)
                 page_cursor->rec = NULL;
 
 	return err == DB_SUCCESS;
