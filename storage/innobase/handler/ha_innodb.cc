@@ -9525,14 +9525,15 @@ ha_innobase::sample_next(
   rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
   rec_offs*	offsets= offsets_;
   rec_offs_init(offsets_);
-  mtr.start();
+
   dict_index_t*	index= innobase_get_index(MAX_KEY);
   bool probability_correctness;
   do {
+    mtr.start();
     res= btr_pcur_open_at_rnd_pos(index, BTR_SEARCH_LEAF, pcur, &mtr, &probability_correctness);
+    mtr.commit();
     if(!res)
     {
-      mtr.commit();
       return HA_ERR_KEY_NOT_FOUND;
     }
   } while (!probability_correctness);
@@ -9544,7 +9545,6 @@ ha_innobase::sample_next(
   ut_ad(offsets);
   if (!offsets)
   {
-    mtr.commit();
     if (heap)
       mem_heap_free(heap);
     return HA_ERR_INTERNAL_ERROR;
@@ -9553,8 +9553,6 @@ ha_innobase::sample_next(
   res= row_sel_store_mysql_rec(
       buf, m_prebuilt, rec, NULL, true,
       index, offsets);
-
-  mtr.commit();
 
   if(heap)
     mem_heap_free(heap);

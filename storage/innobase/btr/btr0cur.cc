@@ -2872,6 +2872,8 @@ btr_cur_open_at_rnd_pos(
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets		= offsets_;
         *probability_correctness = true;
+        bool start_move_down = true;
+        double p = 1.0;
 	rec_offs_init(offsets_);
 
 	ut_ad(!index->is_spatial());
@@ -3039,8 +3041,15 @@ btr_cur_open_at_rnd_pos(
 				}
 			}
 		}
-
-		page_cur_open_on_rnd_user_rec(block, page_cursor);
+                if(!start_move_down) {
+                    ulint n_recs = page_get_n_recs(block->page.frame);
+                    double max_fanout = (double)srv_page_size /
+                                (REC_N_NEW_EXTRA_BYTES + 1);
+                    p *= (double)n_recs / max_fanout;
+                } else {
+                  start_move_down= false;
+                }
+                page_cur_open_on_rnd_user_rec(block, page_cursor);
 
 		if (height == 0) {
 
@@ -3134,6 +3143,10 @@ btr_cur_open_at_rnd_pos(
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
+
+        double rand_uniform = (double)(rand() / (double(RAND_MAX)));
+        if(rand_uniform < p)
+          *probability_correctness = false;
 
 	return err == DB_SUCCESS;
 }
