@@ -17412,8 +17412,6 @@ static
 void
 innodb_buffer_pool_size_update(THD*,st_mysql_sys_var*,void*, const void* save)
 {
-        longlong	in_val = *static_cast<const longlong*>(save);
-
 	snprintf(export_vars.innodb_buffer_pool_resize_status,
 	        sizeof(export_vars.innodb_buffer_pool_resize_status),
 		"Buffer pool resize requested");
