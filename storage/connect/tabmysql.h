@@ -60,7 +60,7 @@ class MYSQLDEF : public EXTDEF           {/* Logical table description */
   bool    Isview;             /* true if this table is a MySQL view    */
   bool    Bind;               /* Use prepared statement on insert      */
   bool    Delayed;            /* Delayed insert                        */
-  bool    Ignored;            /* Use inssert IGNORE                    */
+  bool    Ignored;            /* Use insert IGNORE                     */
 //bool    Xsrc;               /* Execution type                        */
   bool    Huge;               /* True for big table                    */
   }; // end of MYSQLDEF

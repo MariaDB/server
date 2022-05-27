@@ -629,13 +629,13 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
   len += (strlen(TableName) + 40);
   Query = new(g) STRING(g, len);
 
+  Query->Set("INSERT ");
   if (Delayed)
-    Query->Set("INSERT DELAYED INTO ");
-  else if(Ignored) 
-    Query->Set("INSERT IGNORE INTO ");
-  else
-    Query->Set("INSERT INTO ");
+    Query->Append("DELAYED ");
+  if(Ignored) 
+    Query->Append("IGNORE ");
 
+  Query->Append("INTO ");
   Query->Append(tk);
   Query->Append(TableName);
   Query->Append("` (");
