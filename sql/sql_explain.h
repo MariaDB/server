@@ -27,9 +27,8 @@ Query optimization produces two data structures:
 produce output of SHOW EXPLAIN, EXPLAIN [FORMAT=JSON], or 
 ANALYZE [FORMAT=JSON], without accessing the execution data structures.
 
-(the only exception is that Explain data structures keep Item* pointers,
-and we require that one might call item->print(QT_EXPLAIN) when printing
-FORMAT=JSON output)
+The exception is that Explain data structures have Item* pointers. See
+ExplainDataStructureLifetime below for details.
 
 === ANALYZE data ===
 EXPLAIN data structures have embedded ANALYZE data structures. These are 
@@ -135,12 +134,13 @@ public:
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze)=0;
   virtual void print_explain_json(Explain_query *query, Json_writer *writer, 
-                                  bool is_analyze)= 0;
+                                  bool is_analyze, bool no_tmp_tbl)= 0;
 
   int print_explain_for_children(Explain_query *query, select_result_sink *output, 
                                  uint8 explain_flags, bool is_analyze);
   void print_explain_json_for_children(Explain_query *query,
-                                       Json_writer *writer, bool is_analyze);
+                                       Json_writer *writer, bool is_analyze,
+                                       bool no_tmp_tbl);
   bool print_explain_json_cache(Json_writer *writer, bool is_analyze);
   virtual ~Explain_node(){}
 };
@@ -174,10 +174,10 @@ public:
   int print_explain(Explain_query *query, select_result_sink *output,
                     uint8 explain_flags, bool is_analyze);
   void print_explain_json(Explain_query *query, Json_writer *writer, 
-                          bool is_analyze);
+                          bool is_analyze, bool no_tmp_tbl);
 
   void print_explain_json_interns(Explain_query *query, Json_writer *writer,
-                                  bool is_analyze);
+                                  bool is_analyze, bool no_tmp_tbl);
 
   /* A flat array of Explain structs for tables. */
   Explain_table_access** join_tabs;
@@ -261,7 +261,7 @@ public:
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
   void print_explain_json(Explain_query *query, Json_writer *writer, 
-                          bool is_analyze);
+                          bool is_analyze, bool no_tmp_tbl);
   
   Table_access_tracker *get_using_temporary_read_tracker()
   {
@@ -304,7 +304,8 @@ public:
   Explain_aggr_filesort(MEM_ROOT *mem_root, bool is_analyze, 
                         Filesort *filesort);
 
-  void print_json_members(Json_writer *writer, bool is_analyze);
+  void print_json_members(Json_writer *writer, bool is_analyze,
+                          bool no_tmp_tbl);
 };
 
 class Explain_aggr_tmp_table : public Explain_aggr_node
@@ -325,7 +326,8 @@ class Explain_aggr_window_funcs : public Explain_aggr_node
 public:
   enum_explain_aggr_node_type get_type() { return AGGR_OP_WINDOW_FUNCS; }
 
-  void print_json_members(Json_writer *writer, bool is_analyze);
+  void print_json_members(Json_writer *writer, bool is_analyze,
+                          bool no_tmp_tbl);
   friend class Window_funcs_computation;
 };
 
@@ -336,7 +338,7 @@ extern const char *pushed_derived_text;
 extern const char *pushed_select_text;
 
 /*
-  Explain structure for a UNION.
+  Explain structure for a UNION [ALL].
 
   A UNION may or may not have "Using filesort".
 */
@@ -378,7 +380,7 @@ public:
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
   void print_explain_json(Explain_query *query, Json_writer *writer, 
-                          bool is_analyze);
+                          bool is_analyze, bool no_tmp_tbl);
 
   const char *fake_select_type;
   bool using_filesort;
@@ -417,36 +419,54 @@ class Explain_insert;
 /*
   Explain structure for a query (i.e. a statement).
 
-  This should be able to survive when the query plan was deleted. Currently, 
-  we do not intend for it survive until after query's MEM_ROOT is freed. It
-  does surivive freeing of query's items.
-   
-  For reference, the process of post-query cleanup is as follows:
+  This should be able to survive when the query plan was deleted. Currently,
+  we do not intend for it survive until after query's MEM_ROOT is freed.
+
+  == ExplainDataStructureLifetime ==
 
     >dispatch_command
     | >mysql_parse
-    | |  ...
-    | | lex_end()
-    | |  ...
-    | | >THD::cleanup_after_query
-    | | | ...
-    | | | free_items()
-    | | | ...
-    | | <THD::cleanup_after_query
+    | | ...
+    | |
+    | | explain->query_plan_ready(); // (1)
+    | |
+    | |   some_join->cleanup(); //  (2)
+    | |
+    | | explain->notify_tables_are_closed(); // (3)
+    | | close_thread_tables();  // (4)
+    | | ...
+    | | free_items(); // (5)
+    | | ...
     | |
     | <mysql_parse
     |
-    | log_slow_statement()
-    | 
+    | log_slow_statement() // (6)
+    |
     | free_root()
-    | 
+    |
     >dispatch_command
-  
-  That is, the order of actions is:
-    - free query's Items
-    - write to slow query log 
-    - free query's MEM_ROOT
-    
+
+  (1) - Query plan construction is finished and it is available for reading.
+
+  (2) - Temporary tables are freed. After this point,
+        we need to pass QT_DONT_ACCESS_TMP_TABLES to item->print(). Since
+        we don't track when #2 happens for each temp.table, we pass this
+        flag whenever we're printing the query plan for a SHOW command.
+        Also, we pass it when printing ANALYZE (?)
+
+  (3) - Notification about (4).
+  (4) - Tables used by the query are closed. One known consequence of this is
+        that the values of the const tables' fields are not available anymore.
+        We could use the same approach as in QT_DONT_ACCESS_TMP_TABLES to work
+        around that, but instead we disallow producing FORMAT=JSON output at
+        step #3. We also processing of SHOW command. The rationale is that
+        query is close to finish anyway.
+
+  (5) - Item objects are freed. After this, it's certainly not possible to
+        print them into FORMAT=JSON output.
+
+  (6) - We may decide to log tabular EXPLAIN output to the slow query log.
+
 */
 
 class Explain_query : public Sql_alloc
@@ -478,12 +498,15 @@ public:
   /* Return tabular EXPLAIN output as a text string */
   bool print_explain_str(THD *thd, String *out_str, bool is_analyze);
 
-  void print_explain_json(select_result_sink *output, bool is_analyze);
+  int print_explain_json(select_result_sink *output, bool is_analyze,
+                         bool is_show_cmd,
+                         ulonglong query_time_in_progress_ms= 0);
 
   /* If true, at least part of EXPLAIN can be printed */
   bool have_query_plan() { return insert_plan || upd_del_plan|| get_node(1) != NULL; }
 
   void query_plan_ready();
+  void notify_tables_are_closed();
 
   MEM_ROOT *mem_root;
 
@@ -498,7 +521,7 @@ private:
   Dynamic_array<Explain_union*> unions;
   Dynamic_array<Explain_select*> selects;
   
-  THD *thd; // for APC start/stop
+  THD *stmt_thd; // for APC start/stop
   bool apc_enabled;
   /* 
     Debugging aid: count how many times add_node() was called. Ideally, it
@@ -507,6 +530,9 @@ private:
     is unacceptable.
   */
   longlong operations;
+#ifndef DBUG_OFF
+  bool can_print_json= false;
+#endif
 };
 
 
@@ -850,14 +876,15 @@ public:
                     uint select_id, const char *select_type,
                     bool using_temporary, bool using_filesort);
   void print_explain_json(Explain_query *query, Json_writer *writer,
-                          bool is_analyze);
+                          bool is_analyze, bool no_tmp_tbl);
 
 private:
   void append_tag_name(String *str, enum explain_extra_tag tag);
   void fill_key_str(String *key_str, bool is_json) const;
   void fill_key_len_str(String *key_len_str, bool is_json) const;
   double get_r_filtered();
-  void tag_to_json(Json_writer *writer, enum explain_extra_tag tag);
+  void tag_to_json(Json_writer *writer, enum explain_extra_tag tag,
+                   bool no_tmp_tbl);
 };
 
 
@@ -940,7 +967,7 @@ public:
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);
   virtual void print_explain_json(Explain_query *query, Json_writer *writer,
-                                  bool is_analyze);
+                                  bool is_analyze, bool no_tmp_tbl);
 };
 
 
@@ -966,7 +993,7 @@ public:
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
   void print_explain_json(Explain_query *query, Json_writer *writer, 
-                          bool is_analyze);
+                          bool is_analyze, bool no_tmp_tbl);
 };
 
 
@@ -993,7 +1020,7 @@ public:
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);
   virtual void print_explain_json(Explain_query *query, Json_writer *writer,
-                                  bool is_analyze);
+                                  bool is_analyze, bool no_tmp_tbl);
 };
 
 

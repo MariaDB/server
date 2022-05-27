@@ -36,22 +36,32 @@ struct st_ddl_log_memory_entry;
 
 #define MAX_PART_NAME_SIZE 8
 
-
 struct Vers_part_info : public Sql_alloc
 {
   Vers_part_info() :
     limit(0),
+    auto_hist(false),
     now_part(NULL),
     hist_part(NULL)
   {
     interval.type= INTERVAL_LAST;
   }
-  Vers_part_info(Vers_part_info &src) :
+  Vers_part_info(const Vers_part_info &src) :
     interval(src.interval),
     limit(src.limit),
+    auto_hist(src.auto_hist),
     now_part(NULL),
     hist_part(NULL)
   {
+  }
+  Vers_part_info& operator= (const Vers_part_info &src)
+  {
+    interval= src.interval;
+    limit= src.limit;
+    auto_hist= src.auto_hist;
+    now_part= src.now_part;
+    hist_part= src.hist_part;
+    return *this;
   }
   bool initialized()
   {
@@ -72,9 +82,10 @@ struct Vers_part_info : public Sql_alloc
     my_time_t start;
     INTERVAL step;
     enum interval_type type;
-    bool is_set() { return type < INTERVAL_LAST; }
+    bool is_set() const { return type < INTERVAL_LAST; }
   } interval;
   ulonglong limit;
+  bool auto_hist;
   partition_element *now_part;
   partition_element *hist_part;
 };
@@ -393,14 +404,15 @@ public:
   bool vers_init_info(THD *thd);
   bool vers_set_interval(THD *thd, Item *interval,
                          interval_type int_type, Item *starts,
-                         const char *table_name);
-  bool vers_set_limit(ulonglong limit)
+                         bool auto_part, const char *table_name);
+  bool vers_set_limit(ulonglong limit, bool auto_part, const char *table_name);
+  bool vers_set_hist_part(THD* thd, uint *create_count);
+  bool vers_require_hist_part(THD *thd) const
   {
-    DBUG_ASSERT(part_type == VERSIONING_PARTITION);
-    vers_info->limit= limit;
-    return !limit;
+    return part_type == VERSIONING_PARTITION &&
+      thd->lex->vers_history_generating();
   }
-  int vers_set_hist_part(THD *thd);
+  void vers_check_limit(THD *thd);
   bool vers_fix_field_list(THD *thd);
   void vers_update_el_ids();
   partition_element *get_partition(uint part_id)
@@ -419,6 +431,7 @@ public:
 
 uint32 get_next_partition_id_range(struct st_partition_iter* part_iter);
 bool check_partition_dirs(partition_info *part_info);
+bool vers_create_partitions(THD* thd, TABLE_LIST* tl, uint num_parts);
 
 /* Initialize the iterator to return a single partition with given part_id */
 
@@ -474,11 +487,6 @@ bool partition_info::vers_fix_field_list(THD * thd)
 }
 
 
-/**
-  @brief Update partition_element's id
-
-  @returns true on error; false on success
-*/
 inline
 void partition_info::vers_update_el_ids()
 {

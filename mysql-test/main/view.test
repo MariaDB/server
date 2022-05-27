@@ -1716,18 +1716,6 @@ drop view v1;
 drop table t1;
 
 #
-# using encrypt & substring_index in view (Bug#7024)
-#
-CREATE VIEW v1 AS SELECT ENCRYPT("dhgdhgd");
-disable_result_log;
-SELECT * FROM v1;
-enable_result_log;
-drop view v1;
-CREATE VIEW v1 AS SELECT SUBSTRING_INDEX("dkjhgd:kjhdjh", ":", 1);
-SELECT * FROM v1;
-drop view v1;
-
-#
 # hide underlying tables names in case of imposibility to update (Bug#10773)
 #
 create table t1 (f59 int, f60 int, f61 int);
@@ -6587,6 +6575,32 @@ SELECT v.id, v.foo AS bar  FROM v1 v
 #Cleanup
 Drop View v1;
 Drop table t1;
+
+--echo #
+--echo # MDEV-24281: Execution of PREPARE from CREATE VIEW statement
+--echo #
+
+create table t1 (s1 int);
+insert into t1 values (3), (7), (1);
+
+prepare stmt from "
+create view v1 as select 's1', s1, 1 as My_exp_s1 from t1;
+";
+execute stmt;
+deallocate prepare stmt;
+show create view v1;
+select * from v1;
+drop view v1;
+
+prepare stmt from "
+create view v1 as select 's1', s1, 1 as My_exp_s1 from t1;
+";
+execute stmt;
+--error ER_TABLE_EXISTS_ERROR
+execute stmt;
+deallocate prepare stmt;
+drop view v1;
+drop table t1;
 
 --echo #
 --echo # End of 10.3 tests

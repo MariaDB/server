@@ -1,0 +1,45 @@
+#
+# Purpose:
+#   When using mariadb-binlog with options for --raw and --stop-never, events
+# from the master's currently active log file should be written to their
+# respective log file specified by --result-file, and shown on-disk. This test
+# ensures that the log files on disk, created by mariadb-binlog, have the most
+# up-to-date events from the master.
+#
+# Methodology:
+#   On the master, rotate to a newly active binlog file and write an event to
+# it. Read the master's binlog using mariadb-binlog with --raw and --stop-never
+# and write the data to an intermediary binlog file (a timeout is used on this
+# command to ensure it exits). Read the local intermediary binlog file to ensure
+# that the master's most recent event exists in the local file.
+#
+# References:
+#   MDEV-14608: mysqlbinlog lastest backupfile size is 0
+#
+
+--source include/linux.inc
+--source include/have_log_bin.inc
+
+# Create newly active log
+CREATE TABLE t1 (a int);
+FLUSH LOGS;
+INSERT INTO t1 VALUES (1);
+
+# Read binlog data from master to intermediary result file
+--let TIMEOUT=1
+--echo # timeout TIMEOUT MYSQL_BINLOG --raw --read-from-remote-server --user=root --host=127.0.0.1 --port=MASTER_MYPORT --stop-never --result-file=MYSQLTEST_VARDIR/tmp/ master-bin.000001
+--error 124 # Error 124 means timeout was reached
+--exec timeout $TIMEOUT $MYSQL_BINLOG --raw --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT --stop-never --result-file=$MYSQLTEST_VARDIR/tmp/ master-bin.000001
+
+# Ensure the binlog output has the most recent events from the master
+--echo # MYSQL_BINLOG MYSQLTEST_VARDIR/tmp/master-bin.000002 > MYSQLTEST_VARDIR/tmp/local-bin.000002.out
+--exec $MYSQL_BINLOG $MYSQLTEST_VARDIR/tmp/master-bin.000002 > $MYSQLTEST_VARDIR/tmp/local-bin.000002.out
+--let SEARCH_PATTERN= GTID 0-1-2
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/local-bin.000002.out
+--source include/search_pattern_in_file.inc
+
+# Cleanup
+DROP TABLE t1;
+--remove_file $MYSQLTEST_VARDIR/tmp/master-bin.000001
+--remove_file $MYSQLTEST_VARDIR/tmp/master-bin.000002
+--remove_file $MYSQLTEST_VARDIR/tmp/local-bin.000002.out

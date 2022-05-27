@@ -789,13 +789,13 @@ static int s3_discover_table(handlerton *hton, THD* thd, TABLE_SHARE *share)
    @return 1 frm exists
 */
 
-static int s3_discover_table_existance(handlerton *hton, const char *db,
+static int s3_discover_table_existence(handlerton *hton, const char *db,
                                        const char *table_name)
 {
   S3_INFO s3_info;
   ms3_st *s3_client;
   int res;
-  DBUG_ENTER("s3_discover_table_existance");
+  DBUG_ENTER("s3_discover_table_existence");
 
   /* Ignore names in "mysql" database to speed up boot */
   if (!strcmp(db, MYSQL_SCHEMA_NAME.str))
@@ -1019,7 +1019,7 @@ static int ha_s3_init(void *p)
   s3_hton->table_options= s3_table_option_list;
   s3_hton->discover_table= s3_discover_table;
   s3_hton->discover_table_names= s3_discover_table_names;
-  s3_hton->discover_table_existence= s3_discover_table_existance;
+  s3_hton->discover_table_existence= s3_discover_table_existence;
   s3_hton->notify_tabledef_changed= s3_notify_tabledef_changed;
   s3_hton->create_partitioning_metadata= s3_create_partitioning_metadata;
   s3_hton->tablefile_extensions= no_exts;

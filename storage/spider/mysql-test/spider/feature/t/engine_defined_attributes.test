@@ -202,6 +202,13 @@ PARTITION BY HASH (a) PARTITIONS 2;
 SELECT * FROM tbl_a;
 DROP TABLE tbl_a;
 
+--echo # MDEV-27860 SIGSEGV in spider_parse_connect_info on CREATE TABLE
+--error ER_FOREIGN_SERVER_DOESNT_EXIST
+CREATE TABLE tbl_a ENGINE=SPIDER COMMENT="TABLE 'unknown_table'"
+PARTITION BY LIST COLUMNS (c) (
+  PARTITION p DEFAULT COMMENT="srv 'unknown_server'" ENGINE=SPIDER
+);
+
 --connection child2_1
 DROP DATABASE auto_test_remote;
 

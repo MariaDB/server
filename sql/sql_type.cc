@@ -2295,7 +2295,6 @@ Type_handler_decimal_result::make_num_distinct_aggregator_field(
                                                             const Item *item)
                                                             const
 {
-  DBUG_ASSERT(item->decimals <= DECIMAL_MAX_SCALE);
   return new (mem_root)
          Field_new_decimal(NULL, item->max_length,
                            (uchar *) (item->maybe_null() ? "" : 0),
@@ -2713,11 +2712,10 @@ bool
 Type_handler::Column_definition_set_attributes(THD *thd,
                                                Column_definition *def,
                                                const Lex_field_type_st &attr,
-                                               CHARSET_INFO *cs,
                                                column_definition_type_t type)
                                                const
 {
-  def->charset= cs;
+  def->set_charset_collation_attrs(attr.charset_collation_attrs());
   def->set_length_and_dec(attr);
   return false;
 }
@@ -2746,12 +2744,11 @@ Type_handler_string::Column_definition_set_attributes(
                                                  THD *thd,
                                                  Column_definition *def,
                                                  const Lex_field_type_st &attr,
-                                                 CHARSET_INFO *cs,
                                                  column_definition_type_t type)
                                                  const
 {
-  Type_handler::Column_definition_set_attributes(thd, def, attr, cs, type);
-  if (attr.length())
+  Type_handler::Column_definition_set_attributes(thd, def, attr, type);
+  if (attr.has_explicit_length())
     return false;
   switch (type) {
   case COLUMN_DEFINITION_ROUTINE_PARAM:
@@ -2778,12 +2775,11 @@ Type_handler_varchar::Column_definition_set_attributes(
                                                  THD *thd,
                                                  Column_definition *def,
                                                  const Lex_field_type_st &attr,
-                                                 CHARSET_INFO *cs,
                                                  column_definition_type_t type)
                                                  const
 {
-  Type_handler::Column_definition_set_attributes(thd, def, attr, cs, type);
-  if (attr.length())
+  Type_handler::Column_definition_set_attributes(thd, def, attr, type);
+  if (attr.has_explicit_length())
     return false;
   switch (type) {
   case COLUMN_DEFINITION_ROUTINE_PARAM:
@@ -3156,7 +3152,7 @@ bool Type_handler_general_purpose_string::
     Change character sets for all varchar/char/text columns,
     but do not touch varbinary/binary/blob columns.
   */
-  if (defcs != &my_charset_bin)
+  if (!(def->flags & CONTEXT_COLLATION_FLAG) && defcs != &my_charset_bin)
     def->charset= bulk_alter_attr->alter_table_convert_to_charset();
   return false;
 };
@@ -4267,10 +4263,9 @@ Type_handler_timestamp_common::
 Column_definition_set_attributes(THD *thd,
                                  Column_definition *def,
                                  const Lex_field_type_st &attr,
-                                 CHARSET_INFO *cs,
                                  column_definition_type_t type) const
 {
-  Type_handler::Column_definition_set_attributes(thd, def, attr, cs, type);
+  Type_handler::Column_definition_set_attributes(thd, def, attr, type);
   if (!opt_explicit_defaults_for_timestamp)
     def->flags|= NOT_NULL_FLAG;
   return false;
@@ -7698,11 +7693,10 @@ static const char* item_name(Item *a, String *str)
 }
 
 
-static void wrong_precision_error(uint errcode, Item *a,
-                                  ulonglong number, uint maximum)
+static void wrong_precision_error(uint errcode, Item *a, uint maximum)
 {
   StringBuffer<1024> buf(system_charset_info);
-  my_error(errcode, MYF(0), number, item_name(a, &buf), maximum);
+  my_error(errcode, MYF(0), item_name(a, &buf), maximum);
 }
 
 
@@ -7721,12 +7715,12 @@ bool get_length_and_scale(ulonglong length, ulonglong decimals,
 {
   if (length > (ulonglong) max_precision)
   {
-    wrong_precision_error(ER_TOO_BIG_PRECISION, a, length, max_precision);
+    wrong_precision_error(ER_TOO_BIG_PRECISION, a, max_precision);
     return 1;
   }
   if (decimals > (ulonglong) max_scale)
   {
-    wrong_precision_error(ER_TOO_BIG_SCALE, a, decimals, max_scale);
+    wrong_precision_error(ER_TOO_BIG_SCALE, a, max_scale);
     return 1;
   }
 
@@ -7769,8 +7763,7 @@ Item *Type_handler_time_common::
 {
   if (attr.decimals() > MAX_DATETIME_PRECISION)
   {
-    wrong_precision_error(ER_TOO_BIG_PRECISION, item, attr.decimals(),
-                          MAX_DATETIME_PRECISION);
+    wrong_precision_error(ER_TOO_BIG_PRECISION, item, MAX_DATETIME_PRECISION);
     return 0;
   }
   return new (thd->mem_root)
@@ -7784,8 +7777,7 @@ Item *Type_handler_datetime_common::
 {
   if (attr.decimals() > MAX_DATETIME_PRECISION)
   {
-    wrong_precision_error(ER_TOO_BIG_PRECISION, item, attr.decimals(),
-                          MAX_DATETIME_PRECISION);
+    wrong_precision_error(ER_TOO_BIG_PRECISION, item, MAX_DATETIME_PRECISION);
     return 0;
   }
   return new (thd->mem_root)
@@ -7863,8 +7855,7 @@ Item *Type_handler_interval_DDhhmmssff::
 {
   if (attr.decimals() > MAX_DATETIME_PRECISION)
   {
-    wrong_precision_error(ER_TOO_BIG_PRECISION, item, attr.decimals(),
-                          MAX_DATETIME_PRECISION);
+    wrong_precision_error(ER_TOO_BIG_PRECISION, item, MAX_DATETIME_PRECISION);
     return 0;
   }
   return new (thd->mem_root) Item_interval_DDhhmmssff_typecast(thd, item,

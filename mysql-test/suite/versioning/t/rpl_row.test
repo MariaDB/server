@@ -1,5 +1,6 @@
 --source include/have_binlog_format_row.inc
 --source include/master-slave.inc
+--source include/have_innodb.inc
 
 --echo # MDEV-16252: MINIMAL binlog_row_image does not work for versioned tables
 set @old_row_image= @@binlog_row_image;
@@ -15,4 +16,44 @@ update t1 set i = 0;
 drop table t1;
 set binlog_row_image= @old_row_image;
 
---source include/rpl_end.inc
+--echo #
+--echo # MDEV-28254 Wrong position for row_start, row_end after adding column
+--echo #            to implicit versioned table
+--echo #
+--let TMP= $MYSQLTEST_VARDIR/tmp
+--let $MYSQLD_DATADIR= `select @@datadir`
+set @@system_versioning_alter_history= keep;
+set @@session.time_zone='+00:00';
+
+create table t1 (x int) with system versioning engine innodb;
+alter table t1 add column y int, algorithm=inplace;
+check table t1;
+--exec $MYSQL_DUMP --databases test > $TMP/dump.sql
+
+--sync_slave_with_master
+drop table t1;
+--exec $MYSQL_SLAVE test < $TMP/dump.sql
+show create table t1;
+
+--connection master
+set timestamp= 12345;
+--let $start_pos= query_get_value("SHOW MASTER STATUS", Position, 1)
+insert t1 values (1, 1);
+select *, unix_timestamp(row_start) as row_start, unix_timestamp(row_end) as row_end from t1;
+--let $stop_pos= query_get_value("SHOW MASTER STATUS", Position, 1)
+set timestamp= default;
+
+# NOTE: pipe grep is not Windows-compatible
+--let grep_file= $TMP/out.txt
+--let grep_regex= ^###
+--exec $MYSQL_BINLOG -v -j $start_pos --stop-position=$stop_pos -o 3 $MYSQLD_DATADIR/master-bin.000001 > $grep_file
+--source include/grep.inc
+--sync_slave_with_master
+select * from t1;
+
+--connection master
+drop table t1;
+--remove_files_wildcard $TMP *.txt
+--remove_files_wildcard $TMP *.sql
+
+--source rpl_common.inc

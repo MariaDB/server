@@ -1942,14 +1942,6 @@ f1
 2005-02-02
 drop view v1;
 drop table t1;
-CREATE VIEW v1 AS SELECT ENCRYPT("dhgdhgd");
-SELECT * FROM v1;
-drop view v1;
-CREATE VIEW v1 AS SELECT SUBSTRING_INDEX("dkjhgd:kjhdjh", ":", 1);
-SELECT * FROM v1;
-SUBSTRING_INDEX("dkjhgd:kjhdjh", ":", 1)
-dkjhgd
-drop view v1;
 create table t1 (f59 int, f60 int, f61 int);
 insert into t1 values (19,41,32);
 create view v1 as select f59, f60 from t1 where f59 in
@@ -6558,7 +6550,7 @@ INSERT INTO t3 VALUES (1),(8);
 CREATE VIEW v1 AS SELECT * FROM t1 LEFT JOIN ( SELECT t2.* FROM t2 INNER JOIN t3 ON ( k = j ) ) AS alias1 ON ( i = j );
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `test`.`t1`.`i` AS `i`,`alias1`.`j` AS `j` from (`test`.`t1` left join (select `test`.`t2`.`j` AS `j` from (`test`.`t2` join `test`.`t3` on(`test`.`t3`.`k` = `test`.`t2`.`j`))) `alias1` on(`test`.`t1`.`i` = `alias1`.`j`))	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`i` AS `i`,`alias1`.`j` AS `j` from (`t1` left join (select `t2`.`j` AS `j` from (`t2` join `t3` on(`t3`.`k` = `t2`.`j`))) `alias1` on(`t1`.`i` = `alias1`.`j`))	latin1	latin1_swedish_ci
 SELECT * FROM t1 LEFT JOIN ( SELECT t2.* FROM t2 INNER JOIN t3 ON ( k = j ) ) AS alias1 ON ( i = j );
 i	j
 3	NULL
@@ -6705,7 +6697,7 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `testalias`.`testcase` AS `testcase` from (select case when 1 in (select `test`.`t1`.`a` from `test`.`t1` where `test`.`t1`.`a` < 2) then 1 end AS `testcase`) `testalias`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `testalias`.`testcase` AS `testcase` from (select case when 1 in (select `t1`.`a` from `t1` where `t1`.`a` < 2) then 1 end AS `testcase`) `testalias`	latin1	latin1_swedish_ci
 SELECT * FROM v1;
 testcase
 1
@@ -6853,6 +6845,34 @@ id	bar
 2	2
 Drop View v1;
 Drop table t1;
+#
+# MDEV-24281: Execution of PREPARE from CREATE VIEW statement
+#
+create table t1 (s1 int);
+insert into t1 values (3), (7), (1);
+prepare stmt from "
+create view v1 as select 's1', s1, 1 as My_exp_s1 from t1;
+";
+execute stmt;
+deallocate prepare stmt;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 's1' AS `My_exp_1_s1`,`t1`.`s1` AS `s1`,1 AS `My_exp_s1` from `t1`	latin1	latin1_swedish_ci
+select * from v1;
+My_exp_1_s1	s1	My_exp_s1
+s1	3	1
+s1	7	1
+s1	1	1
+drop view v1;
+prepare stmt from "
+create view v1 as select 's1', s1, 1 as My_exp_s1 from t1;
+";
+execute stmt;
+execute stmt;
+ERROR 42S01: Table 'v1' already exists
+deallocate prepare stmt;
+drop view v1;
+drop table t1;
 #
 # End of 10.3 tests
 #

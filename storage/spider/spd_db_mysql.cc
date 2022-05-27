@@ -3719,27 +3719,15 @@ int spider_db_mbase::append_lock_tables(
     conn_link_idx = tmp_spider->conn_link_idx[tmp_link_idx];
     spider_mbase_share *db_share = (spider_mbase_share *)
       tmp_spider->share->dbton_share[conn->dbton_id];
-    if (&db_share->db_names_str[conn_link_idx])
-    {
-      db_name = db_share->db_names_str[conn_link_idx].ptr();
-      db_name_length = db_share->db_names_str[conn_link_idx].length();
-      db_name_charset = tmp_spider->share->access_charset;
-    } else {
-      db_name = tmp_spider->share->tgt_dbs[conn_link_idx];
-      db_name_length = tmp_spider->share->tgt_dbs_lengths[conn_link_idx];
-      db_name_charset = system_charset_info;
-    }
-    if (&db_share->table_names_str[conn_link_idx])
-    {
-      table_name = db_share->table_names_str[conn_link_idx].ptr();
-      table_name_length = db_share->table_names_str[conn_link_idx].length();
-      table_name_charset = tmp_spider->share->access_charset;
-    } else {
-      table_name = tmp_spider->share->tgt_table_names[conn_link_idx];
-      table_name_length =
-        tmp_spider->share->tgt_table_names_lengths[conn_link_idx];
-      table_name_charset = system_charset_info;
-    }
+
+    db_name = db_share->db_names_str[conn_link_idx].ptr();
+    db_name_length = db_share->db_names_str[conn_link_idx].length();
+    db_name_charset = tmp_spider->share->access_charset;
+
+    table_name = db_share->table_names_str[conn_link_idx].ptr();
+    table_name_length = db_share->table_names_str[conn_link_idx].length();
+    table_name_charset = tmp_spider->share->access_charset;
+
     if ((error_num = spider_db_mbase_utility->
       append_lock_table_body(
         str,
@@ -9940,29 +9928,16 @@ int spider_mbase_handler::append_select(
       wide_handler->lock_mode < 1)
     {
       /* no lock */
-#ifdef SPIDER_SQL_CACHE_IS_IN_LEX
       LEX *lex = wide_handler->trx->thd->lex;
-#else
-      st_select_lex *select_lex =
-        &wide_handler->trx->thd->lex->select_lex;
-#endif
       if (
-#ifdef SPIDER_SQL_CACHE_IS_IN_LEX
         lex->sql_cache == LEX::SQL_CACHE &&
-#else
-        select_lex->sql_cache == SELECT_LEX::SQL_CACHE &&
-#endif
         (spider->share->query_cache_sync & 1)
       ) {
         if (str->reserve(SPIDER_SQL_SQL_CACHE_LEN))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         str->q_append(SPIDER_SQL_SQL_CACHE_STR, SPIDER_SQL_SQL_CACHE_LEN);
       } else if (
-#ifdef SPIDER_SQL_CACHE_IS_IN_LEX
         lex->sql_cache == LEX::SQL_NO_CACHE &&
-#else
-        select_lex->sql_cache == SELECT_LEX::SQL_NO_CACHE &&
-#endif
         (spider->share->query_cache_sync & 2)
       ) {
         if (str->reserve(SPIDER_SQL_SQL_NO_CACHE_LEN))

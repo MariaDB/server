@@ -22,4 +22,78 @@ update t1 set a= 1 where a = 5;
 update t1 set a= 8 where a = 1;
 update t1 set a= 4 where a = 8;
 update t1 set a= 6;
+disconnect con1;
 drop table t1;
+call mtr.add_suppression("need more HISTORY partitions");
+#
+# MDEV-23642 Locking timeout caused by auto-creation affects original DML
+#
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int primary key) with system versioning engine innodb
+partition by system_time interval 1 hour auto;
+insert into t1 values (1);
+start transaction;
+insert into t1 values (2);
+connect con1, localhost, root;
+set lock_wait_timeout= 1;
+set innodb_lock_wait_timeout= 1;
+set timestamp= unix_timestamp('2000-01-01 01:00:01');
+update t1 set x= x + 122 where x = 1;
+Warnings:
+Error	1205	Lock wait timeout exceeded; try restarting transaction
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p0`) is out of INTERVAL, need more HISTORY partitions
+disconnect con1;
+connection default;
+select * from t1;
+x
+2
+123
+drop table t1;
+set timestamp= default;
+#
+# MDEV-25339 Assertion `thd->transaction.stmt.is_empty() || thd->in_sub_stmt' failed
+#
+create or replace table t1 (x int) with system versioning engine innodb
+partition by system_time interval 1 hour auto;
+start transaction;
+insert into t1 values (1);
+select * from t1;
+x
+1
+connect con1, localhost, root;
+set lock_wait_timeout= 1;
+set innodb_lock_wait_timeout= 1;
+update t1 set x= x + 111;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+select * from t1;
+x
+disconnect con1;
+connection default;
+drop table t1;
+#
+# MDEV-25482 Auto-create: Server hangs after a failed attempt to create partition
+#
+set timestamp= default;
+create table t (pk int primary key, a int) engine=InnoDB
+with system versioning partition by system_time interval 1 hour auto;
+insert into t values (1,1),(2,2),(3,3),(4,4),(5,5);
+start transaction;
+update t set a= 20 where pk = 2;
+connect  con1,localhost,root,,;
+set lock_wait_timeout= 1;
+set @@timestamp= @@timestamp+3601;
+update t set a= 40 where pk = 4;
+Warnings:
+Error	1205	Lock wait timeout exceeded; try restarting transaction
+Warning	4114	Versioned table `test`.`t`: last HISTORY partition (`p0`) is out of INTERVAL, need more HISTORY partitions
+update t set a= 400 where pk = 4;
+Warnings:
+Error	1205	Lock wait timeout exceeded; try restarting transaction
+Warning	4114	Versioned table `test`.`t`: last HISTORY partition (`p0`) is out of INTERVAL, need more HISTORY partitions
+disconnect con1;
+connection default;
+select * from t where pk = 4;
+pk	a
+4	400
+rollback;
+drop tables t;

@@ -51,6 +51,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <my_getopt.h>
 #include <mysql_com.h>
 #include <my_default.h>
+#include <scope.h>
 #include <sql_class.h>
 
 #include <fcntl.h>
@@ -600,7 +601,7 @@ void CorruptedPages::zero_out_free_pages()
           die("Can't zero out corrupted page " UINT32PF " of tablespace %s",
               *page_it, space_name.c_str());
         msg("Corrupted page " UINT32PF
-            " of tablespace %s was successfuly fixed.",
+            " of tablespace %s was successfully fixed.",
             *page_it, space_name.c_str());
       }
     }
@@ -3216,7 +3217,7 @@ static void log_copying_thread()
          (!metadata_to_lsn || metadata_to_lsn > recv_sys.lsn))
   {
     timespec abstime;
-    set_timespec_nsec(abstime, 1000ULL * xtrabackup_log_copy_interval);
+    set_timespec_nsec(abstime, 1000000ULL * xtrabackup_log_copy_interval);
     mysql_cond_timedwait(&log_copying_stop, &recv_sys.mutex, &abstime);
   }
   log_copying_running= false;
@@ -4689,13 +4690,6 @@ fail:
 		goto fail;
 	}
 
-	if (auto b = aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096)) {
-		field_ref_zero = static_cast<byte*>(
-			memset_aligned<4096>(b, 0, UNIV_PAGE_SIZE_MAX));
-	} else {
-		goto fail;
-	}
-
 	log_sys.create();
 	/* get current checkpoint_lsn */
 
@@ -4705,10 +4699,6 @@ fail:
 		msg("Error: cannot read redo log header");
 unlock_and_fail:
 		mysql_mutex_unlock(&recv_sys.mutex);
-free_and_fail:
-		aligned_free(const_cast<byte*>(field_ref_zero));
-		field_ref_zero = nullptr;
-		goto fail;
 	}
 
 	if (!log_sys.is_latest()) {
@@ -4725,7 +4715,7 @@ free_and_fail:
 		&& (my_mkdir(xtrabackup_extra_lsndir,0777,MYF(0)) < 0)) {
 		msg("Error: cannot mkdir %d: %s\n",
 		    my_errno, xtrabackup_extra_lsndir);
-		goto free_and_fail;
+		goto fail;
 	}
 
 	/* create target dir if not exist */
@@ -4733,13 +4723,13 @@ free_and_fail:
 		&& (my_mkdir(xtrabackup_target_dir,0777,MYF(0)) < 0)){
 		msg("Error: cannot mkdir %d: %s\n",
 		    my_errno, xtrabackup_target_dir);
-		goto free_and_fail;
+		goto fail;
 	}
 
 	xtrabackup_init_datasinks();
 
 	if (!select_history()) {
-		goto free_and_fail;
+		goto fail;
 	}
 
 	/* open the log file */
@@ -4748,7 +4738,7 @@ free_and_fail:
 	if (dst_log_file == NULL) {
 		msg("Error: failed to open the target stream for '%s'.",
 		    LOG_FILE_NAME);
-		goto free_and_fail;
+		goto fail;
 	}
 
 	/* label it */
@@ -4757,7 +4747,7 @@ free_and_fail:
 	/* Write log header*/
 	if (ds_write(dst_log_file, log_hdr_buf, 12288)) {
 		msg("error: write to logfile failed");
-		goto free_and_fail;
+		goto fail;
 	}
 	log_copying_running = true;
 	/* start io throttle */
@@ -4774,7 +4764,7 @@ free_and_fail:
 		msg("merror: xb_load_tablespaces() failed with"
 		    " error %s.", ut_strerr(err));
 		log_copying_running = false;
-		goto free_and_fail;
+		goto fail;
 	}
 
 	/* copy log file by current position */
@@ -4788,7 +4778,7 @@ free_and_fail:
 
 	if (log_copy_failed) {
 		log_copying_running = false;
-		goto free_and_fail;
+		goto fail;
 	}
 
 	DBUG_MARIABACKUP_EVENT("before_innodb_log_copy_thread_started", {});
@@ -4798,7 +4788,7 @@ free_and_fail:
 
 	/* FLUSH CHANGED_PAGE_BITMAPS call */
 	if (!flush_changed_page_bitmaps()) {
-		goto free_and_fail;
+		goto fail;
 	}
 
 	ut_a(xtrabackup_parallel > 0);
@@ -4864,9 +4854,6 @@ free_and_fail:
 
 	if (opt_log_innodb_page_corruption)
 		ok = corrupted_pages.print_to_file(MB_CORRUPTED_PAGES_FILE);
-
-	aligned_free(const_cast<byte*>(field_ref_zero));
-	field_ref_zero = nullptr;
 
 	if (!ok) {
 		goto fail;
@@ -5611,11 +5598,23 @@ static ibool prepare_handle_new_files(const char *data_home_dir,
                                       const char *file_name, void *arg)
 {
 	const char *dest_dir = static_cast<const char *>(arg);
-	std::string src_path = std::string(data_home_dir) + '/' + std::string(db_name) + '/' + file_name;
+	std::string src_path = std::string(data_home_dir) + '/' + std::string(db_name) + '/';
 	/* Copy "*.new" files from incremental to base dir for incremental backup */
 	std::string dest_path=
 		dest_dir ? std::string(dest_dir) + '/' + std::string(db_name) +
-			'/' + file_name : src_path;
+			'/' : src_path;
+
+	/*
+	  A CREATE DATABASE could have happened during the base mariabackup run.
+	  In case if the current table file (e.g. `t1.new`) is from such
+	  a new database, the database directory may not exist yet in
+	  the base backup directory. Let's make sure to check if the directory
+	  exists (and create if needed).
+	*/
+	if (!directory_exists(dest_path.c_str(), true/*create if not exists*/))
+		return FALSE;
+	src_path+= file_name;
+	dest_path+= file_name;
 
 	size_t index = dest_path.find(".new");
 	DBUG_ASSERT(index != std::string::npos);
@@ -6830,7 +6829,7 @@ int main(int argc, char **argv)
 	key_map_full.set_all();
 
 	logger.init_base();
-	logger.set_handlers(LOG_FILE, LOG_NONE, LOG_NONE);
+	logger.set_handlers(LOG_NONE, LOG_NONE);
 	mysql_mutex_init(key_LOCK_error_log, &LOCK_error_log,
 			 MY_MUTEX_INIT_FAST);
 
@@ -7042,6 +7041,20 @@ static int main_low(char** argv)
 			return(EXIT_FAILURE);
 		}
 	}
+
+	ut_ad(!field_ref_zero);
+	if (auto b = aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096)) {
+		field_ref_zero = static_cast<byte*>(
+			memset_aligned<4096>(b, 0, UNIV_PAGE_SIZE_MAX));
+	} else {
+		msg("Can't allocate memory for field_ref_zero");
+		return EXIT_FAILURE;
+	}
+
+	auto _ = make_scope_exit([]() {
+		aligned_free(const_cast<byte*>(field_ref_zero));
+		field_ref_zero = nullptr;
+		});
 
 	/* --backup */
 	if (xtrabackup_backup && !xtrabackup_backup_func()) {

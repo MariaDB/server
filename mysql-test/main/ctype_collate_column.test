@@ -1,0 +1,627 @@
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # Start of 10.9 tests
+--echo #
+
+--echo #
+--echo # MDEV-27853 Wrong data type on column `COLLATE DEFAULT` and table `COLLATE some_non_default_collation`
+--echo #
+
+CREATE TABLE t1 (
+  a CHAR(10) COLLATE DEFAULT
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-28067 Multiple conflicting column COLLATE clauses are not rejected
+--echo #
+
+--error ER_CONFLICTING_DECLARATIONS
+CREATE TABLE t1 (a CHAR(10) COLLATE latin1_swedish_ci NOT NULL COLLATE latin1_bin);
+
+--error ER_CONFLICTING_DECLARATIONS
+CREATE TABLE t1 (a CHAR(10) COLLATE DEFAULT NOT NULL COLLATE latin1_bin);
+
+--error ER_CONFLICTING_DECLARATIONS
+CREATE TABLE t1 (a CHAR(10) BINARY NOT NULL COLLATE latin1_swedish_ci);
+
+CREATE TABLE t1 (a CHAR(10) COLLATE DEFAULT NOT NULL COLLATE latin1_swedish_ci);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a CHAR(10) BINARY NOT NULL COLLATE latin1_bin);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-27743 Remove Lex::charset
+--echo #
+
+# Iterate through all possible combinations of this grammar:
+#
+# CREATE TABLE t1 (
+#   a CHAR(10) [ CHARACTER SET cs ] [ COLLATE cl0 | BINARY ]
+#      NOT NULL   [COLLATE cl1]
+#      DEFAULT '' [COLLATE cl2]
+# ) [CHARACTER SET tcs [COLLATE tcl]];
+#
+# and check that:
+# - either the column gets the expected character set and collation
+# - or the expected error is returned
+
+
+CREATE TABLE cs (cs VARCHAR(64) NOT NULL);
+INSERT INTO cs (cs) VALUES
+(''),
+('CHARACTER SET latin1'),
+('CHARACTER SET utf8mb4');
+
+CREATE TABLE cl0 (cl0 VARCHAR(64) NOT NULL);
+INSERT INTO cl0 (cl0) VALUES
+(''),
+('BINARY'),
+('COLLATE DEFAULT'),
+('COLLATE latin1_bin'),
+('COLLATE latin1_swedish_ci'),
+('COLLATE utf8mb4_bin'),
+('COLLATE utf8mb4_general_ci');
+
+CREATE TABLE cl1 (cl1 VARCHAR(64) NOT NULL);
+INSERT INTO cl1 (cl1) VALUES
+(''),
+('COLLATE DEFAULT'),
+('COLLATE latin1_bin'),
+('COLLATE latin1_swedish_ci'),
+('COLLATE utf8mb4_bin'),
+('COLLATE utf8mb4_general_ci');
+
+CREATE TABLE tcs (tcs VARCHAR(64) NOT NULL);
+INSERT INTO tcs (tcs) VALUES
+(''),
+('CHARACTER SET latin1'),
+('CHARACTER SET latin1 COLLATE latin1_bin'),
+('CHARACTER SET utf8mb4'),
+('CHARACTER SET utf8mb4 COLLATE utf8mb4_bin');
+
+
+CREATE FUNCTION is_collate_clause_with_explicit_default_collation(cl VARCHAR(64))
+  RETURNS BOOLEAN
+  RETURN cl IN
+  ('COLLATE latin1_swedish_ci',
+   'COLLATE utf8mb4_general_ci'
+  );
+
+CREATE FUNCTION is_collate_clause_with_explicit_collation(cl VARCHAR(64))
+  RETURNS BOOLEAN
+  RETURN cl IN
+  ('COLLATE latin1_swedish_ci',
+   'COLLATE latin1_bin',
+   'COLLATE utf8mb4_general_ci',
+   'COLLATE utf8mb4_bin'
+  );
+
+
+CREATE FUNCTION is_conflicting_collate_explicit2(result TEXT,
+                                                 a VARCHAR(64),
+                                                 b VARCHAR(64))
+  RETURNS BOOLEAN
+  RETURN a<>b
+     AND is_collate_clause_with_explicit_collation(a)
+     AND is_collate_clause_with_explicit_collation(b)
+     AND result LIKE 'ERROR%HY000%Conflicting declarations%';
+
+CREATE FUNCTION is_conflicting_collate_default_collate_explicit(result TEXT,
+                                                                b VARCHAR(64))
+  RETURNS BOOLEAN
+  RETURN is_collate_clause_with_explicit_collation(b)
+     AND NOT is_collate_clause_with_explicit_default_collation(b)
+     AND result LIKE 'ERROR%HY000%Conflicting declarations%';
+
+
+CREATE FUNCTION
+  is_conflicting_charset_explicit_collate_explicit(result TEXT,
+                                                   cs_clause VARCHAR(64),
+                                                   cl_clause VARCHAR(64))
+  RETURNS BOOLEAN
+  RETURN cs_clause LIKE 'CHARACTER SET%'
+  AND is_collate_clause_with_explicit_collation(cl_clause)
+  AND REGEXP_SUBSTR(cs_clause,'[0-9a-z_]*$') <>
+      REGEXP_SUBSTR(cl_clause,'(?<=COLLATE )[0-9a-z_]*')
+  AND result LIKE 'ERROR%42000%COLLATION%is not valid for CHARACTER SET%';
+
+CREATE FUNCTION collate_cs_default_collation(cs_name VARCHAR(64))
+  RETURNS VARCHAR(64)
+  RETURN
+   (SELECT CONCAT('COLLATE ',COLLATION_NAME)
+    FROM INFORMATION_SCHEMA.COLLATIONS
+    WHERE IS_DEFAULT='Yes' AND CHARACTER_SET_NAME = cs_name);
+
+CREATE TABLE results
+(
+  dt VARCHAR(64),
+  cs VARCHAR(64),
+  cl0 VARCHAR(64),
+  cl1 VARCHAR(64),
+  cl2 VARCHAR(64),
+  tcs VARCHAR(64),
+  query VARCHAR(1024),
+  result VARCHAR(1024),
+
+  cs_name VARCHAR(64) GENERATED ALWAYS AS
+  (CASE WHEN cs LIKE 'CHARACTER SET%' THEN REGEXP_SUBSTR(cs,'[0-9a-z_]*$')
+   ELSE NULL
+   END
+  ),
+
+  collate_cs_bin VARCHAR(64) GENERATED ALWAYS AS
+  (
+    CONCAT('COLLATE ', cs_name, '_bin')
+  ),
+
+  tcs_character_set_name VARCHAR(64) GENERATED ALWAYS AS
+  (CASE WHEN tcs LIKE 'CHARACTER SET%' THEN REGEXP_SUBSTR(tcs,'(?<=CHARACTER SET )[0-9a-z]*')
+   ELSE NULL
+   END
+  )
+);
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1(dt TEXT, cs TEXT, cl0 TEXT, cl1 TEXT, cl2 TEXT, tcs TEXT)
+BEGIN
+  DECLARE errstate TEXT DEFAULT NULL;
+  DECLARE errno INT DEFAULT NULL;
+  DECLARE errmsg TEXT DEFAULT NULL;
+  DECLARE query TEXT;
+  DECLARE result TEXT;
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+  BEGIN
+    GET DIAGNOSTICS CONDITION 1 errstate = RETURNED_SQLSTATE,
+      errno = MYSQL_ERRNO, errmsg = MESSAGE_TEXT;
+  END;
+  SET query= CONCAT('CREATE TABLE t1 (a ', dt, ' ', cs, ' ', cl0,
+                           ' NOT NULL ',cl1,
+                           ' DEFAULT '''' ', cl2,
+                           ') ', tcs, ' ENGINE=Memory');
+  EXECUTE IMMEDIATE query;
+  IF errmsg IS NOT NULL
+  THEN
+    SET result=CONCAT('ERROR: ',
+                      COALESCE(errstate,'<NULL>'), ' ',
+                      COALESCE(errno,'<NULL>'), ' ',
+                      COALESCE(errmsg,'<NULL>'));
+    INSERT INTO results (dt,cs,cl0,cl1,cl2,tcs,query,result)
+                 VALUES (dt,cs,cl0,cl1,cl2,tcs,query,result);
+  ELSE
+    FOR row IN (SELECT CONCAT(COLUMN_TYPE,
+                  ' CHARACTER SET ', CHARACTER_SET_NAME,
+                  ' COLLATE ', COLLATION_NAME) AS result
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1')
+    DO
+      INSERT INTO results (dt,cs,cl0,cl1,cl2,tcs,query,result)
+                   VALUES (dt,cs,cl0,cl1,cl2,tcs,query,row.result);
+    END FOR;
+    DROP TABLE t1;
+  END IF;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PROCEDURE p3(dt TEXT)
+BEGIN
+  FOR row IN (
+    SELECT cs, cl0, cl1.cl1 AS cl1, cl2.cl1 AS cl2, tcs
+    FROM cs, cl0, cl1, cl1 AS cl2, tcs
+    ORDER BY cs, cl0, cl1, cl2, tcs
+  )
+  DO
+    CALL p1(dt, row.cs, row.cl0, row.cl1, row.cl2, row.tcs);
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+
+
+--disable_column_names
+CALL p3('char(10)');
+--enable_column_names
+
+
+--vertical_results
+SELECT query, result, '' AS `` FROM results
+ORDER BY dt, cs, cl0, cl1, cl2, tcs;
+--horizontal_results
+
+DROP PROCEDURE p1;
+DROP PROCEDURE p3;
+
+DROP TABLE cs, cl0, cl1, tcs;
+
+
+#
+# Statements with errors
+#
+
+#
+# CHARACTER SET cs2 COLLATE cs2_xxx
+# CHARACTER SET cs1 NOT NULL COLLATE cs2_xxx DEFAULT '' [COLLATE cs2_xxx]
+# CHARACTER SET cs1 NOT NULL                 DEFAULT ''  COLLATE cs2_xxx
+#
+
+DELETE FROM results
+WHERE is_conflicting_charset_explicit_collate_explicit(result, cs, cl0);
+SELECT ROW_COUNT();
+
+DELETE FROM results
+WHERE cl0=''
+  AND cl2=''
+  AND is_conflicting_charset_explicit_collate_explicit(result, cs, cl1);
+SELECT ROW_COUNT();
+
+DELETE FROM results
+WHERE cl0=''
+  AND (cl1='' OR cl1=cl2)
+  AND is_conflicting_charset_explicit_collate_explicit(result, cs, cl2);
+SELECT ROW_COUNT();
+
+
+# CHARACTER SET cs COLLATE DEFAULT
+#                   NOT NULL   [COLLATE cs_non_default]
+#                   DEFAULT '' [COLLATE cs_non_default]
+
+DELETE FROM results
+WHERE cs LIKE 'CHARACTER SET%'
+  AND cl0='COLLATE DEFAULT'
+  AND cl2=''
+  AND is_conflicting_collate_explicit2(result, collate_cs_default_collation(cs_name), cl1);
+SELECT ROW_COUNT();
+
+DELETE FROM results
+WHERE cs LIKE 'CHARACTER SET%'
+  AND cl0='COLLATE DEFAULT'
+  AND (cl1=''||cl2=cl1)
+  AND is_conflicting_collate_explicit2(result, collate_cs_default_collation(cs_name), cl2);
+SELECT ROW_COUNT();
+
+
+#
+# `COLLATE DEFAULT` is not supported in cl1 and cl2
+#
+
+DELETE FROM results
+WHERE (cl1='COLLATE DEFAULT' OR cl2='COLLATE DEFAULT')
+  AND result LIKE 'ERROR%42000%syntax%near%DEFAULT%';
+SELECT ROW_COUNT();
+
+#
+# Conflicting COLLATE with explicit collation name
+#
+
+DELETE FROM results WHERE is_conflicting_collate_explicit2(result, cl1, cl2);
+SELECT ROW_COUNT();
+
+DELETE FROM results
+WHERE cl2='' AND is_conflicting_collate_explicit2(result, cl0, cl1);
+SELECT ROW_COUNT();
+
+DELETE FROM results
+WHERE (cl1='' OR cl1=cl2) AND is_conflicting_collate_explicit2(result, cl0, cl2);
+SELECT ROW_COUNT();
+
+#
+# CHAR(10) COLLATE DEFAULT .. COLLATE cs_non_default
+#
+
+DELETE FROM results
+WHERE cs='' AND cl0='COLLATE DEFAULT'
+  AND
+  ((cl1=''  AND is_conflicting_collate_default_collate_explicit(result, cl2)) OR
+   (cl2=''  AND is_conflicting_collate_default_collate_explicit(result, cl1)) OR
+   (cl2=cl1 AND is_conflicting_collate_default_collate_explicit(result, cl1)));
+SELECT ROW_COUNT();
+
+
+#
+# CHAR(10) BINARY .. COLLATE xxx_ci
+#
+
+DELETE FROM results
+WHERE  cl0 LIKE 'BINARY' AND
+  ((cl1='' AND cl2 NOT LIKE '%_bin' AND is_collate_clause_with_explicit_collation(cl2)) OR
+   (cl2='' AND cl1 NOT LIKE '%_bin' AND is_collate_clause_with_explicit_collation(cl1)) OR
+   (cl1=cl2 AND cl1 NOT LIKE '%_bin' AND is_collate_clause_with_explicit_collation(cl1)))
+  AND result LIKE 'ERROR%HY000%Conflicting declarations%';
+SELECT ROW_COUNT();
+
+
+
+#
+# CHAR(10) CHARACTER SET cs1 BINARY  .. COLLATE cs2_..
+#
+
+DELETE FROM results
+WHERE cs LIKE 'CHARACTER SET%' AND cl0='BINARY'
+  AND cl1=''
+  AND is_collate_clause_with_explicit_collation(cl2)
+  AND cl2 NOT LIKE CONCAT(cs_name, '%')
+  AND result LIKE 'ERROR%HY000%Conflicting declarations%';
+SELECT ROW_COUNT();
+
+DELETE FROM results
+WHERE cs LIKE 'CHARACTER SET%' AND cl0='BINARY'
+  AND (cl2='' || cl2=cl1)
+  AND is_collate_clause_with_explicit_collation(cl1)
+  AND cl1 NOT LIKE CONCAT(cs_name, '%')
+  AND result LIKE 'ERROR%HY000%Conflicting declarations%';
+SELECT ROW_COUNT();
+
+
+#
+# Statements without errors
+# where the character set and the collation are determined from
+# the database level.
+#
+
+# CREATE TABLE t1 (a CHAR(10) [COLLATE DEFAULT] NOT NULL DEFAULT '');
+
+DELETE FROM results
+WHERE cs='' AND cl0 IN ('','COLLATE DEFAULT')
+  AND cl1='' AND cl2='' AND tcs=''
+  AND result NOT LIKE 'ERROR%'
+  AND result RLIKE
+  (SELECT CONCAT('CHARACTER SET ', DEFAULT_CHARACTER_SET_NAME, ' ',
+                 'COLLATE ', DEFAULT_COLLATION_NAME)
+   FROM INFORMATION_SCHEMA.SCHEMATA
+   WHERE SCHEMA_NAME=database()
+  );
+SELECT ROW_COUNT();
+
+
+# CREATE TABLE t1 (a CHAR(10) BINARY NOT NULL DEFAULT '');
+
+DELETE FROM results
+WHERE cs='' AND cl0='BINARY' AND cl1='' AND cl2='' AND tcs=''
+  AND result NOT LIKE 'ERROR%'
+  AND result RLIKE
+  (SELECT CONCAT('CHARACTER SET ', DEFAULT_CHARACTER_SET_NAME, ' ',
+                 'COLLATE ', DEFAULT_CHARACTER_SET_NAME, '_bin')
+   FROM INFORMATION_SCHEMA.SCHEMATA
+   WHERE SCHEMA_NAME=database()
+  );
+SELECT ROW_COUNT();
+
+
+#
+# Statements without errors
+# where the character set and the collation are determined from
+# the table level.
+#
+
+# CREATE TABLE t1 (a char(10) NOT NULL DEFAULT '') CHARACTER SET cs
+
+DELETE FROM results
+WHERE cs=''
+  AND cl0=''
+  AND cl1=''
+  AND cl2=''
+  AND tcs LIKE 'CHARACTER SET%'
+  AND tcs NOT LIKE '%COLLATE%'
+  AND result NOT LIKE 'ERROR%'
+  AND result RLIKE tcs
+  AND result RLIKE collate_cs_default_collation(tcs_character_set_name);
+SELECT ROW_COUNT();
+
+
+#
+# CREATE TABLE t1 (a CHAR(10) NOT NULL DEFAULT '') CHARACTER SET cs COLLATE cs_xxx
+#
+
+DELETE FROM results
+WHERE cs='' AND cl0='' AND cl1='' AND cl2=''
+  AND tcs LIKE 'CHARACTER SET%COLLATE%'
+  AND result NOT LIKE 'ERROR%'
+  AND result RLIKE tcs;
+SELECT ROW_COUNT();
+
+
+#
+# CREATE TABLE t1 (a CHAR(10) COLLATE DEFAULT) CHARACTER SET cs ..
+#
+
+DELETE FROM results
+WHERE cs=''
+  AND cl0='COLLATE DEFAULT'
+  AND cl1=''
+  AND cl2=''
+  AND tcs LIKE 'CHARACTER SET%'
+  AND result NOT LIKE 'ERROR%'
+  AND result RLIKE collate_cs_default_collation(tcs_character_set_name);
+SELECT ROW_COUNT();
+
+# CREATE TABLE t1
+# (
+#   a CHAR(10) BINARY NOT NULL DEFAULT ''
+# ) CHARACTER SET cs COLLATE cs_bin;
+
+DELETE FROM results
+WHERE cs=''
+  AND cl0='BINARY'
+  AND cl1=''
+  AND cl2=''
+  AND tcs LIKE 'CHARACTER SET%'
+  AND result NOT LIKE 'ERROR%'
+  AND result RLIKE CONCAT('COLLATE ', tcs_character_set_name, '_bin');
+SELECT ROW_COUNT();
+
+
+
+#
+# Statements without errors
+# where the character set and the collation are determined from
+# the column level.
+#
+
+#
+# CHAR(10) COLLATE cs_xxx .. [COLLATE cs_xxx] .. [COLLATE cs_xxx]
+#
+
+DELETE FROM results
+WHERE cs='' AND is_collate_clause_with_explicit_collation(cl0)
+  AND (cl1='' OR cl1=cl0)
+  AND (cl2='' OR cl2=cl0)
+  AND result NOT LIKE 'ERROR%'
+  AND result RLIKE cl0;
+SELECT ROW_COUNT();
+
+#
+# CHARACTER SET cs [COLLATE DEFAULT|COLLATE cs_def]
+#                   NOT NULL   [COLLATE cs_def]
+#                   DEFAULT '' [COLLATE cs_def]
+
+DELETE FROM results
+WHERE cs LIKE 'CHARACTER SET %'
+  AND cl0 IN ('','COLLATE DEFAULT',collate_cs_default_collation(cs_name))
+  AND cl1 IN ('',collate_cs_default_collation(cs_name))
+  AND cl2 IN ('',collate_cs_default_collation(cs_name))
+  AND result NOT LIKE 'ERROR%'
+  AND result RLIKE collate_cs_default_collation(cs_name);
+SELECT ROW_COUNT();
+
+#
+# CHAR(10) COLLATE DEFAULT .. COLLATE cs_def .. [COLLATE cs_def]
+#
+DELETE FROM results
+WHERE cs=''
+  AND cl0='COLLATE DEFAULT'
+  AND is_collate_clause_with_explicit_default_collation(cl1)
+  AND cl2=''
+  AND result NOT LIKE 'ERROR%'
+  AND result RLIKE cl1;
+SELECT ROW_COUNT();
+
+#
+# CHAR(10) COLLATE DEFAULT .. COLLATE cs_def .. [COLLATE cs_def]
+#
+
+DELETE FROM results
+WHERE cs=''
+  AND cl0='COLLATE DEFAULT'
+  AND is_collate_clause_with_explicit_default_collation(cl2)
+  AND (cl1='' OR cl2=cl1)
+  AND result NOT LIKE 'ERROR%'
+  AND result RLIKE cl2;
+SELECT ROW_COUNT();
+
+
+#
+# CHARACTER SET cs [BINARY|COLLATE cs_bin]
+#                  NOT NULL   [COLLATE cs_bin]
+#                  DEFAULT '' [COLLATE cs_bin]
+
+DELETE FROM results
+WHERE cs LIKE 'CHARACTER SET %'
+  AND (cl0='BINARY' OR cl0=collate_cs_bin)
+  AND (cl1='' OR cl1=collate_cs_bin)
+  AND (cl2='' OR cl2=collate_cs_bin)
+  AND result NOT LIKE 'ERROR%'
+  AND result RLIKE collate_cs_bin;
+SELECT ROW_COUNT();
+
+#
+# CHARACTER SET cs NOT NULL                DEFAULT ''  COLLATE cs_def
+# CHARACTER SET cs NOT NULL COLLATE cs_def DEFAULT '' [COLLATE cs_def]
+#
+
+DELETE FROM results
+WHERE cs LIKE 'CHARACTER SET%' AND cl0=''
+  AND (cl2='' OR cl2=cl1)
+  AND is_collate_clause_with_explicit_collation(cl1)
+  AND cl1 RLIKE CONCAT('COLLATE ',cs_name,'_')
+  AND result NOT LIKE 'ERROR%'
+  AND result RLIKE cl1;
+SELECT ROW_COUNT();
+
+DELETE FROM results
+WHERE cs LIKE 'CHARACTER SET%' AND cl0=''
+  AND cl1=''
+  AND is_collate_clause_with_explicit_collation(cl2)
+  AND cl2 RLIKE CONCAT('COLLATE ',cs_name,'_')
+  AND result NOT LIKE 'ERROR%'
+  AND result RLIKE cl2;
+SELECT ROW_COUNT();
+
+
+#
+# CHAR(10) BINARY NOT NULL                DEFAULT ''  COLLATE cs_bin
+# CHAR(10) BINARY NOT NULL COLLATE cs_bin DEFAULT '' [COLLATE cs_bin]
+#
+
+DELETE FROM results
+WHERE cs='' AND cl0='BINARY'
+  AND (cl2='' OR cl2=cl1)
+  AND is_collate_clause_with_explicit_collation(cl1)
+  AND cl1 RLIKE '_bin$'
+  AND result NOT LIKE 'ERROR%'
+  AND result RLIKE cl1;
+SELECT ROW_COUNT();
+
+DELETE FROM results
+WHERE cs='' AND cl0='BINARY'
+  AND cl1=''
+  AND is_collate_clause_with_explicit_collation(cl2)
+  AND cl2 RLIKE '_bin$'
+  AND result NOT LIKE 'ERROR%'
+  AND result RLIKE cl2;
+SELECT ROW_COUNT();
+
+#
+# CHAR(10) NOT NULL                DEFAULT ''  COLLATE cs_xxx
+# CHAR(10) NOT NULL COLLATE cs_xxx DEFAULT '' [COLLATE cs_xxx]
+#
+
+DELETE FROM results
+WHERE cs='' AND cl0=''
+  AND cl1=''
+  AND is_collate_clause_with_explicit_collation(cl2)
+  AND result NOT LIKE 'ERROR%'
+  AND result RLIKE cl2;
+SELECT ROW_COUNT();
+
+DELETE FROM results
+WHERE cs='' AND cl0=''
+  AND (cl2='' OR cl2=cl1)
+  AND is_collate_clause_with_explicit_collation(cl1)
+  AND result NOT LIKE 'ERROR%'
+  AND result RLIKE cl1;
+SELECT ROW_COUNT();
+
+
+
+--vertical_results
+--echo # Expect empty set
+SELECT *, '---' AS `---` FROM results WHERE result LIKE 'ERROR%';
+--echo # Expect empty set
+SELECT *, '---' AS `---` FROM results WHERE result NOT LIKE 'ERROR%';
+--horizontal_results
+
+DROP TABLE results;
+
+
+DROP FUNCTION is_collate_clause_with_explicit_default_collation;
+DROP FUNCTION is_collate_clause_with_explicit_collation;
+DROP FUNCTION is_conflicting_charset_explicit_collate_explicit;
+DROP FUNCTION is_conflicting_collate_explicit2;
+DROP FUNCTION is_conflicting_collate_default_collate_explicit;
+DROP FUNCTION collate_cs_default_collation;
+
+
+--echo #
+--echo # End of 10.9 tests
+--echo #

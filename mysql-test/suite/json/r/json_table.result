@@ -985,5 +985,96 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
   )
 ) AS jt' at line 3
 #
+# MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+#
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) CHARACTER SET latin1 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+name
+Jeans
+#
 # End of 10.6 tests
+#
+#
+# Start of 10.9 tests
+#
+#
+#  MDEV-27743 Remove Lex::charset
+#
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) PATH '$.name'
+  )
+) AS jt;
+collation(name)
+utf8mb4_general_ci
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+collation(name)
+utf8mb4_general_ci
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) BINARY PATH '$.name'
+  )
+) AS jt;
+collation(name)
+utf8mb4_bin
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Jeans"}]', '$[*]' COLUMNS (`name` varchar(10) PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+SELECT collation(name) FROM v1;
+collation(name)
+utf8mb4_general_ci
+DROP VIEW v1;
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Jeans"}]', '$[*]' COLUMNS (`name` varchar(10) PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+SELECT collation(name) FROM v1;
+collation(name)
+utf8mb4_general_ci
+DROP VIEW v1;
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) BINARY PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Jeans"}]', '$[*]' COLUMNS (`name` varchar(10) CHARSET utf8mb4 COLLATE utf8mb4_bin PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+SELECT collation(name) FROM v1;
+collation(name)
+utf8mb4_bin
+DROP VIEW v1;
+#
+# MDEV-28319: Assertion `cur_step->type & JSON_PATH_KEY' failed in json_find_path
+#
+SELECT * FROM JSON_TABLE('{"foo":{"bar":1},"qux":2}', '$' COLUMNS(c1 VARCHAR(8) PATH '$[0]', c2 CHAR(8) PATH '$.*.x')) AS js;
+c1	c2
+NULL	NULL
+#
+# End of 10.9 tests
 #

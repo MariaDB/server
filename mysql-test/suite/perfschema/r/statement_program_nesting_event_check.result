@@ -101,6 +101,7 @@ CREATE TRIGGER trg4 BEFORE DELETE ON t1 FOR EACH ROW
 SET @del:= @del + 1|
 CREATE TRIGGER trg5 AFTER DELETE ON t1 FOR EACH ROW 
 SET @del:= @del + 8 + old.j|
+ALTER TABLE t2 ENGINE=InnoDB;
 #####################
 # Executing queries #
 #####################
@@ -159,6 +160,7 @@ WHERE CURRENT_SCHEMA='stored_programs' AND
 ORDER BY OBJECT_NAME,NESTING_EVENT_LEVEL,SQL_TEXT;
 EVENT_NAME	SQL_TEXT	OBJECT_NAME	NESTING_EVENT_TYPE	NESTING_EVENT_LEVEL
 statement/scheduler/event	NULL	NULL	NULL	0
+statement/sql/alter_table	ALTER TABLE t2 ENGINE=InnoDB	NULL	NULL	0
 statement/sql/call_procedure	CALL SampleProc1(30,40,50)	NULL	NULL	0
 statement/sql/call_procedure	CALL SampleProc2("Jwalamukhi",34)	NULL	NULL	0
 statement/sql/call_procedure	CALL SampleProc3()	NULL	NULL	0
@@ -375,7 +377,7 @@ data INT NOT NULL
 CREATE TABLE t2(
 n INT UNSIGNED NOT NULL, 
 f BIGINT UNSIGNED
-) engine=innodb;
+);
 ############################
 # Creating Stored Programs #
 ############################
@@ -429,6 +431,7 @@ END WHILE;
 END|
 CREATE TRIGGER trg AFTER INSERT ON t1 FOR EACH ROW
 CALL ifac(10)|
+ALTER TABLE t2 ENGINE=InnoDB;
 #####################
 # Executing queries #
 #####################

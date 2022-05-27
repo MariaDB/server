@@ -630,10 +630,6 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 		return false;
 	}
 
-#ifndef UNIV_INNOCHECKSUM
-	uint32_t	crc32 = 0;
-	bool		crc32_inited = false;
-#endif /* !UNIV_INNOCHECKSUM */
 	const ulint zip_size = fil_space_t::zip_size(fsp_flags);
 	const uint16_t page_type = fil_page_get_type(read_buf);
 
@@ -728,6 +724,8 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 			return false;
 		}
 
+		const uint32_t crc32 = buf_calc_page_crc32(read_buf);
+
 		/* Very old versions of InnoDB only stored 8 byte lsn to the
 		start and the end of the page. */
 
@@ -738,18 +736,14 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 		    != mach_read_from_4(read_buf + FIL_PAGE_LSN)
 		    && checksum_field2 != BUF_NO_CHECKSUM_MAGIC) {
 
-			crc32 = buf_calc_page_crc32(read_buf);
-			crc32_inited = true;
-
 			DBUG_EXECUTE_IF(
 				"page_intermittent_checksum_mismatch", {
-					static int page_counter;
-					if (page_counter++ == 2) {
-						crc32++;
-					}
-				});
+				static int page_counter;
+				if (page_counter++ == 2) return true;
+			});
 
-			if (checksum_field2 != crc32
+			if ((checksum_field1 != crc32
+			     || checksum_field2 != crc32)
 			    && checksum_field2
 			    != buf_calc_page_old_checksum(read_buf)) {
 				return true;
@@ -759,25 +753,11 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 		switch (checksum_field1) {
 		case 0:
 		case BUF_NO_CHECKSUM_MAGIC:
-			break;
-		default:
-			if (!crc32_inited) {
-				crc32 = buf_calc_page_crc32(read_buf);
-				crc32_inited = true;
-			}
-
-			if (checksum_field1 != crc32
-			    && checksum_field1
-			    != buf_calc_page_new_checksum(read_buf)) {
-				return true;
-			}
+			return false;
 		}
-
-		return crc32_inited
-			&& ((checksum_field1 == crc32
-			     && checksum_field2 != crc32)
-			    || (checksum_field1 != crc32
-				&& checksum_field2 == crc32));
+		return (checksum_field1 != crc32 || checksum_field2 != crc32)
+			&& checksum_field1
+			!= buf_calc_page_new_checksum(read_buf);
 	}
 #endif /* !UNIV_INNOCHECKSUM */
 }
@@ -1126,15 +1106,19 @@ bool buf_pool_t::create()
   ut_ad(srv_buf_pool_size > 0);
   ut_ad(!resizing);
   ut_ad(!chunks_old);
-  ut_ad(!field_ref_zero);
+  /* mariabackup loads tablespaces, and it requires field_ref_zero to be
+  allocated before innodb initialization */
+  ut_ad(srv_operation >= SRV_OPERATION_RESTORE || !field_ref_zero);
 
   NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
 
-  if (auto b= aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096))
-    field_ref_zero= static_cast<const byte*>
-      (memset_aligned<4096>(b, 0, UNIV_PAGE_SIZE_MAX));
-  else
-    return true;
+  if (!field_ref_zero) {
+    if (auto b= aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096))
+      field_ref_zero= static_cast<const byte*>
+        (memset_aligned<4096>(b, 0, UNIV_PAGE_SIZE_MAX));
+    else
+      return true;
+  }
 
   chunk_t::map_reg= UT_NEW_NOKEY(chunk_t::map());
 
@@ -1191,7 +1175,6 @@ bool buf_pool_t::create()
   for (size_t i= 0; i < UT_ARR_SIZE(zip_free); ++i)
     UT_LIST_INIT(zip_free[i], &buf_buddy_free_t::list);
   ulint s= curr_size;
-  old_size= s;
   s/= BUF_READ_AHEAD_PORTION;
   read_ahead_area= s >= READ_AHEAD_PAGES
     ? READ_AHEAD_PAGES
@@ -1664,7 +1647,6 @@ inline void buf_pool_t::resize()
 #endif /* BTR_CUR_HASH_ADAPT */
 
 	mysql_mutex_lock(&mutex);
-	ut_ad(curr_size == old_size);
 	ut_ad(n_chunks_new == n_chunks);
 	ut_ad(UT_LIST_GET_LEN(withdraw) == 0);
 
@@ -1673,7 +1655,7 @@ inline void buf_pool_t::resize()
 	curr_size = n_chunks_new * chunks->size;
 	mysql_mutex_unlock(&mutex);
 
-	if (curr_size < old_size) {
+	if (is_shrinking()) {
 		/* set withdraw target */
 		size_t w = 0;
 
@@ -1694,7 +1676,7 @@ inline void buf_pool_t::resize()
 
 withdraw_retry:
 	/* wait for the number of blocks fit to the new size (if needed)*/
-	bool	should_retry_withdraw = curr_size < old_size
+	bool	should_retry_withdraw = is_shrinking()
 		&& withdraw_blocks();
 
 	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
@@ -1777,7 +1759,7 @@ withdraw_retry:
 			  ULINTPF " chunks to " ULINTPF " chunks.",
 			  n_chunks, n_chunks_new);
 
-	if (n_chunks_new < n_chunks) {
+	if (is_shrinking()) {
 		/* delete chunks */
 		chunk_t* chunk = chunks + n_chunks_new;
 		const chunk_t* const echunk = chunks + n_chunks;
@@ -1841,8 +1823,7 @@ withdraw_retry:
 			goto calc_buf_pool_size;
 		}
 
-		ulint	n_chunks_copy = ut_min(n_chunks_new,
-					       n_chunks);
+		ulint	n_chunks_copy = ut_min(n_chunks_new, n_chunks);
 
 		memcpy(new_chunks, chunks,
 		       n_chunks_copy * sizeof *new_chunks);
@@ -1909,7 +1890,6 @@ calc_buf_pool_size:
 	/* set size */
 	ut_ad(UT_LIST_GET_LEN(withdraw) == 0);
   ulint s= curr_size;
-  old_size= s;
   s/= BUF_READ_AHEAD_PORTION;
   read_ahead_area= s >= READ_AHEAD_PAGES
     ? READ_AHEAD_PAGES
@@ -2154,16 +2134,22 @@ void buf_pool_t::watch_unset(const page_id_t id, buf_pool_t::hash_chain &chain)
   buf_page_t *w;
   {
     transactional_lock_guard<page_hash_latch> g{page_hash.lock_get(chain)};
-    /* The page must exist because watch_set() increments buf_fix_count. */
+    /* The page must exist because watch_set() did fix(). */
     w= page_hash.get(id, chain);
-    const auto state= w->state();
-    ut_ad(state >= buf_page_t::UNFIXED);
-    ut_ad(~buf_page_t::LRU_MASK & state);
     ut_ad(w->in_page_hash);
-    if (state != buf_page_t::UNFIXED + 1 || !watch_is_sentinel(*w))
+    if (!watch_is_sentinel(*w))
     {
+    no_watch:
       w->unfix();
       w= nullptr;
+    }
+    else
+    {
+      const auto state= w->state();
+      ut_ad(~buf_page_t::LRU_MASK & state);
+      ut_ad(state >= buf_page_t::UNFIXED + 1);
+      if (state != buf_page_t::UNFIXED + 1)
+        goto no_watch;
     }
   }
 
@@ -2263,29 +2249,66 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
 lookup:
   for (bool discard_attempted= false;;)
   {
+#ifndef NO_ELISION
+    if (xbegin())
     {
-      transactional_shared_lock_guard<page_hash_latch> g{hash_lock};
+      if (hash_lock.is_locked())
+        xabort();
       bpage= buf_pool.page_hash.get(page_id, chain);
       if (!bpage || buf_pool.watch_is_sentinel(*bpage))
+      {
+        xend();
         goto must_read_page;
+      }
+      if (!bpage->zip.data)
+      {
+        /* There is no ROW_FORMAT=COMPRESSED page. */
+        xend();
+        return nullptr;
+      }
+      if (discard_attempted || !bpage->frame)
+      {
+        if (!bpage->lock.s_lock_try())
+          xabort();
+        xend();
+        break;
+      }
+      xend();
+    }
+    else
+#endif
+    {
+      hash_lock.lock_shared();
+      bpage= buf_pool.page_hash.get(page_id, chain);
+      if (!bpage || buf_pool.watch_is_sentinel(*bpage))
+      {
+        hash_lock.unlock_shared();
+        goto must_read_page;
+      }
 
       ut_ad(bpage->in_file());
       ut_ad(page_id == bpage->id());
 
       if (!bpage->zip.data)
+      {
         /* There is no ROW_FORMAT=COMPRESSED page. */
+        hash_lock.unlock_shared();
         return nullptr;
+      }
 
       if (discard_attempted || !bpage->frame)
       {
-        /* Even when we are holding a page_hash latch, it should be
+        /* Even when we are holding a hash_lock, it should be
         acceptable to wait for a page S-latch here, because
         buf_page_t::read_complete() will not wait for buf_pool.mutex,
         and because S-latch would not conflict with a U-latch
         that would be protecting buf_page_t::write_complete(). */
         bpage->lock.s_lock();
+        hash_lock.unlock_shared();
         break;
       }
+
+      hash_lock.unlock_shared();
     }
 
     discard_attempted= true;
@@ -2667,7 +2690,8 @@ ignore_block:
 		after buf_zip_decompress() in this function. */
 		block->page.lock.s_lock();
 		state = block->page.state();
-		ut_ad(state < buf_page_t::READ_FIX);
+		ut_ad(state < buf_page_t::READ_FIX
+		      || state >= buf_page_t::WRITE_FIX);
 		const page_id_t id{block->page.id()};
 		block->page.lock.s_unlock();
 
@@ -3866,7 +3890,7 @@ void buf_pool_t::validate()
 
 	mysql_mutex_unlock(&flush_list_mutex);
 
-	if (curr_size == old_size
+	if (n_chunks_new == n_chunks
 	    && n_lru + n_free > curr_size + n_zip) {
 
 		ib::fatal() << "n_LRU " << n_lru << ", n_free " << n_free
@@ -3876,7 +3900,7 @@ void buf_pool_t::validate()
 
 	ut_ad(UT_LIST_GET_LEN(LRU) >= n_lru);
 
-	if (curr_size == old_size
+	if (n_chunks_new == n_chunks
 	    && UT_LIST_GET_LEN(free) != n_free) {
 
 		ib::fatal() << "Free list len "

@@ -68,7 +68,7 @@ a	b
 3	3
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `test`.`t1`.`a` AS `a`,`__3`.`b` AS `b` from (`test`.`t1` join (select max(`test`.`t2`.`a`) AS `b` from `test`.`t2`) `__3`)	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a`,`__3`.`b` AS `b` from (`t1` join (select max(`t2`.`a`) AS `b` from `t2`) `__3`)	latin1	latin1_swedish_ci
 call p1;
 a	b
 2	3

@@ -16,7 +16,7 @@
 
 
 #define PLUGIN_VERSION 0x104
-#define PLUGIN_STR_VERSION "1.4.13"
+#define PLUGIN_STR_VERSION "1.4.14"
 
 #define _my_thread_var loc_thread_var
 
@@ -954,7 +954,19 @@ static unsigned long long query_counter= 1;
 
 static struct connection_info *get_loc_info(MYSQL_THD thd)
 {
+  /*
+    This is the original code and supposed to be returned
+    bach to this as the MENT-1438 is finally understood/resolved.
   return (struct connection_info *) THDVAR(thd, loc_info);
+  */
+  struct connection_info *ci= (struct connection_info *) THDVAR(thd, loc_info);
+  if ((size_t) ci->user_length > sizeof(ci->user))
+  {
+    ci->user_length= 0;
+    ci->host_length= 0;
+    ci->ip_length= 0;
+  }
+  return ci;
 }
 
 
@@ -1388,6 +1400,16 @@ static size_t log_header(char *message, size_t message_len,
   {
     host_len= userip_len;
     host= userip;
+  }
+
+  /*
+    That was added to find the possible cause of the MENT-1438.
+    Supposed to be removed after that.
+  */
+  if (username_len > 1024)
+  {
+    username= "unknown_user";
+    username_len= (unsigned int) strlen(username);
   }
 
   if (output_type == OUTPUT_SYSLOG)
@@ -2368,6 +2390,9 @@ int get_db_mysql57(MYSQL_THD thd, char **name, size_t *len)
 #ifdef __x86_64__
     db_off= 608;
     db_len_off= 616;
+#elif __aarch64__
+    db_off= 632;
+    db_len_off= 640;
 #else
     db_off= 0;
     db_len_off= 0;
@@ -2378,6 +2403,9 @@ int get_db_mysql57(MYSQL_THD thd, char **name, size_t *len)
 #ifdef __x86_64__
     db_off= 536;
     db_len_off= 544;
+#elif __aarch64__
+    db_off= 552;
+    db_len_off= 560;
 #else
     db_off= 0;
     db_len_off= 0;

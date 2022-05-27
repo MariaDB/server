@@ -2620,6 +2620,11 @@ int Field::set_default()
   if (default_value)
   {
     Query_arena backup_arena;
+    /*
+      TODO: this may impose memory leak until table flush.
+          See comment in
+          TABLE::update_virtual_fields(handler *, enum_vcol_update_mode).
+    */
     table->in_use->set_n_backup_active_arena(table->expr_arena, &backup_arena);
     int rc= default_value->expr->save_in_field(this, 0);
     table->in_use->restore_active_arena(table->expr_arena, &backup_arena);
@@ -3340,11 +3345,12 @@ Field_new_decimal::Field_new_decimal(uchar *ptr_arg,
                                      decimal_digits_t dec_arg,bool zero_arg,
                                      bool unsigned_arg)
   :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-             unireg_check_arg, field_name_arg, dec_arg, zero_arg, unsigned_arg)
+             unireg_check_arg, field_name_arg,
+             MY_MIN(dec_arg, DECIMAL_MAX_SCALE), zero_arg, unsigned_arg)
 {
   precision= get_decimal_precision(len_arg, dec_arg, unsigned_arg);
-  DBUG_ASSERT((precision <= DECIMAL_MAX_PRECISION) &&
-              (dec <= DECIMAL_MAX_SCALE));
+  DBUG_ASSERT(precision <= DECIMAL_MAX_PRECISION);
+  DBUG_ASSERT(dec <= DECIMAL_MAX_SCALE);
   bin_size= my_decimal_get_binary_size(precision, dec);
 }
 
@@ -10410,17 +10416,15 @@ bool Column_definition::prepare_interval_field(MEM_ROOT *mem_root,
 
 bool Column_definition::set_attributes(THD *thd,
                                        const Lex_field_type_st &def,
-                                       CHARSET_INFO *cs,
                                        column_definition_type_t type)
 {
   DBUG_ASSERT(type_handler() == &type_handler_null);
-  DBUG_ASSERT(charset == &my_charset_bin || charset == NULL);
   DBUG_ASSERT(length == 0);
   DBUG_ASSERT(decimals == 0);
 
   set_handler(def.type_handler());
   return type_handler()->Column_definition_set_attributes(thd, this,
-                                                          def, cs, type);
+                                                          def, type);
 }
 
 
@@ -10428,16 +10432,12 @@ void
 Column_definition_attributes::set_length_and_dec(const Lex_length_and_dec_st
                                                  &type)
 {
-  if (type.length())
-  {
-    int err;
-    length= my_strtoll10(type.length(), NULL, &err);
-    if (err)
-      length= ~0ULL; // safety
-  }
+  if (type.has_explicit_length())
+    length= type.length_overflowed() ? (ulonglong) UINT_MAX32 + 1 :
+                                       (ulonglong) type.length();
 
-  if (type.dec())
-    decimals= (uint) atoi(type.dec());
+  if (type.has_explicit_dec())
+    decimals= type.dec();
 }
 
 
@@ -10536,7 +10536,7 @@ bool Column_definition::fix_attributes_real(uint default_length)
   }
   if (decimals != NOT_FIXED_DEC && decimals >= FLOATING_POINT_DECIMALS)
   {
-    my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
+    my_error(ER_TOO_BIG_SCALE, MYF(0),
              field_name.str, static_cast<uint>(FLOATING_POINT_DECIMALS-1));
     return true;
   }
@@ -10548,14 +10548,14 @@ bool Column_definition::fix_attributes_decimal()
 {
   if (decimals >= NOT_FIXED_DEC)
   {
-    my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
+    my_error(ER_TOO_BIG_SCALE, MYF(0),
              field_name.str, static_cast<uint>(NOT_FIXED_DEC - 1));
     return true;
   }
   my_decimal_trim(&length, &decimals);
   if (length > DECIMAL_MAX_PRECISION)
   {
-    my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name.str,
+    my_error(ER_TOO_BIG_PRECISION, MYF(0), field_name.str,
              DECIMAL_MAX_PRECISION);
     return true;
   }
@@ -10584,7 +10584,7 @@ bool Column_definition::fix_attributes_temporal_with_time(uint int_part_length)
 {
   if (length > MAX_DATETIME_PRECISION)
   {
-    my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name.str,
+    my_error(ER_TOO_BIG_PRECISION, MYF(0), field_name.str,
              MAX_DATETIME_PRECISION);
     return true;
   }

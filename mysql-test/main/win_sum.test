@@ -45,3 +45,16 @@ select pk, a, c, sum(c) over (partition by a order by pk ROWS BETWEEN 1 PRECEDIN
 from t1;
 
 drop table t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-28094 Window function in expression in ORDER BY
+--echo #
+SELECT EXISTS (SELECT 1 ORDER BY 1+sum(2) OVER ());
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

@@ -2038,17 +2038,13 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
                     const char *table_path)
 {
   char path[FN_REFLEN + 1];
+  const size_t pathmax = sizeof(path) - 1 - reg_ext_length;
   int error= 0;
   DBUG_ENTER("quick_rm_table");
 
   size_t path_length= table_path ?
-    (strxnmov(path, sizeof(path) - 1, table_path, reg_ext, NullS) - path) :
-    build_table_filename(path, sizeof(path)-1, db->str, table_name->str,
-                         reg_ext, flags);
-  if (!(flags & NO_FRM_RENAME))
-    if (mysql_file_delete(key_file_frm, path, MYF(0)))
-      error= 1; /* purecov: inspected */
-  path[path_length - reg_ext_length]= '\0'; // Remove reg_ext
+    (strxnmov(path, pathmax, table_path, NullS) - path) :
+    build_table_filename(path, pathmax, db->str, table_name->str, "", flags);
   if ((flags & (NO_HA_TABLE | NO_PAR_TABLE)) == NO_HA_TABLE)
   {
     handler *file= get_new_handler((TABLE_SHARE*) 0, thd->mem_root, base);
@@ -2058,8 +2054,14 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
     delete file;
   }
   if (!(flags & (FRM_ONLY|NO_HA_TABLE)))
-    if (ha_delete_table(thd, base, path, db, table_name, 0) > 0)
-    error= 1;
+    error|= ha_delete_table(thd, base, path, db, table_name, 0) > 0;
+
+  if (!(flags & NO_FRM_RENAME))
+  {
+    memcpy(path + path_length, reg_ext, reg_ext_length + 1);
+    if (mysql_file_delete(key_file_frm, path, MYF(0)))
+      error= 1; /* purecov: inspected */
+  }
 
   if (likely(error == 0))
   {
@@ -2190,12 +2192,27 @@ bool check_duplicates_in_interval(const char *set_or_name,
 }
 
 
+/*
+  Resolves the column collation if:
+  - it was not typed at all, or
+  - it was contextually typed
+  according to the table level character set.
+  Generates an error to the diagnostics area in case of a failure.
+*/
 bool Column_definition::
        prepare_charset_for_string(const Column_derived_attributes *dattr)
 {
-  if (!charset)
-    charset= dattr->charset();
-  return (flags & BINCMP_FLAG) && !(charset= find_bin_collation(charset));
+  CHARSET_INFO *tmp= charset_collation_attrs().
+                       resolved_to_character_set(dattr->charset());
+  if (!tmp)
+    return true;
+  charset= tmp;
+  /*
+    Remove the "is contextually typed collation" indicator on success,
+    for safety.
+  */
+  flags&= ~CONTEXT_COLLATION_FLAG;
+  return false;
 }
 
 
@@ -3858,38 +3875,6 @@ bool validate_comment_length(THD *thd, LEX_CSTRING *comment, size_t max_len,
 
 
 /*
-  Set table default charset, if not set
-
-  SYNOPSIS
-    set_table_default_charset()
-    create_info        Table create information
-
-  DESCRIPTION
-    If the table character set was not given explicitly,
-    let's fetch the database default character set and
-    apply it to the table.
-*/
-
-static void set_table_default_charset(THD *thd, HA_CREATE_INFO *create_info,
-                                      const LEX_CSTRING &db)
-{
-  /*
-    If the table character set was not given explicitly,
-    let's fetch the database default character set and
-    apply it to the table.
-  */
-  if (!create_info->default_table_charset)
-  {
-    Schema_specification_st db_info;
-
-    load_db_opt_by_name(thd, db.str, &db_info);
-
-    create_info->default_table_charset= db_info.default_table_charset;
-  }
-}
-
-
-/*
   Extend long VARCHAR fields to blob & prepare field if it's a blob
 
   SYNOPSIS
@@ -3959,8 +3944,7 @@ bool Column_definition::prepare_blob_field(THD *thd)
 
 bool Column_definition::sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root)
 {
-  DBUG_ASSERT(charset);
-  const Column_derived_attributes dattr(&my_charset_bin);
+  const Column_derived_attributes dattr(thd->variables.collation_database);
   return prepare_stage1(thd, mem_root, NULL, HA_CAN_GEOMETRY, &dattr) ||
          prepare_stage2(NULL, HA_CAN_GEOMETRY);
 }
@@ -4048,13 +4032,13 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
   handler       *file;
   DBUG_ENTER("mysql_create_frm_image");
 
+  DBUG_ASSERT(create_info->default_table_charset);
+
   if (!alter_info->create_list.elements)
   {
     my_error(ER_TABLE_MUST_HAVE_COLUMNS, MYF(0));
     DBUG_RETURN(NULL);
   }
-
-  set_table_default_charset(thd, create_info, db);
 
   db_options= create_info->table_options_with_row_type();
 
@@ -4329,6 +4313,7 @@ err:
   @retval -1 table existed but IF NOT EXISTS was used
 */
 
+static
 int create_table_impl(THD *thd,
                       DDL_LOG_STATE *ddl_log_state_create,
                       DDL_LOG_STATE *ddl_log_state_rm,
@@ -4348,6 +4333,8 @@ int create_table_impl(THD *thd,
   DBUG_ENTER("create_table_impl");
   DBUG_PRINT("enter", ("db: '%s'  table: '%s'  tmp: %d  path: %s",
                        db.str, table_name.str, internal_tmp_table, path.str));
+
+  DBUG_ASSERT(create_info->default_table_charset);
 
   /* Easy check for ddl logging if we are creating a temporary table */
   if (create_info->tmp_table())
@@ -4421,8 +4408,7 @@ int create_table_impl(THD *thd,
       */
       if (table_creation_was_logged)
       {
-        thd->variables.option_bits|= OPTION_KEEP_LOG;
-        thd->log_current_statement= 1;
+        thd->variables.option_bits|= OPTION_BINLOG_THIS;
         create_info->table_was_deleted= 1;
       }
     }
@@ -4480,8 +4466,7 @@ int create_table_impl(THD *thd,
           We have to log this query, even if it failed later to ensure the
           drop is done.
         */
-        thd->variables.option_bits|= OPTION_KEEP_LOG;
-        thd->log_current_statement= 1;
+        thd->variables.option_bits|= OPTION_BINLOG_THIS;
         create_info->table_was_deleted= 1;
         lex_string_set(&create_info->org_storage_engine_name,
                        ha_resolve_storage_engine_name(db_type));
@@ -4497,16 +4482,16 @@ int create_table_impl(THD *thd,
       else if (options.if_not_exists())
       {
         /*
-          We never come here as part of normal create table as table existance
+          We never come here as part of normal create table as table existence
           is  checked in open_and_lock_tables(). We may come here as part of
           ALTER TABLE when converting a table for a distributed engine to a
           a local one.
         */
 
         /* Log CREATE IF NOT EXISTS on slave for distributed engines */
-        if (thd->slave_thread && (db_type && db_type->flags &
-                                  HTON_IGNORE_UPDATES))
-          thd->log_current_statement= 1;
+        if (thd->slave_thread && db_type &&
+            db_type->flags & HTON_IGNORE_UPDATES)
+          thd->variables.option_bits|= OPTION_BINLOG_THIS;
         goto warn;
       }
       else
@@ -4689,6 +4674,8 @@ int mysql_create_table_no_lock(THD *thd,
   LEX_CSTRING cpath;
   LEX_CUSTRING frm= {0,0};
 
+  DBUG_ASSERT(create_info->default_table_charset);
+
   if (create_info->tmp_table())
     path_length= build_tmptable_filename(thd, path, sizeof(path));
   else
@@ -4757,6 +4744,8 @@ int mysql_create_table_no_lock(THD *thd,
   close of thread tables.
 */
 
+
+static
 bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
                         Table_specification_st *create_info,
                         Alter_info *alter_info)
@@ -4769,6 +4758,8 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   bool is_trans= FALSE;
   bool result;
   DBUG_ENTER("mysql_create_table");
+
+  DBUG_ASSERT(create_info->default_table_charset);
 
   DBUG_ASSERT(create_table == thd->lex->query_tables);
 
@@ -4871,7 +4862,7 @@ err:
     thd->transaction->stmt.mark_created_temp_table();
 
   /* Write log if no error or if we already deleted a table */
-  if (likely(!result) || thd->log_current_statement)
+  if (!result || thd->log_current_statement())
   {
     if (unlikely(result) && create_info->table_was_deleted &&
         pos_in_locked_tables)
@@ -5208,6 +5199,7 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
     TRUE  error
 */
 
+static
 bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
                              TABLE_LIST* src_table,
                              Table_specification_st *create_info)
@@ -5282,6 +5274,14 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   local_create_info.db_type= src_table->table->s->db_type();
   local_create_info.row_type= src_table->table->s->row_type;
   local_create_info.alter_info= &local_alter_info;
+  /*
+    This statement:
+      CREATE TABLE t1 LIKE t2
+    does not support table charset/collation clauses.
+    No needs to copy. Assert they are empty.
+  */
+  DBUG_ASSERT(create_info->default_charset_collation.is_empty());
+  DBUG_ASSERT(create_info->convert_charset_collation.is_empty());
   if (mysql_prepare_alter_table(thd, src_table->table, &local_create_info,
                                 &local_alter_info, &local_alter_ctx))
     goto err;
@@ -5337,7 +5337,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
                                     &is_trans, C_ORDINARY_CREATE,
                                     table)) > 0);
   /* Remember to log if we deleted something */
-  do_logging= thd->log_current_statement;
+  do_logging= thd->log_current_statement();
   if (res)
     goto err;
 
@@ -7494,16 +7494,15 @@ static bool mysql_inplace_alter_table(THD *thd,
     lock for prepare phase under LOCK TABLES in the same way as when
     exclusive lock is required for duration of the whole statement.
   */
-  if (!ha_alter_info->mdl_exclusive_after_prepare &&
-      (inplace_supported == HA_ALTER_INPLACE_EXCLUSIVE_LOCK ||
-       ((inplace_supported == HA_ALTER_INPLACE_COPY_NO_LOCK ||
+  if (inplace_supported == HA_ALTER_INPLACE_EXCLUSIVE_LOCK ||
+      ((inplace_supported == HA_ALTER_INPLACE_COPY_NO_LOCK ||
         inplace_supported == HA_ALTER_INPLACE_COPY_LOCK ||
         inplace_supported == HA_ALTER_INPLACE_NOCOPY_NO_LOCK ||
         inplace_supported == HA_ALTER_INPLACE_NOCOPY_LOCK ||
         inplace_supported == HA_ALTER_INPLACE_INSTANT) &&
        (thd->locked_tables_mode == LTM_LOCK_TABLES ||
         thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)) ||
-      alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE))
+      alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE)
   {
     if (wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
       goto cleanup;
@@ -7636,7 +7635,8 @@ static bool mysql_inplace_alter_table(THD *thd,
     necessary only for prepare phase (unless we are not under LOCK TABLES) and
     user has not explicitly requested exclusive lock.
   */
-  if ((inplace_supported == HA_ALTER_INPLACE_COPY_NO_LOCK ||
+  if (!ha_alter_info->mdl_exclusive_after_prepare &&
+      (inplace_supported == HA_ALTER_INPLACE_COPY_NO_LOCK ||
        inplace_supported == HA_ALTER_INPLACE_COPY_LOCK ||
        inplace_supported == HA_ALTER_INPLACE_NOCOPY_LOCK ||
        inplace_supported == HA_ALTER_INPLACE_NOCOPY_NO_LOCK) &&
@@ -7935,12 +7935,14 @@ void append_drop_column(THD *thd, String *str, Field *field)
 
 bool
 mysql_prepare_alter_table(THD *thd, TABLE *table,
-                          HA_CREATE_INFO *create_info,
+                          Table_specification_st *create_info,
                           Alter_info *alter_info,
                           Alter_table_ctx *alter_ctx)
 {
   /* New column definitions are added here */
   List<Create_field> new_create_list;
+  /* System-invisible fields must be added last */
+  List<Create_field> new_create_tail;
   /* New key definitions are added here */
   List<Key> new_key_list;
   List<Alter_rename_key> rename_key_list(alter_info->alter_rename_key_list);
@@ -7999,8 +8001,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     create_info->max_rows= table->s->max_rows;
   if (!(used_fields & HA_CREATE_USED_AVG_ROW_LENGTH))
     create_info->avg_row_length= table->s->avg_row_length;
-  if (!(used_fields & HA_CREATE_USED_DEFAULT_CHARSET))
-    create_info->default_table_charset= table->s->table_charset;
+
+  if (create_info->resolve_to_charset_collation_context(thd,
+        thd->charset_collation_context_alter_table(table->s)))
+    DBUG_RETURN(true);
+
   if (!(used_fields & HA_CREATE_USED_AUTO) && table->found_next_number_field)
   {
     /* Table has an autoincrement, copy value to new table */
@@ -8167,7 +8172,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       dropped_sys_vers_fields|= field->flags;
       drop_it.remove();
     }
-    else
+    else if (field->invisible < INVISIBLE_SYSTEM)
     {
       /*
         This field was not dropped and not changed, add it to the list
@@ -8217,6 +8222,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
 	alter_it.remove();
       }
+    }
+    else
+    {
+      DBUG_ASSERT(field->invisible == INVISIBLE_SYSTEM);
+      def= new (thd->mem_root) Create_field(thd, field, field);
+      new_create_tail.push_back(def, thd->mem_root);
     }
   }
 
@@ -8380,6 +8391,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       alter_it.remove();
     }
   }
+
+  new_create_list.append(&new_create_tail);
+
   if (unlikely(alter_info->alter_list.elements))
   {
     my_error(ER_BAD_FIELD_ERROR, MYF(0),
@@ -9749,7 +9763,7 @@ static uint64 get_start_alter_id(THD *thd)
 
 bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                        const LEX_CSTRING *new_name,
-                       HA_CREATE_INFO *create_info,
+                       Table_specification_st *create_info,
                        TABLE_LIST *table_list,
                        Alter_info *alter_info,
                        uint order_num, ORDER *order, bool ignore,
@@ -9757,7 +9771,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 {
   bool engine_changed, error, frm_is_created= false, error_handler_pushed= false;
   bool no_ha_table= true;  /* We have not created table in storage engine yet */
-  TABLE *table, *new_table;
+  TABLE *table, *new_table= nullptr;
   DDL_LOG_STATE ddl_log_state;
   Turn_errors_to_warnings_handler errors_to_warnings;
 
@@ -9791,7 +9805,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   bool varchar= create_info->varchar, table_creation_was_logged= 0;
   bool binlog_as_create_select= 0, log_if_exists= 0;
   uint tables_opened;
-  handlerton *new_db_type, *old_db_type= nullptr;
+  handlerton *new_db_type= create_info->db_type, *old_db_type;
   ha_rows copied=0, deleted=0;
   LEX_CUSTRING frm= {0,0};
   LEX_CSTRING backup_name;
@@ -10142,22 +10156,24 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     create_info->used_fields |= HA_CREATE_USED_ROW_FORMAT;
   }
 
+  old_db_type= table->s->db_type();
+  new_db_type= create_info->db_type;
+
   DBUG_PRINT("info", ("old type: %s  new type: %s",
-             ha_resolve_storage_engine_name(table->s->db_type()),
-             ha_resolve_storage_engine_name(create_info->db_type)));
-  if (ha_check_storage_engine_flag(table->s->db_type(), HTON_ALTER_NOT_SUPPORTED))
+             ha_resolve_storage_engine_name(old_db_type),
+             ha_resolve_storage_engine_name(new_db_type)));
+  if (ha_check_storage_engine_flag(old_db_type, HTON_ALTER_NOT_SUPPORTED))
   {
     DBUG_PRINT("info", ("doesn't support alter"));
-    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(table->s->db_type())->str,
+    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(old_db_type)->str,
              alter_ctx.db.str, alter_ctx.table_name.str);
     DBUG_RETURN(true);
   }
 
-  if (ha_check_storage_engine_flag(create_info->db_type,
-                                   HTON_ALTER_NOT_SUPPORTED))
+  if (ha_check_storage_engine_flag(new_db_type, HTON_ALTER_NOT_SUPPORTED))
   {
     DBUG_PRINT("info", ("doesn't support alter"));
-    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(create_info->db_type)->str,
+    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(new_db_type)->str,
              alter_ctx.new_db.str, alter_ctx.new_name.str);
     DBUG_RETURN(true);
   }
@@ -10318,7 +10334,20 @@ do_continue:;
     {
       DBUG_RETURN(true);
     }
+    if (parse_engine_part_options(thd, table))
+      DBUG_RETURN(true);
   }
+  /*
+    If the old table had partitions and we are doing ALTER TABLE ...
+    engine= <new_engine>, the new table must preserve the original
+    partitioning. This means that the new engine is still the
+    partitioning engine, not the engine specified in the parser.
+    This is discovered in prep_alter_part_table, which in such case
+    updates create_info->db_type.
+    It's therefore important that the assignment below is done
+    after prep_alter_part_table.
+  */
+  new_db_type= create_info->db_type;
 #endif
 
   if (mysql_prepare_alter_table(thd, table, create_info, alter_info,
@@ -10327,7 +10356,7 @@ do_continue:;
     DBUG_RETURN(true);
   }
 
-  set_table_default_charset(thd, create_info, alter_ctx.db);
+  DBUG_ASSERT(create_info->default_table_charset);
 
   if (create_info->check_fields(thd, alter_info,
                                 table_list->table_name, table_list->db) ||
@@ -10397,7 +10426,7 @@ do_continue:;
        Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
       || is_inplace_alter_impossible(table, create_info, alter_info)
       || IF_PARTITIONING((partition_changed &&
-          !(table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION)), 0))
+          !(old_db_type->partition_flags() & HA_USE_AUTO_PARTITION)), 0))
   {
     if (alter_info->algorithm(thd) ==
         Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
@@ -10415,23 +10444,9 @@ do_continue:;
     request table rebuild. Set ALTER_RECREATE flag to force table
     rebuild.
   */
-  if (create_info->db_type == table->s->db_type() &&
+  if (new_db_type == old_db_type &&
       create_info->used_fields & HA_CREATE_USED_ENGINE)
     alter_info->flags|= ALTER_RECREATE;
-
-  /*
-    If the old table had partitions and we are doing ALTER TABLE ...
-    engine= <new_engine>, the new table must preserve the original
-    partitioning. This means that the new engine is still the
-    partitioning engine, not the engine specified in the parser.
-    This is discovered in prep_alter_part_table, which in such case
-    updates create_info->db_type.
-    It's therefore important that the assignment below is done
-    after prep_alter_part_table.
-  */
-  new_db_type= create_info->db_type;
-  old_db_type= table->s->db_type();
-  new_table= NULL;
 
   /*
     Handling of symlinked tables:
@@ -11761,7 +11776,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
 bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
 {
-  HA_CREATE_INFO create_info;
+  Table_specification_st create_info;
   Alter_info alter_info;
   TABLE_LIST *next_table= table_list->next_global;
   DBUG_ENTER("mysql_recreate_table");
@@ -11773,9 +11788,8 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
   /* hide following tables from open_tables() */
   table_list->next_global= NULL;
 
-  bzero((char*) &create_info, sizeof(create_info));
+  create_info.init();
   create_info.row_type=ROW_TYPE_NOT_USED;
-  create_info.default_table_charset=default_charset_info;
   create_info.alter_info= &alter_info;
   /* Force alter table to recreate table */
   alter_info.flags= (ALTER_CHANGE_COLUMN | ALTER_RECREATE);
@@ -11884,8 +11898,10 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
     {
       /* Call ->checksum() if the table checksum matches 'old_mode' settings */
       if (!(check_opt->flags & T_EXTEND) &&
-          (((t->file->ha_table_flags() & HA_HAS_OLD_CHECKSUM) && thd->variables.old_mode) ||
-           ((t->file->ha_table_flags() & HA_HAS_NEW_CHECKSUM) && !thd->variables.old_mode)))
+          (((t->file->ha_table_flags() & HA_HAS_OLD_CHECKSUM) &&
+           (thd->variables.old_behavior & OLD_MODE_COMPAT_5_1_CHECKSUM)) ||
+           ((t->file->ha_table_flags() & HA_HAS_NEW_CHECKSUM) &&
+           !(thd->variables.old_behavior & OLD_MODE_COMPAT_5_1_CHECKSUM))))
       {
         if (t->file->info(HA_STATUS_VARIABLE) || t->file->stats.checksum_null)
           protocol->store_null();
@@ -12030,6 +12046,11 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 
   const bool used_engine= lex->create_info.used_fields & HA_CREATE_USED_ENGINE;
   DBUG_ASSERT((m_storage_engine_name.str != NULL) == used_engine);
+
+  if (lex->create_info.resolve_to_charset_collation_context(thd,
+        thd->charset_collation_context_create_table_in_db(first_table->db.str)))
+    DBUG_RETURN(true);
+
   if (used_engine)
   {
     if (resolve_storage_engine_with_error(thd, &lex->create_info.db_type,
@@ -12102,19 +12123,9 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
   */
   if (!(create_info.used_fields & HA_CREATE_USED_ENGINE))
     create_info.use_default_db_type(thd);
-  /*
-    If we are using SET CHARSET without DEFAULT, add an implicit
-    DEFAULT to not confuse old users. (This may change).
-  */
-  if ((create_info.used_fields &
-       (HA_CREATE_USED_DEFAULT_CHARSET | HA_CREATE_USED_CHARSET)) ==
-      HA_CREATE_USED_CHARSET)
-  {
-    create_info.used_fields&= ~HA_CREATE_USED_CHARSET;
-    create_info.used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
-    create_info.default_table_charset= create_info.alter_table_convert_to_charset;
-    create_info.alter_table_convert_to_charset= 0;
-  }
+
+  DBUG_ASSERT(!(create_info.used_fields & HA_CREATE_USED_CHARSET));
+  DBUG_ASSERT(create_info.convert_charset_collation.is_empty());
 
   /*
     If we are a slave, we should add OR REPLACE if we don't have
@@ -12266,7 +12277,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
         if (!(res= handle_select(thd, lex, result, 0)))
         {
           if (create_info.tmp_table())
-            thd->variables.option_bits|= OPTION_KEEP_LOG;
+            thd->variables.option_bits|= OPTION_BINLOG_THIS_TRX;
         }
         delete result;
       }
@@ -12326,7 +12337,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
     {
       /* So that CREATE TEMPORARY TABLE gets to binlog at commit/rollback */
       if (create_info.tmp_table())
-        thd->variables.option_bits|= OPTION_KEEP_LOG;
+        thd->variables.option_bits|= OPTION_BINLOG_THIS_TRX;
       /* in case of create temp tables if @@session_track_state_change is
          ON then send session state notification in OK packet */
       if (create_info.options & HA_LEX_CREATE_TMP_TABLE)
@@ -12339,4 +12350,47 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 
 end_with_restore_list:
   DBUG_RETURN(res);
+}
+
+
+bool HA_CREATE_INFO::
+       resolve_to_charset_collation_context(THD *thd,
+             const Lex_table_charset_collation_attrs_st &default_cscl_arg,
+             const Lex_table_charset_collation_attrs_st &convert_cscl,
+             const Charset_collation_context &ctx)
+{
+  /*
+    If CONVERT TO clauses are specified only (without table default clauses),
+    then we copy CONVERT TO clauses to default clauses, so e.g:
+      CONVERT TO CHARACTER SET utf8mb4
+    means
+      CONVERT TO CHARACTER SET utf8mb4, DEFAULT CHARACTER SET utf8mb4
+  */
+  Lex_table_charset_collation_attrs_st default_cscl=
+    !convert_cscl.is_empty() && default_cscl_arg.is_empty() ?
+    convert_cscl : default_cscl_arg;
+
+  if (default_cscl.is_empty())
+    default_table_charset= ctx.collate_default().charset_info();
+  else
+  {
+    // Make sure we don't do double resolution in direct SQL execution
+    DBUG_ASSERT(!default_table_charset || thd->stmt_arena->is_stmt_execute());
+    if (!(default_table_charset=
+            default_cscl.resolved_to_context(ctx)))
+      return true;
+  }
+
+  if (convert_cscl.is_empty())
+    alter_table_convert_to_charset= NULL;
+  else
+  {
+    // Make sure we don't do double resolution in direct SQL execution
+    DBUG_ASSERT(!alter_table_convert_to_charset ||
+                thd->stmt_arena->is_stmt_execute());
+    if (!(alter_table_convert_to_charset=
+            convert_cscl.resolved_to_context(ctx)))
+      return true;
+  }
+  return false;
 }

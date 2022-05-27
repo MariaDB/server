@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,15 +28,8 @@ Created 2012/04/12 by Sunny Bains
 #ifndef ut0counter_h
 #define ut0counter_h
 
-#include "os0thread.h"
+#include "univ.i"
 #include "my_rdtsc.h"
-
-/** CPU cache line size */
-#ifdef CPU_LEVEL1_DCACHE_LINESIZE
-# define CACHE_LINE_SIZE	CPU_LEVEL1_DCACHE_LINESIZE
-#else
-# error CPU_LEVEL1_DCACHE_LINESIZE is undefined
-#endif /* CPU_LEVEL1_DCACHE_LINESIZE */
 
 /** Use the result of my_timer_cycles(), which mainly uses RDTSC for cycles
 as a random value. See the comments for my_timer_cycles() */
@@ -53,7 +46,7 @@ get_rnd_value()
 	/* We may go here if my_timer_cycles() returns 0,
 	so we have to have the plan B for the counter. */
 #if !defined(_WIN32)
-	return (size_t)os_thread_get_curr_id();
+	return (size_t)pthread_self();
 #else
 	LARGE_INTEGER cnt;
 	QueryPerformanceCounter(&cnt);
@@ -71,19 +64,18 @@ be zero-initialized by the run-time environment.
 @see srv_stats */
 template <typename Type>
 struct ib_atomic_counter_element_t {
-	MY_ALIGNED(CACHE_LINE_SIZE) Atomic_relaxed<Type> value;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) Atomic_relaxed<Type> value;
 };
 
 template <typename Type>
 struct ib_counter_element_t {
-	MY_ALIGNED(CACHE_LINE_SIZE) Type value;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) Type value;
 };
 
 
 /** Class for using fuzzy counters. The counter is multi-instance relaxed atomic
 so the results are not guaranteed to be 100% accurate but close
-enough. Creates an array of counters and separates each element by the
-CACHE_LINE_SIZE bytes */
+enough. */
 template <typename Type,
           template <typename T> class Element = ib_atomic_counter_element_t,
           int N = 128 >
@@ -123,9 +115,9 @@ struct ib_counter_t {
 	}
 
 private:
-	static_assert(sizeof(Element<Type>) == CACHE_LINE_SIZE, "");
+	static_assert(sizeof(Element<Type>) == CPU_LEVEL1_DCACHE_LINESIZE, "");
 	/** Array of counter elements */
-	MY_ALIGNED(CACHE_LINE_SIZE) Element<Type> m_counter[N];
+	alignas(CPU_LEVEL1_DCACHE_LINESIZE) Element<Type> m_counter[N];
 };
 
 #endif /* ut0counter_h */

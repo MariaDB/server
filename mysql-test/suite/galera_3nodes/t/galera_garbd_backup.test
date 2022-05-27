@@ -1,0 +1,136 @@
+#
+# A very basic test for the galera arbitrator. We shut down node #3 and use its port allocation to start garbd.
+# As MTR does not allow multiple servers to be down at the same time, we are limited as to what we can test.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_garbd.inc
+--source include/big_test.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--connection node_1
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+--source suite/galera/include/galera_base_port.inc
+--let $NODE_GALERAPORT_3 = $_NODE_GALERAPORT
+
+--source ../galera/include/auto_increment_offset_save.inc
+
+# Save galera ports
+--connection node_1
+--source suite/galera/include/galera_base_port.inc
+--let $NODE_GALERAPORT_1 = $_NODE_GALERAPORT
+--let $datadir= `SELECT @@datadir`
+
+--let $innodb_max_dirty_pages_pct = `SELECT @@innodb_max_dirty_pages_pct`
+--let $innodb_max_dirty_pages_pct_lwm = `SELECT @@innodb_max_dirty_pages_pct_lwm`
+
+SET GLOBAL innodb_max_dirty_pages_pct=99;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=99;
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER, f2 varchar(1024)) Engine=InnoDB;
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+INSERT INTO t1 (f2) SELECT REPEAT('x', 1024) FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+ 
+--connection node_2
+--source suite/galera/include/galera_base_port.inc
+--let $NODE_GALERAPORT_2 = $_NODE_GALERAPORT
+
+--echo Killing node #3 to free ports for garbd ...
+--connection node_3
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+# stop SST donor thread when node is in donor state
+SET GLOBAL debug_dbug = "+d,sync.wsrep_donor_state";
+
+--echo Starting garbd ...
+--exec $MTR_GARBD_EXE --address "gcomm://127.0.0.1:$NODE_GALERAPORT_1" --group my_wsrep_cluster --donor node1 --sst backup --options 'base_port=$NODE_GALERAPORT_3' > $MYSQL_TMP_DIR/garbd.log 2>&1 &
+
+SET SESSION debug_sync = "now WAIT_FOR sync.wsrep_donor_state_reached";
+
+#
+# get hash of data directory contents before BP dirty page flushing
+#
+--exec find $datadir -type f ! -name tables_flushed ! -name backup_sst_complete -exec md5sum {} \; | md5sum >$MYSQLTEST_VARDIR/tmp/innodb_before
+
+# this should force buffer pool flushing, if not already done by donor state change transfer
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0;
+SET GLOBAL innodb_max_dirty_pages_pct=0;
+
+--disable_query_log
+--disable_result_log
+select f1 from t1;
+select * from ten;
+--enable_result_log
+--enable_query_log
+
+#
+#
+# record the hash of data directory contents after BP dirty page flushing
+#
+--exec find $datadir -type f ! -name tables_flushed ! -name backup_sst_complete -exec md5sum {} \; | md5sum >$MYSQLTEST_VARDIR/tmp/innodb_after
+
+# there should be no disk writes
+--diff_files $MYSQLTEST_VARDIR/tmp/innodb_before $MYSQLTEST_VARDIR/tmp/innodb_after
+
+SET SESSION debug_sync = "now SIGNAL signal.wsrep_donor_state";
+SET GLOBAL debug_dbug = "";
+SET debug_sync='RESET';
+
+--connection node_2
+
+#
+# garbd will die automatically, because of the backup SST script
+# but just to be sure, sending explicit kill here, as well
+#
+--echo Killing garbd ...
+# FreeBSD's /bin/pkill only supports short versions of the options:
+# -o Select only the oldest (least recently started)
+# -f Match against full argument lists
+--error 0,1
+--exec pkill -o -f garbd.*$NODE_GALERAPORT_3
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_2
+
+DROP TABLE t1;
+DROP TABLE ten;
+
+--echo Restarting node #3 to satisfy MTR's end-of-test checks
+--connection node_3
+let $restart_noprint=2;
+--source include/start_mysqld.inc
+
+--connection node_1
+--disable_query_log
+--eval SET GLOBAL innodb_max_dirty_pages_pct = $innodb_max_dirty_pages_pct
+--eval SET GLOBAL innodb_max_dirty_pages_pct_lwm = $innodb_max_dirty_pages_pct_lwm
+--enable_query_log
+
+--source ../galera/include/auto_increment_offset_restore.inc
+
+--connection node_1
+CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+
+--connection node_2
+CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+
+--connection node_3
+CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");

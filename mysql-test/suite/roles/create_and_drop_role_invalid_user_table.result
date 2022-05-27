@@ -18,7 +18,7 @@ grant test_role to test_user@localhost;
 set default role test_role for root@localhost;
 drop role test_role;
 drop user test_user@localhost;
-alter table user add column default_role char(80) binary default '' not null
+alter table user add column default_role char(80) default '' not null
 COLLATE utf8_general_ci
 after is_role;
 alter table user add max_statement_time decimal(12,6) default 0 not null

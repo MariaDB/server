@@ -1,16 +1,10 @@
 --source include/have_innodb.inc
 
 #
-# test of already fixed bugs
-#
---disable_warnings
-drop table if exists t1,t2,t3,t4,t5,t6;
-drop database if exists mysqltest;
-
-#
 # Bug 10838
 # Insert causes warnings for no default values and corrupts tables
 #
+--disable_warnings
 set sql_mode="";
 CREATE TABLE t1 (a varchar(30) binary NOT NULL DEFAULT ' ',
                  b varchar(1) binary NOT NULL DEFAULT ' ',
@@ -1891,7 +1885,9 @@ show create table t2;
 show create table t3;
 drop table t1, t2, t3;
 
+--echo #
 --echo # MDEV-11359: Implement IGNORE for bulk operation
+--echo #
 create table t1 (a int primary key default 0, b int default 3);
 insert into t1 values (1, ignore);
 insert into t1 values (2, ignore);
@@ -2071,9 +2067,9 @@ select * from t1;
 drop table t1;
 set sql_mode=default;
 
-#
-# MDEV-10201 Bad results for CREATE TABLE t1 (a INT DEFAULT b, b INT DEFAULT 4)
-#
+--echo #
+--echo # MDEV-10201 Bad results for CREATE TABLE t1 (a INT DEFAULT b, b INT DEFAULT 4)
+--echo #
 create table t1 (a int default b, b int default 4, t text);
 insert t1 (b, t) values (5, '1 column is omitted');
 insert t1 values (default, 5, '2 column gets DEFAULT, keyword');
@@ -2088,15 +2084,15 @@ insert t1 (t,b,a) values ('9 reversed, the value of the DEFAULT(a), that is b', 
 select * from t1 order by t;
 drop table t1;
 
-#
-# MDEV-10352 Server crashes in Field::set_default on CREATE TABLE
-#
+--echo #
+--echo # MDEV-10352 Server crashes in Field::set_default on CREATE TABLE
+--echo #
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 create table t1 (col1 int default(-(default(col1))));
 
-#
-# MDEV-10354 Assertion `! is_set()' failed in Diagnostics_area::set_ok_status on CREATE TABLE with invalid default
-#
+--echo #
+--echo # MDEV-10354 Assertion `! is_set()' failed in Diagnostics_area::set_ok_status on CREATE TABLE with invalid default
+--echo #
 --error ER_DATA_OUT_OF_RANGE
 create table t1 (col int default (yearweek((exp(710)))));
 
@@ -2116,7 +2112,34 @@ DROP TABLE t1;
 create table t1 (a int as (a));
 show warnings;
 
---echo # end of 10.2 test
+
+--echo #
+--echo # MDEV-26423: MariaDB server crash in Create_tmp_table::finalize
+--echo #
+
+CREATE TABLE t1 (pk varchar(36) DEFAULT uuid());
+INSERT INTO t1 VALUES (),();
+SELECT 1 FROM t1 GROUP BY DEFAULT(pk);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-28402: ASAN heap-use-after-free in create_tmp_table,
+--echo # Assertion `l_offset >= 0 && table->s->rec_buff_length - l_offset > 0'
+--echo #
+CREATE TABLE t (a INT, KEY (a));
+INSERT INTO t VALUES (1),(2);
+SELECT DISTINCT DEFAULT(a), CASE a WHEN 0 THEN 1 ELSE 2 END FROM t GROUP BY a WITH ROLLUP;
+DROP TABLE t;
+
+CREATE TABLE t (a INT, KEY (a));
+INSERT INTO t VALUES (1),(2);
+CREATE ALGORITHM=TEMPTABLE VIEW v AS SELECT * FROM t;
+SELECT DISTINCT DEFAULT(a), CASE a WHEN 0 THEN 1 ELSE 2 END FROM v GROUP BY a WITH ROLLUP;
+DROP TABLE t;
+DROP VIEW v;
+--echo #
+--echo # End of 10.2 test
+--echo #
 
 --echo #
 --echo # MDEV-22703 DEFAULT() on a BLOB column can overwrite the default
@@ -2134,4 +2157,18 @@ SELECT length(DEFAULT(h)) FROM t1;
 INSERT INTO t1 () VALUES ();
 drop table t1;
 
---echo # end of 10.3 test
+--echo #
+--echo # End of 10.3 test
+--echo #
+
+--echo #
+--echo # MDEV-26423: MariaDB server crash in Create_tmp_table::finalize
+--echo #
+CREATE TABLE t1 (pk text DEFAULT length(uuid()));
+INSERT INTO t1 VALUES (),();
+SELECT 1 FROM t1 GROUP BY DEFAULT(pk);
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 test
+--echo #

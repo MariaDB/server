@@ -683,7 +683,8 @@ The following specify which files/extra groups are read (specified before remain
  --old-mode=name     Used to emulate old behavior from earlier MariaDB or
  MySQL versions. Any combination of: 
  NO_DUP_KEY_WARNINGS_WITH_IGNORE, NO_PROGRESS_INFO, 
- ZERO_DATE_TIME_CAST, UTF8_IS_UTF8MB3
+ ZERO_DATE_TIME_CAST, UTF8_IS_UTF8MB3, 
+ IGNORE_INDEX_ONLY_FOR_JOIN, COMPAT_5_1_CHECKSUM
  --old-passwords     Use old password encryption method (needed for 4.0 and
  older clients)
  --old-style-user-limits 
@@ -1714,7 +1715,7 @@ performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-sql-text-length 1024
 performance-schema-max-stage-classes 160
-performance-schema-max-statement-classes 221
+performance-schema-max-statement-classes 222
 performance-schema-max-statement-stack 10
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1

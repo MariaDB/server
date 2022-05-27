@@ -2,19 +2,19 @@
 # Test lock taken
 #
 BACKUP LOCK test.t1;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_SHARED_HIGH_PRIO	Table metadata lock	test	t1
 BACKUP UNLOCK;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 BACKUP LOCK t1;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_SHARED_HIGH_PRIO	Table metadata lock	test	t1
 BACKUP UNLOCK;
 BACKUP LOCK non_existing.t1;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_SHARED_HIGH_PRIO	Table metadata lock	non_existing	t1
 BACKUP UNLOCK;
@@ -49,7 +49,7 @@ create sequence seq2;
 backup lock seq1;
 connection con1;
 CREATE OR REPLACE SEQUENCE seq1 START -28;
-ERROR HY000: Sequence 'test.seq1' values are conflicting
+ERROR HY000: Sequence 'test.seq1' has out of range value for options
 SET STATEMENT max_statement_time=10 FOR CREATE OR REPLACE SEQUENCE seq1 START 50;
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 SET STATEMENT max_statement_time=10 FOR ALTER SEQUENCE IF EXISTS seq1 NOMAXVALUE;

@@ -227,28 +227,28 @@ maxvalue 100000
 increment by 1
 nocache
 nocycle;
-ERROR HY000: Sequence 's_db.s2' values are conflicting
+ERROR HY000: Sequence 's_db.s2' has out of range value for options
 create sequence s2 start with 1
 minvalue 5
 maxvalue 5
 increment by 1
 nocache
 nocycle;
-ERROR HY000: Sequence 's_db.s2' values are conflicting
+ERROR HY000: Sequence 's_db.s2' has out of range value for options
 create sequence s2 start with 1
 minvalue 5
 maxvalue 4
 increment by 1
 nocache
 nocycle;
-ERROR HY000: Sequence 's_db.s2' values are conflicting
+ERROR HY000: Sequence 's_db.s2' has out of range value for options
 create sequence s2 start with 1
 minvalue 5
 maxvalue 4
 increment by 0
 nocache
 nocycle;
-ERROR HY000: Sequence 's_db.s2' values are conflicting
+ERROR HY000: Sequence 's_db.s2' has out of range value for options
 ###########################################
 global read lock prevent query sequence
 ###########################################
@@ -412,12 +412,12 @@ select * from s_t;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 16	1	20	1	1	5	1	0
 alter sequence s_t minvalue=11 maxvalue=9;
-ERROR HY000: Sequence 's_db.s_t' values are conflicting
+ERROR HY000: Sequence 's_db.s_t' has out of range value for options
 select * from s_t;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 16	1	20	1	1	5	1	0
 alter sequence s_t restart= 12 start=10 minvalue=11 maxvalue=20;
-ERROR HY000: Sequence 's_db.s_t' values are conflicting
+ERROR HY000: Sequence 's_db.s_t' has out of range value for options
 select * from s_t;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 16	1	20	1	1	5	1	0

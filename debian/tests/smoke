@@ -4,7 +4,7 @@
 #
 # This test should be declared in debian/tests/control with a dependency
 # on the package that provides a configured MariaDB server (eg.
-# mariadb-server-10.9).
+# mariadb-server).
 #
 # This test should be declared in debian/tests/control with the
 # following restrictions:
@@ -38,6 +38,11 @@ else
   # If systemd (and systemctl) is available, but the service did not start, then
   # this smoke test is supposed to fail if next commands don't work.
   echo "Found systemctl, continuing smoke test.."
+  # Compression plugins are separated from main server package
+  # to own packages (for example LZ4 package mariadb-plugin-provider-lz4)
+  # and they are installed after mariadb-server.
+  # which means that they don't exist if MariaDB is not restarted
+  systemctl restart mariadb
 fi
 
 mysql <<EOT
@@ -71,10 +76,10 @@ EOT
 # but disabled  with '#' the options that are not available in this binary build
 mariadb <<EOT
 SET GLOBAL innodb_compression_algorithm=lz4;
-#SET GLOBAL innodb_compression_algorithm=lzo;
-#SET GLOBAL innodb_compression_algorithm=lzma;
-#SET GLOBAL innodb_compression_algorithm=bzip2;
-#SET GLOBAL innodb_compression_algorithm=snappy;
+SET GLOBAL innodb_compression_algorithm=lzo;
+SET GLOBAL innodb_compression_algorithm=lzma;
+SET GLOBAL innodb_compression_algorithm=bzip2;
+SET GLOBAL innodb_compression_algorithm=snappy;
 SET GLOBAL innodb_compression_algorithm=zlib;
 SET GLOBAL innodb_compression_algorithm=none;
 EOT
@@ -88,7 +93,7 @@ if [ "$(dpkg-architecture -qDEB_HOST_ARCH_BITS)" != 32 ] &&
 
   LOG=/var/lib/mysql/#rocksdb/LOG
   # XXX: The server may only be started during the install of
-  #      mariadb-server-10.9, which happens before that of the plugin.
+  #      mariadb-server, which happens before that of the plugin.
   [ -e $LOG ] || mysql -e "INSTALL PLUGIN RocksDB SONAME 'ha_rocksdb';"
   # XXX: rocksdb_supported_compression_types variable does not report ZSTD.
 

@@ -1,7 +1,7 @@
 SET timestamp=UNIX_TIMESTAMP('2001-02-03 10:20:30');
 drop table if exists t1, t2, t3;
 create table t1 (a time(7));
-ERROR 42000: Too big precision 7 specified for 'a'. Maximum is 6
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
 create table t1 (a time(3), key(a));
 insert t1 values ('2010-12-11 00:20:03.1234');
 Warnings:
@@ -907,3 +907,24 @@ a	CEILING(a)	CEILING_SP(a)	CEILING(a)=CEILING_SP(a)
 DROP FUNCTION FLOOR_SP;
 DROP FUNCTION CEILING_SP;
 DROP TABLE t1;
+#
+# Start of 10.9 tests
+#
+#
+# MDEV-27712 Reduce the size of Lex_length_and_dec_st from 16 to 8
+#
+CREATE TABLE t1 (a TIME(4294967295));
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
+CREATE TABLE t1 (a TIME(4294967296));
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
+CREATE TABLE t1 (a TIME(999999999999999999999999999999));
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
+SELECT CAST(1 AS TIME(4294967295));
+ERROR 42000: Too big precision specified for '1'. Maximum is 6
+SELECT CAST(1 AS TIME(4294967296));
+ERROR 42000: Too big precision specified for '1'. Maximum is 6
+SELECT CAST(1 AS TIME(999999999999999999999999999999));
+ERROR 42000: Too big precision specified for '1'. Maximum is 6
+#
+# Start of 10.9 tests
+#

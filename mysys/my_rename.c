@@ -46,12 +46,15 @@ static BOOL win_rename_with_retries(const char *from, const char *to)
 
   for (int retry= RENAME_MAX_RETRIES; retry--;)
   {
-    DWORD ret = MoveFileEx(from, to,
+    BOOL ret= MoveFileEx(from, to,
                          MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING);
 
-    DBUG_ASSERT(fp == NULL || (ret == FALSE && GetLastError() == ERROR_SHARING_VIOLATION));
+    if (ret)
+      return ret;
 
-    if (!ret && (GetLastError() == ERROR_SHARING_VIOLATION))
+    DWORD last_error= GetLastError();
+    if (last_error == ERROR_SHARING_VIOLATION ||
+        last_error == ERROR_ACCESS_DENIED)
     {
 #ifndef DBUG_OFF
        /*

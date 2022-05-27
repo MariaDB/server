@@ -6,6 +6,9 @@
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Difficult to find free blocks in the buffer pool");
+--disable_query_log
+# This may be triggered on a slow system.
+call mtr.add_suppression("InnoDB: Trying to delete tablespace.*pending operations");
 --enable_query_log
 
 SET GLOBAL innodb_undo_log_truncate = 0;
@@ -46,6 +49,8 @@ connection default;
 let $trx_before= `SHOW ENGINE INNODB STATUS`;
 let $trx_before= `select substr('$trx_before',9)+2`;
 
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SET GLOBAL innodb_max_purge_lag_wait=0;
 set global innodb_fast_shutdown=0;
 --source include/restart_mysqld.inc
 --replace_regex /.*Trx id counter ([0-9]+).*/\1/

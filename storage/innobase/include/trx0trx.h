@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -388,13 +388,13 @@ struct trx_lock_t
 					only be modified by the thread that is
 					serving the running transaction. */
 
-	/** Pre-allocated record locks */
-	struct {
-		ib_lock_t lock; byte pad[256];
-	} rec_pool[8];
+  /** Pre-allocated record locks */
+  struct {
+    alignas(CPU_LEVEL1_DCACHE_LINESIZE) ib_lock_t lock;
+  } rec_pool[8];
 
-	/** Pre-allocated table locks */
-	ib_lock_t	table_pool[8];
+  /** Pre-allocated table locks */
+  ib_lock_t table_pool[8];
 
   /** Memory heap for trx_locks. Protected by lock_sys.assert_locked()
   and lock_sys.is_writer() || trx->mutex_is_owner(). */
@@ -562,7 +562,7 @@ no longer be associated with a session when the server is restarted.
 
 A session may be served by at most one thread at a time. The serving
 thread of a session might change in some MySQL implementations.
-Therefore we do not have os_thread_get_curr_id() assertions in the code.
+Therefore we do not have pthread_self() assertions in the code.
 
 Normally, only the thread that is currently associated with a running
 transaction may access (read and modify) the trx object, and it may do
@@ -623,6 +623,7 @@ private:
     that it is no longer "active".
   */
 
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE)
   Atomic_counter<int32_t> n_ref;
 
 
@@ -640,7 +641,7 @@ private:
   srw_spin_mutex mutex;
 #ifdef UNIV_DEBUG
   /** The owner of mutex (0 if none); protected by mutex */
-  std::atomic<os_thread_id_t> mutex_owner{0};
+  std::atomic<pthread_t> mutex_owner{0};
 #endif /* UNIV_DEBUG */
 public:
   void mutex_init() { mutex.init(); }
@@ -651,14 +652,14 @@ public:
   {
     ut_ad(!mutex_is_owner());
     mutex.wr_lock();
-    ut_ad(!mutex_owner.exchange(os_thread_get_curr_id(),
+    ut_ad(!mutex_owner.exchange(pthread_self(),
                                 std::memory_order_relaxed));
   }
   /** Release the mutex */
   void mutex_unlock()
   {
     ut_ad(mutex_owner.exchange(0, std::memory_order_relaxed)
-	  == os_thread_get_curr_id());
+	  == pthread_self());
     mutex.wr_unlock();
   }
 #ifndef SUX_LOCK_GENERIC
@@ -669,7 +670,7 @@ public:
   bool mutex_is_owner() const
   {
     return mutex_owner.load(std::memory_order_relaxed) ==
-      os_thread_get_curr_id();
+      pthread_self();
   }
 #endif /* UNIV_DEBUG */
 
@@ -738,7 +739,7 @@ public:
 
   /** The locks of the transaction. Protected by lock_sys.latch
   (insertions also by trx_t::mutex). */
-  trx_lock_t lock;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) trx_lock_t lock;
 
 #ifdef WITH_WSREP
   /** whether wsrep_on(mysql_thd) held at the start of transaction */
@@ -805,8 +806,12 @@ public:
 					flush the log in
 					trx_commit_complete_for_mysql() */
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
-	bool		dict_operation;	/**< whether this modifies InnoDB
-					data dictionary */
+  /** whether this modifies InnoDB dictionary tables */
+  bool dict_operation;
+#ifdef UNIV_DEBUG
+  /** copy of dict_operation during commit() */
+  bool was_dict_operation;
+#endif
 	/** whether dict_sys.latch is held exclusively; protected by
 	dict_sys.latch */
 	bool dict_operation_lock_mode;
@@ -900,6 +905,10 @@ public:
 	bool		auto_commit;	/*!< true if it is an autocommit */
 	bool		will_lock;	/*!< set to inform trx_start_low() that
 					the transaction may acquire locks */
+	/* True if transaction has to read the undo log and
+	log the DML changes for online DDL table */
+	bool		apply_online_log = false;
+
 	/*------------------------------*/
 	fts_trx_t*	fts_trx;	/*!< FTS information, or NULL if
 					transaction hasn't modified tables
@@ -973,9 +982,12 @@ public:
   @retval false if the rollback was aborted by shutdown */
   inline bool rollback_finish();
 private:
+  /** Apply any changes to tables for which online DDL is in progress. */
+  ATTRIBUTE_COLD void apply_log();
   /** Process tables that were modified by the committing transaction. */
   inline void commit_tables();
-  /** Mark a transaction committed in the main memory data structures. */
+  /** Mark a transaction committed in the main memory data structures.
+  @param mtr  mini-transaction (if there are any persistent modifications) */
   inline void commit_in_memory(const mtr_t *mtr);
   /** Write log for committing the transaction. */
   void commit_persist();
@@ -1065,6 +1077,7 @@ public:
     ut_ad(!autoinc_locks || ib_vector_is_empty(autoinc_locks));
     ut_ad(UT_LIST_GET_LEN(lock.evicted_tables) == 0);
     ut_ad(!dict_operation);
+    ut_ad(!apply_online_log);
   }
 
   /** This has to be invoked on SAVEPOINT or at the end of a statement.

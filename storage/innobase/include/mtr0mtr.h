@@ -100,6 +100,15 @@ struct mtr_t {
   /** Commit the mini-transaction. */
   void commit();
 
+  /** Release latches till savepoint. To simplify the code only
+  MTR_MEMO_S_LOCK and MTR_MEMO_PAGE_S_FIX slot types are allowed to be
+  released, otherwise it would be neccesary to add one more argument in the
+  function to point out what slot types are allowed for rollback, and this
+  would be overengineering as currently the function is used only in one place
+  in the code.
+  @param savepoint   savepoint, can be obtained with get_savepoint */
+  void rollback_to_savepoint(ulint savepoint);
+
   /** Commit a mini-transaction that is shrinking a tablespace.
   @param space   tablespace that is being shrunk */
   ATTRIBUTE_COLD void commit_shrink(fil_space_t &space);
@@ -587,6 +596,9 @@ public:
   @return number of buffer count added by this mtr */
   uint32_t get_fix_count(const buf_block_t *block) const;
 
+  /** Note that log_sys.latch is no longer being held exclusively. */
+  void flag_wr_unlock() noexcept { ut_ad(m_latch_ex); m_latch_ex= false; }
+
   /** type of page flushing is needed during commit() */
   enum page_flush_ahead
   {
@@ -632,15 +644,13 @@ private:
   ATTRIBUTE_NOINLINE void encrypt();
 
   /** Append the redo log records to the redo log buffer.
-  @param ex   whether log_sys.latch is already exclusively locked
   @return {start_lsn,flush_ahead} */
-  std::pair<lsn_t,page_flush_ahead> do_write(bool ex);
+  std::pair<lsn_t,page_flush_ahead> do_write();
 
   /** Append the redo log records to the redo log buffer.
   @param len   number of bytes to write
-  @param ex    whether log_sys.latch is exclusively locked
   @return {start_lsn,flush_ahead} */
-  std::pair<lsn_t,page_flush_ahead> finish_write(size_t len, bool ex);
+  std::pair<lsn_t,page_flush_ahead> finish_write(size_t len);
 
   /** Release the resources */
   inline void release_resources();
@@ -664,7 +674,7 @@ private:
   /** whether freeing_tree() has been called */
   bool m_freeing_tree= false;
 #endif
-
+private:
   /** The page of the most recent m_log record written, or NULL */
   const buf_page_t* m_last;
   /** The current byte offset in m_last, or 0 */
@@ -678,6 +688,9 @@ private:
 
   /** whether at least one previously clean buffer pool page was written to */
   uint16_t m_made_dirty:1;
+
+  /** whether log_sys.latch is locked exclusively */
+  uint16_t m_latch_ex:1;
 
   /** whether change buffer is latched; only needed in non-debug builds
   to suppress some read-ahead operations, @see ibuf_inside() */

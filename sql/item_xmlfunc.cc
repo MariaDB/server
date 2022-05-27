@@ -189,7 +189,7 @@ public:
     }
     return str;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     max_length= MAX_BLOB_WIDTH;
     collation.collation= pxml->charset();
@@ -469,7 +469,7 @@ public:
   {
     return nodeset->copy(*native_cache);
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   { max_length= MAX_BLOB_WIDTH; return FALSE; }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_nodeset_context_cache>(thd, this); }
@@ -487,7 +487,7 @@ public:
   {
     return { STRING_WITH_LEN("xpath_position") };
   }
-  bool fix_length_and_dec() override { max_length=10; return FALSE; }
+  bool fix_length_and_dec(THD *thd) override { max_length=10; return FALSE; }
   longlong val_int() override
   {
     args[0]->val_native(current_thd, &tmp_native_value);
@@ -511,7 +511,7 @@ public:
   {
     return { STRING_WITH_LEN("xpath_count") };
   }
-  bool fix_length_and_dec() override { max_length=10; return FALSE; }
+  bool fix_length_and_dec(THD *thd) override { max_length=10; return FALSE; }
   longlong val_int() override
   {
     uint predicate_supplied_context_size;
@@ -2766,7 +2766,7 @@ my_xpath_parse(MY_XPATH *xpath, const char *str, const char *strend)
 }
 
 
-bool Item_xml_str_func::fix_length_and_dec()
+bool Item_xml_str_func::fix_length_and_dec(THD *thd)
 {
   max_length= MAX_BLOB_WIDTH;
   return agg_arg_charsets_for_comparison(collation, args, arg_count);

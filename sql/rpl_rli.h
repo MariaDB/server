@@ -695,6 +695,8 @@ struct rpl_group_info
   */
   uint64 gtid_sub_id;
   rpl_gtid current_gtid;
+  /* Currently applied event or NULL */
+  Log_event *current_event;
   uint64 commit_id;
   /*
     This is used to keep transaction commit order.

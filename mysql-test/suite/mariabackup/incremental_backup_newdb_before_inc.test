@@ -1,0 +1,35 @@
+--source include/have_innodb.inc
+
+call mtr.add_suppression("InnoDB: New log files created");
+
+--let basedir=$MYSQLTEST_VARDIR/tmp/backup
+--let incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1
+
+CREATE TABLE t1 (i INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(0);
+
+--disable_result_log
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 --target-dir=$basedir
+--enable_result_log
+
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (a INT) ENGINE=InnoDB;
+INSERT INTO test1.t1 VALUES (1000);
+
+--disable_result_log
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=2 --ftwrl-wait-timeout=5 --ftwrl-wait-threshold=300 --ftwrl-wait-query-type=all --target-dir=$incremental_dir --incremental-basedir=$basedir
+--exec $XTRABACKUP --prepare --target-dir=$basedir
+--exec $XTRABACKUP --prepare --target-dir=$basedir --incremental-dir=$incremental_dir
+--enable_result_log
+
+--let $targetdir=$basedir
+--source include/restart_and_restore.inc
+--enable_result_log
+
+SELECT * FROM t1;
+SELECT * FROM test1.t1;
+
+DROP TABLE t1;
+DROP DATABASE test1;
+--rmdir $basedir
+--rmdir $incremental_dir

@@ -1,6 +1,6 @@
 /*
   Copyright (c) 2005, 2019, Oracle and/or its affiliates.
-  Copyright (c) 2009, 2021, MariaDB
+  Copyright (c) 2009, 2022, MariaDB
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -767,6 +767,7 @@ int ha_partition::create(const char *name, TABLE *table_arg,
 			 HA_CREATE_INFO *create_info)
 {
   int error;
+  THD *thd= ha_thd();
   char name_buff[FN_REFLEN + 1], name_lc_buff[FN_REFLEN];
   char *name_buffer_ptr;
   const char *path;
@@ -785,8 +786,27 @@ int ha_partition::create(const char *name, TABLE *table_arg,
     my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0), "CREATE TEMPORARY TABLE");
     DBUG_RETURN(TRUE);
   }
+  /*
+    The following block should be removed once the table-level data directory
+    specification is supported by the partitioning engine (MDEV-28108).
+  */
+  if (thd_sql_command(thd) == SQLCOM_ALTER_TABLE && create_info)
+  {
+    if (create_info->data_file_name)
+    {
+      push_warning_printf(
+          thd, Sql_condition::WARN_LEVEL_WARN, WARN_OPTION_IGNORED,
+          "<DATA DIRECTORY> table option of old schema is ignored");
+    }
+    if (create_info->index_file_name)
+    {
+      push_warning_printf(
+          thd, Sql_condition::WARN_LEVEL_WARN, WARN_OPTION_IGNORED,
+          "<INDEX DIRECTORY> table option of old schema is ignored");
+    }
+  }
 
-  if (get_from_handler_file(name, ha_thd()->mem_root, false))
+  if (get_from_handler_file(name, thd->mem_root, false))
     DBUG_RETURN(TRUE);
   DBUG_ASSERT(m_file_buffer);
   name_buffer_ptr= m_name_buffer_ptr;
@@ -3198,11 +3218,12 @@ err1:
     @retval true   Failure
 */
 
-bool ha_partition::setup_engine_array(MEM_ROOT *mem_root)
+bool ha_partition::setup_engine_array(MEM_ROOT *mem_root,
+                                      handlerton* first_engine)
 {
   uint i;
   uchar *buff;
-  handlerton **engine_array, *first_engine;
+  handlerton **engine_array;
   enum legacy_db_type db_type, first_db_type;
 
   DBUG_ASSERT(!m_file);
@@ -3212,11 +3233,8 @@ bool ha_partition::setup_engine_array(MEM_ROOT *mem_root)
     DBUG_RETURN(true);
 
   buff= (uchar *) (m_file_buffer + PAR_ENGINES_OFFSET);
-  first_db_type= (enum legacy_db_type) buff[0];
-  first_engine= ha_resolve_by_legacy_type(ha_thd(), first_db_type);
-  if (!first_engine)
-    goto err;
 
+  first_db_type= (enum legacy_db_type) buff[0];
   if (!(m_engine_array= (plugin_ref*)
         alloc_root(&m_mem_root, m_tot_parts * sizeof(plugin_ref))))
     goto err;
@@ -3257,6 +3275,75 @@ err:
 }
 
 
+handlerton *ha_partition::get_def_part_engine(const char *name)
+{
+  if (table_share)
+  {
+    if (table_share->default_part_plugin)
+      return plugin_data(table_share->default_part_plugin, handlerton *);
+  }
+  else
+  {
+    // DROP TABLE, for example
+    char buff[FN_REFLEN];
+    File file;
+    MY_STAT state;
+    uchar *frm_image= 0;
+    handlerton *hton= 0;
+    bool use_legacy_type= false;
+
+    fn_format(buff, name, "", reg_ext, MY_APPEND_EXT);
+
+    file= mysql_file_open(key_file_frm, buff, O_RDONLY | O_SHARE, MYF(0));
+    if (file < 0)
+      return NULL;
+
+    if (mysql_file_fstat(file, &state, MYF(MY_WME)))
+      goto err;
+    if (state.st_size <= 64)
+      goto err;
+    if (!(frm_image= (uchar*)my_malloc(key_memory_Partition_share,
+                                       state.st_size, MYF(MY_WME))))
+      goto err;
+    if (mysql_file_read(file, frm_image, state.st_size, MYF(MY_NABP)))
+      goto err;
+
+    if (frm_image[64] != '/')
+    {
+      const uchar *e2= frm_image + 64;
+      const uchar *e2end = e2 + uint2korr(frm_image + 4);
+      if (e2end > frm_image + state.st_size)
+        goto err;
+      while (e2 + 3 < e2end)
+      {
+        uchar type= *e2++;
+        size_t length= extra2_read_len(&e2, e2end);
+        if (!length)
+          goto err;
+        if (type == EXTRA2_DEFAULT_PART_ENGINE)
+        {
+          LEX_CSTRING name= { (char*)e2, length };
+          plugin_ref plugin= ha_resolve_by_name(ha_thd(), &name, false);
+          if (plugin)
+            hton= plugin_data(plugin, handlerton *);
+          goto err;
+        }
+        e2+= length;
+      }
+    }
+    use_legacy_type= true;
+err:
+    my_free(frm_image);
+    mysql_file_close(file, MYF(0));
+    if (!use_legacy_type)
+      return hton;
+  }
+
+  return ha_resolve_by_legacy_type(ha_thd(),
+                  (enum legacy_db_type)m_file_buffer[PAR_ENGINES_OFFSET]);
+}
+
+
 /**
   Get info about partition engines and their names from the .par file
 
@@ -3284,7 +3371,11 @@ bool ha_partition::get_from_handler_file(const char *name, MEM_ROOT *mem_root,
   if (read_par_file(name))
     DBUG_RETURN(true);
 
-  if (!is_clone && setup_engine_array(mem_root))
+  handlerton *default_engine= get_def_part_engine(name);
+  if (!default_engine)
+    DBUG_RETURN(true);
+
+  if (!is_clone && setup_engine_array(mem_root, default_engine))
     DBUG_RETURN(true);
 
   DBUG_RETURN(false);
@@ -4086,6 +4177,8 @@ int ha_partition::external_lock(THD *thd, int lock_type)
   if (lock_type == F_UNLCK)
   {
     bitmap_clear_all(used_partitions);
+    if (m_lock_type == F_WRLCK && m_part_info->vers_require_hist_part(thd))
+      m_part_info->vers_check_limit(thd);
   }
   else
   {
@@ -4102,19 +4195,9 @@ int ha_partition::external_lock(THD *thd, int lock_type)
       (void) (*file)->ha_external_lock(thd, lock_type);
     } while (*(++file));
   }
-  if (lock_type == F_WRLCK)
-  {
-    if (m_part_info->part_expr)
-      m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
-    if (m_part_info->part_type == VERSIONING_PARTITION &&
-      /* TODO: MDEV-20345 exclude more inapproriate commands like INSERT
-         These commands may be excluded because working history partition is needed
-         only for versioned DML. */
-      thd->lex->sql_command != SQLCOM_SELECT &&
-      thd->lex->sql_command != SQLCOM_INSERT_SELECT &&
-      (error= m_part_info->vers_set_hist_part(thd)))
-      goto err_handler;
-  }
+  if (lock_type == F_WRLCK && m_part_info->part_expr)
+    m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
+
   DBUG_RETURN(0);
 
 err_handler:
@@ -4258,11 +4341,6 @@ int ha_partition::start_stmt(THD *thd, thr_lock_type lock_type)
   {
     if (m_part_info->part_expr)
       m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
-    if (m_part_info->part_type == VERSIONING_PARTITION &&
-      // TODO: MDEV-20345 (see above)
-      thd->lex->sql_command != SQLCOM_SELECT &&
-      thd->lex->sql_command != SQLCOM_INSERT_SELECT)
-      error= m_part_info->vers_set_hist_part(thd);
   }
   DBUG_RETURN(error);
 }
@@ -10500,7 +10578,16 @@ bool ha_partition::commit_inplace_alter_table(TABLE *altered_table,
         Loop over all other partitions as to follow the protocol!
       */
       uint i;
-      DBUG_ASSERT(0);
+      /*
+        InnoDB does not set ha_alter_info->group_commit_ctx to NULL in the
+        case if autoincrement attribute is necessary to reset for all
+        partitions for INNOBASE_INPLACE_IGNORE handler flags. It does not
+        affect durability, because it is solely about updating the InnoDB data
+        dictionary caches (one InnoDB dict_table_t per partition or
+        sub-partition).
+      */
+      DBUG_ASSERT(table->found_next_number_field
+          && !altered_table->found_next_number_field);
       for (i= 1; i < m_tot_parts; i++)
       {
         ha_alter_info->handler_ctx= part_inplace_ctx->handler_ctx_array[i];

@@ -161,7 +161,7 @@ class aio
 {
 public:
   /**
-    Submit asyncronous IO.
+    Submit asynchronous IO.
     On completion, cb->m_callback is executed.
   */
   virtual int submit_io(aiocb *cb)= 0;
@@ -170,6 +170,20 @@ public:
   /** "Unind" file to AIO handler (used on Windows only) */
   virtual int unbind(const native_file_handle &fd)= 0;
   virtual ~aio(){};
+protected:
+  static void synchronous(aiocb *cb);
+  /** finish a partial read/write callback synchronously */
+  static inline void finish_synchronous(aiocb *cb)
+  {
+    if (!cb->m_err && cb->m_ret_len != cb->m_len)
+    {
+      /* partial read/write */
+      cb->m_buffer= (char *) cb->m_buffer + cb->m_ret_len;
+      cb->m_len-= (unsigned int) cb->m_ret_len;
+      cb->m_offset+= cb->m_ret_len;
+      synchronous(cb);
+    }
+  }
 };
 
 class timer

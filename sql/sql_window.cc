@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2016, 2017 MariaDB
+   Copyright (c) 2016, 2022 MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -424,16 +424,49 @@ ORDER *st_select_lex::find_common_window_func_partition_fields(THD *thd)
 #define CMP_GT         2    // Greater then
 
 static
-int compare_order_elements(ORDER *ord1, ORDER *ord2)
+int compare_order_elements(ORDER *ord1, int weight1,
+                           ORDER *ord2, int weight2)
 {
   if (*ord1->item == *ord2->item && ord1->direction == ord2->direction)
     return CMP_EQ;
   Item *item1= (*ord1->item)->real_item();
   Item *item2= (*ord2->item)->real_item();
-  DBUG_ASSERT(item1->type() == Item::FIELD_ITEM &&
-              item2->type() == Item::FIELD_ITEM); 
-  int cmp= ((Item_field *) item1)->field->field_index -
-           ((Item_field *) item2)->field->field_index;
+
+  bool item1_field= (item1->type() == Item::FIELD_ITEM);
+  bool item2_field= (item2->type() == Item::FIELD_ITEM);
+
+  ptrdiff_t cmp;
+  if (item1_field && item2_field)
+  {
+    DBUG_ASSERT(((Item_field *) item1)->field->table ==
+                ((Item_field *) item2)->field->table);
+    cmp= ((Item_field *) item1)->field->field_index -
+         ((Item_field *) item2)->field->field_index;
+  }
+  else if (item1_field && !item2_field)
+    return CMP_LT;
+  else if (!item1_field && item2_field)
+    return CMP_LT;
+  else
+  {
+    /*
+      Ok, item1_field==NULL and item2_field==NULL.
+      We're not able to compare Item expressions. Order them according to
+      their passed "weight" (which comes from Window_spec::win_spec_number):
+    */
+    if (weight1 != weight2)
+      cmp= weight1 - weight2;
+    else
+    {
+      /*
+        The weight is the same. That is, the elements come from the same
+        window specification... This shouldn't happen.
+      */
+      DBUG_ASSERT(0);
+      cmp= item1 - item2;
+    }
+  }
+
   if (cmp == 0)
   {
     if (ord1->direction == ord2->direction)
@@ -446,7 +479,9 @@ int compare_order_elements(ORDER *ord1, ORDER *ord2)
 
 static
 int compare_order_lists(SQL_I_List<ORDER> *part_list1,
-                        SQL_I_List<ORDER> *part_list2)
+                        int spec_number1,
+                        SQL_I_List<ORDER> *part_list2,
+                        int spec_number2)
 {
   if (part_list1 == part_list2)
     return CMP_EQ;
@@ -471,7 +506,8 @@ int compare_order_lists(SQL_I_List<ORDER> *part_list1,
     if (!elem1 || !elem2)
       break;
 
-    if ((cmp= compare_order_elements(elem1, elem2)))
+    if ((cmp= compare_order_elements(elem1, spec_number1,
+                                     elem2, spec_number2)))
       return cmp;
   }
   if (elem1)
@@ -566,7 +602,9 @@ int compare_window_spec_joined_lists(Window_spec *win_spec1,
   win_spec1->join_partition_and_order_lists();
   win_spec2->join_partition_and_order_lists();
   int cmp= compare_order_lists(win_spec1->partition_list, 
-                               win_spec2->partition_list);
+                               win_spec1->win_spec_number,
+                               win_spec2->partition_list,
+                               win_spec2->win_spec_number);
   win_spec1->disjoin_partition_and_order_lists();
   win_spec2->disjoin_partition_and_order_lists();
   return cmp;
@@ -584,7 +622,9 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
   if (win_spec1 == win_spec2)
     return CMP_EQ;
   cmp= compare_order_lists(win_spec1->partition_list, 
-                           win_spec2->partition_list);
+                           win_spec1->win_spec_number,
+                           win_spec2->partition_list,
+                           win_spec2->win_spec_number);
   if (cmp == CMP_EQ)
   {
     /* 
@@ -603,7 +643,9 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
     }
 
     cmp= compare_order_lists(win_spec1->order_list,
-                             win_spec2->order_list);
+                             win_spec1->win_spec_number,
+                             win_spec2->order_list,
+                             win_spec2->win_spec_number);
 
     if (cmp != CMP_EQ)
       return cmp;
@@ -696,7 +738,9 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
       int cmp;
       if (win_spec_prev->partition_list == win_spec_curr->partition_list)
         cmp= compare_order_lists(win_spec_prev->order_list,
-                                 win_spec_curr->order_list);
+                                 win_spec_prev->win_spec_number,
+                                 win_spec_curr->order_list,
+                                 win_spec_curr->win_spec_number);
       else
         cmp= compare_window_spec_joined_lists(win_spec_prev, win_spec_curr);
       if (!(CMP_LT_C <= cmp && cmp <= CMP_GT_C))
@@ -3075,8 +3119,10 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
      */
     ORDER *order= (ORDER *)alloc_root(thd->mem_root, sizeof(ORDER));
     memset(order, 0, sizeof(*order));
-    Item *item= new (thd->mem_root) Item_temptable_field(thd,
-                                                    join_tab->table->field[0]);
+    Item_field *item=
+        new (thd->mem_root) Item_field(thd, join_tab->table->field[0]);
+    if (item)
+      item->set_refers_to_temp_table(true);
     order->item= (Item **)alloc_root(thd->mem_root, 2 * sizeof(Item *));
     order->item[1]= NULL;
     order->item[0]= item;

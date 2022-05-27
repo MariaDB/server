@@ -35,7 +35,7 @@
 
 #define HA_OPEN_ABORT_IF_LOCKED		0U	/* default */
 #define HA_OPEN_WAIT_IF_LOCKED		1U
-#define HA_OPEN_IGNORE_IF_LOCKED	2U
+#define HA_OPEN_IGNORE_IF_LOCKED	2U      /* Ignore lock error */
 #define HA_OPEN_TMP_TABLE		4U	/* Table is a temp table */
 #define HA_OPEN_DELAY_KEY_WRITE		8U	/* Don't update index  */
 #define HA_OPEN_ABORT_IF_CRASHED	16U

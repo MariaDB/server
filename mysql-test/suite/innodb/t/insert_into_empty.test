@@ -250,3 +250,45 @@ CREATE TABLE t1(f1 MEDIUMTEXT)ENGINE=InnoDB;
 INSERT INTO t1 VALUES(REPEAT(1, 8459264));
 SELECT length(f1) FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-27858  Assertion `page_dir_get_n_heap(new_page) == 2U' failed in PageBulk::init
+--echo #
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+LOCK TABLES t1 WRITE,t2 WRITE;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+DROP TABLE t2, t1;
+
+--echo #
+--echo #  MDEV-28138  MariaDB Assertion Failed in mtr_buf_t::has_space
+--echo #
+CREATE TABLE t1(
+  f1 SERIAL,
+  f2 LINESTRING NOT NULL DEFAULT LineFromText('LINESTRING(1 1,2 2,3 3)'),
+SPATIAL INDEX(f2))ENGINE=InnoDB;
+--error ER_DUP_ENTRY
+INSERT INTO t1(f1) VALUES(0), (1), (2);
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-28237  Assertion `0' failed in row_upd_sec_index_entry on DELETE
+--echo #
+CREATE TABLE t1 (c0 YEAR UNIQUE) ENGINE=InnoDB;
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 VALUES (0),(0),(0),(0),(0),(0),(0);
+DELETE FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-28037 Assertion `trx->bulk_insert' failed in innodb_prepare_commit_versioned
+--echo #
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT) ENGINE=InnoDB;
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW UPDATE t2 SET c=1;
+INSERT INTO t1 VALUES (0);
+SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TABLE t2, t1;

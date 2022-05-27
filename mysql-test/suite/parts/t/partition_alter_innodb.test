@@ -9,3 +9,11 @@ SET GLOBAL innodb_read_only_compressed=OFF;
 --disable_query_log
 SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
 --enable_query_log
+--echo #
+--echo # MDEV-28079 Shutdown hangs after altering innodb partition fts table
+--echo #
+CREATE TABLE t1(f1 INT, f2 CHAR(100))ENGINE=InnoDB PARTITION BY HASH(f1) PARTITIONS 2;
+ALTER TABLE t1 ADD FULLTEXT(f2);
+--source ../innodb/include/wait_all_purged.inc
+DROP TABLE t1;
+--echo # End of 10.6 tests

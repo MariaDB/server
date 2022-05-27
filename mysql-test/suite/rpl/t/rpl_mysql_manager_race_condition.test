@@ -1,0 +1,67 @@
+#
+# Purpose:
+#   This test ensures that, during mysqld initialization, the mysql handle
+# manager starts before the binlog background thread. This is because the
+# binlog background thread uses the mysql handle manager, and if the background
+# thread tries to submit a job to the handle manager before it is
+# initialized/started, mysqld can crash (the actual behavior is undefined).
+# This race condition lead to the problem described in MDEV-26473.
+#
+# Methodology:
+#   This test ensures that the binlog background thread cannot be started
+# before the mysql manager is started. Specifically, it forces a path in
+# the binlog background thread to call mysql_manager_submit() by reducing
+# --gtid-cleanup-batch-size to be 1 (which submits a job to delete unused rows
+# from the mysql.gtid_slave_pos* tables). With this path forced, the main
+# mysqld thread is suspended just before its handle manager initialization to
+# allow time for the binlog thread to call mysql_manager_submit. The fix
+# associated with this test should enforce that the binlog background thread is
+# not created before the handle manager is initialized.
+#
+# References:
+#  MDEV-26473 mysqld got exception 0xc0000005 (rpl_slave_state/rpl_load_gtid_slave_state)
+#
+
+--source include/have_debug.inc
+--source include/master-slave.inc
+
+# The race condition discovered from MDEV-26473 is binlog format independent.
+# We use ROW format though because it was used by the reporter.
+--source include/have_binlog_format_row.inc
+
+--connection master
+
+--echo # Create a GTID event so the binlog background thread will submit a
+--echo # mysql handler job the next time mysqld is restarted.
+create table t1 (a int);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--echo # Set a debug point that forces the main mysqld thread to sleep before
+--echo # anything is initialized for the mysql handle manager
+--let $rpl_server_parameters=--debug_dbug="+d,delay_start_handle_manager"
+
+
+--echo # Restart the slave mysqld instance so it re-initializes with the
+--echo # binlog background thread submitting a mysql handler job and the
+--echo # mysql handler initialization suspending for a second. Without the fix
+--echo # associated with this test/patch, the following restart will error
+--echo # with a failed assertion.
+--source include/rpl_restart_server.inc
+--source include/start_slave.inc
+
+
+--echo #
+--echo # Cleanup
+--echo #
+
+--connection master
+drop table t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc

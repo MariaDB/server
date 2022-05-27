@@ -17,7 +17,11 @@ select * from information_schema.session_variables where variable_name='old';
 VARIABLE_NAME	VARIABLE_VALUE
 OLD	OFF
 set global old=1;
+Warnings:
+Warning	1287	'@@old' is deprecated and will be removed in a future release. Please use '@@old_mode' instead
 set session old=1;
+Warnings:
+Warning	1287	'@@old' is deprecated and will be removed in a future release. Please use '@@old_mode' instead
 select @@global.old;
 @@global.old
 1
@@ -25,3 +29,5 @@ select @@session.old;
 @@session.old
 1
 set @@global.old=DEFAULT;
+Warnings:
+Warning	1287	'@@old' is deprecated and will be removed in a future release. Please use '@@old_mode' instead

@@ -52,7 +52,8 @@ public:
       case ENOSYS:
         my_printf_error(ER_UNKNOWN_ERROR,
                         "io_uring_queue_init() failed with ENOSYS:"
-                        " try uprading the kernel",
+                        " check seccomp filters, and the kernel version "
+                        "(newer than 5.1 required)",
                         ME_ERROR_LOG | ME_WARNING);
         break;
       default:
@@ -161,6 +162,7 @@ private:
       }
 
       io_uring_cqe_seen(&aio->uring_, cqe);
+      finish_synchronous(iocb);
 
       // If we need to resubmit the IO operation, but the ring is full,
       // we will follow the same path as for any other error codes.

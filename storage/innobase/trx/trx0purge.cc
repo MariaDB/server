@@ -29,7 +29,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "fut0fut.h"
 #include "mach0data.h"
 #include "mtr0log.h"
-#include "os0thread.h"
 #include "que0que.h"
 #include "row0purge.h"
 #include "row0upd.h"
@@ -119,7 +118,7 @@ TRANSACTIONAL_INLINE inline bool TrxUndoRsegsIterator::set_next()
 	trx_id_t last_trx_no, tail_trx_no;
 	{
 #ifdef SUX_LOCK_GENERIC
-		purge_sys.rseg->latch.rd_lock();
+		purge_sys.rseg->latch.rd_lock(SRW_LOCK_CALL);
 #else
 		transactional_shared_lock_guard<srw_spin_lock> rg
 			{purge_sys.rseg->latch};
@@ -636,7 +635,7 @@ TRANSACTIONAL_TARGET static void trx_purge_truncate_history()
       if (rseg.space != &space)
         continue;
 #ifdef SUX_LOCK_GENERIC
-      rseg.latch.rd_lock();
+      rseg.latch.rd_lock(SRW_LOCK_CALL);
 #else
       transactional_shared_lock_guard<srw_spin_lock> g{rseg.latch};
 #endif
@@ -1090,7 +1089,7 @@ trx_purge_fetch_next_rec(
 	}
 
 	/* fprintf(stderr, "Thread %lu purging trx %llu undo record %llu\n",
-	os_thread_get_curr_id(), iter->trx_no, iter->undo_no); */
+	pthread_self(), iter->trx_no, iter->undo_no); */
 
 	*roll_ptr = trx_undo_build_roll_ptr(
 		/* row_purge_record_func() will later set

@@ -1,0 +1,48 @@
+# --order-by-size:
+CREATE TABLE t1 (a MEDIUMBLOB) ENGINE=InnoDB;
+CREATE TABLE t2 (a MEDIUMBLOB) ENGINE=InnoDB;
+CREATE TABLE t3 (a MEDIUMBLOB) ENGINE=InnoDB;
+CREATE TABLE t4 (a MEDIUMBLOB) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (REPEAT('E',65536*4));
+INSERT INTO t2 VALUES (REPEAT('E',65536*3));
+INSERT INTO t3 VALUES (REPEAT('E',65536*2));
+INSERT INTO t4 VALUES (REPEAT('E',65536*1));
+ANALYZE TABLE t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'a'
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	Warning	Engine-independent statistics are not collected for column 'a'
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	Warning	Engine-independent statistics are not collected for column 'a'
+test.t3	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	Warning	Engine-independent statistics are not collected for column 'a'
+test.t4	analyze	status	OK
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t4` (
+  `a` mediumblob DEFAULT NULL
+);
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t3` (
+  `a` mediumblob DEFAULT NULL
+);
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t2` (
+  `a` mediumblob DEFAULT NULL
+);
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `a` mediumblob DEFAULT NULL
+);
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE t4, t3, t2, t1;

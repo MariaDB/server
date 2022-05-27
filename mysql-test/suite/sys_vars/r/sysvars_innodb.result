@@ -2,9 +2,7 @@ select VARIABLE_NAME, SESSION_VALUE, DEFAULT_VALUE, VARIABLE_SCOPE, VARIABLE_TYP
 where variable_name like 'innodb%' and
 variable_name not in (
 'innodb_version',                   # always the same as the server version
-'innodb_disallow_writes',           # only available WITH_WSREP
 'innodb_numa_interleave',           # only available WITH_NUMA
-'innodb_sched_priority_cleaner',    # linux only
 'innodb_evict_tables_on_commit_debug', # one may want to override this
 'innodb_use_native_aio',            # default value depends on OS
 'innodb_buffer_pool_load_pages_abort')            # debug build only, and is only for testing
@@ -230,7 +228,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	none
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Buffer changes to secondary indexes (deprecated).
+VARIABLE_COMMENT	Buffer changes to secondary indexes.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1015,7 +1013,7 @@ NUMERIC_MIN_VALUE	4194304
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	4096
 ENUM_VALUE_LIST	NULL
-READ_ONLY	YES
+READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	INNODB_LOG_GROUP_HOME_DIR
 SESSION_VALUE	NULL

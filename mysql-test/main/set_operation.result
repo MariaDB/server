@@ -638,8 +638,6 @@ EXPLAIN
                                     "materialized": {
                                       "query_block": {
                                         "union_result": {
-                                          "table_name": "<union5,6>",
-                                          "access_type": "ALL",
                                           "query_specifications": [
                                             {
                                               "query_block": {
@@ -961,7 +959,7 @@ UNION ALL
 select * from t3;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `test`.`t1`.`a` AS `i1`,`test`.`t1`.`b` AS `i2` from `test`.`t1` union all select `__9`.`c` AS `c`,`__9`.`d` AS `d` from (select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2` intersect all (values (1,1),(2,2),(2,2),(5,5),(2,2)) intersect all select `sq`.`a` AS `a`,`sq`.`b` AS `b` from (select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` union all select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1`) `sq`) `__9` except all select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3` union all select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2` union select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3` except select `test`.`t1`.`a` AS `a`,`test`.`t2`.`c` AS `c` from (`test`.`t1` join `test`.`t2`) union all select `v0`.`g` AS `g`,`v0`.`h` AS `h` from `test`.`v0` where `v0`.`g` < 4 union all select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `i1`,`t1`.`b` AS `i2` from `t1` union all select `__9`.`c` AS `c`,`__9`.`d` AS `d` from (select `t2`.`c` AS `c`,`t2`.`d` AS `d` from `t2` intersect all (values (1,1),(2,2),(2,2),(5,5),(2,2)) intersect all select `sq`.`a` AS `a`,`sq`.`b` AS `b` from (select `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` union all select `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1`) `sq`) `__9` except all select `t3`.`e` AS `e`,`t3`.`f` AS `f` from `t3` union all select `t2`.`c` AS `c`,`t2`.`d` AS `d` from `t2` union select `t3`.`e` AS `e`,`t3`.`f` AS `f` from `t3` except select `t1`.`a` AS `a`,`t2`.`c` AS `c` from (`t1` join `t2`) union all select `v0`.`g` AS `g`,`v0`.`h` AS `h` from `v0` where `v0`.`g` < 4 union all select `t3`.`e` AS `e`,`t3`.`f` AS `f` from `t3`	latin1	latin1_swedish_ci
 select * from v1 limit 14;
 i1	i2
 1	1

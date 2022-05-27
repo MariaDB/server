@@ -1,3 +1,5 @@
+SET @save_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=OFF;
 CREATE TABLE t2 (a int);
 INSERT INTO t2 VALUES(1),(2),(3);
 #
@@ -258,8 +260,7 @@ Note	1051	Unknown table 'test.t1,mysqltest2.t2'
 create table test.t1 (i int) engine=myisam;
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
-select * from information_schema.metadata_lock_info
-where table_name not like 'innodb_%_stats';
+select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_BACKUP_DDL	NULL	Backup lock		
 #	MDL_BACKUP_DML	NULL	Backup lock		
@@ -272,8 +273,7 @@ ERROR 42000: A table must have at least 1 column
 show tables;
 Tables_in_test
 t2
-select * from information_schema.metadata_lock_info
-where table_name not like 'innodb_%_stats';
+select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_BACKUP_DDL	NULL	Backup lock		
 #	MDL_BACKUP_DML	NULL	Backup lock		
@@ -282,16 +282,14 @@ THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	mysqltest2	t2
 create or replace table mysqltest2.t2;
 ERROR 42000: A table must have at least 1 column
-select * from information_schema.metadata_lock_info
-where table_name not like 'innodb_%_stats';
+select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 create table t1 (i int);
 drop table t1;
 create table test.t1 (i int);
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
-select * from information_schema.metadata_lock_info
-where table_name not like 'innodb_%_stats';
+select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_BACKUP_DDL	NULL	Backup lock		
 #	MDL_BACKUP_DML	NULL	Backup lock		
@@ -304,8 +302,7 @@ ERROR 42S21: Duplicate column name 'a'
 show tables;
 Tables_in_test
 t2
-select * from information_schema.metadata_lock_info
-where table_name not like 'innodb_%_stats';
+select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_BACKUP_DDL	NULL	Backup lock		
 #	MDL_BACKUP_DML	NULL	Backup lock		
@@ -314,16 +311,14 @@ THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	mysqltest2	t2
 create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
 ERROR 42S21: Duplicate column name 'a'
-select * from information_schema.metadata_lock_info
-where table_name not like 'innodb_%_stats';
+select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 create table t1 (i int);
 drop table t1;
 create table test.t1 (i int) engine=innodb;
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
-select * from information_schema.metadata_lock_info
-where table_name not like 'innodb_%_stats';
+select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_BACKUP_DDL	NULL	Backup lock		
 #	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	mysqltest2	
@@ -335,8 +330,7 @@ drop table test.t1,mysqltest2.t2;
 create table test.t1 (i int) engine=aria transactional=1 checksum=1;
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
-select * from information_schema.metadata_lock_info
-where table_name not like 'innodb_%_stats';
+select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_BACKUP_DDL	NULL	Backup lock		
 #	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	mysqltest2	
@@ -452,8 +446,7 @@ drop view t1;
 #
 create table t1 (a int);
 lock table t1 write, t2 read;
-select * from information_schema.metadata_lock_info
-where table_name not like 'innodb_%_stats';
+select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_BACKUP_DDL	NULL	Backup lock		
 #	MDL_BACKUP_DML	NULL	Backup lock		
@@ -461,8 +454,7 @@ THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
 #	MDL_SHARED_READ	NULL	Table metadata lock	test	t2
 create or replace table t1 (i int);
-select * from information_schema.metadata_lock_info
-where table_name not like 'innodb_%_stats';
+select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_BACKUP_DDL	NULL	Backup lock		
 #	MDL_BACKUP_DML	NULL	Backup lock		
@@ -470,8 +462,7 @@ THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
 #	MDL_SHARED_READ	NULL	Table metadata lock	test	t2
 create or replace table t1 like t2;
-select * from information_schema.metadata_lock_info
-where table_name not like 'innodb_%_stats';
+select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_BACKUP_DDL	NULL	Backup lock		
 #	MDL_BACKUP_DML	NULL	Backup lock		
@@ -479,8 +470,7 @@ THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
 #	MDL_SHARED_READ	NULL	Table metadata lock	test	t2
 create or replace table t1 select 1 as f1;
-select * from information_schema.metadata_lock_info
-where table_name not like 'innodb_%_stats';
+select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_BACKUP_DDL	NULL	Backup lock		
 #	MDL_BACKUP_DML	NULL	Backup lock		
@@ -578,3 +568,4 @@ ERROR HY000: Table 't3' was not locked with LOCK TABLES
 UNLOCK TABLES;
 DROP TABLE t3;
 # End of 10.4 tests
+SET GLOBAL innodb_stats_persistent=@save_persistent;

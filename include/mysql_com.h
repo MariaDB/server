@@ -180,7 +180,7 @@ enum enum_indicator_type
 #define NUM_FLAG	32768U		/* Field is num (for clients) */
 #define PART_KEY_FLAG	16384U		/* Intern; Part of some key */
 #define GROUP_FLAG	32768U		/* Intern: Group field */
-#define BINCMP_FLAG	131072U		/* Intern: Used by sql_yacc */
+#define CONTEXT_COLLATION_FLAG 131072U  /* Intern: Used by sql_yacc */
 #define GET_FIXED_FIELDS_FLAG (1U << 18) /* Used to get fields in item tree */
 #define FIELD_IN_PART_FUNC_FLAG (1U << 19)/* Field part of partition func */
 #define PART_INDIRECT_KEY_FLAG (1U << 20)

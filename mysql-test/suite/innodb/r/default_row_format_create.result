@@ -58,10 +58,13 @@ CREATE TABLE t(c INT) ENGINE=InnoDB page_compressed=1;
 DROP TABLE IF EXISTS t;
 SET GLOBAL innodb_compression_level=1;
 CREATE TABLE t(a INT)ENGINE=InnoDB ROW_FORMAT=DYNAMIC page_compressed=1;
+CREATE TEMPORARY TABLE tt(a INT PRIMARY KEY)
+ROW_FORMAT=DYNAMIC page_compressed=1 ENGINE=InnoDB;
 SET GLOBAL innodb_compression_level=0;
 ALTER TABLE t FORCE, ROW_FORMAT=DEFAULT, ALGORITHM=INPLACE;
 ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'PAGE_COMPRESSED'
 ALTER TABLE t FORCE, ROW_FORMAT=DEFAULT, ALGORITHM=COPY;
 ERROR HY000: Can't create table `test`.`t` (errno: 140 "Wrong create options")
 DROP TABLE t;
+TRUNCATE tt;
 SET GLOBAL innodb_compression_level=@save_level;

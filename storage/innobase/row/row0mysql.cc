@@ -1124,7 +1124,7 @@ row_lock_table_autoinc_for_mysql(
 
 		trx_start_if_not_started_xa(trx, true);
 
-		err = lock_table(prebuilt->table, LOCK_AUTO_INC, thr);
+		err = lock_table(prebuilt->table, NULL, LOCK_AUTO_INC, thr);
 
 		trx->error_state = err;
 	} while (err != DB_SUCCESS
@@ -1166,7 +1166,7 @@ row_lock_table(row_prebuilt_t* prebuilt)
 
 		trx_start_if_not_started_xa(trx, false);
 
-		err = lock_table(prebuilt->table, static_cast<lock_mode>(
+		err = lock_table(prebuilt->table, NULL, static_cast<lock_mode>(
 					 prebuilt->select_lock_type), thr);
 		trx->error_state = err;
 	} while (err != DB_SUCCESS
@@ -2495,7 +2495,8 @@ rollback:
         fts_optimize_add_table(table);
       }
       trx->rollback();
-      row_mysql_unlock_data_dictionary(trx);
+      if (trx->dict_operation_lock_mode)
+        row_mysql_unlock_data_dictionary(trx);
       return err;
     }
   }
@@ -2911,7 +2912,7 @@ row_rename_table_for_mysql(
 		dict_names_t	fk_tables;
 
 		err = dict_load_foreigns(
-			new_name, NULL, false,
+			new_name, nullptr, trx->id,
 			!old_is_tmp || trx->check_foreigns,
 			use_fk
 			? DICT_ERR_IGNORE_NONE

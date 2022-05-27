@@ -19,7 +19,11 @@ SET SESSION wsrep_osu_method=RSU;
 ALTER TABLE t1 ADD COLUMN f2 INTEGER;
 SET SESSION wsrep_osu_method=TOI;
 
---let $wait_condition = SELECT COUNT(*) = 2 FROM mysql.general_log WHERE argument LIKE "CREATE%" OR argument LIKE "ALTER%"
+--let $wait_condition = SELECT COUNT(*) = 1 FROM mysql.general_log WHERE argument LIKE "CREATE%" AND command_type != 'Prepare'
+--let $wait_condition_on_error_output = SELECT * FROM mysql.general_log
+--source include/wait_condition_with_debug.inc
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM mysql.general_log WHERE argument LIKE "ALTER%" AND command_type != 'Prepare'
 --let $wait_condition_on_error_output = SELECT * FROM mysql.general_log
 --source include/wait_condition_with_debug.inc
 

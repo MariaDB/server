@@ -1,11 +1,12 @@
---disable_query_log
 if (!$TEST_VERSIONING_SO)
 {
   --skip needs test_versioning plugin
 }
 source include/have_innodb.inc;
+--disable_query_log
 
 set @@session.time_zone='+00:00';
+set @@global.time_zone='+00:00';
 select ifnull(max(transaction_id), 0) into @start_trx_id from mysql.transaction_registry;
 set @test_start=now(6);
 

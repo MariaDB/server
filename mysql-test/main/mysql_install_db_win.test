@@ -42,6 +42,13 @@ remove_file $log;
 
 rmdir $ddir;
 
+# MDEV-28471 - mysql_install_db.exe fails with --innodb-page-size=64K
+--disable_result_log
+exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --password=foo -R --innodb-page-size=64K --verbose
+--enable_result_log
+rmdir $ddir;
+
+# Tests with config file
 let $restart_parameters=;
 connection default;
 

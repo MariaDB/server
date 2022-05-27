@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB Corporation.
+   Copyright (c) 2010, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -723,7 +723,6 @@ bool Item_ident::remove_dependence_processor(void * arg)
   DBUG_RETURN(0);
 }
 
-
 bool Item_ident::collect_outer_ref_processor(void *param)
 {
   Collect_deps_prm *prm= (Collect_deps_prm *)param;
@@ -960,8 +959,7 @@ bool Item_field::check_field_expression_processor(void *arg)
           (!field->vcol_info && !org_field->vcol_info)) &&
          field->field_index >= org_field->field_index))
     {
-      my_error(ER_EXPRESSION_REFERS_TO_UNINIT_FIELD,
-               MYF(0),
+      my_error(ER_EXPRESSION_REFERS_TO_UNINIT_FIELD, MYF(0),
                org_field->field_name.str, field->field_name.str);
       return 1;
     }
@@ -2753,14 +2751,17 @@ Item_sp::Item_sp(THD *thd, Item_sp *item):
   memset(&sp_mem_root, 0, sizeof(sp_mem_root));
 }
 
-LEX_CSTRING Item_sp::func_name_cstring(THD *thd) const
+LEX_CSTRING
+Item_sp::func_name_cstring(THD *thd, bool is_package_function) const
 {
   /* Calculate length to avoid reallocation of string for sure */
   size_t len= (((m_name->m_explicit_name ? m_name->m_db.length : 0) +
               m_name->m_name.length)*2 + //characters*quoting
-             2 +                         // ` and `
+             2 +                         // quotes for the function name
+             2 +                         // quotes for the package name
              (m_name->m_explicit_name ?
               3 : 0) +                   // '`', '`' and '.' for the db
+             1 +                         // '.' between package and function
              1 +                         // end of string
              ALIGN_SIZE(1));             // to avoid String reallocation
   String qname((char *)alloc_root(thd->mem_root, len), len,
@@ -2772,7 +2773,21 @@ LEX_CSTRING Item_sp::func_name_cstring(THD *thd) const
     append_identifier(thd, &qname, &m_name->m_db);
     qname.append('.');
   }
-  append_identifier(thd, &qname, &m_name->m_name);
+  if (is_package_function)
+  {
+    /*
+      In case of a package function split `pkg.func` and print
+      quoted `pkg` and `func` separately, so the entire result looks like:
+         `db`.`pkg`.`func`
+    */
+    Database_qualified_name tmp= Database_qualified_name::split(m_name->m_name);
+    DBUG_ASSERT(tmp.m_db.length);
+    append_identifier(thd, &qname, &tmp.m_db);
+    qname.append('.');
+    append_identifier(thd, &qname, &tmp.m_name);
+  }
+  else
+    append_identifier(thd, &qname, &m_name->m_name);
   return { qname.c_ptr_safe(), qname.length() };
 }
 
@@ -3044,8 +3059,7 @@ Item_field::Item_field(THD *thd, Name_resolution_context *context_arg,
                        Field *f)
   :Item_ident(thd, context_arg, f->table->s->db,
               Lex_cstring_strlen(*f->table_name), f->field_name),
-   item_equal(0),
-   have_privileges(NO_ACL), any_privileges(0)
+   item_equal(0), have_privileges(NO_ACL), any_privileges(0)
 {
   /*
     We always need to provide Item_field with a fully qualified field
@@ -3118,7 +3132,7 @@ void Item_field::set_field(Field *field_par)
 {
   field=result_field=field_par;			// for easy coding with fields
   set_maybe_null(field->maybe_null());
-  Type_std_attributes::set(field_par->type_std_attributes());
+  Type_std_attributes::set(field_par->type_std_attributes()); 
   table_name= Lex_cstring_strlen(*field_par->table_name);
   field_name= field_par->field_name;
   db_name= field_par->table->s->db;
@@ -3127,6 +3141,10 @@ void Item_field::set_field(Field *field_par)
   base_flags|= item_base_t::FIXED;
   if (field->table->s->tmp_table == SYSTEM_TMP_TABLE)
     any_privileges= 0;
+
+  if (field->table->s->tmp_table == SYSTEM_TMP_TABLE ||
+      field->table->s->tmp_table == INTERNAL_TMP_TABLE)
+    set_refers_to_temp_table(true);
 }
 
 
@@ -3604,9 +3622,12 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref,
 
 Item *Item_field::get_tmp_table_item(THD *thd)
 {
-  Item_field *new_item= new (thd->mem_root) Item_temptable_field(thd, this);
+  Item_field *new_item= new (thd->mem_root) Item_field(thd, this);
   if (new_item)
+  {
     new_item->field= new_item->result_field;
+    new_item->set_refers_to_temp_table(true);
+  }
   return new_item;
 }
 
@@ -3614,6 +3635,11 @@ longlong Item_field::val_int_endpoint(bool left_endp, bool *incl_endp)
 {
   longlong res= val_int();
   return null_value? LONGLONG_MIN : res;
+}
+
+void Item_field::set_refers_to_temp_table(bool value)
+{
+  refers_to_temp_table= value;
 }
 
 
@@ -6170,8 +6196,6 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   }
 #endif
   base_flags|= item_base_t::FIXED;
-  if (field->vcol_info)
-    fix_session_vcol_expr_for_read(thd, field, field->vcol_info);
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !outer_fixed && !thd->lex->in_sum_func &&
       select &&
@@ -6261,6 +6285,7 @@ void Item_field::cleanup()
   field= 0;
   item_equal= NULL;
   null_value= FALSE;
+  refers_to_temp_table= FALSE;
   DBUG_VOID_RETURN;
 }
 
@@ -7807,21 +7832,24 @@ Item_direct_view_ref::grouping_field_transformer_for_where(THD *thd,
 
 void Item_field::print(String *str, enum_query_type query_type)
 {
-  if (field && field->table->const_table &&
+  /*
+    If the field refers to a constant table, print the value.
+    (1): But don't attempt to do that if
+          * the field refers to a temporary (work) table, and
+          * temp. tables might already have been dropped.
+  */
+  if (!(refers_to_temp_table &&                      // (1)
+        (query_type & QT_DONT_ACCESS_TMP_TABLES)) && // (1)
+      field && field->table->const_table &&
       !(query_type & (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL)))
   {
     print_value(str);
     return;
   }
-  Item_ident::print(str, query_type);
-}
-
-
-void Item_temptable_field::print(String *str, enum_query_type query_type)
-{
   /*
     Item_ident doesn't have references to the underlying Field/TABLE objects,
-    so it's ok to use the following:
+    so it's safe to make the following call even when the table is not
+    available already:
   */
   Item_ident::print(str, query_type);
 }
@@ -7969,8 +7997,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
   else if (!ref || ref == not_found_item)
   {
     DBUG_ASSERT(reference_trough_name != 0);
-    if (!(ref= resolve_ref_in_select_and_group(thd, this,
-                                               context->select_lex)))
+    if (!(ref= resolve_ref_in_select_and_group(thd, this, context->select_lex)))
       goto error;             /* Some error occurred (e.g. ambiguous names). */
 
     if (ref == not_found_item) /* This reference was not resolved. */
@@ -7983,8 +8010,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       if (unlikely(!outer_context))
       {
         /* The current reference cannot be resolved in this query. */
-        my_error(ER_BAD_FIELD_ERROR,MYF(0),
-                 this->full_name(), thd->where);
+        my_error(ER_BAD_FIELD_ERROR,MYF(0), full_name(), thd->where);
         goto error;
       }
 
@@ -9087,7 +9113,12 @@ int Item_cache_wrapper::save_in_field(Field *to, bool no_conversions)
 Item* Item_cache_wrapper::get_tmp_table_item(THD *thd)
 {
   if (!orig_item->with_sum_func() && !orig_item->const_item())
-    return new (thd->mem_root) Item_temptable_field(thd, result_field);
+  {
+    auto item_field= new (thd->mem_root) Item_field(thd, result_field);
+    if (item_field)
+      item_field->set_refers_to_temp_table(true);
+    return item_field;
+  }
   return copy_or_same(thd);
 }
 
@@ -9471,6 +9502,12 @@ bool Item_default_value::eq(const Item *item, bool binary_cmp) const
 }
 
 
+bool Item_default_value::check_field_expression_processor(void *)
+{
+  field->default_value= ((Item_field *)(arg->real_item()))->field->default_value;
+  return 0;
+}
+
 bool Item_default_value::fix_fields(THD *thd, Item **items)
 {
   Item *real_arg;
@@ -9512,7 +9549,6 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   }
   if (!(def_field= (Field*) thd->alloc(field_arg->field->size_of())))
     goto error;
-  cached_field= def_field;
   memcpy((void *)def_field, (void *)field_arg->field,
          field_arg->field->size_of());
   def_field->reset_fields();
@@ -9523,11 +9559,6 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
     uchar *newptr= (uchar*) thd->alloc(1+def_field->pack_length());
     if (!newptr)
       goto error;
-    /*
-      Even if DEFAULT() do not read tables fields, the default value
-      expression can do it.
-    */
-    fix_session_vcol_expr_for_read(thd, def_field, def_field->default_value);
     if (should_mark_column(thd->column_usage))
       def_field->default_value->expr->update_used_tables();
     def_field->move_field(newptr+1, def_field->maybe_null() ? newptr : 0, 1);
@@ -9546,8 +9577,7 @@ error:
 
 void Item_default_value::cleanup()
 {
-  delete cached_field;                        // Free cached blob data
-  cached_field= 0;
+  delete field;                        // Free cached blob data
   Item_field::cleanup();
 }
 
@@ -9622,6 +9652,12 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
   return Item_field::save_in_field(field_arg, no_conversions);
 }
 
+void Item_default_value::save_in_result_field(bool no_conversions)
+{
+  calculate();
+  Item_field::save_in_result_field(no_conversions);
+}
+
 double Item_default_value::val_result()
 {
   calculate();
@@ -9679,6 +9715,23 @@ table_map Item_default_value::used_tables() const
   if (!field->default_value->expr)           // not fully parsed field
     return static_cast<table_map>(RAND_TABLE_BIT);
   return field->default_value->expr->used_tables();
+}
+
+bool Item_default_value::register_field_in_read_map(void *arg)
+{
+  TABLE *table= (TABLE *) arg;
+  int res= 0;
+  if (!table || (table && table == field->table))
+  {
+    if (field->default_value && field->default_value->expr)
+      res= field->default_value->expr->walk(&Item::register_field_in_read_map,1,arg);
+  }
+  else if (result_field && table == result_field->table)
+  {
+    bitmap_set_bit(table->read_set, result_field->field_index);
+  }
+
+  return res;
 }
 
 /**

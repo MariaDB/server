@@ -150,21 +150,21 @@ struct st_maria_share;
 struct st_maria_handler;                        /* For referense */
 struct st_maria_keydef;
 
-typedef struct st_maria_key                 /* Internal info about a key */
+struct st_maria_key                 /* Internal info about a key */
 {
   uchar *data;                              /* Data for key */
   struct st_maria_keydef *keyinfo;          /* Definition for key */
   uint data_length;                         /* Length of key data */
   uint ref_length;                          /* record ref + transid */
   uint32 flag;                               /* 0 or SEARCH_PART_KEY */
-} MARIA_KEY;
+};
 
-typedef struct st_maria_decode_tree     /* Decode huff-table */
+struct st_maria_decode_tree     /* Decode huff-table */
 {
   uint16 *table;
   uint quick_table_bits;
   uchar *intervalls;
-} MARIA_DECODE_TREE;
+};
 
 
 typedef struct s3_info S3_INFO;
@@ -1203,7 +1203,8 @@ struct ha_table_option_struct
 #define PACK_TYPE_SELECTED	1U	/* Bits in field->pack_type */
 #define PACK_TYPE_SPACE_FIELDS	2U
 #define PACK_TYPE_ZERO_FILL	4U
-#define MARIA_FOUND_WRONG_KEY 32768U	/* Impossible value from ha_key_cmp */
+
+#define MARIA_FOUND_WRONG_KEY INT_MAX32	/* Impossible value from ha_key_cmp */
 
 #define MARIA_BLOCK_SIZE(key_length,data_pointer,key_pointer,block_size)  (((((key_length)+(data_pointer)+(key_pointer))*4+(key_pointer)+2)/(block_size)+1)*(block_size))
 #define MARIA_MAX_KEYPTR_SIZE	5	/* For calculating block lengths */

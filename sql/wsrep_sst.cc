@@ -1,4 +1,5 @@
-/* Copyright 2008-2020 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -33,6 +34,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include "debug_sync.h"
 
 #include <my_service_manager.h>
 
@@ -518,6 +520,57 @@ static int generate_binlog_index_opt_val(char** ret)
   return 0;
 }
 
+// report progress event
+static void sst_report_progress(int const       from,
+                                long long const total_prev,
+                                long long const total,
+                                long long const complete)
+{
+  static char buf[128] = { '\0', };
+  static size_t const buf_len= sizeof(buf) - 1;
+  snprintf(buf, buf_len,
+           "{ \"from\": %d, \"to\": %d, \"total\": %lld, \"done\": %lld, "
+           "\"indefinite\": -1 }",
+           from, WSREP_MEMBER_JOINED, total_prev + total, total_prev +complete);
+  WSREP_DEBUG("REPORTING SST PROGRESS: '%s'", buf);
+}
+
+// process "complete" event from SST script feedback
+static void sst_handle_complete(const char* const input,
+                                long long const   total_prev,
+                                long long*        total,
+                                long long*        complete,
+                                int const         from)
+{
+  long long x;
+  int n= sscanf(input, " %lld", &x);
+  if (n > 0 && x > *complete)
+  {
+    *complete= x;
+    if (*complete > *total) *total= *complete;
+    sst_report_progress(from, total_prev, *total, *complete);
+  }
+}
+
+// process "total" event from SST script feedback
+static void sst_handle_total(const char* const input,
+                             long long*        total_prev,
+                             long long*        total,
+                             long long*        complete,
+                             int const         from)
+{
+  long long x;
+  int n= sscanf(input, " %lld", &x);
+  if (n > 0)
+  {
+    // new stage starts, update total_prev
+    *total_prev+= *total;
+    *total= x;
+    *complete= 0;
+    sst_report_progress(from, *total_prev, *total, *complete);
+  }
+}
+
 static void* sst_joiner_thread (void* a)
 {
   sst_thread_arg* arg= (sst_thread_arg*) a;
@@ -525,8 +578,8 @@ static void* sst_joiner_thread (void* a)
 
   {
     THD* thd;
-    const char magic[]= "ready";
-    const size_t magic_len= sizeof(magic) - 1;
+    static const char magic[]= "ready";
+    static const size_t magic_len= sizeof(magic) - 1;
     const size_t out_len= 512;
     char out[out_len];
 
@@ -579,22 +632,51 @@ static void* sst_joiner_thread (void* a)
     wsrep_uuid_t  ret_uuid = WSREP_UUID_UNDEFINED;
     wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED;
 
-    // in case of successfull receiver start, wait for SST
-    // completion/end
-    char* tmp= my_fgets (out, out_len, proc.pipe());
+    // current stage progress
+    long long total= 0;
+    long long complete= 0;
+    // previous stages cumulative progress
+    long long total_prev= 0;
 
-    proc.wait();
-
+    // in case of successful receiver start, wait for SST completion/end
+    const char* tmp= NULL;
     err= EINVAL;
 
-    if (!tmp)
+  wait_signal:
+    tmp= my_fgets (out, out_len, proc.pipe());
+
+    if (tmp)
     {
-      WSREP_ERROR("Failed to read uuid:seqno and wsrep_gtid_domain_id from "
-                  "joiner script.");
-      if (proc.error()) err= proc.error();
+      static const char magic_total[]= "total";
+      static const size_t total_len=strlen(magic_total);
+      static const char magic_complete[]= "complete";
+      static const size_t complete_len=strlen(magic_complete);
+      static const int from= WSREP_MEMBER_JOINER;
+
+      if (!strncasecmp (tmp, magic_complete, complete_len))
+      {
+        sst_handle_complete(tmp + complete_len, total_prev, &total, &complete,
+                            from);
+        goto wait_signal;
+      }
+      else if (!strncasecmp (tmp, magic_total, total_len))
+      {
+        sst_handle_total(tmp + total_len, &total_prev, &total, &complete, from);
+        goto wait_signal;
+      }
     }
     else
     {
+      WSREP_ERROR("Failed to read uuid:seqno and wsrep_gtid_domain_id from "
+                  "joiner script.");
+      proc.wait();
+      if (proc.error()) err= proc.error();
+    }
+
+    // this should be the final script output with GTID
+    if (tmp)
+    {
+      proc.wait();
       // Read state ID (UUID:SEQNO) followed by wsrep_gtid_domain_id (if any).
       const char *pos= strchr(out, ' ');
 
@@ -1223,35 +1305,46 @@ std::string wsrep_sst_prepare()
   /*
     Figure out SST receive address. Common for all SST methods.
   */
+  wsp::Address* addr_in_parser= NULL;
+
   // Attempt 1: wsrep_sst_receive_address
   if (wsrep_sst_receive_address &&
-      strcmp (wsrep_sst_receive_address, WSREP_SST_ADDRESS_AUTO))
+      strcmp(wsrep_sst_receive_address, WSREP_SST_ADDRESS_AUTO))
   {
-    addr_in= wsrep_sst_receive_address;
+    addr_in_parser = new wsp::Address(wsrep_sst_receive_address);
+
+    if (!addr_in_parser->is_valid())
+    {
+      WSREP_ERROR("Could not parse wsrep_sst_receive_address : %s",
+                  wsrep_sst_receive_address);
+      unireg_abort(1);
+    }
   }
-
   //Attempt 2: wsrep_node_address
-  else if (wsrep_node_address && strlen(wsrep_node_address))
+  else if (wsrep_node_address && *wsrep_node_address)
   {
-    wsp::Address addr(wsrep_node_address);
+    addr_in_parser = new wsp::Address(wsrep_node_address);
 
-    if (!addr.is_valid())
+    if (addr_in_parser->is_valid())
+    {
+      // we must not inherit the port number from this address:
+      addr_in_parser->set_port(0);
+    }
+    else
     {
       WSREP_ERROR("Could not parse wsrep_node_address : %s",
                   wsrep_node_address);
       throw wsrep::runtime_error("Failed to prepare for SST. Unrecoverable");
     }
-    memcpy(ip_buf, addr.get_address(), addr.get_address_len());
-    addr_in= ip_buf;
   }
   // Attempt 3: Try to get the IP from the list of available interfaces.
   else
   {
-    ssize_t ret= wsrep_guess_ip (ip_buf, ip_max);
+    ssize_t ret= wsrep_guess_ip(ip_buf, ip_max);
 
     if (ret && ret < ip_max)
     {
-      addr_in= ip_buf;
+      addr_in_parser = new wsp::Address(ip_buf);
     }
     else
     {
@@ -1260,6 +1353,51 @@ std::string wsrep_sst_prepare()
       throw wsrep::runtime_error("Could not prepare state transfer request");
     }
   }
+
+  assert(addr_in_parser);
+
+  size_t len= addr_in_parser->get_address_len();
+  bool is_ipv6= addr_in_parser->is_ipv6();
+  const char* address= addr_in_parser->get_address();
+
+  if (len > (is_ipv6 ? ip_max - 2 : ip_max))
+  {
+    WSREP_ERROR("Address to accept state transfer is too long: '%s'",
+                address);
+    unireg_abort(1);
+  }
+
+  if (is_ipv6)
+  {
+    /* wsrep_sst_*.sh scripts requite ipv6 addreses to be in square breackets */
+    ip_buf[0] = '[';
+    /* the length (len) already includes the null byte: */
+    memcpy(ip_buf + 1, address, len - 1);
+    ip_buf[len] = ']';
+    ip_buf[len + 1] = 0;
+    len += 2;
+  }
+  else
+  {
+    memcpy(ip_buf, address, len);
+  }
+
+  int port= addr_in_parser->get_port();
+  if (port)
+  {
+    size_t space= ip_max - len;
+    ip_buf[len - 1] = ':';
+    int ret= snprintf(ip_buf + len, ip_max - len, "%d", port);
+    if (ret <= 0 || (size_t) ret > space)
+    {
+      WSREP_ERROR("Address to accept state transfer is too long: '%s:%d'",
+                  address, port);
+      unireg_abort(1);
+    }
+  }
+
+  delete addr_in_parser;
+  addr_in = ip_buf;
 
   ssize_t addr_len= -ENOSYS;
   method = wsrep_sst_method;
@@ -1500,16 +1638,13 @@ static int run_sql_command(THD *thd, const char *query)
   if (thd->is_error())
   {
     int const err= thd->get_stmt_da()->sql_errno();
-    WSREP_WARN ("Error executing '%s': %d (%s)%s",
-                query, err, thd->get_stmt_da()->message(),
-                err == ER_UNKNOWN_SYSTEM_VARIABLE ?
-                ". Was mysqld built with --with-innodb-disallow-writes ?" : "");
+    WSREP_WARN ("Error executing '%s': %d (%s)",
+                query, err, thd->get_stmt_da()->message());
     thd->clear_error();
     return -1;
   }
   return 0;
 }
-
 
 static int sst_flush_tables(THD* thd)
 {
@@ -1570,15 +1705,18 @@ static int sst_flush_tables(THD* thd)
   }
   else
   {
+    ha_disable_internal_writes(true);
+
     WSREP_INFO("Tables flushed.");
-    /*
-      Tables have been flushed. Create a file with cluster state ID and
-      wsrep_gtid_domain_id.
-    */
+
+    // Create a file with cluster state ID and wsrep_gtid_domain_id.
     char content[100];
     snprintf(content, sizeof(content), "%s:%lld %d\n", wsrep_cluster_state_uuid,
              (long long)wsrep_locked_seqno, wsrep_gtid_server.domain_id);
     err= sst_create_file(flush_success, content);
+
+    if (err)
+      WSREP_INFO("Creating file for flush_success failed %d",err);
 
     const char base_name[]= "tables_flushed";
     ssize_t const full_len= strlen(mysql_real_data_home) + strlen(base_name)+2;
@@ -1614,37 +1752,11 @@ static int sst_flush_tables(THD* thd)
     }
     free(real_name);
     free(tmp_name);
+    if (err)
+      ha_disable_internal_writes(false);
   }
 
   return err;
-}
-
-
-static void sst_disallow_writes (THD* thd, bool yes)
-{
-  char query_str[64]= { 0, };
-  ssize_t const query_max= sizeof(query_str) - 1;
-  CHARSET_INFO *current_charset;
-
-  current_charset= thd->variables.character_set_client;
-
-  if (!is_supported_parser_charset(current_charset))
-  {
-      /* Do not use non-supported parser character sets */
-      WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->cs_name.str);
-      thd->variables.character_set_client= &my_charset_latin1;
-      WSREP_WARN("For SST temporally setting character set to : %s",
-                 my_charset_latin1.cs_name.str);
-  }
-
-  snprintf (query_str, query_max, "SET GLOBAL innodb_disallow_writes=%d",
-            yes ? 1 : 0);
-
-  if (run_sql_command(thd, query_str))
-  {
-    WSREP_ERROR("Failed to disallow InnoDB writes");
-  }
-  thd->variables.character_set_client= current_charset;
 }
 
 static void* sst_donor_thread (void* a)
@@ -1680,32 +1792,64 @@ static void* sst_donor_thread (void* a)
 
   if (proc.pipe() && !err)
   {
+    long long total= 0;
+    long long complete= 0;
+    // total form previous stages
+    long long total_prev= 0;
+
 wait_signal:
     out= my_fgets (out_buf, out_len, proc.pipe());
 
     if (out)
     {
-      const char magic_flush[]= "flush tables";
-      const char magic_cont[]= "continue";
-      const char magic_done[]= "done";
+      static const char magic_flush[]= "flush tables";
+      static const char magic_cont[]= "continue";
+      static const char magic_done[]= "done";
+      static const size_t done_len=strlen(magic_done);
+      static const char magic_total[]= "total";
+      static const size_t total_len=strlen(magic_total);
+      static const char magic_complete[]= "complete";
+      static const size_t complete_len=strlen(magic_complete);
+      static const int from= WSREP_MEMBER_DONOR;
 
-      if (!strcasecmp (out, magic_flush))
+      if (!strncasecmp (out, magic_complete, complete_len))
+      {
+        sst_handle_complete(out + complete_len, total_prev, &total, &complete,
+                            from);
+        goto wait_signal;
+      }
+      else if (!strncasecmp (out, magic_total, total_len))
+      {
+        sst_handle_total(out + total_len, &total_prev, &total, &complete, from);
+        goto wait_signal;
+      }
+      else if (!strcasecmp (out, magic_flush))
       {
         err= sst_flush_tables (thd.ptr);
+
         if (!err)
         {
-          sst_disallow_writes (thd.ptr, true);
+          locked= true;
           /*
             Lets also keep statements that modify binary logs (like RESET LOGS,
             RESET MASTER) from proceeding until the files have been transferred
             to the joiner node.
           */
           if (mysql_bin_log.is_open())
-          {
             mysql_mutex_lock(mysql_bin_log.get_log_lock());
-          }
 
-          locked= true;
+          WSREP_INFO("Donor state reached");
+
+          DBUG_EXECUTE_IF("sync.wsrep_donor_state",
+          {
+            const char act[]=
+                             "now "
+                             "SIGNAL sync.wsrep_donor_state_reached "
+                             "WAIT_FOR signal.wsrep_donor_state";
+            assert(!debug_sync_set_action(thd.ptr,
+                                          STRING_WITH_LEN(act)));
+          };);
+
           goto wait_signal;
         }
       }
@@ -1713,19 +1857,16 @@ wait_signal:
       {
         if (locked)
         {
-          if (mysql_bin_log.is_open())
-          {
-            mysql_mutex_assert_owner(mysql_bin_log.get_log_lock());
-            mysql_mutex_unlock(mysql_bin_log.get_log_lock());
-          }
-          sst_disallow_writes (thd.ptr, false);
-          thd.ptr->global_read_lock.unlock_global_read_lock(thd.ptr);
           locked= false;
+          ha_disable_internal_writes(false);
+          if (mysql_bin_log.is_open())
+            mysql_mutex_unlock(mysql_bin_log.get_log_lock());
+          thd.ptr->global_read_lock.unlock_global_read_lock(thd.ptr);
         }
         err=  0;
         goto wait_signal;
       }
-      else if (!strncasecmp (out, magic_done, strlen(magic_done)))
+      else if (!strncasecmp (out, magic_done, done_len))
       {
         err= sst_scan_uuid_seqno (out + strlen(magic_done) + 1,
                                   &ret_uuid, &ret_seqno);
@@ -1733,6 +1874,7 @@ wait_signal:
       else
       {
         WSREP_WARN("Received unknown signal: '%s'", out);
+        err = -EINVAL;
         proc.wait();
       }
     }
@@ -1751,12 +1893,12 @@ wait_signal:
 
   if (locked) // don't forget to unlock server before return
   {
+    ha_disable_internal_writes(false);
     if (mysql_bin_log.is_open())
     {
       mysql_mutex_assert_owner(mysql_bin_log.get_log_lock());
       mysql_mutex_unlock(mysql_bin_log.get_log_lock());
     }
-    sst_disallow_writes (thd.ptr, false);
     thd.ptr->global_read_lock.unlock_global_read_lock(thd.ptr);
   }
 

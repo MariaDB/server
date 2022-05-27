@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -841,6 +841,8 @@ typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
 #define ALTER_PARTITION_TABLE_REORG (1ULL << 12)
 #define ALTER_PARTITION_CONVERT_IN  (1ULL << 13)
 #define ALTER_PARTITION_CONVERT_OUT (1ULL << 14)
+// Set for vers_add_auto_hist_parts() operation
+#define ALTER_PARTITION_AUTO_HIST   (1ULL << 15)
 
 /*
   This is master database for most of system tables. However there
@@ -902,12 +904,13 @@ struct xid_t {
     if ((bqual_length= bl))
       memcpy(data+gl, b, bl);
   }
-  void set(ulonglong xid)
+  // Populate server_id if it's specified, otherwise use the current server_id
+  void set(ulonglong xid, decltype(::server_id) trx_server_id= server_id)
   {
     my_xid tmp;
     formatID= 1;
     set(MYSQL_XID_PREFIX_LEN, 0, MYSQL_XID_PREFIX);
-    memcpy(data+MYSQL_XID_PREFIX_LEN, &server_id, sizeof(server_id));
+    memcpy(data+MYSQL_XID_PREFIX_LEN, &trx_server_id, sizeof(trx_server_id));
     tmp= xid;
     memcpy(data+MYSQL_XID_OFFSET, &tmp, sizeof(tmp));
     gtrid_length=MYSQL_XID_GTRID_LEN;
@@ -932,6 +935,12 @@ struct xid_t {
     return gtrid_length == MYSQL_XID_GTRID_LEN && bqual_length == 0 &&
            !memcmp(data, MYSQL_XID_PREFIX, MYSQL_XID_PREFIX_LEN) ?
            quick_get_my_xid() : 0;
+  }
+  decltype(::server_id) get_trx_server_id()
+  {
+    decltype(::server_id) trx_server_id;
+    memcpy(&trx_server_id, data+MYSQL_XID_PREFIX_LEN, sizeof(trx_server_id));
+    return trx_server_id;
   }
   uint length()
   {
@@ -958,6 +967,7 @@ typedef struct xid_t XID;
 */
 typedef uint Binlog_file_id;
 const Binlog_file_id MAX_binlog_id= UINT_MAX;
+const my_off_t       MAX_off_t    = (~(my_off_t) 0);
 /*
   Compound binlog-id and byte offset of transaction's first event
   in a sequence (e.g the recovery sequence) of binlog files.
@@ -972,13 +982,22 @@ struct xid_recovery_member
   my_xid xid;
   uint in_engine_prepare;  // number of engines that have xid prepared
   bool decided_to_commit;
-  Binlog_offset binlog_coord; // semisync recovery binlog offset
+  /*
+    Semisync recovery binlog offset. It's initialized with the maximum
+    unreachable offset. The max value will remain for any transaction
+    not found in binlog to yield its rollback decision as it's guaranteed
+    to be within a truncated tail part of the binlog.
+  */
+  Binlog_offset binlog_coord;
   XID *full_xid;           // needed by wsrep or past it recovery
+  decltype(::server_id) server_id;         // server id of orginal server
 
   xid_recovery_member(my_xid xid_arg, uint prepare_arg, bool decided_arg,
-                      XID *full_xid_arg)
+                      XID *full_xid_arg, decltype(::server_id) server_id_arg)
     : xid(xid_arg), in_engine_prepare(prepare_arg),
-      decided_to_commit(decided_arg), full_xid(full_xid_arg) {};
+      decided_to_commit(decided_arg),
+      binlog_coord(Binlog_offset(MAX_binlog_id, MAX_off_t)),
+      full_xid(full_xid_arg), server_id(server_id_arg) {};
 };
 
 /* for recover() handlerton call */
@@ -1015,7 +1034,10 @@ enum enum_schema_tables
   SCH_ENABLED_ROLES,
   SCH_ENGINES,
   SCH_EVENTS,
-  SCH_EXPLAIN,
+  SCH_EXPLAIN_TABULAR,
+  SCH_EXPLAIN_JSON,
+  SCH_ANALYZE_TABULAR,
+  SCH_ANALYZE_JSON,
   SCH_FILES,
   SCH_GLOBAL_STATUS,
   SCH_GLOBAL_VARIABLES,
@@ -1060,31 +1082,6 @@ extern MYSQL_PLUGIN_IMPORT st_plugin_int *hton2plugin[MAX_HA];
 
 struct handlerton;
 #define view_pseudo_hton ((handlerton *)1)
-
-/* Transaction log maintains type definitions */
-enum log_status
-{
-  HA_LOG_STATUS_FREE= 0,      /* log is free and can be deleted */
-  HA_LOG_STATUS_INUSE= 1,     /* log can't be deleted because it is in use */
-  HA_LOG_STATUS_NOSUCHLOG= 2  /* no such log (can't be returned by
-                                the log iterator status) */
-};
-/*
-  Function for signaling that the log file changed its state from
-  LOG_STATUS_INUSE to LOG_STATUS_FREE
-
-  Now it do nothing, will be implemented as part of new transaction
-  log management for engines.
-  TODO: implement the function.
-*/
-void signal_log_not_needed(struct handlerton, char *log_file);
-/*
-  Data of transaction log iterator.
-*/
-struct handler_log_file_data {
-  LEX_STRING filename;
-  enum log_status status;
-};
 
 /*
   Definitions for engine-specific table/field/index options in the CREATE TABLE.
@@ -1199,46 +1196,6 @@ typedef struct st_ha_create_table_option {
   const char *values;
   struct st_mysql_sys_var *var;
 } ha_create_table_option;
-
-enum handler_iterator_type
-{
-  /* request of transaction log iterator */
-  HA_TRANSACTLOG_ITERATOR= 1
-};
-enum handler_create_iterator_result
-{
-  HA_ITERATOR_OK,          /* iterator created */
-  HA_ITERATOR_UNSUPPORTED, /* such type of iterator is not supported */
-  HA_ITERATOR_ERROR        /* error during iterator creation */
-};
-
-/*
-  Iterator structure. Can be used by handler/handlerton for different purposes.
-
-  Iterator should be created in the way to point "before" the first object
-  it iterate, so next() call move it to the first object or return !=0 if
-  there is nothing to iterate through.
-*/
-struct handler_iterator {
-  /*
-    Moves iterator to next record and return 0 or return !=0
-    if there is no records.
-    iterator_object will be filled by this function if next() returns 0.
-    Content of the iterator_object depend on iterator type.
-  */
-  int (*next)(struct handler_iterator *, void *iterator_object);
-  /*
-    Free resources allocated by iterator, after this call iterator
-    is not usable.
-  */
-  void (*destroy)(struct handler_iterator *);
-  /*
-    Pointer to buffer for the iterator to use.
-    Should be allocated by function which created the iterator and
-    destroyed by freed by above "destroy" call
-  */
-  void *buffer;
-};
 
 class handler;
 class group_by_handler;
@@ -1503,22 +1460,6 @@ struct handlerton
                             const char *query, uint query_length,
                             const char *db, const char *table_name);
 
-   /*
-     Get log status.
-     If log_status is null then the handler do not support transaction
-     log information (i.e. log iterator can't be created).
-     (see example of implementation in handler.cc, TRANS_LOG_MGM_EXAMPLE_CODE)
-
-   */
-   enum log_status (*get_log_status)(handlerton *hton, char *log);
-
-   /*
-     Iterators creator.
-     Presence of the pointer should be checked before using
-   */
-   enum handler_create_iterator_result
-     (*create_iterator)(handlerton *hton, enum handler_iterator_type type,
-                        struct handler_iterator *fill_this_in);
    void (*abort_transaction)(handlerton *hton, THD *bf_thd,
 			    THD *victim_thd, my_bool signal);
    int (*set_checkpoint)(handlerton *hton, const XID* xid);
@@ -1714,6 +1655,9 @@ struct handlerton
    @return transaction commit ID
    @retval 0 if no system-versioned data was affected by the transaction */
    ulonglong (*prepare_commit_versioned)(THD *thd, ulonglong *trx_id);
+
+  /** Disable or enable the internal writes of a storage engine */
+  void (*disable_internal_writes)(bool disable);
 
   /* backup */
   void (*prepare_for_backup)(void);
@@ -2157,7 +2101,6 @@ struct Vers_parse_info: public Table_period_info
 
   Table_period_info::start_end_t as_row;
 
-protected:
   friend struct Table_scope_and_contents_source_st;
   void set_start(const LEX_CSTRING field_name)
   {
@@ -2169,6 +2112,8 @@ protected:
     as_row.end= field_name;
     period.end= field_name;
   }
+
+protected:
   bool is_start(const char *name) const;
   bool is_end(const char *name) const;
   bool is_start(const Create_field &f) const;
@@ -2344,33 +2289,6 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
     Schema_specification_st::init();
     alter_info= NULL;
   }
-  bool check_conflicting_charset_declarations(CHARSET_INFO *cs);
-  bool add_table_option_default_charset(CHARSET_INFO *cs)
-  {
-    // cs can be NULL, e.g.:  CREATE TABLE t1 (..) CHARACTER SET DEFAULT;
-    if (check_conflicting_charset_declarations(cs))
-      return true;
-    default_table_charset= cs;
-    used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
-    return false;
-  }
-  bool add_alter_list_item_convert_to_charset(CHARSET_INFO *cs)
-  {
-    /* 
-      cs cannot be NULL, as sql_yacc.yy translates
-         CONVERT TO CHARACTER SET DEFAULT
-      to
-         CONVERT TO CHARACTER SET <character-set-of-the-current-database>
-      TODO: Shouldn't we postpone resolution of DEFAULT until the
-      character set of the table owner database is loaded from its db.opt?
-    */
-    DBUG_ASSERT(cs);
-    if (check_conflicting_charset_declarations(cs))
-      return true;
-    alter_table_convert_to_charset= default_table_charset= cs;
-    used_fields|= (HA_CREATE_USED_CHARSET | HA_CREATE_USED_DEFAULT_CHARSET);  
-    return false;
-  }
   ulong table_options_with_row_type()
   {
     if (row_type == ROW_TYPE_DYNAMIC || row_type == ROW_TYPE_PAGE)
@@ -2378,6 +2296,10 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
     else
       return table_options;
   }
+  bool resolve_to_charset_collation_context(THD *thd,
+                  const Lex_table_charset_collation_attrs_st &default_cscl,
+                  const Lex_table_charset_collation_attrs_st &convert_cscl,
+                  const Charset_collation_context &ctx);
 };
 
 
@@ -2388,16 +2310,23 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
 struct Table_specification_st: public HA_CREATE_INFO,
                                public DDL_options_st
 {
+  Lex_table_charset_collation_attrs_st default_charset_collation;
+  Lex_table_charset_collation_attrs_st convert_charset_collation;
+
   // Deep initialization
   void init()
   {
     HA_CREATE_INFO::init();
     DDL_options_st::init();
+    default_charset_collation.init();
+    convert_charset_collation.init();
   }
   void init(DDL_options_st::Options options_arg)
   {
     HA_CREATE_INFO::init();
     DDL_options_st::init(options_arg);
+    default_charset_collation.init();
+    convert_charset_collation.init();
   }
   /*
     Quick initialization, for parser.
@@ -2409,6 +2338,46 @@ struct Table_specification_st: public HA_CREATE_INFO,
   {
     HA_CREATE_INFO::options= 0;
     DDL_options_st::init();
+    default_charset_collation.init();
+    convert_charset_collation.init();
+  }
+
+  bool add_table_option_convert_charset(CHARSET_INFO *cs)
+  {
+    // cs can be NULL, e.g.: ALTER TABLE t1 CONVERT TO CHARACTER SET DEFAULT;
+    used_fields|= (HA_CREATE_USED_CHARSET | HA_CREATE_USED_DEFAULT_CHARSET);
+    return cs ?
+      convert_charset_collation.merge_exact_charset(Lex_exact_charset(cs)) :
+      convert_charset_collation.merge_charset_default();
+  }
+  bool add_table_option_convert_collation(const Lex_extended_collation_st &cl)
+  {
+    used_fields|= (HA_CREATE_USED_CHARSET | HA_CREATE_USED_DEFAULT_CHARSET);
+    return convert_charset_collation.merge_collation(cl);
+  }
+
+  bool add_table_option_default_charset(CHARSET_INFO *cs)
+  {
+    // cs can be NULL, e.g.:  CREATE TABLE t1 (..) CHARACTER SET DEFAULT;
+    used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
+    return cs ?
+      default_charset_collation.merge_exact_charset(Lex_exact_charset(cs)) :
+      default_charset_collation.merge_charset_default();
+  }
+  bool add_table_option_default_collation(const Lex_extended_collation_st &cl)
+  {
+    used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
+    return default_charset_collation.merge_collation(cl);
+  }
+
+  bool resolve_to_charset_collation_context(THD *thd,
+                                         const Charset_collation_context &ctx)
+  {
+    return HA_CREATE_INFO::
+             resolve_to_charset_collation_context(thd,
+                                                  default_charset_collation,
+                                                  convert_charset_collation,
+                                                  ctx);
   }
 };
 
@@ -4061,14 +4030,12 @@ public:
   inline int ha_read_first_row(uchar *buf, uint primary_key);
 
   /**
-    The following 3 function is only needed for tables that may be
+    The following 2 function is only needed for tables that may be
     internal temporary tables during joins.
   */
   virtual int remember_rnd_pos()
     { return HA_ERR_WRONG_COMMAND; }
   virtual int restart_rnd_next(uchar *buf)
-    { return HA_ERR_WRONG_COMMAND; }
-  virtual int rnd_same(uchar *buf, uint inx)
     { return HA_ERR_WRONG_COMMAND; }
 
   virtual ha_rows records_in_range(uint inx, const key_range *min_key,
@@ -4271,6 +4238,8 @@ public:
   */
   virtual uint lock_count(void) const { return 1; }
   /**
+    Get the lock(s) for the table and perform conversion of locks if needed.
+
     Is not invoked for non-transactional temporary tables.
 
     @note store_lock() can return more than one lock if the table is MERGE
@@ -5102,6 +5071,11 @@ public:
                                 const uchar *pack_frm_data,
                                 size_t pack_frm_len)
   { return HA_ERR_WRONG_COMMAND; }
+  /* @return true if it's necessary to switch current statement log format from
+   STATEMENT to ROW if binary log format is MIXED and autoincrement values
+   are changed in the statement */
+  virtual bool autoinc_lock_mode_stmt_unsafe() const
+  { return false; }
   virtual int drop_partitions(const char *path)
   { return HA_ERR_WRONG_COMMAND; }
   virtual int rename_partitions(const char *path)
@@ -5240,7 +5214,7 @@ static inline const char *ha_resolve_storage_engine_name(const handlerton *db_ty
 
 static inline bool ha_check_storage_engine_flag(const handlerton *db_type, uint32 flag)
 {
-  return db_type == NULL ? FALSE : MY_TEST(db_type->flags & flag);
+  return db_type && (db_type->flags & flag);
 }
 
 static inline bool ha_storage_engine_is_enabled(const handlerton *db_type)
@@ -5276,6 +5250,8 @@ int ha_delete_table_force(THD *thd, const char *path, const LEX_CSTRING *db,
 void ha_prepare_for_backup();
 void ha_end_backup();
 void ha_pre_shutdown();
+
+void ha_disable_internal_writes(bool disable);
 
 /* statistics and info */
 bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat);

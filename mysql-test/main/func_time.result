@@ -991,6 +991,12 @@ ADDTIME('916:40:00', '416:40:00')
 Warnings:
 Warning	1292	Truncated incorrect time value: '916:40:00'
 Warning	1292	Truncated incorrect time value: '1255:39:59.999999'
+SELECT ADDTIME(20010101,1e0), ADDTIME(20010101,1.1e0);
+ADDTIME(20010101,1e0)	ADDTIME(20010101,1.1e0)
+2001-01-01 00:00:01.000000	2001-01-01 00:00:01.100000
+SELECT ADDTIME(ADDTIME(20010101,1e0), 0);
+ADDTIME(ADDTIME(20010101,1e0), 0)
+2001-01-01 00:00:01.000000
 SELECT SUBTIME('916:40:00', '416:40:00');
 SUBTIME('916:40:00', '416:40:00')
 422:19:59.999999
@@ -1983,7 +1989,7 @@ select microsecond('12:00:00.123456'), microsecond('2009-12-31 23:59:59.000010')
 microsecond('12:00:00.123456')	microsecond('2009-12-31 23:59:59.000010')
 123456	10
 select now(258);
-ERROR 42000: Too big precision 258 specified for 'current_timestamp'. Maximum is 6
+ERROR 42000: Too big precision specified for 'current_timestamp'. Maximum is 6
 SELECT 1 FROM DUAL WHERE YEAR(TIMEDIFF(NULL, '12:12:12'));
 1
 SELECT 1 FROM DUAL WHERE MONTH(TIMEDIFF(NULL, '12:12:12'));

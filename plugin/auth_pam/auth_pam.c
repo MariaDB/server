@@ -15,14 +15,15 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 
+#include <my_global.h>
 #include <config_auth_pam.h>
 #include <unistd.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <spawn.h>
 #include <mysql/plugin_auth.h>
 #include "auth_pam_tool.h"
-#include <my_global.h>
 
 #ifndef DBUG_OFF
 static char pam_debug = 0;
@@ -51,71 +52,57 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   unsigned char field, *pkt;
   unsigned int n_sleep= 0;
   useconds_t sleep_time= 100;
+  posix_spawn_file_actions_t file_actions;
+  char toolpath[FN_REFLEN];
+  size_t plugin_dir_len= strlen(opt_plugin_dir);
+  char *const argv[2]= {toolpath, 0};
+  int res;
 
   PAM_DEBUG((stderr, "PAM: opening pipes.\n"));
   if (pipe(p_to_c) < 0 || pipe(c_to_p) < 0)
   {
-    /* Error creating pipes. */
+    my_printf_error(ENOEXEC, "pam: cannot create pipes (errno: %M)",
+                    ME_ERROR_LOG_ONLY, errno);
     return CR_ERROR;
   }
-  PAM_DEBUG((stderr, "PAM: forking.\n"));
-  if ((proc_id= fork()) < 0)
+
+  if (plugin_dir_len + tool_name_len + 2 > sizeof(toolpath))
   {
-    /* Error forking. */
-    close(p_to_c[0]);
-    close(c_to_p[1]);
-    goto error_ret;
+    my_printf_error(ENOEXEC, "pam: too long path to <plugindir>/%s",
+                    ME_ERROR_LOG_ONLY, tool_name);
+    return CR_ERROR;
   }
 
-  if (proc_id == 0)
-  {
-    /* The 'sandbox' process started. */
-    char toolpath[FN_REFLEN];
-    size_t plugin_dir_len= strlen(opt_plugin_dir);
+  memcpy(toolpath, opt_plugin_dir, plugin_dir_len);
+  if (plugin_dir_len && toolpath[plugin_dir_len-1] != FN_LIBCHAR)
+    toolpath[plugin_dir_len++]= FN_LIBCHAR;
+  memcpy(toolpath+plugin_dir_len, tool_name, tool_name_len+1);
 
-    PAM_DEBUG((stderr, "PAM: Child process prepares pipes.\n"));
-    
-    if (close(p_to_c[1]) < 0 ||
-        close(c_to_p[0]) < 0 ||
-        dup2(p_to_c[0], 0) < 0 || /* Parent's pipe to STDIN. */
-        dup2(c_to_p[1], 1) < 0)   /* Sandbox's pipe to STDOUT. */
-    {
-      exit(-1);
-    }
-
-    PAM_DEBUG((stderr, "PAM: check tool directory: %s, %s.\n",
-                       opt_plugin_dir, tool_name));
-    if (plugin_dir_len + tool_name_len + 2 > sizeof(toolpath))
-    {
-      /* Tool path too long. */
-      exit(-1);
-    }
-
-    memcpy(toolpath, opt_plugin_dir, plugin_dir_len);
-    if (plugin_dir_len && toolpath[plugin_dir_len-1] != FN_LIBCHAR)
-      toolpath[plugin_dir_len++]= FN_LIBCHAR;
-    memcpy(toolpath+plugin_dir_len, tool_name, tool_name_len+1);
-
-    PAM_DEBUG((stderr, "PAM: execute pam sandbox [%s].\n", toolpath));
-    (void) execl(toolpath, toolpath, NULL);
-    PAM_DEBUG((stderr, "PAM: exec() failed.\n"));
-    my_printf_error(1, "PAM: Cannot execute %s (errno: %M)", ME_ERROR_LOG_ONLY,
-                    toolpath, errno);
-    exit(-1);
-  }
+  PAM_DEBUG((stderr, "PAM: forking %s\n", toolpath));
+  res= posix_spawn_file_actions_init(&file_actions) ||
+       posix_spawn_file_actions_addclose(&file_actions, p_to_c[1]) ||
+       posix_spawn_file_actions_addclose(&file_actions, c_to_p[0]) ||
+       posix_spawn_file_actions_adddup2(&file_actions, p_to_c[0], 0) ||
+       posix_spawn_file_actions_adddup2(&file_actions, c_to_p[1], 1) ||
+       posix_spawn(&proc_id, toolpath, &file_actions, NULL, argv, NULL);
 
   /* Parent process continues. */
+  posix_spawn_file_actions_destroy(&file_actions);
+  close(p_to_c[0]);
+  close(c_to_p[1]);
 
-  PAM_DEBUG((stderr, "PAM: parent continues.\n"));
-  if (close(p_to_c[0]) < 0 ||
-      close(c_to_p[1]) < 0)
+  if (res)
+  {
+    my_printf_error(ENOEXEC, "pam: cannot exec %s (errno: %M)",
+                    ME_ERROR_LOG_ONLY, toolpath, errno);
     goto error_ret;
+  }
 
   /* no user name yet ? read the client handshake packet with the user name */
   if (info->user_name == 0)
   {
     if ((pkt_len= vio->read_packet(vio, &pkt)) < 0)
-      return CR_ERROR;
+      goto error_ret;
   }
   else
     pkt= NULL;

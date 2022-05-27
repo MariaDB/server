@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB Corporation
+   Copyright (c) 2010, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1948,6 +1948,11 @@ public:
     BINLOG_STMT_UNSAFE_AUTOINC_NOT_FIRST,
 
     /**
+       Autoincrement lock mode is incompatible with STATEMENT binlog format.
+    */
+    BINLOG_STMT_UNSAFE_AUTOINC_LOCK_MODE,
+
+    /**
        INSERT .. SELECT ... SKIP LOCKED is unlikely to have the same
        rows locked on the replica.
        primary key.
@@ -2042,8 +2047,7 @@ public:
     @retval nonzero if the statement is a row injection
   */
   inline bool is_stmt_row_injection() const {
-    return binlog_stmt_flags &
-      (1U << (BINLOG_STMT_UNSAFE_COUNT + BINLOG_STMT_TYPE_ROW_INJECTION));
+    return binlog_stmt_flags & (1U << BINLOG_STMT_TYPE_ROW_INJECTION);
   }
 
   /**
@@ -2053,8 +2057,7 @@ public:
   */
   inline void set_stmt_row_injection() {
     DBUG_ENTER("set_stmt_row_injection");
-    binlog_stmt_flags|=
-      (1U << (BINLOG_STMT_UNSAFE_COUNT + BINLOG_STMT_TYPE_ROW_INJECTION));
+    binlog_stmt_flags|= (1U << BINLOG_STMT_TYPE_ROW_INJECTION);
     DBUG_VOID_RETURN;
   }
 
@@ -2330,7 +2333,7 @@ private:
       The statement is a row injection (i.e., either a BINLOG
       statement or a row event executed by the slave SQL thread).
     */
-    BINLOG_STMT_TYPE_ROW_INJECTION = 0,
+    BINLOG_STMT_TYPE_ROW_INJECTION = BINLOG_STMT_UNSAFE_COUNT,
 
     /** The last element of this enumeration type. */
     BINLOG_STMT_TYPE_COUNT
@@ -2344,8 +2347,8 @@ private:
     - The low BINLOG_STMT_UNSAFE_COUNT bits indicate the types of
       unsafeness that the current statement has.
 
-    - The next BINLOG_STMT_TYPE_COUNT bits indicate if the statement
-      is of some special type.
+      - The next BINLOG_STMT_TYPE_COUNT-BINLOG_STMT_TYPE_COUNT bits indicate if
+      the statement is of some special type.
 
     This must be a member of LEX, not of THD: each stored procedure
     needs to remember its unsafeness state between calls and each
@@ -3187,8 +3190,6 @@ public:
   /* Query Plan Footprint of a currently running select  */
   Explain_query *explain;
 
-  // type information
-  CHARSET_INFO *charset;
   /*
     LEX which represents current statement (conventional, SP or PS)
 
@@ -3306,6 +3307,12 @@ public:
   List<Name_resolution_context> context_stack;
   SELECT_LEX *select_stack[MAX_SELECT_NESTING + 1];
   uint select_stack_top;
+  /*
+    Usually this is set to 0, but for INSERT/REPLACE SELECT it is set to 1.
+    When parsing such statements the pointer to the most outer select is placed
+    into the second element of select_stack rather than into the first.
+  */
+  uint select_stack_outer_barrier;
 
   SQL_I_List<ORDER> proc_list;
   SQL_I_List<TABLE_LIST> auxiliary_table_list, save_list;
@@ -3749,6 +3756,17 @@ public:
 
   bool copy_db_to(LEX_CSTRING *to);
 
+  void inc_select_stack_outer_barrier()
+  {
+    select_stack_outer_barrier++;
+  }
+
+  SELECT_LEX *parser_current_outer_select()
+  {
+    return select_stack_top - 1 == select_stack_outer_barrier ?
+             0 : select_stack[select_stack_top - 2];
+  }
+
   Name_resolution_context *current_context()
   {
     return context_stack.head();
@@ -3792,17 +3810,16 @@ public:
   bool save_prep_leaf_tables();
 
   int print_explain(select_result_sink *output, uint8 explain_flags,
-                    bool is_analyze, bool *printed_anything);
+                    bool is_analyze, bool is_json_format,
+                    bool *printed_anything);
   bool restore_set_statement_var();
 
-  void init_last_field(Column_definition *field, const LEX_CSTRING *name,
-                       const CHARSET_INFO *cs);
+  void init_last_field(Column_definition *field, const LEX_CSTRING *name);
   bool last_field_generated_always_as_row_start_or_end(Lex_ident *p,
                                                        const char *type,
                                                        uint flags);
   bool last_field_generated_always_as_row_start();
   bool last_field_generated_always_as_row_end();
-  bool set_bincmp(CHARSET_INFO *cs, bool bin);
 
   bool new_sp_instr_stmt(THD *, const LEX_CSTRING &prefix,
                          const LEX_CSTRING &suffix);
@@ -3816,6 +3833,9 @@ public:
 
   int case_stmt_action_then();
   bool setup_select_in_parentheses();
+  bool set_names(const char *pos,
+                 const Lex_exact_charset_opt_extended_collate &cs,
+                 bool no_lookahead);
   bool set_trigger_new_row(const LEX_CSTRING *name, Item *val);
   bool set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
                          Item *val);
@@ -3861,6 +3881,10 @@ public:
   bool call_statement_start(THD *thd, const Lex_ident_sys_st *name);
   bool call_statement_start(THD *thd, const Lex_ident_sys_st *name1,
                                       const Lex_ident_sys_st *name2);
+  bool call_statement_start(THD *thd,
+                            const Lex_ident_sys_st *db,
+                            const Lex_ident_sys_st *pkg,
+                            const Lex_ident_sys_st *proc);
   sp_variable *find_variable(const LEX_CSTRING *name,
                              sp_pcontext **ctx,
                              const Sp_rcontext_handler **rh) const;
@@ -4105,6 +4129,11 @@ public:
   Item *make_item_func_sysdate(THD *thd, uint fsp);
   Item *make_item_func_call_generic(THD *thd, Lex_ident_cli_st *db,
                                     Lex_ident_cli_st *name, List<Item> *args);
+  Item *make_item_func_call_generic(THD *thd,
+                                    Lex_ident_cli_st *db,
+                                    Lex_ident_cli_st *pkg,
+                                    Lex_ident_cli_st *name,
+                                    List<Item> *args);
   Item *make_item_func_call_native_or_parse_error(THD *thd,
                                                   Lex_ident_cli_st &name,
                                                   List<Item> *args);
@@ -4379,6 +4408,23 @@ public:
   bool add_alter_list(LEX_CSTRING par_name, Virtual_column_info *expr,
                       bool par_exists);
   bool add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name, bool exists);
+  bool add_alter_list_item_convert_to_charset(CHARSET_INFO *cs)
+  {
+    if (create_info.add_table_option_convert_charset(cs))
+      return true;
+    alter_info.flags|= ALTER_CONVERT_TO;
+    return false;
+  }
+  bool
+  add_alter_list_item_convert_to_charset(CHARSET_INFO *cs,
+                                         const Lex_extended_collation_st &cl)
+  {
+    if (create_info.add_table_option_convert_charset(cs) ||
+        create_info.add_table_option_convert_collation(cl))
+      return true;
+    alter_info.flags|= ALTER_CONVERT_TO;
+    return false;
+  }
   void set_command(enum_sql_command command,
                    DDL_options_st options)
   {
@@ -4516,6 +4562,29 @@ public:
   Vers_parse_info &vers_get_info()
   {
     return create_info.vers_info;
+  }
+
+  /* The list of history-generating DML commands */
+  bool vers_history_generating() const
+  {
+    switch (sql_command)
+    {
+      case SQLCOM_DELETE:
+        return !vers_conditions.delete_history;
+      case SQLCOM_UPDATE:
+      case SQLCOM_UPDATE_MULTI:
+      case SQLCOM_DELETE_MULTI:
+      case SQLCOM_REPLACE:
+      case SQLCOM_REPLACE_SELECT:
+        return true;
+      case SQLCOM_INSERT:
+      case SQLCOM_INSERT_SELECT:
+        return duplicates == DUP_UPDATE;
+      case SQLCOM_LOAD:
+        return duplicates == DUP_REPLACE;
+      default:
+        return false;
+    }
   }
 
   int add_period(Lex_ident name, Lex_ident_sys_st start, Lex_ident_sys_st end)

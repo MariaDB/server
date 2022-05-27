@@ -1,0 +1,41 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_1;
+SET GLOBAL innodb_max_dirty_pages_pct=99;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=99;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER, f2 varchar(1024)) Engine=InnoDB;
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+INSERT INTO t1 (f2) SELECT REPEAT('x', 1024) FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+connection node_2;
+Killing node #3 to free ports for garbd ...
+connection node_3;
+connection node_1;
+SET GLOBAL debug_dbug = "+d,sync.wsrep_donor_state";
+Starting garbd ...
+SET SESSION debug_sync = "now WAIT_FOR sync.wsrep_donor_state_reached";
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0;
+SET GLOBAL innodb_max_dirty_pages_pct=0;
+SET SESSION debug_sync = "now SIGNAL signal.wsrep_donor_state";
+SET GLOBAL debug_dbug = "";
+SET debug_sync='RESET';
+connection node_2;
+Killing garbd ...
+connection node_1;
+connection node_2;
+DROP TABLE t1;
+DROP TABLE ten;
+Restarting node #3 to satisfy MTR's end-of-test checks
+connection node_3;
+connection node_1;
+connection node_1;
+CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+connection node_2;
+CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+connection node_3;
+CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");

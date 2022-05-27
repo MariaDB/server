@@ -1,0 +1,17 @@
+#
+# MDEV-23836: Assertion `! is_set() || m_can_overwrite_status' in
+# Diagnostics_area::set_error_status (interrupted ALTER TABLE under LOCK)
+#
+SET @max_session_mem_used_save= @@max_session_mem_used;
+CREATE TABLE t1 (a INT);
+SELECT * FROM t1;
+a
+ALTER TABLE x MODIFY xx INT;
+ERROR 42S02: Table 'test.x' doesn't exist
+SET SESSION max_session_mem_used= 8192;
+LOCK TABLE t1 WRITE;
+ALTER TABLE t1 CHANGE COLUMN IF EXISTS b c INT;
+SET SESSION max_session_mem_used = @max_session_mem_used_save;
+UNLOCK TABLES;
+DROP TABLE t1;
+# End of 10.5 tests

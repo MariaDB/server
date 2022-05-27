@@ -262,7 +262,6 @@ INSERT INTO t1 SET a=3;
 ROLLBACK;
 SET DEBUG_SYNC = 'now SIGNAL logged';
 connection ddl;
-ERROR 22004: Invalid use of NULL value
 disconnect ddl;
 connection default;
 SET DEBUG_SYNC = RESET;
@@ -462,12 +461,27 @@ INSERT INTO t1 SET a=0, i=REPEAT('1', 10000);
 ROLLBACK;
 set DEBUG_SYNC='now SIGNAL go';
 connection default;
-disconnect con1;
 SELECT * FROM t1;
 a	b	c	d	e	f	g	h	i
 1	2	3	4	5	6	7	8	test
 DROP TABLE t1;
 SET DEBUG_SYNC=RESET;
+#
+# MDEV-27962 Instant DDL downgrades the MDL when table is empty
+#
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL)ENGINE=InnoDB;
+SET DEBUG_SYNC="alter_table_inplace_after_lock_downgrade SIGNAL try_insert WAIT_FOR alter_progress";
+ALTER TABLE t1 ADD INDEX(f1), ADD INDEX(f2);
+connection con1;
+SET SESSION lock_wait_timeout=1;
+SET DEBUG_SYNC="now WAIT_FOR try_insert";
+INSERT INTO t1 VALUES(1, 2);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET DEBUG_SYNC="now SIGNAL alter_progress";
+disconnect con1;
+connection default;
+DROP TABLE t1;
+SET DEBUG_SYNC=reset;
 # End of 10.4 tests
 #
 # MDEV-22867 Assertion instant.n_core_fields == n_core_fields

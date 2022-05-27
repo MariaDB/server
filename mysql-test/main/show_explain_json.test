@@ -1,0 +1,498 @@
+#
+# Tests for SHOW EXPLAIN FORMAT=JSON FOR functionality.
+# FORMAT=JSON is essential here, tests for traditional SHOW EXPLAIN FOR
+# can be found at show_explain.test
+#
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_innodb.inc
+--source include/have_perfschema.inc
+# Using valgrind can cause 'reap' to fail. See comment below
+--source include/not_valgrind.inc
+
+--disable_warnings
+drop table if exists t0, t1, t2, t3, t4;
+drop view if exists v1;
+--enable_warnings
+SET @old_debug= @@session.debug;
+
+#
+# Testcases in this file do not work with embedded server. The reason for this
+# is that we use the following commands for synchronization:
+#
+#    set @show_explain_probe_select_id=1;
+#    SET debug_dbug='d,show_explain_probe_join_exec_start';
+#    send select count(*) from t1 where a < 100000;
+#
+# When ran with mysqltest_embedded, this translates into:
+#
+#    Thread1> DBUG_PUSH("d,show_explain_probe_join_exec_start");
+#    Thread1> create another thread for doing "send ... reap"
+#    Thread2> mysql_parse("select count(*) from t1 where a < 100000");
+#
+# That is, "select count(*) ..." is ran in a thread for which DBUG_PUSH(...)
+# has not been called. As a result, show_explain_probe_join_exec_start does not fire, and
+# "select count(*) ..." does not wait till its SHOW EXPLAIN command, and the
+# test fails.
+#
+-- source include/not_embedded.inc
+
+set debug_sync='RESET';
+
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int);
+insert into t1 select A.a + 10*B.a + 100*C.a from t0 A, t0 B, t0 C;
+alter table t1 add b int, add c int, add filler char(32);
+update t1 set b=a, c=a, filler='fooo';
+alter table t1 add key(a), add key(b);
+
+
+#
+# Try to call SHOW EXPLAIN with a missing thread ID
+#
+--error ER_PARSE_ERROR
+show explain format=JSON for;
+
+#
+# Also test MySQL-compatible syntax EXPLAIN FOR CONNECTION which was introduced for MDEV-10000
+#
+--error ER_PARSE_ERROR
+explain format=JSON for connection;
+
+#
+# Try to call SHOW EXPLAIN/EXPLAIN FOR CONNECTION for a non-existent thread
+#
+--error ER_NO_SUCH_THREAD
+show explain FORMAT=json for 123456789;
+
+--error ER_NO_SUCH_THREAD
+explain FORMAT=json for connection 123456789;
+
+--error ER_SET_CONSTANTS_ONLY
+show explain FORMAT=json for (select max(a) from t0);
+
+--error ER_SET_CONSTANTS_ONLY
+explain FORMAT=json for connection (select max(a) from t0);
+
+#
+# Setup two threads and their ids
+#
+let $thr1=`select connection_id()`;
+connect (con1, localhost, root,,);
+connection con1;
+let $thr2=`select connection_id()`;
+SET @old_debug= @@session.debug;
+connection default;
+
+# SHOW EXPLAIN FOR <idle thread>
+--error ER_TARGET_NOT_EXPLAINABLE
+evalp show explain format=JSON for $thr2;
+
+--error ER_TARGET_NOT_EXPLAINABLE
+evalp explain format=json for connection $thr2;
+
+# SHOW EXPLAIN FOR <ourselves>
+--error ER_TARGET_NOT_EXPLAINABLE
+evalp show explain format=json for $thr1;
+
+--error ER_TARGET_NOT_EXPLAINABLE
+evalp explain FORMAT=JSON for connection $thr1;
+
+# Not supported format of output
+--error ER_UNKNOWN_EXPLAIN_FORMAT
+evalp show explain FORMAT=HTML for $thr1;
+
+--error ER_UNKNOWN_EXPLAIN_FORMAT
+evalp explain FORMAT=XML for connection $thr1;
+
+let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr2;
+
+#
+# Test SHOW EXPLAIN/EXPLAIN FOR CONNECTION for simple queries
+#
+connection con1;
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send select count(*) from t1 where a < 100000;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain FORMAT=JSON for $thr2;
+connection con1;
+reap;
+
+
+send select max(c) from t1 where a < 10;
+connection default;
+--source include/wait_condition.inc
+evalp explain FORMAT=JSON for connection $thr2;
+connection con1;
+reap;
+
+
+send select max(c) from t1 where a < 10;
+connection default;
+--source include/wait_condition.inc
+evalp explain format=JSON for connection $thr2;
+connection con1;
+reap;
+
+
+--echo # We can catch EXPLAIN, too.
+set @show_expl_tmp= @@optimizer_switch;
+set optimizer_switch='index_condition_pushdown=on,mrr=on,mrr_sort_keys=on';
+send explain select max(c) from t1 where a < 10;
+connection default;
+--source include/wait_condition.inc
+evalp show explain format=json for $thr2;
+connection con1;
+reap;
+
+--echo # Same for EXPLAIN FOR CONNECTION
+send explain select max(c) from t1 where a < 10;
+connection default;
+--source include/wait_condition.inc
+evalp explain format=JSON for connection $thr2;
+connection con1;
+reap;
+set optimizer_switch= @show_expl_tmp;
+SET debug_dbug=@old_debug;
+
+--echo # UNION, first branch
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send explain select a from t0 A union select a+1 from t0 B;
+connection default;
+--source include/wait_condition.inc
+evalp show explain format = JSON for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo # UNION, second branch
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send explain select a from t0 A union select a+1 from t0 B;
+connection default;
+--source include/wait_condition.inc
+evalp show explain format=JSON for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo # Uncorrelated  subquery, select
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send select a, (select max(a) from t0 B) from t0 A where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo # Uncorrelated  subquery, explain
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send explain select a, (select max(a) from t0 B) from t0 A where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+--echo # correlated  subquery, select
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+--echo # correlated  subquery, explain
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send explain select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+--echo # correlated  subquery, select, while inside the subquery
+set @show_explain_probe_select_id=2; # <---
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain format=JSON for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+--echo # correlated  subquery, explain, while inside the subquery
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain format=JSON for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+--echo # correlated  subquery, explain, while inside the subquery
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain format=JSON for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+# TODO: explain in the parent subuqery when the un-correlated child has been
+# run (and have done irreversible cleanups)
+#  ^^ Is this at all possible after 5.3?
+#     Maybe, for 5.3 try this:
+#       - run before/after the parent has invoked child's optimization
+#       - run after materialization
+
+--echo # Try to do SHOW EXPLAIN for a query that runs a  SET command:
+--echo #   I've found experimentally that select_id==2 here...
+--echo #
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send set @foo= (select max(a) from t0 where sin(a) >0);
+connection default;
+--source include/wait_condition.inc
+--error ER_TARGET_NOT_EXPLAINABLE
+evalp show explain format=JSON for $thr2;
+evalp kill query $thr2;
+connection con1;
+--error ER_QUERY_INTERRUPTED
+reap;
+SET debug_dbug=@old_debug;
+
+--echo #
+--echo # Attempt SHOW EXPLAIN for an UPDATE
+--echo #
+create table t2 as select a as a, a as dummy from t0 limit 2;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+connection default;
+--source include/wait_condition.inc
+evalp show explain format=JSON for $thr2;
+--source include/wait_condition.inc
+evalp show explain format=JSON for $thr2;
+connection con1;
+reap;
+
+
+--echo #
+--echo # EXPLAIN FOR CONNECTION for an UPDATE
+--echo #
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+connection default;
+--source include/wait_condition.inc
+evalp explain format=JSON for connection $thr2;
+--source include/wait_condition.inc
+evalp explain format=JSON for connection $thr2;
+connection con1;
+reap;
+drop table t2;
+SET debug_dbug=@old_debug;
+
+
+--echo #
+--echo # Attempt SHOW EXPLAIN for a DELETE
+--echo #
+create table t2 as select a as a, a as dummy from t0 limit 2;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+connection default;
+--source include/wait_condition.inc
+evalp show explain format=JSON for $thr2;
+--source include/wait_condition.inc
+evalp show explain format=JSON for $thr2;
+connection con1;
+reap;
+drop table t2;
+SET debug_dbug=@old_debug;
+
+--echo #
+--echo # Attempt EXPLAIN FOR CONNECTION for a DELETE
+--echo #
+create table t2 as select a as a, a as dummy from t0 limit 2;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+connection default;
+--source include/wait_condition.inc
+evalp explain format=JSON for connection $thr2;
+--source include/wait_condition.inc
+evalp explain format=JSON for connection $thr2;
+connection con1;
+reap;
+drop table t2;
+SET debug_dbug=@old_debug;
+
+--echo #
+--echo # Multiple SHOW EXPLAIN calls for one select 
+--echo #
+create table t2 as select a as a, a as dummy from t0 limit 3;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2;
+connection default;
+--source include/wait_condition.inc
+evalp show explain format=json for $thr2;
+--source include/wait_condition.inc
+evalp show explain format=json for $thr2;
+--source include/wait_condition.inc
+evalp show explain format=json for $thr2;
+connection con1;
+reap;
+drop table t2;
+SET debug_dbug=@old_debug;
+
+
+--echo #
+--echo # Multiple EXPLAIN FOR CONNECTION calls for one select
+--echo #
+create table t2 as select a as a, a as dummy from t0 limit 3;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2;
+connection default;
+--source include/wait_condition.inc
+evalp explain format=JSON for connection $thr2;
+--source include/wait_condition.inc
+evalp explain format=JSON for connection $thr2;
+--source include/wait_condition.inc
+evalp explain format=JSON for connection $thr2;
+connection con1;
+reap;
+drop table t2;
+SET debug_dbug=@old_debug;
+
+--echo #
+--echo # SHOW EXPLAIN for SELECT ... ORDER BY with "Using filesort"
+--echo #
+explain select * from t0 order by a;
+
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+set @show_explain_probe_select_id=1;
+send select * from t0 order by a; 
+connection default;
+--source include/wait_condition.inc
+evalp show explain format=json for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+--echo #
+--echo # SHOW EXPLAIN for SELECT ... with "Using temporary"
+--echo #
+connection default;
+explain select distinct a from t0;
+connection con1;
+
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+set @show_explain_probe_select_id=1;
+send select distinct a from t0;
+connection default;
+--source include/wait_condition.inc
+evalp show explain format=json for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+--echo #
+--echo # SHOW EXPLAIN for SELECT ... with "Using temporary; Using filesort"
+--echo #
+connection default;
+explain select distinct a from t0;
+connection con1;
+
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+set @show_explain_probe_select_id=1;
+
+send select distinct a from t0;
+connection default;
+--source include/wait_condition.inc
+evalp show explain format=json for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo #
+--echo # Check if queries in non-default charsets work.
+--echo #
+
+set names cp1251;
+# The below are two Russian letters with codes E3FB in cp1251 encoding.
+select charset('ãû');
+select hex('ãû');
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+
+send
+select * from t0 where length('ãû') = a;
+
+connection default;
+set names utf8;
+--source include/wait_condition.inc
+evalp show explain format=JSON for $thr2;
+set names default;
+
+connection con1;
+# The constant should be two letters, the last looking like 'bl'
+reap;
+
+SET debug_dbug=@old_debug;
+set names default;
+
+drop table if exists t0,t1,t2;
+
+--echo #
+--echo # MDEV-28124: Server crashes in Explain_aggr_filesort::print_json_members
+--echo # upon SHOW ANALYZE/EXPLAIN FORMAT=JSON
+--echo #
+
+let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr2;
+connection con1;
+set @show_explain_probe_query= 'SELECT count(*) - count(*) FROM sys.waits_by_user_by_latency';
+set debug_dbug='+d,explain_notify_tables_are_closed';
+
+# Statement guarantees to produce 0 on every run
+send SELECT count(*) - count(*) FROM sys.waits_by_user_by_latency;
+connection default;
+--source include/wait_condition.inc
+--error ER_TARGET_NOT_EXPLAINABLE
+evalp SHOW EXPLAIN FORMAT=JSON FOR $thr2;
+
+connection con1;
+reap;
+
+--echo # End
+connection default;
+disconnect con1;
+set debug_sync='RESET';
+

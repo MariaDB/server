@@ -12,6 +12,9 @@
 # Change Date:                                                                 #
 # Change:                                                                      #
 ################################################################################
+
+--source include/have_des.inc
+
 set time_zone="+03:00";
 --echo #
 --echo # NUMERIC FUNCTIONS

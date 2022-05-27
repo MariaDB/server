@@ -7929,7 +7929,6 @@ int spider_db_print_item_type(
     case Item::ROW_ITEM:
       DBUG_RETURN(spider_db_open_item_row((Item_row *) item, spider, str,
         alias, alias_length, dbton_id, use_fields, fields));
-#ifdef SPIDER_USE_CONST_ITEM_FOR_STRING_INT_REAL_DECIMAL_DATE_ITEM
     case Item::CONST_ITEM:
     {
       switch (item->cmp_type()) {
@@ -7947,16 +7946,6 @@ int spider_db_print_item_type(
           DBUG_RETURN(spider_db_print_item_type_default(item, spider, str));
       }
     }
-#else
-    case Item::STRING_ITEM:
-      DBUG_RETURN(spider_db_open_item_string(item, field, spider, str,
-        alias, alias_length, dbton_id, use_fields, fields));
-    case Item::INT_ITEM:
-    case Item::REAL_ITEM:
-    case Item::DECIMAL_ITEM:
-      DBUG_RETURN(spider_db_open_item_int(item, field, spider, str,
-        alias, alias_length, dbton_id, use_fields, fields));
-#endif
     case Item::CACHE_ITEM:
       DBUG_RETURN(spider_db_open_item_cache((Item_cache *) item, field, spider,
         str, alias, alias_length, dbton_id, use_fields, fields));
@@ -8385,8 +8374,7 @@ int spider_db_open_item_ref(
       }
       DBUG_RETURN(0);
     }
-    DBUG_RETURN(spider_db_print_item_type(*(item_ref->ref), NULL, spider, str,
-      alias, alias_length, dbton_id, use_fields, fields));
+    DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM); // MDEV-25116
   }
   DBUG_RETURN(spider_db_open_item_ident((Item_ident *) item_ref, spider, str,
     alias, alias_length, dbton_id, use_fields, fields));

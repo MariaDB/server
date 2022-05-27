@@ -638,6 +638,14 @@ public:
   {
     in_partitioning_expr= TRUE;
   }
+  bool need_refix() const
+  {
+    return flags & VCOL_SESSION_FUNC;
+  }
+  bool fix_expr(THD *thd);
+  bool fix_session_expr(THD *thd);
+  bool cleanup_session_expr();
+  bool fix_and_check_expr(THD *thd, TABLE *table);
   inline bool is_equal(const Virtual_column_info* vcol) const;
   inline void print(String*);
 };
@@ -5299,7 +5307,6 @@ public:
   Column_definition(THD *thd, Field *field, Field *orig_field);
   bool set_attributes(THD *thd,
                       const Lex_field_type_st &attr,
-                      CHARSET_INFO *cs,
                       column_definition_type_t type);
   void create_length_to_internal_length_null()
   {
@@ -5493,6 +5500,24 @@ public:
   { return compression_method_ptr; }
 
   bool check_vcol_for_key(THD *thd) const;
+
+  void set_charset_collation_attrs(const
+                                   Lex_column_charset_collation_attrs_st &lc)
+  {
+    charset= lc.charset_info();
+    if (lc.is_contextually_typed_collation())
+      flags|= CONTEXT_COLLATION_FLAG;
+    else
+      flags&= ~CONTEXT_COLLATION_FLAG;
+  }
+  Lex_column_charset_collation_attrs charset_collation_attrs() const
+  {
+    if (!charset)
+      return Lex_column_charset_collation_attrs();
+    if (flags & CONTEXT_COLLATION_FLAG)
+      return Lex_column_charset_collation_attrs(Lex_context_collation(charset));
+    return Lex_column_charset_collation_attrs(Lex_exact_collation(charset));
+  }
 };
 
 

@@ -186,9 +186,7 @@ send update t1 set b = 'foo';
 connection con1;
 let $wait_condition= select count(*) from information_schema.innodb_lock_waits;
 source include/wait_condition.inc;
-# There must no be DEADLOCK here as con1 transaction already holds locks, and
-# default's transaction lock is waiting, so the locks of the following "UPDATE"
-# must not conflict with waiting lock.
+error ER_LOCK_DEADLOCK;
 update t1 set a = 'bar';
 disconnect con1;
 connection default;
@@ -339,6 +337,19 @@ select check_row_ts(row_start, row_end) from t1 for system_time all where row_st
 drop table t1;
 
 --echo #
+--echo # MDEV-22973 Assertion in compare_record upon multi-update involving versioned table via view
+--echo #
+create or replace table t1 (a int, primary key (a)) engine=myisam;
+insert into t1 values (0);
+create or replace table t2 (pk int, b int, primary key (pk), key(b)) engine=innodb with system versioning;
+insert into t2 values (1, 0), (2, 0);
+create or replace view v as select a, b from t1, t2; 
+update v set b= null where a = 0 order by b;
+# cleanup
+drop view v;
+drop table t1, t2;
+
+--echo #
 --echo # MDEV-24522 Assertion `inited==NONE' fails upon UPDATE on versioned table with unique blob
 --echo #
 create table t1 (a int, b int, c text, unique(c), key (b)) engine=myisam with system versioning;
@@ -361,5 +372,7 @@ update t1, t2 set t1.a = 3, t2.a = 3 where t1.b <= 10 and t2.b <= 10 and t1.b = 
 
 # cleanup
 drop tables t1, t2;
+
+--echo # End of 10.4 tests
 
 source suite/versioning/common_finish.inc;

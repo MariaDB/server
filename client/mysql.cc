@@ -3693,7 +3693,10 @@ static char *fieldflags2str(uint f) {
   ff2s_check_flag(NUM);
   ff2s_check_flag(PART_KEY);
   ff2s_check_flag(GROUP);
-  ff2s_check_flag(BINCMP);
+  /*
+    CONTEXT_COLLATION_FLAG (former BINCMP_FLAG) is used at parse
+    time only and should never show up on the client side. Don't test it.
+  */
   ff2s_check_flag(ON_UPDATE_NOW);
 #undef ff2s_check_flag
   if (f)

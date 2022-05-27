@@ -4057,9 +4057,10 @@ KEY `index_t1_on_owner_id_and_foo` (`owner_id`,`foo`)
 INSERT INTO t1 (owner_id, foo, whatever)
 VALUES (1, TRUE, "yello"), (1, FALSE, "yello"), (2, TRUE, "yello"),
 (2, TRUE, "yello"), (2, FALSE, "yello");
-EXPLAIN SELECT DISTINCT owner_id FROM t1 WHERE foo = true GROUP BY owner_id HAVING (COUNT(*) = 1);
+EXPLAIN 
+SELECT DISTINCT owner_id FROM t1 WHERE foo = true GROUP BY owner_id HAVING (COUNT(*) = 1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	index_t1_on_owner_id_and_foo	7	NULL	5	Using where; Using index
+1	SIMPLE	t1	index	NULL	index_t1_on_owner_id_and_foo	7	NULL	#	Using where; Using index
 SELECT DISTINCT owner_id FROM t1 WHERE foo = true GROUP BY owner_id HAVING (COUNT(*) = 1);
 owner_id
 1

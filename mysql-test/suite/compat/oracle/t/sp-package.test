@@ -2689,3 +2689,330 @@ CALL xyz.xyz123(17,18,@R);
 DROP PACKAGE xyz;
 DROP TABLE t1;
 --disable_prepare_warnings
+
+
+--echo #
+--echo # MDEV-28166 sql_mode=ORACLE: fully qualified package function calls do not work: db.pkg.func()
+--echo #
+
+--error ER_WRONG_DB_NAME
+SELECT `db `.pkg.func();
+--error ER_SP_WRONG_NAME
+SELECT db.`pkg `.func();
+--error ER_SP_WRONG_NAME
+SELECT db.pkg.`func `();
+
+
+CREATE DATABASE db1;
+USE db1;
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  FUNCTION f1 RETURN TEXT;
+  FUNCTION f2_db1_pkg1_f1 RETURN TEXT;
+  FUNCTION f2_pkg1_f1 RETURN TEXT;
+  FUNCTION f2_f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+  FUNCTION f1 RETURN TEXT IS
+  BEGIN
+    RETURN 'This is db1.pkg1.f1';
+  END;
+  FUNCTION f2_db1_pkg1_f1 RETURN TEXT IS
+  BEGIN
+    RETURN db1.pkg1.f1();
+  END;
+  FUNCTION f2_pkg1_f1 RETURN TEXT IS
+  BEGIN
+    RETURN pkg1.f1();
+  END;
+  FUNCTION f2_f1 RETURN TEXT IS
+  BEGIN
+    RETURN f1();
+  END;
+END;
+$$
+DELIMITER ;$$
+
+USE db1;
+SELECT pkg1.f2_db1_pkg1_f1();
+SELECT pkg1.f2_pkg1_f1();
+SELECT pkg1.f2_f1();
+
+SELECT db1.pkg1.f2_db1_pkg1_f1();
+SELECT db1.pkg1.f2_pkg1_f1();
+SELECT db1.pkg1.f2_f1();
+
+USE test;
+SELECT db1.pkg1.f2_db1_pkg1_f1();
+SELECT db1.pkg1.f2_pkg1_f1();
+SELECT db1.pkg1.f2_f1();
+
+DROP DATABASE db1;
+
+
+#
+# Testing db.pkg.func() in the package initialization section
+#
+
+CREATE DATABASE db1;
+CREATE DATABASE db2;
+
+DELIMITER $$;
+CREATE PACKAGE db1.pkg1 AS
+  FUNCTION f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY db1.pkg1 AS
+  FUNCTION f1 RETURN TEXT AS
+  BEGIN
+    RETURN 'This is db1.pkg1.f1';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PACKAGE db2.pkg1 AS
+  FUNCTION f1 RETURN TEXT;
+  FUNCTION var1 RETURN TEXT;
+  FUNCTION var2 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY db2.pkg1 AS
+  m_var1 TEXT;
+  m_var2 TEXT;
+  FUNCTION f1 RETURN TEXT AS
+  BEGIN
+    RETURN 'This is db2.pkg1.f1';
+  END;
+  FUNCTION var1 RETURN TEXT AS
+  BEGIN
+    RETURN m_var1;
+  END;
+  FUNCTION var2 RETURN TEXT AS
+  BEGIN
+    RETURN m_var2;
+  END;
+BEGIN
+  m_var1:= db1.pkg1.f1();
+  m_var2:= db2.pkg1.f1();
+END;
+$$
+DELIMITER ;$$
+
+SELECT db2.pkg1.var1(), db2.pkg1.var2();
+
+DROP DATABASE db1;
+DROP DATABASE db2;
+
+#
+# Make sure fully qualified package function call does not support AS syntax:
+#   SELECT db.pkg.func(10 AS a);
+#
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  FUNCTION f1(a TEXT) RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  FUNCTION f1(a TEXT) RETURN TEXT AS
+  BEGIN
+    RETURN a;
+  END;
+END;
+$$
+DELIMITER ;$$
+SELECT test.pkg1.f1('xxx');
+--error ER_PARSE_ERROR
+SELECT test.pkg1.f1('xxx' AS a);
+DROP PACKAGE pkg1;
+
+
+--echo #
+--echo # MDEV-19328 sql_mode=ORACLE: Package function in VIEW
+--echo #
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE PACKAGE test1 AS
+  FUNCTION f_test RETURN number;
+END test1;
+$$
+CREATE PACKAGE BODY test1
+AS
+  FUNCTION f_test RETURN NUMBER IS
+  BEGIN
+    RETURN 1;
+  END;
+END test1;
+$$
+DELIMITER ;$$
+
+
+SET sql_mode=ORACLE;
+CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test1.f_test();
+SELECT * FROM v_test;
+--vertical_results
+SHOW CREATE VIEW v_test;
+--horizontal_results
+SET sql_mode=DEFAULT;
+SELECT * FROM v_test;
+--vertical_results
+SHOW CREATE VIEW v_test;
+--horizontal_results
+DROP VIEW v_test;
+
+
+SET sql_mode=DEFAULT;
+--error ER_SP_DOES_NOT_EXIST
+CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test1.f_test();
+
+
+SET sql_mode=ORACLE;
+CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test.test1.f_test();
+SELECT * FROM v_test;
+--vertical_results
+SHOW CREATE VIEW v_test;
+--horizontal_results
+SET sql_mode=DEFAULT;
+SELECT * FROM v_test;
+--vertical_results
+SHOW CREATE VIEW v_test;
+--horizontal_results
+DROP VIEW v_test;
+
+
+SET sql_mode=DEFAULT;
+CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test.test1.f_test();
+SELECT * FROM v_test;
+--vertical_results
+SHOW CREATE VIEW v_test;
+--horizontal_results
+SET sql_mode=ORACLE;
+SELECT * FROM v_test;
+--vertical_results
+SHOW CREATE VIEW v_test;
+--horizontal_results
+DROP VIEW v_test;
+
+SET sql_mode=ORACLE;
+DROP PACKAGE test1;
+
+
+--echo #
+--echo # MDEV-19804 sql_mode=ORACLE: call procedure in packages
+--echo #
+
+--error ER_WRONG_DB_NAME
+CALL `db1 `.pkg.p;
+--error ER_SP_WRONG_NAME
+CALL db1.`pkg `.p;
+--error ER_SP_WRONG_NAME
+CALL db1.pkg.`p `;
+
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE PACKAGE pkg1 as
+  PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY pkg1 as
+  PROCEDURE p1() as
+  BEGIN
+    SELECT 'test-function' AS c1;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CALL pkg1.p1;
+CALL test.pkg1.p1;
+
+# In sql_mode=DEFAULT we support fully qualified package function names
+# (this is needed for VIEWs). Let's make sure we also support fully
+# qualified package procedure names, for symmetry
+
+SET sql_mode=DEFAULT;
+CALL test.pkg1.p1;
+SET sql_mode=ORACLE;
+
+DELIMITER $$;
+BEGIN
+  CALL pkg1.p1;
+  CALL test.pkg1.p1;
+END
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+BEGIN
+  pkg1.p1;
+  test.pkg1.p1;
+END
+$$
+DELIMITER ;$$
+
+DROP PACKAGE pkg1;
+
+
+#
+# Testing packages in different databases calling each other
+# in routines and in the initialization section.
+#
+
+CREATE DATABASE db1;
+DELIMITER $$;
+CREATE PACKAGE db1.pkg1 AS
+  PROCEDURE p1(a OUT TEXT);
+END;
+$$
+CREATE PACKAGE BODY db1.pkg1 AS
+  PROCEDURE p1(a OUT TEXT) AS
+  BEGIN
+    a:= 'This is db1.pkg1.p1';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CREATE DATABASE db2;
+DELIMITER $$;
+CREATE PACKAGE db2.pkg1 AS
+  FUNCTION var1 RETURN TEXT;
+  PROCEDURE p1(a OUT TEXT);
+  PROCEDURE p2_db1_pkg1_p1;
+END;
+$$
+CREATE PACKAGE BODY db2.pkg1 AS
+  m_var1 TEXT;
+  FUNCTION var1 RETURN TEXT AS
+  BEGIN
+    RETURN m_var1;
+  END;
+  PROCEDURE p1(a OUT TEXT) AS
+  BEGIN
+    a:= 'This is db2.pkg1.p1';
+  END;
+  PROCEDURE p2_db1_pkg1_p1 AS
+    a TEXT;
+  BEGIN
+    db1.pkg1.p1(a);
+    SELECT a;
+  END;
+BEGIN
+  db1.pkg1.p1(m_var1);
+END;
+$$
+DELIMITER ;$$
+
+SELECT db2.pkg1.var1();
+CALL db2.pkg1.p2_db1_pkg1_p1;
+
+DROP DATABASE db1;
+DROP DATABASE db2;

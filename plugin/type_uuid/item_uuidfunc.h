@@ -27,7 +27,7 @@ protected:
   { return MY_UUID_BARE_STRING_LENGTH + with_dashes*MY_UUID_SEPARATORS; }
 public:
   Item_func_sys_guid(THD *thd): Item_str_func(thd), with_dashes(false) {}
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     collation.set(DTCollation_numeric());
     fix_char_length(uuid_len());

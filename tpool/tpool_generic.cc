@@ -1,4 +1,4 @@
-/* Copyright (C) 2019, 2021, MariaDB Corporation.
+/* Copyright (C) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute itand /or modify
 it under the terms of the GNU General Public License as published by
@@ -52,6 +52,45 @@ namespace tpool
   static const int  OVERSUBSCRIBE_FACTOR = 2;
 
 /**
+  Process the cb synchronously
+*/
+void aio::synchronous(aiocb *cb)
+{
+#ifdef _WIN32
+  size_t ret_len;
+#else
+  ssize_t ret_len;
+#endif
+  int err= 0;
+  switch (cb->m_opcode)
+  {
+  case aio_opcode::AIO_PREAD:
+    ret_len= pread(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
+    break;
+  case aio_opcode::AIO_PWRITE:
+    ret_len= pwrite(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
+    break;
+  default:
+    abort();
+  }
+#ifdef _WIN32
+  if (static_cast<int>(ret_len) < 0)
+    err= GetLastError();
+#else
+  if (ret_len < 0)
+  {
+    err= errno;
+    ret_len= 0;
+  }
+#endif
+  cb->m_ret_len = ret_len;
+  cb->m_err = err;
+  if (ret_len)
+    finish_synchronous(cb);
+}
+
+
+/**
   Implementation of generic threadpool.
   This threadpool consists of the following components
 
@@ -89,7 +128,7 @@ enum worker_wake_reason
 
 
 /* A per-worker  thread structure.*/
-struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
+struct alignas(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
 {
   /** Condition variable to wakeup this worker.*/
   std::condition_variable m_cv;

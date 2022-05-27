@@ -2654,9 +2654,28 @@ static Sys_var_ulong Sys_net_retry_count(
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_net_retry_count));
 
+static bool set_old_mode (sys_var *self, THD *thd, enum_var_type type)
+{
+  if (thd->variables.old_mode)
+  {
+    thd->variables.old_behavior|= (OLD_MODE_NO_PROGRESS_INFO |
+                                   OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN |
+                                   OLD_MODE_COMPAT_5_1_CHECKSUM);
+  }
+  else
+  {
+    thd->variables.old_behavior&= ~(OLD_MODE_NO_PROGRESS_INFO|
+                                    OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN |
+                                    OLD_MODE_COMPAT_5_1_CHECKSUM);
+  }
+
+  return false;
+}
+
 static Sys_var_mybool Sys_old_mode(
        "old", "Use compatible behavior from previous MariaDB version. See also --old-mode",
-       SESSION_VAR(old_mode), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+       SESSION_VAR(old_mode), CMD_LINE(OPT_ARG), DEFAULT(FALSE), 0, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(set_old_mode), DEPRECATED("'@@old_mode'"));
 
 static const char *alter_algorithm_modes[]= {"DEFAULT", "COPY", "INPLACE",
 "NOCOPY", "INSTANT", NULL};
@@ -3772,6 +3791,8 @@ static const char *old_mode_names[]=
   "NO_PROGRESS_INFO",
   "ZERO_DATE_TIME_CAST",
   "UTF8_IS_UTF8MB3",
+  "IGNORE_INDEX_ONLY_FOR_JOIN",
+  "COMPAT_5_1_CHECKSUM",
   0
 };
 
@@ -4420,7 +4441,7 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
       transaction implicitly at the end (@sa stmt_causes_implicitcommit()).
     */
     thd->variables.option_bits&=
-                 ~(OPTION_BEGIN | OPTION_KEEP_LOG | OPTION_NOT_AUTOCOMMIT |
+                 ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX | OPTION_NOT_AUTOCOMMIT |
                    OPTION_GTID_BEGIN);
     thd->transaction->all.modified_non_trans_table= false;
     thd->transaction->all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
@@ -5142,7 +5163,7 @@ static Sys_var_have Sys_have_symlink(
 
 # ifdef __SANITIZE_ADDRESS__
 #  ifdef WITH_UBSAN
-#   define SANITIZER_MODE "ASAN+UBSAN"
+#   define SANITIZER_MODE "ASAN,UBSAN"
 #  else
 #   define SANITIZER_MODE "ASAN"
 #  endif
@@ -5990,6 +6011,11 @@ static Sys_var_charptr Sys_wsrep_notify_cmd(
        READ_ONLY GLOBAL_VAR(wsrep_notify_cmd), CMD_LINE(REQUIRED_ARG),
        DEFAULT(""));
 
+static Sys_var_charptr_fscs Sys_wsrep_status_file(
+       "wsrep_status_file", "wsrep status output filename",
+       READ_ONLY GLOBAL_VAR(wsrep_status_file), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(""));
+
 static Sys_var_mybool Sys_wsrep_certify_nonPK(
        "wsrep_certify_nonPK", "Certify tables with no primary key",
        GLOBAL_VAR(wsrep_certify_nonPK), 
@@ -6700,7 +6726,7 @@ static Sys_var_ulong Sys_log_tc_size(
        DEFAULT(my_getpagesize() * 6), BLOCK_SIZE(my_getpagesize()));
 #endif
 
-static Sys_var_ulonglong Sys_max_thread_mem(
+static Sys_var_ulonglong Sys_max_session_mem_used(
        "max_session_mem_used", "Amount of memory a single user session "
        "is allowed to allocate. This limits the value of the "
        "session variable MEM_USED", SESSION_VAR(max_mem_used),

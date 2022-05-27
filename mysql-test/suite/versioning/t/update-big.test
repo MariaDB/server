@@ -1,6 +1,7 @@
 source include/big_test.inc;
 source suite/versioning/engines.inc;
 source suite/versioning/common.inc;
+source include/have_partition.inc;
 
 --echo #
 --echo # MDEV-15458 Segfault in heap_scan() upon UPDATE after ADD SYSTEM VERSIONING
@@ -29,6 +30,79 @@ update t1 set a= 8 where a = 1;
 update t1 set a= 4 where a = 8;
 update t1 set a= 6;
 
+--disconnect con1
 drop table t1;
+
+call mtr.add_suppression("need more HISTORY partitions");
+
+--echo #
+--echo # MDEV-23642 Locking timeout caused by auto-creation affects original DML
+--echo #
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int primary key) with system versioning engine innodb
+partition by system_time interval 1 hour auto;
+
+insert into t1 values (1);
+start transaction;
+insert into t1 values (2);
+
+--connect con1, localhost, root
+set lock_wait_timeout= 1;
+set innodb_lock_wait_timeout= 1;
+set timestamp= unix_timestamp('2000-01-01 01:00:01');
+update t1 set x= x + 122 where x = 1;
+--disconnect con1
+--connection default
+select * from t1;
+
+# cleanup
+drop table t1;
+set timestamp= default;
+
+--echo #
+--echo # MDEV-25339 Assertion `thd->transaction.stmt.is_empty() || thd->in_sub_stmt' failed
+--echo #
+create or replace table t1 (x int) with system versioning engine innodb
+partition by system_time interval 1 hour auto;
+start transaction;
+insert into t1 values (1);
+select * from t1;
+
+--connect con1, localhost, root
+set lock_wait_timeout= 1;
+set innodb_lock_wait_timeout= 1;
+--error ER_LOCK_WAIT_TIMEOUT
+update t1 set x= x + 111;
+select * from t1;
+
+# cleanup
+--disconnect con1
+--connection default
+drop table t1;
+
+--echo #
+--echo # MDEV-25482 Auto-create: Server hangs after a failed attempt to create partition
+--echo #
+set timestamp= default;
+create table t (pk int primary key, a int) engine=InnoDB
+  with system versioning partition by system_time interval 1 hour auto;
+
+insert into t values (1,1),(2,2),(3,3),(4,4),(5,5);
+
+start transaction;
+update t set a= 20 where pk = 2;
+
+--connect (con1,localhost,root,,)
+set lock_wait_timeout= 1;
+set @@timestamp= @@timestamp+3601;
+update t set a= 40 where pk = 4;
+update t set a= 400 where pk = 4;
+
+# Cleanup
+--disconnect con1
+--connection default
+select * from t where pk = 4;
+rollback;
+drop tables t;
 
 source suite/versioning/common_finish.inc;

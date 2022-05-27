@@ -436,7 +436,7 @@ Item_bool_rowready_func2::value_depends_on_sql_mode() const
 }
 
 
-bool Item_bool_rowready_func2::fix_length_and_dec()
+bool Item_bool_rowready_func2::fix_length_and_dec(THD *thd)
 {
   max_length= 1;				     // Function returns 0 or 1
 
@@ -1137,7 +1137,7 @@ int Arg_comparator::compare_e_str_json()
 }
 
 
-bool Item_func_truth::fix_length_and_dec()
+bool Item_func_truth::fix_length_and_dec(THD *thd)
 {
   base_flags&= ~item_base_t::MAYBE_NULL;
   null_value= 0;
@@ -1766,9 +1766,9 @@ longlong Item_func_eq::val_int()
 
 /** Same as Item_func_eq, but NULL = NULL. */
 
-bool Item_func_equal::fix_length_and_dec()
+bool Item_func_equal::fix_length_and_dec(THD *thd)
 {
-  bool rc= Item_bool_rowready_func2::fix_length_and_dec();
+  bool rc= Item_bool_rowready_func2::fix_length_and_dec(thd);
   base_flags&= ~item_base_t::MAYBE_NULL;
   null_value=0;
   return rc;
@@ -1865,7 +1865,7 @@ bool Item_func_interval::fix_fields(THD *thd, Item **ref)
 }
 
 
-bool Item_func_interval::fix_length_and_dec()
+bool Item_func_interval::fix_length_and_dec(THD *thd)
 {
   uint rows= row->cols();
   
@@ -2099,7 +2099,7 @@ void Item_func_between::fix_after_pullout(st_select_lex *new_parent,
   eval_not_null_tables(NULL);
 }
 
-bool Item_func_between::fix_length_and_dec()
+bool Item_func_between::fix_length_and_dec(THD *thd)
 {
   max_length= 1;
 
@@ -2113,7 +2113,7 @@ bool Item_func_between::fix_length_and_dec()
                                             func_name_cstring(),
                                             args, 3, false))
   {
-    DBUG_ASSERT(current_thd->is_error());
+    DBUG_ASSERT(thd->is_error());
     return TRUE;
   }
 
@@ -2555,7 +2555,7 @@ void Item_func_nullif::update_used_tables()
 
 
 bool
-Item_func_nullif::fix_length_and_dec()
+Item_func_nullif::fix_length_and_dec(THD *thd)
 {
   /*
     If this is the first invocation of fix_length_and_dec(), create the
@@ -2567,7 +2567,6 @@ Item_func_nullif::fix_length_and_dec()
   if (arg_count == 2)
     args[arg_count++]= m_arg0 ? m_arg0 : args[0];
 
-  THD *thd= current_thd;
   /*
     At prepared statement EXECUTE time, args[0] can already
     point to a different Item, created during PREPARE time fix_length_and_dec().
@@ -3177,24 +3176,21 @@ bool Item_func_case_simple::prepare_predicant_and_values(THD *thd,
 }
 
 
-bool Item_func_case_searched::fix_length_and_dec()
+bool Item_func_case_searched::fix_length_and_dec(THD *thd)
 {
-  THD *thd= current_thd;
   return aggregate_then_and_else_arguments(thd, when_count());
 }
 
 
-bool Item_func_case_simple::fix_length_and_dec()
+bool Item_func_case_simple::fix_length_and_dec(THD *thd)
 {
-  THD *thd= current_thd;
   return (aggregate_then_and_else_arguments(thd, when_count() + 1) ||
           aggregate_switch_and_when_arguments(thd, false));
 }
 
 
-bool Item_func_decode_oracle::fix_length_and_dec()
+bool Item_func_decode_oracle::fix_length_and_dec(THD *thd)
 {
-  THD *thd= current_thd;
   return (aggregate_then_and_else_arguments(thd, when_count() + 1) ||
           aggregate_switch_and_when_arguments(thd, true));
 }
@@ -4394,9 +4390,8 @@ bool Item_func_in::prepare_predicant_and_values(THD *thd, uint *found_types)
 }
 
 
-bool Item_func_in::fix_length_and_dec()
+bool Item_func_in::fix_length_and_dec(THD *thd)
 {
-  THD *thd= current_thd;
   uint found_types;
   m_comparator.set_handler(type_handler_varchar.type_handler_for_comparison());
   max_length= 1;
@@ -4711,10 +4706,11 @@ void Item_func_in::mark_as_condition_AND_part(TABLE_LIST *embedding)
   Query_arena *arena, backup;
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
-  if (to_be_transformed_into_in_subq(thd))
+  if (!transform_into_subq_checked)
   {
-    transform_into_subq= true;
-    thd->lex->current_select->in_funcs.push_back(this, thd->mem_root);
+    if ((transform_into_subq= to_be_transformed_into_in_subq(thd)))
+      thd->lex->current_select->in_funcs.push_back(this, thd->mem_root);
+    transform_into_subq_checked= true;
   }
 
   if (arena)
@@ -4751,7 +4747,7 @@ public:
 };
 
 
-bool Item_func_bit_or::fix_length_and_dec()
+bool Item_func_bit_or::fix_length_and_dec(THD *thd)
 {
   static Func_handler_bit_or_int_to_ulonglong ha_int_to_ull;
   static Func_handler_bit_or_dec_to_ulonglong ha_dec_to_ull;
@@ -4786,7 +4782,7 @@ public:
 };
 
 
-bool Item_func_bit_and::fix_length_and_dec()
+bool Item_func_bit_and::fix_length_and_dec(THD *thd)
 {
   static Func_handler_bit_and_int_to_ulonglong ha_int_to_ull;
   static Func_handler_bit_and_dec_to_ulonglong ha_dec_to_ull;
@@ -4937,7 +4933,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
     base_flags|= item->base_flags & item_base_t::MAYBE_NULL;
     with_flags|= item->with_flags;
   }
-  if (fix_length_and_dec())
+  if (fix_length_and_dec(thd))
     return TRUE;
   base_flags|= item_base_t::FIXED;
   return FALSE;
@@ -6097,9 +6093,9 @@ void Regexp_processor_pcre::fix_owner(Item_func *owner,
 
 
 bool
-Item_func_regex::fix_length_and_dec()
+Item_func_regex::fix_length_and_dec(THD *thd)
 {
-  if (Item_bool_func::fix_length_and_dec() ||
+  if (Item_bool_func::fix_length_and_dec(thd) ||
       agg_arg_charsets_for_comparison(cmp_collation, args, 2))
     return TRUE;
 
@@ -6123,7 +6119,7 @@ longlong Item_func_regex::val_int()
 
 
 bool
-Item_func_regexp_instr::fix_length_and_dec()
+Item_func_regexp_instr::fix_length_and_dec(THD *thd)
 {
   if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
     return TRUE;
@@ -7066,7 +7062,7 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
   }
   if (prev_equal_field && last_equal_field != first_equal_field)
     last_equal_field->next_equal_field= first_equal_field;
-  if (fix_length_and_dec())
+  if (fix_length_and_dec(thd))
     return TRUE;
   base_flags|= item_base_t::FIXED;
   return FALSE;
@@ -7195,11 +7191,11 @@ longlong Item_equal::val_int()
 }
 
 
-bool Item_equal::fix_length_and_dec()
+bool Item_equal::fix_length_and_dec(THD *thd)
 {
   Item *item= get_first(NO_PARTICULAR_TAB, NULL);
   const Type_handler *handler= item->type_handler();
-  eval_item= handler->make_cmp_item(current_thd, item->collation.collation);
+  eval_item= handler->make_cmp_item(thd, item->collation.collation);
   return eval_item == NULL;
 }
 
@@ -7667,7 +7663,17 @@ bool Item_equal::create_pushable_equalities(THD *thd,
     if (!eq ||  equalities->push_back(eq, thd->mem_root))
       return true;
     if (!clone_const)
-      right_item->set_extraction_flag(MARKER_IMMUTABLE);
+    {
+      /*
+        Also set IMMUTABLE_FL for any sub-items of the right_item.
+        This is needed to prevent Item::cleanup_excluding_immutables_processor
+        from peforming cleanup of the sub-items and so creating an item tree
+        where a fixed item has non-fixed items inside it.
+      */
+      int16 new_flag= MARKER_IMMUTABLE;
+      right_item->walk(&Item::set_extraction_flag_processor, false,
+                       (void*)&new_flag);
+    }
   }
 
   while ((item=it++))

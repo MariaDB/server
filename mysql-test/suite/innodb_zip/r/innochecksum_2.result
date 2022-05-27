@@ -27,6 +27,7 @@ end-page                          0
 page                              0
 no-check                          FALSE
 allow-mismatches                  0
+write                             FALSE
 page-type-summary                 FALSE
 page-type-dump                    MYSQLTEST_VARDIR/tmp/dump.txt
 per-page-details                  FALSE
@@ -54,6 +55,7 @@ See https://mariadb.com/kb/en/library/innochecksum/ for usage hints.
   -n, --no-check      Ignore the checksum verification.
   -a, --allow-mismatches=# 
                       Maximum checksum mismatch allowed.
+  -w, --write         Rewrite the checksum.
   -S, --page-type-summary 
                       Display a count of each page type in a tablespace.
   -D, --page-type-dump=name 
@@ -75,6 +77,7 @@ end-page                          0
 page                              0
 no-check                          FALSE
 allow-mismatches                  0
+write                             FALSE
 page-type-summary                 FALSE
 page-type-dump                    (No default value)
 per-page-details                  FALSE

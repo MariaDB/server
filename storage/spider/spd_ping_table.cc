@@ -365,10 +365,8 @@ create_table_mon:
     if (
       (error_num = spider_set_connect_info_default(
         tmp_share,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
         NULL,
         NULL,
-#endif
         NULL
       )) ||
       (error_num = spider_set_connect_info_default_dbtable(
@@ -521,10 +519,8 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
   if (
     (*error_num = spider_set_connect_info_default(
       tmp_share,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
       NULL,
       NULL,
-#endif
       NULL
     )) ||
     (*error_num = spider_set_connect_info_default_dbtable(

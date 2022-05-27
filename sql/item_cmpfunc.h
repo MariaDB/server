@@ -227,7 +227,7 @@ public:
   const Type_handler *fixed_type_handler() const override
   { return &type_handler_bool; }
   CHARSET_INFO *compare_collation() const override { return NULL; }
-  bool fix_length_and_dec() override { decimals=0; max_length=1; return FALSE; }
+  bool fix_length_and_dec(THD *thd) override { decimals=0; max_length=1; return FALSE; }
   decimal_digits_t decimal_precision() const override { return 1; }
   bool need_parentheses_in_default() override { return true; }
 };
@@ -243,7 +243,7 @@ class Item_func_truth : public Item_bool_func
 public:
   bool val_bool() override;
   longlong val_int() override;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   void print(String *str, enum_query_type query_type) override;
   enum precedence precedence() const override { return CMP_PRECEDENCE; }
 
@@ -562,7 +562,7 @@ public:
                                       cond);
     return this;
   }
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   int set_cmp_func(THD *thd)
   {
     return cmp.set_cmp_func(thd, this, tmp_arg, tmp_arg + 1, true);
@@ -796,7 +796,7 @@ public:
   Item_func_equal(THD *thd, Item *a, Item *b):
     Item_bool_rowready_func2(thd, a, b) {}
   longlong val_int() override;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   table_map not_null_tables() const override { return 0; }
   bool find_not_null_fields(table_map allowed) override { return false; }
   enum Functype functype() const override { return EQUAL_FUNC; }
@@ -991,7 +991,7 @@ public:
     return name;
   }
   enum precedence precedence() const override { return BETWEEN_PRECEDENCE; }
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   bool fix_length_and_dec_string(THD *)
   {
     return agg_arg_charsets_for_comparison(cmp_collation, args, 3);
@@ -1047,7 +1047,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("strcmp") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
       return TRUE;
@@ -1081,7 +1081,7 @@ public:
   { }
   bool fix_fields(THD *, Item **) override;
   longlong val_int() override;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("interval") };
@@ -1112,7 +1112,7 @@ public:
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool time_op(THD *thd, MYSQL_TIME *ltime) override;
   bool native_op(THD *thd, Native *to) override;
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     if (aggregate_for_result(func_name_cstring(), args, arg_count, true))
       return TRUE;
@@ -1196,7 +1196,7 @@ public:
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool time_op(THD *thd, MYSQL_TIME *ltime) override;
   bool native_op(THD *thd, Native *to) override;
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     /*
       Set nullability from args[1] by default.
@@ -1287,7 +1287,7 @@ public:
     Item_func_case_abbreviation2_switch(thd, a, b, c)
   {}
   bool fix_fields(THD *, Item **) override;
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     return fix_length_and_dec2_eliminate_null(args + 1);
   }
@@ -1321,7 +1321,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("nvl2") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     return fix_length_and_dec2_eliminate_null(args + 1);
   }
@@ -1384,7 +1384,7 @@ public:
   String *str_op(String *str) override;
   my_decimal *decimal_op(my_decimal *) override;
   bool native_op(THD *thd, Native *to) override;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
   LEX_CSTRING func_name_cstring() const override
   {
@@ -2344,7 +2344,7 @@ public:
   }
   enum Functype functype() const override { return CASE_SEARCHED_FUNC; }
   void print(String *str, enum_query_type query_type) override;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   Item *propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
     override
   {
@@ -2399,7 +2399,7 @@ public:
   }
   enum Functype functype() const override { return CASE_SIMPLE_FUNC; }
   void print(String *str, enum_query_type query_type) override;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   Item *propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
     override;
   Item *find_item() override;
@@ -2429,7 +2429,7 @@ public:
     return name;
   }
   void print(String *str, enum_query_type query_type) override;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   Item *find_item() override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_decode_oracle>(thd, this); }
@@ -2490,6 +2490,7 @@ protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value) override;
   bool transform_into_subq;
+  bool transform_into_subq_checked;
 public:
   /// An array of values, created when the bisection lookup method is used
   in_vector *array;
@@ -2512,12 +2513,13 @@ public:
     Item_func_opt_neg(thd, list),
     Predicant_to_list_comparator(thd, arg_count - 1),
     transform_into_subq(false),
+    transform_into_subq_checked(false),
     array(0), have_null(0),
     arg_types_compatible(FALSE), emb_on_expr_nest(0)
   { }
   longlong val_int() override;
   bool fix_fields(THD *, Item **) override;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   bool compatible_types_scalar_bisection_possible()
   {
     DBUG_ASSERT(m_comparator.cmp_type() != ROW_RESULT);
@@ -2693,7 +2695,7 @@ public:
   }
   CHARSET_INFO *compare_collation() const override
   { return args[0]->collation.collation; }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals=0;
     max_length=1;
@@ -2942,7 +2944,7 @@ public:
   }
   enum precedence precedence() const override { return IN_PRECEDENCE; }
   bool fix_fields(THD *thd, Item **ref) override;
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     max_length= 1;
     return agg_arg_charsets_for_comparison(cmp_collation, args, 2);
@@ -3054,7 +3056,7 @@ public:
     DBUG_VOID_RETURN;
   }
   longlong val_int() override;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("regexp") };
@@ -3099,7 +3101,7 @@ public:
     DBUG_VOID_RETURN;
   }
   longlong val_int() override;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("regexp_instr") };
@@ -3345,7 +3347,7 @@ public:
     return name;
   }
   void sort(Item_field_cmpfunc compare, void *arg);
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   bool fix_fields(THD *thd, Item **ref) override;
   void cleanup() override
   {

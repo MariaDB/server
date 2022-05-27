@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, 2020, MariaDB
+/* Copyright (c) 2017, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -422,7 +422,9 @@ bool table_value_constr::exec(SELECT_LEX *sl)
   DBUG_ENTER("table_value_constr::exec");
   List_iterator_fast<List_item> li(lists_of_values);
   List_item *elem;
+  THD *cur_thd= sl->parent_lex->thd;
   ha_rows send_records= 0;
+  int rc=0;
   
   if (select_options & SELECT_DESCRIBE)
     DBUG_RETURN(false);
@@ -438,10 +440,10 @@ bool table_value_constr::exec(SELECT_LEX *sl)
 
   while ((elem= li++))
   {
+    cur_thd->get_stmt_da()->inc_current_row_for_warning();
     if (send_records >= sl->master_unit()->lim.get_select_limit())
       break;
-    int rc=
-      result->send_data_with_check(*elem, sl->master_unit(), send_records);
+    rc= result->send_data_with_check(*elem, sl->master_unit(), send_records);
     if (!rc)
       send_records++;
     else if (rc > 0)
@@ -929,12 +931,10 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
 {
   if (!transform_into_subq)
     return this;
-  
+
   Json_writer_object trace_wrapper(thd);
   Json_writer_object trace_conv(thd, "in_to_subquery_conversion");
   trace_conv.add("item", this);
-
-  transform_into_subq= false;
 
   List<List_item> values;
 
@@ -1109,14 +1109,37 @@ uint32 Item_func_in::max_length_of_left_expr()
 
 bool Item_func_in::to_be_transformed_into_in_subq(THD *thd)
 {
+  bool is_row_list= args[1]->type() == Item::ROW_ITEM;
   uint values_count= arg_count-1;
 
-  if (args[1]->type() == Item::ROW_ITEM)
+  if (is_row_list)
     values_count*= ((Item_row *)(args[1]))->cols();
 
   if (thd->variables.in_subquery_conversion_threshold == 0 ||
       thd->variables.in_subquery_conversion_threshold > values_count)
     return false;
+
+  if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
+    return true;
+
+  /* Occurence of '?' in IN list is checked only for PREPARE <stmt> commands */
+  for (uint i=1; i < arg_count; i++)
+  {
+    if (!is_row_list)
+    {
+      if (args[i]->type() == Item::PARAM_ITEM)
+        return false;
+    }
+    else
+    {
+      Item_row *row_list= (Item_row *)(args[i]);
+      for (uint j=0; j < row_list->cols(); j++)
+      {
+        if (row_list->element_index(j)->type() == Item::PARAM_ITEM)
+          return false;
+      }
+    }
+  }
 
   return true;
 }
@@ -1186,4 +1209,3 @@ bool JOIN::transform_in_predicates_into_in_subq(THD *thd)
   thd->lex->current_select= save_current_select;
   DBUG_RETURN(false);
 }
-

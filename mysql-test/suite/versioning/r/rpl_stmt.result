@@ -1,0 +1,50 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-25347 DML events for auto-partitioned tables are written into binary log twice
+#
+flush binary logs;
+create table t1 (a int) with system versioning
+partition by system_time limit 1 auto;
+insert into t1 values (1);
+update t1 set a= a + 1;
+update t1 set a= a + 2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1 AUTO
+PARTITIONS 3
+select * from t1;
+a
+4
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000002
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; create table t1 (a int) with system versioning
+partition by system_time limit 1 auto
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; insert into t1 values (1)
+master-bin.000002	#	Query	#	#	COMMIT
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; update t1 set a= a + 1
+master-bin.000002	#	Query	#	#	COMMIT
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; update t1 set a= a + 2
+master-bin.000002	#	Query	#	#	COMMIT
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1 AUTO
+PARTITIONS 3
+select * from t1;
+a
+4
+connection master;
+drop table t1;
+include/rpl_end.inc

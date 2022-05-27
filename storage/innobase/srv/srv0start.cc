@@ -55,7 +55,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "buf0dblwr.h"
 #include "buf0dump.h"
 #include "os0file.h"
-#include "os0thread.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "fsp0fsp.h"
@@ -252,22 +251,20 @@ err_exit:
 
 /** Rename the redo log file after resizing.
 @return whether an error occurred */
-bool log_t::rename_resized() noexcept
+bool log_t::resize_rename() noexcept
 {
-  ut_ad(!srv_log_file_created);
-  ut_d(srv_log_file_created= true);
-
   std::string old_name{get_log_file_path("ib_logfile101")};
   std::string new_name{get_log_file_path()};
 
   if (IF_WIN(MoveFileEx(old_name.c_str(), new_name.c_str(),
-                         MOVEFILE_REPLACE_EXISTING),
+                        MOVEFILE_REPLACE_EXISTING),
              !rename(old_name.c_str(), new_name.c_str())))
     return false;
 
-  sql_print_error("InnoDB: Failed to rename log from %.*s to %.*s",
+  sql_print_error("InnoDB: Failed to rename log from %.*s to %.*s (error %d)",
                   int(old_name.size()), old_name.data(),
-                  int(new_name.size()), new_name.data());
+                  int(new_name.size()), new_name.data(),
+                  IF_WIN(int(GetLastError()), errno));
   return true;
 }
 
@@ -1045,12 +1042,12 @@ dberr_t srv_start(bool create_new_db)
 	recv_sys.create();
 	lock_sys.create(srv_lock_table_size);
 
+	srv_startup_is_before_trx_rollback_phase = true;
+
 	if (!srv_read_only_mode) {
 		buf_flush_page_cleaner_init();
 		ut_ad(buf_page_cleaner_is_active);
 	}
-
-	srv_startup_is_before_trx_rollback_phase = true;
 
 	/* Check if undo tablespaces and redo log files exist before creating
 	a new system tablespace */
@@ -1172,7 +1169,10 @@ dberr_t srv_start(bool create_new_db)
 
 		buf_flush_sync();
 
-		if (log_sys.rename_resized()) {
+		ut_ad(!srv_log_file_created);
+		ut_d(srv_log_file_created= true);
+
+		if (log_sys.resize_rename()) {
 			return(srv_init_abort(DB_ERROR));
 		}
 	} else {
@@ -1210,10 +1210,9 @@ dberr_t srv_start(bool create_new_db)
 			if (err != DB_SUCCESS) {
 				return srv_init_abort(err);
 			}
-			if (srv_operation == SRV_OPERATION_RESTORE) {
-				break;
+			if (srv_operation != SRV_OPERATION_RESTORE) {
+				dict_sys.load_sys_tables();
 			}
-			dict_sys.load_sys_tables();
 			err = trx_lists_init_at_db_start();
 			if (err != DB_SUCCESS) {
 				return srv_init_abort(err);
@@ -1374,7 +1373,7 @@ dberr_t srv_start(bool create_new_db)
 
 			err = create_log_file(false, lsn);
 
-			if (err == DB_SUCCESS && log_sys.rename_resized()) {
+			if (err == DB_SUCCESS && log_sys.resize_rename()) {
 				err = DB_ERROR;
 			}
 
@@ -1791,7 +1790,7 @@ srv_get_meta_data_filename(
 	char*		path;
 
 	/* Make sure the data_dir_path is set. */
-	dict_get_and_save_data_dir_path(table, false);
+	dict_get_and_save_data_dir_path(table);
 
 	const char* data_dir_path = DICT_TF_HAS_DATA_DIR(table->flags)
 		? table->data_dir_path : nullptr;

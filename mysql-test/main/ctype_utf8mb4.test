@@ -2041,6 +2041,27 @@ EXECUTE stmt;
 EXECUTE IMMEDIATE 'SELECT ''😎'' AS c';
 
 --echo #
+--echo # MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+--echo #
+
+CREATE TABLE t1 (a CHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SELECT CAST('a' AS CHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT);
+CREATE TABLE t1 AS
+SELECT CAST('a' AS CHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT) AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET utf8mb4 COLLATE DEFAULT) AS c1;
+CREATE TABLE t1 AS
+SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET utf8mb4 COLLATE DEFAULT) AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
@@ -2062,3 +2083,30 @@ SELECT 1 COLLATE latin1_swedish_ci;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+--echo #
+
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+CREATE TABLE t1 AS
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
+

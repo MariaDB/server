@@ -17,6 +17,7 @@
 #include "sql_plugin.h"                         /* wsrep_plugins_pre_init() */
 #include "my_global.h"
 #include "wsrep_server_state.h"
+#include "wsrep_status.h"
 
 #include "mariadb.h"
 #include <mysqld.h>
@@ -82,6 +83,7 @@ const char *wsrep_start_position;
 const char *wsrep_data_home_dir;
 const char *wsrep_dbug_option;
 const char *wsrep_notify_cmd;
+const char *wsrep_status_file;
 
 ulong   wsrep_debug;                            // Debug level logging
 my_bool wsrep_convert_LOCK_to_trx;              // Convert locking sessions to trx
@@ -763,6 +765,8 @@ int wsrep_init_server()
   wsrep::log::logger_fn(wsrep_log_cb);
   try
   {
+    Wsrep_status::init_once(wsrep_status_file);
+
     std::string server_name;
     std::string server_id;
     std::string node_address;
@@ -831,6 +835,7 @@ void wsrep_deinit_server()
 {
   wsrep_deinit_schema();
   Wsrep_server_state::destroy();
+  Wsrep_status::destroy();
 }
 
 int wsrep_init()
@@ -1592,6 +1597,73 @@ wsrep_sync_wait_upto (THD*          thd,
   }
   WSREP_DEBUG("wsrep_sync_wait_upto: %d", ret);
   return ret;
+}
+
+bool wsrep_is_show_query(enum enum_sql_command command)
+{
+  DBUG_ASSERT(command >= 0 && command <= SQLCOM_END);
+  return (sql_command_flags[command] & CF_STATUS_COMMAND) != 0;
+}
+
+static bool wsrep_is_diagnostic_query(enum enum_sql_command command)
+{
+  assert(command >= 0 && command <= SQLCOM_END);
+  return (sql_command_flags[command] & CF_DIAGNOSTIC_STMT) != 0;
+}
+
+static enum enum_wsrep_sync_wait
+wsrep_sync_wait_mask_for_command(enum enum_sql_command command)
+{
+  switch (command)
+  {
+  case SQLCOM_SELECT:
+  case SQLCOM_CHECKSUM:
+    return WSREP_SYNC_WAIT_BEFORE_READ;
+  case SQLCOM_DELETE:
+  case SQLCOM_DELETE_MULTI:
+  case SQLCOM_UPDATE:
+  case SQLCOM_UPDATE_MULTI:
+    return WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE;
+  case SQLCOM_REPLACE:
+  case SQLCOM_INSERT:
+  case SQLCOM_REPLACE_SELECT:
+  case SQLCOM_INSERT_SELECT:
+    return WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE;
+  default:
+    if (wsrep_is_diagnostic_query(command))
+    {
+      return WSREP_SYNC_WAIT_NONE;
+    }
+    if (wsrep_is_show_query(command))
+    {
+      switch (command)
+      {
+      case SQLCOM_SHOW_PROFILE:
+      case SQLCOM_SHOW_PROFILES:
+      case SQLCOM_SHOW_SLAVE_HOSTS:
+      case SQLCOM_SHOW_RELAYLOG_EVENTS:
+      case SQLCOM_SHOW_SLAVE_STAT:
+      case SQLCOM_SHOW_BINLOG_STAT:
+      case SQLCOM_SHOW_ENGINE_STATUS:
+      case SQLCOM_SHOW_ENGINE_MUTEX:
+      case SQLCOM_SHOW_ENGINE_LOGS:
+      case SQLCOM_SHOW_PROCESSLIST:
+      case SQLCOM_SHOW_PRIVILEGES:
+        return WSREP_SYNC_WAIT_NONE;
+      default:
+        return WSREP_SYNC_WAIT_BEFORE_SHOW;
+      }
+    }
+  }
+  return WSREP_SYNC_WAIT_NONE;
+}
+
+bool wsrep_sync_wait(THD* thd, enum enum_sql_command command)
+{
+  bool res = false;
+  if (WSREP_CLIENT(thd) && thd->variables.wsrep_sync_wait)
+    res = wsrep_sync_wait(thd, wsrep_sync_wait_mask_for_command(command));
+  return res;
 }
 
 void wsrep_keys_free(wsrep_key_arr_t* key_arr)
@@ -2789,6 +2861,12 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
     return 0;
   }
 
+  if (thd->wsrep_parallel_slave_wait_for_prior_commit())
+  {
+    WSREP_WARN("TOI: wait_for_prior_commit() returned error.");
+    return -1;
+  }
+
   int ret= 0;
 
   mysql_mutex_lock(&thd->LOCK_thd_data);
@@ -3319,11 +3397,6 @@ extern  bool wsrep_thd_ignore_table(THD *thd)
   return thd->wsrep_ignore_table;
 }
 
-bool wsrep_is_show_query(enum enum_sql_command command)
-{
-  DBUG_ASSERT(command >= 0 && command <= SQLCOM_END);
-  return (sql_command_flags[command] & CF_STATUS_COMMAND) != 0;
-}
 bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
                              TABLE_LIST* src_table,
                              HA_CREATE_INFO *create_info)
@@ -3592,6 +3665,15 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit)
     DBUG_ASSERT(0);
     return wsrep::streaming_context::bytes;
   }
+}
+
+bool THD::wsrep_parallel_slave_wait_for_prior_commit()
+{
+  if (rgi_slave && rgi_slave->is_parallel_exec && wait_for_prior_commit())
+  {
+    return 1;
+  }
+  return 0;
 }
 
 /***** callbacks for wsrep service ************/
