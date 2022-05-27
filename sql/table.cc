@@ -1880,7 +1880,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   */
   if (legacy_db_type > DB_TYPE_UNKNOWN && 
       legacy_db_type < DB_TYPE_FIRST_DYNAMIC)
-    se_plugin= ha_lock_engine(NULL, ha_checktype(thd, legacy_db_type));
+    //se_plugin= ha_lock_engine(NULL, ha_checktype(thd, legacy_db_type));
   share->db_create_options= db_create_options= uint2korr(frm_image+30);
   share->db_options_in_use= share->db_create_options;
   share->mysql_version= uint4korr(frm_image+51);

@@ -87,7 +87,6 @@ IF(WITH_INNOBASE_STORAGE_ENGINE)
   ADD_DEPENDENCIES(innochecksum GenError)
 ENDIF()
 
-
 MYSQL_ADD_EXECUTABLE(frm_parser frm_parser.cc ${PROJECT_SOURCE_DIR}/libmysqld/libmysql.c)
 TARGET_LINK_LIBRARIES(frm_parser sql sql_builtins)
 TARGET_INCLUDE_DIRECTORIES(frm_parser PUBLIC ${CMAKE_SOURCE_DIR}/sql)

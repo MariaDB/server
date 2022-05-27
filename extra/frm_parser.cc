@@ -5,6 +5,8 @@
 #include "mysql.h"
 #include "set_var.h"
 #include "sql_plugin.h"
+#include "sql_show.h"
+
 extern struct st_maria_plugin *mysql_optional_plugins[];
 extern struct st_maria_plugin *mysql_mandatory_plugins[];
 static void frm_plugin_init(int argc, char **argv)
@@ -19,6 +21,45 @@ static void frm_plugin_init(int argc, char **argv)
 }
 
 int init_common_variables(int *argc_ptr, char ***argv_ptr);
+
+int64_t get_file_size(const char *file_name)
+{
+  int64_t _file_size= 0;
+  FILE *fd= fopen(file_name, "rb");
+  if (fd == NULL)
+  {
+    _file_size= -1;
+  }
+  else
+  {
+    while (getc(fd) != EOF)
+      _file_size++;
+    fclose(fd);
+  }
+  return _file_size;
+}
+
+void print_ddl() {
+  THD *thd;
+  thd= new THD(0);
+  TABLE_SHARE share;
+  TABLE_LIST list;
+  TABLE table;
+  char buf[2048];
+
+  init_tmp_table_share(thd, &share, "", 0, "table2", "C:/Users/OMEN/Desktop/sample");
+  open_table_def(thd, &share);
+  open_table_from_share(thd, &share, &empty_clex_str, 0, READ_ALL, 0, &table,
+                        true);
+
+  list.table= &table;
+
+  String query(buf, sizeof(buf), system_charset_info);
+  show_create_table(thd, &list, &query, NULL, WITHOUT_DB_NAME);
+
+  delete thd;
+}
+
 int main(int argc, char **argv)
 {
   mysql_server_init(-1, NULL, NULL);
@@ -26,8 +67,9 @@ int main(int argc, char **argv)
 #ifdef WITH_WSEP
   if (wsrep_init_server())
     unireg_abort(1);
-#endif // WSREP
+#endif // WITH_WSEP
 
+  MY_INIT(argv[0]);
   system_charset_info= &my_charset_utf8mb3_general_ci;
   sys_var_init();
   init_common_variables(&argc, &argv);
@@ -36,9 +78,8 @@ int main(int argc, char **argv)
   my_rnd_init(&sql_rand, (ulong) 123456, (ulong) 123);
   frm_plugin_init(argc, argv);
 
-  THD *thd;
-  thd= new THD(0);
+  const uchar str[33]= "C:/Users/OMEN/Desktop/sample";
+  print_ddl();
 
-  delete thd;
   return 0;
 }
