@@ -845,8 +845,10 @@ Silence_deprecated_warning::handle_condition(
 
   @return  a copy of an original CREATE PROCEDURE/FUNCTION/EVENT/TRIGGER
            SQL statement wrapped into an instance of LEX_STRING.
-           LEX_STRING.str is set nullptr in case of error.
+           The data member LEX_STRING.str of returning object is set nullptr
+           in case of error.
 */
+
 static LEX_STRING copy_definition_string(String *defstr,
                                          MEM_ROOT *sp_mem_root)
 {

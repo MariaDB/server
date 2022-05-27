@@ -554,6 +554,21 @@ void sp_lex_instr::get_query(String *sql_query) const
 }
 
 
+void sp_lex_instr::cleanup_before_parsing()
+{
+  Item *current= free_list;
+
+  while (current)
+  {
+    Item *next= current->next;
+    current->delete_self();
+    current= next;
+  }
+
+  free_list= nullptr;
+}
+
+
 LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp)
 {
   String sql_query;
@@ -571,6 +586,9 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp)
     my_error(ER_UNKNOWN_ERROR, MYF(0));
     return nullptr;
   }
+
+  cleanup_before_parsing();
+
   Parser_state parser_state;
 
   if (parser_state.init(thd, sql_query.c_ptr(), sql_query.length()))
@@ -582,6 +600,18 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp)
 
   Query_arena *arena, backup;
   arena= thd->activate_stmt_arena_if_needed(&backup);
+
+  /*
+    Back up the current free_list pointer and reset it to nullptr.
+    In that way any items created on parsing a statement of the current
+    instruction is placed on its own free_list that later assigned to
+    the current sp_instr. We use the separate free list for every instruction
+    since at least at one place in the source code (the function subst_spvars()
+    to be accurate) we iterate along the list sp_instr->free_list
+    on executing of every instruction.
+  */
+  Item *execution_free_list= thd->free_list;
+  thd->free_list= nullptr;
 
   thd->lex= new (thd->mem_root) st_lex_local;
 
@@ -597,19 +627,40 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp)
   thd->m_digest= nullptr;
   thd->m_statement_psi= nullptr;
 
+  /*
+    sp_head::m_tmp_query is set by parser on parsing every statement of
+    a stored routine. Since here we re-parse failed statement outside stored
+    routine context, this data member isn't set. In result, the assert
+      DBUG_ASSERT(sphead->m_tmp_query <= start)
+    is fired in the constructor of the class Query_fragment.
+    To fix the assert failure, reset this data member to point to beginning of
+    the current statement being parsed.
+  */
+  const char *m_tmp_query_bak= sp->m_tmp_query;
+  sp->m_tmp_query= sql_query.c_ptr();
+
   bool parsing_failed= parse_sql(thd, &parser_state, nullptr);
 
+  sp->m_tmp_query= m_tmp_query_bak;
   thd->m_digest= parent_digest;
   thd->m_statement_psi= parent_locker;
 
   if (!parsing_failed)
   {
+    thd->lex->set_trg_event_type_for_tables();
     adjust_sql_command(thd->lex);
     parsing_failed= on_after_expr_parsing(thd);
+    /*
+      Assign the list of items created on parsing to the current
+      stored routine instruction.
+    */
+    free_list= thd->free_list;
   }
 
   if (arena)
     thd->restore_active_arena(arena, &backup);
+
+  thd->free_list= execution_free_list;
 
   thd->lex->sphead= nullptr;
   thd->lex->spcont= nullptr;

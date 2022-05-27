@@ -10523,13 +10523,20 @@ bool LEX::new_sp_instr_stmt(THD *thd,
   LEX_STRING qbuff;
   sp_instr_stmt *i;
 
-  qbuff.length= prefix.length + suffix.length;
-  if (!(qbuff.str= (char*) alloc_root(thd->mem_root, qbuff.length + 1)))
-    return true;
-  if (prefix.length)
-    memcpy(qbuff.str, prefix.str, prefix.length);
-  strmake(qbuff.str + prefix.length, suffix.str, suffix.length);
-
+  if (prefix.length == 0)
+  {
+    qbuff.str= (char*)suffix.str;
+    qbuff.length= suffix.length;
+  }
+  else
+  {
+    qbuff.length= prefix.length + suffix.length;
+    if (!(qbuff.str= (char*) alloc_root(thd->mem_root, qbuff.length + 1)))
+      return true;
+    if (prefix.length)
+      memcpy(qbuff.str, prefix.str, prefix.length);
+    strmake(qbuff.str + prefix.length, suffix.str, suffix.length);
+  }
   if (!(i= new (thd->mem_root) sp_instr_stmt(sphead->instructions(),
                                              spcont, this, qbuff)))
     return true;

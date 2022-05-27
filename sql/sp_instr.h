@@ -353,6 +353,13 @@ public:
   */
   LEX *parse_expr(THD *thd, sp_head *sp);
 
+
+  /**
+    Clean up items previously created on behalf of the current instruction.
+  */
+  void cleanup_before_parsing();
+
+
 protected:
   /**
     @return the expression query string. This string can not be passed directly
