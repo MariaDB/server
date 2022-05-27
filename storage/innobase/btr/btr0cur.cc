@@ -2850,14 +2850,17 @@ btr_cur_open_at_index_side(
 /**********************************************************************//**
 Positions a cursor at a randomly chosen position within a B-tree.
 @return true if the index is available and we have put the cursor, false
-if the index is unavailable */
+if the index is unavailable. Cursor->page_cur->rec can be null if
+simulate_uniform=true, which means that no record is chosen in the
+generated tree path. The caller should retry a call, that will
+try a new tree path */
 bool
 btr_cur_open_at_rnd_pos(
-	dict_index_t*	index,		/*!< in: index */
-	ulint		latch_mode,     /*!< in: BTR_SEARCH_LEAF, ... */
-	btr_cur_t*	cursor,		/*!< in/out: B-tree cursor */
-	mtr_t*		mtr,            /*!< in: mtr */
-        bool* probability_correctness)  /*!< out: flag for A/R check */
+	dict_index_t*	index,	    /*!< in: index */
+	ulint		latch_mode, /*!< in: BTR_SEARCH_LEAF, ... */
+	btr_cur_t*	cursor,	    /*!< in/out: B-tree cursor */
+	mtr_t*		mtr,        /*!< in: mtr */
+        bool simulate_uniform)      /*!< in: flag for uniform simulation */
 {
 	page_cur_t*	page_cursor;
 	ulint		node_ptr_max_size = srv_page_size / 2;
@@ -2869,11 +2872,10 @@ btr_cur_open_at_rnd_pos(
 	ulint		n_blocks = 0;
 	ulint		n_releases = 0;
 	mem_heap_t*	heap		= NULL;
+        bool            start_move_down = true;
+        double          p = 1.0;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets		= offsets_;
-        *probability_correctness = true;
-        bool start_move_down = true;
-        double p = 1.0;
 	rec_offs_init(offsets_);
 
 	ut_ad(!index->is_spatial());
@@ -3041,14 +3043,18 @@ btr_cur_open_at_rnd_pos(
 				}
 			}
 		}
-                if(!start_move_down) {
-                    ulint n_recs = page_get_n_recs(block->page.frame);
-                    double max_fanout = (double)srv_page_size /
-                                (REC_N_NEW_EXTRA_BYTES + 1);
-                    p *= (double)n_recs / max_fanout;
-                } else {
-                  start_move_down= false;
+
+                if(simulate_uniform) {
+                        if(!start_move_down) {
+                                ulint n_recs = page_get_n_recs(block->page.frame);
+                                double max_fanout = (double)srv_page_size /
+                                                   (REC_N_NEW_EXTRA_BYTES + 1);
+                                p *= (double)n_recs / max_fanout;
+                        } else {
+                                start_move_down= false;
+                        }
                 }
+
                 page_cur_open_on_rnd_user_rec(block, page_cursor);
 
 		if (height == 0) {
@@ -3145,8 +3151,8 @@ btr_cur_open_at_rnd_pos(
 	}
 
         double rand_uniform = (double)(rand() / (double(RAND_MAX)));
-        if(rand_uniform < p)
-          *probability_correctness = false;
+        if(simulate_uniform&& rand_uniform < p)
+                page_cursor->rec = NULL;
 
 	return err == DB_SUCCESS;
 }

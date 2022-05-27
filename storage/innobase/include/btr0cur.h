@@ -208,14 +208,16 @@ btr_cur_open_at_index_side(
 /**********************************************************************//**
 Positions a cursor at a randomly chosen position within a B-tree.
 @return true if the index is available and we have put the cursor, false
-if the index is unavailable */
+if the index is unavailable. Cursor->page_cur->rec can be null if
+simulate_uniform=true,which means that no record is chosen in the generated
+tree path. The caller should retry a call, that will try a new tree path */
 bool
 btr_cur_open_at_rnd_pos(
-	dict_index_t*	index,		       /*!< in: index */
-	ulint		latch_mode,	       /*!< in: BTR_SEARCH_LEAF, ... */
-	btr_cur_t*	cursor,		       /*!< in/out: B-tree cursor */
-	mtr_t*		mtr,                   /*!< in: mtr */
-        bool* probability_correctness = NULL); /*!< out: flag for A/R check */
+	dict_index_t*	index,	        /*!< in: index */
+	ulint		latch_mode,     /*!< in: BTR_SEARCH_LEAF, ... */
+	btr_cur_t*	cursor,         /*!< in/out: B-tree cursor */
+	mtr_t*		mtr,            /*!< in: mtr */
+        bool simulate_uniform= false);  /*!< in: flag for uniform simulation */
 /*************************************************************//**
 Tries to perform an insert to a page in an index tree, next to cursor.
 It is assumed that mtr holds an x-latch on the page. The operation does

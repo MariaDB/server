@@ -9527,35 +9527,28 @@ ha_innobase::sample_next(
   rec_offs_init(offsets_);
 
   dict_index_t*	index= innobase_get_index(MAX_KEY);
-  bool probability_correctness;
   do {
     mtr.start();
-    res= btr_pcur_open_at_rnd_pos(index, BTR_SEARCH_LEAF, pcur, &mtr, &probability_correctness);
+    res= btr_pcur_open_at_rnd_pos(index, BTR_SEARCH_LEAF, pcur, &mtr, true);
     mtr.commit();
     if(!res)
     {
       return HA_ERR_KEY_NOT_FOUND;
     }
-  } while (!probability_correctness);
-
-  rec= btr_pcur_get_rec(pcur);
+  } while (!(rec= btr_pcur_get_rec(pcur)));
 
   mem_heap_t*	heap= NULL;
+  auto _ = make_scope_exit([heap]() { if(heap) mem_heap_free(heap); });
+
   offsets= rec_get_offsets(rec, index, offsets, index->n_core_fields, ULINT_UNDEFINED, &heap);
   ut_ad(offsets);
   if (!offsets)
-  {
-    if (heap)
-      mem_heap_free(heap);
     return HA_ERR_INTERNAL_ERROR;
-  }
 
   res= row_sel_store_mysql_rec(
       buf, m_prebuilt, rec, NULL, true,
       index, offsets);
 
-  if(heap)
-    mem_heap_free(heap);
   return res ? 0 : HA_ERR_INTERNAL_ERROR;
 }
 

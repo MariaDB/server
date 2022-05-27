@@ -201,15 +201,18 @@ btr_pcur_open_on_user_rec(
 /**********************************************************************//**
 Positions a cursor at a randomly chosen position within a B-tree.
 @return true if the index is available and we have put the cursor, false
-if the index is unavailable */
+if the index is unavailable. Cursor->btr_cur->page_cur->rec can be null if
+simulate_uniform=true, which means that no record is chosen in the
+generated tree path. The caller should retry a call, that will
+try a new tree path */
 UNIV_INLINE
 bool
 btr_pcur_open_at_rnd_pos(
-	dict_index_t*	index,		/*!< in: index */
-	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
-	btr_pcur_t*	cursor,		/*!< in/out: B-tree pcur */
-	mtr_t*		mtr,		/*!< in: mtr */
-	bool* probability_correctness = NULL); /*!< out: flag for A/R check */
+	dict_index_t*	index,	       /*!< in: index */
+	ulint		latch_mode,    /*!< in: BTR_SEARCH_LEAF, ... */
+	btr_pcur_t*	cursor,	       /*!< in/out: B-tree pcur */
+	mtr_t*		mtr,	       /*!< in: mtr */
+	bool simulate_uniform= false); /*!< in: flag for uniform simulation */
 /**************************************************************//**
 Frees the possible memory heap of a persistent cursor and sets the latch
 mode of the persistent cursor to BTR_NO_LATCHES.
