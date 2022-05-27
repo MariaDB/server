@@ -1442,6 +1442,8 @@ class Thread_apc_context
     closesocket(listener);
     freeaddrinfo(addr);
 
+    sql_print_information("created sockets: %d %d, ret: %d", out[0], out[1], ret);
+
     if (unlikely(ret == SOCKET_ERROR || out[1] == INVALID_SOCKET))
     {
       sql_print_error("error pairing socket: %d", socket_errno);
