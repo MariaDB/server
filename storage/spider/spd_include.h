@@ -662,12 +662,18 @@ typedef struct st_spider_transaction
   ulonglong          trx_conn_adjustment;
   uint               locked_connections;
 
+  /*
+    conn_hash_freed == TRUE means that elements of trx_conn_hash has been freed
+    and ha_spider::conns maintains freed connections. In such a case, we need
+    to call get_conn() or its wrapper functions before accessing data nodes.
+  */
+  bool conn_hash_freed;
+
   ulonglong          direct_update_count;
   ulonglong          direct_delete_count;
   ulonglong          direct_order_limit_count;
   ulonglong          direct_aggregate_count;
   ulonglong          parallel_search_count;
-
 
   pthread_mutex_t    *udf_table_mutexes;
   CHARSET_INFO       *udf_access_charset;

@@ -288,6 +288,7 @@ void spider_free_conn_from_trx(
   ha_spider *spider;
   SPIDER_IP_PORT_CONN *ip_port_conn = conn->ip_port_conn;
   DBUG_ENTER("spider_free_conn_from_trx");
+
   spider_conn_clear_queue(conn);
   conn->use_for_active_standby = FALSE;
   conn->error_mode = 1;

@@ -5965,6 +5965,10 @@ int ha_spider::rnd_next(
   int error_num;
   DBUG_ENTER("ha_spider::rnd_next");
   DBUG_PRINT("info",("spider this=%p", this));
+  if ((error_num= spider_alloc_trx_conn_if_freed(this)))
+  {
+    DBUG_RETURN(error_num);
+  }
   if (use_pre_call)
   {
     if (store_error_num)
@@ -12148,6 +12152,11 @@ int ha_spider::lock_tables()
   DBUG_ENTER("ha_spider::lock_tables");
   DBUG_PRINT("info",("spider lock_table_type=%u",
     wide_handler->lock_table_type));
+
+  if ((error_num= spider_alloc_trx_conn_if_freed(this)))
+  {
+    DBUG_RETURN(error_num);
+  }
 
     if (!conns[search_link_idx])
     {

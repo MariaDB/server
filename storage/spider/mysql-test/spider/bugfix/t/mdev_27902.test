@@ -1,0 +1,63 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+--echo #
+--echo # MDEV-27902 SIGSEGV's in spider_check_and_set_trx_isolation and
+--echo # spider_db_open_handler, __pthread_mutex_lock:
+--echo # Assertion mutex->__data.__owner == 0' failed in psi_mutex_lock
+--echo # and inline_mysql_mutex_lock
+--echo #
+CREATE TABLE tbl_a (a INT) ENGINE=Spider;
+HANDLER tbl_a OPEN;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+HANDLER tbl_a READ FIRST;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+HANDLER tbl_a READ NEXT;
+DROP TABLE tbl_a;
+
+--echo #
+--echo # MDEV-28352 Spider: heap-use-after-free in ha_spider::lock_tables(),
+--echo # heap freed by spider_commit()
+--echo #
+CREATE TABLE tbl_a (a INT) ENGINE=SPIDER;
+FLUSH TABLE tbl_a WITH READ LOCK;
+BEGIN;
+DROP TABLE tbl_a;
+
+--echo #
+--echo # MDEV-28676 Spider: Got error 12701 when reading table, when using HANDLER
+--echo #
+CREATE TABLE t (c INT) ENGINE=Spider;
+HANDLER t OPEN;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+HANDLER t READ FIRST;
+DROP TABLE tbl_a;
+
+--echo #
+--echo # MDEV-28683 Spider: SIGSEGV in spider_db_direct_delete and SIGSEGV in spider_db_connect
+--echo #
+CREATE TABLE tbl_a (c INT) ENGINE=Spider;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+SELECT * FROM t;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+INSERT INTO t (SELECT 1 FROM t);
+LOCK TABLES t WRITE CONCURRENT;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+DELETE FROM t;
+UNLOCK TABLES;
+DROP TABLE tbl_a;
+
+DROP DATABASE auto_test_local;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

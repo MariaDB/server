@@ -108,8 +108,12 @@ int spider_free_trx_conn(
       {
         DBUG_ASSERT(!trx_free);
         roop_count++;
-      } else
+      }
+      else
+      {
         spider_free_conn_from_trx(trx, conn, FALSE, trx_free, &roop_count);
+        trx->conn_hash_freed= TRUE;
+      }
     }
     trx->trx_conn_adjustment++;
   } else {
@@ -120,10 +124,24 @@ int spider_free_trx_conn(
       if (conn->table_lock)
       {
         DBUG_ASSERT(!trx_free);
-      } else
+      }
+      else
+      {
         conn->error_mode = 1;
+      }
       roop_count++;
     }
+  }
+  DBUG_RETURN(0);
+}
+
+int spider_alloc_trx_conn_if_freed(ha_spider *spider)
+{
+  SPIDER_TRX *trx= spider->wide_handler->trx;
+  DBUG_ENTER("spider_alloc_trx_conn_if_freed");
+  if (trx->conn_hash_freed)
+  {
+    DBUG_RETURN(spider_check_trx_and_get_conn(trx->thd, spider, FALSE));
   }
   DBUG_RETURN(0);
 }

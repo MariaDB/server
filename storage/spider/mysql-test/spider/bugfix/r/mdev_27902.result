@@ -1,0 +1,67 @@
+for master_1
+for child2
+for child3
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+#
+# MDEV-27902 SIGSEGV's in spider_check_and_set_trx_isolation and
+# spider_db_open_handler, __pthread_mutex_lock:
+# Assertion mutex->__data.__owner == 0' failed in psi_mutex_lock
+# and inline_mysql_mutex_lock
+#
+CREATE TABLE tbl_a (a INT) ENGINE=Spider;
+HANDLER tbl_a OPEN;
+Warnings:
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+HANDLER tbl_a READ FIRST;
+ERROR HY000: Unable to connect to foreign data source: localhost
+HANDLER tbl_a READ NEXT;
+ERROR HY000: Unable to connect to foreign data source: localhost
+DROP TABLE tbl_a;
+#
+# MDEV-28352 Spider: heap-use-after-free in ha_spider::lock_tables(),
+# heap freed by spider_commit()
+#
+CREATE TABLE tbl_a (a INT) ENGINE=SPIDER;
+FLUSH TABLE tbl_a WITH READ LOCK;
+Warnings:
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+BEGIN;
+DROP TABLE tbl_a;
+#
+# MDEV-28676 Spider: Got error 12701 when reading table, when using HANDLER
+#
+CREATE TABLE t (c INT) ENGINE=Spider;
+HANDLER t OPEN;
+Warnings:
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+HANDLER t READ FIRST;
+ERROR HY000: Unable to connect to foreign data source: localhost
+DROP TABLE tbl_a;
+#
+# MDEV-28683 Spider: SIGSEGV in spider_db_direct_delete and SIGSEGV in spider_db_connect
+#
+CREATE TABLE tbl_a (c INT) ENGINE=Spider;
+SELECT * FROM t;
+ERROR HY000: Unable to connect to foreign data source: localhost
+INSERT INTO t (SELECT 1 FROM t);
+ERROR HY000: Unable to connect to foreign data source: localhost
+LOCK TABLES t WRITE CONCURRENT;
+DELETE FROM t;
+ERROR HY000: Unable to connect to foreign data source: localhost
+UNLOCK TABLES;
+DROP TABLE tbl_a;
+DROP DATABASE auto_test_local;
+for master_1
+for child2
+for child3

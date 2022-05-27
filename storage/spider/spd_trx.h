@@ -19,6 +19,8 @@ int spider_free_trx_conn(
   bool trx_free
 );
 
+int spider_alloc_trx_conn_if_freed(ha_spider *spider);
+
 int spider_free_trx_another_conn(
   SPIDER_TRX *trx,
   bool lock
