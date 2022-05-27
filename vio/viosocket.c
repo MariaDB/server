@@ -1055,7 +1055,8 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
     FD_SET(fd, &readfds);
 
     // Add self-pipe read end. See also Thread_apc_context::setup_thread_apc.
-    FD_SET(pipe_fd, &readfds);
+    if (likely(pipe_fd))
+      FD_SET(pipe_fd, &readfds);
     break;
   case VIO_IO_EVENT_WRITE:
   case VIO_IO_EVENT_CONNECT:
@@ -1075,7 +1076,7 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   if (ret == 0)
     WSASetLastError(SOCKET_ETIMEDOUT);
 
-  if (MY_TEST(FD_ISSET(pipe_fd, &readfds)) == 0)
+  if (pipe_fd && FD_ISSET(pipe_fd, &readfds) == 0)
   {
     fprintf(stderr, "received self-pipe interrupt\n");
     // Self-pipe trick fakes CancelIo
