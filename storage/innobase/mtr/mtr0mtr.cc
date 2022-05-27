@@ -360,22 +360,10 @@ struct DebugCheck {
 struct ReleaseBlocks
 {
   const lsn_t start, end;
-#ifdef UNIV_DEBUG
-  const mtr_buf_t &memo;
-
-  ReleaseBlocks(lsn_t start, lsn_t end, const mtr_buf_t &memo) :
-    start(start), end(end), memo(memo)
-#else /* UNIV_DEBUG */
-  ReleaseBlocks(lsn_t start, lsn_t end, const mtr_buf_t&) :
-    start(start), end(end)
-#endif /* UNIV_DEBUG */
-  {
-    ut_ad(start);
-    ut_ad(end);
-  }
+  ReleaseBlocks(lsn_t start, lsn_t end) : start(start), end(end) {}
 
   /** @return true always */
-  bool operator()(mtr_memo_slot_t* slot) const
+  bool operator()(mtr_memo_slot_t *slot) const
   {
     if (!slot->object)
       return true;
@@ -492,9 +480,8 @@ void mtr_t::commit()
     else
       ut_ad(!m_freed_space);
 
-    m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
-                                     (ReleaseBlocks(lsns.first, m_commit_lsn,
-                                                    m_memo)));
+    m_memo.for_each_block_in_reverse
+      (CIterate<const ReleaseBlocks>(ReleaseBlocks(lsns.first, m_commit_lsn)));
     if (m_made_dirty)
       mysql_mutex_unlock(&log_sys.flush_order_mutex);
 
@@ -615,8 +602,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
   m_memo.for_each_block_in_reverse(CIterate<Shrink>{space});
 
   m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
-                                   (ReleaseBlocks(start_lsn, m_commit_lsn,
-                                                  m_memo)));
+                                   (ReleaseBlocks(start_lsn, m_commit_lsn)));
   mysql_mutex_unlock(&log_sys.flush_order_mutex);
 
   mutex_enter(&fil_system.mutex);
@@ -1238,16 +1224,6 @@ mtr_t::memo_contains_page_flagged(
 	return m_memo.for_each_block_in_reverse(iteration)
 		? NULL : iteration.functor.get_block();
 }
-
-/** Print info of an mtr handle. */
-void
-mtr_t::print() const
-{
-	ib::info() << "Mini-transaction handle: memo size "
-		<< m_memo.size() << " bytes log size "
-		<< get_log()->size() << " bytes";
-}
-
 #endif /* UNIV_DEBUG */
 
 

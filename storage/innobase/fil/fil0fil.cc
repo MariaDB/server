@@ -3676,7 +3676,7 @@ fil_names_clear(
 
 	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.named_spaces);
 	     space != NULL; ) {
-		if (mtr.get_log()->size()
+		if (mtr.get_log_size()
 		    + strlen(space->chain.start->name)
 		    >= RECV_SCAN_SIZE - (3 + 5 + 1)) {
 			/* Prevent log parse buffer overflow */
