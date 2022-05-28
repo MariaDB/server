@@ -7270,7 +7270,7 @@ static void downgrade_mdl_if_lock_tables_mode(THD *thd, MDL_ticket *ticket,
 }
 
 
-bool log_partition_alter_to_ddl_log(ALTER_PARTITION_PARAM_TYPE *lpt)
+bool alter_partition_log_backup(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
   backup_log_info ddl_log;
   bzero(&ddl_log, sizeof(ddl_log));
@@ -7550,7 +7550,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT("drop_partition_6") ||
         (frm_install= TRUE, FALSE) ||
         mysql_write_frm(lpt, WFRM_INSTALL_SHADOW) ||
-        log_partition_alter_to_ddl_log(lpt) ||
+        alter_partition_log_backup(lpt) ||
         (frm_install= FALSE, FALSE) ||
         ERROR_INJECT("drop_partition_7") ||
         mysql_drop_partitions(lpt) ||
@@ -7588,7 +7588,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT("convert_partition_7") ||
         write_log_drop_frm(lpt, &chain_drop_backup) ||
         mysql_write_frm(lpt, WFRM_INSTALL_SHADOW|WFRM_BACKUP_ORIGINAL) ||
-        log_partition_alter_to_ddl_log(lpt) ||
+        alter_partition_log_backup(lpt) ||
         ERROR_INJECT("convert_partition_8") ||
         ((!thd->lex->no_write_to_binlog) &&
           ((thd->binlog_xid= thd->query_id),
@@ -7722,7 +7722,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT("add_partition_8") ||
         (frm_install= TRUE, FALSE) ||
         mysql_write_frm(lpt, WFRM_INSTALL_SHADOW) ||
-        log_partition_alter_to_ddl_log(lpt) ||
+        alter_partition_log_backup(lpt) ||
         (frm_install= FALSE, FALSE) ||
         ERROR_INJECT("add_partition_9") ||
         (write_log_completed(lpt, FALSE), FALSE) ||
@@ -7811,7 +7811,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT("change_partition_8") ||
         ((frm_install= TRUE), FALSE) ||
         mysql_write_frm(lpt, WFRM_INSTALL_SHADOW) ||
-        log_partition_alter_to_ddl_log(lpt) ||
+        alter_partition_log_backup(lpt) ||
         (frm_install= FALSE, FALSE) ||
         ERROR_INJECT("change_partition_9") ||
         mysql_drop_partitions(lpt) ||
