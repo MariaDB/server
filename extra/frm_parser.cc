@@ -65,7 +65,7 @@ int main(int argc, char **argv)
   my_rnd_init(&sql_rand, (ulong) 123456, (ulong) 123);
   frm_plugin_init(argc, argv);
 
-  print_ddl("C:/Users/OMEN/Desktop/sample", "test");
+  print_ddl("C:/Users/OMEN/mariadb/bld/mysql-test/var/mysqld.1/data/test/test", "test");
 
   return 0;
 }

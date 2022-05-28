@@ -4137,12 +4137,12 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   outparam->file= 0;
   if (!(prgflag & OPEN_FRM_FILE_ONLY))
   {
-    if (!(outparam->file= get_new_handler(share, &outparam->mem_root,
+    /*if (!(outparam->file= get_new_handler(share, &outparam->mem_root,
                                           share->db_type())))
-      goto err;
+      goto err;*/
 
-    if (outparam->file->set_ha_share_ref(&share->ha_share))
-      goto err;
+   /* if (outparam->file->set_ha_share_ref(&share->ha_share))
+      goto err;*/
   }
   else
   {
