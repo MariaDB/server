@@ -3391,7 +3391,7 @@ int handler::ha_sample_next(uchar *buf)
   {
     TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, MAX_KEY, result,
                   { result= sample_next(buf); })
-    if (result != HA_ERR_RECORD_DELETED)
+    if (result != HA_ERR_RECORD_DELETED && result != HA_ERR_KEY_NOT_FOUND)
       break;
     //status_var_increment(table->in_use->status_var.ha_read_rnd_deleted_count);
   } while (!table->in_use->check_killed(1));

@@ -9527,15 +9527,13 @@ ha_innobase::sample_next(
   rec_offs_init(offsets_);
 
   dict_index_t*	index= innobase_get_index(MAX_KEY);
-  do {
-    mtr.start();
-    res= btr_pcur_open_at_rnd_pos(index, BTR_SEARCH_LEAF, pcur, &mtr, true);
-    mtr.commit();
-    if(!res)
-    {
-      return HA_ERR_KEY_NOT_FOUND;
-    }
-  } while (!(rec= btr_pcur_get_rec(pcur)));
+  mtr.start();
+  res= btr_pcur_open_at_rnd_pos(index, BTR_SEARCH_LEAF, pcur, &mtr, true);
+  mtr.commit();
+  if(!res || !(rec= btr_pcur_get_rec(pcur)))
+  {
+    return HA_ERR_KEY_NOT_FOUND;
+  }
 
   mem_heap_t*	heap= NULL;
   auto _ = make_scope_exit([heap]() { if(heap) mem_heap_free(heap); });

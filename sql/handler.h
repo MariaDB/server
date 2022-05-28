@@ -3511,7 +3511,6 @@ public:
   int ha_reset();
   int ha_sample_init()
   {
-    DBUG_EXECUTE_IF("ha_sample_init_fail", return HA_ERR_TABLE_DEF_CHANGED;);
     int result;
     DBUG_ENTER("ha_sample_init");
     DBUG_ASSERT(inited == NONE);

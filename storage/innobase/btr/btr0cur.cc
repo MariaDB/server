@@ -2872,7 +2872,10 @@ btr_cur_open_at_rnd_pos(
 	ulint		n_blocks = 0;
 	ulint		n_releases = 0;
 	mem_heap_t*	heap		= NULL;
-        bool            start_move_down = true;
+	/* For uniform distribution simulation is used naive A/R sampling
+	    algorithm, check link below for details
+	   https://courses.cs.washington.edu/courses/cse590q/05au/papers/Olken-Sampling.pdf
+	*/
         double          p = 1.0;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets		= offsets_;
@@ -3009,8 +3012,18 @@ btr_cur_open_at_rnd_pos(
 			/* We are in the root node */
 
 			height = btr_page_get_level(page);
+		} else {
+			if(sim_uniform_dist) {
+				ulint n_recs = page_get_n_recs(block->page.frame);
+				int extra_bytes = dict_table_is_comp(index->table) ?
+				REC_N_NEW_EXTRA_BYTES : REC_N_OLD_EXTRA_BYTES;
+				// Get max fanout from n_recs / (srv_page_size /
+				// extra_bytes +1), but exchange two divisons by
+				// one multiplication and one division
+				p *= (double)n_recs * (extra_bytes + 1) /
+					(double)srv_page_size;
+			}
 		}
-
 		if (height == 0) {
 			if (rw_latch == RW_NO_LATCH
 			    || srv_read_only_mode) {
@@ -3043,17 +3056,6 @@ btr_cur_open_at_rnd_pos(
 				}
 			}
 		}
-
-                if(sim_uniform_dist) {
-                        if(!start_move_down) {
-                                ulint n_recs = page_get_n_recs(block->page.frame);
-                                double max_fanout = (double)srv_page_size /
-                                                   (REC_N_NEW_EXTRA_BYTES + 1);
-                                p *= (double)n_recs / max_fanout;
-                        } else {
-                                start_move_down= false;
-                        }
-                }
 
                 page_cur_open_on_rnd_user_rec(block, page_cursor);
 
@@ -3150,9 +3152,12 @@ btr_cur_open_at_rnd_pos(
 		mem_heap_free(heap);
 	}
 
-        double rand_uniform = (double)(rand() / (double(RAND_MAX)));
-        if(sim_uniform_dist && rand_uniform < p)
-                page_cursor->rec = NULL;
+	// We get max value of type by using ~(type)0 for
+	// getting 0..1 pseudo random number from ut_rnd_gen()
+	// and exchange division by multiplication like
+	// (b / c) < a <=> b < (a * c)
+	if(sim_uniform_dist && (ut_rnd_gen() < (p * ~(uint32_t)0)))
+		page_cursor->rec = NULL;
 
 	return err == DB_SUCCESS;
 }
