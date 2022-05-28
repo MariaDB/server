@@ -7,6 +7,8 @@
 #include "sql_plugin.h"
 #include "sql_show.h"
 
+#include <string.h>
+
 extern struct st_maria_plugin *mysql_optional_plugins[];
 extern struct st_maria_plugin *mysql_mandatory_plugins[];
 static void frm_plugin_init(int argc, char **argv)
@@ -22,24 +24,9 @@ static void frm_plugin_init(int argc, char **argv)
 
 int init_common_variables(int *argc_ptr, char ***argv_ptr);
 
-int64_t get_file_size(const char *file_name)
-{
-  int64_t _file_size= 0;
-  FILE *fd= fopen(file_name, "rb");
-  if (fd == NULL)
-  {
-    _file_size= -1;
-  }
-  else
-  {
-    while (getc(fd) != EOF)
-      _file_size++;
-    fclose(fd);
-  }
-  return _file_size;
-}
 
-void print_ddl() {
+void print_ddl(const char *path, const char *table_name)
+{
   THD *thd;
   thd= new THD(0);
   TABLE_SHARE share;
@@ -47,7 +34,7 @@ void print_ddl() {
   TABLE table;
   char buf[2048];
 
-  init_tmp_table_share(thd, &share, "", 0, "table2", "C:/Users/OMEN/Desktop/sample");
+  init_tmp_table_share(thd, &share, "", 0, table_name, path);
   open_table_def(thd, &share);
   open_table_from_share(thd, &share, &empty_clex_str, 0, READ_ALL, 0, &table,
                         true);
@@ -78,8 +65,7 @@ int main(int argc, char **argv)
   my_rnd_init(&sql_rand, (ulong) 123456, (ulong) 123);
   frm_plugin_init(argc, argv);
 
-  const uchar str[33]= "C:/Users/OMEN/Desktop/sample";
-  print_ddl();
+  print_ddl("C:/Users/OMEN/Desktop/sample", "test");
 
   return 0;
 }
