@@ -1224,12 +1224,12 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 	for (i = 0; i < n_sample_pages; i++) {
 		mtr.start();
 
-		bool	available;
+                dberr_t	available;
 
 		available = btr_cur_open_at_rnd_pos(index, BTR_SEARCH_LEAF,
 						    &cursor, &mtr, false);
 
-		if (!available || index->table->bulk_trx_id != bulk_trx_id) {
+		if (available != DB_SUCCESS || index->table->bulk_trx_id != bulk_trx_id) {
 			mtr.commit();
 			mem_heap_free(heap);
 

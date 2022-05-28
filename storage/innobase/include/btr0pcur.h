@@ -200,13 +200,13 @@ btr_pcur_open_on_user_rec(
 	mtr_t*		mtr);		/*!< in: mtr */
 /**********************************************************************//**
 Positions a cursor at a randomly chosen position within a B-tree.
-@return true if the index is available and we have put the cursor, false
-if the index is unavailable. Cursor->btr_cur->page_cur->rec can be null if
-simulate_uniform=true, which means that no record is chosen in the
+@return DB_SUCCESS if the index is available and we have put the cursor,
+error code if the index is unavailable. If simulate_uniform=true, could be
+DB_RECORD_NOT_FOUND returned, which means that no record is chosen in the
 generated tree path. The caller should retry a call, that will
 try a new tree path */
 UNIV_INLINE
-bool
+dberr_t
 btr_pcur_open_at_rnd_pos(
 	dict_index_t*	index,	    /*!< in: index */
 	ulint		latch_mode, /*!< in: BTR_SEARCH_LEAF, ... */

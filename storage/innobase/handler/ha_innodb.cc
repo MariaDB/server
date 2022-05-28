@@ -9522,19 +9522,20 @@ ha_innobase::sample_next(
   btr_pcur_t*	pcur= m_prebuilt->pcur;
   rec_t*        rec;
   bool          res;
+  dberr_t       err;
   rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
   rec_offs*	offsets= offsets_;
   rec_offs_init(offsets_);
 
   dict_index_t*	index= innobase_get_index(MAX_KEY);
   mtr.start();
-  res= btr_pcur_open_at_rnd_pos(index, BTR_SEARCH_LEAF, pcur, &mtr, true);
+  err= btr_pcur_open_at_rnd_pos(index, BTR_SEARCH_LEAF, pcur, &mtr, true);
   mtr.commit();
-  if(!res || !(rec= btr_pcur_get_rec(pcur)))
+  if(err != DB_SUCCESS)
   {
     return HA_ERR_KEY_NOT_FOUND;
   }
-
+  rec= btr_pcur_get_rec(pcur);
   mem_heap_t*	heap= NULL;
   auto _ = make_scope_exit([heap]() { if(heap) mem_heap_free(heap); });
 

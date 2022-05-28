@@ -2849,12 +2849,12 @@ btr_cur_open_at_index_side(
 
 /**********************************************************************//**
 Positions a cursor at a randomly chosen position within a B-tree.
-@return true if the index is available and we have put the cursor, false
-if the index is unavailable. Cursor->page_cur->rec can be null if
-simulate_uniform=true, which means that no record is chosen in the
+@return DB_SUCCESS if the index is available and we have put the cursor,
+error code if the index is unavailable. If simulate_uniform=true, could be
+DB_RECORD_NOT_FOUND returned, which means that no record is chosen in the
 generated tree path. The caller should retry a call, that will
 try a new tree path */
-bool
+dberr_t
 btr_cur_open_at_rnd_pos(
 	dict_index_t*	index,	    /*!< in: index */
 	ulint		latch_mode, /*!< in: BTR_SEARCH_LEAF, ... */
@@ -2926,7 +2926,7 @@ btr_cur_open_at_rnd_pos(
 	}
 
 	DBUG_EXECUTE_IF("test_index_is_unavailable",
-			return(false););
+			return(DB_ERROR););
 
 	if (index->page == FIL_NULL) {
 		/* Since we don't hold index lock until just now, the index
@@ -2934,7 +2934,7 @@ btr_cur_open_at_rnd_pos(
 		statistics updater for referenced table, it could be marked
 		as unavailable by 'DROP TABLE' in the mean time, since
 		we don't hold lock for statistics updater */
-		return(false);
+		return(DB_ERROR);
 	}
 
 	const rw_lock_type_t root_leaf_rw_latch = btr_cur_latch_for_root_leaf(
@@ -3157,9 +3157,9 @@ btr_cur_open_at_rnd_pos(
 	// and exchange division by multiplication like
 	// (b / c) < a <=> b < (a * c)
 	if(sim_uniform_dist && (ut_rnd_gen() < (p * ~(uint32_t)0)))
-		page_cursor->rec = NULL;
+		err = DB_RECORD_NOT_FOUND;
 
-	return err == DB_SUCCESS;
+	return err;
 }
 
 /*==================== B-TREE INSERT =========================*/
