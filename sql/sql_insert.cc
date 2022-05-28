@@ -4208,7 +4208,9 @@ void select_insert::store_values(List<Item> &values)
 bool select_insert::prepare_eof()
 {
   int error;
+#ifndef DBUG_OFF
   bool const trans_table= table->file->has_transactions_and_rollback();
+#endif
   bool changed;
 
   DBUG_ENTER("select_insert::prepare_eof");

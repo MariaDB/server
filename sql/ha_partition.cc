@@ -81,8 +81,6 @@
                                         HA_READ_BEFORE_WRITE_REMOVAL |\
                                         HA_CAN_TABLES_WITHOUT_ROLLBACK)
 
-static const char *ha_par_ext= PAR_EXT;
-
 /****************************************************************************
                 MODULE create/delete handler object
 ****************************************************************************/
@@ -155,7 +153,7 @@ partition_notify_tabledef_changed(handlerton *,
 */
 static const char *ha_partition_ext[]=
 {
-  ha_par_ext, NullS
+  PAR_EXT, NullS
 };
 
 static PSI_memory_key key_memory_Partition_share;
@@ -702,8 +700,8 @@ int ha_partition::create_partitioning_metadata(const char *path,
     char name[FN_REFLEN];
     char old_name[FN_REFLEN];
 
-    strxmov(name, path, ha_par_ext, NullS);
-    strxmov(old_name, old_path, ha_par_ext, NullS);
+    strxmov(name, path, PAR_EXT, NullS);
+    strxmov(old_name, old_path, PAR_EXT, NullS);
     if ((action_flag == CHF_DELETE_FLAG &&
          mysql_file_delete(key_file_ha_partition_par, name, MYF(MY_WME))) ||
         (action_flag == CHF_RENAME_FLAG &&
@@ -2985,7 +2983,7 @@ bool ha_partition::create_handler_file(const char *name)
     Create and write and close file
     to be used at open, delete_table and rename_table
   */
-  fn_format(file_name, name, "", ha_par_ext, MY_APPEND_EXT);
+  fn_format(file_name, name, "", PAR_EXT, MY_APPEND_EXT);
   if ((file= mysql_file_create(key_file_ha_partition_par,
                                file_name, CREATE_MODE, O_RDWR | O_TRUNC,
                                MYF(MY_WME))) >= 0)
@@ -3172,7 +3170,7 @@ bool ha_partition::read_par_file(const char *name)
 
   if (m_file_buffer)
     DBUG_RETURN(false);
-  fn_format(buff, name, "", ha_par_ext, MY_APPEND_EXT);
+  fn_format(buff, name, "", PAR_EXT, MY_APPEND_EXT);
 
   /* Following could be done with mysql_file_stat to read in whole file */
   if ((file= mysql_file_open(key_file_ha_partition_par,
