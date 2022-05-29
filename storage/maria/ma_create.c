@@ -1461,6 +1461,7 @@ int _ma_update_state_lsns_sub(MARIA_SHARE *share, LSN lsn, TrID create_trid,
   File file= share->kfile.file;
   DBUG_ENTER("_ma_update_state_lsns_sub");
   DBUG_ASSERT(file >= 0);
+  CRASH_IF_S3_TABLE(share);
 
   if (lsn == LSN_IMPOSSIBLE)
   {
