@@ -1321,7 +1321,7 @@ int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
                                     binlog_cache_data *cache_data);
 Rows_log_event* binlog_get_pending_rows_event(binlog_cache_mngr *cache_mngr,
                                               bool use_trans_cache);
-binlog_cache_mngr *online_alter_binlog_get_cache_mngr(THD *thd, TABLE *table);
+binlog_cache_data *online_alter_binlog_get_cache_data(THD *thd, TABLE *table);
 binlog_cache_data* binlog_get_cache_data(binlog_cache_mngr *cache_mngr,
                                          bool use_trans_cache);
 
