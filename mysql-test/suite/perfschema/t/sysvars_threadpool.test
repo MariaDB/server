@@ -1,0 +1,34 @@
+--source include/have_perfschema.inc
+--source include/not_embedded.inc
+--source include/no_protocol.inc
+--source include/count_sessions.inc
+
+SET time_zone= '+2:00';
+
+--connect (con1, localhost, root,,)
+set time_zone= '+10:00';
+
+
+--connect (con1, localhost, root,,)
+set time_zone= '+10:00';
+
+SELECT THREAD_ID INTO @con1_thread_id FROM performance_schema.threads
+  WHERE PROCESSLIST_ID = CONNECTION_ID();
+
+SELECT thread_id = @con1_thread_id as current, variable_value
+  FROM performance_schema.variables_by_thread
+  WHERE variable_name = "time_zone";
+
+#SELECT CONNECTION_ID();
+
+--connection default
+#SELECT CONNECTION_ID();
+SELECT 1;
+--disconnect con1
+--connection default
+
+SELECT THREAD_ID INTO @def_thread_id FROM performance_schema.threads
+  WHERE PROCESSLIST_ID = CONNECTION_ID();
+SELECT thread_id = @def_thread_id as current, variable_value
+  FROM performance_schema.variables_by_thread
+  WHERE variable_name = "time_zone";

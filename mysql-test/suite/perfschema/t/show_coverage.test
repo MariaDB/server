@@ -144,7 +144,7 @@ FLUSH STATUS;
 --source include/assert.inc
 
 
---echo # BUG: results from inactive connections are not shown
+--echo # Results from inactive connections are shown
 SET time_zone= '+2:00';
 
 --connect (con1, localhost, root,,)
@@ -157,10 +157,8 @@ SELECT thread_id = @con1_thread_id as current, variable_value
   FROM performance_schema.variables_by_thread
   WHERE variable_name = "time_zone";
 
-#SELECT CONNECTION_ID();
 
 --connection default
-#SELECT CONNECTION_ID();
 SELECT 1;
 --disconnect con1
 --connection default

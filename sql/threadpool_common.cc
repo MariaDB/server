@@ -231,6 +231,8 @@ retry:
     thd->async_state.m_state= thd_async_state::enum_async_state::NONE;
   }
 
+  DEBUG_SYNC(thd, "tp_processed_2");
+
   /* Set priority */
   c->priority= get_priority(c);
 
@@ -240,9 +242,14 @@ retry:
 
   thd->apc_target.epoch.fetch_add(1, std::memory_order_acquire);
   if (unlikely(thd->apc_target.have_apc_requests()))
+  {
+    DEBUG_SYNC(thd, "tp_cant_distinguish");
     thd->apc_target.process_apc_requests();
+  }
 
   int error= c->start_io();
+
+  DEBUG_SYNC(thd, "tp_before_processing_2");
 
   return error == 0;
 }
@@ -611,11 +618,11 @@ static void tp_resume(THD* thd)
   pool->resume(c);
 }
 
-static bool tp_notify_apc(THD *thd)
+static bool tp_notify_apc(THD *thd, THD *this_thd)
 {
   mysql_mutex_assert_owner(&thd->LOCK_thd_kill);
   TP_connection* c= get_TP_connection(thd);
-  longlong process_epoch= thd->apc_target.process_epoch;
+
   longlong first_epoch= thd->apc_target.epoch;
   while (1)
   {
@@ -623,6 +630,7 @@ static bool tp_notify_apc(THD *thd)
     if (epoch & 1 || epoch != first_epoch)
     {
       // We are in the safe zone, where we can guarantee a processing.
+      DEBUG_SYNC(this_thd, "tp_processed_1");
       break;
     }
     else
@@ -634,10 +642,11 @@ static bool tp_notify_apc(THD *thd)
          run, or the run is skipped.
        */
 
-      process_epoch= thd->apc_target.process_epoch;
+      longlong process_epoch= thd->apc_target.process_epoch;
       if (process_epoch & 1)
       {
         // We are hanging on LOCK_thd_kill in process_apc_requests, or going to.
+        DEBUG_SYNC(this_thd, "tp_before_lock_1");
         break;
       }
       else
@@ -648,6 +657,7 @@ static bool tp_notify_apc(THD *thd)
         int status= pool->wake(c);
         if (likely(status == 0))
         {
+          DEBUG_SYNC(this_thd, "tp_woke_up_1");
           break;
         }
         else if (unlikely(status < 0))
@@ -656,6 +666,7 @@ static bool tp_notify_apc(THD *thd)
         }
         else
         {
+          DEBUG_SYNC(this_thd, "tp_before_processing_1");
           /*
              If the run is skipped and somebody else took connection out of the
              poll, then we will wait until the epoch change, therefore, will wait

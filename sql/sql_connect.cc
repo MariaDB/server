@@ -1535,7 +1535,7 @@ static void self_pipe_write()
 }
 #endif
 
-bool thread_scheduler_notify_apc(THD *thd)
+bool thread_scheduler_notify_apc(THD *thd, THD *this_thd)
 {
 #ifdef WIN32
   HANDLE hthread= OpenThread(THREAD_ALL_ACCESS, FALSE,

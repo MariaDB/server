@@ -398,7 +398,7 @@ int PFS_system_variable_cache::make_call(Request_func func, uint param)
     m_safe_thd->apc_target.enqueue_request(request, &apc_call);
     if (!m_safe_thd->apc_target.is_enabled())
     {
-      bool success= m_safe_thd->scheduler->notify_apc(m_safe_thd);
+      bool success= m_safe_thd->scheduler->notify_apc(m_safe_thd, m_current_thd);
       if (!success)
       {
         m_safe_thd->apc_target.unenqueue_request();
