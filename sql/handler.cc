@@ -7253,18 +7253,13 @@ bool handler::check_table_binlog_row_based_internal()
 static int binlog_log_row_online_alter(TABLE* table,
                                        const uchar *before_record,
                                        const uchar *after_record,
-                                       Log_func *log_func,
-                                       bool has_trans)
+                                       Log_func *log_func)
 {
   THD *thd= table->in_use;
 
   if (!table->online_alter_cache)
   {
-    auto *cache_mngr= online_alter_binlog_get_cache_mngr(thd, table);
-    // Use transaction cache directly, if it is not multi-transaction mode
-    table->online_alter_cache= binlog_get_cache_data(cache_mngr,
-                                        !thd->in_multi_stmt_transaction_mode());
-
+    table->online_alter_cache= online_alter_binlog_get_cache_data(thd, table);
     trans_register_ha(thd, false, binlog_hton, 0);
     if (thd->in_multi_stmt_transaction_mode())
       trans_register_ha(thd, true, binlog_hton, 0);
@@ -7276,7 +7271,7 @@ static int binlog_log_row_online_alter(TABLE* table,
   table->rpl_write_set= &table->s->all_set;
 
   int error= (*log_func)(thd, table, table->s->online_alter_binlog,
-                         table->online_alter_cache, has_trans,
+                         table->online_alter_cache, true,
                          before_record, after_record);
 
   table->rpl_write_set= old_rpl_write_set;
@@ -7335,7 +7330,7 @@ int handler::binlog_log_row(const uchar *before_record,
 #ifdef HAVE_REPLICATION
   if (unlikely(!error && table->s->online_alter_binlog))
     error= binlog_log_row_online_alter(table, before_record, after_record,
-                                       log_func, row_logging_has_trans);
+                                       log_func);
 #endif // HAVE_REPLICATION
 
   DBUG_RETURN(error);
