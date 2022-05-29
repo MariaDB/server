@@ -8,7 +8,6 @@
 
 source include/not_embedded.inc;
 
--- require include/have_log_bin.require
-disable_query_log;
-show variables like 'log_bin';
-enable_query_log;
+if (`select not @@log_bin`) {
+  skip Test requires: 'have_log_bin';
+}
