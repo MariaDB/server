@@ -34,11 +34,16 @@ void print_ddl(const char *path, const char *table_name)
   TABLE table;
   char buf[2048];
 
+  thd->variables.sql_mode &= MODE_IGNORE_BAD_TABLE_OPTIONS;
   init_tmp_table_share(thd, &share, "", 0, table_name, path);
   open_table_def(thd, &share);
   open_table_from_share(thd, &share, &empty_clex_str, 0, READ_ALL, 0, &table,
                         true);
+  Table_ident name(&table.s->table_name);
 
+  list.schema_table= NULL;
+//  thd->lex->thd= thd;
+//  thd->lex->first_select_lex()->add_table_to_list(thd, &name, 0, 0, TL_READ,  MDL_SHARED_READ);
   list.table= &table;
 
   String query(buf, sizeof(buf), system_charset_info);
@@ -51,10 +56,10 @@ int main(int argc, char **argv)
 {
   mysql_server_init(-1, NULL, NULL);
   wsrep_thr_init();
-#ifdef WITH_WSEP
+//#ifdef WITH_WSEP
   if (wsrep_init_server())
     unireg_abort(1);
-#endif // WITH_WSEP
+//#endif // WITH_WSEP
 
   MY_INIT(argv[0]);
   system_charset_info= &my_charset_utf8mb3_general_ci;
@@ -65,7 +70,7 @@ int main(int argc, char **argv)
   my_rnd_init(&sql_rand, (ulong) 123456, (ulong) 123);
   frm_plugin_init(argc, argv);
 
-  print_ddl("C:/Users/OMEN/mariadb/bld/mysql-test/var/mysqld.1/data/test/test", "test");
+  print_ddl("/home/nik/mariadb/bld/mysql-test/var/install.db/mysql/help_topic.frm", "test");
 
   return 0;
 }

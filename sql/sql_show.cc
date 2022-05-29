@@ -1846,33 +1846,37 @@ static void add_table_options(THD *thd, TABLE *table,
 {
   sql_mode_t sql_mode= thd->variables.sql_mode;
   TABLE_SHARE *share= table->s;
-  handlerton *hton;
+  handlerton *hton= NULL;
   HA_CREATE_INFO create_info;
   bool check_options= (!(sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS) &&
                        (!create_info_arg ||
                         create_info_arg->used_fields &
                         HA_CREATE_PRINT_ALL_OPTIONS));
 
+  if (table->file)
+  {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (table->part_info)
-    hton= table->part_info->default_engine_type;
-  else
+    if (table->part_info)
+      hton = table->part_info->default_engine_type;
+    else
 #endif
-    hton= table->file->ht;
+      hton = table->file->ht;
+  }
 
   bzero((char*) &create_info, sizeof(create_info));
   /* Allow update_create_info to update row type, page checksums and options */
   create_info.row_type= share->row_type;
   create_info.page_checksum= share->page_checksum;
   create_info.options= share->db_create_options;
-  table->file->update_create_info(&create_info);
+  if (table->file)
+    table->file->update_create_info(&create_info);
 
   /*
     IF   check_create_info
     THEN add ENGINE only if it was used when creating the table
   */
-  if (!create_info_arg ||
-      (create_info_arg->used_fields & HA_CREATE_USED_ENGINE))
+  if (table->file && (!create_info_arg ||
+      (create_info_arg->used_fields & HA_CREATE_USED_ENGINE)))
   {
     LEX_CSTRING *engine_name= table->file->engine_name();
 
@@ -1987,7 +1991,8 @@ static void add_table_options(THD *thd, TABLE *table,
     packet->append(STRING_WITH_LEN(" KEY_BLOCK_SIZE="));
     packet->append_ulonglong(table->s->key_block_size);
   }
-  table->file->append_create_info(packet);
+  if (table->file)
+    table->file->append_create_info(packet);
 
 end_options:
   if (share->comment.length)
@@ -2001,7 +2006,7 @@ end_options:
     append_unescaped(packet, share->connect_string.str, share->connect_string.length);
   }
   append_create_options(thd, packet, share->option_list, check_options,
-                        hton->table_options);
+                        hton ? hton->table_options : NULL);
   append_directory(thd, packet, &DATA_clex_str,  create_info.data_file_name);
   append_directory(thd, packet, &INDEX_clex_str, create_info.index_file_name);
 }
@@ -2087,17 +2092,17 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
                            !foreign_db_mode;
   bool check_options= !(sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS) &&
                       !create_info_arg;
-  handlerton *hton;
+//  handlerton *hton;
   int error= 0;
   DBUG_ENTER("show_create_table");
   DBUG_PRINT("enter",("table: %s", table->s->table_name.str));
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (table->part_info)
-    hton= table->part_info->default_engine_type;
+  if (table->part_info);
+//    hton= table->part_info->default_engine_type;
   else
 #endif
-    hton= table->file->ht;
+//    hton= table->file->ht;
 
   restore_record(table, s->default_values); // Get empty record
 
@@ -2291,7 +2296,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
     }
 
     append_create_options(thd, packet, field->option_list, check_options,
-                          hton->field_options);
+                          NULL); // hton->field_options);
     
     if (field->check_constraint)
     {
@@ -2391,7 +2396,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       packet->append(STRING_WITH_LEN(" */ "));
     }
     append_create_options(thd, packet, key_info->option_list, check_options,
-                          hton->index_options);
+                          NULL); // hton->index_options);
   }
 
   if (table->versioned())
@@ -2419,7 +2424,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
     to the CREATE TABLE statement
   */
 
-  if ((for_str= table->file->get_foreign_key_create_info()))
+  if (table->file && (for_str= table->file->get_foreign_key_create_info()))
   {
     packet->append(for_str, strlen(for_str));
     table->file->free_foreign_key_create_info(for_str);
