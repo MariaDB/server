@@ -540,7 +540,7 @@ bool Sql_cmd_alter_table_exchange_partition::
   swap_table= swap_table_list->table;
 
   /* Don't allow to exchange with a VIEW */
-  if (likely(swap_table_list->view))
+  if (unlikely(swap_table_list->view))
   {
     my_error(ER_WRONG_OBJECT, MYF(0), table_list->db.str,
               swap_table_list->table_name.str, "BASE TABLE");
