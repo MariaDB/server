@@ -3117,9 +3117,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                        uint ha_open_flags, TABLE *outparam,
                        bool is_create_table,
                        List<String> *partitions_to_open= NULL);
-bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol);
-bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
-                                    Virtual_column_info *vcol);
 bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
                      bool *error_reported, vcol_init_mode expr);
 TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
