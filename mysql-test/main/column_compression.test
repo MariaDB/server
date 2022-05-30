@@ -29,6 +29,7 @@ let $typec= BLOB COMPRESSED;
 let $typeu= BLOB;
 --source column_compression.inc
 
+--enable_prepare_warnings
 --error ER_PARSE_ERROR
 CREATE TABLE t1(a CHAR(100) COMPRESSED);
 --error ER_WRONG_FIELD_SPEC
@@ -291,6 +292,7 @@ CREATE TABLE t1 (a VARCHAR(1000) COMPRESSED, FULLTEXT INDEX(a));
 --error ER_COMPRESSED_COLUMN_USED_AS_KEY
 CREATE TABLE t1 (a TEXT COMPRESSED, FULLTEXT INDEX(a));
 
+--disable_prepare_warnings
 --echo #
 --echo # End of 10.5 tests
 --echo #

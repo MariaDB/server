@@ -100,6 +100,14 @@ disconnect ddl1;
 disconnect ddl2;
 disconnect ddl3;
 
+# Ensure that the history list length will actually be decremented by purge.
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+# Wait for purge, so that any #sql-ib.ibd files from the previous kill
+# will be deleted.
+source ../../innodb/include/wait_all_purged.inc;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
+
 CHECK TABLE t1,t2,t3;
 DROP TABLE t1,t2,t3;
 
@@ -135,9 +143,11 @@ connection default;
 --echo # Make durable the AUTO_INCREMENT in the above incomplete transaction.
 --connect (flush_redo_log,localhost,root,,)
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
+SET SQL_MODE = NO_AUTO_VALUE_ON_ZERO;
 BEGIN;
-DELETE FROM articles LIMIT 1;
-ROLLBACK;
+UPDATE articles SET id=0 WHERE id=1;
+UPDATE articles SET id=1 WHERE id=0;
+COMMIT;
 --disconnect flush_redo_log
 --connection default
 
@@ -245,17 +255,4 @@ SELECT * FROM mdev19073_2 WHERE MATCH (title, body)
 AGAINST ('Database' IN NATURAL LANGUAGE MODE);
 DROP TABLE mdev19073, mdev19073_2;
 
-if (!$have_debug)
-{
---disable_query_log
-# Some errors are reported despite the MDEV-24626 fix.
-call mtr.add_suppression("InnoDB: Cannot (read first page of|open datafile for read-only:) '\\./test/(FTS_|#sql-(alter|backup)-).*\\.ibd'");
-call mtr.add_suppression("InnoDB: Datafile '\\./test/(FTS_|#sql-(alter|backup)-).*\\.ibd' is corrupted");
-call mtr.add_suppression("InnoDB: (The error means|Operating system error)");
-call mtr.add_suppression("InnoDB: Ignoring tablespace for test/(FTS_|#sql-(backup|alter)-).* because it could not be opened\\.");
-call mtr.add_suppression("InnoDB: Expected tablespace id [1-9][0-9]* but found 0 in the file .*/test/(FTS_|#sql-(alter|backup)-).*\\.ibd");
---enable_query_log
-}
-
-SELECT * FROM information_schema.innodb_sys_tables
-WHERE name LIKE 'test/%' AND name NOT LIKE 'test/#sql-ib%';
+SELECT * FROM information_schema.innodb_sys_tables WHERE name LIKE 'test/%';

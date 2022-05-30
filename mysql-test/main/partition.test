@@ -350,10 +350,12 @@ ENGINE=Memory;
 ALTER TABLE t1 ENGINE=NonExistentEngine;
 # OK to only specify one partitions engine, since it is already assigned at
 # table level (after create, it is specified on all levels and all parts).
+--enable_prepare_warnings
 ALTER TABLE t1
 PARTITION BY HASH (a)
 (PARTITION p0 ENGINE=Memory,
  PARTITION p1 ENGINE=NonExistentEngine);
+--disable_prepare_warnings
 ALTER TABLE t1 ENGINE=NonExistentEngine;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;

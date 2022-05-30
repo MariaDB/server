@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB
+   Copyright (c) 2010, 2022, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -475,7 +475,7 @@ void upgrade_lock_type(THD *thd, thr_lock_type *lock_type,
     }
 
     bool log_on= (thd->variables.option_bits & OPTION_BIN_LOG);
-    if (global_system_variables.binlog_format == BINLOG_FORMAT_STMT &&
+    if (WSREP_BINLOG_FORMAT(global_system_variables.binlog_format) == BINLOG_FORMAT_STMT &&
         log_on && mysql_bin_log.is_open())
     {
       /*
@@ -710,6 +710,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   Name_resolution_context *context;
   Name_resolution_context_state ctx_state;
   SELECT_LEX *returning= thd->lex->has_returning() ? thd->lex->returning() : 0;
+  unsigned char *readbuff= NULL;
 
 #ifndef EMBEDDED_LIBRARY
   char *query= thd->query();
@@ -786,7 +787,25 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 
   /* Prepares LEX::returing_list if it is not empty */
   if (returning)
+  {
     result->prepare(returning->item_list, NULL);
+    if (thd->is_bulk_op())
+    {
+      /*
+        It is RETURNING which needs network buffer to write result set and
+        it is array binfing which need network buffer to read parameters.
+        So we allocate yet another network buffer.
+        The old buffer will be freed at the end of operation.
+      */
+      DBUG_ASSERT(thd->protocol == &thd->protocol_binary);
+      readbuff= thd->net.buff; // old buffer
+      if (net_allocate_new_packet(&thd->net, thd, MYF(MY_THREAD_SPECIFIC)))
+      {
+        readbuff= NULL; // failure, net_allocate_new_packet keeps old buffer
+        goto abort;
+      }
+    }
+  }
 
   context= &thd->lex->first_select_lex()->context;
   /*
@@ -973,7 +992,12 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     goto values_loop_end;
 
   THD_STAGE_INFO(thd, stage_update);
-  thd->decide_logging_format_low(table);
+
+  if  (duplic == DUP_UPDATE)
+  {
+    restore_record(table,s->default_values);	// Get empty record
+    thd->reconsider_logging_format_for_iodup(table);
+  }
   fix_rownum_pointers(thd, thd->lex->current_select, &info.accepted_rows);
   if (returning)
     fix_rownum_pointers(thd, thd->lex->returning(), &info.accepted_rows);
@@ -1322,13 +1346,25 @@ values_loop_end:
     thd->lex->current_select->save_leaf_tables(thd);
     thd->lex->current_select->first_cond_optimization= 0;
   }
-
+  if (readbuff)
+    my_free(readbuff);
   DBUG_RETURN(FALSE);
 
 abort:
 #ifndef EMBEDDED_LIBRARY
   if (lock_type == TL_WRITE_DELAYED)
+  {
     end_delayed_insert(thd);
+    /*
+      In case of an error (e.g. data truncation), the data type specific data
+      in fields (e.g. Field_blob::value) was not taken over
+      by the delayed writer thread. All fields in table_list->table
+      will be freed by free_root() soon. We need to free the specific
+      data before free_root() to avoid a memory leak.
+    */
+    for (Field **ptr= table_list->table->field ; *ptr ; ptr++)
+      (*ptr)->free();
+  }
 #endif
   if (table != NULL)
     table->file->ha_release_auto_increment();
@@ -1336,6 +1372,8 @@ abort:
   if (!joins_freed)
     free_underlaid_joins(thd, thd->lex->first_select_lex());
   thd->abort_on_warning= 0;
+  if (readbuff)
+    my_free(readbuff);
   DBUG_RETURN(retval);
 }
 
@@ -2482,6 +2520,11 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
       di->table_list.alias.length= di->table_list.table_name.length= di->thd.query_length();
       di->table_list.db= di->thd.db;
       /*
+        Nulify select_lex because, if the thread that spawned the current one
+        disconnects, the select_lex will point to freed memory.
+      */
+      di->table_list.select_lex= NULL;
+      /*
         We need the tickets so that they can be cloned in
         handle_delayed_insert
       */
@@ -2977,8 +3020,8 @@ public:
 };
 
 
-bool Delayed_prelocking_strategy::
-handle_table(THD *thd, Query_tables_list *prelocking_ctx,
+bool Delayed_prelocking_strategy::handle_table(THD *thd,
+             Query_tables_list *prelocking_ctx,
              TABLE_LIST *table_list, bool *need_prelocking)
 {
   DBUG_ASSERT(table_list->lock_type == TL_WRITE_DELAYED);
@@ -2992,10 +3035,9 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
 }
 
 
-bool Delayed_prelocking_strategy::
-handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
-               Sroutine_hash_entry *rt, sp_head *sp,
-               bool *need_prelocking)
+bool Delayed_prelocking_strategy::handle_routine(THD *thd,
+               Query_tables_list *prelocking_ctx, Sroutine_hash_entry *rt,
+               sp_head *sp, bool *need_prelocking)
 {
   /* LEX used by the delayed insert thread has no routines. */
   DBUG_ASSERT(0);
@@ -3141,6 +3183,8 @@ pthread_handler_t handle_delayed_insert(void *arg)
     di->handler_thread_initialized= TRUE;
     di->table_list.mdl_request.ticket= NULL;
 
+    thd->set_query_id(next_query_id());
+
     if (di->open_and_lock_table())
       goto err;
 
@@ -3259,6 +3303,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
       if (di->tables_in_use && ! thd->lock &&
           (!thd->killed || di->stacked_inserts))
       {
+        thd->set_query_id(next_query_id());
         /*
           Request for new delayed insert.
           Lock the table, but avoid to be blocked by a global read lock.
@@ -4677,8 +4722,20 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
   }
 
   if (!(table= create_table_from_items(thd, &values, &extra_lock, hook_ptr)))
+  {
+    if (create_info->or_replace())
+    {
+      /* Original table was deleted. We have to log it */
+      log_drop_table(thd, &create_table->db, &create_table->table_name,
+                     &create_info->org_storage_engine_name,
+                     create_info->db_type == partition_hton,
+                     &create_info->org_tabledef_version,
+                     thd->lex->tmp_table());
+    }
+
     /* abort() deletes table */
     DBUG_RETURN(-1);
+  }
 
   if (create_info->tmp_table())
   {
@@ -5026,7 +5083,7 @@ bool select_create::send_eof()
       {
         WSREP_DEBUG("select_create commit failed, thd: %llu err: %s %s",
                     thd->thread_id,
-                    wsrep_thd_transaction_state_str(thd), WSREP_QUERY(thd));
+                    wsrep_thd_transaction_state_str(thd), wsrep_thd_query(thd));
         mysql_mutex_unlock(&thd->LOCK_thd_data);
         abort_result_set();
         DBUG_RETURN(true);
@@ -5134,12 +5191,6 @@ void select_create::abort_result_set()
   /* possible error of writing binary log is ignored deliberately */
   (void) thd->binlog_flush_pending_rows_event(TRUE, TRUE);
 
-  if (create_info->table_was_deleted)
-  {
-    /* Unlock locked table that was dropped by CREATE */
-    thd->locked_tables_list.unlock_locked_table(thd,
-                                                create_info->mdl_ticket);
-  }
   if (table)
   {
     bool tmp_table= table->s->tmp_table;
@@ -5204,7 +5255,16 @@ void select_create::abort_result_set()
       }
     }
   }
+
   ddl_log_complete(&ddl_log_state_rm);
   ddl_log_complete(&ddl_log_state_create);
+
+  if (create_info->table_was_deleted)
+  {
+    /* Unlock locked table that was dropped by CREATE. */
+    (void) trans_rollback_stmt(thd);
+    thd->locked_tables_list.unlock_locked_table(thd, create_info->mdl_ticket);
+  }
+
   DBUG_VOID_RETURN;
 }

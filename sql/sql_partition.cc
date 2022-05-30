@@ -2183,7 +2183,7 @@ static int add_keyword_path(String *str, const char *keyword,
 {
   char temp_path[FN_REFLEN];
   strcpy(temp_path, path);
-#ifdef __WIN__
+#ifdef _WIN32
   /* Convert \ to / to be able to create table on unix */
   char *pos, *end;
   size_t length= strlen(temp_path);
@@ -3640,6 +3640,17 @@ uint32 get_partition_id_range_for_endpoint(partition_info *part_info,
     if (part_func_value >= part_end_val &&
         (loc_part_id < max_partition || !part_info->defined_max_value))
       loc_part_id++;
+    if (part_info->part_type == VERSIONING_PARTITION &&
+        part_func_value < INT_MAX32 &&
+        loc_part_id > part_info->vers_info->hist_part->id)
+    {
+      /*
+        Historical query with AS OF point after the last history partition must
+        include last history partition because it can be overflown (contain
+        history rows out of right endpoint).
+      */
+      loc_part_id= part_info->vers_info->hist_part->id;
+    }
   }
   else 
   {
@@ -5440,7 +5451,6 @@ that are reorganised.
         my_error(ER_ROW_IS_REFERENCED, MYF(0));
         goto err;
       }
-      tab_part_info->num_parts-= num_parts_dropped;
     }
     else if (alter_info->partition_flags & ALTER_PARTITION_REBUILD)
     {
@@ -6106,8 +6116,6 @@ static bool mysql_drop_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
   char path[FN_REFLEN+1];
   partition_info *part_info= lpt->table->part_info;
   List_iterator<partition_element> part_it(part_info->partitions);
-  uint i= 0;
-  uint remove_count= 0;
   int error;
   DBUG_ENTER("mysql_drop_partitions");
 
@@ -6122,16 +6130,6 @@ static bool mysql_drop_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
     lpt->table->file->print_error(error, MYF(0));
     DBUG_RETURN(TRUE);
   }
-  do
-  {
-    partition_element *part_elem= part_it++;
-    if (part_elem->part_state == PART_IS_DROPPED)
-    {
-      part_it.remove();
-      remove_count++;
-    }
-  } while (++i < part_info->num_parts);
-  part_info->num_parts-= remove_count;
   DBUG_RETURN(FALSE);
 }
 

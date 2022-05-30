@@ -2005,7 +2005,7 @@ static MYSQL_THDVAR_INT(
   "Remote server transmission existence when UDF is used at condition and \"engine_condition_pushdown=1\"", /* comment */
   NULL, /* check */
   NULL, /* update */
-  -1, /* def */
+  0, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */

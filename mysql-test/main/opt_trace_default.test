@@ -1,0 +1,11 @@
+
+if (`SELECT 'COMPILE-TIME'<>GLOBAL_VALUE_ORIGIN from INFORMATION_SCHEMA.SYSTEM_VARIABLES where variable_name='optimizer_trace'`) {
+--Skip Needs optimizer_trace default to be the compile-time default
+}
+
+--echo # Verify that compile-time default for optimizer trace is OFF (enabled=off).
+select
+  global_value_origin,
+  default_value
+from
+  INFORMATION_SCHEMA.SYSTEM_VARIABLES where variable_name='optimizer_trace';

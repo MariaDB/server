@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, 2016, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2015, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -48,9 +48,9 @@ table_status_by_host::m_share=
   sizeof(pos_t),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE status_by_host("
-  "HOST CHAR(60) collate utf8_bin default null,"
-  "VARIABLE_NAME VARCHAR(64) not null,"
-  "VARIABLE_VALUE VARCHAR(1024))") },
+  "HOST CHAR(60) collate utf8_bin default null comment 'Host for which the status variable is reported.',"
+  "VARIABLE_NAME VARCHAR(64) not null comment 'Status variable name.',"
+  "VARIABLE_VALUE VARCHAR(1024) comment 'Aggregated status variable value.' )") },
   false  /* perpetual */
 };
 
@@ -164,7 +164,7 @@ table_status_by_host::rnd_pos(const void *pos)
     return HA_ERR_END_OF_FILE;
 
   set_position(pos);
-  DBUG_ASSERT(m_pos.m_index_1 < global_host_container.get_row_count());
+  assert(m_pos.m_index_1 < global_host_container.get_row_count());
 
   PFS_host *pfs_host= global_host_container.get(m_pos.m_index_1);
 
@@ -216,7 +216,7 @@ int table_status_by_host
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 1);
+  assert(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)
@@ -235,7 +235,7 @@ int table_status_by_host
         m_row.m_variable_value.set_field(f);
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }

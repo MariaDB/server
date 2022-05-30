@@ -1213,7 +1213,7 @@ static void fetch_data_into_cache(trx_i_s_cache_t *cache)
   /* Capture the state of transactions */
   trx_sys.trx_list.for_each([cache](trx_t &trx) {
     if (!cache->is_truncated && trx.state != TRX_STATE_NOT_STARTED &&
-        &trx != purge_sys.query->trx)
+        &trx != (purge_sys.query ? purge_sys.query->trx : nullptr))
     {
       trx.mutex_lock();
       if (trx.state != TRX_STATE_NOT_STARTED)

@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -174,8 +174,6 @@ enum monitor_id_t {
 	MONITOR_OVLD_BUF_POOL_PAGES_FREE,
 	MONITOR_OVLD_PAGE_CREATED,
 	MONITOR_OVLD_PAGES_WRITTEN,
-	MONITOR_OVLD_INDEX_PAGES_WRITTEN,
-	MONITOR_OVLD_NON_INDEX_PAGES_WRITTEN,
 	MONITOR_OVLD_PAGES_READ,
 	MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS,
 	MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS_AVOIDED,
@@ -345,9 +343,7 @@ enum monitor_id_t {
 	/* Adaptive Hash Index related counters */
 	MONITOR_MODULE_ADAPTIVE_HASH,
 	MONITOR_OVLD_ADAPTIVE_HASH_SEARCH,
-#endif /* BTR_CUR_HASH_ADAPT */
 	MONITOR_OVLD_ADAPTIVE_HASH_SEARCH_BTREE,
-#ifdef BTR_CUR_HASH_ADAPT
 	MONITOR_ADAPTIVE_HASH_PAGE_ADDED,
 	MONITOR_ADAPTIVE_HASH_PAGE_REMOVED,
 	MONITOR_ADAPTIVE_HASH_ROW_ADDED,
@@ -377,7 +373,6 @@ enum monitor_id_t {
 	MONITOR_OVLD_SERVER_ACTIVITY,
 	MONITOR_MASTER_ACTIVE_LOOPS,
 	MONITOR_MASTER_IDLE_LOOPS,
-	MONITOR_SRV_BACKGROUND_DROP_TABLE_MICROSECOND,
 	MONITOR_SRV_LOG_FLUSH_MICROSECOND,
 	MONITOR_SRV_DICT_LRU_MICROSECOND,
 	MONITOR_SRV_DICT_LRU_EVICT_COUNT_ACTIVE,
@@ -400,7 +395,6 @@ enum monitor_id_t {
 	/* Data DDL related counters */
 	MONITOR_MODULE_DDL_STATS,
 	MONITOR_BACKGROUND_DROP_INDEX,
-	MONITOR_BACKGROUND_DROP_TABLE,
 	MONITOR_ONLINE_CREATE_INDEX,
 	MONITOR_PENDING_ALTER_TABLE,
 	MONITOR_ALTER_TABLE_SORT_FILES,
@@ -619,7 +613,7 @@ Use MONITOR_DEC if appropriate mutex protection exists.
 
 #ifdef HAVE_MEM_CHECK
 # define MONITOR_CHECK_DEFINED(value) do {	\
-	mon_type_t m = value;			\
+    mon_type_t m __attribute__((unused))= value;        \
 	MEM_CHECK_DEFINED(&m, sizeof m);	\
 } while (0)
 #else /* HAVE_MEM_CHECK */
@@ -867,6 +861,6 @@ void
 srv_mon_default_on(void);
 /*====================*/
 
-#include "srv0mon.ic"
+#include "srv0mon.inl"
 
 #endif

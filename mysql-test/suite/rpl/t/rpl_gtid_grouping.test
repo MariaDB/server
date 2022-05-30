@@ -1,0 +1,97 @@
+# ==== Purpose ====
+#
+# Test verifies that replicated transaction boundaries are set properly
+# at receiving from master time.
+#
+# ==== Implementation ====
+#
+# A. Simulate an unnoticeable loss of Xid event to observe a slave error,
+#    then restart slave to recover from the failure.
+# B. Do the same to GTID event.
+#
+# ==== References ====
+#
+# MDEV-27697 slave must recognize incomplete replication event group 
+#
+--source include/have_binlog_format_mixed.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/master-slave.inc
+
+--connection slave
+call mtr.add_suppression("Unexpected break of being relay-logged GTID 0-27697-1000");
+call mtr.add_suppression("Relay log write failure: could not queue event from master");
+call mtr.add_suppression("The current group of events starts with a non-GTID");
+
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+--source include/start_slave.inc
+
+--connection master
+CREATE TABLE t (a INT) ENGINE=innodb;
+INSERT INTO t VALUES(1);
+save_master_pos;
+
+--echo ### A. Simulate an unnoticeable loss of Xid event
+--sync_slave_with_master
+SET @@global.debug_dbug="+d,slave_discard_xid_for_gtid_0_x_1000";
+
+--connection master
+SET @@gtid_seq_no=1000;
+set @@server_id=27697;
+INSERT INTO t VALUES(1000);
+set @@server_id=default;
+INSERT INTO t VALUES(1001);
+
+--echo ## Prove the error occurs.
+--connection slave
+# ER_SLAVE_RELAY_LOG_WRITE_FAILURE
+--let $slave_io_errno = 1595
+--source include/wait_for_slave_io_error.inc
+## EOP
+
+--echo ## Prove the slave recovers after the simulation condtion is lifted.
+SET @@global.debug_dbug=default;
+--source include/start_slave.inc
+
+--echo ### B. Do the same to GTID event.
+--connection slave
+SET @@global.debug_dbug="+d,slave_discard_gtid_0_x_1002";
+
+--connection master
+SET @@gtid_seq_no=1002;
+set @@server_id=27697;
+INSERT INTO t VALUES(1002);
+set @@server_id=default;
+INSERT INTO t VALUES(1003);
+
+--echo ## Prove the error occurs.
+--connection slave
+# ER_SLAVE_RELAY_LOG_WRITE_FAILURE
+--let $slave_io_errno = 1595
+--source include/wait_for_slave_io_error.inc
+## EOP
+
+--echo ## Prove the slave recovers after the simulation condtion is lifted.
+SET @@global.debug_dbug=default;
+--source include/start_slave.inc
+
+--connection master
+save_master_pos;
+
+--sync_slave_with_master
+## EOP
+
+--let $diff_tables=master:t,slave:t
+--source include/diff_tables.inc
+
+--echo "===== Clean up ====="
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=no;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t;
+SET GLOBAL LOG_WARNINGS=default;
+--source include/rpl_end.inc

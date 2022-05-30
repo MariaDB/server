@@ -13,10 +13,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
-INCLUDE_DIRECTORIES(${WIX_DIR}/../SDK/${WIX_MSVC_SUFFIX}/inc)
 SET(WIXCA_SOURCES CustomAction.cpp CustomAction.def)
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql ${CMAKE_CURRENT_SOURCE_DIR})
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql ${CMAKE_CURRENT_SOURCE_DIR} ${WIX_INCLUDE_DIR})
 
 # Custom action should not depend on C runtime, since we do not know if CRT is installed.
 FORCE_STATIC_CRT()

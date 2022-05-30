@@ -766,7 +766,7 @@ pars_retrieve_table_def(
 		sym_node->token_type = SYM_TABLE_REF_COUNTED;
 
 		sym_node->table = dict_table_open_on_name(
-			sym_node->name, TRUE, FALSE, DICT_ERR_IGNORE_NONE);
+			sym_node->name, true, DICT_ERR_IGNORE_NONE);
 
 		ut_a(sym_node->table != NULL);
 	}
@@ -1916,22 +1916,6 @@ pars_procedure_definition(
 }
 
 /*************************************************************//**
-Parses a stored procedure call, when this is not within another stored
-procedure, that is, the client issues a procedure call directly.
-In MySQL/InnoDB, stored InnoDB procedures are invoked via the
-parsed procedure tree, not via InnoDB SQL, so this function is not used.
-@return query graph */
-que_fork_t*
-pars_stored_procedure_call(
-/*=======================*/
-	sym_node_t*	sym_node MY_ATTRIBUTE((unused)))
-					/*!< in: stored procedure name */
-{
-	ut_error;
-	return(NULL);
-}
-
-/*************************************************************//**
 Retrieves characters to the lexical analyzer. */
 int
 pars_get_lex_chars(
@@ -1989,7 +1973,7 @@ pars_sql(
 	heap = mem_heap_create(16000);
 
 	/* Currently, the parser is not reentrant: */
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	pars_sym_tab_global = sym_tab_create(heap);
 
@@ -2067,25 +2051,11 @@ pars_info_create(void)
 
 	heap = mem_heap_create(512);
 
-	info = static_cast<pars_info_t*>(mem_heap_alloc(heap, sizeof(*info)));
+	info = static_cast<pars_info_t*>(mem_heap_zalloc(heap, sizeof(*info)));
 
 	info->heap = heap;
-	info->funcs = NULL;
-	info->bound_lits = NULL;
-	info->bound_ids = NULL;
-	info->graph_owns_us = TRUE;
 
 	return(info);
-}
-
-/****************************************************************//**
-Free info struct and everything it contains. */
-void
-pars_info_free(
-/*===========*/
-	pars_info_t*	info)	/*!< in, own: info struct */
-{
-	mem_heap_free(info->heap);
 }
 
 /****************************************************************//**
@@ -2357,7 +2327,6 @@ void
 pars_info_bind_id(
 /*==============*/
 	pars_info_t*	info,		/*!< in: info struct */
-	ibool		copy_name,	/* in: copy name if TRUE */
 	const char*	name,		/*!< in: name */
 	const char*	id)		/*!< in: id */
 {
@@ -2380,8 +2349,7 @@ pars_info_bind_id(
 		bid = static_cast<pars_bound_id_t*>(
 			ib_vector_push(info->bound_ids, NULL));
 
-		bid->name = (copy_name)
-		    ? mem_heap_strdup(info->heap, name) : name;
+		bid->name = name;
 	}
 
 	bid->id = id;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -342,17 +342,6 @@ fsp_header_check_encryption_key(
 	ulint			fsp_flags,
 	page_t*			page);
 
-/**********************************************************************//**
-Writes the space id and flags to a tablespace header.  The flags contain
-row type, physical/compressed page size, and logical/uncompressed page
-size of the tablespace. */
-void
-fsp_header_init_fields(
-/*===================*/
-	page_t*	page,		/*!< in/out: first page in the space */
-	ulint	space_id,	/*!< in: space id */
-	ulint	flags);		/*!< in: tablespace flags (FSP_SPACE_FLAGS):
-				0, or table->flags if newer than COMPACT */
 /** Initialize a tablespace header.
 @param[in,out]	space	tablespace
 @param[in]	size	current size in blocks
@@ -556,9 +545,8 @@ fil_block_check_type(
 	ulint			type,
 	mtr_t*			mtr)
 {
-	if (UNIV_UNLIKELY(type != fil_page_get_type(block.frame))) {
-		fil_block_reset_type(block, type, mtr);
-	}
+  if (UNIV_UNLIKELY(type != fil_page_get_type(block.page.frame)))
+    fil_block_reset_type(block, type, mtr);
 }
 
 /** Checks if a page address is an extent descriptor page address.

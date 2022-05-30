@@ -3071,7 +3071,7 @@ public:
   { return get_item_copy<Item_func_udf_str>(thd, this); }
 };
 
-#else /* Dummy functions to get sql_yacc.cc compiled */
+#else /* Dummy functions to get yy_*.cc files compiled */
 
 class Item_func_udf_float :public Item_real_func
 {

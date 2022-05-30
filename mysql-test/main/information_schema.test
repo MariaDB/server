@@ -1950,6 +1950,27 @@ SELECT * FROM v LIMIT ROWS EXAMINED 9;
 DROP VIEW v;
 
 --echo #
+--echo # MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
+--echo #
+
+# Expect empty sets if requested TABLE_NAME or TABLE_SCHEMA with zero bytes
+CREATE TABLE t (a INT);
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME=CONCAT('t',0x00,'1');
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=CONCAT('test',0x00,'1');
+DROP TABLE t;
+
+# Make sure check_table_name() does not reject special characters
+CREATE TABLE `a/~.b` (a INT);
+SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='a/~.b';
+DROP TABLE `a/~.b`;
+
+# Make sure check_db_name() does not reject special characters
+CREATE DATABASE `a/~.b`;
+CREATE TABLE `a/~.b`.t1 (a INT);
+SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='a/~.b';
+DROP DATABASE `a/~.b`;
+
+--echo #
 --echo # End of 10.2 Test
 --echo #
 
@@ -2052,5 +2073,65 @@ select * from t1 where (name, len) in (select  name, len from information_schema
 drop table t1;
 
 --echo #
+--echo # MDEV-20254 Problems with EMPTY_STRING_IS_NULL and I_S tables
+--echo #
+
+# Test one column with detailed output
+
+SET SQL_MODE= 'EMPTY_STRING_IS_NULL';
+CREATE OR REPLACE TABLE t1 AS SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE 1 = 0;
+--let $myvar= query_get_value(SHOW CREATE TABLE test.t1, Create Table, 1)
+--echo SHOW returned: $myvar
+DROP TABLE t1;
+--eval $myvar
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET SQL_MODE=DEFAULT;
+
+# Test all columns without detailed output.
+# Just make sure the SHOW CREATE TABLE result
+# can be passed back to the server without errors.
+
+SET SQL_MODE= 'EMPTY_STRING_IS_NULL';
+CREATE OR REPLACE TABLE t1 AS SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE 1 = 0;
+--let $myvar= query_get_value(SHOW CREATE TABLE test.t1, Create Table, 1)
+DROP TABLE t1;
+--disable_query_log
+--echo # Executing the statement returned from SHOW CREATE TABLE
+--eval $myvar
+--enable_query_log
+DROP TABLE t1;
+SET SQL_MODE=DEFAULT;
+
+--echo #
+--echo # MDEV-27673 Warning after "select progress from information_schema.processlist"
+--echo #
+select progress from information_schema.processlist limit 1;
+
+--echo #
 --echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-26507 Assertion `tmp != ((long long) 0x8000000000000000LL)' failed in TIME_from_longlong_datetime_packed
+--echo #
+
+CREATE TABLE t1 (a int);
+CREATE ALGORITHM=TEMPTABLE VIEW i AS
+  SELECT a.created
+  FROM t1 w JOIN INFORMATION_SCHEMA.routines a
+  WHERE a.routine_name='not existing'
+  ORDER BY a.last_altered;
+SET SESSION sql_mode='ALLOW_INVALID_DATES';
+SELECT * FROM i;
+SET SESSION sql_mode=DEFAULT;
+DROP VIEW i;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.5 tests
 --echo #

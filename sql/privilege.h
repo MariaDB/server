@@ -296,6 +296,7 @@ constexpr privilege_t TMP_TABLE_ACLS=
   COL_DML_ACLS | ALL_TABLE_DDL_ACLS;
 
 
+constexpr privilege_t PRIV_LOCK_TABLES= SELECT_ACL | LOCK_TABLES_ACL;
 
 /*
   Allow to set an object definer:

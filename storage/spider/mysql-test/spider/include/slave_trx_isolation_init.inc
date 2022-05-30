@@ -22,7 +22,7 @@ let $CHILD2_1_CREATE_TABLES=
 let $CHILD2_1_SELECT_TABLES=
   SELECT pkey FROM tbl_a ORDER BY pkey;
 let $CHILD2_1_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%set %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%set %';
 --let $OUTPUT_CHILD_GROUP2_BACKUP= $OUTPUT_CHILD_GROUP2
 --let $OUTPUT_CHILD_GROUP2= 1
 --let $USE_GENERAL_LOG_BACKUP= $USE_GENERAL_LOG

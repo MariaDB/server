@@ -8,20 +8,20 @@ CREATE TABLE t2 (
   number int(5) not null flag=1,
   message varchar(255) flag=2)
 ENGINE=CONNECT TABLE_TYPE=JDBC CONNECTION='jdbc:oracle:thin:@localhost:1521:xe'
-OPTION_LIST='User=system,Password=Choupy01,Execsrc=1';
+OPTION_LIST='User=system,Password=Biscote01,Execsrc=1';
 SELECT * FROM t2 WHERE command = 'drop table employee';
 SELECT * FROM t2 WHERE command = 'create table employee (id int not null, name varchar(32), title char(16), salary number(8,2))';
 SELECT * FROM t2 WHERE command = "insert into employee values(4567,'Johnson', 'Engineer', 12560.50)";
 
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC CATFUNC=tables
 CONNECTION='jdbc:oracle:thin:@localhost:1521:xe'
-OPTION_LIST='User=system,Password=Choupy01';
+OPTION_LIST='User=system,Password=Biscote01';
 SELECT * FROM t1 WHERE table_name='employee';
 DROP TABLE t1;
 
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME='EMPLOYEE' CATFUNC=columns
 CONNECTION='jdbc:oracle:thin:@localhost:1521:xe'
-OPTION_LIST='User=system,Password=Choupy01';
+OPTION_LIST='User=system,Password=Biscote01';
 SELECT * FROM t1;
 DROP TABLE t1;
 
@@ -32,7 +32,7 @@ CREATE SERVER 'oracle' FOREIGN DATA WRAPPER 'oracle.jdbc.driver.OracleDriver' OP
 HOST 'jdbc:oracle:thin:@localhost:1521:xe',
 DATABASE 'SYSTEM',
 USER 'system',
-PASSWORD 'Choupy01',
+PASSWORD 'Biscote01',
 PORT 0,
 SOCKET '',
 OWNER 'SYSTEM');

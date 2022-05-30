@@ -71,6 +71,7 @@ extern char		*xtrabackup_incremental_dir;
 extern char		*xtrabackup_incremental_basedir;
 extern char		*innobase_data_home_dir;
 extern char		*innobase_buffer_pool_filename;
+extern char		*buffer_pool_filename;
 extern char		*xb_plugin_dir;
 extern char		*xb_rocksdb_datadir;
 extern my_bool	xb_backup_rocksdb;
@@ -166,6 +167,7 @@ extern uint		opt_lock_wait_timeout;
 extern uint		opt_lock_wait_threshold;
 extern uint		opt_debug_sleep_before_unlock;
 extern uint		opt_safe_slave_backup_timeout;
+extern uint		opt_max_binlogs;
 
 extern const char	*opt_history;
 
@@ -284,4 +286,16 @@ fil_file_readdir_next_file(
 	os_file_dir_t	dir,	/*!< in: directory stream */
 	os_file_stat_t* info);	/*!< in/out: buffer where the
 				info is returned */
+
+#ifndef DBUG_OFF
+#include <fil0fil.h>
+extern void dbug_mariabackup_event(const char *event,
+                            const fil_space_t::name_type key);
+
+#define DBUG_MARIABACKUP_EVENT(A, B)                                          \
+  DBUG_EXECUTE_IF("mariabackup_events", dbug_mariabackup_event(A, B);)
+#else
+#define DBUG_MARIABACKUP_EVENT(A, B) /* empty */
+#endif // DBUG_OFF
+
 #endif /* XB_XTRABACKUP_H */

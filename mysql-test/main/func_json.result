@@ -934,6 +934,30 @@ CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DECIMAL) AS cd;
 cf	cd
 0	0
 #
+# MDEV-24585 Assertion `je->s.cs == nice_js->charset()' failed in json_nice.
+#
+SELECT JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' );
+JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' )
+["x"]
+#
+# MDEV-18284 JSON casting using JSON_COMPACT doesn't always work
+#            with values from subqueries
+#
+CREATE TABLE json_test(a JSON, b JSON);
+INSERT INTO json_test VALUES ("[1,2,3]", '{"a":"foo"}');
+SELECT * FROM json_test;
+a	b
+[1,2,3]	{"a":"foo"}
+SELECT json_object("a", json_compact(a), "b", b)
+FROM (SELECT * FROM json_test) AS json_test_values;
+json_object("a", json_compact(a), "b", b)
+{"a": [1,2,3], "b": {"a":"foo"}}
+SELECT json_object("a", json_compact(a), "b", json_compact(b))
+FROM (SELECT * FROM json_test) AS json_test_values;
+json_object("a", json_compact(a), "b", json_compact(b))
+{"a": [1,2,3], "b": {"a":"foo"}}
+DROP TABLE json_test;
+#
 # End of 10.2 tests
 #
 #
@@ -1365,6 +1389,42 @@ JSON_OBJECTAGG(a, e)
 {"a1":0, "a2":0, "b1":1}
 DROP VIEW v;
 DROP TABLE t1;
+#
+# MDEV-23004 When using GROUP BY with JSON_ARRAYAGG with joint table, the square brackets are not included.
+#
+CREATE TABLE t1(id int primary key, name varchar(50));
+CREATE TABLE t2(id int, owner_id int);
+INSERT INTO t1 VALUES (1, "name1"), (2, "name2"), (3, "name3");
+INSERT INTO t2 VALUES (1, 1), (2, 1), (3, 2), (4, 3);
+SELECT t1.id, JSON_ARRAYAGG(JSON_OBJECT('id',t2.id) ORDER BY t2.id) as materials
+from t1 LEFT JOIN t2 on t1.id = t2.owner_id
+GROUP BY t1.id ORDER BY id;
+id	materials
+1	[{"id": 1},{"id": 2}]
+2	[{"id": 3}]
+3	[{"id": 4}]
+DROP TABLE t1;
+DROP TABLE t2;
+#
+# MDEV-27018 IF and COALESCE lose "json" property
+#
+SELECT json_object('a', if(1, json_object('b', 'c'), json_object('e', 'f')));
+json_object('a', if(1, json_object('b', 'c'), json_object('e', 'f')))
+{"a": {"b": "c"}}
+SELECT json_object('a', coalesce(json_object('b', 'c')));
+json_object('a', coalesce(json_object('b', 'c')))
+{"a": {"b": "c"}}
+#
+# MDEV-26054 Server crashes in Item_func_json_arrayagg::get_str_from_field
+#
+CREATE TABLE t (a VARCHAR(8));
+CREATE VIEW v AS SELECT * FROM t;
+INSERT INTO t VALUES ('foo'),('bar');
+SELECT JSON_ARRAYAGG(a) AS f FROM v;
+f
+["foo","bar"]
+DROP VIEW v;
+DROP TABLE t;
 #
 # End of 10.5 tests
 #

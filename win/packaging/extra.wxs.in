@@ -84,17 +84,17 @@
           <Publish Event="EndDialog" Value="Return">NOT WixUI_InstallMode</Publish>
 
         </Control>
-        <Control Id="RemoveDatadirText" Type="Text" X="60" Y="85" Width="280" Height="20">
-          <Text>Remove default database directory [DATADIR]. Ensures proper cleanup on uninstall.</Text>
+        <Control Id="RemoveDatadirText" Type="Text" X="60" Y="85" Width="280" Height="30">
+          <Text>Remove [DATADIR]. Ensures proper cleanup on uninstall.</Text>
         </Control>
 
-        <Control Id="KeepDatadirButton" Type="PushButton" X="40" Y="118" Width="80" Height="18"
+        <Control Id="KeepDatadirButton" Type="PushButton" X="40" Y="128" Width="80" Height="18"
                  Text="Keep data">
           <Publish Property="CLEANUPDATA">1</Publish>
           <Publish Event="NewDialog" Value="VerifyReadyDlg">WixUI_InstallMode</Publish>
           <Publish Event="EndDialog" Value="Return">NOT WixUI_InstallMode</Publish>
         </Control>
-        <Control Id="KeepDataDirText" Type="Text" X="60" Y="138" Width="280" Height="70" >
+        <Control Id="KeepDataDirText" Type="Text" X="60" Y="148" Width="280" Height="70" >
           <Text>Do not remove [DATADIR]. Choose this option if you intend to use data in the future</Text>
         </Control>
 
@@ -230,12 +230,22 @@
         <Control Id="CheckBoxUTF8" Type="CheckBox" X="8" Y="154" Width="250" Height="18" Property="UTF8" CheckBoxValue="1" TabSkip="no">
           <Text>{\Font1}Use UTF8 as default server's character set</Text>
         </Control>
-
+        <Control Type="Text" Id="Text11" Width="67" Height="17" X="8" Y="190" Text="{\Font1}Data directory" />
+        <Control Type="PathEdit" Id="TxtDir" Width="175" Height="18" X="80" Y="190" Property="DATADIR">
+        </Control>
+        <Control Id="btnDirBrowse" Type="PushButton" Width="56" Height="17" X="278" Y="190" Text="Browse...">
+         <Publish Property="_BrowseProperty" Value="DATADIR" Order="1">1</Publish>
+         <Publish Event="SpawnDialog" Value="BrowseDlg" Order="2">1</Publish>
+        </Control>
         <!-- Navigation buttons-->
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back">
           <Publish Event="NewDialog" Value="CustomizeDlg">1</Publish>
         </Control>
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="&amp;Next">
+          <Publish Event="DoAction" Value="CheckDataDirectory">1</Publish>
+          <Publish Property="WarningText" Value="Invalid data directory, choose a different one. Error: [DATADIRERROR]">
+            DATADIRERROR
+          </Publish>
           <Publish Property="WarningText" Value="Passwords do not match."><![CDATA[PASSWORD <> RootPasswordConfirm]]></Publish>
           <Publish Event="SpawnDialog" Value="WarningDlg"><![CDATA[WarningText <>""]]></Publish>
           <Publish Property="SERVICENAME" Value="MariaDB">NOT SERVICENAME AND NOT WarningText</Publish>
@@ -335,7 +345,8 @@
     </UI>
 
     <Property Id="CRLF" Value="&#xD;&#xA;" />
-    <CustomAction Id="CheckDataDirectoryEmpty" BinaryKey="wixca.dll" DllEntry="CheckDataDirectoryEmpty" Execute="immediate" Impersonate="yes"/>
+    <CustomAction Id="CheckDataDirectory" BinaryKey="wixca.dll" DllEntry="CheckDataDirectory" Execute="immediate" Impersonate="yes"/>
+	<CustomAction Id="CheckInstallDirectory" BinaryKey="wixca.dll" DllEntry="CheckInstallDirectory" Execute="immediate" Impersonate="yes"/>
     <!--  What to do when navigation buttons are clicked -->
     <UI Id="MyWixUI_Mondo">
       <UIRef Id="WixUI_FeatureTree" />
@@ -355,12 +366,11 @@
       <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="NewOrUpgradeInstanceDlg" Order="999">
         NOT Installed AND UpgradableServiceFound
       </Publish>
-      <Publish Dialog="CustomizeDlg" Control="Next" Event="DoAction" Value="CheckDataDirectoryEmpty" Order="1"><![CDATA[&DBInstance=3 AND NOT !DBInstance=3]]></Publish>
-      <Publish Dialog="CustomizeDlg" Property="DATADIRNOTEMPTY" Control="Next"  Order="1"><![CDATA[NOT(&DBInstance=3 AND NOT !DBInstance=3)]]></Publish>
+	  <Publish Dialog="CustomizeDlg" Control="Next" Event="DoAction" Value="CheckInstallDirectory" Order="1">NOT Installed</Publish>
       <Publish  Dialog="CustomizeDlg" Control="Next"  Property="WarningText" Order="2"
-         Value="Selected data directory [DATADIR] is not empty. Either clean it, or choose another location for 'Database Instance' feature.">
-        DATADIRNOTEMPTY
-      </Publish>
+        Value="[INSTALLDIRERROR]">
+       INSTALLDIRERROR
+	   </Publish>
       <Publish Dialog="CustomizeDlg" Control="Next" Event="SpawnDialog" Value="WarningDlg" Order="3">WarningText</Publish>
       <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="ConfirmDataCleanupDlg" Order="4">
         <![CDATA[(&DBInstance=2) AND (!DBInstance=3)]]>
@@ -406,9 +416,6 @@
         <RegistryValue Root='HKLM'
            Key='SOFTWARE\@CPACK_WIX_PACKAGE_NAME@'
            Name='DATADIR' Value='[DATADIR]' Type='string' KeyPath='yes'/>
-          <CreateFolder>
-            <util:PermissionEx User="NetworkService" GenericAll="yes" />
-          </CreateFolder>
       </Component>
 
       <Component Id="C.datadir.permissions" Directory="DATADIR">
@@ -528,6 +535,29 @@
       AllowAdvertise='no'
       Level='1'
       Display='hidden'>
+
+      <Component Id="C_Permissions.bin" Guid="2ce05496-3273-4866-a5b5-1eff2837b4cb" Directory="D.bin">
+        <!-- in case service is installed now on it the future -->
+        <CreateFolder>
+          <util:PermissionEx User="ALL SERVICES" Domain="NT SERVICE" GenericRead="yes"  GenericExecute="yes" />
+        </CreateFolder>
+        <Condition>SERVICENAME</Condition>
+      </Component>
+
+      <Component Id="C_Permissions.lib.plugin" Guid="ff2e8f47-83fd-4dee-9e22-f103600cfc80" Directory="D.lib.plugin">
+        <CreateFolder>
+          <util:PermissionEx User="ALL SERVICES" Domain="NT SERVICE" GenericRead="yes" GenericExecute="yes" />
+        </CreateFolder>
+        <Condition>SERVICENAME</Condition>
+      </Component>
+
+      <Component Id="C_Permissions.share" Guid="be8ee2fb-a837-4b31-b59a-68a506d97d81" Directory="D.share">
+        <CreateFolder>
+          <util:PermissionEx User="ALL SERVICES" Domain="NT SERVICE" GenericRead="yes" GenericExecute="yes" />
+        </CreateFolder>
+        <Condition>SERVICENAME</Condition>
+      </Component>
+
       <ComponentRef Id='C.bin.mysql.exe'/>
       <ComponentRef Id='C.bin.mysqladmin.exe'/>
       <ComponentRef Id='C.bin.mysql_upgrade.exe'/>
@@ -548,20 +578,6 @@
       </Component>
      <?if $(var.HaveUpgradeWizard) != "0" ?>
      <ComponentRef Id='C.bin.mysql_upgrade_wizard.exe'/>
-     <!--
-     <Component Id="c.shortcuts.upgrade_wizard"  Guid="*"  Directory="ShortcutFolder" Transitive="yes">
-       <RegistryValue
-       Root="HKCU" Key="Software\@CPACK_WIX_PACKAGE_NAME@\Uninstall"
-       Name="shortcuts.upgrade_wizard"
-       Value="1" Type="string" KeyPath="yes" />
-      <Shortcut Id="shortcut.upgrade_wizard"
-        Name="Upgrade Wizard (@CPACK_WIX_PACKAGE_NAME@)"
-       Target="[INSTALLDIR]bin\mysql_upgrade_wizard.exe"
-       Directory="ShortcutFolder"
-       Description="Upgrades older instances of MariaDB/MySQL services to version @MAJOR_VERSION@.@MINOR_VERSION@"  
-       Advertise="no"/>
-     </Component>
-     -->
      <?endif?>
     </Feature>
 
@@ -634,13 +650,19 @@
      Property="FailureProgram"
      Execute="deferred" />
 
-    <CustomAction Id='ErrorDataDirNotEmpty' 
-                  Error='Chosen data directory [DATADIR] is not empty. It must be empty prior to installation.'/>
+    <CustomAction Id='ErrorDataDir'
+                  Error='Invalid data directory, choose a different one. Error : [DATADIRERROR]'/>
+    <CustomAction Id="ErrorInstallDir"
+                  Error="[INSTALLDIRERROR]" />
     <InstallExecuteSequence>
-      <Custom Action="CheckDataDirectoryEmpty" After="CostFinalize">
+      <Custom Action="CheckDataDirectory" After="CostFinalize">
         <![CDATA[&DBInstance=3 AND NOT !DBInstance=3 AND OLDERVERSIONBEINGUPGRADED=""]]>
       </Custom>
-      <Custom Action="ErrorDataDirNotEmpty" After="CheckDataDirectoryEmpty" >DATADIRNOTEMPTY</Custom>
+     <Custom Action="ErrorDataDir" After="CheckDataDirectory">DATADIRERROR</Custom>
+     <Custom Action="CheckInstallDirectory" After="CostFinalize">
+        NOT Installed AND OLDERVERSIONBEINGUPGRADED=""
+      </Custom>
+      <Custom Action="ErrorInstallDir" After="CheckInstallDirectory">INSTALLDIRERROR</Custom>
       <Custom Action="CheckDatabaseProperties" Before="CreateDatabaseCommand">SERVICENAME</Custom>
       <Custom Action="CreateDatabaseCommand" After="CostFinalize" >
         <![CDATA[&DBInstance=3 AND NOT !DBInstance=3 AND OLDERVERSIONBEINGUPGRADED=""]]>

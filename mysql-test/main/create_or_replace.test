@@ -4,9 +4,9 @@
 
 --source include/have_innodb.inc
 --source include/have_metadata_lock_info.inc
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
+
+SET @save_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=OFF;
 
 #
 # Create help table
@@ -270,6 +270,26 @@ drop table t1;
 
 create table test.t1 (i int);
 drop database mysqltest2;
+drop table test.t1;
+
+
+--echo #
+--echo # MDEV-23391 Server crash in close_thread_table or assertion, upon CREATE OR REPLACE TABLE under lock
+--echo #
+create table t1 (i int);
+lock table t1 write;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+--error ER_DATA_TOO_LONG
+create or replace table t1 (a char(1)) engine=Innodb select 'foo' as a;
+show tables;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+create table t1 (i int);
+drop table t1;
+
 
 --echo #
 --echo # Testing CREATE .. LIKE
@@ -345,6 +365,7 @@ lock table t1 write, t2 read;
 --replace_column 1 #
 --sorted_result
 select * from information_schema.metadata_lock_info;
+
 create or replace table t1 (i int);
 --replace_column 1 #
 --sorted_result
@@ -486,3 +507,7 @@ CREATE OR REPLACE TEMPORARY TABLE t2(c INT DEFAULT '');
 SELECT * FROM t3;
 UNLOCK TABLES;
 DROP TABLE t3;
+
+--echo # End of 10.4 tests
+
+SET GLOBAL innodb_stats_persistent=@save_persistent;

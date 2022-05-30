@@ -218,3 +218,173 @@ DELETE ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 't1 WHERE 1=1' at line 1
 connection default;
 disconnect c1;
+#
+# MDEV-25399 Assertion `name.length == strlen(name.str)' failed in Item_func_sp::make_send_field
+#
+SET sql_mode='';
+CREATE FUNCTION f(i INT) RETURNS INT RETURN 1;
+PREPARE s FROM "SELECT f('\0')";
+EXECUTE s;
+f('\x00')
+1
+DROP FUNCTION f;
+SET sql_mode=DEFAULT;
+#
+# MDEV-22380: Assertion `name.length == strlen(name.str)' failed
+# in Item::print_item_w_name on SELECT w/ optimizer_trace enabled
+#
+SELECT '' LIMIT 0;
+
+CREATE TABLE t1 AS SELECT '';
+ERROR 42000: Incorrect column name ''
+CREATE PROCEDURE test_inject(arg TEXT CHARACTER SET latin1)
+BEGIN
+SET @stmt=CONCAT('SELECT ''', arg, ''', CONCAT(''', arg, ''') LIMIT 0');
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+SET @stmt=CONCAT('CREATE TABLE t1 AS ', @stmt);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+SELECT x'FF32', CONCAT(x'FF32') LIMIT 0;
+x'FF32'	CONCAT(x'FF32')
+CREATE TABLE t1 AS SELECT x'FF32', CONCAT(x'FF32');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x'FF32'` varbinary(2) NOT NULL,
+  `CONCAT(x'FF32')` varbinary(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CALL test_inject(x'FF32');
+ÿ2	CONCAT('ÿ2')
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `ÿ2` varchar(2) NOT NULL,
+  `CONCAT('ÿ2')` varchar(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT x'32FF', CONCAT(x'32FF') LIMIT 0;
+x'32FF'	CONCAT(x'32FF')
+CREATE TABLE t1 AS SELECT x'32FF', CONCAT(x'32FF');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x'32FF'` varbinary(2) NOT NULL,
+  `CONCAT(x'32FF')` varbinary(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CALL test_inject(x'32FF');
+2ÿ	CONCAT('2ÿ')
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `2ÿ` varchar(2) NOT NULL,
+  `CONCAT('2ÿ')` varchar(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT x'0032', CONCAT(x'0032') LIMIT 0;
+x'0032'	CONCAT(x'0032')
+CREATE TABLE t1 AS SELECT x'0032', CONCAT(x'0032');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x'0032'` varbinary(2) NOT NULL,
+  `CONCAT(x'0032')` varbinary(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CALL test_inject(x'0032');
+2	CONCAT('\x002')
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `2` varchar(2) NOT NULL,
+  `CONCAT('\x002')` varchar(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT x'3200', CONCAT(x'3200') LIMIT 0;
+x'3200'	CONCAT(x'3200')
+CREATE TABLE t1 AS SELECT x'3200', CONCAT(x'3200');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x'3200'` varbinary(2) NOT NULL,
+  `CONCAT(x'3200')` varbinary(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CALL test_inject(x'3200');
+2\x00	CONCAT('2\x00')
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `2\x00` varchar(2) NOT NULL,
+  `CONCAT('2\x00')` varchar(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT '0\a', CONCAT('0\a') LIMIT 0;
+0a	CONCAT('0\a')
+CREATE TABLE t1 AS SELECT '0\a', CONCAT('0\a');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `0a` varchar(2) NOT NULL,
+  `CONCAT('0\a')` varchar(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CALL test_inject('0\a');
+0a	CONCAT('0a')
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `0a` varchar(2) NOT NULL,
+  `CONCAT('0a')` varchar(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT 'a\0', CONCAT('a\0') LIMIT 0;
+a\x00	CONCAT('a\0')
+CREATE TABLE t1 AS SELECT 'a\0', CONCAT('a\0');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a\x00` varchar(2) NOT NULL,
+  `CONCAT('a\0')` varchar(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CALL test_inject('a\0');
+a\x00	CONCAT('a\x00')
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a\x00` varchar(2) NOT NULL,
+  `CONCAT('a\x00')` varchar(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT 'a\0b', CONCAT('a\0b') LIMIT 0;
+a\x00b	CONCAT('a\0b')
+CREATE TABLE t1 AS SELECT 'a\0b', CONCAT('a\0b');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a\x00b` varchar(3) NOT NULL,
+  `CONCAT('a\0b')` varchar(3) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CALL test_inject('a\0b');
+a\x00b	CONCAT('a\x00b')
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a\x00b` varchar(3) NOT NULL,
+  `CONCAT('a\x00b')` varchar(3) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP PROCEDURE test_inject;
+#
+# MDEV-23519
+#
+create or replace table t1 (a int);
+create or replace table t2 (b int);
+insert into t1 values(111111111),(-2147483648);
+insert into t2 values(1),(2);
+select t1.a as a1 from t1 as t1,t2 order by t2.b,t1.a;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	a1	3	11	11	Y	32768	0	63
+a1
+-2147483648
+111111111
+-2147483648
+111111111
+drop table t1,t2;
+#
+# End of 10.4 tests
+#

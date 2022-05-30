@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -185,8 +185,10 @@ extern BOOL my_obtain_privilege(LPCSTR lpPrivilege);
 void my_init_atomic_write(void);
 #ifdef __linux__
 my_bool my_test_if_atomic_write(File handle, int pagesize);
+my_bool my_test_if_thinly_provisioned(File handle);
 #else
-#define my_test_if_atomic_write(A, B) 0
+# define my_test_if_atomic_write(A, B)      0
+# define my_test_if_thinly_provisioned(A)   0
 #endif /* __linux__ */
 extern my_bool my_may_have_atomic_write;
 
@@ -273,10 +275,11 @@ extern int my_umask_dir,
 extern SECURITY_ATTRIBUTES my_dir_security_attributes;
 LPSECURITY_ATTRIBUTES my_win_file_secattr();
 #endif
-extern my_bool my_use_symdir;
+extern MYSQL_PLUGIN_IMPORT my_bool my_use_symdir;
 
 extern ulong	my_default_record_cache_size;
-extern my_bool  my_disable_locking, my_disable_async_io,
+extern MYSQL_PLUGIN_IMPORT my_bool my_disable_locking;
+extern my_bool  my_disable_async_io,
                 my_disable_flush_key_blocks, my_disable_symlinks;
 extern my_bool my_disable_sync, my_disable_copystat_in_redel;
 extern char	wild_many,wild_one,wild_prefix;

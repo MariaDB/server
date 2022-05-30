@@ -40,7 +40,7 @@ let $CHILD2_1_SELECT_TABLES=
   SELECT pkey FROM tbl_a ORDER BY pkey $STR_SEMICOLON
   SELECT pkey FROM tbl_b ORDER BY pkey;
 let $CHILD2_1_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --let $CHILD2_2_DROP_TABLES_BACKUP= $CHILD2_2_DROP_TABLES
 let $CHILD2_2_DROP_TABLES=
   DROP TABLE IF EXISTS tbl_a $STR_SEMICOLON
@@ -60,7 +60,7 @@ let $CHILD2_2_SELECT_TABLES=
   SELECT pkey FROM tbl_a ORDER BY pkey $STR_SEMICOLON
   SELECT pkey FROM tbl_b ORDER BY pkey;
 let $CHILD2_2_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --let $CHILD2_3_DROP_TABLES_BACKUP= $CHILD2_3_DROP_TABLES
 let $CHILD2_3_DROP_TABLES=
   DROP TABLE IF EXISTS tbl_a $STR_SEMICOLON
@@ -80,7 +80,7 @@ let $CHILD2_3_SELECT_TABLES=
   SELECT pkey FROM tbl_a ORDER BY pkey $STR_SEMICOLON
   SELECT pkey FROM tbl_b ORDER BY pkey;
 let $CHILD2_3_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --let $OUTPUT_CHILD_GROUP2_BACKUP= $OUTPUT_CHILD_GROUP2
 --let $OUTPUT_CHILD_GROUP2= 1
 --let $USE_GENERAL_LOG_BACKUP= $USE_GENERAL_LOG

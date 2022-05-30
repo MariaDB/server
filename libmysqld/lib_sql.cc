@@ -115,7 +115,7 @@ emb_advanced_command(MYSQL *mysql, enum enum_server_command command,
   NET *net= &mysql->net;
   my_bool stmt_skip= stmt ? stmt->state != MYSQL_STMT_INIT_DONE : FALSE;
 
-  if (thd->killed != NOT_KILLED)
+  if (thd && thd->killed != NOT_KILLED)
   {
     if (thd->killed < KILL_CONNECTION)
       thd->killed= NOT_KILLED;
@@ -578,7 +578,7 @@ int init_embedded_server(int argc, char **argv, char **groups)
 
   /* Get default temporary directory */
   opt_mysql_tmpdir=getenv("TMPDIR");	/* Use this if possible */
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (!opt_mysql_tmpdir)
     opt_mysql_tmpdir=getenv("TEMP");
   if (!opt_mysql_tmpdir)
@@ -663,7 +663,7 @@ void end_embedded_server()
 }
 
 
-void init_embedded_mysql(MYSQL *mysql, int client_flag)
+void init_embedded_mysql(MYSQL *mysql, ulong client_flag)
 {
   THD *thd = (THD *)mysql->thd;
   thd->mysql= mysql;
@@ -683,7 +683,7 @@ void init_embedded_mysql(MYSQL *mysql, int client_flag)
   create_new_thread(), and prepare_new_connection_state().  This should
   be refactored to avoid code duplication.
 */
-void *create_embedded_thd(int client_flag)
+void *create_embedded_thd(ulong client_flag)
 {
   THD * thd= new THD(next_thread_id());
 
@@ -699,7 +699,7 @@ void *create_embedded_thd(int client_flag)
   thd->set_command(COM_SLEEP);
   thd->set_time();
   thd->init_for_queries();
-  thd->client_capabilities= client_flag;
+  thd->client_capabilities= client_flag | MARIADB_CLIENT_EXTENDED_METADATA;
   thd->real_id= pthread_self();
 
   thd->db= null_clex_str;
@@ -830,7 +830,7 @@ int check_embedded_connection(MYSQL *mysql, const char *db)
   /* acl_authenticate() takes the data from thd->net->read_pos */
   thd->net.read_pos= (uchar*)buf;
 
-  if (acl_authenticate(thd, 0, end - buf))
+  if (acl_authenticate(thd, (uint) (end - buf)))
   {
     my_free(thd->security_ctx->user);
     goto err;

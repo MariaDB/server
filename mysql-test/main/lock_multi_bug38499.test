@@ -2,6 +2,9 @@
 # MySQL >= 5.0
 #
 
+# The test can take hours with valgrind
+--source include/not_valgrind.inc
+
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
 

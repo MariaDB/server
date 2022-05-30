@@ -1,0 +1,6 @@
+@@ -527,4 +527,4 @@
+ FROM information_schema.global_status
+ WHERE variable_name = 'innodb_instant_alter_column';
+ instants
+-35
++36

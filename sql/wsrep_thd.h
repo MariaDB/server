@@ -1,4 +1,4 @@
-/* Copyright (C) 2013 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2021 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -87,10 +87,8 @@ int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff,
 bool wsrep_create_appliers(long threads, bool mutex_protected=false);
 void wsrep_create_rollbacker();
 
-bool wsrep_bf_abort(const THD*, THD*);
+bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd);
 int  wsrep_abort_thd(THD *bf_thd_ptr, THD *victim_thd_ptr, my_bool signal);
-
-extern void  wsrep_thd_set_PA_safe(void *thd_ptr, my_bool safe);
 
 /*
   Helper methods to deal with thread local storage.
@@ -292,7 +290,7 @@ static inline void wsrep_log_thd(const THD *thd,
               (thd->get_stmt_da()->is_error() ? thd->get_stmt_da()->message() : "")
 #ifdef WSREP_THD_LOG_QUERIES
               , thd->lex->sql_command,
-              WSREP_QUERY(thd)
+              wsrep_thd_query(thd)
 #endif /* WSREP_OBSERVER_LOG_QUERIES */
               );
 }

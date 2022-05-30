@@ -5993,14 +5993,14 @@ create table t3 (c3 int);
 insert into t1 values (1), (2);
 insert into t2 values (1), (2);
 insert into t3 values (2);
+set @counter=0;
 explain
 select count(*) from t1 straight_join t2
 where c1 = c2-0 and c2 <= (select max(c3) from t3 where c3 = 2 and @counter:=@counter+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-2	UNCACHEABLE SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-set @counter=0;
+2	UNCACHEABLE SUBQUERY	t3	system	NULL	NULL	NULL	NULL	1	
 select count(*) from t1 straight_join t2
 where c1 = c2-0 and c2 <= (select max(c3) from t3 where c3 = 2 and @counter:=@counter+1);
 count(*)

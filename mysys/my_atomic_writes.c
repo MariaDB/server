@@ -1,4 +1,4 @@
-/* Copyright (c) 2016, MariaDB Corporation
+/* Copyright (c) 2016, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,11 +19,16 @@ my_bool my_may_have_atomic_write= IF_WIN(1,0);
 
 #ifdef __linux__
 
-my_bool has_shannon_atomic_write= 0, has_fusion_io_atomic_write= 0,
-        has_sfx_atomic_write= 0;
+my_bool has_shannon_atomic_write, has_fusion_io_atomic_write,
+        has_sfx_atomic_write;
+my_bool has_sfx_card;
 
 #include <sys/ioctl.h>
 
+/* Linux seems to allow up to 15 partitions per block device.
+Partition number 0 is the whole block device. */
+# define SAME_DEV(fs_dev, blk_dev) \
+  (fs_dev == blk_dev) || ((fs_dev & ~15U) == blk_dev)
 
 /***********************************************************************
   FUSION_IO
@@ -115,9 +120,9 @@ static my_bool test_if_shannon_card_exists()
 
     sprintf(path, "/dev/df%c", dev_part);
 #ifdef TEST_SHANNON
-    if (lstat(path, &stat_buff) < 0)
+    if (stat(path, &stat_buff) < 0)
     {
-      printf("%s(): lstat failed.\n", __func__);
+      printf("%s(): stat %s failed.\n", __func__, path);
       break;
     }
 #endif
@@ -147,7 +152,7 @@ static my_bool test_if_shannon_card_exists()
     for (dev_no= 1 ; dev_no < 9 ; dev_no++)
     {
       sprintf(path, "/dev/df%c%d", dev_part, dev_no);
-      if (lstat(path, &stat_buff) < 0)
+      if (stat(path, &stat_buff) < 0)
         break;
 
       shannon_devices[shannon_found_devices].st_dev= stat_buff.st_rdev;
@@ -194,12 +199,13 @@ static my_bool shannon_dev_has_atomic_write(struct shannon_dev *dev,
     int fd= open(dev->dev_name, 0);
     if (fd < 0)
     {
-      perror("open() failed!");
+      fprintf(stderr, "Unable to determine if atomic writes are supported:"
+              " open(\"%s\"): %m\n", dev->dev_name);
       dev->atomic_size= 0;                      /* Don't try again */
       return FALSE;
     }
-     dev->atomic_size= ioctl(fd, SHANNON_IOCQATOMIC_SIZE);
-     close(fd);
+    dev->atomic_size= ioctl(fd, SHANNON_IOCQATOMIC_SIZE);
+    close(fd);
   }
 
 #ifdef TEST_SHANNON
@@ -220,7 +226,7 @@ static my_bool shannon_dev_has_atomic_write(struct shannon_dev *dev,
    @return TRUE                 Atomic write supported
 
    @notes
-   This is called only at first open of a file.  In this case it's doesn't
+   This is called only at first open of a file.  In this case it doesn't
    matter so much that we loop over all cards.
    We update the atomic size on first access.
 */
@@ -248,7 +254,7 @@ static my_bool shannon_has_atomic_write(File file, int page_size)
 #ifdef TEST_SHANNON
     printf("%s(): st_rdev=0x%lx\n", __func__, (ulong) dev->st_dev);
 #endif
-    if (stat_buff.st_dev == dev->st_dev)
+    if (SAME_DEV(stat_buff.st_dev, dev->st_dev))
       return shannon_dev_has_atomic_write(dev, page_size);
  }
  return 0;
@@ -259,15 +265,26 @@ static my_bool shannon_has_atomic_write(File file, int page_size)
   ScaleFlux
 ************************************************************************/
 
-#define SFX_GET_ATOMIC_SIZE  _IO('N', 0x244)
-#define SFX_MAX_DEVICES 32
-#define SFX_NO_ATOMIC_SIZE_YET -2
+#define SFX_GET_ATOMIC_SIZE          _IOR('N', 0x243, int)
+#define SFX_MAX_DEVICES              (32)
+#define SFX_UNKNOWN_ATOMIC_WRITE_YET (-2)
+#define SFX_MAX_ATOMIC_SIZE          (256 * 1024)
+
+#define SFX_GET_SPACE_RATIO          _IO('N', 0x244)
+#define SFX_UNKNOWN_PUNCH_HOLE_YET   (-3)
+
+/**
+  Threshold for logical_space / physical_space
+  No less than the threshold means we can disable hole punching
+*/
+#define SFX_DISABLE_PUNCH_HOLE_RATIO (2)
 
 struct sfx_dev
 {
   char dev_name[32];
   dev_t st_dev;
-  int atomic_size;
+  int atomic_write;
+  int disable_punch_hole;
 };
 
 static struct sfx_dev sfx_devices[SFX_MAX_DEVICES + 1];
@@ -275,7 +292,8 @@ static struct sfx_dev sfx_devices[SFX_MAX_DEVICES + 1];
 /**
    Check if the system has a ScaleFlux card
    If card exists, record device numbers to allow us to later check if
-   a given file is on this device.
+   a given file is on this device
+   Variables for atomic_write and disable_punch_hole will be initialized
    @return TRUE   Card exists
 */
 
@@ -290,8 +308,7 @@ static my_bool test_if_sfx_card_exists()
 
     sprintf(sfx_devices[sfx_found_devices].dev_name, "/dev/sfdv%dn1",
             dev_num);
-    if (lstat(sfx_devices[sfx_found_devices].dev_name,
-                &stat_buff) < 0)
+    if (stat(sfx_devices[sfx_found_devices].dev_name, &stat_buff) < 0)
       break;
 
     sfx_devices[sfx_found_devices].st_dev= stat_buff.st_rdev;
@@ -299,35 +316,40 @@ static my_bool test_if_sfx_card_exists()
       The atomic size will be checked on first access. This is needed
       as a normal user can't open the /dev/sfdvXn1 file
     */
-    sfx_devices[sfx_found_devices].atomic_size = SFX_NO_ATOMIC_SIZE_YET;
+    sfx_devices[sfx_found_devices].atomic_write= SFX_UNKNOWN_ATOMIC_WRITE_YET;
+    sfx_devices[sfx_found_devices].disable_punch_hole=
+      SFX_UNKNOWN_PUNCH_HOLE_YET;
     if (++sfx_found_devices == SFX_MAX_DEVICES)
       goto end;
   }
 end:
   sfx_devices[sfx_found_devices].st_dev= 0;
+  has_sfx_card = (sfx_found_devices > 0);
+
   return sfx_found_devices > 0;
 }
 
 static my_bool sfx_dev_has_atomic_write(struct sfx_dev *dev,
                                             int page_size)
 {
-  if (dev->atomic_size == SFX_NO_ATOMIC_SIZE_YET)
+  int result= -1, max_atomic_size= SFX_MAX_ATOMIC_SIZE;
+
+  if (dev->atomic_write == SFX_UNKNOWN_ATOMIC_WRITE_YET)
   {
     int fd= open(dev->dev_name, 0);
     if (fd < 0)
+      fprintf(stderr, "Unable to determine if atomic writes are supported:"
+              " open(\"%s\"): %m\n", dev->dev_name);
+    else
     {
-      perror("open() failed!");
-      dev->atomic_size= 0;                      /* Don't try again */
-      return FALSE;
+      result= ioctl(fd, SFX_GET_ATOMIC_SIZE, &max_atomic_size);
+      close(fd);
     }
-
-    dev->atomic_size= ioctl(fd, SFX_GET_ATOMIC_SIZE);
-    close(fd);
+    dev->atomic_write= result == 0 && page_size <= max_atomic_size;
   }
 
-  return (page_size <= dev->atomic_size);
+  return dev->atomic_write;
 }
-
 
 /**
    Check if a file is on a ScaleFlux device and that it supports atomic_write
@@ -336,7 +358,7 @@ static my_bool sfx_dev_has_atomic_write(struct sfx_dev *dev,
    @return TRUE                 Atomic write supported
 
    @notes
-   This is called only at first open of a file.  In this case it's doesn't
+   This is called only at first open of a file.  In this case it doesn't
    matter so much that we loop over all cards.
    We update the atomic size on first access.
 */
@@ -346,33 +368,81 @@ static my_bool sfx_has_atomic_write(File file, int page_size)
   struct sfx_dev *dev;
   struct stat stat_buff;
 
-  if (fstat(file, &stat_buff) < 0)
-  {
-    return 0;
-  }
-
-  for (dev = sfx_devices; dev->st_dev; dev++)
-  {
-    if (stat_buff.st_dev == dev->st_dev)
-      return sfx_dev_has_atomic_write(dev, page_size);
-  }
+  if (fstat(file, &stat_buff) == 0)
+    for (dev= sfx_devices; dev->st_dev; dev++)
+      if (SAME_DEV(stat_buff.st_dev, dev->st_dev))
+        return sfx_dev_has_atomic_write(dev, page_size);
   return 0;
 }
+
+static my_bool sfx_dev_could_disable_punch_hole(struct sfx_dev *dev, File file)
+{
+  int result = 0;
+
+  if (dev->disable_punch_hole == SFX_UNKNOWN_PUNCH_HOLE_YET)
+  {
+    int fd= open(dev->dev_name, 0);
+    if (fd < 0)
+    {
+      fprintf(stderr, "Unable to determine if thin provisioning is used:"
+              " open(\"%s\"): %m\n", dev->dev_name);
+      dev->disable_punch_hole= 0;                      /* Don't try again */
+      return FALSE;
+    }
+
+    /*
+      Ratio left-shifts 8 (multiplies 256) inside the ioctl;
+      will also add 1 to guarantee a round-up integer.
+    */
+    result= ioctl(fd, SFX_GET_SPACE_RATIO);
+    result+= 1;
+    dev->disable_punch_hole= (result >= (((double)SFX_DISABLE_PUNCH_HOLE_RATIO) * 256));
+  }
+
+  return dev->disable_punch_hole;
+}
+
+/**
+   Check if a file is on a ScaleFlux device and whether it is possible to
+   disable hole punch.
+   @param[in] file              OS file handle
+   @return TRUE                 Could disable hole punch
+
+   @notes
+   This is called only at first open of a file. In this case it's doesn't
+   matter so much that we loop over all cards
+*/
+
+static my_bool sfx_could_disable_punch_hole(File file)
+{
+  struct sfx_dev *dev;
+  struct stat stat_buff;
+
+  if (fstat(file, &stat_buff) == 0)
+    for (dev = sfx_devices; dev->st_dev; dev++)
+      if (SAME_DEV(stat_buff.st_dev, dev->st_dev))
+        return sfx_dev_could_disable_punch_hole(dev, file);
+  return 0;
+}
+
 /***********************************************************************
   Generic atomic write code
 ************************************************************************/
 
-/*
-  Initialize automic write sub systems.
+/**
+  Initialize the atomic write subsystem.
   Checks if we have any devices that supports atomic write
 */
 
 void my_init_atomic_write(void)
 {
-  if ((has_shannon_atomic_write=   test_if_shannon_card_exists()) ||
-      (has_fusion_io_atomic_write= test_if_fusion_io_card_exists()) ||
-      (has_sfx_atomic_write=       test_if_sfx_card_exists()))
-  my_may_have_atomic_write= 1;
+  has_shannon_atomic_write= test_if_shannon_card_exists();
+  has_fusion_io_atomic_write= test_if_fusion_io_card_exists();
+  has_sfx_atomic_write= test_if_sfx_card_exists();
+
+  my_may_have_atomic_write= has_shannon_atomic_write ||
+    has_fusion_io_atomic_write || has_sfx_atomic_write;
+
 #ifdef TEST_SHANNON
   printf("%s(): has_shannon_atomic_write=%d, my_may_have_atomic_write=%d\n",
           __func__,
@@ -410,6 +480,22 @@ my_bool my_test_if_atomic_write(File handle, int page_size)
 
   if (has_sfx_atomic_write &&
       sfx_has_atomic_write(handle, page_size))
+    return 1;
+
+  return 0;
+}
+
+
+/**
+  Check if a file resides on thinly provisioned storage.
+
+  @return FALSE   File cannot disable hole punch
+          TRUE    File could disable hole punch
+*/
+
+my_bool my_test_if_thinly_provisioned(File handle)
+{
+  if (has_sfx_card && sfx_could_disable_punch_hole(handle))
     return 1;
 
   return 0;

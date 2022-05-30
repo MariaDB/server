@@ -1,6 +1,2 @@
 etc/mysql/mariadb.conf.d/connect.cnf
 usr/lib/mysql/plugin/ha_connect.so
-usr/share/mysql/Mongo2.jar
-usr/share/mysql/Mongo3.jar
-usr/share/mysql/JavaWrappers.jar
-usr/share/mysql/JdbcInterface.jar

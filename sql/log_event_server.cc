@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -124,6 +124,7 @@ static const char *HA_ERR(int i)
   case HA_ERR_LOGGING_IMPOSSIBLE: return "HA_ERR_LOGGING_IMPOSSIBLE";
   case HA_ERR_CORRUPT_EVENT: return "HA_ERR_CORRUPT_EVENT";
   case HA_ERR_ROWS_EVENT_APPLY : return "HA_ERR_ROWS_EVENT_APPLY";
+  case HA_ERR_PARTITION_LIST : return "HA_ERR_PARTITION_LIST";
   }
   return "No Error!";
 }
@@ -644,7 +645,7 @@ Log_event::do_shall_skip(rpl_group_info *rgi)
                       rli->replicate_same_server_id,
                       rli->slave_skip_counter));
   if ((server_id == global_system_variables.server_id &&
-       !rli->replicate_same_server_id) ||
+       !(rli->replicate_same_server_id || (flags &  LOG_EVENT_ACCEPT_OWN_F))) ||
       (rli->slave_skip_counter == 1 && rli->is_in_group()) ||
       (flags & LOG_EVENT_SKIP_REPLICATION_F &&
        opt_replicate_events_marked_for_skip != RPL_SKIP_REPLICATE))
@@ -1299,7 +1300,7 @@ bool Query_log_event::write()
   if (thd && thd->binlog_xid)
   {
     *start++= Q_XID;
-    int8store(start, thd->query_id);
+    int8store(start, thd->binlog_xid);
     start+= 8;
   }
 
@@ -2396,7 +2397,8 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
     original place when it comes to us; we'll know this by checking
     log_pos ("artificial" events have log_pos == 0).
   */
-  if (!is_artificial_event() && created && thd->transaction->all.ha_list)
+  if (!thd->rli_fake &&
+      !is_artificial_event() && created && thd->transaction->all.ha_list)
   {
     /* This is not an error (XA is safe), just an information */
     rli->report(INFORMATION_LEVEL, 0, NULL,
@@ -3261,10 +3263,13 @@ bool Binlog_checkpoint_log_event::write()
 Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
                                uint32 domain_id_arg, bool standalone,
                                uint16 flags_arg, bool is_transactional,
-                               uint64 commit_id_arg)
+                               uint64 commit_id_arg, bool has_xid,
+                               bool ro_1pc)
   : Log_event(thd_arg, flags_arg, is_transactional),
     seq_no(seq_no_arg), commit_id(commit_id_arg), domain_id(domain_id_arg),
-    flags2((standalone ? FL_STANDALONE : 0) | (commit_id_arg ? FL_GROUP_COMMIT_ID : 0))
+    flags2((standalone ? FL_STANDALONE : 0) |
+           (commit_id_arg ? FL_GROUP_COMMIT_ID : 0)),
+    flags_extra(0), extra_engines(0)
 {
   cache_type= Log_event::EVENT_NO_CACHE;
   bool is_tmp_table= thd_arg->lex->stmt_accessed_temp_table();
@@ -3287,15 +3292,41 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     flags2|= (thd_arg->rgi_slave->gtid_ev_flags2 & (FL_DDL|FL_WAITED));
 
   XID_STATE &xid_state= thd->transaction->xid_state;
-  if (is_transactional && xid_state.is_explicit_XA() &&
-      (thd->lex->sql_command == SQLCOM_XA_PREPARE ||
-       xid_state.get_state_code() == XA_PREPARED))
+  if (is_transactional)
   {
-    DBUG_ASSERT(thd->lex->xa_opt != XA_ONE_PHASE);
+    if (xid_state.is_explicit_XA() &&
+        (thd->lex->sql_command == SQLCOM_XA_PREPARE ||
+         xid_state.get_state_code() == XA_PREPARED))
+    {
+      DBUG_ASSERT(!(thd->lex->sql_command == SQLCOM_XA_COMMIT &&
+                    thd->lex->xa_opt == XA_ONE_PHASE));
 
-    flags2|= thd->lex->sql_command == SQLCOM_XA_PREPARE ?
-      FL_PREPARED_XA : FL_COMPLETED_XA;
-    xid.set(xid_state.get_xid());
+      flags2|= thd->lex->sql_command == SQLCOM_XA_PREPARE ?
+        FL_PREPARED_XA : FL_COMPLETED_XA;
+      xid.set(xid_state.get_xid());
+    }
+    /* count non-zero extra recoverable engines; total = extra + 1 */
+    if (has_xid)
+    {
+      DBUG_ASSERT(ha_count_rw_2pc(thd_arg,
+                                  thd_arg->in_multi_stmt_transaction_mode()));
+
+      extra_engines=
+        ha_count_rw_2pc(thd_arg, thd_arg->in_multi_stmt_transaction_mode()) - 1;
+    }
+    else if (ro_1pc)
+    {
+      extra_engines= UCHAR_MAX;
+    }
+    else if (thd->lex->sql_command == SQLCOM_XA_PREPARE)
+    {
+      DBUG_ASSERT(thd_arg->in_multi_stmt_transaction_mode());
+
+      uint8 count= ha_count_rw_2pc(thd_arg, true);
+      extra_engines= count > 1 ? 0 : UCHAR_MAX;
+    }
+    if (extra_engines > 0)
+      flags_extra|= FL_EXTRA_MULTI_ENGINE;
   }
 }
 
@@ -3339,19 +3370,19 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
 bool
 Gtid_log_event::write()
 {
-  uchar buf[GTID_HEADER_LEN+2+sizeof(XID)];
-  size_t write_len;
+  uchar buf[GTID_HEADER_LEN+2+sizeof(XID) + /* flags_extra: */ 1+4];
+  size_t write_len= 13;
 
   int8store(buf, seq_no);
   int4store(buf+8, domain_id);
   buf[12]= flags2;
   if (flags2 & FL_GROUP_COMMIT_ID)
   {
-    int8store(buf+13, commit_id);
+    DBUG_ASSERT(write_len + 8 == GTID_HEADER_LEN + 2);
+
+    int8store(buf+write_len, commit_id);
     write_len= GTID_HEADER_LEN + 2;
   }
-  else
-    write_len= 13;
 
   if (flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA))
   {
@@ -3362,6 +3393,16 @@ Gtid_log_event::write()
     long data_length= xid.bqual_length + xid.gtrid_length;
     memcpy(buf+write_len, xid.data, data_length);
     write_len+= data_length;
+  }
+  if (flags_extra > 0)
+  {
+    buf[write_len]= flags_extra;
+    write_len++;
+  }
+  if (flags_extra & FL_EXTRA_MULTI_ENGINE)
+  {
+    buf[write_len]= extra_engines;
+    write_len++;
   }
 
   if (write_len < GTID_HEADER_LEN)
@@ -5585,19 +5626,15 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     }
 
 #ifdef HAVE_QUERY_CACHE
-#ifdef WITH_WSREP
     /*
       Moved invalidation right before the call to rows_event_stmt_cleanup(),
       to avoid query cache being polluted with stale entries,
     */
-    if (! (WSREP(thd) && wsrep_thd_is_applying(thd)))
-    {
-#endif /* WITH_WSREP */
-    query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
-#ifdef WITH_WSREP
-    }
-#endif /* WITH_WSREP */
-#endif
+# ifdef WITH_WSREP
+    if (!WSREP(thd) && !wsrep_thd_is_applying(thd))
+# endif /* WITH_WSREP */
+      query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
+#endif /* HAVE_QUERY_CACHE */
   }
 
   table= m_table= rgi->m_table_map.get_table(m_table_id);
@@ -5798,19 +5835,20 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   restore_empty_query_table_list(thd->lex);
 
 #if defined(WITH_WSREP) && defined(HAVE_QUERY_CACHE)
-    if (WSREP(thd) && wsrep_thd_is_applying(thd))
-    {
-      query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
-    }
+  if (WSREP(thd) && wsrep_thd_is_applying(thd))
+    query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
 #endif /* WITH_WSREP && HAVE_QUERY_CACHE */
 
-    if (unlikely(get_flags(STMT_END_F) &&
-                 (error= rows_event_stmt_cleanup(rgi, thd))))
-    slave_rows_error_report(ERROR_LEVEL,
-                            thd->is_error() ? 0 : error,
-                            rgi, thd, table,
-                            get_type_str(),
-                            RPL_LOG_NAME, log_pos);
+  if (get_flags(STMT_END_F))
+  {
+    if (unlikely((error= rows_event_stmt_cleanup(rgi, thd))))
+      slave_rows_error_report(ERROR_LEVEL, thd->is_error() ? 0 : error,
+                              rgi, thd, table, get_type_str(),
+                              RPL_LOG_NAME, log_pos);
+    if (thd->slave_thread)
+      free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
+  }
+
   DBUG_RETURN(error);
 
 err:

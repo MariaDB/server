@@ -6,19 +6,19 @@
 /*  This file contains the JDBC connection classes functions.          */
 /***********************************************************************/
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 // This is needed for RegGetValue
 #define _WINVER 0x0601
 #undef  _WIN32_WINNT
 #define _WIN32_WINNT 0x0601
-#endif   // __WIN__
+#endif   // _WIN32
 
 /***********************************************************************/
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include <my_global.h>
 #include <m_string.h>
-#if defined(__WIN__)
+#if defined(_WIN32)
 //nclude <io.h>
 //nclude <fcntl.h>
 #include <direct.h>                      // for getcwd
@@ -26,7 +26,7 @@
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #if defined(UNIX)
 #include <errno.h>
 #else   // !UNIX
@@ -36,7 +36,7 @@
 #include <stdlib.h>                      // for getenv
 //nclude <fcntl.h>
 #define NODW
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Required objects includes.                                         */
@@ -53,9 +53,9 @@
 #include "osutil.h"
 
 
-//#if defined(__WIN__)
+//#if defined(_WIN32)
 //extern "C" HINSTANCE s_hModule;           // Saved module handle
-//#endif   // __WIN__
+//#endif   // _WIN32
 #define nullptr 0
 
 TYPCONV GetTypeConv();

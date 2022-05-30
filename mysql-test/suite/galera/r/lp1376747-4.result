@@ -29,8 +29,8 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-set debug_sync= 'RESET';
 connection node_2a;
+set debug_sync= 'RESET';
 UNLOCK TABLES;
 SET SESSION wsrep_sync_wait = DEFAULT;
 SHOW CREATE TABLE t1;

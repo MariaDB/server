@@ -1,6 +1,6 @@
 # This tests not performed with embedded server
 -- source include/not_embedded.inc
-
+-- disable_ps_protocol
 use test;
 
 #
@@ -92,7 +92,9 @@ DROP FUNCTION f3;
 --echo #
 --echo # Bug #26807 "set global event_scheduler=1" and --skip-grant-tables crashes server
 --echo #
+--disable_warnings
 set global event_scheduler=1;
+--enable_warnings
 set global event_scheduler=0;
 
 --echo #
@@ -160,6 +162,8 @@ drop user bar@foo;
 drop user baz@baz;
 # need to restart the server to restore the --skip-grant state
 --source include/restart_mysqld.inc
+
+--enable_ps_protocol
 
 --echo #
 --echo # End of 10.3 tests

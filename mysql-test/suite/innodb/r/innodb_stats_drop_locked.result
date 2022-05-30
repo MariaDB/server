@@ -1,7 +1,14 @@
+CREATE DATABASE unlocked;
+CREATE TABLE unlocked.t1(a INT PRIMARY KEY) ENGINE=INNODB STATS_PERSISTENT=0;
+CREATE DATABASE locked;
+CREATE TABLE locked.t1(a INT PRIMARY KEY) ENGINE=INNODB STATS_PERSISTENT=1;
+CREATE TABLE innodb_stats_drop_locked (c INT, KEY c_key (c))
+ENGINE=INNODB STATS_PERSISTENT=1;
+ANALYZE TABLE innodb_stats_drop_locked;
 Table	Op	Msg_type	Msg_text
 test.innodb_stats_drop_locked	analyze	status	Engine-independent statistics collected
 test.innodb_stats_drop_locked	analyze	status	OK
-SET autocommit=0;
+BEGIN;
 SELECT table_name FROM mysql.innodb_table_stats
 WHERE table_name='innodb_stats_drop_locked'
 FOR UPDATE;
@@ -19,21 +26,24 @@ innodb_stats_drop_locked
 innodb_stats_drop_locked
 innodb_stats_drop_locked
 connect  con1,localhost,root,,;
-connection con1;
+SET innodb_lock_wait_timeout=1;
 ALTER TABLE innodb_stats_drop_locked DROP INDEX c_key;
-Warnings:
-Warning	1205	Unable to delete statistics for index c_key from mysql.innodb_index_stats because the rows are locked: Lock wait timeout. They can be deleted later using DELETE FROM mysql.innodb_index_stats WHERE database_name = 'test' AND table_name = 'innodb_stats_drop_locked' AND index_name = 'c_key';
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SHOW CREATE TABLE innodb_stats_drop_locked;
 Table	Create Table
 innodb_stats_drop_locked	CREATE TABLE `innodb_stats_drop_locked` (
-  `c` int(11) DEFAULT NULL
+  `c` int(11) DEFAULT NULL,
+  KEY `c_key` (`c`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 STATS_PERSISTENT=1
 DROP TABLE innodb_stats_drop_locked;
-SHOW TABLES;
-Tables_in_test
-connection default;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+DROP DATABASE unlocked;
+DROP DATABASE locked;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 disconnect con1;
+connection default;
 COMMIT;
+DROP DATABASE locked;
 SELECT table_name FROM mysql.innodb_table_stats
 WHERE table_name='innodb_stats_drop_locked';
 table_name
@@ -48,5 +58,17 @@ innodb_stats_drop_locked
 innodb_stats_drop_locked
 innodb_stats_drop_locked
 innodb_stats_drop_locked
-DELETE FROM mysql.innodb_index_stats WHERE database_name='test' AND table_name='innodb_stats_drop_locked';
-DELETE FROM mysql.innodb_table_stats WHERE database_name='test' AND table_name='innodb_stats_drop_locked';
+ALTER TABLE innodb_stats_drop_locked DROP INDEX c_key;
+SELECT table_name FROM mysql.innodb_index_stats
+WHERE table_name='innodb_stats_drop_locked';
+table_name
+innodb_stats_drop_locked
+innodb_stats_drop_locked
+innodb_stats_drop_locked
+DROP TABLE innodb_stats_drop_locked;
+SELECT table_name FROM mysql.innodb_table_stats
+WHERE table_name='innodb_stats_drop_locked';
+table_name
+SELECT table_name FROM mysql.innodb_index_stats
+WHERE table_name='innodb_stats_drop_locked';
+table_name

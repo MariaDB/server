@@ -314,7 +314,9 @@ create or replace table subchild (
 ) engine=innodb;
 
 insert into parent (value) values (23);
+--enable_prepare_warnings
 select id, value from parent into @id, @value;
+--disable_prepare_warnings
 insert into child values (default, @id, @value);
 insert into subchild values (default, @id, @value);
 
@@ -472,6 +474,24 @@ insert into t1 values (1, 8, 8, 'SHORT'), (2, 8, 8, repeat('LONG', 8071));
 
 delete from t1;
 select pk, f1, f2, left(f3, 4), check_row_ts(row_start, row_end) from t1 for system_time all order by pk;
+
+# cleanup
+drop table t1;
+
+--echo #
+--echo # MDEV-21555 Assertion secondary index is out of sync on delete from versioned table
+--echo #
+create table t1 (a int, b int as (a + 1) virtual, key(a)) engine=innodb with system versioning;
+
+set foreign_key_checks= off;
+insert into t1 (a) values (1), (2);
+alter table t1 add foreign key (b) references t1 (a), algorithm=copy;
+update t1 set a= null where a = 1;
+delete from t1 where a is null;
+set foreign_key_checks= on;
+
+delete history from t1;
+delete from t1;
 
 # cleanup
 drop table t1;

@@ -1,3 +1,5 @@
+--source include/protocol.inc
+
 create procedure p1() select 1;
 
 flush status;

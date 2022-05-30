@@ -89,6 +89,9 @@ total	val1	id1 && id1	id1	UPPER(val1)	f(id1)
 ANALYZE INSERT INTO t1(id1,val1) VALUES(13,'l') RETURNING *;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	INSERT	t1	ALL	NULL	NULL	NULL	NULL	NULL	NULL	100.00	100.00	NULL
+INSERT INTO t1(id1,val1) VALUES(14,'m') RETURNING t1.*;
+id1	val1
+14	m
 TRUNCATE TABLE t1;
 #
 # Multiple values in one insert statement...RETURNING
@@ -182,6 +185,9 @@ id	val1	id1 && id1	id1|id1	UPPER(val1)	f(id1)
 ANALYZE INSERT INTO t1 VALUES(25,'a'),(26,'b') RETURNING *;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	INSERT	t1	ALL	NULL	NULL	NULL	NULL	NULL	NULL	100.00	100.00	NULL
+ANALYZE INSERT INTO t1 VALUES(27,'c'),(28,'d') RETURNING t1.*;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	INSERT	t1	ALL	NULL	NULL	NULL	NULL	NULL	NULL	100.00	100.00	NULL
 #
 # INSERT...ON DUPLICATE KEY UPDATE...RETURNING
 #
@@ -250,10 +256,14 @@ ANALYZE INSERT INTO ins_duplicate(id,val) VALUES(2,'b') ON DUPLICATE KEY UPDATE
 val='k' RETURNING *;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	INSERT	ins_duplicate	ALL	NULL	NULL	NULL	NULL	NULL	NULL	100.00	100.00	NULL
+INSERT INTO ins_duplicate(id,val) VALUES(2,'b') ON DUPLICATE KEY UPDATE
+val='l' RETURNING ins_duplicate.*;
+id	val
+2	l
 SELECT * FROM ins_duplicate;
 id	val
 1	a
-2	k
+2	l
 3	c
 4	d
 #
@@ -327,6 +337,9 @@ total	val1	id1 && id1	id1|id1	UPPER(val1)	f(id1)
 ANALYZE INSERT INTO t1 SET id1=12, val1='l' RETURNING *;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	INSERT	t1	ALL	NULL	NULL	NULL	NULL	NULL	NULL	100.00	100.00	NULL
+INSERT INTO t1 SET id1= 13, val1= 'm' RETURNING t1.*;
+id1	val1
+13	m
 SELECT * FROM t1;
 id1	val1
 1	a
@@ -339,6 +352,7 @@ id1	val1
 8	n
 26	Z
 12	l
+13	m
 #
 # INSERT...SELECT...RETURNING
 #
@@ -372,6 +386,7 @@ id1	val1
 8	n
 26	Z
 12	l
+13	m
 EXECUTE stmt;
 (SELECT id1 FROM t1 WHERE val1='b')
 2
@@ -407,6 +422,7 @@ id2	val2
 5	e
 26	Z
 12	l
+13	m
 Warnings:
 Warning	1062	Duplicate entry '1' for key 'PRIMARY'
 Warning	1062	Duplicate entry '2' for key 'PRIMARY'
@@ -430,6 +446,18 @@ id2	val2
 5	e
 26	Z
 12	l
+13	m
+TRUNCATE TABLE t2;
+INSERT INTO t2 SELECT * FROM t1 WHERE id1=1 RETURNING t2.*;
+id2	val2
+1	a
+INSERT INTO t2 SELECT t1.* FROM t1 WHERE id1=2 RETURNING t2.*;
+id2	val2
+2	b
+SELECT * FROM t2;
+id2	val2
+1	a
+2	b
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE ins_duplicate;
@@ -460,6 +488,8 @@ t1 WHERE id1=1)
 5	6
 INSERT INTO t2(id2,val2) VALUES(5,'f') RETURNING (SELECT id2 FROM t2);
 ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+INSERT INTO t2 (id2, val2) VALUES (6,'f') RETURNING t1.*;
+ERROR 42S02: Unknown table 'test.t1'
 #
 # Multiple rows in single insert statement
 #
@@ -481,6 +511,8 @@ t1 WHERE id1=1)
 12	13
 INSERT INTO t2 VALUES(13,'f'),(14,'g') RETURNING (SELECT id2 FROM t2);
 ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+INSERT INTO t2 VALUES(13,'f'),(14,'g') RETURNING t1.*;
+ERROR 42S02: Unknown table 'test.t1'
 #
 # INSERT ... SET
 #
@@ -501,6 +533,8 @@ WHERE id1=1)
 5	6
 INSERT INTO t2 SET id2=5, val2='f' RETURNING (SELECT id2 FROM t2);
 ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+INSERT INTO t2 SET id2=5, val2='f' RETURNING t1.*;
+ERROR 42S02: Unknown table 'test.t1'
 #
 # INSERT...ON DUPLICATE KEY UPDATE
 #
@@ -525,6 +559,9 @@ ERROR 42S22: Unknown column 'id2' in 'field list'
 INSERT INTO ins_duplicate VALUES(2,'b') ON DUPLICATE KEY UPDATE val='b'
 RETURNING (SELECT id FROM ins_duplicate);
 ERROR HY000: Table 'ins_duplicate' is specified twice, both as a target for 'INSERT' and as a separate source for data
+INSERT INTO ins_duplicate VALUES(2,'b') ON DUPLICATE KEY UPDATE val='b'
+RETURNING t1.*;
+ERROR 42S02: Unknown table 'test.t1'
 #
 # INSERT...SELECT
 #
@@ -544,6 +581,8 @@ ERROR 21000: Operand should contain 1 column(s)
 INSERT INTO t2(id2,val2) SELECT * FROM t1 WHERE id1=2 RETURNING (SELECT
 id2 FROM t2);
 ERROR 21000: Subquery returns more than 1 row
+INSERT INTO t2(id2,val2) SELECT t1.* FROM t1 WHERE id1=2 RETURNING t1.*;
+ERROR 42S02: Unknown table 'test.t1'
 #
 # TRIGGER
 #

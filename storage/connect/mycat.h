@@ -78,7 +78,8 @@ struct ha_table_option_struct {
 
 typedef class ha_connect     *PHC;
 
-char *GetPluginDir(void);
+char   *GetPluginDir(void);
+char   *GetMessageDir(void);
 TABTYPE GetTypeID(const char *type);
 bool    IsFileType(TABTYPE type);
 bool    IsExactType(TABTYPE type);

@@ -1,4 +1,4 @@
-/* Copyright (c) 2013 SkySQL Ab
+/* Copyright (c) 2013, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -74,8 +74,8 @@
 { "HA_ERR_INDEX_COL_TOO_LONG", HA_ERR_INDEX_COL_TOO_LONG, "" },
 { "HA_ERR_INDEX_CORRUPT", HA_ERR_INDEX_CORRUPT, "" },
 { "HA_ERR_UNDO_REC_TOO_BIG", HA_ERR_UNDO_REC_TOO_BIG, "" },
-{ "HA_ERR_TABLE_IN_FK_CHECK", HA_ERR_TABLE_IN_FK_CHECK, "" },
 { "HA_ERR_ROW_NOT_VISIBLE", HA_ERR_ROW_NOT_VISIBLE, "" },
 { "HA_ERR_ABORTED_BY_USER", HA_ERR_ABORTED_BY_USER, "" },
 { "HA_ERR_DISK_FULL", HA_ERR_DISK_FULL, "" },
 { "HA_ERR_INCOMPATIBLE_DEFINITION", HA_ERR_INCOMPATIBLE_DEFINITION, "" },
+{ "HA_ERR_COMMIT_ERROR", HA_ERR_COMMIT_ERROR, "" },

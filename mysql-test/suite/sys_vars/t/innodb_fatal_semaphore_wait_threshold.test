@@ -50,7 +50,7 @@ while (!$mysql_errno)
   if (!$counter)
   {
     # This will fail this test.
-    --die Server failed to dissapear
+    --die Server failed to disappear
   }
   --sleep 1
 }

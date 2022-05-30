@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2021, MariaDB Corporation.
+   Copyright (c) 2012, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@
 #include "sql_plugin.h"
 #include "sql_priv.h"
 #include "sql_class.h"                          // set_var.h: THD
-#include "sys_vars.ic"
+#include "sys_vars.inl"
 #include "my_sys.h"
 
 #include "events.h"
@@ -512,11 +512,10 @@ static Sys_var_charptr_fscs Sys_my_bind_addr(
        READ_ONLY GLOBAL_VAR(my_bind_addr_str), CMD_LINE(REQUIRED_ARG),
        DEFAULT(0));
 
-const char *Sys_var_vers_asof::asof_keywords[]= {"DEFAULT", NULL};
 static Sys_var_vers_asof Sys_vers_asof_timestamp(
        "system_versioning_asof", "Default value for the FOR SYSTEM_TIME AS OF clause",
        SESSION_VAR(vers_asof_timestamp.type), NO_CMD_LINE,
-       Sys_var_vers_asof::asof_keywords, DEFAULT(SYSTEM_TIME_UNSPECIFIED));
+       DEFAULT(SYSTEM_TIME_UNSPECIFIED));
 
 static const char *vers_alter_history_keywords[]= {"ERROR", "KEEP", NullS};
 static Sys_var_enum Sys_vers_alter_history(
@@ -1214,7 +1213,9 @@ static Sys_var_ulong Sys_flush_time(
 static bool check_ftb_syntax(sys_var *self, THD *thd, set_var *var)
 {
   return ft_boolean_check_syntax_string((uchar*)
-                      (var->save_result.string_value.str));
+                      (var->save_result.string_value.str),
+                      var->save_result.string_value.length,
+                      self->charset(thd));
 }
 static bool query_cache_flush(sys_var *self, THD *thd, enum_var_type type)
 {
@@ -1876,8 +1877,9 @@ static Sys_var_gtid_binlog_pos Sys_gtid_binlog_pos(
        READ_ONLY GLOBAL_VAR(opt_gtid_binlog_pos_dummy), NO_CMD_LINE);
 
 
-uchar *
-Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd,
+                                          const LEX_CSTRING *base) const
 {
   char buf[128];
   String str(buf, sizeof(buf), system_charset_info);
@@ -1904,8 +1906,9 @@ static Sys_var_gtid_current_pos Sys_gtid_current_pos(
        READ_ONLY GLOBAL_VAR(opt_gtid_current_pos_dummy), NO_CMD_LINE);
 
 
-uchar *
-Sys_var_gtid_current_pos::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_gtid_current_pos::global_value_ptr(THD *thd,
+                                           const LEX_CSTRING *base) const
 {
   String str;
   char *p;
@@ -1985,8 +1988,9 @@ Sys_var_gtid_slave_pos::global_update(THD *thd, set_var *var)
 }
 
 
-uchar *
-Sys_var_gtid_slave_pos::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_gtid_slave_pos::global_value_ptr(THD *thd,
+                                         const LEX_CSTRING *base) const
 {
   String str;
   char *p;
@@ -2109,8 +2113,9 @@ Sys_var_gtid_binlog_state::global_update(THD *thd, set_var *var)
 }
 
 
-uchar *
-Sys_var_gtid_binlog_state::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_gtid_binlog_state::global_value_ptr(THD *thd,
+                                            const LEX_CSTRING *base) const
 {
   char buf[512];
   String str(buf, sizeof(buf), system_charset_info);
@@ -2144,8 +2149,8 @@ static Sys_var_last_gtid Sys_last_gtid(
 export sys_var *Sys_last_gtid_ptr= &Sys_last_gtid; // for check changing
 
 
-uchar *
-Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base) const
 {
   char buf[10+1+10+1+20+1];
   String str(buf, sizeof(buf), system_charset_info);
@@ -2319,9 +2324,10 @@ Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
 }
 
 
-uchar *
+const uchar *
 Sys_var_slave_parallel_mode::global_value_ptr(THD *thd,
-                                              const LEX_CSTRING *base_name)
+                                              const
+                                              LEX_CSTRING *base_name) const
 {
   Master_info *mi;
   enum_slave_parallel_mode val=
@@ -3031,7 +3037,7 @@ static Sys_var_ulonglong Sys_thread_stack(
 static Sys_var_charptr_fscs Sys_tmpdir(
        "tmpdir", "Path for temporary files. Several paths may "
        "be specified, separated by a "
-#if defined(__WIN__)
+#if defined(_WIN32)
        "semicolon (;)"
 #else
        "colon (:)"
@@ -3250,6 +3256,21 @@ static Sys_var_charptr_fscs Sys_secure_file_priv(
        PREALLOCATED READ_ONLY GLOBAL_VAR(opt_secure_file_priv),
        CMD_LINE(REQUIRED_ARG), DEFAULT(0));
 
+static bool check_server_id(sys_var *self, THD *thd, set_var *var)
+{
+#ifdef WITH_WSREP
+  if (WSREP_ON && WSREP_PROVIDER_EXISTS && !wsrep_new_cluster && wsrep_gtid_mode)
+  {
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 ER_WRONG_VALUE_FOR_VAR,
+                 "Can't change server_id because wsrep and wsrep_gtid_mode is set."
+                 " You can set server_id only with wsrep_new_cluster. ");
+    return true;
+  }
+#endif /* WITH_WSREP */
+  return false;
+}
+
 static bool fix_server_id(sys_var *self, THD *thd, enum_var_type type)
 {
   if (type == OPT_GLOBAL)
@@ -3274,7 +3295,7 @@ Sys_server_id(
        "replication partners",
        SESSION_VAR(server_id), CMD_LINE(REQUIRED_ARG, OPT_SERVER_ID),
        VALID_RANGE(1, UINT_MAX32), DEFAULT(1), BLOCK_SIZE(1), NO_MUTEX_GUARD,
-       NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(fix_server_id));
+       NOT_IN_BINLOG, ON_CHECK(check_server_id), ON_UPDATE(fix_server_id));
 
 static Sys_var_on_access_global<Sys_var_mybool,
                           PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_COMPRESSED_PROTOCOL>
@@ -4724,12 +4745,16 @@ static Sys_var_session_special Sys_identity(
 */
 static bool update_insert_id(THD *thd, set_var *var)
 {
-  if (!var->value)
-  {
-    my_error(ER_NO_DEFAULT, MYF(0), var->var->name.str);
-    return true;
-  }
-  thd->force_one_auto_inc_interval(var->save_result.ulonglong_value);
+  /*
+    If we set the insert_id to the DEFAULT or 0
+    it means we 'reset' it so it's value doesn't
+    affect the INSERT.
+  */
+  if (!var->value ||
+      var->save_result.ulonglong_value == 0)
+    thd->auto_inc_intervals_forced.empty();
+  else
+    thd->force_one_auto_inc_interval(var->save_result.ulonglong_value);
   return false;
 }
 
@@ -4737,6 +4762,8 @@ static ulonglong read_insert_id(THD *thd)
 {
   return thd->auto_inc_intervals_forced.minimum();
 }
+
+
 static Sys_var_session_special Sys_insert_id(
        "insert_id", "The value to be used by the following INSERT "
        "or ALTER TABLE statement when inserting an AUTO_INCREMENT value",
@@ -5085,13 +5112,19 @@ static Sys_var_have Sys_have_symlink(
        "--skip-symbolic-links option.",
        READ_ONLY GLOBAL_VAR(have_symlink), NO_CMD_LINE);
 
-#if defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN)
+#if defined __SANITIZE_ADDRESS__ || defined WITH_UBSAN || __has_feature(memory_sanitizer)
 
-#ifdef __SANITIZE_ADDRESS__
-#define SANITIZER_MODE "ASAN"
-#else
-#define SANITIZER_MODE "UBSAN"
-#endif /* __SANITIZE_ADDRESS__ */
+# ifdef __SANITIZE_ADDRESS__
+#  ifdef WITH_UBSAN
+#   define SANITIZER_MODE "ASAN,UBSAN"
+#  else
+#   define SANITIZER_MODE "ASAN"
+#  endif
+# elif defined WITH_UBSAN
+#  define SANITIZER_MODE "UBSAN"
+# else
+#  define SANITIZER_MODE "MSAN"
+# endif
 
 static char *have_sanitizer;
 static Sys_var_charptr Sys_have_santitizer(
@@ -5317,8 +5350,9 @@ bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
   return status;
 }
 
-uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd,
-                                            const LEX_CSTRING *base_name)
+const uchar *
+Sys_var_rpl_filter::global_value_ptr(THD *thd,
+                                     const LEX_CSTRING *base_name) const
 {
   char buf[256];
   String tmp(buf, sizeof(buf), &my_charset_bin);
@@ -5438,7 +5472,7 @@ Sys_slave_net_timeout(
 */
 
 ulonglong Sys_var_multi_source_ulonglong::
-get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset)
+get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset) const
 {
   Master_info *mi;
   ulonglong res= 0;                                  // Default value
@@ -5687,14 +5721,14 @@ static bool update_locale(sys_var *self, THD* thd, enum_var_type type)
 static Sys_var_struct Sys_lc_messages(
        "lc_messages", "Set the language used for the error messages",
        SESSION_VAR(lc_messages), NO_CMD_LINE,
-       my_offsetof(MY_LOCALE, name), DEFAULT(&my_default_lc_messages),
+       offsetof(MY_LOCALE, name), DEFAULT(&my_default_lc_messages),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_locale), ON_UPDATE(update_locale));
 
 static Sys_var_struct Sys_lc_time_names(
        "lc_time_names", "Set the language used for the month "
        "names and the days of the week",
        SESSION_VAR(lc_time_names), NO_CMD_LINE,
-       my_offsetof(MY_LOCALE, name), DEFAULT(&my_default_lc_time_names),
+       offsetof(MY_LOCALE, name), DEFAULT(&my_default_lc_time_names),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_locale));
 
 static Sys_var_tz Sys_time_zone(
@@ -6656,7 +6690,7 @@ static Sys_var_ulong Sys_log_tc_size(
        DEFAULT(my_getpagesize() * 6), BLOCK_SIZE(my_getpagesize()));
 #endif
 
-static Sys_var_ulonglong Sys_max_thread_mem(
+static Sys_var_ulonglong Sys_max_session_mem_used(
        "max_session_mem_used", "Amount of memory a single user session "
        "is allowed to allocate. This limits the value of the "
        "session variable MEM_USED", SESSION_VAR(max_mem_used),

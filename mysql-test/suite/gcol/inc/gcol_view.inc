@@ -29,20 +29,20 @@ select d,e from v1;
 select is_updatable from information_schema.views where table_name='v1';
 
 # view with different algorithms (explain output differs)
---replace_column 10 X
+--replace_column 9 X
 explain select d,e from v1;
 create algorithm=temptable view v2 (d,e) as select abs(b), abs(c) from t1;
 show create view v2;
 --sorted_result
 select d,e from v2;
---replace_column 10 X
+--replace_column 9 X
 explain select d,e from v2;
 
 # VIEW on VIEW test
 create view v3 (d,e) as select d*2, e*2 from v1;
 --sorted_result
 select * from v3;
---replace_column 10 X
+--replace_column 9 X
 explain select * from v3;
 
 drop view v1,v2,v3;
@@ -58,7 +58,7 @@ insert into t1 (a) values (1), (2), (3), (1), (2), (3);
 create view v1 as select distinct b from t1;
 --sorted_result
 select * from v1;
---replace_column 10 X
+--replace_column 9 X
 explain select * from v1;
 --sorted_result
 select * from t1;
@@ -66,7 +66,7 @@ drop view v1;
 create view v1 as select distinct c from t1;
 --sorted_result
 select * from v1;
---replace_column 10 X
+--replace_column 9 X
 explain select * from v1;
 --sorted_result
 select * from t1;
@@ -82,13 +82,13 @@ create table t1 (a int not null,
 insert into t1 (a) values (1), (2), (3), (4);
 create view v1 as select b+1 from t1 order by 1 desc limit 2;
 select * from v1;
---replace_column 10 X
+--replace_column 9 X
 explain select * from v1;
 drop view v1;
 create view v1 as select c+1 from t1 order by 1 desc limit 2;
 --sorted_result
 select * from v1;
---replace_column 10 X
+--replace_column 9 X
 explain select * from v1;
 drop view v1;
 drop table t1;
@@ -220,4 +220,59 @@ insert ignore into v1 (a) values (2),(3),(0);
 select * from t1;
 drop view v1;
 drop table t1;
+
+
+--echo #
+--echo # MDEV-18166 ASSERT_COLUMN_MARKED_FOR_READ failed on tables with vcols
+--echo #
+
+CREATE TABLE t1 (d DATETIME(3), v DATETIME(2) AS (d));
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+INSERT INTO t1 (d) VALUES ('2004-04-19 15:37:39.123'),
+                          ('1985-12-24 10:15:08.456');
+DELETE FROM v1 ORDER BY v LIMIT 4;
+
+# Cleanup
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # [duplicate] MDEV-19306 Assertion `marked_for_read()' failed in
+--echo # Field_blob::val_str with virtual columns and views
+--echo #
+
+CREATE TABLE t1 (a BLOB, b TEXT AS (a) VIRTUAL);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 (a) VALUES ('foo'),('bar');
+DELETE FROM v1 ORDER BY b LIMIT 2;
+ 
+# Cleanup
+DROP VIEW v1;
+DROP TABLE t1;
+CREATE TABLE t1 (d INT, v TINYINT AS (d));
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 (d) VALUES ('2004'),('1985') ;
+DELETE FROM v1 ORDER BY v LIMIT 4;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (d VARCHAR(64), v VARCHAR(63) AS (d));
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 (d) VALUES ('2004-04-19 15:37:39.123'),('1985-12-24 10:15:08.456') ;
+DELETE FROM v1 ORDER BY v LIMIT 4;
+
+DROP TABLE t1;
+DROP VIEW v1;
+
+
+--echo #
+--echo # MDEV-18249 ASSERT_COLUMN_MARKED_FOR_READ failed in ANALYZE TABLE
+--echo #
+
+create table t1 (c varchar(3) not null, v varchar(4) as (c) virtual);
+insert into t1 (c) values ('a'),('b');
+analyze table t1 persistent for columns (v) indexes ();
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -147,27 +147,26 @@ void cleanup_events_statements_history_long(void)
   h_long_stmts_text_array= NULL;
 }
 
-static inline void copy_events_statements(PFS_events_statements *dest,
-                                          const PFS_events_statements *source)
+inline void PFS_events_statements::copy(const PFS_events_statements &source)
 {
   /* Copy all attributes except SQL TEXT and DIGEST */
-  memcpy(dest, source, my_offsetof(PFS_events_statements, m_sqltext));
+  memcpy((void*) this, &source, offsetof(PFS_events_statements, m_sqltext));
 
   /* Copy SQL TEXT */
-  int sqltext_length= source->m_sqltext_length;
+  int sqltext_length= source.m_sqltext_length;
 
   if (sqltext_length > 0)
   {
-    memcpy(dest->m_sqltext, source->m_sqltext, sqltext_length);
-    dest->m_sqltext_length= sqltext_length;
+    memcpy(m_sqltext, source.m_sqltext, sqltext_length);
+    m_sqltext_length= sqltext_length;
   }
   else
   {
-    dest->m_sqltext_length= 0;
+    m_sqltext_length= 0;
   }
 
   /* Copy DIGEST */
-  dest->m_digest_storage.copy(& source->m_digest_storage);
+  m_digest_storage.copy(&source.m_digest_storage);
 }
 
 /**
@@ -180,7 +179,7 @@ void insert_events_statements_history(PFS_thread *thread, PFS_events_statements 
   if (unlikely(events_statements_history_per_thread == 0))
     return;
 
-  DBUG_ASSERT(thread->m_statements_history != NULL);
+  assert(thread->m_statements_history != NULL);
 
   uint index= thread->m_statements_history_index;
 
@@ -192,7 +191,7 @@ void insert_events_statements_history(PFS_thread *thread, PFS_events_statements 
     to make this thread (the writer) faster.
     This is ok, the readers of m_statements_history will filter this out.
   */
-  copy_events_statements(&thread->m_statements_history[index], statement);
+  thread->m_statements_history[index].copy(*statement);
 
   index++;
   if (index >= events_statements_history_per_thread)
@@ -212,7 +211,7 @@ void insert_events_statements_history_long(PFS_events_statements *statement)
   if (unlikely(events_statements_history_long_size == 0))
     return ;
 
-  DBUG_ASSERT(events_statements_history_long_array != NULL);
+  assert(events_statements_history_long_array != NULL);
 
   uint index= PFS_atomic::add_u32(&events_statements_history_long_index.m_u32, 1);
 
@@ -221,7 +220,7 @@ void insert_events_statements_history_long(PFS_events_statements *statement)
     events_statements_history_long_full= true;
 
   /* See related comment in insert_events_statements_history. */
-  copy_events_statements(&events_statements_history_long_array[index], statement);
+  events_statements_history_long_array[index].copy(*statement);
 }
 
 static void fct_reset_events_statements_current(PFS_thread *pfs_thread)
@@ -230,7 +229,7 @@ static void fct_reset_events_statements_current(PFS_thread *pfs_thread)
   PFS_events_statements *pfs_stmt_last= pfs_stmt + statement_stack_max;
 
   for ( ; pfs_stmt < pfs_stmt_last; pfs_stmt++)
-    pfs_stmt->m_class= NULL;
+    pfs_stmt->m_event.m_class= nullptr;
 }
 
 /** Reset table EVENTS_STATEMENTS_CURRENT data. */
@@ -247,7 +246,7 @@ static void fct_reset_events_statements_history(PFS_thread *pfs_thread)
   pfs_thread->m_statements_history_index= 0;
   pfs_thread->m_statements_history_full= false;
   for ( ; pfs < pfs_last; pfs++)
-    pfs->m_class= NULL;
+    pfs->m_event.m_class= nullptr;
 }
 
 /** Reset table EVENTS_STATEMENTS_HISTORY data. */
@@ -265,7 +264,7 @@ void reset_events_statements_history_long(void)
   PFS_events_statements *pfs= events_statements_history_long_array;
   PFS_events_statements *pfs_last= pfs + events_statements_history_long_size;
   for ( ; pfs < pfs_last; pfs++)
-    pfs->m_class= NULL;
+    pfs->m_event.m_class= nullptr;
 }
 
 static void fct_reset_events_statements_by_thread(PFS_thread *thread)

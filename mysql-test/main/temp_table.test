@@ -681,3 +681,17 @@ drop temporary table t2;
 --echo # End of 10.5 tests
 --echo #
 
+--echo #
+--echo # Record that temporary table locks are always WRITE locks
+--echo #
+
+CREATE TEMPORARY TABLE t1 (a INT);
+LOCK TABLE t1 READ;
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t1;
+UNLOCK TABLES;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

@@ -35,7 +35,7 @@
 #ifdef	 HAVE_PWD_H
 #include <pwd.h>
 #endif
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -46,7 +46,7 @@
 #ifdef HAVE_SYS_SELECT_H
 #include <sys/select.h>
 #endif
-#endif /* !defined(__WIN__) */
+#endif /* !defined(_WIN32) */
 #if defined(HAVE_POLL_H)
 #include <poll.h>
 #elif defined(HAVE_SYS_POLL_H)
@@ -55,7 +55,7 @@
 #ifdef HAVE_SYS_UN_H
 #include <sys/un.h>
 #endif
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #include <my_pthread.h>				/* because of signal()	*/
 #endif
 #ifndef INADDR_NONE
@@ -78,13 +78,13 @@ ulong		max_allowed_packet= 1024L*1024L*1024L;
 my_bool	net_flush(NET *net);
 #endif
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 /* socket_errno is defined in my_global.h for all platforms */
 #define perror(A)
 #else
 #include <errno.h>
 #define SOCKET_ERROR -1
-#endif /* __WIN__ */
+#endif /* _WIN32 */
 
 /*
   If allowed through some configuration, then this needs to
@@ -167,7 +167,7 @@ int STDCALL mysql_server_init(int argc __attribute__((unused)),
     if (!mysql_unix_port)
     {
       char *env;
-#ifdef __WIN__
+#ifdef _WIN32
       mysql_unix_port = (char*) MYSQL_NAMEDPIPE;
 #else
       mysql_unix_port = (char*) MYSQL_UNIX_ADDR;
@@ -176,7 +176,7 @@ int STDCALL mysql_server_init(int argc __attribute__((unused)),
 	mysql_unix_port = env;
     }
     mysql_debug(NullS);
-#if defined(SIGPIPE) && !defined(__WIN__)
+#if defined(SIGPIPE) && !defined(_WIN32)
     (void) signal(SIGPIPE, SIG_IGN);
 #endif
 #ifdef EMBEDDED_LIBRARY
@@ -421,7 +421,7 @@ struct passwd *getpwuid(uid_t);
 char* getlogin(void);
 #endif
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 
 void read_user_name(char *name)
 {
@@ -2132,7 +2132,7 @@ static my_bool execute(MYSQL_STMT *stmt, char *packet, ulong length)
   buff[4]= (char) stmt->flags;
   int4store(buff+5, 1);                         /* iteration count */
 
-  res= MY_TEST(cli_advanced_command(mysql, COM_STMT_EXECUTE, buff, sizeof(buff),
+  res= MY_TEST((*mysql->methods->advanced_command)(mysql, COM_STMT_EXECUTE, buff, sizeof(buff),
                                     (uchar*) packet, length, 1, stmt) ||
             (*mysql->methods->read_query_result)(mysql));
   stmt->affected_rows= mysql->affected_rows;
@@ -2524,9 +2524,16 @@ static void reinit_result_set_metadata(MYSQL_STMT *stmt)
 }
 
 
+static int has_cursor(MYSQL_STMT *stmt)
+{
+  return stmt->server_status & SERVER_STATUS_CURSOR_EXISTS &&
+         stmt->flags & CURSOR_TYPE_READ_ONLY;
+}
+
+
 static void prepare_to_fetch_result(MYSQL_STMT *stmt)
 {
-  if (stmt->server_status & SERVER_STATUS_CURSOR_EXISTS)
+  if (has_cursor(stmt))
   {
     stmt->mysql->status= MYSQL_STATUS_READY;
     stmt->read_row_func= stmt_read_row_from_cursor;
@@ -3959,6 +3966,7 @@ static my_bool is_binary_compatible(enum enum_field_types type1,
 
 static my_bool setup_one_fetch_function(MYSQL_BIND *param, MYSQL_FIELD *field)
 {
+  my_bool field_is_unsigned;
   DBUG_ENTER("setup_one_fetch_function");
 
   /* Setup data copy functions for the different supported types */
@@ -4035,6 +4043,7 @@ static my_bool setup_one_fetch_function(MYSQL_BIND *param, MYSQL_FIELD *field)
 
   /* Setup skip_result functions (to calculate max_length) */
   param->skip_result= skip_result_fixed;
+  field_is_unsigned= MY_TEST(field->flags & UNSIGNED_FLAG);
   switch (field->type) {
   case MYSQL_TYPE_NULL: /* for dummy binds */
     param->pack_length= 0;
@@ -4042,23 +4051,23 @@ static my_bool setup_one_fetch_function(MYSQL_BIND *param, MYSQL_FIELD *field)
     break;
   case MYSQL_TYPE_TINY:
     param->pack_length= 1;
-    field->max_length= 4;                     /* as in '-127' */
+    field->max_length= field_is_unsigned ? 3 : 4; /* '255' and '-127' */
     break;
   case MYSQL_TYPE_YEAR:
   case MYSQL_TYPE_SHORT:
     param->pack_length= 2;
-    field->max_length= 6;                     /* as in '-32767' */
+    field->max_length= field_is_unsigned ? 5 : 6; /* 65536 and '-32767' */
     break;
   case MYSQL_TYPE_INT24:
-    field->max_length= 9;  /* as in '16777216' or in '-8388607' */
+    field->max_length=  8;  /* '16777216' or in '-8388607' */
     param->pack_length= 4;
     break;
   case MYSQL_TYPE_LONG:
-    field->max_length= 11;                    /* '-2147483647' */
+    field->max_length= field_is_unsigned ? 10 : 11; /* '4294967295' and '-2147483647' */
     param->pack_length= 4;
     break;
   case MYSQL_TYPE_LONGLONG:
-    field->max_length= 21;                    /* '18446744073709551616' */
+    field->max_length= 20; /* '18446744073709551616' or -9223372036854775808 */
     param->pack_length= 8;
     break;
   case MYSQL_TYPE_FLOAT:
@@ -4470,8 +4479,7 @@ int STDCALL mysql_stmt_store_result(MYSQL_STMT *stmt)
     DBUG_RETURN(1);
   }
 
-  if (mysql->status == MYSQL_STATUS_READY &&
-      stmt->server_status & SERVER_STATUS_CURSOR_EXISTS)
+  if (mysql->status == MYSQL_STATUS_READY && has_cursor(stmt))
   {
     /*
       Server side cursor exist, tell server to start sending the rows
@@ -4483,7 +4491,7 @@ int STDCALL mysql_stmt_store_result(MYSQL_STMT *stmt)
     /* Send row request to the server */
     int4store(buff, stmt->stmt_id);
     int4store(buff + 4, (int)~0); /* number of rows to fetch */
-    if (cli_advanced_command(mysql, COM_STMT_FETCH, buff, sizeof(buff),
+    if ((*mysql->methods->advanced_command)(mysql, COM_STMT_FETCH, buff, sizeof(buff),
                              (uchar*) 0, 0, 1, stmt))
     {
       /* 
@@ -4929,6 +4937,12 @@ int STDCALL mysql_stmt_next_result(MYSQL_STMT *stmt)
   {
     alloc_stmt_fields(stmt);
     prepare_to_fetch_result(stmt);
+  }
+  else
+  {
+    stmt->affected_rows= stmt->mysql->affected_rows;
+    stmt->server_status= stmt->mysql->server_status;
+    stmt->insert_id= stmt->mysql->insert_id;
   }
 
   DBUG_RETURN(0);

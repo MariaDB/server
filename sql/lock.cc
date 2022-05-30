@@ -356,7 +356,7 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
 end:
   THD_STAGE_INFO(thd, org_stage);
 
-  if (thd->killed)
+  if (thd->killed && !thd->get_stmt_da()->is_ok())
   {
     thd->send_kill_message();
     if (!rc)

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2017, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -1442,7 +1442,7 @@ typedef void (*register_socket_v1_t)
   @return an instrumented mutex
 */
 typedef struct PSI_mutex* (*init_mutex_v1_t)
-  (PSI_mutex_key key, const void *identity);
+  (PSI_mutex_key key, void *identity);
 
 /**
   Mutex instrumentation destruction API.
@@ -1457,7 +1457,7 @@ typedef void (*destroy_mutex_v1_t)(struct PSI_mutex *mutex);
   @return an instrumented rwlock
 */
 typedef struct PSI_rwlock* (*init_rwlock_v1_t)
-  (PSI_rwlock_key key, const void *identity);
+  (PSI_rwlock_key key, void *identity);
 
 /**
   Rwlock instrumentation destruction API.
@@ -1472,7 +1472,7 @@ typedef void (*destroy_rwlock_v1_t)(struct PSI_rwlock *rwlock);
   @return an instrumented cond
 */
 typedef struct PSI_cond* (*init_cond_v1_t)
-  (PSI_cond_key key, const void *identity);
+  (PSI_cond_key key, void *identity);
 
 /**
   Cond instrumentation destruction API.

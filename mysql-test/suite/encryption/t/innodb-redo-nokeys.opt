@@ -1,3 +1,2 @@
 --innodb-change-buffering=none
---innodb-encrypt-tables=on
 --innodb-default-encryption-key-id=20

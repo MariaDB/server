@@ -21,6 +21,7 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-mb.h"
 
 #ifndef EILSEQ
 #define EILSEQ ENOENT
@@ -31,7 +32,7 @@
 #include "ctype-unidata.h"
 
 
-/* Definitions for strcoll.ic */
+/* Definitions for strcoll.inl */
 #define IS_MB1_CHAR(x)              ((uchar) (x) < 0x80)
 #define IS_MB1_MBHEAD_UNUSED_GAP(x) ((uchar) (x) < 0xC2)
 #define IS_MB2_CHAR(x,y)            IS_UTF8MB2_STEP2(x,y)
@@ -5213,7 +5214,7 @@ int my_charlen_utf8mb3(CHARSET_INFO *cs __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)       my_ ## x ## _utf8mb3
 #define CHARLEN(cs,str,end)       my_charlen_utf8mb3(cs,str,end)
 #define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 #undef MY_FUNCTION_NAME
 #undef CHARLEN
 #undef DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
@@ -5254,7 +5255,7 @@ static inline int my_weight_mb3_utf8mb3_general_ci(uchar b0, uchar b1, uchar b2)
 #define WEIGHT_MB1(x)            my_weight_mb1_utf8mb3_general_ci(x)
 #define WEIGHT_MB2(x,y)          my_weight_mb2_utf8mb3_general_ci(x,y)
 #define WEIGHT_MB3(x,y,z)        my_weight_mb3_utf8mb3_general_ci(x,y,z)
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -5263,7 +5264,7 @@ static inline int my_weight_mb3_utf8mb3_general_ci(uchar b0, uchar b1, uchar b2)
 #define WEIGHT_MB1(x)          my_weight_mb1_utf8mb3_general_ci(x)
 #define WEIGHT_MB2(x,y)        my_weight_mb2_utf8mb3_general_ci(x,y)
 #define WEIGHT_MB3(x,y,z)      my_weight_mb3_utf8mb3_general_ci(x,y,z)
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 static inline int my_weight_mb1_utf8mb3_general_mysql500_ci(uchar b)
@@ -5300,7 +5301,7 @@ my_weight_mb3_utf8mb3_general_mysql500_ci(uchar b0, uchar b1, uchar b2)
 #define WEIGHT_MB1(x)            my_weight_mb1_utf8mb3_general_mysql500_ci(x)
 #define WEIGHT_MB2(x,y)          my_weight_mb2_utf8mb3_general_mysql500_ci(x,y)
 #define WEIGHT_MB3(x,y,z)        my_weight_mb3_utf8mb3_general_mysql500_ci(x,y,z)
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf8mb3_bin
@@ -5311,7 +5312,7 @@ my_weight_mb3_utf8mb3_general_mysql500_ci(uchar b0, uchar b1, uchar b2)
 #define WEIGHT_MB1(x)            ((int) (uchar) (x))
 #define WEIGHT_MB2(x,y)          ((int) UTF8MB2_CODE(x,y))
 #define WEIGHT_MB3(x,y,z)        ((int) UTF8MB3_CODE(x,y,z))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -5320,7 +5321,7 @@ my_weight_mb3_utf8mb3_general_mysql500_ci(uchar b0, uchar b1, uchar b2)
 #define WEIGHT_MB1(x)          ((int) (uchar) (x))
 #define WEIGHT_MB2(x,y)        ((int) UTF8MB2_CODE(x,y))
 #define WEIGHT_MB3(x,y,z)      ((int) UTF8MB3_CODE(x,y,z))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 /*
   TODO-10.2: join this with pad_max_char() in ctype-mb.c
@@ -5359,6 +5360,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_ci_handler =
     NULL,               /* init */
     my_strnncoll_utf8mb3_general_ci,
     my_strnncollsp_utf8mb3_general_ci,
+    my_strnncollsp_nchars_utf8mb3_general_ci,
     my_strnxfrm_utf8mb3_general_ci,
     my_strnxfrmlen_unicode,
     my_like_range_mb,
@@ -5366,7 +5368,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_ci_handler =
     my_strcasecmp_utf8mb3,
     my_instr_mb,
     my_hash_sort_utf8mb3,
-    my_propagate_complex
+    my_propagate_complex,
+    my_min_str_mb_simple,
+    my_max_str_mb_simple
 };
 
 
@@ -5375,6 +5379,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_mysql500_ci_handler =
     NULL,               /* init */
     my_strnncoll_utf8mb3_general_mysql500_ci,
     my_strnncollsp_utf8mb3_general_mysql500_ci,
+    my_strnncollsp_nchars_utf8mb3_general_mysql500_ci,
     my_strnxfrm_utf8mb3_general_mysql500_ci,
     my_strnxfrmlen_unicode,
     my_like_range_mb,
@@ -5382,7 +5387,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_mysql500_ci_handler =
     my_strcasecmp_utf8mb3,
     my_instr_mb,
     my_hash_sort_utf8mb3,
-    my_propagate_complex
+    my_propagate_complex,
+    my_min_str_mb_simple,
+    my_max_str_mb_simple
 };
 
 
@@ -5391,6 +5398,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_bin_handler =
     NULL,		/* init */
     my_strnncoll_utf8mb3_bin,
     my_strnncollsp_utf8mb3_bin,
+    my_strnncollsp_nchars_utf8mb3_bin,
     my_strnxfrm_utf8mb3_bin,
     my_strnxfrmlen_unicode,
     my_like_range_mb,
@@ -5398,7 +5406,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_bin_handler =
     my_strcasecmp_mb_bin,
     my_instr_mb,
     my_hash_sort_mb_bin,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_mb_simple,
+    my_max_str_mb_simple
 };
 
 
@@ -5407,6 +5417,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_nopad_ci_handler =
   NULL,               /* init */
   my_strnncoll_utf8mb3_general_ci,
   my_strnncollsp_utf8mb3_general_nopad_ci,
+  my_strnncollsp_nchars_utf8mb3_general_nopad_ci,
   my_strnxfrm_nopad_utf8mb3_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_mb,
@@ -5414,7 +5425,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_nopad_ci_handler =
   my_strcasecmp_utf8mb3,
   my_instr_mb,
   my_hash_sort_utf8mb3_nopad,
-  my_propagate_complex
+  my_propagate_complex,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 
@@ -5423,6 +5436,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_nopad_bin_handler =
   NULL,		/* init */
   my_strnncoll_utf8mb3_bin,
   my_strnncollsp_utf8mb3_nopad_bin,
+  my_strnncollsp_nchars_utf8mb3_nopad_bin,
   my_strnxfrm_nopad_utf8mb3_bin,
   my_strnxfrmlen_unicode,
   my_like_range_mb,
@@ -5430,7 +5444,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_nopad_bin_handler =
   my_strcasecmp_mb_bin,
   my_instr_mb,
   my_hash_sort_mb_nopad_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 
@@ -5753,6 +5769,7 @@ static MY_COLLATION_HANDLER my_collation_cs_handler =
     NULL,		/* init */
     my_strnncoll_utf8mb3_cs,
     my_strnncollsp_utf8mb3_cs,
+    my_strnncollsp_nchars_generic,
     my_strnxfrm_utf8mb3_general_ci,
     my_strnxfrmlen_unicode,
     my_like_range_simple,
@@ -5760,7 +5777,9 @@ static MY_COLLATION_HANDLER my_collation_cs_handler =
     my_strcasecmp_utf8mb3,
     my_instr_mb,
     my_hash_sort_utf8mb3,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_mb_simple,
+    my_max_str_mb_simple
 };
 
 struct charset_info_st my_charset_utf8mb3_general_cs=
@@ -7042,7 +7061,7 @@ my_wc_to_printable_filename(CHARSET_INFO *cs, my_wc_t wc,
 #define MY_FUNCTION_NAME(x)       my_ ## x ## _filename
 #define CHARLEN(cs,str,end)       my_charlen_filename(cs,str,end)
 #define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 #undef MY_FUNCTION_NAME
 #undef CHARLEN
 #undef DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
@@ -7063,7 +7082,7 @@ my_wc_to_printable_filename(CHARSET_INFO *cs, my_wc_t wc,
 #define WEIGHT_MB2(x,y)          my_weight_mb2_utf8mb3_general_ci(x,y)
 #define WEIGHT_MB3(x,y,z)        my_weight_mb3_utf8mb3_general_ci(x,y,z)
 */
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 static MY_COLLATION_HANDLER my_collation_filename_handler =
@@ -7071,6 +7090,7 @@ static MY_COLLATION_HANDLER my_collation_filename_handler =
     NULL,               /* init */
     my_strnncoll_simple,
     my_strnncollsp_simple,
+    my_strnncollsp_nchars_generic,
     my_strnxfrm_filename,
     my_strnxfrmlen_unicode,
     my_like_range_mb,
@@ -7078,7 +7098,9 @@ static MY_COLLATION_HANDLER my_collation_filename_handler =
     my_strcasecmp_utf8mb3,
     my_instr_mb,
     my_hash_sort_utf8mb3,
-    my_propagate_complex
+    my_propagate_complex,
+    my_min_str_mb_simple,
+    my_max_str_mb_simple
 };
 
 static MY_CHARSET_HANDLER my_charset_filename_handler=
@@ -7646,7 +7668,7 @@ my_charlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)       my_ ## x ## _utf8mb4
 #define CHARLEN(cs,str,end)       my_charlen_utf8mb4(cs,str,end)
 #define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 #undef MY_FUNCTION_NAME
 #undef CHARLEN
 #undef DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
@@ -7670,7 +7692,7 @@ my_charlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
   All non-BMP characters have the same weight.
 */
 #define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf8mb4_bin
@@ -7679,7 +7701,7 @@ my_charlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_MB2(b0,b1)        ((int) UTF8MB2_CODE(b0,b1))
 #define WEIGHT_MB3(b0,b1,b2)     ((int) UTF8MB3_CODE(b0,b1,b2))
 #define WEIGHT_MB4(b0,b1,b2,b3)  ((int) UTF8MB4_CODE(b0,b1,b2,b3))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -7693,7 +7715,7 @@ my_charlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
   All non-BMP characters have the same weight.
 */
 #define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -7703,7 +7725,7 @@ my_charlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_MB2(b0,b1)        ((int) UTF8MB2_CODE(b0,b1))
 #define WEIGHT_MB3(b0,b1,b2)     ((int) UTF8MB3_CODE(b0,b1,b2))
 #define WEIGHT_MB4(b0,b1,b2,b3)  ((int) UTF8MB4_CODE(b0,b1,b2,b3))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 static MY_COLLATION_HANDLER my_collation_utf8mb4_general_ci_handler=
@@ -7711,6 +7733,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general_ci_handler=
   NULL,               /* init */
   my_strnncoll_utf8mb4_general_ci,
   my_strnncollsp_utf8mb4_general_ci,
+  my_strnncollsp_nchars_utf8mb4_general_ci,
   my_strnxfrm_utf8mb4_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_mb,
@@ -7718,7 +7741,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general_ci_handler=
   my_strcasecmp_utf8mb4,
   my_instr_mb,
   my_hash_sort_utf8mb4,
-  my_propagate_complex
+  my_propagate_complex,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -7727,6 +7752,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_bin_handler =
     NULL,              /* init */
     my_strnncoll_utf8mb4_bin,
     my_strnncollsp_utf8mb4_bin,
+    my_strnncollsp_nchars_utf8mb4_bin,
     my_strnxfrm_unicode_full_bin,
     my_strnxfrmlen_unicode_full_bin,
     my_like_range_mb,
@@ -7734,7 +7760,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_bin_handler =
     my_strcasecmp_mb_bin,
     my_instr_mb,
     my_hash_sort_mb_bin,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_mb_simple,
+    my_max_str_mb_simple
 };
 
 
@@ -7743,6 +7771,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general_nopad_ci_handler=
   NULL,               /* init */
   my_strnncoll_utf8mb4_general_ci,
   my_strnncollsp_utf8mb4_general_nopad_ci,
+  my_strnncollsp_nchars_utf8mb4_general_nopad_ci,
   my_strnxfrm_nopad_utf8mb4_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_mb,
@@ -7750,7 +7779,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general_nopad_ci_handler=
   my_strcasecmp_utf8mb4,
   my_instr_mb,
   my_hash_sort_utf8mb4_nopad,
-  my_propagate_complex
+  my_propagate_complex,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 
@@ -7759,6 +7790,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_nopad_bin_handler =
   NULL,		/* init */
   my_strnncoll_utf8mb4_bin,
   my_strnncollsp_utf8mb4_nopad_bin,
+  my_strnncollsp_nchars_utf8mb4_nopad_bin,
   my_strnxfrm_unicode_full_nopad_bin,
   my_strnxfrmlen_unicode_full_bin,
   my_like_range_mb,
@@ -7766,7 +7798,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_nopad_bin_handler =
   my_strcasecmp_mb_bin,
   my_instr_mb,
   my_hash_sort_mb_nopad_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 

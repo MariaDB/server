@@ -42,10 +42,11 @@ typedef struct st_mem_root MEM_ROOT;
 #define ASSERT_LENGTH(A) DBUG_ASSERT(str_length + (uint32) (A) <= Alloced_length)
 
 #include "pack.h"
-int sortcmp(const String *a,const String *b, CHARSET_INFO *cs);
+class Binary_string;
+int sortcmp(const Binary_string *s, const Binary_string *t, CHARSET_INFO *cs);
+int stringcmp(const Binary_string *s, const Binary_string *t);
 String *copy_if_not_alloced(String *a,String *b,uint32 arg_length);
-inline uint32 copy_and_convert(char *to, size_t to_length,
-                               CHARSET_INFO *to_cs,
+inline uint32 copy_and_convert(char *to, size_t to_length, CHARSET_INFO *to_cs,
                                const char *from, size_t from_length,
                                CHARSET_INFO *from_cs, uint *errors)
 {
@@ -642,7 +643,7 @@ public:
       Ptr[str_length]=0;
       return Ptr;
     }
-    (void) realloc(str_length+1);               /* This will add end \0 */
+    (void) realloc(str_length);               /* This will add end \0 */
     return Ptr;
   }
   /*
@@ -665,7 +666,7 @@ public:
     if (Ptr && str_length < Alloced_length)
       Ptr[str_length]=0;
     else
-      (void) realloc(str_length + 1);
+      (void) realloc(str_length);
     return Ptr;
   }
 
@@ -787,8 +788,7 @@ class String: public Charset, public Binary_string
 {
 public:
   String() { }
-  String(size_t length_arg)
-   :Binary_string(length_arg)
+  String(size_t length_arg) :Binary_string(length_arg)
   { }
   /*
     NOTE: If one intend to use the c_ptr() method, the following two
@@ -796,16 +796,13 @@ public:
     room for zero termination).
   */
   String(const char *str, size_t len, CHARSET_INFO *cs)
-   :Charset(cs),
-    Binary_string(str, len)
+   :Charset(cs), Binary_string(str, len)
   { }
   String(char *str, size_t len, CHARSET_INFO *cs)
-   :Charset(cs),
-    Binary_string(str, len)
+   :Charset(cs), Binary_string(str, len)
   { }
   String(const String &str)
-   :Charset(str),
-    Binary_string(str)
+   :Charset(str), Binary_string(str)
   { }
 
   void set(String &str,size_t offset,size_t arg_length)
@@ -994,8 +991,6 @@ public:
   }
 
   void strip_sp();
-  friend int sortcmp(const String *a,const String *b, CHARSET_INFO *cs);
-  friend int stringcmp(const String *a,const String *b);
   friend String *copy_if_not_alloced(String *a,String *b,uint32 arg_length);
   friend class Field;
   uint32 numchars() const

@@ -1,7 +1,7 @@
 #
 # MDEV-5317 Compound statement / anonymous blocks
 #
-source include/have_log_bin.inc;
+source include/have_binlog_format_mixed_or_statement.inc;
 delimiter |;
 
 CREATE TABLE t1 (a INT PRIMARY KEY)|
@@ -94,7 +94,7 @@ end loop|
 show tables|
 
 # REPEAT
-set @a=0;
+set @a=0|
 repeat
   set @a = @a + 1;
 until @a > 5
@@ -146,7 +146,7 @@ drop table t1|
 # MDEV-6609 SQL inside an anonymous block is executed with wrong SQL_MODE
 #
 
-set @@sql_mode="STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION";
+set @@sql_mode="STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION"|
 begin not atomic select @@sql_mode; end|
 create table t1 (a int)|
 select a from t1 having a > 1|

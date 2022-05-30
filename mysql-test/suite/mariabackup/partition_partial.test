@@ -1,4 +1,5 @@
 #--source include/innodb_page_size.inc
+--source include/have_partition.inc
 
 # import partitioned table from  table from partial backup
 

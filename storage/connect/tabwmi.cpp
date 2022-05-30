@@ -2,9 +2,9 @@
 /*  TABWMI: Author Olivier Bertrand -- PlugDB -- 2012 - 2017           */
 /*  TABWMI: Virtual table to get WMI information.                      */
 /***********************************************************************/
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #error This is a WINDOWS only table type
-#endif   // !__WIN__
+#endif   // !_WIN32
 #include "my_global.h"
 #include <stdio.h>
 

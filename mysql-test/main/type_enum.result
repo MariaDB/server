@@ -1699,7 +1699,7 @@ a ENUM('ä','ö','ü') character set utf8 default 'ü'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('ä','ö','ü') CHARACTER SET utf8 DEFAULT 'ü'
+  `a` enum('ä','ö','ü') CHARACTER SET utf8mb3 DEFAULT 'ü'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('ä'), ('ö'), ('ü');
 select a from t1 order by a;
@@ -1932,14 +1932,16 @@ ALTER TABLE t2 ADD PRIMARY KEY(c1);
 SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 c1
 a
+a
 SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 c1
+a
 a
 # t2 should NOT be eliminated
 EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t2	range	PRIMARY	PRIMARY	1	NULL	1	Using where; Using index
+1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
 DROP TABLE IF EXISTS t1,t2;
 CREATE TABLE t1 (c1 SET('a') CHARACTER SET latin1 PRIMARY KEY);
 INSERT INTO t1 VALUES ('a');
@@ -1957,14 +1959,16 @@ ALTER TABLE t2 ADD PRIMARY KEY(c1);
 SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 c1
 a
+a
 SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 c1
+a
 a
 # t2 should NOT be eliminated
 EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t2	range	PRIMARY	PRIMARY	1	NULL	1	Using where; Using index
+1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
 DROP TABLE IF EXISTS t1,t2;
 CREATE TABLE t1 (c1 VARCHAR(10) CHARACTER SET latin1 PRIMARY KEY);
 INSERT INTO t1 VALUES ('a');
@@ -1982,14 +1986,16 @@ ALTER TABLE t2 ADD PRIMARY KEY(c1);
 SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 c1
 a
+a
 SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 c1
+a
 a
 # t2 should NOT be eliminated
 EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t2	range	PRIMARY	PRIMARY	1	NULL	1	Using where; Using index
+1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
 DROP TABLE IF EXISTS t1,t2;
 #
 # MDEV-6991 GROUP_MIN_MAX optimization is erroneously applied in some cases
@@ -2218,6 +2224,27 @@ SELECT * FROM t1;
 a
 
 DROP TABLE t1;
+#
+# MDEV-26129 Bad results with join comparing case insensitive VARCHAR/ENUM/SET expression to a _bin ENUM column
+#
+CREATE TABLE t1 (a ENUM('a') CHARACTER SET latin1 PRIMARY KEY);
+INSERT INTO t1 VALUES ('a');
+CREATE TABLE t2 (a ENUM('a','A','b','B','c','C','d','D','e','E') CHARACTER SET latin1 COLLATE latin1_bin);
+INSERT INTO t2 VALUES ('a'),('A');
+INSERT INTO t2 VALUES ('b'),('B'),('c'),('C'),('d'),('D'),('e'),('E');
+ALTER TABLE t2 ADD PRIMARY KEY(a);
+SELECT t1.a res FROM t1 JOIN t2 ON t1.a COLLATE latin1_swedish_ci=t2.a;
+res
+a
+a
+SELECT t1.a res FROM t1 LEFT JOIN t2 ON t1.a COLLATE latin1_swedish_ci=t2.a;
+res
+a
+a
+DROP TABLE IF EXISTS t1,t2;
+#
+# End of 10.2. tests
+#
 #
 # Start of 10.3 tests
 #

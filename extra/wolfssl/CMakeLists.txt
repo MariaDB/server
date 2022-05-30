@@ -1,4 +1,4 @@
-IF(MSVC)
+IF(MSVC_INTEL)
   PROJECT(wolfssl C ASM_MASM)
 ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64")
    PROJECT(wolfssl C ASM)
@@ -7,7 +7,7 @@ ELSE()
 ENDIF()
 
 IF(CMAKE_SIZEOF_VOID_P MATCHES 8)
-IF(MSVC)
+IF(MSVC_INTEL)
   SET(WOLFSSL_INTELASM ON)
   SET(WOLFSSL_X86_64_BUILD 1)
   SET(HAVE_INTEL_RDSEED 1)
@@ -50,7 +50,9 @@ SET(WOLFSSL_SOURCES
    ${WOLFSSL_SRCDIR}/tls.c
    ${WOLFSSL_SRCDIR}/wolfio.c
    ${WOLFSSL_SRCDIR}/ocsp.c
-   ${WOLFSSL_SRCDIR}/ssl.c)
+   ${WOLFSSL_SRCDIR}/ssl.c
+   ${WOLFSSL_SRCDIR}/tls13.c)
+
 ADD_DEFINITIONS(-DWOLFSSL_LIB -DBUILDING_WOLFSSL)
 
 INCLUDE_DIRECTORIES(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/wolfssl)
@@ -92,7 +94,6 @@ ${WOLFCRYPT_SRCDIR}/md5.c
 ${WOLFCRYPT_SRCDIR}/memory.c
 ${WOLFCRYPT_SRCDIR}/pkcs12.c
 ${WOLFCRYPT_SRCDIR}/pwdbased.c
-${WOLFCRYPT_SRCDIR}/rabbit.c
 ${WOLFCRYPT_SRCDIR}/random.c
 ${WOLFCRYPT_SRCDIR}/rsa.c
 ${WOLFCRYPT_SRCDIR}/sha.c
@@ -102,11 +103,13 @@ ${WOLFCRYPT_SRCDIR}/wc_port.c
 ${WOLFCRYPT_SRCDIR}/wc_encrypt.c
 ${WOLFCRYPT_SRCDIR}/hash.c
 ${WOLFCRYPT_SRCDIR}/wolfmath.c
+${WOLFCRYPT_SRCDIR}/kdf.c
 )
 
 # Use fastmath large number math library.
-IF(NOT (MSVC AND CMAKE_C_COMPILER_ID MATCHES Clang)
-   AND (CMAKE_SIZEOF_VOID_P EQUAL 8))
+IF(NOT (MSVC AND CMAKE_C_COMPILER_ID MATCHES Clang))
+  # Can't use clang-cl with WOLFSSL_FASTMATH
+  # due to https://bugs.llvm.org/show_bug.cgi?id=25305
   SET(WOLFSSL_FASTMATH 1)
 ENDIF()
 
@@ -117,6 +120,21 @@ IF(WOLFSSL_FASTMATH)
   # WolfSSL will use more stack space with it
   SET(FP_MAX_BITS 16384)
   SET(WOLFCRYPT_SOURCES  ${WOLFCRYPT_SOURCES} ${WOLFCRYPT_SRCDIR}/tfm.c)
+  IF((CMAKE_SIZEOF_VOID_P MATCHES 4) AND (CMAKE_SYSTEM_PROCESSOR MATCHES "86")
+     AND (NOT MSVC))
+   # Workaround https://github.com/wolfSSL/wolfssl/issues/4245
+   # On 32bit Intel, to satisfy inline assembly's wish for free registers
+   # 1. use -fomit-frame-pointer
+   # 2. With  GCC 4, additionally use -fno-PIC, which works on x86
+   #    (modern GCC has PIC optimizations, that make it unnecessary)
+   # The following assumes GCC or Clang
+   SET(TFM_COMPILE_FLAGS  "-fomit-frame-pointer")
+   IF(CMAKE_C_COMPILER_VERSION VERSION_LESS "5")
+     SET(TFM_COMPILE_FLAGS  "${TFM_COMPILE_FLAGS} -fno-PIC")
+   ENDIF()
+   SET_SOURCE_FILES_PROPERTIES(${WOLFCRYPT_SRCDIR}/tfm.c
+      PROPERTIES COMPILE_FLAGS ${TFM_COMPILE_FLAGS})
+ ENDIF()
 ELSE()
   SET(WOLFCRYPT_SOURCES  ${WOLFCRYPT_SOURCES} ${WOLFCRYPT_SRCDIR}/integer.c)
 ENDIF()
@@ -134,6 +152,7 @@ IF(WOLFSSL_X86_64_BUILD)
     SET(USE_INTEL_SPEEDUP 1)
     LIST(APPEND WOLFCRYPT_SOURCES
       ${WOLFCRYPT_SRCDIR}/aes_asm.S
+      ${WOLFCRYPT_SRCDIR}/aes_gcm_asm.S
       ${WOLFCRYPT_SRCDIR}/sha512_asm.S
       ${WOLFCRYPT_SRCDIR}/sha256_asm.S)
     ADD_DEFINITIONS(-maes -msse4.2 -mpclmul)

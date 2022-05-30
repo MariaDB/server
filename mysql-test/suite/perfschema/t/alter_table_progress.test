@@ -52,8 +52,10 @@ SET DEBUG_SYNC='copy_data_between_tables_before SIGNAL found_row WAIT_FOR wait_r
 SET DEBUG_SYNC='now WAIT_FOR found_row';
 
 # Find the statement id of the ALTER TABLE
+--enable_prepare_warnings
 select event_id from performance_schema.events_statements_current
   where thread_id = @con1_thread_id into @con1_stmt_id;
+--disable_prepare_warnings
 
 # completed 0
 select EVENT_NAME, WORK_COMPLETED, WORK_ESTIMATED

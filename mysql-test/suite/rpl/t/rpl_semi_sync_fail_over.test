@@ -1,0 +1,212 @@
+# ==== References ====
+#
+# MDEV-21117: recovery for --rpl-semi-sync-slave-enabled server
+#
+
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+# Initial slave
+--connection server_2
+--source include/stop_slave.inc
+
+# Initial master
+--connection server_1
+RESET MASTER;
+SET @@global.max_binlog_size= 4096;
+
+--connection server_2
+RESET MASTER;
+SET @@global.max_binlog_size= 4096;
+set @@global.rpl_semi_sync_slave_enabled = 1;
+set @@global.gtid_slave_pos = "";
+CHANGE MASTER TO master_use_gtid= slave_pos;
+--source include/start_slave.inc
+
+--connection server_1
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+set @@global.rpl_semi_sync_master_enabled = 1;
+set @@global.rpl_semi_sync_master_wait_point=AFTER_SYNC;
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+INSERT INTO t1 VALUES (1, 'dummy1');
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+--connection server_1
+--let $case = 1
+--echo #
+--echo #  Case:$case
+--echo #
+--echo # CRASH the original master, and FAILOVER to the new
+# value 1 for server id 1 -> 2 failover
+--let $failover_to_slave=1
+--let $query_to_crash= INSERT INTO t1 VALUES (2, REPEAT("x", 4100))
+--echo # $query_to_crash
+--echo # Row - 2 will be in master's binlog but not committed, gets replicated
+--echo # to slave and applied. On crash master should have 1 row and slave
+--echo # should have 2 rows.
+--echo #
+--echo # Expected State post crash:
+--echo #=================================================================
+--echo # Master                 |  Slave                                |
+--echo # 0-1-4 (Not committed)  |  0-1-4 (Received through semi-sync    |
+--echo #                        |         replication and applied)      |
+--echo #=================================================================
+--let $log_search_pattern=truncated binlog file:.*master.*000001
+--let $expected_rows_on_master= 1
+--let $expected_rows_on_slave= 2
+--source rpl_semi_sync_crash.inc
+
+--echo #
+--echo # Server_2 promoted as master will send 0-1-4 to new slave Server_1
+--echo #
+--connection server_2
+--let $rows_so_far=3
+--eval INSERT INTO t1 VALUES ($rows_so_far, 'dummy3')
+--save_master_pos
+--echo # The gtid state on current master must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+
+--connection server_1
+--sync_with_master
+--eval SELECT COUNT(*) = $rows_so_far as 'true' FROM t1
+--echo # ... the gtid states on the slave:
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+
+--connection server_2
+--let $case = 2
+--echo #
+--echo #  Case:$case
+--echo #
+--echo # CRASH the new master, and FAILOVER back to the original
+# value 0 for the reverse server id 2 -> 1 failover
+--let $failover_to_slave=0
+--let $query_to_crash = INSERT INTO t1 VALUES (4, REPEAT("x", 4100))
+--let $query2_to_crash= INSERT INTO t1 VALUES (5, REPEAT("x", 4100))
+--echo # $query_to_crash
+--echo # $query2_to_crash
+--echo # Rows 4 and 5 will be in master's binlog but not committed, they get
+--echo # replicated to slave and applied. On crash master should have 3 rows
+--echo # and slave should have 5 rows.
+--echo #
+--echo # Expected State post crash:
+--echo #=================================================================
+--echo # Master                |  Slave                                 |
+--echo # 0-2-6 (Not commited)  |  0-2-6 (Received through semi-sync     |
+--echo #                       |         replication and applied)       |
+--echo # 0-2-7 (Not commited)  |  0-2-7 (Received through semi-sync     |
+--echo #                       |         replication and applied)       |
+--echo #=================================================================
+--let $log_search_pattern=truncated binlog file:.*slave.*000002
+--let $expected_rows_on_master= 3
+--let $expected_rows_on_slave= 5
+--source rpl_semi_sync_crash.inc
+
+--echo #
+--echo # Server_1 promoted as master will send 0-2-6  and 0-2-7 to slave Server_2
+--echo #
+--connection server_1
+--let $rows_so_far=6
+--eval INSERT INTO t1 VALUES ($rows_so_far, 'dummy6')
+--save_master_pos
+--echo # The gtid state on current master must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+
+--connection server_2
+--sync_with_master
+--eval SELECT COUNT(*) = $rows_so_far as 'true' FROM t1
+--echo # ... the gtid states on the slave:
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+
+--let $diff_tables=server_1:t1, server_2:t1
+--source include/diff_tables.inc
+
+--connection server_1
+--let $case = 3
+--echo #
+--echo #  Case:$case
+--echo #
+--echo # CRASH the master and FAILOVER to slave
+--let $failover_to_slave=1
+--let $query_to_crash = INSERT INTO t1 VALUES (7, REPEAT("x", 4100))
+--let $query2_to_crash= INSERT INTO t1 VALUES (8, REPEAT("x", 4100))
+--echo # $query_to_crash
+--echo # $query2_to_crash
+--echo # Rows 7 and 8 will be in master's binlog but not committed, only 7
+--echo # gets replicated to slave and applied. On crash master should have 6
+--echo # rows and slave should have 7 rows.
+--echo #
+--echo # Expected State post crash:
+--echo #=================================================================
+--echo # Master                  | Slave                                |
+--echo # 0-1-9  (Not commited)   | 0-1-9 (Received through semi-sync    |
+--echo #                         |  replication and applied)            |
+--echo # 0-1-10 (Not commited -  |                                      |
+--echo #  never sent to slave)   |                                      |
+--echo #=================================================================
+--let $log_search_pattern=truncated binlog file:.*master.*000003
+--let $expected_rows_on_master= 6
+--let $expected_rows_on_slave= 7
+--source rpl_semi_sync_crash.inc
+
+--echo #
+--echo # Server_2 promoted as master will send 0-1-9 to slave Server_1
+--echo #
+--connection server_2
+--let $rows_so_far=8
+--eval INSERT INTO t1 VALUES ($rows_so_far, 'Done')
+--source include/save_master_gtid.inc
+--echo # The gtid state on current master must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+
+--connection server_1
+--source include/sync_with_master_gtid.inc
+--eval SELECT COUNT(*) = $rows_so_far as 'true' FROM t1
+--echo # ... the gtid states on the slave:
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+
+--echo #
+--echo # Cleanup
+--echo #
+
+--source include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled = 0;
+set global rpl_semi_sync_master_enabled = 0;
+set global rpl_semi_sync_master_wait_point=default;
+RESET MASTER;
+RESET SLAVE;
+
+--connection server_2
+RESET MASTER;
+RESET SLAVE;
+set @@global.rpl_semi_sync_master_enabled = 0;
+set @@global.rpl_semi_sync_slave_enabled = 0;
+set @@global.rpl_semi_sync_master_wait_point=default;
+evalp CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root', master_use_gtid=SLAVE_POS;
+set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
+--source include/start_slave.inc
+
+--connection server_1
+DROP TABLE t1;
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+connection default;
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/rpl_end.inc

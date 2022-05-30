@@ -19,7 +19,7 @@
 */
 
 #include "fulltext.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <fcntl.h>
 #else
 #include <stddef.h>

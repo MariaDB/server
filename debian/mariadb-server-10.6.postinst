@@ -36,7 +36,7 @@ case "$1" in
     # latest 'mariadb' file. This has also the added benefit that anything that
     # invokes traditional sysv init with either 'mysql' or 'mariadb' will end up
     # controlling this newly installed MariaDB, and thus we maintain better
-    # backwards compatiblity.
+    # backwards compatibility.
     #
     # Note that the 'Provides' line is also updated to avoid 'insserv' exiting
     # on failure (when it is run by update-rc.d) because of duplicate service
@@ -115,7 +115,7 @@ EOF
     if [ -f "$mysql_datadir"/auto.cnf ] && [ -f "$mysql_datadir"/mysql/user.MYD ] &&
        [ ! lsof -nt "$mysql_datadir"/mysql/user.MYD > /dev/null ] && [ ! -f "$mysql_datadir"/undo_001 ]; then
          echo "UPDATE mysql.user SET plugin='unix_socket' WHERE plugin='auth_socket';" |
-             /usr/sbin/mariadbd --skip-innodb --key_buffer_size=0  --default-storage-engine=MyISAM --bootstrap 2> /dev/null
+             mariadbd --skip-innodb --key_buffer_size=0  --default-storage-engine=MyISAM --bootstrap 2> /dev/null
     fi
 
     # Ensure the existence and right permissions for the database and
@@ -124,7 +124,7 @@ EOF
     if [ ! -d "$mysql_datadir"  ] && [ ! -L "$mysql_datadir" ]; then mkdir -Z "$mysql_datadir" ; fi
     if [ ! -d "$mysql_logdir"   ] && [ ! -L "$mysql_logdir"  ]; then mkdir -Z "$mysql_logdir"  ; fi
     # When creating an ext3 jounal on an already mounted filesystem like e.g.
-    # /var/lib/mysql, you get a .journal file that is not modifyable by chown.
+    # /var/lib/mysql, you get a .journal file that is not modifiable by chown.
     # The mysql_statedir must not be writable by the mysql user under any
     # circumstances as it contains scripts that are executed by root.
     set +e
@@ -174,9 +174,6 @@ EOF
                                    --disable-log-bin  --skip-test-db 2>&1 | \
                                    $ERR_LOGGER
     set -e
-
-    # To avoid downgrades.
-    touch "$mysql_statedir/debian-$MAJOR_VER.flag"
 
     # On new installations root user can connect via unix_socket.
     # But on upgrades, scripts rely on debian-sys-maint user and
@@ -251,7 +248,7 @@ EOF
   ;;
 esac
 
-db_stop # in case invoke failes
+db_stop # in case invoke fails
 
 # dh_systemd_start doesn't emit anything since we still ship /etc/init.d/mariadb.
 # Thus MariaDB server is started via init.d script, which in turn redirects to

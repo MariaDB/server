@@ -1,0 +1,51 @@
+#
+# Tests related to pack modes of the sortkey and addon fields.
+# Fields can be either packed or fixed length.
+#
+# See the comment in filesort.cc:
+#
+# Heuristic: skip packing if potential savings are less than 10 bytes.
+#
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-27307 main.ctype_utf8mb4_uca_allkeys tests fail with Valgrind/MSAN
+--echo #
+--echo # In this scenario packing is fully disabled:
+--echo # - The sortkey is of a fixed width data type
+--echo # - The addon fields have too small potential savings
+
+SET NAMES latin1;
+
+CREATE TABLE t1 (
+  code INT NOT NULL,
+  str VARCHAR(5) CHARACTER SET latin1 NOT NULL
+) ENGINE=MyISAM;
+
+DELIMITER $$;
+FOR i IN 0..50
+DO
+  INSERT INTO t1 VALUES (i, REPEAT('a',1));
+END FOR;
+$$
+DELIMITER ;$$
+SELECT COUNT(*) FROM t1;
+
+# The result is not very interesting, let's suppress it.
+# We just make sure there are no Valgrind/MSAN warnings about
+# not initialized memory being written to disk.
+
+SET sort_buffer_size=1024;
+--disable_result_log
+SELECT HEX(code), HEX(str) FROM t1 ORDER BY HEX(str);
+--enable_result_log
+SET sort_buffer_size=DEFAULT;
+
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

@@ -429,7 +429,7 @@
 #define PSAPI_VERSION 1     /* for GetProcessMemoryInfo() */
 
 /* We don't want the min/max macros */
-#ifdef __WIN__
+#ifdef _WIN32
 #define NOMINMAX 1
 #endif
 
@@ -560,3 +560,5 @@
 #endif  // !defined(__STDC_FORMAT_MACROS)
 
 #endif
+
+#cmakedefine HAVE_VFORK 1

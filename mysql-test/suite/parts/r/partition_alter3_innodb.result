@@ -1,4 +1,6 @@
 SET @max_row = 20;
+SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
 SET @@session.default_storage_engine = 'InnoDB';
 
 #------------------------------------------------------------------------
@@ -808,3 +810,4 @@ DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t0_aux;
 DROP TABLE IF EXISTS t0_definition;
 DROP TABLE IF EXISTS t0_template;
+SET GLOBAL innodb_stats_persistent=@save_stats_persistent;

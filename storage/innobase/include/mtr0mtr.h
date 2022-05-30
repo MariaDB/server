@@ -1,8 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -84,11 +83,6 @@ savepoint. */
 #define mtr_block_x_latch_at_savepoint(m, s, b)				\
 				(m)->x_latch_at_savepoint((s), (b))
 
-/** Check if a mini-transaction is dirtying a clean page.
-@param b	block being x-fixed
-@return true if the mtr is dirtying a clean page. */
-#define mtr_block_dirtied(b)	mtr_t::is_block_dirtied((b))
-
 /** Mini-transaction memo stack slot. */
 struct mtr_memo_slot_t {
 	/** pointer to the object */
@@ -105,6 +99,19 @@ struct mtr_t {
 
   /** Commit the mini-transaction. */
   void commit();
+
+  /** Release latches till savepoint. To simplify the code only
+  MTR_MEMO_S_LOCK and MTR_MEMO_PAGE_S_FIX slot types are allowed to be
+  released, otherwise it would be neccesary to add one more argument in the
+  function to point out what slot types are allowed for rollback, and this
+  would be overengineering as currently the function is used only in one place
+  in the code.
+  @param savepoint   savepoint, can be obtained with get_savepoint */
+  void rollback_to_savepoint(ulint savepoint);
+
+  /** Commit a mini-transaction that is shrinking a tablespace.
+  @param space   tablespace that is being shrunk */
+  ATTRIBUTE_COLD void commit_shrink(fil_space_t &space);
 
   /** Commit a mini-transaction that did not modify any pages,
   but generated some redo log on a higher level, such as
@@ -588,6 +595,17 @@ public:
   @return number of buffer count added by this mtr */
   uint32_t get_fix_count(const buf_block_t *block) const;
 
+  /** type of page flushing is needed during commit() */
+  enum page_flush_ahead
+  {
+    /** no need to trigger page cleaner */
+    PAGE_FLUSH_NO= 0,
+    /** asynchronous flushing is needed */
+    PAGE_FLUSH_ASYNC,
+    /** furious flushing is needed */
+    PAGE_FLUSH_SYNC
+  };
+
 private:
   /** Log a write of a byte string to a page.
   @param block   buffer page
@@ -614,14 +632,14 @@ private:
   @param type   extended record subtype; @see mrec_ext_t */
   inline void log_write_extended(const buf_block_t &block, byte type);
 
-  /** Prepare to write the mini-transaction log to the redo log buffer.
-  @return number of bytes to write in finish_write() */
-  inline ulint prepare_write();
+  /** Append the redo log records to the redo log buffer.
+  @return {start_lsn,flush_ahead} */
+  std::pair<lsn_t,page_flush_ahead> do_write();
 
   /** Append the redo log records to the redo log buffer.
   @param len   number of bytes to write
   @return {start_lsn,flush_ahead} */
-  inline std::pair<lsn_t,bool> finish_write(ulint len);
+  inline std::pair<lsn_t,page_flush_ahead> finish_write(ulint len);
 
   /** Release the resources */
   inline void release_resources();
@@ -691,6 +709,6 @@ private:
   range_set *m_freed_pages= nullptr;
 };
 
-#include "mtr0mtr.ic"
+#include "mtr0mtr.inl"
 
 #endif /* mtr0mtr_h */

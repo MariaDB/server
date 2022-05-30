@@ -24,3 +24,17 @@ UNLOCK TABLES;
 LOCK TABLES performance_schema.events_stages_summary_by_user_by_event_name WRITE;
 ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'events_stages_summary_by_user_by_event_name'
 UNLOCK TABLES;
+#
+# MDEV-25325 column_comment for performance_schema tables
+#
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='events_stages_summary_by_user_by_event_name';
+column_name	column_comment
+USER	User. Used together with EVENT_NAME for grouping events.
+EVENT_NAME	Event name. Used together with USER for grouping events.
+COUNT_STAR	Number of summarized events, which includes all timed and untimed events.
+SUM_TIMER_WAIT	Total wait time of the timed summarized events.
+MIN_TIMER_WAIT	Minimum wait time of the timed summarized events.
+AVG_TIMER_WAIT	Average wait time of the timed summarized events.
+MAX_TIMER_WAIT	Maximum wait time of the timed summarized events.

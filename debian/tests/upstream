@@ -22,8 +22,7 @@ echo "using tmpdir: $WORKDIR/tmp"
 
 echo "Setting up skip-tests-list"
 
-# Use unstable-tests list as base to skip all tests  considered unstable
-cp /usr/share/mysql/mysql-test/unstable-tests $SKIP_TEST_LST
+touch $SKIP_TEST_LST
 
 # Also use arch specific skiplists if such files exist
 for filename in /usr/share/mysql/mysql-test/unstable-tests.*
@@ -60,7 +59,9 @@ fi
 
 cd /usr/share/mysql/mysql-test
 echo "starting mysql-test-tun.pl..."
-perl -I. ./mysql-test-run.pl --suite=main --vardir="$WORKDIR/var" --tmpdir="$WORKDIR/tmp" \
+eatmydata perl -I. ./mysql-test-run.pl --suite=main \
+    --vardir="$WORKDIR/var" --tmpdir="$WORKDIR/tmp" \
     --parallel=auto --skip-rpl \
-    --force --skip-test-list=$SKIP_TEST_LST $@ 2>&1
+    --force --skip-test-list=$SKIP_TEST_LST \
+    --xml-report=$AUTOPKGTEST_ARTIFACTS/mysql-test-run-junit.xml $@ 2>&1
 echo "run: OK"

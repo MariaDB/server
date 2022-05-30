@@ -1,0 +1,61 @@
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+#
+# Testcase for BUG#4551
+#
+CREATE TABLE t1 ( a int );
+INSERT INTO t1 VALUES (1),(2),(1);
+CREATE TABLE t2 ( PRIMARY KEY (a) ) ENGINE=INNODB SELECT a FROM t1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+select * from t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+CREATE TEMPORARY TABLE t2 ( PRIMARY KEY (a) ) ENGINE=INNODB SELECT a FROM t1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+select * from t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+CREATE TABLE t2 ( PRIMARY KEY (a) ) ENGINE=MYISAM SELECT a FROM t1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+select * from t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+CREATE TEMPORARY TABLE t2 ( PRIMARY KEY (a) ) ENGINE=MYISAM SELECT a FROM t1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+select * from t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+drop table t1;
+#
+# End of 4.1 tests
+#
+#
+# MDEV-28393 Server crashes in TABLE::mark_default_fields_for_write
+#
+create table t1 (a int, b text not null default '');
+alter table t1 character set = utf8;
+create table t2 select * from t1;
+insert into t1 values (1,'');
+drop table t1, t2;
+#
+# End of 10.2 tests
+#
+set sql_mode='ignore_bad_table_options';
+create table t1 (
+f1 int invisible,
+f2 int comment 'a comment',
+f3 int foo="bar",
+f4 int check(f4 < 10),
+f5 int without system versioning
+) with system versioning as select 1 as f1,2 as f2,3 as f3,4 as f4,5 as f5;
+Warnings:
+Warning	1911	Unknown option 'foo'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) INVISIBLE DEFAULT NULL,
+  `f2` int(11) DEFAULT NULL COMMENT 'a comment',
+  `f3` int(11) DEFAULT NULL `foo`='bar',
+  `f4` int(11) DEFAULT NULL CHECK (`f4` < 10),
+  `f5` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+drop table t1;
+set sql_mode=default;
+#
+# End of 10.4 tests
+#

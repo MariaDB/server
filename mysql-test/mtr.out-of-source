@@ -2,4 +2,4 @@
 # Call mtr in out-of-source build
 $ENV{MTR_BINDIR} = '@CMAKE_BINARY_DIR@';
 chdir('@CMAKE_SOURCE_DIR@/mysql-test');
-exit(system($^X, '@CMAKE_SOURCE_DIR@/mysql-test/mysql-test-run.pl', @ARGV) >> 8);
+exit(system($^X, '@CMAKE_SOURCE_DIR@/mysql-test/mariadb-test-run.pl', @ARGV) >> 8);

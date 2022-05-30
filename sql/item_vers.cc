@@ -30,7 +30,7 @@ bool Item_func_history::val_bool()
 {
   Item_field *f= static_cast<Item_field *>(args[0]);
   DBUG_ASSERT(f->fixed());
-  DBUG_ASSERT(f->field->flags & VERS_SYS_END_FLAG);
+  DBUG_ASSERT(f->field->flags & VERS_ROW_END);
   return !f->field->is_max();
 }
 

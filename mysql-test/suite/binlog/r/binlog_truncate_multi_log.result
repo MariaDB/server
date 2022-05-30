@@ -1,0 +1,61 @@
+call mtr.add_suppression("Can.t init tc log");
+call mtr.add_suppression("Aborting");
+SET @@global.max_binlog_size= 4096;
+SET @@global.sync_binlog= 1;
+RESET MASTER;
+FLUSH LOGS;
+CREATE TABLE ti (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+CREATE TABLE tm (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=MyISAM;
+connect master1,localhost,root,,;
+"List of binary logs before rotation"
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+INSERT INTO ti VALUES(1,"I am gonna survive");
+INSERT INTO tm VALUES(1,"me too!");
+SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync SIGNAL master1_ready WAIT_FOR master1_go_never_arrives";
+INSERT INTO ti VALUES (2, REPEAT("x", 4100));
+connect master2,localhost,root,,;
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master2_ready WAIT_FOR master2_go_never_arrives";
+INSERT INTO ti VALUES (3, "not gonna survive");
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR master2_ready";
+connect master3,localhost,root,,;
+SET DEBUG_SYNC= "ha_commit_trans_before_log_and_order SIGNAL master3_ready WAIT_FOR master3_go_never_arrives";
+INSERT INTO ti VALUES (4, "not gonna be log therefore survive"),(5, "ditto");
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR master3_ready";
+"List of binary logs before crash"
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+# The gtid binlog state prior the crash will be truncated at the end of the test
+SELECT @@global.gtid_binlog_state;
+@@global.gtid_binlog_state
+0-1-6
+connection default;
+# Kill the server
+disconnect master1;
+disconnect master2;
+disconnect master3;
+# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1 --log-warnings=3
+FOUND 1 /truncated binlog file:.*master.*000002/ in mysqld.1.err
+"One record should be present in table"
+SELECT * FROM ti;
+a	b
+1	I am gonna survive
+# The truncated gtid binlog state
+SELECT @@global.gtid_binlog_state;
+@@global.gtid_binlog_state
+0-1-4
+SELECT @@global.gtid_binlog_pos;
+@@global.gtid_binlog_pos
+0-1-4
+# Cleanup
+DROP TABLE ti;
+SET @@global.sync_binlog= default;
+# End of the tests

@@ -363,7 +363,7 @@ _id	item	prices_0	prices_1	prices_2	prices_3	prices_4
 1	journal	87	45	63	12	78
 2	notebook	123	456	789	NULL	NULL
 3	paper	5	7	3	8	NULL
-4	planner	25	71	44	27	NULL
+4	planner	25	71	NULL	44	27
 5	postcard	5	7	3	8	NULL
 DROP TABLE t1;
 #

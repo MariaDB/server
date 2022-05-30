@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -94,10 +94,6 @@ those defined in mysql file ft_global.h */
 
 /** Threshold where our optimize thread automatically kicks in */
 #define FTS_OPTIMIZE_THRESHOLD		10000000
-
-/** Threshold to avoid exhausting of doc ids. Consecutive doc id difference
-should not exceed FTS_DOC_ID_MAX_STEP */
-#define FTS_DOC_ID_MAX_STEP		65535
 
 /** Maximum possible Fulltext word length in bytes (assuming mbmaxlen=4) */
 #define FTS_MAX_WORD_LEN		(HA_FT_MAXCHARLEN * 4)
@@ -318,7 +314,7 @@ public:
 
 	/** Whether the ADDED table record sync-ed after crash recovery */
 	unsigned	added_synced:1;
-	/** Whether the table holds dict_sys.mutex */
+	/** Whether the table holds dict_sys.latch */
 	unsigned	dict_locked:1;
 
 	/** Work queue for scheduling jobs for the FTS 'Add' thread, or NULL
@@ -359,10 +355,10 @@ struct fts_stopword_t;
 extern const char*	fts_default_stopword[];
 
 /** Variable specifying the maximum FTS cache size for each table */
-extern ulong		fts_max_cache_size;
+extern Atomic_relaxed<size_t> fts_max_cache_size;
 
 /** Variable specifying the total memory allocated for FTS cache */
-extern ulong		fts_max_total_cache_size;
+extern Atomic_relaxed<size_t> fts_max_total_cache_size;
 
 /** Variable specifying the FTS result cache limit for each query */
 extern size_t		fts_result_cache_limit;
@@ -376,9 +372,6 @@ extern ulong		fts_min_token_size;
 /** Whether the total memory used for FTS cache is exhausted, and we will
 need a sync to free some memory */
 extern bool		fts_need_sync;
-
-/** Free a query graph */
-void fts_que_graph_free(que_t *graph);
 
 /******************************************************************//**
 Create a FTS cache. */
@@ -405,17 +398,6 @@ fts_get_next_doc_id(
 /*================*/
 	const dict_table_t*	table,	/*!< in: table */
 	doc_id_t*		doc_id);/*!< out: new document id */
-/*********************************************************************//**
-Update the next and last Doc ID in the CONFIG table to be the input
-"doc_id" value (+ 1). We would do so after each FTS index build or
-table truncate */
-void
-fts_update_next_doc_id(
-/*===================*/
-	trx_t*			trx,		/*!< in/out: transaction */
-	const dict_table_t*	table,		/*!< in: table */
-	doc_id_t		doc_id)		/*!< in: DOC ID to set */
-	MY_ATTRIBUTE((nonnull(2)));
 
 /******************************************************************//**
 Create a new fts_doc_ids_t.
@@ -450,8 +432,7 @@ fts_trx_free(
 	fts_trx_t*	fts_trx);		/*!< in, own: FTS trx */
 
 /** Creates the common auxiliary tables needed for supporting an FTS index
-on the given table. row_mysql_lock_data_dictionary must have been called
-before this.
+on the given table.
 The following tables are created.
 CREATE TABLE $FTS_PREFIX_DELETED
 	(doc_id BIGINT UNSIGNED, UNIQUE CLUSTERED INDEX on doc_id)
@@ -474,8 +455,7 @@ fts_create_common_tables(
 	bool		skip_doc_id_index)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Creates the column specific ancillary tables needed for supporting an
-FTS index on the given table. row_mysql_lock_data_dictionary must have
-been called before this.
+FTS index on the given table.
 
 All FTS AUX Index tables have the following schema.
 CREAT TABLE $FTS_PREFIX_INDEX_[1-6](
@@ -500,17 +480,29 @@ fts_add_doc_id_column(
 	dict_table_t*	table,	/*!< in/out: Table with FTS index */
 	mem_heap_t*	heap);	/*!< in: temporary memory heap, or NULL */
 
-/*********************************************************************//**
-Drops the ancillary tables needed for supporting an FTS index on the
-given table. row_mysql_lock_data_dictionary must have been called before
-this.
+/** Lock the internal FTS_ tables for an index, before fts_drop_index_tables().
+@param trx   transaction
+@param index fulltext index */
+dberr_t fts_lock_index_tables(trx_t *trx, const dict_index_t &index);
+
+/** Lock the internal common FTS_ tables, before fts_drop_common_tables().
+@param trx    transaction
+@param table  table containing FULLTEXT INDEX
 @return DB_SUCCESS or error code */
-dberr_t
-fts_drop_tables(
-/*============*/
-	trx_t*		trx,			/*!< in: transaction */
-	dict_table_t*	table);			/*!< in: table has the FTS
-						index */
+dberr_t fts_lock_common_tables(trx_t *trx, const dict_table_t &table);
+
+/** Lock the internal FTS_ tables for table, before fts_drop_tables().
+@param trx    transaction
+@param table  table containing FULLTEXT INDEX
+@return DB_SUCCESS or error code */
+dberr_t fts_lock_tables(trx_t *trx, const dict_table_t &table);
+
+/** Drop the internal FTS_ tables for table.
+@param trx    transaction
+@param table  table containing FULLTEXT INDEX
+@return DB_SUCCESS or error code */
+dberr_t fts_drop_tables(trx_t *trx, const dict_table_t &table);
+
 /******************************************************************//**
 The given transaction is about to be committed; do whatever is necessary
 from the FTS system's POV.
@@ -643,11 +635,7 @@ fts_optimize_init(void);
 /****************************************************************//**
 Drops index ancillary tables for a FTS index
 @return DB_SUCCESS or error code */
-dberr_t
-fts_drop_index_tables(
-/*==================*/
-	trx_t*		trx,			/*!< in: transaction */
-	dict_index_t*	index)			/*!< in: Index to drop */
+dberr_t fts_drop_index_tables(trx_t *trx, const dict_index_t &index)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Add the table to add to the OPTIMIZER's list.
@@ -731,16 +719,6 @@ FTS auxiliary INDEX table and clear the cache at the end.
 @param[in]	wait		whether to wait for existing sync to finish
 @return DB_SUCCESS on success, error code on failure. */
 dberr_t fts_sync_table(dict_table_t* table, bool wait = true);
-
-/****************************************************************//**
-Free the query graph but check whether dict_sys.mutex is already
-held */
-void
-fts_que_graph_free_check_lock(
-/*==========================*/
-	fts_table_t*		fts_table,	/*!< in: FTS table */
-	const fts_index_cache_t*index_cache,	/*!< in: FTS index cache */
-	que_t*			graph);		/*!< in: query graph */
 
 /****************************************************************//**
 Create an FTS index cache. */
@@ -923,16 +901,6 @@ fts_check_cached_index(
 /*===================*/
 	dict_table_t*	table);  /*!< in: Table where indexes are dropped */
 
-/** Check if the all the auxillary tables associated with FTS index are in
-consistent state. For now consistency is check only by ensuring
-index->page_no != FIL_NULL
-@param[out]	base_table	table has host fts index
-@param[in,out]	trx		trx handler */
-void
-fts_check_corrupt(
-	dict_table_t*	base_table,
-	trx_t*		trx);
-
 /** Fetch the document from tuple, tokenize the text data and
 insert the text data into fts auxiliary table and
 its cache. Moreover this tuple fields doesn't contain any information
@@ -970,6 +938,18 @@ and fetch the parent table id and index id
 bool fts_check_aux_table(const char *name,
                          table_id_t *table_id,
                          index_id_t *index_id);
+
+/** Update the last document id. This function could create a new
+transaction to update the last document id.
+@param	table	table to be updated
+@param	doc_id	last document id
+@param	trx	update trx or null
+@retval DB_SUCCESS if OK */
+dberr_t
+fts_update_sync_doc_id(const dict_table_t *table,
+		       doc_id_t  doc_id,
+		       trx_t *trx)
+	MY_ATTRIBUTE((nonnull(1)));
 
 /** Sync the table during commit phase
 @param[in]	table	table to be synced */

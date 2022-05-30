@@ -346,7 +346,7 @@ void rdb_persist_corruption_marker() {
   } else {
     // NO_LINT_DEBUG
     sql_print_information(
-        "RocksDB: Creating the file %s to abort mysqld "
+        "RocksDB: Creating the file %s to abort server "
         "restarts. Remove this file from the data directory "
         "after fixing the corruption to recover. ",
         fileName.c_str());

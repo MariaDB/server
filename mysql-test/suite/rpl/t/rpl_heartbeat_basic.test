@@ -18,6 +18,8 @@
 --source include/have_binlog_format_mixed.inc
 --echo
 
+--enable_prepare_warnings
+
 # Set number of retries to connect to master
 let $connect_retry= 20;
 
@@ -560,6 +562,8 @@ let $slave_rcvd_heartbeats= query_get_value(SHOW STATUS LIKE 'slave_received_hea
 DROP TABLE t1;
 --sync_slave_with_master
 SET @@global.slave_net_timeout=@restore_slave_net_timeout;
+
+--disable_prepare_warnings
 
 #--let $rpl_only_running_threads= 1
 --source include/rpl_end.inc

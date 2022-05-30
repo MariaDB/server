@@ -12,13 +12,13 @@
        Keywords='Installer'
        Description='MariaDB Server'
        Manufacturer='@MANUFACTURER@'
-       InstallerVersion='301'
+       InstallerVersion='500'
        Languages='1033'
        Compressed='yes'
        SummaryCodepage='1252'
        Platform='@Platform@'/>
     
-    <Media Id='1' Cabinet='product.cab' EmbedCab='yes' CompressionLevel='high' />
+    <MediaTemplate EmbedCab="yes" MaximumUncompressedMediaSize="2" CompressionLevel="high"/>
 
     <!-- Upgrade -->
     <Upgrade Id="@CPACK_WIX_UPGRADE_CODE@">

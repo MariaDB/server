@@ -1,4 +1,4 @@
-# Copyright (c) 2009, 2019, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2009, 2021, Oracle and/or its affiliates.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License, version 2.0,
@@ -290,6 +290,9 @@ int main(int ac, char **av)
 }"
 HAVE_PTHREAD_THREADID_NP)
 
+# gettid() library function (glibc-2.30+)
+CHECK_SYMBOL_EXISTS(gettid unistd.h HAVE_GETTID)
+
 # Check for gettid() system call
 CHECK_C_SOURCE_COMPILES("
 #include <sys/types.h>
@@ -338,9 +341,8 @@ FAIL_REGEX "warning: incompatible pointer to integer conversion"
 CONFIGURE_FILE(pfs_config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/pfs_config.h)
 
 MYSQL_ADD_PLUGIN(perfschema ${PERFSCHEMA_SOURCES} STORAGE_ENGINE DEFAULT
-  STATIC_ONLY RECOMPILE_FOR_EMBEDDED)
+  STATIC_ONLY RECOMPILE_FOR_EMBEDDED DEPENDS GenServerSource)
 IF (TARGET perfschema)
-  ADD_DEPENDENCIES(perfschema GenServerSource)
   IF(WITH_UNIT_TESTS)
     ADD_SUBDIRECTORY(unittest)
   ENDIF(WITH_UNIT_TESTS)

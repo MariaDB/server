@@ -1,5 +1,5 @@
 /*
-      Copyright (c) 2013, 2018, Oracle and/or its affiliates. All rights reserved.
+      Copyright (c) 2013, 2021, Oracle and/or its affiliates.
 
       This program is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License, version 2.0,
@@ -54,26 +54,26 @@ table_replication_connection_configuration::m_share=
   sizeof(pos_t), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE replication_connection_configuration("
-  "CHANNEL_NAME VARCHAR(256) collate utf8_general_ci not null,"
-  "HOST CHAR(60) collate utf8_bin not null,"
-  "PORT INTEGER not null,"
-  "USER CHAR(32) collate utf8_bin not null,"
-  "USING_GTID ENUM('NO','CURRENT_POS','SLAVE_POS') not null,"
-  "SSL_ALLOWED ENUM('YES','NO','IGNORED') not null,"
-  "SSL_CA_FILE VARCHAR(512) not null,"
-  "SSL_CA_PATH VARCHAR(512) not null,"
-  "SSL_CERTIFICATE VARCHAR(512) not null,"
-  "SSL_CIPHER VARCHAR(512) not null,"
-  "SSL_KEY VARCHAR(512) not null,"
-  "SSL_VERIFY_SERVER_CERTIFICATE ENUM('YES','NO') not null,"
-  "SSL_CRL_FILE VARCHAR(255) not null,"
-  "SSL_CRL_PATH VARCHAR(255) not null,"
-  "CONNECTION_RETRY_INTERVAL INTEGER not null,"
-  "CONNECTION_RETRY_COUNT BIGINT unsigned not null,"
-  "HEARTBEAT_INTERVAL DOUBLE(10,3) unsigned not null COMMENT 'Number of seconds after which a heartbeat will be sent .',"
-  "IGNORE_SERVER_IDS LONGTEXT not null,"
-  "REPL_DO_DOMAIN_IDS LONGTEXT not null,"
-  "REPL_IGNORE_DOMAIN_IDS LONGTEXT not null)") },
+  "CHANNEL_NAME VARCHAR(256) collate utf8_general_ci not null comment 'The replication channel used.',"
+  "HOST CHAR(60) collate utf8_bin not null comment 'The host name of the source that the replica is connected to.',"
+  "PORT INTEGER not null comment 'The port used to connect to the source.',"
+  "USER CHAR(32) collate utf8_bin not null comment 'The user name of the replication user account used to connect to the source.',"
+  "USING_GTID ENUM('NO','CURRENT_POS','SLAVE_POS') not null comment 'Whether replication is using GTIDs or not',"
+  "SSL_ALLOWED ENUM('YES','NO','IGNORED') not null comment 'Whether SSL is allowed for the replica connection.',"
+  "SSL_CA_FILE VARCHAR(512) not null comment 'Path to the file that contains one or more certificates for trusted Certificate Authorities (CA) to use for TLS.',"
+  "SSL_CA_PATH VARCHAR(512) not null comment 'Path to a directory that contains one or more PEM files that contain X509 certificates for a trusted Certificate Authority (CA) to use for TLS.',"
+  "SSL_CERTIFICATE VARCHAR(512) not null comment 'Path to the certificate used to authenticate the master.',"
+  "SSL_CIPHER VARCHAR(512) not null comment 'Which cipher is used for encription.',"
+  "SSL_KEY VARCHAR(512) not null comment 'Path to the private key used for TLS.',"
+  "SSL_VERIFY_SERVER_CERTIFICATE ENUM('YES','NO') not null comment 'Whether the server certificate is verified as part of the SSL connection',"
+  "SSL_CRL_FILE VARCHAR(255) not null comment 'Path to the PEM file containing one or more revoked X.509 certificates.',"
+  "SSL_CRL_PATH VARCHAR(255) not null comment 'PATH to a folder containing PEM files containing one or more revoked X.509 certificates.',"
+  "CONNECTION_RETRY_INTERVAL INTEGER not null comment 'The number of seconds between connect retries.',"
+  "CONNECTION_RETRY_COUNT BIGINT unsigned not null comment 'The number of times the replica can attempt to reconnect to the source in the event of a lost connection.',"
+  "HEARTBEAT_INTERVAL DOUBLE(10,3) unsigned not null COMMENT 'Number of seconds after which a heartbeat will be sent.',"
+  "IGNORE_SERVER_IDS LONGTEXT not null comment 'Binary log events from servers (ids) to ignore.',"
+  "REPL_DO_DOMAIN_IDS LONGTEXT not null comment 'Only apply binary logs from these domain ids.',"
+  "REPL_IGNORE_DOMAIN_IDS LONGTEXT not null comment 'Binary log events from domains to ignore.')") },
   false  /* perpetual */
 };
 
@@ -182,7 +182,7 @@ void table_replication_connection_configuration::make_row(Master_info *mi)
   m_row_exists= false;
 
 
-  DBUG_ASSERT(mi != NULL);
+  assert(mi != NULL);
 
   mysql_mutex_lock(&mi->data_lock);
   mysql_mutex_lock(&mi->rli.data_lock);
@@ -297,7 +297,7 @@ int table_replication_connection_configuration::read_row_values(TABLE *table,
   if (unlikely(! m_row_exists))
     return HA_ERR_RECORD_DELETED;
 
-  DBUG_ASSERT(table->s->null_bytes == 0);
+  assert(table->s->null_bytes == 0);
 
   for (; (f= *fields) ; fields++)
   {
@@ -375,7 +375,7 @@ int table_replication_connection_configuration::read_row_values(TABLE *table,
         break;
 
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }

@@ -1,0 +1,40 @@
+source include/not_embedded.inc;
+--echo #
+--echo # MDEV-16708: Unsupported commands for prepared statements
+--echo #
+
+if (`SELECT $PS_PROTOCOL = 0`)
+{
+   --skip Need ps-protocol
+}
+
+--source include/have_innodb.inc
+
+SET @save_storage_engine= @@default_storage_engine;
+SET default_storage_engine= InnoDB;
+
+--echo # Test case 18: Check that the statements CREATE EVENT/ALTER EVENT/
+--echo # DROP EVENT can be executed as a prepared statement
+
+--echo # Create the event e1 that specifies time in past. Such event is created
+--echo # just for the sake of its existence and never will be triggered.
+--echo # Disable warnings temprorary in order to hide the following warnings
+--echo # generated in result of execution the 'CREATE EVENT' statement:
+--echo #   "1544 | Event execution time is in the past. Event has been disabled"
+--echo #   "1105 | Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it."
+
+--disable_warnings
+
+CREATE EVENT e1 ON SCHEDULE AT CURRENT_TIMESTAMP - INTERVAL 1 DAY ON COMPLETION PRESERVE DO SET @a=1;
+
+ALTER EVENT e1 COMMENT 'New comment';
+
+DROP EVENT IF EXISTS e1;
+
+--enable_warnings
+
+--echo # Test case 19: Check that the statement 'SHOW RELAYLOG EVENTS' can be
+--echo # executed as a prepared statement.
+SHOW RELAYLOG EVENTS;
+
+SET default_storage_engine= @save_storage_engine;

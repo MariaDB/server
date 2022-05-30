@@ -2,11 +2,6 @@
 --source include/default_charset.inc
 --source include/have_sequence.inc
 
---disable_warnings
-DROP TABLE IF EXISTS t1,t2,t3,t4;
-DROP DATABASE IF EXISTS world;
---enable_warnings
-
 set names utf8;
 
 CREATE DATABASE world;
@@ -1049,6 +1044,8 @@ INSERT INTO t1 VALUES
 (0,99083,'all','jhjerdvdxboydmpefbiesqbyyvdftsidjtvulamazljx'),
 (32767,99084,'s','flj'),(-4947,99085,'something','Vermont'),
 (0,99086,'cjfljhjerd','Washington');
+
+ANALYZE TABLE t1;
 --enable_query_log
 --enable_result_log
 

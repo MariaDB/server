@@ -1,0 +1,35 @@
+connection node_2;
+connection node_1;
+create table p (i varchar(100) primary key, j int) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+create table c1 (i int primary key auto_increment, j varchar(100), k int,  key(j), constraint fk1 foreign key (j) references p(i)) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+create table c2 (i int primary key auto_increment, j varchar(100), k int,  key(j), constraint fk2 foreign key (j) references p(i)) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+insert into p values('sippo',1);
+insert into c1 values(1,'sippo',1);
+insert into c2 values(1,'sippo',1);
+update c1 set k = 100 where j = 'sippo';
+insert into c1 values(2,'sippo',1);
+select * from p;
+i	j
+sippo	1
+select * from c1;
+i	j	k
+1	sippo	100
+2	sippo	1
+select * from c2;
+i	j	k
+1	sippo	1
+connection node_2;
+select * from p;
+i	j
+sippo	1
+select * from c1;
+i	j	k
+1	sippo	100
+2	sippo	1
+select * from c2;
+i	j	k
+1	sippo	1
+connection node_1;
+drop table c1;
+drop table c2;
+drop table p;

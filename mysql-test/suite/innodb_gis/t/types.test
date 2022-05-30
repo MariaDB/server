@@ -48,7 +48,7 @@ SELECT ST_AsText(g) FROM t_wl6455;
 CREATE INDEX i_p ON t_wl6455 (g(10));
 
 # Select on prefix index.
---replace_column 10 #
+--replace_column 9 #
 EXPLAIN SELECT ST_AsText(g) FROM t_wl6455 WHERE g = POINT(2,2);
 SELECT ST_AsText(g) FROM t_wl6455 WHERE g = POINT(2,2);
 

@@ -3,6 +3,8 @@
 --source include/have_innodb.inc
 --source include/have_innodb_32k.inc
 
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+
 call mtr.add_suppression("Innodb: Cannot add field.*row size is");
 
 let $MYSQLD_DATADIR= `select @@datadir`;
@@ -334,13 +336,10 @@ UPDATE t3 SET c = REPEAT('b',16928);
 SHOW WARNINGS;
 UPDATE t3 SET c = REPEAT('b',32800);
 SHOW WARNINGS;
+
+--source include/wait_all_purged.inc
+
 DROP TABLE t3;
-
-# The tests that uses these tables required the purge thread to run.
-# Just in case it has not by now, provide a 10 second wait.
-
---sleep 10
-
 DROP TABLE t1_purge, t2_purge, t3_purge, t4_purge;
 DROP TABLE tlong;
 DROP TABLE tlong2;

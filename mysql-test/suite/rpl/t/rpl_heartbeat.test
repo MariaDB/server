@@ -21,6 +21,7 @@ set @restore_slave_net_timeout= @@global.slave_net_timeout;
 set @@global.slave_net_timeout= 10;
 --enable_warnings
 
+--enable_prepare_warnings
 ###
 ### Checking the range
 ###
@@ -166,6 +167,8 @@ drop table t1;
 #connection slave;
 sync_slave_with_master;
 set @@global.slave_net_timeout= @restore_slave_net_timeout;
+
+--disable_prepare_warnings
 
 --source include/stop_slave.inc
 

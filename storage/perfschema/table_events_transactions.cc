@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2018, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -51,30 +51,30 @@ table_events_transactions_current::m_share=
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_transactions_current("
-  "THREAD_ID BIGINT unsigned not null,"
-  "EVENT_ID BIGINT unsigned not null,"
-  "END_EVENT_ID BIGINT unsigned,"
-  "EVENT_NAME VARCHAR(128) not null,"
-  "STATE ENUM('ACTIVE', 'COMMITTED', 'ROLLED BACK'),"
-  "TRX_ID BIGINT unsigned,"
-  "GTID VARCHAR(64),"
-  "XID_FORMAT_ID INTEGER,"
-  "XID_GTRID VARCHAR(130),"
-  "XID_BQUAL VARCHAR(130),"
-  "XA_STATE VARCHAR(64),"
-  "SOURCE VARCHAR(64),"
-  "TIMER_START BIGINT unsigned,"
-  "TIMER_END BIGINT unsigned,"
-  "TIMER_WAIT BIGINT unsigned,"
-  "ACCESS_MODE ENUM('READ ONLY', 'READ WRITE'),"
-  "ISOLATION_LEVEL VARCHAR(64),"
-  "AUTOCOMMIT ENUM('YES','NO') not null,"
-  "NUMBER_OF_SAVEPOINTS BIGINT unsigned,"
-  "NUMBER_OF_ROLLBACK_TO_SAVEPOINT BIGINT unsigned,"
-  "NUMBER_OF_RELEASE_SAVEPOINT BIGINT unsigned,"
-  "OBJECT_INSTANCE_BEGIN BIGINT unsigned,"
-  "NESTING_EVENT_ID BIGINT unsigned,"
-  "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT'))")},
+  "THREAD_ID BIGINT unsigned not null comment 'The thread associated with the event.',"
+  "EVENT_ID BIGINT unsigned not null comment 'The event id associated with the event.',"
+  "END_EVENT_ID BIGINT unsigned comment 'This column is set to NULL when the event starts and updated to the thread current event number when the event ends.',"
+  "EVENT_NAME VARCHAR(128) not null comment 'The name of the instrument from which the event was collected. This is a NAME value from the setup_instruments table.',"
+  "STATE ENUM('ACTIVE', 'COMMITTED', 'ROLLED BACK') comment 'The current transaction state. The value is ACTIVE (after START TRANSACTION or BEGIN), COMMITTED (after COMMIT), or ROLLED BACK (after ROLLBACK).',"
+  "TRX_ID BIGINT unsigned comment 'Unused.',"
+  "GTID VARCHAR(64) comment 'Transaction GTID, using the format DOMAIN-SERVER_ID-SEQUENCE_NO.',"
+  "XID_FORMAT_ID INTEGER comment 'XA transaction format ID for GTRID and BQUAL values.',"
+  "XID_GTRID VARCHAR(130) comment 'XA global transaction ID.',"
+  "XID_BQUAL VARCHAR(130) comment 'XA transaction branch qualifier.',"
+  "XA_STATE VARCHAR(64) comment 'The state of the XA transaction. The value is ACTIVE (after XA START), IDLE (after XA END), PREPARED (after XA PREPARE), ROLLED BACK (after XA ROLLBACK), or COMMITTED (after XA COMMIT).',"
+  "SOURCE VARCHAR(64) comment 'The name of the source file containing the instrumented code that produced the event and the line number in the file at which the instrumentation occurs.',"
+  "TIMER_START BIGINT unsigned comment 'The unit is picoseconds. When event timing started. NULL if event has no timing information.',"
+  "TIMER_END BIGINT unsigned comment 'The unit is picoseconds. When event timing ended. NULL if event has no timing information.',"
+  "TIMER_WAIT BIGINT unsigned comment 'The unit is picoseconds. Event duration. NULL if event has not timing information.',"
+  "ACCESS_MODE ENUM('READ ONLY', 'READ WRITE') comment 'Transaction access mode.',"
+  "ISOLATION_LEVEL VARCHAR(64) comment 'Transaction isolation level. One of: REPEATABLE READ, READ COMMITTED, READ UNCOMMITTED, or SERIALIZABLE.',"
+  "AUTOCOMMIT ENUM('YES','NO') not null comment 'Whether autcommit mode was enabled when the transaction started.',"
+  "NUMBER_OF_SAVEPOINTS BIGINT unsigned comment 'The number of SAVEPOINT statements issued during the transaction.',"
+  "NUMBER_OF_ROLLBACK_TO_SAVEPOINT BIGINT unsigned comment 'The number of ROLLBACK_TO_SAVEPOINT statements issued during the transaction.',"
+  "NUMBER_OF_RELEASE_SAVEPOINT BIGINT unsigned comment 'The number of RELEASE_SAVEPOINT statements issued during the transaction.',"
+  "OBJECT_INSTANCE_BEGIN BIGINT unsigned comment 'Unused.',"
+  "NESTING_EVENT_ID BIGINT unsigned comment 'The EVENT_ID value of the event within which this event is nested.',"
+  "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'The nesting event type.')")},
   false  /* perpetual */
 };
 
@@ -92,30 +92,30 @@ table_events_transactions_history::m_share=
   sizeof(pos_events_transactions_history), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_transactions_history("
-  "THREAD_ID BIGINT unsigned not null,"
-  "EVENT_ID BIGINT unsigned not null,"
-  "END_EVENT_ID BIGINT unsigned,"
-  "EVENT_NAME VARCHAR(128) not null,"
-  "STATE ENUM('ACTIVE', 'COMMITTED', 'ROLLED BACK'),"
-  "TRX_ID BIGINT unsigned,"
-  "GTID VARCHAR(64),"
-  "XID_FORMAT_ID INTEGER,"
-  "XID_GTRID VARCHAR(130),"
-  "XID_BQUAL VARCHAR(130),"
-  "XA_STATE VARCHAR(64),"
-  "SOURCE VARCHAR(64),"
-  "TIMER_START BIGINT unsigned,"
-  "TIMER_END BIGINT unsigned,"
-  "TIMER_WAIT BIGINT unsigned,"
-  "ACCESS_MODE ENUM('READ ONLY', 'READ WRITE'),"
-  "ISOLATION_LEVEL VARCHAR(64),"
-  "AUTOCOMMIT ENUM('YES','NO') not null,"
-  "NUMBER_OF_SAVEPOINTS BIGINT unsigned,"
-  "NUMBER_OF_ROLLBACK_TO_SAVEPOINT BIGINT unsigned,"
-  "NUMBER_OF_RELEASE_SAVEPOINT BIGINT unsigned,"
-  "OBJECT_INSTANCE_BEGIN BIGINT unsigned,"
-  "NESTING_EVENT_ID BIGINT unsigned,"
-  "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT'))")},
+  "THREAD_ID BIGINT unsigned not null comment 'The thread associated with the event.',"
+  "EVENT_ID BIGINT unsigned not null comment 'The event id associated with the event.',"
+  "END_EVENT_ID BIGINT unsigned comment 'This column is set to NULL when the event starts and updated to the thread current event number when the event ends.',"
+  "EVENT_NAME VARCHAR(128) not null comment 'The name of the instrument from which the event was collected. This is a NAME value from the setup_instruments table.',"
+  "STATE ENUM('ACTIVE', 'COMMITTED', 'ROLLED BACK') comment 'The current transaction state. The value is ACTIVE (after START TRANSACTION or BEGIN), COMMITTED (after COMMIT), or ROLLED BACK (after ROLLBACK).',"
+  "TRX_ID BIGINT unsigned comment 'Unused.',"
+  "GTID VARCHAR(64) comment 'Transaction GTID, using the format DOMAIN-SERVER_ID-SEQUENCE_NO.',"
+  "XID_FORMAT_ID INTEGER comment 'XA transaction format ID for GTRID and BQUAL values.',"
+  "XID_GTRID VARCHAR(130) comment 'XA global transaction ID.',"
+  "XID_BQUAL VARCHAR(130) comment 'XA transaction branch qualifier.',"
+  "XA_STATE VARCHAR(64) comment 'The state of the XA transaction. The value is ACTIVE (after XA START), IDLE (after XA END), PREPARED (after XA PREPARE), ROLLED BACK (after XA ROLLBACK), or COMMITTED (after XA COMMIT).',"
+  "SOURCE VARCHAR(64) comment 'The name of the source file containing the instrumented code that produced the event and the line number in the file at which the instrumentation occurs.',"
+  "TIMER_START BIGINT unsigned comment 'The unit is picoseconds. When event timing started. NULL if event has no timing information.',"
+  "TIMER_END BIGINT unsigned comment 'The unit is picoseconds. When event timing ended. NULL if event has no timing information.',"
+  "TIMER_WAIT BIGINT unsigned comment 'The unit is picoseconds. Event duration. NULL if event has not timing information.',"
+  "ACCESS_MODE ENUM('READ ONLY', 'READ WRITE') comment 'Transaction access mode.',"
+  "ISOLATION_LEVEL VARCHAR(64) comment 'Transaction isolation level. One of: REPEATABLE READ, READ COMMITTED, READ UNCOMMITTED, or SERIALIZABLE.',"
+  "AUTOCOMMIT ENUM('YES','NO') not null comment 'Whether autcommit mode was enabled when the transaction started.',"
+  "NUMBER_OF_SAVEPOINTS BIGINT unsigned comment 'The number of SAVEPOINT statements issued during the transaction.',"
+  "NUMBER_OF_ROLLBACK_TO_SAVEPOINT BIGINT unsigned comment 'The number of ROLLBACK_TO_SAVEPOINT statements issued during the transaction.',"
+  "NUMBER_OF_RELEASE_SAVEPOINT BIGINT unsigned comment 'The number of RELEASE_SAVEPOINT statements issued during the transaction.',"
+  "OBJECT_INSTANCE_BEGIN BIGINT unsigned comment 'Unused.',"
+  "NESTING_EVENT_ID BIGINT unsigned comment 'The EVENT_ID value of the event within which this event is nested.',"
+  "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'The nesting event type.')")},
   false  /* perpetual */
 };
 
@@ -133,30 +133,30 @@ table_events_transactions_history_long::m_share=
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_transactions_history_long("
-  "THREAD_ID BIGINT unsigned not null,"
-  "EVENT_ID BIGINT unsigned not null,"
-  "END_EVENT_ID BIGINT unsigned,"
-  "EVENT_NAME VARCHAR(128) not null,"
-  "STATE ENUM('ACTIVE', 'COMMITTED', 'ROLLED BACK'),"
-  "TRX_ID BIGINT unsigned,"
-  "GTID VARCHAR(64),"
-  "XID_FORMAT_ID INTEGER,"
-  "XID_GTRID VARCHAR(130),"
-  "XID_BQUAL VARCHAR(130),"
-  "XA_STATE VARCHAR(64),"
-  "SOURCE VARCHAR(64),"
-  "TIMER_START BIGINT unsigned,"
-  "TIMER_END BIGINT unsigned,"
-  "TIMER_WAIT BIGINT unsigned,"
-  "ACCESS_MODE ENUM('READ ONLY', 'READ WRITE'),"
-  "ISOLATION_LEVEL VARCHAR(64),"
-  "AUTOCOMMIT ENUM('YES','NO') not null,"
-  "NUMBER_OF_SAVEPOINTS BIGINT unsigned,"
-  "NUMBER_OF_ROLLBACK_TO_SAVEPOINT BIGINT unsigned,"
-  "NUMBER_OF_RELEASE_SAVEPOINT BIGINT unsigned,"
-  "OBJECT_INSTANCE_BEGIN BIGINT unsigned,"
-  "NESTING_EVENT_ID BIGINT unsigned,"
-  "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT'))")},
+  "THREAD_ID BIGINT unsigned not null comment 'The thread associated with the event.',"
+  "EVENT_ID BIGINT unsigned not null comment 'The event id associated with the event.',"
+  "END_EVENT_ID BIGINT unsigned comment 'This column is set to NULL when the event starts and updated to the thread current event number when the event ends.',"
+  "EVENT_NAME VARCHAR(128) not null comment 'The name of the instrument from which the event was collected. This is a NAME value from the setup_instruments table.',"
+  "STATE ENUM('ACTIVE', 'COMMITTED', 'ROLLED BACK') comment 'The current transaction state. The value is ACTIVE (after START TRANSACTION or BEGIN), COMMITTED (after COMMIT), or ROLLED BACK (after ROLLBACK).',"
+  "TRX_ID BIGINT unsigned comment 'Unused.',"
+  "GTID VARCHAR(64) comment 'Transaction GTID, using the format DOMAIN-SERVER_ID-SEQUENCE_NO.',"
+  "XID_FORMAT_ID INTEGER comment 'XA transaction format ID for GTRID and BQUAL values.',"
+  "XID_GTRID VARCHAR(130) comment 'XA global transaction ID.',"
+  "XID_BQUAL VARCHAR(130) comment 'XA transaction branch qualifier.',"
+  "XA_STATE VARCHAR(64) comment 'The state of the XA transaction. The value is ACTIVE (after XA START), IDLE (after XA END), PREPARED (after XA PREPARE), ROLLED BACK (after XA ROLLBACK), or COMMITTED (after XA COMMIT).',"
+  "SOURCE VARCHAR(64) comment 'The name of the source file containing the instrumented code that produced the event and the line number in the file at which the instrumentation occurs.',"
+  "TIMER_START BIGINT unsigned comment 'The unit is picoseconds. When event timing started. NULL if event has no timing information.',"
+  "TIMER_END BIGINT unsigned comment 'The unit is picoseconds. When event timing ended. NULL if event has no timing information.',"
+  "TIMER_WAIT BIGINT unsigned comment 'The unit is picoseconds. Event duration. NULL if event has not timing information.',"
+  "ACCESS_MODE ENUM('READ ONLY', 'READ WRITE') comment 'Transaction access mode.',"
+  "ISOLATION_LEVEL VARCHAR(64) comment 'Transaction isolation level. One of: REPEATABLE READ, READ COMMITTED, READ UNCOMMITTED, or SERIALIZABLE.',"
+  "AUTOCOMMIT ENUM('YES','NO') not null comment 'Whether autcommit mode was enabled when the transaction started.',"
+  "NUMBER_OF_SAVEPOINTS BIGINT unsigned comment 'The number of SAVEPOINT statements issued during the transaction.',"
+  "NUMBER_OF_ROLLBACK_TO_SAVEPOINT BIGINT unsigned comment 'The number of ROLLBACK_TO_SAVEPOINT statements issued during the transaction.',"
+  "NUMBER_OF_RELEASE_SAVEPOINT BIGINT unsigned comment 'The number of RELEASE_SAVEPOINT statements issued during the transaction.',"
+  "OBJECT_INSTANCE_BEGIN BIGINT unsigned comment 'Unused.',"
+  "NESTING_EVENT_ID BIGINT unsigned comment 'The EVENT_ID value of the event within which this event is nested.',"
+  "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'The nesting event type.')")},
   false  /* perpetual */
 };
 
@@ -261,8 +261,8 @@ static const ulong XID_BUFFER_SIZE= XIDDATASIZE*2 + 2 + 1;
 */
 static size_t xid_to_hex(char *buf, size_t buf_len, PSI_xid *xid, size_t offset, size_t length)
 {
-  DBUG_ASSERT(buf_len >= XID_BUFFER_SIZE);
-  DBUG_ASSERT(offset + length <= XIDDATASIZE);
+  assert(buf_len >= XID_BUFFER_SIZE);
+  assert(offset + length <= XIDDATASIZE);
   *buf++= '0';
   *buf++= 'x';
   return bin_to_hex_str(buf, buf_len-2, (char*)(xid->data + offset), length) + 2;
@@ -279,7 +279,7 @@ static size_t xid_to_hex(char *buf, size_t buf_len, PSI_xid *xid, size_t offset,
 */
 static void xid_store(Field *field, PSI_xid *xid, size_t offset, size_t length)
 {
-  DBUG_ASSERT(!xid->is_null());
+  assert(!xid->is_null());
   if (xid_printable(xid, offset, length))
   {
     field->store(xid->data + offset, length, &my_charset_bin);
@@ -318,7 +318,7 @@ int table_events_transactions_common::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 3);
+  assert(table->s->null_bytes == 3);
   buf[0]= 0;
   buf[1]= 0;
   buf[2]= 0;
@@ -436,7 +436,7 @@ int table_events_transactions_common::read_row_values(TABLE *table,
           f->set_null();
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }
@@ -591,10 +591,10 @@ int table_events_transactions_history::rnd_pos(const void *pos)
   PFS_thread *pfs_thread;
   PFS_events_transactions *transaction;
 
-  DBUG_ASSERT(events_transactions_history_per_thread != 0);
+  assert(events_transactions_history_per_thread != 0);
   set_position(pos);
 
-  DBUG_ASSERT(m_pos.m_index_2 < events_transactions_history_per_thread);
+  assert(m_pos.m_index_2 < events_transactions_history_per_thread);
 
   pfs_thread= global_thread_container.get(m_pos.m_index_1);
   if (pfs_thread != NULL)

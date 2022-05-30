@@ -74,10 +74,10 @@ a	b	c
 4	40	400
 3	30	300
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select t0.`b` `b`,t0.`a` `a`,t2.`b` `b`,t2.`c` `c` from `auto_test_remote`.`ta_r` t0,`auto_test_remote`.`ta_r_3` t1,`auto_test_remote`.`ta_r_int` t2 where ((t0.`a` = t1.`a`) and (t2.`a` = t1.`a`)) order by t0.`b` desc limit 1,2
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2000-01-01 00:00:00
@@ -164,11 +164,11 @@ SELECT count(0) FROM tbl_person tp INNER JOIN tbl_ncd_cm_person tncp ON tp.id = 
 count(0)
 1
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `id`,`hr_status`,`region_code`,`region` from `auto_test_remote`.`tbl_person` where `id` = '24FC3F0A5119432BAE13DD65AABAA39C' and `region` = 510411
 select count(0) `count(0)` from `auto_test_remote`.`tbl_ncd_cm_person` t0 where ((t0.`person_id` = '24FC3F0A5119432BAE13DD65AABAA39C') and (t0.`diseaseKind_id` = '52A0328740914BCE86ED10A4D2521816'))
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT * FROM tbl_person;
 id	hr_status	region_code	region
 123456789012345678901234567890AB	1	123-51041110620301-321	510411

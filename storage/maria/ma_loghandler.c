@@ -29,7 +29,7 @@
   Also there is no need to flush filesystem changes ,i.e to sync()
   directories.
 */
-#ifdef __WIN__
+#ifdef _WIN32
 #define sync_dir(A,B) 0
 #else
 #define sync_dir(A,B) mysql_file_sync(A,B)
@@ -3399,10 +3399,9 @@ static uint16 translog_get_chunk_header_length(uchar *chunk)
     DBUG_PRINT("info", ("TRANSLOG_CHUNK_LNGTH = 3"));
     DBUG_RETURN(3);
     break;
-  default:
-    DBUG_ASSERT(0);
-    DBUG_RETURN(0);                               /* Keep compiler happy */
   }
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);                               /* Keep compiler happy */
 }
 
 
@@ -3673,7 +3672,7 @@ my_bool translog_init_with_table(const char *directory,
 
   /* Directory to store files */
   unpack_dirname(log_descriptor.directory, directory);
-#ifndef __WIN__
+#ifndef _WIN32
   if ((log_descriptor.directory_fd= my_open(log_descriptor.directory,
                                             O_RDONLY, MYF(MY_WME))) < 0)
   {
@@ -8938,19 +8937,22 @@ void translog_hard_group_commit(my_bool mode)
 
 void translog_sync()
 {
-  uint32 max= get_current_logfile()->number;
-  uint32 min;
   DBUG_ENTER("ma_translog_sync");
 
-  min= soft_sync_min;
-  if (!min)
-    min= max;
+  /* The following is only true if initalization of translog succeded */
+  if (log_descriptor.open_files.elements != 0)
+  {
+    uint32 max= get_current_logfile()->number;
+    uint32 min;
 
-  translog_sync_files(min, max, sync_log_dir >= TRANSLOG_SYNC_DIR_ALWAYS);
+    min= soft_sync_min;
+    if (!min)
+      min= max;
 
+    translog_sync_files(min, max, sync_log_dir >= TRANSLOG_SYNC_DIR_ALWAYS);
+  }
   DBUG_VOID_RETURN;
 }
-
 
 /**
   @brief set rate for group commit

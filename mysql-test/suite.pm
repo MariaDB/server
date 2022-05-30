@@ -17,7 +17,19 @@ sub skip_combinations {
                 unless $ENV{DEBUG_KEY_MANAGEMENT_SO};
 
   # don't run tests for the wrong platform
-  $skip{'include/platform.combinations'} = [ (IS_WINDOWS) ? 'unix' : 'win' ];
+  if (IS_WINDOWS) {
+    $skip{'include/platform.combinations'} = [ 'aix', 'unix' ];
+  } elsif (IS_AIX) {
+    $skip{'include/platform.combinations'} = [ 'win', 'unix' ];
+  } else {
+    $skip{'include/platform.combinations'} = [ 'aix', 'win' ];
+  }
+
+  if ( $::opt_ps_protocol ) {
+    $skip{'include/protocol.combinations'} = [ 'nm' ];
+  } else {
+    $skip{'include/protocol.combinations'} = [ 'ps' ];
+  }
 
   $skip{'include/maybe_debug.combinations'} =
     [ defined $::mysqld_variables{'debug-dbug'} ? 'release' : 'debug' ];
@@ -43,6 +55,7 @@ sub skip_combinations {
              unless $ENV{HA_EXAMPLE_SO};
 
   $skip{'include/not_windows.inc'} = 'Requires not Windows' if IS_WINDOWS;
+  $skip{'include/not_aix.inc'} = 'Requires not AIX' if IS_AIX;
 
   $skip{'main/plugin_loaderr.test'} = 'needs compiled-in innodb'
             unless $::mysqld_variables{'innodb'} eq "ON";
@@ -74,8 +87,6 @@ sub skip_combinations {
   $skip{'main/ssl_verify_ip.test'} = 'x509v3 support required'
     unless $openssl_ver ge "1.0.2";
 
-  $skip{'main/tls_version1.test'} = 'https://github.com/wolfSSL/wolfssl/issues/2960'
-    if $ssl_lib =~ /WolfSSL 4.4.0/;
 
   %skip;
 }

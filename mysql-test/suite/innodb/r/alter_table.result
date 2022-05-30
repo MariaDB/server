@@ -107,6 +107,16 @@ alter table t1 engine=innodb;
 alter table t1 add column b int;
 drop table t1,t2;
 #
+# MDEV-19272 Assertion unireg_check...Field::NEXT_NUMBER failed
+#
+CREATE TABLE t1 (c INT AUTO_INCREMENT NULL UNIQUE) ENGINE=InnoDB;
+ALTER TABLE t1 MODIFY c INT NOT NULL, ALGORITHM=INPLACE;
+DROP TABLE t1;
+CREATE TABLE t1 (c TIMESTAMP AUTO_INCREMENT UNIQUE) ENGINE=InnoDB;
+ERROR 42000: Incorrect column specifier for column 'c'
+CREATE TABLE t1 (c DATETIME AUTO_INCREMENT UNIQUE) ENGINE=InnoDB;
+ERROR 42000: Incorrect column specifier for column 'c'
+#
 # End of 10.4 tests
 #
 #

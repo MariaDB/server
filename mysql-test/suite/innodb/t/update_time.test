@@ -10,8 +10,9 @@
 -- source include/not_embedded.inc
 # This test is slow on buildbot.
 --source include/big_test.inc
+--source include/have_sequence.inc
 
-CREATE TABLE t (a INT) ENGINE=INNODB;
+CREATE TABLE t (a INT) ENGINE=INNODB STATS_PERSISTENT=0;
 
 SELECT update_time FROM information_schema.tables WHERE table_name = 't';
 
@@ -33,18 +34,7 @@ SELECT COUNT(*) FROM information_schema.innodb_buffer_page
 WHERE table_name = '`test`.`t`';
 
 # evict table 't' by inserting as much data as the BP size itself
--- echo # INSERT lots of data in table 'big': begin
--- disable_query_log
-BEGIN;
--- let $i = 10240
-while ($i)
-{
-	INSERT INTO big VALUES (REPEAT('a', 1024));
-	dec $i;
-}
-COMMIT;
--- enable_query_log
--- echo # INSERT lots of data in table 'big': end
+INSERT INTO big SELECT REPEAT('a', 1024) FROM seq_1_to_10240;
 
 # confirm that all pages for table 't' have been evicted
 SELECT COUNT(*) FROM information_schema.innodb_buffer_page

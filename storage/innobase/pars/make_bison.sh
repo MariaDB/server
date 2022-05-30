@@ -25,6 +25,7 @@ mv pars0grm.tab.h ../include/pars0grm.h
 
 sed -e '
 s/'"$TMPFILE"'/'"$OUTFILE"'/;
+s/'"pars0grm.tab.h"'/'"pars0grm.h"'/;
 s/^\(\(YYSTYPE\|int\) yy\(char\|nerrs\)\)/static \1/;
 ' < "$TMPFILE" > "$OUTFILE"
 

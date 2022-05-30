@@ -1,4 +1,6 @@
 [redundant]
 innodb_default_row_format=redundant
+innodb_stats_persistent=off
 [dynamic]
 innodb_default_row_format=dynamic
+innodb_stats_persistent=off

@@ -1,0 +1,7 @@
+# Set thread-handling as a workaround to avoid MDEV-26528.
+# The file can be removed once fixed.
+
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+thread-handling=pool-of-threads

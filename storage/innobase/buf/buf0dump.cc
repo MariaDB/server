@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -35,7 +35,6 @@ Created April 08, 2011 Vasil Dimov
 #include "buf0dump.h"
 #include "dict0dict.h"
 #include "os0file.h"
-#include "os0thread.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "ut0byte.h"
@@ -256,7 +255,7 @@ buf_dump(
 #ifdef _WIN32
 	/* use my_fopen() for correct permissions during bootstrap*/
 	f = my_fopen(tmp_filename, O_RDWR|O_TRUNC|O_CREAT, 0);
-#elif defined(__GLIBC__) || defined(__WIN__) || O_CLOEXEC == 0
+#elif defined(__GLIBC__) || O_CLOEXEC == 0
 	f = fopen(tmp_filename, "w" STR_O_CLOEXEC);
 #else
 	{
@@ -328,16 +327,15 @@ buf_dump(
 	for (bpage = UT_LIST_GET_FIRST(buf_pool.LRU), j = 0;
 	     bpage != NULL && j < n_pages;
 	     bpage = UT_LIST_GET_NEXT(LRU, bpage)) {
-
-		ut_a(bpage->in_file());
-		const page_id_t id(bpage->id());
+		const auto status = bpage->state();
+		if (status < buf_page_t::UNFIXED) {
+			ut_a(status >= buf_page_t::FREED);
+			continue;
+		}
+		const page_id_t id{bpage->id()};
 
 		if (id.space() == SRV_TMP_SPACE_ID) {
 			/* Ignore the innodb_temporary tablespace. */
-			continue;
-		}
-
-		if (bpage->status == buf_page_t::FREED) {
 			continue;
 		}
 
@@ -684,7 +682,7 @@ buf_load()
 		}
 
 		space->reacquire();
-		buf_read_page_background(space, dump[i], zip_size, true);
+		buf_read_page_background(space, dump[i], zip_size);
 
 		if (buf_load_abort_flag) {
 			if (space) {
@@ -720,6 +718,10 @@ buf_load()
 	}
 
 	ut_free(dump);
+
+	if (i == dump_n) {
+		os_aio_wait_until_no_pending_reads();
+	}
 
 	ut_sprintf_timestamp(now);
 

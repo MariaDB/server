@@ -11,7 +11,8 @@ test suite is run in normal mode or with --ps-protocol
 create procedure select_general_log()
 begin
 select user_host, argument from mysql.general_log
-where argument like '%events_logs_test%';
+where argument like '%events_logs_test%' AND
+(command_type = 'Query' OR command_type = 'Execute');
 end|
 
 Check that general query log works, but sub-statements

@@ -1,0 +1,22 @@
+
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-26423: MariaDB server crash in Create_tmp_table::finalize
+--echo #
+
+CREATE TABLE v0 (
+  v2 DATE DEFAULT ( v1 MOD 68321183.000000 ) ,
+  v1 DATETIME NULL ) engine=innodb;
+SHOW DATABASES LIKE 'x';
+SELECT DISTINCT v2 , v1 , DEFAULT ( v2 ) FROM v0;
+DROP TABLE v0;
+
+CREATE TABLE t1 (v1 DATE, v2 DATE DEFAULT(v1)) engine=innodb;
+SELECT DISTINCT DEFAULT(v2) FROM t1 ;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

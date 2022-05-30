@@ -1471,7 +1471,9 @@ insert into t2 values (1), (2);
 let $q1=
 select (values ((select 2))) from t2;
 eval $q1;
+--enable_prepare_warnings
 eval explain $q1;
+--disable_prepare_warnings
 eval prepare stmt from "$q1";
 execute stmt;
 execute stmt;
@@ -1627,6 +1629,74 @@ insert into t1(a) values ((values (2))), ((values (3)));
 select * from t1;
 
 drop table t1;
+
+
+--echo #
+--echo # MDEV-25484: Derived table using TVC with LIMIT and ORDER BY
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+
+select * from ( (select * from t1 limit 2) order by 1 desc) as dt;
+(values (3), (7), (1) limit 2) order by 1 desc;
+select * from ( (values (3), (7), (1) limit 2) order by 1 desc) as dt;
+
+
+select * from ( select * from t1 order by 1 limit 2 ) as dt;
+values (3),(7),(1) order by 1 limit 2;
+select * from ( values (3),(7),(1) order by 1 limit 2 ) as dt;
+
+values (3),(7),(1) union values (2),(4) order by 1 limit 2;
+select * from (values (3),(7),(1) union values (2),(4) order by 1 limit 2) as dt;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-23182: Server crashes in
+--echo # Item::fix_fields_if_needed / table_value_constr::prepare upon 2nd execution of PS
+--echo #
+SET @save_in_predicate_conversion_threshold=@@in_predicate_conversion_threshold;
+SET in_predicate_conversion_threshold=2;
+
+CREATE TABLE t1 (c VARCHAR(10)) DEFAULT CHARSET=utf8;
+PREPARE stmt FROM "SELECT * FROM t1 WHERE c IN ('10','20')";
+EXECUTE stmt;
+--echo # Without the patch second execution of the prepared statement 'stmt'
+--echo # results in crash.
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+DROP TABLE t1;
+
+--echo # Check that the query without conversion doesn't crash server
+CREATE TABLE t1 (c VARCHAR(10));
+PREPARE stmt FROM "SELECT * FROM t1 WHERE c IN ('10','20')";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+DROP TABLE t1;
+
+--echo # Test case for a row expression in the left part of the IN clause
+CREATE TABLE t1 (a VARCHAR(3), b VARCHAR(3)) DEFAULT CHARSET=utf8;
+PREPARE stmt FROM "SELECT * FROM t1 WHERE (a, b) IN (('10', '10'), ('20', '20'))";
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+DROP TABLE t1;
+
+--echo # Check that the query without conversion is handled successfully
+CREATE TABLE t1 (a VARCHAR(3), b VARCHAR(3));
+PREPARE stmt FROM "SELECT * FROM t1 WHERE (a, b) IN (('10', '10'), ('20', '20'))";
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+DROP TABLE t1;
+
+SET @@in_predicate_conversion_threshold = @save_in_predicate_conversion_threshold;
 
 --echo End of 10.3 tests
 

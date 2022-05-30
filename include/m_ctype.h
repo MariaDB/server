@@ -351,6 +351,60 @@ struct my_collation_handler_st
 		       const uchar *, size_t, const uchar *, size_t, my_bool);
   int     (*strnncollsp)(CHARSET_INFO *,
                          const uchar *, size_t, const uchar *, size_t);
+  /*
+    strnncollsp_nchars() - similar to strnncollsp() but assumes that both
+                           strings were originally CHAR(N) values with the
+                           same N, then were optionally space-padded,
+                           or optionally space-trimmed.
+
+                           In other words, this function compares in the way
+                           if we insert both values into a CHAR(N) column
+                           and then compare the two column values.
+
+    It compares the same amount of characters from the two strings.
+    This is especially important for NOPAD collations.
+
+    If CHAR_LENGTH of the two strings are different,
+    the shorter string is virtually padded with trailing spaces
+    up to CHAR_LENGTH of the longer string, to guarantee that the
+    same amount of characters are compared.
+    This is important if the two CHAR(N) strings are space-trimmed 
+    (e.g. like in InnoDB compact format for CHAR).
+
+    The function compares not more than "nchars" characters only.
+    This can be useful to compare CHAR(N) space-padded strings
+    (when the exact N is known) without having to truncate them before
+    the comparison.
+
+    For example, Field_string stores a "CHAR(3) CHARACTER SET utf8mb4" value
+    of "aaa" as 12 bytes in a record buffer:
+    - 3 bytes of the actual data, followed by
+    - 9 bytes of spaces (just fillers, not real data)
+    The caller can pass nchars=3 to compare CHAR(3) record values.
+    In such case, the comparator won't go inside the 9 bytes of the fillers.
+
+    If N is not known, the caller can pass max(len1,len2) as the "nchars" value
+    (i.e. the maximum of the OCTET_LENGTH of the two strings).
+
+    Notes on complex collations.
+
+    This function counts contraction parts as individual characters.
+    For example, the Czech letter 'ch' (in Czech collations)
+    is ordinarily counted by the "nchars" limit as TWO characters
+    (although it is only one letter).
+    This corresponds to what CHAR(N) does in INSERT.
+
+    If the "nchars" limit tears apart a contraction, only the part fitting
+    into "nchars" characters is used. For example, in case of a Czech collation,
+    the string "ach" with nchars=2 is compared as 'ac': the contraction
+    'ch' is torn apart and the letter 'c' acts as an individual character.
+    This emulates the same comparison result with the scenario when we insert
+    'ach' into a CHAR(2) column and then compare it.
+  */
+  int     (*strnncollsp_nchars)(CHARSET_INFO *,
+                                const uchar *str1, size_t len1,
+                                const uchar *str2, size_t len2,
+                                size_t nchars);
   size_t     (*strnxfrm)(CHARSET_INFO *,
                          uchar *dst, size_t dstlen, uint nweights,
                          const uchar *src, size_t srclen, uint flags);
@@ -377,6 +431,12 @@ struct my_collation_handler_st
   void (*hash_sort)(CHARSET_INFO *cs, const uchar *key, size_t len,
 		    ulong *nr1, ulong *nr2); 
   my_bool (*propagate)(CHARSET_INFO *cs, const uchar *str, size_t len);
+  /*
+    Make minimum and maximum strings for the collation.
+    Put not more than "nchars" characters.
+  */
+  size_t (*min_str)(CHARSET_INFO *cs, uchar *dst, size_t dstlen, size_t nchars);
+  size_t (*max_str)(CHARSET_INFO *cs, uchar *dst, size_t dstlen, size_t nchars);
 };
 
 extern MY_COLLATION_HANDLER my_collation_8bit_bin_handler;
@@ -589,8 +649,23 @@ struct charset_info_st
   uchar     casedn_multiply;
   uint      mbminlen;
   uint      mbmaxlen;
+  /*
+    min_sort_char and max_sort_char represent the minimum
+    and the maximum character in the collation respectively.
+
+    For Unicode collations, these numbers are Unicode code points.
+    For non-Unicode collations these numbers are native character codes.
+    For example, in all 8bit collations these numbers are
+    in the range 0x00..0xFF.
+
+    min_sort_char and max_sort_char normally should not be used directly.
+    They are used internally in the following virtual functions:
+    - MY_COLLATION_HANDLER::like_range()
+    - MY_COLLATION_HANDLER::min_str()
+    - MY_COLLATION_HANDLER::max_str()
+  */
   my_wc_t   min_sort_char;
-  my_wc_t   max_sort_char; /* For LIKE optimization */
+  my_wc_t   max_sort_char;
   uchar     pad_char;
   my_bool   escape_with_backslash_is_dangerous;
   uchar     levels_for_order;
@@ -852,6 +927,16 @@ struct charset_info_st
     return (coll->propagate)(this, str, len);
   }
 
+  size_t min_str(uchar *dst, size_t dstlen, size_t nchars) const
+  {
+    return (coll->min_str)(this, dst, dstlen, nchars);
+  }
+
+  size_t max_str(uchar *dst, size_t dstlen, size_t nchars) const
+  {
+    return (coll->max_str)(this, dst, dstlen, nchars);
+  }
+
 #endif /* __cplusplus */
 };
 
@@ -1110,7 +1195,7 @@ extern struct charset_info_st my_charset_big5_bin;
 extern struct charset_info_st my_charset_big5_chinese_ci;
 extern struct charset_info_st my_charset_big5_nopad_bin;
 extern struct charset_info_st my_charset_big5_chinese_nopad_ci;
-extern struct charset_info_st my_charset_cp1250_czech_ci;
+extern struct charset_info_st my_charset_cp1250_czech_cs;
 extern struct charset_info_st my_charset_cp932_bin;
 extern struct charset_info_st my_charset_cp932_japanese_ci;
 extern struct charset_info_st my_charset_cp932_nopad_bin;
@@ -1134,7 +1219,7 @@ extern struct charset_info_st my_charset_gbk_chinese_nopad_ci;
 extern struct charset_info_st my_charset_latin1_bin;
 extern struct charset_info_st my_charset_latin1_nopad_bin;
 extern struct charset_info_st my_charset_latin1_german2_ci;
-extern struct charset_info_st my_charset_latin2_czech_ci;
+extern struct charset_info_st my_charset_latin2_czech_cs;
 extern struct charset_info_st my_charset_sjis_bin;
 extern struct charset_info_st my_charset_sjis_japanese_ci;
 extern struct charset_info_st my_charset_sjis_nopad_bin;

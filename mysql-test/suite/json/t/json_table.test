@@ -815,5 +815,44 @@ select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted
 select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt order by original;
 
 --echo #
+--echo # MDEV-27696 Json table columns accept redundant COLLATE syntax
+--echo #
+
+--error ER_PARSE_ERROR
+SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
+  COLUMNS (
+    name BLOB COLLATE `binary` PATH '$.name'
+  )
+) AS jt;
+
+
+--error ER_PARSE_ERROR
+SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
+  COLUMNS (
+    name VARCHAR(10) COLLATE latin1_bin COLLATE latin1_swedish_ci PATH '$.name'
+  )
+) AS jt;
+
+
+--error ER_PARSE_ERROR
+SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
+  COLUMNS (
+    name VARCHAR(10) BINARY COLLATE utf8_czech_ci path '$.name'
+  )
+) AS jt;
+
+
+--echo #
+--echo # MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+--echo #
+
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) CHARACTER SET latin1 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

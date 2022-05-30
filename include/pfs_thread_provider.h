@@ -52,17 +52,17 @@ void pfs_register_thread_v1(const char *category,
                             int count);
 
 PSI_mutex*
-pfs_init_mutex_v1(PSI_mutex_key key, const void *identity);
+pfs_init_mutex_v1(PSI_mutex_key key, void *identity);
 
 void pfs_destroy_mutex_v1(PSI_mutex* mutex);
 
 PSI_rwlock*
-pfs_init_rwlock_v1(PSI_rwlock_key key, const void *identity);
+pfs_init_rwlock_v1(PSI_rwlock_key key, void *identity);
 
 void pfs_destroy_rwlock_v1(PSI_rwlock* rwlock);
 
 PSI_cond*
-pfs_init_cond_v1(PSI_cond_key key, const void *identity);
+pfs_init_cond_v1(PSI_cond_key key, void *identity);
 
 void pfs_destroy_cond_v1(PSI_cond* cond);
 

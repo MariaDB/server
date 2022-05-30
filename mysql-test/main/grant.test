@@ -1,7 +1,7 @@
 # Test of GRANT commands
 
 # Grant tests not performed with embedded server
--- source include/not_embedded.inc
+--source include/not_embedded.inc
 
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
@@ -11,12 +11,6 @@ set LOCAL sql_mode="";
 SET @old_log_bin_trust_function_creators= @@global.log_bin_trust_function_creators;
 SET GLOBAL log_bin_trust_function_creators = 1;
 select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
-
-# Cleanup
---disable_warnings
-drop table if exists t1;
-drop database if exists mysqltest;
---enable_warnings
 
 connect (master,localhost,root,,);
 connection master;
@@ -1239,12 +1233,14 @@ drop function if exists test_function;
 drop view if exists v1;
 create table test (col1 varchar(30));
 delimiter |;
+--enable_prepare_warnings
 create function test_function() returns varchar(30)
 begin
         declare tmp varchar(30);
         select col1 from test limit 1 into tmp;
         return '1';
 end|
+--disable_prepare_warnings
 delimiter ;|
 create view v1 as select test.* from test where test.col1=test_function();
 grant update (col1) on v1 to 'greg'@'localhost';
@@ -2284,6 +2280,16 @@ INDEX, ALTER, CREATE VIEW, SHOW VIEW, TRIGGER ON db.t TO foo;
 DROP USER foo;
 DROP TABLE db.t;
 DROP DATABASE db;
+
+--echo #
+--echo # Bug#33578113: DROP privilege on performance_schema.* can't be revoked
+--echo #
+connection default;
+CREATE USER bug33578113;
+GRANT DROP ON performance_schema.* TO bug33578113;
+REVOKE DROP ON performance_schema.* FROM bug33578113;
+DROP USER bug33578113;
+--source include/wait_until_count_sessions.inc
 
 --echo #
 --echo # End of 10.2 tests

@@ -89,8 +89,10 @@ INSERT INTO t1 (col_a) VALUES (test_replication_sf());
 
 --sync_slave_with_master
 
+--enable_prepare_warnings
 # Dump table on slave
 select * from t1 into outfile "../../tmp/t1_slave.txt";
+--disable_prepare_warnings
 
 # Load data from slave into temp table on master
 connection master;

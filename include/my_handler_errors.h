@@ -107,7 +107,9 @@ static const char *handler_error_messages[]=
   "Foreign key cascade delete/update exceeds max depth",
   "Tablespace is missing for a table",
   "Sequence has been run out",
-  "Sequence values are conflicting"
+  "Sequence values are conflicting",
+  "Error during commit",
+  "Cannot select partitions"
 };
 
 #endif /* MYSYS_MY_HANDLER_ERRORS_INCLUDED */

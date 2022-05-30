@@ -8,7 +8,6 @@ SET GLOBAL innodb_monitor_enable = module_ddl;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -27,7 +26,6 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -81,14 +79,14 @@ SET DEBUG_SYNC = 'now WAIT_FOR scanned';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	0
 BEGIN;
 INSERT INTO t1 VALUES(7,4,2);
-ROLLBACK;
+COMMIT;
+DELETE FROM t1 where c1 = 7;
 SET DEBUG_SYNC = 'now SIGNAL rollback_done';
 connection con1;
 ERROR 23000: Duplicate entry '4' for key 'c2'
@@ -99,21 +97,19 @@ SET DEBUG_SYNC = 'now WAIT_FOR created';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
-ddl_online_create_index	0
+ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	0
 INSERT INTO t1 VALUES(6,3,1);
 SET DEBUG_SYNC = 'now SIGNAL dml_done';
 connection con1;
-ERROR 23000: Duplicate entry for key 'c2'
+ERROR 23000: Duplicate entry '' for key '*UNKNOWN*'
 DELETE FROM t1 WHERE c1=6;
 ALTER TABLE t1 ADD UNIQUE INDEX(c2);
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -153,6 +149,9 @@ database_name	table_name	index_name	last_update	stat_name	stat_value	sample_size
 test	t1	PRIMARY	LAST_UPDATE	n_diff_pfx01	5	1	c1
 test	t1	PRIMARY	LAST_UPDATE	n_leaf_pages	1	NULL	Number of leaf pages in the index
 test	t1	PRIMARY	LAST_UPDATE	size	1	NULL	Number of pages in the index
+test	t1_c2_stats	GEN_CLUST_INDEX	LAST_UPDATE	n_diff_pfx01	3	1	DB_ROW_ID
+test	t1_c2_stats	GEN_CLUST_INDEX	LAST_UPDATE	n_leaf_pages	1	NULL	Number of leaf pages in the index
+test	t1_c2_stats	GEN_CLUST_INDEX	LAST_UPDATE	size	1	NULL	Number of pages in the index
 connection con1;
 KILL QUERY @id;
 ERROR 70100: Query execution was interrupted
@@ -163,7 +162,6 @@ SET DEBUG_SYNC = 'now WAIT_FOR c2d_created';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
@@ -175,7 +173,6 @@ ERROR 70100: Query execution was interrupted
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -243,47 +240,29 @@ SET DEBUG_SYNC = 'now WAIT_FOR c2e_created';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	0
-BEGIN;
-DELETE FROM t1;
-ROLLBACK;
 UPDATE t1 SET c2 = c2 + 1;
-BEGIN;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
-BEGIN;
-DELETE FROM t1;
-ROLLBACK;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-BEGIN;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
-BEGIN;
-DELETE FROM t1;
-ROLLBACK;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-BEGIN;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
-BEGIN;
-DELETE FROM t1;
-ROLLBACK;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-BEGIN;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
+UPDATE t1 SET c2 = c2 + 2;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
@@ -316,8 +295,7 @@ ERROR HY000: Creating index 'c2e' required more than 'innodb_online_alter_log_ma
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	1
-ddl_background_drop_tables	0
-ddl_online_create_index	0
+ddl_online_create_index	1
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	1
@@ -328,8 +306,7 @@ name	pos
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	1
-ddl_background_drop_tables	0
-ddl_online_create_index	0
+ddl_online_create_index	1
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	1
@@ -338,7 +315,6 @@ ALTER TABLE t1 COMMENT 'testing if c2e will be dropped';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -363,7 +339,6 @@ SET DEBUG_SYNC = 'now WAIT_FOR c2f_created';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
@@ -371,23 +346,48 @@ ddl_log_file_alter_table	1
 BEGIN;
 INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 160;
 DELETE FROM t1 WHERE c1 > 320;
-ROLLBACK;
+COMMIT;
 BEGIN;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
+COMMIT;
 BEGIN;
 INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 160;
 DELETE FROM t1 WHERE c1 > 320;
-ROLLBACK;
+COMMIT;
 BEGIN;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
+COMMIT;
+BEGIN;
+INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 160;
+DELETE FROM t1 WHERE c1 > 320;
+COMMIT;
+BEGIN;
+UPDATE t1 SET c2 = c2 + 1;
+COMMIT;
+BEGIN;
+INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 160;
+DELETE FROM t1 WHERE c1 > 320;
+COMMIT;
+BEGIN;
+UPDATE t1 SET c2 = c2 + 1;
+COMMIT;
+BEGIN;
+INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 160;
+DELETE FROM t1 WHERE c1 > 320;
+COMMIT;
+BEGIN;
+UPDATE t1 SET c2 = c2 + 1;
+COMMIT;
+BEGIN;
+INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 160;
+DELETE FROM t1 WHERE c1 > 320;
+COMMIT;
+BEGIN;
+UPDATE t1 SET c2 = c2 + 1;
+COMMIT;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
@@ -400,7 +400,6 @@ ALTER TABLE t1 CHANGE c2 c22f INT;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -464,8 +463,7 @@ name	pos
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	1
-ddl_background_drop_tables	0
-ddl_online_create_index	0
+ddl_online_create_index	1
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	2
@@ -473,8 +471,7 @@ connection default;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	1
-ddl_background_drop_tables	0
-ddl_online_create_index	0
+ddl_online_create_index	1
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	2
@@ -493,7 +490,6 @@ ALTER TABLE t1 DROP INDEX c2d, DROP INDEX c2f;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -508,11 +504,11 @@ DROP TABLE t1;
 # MDEV-13205 assertion !dict_index_is_online_ddl(index) upon ALTER TABLE
 #
 CREATE TABLE t1 (c VARCHAR(64)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES('foo');
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL t1u_created WAIT_FOR dup_done';
 ALTER TABLE t1 ADD UNIQUE(c);
 connection con1;
 SET DEBUG_SYNC = 'now WAIT_FOR t1u_created';
-BEGIN;
 INSERT INTO t1 VALUES('bar'),('bar');
 SET DEBUG_SYNC = 'now SIGNAL dup_done';
 connection default;
@@ -524,6 +520,7 @@ ALTER TABLE t2 ADD FOREIGN KEY (c) REFERENCES t1 (c);
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 DROP TABLE t2,t1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(0,0);
 connect  con1,localhost,root,,;
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL created WAIT_FOR inserted';
 ALTER TABLE t1 ADD INDEX(b);
@@ -538,6 +535,7 @@ disconnect con1;
 connection default;
 SELECT * FROM t1;
 a	b
+0	0
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

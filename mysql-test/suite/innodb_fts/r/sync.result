@@ -145,3 +145,13 @@ id	title
 2	database
 3	good
 DROP TABLE t1;
+#
+# MDEV-26273 InnoDB fts DDL fails when
+# innodb_force_recovery is set to 2
+#
+# restart: --innodb_force_recovery=2
+CREATE TABLE t1 (FTS_DOC_ID BIGINT UNSIGNED KEY,
+f1 CHAR(200)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FULLTEXT INDEX(f1);
+DROP TABLE t1;
+# restart

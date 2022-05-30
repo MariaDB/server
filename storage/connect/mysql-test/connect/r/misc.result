@@ -1,0 +1,54 @@
+execute immediate concat('create table t engine=CONNECT table_type=JSON',REPEAT('1',5000),
+' FILE_NAME=''users.json'' HTTP=''http://localhost:4142'' URI=''/users''');
+ERROR HY000: Unsupported table type JSON1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+execute immediate concat('create table t  engine=CONNECT table_type=OEM module=''libname''
+Option_list=''Myopt=foo'' subtype=''MYTYPE',REPEAT('1', 10000), '''');
+ERROR HY000: Subtype string too long
+execute immediate concat('create table t engine=CONNECT table_type=DBF file_name=''',
+REPLACE(@@secure_file_priv,'\\','/'),'cust.dbf', REPEAT('1', 10000), '''');
+ERROR HY000: Cannot open 
+create table t engine=connect table_type=mysql
+CONNECTION='mysql://root@localhost:MASTER_MYPORT/test/foobar'
+  SRCDEF='SELECT 1,''%n'' FROM DUAL WHERE %s';
+select *from t;
+ERROR HY000: Got error 174 'MakeSQL: Wrong place holders specification' from CONNECT
+drop table t;
+create table t engine=connect table_type=mysql
+CONNECTION='mysql://root@localhost:MASTER_MYPORT/test/foobar'
+  SRCDEF='SELECT 1,%n FROM DUAL WHERE %s';
+ERROR HY000: (1064) You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '%n FROM DUAL WHERE 1=1 LIMIT 0' at line 1 [SELECT 1,%n FROM DUAL WHERE 1=1 LIMIT 0]
+create table t engine=connect table_type=mysql
+CONNECTION='mysql://root@localhost:MASTER_MYPORT/test/foobar'
+  SRCDEF='SELECT 1 FROM DUAL WHERE %s';
+select *from t;
+1
+1
+drop table t;
+create table beers (
+`Name` char(16) xpath='brandName',
+`Origin` char(16) xpath='origin',
+`Description` char(32) xpath='details')
+engine=CONNECT table_type=XML file_name='MYSQLTEST_VARDIR/tmp/beer.xml'
+tabname='table' option_list='rownode=tr,colnode=td%n';
+select * from beers;
+Name	Origin	Description
+NULL	NULL	NULL
+NULL	NULL	NULL
+drop table beers;
+create table beers (
+`Name` char(16) xpath='brandName',
+`Origin` char(16) xpath='origin',
+`Description` char(32) xpath='details')
+engine=CONNECT table_type=XML file_name='MYSQLTEST_VARDIR/tmp/beer.xml'
+tabname='table' option_list='rownode=tr,colnode=td';
+insert into beers values('11','22','33');
+drop table beers;
+execute immediate CONCAT('create table jsampall
+(Author char(128) jpath=''$.AUTHOR["', REPEAT('a',10000),'"]'')
+engine=CONNECT table_type=JSON
+file_name=''',REPLACE(@@secure_file_priv,'\\','/'),'tmp/test.json''');
+select  author from jsampall;
+author
+Jean-Christophe Bernadacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+William J. Pardi
+drop table jsampall;

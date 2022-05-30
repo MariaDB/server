@@ -125,15 +125,15 @@ IF(NOT GIT_EXECUTABLE)
 ENDIF()
 
 # Copy bison output
-CONFIGURE_FILE(${CMAKE_BINARY_DIR}/sql/sql_yacc.hh 
-   ${PACKAGE_DIR}/sql/sql_yacc.hh COPYONLY)
-CONFIGURE_FILE(${CMAKE_BINARY_DIR}/sql/sql_yacc.cc
-   ${PACKAGE_DIR}/sql/sql_yacc.cc COPYONLY)
+CONFIGURE_FILE(${CMAKE_BINARY_DIR}/sql/yy_mariadb.hh
+   ${PACKAGE_DIR}/sql/yy_mariadb.hh COPYONLY)
+CONFIGURE_FILE(${CMAKE_BINARY_DIR}/sql/yy_mariadb.cc
+   ${PACKAGE_DIR}/sql/yy_mariadb.cc COPYONLY)
 # Copy bison output
-CONFIGURE_FILE(${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.hh
-   ${PACKAGE_DIR}/sql/sql_yacc_ora.hh COPYONLY)
-CONFIGURE_FILE(${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.cc
-   ${PACKAGE_DIR}/sql/sql_yacc_ora.cc COPYONLY)
+CONFIGURE_FILE(${CMAKE_BINARY_DIR}/sql/yy_oracle.hh
+   ${PACKAGE_DIR}/sql/yy_oracle.hh COPYONLY)
+CONFIGURE_FILE(${CMAKE_BINARY_DIR}/sql/yy_oracle.cc
+   ${PACKAGE_DIR}/sql/yy_oracle.cc COPYONLY)
 
 # Add documentation, if user has specified where to find them
 IF(MYSQL_DOCS_LOCATION)

@@ -210,7 +210,13 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
 	    info->last_key.data + share->base.max_key_length*2,
 	    info->save_lastkey_data_length + info->save_lastkey_ref_length);
       info->update=	info->save_update | HA_STATE_WRITTEN;
-      info->lastinx=	info->save_lastinx;
+      if (info->lastinx != info->save_lastinx)             /* Index changed */
+      {
+        info->lastinx = info->save_lastinx;
+        info->last_key.keyinfo= info->s->keyinfo + info->lastinx;
+        info->last_key.flag= 0;
+        info->page_changed=1;
+      }
       info->cur_row.lastpos= info->save_lastpos;
       info->last_key.data_length= info->save_lastkey_data_length;
       info->last_key.ref_length= info->save_lastkey_ref_length;

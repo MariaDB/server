@@ -289,3 +289,32 @@ ENGINE=InnoDB;
 ALTER TABLE t1 ADD c SERIAL;
 DROP TABLE t1;
 # End of 10.3 tests
+#
+#  MDEV-27582 Fulltext DDL decrements the FTS_DOC_ID value
+#
+CREATE TABLE t1 (
+f1 INT NOT NULL PRIMARY KEY,
+f2 VARCHAR(64), FULLTEXT ft(f2)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+connect con1,localhost,root,,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+DELETE FROM t1 WHERE f1 = 2;
+ALTER TABLE t1 DROP INDEX ft;
+ALTER TABLE t1 ADD FULLTEXT INDEX ft (f2);
+INSERT INTO t1 VALUES (3, 'innodb fts search');
+SET GLOBAL innodb_optimize_fulltext_only=ON;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+SET GLOBAL innodb_ft_aux_table = 'test/t1';
+SELECT max(DOC_ID) FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE;
+max(DOC_ID)
+3
+SELECT * FROM t1 WHERE MATCH(f2) AGAINST("+innodb +search" IN BOOLEAN MODE);
+f1	f2
+3	innodb fts search
+DROP TABLE t1;
+disconnect con1;
+SET GLOBAL innodb_optimize_fulltext_only=OFF;
+SET GLOBAL innodb_ft_aux_table = default;

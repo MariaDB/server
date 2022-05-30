@@ -1,0 +1,68 @@
+#
+# MDEV-15888 Implement FLUSH TABLES tbl_name [, tbl_name] ... WITH READ LOCK for views.
+#
+#
+# privilege checks with views
+#
+create database mysqltest1;
+create table mysqltest1.t1 (a int);
+create user u1@localhost;
+grant reload on *.* to u1@localhost;
+grant select on mysqltest1.* to u1@localhost;
+connect u1,localhost,u1;
+flush tables mysqltest1.t1 for export;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'mysqltest1'
+create view v as select * from mysqltest1.t1;
+create view v2 as select * from v;
+create view v3 as select * from (select * from mysqltest1.t1) x;
+flush tables v for export;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'mysqltest1'
+flush tables v2 for export;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'mysqltest1'
+flush tables v3 for export;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'mysqltest1'
+disconnect u1;
+connection default;
+drop database mysqltest1;
+drop view v, v2, v3;
+drop user u1@localhost;
+#
+# MDEV-25906: SIGSEGV in flush_tables_with_read_lock on FTWRL or FTFE | SIGSEGV in ha_maria::extra
+#
+CREATE VIEW v0 AS SELECT * FROM information_schema.columns;
+CREATE VIEW v1 AS SELECT * FROM information_schema.collations;
+CREATE VIEW v2 AS SELECT * FROM performance_schema.accounts;
+#
+# first try to flush tables directly
+#
+FLUSH TABLE information_schema.collations WITH READ LOCK;
+ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
+FLUSH TABLE performance_schema.accounts WITH READ LOCK;
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'accounts'
+FLUSH TABLE information_schema.colums WITH READ LOCK;
+ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
+FLUSH TABLE information_schema.collations FOR EXPORT;
+ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
+FLUSH TABLE performance_schema.accounts FOR EXPORT;
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'accounts'
+FLUSH TABLE information_schema.colums FOR EXPORT;
+ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
+#
+# and now via views
+#
+FLUSH TABLE v0 WITH READ LOCK;
+ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
+FLUSH TABLE v1 WITH READ LOCK;
+ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
+FLUSH TABLE v2 WITH READ LOCK;
+ERROR HY000: View 'test.v2' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+FLUSH TABLE v0 FOR EXPORT;
+ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
+FLUSH TABLE v1 FOR EXPORT;
+ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
+FLUSH TABLE v2 FOR EXPORT;
+ERROR HY000: View 'test.v2' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+DROP VIEW v0, v1, v2;
+#
+# End of 10.6 tests
+#

@@ -267,20 +267,20 @@ Datafile::read_first_page(bool read_only_mode)
 			IORequestReadPartial, m_handle, m_first_page, 0,
 			page_size, &n_read);
 
-		if (err == DB_IO_ERROR && n_read >= UNIV_PAGE_SIZE_MIN) {
-
-			page_size >>= 1;
-
-		} else if (err == DB_SUCCESS) {
-
+		if (err == DB_SUCCESS) {
 			ut_a(n_read == page_size);
-
 			break;
+		}
 
+		if (err == DB_IO_ERROR && n_read == 0) {
+			break;
+		}
+		if (err == DB_IO_ERROR && n_read >= UNIV_PAGE_SIZE_MIN) {
+			page_size >>= 1;
 		} else if (srv_operation == SRV_OPERATION_BACKUP) {
 			break;
 		} else {
-			ib::error() << "Cannot read first page of '"
+			ib::info() << "Cannot read first page of '"
 				<< m_filepath << "': " << err;
 			break;
 		}
@@ -400,10 +400,19 @@ Datafile::validate_for_recovery()
 	err = validate_first_page(0);
 
 	switch (err) {
-	case DB_SUCCESS:
 	case DB_TABLESPACE_EXISTS:
 		break;
-
+	case DB_SUCCESS:
+		if (!m_defer || !m_space_id) {
+			break;
+		}
+		/* InnoDB should check whether the deferred
+		tablespace page0 can be recovered from
+		double write buffer. InnoDB should try
+	        to recover only if m_space_id exists because
+		dblwr pages can be searched via {space_id, 0}.
+		m_space_id is set in read_first_page(). */
+		/* fall through */
 	default:
 		/* Re-open the file in read-write mode  Attempt to restore
 		page 0 from doublewrite and read the space ID from a survey
@@ -414,23 +423,27 @@ Datafile::validate_for_recovery()
 			return(err);
 		}
 
-		err = find_space_id();
-		if (err != DB_SUCCESS || m_space_id == 0) {
-			ib::error() << "Datafile '" << m_filepath << "' is"
-				" corrupted. Cannot determine the space ID from"
-				" the first 64 pages.";
-			return(err);
+		if (!m_defer) {
+			err = find_space_id();
+			if (err != DB_SUCCESS || m_space_id == 0) {
+				ib::error() << "Datafile '" << m_filepath
+					<< "' is corrupted. Cannot determine "
+					"the space ID from the first 64 pages.";
+				return(err);
+			}
 		}
+
 		if (m_space_id == ULINT_UNDEFINED) {
 			return DB_SUCCESS; /* empty file */
 		}
 
 		if (restore_from_doublewrite()) {
-			return(DB_CORRUPTION);
+			return m_defer ? err : DB_CORRUPTION;
 		}
 
 		/* Free the previously read first page and then re-validate. */
 		free_first_page();
+		m_defer = false;
 		err = validate_first_page(0);
 	}
 
@@ -757,7 +770,6 @@ Datafile::restore_from_doublewrite()
 			<< "Corrupted page " << page_id
 			<< " of datafile '" << m_filepath
 			<< "' could not be found in the doublewrite buffer.";
-
 		return(true);
 	}
 

@@ -1,0 +1,294 @@
+call mtr.add_suppression("Can.t init tc log");
+call mtr.add_suppression("Aborting");
+RESET MASTER;
+SET @@global.sync_binlog=1;
+CREATE TABLE t (f INT) ENGINE=INNODB;
+CREATE TABLE t2 (f INT) ENGINE=INNODB;
+CREATE TABLE t4 (f INT) ENGINE=INNODB;
+CREATE TABLE tm (f INT) ENGINE=Aria;
+# Case A.
+connect master1,localhost,root,,;
+connect master2,localhost,root,,;
+connect master3,localhost,root,,;
+connect master4,localhost,root,,;
+connection default;
+INSERT INTO t  VALUES (10);
+INSERT INTO tm VALUES (10);
+connection master1;
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+INSERT INTO t VALUES (20);
+connection master2;
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
+SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL master2_ready";
+DELETE FROM t2 WHERE f = 0 /* no such record */;
+connection master3;
+SET DEBUG_SYNC= "now WAIT_FOR master2_ready";
+SELECT @@global.gtid_binlog_pos as 'Before the crash';
+Before the crash
+0-1-8
+connection master4;
+SET DEBUG_SYNC= "ha_commit_trans_before_log_and_order SIGNAL master4_ready WAIT_FOR signal_never_arrives";
+INSERT INTO t4  VALUES (13);
+connection master3;
+SET DEBUG_SYNC= "now WAIT_FOR master4_ready";
+SELECT @@global.gtid_binlog_pos as 'Before the crash and never logged trx';
+Before the crash and never logged trx
+0-1-8
+connection default;
+# Kill the server
+disconnect master1;
+disconnect master2;
+disconnect master3;
+disconnect master4;
+# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1 --log-warnings=3
+FOUND 1 /Successfully truncated.*to remove transactions starting from GTID 0-1-7/ in mysqld.1.err
+Pre-crash binlog file content:
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t (f INT) ENGINE=INNODB
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t2 (f INT) ENGINE=INNODB
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t4 (f INT) ENGINE=INNODB
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE tm (f INT) ENGINE=Aria
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t  VALUES (10)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tm VALUES (10)
+master-bin.000001	#	Query	#	#	COMMIT
+SELECT @@global.gtid_binlog_pos as 'After the crash';
+After the crash
+0-1-6
+"One row should be present in table 't'"
+SELECT * FROM t;
+f
+10
+"No row should be present in table 't4'"
+SELECT * FROM t4;
+f
+DELETE FROM t;
+# Case B.
+connect master1,localhost,root,,;
+connect master2,localhost,root,,;
+connect master3,localhost,root,,;
+connect master4,localhost,root,,;
+connection default;
+INSERT INTO t  VALUES (10);
+INSERT INTO tm VALUES (10);
+connection master1;
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+DELETE FROM t2 WHERE f = 0;
+connection master2;
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
+SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL master2_ready";
+INSERT INTO t VALUES (20);
+connection master3;
+SET DEBUG_SYNC= "now WAIT_FOR master2_ready";
+SELECT @@global.gtid_binlog_pos as 'Before the crash';
+Before the crash
+0-1-11
+connection master4;
+SET DEBUG_SYNC= "ha_commit_trans_before_log_and_order SIGNAL master4_ready WAIT_FOR signal_never_arrives";
+INSERT INTO t4  VALUES (13);
+connection master3;
+SET DEBUG_SYNC= "now WAIT_FOR master4_ready";
+SELECT @@global.gtid_binlog_pos as 'Before the crash and never logged trx';
+Before the crash and never logged trx
+0-1-11
+connection default;
+# Kill the server
+disconnect master1;
+disconnect master2;
+disconnect master3;
+disconnect master4;
+# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1 --log-warnings=3
+FOUND 1 /Successfully truncated.*to remove transactions starting from GTID 0-1-11/ in mysqld.1.err
+Pre-crash binlog file content:
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; DELETE FROM t
+master-bin.000002	#	Xid	#	#	COMMIT /* XID */
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; INSERT INTO t  VALUES (10)
+master-bin.000002	#	Xid	#	#	COMMIT /* XID */
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; INSERT INTO tm VALUES (10)
+master-bin.000002	#	Query	#	#	COMMIT
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; DELETE FROM t2 WHERE f = 0
+master-bin.000002	#	Query	#	#	COMMIT
+SELECT @@global.gtid_binlog_pos as 'After the crash';
+After the crash
+0-1-10
+"One row should be present in table 't'"
+SELECT * FROM t;
+f
+10
+"No row should be present in table 't4'"
+SELECT * FROM t4;
+f
+DELETE FROM t;
+# Case C.
+CREATE PROCEDURE sp_blank_xa()
+BEGIN
+XA START   'blank';
+DELETE FROM t2 WHERE f = 0 /* no such record */;
+XA END     'blank';
+XA PREPARE 'blank';
+END|
+connect master1,localhost,root,,;
+connect master2,localhost,root,,;
+connect master3,localhost,root,,;
+connect master4,localhost,root,,;
+connection default;
+INSERT INTO t  VALUES (10);
+INSERT INTO tm VALUES (10);
+connection master1;
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+INSERT INTO t VALUES (20);
+connection master2;
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
+SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL master2_ready";
+CALL sp_blank_xa;
+connection master3;
+SET DEBUG_SYNC= "now WAIT_FOR master2_ready";
+SELECT @@global.gtid_binlog_pos as 'Before the crash';
+Before the crash
+0-1-16
+connection master4;
+SET DEBUG_SYNC= "ha_commit_trans_before_log_and_order SIGNAL master4_ready WAIT_FOR signal_never_arrives";
+INSERT INTO t4  VALUES (13);
+connection master3;
+SET DEBUG_SYNC= "now WAIT_FOR master4_ready";
+SELECT @@global.gtid_binlog_pos as 'Before the crash and never logged trx';
+Before the crash and never logged trx
+0-1-16
+connection default;
+# Kill the server
+disconnect master1;
+disconnect master2;
+disconnect master3;
+disconnect master4;
+# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1 --log-warnings=3
+FOUND 1 /Successfully truncated.*to remove transactions starting from GTID 0-1-15/ in mysqld.1.err
+Pre-crash binlog file content:
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000003	#	Query	#	#	use `test`; DELETE FROM t
+master-bin.000003	#	Xid	#	#	COMMIT /* XID */
+master-bin.000003	#	Gtid	#	#	GTID #-#-#
+master-bin.000003	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_blank_xa`()
+BEGIN
+XA START   'blank';
+DELETE FROM t2 WHERE f = 0 /* no such record */;
+XA END     'blank';
+XA PREPARE 'blank';
+END
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000003	#	Query	#	#	use `test`; INSERT INTO t  VALUES (10)
+master-bin.000003	#	Xid	#	#	COMMIT /* XID */
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000003	#	Query	#	#	use `test`; INSERT INTO tm VALUES (10)
+master-bin.000003	#	Query	#	#	COMMIT
+SELECT @@global.gtid_binlog_pos as 'After the crash';
+After the crash
+0-1-14
+"One row should be present in table 't'"
+SELECT * FROM t;
+f
+10
+"No row should be present in table 't4'"
+SELECT * FROM t4;
+f
+DELETE FROM t;
+DROP PROCEDURE sp_blank_xa;
+# Case D.
+CREATE PROCEDURE sp_xa()
+BEGIN
+XA START   'xid';
+DELETE FROM t WHERE f = 10;
+XA END     'xid';
+XA PREPARE 'xid';
+END|
+connect master1,localhost,root,,;
+connect master2,localhost,root,,;
+connect master3,localhost,root,,;
+connect master4,localhost,root,,;
+connection default;
+INSERT INTO t  VALUES (10);
+INSERT INTO tm VALUES (10);
+connection master1;
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+CALL sp_xa;
+connection master2;
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
+SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL master2_ready";
+INSERT INTO t2 VALUES (20);
+connection master3;
+SET DEBUG_SYNC= "now WAIT_FOR master2_ready";
+SELECT @@global.gtid_binlog_pos as 'Before the crash';
+Before the crash
+0-1-21
+connection master4;
+SET DEBUG_SYNC= "ha_commit_trans_before_log_and_order SIGNAL master4_ready WAIT_FOR signal_never_arrives";
+INSERT INTO t4  VALUES (13);
+connection master3;
+SET DEBUG_SYNC= "now WAIT_FOR master4_ready";
+SELECT @@global.gtid_binlog_pos as 'Before the crash and never logged trx';
+Before the crash and never logged trx
+0-1-21
+connection default;
+# Kill the server
+disconnect master1;
+disconnect master2;
+disconnect master3;
+disconnect master4;
+# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1 --log-warnings=3
+FOUND 1 /Successfully truncated.*to remove transactions starting from GTID 0-1-21/ in mysqld.1.err
+Pre-crash binlog file content:
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Query	#	#	use `test`; DELETE FROM t
+master-bin.000004	#	Xid	#	#	COMMIT /* XID */
+master-bin.000004	#	Gtid	#	#	GTID #-#-#
+master-bin.000004	#	Query	#	#	use `test`; DROP PROCEDURE sp_blank_xa
+master-bin.000004	#	Gtid	#	#	GTID #-#-#
+master-bin.000004	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_xa`()
+BEGIN
+XA START   'xid';
+DELETE FROM t WHERE f = 10;
+XA END     'xid';
+XA PREPARE 'xid';
+END
+master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Query	#	#	use `test`; INSERT INTO t  VALUES (10)
+master-bin.000004	#	Xid	#	#	COMMIT /* XID */
+master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Query	#	#	use `test`; INSERT INTO tm VALUES (10)
+master-bin.000004	#	Query	#	#	COMMIT
+master-bin.000004	#	Gtid	#	#	XA START X'786964',X'',1 GTID #-#-#
+master-bin.000004	#	Query	#	#	use `test`; DELETE FROM t WHERE f = 10
+master-bin.000004	#	Query	#	#	XA END X'786964',X'',1
+master-bin.000004	#	XA_prepare	#	#	XA PREPARE X'786964',X'',1
+SELECT @@global.gtid_binlog_pos as 'After the crash';
+After the crash
+0-1-20
+"One row should be present in table 't'"
+SELECT * FROM t;
+f
+10
+"No row should be present in table 't4'"
+SELECT * FROM t4;
+f
+DELETE FROM t;
+DROP PROCEDURE sp_xa;
+# Cleanup
+DROP TABLE t,t2,tm;
+SET @@global.sync_binlog= default;
+# End of the tests

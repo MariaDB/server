@@ -20,7 +20,7 @@
 
 void my_sleep(ulong m_seconds)
 {
-#if defined(__WIN__)
+#if defined(_WIN32)
   Sleep(m_seconds/1000+1);      /* Sleep() has millisecond arg */
 #elif defined(HAVE_SELECT)
   struct timeval t;

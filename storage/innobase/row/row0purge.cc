@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -41,7 +41,6 @@ Created 3/14/1997 Heikki Tuuri
 #include "row0upd.h"
 #include "row0vers.h"
 #include "row0mysql.h"
-#include "row0log.h"
 #include "log0log.h"
 #include "srv0mon.h"
 #include "srv0start.h"
@@ -75,7 +74,9 @@ row_purge_reposition_pcur(
 	if (node->found_clust) {
 		ut_ad(node->validate_pcur());
 
-		node->found_clust = btr_pcur_restore_position(mode, &node->pcur, mtr);
+		node->found_clust =
+		  node->pcur.restore_position(mode, mtr) ==
+		    btr_pcur_t::SAME_ALL;
 
 	} else {
 		node->found_clust = row_search_on_row_ref(
@@ -108,17 +109,16 @@ row_purge_remove_clust_if_poss_low(
 	dict_index_t* index = dict_table_get_first_index(node->table);
 	table_id_t table_id = 0;
 	index_id_t index_id = 0;
-	MDL_ticket* mdl_ticket = nullptr;
 	dict_table_t *table = nullptr;
 	pfs_os_file_t f = OS_FILE_CLOSED;
-retry:
+
 	if (table_id) {
-		dict_sys.mutex_lock();
-		table = dict_table_open_on_id(
-			table_id, true, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
-			node->purge_thd, &mdl_ticket);
+retry:
+		purge_sys.check_stop_FTS();
+		dict_sys.lock(SRW_LOCK_CALL);
+		table = dict_sys.find_table(table_id);
 		if (!table) {
-			dict_sys.mutex_unlock();
+			dict_sys.unlock();
 		} else if (table->n_rec_locks) {
 			for (dict_index_t* ind = UT_LIST_GET_FIRST(
 				     table->indexes); ind;
@@ -141,9 +141,7 @@ removed:
 		mtr.commit();
 close_and_exit:
 		if (table) {
-			dict_table_close(table, true, false,
-					 node->purge_thd, mdl_ticket);
-			dict_sys.mutex_unlock();
+			dict_sys.unlock();
 		}
 		return success;
 	}
@@ -167,32 +165,22 @@ close_and_exit:
 		if (const uint32_t space_id = dict_drop_index_tree(
 			    &node->pcur, nullptr, &mtr)) {
 			if (table) {
-				if (table->release()) {
+				if (table->get_ref_count() == 0) {
 					dict_sys.remove(table);
 				} else if (table->space_id == space_id) {
 					table->space = nullptr;
 					table->file_unreadable = true;
 				}
+				dict_sys.unlock();
 				table = nullptr;
-				dict_sys.mutex_unlock();
-				if (!mdl_ticket);
-				else if (MDL_context* mdl_context =
-					 static_cast<MDL_context*>(
-						 thd_mdl_context(node->
-								 purge_thd))) {
-					mdl_context->release_lock(mdl_ticket);
-					mdl_ticket = nullptr;
-				}
 			}
-			fil_delete_tablespace(space_id, true, &f);
+			f = fil_delete_tablespace(space_id);
 		}
 
 		mtr.commit();
 
 		if (table) {
-			dict_table_close(table, true, false,
-					 node->purge_thd, mdl_ticket);
-			dict_sys.mutex_unlock();
+			dict_sys.unlock();
 			table = nullptr;
 		}
 
@@ -370,27 +358,6 @@ row_purge_remove_sec_if_poss_tree(
 	mtr.start();
 	index->set_modified(mtr);
 
-	if (!index->is_committed()) {
-		/* The index->online_status may change if the index is
-		or was being created online, but not committed yet. It
-		is protected by index->lock. */
-		mtr_sx_lock_index(index, &mtr);
-
-		if (dict_index_is_online_ddl(index)) {
-			/* Online secondary index creation will not
-			copy any delete-marked records. Therefore
-			there is nothing to be purged. We must also
-			skip the purge when a completed index is
-			dropped by rollback_inplace_alter_table(). */
-			goto func_exit_no_pcur;
-		}
-	} else {
-		/* For secondary indexes,
-		index->online_status==ONLINE_INDEX_COMPLETE if
-		index->is_committed(). */
-		ut_ad(!dict_index_is_online_ddl(index));
-	}
-
 	search_result = row_search_index_entry(
 				index, entry,
 				BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
@@ -463,7 +430,6 @@ row_purge_remove_sec_if_poss_tree(
 
 func_exit:
 	btr_pcur_close(&pcur); // FIXME: need this?
-func_exit_no_pcur:
 	mtr.commit();
 
 	return(success);
@@ -494,40 +460,10 @@ row_purge_remove_sec_if_poss_leaf(
 	mtr.start();
 	index->set_modified(mtr);
 
-	if (!index->is_committed()) {
-		/* For uncommitted spatial index, we also skip the purge. */
-		if (dict_index_is_spatial(index)) {
-			goto func_exit_no_pcur;
-		}
-
-		/* The index->online_status may change if the the
-		index is or was being created online, but not
-		committed yet. It is protected by index->lock. */
-		mtr_s_lock_index(index, &mtr);
-
-		if (dict_index_is_online_ddl(index)) {
-			/* Online secondary index creation will not
-			copy any delete-marked records. Therefore
-			there is nothing to be purged. We must also
-			skip the purge when a completed index is
-			dropped by rollback_inplace_alter_table(). */
-			goto func_exit_no_pcur;
-		}
-
-		mode = BTR_PURGE_LEAF_ALREADY_S_LATCHED;
-	} else {
-		/* For secondary indexes,
-		index->online_status==ONLINE_INDEX_COMPLETE if
-		index->is_committed(). */
-		ut_ad(!dict_index_is_online_ddl(index));
-
-		/* Change buffering is disabled for spatial index and
-		virtual index. */
-		mode = (dict_index_is_spatial(index)
-			|| dict_index_has_virtual(index))
-			? BTR_MODIFY_LEAF
-			: BTR_PURGE_LEAF;
-	}
+	/* Change buffering is disabled for spatial index and
+	virtual index. */
+	mode = (index->type & (DICT_SPATIAL | DICT_VIRTUAL))
+		? BTR_MODIFY_LEAF : BTR_PURGE_LEAF;
 
 	/* Set the purge node for the call to row_purge_poss_sec(). */
 	pcur.btr_cur.purge_node = node;
@@ -568,10 +504,7 @@ row_purge_remove_sec_if_poss_leaf(
 						btr_cur_get_rec(btr_cur),
 						index);
 				ut_ad(0);
-
-				btr_pcur_close(&pcur);
-
-				goto func_exit_no_pcur;
+				goto func_exit;
 			}
 
 			if (index->is_spatial()) {
@@ -580,7 +513,7 @@ row_purge_remove_sec_if_poss_leaf(
 
 				if (block->page.id().page_no()
 				    != index->page
-				    && page_get_n_recs(block->frame) < 2
+				    && page_get_n_recs(block->page.frame) < 2
 				    && !lock_test_prdt_page_lock(
 					    btr_cur->rtr_info
 					    && btr_cur->rtr_info->thr
@@ -596,10 +529,7 @@ row_purge_remove_sec_if_poss_leaf(
 						 "skip purging last"
 						 " record on page "
 						 << block->page.id());
-
-					btr_pcur_close(&pcur);
-					mtr.commit();
-					return(success);
+					goto func_exit;
 				}
 			}
 
@@ -619,9 +549,9 @@ row_purge_remove_sec_if_poss_leaf(
 		/* The deletion was buffered. */
 	case ROW_NOT_FOUND:
 		/* The index entry does not exist, nothing to do. */
-		btr_pcur_close(&pcur); // FIXME: do we need these? when is btr_cur->rtr_info set?
-func_exit_no_pcur:
+func_exit:
 		mtr.commit();
+		btr_pcur_close(&pcur); // FIXME: do we need these? when is btr_cur->rtr_info set?
 		return(success);
 	}
 
@@ -739,6 +669,12 @@ void purge_sys_t::wait_SYS()
     std::this_thread::sleep_for(std::chrono::seconds(1));
 }
 
+void purge_sys_t::wait_FTS()
+{
+  while (must_wait_FTS())
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+}
+
 /** Reset DB_TRX_ID, DB_ROLL_PTR of a clustered index record
 whose old history can no longer be observed.
 @param[in,out]	node	purge node
@@ -811,9 +747,9 @@ retry:
 				size_t offs = page_offset(ptr);
 				mtr->memset(block, offs, DATA_TRX_ID_LEN, 0);
 				offs += DATA_TRX_ID_LEN;
-				mtr->write<1,mtr_t::MAYBE_NOP>(*block,
-							       block->frame
-							       + offs, 0x80U);
+				mtr->write<1,mtr_t::MAYBE_NOP>(
+					*block, block->page.frame + offs,
+					0x80U);
 				mtr->memset(block, offs + 1,
 					    DATA_ROLL_PTR_LEN - 1, 0);
 			}
@@ -885,7 +821,6 @@ skip_secondaries:
 			= upd_get_nth_field(node->update, i);
 
 		if (dfield_is_ext(&ufield->new_val)) {
-			trx_rseg_t*	rseg;
 			buf_block_t*	block;
 			byte*		data_field;
 			bool		is_insert;
@@ -910,11 +845,8 @@ skip_secondaries:
 						 &is_insert, &rseg_id,
 						 &page_no, &offset);
 
-			rseg = trx_sys.rseg_array[rseg_id];
-
-			ut_a(rseg != NULL);
-			ut_ad(rseg->id == rseg_id);
-			ut_ad(rseg->is_persistent());
+			const trx_rseg_t &rseg = trx_sys.rseg_array[rseg_id];
+			ut_ad(rseg.is_persistent());
 
 			mtr.start();
 
@@ -925,7 +857,7 @@ skip_secondaries:
 
 			index->set_modified(mtr);
 
-			/* NOTE: we must also acquire an X-latch to the
+			/* NOTE: we must also acquire a U latch to the
 			root page of the tree. We will need it when we
 			free pages from the tree. If the tree is of height 1,
 			the tree X-latch does NOT protect the root page,
@@ -934,10 +866,10 @@ skip_secondaries:
 			latching order if we would only later latch the
 			root page of such a tree! */
 
-			btr_root_get(index, &mtr);
+			btr_root_block_get(index, RW_SX_LATCH, &mtr);
 
 			block = buf_page_get(
-				page_id_t(rseg->space->id, page_no),
+				page_id_t(rseg.space->id, page_no),
 				0, RW_X_LATCH, &mtr);
 
 			data_field = buf_block_get_frame(block)
@@ -1034,11 +966,17 @@ row_purge_parse_undo_rec(
 	}
 
 try_again:
-	node->table = dict_table_open_on_id(
+	purge_sys.check_stop_FTS();
+
+	node->table = dict_table_open_on_id<true>(
 		table_id, false, DICT_TABLE_OP_NORMAL, node->purge_thd,
 		&node->mdl_ticket);
 
-	if (node->table == NULL || node->table->name.is_temporary()) {
+	if (!node->table && purge_sys.must_wait_FTS()) {
+		goto try_again;
+	}
+
+	if (!node->table) {
 		/* The table has been dropped: no need to do purge and
 		release mdl happened as a part of open process itself */
 		goto err_exit;
@@ -1060,7 +998,7 @@ already_locked:
 		if (!mysqld_server_started) {
 
 			node->close_table();
-			if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
+			if (srv_shutdown_state > SRV_SHUTDOWN_NONE) {
 				return(false);
 			}
 			std::this_thread::sleep_for(std::chrono::seconds(1));

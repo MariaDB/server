@@ -1,9 +1,7 @@
 --source include/galera_cluster.inc
---source include/have_innodb.inc
 
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER, f2 VARCHAR(10)) ENGINE=InnoDB;
-CREATE TABLE t2 (f1 INTEGER);
 
 SET SESSION wsrep_trx_fragment_size = 1;
 SET AUTOCOMMIT=OFF;
@@ -22,9 +20,12 @@ COMMIT;
 INSERT INTO t1 VALUES (2);
 
 --connection node_1
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 
 --connection node_2
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
-
-DROP TABLE t2;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;

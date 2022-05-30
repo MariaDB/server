@@ -30,7 +30,7 @@ extern "C" {
 #define EXTERNC
 #endif /* __cplusplus */ 
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 typedef CRITICAL_SECTION pthread_mutex_t;
 typedef DWORD		 pthread_t;
 typedef struct thread_attr {
@@ -277,7 +277,7 @@ struct tm *gmtime_r(const time_t *clock, struct tm *res);
 #define HAVE_PTHREAD_KILL 1
 #endif
 
-#endif /* defined(__WIN__) */
+#endif /* defined(_WIN32) */
 
 #if defined(HPUX10) && !defined(DONT_REMAP_PTHREAD_FUNCTIONS)
 #undef pthread_cond_timedwait
@@ -297,16 +297,18 @@ void my_pthread_attr_getstacksize(pthread_attr_t *attrib, size_t *size);
 int my_pthread_mutex_trylock(pthread_mutex_t *mutex);
 #endif
 
-#if !defined(HAVE_PTHREAD_YIELD_ZERO_ARG)
-/* no pthread_yield() available */
 #ifdef HAVE_SCHED_YIELD
 #define pthread_yield() sched_yield()
-#elif defined(HAVE_PTHREAD_YIELD_NP) /* can be Mac OS X */
+#else
+#if !defined(HAVE_PTHREAD_YIELD_ZERO_ARG)
+/* no pthread_yield() available */
+#if defined(HAVE_PTHREAD_YIELD_NP) /* can be Mac OS X */
 #define pthread_yield() pthread_yield_np()
 #elif defined(HAVE_THR_YIELD)
 #define pthread_yield() thr_yield()
-#endif
-#endif
+#endif //defined(HAVE_PTHREAD_YIELD_NP)
+#endif //!defined(HAVE_PTHREAD_YIELD_ZERO_ARG)
+#endif //HAVE_SCHED_YIELD
 
 size_t my_setstacksize(pthread_attr_t *attr, size_t stacksize);
 

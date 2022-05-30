@@ -1,0 +1,35 @@
+--source include/have_innodb.inc
+
+call mtr.add_suppression("Index for table 'imp_t1' is corrupt; try to repair it");
+
+SET @save_innodb_checksum_algorithm=@@GLOBAL.innodb_checksum_algorithm;
+SET GLOBAL innodb_checksum_algorithm=full_crc32;
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+CREATE TABLE imp_t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE imp_t1 DISCARD TABLESPACE ;
+FLUSH TABLES t1 FOR EXPORT;
+let $datadir=`select @@datadir`;
+--copy_file $datadir/test/t1.ibd $datadir/test/imp_t1.ibd
+UNLOCK TABLES;
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE imp_t1 IMPORT TABLESPACE;
+--error ER_TABLE_EXISTS_ERROR
+CREATE TABLE imp_t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+DROP TABLE imp_t1;
+CREATE TABLE imp_t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+DROP TABLE imp_t1, t1;
+
+SET GLOBAL innodb_checksum_algorithm=@save_innodb_checksum_algorithm;
+
+--echo #
+--echo # MDEV-27006 Assertion `!lock_trx_has_sys_table_locks(trx)'
+--echo #	failed in dberr_t row_discard_tablespace_for_mysql
+--echo #		(dict_table_t*, trx_t*)
+CREATE TABLE t1 (c INT KEY) ENGINE=INNODB;
+CREATE TABLE t2 (c INT KEY,FOREIGN KEY(c) REFERENCES t1 (c)) ENGINE=INNODB;
+--error ER_ROW_IS_REFERENCED_2
+ALTER TABLE t1 DISCARD TABLESPACE;
+DROP TABLE t2, t1;
+
+--echo # End of 10.6 tests

@@ -17,7 +17,7 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #if defined(UNIX)
 #include <fnmatch.h>
 #include <errno.h>
@@ -27,7 +27,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 #include <time.h>
 
 /***********************************************************************/
@@ -153,7 +153,7 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 	/*********************************************************************/
 	strcpy(filename, pat);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 	int  rc;
 	char   drive[_MAX_DRIVE], direc[_MAX_DIR];
 	WIN32_FIND_DATA FileData;
@@ -210,7 +210,7 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 		return true;
 	} // endif FindClose
 
-#else   // !__WIN__
+#else   // !_WIN32
 	struct stat fileinfo;
 	char   fn[FN_REFLEN], direc[FN_REFLEN], pattern[FN_HEADLEN], ftype[FN_EXTLEN];
 	DIR   *dir;
@@ -251,7 +251,7 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 
 	// Close the dir handle.
 	closedir(dir);
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 	return false;
 }	// end of ZipFiles
@@ -275,9 +275,9 @@ bool ZipLoadFile(PGLOBAL g, PCSZ zfn, PCSZ fn, PCSZ entry, bool append, bool mul
 
 		if (!entry) {    // entry defaults to the file name
 			char* p = strrchr((char*)fn, '/');
-#if defined(__WIN__)
+#if defined(_WIN32)
 			if (!p) p = strrchr((char*)fn, '\\');
-#endif  //  __WIN__
+#endif  //  _WIN32
 			entp = (p) ? p + 1 : entry;
 		} else
 			entp = entry;
@@ -467,7 +467,7 @@ UNZIPUTL::UNZIPUTL(PCSZ tgt, PCSZ pw, bool mul)
 	memset(fn, 0, sizeof(fn));
 
 	// Init the case mapping table.
-#if defined(__WIN__)
+#if defined(_WIN32)
 	for (int i = 0; i < 256; ++i) mapCaseTable[i] = toupper(i);
 #else
 	for (int i = 0; i < 256; ++i) mapCaseTable[i] = i;
@@ -487,7 +487,7 @@ UNZIPUTL::UNZIPUTL(PDOSDEF tdp)
 	memset(fn, 0, sizeof(fn));
 
 	// Init the case mapping table.
-#if defined(__WIN__)
+#if defined(_WIN32)
 	for (int i = 0; i < 256; ++i) mapCaseTable[i] = toupper(i);
 #else
 	for (int i = 0; i < 256; ++i) mapCaseTable[i] = i;

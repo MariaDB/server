@@ -170,6 +170,7 @@ IF(UNIX)
       SET(LIBWRAP "wrap")
     ENDIF()
   ENDIF()
+  ADD_FEATURE_INFO(LIBWRAP HAVE_LIBWRAP "Support for tcp wrappers")
 ENDIF()
 
 #
@@ -861,11 +862,43 @@ MARK_AS_ADVANCED(NO_ALARM)
 CHECK_CXX_SOURCE_COMPILES("
 int main()
 {
-  long long int var= 1;
-  long long int *ptr= &var;
-  return (int)__atomic_load_n(ptr, __ATOMIC_SEQ_CST);
+  char x=1;
+  short y=1;
+  int z=1;
+  long w = 1;
+  long long s = 1;
+  x = __atomic_add_fetch(&x, 1, __ATOMIC_SEQ_CST);
+  y = __atomic_add_fetch(&y, 1, __ATOMIC_SEQ_CST);
+  z = __atomic_add_fetch(&z, 1, __ATOMIC_SEQ_CST);
+  w = __atomic_add_fetch(&w, 1, __ATOMIC_SEQ_CST);
+  return (int)__atomic_load_n(&s, __ATOMIC_SEQ_CST);
 }"
-HAVE_GCC_C11_ATOMICS)
+HAVE_GCC_C11_ATOMICS_WITHOUT_LIBATOMIC)
+IF (HAVE_GCC_C11_ATOMICS_WITHOUT_LIBATOMIC)
+  SET(HAVE_GCC_C11_ATOMICS True)
+ELSE()
+  SET(OLD_CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES})
+  LIST(APPEND CMAKE_REQUIRED_LIBRARIES "atomic")
+  CHECK_CXX_SOURCE_COMPILES("
+  int main()
+  {
+    char x=1;
+    short y=1;
+    int z=1;
+    long w = 1;
+    long long s = 1;
+    x = __atomic_add_fetch(&x, 1, __ATOMIC_SEQ_CST);
+    y = __atomic_add_fetch(&y, 1, __ATOMIC_SEQ_CST);
+    z = __atomic_add_fetch(&z, 1, __ATOMIC_SEQ_CST);
+    w = __atomic_add_fetch(&w, 1, __ATOMIC_SEQ_CST);
+    return (int)__atomic_load_n(&s, __ATOMIC_SEQ_CST);
+  }"
+  HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)
+  IF(HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)
+    SET(HAVE_GCC_C11_ATOMICS True)
+  ENDIF()
+  SET(CMAKE_REQUIRED_LIBRARIES ${OLD_CMAKE_REQUIRED_LIBRARIES})
+ENDIF()
 
 IF(WITH_VALGRIND)
   SET(HAVE_valgrind 1)
@@ -948,4 +981,20 @@ IF(NOT MSVC)
   }"
   HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE
   )
+ENDIF()
+
+MY_CHECK_C_COMPILER_FLAG("-Werror")
+IF(have_C__Werror)
+  SET(SAVE_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
+  SET(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -Werror")
+  CHECK_C_SOURCE_COMPILES("
+    #include <unistd.h>
+    int main()
+    {
+      pid_t pid=vfork();
+      return (int)pid;
+    }"
+    HAVE_VFORK
+  )
+  SET(CMAKE_REQUIRED_FLAGS ${SAVE_CMAKE_REQUIRED_FLAGS})
 ENDIF()

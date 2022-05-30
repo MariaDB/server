@@ -33,7 +33,9 @@ print FILE "SELECT load_file('",$protected_file,"') AS loaded_file;\n";
 close(FILE);
 EOF
 
+--enable_prepare_warnings
 --source $MYSQL_TMP_DIR/bug50373.inc
+--disable_prepare_warnings
 --remove_file $MYSQL_TMP_DIR/bug50373.inc
 --enable_query_log
 

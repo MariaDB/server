@@ -3,6 +3,7 @@
 --disable_warnings
 drop table if exists tb4 ;
 --enable_warnings
+--enable_prepare_warnings
 create table tb4 (
 f176 numeric (0) unsigned not null DEFAULT 9,
 f177 numeric (64) unsigned not null DEFAULT 9,
@@ -67,3 +68,4 @@ f240 varchar(1200)
 eval
 load data infile '$MYSQLTEST_VARDIR/std_data/funcs_1/memory_tb4.txt'
 into table tb4;
+--disable_prepare_warnings

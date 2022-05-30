@@ -1,0 +1,61 @@
+SET @save_storage_engine= @@default_storage_engine;
+SET default_storage_engine= InnoDB;
+#
+# MDEV-16708: Unsupported commands for prepared statements
+#
+# Disable ps-protocol explicitly in order to test support of
+# prepared statements for use case when statements passed
+# to the server via text client-server protocol (in contrast
+# with binary protocol used in the test file
+# ps_missed_cmds_bin_prot.test)
+# Test case 20: Check that the CREATE EVENT/ALTER EVENT/DROP EVENT
+# statements can be executed as a prepared statement
+PREPARE stmt_1 FROM "CREATE EVENT e1 ON SCHEDULE AT CURRENT_TIMESTAMP - INTERVAL 1 DAY ON COMPLETION PRESERVE DO SET @a=1";
+PREPARE stmt_2 FROM "ALTER EVENT e1 COMMENT 'New comment'";
+PREPARE stmt_3 FROM "DROP EVENT e1";
+# Create the event e1 that specifies time in past. Such event is created
+# just for the sake of its existence and never will be triggered.
+# Disable warnings temprorary in order to hide the following warnings
+# generated in result of execution the 'CREATE EVENT' statement:
+#   "1544 | Event execution time is in the past. Event has been disabled"
+#   "1105 | Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it."
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'CREATE EVENT' statement
+# were damaged. Execution of this statement the second time expectedly
+# results in emitting the error ER_EVENT_ALREADY_EXISTS since the event
+# with the same name has just been created.
+EXECUTE stmt_1;
+ERROR HY000: Event 'e1' already exists
+# Alter event e1
+EXECUTE stmt_2;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'ALTER EVENT' statement
+# were damaged.
+EXECUTE stmt_2;
+# Drop event e1
+EXECUTE stmt_3;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'DROP EVENT' statement
+# were damaged. Execution of this statement the second time expectedly
+# results in emitting the error ER_EVENT_DOESNT_EXIST since the event
+# with the same name has just been dropped.
+EXECUTE stmt_3;
+ERROR HY000: Unknown event 'e1'
+# Clean up
+DEALLOCATE PREPARE stmt_1;
+DEALLOCATE PREPARE stmt_2;
+DEALLOCATE PREPARE stmt_3;
+# Test case 22: Check that the 'SHOW RELAYLOG EVENTS' statement can be
+# executed as a prepared statement.
+PREPARE stmt_1 FROM 'SHOW RELAYLOG EVENTS';
+EXECUTE stmt_1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'SHOW RELAYLOG EVENTS'
+# statement were damaged.
+EXECUTE stmt_1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+# Clean up
+DEALLOCATE PREPARE stmt_1;
+SET default_storage_engine= @save_storage_engine;

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2016, 2020, MariaDB
+   Copyright (c) 2016, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -447,8 +447,8 @@ bool String::copy(const char *str, size_t arg_length,
 {
   uint32 offset;
 
-  DBUG_ASSERT(!str || str != Ptr);
-  
+  DBUG_ASSERT(!str || str != Ptr || !is_alloced());
+
   if (!needs_conversion(arg_length, from_cs, to_cs, &offset))
   {
     *errors= 0;
@@ -848,10 +848,9 @@ bool Binary_string::copy_printable_hhhh(CHARSET_INFO *to_cs,
 */
 
 
-int sortcmp(const String *s,const String *t, CHARSET_INFO *cs)
+int sortcmp(const Binary_string *s, const Binary_string *t, CHARSET_INFO *cs)
 {
- return cs->strnncollsp(s->ptr(), s->length(),
-                        t->ptr(), t->length());
+ return cs->strnncollsp(s->ptr(), s->length(), t->ptr(), t->length());
 }
 
 
@@ -873,7 +872,7 @@ int sortcmp(const String *s,const String *t, CHARSET_INFO *cs)
 */
 
 
-int stringcmp(const String *s,const String *t)
+int stringcmp(const Binary_string *s, const Binary_string *t)
 {
   uint32 s_len=s->length(),t_len=t->length(),len=MY_MIN(s_len,t_len);
   int cmp= len ? memcmp(s->ptr(), t->ptr(), len) : 0;

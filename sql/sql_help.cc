@@ -430,6 +430,46 @@ void get_all_items_for_category(THD *thd, TABLE *items, Field *pfname,
   DBUG_VOID_RETURN;
 }
 
+
+/**
+  Collect field names of HELP header that will be sent to a client
+
+  @param      thd         Thread data object
+  @param[out] field_list  List of fields whose metadata should be collected for
+                          sending to client
+*/
+
+static void fill_answer_1_fields(THD *thd, List<Item> *field_list)
+{
+  MEM_ROOT *mem_root= thd->mem_root;
+
+  field_list->push_back(new (mem_root) Item_empty_string(thd, "name", 64),
+                        mem_root);
+  field_list->push_back(new (mem_root) Item_empty_string(thd, "description",
+                                                         1000),
+                        mem_root);
+  field_list->push_back(new (mem_root) Item_empty_string(thd, "example", 1000),
+                        mem_root);
+}
+
+
+/**
+  Send metadata of an answer on help request to a client
+
+  @param protocol   protocol for sending
+*/
+
+static bool send_answer_1_metadata(Protocol *protocol)
+{
+  List<Item> field_list;
+
+  fill_answer_1_fields(protocol->thd, &field_list);
+  return protocol->send_result_set_metadata(&field_list,
+                                            Protocol::SEND_NUM_ROWS |
+                                            Protocol::SEND_EOF);
+}
+
+
 /*
   Send to client answer for help request
 
@@ -455,22 +495,11 @@ void get_all_items_for_category(THD *thd, TABLE *items, Field *pfname,
     0		Successeful send
 */
 
-int send_answer_1(Protocol *protocol, String *s1, String *s2, String *s3)
+static int send_answer_1(Protocol *protocol, String *s1, String *s2, String *s3)
 {
-  THD *thd= protocol->thd;
-  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("send_answer_1");
 
-  List<Item> field_list;
-  field_list.push_back(new (mem_root) Item_empty_string(thd, "name", 64),
-                       mem_root);
-  field_list.push_back(new (mem_root) Item_empty_string(thd, "description", 1000),
-                       mem_root);
-  field_list.push_back(new (mem_root) Item_empty_string(thd, "example", 1000),
-                       mem_root);
-
-  if (protocol->send_result_set_metadata(&field_list,
-                            Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+  if (send_answer_1_metadata(protocol))
     DBUG_RETURN(1);
 
   protocol->prepare_for_resend();
@@ -483,13 +512,39 @@ int send_answer_1(Protocol *protocol, String *s1, String *s2, String *s3)
 }
 
 
+/**
+  Collect field names of HELP header that will be sent to a client
+
+  @param      thd          Thread data object
+  @param[out] field_list   List of fields whose metadata should be collected for
+                           sending to client
+  @param      for_category need column 'source_category_name'
+*/
+
+static void fill_header_2_fields(THD *thd, List<Item> *field_list,
+                                 bool for_category)
+{
+  MEM_ROOT *mem_root= thd->mem_root;
+  if (for_category)
+    field_list->push_back(new (mem_root)
+                          Item_empty_string(thd, "source_category_name", 64),
+                          mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "name", 64),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "is_it_category", 1),
+                        mem_root);
+}
+
+
 /*
   Send to client help header
 
   SYNOPSIS
    send_header_2()
     protocol       - protocol for sending
-    is_it_category - need column 'source_category_name'
+    for_category   - need column 'source_category_name'
 
   IMPLEMENTATION
    +-                    -+
@@ -504,22 +559,12 @@ int send_answer_1(Protocol *protocol, String *s1, String *s2, String *s3)
     result of protocol->send_result_set_metadata
 */
 
-int send_header_2(Protocol *protocol, bool for_category)
+static int send_header_2(Protocol *protocol, bool for_category)
 {
-  THD *thd= protocol->thd;
-  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("send_header_2");
   List<Item> field_list;
-  if (for_category)
-    field_list.push_back(new (mem_root)
-                         Item_empty_string(thd, "source_category_name", 64),
-                         mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "name", 64),
-                       mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "is_it_category", 1),
-                       mem_root);
+
+  fill_header_2_fields(protocol->thd, &field_list, for_category);
   DBUG_RETURN(protocol->send_result_set_metadata(&field_list,
                                                  Protocol::SEND_NUM_ROWS |
                                                  Protocol::SEND_EOF));
@@ -639,7 +684,6 @@ SQL_SELECT *prepare_simple_select(THD *thd, Item *cond,
     thd      Thread handler
     mask     mask for compare with name
     mlen     length of mask
-    tables   list of tables, used in WHERE
     table    goal table
     pfname   field "name" in table
 
@@ -650,8 +694,7 @@ SQL_SELECT *prepare_simple_select(THD *thd, Item *cond,
 */
 
 SQL_SELECT *prepare_select_for_name(THD *thd, const char *mask, size_t mlen,
-				    TABLE_LIST *tables, TABLE *table,
-				    Field *pfname, int *error)
+				    TABLE *table, Field *pfname, int *error)
 {
   MEM_ROOT *mem_root= thd->mem_root;
   Item *cond= new (mem_root)
@@ -665,6 +708,205 @@ SQL_SELECT *prepare_select_for_name(THD *thd, const char *mask, size_t mlen,
   if (unlikely(thd->is_fatal_error))
     return 0;					// OOM
   return prepare_simple_select(thd, cond, table, error);
+}
+
+
+/**
+  Initialize the TABLE_LIST with tables used in HELP statement handling.
+
+  @param thd      Thread handler
+  @param tables   Array of four TABLE_LIST objects to initialize with data
+                  about the tables help_topic, help_category, help_relation,
+                  help_keyword
+*/
+
+static void initialize_tables_for_help_command(THD *thd, TABLE_LIST *tables)
+{
+  LEX_CSTRING MYSQL_HELP_TOPIC_NAME=    {STRING_WITH_LEN("help_topic") };
+  LEX_CSTRING MYSQL_HELP_CATEGORY_NAME= {STRING_WITH_LEN("help_category") };
+  LEX_CSTRING MYSQL_HELP_RELATION_NAME= {STRING_WITH_LEN("help_relation") };
+  LEX_CSTRING MYSQL_HELP_KEYWORD_NAME=  {STRING_WITH_LEN("help_keyword") };
+
+  tables[0].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_HELP_TOPIC_NAME, 0,
+                           TL_READ);
+  tables[1].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_HELP_CATEGORY_NAME, 0,
+                           TL_READ);
+  tables[2].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_HELP_RELATION_NAME, 0,
+                           TL_READ);
+  tables[3].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_HELP_KEYWORD_NAME, 0,
+                           TL_READ);
+  tables[0].next_global= tables[0].next_local=
+    tables[0].next_name_resolution_table= &tables[1];
+  tables[1].next_global= tables[1].next_local=
+    tables[1].next_name_resolution_table= &tables[2];
+  tables[2].next_global= tables[2].next_local=
+    tables[2].next_name_resolution_table= &tables[3];
+}
+
+
+/**
+  Setup tables and fields for query.
+
+  @param thd               Thread handler
+  @param first_select_lex  SELECT_LEX of the parsed statement
+  @param tables            Array of tables used in handling of the HELP
+                           statement
+  @param used_fields       Array of fields used in handling of the HELP
+                           statement
+
+  @return false on success, else true.
+*/
+
+template <size_t M, size_t N>
+static bool init_items_for_help_command(THD *thd,
+                                        SELECT_LEX *first_select_lex,
+                                        TABLE_LIST (&tables)[M],
+                                        st_find_field (& used_fields)[N])
+{
+  List<TABLE_LIST> leaves;
+
+  /*
+    Initialize tables and fields to be usable from items.
+    tables do not contain VIEWs => we can pass 0 as conds
+  */
+  first_select_lex->context.table_list=
+    first_select_lex->context.first_name_resolution_table=
+      &tables[0];
+
+  if (setup_tables(thd, &first_select_lex->context,
+                   &first_select_lex->top_join_list,
+                   &tables[0], leaves, false, false))
+    return true;
+
+  memcpy((char*) used_fields, (char*) init_used_fields,
+         sizeof(used_fields[0]) * N);
+  if (init_fields(thd, &tables[0], used_fields, N))
+    return true;
+
+  for (size_t i= 0; i < M; i++)
+    tables[i].table->file->init_table_handle_for_HANDLER();
+
+  return false;
+}
+
+
+/**
+  Prepare (in the sense of prepared statement) the HELP statement.
+
+  @param thd          Thread handler
+  @param mask         string value passed to the HELP statement
+  @oaram[out] fields  fields for result set metadata
+
+  @return false on success, else true.
+*/
+
+bool mysqld_help_prepare(THD *thd, const char *mask, List<Item> *fields)
+{
+  TABLE_LIST tables[4];
+  st_find_field used_fields[array_elements(init_used_fields)];
+  SQL_SELECT *select;
+
+  List<String> topics_list;
+
+  Sql_mode_instant_remove sms(thd, MODE_PAD_CHAR_TO_FULL_LENGTH);
+  initialize_tables_for_help_command(thd, tables);
+
+  /*
+    HELP must be available under LOCK TABLES.
+    Reset and backup the current open tables state to
+    make it possible.
+  */
+  start_new_trans new_trans(thd);
+
+  if (open_system_tables_for_read(thd, tables))
+    return true;
+
+  auto cleanup_and_return= [&](bool ret)
+  {
+    thd->commit_whole_transaction_and_close_tables();
+    new_trans.restore_old_transaction();
+    return ret;
+  };
+
+  if (init_items_for_help_command(thd, thd->lex->first_select_lex(),
+                                  tables, used_fields))
+    return cleanup_and_return(false);
+
+  size_t mlen= strlen(mask);
+  int error;
+
+  /*
+    Prepare the query 'SELECT * FROM help_topic WHERE name LIKE mask'
+    for execution
+  */
+  if (!(select=
+        prepare_select_for_name(thd,mask, mlen, tables[0].table,
+                                used_fields[help_topic_name].field, &error)))
+    return cleanup_and_return(true);
+
+  String name, description, example;
+  /*
+    Run the query 'SELECT * FROM help_topic WHERE name LIKE mask'
+  */
+  int count_topics= search_topics(thd, tables[0].table, used_fields,
+                                  select, &topics_list,
+                                  &name, &description, &example);
+  delete select;
+
+  if (thd->is_error())
+    return cleanup_and_return(true);
+
+  if (count_topics == 0)
+  {
+    int UNINIT_VAR(key_id);
+    /*
+      Prepare the query 'SELECT * FROM help_keyword WHERE name LIKE mask'
+      for execution
+    */
+    if (!(select=
+        prepare_select_for_name(thd, mask, mlen, tables[3].table,
+                                used_fields[help_keyword_name].field,
+                                &error)))
+      return cleanup_and_return(true);
+
+    /*
+      Run the query 'SELECT * FROM help_keyword WHERE name LIKE mask'
+    */
+    count_topics= search_keyword(thd,tables[3].table, used_fields, select,
+                                 &key_id);
+    delete select;
+    count_topics= (count_topics != 1) ? 0 :
+        get_topics_for_keyword(thd, tables[0].table, tables[2].table,
+                               used_fields, key_id, &topics_list, &name,
+                               &description, &example);
+
+  }
+
+  if (count_topics == 0)
+  {
+    if (!(select=
+        prepare_select_for_name(thd, mask, mlen, tables[1].table,
+                                used_fields[help_category_name].field,
+                                &error)))
+      return cleanup_and_return(true);
+
+    List<String> categories_list;
+    int16 category_id;
+    int count_categories= search_categories(thd, tables[1].table, used_fields,
+                                            select,
+                                            &categories_list,&category_id);
+    delete select;
+    if (count_categories == 1)
+      fill_header_2_fields(thd, fields, true);
+    else
+      fill_header_2_fields(thd, fields, false);
+  }
+  else if (count_topics == 1)
+    fill_answer_1_fields(thd, fields);
+  else
+    fill_header_2_fields(thd, fields, false);
+
+  return cleanup_and_return(false);
 }
 
 
@@ -685,30 +927,15 @@ static bool mysqld_help_internal(THD *thd, const char *mask)
   Protocol *protocol= thd->protocol;
   SQL_SELECT *select;
   st_find_field used_fields[array_elements(init_used_fields)];
-  List<TABLE_LIST> leaves;
   TABLE_LIST tables[4];
   List<String> topics_list, categories_list, subcategories_list;
   String name, description, example;
   int count_topics, count_categories, error;
   size_t mlen= strlen(mask);
-  size_t i;
   MEM_ROOT *mem_root= thd->mem_root;
-  LEX_CSTRING MYSQL_HELP_TOPIC_NAME=    {STRING_WITH_LEN("help_topic") };
-  LEX_CSTRING MYSQL_HELP_CATEGORY_NAME= {STRING_WITH_LEN("help_category") };
-  LEX_CSTRING MYSQL_HELP_RELATION_NAME= {STRING_WITH_LEN("help_relation") };
-  LEX_CSTRING MYSQL_HELP_KEYWORD_NAME=  {STRING_WITH_LEN("help_keyword") };
   DBUG_ENTER("mysqld_help");
 
-  tables[0].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_HELP_TOPIC_NAME, 0, TL_READ);
-  tables[1].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_HELP_CATEGORY_NAME, 0, TL_READ);
-  tables[2].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_HELP_RELATION_NAME, 0, TL_READ);
-  tables[3].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_HELP_KEYWORD_NAME, 0, TL_READ);
-  tables[0].next_global= tables[0].next_local= 
-    tables[0].next_name_resolution_table= &tables[1];
-  tables[1].next_global= tables[1].next_local= 
-    tables[1].next_name_resolution_table= &tables[2];
-  tables[2].next_global= tables[2].next_local= 
-    tables[2].next_name_resolution_table= &tables[3];
+  initialize_tables_for_help_command(thd, tables);
 
   /*
     HELP must be available under LOCK TABLES. 
@@ -720,25 +947,12 @@ static bool mysqld_help_internal(THD *thd, const char *mask)
   if (open_system_tables_for_read(thd, tables))
     goto error2;
 
-  /*
-    Init tables and fields to be usable from items
-    tables do not contain VIEWs => we can pass 0 as conds
-  */
-  thd->lex->first_select_lex()->context.table_list=
-    thd->lex->first_select_lex()->context.first_name_resolution_table=
-    &tables[0];
-  if (setup_tables(thd, &thd->lex->first_select_lex()->context,
-                   &thd->lex->first_select_lex()->top_join_list,
-                   tables, leaves, FALSE, FALSE))
+  if (init_items_for_help_command(thd, thd->lex->first_select_lex(),
+                                  tables, used_fields))
     goto error;
-  memcpy((char*) used_fields, (char*) init_used_fields, sizeof(used_fields));
-  if (init_fields(thd, tables, used_fields, array_elements(used_fields)))
-    goto error;
-  for (i=0; i<sizeof(tables)/sizeof(TABLE_LIST); i++)
-    tables[i].table->file->init_table_handle_for_HANDLER();
 
   if (!(select=
-	prepare_select_for_name(thd,mask,mlen,tables,tables[0].table,
+	prepare_select_for_name(thd,mask,mlen,tables[0].table,
 				used_fields[help_topic_name].field,&error)))
     goto error;
 
@@ -754,7 +968,7 @@ static bool mysqld_help_internal(THD *thd, const char *mask)
   {
     int UNINIT_VAR(key_id);
     if (!(select=
-          prepare_select_for_name(thd,mask,mlen,tables,tables[3].table,
+          prepare_select_for_name(thd,mask,mlen,tables[3].table,
                                   used_fields[help_keyword_name].field,
                                   &error)))
       goto error;
@@ -773,7 +987,7 @@ static bool mysqld_help_internal(THD *thd, const char *mask)
     int16 category_id;
     Field *cat_cat_id= used_fields[help_category_parent_category_id].field;
     if (!(select=
-          prepare_select_for_name(thd,mask,mlen,tables,tables[1].table,
+          prepare_select_for_name(thd,mask,mlen,tables[1].table,
                                   used_fields[help_category_name].field,
                                   &error)))
       goto error;
@@ -841,7 +1055,7 @@ static bool mysqld_help_internal(THD *thd, const char *mask)
 	send_variant_2_list(mem_root,protocol, &topics_list, "N", 0))
       goto error;
     if (!(select=
-          prepare_select_for_name(thd,mask,mlen,tables,tables[1].table,
+          prepare_select_for_name(thd,mask,mlen,tables[1].table,
                                   used_fields[help_category_name].field,&error)))
       goto error;
     search_categories(thd, tables[1].table, used_fields,

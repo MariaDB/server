@@ -1,7 +1,6 @@
 Code status:
 ------------
 
-* [![Travis CI status](https://secure.travis-ci.org/MariaDB/server.png?branch=10.5)](https://travis-ci.org/MariaDB/server) travis-ci.org (10.5 branch)
 * [![Appveyor CI status](https://ci.appveyor.com/api/projects/status/4u6pexmtpuf8jq66?svg=true)](https://ci.appveyor.com/project/rasmushoj/server) ci.appveyor.com
 
 ## MariaDB: The open source relational database 
@@ -40,11 +39,10 @@ Help
 More help is available from the Maria Discuss mailing list
 https://launchpad.net/~maria-discuss, MariaDB's Zulip
 instance, https://mariadb.zulipchat.com/ 
-and the #maria IRC channel on Freenode.
 
 Live QA for beginner contributors
 ----
-MariaDB has a dedicated time each week when we answer new contributor questions live on Zulip and IRC.
+MariaDB has a dedicated time each week when we answer new contributor questions live on Zulip.
 From 8:00 to 10:00 UTC on Mondays, and 10:00 to 12:00 UTC on Thursdays,
 anyone can ask any questions they’d like, and a live developer will be available to assist.
 
@@ -78,5 +76,3 @@ https://mariadb.org/about/security-policy/
 
 The code for MariaDB, including all revision history, can be found at:
 https://github.com/MariaDB/server
-
-***************************************************************************

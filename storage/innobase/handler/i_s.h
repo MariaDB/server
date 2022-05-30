@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -87,15 +87,5 @@ do {									\
 		DBUG_RETURN(0);						\
 	}								\
 } while (0)
-
-#if !defined __STRICT_ANSI__ && defined __GNUC__ && (__GNUC__) > 2 && !defined __INTEL_COMPILER && !defined __clang__
-#ifdef HAVE_C99_INITIALIZERS
-#define STRUCT_FLD(name, value)	.name = value
-#else
-#define STRUCT_FLD(name, value)	name: value
-#endif /* HAVE_C99_INITIALIZERS */
-#else
-#define STRUCT_FLD(name, value)	value
-#endif
 
 #endif /* i_s_h */

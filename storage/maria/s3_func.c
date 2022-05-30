@@ -583,8 +583,8 @@ int aria_copy_from_s3(ms3_st *s3_client, const char *aws_bucket,
 
   if (s3_get_object(s3_client, aws_bucket, aws_path, &block, 0, 0))
   {
-    my_printf_error(EE_FILENOTFOUND, "Table %s doesn't exist in s3", MYF(0),
-                    filename);
+    my_printf_error(EE_FILENOTFOUND, "File %s/%s doesn't exist in s3", MYF(0),
+                    database,filename);
     goto err;
   }
   if (block.length < MARIA_STATE_INFO_SIZE)
@@ -1310,7 +1310,7 @@ my_bool set_database_and_table_from_path(S3_INFO *s3, const char *path)
     if (path[length-1] == FN_LIBCHAR || path[length-1] == '/')
       break;
 #ifdef FN_DEVCHAR
-    if (path[length-1] == FN_DECVHAR)
+    if (path[length-1] == FN_DEVCHAR)
       break;
 #endif
   }

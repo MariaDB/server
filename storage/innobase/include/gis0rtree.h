@@ -372,7 +372,7 @@ rtr_page_copy_rec_list_start_no_locks(
 
 /****************************************************************//**
 Merge 2 mbrs and update the the mbr that cursor is on. */
-dberr_t
+void
 rtr_merge_and_update_mbr(
 /*=====================*/
 	btr_cur_t*		cursor,		/*!< in/out: cursor */
@@ -404,9 +404,8 @@ rtr_merge_mbr_changed(
 
 
 /**************************************************************//**
-Update the mbr field of a spatial index row.
-@return true if successful */
-bool
+Update the mbr field of a spatial index row. */
+void
 rtr_update_mbr_field(
 /*=================*/
 	btr_cur_t*	cursor,		/*!< in: cursor pointed to rec.*/
@@ -483,5 +482,5 @@ rtr_estimate_n_rows_in_range(
 	const dtuple_t*	tuple,
 	page_cur_mode_t	mode);
 
-#include "gis0rtree.ic"
+#include "gis0rtree.inl"
 #endif /*!< gis0rtree.h */

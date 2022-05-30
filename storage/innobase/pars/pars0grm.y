@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,6 +37,10 @@ que_node_t */
 #include "que0types.h"
 #include "que0que.h"
 #include "row0sel.h"
+
+#if defined __GNUC__ && (!defined __clang_major__ || __clang_major__ > 11)
+#pragma GCC diagnostic ignored "-Wfree-nonheap-object"
+#endif
 
 #define YYSTYPE que_node_t*
 
@@ -140,8 +144,7 @@ top_statement:
         procedure_definition ';'
 
 statement:
-	stored_procedure_call
-	| while_statement ';'
+	while_statement ';'
 	| for_statement ';'
 	| exit_statement ';'
 	| if_statement ';'
@@ -206,18 +209,6 @@ function_name:
 	| PARS_CONCAT_TOKEN	{ $$ = &pars_concat_token; }
 	| PARS_INSTR_TOKEN	{ $$ = &pars_instr_token; }
 	| PARS_LENGTH_TOKEN	{ $$ = &pars_length_token; }
-;
-
-question_mark_list:
-	/* Nothing */
-	| '?'
-	| question_mark_list ',' '?'
-;
-
-stored_procedure_call:
-	'{' PARS_ID_TOKEN '(' question_mark_list ')' '}'
-				{ $$ = pars_stored_procedure_call(
-					static_cast<sym_node_t*>($2)); }
 ;
 
 user_function_call:

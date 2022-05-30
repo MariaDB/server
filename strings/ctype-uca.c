@@ -35,6 +35,12 @@
 #include "strings_def.h"
 #include <m_ctype.h>
 
+typedef struct
+{
+  int weight;
+  uint nchars;
+} weight_and_nchars_t;
+
 #define  MY_CS_COMMON_UCA_FLAGS (MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NON1TO1)
 
 #define MY_UCA_CNT_FLAG_SIZE 4096
@@ -31450,6 +31456,21 @@ my_wmemcmp(my_wc_t *a, my_wc_t *b, size_t len)
 }
 
 
+/*
+  Return the number of characters in a contraction.
+*/
+static inline uint my_contraction_char_length(const MY_CONTRACTION *cnt)
+{
+  uint i;
+  for (i= 2; i < array_elements(cnt->ch); i++)
+  {
+    if (cnt->ch[i] == 0)
+      return i;
+  }
+  return array_elements(cnt->ch);
+}
+
+
 /**
   Check if a string is a contraction,
   and return its weight array on success.
@@ -31460,11 +31481,11 @@ my_wmemcmp(my_wc_t *a, my_wc_t *b, size_t len)
 
   @return       Weight array
   @retval       NULL - Input string is not a known contraction
-  @retval       ptr  - contraction weight array
+  @retval       ptr  - the address of the MY_CONTRACTION found
 */
 
-static inline uint16 *
-my_uca_contraction_weight(const MY_CONTRACTIONS *list, my_wc_t *wc, size_t len)
+static inline const MY_CONTRACTION *
+my_uca_contraction_find(const MY_CONTRACTIONS *list, my_wc_t *wc, size_t len)
 {
   MY_CONTRACTION *c, *last;
   DBUG_ASSERT(len <= MY_UCA_MAX_CONTRACTION);
@@ -31474,7 +31495,7 @@ my_uca_contraction_weight(const MY_CONTRACTIONS *list, my_wc_t *wc, size_t len)
     if ((len >= MY_UCA_MAX_CONTRACTION || c->ch[len] == 0) &&
         !c->with_context &&
         !my_wmemcmp(c->ch, wc, len))
-      return c->weight;
+      return c;
   }
   return NULL;
 }
@@ -31487,16 +31508,18 @@ my_uca_contraction_weight(const MY_CONTRACTIONS *list, my_wc_t *wc, size_t len)
   a contraction part. Then try to find real contraction among the
   candidates, starting from the longest.
 
-  @param scanner  Pointer to UCA scanner
-  @param[OUT] *wc Where to store the scanned string
+  @param scanner         Pointer to UCA scanner
+  @param[OUT] *wc        Where to store the scanned string
+  @param max_char_length The longest contraction character length allowed
 
   @return         Weight array
   @retval         NULL - no contraction found
-  @retval         ptr  - contraction weight array
+  @retval         ptr  - the address of MY_CONTRACTION found
 */
 
-static uint16 *
-my_uca_scanner_contraction_find(my_uca_scanner *scanner, my_wc_t *wc)
+static const MY_CONTRACTION *
+my_uca_scanner_contraction_find(my_uca_scanner *scanner, my_wc_t *wc,
+                                size_t max_char_length)
 {
   size_t clen= 1;
   int flag;
@@ -31505,7 +31528,7 @@ my_uca_scanner_contraction_find(my_uca_scanner *scanner, my_wc_t *wc)
 
   /* Scan all contraction candidates */
   for (s= scanner->sbeg, flag= MY_UCA_CNT_MID1;
-       clen < MY_UCA_MAX_CONTRACTION;
+       clen < max_char_length;
        flag<<= 1)
   {
     int mblen;
@@ -31520,15 +31543,15 @@ my_uca_scanner_contraction_find(my_uca_scanner *scanner, my_wc_t *wc)
   /* Find among candidates the longest real contraction */
   for ( ; clen > 1; clen--)
   {
-    uint16 *cweight;
+    const MY_CONTRACTION *cnt;
     if (my_uca_can_be_contraction_tail(&scanner->level->contractions,
                                        wc[clen - 1]) &&
-        (cweight= my_uca_contraction_weight(&scanner->level->contractions,
-                                            wc, clen)))
+        (cnt= my_uca_contraction_find(&scanner->level->contractions,
+                                      wc, clen)))
     {
-      scanner->wbeg= cweight + 1;
+      scanner->wbeg= cnt->weight + 1;
       scanner->sbeg= beg[clen - 1];
-      return cweight;
+      return cnt;
     }
   }
 
@@ -31546,10 +31569,10 @@ my_uca_scanner_contraction_find(my_uca_scanner *scanner, my_wc_t *wc)
 
   @return   Weight array
   @retval   NULL - no contraction with context found
-  @retval   ptr  - contraction weight array
+  @retval   ptr  - the address of MY_CONTRACTION found
 */
 
-static uint16 *
+static const MY_CONTRACTION *
 my_uca_previous_context_find(my_uca_scanner *scanner,
                              my_wc_t wc0, my_wc_t wc1)
 {
@@ -31560,7 +31583,7 @@ my_uca_previous_context_find(my_uca_scanner *scanner,
     if (c->with_context && wc0 == c->ch[0] && wc1 == c->ch[1])
     {
       scanner->wbeg= c->weight + 1;
-      return c->weight;
+      return c;
     }
   }
   return NULL;
@@ -31581,13 +31604,16 @@ my_uca_previous_context_find(my_uca_scanner *scanner,
                    If wc[0] and the previous character make a previous context
                    pair, then wc[1] is set to the previous character.
 
+  @param max_char_length - the longest contraction character length allowed.
+
   @retval          NULL if could not find any contextual weights for wc[0]
-  @retval          non null pointer to a zero-terminated weight string otherwise
+  @retval          non null pointer - the address of MY_CONTRACTION found
 */
-static inline uint16 *
-my_uca_context_weight_find(my_uca_scanner *scanner, my_wc_t *wc)
+static inline const MY_CONTRACTION *
+my_uca_context_weight_find(my_uca_scanner *scanner, my_wc_t *wc,
+                           size_t max_char_length)
 {
-  uint16 *cweight;
+  const MY_CONTRACTION *cnt;
   DBUG_ASSERT(scanner->level->contractions.nitems);
   /*
     If we have scanned a character which can have previous context,
@@ -31604,17 +31630,17 @@ my_uca_context_weight_find(my_uca_scanner *scanner, my_wc_t *wc)
       my_uca_can_be_previous_context_head(&scanner->level->contractions,
                                           (wc[1]= ((scanner->page << 8) +
                                                     scanner->code))) &&
-      (cweight= my_uca_previous_context_find(scanner, wc[1], wc[0])))
+      (cnt= my_uca_previous_context_find(scanner, wc[1], wc[0])))
   {
     scanner->page= scanner->code= 0; /* Clear for the next character */
-    return cweight;
+    return cnt;
   }
   else if (my_uca_can_be_contraction_head(&scanner->level->contractions,
                                           wc[0]))
   {
     /* Check if w[0] starts a contraction */
-    if ((cweight= my_uca_scanner_contraction_find(scanner, wc)))
-      return cweight;
+    if ((cnt= my_uca_scanner_contraction_find(scanner, wc, max_char_length)))
+      return cnt;
   }
   return NULL;
 }
@@ -33212,9 +33238,11 @@ my_char_weight_put(MY_UCA_WEIGHT_LEVEL *dst,
 
     for (chlen= len; chlen > 1; chlen--)
     {
+      const MY_CONTRACTION *cnt;
       if (chlen <= MY_UCA_MAX_CONTRACTION &&
-          (from= my_uca_contraction_weight(&dst->contractions, str, chlen)))
+          (cnt= my_uca_contraction_find(&dst->contractions, str, chlen)))
       {
+        from= cnt->weight;
         str+= chlen;
         len-= chlen;
         break;
@@ -33780,7 +33808,7 @@ static void my_uca_handler_map(struct charset_info_st *cs,
 #define MY_UCA_ASCII_OPTIMIZE 0
 #define MY_UCA_COMPILE_CONTRACTIONS 1
 #define MY_UCA_COLL_INIT my_coll_init_uca
-#include "ctype-uca.ic"
+#include "ctype-uca.inl"
 
 
 /*
@@ -33885,7 +33913,7 @@ ex:
 #define MY_UCA_ASCII_OPTIMIZE 0
 #define MY_UCA_COMPILE_CONTRACTIONS 1
 #define MY_UCA_COLL_INIT my_coll_init_uca
-#include "ctype-uca.ic"
+#include "ctype-uca.inl"
 
 #define MY_CS_UCS2_UCA_FLAGS (MY_CS_COMMON_UCA_FLAGS|MY_CS_NONASCII)
 #define MY_CS_UCS2_UCA_NOPAD_FLAGS (MY_CS_UCS2_UCA_FLAGS|MY_CS_NOPAD)
@@ -34847,7 +34875,7 @@ my_uca_coll_init_utf8mb3(struct charset_info_st *cs, MY_CHARSET_LOADER *loader);
 #define MY_UCA_ASCII_OPTIMIZE 1
 #define MY_UCA_COMPILE_CONTRACTIONS 1
 #define MY_UCA_COLL_INIT my_uca_coll_init_utf8mb3
-#include "ctype-uca.ic"
+#include "ctype-uca.inl"
 
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _no_contractions_utf8mb3
 #define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf8mb3_quick(wc, beg, end))
@@ -34855,7 +34883,7 @@ my_uca_coll_init_utf8mb3(struct charset_info_st *cs, MY_CHARSET_LOADER *loader);
 #define MY_UCA_ASCII_OPTIMIZE 1
 #define MY_UCA_COMPILE_CONTRACTIONS 0
 #define MY_UCA_COLL_INIT my_uca_coll_init_utf8mb3
-#include "ctype-uca.ic"
+#include "ctype-uca.inl"
 
 
 static my_bool
@@ -35852,7 +35880,7 @@ my_uca_coll_init_utf8mb4(struct charset_info_st *cs, MY_CHARSET_LOADER *loader);
 #define MY_UCA_ASCII_OPTIMIZE 1
 #define MY_UCA_COMPILE_CONTRACTIONS 1
 #define MY_UCA_COLL_INIT my_uca_coll_init_utf8mb4
-#include "ctype-uca.ic"
+#include "ctype-uca.inl"
 
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _no_contractions_utf8mb4
 #define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf8mb4_quick(wc, beg, end))
@@ -35860,7 +35888,7 @@ my_uca_coll_init_utf8mb4(struct charset_info_st *cs, MY_CHARSET_LOADER *loader);
 #define MY_UCA_ASCII_OPTIMIZE 1
 #define MY_UCA_COMPILE_CONTRACTIONS 0
 #define MY_UCA_COLL_INIT my_uca_coll_init_utf8mb4
-#include "ctype-uca.ic"
+#include "ctype-uca.inl"
 
 
 static my_bool
@@ -36828,7 +36856,7 @@ struct charset_info_st my_charset_utf8mb4_unicode_520_nopad_ci=
 #define MY_UCA_ASCII_OPTIMIZE 0
 #define MY_UCA_COMPILE_CONTRACTIONS 1
 #define MY_UCA_COLL_INIT my_coll_init_uca
-#include "ctype-uca.ic"
+#include "ctype-uca.inl"
 
 extern MY_CHARSET_HANDLER my_charset_utf32_handler;
 
@@ -37785,7 +37813,7 @@ struct charset_info_st my_charset_utf32_unicode_520_nopad_ci=
 #define MY_UCA_ASCII_OPTIMIZE 0
 #define MY_UCA_COMPILE_CONTRACTIONS 1
 #define MY_UCA_COLL_INIT my_coll_init_uca
-#include "ctype-uca.ic"
+#include "ctype-uca.inl"
 
 extern MY_CHARSET_HANDLER my_charset_utf16_handler;
 

@@ -1,7 +1,7 @@
 #ifndef MDL_H
 #define MDL_H
 /* Copyright (c) 2009, 2012, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2020, MariaDB
+   Copyright (c) 2020, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -905,6 +905,10 @@ public:
              m_tickets[MDL_TRANSACTION].is_empty() &&
              m_tickets[MDL_EXPLICIT].is_empty());
   }
+  bool has_explicit_locks() const
+  {
+    return !m_tickets[MDL_EXPLICIT].is_empty();
+  }
   inline bool has_transactional_locks() const
   {
     return !m_tickets[MDL_TRANSACTION].is_empty();
@@ -1126,9 +1130,4 @@ typedef int (*mdl_iterator_callback)(MDL_ticket *ticket, void *arg,
                                      bool granted);
 extern MYSQL_PLUGIN_IMPORT
 int mdl_iterate(mdl_iterator_callback callback, void *arg);
-#ifndef DBUG_OFF
-void mdl_dbug_print_locks();
-#else
-  static inline void mdl_dbug_print_locks() {}
-#endif /* DBUG_OFF */
 #endif /* MDL_H */

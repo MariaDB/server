@@ -66,6 +66,8 @@ const char* GetFmt(int type, bool un);
 PJSON ParseJson(PGLOBAL g, char* s, size_t n, int* prty = NULL, bool* b = NULL);
 PSZ   Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty);
 DllExport bool IsNum(PSZ s);
+bool  IsArray(PSZ s);
+bool  Stringified(PCSZ strfy, char *colname);
 
 /***********************************************************************/
 /* Class JDOC. The class for parsing and serializing json documents.   */
@@ -74,7 +76,7 @@ class JDOC: public BLOCK {
 	friend PJSON ParseJson(PGLOBAL, char*, size_t, int*, bool*);
 	friend PSZ Serialize(PGLOBAL, PJSON, char*, int);
 public:
-	JDOC(void) : js(NULL), s(NULL), len(0), pty(NULL) {}
+	JDOC(void) : js(NULL), s(NULL), len(0), dfp(0), pty(NULL) {}
 
 	void  SetJp(JOUT* jp) { js = jp; }
 
@@ -93,7 +95,7 @@ public:
  private:
 	JOUT* js;
 	char *s;
-	int   len;
+	int   len, dfp;
 	bool *pty;
 }; // end of class JDOC
 
@@ -184,7 +186,7 @@ class JARRAY : public JSON {
 
 	// Specific
 	PJVAL AddArrayValue(PGLOBAL g, PJVAL jvp = NULL, int* x = NULL);
-	bool  SetArrayValue(PGLOBAL g, PJVAL jvp, int i);
+	void  SetArrayValue(PGLOBAL g, PJVAL jvp, int i);
 	void  InitArray(PGLOBAL g);
 
  protected:

@@ -1,7 +1,6 @@
 --source include/innodb_page_size.inc
 # Embedded server tests do not support restarting
 --source include/not_embedded.inc
---source include/maybe_debug.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Table `mysql`\\.`innodb_table_stats` not found");
@@ -31,9 +30,6 @@ let bugdir= $MYSQLTEST_VARDIR/tmp/table_flags;
 --let $d=$d --innodb-undo-tablespaces=0
 --let $d=$d --innodb-purge-rseg-truncate-frequency=1
 --let $d=$d --skip-innodb-fast-shutdown
-if ($have_debug) {
---let $d=$d --debug=d,create_and_drop_garbage
-}
 --let $restart_noprint=1
 --let $restart_parameters=$d --innodb-stats-persistent=0
 --source include/restart_mysqld.inc

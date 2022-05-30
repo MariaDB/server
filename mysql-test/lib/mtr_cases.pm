@@ -626,8 +626,10 @@ sub make_combinations($$@)
   {
     # Skip all other combinations if the values they change
     # are already fixed in master_opt or slave_opt
-    if (My::Options::is_set($test->{master_opt}, $comb->{comb_opt}) &&
-        My::Options::is_set($test->{slave_opt}, $comb->{comb_opt}) ){
+    # (empty combinations are not considered a subset of anything)
+    if (@{$comb->{comb_opt}} &&
+        My::Options::is_subset($test->{master_opt}, $comb->{comb_opt}) &&
+        My::Options::is_subset($test->{slave_opt}, $comb->{comb_opt}) ){
 
       $test_combs->{$comb->{name}} = 2;
 
@@ -1035,7 +1037,7 @@ sub get_tags_from_file($$) {
     }
 
     # Check for a sourced include file.
-    if ($line =~ /^(--)?[[:space:]]*source[[:space:]]+([^;[:space:]]+)/)
+    if ($line =~ /^[[:space:]]*(--)?[[:space:]]*source[[:space:]]+([^;[:space:]]+)/)
     {
       my $include= $2;
       # The rules below must match open_file() function of mysqltest.cc

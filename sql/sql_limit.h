@@ -37,6 +37,8 @@ class Select_limit_counters
 
    void set_limit(ha_rows limit, ha_rows offset, bool with_ties_arg)
    {
+      if (limit == 0)
+        offset= 0;
       offset_limit_cnt= offset;
       select_limit_cnt= limit;
       with_ties= with_ties_arg;

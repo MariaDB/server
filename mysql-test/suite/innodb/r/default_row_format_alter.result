@@ -23,6 +23,7 @@ INSERT INTO t1 VALUES (1, 'abc');
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
 t1	InnoDB	#	Compact	#	#	#	#	#	#	NULL	#	#	NULL	latin1_swedish_ci	NULL			0	N
+CREATE TABLE t2 (b VARCHAR(255) CHARACTER SET utf8mb4 NOT NULL) ENGINE=InnoDB;
 SET GLOBAL innodb_default_row_format = DYNAMIC;
 ALTER TABLE t1 DROP PRIMARY KEY, ADD COLUMN c INT PRIMARY KEY;
 # Here we expect DYNAMIC because there is no explicit ROW_FORMAT and the
@@ -31,6 +32,10 @@ SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
 t1	InnoDB	#	Dynamic	#	#	#	#	#	#	NULL	#	#	NULL	latin1_swedish_ci	NULL			0	N
 DROP TABLE t1;
+ALTER TABLE t2 ADD INDEX(b);
+ERROR HY000: Index column size too large. The maximum column size is 767 bytes
+ALTER TABLE t2 FORCE, ADD INDEX(b);
+DROP TABLE t2;
 ####################################
 # Check the row_format effect on ALTER, ALGORITHM=COPY
 SET GLOBAL innodb_default_row_format = REDUNDANT;
@@ -39,6 +44,7 @@ INSERT INTO t1 VALUES (1, REPEAT('abc',1000));
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
 t1	InnoDB	#	Redundant	#	#	#	#	#	#	NULL	#	#	NULL	latin1_swedish_ci	NULL			0	N
+CREATE TABLE t2 (b VARCHAR(255) CHARACTER SET utf8mb4 NOT NULL) ENGINE=InnoDB;
 SET GLOBAL innoDB_default_row_format = COMPACT;
 ALTER TABLE t1 ADD COLUMN c2 BLOB, ALGORITHM=COPY;
 # Because of ALGORITHM=COPY, there is TABLE REBUILD and the table isn't
@@ -47,9 +53,18 @@ SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
 t1	InnoDB	#	Compact	#	#	#	#	#	#	NULL	#	#	NULL	latin1_swedish_ci	NULL			0	N
 DROP TABLE t1;
+ALTER TABLE t2 ADD INDEX(b);
+ERROR HY000: Index column size too large. The maximum column size is 767 bytes
+ALTER TABLE t2 FORCE, ADD INDEX(b);
+ERROR HY000: Index column size too large. The maximum column size is 767 bytes
+SET GLOBAL innodb_default_row_format = DYNAMIC;
+ALTER TABLE t2 ADD INDEX(b);
+ERROR HY000: Index column size too large. The maximum column size is 767 bytes
+ALTER TABLE t2 FORCE, ADD INDEX(b);
+DROP TABLE t2;
 
 ###################################
-#  Check the row_format effect on ALTER, ALGORITH=COPY on
+#  Check the row_format effect on ALTER, ALGORITHM=COPY on
 # create table with explicit row_format
 CREATE TABLE t1 (a INT PRIMARY KEY, b TEXT) ROW_FORMAT=REDUNDANT ENGINE=INNODB;
 INSERT INTO t1 VALUES (1, REPEAT('abc',1000));

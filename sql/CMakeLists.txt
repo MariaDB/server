@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2010, 2020, MariaDB Corporation.
+# Copyright (c) 2010, 2021, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -65,16 +65,21 @@ ADD_CUSTOM_COMMAND(
   DEPENDS gen_lex_token
 )
 
-ADD_CUSTOM_COMMAND(
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.yy
-  COMMAND ${CMAKE_COMMAND}
-   "-DIN=${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy"
-   "-DOUT=${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.yy"
-   -P ${CMAKE_CURRENT_SOURCE_DIR}/gen_sql_yacc_ora_yy.cmake
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy
-)
+FIND_PACKAGE(BISON 2.4)
 
-ADD_CUSTOM_TARGET(gen_sql_yacc_ora_yy DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.yy)
+ADD_CUSTOM_COMMAND(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.yy
+         ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.yy
+  COMMAND ${CMAKE_COMMAND} "-DVAL1=ORACLE" "-DVAL2=MARIADB"
+   "-DOUT1=${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.yy"
+   "-DOUT2=${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.yy"
+   "-DIN=${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy"
+    "-DBISON_VERSION=${BISON_VERSION}"
+   -P ${CMAKE_CURRENT_SOURCE_DIR}/gen_yy_files.cmake
+  COMMENT "Building yy_mariadb.yy and yy_oracle.yy from sql_yacc.yy"
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy
+          ${CMAKE_CURRENT_SOURCE_DIR}/gen_yy_files.cmake
+)
 
 ADD_DEFINITIONS(-DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER)
 
@@ -83,8 +88,8 @@ IF(SSL_DEFINES)
 ENDIF()
 
 SET (SQL_SOURCE
-               ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
-               ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
+               ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
+               ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
               ../sql-common/client.c compat56.cc derror.cc des_key_file.cc
                discover.cc ../sql-common/errmsg.c
                field.cc field_conv.cc field_comp.cc
@@ -323,15 +328,12 @@ IF(WITH_MYSQLD_LDFLAGS)
 ENDIF()
 
 
-FIND_PACKAGE(BISON 2.0)
-
-
 # Handle out-of-source build from source package with possibly broken 
 # bison. Copy bison output to from source to build directory, if not already 
 # there
 IF (NOT BISON_FOUND)
   IF (NOT ${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR})
-    FOREACH(file sql_yacc.cc sql_yacc.hh sql_yacc_ora.cc sql_yacc_ora.hh)
+    FOREACH(file yy_mariadb.cc yy_mariadb.hh yy_oracle.cc yy_oracle.hh)
     IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${file} AND (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${file}))
         CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}
         ${CMAKE_CURRENT_BINARY_DIR}/${file} COPYONLY)
@@ -339,7 +341,7 @@ IF (NOT BISON_FOUND)
     ENDFOREACH()
   ENDIF()
 
-  IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc)
+  IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc)
      # Output files are missing, bail out.
       SET(ERRMSG
          "Bison (GNU parser generator) is required to build MySQL."
@@ -354,15 +356,18 @@ IF (NOT BISON_FOUND)
       MESSAGE(FATAL_ERROR ${ERRMSG})
   ENDIF()
 ELSE()
-  BISON_TARGET(gen_sql_yacc ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
-             COMPILE_FLAGS "-p MYSQL")
-  BISON_TARGET(gen_sql_yacc_ora ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.yy ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
-             COMPILE_FLAGS "-p ORA")
+  CONFIGURE_FILE(myskel.m4.in myskel.m4)
+  BISON_TARGET(gen_mariadb_cc_hh ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.yy
+                                 ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
+               COMPILE_FLAGS "-p MYSQL -S ${CMAKE_CURRENT_BINARY_DIR}/myskel.m4")
+  BISON_TARGET(gen_oracle_cc_hh ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.yy
+                                ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
+               COMPILE_FLAGS "-p ORA -S ${CMAKE_CURRENT_BINARY_DIR}/myskel.m4")
 ENDIF()
 
 IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
   ADD_EXECUTABLE(gen_lex_token gen_lex_token.cc
-   ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.hh)
+   ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.hh)
   ADD_EXECUTABLE(gen_lex_hash gen_lex_hash.cc)
 ENDIF()
 
@@ -381,10 +386,10 @@ ADD_CUSTOM_TARGET(
         DEPENDS
         ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
         ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
-        ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
+        ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
+        ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
 )
-
-ADD_DEPENDENCIES(GenServerSource gen_sql_yacc_ora_yy)
+ADD_DEPENDENCIES(sql GenServerSource)
 
 IF(WIN32 OR HAVE_DLOPEN AND NOT DISABLE_SHARED)
   ADD_LIBRARY(udf_example MODULE udf_example.c udf_example.def)
@@ -398,8 +403,8 @@ CONFIGURE_FILE(
 
 ADD_CUSTOM_TARGET(dist
   COMMAND ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}/make_dist.cmake
-  DEPENDS ${CMAKE_BINARY_DIR}/sql/sql_yacc.cc ${CMAKE_BINARY_DIR}/sql/sql_yacc.hh
-  DEPENDS ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.cc ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.hh
+  DEPENDS ${CMAKE_BINARY_DIR}/sql/yy_mariadb.cc ${CMAKE_BINARY_DIR}/sql/yy_mariadb.hh
+  DEPENDS ${CMAKE_BINARY_DIR}/sql/yy_oracle.cc ${CMAKE_BINARY_DIR}/sql/yy_oracle.hh
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
@@ -474,7 +479,10 @@ IF(WIN32)
     ${CMAKE_CURRENT_BINARY_DIR}/mysql_bootstrap_sql.c
     COMPONENT Server
   )
-  SET_TARGET_PROPERTIES(mariadb-install-db PROPERTIES COMPILE_FLAGS -DINSTALL_PLUGINDIR=${INSTALL_PLUGINDIR})
+
+  SET_TARGET_PROPERTIES(mariadb-install-db PROPERTIES COMPILE_DEFINITIONS
+   "INSTALL_PLUGINDIR=${INSTALL_PLUGINDIR};INSTALL_SHAREDIR=${INSTALL_SHAREDIR}"
+  )
   TARGET_LINK_LIBRARIES(mariadb-install-db mysys shlwapi)
 
   ADD_LIBRARY(winservice STATIC winservice.c)

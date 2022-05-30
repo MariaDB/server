@@ -57,9 +57,15 @@ let SEARCH_PATTERN= unknown option '-C';
 
 --error 1
 --exec $INNOCHECKSUM --no-check --write=crc32 $MYSQLD_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
-let SEARCH_PATTERN= unknown variable 'write=crc32';
+--let SEARCH_PATTERN= ignoring option '--write' due to invalid value 'crc32'
 --source include/search_pattern_in_file.inc
 
+--error 1
+--exec $INNOCHECKSUM --no-check $MYSQLD_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
+--let SEARCH_PATTERN= Error: --no-check must be associated with --write option
+--source include/search_pattern_in_file.inc
+
+--exec $INNOCHECKSUM --no-check --write $MYSQLD_DATADIR/test/tab1.ibd
 --source include/start_mysqld.inc
 
 SELECT * FROM tab1;

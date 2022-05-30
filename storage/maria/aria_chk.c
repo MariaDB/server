@@ -434,8 +434,8 @@ static struct my_option my_long_options[] =
     ~0UL, (long) MALLOC_OVERHEAD, (long) 1L, 0},
   { "sort_buffer_size", OPT_SORT_BUFFER_SIZE,
     "Size of sort buffer. Used by --recover",
-    &check_param.sort_buffer_length,
-    &check_param.sort_buffer_length, 0, GET_ULL, REQUIRED_ARG,
+    &check_param.orig_sort_buffer_length,
+    &check_param.orig_sort_buffer_length, 0, GET_ULL, REQUIRED_ARG,
     SORT_BUFFER_INIT, MIN_SORT_BUFFER, SIZE_T_MAX, MALLOC_OVERHEAD, 1L, 0},
   { "sort_key_blocks", OPT_SORT_KEY_BLOCKS,
     "Internal buffer for sorting keys; Don't touch :)",
@@ -505,7 +505,7 @@ static void usage(void)
 		      maria_chk very silent.\n\
   -t, --tmpdir=path   Path for temporary files. Multiple paths can be\n\
                       specified, separated by ");
-#if defined( __WIN__) || defined(__NETWARE__)
+#if defined( _WIN32)
    printf("semicolon (;)");
 #else
    printf("colon (:)");

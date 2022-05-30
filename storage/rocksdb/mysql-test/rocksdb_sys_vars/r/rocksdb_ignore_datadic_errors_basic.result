@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_IGNORE_DATADIC_ERRORS;
+SELECT @start_global_value;
+@start_global_value
+0
+"Trying to set variable @@global.ROCKSDB_IGNORE_DATADIC_ERRORS to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_IGNORE_DATADIC_ERRORS   = 444;
+ERROR HY000: Variable 'rocksdb_ignore_datadic_errors' is a read only variable

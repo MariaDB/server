@@ -22,7 +22,9 @@ USE auto_test_remote;
 --connection child2_1
 --disable_query_log
 echo CHILD2_1_CREATE_TABLES;
+--disable_ps_protocol
 eval $CHILD2_1_CREATE_TABLES;
+--enable_ps_protocol
 --enable_query_log
 TRUNCATE TABLE mysql.general_log;
 
@@ -78,7 +80,9 @@ SELECT STRAIGHT_JOIN b.a, b.b FROM tb_l a, tbl_a b WHERE a.a = b.a;
 --connection child2_1
 SET NAMES utf8;
 eval $CHILD2_1_SELECT_ARGUMENT1;
+--disable_ps_protocol
 eval $CHILD2_1_SELECT_TABLES;
+--enable_ps_protocol
 
 --echo
 --echo deinit

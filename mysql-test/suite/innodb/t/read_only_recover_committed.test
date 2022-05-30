@@ -45,7 +45,8 @@ SET DEBUG_SYNC='now WAIT_FOR committed';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 BEGIN;
 INSERT INTO t VALUES(-10000);
-ROLLBACK;
+DELETE FROM t WHERE a=-10000;
+COMMIT;
 --let $restart_parameters= --innodb-force-recovery=3
 --let $shutdown_timeout= 0
 --source include/restart_mysqld.inc
@@ -78,6 +79,13 @@ SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 SELECT * FROM t;
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SELECT * FROM t;
+
+--echo #
+--echo # MDEV-27332 SIGSEGV in fetch_data_into_cache
+--echo #
+BEGIN;
+SELECT trx_state FROM information_schema.innodb_trx;
+COMMIT;
 --let $restart_parameters=
 --source include/restart_mysqld.inc
 SELECT * FROM t;

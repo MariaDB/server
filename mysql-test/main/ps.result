@@ -2726,9 +2726,7 @@ ERROR 42000: FUNCTION test.func_1 does not exist
 drop function func_1;
 ERROR 42000: FUNCTION test.func_1 does not exist
 prepare abc from "create event xyz on schedule at now() do select 123";
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 deallocate prepare abc;
-ERROR HY000: Unknown prepared statement handler (abc) given to DEALLOCATE PREPARE
 drop event if exists xyz;
 create event xyz on schedule every 5 minute disable do select 123;
 create procedure proc_1() alter event xyz comment 'xyz';
@@ -2748,9 +2746,7 @@ drop procedure proc_1;
 create function func_1() returns int begin alter event xyz comment 'xyz'; return 1; end|
 ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 prepare abc from "alter event xyz comment 'xyz'";
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 deallocate prepare abc;
-ERROR HY000: Unknown prepared statement handler (abc) given to DEALLOCATE PREPARE
 drop event if exists xyz;
 create event xyz on schedule every 5 minute disable do select 123;
 create procedure proc_1() drop event xyz;
@@ -2765,9 +2761,7 @@ drop procedure proc_1;
 create function func_1() returns int begin drop event xyz; return 1; end|
 ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 prepare abc from "drop event xyz";
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 deallocate prepare abc;
-ERROR HY000: Unknown prepared statement handler (abc) given to DEALLOCATE PREPARE
 drop table if exists t1;
 create table t1 (a int, b char(5)) engine=myisam;
 insert into t1 values (1, "one"), (2, "two"), (3, "three");
@@ -3087,15 +3081,15 @@ DROP TABLE t1;
 CREATE TABLE t1(f1 INT);
 INSERT INTO t1 VALUES (1),(1);
 PREPARE stmt FROM 'EXPLAIN SELECT 1 FROM t1 WHERE (SELECT (SELECT 1 FROM t1 GROUP BY f1))';
+Warnings:
+Note	1249	Select 2 was reduced during optimization
 EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
 EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
@@ -4944,7 +4938,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 PREPARE stmt FROM CONCAT(NULL);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
 EXECUTE IMMEDIATE ? USING 'SELECT 1';
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '? USING 'SELECT 1'' at line 1
+Got one of the listed errors
 EXECUTE IMMEDIATE 10;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '10' at line 1
 EXECUTE IMMEDIATE TIME'10:20:30';
@@ -5551,8 +5545,75 @@ Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, t2;
 #
+# MDEV-25576: The statement EXPLAIN running as regular statement and
+#             as prepared statement produces different results for
+#             UPDATE with subquery
+#
+CREATE TABLE t1 (c1 INT KEY) ENGINE=MyISAM;
+CREATE TABLE t2 (c2 INT) ENGINE=MyISAM;
+CREATE TABLE t3 (c3 INT) ENGINE=MyISAM;
+EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	0	100.00	
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+PREPARE stmt FROM "EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 )";
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	0	100.00	
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2, t3;
+#
+# MDEV-21866: Assertion `!result' failed in convert_const_to_int upon 2nd execution of PS
+#
+CREATE TABLE t1 (a BIGINT DEFAULT -1);
+CREATE VIEW v1 AS SELECT DISTINCT a FROM t1;
+PREPARE stmt FROM 'SELECT * FROM v1 WHERE a <=> NULL';
+EXECUTE stmt;
+a
+EXECUTE stmt;
+a
+DEALLOCATE PREPARE stmt;
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-19631: Assertion `0' failed in st_select_lex_unit::optimize or
+#             different plan upon 2nd execution of PS with EXPLAIN
+#
+CREATE TABLE t1 (a INT);
+PREPARE stmt FROM 'EXPLAIN SELECT * FROM t1 HAVING 6 IN ( SELECT 6 UNION SELECT 5 )';
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+# Without the patch the second execution of the 'stmt' prepared statement
+# would result in server crash.
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
 # End of 10.2 tests
 #
+#
+# MDEV-26147: The test main.sp-row fails in case it is run in PS mode
+#
+CREATE PROCEDURE p1(a ROW(a INT,b INT))
+BEGIN
+SELECT a.a, a.b;
+END;
+$$
+PREPARE stmt FROM 'CALL p1(ROW(10, 20))';
+EXECUTE stmt;
+a.a	a.b
+10	20
+DEALLOCATE PREPARE stmt;
+DROP PROCEDURE p1;
 #
 # MDEV-19263: Server crashes in mysql_handle_single_derived
 # upon 2nd execution of PS
@@ -5600,6 +5661,19 @@ disconnect con1;
 connection default;
 SET GLOBAL disconnect_on_expired_password=@disconnect_on_expired_password_save;
 DROP USER user1@localhost;
+#
+# MDEV-21173: Assertion `m_thd == __null' failed in sp_head::~sp_head
+#
+CREATE TABLE t1 (a INT);
+EXECUTE IMMEDIATE "CREATE PROCEDURE p1() SELECT 1 FROM t1  PROCEDURE ANALYSE( 10, (SELECT a FROM t1));";
+ERROR 42000: PROCEDURE does not support subqueries or stored functions
+DROP TABLE t1;
+BEGIN NOT ATOMIC
+PREPARE stmt FROM 'SELECT ?';
+EXECUTE stmt USING ((SELECT 1));
+END;
+$
+ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
 #
 # End of 10.4 tests
 #

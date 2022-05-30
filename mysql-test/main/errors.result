@@ -224,10 +224,10 @@ SELECT 4;
 END IF ;
 END"where name = "P1";
 show create procedure P1;
-ERROR HY000: Failed to load routine test.P1 (internal code -6). For more details, run SHOW WARNINGS
+ERROR 42000: Undeclared variable: foo
 show warnings;
 Level	Code	Message
 Error	1327	Undeclared variable: foo
-Error	1457	Failed to load routine test.P1 (internal code -6). For more details, run SHOW WARNINGS
+Error	1305	PROCEDURE P1 does not exist
 drop procedure P1;
 # End of 10.4 tests

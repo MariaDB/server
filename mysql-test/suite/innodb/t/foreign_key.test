@@ -102,7 +102,41 @@ INSERT INTO t2 VALUES (1);
 SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 
+--echo #
+--echo # MDEV-28317 Assertion failure on rollback of FOREIGN KEY operation
+--echo #
+
+SET foreign_key_checks=0;
+CREATE TABLE parent(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE child(a INT,FOREIGN KEY(a) REFERENCES parent(a) ON DELETE CASCADE)
+ENGINE=InnoDB;
+INSERT INTO child VALUES(1);
+ALTER TABLE child DROP INDEX a;
+
+connect(incomplete, localhost, root,,);
+BEGIN;
+DELETE FROM child;
+
+connection default;
+INSERT INTO parent SET a=0;
+FLUSH TABLES;
+
+--let $shutdown_timeout=0
 --source include/restart_mysqld.inc
+--let $shutdown_timeout=
+disconnect incomplete;
+
+INSERT INTO child SET a=0;
+--error ER_NO_REFERENCED_ROW_2
+INSERT INTO child SET a=1;
+--error ER_ROW_IS_REFERENCED_2
+DELETE FROM parent;
+ALTER TABLE child ADD INDEX(a);
+--error ER_ROW_IS_REFERENCED_2
+DELETE FROM parent;
+ALTER TABLE child FORCE;
+DELETE FROM parent;
+DROP TABLE child,parent;
 
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
@@ -411,8 +445,8 @@ INSERT INTO t1 VALUES (1,2);
 --error ER_XAER_RMFAIL
 CREATE TABLE x AS SELECT * FROM t1;
 --connect (con1,localhost,root,,test)
-SET foreign_key_checks= OFF, innodb_lock_wait_timeout= 1;
-SET lock_wait_timeout=5;
+SET foreign_key_checks= OFF, innodb_lock_wait_timeout= 0;
+SET lock_wait_timeout=2;
 --error ER_LOCK_WAIT_TIMEOUT
 ALTER TABLE t1 ADD FOREIGN KEY f (a) REFERENCES t1 (pk), LOCK=EXCLUSIVE;# Cleanup
 --disconnect con1
@@ -506,7 +540,7 @@ UPDATE users SET name = 'qux' WHERE id = 1;
 
 connect (con1,localhost,root);
 --connection con1
-SET innodb_lock_wait_timeout= 1;
+SET innodb_lock_wait_timeout= 0;
 DELETE FROM matchmaking_groups WHERE id = 10;
 
 --connection default
@@ -544,9 +578,10 @@ BEGIN;
 UPDATE t2 SET f = 11 WHERE id = 1;
 
 --connection default
-SET innodb_lock_wait_timeout= 1;
+SET innodb_lock_wait_timeout= 0;
 --error ER_LOCK_WAIT_TIMEOUT
 DELETE FROM t1 WHERE id = 1;
+SET innodb_lock_wait_timeout= 1;
 
 --connection con1
 COMMIT;
@@ -820,6 +855,29 @@ eval create table t1($fk_ref int primary key, $fk_field int, $constrs) engine in
 drop table t1;
 --enable_query_log
 
+--echo #
+--echo # MDEV-27583 InnoDB uses different constants for FK cascade
+--echo #            error message in SQL vs error log
+--echo #
+
+CREATE TABLE t1
+(a INT, b INT, KEY(b),
+CONSTRAINT FOREIGN KEY (a) REFERENCES t1 (b) ON DELETE CASCADE)
+ENGINE=InnoDB;
+
+INSERT INTO t1 (a,b) VALUES
+(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),
+(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,1),(1,0);
+
+--error ER_GET_ERRMSG
+DELETE FROM t1 WHERE b = 1;
+SHOW WARNINGS;
+DROP TABLE t1;
+
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15.*;
+-- source include/search_pattern_in_file.inc
+
 --echo # End of 10.2 tests
 
 # MDEV-21792 Server aborts upon attempt to create foreign key on spatial field
@@ -900,6 +958,89 @@ create or replace table t2 (pk int primary key, a varchar(4096) unique, foreign 
 
 drop table t1;
 
+--echo #
+--echo # MDEV-26824 Can't add foreign key with empty referenced columns list
+--echo #
+create table t2(a int primary key) engine=innodb;
+create table t1(a int primary key, b int) engine=innodb;
+--error ER_WRONG_FK_DEF
+alter table t2 add foreign key(a) references t1(a, b);
+create or replace table t1(a tinyint primary key) engine innodb;
+--error ER_CANT_CREATE_TABLE
+alter table t2 add foreign key(a) references t1;
+create or replace table t1(b int primary key) engine innodb;
+--error ER_CANT_CREATE_TABLE
+alter table t2 add foreign key(a) references t1;
+create or replace table t1(a int primary key, b int) engine innodb;
+alter table t2 add foreign key(a) references t1;
+show create table t2;
+drop tables t2, t1;
+
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-26554 Table-rebuilding DDL on parent table causes crash
+--echo #            for INSERT into child table
+--echo #
+
+CREATE TABLE parent(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE child(a INT PRIMARY KEY REFERENCES parent(a)) ENGINE=InnoDB;
+connect (con1, localhost, root,,);
+BEGIN;
+--error ER_NO_REFERENCED_ROW_2
+INSERT INTO child SET a=1;
+connection default;
+SET innodb_lock_wait_timeout=0, foreign_key_checks=0;
+--error ER_LOCK_WAIT_TIMEOUT
+TRUNCATE TABLE parent;
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE parent FORCE, ALGORITHM=COPY;
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE parent ADD COLUMN b INT, ALGORITHM=INSTANT;
+connection con1;
+COMMIT;
+connection default;
+# Restore the timeout to avoid occasional races with purge.
+SET innodb_lock_wait_timeout=DEFAULT;
+TRUNCATE TABLE parent;
+ALTER TABLE parent FORCE, ALGORITHM=COPY;
+ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
+ALTER TABLE parent ADD COLUMN b INT, ALGORITHM=INSTANT;
+DROP TABLE child, parent;
+
+--echo #
+--echo # MDEV-26217 Failing assertion: list.count > 0 in ut_list_remove
+--echo # or Assertion `lock->trx == this' failed in dberr_t trx_t::drop_table
+--echo #
+
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+CREATE TABLE t2 (pk INT PRIMARY KEY, FOREIGN KEY(pk) REFERENCES t1(pk))
+ENGINE=InnoDB;
+
+--connection con1
+SET FOREIGN_KEY_CHECKS=OFF;
+--send
+CREATE OR REPLACE TABLE t1 (b INT) ENGINE=InnoDB;
+
+--connection default
+--error 0,ER_NO_REFERENCED_ROW_2,ER_LOCK_DEADLOCK
+INSERT INTO t2 VALUES (1);
+
+--connection con1
+--error 0,ER_CANT_CREATE_TABLE
+--reap
+
+# Cleanup
+--disconnect con1
+--connection default
+--disable_warnings
+DROP TABLE IF EXISTS t2, t1;
+--enable_warnings
+
+--echo # End of 10.6 tests
 
 --source include/wait_until_count_sessions.inc

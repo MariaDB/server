@@ -8,3 +8,13 @@ CHANGE MASTER TO master_user='user',master_password='pwd';
 ERROR HY000: \042D\0442\0443 \043E\043F\0435\0440\0430\0446\0438\044E \043D\0435\0432\043E\0437\043C\043E\0436\043D\043E \0432\044B\043F\043E\043B\043D\0438\0442\044C \043F\0440\0438 \0440\0430\0431\043E\0442\0430\044E\0449\0435\043C \043F\043E\0442\043E\043A\0435 \043F\043E\0434\0447\0438\043D\0435\043D\043D\043E\0433\043E \0441\0435\0440\0432\0435\0440\0430 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 STOP SLAVE;
 RESET SLAVE ALL;
+#
+# MDEV-25754 ASAN: stack-buffer-overflow in Field_newdate::val_str
+#
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('1920-03-02'),('2020-12-01');
+SELECT LENGTH(CONCAT_WS(d, ' ')) FROM t1;
+LENGTH(CONCAT_WS(d, ' '))
+1
+1
+DROP TABLE t1;

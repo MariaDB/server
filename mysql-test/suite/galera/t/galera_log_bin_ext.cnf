@@ -1,0 +1,14 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+log-bin = hostname1-bin
+log-bin-index = hostname1.bdx
+log-slave-updates
+
+[mysqld.2]
+log-bin = hostname2-bin
+log-bin-index = hostname2.bdx
+log-slave-updates
+
+[sst]
+sst_max_binlogs=

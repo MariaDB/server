@@ -118,8 +118,6 @@ enum dberr_t {
 	DB_READ_ONLY,			/*!< Update operation attempted in
 					a read-only transaction */
 	DB_FTS_INVALID_DOCID,		/* FTS Doc ID cannot be zero */
-	DB_TABLE_IN_FK_CHECK,		/* table is being used in foreign
-					key check */
 	DB_ONLINE_LOG_TOO_BIG,		/*!< Modification log grew too big
 					during online index creation */
 

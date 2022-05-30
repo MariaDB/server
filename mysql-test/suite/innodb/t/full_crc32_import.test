@@ -53,6 +53,9 @@ ib_restore_tablespaces("test", "t1");
 EOF
 
 --remove_file $MYSQLD_DATADIR/test/t1.cfg
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 IMPORT TABLESPACE;
+ALTER TABLE t1 DROP INDEX b;
 --disable_warnings
 ALTER TABLE t1 IMPORT TABLESPACE;
 --enable_warnings
@@ -131,9 +134,13 @@ ib_restore_tablespaces("test", "t1");
 EOF
 
 --remove_file $MYSQLD_DATADIR/test/t1.cfg
---disable_warnings
+--error ER_INTERNAL_ERROR
 ALTER TABLE t1 IMPORT TABLESPACE;
 --enable_warnings
+ALTER TABLE t1 DROP INDEX idx1;
+--replace_regex /opening '.*\/test\//opening '.\/test\//
+ALTER TABLE t1 IMPORT TABLESPACE;
+--disable_warnings
 SHOW CREATE TABLE t1;
 UPDATE t1 SET C2 = ST_GeomFromText('POINT(0 0)');
 SELECT COUNT(*) FROM t1;

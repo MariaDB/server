@@ -35,7 +35,7 @@ BEGIN {
 
 	# ****************************
 	# information on MariaDB
-	$MYSQL     = '@bindir@/mysql';    # path to mysql executable
+	$MYSQL     = '@bindir@/mariadb';    # path to mariadb executable
 	$SERVER    = '3.21';
 	$MYSQL_OPT = ' --batch --unbuffered';
 	$ACCESS_DB = 'mysql';		 # name of DB with grant-tables
@@ -50,8 +50,8 @@ BEGIN {
 	$ACCESS_U_BCK = 'user_backup';   
 	$ACCESS_D_BCK = 'db_backup';     
         $DIFF      = '/usr/bin/diff'; 
-        $MYSQLDUMP = '@bindir@/mysqldump';
-                                         #path to mysqldump executable
+        $MYSQLDUMP = '@bindir@/mariadb-dump';
+                                         #path to mariadb-dump executable
 
         $MYSQLADMIN= 'http://foobar.com/MySQLadmin';
                                          #URL of CGI for manipulating

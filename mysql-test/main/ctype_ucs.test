@@ -75,7 +75,9 @@ DROP TABLE t1;
 
 --echo # Problem # 1 (original report): wrong parsing of ucs2 data
 SET character_set_connection=ucs2;
+--enable_prepare_warnings
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp.txt';
+--disable_prepare_warnings
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp.txt' INTO TABLE t1 CHARACTER SET ucs2
 (@b) SET a=REVERSE(@b);
@@ -88,7 +90,9 @@ remove_file $MYSQLD_DATADIR/test/tmpp.txt;
 
 
 --echo # Problem # 2 : if you write and read ucs2 data to a file they're lost
+--enable_prepare_warnings
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp2.txt' CHARACTER SET ucs2;
+--disable_prepare_warnings
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp2.txt' INTO TABLE t1 CHARACTER SET ucs2
 (@b) SET a=REVERSE(@b);
@@ -1145,6 +1149,19 @@ SELECT CAST(_ucs2 0x0061DFFF0062 AS INT);
 --echo # normal characters
 SELECT CAST(_ucs2 0x0061D7000062 AS INT);
 SELECT CAST(_ucs2 0x0061E0030062 AS INT);
+
+--echo #
+--echo # MDEV-24584 Selecting INT column with COLLATE utf8mb4_general_ci throws an error
+--echo #
+
+SET NAMES utf8, collation_connection=ucs2_general_ci;
+SELECT 1 COLLATE ucs2_general_ci;
+SELECT 1 COLLATE ucs2_bin;
+SELECT HEX(1 COLLATE ucs2_general_ci);
+SELECT HEX(1 COLLATE ucs2_bin);
+--error ER_COLLATION_CHARSET_MISMATCH
+SELECT 1 COLLATE latin1_swedish_ci;
+SET NAMES utf8;
 
 --echo #
 --echo # End of 10.5 tests

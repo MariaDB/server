@@ -145,13 +145,13 @@ my_bool dynstr_trunc(DYNAMIC_STRING *str, size_t n)
 
 my_bool dynstr_append_os_quoted(DYNAMIC_STRING *str, const char *append, ...)
 {
-#ifdef __WIN__
+#ifdef _WIN32
   LEX_CSTRING quote= { C_STRING_WITH_LEN("\"") };
   LEX_CSTRING replace= { C_STRING_WITH_LEN("\\\"") };
 #else
   LEX_CSTRING quote= { C_STRING_WITH_LEN("\'") };
   LEX_CSTRING replace= { C_STRING_WITH_LEN("'\"'\"'") };
-#endif /* __WIN__ */
+#endif /* _WIN32 */
   my_bool ret= TRUE;
   va_list dirty_text;
 

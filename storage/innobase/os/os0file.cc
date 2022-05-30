@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -50,7 +50,6 @@ Created 10/21/1995 Heikki Tuuri
 #ifdef HAVE_LINUX_UNISTD_H
 #include "unistd.h"
 #endif
-#include "os0thread.h"
 #include "buf0dblwr.h"
 
 #include <tpool_structs.h>
@@ -80,6 +79,7 @@ Created 10/21/1995 Heikki Tuuri
 
 #include <thread>
 #include <chrono>
+#include <memory>
 
 /* Per-IO operation environment*/
 class io_slots
@@ -133,8 +133,8 @@ public:
 	}
 };
 
-static io_slots *read_slots;
-static io_slots *write_slots;
+static std::unique_ptr<io_slots> read_slots;
+static std::unique_ptr<io_slots> write_slots;
 
 /** Number of retries for partial I/O's */
 constexpr ulint NUM_RETRIES_ON_PARTIAL_IO = 10;
@@ -151,13 +151,10 @@ static ulint	os_innodb_umask = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
 static ulint	os_innodb_umask	= 0;
 #endif /* _WIN32 */
 
-
-#define WAIT_ALLOW_WRITES() innodb_wait_allow_writes()
-
 Atomic_counter<ulint> os_n_file_reads;
 static ulint	os_bytes_read_since_printout;
-ulint	os_n_file_writes;
-ulint	os_n_fsyncs;
+Atomic_counter<size_t> os_n_file_writes;
+Atomic_counter<size_t> os_n_fsyncs;
 static ulint	os_n_file_reads_old;
 static ulint	os_n_file_writes_old;
 static ulint	os_n_fsyncs_old;
@@ -335,6 +332,10 @@ os_file_lock(
 	int		fd,
 	const char*	name)
 {
+	if (my_disable_locking) {
+		return 0;
+	}
+
 	struct flock lk;
 
 	lk.l_type = F_WRLCK;
@@ -371,7 +372,6 @@ FILE*
 os_file_create_tmpfile()
 {
 	FILE*	file	= NULL;
-	WAIT_ALLOW_WRITES();
 	File	fd	= mysql_tmpfile("ib");
 
 	if (fd >= 0) {
@@ -937,7 +937,7 @@ os_file_status_posix(
 
 	if (!ret) {
 		/* file exists, everything OK */
-
+		MSAN_STAT_WORKAROUND(&statinfo);
 	} else if (errno == ENOENT || errno == ENOTDIR || errno == ENAMETOOLONG) {
 		/* file does not exist */
 		return(true);
@@ -974,7 +974,6 @@ os_file_flush_func(
 {
 	int	ret;
 
-	WAIT_ALLOW_WRITES();
 	ret = os_file_sync_posix(file);
 
 	if (ret == 0) {
@@ -1025,10 +1024,6 @@ os_file_create_simple_func(
 
 	int		create_flag;
 	const char*	mode_str	= NULL;
-
-	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW) {
-		WAIT_ALLOW_WRITES();
-	}
 
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_NO_EXIT));
@@ -1143,7 +1138,6 @@ os_file_create_directory(
 {
 	int	rcode;
 
-	WAIT_ALLOW_WRITES();
 	rcode = mkdir(pathname, 0770);
 
 	if (!(rcode == 0 || (errno == EEXIST && !fail_if_exists))) {
@@ -1348,10 +1342,6 @@ os_file_create_simple_no_error_handling_func(
 	os_file_t	file;
 	int		create_flag;
 
-	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW) {
-		WAIT_ALLOW_WRITES();
-	}
-
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_NO_EXIT));
 
@@ -1426,7 +1416,6 @@ os_file_delete_if_exists_func(
 	}
 
 	int	ret;
-	WAIT_ALLOW_WRITES();
 
 	ret = unlink(name);
 
@@ -1451,7 +1440,6 @@ os_file_delete_func(
 	const char*	name)
 {
 	int	ret;
-	WAIT_ALLOW_WRITES();
 
 	ret = unlink(name);
 
@@ -1482,8 +1470,7 @@ os_file_rename_func(
 
 	/* New path must not exist. */
 	ut_ad(os_file_status(newpath, &exists, &type));
-	/* MDEV-25506 FIXME: Remove the strstr() */
-	ut_ad(!exists || strstr(oldpath, "/" TEMP_FILE_PREFIX_INNODB));
+	ut_ad(!exists);
 
 	/* Old path must exist. */
 	ut_ad(os_file_status(oldpath, &exists, &type));
@@ -1491,7 +1478,6 @@ os_file_rename_func(
 #endif /* UNIV_DEBUG */
 
 	int	ret;
-	WAIT_ALLOW_WRITES();
 
 	ret = rename(oldpath, newpath);
 
@@ -1527,8 +1513,10 @@ bool os_file_close_func(os_file_t file)
 os_offset_t
 os_file_get_size(os_file_t file)
 {
-	struct stat statbuf;
-	return fstat(file, &statbuf) ? os_offset_t(-1) : statbuf.st_size;
+  struct stat statbuf;
+  if (fstat(file, &statbuf)) return os_offset_t(-1);
+  MSAN_STAT_WORKAROUND(&statbuf);
+  return statbuf.st_size;
 }
 
 /** Gets a file size.
@@ -1545,6 +1533,7 @@ os_file_get_size(
 	int	ret = stat(filename, &s);
 
 	if (ret == 0) {
+		MSAN_STAT_WORKAROUND(&s);
 		file_size.m_total_size = s.st_size;
 		/* st_blocks is in 512 byte sized blocks */
 		file_size.m_alloc_size = s.st_blocks * 512;
@@ -1588,6 +1577,8 @@ os_file_get_status_posix(
 
 		return(DB_FAIL);
 	}
+
+	MSAN_STAT_WORKAROUND(statinfo);
 
 	switch (statinfo->st_mode & S_IFMT) {
 	case S_IFDIR:
@@ -1661,7 +1652,6 @@ bool
 os_file_set_eof(
 	FILE*		file)	/*!< in: file to be truncated */
 {
-	WAIT_ALLOW_WRITES();
 	return(!ftruncate(fileno(file), ftell(file)));
 }
 
@@ -2125,10 +2115,6 @@ os_file_create_func(
 		? FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
 		: FILE_SHARE_READ | FILE_SHARE_DELETE;
 
-	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW) {
-		WAIT_ALLOW_WRITES();
-	}
-
 	on_error_no_exit = create_mode & OS_FILE_ON_ERROR_NO_EXIT
 		? true : false;
 
@@ -2535,8 +2521,7 @@ os_file_rename_func(
 
 	/* New path must not exist. */
 	ut_ad(os_file_status(newpath, &exists, &type));
-	/* MDEV-25506 FIXME: Remove the strstr() */
-	ut_ad(!exists || strstr(oldpath, "/" TEMP_FILE_PREFIX_INNODB));
+	ut_ad(!exists);
 
 	/* Old path must exist. */
 	ut_ad(os_file_status(oldpath, &exists, &type));
@@ -2699,48 +2684,6 @@ os_file_get_status_win32(
 				CloseHandle(fh);
 			}
 		}
-		stat_info->block_size = 0;
-
-		/* What follows, is calculation of FS block size, which is not important
-		(it is just shown in I_S innodb tables). The error to calculate it will be ignored.*/
-		char	volname[MAX_PATH];
-		BOOL	result = GetVolumePathName(path, volname, MAX_PATH);
-		static	bool warned_once = false;
-		if (!result) {
-			if (!warned_once) {
-				ib::warn()
-					<< "os_file_get_status_win32: "
-					<< "Failed to get the volume path name for: "
-					<< path
-					<< "- OS error number " << GetLastError();
-				warned_once = true;
-			}
-			return(DB_SUCCESS);
-		}
-
-		DWORD	sectorsPerCluster;
-		DWORD	bytesPerSector;
-		DWORD	numberOfFreeClusters;
-		DWORD	totalNumberOfClusters;
-
-		result = GetDiskFreeSpace(
-			(LPCSTR) volname,
-			&sectorsPerCluster,
-			&bytesPerSector,
-			&numberOfFreeClusters,
-			&totalNumberOfClusters);
-
-		if (!result) {
-			if (!warned_once) {
-				ib::warn()
-					<< "GetDiskFreeSpace(" << volname << ",...) "
-					<< "failed "
-					<< "- OS error number " << GetLastError();
-				warned_once = true;
-			}
-			return(DB_SUCCESS);
-		}
-		stat_info->block_size = bytesPerSector * sectorsPerCluster;
 	} else {
 		stat_info->type = OS_FILE_TYPE_UNKNOWN;
 	}
@@ -2824,7 +2767,7 @@ os_file_set_eof(
 
 #endif /* !_WIN32*/
 
-/** Does a syncronous read or write depending upon the type specified
+/** Does a synchronous read or write depending upon the type specified
 In case of partial reads/writes the function tries
 NUM_RETRIES_ON_PARTIAL_IO times to read/write the complete data.
 @param[in]	type,		IO flags
@@ -2954,8 +2897,6 @@ os_file_write_func(
 	dberr_t		err;
 
 	ut_ad(n > 0);
-
-	WAIT_ALLOW_WRITES();
 
 	ssize_t	n_bytes = os_file_pwrite(type, file, (byte*)buf, n, offset, &err);
 
@@ -3235,7 +3176,7 @@ os_file_set_nocache(
 /** Check if the file system supports sparse files.
 @param fh	file handle
 @return true if the file system supports sparse files */
-IF_WIN(static,) bool os_is_sparse_file_supported(os_file_t fh)
+static bool os_is_sparse_file_supported(os_file_t fh)
 {
 #ifdef _WIN32
 	FILE_ATTRIBUTE_TAG_INFO info;
@@ -3275,6 +3216,8 @@ os_file_set_size(
 	os_offset_t	size,
 	bool	is_sparse)
 {
+	ut_ad(!(size & 4095));
+
 #ifdef _WIN32
 	/* On Windows, changing file size works well and as expected for both
 	sparse and normal files.
@@ -3294,6 +3237,8 @@ os_file_set_size(
 
 fallback:
 #else
+	struct stat statbuf;
+
 	if (is_sparse) {
 		bool success = !ftruncate(file, size);
 		if (!success) {
@@ -3307,10 +3252,18 @@ fallback:
 # ifdef HAVE_POSIX_FALLOCATE
 	int err;
 	do {
-		os_offset_t current_size = os_file_get_size(file);
-		err = current_size >= size
-			? 0 : posix_fallocate(file, current_size,
+		if (fstat(file, &statbuf)) {
+			err = errno;
+		} else {
+			MSAN_STAT_WORKAROUND(&statbuf);
+			os_offset_t current_size = statbuf.st_size;
+			if (current_size >= size) {
+				return true;
+			}
+			current_size &= ~4095ULL;
+			err = posix_fallocate(file, current_size,
 					      size - current_size);
+		}
 	} while (err == EINTR
 		 && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
 
@@ -3333,6 +3286,26 @@ fallback:
 # endif /* HAVE_POSIX_ALLOCATE */
 #endif /* _WIN32*/
 
+#ifdef _WIN32
+	os_offset_t	current_size = os_file_get_size(file);
+	FILE_STORAGE_INFO info;
+	if (GetFileInformationByHandleEx(file, FileStorageInfo, &info,
+					 sizeof info)) {
+		if (info.LogicalBytesPerSector) {
+			current_size &= ~os_offset_t(info.LogicalBytesPerSector
+						     - 1);
+		}
+	}
+#else
+	if (fstat(file, &statbuf)) {
+		return false;
+	}
+	os_offset_t current_size = statbuf.st_size & ~4095ULL;
+#endif
+	if (current_size >= size) {
+		return true;
+	}
+
 	/* Write up to 1 megabyte at a time. */
 	ulint	buf_size = ut_min(ulint(64),
 				  ulint(size >> srv_page_size_shift))
@@ -3343,8 +3316,6 @@ fallback:
 							srv_page_size));
 	/* Write buffer full of zeros */
 	memset(buf, 0, buf_size);
-
-	os_offset_t	current_size = os_file_get_size(file);
 
 	while (current_size < size
 	       && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
@@ -3497,24 +3468,52 @@ dberr_t IORequest::punch_hole(os_offset_t off, ulint len) const
 
 	/* Check does file system support punching holes for this
 	tablespace. */
-	if (!node->space->punch_hole) {
+	if (!node->punch_hole) {
 		return DB_IO_NO_PUNCH_HOLE;
 	}
 
 	dberr_t err = os_file_punch_hole(node->handle, off, trim_len);
 
-	if (err == DB_SUCCESS) {
+	switch (err) {
+	case DB_SUCCESS:
 		srv_stats.page_compressed_trim_op.inc();
-	} else {
-		/* If punch hole is not supported,
-		set space so that it is not used. */
-		if (err == DB_IO_NO_PUNCH_HOLE) {
-			node->space->punch_hole = false;
-			err = DB_SUCCESS;
-		}
+		return err;
+	case DB_IO_NO_PUNCH_HOLE:
+		node->punch_hole = false;
+		err = DB_SUCCESS;
+		/* fall through */
+	default:
+		return err;
 	}
+}
 
-	return (err);
+/*
+  Get file system block size, by path.
+
+  This is expensive on Windows, and not very useful in general,
+  (only shown in some I_S table), so we keep that out of usual
+  stat.
+*/
+size_t os_file_get_fs_block_size(const char *path)
+{
+#ifdef _WIN32
+  char volname[MAX_PATH];
+  if (!GetVolumePathName(path, volname, MAX_PATH))
+    return 0;
+  DWORD sectorsPerCluster;
+  DWORD bytesPerSector;
+  DWORD numberOfFreeClusters;
+  DWORD totalNumberOfClusters;
+
+  if (GetDiskFreeSpace(volname, &sectorsPerCluster, &bytesPerSector,
+                       &numberOfFreeClusters, &totalNumberOfClusters))
+    return ((size_t) bytesPerSector) * sectorsPerCluster;
+#else
+  os_file_stat_t info;
+  if (os_file_get_status(path, &info, false, false) == DB_SUCCESS)
+    return info.block_size;
+#endif
+  return 0;
 }
 
 /** This function returns information about the specified file
@@ -3715,6 +3714,10 @@ int os_aio_init()
   int max_read_events= int(srv_n_read_io_threads *
                            OS_AIO_N_PENDING_IOS_PER_THREAD);
   int max_events= max_read_events + max_write_events;
+
+  read_slots.reset(new io_slots(max_read_events, srv_n_read_io_threads));
+  write_slots.reset(new io_slots(max_write_events, srv_n_write_io_threads));
+
   int ret;
 #if LINUX_NATIVE_AIO
   if (srv_use_native_aio && !is_linux_native_aio_supported())
@@ -3745,11 +3748,12 @@ disable:
   }
 #endif
 
-  if (!ret)
+  if (ret)
   {
-    read_slots= new io_slots(max_read_events, srv_n_read_io_threads);
-    write_slots= new io_slots(max_write_events, srv_n_write_io_threads);
+    read_slots.reset();
+    write_slots.reset();
   }
+
   return ret;
 }
 
@@ -3757,10 +3761,8 @@ disable:
 void os_aio_free()
 {
   srv_thread_pool->disable_aio();
-  delete read_slots;
-  delete write_slots;
-  read_slots= nullptr;
-  write_slots= nullptr;
+  read_slots.reset();
+  write_slots.reset();
 }
 
 /** Wait until there are no pending asynchronous writes. */
@@ -3777,8 +3779,7 @@ static void os_aio_wait_until_no_pending_writes_low()
      tpool::tpool_wait_end();
 }
 
-/** Waits until there are no pending writes. There can
-be other, synchronous, pending writes. */
+/** Wait until there are no pending asynchronous writes. */
 void os_aio_wait_until_no_pending_writes()
 {
   os_aio_wait_until_no_pending_writes_low();
@@ -3788,7 +3789,15 @@ void os_aio_wait_until_no_pending_writes()
 /** Wait until all pending asynchronous reads have completed. */
 void os_aio_wait_until_no_pending_reads()
 {
+  const auto notify_wait= read_slots->pending_io_count();
+
+  if (notify_wait)
+    tpool::tpool_wait_begin();
+
   read_slots->wait();
+
+  if (notify_wait)
+    tpool::tpool_wait_end();
 }
 
 /** Request a read or write.
@@ -3842,7 +3851,7 @@ func_exit:
 	}
 
 	compile_time_assert(sizeof(IORequest) <= tpool::MAX_AIO_USERDATA_LEN);
-	io_slots* slots= type.is_read() ? read_slots : write_slots;
+	io_slots* slots= type.is_read() ? read_slots.get() : write_slots.get();
 	tpool::aiocb* cb = slots->acquire();
 
 	cb->m_buffer = buf;
@@ -3883,14 +3892,12 @@ os_aio_print(FILE*	file)
 	fprintf(file,
 		"Pending flushes (fsync) log: " ULINTPF
 		"; buffer pool: " ULINTPF "\n"
-		ULINTPF " OS file reads, "
-		ULINTPF " OS file writes, "
-		ULINTPF " OS fsyncs\n",
+		ULINTPF " OS file reads, %zu OS file writes, %zu OS fsyncs\n",
 		log_sys.get_pending_flushes(),
 		ulint{fil_n_pending_tablespace_flushes},
 		ulint{os_n_file_reads},
-		os_n_file_writes,
-		os_n_fsyncs);
+		static_cast<size_t>(os_n_file_writes),
+		static_cast<size_t>(os_n_fsyncs));
 
 	const ulint n_reads = ulint(MONITOR_VALUE(MONITOR_OS_PENDING_READS));
 	const ulint n_writes = ulint(MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));
@@ -3980,7 +3987,7 @@ static bool is_drive_on_ssd(DWORD nr)
                       sizeof storage_query, &seek_penalty, sizeof seek_penalty,
                       &bytes_written, nullptr))
   {
-    on_ssd= seek_penalty.IncursSeekPenalty;
+    on_ssd= !seek_penalty.IncursSeekPenalty;
   }
   else
   {
@@ -4103,81 +4110,59 @@ static bool is_file_on_ssd(char *file_path)
 
 #endif
 
-/** Determine some file metadata when creating or reading the file.
-@param	file	the file that is being created, or OS_FILE_CLOSED */
 void fil_node_t::find_metadata(os_file_t file
 #ifndef _WIN32
-			       , struct stat* statbuf
+                               , bool create, struct stat *statbuf
 #endif
-			       )
+                               )
 {
-	if (file == OS_FILE_CLOSED) {
-		file = handle;
-		ut_ad(is_open());
-	}
+  if (!is_open())
+  {
+    handle= file;
+    ut_ad(is_open());
+  }
 
-#ifdef _WIN32 /* FIXME: make this unconditional */
-	if (space->punch_hole) {
-		space->punch_hole = os_is_sparse_file_supported(file);
-	}
-#endif
+  if (!space->is_compressed())
+    punch_hole= 0;
+  else if (my_test_if_thinly_provisioned(file))
+    punch_hole= 2;
+  else
+    punch_hole= IF_WIN(, !create ||) os_is_sparse_file_supported(file);
 
-	/*
-	For the temporary tablespace and during the
-	non-redo-logged adjustments in
-	IMPORT TABLESPACE, we do not care about
-	the atomicity of writes.
-
-	Atomic writes is supported if the file can be used
-	with atomic_writes (not log file), O_DIRECT is
-	used (tested in ha_innodb.cc) and the file is
-	device and file system that supports atomic writes
-	for the given block size.
-	*/
-	space->atomic_write_supported = space->purpose == FIL_TYPE_TEMPORARY
-		|| space->purpose == FIL_TYPE_IMPORT;
 #ifdef _WIN32
-	on_ssd = is_file_on_ssd(name);
-	FILE_STORAGE_INFO info;
-	if (GetFileInformationByHandleEx(
-		file, FileStorageInfo, &info, sizeof(info))) {
-		block_size = info.PhysicalBytesPerSectorForAtomicity;
-	} else {
-		block_size = 512;
-	}
+  on_ssd= is_file_on_ssd(name);
+  FILE_STORAGE_INFO info;
+  if (GetFileInformationByHandleEx(file, FileStorageInfo, &info, sizeof info))
+    block_size= info.PhysicalBytesPerSectorForAtomicity;
+  else
+    block_size= 512;
 #else
-	struct stat sbuf;
-	if (!statbuf && !fstat(file, &sbuf)) {
-		statbuf = &sbuf;
-	}
-	if (statbuf) {
-		block_size = statbuf->st_blksize;
-	}
-	on_ssd = space->atomic_write_supported
+  struct stat sbuf;
+  if (!statbuf && !fstat(file, &sbuf))
+  {
+    MSAN_STAT_WORKAROUND(&sbuf);
+    statbuf= &sbuf;
+  }
+  if (statbuf)
+    block_size= statbuf->st_blksize;
 # ifdef UNIV_LINUX
-		|| (statbuf && fil_system.is_ssd(statbuf->st_dev))
+  on_ssd= statbuf && fil_system.is_ssd(statbuf->st_dev);
 # endif
-		;
 #endif
-	if (!space->atomic_write_supported) {
-		space->atomic_write_supported = atomic_write
-			&& srv_use_atomic_writes
-#ifndef _WIN32
-			&& my_test_if_atomic_write(file,
-						   space->physical_size())
-#else
-			/* On Windows, all single sector writes are atomic,
-			as per WriteFile() documentation on MSDN.
-			We also require SSD for atomic writes, eventhough
-			technically it is not necessary- the reason is that
-			on hard disks, we still want the benefit from
-			(non-atomic) neighbor page flushing in the buffer
-			pool code. */
-			&& srv_page_size == block_size
-			&& on_ssd
-#endif
-			;
-	}
+
+  if (space->purpose != FIL_TYPE_TABLESPACE)
+  {
+    /* For temporary tablespace or during IMPORT TABLESPACE, we
+    disable neighbour flushing and do not care about atomicity. */
+    on_ssd= true;
+    atomic_write= true;
+  }
+  else
+    /* On Windows, all single sector writes are atomic, as per
+    WriteFile() documentation on MSDN. */
+    atomic_write= srv_use_atomic_writes &&
+      IF_WIN(srv_page_size == block_size,
+	     my_test_if_atomic_write(file, space->physical_size()));
 }
 
 /** Read the first page of a data file.
@@ -4190,6 +4175,7 @@ bool fil_node_t::read_page0()
   struct stat statbuf;
   if (fstat(handle, &statbuf))
     return false;
+  MSAN_STAT_WORKAROUND(&statbuf);
   os_offset_t size_bytes= statbuf.st_size;
 #else
   os_offset_t size_bytes= os_file_get_size(handle);
@@ -4272,20 +4258,16 @@ invalid:
     space->free_len= free_len;
   }
 
-#ifdef UNIV_LINUX
-  find_metadata(handle, &statbuf);
-#else
-  find_metadata();
-#endif
+  IF_WIN(find_metadata(), find_metadata(handle, false, &statbuf));
   /* Truncate the size to a multiple of extent size. */
   ulint	mask= psize * FSP_EXTENT_SIZE - 1;
 
   if (size_bytes <= mask);
     /* .ibd files start smaller than an
     extent size. Do not truncate valid data. */
-  else size_bytes &= ~os_offset_t(mask);
+  else
+    size_bytes&= ~os_offset_t(mask);
 
-  space->punch_hole= space->is_compressed();
   this->size= uint32_t(size_bytes / psize);
   space->set_sizes(this->size);
   return true;

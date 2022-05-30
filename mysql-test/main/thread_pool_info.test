@@ -1,4 +1,5 @@
 source include/not_embedded.inc;
+source include/not_aix.inc;
 
 let $have_plugin = `SELECT COUNT(*) FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_STATUS='ACTIVE' AND PLUGIN_NAME = 'THREAD_POOL_GROUPS'`;
 if(!$have_plugin)
@@ -15,9 +16,6 @@ SELECT SUM(ACTIVE_THREADS) > 0 FROM INFORMATION_SCHEMA.THREAD_POOL_GROUPS;
 SELECT SUM(QUEUE_LENGTH) FROM INFORMATION_SCHEMA.THREAD_POOL_GROUPS;
 SELECT SUM(IS_STALLED) FROM INFORMATION_SCHEMA.THREAD_POOL_GROUPS;
 
-# I_S.THREAD_POOL_QUEUES
-DESC INFORMATION_SCHEMA.THREAD_POOL_QUEUES;
-#Todo - figure out how to populate queue with debug test
 
 # I_S.THREAD_POOL_STATS
 DESC INFORMATION_SCHEMA.THREAD_POOL_STATS;
@@ -29,7 +27,8 @@ SELECT SUM(POLLS_BY_LISTENER+POLLS_BY_WORKER) > 0 FROM INFORMATION_SCHEMA.THREAD
 --disable_ps_protocol
 FLUSH THREAD_POOL_STATS;
 SELECT SUM(DEQUEUES_BY_LISTENER+DEQUEUES_BY_WORKER)  FROM INFORMATION_SCHEMA.THREAD_POOL_STATS;
-SELECT SUM(POLLS_BY_LISTENER+POLLS_BY_WORKER)  BETWEEN 2 AND 3 FROM INFORMATION_SCHEMA.THREAD_POOL_STATS;
+SELECT SUM(POLLS_BY_LISTENER) FROM INFORMATION_SCHEMA.THREAD_POOL_STATS;
+SELECT SUM(POLLS_BY_WORKER) FROM INFORMATION_SCHEMA.THREAD_POOL_STATS;
 --enable_ps_protocol
 
 #I_S.THREAD_POOL_WAITS
@@ -39,3 +38,56 @@ SELECT COUNT FROM INFORMATION_SCHEMA.THREAD_POOL_WAITS WHERE REASON='Sleep';
 SELECT SLEEP(0.01);
 SELECT COUNT FROM INFORMATION_SCHEMA.THREAD_POOL_WAITS WHERE REASON='Sleep';
 FLUSH THREAD_POOL_WAITS;
+
+
+# I_S.THREAD_POOL_QUEUES
+DESC INFORMATION_SCHEMA.THREAD_POOL_QUEUES;
+let $extra_port=`select @@port+1`;
+
+let $restart_parameters=--extra-port=$extra_port;
+let $restart_noprint=1;
+source include/restart_mysqld.inc;
+
+connect (con1, localhost, root,,test);
+connection con1;
+let $con1_id=`SELECT CONNECTION_ID()`;
+
+connect (con2, localhost, root,,test);
+connection con2;
+let $con2_id=`SELECT CONNECTION_ID()`;
+
+connect(extra_con,127.0.0.1,root,,test,$extra_port,);
+
+connection con1;
+send SELECT SLEEP(1000);
+
+connection extra_con;
+let $wait_condition=
+  SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.PROCESSLIST
+  WHERE STATE='User sleep' AND ID=$con1_id;
+--source include/wait_condition.inc
+
+connection con2;
+send DO 1;
+
+
+connection extra_con;
+let $wait_condition=
+  SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.THREAD_POOL_QUEUES
+  WHERE CONNECTION_ID IS NOT NULL;
+--source include/wait_condition.inc
+
+--replace_result $con1_id con1_id
+eval KILL QUERY $con1_id;
+disconnect extra_con;
+
+connection con1;
+error 0,ER_QUERY_INTERRUPTED;
+reap;
+disconnect con1;
+
+connection con2;
+reap;
+disconnect con2;
+
+connection default;

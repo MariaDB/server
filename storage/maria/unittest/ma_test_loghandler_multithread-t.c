@@ -292,7 +292,7 @@ int main(int argc __attribute__((unused)),
     long_buffer[i]= (i & 0xFF);
 
 #ifndef DBUG_OFF
-#if defined(__WIN__)
+#if defined(_WIN32)
   default_dbug_option= "d:t:i:O,\\ma_test_loghandler.trace";
 #else
   default_dbug_option= "d:t:i:o,/tmp/ma_test_loghandler.trace";

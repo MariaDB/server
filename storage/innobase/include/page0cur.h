@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -154,9 +154,8 @@ page_cur_tuple_insert(
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /***********************************************************//**
 Inserts a record next to page cursor on an uncompressed page.
-Returns pointer to inserted record if succeed, i.e., enough
-space available, NULL otherwise. The cursor stays at the same position.
-@return pointer to record if succeed, NULL otherwise */
+@return pointer to record
+@retval nullptr if not enough space was available */
 rec_t*
 page_cur_insert_rec_low(
 /*====================*/
@@ -345,6 +344,6 @@ struct page_cur_t{
 	buf_block_t*	block;	/*!< pointer to the block containing rec */
 };
 
-#include "page0cur.ic"
+#include "page0cur.inl"
 
 #endif

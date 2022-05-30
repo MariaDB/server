@@ -2,6 +2,9 @@
 --source include/default_optimizer_switch.inc
 --source include/have_sequence.inc
 
+SET @save_innodb_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
+
 --echo #
 --echo # MDEV-16917: do not use splitting for derived with join cache
 --echo #
@@ -152,3 +155,82 @@ eval set statement optimizer_switch='split_materialized=on' for  $query;
 
 DROP TABLE t1, t2;
 
+--echo #
+--echo # Bug mdev-25714: usage non-splitting covering index is cheaper than
+--echo #                 usage of the best splitting index for one group
+--echo #
+
+create table t1 (
+  id int not null, itemid int not null, index idx (itemid)
+) engine=innodb;
+insert into t1 values (1, 2), (2,2), (4,2), (4,2), (0,3), (3,3);
+create table t2 (id int not null) engine=innodb;
+insert into t2 values (2);
+create table t3 (
+  id int not null, itemid int not null, userid int not null, primary key (id),
+  index idx1 (userid, itemid), index idx2 (itemid)
+) engine innodb;
+insert into t3 values (1,1,1), (2,1,1), (3,2,1), (4,2,1), (5,3,1);
+set use_stat_tables='never';
+set optimizer_use_condition_selectivity=1;
+analyze table t1,t2,t3;
+
+let $q=
+select t1.id, t1.itemid, dt.id, t2.id
+  from t1,
+  (select itemid, max(id) as id from t3 where userid = 1 group by itemid) dt,
+  t2
+    where t1.id = dt.id and t1.itemid = dt.itemid and t2.id=t1.itemid;
+
+set optimizer_switch='split_materialized=on';
+eval explain $q;
+eval $q;
+
+set optimizer_switch='split_materialized=off';
+eval explain $q;
+eval $q;
+
+drop table t1,t2,t3;
+set optimizer_switch='split_materialized=default';
+set use_stat_tables=default;
+set optimizer_use_condition_selectivity=default;
+
+--echo #
+--echo # MDEV-26337: subquery with groupby and ROLLUP returns incorrect results 
+--echo #  (The testcase is taken from testcase for MDEV-13389 due to it being
+--echo #   much smaller)
+--echo #
+
+create table t3 (a int, b int, c char(127), index idx_b(b)) engine=myisam;
+insert into t3 values
+(8,11,'aa'), (5,15,'cc'), (1,14,'bb'), (2,12,'aa'), (7,17,'cc'),
+(7,18,'aa'), (2,11,'aa'), (7,10,'bb'), (3,11,'dd'), (4,12,'ee'),
+(5,14,'dd'), (9,12,'ee');
+create table t4 (a int, b int, c char(127), index idx(a,c)) engine=myisam;
+insert into t4 values
+(7,10,'cc'), (1,20,'aa'), (2,23,'bb'), (7,18,'cc'), (1,30,'bb'),
+(4,71,'xx'), (3,15,'aa'), (7,82,'aa'), (8,12,'dd'), (4,15,'aa'),
+(11,33,'yy'), (10,42,'zz'), (4,53,'xx'), (10,17,'yy'), (7,12,'cc'),
+(8,20,'dd'), (7,32,'bb'), (1,50,'aa'), (3,40,'bb'), (3,77,'aa');
+insert into t4 select a+10, b+10, concat(c,'f') from t4;
+analyze table t3,t4;
+
+--echo # This should use a plan with LATERAL DERIVED:
+explain select t3.a,t3.c,t.max,t.min
+from t3 join
+(select a, c, max(b) max, min(b) min from t4 group by a,c) t
+on t3.a=t.a and t3.c=t.c
+where t3.b > 15;
+
+--echo # ... and if one adds WITH ROLLUP, then LATERAL DERIVED is no longer used:
+explain select t3.a,t3.c,t.max,t.min
+from t3 join
+(select a, c, max(b) max, min(b) min from t4 group by a,c with rollup) t
+on t3.a=t.a and t3.c=t.c
+where t3.b > 15;
+
+drop table t3, t4;
+
+--echo # End of 10.3 tests
+
+SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;

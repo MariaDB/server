@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -55,7 +55,7 @@ Created 10/10/1995 Heikki Tuuri
 /** Simple non-atomic counter
 @tparam	Type  the integer type of the counter */
 template <typename Type>
-struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
+struct alignas(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
 {
   /** Increment the counter */
   Type inc() { return add(1); }
@@ -114,10 +114,6 @@ struct srv_stats_t
 
 	/** Number of bytes saved by page compression */
 	ulint_ctr_n_t          page_compression_saved;
-	/* Number of index pages written */
-	ulint_ctr_n_t          index_pages_written;
-	/* Number of non index pages written */
-	ulint_ctr_n_t          non_index_pages_written;
 	/* Number of pages compressed with page compression */
         ulint_ctr_n_t          pages_page_compressed;
 	/* Number of TRIM operations induced by page compression */
@@ -174,9 +170,6 @@ struct srv_stats_t
 
 	/** Number of encryption_get_latest_key_version calls */
 	ulint_ctr_n_t		n_key_requests;
-
-	/** Number of spaces in keyrotation list */
-	ulint_ctr_n_t		key_rotation_list_length;
 
 	/** Number of temporary tablespace blocks encrypted */
 	ulint_ctr_n_t		n_temp_blocks_encrypted;
@@ -300,25 +293,10 @@ extern ulong	srv_log_write_ahead_size;
 extern my_bool	srv_adaptive_flushing;
 extern my_bool	srv_flush_sync;
 
-#ifdef WITH_INNODB_DISALLOW_WRITES
-extern my_bool innodb_disallow_writes;
-void innodb_wait_allow_writes();
-#else
-# define innodb_wait_allow_writes() do {} while (0)
-#endif /* WITH_INNODB_DISALLOW_WRITES */
-
-/* If this flag is TRUE, then we will load the indexes' (and tables') metadata
-even if they are marked as "corrupted". Mostly it is for DBA to process
-corrupted index and table */
-extern my_bool	srv_load_corrupted;
-
 /** Requested size in bytes */
 extern ulint		srv_buf_pool_size;
-/** Minimum pool size in bytes */
-extern const ulint	srv_buf_pool_min_size;
-/** Default pool size in bytes */
-extern const ulint	srv_buf_pool_def_size;
-/** Requested buffer pool chunk size */
+/** Requested buffer pool chunk size. Each buffer pool instance consists
+of one or more chunks. */
 extern ulong		srv_buf_pool_chunk_unit;
 /** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
 extern ulong	srv_LRU_scan_depth;
@@ -424,11 +402,17 @@ enum srv_operation_mode {
 	/** Mariabackup restoring the incremental part of a backup */
 	SRV_OPERATION_RESTORE_DELTA,
 	/** Mariabackup restoring a backup for subsequent --export */
-	SRV_OPERATION_RESTORE_EXPORT
+	SRV_OPERATION_RESTORE_EXPORT,
+	/** Mariabackup taking a backup and avoid deferring
+	any tablespace */
+	SRV_OPERATION_BACKUP_NO_DEFER
 };
 
 /** Current mode of operation */
 extern enum srv_operation_mode srv_operation;
+
+/** whether this is the server's first start after mariabackup --prepare */
+extern bool srv_start_after_restore;
 
 extern my_bool	srv_print_innodb_monitor;
 extern my_bool	srv_print_innodb_lock_monitor;
@@ -454,8 +438,6 @@ extern ulint	srv_log_writes_and_flush;
 extern my_bool	innodb_evict_tables_on_commit_debug;
 extern my_bool	srv_purge_view_update_only_debug;
 
-/** Value of MySQL global used to disable master thread. */
-extern my_bool	srv_master_thread_disabled_debug;
 /** InnoDB system tablespace to set during recovery */
 extern uint	srv_sys_space_size_debug;
 /** whether redo log file has been created at startup */
@@ -521,7 +503,7 @@ do {								\
 
 #ifdef HAVE_PSI_STAGE_INTERFACE
 /** Performance schema stage event for monitoring ALTER TABLE progress
-everything after flush log_make_checkpoint(). */
+in ha_innobase::commit_inplace_alter_table(). */
 extern PSI_stage_info	srv_stage_alter_table_end;
 
 /** Performance schema stage event for monitoring ALTER TABLE progress
@@ -559,11 +541,9 @@ enum {
 	SRV_FORCE_NO_BACKGROUND	= 2,	/*!< prevent the main thread from
 					running: if a crash would occur
 					in purge, this prevents it */
-	SRV_FORCE_NO_TRX_UNDO = 3,	/*!< do not run trx rollback after
+	SRV_FORCE_NO_TRX_UNDO = 3,	/*!< do not run DML rollback after
 					recovery */
-	SRV_FORCE_NO_IBUF_MERGE = 4,	/*!< prevent also ibuf operations:
-					if they would cause a crash, better
-					not do them */
+	SRV_FORCE_NO_DDL_UNDO = 4,	/*!< prevent also DDL rollback */
 	SRV_FORCE_NO_UNDO_LOG_SCAN = 5,	/*!< do not look at undo logs when
 					starting the database: InnoDB will
 					treat even incomplete transactions
@@ -683,20 +663,12 @@ void srv_purge_shutdown();
 /** Init purge tasks*/
 void srv_init_purge_tasks();
 
-#ifdef UNIV_DEBUG
-/** Disables master thread. It's used by:
-	SET GLOBAL innodb_master_thread_disabled_debug = 1 (0).
-@param[in]	save		immediate result from check function */
-void
-srv_master_thread_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
-					const void* save);
-
-/** Enable the master thread on shutdown. */
-void srv_master_thread_enable();
-#endif /* UNIV_DEBUG */
-
 /** Status variables to be passed to MySQL */
 struct export_var_t{
+#ifdef BTR_CUR_HASH_ADAPT
+	ulint innodb_ahi_hit;
+	ulint innodb_ahi_miss;
+#endif /* BTR_CUR_HASH_ADAPT */
 	char  innodb_buffer_pool_dump_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool dump status */
 	char  innodb_buffer_pool_load_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool load status */
 	char  innodb_buffer_pool_resize_status[512];/*!< Buf pool resize status */
@@ -749,9 +721,6 @@ struct export_var_t{
 	ulint innodb_os_log_fsyncs;		/*!< n_log_flushes */
 	ulint innodb_os_log_pending_writes;	/*!< srv_os_log_pending_writes */
 	ulint innodb_os_log_pending_fsyncs;	/*!< n_pending_log_flushes */
-	ulint innodb_pages_created;		/*!< buf_pool.stat.n_pages_created */
-	ulint innodb_pages_read;		/*!< buf_pool.stat.n_pages_read*/
-	ulint innodb_pages_written;		/*!< buf_pool.stat.n_pages_written */
 	ulint innodb_row_lock_waits;		/*!< srv_n_lock_wait_count */
 	ulint innodb_row_lock_current_waits;	/*!< srv_n_lock_wait_current_count */
 	int64_t innodb_row_lock_time;		/*!< srv_n_lock_wait_time
@@ -792,10 +761,6 @@ struct export_var_t{
 
 	int64_t innodb_page_compression_saved;/*!< Number of bytes saved
 						by page compression */
-	int64_t innodb_index_pages_written;  /*!< Number of index pages
-						written */
-	int64_t innodb_non_index_pages_written;  /*!< Number of non index pages
-						written */
 	int64_t innodb_pages_page_compressed;/*!< Number of pages
 						compressed by page compression */
 	int64_t innodb_page_compressed_trim_op;/*!< Number of TRIM operations
@@ -834,7 +799,6 @@ struct export_var_t{
 	ulint innodb_encryption_rotation_pages_flushed;
 	ulint innodb_encryption_rotation_estimated_iops;
 	int64_t innodb_encryption_key_requests;
-	int64_t innodb_key_rotation_list_length;
 };
 
 extern tpool::thread_pool *srv_thread_pool;

@@ -136,7 +136,7 @@ sub run_stress_test ()
   }
 
   mtr_init_args(\$args);
-  mtr_add_args($args, "$::glob_mysql_test_dir/mysql-stress-test.pl");
+  mtr_add_args($args, "$::glob_mysql_test_dir/mariadb-stress-test.pl");
   mtr_add_arg($args, "--server-socket=%s", $::master->[0]->{'path_sock'});
   mtr_add_arg($args, "--server-user=%s", $::opt_user);
   mtr_add_arg($args, "--server-database=%s", "test");  

@@ -1,5 +1,6 @@
 # uint global
 --source include/not_embedded.inc
+--source include/not_aix.inc
 SET @start_global_value = @@global.thread_pool_stall_limit;
 
 #

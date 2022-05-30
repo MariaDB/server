@@ -477,6 +477,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     /* Flag used to optimise around wait_for_prior_commit. */
     bool queued_by_other;
     ulong binlog_id;
+    bool ro_1pc;  // passes the binlog_cache_mngr::ro_1pc value to Gtid ctor
   };
 
   /*
@@ -675,6 +676,11 @@ public:
   my_off_t last_commit_pos_offset;
   ulong current_binlog_id;
 
+  /*
+    Tracks the number of times that the master has been reset
+  */
+  Atomic_counter<uint64> reset_master_count;
+
   MYSQL_BIN_LOG(uint *sync_period);
   /*
     note that there's no destructor ~MYSQL_BIN_LOG() !
@@ -810,7 +816,8 @@ public:
              my_bool *with_annotate= 0); // binary log write
   bool write_transaction_to_binlog(THD *thd, binlog_cache_mngr *cache_mngr,
                                    Log_event *end_ev, bool all,
-                                   bool using_stmt_cache, bool using_trx_cache);
+                                   bool using_stmt_cache, bool using_trx_cache,
+                                   bool is_ro_1pc);
 
   bool write_incident_already_locked(THD *thd);
   bool write_incident(THD *thd);
@@ -860,6 +867,9 @@ public:
   int purge_first_log(Relay_log_info* rli, bool included);
   int set_purge_index_file_name(const char *base_file_name);
   int open_purge_index_file(bool destroy);
+  bool truncate_and_remove_binlogs(const char *truncate_file,
+                                   my_off_t truncate_pos,
+                                   rpl_gtid *gtid);
   bool is_inited_purge_index_file();
   int close_purge_index_file();
   int clean_purge_index_file();
@@ -888,6 +898,7 @@ public:
   inline mysql_mutex_t* get_log_lock() { return &LOCK_log; }
   inline mysql_cond_t* get_bin_log_cond() { return &COND_bin_log_updated; }
   inline IO_CACHE* get_log_file() { return &log_file; }
+  inline uint64 get_reset_master_count() { return reset_master_count; }
 
   inline void lock_index() { mysql_mutex_lock(&LOCK_index);}
   inline void unlock_index() { mysql_mutex_unlock(&LOCK_index);}
@@ -896,7 +907,8 @@ public:
   void set_status_variables(THD *thd);
   bool is_xidlist_idle();
   bool write_gtid_event(THD *thd, bool standalone, bool is_transactional,
-                        uint64 commit_id);
+                        uint64 commit_id,
+                        bool has_xid= false, bool ro_1pc= false);
   int read_state_from_file();
   int write_state_to_file();
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);
@@ -938,6 +950,20 @@ public:
   void lock_binlog_end_pos() { mysql_mutex_lock(&LOCK_binlog_end_pos); }
   void unlock_binlog_end_pos() { mysql_mutex_unlock(&LOCK_binlog_end_pos); }
   mysql_mutex_t* get_binlog_end_pos_lock() { return &LOCK_binlog_end_pos; }
+
+  /*
+    Ensures the log's state is either LOG_OPEN or LOG_CLOSED. If something
+    failed along the desired path and left the log in invalid state, i.e.
+    LOG_TO_BE_OPENED, forces the state to be LOG_CLOSED.
+  */
+  void try_fix_log_state()
+  {
+    mysql_mutex_lock(get_log_lock());
+    /* Only change the log state if it is LOG_TO_BE_OPENED */
+    if (log_state == LOG_TO_BE_OPENED)
+      log_state= LOG_CLOSED;
+    mysql_mutex_unlock(get_log_lock());
+  }
 
   int wait_for_update_binlog_end_pos(THD* thd, struct timespec * timeout);
 
@@ -1089,8 +1115,7 @@ public:
                          const char *query, size_t query_length);
 
   /* we use this function to setup all enabled log event handlers */
-  int set_handlers(ulonglong error_log_printer,
-                   ulonglong slow_log_printer,
+  int set_handlers(ulonglong slow_log_printer,
                    ulonglong general_log_printer);
   void init_error_log(ulonglong error_log_printer);
   void init_slow_log(ulonglong slow_log_printer);
@@ -1236,5 +1261,9 @@ void wsrep_thd_binlog_stmt_rollback(THD * thd);
 class Gtid_list_log_event;
 const char *
 get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list);
+
+int binlog_commit(THD *thd, bool all, bool is_ro_1pc= false);
+int binlog_commit_by_xid(handlerton *hton, XID *xid);
+int binlog_rollback_by_xid(handlerton *hton, XID *xid);
 
 #endif /* LOG_H */

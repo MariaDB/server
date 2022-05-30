@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -159,6 +159,7 @@ dict_table_t *dict_table_t::create(const span<const char> &name,
   table->flags= static_cast<unsigned>(flags) & ((1U << DICT_TF_BITS) - 1);
   table->flags2= static_cast<unsigned>(flags2) & ((1U << DICT_TF2_BITS) - 1);
   table->name.m_name= mem_strdupl(name.data(), name.size());
+  table->mdl_name.m_name= table->name.m_name;
   table->is_system_db= dict_mem_table_is_system(table->name.m_name);
   table->space= space;
   table->space_id= space ? space->id : ULINT_UNDEFINED;
@@ -221,7 +222,6 @@ dict_mem_table_free(
 	table->referenced_set.~dict_foreign_set();
 
 	ut_free(table->name.m_name);
-	table->name.m_name = NULL;
 
 	/* Clean up virtual index info structures that are registered
 	with virtual columns */
@@ -1197,10 +1197,13 @@ bool dict_foreign_t::affects_fulltext() const
   return false;
 }
 
-/** Reconstruct the clustered index fields. */
-inline void dict_index_t::reconstruct_fields()
+/** Reconstruct the clustered index fields.
+@return whether metadata is incorrect */
+inline bool dict_index_t::reconstruct_fields()
 {
 	DBUG_ASSERT(is_primary());
+
+	const auto old_n_fields = n_fields;
 
 	n_fields = (n_fields + table->instant->n_dropped)
 		& dict_index_t::MAX_N_FIELDS;
@@ -1229,13 +1232,17 @@ inline void dict_index_t::reconstruct_fields()
 		} else {
 			DBUG_ASSERT(!c.is_not_null());
 			const auto old = std::find_if(
-				fields + n_first, fields + n_fields,
+				fields + n_first, fields + old_n_fields,
 				[c](const dict_field_t& o)
 				{ return o.col->ind == c.ind(); });
+
+			if (old >= fields + old_n_fields
+			    || old->prefix_len
+			    || old->col != &table->cols[c.ind()]) {
+				return true;
+			}
+
 			ut_ad(old >= &fields[n_first]);
-			ut_ad(old < &fields[n_fields]);
-			DBUG_ASSERT(!old->prefix_len);
-			DBUG_ASSERT(old->col == &table->cols[c.ind()]);
 			f = *old;
 		}
 
@@ -1248,6 +1255,8 @@ inline void dict_index_t::reconstruct_fields()
 
 	fields = tfields;
 	n_core_null_bytes = static_cast<byte>(UT_BITS_IN_BYTES(n_core_null));
+
+	return false;
 }
 
 /** Reconstruct dropped or reordered columns.
@@ -1312,8 +1321,7 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 	}
 	DBUG_ASSERT(col == &dropped_cols[n_dropped_cols]);
 
-	UT_LIST_GET_FIRST(indexes)->reconstruct_fields();
-	return false;
+	return UT_LIST_GET_FIRST(indexes)->reconstruct_fields();
 }
 
 /** Check if record in clustered index is historical row.

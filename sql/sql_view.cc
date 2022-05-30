@@ -100,7 +100,8 @@ static void make_unique_view_field_name(THD *thd, Item *target,
     itc.rewind();
   }
 
-  target->orig_name= target->name.str;
+  if (!target->orig_name)
+    target->orig_name= target->name.str;
   target->set_name(thd, buff, name_len, system_charset_info);
 }
 
@@ -412,8 +413,18 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   bool res= FALSE;
   DBUG_ENTER("mysql_create_view");
 
-  /* This is ensured in the parser. */
-  DBUG_ASSERT(!lex->proc_list.first && !lex->result &&
+  /*
+    This is ensured in the parser.
+    NOTE: Originally, the assert below contained the extra condition
+      && !lex->result
+    but in this form the assert is failed in case CREATE VIEW run under
+    cursor (the case when the byte 'flags' in the COM_STMT_EXECUTE packet has
+    the flag CURSOR_TYPE_READ_ONLY set). For the cursor use case
+    thd->lex->result is assigned a pointer to the class Select_materialize
+    inside the function mysql_open_cursor() just before handling of a statement
+    will be started and the function mysql_create_view() called.
+  */
+  DBUG_ASSERT(!lex->proc_list.first &&
               !lex->param_list.elements);
 
   bzero(&ddl_log_state, sizeof(ddl_log_state));
@@ -887,7 +898,7 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
        if ((view->md5.str= (char *)thd->alloc(32 + 1)) == NULL)
          DBUG_RETURN(HA_ADMIN_FAILED);
     }
-    view->calc_md5(view->md5.str);
+    view->calc_md5(const_cast<char*>(view->md5.str));
     view->md5.length= 32;
   }
   view->mariadb_version= MYSQL_VERSION_ID;

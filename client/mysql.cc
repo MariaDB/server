@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -88,16 +88,20 @@ extern "C" {
 #endif /* defined(HAVE_CURSES_H) && defined(HAVE_TERM_H) */
 
 #undef bcmp				// Fix problem with new readline
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <conio.h>
 #else
-#include <readline.h>
-#if !defined(USE_LIBEDIT_INTERFACE)
-#include <history.h>
-#endif
+# ifdef __APPLE__
+#  include <editline/readline.h>
+# else
+#  include <readline.h>
+#  if !defined(USE_LIBEDIT_INTERFACE)
+#   include <history.h>
+#  endif
+# endif
 #define HAVE_READLINE
-#define USE_POPEN
 #endif
+#define USE_POPEN
 }
 
 #ifdef HAVE_VIDATTR
@@ -1587,7 +1591,7 @@ static struct my_option my_long_options[] =
   {"password", 'p',
    "Password to use when connecting to server. If password is not given it's asked from the tty.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef __WIN__
+#ifdef _WIN32
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
@@ -1685,11 +1689,14 @@ static struct my_option my_long_options[] =
     &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"binary-mode", 0,
-   "By default, ASCII '\\0' is disallowed and '\\r\\n' is translated to '\\n'. "
-   "This switch turns off both features, and also turns off parsing of all client"
-   "commands except \\C and DELIMITER, in non-interactive mode (for input "
-   "piped to mysql or loaded using the 'source' command). This is necessary "
-   "when processing output from mysqlbinlog that may contain blobs.",
+   "Binary mode allows certain character sequences to be processed as data "
+   "that would otherwise be treated with a special meaning by the parser. "
+   "Specifically, this switch turns off parsing of all client commands except "
+   "\\C and DELIMITER in non-interactive mode (i.e., when binary mode is "
+   "combined with either 1) piped input, 2) the --batch mysql option, or 3) "
+   "the 'source' command). Also, in binary mode, occurrences of '\\r\\n' and "
+   "ASCII '\\0' are preserved within strings, whereas by default, '\\r\\n' is "
+   "translated to '\\n' and '\\0' is disallowed in user input.",
    &opt_binary_mode, &opt_binary_mode, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"connect-expired-password", 0,
    "Notify the server that this client is prepared to handle expired "
@@ -1893,7 +1900,7 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
     set_if_bigger(opt_silent,1);                         // more silent
     break;
   case 'W':
-#ifdef __WIN__
+#ifdef _WIN32
     opt_protocol = MYSQL_PROTOCOL_PIPE;
     opt_protocol_type= "pipe";
 
@@ -2026,7 +2033,7 @@ static int get_options(int argc, char **argv)
 
 static int read_and_execute(bool interactive)
 {
-#if defined(__WIN__)
+#if defined(_WIN32)
   String tmpbuf;
   String buffer;
 #endif
@@ -2106,7 +2113,7 @@ static int read_and_execute(bool interactive)
       if (opt_outfile && glob_buffer.is_empty())
 	fflush(OUTFILE);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
       tee_fputs(prompt, stdout);
       if (!tmpbuf.is_alloced())
         tmpbuf.alloc(65535);
@@ -2139,7 +2146,7 @@ static int read_and_execute(bool interactive)
       if (line)
         free(line);
       line= readline(prompt);
-#endif /* defined(__WIN__) */
+#endif /* defined(_WIN32) */
 
       /*
         When Ctrl+d or Ctrl+z is pressed, the line may be NULL on some OS
@@ -2194,7 +2201,7 @@ static int read_and_execute(bool interactive)
     }
   }
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   buffer.free();
   tmpbuf.free();
 #else
@@ -2385,8 +2392,15 @@ static bool add_line(String &buffer, char *line, size_t line_length,
     {
       // Found possbile one character command like \c
 
-      if (!(inchar = (uchar) *++pos))
-	break;				// readline adds one '\'
+      /*
+        The null-terminating character (ASCII '\0') marks the end of user
+        input. Then, by default, upon encountering a '\0' while parsing, it
+        should stop.  However, some data naturally contains binary zeros
+        (e.g., zipped files). Real_binary_mode signals the parser to expect
+        '\0' within the data and not to end parsing if found.
+       */
+      if (!(inchar = (uchar) *++pos) && (!real_binary_mode || !*in_string))
+        break;				// readline adds one '\'
       if (*in_string || inchar == 'N')	// \N is short for NULL
       {					// Don't allow commands in string
 	*out++='\\';
@@ -3577,6 +3591,7 @@ print_field_types(MYSQL_RES *result)
     BinaryStringBuffer<128> data_type_metadata_str;
     metadata.print_data_type_related_attributes(&data_type_metadata_str);
     tee_fprintf(PAGER, "Field %3u:  `%s`\n"
+                       "Org_field:  `%s`\n"
                        "Catalog:    `%s`\n"
                        "Database:   `%s`\n"
                        "Table:      `%s`\n"
@@ -3588,8 +3603,8 @@ print_field_types(MYSQL_RES *result)
                        "Decimals:   %u\n"
                        "Flags:      %s\n\n",
                 ++i,
-                field->name, field->catalog, field->db, field->table,
-                field->org_table, fieldtype2str(field->type),
+                field->name, field->org_name, field->catalog, field->db,
+                field->table, field->org_table, fieldtype2str(field->type),
                 data_type_metadata_str.length() ? " (" : "",
                 data_type_metadata_str.length(), data_type_metadata_str.ptr(),
                 data_type_metadata_str.length() ? ")" : "",
@@ -4254,11 +4269,6 @@ com_nopager(String *buffer __attribute__((unused)),
 }
 #endif
 
-
-/*
-  Sorry, you can't send the result to an editor in Win32
-*/
-
 #ifdef USE_POPEN
 static int
 com_edit(String *buffer,char *line __attribute__((unused)))
@@ -4279,7 +4289,7 @@ com_edit(String *buffer,char *line __attribute__((unused)))
 
   if (!(editor = (char *)getenv("EDITOR")) &&
       !(editor = (char *)getenv("VISUAL")))
-    editor = "vi";
+    editor = IF_WIN("notepad","vi");
   strxmov(buff,editor," ",filename,NullS);
   if ((error= system(buff)))
   {
@@ -4294,7 +4304,7 @@ com_edit(String *buffer,char *line __attribute__((unused)))
   if ((fd = my_open(filename,O_RDONLY, MYF(MY_WME))) < 0)
     goto err;
   (void) buffer->alloc((uint) stat_arg.st_size);
-  if ((tmp=read(fd,(char*) buffer->ptr(),buffer->alloced_length())) >= 0L)
+  if ((tmp=(int)my_read(fd,(uchar*) buffer->ptr(),buffer->alloced_length(),MYF(0))) >= 0)
     buffer->length((uint) tmp);
   else
     buffer->length(0);

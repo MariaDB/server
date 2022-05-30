@@ -80,7 +80,8 @@ int my_delete(const char *name, myf MyFlags)
   a file to unique name.
 
   Symbolic link are deleted without renaming. Directories are not deleted.
- */
+*/
+#include <my_rdtsc.h>
 static int my_win_unlink(const char *name)
 {
   HANDLE handle= INVALID_HANDLE_VALUE;
@@ -166,7 +167,7 @@ static int my_win_unlink(const char *name)
      goto error;
   }
 
-  tsc= __rdtsc();
+  tsc= my_timer_cycles();
   my_snprintf(unique_filename,sizeof(unique_filename),"%s.%llx.deleted", 
     name, tsc);
   if (!MoveFile(name, unique_filename)) 

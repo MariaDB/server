@@ -14,6 +14,10 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 
+IF(WIN32)
+  RETURN()
+ENDIF()
+
 CHECK_CXX_SOURCE_COMPILES(
 "#define _GNU_SOURCE
 #include <sys/socket.h>
@@ -54,6 +58,21 @@ int main() {
 
 IF (HAVE_XUCRED)
   ADD_DEFINITIONS(-DHAVE_XUCRED)
+  SET(ok 1)
+ELSE()
+
+# NetBSD, is that you?
+CHECK_CXX_SOURCE_COMPILES(
+"#include <sys/un.h>
+#include <sys/socket.h>
+int main() {
+  struct unpcbid unp;
+  socklen_t unpl = sizeof(unp);
+  getsockopt(0, 0, LOCAL_PEEREID, &unp, &unpl);
+  }" HAVE_UNPCBID)
+
+IF (HAVE_UNPCBID)
+  ADD_DEFINITIONS(-DHAVE_UNPCBID)
   SET(ok 1)
 ELSE()
 
@@ -99,6 +118,7 @@ ELSE()
 # Who else? Anyone?
 # C'mon, show your creativity, be different! ifdef's are fun, aren't they?
 
+ENDIF()
 ENDIF()
 ENDIF()
 ENDIF()

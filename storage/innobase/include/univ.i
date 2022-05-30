@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -363,22 +363,19 @@ typedef ssize_t lint;
 #ifdef _WIN32
 /* Use the integer types and formatting strings defined in Visual Studio. */
 # define UINT32PF	"%u"
-# define INT64PF	"%lld"
 # define UINT64scan     "llu"
 # define UINT64PFx	"%016llx"
 #elif defined __APPLE__
 /* Apple prefers to call the 64-bit types 'long long'
 in both 32-bit and 64-bit environments. */
 # define UINT32PF	"%" PRIu32
-# define INT64PF	"%lld"
 # define UINT64scan     "llu"
 # define UINT64PFx	"%016llx"
 #elif defined _AIX
 /* Workaround for macros expension trouble */
 # define UINT32PF      "%u"
-# define INT64PF       "%lld"
 # define UINT64scan    "lu"
-# define UINT64PFx     "%016llx"
+# define UINT64PFx     "%016lx"
 #else
 /* Use the integer types and formatting strings defined in the C99 standard. */
 # define UINT32PF	"%" PRIu32
@@ -487,14 +484,21 @@ it is read or written. */
 #  define UNIV_PREFETCH_RW(addr) ((void) 0)
 # endif /* COMPILER_HINTS */
 
-# elif defined __WIN__ && defined COMPILER_HINTS
-# include <xmmintrin.h>
+# elif defined _MSC_VER && defined COMPILER_HINTS
 # define UNIV_EXPECT(expr,value) (expr)
 # define UNIV_LIKELY_NULL(expr) (expr)
-// __MM_HINT_T0 - (temporal data)
-// prefetch data into all levels of the cache hierarchy.
-# define UNIV_PREFETCH_R(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
-# define UNIV_PREFETCH_RW(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
+# if defined _M_IX86 || defined _M_X64
+   // __MM_HINT_T0 - (temporal data)
+   // prefetch data into all levels of the cache hierarchy.
+#  define UNIV_PREFETCH_R(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
+#  define UNIV_PREFETCH_RW(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
+# elif defined _M_ARM64
+#  define UNIV_PREFETCH_R(addr) __prefetch(addr)
+#  define UNIV_PREFETCH_RW(addr) __prefetch(addr)
+# else
+#  define UNIV_PREFETCH_R ((void) 0)
+#  define  UNIV_PREFETCH_RW(addr) ((void) 0)
+# endif
 #else
 /* Dummy versions of the macros */
 # define UNIV_EXPECT(expr,value) (expr)
@@ -530,19 +534,16 @@ typedef unsigned int mysql_pfs_key_t;
 # ifdef UNIV_PFS_MUTEX
 extern mysql_pfs_key_t buf_pool_mutex_key;
 extern mysql_pfs_key_t dict_foreign_err_mutex_key;
-extern mysql_pfs_key_t dict_sys_mutex_key;
 extern mysql_pfs_key_t fil_system_mutex_key;
 extern mysql_pfs_key_t flush_list_mutex_key;
 extern mysql_pfs_key_t fts_cache_mutex_key;
 extern mysql_pfs_key_t fts_cache_init_mutex_key;
 extern mysql_pfs_key_t fts_delete_mutex_key;
 extern mysql_pfs_key_t fts_doc_id_mutex_key;
-extern mysql_pfs_key_t fts_pll_tokenize_mutex_key;
 extern mysql_pfs_key_t ibuf_bitmap_mutex_key;
 extern mysql_pfs_key_t ibuf_mutex_key;
 extern mysql_pfs_key_t ibuf_pessimistic_insert_mutex_key;
 extern mysql_pfs_key_t log_sys_mutex_key;
-extern mysql_pfs_key_t log_cmdq_mutex_key;
 extern mysql_pfs_key_t log_flush_order_mutex_key;
 extern mysql_pfs_key_t recalc_pool_mutex_key;
 extern mysql_pfs_key_t purge_sys_pq_mutex_key;
@@ -559,8 +560,6 @@ extern mysql_pfs_key_t trx_pool_mutex_key;
 extern mysql_pfs_key_t trx_pool_manager_mutex_key;
 extern mysql_pfs_key_t lock_wait_mutex_key;
 extern mysql_pfs_key_t srv_threads_mutex_key;
-extern mysql_pfs_key_t thread_mutex_key;
-extern mysql_pfs_key_t row_drop_list_mutex_key;
 # endif /* UNIV_PFS_MUTEX */
 
 # ifdef UNIV_PFS_RWLOCK
@@ -572,5 +571,6 @@ extern mysql_pfs_key_t index_tree_rw_lock_key;
 extern mysql_pfs_key_t index_online_log_key;
 extern mysql_pfs_key_t trx_sys_rw_lock_key;
 extern mysql_pfs_key_t lock_latch_key;
+extern mysql_pfs_key_t trx_rseg_latch_key;
 # endif /* UNIV_PFS_RWLOCK */
 #endif /* HAVE_PSI_INTERFACE */

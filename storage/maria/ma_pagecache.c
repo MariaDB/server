@@ -589,7 +589,7 @@ static my_thread_id pagecache_thread_id;
   ((uint) (((char*)(h)-(char *) p->hash_link_root)/                           \
            sizeof(PAGECACHE_HASH_LINK)))
 
-#if (defined(PAGECACHE_TIMEOUT) && !defined(__WIN__)) || defined(PAGECACHE_DEBUG)
+#if (defined(PAGECACHE_TIMEOUT) && !defined(_WIN32)) || defined(PAGECACHE_DEBUG)
 static int pagecache_pthread_cond_wait(mysql_cond_t *cond,
                                       mysql_mutex_t *mutex);
 #else
@@ -2772,7 +2772,7 @@ retry:
 
 #ifdef WITH_S3_STORAGE_ENGINE
 static void read_big_block(PAGECACHE *pagecache,
-                              PAGECACHE_BLOCK_LINK *block)
+                           PAGECACHE_BLOCK_LINK *block)
 {
   int page_st;
   size_t big_block_size_in_pages;
@@ -2810,6 +2810,11 @@ static void read_big_block(PAGECACHE *pagecache,
     if (block_to_read->status & PCBLOCK_ERROR)
     {
       /* We get first block with an error so all operation failed */
+      DBUG_PRINT("error", ("Got error when reading first page"));
+      block->status|= PCBLOCK_ERROR;
+      block->error= block_to_read->error;
+      remove_reader(block_to_read);
+      unreg_request(pagecache, block_to_read, 1);
       DBUG_VOID_RETURN;
     }
     if (block_to_read->status & PCBLOCK_BIG_READ)
@@ -3952,7 +3957,6 @@ void pagecache_set_write_on_delete_by_link(PAGECACHE_BLOCK_LINK *block)
 
   @retval 0 deleted or was not present at all
   @retval 1 error
-
 */
 
 static my_bool pagecache_delete_internal(PAGECACHE *pagecache,
@@ -5561,7 +5565,7 @@ static void pagecache_dump(PAGECACHE *pagecache)
 
 #endif /* defined(PAGECACHE_TIMEOUT) */
 
-#if defined(PAGECACHE_TIMEOUT) && !defined(__WIN__)
+#if defined(PAGECACHE_TIMEOUT) && !defined(_WIN32)
 
 
 static int pagecache_pthread_cond_wait(mysql_cond_t *cond,
@@ -5623,7 +5627,7 @@ static int pagecache_pthread_cond_wait(mysql_cond_t *cond,
   return rc;
 }
 #endif
-#endif /* defined(PAGECACHE_TIMEOUT) && !defined(__WIN__) */
+#endif /* defined(PAGECACHE_TIMEOUT) && !defined(_WIN32) */
 
 
 #if defined(PAGECACHE_DEBUG)

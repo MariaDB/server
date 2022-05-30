@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2004, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB
+   Copyright (c) 2010, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -313,7 +313,7 @@ class Deprecated_trigger_syntax_handler : public Internal_error_handler
 private:
 
   char m_message[MYSQL_ERRMSG_SIZE];
-  LEX_CSTRING *m_trigger_name;
+  const LEX_CSTRING *m_trigger_name;
 
 public:
 
@@ -329,8 +329,23 @@ public:
     if (sql_errno != EE_OUTOFMEMORY &&
         sql_errno != ER_OUT_OF_RESOURCES)
     {
+      // Check if the current LEX contains a non-empty spname
       if(thd->lex->spname)
         m_trigger_name= &thd->lex->spname->m_name;
+      else if (thd->lex->sphead)
+      {
+        /*
+          Some SP statements, for example IF, create their own local LEX.
+          All LEX instances are available in the LEX stack in sphead::m_lex.
+          Let's find the one that contains a non-zero spname.
+          Note, although a parse error has happened, the LEX instances
+          in sphead::m_lex are not freed yet at this point. The first
+          found non-zero spname contains the valid trigger name.
+        */
+        const sp_name *spname= thd->lex->sphead->find_spname_recursive();
+        if (spname)
+          m_trigger_name= &spname->m_name;
+      }
       if (m_trigger_name)
         my_snprintf(m_message, sizeof(m_message),
                     ER_THD(thd, ER_ERROR_IN_TRIGGER_BODY),
@@ -343,7 +358,7 @@ public:
     return false;
   }
 
-  LEX_CSTRING *get_trigger_name() { return m_trigger_name; }
+  const LEX_CSTRING *get_trigger_name() { return m_trigger_name; }
   char *get_error_message() { return m_message; }
 };
 
@@ -414,8 +429,8 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     This is a good candidate for a minor refactoring.
   */
   TABLE *table;
-  bool result= TRUE;
-  bool add_if_exists_to_binlog= 0, action_executed= 0;
+  bool result= true, refresh_metadata= false;
+  bool add_if_exists_to_binlog= false, action_executed= false;
   String stmt_query;
   bool lock_upgrade_done= FALSE;
   bool backup_of_table_list_done= 0;;
@@ -424,6 +439,8 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   Query_tables_list backup;
   DDL_LOG_STATE ddl_log_state, ddl_log_state_tmp_file;
   char trn_path_buff[FN_REFLEN];
+  char path[FN_REFLEN + 1];
+
   DBUG_ENTER("mysql_create_or_drop_trigger");
 
   /* Charset of the buffer for statement must be system one. */
@@ -553,8 +570,12 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   /* We should have only one table in table list. */
   DBUG_ASSERT(tables->next_global == 0);
 
-  /* We do not allow creation of triggers on temporary tables. */
-  if (create && thd->find_tmp_table_share(tables))
+  build_table_filename(path, sizeof(path) - 1, tables->db.str, tables->alias.str, ".frm", 0);
+  tables->required_type= dd_frm_type(NULL, path, NULL, NULL, NULL);
+
+  /* We do not allow creation of triggers on temporary tables or sequence. */
+  if (tables->required_type == TABLE_TYPE_SEQUENCE ||
+      (create && thd->find_tmp_table_share(tables)))
   {
     my_error(ER_TRG_ON_VIEW_OR_TEMP_TABLE, MYF(0), tables->alias.str);
     goto end;
@@ -651,21 +672,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   }
   action_executed= 1;
 
-  close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
-
-  /*
-    Reopen the table if we were under LOCK TABLES.
-    Ignore the return value for now. It's better to
-    keep master/slave in consistent state.
-  */
-  if (thd->locked_tables_list.reopen_tables(thd, false))
-    thd->clear_error();
-
-  /*
-    Invalidate SP-cache. That's needed because triggers may change list of
-    pre-locking tables.
-  */
-  sp_cache_invalidate();
+  refresh_metadata= TRUE;
 
 end:
   if (!result && action_executed)
@@ -697,7 +704,29 @@ end:
   ddl_log_complete(&ddl_log_state);
   debug_crash_here("ddl_log_drop_before_delete_tmp");
   /* delete any created log files */
-  ddl_log_revert(thd, &ddl_log_state_tmp_file);
+  result|= ddl_log_revert(thd, &ddl_log_state_tmp_file);
+
+  if (mdl_request_for_trn.ticket)
+    thd->mdl_context.release_lock(mdl_request_for_trn.ticket);
+
+  if (refresh_metadata)
+  {
+    close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
+
+    /*
+      Reopen the table if we were under LOCK TABLES.
+      Ignore the return value for now. It's better to
+      keep master/slave in consistent state.
+    */
+    if (thd->locked_tables_list.reopen_tables(thd, false))
+      thd->clear_error();
+
+    /*
+      Invalidate SP-cache. That's needed because triggers may change list of
+      pre-locking tables.
+    */
+    sp_cache_invalidate();
+  }
   /*
     If we are under LOCK TABLES we should restore original state of
     meta-data locks. Otherwise all locks will be released along
@@ -718,9 +747,6 @@ end:
                   thd->lex->spname->m_db.str, static_cast<uint>(thd->lex->spname->m_db.length),
                   thd->lex->spname->m_name.str, static_cast<uint>(thd->lex->spname->m_name.length));
   }
-
-  if (mdl_request_for_trn.ticket)
-    thd->mdl_context.release_lock(mdl_request_for_trn.ticket);
 
   DBUG_RETURN(result);
 
@@ -1664,7 +1690,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
 
         if (unlikely(parse_error))
         {
-          LEX_CSTRING *name;
+          const LEX_CSTRING *name;
 
           /*
             In case of errors, disable all triggers for the table, but keep

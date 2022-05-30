@@ -244,3 +244,19 @@ CREATE TABLE t1 (
     c0123456789012345678 int,
     FOREIGN KEY (a012345678901234567,c0123456789012345678,b) REFERENCES tx (x1,x2,x3)
 ) ENGINE=InnoDB;
+
+--echo #
+--echo # MDEV-25642 InnoDB rename table copy DDL fails
+--echo #	while dropping the table
+--echo #
+call mtr.add_suppression("InnoDB: In ALTER TABLE `test`.`t1` has or is referenced in foreign key constraints which are not compatible with the new table definition.");
+
+CREATE TABLE t1 (a VARCHAR(10) NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t1_fk (a VARCHAR(40), KEY a (a), FULLTEXT KEY(a), CONSTRAINT fk FOREIGN KEY(a) REFERENCES t1 (a) ON UPDATE CASCADE) ENGINE=InnoDB;
+ALTER TABLE t1 RENAME TO tm1, ALGORITHM=COPY;
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN;
+# Enable SET FOREIGN_KEY_CHECKS after fixing MDEV-25885
+SET FOREIGN_KEY_CHECKS=0;
+CREATE TABLE t1 (c1 BIGINT NOT NULL, c2 BIGINT NOT NULL, PRIMARY KEY(c1), UNIQUE KEY(c2)) ENGINE=MEMORY;
+ALTER TABLE t1 ENGINE=InnoDB, ALGORITHM=COPY;
+DROP TABLE t1, tm1, t1_fk;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -298,7 +298,7 @@ static buf_buddy_free_t* buf_buddy_alloc_zip(ulint i)
 
 	buf = UT_LIST_GET_FIRST(buf_pool.zip_free[i]);
 
-	if (buf_pool.curr_size < buf_pool.old_size
+	if (buf_pool.is_shrinking()
 	    && UT_LIST_GET_LEN(buf_pool.withdraw)
 	    < buf_pool.withdraw_target) {
 
@@ -354,14 +354,15 @@ buf_buddy_block_free(void* buf)
 	ut_a(!ut_align_offset(buf, srv_page_size));
 
 	HASH_SEARCH(hash, &buf_pool.zip_hash, fold, buf_page_t*, bpage,
-		    ut_ad(bpage->state() == BUF_BLOCK_MEMORY
+		    ut_ad(bpage->state() == buf_page_t::MEMORY
 			  && bpage->in_zip_hash),
-		    ((buf_block_t*) bpage)->frame == buf);
+		    bpage->frame == buf);
 	ut_a(bpage);
-	ut_a(bpage->state() == BUF_BLOCK_MEMORY);
+	ut_a(bpage->state() == buf_page_t::MEMORY);
 	ut_ad(bpage->in_zip_hash);
 	ut_d(bpage->in_zip_hash = false);
 	HASH_DELETE(buf_page_t, hash, &buf_pool.zip_hash, fold, bpage);
+	bpage->hash = nullptr;
 
 	ut_d(memset(buf, 0, srv_page_size));
 	MEM_UNDEFINED(buf, srv_page_size);
@@ -382,10 +383,10 @@ buf_buddy_block_register(
 	buf_block_t*	block)	/*!< in: buffer frame to allocate */
 {
 	const ulint	fold = BUF_POOL_ZIP_FOLD(block);
-	ut_ad(block->page.state() == BUF_BLOCK_MEMORY);
+	ut_ad(block->page.state() == buf_page_t::MEMORY);
 
-	ut_a(block->frame);
-	ut_a(!ut_align_offset(block->frame, srv_page_size));
+	ut_a(block->page.frame);
+	ut_a(!ut_align_offset(block->page.frame, srv_page_size));
 
 	ut_ad(!block->page.in_zip_hash);
 	ut_d(block->page.in_zip_hash = true);
@@ -461,8 +462,8 @@ byte *buf_buddy_alloc_low(ulint i, bool *lru)
 alloc_big:
 	buf_buddy_block_register(block);
 
-	block = (buf_block_t*) buf_buddy_alloc_from(
-		block->frame, i, BUF_BUDDY_SIZES);
+	block = reinterpret_cast<buf_block_t*>(
+		buf_buddy_alloc_from(block->page.frame, i, BUF_BUDDY_SIZES));
 
 func_exit:
 	buf_pool.buddy_stat[i].used++;
@@ -499,9 +500,10 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 	ut_ad(space != BUF_BUDDY_STAMP_FREE);
 
 	const page_id_t	page_id(space, offset);
-	const ulint fold= page_id.fold();
+	/* FIXME: we are computing this while holding buf_pool.mutex */
+	auto &cell= buf_pool.page_hash.cell_get(page_id.fold());
 
-	bpage = buf_pool.page_hash_get_low(page_id, fold);
+	bpage = buf_pool.page_hash.get(page_id, cell);
 
 	if (!bpage || bpage->zip.data != src) {
 		/* The block has probably been freshly
@@ -546,8 +548,11 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		return false;
 	}
 
-	page_hash_latch *hash_lock = buf_pool.page_hash.lock_get(fold);
-	hash_lock->write_lock();
+	page_hash_latch &hash_lock = buf_pool.page_hash.lock_get(cell);
+	/* It does not make sense to use transactional_lock_guard here,
+	because the memcpy() of 1024 to 16384 bytes would likely make the
+	memory transaction too large. */
+	hash_lock.lock();
 
 	if (bpage->can_relocate()) {
 		/* Relocate the compressed page. */
@@ -558,7 +563,7 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		memcpy(dst, src, size);
 		bpage->zip.data = reinterpret_cast<page_zip_t*>(dst);
 
-		hash_lock->write_unlock();
+		hash_lock.unlock();
 
 		buf_buddy_mem_invalid(
 			reinterpret_cast<buf_buddy_free_t*>(src), i);
@@ -569,7 +574,7 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		return(true);
 	}
 
-	hash_lock->write_unlock();
+	hash_lock.unlock();
 
 	return(false);
 }
@@ -604,7 +609,7 @@ recombine:
 	We may waste up to 15360*max_len bytes to free blocks
 	(1024 + 2048 + 4096 + 8192 = 15360) */
 	if (UT_LIST_GET_LEN(buf_pool.zip_free[i]) < 16
-	    && buf_pool.curr_size >= buf_pool.old_size) {
+	    && !buf_pool.is_shrinking()) {
 		goto func_exit;
 	}
 
@@ -689,7 +694,7 @@ buf_buddy_realloc(void* buf, ulint size)
 
 		block = reinterpret_cast<buf_block_t*>(
 			buf_buddy_alloc_from(
-				block->frame, i, BUF_BUDDY_SIZES));
+				block->page.frame, i, BUF_BUDDY_SIZES));
 	}
 
 	buf_pool.buddy_stat[i].used++;
@@ -710,7 +715,7 @@ buf_buddy_realloc(void* buf, ulint size)
 void buf_buddy_condense_free()
 {
 	mysql_mutex_assert_owner(&buf_pool.mutex);
-	ut_ad(buf_pool.curr_size < buf_pool.old_size);
+	ut_ad(buf_pool.is_shrinking());
 
 	for (ulint i = 0; i < UT_ARR_SIZE(buf_pool.zip_free); ++i) {
 		buf_buddy_free_t* buf =

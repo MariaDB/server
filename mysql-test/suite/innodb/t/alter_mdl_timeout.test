@@ -14,7 +14,7 @@ begin;
 INSERT INTO t1 VALUES('e','e',5, 5);
 SET DEBUG_SYNC="now SIGNAL con1_insert";
 SET DEBUG_SYNC="now WAIT_FOR con1_wait";
-SET DEBUG_SYNC="before_row_upd_sec_new_index_entry SIGNAL con1_update WAIT_FOR alter_rollback";
+SET DEBUG_SYNC="after_row_upd_clust SIGNAL con1_update WAIT_FOR alter_rollback";
 SEND UPDATE t1 set f4 = 10 order by f1 desc limit 2;
 
 connection default;

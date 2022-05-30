@@ -14,7 +14,7 @@ wsrep_cluster	CREATE TABLE `wsrep_cluster` (
   `protocol_version` int(11) NOT NULL,
   `capabilities` int(11) NOT NULL,
   PRIMARY KEY (`cluster_uuid`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 STATS_PERSISTENT=0
 SHOW CREATE TABLE mysql.wsrep_cluster_members;
 Table	Create Table
 wsrep_cluster_members	CREATE TABLE `wsrep_cluster_members` (
@@ -23,21 +23,21 @@ wsrep_cluster_members	CREATE TABLE `wsrep_cluster_members` (
   `node_name` char(32) NOT NULL,
   `node_incoming_address` varchar(256) NOT NULL,
   PRIMARY KEY (`node_uuid`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
-SELECT COUNT(*) = 1 FROM mysql.wsrep_cluster;
-COUNT(*) = 1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 STATS_PERSISTENT=0
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+EXPECT_1
 1
 SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM mysql.wsrep_cluster;
 cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid')
 1
-SELECT COUNT(*) = 3 FROM mysql.wsrep_cluster_members;
-COUNT(*) = 3
-1
+SELECT COUNT(*) AS EXPECT_3 FROM mysql.wsrep_cluster_members;
+EXPECT_3
+3
 SELECT COUNT(*) = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size') FROM mysql.wsrep_cluster_members;
 COUNT(*) = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size')
 1
-SELECT COUNT(*) = 1 FROM mysql.wsrep_cluster_members WHERE node_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_gcomm_uuid');
-COUNT(*) = 1
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster_members WHERE node_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_gcomm_uuid');
+EXPECT_1
 1
 SELECT node_incoming_address LIKE '127.0.0.1:%' from mysql.wsrep_cluster_members;
 node_incoming_address LIKE '127.0.0.1:%'
@@ -49,34 +49,29 @@ cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHER
 1
 1
 1
-SELECT COUNT(*) = 1 FROM mysql.wsrep_cluster_members WHERE node_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_gcomm_uuid');
-COUNT(*) = 1
-1
 connection node_2;
+SELECT COUNT(*) AS EXPECT_3 FROM mysql.wsrep_cluster_members;
+EXPECT_3
+3
 connection node_1;
 SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM mysql.wsrep_cluster;
 cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid')
 1
-SELECT COUNT(*) = 2 FROM mysql.wsrep_cluster_members;
-COUNT(*) = 2
-1
+SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;
+EXPECT_2
+2
 connection node_2;
 SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM mysql.wsrep_cluster;
 cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid')
 1
-SELECT COUNT(*) = 3 FROM mysql.wsrep_cluster_members;
-COUNT(*) = 3
-1
+SELECT COUNT(*) AS EXPECT_3 FROM mysql.wsrep_cluster_members;
+EXPECT_3
+3
 connection node_1;
 SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM mysql.wsrep_cluster;
 cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid')
 1
-SELECT COUNT(*) = 3 FROM mysql.wsrep_cluster_members;
-COUNT(*) = 3
-1
-connection node_1;
-CALL mtr.add_suppression("SYNC message from member");
-connection node_2;
-CALL mtr.add_suppression("SYNC message from member");
-connection node_3;
-CALL mtr.add_suppression("SYNC message from member");
+SELECT COUNT(*) AS EXPECT_3 FROM mysql.wsrep_cluster_members;
+EXPECT_3
+3
+disconnect node_3;

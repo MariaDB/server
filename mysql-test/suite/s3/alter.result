@@ -102,7 +102,9 @@ drop table t1;
 create table t1 (a int, b int) engine=aria select seq as a,seq+10 as b from seq_1_to_10;
 lock table t1 write;
 alter table t1 add column c int, engine=s3;
-ERROR HY000: Table 't1' is read only
+Warnings:
+Warning	1036	Table 't1' is read only
+Warning	1213	Deadlock found when trying to get lock; try restarting transaction
 unlock tables;
 select count(*), sum(a), sum(b), sum(c) from t1;
 count(*)	sum(a)	sum(b)	sum(c)

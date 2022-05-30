@@ -231,12 +231,12 @@ bool sys_var::update(THD *thd, set_var *var)
   }
 }
 
-uchar *sys_var::session_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *sys_var::session_value_ptr(THD *thd, const LEX_CSTRING *base) const
 {
   return session_var_ptr(thd);
 }
 
-uchar *sys_var::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *sys_var::global_value_ptr(THD *thd, const LEX_CSTRING *base) const
 {
   return global_var_ptr();
 }
@@ -269,8 +269,8 @@ bool sys_var::check(THD *thd, set_var *var)
   return false;
 }
 
-uchar *sys_var::value_ptr(THD *thd, enum_var_type type,
-                          const LEX_CSTRING *base)
+const uchar *sys_var::value_ptr(THD *thd, enum_var_type type,
+                                const LEX_CSTRING *base) const
 {
   DBUG_ASSERT(base);
   if (type == OPT_GLOBAL || scope() == GLOBAL)
@@ -825,15 +825,20 @@ int set_var::check(THD *thd)
 */
 int set_var::light_check(THD *thd)
 {
+  if (var->is_readonly())
+  {
+    my_error(ER_INCORRECT_GLOBAL_LOCAL_VAR, MYF(0), var->name.str, "read only");
+    return -1;
+  }
   if (var->check_type(type))
   {
     int err= type == OPT_GLOBAL ? ER_LOCAL_VARIABLE : ER_GLOBAL_VARIABLE;
     my_error(err, MYF(0), var->name.str);
     return -1;
   }
-  if (type == OPT_GLOBAL &&
-      check_global_access(thd, PRIV_SET_GLOBAL_SYSTEM_VARIABLE))
-    return 1;
+
+  if (type == OPT_GLOBAL && var->on_check_access_global(thd))
+      return 1;
 
   if (value && value->fix_fields_if_needed_for_scalar(thd, &value))
     return -1;
@@ -1062,7 +1067,7 @@ int set_var_collation_client::update(THD *thd)
  INFORMATION_SCHEMA.SYSTEM_VARIABLES
 *****************************************************************************/
 static void store_value_ptr(Field *field, sys_var *var, String *str,
-                            uchar *value_ptr)
+                            const uchar *value_ptr)
 {
   field->set_notnull();
   str= var->val_str_nolock(str, field->table->in_use, value_ptr);
@@ -1132,8 +1137,8 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     fields[3]->store(origin->str, origin->length, scs);
 
     // DEFAULT_VALUE
-    uchar *def= var->is_readonly() && var->option.id < 0
-                ? 0 : var->default_value_ptr(thd);
+    const uchar *def= var->is_readonly() && var->option.id < 0
+                      ? 0 : var->default_value_ptr(thd);
     if (def)
       store_value_ptr(fields[4], var, &strbuf, def);
 
@@ -1279,7 +1284,8 @@ end:
   and update it directly.
 */
 
-void set_sys_var_value_origin(void *ptr, enum sys_var::where here)
+void set_sys_var_value_origin(void *ptr, enum sys_var::where here,
+                              const char *filename)
 {
   bool found __attribute__((unused))= false;
   DBUG_ASSERT(!mysqld_server_started); // only to be used during startup
@@ -1290,6 +1296,7 @@ void set_sys_var_value_origin(void *ptr, enum sys_var::where here)
     if (var->option.value == ptr)
     {
       found= true;
+      var->origin_filename= filename;
       var->value_origin= here;
       /* don't break early, search for all matches */
     }

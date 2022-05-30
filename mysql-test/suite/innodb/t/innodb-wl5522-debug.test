@@ -28,6 +28,7 @@ call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file");
 call mtr.add_suppression("InnoDB: Page for tablespace ");
 call mtr.add_suppression("InnoDB: Invalid FSP_SPACE_FLAGS=");
 call mtr.add_suppression("InnoDB: Unknown index id .* on page");
+call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
 FLUSH TABLES;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
@@ -1014,6 +1015,7 @@ do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
 ib_restore_tablespaces("test", "t1");
 EOF
 
+ALTER TABLE t1 IMPORT TABLESPACE;
 DROP TABLE t1;
 
 #
@@ -1350,7 +1352,7 @@ SET SESSION debug_dbug="+d,fsp_flags_is_valid_failure";
 
 --replace_regex /'.*t1.cfg'/'t1.cfg'/
 
---error ER_INTERNAL_ERROR
+--error ER_NOT_KEYFILE
 ALTER TABLE t1 IMPORT TABLESPACE;
 
 SET SESSION debug_dbug=@saved_debug_dbug;

@@ -1,0 +1,63 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 VARCHAR(32) NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 (f1) VALUES ('0e66c5227a8a');
+INSERT INTO t1 (f1) VALUES ('c6c112992c9');
+CREATE TABLE t2 (i int primary key);
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_slave_threads = 2;
+***************************************************************
+scenario 1,  conflicting UPDATE
+***************************************************************
+SET GLOBAL wsrep_provider_options = 'dbug=d,commit_monitor_slave_enter_sync';
+connection node_1;
+START TRANSACTION;
+UPDATE t1 SET f1='5ffceebfada' WHERE t1.f1 = 'c6c112992c9';
+COMMIT;
+connection node_2;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+connection node_1;
+START TRANSACTION;
+UPDATE t1 SET f1='4ffceebfcdc' WHERE t1.f1 = '0e66c5227a8a';
+COMMIT;
+connection node_2;
+distance
+1
+SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_slave_enter_sync';
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'dbug=';
+***************************************************************
+scenario 2,  conflicting DELETE
+***************************************************************
+SET GLOBAL wsrep_provider_options = 'dbug=d,commit_monitor_slave_enter_sync';
+connection node_1;
+START TRANSACTION;
+INSERT INTO t2 VALUES (1);
+DELETE FROM t1 WHERE f1='5ffceebfada';
+COMMIT;
+connection node_2;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+connection node_1;
+START TRANSACTION;
+INSERT INTO t2 VALUES (2);
+DELETE FROM t1 WHERE f1='4ffceebfcdc';
+COMMIT;
+connection node_2;
+distance
+1
+SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_slave_enter_sync';
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+DROP TABLE t1;
+DROP TABLE t2;
+connection node_2;
+SET GLOBAL wsrep_slave_threads = DEFAULT;

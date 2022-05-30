@@ -176,6 +176,8 @@ bool mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
 bool mysql_backup_table(THD* thd, TABLE_LIST* table_list);
 bool mysql_restore_table(THD* thd, TABLE_LIST* table_list);
 
+template<typename T> class List;
+void fill_checksum_table_metadata_fields(THD *thd, List<Item> *fields);
 bool mysql_checksum_table(THD* thd, TABLE_LIST* table_list,
                           HA_CHECK_OPT* check_opt);
 bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
@@ -204,7 +206,6 @@ int write_bin_log(THD *thd, bool clear_error,
 int write_bin_log_with_if_exists(THD *thd, bool clear_error,
                                  bool is_trans, bool add_if_exists);
 
-template<typename T> class List;
 void promote_first_timestamp_column(List<Create_field> *column_definitions);
 
 /*

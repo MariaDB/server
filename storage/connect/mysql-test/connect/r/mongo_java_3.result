@@ -64,13 +64,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `_id` char(24) NOT NULL,
-  `address_building` char(10) NOT NULL `FIELD_FORMAT`='address.building',
-  `address_coord` char(39) NOT NULL `FIELD_FORMAT`='address.coord',
-  `address_street` char(38) NOT NULL `FIELD_FORMAT`='address.street',
-  `address_zipcode` char(5) NOT NULL `FIELD_FORMAT`='address.zipcode',
+  `address_building` char(10) NOT NULL `JPATH`='address.building',
+  `address_coord` char(39) NOT NULL `JPATH`='address.coord',
+  `address_street` char(38) NOT NULL `JPATH`='address.street',
+  `address_zipcode` char(5) NOT NULL `JPATH`='address.zipcode',
   `borough` char(13) NOT NULL,
   `cuisine` char(64) NOT NULL,
-  `grades_0` char(84) DEFAULT NULL `FIELD_FORMAT`='grades.0',
+  `grades_0` char(84) DEFAULT NULL `JPATH`='grades.0',
   `name` char(98) NOT NULL,
   `restaurant_id` char(8) NOT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='MONGO' `TABNAME`='restaurants' `OPTION_LIST`='Depth=1,Driver=Java,Version=3' `DATA_CHARSET`='utf8'
@@ -249,14 +249,14 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `_id` char(24) NOT NULL,
-  `address_building` char(6) NOT NULL `FIELD_FORMAT`='address.building',
-  `address_coord_0` double(18,14) NOT NULL `FIELD_FORMAT`='address.coord.0',
-  `address_street` char(25) NOT NULL `FIELD_FORMAT`='address.street',
-  `address_zipcode` char(5) NOT NULL `FIELD_FORMAT`='address.zipcode',
+  `address_building` char(6) NOT NULL `JPATH`='address.building',
+  `address_coord_0` double(18,14) NOT NULL `JPATH`='address.coord.0',
+  `address_street` char(25) NOT NULL `JPATH`='address.street',
+  `address_zipcode` char(5) NOT NULL `JPATH`='address.zipcode',
   `borough` char(13) NOT NULL,
-  `grades_0_date` datetime NOT NULL `FIELD_FORMAT`='grades.0.date',
-  `grades_0_grade` char(14) NOT NULL `FIELD_FORMAT`='grades.0.grade',
-  `grades_0_score` int(2) NOT NULL `FIELD_FORMAT`='grades.0.score',
+  `grades_0_date` datetime NOT NULL `JPATH`='grades.0.date',
+  `grades_0_grade` char(14) NOT NULL `JPATH`='grades.0.grade',
+  `grades_0_score` int(2) NOT NULL `JPATH`='grades.0.score',
   `name` char(32) NOT NULL,
   `restaurant_id` char(8) NOT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='MONGO' `TABNAME`='restaurants' `COLIST`='{"cuisine":0}' `FILTER`='{"cuisine":"French","borough":{"$ne":"Manhattan"}}' `OPTION_LIST`='Driver=Java,level=2,version=3'

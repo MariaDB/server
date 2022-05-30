@@ -38,7 +38,7 @@
 #include "my_global.h"
 #include "sql_class.h"
 #include "sql_servers.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
 #if defined(__BORLANDC__)
@@ -187,6 +187,9 @@ int JDBCDEF::ParseURL(PGLOBAL g, char *url, bool b)
 			PlugSubAlloc(g, NULL, strlen(Url) + 1);
 		} else		 // host is a URL
 			Url = PlugDup(g, server->host);
+
+		if (!Tabschema && server->db)
+			Tabschema = PlugDup(g, server->db);
 
 		if (!Username && server->username)
 			Username = PlugDup(g, server->username);

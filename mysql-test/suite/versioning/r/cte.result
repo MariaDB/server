@@ -1,3 +1,5 @@
+SET @saved_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = OFF;
 set time_zone="+00:00";
 set default_storage_engine=innodb;
 create or replace table dept (
@@ -311,3 +313,4 @@ emp_id	name	mgr	address
 drop table emp;
 drop table dept;
 drop table addr;
+SET GLOBAL innodb_stats_persistent = @saved_stats_persistent;

@@ -216,8 +216,6 @@ Protocol::net_send_ok(THD *thd,
   NET *net= &thd->net;
   StringBuffer<MYSQL_ERRMSG_SIZE + 10> store;
 
-  bool state_changed= false;
-
   bool error= FALSE;
   DBUG_ENTER("Protocol::net_send_ok");
 
@@ -244,6 +242,11 @@ Protocol::net_send_ok(THD *thd,
   /* last insert id */
   store.q_net_store_length(id);
 
+  /* if client has not session tracking capability, don't send state change flag*/
+  if (!(thd->client_capabilities & CLIENT_SESSION_TRACK)) {
+    server_status &= ~SERVER_SESSION_STATE_CHANGED;
+  }
+
   if (thd->client_capabilities & CLIENT_PROTOCOL_41)
   {
     DBUG_PRINT("info",
@@ -264,21 +267,17 @@ Protocol::net_send_ok(THD *thd,
   }
   thd->get_stmt_da()->set_overwrite_status(true);
 
-  state_changed=
-    (thd->client_capabilities & CLIENT_SESSION_TRACK) &&
-    (server_status & SERVER_SESSION_STATE_CHANGED);
-
-  if (state_changed || (message && message[0]))
+  if ((server_status & SERVER_SESSION_STATE_CHANGED) || (message && message[0]))
   {
     DBUG_ASSERT(safe_strlen(message) <= MYSQL_ERRMSG_SIZE);
     store.q_net_store_data((uchar*) safe_str(message), safe_strlen(message));
   }
 
-  if (unlikely(state_changed))
+  if (unlikely(server_status & SERVER_SESSION_STATE_CHANGED))
   {
     store.set_charset(thd->variables.collation_database);
-
     thd->session_tracker.store(thd, &store);
+    thd->server_status&= ~SERVER_SESSION_STATE_CHANGED;
   }
 
   DBUG_ASSERT(store.length() <= MAX_PACKET_LENGTH);
@@ -286,8 +285,6 @@ Protocol::net_send_ok(THD *thd,
   error= my_net_write(net, (const unsigned char*)store.ptr(), store.length());
   if (likely(!error))
     error= net_flush(net);
-
-  thd->server_status&= ~SERVER_SESSION_STATE_CHANGED;
 
   thd->get_stmt_da()->set_overwrite_status(false);
   DBUG_PRINT("info", ("OK sent, so no more error sending allowed"));
@@ -468,8 +465,12 @@ bool Protocol::net_send_error_packet(THD *thd, uint sql_errno, const char *err,
     coming from server to have seq_no > 0, due to missing awareness
     of "out-of-band" operations. Make these clients happy.
   */
-  if (!net->pkt_nr)
-   net->pkt_nr= 1;
+  if (!net->pkt_nr &&
+      (sql_errno == ER_CONNECTION_KILLED || sql_errno == ER_SERVER_SHUTDOWN ||
+       sql_errno == ER_QUERY_INTERRUPTED))
+  {
+    net->pkt_nr= 1;
+  }
 
   ret= net_write_command(net,(uchar) 255, (uchar*) "", 0, (uchar*) buff,
                          length);
@@ -597,6 +598,7 @@ void Protocol::end_statement()
                       thd->get_stmt_da()->get_sqlstate());
     break;
   case Diagnostics_area::DA_EOF:
+  case Diagnostics_area::DA_EOF_BULK:
     error= send_eof(thd->server_status,
                     thd->get_stmt_da()->statement_warn_count());
     break;
@@ -1135,7 +1137,8 @@ static bool should_send_column_info(THD* thd, List<Item>* list, uint flags)
   auto cmd= thd->get_command();
 #endif
 
-  DBUG_ASSERT(cmd == COM_STMT_EXECUTE || cmd == COM_STMT_PREPARE);
+  DBUG_ASSERT(cmd == COM_STMT_EXECUTE || cmd == COM_STMT_PREPARE
+              || cmd == COM_STMT_BULK_EXECUTE);
   DBUG_ASSERT(cmd != COM_STMT_PREPARE || !column_info_state.initialized);
 
   bool ret= metadata_columns_changed(column_info_state, thd, *list);
@@ -1589,7 +1592,7 @@ bool Protocol_text::store(Field *field)
 }
 
 
-bool Protocol_text::store(MYSQL_TIME *tm, int decimals)
+bool Protocol_text::store_datetime(MYSQL_TIME *tm, int decimals)
 {
 #ifndef DBUG_OFF
   DBUG_ASSERT(valid_handler(field_pos, PROTOCOL_SEND_DATETIME));
@@ -1807,7 +1810,7 @@ bool Protocol_binary::store(Field *field)
 }
 
 
-bool Protocol_binary::store(MYSQL_TIME *tm, int decimals)
+bool Protocol_binary::store_datetime(MYSQL_TIME *tm, int decimals)
 {
   char buff[12],*pos;
   uint length;
@@ -1841,7 +1844,7 @@ bool Protocol_binary::store_date(MYSQL_TIME *tm)
 {
   tm->hour= tm->minute= tm->second=0;
   tm->second_part= 0;
-  return Protocol_binary::store(tm, 0);
+  return Protocol_binary::store_datetime(tm, 0);
 }
 
 

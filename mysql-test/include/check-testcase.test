@@ -97,10 +97,7 @@ call mtr.check_testcase();
 
 let $datadir=`select @@datadir`;
 list_files $datadir mysql_upgrade_info;
-list_files_write_file $datadir.tempfiles.txt $datadir/test #sql*;
---replace_regex /#sql-ib[1-9][0-9]*\.ibd\n//
-cat_file $datadir.tempfiles.txt;
-remove_file $datadir.tempfiles.txt;
+list_files $datadir/test #sql*;
 list_files $datadir/mysql #sql*;
 
 #

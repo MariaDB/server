@@ -22,14 +22,14 @@
 
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
-#define VER "1.4"
+#define VER "2.0"
 
 #ifdef HAVE_SYS_WAIT_H
 #include <sys/wait.h>
 #endif
 
 #ifndef WEXITSTATUS
-# ifdef __WIN__
+# ifdef _WIN32
 #  define WEXITSTATUS(stat_val) (stat_val)
 # else
 #  define WEXITSTATUS(stat_val) ((unsigned)(stat_val) >> 8)
@@ -37,13 +37,15 @@
 #endif
 
 static int phase = 0;
+static int info_file= -1;
 static const int phases_total = 7;
 static char mysql_path[FN_REFLEN];
 static char mysqlcheck_path[FN_REFLEN];
 
-static my_bool opt_force, opt_verbose, debug_info_flag, debug_check_flag,
+static my_bool debug_info_flag, debug_check_flag,
                opt_systables_only, opt_version_check;
-static my_bool opt_not_used, opt_silent;
+static my_bool opt_not_used, opt_silent, opt_check_upgrade;
+static uint opt_force, opt_verbose;
 static uint my_end_arg= 0;
 static char *opt_user= (char*)"root";
 
@@ -70,7 +72,7 @@ static char **defaults_argv;
 
 static my_bool not_used; /* Can't use GET_BOOL without a value pointer */
 
-char upgrade_from_version[sizeof("10.20.456-MariaDB")+1];
+char upgrade_from_version[sizeof("10.20.456-MariaDB")+30];
 
 static my_bool opt_write_binlog;
 
@@ -96,8 +98,8 @@ static struct my_option my_long_options[]=
   {"debug", '#', "This is a non-debug version. Catch this and exit.",
    0, 0, 0, GET_DISABLED, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #else
-  {"debug", '#', "Output debug log.", &default_dbug_option,
-   &default_dbug_option, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
+  {"debug", '#', "Output debug log.",
+   0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif
   {"debug-check", OPT_DEBUG_CHECK, "Check memory and open file usage at exit.",
    &debug_check_flag, &debug_check_flag,
@@ -111,17 +113,20 @@ static struct my_option my_long_options[]=
    "Default authentication client-side plugin to use.",
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"check-if-upgrade-is-needed", OPT_CHECK_IF_UPGRADE_NEEDED,
+   "Exits with status 0 if an upgrades is required, 1 otherwise.",
+   &opt_check_upgrade, &opt_check_upgrade,
+   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"force", 'f', "Force execution of mysqlcheck even if mysql_upgrade "
    "has already been executed for the current version of MariaDB.",
-   &opt_force, &opt_force, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+   &opt_not_used, &opt_not_used, 0 , GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"host", 'h', "Connect to host.", 0,
    0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#define PASSWORD_OPT 12
   {"password", 'p',
    "Password to use when connecting to server. If password is not given,"
    " it's solicited on the tty.", &opt_password,&opt_password,
    0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef __WIN__
+#ifdef _WIN32
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
@@ -148,7 +153,6 @@ static struct my_option my_long_options[]=
   {"upgrade-system-tables", 's', "Only upgrade the system tables in the mysql database. Tables in other databases are not checked or touched.",
    &opt_systables_only, &opt_systables_only, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-#define USER_OPT (array_elements(my_long_options) - 6)
   {"user", 'u', "User for login.", &opt_user,
    &opt_user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"verbose", 'v', "Display more output about the process; Using it twice will print connection argument; Using it 3 times will print out all CHECK, RENAME and ALTER TABLE during the check phase.",
@@ -191,6 +195,12 @@ static void free_used_memory(void)
   dynstr_free(&ds_plugin_data_types);
   if (cnf_file_path)
     my_delete(cnf_file_path, MYF(MY_WME));
+  if (info_file >= 0)
+  {
+    (void) my_lock(info_file, F_UNLCK, 0, 1, MYF(0));
+    my_close(info_file, MYF(MY_WME));
+    info_file= -1;
+  }
 }
 
 
@@ -236,6 +246,13 @@ static void verbose(const char *fmt, ...)
 }
 
 
+static void print_error(const char *error_msg, DYNAMIC_STRING *output)
+{
+  fprintf(stderr, "%s\n", error_msg);
+  fprintf(stderr, "%s", output->str);
+}
+
+
 /*
   Add one option - passed to mysql_upgrade on command line
   or by defaults file(my.cnf) - to a dynamic string, in
@@ -243,11 +260,11 @@ static void verbose(const char *fmt, ...)
 */
 
 static void add_one_option_cmd_line(DYNAMIC_STRING *ds,
-                                    const struct my_option *opt,
-                                    const char* arg)
+                                    const char *name,
+                                    const char *arg)
 {
   dynstr_append(ds, "--");
-  dynstr_append(ds, opt->name);
+  dynstr_append(ds, name);
   if (arg)
   {
     dynstr_append(ds, "=");
@@ -257,10 +274,10 @@ static void add_one_option_cmd_line(DYNAMIC_STRING *ds,
 }
 
 static void add_one_option_cnf_file(DYNAMIC_STRING *ds,
-                                    const struct my_option *opt,
-                                    const char* arg)
+                                    const char *name,
+                                    const char *arg)
 {
-  dynstr_append(ds, opt->name);
+  dynstr_append(ds, name);
   if (arg)
   {
     dynstr_append(ds, "=");
@@ -268,6 +285,7 @@ static void add_one_option_cnf_file(DYNAMIC_STRING *ds,
   }
   dynstr_append(ds, "\n");
 }
+
 
 static my_bool
 get_one_option(const struct my_option *opt, const char *argument,
@@ -307,7 +325,7 @@ get_one_option(const struct my_option *opt, const char *argument,
       */
       char *start= (char*) argument;
       /* Add password to ds_args before overwriting the arg with x's */
-      add_one_option_cnf_file(&ds_args, opt, argument);
+      add_one_option_cnf_file(&ds_args, opt->name, argument);
       while (*argument)
         *(char*)argument++= 'x';                /* Destroy argument */
       if (*start)
@@ -344,11 +362,17 @@ get_one_option(const struct my_option *opt, const char *argument,
            my_progname, VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
     die(0);
     break;
+  case 'f': /* --force     */
+    opt_force++;
+    if (argument == disabled_my_option)
+      opt_force= 0;
+    add_option= 0;
+    break;
   case OPT_SILENT:
     opt_verbose= 0;
     add_option= 0;
     break;
-  case 'f': /* --force     */
+  case OPT_CHECK_IF_UPGRADE_NEEDED: /* --check-if-upgrade-needed */
   case 's':                                     /* --upgrade-system-tables */
   case OPT_WRITE_BINLOG:                        /* --write-binlog */
     add_option= FALSE;
@@ -361,7 +385,7 @@ get_one_option(const struct my_option *opt, const char *argument,
   case OPT_MYSQL_PROTOCOL: /* --protocol */
   case OPT_PLUGIN_DIR:                          /* --plugin-dir */
   case OPT_DEFAULT_AUTH:                        /* --default-auth */
-    add_one_option_cmd_line(&conn_args, opt, argument);
+    add_one_option_cmd_line(&conn_args, opt->name, argument);
     break;
   }
 
@@ -372,11 +396,23 @@ get_one_option(const struct my_option *opt, const char *argument,
       it can be passed on to "mysql" and "mysqlcheck"
       Save it in the ds_args string
     */
-    add_one_option_cnf_file(&ds_args, opt, argument);
+    add_one_option_cnf_file(&ds_args, opt->name, argument);
   }
   return 0;
 }
 
+
+/* Convert the specified version string into the numeric format. */
+
+static ulong STDCALL calc_server_version(char *some_version)
+{
+  uint major, minor, version;
+  char *point= some_version, *end_point;
+  major=   (uint) strtoul(point, &end_point, 10);   point=end_point+1;
+  minor=   (uint) strtoul(point, &end_point, 10);   point=end_point+1;
+  version= (uint) strtoul(point, &end_point, 10);
+  return (ulong) major * 10000L + (ulong)(minor * 100 + version);
+}
 
 /**
   Run a command using the shell, storing its output in the supplied dynamic
@@ -451,7 +487,7 @@ static int run_tool(char *tool_path, DYNAMIC_STRING *ds_res, ...)
 
   va_end(args);
 
-#ifdef __WIN__
+#ifdef _WIN32
   dynstr_append(&ds_cmdline, "\"");
 #endif
 
@@ -584,7 +620,7 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
     if (my_write(fd, sql_log_bin, sizeof(sql_log_bin)-1,
                  MYF(MY_FNABP | MY_WME)))
     {
-      my_close(fd, MYF(0));
+      my_close(fd, MYF(MY_WME));
       my_delete(query_file_path, MYF(0));
       die("Failed to write to '%s'", query_file_path);
     }
@@ -593,7 +629,7 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
   if (my_write(fd, (uchar*) query, strlen(query),
                MYF(MY_FNABP | MY_WME)))
   {
-    my_close(fd, MYF(0));
+    my_close(fd, MYF(MY_WME));
     my_delete(query_file_path, MYF(0));
     die("Failed to write to '%s'", query_file_path);
   }
@@ -610,7 +646,7 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
                 "2>&1",
                 NULL);
 
-  my_close(fd, MYF(0));
+  my_close(fd, MYF(MY_WME));
   my_delete(query_file_path, MYF(0));
 
   DBUG_RETURN(ret);
@@ -657,6 +693,9 @@ static int get_upgrade_info_file_name(char* name)
                 &ds_datadir, FALSE) ||
       extract_variable_from_show(&ds_datadir, name))
   {
+    print_error("Reading datadir from the MariaDB server failed. Got the "
+                "following error when executing the 'mysql' command line client",
+                &ds_datadir);
     dynstr_free(&ds_datadir);
     DBUG_RETURN(1); /* Query failed */
   }
@@ -668,6 +707,83 @@ static int get_upgrade_info_file_name(char* name)
   DBUG_RETURN(0);
 }
 
+static char upgrade_info_file[FN_REFLEN]= {0};
+
+
+/*
+  Open or create mysql_upgrade_info file in servers data dir.
+
+  Take a lock to ensure there cannot be any other mysql_upgrades
+  runninc concurrently
+*/
+
+const char *create_error_message=
+  "%sCould not open or create the upgrade info file '%s' in "
+  "the MariaDB Servers data directory, errno: %d (%s)\n";
+
+
+
+static void open_mysql_upgrade_file()
+{
+  char errbuff[80];
+  if (get_upgrade_info_file_name(upgrade_info_file))
+  {
+    die("Upgrade failed");
+  }
+  if ((info_file= my_create(upgrade_info_file, 0,
+                            O_RDWR | O_NOFOLLOW,
+                            MYF(0))) < 0)
+  {
+    if (opt_force >= 2)
+    {
+      fprintf(stdout, create_error_message,
+              "", upgrade_info_file, errno,
+              my_strerror(errbuff, sizeof(errbuff)-1, errno));
+      fprintf(stdout,
+              "--force --force used, continuing without using the %s file.\n"
+              "Note that this means that there is no protection against "
+              "concurrent mysql_upgrade executions and next mysql_upgrade run "
+              "will do a full upgrade again!\n",
+              upgrade_info_file);
+      return;
+    }
+    fprintf(stdout, create_error_message,
+            "FATAL ERROR: ",
+            upgrade_info_file, errno,
+            my_strerror(errbuff, sizeof(errbuff)-1, errno));
+    if (errno == EACCES)
+    {
+      fprintf(stderr,
+              "Note that mysql_upgrade should be run as the same user as the "
+              "MariaDB server binary, normally 'mysql' or 'root'.\n"
+              "Alternatively you can use mysql_upgrade --force --force. "
+              "Please check the documentation if you decide to use the force "
+              "option!\n");
+    }
+    fflush(stderr);
+    die(0);
+  }
+  if (my_lock(info_file, F_WRLCK, 0, 1, MYF(0)))
+  {
+    die("Could not exclusively lock on file '%s'. Error %d: %s\n",
+        upgrade_info_file, my_errno,
+        my_strerror(errbuff, sizeof(errbuff)-1, my_errno));
+  }
+}
+
+
+/**
+  Place holder for versions that require a major upgrade
+
+  @return 0  upgrade has alredy been run on this version
+  @return 1  upgrade has to be run
+
+*/
+
+static int faulty_server_versions(const char *version)
+{
+  return 0;
+}
 
 /*
   Read the content of mysql_upgrade_info file and
@@ -677,86 +793,111 @@ static int get_upgrade_info_file_name(char* name)
   NOTE
   This is an optimization to avoid running mysql_upgrade
   when it's already been performed for the particular
-  version of MySQL.
+  version of MariaDB.
 
-  In case the MySQL server can't return the upgrade info
+  In case the MariaDBL server can't return the upgrade info
   file it's always better to report that the upgrade hasn't
   been performed.
 
+  @return 0   Upgrade has alredy been run on this version
+  @return > 0 Upgrade has to be run
 */
 
-static int upgrade_already_done(myf flags)
+static int upgrade_already_done(int silent)
 {
-  FILE *in;
-  char upgrade_info_file[FN_REFLEN]= {0};
+  const char *version = MYSQL_SERVER_VERSION;
+  const char *s;
+  char *pos;
+  my_off_t length;
 
-  if (get_upgrade_info_file_name(upgrade_info_file))
-    return 0; /* Could not get filename => not sure */
-
-  if (!(in= my_fopen(upgrade_info_file, O_RDONLY, flags)))
-    return 0; /* Could not open file => not sure */
+  if (info_file < 0)
+  {
+    DBUG_ASSERT(opt_force > 1);
+    return 1;                                   /* No info file and --force */
+  }
 
   bzero(upgrade_from_version, sizeof(upgrade_from_version));
-  if (!fgets(upgrade_from_version, sizeof(upgrade_from_version), in))
+
+  (void) my_seek(info_file, 0, SEEK_SET, MYF(0));
+  /* We have -3 here to make calc_server_version() safe */
+  length= my_read(info_file, (uchar*) upgrade_from_version,
+                  sizeof(upgrade_from_version)-3,
+                  MYF(MY_WME));
+
+  if (!length)
   {
-    /* Preserve errno for caller */
-    int save_errno= errno;
-    (void) my_fclose(in, flags);
-    errno= save_errno;
-    return 0;
+    if (opt_verbose)
+      verbose("Empty or non existent %s. Assuming mysql_upgrade has to be run!",
+              upgrade_info_file);
+    return 1;
   }
 
-  if (my_fclose(in, flags))
-    return 0;
+  /* Remove possible \ŋ that may end in output */
+  if ((pos= strchr(upgrade_from_version, '\n')))
+    *pos= 0;
 
-  errno= 0;
-  return (strncmp(upgrade_from_version, MYSQL_SERVER_VERSION,
-                  sizeof(MYSQL_SERVER_VERSION)-1)==0);
+  if (faulty_server_versions(upgrade_from_version))
+  {
+    if (opt_verbose)
+      verbose("Upgrading from version %s requires mysql_upgrade to be run!",
+              upgrade_from_version);
+    return 2;
+  }
+
+  s= strchr(version, '.');
+  s= strchr(s + 1, '.');
+
+  if (strncmp(upgrade_from_version, version,
+              (size_t)(s - version + 1)))
+  {
+    if (calc_server_version(upgrade_from_version) <= MYSQL_VERSION_ID)
+    {
+      verbose("Major version upgrade detected from %s to %s. Check required!",
+              upgrade_from_version, version);
+      return 3;
+    }
+    die("Version mismatch (%s -> %s): Trying to downgrade from a higher to "
+        "lower version is not supported!",
+        upgrade_from_version, version);
+  }
+  if (!silent)
+  {
+    verbose("This installation of MariaDB is already upgraded to %s.\n"
+            "There is no need to run mysql_upgrade again for %s.",
+            upgrade_from_version, version);
+    if (!opt_check_upgrade)
+      verbose("You can use --force if you still want to run mysql_upgrade",
+              upgrade_from_version, version);
+  }
+  return 0;
 }
 
-
-/*
-  Write mysql_upgrade_info file in servers data dir indicating that
-  upgrade has been done for this version
-
-  NOTE
-  This might very well fail but since it's just an optimization
-  to run mysql_upgrade only when necessary the error can be
-  ignored.
-
-*/
-
-static void create_mysql_upgrade_info_file(void)
+static void finish_mysql_upgrade_info_file(void)
 {
-  FILE *out;
-  char upgrade_info_file[FN_REFLEN]= {0};
-
-  if (get_upgrade_info_file_name(upgrade_info_file))
-    return; /* Could not get filename => skip */
-
-  if (!(out= my_fopen(upgrade_info_file, O_TRUNC | O_WRONLY, MYF(0))))
-  {
-    fprintf(stderr,
-            "Could not create the upgrade info file '%s' in "
-            "the MariaDB Servers datadir, errno: %d\n",
-            upgrade_info_file, errno);
+  if (info_file < 0)
     return;
-  }
 
   /* Write new version to file */
-  my_fwrite(out, (uchar*) MYSQL_SERVER_VERSION,
-            sizeof(MYSQL_SERVER_VERSION), MY_WME);
-  my_fclose(out, MYF(MY_WME));
+  (void) my_seek(info_file, 0, SEEK_CUR, MYF(0));
+  (void) my_chsize(info_file, 0, 0, MYF(0));
+  (void) my_seek(info_file, 0, 0, MYF(0));
+  (void) my_write(info_file, (uchar*) MYSQL_SERVER_VERSION,
+                  sizeof(MYSQL_SERVER_VERSION)-1, MYF(MY_WME));
+  (void) my_write(info_file, (uchar*) "\n", 1, MYF(MY_WME));
+  (void) my_lock(info_file, F_UNLCK, 0, 1, MYF(0));
 
   /*
-    Check if the upgrad_info_file was properly created/updated
+    Check if the upgrade_info_file was properly created/updated
     It's not a fatal error -> just print a message if it fails
   */
-  if (!upgrade_already_done(MY_WME))
+  if (upgrade_already_done(1))
     fprintf(stderr,
-            "Upgrade file '%s' was not properly created. "
-            "Got error errno while checking file content: %d\n",
+            "Could not write to the upgrade info file '%s' in "
+            "the MariaDB Servers datadir, errno: %d\n",
             upgrade_info_file, errno);
+
+  my_close(info_file, MYF(MY_WME));
+  info_file= -1;
   return;
 }
 
@@ -906,6 +1047,7 @@ static const char *expected_errors[]=
   "ERROR 1347", /* 'mysql.user' is not of type 'BASE TABLE' */
   "ERROR 1348", /* Column 'Show_db_priv' is not updatable */
   "ERROR 1356", /* definer of view lack rights (UPDATE) */
+  "ERROR 1449", /* definer ('mariadb.sys'@'localhost') of mysql.user does not exist */
   0
 };
 
@@ -1151,7 +1293,7 @@ static int check_slave_repositories(void)
 }
 
 /*
-  Update all system tables in MySQL Server to current
+  Update all system tables in MariaDB Server to current
   version using "mysql" to execute all the SQL commands
   compiled into the mysql_fix_privilege_tables array
 */
@@ -1220,24 +1362,6 @@ static int run_sql_fix_privilege_tables(void)
 }
 
 
-static void print_error(const char *error_msg, DYNAMIC_STRING *output)
-{
-  fprintf(stderr, "%s\n", error_msg);
-  fprintf(stderr, "%s", output->str);
-}
-
-
-/* Convert the specified version string into the numeric format. */
-static ulong STDCALL calc_server_version(char *some_version)
-{
-  uint major, minor, version;
-  char *point= some_version, *end_point;
-  major=   (uint) strtoul(point, &end_point, 10);   point=end_point+1;
-  minor=   (uint) strtoul(point, &end_point, 10);   point=end_point+1;
-  version= (uint) strtoul(point, &end_point, 10);
-  return (ulong) major * 10000L + (ulong)(minor * 100 + version);
-}
-
 /**
   Check if the server version matches with the server version mysql_upgrade
   was compiled with.
@@ -1273,8 +1397,7 @@ static int check_version_match(void)
             "check.\n", version_str, MYSQL_SERVER_VERSION);
     return 1;
   }
-  else
-    return 0;
+  return 0;
 }
 
 
@@ -1283,10 +1406,12 @@ int main(int argc, char **argv)
   char self_name[FN_REFLEN + 1];
 
   MY_INIT(argv[0]);
+  DBUG_PROCESS(argv[0]);
+
   load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   defaults_argv= argv; /* Must be freed by 'free_defaults' */
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (GetModuleFileName(NULL, self_name, FN_REFLEN) == 0)
 #endif
   {
@@ -1309,12 +1434,10 @@ int main(int argc, char **argv)
   {
     opt_password= get_tty_password(NullS);
     /* add password to defaults file */
-    add_one_option_cnf_file(&ds_args, &my_long_options[PASSWORD_OPT], opt_password);
-    DBUG_ASSERT(strcmp(my_long_options[PASSWORD_OPT].name, "password") == 0);
+    add_one_option_cnf_file(&ds_args, "password", opt_password);
   }
   /* add user to defaults file */
-  add_one_option_cnf_file(&ds_args, &my_long_options[USER_OPT], opt_user);
-  DBUG_ASSERT(strcmp(my_long_options[USER_OPT].name, "user") == 0);
+  add_one_option_cnf_file(&ds_args, "user", opt_user);
 
   cnf_file_path= strmov(defaults_file, "--defaults-file=");
   {
@@ -1324,11 +1447,16 @@ int main(int argc, char **argv)
       die(NULL);
     my_write(fd, USTRING_WITH_LEN( "[client]\n"), MYF(MY_FAE));
     my_write(fd, (uchar*)ds_args.str, ds_args.length, MYF(MY_FAE));
-    my_close(fd, MYF(0));
+    my_close(fd, MYF(MY_WME));
   }
 
   /* Find mysql */
   find_tool(mysql_path, IF_WIN("mysql.exe", "mysql"), self_name);
+
+  open_mysql_upgrade_file();
+
+  if (opt_check_upgrade)
+    exit(upgrade_already_done(0) == 0);
 
   /* Find mysqlcheck */
   find_tool(mysqlcheck_path, IF_WIN("mysqlcheck.exe", "mysqlcheck"), self_name);
@@ -1338,15 +1466,10 @@ int main(int argc, char **argv)
 
   /*
     Read the mysql_upgrade_info file to check if mysql_upgrade
-    already has been run for this installation of MySQL
+    already has been run for this installation of MariaDB
   */
-  if (!opt_force && upgrade_already_done(0))
-  {
-    printf("This installation of MariaDB is already upgraded to %s, "
-           "use --force if you still need to run mysql_upgrade\n",
-           MYSQL_SERVER_VERSION);
-    goto end;
-  }
+  if (!opt_force && !upgrade_already_done(0))
+    goto end;                                   /* Upgrade already done */
 
   if (opt_version_check && check_version_match())
     die("Upgrade failed");
@@ -1373,8 +1496,8 @@ int main(int argc, char **argv)
 
   verbose("OK");
 
-  /* Create a file indicating upgrade has been performed */
-  create_mysql_upgrade_info_file();
+  /* Finish writing indicating upgrade has been performed */
+  finish_mysql_upgrade_info_file();
 
   DBUG_ASSERT(phase == phases_total);
 

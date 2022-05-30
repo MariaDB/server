@@ -1,3 +1,6 @@
+--source include/have_partition.inc
+--source include/have_sequence.inc
+
 #
 # Basic stored PROCEDURE tests
 #
@@ -14,6 +17,11 @@
 # Tests that require --with-geometry go into sp_gis.test
 # Tests that require multibyte character sets, which are not always available,
 #   go into separate files (e.g. sp-ucs2.test)
+
+if (`SELECT $PS_PROTOCOL != 0`)
+{
+   --skip Need regular protocol but ps-protocol was specified
+}
 
 --source include/default_charset.inc
 set @save_character_set_client=@@character_set_client;
@@ -10025,6 +10033,46 @@ drop procedure p1|
 drop function f1|
 delimiter ;|
 
+--echo #
+--echo # MDEV-24827: MariaDB 10.5.5 crash (sig 11) during a SELECT
+--echo #
+
+CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 INT);
+CREATE TABLE t2 (c1 INT PRIMARY KEY, c2 INT, KEY idx_c2(c2));
+
+INSERT INTO t1 (c1, c2) SELECT seq, seq FROM seq_1_to_10000;
+INSERT INTO t2 (c1, c2) SELECT seq, seq FROM seq_1_to_20000;
+
+--delimiter $
+
+CREATE OR REPLACE PROCEDURE p1()
+begin
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE a INT;
+
+  DECLARE cur1 CURSOR FOR
+    SELECT t2.c1 AS c1 FROM t1 LEFT JOIN t2 ON t1.c1 = t2.c1
+    WHERE EXISTS (SELECT 1 FROM t1 WHERE c2 = -1) ORDER BY c1;
+
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+  OPEN cur1;
+  read_loop: LOOP
+    FETCH cur1 INTO a;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+  END LOOP;
+  CLOSE cur1;
+END $
+
+--delimiter ;
+
+CALL p1();
+
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP TABLE t2;
 
 --echo #End of 10.2 tests
 
@@ -10412,6 +10460,21 @@ END;
 $$
 DELIMITER ;$$
 
+--echo #
+--echo # MDEV-28220: Assert failure in sp_head::~sp_head on parsing a syntax incorrect statement CREATE SEQUENCE ... RESTART inside CREATE PROCEDURE/CREATE FUNCTION
+--echo
+
+--echo # Specifying the RESTART clause for the statement CREATE SEQUENCE is a syntax error.
+--echo # Check that CREATE PROCEDURE doesn't crash server if the statement
+--echo # CREATE SEQUNCE ... RESTART is specified in its body.
+--echo #
+--error ER_PARSE_ERROR
+CREATE PROCEDURE sp1() CREATE SEQUENCE s1 START WITH 300 INCREMENT BY 30 RESTART;
+--echo # CREATE SEQUNCE ... RESTART and CREATE SEQUNCE ... RESTART WITH ... are
+--echo # handled by different grammar rules, so check the both cases.
+--error ER_PARSE_ERROR
+CREATE PROCEDURE sp1() CREATE SEQUENCE s1 START WITH 300 INCREMENT BY 30 RESTART WITH 100;
+
 --echo # End of 10.3 tests
 
 
@@ -10432,7 +10495,14 @@ END;
 $$
 DELIMITER ;$$
 
-
 --echo #
+--echo # MDEV-21173: Assertion `m_thd == __null' failed in sp_head::~sp_head
+--echo #
+CREATE TABLE t1 (a INT);
+--error ER_SUBQUERIES_NOT_SUPPORTED
+CREATE PROCEDURE p1() SELECT 1 FROM t1 PROCEDURE ANALYSE( 10, (SELECT a FROM t1));
+
+DROP TABLE t1;
+
 --echo # End of 10.4 tests
 --echo #

@@ -11,6 +11,7 @@
 
 --disable_query_log
 call mtr.add_suppression("Can't create/write to file '/dev/null/nonexistent/ib");
+call mtr.add_suppression("Can't create/write to file '' \\\(Errcode: 20 \"Not a directory\"\\\)");
 call mtr.add_suppression("InnoDB: Unable to create temporary file");
 call mtr.add_suppression("last file in setting innodb_temp_data_file_path");
 call mtr.add_suppression("The table 't1' is full");
@@ -120,6 +121,8 @@ select * from t1;
 show tables;
 --error ER_CANT_CREATE_TABLE
 create temporary table t1 (keyc int, c1 char(100), c2 char(100)) engine = innodb;
+
+SET GLOBAL innodb_encrypt_tables=DEFAULT;
 
 --echo # test various bad start-up parameters
 

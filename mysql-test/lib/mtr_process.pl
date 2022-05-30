@@ -40,7 +40,7 @@ BEGIN
   eval 'sub USE_NETPING { $use_netping }';
 }
   
-sub sleep_until_file_created ($$$$);
+sub sleep_until_file_created ($$$$$);
 sub mtr_ping_port ($);
 
 sub mtr_ping_port ($) {
@@ -102,13 +102,15 @@ sub mtr_ping_port ($) {
 
 # FIXME check that the pidfile contains the expected pid!
 
-sub sleep_until_file_created ($$$$) {
+sub sleep_until_file_created ($$$$$) {
   my $pidfile= shift;
+  my $expectfile = shift;
   my $timeout= shift;
   my $proc=     shift;
   my $warn_seconds = shift;
   my $sleeptime= 10; # Milliseconds
-  my $loops= ($timeout * 10000) / $sleeptime;
+  my $loops= ($timeout * 1000) / $sleeptime;
+  my $message_time= 60;
 
   for ( my $loop= 0; $loop <= $loops; $loop++ )
   {
@@ -120,8 +122,9 @@ sub sleep_until_file_created ($$$$) {
     my $seconds= ($loop * $sleeptime) / 1000;
 
     # Check if it died after the fork() was successful
-    if ( defined $proc and ! $proc->wait_one(0) )
+    if ( defined $proc and ! $proc->wait_one(0, 1) )
     {
+      return 1 if -r $expectfile;
       mtr_warning("Process $proc died after mysql-test-run waited $seconds " .
 		  "seconds for $pidfile to be created.");
       return 0;
@@ -130,9 +133,10 @@ sub sleep_until_file_created ($$$$) {
     mtr_debug("Sleep $sleeptime milliseconds waiting for $pidfile");
 
     # Print extra message every $warn_seconds seconds
-    if ( $seconds > 1 && ($seconds*10) % ($warn_seconds*10) == 0 && $seconds < $timeout )
+    if ( $seconds >= $message_time)
     {
-      my $left= $timeout - $seconds;
+      $message_time= $message_time+60;
+      my $left= $timeout - int($seconds);
       mtr_warning("Waited $seconds seconds for $pidfile to be created, " .
                   "still waiting for $left seconds...");
     }

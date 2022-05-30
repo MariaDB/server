@@ -1,0 +1,2884 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-27361 Hybrid functions with JSON arguments do not send format metadata
+#
+CREATE PROCEDURE p1(tbl TEXT, expr TEXT)
+BEGIN
+DECLARE t1cols INT DEFAULT (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME=tbl AND TABLE_SCHEMA='test');
+FOR a IN 0..(t1cols-1) DO
+FOR b IN 0..(t1cols-1) DO
+BEGIN
+DECLARE query TEXT DEFAULT CONCAT('SELECT ', expr, ' FROM ', tbl);
+SET query= REPLACE(query, 'olt1', a);
+SET query= REPLACE(query, 'olt2', b);
+EXECUTE IMMEDIATE query;
+END;
+END FOR;
+END FOR;
+END;
+$$
+CREATE PROCEDURE p2(expr TEXT)
+BEGIN
+DECLARE t1cols INT DEFAULT (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test');
+DECLARE t2cols INT DEFAULT (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME='t2' AND TABLE_SCHEMA='test');
+FOR a IN 0..(t1cols-1) DO
+FOR b IN 0..(t2cols-1) DO
+BEGIN
+DECLARE query TEXT DEFAULT CONCAT('SELECT ', expr, ' FROM t1, t2');
+SET query= REPLACE(query, 'olt1', a);
+SET query= REPLACE(query, 'olt2', b);
+EXECUTE IMMEDIATE query;
+END;
+END FOR;
+END FOR;
+END;
+$$
+CREATE TABLE t1
+(
+c0 CHAR(30)    DEFAULT '1'  CHECK(JSON_VALID(c0)),
+c1 VARCHAR(30) DEFAULT '1'  CHECK(JSON_VALID(c1)),
+c2 TINYTEXT    DEFAULT '1'  CHECK(JSON_VALID(c2)),
+c3 TEXT        DEFAULT '1'  CHECK(JSON_VALID(c3)),
+c4 MEDIUMTEXT  DEFAULT '1'  CHECK(JSON_VALID(c4)),
+c5 LONGTEXT    DEFAULT '1'  CHECK(JSON_VALID(c5)),
+# The below data types do not have any special JSON properties.
+# Just checking CHECK(JSON_VALID()) does not give any unexpected surprises.
+c6 INT         DEFAULT '1'  CHECK(JSON_VALID(c6)),
+c7 ENUM('1')   DEFAULT '1'  CHECK(JSON_VALID(c7))
+);
+INSERT INTO t1 VALUES ();
+CREATE TABLE t1c
+(
+c0 CHAR(30)               DEFAULT '1'  CHECK(JSON_VALID(c0)),
+c1 VARCHAR(30) COMPRESSED DEFAULT '1'  CHECK(JSON_VALID(c1)),
+c2 TINYTEXT    COMPRESSED DEFAULT '1'  CHECK(JSON_VALID(c2)),
+c3 TEXT        COMPRESSED DEFAULT '1'  CHECK(JSON_VALID(c3)),
+c4 MEDIUMTEXT  COMPRESSED DEFAULT '1'  CHECK(JSON_VALID(c4)),
+c5 LONGTEXT    COMPRESSED DEFAULT '1'  CHECK(JSON_VALID(c5)),
+# The below data types do not have any special JSON properties.
+# Just checking CHECK(JSON_VALID()) does not give any unexpected surprises.
+c6 INT                    DEFAULT '1'  CHECK(JSON_VALID(c6)),
+c7 ENUM('1')              DEFAULT '1'  CHECK(JSON_VALID(c7))
+);
+INSERT INTO t1c VALUES ();
+CREATE TABLE t2
+(
+c0 CHAR(30) DEFAULT '1',
+c1 VARCHAR(30) DEFAULT '1',
+c2 TINYTEXT DEFAULT '1',
+c3 TEXT DEFAULT '1',
+c4 MEDIUMTEXT DEFAULT '1',
+c5 LONGTEXT DEFAULT '1',
+c6 INT DEFAULT 1,
+c7 DOUBLE DEFAULT 1,
+c8 DECIMAL(10,2) DEFAULT 1.23,
+c9 TIME DEFAULT '10:20:30',
+c10 DATE DEFAULT '2001-01-01',
+c11 DATETIME DEFAULT '2001-01-01 10:20:30',
+c12 ENUM('1','2') DEFAULT '1'
+);
+INSERT INTO t2 VALUES ();
+CALL p1('t1', 'COALESCE(colt1, colt2)');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c0, c0)	254 (format=json)	30	1	Y	0	39	8
+COALESCE(c0, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c0, c1)	253 (format=json)	30	1	Y	0	39	8
+COALESCE(c0, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c0, c2)	249 (format=json)	255	1	Y	0	39	8
+COALESCE(c0, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c0, c3)	252 (format=json)	65535	1	Y	0	39	8
+COALESCE(c0, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c0, c4)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c0, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c0, c5)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c0, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c0, c6)	254	30	1	Y	0	39	8
+COALESCE(c0, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c0, c7)	254	30	1	Y	0	39	8
+COALESCE(c0, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c1, c0)	253 (format=json)	30	1	Y	0	39	8
+COALESCE(c1, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c1, c1)	253 (format=json)	30	1	Y	0	39	8
+COALESCE(c1, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c1, c2)	249 (format=json)	255	1	Y	0	39	8
+COALESCE(c1, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c1, c3)	252 (format=json)	65535	1	Y	0	39	8
+COALESCE(c1, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c1, c4)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c1, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c1, c5)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c1, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c1, c6)	253	30	1	Y	0	39	8
+COALESCE(c1, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c1, c7)	253	30	1	Y	0	39	8
+COALESCE(c1, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c2, c0)	249 (format=json)	255	1	Y	0	39	8
+COALESCE(c2, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c2, c1)	249 (format=json)	255	1	Y	0	39	8
+COALESCE(c2, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c2, c2)	249 (format=json)	255	1	Y	0	39	8
+COALESCE(c2, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c2, c3)	252 (format=json)	65535	1	Y	0	39	8
+COALESCE(c2, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c2, c4)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c2, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c2, c5)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c2, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c2, c6)	249	255	1	Y	0	39	8
+COALESCE(c2, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c2, c7)	249	255	1	Y	0	39	8
+COALESCE(c2, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c3, c0)	252 (format=json)	65535	1	Y	0	39	8
+COALESCE(c3, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c3, c1)	252 (format=json)	65535	1	Y	0	39	8
+COALESCE(c3, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c3, c2)	252 (format=json)	65535	1	Y	0	39	8
+COALESCE(c3, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c3, c3)	252 (format=json)	65535	1	Y	0	39	8
+COALESCE(c3, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c3, c4)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c3, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c3, c5)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c3, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c3, c6)	252	65535	1	Y	0	39	8
+COALESCE(c3, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c3, c7)	252	65535	1	Y	0	39	8
+COALESCE(c3, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c4, c0)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c4, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c4, c1)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c4, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c4, c2)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c4, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c4, c3)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c4, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c4, c4)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c4, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c4, c5)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c4, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c4, c6)	250	16777215	1	Y	0	39	8
+COALESCE(c4, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c4, c7)	250	16777215	1	Y	0	39	8
+COALESCE(c4, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c5, c0)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c5, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c5, c1)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c5, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c5, c2)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c5, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c5, c3)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c5, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c5, c4)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c5, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c5, c5)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c5, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c5, c6)	251	4294967295	1	Y	0	39	8
+COALESCE(c5, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c5, c7)	251	4294967295	1	Y	0	39	8
+COALESCE(c5, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c6, c0)	254	30	1	Y	0	39	8
+COALESCE(c6, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c6, c1)	253	30	1	Y	0	39	8
+COALESCE(c6, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c6, c2)	249	255	1	Y	0	39	8
+COALESCE(c6, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c6, c3)	252	65535	1	Y	0	39	8
+COALESCE(c6, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c6, c4)	250	16777215	1	Y	0	39	8
+COALESCE(c6, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c6, c5)	251	4294967295	1	Y	0	39	8
+COALESCE(c6, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c6, c6)	3	11	1	Y	32896	0	63
+COALESCE(c6, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c6, c7)	254	11	1	Y	0	39	8
+COALESCE(c6, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c7, c0)	254	30	1	Y	0	39	8
+COALESCE(c7, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c7, c1)	253	30	1	Y	0	39	8
+COALESCE(c7, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c7, c2)	249	255	1	Y	0	39	8
+COALESCE(c7, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c7, c3)	252	65535	1	Y	0	39	8
+COALESCE(c7, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c7, c4)	250	16777215	1	Y	0	39	8
+COALESCE(c7, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c7, c5)	251	4294967295	1	Y	0	39	8
+COALESCE(c7, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c7, c6)	254	11	1	Y	0	39	8
+COALESCE(c7, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c7, c7)	254	1	1	Y	0	39	8
+COALESCE(c7, c7)
+1
+CALL p1('t1', 'LEAST(colt1, colt2)');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c0, c0)	254	30	1	Y	0	39	8
+LEAST(c0, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c0, c1)	253	30	1	Y	0	39	8
+LEAST(c0, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c0, c2)	249	255	1	Y	0	39	8
+LEAST(c0, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c0, c3)	252	65535	1	Y	0	39	8
+LEAST(c0, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c0, c4)	250	16777215	1	Y	0	39	8
+LEAST(c0, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c0, c5)	251	4294967295	1	Y	0	39	8
+LEAST(c0, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c0, c6)	5	23	1	Y	32896	31	63
+LEAST(c0, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c0, c7)	254	30	1	Y	0	39	8
+LEAST(c0, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c1, c0)	253	30	1	Y	0	39	8
+LEAST(c1, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c1, c1)	253	30	1	Y	0	39	8
+LEAST(c1, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c1, c2)	249	255	1	Y	0	39	8
+LEAST(c1, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c1, c3)	252	65535	1	Y	0	39	8
+LEAST(c1, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c1, c4)	250	16777215	1	Y	0	39	8
+LEAST(c1, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c1, c5)	251	4294967295	1	Y	0	39	8
+LEAST(c1, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c1, c6)	5	23	1	Y	32896	31	63
+LEAST(c1, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c1, c7)	253	30	1	Y	0	39	8
+LEAST(c1, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c2, c0)	249	255	1	Y	0	39	8
+LEAST(c2, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c2, c1)	249	255	1	Y	0	39	8
+LEAST(c2, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c2, c2)	249	255	1	Y	0	39	8
+LEAST(c2, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c2, c3)	252	65535	1	Y	0	39	8
+LEAST(c2, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c2, c4)	250	16777215	1	Y	0	39	8
+LEAST(c2, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c2, c5)	251	4294967295	1	Y	0	39	8
+LEAST(c2, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c2, c6)	5	23	1	Y	32896	31	63
+LEAST(c2, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c2, c7)	249	255	1	Y	0	39	8
+LEAST(c2, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c3, c0)	252	65535	1	Y	0	39	8
+LEAST(c3, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c3, c1)	252	65535	1	Y	0	39	8
+LEAST(c3, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c3, c2)	252	65535	1	Y	0	39	8
+LEAST(c3, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c3, c3)	252	65535	1	Y	0	39	8
+LEAST(c3, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c3, c4)	250	16777215	1	Y	0	39	8
+LEAST(c3, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c3, c5)	251	4294967295	1	Y	0	39	8
+LEAST(c3, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c3, c6)	5	23	1	Y	32896	31	63
+LEAST(c3, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c3, c7)	252	65535	1	Y	0	39	8
+LEAST(c3, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c4, c0)	250	16777215	1	Y	0	39	8
+LEAST(c4, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c4, c1)	250	16777215	1	Y	0	39	8
+LEAST(c4, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c4, c2)	250	16777215	1	Y	0	39	8
+LEAST(c4, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c4, c3)	250	16777215	1	Y	0	39	8
+LEAST(c4, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c4, c4)	250	16777215	1	Y	0	39	8
+LEAST(c4, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c4, c5)	251	4294967295	1	Y	0	39	8
+LEAST(c4, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c4, c6)	5	23	1	Y	32896	31	63
+LEAST(c4, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c4, c7)	250	16777215	1	Y	0	39	8
+LEAST(c4, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c5, c0)	251	4294967295	1	Y	0	39	8
+LEAST(c5, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c5, c1)	251	4294967295	1	Y	0	39	8
+LEAST(c5, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c5, c2)	251	4294967295	1	Y	0	39	8
+LEAST(c5, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c5, c3)	251	4294967295	1	Y	0	39	8
+LEAST(c5, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c5, c4)	251	4294967295	1	Y	0	39	8
+LEAST(c5, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c5, c5)	251	4294967295	1	Y	0	39	8
+LEAST(c5, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c5, c6)	5	23	1	Y	32896	31	63
+LEAST(c5, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c5, c7)	251	4294967295	1	Y	0	39	8
+LEAST(c5, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c6, c0)	5	23	1	Y	32896	31	63
+LEAST(c6, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c6, c1)	5	23	1	Y	32896	31	63
+LEAST(c6, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c6, c2)	5	23	1	Y	32896	31	63
+LEAST(c6, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c6, c3)	5	23	1	Y	32896	31	63
+LEAST(c6, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c6, c4)	5	23	1	Y	32896	31	63
+LEAST(c6, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c6, c5)	5	23	1	Y	32896	31	63
+LEAST(c6, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c6, c6)	3	11	1	Y	32896	0	63
+LEAST(c6, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c6, c7)	5	17	1	Y	32896	0	63
+LEAST(c6, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c7, c0)	254	30	1	Y	0	39	8
+LEAST(c7, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c7, c1)	253	30	1	Y	0	39	8
+LEAST(c7, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c7, c2)	249	255	1	Y	0	39	8
+LEAST(c7, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c7, c3)	252	65535	1	Y	0	39	8
+LEAST(c7, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c7, c4)	250	16777215	1	Y	0	39	8
+LEAST(c7, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c7, c5)	251	4294967295	1	Y	0	39	8
+LEAST(c7, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c7, c6)	5	17	1	Y	32896	0	63
+LEAST(c7, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c7, c7)	254	1	1	Y	0	39	8
+LEAST(c7, c7)
+1
+CALL p1('t1', 'colt1+colt2');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0+c0	5	23	1	Y	32896	31	63
+c0+c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0+c1	5	23	1	Y	32896	31	63
+c0+c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0+c2	5	23	1	Y	32896	31	63
+c0+c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0+c3	5	23	1	Y	32896	31	63
+c0+c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0+c4	5	23	1	Y	32896	31	63
+c0+c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0+c5	5	23	1	Y	32896	31	63
+c0+c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0+c6	5	23	1	Y	32896	31	63
+c0+c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0+c7	5	23	1	Y	32896	31	63
+c0+c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1+c0	5	23	1	Y	32896	31	63
+c1+c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1+c1	5	23	1	Y	32896	31	63
+c1+c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1+c2	5	23	1	Y	32896	31	63
+c1+c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1+c3	5	23	1	Y	32896	31	63
+c1+c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1+c4	5	23	1	Y	32896	31	63
+c1+c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1+c5	5	23	1	Y	32896	31	63
+c1+c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1+c6	5	23	1	Y	32896	31	63
+c1+c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1+c7	5	23	1	Y	32896	31	63
+c1+c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c2+c0	5	23	1	Y	32896	31	63
+c2+c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c2+c1	5	23	1	Y	32896	31	63
+c2+c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c2+c2	5	23	1	Y	32896	31	63
+c2+c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c2+c3	5	23	1	Y	32896	31	63
+c2+c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c2+c4	5	23	1	Y	32896	31	63
+c2+c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c2+c5	5	23	1	Y	32896	31	63
+c2+c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c2+c6	5	23	1	Y	32896	31	63
+c2+c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c2+c7	5	23	1	Y	32896	31	63
+c2+c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c3+c0	5	23	1	Y	32896	31	63
+c3+c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c3+c1	5	23	1	Y	32896	31	63
+c3+c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c3+c2	5	23	1	Y	32896	31	63
+c3+c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c3+c3	5	23	1	Y	32896	31	63
+c3+c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c3+c4	5	23	1	Y	32896	31	63
+c3+c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c3+c5	5	23	1	Y	32896	31	63
+c3+c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c3+c6	5	23	1	Y	32896	31	63
+c3+c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c3+c7	5	23	1	Y	32896	31	63
+c3+c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c4+c0	5	23	1	Y	32896	31	63
+c4+c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c4+c1	5	23	1	Y	32896	31	63
+c4+c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c4+c2	5	23	1	Y	32896	31	63
+c4+c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c4+c3	5	23	1	Y	32896	31	63
+c4+c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c4+c4	5	23	1	Y	32896	31	63
+c4+c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c4+c5	5	23	1	Y	32896	31	63
+c4+c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c4+c6	5	23	1	Y	32896	31	63
+c4+c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c4+c7	5	23	1	Y	32896	31	63
+c4+c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c5+c0	5	23	1	Y	32896	31	63
+c5+c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c5+c1	5	23	1	Y	32896	31	63
+c5+c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c5+c2	5	23	1	Y	32896	31	63
+c5+c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c5+c3	5	23	1	Y	32896	31	63
+c5+c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c5+c4	5	23	1	Y	32896	31	63
+c5+c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c5+c5	5	23	1	Y	32896	31	63
+c5+c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c5+c6	5	23	1	Y	32896	31	63
+c5+c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c5+c7	5	23	1	Y	32896	31	63
+c5+c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c6+c0	5	23	1	Y	32896	31	63
+c6+c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c6+c1	5	23	1	Y	32896	31	63
+c6+c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c6+c2	5	23	1	Y	32896	31	63
+c6+c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c6+c3	5	23	1	Y	32896	31	63
+c6+c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c6+c4	5	23	1	Y	32896	31	63
+c6+c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c6+c5	5	23	1	Y	32896	31	63
+c6+c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c6+c6	8	12	1	Y	32896	0	63
+c6+c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c6+c7	8	12	1	Y	32896	0	63
+c6+c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c7+c0	5	23	1	Y	32896	31	63
+c7+c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c7+c1	5	23	1	Y	32896	31	63
+c7+c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c7+c2	5	23	1	Y	32896	31	63
+c7+c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c7+c3	5	23	1	Y	32896	31	63
+c7+c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c7+c4	5	23	1	Y	32896	31	63
+c7+c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c7+c5	5	23	1	Y	32896	31	63
+c7+c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c7+c6	8	12	1	Y	32896	0	63
+c7+c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c7+c7	3	3	1	Y	32896	0	63
+c7+c7
+2
+CALL p1('t1c', 'COALESCE(colt1, colt2)');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c0, c0)	254 (format=json)	30	1	Y	0	39	8
+COALESCE(c0, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c0, c1)	253 (format=json)	31	1	Y	0	39	8
+COALESCE(c0, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c0, c2)	249 (format=json)	255	1	Y	0	39	8
+COALESCE(c0, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c0, c3)	252 (format=json)	65535	1	Y	0	39	8
+COALESCE(c0, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c0, c4)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c0, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c0, c5)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c0, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c0, c6)	254	30	1	Y	0	39	8
+COALESCE(c0, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c0, c7)	254	30	1	Y	0	39	8
+COALESCE(c0, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c1, c0)	253 (format=json)	31	1	Y	0	39	8
+COALESCE(c1, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c1, c1)	253 (format=json)	31	1	Y	0	39	8
+COALESCE(c1, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c1, c2)	249 (format=json)	255	1	Y	0	39	8
+COALESCE(c1, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c1, c3)	252 (format=json)	65535	1	Y	0	39	8
+COALESCE(c1, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c1, c4)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c1, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c1, c5)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c1, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c1, c6)	253	31	1	Y	0	39	8
+COALESCE(c1, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c1, c7)	253	31	1	Y	0	39	8
+COALESCE(c1, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c2, c0)	249 (format=json)	255	1	Y	0	39	8
+COALESCE(c2, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c2, c1)	249 (format=json)	255	1	Y	0	39	8
+COALESCE(c2, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c2, c2)	249 (format=json)	255	1	Y	0	39	8
+COALESCE(c2, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c2, c3)	252 (format=json)	65535	1	Y	0	39	8
+COALESCE(c2, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c2, c4)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c2, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c2, c5)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c2, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c2, c6)	249	255	1	Y	0	39	8
+COALESCE(c2, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c2, c7)	249	255	1	Y	0	39	8
+COALESCE(c2, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c3, c0)	252 (format=json)	65535	1	Y	0	39	8
+COALESCE(c3, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c3, c1)	252 (format=json)	65535	1	Y	0	39	8
+COALESCE(c3, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c3, c2)	252 (format=json)	65535	1	Y	0	39	8
+COALESCE(c3, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c3, c3)	252 (format=json)	65535	1	Y	0	39	8
+COALESCE(c3, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c3, c4)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c3, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c3, c5)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c3, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c3, c6)	252	65535	1	Y	0	39	8
+COALESCE(c3, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c3, c7)	252	65535	1	Y	0	39	8
+COALESCE(c3, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c4, c0)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c4, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c4, c1)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c4, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c4, c2)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c4, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c4, c3)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c4, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c4, c4)	250 (format=json)	16777215	1	Y	0	39	8
+COALESCE(c4, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c4, c5)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c4, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c4, c6)	250	16777215	1	Y	0	39	8
+COALESCE(c4, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c4, c7)	250	16777215	1	Y	0	39	8
+COALESCE(c4, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c5, c0)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c5, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c5, c1)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c5, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c5, c2)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c5, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c5, c3)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c5, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c5, c4)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c5, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c5, c5)	251 (format=json)	4294967295	1	Y	0	39	8
+COALESCE(c5, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c5, c6)	251	4294967295	1	Y	0	39	8
+COALESCE(c5, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c5, c7)	251	4294967295	1	Y	0	39	8
+COALESCE(c5, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c6, c0)	254	30	1	Y	0	39	8
+COALESCE(c6, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c6, c1)	253	31	1	Y	0	39	8
+COALESCE(c6, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c6, c2)	249	255	1	Y	0	39	8
+COALESCE(c6, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c6, c3)	252	65535	1	Y	0	39	8
+COALESCE(c6, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c6, c4)	250	16777215	1	Y	0	39	8
+COALESCE(c6, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c6, c5)	251	4294967295	1	Y	0	39	8
+COALESCE(c6, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c6, c6)	3	11	1	Y	32896	0	63
+COALESCE(c6, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c6, c7)	254	11	1	Y	0	39	8
+COALESCE(c6, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c7, c0)	254	30	1	Y	0	39	8
+COALESCE(c7, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c7, c1)	253	31	1	Y	0	39	8
+COALESCE(c7, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c7, c2)	249	255	1	Y	0	39	8
+COALESCE(c7, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c7, c3)	252	65535	1	Y	0	39	8
+COALESCE(c7, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c7, c4)	250	16777215	1	Y	0	39	8
+COALESCE(c7, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c7, c5)	251	4294967295	1	Y	0	39	8
+COALESCE(c7, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c7, c6)	254	11	1	Y	0	39	8
+COALESCE(c7, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c7, c7)	254	1	1	Y	0	39	8
+COALESCE(c7, c7)
+1
+CALL p1('t1c', 'LEAST(colt1, colt2)');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c0, c0)	254	30	1	Y	0	39	8
+LEAST(c0, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c0, c1)	253	31	1	Y	0	39	8
+LEAST(c0, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c0, c2)	249	255	1	Y	0	39	8
+LEAST(c0, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c0, c3)	252	65535	1	Y	0	39	8
+LEAST(c0, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c0, c4)	250	16777215	1	Y	0	39	8
+LEAST(c0, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c0, c5)	251	4294967295	1	Y	0	39	8
+LEAST(c0, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c0, c6)	5	23	1	Y	32896	31	63
+LEAST(c0, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c0, c7)	254	30	1	Y	0	39	8
+LEAST(c0, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c1, c0)	253	31	1	Y	0	39	8
+LEAST(c1, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c1, c1)	253	31	1	Y	0	39	8
+LEAST(c1, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c1, c2)	249	255	1	Y	0	39	8
+LEAST(c1, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c1, c3)	252	65535	1	Y	0	39	8
+LEAST(c1, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c1, c4)	250	16777215	1	Y	0	39	8
+LEAST(c1, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c1, c5)	251	4294967295	1	Y	0	39	8
+LEAST(c1, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c1, c6)	5	23	1	Y	32896	31	63
+LEAST(c1, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c1, c7)	253	31	1	Y	0	39	8
+LEAST(c1, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c2, c0)	249	255	1	Y	0	39	8
+LEAST(c2, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c2, c1)	249	255	1	Y	0	39	8
+LEAST(c2, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c2, c2)	249	255	1	Y	0	39	8
+LEAST(c2, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c2, c3)	252	65535	1	Y	0	39	8
+LEAST(c2, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c2, c4)	250	16777215	1	Y	0	39	8
+LEAST(c2, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c2, c5)	251	4294967295	1	Y	0	39	8
+LEAST(c2, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c2, c6)	5	23	1	Y	32896	31	63
+LEAST(c2, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c2, c7)	249	255	1	Y	0	39	8
+LEAST(c2, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c3, c0)	252	65535	1	Y	0	39	8
+LEAST(c3, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c3, c1)	252	65535	1	Y	0	39	8
+LEAST(c3, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c3, c2)	252	65535	1	Y	0	39	8
+LEAST(c3, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c3, c3)	252	65535	1	Y	0	39	8
+LEAST(c3, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c3, c4)	250	16777215	1	Y	0	39	8
+LEAST(c3, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c3, c5)	251	4294967295	1	Y	0	39	8
+LEAST(c3, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c3, c6)	5	23	1	Y	32896	31	63
+LEAST(c3, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c3, c7)	252	65535	1	Y	0	39	8
+LEAST(c3, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c4, c0)	250	16777215	1	Y	0	39	8
+LEAST(c4, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c4, c1)	250	16777215	1	Y	0	39	8
+LEAST(c4, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c4, c2)	250	16777215	1	Y	0	39	8
+LEAST(c4, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c4, c3)	250	16777215	1	Y	0	39	8
+LEAST(c4, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c4, c4)	250	16777215	1	Y	0	39	8
+LEAST(c4, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c4, c5)	251	4294967295	1	Y	0	39	8
+LEAST(c4, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c4, c6)	5	23	1	Y	32896	31	63
+LEAST(c4, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c4, c7)	250	16777215	1	Y	0	39	8
+LEAST(c4, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c5, c0)	251	4294967295	1	Y	0	39	8
+LEAST(c5, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c5, c1)	251	4294967295	1	Y	0	39	8
+LEAST(c5, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c5, c2)	251	4294967295	1	Y	0	39	8
+LEAST(c5, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c5, c3)	251	4294967295	1	Y	0	39	8
+LEAST(c5, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c5, c4)	251	4294967295	1	Y	0	39	8
+LEAST(c5, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c5, c5)	251	4294967295	1	Y	0	39	8
+LEAST(c5, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c5, c6)	5	23	1	Y	32896	31	63
+LEAST(c5, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c5, c7)	251	4294967295	1	Y	0	39	8
+LEAST(c5, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c6, c0)	5	23	1	Y	32896	31	63
+LEAST(c6, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c6, c1)	5	23	1	Y	32896	31	63
+LEAST(c6, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c6, c2)	5	23	1	Y	32896	31	63
+LEAST(c6, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c6, c3)	5	23	1	Y	32896	31	63
+LEAST(c6, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c6, c4)	5	23	1	Y	32896	31	63
+LEAST(c6, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c6, c5)	5	23	1	Y	32896	31	63
+LEAST(c6, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c6, c6)	3	11	1	Y	32896	0	63
+LEAST(c6, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c6, c7)	5	17	1	Y	32896	0	63
+LEAST(c6, c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c7, c0)	254	30	1	Y	0	39	8
+LEAST(c7, c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c7, c1)	253	31	1	Y	0	39	8
+LEAST(c7, c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c7, c2)	249	255	1	Y	0	39	8
+LEAST(c7, c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c7, c3)	252	65535	1	Y	0	39	8
+LEAST(c7, c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c7, c4)	250	16777215	1	Y	0	39	8
+LEAST(c7, c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c7, c5)	251	4294967295	1	Y	0	39	8
+LEAST(c7, c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c7, c6)	5	17	1	Y	32896	0	63
+LEAST(c7, c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(c7, c7)	254	1	1	Y	0	39	8
+LEAST(c7, c7)
+1
+CALL p1('t1c', 'colt1+colt2');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0+c0	5	23	1	Y	32896	31	63
+c0+c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0+c1	5	23	1	Y	32896	31	63
+c0+c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0+c2	5	23	1	Y	32896	31	63
+c0+c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0+c3	5	23	1	Y	32896	31	63
+c0+c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0+c4	5	23	1	Y	32896	31	63
+c0+c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0+c5	5	23	1	Y	32896	31	63
+c0+c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0+c6	5	23	1	Y	32896	31	63
+c0+c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0+c7	5	23	1	Y	32896	31	63
+c0+c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1+c0	5	23	1	Y	32896	31	63
+c1+c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1+c1	5	23	1	Y	32896	31	63
+c1+c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1+c2	5	23	1	Y	32896	31	63
+c1+c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1+c3	5	23	1	Y	32896	31	63
+c1+c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1+c4	5	23	1	Y	32896	31	63
+c1+c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1+c5	5	23	1	Y	32896	31	63
+c1+c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1+c6	5	23	1	Y	32896	31	63
+c1+c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1+c7	5	23	1	Y	32896	31	63
+c1+c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c2+c0	5	23	1	Y	32896	31	63
+c2+c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c2+c1	5	23	1	Y	32896	31	63
+c2+c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c2+c2	5	23	1	Y	32896	31	63
+c2+c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c2+c3	5	23	1	Y	32896	31	63
+c2+c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c2+c4	5	23	1	Y	32896	31	63
+c2+c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c2+c5	5	23	1	Y	32896	31	63
+c2+c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c2+c6	5	23	1	Y	32896	31	63
+c2+c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c2+c7	5	23	1	Y	32896	31	63
+c2+c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c3+c0	5	23	1	Y	32896	31	63
+c3+c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c3+c1	5	23	1	Y	32896	31	63
+c3+c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c3+c2	5	23	1	Y	32896	31	63
+c3+c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c3+c3	5	23	1	Y	32896	31	63
+c3+c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c3+c4	5	23	1	Y	32896	31	63
+c3+c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c3+c5	5	23	1	Y	32896	31	63
+c3+c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c3+c6	5	23	1	Y	32896	31	63
+c3+c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c3+c7	5	23	1	Y	32896	31	63
+c3+c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c4+c0	5	23	1	Y	32896	31	63
+c4+c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c4+c1	5	23	1	Y	32896	31	63
+c4+c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c4+c2	5	23	1	Y	32896	31	63
+c4+c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c4+c3	5	23	1	Y	32896	31	63
+c4+c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c4+c4	5	23	1	Y	32896	31	63
+c4+c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c4+c5	5	23	1	Y	32896	31	63
+c4+c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c4+c6	5	23	1	Y	32896	31	63
+c4+c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c4+c7	5	23	1	Y	32896	31	63
+c4+c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c5+c0	5	23	1	Y	32896	31	63
+c5+c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c5+c1	5	23	1	Y	32896	31	63
+c5+c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c5+c2	5	23	1	Y	32896	31	63
+c5+c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c5+c3	5	23	1	Y	32896	31	63
+c5+c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c5+c4	5	23	1	Y	32896	31	63
+c5+c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c5+c5	5	23	1	Y	32896	31	63
+c5+c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c5+c6	5	23	1	Y	32896	31	63
+c5+c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c5+c7	5	23	1	Y	32896	31	63
+c5+c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c6+c0	5	23	1	Y	32896	31	63
+c6+c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c6+c1	5	23	1	Y	32896	31	63
+c6+c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c6+c2	5	23	1	Y	32896	31	63
+c6+c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c6+c3	5	23	1	Y	32896	31	63
+c6+c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c6+c4	5	23	1	Y	32896	31	63
+c6+c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c6+c5	5	23	1	Y	32896	31	63
+c6+c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c6+c6	8	12	1	Y	32896	0	63
+c6+c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c6+c7	8	12	1	Y	32896	0	63
+c6+c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c7+c0	5	23	1	Y	32896	31	63
+c7+c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c7+c1	5	23	1	Y	32896	31	63
+c7+c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c7+c2	5	23	1	Y	32896	31	63
+c7+c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c7+c3	5	23	1	Y	32896	31	63
+c7+c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c7+c4	5	23	1	Y	32896	31	63
+c7+c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c7+c5	5	23	1	Y	32896	31	63
+c7+c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c7+c6	8	12	1	Y	32896	0	63
+c7+c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c7+c7	3	3	1	Y	32896	0	63
+c7+c7
+2
+CALL p2('COALESCE(t1.colt1, t2.colt2)');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c0, t2.c0)	254	30	1	Y	0	39	8
+COALESCE(t1.c0, t2.c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c0, t2.c1)	253	30	1	Y	0	39	8
+COALESCE(t1.c0, t2.c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c0, t2.c2)	249	255	1	Y	0	39	8
+COALESCE(t1.c0, t2.c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c0, t2.c3)	252	65535	1	Y	0	39	8
+COALESCE(t1.c0, t2.c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c0, t2.c4)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c0, t2.c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c0, t2.c5)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c0, t2.c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c0, t2.c6)	254	30	1	Y	0	39	8
+COALESCE(t1.c0, t2.c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c0, t2.c7)	254	30	1	Y	0	39	8
+COALESCE(t1.c0, t2.c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c0, t2.c8)	254	30	1	Y	0	39	8
+COALESCE(t1.c0, t2.c8)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c0, t2.c9)	254	30	1	Y	0	39	8
+COALESCE(t1.c0, t2.c9)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c0, t2.c10)	254	30	1	Y	0	39	8
+COALESCE(t1.c0, t2.c10)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c0, t2.c11)	254	30	1	Y	0	39	8
+COALESCE(t1.c0, t2.c11)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c0, t2.c12)	254	30	1	Y	0	39	8
+COALESCE(t1.c0, t2.c12)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c1, t2.c0)	253	30	1	Y	0	39	8
+COALESCE(t1.c1, t2.c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c1, t2.c1)	253	30	1	Y	0	39	8
+COALESCE(t1.c1, t2.c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c1, t2.c2)	249	255	1	Y	0	39	8
+COALESCE(t1.c1, t2.c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c1, t2.c3)	252	65535	1	Y	0	39	8
+COALESCE(t1.c1, t2.c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c1, t2.c4)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c1, t2.c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c1, t2.c5)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c1, t2.c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c1, t2.c6)	253	30	1	Y	0	39	8
+COALESCE(t1.c1, t2.c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c1, t2.c7)	253	30	1	Y	0	39	8
+COALESCE(t1.c1, t2.c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c1, t2.c8)	253	30	1	Y	0	39	8
+COALESCE(t1.c1, t2.c8)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c1, t2.c9)	253	30	1	Y	0	39	8
+COALESCE(t1.c1, t2.c9)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c1, t2.c10)	253	30	1	Y	0	39	8
+COALESCE(t1.c1, t2.c10)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c1, t2.c11)	253	30	1	Y	0	39	8
+COALESCE(t1.c1, t2.c11)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c1, t2.c12)	253	30	1	Y	0	39	8
+COALESCE(t1.c1, t2.c12)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c2, t2.c0)	249	255	1	Y	0	39	8
+COALESCE(t1.c2, t2.c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c2, t2.c1)	249	255	1	Y	0	39	8
+COALESCE(t1.c2, t2.c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c2, t2.c2)	249	255	1	Y	0	39	8
+COALESCE(t1.c2, t2.c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c2, t2.c3)	252	65535	1	Y	0	39	8
+COALESCE(t1.c2, t2.c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c2, t2.c4)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c2, t2.c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c2, t2.c5)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c2, t2.c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c2, t2.c6)	249	255	1	Y	0	39	8
+COALESCE(t1.c2, t2.c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c2, t2.c7)	249	255	1	Y	0	39	8
+COALESCE(t1.c2, t2.c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c2, t2.c8)	249	255	1	Y	0	39	8
+COALESCE(t1.c2, t2.c8)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c2, t2.c9)	249	255	1	Y	0	39	8
+COALESCE(t1.c2, t2.c9)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c2, t2.c10)	249	255	1	Y	0	39	8
+COALESCE(t1.c2, t2.c10)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c2, t2.c11)	249	255	1	Y	0	39	8
+COALESCE(t1.c2, t2.c11)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c2, t2.c12)	249	255	1	Y	0	39	8
+COALESCE(t1.c2, t2.c12)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c3, t2.c0)	252	65535	1	Y	0	39	8
+COALESCE(t1.c3, t2.c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c3, t2.c1)	252	65535	1	Y	0	39	8
+COALESCE(t1.c3, t2.c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c3, t2.c2)	252	65535	1	Y	0	39	8
+COALESCE(t1.c3, t2.c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c3, t2.c3)	252	65535	1	Y	0	39	8
+COALESCE(t1.c3, t2.c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c3, t2.c4)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c3, t2.c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c3, t2.c5)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c3, t2.c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c3, t2.c6)	252	65535	1	Y	0	39	8
+COALESCE(t1.c3, t2.c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c3, t2.c7)	252	65535	1	Y	0	39	8
+COALESCE(t1.c3, t2.c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c3, t2.c8)	252	65535	1	Y	0	39	8
+COALESCE(t1.c3, t2.c8)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c3, t2.c9)	252	65535	1	Y	0	39	8
+COALESCE(t1.c3, t2.c9)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c3, t2.c10)	252	65535	1	Y	0	39	8
+COALESCE(t1.c3, t2.c10)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c3, t2.c11)	252	65535	1	Y	0	39	8
+COALESCE(t1.c3, t2.c11)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c3, t2.c12)	252	65535	1	Y	0	39	8
+COALESCE(t1.c3, t2.c12)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c4, t2.c0)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c4, t2.c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c4, t2.c1)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c4, t2.c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c4, t2.c2)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c4, t2.c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c4, t2.c3)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c4, t2.c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c4, t2.c4)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c4, t2.c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c4, t2.c5)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c4, t2.c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c4, t2.c6)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c4, t2.c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c4, t2.c7)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c4, t2.c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c4, t2.c8)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c4, t2.c8)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c4, t2.c9)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c4, t2.c9)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c4, t2.c10)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c4, t2.c10)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c4, t2.c11)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c4, t2.c11)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c4, t2.c12)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c4, t2.c12)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c5, t2.c0)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c5, t2.c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c5, t2.c1)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c5, t2.c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c5, t2.c2)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c5, t2.c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c5, t2.c3)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c5, t2.c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c5, t2.c4)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c5, t2.c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c5, t2.c5)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c5, t2.c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c5, t2.c6)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c5, t2.c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c5, t2.c7)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c5, t2.c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c5, t2.c8)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c5, t2.c8)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c5, t2.c9)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c5, t2.c9)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c5, t2.c10)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c5, t2.c10)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c5, t2.c11)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c5, t2.c11)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c5, t2.c12)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c5, t2.c12)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c6, t2.c0)	254	30	1	Y	0	39	8
+COALESCE(t1.c6, t2.c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c6, t2.c1)	253	30	1	Y	0	39	8
+COALESCE(t1.c6, t2.c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c6, t2.c2)	249	255	1	Y	0	39	8
+COALESCE(t1.c6, t2.c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c6, t2.c3)	252	65535	1	Y	0	39	8
+COALESCE(t1.c6, t2.c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c6, t2.c4)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c6, t2.c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c6, t2.c5)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c6, t2.c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c6, t2.c6)	3	11	1	Y	32896	0	63
+COALESCE(t1.c6, t2.c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c6, t2.c7)	5	22	1	Y	32896	31	63
+COALESCE(t1.c6, t2.c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c6, t2.c8)	246	14	4	Y	32896	2	63
+COALESCE(t1.c6, t2.c8)
+1.00
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c6, t2.c9)	253	11	1	Y	0	39	8
+COALESCE(t1.c6, t2.c9)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c6, t2.c10)	253	11	1	Y	0	39	8
+COALESCE(t1.c6, t2.c10)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c6, t2.c11)	253	19	1	Y	0	39	8
+COALESCE(t1.c6, t2.c11)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c6, t2.c12)	254	11	1	Y	0	39	8
+COALESCE(t1.c6, t2.c12)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c7, t2.c0)	254	30	1	Y	0	39	8
+COALESCE(t1.c7, t2.c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c7, t2.c1)	253	30	1	Y	0	39	8
+COALESCE(t1.c7, t2.c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c7, t2.c2)	249	255	1	Y	0	39	8
+COALESCE(t1.c7, t2.c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c7, t2.c3)	252	65535	1	Y	0	39	8
+COALESCE(t1.c7, t2.c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c7, t2.c4)	250	16777215	1	Y	0	39	8
+COALESCE(t1.c7, t2.c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c7, t2.c5)	251	4294967295	1	Y	0	39	8
+COALESCE(t1.c7, t2.c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c7, t2.c6)	254	11	1	Y	0	39	8
+COALESCE(t1.c7, t2.c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c7, t2.c7)	254	22	1	Y	0	39	8
+COALESCE(t1.c7, t2.c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c7, t2.c8)	254	12	1	Y	0	39	8
+COALESCE(t1.c7, t2.c8)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c7, t2.c9)	254	10	1	Y	0	39	8
+COALESCE(t1.c7, t2.c9)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c7, t2.c10)	254	10	1	Y	0	39	8
+COALESCE(t1.c7, t2.c10)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c7, t2.c11)	254	19	1	Y	0	39	8
+COALESCE(t1.c7, t2.c11)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(t1.c7, t2.c12)	254	1	1	Y	0	39	8
+COALESCE(t1.c7, t2.c12)
+1
+CALL p2('LEAST(t1.colt1, t2.colt2)');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c0, t2.c0)	254	30	1	Y	0	39	8
+LEAST(t1.c0, t2.c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c0, t2.c1)	253	30	1	Y	0	39	8
+LEAST(t1.c0, t2.c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c0, t2.c2)	249	255	1	Y	0	39	8
+LEAST(t1.c0, t2.c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c0, t2.c3)	252	65535	1	Y	0	39	8
+LEAST(t1.c0, t2.c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c0, t2.c4)	250	16777215	1	Y	0	39	8
+LEAST(t1.c0, t2.c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c0, t2.c5)	251	4294967295	1	Y	0	39	8
+LEAST(t1.c0, t2.c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c0, t2.c6)	5	23	1	Y	32896	31	63
+LEAST(t1.c0, t2.c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c0, t2.c7)	5	23	1	Y	32896	31	63
+LEAST(t1.c0, t2.c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c0, t2.c8)	5	23	1	Y	32896	31	63
+LEAST(t1.c0, t2.c8)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c0, t2.c9)	11	17	15	Y	128	6	63
+LEAST(t1.c0, t2.c9)
+00:00:01.000000
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c0, t2.c10)	10	10	10	Y	128	0	63
+LEAST(t1.c0, t2.c10)
+0000-00-00
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c0, t2.c11)	12	26	26	Y	128	6	63
+LEAST(t1.c0, t2.c11)
+0000-00-00 00:00:00.000000
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c0, t2.c12)	254	30	1	Y	0	39	8
+LEAST(t1.c0, t2.c12)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c1, t2.c0)	253	30	1	Y	0	39	8
+LEAST(t1.c1, t2.c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c1, t2.c1)	253	30	1	Y	0	39	8
+LEAST(t1.c1, t2.c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c1, t2.c2)	249	255	1	Y	0	39	8
+LEAST(t1.c1, t2.c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c1, t2.c3)	252	65535	1	Y	0	39	8
+LEAST(t1.c1, t2.c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c1, t2.c4)	250	16777215	1	Y	0	39	8
+LEAST(t1.c1, t2.c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c1, t2.c5)	251	4294967295	1	Y	0	39	8
+LEAST(t1.c1, t2.c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c1, t2.c6)	5	23	1	Y	32896	31	63
+LEAST(t1.c1, t2.c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c1, t2.c7)	5	23	1	Y	32896	31	63
+LEAST(t1.c1, t2.c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c1, t2.c8)	5	23	1	Y	32896	31	63
+LEAST(t1.c1, t2.c8)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c1, t2.c9)	11	17	15	Y	128	6	63
+LEAST(t1.c1, t2.c9)
+00:00:01.000000
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c1, t2.c10)	10	10	10	Y	128	0	63
+LEAST(t1.c1, t2.c10)
+0000-00-00
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c1, t2.c11)	12	26	26	Y	128	6	63
+LEAST(t1.c1, t2.c11)
+0000-00-00 00:00:00.000000
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c1, t2.c12)	253	30	1	Y	0	39	8
+LEAST(t1.c1, t2.c12)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c2, t2.c0)	249	255	1	Y	0	39	8
+LEAST(t1.c2, t2.c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c2, t2.c1)	249	255	1	Y	0	39	8
+LEAST(t1.c2, t2.c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c2, t2.c2)	249	255	1	Y	0	39	8
+LEAST(t1.c2, t2.c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c2, t2.c3)	252	65535	1	Y	0	39	8
+LEAST(t1.c2, t2.c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c2, t2.c4)	250	16777215	1	Y	0	39	8
+LEAST(t1.c2, t2.c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c2, t2.c5)	251	4294967295	1	Y	0	39	8
+LEAST(t1.c2, t2.c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c2, t2.c6)	5	23	1	Y	32896	31	63
+LEAST(t1.c2, t2.c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c2, t2.c7)	5	23	1	Y	32896	31	63
+LEAST(t1.c2, t2.c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c2, t2.c8)	5	23	1	Y	32896	31	63
+LEAST(t1.c2, t2.c8)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c2, t2.c9)	11	17	15	Y	128	6	63
+LEAST(t1.c2, t2.c9)
+00:00:01.000000
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c2, t2.c10)	10	10	10	Y	128	0	63
+LEAST(t1.c2, t2.c10)
+0000-00-00
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c2, t2.c11)	12	26	26	Y	128	6	63
+LEAST(t1.c2, t2.c11)
+0000-00-00 00:00:00.000000
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c2, t2.c12)	249	255	1	Y	0	39	8
+LEAST(t1.c2, t2.c12)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c3, t2.c0)	252	65535	1	Y	0	39	8
+LEAST(t1.c3, t2.c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c3, t2.c1)	252	65535	1	Y	0	39	8
+LEAST(t1.c3, t2.c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c3, t2.c2)	252	65535	1	Y	0	39	8
+LEAST(t1.c3, t2.c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c3, t2.c3)	252	65535	1	Y	0	39	8
+LEAST(t1.c3, t2.c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c3, t2.c4)	250	16777215	1	Y	0	39	8
+LEAST(t1.c3, t2.c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c3, t2.c5)	251	4294967295	1	Y	0	39	8
+LEAST(t1.c3, t2.c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c3, t2.c6)	5	23	1	Y	32896	31	63
+LEAST(t1.c3, t2.c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c3, t2.c7)	5	23	1	Y	32896	31	63
+LEAST(t1.c3, t2.c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c3, t2.c8)	5	23	1	Y	32896	31	63
+LEAST(t1.c3, t2.c8)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c3, t2.c9)	11	17	15	Y	128	6	63
+LEAST(t1.c3, t2.c9)
+00:00:01.000000
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c3, t2.c10)	10	10	10	Y	128	0	63
+LEAST(t1.c3, t2.c10)
+0000-00-00
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c3, t2.c11)	12	26	26	Y	128	6	63
+LEAST(t1.c3, t2.c11)
+0000-00-00 00:00:00.000000
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c3, t2.c12)	252	65535	1	Y	0	39	8
+LEAST(t1.c3, t2.c12)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c4, t2.c0)	250	16777215	1	Y	0	39	8
+LEAST(t1.c4, t2.c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c4, t2.c1)	250	16777215	1	Y	0	39	8
+LEAST(t1.c4, t2.c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c4, t2.c2)	250	16777215	1	Y	0	39	8
+LEAST(t1.c4, t2.c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c4, t2.c3)	250	16777215	1	Y	0	39	8
+LEAST(t1.c4, t2.c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c4, t2.c4)	250	16777215	1	Y	0	39	8
+LEAST(t1.c4, t2.c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c4, t2.c5)	251	4294967295	1	Y	0	39	8
+LEAST(t1.c4, t2.c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c4, t2.c6)	5	23	1	Y	32896	31	63
+LEAST(t1.c4, t2.c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c4, t2.c7)	5	23	1	Y	32896	31	63
+LEAST(t1.c4, t2.c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c4, t2.c8)	5	23	1	Y	32896	31	63
+LEAST(t1.c4, t2.c8)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c4, t2.c9)	11	17	15	Y	128	6	63
+LEAST(t1.c4, t2.c9)
+00:00:01.000000
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c4, t2.c10)	10	10	10	Y	128	0	63
+LEAST(t1.c4, t2.c10)
+0000-00-00
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c4, t2.c11)	12	26	26	Y	128	6	63
+LEAST(t1.c4, t2.c11)
+0000-00-00 00:00:00.000000
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c4, t2.c12)	250	16777215	1	Y	0	39	8
+LEAST(t1.c4, t2.c12)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c5, t2.c0)	251	4294967295	1	Y	0	39	8
+LEAST(t1.c5, t2.c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c5, t2.c1)	251	4294967295	1	Y	0	39	8
+LEAST(t1.c5, t2.c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c5, t2.c2)	251	4294967295	1	Y	0	39	8
+LEAST(t1.c5, t2.c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c5, t2.c3)	251	4294967295	1	Y	0	39	8
+LEAST(t1.c5, t2.c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c5, t2.c4)	251	4294967295	1	Y	0	39	8
+LEAST(t1.c5, t2.c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c5, t2.c5)	251	4294967295	1	Y	0	39	8
+LEAST(t1.c5, t2.c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c5, t2.c6)	5	23	1	Y	32896	31	63
+LEAST(t1.c5, t2.c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c5, t2.c7)	5	23	1	Y	32896	31	63
+LEAST(t1.c5, t2.c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c5, t2.c8)	5	23	1	Y	32896	31	63
+LEAST(t1.c5, t2.c8)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c5, t2.c9)	11	17	15	Y	128	6	63
+LEAST(t1.c5, t2.c9)
+00:00:01.000000
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c5, t2.c10)	10	10	10	Y	128	0	63
+LEAST(t1.c5, t2.c10)
+0000-00-00
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c5, t2.c11)	12	26	26	Y	128	6	63
+LEAST(t1.c5, t2.c11)
+0000-00-00 00:00:00.000000
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c5, t2.c12)	251	4294967295	1	Y	0	39	8
+LEAST(t1.c5, t2.c12)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c6, t2.c0)	5	23	1	Y	32896	31	63
+LEAST(t1.c6, t2.c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c6, t2.c1)	5	23	1	Y	32896	31	63
+LEAST(t1.c6, t2.c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c6, t2.c2)	5	23	1	Y	32896	31	63
+LEAST(t1.c6, t2.c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c6, t2.c3)	5	23	1	Y	32896	31	63
+LEAST(t1.c6, t2.c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c6, t2.c4)	5	23	1	Y	32896	31	63
+LEAST(t1.c6, t2.c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c6, t2.c5)	5	23	1	Y	32896	31	63
+LEAST(t1.c6, t2.c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c6, t2.c6)	3	11	1	Y	32896	0	63
+LEAST(t1.c6, t2.c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c6, t2.c7)	5	23	1	Y	32896	31	63
+LEAST(t1.c6, t2.c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c6, t2.c8)	246	14	4	Y	32896	2	63
+LEAST(t1.c6, t2.c8)
+1.00
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c6, t2.c9)	11	10	8	Y	128	0	63
+LEAST(t1.c6, t2.c9)
+00:00:01
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c6, t2.c10)	10	10	10	Y	128	0	63
+LEAST(t1.c6, t2.c10)
+0000-00-00
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c6, t2.c11)	12	19	19	Y	128	0	63
+LEAST(t1.c6, t2.c11)
+0000-00-00 00:00:00
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c6, t2.c12)	5	17	1	Y	32896	0	63
+LEAST(t1.c6, t2.c12)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c7, t2.c0)	254	30	1	Y	0	39	8
+LEAST(t1.c7, t2.c0)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c7, t2.c1)	253	30	1	Y	0	39	8
+LEAST(t1.c7, t2.c1)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c7, t2.c2)	249	255	1	Y	0	39	8
+LEAST(t1.c7, t2.c2)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c7, t2.c3)	252	65535	1	Y	0	39	8
+LEAST(t1.c7, t2.c3)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c7, t2.c4)	250	16777215	1	Y	0	39	8
+LEAST(t1.c7, t2.c4)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c7, t2.c5)	251	4294967295	1	Y	0	39	8
+LEAST(t1.c7, t2.c5)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c7, t2.c6)	5	17	1	Y	32896	0	63
+LEAST(t1.c7, t2.c6)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c7, t2.c7)	5	23	1	Y	32896	31	63
+LEAST(t1.c7, t2.c7)
+1
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c7, t2.c8)	5	19	4	Y	32896	2	63
+LEAST(t1.c7, t2.c8)
+1.00
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c7, t2.c9)	11	10	8	Y	128	0	63
+LEAST(t1.c7, t2.c9)
+00:00:01
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c7, t2.c10)	10	10	10	Y	128	0	63
+LEAST(t1.c7, t2.c10)
+0000-00-00
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c7, t2.c11)	12	19	19	Y	128	0	63
+LEAST(t1.c7, t2.c11)
+0000-00-00 00:00:00
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(t1.c7, t2.c12)	254	1	1	Y	0	39	8
+LEAST(t1.c7, t2.c12)
+1
+CALL p2('t1.colt1+t2.colt2');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c0+t2.c0	5	23	1	Y	32896	31	63
+t1.c0+t2.c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c0+t2.c1	5	23	1	Y	32896	31	63
+t1.c0+t2.c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c0+t2.c2	5	23	1	Y	32896	31	63
+t1.c0+t2.c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c0+t2.c3	5	23	1	Y	32896	31	63
+t1.c0+t2.c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c0+t2.c4	5	23	1	Y	32896	31	63
+t1.c0+t2.c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c0+t2.c5	5	23	1	Y	32896	31	63
+t1.c0+t2.c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c0+t2.c6	5	23	1	Y	32896	31	63
+t1.c0+t2.c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c0+t2.c7	5	23	1	Y	32896	31	63
+t1.c0+t2.c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c0+t2.c8	5	23	4	Y	32896	31	63
+t1.c0+t2.c8
+2.23
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c0+t2.c9	5	23	6	Y	32896	31	63
+t1.c0+t2.c9
+102031
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c0+t2.c10	5	23	8	Y	32896	31	63
+t1.c0+t2.c10
+20010102
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c0+t2.c11	5	23	14	Y	32896	31	63
+t1.c0+t2.c11
+20010101102031
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c0+t2.c12	5	23	1	Y	32896	31	63
+t1.c0+t2.c12
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c1+t2.c0	5	23	1	Y	32896	31	63
+t1.c1+t2.c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c1+t2.c1	5	23	1	Y	32896	31	63
+t1.c1+t2.c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c1+t2.c2	5	23	1	Y	32896	31	63
+t1.c1+t2.c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c1+t2.c3	5	23	1	Y	32896	31	63
+t1.c1+t2.c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c1+t2.c4	5	23	1	Y	32896	31	63
+t1.c1+t2.c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c1+t2.c5	5	23	1	Y	32896	31	63
+t1.c1+t2.c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c1+t2.c6	5	23	1	Y	32896	31	63
+t1.c1+t2.c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c1+t2.c7	5	23	1	Y	32896	31	63
+t1.c1+t2.c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c1+t2.c8	5	23	4	Y	32896	31	63
+t1.c1+t2.c8
+2.23
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c1+t2.c9	5	23	6	Y	32896	31	63
+t1.c1+t2.c9
+102031
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c1+t2.c10	5	23	8	Y	32896	31	63
+t1.c1+t2.c10
+20010102
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c1+t2.c11	5	23	14	Y	32896	31	63
+t1.c1+t2.c11
+20010101102031
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c1+t2.c12	5	23	1	Y	32896	31	63
+t1.c1+t2.c12
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c2+t2.c0	5	23	1	Y	32896	31	63
+t1.c2+t2.c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c2+t2.c1	5	23	1	Y	32896	31	63
+t1.c2+t2.c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c2+t2.c2	5	23	1	Y	32896	31	63
+t1.c2+t2.c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c2+t2.c3	5	23	1	Y	32896	31	63
+t1.c2+t2.c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c2+t2.c4	5	23	1	Y	32896	31	63
+t1.c2+t2.c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c2+t2.c5	5	23	1	Y	32896	31	63
+t1.c2+t2.c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c2+t2.c6	5	23	1	Y	32896	31	63
+t1.c2+t2.c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c2+t2.c7	5	23	1	Y	32896	31	63
+t1.c2+t2.c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c2+t2.c8	5	23	4	Y	32896	31	63
+t1.c2+t2.c8
+2.23
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c2+t2.c9	5	23	6	Y	32896	31	63
+t1.c2+t2.c9
+102031
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c2+t2.c10	5	23	8	Y	32896	31	63
+t1.c2+t2.c10
+20010102
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c2+t2.c11	5	23	14	Y	32896	31	63
+t1.c2+t2.c11
+20010101102031
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c2+t2.c12	5	23	1	Y	32896	31	63
+t1.c2+t2.c12
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c3+t2.c0	5	23	1	Y	32896	31	63
+t1.c3+t2.c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c3+t2.c1	5	23	1	Y	32896	31	63
+t1.c3+t2.c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c3+t2.c2	5	23	1	Y	32896	31	63
+t1.c3+t2.c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c3+t2.c3	5	23	1	Y	32896	31	63
+t1.c3+t2.c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c3+t2.c4	5	23	1	Y	32896	31	63
+t1.c3+t2.c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c3+t2.c5	5	23	1	Y	32896	31	63
+t1.c3+t2.c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c3+t2.c6	5	23	1	Y	32896	31	63
+t1.c3+t2.c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c3+t2.c7	5	23	1	Y	32896	31	63
+t1.c3+t2.c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c3+t2.c8	5	23	4	Y	32896	31	63
+t1.c3+t2.c8
+2.23
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c3+t2.c9	5	23	6	Y	32896	31	63
+t1.c3+t2.c9
+102031
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c3+t2.c10	5	23	8	Y	32896	31	63
+t1.c3+t2.c10
+20010102
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c3+t2.c11	5	23	14	Y	32896	31	63
+t1.c3+t2.c11
+20010101102031
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c3+t2.c12	5	23	1	Y	32896	31	63
+t1.c3+t2.c12
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c4+t2.c0	5	23	1	Y	32896	31	63
+t1.c4+t2.c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c4+t2.c1	5	23	1	Y	32896	31	63
+t1.c4+t2.c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c4+t2.c2	5	23	1	Y	32896	31	63
+t1.c4+t2.c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c4+t2.c3	5	23	1	Y	32896	31	63
+t1.c4+t2.c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c4+t2.c4	5	23	1	Y	32896	31	63
+t1.c4+t2.c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c4+t2.c5	5	23	1	Y	32896	31	63
+t1.c4+t2.c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c4+t2.c6	5	23	1	Y	32896	31	63
+t1.c4+t2.c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c4+t2.c7	5	23	1	Y	32896	31	63
+t1.c4+t2.c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c4+t2.c8	5	23	4	Y	32896	31	63
+t1.c4+t2.c8
+2.23
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c4+t2.c9	5	23	6	Y	32896	31	63
+t1.c4+t2.c9
+102031
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c4+t2.c10	5	23	8	Y	32896	31	63
+t1.c4+t2.c10
+20010102
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c4+t2.c11	5	23	14	Y	32896	31	63
+t1.c4+t2.c11
+20010101102031
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c4+t2.c12	5	23	1	Y	32896	31	63
+t1.c4+t2.c12
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c5+t2.c0	5	23	1	Y	32896	31	63
+t1.c5+t2.c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c5+t2.c1	5	23	1	Y	32896	31	63
+t1.c5+t2.c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c5+t2.c2	5	23	1	Y	32896	31	63
+t1.c5+t2.c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c5+t2.c3	5	23	1	Y	32896	31	63
+t1.c5+t2.c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c5+t2.c4	5	23	1	Y	32896	31	63
+t1.c5+t2.c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c5+t2.c5	5	23	1	Y	32896	31	63
+t1.c5+t2.c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c5+t2.c6	5	23	1	Y	32896	31	63
+t1.c5+t2.c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c5+t2.c7	5	23	1	Y	32896	31	63
+t1.c5+t2.c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c5+t2.c8	5	23	4	Y	32896	31	63
+t1.c5+t2.c8
+2.23
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c5+t2.c9	5	23	6	Y	32896	31	63
+t1.c5+t2.c9
+102031
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c5+t2.c10	5	23	8	Y	32896	31	63
+t1.c5+t2.c10
+20010102
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c5+t2.c11	5	23	14	Y	32896	31	63
+t1.c5+t2.c11
+20010101102031
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c5+t2.c12	5	23	1	Y	32896	31	63
+t1.c5+t2.c12
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c6+t2.c0	5	23	1	Y	32896	31	63
+t1.c6+t2.c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c6+t2.c1	5	23	1	Y	32896	31	63
+t1.c6+t2.c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c6+t2.c2	5	23	1	Y	32896	31	63
+t1.c6+t2.c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c6+t2.c3	5	23	1	Y	32896	31	63
+t1.c6+t2.c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c6+t2.c4	5	23	1	Y	32896	31	63
+t1.c6+t2.c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c6+t2.c5	5	23	1	Y	32896	31	63
+t1.c6+t2.c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c6+t2.c6	8	12	1	Y	32896	0	63
+t1.c6+t2.c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c6+t2.c7	5	23	1	Y	32896	31	63
+t1.c6+t2.c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c6+t2.c8	246	15	4	Y	32896	2	63
+t1.c6+t2.c8
+2.23
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c6+t2.c9	8	12	6	Y	32896	0	63
+t1.c6+t2.c9
+102031
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c6+t2.c10	8	12	8	Y	32896	0	63
+t1.c6+t2.c10
+20010102
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c6+t2.c11	8	16	14	Y	32896	0	63
+t1.c6+t2.c11
+20010101102031
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c6+t2.c12	8	12	1	Y	32896	0	63
+t1.c6+t2.c12
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c7+t2.c0	5	23	1	Y	32896	31	63
+t1.c7+t2.c0
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c7+t2.c1	5	23	1	Y	32896	31	63
+t1.c7+t2.c1
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c7+t2.c2	5	23	1	Y	32896	31	63
+t1.c7+t2.c2
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c7+t2.c3	5	23	1	Y	32896	31	63
+t1.c7+t2.c3
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c7+t2.c4	5	23	1	Y	32896	31	63
+t1.c7+t2.c4
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c7+t2.c5	5	23	1	Y	32896	31	63
+t1.c7+t2.c5
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c7+t2.c6	8	12	1	Y	32896	0	63
+t1.c7+t2.c6
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c7+t2.c7	5	23	1	Y	32896	31	63
+t1.c7+t2.c7
+2
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c7+t2.c8	246	13	4	Y	32896	2	63
+t1.c7+t2.c8
+2.23
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c7+t2.c9	3	9	6	Y	32896	0	63
+t1.c7+t2.c9
+102031
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c7+t2.c10	8	10	8	Y	32896	0	63
+t1.c7+t2.c10
+20010102
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c7+t2.c11	8	16	14	Y	32896	0	63
+t1.c7+t2.c11
+20010101102031
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					t1.c7+t2.c12	3	3	1	Y	32896	0	63
+t1.c7+t2.c12
+2
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1, t1c, t2;
+#
+# End of 10.5 tests
+#

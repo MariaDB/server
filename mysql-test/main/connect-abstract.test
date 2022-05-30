@@ -1,6 +1,9 @@
 --source include/linux.inc
 --source include/not_embedded.inc
 
+let $restart_parameters=--socket=$ABSTRACT_SOCKET
+--source include/kill_mysqld.inc
+--source include/start_mysqld.inc
+
 connect(con1,localhost,root,,test,,$ABSTRACT_SOCKET);
 select 1;
-disconnect con1;

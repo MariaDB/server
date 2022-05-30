@@ -42,10 +42,10 @@ pkey	LEFT(`txt_utf8`, 4)
 2	2345
 connection child2_1;
 SET NAMES utf8;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select t0.`pkey` `pkey`,(left(t0.`txt_utf8` , 4)) `LEFT(``txt_utf8``, 4)` from `auto_test_remote`.`tbl_a` t0 order by `LEFT(``txt_utf8``, 4)` limit 3
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey, txt_utf8 FROM tbl_a ORDER BY pkey;
 pkey	txt_utf8
 0	01234567

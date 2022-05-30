@@ -11,7 +11,7 @@
 #include <mysqld.h>
 #include <mysql.h>
 #include <sql_error.h>
-#include <stdio.h>
+#include <m_string.h>
 
 #include "jsonudf.h"
 
@@ -123,7 +123,7 @@ my_bool JSNX::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
 			p[--n] = 0;
 		} else if (!IsNum(p)) {
 			// Wrong array specification
-			sprintf(g->Message, "Invalid array specification %s", p);
+			snprintf(g->Message, sizeof(g->Message), "Invalid array specification %s", p);
 			return true;
 		} // endif p
 
@@ -1475,16 +1475,16 @@ static PBSON MakeBinResult(PGLOBAL g, UDF_ARGS *args, PJSON top, ulong len, int 
 
 		if ((bsnp->Filename = (char*)args->args[0])) {
 			bsnp->Filename = MakePSZ(g, args, 0);
-			strncpy(bsnp->Msg, bsnp->Filename, BMX);
+			strmake(bsnp->Msg, bsnp->Filename, BMX-1);
 		} else
-			strncpy(bsnp->Msg, "null filename", BMX);
+			strmake(bsnp->Msg, "null filename", BMX-1);
 
 	} else if (IsJson(args, 0) == 3) {
 		PBSON bsp = (PBSON)args->args[0];
 
 		if (bsp->Filename) {
 			bsnp->Filename = bsp->Filename;
-			strncpy(bsnp->Msg, bsp->Filename, BMX);
+			strmake(bsnp->Msg, bsp->Filename, BMX-1);
 			bsnp->Pretty = bsp->Pretty;
 		} else
 			strcpy(bsnp->Msg, "Json Binary item");
@@ -1524,22 +1524,31 @@ static int *GetIntArgPtr(PGLOBAL g, UDF_ARGS *args, uint& n)
 /*********************************************************************************/
 int IsJson(UDF_ARGS *args, uint i, bool b)
 {
-	int n = 0;
+	const char *pat = args->attributes[i];
+	int   n = 0;
+
+	if (*pat == '@') {
+		pat++;
+
+		if (*pat == '\'' || *pat == '"')
+			pat++;
+
+	} // endif pat
 
 	if (i >= args->arg_count || args->arg_type[i] != STRING_RESULT) {
-	} else if (!strnicmp(args->attributes[i], "Json_", 5)) {
+	} else if (!strnicmp(pat, "Json_", 5)) {
 		if (!args->args[i] || strchr("[{ \t\r\n", *args->args[i]))
 			n = 1;					 // arg should be is a json item
 		else
 			n = 2;           // A file name may have been returned
 
-	} else if (!strnicmp(args->attributes[i], "Jbin_", 5)) {
+	} else if (!strnicmp(pat, "Jbin_", 5)) {
 		if (args->lengths[i] == sizeof(BSON))
 			n = 3;					 //	arg is a binary json item
 		else
 			n = 2;           // A file name may have been returned
 
-	} else if (!strnicmp(args->attributes[i], "Jfile_", 6)) {
+	} else if (!strnicmp(pat, "Jfile_", 6)) {
 		n = 2;					   //	arg is a json file name
 	} else if (b) {
 		char   *sap;
@@ -4758,7 +4767,7 @@ char *jbin_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			bsp = NULL;
 
 		if (!bsp && (bsp = JbinAlloc(g, args, initid->max_length, NULL)))
-			strncpy(bsp->Msg, g->Message, BMX);
+			strmake(bsp->Msg, g->Message, BMX-1);
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -4829,7 +4838,7 @@ char *jbin_array_add_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 		} else
 			if ((bsp = JbinAlloc(g, args, initid->max_length, NULL)))
-				strncpy(bsp->Msg, g->Message, BMX);
+				strmake(bsp->Msg, g->Message, BMX-1);
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5051,7 +5060,7 @@ char *jbin_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 		} else
 			if ((bsp = JbinAlloc(g, args, initid->max_length, NULL)))
-				strncpy(bsp->Msg, g->Message, BMX);
+				strmake(bsp->Msg, g->Message, BMX-1);
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5107,7 +5116,7 @@ char *jbin_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 		} else
 			if ((bsp = JbinAlloc(g, args, initid->max_length, NULL)))
-				strncpy(bsp->Msg, g->Message, BMX);
+				strmake(bsp->Msg, g->Message, BMX-1);
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5166,7 +5175,7 @@ char *jbin_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 		} else
 			if ((bsp = JbinAlloc(g, args, initid->max_length, NULL)))
-				strncpy(bsp->Msg, g->Message, BMX);
+				strmake(bsp->Msg, g->Message, BMX-1);
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;

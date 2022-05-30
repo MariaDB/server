@@ -1,5 +1,5 @@
 /*
-      Copyright (c) 2013, 2018, Oracle and/or its affiliates. All rights reserved.
+      Copyright (c) 2013, 2021, Oracle and/or its affiliates.
 
       This program is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License, version 2.0,
@@ -55,10 +55,10 @@ table_replication_applier_status::m_share=
   sizeof(pos_t), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE replication_applier_status("
-  "CHANNEL_NAME VARCHAR(256) collate utf8_general_ci not null,"
-  "SERVICE_STATE ENUM('ON','OFF') not null,"
-  "REMAINING_DELAY INTEGER unsigned,"
-  "COUNT_TRANSACTIONS_RETRIES BIGINT unsigned not null)") },
+  "CHANNEL_NAME VARCHAR(256) collate utf8_general_ci not null comment 'The replication channel name.',"
+  "SERVICE_STATE ENUM('ON','OFF') not null comment 'Shows ON when the replication channel''s applier threads are active or idle, OFF means that the applier threads are not active.',"
+  "REMAINING_DELAY INTEGER unsigned comment 'Seconds the replica needs to wait to reach the desired delay from master.',"
+  "COUNT_TRANSACTIONS_RETRIES BIGINT unsigned not null comment 'The number of retries that were made because the replication SQL thread failed to apply a transaction.')") },
   false  /* perpetual */
 };
 
@@ -187,7 +187,7 @@ int table_replication_applier_status::read_row_values(TABLE *table,
   if (unlikely(! m_row_exists))
     return HA_ERR_RECORD_DELETED;
 
-  DBUG_ASSERT(table->s->null_bytes == 1);
+  assert(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)
@@ -212,7 +212,7 @@ int table_replication_applier_status::read_row_values(TABLE *table,
         set_field_ulonglong(f, m_row.count_transactions_retries);
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }

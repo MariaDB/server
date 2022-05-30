@@ -4,6 +4,7 @@
 
 source include/not_embedded.inc;
 source include/not_windows.inc;
+source include/not_aix.inc;
 
 # All these tests refer to configuration files that do not exist
 

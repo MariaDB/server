@@ -27,6 +27,7 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group-suffi
 --source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=MASTER_LOG_FILE
 --source include/search_pattern_in_file.inc
+--source include/show_xtrabackup_slave_info.inc
 
 rmdir $targetdir;
 
@@ -35,7 +36,9 @@ rmdir $targetdir;
 --echo ########################
 
 --source include/stop_slave.inc
+--disable_warnings
 SET GLOBAL gtid_slave_pos="";
+--enable_warnings
 
 --let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
 --disable_result_log
@@ -47,6 +50,7 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group-suffi
 --source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=MASTER_LOG_FILE
 --source include/search_pattern_in_file.inc
+--source include/show_xtrabackup_slave_info.inc
 
 rmdir $targetdir;
 
@@ -74,6 +78,7 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group-suffi
 --source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=MASTER_LOG_FILE
 --source include/search_pattern_in_file.inc
+--source include/show_xtrabackup_slave_info.inc
 
 rmdir $targetdir;
 

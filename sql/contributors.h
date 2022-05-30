@@ -42,6 +42,8 @@ struct show_table_contributors_st show_table_contributors[]= {
   {"Microsoft", "https://microsoft.com/", "Platinum Sponsor of the MariaDB Foundation"},
   {"MariaDB Corporation", "https://mariadb.com", "Founding member, Platinum Sponsor of the MariaDB Foundation"},
   {"ServiceNow", "https://servicenow.com", "Platinum Sponsor of the MariaDB Foundation"},
+  {"Intel", "https://www.intel.com", "Platinum Sponsor of the MariaDB Foundation"},
+  {"SIT", "https://sit.org", "Platinum Sponsor of the MariaDB Foundation"},
   {"Visma", "https://visma.com", "Gold Sponsor of the MariaDB Foundation"},
   {"DBS", "https://dbs.com", "Gold Sponsor of the MariaDB Foundation"},
   {"IBM", "https://www.ibm.com", "Gold Sponsor of the MariaDB Foundation"},

@@ -1,0 +1,70 @@
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1 (
+ pk INT,
+ f1 VARCHAR(10) NOT NULL,
+ f2 VARCHAR(10) NULL,
+ f3 INT UNSIGNED NULL,
+ KEY (f1),
+ PRIMARY KEY (pk)
+) ENGINE=InnoDB;
+
+CREATE OR REPLACE ALGORITHM=MERGE VIEW v4 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1,'k','g',6),(2,'y','r',0),(3,'t','q',1),(4,'a','r',NULL),(5,'z','t',NULL);
+
+CREATE TABLE t2 (f VARCHAR(10) NULL) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (NULL),('g'),('e'),('g');
+
+CREATE TABLE t3 (
+ f1 VARCHAR(10) NOT NULL,
+ f2 VARCHAR(10) NULL,
+ f3 INT UNSIGNED NULL
+) ENGINE=InnoDB;
+
+INSERT INTO t3 VALUES ('k','n',9),('y','b',8),('m','w',6);
+
+CREATE TABLE t4 (f INT NULL) ENGINE=InnoDB;
+INSERT INTO t4 VALUES (8),(9);
+UPDATE t1 SET t1.pk = -109 WHERE t1.f1 IN ( SELECT 'a' FROM t4 WHERE f >= 1 );
+SET DEBUG_SYNC='now SIGNAL con1_dml';
+
+--connect (con1,localhost,root,,test)
+SET DEBUG_SYNC='now WAIT_FOR con1_dml';
+begin;
+SELECT * FROM t1 for update; # Holds x lock of all records in the table t1
+SET DEBUG_SYNC='now SIGNAL default_dml';
+
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR default_dml';
+--send UPDATE t3 AS alias1 LEFT JOIN t3 AS alias2 ON ( alias1.f1 <> alias1.f2 ) SET alias1.f3 = 59 WHERE ( EXISTS ( SELECT t1.f3 FROM t1 WHERE t1.f1 = alias1.f1 ) ) OR alias2.f1 = 'h'
+# It holds the lock of all record in t3 and tries to acquire record lock for the table  t1.
+
+--connect (con2,localhost,root,,test)
+set debug_sync='now WAIT_FOR default_dml';
+let $wait_condition=
+select count(*) > 0 from information_schema.innodb_lock_waits;
+--source include/wait_condition.inc
+SET DEBUG_SYNC='now SIGNAL con1_dml2';
+disconnect con2;
+
+# Cleanup
+--connection con1
+SET DEBUG_SYNC='now WAIT_FOR con1_dml2';
+UPDATE v4, t1 SET t1.pk = 76 WHERE t1.f2 IN ( SELECT t2.f FROM t2 INNER JOIN t3 );
+# It holds the record lock on table t1 and tries to acquire record lock on t3.
+# leads to deadlock (con1 trx is waiting for default trx and vice versa)
+
+--connection default
+--error ER_LOCK_DEADLOCK
+--reap
+
+connection con1;
+COMMIT;
+disconnect con1;
+
+--connection default
+DROP VIEW v4;
+DROP TABLE t1, t2, t3, t4;
+set debug_sync= reset;

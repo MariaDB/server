@@ -2,6 +2,8 @@
 # Test year
 #
 
+--enable_prepare_warnings
+
 create table t1 (y year,y2 year(2));
 insert into t1 values (0,0),(1999,1999),(2000,2000),(2001,2001),(70,70),(69,69);
 select * from t1;
@@ -372,7 +374,7 @@ SELECT MAX(NULLIF(a, 1970)) AS f FROM t1;
 --enable_ps_protocol
 DROP TABLE t1;
 
-
+--disable_prepare_warnings
 --echo #
 --echo # End of 10.5 tests
 --echo #

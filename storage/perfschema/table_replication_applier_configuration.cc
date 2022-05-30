@@ -1,5 +1,5 @@
 /*
-      Copyright (c) 2013, 2018, Oracle and/or its affiliates. All rights reserved.
+      Copyright (c) 2013, 2021, Oracle and/or its affiliates.
 
       This program is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License, version 2.0,
@@ -52,8 +52,8 @@ table_replication_applier_configuration::m_share=
   sizeof(pos_t), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE replication_applier_configuration("
-  "CHANNEL_NAME VARCHAR(256) collate utf8_general_ci not null,"
-  "DESIRED_DELAY INTEGER not null)") },
+  "CHANNEL_NAME VARCHAR(256) collate utf8_general_ci not null comment 'Replication channel name.',"
+  "DESIRED_DELAY INTEGER not null comment 'Target number of seconds the replica should be delayed to the master.')") },
   false  /* perpetual */
 };
 
@@ -172,7 +172,7 @@ int table_replication_applier_configuration::read_row_values(TABLE *table,
         set_field_ulong(f, static_cast<ulong>(m_row.desired_delay));
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }

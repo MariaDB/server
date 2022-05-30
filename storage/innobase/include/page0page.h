@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -418,8 +418,8 @@ template<bool compressed>
 inline void page_rec_set_n_owned(buf_block_t *block, rec_t *rec, ulint n_owned,
                                  bool comp, mtr_t *mtr)
 {
-  ut_ad(block->frame == page_align(rec));
-  ut_ad(comp == (page_is_comp(block->frame) != 0));
+  ut_ad(block->page.frame == page_align(rec));
+  ut_ad(comp == (page_is_comp(block->page.frame) != 0));
 
   if (page_zip_des_t *page_zip= compressed
       ? buf_block_get_page_zip(block) : nullptr)
@@ -1166,6 +1166,6 @@ page_find_rec_max_not_deleted(
 
 #endif /* !UNIV_INNOCHECKSUM */
 
-#include "page0page.ic"
+#include "page0page.inl"
 
 #endif

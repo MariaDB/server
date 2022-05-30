@@ -17,7 +17,12 @@
 path=`dirname $0`
 . "$path/SETUP.sh"
 
-extra_flags="$pentium64_cflags $debug_cflags -lasan -O -g -fsanitize=address -USAFEMALLOC -UFORCE_INIT_OF_VARS -Wno-uninitialized -Wno-maybe-uninitialized"
+#
+# Enable AddressSanitzer, a fast memory error detector.
+# Detects "Out of bounds" and "use-after-free" memory errors
+#
+
+extra_flags="$pentium64_cflags $debug_cflags -lasan -O -g -fsanitize=address -USAFEMALLOC -UFORCE_INIT_OF_VARS -Wno-uninitialized -Wno-maybe-uninitialized -DMYSQL_SERVER_SUFFIX=-asan-max"
 extra_configs="$pentium_configs $debug_configs $valgrind_configs $max_configs $disable_asan_plugins"
 export LDFLAGS="-ldl"
 

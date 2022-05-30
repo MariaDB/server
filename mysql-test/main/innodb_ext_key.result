@@ -602,6 +602,17 @@ INSERT INTO t3 VALUES
 (89,'text-8008',''),(90,'text-9008',''),(91,'text-9',''),(92,'text-1009',''),
 (93,'text-2009',''),(94,'text-3009',''),(95,'text-4009',''),(96,'text-5009',''),
 (97,'text-6009',''),(98,'text-7009',''),(99,'text-8009',''),(100,'text-9009','');
+ANALYZE TABLE t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'page_restrictions'
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	Warning	Engine-independent statistics are not collected for column 'old_text'
+test.t3	analyze	Warning	Engine-independent statistics are not collected for column 'old_flags'
+test.t3	analyze	status	OK
 EXPLAIN 
 SELECT *  FROM t1, t2 IGNORE INDEX (PRIMARY), t3 
 WHERE page_id=rev_page AND  rev_text_id=old_id  AND page_namespace=4 AND page_title='Sandbox'

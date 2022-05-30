@@ -27,7 +27,7 @@
 #include <mysql_version.h>
 
 #ifndef WEXITSTATUS
-# ifdef __WIN__
+# ifdef _WIN32
 #  define WEXITSTATUS(stat_val) (stat_val)
 # else
 #  define WEXITSTATUS(stat_val) ((unsigned)(stat_val) >> 8)
@@ -101,6 +101,7 @@ enum options_client
   OPT_SSL_CRL, OPT_SSL_CRLPATH,
   OPT_IGNORE_DATA,
   OPT_PRINT_ROW_COUNT, OPT_PRINT_ROW_EVENT_POSITIONS,
+  OPT_CHECK_IF_UPGRADE_NEEDED,
   OPT_SHUTDOWN_WAIT_FOR_SLAVES,
   OPT_COPY_S3_TABLES,
   OPT_PRINT_TABLE_METADATA,

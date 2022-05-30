@@ -1,0 +1,235 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/no_protocol.inc
+
+--echo #
+--echo # MDEV-28263: mariadb-tzinfo-to-sql improve wsrep and binlog cases
+--echo #
+
+--exec mkdir $MYSQLTEST_VARDIR/zoneinfo
+--exec ln -s $MYSQLTEST_VARDIR/zoneinfo $MYSQLTEST_VARDIR/zoneinfo/posix
+--copy_file std_data/zoneinfo/GMT $MYSQLTEST_VARDIR/zoneinfo/GMT
+
+--echo
+--echo # On node_1
+--connection node_1
+
+CREATE TABLE time_zone LIKE mysql.time_zone;
+CREATE TABLE time_zone_name LIKE mysql.time_zone_name;
+CREATE TABLE time_zone_transition LIKE mysql.time_zone_transition;
+CREATE TABLE time_zone_transition_type LIKE mysql.time_zone_transition_type;
+CREATE TABLE time_zone_leap_second LIKE mysql.time_zone_leap_second;
+ALTER TABLE time_zone_name ENGINE=MyISAM;
+ALTER TABLE time_zone_transition_type ENGINE=MyISAM;
+
+SET @save_wsrep_mode=@@WSREP_MODE;
+
+--echo #
+--echo # Run on zoneinfo directory --skip-write-binlog
+--echo #
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog $MYSQLTEST_VARDIR/zoneinfo 2>/dev/null > $MYSQL_TMP_DIR/tz.sql
+
+--echo
+--echo # Apply on node_1
+--echo
+--let $snap_pos= query_get_value(SHOW STATUS LIKE 'binlog_snapshot_position', Value, 1)
+--disable_query_log
+CREATE TEMPORARY TABLE baseline AS
+  SELECT VARIABLE_NAME,VARIABLE_VALUE
+    FROM information_schema.global_status
+    WHERE VARIABLE_NAME IN ('COM_BEGIN', 'COM_INSERT', 'COM_LOCK_TABLES', 'COM_ALTER_TABLE', 'COM_TRUNCATE');
+--source $MYSQL_TMP_DIR/tz.sql
+--enable_query_log
+--let $new_snap_pos= query_get_value(SHOW STATUS LIKE 'binlog_snapshot_position', Value, 1)
+
+if ($snap_pos == $new_snap_pos)
+{
+--echo 'binlog stationary as expected'
+}
+SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@WSREP_ON, @@SQL_LOG_BIN;
+SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
+  FROM information_schema.global_status g
+  JOIN baseline b USING (VARIABLE_NAME)
+  ORDER BY g.VARIABLE_NAME;
+
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+--echo
+--echo # On node_2 (not replicated)
+--echo
+--connection node_2
+
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+--echo
+--echo # Apply on node_1
+--echo
+--connection node_1
+
+SET GLOBAL WSREP_MODE='REPLICATE_ARIA,REPLICATE_MYISAM';
+--disable_query_log
+CREATE OR REPLACE TEMPORARY TABLE baseline AS
+  SELECT VARIABLE_NAME,VARIABLE_VALUE
+    FROM information_schema.global_status
+    WHERE VARIABLE_NAME IN ('COM_BEGIN', 'COM_INSERT', 'COM_LOCK_TABLES', 'COM_ALTER_TABLE', 'COM_TRUNCATE');
+--source $MYSQL_TMP_DIR/tz.sql
+--enable_query_log
+--let $new_snap_pos= query_get_value(SHOW STATUS LIKE 'binlog_snapshot_position', Value, 1)
+
+if ($snap_pos == $new_snap_pos)
+{
+--echo 'binlog stationary as expected'
+}
+SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@WSREP_ON, @@SQL_LOG_BIN;
+SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
+  FROM information_schema.global_status g
+  JOIN baseline b USING (VARIABLE_NAME)
+  ORDER BY g.VARIABLE_NAME;
+
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+--echo
+--echo # On node_2 (not replicated)
+--echo
+--connection node_2
+
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+--echo #
+--echo # Run on zoneinfo directory without --skip-write-binlog
+--echo #
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_TZINFO_TO_SQL $MYSQLTEST_VARDIR/zoneinfo 2>/dev/null > $MYSQL_TMP_DIR/tz.sql
+
+--echo
+--echo # Apply on node_1
+--echo
+--connection node_1
+
+--disable_query_log
+CREATE OR REPLACE TEMPORARY TABLE baseline AS
+  SELECT VARIABLE_NAME,VARIABLE_VALUE
+    FROM information_schema.global_status
+    WHERE VARIABLE_NAME IN ('COM_BEGIN', 'COM_INSERT', 'COM_LOCK_TABLES', 'COM_ALTER_TABLE', 'COM_TRUNCATE');
+--source $MYSQL_TMP_DIR/tz.sql
+--enable_query_log
+--let $new_snap_pos= query_get_value(SHOW STATUS LIKE 'binlog_snapshot_position', Value, 1)
+
+if ($snap_pos < $new_snap_pos)
+{
+--echo 'binlog advanced as expected'
+}
+SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@WSREP_ON, @@SQL_LOG_BIN;
+SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
+  FROM information_schema.global_status g
+  JOIN baseline b USING (VARIABLE_NAME)
+  ORDER BY g.VARIABLE_NAME;
+
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+--echo
+--echo # On node_2 (replicated via ARIA)
+--echo
+--connection node_2
+
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+TRUNCATE TABLE time_zone;
+TRUNCATE TABLE time_zone_name;
+TRUNCATE TABLE time_zone_transition;
+TRUNCATE TABLE time_zone_transition_type;
+TRUNCATE TABLE time_zone_leap_second;
+
+--echo
+--echo # Apply on node_1
+--echo
+--connection node_1
+
+SET GLOBAL WSREP_MODE='';
+--let $snap_pos= query_get_value(SHOW STATUS LIKE 'binlog_snapshot_position', Value, 1)
+--disable_query_log
+CREATE OR REPLACE TEMPORARY TABLE baseline AS
+  SELECT VARIABLE_NAME,VARIABLE_VALUE
+    FROM information_schema.global_status
+    WHERE VARIABLE_NAME IN ('COM_BEGIN', 'COM_INSERT', 'COM_LOCK_TABLES', 'COM_ALTER_TABLE', 'COM_TRUNCATE');
+--source $MYSQL_TMP_DIR/tz.sql
+--enable_query_log
+--let $new_snap_pos= query_get_value(SHOW STATUS LIKE 'binlog_snapshot_position', Value, 1)
+
+if ($snap_pos < $new_snap_pos)
+{
+--echo 'binlog advanced as expected'
+}
+SELECT @wsrep_is_on, @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@WSREP_ON, @@SQL_LOG_BIN;
+SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
+  FROM information_schema.global_status g
+  JOIN baseline b USING (VARIABLE_NAME)
+  ORDER BY g.VARIABLE_NAME;
+
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+SELECT TABLE_NAME, ENGINE FROM information_schema.TABLES
+WHERE
+ TABLE_SCHEMA = DATABASE()
+ AND TABLE_NAME LIKE 'time_zone%' ORDER BY TABLE_NAME;
+
+--echo
+--echo # On node_2 (replicated via InnoDB)
+--echo
+--connection node_2
+
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+#
+# Cleanup
+#
+
+--connection node_1
+--remove_file $MYSQL_TMP_DIR/tz.sql
+--exec rm -rf $MYSQLTEST_VARDIR/zoneinfo
+SET GLOBAL WSREP_MODE=@save_wsrep_mode;
+DROP TABLE baseline;
+DROP TABLE time_zone;
+DROP TABLE time_zone_name;
+DROP TABLE time_zone_transition;
+DROP TABLE time_zone_transition_type;
+DROP TABLE time_zone_leap_second;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

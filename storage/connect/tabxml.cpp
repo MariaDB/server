@@ -12,15 +12,14 @@
 /*  Include required compiler header files.                            */
 /***********************************************************************/
 #include "my_global.h"
-#include <stdio.h>
+#include <m_string.h>
 #include <fcntl.h>
-#include <errno.h>
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <winsock2.h>
 //#include <windows.h>
 #include <comdef.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -28,7 +27,7 @@
 //#include <ctype.h>
 #include "osutil.h"
 #define _O_RDONLY O_RDONLY
-#endif  // !__WIN__
+#endif  // !_WIN32
 #include "resource.h"                        // for IDS_COLUMNS
 
 #define INCLUDE_TDBXML
@@ -53,11 +52,11 @@
 
 extern "C" char version[];
 
-#if defined(__WIN__) && defined(DOMDOC_SUPPORT)
+#if defined(_WIN32) && defined(DOMDOC_SUPPORT)
 #define XMLSUP "MS-DOM"
-#else   // !__WIN__
+#else   // !_WIN32
 #define XMLSUP "libxml2"
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 #define TYPE_UNKNOWN     12        /* Must be greater than other types */
 #define XLEN(M)  sizeof(M) - strlen(M) - 1	       /* To avoid overflow*/
@@ -180,11 +179,11 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
 	tdp->Skip = GetBooleanTableOption(g, topt, "Skipnull", false);
 
   if (!(op = GetStringTableOption(g, topt, "Xmlsup", NULL)))
-#if defined(__WIN__)
+#if defined(_WIN32)
     tdp->Usedom = true;
-#else   // !__WIN__
+#else   // !_WIN32
     tdp->Usedom = false;
-#endif  // !__WIN__
+#endif  // !_WIN32
   else
     tdp->Usedom = (toupper(*op) == 'M' || toupper(*op) == 'D');
 
@@ -252,10 +251,11 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
 
      more:
       if (vp->atp) {
-				size_t z = sizeof(colname) - 1;
-        strncpy(colname, vp->atp->GetName(g), z);
-				colname[z] = 0;
-				strncat(xcol->Name, colname, XLEN(xcol->Name));
+			size_t z = sizeof(colname) - 1;
+                        size_t xlen= strlen(xcol->Name);
+                        strmake(colname, vp->atp->GetName(g), z);
+                        strmake(xcol->Name + xlen, colname,
+                                sizeof(xcol->Name) - 1 - xlen);
 
         switch (vp->atp->GetText(g, buf, sizeof(buf))) {
           case RC_INFO:
@@ -272,11 +272,13 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
           strncat(fmt, colname, XLEN(fmt));
 
       } else {
+        size_t xlen;
         if (tdp->Usedom && node->GetType() != 1)
           continue;
 
-        strncpy(colname, node->GetName(g), sizeof(colname));
-				strncat(xcol->Name, colname, XLEN(xcol->Name));
+        xlen= strlen(xcol->Name);
+        strmake(colname, node->GetName(g), sizeof(colname)-1);
+        strmake(xcol->Name + xlen, colname, sizeof(xcol->Name) - 1 - xlen);
 
         if (j)
           strncat(fmt, colname, XLEN(fmt));
@@ -529,7 +531,7 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   XmlDB = GetStringCatInfo(g, "XmlDB", NULL);
   Nslist = GetStringCatInfo(g, "Nslist", NULL);
   DefNs = GetStringCatInfo(g, "DefNs", NULL);
-  Limit = GetIntCatInfo("Limit", 10);
+  Limit = GetIntCatInfo("Limit", 50);
   Xpand = GetBoolCatInfo("Expand", false);
   Header = GetIntCatInfo("Header", 0);
   GetCharCatInfo("Xmlsup", "*", buf, sizeof(buf));
@@ -537,11 +539,11 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   // Note that if no support is specified, the default is MS-DOM
   // on Windows and libxml2 otherwise
   if (*buf == '*')
-#if defined(__WIN__)
+#if defined(_WIN32)
     Usedom = true;
-#else   // !__WIN__
+#else   // !_WIN32
     Usedom = false;
-#endif  // !__WIN__
+#endif  // !_WIN32
   else
     Usedom = (toupper(*buf) == 'M' || toupper(*buf) == 'D');
 
@@ -974,7 +976,7 @@ bool TDBXML::Initialize(PGLOBAL g)
 
 
 		Docp->SetNofree(true);       // For libxml2
-#if defined(__WIN__)
+#if defined(_WIN32)
 	} catch (_com_error e) {
     // We come here if a DOM command threw an error
     char   buf[128];
@@ -988,7 +990,7 @@ bool TDBXML::Initialize(PGLOBAL g)
       sprintf(g->Message, "%s hr=%x", MSG(COM_ERROR), e.Error());
 
     goto error;
-#endif   // __WIN__
+#endif   // _WIN32
 #if !defined(UNIX)
   } catch(...) {
     // Other errors
@@ -1517,9 +1519,13 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
   if (!mode)
     // Take care of an eventual extra column node a la html
     if (Tdbp->Colname) {
-      sprintf(pbuf, Tdbp->Colname, Rank + ((Tdbp->Usedom) ? 0 : 1));
-      strcat(pbuf, "/");
-      } // endif Colname
+      char *p = strstr(Tdbp->Colname, "%d");
+      if (p)
+        snprintf(pbuf, len + 3, "%.*s%d%s/", (int) (p - Tdbp->Colname), Tdbp->Colname,
+            Rank + (Tdbp->Usedom ? 0 : 1), p + 2);
+      else
+        snprintf(pbuf, len + 3, "%s/", Tdbp->Colname);
+    } // endif Colname
 
   if (Xname) {
     if (Type == 2) {
@@ -1809,6 +1815,9 @@ void XMLCOL::WriteColumn(PGLOBAL g)
     else if (Tdbp->Clist)
       ColNode = NULL;
 
+    // refresh CList in case its Listp was freed in SelectSingleNode above
+    if (Tdbp->Clist)
+      Tdbp->RowNode->SelectNodes(g, Tdbp->Colname, Tdbp->Clist);
     } // endfor i
 
   /*********************************************************************/

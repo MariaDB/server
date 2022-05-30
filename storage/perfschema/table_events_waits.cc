@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2018, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -51,25 +51,25 @@ table_events_waits_current::m_share=
   sizeof(pos_events_waits_current), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_waits_current("
-                      "THREAD_ID BIGINT unsigned not null,"
-                      "EVENT_ID BIGINT unsigned not null,"
-                      "END_EVENT_ID BIGINT unsigned,"
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "SOURCE VARCHAR(64),"
-                      "TIMER_START BIGINT unsigned,"
-                      "TIMER_END BIGINT unsigned,"
-                      "TIMER_WAIT BIGINT unsigned,"
-                      "SPINS INTEGER unsigned,"
-                      "OBJECT_SCHEMA VARCHAR(64),"
-                      "OBJECT_NAME VARCHAR(512),"
-                      "INDEX_NAME VARCHAR(64),"
-                      "OBJECT_TYPE VARCHAR(64),"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null,"
-                      "NESTING_EVENT_ID BIGINT unsigned,"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT'),"
-                      "OPERATION VARCHAR(32) not null,"
-                      "NUMBER_OF_BYTES BIGINT,"
-                      "FLAGS INTEGER unsigned)") },
+                      "THREAD_ID BIGINT unsigned not null comment 'Thread associated with the event. Together with EVENT_ID uniquely identifies the row.',"
+                      "EVENT_ID BIGINT unsigned not null comment 'Thread''s current event number at the start of the event. Together with THREAD_ID uniquely identifies the row.',"
+                      "END_EVENT_ID BIGINT unsigned comment 'NULL when the event starts, set to the thread''s current event number at the end of the event.',"
+                      "EVENT_NAME VARCHAR(128) not null comment 'Event instrument name and a NAME from the setup_instruments table',"
+                      "SOURCE VARCHAR(64) comment 'Name and line number of the source file containing the instrumented code that produced the event.',"
+                      "TIMER_START BIGINT unsigned comment 'Value in picoseconds when the event timing started or NULL if timing is not collected.',"
+                      "TIMER_END BIGINT unsigned comment 'Value in picoseconds when the event timing ended, or NULL if the event has not ended or timing is not collected.',"
+                      "TIMER_WAIT BIGINT unsigned comment 'Value in picoseconds of the event''s duration or NULL if the event has not ended or timing is not collected.',"
+                      "SPINS INTEGER unsigned comment 'Number of spin rounds for a mutex, or NULL if spin rounds are not used, or spinning is not instrumented.',"
+                      "OBJECT_SCHEMA VARCHAR(64) comment 'Name of the schema that contains the table for table I/O objects, otherwise NULL for file I/O and synchronization objects.',"
+                      "OBJECT_NAME VARCHAR(512) comment 'File name for file I/O objects, table name for table I/O objects, the socket''s IP:PORT value for a socket object or NULL for a synchronization object.',"
+                      "INDEX_NAME VARCHAR(64) comment 'Name of the index, PRIMARY for the primary key, or NULL for no index used.',"
+                      "OBJECT_TYPE VARCHAR(64) comment 'FILE for a file object, TABLE or TEMPORARY TABLE for a table object, or NULL for a synchronization object.',"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Address in memory of the object.',"
+                      "NESTING_EVENT_ID BIGINT unsigned comment 'EVENT_ID of event within which this event nests.',"
+                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'Nesting event type. Either statement, stage or wait.',"
+                      "OPERATION VARCHAR(32) not null comment 'Operation type, for example read, write or lock',"
+                      "NUMBER_OF_BYTES BIGINT comment 'Number of bytes that the operation read or wrote, or NULL for table I/O waits.',"
+                      "FLAGS INTEGER unsigned comment 'Reserved for use in the future.')") },
   false  /* perpetual */
 };
 
@@ -87,25 +87,25 @@ table_events_waits_history::m_share=
   sizeof(pos_events_waits_history), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_waits_history("
-                      "THREAD_ID BIGINT unsigned not null,"
-                      "EVENT_ID BIGINT unsigned not null,"
-                      "END_EVENT_ID BIGINT unsigned,"
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "SOURCE VARCHAR(64),"
-                      "TIMER_START BIGINT unsigned,"
-                      "TIMER_END BIGINT unsigned,"
-                      "TIMER_WAIT BIGINT unsigned,"
-                      "SPINS INTEGER unsigned,"
-                      "OBJECT_SCHEMA VARCHAR(64),"
-                      "OBJECT_NAME VARCHAR(512),"
-                      "INDEX_NAME VARCHAR(64),"
-                      "OBJECT_TYPE VARCHAR(64),"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null,"
-                      "NESTING_EVENT_ID BIGINT unsigned,"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT'),"
-                      "OPERATION VARCHAR(32) not null,"
-                      "NUMBER_OF_BYTES BIGINT,"
-                      "FLAGS INTEGER unsigned)") },
+                      "THREAD_ID BIGINT unsigned not null comment 'Thread associated with the event. Together with EVENT_ID uniquely identifies the row.',"
+                      "EVENT_ID BIGINT unsigned not null comment 'Thread''s current event number at the start of the event. Together with THREAD_ID uniquely identifies the row.',"
+                      "END_EVENT_ID BIGINT unsigned comment 'NULL when the event starts, set to the thread''s current event number at the end of the event.',"
+                      "EVENT_NAME VARCHAR(128) not null comment 'Event instrument name and a NAME from the setup_instruments table',"
+                      "SOURCE VARCHAR(64) comment 'Name and line number of the source file containing the instrumented code that produced the event.',"
+                      "TIMER_START BIGINT unsigned comment 'Value in picoseconds when the event timing started or NULL if timing is not collected.',"
+                      "TIMER_END BIGINT unsigned comment 'Value in picoseconds when the event timing ended, or NULL if the event has not ended or timing is not collected.',"
+                      "TIMER_WAIT BIGINT unsigned comment 'Value in picoseconds of the event''s duration or NULL if the event has not ended or timing is not collected.',"
+                      "SPINS INTEGER unsigned comment 'Number of spin rounds for a mutex, or NULL if spin rounds are not used, or spinning is not instrumented.',"
+                      "OBJECT_SCHEMA VARCHAR(64) comment 'Name of the schema that contains the table for table I/O objects, otherwise NULL for file I/O and synchronization objects.',"
+                      "OBJECT_NAME VARCHAR(512) comment 'File name for file I/O objects, table name for table I/O objects, the socket''s IP:PORT value for a socket object or NULL for a synchronization object.',"
+                      "INDEX_NAME VARCHAR(64) comment 'Name of the index, PRIMARY for the primary key, or NULL for no index used.',"
+                      "OBJECT_TYPE VARCHAR(64) comment 'FILE for a file object, TABLE or TEMPORARY TABLE for a table object, or NULL for a synchronization object.',"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Address in memory of the object.',"
+                      "NESTING_EVENT_ID BIGINT unsigned comment 'EVENT_ID of event within which this event nests.',"
+                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'Nesting event type. Either statement, stage or wait.',"
+                      "OPERATION VARCHAR(32) not null comment 'Operation type, for example read, write or lock',"
+                      "NUMBER_OF_BYTES BIGINT comment 'Number of bytes that the operation read or wrote, or NULL for table I/O waits.',"
+                      "FLAGS INTEGER unsigned comment 'Reserved for use in the future.')") },
   false  /* perpetual */
 };
 
@@ -123,25 +123,25 @@ table_events_waits_history_long::m_share=
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_waits_history_long("
-                      "THREAD_ID BIGINT unsigned not null,"
-                      "EVENT_ID BIGINT unsigned not null,"
-                      "END_EVENT_ID BIGINT unsigned,"
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "SOURCE VARCHAR(64),"
-                      "TIMER_START BIGINT unsigned,"
-                      "TIMER_END BIGINT unsigned,"
-                      "TIMER_WAIT BIGINT unsigned,"
-                      "SPINS INTEGER unsigned,"
-                      "OBJECT_SCHEMA VARCHAR(64),"
-                      "OBJECT_NAME VARCHAR(512),"
-                      "INDEX_NAME VARCHAR(64),"
-                      "OBJECT_TYPE VARCHAR(64),"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null,"
-                      "NESTING_EVENT_ID BIGINT unsigned,"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT'),"
-                      "OPERATION VARCHAR(32) not null,"
-                      "NUMBER_OF_BYTES BIGINT,"
-                      "FLAGS INTEGER unsigned)") },
+                      "THREAD_ID BIGINT unsigned not null comment 'Thread associated with the event. Together with EVENT_ID uniquely identifies the row.',"
+                      "EVENT_ID BIGINT unsigned not null comment 'Thread''s current event number at the start of the event. Together with THREAD_ID uniquely identifies the row.',"
+                      "END_EVENT_ID BIGINT unsigned comment 'NULL when the event starts, set to the thread''s current event number at the end of the event.',"
+                      "EVENT_NAME VARCHAR(128) not null comment 'Event instrument name and a NAME from the setup_instruments table',"
+                      "SOURCE VARCHAR(64) comment 'Name and line number of the source file containing the instrumented code that produced the event.',"
+                      "TIMER_START BIGINT unsigned comment 'Value in picoseconds when the event timing started or NULL if timing is not collected.',"
+                      "TIMER_END BIGINT unsigned comment 'Value in picoseconds when the event timing ended, or NULL if the event has not ended or timing is not collected.',"
+                      "TIMER_WAIT BIGINT unsigned comment 'Value in picoseconds of the event''s duration or NULL if the event has not ended or timing is not collected.',"
+                      "SPINS INTEGER unsigned comment 'Number of spin rounds for a mutex, or NULL if spin rounds are not used, or spinning is not instrumented.',"
+                      "OBJECT_SCHEMA VARCHAR(64) comment 'Name of the schema that contains the table for table I/O objects, otherwise NULL for file I/O and synchronization objects.',"
+                      "OBJECT_NAME VARCHAR(512) comment 'File name for file I/O objects, table name for table I/O objects, the socket''s IP:PORT value for a socket object or NULL for a synchronization object.',"
+                      "INDEX_NAME VARCHAR(64) comment 'Name of the index, PRIMARY for the primary key, or NULL for no index used.',"
+                      "OBJECT_TYPE VARCHAR(64) comment 'FILE for a file object, TABLE or TEMPORARY TABLE for a table object, or NULL for a synchronization object.',"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Address in memory of the object.',"
+                      "NESTING_EVENT_ID BIGINT unsigned comment 'EVENT_ID of event within which this event nests.',"
+                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'Nesting event type. Either statement, stage or wait.',"
+                      "OPERATION VARCHAR(32) not null comment 'Operation type, for example read, write or lock',"
+                      "NUMBER_OF_BYTES BIGINT comment 'Number of bytes that the operation read or wrote, or NULL for table I/O waits.',"
+                      "FLAGS INTEGER unsigned comment 'Reserved for use in the future.')") },
   false  /* perpetual */
 };
 
@@ -656,7 +656,7 @@ int table_events_waits_common::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 2);
+  assert(table->s->null_bytes == 2);
   buf[0]= 0;
   buf[1]= 0;
 
@@ -788,7 +788,7 @@ int table_events_waits_common::read_row_values(TABLE *table,
         f->set_null();
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }
@@ -907,7 +907,7 @@ int table_events_waits_current::rnd_pos(const void *pos)
     }
 #endif
 
-    DBUG_ASSERT(m_pos.m_index_2 < WAIT_STACK_LOGICAL_SIZE);
+    assert(m_pos.m_index_2 < WAIT_STACK_LOGICAL_SIZE);
 
     if (wait->m_wait_class != NO_WAIT_CLASS)
     {
@@ -1008,13 +1008,13 @@ int table_events_waits_history::rnd_pos(const void *pos)
   PFS_thread *pfs_thread;
   PFS_events_waits *wait;
 
-  DBUG_ASSERT(events_waits_history_per_thread != 0);
+  assert(events_waits_history_per_thread != 0);
   set_position(pos);
 
   pfs_thread= global_thread_container.get(m_pos.m_index_1);
   if (pfs_thread != NULL)
   {
-    DBUG_ASSERT(m_pos.m_index_2 < events_waits_history_per_thread);
+    assert(m_pos.m_index_2 < events_waits_history_per_thread);
 
     if ( ! pfs_thread->m_waits_history_full &&
         (m_pos.m_index_2 >= pfs_thread->m_waits_history_index))

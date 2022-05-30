@@ -1,9 +1,10 @@
-SET GLOBAL Innodb_file_per_table=on;
+SET @save_innodb_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = OFF;
 SET @save_innodb_compression_level = @@global.innodb_compression_level;
 SET global innodb_compression_level=0;
 #create table with 1K block size
 CREATE TABLE tab5 (col_1 CHAR (255) ,
-col_2 VARCHAR (255), col_3 longtext,
+col_2 VARCHAR (121), col_3 longtext,
 col_4 longtext,col_5 longtext,
 col_6 longtext , col_7 longtext ,
 col_8 longtext ,col_9 longtext ,
@@ -54,7 +55,7 @@ COMMIT;
 SET global innodb_compression_level=9;
 #create table with 1K block size
 CREATE TABLE tab6 (col_1 CHAR (255) ,
-col_2 VARCHAR (255), col_3 longtext,
+col_2 VARCHAR (121), col_3 longtext,
 col_4 longtext,col_5 longtext,
 col_6 longtext , col_7 longtext ,
 col_8 longtext ,col_9 longtext ,
@@ -107,3 +108,4 @@ SELECT @size >= 0;
 1
 DROP TABLE tab5, tab6;
 SET GLOBAL innodb_compression_level = @save_innodb_compression_level;
+SET GLOBAL innodb_stats_persistent = @save_innodb_stats_persistent;

@@ -60,14 +60,14 @@ connection child2_1_2;
 SELECT SLEEP(2);
 SLEEP(2)
 0
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
 argument
 insert into `auto_test_remote`.`tbl_a`(`pkey`)values(31),(33),(35),(37),(39),(41),(43),(45),(47),(49),(51),(53),(55),(57),(59)
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %'
 connection child2_2_2;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
 argument
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %'
 connection child2_1;
 UNLOCK TABLES;
 SELECT pkey FROM tbl_a ORDER BY pkey;

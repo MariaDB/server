@@ -182,7 +182,7 @@ sub run_stress_test ()
   }
 
   #Run stress test
-  mtr_run("$::glob_mysql_test_dir/mysql-stress-test.pl", $args, "", "", "", "");
+  mtr_run("$::glob_mysql_test_dir/mariadb-stress-test.pl", $args, "", "", "", "");
   if ( ! $::glob_use_embedded_server )
   {
     stop_all_servers();

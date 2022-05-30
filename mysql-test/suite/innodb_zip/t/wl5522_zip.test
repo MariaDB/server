@@ -5,6 +5,7 @@
 -- source include/have_sequence.inc
 
 call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT\\.");
+call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
 
 SET SESSION innodb_strict_mode=1;
 

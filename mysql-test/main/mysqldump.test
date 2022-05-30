@@ -1036,10 +1036,12 @@ begin
   return f1;
 end //
 
+--enable_prepare_warnings
 CREATE PROCEDURE bug9056_proc2(OUT a INT)
 BEGIN
   select sum(id) from t1 into a;
 END //
+--disable_prepare_warnings
 
 DELIMITER ;//
 
@@ -2884,5 +2886,95 @@ INSERT INTO t VALUES (1,1),(2,2),(3,3),(4,4);
 --remove_file $MYSQLTEST_VARDIR/tmp/dumptest1.sql
 DROP DATABASE IF EXISTS test1;
 DROP DATABASE IF EXISTS test2;
+
+--echo #
+--echo # MDEV-27186 Server fails to load a dump, taken on the same version
+--echo # Oracle mode with packages
+--echo #
+
+CREATE DATABASE test1;
+CREATE DATABASE test2;
+USE test1;
+SET @save_sql_mode=@@sql_mode;
+SET sql_mode=ORACLE;
+
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE pkg AS
+END;
+$$
+
+DELIMITER ;$$
+
+--echo # Dump database 1
+--exec $MYSQL_DUMP --routines test1 > $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+--echo # Restore from database 1 to database 2
+
+--exec $MYSQL test2 < $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+use test2;
+SHOW CREATE PACKAGE pkg;
+
+DROP DATABASE test1;
+DROP DATABASE test2;
+SET sql_mode=@save_sql_mode;
+--remove_file $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+
+--echo #
+--echo # MDEV-4875 Can't restore a mysqldump if --add-drop-database meets general_log
+--echo #
+
+CREATE DATABASE test1;
+--echo # Dump mysql database
+--exec $MYSQL_DUMP --add-drop-database --databases mysql test1 > $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+
+--disable_warnings
+DROP VIEW IF EXISTS mysql.user;
+DROP TABLE IF EXISTS mysql.global_priv;
+DROP TABLE IF EXISTS mysql.user;
+--enable_warnings
+#DROP TABLE IF EXISTS mysql.transaction_registry;
+#DROP TABLE IF EXISTS mysql.slow_log;
+#DROP TABLE IF EXISTS mysql.general_log;
+DROP TABLE IF EXISTS mysql.time_zone_transition_type;
+DROP TABLE IF EXISTS mysql.time_zone_transition;
+DROP TABLE IF EXISTS mysql.time_zone_name;
+DROP TABLE IF EXISTS mysql.time_zone_leap_second;
+DROP TABLE IF EXISTS mysql.time_zone;
+DROP TABLE IF EXISTS mysql.tables_priv;
+DROP TABLE IF EXISTS mysql.table_stats;
+DROP TABLE IF EXISTS mysql.servers;
+DROP TABLE IF EXISTS mysql.roles_mapping;
+DROP TABLE IF EXISTS mysql.proxies_priv;
+DROP TABLE IF EXISTS mysql.procs_priv;
+DROP TABLE IF EXISTS mysql.proc;
+DROP TABLE IF EXISTS mysql.plugin;
+DROP TABLE IF EXISTS mysql.innodb_table_stats;
+DROP TABLE IF EXISTS mysql.innodb_index_stats;
+DROP TABLE IF EXISTS mysql.index_stats;
+DROP TABLE IF EXISTS mysql.help_topic;
+DROP TABLE IF EXISTS mysql.help_relation;
+DROP TABLE IF EXISTS mysql.help_keyword;
+DROP TABLE IF EXISTS mysql.help_category;
+DROP TABLE IF EXISTS mysql.gtid_slave_pos;
+DROP TABLE IF EXISTS mysql.func;
+DROP TABLE IF EXISTS mysql.event;
+DROP TABLE IF EXISTS mysql.db;
+DROP TABLE IF EXISTS mysql.columns_priv;
+DROP TABLE IF EXISTS mysql.column_stats;
+
+--echo # Abbreviated contents
+--replace_regex /Create_time="[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}"/Create_time="TIMESTAMP"/
+--exec $MYSQL_DUMP --xml --skip-comments --no-data --add-drop-database --databases mysql test1
+
+SET @save_general_log=@@GENERAL_LOG;
+SET GLOBAL LOG_OUTPUT='TABLE', GLOBAL GENERAL_LOG=1;
+
+--echo # Restore mysql database while general log is active
+--exec $MYSQL < $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+--echo # No failure at this stage is the object of the test
+SELECT @@GLOBAL.LOG_OUTPUT, @@GLOBAL.GENERAL_LOG;
+SET GLOBAL LOG_OUTPUT=DEFAULT, GLOBAL GENERAL_LOG=@save_general_log;
+TRUNCATE TABLE mysql.general_log;
+DROP DATABASE test1;
+--remove_file $MYSQLTEST_VARDIR/tmp/dumptest1.sql
 
 --echo # End of 10.3 tests

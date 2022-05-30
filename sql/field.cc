@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1276,6 +1276,21 @@ bool Field::can_be_substituted_to_equal_item(const Context &ctx,
 }
 
 
+bool Field::cmp_is_done_using_type_handler_of_this(const Item_bool_func *cond,
+                                                   const Item *item) const
+{
+  /*
+    We could eventually take comparison_type_handler() from cond,
+    instead of calculating it again. But only some descendants of
+    Item_bool_func has this method. So this needs some hierarchy changes.
+    Another option is to pass "class Context" to this method.
+  */
+  Type_handler_hybrid_field_type cmp(type_handler_for_comparison());
+  return !cmp.aggregate_for_comparison(item->type_handler_for_comparison()) &&
+         cmp.type_handler() == type_handler_for_comparison();
+}
+
+
 /*
   This handles all numeric and BIT data types.
 */ 
@@ -1891,8 +1906,7 @@ void Field::copy_from_tmp(int row_offset)
 
 bool Field::send(Protocol *protocol)
 {
-  char buff[MAX_FIELD_WIDTH];
-  String tmp(buff,sizeof(buff),charset());
+  StringBuffer<MAX_FIELD_WIDTH> tmp(charset());
   val_str(&tmp);
   return protocol->store(tmp.ptr(), tmp.length(), tmp.charset());
 }
@@ -2502,7 +2516,7 @@ Field *Field::make_new_field(MEM_ROOT *root, TABLE *new_table,
   tmp->unireg_check= Field::NONE;
   tmp->flags&= (NOT_NULL_FLAG | BLOB_FLAG | UNSIGNED_FLAG |
                 ZEROFILL_FLAG | BINARY_FLAG | ENUM_FLAG | SET_FLAG |
-                VERS_SYS_START_FLAG | VERS_SYS_END_FLAG |
+                VERS_ROW_START | VERS_ROW_END |
                 VERS_UPDATE_UNVERSIONED_FLAG);
   tmp->reset_fields();
   tmp->invisible= VISIBLE;
@@ -2588,6 +2602,11 @@ int Field::set_default()
   if (default_value)
   {
     Query_arena backup_arena;
+    /*
+      TODO: this may impose memory leak until table flush.
+          See comment in
+          TABLE::update_virtual_fields(handler *, enum_vcol_update_mode).
+    */
     table->in_use->set_n_backup_active_arena(table->expr_arena, &backup_arena);
     int rc= default_value->expr->save_in_field(this, 0);
     table->in_use->restore_active_arena(table->expr_arena, &backup_arena);
@@ -3308,11 +3327,12 @@ Field_new_decimal::Field_new_decimal(uchar *ptr_arg,
                                      decimal_digits_t dec_arg,bool zero_arg,
                                      bool unsigned_arg)
   :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-             unireg_check_arg, field_name_arg, dec_arg, zero_arg, unsigned_arg)
+             unireg_check_arg, field_name_arg,
+             MY_MIN(dec_arg, DECIMAL_MAX_SCALE), zero_arg, unsigned_arg)
 {
   precision= get_decimal_precision(len_arg, dec_arg, unsigned_arg);
-  DBUG_ASSERT((precision <= DECIMAL_MAX_PRECISION) &&
-              (dec <= DECIMAL_MAX_SCALE));
+  DBUG_ASSERT(precision <= DECIMAL_MAX_PRECISION);
+  DBUG_ASSERT(dec <= DECIMAL_MAX_SCALE);
   bin_size= my_decimal_get_binary_size(precision, dec);
 }
 
@@ -5460,7 +5480,7 @@ bool Field_timestamp0::send(Protocol *protocol)
 {
   MYSQL_TIME ltime;
   Field_timestamp0::get_date(&ltime, date_mode_t(0));
-  return protocol->store(&ltime, 0);
+  return protocol->store_datetime(&ltime, 0);
 }
 
 
@@ -5620,7 +5640,7 @@ bool Field_timestamp_with_dec::send(Protocol *protocol)
 {
   MYSQL_TIME ltime;
   Field_timestamp::get_date(&ltime, date_mode_t(0));
-  return protocol->store(&ltime, dec);
+  return protocol->store_datetime(&ltime, dec);
 }
 
 
@@ -6412,6 +6432,7 @@ bool Field_timef::val_native(Native *to)
 int Field_year::store(const char *from, size_t len,CHARSET_INFO *cs)
 {
   DBUG_ASSERT(marked_for_write_or_computed());
+  THD *thd= get_thd();
   char *end;
   int error;
   longlong nr= cs->strntoull10rnd(from, len, 0, &end, &error);
@@ -6423,7 +6444,14 @@ int Field_year::store(const char *from, size_t len,CHARSET_INFO *cs)
     set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
     return 1;
   }
-  if (get_thd()->count_cuted_fields > CHECK_FIELD_EXPRESSION &&
+
+  if (thd->count_cuted_fields <= CHECK_FIELD_EXPRESSION && error == MY_ERRNO_EDOM)
+  {
+    *ptr= 0;
+    return 1;
+  }
+
+  if (thd->count_cuted_fields > CHECK_FIELD_EXPRESSION && 
       (error= check_int(cs, from, len, end, error)))
   {
     if (unlikely(error == 1)  /* empty or incorrect string */)
@@ -6751,7 +6779,7 @@ String *Field_newdate::val_str(String *val_buffer,
 			       String *val_ptr __attribute__((unused)))
 {
   DBUG_ASSERT(marked_for_read());
-  val_buffer->alloc(field_length);
+  val_buffer->alloc(field_length+1);
   val_buffer->length(field_length);
   uint32 tmp=(uint32) uint3korr(ptr);
   int part;
@@ -6907,7 +6935,7 @@ bool Field_datetime0::send(Protocol *protocol)
 {
   MYSQL_TIME tm;
   Field_datetime0::get_date(&tm, date_mode_t(0));
-  return protocol->store(&tm, 0);
+  return protocol->store_datetime(&tm, 0);
 }
 
 
@@ -6923,7 +6951,7 @@ longlong Field_datetime0::val_int(void)
 String *Field_datetime0::val_str(String *val_buffer,
                                  String *val_ptr __attribute__((unused)))
 {
-  val_buffer->alloc(field_length);
+  val_buffer->alloc(field_length+1);
   val_buffer->length(field_length);
 
   DBUG_ASSERT(marked_for_read());
@@ -7035,7 +7063,7 @@ bool Field_datetime_with_dec::send(Protocol *protocol)
 {
   MYSQL_TIME ltime;
   get_date(&ltime, date_mode_t(0));
-  return protocol->store(&ltime, dec);
+  return protocol->store_datetime(&ltime, dec);
 }
 
 
@@ -7267,6 +7295,19 @@ bool Field_longstr::send(Protocol *protocol)
 }
 
 
+const Type_handler *Field_string::type_handler() const
+{
+  if (is_var_string())
+    return &type_handler_var_string;
+  /*
+    This is a temporary solution and will be fixed soon (in 10.9?).
+    Type_handler_string_json will provide its own Field_string_json.
+  */
+  if (Type_handler_json_common::has_json_valid_constraint(this))
+   return &type_handler_string_json;
+  return &type_handler_string;
+}
+
 	/* Copy a string and fill with space */
 
 int Field_string::store(const char *from, size_t length,CHARSET_INFO *cs)
@@ -7361,7 +7402,7 @@ bool
 Field_longstr::cmp_to_string_with_same_collation(const Item_bool_func *cond,
                                                  const Item *item) const
 {
-  return item->cmp_type() == STRING_RESULT &&
+  return cmp_is_done_using_type_handler_of_this(cond, item) &&
          charset() == cond->compare_collation();
 }
 
@@ -7370,7 +7411,7 @@ bool
 Field_longstr::cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
                                                      const Item *item) const
 {
-  return item->cmp_type() == STRING_RESULT &&
+  return cmp_is_done_using_type_handler_of_this(cond, item) &&
          (charset() == cond->compare_collation() ||
           cond->compare_collation()->state & MY_CS_BINSORT);
 }
@@ -7532,22 +7573,10 @@ Field_string::compatible_field_size(uint field_metadata,
 
 int Field_string::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
-  size_t a_len, b_len;
-
-  if (mbmaxlen() != 1)
-  {
-    size_t char_len= Field_string::char_length();
-    a_len= field_charset()->charpos(a_ptr, a_ptr + field_length, char_len);
-    b_len= field_charset()->charpos(b_ptr, b_ptr + field_length, char_len);
-  }
-  else
-    a_len= b_len= field_length;
-  /*
-    We have to remove end space to be able to compare multi-byte-characters
-    like in latin_de 'ae' and 0xe4
-  */
-  return field_charset()->strnncollsp(a_ptr, a_len,
-                                      b_ptr, b_len);
+  return field_charset()->coll->strnncollsp_nchars(field_charset(),
+                                                   a_ptr, field_length,
+                                                   b_ptr, field_length,
+                                                   Field_string::char_length());
 }
 
 
@@ -7766,6 +7795,20 @@ en_fieldtype Field_string::tmp_engine_column_type(bool use_packed_rows) const
 
 const uint Field_varstring::MAX_SIZE= UINT_MAX16;
 
+
+const Type_handler *Field_varstring::type_handler() const
+{
+  /*
+    This is a temporary solution and will be fixed soon (in 10.9?).
+    Type_handler_varchar_json will provide its own Field_varstring_json
+    and Field_varstring_compressed_json
+  */
+  if (Type_handler_json_common::has_json_valid_constraint(this))
+    return &type_handler_varchar_json;
+  return &type_handler_varchar;
+}
+
+
 /**
    Save the field metadata for varstring fields.
 
@@ -7868,9 +7911,22 @@ bool Field_varstring::send(Protocol *protocol)
 
 
 #ifdef HAVE_MEM_CHECK
+
+/*
+  Mark the unused part of the varstring as defined.
+
+  This function is only used be Unique when calculating statistics.
+
+  The marking is needed as we write the whole tree to disk in case of
+  overflows.  For using or comparing values the undefined value part
+  is never used. We could also use bzero() here, but it would be
+  slower in production environments.
+  This function is tested by main.stat_tables-enospc
+*/
+
 void Field_varstring::mark_unused_memory_as_defined()
 {
-  uint used_length= get_length();
+  uint used_length __attribute__((unused)) = get_length();
   MEM_MAKE_DEFINED(get_data() + used_length, field_length - used_length);
 }
 #endif
@@ -7899,19 +7955,6 @@ int Field_varstring::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 }
 
 
-static int cmp_str_prefix(const uchar *ua, size_t alen, const uchar *ub,
-                          size_t blen, size_t prefix, CHARSET_INFO *cs)
-{
-  const char *a= (char*)ua, *b= (char*)ub;
-  MY_STRCOPY_STATUS status;
-  prefix/= cs->mbmaxlen;
-  alen= cs->cset->well_formed_char_length(cs, a, a + alen, prefix, &status);
-  blen= cs->cset->well_formed_char_length(cs, b, b + blen, prefix, &status);
-  return cs->coll->strnncollsp(cs, ua, alen, ub, blen);
-}
-
-
-
 int Field_varstring::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
                                 size_t prefix_len) const
 {
@@ -7931,8 +7974,13 @@ int Field_varstring::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
     a_length= uint2korr(a_ptr);
     b_length= uint2korr(b_ptr);
   }
-  return cmp_str_prefix(a_ptr+length_bytes, a_length, b_ptr+length_bytes,
-                        b_length, prefix_len, field_charset());
+  return field_charset()->coll->strnncollsp_nchars(field_charset(),
+                                                   a_ptr + length_bytes,
+                                                   a_length,
+                                                   b_ptr + length_bytes,
+                                                   b_length,
+                                                   prefix_len /
+                                                     field_charset()->mbmaxlen);
 }
 
 
@@ -8617,6 +8665,7 @@ int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
   rc= well_formed_copy_with_check((char*) value.ptr(), (uint) new_length,
                                   cs, from, length,
                                   length, true, &copy_len);
+  value.length(copy_len);
   Field_blob::store_length(copy_len);
   bmove(ptr+packlength,(uchar*) &tmp,sizeof(char*));
 
@@ -8718,8 +8767,11 @@ int Field_blob::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
   memcpy(&blob1, a_ptr+packlength, sizeof(char*));
   memcpy(&blob2, b_ptr+packlength, sizeof(char*));
   size_t a_len= get_length(a_ptr), b_len= get_length(b_ptr);
-  return cmp_str_prefix(blob1, a_len, blob2, b_len, prefix_len,
-                        field_charset());
+  return field_charset()->coll->strnncollsp_nchars(field_charset(),
+                                                   blob1, a_len,
+                                                   blob2, b_len,
+                                                   prefix_len /
+                                                   field_charset()->mbmaxlen);
 }
 
 
@@ -8886,6 +8938,15 @@ void Field_blob::sort_string(uchar *to,uint length)
 */
 const Type_handler *Field_blob::type_handler() const
 {
+  /*
+    This is a temporary solution and will be fixed soon (in 10.9?).
+    Type_handler_*blob_json will provide its own Field_blob_json
+    and Field_blob_compressed_json.
+  */
+  if (Type_handler_json_common::has_json_valid_constraint(this))
+    return Type_handler_json_common::
+             json_blob_type_handler_by_length_bytes(packlength);
+
   switch (packlength) {
   case 1: return &type_handler_tiny_blob;
   case 2: return &type_handler_blob;
@@ -9382,16 +9443,6 @@ String *Field_set::val_str(String *val_buffer,
   ulonglong tmp=(ulonglong) Field_enum::val_int();
   uint bitnr=0;
 
-  /*
-    Some callers expect *val_buffer to contain the result,
-    so we assign to it, rather than doing 'return &empty_set_string.
-  */
-  *val_buffer= empty_set_string;
-  if (tmp == 0)
-  {
-    return val_buffer;
-  }
-
   val_buffer->set_charset(field_charset());
   val_buffer->length(0);
 
@@ -9401,8 +9452,7 @@ String *Field_set::val_str(String *val_buffer,
     {
       if (val_buffer->length())
 	val_buffer->append(&field_separator, 1, &my_charset_latin1);
-      String str(typelib->type_names[bitnr],
-		 typelib->type_lengths[bitnr],
+      String str(typelib->type_names[bitnr], typelib->type_lengths[bitnr],
 		 field_charset());
       val_buffer->append(str);
     }
@@ -9609,16 +9659,8 @@ bool Field_num::is_equal(const Column_definition &new_field) const
 }
 
 
-bool Field_enum::can_optimize_range(const Item_bool_func *cond,
-                                    const Item *item,
-                                    bool is_eq_func) const
-{
-  return item->cmp_type() != TIME_RESULT;
-}
-
-
-bool Field_enum::can_optimize_keypart_ref(const Item_bool_func *cond,
-                                          const Item *item) const
+bool Field_enum::can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
+                                                   const Item *item) const
 {
   switch (item->cmp_type())
   {

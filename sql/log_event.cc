@@ -53,6 +53,7 @@
 #include "sql_digest.h"
 #include "zlib.h"
 #include "myisampack.h"
+#include <algorithm>
 
 #define my_b_write_string(A, B) my_b_write((A), (uchar*)(B), (uint) (sizeof(B) - 1))
 
@@ -2560,10 +2561,12 @@ Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
 Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
                                const Format_description_log_event
                                *description_event)
-  : Log_event(buf, description_event), seq_no(0), commit_id(0)
+  : Log_event(buf, description_event), seq_no(0), commit_id(0),
+    flags_extra(0), extra_engines(0)
 {
   uint8 header_size= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[GTID_EVENT-1];
+  const uchar *buf_0= buf;
   if (event_len < (uint) header_size + (uint) post_header_len ||
       post_header_len < GTID_HEADER_LEN)
     return;
@@ -2597,6 +2600,37 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
     memcpy(xid.data, buf, data_length);
     buf+= data_length;
   }
+
+  /* the extra flags check and actions */
+  if (static_cast<uint>(buf - buf_0) < event_len)
+  {
+    flags_extra= *buf++;
+    /*
+      extra engines flags presence is identifed by non-zero byte value
+      at this point
+    */
+    if (flags_extra & FL_EXTRA_MULTI_ENGINE)
+    {
+      DBUG_ASSERT(static_cast<uint>(buf - buf_0) < event_len);
+
+      extra_engines= *buf++;
+
+      DBUG_ASSERT(extra_engines > 0);
+    }
+  }
+  /*
+    the strict '<' part of the assert corresponds to extra zero-padded
+    trailing bytes,
+  */
+  DBUG_ASSERT(static_cast<uint>(buf - buf_0) <= event_len);
+  /* and the last of them is tested. */
+#ifdef MYSQL_SERVER
+#ifdef WITH_WSREP
+  if (!WSREP_ON)
+#endif
+#endif
+  DBUG_ASSERT(static_cast<uint>(buf - buf_0) == event_len ||
+              buf_0[event_len - 1] == 0);
 }
 
 

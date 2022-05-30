@@ -287,6 +287,8 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
         res= TRUE;
         goto end;
       }
+      if (sl ==  unit->first_select() && !sl->next_select())
+        unit->fake_select_lex= 0;
     }
   }
   
@@ -824,6 +826,7 @@ bool Item_subselect::exec()
   DBUG_ENTER("Item_subselect::exec");
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(thd);
+  DBUG_ASSERT(!eliminated);
 
   DBUG_EXECUTE_IF("Item_subselect",
     Item::Print print(this,
@@ -1268,29 +1271,40 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
   DBUG_ASSERT(join->thd == thd);
 
   SELECT_LEX *select_lex= join->select_lex;
-  Query_arena *arena= thd->stmt_arena;
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+
+  auto need_to_pull_out_item = [](enum_parsing_place context_analysis_place,
+                                  Item *item) {
+    return
+      !item->with_sum_func() &&
+      /*
+        We can't change name of Item_field or Item_ref, because it will
+        prevent its correct resolving, but we should save name of
+        removed item => we do not make optimization if top item of
+        list is field or reference.
+        TODO: solve above problem
+      */
+      item->type() != FIELD_ITEM && item->type() != REF_ITEM &&
+      /*
+        The item can be pulled out to upper level in case it doesn't represent
+        the constant in the clause 'ORDER/GROUP BY (constant)'.
+      */
+      !((item->is_order_clause_position() ||
+         item->is_stored_routine_parameter()) &&
+        (context_analysis_place == IN_ORDER_BY ||
+         context_analysis_place == IN_GROUP_BY)
+       );
+  };
 
   if (!select_lex->master_unit()->is_unit_op() &&
       !select_lex->table_list.elements &&
       select_lex->item_list.elements == 1 &&
-      !select_lex->item_list.head()->with_sum_func() &&
-      /*
-	We can't change name of Item_field or Item_ref, because it will
-	prevent its correct resolving, but we should save name of
-	removed item => we do not make optimization if top item of
-	list is field or reference.
-	TODO: solve above problem
-      */
-      !(select_lex->item_list.head()->type() == FIELD_ITEM ||
-	select_lex->item_list.head()->type() == REF_ITEM) &&
       !join->conds && !join->having &&
-      /*
-        switch off this optimization for prepare statement,
-        because we do not rollback this changes
-        TODO: make rollback for it, or special name resolving mode in 5.0.
-      */
-      !arena->is_stmt_prepare_or_first_sp_execute()
-      )
+      need_to_pull_out_item(
+        join->select_lex->outer_select()->context_analysis_place,
+        select_lex->item_list.head()) &&
+      thd->stmt_arena->state != Query_arena::STMT_INITIALIZED_FOR_SP)
   {
     have_to_be_excluded= 1;
     if (thd->lex->describe)
@@ -1308,6 +1322,8 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
     substitution->fix_after_pullout(select_lex->outer_select(),
                                     &substitution, TRUE);
   }
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
   DBUG_RETURN(false);
 }
 
@@ -1340,11 +1356,18 @@ bool Item_singlerow_subselect::fix_length_and_dec()
   }
   unsigned_flag= value->unsigned_flag;
   /*
-    If there are not tables in subquery then ability to have NULL value
-    depends on SELECT list (if single row subquery have tables then it
-    always can be NULL if there are not records fetched).
+    If the subquery has no tables (1) and is not a UNION (2), like:
+
+      (SELECT subq_value)
+
+    then its NULLability is the same as subq_value's NULLability.
+
+    (1): A subquery that uses a table will return NULL when the table is empty.
+    (2): A UNION subquery will return NULL if it produces a "Subquery returns
+         more than one row" error.
   */
-  if (engine->no_tables())
+  if (engine->no_tables() &&
+      engine->engine_type() != subselect_engine::UNION_ENGINE)
     set_maybe_null(engine->may_be_null());
   else
   {
@@ -1379,6 +1402,16 @@ Item* Item_singlerow_subselect::expr_cache_insert_transformer(THD *tmp_thd,
   DBUG_ENTER("Item_singlerow_subselect::expr_cache_insert_transformer");
 
   DBUG_ASSERT(thd == tmp_thd);
+
+  /*
+    Do not create subquery cache if the subquery was eliminated.
+    The optimizer may eliminate subquery items (see
+    eliminate_subselect_processor). However it does not update
+    all query's data structures, so the eliminated item may be
+    still reachable.
+  */
+  if (eliminated)
+    DBUG_RETURN(this);
 
   if (expr_cache)
     DBUG_RETURN(expr_cache);
@@ -2854,6 +2887,8 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
     }
 
     where_item= and_items(thd, join_arg->conds, where_item);
+
+    /* This is the fix_fields() call mentioned in the comment above */
     if (where_item->fix_fields_if_needed(thd, 0))
       DBUG_RETURN(true);
     // TIMOUR TODO: call optimize_cond() for the new where clause
@@ -2864,14 +2899,14 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
     /* Attach back the list of multiple equalities to the new top-level AND. */
     if (and_args && join_arg->cond_equal)
     {
-      /* The argument list of the top-level AND may change after fix fields. */
+      /*
+        The fix_fields() call above may have changed the argument list, so
+        fetch it again:
+      */
       and_args= ((Item_cond*) join_arg->conds)->argument_list();
-      List_iterator<Item_equal> li(join_arg->cond_equal->current_level);
-      Item_equal *elem;
-      while ((elem= li++))
-      {
-        and_args->push_back(elem, thd->mem_root);
-      }
+      ((Item_cond_and *) (join_arg->conds))->m_cond_equal=
+                                             *join_arg->cond_equal;
+      and_args->append((List<Item> *)&join_arg->cond_equal->current_level);
     }
   }
 
@@ -4085,6 +4120,8 @@ int subselect_single_select_engine::exec()
               tab->save_read_record= tab->read_record.read_record_func;
               tab->read_record.read_record_func= rr_sequential;
               tab->read_first_record= read_first_record_seq;
+              if (tab->rowid_filter)
+                tab->table->file->disable_pushed_rowid_filter();
               tab->read_record.thd= join->thd;
               tab->read_record.ref_length= tab->table->file->ref_length;
               tab->read_record.unlock_row= rr_unlock_row;
@@ -4105,6 +4142,8 @@ int subselect_single_select_engine::exec()
       tab->read_record.ref_length= 0;
       tab->read_first_record= tab->save_read_first_record;
       tab->read_record.read_record_func= tab->save_read_record;
+      if (tab->rowid_filter)
+        tab->table->file->enable_pushed_rowid_filter();
     }
     executed= 1;
     if (!(uncacheable() & ~UNCACHEABLE_EXPLAIN) &&
@@ -5290,7 +5329,7 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
   tmp_table_ref->init_one_table(&empty_clex_str, &table_name, NULL, TL_READ);
   tmp_table_ref->table= tmp_table;
 
-  context= new (thd->mem_root) Name_resolution_context;
+  context= new Name_resolution_context;
   context->init();
   context->first_name_resolution_table=
     context->last_name_resolution_table= tmp_table_ref;

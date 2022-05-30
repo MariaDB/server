@@ -36,7 +36,7 @@ DELIMITER ;~~
 --echo # Create a table with one record in it and start an RR transaction
 --echo #
 CREATE TABLE t1 (a INT, b INT, c INT, PRIMARY KEY(a,b), KEY (b,c))
-ENGINE=InnoDB;
+ENGINE=InnoDB STATS_PERSISTENT=0;
 BEGIN;
 SELECT * FROM t1;
 

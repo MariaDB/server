@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -73,36 +73,10 @@ struct btr_latch_leaves_t {
 #include "que0types.h"
 #include "row0types.h"
 
-#ifdef UNIV_DEBUG
-/*********************************************************//**
-Returns the page cursor component of a tree cursor.
-@return pointer to page cursor component */
-UNIV_INLINE
-page_cur_t*
-btr_cur_get_page_cur(
-/*=================*/
-	const btr_cur_t*	cursor);/*!< in: tree cursor */
-/*********************************************************//**
-Returns the buffer block on which the tree cursor is positioned.
-@return pointer to buffer block */
-UNIV_INLINE
-buf_block_t*
-btr_cur_get_block(
-/*==============*/
-	const btr_cur_t*	cursor);/*!< in: tree cursor */
-/*********************************************************//**
-Returns the record pointer of a tree cursor.
-@return pointer to record */
-UNIV_INLINE
-rec_t*
-btr_cur_get_rec(
-/*============*/
-	const btr_cur_t*	cursor);/*!< in: tree cursor */
-#else /* UNIV_DEBUG */
-# define btr_cur_get_page_cur(cursor)	(&(cursor)->page_cur)
-# define btr_cur_get_block(cursor)	((cursor)->page_cur.block)
-# define btr_cur_get_rec(cursor)	((cursor)->page_cur.rec)
-#endif /* UNIV_DEBUG */
+#define btr_cur_get_page_cur(cursor)	(&(cursor)->page_cur)
+#define btr_cur_get_block(cursor)	((cursor)->page_cur.block)
+#define btr_cur_get_rec(cursor)	((cursor)->page_cur.rec)
+
 /*********************************************************//**
 Returns the compressed page on which the tree cursor is positioned.
 @return pointer to compressed page, or NULL if the page is not compressed */
@@ -201,7 +175,7 @@ btr_cur_search_to_nth_level_func(
 	btr_cur_t*	cursor, /*!< in/out: tree cursor; the cursor page is
 				s- or x-latched, but see also above! */
 #ifdef BTR_CUR_HASH_ADAPT
-	srw_lock*	ahi_latch,
+	srw_spin_lock*	ahi_latch,
 				/*!< in: currently held AHI rdlock, or NULL */
 #endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
@@ -485,27 +459,18 @@ that the mtr has an x-latch on the page where the cursor is positioned,
 but no latch on the whole tree.
 @return TRUE if success, i.e., the page did not become too empty */
 ibool
-btr_cur_optimistic_delete_func(
+btr_cur_optimistic_delete(
 /*===========================*/
 	btr_cur_t*	cursor,	/*!< in: cursor on the record to delete;
 				cursor stays valid: if deletion succeeds,
 				on function exit it points to the successor
 				of the deleted record */
-# ifdef UNIV_DEBUG
 	ulint		flags,	/*!< in: BTR_CREATE_FLAG or 0 */
-# endif /* UNIV_DEBUG */
 	mtr_t*		mtr)	/*!< in: mtr; if this function returns
 				TRUE on a leaf page of a secondary
 				index, the mtr must be committed
 				before latching any further pages */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-# ifdef UNIV_DEBUG
-#  define btr_cur_optimistic_delete(cursor, flags, mtr)		\
-	btr_cur_optimistic_delete_func(cursor, flags, mtr)
-# else /* UNIV_DEBUG */
-#  define btr_cur_optimistic_delete(cursor, flags, mtr)		\
-	btr_cur_optimistic_delete_func(cursor, mtr)
-# endif /* UNIV_DEBUG */
 /*************************************************************//**
 Removes the record on which the tree cursor is positioned. Tries
 to compress the page if its fillfactor drops below a threshold
@@ -574,37 +539,6 @@ btr_estimate_n_rows_in_range(
 	dict_index_t*	index,
         btr_pos_t*      range_start,
         btr_pos_t*      range_end);
-
-
-/** Statistics for one field of an index. */
-struct index_field_stats_t
-{
-  ib_uint64_t n_diff_key_vals;
-  ib_uint64_t n_sample_sizes;
-  ib_uint64_t n_non_null_key_vals;
-
-  index_field_stats_t(ib_uint64_t n_diff_key_vals= 0,
-                      ib_uint64_t n_sample_sizes= 0,
-                      ib_uint64_t n_non_null_key_vals= 0)
-      : n_diff_key_vals(n_diff_key_vals), n_sample_sizes(n_sample_sizes),
-        n_non_null_key_vals(n_non_null_key_vals)
-  {
-  }
-};
-
-/** Estimates the number of different key values in a given index, for
-each n-column prefix of the index where 1 <= n <= dict_index_get_n_unique(index).
-The estimates are stored in the array index->stat_n_diff_key_vals[] (indexed
-0..n_uniq-1) and the number of pages that were sampled is saved in
-index->stat_n_sample_sizes[].
-If innodb_stats_method is nulls_ignored, we also record the number of
-non-null values for each prefix and stored the estimates in
-array index->stat_n_non_null_key_vals.
-@param[in]	index	index
-@return stat vector if the index is available and we get the estimated numbers,
-empty vector if the index is unavailable. */
-std::vector<index_field_stats_t>
-btr_estimate_number_of_different_key_vals(dict_index_t* index);
 
 /** Gets the externally stored size of a record, in units of a database page.
 @param[in]	rec	record
@@ -969,16 +903,16 @@ earlier version of the row.  In rollback we are not allowed to free an
 inherited external field. */
 #define BTR_EXTERN_INHERITED_FLAG	64U
 
+#ifdef BTR_CUR_HASH_ADAPT
 /** Number of searches down the B-tree in btr_cur_search_to_nth_level(). */
-extern Atomic_counter<ulint>	btr_cur_n_non_sea;
+extern ib_counter_t<ulint, ib_counter_element_t>	btr_cur_n_non_sea;
 /** Old value of btr_cur_n_non_sea.  Copied by
 srv_refresh_innodb_monitor_stats().  Referenced by
 srv_printf_innodb_monitor(). */
 extern ulint	btr_cur_n_non_sea_old;
-#ifdef BTR_CUR_HASH_ADAPT
 /** Number of successful adaptive hash index lookups in
 btr_cur_search_to_nth_level(). */
-extern ulint	btr_cur_n_sea;
+extern ib_counter_t<ulint, ib_counter_element_t>	btr_cur_n_sea;
 /** Old value of btr_cur_n_sea.  Copied by
 srv_refresh_innodb_monitor_stats().  Referenced by
 srv_printf_innodb_monitor(). */
@@ -990,6 +924,6 @@ extern ulint	btr_cur_n_sea_old;
 extern uint	btr_cur_limit_optimistic_insert_debug;
 #endif /* UNIV_DEBUG */
 
-#include "btr0cur.ic"
+#include "btr0cur.inl"
 
 #endif

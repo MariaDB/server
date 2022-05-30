@@ -1,0 +1,43 @@
+include/master-slave.inc
+[connection master]
+#
+# Failed CHANGE MASTER TO should not change relay log status
+#
+connection slave;
+include/stop_slave.inc
+SET @@debug_dbug="d,simulate_find_log_pos_error";
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=SLAVE_POS;
+ERROR HY000: Target log not found in binlog index
+SET @@debug_dbug="";
+include/start_slave.inc
+#
+# Ensure relay log can be updated after a failed CHANGE MASTER
+#
+FLUSH RELAY LOGS;
+include/wait_for_slave_param.inc [Relay_Log_File]
+#
+# Slave should continue to receive data from old master after failed
+# CHANGE MASTER TO
+#
+connection master;
+CREATE TABLE t1 (a int);
+insert into t1 values (1);
+connection slave;
+connection slave;
+#
+# Future CHANGE MASTER calls should succeed
+#
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=SLAVE_POS;
+include/start_slave.inc
+########################
+# Cleanup
+########################
+connection master;
+DROP TABLE t1;
+connection slave;
+include/stop_slave.inc
+RESET SLAVE ALL;
+change master to master_port=MASTER_MYPORT, master_host='127.0.0.1', master_user='root';
+include/start_slave.inc
+include/rpl_end.inc

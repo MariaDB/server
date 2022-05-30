@@ -31,7 +31,7 @@ if ! which systemctl
 then
   if ! /etc/init.d/mariadb status
   then
-    echo "Did not find systemctl and deamon was not running, starting it.."
+    echo "Did not find systemctl and daemon was not running, starting it.."
     /etc/init.d/mariadb start
   fi
 else

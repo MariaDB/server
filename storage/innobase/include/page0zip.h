@@ -109,12 +109,7 @@ page_zip_is_too_big(
 
 /**********************************************************************//**
 Initialize a compressed page descriptor. */
-UNIV_INLINE
-void
-page_zip_des_init(
-/*==============*/
-	page_zip_des_t*	page_zip);	/*!< in/out: compressed page
-					descriptor */
+#define page_zip_des_init(page_zip) (page_zip)->clear()
 
 /**********************************************************************//**
 Configure the zlib allocator to use the given memory heap. */
@@ -382,7 +377,7 @@ void
 page_zip_reset_stat_per_index();
 /*===========================*/
 
-#include "page0zip.ic"
+#include "page0zip.inl"
 #endif /* !UNIV_INNOCHECKSUM */
 
 #endif /* page0zip_h */

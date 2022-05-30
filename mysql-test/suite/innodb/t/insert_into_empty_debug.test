@@ -1,0 +1,36 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+# Encounter aborted online index during rollback of bulk insert
+
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+                PRIMARY KEY(f1))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 2), (2, 2);
+
+SET DEBUG_SYNC="innodb_rollback_inplace_alter_table SIGNAL dml_start WAIT_FOR dml_commit";
+send ALTER TABLE t1 ADD UNIQUE KEY(f2);
+
+connect(con1,localhost,root,,,);
+SET DEBUG_SYNC="now WAIT_FOR dml_start";
+BEGIN;
+DELETE FROM t1;
+SET DEBUG_SYNC="now SIGNAL dml_commit";
+
+connection default;
+--error ER_DUP_ENTRY
+reap;
+connection con1;
+COMMIT;
+TRUNCATE TABLE t1;
+SET unique_checks=0, foreign_key_checks=0;
+BEGIN;
+INSERT INTO t1 VALUES(1, 2);
+ROLLBACK;
+
+connection default;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+disconnect con1;
+DROP TABLE t1;
+SET DEBUG_SYNC=RESET;

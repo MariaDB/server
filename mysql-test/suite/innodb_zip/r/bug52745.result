@@ -1,5 +1,3 @@
-SET GLOBAL innodb_file_per_table=on;
-SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 CREATE TABLE bug52745 (
 a2 int(10) unsigned DEFAULT NULL,
 col37 time DEFAULT NULL,
@@ -37,29 +35,8 @@ col68 tinyblob,
 col69 date DEFAULT NULL,
 col70 tinyint(3) unsigned zerofill DEFAULT NULL,
 col71 varchar(44) CHARACTER SET utf8 DEFAULT NULL,
-col72 datetime DEFAULT NULL,
-col73 smallint(5) unsigned zerofill DEFAULT NULL,
-col74 longblob,
-col75 bit(34) DEFAULT NULL,
-col76 float unsigned zerofill DEFAULT NULL,
-col77 year(4) DEFAULT NULL,
-col78 tinyint(3) unsigned DEFAULT NULL,
-col79 set('msfheowh','tbpxbgf','by','wahnrjw','myqfasxz','rsokyumrt') CHARACTER SET latin2 DEFAULT NULL,
-col80 datetime DEFAULT NULL,
-col81 smallint(6) DEFAULT NULL,
-col82 enum('xtaurnqfqz','rifrse','kuzwpbvb','niisabk','zxavro','rbvasv','','uulrfaove','','') DEFAULT NULL,
-col83 bigint(20) unsigned zerofill DEFAULT NULL,
-col84 float unsigned zerofill DEFAULT NULL,
-col85 double DEFAULT NULL,
-col86 enum('ylannv','','vlkhycqc','snke','cxifustp','xiaxaswzp','oxl') CHARACTER SET latin1 COLLATE latin1_german2_ci DEFAULT NULL,
-col87 varbinary(221) DEFAULT NULL,
-col88 double unsigned DEFAULT NULL,
-col89 float unsigned zerofill DEFAULT NULL,
-col90 tinyblob
+col72 datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
-Warnings:
-Note	1291	Column 'col82' has duplicated value '' in ENUM
-Note	1291	Column 'col82' has duplicated value '' in ENUM
 SET sql_mode = default;
 INSERT IGNORE INTO bug52745 SET
 col40='0000-00-00 00:00:00',
@@ -81,21 +58,7 @@ col66='19600719080256',
 col68=repeat('Sagittarius\'',54),
 col69='38943902',
 col70=1232,
-col71='Elora\'',
-col74=repeat('zipp',11),
-col75='0',
-col76=23254,
-col78=13247,
-col79='56219',
-col80='20500609035724',
-col81=11632,
-col82=7,
-col84=-23863,
-col85=6341,
-col87='HZdkf.4 s7t,5Rmq	8so fmr,ruGLUG25TrtI.yQ	2SuHq0ML7rw7.4 b2yf2E5TJxOtBBZImezDnzpj,uPYfznnEUDN1e9aQoO 2DsplB7TFWy	oQJ br  HLF :F,eQ p4i1oWsr lL3PG,hjCz6hYqN h1QTjLCjrv:QCdSzpYBibJAtZCxLOk3l6Blsh.W',
-col88=16894,
-col89=6161,
-col90=repeat('gale',48);
+col71='Elora\'';
 Warnings:
 Warning	1265	Data truncated for column 'col53' at row 1
 Warning	1264	Out of range value for column 'col54' at row 1
@@ -107,9 +70,6 @@ Warning	1264	Out of range value for column 'col66' at row 1
 Warning	1265	Data truncated for column 'col68' at row 1
 Warning	1265	Data truncated for column 'col69' at row 1
 Warning	1264	Out of range value for column 'col70' at row 1
-Warning	1264	Out of range value for column 'col78' at row 1
-Warning	1265	Data truncated for column 'col79' at row 1
-Warning	1264	Out of range value for column 'col84' at row 1
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1265	Data truncated for column 'col53' at row 1
@@ -122,8 +82,4 @@ Warning	1264	Out of range value for column 'col66' at row 1
 Warning	1265	Data truncated for column 'col68' at row 1
 Warning	1265	Data truncated for column 'col69' at row 1
 Warning	1264	Out of range value for column 'col70' at row 1
-Warning	1264	Out of range value for column 'col78' at row 1
-Warning	1265	Data truncated for column 'col79' at row 1
-Warning	1264	Out of range value for column 'col84' at row 1
 DROP TABLE bug52745;
-SET GLOBAL innodb_file_per_table=1;

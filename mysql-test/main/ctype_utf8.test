@@ -2,6 +2,8 @@
 # Tests with the utf8 character set
 #
 
+let $MYSQLD_DATADIR= `select @@datadir`;
+
 let collation=utf8mb3_unicode_ci;
 --source include/have_collation.inc
 SET TIME_ZONE='+03:00';
@@ -2165,6 +2167,31 @@ let $coll_pad='utf8_general_ci';
 let $coll='utf8_nopad_bin';
 let $coll_pad='utf8_bin';
 --source include/ctype_pad_all_engines.inc
+
+--echo #
+--echo # MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
+--echo #
+
+SET NAMES utf8;
+SET SESSION character_set_connection=latin1;
+CREATE VIEW v1 AS SELECT 'ä' AS c1;
+SELECT c1, HEX(c1) FROM v1;
+CREATE TABLE kv (v BLOB);
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval LOAD DATA INFILE '$MYSQLD_DATADIR/test/v1.frm' REPLACE INTO TABLE kv;
+SELECT * FROM kv WHERE v LIKE _binary'query=%';
+DROP TABLE kv;
+DROP VIEW v1;
+SET NAMES utf8;
+
+--echo #
+--echo # MDEV-24335 Unexpected question mark in the end of a TINYTEXT column
+--echo #
+
+CREATE TABLE t1 (a TINYTEXT character set utf8);
+INSERT IGNORE INTO t1 VALUES (REPEAT(_utf8 0xD184, 250));
+SELECT LENGTH(a), CHAR_LENGTH(a), RIGHT(a,3) FROM t1;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.2 tests

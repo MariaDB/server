@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2016, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2017, 2021, MariaDB Corporation.
+# Copyright (c) 2017, 2022, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -72,6 +72,7 @@ MARK_AS_ADVANCED(INNODB_COMPILER_HINTS)
 IF(INNODB_COMPILER_HINTS)
    ADD_DEFINITIONS("-DCOMPILER_HINTS")
 ENDIF()
+ADD_FEATURE_INFO(INNODB_COMPILER_HINTS INNODB_COMPILER_HINTS "InnoDB compiled with compiler hints")
 
 # Enable InnoDB's UNIV_DEBUG in debug builds
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DUNIV_DEBUG")
@@ -82,15 +83,21 @@ IF(WITH_INNODB_AHI)
   ADD_DEFINITIONS(-DBTR_CUR_HASH_ADAPT -DBTR_CUR_ADAPT)
   IF(NOT WITH_INNODB_ROOT_GUESS)
     MESSAGE(WARNING "WITH_INNODB_AHI implies WITH_INNODB_ROOT_GUESS")
+    SET(WITH_INNODB_ROOT_GUESS ON)
   ENDIF()
 ELSEIF(WITH_INNODB_ROOT_GUESS)
   ADD_DEFINITIONS(-DBTR_CUR_ADAPT)
 ENDIF()
+ADD_FEATURE_INFO(INNODB_AHI WITH_INNODB_AHI "InnoDB Adaptive Hash Index")
+ADD_FEATURE_INFO(INNODB_ROOT_GUESS WITH_INNODB_ROOT_GUESS
+                 "Cache index root block descriptors in InnoDB")
 
 OPTION(WITH_INNODB_EXTRA_DEBUG "Enable extra InnoDB debug checks" OFF)
 IF(WITH_INNODB_EXTRA_DEBUG)
   ADD_DEFINITIONS(-DUNIV_ZIP_DEBUG)
 ENDIF()
+ADD_FEATURE_INFO(INNODB_EXTRA_DEBUG WITH_INNODB_EXTRA_DEBUG "Extra InnoDB debug checks")
+
 
 CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
 IF(HAVE_SCHED_GETCPU)
@@ -118,17 +125,6 @@ ENDIF()
 
 CHECK_FUNCTION_EXISTS(vasprintf  HAVE_VASPRINTF)
 
-CHECK_CXX_SOURCE_COMPILES("struct t1{ int a; char *b; }; struct t1 c= { .a=1, .b=0 }; main() { }" HAVE_C99_INITIALIZERS)
-IF(HAVE_C99_INITIALIZERS)
-  ADD_DEFINITIONS(-DHAVE_C99_INITIALIZERS)
-ENDIF()
-
-OPTION(WITH_INNODB_DISALLOW_WRITES "InnoDB freeze writes patch from Google" ${WITH_WSREP})
-IF (WITH_INNODB_DISALLOW_WRITES)
-  ADD_DEFINITIONS(-DWITH_INNODB_DISALLOW_WRITES)
-ENDIF()
-
-
 # Include directories under innobase
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
 		    ${CMAKE_SOURCE_DIR}/storage/innobase/handler)
@@ -152,8 +148,8 @@ IF(MSVC)
   SET_SOURCE_FILES_PROPERTIES(${_SRC_DIR}/pars/lexyy.c
           PROPERTIES COMPILE_FLAGS "/wd4003")
 ENDIF()
-      
+
 # Include directories under innobase
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
-		    ${CMAKE_SOURCE_DIR}/storage/innobase/handler
+                    ${CMAKE_SOURCE_DIR}/storage/innobase/handler
                     ${CMAKE_SOURCE_DIR}/libbinlogevents/include )

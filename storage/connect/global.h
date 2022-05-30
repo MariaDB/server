@@ -14,11 +14,11 @@
 #include <time.h>                   /* time_t type declaration         */
 #include <setjmp.h>                 /* Long jump   declarations        */
 
-#if defined(__WIN__) && !defined(NOEX)
+#if defined(_WIN32) && !defined(NOEX)
 #define DllExport  __declspec( dllexport )
-#else   // !__WIN__
+#else   // !_WIN32
 #define DllExport
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 #if defined(DOMDOC_SUPPORT) || defined(LIBXML2_SUPPORT)
 #define XML_SUPPORT 1
@@ -43,11 +43,11 @@
 #define STEP(I)                    MSG_##I
 #endif  // !XMSG and !NEWMSG
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 #define CRLF  2
-#else    // !__WIN__
+#else    // !_WIN32
 #define CRLF  1
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Define access to the thread based trace value.                     */
@@ -204,9 +204,9 @@ DllExport char   *PlugReadMessage(PGLOBAL, int, char *);
 #elif defined(NEWMSG)
 DllExport char   *PlugGetMessage(PGLOBAL, int);
 #endif   // XMSG  || NEWMSG
-#if defined(__WIN__)
+#if defined(_WIN32)
 DllExport short   GetLineLength(PGLOBAL);   // Console line length
-#endif   // __WIN__
+#endif   // _WIN32
 DllExport PGLOBAL PlugInit(LPCSTR, size_t); // Plug global initialization
 DllExport PGLOBAL PlugExit(PGLOBAL);        // Plug global termination
 DllExport LPSTR   PlugRemoveType(LPSTR, LPCSTR);

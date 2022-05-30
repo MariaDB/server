@@ -720,6 +720,15 @@ const char* dbug_print_table_row(TABLE *table)
 }
 
 
+const char* dbug_print_row(TABLE *table, uchar *rec)
+{
+  table->move_fields(table->field, rec, table->record[0]);
+  const char* ret= dbug_print_table_row(table);
+  table->move_fields(table->field, table->record[0], rec);
+  return ret;
+}
+
+
 /*
   Print a text, SQL-like record representation into dbug trace.
 
@@ -1381,12 +1390,17 @@ static uint make_sortkey(Sort_param *param, uchar *to, uchar *ref_pos,
       else
       {
         uchar *end= field->pack(to, field->ptr);
-        int sz= static_cast<int>(end - to);
+        DBUG_ASSERT(end >= to);
+        uint sz= static_cast<uint>(end - to);
         res_len += sz;
         if (packed_addon_fields)
           to+= sz;
         else
+        {
+          if (addonf->length > sz)
+            bzero(end, addonf->length - sz); // Make Valgrind/MSAN happy
           to+= addonf->length;
+        }
       }
     }
     if (packed_addon_fields)

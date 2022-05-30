@@ -1,5 +1,5 @@
 --source include/have_partition.inc
---source suite/mariabackup/include/have_rocksdb.inc
+--source include/have_rocksdb.inc
 --source include/not_embedded.inc
 
 #

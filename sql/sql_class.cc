@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB Corporation.
+   Copyright (c) 2008, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -499,6 +499,18 @@ int thd_sql_command(const THD *thd)
   return (int) thd->lex->sql_command;
 }
 
+/*
+  Returns options used with DDL's, like IF EXISTS etc...
+  Will returns 'nonsense' if the command was not a DDL.
+*/
+
+extern "C"
+struct DDL_options_st *thd_ddl_options(const THD *thd)
+{
+  return &thd->lex->create_info;
+}
+
+
 extern "C"
 int thd_tx_isolation(const THD *thd)
 {
@@ -667,7 +679,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 #ifdef HAVE_REPLICATION
    ,
    current_linfo(0),
-   slave_info(0)
+   slave_info(0),
+   is_awaiting_semisync_ack(0)
 #endif
 #ifdef WITH_WSREP
    ,
@@ -695,11 +708,12 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_was_on(false),
    wsrep_ignore_table(false),
    wsrep_aborter(0),
+   wsrep_delayed_BF_abort(false),
 
 /* wsrep-lib */
    m_wsrep_next_trx_id(WSREP_UNDEFINED_TRX_ID),
-   m_wsrep_mutex(LOCK_thd_data),
-   m_wsrep_cond(COND_wsrep_thd),
+   m_wsrep_mutex(&LOCK_thd_data),
+   m_wsrep_cond(&COND_wsrep_thd),
    m_wsrep_client_service(this, m_wsrep_client_state),
    m_wsrep_client_state(this,
                         m_wsrep_mutex,
@@ -848,11 +862,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
                SEQUENCES_HASH_SIZE, 0, 0, (my_hash_get_key)
                get_sequence_last_key, (my_hash_free_key) free_sequence_last,
                HASH_THREAD_SPECIFIC);
-
-  sp_proc_cache= NULL;
-  sp_func_cache= NULL;
-  sp_package_spec_cache= NULL;
-  sp_package_body_cache= NULL;
 
   /* For user vars replication*/
   if (opt_bin_log)
@@ -1299,6 +1308,7 @@ void THD::init()
   wsrep_affected_rows     = 0;
   m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
   wsrep_aborter           = 0;
+  wsrep_desynced_backup_stage= false;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
@@ -1438,10 +1448,7 @@ void THD::change_user(void)
                SEQUENCES_HASH_SIZE, 0, 0, (my_hash_get_key)
                get_sequence_last_key, (my_hash_free_key) free_sequence_last,
                HASH_THREAD_SPECIFIC);
-  sp_cache_clear(&sp_proc_cache);
-  sp_cache_clear(&sp_func_cache);
-  sp_cache_clear(&sp_package_spec_cache);
-  sp_cache_clear(&sp_package_body_cache);
+  sp_caches_clear();
   opt_trace.delete_traces();
 }
 
@@ -1568,10 +1575,7 @@ void THD::cleanup(void)
 
   my_hash_free(&user_vars);
   my_hash_free(&sequences);
-  sp_cache_clear(&sp_proc_cache);
-  sp_cache_clear(&sp_func_cache);
-  sp_cache_clear(&sp_package_spec_cache);
-  sp_cache_clear(&sp_package_body_cache);
+  sp_caches_clear();
   auto_inc_intervals_forced.empty();
   auto_inc_intervals_in_cur_stmt_for_binlog.empty();
 
@@ -1851,7 +1855,7 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
 }
 
 #define SECONDS_TO_WAIT_FOR_KILL 2
-#if !defined(__WIN__) && defined(HAVE_SELECT)
+#if !defined(_WIN32) && defined(HAVE_SELECT)
 /* my_sleep() can wait for sub second times */
 #define WAIT_FOR_KILL_TRY_TIMES 20
 #else
@@ -1869,7 +1873,7 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
   @note Do always call this while holding LOCK_thd_kill.
         NOT_KILLED is used to awake a thread for a slave
 */
-
+extern std::atomic<my_thread_id> shutdown_thread_id;
 void THD::awake_no_mutex(killed_state state_to_set)
 {
   DBUG_ENTER("THD::awake");
@@ -1893,7 +1897,7 @@ void THD::awake_no_mutex(killed_state state_to_set)
   if (state_to_set >= KILL_CONNECTION || state_to_set == NOT_KILLED)
   {
 #ifdef SIGNAL_WITH_VIO_CLOSE
-    if (this != current_thd)
+    if (this != current_thd && thread_id != shutdown_thread_id)
     {
       if(active_vio)
         vio_shutdown(active_vio, SHUT_RDWR);
@@ -2350,6 +2354,58 @@ bool THD::convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
     DBUG_RETURN(true);
   }
   DBUG_RETURN(false);
+}
+
+
+/*
+  Reinterpret a binary string to a character string
+
+  @param[OUT] to    The result will be written here,
+                    either the original string as is,
+                    or a newly alloced fixed string with
+                    some zero bytes prepended.
+  @param cs         The destination character set
+  @param str        The binary string
+  @param length     The length of the binary string
+
+  @return           false on success
+  @return           true on error
+*/
+
+bool THD::reinterpret_string_from_binary(LEX_CSTRING *to, CHARSET_INFO *cs,
+                                         const char *str, size_t length)
+{
+  /*
+    When reinterpreting from binary to tricky character sets like
+    UCS2, UTF16, UTF32, we may need to prepend some zero bytes.
+    This is possible in scenarios like this:
+      SET COLLATION_CONNECTION=utf32_general_ci, CHARACTER_SET_CLIENT=binary;
+    This code is similar to String::copy_aligned().
+  */
+  size_t incomplete= length % cs->mbminlen; // Bytes in an incomplete character
+  if (incomplete)
+  {
+    size_t zeros= cs->mbminlen - incomplete;
+    size_t aligned_length= zeros + length;
+    char *dst= (char*) alloc(aligned_length + 1);
+    if (!dst)
+    {
+      to->str= NULL; // Safety
+      to->length= 0;
+      return true;
+    }
+    bzero(dst, zeros);
+    memcpy(dst + zeros, str, length);
+    dst[aligned_length]= '\0';
+    to->str= dst;
+    to->length= aligned_length;
+  }
+  else
+  {
+    to->str= str;
+    to->length= length;
+  }
+  return check_string_for_wellformedness(to->str, to->length, cs);
 }
 
 
@@ -3641,7 +3697,7 @@ int select_max_min_finder_subselect::send_data(List<Item> &items)
     if (!cache)
     {
       cache= val_item->get_cache(thd);
-      switch (val_item->result_type()) {
+      switch (val_item->cmp_type()) {
       case REAL_RESULT:
 	op= &select_max_min_finder_subselect::cmp_real;
 	break;
@@ -3654,8 +3710,13 @@ int select_max_min_finder_subselect::send_data(List<Item> &items)
       case DECIMAL_RESULT:
         op= &select_max_min_finder_subselect::cmp_decimal;
         break;
-      case ROW_RESULT:
       case TIME_RESULT:
+        if (val_item->field_type() == MYSQL_TYPE_TIME)
+          op= &select_max_min_finder_subselect::cmp_time;
+        else
+          op= &select_max_min_finder_subselect::cmp_str;
+        break;
+      case ROW_RESULT:
         // This case should never be chosen
 	DBUG_ASSERT(0);
 	op= 0;
@@ -3700,6 +3761,23 @@ bool select_max_min_finder_subselect::cmp_int()
   return (val1 < val2);
 }
 
+bool select_max_min_finder_subselect::cmp_time()
+{
+  Item *maxmin= ((Item_singlerow_subselect *)item)->element_index(0);
+  THD *thd= current_thd;
+  auto val1= cache->val_time_packed(thd), val2= maxmin->val_time_packed(thd);
+
+  /* Ignore NULLs for ANY and keep them for ALL subqueries */
+  if (cache->null_value)
+    return (is_all && !maxmin->null_value) || (!is_all && maxmin->null_value);
+  if (maxmin->null_value)
+    return !is_all;
+
+  if (fmax)
+    return(val1 > val2);
+  return (val1 < val2);
+}
+
 bool select_max_min_finder_subselect::cmp_decimal()
 {
   Item *maxmin= ((Item_singlerow_subselect *)item)->element_index(0);
@@ -3723,7 +3801,7 @@ bool select_max_min_finder_subselect::cmp_str()
     but added for safety
   */
   val1= cache->val_str(&buf1);
-  val2= maxmin->val_str(&buf1);
+  val2= maxmin->val_str(&buf2);
 
   /* Ignore NULLs for ANY and keep them for ALL subqueries */
   if (cache->null_value)
@@ -3823,9 +3901,10 @@ void Query_arena::set_query_arena(Query_arena *set)
 }
 
 
-void Query_arena::cleanup_stmt()
+bool Query_arena::cleanup_stmt(bool /*restore_set_statement_vars*/)
 {
   DBUG_ASSERT(! "Query_arena::cleanup_stmt() not implemented");
+  return false;
 }
 
 /*
@@ -4774,6 +4853,19 @@ extern "C" const char *thd_priv_host(MYSQL_THD thd, size_t *length)
 }
 
 
+extern "C" const char *thd_priv_user(MYSQL_THD thd, size_t *length)
+{
+  const Security_context *sctx= thd->security_ctx;
+  if (!sctx)
+  {
+    *length= 0;
+    return NULL;
+  }
+  *length= strlen(sctx->priv_user);
+  return sctx->priv_user;
+}
+
+
 #ifdef INNODB_COMPATIBILITY_HOOKS
 
 /** open a table and add it to thd->open_tables
@@ -4875,11 +4967,13 @@ void destroy_thd(MYSQL_THD thd)
 extern "C" pthread_key(struct st_my_thread_var *, THR_KEY_mysys);
 MYSQL_THD create_background_thd()
 {
-  DBUG_ASSERT(!current_thd);
+  auto save_thd = current_thd;
+  set_current_thd(nullptr);
+
   auto save_mysysvar= pthread_getspecific(THR_KEY_mysys);
 
   /*
-    Allocate new mysys_var specifically this THD,
+    Allocate new mysys_var specifically new THD,
     so that e.g safemalloc, DBUG etc are happy.
   */
   pthread_setspecific(THR_KEY_mysys, 0);
@@ -4887,19 +4981,23 @@ MYSQL_THD create_background_thd()
   auto thd_mysysvar= pthread_getspecific(THR_KEY_mysys);
   auto thd= new THD(0);
   pthread_setspecific(THR_KEY_mysys, save_mysysvar);
-  thd->set_psi(PSI_CALL_get_thread());
+  thd->set_psi(nullptr);
+  set_current_thd(save_thd);
 
   /*
     Workaround the adverse effect of incrementing thread_count
     in THD constructor. We do not want these THDs to be counted,
     or waited for on shutdown.
   */
-  thread_count--;
+  THD_count::count--;
 
   thd->mysys_var= (st_my_thread_var *) thd_mysysvar;
   thd->set_command(COM_DAEMON);
   thd->system_thread= SYSTEM_THREAD_GENERIC;
   thd->security_ctx->host_or_ip= "";
+  thd->real_id= 0;
+  thd->thread_id= 0;
+  thd->query_id= 0;
   return thd;
 }
 
@@ -4950,7 +5048,7 @@ void destroy_background_thd(MYSQL_THD thd)
     As we decremented it in create_background_thd(), in order for it
     not to go negative, we have to increment it before destructor.
   */
-  thread_count++;
+  THD_count::count++;
   delete thd;
 
   thd_detach_thd(save_mysys_var);
@@ -4992,13 +5090,9 @@ void reset_thd(MYSQL_THD thd)
   guarantees, in other words, server can't send OK packet
   before modified data is durable in redo log.
 */
-extern "C" MYSQL_THD thd_increment_pending_ops(void)
+extern "C" void thd_increment_pending_ops(MYSQL_THD thd)
 {
-  THD *thd = current_thd;
-  if (!thd)
-    return NULL;
   thd->async_state.inc_pending_ops();
-  return thd;
 }
 
 /**
@@ -5433,8 +5527,8 @@ extern "C" bool thd_is_strict_mode(const MYSQL_THD thd)
 */
 void thd_get_query_start_data(THD *thd, char *buf)
 {
-  LEX_CSTRING field_name;
-  Field_timestampf f((uchar *)buf, NULL, 0, Field::NONE, &field_name, NULL, 6);
+  Field_timestampf f((uchar *)buf, nullptr, 0, Field::NONE, &empty_clex_str,
+                     nullptr, 6);
   f.store_TIME(thd->query_start(), thd->query_start_sec_part());
 }
 
@@ -6191,6 +6285,10 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     bool is_write= FALSE;                        // If any write tables
     bool has_read_tables= FALSE;                 // If any read only tables
     bool has_auto_increment_write_tables= FALSE; // Write with auto-increment
+    /* true if it's necessary to switch current statement log format from
+    STATEMENT to ROW if binary log format is MIXED and autoincrement values
+    are changed in the statement */
+    bool has_unsafe_stmt_autoinc_lock_mode= false;
     /* If a write table that doesn't have auto increment part first */
     bool has_write_table_auto_increment_not_first_in_pk= FALSE;
     bool has_auto_increment_write_tables_not_first= FALSE;
@@ -6313,6 +6411,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
           has_auto_increment_write_tables_not_first= found_first_not_own_table;
           if (share->next_number_keypart != 0)
             has_write_table_auto_increment_not_first_in_pk= true;
+          has_unsafe_stmt_autoinc_lock_mode=
+            table->file->autoinc_lock_mode_stmt_unsafe();
         }
       }
 
@@ -6327,7 +6427,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
           blackhole_table_found= 1;
 
         if (share->non_determinstic_insert &&
-            !(sql_command_flags[lex->sql_command] & CF_SCHEMA_CHANGE))
+            (sql_command_flags[lex->sql_command] & CF_CAN_GENERATE_ROW_EVENTS
+             && !(sql_command_flags[lex->sql_command] & CF_SCHEMA_CHANGE)))
           has_write_tables_with_unsafe_statements= true;
 
         trans= table->file->has_transactions();
@@ -6383,6 +6484,9 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
       if (has_write_tables_with_unsafe_statements)
         lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+
+      if (has_unsafe_stmt_autoinc_lock_mode)
+        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_LOCK_MODE);
 
       /*
         A query that modifies autoinc column in sub-statement can make the
@@ -6630,49 +6734,86 @@ int THD::decide_logging_format(TABLE_LIST *tables)
   DBUG_RETURN(0);
 }
 
-int THD::decide_logging_format_low(TABLE *table)
+
+/*
+  Reconsider logging format in case of INSERT...ON DUPLICATE KEY UPDATE
+  for tables with more than one unique keys in case of MIXED binlog format.
+
+  Unsafe means that a master could execute the statement differently than
+  the slave.
+  This could can happen in the following cases:
+  - The unique check are done in different order on master or slave
+    (different engine or different key order).
+  - There is a conflict on another key than the first and before the
+    statement is committed, another connection commits a row that conflicts
+    on an earlier unique key. Example follows:
+
+    Below a and b are unique keys, the table has a row (1,1,0)
+    connection 1:
+    INSERT INTO t1 set a=2,b=1,c=0 ON DUPLICATE KEY UPDATE c=1;
+    connection 2:
+    INSERT INTO t1 set a=2,b=2,c=0;
+
+    If 2 commits after 1 has been executed but before 1 has committed
+    (and are thus put before the other in the binary log), one will
+    get different data on the slave:
+    (1,1,1),(2,2,1) instead of (1,1,1),(2,2,0)
+*/
+
+void THD::reconsider_logging_format_for_iodup(TABLE *table)
 {
-  DBUG_ENTER("decide_logging_format_low");
-  /*
-    INSERT...ON DUPLICATE KEY UPDATE on a table with more than one unique keys
-    can be unsafe.
-  */
-  if (wsrep_binlog_format() <= BINLOG_FORMAT_STMT &&
-      !is_current_stmt_binlog_format_row() &&
-      !lex->is_stmt_unsafe() &&
-      lex->duplicates == DUP_UPDATE)
+  DBUG_ENTER("reconsider_logging_format_for_iodup");
+  enum_binlog_format bf= (enum_binlog_format) wsrep_binlog_format();
+
+  DBUG_ASSERT(lex->duplicates == DUP_UPDATE);
+
+  if (bf <= BINLOG_FORMAT_STMT &&
+      !is_current_stmt_binlog_format_row())
   {
+    KEY *end= table->s->key_info + table->s->keys;
     uint unique_keys= 0;
-    uint keys= table->s->keys, i= 0;
-    Field *field;
-    for (KEY* keyinfo= table->s->key_info;
-             i < keys && unique_keys <= 1; i++, keyinfo++)
-      if (keyinfo->flags & HA_NOSAME &&
-         !(keyinfo->key_part->field->flags & AUTO_INCREMENT_FLAG &&
-             //User given auto inc can be unsafe
-             !keyinfo->key_part->field->val_int()))
+
+    for (KEY *keyinfo= table->s->key_info; keyinfo < end ; keyinfo++)
+    {
+      if (keyinfo->flags & HA_NOSAME)
       {
+        /*
+          We assume that the following cases will guarantee that the
+          key is unique if a key part is not set:
+          - The key part is an autoincrement (autogenerated)
+          - The key part has a default value that is null and it not
+            a virtual field that will be calculated later.
+        */
         for (uint j= 0; j < keyinfo->user_defined_key_parts; j++)
         {
-          field= keyinfo->key_part[j].field;
-          if(!bitmap_is_set(table->write_set,field->field_index))
-            goto exit;
+          Field *field= keyinfo->key_part[j].field;
+          if (!bitmap_is_set(table->write_set, field->field_index))
+          {
+            /* Check auto_increment */
+            if (field == table->next_number_field)
+              goto exit;
+            if (field->is_real_null() && !field->default_value)
+              goto exit;
+          }
         }
-        unique_keys++;
+        if (unique_keys++)
+          break;
 exit:;
       }
-
+    }
     if (unique_keys > 1)
     {
-      lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_INSERT_TWO_KEYS);
-      binlog_unsafe_warning_flags|= lex->get_stmt_unsafe_flags();
+      if (bf == BINLOG_FORMAT_STMT && !lex->is_stmt_unsafe())
+      {
+        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_INSERT_TWO_KEYS);
+        binlog_unsafe_warning_flags|= lex->get_stmt_unsafe_flags();
+      }
       set_current_stmt_binlog_format_row_if_mixed();
       if (is_current_stmt_binlog_format_row())
         binlog_prepare_for_row_logging();
-      DBUG_RETURN(1);
     }
   }
-  DBUG_RETURN(0);
+  DBUG_VOID_RETURN;
 }
 
 #ifndef MYSQL_CLIENT
@@ -7128,8 +7269,8 @@ void THD::binlog_prepare_row_images(TABLE *table)
     {
       case BINLOG_ROW_IMAGE_MINIMAL:
         /* MINIMAL: Mark only PK */
-        table->mark_columns_used_by_index(table->s->primary_key,
-                                          &table->tmp_set);
+        table->mark_index_columns(table->s->primary_key,
+                                  &table->tmp_set);
         break;
       case BINLOG_ROW_IMAGE_NOBLOB:
         /**

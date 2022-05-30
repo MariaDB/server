@@ -3998,11 +3998,11 @@ insert into t1 values (1), (2);
 insert into t2 values (1), (2);
 insert into t3 values (2);
 
+set @counter=0;
+
 explain
 select count(*) from t1 straight_join t2
 where c1 = c2-0 and c2 <= (select max(c3) from t3 where c3 = 2 and @counter:=@counter+1);
-
-set @counter=0;
 
 select count(*) from t1 straight_join t2
 where c1 = c2-0 and c2 <= (select max(c3) from t3 where c3 = 2 and @counter:=@counter+1);

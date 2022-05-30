@@ -20,30 +20,31 @@ DROP TABLE t;
 CREATE TABLE t1 (pk INT, a VARCHAR(8), PRIMARY KEY(pk),
 FULLTEXT KEY(a)) ENGINE=InnoDB;
 CREATE TABLE t2 (b INT, FOREIGN KEY(b) REFERENCES t1(pk)) ENGINE=InnoDB;
-DROP TABLE t1;
+DROP TABLE/*foo*/ t1;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 SET DEBUG_DBUG="+d,fts_instrument_sync";
 INSERT INTO t1 VALUES(1, "mariadb");
 ALTER TABLE t1 FORCE;
 DROP TABLE t2, t1;
+SET SESSION debug_dbug=@saved_debug_dbug;
 #
 # MDEV-25200 Index count mismatch due to aborted FULLTEXT INDEX
 #
 CREATE TABLE t1(a INT, b TEXT, c TEXT, FULLTEXT INDEX(b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, "test", "test_1");
 connect con1,localhost,root,,test;
-SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL s1 WAIT_FOR g1';
+SET DEBUG_DBUG="+d,innodb_OOM_inplace_alter";
 SET DEBUG_SYNC='innodb_commit_inplace_alter_table_enter SIGNAL s2 WAIT_FOR g2';
 ALTER TABLE t1 ADD FULLTEXT(c);
 connection default;
-SET DEBUG_SYNC='now WAIT_FOR s1';
-KILL QUERY @id;
-SET DEBUG_SYNC='now SIGNAL g1 WAIT_FOR s2';
+SET DEBUG_SYNC='now WAIT_FOR s2';
 START TRANSACTION;
 SELECT * FROM t1;
 a	b	c
-SET DEBUG_SYNC='now SIGNAL s2';
+1	test	test_1
+SET DEBUG_SYNC='now SIGNAL g2';
 connection con1;
-ERROR 70100: Query execution was interrupted
+ERROR HY000: Out of memory.
 disconnect con1;
 connection default;
 SET DEBUG_SYNC=RESET;
@@ -56,12 +57,20 @@ DROP TABLE t1;
 # MDEV-25663 Double free of transaction during TRUNCATE
 #
 call mtr.add_suppression("InnoDB: \\(Too many concurrent transactions\\)");
-SET DEBUG_DBUG='-d,ib_create_table_fail_too_many_trx';
+call mtr.add_suppression("InnoDB: Cannot save table statistics for table `test`\\.`t1`: Too many concurrent transactions");
 CREATE TABLE t1 (b CHAR(12), FULLTEXT KEY(b)) engine=InnoDB;
-SET @save_dbug= @@debug_dbug;
 SET debug_dbug='+d,ib_create_table_fail_too_many_trx';
 TRUNCATE t1;
 ERROR HY000: Got error -1 "Internal error < 0 (Not system error)" from storage engine InnoDB
-SET debug_dbug=@save_dbug;
+SET debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
 # End of 10.3 tests
+CREATE TABLE t1(f1 INT NOT NULL, f2 CHAR(100))ENGINE=InnoDB;
+SET DEBUG_DBUG="+d,stats_lock_fail";
+ALTER TABLE t1 ADD FULLTEXT(f2);
+ERROR HY000: Got error 15 "Block device required" from storage engine InnoDB
+SET DEBUG_DBUG="-d,stats_lock_fail";
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1 ADD FULLTEXT(f2);
+ERROR HY000: Tablespace has been discarded for table `t1`
+DROP TABLE t1;

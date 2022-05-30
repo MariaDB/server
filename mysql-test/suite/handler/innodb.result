@@ -1772,3 +1772,19 @@ HANDLER t1 READ `PRIMARY` PREV;
 f1	f2
 3	3
 DROP TABLE t1;
+#
+# 10.2 Test
+#
+# MDEV-20207: Assertion `! is_set()' failed in
+# Diagnostics_area::set_eof_status upon HANDLER READ
+#
+DROP TABLE IF EXISTS t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+CREATE TABLE t1 (a POINT, KEY(a));
+HANDLER t1 OPEN h;
+HANDLER h READ a = (0);
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+HANDLER h CLOSE;
+DROP TABLE t1;
+# End of 10.2 Test

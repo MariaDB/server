@@ -65,8 +65,8 @@ rollback;
 start transaction;
 explain delete from v1 where (select count(*) from t1 b where b.c1=v1.c1) = 500;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	c1	NULL	NULL	NULL	670	Using where
-2	DEPENDENT SUBQUERY	b	ref	c1	c1	4	test.t1.c1	167	Using index
+1	PRIMARY	t1	ALL	c1	NULL	NULL	NULL	#	Using where
+2	DEPENDENT SUBQUERY	b	ref	c1	c1	4	test.t1.c1	#	Using index
 delete from v1 where (select count(*) from t1 b where b.c1=v1.c1) = 500 ;
 affected rows: 500
 select count(*) from v1 where c1=0;

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2019, 2020, MariaDB Corporation.
+Copyright (c) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -23,6 +23,9 @@ Mini-transaction log record encoding and decoding
 
 #pragma once
 #include "mtr0mtr.h"
+
+/** The smallest invalid page identifier for persistent tablespaces */
+constexpr page_id_t end_page_id{SRV_SPACE_ID_UPPER_BOUND, 0};
 
 /** The minimum 2-byte integer (0b10xxxxxx xxxxxxxx) */
 constexpr uint32_t MIN_2BYTE= 1 << 7;
@@ -170,7 +173,7 @@ inline uint32_t mlog_decode_len(const byte *log, const byte *end)
 template<unsigned l,mtr_t::write_type w,typename V>
 inline bool mtr_t::write(const buf_block_t &block, void *ptr, V val)
 {
-  ut_ad(ut_align_down(ptr, srv_page_size) == block.frame);
+  ut_ad(ut_align_down(ptr, srv_page_size) == block.page.frame);
   static_assert(l == 1 || l == 2 || l == 4 || l == 8, "wrong length");
   byte buf[l];
 
@@ -242,7 +245,7 @@ inline void mtr_t::memset(const buf_block_t *b, ulint ofs, ulint len, byte val)
 {
   ut_ad(ofs <= ulint(srv_page_size));
   ut_ad(ofs + len <= ulint(srv_page_size));
-  ::memset(ofs + b->frame, val, len);
+  ::memset(ofs + b->page.frame, val, len);
   memset(*b, ofs, len, val);
 }
 
@@ -286,10 +289,10 @@ inline void mtr_t::memset(const buf_block_t *b, ulint ofs, size_t len,
   size_t s= 0;
   while (s < len)
   {
-    ::memcpy(ofs + s + b->frame, str, size);
+    ::memcpy(ofs + s + b->page.frame, str, size);
     s+= len;
   }
-  ::memcpy(ofs + s + b->frame, str, len - s);
+  ::memcpy(ofs + s + b->page.frame, str, len - s);
   memset(*b, ofs, len, str, size);
 }
 
@@ -303,7 +306,7 @@ inline void mtr_t::memcpy(const buf_block_t &b, ulint offset, ulint len)
   ut_ad(len);
   ut_ad(offset <= ulint(srv_page_size));
   ut_ad(offset + len <= ulint(srv_page_size));
-  memcpy_low(b, uint16_t(offset), &b.frame[offset], len);
+  memcpy_low(b, uint16_t(offset), &b.page.frame[offset], len);
 }
 
 /** Log a write of a byte string to a page.
@@ -388,6 +391,7 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
                 type <= FILE_CHECKPOINT, "invalid type");
   ut_ad(type >= FILE_CREATE || is_named_space(id.space()));
   ut_ad(!bpage || bpage->id() == id);
+  ut_ad(id < end_page_id);
   constexpr bool have_len= type != INIT_PAGE && type != FREE_PAGE;
   constexpr bool have_offset= type == WRITE || type == MEMSET ||
     type == MEMMOVE;
@@ -484,7 +488,7 @@ template<mtr_t::write_type w>
 inline void mtr_t::memcpy(const buf_block_t &b, void *dest, const void *str,
                           ulint len)
 {
-  ut_ad(ut_align_down(dest, srv_page_size) == b.frame);
+  ut_ad(ut_align_down(dest, srv_page_size) == b.page.frame);
   char *d= static_cast<char*>(dest);
   const char *s= static_cast<const char*>(str);
   if (w != FORCED && m_log_mode == MTR_LOG_ALL)
@@ -525,7 +529,7 @@ inline void mtr_t::init(buf_block_t *b)
     m_freed_space= nullptr;
   }
 
-  b->page.status= buf_page_t::INIT_ON_FLUSH;
+  b->page.set_reinit(b->page.state() & buf_page_t::LRU_MASK);
 
   if (m_log_mode != MTR_LOG_ALL)
   {

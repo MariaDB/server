@@ -1,0 +1,24 @@
+call mtr.add_suppression('SQL_ERROR_LOG');
+call mtr.add_suppression('Failed to initialize plugins');
+call mtr.add_suppression('Aborting');
+create table t1(a int primary key, b int as (100-a*a), index(b)) engine=innodb;
+insert t1 (a) values(1),(2),(3);
+start transaction;
+select * from t1 order by a;
+a	b
+1	99
+2	96
+3	91
+connect con1, localhost, root;
+delete from t1 where a=2;
+flush tables;
+connection default;
+# Kill the server
+# Failed restart
+# Start the server
+# restart
+select * from t1 order by a;
+a	b
+1	99
+3	91
+drop table t1;

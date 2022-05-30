@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,7 +31,7 @@ Created 2012-Feb-26 Sunny Bains
 #include <queue>
 #include <functional>
 
-#include "ut0new.h"
+#include <my_global.h>
 
 /** Allocate the memory for the object in blocks. We keep the objects sorted
 on pointer so that they are closer together in case they have to be iterated
@@ -41,8 +41,6 @@ struct Pool {
 
 	typedef Type value_type;
 
-	// FIXME: Add an assertion to check alignment and offset is
-	// as we expect it. Also, sizeof(void*) can be 8, can we impove on this.
 	struct Element {
 		Pool*		m_pool;
 		value_type	m_type;
@@ -57,17 +55,30 @@ struct Pool {
 		m_size(size),
 		m_last()
 	{
+		ut_ad(ut_is_2pow(size));
 		ut_a(size >= sizeof(Element));
+		static_assert(!(sizeof(Element) % CPU_LEVEL1_DCACHE_LINESIZE),
+			      "alignment");
 
 		m_lock_strategy.create();
 
 		ut_a(m_start == 0);
 
-		m_start = reinterpret_cast<Element*>(ut_zalloc_nokey(m_size));
+#ifdef _MSC_VER
+		m_start = static_cast<Element*>(
+			_aligned_malloc(m_size, CPU_LEVEL1_DCACHE_LINESIZE));
+#else
+		void* start;
+		ut_a(!posix_memalign(&start, CPU_LEVEL1_DCACHE_LINESIZE,
+				     m_size));
+		m_start = static_cast<Element*>(start);
+#endif
+		memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(
+			m_start, 0, m_size);
 
 		m_last = m_start;
 
-		m_end = &m_start[m_size / sizeof(*m_start)];
+		m_end = &m_start[m_size / sizeof *m_start];
 
 		/* Note: Initialise only a small subset, even though we have
 		allocated all the memory. This is required only because PFS
@@ -90,7 +101,7 @@ struct Pool {
 			Factory::destroy(&elem->m_type);
 		}
 
-		ut_free(m_start);
+		IF_WIN(_aligned_free,free)(m_start);
 		m_end = m_last = m_start = 0;
 		m_size = 0;
 	}

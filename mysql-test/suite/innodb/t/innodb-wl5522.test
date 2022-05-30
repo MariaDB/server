@@ -7,6 +7,8 @@
 
 call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT\\.");
 call mtr.add_suppression("Index for table 't2' is corrupt; try to repair it");
+call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
+
 FLUSH TABLES;
 
 let $MYSQLD_TMPDIR = `SELECT @@tmpdir`;
@@ -1078,10 +1080,38 @@ DROP TABLE t1;
 SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
 --enable_query_log
 
+
+CREATE TABLE t1 ( id INT NOT NULL, i1 INT, i2 INT, i3 INT, PRIMARY KEY (id)) engine=innodb;
+CREATE TABLE t2 ( id INT NOT NULL, i1 INT, i2 INT, PRIMARY KEY (id)) engine=innodb;
+
+ALTER TABLE t2 DISCARD TABLESPACE;
+FLUSH TABLES t1 FOR EXPORT;
+
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+
+UNLOCK TABLES;
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t2 IMPORT TABLESPACE;
+
+DROP TABLE t1, t2;
+
+
+CREATE TABLE t1 ( id INT NOT NULL, i1 INT, i2 INT, PRIMARY KEY (id)) engine=innodb;
+CREATE TABLE t2 ( id INT NOT NULL, i1 INT, i2 INT, i3 INT, PRIMARY KEY (id)) engine=innodb;
+
+ALTER TABLE t2 DISCARD TABLESPACE;
+FLUSH TABLES t1 FOR EXPORT;
+
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+
+UNLOCK TABLES;
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t2 IMPORT TABLESPACE;
+DROP TABLE t1, t2;
+
+
 call mtr.add_suppression("Got error -1 when reading table '.*'");
 call mtr.add_suppression("InnoDB: Error: tablespace id and flags in file '.*'");
 call mtr.add_suppression("InnoDB: The table .* doesn't have a corresponding tablespace, it was discarded");
-
-# cleanup
---remove_file $MYSQLTEST_VARDIR/tmp/t1.cfg
---remove_file $MYSQLTEST_VARDIR/tmp/t1.ibd

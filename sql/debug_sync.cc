@@ -995,6 +995,15 @@ static char *debug_sync_number(ulong *number_p, char *actstrptr,
     The input string needs to be ASCII NUL ('\0') terminated. We split
     nul-terminated tokens in it without copy.
 
+  @note
+    The current implementation does not support two 'now SIGNAL xxx' commands
+    in a row for multiple threads as the first one can get lost while
+    the waiting threads are sleeping on mysql_cond_timedwait().
+    One reason for this is that the signal name is stored in a global variable
+    that is overwritten.  A better way would be to store all signals in
+    an array together with a 'time' when the signal was sent. This array
+    should be checked on broadcast.
+
   @see the function comment of debug_sync_token() for more constraints
     for the string.
 */

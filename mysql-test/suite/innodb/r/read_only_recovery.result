@@ -13,7 +13,8 @@ FLUSH TABLES;
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 BEGIN;
 INSERT INTO t VALUES(0);
-ROLLBACK;
+DELETE FROM t WHERE a=0;
+COMMIT;
 # restart: --innodb-force-recovery=3
 disconnect con1;
 SELECT * FROM t;
@@ -40,4 +41,3 @@ SELECT * FROM t;
 a
 3
 DROP TABLE t;
-FOUND 1 /Rolled back recovered transaction [^0]/ in mysqld.1.err

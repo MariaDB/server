@@ -18,3 +18,13 @@ UNLOCK TABLES;
 LOCK TABLES performance_schema.mutex_instances WRITE;
 ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'mutex_instances'
 UNLOCK TABLES;
+#
+# MDEV-25325 column_comment for performance_schema tables
+#
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='mutex_instances';
+column_name	column_comment
+NAME	Instrument name associated with the mutex.
+OBJECT_INSTANCE_BEGIN	Memory address of the instrumented mutex.
+LOCKED_BY_THREAD_ID	The THREAD_ID of the locking thread if a thread has a mutex locked, otherwise NULL.

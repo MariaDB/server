@@ -936,8 +936,11 @@ public:
       Mixing of two different non-traditional types is currently prevented.
       This may change in the future. For example, INET4 and INET6
       data types can be made comparable.
+      But we allow mixing INET6 to a data type directly inherited from
+      a traditional type, e.g. INET6=VARCHAR/JSON.
     */
-    DBUG_ASSERT(item->type_handler()->is_traditional_scalar_type() ||
+    DBUG_ASSERT(item->type_handler()->type_handler_base_or_self()->
+                  is_traditional_scalar_type() ||
                 item->type_handler() == type_handler());
     return true;
   }
@@ -951,7 +954,8 @@ public:
                           bool is_eq_func) const override
   {
     // See the DBUG_ASSERT comment in can_optimize_keypart_ref()
-    DBUG_ASSERT(item->type_handler()->is_traditional_scalar_type() ||
+    DBUG_ASSERT(item->type_handler()->type_handler_base_or_self()->
+                  is_traditional_scalar_type() ||
                 item->type_handler() == type_handler());
     return true;
   }
@@ -1231,6 +1235,57 @@ public:
 };
 
 
+class Item_copy_inet6: public Item_copy
+{
+  NativeBufferInet6 m_value;
+public:
+  Item_copy_inet6(THD *thd, Item *item_arg): Item_copy(thd, item_arg) {}
+
+  bool val_native(THD *thd, Native *to) override
+  {
+    if (null_value)
+      return true;
+    return to->copy(m_value.ptr(), m_value.length());
+  }
+  String *val_str(String *to) override
+  {
+    if (null_value)
+      return NULL;
+    Inet6_null tmp(m_value.ptr(), m_value.length());
+    return tmp.is_null() || tmp.to_string(to) ? NULL : to;
+  }
+  my_decimal *val_decimal(my_decimal *to) override
+  {
+    my_decimal_set_zero(to);
+    return to;
+  }
+  double val_real() override
+  {
+    return 0;
+  }
+  longlong val_int() override
+  {
+    return 0;
+  }
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
+  {
+    set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
+    return null_value;
+  }
+  void copy() override
+  {
+    null_value= item->val_native(current_thd, &m_value);
+    DBUG_ASSERT(null_value == item->null_value);
+  }
+  int save_in_field(Field *field, bool no_conversions) override
+  {
+    return Item::save_in_field(field, no_conversions);
+  }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_copy_inet6>(thd, this); }
+};
+
+
 class in_inet6 :public in_vector
 {
   Inet6 m_value;
@@ -1342,15 +1397,13 @@ Type_handler_inet6::character_or_binary_string_to_native(THD *thd,
   Inet6_null tmp(*str);
   if (tmp.is_null())
     thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
-                                  name().ptr(),
-                                  ErrConvString(str).ptr());
+                                  name().ptr(), ErrConvString(str).ptr());
   return tmp.is_null() || tmp.to_native(to);
 }
 
 
 bool
-Type_handler_inet6::Item_save_in_value(THD *thd,
-                                       Item *item,
+Type_handler_inet6::Item_save_in_value(THD *thd, Item *item,
                                        st_value *value) const
 {
   value->m_type= DYN_COL_STRING;
@@ -1366,8 +1419,7 @@ Type_handler_inet6::Item_save_in_value(THD *thd,
           FROM t1;
       */
       thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
-                                    name().ptr(),
-                                    ErrConvString(str).ptr());
+                                    name().ptr(), ErrConvString(str).ptr());
       value->m_type= DYN_COL_NULL;
       return true;
     }
@@ -1466,6 +1518,12 @@ Item *Type_handler_inet6::create_typecast_item(THD *thd, Item *item,
 Item_cache *Type_handler_inet6::Item_get_cache(THD *thd, const Item *item) const
 {
   return new (thd->mem_root) Item_cache_inet6(thd);
+}
+
+
+Item_copy *Type_handler_inet6::create_item_copy(THD *thd, Item *item) const
+{
+  return new (thd->mem_root) Item_copy_inet6(thd, item);
 }
 
 

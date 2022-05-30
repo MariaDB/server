@@ -330,7 +330,7 @@ public:
   }
   ~partition_info() {}
 
-  partition_info *get_clone(THD *thd);
+  partition_info *get_clone(THD *thd, bool empty_data_and_index_file= FALSE);
   bool set_named_partition_bitmap(const char *part_name, size_t length);
   bool set_partition_bitmaps(List<String> *partition_names);
   bool set_partition_bitmaps_from_table(TABLE_LIST *table_list);
@@ -404,7 +404,13 @@ public:
     vers_info->limit= limit;
     return !limit;
   }
-  void vers_set_hist_part(THD *thd);
+  bool vers_require_hist_part(THD *thd) const
+  {
+    return part_type == VERSIONING_PARTITION &&
+      thd->lex->vers_history_generating();
+  }
+  int vers_set_hist_part(THD *thd);
+  void vers_check_limit(THD *thd);
   bool vers_fix_field_list(THD *thd);
   void vers_update_el_ids();
   partition_element *get_partition(uint part_id)

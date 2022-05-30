@@ -10,7 +10,7 @@ let datadir=`select @@datadir`;
 --echo #table containing single unique column
 --echo #table containing keys like unique(a,b,c,d) etc
 --echo #then table containing 2 blob unique etc
-set @allowed_packet= @@max_allowed_packet;
+
 --echo #table with single long blob column;
 create table t1(a blob  unique );
 insert into t1 values(1),(2),(3),(56),('sachin'),('maria'),(123456789034567891),(null),(null),(123456789034567890);
@@ -396,28 +396,6 @@ select DB_ROW_HASH_1 from t1,t2 where t1.DB_ROW_HASH_1 = t2.DB_ROW_HASH_2;
 select DB_ROW_HASH_1 from t1 inner join t2 on t1.a = t2.DB_ROW_HASH_2;
 drop table t1,t2;
 
---echo #very long blob entry;
-SET @@GLOBAL.max_allowed_packet=67108864;
-
-connect ('newcon', localhost, root,,);
---connection newcon
-show variables like 'max_allowed_packet';
-create table t1(a longblob unique, b longblob , c longblob , unique(b,c));
-desc t1;
-show create table t1;
-show keys from t1;
-insert into t1 values(concat(repeat('sachin',10000000),'1'),concat(repeat('sachin',10000000),'1'),
-concat(repeat('sachin',10000000),'1'));
-insert into t1 values(concat(repeat('sachin',10000000),'2'),concat(repeat('sachin',10000000),'2'),
-concat(repeat('sachin',10000000),'1'));
---error ER_DUP_ENTRY
-insert into t1 values(concat(repeat('sachin',10000000),'2'),concat(repeat('sachin',10000000),'2'),
-concat(repeat('sachin',10000000),'4'));
---error ER_DUP_ENTRY
-insert into t1 values(concat(repeat('sachin',10000000),'3'),concat(repeat('sachin',10000000),'1'),
-concat(repeat('sachin',10000000),'1'));
-drop table t1;
-
 --echo #long key unique with different key length
 create table t1(a blob, unique(a(3000)));
 desc t1;
@@ -435,9 +413,7 @@ desc t1;
 show create table t1;
 show keys from t1;
 drop table t1;
-disconnect newcon;
---connection default
-SET @@GLOBAL.max_allowed_packet=4194304;
+
 --echo #ext bug
 create table t1(a int primary key, b blob unique, c int, d blob , index(c));
 show create table t1;
@@ -556,6 +532,8 @@ SELECT t2.b FROM t1 JOIN t2 ON t1.d = t2.f WHERE t2.pk >= 20;
 SELECT t2.b FROM t1 JOIN t2 ON t1.d = t2.f WHERE t2.pk >= 20;
 drop table t1,t2;
 
+--echo # End of 10.4 tests
+
 --echo #
 --echo # MDEV-21470 MyISAM start_bulk_insert doesn't work with long unique
 --echo #
@@ -573,5 +551,4 @@ DROP TABLE t1, t2;
 --error ER_NO_AUTOINCREMENT_WITH_UNIQUE
 CREATE TABLE t1 (pk INT, a TEXT NOT NULL DEFAULT '', PRIMARY KEY (pk), b INT AUTO_INCREMENT, UNIQUE(b), UNIQUE (a,b)) ENGINE=myisam;
 
-# Cleanup
-set @@GLOBAL.max_allowed_packet= @allowed_packet;
+--echo # End of 10.5 tests

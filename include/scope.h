@@ -64,3 +64,11 @@ make_scope_exit(Callable &&f)
   return detail::scope_exit<typename std::decay<Callable>::type>(
       std::forward<Callable>(f));
 }
+
+#define CONCAT_IMPL(x, y) x##y
+
+#define CONCAT(x, y) CONCAT_IMPL(x, y)
+
+#define ANONYMOUS_VARIABLE CONCAT(_anonymous_variable, __LINE__)
+
+#define SCOPE_EXIT auto ANONYMOUS_VARIABLE= make_scope_exit

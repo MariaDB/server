@@ -1368,3 +1368,13 @@ f
 1
 1
 drop table t1;
+#
+# MDEV-25481: Memory leak upon query WITH TIES involving a blob
+#
+CREATE TABLE t (a TEXT);
+INSERT INTO t VALUES ('foo'),('bar');
+SELECT a FROM t ORDER BY a FETCH FIRST 2 ROWS WITH TIES;
+a
+bar
+foo
+DROP TABLE t;

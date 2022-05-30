@@ -37,6 +37,8 @@ push @::global_suppressions,
      qr|WSREP: Protocol violation. JOIN message sender .* is not in state transfer \(SYNCED\). Message ignored.|,
      qr|WSREP: Protocol violation. JOIN message sender .* is not in state transfer \(JOINED\). Message ignored.|,
      qr(WSREP: Action message in non-primary configuration from member [0-9]*),
+     qr(WSREP: Last Applied Action message in non-primary configuration from member [0-9]*),
+     qr|WSREP: .*core_handle_uuid_msg.*|,
      qr(WSREP: --wsrep-causal-reads=ON takes precedence over --wsrep-sync-wait=0. WSREP_SYNC_WAIT_BEFORE_READ is on),
      qr(WSREP: JOIN message from member .* in non-primary configuration. Ignored.),
    );

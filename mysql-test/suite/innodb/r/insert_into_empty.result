@@ -174,3 +174,11 @@ COMMIT;
 SET autocommit=1;
 DROP TABLE t1;
 DROP TEMPORARY TABLE t0;
+#
+# MDEV-25496 Assertion 'trx->bulk_insert' failed
+# in trx_undo_report_row_operation on INSERT
+#
+CREATE TABLE t (i INT) ENGINE=InnoDB PARTITION BY HASH (i) PARTITIONS 2;
+INSERT INTO t VALUES (0);
+INSERT INTO t VALUES (1),(0),(1);
+DROP TABLE t;

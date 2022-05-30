@@ -57,10 +57,10 @@ SELECT count(pkey) cnt, skey FROM tbl_a;
 cnt	skey
 30	1
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select count(`pkey`),min(`pkey`),min(`skey`) from `auto_test_remote`.`tbl_a`
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey, skey FROM tbl_a ORDER BY pkey;
 pkey	skey
 1	1
@@ -79,10 +79,10 @@ pkey	skey
 27	12
 29	14
 connection child2_2;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select count(`pkey`),min(`pkey`),min(`skey`) from `auto_test_remote2`.`tbl_a`
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey, skey FROM tbl_a ORDER BY pkey;
 pkey	skey
 0	0

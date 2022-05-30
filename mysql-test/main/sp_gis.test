@@ -12,6 +12,8 @@ drop function if exists x;
 drop function if exists y;
 --enable_warnings
 
+--enable_prepare_warnings
+
 create function a() returns int
 return 1;
 
@@ -96,6 +98,8 @@ CREATE FUNCTION geometrycollection() RETURNS POINT RETURN NULL;
 SELECT geometrycollection();
 --enable_warnings
 DROP FUNCTION geometrycollection;
+
+--disable_prepare_warnings
 
 --echo #
 --echo # End of 10.5 tests

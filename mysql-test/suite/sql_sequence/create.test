@@ -382,7 +382,7 @@ drop view v1;
 CREATE TEMPORARY SEQUENCE t1;
 select next value for t1;
 drop temporary table t1;
---error ER_NO_SUCH_TABLE
+--error ER_UNKNOWN_SEQUENCES
 select previous value for t1;
 CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 10;
 select next value for t1;
@@ -398,7 +398,7 @@ drop sequence t1;
 CREATE TEMPORARY SEQUENCE t1 engine=innodb;
 select next value for t1;
 drop temporary table t1;
---error ER_NO_SUCH_TABLE
+--error ER_UNKNOWN_SEQUENCES
 select previous value for t1;
 CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 10 engine=innodb;
 select next value for t1;
@@ -515,3 +515,41 @@ set global innodb_force_primary_key=default;
 --error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
 ALTER TABLE s1 ADD PRIMARY KEY (next_not_cached_value);
 DROP SEQUENCE s1;
+
+--echo #
+--echo # Beginning of 10.4 Test
+--echo #
+--echo # MDEV-13005: Fixing bugs in SEQUENCE, part 3
+--echo #
+
+--echo # Task 1:
+--error ER_UNKNOWN_SEQUENCES
+SET @x = PREVIOUS VALUE FOR x;
+
+--echo # Task 2:
+--error ER_SEQUENCE_INVALID_DATA
+CREATE SEQUENCE x START WITH 1 INCREMENT BY 123456789012345678;
+
+--echo # Task 3:
+--error ER_SEQUENCE_INVALID_DATA
+CREATE SEQUENCE seq1 START WITH 1 cache -1;
+
+--echo # Task 4:
+CREATE TEMPORARY TABLE s1 (s1 INT);
+--error ER_UNKNOWN_SEQUENCES
+DROP TEMPORARY SEQUENCE s1;
+DROP TEMPORARY TABLE s1;
+
+--echo # Task 5:
+CREATE TEMPORARY TABLE s1 (s1 INT);
+--error ER_PARSE_ERROR
+CREATE TEMPORARY SEQUENCE s1 (s1 INT);
+DROP TEMPORARY TABLE s1;
+
+--echo # Task 6:
+CREATE SEQUENCE seq1 START WITH 2;
+--error ER_TRG_ON_VIEW_OR_TEMP_TABLE
+CREATE TRIGGER s1 BEFORE UPDATE ON seq1 FOR EACH ROW SET @a= 5;
+DROP SEQUENCE seq1;
+
+--echo # End of 10.4 test

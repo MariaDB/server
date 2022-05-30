@@ -28,7 +28,7 @@
 #include "sql_priv.h"
 #include "unireg.h"                             // SPECIAL_NO_HOST_CACHE
 #include "hostname.h"
-#ifndef __WIN__
+#ifndef _WIN32
 #include <netdb.h>        // getservbyname, servent
 #endif
 #include "hash_filo.h"
@@ -40,12 +40,12 @@
 #ifdef	__cplusplus
 extern "C" {					// Because of SCO 3.2V4.2
 #endif
-#if !defined( __WIN__)
+#if !defined( _WIN32)
 #ifdef HAVE_SYS_UN_H
 #include <sys/un.h>
 #endif
 #include <sys/utsname.h>
-#endif // __WIN__
+#endif // _WIN32
 #ifdef	__cplusplus
 }
 #endif

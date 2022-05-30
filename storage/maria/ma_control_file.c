@@ -226,7 +226,7 @@ static int lock_control_file(const char *name, my_bool do_retry)
     @todo BUG We should explore my_sopen(_SH_DENYWRD) to open or create the
     file under Windows.
   */
-#ifndef __WIN__
+#ifndef _WIN32
   uint retry= 0;
   uint retry_count= do_retry ? MARIA_MAX_CONTROL_FILE_LOCK_RETRY : 0;
 
@@ -314,7 +314,7 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
       errmsg= "Can't create file";
       goto err;
     }
-    if (lock_control_file(name, wait_for_lock))
+    if (!aria_readonly && lock_control_file(name, wait_for_lock))
     {
       error= CONTROL_FILE_LOCKED;
       errmsg= lock_failed_errmsg;
@@ -332,7 +332,7 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
   }
 
   /* lock it before reading content */
-  if (lock_control_file(name, wait_for_lock))
+  if (!aria_readonly && lock_control_file(name, wait_for_lock))
   {
     error= CONTROL_FILE_LOCKED;
     errmsg= lock_failed_errmsg;
@@ -581,7 +581,7 @@ int ma_control_file_end(void)
   if (control_file_fd < 0) /* already closed */
     DBUG_RETURN(0);
 
-#ifndef __WIN__
+#ifndef _WIN32
   (void) my_lock(control_file_fd, F_UNLCK, 0L, F_TO_EOF,
                  MYF(MY_SEEK_NOT_DONE | MY_FORCE_LOCK));
 #endif

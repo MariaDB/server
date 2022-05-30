@@ -1,6 +1,6 @@
 /************** tabcmg C++ Program Source Code File (.CPP) *************/
-/* PROGRAM NAME: tabcmg     Version 1.1                                */
-/*  (C) Copyright to the author Olivier BERTRAND          2017         */
+/* PROGRAM NAME: tabcmg     Version 1.3                                */
+/*  (C) Copyright to the author Olivier BERTRAND          2017 - 2021  */
 /*  This program are the C MongoDB class DB execution routines.        */
 /***********************************************************************/
 
@@ -27,6 +27,7 @@
 #include "filter.h"
 
 PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info);
+bool    Stringified(PCSZ, char*);
 
 /* -------------------------- Class CMGDISC -------------------------- */
 
@@ -84,69 +85,80 @@ bool CMGDISC::FindInDoc(PGLOBAL g, bson_iter_t *iter, const bson_t *doc,
 
 			bcol.Cbn = false;
 
-			if (BSON_ITER_HOLDS_UTF8(iter)) {
-				bcol.Type = TYPE_STRING;
-				bcol.Len = strlen(bson_iter_utf8(iter, NULL));
-			} else if (BSON_ITER_HOLDS_INT32(iter)) {
-				bcol.Type = TYPE_INT;
-				bcol.Len = 11; // bson_iter_int32(iter)
-			} else if (BSON_ITER_HOLDS_INT64(iter)) {
-				bcol.Type = TYPE_BIGINT;
-				bcol.Len = 22; // bson_iter_int64(iter)
-			} else if (BSON_ITER_HOLDS_DOUBLE(iter)) {
-				bcol.Type = TYPE_DOUBLE;
-				bcol.Len = 12;
-				bcol.Scale = 6; // bson_iter_double(iter)
-			} else if (BSON_ITER_HOLDS_DATE_TIME(iter)) {
-				bcol.Type = TYPE_DATE;
-				bcol.Len = 19; // bson_iter_date_time(iter)
-			} else if (BSON_ITER_HOLDS_BOOL(iter)) {
-				bcol.Type = TYPE_TINY;
-				bcol.Len = 1;
-			} else if (BSON_ITER_HOLDS_OID(iter)) {
-				bcol.Type = TYPE_STRING;
-				bcol.Len = 24; // bson_iter_oid(iter)
-			} else if (BSON_ITER_HOLDS_DECIMAL128(iter)) {
-				bcol.Type = TYPE_DECIM;
-				bcol.Len = 32; // bson_iter_decimal128(iter, &dec)
-			} else if (BSON_ITER_HOLDS_DOCUMENT(iter)) {
-				if (lvl < 0)
-					continue;
-				else if (lvl <= k) {
+			switch (bson_iter_type(iter)) {
+				case BSON_TYPE_UTF8:
 					bcol.Type = TYPE_STRING;
-					bcol.Len = 512;
-				} else {
-					bson_iter_t child;
+					bcol.Len = strlen(bson_iter_utf8(iter, NULL));
+					break;
+				case BSON_TYPE_INT32:
+					bcol.Type = TYPE_INT;
+					bcol.Len = 11; // bson_iter_int32(iter)
+					break;
+				case BSON_TYPE_INT64:
+					bcol.Type = TYPE_BIGINT;
+					bcol.Len = 22; // bson_iter_int64(iter)
+					break;
+				case BSON_TYPE_DOUBLE:
+					bcol.Type = TYPE_DOUBLE;
+					bcol.Len = 12;
+					bcol.Scale = 6; // bson_iter_double(iter)
+					break;
+				case BSON_TYPE_DATE_TIME:
+					bcol.Type = TYPE_DATE;
+					bcol.Len = 19; // bson_iter_date_time(iter)
+					break;
+				case BSON_TYPE_BOOL:
+					bcol.Type = TYPE_TINY;
+					bcol.Len = 1;
+					break;
+				case BSON_TYPE_OID:
+					bcol.Type = TYPE_STRING;
+					bcol.Len = 24; // bson_iter_oid(iter)
+					break;
+				case BSON_TYPE_DECIMAL128:
+					bcol.Type = TYPE_DECIM;
+					bcol.Len = 32; // bson_iter_decimal128(iter, &dec)
+					break;
+				case BSON_TYPE_DOCUMENT:
+					if (lvl < 0)
+						continue;
+					else if (lvl <= k) {
+						bcol.Type = TYPE_STRING;
+						bcol.Len = 512;
+					} else {
+						bson_iter_t child;
 
-					if (bson_iter_recurse(iter, &child))
-						if (FindInDoc(g, &child, NULL, colname, fmt, k + 1, false))
+						if (bson_iter_recurse(iter, &child))
+							if (FindInDoc(g, &child, NULL, colname, fmt, k + 1, false))
+								return true;
+
+						newcol = false;
+					} // endif lvl
+
+					break;
+				case BSON_TYPE_ARRAY:
+					if (lvl < 0)
+						continue;
+					else if (lvl <= k) {
+						bcol.Type = TYPE_STRING;
+						bcol.Len = 512;
+					} else {
+						bson_t* arr;
+						bson_iter_t    itar;
+						const uint8_t* data = NULL;
+						uint32_t       len = 0;
+
+						bson_iter_array(iter, &len, &data);
+						arr = bson_new_from_data(data, len);
+
+						if (FindInDoc(g, &itar, arr, colname, fmt, k + 1, !all))
 							return true;
 
-					newcol = false;
-				} // endif lvl
+						newcol = false;
+					} // endif lvl
 
-			} else if (BSON_ITER_HOLDS_ARRAY(iter)) {
-				if (lvl < 0)
-					continue;
-				else if (lvl <= k) {
-					bcol.Type = TYPE_STRING;
-					bcol.Len = 512;
-				} else {
-					bson_t				*arr;
-					bson_iter_t    itar;
-					const uint8_t *data = NULL;
-					uint32_t       len = 0;
-
-					bson_iter_array(iter, &len, &data);
-					arr = bson_new_from_data(data, len);
-
-					if (FindInDoc(g, &itar, arr, colname, fmt, k + 1, !all))
-						return true;
-
-					newcol = false;
-				} // endif lvl
-
-		  }	// endif's
+					break;
+			}	// endswitch iter
 
 			if (newcol)
 				AddColumn(g, colname, fmt, k);
@@ -178,15 +190,19 @@ TDBCMG::TDBCMG(MGODEF *tdp) : TDBEXT(tdp)
 		Pcg.Coll_name = tdp->Tabname;
 		Pcg.Options = tdp->Colist;
 		Pcg.Filter = tdp->Filter;
+		Pcg.Line = NULL;
 		Pcg.Pipe = tdp->Pipe && tdp->Colist != NULL;
 		B = tdp->Base ? 1 : 0;
+		Strfy = tdp->Strfy;
 	} else {
 		Pcg.Uristr = NULL;
 		Pcg.Db_name = NULL;
 		Pcg.Coll_name = NULL;
 		Pcg.Options = NULL;
 		Pcg.Filter = NULL;
+		Pcg.Line = NULL;
 		Pcg.Pipe = false;
+		Strfy = NULL;
 		B = 0;
 	} // endif tdp
 
@@ -200,6 +216,7 @@ TDBCMG::TDBCMG(TDBCMG *tdbp) : TDBEXT(tdbp)
 	Cmgp = tdbp->Cmgp;
 	Cnd = tdbp->Cnd;
 	Pcg = tdbp->Pcg;
+	Strfy = tdbp->Strfy;
 	B = tdbp->B;
 	Fpos = tdbp->Fpos;
 	N = tdbp->N;
@@ -381,7 +398,21 @@ MGOCOL::MGOCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
 	    : EXTCOL(cdp, tdbp, cprec, i, "MGO")
 {
 	Tmgp = (PTDBCMG)(tdbp->GetOrig() ? tdbp->GetOrig() : tdbp);
-	Jpath = cdp->GetFmt() ? cdp->GetFmt() : cdp->GetName();
+	Sgfy = Stringified(Tmgp->Strfy, Name);
+
+	if ((Jpath = cdp->GetFmt())) {
+		int n = strlen(Jpath) - 1;
+
+		if (Jpath[n] == '*') {
+			Jpath = PlugDup(g, cdp->GetFmt());
+			if (Jpath[n - 1] == '.') n--;
+			Jpath[n] = 0;
+			Sgfy = true;
+		}	// endif Jpath
+
+	}	else
+	  Jpath = cdp->GetName();
+
 } // end of MGOCOL constructor
 
 /***********************************************************************/
@@ -392,6 +423,7 @@ MGOCOL::MGOCOL(MGOCOL *col1, PTDB tdbp) : EXTCOL(col1, tdbp)
 {
 	Tmgp = col1->Tmgp;
 	Jpath = col1->Jpath;
+	Sgfy = col1->Sgfy;
 } // end of MGOCOL copy constructor
 
 /***********************************************************************/
@@ -418,6 +450,9 @@ PSZ MGOCOL::GetJpath(PGLOBAL g, bool proj)
 
 				} else
 					*p2++ = *p1;
+
+				if (*(p2 - 1) == '.')
+					p2--;
 
 				*p2 = 0;
 				return projpath;

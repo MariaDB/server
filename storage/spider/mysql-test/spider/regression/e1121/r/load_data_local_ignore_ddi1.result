@@ -40,10 +40,10 @@ TRUNCATE TABLE mysql.general_log;
 connection master_1;
 LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/spider_outfile.tsv' IGNORE INTO TABLE tbl_a;
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_a`%';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_a`%';
 argument
 insert high_priority ignore into `auto_test_remote`.`tbl_a`(`pkey`,`val`)values(0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9)
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_a`%'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_a`%'
 SELECT pkey, val FROM tbl_a ORDER BY pkey;
 pkey	val
 0	1

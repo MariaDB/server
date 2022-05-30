@@ -1087,3 +1087,45 @@ update t1 left join t2 on a = b set b= 3 order by b;
 select * from t2;
 
 drop tables t1, t2;
+
+--echo #
+--echo # MDEV-22464 Server crash on UPDATE with nested subquery
+--echo #
+create table t1 (a int) ;
+insert into t1 (a) values (1),(2),(3) ;
+--error ER_SUBQUERY_NO_1_ROW
+select a from t1 where a= (select 2 from t1 having (a = 3));
+--error ER_SUBQUERY_NO_1_ROW
+update t1 set a= (select 2 from t1 having (a = 3));
+drop tables t1;
+
+--echo #
+--echo # MDEV-28246 Optimizer uses all partitions during an update in MariaDB 10.6.x but not in 10.2.x
+--echo #
+--source include/have_partition.inc
+CREATE TABLE t1 (
+  part INT(1),
+  a INT(1),
+  b INT(1),
+  PRIMARY KEY (a,part),
+  INDEX b (b,part)
+) PARTITION BY LIST (part) (
+  PARTITION Current VALUES IN (0),
+  PARTITION Relevant VALUES IN (1),
+  PARTITION Archive VALUES IN (2)
+);
+
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t1 (part,a,b) VALUES (0,0,0),(1,1,1),(2,2,2);
+INSERT INTO t2 (part,a,b) VALUES (0,0,0),(1,1,1),(2,2,2);
+
+--echo # Expecting partition "Current"
+EXPLAIN FORMAT=JSON UPDATE t2 JOIN t1 USING(a) SET t2.part=3 WHERE t2.part=0 AND t1.part=0;
+
+--echo # Expecting partition "Relevant"
+EXPLAIN FORMAT=JSON UPDATE t2 JOIN t1 USING(a) SET t2.part=2 WHERE t2.part=1 AND t1.part=1;
+
+--echo # Expecting partition "Archive"
+EXPLAIN FORMAT=JSON UPDATE t2 JOIN t1 USING(a) SET t2.part=3 WHERE t2.part=2 AND t1.part=2;
+
+DROP TABLES t1, t2;

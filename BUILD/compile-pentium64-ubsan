@@ -23,6 +23,14 @@
 path=`dirname $0`
 . "$path/SETUP.sh"
 
+#
+# Enable UBSAN, UndefinedBehaviorSanitizer. Detects undefined behavior like:
+# - Using misaligned or null pointer
+# - Signed integer overflow
+# - Conversion to, from, or between floating-point types which would overflow
+#   the destination
+#
+
 extra_flags="$pentium64_cflags $debug_cflags -fsanitize=undefined -DWITH_UBSAN -Wno-conversion -Wno-uninitialized"
 extra_configs="$pentium_configs $debug_configs -DWITH_UBSAN=ON -DMYSQL_MAINTAINER_MODE=NO --without-spider"
 

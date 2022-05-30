@@ -6473,5 +6473,24 @@ CAST(_ucs2 0x0061E0030062 AS INT)
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: 'ab'
 #
+# MDEV-24584 Selecting INT column with COLLATE utf8mb4_general_ci throws an error
+#
+SET NAMES utf8, collation_connection=ucs2_general_ci;
+SELECT 1 COLLATE ucs2_general_ci;
+1 COLLATE ucs2_general_ci
+1
+SELECT 1 COLLATE ucs2_bin;
+1 COLLATE ucs2_bin
+1
+SELECT HEX(1 COLLATE ucs2_general_ci);
+HEX(1 COLLATE ucs2_general_ci)
+0031
+SELECT HEX(1 COLLATE ucs2_bin);
+HEX(1 COLLATE ucs2_bin)
+0031
+SELECT 1 COLLATE latin1_swedish_ci;
+ERROR 42000: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'ucs2'
+SET NAMES utf8;
+#
 # End of 10.5 tests
 #

@@ -146,11 +146,11 @@ IF(UNIX)
   # FIND_PROC and CHECK_PID are used by mysqld_safe
 IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
   SET (FIND_PROC
-    "ps wwwp $PID | grep -v mysqld_safe | grep -- $MYSQLD > /dev/null")
+    "ps wwwp $PID | grep -vE mariadbd-safe -vE mysqld_safe | grep -- $MYSQLD > /dev/null")
 ENDIF()
 IF(NOT FIND_PROC AND CMAKE_SYSTEM_NAME MATCHES "SunOS")
   SET (FIND_PROC
-    "ps -p $PID | grep -v mysqld_safe | grep -- $MYSQLD > /dev/null")
+    "ps -p $PID | grep -v mariadbd-safe | grep -- $MYSQLD > /dev/null")
 ENDIF()
 
 IF(NOT FIND_PROC)
@@ -158,7 +158,7 @@ IF(NOT FIND_PROC)
   EXECUTE_PROCESS(COMMAND ps -uaxww OUTPUT_QUIET ERROR_QUIET RESULT_VARIABLE result)
   IF(result MATCHES 0)
      SET( FIND_PROC
-       "ps -uaxww | grep -v mysqld_safe | grep -- $MYSQLD | grep $PID > /dev/null")
+       "ps -uaxww | grep -v mariadbd-safe | grep -- $MYSQLD | grep $PID > /dev/null")
   ENDIF()
 ENDIF()
 
@@ -166,7 +166,7 @@ IF(NOT FIND_PROC)
   # SysV style
   EXECUTE_PROCESS(COMMAND ps -ef OUTPUT_QUIET ERROR_QUIET RESULT_VARIABLE result)
   IF(result MATCHES 0)
-    SET( FIND_PROC "ps -ef | grep -v mysqld_safe | grep -- $MYSQLD | grep $PID > /dev/null")
+    SET( FIND_PROC "ps -ef | grep -v mariadbd-safe | grep -- $MYSQLD | grep $PID > /dev/null")
   ENDIF()
 ENDIF()
 
@@ -179,6 +179,7 @@ ENDIF()
 
 SET(HOSTNAME "uname -n")
 SET(MYSQLD_USER "mysql")
+SET(MYSQLD_GROUP "mysql")
 ENDIF(UNIX)
 
 # Really ugly, one script, "mysql_install_db", needs prefix set to ".",
@@ -258,7 +259,7 @@ SET(mysql_config_COMPONENT Development)
 SET(msql2mysql_COMPONENT Client)
 SET(mariadb-access_COMPONENT Client)
 SET(mariadb-find-rows_COMPONENT Client)
-SET(mytop_COMPONENT Mytop)
+SET(mytop_COMPONENT Client)
 SET(mariadb-hotcopy_COMPONENT COMPONENT Client)
 SET(mariadb-convert-table-format_COMPONENT COMPONENT Client)
 SET(mariadb-setpermission_COMPONENT COMPONENT Client)
@@ -296,6 +297,7 @@ ELSE()
       wsrep_sst_mysqldump
       wsrep_sst_rsync
       wsrep_sst_mariabackup
+      wsrep_sst_backup
     )
     # The following script is sourced from other SST scripts, so it should
     # not be made executable.

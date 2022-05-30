@@ -12,9 +12,7 @@ There are install files available for 5.6 and 5.7 respectively. To load these, y
 
 ##### Description
 
-Holds configuration options for the sys schema. This is a persistent table (using the `InnoDB` storage engine), with the configuration persisting across upgrades (new options are added with `INSERT IGNORE`). 
-
-The table also has two related triggers, which maintain the user that `INSERTs` or `UPDATEs` the configuration - `sys_config_insert_set_user` and `sys_config_update_set_user` respectively.
+Holds configuration options for the sys schema. This is a persistent table, with the configuration persisting across upgrades (new options are added with `INSERT IGNORE`).
 
 Its structure is as follows:
 
@@ -5369,9 +5367,9 @@ name, then 'TEMPORARY' will be returned.
 
 ##### Parameters
 
-* in_db (VARCHAR(64)): The database name to check for the existance of the table in.
+* in_db (VARCHAR(64)): The database name to check for the existence of the table in.
 
-* in_table (VARCHAR(64)): The name of the table to check the existance of.
+* in_table (VARCHAR(64)): The name of the table to check the existence of.
 
 * out_exists ENUM('', 'BASE TABLE', 'VIEW', 'TEMPORARY'):  The return value: whether the table exists. The value is one of:
    - ''           - the table does not exist neither as a base table, view, nor temporary table.

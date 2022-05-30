@@ -1,5 +1,5 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
-   Copyright (c) 2009, 2021, MariaDB Corporation Ab
+   Copyright (c) 2009, 2022, MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -26,12 +26,8 @@
 #include "ma_crypt.h"
 #include "s3_func.h"
 
-#if defined(MSDOS) || defined(__WIN__)
-#ifdef __WIN__
+#ifdef _WIN32
 #include <fcntl.h>
-#else
-#include <process.h>			/* Prototype for getpid */
-#endif
 #endif
 
 static void setup_key_functions(MARIA_KEYDEF *keyinfo);
@@ -276,7 +272,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
   char name_buff[FN_REFLEN], org_name[FN_REFLEN], index_name[FN_REFLEN],
        data_name[FN_REFLEN];
   uchar *UNINIT_VAR(disk_cache), *disk_pos, *end_pos;
-  MARIA_HA info, *UNINIT_VAR(m_info), *old_info;
+  MARIA_HA info, *UNINIT_VAR(m_info), *old_info= NULL;
   MARIA_SHARE share_buff,*share;
   double *rec_per_key_part;
   ulong  *nulls_per_key_part;
@@ -296,9 +292,9 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
 
 #ifndef WITH_S3_STORAGE_ENGINE
   DBUG_ASSERT(!s3);
-#endif /* WITH_S3_STORAGE_ENGINE */
-
+#else
   if (!s3)
+#endif /* WITH_S3_STORAGE_ENGINE */
   {
     realpath_err= my_realpath(name_buff, fn_format(org_name, name, "",
                                                    MARIA_NAME_IEXT,
@@ -327,7 +323,6 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
   }
 #endif /* WITH_S3_STORAGE_ENGINE */
 
-  old_info= 0;
   if (!internal_table)
     mysql_mutex_lock(&THR_LOCK_maria);
   if ((open_flags & HA_OPEN_COPY) ||

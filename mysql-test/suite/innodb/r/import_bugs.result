@@ -1,0 +1,26 @@
+call mtr.add_suppression("Index for table 'imp_t1' is corrupt; try to repair it");
+SET @save_innodb_checksum_algorithm=@@GLOBAL.innodb_checksum_algorithm;
+SET GLOBAL innodb_checksum_algorithm=full_crc32;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+CREATE TABLE imp_t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE imp_t1 DISCARD TABLESPACE ;
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+ALTER TABLE imp_t1 IMPORT TABLESPACE;
+ERROR HY000: Schema mismatch (ROW_FORMAT mismatch)
+CREATE TABLE imp_t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ERROR 42S01: Table 'imp_t1' already exists
+DROP TABLE imp_t1;
+CREATE TABLE imp_t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+DROP TABLE imp_t1, t1;
+SET GLOBAL innodb_checksum_algorithm=@save_innodb_checksum_algorithm;
+#
+# MDEV-27006 Assertion `!lock_trx_has_sys_table_locks(trx)'
+#	failed in dberr_t row_discard_tablespace_for_mysql
+#		(dict_table_t*, trx_t*)
+CREATE TABLE t1 (c INT KEY) ENGINE=INNODB;
+CREATE TABLE t2 (c INT KEY,FOREIGN KEY(c) REFERENCES t1 (c)) ENGINE=INNODB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+DROP TABLE t2, t1;
+# End of 10.6 tests

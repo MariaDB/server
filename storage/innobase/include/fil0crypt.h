@@ -172,12 +172,6 @@ struct fil_space_crypt_t : st_encryption_scheme
 		return (encryption == FIL_ENCRYPTION_OFF);
 	}
 
-	/** Fill crypt data information to the give page.
-	It should be called during ibd file creation.
-	@param[in]	flags	tablespace flags
-	@param[in,out]	page	first page of the tablespace */
-	void fill_page0(ulint flags, byte* page);
-
 	/** Write encryption metadata to the first page.
 	@param[in,out]	block	first page of the tablespace
 	@param[in,out]	mtr	mini-transaction */
@@ -302,17 +296,15 @@ byte* fil_space_encrypt(
 @param[in]	physical_size		page size
 @param[in]	fsp_flags		Tablespace flags
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	err			DB_SUCCESS or DB_DECRYPTION_FAILED
-@return true if page decrypted, false if not.*/
-bool
+@return DB_SUCCESS or error */
+dberr_t
 fil_space_decrypt(
 	ulint			space_id,
 	fil_space_crypt_t*	crypt_data,
 	byte*			tmp_frame,
 	ulint			physical_size,
 	ulint			fsp_flags,
-	byte*			src_frame,
-	dberr_t*		err);
+	byte*			src_frame);
 
 /******************************************************************
 Decrypt a page
@@ -376,7 +368,7 @@ Return crypt statistics
 @param[out]	stat		Crypt statistics */
 void fil_crypt_total_stat(fil_crypt_stat_t *stat);
 
-#include "fil0crypt.ic"
+#include "fil0crypt.inl"
 #endif /* !UNIV_INNOCHECKSUM */
 
 /**
@@ -392,5 +384,11 @@ encrypted, or corrupted.
 @return true if page is encrypted AND OK, false otherwise */
 bool fil_space_verify_crypt_checksum(const byte* page, ulint zip_size)
 	MY_ATTRIBUTE((warn_unused_result));
+
+/** Add the tablespace to the rotation list if
+innodb_encrypt_rotate_key_age is 0 or encryption plugin does
+not do key version rotation
+@return whether the tablespace should be added to rotation list */
+bool fil_crypt_must_default_encrypt();
 
 #endif /* fil0crypt_h */

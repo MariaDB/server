@@ -40,7 +40,7 @@ TRUNCATE TABLE mysql.general_log;
 connection master_1;
 LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/spider_outfile.tsv' REPLACE INTO TABLE tbl_a;
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_a`%';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_a`%';
 argument
 insert into `auto_test_remote`.`tbl_a`(`pkey`,`val`)values(0,0)
 select `pkey`,`val` from `auto_test_remote`.`tbl_a` where `pkey` = 0 for update
@@ -72,7 +72,7 @@ update ignore `auto_test_remote`.`tbl_a` set `pkey` = 8,`val` = 8 where `pkey` =
 insert into `auto_test_remote`.`tbl_a`(`pkey`,`val`)values(9,9)
 select `pkey`,`val` from `auto_test_remote`.`tbl_a` where `pkey` = 9 for update
 update ignore `auto_test_remote`.`tbl_a` set `pkey` = 9,`val` = 9 where `pkey` = 9 and `val` = 10 limit 1
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_a`%'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_a`%'
 SELECT pkey, val FROM tbl_a ORDER BY pkey;
 pkey	val
 0	0

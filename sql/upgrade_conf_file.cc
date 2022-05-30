@@ -80,6 +80,7 @@ static const char *removed_variables[] =
 "innodb_file_format_check",
 "innodb_file_format_max",
 "innodb_flush_neighbor_pages",
+"innodb_force_load_corrupted",
 "innodb_foreground_preflush",
 "innodb_ibuf_accel_rate",
 "innodb_ibuf_active_contract",

@@ -237,6 +237,21 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
       DBUG_RETURN(TRUNCATE_FAILED_SKIP_BINLOG);
 
   table= table_ref->table;
+
+  if ((table->file->ht->flags & HTON_TRUNCATE_REQUIRES_EXCLUSIVE_USE) &&
+      !is_tmp_table)
+  {
+    if (wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
+      DBUG_RETURN(TRUNCATE_FAILED_SKIP_BINLOG);
+    /*
+      Get rid of all TABLE instances belonging to this thread
+      except one to be used for TRUNCATE
+    */
+    close_all_tables_for_name(thd, table->s,
+			      HA_EXTRA_NOT_USED,
+                              table);
+  }
+
   error= table->file->ha_truncate();
 
   if (!is_tmp_table && !error)
@@ -366,8 +381,8 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
     }
   }
 
-  *hton_can_recreate= !sequence
-                      && ha_check_storage_engine_flag(hton, HTON_CAN_RECREATE);
+  *hton_can_recreate= (!sequence &&
+                       ha_check_storage_engine_flag(hton, HTON_CAN_RECREATE));
 
   if (versioned)
   {
@@ -452,15 +467,13 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
       {
         if (keys.empty())
         {
-          WSREP_TO_ISOLATION_BEGIN_IF(table_ref->db.str, table_ref->table_name.str, NULL)
-          {
+          if (wsrep_to_isolation_begin(thd, table_ref->db.str, table_ref->table_name.str, NULL))
             DBUG_RETURN(TRUE);
-          }
-        } else {
-          WSREP_TO_ISOLATION_BEGIN_FK_TABLES(NULL, NULL, table_ref, &keys)
-          {
+        }
+        else
+        {
+          if (wsrep_to_isolation_begin(thd, NULL, NULL, table_ref, NULL, &keys))
             DBUG_RETURN(TRUE);
-          }
         }
       }
     }
@@ -479,10 +492,9 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
 
       if (thd->locked_tables_mode && thd->locked_tables_list.reopen_tables(thd, false))
       {
-        thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
-        error=1;
+          thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+          error= 1;
       }
-
       /* No need to binlog a failed truncate-by-recreate. */
       binlog_stmt= !error;
     }
@@ -496,10 +508,11 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
 
       if (error == TRUNCATE_OK && thd->locked_tables_mode &&
           (table_ref->table->file->ht->flags &
-           HTON_REQUIRES_CLOSE_AFTER_TRUNCATE))
+           (HTON_REQUIRES_CLOSE_AFTER_TRUNCATE |
+            HTON_TRUNCATE_REQUIRES_EXCLUSIVE_USE)))
       {
         thd->locked_tables_list.mark_table_for_reopen(thd, table_ref->table);
-        if (unlikely(thd->locked_tables_list.reopen_tables(thd, true)))
+        if (unlikely(thd->locked_tables_list.reopen_tables(thd, false)))
           thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
       }
 

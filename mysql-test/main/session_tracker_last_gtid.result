@@ -32,3 +32,4 @@ drop table t1;
 -- last_gtid
 -- 0-1-1002
 
+reset master;

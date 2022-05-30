@@ -19,14 +19,14 @@
 #include "sql_class.h"
 //#include "sql_time.h"
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <stdint.h>      // for uintprt_h
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include required application header files                          */

@@ -1,0 +1,21 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+
+select @@innodb_autoinc_lock_mode;
+select @@binlog_format;
+
+create table t1 (a int not null auto_increment,b int, primary key (a)) engine=InnoDB;
+insert into t1 values (NULL,1);
+--source include/show_binlog_events.inc
+
+set global binlog_format=STATEMENT;
+--connect (con1,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK)
+insert into t1 values (NULL,1);
+insert into t1 values (NULL,1);
+--disconnect con1
+--connection default
+
+set global binlog_format=MIXED;
+DROP TABLE t1;

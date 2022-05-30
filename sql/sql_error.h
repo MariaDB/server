@@ -970,6 +970,8 @@ public:
     DA_EOF,
     /** Set whenever one calls my_ok() in PS bulk mode. */
     DA_OK_BULK,
+    /** Set whenever one calls my_eof() in PS bulk mode. */
+    DA_EOF_BULK,
     /** Set whenever one calls my_error() or my_message(). */
     DA_ERROR,
     /** Set in case of a custom response, such as one from COM_STMT_PREPARE. */
@@ -1029,8 +1031,11 @@ public:
   enum_diagnostics_status status() const { return m_status; }
 
   const char *message() const
-  { DBUG_ASSERT(m_status == DA_ERROR || m_status == DA_OK ||
-                m_status == DA_OK_BULK); return m_message; }
+  {
+    DBUG_ASSERT(m_status == DA_ERROR || m_status == DA_OK ||
+                m_status == DA_OK_BULK || m_status == DA_EOF_BULK);
+    return m_message;
+  }
 
 
   uint sql_errno() const
@@ -1057,7 +1062,7 @@ public:
   uint statement_warn_count() const
   {
     DBUG_ASSERT(m_status == DA_OK || m_status == DA_OK_BULK ||
-                m_status == DA_EOF);
+                m_status == DA_EOF ||m_status == DA_EOF_BULK );
     return m_statement_warn_count;
   }
 

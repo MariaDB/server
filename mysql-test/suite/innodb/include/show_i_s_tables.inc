@@ -15,6 +15,5 @@ SELECT t.name 'Table Name',
 	WHERE t.name not like 'SYS_%'
 	AND t.name NOT LIKE 'mysql/%'
 	AND t.name NOT LIKE 'sys/%'
-	AND t.name NOT LIKE '%/#sql-ib%'
 	ORDER BY t.name;
 --enable_query_log

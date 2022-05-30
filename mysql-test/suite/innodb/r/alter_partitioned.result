@@ -1,3 +1,40 @@
+#
+# MDEV-26077 Assertion failure err != DB_DUPLICATE_KEY
+# or unexpected ER_TABLE_EXISTS_ERROR
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+connect  con1,localhost,root,,test;
+START TRANSACTION;
+INSERT INTO t2 (pk) VALUES (1);
+SAVEPOINT sp;
+INSERT INTO t1 (pk) VALUES (1);
+ROLLBACK TO SAVEPOINT sp;
+connection default;
+SET @save_timeout=@@lock_wait_timeout;
+SET @save_innodb_timeout=@@innodb_lock_wait_timeout;
+SET lock_wait_timeout=0;
+SET innodb_lock_wait_timeout=0;
+ALTER TABLE t1 PARTITION BY HASH(pk);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET lock_wait_timeout=@save_timeout;
+SET innodb_lock_wait_timeout=@save_innodb_timeout;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` int(11) NOT NULL,
+  PRIMARY KEY (`pk`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+connection con1;
+COMMIT;
+connection default;
+SET lock_wait_timeout=@save_timeout;
+SET innodb_lock_wait_timeout=@save_innodb_timeout;
+ALTER TABLE t2 PARTITION BY HASH(pk);
+disconnect con1;
+connection default;
+DROP TABLE t1, t2;
+# End of 10.2 tests
 CREATE TABLE t1(a INT, b VARCHAR(10), INDEX(a))ENGINE=InnoDB
 PARTITION BY RANGE(a)
 (PARTITION pa VALUES LESS THAN (3),
@@ -8,6 +45,7 @@ PARTITION BY RANGE(a)
 PARTITION pb VALUES LESS THAN (4));
 ERROR HY000: Partitioned tables do not support FOREIGN KEY
 DROP TABLE t1;
+# End of 10.3 tests
 #
 # MDEV-24754 Server crash in
 # ha_partition_inplace_ctx::~ha_partition_inplace_ctx
@@ -16,3 +54,4 @@ CREATE TABLE t1 (id INT PRIMARY KEY, a INT, va INT AS (a) VIRTUAL)
 ENGINE=InnoDB PARTITION BY HASH(id) PARTITIONS 2;
 ALTER TABLE t1 ADD b INT, ALGORITHM=INSTANT;
 DROP TABLE t1;
+# End of 10.5 tests

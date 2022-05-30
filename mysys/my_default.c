@@ -39,7 +39,7 @@
 #include <m_string.h>
 #include <m_ctype.h>
 #include <my_dir.h>
-#ifdef __WIN__
+#ifdef _WIN32
 #include <winbase.h>
 #endif
 
@@ -66,7 +66,7 @@ const char *my_defaults_extra_file=0;
 #define DEFAULT_DIRS_SIZE (MAX_DEFAULT_DIRS + 1)  /* Terminate with NULL */
 static const char **default_directories = NULL;
 
-#ifdef __WIN__
+#ifdef _WIN32
 static const char *f_extensions[]= { ".ini", ".cnf", 0 };
 #define NEWLINE "\r\n"
 #else
@@ -620,7 +620,7 @@ static int search_default_file_with_ext(struct handle_option_ctx *ctx,
     strmov(name,config_file);
   }
   fn_format(name,name,"","",4);
-#if !defined(__WIN__)
+#if !defined(_WIN32)
   {
     MY_STAT stat_info;
     if (!my_stat(name,&stat_info,MYF(0)))
@@ -973,7 +973,7 @@ static int add_directory(MEM_ROOT *alloc, const char *dir, const char **dirs)
   return 0;
 }
 
-#ifdef __WIN__
+#ifdef _WIN32
 static const char *my_get_module_parent(char *buf, size_t size)
 {
   char *last= NULL;
@@ -1003,7 +1003,7 @@ static const char *my_get_module_parent(char *buf, size_t size)
 
   return buf;
 }
-#endif /* __WIN__ */
+#endif /* _WIN32 */
 
 
 static const char **init_default_directories(MEM_ROOT *alloc)
@@ -1018,7 +1018,7 @@ static const char **init_default_directories(MEM_ROOT *alloc)
     DBUG_RETURN(NULL);
   bzero((char *) dirs, DEFAULT_DIRS_SIZE * sizeof(char *));
 
-#ifdef __WIN__
+#ifdef _WIN32
 
   {
     char fname_buffer[FN_REFLEN];
@@ -1066,7 +1066,7 @@ static const char **init_default_directories(MEM_ROOT *alloc)
   /* Placeholder for --defaults-extra-file=<path> */
   errors += add_directory(alloc, "", dirs);
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
   errors += add_directory(alloc, "~/", dirs);
 #endif
 

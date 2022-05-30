@@ -513,6 +513,10 @@ SELECT TIME_TO_SEC('916:40:00');
 SELECT ADDTIME('500:00:00', '416:40:00');
 SELECT ADDTIME('916:40:00', '416:40:00');
 
+# check if ADDTIME() handles NOT_FIXED_DEC correctly
+SELECT ADDTIME(20010101,1e0), ADDTIME(20010101,1.1e0);
+SELECT ADDTIME(ADDTIME(20010101,1e0), 0);
+
 # check if SUBTIME() handles out-of-range values correctly
 SELECT SUBTIME('916:40:00', '416:40:00');
 SELECT SUBTIME('-916:40:00', '416:40:00');
@@ -621,8 +625,10 @@ SET GLOBAL log_bin_trust_function_creators = 1;
 
 create table t1 (a timestamp default '2005-05-05 01:01:01',
                  b timestamp default '2005-05-05 01:01:01');
-delimiter //;
+--disable_warnings
 drop function if exists t_slow_sysdate;
+--enable_warnings
+delimiter //;
 create function t_slow_sysdate() returns timestamp
 begin
   do sleep(2);
@@ -2226,6 +2232,7 @@ SET @sav_slow_query_log= @@session.slow_query_log;
 SET @@session.slow_query_log= ON;
 SELECT current_timestamp(6),fn_sleep_before_now() INTO @ts_cur, @ts_func;
 
+--enable_prepare_warnings
 SELECT a FROM t_ts   LIMIT 1 into @ts_func;
 SELECT a FROM t_trig LIMIT 1 into @ts_trig;
 if (!`SELECT @ts_cur = @ts_func and @ts_func = @ts_trig`)
@@ -2241,6 +2248,8 @@ SET @@session.slow_query_log= OFF;
 SELECT current_timestamp(6),fn_sleep_before_now() INTO @ts_cur, @func_ts;
 SELECT a FROM t_ts   LIMIT 1 into @ts_func;
 SELECT a FROM t_trig LIMIT 1 into @ts_trig;
+--disable_prepare_warnings
+
 if (!`SELECT @ts_cur = @ts_func and @ts_func = @ts_trig`)
 {
   SELECT @ts_cur, @ts_func, @ts_trig;

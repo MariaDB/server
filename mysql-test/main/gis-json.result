@@ -107,6 +107,16 @@ Warning	4076	Incorrect GeoJSON format - empty 'coordinates' array.
 SELECT ST_GEOMFROMGEOJSON("{ \"type\": \"Feature\", \"geometry\": [10, 20] }");
 ST_GEOMFROMGEOJSON("{ \"type\": \"Feature\", \"geometry\": [10, 20] }")
 NULL
+SELECT ST_ASTEXT (ST_GEOMFROMGEOJSON ('{ "type": "GEOMETRYCOLLECTION", "coordinates": [102.0, 0.0]}'));
+ST_ASTEXT (ST_GEOMFROMGEOJSON ('{ "type": "GEOMETRYCOLLECTION", "coordinates": [102.0, 0.0]}'))
+NULL
+Warnings:
+Warning	4048	Incorrect GeoJSON format specified for st_geomfromgeojson function.
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"type": ["POINT"], "coINates": [0,0] }'));
+ST_ASTEXT(ST_GEOMFROMGEOJSON('{"type": ["POINT"], "coINates": [0,0] }'))
+NULL
+Warnings:
+Warning	4048	Incorrect GeoJSON format specified for st_geomfromgeojson function.
 #
 # End of 10.2 tests
 #

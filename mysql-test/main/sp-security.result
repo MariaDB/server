@@ -347,6 +347,7 @@ create function bug12812() returns char(2)
 begin
 return 'ok';
 end;
+|
 create user user_bug12812@localhost IDENTIFIED BY 'ABC'|
 connect  test_user_12812,localhost,user_bug12812,ABC,test;
 SELECT test.bug12812()|

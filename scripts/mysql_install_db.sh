@@ -31,6 +31,7 @@ defaults=""
 defaults_group_suffix=""
 mysqld_opt=""
 user=""
+group=""
 silent_startup="--silent-startup"
 
 force=0
@@ -95,6 +96,11 @@ Usage: $0 [OPTIONS]
                        user.  You must be root to use this option.  By default
                        mysqld runs using your current login name and files and
                        directories that it creates will be owned by you.
+  --group=group_name   The login group to use for running mysqld.  Files and
+                       directories created by mysqld will be owned by this
+                       group. You must be root to use this option.  By default
+                       mysqld runs using your current group and files and
+                       directories that it creates will be owned by you.
 
 All other options are passed to the mysqld program
 
@@ -144,11 +150,11 @@ parse_arguments()
       --ldata=*|--datadir=*|--data=*) ldata=`parse_arg "$arg"` ;;
       --log-error=*)
        log_error=`parse_arg "$arg"` ;;
-      --user=*)
         # Note that the user will be passed to mysqld so that it runs
         # as 'user' (crucial e.g. if log-bin=/some_other_path/
         # where a chown of datadir won't help)
-        user=`parse_arg "$arg"` ;;
+      --user=*) user=`parse_arg "$arg"` ;;
+      --group=*) group=`parse_arg "$arg"` ;;
       --skip-name-resolve) ip_only=1 ;;
       --verbose) verbose=1 ; silent_startup="" ;;
       --rpm) in_rpm=1 ;;
@@ -315,7 +321,7 @@ parse_arguments `"$print_defaults" $defaults $defaults_group_suffix --mysqld mys
 
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
 
-rel_mysqld="$dirname0/@INSTALL_SBINDIR@/mysqld"
+rel_mysqld="$dirname0/@INSTALL_SBINDIR@/mariadbd"
 
 # Configure paths to support files
 if test -n "$srcdir"
@@ -338,11 +344,11 @@ then
     cannot_find_file resolveip @resolveip_locations@
     exit 1
   fi
-  mysqld=`find_in_dirs mysqld @mysqld_locations@`
+  mysqld=`find_in_dirs mariadbd @mysqld_locations@`
   if test -z "$mysqld"
   then
-    cannot_find_file mysqld @mysqld_locations@
-    exit 1
+      cannot_find_file mariadbd @mysqld_locations@
+      exit 1
   fi
   langdir=`find_in_dirs --dir errmsg.sys @errmsg_locations@`
   if test -z "$langdir"
@@ -360,7 +366,7 @@ then
   plugindir=`find_in_dirs --dir auth_pam.so $basedir/lib*/plugin $basedir/lib*/mysql/plugin $basedir/lib/*/mariadb19/plugin`
   pamtooldir=$plugindir
 # relative from where the script was run for a relocatable install
-elif test -n "$dirname0" -a -x "$rel_mysqld" -a ! "$rel_mysqld" -ef "@sbindir@/mysqld"
+elif test -n "$dirname0" -a -x "$rel_mysqld" -a ! "$rel_mysqld" -ef "@sbindir@/mariadbd"
 then
   basedir="$dirname0"
   bindir="$basedir/@INSTALL_BINDIR@"
@@ -374,7 +380,7 @@ else
   basedir="@prefix@"
   bindir="@bindir@"
   resolveip="$bindir/resolveip"
-  mysqld="@sbindir@/mysqld"
+  mysqld="@sbindir@/mariadbd"
   srcpkgdatadir="@pkgdatadir@"
   buildpkgdatadir="@pkgdatadir@"
   plugindir="@pkgplugindir@"
@@ -468,7 +474,12 @@ do
   fi
   if test -n "$user"
   then
-    chown $user "$dir"
+    if test -z "$group"
+    then
+      chown $user $dir
+    else
+      chown $user:$group $dir
+    fi
     if test $? -ne 0
     then
       echo "Cannot change ownership of the database directories to the '$user'"
@@ -501,6 +512,12 @@ then
   fi
   args="$args --user=$user"
 fi
+
+#To be enabled if/when we enable --group as an option to mysqld
+#if test -n "$group"
+#then
+#  args="$args --group=$group"
+#fi
 
 if test -f "$ldata/mysql/user.frm"
 then
@@ -560,6 +577,7 @@ cat_sql()
 s_echo "Installing MariaDB/MySQL system tables in '$ldata' ..."
 if cat_sql | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
+    printf "@VERSION@-MariaDB" > "$ldata/mysql_upgrade_info"
   s_echo "OK"
 else
   log_file_place=$ldata
@@ -580,7 +598,7 @@ else
   echo
   echo "    shell> $mysqld --skip-grant-tables --general-log &"
   echo
-  echo "and use the command line tool $bindir/mysql"
+  echo "and use the command line tool $bindir/mariadb"
   echo "to connect to the mysql database and look at the grant tables:"
   echo
   echo "    shell> $bindir/mysql -u root mysql"
@@ -612,12 +630,8 @@ then
     echo
     echo
     echo "PLEASE REMEMBER TO SET A PASSWORD FOR THE MariaDB root USER !"
-    echo "To do so, start the server, then issue the following commands:"
+    echo "To do so, start the server, then issue the following command:"
     echo
-    echo "'$bindir/mysqladmin' -u root password 'new-password'"
-    echo "'$bindir/mysqladmin' -u root -h $hostname password 'new-password'"
-    echo
-    echo "Alternatively you can run:"
     echo "'$bindir/mysql_secure_installation'"
     echo
     echo "which will also give you the option of removing the test"
@@ -636,8 +650,7 @@ then
   fi
 
   echo
-  echo "See the MariaDB Knowledgebase at https://mariadb.com/kb or the"
-  echo "MySQL manual for more instructions."
+  echo "See the MariaDB Knowledgebase at https://mariadb.com/kb"
 
   if test "$in_rpm" -eq 0
   then
@@ -653,8 +666,7 @@ then
   echo "Please report any problems at https://mariadb.org/jira"
   echo
   echo "The latest information about MariaDB is available at https://mariadb.org/."
-  echo "You can find additional information about the MySQL part at:"
-  echo "https://dev.mysql.com"
+  echo
   echo "Consider joining MariaDB's strong and vibrant community:"
   echo "https://mariadb.org/get-involved/"
   echo

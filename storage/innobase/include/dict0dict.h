@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,6 +32,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "dict0mem.h"
 #include "fsp0fsp.h"
 #include "srw_lock.h"
+#include <my_sys.h>
 #include <deque>
 
 class MDL_ticket;
@@ -145,17 +146,19 @@ dict_acquire_mdl_shared(dict_table_t *table,
 @param[in,out]  thd             background thread, or NULL to not acquire MDL
 @param[out]     mdl             mdl ticket, or NULL
 @return table, NULL if does not exist */
+template<bool purge_thd= false>
 dict_table_t*
 dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                       dict_table_op_t table_op, THD *thd= nullptr,
                       MDL_ticket **mdl= nullptr)
   MY_ATTRIBUTE((warn_unused_result));
 
+/** Decrement the count of open handles */
+void dict_table_close(dict_table_t *table);
+
 /** Decrements the count of open handles of a table.
 @param[in,out]	table		table
-@param[in]	dict_locked	data dictionary locked
-@param[in]	try_drop	try to drop any orphan indexes after
-				an aborted online index creation
+@param[in]	dict_locked	whether dict_sys.latch is being held
 @param[in]	thd		thread to release MDL
 @param[in]	mdl		metadata lock or NULL if the thread is a
 				foreground one. */
@@ -163,7 +166,6 @@ void
 dict_table_close(
 	dict_table_t*	table,
 	bool		dict_locked,
-	bool		try_drop,
 	THD*		thd = NULL,
 	MDL_ticket*	mdl = NULL);
 
@@ -466,16 +468,14 @@ NOTE! This is a high-level function to be used mainly from outside the
 'dict' directory. Inside this directory dict_table_get_low
 is usually the appropriate function.
 @param[in] table_name Table name
-@param[in] dict_locked TRUE=data dictionary locked
-@param[in] try_drop TRUE=try to drop any orphan indexes after
-				an aborted online index creation
+@param[in] dict_locked whether dict_sys.latch is being held exclusively
 @param[in] ignore_err error to be ignored when loading the table
-@return table, NULL if does not exist */
+@return table
+@retval nullptr if does not exist */
 dict_table_t*
 dict_table_open_on_name(
 	const char*		table_name,
-	ibool			dict_locked,
-	ibool			try_drop,
+	bool			dict_locked,
 	dict_err_ignore_t	ignore_err)
 	MY_ATTRIBUTE((warn_unused_result));
 
@@ -933,8 +933,8 @@ dict_table_copy_types(
 	const dict_table_t*	table)	/*!< in: table */
 	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
-Looks for an index with the given id. NOTE that we do not reserve
-the dictionary mutex: this function is for emergency purposes like
+Looks for an index with the given id. NOTE that we do not acquire
+dict_sys.latch: this function is for emergency purposes like
 printing info of a corrupt database page!
 @return index or NULL if not found from cache */
 dict_index_t*
@@ -1145,7 +1145,6 @@ dict_field_get_col(
 
 /**********************************************************************//**
 Returns an index object if it is found in the dictionary cache.
-Assumes that dict_sys.mutex is already being held.
 @return index, NULL if not found */
 dict_index_t*
 dict_index_get_if_in_cache_low(
@@ -1351,27 +1350,17 @@ extern mysql_mutex_t dict_foreign_err_mutex;
 /** InnoDB data dictionary cache */
 class dict_sys_t
 {
-  /** The my_hrtime_coarse().val of the oldest mutex_lock_wait() start, or 0 */
-  std::atomic<ulonglong> mutex_wait_start;
+  /** The my_hrtime_coarse().val of the oldest lock_wait() start, or 0 */
+  std::atomic<ulonglong> latch_ex_wait_start;
 
-  /** @brief the data dictionary rw-latch protecting dict_sys
-
-  Table create, drop, etc. reserve this in X-mode (along with
-  acquiring dict_sys.mutex); implicit or
-  backround operations that are not fully covered by MDL
-  (rollback, foreign key checks) reserve this in S-mode.
-
-  This latch also prevents lock waits when accessing the InnoDB
-  data dictionary tables. @see trx_t::dict_operation_lock_mode */
-  MY_ALIGNED(CACHE_LINE_SIZE) srw_lock latch;
+  /** the rw-latch protecting the data dictionary cache */
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_lock latch;
 #ifdef UNIV_DEBUG
   /** whether latch is being held in exclusive mode (by any thread) */
   bool latch_ex;
+  /** number of S-latch holders */
+  Atomic_counter<uint32_t> latch_readers;
 #endif
-  /** Mutex protecting dict_sys. Whenever latch is acquired
-  exclusively, also the mutex will be acquired.
-  FIXME: merge the mutex and the latch, once MDEV-23484 has been fixed */
-  mysql_mutex_t mutex;
 public:
   /** Indexes of SYS_TABLE[] */
   enum
@@ -1428,7 +1417,7 @@ private:
   /** The synchronization interval of row_id */
   static constexpr size_t ROW_ID_WRITE_MARGIN= 256;
 public:
-  /** Diagnostic message for exceeding the mutex_lock_wait() timeout */
+  /** Diagnostic message for exceeding the lock_wait() timeout */
   static const char fatal_msg[];
 
   /** @return A new value for GEN_CLUST_INDEX(DB_ROW_ID) */
@@ -1456,7 +1445,7 @@ public:
   (should only happen during the rollback of CREATE...SELECT) */
   dict_table_t *acquire_temporary_table(table_id_t id)
   {
-    mysql_mutex_assert_owner(&mutex);
+    ut_ad(frozen());
     dict_table_t *table;
     ulint fold = ut_fold_ull(id);
     HASH_SEARCH(id_hash, &temp_id_hash, fold, dict_table_t*, table,
@@ -1476,9 +1465,9 @@ public:
   @retval nullptr if not cached */
   dict_table_t *find_table(table_id_t id)
   {
-    mysql_mutex_assert_owner(&mutex);
+    ut_ad(frozen());
     dict_table_t *table;
-    ulint fold = ut_fold_ull(id);
+    ulint fold= ut_fold_ull(id);
     HASH_SEARCH(id_hash, &table_id_hash, fold, dict_table_t*, table,
                 ut_ad(table->cached), table->id == id);
     DBUG_ASSERT(!table || !table->is_temporary());
@@ -1510,7 +1499,7 @@ public:
   {
     ut_ad(table);
     ut_ad(table->can_be_evicted == in_lru);
-    mysql_mutex_assert_owner(&mutex);
+    ut_ad(frozen());
     for (const dict_table_t* t= in_lru ? table_LRU.start : table_non_LRU.start;
          t; t = UT_LIST_GET_NEXT(table_LRU, t))
     {
@@ -1526,72 +1515,101 @@ public:
   }
 #endif
 
-  /** Move a table to the non-LRU list from the LRU list. */
-  void prevent_eviction(dict_table_t *table)
+  /** Move a table to the non-LRU list from the LRU list.
+  @return whether the table was evictable */
+  bool prevent_eviction(dict_table_t *table)
   {
+    ut_d(locked());
     ut_ad(find(table));
-    if (table->can_be_evicted)
-    {
-      table->can_be_evicted= false;
-      UT_LIST_REMOVE(table_LRU, table);
-      UT_LIST_ADD_LAST(table_non_LRU, table);
-    }
+    if (!table->can_be_evicted)
+      return false;
+    table->can_be_evicted= false;
+    UT_LIST_REMOVE(table_LRU, table);
+    UT_LIST_ADD_LAST(table_non_LRU, table);
+    return true;
   }
-  /** Acquire a reference to a cached table. */
-  inline void acquire(dict_table_t *table);
+  /** Move a table from the non-LRU list to the LRU list. */
+  void allow_eviction(dict_table_t *table)
+  {
+    ut_d(locked());
+    ut_ad(find(table));
+    ut_ad(!table->can_be_evicted);
+    table->can_be_evicted= true;
+    UT_LIST_REMOVE(table_non_LRU, table);
+    UT_LIST_ADD_FIRST(table_LRU, table);
+  }
 
-  /** Assert that the mutex is locked */
-  void assert_locked() const { mysql_mutex_assert_owner(&mutex); }
-  /** Assert that the mutex is not locked */
-  void assert_not_locked() const { mysql_mutex_assert_not_owner(&mutex); }
-#ifdef SAFE_MUTEX
-  bool mutex_is_locked() const { return mysql_mutex_is_owner(&mutex); }
+#ifdef UNIV_DEBUG
+  /** @return whether any thread (not necessarily the current thread)
+  is holding the latch; that is, this check may return false
+  positives */
+  bool frozen() const { return latch_readers || locked(); }
+  /** @return whether any thread (not necessarily the current thread)
+  is holding the exclusive latch; that is, this check may return false
+  positives */
+  bool locked() const { return latch_ex; }
 #endif
 private:
-  /** Acquire the mutex */
-  ATTRIBUTE_NOINLINE void mutex_lock_wait();
+  /** Acquire the exclusive latch */
+  ATTRIBUTE_NOINLINE
+  void lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line));
 public:
-  /** @return the my_hrtime_coarse().val of the oldest mutex_lock_wait() start,
+  /** @return the my_hrtime_coarse().val of the oldest lock_wait() start,
   assuming that requests are served on a FIFO basis */
   ulonglong oldest_wait() const
-  { return mutex_wait_start.load(std::memory_order_relaxed); }
+  { return latch_ex_wait_start.load(std::memory_order_relaxed); }
 
-#ifdef HAVE_PSI_MUTEX_INTERFACE
-  /** Acquire the mutex */
-  ATTRIBUTE_NOINLINE void mutex_lock();
-  /** Release the mutex */
-  ATTRIBUTE_NOINLINE void mutex_unlock();
+  /** Exclusively lock the dictionary cache. */
+  void lock(SRW_LOCK_ARGS(const char *file, unsigned line))
+  {
+    if (latch.wr_lock_try())
+    {
+      ut_ad(!latch_readers);
+      ut_ad(!latch_ex);
+      ut_d(latch_ex= true);
+    }
+    else
+      lock_wait(SRW_LOCK_ARGS(file, line));
+  }
+
+#ifdef UNIV_PFS_RWLOCK
+  /** Unlock the data dictionary cache. */
+  ATTRIBUTE_NOINLINE void unlock();
+  /** Acquire a shared lock on the dictionary cache. */
+  ATTRIBUTE_NOINLINE void freeze(const char *file, unsigned line);
+  /** Release a shared lock on the dictionary cache. */
+  ATTRIBUTE_NOINLINE void unfreeze();
 #else
-  /** Acquire the mutex */
-  void mutex_lock() { if (mysql_mutex_trylock(&mutex)) mutex_lock_wait(); }
-
-  /** Release the mutex */
-  void mutex_unlock() { mysql_mutex_unlock(&mutex); }
-#endif
-
-  /** Lock the data dictionary cache. */
-  void lock(SRW_LOCK_ARGS(const char *file, unsigned line));
-
   /** Unlock the data dictionary cache. */
   void unlock()
   {
     ut_ad(latch_ex);
+    ut_ad(!latch_readers);
     ut_d(latch_ex= false);
-    mutex_unlock();
     latch.wr_unlock();
   }
-
-  /** Prevent modifications of the data dictionary */
-  void freeze() { latch.rd_lock(SRW_LOCK_CALL); ut_ad(!latch_ex); }
-  /** Allow modifications of the data dictionary */
-  void unfreeze() { ut_ad(!latch_ex); latch.rd_unlock(); }
+  /** Acquire a shared lock on the dictionary cache. */
+  void freeze()
+  {
+    latch.rd_lock();
+    ut_ad(!latch_ex);
+    ut_d(latch_readers++);
+  }
+  /** Release a shared lock on the dictionary cache. */
+  void unfreeze()
+  {
+    ut_ad(!latch_ex);
+    ut_ad(latch_readers--);
+    latch.rd_unlock();
+  }
+#endif
 
   /** Estimate the used memory occupied by the data dictionary
   table and index objects.
   @return number of bytes occupied */
-  ulint rough_size() const
+  TPOOL_SUPPRESS_TSAN ulint rough_size() const
   {
-    /* No mutex; this is a very crude approximation anyway */
+    /* No latch; this is a very crude approximation anyway */
     ulint size = UT_LIST_GET_LEN(table_LRU) + UT_LIST_GET_LEN(table_non_LRU);
     size *= sizeof(dict_table_t)
       + sizeof(dict_index_t) * 2
@@ -1614,11 +1632,10 @@ public:
   @retval nullptr if not found */
   dict_table_t *find_table(const span<const char> &name) const
   {
-    assert_locked();
+    ut_ad(frozen());
     for (dict_table_t *table= static_cast<dict_table_t*>
          (HASH_GET_FIRST(&table_hash, table_hash.calc_hash
-                         (ut_fold_binary(reinterpret_cast<const byte*>
-                                         (name.data()), name.size()))));
+                         (my_crc32c(0, name.data(), name.size()))));
          table; table= table->name_hash)
       if (strlen(table->name.m_name) == name.size() &&
           !memcmp(table->name.m_name, name.data(), name.size()))
@@ -1643,9 +1660,6 @@ public:
 
 /** the data dictionary cache */
 extern dict_sys_t	dict_sys;
-
-#define dict_sys_lock() dict_sys.lock(SRW_LOCK_CALL)
-#define dict_sys_unlock() dict_sys.unlock()
 
 /*********************************************************************//**
 Converts a database and table name from filesystem encoding
@@ -1673,16 +1687,13 @@ dict_table_is_corrupted(
 	const dict_table_t*	table)	/*!< in: table */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/**********************************************************************//**
-Flags an index and table corrupted both in the data dictionary cache
-and in the system table SYS_INDEXES. */
-void
-dict_set_corrupted(
-/*===============*/
-	dict_index_t*	index,	/*!< in/out: index */
-	trx_t*		trx,	/*!< in/out: transaction */
-	const char*	ctx)	/*!< in: context */
-	ATTRIBUTE_COLD __attribute__((nonnull));
+/** Flag an index and table corrupted both in the data dictionary cache
+and in the system table SYS_INDEXES.
+@param index       index to be flagged as corrupted
+@param ctx         context (for error log reporting)
+@param dict_locked whether dict_sys.latch is held in exclusive mode */
+void dict_set_corrupted(dict_index_t *index, const char *ctx, bool dict_locked)
+  ATTRIBUTE_COLD __attribute__((nonnull));
 
 /** Flags an index corrupted in the data dictionary cache only. This
 is used mostly to mark a corrupted index when index's own dictionary
@@ -1807,6 +1818,6 @@ bool
 dict_table_have_virtual_index(
 	dict_table_t*	table);
 
-#include "dict0dict.ic"
+#include "dict0dict.inl"
 
 #endif

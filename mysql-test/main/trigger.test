@@ -761,6 +761,7 @@ drop table t1;
 
 create table t1 (id int, data int, username varchar(16));
 insert into t1 (id, data) values (1, 0);
+--enable_prepare_warnings
 delimiter |;
 create trigger t1_whoupdated before update on t1 for each row
 begin
@@ -771,6 +772,7 @@ begin
   select count(*) from ((select 1) union (select 2)) as d1 into i;
 end|
 delimiter ;|
+--disable_prepare_warnings
 update t1 set data = 1;
 
 connection addconroot1;
@@ -2343,6 +2345,7 @@ DROP TABLE IF EXISTS t1, t2;
 CREATE TABLE t1 (b VARCHAR(50) NOT NULL);
 CREATE TABLE t2 (a VARCHAR(10) NOT NULL DEFAULT '');
 
+--enable_prepare_warnings
 delimiter //;
 CREATE TRIGGER trg1 AFTER INSERT ON t2
 FOR EACH ROW BEGIN
@@ -2350,6 +2353,7 @@ FOR EACH ROW BEGIN
     (@bug51650 IS NULL OR @bug51650 != c.b) AND c.b = NEW.a LIMIT 1 INTO @foo;
 END//
 delimiter ;//
+--disable_prepare_warnings
 
 SET @bug51650 = 1;
 INSERT IGNORE INTO t2 VALUES();
@@ -2755,6 +2759,14 @@ INSERT INTO t1 () VALUES ();
 CREATE TRIGGER t1_trigger BEFORE INSERT ON t1 FOR EACH ROW BEGIN END;
 INSERT INTO t1 () VALUES ();
 DROP TABLE t1;
+
+--echo #
+--echo # Bug#33141958 - THE FIRST ASAN UAF ISSUE OF MYSQL SERVER
+--echo #
+create table t1 (a int);
+--error ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG
+create trigger tr1 after insert on t1 for each row alter table t1 tablespace s2;
+drop table t1;
 
 --echo #
 --echo # End of 10.2 tests

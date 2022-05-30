@@ -33,6 +33,10 @@ connection default;
 disconnect ddl1;
 disconnect ddl2;
 disconnect ddl3;
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+InnoDB		0 transactions not purged
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 CHECK TABLE t1,t2,t3;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -64,9 +68,11 @@ connection default;
 # Make durable the AUTO_INCREMENT in the above incomplete transaction.
 connect  flush_redo_log,localhost,root,,;
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
+SET SQL_MODE = NO_AUTO_VALUE_ON_ZERO;
 BEGIN;
-DELETE FROM articles LIMIT 1;
-ROLLBACK;
+UPDATE articles SET id=0 WHERE id=1;
+UPDATE articles SET id=1 WHERE id=0;
+COMMIT;
 disconnect flush_redo_log;
 connection default;
 # restart
@@ -151,6 +157,5 @@ id	title	body
 1	MySQL Tutorial	DBMS stands for Database...
 2	MariaDB Tutorial	DB means Database ...
 DROP TABLE mdev19073, mdev19073_2;
-SELECT * FROM information_schema.innodb_sys_tables
-WHERE name LIKE 'test/%' AND name NOT LIKE 'test/#sql-ib%';
+SELECT * FROM information_schema.innodb_sys_tables WHERE name LIKE 'test/%';
 TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE

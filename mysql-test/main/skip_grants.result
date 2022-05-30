@@ -52,8 +52,6 @@ DROP FUNCTION f3;
 # Bug #26807 "set global event_scheduler=1" and --skip-grant-tables crashes server
 #
 set global event_scheduler=1;
-Warnings:
-Note	1408	Event Scheduler: Loaded 0 events
 set global event_scheduler=0;
 #
 # Bug#26285 Selecting information_schema crahes server

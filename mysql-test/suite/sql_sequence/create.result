@@ -167,11 +167,11 @@ drop sequence if exists t1;
 Warnings:
 Note	4090	'test.t1' is not a SEQUENCE
 create sequence t1 start with 10 maxvalue=9;
-ERROR HY000: Sequence 'test.t1' values are conflicting
+ERROR HY000: Sequence 'test.t1' has out of range value for options
 create sequence t1 minvalue= 100 maxvalue=10;
-ERROR HY000: Sequence 'test.t1' values are conflicting
+ERROR HY000: Sequence 'test.t1' has out of range value for options
 create sequence t1 start with 9 minvalue=10;
-ERROR HY000: Sequence 'test.t1' values are conflicting
+ERROR HY000: Sequence 'test.t1' has out of range value for options
 create or replace sequence t1 maxvalue=13, increment by -1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ' increment by -1' at line 1
 create or replace sequence t1 start with= 10 maxvalue=13;
@@ -183,7 +183,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 create or replace sequence t1 start with 10 min_value=1 NO MINVALUE;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NO MINVALUE' at line 1
 create sequence t1 start with 10 maxvalue=9223372036854775807;
-ERROR HY000: Sequence 'test.t1' values are conflicting
+ERROR HY000: Sequence 'test.t1' has out of range value for options
 create sequence t1 start with 10 minvalue=-9223372036854775808;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '9223372036854775808' at line 1
 create sequence t1 RESTART WITH 10;
@@ -477,7 +477,7 @@ next value for t1
 1
 drop temporary table t1;
 select previous value for t1;
-ERROR 42S02: Table 'test.t1' doesn't exist
+ERROR 42S02: Unknown SEQUENCE: 't1'
 CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 10;
 select next value for t1;
 next value for t1
@@ -506,7 +506,7 @@ next value for t1
 1
 drop temporary table t1;
 select previous value for t1;
-ERROR 42S02: Table 'test.t1' doesn't exist
+ERROR 42S02: Unknown SEQUENCE: 't1'
 CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 10 engine=innodb;
 select next value for t1;
 next value for t1
@@ -686,3 +686,33 @@ set global innodb_force_primary_key=default;
 ALTER TABLE s1 ADD PRIMARY KEY (next_not_cached_value);
 ERROR HY000: Sequence 'test.s1' table structure is invalid (Sequence tables cannot have any keys)
 DROP SEQUENCE s1;
+#
+# Beginning of 10.4 Test
+#
+# MDEV-13005: Fixing bugs in SEQUENCE, part 3
+#
+# Task 1:
+SET @x = PREVIOUS VALUE FOR x;
+ERROR 42S02: Unknown SEQUENCE: 'x'
+# Task 2:
+CREATE SEQUENCE x START WITH 1 INCREMENT BY 123456789012345678;
+ERROR HY000: Sequence 'test.x' has out of range value for options
+# Task 3:
+CREATE SEQUENCE seq1 START WITH 1 cache -1;
+ERROR HY000: Sequence 'test.seq1' has out of range value for options
+# Task 4:
+CREATE TEMPORARY TABLE s1 (s1 INT);
+DROP TEMPORARY SEQUENCE s1;
+ERROR 42S02: Unknown SEQUENCE: 'test.s1'
+DROP TEMPORARY TABLE s1;
+# Task 5:
+CREATE TEMPORARY TABLE s1 (s1 INT);
+CREATE TEMPORARY SEQUENCE s1 (s1 INT);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(s1 INT)' at line 1
+DROP TEMPORARY TABLE s1;
+# Task 6:
+CREATE SEQUENCE seq1 START WITH 2;
+CREATE TRIGGER s1 BEFORE UPDATE ON seq1 FOR EACH ROW SET @a= 5;
+ERROR HY000: Trigger's 'seq1' is a view, temporary table or sequence
+DROP SEQUENCE seq1;
+# End of 10.4 test

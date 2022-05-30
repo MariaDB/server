@@ -1,4 +1,5 @@
-/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
+   Copyright (c) 2022, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -24,6 +25,9 @@
 #include <my_sys.h>
 #include <pfs_global.h>
 #include <string.h>
+#ifdef HAVE_MEMALIGN
+# include <malloc.h>
+#endif
 
 bool pfs_initialized= false;
 size_t pfs_allocated_memory_size= 0;
@@ -37,7 +41,7 @@ void *pfs_malloc(PFS_builtin_memory_class *klass, size_t size, myf)
   /*
     Catch non initialized sizing parameter in the unit tests.
   */
-  DBUG_ASSERT(size <= 100*1024*1024);
+  assert(size <= 100*1024*1024);
 
   if (stub_alloc_always_fails)
     return NULL;
@@ -45,7 +49,17 @@ void *pfs_malloc(PFS_builtin_memory_class *klass, size_t size, myf)
   if (--stub_alloc_fails_after_count <= 0)
     return NULL;
 
+#ifndef PFS_ALIGNEMENT
   void *ptr= malloc(size);
+#elif defined HAVE_MEMALIGN
+  void *ptr= memalign(PFS_ALIGNEMENT, size);
+#elif defined HAVE_ALIGNED_MALLOC
+  void *ptr= _aligned_malloc(size, PFS_ALIGNEMENT);
+#else
+  void *ptr;
+  if (posix_memalign(&ptr, PFS_ALIGNEMENT, size))
+    ptr= NULL;
+#endif
   if (ptr != NULL)
     memset(ptr, 0, size);
   return ptr;

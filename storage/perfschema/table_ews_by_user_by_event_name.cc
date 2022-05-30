@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -50,13 +50,13 @@ table_ews_by_user_by_event_name::m_share=
   sizeof(pos_ews_by_user_by_event_name),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_waits_summary_by_user_by_event_name("
-                      "USER CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default null,"
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "COUNT_STAR BIGINT unsigned not null,"
-                      "SUM_TIMER_WAIT BIGINT unsigned not null,"
-                      "MIN_TIMER_WAIT BIGINT unsigned not null,"
-                      "AVG_TIMER_WAIT BIGINT unsigned not null,"
-                      "MAX_TIMER_WAIT BIGINT unsigned not null)") },
+                      "USER CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default null comment 'User. Used together with EVENT_NAME for grouping events.',"
+                      "EVENT_NAME VARCHAR(128) not null comment 'Event name. Used together with USER for grouping events.',"
+                      "COUNT_STAR BIGINT unsigned not null comment 'Number of summarized events',"
+                      "SUM_TIMER_WAIT BIGINT unsigned not null comment 'Total wait time of the summarized events that are timed.',"
+                      "MIN_TIMER_WAIT BIGINT unsigned not null comment 'Minimum wait time of the summarized events that are timed.',"
+                      "AVG_TIMER_WAIT BIGINT unsigned not null comment 'Average wait time of the summarized events that are timed.',"
+                      "MAX_TIMER_WAIT BIGINT unsigned not null comment 'Maximum wait time of the summarized events that are timed.')") },
   false  /* perpetual */
 };
 
@@ -137,7 +137,7 @@ int table_ews_by_user_by_event_name::rnd_next(void)
           break;
         default:
           instr_class= NULL;
-          DBUG_ASSERT(false);
+          assert(false);
           break;
         }
 
@@ -194,7 +194,7 @@ table_ews_by_user_by_event_name::rnd_pos(const void *pos)
     break;
   default:
     instr_class= NULL;
-    DBUG_ASSERT(false);
+    assert(false);
     break;
   }
   if (instr_class)
@@ -245,7 +245,7 @@ int table_ews_by_user_by_event_name
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 1);
+  assert(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)

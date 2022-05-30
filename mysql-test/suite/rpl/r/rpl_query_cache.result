@@ -1,0 +1,29 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+SET @qtype= @@global.query_cache_type;
+SET GLOBAL query_cache_type= ON;
+SET query_cache_type= ON;
+connection master;
+create table t1 (i int) engine=innodb;
+insert into t1 set i=1;
+connection slave;
+select * from t1;
+i
+1
+connection master;
+insert into t1 set i=2;
+connection slave;
+select * from t1;
+i
+1
+2
+select sql_no_cache * from t1;
+i
+1
+2
+connection master;
+DROP TABLE t1;
+connection slave;
+SET GLOBAL query_cache_type= @qtype;
+include/rpl_end.inc

@@ -16,7 +16,7 @@
 
 
 #define PLUGIN_VERSION 0x104
-#define PLUGIN_STR_VERSION "1.4.13"
+#define PLUGIN_STR_VERSION "1.4.14"
 
 #define _my_thread_var loc_thread_var
 
@@ -217,7 +217,7 @@ static int loc_rename(const char *from, const char *to)
 {
   int error = 0;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (!MoveFileEx(from, to, MOVEFILE_COPY_ALLOWED |
                             MOVEFILE_REPLACE_EXISTING))
   {
@@ -309,8 +309,6 @@ static char logging;
 static volatile int internal_stop_logging= 0;
 static char incl_user_buffer[1024];
 static char excl_user_buffer[1024];
-static char *big_buffer= NULL;
-static size_t big_buffer_alloced= 0;
 static unsigned int query_log_limit= 0;
 
 static char servhost[HOSTNAME_LENGTH+1];
@@ -569,18 +567,10 @@ static PSI_mutex_info mutex_key_list[]=
 {
   { &key_LOCK_operations, "SERVER_AUDIT_plugin::lock_operations",
     PSI_FLAG_GLOBAL}
-#ifndef FLOGGER_NO_PSI
-  ,
-  { &key_LOCK_atomic, "SERVER_AUDIT_plugin::lock_atomic",
-    PSI_FLAG_GLOBAL},
-  { &key_LOCK_bigbuffer, "SERVER_AUDIT_plugin::lock_bigbuffer",
-    PSI_FLAG_GLOBAL}
-#endif /*FLOGGER_NO_PSI*/
 };
 #endif /*HAVE_PSI_INTERFACE*/
 static mysql_prlock_t lock_operations;
 static mysql_mutex_t lock_atomic;
-static mysql_mutex_t lock_bigbuffer;
 
 /* The Percona server and partly MySQL don't support         */
 /* launching client errors in the 'update_variable' methods. */
@@ -964,7 +954,19 @@ static unsigned long long query_counter= 1;
 
 static struct connection_info *get_loc_info(MYSQL_THD thd)
 {
+  /*
+    This is the original code and supposed to be returned
+    bach to this as the MENT-1438 is finally understood/resolved.
   return (struct connection_info *) THDVAR(thd, loc_info);
+  */
+  struct connection_info *ci= (struct connection_info *) THDVAR(thd, loc_info);
+  if ((size_t) ci->user_length > sizeof(ci->user))
+  {
+    ci->user_length= 0;
+    ci->host_length= 0;
+    ci->ip_length= 0;
+  }
+  return ci;
 }
 
 
@@ -1044,9 +1046,9 @@ static int get_user_host(const char *uh_line, unsigned int uh_len,
   return 0;
 }
 
-#if defined(__WIN__) && !defined(S_ISDIR)
+#if defined(_WIN32) && !defined(S_ISDIR)
 #define S_ISDIR(x) ((x) & _S_IFDIR)
-#endif /*__WIN__ && !S_ISDIR*/
+#endif /*_WIN32 && !S_ISDIR*/
 
 static int start_logging()
 {
@@ -1401,6 +1403,16 @@ static size_t log_header(char *message, size_t message_len,
     host= userip;
   }
 
+  /*
+    That was added to find the possible cause of the MENT-1438.
+    Supposed to be removed after that.
+  */
+  if (username_len > 1024)
+  {
+    username= "unknown_user";
+    username_len= (unsigned int) strlen(username);
+  }
+
   if (output_type == OUTPUT_SYSLOG)
     return my_snprintf(message, message_len,
         "%.*s,%.*s,%.*s,%d,%lld,%s",
@@ -1744,7 +1756,7 @@ static int log_statement_ex(const struct connection_info *cn,
                             int error_code, const char *type, int take_lock)
 {
   size_t csize;
-  char message_loc[1024];
+  char message_loc[2048];
   char *message= message_loc;
   size_t message_size= sizeof(message_loc);
   char *uh_buffer;
@@ -1753,6 +1765,7 @@ static int log_statement_ex(const struct connection_info *cn,
   unsigned int db_length;
   long long query_id;
   int result;
+  char *big_buffer= NULL;
 
   if ((db= cn->db))
     db_length= cn->db_length;
@@ -1835,17 +1848,9 @@ do_log_query:
 
   if (query_len > (message_size - csize)/2)
   {
-    flogger_mutex_lock(&lock_bigbuffer);
-    if (big_buffer_alloced < (query_len * 2 + csize))
-    {
-      big_buffer_alloced= (query_len * 2 + csize + 4095) & ~4095L;
-      big_buffer= realloc(big_buffer, big_buffer_alloced);
-      if (big_buffer == NULL)
-      {
-        big_buffer_alloced= 0;
-        return 0;
-      }
-    }
+    size_t big_buffer_alloced= (query_len * 2 + csize + 4095) & ~4095L;
+    if(!(big_buffer= malloc(big_buffer_alloced)))
+      return 0;
 
     memcpy(big_buffer, message, csize);
     message= big_buffer;
@@ -1891,8 +1896,8 @@ do_log_query:
                       "\',%d", error_code);
   message[csize]= '\n';
   result= write_log(message, csize + 1, take_lock);
-  if (message == big_buffer)
-    flogger_mutex_unlock(&lock_bigbuffer);
+  if (big_buffer)
+    free(big_buffer);
 
   return result;
 }
@@ -2386,6 +2391,9 @@ int get_db_mysql57(MYSQL_THD thd, char **name, size_t *len)
 #ifdef __x86_64__
     db_off= 608;
     db_len_off= 616;
+#elif __aarch64__
+    db_off= 632;
+    db_len_off= 640;
 #else
     db_off= 0;
     db_len_off= 0;
@@ -2396,6 +2404,9 @@ int get_db_mysql57(MYSQL_THD thd, char **name, size_t *len)
 #ifdef __x86_64__
     db_off= 536;
     db_len_off= 544;
+#elif __aarch64__
+    db_off= 552;
+    db_len_off= 560;
 #else
     db_off= 0;
     db_len_off= 0;
@@ -2548,7 +2559,6 @@ static int server_audit_init(void *p __attribute__((unused)))
 #endif
   mysql_prlock_init(key_LOCK_operations, &lock_operations);
   flogger_mutex_init(key_LOCK_operations, &lock_atomic, MY_MUTEX_INIT_FAST);
-  flogger_mutex_init(key_LOCK_operations, &lock_bigbuffer, MY_MUTEX_INIT_FAST);
 
   coll_init(&incl_user_coll);
   coll_init(&excl_user_coll);
@@ -2633,10 +2643,8 @@ static int server_audit_deinit(void *p __attribute__((unused)))
   else if (output_type == OUTPUT_SYSLOG)
     closelog();
 
-  (void) free(big_buffer);
   mysql_prlock_destroy(&lock_operations);
   flogger_mutex_destroy(&lock_atomic);
-  flogger_mutex_destroy(&lock_bigbuffer);
 
   error_header();
   fprintf(stderr, "STOPPED\n");

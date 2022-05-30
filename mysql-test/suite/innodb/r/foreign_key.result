@@ -137,7 +137,34 @@ SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 unique_constraint_name
 PRIMARY
+#
+# MDEV-28317 Assertion failure on rollback of FOREIGN KEY operation
+#
+SET foreign_key_checks=0;
+CREATE TABLE parent(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE child(a INT,FOREIGN KEY(a) REFERENCES parent(a) ON DELETE CASCADE)
+ENGINE=InnoDB;
+INSERT INTO child VALUES(1);
+ALTER TABLE child DROP INDEX a;
+connect incomplete, localhost, root,,;
+BEGIN;
+DELETE FROM child;
+connection default;
+INSERT INTO parent SET a=0;
+FLUSH TABLES;
 # restart
+disconnect incomplete;
+INSERT INTO child SET a=0;
+INSERT INTO child SET a=1;
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON DELETE CASCADE)
+DELETE FROM parent;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON DELETE CASCADE)
+ALTER TABLE child ADD INDEX(a);
+DELETE FROM parent;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON DELETE CASCADE)
+ALTER TABLE child FORCE;
+DELETE FROM parent;
+DROP TABLE child,parent;
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SELECT unique_constraint_name FROM information_schema.referential_constraints
@@ -408,8 +435,8 @@ INSERT INTO t1 VALUES (1,2);
 CREATE TABLE x AS SELECT * FROM t1;
 ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
 connect  con1,localhost,root,,test;
-SET foreign_key_checks= OFF, innodb_lock_wait_timeout= 1;
-SET lock_wait_timeout=5;
+SET foreign_key_checks= OFF, innodb_lock_wait_timeout= 0;
+SET lock_wait_timeout=2;
 ALTER TABLE t1 ADD FOREIGN KEY f (a) REFERENCES t1 (pk), LOCK=EXCLUSIVE;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 disconnect con1;
@@ -491,7 +518,7 @@ BEGIN;
 UPDATE users SET name = 'qux' WHERE id = 1;
 connect  con1,localhost,root;
 connection con1;
-SET innodb_lock_wait_timeout= 1;
+SET innodb_lock_wait_timeout= 0;
 DELETE FROM matchmaking_groups WHERE id = 10;
 connection default;
 COMMIT;
@@ -531,9 +558,10 @@ connection con1;
 BEGIN;
 UPDATE t2 SET f = 11 WHERE id = 1;
 connection default;
-SET innodb_lock_wait_timeout= 1;
+SET innodb_lock_wait_timeout= 0;
 DELETE FROM t1 WHERE id = 1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET innodb_lock_wait_timeout= 1;
 connection con1;
 COMMIT;
 connection default;
@@ -655,9 +683,9 @@ START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
 DELETE IGNORE FROM t1 WHERE b = 1;
 Warnings:
-Warning	152	InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 20. Please drop extra constraints and try again
+Warning	152	InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15. Please drop extra constraints and try again
 Warning	1296	Got error 193 '`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
-Warning	152	InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 20. Please drop extra constraints and try again
+Warning	152	InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15. Please drop extra constraints and try again
 Warning	1296	Got error 193 '`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
 SELECT a FROM t1 FORCE INDEX(a);
 a
@@ -808,6 +836,25 @@ ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint 
 Parsing foreign keys 3...
 ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 Parsing foreign keys 4...
+#
+# MDEV-27583 InnoDB uses different constants for FK cascade
+#            error message in SQL vs error log
+#
+CREATE TABLE t1
+(a INT, b INT, KEY(b),
+CONSTRAINT FOREIGN KEY (a) REFERENCES t1 (b) ON DELETE CASCADE)
+ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES
+(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),
+(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,1),(1,0);
+DELETE FROM t1 WHERE b = 1;
+ERROR HY000: Got error 193 '`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
+SHOW WARNINGS;
+Level	Code	Message
+Warning	152	InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15. Please drop extra constraints and try again
+Error	1296	Got error 193 '`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
+DROP TABLE t1;
+FOUND 1 /InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15.*/ in mysqld.1.err
 # End of 10.2 tests
 CREATE TABLE t1 (a GEOMETRY, INDEX(a(8)),
 FOREIGN KEY (a) REFERENCES x (xx)) ENGINE=InnoDB;
@@ -896,4 +943,74 @@ create or replace table t1 (a varchar(4096) unique) engine=innodb;
 create or replace table t2 (pk int primary key, a varchar(4096) unique, foreign key(a) references t1(a) on update cascade) engine=innodb;
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 drop table t1;
+#
+# MDEV-26824 Can't add foreign key with empty referenced columns list
+#
+create table t2(a int primary key) engine=innodb;
+create table t1(a int primary key, b int) engine=innodb;
+alter table t2 add foreign key(a) references t1(a, b);
+ERROR 42000: Incorrect foreign key definition for 'foreign key without name': Key reference and table reference don't match
+create or replace table t1(a tinyint primary key) engine innodb;
+alter table t2 add foreign key(a) references t1;
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+create or replace table t1(b int primary key) engine innodb;
+alter table t2 add foreign key(a) references t1;
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+create or replace table t1(a int primary key, b int) engine innodb;
+alter table t2 add foreign key(a) references t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+drop tables t2, t1;
 # End of 10.5 tests
+#
+# MDEV-26554 Table-rebuilding DDL on parent table causes crash
+#            for INSERT into child table
+#
+CREATE TABLE parent(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE child(a INT PRIMARY KEY REFERENCES parent(a)) ENGINE=InnoDB;
+connect  con1, localhost, root,,;
+BEGIN;
+INSERT INTO child SET a=1;
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`))
+connection default;
+SET innodb_lock_wait_timeout=0, foreign_key_checks=0;
+TRUNCATE TABLE parent;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ALTER TABLE parent FORCE, ALGORITHM=COPY;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ALTER TABLE parent ADD COLUMN b INT, ALGORITHM=INSTANT;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+COMMIT;
+connection default;
+SET innodb_lock_wait_timeout=DEFAULT;
+TRUNCATE TABLE parent;
+ALTER TABLE parent FORCE, ALGORITHM=COPY;
+ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
+ALTER TABLE parent ADD COLUMN b INT, ALGORITHM=INSTANT;
+DROP TABLE child, parent;
+#
+# MDEV-26217 Failing assertion: list.count > 0 in ut_list_remove
+# or Assertion `lock->trx == this' failed in dberr_t trx_t::drop_table
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (pk INT PRIMARY KEY, FOREIGN KEY(pk) REFERENCES t1(pk))
+ENGINE=InnoDB;
+connection con1;
+SET FOREIGN_KEY_CHECKS=OFF;
+CREATE OR REPLACE TABLE t1 (b INT) ENGINE=InnoDB;
+connection default;
+INSERT INTO t2 VALUES (1);
+connection con1;
+disconnect con1;
+connection default;
+DROP TABLE IF EXISTS t2, t1;
+# End of 10.6 tests

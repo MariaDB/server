@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -38,8 +38,9 @@ struct PFS_user;
 struct PFS_host;
 
 /** A statement record. */
-struct PFS_events_statements : public PFS_events
+struct PFS_events_statements
 {
+  PFS_events m_event;
   enum_object_type m_sp_type;
   char m_schema_name[NAME_LEN];
   uint m_schema_name_length;
@@ -117,6 +118,8 @@ struct PFS_events_statements : public PFS_events
     and always point to pre allocated memory.
   */
   sql_digest_storage m_digest_storage;
+
+  inline void copy(const PFS_events_statements &source);
 };
 
 void insert_events_statements_history(PFS_thread *thread, PFS_events_statements *statement);

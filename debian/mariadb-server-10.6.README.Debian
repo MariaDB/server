@@ -31,13 +31,13 @@ name has been kept as a symbolic link to the new name for backwards compatibilit
 * NATIVE SYSTEMD SERVICE INTRODUCED IN MARIADB 10.1
 ===================================================
 
-From MariaDB 10.1 onwards the upstream mariadb.service and mariadb@.service are
+From MariaDB 10.1 onward the upstream mariadb.service and mariadb@.service are
 used to provide the full systemd experience. Some features available in
 traditional /etc/init.d/mysql have been changed. For details see
 https://mariadb.com/kb/en/mariadb/systemd/
 
 
-* MIXING PACKAGES FROM MARIAD.ORG AND OFFICIAL DEBIAN REPOSITORIES
+* MIXING PACKAGES FROM MARIADB.ORG AND OFFICIAL DEBIAN REPOSITORIES
 ==================================================================
 
 Please note that the MariaDB packaging in official Debian repositories are of
@@ -57,7 +57,7 @@ revision string.
 
 On new installs no root password is set and no debian-sys-maint user is
 created anymore. Instead the MariaDB root account is set to be authenticated
-using the unix socket, e.g. any mysqld invocation by root or via sudo will
+using the Unix socket, e.g. any mysqld invocation by root or via sudo will
 let the user see the mysqld prompt.
 
 You may never ever delete the mysql user "root". Although it has no password
@@ -65,7 +65,7 @@ is set, the unix_auth plugin ensure that it can only be run locally as the root
 user.
 
 The credentials in /etc/mysql/debian.cnf specify the user which is used by the
-init scripts to stop the server and perform logrotation. This used to be the
+init scripts to stop the server and perform log rotation. This used to be the
 debian-sys-maint user which is no longer used as root can run directly.
 
 If you have start/stop problems make sure that the /etc/mysql/debian.cnf file
@@ -79,7 +79,7 @@ file as is has been obsoleted.
 MariaDB in Debian is secure by default, because:
 
 - It only listens to the localhost socket and cannot be accessed remotely unless
-  the sysadmin changes the configurationin /etc/mysql to allow so.
+  the sysadmin changes the configuration in /etc/mysql to allow so.
 - There is no debian-sys-maint with password in /etc/mysql/debian.cnf anymore.
 - There is no root account with password anymore. The system admin needs to
   create one themselves if they need it. With no password, all issues related
@@ -141,9 +141,9 @@ https://mariadb.com/kb
 It is recommended you create additional admin users for your database
 administration needs in addition to the default root user.
 
-If your local unix account is the one you want to have local super user
+If your local Unix account is the one you want to have local super user
 access on your database with you can create the following account that will
-only work for the local unix user connecting to the database locally.
+only work for the local Unix user connecting to the database locally.
 
   sudo /usr/bin/mysql -e "GRANT ALL ON *.* TO '$USER'@'localhost' IDENTIFIED VIA unix_socket WITH GRANT OPTION"
 
@@ -176,7 +176,7 @@ https://mariadb.com/kb/en/configuring-mariadb-with-mycnf/.
 ==============================
 
 If the MySQL server is acting as a replication slave, you should not
-set --tmpdir to point to a directory on a memory-based filesystem or to
+set --tmpdir to point to a directory on a memory-based file system or to
 a directory that is cleared when the server host restarts. A replication
 slave needs some of its temporary files to survive a machine restart so
 that it can replicate temporary tables or LOAD DATA INFILE operations. If

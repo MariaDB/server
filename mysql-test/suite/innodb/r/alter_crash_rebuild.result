@@ -1,0 +1,19 @@
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=InnoDB STATS_PERSISTENT=0;
+connect ddl,localhost,root;
+SET DEBUG_SYNC='after_trx_committed_in_memory SIGNAL stuck WAIT_FOR ever';
+ALTER TABLE t1 ADD PRIMARY KEY(a);
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR stuck';
+SET GLOBAL innodb_log_checkpoint_now=ON;
+# restart
+disconnect ddl;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 STATS_PERSISTENT=0
+SELECT * FROM t1;
+a
+DROP TABLE t1;
+InnoDB		0 transactions not purged

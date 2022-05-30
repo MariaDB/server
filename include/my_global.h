@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2001, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,9 +20,13 @@
 #ifndef MY_GLOBAL_INCLUDED
 #define MY_GLOBAL_INCLUDED
 
-/* Client library users on Windows need this macro defined here. */
-#if !defined(__WIN__) && defined(_WIN32)
-#define __WIN__
+/*
+  MDEV-25602 Deprecate __WIN__ symbol.
+*/
+#if defined (_MSC_VER) && !defined(__clang__)
+#pragma deprecated("__WIN__")
+#elif defined (__GNUC__)
+#pragma GCC poison __WIN__
 #endif
 
 /*
@@ -43,7 +47,7 @@
 #undef _WIN
 #undef _WIN32
 #undef _WIN64
-#undef __WIN__
+#undef _WIN32
 #undef __WIN32__
 #define HAVE_ERRNO_AS_DEFINE
 #define _POSIX_MONOTONIC_CLOCK
@@ -79,7 +83,7 @@
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
 /* Make it easier to add conditional code in _expressions_ */
-#ifdef __WIN__
+#ifdef _WIN32
 #define IF_WIN(A,B) A
 #else
 #define IF_WIN(A,B) B
@@ -240,7 +244,7 @@
 #endif
 
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #ifndef _POSIX_PTHREAD_SEMANTICS
 #define _POSIX_PTHREAD_SEMANTICS /* We want posix threads */
 #endif
@@ -261,7 +265,7 @@ C_MODE_END
 #if !defined(SCO) && !defined(_REENTRANT)
 #define _REENTRANT	1	/* Threads requires reentrant code */
 #endif
-#endif /* !defined(__WIN__) */
+#endif /* !defined(_WIN32) */
 
 /* gcc/egcs issues */
 
@@ -588,12 +592,12 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #endif
 
 /* additional file share flags for win32 */
-#ifdef __WIN__
+#ifdef _WIN32
 #define _SH_DENYRWD     0x110    /* deny read/write mode & delete */
 #define _SH_DENYWRD     0x120    /* deny write mode & delete      */
 #define _SH_DENYRDD     0x130    /* deny read mode & delete       */
 #define _SH_DENYDEL     0x140    /* deny delete only              */
-#endif /* __WIN__ */
+#endif /* _WIN32 */
 
 
 /* General constants */
@@ -693,7 +697,7 @@ typedef SOCKET_SIZE_TYPE size_socket;
 /* Some defines of functions for portability */
 
 #undef remove		/* Crashes MySQL on SCO 5.0.0 */
-#ifndef __WIN__
+#ifndef _WIN32
 #define closesocket(A)	close(A)
 #endif
 
@@ -915,7 +919,7 @@ typedef ulonglong uint64;
 
 #if defined(NO_CLIENT_LONG_LONG)
 typedef unsigned long my_ulonglong;
-#elif defined (__WIN__)
+#elif defined (_WIN32)
 typedef unsigned __int64 my_ulonglong;
 #else
 typedef unsigned long long my_ulonglong;
@@ -955,7 +959,7 @@ typedef ulonglong table_map;          /* Used for table bits in join */
 typedef const struct charset_info_st CHARSET_INFO;
 typedef struct st_mysql_lex_string LEX_STRING;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 #define socket_errno	WSAGetLastError()
 #define SOCKET_EINTR	WSAEINTR
 #define SOCKET_ETIMEDOUT WSAETIMEDOUT

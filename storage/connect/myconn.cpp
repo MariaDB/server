@@ -35,11 +35,11 @@
 #include "my_sys.h"
 #include "mysqld_error.h"
 #endif   // !MYSQL_PREPARED_STATEMENTS
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #include "osutil.h"
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 #include "global.h"
 #include "plgdbsem.h"
@@ -399,15 +399,19 @@ PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
   int     w;
   MYSQLC  myc;
   PQRYRES qrp = NULL;
+  const char *p;
 
   if (!port)
     port = mysqld_port;
 
 	if (!strnicmp(srcdef, "select ", 7) || strstr(srcdef, "%s")) {
-    query = (char *)PlugSubAlloc(g, NULL, strlen(srcdef) + 10);
+		query = (char *)PlugSubAlloc(g, NULL, strlen(srcdef) + 10);
 
-		if (strstr(srcdef, "%s"))
-			sprintf(query, srcdef, "1=1");			 // dummy where clause
+		if ((p= strstr(srcdef, "%s")))
+		{
+			/* Replace %s with 1=1 */
+			sprintf(query, "%.*s1=1%s", (int) (p - srcdef), srcdef, p + 2); // dummy where clause
+		}
 		else 
 		  strcpy(query, srcdef);
 
@@ -492,15 +496,15 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
 //mysql_options(m_DB, MYSQL_OPT_READ_TIMEOUT, &nrt);
 //mysql_options(m_DB, MYSQL_OPT_WRITE_TIMEOUT, ...);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (!strcmp(host, ".")) {
     mysql_options(m_DB, MYSQL_OPT_NAMED_PIPE, NULL);
     pipe = mysqld_unix_port;
     } // endif host
-#else   // !__WIN__
+#else   // !_WIN32
   if (!strcmp(host, "localhost"))
     pipe = mysqld_unix_port;
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 #if 0
   if (pwd && !strcmp(pwd, "*")) {

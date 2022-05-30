@@ -110,7 +110,7 @@ xb_stream_write_open(xb_wstream_t *stream, const char *path,
 	file->chunk_ptr = file->chunk;
 	file->chunk_free = XB_STREAM_MIN_CHUNK_SIZE;
 	if (onwrite) {
-#ifdef __WIN__
+#ifdef _WIN32
 		setmode(fileno(stdout), _O_BINARY);
 #endif
 		file->userdata = userdata;

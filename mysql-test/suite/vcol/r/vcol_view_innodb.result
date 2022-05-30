@@ -1,4 +1,6 @@
 SET @@session.default_storage_engine = 'InnoDB';
+SET @save_innodb_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
 create table t1 (a int not null,
 b int as (-a), 
 c int as (-a) persistent);
@@ -281,3 +283,4 @@ a	b	c
 0	0	0
 drop view v1;
 drop table t1;
+SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;

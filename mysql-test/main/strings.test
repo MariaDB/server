@@ -15,3 +15,12 @@ START SLAVE sql_thread;
 CHANGE MASTER TO master_user='user',master_password='pwd';
 STOP SLAVE;
 RESET SLAVE ALL;
+
+--echo #
+--echo # MDEV-25754 ASAN: stack-buffer-overflow in Field_newdate::val_str
+--echo #
+
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('1920-03-02'),('2020-12-01');
+SELECT LENGTH(CONCAT_WS(d, ' ')) FROM t1;
+DROP TABLE t1;

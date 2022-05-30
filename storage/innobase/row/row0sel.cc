@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -152,6 +152,76 @@ row_sel_sec_rec_is_for_blob(
 	return(!cmp_data_data(mtype, prtype, buf, len, sec_field, sec_len));
 }
 
+/** Function to read the secondary spatial index, calculate
+the minimum bounding rectangle for clustered index record
+and secondary index record and compare it.
+@param sec_rec		secondary index record
+@param sec_index	spatial secondary index
+@param clust_rec	clustered index record
+@param clust_index	clustered index
+@retval DB_SUCCESS_LOCKED_REC if the secondary record is equal to the
+	corresponding fields in the clustered record, when compared with
+	collation;
+@retval DB_SUCCESS if not equal */
+static
+dberr_t
+row_sel_spatial_sec_rec_is_for_clust_rec(
+  const rec_t *sec_rec, const dict_index_t *sec_index,
+  const rec_t *clust_rec, dict_index_t *clust_index)
+{
+  mem_heap_t *heap= mem_heap_create(256);
+  rec_offs clust_offsets_[REC_OFFS_NORMAL_SIZE];
+  rec_offs *clust_offs= clust_offsets_;
+  ulint clust_len;
+
+  rec_offs_init(clust_offsets_);
+  ulint clust_pos= dict_col_get_clust_pos(
+    dict_index_get_nth_col(sec_index, 0), clust_index);
+  clust_offs= rec_get_offsets(clust_rec, clust_index, clust_offs,
+                              clust_index->n_core_fields, clust_pos + 1,
+                              &heap);
+  ut_ad(sec_index->n_user_defined_cols == 1);
+  const byte *clust_field= rec_get_nth_field(clust_rec, clust_offs,
+                                             clust_pos, &clust_len);
+  if (clust_len == UNIV_SQL_NULL || clust_len < GEO_DATA_HEADER_SIZE)
+  {
+    ut_ad("corrupted geometry column" == 0);
+err_exit:
+    mem_heap_free(heap);
+    return DB_SUCCESS;
+  }
+
+  /* For externally stored field, we need to get full
+  geo data to generate the MBR for comparing. */
+  if (rec_offs_nth_extern(clust_offs, clust_pos))
+  {
+    clust_field= btr_copy_externally_stored_field(
+      &clust_len, clust_field, sec_index->table->space->zip_size(),
+      clust_len, heap);
+    if (clust_field == NULL)
+    {
+      ut_ad("corrupted geometry blob" == 0);
+      goto err_exit;
+    }
+  }
+
+  ut_ad(clust_len >= GEO_DATA_HEADER_SIZE);
+  rtr_mbr_t tmp_mbr;
+  rtr_mbr_t sec_mbr;
+
+  rtree_mbr_from_wkb(
+    clust_field + GEO_DATA_HEADER_SIZE,
+    static_cast<uint>(clust_len - GEO_DATA_HEADER_SIZE),
+    SPDIMS, reinterpret_cast<double*>(&tmp_mbr));
+
+  rtr_read_mbr(sec_rec, &sec_mbr);
+
+  mem_heap_free(heap);
+  return MBR_EQUAL_CMP(&sec_mbr, &tmp_mbr)
+         ? DB_SUCCESS_LOCKED_REC
+         : DB_SUCCESS;
+}
+
 /** Returns TRUE if the user-defined column values in a secondary index record
 are alphabetically the same as the corresponding columns in the clustered
 index record.
@@ -179,20 +249,6 @@ row_sel_sec_rec_is_for_clust_rec(
 	dict_index_t*	clust_index,
 	que_thr_t*	thr)
 {
-	const byte*	sec_field;
-	ulint		sec_len;
-	const byte*	clust_field;
-	ulint		n;
-	ulint		i;
-	mem_heap_t*	heap		= NULL;
-	rec_offs	clust_offsets_[REC_OFFS_NORMAL_SIZE];
-	rec_offs	sec_offsets_[REC_OFFS_SMALL_SIZE];
-	rec_offs*	clust_offs	= clust_offsets_;
-	rec_offs*	sec_offs	= sec_offsets_;
-
-	rec_offs_init(clust_offsets_);
-	rec_offs_init(sec_offsets_);
-
 	if (rec_get_deleted_flag(clust_rec,
 				 dict_table_is_comp(clust_index->table))) {
 		/* In delete-marked records, DB_TRX_ID must
@@ -206,7 +262,27 @@ row_sel_sec_rec_is_for_clust_rec(
 		return DB_SUCCESS;
 	}
 
-	heap = mem_heap_create(256);
+	if (dict_index_is_spatial(sec_index)) {
+		return row_sel_spatial_sec_rec_is_for_clust_rec(
+				sec_rec, sec_index, clust_rec,
+				clust_index);
+	}
+
+	const byte*	sec_field;
+	ulint		sec_len;
+	const byte*	clust_field;
+	ulint		n;
+	ulint		i;
+	mem_heap_t*	heap		= mem_heap_create(256);
+	rec_offs	clust_offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs	sec_offsets_[REC_OFFS_SMALL_SIZE];
+	rec_offs*	clust_offs	= clust_offsets_;
+	rec_offs*	sec_offs	= sec_offsets_;
+
+	rec_offs_init(clust_offsets_);
+	rec_offs_init(sec_offsets_);
+
+
 	ib_vcol_row vc(heap);
 
 	clust_offs = rec_get_offsets(clust_rec, clust_index, clust_offs,
@@ -256,7 +332,7 @@ row_sel_sec_rec_is_for_clust_rec(
 					&heap, NULL, NULL,
 					thr_get_trx(thr)->mysql_thd,
 					thr->prebuilt->m_mysql_table,
-					record, NULL, NULL, NULL);
+					record, NULL, NULL);
 
 			if (vfield == NULL) {
 				innobase_report_computed_value_failed(row);
@@ -281,11 +357,16 @@ row_sel_sec_rec_is_for_clust_rec(
 			}
 
 			len = clust_len;
+			ulint prefix_len = ifield->prefix_len;
 			if (rec_offs_nth_extern(clust_offs, clust_pos)) {
+				/* BLOB can contain prefix. */
 				len -= BTR_EXTERN_FIELD_REF_SIZE;
+				if (!len) {
+					goto compare_blobs;
+				}
 			}
 
-			if (ulint prefix_len = ifield->prefix_len) {
+			if (prefix_len) {
 				len = dtype_get_at_most_n_mbchars(
 					col->prtype, col->mbminlen,
 					col->mbmaxlen, prefix_len, len,
@@ -298,6 +379,7 @@ row_sel_sec_rec_is_for_clust_rec(
 check_for_blob:
 				if (rec_offs_nth_extern(clust_offs,
 							clust_pos)) {
+compare_blobs:
 					if (!row_sel_sec_rec_is_for_blob(
 						    col->mtype, col->prtype,
 						    col->mbminlen,
@@ -314,43 +396,10 @@ check_for_blob:
 			}
 		}
 
-		/* For spatial index, the first field is MBR, we check
-		if the MBR is equal or not. */
-		if (dict_index_is_spatial(sec_index) && i == 0) {
-			rtr_mbr_t	tmp_mbr;
-			rtr_mbr_t	sec_mbr;
-			byte*		dptr =
-				const_cast<byte*>(clust_field);
-
-			ut_ad(clust_len != UNIV_SQL_NULL);
-
-			/* For externally stored field, we need to get full
-			geo data to generate the MBR for comparing. */
-			if (rec_offs_nth_extern(clust_offs, clust_pos)) {
-				dptr = btr_copy_externally_stored_field(
-					&clust_len, dptr,
-					clust_index->table->space->zip_size(),
-					len, heap);
-			}
-
-			rtree_mbr_from_wkb(dptr + GEO_DATA_HEADER_SIZE,
-					   static_cast<uint>(clust_len
-					   - GEO_DATA_HEADER_SIZE),
-					   SPDIMS,
-					   reinterpret_cast<double*>(
-						&tmp_mbr));
-			rtr_read_mbr(sec_field, &sec_mbr);
-
-			if (!MBR_EQUAL_CMP(&sec_mbr, &tmp_mbr)) {
-				return DB_SUCCESS;
-			}
-		} else {
-
-			if (0 != cmp_data_data(col->mtype, col->prtype,
-					       clust_field, len,
-					       sec_field, sec_len)) {
-				return DB_SUCCESS;
-			}
+		if (0 != cmp_data_data(col->mtype, col->prtype,
+				       clust_field, len,
+				       sec_field, sec_len)) {
+			return DB_SUCCESS;
 		}
 	}
 
@@ -1118,14 +1167,15 @@ sel_set_rtr_rec_lock(
 		return(DB_SUCCESS_LOCKED_REC);
 	}
 
-	ut_ad(page_align(first_rec) == cur_block->frame);
+	ut_ad(page_align(first_rec) == cur_block->page.frame);
 	ut_ad(match->valid);
 
-	match->block.lock.x_lock();
+	match->block.page.lock.x_lock();
 retry:
 	cur_block = btr_pcur_get_block(pcur);
-	ut_ad(match->block.lock.have_x() || match->block.lock.have_s());
-	ut_ad(page_is_leaf(buf_block_get_frame(cur_block)));
+	ut_ad(match->block.page.lock.have_x()
+	      || match->block.page.lock.have_s());
+	ut_ad(page_is_leaf(cur_block->page.frame));
 
 	err = lock_sec_rec_read_check_and_lock(
 		0, cur_block, rec, index, my_offsets,
@@ -1238,7 +1288,7 @@ re_scan:
 	match->locked = true;
 
 func_end:
-	match->block.lock.x_unlock();
+	match->block.page.lock.x_unlock();
 	if (heap != NULL) {
 		mem_heap_free(heap);
 	}
@@ -1389,8 +1439,9 @@ row_sel_restore_pcur_pos(
 
 	relative_position = btr_pcur_get_rel_pos(&(plan->pcur));
 
-	equal_position = btr_pcur_restore_position(BTR_SEARCH_LEAF,
-						   &(plan->pcur), mtr);
+	equal_position =
+	  plan->pcur.restore_position(BTR_SEARCH_LEAF, mtr) ==
+	  btr_pcur_t::SAME_ALL;
 
 	/* If the cursor is traveling upwards, and relative_position is
 
@@ -2306,7 +2357,8 @@ row_sel_step(
 					que_node_get_next(table_node))) {
 
 				dberr_t	err = lock_table(
-					table_node->table, i_lock_mode, thr);
+					table_node->table, nullptr,
+					i_lock_mode, thr);
 
 				if (err != DB_SUCCESS) {
 					trx_t*	trx;
@@ -3317,7 +3369,7 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 		if  (dict_index_is_spatial(sec_index)
 		     && btr_cur->rtr_info->matches
 		     && (page_align(rec)
-			== btr_cur->rtr_info->matches->block.frame
+			== btr_cur->rtr_info->matches->block.page.frame
 			|| rec != btr_pcur_get_rec(prebuilt->pcur))) {
 #ifdef UNIV_DEBUG
 			rtr_info_t*	rtr_info = btr_cur->rtr_info;
@@ -3543,36 +3595,26 @@ err_exit:
 	return(err);
 }
 
-/********************************************************************//**
-Restores cursor position after it has been stored. We have to take into
+/** Restores cursor position after it has been stored. We have to take into
 account that the record cursor was positioned on may have been deleted.
 Then we may have to move the cursor one step up or down.
+@param[out] same_user_rec true if we were able to restore the cursor on a user
+record with the same ordering prefix in in the B-tree index
+@param[in] latch_mode latch mode wished in restoration
+@param[in] pcur cursor whose position has been stored
+@param[in] moves_up true if the cursor moves up in the index
+@param[in,out] mtr mtr; CAUTION: may commit mtr temporarily!
 @return true if we may need to process the record the cursor is now
 positioned on (i.e. we should not go to the next record yet) */
-static
-bool
-sel_restore_position_for_mysql(
-/*===========================*/
-	ibool*		same_user_rec,	/*!< out: TRUE if we were able to restore
-					the cursor on a user record with the
-					same ordering prefix in in the
-					B-tree index */
-	ulint		latch_mode,	/*!< in: latch mode wished in
-					restoration */
-	btr_pcur_t*	pcur,		/*!< in: cursor whose position
-					has been stored */
-	ibool		moves_up,	/*!< in: TRUE if the cursor moves up
-					in the index */
-	mtr_t*		mtr)		/*!< in: mtr; CAUTION: may commit
-					mtr temporarily! */
+static bool sel_restore_position_for_mysql(bool *same_user_rec,
+                                           ulint latch_mode, btr_pcur_t *pcur,
+                                           bool moves_up, mtr_t *mtr)
 {
-	ibool		success;
+	auto status = pcur->restore_position(latch_mode, mtr);
 
-	success = btr_pcur_restore_position(latch_mode, pcur, mtr);
+	*same_user_rec = status == btr_pcur_t::SAME_ALL;
 
-	*same_user_rec = success;
-
-	ut_ad(!success || pcur->rel_pos == BTR_PCUR_ON);
+	ut_ad(!*same_user_rec || pcur->rel_pos == BTR_PCUR_ON);
 #ifdef UNIV_DEBUG
 	if (pcur->pos_state == BTR_PCUR_IS_POSITIONED_OPTIMISTIC) {
 		ut_ad(pcur->rel_pos == BTR_PCUR_BEFORE
@@ -3588,7 +3630,9 @@ sel_restore_position_for_mysql(
 
 	switch (pcur->rel_pos) {
 	case BTR_PCUR_ON:
-		if (!success && moves_up) {
+		if (!*same_user_rec && moves_up) {
+			if (status == btr_pcur_t::SAME_UNIQ)
+			  return true;
 next:
 			if (btr_pcur_move_to_next(pcur, mtr)
 			    && rec_is_metadata(btr_pcur_get_rec(pcur),
@@ -3598,7 +3642,7 @@ next:
 
 			return true;
 		}
-		return(!success);
+		return(!*same_user_rec);
 	case BTR_PCUR_AFTER_LAST_IN_TREE:
 	case BTR_PCUR_BEFORE_FIRST_IN_TREE:
 		return true;
@@ -3887,7 +3931,7 @@ row_sel_try_search_shortcut_for_mysql(
 	ut_ad(!prebuilt->templ_contains_blob);
 	ut_ad(trx->read_view.is_open());
 
-	srw_lock* ahi_latch = btr_search_sys.get_latch(*index);
+	srw_spin_lock* ahi_latch = btr_search_sys.get_latch(*index);
 	ahi_latch->rd_lock(SRW_LOCK_CALL);
 	btr_pcur_open_with_no_init(index, search_tuple, PAGE_CUR_GE,
 				   BTR_SEARCH_LEAF, pcur, ahi_latch, mtr);
@@ -4280,13 +4324,13 @@ row_search_mvcc(
 	const rec_t*	clust_rec;
 	Row_sel_get_clust_rec_for_mysql row_sel_get_clust_rec_for_mysql;
 	ibool		unique_search			= FALSE;
-	ibool		mtr_has_extra_clust_latch	= FALSE;
-	ibool		moves_up			= FALSE;
+	ulint		mtr_extra_clust_savepoint	= 0;
+	bool		moves_up			= false;
 	/* if the returned record was locked and we did a semi-consistent
 	read (fetch the newest committed version), then this is set to
 	TRUE */
 	ulint		next_offs;
-	ibool		same_user_rec;
+	bool		same_user_rec;
 	ibool		table_lock_waited		= FALSE;
 	byte*		next_buf			= 0;
 	bool		spatial_search			= false;
@@ -4599,10 +4643,10 @@ aborted:
 	if (UNIV_UNLIKELY(direction == 0)) {
 		if (mode == PAGE_CUR_GE || mode == PAGE_CUR_G
 		    || mode >= PAGE_CUR_CONTAIN) {
-			moves_up = TRUE;
+			moves_up = true;
 		}
 	} else if (direction == ROW_SEL_NEXT) {
-		moves_up = TRUE;
+		moves_up = true;
 	}
 
 	thr = que_fork_get_first_thr(prebuilt->sel_graph);
@@ -4629,7 +4673,7 @@ aborted:
 			trx->read_view.open(trx);
 		} else {
 wait_table_again:
-			err = lock_table(prebuilt->table,
+			err = lock_table(prebuilt->table, nullptr,
 					 prebuilt->select_lock_type == LOCK_S
 					 ? LOCK_IS : LOCK_IX, thr);
 
@@ -4903,7 +4947,7 @@ rec_loop:
 	if (UNIV_UNLIKELY(next_offs >= srv_page_size - PAGE_DIR)) {
 
 wrong_offs:
-		if (srv_force_recovery == 0 || moves_up == FALSE) {
+		if (srv_force_recovery == 0 || moves_up == false) {
 			ib::error() << "Rec address "
 				<< static_cast<const void*>(rec)
 				<< ", buf block fix count "
@@ -5399,7 +5443,7 @@ requires_clust_rec:
 		/* It was a non-clustered index and we must fetch also the
 		clustered index record */
 
-		mtr_has_extra_clust_latch = TRUE;
+		mtr_extra_clust_savepoint = mtr.get_savepoint();
 
 		ut_ad(!vrow);
 		/* The following call returns 'offsets' associated with
@@ -5698,25 +5742,15 @@ next_rec:
 		/* No need to do store restore for R-tree */
 		mtr.commit();
 		mtr.start();
-		mtr_has_extra_clust_latch = FALSE;
-	} else if (mtr_has_extra_clust_latch) {
-		/* If we have extra cluster latch, we must commit
-		mtr if we are moving to the next non-clustered
+		mtr_extra_clust_savepoint = 0;
+	} else if (mtr_extra_clust_savepoint) {
+		/* We must release any clustered index latches
+		if we are moving to the next non-clustered
 		index record, because we could break the latching
 		order if we would access a different clustered
 		index page right away without releasing the previous. */
-
-		btr_pcur_store_position(pcur, &mtr);
-		mtr.commit();
-		mtr_has_extra_clust_latch = FALSE;
-
-		mtr.start();
-
-		if (sel_restore_position_for_mysql(&same_user_rec,
-						   BTR_SEARCH_LEAF,
-						   pcur, moves_up, &mtr)) {
-			goto rec_loop;
-		}
+		mtr.rollback_to_savepoint(mtr_extra_clust_savepoint);
+		mtr_extra_clust_savepoint = 0;
 	}
 
 	if (moves_up) {
@@ -5776,7 +5810,7 @@ page_read_error:
 
 lock_table_wait:
 	mtr.commit();
-	mtr_has_extra_clust_latch = FALSE;
+	mtr_extra_clust_savepoint = 0;
 
 	trx->error_state = err;
 	thr->lock_state = QUE_THR_LOCK_ROW;
@@ -6085,8 +6119,6 @@ row_search_get_max_rec(
 		}
 		btr_pcur_move_before_first_on_page(&pcur);
 	} while (btr_pcur_move_to_prev(&pcur, mtr));
-
-	btr_pcur_close(&pcur);
 
 	ut_ad(!rec
 	      || !(rec_get_info_bits(rec, dict_table_is_comp(index->table))

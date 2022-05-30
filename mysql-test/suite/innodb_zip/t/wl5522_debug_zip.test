@@ -24,6 +24,7 @@ call mtr.add_suppression("InnoDB: Operating system error number");
 call mtr.add_suppression("InnoDB: The error means");
 call mtr.add_suppression("InnoDB: Cannot open datafile .*t1\\.ibd");
 call mtr.add_suppression("InnoDB: Ignoring tablespace for test/t1 ");
+call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
 FLUSH TABLES;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
@@ -280,6 +281,7 @@ do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test", "t1");
 EOF
 
+ALTER TABLE t1 IMPORT TABLESPACE;
 DROP TABLE t1;
 
 #
@@ -610,7 +612,7 @@ EOF
 
 SET SESSION debug_dbug="+d,fsp_flags_is_valid_failure";
 
---error ER_INTERNAL_ERROR
+--error ER_NOT_KEYFILE
 ALTER TABLE t1 IMPORT TABLESPACE;
 
 SET SESSION debug_dbug=@saved_debug_dbug;

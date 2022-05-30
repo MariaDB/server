@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -36,6 +36,14 @@ Completed 2011/7/10 Sunny and Jimmy Yang
 #include "ut0list.h"
 #include "zlib.h"
 #include "fts0opt.h"
+#include "fts0vlc.h"
+#include "wsrep.h"
+
+#ifdef WITH_WSREP
+extern Atomic_relaxed<bool> wsrep_sst_disable_writes;
+#else
+constexpr bool wsrep_sst_disable_writes= false;
+#endif
 
 /** The FTS optimize thread's work queue. */
 ib_wqueue_t* fts_optimize_wq;
@@ -499,7 +507,7 @@ fts_index_fetch_nodes(
 
 		fts_get_table_name(fts_table, table_name);
 
-		pars_info_bind_id(info, true, "table_name", table_name);
+		pars_info_bind_id(info, "table_name", table_name);
 	}
 
 	pars_info_bind_function(info, "my_func", fetch->read_record, fetch);
@@ -828,7 +836,7 @@ fts_index_fetch_words(
 			info, "word", word->f_str, word->f_len);
 
 		fts_get_table_name(&optim->fts_index_table, table_name);
-		pars_info_bind_id(info, true, "table_name", table_name);
+		pars_info_bind_id(info, "table_name", table_name);
 
 		graph = fts_parse_sql(
 			&optim->fts_index_table,
@@ -892,7 +900,7 @@ fts_index_fetch_words(
 			}
 		}
 
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 
 		/* Check if max word to fetch is exceeded */
 		if (optim->zip->n_words >= n_words) {
@@ -984,7 +992,7 @@ fts_table_fetch_doc_ids(
 	pars_info_bind_function(info, "my_func", fts_fetch_doc_ids, doc_ids);
 
 	fts_get_table_name(fts_table, table_name);
-	pars_info_bind_id(info, true, "table_name", table_name);
+	pars_info_bind_id(info, "table_name", table_name);
 
 	graph = fts_parse_sql(
 		fts_table,
@@ -1005,7 +1013,7 @@ fts_table_fetch_doc_ids(
 
 	error = fts_eval_sql(trx, graph);
 	fts_sql_commit(trx);
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	if (error == DB_SUCCESS) {
 		ib_vector_sort(doc_ids->doc_ids, fts_doc_id_cmp);
@@ -1120,7 +1128,7 @@ fts_optimize_encode_node(
 	ulint		pos_enc_len;
 	doc_id_t	doc_id_delta;
 	dberr_t		error = DB_SUCCESS;
-	byte*		src = enc->src_ilist_ptr;
+	const byte*	src = enc->src_ilist_ptr;
 
 	if (node->first_doc_id == 0) {
 		ut_a(node->last_doc_id == 0);
@@ -1177,7 +1185,7 @@ fts_optimize_encode_node(
 
 	/* Encode the doc id. Cast to ulint, the delta should be small and
 	therefore no loss of precision. */
-	dst += fts_encode_int((ulint) doc_id_delta, dst);
+	dst = fts_encode_int(doc_id_delta, dst);
 
 	/* Copy the encoded pos array. */
 	memcpy(dst, src, pos_enc_len);
@@ -1224,7 +1232,8 @@ fts_optimize_node(
 		doc_id_t	delta;
 		doc_id_t	del_doc_id = FTS_NULL_DOC_ID;
 
-		delta = fts_decode_vlc(&enc->src_ilist_ptr);
+		delta = fts_decode_vlc(
+			(const byte**)&enc->src_ilist_ptr);
 
 test_again:
 		/* Check whether the doc id is in the delete list, if
@@ -1252,7 +1261,7 @@ test_again:
 
 			/* Skip the entries for this document. */
 			while (*enc->src_ilist_ptr) {
-				fts_decode_vlc(&enc->src_ilist_ptr);
+				fts_decode_vlc((const byte**)&enc->src_ilist_ptr);
 			}
 
 			/* Skip the end of word position marker. */
@@ -1445,7 +1454,7 @@ fts_optimize_write_word(
 
 	fts_table->suffix = fts_get_suffix(selected);
 	fts_get_table_name(fts_table, table_name);
-	pars_info_bind_id(info, true, "table_name", table_name);
+	pars_info_bind_id(info, "table_name", table_name);
 
 	graph = fts_parse_sql(
 		fts_table,
@@ -1459,7 +1468,7 @@ fts_optimize_write_word(
 			" when deleting a word from the FTS index.";
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 	graph = NULL;
 
 	/* Even if the operation needs to be rolled back and redone,
@@ -1491,7 +1500,7 @@ fts_optimize_write_word(
 	}
 
 	if (graph != NULL) {
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 	}
 
 	return(error);
@@ -1603,8 +1612,21 @@ fts_optimize_create(
 	optim->fts_index_table.table = table;
 
 	/* The common prefix for all this parent table's aux tables. */
-	optim->name_prefix = fts_get_table_name_prefix(
-		&optim->fts_common_table);
+	char table_id[FTS_AUX_MIN_TABLE_ID_LENGTH];
+	const size_t table_id_len = 1
+		+ size_t(fts_get_table_id(&optim->fts_common_table, table_id));
+	dict_sys.freeze(SRW_LOCK_CALL);
+	/* Include the separator as well. */
+	const size_t dbname_len = table->name.dblen() + 1;
+	ut_ad(dbname_len > 1);
+	const size_t prefix_name_len = dbname_len + 4 + table_id_len;
+	char* prefix_name = static_cast<char*>(
+		ut_malloc_nokey(prefix_name_len));
+	memcpy(prefix_name, table->name.m_name, dbname_len);
+	dict_sys.unfreeze();
+	memcpy(prefix_name + dbname_len, "FTS_", 4);
+	memcpy(prefix_name + dbname_len + 4, table_id, table_id_len);
+	optim->name_prefix =prefix_name;
 
 	return(optim);
 }
@@ -1816,7 +1838,7 @@ fts_optimize_words(
 						charset, word->f_str,
 						word->f_len)
 					  && graph) {
-					fts_que_graph_free(graph);
+					que_graph_free(graph);
 					graph = NULL;
 				}
 			}
@@ -1835,7 +1857,7 @@ fts_optimize_words(
 	}
 
 	if (graph != NULL) {
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 	}
 }
 
@@ -2037,11 +2059,11 @@ fts_optimize_purge_deleted_doc_ids(
 	used in the fts_delete_doc_ids_sql */
 	optim->fts_common_table.suffix = fts_common_tables[3];
 	fts_get_table_name(&optim->fts_common_table, deleted);
-	pars_info_bind_id(info, true, fts_common_tables[3], deleted);
+	pars_info_bind_id(info, fts_common_tables[3], deleted);
 
 	optim->fts_common_table.suffix = fts_common_tables[4];
 	fts_get_table_name(&optim->fts_common_table, deleted_cache);
-	pars_info_bind_id(info, true, fts_common_tables[4], deleted_cache);
+	pars_info_bind_id(info, fts_common_tables[4], deleted_cache);
 
 	graph = fts_parse_sql(NULL, info, fts_delete_doc_ids_sql);
 
@@ -2068,7 +2090,7 @@ fts_optimize_purge_deleted_doc_ids(
 		}
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	return(error);
 }
@@ -2094,19 +2116,18 @@ fts_optimize_purge_deleted_doc_id_snapshot(
 	used in the fts_end_delete_sql */
 	optim->fts_common_table.suffix = fts_common_tables[0];
 	fts_get_table_name(&optim->fts_common_table, being_deleted);
-	pars_info_bind_id(info, true, fts_common_tables[0], being_deleted);
+	pars_info_bind_id(info, fts_common_tables[0], being_deleted);
 
 	optim->fts_common_table.suffix = fts_common_tables[1];
 	fts_get_table_name(&optim->fts_common_table, being_deleted_cache);
-	pars_info_bind_id(info, true, fts_common_tables[1],
-			  being_deleted_cache);
+	pars_info_bind_id(info, fts_common_tables[1], being_deleted_cache);
 
 	/* Delete the doc ids that were copied to delete pending state at
 	the start of optimize. */
 	graph = fts_parse_sql(NULL, info, fts_end_delete_sql);
 
 	error = fts_eval_sql(optim->trx, graph);
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	return(error);
 }
@@ -2155,27 +2176,26 @@ fts_optimize_create_deleted_doc_id_snapshot(
 	used in the fts_init_delete_sql */
 	optim->fts_common_table.suffix = fts_common_tables[0];
 	fts_get_table_name(&optim->fts_common_table, being_deleted);
-	pars_info_bind_id(info, true, fts_common_tables[0], being_deleted);
+	pars_info_bind_id(info, fts_common_tables[0], being_deleted);
 
 	optim->fts_common_table.suffix = fts_common_tables[3];
 	fts_get_table_name(&optim->fts_common_table, deleted);
-	pars_info_bind_id(info, true, fts_common_tables[3], deleted);
+	pars_info_bind_id(info, fts_common_tables[3], deleted);
 
 	optim->fts_common_table.suffix = fts_common_tables[1];
 	fts_get_table_name(&optim->fts_common_table, being_deleted_cache);
-	pars_info_bind_id(info, true, fts_common_tables[1],
-			  being_deleted_cache);
+	pars_info_bind_id(info, fts_common_tables[1], being_deleted_cache);
 
 	optim->fts_common_table.suffix = fts_common_tables[4];
 	fts_get_table_name(&optim->fts_common_table, deleted_cache);
-	pars_info_bind_id(info, true, fts_common_tables[4], deleted_cache);
+	pars_info_bind_id(info, fts_common_tables[4], deleted_cache);
 
 	/* Move doc_ids that are to be deleted to state being deleted. */
 	graph = fts_parse_sql(NULL, info, fts_init_delete_sql);
 
 	error = fts_eval_sql(optim->trx, graph);
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	if (error != DB_SUCCESS) {
 		fts_sql_rollback(optim->trx);
@@ -2591,7 +2611,6 @@ fts_optimize_remove_table(
 
   if (table->fts->in_queue)
   {
-    dict_sys.assert_not_locked();
     fts_msg_t *msg= fts_optimize_create_msg(FTS_MSG_DEL_TABLE, nullptr);
     pthread_cond_t cond;
     pthread_cond_init(&cond, nullptr);
@@ -2629,6 +2648,8 @@ fts_optimize_request_sync_table(
 	} else {
 		add_msg(fts_optimize_create_msg(FTS_MSG_SYNC_TABLE, table));
 		table->fts->sync_message = true;
+		DBUG_EXECUTE_IF("fts_optimize_wq_count_check",
+				DBUG_ASSERT(fts_optimize_wq->length <= 1000););
 	}
 
 	mysql_mutex_unlock(&fts_optimize_wq->mutex);
@@ -2788,7 +2809,7 @@ static void fts_optimize_sync_table(dict_table_t *table,
 		  std::this_thread::sleep_for(std::chrono::seconds(6)););
 
   if (mdl_ticket)
-    dict_table_close(sync_table, false, false, fts_opt_thd, mdl_ticket);
+    dict_table_close(sync_table, false, fts_opt_thd, mdl_ticket);
 }
 
 /**********************************************************************//**
@@ -2817,6 +2838,20 @@ static void fts_optimize_callback(void *)
 		    && ib_wqueue_is_empty(fts_optimize_wq)
 		    && n_tables > 0
 		    && n_optimize > 0) {
+
+			/* The queue is empty but we have tables
+			to optimize. */
+			if (UNIV_UNLIKELY(wsrep_sst_disable_writes)) {
+retry_later:
+				if (fts_is_sync_needed()) {
+					fts_need_sync = true;
+				}
+				if (n_tables) {
+					timer->set_time(5000, 0);
+				}
+				return;
+			}
+
 			fts_slot_t* slot = static_cast<fts_slot_t*>(
 				ib_vector_get(fts_slots, current));
 
@@ -2831,19 +2866,13 @@ static void fts_optimize_callback(void *)
 				n_optimize = fts_optimize_how_many();
 				current = 0;
 			}
-
 		} else if (n_optimize == 0
 			   || !ib_wqueue_is_empty(fts_optimize_wq)) {
 			fts_msg_t* msg = static_cast<fts_msg_t*>
 				(ib_wqueue_nowait(fts_optimize_wq));
 			/* Timeout ? */
-			if (msg == NULL) {
-				if (fts_is_sync_needed()) {
-					fts_need_sync = true;
-				}
-				if (n_tables)
-					timer->set_time(5000, 0);
-				return;
+			if (!msg) {
+				goto retry_later;
 			}
 
 			switch (msg->type) {
@@ -2869,6 +2898,11 @@ static void fts_optimize_callback(void *)
 				break;
 
 			case FTS_MSG_SYNC_TABLE:
+				if (UNIV_UNLIKELY(wsrep_sst_disable_writes)) {
+					add_msg(msg);
+					goto retry_later;
+				}
+
 				DBUG_EXECUTE_IF(
 					"fts_instrument_msg_sync_sleep",
 					std::this_thread::sleep_for(
@@ -2927,7 +2961,6 @@ fts_optimize_init(void)
 
 	/* Create FTS optimize work queue */
 	fts_optimize_wq = ib_wqueue_create();
-  ut_a(fts_optimize_wq != NULL);
 	timer = srv_thread_pool->create_timer(timer_callback);
 
 	/* Create FTS vector to store fts_slot_t */
@@ -2939,7 +2972,7 @@ fts_optimize_init(void)
 	/* Add fts tables to fts_slots which could be skipped
 	during dict_load_table_one() because fts_optimize_thread
 	wasn't even started. */
-	dict_sys.mutex_lock();
+	dict_sys.freeze(SRW_LOCK_CALL);
 	for (dict_table_t* table = UT_LIST_GET_FIRST(dict_sys.table_LRU);
 	     table != NULL;
 	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
@@ -2954,7 +2987,7 @@ fts_optimize_init(void)
 		fts_optimize_new_table(table);
 		table->fts->in_queue = true;
 	}
-	dict_sys.mutex_unlock();
+	dict_sys.unfreeze();
 
 	pthread_cond_init(&fts_opt_shutdown_cond, nullptr);
 	last_check_sync_time = time(NULL);
@@ -2968,13 +3001,13 @@ fts_optimize_shutdown()
 
 	/* If there is an ongoing activity on dictionary, such as
 	srv_master_evict_from_table_cache(), wait for it */
-	dict_sys.mutex_lock();
+	dict_sys.freeze(SRW_LOCK_CALL);
 	mysql_mutex_lock(&fts_optimize_wq->mutex);
 	/* Tells FTS optimizer system that we are exiting from
 	optimizer thread, message send their after will not be
 	processed */
 	fts_opt_start_shutdown = true;
-	dict_sys.mutex_unlock();
+	dict_sys.unfreeze();
 
 	/* We tell the OPTIMIZE thread to switch to state done, we
 	can't delete the work queue here because the add thread needs
@@ -3005,6 +3038,8 @@ fts_optimize_shutdown()
 @param[in]	table	table to be synced */
 void fts_sync_during_ddl(dict_table_t* table)
 {
+  if (!fts_optimize_wq)
+    return;
   mysql_mutex_lock(&fts_optimize_wq->mutex);
   const auto sync_message= table->fts->sync_message;
   mysql_mutex_unlock(&fts_optimize_wq->mutex);

@@ -43,16 +43,19 @@ SET DEBUG_SYNC='foreign_constraint_check_for_ins SIGNAL fk WAIT_FOR go';
 INSERT INTO child SET a=5;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR fk';
-SET foreign_key_checks=0;
+SET foreign_key_checks=0, innodb_lock_wait_timeout=0;
 TRUNCATE TABLE parent;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SET DEBUG_SYNC='now SIGNAL go';
 connection dml;
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON UPDATE CASCADE)
 SELECT * FROM parent;
 a
+3
+5
 SELECT * FROM child;
 a
 3
+5
 disconnect dml;
 connection default;
 SET DEBUG_SYNC = RESET;
@@ -68,3 +71,21 @@ TRUNCATE TABLE t1;
 ALTER TABLE t1 ADD c INT;
 UNLOCK TABLES;
 DROP TABLE t1;
+#
+# MDEV-26052 Assertion prebuilt->trx_id < table->def_trx_id failed
+#
+call mtr.add_suppression("InnoDB: In ALTER TABLE `test`\\.`t1` has or is");
+CREATE TABLE t1 (pk INT, a INT, PRIMARY KEY (pk), KEY (a)) ENGINE=InnoDB;
+SET FOREIGN_KEY_CHECKS=0;
+ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (a), ALGORITHM=COPY;
+INSERT INTO t1 VALUES (1,1);
+LOCK TABLES t1 WRITE;
+TRUNCATE t1;
+ERROR HY000: Cannot add foreign key constraint for `t1`
+INSERT INTO t1 VALUES (2,2);
+SELECT * FROM t1;
+pk	a
+1	1
+2	2
+DROP TABLE t1;
+# End of 10.6 tests

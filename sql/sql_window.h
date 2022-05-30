@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2016, 2017 MariaDB
+   Copyright (c) 2016, 2022 MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -111,19 +111,27 @@ class Window_spec : public Sql_alloc
   LEX_CSTRING *window_ref;
 
   SQL_I_List<ORDER> *partition_list;
+  SQL_I_List<ORDER> *save_partition_list;
 
   SQL_I_List<ORDER> *order_list;
+  SQL_I_List<ORDER> *save_order_list;
 
   Window_frame *window_frame;
 
   Window_spec *referenced_win_spec;
 
-  Window_spec(LEX_CSTRING *win_ref, 
-              SQL_I_List<ORDER> *part_list,
-              SQL_I_List<ORDER> *ord_list,
-              Window_frame *win_frame)
+  /*
+    Window_spec objects are numbered by the number of their appearance in the
+    query. This is used by compare_order_elements() to provide a predictable
+    ordering of PARTITION/ORDER BY clauses.
+  */
+  int win_spec_number;
+
+  Window_spec(LEX_CSTRING *win_ref, SQL_I_List<ORDER> *part_list,
+              SQL_I_List<ORDER> *ord_list, Window_frame *win_frame)
     : window_names_are_checked(false), window_ref(win_ref),
-      partition_list(part_list), order_list(ord_list),
+      partition_list(part_list), save_partition_list(NULL),
+      order_list(ord_list), save_order_list(NULL),
       window_frame(win_frame), referenced_win_spec(NULL) {}
 
   virtual const char *name() { return NULL; }

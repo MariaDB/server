@@ -4912,9 +4912,11 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
     case FIELD_VARCHAR:
     {
       ulong length;
+      uint pack_length __attribute__((unused));
       if (column->length <= 256)
       {
         length= (uint) (uchar) (*field_pos++= *field_length_data++);
+        pack_length= 1;
       }
       else
       {
@@ -4923,14 +4925,16 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
         field_pos[1]= field_length_data[1];
         field_pos+= 2;
         field_length_data+= 2;
+        pack_length= 2;
       }
 #ifdef SANITY_CHECKS
-      if (length > column->length)
+      if (length > column->length - pack_length)
         goto err;
 #endif
       if (read_long_data(info, field_pos, length, &extent, &data,
                          &end_of_data))
         DBUG_RETURN(my_errno);
+      MEM_UNDEFINED(field_pos + length, column->length - length - pack_length);
       break;
     }
     case FIELD_BLOB:
@@ -6395,16 +6399,19 @@ uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
     pin_method=  PAGECACHE_PIN_LEFT_PINNED;
 
     share->pagecache->readwrite_flags&= ~MY_WME;
+    share->silence_encryption_errors= 1;
     buff= pagecache_read(share->pagecache, &info->dfile,
                          page, 0, 0,
                          PAGECACHE_PLAIN_PAGE, PAGECACHE_LOCK_WRITE,
                          &page_link.link);
     share->pagecache->readwrite_flags= share->pagecache->org_readwrite_flags;
+    share->silence_encryption_errors= 0;
     if (!buff)
     {
       /* Skip errors when reading outside of file and uninitialized pages */
       if (!new_page || (my_errno != HA_ERR_FILE_TOO_SHORT &&
-                        my_errno != HA_ERR_WRONG_CRC))
+                        my_errno != HA_ERR_WRONG_CRC &&
+                        my_errno != HA_ERR_DECRYPTION_FAILED))
       {
         DBUG_PRINT("error", ("Error %d when reading page", (int) my_errno));
         goto err;
@@ -6896,6 +6903,7 @@ uint _ma_apply_redo_insert_row_blobs(MARIA_HA *info,
         else
         {
           share->pagecache->readwrite_flags&= ~MY_WME;
+          share->silence_encryption_errors= 1;
           buff= pagecache_read(share->pagecache,
                                &info->dfile,
                                page, 0, 0,
@@ -6903,10 +6911,12 @@ uint _ma_apply_redo_insert_row_blobs(MARIA_HA *info,
                                PAGECACHE_LOCK_WRITE, &page_link.link);
           share->pagecache->readwrite_flags= share->pagecache->
             org_readwrite_flags;
+          share->silence_encryption_errors= 0;
           if (!buff)
           {
             if (my_errno != HA_ERR_FILE_TOO_SHORT &&
-                my_errno != HA_ERR_WRONG_CRC)
+                my_errno != HA_ERR_WRONG_CRC &&
+                my_errno != HA_ERR_DECRYPTION_FAILED)
             {
               /* If not read outside of file */
               pagecache_unlock_by_link(share->pagecache, page_link.link,

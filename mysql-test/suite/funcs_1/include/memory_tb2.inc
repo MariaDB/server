@@ -3,6 +3,9 @@
 --disable_warnings
 drop table if exists tb2 ;
 --enable_warnings
+
+--enable_prepare_warnings
+
 create table tb2 (
 f59 numeric (0) unsigned,
 f60 numeric (64) unsigned,
@@ -61,3 +64,5 @@ f109 set("1set","2set") not null default "1set"
 eval
 load data infile '$MYSQLTEST_VARDIR/std_data/funcs_1/memory_tb2.txt'
 into table tb2 ;
+
+--disable_prepare_warnings

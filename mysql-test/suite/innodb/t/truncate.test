@@ -67,3 +67,15 @@ RENAME TABLE t TO u;
 TRUNCATE u;
 TRUNCATE u;
 DROP TABLE u;
+
+--echo #
+--echo # Test for a regression found during MDEV-25506 rewrite of DROP
+--echo #
+CREATE TEMPORARY TABLE t1 (a INT) ENGINE=InnoDB;
+LOCK TABLE t1 READ;
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t1;
+UNLOCK TABLES;
+DROP TEMPORARY TABLE t1;
+
+--echo # End of 10.6 tests

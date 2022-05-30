@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB
+   Copyright (c) 2010, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -366,6 +366,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   query_plan.select_lex= thd->lex->first_select_lex();
   query_plan.table= table;
 
+  thd->lex->promote_select_describe_flag_if_needed();
+
   if (mysql_prepare_delete(thd, table_list, &conds, &delete_while_scanning))
     DBUG_RETURN(TRUE);
 
@@ -415,7 +417,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     DBUG_RETURN(TRUE);
 
   const_cond= (!conds || conds->const_item());
-  safe_update= MY_TEST(thd->variables.option_bits & OPTION_SAFE_UPDATES);
+  safe_update= (thd->variables.option_bits & OPTION_SAFE_UPDATES) &&
+               !thd->lex->describe;
   if (safe_update && const_cond)
   {
     my_message(ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE,
@@ -540,7 +543,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   }
 
   /* If running in safe sql mode, don't allow updates without keys */
-  if (table->opt_range_keys.is_clear_all())
+  if (!select || !select->quick)
   {
     thd->set_status_no_index_used();
     if (safe_update && !using_limit)
@@ -629,14 +632,18 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     if (!table->check_virtual_columns_marked_for_read())
     {
       DBUG_PRINT("info", ("Trying direct delete"));
-      if (select && select->cond &&
-          (select->cond->used_tables() == table->map))
+      bool use_direct_delete= !select || !select->cond;
+      if (!use_direct_delete &&
+          (select->cond->used_tables() & ~RAND_TABLE_BIT) == table->map)
       {
         DBUG_ASSERT(!table->file->pushed_cond);
         if (!table->file->cond_push(select->cond))
+        {
+          use_direct_delete= TRUE;
           table->file->pushed_cond= select->cond;
+        }
       }
-      if (!table->file->direct_delete_rows_init())
+      if (use_direct_delete && !table->file->direct_delete_rows_init())
       {
         /* Direct deleting is supported */
         DBUG_PRINT("info", ("Using direct delete"));
@@ -707,7 +714,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       !table->prepare_triggers_for_delete_stmt_or_event())
     will_batch= !table->file->start_bulk_delete();
 
-  if (returning)
+  /*
+    thd->get_stmt_da()->is_set() means first iteration of prepared statement
+    with array binding operation execution (non optimized so it is not
+    INSERT)
+  */
+  if (returning && !thd->get_stmt_da()->is_set())
   {
     if (result->send_result_set_metadata(returning->item_list,
                                 Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))

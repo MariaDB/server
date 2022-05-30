@@ -603,9 +603,9 @@ drop view v1;
 drop table t1;
 SET @@sql_mode= @save_mode;
 
-#
-# MDEV-13861 Assertion `0' failed in Protocol::end_statement
-#
+--echo #
+--echo # MDEV-13861 Assertion `0' failed in Protocol::end_statement
+--echo #
 CREATE TABLE t1 (f INT);
 CREATE VIEW v1 AS SELECT * FROM t1 WHERE f <=> 'foo' WITH CHECK OPTION;
 --error ER_TRUNCATED_WRONG_VALUE
@@ -613,9 +613,49 @@ REPLACE INTO v1 SET f = NULL;
 DROP VIEW v1;
 DROP TABLE t1;
 
-#
-# outer referencesin subqueries in INSERT
-#
+--echo #
+--echo # End of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-26412: INSERT CREATE with subquery in ON expression
+--echo #
+
+create table t1 (a int);
+create table t2 (b int);
+create table t3 (c int);
+create table t4 (d1 int, d2 int);
+
+--error ER_BAD_FIELD_ERROR
+insert into t4
+  select * from t1 left join t2 on (select t1.i from t3);
+--error ER_BAD_FIELD_ERROR
+replace t4
+  select * from t1 left join t2 on (select t1.i from t3);
+
+drop table t1,t2,t3,t4;
+
+create table t (a int);
+--error ER_BAD_FIELD_ERROR
+select 1 in (select count(*) from t t1 join (t t2 join t t3 on (t1.a != 0)));
+drop table t;
+
+--echo #
+--echo # MDEV-28578 Server crashes in Item_field::fix_outer_field after CREATE SELECT
+--echo #
+create table t1 (i int) ;
+create table t2 (j int) ;
+--error ER_BAD_FIELD_ERROR
+create table t4 select * from t1 join t2 on (select t3.i);
+drop table t1, t2;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
+--echo #
+--echo # outer references in subqueries in INSERT
+--echo #
 create table t1 (a int default 5);
 insert t1 values (1);
 insert t1 values (a);
@@ -625,3 +665,7 @@ insert t1 set a=a+2;
 insert t1 set a=(select a+3);
 select * from t1;
 drop table t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

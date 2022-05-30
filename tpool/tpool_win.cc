@@ -1,4 +1,4 @@
-/* Copyright(C) 2019 MariaDB
+/* Copyright (C) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute itand /or modify
 it under the terms of the GNU General Public License as published by
@@ -93,7 +93,6 @@ class thread_pool_win : public thread_pool
         return;
       }
       timer->m_func(timer->m_data);
-      dbug_execute_after_task_callback();
       if (timer->m_period)
         timer->set_time(timer->m_period, timer->m_period);
     }

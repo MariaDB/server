@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -459,7 +459,7 @@ lock_rec_get_n_bits(
 
 /**********************************************************************//**
 Sets the nth bit of a record lock to TRUE. */
-UNIV_INLINE
+inline
 void
 lock_rec_set_nth_bit(
 /*=================*/
@@ -473,7 +473,12 @@ lock_rec_set_nth_bit(
 inline byte lock_rec_reset_nth_bit(lock_t* lock, ulint i)
 {
 	ut_ad(!lock->is_table());
+#ifdef SUX_LOCK_GENERIC
 	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner());
+#else
+	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner()
+	      || (xtest() && !lock->trx->mutex_is_locked()));
+#endif
 	ut_ad(i < lock->un_member.rec_lock.n_bits);
 
 	byte*	b = reinterpret_cast<byte*>(&lock[1]) + (i >> 3);
@@ -572,6 +577,6 @@ lock_table_has(
 	const dict_table_t*	table,	/*!< in: table */
 	enum lock_mode		mode);	/*!< in: lock mode */
 
-#include "lock0priv.ic"
+#include "lock0priv.inl"
 
 #endif /* lock0priv_h */

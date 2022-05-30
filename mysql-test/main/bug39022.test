@@ -40,7 +40,7 @@ SELECT d FROM t2,t1 WHERE d=(SELECT MAX(a) FROM t1 WHERE t1.a > t2.d) LOCK IN SH
 connection thread1;
 
 --echo # should not crash
---error ER_LOCK_DEADLOCK
+--error ER_LOCK_DEADLOCK,ER_LOCK_WAIT_TIMEOUT
 SELECT d FROM t2,t1 WHERE d=(SELECT MAX(a) FROM t1 WHERE t1.a > t2.d) LOCK IN SHARE MODE; #crashes
 
 connection thread2;

@@ -67,7 +67,7 @@ Grants for test_user@localhost
 GRANT USAGE ON *.* TO `test_user`@`localhost`
 GRANT `test_role1` TO `test_user`@`localhost`
 set role test_role2;
-ERROR OP000: User `test_user@localhost` has not been granted role `test_role2`
+ERROR OP000: User `test_user`@`localhost` has not been granted role `test_role2`
 select current_user(), current_role();
 current_user()	current_role()
 test_user@localhost	NULL

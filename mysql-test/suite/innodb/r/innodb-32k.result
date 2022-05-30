@@ -1,3 +1,4 @@
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 call mtr.add_suppression("Innodb: Cannot add field.*row size is");
 # Test 1) Show the page size from Information Schema
 SELECT variable_value FROM information_schema.global_status
@@ -283,6 +284,7 @@ Level	Code	Message
 UPDATE t3 SET c = REPEAT('b',32800);
 SHOW WARNINGS;
 Level	Code	Message
+InnoDB		0 transactions not purged
 DROP TABLE t3;
 DROP TABLE t1_purge, t2_purge, t3_purge, t4_purge;
 DROP TABLE tlong;

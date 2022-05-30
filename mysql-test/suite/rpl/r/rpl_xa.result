@@ -219,4 +219,65 @@ include/sync_with_master_gtid.inc
 connection master;
 drop database test_ign;
 drop table t1, t2, t3, tm;
+#
+# MDEV-26682 slave lock timeout with XA and gap locks
+#
+create table t1 (a int primary key, b int unique) engine=innodb;
+insert t1 values (1,1),(3,3),(5,5);
+connection slave;
+set session tx_isolation='repeatable-read';
+start transaction;
+select * from t1;
+a	b
+1	1
+3	3
+5	5
+connect m2, localhost, root;
+delete from t1 where a=3;
+xa start 'x1';
+update t1 set b=3 where a=5;
+xa end 'x1';
+xa prepare 'x1';
+connect m3, localhost, root;
+insert t1 values (2, 2);
+-->slave
+connection slave;
+commit;
+select * from t1;
+a	b
+1	1
+2	2
+5	5
+connection m2;
+xa rollback 'x1';
+disconnect m2;
+disconnect m3;
+connection master;
+drop table t1;
+create table t1 (id int auto_increment primary key, c1 int not null unique)
+engine=innodb;
+create table t2 (id int auto_increment primary key, c1 int not null,
+foreign key(c1) references t1(c1), unique key(c1)) engine=innodb;
+insert t1 values (869,1), (871,3), (873,4), (872,5), (870,6), (877,7);
+insert t2 values (795,6), (800,7);
+xa start '1';
+update t2 set id = 9, c1 = 5 where c1 in (null, null, null, null, null, 7, 3);
+connect con1, localhost,root;
+xa start '2';
+delete from t1 where c1 like '3%';
+xa end '2';
+xa prepare '2';
+connection master;
+xa end '1';
+xa prepare '1';
+->slave
+connection slave;
+connection slave;
+include/sync_with_master_gtid.inc
+connection con1;
+xa commit '2';
+disconnect con1;
+connection master;
+xa commit '1';
+drop table t2, t1;
 include/rpl_end.inc

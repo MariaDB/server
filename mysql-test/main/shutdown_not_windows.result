@@ -1,0 +1,8 @@
+#
+# MDEV-18353 Shutdown may miss to wait for connection thread
+#
+call mtr.add_suppression('Thread .* did not exit');
+set @old_dbug=@@global.debug_dbug;
+set global debug_dbug='+d,CONNECT_wait';
+select variable_value into @cons from information_schema.global_status where variable_name='connections';
+# restart

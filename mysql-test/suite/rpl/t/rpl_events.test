@@ -4,6 +4,11 @@
 # Purpose: To test that event effects are replicated.            #
 ##################################################################
 
+if (`SELECT $PS_PROTOCOL != 0`)
+{
+  --skip Need regular protocol but ps-protocol was specified
+}
+
 --source include/master-slave.inc
 
 SET @old_event_scheduler = @@global.event_scheduler;

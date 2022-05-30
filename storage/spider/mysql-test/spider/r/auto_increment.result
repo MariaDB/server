@@ -152,10 +152,10 @@ col_a	col_b	col_c
 7	def	10
 8	def	10
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select t0.`col_a` `col_a`,t0.`col_b` `col_b`,t0.`col_c` `col_c` from `auto_test_remote`.`tbl_a` t0
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT col_a, col_b, col_c FROM tbl_a ORDER BY col_a;
 col_a	col_b	col_c
 1	def	10

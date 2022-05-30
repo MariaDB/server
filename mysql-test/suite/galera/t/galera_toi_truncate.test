@@ -6,6 +6,7 @@
 --source include/galera_cluster.inc
 --source include/have_debug_sync.inc
 --source include/have_debug.inc
+--source include/galera_have_debug_sync.inc
 
 #
 # INSERT and TRUNCATE on different nodes
@@ -15,32 +16,51 @@
 CREATE TABLE ten (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 
-CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t1 (id int not null primary key auto_increment, f1 INTEGER) ENGINE=InnoDB;
 
 --connection node_2
+set session wsrep_sync_wait=0;
 --let $wait_condition = SELECT COUNT(*) = 10 FROM ten;
 --source include/wait_condition.inc
 
-# Prevent autocommit retring from masking the deadlock error we expect to get
-SET SESSION wsrep_retry_autocommit = 0;
---send INSERT INTO t1 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6, ten AS a7, ten AS a8
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1b
 
---connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
---connection node_2a
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Sending data%' AND INFO LIKE 'INSERT INTO t1 (f1)%';
---source include/wait_condition.inc
-
---connection node_1
-TRUNCATE TABLE t1;
+# block applier before applying
+SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
 
 --connection node_2
---error ER_LOCK_DEADLOCK
+--send INSERT INTO t1 (f1) SELECT 1 FROM ten AS a1
+
+--connection node_1b
+# wait until applier has reached the sync point
+SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
+
+--connection node_1
+--send TRUNCATE TABLE t1;
+
+--connection node_1b
+# release the applier
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+SET GLOBAL debug_dbug = "";
+SET DEBUG_SYNC = "RESET";
+
+--connection node_1
 --reap
 
+--connection node_2
+--reap
+
+--let $wait_condition = SELECT COUNT(*) = 0 FROM t1;
+--source include/wait_condition.inc
 SELECT COUNT(*) AS EXPECT_0 FROM t1;
 
 --connection node_1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM t1;
+--source include/wait_condition.inc
 SELECT COUNT(*) AS EXPECT_0 FROM t1;
+
+--disconnect node_1b
 
 DROP TABLE t1;
 DROP TABLE ten;

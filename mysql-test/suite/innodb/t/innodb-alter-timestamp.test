@@ -103,3 +103,15 @@ INSERT INTO t1 VALUES (1, now());
 ALTER TABLE t1 ADD f3 DATE NOT NULL, ALGORITHM=INPLACE;
 DROP TABLE t1;
 disconnect purge_control;
+
+--echo #
+--echo # MDEV-26458 SIGSEGV in innobase_table_is_empty() on ALTER TABLE
+--echo #
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t DISCARD TABLESPACE;
+SET sql_mode='NO_ZERO_DATE';
+ALTER TABLE t ADD c DATE NOT NULL;
+SET sql_mode=DEFAULT;
+DROP TABLE t;
+
+--echo # End of 10.3 tests

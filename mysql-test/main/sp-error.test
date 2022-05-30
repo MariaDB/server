@@ -9,9 +9,10 @@ drop table if exists t1, t2;
 --enable_warnings
 
 # Backup the mysql.proc table
+--enable_prepare_warnings
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval SELECT * FROM mysql.proc INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/proc.txt';
-
+--disable_prepare_warnings
 # Make sure we don't have any procedures left.
 delete from mysql.proc;
 
@@ -42,8 +43,10 @@ drop table if exists t3|
 create table t3 ( x int )|
 insert into t3 values (2), (3)|
 
+--enable_prepare_warnings
 create procedure bad_into(out param int)
   select x from t3 into param|
+--disable_prepare_warnings
 
 --error 1172
 call bad_into(@x)|
@@ -3711,7 +3714,7 @@ DROP PROCEDURE IF EXISTS p2;
 
 delimiter |;
 
-SET sql_mode = '';
+SET sql_mode = ''|
 CREATE PROCEDURE p1()
 BEGIN
   DECLARE var1 INTEGER DEFAULT 'string';
@@ -3721,7 +3724,7 @@ END|
 --echo
 CALL p1()|
 --echo
-SET sql_mode = DEFAULT;
+SET sql_mode = DEFAULT|
 
 CREATE PROCEDURE p2()
 BEGIN
@@ -3797,12 +3800,14 @@ delimiter |;
 --echo # because SIGNAL would raise SQL-error in that case.
 --echo
 
+--enable_prepare_warnings
 CREATE FUNCTION f1() RETURNS INTEGER
 BEGIN
   DECLARE v VARCHAR(5) DEFAULT -1;
   SELECT b FROM t1 WHERE a = 2 INTO v;
   RETURN v;
 END|
+--disable_prepare_warnings
 
 --echo
 --echo # Here we check that the NOT_FOUND condition raised in f1()

@@ -25,7 +25,7 @@
 */
 
 #include "vio_priv.h"
-#ifdef __WIN__
+#ifdef _WIN32
   #include <winsock2.h>
   #include <MSWSock.h>
   #include <mstcpip.h>
@@ -300,7 +300,7 @@ int vio_socket_shutdown(Vio *vio, int how)
 int vio_blocking(Vio *vio, my_bool set_blocking_mode, my_bool *old_mode)
 {
   int r= 0;
-#if defined(__WIN__) || !defined(NO_FCNTL_NONBLOCK)
+#if defined(_WIN32) || !defined(NO_FCNTL_NONBLOCK)
   my_socket sd= mysql_socket_getfd(vio->mysql_socket);
 #endif
   DBUG_ENTER("vio_blocking");
@@ -309,7 +309,7 @@ int vio_blocking(Vio *vio, my_bool set_blocking_mode, my_bool *old_mode)
   DBUG_PRINT("enter", ("set_blocking_mode: %d  old_mode: %d",
 		       (int) set_blocking_mode, (int) *old_mode));
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #if !defined(NO_FCNTL_NONBLOCK)
   if (sd >= 0)
   {
@@ -331,7 +331,7 @@ int vio_blocking(Vio *vio, my_bool set_blocking_mode, my_bool *old_mode)
 #else
   r= set_blocking_mode ? 0 : 1;
 #endif /* !defined(NO_FCNTL_NONBLOCK) */
-#else /* !defined(__WIN__) */
+#else /* !defined(_WIN32) */
   if (vio->type != VIO_TYPE_NAMEDPIPE)
   { 
     ulong arg;
@@ -351,7 +351,7 @@ int vio_blocking(Vio *vio, my_bool set_blocking_mode, my_bool *old_mode)
   }
   else
     r=  MY_TEST(!(vio->fcntl_mode & O_NONBLOCK)) != set_blocking_mode;
-#endif /* !defined(__WIN__) */
+#endif /* !defined(_WIN32) */
   DBUG_PRINT("exit", ("%d", r));
   DBUG_RETURN(r);
 }
@@ -613,7 +613,7 @@ enum enum_vio_type vio_type(Vio* vio)
 
 static const LEX_CSTRING vio_type_names[] =
 {
-  { STRING_WITH_LEN("Error") }, // cannot happen
+  { STRING_WITH_LEN("") }, // internal threads
   { STRING_WITH_LEN("TCP/IP") },
   { STRING_WITH_LEN("Socket") },
   { STRING_WITH_LEN("Named Pipe") },

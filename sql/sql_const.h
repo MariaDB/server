@@ -297,19 +297,6 @@
 */
 #define MAX_TIME_ZONE_NAME_LENGTH       (NAME_LEN + 1)
 
-#if defined(__WIN__)
-
-#define INTERRUPT_PRIOR -2
-#define CONNECT_PRIOR	-1
-#define WAIT_PRIOR	0
-#define QUERY_PRIOR	2
-#else
-#define INTERRUPT_PRIOR 10
-#define CONNECT_PRIOR	9
-#define WAIT_PRIOR	8
-#define QUERY_PRIOR	6
-#endif /* __WIN92__ */
-
 #define SP_PSI_STATEMENT_INFO_COUNT 19
 
 #endif /* SQL_CONST_INCLUDED */

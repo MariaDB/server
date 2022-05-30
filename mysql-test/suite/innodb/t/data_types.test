@@ -11,6 +11,8 @@
 
 --source include/have_innodb.inc
 
+--enable_prepare_warnings
+
 CREATE TABLE t1
 (
   t1_BIGINT BIGINT,
@@ -94,6 +96,8 @@ CREATE TABLE t1
   t1_VARCHAR_0 VARCHAR(0),
   t1_VARMYSQL_0 VARCHAR(0) CHARACTER SET utf8
 ) ENGINE=InnoDB;
+
+--disable_prepare_warnings
 
 INSERT INTO t1 () VALUES ();
 

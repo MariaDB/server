@@ -210,7 +210,7 @@ int main(int argc __attribute__((unused)),
   MY_INIT(argv[0]);
 
 #ifndef DBUG_OFF
-#if defined(__WIN__)
+#if defined(_WIN32)
   default_dbug_option= "d:t:i:O,\\test_pagecache_consist.trace";
 #else
   default_dbug_option= "d:t:i:O,/tmp/test_pagecache_consist.trace";

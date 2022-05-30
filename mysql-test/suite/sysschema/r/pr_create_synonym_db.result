@@ -50,3 +50,17 @@ DROP TABLE test.t1;
 DROP TABLE test.t2;
 DROP TABLE `is`;
 DROP TABLE `ab``c`;
+#
+# MDEV-28342: sys.create_synonym_db fails
+#             when a temporary table masks a base table
+#
+create database db;
+use db;
+create table a(a int);
+create table t (b int);
+create table b(a int);
+create temporary table b (a int);
+call sys.create_synonym_db('db','db_copy');
+ERROR HY000: Table`db`.`b`shadows base table. View cannot be created! Terminating!
+drop database db;
+drop database db_copy;

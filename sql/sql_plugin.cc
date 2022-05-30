@@ -233,7 +233,7 @@ static struct
 
 /* support for Services */
 
-#include "sql_plugin_services.ic"
+#include "sql_plugin_services.inl"
 
 /*
   A mutex LOCK_plugin must be acquired before accessing the
@@ -311,16 +311,17 @@ public:
   struct st_mysql_sys_var *plugin_var;
 
   sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
-                    st_plugin_int *p, st_mysql_sys_var *plugin_var_arg);
+                    st_plugin_int *p, st_mysql_sys_var *plugin_var_arg,
+                    const char *substitute);
   sys_var_pluginvar *cast_pluginvar() { return this; }
-  uchar* real_value_ptr(THD *thd, enum_var_type type);
-  TYPELIB* plugin_var_typelib(void);
-  uchar* do_value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base);
-  uchar* session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  uchar* real_value_ptr(THD *thd, enum_var_type type) const;
+  TYPELIB* plugin_var_typelib(void) const;
+  const uchar* do_value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base) const;
+  const uchar* session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return do_value_ptr(thd, OPT_SESSION, base); }
-  uchar* global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar* global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return do_value_ptr(thd, OPT_GLOBAL, base); }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   { return do_value_ptr(thd, OPT_DEFAULT, 0); }
   bool do_check(THD *thd, set_var *var);
   virtual void session_save_default(THD *thd, set_var *var) {}
@@ -373,7 +374,8 @@ bool check_valid_path(const char *path, size_t len)
 static void fix_dl_name(MEM_ROOT *root, LEX_CSTRING *dl)
 {
   const size_t so_ext_len= sizeof(SO_EXT) - 1;
-  if (my_strcasecmp(&my_charset_latin1, dl->str + dl->length - so_ext_len,
+  if (dl->length < so_ext_len ||
+      my_strcasecmp(&my_charset_latin1, dl->str + dl->length - so_ext_len,
                     SO_EXT))
   {
     char *s= (char*)alloc_root(root, dl->length + so_ext_len + 1);
@@ -1959,7 +1961,7 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
       list= NULL; /* terminate the loop */
       /* fall through */
     case ';':
-#ifndef __WIN__
+#ifndef _WIN32
     case ':':     /* can't use this as delimiter as it may be drive letter */
 #endif
       p[-1]= 0;
@@ -3417,18 +3419,18 @@ static int pluginvar_sysvar_flags(const st_mysql_sys_var *p)
 }
 
 sys_var_pluginvar::sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
-        st_plugin_int *p, st_mysql_sys_var *pv)
+        st_plugin_int *p, st_mysql_sys_var *pv, const char *substitute)
     : sys_var(chain, name_arg, pv->comment, pluginvar_sysvar_flags(pv),
               0, pv->flags & PLUGIN_VAR_NOCMDOPT ? -1 : 0, NO_ARG,
               pluginvar_show_type(pv), 0,
-              NULL, VARIABLE_NOT_IN_BINLOG, NULL, NULL, NULL),
+              NULL, VARIABLE_NOT_IN_BINLOG, NULL, NULL, substitute),
     plugin(p), plugin_var(pv)
 {
   plugin_var->name= name_arg;
   plugin_opt_set_limits(&option, pv);
 }
 
-uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type)
+uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type) const
 {
   if (type == OPT_DEFAULT)
   {
@@ -3502,7 +3504,7 @@ bool sys_var_pluginvar::session_is_default(THD *thd)
 }
 
 
-TYPELIB* sys_var_pluginvar::plugin_var_typelib(void)
+TYPELIB* sys_var_pluginvar::plugin_var_typelib(void) const
 {
   switch (plugin_var->flags & (PLUGIN_VAR_TYPEMASK | PLUGIN_VAR_THDLOCAL)) {
   case PLUGIN_VAR_ENUM:
@@ -3520,12 +3522,10 @@ TYPELIB* sys_var_pluginvar::plugin_var_typelib(void)
 }
 
 
-uchar* sys_var_pluginvar::do_value_ptr(THD *thd, enum_var_type type,
-                                       const LEX_CSTRING *base)
+const uchar* sys_var_pluginvar::do_value_ptr(THD *thd, enum_var_type type,
+                                             const LEX_CSTRING *base) const
 {
-  uchar* result;
-
-  result= real_value_ptr(thd, type);
+  const uchar* result= real_value_ptr(thd, type);
 
   if ((plugin_var->flags & PLUGIN_VAR_TYPEMASK) == PLUGIN_VAR_ENUM)
     result= (uchar*) get_type(plugin_var_typelib(), *(ulong*)result);
@@ -4165,7 +4165,8 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
           my_casedn_str(&my_charset_latin1, varname);
           convert_dash_to_underscore(varname, len-1);
         }
-        v= new (mem_root) sys_var_pluginvar(&chain, varname, tmp, o);
+        const char *s= o->flags & PLUGIN_VAR_DEPRECATED ? "" : NULL;
+        v= new (mem_root) sys_var_pluginvar(&chain, varname, tmp, o, s);
         v->test_load= (var ? &var->loaded : &static_unload);
         DBUG_ASSERT(static_unload == FALSE);
 

@@ -25,7 +25,7 @@ INSERT INTO gis_point VALUES
 (ST_PointFromText('POINT(100.32374832 101.23741821)'), ST_PointFromText('POINT(100.32374832 101.98527111)'));
 EXPLAIN SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point GROUP BY p1, p2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	gis_point	ALL	NULL	NULL	NULL	NULL	4	#
+1	SIMPLE	gis_point	ALL	NULL	NULL	NULL	NULL	#	Using temporary; Using filesort
 SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point GROUP BY p1, p2;
 ST_AsText(p1)	ST_AsText(p2)
 POINT(100.32374832 101.23741821)	POINT(100.32374832 101.98527111)
@@ -277,7 +277,7 @@ DROP TABLE t1;
 #
 # Test when the POINT is on B-TREE
 #
-CREATE TABLE gis_point(fid INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT, p POINT, KEY(p)) ENGINE=InnoDB;
+CREATE TABLE gis_point(fid INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT, p POINT, KEY(p)) ENGINE=InnoDB STATS_PERSISTENT=0;
 INSERT INTO gis_point VALUES
 (101, ST_PointFromText('POINT(10 10)')),
 (102, ST_PointFromText('POINT(20 10)')),
@@ -302,7 +302,7 @@ INSERT INTO gis_point VALUES
 'The ORDER BY will use filesort'
 EXPLAIN SELECT ST_AsText(p) FROM gis_point ORDER BY p;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	gis_point	ALL	NULL	NULL	NULL	NULL	10	#
+1	SIMPLE	gis_point	ALL	NULL	NULL	NULL	NULL	#	Using filesort
 SELECT ST_AsText(p) FROM gis_point ORDER BY p;
 ST_AsText(p)
 POINT(10 10)
@@ -1326,7 +1326,7 @@ test.gis_point	check	status	OK
 The ORDER BY for spatial index will use filesort
 EXPLAIN SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point ORDER BY p1, p2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	gis_point	ALL	NULL	NULL	NULL	NULL	13	#
+1	SIMPLE	gis_point	ALL	NULL	NULL	NULL	NULL	#	Using filesort
 SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point ORDER BY p1, p2;
 ST_AsText(p1)	ST_AsText(p2)
 POINT(2 4)	POINT(-2 -6)
@@ -1488,7 +1488,7 @@ a	ST_AsText(p)	ST_AsText(l)	ST_AsText(g)
 2	POINT(20 20)	LINESTRING(2 3,7 8,9 10,15 16)	POLYGON((10 30,30 40,40 50,40 30,30 20,10 30))
 EXPLAIN UPDATE t1 SET p = ST_GeomFromText('POINT(30 30)') WHERE p = ST_GeomFromText('POINT(20 20)');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	27	NULL	1	#
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	27	NULL	#	Using where
 UPDATE t1 SET p = ST_GeomFromText('POINT(30 30)') WHERE p = ST_GeomFromText('POINT(20 20)');
 SELECT a, ST_AsText(p), ST_AsText(l), ST_AsText(g) FROM t1;
 a	ST_AsText(p)	ST_AsText(l)	ST_AsText(g)
@@ -1526,7 +1526,7 @@ ALTER TABLE t1 DROP PRIMARY KEY;
 ALTER TABLE t1 ADD PRIMARY KEY(p);
 EXPLAIN SELECT a, ST_AsText(p) FROM t1 WHERE a = 2 AND p = ST_GeomFromText('POINT(30 30)');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	PRIMARY,idx2	PRIMARY	27	const	1	#
+1	SIMPLE	t1	const	PRIMARY,idx2	PRIMARY	27	const	#	
 SELECT a, ST_AsText(p) FROM t1 WHERE a = 2 AND p = ST_GeomFromText('POINT(30 30)');
 a	ST_AsText(p)
 2	POINT(30 30)

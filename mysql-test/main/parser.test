@@ -885,6 +885,7 @@ SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1 FOR UPDATE;
 
 --echo # "INTO" clause tests
 
+--enable_prepare_warnings
 SELECT 1 FROM t1 INTO @var17727401;
 SELECT 1 FROM DUAL INTO @var17727401;
 SELECT 1 INTO @var17727401;
@@ -924,6 +925,7 @@ SELECT 1 FROM t1 INTO @var17727401 UNION SELECT 1 FROM t1 INTO t1;
 
 SELECT 1 FROM t1 UNION SELECT 1 FROM t1 INTO @var17727401;
 
+--disable_prepare_warnings
 --error ER_PARSE_ERROR
 SELECT 1 INTO @var17727401 FROM t1 PROCEDURE ANALYSE();
 
@@ -1359,6 +1361,78 @@ create or replace view v1 as select 1 not between (2 like 3) and 4;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 
 drop view v1;
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+--echo #
+
+--echo # MDEV-27066 Fixed scientific notation parser
+--echo #
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e*1;
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e/1;
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e^1;
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e%1;
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e&1;
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e|1;
+
+--error ER_PARSE_ERROR
+SELECT 1.e(1);
+
+--error ER_PARSE_ERROR
+SELECT (1 1.e);
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e, 1;
+
+CREATE TABLE scientific_notation (test int);
+
+--error ER_PARSE_ERROR
+SELECT tmp 1.e.test FROM scientific_notation AS tmp;
+
+DROP TABLE scientific_notation;
+
+--echo #
+--echo # MDEV-6899 extra semicolon in show create event syntax
+--echo #
+--disable_ps_protocol
+set timestamp=unix_timestamp('2020-10-10 5:5:5');
+create table t1 (a int);
+delimiter $;
+create trigger a before insert on t1 for each row set @a:=1;select 2$
+delimiter ;$
+query_vertical show create trigger a;
+drop table t1;
+
+delimiter $;
+create procedure a() select 1;select 2$
+delimiter ;$
+query_vertical show create procedure a;
+drop procedure a;
+
+delimiter $;
+create function a() returns int return 1;select 2$
+delimiter ;$
+query_vertical show create function a;
+drop function a;
+set timestamp=default;
+--enable_ps_protocol
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
 
 --echo #
 --echo # MDEV-10343 Providing compatibility for basic SQL data types
@@ -1904,6 +1978,8 @@ drop table t1;
 --echo # MDEV-19682 sql_mode="oracle" does not support sysdate
 --echo #
 
+--enable_prepare_warnings
+
 --error ER_BAD_FIELD_ERROR
 SELECT sysdate LIKE '____-__-__ __:__:__';
 --error ER_BAD_FIELD_ERROR
@@ -1948,6 +2024,8 @@ sysdate:
 END;
 $$
 DELIMITER ;$$
+
+--disable_prepare_warnings
 
 --echo #
 --echo # End of 10.6 tests

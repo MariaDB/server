@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -50,9 +50,9 @@ table_mutex_instances::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE mutex_instances("
-                      "NAME VARCHAR(128) not null,"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null,"
-                      "LOCKED_BY_THREAD_ID BIGINT unsigned)") },
+                      "NAME VARCHAR(128) not null comment 'Instrument name associated with the mutex.',"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Memory address of the instrumented mutex.',"
+                      "LOCKED_BY_THREAD_ID BIGINT unsigned comment 'The THREAD_ID of the locking thread if a thread has a mutex locked, otherwise NULL.')") },
   false  /* perpetual */
 };
 
@@ -154,7 +154,7 @@ int table_mutex_instances::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 1);
+  assert(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)
@@ -176,7 +176,7 @@ int table_mutex_instances::read_row_values(TABLE *table,
           f->set_null();
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }
@@ -198,10 +198,10 @@ table_rwlock_instances::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE rwlock_instances("
-                      "NAME VARCHAR(128) not null,"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null,"
-                      "WRITE_LOCKED_BY_THREAD_ID BIGINT unsigned,"
-                      "READ_LOCKED_BY_COUNT INTEGER unsigned not null)") },
+                      "NAME VARCHAR(128) not null comment 'Instrument name associated with the read write lock',"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Address in memory of the instrumented lock',"
+                      "WRITE_LOCKED_BY_THREAD_ID BIGINT unsigned comment 'THREAD_ID of the locking thread if locked in write (exclusive) mode, otherwise NULL.',"
+                      "READ_LOCKED_BY_COUNT INTEGER unsigned not null comment 'Count of current read locks held')") },
   false  /* perpetual */
 };
 
@@ -307,7 +307,7 @@ int table_rwlock_instances::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 1);
+  assert(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)
@@ -332,7 +332,7 @@ int table_rwlock_instances::read_row_values(TABLE *table,
         set_field_ulong(f, m_row.m_readers);
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }
@@ -354,8 +354,8 @@ table_cond_instances::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE cond_instances("
-                      "NAME VARCHAR(128) not null,"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null)") },
+                      "NAME VARCHAR(128) not null comment 'Client user name for the connection, or NULL if an internal thread.',"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Address in memory of the instrumented condition.')") },
   false  /* perpetual */
 };
 
@@ -447,7 +447,7 @@ int table_cond_instances::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 0);
+  assert(table->s->null_bytes == 0);
 
   for (; (f= *fields) ; fields++)
   {
@@ -462,7 +462,7 @@ int table_cond_instances::read_row_values(TABLE *table,
         set_field_ulonglong(f, (intptr) m_row.m_identity);
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }

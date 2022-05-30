@@ -24,6 +24,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	my_d	my_d	5	const	128	Using index
 ALTER TABLE t1 DROP INDEX my_d;
 ALTER TABLE t1 MODIFY COLUMN D INT;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
 ALTER TABLE t1 ADD INDEX my_d (D);
 EXPLAIN SELECT d FROM t1 WHERE d = 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

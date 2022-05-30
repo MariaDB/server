@@ -1,4 +1,5 @@
-drop table if exists t0,t1,t2,t3;
+SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=OFF;
 #
 # MDEV-6402: Optimizer doesn't choose best execution plan when composite key is used
 #
@@ -96,3 +97,4 @@ ORDER BY pk2 DESC LIMIT 21;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ref	key1	key1	55	const,const	1	Using where; Using index
 drop table t1, t2;
+SET GLOBAL innodb_stats_persistent=@save_stats_persistent;

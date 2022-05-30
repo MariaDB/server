@@ -1,5 +1,5 @@
 /* Copyright (c) 2011, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2014, SkySQL Ab.
+   Copyright (c) 2011, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@
 #include "sql_class.h"
 #include "my_stacktrace.h"
 
-#ifdef __WIN__
+#ifdef _WIN32
 #include <crtdbg.h>
 #define SIGNAL_FMT "exception 0x%x"
 #else
@@ -174,35 +174,36 @@ extern "C" sig_handler handle_fatal_signal(int sig)
   my_safe_printf_stderr("Server version: %s\n", server_version);
 
   if (dflt_key_cache)
-    my_safe_printf_stderr("key_buffer_size=%lu\n",
-                          (ulong) dflt_key_cache->key_cache_mem_size);
+    my_safe_printf_stderr("key_buffer_size=%zu\n",
+                          dflt_key_cache->key_cache_mem_size);
 
-  my_safe_printf_stderr("read_buffer_size=%ld\n",
-                        (long) global_system_variables.read_buff_size);
+  my_safe_printf_stderr("read_buffer_size=%lu\n",
+                        global_system_variables.read_buff_size);
 
   my_safe_printf_stderr("max_used_connections=%lu\n",
-                        (ulong) max_used_connections);
+                        max_used_connections);
 
   if (thread_scheduler)
-    my_safe_printf_stderr("max_threads=%u\n",
-                          (uint) thread_scheduler->max_threads +
-                          (uint) extra_max_connections);
+    my_safe_printf_stderr("max_threads=%lu\n",
+                          thread_scheduler->max_threads +
+                          extra_max_connections);
 
-  my_safe_printf_stderr("thread_count=%u\n", (uint) thread_count);
+  my_safe_printf_stderr("thread_count=%u\n", THD_count::value());
 
   if (dflt_key_cache && thread_scheduler)
   {
+    size_t used_mem=
+        (dflt_key_cache->key_cache_mem_size +
+         (global_system_variables.read_buff_size +
+          (size_t) global_system_variables.sortbuff_size) *
+             (thread_scheduler->max_threads + extra_max_connections) +
+         (max_connections + extra_max_connections) * sizeof(THD)) / 1024;
+
     my_safe_printf_stderr("It is possible that mysqld could use up to \n"
                           "key_buffer_size + "
                           "(read_buffer_size + sort_buffer_size)*max_threads = "
-                          "%lu K  bytes of memory\n",
-                          (ulong)
-                          (dflt_key_cache->key_cache_mem_size +
-                           (global_system_variables.read_buff_size +
-                            global_system_variables.sortbuff_size) *
-                           (thread_scheduler->max_threads + extra_max_connections) +
-                           (max_connections + extra_max_connections) *
-                           sizeof(THD)) / 1024);
+                          "%zu K  bytes of memory\n", used_mem);
+
     my_safe_printf_stderr("%s",
                           "Hope that's ok; if not, decrease some variables in "
                           "the equation.\n\n");
@@ -346,7 +347,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
 #endif
 
 end:
-#ifndef __WIN__
+#ifndef _WIN32
   /*
      Quit, without running destructors (etc.)
      Use a signal, because the parent (systemd) can check that with WIFSIGNALED

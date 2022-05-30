@@ -522,6 +522,7 @@ select @@session.max_heap_table_size|
 --disable_warnings
 create table t3 (a char(255)) engine=InnoDB|
 --enable_warnings
+--enable_prepare_warnings
 create procedure bug14210_fill_table()
 begin
   declare table_size, max_table_size int default 0;
@@ -533,6 +534,7 @@ begin
     select count(*)*255 from t3 into table_size;
   until table_size > max_table_size*2 end repeat;
 end|
+--disable_prepare_warnings
 --disable_warnings
 call bug14210_fill_table()|
 --enable_warnings

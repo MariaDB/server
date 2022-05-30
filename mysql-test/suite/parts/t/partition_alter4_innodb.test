@@ -49,6 +49,9 @@ let $more_pk_ui_tests= 0;
 # This test takes long time, so only run it with the --big mtr-flag.
 --source include/big_test.inc
 
+# Valgrind is to slow for this test
+--source include/not_valgrind.inc
+
 #------------------------------------------------------------------------------#
 # Engine specific settings and requirements
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2014, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -53,41 +53,41 @@ table_prepared_stmt_instances::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE prepared_statements_instances("
-  "OBJECT_INSTANCE_BEGIN bigint(20) unsigned NOT NULL,"
-  "STATEMENT_ID bigint(20) unsigned NOT NULL,"
-  "STATEMENT_NAME varchar(64) default NULL,"
-  "SQL_TEXT longtext NOT NULL,"
-  "OWNER_THREAD_ID bigint(20) unsigned NOT NULL,"
-  "OWNER_EVENT_ID bigint(20) unsigned NOT NULL,"
-  "OWNER_OBJECT_TYPE enum('EVENT','FUNCTION','PROCEDURE','TABLE','TRIGGER') DEFAULT NULL,"
-  "OWNER_OBJECT_SCHEMA varchar(64) DEFAULT NULL,"
-  "OWNER_OBJECT_NAME varchar(64) DEFAULT NULL,"
-  "TIMER_PREPARE bigint(20) unsigned NOT NULL,"
-  "COUNT_REPREPARE bigint(20) unsigned NOT NULL,"
-  "COUNT_EXECUTE bigint(20) unsigned NOT NULL,"
-  "SUM_TIMER_EXECUTE bigint(20) unsigned NOT NULL,"
-  "MIN_TIMER_EXECUTE bigint(20) unsigned NOT NULL,"
-  "AVG_TIMER_EXECUTE bigint(20) unsigned NOT NULL,"
-  "MAX_TIMER_EXECUTE bigint(20) unsigned NOT NULL,"
-  "SUM_LOCK_TIME bigint(20) unsigned NOT NULL,"
-  "SUM_ERRORS bigint(20) unsigned NOT NULL,"
-  "SUM_WARNINGS bigint(20) unsigned NOT NULL,"
-  "SUM_ROWS_AFFECTED bigint(20) unsigned NOT NULL,"
-  "SUM_ROWS_SENT bigint(20) unsigned NOT NULL,"
-  "SUM_ROWS_EXAMINED bigint(20) unsigned NOT NULL,"
-  "SUM_CREATED_TMP_DISK_TABLES bigint(20) unsigned NOT NULL,"
-  "SUM_CREATED_TMP_TABLES bigint(20) unsigned NOT NULL,"
-  "SUM_SELECT_FULL_JOIN bigint(20) unsigned NOT NULL,"
-  "SUM_SELECT_FULL_RANGE_JOIN bigint(20) unsigned NOT NULL,"
-  "SUM_SELECT_RANGE bigint(20) unsigned NOT NULL,"
-  "SUM_SELECT_RANGE_CHECK bigint(20) unsigned NOT NULL,"
-  "SUM_SELECT_SCAN bigint(20) unsigned NOT NULL,"
-  "SUM_SORT_MERGE_PASSES bigint(20) unsigned NOT NULL,"
-  "SUM_SORT_RANGE bigint(20) unsigned NOT NULL,"
-  "SUM_SORT_ROWS bigint(20) unsigned NOT NULL,"
-  "SUM_SORT_SCAN bigint(20) unsigned NOT NULL,"
-  "SUM_NO_INDEX_USED bigint(20) unsigned NOT NULL,"
-  "SUM_NO_GOOD_INDEX_USED bigint(20) unsigned NOT NULL)")},
+  "OBJECT_INSTANCE_BEGIN bigint(20) unsigned NOT NULL comment 'The address in memory of the instrumented prepared statement.',"
+  "STATEMENT_ID bigint(20) unsigned NOT NULL comment 'The internal statement ID assigned by the server.',"
+  "STATEMENT_NAME varchar(64) default NULL comment 'For the binary protocol, this column is NULL. For the text protocol, this column is the external statement name assigned by the user.',"
+  "SQL_TEXT longtext NOT NULL comment 'The prepared statement text, with ? placeholder markers.',"
+  "OWNER_THREAD_ID bigint(20) unsigned NOT NULL comment 'Event thread id that created the prepared statement.',"
+  "OWNER_EVENT_ID bigint(20) unsigned NOT NULL comment 'Event id that created the prepared statement.',"
+  "OWNER_OBJECT_TYPE enum('EVENT','FUNCTION','PROCEDURE','TABLE','TRIGGER') DEFAULT NULL comment 'NULL for a prepared statement created by a client session. Type of the stored program that created the prepared statement.',"
+  "OWNER_OBJECT_SCHEMA varchar(64) DEFAULT NULL comment 'NULL for a prepared statement created by a client session. Schema of the stored program that created the prepared statement.',"
+  "OWNER_OBJECT_NAME varchar(64) DEFAULT NULL comment 'NULL for a prepared statement created by a client session. Name of the stored program that created the prepared statement.',"
+  "TIMER_PREPARE bigint(20) unsigned NOT NULL comment 'The time spent executing the statement preparation itself.',"
+  "COUNT_REPREPARE bigint(20) unsigned NOT NULL comment 'The number of times the statement was reprepared internally.',"
+  "COUNT_EXECUTE bigint(20) unsigned NOT NULL comment 'Total times the prepared statement was executed.',"
+  "SUM_TIMER_EXECUTE bigint(20) unsigned NOT NULL comment 'Total time spent executing all prepared statements.',"
+  "MIN_TIMER_EXECUTE bigint(20) unsigned NOT NULL comment 'Minimum time spent executing any of the prepared statements.',"
+  "AVG_TIMER_EXECUTE bigint(20) unsigned NOT NULL comment 'Average time spent executing any of the prepared statements.',"
+  "MAX_TIMER_EXECUTE bigint(20) unsigned NOT NULL comment 'Maximum time spent executing any of the prepared statements.',"
+  "SUM_LOCK_TIME bigint(20) unsigned NOT NULL comment 'The total time spent (in picoseconds) waiting for table locks for the prepared statements.',"
+  "SUM_ERRORS bigint(20) unsigned NOT NULL comment 'The total number of errors that occurend for the prepared statements.',"
+  "SUM_WARNINGS bigint(20) unsigned NOT NULL comment 'The total number of warnings that occurend for the prepared statements.',"
+  "SUM_ROWS_AFFECTED bigint(20) unsigned NOT NULL comment 'The total number of affected rows by the prepared statements.',"
+  "SUM_ROWS_SENT bigint(20) unsigned NOT NULL comment 'The total number of rows returned by the prepared statements.',"
+  "SUM_ROWS_EXAMINED bigint(20) unsigned NOT NULL comment 'The total number of rows examined by the prepared statements.',"
+  "SUM_CREATED_TMP_DISK_TABLES bigint(20) unsigned NOT NULL comment 'The total number of on-disk temporary tables created by the prepared statements.',"
+  "SUM_CREATED_TMP_TABLES bigint(20) unsigned NOT NULL comment 'The total number of in-memory temporary tables created by the prepared statements.',"
+  "SUM_SELECT_FULL_JOIN bigint(20) unsigned NOT NULL comment 'The total number of full joins executed by the prepared statements.',"
+  "SUM_SELECT_FULL_RANGE_JOIN bigint(20) unsigned NOT NULL comment 'The total number of range search joins executed by the prepared statements.',"
+  "SUM_SELECT_RANGE bigint(20) unsigned NOT NULL comment 'The total number of joins that used ranges on the first table executed by the prepared statements.',"
+  "SUM_SELECT_RANGE_CHECK bigint(20) unsigned NOT NULL comment 'The total number of joins that check for key usage after each row executed by the prepared statements.',"
+  "SUM_SELECT_SCAN bigint(20) unsigned NOT NULL comment 'The total number of joins that did a full scan of the first table executed by the prepared statements.',"
+  "SUM_SORT_MERGE_PASSES bigint(20) unsigned NOT NULL comment 'The total number of merge passes that the sort algorithm has had to do for the prepared statements.',"
+  "SUM_SORT_RANGE bigint(20) unsigned NOT NULL comment 'The total number of sorts that were done using ranges for the prepared statements.',"
+  "SUM_SORT_ROWS bigint(20) unsigned NOT NULL comment 'The total number of sorted rows that were sorted by the prepared statements.',"
+  "SUM_SORT_SCAN bigint(20) unsigned NOT NULL comment 'The total number of sorts that were done by scanning the table by the prepared statements.',"
+  "SUM_NO_INDEX_USED bigint(20) unsigned NOT NULL comment 'The total number of statements that performed a table scan without using an index.',"
+  "SUM_NO_GOOD_INDEX_USED bigint(20) unsigned NOT NULL comment 'The total number of statements where no good index was found.')")},
   false  /* perpetual */
 };
 
@@ -218,7 +218,7 @@ int table_prepared_stmt_instances
   /*
     Set the null bits.
   */
-  DBUG_ASSERT(table->s->null_bytes == 1);
+  assert(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)

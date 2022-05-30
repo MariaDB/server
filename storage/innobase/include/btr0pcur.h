@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -92,8 +92,7 @@ btr_pcur_free(
 	btr_pcur_t*	pcur);
 
 /**************************************************************//**
-Initializes and opens a persistent cursor to an index tree. It should be
-closed with btr_pcur_close. */
+Initializes and opens a persistent cursor to an index tree. */
 UNIV_INLINE
 dberr_t
 btr_pcur_open_low(
@@ -135,7 +134,7 @@ btr_pcur_open_with_no_init_func(
 				that the ahi_latch protects the record! */
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
 #ifdef BTR_CUR_HASH_ADAPT
-	srw_lock*	ahi_latch,
+	srw_spin_lock*	ahi_latch,
 				/*!< in: currently held AHI rdlock, or NULL */
 #endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*		mtr);	/*!< in: mtr */
@@ -218,9 +217,7 @@ cursor is currently positioned. The latch is acquired by the
 are not allowed, you must take care (if using the cursor in S-mode) to
 manually release the latch by either calling
 btr_leaf_page_release(btr_pcur_get_block(&pcur), pcur.latch_mode, mtr)
-or by committing the mini-transaction right after btr_pcur_close().
-A subsequent attempt to crawl the same page in the same mtr would cause
-an assertion failure. */
+or by mtr_t::commit(). */
 UNIV_INLINE
 void
 btr_pcur_close(
@@ -238,26 +235,6 @@ btr_pcur_store_position(
 /*====================*/
 	btr_pcur_t*	cursor, /*!< in: persistent cursor */
 	mtr_t*		mtr);	/*!< in: mtr */
-/**************************************************************//**
-Restores the stored position of a persistent cursor bufferfixing the page and
-obtaining the specified latches. If the cursor position was saved when the
-(1) cursor was positioned on a user record: this function restores the position
-to the last record LESS OR EQUAL to the stored record;
-(2) cursor was positioned on a page infimum record: restores the position to
-the last record LESS than the user record which was the successor of the page
-infimum;
-(3) cursor was positioned on the page supremum: restores to the first record
-GREATER than the user record which was the predecessor of the supremum.
-(4) cursor was positioned before the first or after the last in an empty tree:
-restores to before first or after the last in the tree.
-@return TRUE if the cursor position was stored when it was on a user
-record and it can be restored on a user record whose ordering fields
-are identical to the ones of the original user record */
-ibool
-btr_pcur_restore_position(
-	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
-	btr_pcur_t*	cursor,		/*!< in: detached persistent cursor */
-	mtr_t*		mtr);		/*!< in: mtr */
 /*********************************************************//**
 Gets the rel_pos field for a cursor whose position has been stored.
 @return BTR_PCUR_ON, ... */
@@ -335,54 +312,11 @@ btr_pcur_move_to_next_page(
 	btr_pcur_t*	cursor,	/*!< in: persistent cursor; must be on the
 				last record of the current page */
 	mtr_t*		mtr);	/*!< in: mtr */
-#ifdef UNIV_DEBUG
-/*********************************************************//**
-Returns the btr cursor component of a persistent cursor.
-@return pointer to btr cursor component */
-UNIV_INLINE
-btr_cur_t*
-btr_pcur_get_btr_cur(
-/*=================*/
-	const btr_pcur_t*	cursor);	/*!< in: persistent cursor */
-/*********************************************************//**
-Returns the page cursor component of a persistent cursor.
-@return pointer to page cursor component */
-UNIV_INLINE
-page_cur_t*
-btr_pcur_get_page_cur(
-/*==================*/
-	const btr_pcur_t*	cursor);	/*!< in: persistent cursor */
-/*********************************************************//**
-Returns the page of a persistent cursor.
-@return pointer to the page */
-UNIV_INLINE
-page_t*
-btr_pcur_get_page(
-/*==============*/
-	const btr_pcur_t*	cursor);/*!< in: persistent cursor */
-/*********************************************************//**
-Returns the buffer block of a persistent cursor.
-@return pointer to the block */
-UNIV_INLINE
-buf_block_t*
-btr_pcur_get_block(
-/*===============*/
-	const btr_pcur_t*	cursor);/*!< in: persistent cursor */
-/*********************************************************//**
-Returns the record of a persistent cursor.
-@return pointer to the record */
-UNIV_INLINE
-rec_t*
-btr_pcur_get_rec(
-/*=============*/
-	const btr_pcur_t*	cursor);/*!< in: persistent cursor */
-#else /* UNIV_DEBUG */
-# define btr_pcur_get_btr_cur(cursor) (&(cursor)->btr_cur)
-# define btr_pcur_get_page_cur(cursor) (&(cursor)->btr_cur.page_cur)
-# define btr_pcur_get_page(cursor) ((cursor)->btr_cur.page_cur.block->frame)
-# define btr_pcur_get_block(cursor) ((cursor)->btr_cur.page_cur.block)
-# define btr_pcur_get_rec(cursor) ((cursor)->btr_cur.page_cur.rec)
-#endif /* UNIV_DEBUG */
+
+#define btr_pcur_get_btr_cur(cursor) (&(cursor)->btr_cur)
+#define btr_pcur_get_page_cur(cursor) (&(cursor)->btr_cur.page_cur)
+#define btr_pcur_get_page(cursor) btr_pcur_get_block(cursor)->page.frame
+
 /*********************************************************//**
 Checks if the persistent cursor is on a user record. */
 UNIV_INLINE
@@ -462,6 +396,18 @@ enum pcur_pos_t {
 selects, updates, and deletes. */
 
 struct btr_pcur_t{
+	/** Return value of restore_position() */
+	enum restore_status {
+		/** cursor position on user rec and points on the record with
+		the same field values as in the stored record */
+		SAME_ALL,
+		/** cursor position is on user rec and points on the record with
+		the same unique field values as in the stored record */
+		SAME_UNIQ,
+		/** cursor position is not on user rec or points on the record
+		with not the same uniq field values as in the stored record */
+		NOT_SAME
+	};
 	/** a B-tree cursor */
 	btr_cur_t	btr_cur;
 	/** see TODO note below!
@@ -519,8 +465,49 @@ struct btr_pcur_t{
 
 	/** Return the index of this persistent cursor */
 	dict_index_t*	index() const { return(btr_cur.index); }
+	/** Restores the stored position of a persistent cursor bufferfixing
+	the page and obtaining the specified latches. If the cursor position
+	was saved when the
+	(1) cursor was positioned on a user record: this function restores the
+	position to the last record LESS OR EQUAL to the stored record;
+	(2) cursor was positioned on a page infimum record: restores the
+	position to the last record LESS than the user record which was the
+	successor of the page infimum;
+	(3) cursor was positioned on the page supremum: restores to the first
+	record GREATER than the user record which was the predecessor of the
+	supremum.
+	(4) cursor was positioned before the first or after the last in an
+	empty tree: restores to before first or after the last in the tree.
+	@param restore_latch_mode BTR_SEARCH_LEAF, ...
+	@param mtr mtr
+	@return btr_pcur_t::SAME_ALL cursor position on user rec and points on
+	the record with the same field values as in the stored record,
+	btr_pcur_t::SAME_UNIQ cursor position is on user rec and points on the
+	record with the same unique field values as in the stored record,
+	btr_pcur_t::NOT_SAME cursor position is not on user rec or points on
+	the record with not the samebuniq field values as in the stored */
+	restore_status restore_position(ulint latch_mode, mtr_t *mtr);
 };
 
-#include "btr0pcur.ic"
+inline buf_block_t *btr_pcur_get_block(btr_pcur_t *cursor)
+{
+  ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
+  return cursor->btr_cur.page_cur.block;
+}
+
+inline const buf_block_t *btr_pcur_get_block(const btr_pcur_t *cursor)
+{
+  ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
+  return cursor->btr_cur.page_cur.block;
+}
+
+inline rec_t *btr_pcur_get_rec(const btr_pcur_t *cursor)
+{
+  ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
+  ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
+  return cursor->btr_cur.page_cur.rec;
+}
+
+#include "btr0pcur.inl"
 
 #endif

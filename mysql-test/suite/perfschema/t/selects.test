@@ -126,6 +126,7 @@ DROP TRIGGER t_ps_trigger;
 --disable_warnings
 DROP PROCEDURE IF EXISTS t_ps_proc;
 --enable_warnings
+--enable_prepare_warnings
 delimiter |;
 
 CREATE PROCEDURE t_ps_proc(IN conid INT, OUT pid INT)
@@ -140,6 +141,7 @@ delimiter ;|
 
 CALL t_ps_proc(connection_id(), @p_id);
 
+--disable_prepare_warnings
 # FUNCTION
 
 --disable_warnings

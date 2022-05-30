@@ -208,7 +208,7 @@ select * from t2;
 connection master;
 delimiter |;
 
-drop function fn1;
+drop function fn1|
 
 create function fn1()
        returns int

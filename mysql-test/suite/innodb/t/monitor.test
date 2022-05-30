@@ -394,7 +394,7 @@ set global innodb_monitor_reset_all = default;
 --echo # Bug#22576241 SETTING INNODB_MONITOR_ENABLE TO ALL DOES NOT ENABLE ALL
 --echo # MONITORS
 --echo #
-CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
 
 let $innodb_monitor_enable = `SELECT @@innodb_monitor_enable`;
 

@@ -50,3 +50,13 @@ Warnings:
 Warning	1814	Tablespace has been discarded for table `u`
 TRUNCATE u;
 DROP TABLE u;
+#
+# Test for a regression found during MDEV-25506 rewrite of DROP
+#
+CREATE TEMPORARY TABLE t1 (a INT) ENGINE=InnoDB;
+LOCK TABLE t1 READ;
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t1;
+UNLOCK TABLES;
+DROP TEMPORARY TABLE t1;
+# End of 10.6 tests

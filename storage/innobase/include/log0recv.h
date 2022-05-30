@@ -82,14 +82,18 @@ void recv_sys_justify_left_parsing_buf();
 
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
-@param[in]	create		whether the file is being created
+@param[in]	type		file operation redo log type
 @param[in]	name		file name (not NUL-terminated)
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-extern void (*log_file_op)(ulint space_id, bool create,
+extern void (*log_file_op)(ulint space_id, int type,
 			   const byte* name, ulint len,
 			   const byte* new_name, ulint new_len);
+
+/** Report an operation which does INIT_PAGE for page0 during backup.
+@param	space_id	tablespace identifier */
+extern void (*first_page_init)(ulint space_id);
 
 /** Stored redo log record */
 struct log_rec_t
@@ -225,7 +229,7 @@ private:
 public:
   /** whether we are applying redo log records during crash recovery */
   bool recovery_on;
-  /** whether recv_recover_page(), invoked from buf_page_read_complete(),
+  /** whether recv_recover_page(), invoked from buf_page_t::read_complete(),
   should apply log records*/
   bool apply_log_recs;
 	byte*		buf;	/*!< buffer for parsing log records */
@@ -336,12 +340,12 @@ public:
   bool is_initialised() const { return last_stored_lsn != 0; }
 
   /** Register a redo log snippet for a page.
-  @param page_id  page identifier
+  @param it       page iterator
   @param start_lsn start LSN of the mini-transaction
   @param lsn      @see mtr_t::commit_lsn()
   @param l        redo log snippet @see log_t::FORMAT_10_5
   @param len      length of l, in bytes */
-  inline void add(const page_id_t page_id, lsn_t start_lsn, lsn_t lsn,
+  inline void add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
                   const byte *l, size_t len);
 
   /** Parse and register one mini-transaction in log_t::FORMAT_10_5.

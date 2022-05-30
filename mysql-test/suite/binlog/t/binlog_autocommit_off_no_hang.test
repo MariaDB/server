@@ -1,0 +1,45 @@
+#
+# Purpose:
+#   When the mysql.gtid_slave_pos table uses the InnoDB engine, and mysqld
+# starts, it reads the table and begins a transaction. After mysqld reads the
+# value, it should end the transaction and release all associated locks.
+# The bug reported in DBAAS-7828 shows that when autocommit is off, the locks
+# are not released, resulting in indefinite hangs on future attempts to change
+# gtid_slave_pos. This test ensures its fix such that the locks are properly
+# released.
+#
+# References:
+#   DBAAS-7828: Primary/replica: configuration change of "autocommit=0" can
+#               not be applied
+#
+
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+
+# Reading gtid_slave_pos table is format independent so just use one for
+# reduced test time
+--source include/have_binlog_format_row.inc
+
+--let old_slave_pos_engine= query_get_value(SHOW TABLE STATUS FROM mysql LIKE 'gtid_slave_pos', Engine, 1)
+
+# Use a transactional engine
+ALTER TABLE mysql.gtid_slave_pos ENGINE=innodb;
+
+--echo # Restart the server so mysqld reads the gtid_slave_pos using innodb
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server
+--source include/wait_until_disconnected.inc
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--echo # Set gtid_slave_pos should not hang
+SET GLOBAL gtid_slave_pos=@@gtid_binlog_pos;
+COMMIT;
+
+# Revert table type
+--disable_query_log
+--eval ALTER TABLE mysql.gtid_slave_pos ENGINE=$old_slave_pos_engine
+--enable_query_log
+
+RESET MASTER;

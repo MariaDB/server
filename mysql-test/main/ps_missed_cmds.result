@@ -1,0 +1,797 @@
+SET @save_storage_engine= @@default_storage_engine;
+SET default_storage_engine= InnoDB;
+#
+# MDEV-16708: Unsupported commands for prepared statements
+#
+# Disable ps-protocol explicitly in order to test support of
+# prepared statements for use case when statements passed
+# to the server via text client-server protocol (in contrast
+# with binary protocol used in the test file
+# ps_missed_cmds_bin_prot.test)
+# Test case 1: Check that the statement 'LOAD DATA' is supported
+# by prepared statements
+# First, set up environment for use by the 'LOAD DATA' statement
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+COMMIT;
+SELECT * INTO OUTFILE 'load.data' FROM t1;
+PREPARE stmt_1 FROM "LOAD DATA INFILE 'load.data' INTO TABLE t1";
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'LOAD DATA' statement
+# were damaged.
+EXECUTE stmt_1;
+SELECT * FROM t1;
+a
+1
+1
+1
+# Clean up
+DEALLOCATE PREPARE stmt_1;
+DROP TABLE t1;
+# Test case 2: Check that the 'LOCK TABLE', 'UNLOCK TABLES' statements
+# are supported by prepared statements
+CREATE TABLE t1 (a INT);
+PREPARE stmt_1 FROM "LOCK TABLE t1 READ";
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'LOCK TABLE READ'
+# statement were damaged.
+EXECUTE stmt_1;
+PREPARE stmt_1 FROM "UNLOCK TABLE";
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'UNLOCK TABLE' statement
+# were damaged.
+EXECUTE stmt_1;
+PREPARE stmt_1 FROM "LOCK TABLE t1 WRITE";
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'LOCK TABLE WRITE'
+# statement were damaged.
+EXECUTE stmt_1;
+# Clean up
+DEALLOCATE PREPARE stmt_1;
+UNLOCK TABLE;
+DROP TABLE t1;
+# Test case 3: Check that the 'USE' statement is supported by
+# prepared statements
+CREATE DATABASE mdev_16708_db;
+PREPARE stmt_1 FROM 'USE mdev_16708_db';
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'USE' statement
+# were damaged.
+EXECUTE stmt_1;
+# Check that the current database has been changed
+SELECT DATABASE();
+DATABASE()
+mdev_16708_db
+# Clean up
+DEALLOCATE PREPARE stmt_1;
+USE test;
+DROP DATABASE mdev_16708_db;
+# Test case 4: Check that the 'ALTER DATABASE' statement is supported
+# by prepared statements
+CREATE DATABASE mdev_16708_db;
+PREPARE stmt_1 FROM "ALTER DATABASE mdev_16708_db COMMENT 'New comment'";
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'ALTER DATABASE' statement
+# were damaged.
+EXECUTE stmt_1;
+# Clean up
+DEALLOCATE PREPARE stmt_1;
+USE test;
+DROP DATABASE mdev_16708_db;
+# Test case 5: Check that the 'CREATE FUNCTION/ALTER FUNCTION/
+# DROP FUNCTION' statements are supported by prepared statements
+PREPARE stmt_1 FROM 'CREATE FUNCTION f1() RETURNS INT RETURN 1';
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'CREATE FUNCTION'
+# statement were damaged. The second attempt to execute the prepared
+# statement stmt_1 results in error ER_SP_ALREADY_EXISTS since
+# the stored function f() has been created on first run of stmt1.
+EXECUTE stmt_1;
+ERROR 42000: FUNCTION f1 already exists
+PREPARE stmt_1 FROM 'ALTER FUNCTION f1 SQL SECURITY INVOKER';
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'ALTER FUNCTION'
+# statement were damaged.
+EXECUTE stmt_1;
+PREPARE stmt_1 FROM 'DROP FUNCTION f1';
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling 'DROP FUNCTION' statement
+# were damaged. The second attempt to run 'DROP FUNCTION f1' using
+# prepared statement expectedly results in issuing the error
+# ER_SP_DOES_NOT_EXIST since the stored function was dropped on first
+# executuon of the prepared statement stmt_1.
+EXECUTE stmt_1;
+ERROR 42000: FUNCTION test.f1 does not exist
+# Test case 6: Check that the 'CHECK TABLE' statement is supported
+# by prepared statements
+CREATE TABLE t1 (a INT);
+PREPARE stmt_1 FROM 'CHECK TABLE t1';
+EXECUTE stmt_1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'CHECK TABLE' statement
+# were damaged.
+EXECUTE stmt_1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+# Clean up
+DEALLOCATE PREPARE stmt_1;
+DROP TABLE t1;
+# Test case 7: Check that the BEGIN/SAVEPOINT/RELEASE SAVEPOINT
+# statements are supported by prepared statements
+# Set up environmentr for the test case
+CREATE TABLE t1 (a INT);
+PREPARE stmt_1 FROM 'BEGIN';
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'BEGIN' statement
+# were damaged.
+EXECUTE stmt_1;
+INSERT INTO t1 VALUES (1);
+# Run 'SAVEPOINT s1' using prepared statements
+PREPARE stmt_2 FROM 'SAVEPOINT s1';
+EXECUTE stmt_2;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'SAVEPOINT' statement
+# were damaged.
+EXECUTE stmt_2;
+INSERT INTO t1 VALUES (2);
+# Expected rows: '1' and '2'
+SELECT * FROM t1;
+a
+1
+2
+# Rollback the last row inserted ('2')
+ROLLBACK TO SAVEPOINT s1;
+# Expected output from t1 after transaction has been rolled back
+# to the savepoint is '1'. If it is case then the statement SAVEPOINT
+# was handled successfully with prepared statement
+SELECT * FROM t1;
+a
+1
+PREPARE stmt_3 FROM 'RELEASE SAVEPOINT s1';
+EXECUTE stmt_3;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'RELEASE' statement
+# were damaged. The second attempt to release the same savepoint
+# expectedly lead to error 'SAVEPOINT s1 does not exist'
+# that's just ignored.
+EXECUTE stmt_3;
+ERROR 42000: SAVEPOINT s1 does not exist
+# Clean up
+DEALLOCATE PREPARE stmt_1;
+DEALLOCATE PREPARE stmt_2;
+DEALLOCATE PREPARE stmt_3;
+DROP TABLE t1;
+# Test case 8: Check that the 'PURGE BINARY LOGS BEFORE' statement
+# is supported by prepared statements
+PREPARE stmt_1 FROM "PURGE BINARY LOGS BEFORE '2020-11-17'";
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'PURGE BINARY LOGS BEFORE'
+# statement were damaged.
+EXECUTE stmt_1;
+# Check that the 'PURGE BINARY LOGS TO' statement is supported by
+# prepared statements
+PREPARE stmt_1 FROM "PURGE BINARY LOGS TO 'mariadb-bin.000063'";
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'PURGE BINARY LOGS TO'
+# statement were damaged.
+EXECUTE stmt_1;
+# Test case 9: Check that the 'HANDLER OPEN/HANDLER READ/
+# HANDLER CLOSE' statements are supported by prepared statements
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (1);
+COMMIT;
+PREPARE stmt_1 FROM 'HANDLER t1 OPEN';
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'HANDLER OPEN'
+# statement were damaged. Execution of this statement the second
+# time expectedly results in emitting the error ER_NONUNIQ_TABLE.
+# The same error is issued in case the statement 'HANDLER t1 OPEN' is
+# executed twice using a regular statement.
+EXECUTE stmt_1;
+ERROR 42000: Not unique table/alias: 't1'
+PREPARE stmt_2 FROM 'HANDLER t1 READ FIRST';
+PREPARE stmt_3 FROM 'HANDLER t1 READ NEXT';
+PREPARE stmt_4 FROM 'HANDLER t1 CLOSE';
+EXECUTE stmt_2;
+a
+1
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'HANDLER READ FIRST'
+# statement were damaged.
+EXECUTE stmt_2;
+a
+1
+EXECUTE stmt_3;
+a
+1
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'HANDLER READ NEXT'
+# statement were damaged.
+EXECUTE stmt_3;
+a
+EXECUTE stmt_4;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'HANDLER CLOSE'
+# statement were damaged. Execution of this statement the second
+# time results in emitting the error ER_UNKNOWN_TABLE. The same error
+# is issued in case the statement 'HANDLER t1 CLOSE' executed twice
+# using a regular statement.
+EXECUTE stmt_4;
+ERROR 42S02: Unknown table 't1' in HANDLER
+# Clean up
+DEALLOCATE PREPARE stmt_1;
+DEALLOCATE PREPARE stmt_2;
+DEALLOCATE PREPARE stmt_3;
+DEALLOCATE PREPARE stmt_4;
+DROP TABLE t1;
+# Test case 10: Check that the HELP statement
+# is supported by prepared statements
+PREPARE stmt_1 FROM "HELP `UPDATE`";
+EXECUTE stmt_1;
+name	description	example
+UPDATE	Syntax
+------ 
+Single-table syntax:
+ 
+UPDATE [LOW_PRIORITY] [IGNORE] table_reference 
+ [PARTITION (partition_list)]
+ SET col1={expr1|DEFAULT} [,col2={expr2|DEFAULT}] ...
+ [WHERE where_condition]
+ [ORDER BY ...]
+ [LIMIT row_count]
+ 
+Multiple-table syntax:
+ 
+UPDATE [LOW_PRIORITY] [IGNORE] table_references
+ SET col1={expr1|DEFAULT} [, col2={expr2|DEFAULT}] ...
+ [WHERE where_condition]
+ 
+Description
+----------- 
+For the single-table syntax, the UPDATE statement updates
+columns of existing rows in the named table with new values.
+The
+SET clause indicates which columns to modify and the values
+they should be given. Each value can be given as an
+expression, or the keyword
+DEFAULT to set a column explicitly to its default value. The
+WHERE clause, if given, specifies the conditions that
+identify
+which rows to update. With no WHERE clause, all rows are
+updated. If the ORDER BY clause is specified, the rows are
+updated in the order that is specified. The LIMIT clause
+places a limit on the number of rows that can be updated.
+ 
+The PARTITION clause was introduced in MariaDB 10.0. See
+Partition Pruning and Selection for details.
+ 
+Until MariaDB 10.3.2, for the multiple-table syntax, UPDATE
+updates rows in each
+table named in table_references that satisfy the conditions.
+In this case,
+ORDER BY and LIMIT cannot be used. This restriction was
+lifted in MariaDB 10.3.2 and both clauses can be used with
+multiple-table updates. An UPDATE can also reference tables
+which are located in different databases; see Identifier
+Qualifiers for the syntax.
+ 
+where_condition is an expression that evaluates to true for
+each row to be updated.
+ 
+table_references and where_condition are as
+specified as described in SELECT.
+ 
+Assignments are evaluated in left-to-right order, unless the
+SIMULTANEOUS_ASSIGNMENT sql_mode (available from MariaDB
+10.3.5) is set, in which case the UPDATE statement evaluates
+all assignments simultaneously. 
+ 
+You need the UPDATE privilege only for columns referenced in
+an UPDATE that are actually updated. You need only the
+SELECT privilege for any columns that are read but
+not modified. See GRANT.
+ 
+The UPDATE statement supports the following modifiers:
+If you use the LOW_PRIORITY keyword, execution of
+ the UPDATE is delayed until no other clients are reading
+from
+ the table. This affects only storage engines that use only
+table-level
+ locking (MyISAM, MEMORY, MERGE). See HIGH_PRIORITY and
+LOW_PRIORITY clauses for details.
+If you use the IGNORE keyword, the update statement does 
+ not abort even if errors occur during the update. Rows for
+which
+ duplicate-key conflicts occur are not updated. Rows for
+which columns are
+ updated to values that would cause data conversion errors
+are updated to the
+ closest valid values instead.
+ 
+UPDATE Statements With the Same Source and Target
+ 
+From MariaDB 10.3.2, UPDATE statements may have the same
+source and target.
+ 
+For example, given the following table:
+ 
+DROP TABLE t1;
+ 
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (10,10), (20,20);
+ 
+Until MariaDB 10.3.1, the following UPDATE statement would
+not work:
+ 
+UPDATE t1 SET c1=c1+1 WHERE c2=(SELECT MAX(c2) FROM t1);
+ERROR 1093 (HY000): Table 't1' is specified twice, 
+ both as a target for 'UPDATE' and as a separate source
+for data
+ 
+From MariaDB 10.3.2, the statement executes successfully:
+ 
+UPDATE t1 SET c1=c1+1 WHERE c2=(SELECT MAX(c2) FROM t1);
+ 
+SELECT * FROM t1;
+ 
++------+------+
+| c1 | c2 |
++------+------+
+| 10 | 10 |
+| 21 | 20 |
++------+------+
+ 
+Example
+ 
+Single-table syntax:
+ 
+UPDATE table_name SET column1 = value1, column2 = value2
+WHERE id=100;
+ 
+Multiple-table syntax:
+ 
+UPDATE tab1, tab2 SET tab1.column1 = value1, tab1.column2 =
+value2 WHERE tab1.id = tab2.id;
+ 
+
+
+URL: https://mariadb.com/kb/en/library/update/	
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'HELP' statement
+# were damaged.
+EXECUTE stmt_1;
+name	description	example
+UPDATE	Syntax
+------ 
+Single-table syntax:
+ 
+UPDATE [LOW_PRIORITY] [IGNORE] table_reference 
+ [PARTITION (partition_list)]
+ SET col1={expr1|DEFAULT} [,col2={expr2|DEFAULT}] ...
+ [WHERE where_condition]
+ [ORDER BY ...]
+ [LIMIT row_count]
+ 
+Multiple-table syntax:
+ 
+UPDATE [LOW_PRIORITY] [IGNORE] table_references
+ SET col1={expr1|DEFAULT} [, col2={expr2|DEFAULT}] ...
+ [WHERE where_condition]
+ 
+Description
+----------- 
+For the single-table syntax, the UPDATE statement updates
+columns of existing rows in the named table with new values.
+The
+SET clause indicates which columns to modify and the values
+they should be given. Each value can be given as an
+expression, or the keyword
+DEFAULT to set a column explicitly to its default value. The
+WHERE clause, if given, specifies the conditions that
+identify
+which rows to update. With no WHERE clause, all rows are
+updated. If the ORDER BY clause is specified, the rows are
+updated in the order that is specified. The LIMIT clause
+places a limit on the number of rows that can be updated.
+ 
+The PARTITION clause was introduced in MariaDB 10.0. See
+Partition Pruning and Selection for details.
+ 
+Until MariaDB 10.3.2, for the multiple-table syntax, UPDATE
+updates rows in each
+table named in table_references that satisfy the conditions.
+In this case,
+ORDER BY and LIMIT cannot be used. This restriction was
+lifted in MariaDB 10.3.2 and both clauses can be used with
+multiple-table updates. An UPDATE can also reference tables
+which are located in different databases; see Identifier
+Qualifiers for the syntax.
+ 
+where_condition is an expression that evaluates to true for
+each row to be updated.
+ 
+table_references and where_condition are as
+specified as described in SELECT.
+ 
+Assignments are evaluated in left-to-right order, unless the
+SIMULTANEOUS_ASSIGNMENT sql_mode (available from MariaDB
+10.3.5) is set, in which case the UPDATE statement evaluates
+all assignments simultaneously. 
+ 
+You need the UPDATE privilege only for columns referenced in
+an UPDATE that are actually updated. You need only the
+SELECT privilege for any columns that are read but
+not modified. See GRANT.
+ 
+The UPDATE statement supports the following modifiers:
+If you use the LOW_PRIORITY keyword, execution of
+ the UPDATE is delayed until no other clients are reading
+from
+ the table. This affects only storage engines that use only
+table-level
+ locking (MyISAM, MEMORY, MERGE). See HIGH_PRIORITY and
+LOW_PRIORITY clauses for details.
+If you use the IGNORE keyword, the update statement does 
+ not abort even if errors occur during the update. Rows for
+which
+ duplicate-key conflicts occur are not updated. Rows for
+which columns are
+ updated to values that would cause data conversion errors
+are updated to the
+ closest valid values instead.
+ 
+UPDATE Statements With the Same Source and Target
+ 
+From MariaDB 10.3.2, UPDATE statements may have the same
+source and target.
+ 
+For example, given the following table:
+ 
+DROP TABLE t1;
+ 
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (10,10), (20,20);
+ 
+Until MariaDB 10.3.1, the following UPDATE statement would
+not work:
+ 
+UPDATE t1 SET c1=c1+1 WHERE c2=(SELECT MAX(c2) FROM t1);
+ERROR 1093 (HY000): Table 't1' is specified twice, 
+ both as a target for 'UPDATE' and as a separate source
+for data
+ 
+From MariaDB 10.3.2, the statement executes successfully:
+ 
+UPDATE t1 SET c1=c1+1 WHERE c2=(SELECT MAX(c2) FROM t1);
+ 
+SELECT * FROM t1;
+ 
++------+------+
+| c1 | c2 |
++------+------+
+| 10 | 10 |
+| 21 | 20 |
++------+------+
+ 
+Example
+ 
+Single-table syntax:
+ 
+UPDATE table_name SET column1 = value1, column2 = value2
+WHERE id=100;
+ 
+Multiple-table syntax:
+ 
+UPDATE tab1, tab2 SET tab1.column1 = value1, tab1.column2 =
+value2 WHERE tab1.id = tab2.id;
+ 
+
+
+URL: https://mariadb.com/kb/en/library/update/	
+# Test case 11: Check that the 'CREATE PROCEDURE' statement
+# is supported by prepared statements
+PREPARE stmt_1 FROM 'CREATE PROCEDURE p1() SET @a=1';
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'CREATE PROCEDURE'
+# statement were damaged. Execution of this statement the second
+# time expectedly results in emitting the error ER_SP_ALREADY_EXISTS.
+# The same error is issued in case the 'HANDLER t1 OPEN' statement
+# is executed twice using a regular statement.
+EXECUTE stmt_1;
+ERROR 42000: PROCEDURE p1 already exists
+# Test case 12: Check that the 'ALTER PROCEDURE' statement is supported
+# by prepared statements.
+PREPARE stmt_1 FROM 'ALTER PROCEDURE p1 SQL SECURITY INVOKER';
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'ALTER PROCEDURE'
+# statement were damaged.
+EXECUTE stmt_1;
+# Test case 13: Check that the 'DROP PROCEDURE' statement is supported
+# by prepared statements.
+PREPARE stmt_1 FROM 'DROP PROCEDURE p1';
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'DROP PROCEDURE' statement
+# were damaged. Execution of this statement the second time expectedly
+# results in emitting the error ER_SP_DOES_NOT_EXIST.
+EXECUTE stmt_1;
+ERROR 42000: PROCEDURE test.p1 does not exist
+# Test case 14: Check that the 'CALL' statement is supported
+# by prepared statements.
+CREATE PROCEDURE p1() SET @a=1;
+PREPARE stmt_1 FROM 'CALL p1()';
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'CALL' statement
+# were damaged.
+EXECUTE stmt_1;
+# Clean up
+DEALLOCATE PREPARE stmt_1;
+DROP PROCEDURE p1;
+# Test case 15: Check that the 'CREATE VIEW' statement can be executed
+# as a prepared statement.
+# Create environment for the test case
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+COMMIT;
+PREPARE stmt_1 FROM 'CREATE VIEW v1 AS SELECT * FROM t1';
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'CREATE VIEW'
+# statement were damaged. The second execution of the prepared
+# statement stmt_1 results in error ER_TABLE_EXISTS_ERROR since
+# the view v1 does already exist. It is expected behaviour.
+EXECUTE stmt_1;
+ERROR 42S01: Table 'v1' already exists
+# Clean up
+DEALLOCATE PREPARE stmt_1;
+DROP VIEW v1;
+DROP TABLE t1;
+# Test case 16: Check that the 'CREATE TRIGGER' statement can be executed
+# as a prepared statement.
+CREATE TABLE t1 (a INT);
+PREPARE stmt_1 FROM 'CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW SET @a=1';
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'CREATE VIEW' statement
+# were damaged. The second execution of the prepared statement stmt_1
+# results in error ER_TRG_ALREADY_EXISTS since the trigger trg1 does
+# already exist. It is expected behaviour.
+EXECUTE stmt_1;
+ERROR HY000: Trigger 'test.trg1' already exists
+# Test case 17: Check that the 'DROP TRIGGER' statement can be executed
+# as a prepared statement.
+# This test relies on presence of the trigger trg1 created by
+# the test case 16.
+PREPARE stmt_1 FROM 'DROP TRIGGER trg1';
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'DROP TRIGGER' statement
+# were damaged. Execution of this statement the second time expectedly
+# results in emitting the error ER_TRG_DOES_NOT_EXIST.
+EXECUTE stmt_1;
+ERROR HY000: Trigger does not exist
+# Clean up
+DEALLOCATE PREPARE stmt_1;
+DROP TABLE t1;
+# Test case 18: Check that XA related SQL statements can be executed
+# as prepared statements.
+# Create the table t1 used by XA transaction.
+CREATE TABLE t1 (a INT);
+PREPARE stmt_1 FROM "XA START 'xid1'";
+PREPARE stmt_2 FROM "XA END 'xid1'";
+PREPARE stmt_3 FROM "XA PREPARE 'xid1'";
+PREPARE stmt_4 FROM "XA RECOVER";
+PREPARE stmt_5 FROM "XA COMMIT 'xid1'";
+PREPARE stmt_6 FROM "XA ROLLBACK 'xid1'";
+# Start a new XA transaction
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'XA START' statement
+# were damaged. Execution of this statement the second time expectedly
+# results in emitting the error XAER_RMFAIL since there is active
+# XA transaction that has just been already.
+EXECUTE stmt_1;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+INSERT INTO t1 VALUES (1);
+# End the current XA transaction
+EXECUTE stmt_2;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'XA END' statement
+# were damaged. Execution of this statement the second time expectedly
+# results in emitting the error XAER_RMFAIL since the XA transaction
+# with XID 'xid1' has been already ended.
+EXECUTE stmt_2;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+# Prepare the current XA transaction for finalization
+EXECUTE stmt_3;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'XA END' statement
+# were damaged. Execution of this statement the second time expectedly
+# results in emitting the error XAER_RMFAIL since the XA transaction
+# with XID 'xid1' has been already ended.
+EXECUTE stmt_3;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+# Run XA RECOVER as a prepared statement
+EXECUTE stmt_4;
+formatID	gtrid_length	bqual_length	data
+1	4	0	xid1
+# And execute it yet another time to check that no internal structures
+# used for handling the statement 'XA RECOVER' were damaged.
+EXECUTE stmt_4;
+formatID	gtrid_length	bqual_length	data
+1	4	0	xid1
+# Commit the current XA transaction
+EXECUTE stmt_5;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'XA COMMIT' statement
+# were damaged. Execution of this statement the second time expectedly
+# results in emitting the error XAER_NOTA since the XA transaction
+# with XID 'xid1' has been finalized and no more exists.
+EXECUTE stmt_5;
+ERROR XAE04: XAER_NOTA: Unknown XID
+# Query the table t1 to check that it contains a record inserted by
+# the XA transaction just finished.
+SELECT * FROM t1;
+a
+1
+# Using prepared statements start a new XA transaction, INSERT a row
+# into the table t1, prepare the XA transaction and rollback it.
+# This use case is similar to precedence one except it does rollback
+# XA transaction instead commit it. Therefore every prepared statement
+# is executed only once except the last XA ROLLBACK.
+# Start a new XA transaction
+EXECUTE stmt_1;
+INSERT INTO t1 VALUES (1);
+# End the current XA transaction
+EXECUTE stmt_2;
+# Prepare the current XA transaction for finalization
+EXECUTE stmt_3;
+# Rolback the current XA transaction
+EXECUTE stmt_6;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the statement 'XA ROLLBACK'
+# were damaged. Execution of this statement the second time expectedly
+# results in emitting the error XAER_NOTA since the XA transaction
+# with XID 'xid1' has been finalized and no more exists.
+EXECUTE stmt_6;
+ERROR XAE04: XAER_NOTA: Unknown XID
+# Clean up
+DROP TABLE t1;
+DEALLOCATE PREPARE stmt_1;
+DEALLOCATE PREPARE stmt_2;
+DEALLOCATE PREPARE stmt_3;
+DEALLOCATE PREPARE stmt_4;
+DEALLOCATE PREPARE stmt_5;
+DEALLOCATE PREPARE stmt_6;
+# Test case 19: Check that the  CREATE SERVER/ALTER SERVER/DROP SERVER
+# statements can be executed as prepared statements.
+PREPARE stmt_1 FROM "CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (USER 'u1', HOST '127.0.0.1')";
+PREPARE stmt_2 FROM "ALTER SERVER s OPTIONS (USER 'u2')";
+PREPARE stmt_3 FROM "DROP SERVER s";
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'CREATE SERVER' statement
+# were damaged. Execution of this statement the second time expectedly
+# results in emitting the error ER_FOREIGN_SERVER_EXISTS
+# since a server with same has just been created.
+EXECUTE stmt_1;
+ERROR HY000: Cannot create foreign server 's' as it already exists
+EXECUTE stmt_2;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'ALTER SERVER' statement
+# were damaged.
+EXECUTE stmt_2;
+EXECUTE stmt_3;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'DROP SERVER' statement
+# were damaged. Execution of this statement the second time expectedly
+# results in emitting the error ER_FOREIGN_SERVER_DOESNT_EXIST
+# since the server with same has just been dropped.
+EXECUTE stmt_3;
+ERROR HY000: The foreign server name you are trying to reference does not exist. Data source error:  s
+# Clean up
+DEALLOCATE PREPARE stmt_1;
+DEALLOCATE PREPARE stmt_2;
+DEALLOCATE PREPARE stmt_3;
+# Test case 21: Check that the SIGNAL and RESIGNAL statements
+# can be executed as a prepared statement
+PREPARE stmt_1 FROM "SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT='Hello, world!'";
+EXECUTE stmt_1;
+ERROR 45000: Hello, world!
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'SIGNAL' statement
+# were damaged.
+EXECUTE stmt_1;
+ERROR 45000: Hello, world!
+PREPARE stmt_1 FROM 'RESIGNAL SET MYSQL_ERRNO = 5';
+EXECUTE stmt_1;
+ERROR 0K000: RESIGNAL when handler not active
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'RESIGNAL' statement
+# were damaged.
+EXECUTE stmt_1;
+ERROR 0K000: RESIGNAL when handler not active
+# Clean up
+DEALLOCATE PREPARE stmt_1;
+# Test case 23: Check the 'GET DIAGNOSTICS' statement
+# can be executed as a prepared statement
+PREPARE stmt_1 FROM 'GET DIAGNOSTICS CONDITION 1 @sqlstate = RETURNED_SQLSTATE, @errno = MYSQL_ERRNO, @text = MESSAGE_TEXT';
+# Query from non existent table to fill the diagnostics area
+# with information
+SELECT * FROM non_existent_table_1;
+ERROR 42S02: Table 'test.non_existent_table_1' doesn't exist
+EXECUTE stmt_1;
+# Check that information from diagnostics area has been retrieved
+SELECT @sqlstate, @errno, @text;
+@sqlstate	@errno	@text
+42S02	1146	Table 'test.non_existent_table_1' doesn't exist
+SELECT * FROM non_existent_table_1;
+ERROR 42S02: Table 'test.non_existent_table_1' doesn't exist
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the
+# 'GET DIAGNOSTICS CONDITION' statement were damaged.
+EXECUTE stmt_1;
+# Clean up
+DEALLOCATE PREPARE stmt_1;
+# Test case 24: Check the statements 'BACKUP'/'BACKUP UNLOCK'
+# can be executed as a prepared statement
+CREATE TABLE t1 (a INT);
+PREPARE stmt_1 FROM 'BACKUP LOCK t1';
+PREPARE stmt_2 FROM 'BACKUP UNLOCK';
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'BACKUP LOCK'
+# statement were damaged.
+EXECUTE stmt_1;
+EXECUTE stmt_2;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'BACKUP UNLOCK'
+# statement were damaged.
+EXECUTE stmt_2;
+# Clean up
+DROP TABLE t1;
+DEALLOCATE PREPARE stmt_1;
+DEALLOCATE PREPARE stmt_2;
+# Test Test case 25: Check the statements 'CREATE/ALTER/DROP TABLEPSPACE'
+# can be executed as a prepared statement
+PREPARE stmt_1 FROM "CREATE TABLESPACE ts1 ADD DATAFILE 'ts1.ibd' ENGINE=InnoDB";
+PREPARE stmt_2 FROM "ALTER TABLESPACE ts1 ADD DATAFILE 'ts1_1.ibd' ENGINE=InnoDB";
+PREPARE stmt_3 FROM "DROP TABLESPACE ts1 ENGINE=InnoDB";
+EXECUTE stmt_1;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'CREATE TABLESPACE'
+# statement were damaged.
+EXECUTE stmt_1;
+EXECUTE stmt_2;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'ALTER TABLESPACE'
+# statement were damaged.
+EXECUTE stmt_2;
+EXECUTE stmt_3;
+# Execute the same prepared statement the second time to check that
+# no internal structures used for handling the 'DROP TABLESPACE'
+# statement were damaged.
+EXECUTE stmt_3;
+DEALLOCATE PREPARE stmt_1;
+DEALLOCATE PREPARE stmt_2;
+DEALLOCATE PREPARE stmt_3;
+SET default_storage_engine= @save_storage_engine;

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -493,7 +493,6 @@ int ha_init_errors(void)
   SETMSG(HA_ERR_INDEX_COL_TOO_LONG,	ER_DEFAULT(ER_INDEX_COLUMN_TOO_LONG));
   SETMSG(HA_ERR_INDEX_CORRUPT,		ER_DEFAULT(ER_INDEX_CORRUPT));
   SETMSG(HA_FTS_INVALID_DOCID,		"Invalid InnoDB FTS Doc ID");
-  SETMSG(HA_ERR_TABLE_IN_FK_CHECK,	ER_DEFAULT(ER_TABLE_IN_FK_CHECK));
   SETMSG(HA_ERR_DISK_FULL,              ER_DEFAULT(ER_DISK_FULL));
   SETMSG(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE,  "Too many words in a FTS phrase or proximity search");
   SETMSG(HA_ERR_FK_DEPTH_EXCEEDED,      "Foreign key cascade delete/update exceeds");
@@ -940,6 +939,22 @@ void ha_kill_query(THD* thd, enum thd_kill_levels level)
   DBUG_ENTER("ha_kill_query");
   plugin_foreach(thd, kill_handlerton, MYSQL_STORAGE_ENGINE_PLUGIN, &level);
   DBUG_VOID_RETURN;
+}
+
+
+static my_bool plugin_disable_internal_writes(THD *, plugin_ref plugin,
+                                              void *disable)
+{
+  if (void(*diw)(bool)= plugin_hton(plugin)->disable_internal_writes)
+    diw(*static_cast<bool*>(disable));
+  return FALSE;
+}
+
+
+void ha_disable_internal_writes(bool disable)
+{
+  plugin_foreach(NULL, plugin_disable_internal_writes,
+                 MYSQL_STORAGE_ENGINE_PLUGIN, &disable);
 }
 
 
@@ -1509,6 +1524,24 @@ uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info)
   return rw_ha_count;
 }
 
+/*
+  Returns counted number of
+  read-write recoverable transaction participants.
+*/
+uint ha_count_rw_2pc(THD *thd, bool all)
+{
+  unsigned rw_ha_count= 0;
+  THD_TRANS *trans=all ? &thd->transaction->all : &thd->transaction->stmt;
+
+  for (Ha_trx_info * ha_info= trans->ha_list; ha_info;
+       ha_info= ha_info->next())
+  {
+    if (ha_info->is_trx_read_write() && ha_info->ht()->recover)
+      ++rw_ha_count;
+  }
+  return rw_ha_count;
+}
+
 /**
   Check if we can skip the two-phase commit.
 
@@ -1528,7 +1561,6 @@ uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info)
                 engines with read-write changes.
 */
 
-static
 uint
 ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
                                     bool all)
@@ -1743,13 +1775,26 @@ int ha_commit_trans(THD *thd, bool all)
         goto err;
       }
       DBUG_ASSERT(trx_start_id);
+#ifdef WITH_WSREP
+      bool saved_wsrep_on= thd->variables.wsrep_on;
+      thd->variables.wsrep_on= false;
+#endif
       TR_table trt(thd, true);
       if (trt.update(trx_start_id, trx_end_id))
+      {
+#ifdef WITH_WSREP
+        thd->variables.wsrep_on= saved_wsrep_on;
+#endif
+        (void) trans_rollback_stmt(thd);
         goto err;
+      }
       // Here, the call will not commit inside InnoDB. It is only working
       // around closing thd->transaction.stmt open by TR_table::open().
       if (all)
         commit_one_phase_2(thd, false, &thd->transaction->stmt, false);
+#ifdef WITH_WSREP
+      thd->variables.wsrep_on= saved_wsrep_on;
+#endif
     }
   }
 #endif
@@ -1979,6 +2024,24 @@ int ha_commit_one_phase(THD *thd, bool all)
   DBUG_RETURN(res);
 }
 
+static bool is_ro_1pc_trans(THD *thd, Ha_trx_info *ha_info, bool all,
+                            bool is_real_trans)
+{
+  uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
+  bool rw_trans= is_real_trans &&
+    (rw_ha_count > (thd->is_current_stmt_binlog_disabled()?0U:1U));
+
+  return !rw_trans;
+}
+
+static bool has_binlog_hton(Ha_trx_info *ha_info)
+{
+  bool rc;
+  for (rc= false; ha_info && !rc; ha_info= ha_info->next())
+    rc= ha_info->ht() == binlog_hton;
+
+  return rc;
+}
 
 static int
 commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
@@ -1992,9 +2055,17 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
 
   if (ha_info)
   {
+    int err;
+
+    if (has_binlog_hton(ha_info) &&
+        (err= binlog_commit(thd, all,
+                            is_ro_1pc_trans(thd, ha_info, all, is_real_trans))))
+    {
+      my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
+      error= 1;
+    }
     for (; ha_info; ha_info= ha_info_next)
     {
-      int err;
       handlerton *ht= ha_info->ht();
       if ((err= ht->commit(ht, thd, all)))
       {
@@ -2131,7 +2202,7 @@ int ha_rollback_trans(THD *thd, bool all)
   if (thd->is_error())
   {
     WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: %s: %s; is_real %d",
-                thd->thread_id, all?"TRUE":"FALSE", WSREP_QUERY(thd),
+                thd->thread_id, all?"TRUE":"FALSE", wsrep_thd_query(thd),
                 thd->get_stmt_da()->message(), is_real_trans);
   }
   (void) wsrep_after_rollback(thd, all);
@@ -2150,7 +2221,8 @@ int ha_rollback_trans(THD *thd, bool all)
       Thanks to possibility of MDL deadlock rollback request can come even if
       transaction hasn't been started in any transactional storage engine.
     */
-    if (thd->transaction_rollback_request)
+    if (thd->transaction_rollback_request &&
+        thd->transaction->xid_state.is_explicit_XA())
       thd->transaction->xid_state.set_error(thd->get_stmt_da()->sql_errno());
 
     thd->has_waiter= false;
@@ -2219,6 +2291,15 @@ int ha_commit_or_rollback_by_xid(XID *xid, bool commit)
   struct xahton_st xaop;
   xaop.xid= xid;
   xaop.result= 1;
+
+  /*
+    When the binlogging service is enabled complete the transaction
+    by it first.
+  */
+  if (commit)
+    binlog_commit_by_xid(binlog_hton, xid);
+  else
+    binlog_rollback_by_xid(binlog_hton, xid);
 
   plugin_foreach(NULL, commit ? xacommit_handlerton : xarollback_handlerton,
                  MYSQL_STORAGE_ENGINE_PLUGIN, &xaop);
@@ -2315,7 +2396,7 @@ static my_xid wsrep_order_and_check_continuity(XID *list, int len)
   recover() step of xa.
 
   @note
-    there are three modes of operation:
+    there are four modes of operation:
     - automatic recover after a crash
     in this case commit_list != 0, tc_heuristic_recover==0
     all xids from commit_list are committed, others are rolled back
@@ -2326,6 +2407,9 @@ static my_xid wsrep_order_and_check_continuity(XID *list, int len)
     - no recovery (MySQL did not detect a crash)
     in this case commit_list==0, tc_heuristic_recover == 0
     there should be no prepared transactions in this case.
+    - automatic recovery for the semisync slave server: uncommitted
+    transactions are rolled back and when they are in binlog it gets
+    truncated to the first uncommitted transaction start offset.
 */
 struct xarecover_st
 {
@@ -2333,7 +2417,193 @@ struct xarecover_st
   XID *list;
   HASH *commit_list;
   bool dry_run;
+  MEM_ROOT *mem_root;
+  bool error;
 };
+
+/**
+  Inserts a new hash member.
+
+  returns a successfully created and inserted @c xid_recovery_member
+           into hash @c hash_arg,
+           or NULL.
+*/
+static xid_recovery_member*
+xid_member_insert(HASH *hash_arg, my_xid xid_arg, MEM_ROOT *ptr_mem_root,
+                  XID *full_xid_arg, decltype(::server_id) server_id_arg)
+{
+  xid_recovery_member *member= (xid_recovery_member *)
+    alloc_root(ptr_mem_root, sizeof(xid_recovery_member));
+  XID *xid_full= NULL;
+
+  if (full_xid_arg)
+    xid_full= (XID*) alloc_root(ptr_mem_root, sizeof(XID));
+
+  if (!member || (full_xid_arg && !xid_full))
+    return NULL;
+
+  if (full_xid_arg)
+    *xid_full= *full_xid_arg;
+  *member= xid_recovery_member(xid_arg, 1, false, xid_full, server_id_arg);
+
+  return
+    my_hash_insert(hash_arg, (uchar*) member) ? NULL : member;
+}
+
+/*
+  Inserts a new or updates an existing hash member to increment
+  the member's prepare counter.
+
+  returns false  on success,
+           true   otherwise.
+*/
+static bool xid_member_replace(HASH *hash_arg, my_xid xid_arg,
+                               MEM_ROOT *ptr_mem_root,
+                               XID *full_xid_arg,
+                               decltype(::server_id) server_id_arg)
+{
+  xid_recovery_member* member;
+  if ((member= (xid_recovery_member *)
+       my_hash_search(hash_arg, (uchar *)& xid_arg, sizeof(xid_arg))))
+    member->in_engine_prepare++;
+  else
+    member= xid_member_insert(hash_arg, xid_arg, ptr_mem_root, full_xid_arg,  server_id_arg);
+
+  return member == NULL;
+}
+
+/*
+  A "transport" type for recovery completion with ha_recover_complete()
+*/
+struct xarecover_complete_arg
+{
+  xid_recovery_member* member;
+  Binlog_offset *binlog_coord;
+  uint count;
+};
+
+/*
+  Flagged to commit member confirms to get committed.
+  Otherwise when
+    A. ptr_commit_max is NULL (implies the normal recovery), or
+    B. it's not NULL (can only be so in the semisync slave case)
+       and the value referenced is not greater than the member's coordinate
+       the decision is to rollback.
+  When both A,B do not hold - which is the semisync slave recovery
+  case - the decision is to commit.
+
+  Returns  true  as commmit decision
+           false as rollback one
+*/
+static bool xarecover_decide_to_commit(xid_recovery_member* member,
+                                       Binlog_offset *ptr_commit_max)
+{
+  return
+    member->decided_to_commit ? true :
+    !ptr_commit_max ? false :
+    (member->binlog_coord < *ptr_commit_max ?  // semisync slave recovery
+     true : false);
+}
+
+/*
+  Helper function for xarecover_do_commit_or_rollback_handlerton.
+  For a given hton decides what to do with a xid passed in the 2nd arg
+  and carries out the decision.
+*/
+static void xarecover_do_commit_or_rollback(handlerton *hton,
+                                            xarecover_complete_arg *arg)
+{
+  xid_t x;
+  my_bool rc;
+  xid_recovery_member *member= arg->member;
+  Binlog_offset *ptr_commit_max= arg->binlog_coord;
+
+  if (!member->full_xid)
+    // Populate xid using the server_id from original transaction
+    x.set(member->xid, member->server_id);
+  else
+    x= *member->full_xid;
+
+  rc= xarecover_decide_to_commit(member, ptr_commit_max) ?
+    hton->commit_by_xid(hton, &x) : hton->rollback_by_xid(hton, &x);
+
+  /*
+    It's fine to have non-zero rc which would be from transaction
+    non-participant hton:s.
+  */
+  DBUG_ASSERT(rc || member->in_engine_prepare > 0);
+
+  if (!rc)
+  {
+    /*
+      This block relies on Engine to report XAER_NOTA at
+      "complete"_by_xid for unknown xid.
+    */
+    member->in_engine_prepare--;
+    if (global_system_variables.log_warnings > 2)
+      sql_print_information("%s transaction with xid %llu",
+                            member->decided_to_commit ? "Committed" :
+                            "Rolled back", (ulonglong) member->xid);
+  }
+}
+
+/*
+  Per hton recovery decider function.
+*/
+static my_bool xarecover_do_commit_or_rollback_handlerton(THD *unused,
+                                                          plugin_ref plugin,
+                                                          void *arg)
+{
+  handlerton *hton= plugin_hton(plugin);
+
+  if (hton->recover)
+  {
+    xarecover_do_commit_or_rollback(hton, (xarecover_complete_arg *) arg);
+  }
+
+  return FALSE;
+}
+
+/*
+  Completes binlog recovery for an input xid in the passed
+  member_arg to invoke decider functions for each handlerton.
+
+  Returns always FALSE.
+*/
+static my_bool xarecover_complete_and_count(void *member_arg,
+                                            void *param_arg)
+{
+  xid_recovery_member *member= (xid_recovery_member*) member_arg;
+  xarecover_complete_arg *complete_params=
+    (xarecover_complete_arg*) param_arg;
+  complete_params->member= member;
+
+  (void) plugin_foreach(NULL, xarecover_do_commit_or_rollback_handlerton,
+                        MYSQL_STORAGE_ENGINE_PLUGIN, complete_params);
+
+  if (member->in_engine_prepare)
+  {
+    complete_params->count++;
+    if (global_system_variables.log_warnings > 2)
+      sql_print_warning("Found prepared transaction with xid %llu",
+                        (ulonglong) member->xid);
+  }
+
+  return false;
+}
+
+/*
+  Completes binlog recovery to invoke decider functions for
+  each xid.
+  Returns the number of transactions remained doubtful.
+*/
+uint ha_recover_complete(HASH *commit_list, Binlog_offset *coord)
+{
+  xarecover_complete_arg complete= { NULL, coord, 0 };
+  (void) my_hash_iterate(commit_list, xarecover_complete_and_count, &complete);
+
+  return complete.count;
+}
 
 static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
                                     void *arg)
@@ -2374,10 +2644,13 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
 
       for (int i=0; i < got; i ++)
       {
-        my_xid x= IF_WSREP(wsrep_is_wsrep_xid(&info->list[i]) ?
-                           wsrep_xid_seqno(&info->list[i]) :
-                           info->list[i].get_my_xid(),
-                           info->list[i].get_my_xid());
+        my_xid x= info->list[i].get_my_xid();
+        bool is_server_xid= x > 0;
+
+#ifdef WITH_WSREP
+        if (!is_server_xid && wsrep_is_wsrep_xid(&info->list[i]))
+          x= wsrep_xid_seqno(&info->list[i]);
+#endif
         if (!x) // not "mine" - that is generated by external TM
         {
           DBUG_EXECUTE("info",{
@@ -2396,13 +2669,29 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
           info->found_my_xids++;
           continue;
         }
-        // recovery mode
+
+        /*
+          Regular and semisync slave server recovery only collects
+          xids to make decisions on them later by the caller.
+        */
+        if (info->mem_root)
+        {
+          // remember "full" xid too when it's not in mysql format.
+          // Also record the transaction's original server_id. It will be used for
+          // populating the input XID to be searched in hash.
+          if (xid_member_replace(info->commit_list, x, info->mem_root,
+                                 is_server_xid? NULL : &info->list[i],
+                                 is_server_xid? info->list[i].get_trx_server_id() : server_id))
+          {
+            info->error= true;
+            sql_print_error("Error in memory allocation at xarecover_handlerton");
+            break;
+          }
+        }
         if (IF_WSREP((wsrep_emulate_bin_log &&
                       wsrep_is_wsrep_xid(info->list + i) &&
                       x <= wsrep_limit), false) ||
-            (info->commit_list ?
-             my_hash_search(info->commit_list, (uchar *)&x, sizeof(x)) != 0 :
-             tc_heuristic_recover == TC_HEURISTIC_RECOVER_COMMIT))
+            tc_heuristic_recover == TC_HEURISTIC_RECOVER_COMMIT)
         {
           int rc= hton->commit_by_xid(hton, info->list+i);
           if (rc == 0)
@@ -2413,7 +2702,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
               });
           }
         }
-        else
+        else if (!info->mem_root)
         {
           int rc= hton->rollback_by_xid(hton, info->list+i);
           if (rc == 0)
@@ -2432,7 +2721,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
   return FALSE;
 }
 
-int ha_recover(HASH *commit_list)
+int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
 {
   struct xarecover_st info;
   DBUG_ENTER("ha_recover");
@@ -2440,6 +2729,8 @@ int ha_recover(HASH *commit_list)
   info.commit_list= commit_list;
   info.dry_run= (info.commit_list==0 && tc_heuristic_recover==0);
   info.list= NULL;
+  info.mem_root= arg_mem_root;
+  info.error= false;
 
   /* commit_list and tc_heuristic_recover cannot be set both */
   DBUG_ASSERT(info.commit_list==0 || tc_heuristic_recover==0);
@@ -2475,15 +2766,18 @@ int ha_recover(HASH *commit_list)
                       info.found_foreign_xids);
   if (info.dry_run && info.found_my_xids)
   {
-    sql_print_error("Found %d prepared transactions! It means that mysqld was "
+    sql_print_error("Found %d prepared transactions! It means that server was "
                     "not shut down properly last time and critical recovery "
                     "information (last binlog or %s file) was manually deleted "
-                    "after a crash. You have to start mysqld with "
+                    "after a crash. You have to start server with "
                     "--tc-heuristic-recover switch to commit or rollback "
                     "pending transactions.",
                     info.found_my_xids, opt_tc_log_file);
     DBUG_RETURN(1);
   }
+  if (info.error)
+    DBUG_RETURN(1);
+
   if (info.commit_list)
     sql_print_information("Crash table recovery finished.");
   DBUG_RETURN(0);
@@ -4070,6 +4364,7 @@ void handler::print_error(int error, myf errflag)
       if ((int) key_nr >= 0 && key_nr < table->s->keys)
       {
         print_keydup_error(table, &table->key_info[key_nr], errflag);
+        table->file->lookup_errkey= -1;
         DBUG_VOID_RETURN;
       }
     }
@@ -4259,9 +4554,12 @@ void handler::print_error(int error, myf errflag)
   case HA_ERR_UNDO_REC_TOO_BIG:
     textno= ER_UNDO_RECORD_TOO_BIG;
     break;
-  case HA_ERR_TABLE_IN_FK_CHECK:
-    textno= ER_TABLE_IN_FK_CHECK;
+  case HA_ERR_COMMIT_ERROR:
+    textno= ER_ERROR_DURING_COMMIT;
     break;
+  case HA_ERR_PARTITION_LIST:
+    my_error(ER_VERS_NOT_ALLOWED, errflag, table->s->db.str, table->s->table_name.str);
+    DBUG_VOID_RETURN;
   default:
     {
       /* The error was "unknown" to this function.
@@ -5512,6 +5810,9 @@ int handler::calculate_checksum()
     for (uint i= 0; i < table->s->fields; i++ )
     {
       Field *f= table->field[i];
+      if (!f->stored_in_db())
+        continue;
+
 
       if (! thd->variables.old_mode && f->is_real_null(0))
       {
@@ -5811,7 +6112,9 @@ int ha_discover_table(THD *thd, TABLE_SHARE *share)
   else
     found= plugin_foreach(thd, discover_handlerton,
                         MYSQL_STORAGE_ENGINE_PLUGIN, share);
-  
+
+  if (thd->lex->query_tables && thd->lex->query_tables->sequence && !found)
+    my_error(ER_UNKNOWN_SEQUENCES, MYF(0),share->table_name.str);
   if (!found)
     open_table_error(share, OPEN_FRM_OPEN_ERROR, ENOENT); // not found
 
@@ -5931,7 +6234,9 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
     DBUG_RETURN(TRUE);
   }
 
-retry_from_frm: __attribute__((unused));
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+retry_from_frm:
+#endif
   char path[FN_REFLEN + 1];
   size_t path_len = build_table_filename(path, sizeof(path) - 1,
                                          db->str, table_name->str, "", 0);
@@ -7307,10 +7612,24 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
       error= binlog_log_row(table, old_data, new_data, log_func);
     }
 #ifdef WITH_WSREP
-    if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
-        ht->flags & HTON_WSREP_REPLICATION &&
-        !error && (error= wsrep_after_row(ha_thd())))
-      return error;
+    THD *thd= ha_thd();
+    if (WSREP_NNULL(thd))
+    {
+      /* for streaming replication, the following wsrep_after_row()
+      may replicate a fragment, so we have to declare potential PA
+      unsafe before that */
+      if (table->s->primary_key == MAX_KEY && wsrep_thd_is_local(thd))
+      {
+        WSREP_DEBUG("marking trx as PA unsafe pk %d", table->s->primary_key);
+        if (thd->wsrep_cs().mark_transaction_pa_unsafe())
+          WSREP_DEBUG("session does not have active transaction,"
+                      " can not mark as PA unsafe");
+      }
+
+      if (!error && table_share->tmp_table == NO_TMP_TABLE &&
+          ht->flags & HTON_WSREP_REPLICATION)
+        error= wsrep_after_row(thd);
+    }
 #endif /* WITH_WSREP */
   }
   return error;
@@ -7371,11 +7690,23 @@ int handler::ha_delete_row(const uchar *buf)
       error= binlog_log_row(table, buf, 0, log_func);
     }
 #ifdef WITH_WSREP
-    if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
-        ht->flags & HTON_WSREP_REPLICATION &&
-        !error && (error= wsrep_after_row(ha_thd())))
+    THD *thd= ha_thd();
+    if (WSREP_NNULL(thd))
     {
-      return error;
+      /* for streaming replication, the following wsrep_after_row()
+      may replicate a fragment, so we have to declare potential PA
+      unsafe before that */
+      if (table->s->primary_key == MAX_KEY && wsrep_thd_is_local(thd))
+      {
+        WSREP_DEBUG("marking trx as PA unsafe pk %d", table->s->primary_key);
+        if (thd->wsrep_cs().mark_transaction_pa_unsafe())
+          WSREP_DEBUG("session does not have active transaction,"
+                      " can not mark as PA unsafe");
+      }
+
+      if (!error && table_share->tmp_table == NO_TMP_TABLE &&
+          ht->flags & HTON_WSREP_REPLICATION)
+        error= wsrep_after_row(thd);
     }
 #endif /* WITH_WSREP */
   }
@@ -7520,17 +7851,6 @@ void handler::unlock_shared_ha_data()
     mysql_mutex_unlock(&table_share->LOCK_ha_data);
 }
 
-/** @brief
-  Dummy function which accept information about log files which is not need
-  by handlers
-*/
-void signal_log_not_needed(struct handlerton, char *log_file)
-{
-  DBUG_ENTER("signal_log_not_needed");
-  DBUG_PRINT("enter", ("logfile '%s'", log_file));
-  DBUG_VOID_RETURN;
-}
-
 void handler::set_lock_type(enum thr_lock_type lock)
 {
   table->reginfo.lock_type= lock;
@@ -7597,177 +7917,6 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   DBUG_RETURN(0);
 }
 #endif /* WITH_WSREP */
-
-
-#ifdef TRANS_LOG_MGM_EXAMPLE_CODE
-/*
-  Example of transaction log management functions based on assumption that logs
-  placed into a directory
-*/
-#include <my_dir.h>
-#include <my_sys.h>
-int example_of_iterator_using_for_logs_cleanup(handlerton *hton)
-{
-  void *buffer;
-  int res= 1;
-  struct handler_iterator iterator;
-  struct handler_log_file_data data;
-
-  if (!hton->create_iterator)
-    return 1; /* iterator creator is not supported */
-
-  if ((*hton->create_iterator)(hton, HA_TRANSACTLOG_ITERATOR, &iterator) !=
-      HA_ITERATOR_OK)
-  {
-    /* error during creation of log iterator or iterator is not supported */
-    return 1;
-  }
-  while((*iterator.next)(&iterator, (void*)&data) == 0)
-  {
-    printf("%s\n", data.filename.str);
-    if (data.status == HA_LOG_STATUS_FREE &&
-        mysql_file_delete(INSTRUMENT_ME,
-                          data.filename.str, MYF(MY_WME)))
-      goto err;
-  }
-  res= 0;
-err:
-  (*iterator.destroy)(&iterator);
-  return res;
-}
-
-
-/*
-  Here we should get info from handler where it save logs but here is
-  just example, so we use constant.
-  IMHO FN_ROOTDIR ("/") is safe enough for example, because nobody has
-  rights on it except root and it consist of directories only at lest for
-  *nix (sorry, can't find windows-safe solution here, but it is only example).
-*/
-#define fl_dir FN_ROOTDIR
-
-
-/** @brief
-  Dummy function to return log status should be replaced by function which
-  really detect the log status and check that the file is a log of this
-  handler.
-*/
-enum log_status fl_get_log_status(char *log)
-{
-  MY_STAT stat_buff;
-  if (mysql_file_stat(INSTRUMENT_ME, log, &stat_buff, MYF(0)))
-    return HA_LOG_STATUS_INUSE;
-  return HA_LOG_STATUS_NOSUCHLOG;
-}
-
-
-struct fl_buff
-{
-  LEX_STRING *names;
-  enum log_status *statuses;
-  uint32 entries;
-  uint32 current;
-};
-
-
-int fl_log_iterator_next(struct handler_iterator *iterator,
-                          void *iterator_object)
-{
-  struct fl_buff *buff= (struct fl_buff *)iterator->buffer;
-  struct handler_log_file_data *data=
-    (struct handler_log_file_data *) iterator_object;
-  if (buff->current >= buff->entries)
-    return 1;
-  data->filename= buff->names[buff->current];
-  data->status= buff->statuses[buff->current];
-  buff->current++;
-  return 0;
-}
-
-
-void fl_log_iterator_destroy(struct handler_iterator *iterator)
-{
-  my_free(iterator->buffer);
-}
-
-
-/** @brief
-  returns buffer, to be assigned in handler_iterator struct
-*/
-enum handler_create_iterator_result
-fl_log_iterator_buffer_init(struct handler_iterator *iterator)
-{
-  MY_DIR *dirp;
-  struct fl_buff *buff;
-  char *name_ptr;
-  uchar *ptr;
-  FILEINFO *file;
-  uint32 i;
-
-  /* to be able to make my_free without crash in case of error */
-  iterator->buffer= 0;
-
-  if (!(dirp = my_dir(fl_dir, MYF(MY_THREAD_SPECIFIC))))
-  {
-    return HA_ITERATOR_ERROR;
-  }
-  if ((ptr= (uchar*)my_malloc(ALIGN_SIZE(sizeof(fl_buff)) +
-                             ((ALIGN_SIZE(sizeof(LEX_STRING)) +
-                               sizeof(enum log_status) +
-                               + FN_REFLEN + 1) *
-                              (uint) dirp->number_off_files),
-                             MYF(MY_THREAD_SPECIFIC))) == 0)
-  {
-    return HA_ITERATOR_ERROR;
-  }
-  buff= (struct fl_buff *)ptr;
-  buff->entries= buff->current= 0;
-  ptr= ptr + (ALIGN_SIZE(sizeof(fl_buff)));
-  buff->names= (LEX_STRING*) (ptr);
-  ptr= ptr + ((ALIGN_SIZE(sizeof(LEX_STRING)) *
-               (uint) dirp->number_off_files));
-  buff->statuses= (enum log_status *)(ptr);
-  name_ptr= (char *)(ptr + (sizeof(enum log_status) *
-                            (uint) dirp->number_off_files));
-  for (i=0 ; i < (uint) dirp->number_off_files  ; i++)
-  {
-    enum log_status st;
-    file= dirp->dir_entry + i;
-    if ((file->name[0] == '.' &&
-         ((file->name[1] == '.' && file->name[2] == '\0') ||
-            file->name[1] == '\0')))
-      continue;
-    if ((st= fl_get_log_status(file->name)) == HA_LOG_STATUS_NOSUCHLOG)
-      continue;
-    name_ptr= strxnmov(buff->names[buff->entries].str= name_ptr,
-                       FN_REFLEN, fl_dir, file->name, NullS);
-    buff->names[buff->entries].length= (name_ptr -
-                                        buff->names[buff->entries].str);
-    buff->statuses[buff->entries]= st;
-    buff->entries++;
-  }
-
-  iterator->buffer= buff;
-  iterator->next= &fl_log_iterator_next;
-  iterator->destroy= &fl_log_iterator_destroy;
-  my_dirend(dirp);
-  return HA_ITERATOR_OK;
-}
-
-
-/* An example of a iterator creator */
-enum handler_create_iterator_result
-fl_create_iterator(enum handler_iterator_type type,
-                   struct handler_iterator *iterator)
-{
-  switch(type) {
-  case HA_TRANSACTLOG_ITERATOR:
-    return fl_log_iterator_buffer_init(iterator);
-  default:
-    return HA_ITERATOR_UNSUPPORTED;
-  }
-}
-#endif /*TRANS_LOG_MGM_EXAMPLE_CODE*/
 
 
 bool HA_CREATE_INFO::check_conflicting_charset_declarations(CHARSET_INFO *cs)
@@ -7899,11 +8048,11 @@ bool Vers_parse_info::is_end(const char *name) const
 }
 bool Vers_parse_info::is_start(const Create_field &f) const
 {
-  return f.flags & VERS_SYS_START_FLAG;
+  return f.flags & VERS_ROW_START;
 }
 bool Vers_parse_info::is_end(const Create_field &f) const
 {
-  return f.flags & VERS_SYS_END_FLAG;
+  return f.flags & VERS_ROW_END;
 }
 
 static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int flags, bool integer)
@@ -7963,8 +8112,8 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
   period= start_end_t(default_start, default_end);
   as_row= period;
 
-  if (vers_create_sys_field(thd, default_start, alter_info, VERS_SYS_START_FLAG) ||
-      vers_create_sys_field(thd, default_end, alter_info, VERS_SYS_END_FLAG))
+  if (vers_create_sys_field(thd, default_start, alter_info, VERS_ROW_START) ||
+      vers_create_sys_field(thd, default_end, alter_info, VERS_ROW_END))
   {
     return true;
   }
@@ -7984,15 +8133,16 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   if (!vers_info.need_check(alter_info))
     return false;
 
-  if (!vers_info.versioned_fields && vers_info.unversioned_fields &&
-      !(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING))
+  const bool add_versioning= alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING;
+
+  if (!vers_info.versioned_fields && vers_info.unversioned_fields && !add_versioning)
   {
     // All is correct but this table is not versioned.
     options&= ~HA_VERSIONED_TABLE;
     return false;
   }
 
-  if (!(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING) && vers_info)
+  if (!add_versioning && vers_info && !vers_info.versioned_fields)
   {
     my_error(ER_MISSING, MYF(0), create_table.table_name.str,
              "WITH SYSTEM VERSIONING");
@@ -8002,8 +8152,9 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   List_iterator<Create_field> it(alter_info->create_list);
   while (Create_field *f= it++)
   {
-    if ((f->versioning == Column_definition::VERSIONING_NOT_SET &&
-         !(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING)) ||
+    if (f->vers_sys_field())
+      continue;
+    if ((f->versioning == Column_definition::VERSIONING_NOT_SET && !add_versioning) ||
         f->versioning == Column_definition::WITHOUT_VERSIONING)
     {
       f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
@@ -8024,9 +8175,10 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
   if (!(options & HA_VERSIONED_TABLE))
     return false;
 
+  uint versioned_fields= 0;
+
   if (!(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING))
   {
-    uint versioned_fields= 0;
     uint fieldnr= 0;
     List_iterator<Create_field> field_it(alter_info->create_list);
     while (Create_field *f= field_it++)
@@ -8043,8 +8195,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
       {
         List_iterator<Create_field> dup_it(alter_info->create_list);
         for (Create_field *dup= dup_it++; !is_dup && dup != f; dup= dup_it++)
-          is_dup= my_strcasecmp(default_charset_info,
-                                dup->field_name.str, f->field_name.str) == 0;
+          is_dup= Lex_ident(dup->field_name).streq(f->field_name);
       }
 
       if (!(f->flags & VERS_UPDATE_UNVERSIONED_FLAG) && !is_dup)
@@ -8058,7 +8209,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
     }
   }
 
-  if (!(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING))
+  if (!(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING) && !versioned_fields)
     return false;
 
   return vers_info.check_sys_fields(table_name, db, alter_info);
@@ -8119,7 +8270,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
           return true;
         }
         my_error(ER_VERS_DUPLICATE_ROW_START_END, MYF(0),
-                 f->flags & VERS_SYS_START_FLAG ? "START" : "END", f->field_name.str);
+                 f->flags & VERS_ROW_START ? "START" : "END", f->field_name.str);
         return true;
       }
     }
@@ -8233,13 +8384,13 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
 
   while ((f= it++))
   {
-    if (f->flags & VERS_SYS_START_FLAG)
+    if (f->flags & VERS_ROW_START)
     {
       f_start= f;
       if (f_end)
         break;
     }
-    else if (f->flags & VERS_SYS_END_FLAG)
+    else if (f->flags & VERS_ROW_END)
     {
       f_end= f;
       if (f_start)
@@ -8385,6 +8536,7 @@ bool Vers_type_trx::check_sys_fields(const LEX_CSTRING &table_name,
   return false;
 }
 
+
 bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
                                        const Lex_table_name &db,
                                        Alter_info *alter_info) const
@@ -8393,18 +8545,21 @@ bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
     return true;
 
   List_iterator<Create_field> it(alter_info->create_list);
-  const Create_field *row_start= NULL;
-  const Create_field *row_end= NULL;
+  const Create_field *row_start= nullptr;
+  const Create_field *row_end= nullptr;
   while (const Create_field *f= it++)
   {
-    if (f->flags & VERS_SYS_START_FLAG && !row_start)
+    if (f->flags & VERS_ROW_START && !row_start)
       row_start= f;
-    if (f->flags & VERS_SYS_END_FLAG && !row_end)
+    if (f->flags & VERS_ROW_END && !row_end)
       row_end= f;
   }
 
-  DBUG_ASSERT(row_start);
-  DBUG_ASSERT(row_end);
+  if (!row_start || !row_end)
+  {
+    my_error(ER_VERS_PERIOD_COLUMNS, MYF(0), as_row.start.str, as_row.end.str);
+    return true;
+  }
 
   const Vers_type_handler *row_start_vers= row_start->type_handler()->vers();
 
@@ -8414,10 +8569,7 @@ bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
     return true;
   }
 
-  if (row_start_vers->check_sys_fields(table_name, row_start, row_end))
-    return true;
-
-  return false;
+  return row_start_vers->check_sys_fields(table_name, row_start, row_end);
 }
 
 bool Table_period_info::check_field(const Create_field* f,

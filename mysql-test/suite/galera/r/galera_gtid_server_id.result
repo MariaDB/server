@@ -1,0 +1,83 @@
+connection node_2;
+connection node_1;
+connection node_1;
+select @@gtid_domain_id, @@server_id, @@wsrep_gtid_domain_id,@@wsrep_gtid_mode;
+@@gtid_domain_id	@@server_id	@@wsrep_gtid_domain_id	@@wsrep_gtid_mode
+0	11	1	1
+connection node_2;
+call mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node.");
+select @@gtid_domain_id, @@server_id, @@wsrep_gtid_domain_id,@@wsrep_gtid_mode;
+@@gtid_domain_id	@@server_id	@@wsrep_gtid_domain_id	@@wsrep_gtid_mode
+0	12	1	1
+connection node_1;
+CREATE TABLE t1(id int not null primary key) engine=innodb;
+INSERT INTO t1 values (1);
+show global variables  like '%gtid%';
+Variable_name	Value
+gtid_binlog_pos	1-11-2
+gtid_binlog_state	1-11-2
+gtid_cleanup_batch_size	64
+gtid_current_pos	1-11-2
+gtid_domain_id	0
+gtid_ignore_duplicates	OFF
+gtid_pos_auto_engines	
+gtid_slave_pos	
+gtid_strict_mode	OFF
+wsrep_gtid_domain_id	1
+wsrep_gtid_mode	ON
+connection node_2;
+SET SESSION wsrep_sync_wait=15;
+show global variables  like '%gtid%';
+Variable_name	Value
+gtid_binlog_pos	0-12-1,1-11-2
+gtid_binlog_state	0-12-1,1-11-2
+gtid_cleanup_batch_size	64
+gtid_current_pos	0-12-1
+gtid_domain_id	0
+gtid_ignore_duplicates	OFF
+gtid_pos_auto_engines	
+gtid_slave_pos	
+gtid_strict_mode	OFF
+wsrep_gtid_domain_id	1
+wsrep_gtid_mode	ON
+SET GLOBAL server_id=200;
+ERROR 42000: Variable 'server_id' can't be set to the value of '200'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1231	Can't change server_id because wsrep and wsrep_gtid_mode is set. You can set server_id only with wsrep_new_cluster. 
+Error	1231	Variable 'server_id' can't be set to the value of '200'
+SET SESSION server_id=200;
+ERROR 42000: Variable 'server_id' can't be set to the value of '200'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1231	Can't change server_id because wsrep and wsrep_gtid_mode is set. You can set server_id only with wsrep_new_cluster. 
+Error	1231	Variable 'server_id' can't be set to the value of '200'
+INSERT INTO t1 values(2);
+show global variables  like '%gtid%';
+Variable_name	Value
+gtid_binlog_pos	0-12-1,1-11-3
+gtid_binlog_state	0-12-1,1-11-3
+gtid_cleanup_batch_size	64
+gtid_current_pos	0-12-1
+gtid_domain_id	0
+gtid_ignore_duplicates	OFF
+gtid_pos_auto_engines	
+gtid_slave_pos	
+gtid_strict_mode	OFF
+wsrep_gtid_domain_id	1
+wsrep_gtid_mode	ON
+connection node_1;
+show global variables  like '%gtid%';
+Variable_name	Value
+gtid_binlog_pos	1-11-3
+gtid_binlog_state	1-11-3
+gtid_cleanup_batch_size	64
+gtid_current_pos	1-11-3
+gtid_domain_id	0
+gtid_ignore_duplicates	OFF
+gtid_pos_auto_engines	
+gtid_slave_pos	
+gtid_strict_mode	OFF
+wsrep_gtid_domain_id	1
+wsrep_gtid_mode	ON
+DROP TABLE t1;

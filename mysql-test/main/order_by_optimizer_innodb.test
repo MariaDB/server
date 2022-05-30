@@ -1,8 +1,7 @@
 --source include/have_innodb.inc
 
---disable_warnings
-drop table if exists t0,t1,t2,t3;
---enable_warnings
+SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=OFF;
 
 --echo #
 --echo # MDEV-6402: Optimizer doesn't choose best execution plan when composite key is used
@@ -96,3 +95,4 @@ ORDER BY pk2 DESC LIMIT 21;
 
 drop table t1, t2;
 
+SET GLOBAL innodb_stats_persistent=@save_stats_persistent;

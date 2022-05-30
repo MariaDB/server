@@ -1,0 +1,59 @@
+# ==== Purpose ====
+#
+# Test verifies truncation of multiple binary logs with multiple transactional
+# storage engines
+#
+# ==== References ====
+#
+# MDEV-21117: recovery for --rpl-semi-sync-slave-enabled server
+
+--source include/have_rocksdb.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_row.inc
+
+--let $old_max_binlog_size= `select @@global.max_binlog_size`
+call mtr.add_suppression("Can.t init tc log");
+call mtr.add_suppression("Aborting");
+--let $MYSQLD_DATADIR= `SELECT @@datadir`
+
+SET @@global.sync_binlog= 1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+CREATE TABLE t2 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=rocksdb;
+
+--let $case = "A"
+--let $description = "neither engine committed => rollback & binlog truncate"
+# Hold off engine commits after write to binlog and its rotation.
+# The transaction is killed along with the server after that.
+--let $shutdown_timeout=0
+--let $debug_sync_action = "commit_after_release_LOCK_log SIGNAL con1_ready WAIT_FOR signal_no_signal"
+--let $restart_parameters = --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+--let $test_outcome= 1 row should be present in both tables; binlog is truncated; number of binlogs at reconnect - 3
+--source binlog_truncate_multi_engine.inc
+--echo Proof of the truncated binlog file is readable (two transactions must be seen):
+--exec $MYSQL_BINLOG --short-form --skip-annotate-row-events $MYSQLD_DATADIR/master-bin.000002
+
+--let $case = "B"
+--let $description = "one engine has committed its transaction branch"
+# Hold off after one engine has committed.
+--let $shutdown_timeout=0
+--let $debug_sync_action = ""
+# Both debug_sync and debug-dbug are required to make sure Engines remember the commit state
+# debug_sync alone will not help.
+--let $restart_parameters = --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+--let $test_outcome= 2 rows should be present in both tables; no binlog truncation; one extra binlog file compare with A; number of binlogs at reconnect - 4
+--source binlog_truncate_multi_engine.inc
+
+--let $case = "C"
+--let $description= "both engines have committed its transaction branch"
+--let $debug_sync_action = "commit_after_run_commit_ordered SIGNAL con1_ready WAIT_FOR signal_no_signal"
+# Hold off after both engines have committed. The server is shut down.
+--let $shutdown_timeout=
+--let $restart_parameters = --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+--let $test_outcome= 2 rows should be present in both tables; no binlog truncation; the same # of binlog files as in B; number of binlogs at reconnect - 4
+--source binlog_truncate_multi_engine.inc
+
+DROP TABLE t1, t2;
+SET @@global.sync_binlog= default;
+--echo # End of the tests

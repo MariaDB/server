@@ -50,10 +50,10 @@ Records: 10  Duplicates: 5  Warnings: 0
 
 Bye
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %' OR argument LIKE '%replace %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND (argument LIKE '%insert %' OR argument LIKE '%replace %');
 argument
 insert ignore into `auto_test_remote`.`tbl_a`(`skey`,`dt`,`tm`)values(0,_latin1'2013-01-01',_latin1'13:00:00'),(2,_latin1'2013-02-01',_latin1'13:00:00'),(4,_latin1'2013-03-01',_latin1'13:00:00'),(7,_latin1'2013-04-01',_latin1'13:00:00'),(8,_latin1'2013-05-01',_latin1'13:00:00'),(10,_latin1'2013-06-01',_latin1'13:00:00'),(11,_latin1'2013-07-01',_latin1'13:00:00'),(12,_latin1'2013-08-01',_latin1'13:00:00'),(13,_latin1'2013-09-01',_latin1'13:00:00'),(14,_latin1'2013-10-01',_latin1'13:00:00')
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %' OR argument LIKE '%replace %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND (argument LIKE '%insert %' OR argument LIKE '%replace %')
 SELECT skey, dt, tm FROM tbl_a ORDER BY skey;
 skey	dt	tm
 0	2012-01-01	12:00:00
@@ -88,10 +88,10 @@ Records: 10  Duplicates: 4  Warnings: 0
 
 Bye
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %' OR argument LIKE '%replace %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND (argument LIKE '%insert %' OR argument LIKE '%replace %');
 argument
 replace into `auto_test_remote`.`tbl_a`(`skey`,`dt`,`tm`)values(1,_latin1'2012-02-01',_latin1'12:00:00'),(3,_latin1'2012-12-01',_latin1'11:00:00'),(8,_latin1'2012-11-30',_latin1'11:00:00'),(9,_latin1'2012-11-29',_latin1'11:00:00'),(10,_latin1'2012-11-28',_latin1'11:00:00'),(15,_latin1'2012-11-27',_latin1'11:00:00'),(16,_latin1'2012-11-26',_latin1'11:00:00'),(17,_latin1'2012-11-25',_latin1'11:00:00'),(18,_latin1'2012-11-24',_latin1'11:00:00'),(19,_latin1'2012-11-23',_latin1'11:00:00')
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %' OR argument LIKE '%replace %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND (argument LIKE '%insert %' OR argument LIKE '%replace %')
 SELECT skey, dt, tm FROM tbl_a ORDER BY skey;
 skey	dt	tm
 0	2012-01-01	12:00:00
@@ -131,10 +131,10 @@ Records: 10  Duplicates: 4  Warnings: 0
 
 Bye
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %' OR argument LIKE '%replace %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND (argument LIKE '%insert %' OR argument LIKE '%replace %');
 argument
 insert high_priority into `auto_test_remote`.`tbl_a`(`skey`,`dt`,`tm`)values(1,_latin1'2012-11-01',_latin1'11:00:00'),(3,_latin1'2012-12-01',_latin1'11:00:00'),(11,_latin1'2012-11-30',_latin1'11:00:00'),(15,_latin1'2012-11-29',_latin1'11:00:00'),(16,_latin1'2012-11-28',_latin1'11:00:00'),(20,_latin1'2012-11-27',_latin1'11:00:00'),(21,_latin1'2012-11-26',_latin1'11:00:00'),(22,_latin1'2012-11-25',_latin1'11:00:00'),(23,_latin1'2012-11-24',_latin1'11:00:00'),(24,_latin1'2012-11-23',_latin1'11:00:00') on duplicate key update `dt` = values(`dt`),`tm` = values(`tm`)
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %' OR argument LIKE '%replace %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND (argument LIKE '%insert %' OR argument LIKE '%replace %')
 SELECT skey, dt, tm FROM tbl_a ORDER BY skey;
 skey	dt	tm
 0	2012-01-01	12:00:00

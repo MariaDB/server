@@ -28,6 +28,7 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-mb.h"
 
 #ifdef HAVE_CHARSET_euckr
 
@@ -209,7 +210,7 @@ static const uchar sort_order_euc_kr[]=
 #define IS_MB1_CHAR(x)        ((uchar) (x) < 0x80)
 #define IS_MB2_CHAR(x,y)      (iseuc_kr_head(x) && iseuc_kr_tail(y))
 #define DEFINE_ASIAN_ROUTINES
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 
 
 static MY_UNICASE_CHARACTER cA3[256]=
@@ -9931,27 +9932,27 @@ my_mb_wc_euc_kr(CHARSET_INFO *cs __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _euckr_korean_ci
 #define WEIGHT_MB1(x)        (sort_order_euc_kr[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (euckrcode(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _euckr_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (euckrcode(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _euckr_korean_nopad_ci
 #define WEIGHT_MB1(x)        (sort_order_euc_kr[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (euckrcode(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _euckr_nopad_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (euckrcode(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 static MY_COLLATION_HANDLER my_collation_handler_euckr_korean_ci=
@@ -9959,6 +9960,7 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_korean_ci=
   NULL,                 /* init */
   my_strnncoll_euckr_korean_ci,
   my_strnncollsp_euckr_korean_ci,
+  my_strnncollsp_nchars_euckr_korean_ci,
   my_strnxfrm_mb,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -9966,7 +9968,9 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_korean_ci=
   my_strcasecmp_mb,
   my_instr_mb,
   my_hash_sort_simple,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -9975,6 +9979,7 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_bin=
   NULL,                 /* init */
   my_strnncoll_euckr_bin,
   my_strnncollsp_euckr_bin,
+  my_strnncollsp_nchars_euckr_bin,
   my_strnxfrm_mb,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -9982,7 +9987,9 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_bin=
   my_strcasecmp_mb_bin,
   my_instr_mb,
   my_hash_sort_mb_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -9991,6 +9998,7 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_korean_nopad_ci=
   NULL,                 /* init */
   my_strnncoll_euckr_korean_ci,
   my_strnncollsp_euckr_korean_nopad_ci,
+  my_strnncollsp_nchars_euckr_korean_nopad_ci,
   my_strnxfrm_mb_nopad,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -9998,7 +10006,9 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_korean_nopad_ci=
   my_strcasecmp_mb,
   my_instr_mb,
   my_hash_sort_simple_nopad,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 
@@ -10007,6 +10017,7 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_nopad_bin=
   NULL,                 /* init */
   my_strnncoll_euckr_bin,
   my_strnncollsp_euckr_nopad_bin,
+  my_strnncollsp_nchars_euckr_nopad_bin,
   my_strnxfrm_mb_nopad,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -10014,7 +10025,9 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_nopad_bin=
   my_strcasecmp_mb_bin,
   my_instr_mb,
   my_hash_sort_mb_nopad_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB Corporation.
+   Copyright (c) 2010, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -723,7 +723,6 @@ bool Item_ident::remove_dependence_processor(void * arg)
   DBUG_RETURN(0);
 }
 
-
 bool Item_ident::collect_outer_ref_processor(void *param)
 {
   Collect_deps_prm *prm= (Collect_deps_prm *)param;
@@ -960,8 +959,7 @@ bool Item_field::check_field_expression_processor(void *arg)
           (!field->vcol_info && !org_field->vcol_info)) &&
          field->field_index >= org_field->field_index))
     {
-      my_error(ER_EXPRESSION_REFERS_TO_UNINIT_FIELD,
-               MYF(0),
+      my_error(ER_EXPRESSION_REFERS_TO_UNINIT_FIELD, MYF(0),
                org_field->field_name.str, field->field_name.str);
       return 1;
     }
@@ -1126,6 +1124,80 @@ bool Item::check_type_scalar(const LEX_CSTRING &opname) const
 }
 
 
+extern "C" {
+
+/*
+  All values greater than MY_NAME_BINARY_VALUE are
+  interpreted as binary bytes.
+  The exact constant value does not matter,
+  but it must be greater than 0x10FFFF,
+  which is the maximum possible character in Unicode.
+*/
+#define MY_NAME_BINARY_VALUE 0x200000
+
+/*
+  Print all binary bytes as well as zero character U+0000 in hex notation.
+  Print other characters normally.
+*/
+static int
+my_wc_mb_item_name(CHARSET_INFO *cs, my_wc_t wc, uchar *str, uchar *end)
+{
+  if (wc == 0 || wc >= MY_NAME_BINARY_VALUE)
+  {
+    if (str + 4 >= end)
+      return MY_CS_TOOSMALL3;
+    str[0]= '\\';
+    str[1]= 'x';
+    str[2]= _dig_vec_upper[(uchar) (wc >> 4)];
+    str[3]= _dig_vec_upper[(uchar) wc & 0x0F];
+    return 4;
+  }
+  return my_charset_utf8mb3_handler.wc_mb(cs, wc, str, end);
+}
+
+
+/*
+  Scan characters and mark all illegal sequences as binary byte values,
+  to have my_wc_mb_utf8_escape_name() print them using HEX notation.
+*/
+static int
+my_mb_wc_item_name(CHARSET_INFO *cs, my_wc_t *pwc,
+                   const uchar *str, const uchar *end)
+{
+  int rc= cs->cset->mb_wc(cs, pwc, str, end);
+  if (rc == MY_CS_ILSEQ)
+  {
+    *pwc= MY_NAME_BINARY_VALUE + *str;
+    return 1;
+  }
+  return rc;
+}
+
+}
+
+
+static LEX_CSTRING
+make_name(THD *thd,
+          const char *str, size_t length, CHARSET_INFO *cs,
+          size_t max_octet_length)
+{
+  uint errors;
+  size_t dst_nbytes= length * system_charset_info->mbmaxlen;
+  set_if_smaller(dst_nbytes, max_octet_length);
+  char *dst= (char*) thd->alloc(dst_nbytes + 1);
+  if (!dst)
+    return null_clex_str;
+  uint32 cnv_length= my_convert_using_func(dst, dst_nbytes, system_charset_info,
+                                           my_wc_mb_item_name,
+                                           str, length,
+                                           cs == &my_charset_bin ?
+                                             system_charset_info : cs,
+                                           my_mb_wc_item_name, &errors);
+  dst[cnv_length]= '\0';
+  return Lex_cstring(dst, cnv_length);
+}
+
+
 void Item::set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs)
 {
   if (!length)
@@ -1176,32 +1248,14 @@ void Item::set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs)
                           ER_REMOVED_SPACES, ER_THD(thd, ER_REMOVED_SPACES),
                           buff);
   }
-  if (!my_charset_same(cs, system_charset_info))
-  {
-    size_t res_length;
-    name.str= sql_strmake_with_convert(thd, str, length, cs,
-                                       MAX_ALIAS_NAME, system_charset_info,
-                                       &res_length);
-    name.length= res_length;
-  }
-  else
-    name.str= thd->strmake(str, (name.length= MY_MIN(length,MAX_ALIAS_NAME)));
+  name= make_name(thd, str, length, cs, MAX_ALIAS_NAME - 1);
 }
 
 
 void Item::set_name_no_truncate(THD *thd, const char *str, uint length,
                                 CHARSET_INFO *cs)
 {
-  if (!my_charset_same(cs, system_charset_info))
-  {
-    size_t res_length;
-    name.str= sql_strmake_with_convert(thd, str, length, cs,
-                                       UINT_MAX, system_charset_info,
-                                       &res_length);
-    name.length= res_length;
-  }
-  else
-    name.str= thd->strmake(str, (name.length= length));
+  name= make_name(thd, str, length, cs, UINT_MAX - 1);
 }
 
 
@@ -2384,10 +2438,6 @@ left_is_superset(const DTCollation *left, const DTCollation *right)
 
 bool DTCollation::aggregate(const DTCollation &dt, uint flags)
 {
-
-  THD *thd = current_thd;
-  myf utf8_flag= thd ? thd->get_utf8_flag() :
-                 global_system_variables.old_behavior & OLD_MODE_UTF8_IS_UTF8MB3;
   if (!my_charset_same(collation, dt.collation))
   {
     /* 
@@ -2475,6 +2525,9 @@ bool DTCollation::aggregate(const DTCollation &dt, uint flags)
         set(dt);
         return 0;
       }
+      THD *thd = current_thd;
+      myf utf8_flag= thd ? thd->get_utf8_flag()
+        : global_system_variables.old_behavior & OLD_MODE_UTF8_IS_UTF8MB3;
       CHARSET_INFO *bin= get_charset_by_csname(collation->cs_name.str,
                                                MY_CS_BINSORT,MYF(utf8_flag));
       set(bin, DERIVATION_NONE);
@@ -2698,14 +2751,17 @@ Item_sp::Item_sp(THD *thd, Item_sp *item):
   memset(&sp_mem_root, 0, sizeof(sp_mem_root));
 }
 
-LEX_CSTRING Item_sp::func_name_cstring(THD *thd) const
+LEX_CSTRING
+Item_sp::func_name_cstring(THD *thd, bool is_package_function) const
 {
   /* Calculate length to avoid reallocation of string for sure */
   size_t len= (((m_name->m_explicit_name ? m_name->m_db.length : 0) +
               m_name->m_name.length)*2 + //characters*quoting
-             2 +                         // ` and `
+             2 +                         // quotes for the function name
+             2 +                         // quotes for the package name
              (m_name->m_explicit_name ?
               3 : 0) +                   // '`', '`' and '.' for the db
+             1 +                         // '.' between package and function
              1 +                         // end of string
              ALIGN_SIZE(1));             // to avoid String reallocation
   String qname((char *)alloc_root(thd->mem_root, len), len,
@@ -2717,7 +2773,21 @@ LEX_CSTRING Item_sp::func_name_cstring(THD *thd) const
     append_identifier(thd, &qname, &m_name->m_db);
     qname.append('.');
   }
-  append_identifier(thd, &qname, &m_name->m_name);
+  if (is_package_function)
+  {
+    /*
+      In case of a package function split `pkg.func` and print
+      quoted `pkg` and `func` separately, so the entire result looks like:
+         `db`.`pkg`.`func`
+    */
+    Database_qualified_name tmp= Database_qualified_name::split(m_name->m_name);
+    DBUG_ASSERT(tmp.m_db.length);
+    append_identifier(thd, &qname, &tmp.m_db);
+    qname.append('.');
+    append_identifier(thd, &qname, &tmp.m_name);
+  }
+  else
+    append_identifier(thd, &qname, &m_name->m_name);
   return { qname.c_ptr_safe(), qname.length() };
 }
 
@@ -3056,17 +3126,6 @@ Item_field::Item_field(THD *thd, Item_field *item)
 {
   collation.set(DERIVATION_IMPLICIT);
   with_flags|= item_with_t::FIELD;
-}
-
-
-bool Item_field::is_json_type()
-{
-  if (!field->check_constraint ||
-      field->check_constraint->expr->type() != FUNC_ITEM)
-    return FALSE;
-
-  Item_func *f= (Item_func *) field->check_constraint->expr;
-  return f->functype() == Item_func::JSON_VALID_FUNC;
 }
 
 
@@ -3842,8 +3901,48 @@ void Item_string::print(String *str, enum_query_type query_type)
   }
   else
   {
-    // Caller wants a result in the charset of str_value.
-    str_value.print(str);
+    /*
+      We're restoring a parse-able statement from an Item tree.
+      Make sure to revert character set conversions that previously
+      happened in the parser when Item_string was created.
+    */
+    if (print_introducer)
+    {
+      /*
+        Print the string as is, without conversion:
+        Strings with introducers are not converted in the parser.
+      */
+      str_value.print(str);
+    }
+    else
+    {
+      /*
+        Print the string with conversion.
+        Strings without introducers are converted in the parser,
+        from character_set_client to character_set_connection.
+
+        When restoring a CREATE VIEW statement,
+        - str_value.charsets() contains parse time character_set_connection
+        - str->charset() contains parse time character_set_client
+        So we convert the string back from parse-time character_set_connection
+        to parse time character_set_client.
+
+        In some cases, e.g. SHOW PROCEDURE CODE, it's also possible
+        that str->charset() is "utf8mb3" instead of parse time
+        character_set_client. In these cases we convert
+        here from the parse-time character_set_connection to utf8mb3.
+
+        QQ: perhaps the code behind SHOW PROCEDURE CODE should
+        also request the result in the parse-time character_set_client
+        (like the code restoring CREATE VIEW statements does),
+        rather than in utf8mb3:
+        - utf8mb3 does not work well with non-BMP characters (e.g. emoji).
+        - Simply changing utf8mb3 to utf8mb4 will not fully help:
+          some character sets have unassigned characters,
+          they get lost during during cs->utf8mb4->cs round trip.
+      */
+      str_value.print_with_conversion(str, str->charset());
+    }
   }
 
   str->append('\'');
@@ -4457,13 +4556,15 @@ bool Item_param::get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate)
 }
 
 
-double Item_param::PValue::val_real() const
+double Item_param::PValue::val_real(const Type_std_attributes *attr) const
 {
   switch (type_handler()->cmp_type()) {
   case REAL_RESULT:
     return real;
   case INT_RESULT:
-    return (double) integer;
+    return attr->unsigned_flag
+      ? (double) (ulonglong) integer
+      : (double) integer;
   case DECIMAL_RESULT:
     return m_decimal.to_double();
   case STRING_RESULT:
@@ -4537,7 +4638,7 @@ String *Item_param::PValue::val_str(String *str,
     str->set_real(real, NOT_FIXED_DEC, &my_charset_bin);
     return str;
   case INT_RESULT:
-    str->set(integer, &my_charset_bin);
+    str->set_int(integer, attr->unsigned_flag, &my_charset_bin);
     return str;
   case DECIMAL_RESULT:
     if (m_decimal.to_string_native(str, 0, 0, 0) <= 1)
@@ -5531,13 +5632,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   */
   Name_resolution_context *last_checked_context= context;
   Item **ref= (Item **) not_found_item;
-  SELECT_LEX *current_sel= thd->lex->current_select;
+  SELECT_LEX *current_sel= context->select_lex;
   Name_resolution_context *outer_context= 0;
   SELECT_LEX *select= 0;
-  /* Currently derived tables cannot be correlated */
-  if ((current_sel->master_unit()->first_select()->get_linkage() !=
-       DERIVED_TABLE_TYPE) &&
-      current_sel->master_unit()->outer_select())
+
+  if (current_sel->master_unit()->outer_select())
     outer_context= context->outer_context;
 
   /*
@@ -5643,6 +5742,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
             max_arg_level for the function if it's needed.
           */
           if (thd->lex->in_sum_func &&
+              thd->lex == context->select_lex->parent_lex &&
               thd->lex->in_sum_func->nest_level >= select->nest_level)
           {
             Item::Type ref_type= (*reference)->type();
@@ -5668,6 +5768,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
                              (Item_ident*) (*reference) :
                              0), false);
           if (thd->lex->in_sum_func &&
+              thd->lex == context->select_lex->parent_lex &&
               thd->lex->in_sum_func->nest_level >= select->nest_level)
           {
             set_if_bigger(thd->lex->in_sum_func->max_arg_level,
@@ -5870,7 +5971,18 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   DBUG_ASSERT(fixed() == 0);
   Field *from_field= (Field *)not_found_field;
   bool outer_fixed= false;
-  SELECT_LEX *select= thd->lex->current_select;
+  SELECT_LEX *select;
+  if (context)
+  {
+    select= context->select_lex;
+  }
+  else
+  {
+    // No real name resolution, used somewhere in SP
+    DBUG_ASSERT(field);
+    select= NULL;
+  }
+
 
   if (select && select->in_tvc)
   {
@@ -6005,7 +6117,9 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
         goto mark_non_agg_field;
     }
 
-    if (thd->lex->in_sum_func &&
+    if (!thd->lex->current_select->no_wrap_view_item &&
+        thd->lex->in_sum_func &&
+        thd->lex == select->parent_lex &&
         thd->lex->in_sum_func->nest_level == 
         select->nest_level)
       set_if_bigger(thd->lex->in_sum_func->max_arg_level,
@@ -6071,8 +6185,6 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   }
 #endif
   base_flags|= item_base_t::FIXED;
-  if (field->vcol_info)
-    fix_session_vcol_expr_for_read(thd, field, field->vcol_info);
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !outer_fixed && !thd->lex->in_sum_func &&
       select &&
@@ -7592,12 +7704,13 @@ Item *Item_field::derived_field_transformer_for_having(THD *thd, uchar *arg)
 Item *Item_direct_view_ref::derived_field_transformer_for_having(THD *thd,
                                                                  uchar *arg)
 {
+  st_select_lex *sel= (st_select_lex *)arg;
+  context= &sel->context;
   if ((*ref)->marker & MARKER_SUBSTITUTION)
   {
     this->marker|= MARKER_SUBSTITUTION;
     return this;
   }
-  st_select_lex *sel= (st_select_lex *)arg;
   table_map tab_map= sel->master_unit()->derived->table->map;
   if ((item_equal && !(item_equal->used_tables() & tab_map)) ||
       !item_equal)
@@ -7860,7 +7973,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
 {
   enum_parsing_place place= NO_MATTER;
   DBUG_ASSERT(fixed() == 0);
-  SELECT_LEX *current_sel= thd->lex->current_select;
+  SELECT_LEX *current_sel= context->select_lex;
 
   if (set_properties_only)
   {
@@ -7869,8 +7982,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
   else if (!ref || ref == not_found_item)
   {
     DBUG_ASSERT(reference_trough_name != 0);
-    if (!(ref= resolve_ref_in_select_and_group(thd, this,
-                                               context->select_lex)))
+    if (!(ref= resolve_ref_in_select_and_group(thd, this, context->select_lex)))
       goto error;             /* Some error occurred (e.g. ambiguous names). */
 
     if (ref == not_found_item) /* This reference was not resolved. */
@@ -7883,8 +7995,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       if (unlikely(!outer_context))
       {
         /* The current reference cannot be resolved in this query. */
-        my_error(ER_BAD_FIELD_ERROR,MYF(0),
-                 this->full_name(), thd->where);
+        my_error(ER_BAD_FIELD_ERROR,MYF(0), full_name(), thd->where);
         goto error;
       }
 
@@ -8023,6 +8134,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
           max_arg_level for the function if it's needed.
         */
         if (thd->lex->in_sum_func &&
+            thd->lex == context->select_lex->parent_lex &&
             thd->lex->in_sum_func->nest_level >= 
             last_checked_context->select_lex->nest_level)
           set_if_bigger(thd->lex->in_sum_func->max_arg_level,
@@ -8046,6 +8158,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
         max_arg_level for the function if it's needed.
       */
       if (thd->lex->in_sum_func &&
+          thd->lex == context->select_lex->parent_lex &&
           thd->lex->in_sum_func->nest_level >= 
           last_checked_context->select_lex->nest_level)
         set_if_bigger(thd->lex->in_sum_func->max_arg_level,
@@ -9369,6 +9482,12 @@ bool Item_default_value::eq(const Item *item, bool binary_cmp) const
 }
 
 
+bool Item_default_value::check_field_expression_processor(void *)
+{
+  field->default_value= ((Item_field *)(arg->real_item()))->field->default_value;
+  return 0;
+}
+
 bool Item_default_value::fix_fields(THD *thd, Item **items)
 {
   Item *real_arg;
@@ -9410,7 +9529,6 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   }
   if (!(def_field= (Field*) thd->alloc(field_arg->field->size_of())))
     goto error;
-  cached_field= def_field;
   memcpy((void *)def_field, (void *)field_arg->field,
          field_arg->field->size_of());
   def_field->reset_fields();
@@ -9421,11 +9539,6 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
     uchar *newptr= (uchar*) thd->alloc(1+def_field->pack_length());
     if (!newptr)
       goto error;
-    /*
-      Even if DEFAULT() do not read tables fields, the default value
-      expression can do it.
-    */
-    fix_session_vcol_expr_for_read(thd, def_field, def_field->default_value);
     if (should_mark_column(thd->column_usage))
       def_field->default_value->expr->update_used_tables();
     def_field->move_field(newptr+1, def_field->maybe_null() ? newptr : 0, 1);
@@ -9444,8 +9557,7 @@ error:
 
 void Item_default_value::cleanup()
 {
-  delete cached_field;                        // Free cached blob data
-  cached_field= 0;
+  delete field;                        // Free cached blob data
   Item_field::cleanup();
 }
 
@@ -9520,6 +9632,12 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
   return Item_field::save_in_field(field_arg, no_conversions);
 }
 
+void Item_default_value::save_in_result_field(bool no_conversions)
+{
+  calculate();
+  Item_field::save_in_result_field(no_conversions);
+}
+
 double Item_default_value::val_result()
 {
   calculate();
@@ -9569,6 +9687,7 @@ bool Item_default_value::val_native_result(THD *thd, Native *to)
   return Item_field::val_native_result(thd, to);
 }
 
+
 table_map Item_default_value::used_tables() const
 {
   if (!field || !field->default_value)
@@ -9576,6 +9695,23 @@ table_map Item_default_value::used_tables() const
   if (!field->default_value->expr)           // not fully parsed field
     return static_cast<table_map>(RAND_TABLE_BIT);
   return field->default_value->expr->used_tables();
+}
+
+bool Item_default_value::register_field_in_read_map(void *arg)
+{
+  TABLE *table= (TABLE *) arg;
+  int res= 0;
+  if (!table || (table && table == field->table))
+  {
+    if (field->default_value && field->default_value->expr)
+      res= field->default_value->expr->walk(&Item::register_field_in_read_map,1,arg);
+  }
+  else if (result_field && table == result_field->table)
+  {
+    bitmap_set_bit(table->read_set, result_field->field_index);
+  }
+
+  return res;
 }
 
 /**

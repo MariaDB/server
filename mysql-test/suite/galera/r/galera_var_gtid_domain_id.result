@@ -89,6 +89,8 @@ connection node_2;
 set global wsrep_on=OFF;
 reset master;
 set global wsrep_on=ON;
+connection node_2;
+CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
 disconnect node_2;
 disconnect node_1;
 # End of test

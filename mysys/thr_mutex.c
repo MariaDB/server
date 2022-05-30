@@ -433,7 +433,7 @@ int safe_mutex_unlock(safe_mutex_t *mp,const char *file, uint line)
 
   remove_from_active_list(mp);
 
-#ifdef __WIN__
+#ifdef _WIN32
   pthread_mutex_unlock(&mp->mutex);
   error=0;
 #else
@@ -446,7 +446,7 @@ int safe_mutex_unlock(safe_mutex_t *mp,const char *file, uint line)
     fflush(stderr);
     abort();
   }
-#endif /* __WIN__ */
+#endif /* _WIN32 */
   pthread_mutex_unlock(&mp->global);
   return error;
 }
@@ -603,7 +603,7 @@ int safe_mutex_destroy(safe_mutex_t *mp, const char *file, uint line)
   /* Free all entries that points to this one */
   safe_mutex_free_deadlock_data(mp);
 
-#ifdef __WIN__ 
+#ifdef _WIN32 
   pthread_mutex_destroy(&mp->global);
   pthread_mutex_destroy(&mp->mutex);
 #else
@@ -611,7 +611,7 @@ int safe_mutex_destroy(safe_mutex_t *mp, const char *file, uint line)
     error=1;
   if (pthread_mutex_destroy(&mp->mutex))
     error=1;
-#endif /* __WIN__ */
+#endif /* _WIN32 */
   mp->file= 0;					/* Mark destroyed */
 
 #ifdef SAFE_MUTEX_DETECT_DESTROY

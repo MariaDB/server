@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1000,15 +1000,6 @@ struct dict_index_t {
 				representation we add more columns */
 	unsigned	nulls_equal:1;
 				/*!< if true, SQL NULL == SQL NULL */
-#ifdef BTR_CUR_HASH_ADAPT
-#ifdef MYSQL_INDEX_DISABLE_AHI
- 	unsigned	disable_ahi:1;
-				/*!< whether to disable the
-				adaptive hash index.
-				Maybe this could be disabled for
-				temporary tables? */
-#endif
-#endif /* BTR_CUR_HASH_ADAPT */
 	unsigned	n_uniq:10;/*!< number of fields from the beginning
 				which are enough to determine an index
 				entry uniquely */
@@ -1035,8 +1026,7 @@ struct dict_index_t {
 				/*!< enum online_index_status.
 				Transitions from ONLINE_INDEX_COMPLETE (to
 				ONLINE_INDEX_CREATION) are protected
-				by dict_sys.latch and
-				dict_sys.mutex. Other changes are
+				by dict_sys.latch. Other changes are
 				protected by index->lock. */
 	unsigned	uncommitted:1;
 				/*!< a flag that is set for secondary indexes
@@ -1194,6 +1184,9 @@ public:
 	/** @return whether this is the change buffer */
 	bool is_ibuf() const { return UNIV_UNLIKELY(type & DICT_IBUF); }
 
+	/** @return whether this index requires locking */
+	bool has_locking() const { return !is_ibuf(); }
+
 	/** @return whether the index includes virtual columns */
 	bool has_virtual() const { return type & DICT_VIRTUAL; }
 
@@ -1310,8 +1303,9 @@ public:
   ulint get_new_n_vcol() const
   { return new_vcol_info ? new_vcol_info->n_v_col : 0; }
 
-  /** Reconstruct the clustered index fields. */
-  inline void reconstruct_fields();
+  /** Reconstruct the clustered index fields.
+  @return whether metadata is incorrect */
+  inline bool reconstruct_fields();
 
   /** Check if the index contains a column or a prefix of that column.
   @param[in]	n		column number
@@ -1408,6 +1402,20 @@ public:
   rollback of TRX_UNDO_EMPTY. The BTR_SEG_LEAF is freed and reinitialized.
   @param thr query thread */
   void clear(que_thr_t *thr);
+
+  /** Check whether the online log is dummy value to indicate
+  whether table undergoes active DDL.
+  @retval true if online log is dummy value */
+  bool online_log_is_dummy() const
+  {
+    return online_log == reinterpret_cast<const row_log_t*>(this);
+  }
+
+  /** Assign clustered index online log to dummy value */
+  void online_log_make_dummy()
+  {
+    online_log= reinterpret_cast<row_log_t*>(this);
+  }
 };
 
 /** Detach a virtual column from an index.
@@ -1532,24 +1540,6 @@ struct dict_foreign_with_index {
 
 	const dict_index_t*	m_index;
 };
-
-#ifdef WITH_WSREP
-/** A function object to find a foreign key with the given index as the
-foreign index. Return the foreign key with matching criteria or NULL */
-struct dict_foreign_with_foreign_index {
-
-	dict_foreign_with_foreign_index(const dict_index_t*	index)
-	: m_index(index)
-	{}
-
-	bool operator()(const dict_foreign_t*	foreign) const
-	{
-		return(foreign->foreign_index == m_index);
-	}
-
-	const dict_index_t*	m_index;
-};
-#endif
 
 /* A function object to check if the foreign constraint is between different
 tables.  Returns true if foreign key constraint is between different tables,
@@ -1958,37 +1948,20 @@ struct dict_table_t {
 		return versioned() && cols[vers_start].mtype == DATA_INT;
 	}
 
-	void inc_fk_checks()
-	{
-#ifdef UNIV_DEBUG
-		int32_t fk_checks=
-#endif
-		n_foreign_key_checks_running++;
-		ut_ad(fk_checks >= 0);
-	}
-	void dec_fk_checks()
-	{
-#ifdef UNIV_DEBUG
-		int32_t fk_checks=
-#endif
-		n_foreign_key_checks_running--;
-		ut_ad(fk_checks > 0);
-	}
-
 	/** For overflow fields returns potential max length stored inline */
 	inline size_t get_overflow_field_local_len() const;
 
-	/** Parse the table file name into table name and database name.
-	@tparam		dict_locked	whether dict_sys.mutex is being held
-	@param[in,out]	db_name		database name buffer
-	@param[in,out]	tbl_name	table name buffer
-	@param[out]	db_name_len	database name length
-	@param[out]	tbl_name_len	table name length
-	@return whether the table name is visible to SQL */
-	template<bool dict_locked= false>
-	bool parse_name(char (&db_name)[NAME_LEN + 1],
-			char (&tbl_name)[NAME_LEN + 1],
-			size_t *db_name_len, size_t *tbl_name_len) const;
+  /** Parse the table file name into table name and database name.
+  @tparam        dict_frozen  whether the caller holds dict_sys.latch
+  @param[in,out] db_name      database name buffer
+  @param[in,out] tbl_name     table name buffer
+  @param[out] db_name_len     database name length
+  @param[out] tbl_name_len    table name length
+  @return whether the table name is visible to SQL */
+  template<bool dict_frozen= false>
+  bool parse_name(char (&db_name)[NAME_LEN + 1],
+                  char (&tbl_name)[NAME_LEN + 1],
+                  size_t *db_name_len, size_t *tbl_name_len) const;
 
   /** Clear the table when rolling back TRX_UNDO_EMPTY */
   void clear(que_thr_t *thr);
@@ -1996,10 +1969,10 @@ struct dict_table_t {
 #ifdef UNIV_DEBUG
   /** @return whether the current thread holds the lock_mutex */
   bool lock_mutex_is_owner() const
-  { return lock_mutex_owner == os_thread_get_curr_id(); }
+  { return lock_mutex_owner == pthread_self(); }
   /** @return whether the current thread holds the stats_mutex (lock_mutex) */
   bool stats_mutex_is_owner() const
-  { return lock_mutex_owner == os_thread_get_curr_id(); }
+  { return lock_mutex_owner == pthread_self(); }
 #endif /* UNIV_DEBUG */
   void lock_mutex_init() { lock_mutex.init(); }
   void lock_mutex_destroy() { lock_mutex.destroy(); }
@@ -2008,27 +1981,31 @@ struct dict_table_t {
   {
     ut_ad(!lock_mutex_is_owner());
     lock_mutex.wr_lock();
-    ut_ad(!lock_mutex_owner.exchange(os_thread_get_curr_id()));
+    ut_ad(!lock_mutex_owner.exchange(pthread_self()));
   }
   /** Try to acquire lock_mutex */
   bool lock_mutex_trylock()
   {
     ut_ad(!lock_mutex_is_owner());
     bool acquired= lock_mutex.wr_lock_try();
-    ut_ad(!acquired || !lock_mutex_owner.exchange(os_thread_get_curr_id()));
+    ut_ad(!acquired || !lock_mutex_owner.exchange(pthread_self()));
     return acquired;
   }
   /** Release lock_mutex */
   void lock_mutex_unlock()
   {
-    ut_ad(lock_mutex_owner.exchange(0) == os_thread_get_curr_id());
+    ut_ad(lock_mutex_owner.exchange(0) == pthread_self());
     lock_mutex.wr_unlock();
   }
+#ifndef SUX_LOCK_GENERIC
+  /** @return whether the lock mutex is held by some thread */
+  bool lock_mutex_is_locked() const noexcept { return lock_mutex.is_locked(); }
+#endif
 
   /* stats mutex lock currently defaults to lock_mutex but in the future,
   there could be a use-case to have separate mutex for stats.
-  extra indirection (through inline so no performance hit) should
-  help simplify code and increase long-term maintainability */
+  extra indirection (through inline so no performance hit) should
+  help simplify code and increase long-term maintainability */
   void stats_mutex_init() { lock_mutex_init(); }
   void stats_mutex_destroy() { lock_mutex_destroy(); }
   void stats_mutex_lock() { lock_mutex_lock(); }
@@ -2049,7 +2026,7 @@ public:
 	table_id_t				id;
 	/** dict_sys.id_hash chain node */
 	dict_table_t*				id_hash;
-	/** Table name. */
+	/** Table name in name_hash */
 	table_name_t				name;
 	/** dict_sys.name_hash chain node */
 	dict_table_t*				name_hash;
@@ -2099,12 +2076,6 @@ public:
 
 	/** TRUE if the table object has been added to the dictionary cache. */
 	unsigned				cached:1;
-
-	/** TRUE if the table is to be dropped, but not yet actually dropped
-	(could in the background drop list). It is turned on at the beginning
-	of row_drop_table_for_mysql() and turned off just before we start to
-	update system tables for the drop. It is protected by dict_sys.latch. */
-	unsigned				to_be_dropped:1;
 
 	/** Number of non-virtual columns defined so far. */
 	unsigned				n_def:10;
@@ -2183,7 +2154,8 @@ public:
 	UT_LIST_BASE_NODE_T(dict_index_t)	indexes;
 #ifdef BTR_CUR_HASH_ADAPT
 	/** List of detached indexes that are waiting to be freed along with
-	the last adaptive hash index entry */
+	the last adaptive hash index entry.
+	Protected by autoinc_mutex (sic!) */
 	UT_LIST_BASE_NODE_T(dict_index_t)	freed_indexes;
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -2202,11 +2174,6 @@ public:
 	loading child table into memory along with its parent table. */
 	byte					fk_max_recusive_level;
 
-	/** Count of how many foreign key check operations are currently being
-	performed on the table. We cannot drop the table while there are
-	foreign key checks running on it. */
-	Atomic_counter<int32_t>			n_foreign_key_checks_running;
-
   /** DDL transaction that last touched the table definition, or 0 if
   no history is available. This includes possible changes in
   ha_innobase::prepare_inplace_alter_table() and
@@ -2219,6 +2186,11 @@ public:
   an empty leaf page), and an ahi_latch (if btr_search_enabled). */
   Atomic_relaxed<trx_id_t> bulk_trx_id;
 
+  /** Original table name, for MDL acquisition in purge. Normally,
+  this points to the same as name. When is_temporary_name(name.m_name) holds,
+  this should be a copy of the original table name, allocated from heap. */
+  table_name_t mdl_name;
+
 	/*!< set of foreign key constraints in the table; these refer to
 	columns in other tables */
 	dict_foreign_set			foreign_set;
@@ -2227,7 +2199,7 @@ public:
 	dict_foreign_set			referenced_set;
 
 	/** Statistics for query optimization. Mostly protected by
-	dict_sys.mutex. @{ */
+	dict_sys.latch and stats_mutex_lock(). @{ */
 
 	/** TRUE if statistics have been calculated the first time after
 	database startup or table creation. */
@@ -2294,24 +2266,6 @@ public:
 	any latch, because this is only used for heuristics. */
 	ib_uint64_t				stat_modified_counter;
 
-	/** Background stats thread is not working on this table. */
-	#define BG_STAT_NONE			0
-
-	/** Set in 'stats_bg_flag' when the background stats code is working
-	on this table. The DROP TABLE code waits for this to be cleared before
-	proceeding. */
-	#define BG_STAT_IN_PROGRESS		(1 << 0)
-
-	/** Set in 'stats_bg_flag' when DROP TABLE starts waiting on
-	BG_STAT_IN_PROGRESS to be cleared. The background stats thread will
-	detect this and will eventually quit sooner. */
-	#define BG_STAT_SHOULD_QUIT		(1 << 1)
-
-	/** The state of the background stats thread wrt this table.
-	See BG_STAT_NONE, BG_STAT_IN_PROGRESS and BG_STAT_SHOULD_QUIT.
-	Writes are covered by dict_sys.mutex. Dirty reads are possible. */
-	byte					stats_bg_flag;
-
 	bool		stats_error_printed;
 				/*!< Has persistent stats error beein
 				already printed for this table ? */
@@ -2335,14 +2289,14 @@ public:
 	from a select. */
 	lock_t*					autoinc_lock;
 
-  /** Mutex protecting autoinc. */
-  srw_mutex autoinc_mutex;
+  /** Mutex protecting autoinc and freed_indexes. */
+  srw_spin_mutex autoinc_mutex;
 private:
   /** Mutex protecting locks on this table. */
-  srw_mutex lock_mutex;
+  srw_spin_mutex lock_mutex;
 #ifdef UNIV_DEBUG
   /** The owner of lock_mutex (0 if none) */
-  Atomic_relaxed<os_thread_id_t> lock_mutex_owner{0};
+  Atomic_relaxed<pthread_t> lock_mutex_owner{0};
 #endif
 public:
   /** Autoinc counter value to give to the next inserted row. */
@@ -2384,7 +2338,6 @@ public:
   lock_sys.assert_locked(page_id) and trx->mutex_is_owner() hold.
   @see trx_lock_t::trx_locks */
   Atomic_counter<uint32_t> n_rec_locks;
-
 private:
   /** Count of how many handles are opened to this table. Dropping of the
   table is NOT allowed until this count gets to zero. MySQL does NOT
@@ -2424,9 +2377,15 @@ public:
     return false;
   }
 
+  /** @return whether a DDL operation is in progress on this table */
+  bool is_active_ddl() const
+  {
+    return UT_LIST_GET_FIRST(indexes)->online_log;
+  }
+
   /** @return whether the name is
   mysql.innodb_index_stats or mysql.innodb_table_stats */
-  inline bool is_stats_table() const;
+  bool is_stats_table() const;
 
   /** Create metadata.
   @param name     table name
@@ -2439,9 +2398,6 @@ public:
   static dict_table_t *create(const span<const char> &name, fil_space_t *space,
                               ulint n_cols, ulint n_v_cols, ulint flags,
                               ulint flags2);
-
-  /** @return whether SYS_TABLES.NAME is for a '#sql-ib' table */
-  static bool is_garbage_name(const void *data, size_t size);
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const
@@ -2534,7 +2490,7 @@ inline void dict_index_t::clear_instant_alter()
 			      { return a.col->ind < b.col->ind; });
 	table->instant = NULL;
 	if (ai_col) {
-		auto a = std::find_if(begin, end,
+		auto a = std::find_if(fields, end,
 				      [ai_col](const dict_field_t& f)
 				      { return f.col == ai_col; });
 		table->persistent_autoinc = (a == end)
@@ -2617,6 +2573,6 @@ inline void dict_stats_empty_defrag_stats(dict_index_t* index)
 	index->stat_defrag_n_page_split = 0;
 }
 
-#include "dict0mem.ic"
+#include "dict0mem.inl"
 
 #endif /* dict0mem_h */

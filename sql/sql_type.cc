@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2015, 2020, MariaDB
+   Copyright (c) 2015, 2021, MariaDB
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -1089,6 +1089,13 @@ Datetime::Datetime(THD *thd, int *warn, const MYSQL_TIME *from,
   DBUG_ASSERT(is_valid_value_slow());
 }
 
+Datetime::Datetime(my_time_t unix_time, ulong second_part_arg,
+                   const Time_zone* time_zone)
+{
+  time_zone->gmt_sec_to_TIME(this, unix_time);
+  second_part= second_part_arg;
+}
+
 
 bool Temporal::datetime_add_nanoseconds_or_invalidate(THD *thd, int *warn, ulong nsec)
 {
@@ -1754,16 +1761,21 @@ const Type_handler *Type_handler_typelib::cast_to_int_type_handler() const
 bool
 Type_handler_hybrid_field_type::aggregate_for_result(const Type_handler *other)
 {
-  const Type_handler *hres;
-  const Type_collection *c;
-  if (!(c= Type_handler::type_collection_for_aggregation(m_type_handler, other)) ||
-      !(hres= c->aggregate_for_result(m_type_handler, other)))
-    hres= type_handler_data->
-            m_type_aggregator_for_result.find_handler(m_type_handler, other);
-  if (!hres)
-    return true;
-  m_type_handler= hres;
-  return false;
+  Type_handler_pair tp(m_type_handler, other);
+  do
+  {
+    const Type_handler *hres;
+    const Type_collection *c;
+    if (((c= Type_handler::type_collection_for_aggregation(tp.a(), tp.b())) &&
+         (hres= c->aggregate_for_result(tp.a(), tp.b()))) ||
+        (hres= type_handler_data->
+                m_type_aggregator_for_result.find_handler(tp.a(), tp.b())))
+    {
+      m_type_handler= hres;
+      return false;
+    }
+  } while (tp.to_base());
+  return true;
 }
 
 
@@ -1966,26 +1978,29 @@ Type_collection_std::aggregate_for_comparison(const Type_handler *ha,
 bool
 Type_handler_hybrid_field_type::aggregate_for_min_max(const Type_handler *h)
 {
-  const Type_handler *hres;
-  const Type_collection *c;
-  if (!(c= Type_handler::type_collection_for_aggregation(m_type_handler, h))||
-      !(hres= c->aggregate_for_min_max(m_type_handler, h)))
+  Type_handler_pair tp(m_type_handler, h);
+  do
   {
-    /*
-      For now we suppose that these two expressions:
-        - LEAST(type1, type2)
-        - COALESCE(type1, type2)
-      return the same data type (or both expressions return error)
-      if type1 and/or type2 are non-traditional.
-      This may change in the future.
-    */
-    hres= type_handler_data->
-            m_type_aggregator_for_result.find_handler(m_type_handler, h);
-  }
-  if (!hres)
-    return true;
-  m_type_handler= hres;
-  return false;
+    const Type_handler *hres;
+    const Type_collection *c;
+    if (((c= Type_handler::type_collection_for_aggregation(tp.a(), tp.b())) &&
+         (hres= c->aggregate_for_min_max(tp.a(), tp.b()))) ||
+        (hres= type_handler_data->
+                m_type_aggregator_for_result.find_handler(tp.a(), tp.b())))
+    {
+      /*
+        For now we suppose that these two expressions:
+          - LEAST(type1, type2)
+          - COALESCE(type1, type2)
+        return the same data type (or both expressions return error)
+        if type1 and/or type2 are non-traditional.
+        This may change in the future.
+      */
+      m_type_handler= hres;
+      return false;
+    }
+  } while (tp.to_base());
+  return true;
 }
 
 
@@ -2124,15 +2139,20 @@ Type_handler_hybrid_field_type::aggregate_for_num_op(const Type_aggregator *agg,
                                                      const Type_handler *h0,
                                                      const Type_handler *h1)
 {
-  const Type_handler *hres;
-  const Type_collection *c;
-  if (!(c= Type_handler::type_collection_for_aggregation(h0, h1)) ||
-      !(hres= c->aggregate_for_num_op(h0, h1)))
-    hres= agg->find_handler(h0, h1);
-  if (!hres)
-    return true;
-  m_type_handler= hres;
-  return false;
+  Type_handler_pair tp(h0, h1);
+  do
+  {
+    const Type_handler *hres;
+    const Type_collection *c;
+    if (((c= Type_handler::type_collection_for_aggregation(tp.a(), tp.b())) &&
+         (hres= c->aggregate_for_num_op(tp.a(), tp.b()))) ||
+        (hres= agg->find_handler(tp.a(), tp.b())))
+    {
+      m_type_handler= hres;
+      return false;
+    }
+  } while (tp.to_base());
+  return true;
 }
 
 
@@ -2275,7 +2295,6 @@ Type_handler_decimal_result::make_num_distinct_aggregator_field(
                                                             const Item *item)
                                                             const
 {
-  DBUG_ASSERT(item->decimals <= DECIMAL_MAX_SCALE);
   return new (mem_root)
          Field_new_decimal(NULL, item->max_length,
                            (uchar *) (item->maybe_null() ? "" : 0),
@@ -7522,7 +7541,7 @@ bool Type_handler::Item_send_timestamp(Item *item,
   if (native.is_null())
     return protocol->store_null();
   native.to_TIME(protocol->thd, &buf->value.m_time);
-  return protocol->store(&buf->value.m_time, item->decimals);
+  return protocol->store_datetime(&buf->value.m_time, item->decimals);
 }
 
 
@@ -7532,7 +7551,7 @@ bool Type_handler::
   item->get_date(protocol->thd, &buf->value.m_time,
                  Datetime::Options(protocol->thd));
   if (!item->null_value)
-    return protocol->store(&buf->value.m_time, item->decimals);
+    return protocol->store_datetime(&buf->value.m_time, item->decimals);
   return protocol->store_null();
 }
 
@@ -8153,7 +8172,7 @@ Field *Type_handler_longlong::
                             const Column_definition_attributes *attr,
                             uint32 flags) const
 {
-  if (flags & (VERS_SYS_START_FLAG|VERS_SYS_END_FLAG))
+  if (flags & (VERS_ROW_START|VERS_ROW_END))
     return new (mem_root)
       Field_vers_trx_id(rec.ptr(), (uint32) attr->length,
                         rec.null_ptr(), rec.null_bit(),
@@ -8754,7 +8773,7 @@ bool Type_handler_string_result::Item_eq_value(THD *thd,
 
 /***************************************************************************/
 
-bool Type_handler_string_result::union_element_finalize(const Item * item) const
+bool Type_handler_string_result::union_element_finalize(Item_type_holder* item) const
 {
   if (item->collation.derivation == DERIVATION_NONE)
   {
@@ -9048,6 +9067,12 @@ Type_handler_timestamp_common::Item_val_native_with_conversion(THD *thd,
   return
     item->get_date(thd, &ltime, Datetime::Options(TIME_NO_ZERO_IN_DATE, thd)) ||
     TIME_to_native(thd, &ltime, to, item->datetime_precision(thd));
+}
+
+bool Type_handler_null::union_element_finalize(Item_type_holder *item) const
+{
+  item->set_handler(&type_handler_string);
+  return false;
 }
 
 

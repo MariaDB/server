@@ -1,5 +1,7 @@
 call mtr.add_suppression("InnoDB: Table .*innodb_index_stats.* not found");
 call mtr.add_suppression("InnoDB: Fetch of persistent statistics requested for table .*");
+call mtr.add_suppression("InnoDB: Table mysql\\.innodb_index_stats has length mismatch in the column name stat_description\\. Please run mariadb-upgrade");
+call mtr.add_suppression("InnoDB: Column stat_description in table mysql\\.innodb_index_stats is VARCHAR");
 ALTER TABLE mysql.innodb_index_stats RENAME TO mysql.innodb_index_stats_;
 CREATE TABLE test_ps_create_on_corrupted
 (a INT, PRIMARY KEY (a))
@@ -17,6 +19,13 @@ avg_row_length	0
 max_data_length	0
 index_length	0
 ALTER TABLE mysql.innodb_index_stats_ RENAME TO mysql.innodb_index_stats;
+SET old_mode='';
+ALTER TABLE mysql.innodb_index_stats
+MODIFY stat_description VARCHAR(1024) COLLATE utf8_bin;
+CREATE TABLE t (a INT) ENGINE=InnoDB STATS_PERSISTENT=1;
+ALTER TABLE mysql.innodb_index_stats
+MODIFY stat_description VARCHAR(1024) COLLATE utf8mb3_bin NOT NULL;
+DROP TABLE t;
 # restart
 SELECT seq_in_index, column_name, cardinality
 FROM information_schema.statistics WHERE table_name = 'test_ps_create_on_corrupted'

@@ -1,0 +1,57 @@
+#
+# This test attempts to show that table admin commands
+# (OPTIMIZE / REPAIR / ANALYZE ...) on child table,
+# do NOT cause conflicts on parent table operations.
+# Contrary to what is said in MDEV-21577, which claimed
+# that OPTIMIZE and REPAIR do take MDL locks on parent
+# table.
+#
+# Should this test start failing due to a conflict
+# (i.e. ER_LOCK_DEADLOCK), then it might be that we
+# are missing additional keys for certification
+# on the corresponding table admin command.
+
+--source include/galera_cluster.inc
+
+--let $table_admin_command = OPTIMIZE
+--let $fk_constraint =
+--source galera_ddl_fk_no_conflict.inc
+--let $fk_constraint = ON UPDATE CASCADE
+--source galera_ddl_fk_no_conflict.inc
+--let $fk_constraint = ON DELETE CASCADE
+--source galera_ddl_fk_no_conflict.inc
+--let $fk_constraint = ON UPDATE CASCADE ON DELETE CASCADE
+--source galera_ddl_fk_no_conflict.inc
+
+
+--let $table_admin_command = REPAIR
+--let $fk_constraint =
+--source galera_ddl_fk_no_conflict.inc
+--let $fk_constraint = ON UPDATE CASCADE
+--source galera_ddl_fk_no_conflict.inc
+--let $fk_constraint = ON DELETE CASCADE
+--source galera_ddl_fk_no_conflict.inc
+--let $fk_constraint = ON UPDATE CASCADE ON DELETE CASCADE
+--source galera_ddl_fk_no_conflict.inc
+
+
+--let $table_admin_command = CHECK
+--let $fk_constraint =
+--source galera_ddl_fk_no_conflict.inc
+--let $fk_constraint = ON UPDATE CASCADE
+--source galera_ddl_fk_no_conflict.inc
+--let $fk_constraint = ON DELETE CASCADE
+--source galera_ddl_fk_no_conflict.inc
+--let $fk_constraint = ON UPDATE CASCADE ON DELETE CASCADE
+--source galera_ddl_fk_no_conflict.inc
+
+
+--let $table_admin_command = ANALYZE
+--let $fk_constraint =
+--source galera_ddl_fk_no_conflict.inc
+--let $fk_constraint = ON UPDATE CASCADE
+--source galera_ddl_fk_no_conflict.inc
+--let $fk_constraint = ON DELETE CASCADE
+--source galera_ddl_fk_no_conflict.inc
+--let $fk_constraint = ON UPDATE CASCADE ON DELETE CASCADE
+--source galera_ddl_fk_no_conflict.inc

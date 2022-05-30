@@ -17,7 +17,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 file_exists $MYSQLD_DATADIR/mysql_upgrade_info;
 
 --echo Run it again - should say already completed
---replace_regex /upgraded to .*, use/upgraded to VERSION, use/
+--replace_regex /upgraded to [^\n].*/upgraded to VERSION./ /again for [^\n]*/again for VERSION./
 --exec $MYSQL_UPGRADE 2>&1
 
 # It should have created a file in the MySQL Servers datadir
@@ -125,7 +125,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --remove_file $MYSQLD_DATADIR/mysql_upgrade_info
 
 --echo # Running mysql_upgrade with --skip-write-binlog..
---replace_result $MYSQLTEST_VARDIR var
+--replace_regex /[^ ]*mysql_upgrade_info/...mysql_upgrade_info/
 --exec $MYSQL_UPGRADE --skip-write-binlog
 
 # mysql_upgrade must have created mysql_upgrade_info file,
@@ -139,6 +139,9 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --echo Run mysql_upgrade with unauthorized access
 --error 1
 --exec $MYSQL_UPGRADE --skip-verbose --user=root --password=wrong_password 2>&1
+--replace_regex /.*mysqlcheck.*: Got/mysqlcheck: Got/ /\([0-9|-]*\)/(errno)/
+--error 1
+--exec $MYSQL_UPGRADE --skip-verbose --skip-version-check --user=root --password=wrong_password 2>&1
 
 --echo #
 --echo # MDEV-4332 Increase username length from 16 characters
@@ -232,6 +235,7 @@ FLUSH TABLES mysql.user;
 FLUSH PRIVILEGES;
 SHOW CREATE TABLE mysql.user;
 
+--replace_result $MYSQLTEST_VARDIR var
 --exec $MYSQL_UPGRADE --force 2>&1
 SHOW CREATE TABLE mysql.user;
 
@@ -276,6 +280,79 @@ SHOW GRANTS;
 DROP ROLE `aRole`;
 --exec $MYSQL mysql < $MYSQLTEST_VARDIR/tmp/user.sql
 FLUSH PRIVILEGES;
+
+--echo #
+--echo # MDEV-27279: mariadb_upgrade add --check-if-upgrade-is-needed
+--echo #
+
+--error 1
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --silent
+--replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB /
+--error 1
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed
+--replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB / /'mysql.* as:[^\n]*/'mysql' as: mysql/
+--error 1
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --verbose
+
+--echo #
+--echo # MDEV-27279: mariadb_upgrade check-if-upgrade absence is do it
+--echo #
+
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+--replace_regex /[^ ]*mysql_upgrade_info/...mysql_upgrade_info/
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed
+
+--replace_regex /'mysql.* as:[^\n]*/'mysql' as: mysql/ /open .* Assuming/open XXX. Assuming/ /[^ ]*mysql_upgrade_info/...mysql_upgrade_info/
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --verbose
+
+--echo #
+--echo # MDEV-27279: mariadb_upgrade check-if-upgrade with minor version change
+--echo #
+
+# take 3rd number of version and change to 0
+
+let DATADIR= $MYSQLD_DATADIR;
+
+perl;
+  my $ver= $ENV{'MYSQL_SERVER_VERSION'} or die "MYSQL_SERVER_VERSION not set";
+  my $file= $ENV{'DATADIR'} or die "MYSQLD_DATADIR not set";
+  $ver =~ s/^(\d*)\.(\d*).(\d*)(.*)/$1.$2.0$4/;
+  open(FILE, ">$file/mysql_upgrade_info") or die "Failed to open $file";
+  print FILE "$ver\n";
+  close(FILE);
+EOF
+
+--error 1
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --silent
+--replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB / /'mysql.* as:[^\n]*/'mysql' as: mysql/
+--error 1
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --verbose
+--replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB /
+--exec $MYSQL_UPGRADE
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+--echo #
+--echo # MDEV-27279: mariadb_upgrade check-if-upgrade with major version change
+--echo #
+
+# take 2rd number of version and change to 0
+
+let DATADIR= $MYSQLD_DATADIR;
+
+perl;
+  my $ver= $ENV{'MYSQL_SERVER_VERSION'} or die "MYSQL_SERVER_VERSION not set";
+  my $file= $ENV{'DATADIR'} or die "MYSQLD_DATADIR not set";
+  $ver =~ s/^(\d*)\.(\d*).(\d*)(.*)/$1.0.$3$4/;
+  open(FILE, ">$file/mysql_upgrade_info") or die "Failed to open $file";
+  print FILE "$ver\n";
+  close(FILE);
+EOF
+
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --silent
+--replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB /
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed
+--replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB / /'mysql.* as:[^\n]*/'mysql' as: mysql/
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --verbose
 --remove_file $MYSQLD_DATADIR/mysql_upgrade_info
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
@@ -356,6 +433,44 @@ select count(*) from mysql.global_priv;
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
 
+#
+# MDEV-26363 Former mysql-5.7 tables have password_last_changed to 0
+#            on MariaDB updates, resulting in mysql_upgrade leaving them
+#            with password expired.
+#
+
+--echo #
+--echo # Ensure that mysql_upgrade accounted for 0 password_last_changed
+--echo # and doesn't PASSWORD EXPIRE a user account because < 10.4 zeroed it.
+--echo #
+
+--source include/switch_to_mysql_user.inc
+drop view mysql.user_bak;
+drop table mysql.user;
+truncate table mysql.tables_priv;
+--copy_file std_data/mysql57user.frm $MYSQLD_DATADIR/mysql/user.frm
+--copy_file std_data/mysql57user.MYI $MYSQLD_DATADIR/mysql/user.MYI
+--copy_file std_data/mysql57user.MYD $MYSQLD_DATADIR/mysql/user.MYD
+FLUSH TABLES mysql.user;
+FLUSH PRIVILEGES;
+
+CREATE USER mariadb_102;
+# manually set the value like <10.4 previously did for testing mysql_upgrade.
+UPDATE mysql.user SET password_last_changed=0 WHERE user='mariadb_102';
+FLUSH PRIVILEGES;
+
+--exec $MYSQL_UPGRADE --force 2>&1
+# Should not have "PASSWORD EXPIRED"
+SHOW CREATE USER mariadb_102;
+connect con1,localhost,mariadb_102;
+select current_user();
+disconnect con1;
+connection default;
+
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
 --echo # End of 10.4 tests
 
 #
@@ -367,7 +482,7 @@ rename table mysql.global_priv_bak to mysql.global_priv;
 --echo #
 
 # The warning appears during mysql_upgrade, before the schema becomes consistent
-call mtr.add_suppression("innodb_table_stats has length mismatch in the column name table_name");
+call mtr.add_suppression("innodb_(table|index)_stats has length mismatch in the column name table_name");
 # This comes from opening 10.6 sys.host_summary view that uses sys.format_time function,
 # on still inconsistent mysql.proc, in older versions
 call mtr.add_suppression("Column count of mysql.proc is wrong. Expected 21, found 20.");

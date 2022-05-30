@@ -1,5 +1,8 @@
 --source include/have_innodb.inc
 
+call mtr.add_suppression("Index for table 'tab' is corrupt; try to repair it");
+
+
 SET @row_format = @@GLOBAL.innodb_default_row_format;
 
 # set the variables
@@ -46,16 +49,15 @@ CREATE TABLE tab(a INT) ENGINE=InnoDB;
 # Remove the *.ibd file
 ALTER TABLE tab DISCARD TABLESPACE;
 
-# Move the *.ibd,*.cfg file into orginal location
+# Move the *.ibd,*.cfg file into original location
 --move_file $MYSQLD_DATADIR/tab.cfg $MYSQLD_DATADIR/test/tab.cfg
 --move_file $MYSQLD_DATADIR/tab.ibd $MYSQLD_DATADIR/test/tab.ibd
 
 --error ER_TABLE_SCHEMA_MISMATCH
 ALTER TABLE tab IMPORT TABLESPACE;
 
-# Take the backup of the ibd and cfg files
---copy_file $MYSQLD_DATADIR/test/tab.cfg $MYSQLD_DATADIR/tab.cfg
---copy_file $MYSQLD_DATADIR/test/tab.ibd $MYSQLD_DATADIR/tab.ibd
+--move_file $MYSQLD_DATADIR/test/tab.cfg $MYSQLD_DATADIR/tab.cfg
+--move_file $MYSQLD_DATADIR/test/tab.ibd $MYSQLD_DATADIR/tab.ibd
 
 # Cleanup
 DROP TABLE tab;
@@ -79,7 +81,7 @@ ALTER TABLE tab DISCARD TABLESPACE;
 
 call mtr.add_suppression("InnoDB: Tried to read .* bytes at offset 0");
 
---error ER_INTERNAL_ERROR
+--error ER_NOT_KEYFILE
 ALTER TABLE tab IMPORT TABLESPACE;
 --remove_file $MYSQLD_DATADIR/test/tab.ibd
 --move_file $MYSQLD_DATADIR/tab.ibd $MYSQLD_DATADIR/test/tab.ibd

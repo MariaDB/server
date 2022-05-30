@@ -4,14 +4,14 @@ OPTIMIZER_TRACE	QUERY
 OPTIMIZER_TRACE	TRACE
 OPTIMIZER_TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE
 OPTIMIZER_TRACE	INSUFFICIENT_PRIVILEGES
-show variables like 'optimizer_trace';
-Variable_name	Value
-optimizer_trace	enabled=off
 set optimizer_trace="enabled=on";
 show variables like 'optimizer_trace';
 Variable_name	Value
 optimizer_trace	enabled=on
 set optimizer_trace="enabled=off";
+show variables like 'optimizer_trace';
+Variable_name	Value
+optimizer_trace	enabled=off
 create table t1 (a int, b int);
 insert into t1 values (1,2),(2,3);
 create table t2 (b int);
@@ -145,8 +145,7 @@ select * from v1	{
                   }
                 },
                 "rows_for_plan": 1,
-                "cost_for_plan": 2.404394531,
-                "estimated_join_cardinality": 1
+                "cost_for_plan": 2.404394531
               }
             ]
           },
@@ -296,8 +295,7 @@ select * from (select * from t1 where t1.a=1)q	{
                   }
                 },
                 "rows_for_plan": 1,
-                "cost_for_plan": 2.404394531,
-                "estimated_join_cardinality": 1
+                "cost_for_plan": 2.404394531
               }
             ]
           },
@@ -454,8 +452,7 @@ select * from v2	{
                       },
                       "rows_for_plan": 1,
                       "cost_for_plan": 2.404394531,
-                      "cost_for_sorting": 1,
-                      "estimated_join_cardinality": 1
+                      "cost_for_sorting": 1
                     }
                   ]
                 },
@@ -525,8 +522,7 @@ select * from v2	{
                   }
                 },
                 "rows_for_plan": 2,
-                "cost_for_plan": 2.4,
-                "estimated_join_cardinality": 2
+                "cost_for_plan": 2.4
               }
             ]
           },
@@ -585,7 +581,6 @@ create view v2 as select a from t2;
 explain select * from v2 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	
-select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from v2	{
   "steps": [
@@ -663,8 +658,7 @@ explain select * from v2	{
                   }
                 },
                 "rows_for_plan": 10,
-                "cost_for_plan": 4.021972656,
-                "estimated_join_cardinality": 10
+                "cost_for_plan": 4.021972656
               }
             ]
           },
@@ -698,7 +692,6 @@ explain select * from v1 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
-select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from v1	{
   "steps": [
@@ -782,8 +775,7 @@ explain select * from v1	{
                       },
                       "rows_for_plan": 10,
                       "cost_for_plan": 4.021972656,
-                      "cost_for_sorting": 10,
-                      "estimated_join_cardinality": 10
+                      "cost_for_sorting": 10
                     }
                   ]
                 },
@@ -847,8 +839,7 @@ explain select * from v1	{
                   }
                 },
                 "rows_for_plan": 10,
-                "cost_for_plan": 12,
-                "estimated_join_cardinality": 10
+                "cost_for_plan": 12
               }
             ]
           },
@@ -1049,7 +1040,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                     },
                     "rows_for_plan": 100,
                     "cost_for_plan": 242.3759623,
-                    "estimated_join_cardinality": 100
+                    "pruned_by_hanging_leaf": true
                   }
                 ]
               },
@@ -1280,8 +1271,7 @@ EXPLAIN SELECT DISTINCT a FROM t1	{
                   }
                 },
                 "rows_for_plan": 5,
-                "cost_for_plan": 7.25,
-                "estimated_join_cardinality": 5
+                "cost_for_plan": 7.25
               }
             ]
           },
@@ -1472,8 +1462,7 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                 },
                 "rows_for_plan": 8,
                 "cost_for_plan": 3.8,
-                "cost_for_sorting": 8,
-                "estimated_join_cardinality": 8
+                "cost_for_sorting": 8
               }
             ]
           },
@@ -1671,8 +1660,7 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
                 },
                 "rows_for_plan": 9,
                 "cost_for_plan": 4.15,
-                "cost_for_sorting": 9,
-                "estimated_join_cardinality": 9
+                "cost_for_sorting": 9
               }
             ]
           },
@@ -1859,8 +1847,7 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
                 },
                 "rows_for_plan": 9,
                 "cost_for_plan": 4.15,
-                "cost_for_sorting": 9,
-                "estimated_join_cardinality": 9
+                "cost_for_sorting": 9
               }
             ]
           },
@@ -2142,8 +2129,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   }
                 },
                 "rows_for_plan": 21,
-                "cost_for_plan": 25.34242739,
-                "estimated_join_cardinality": 21
+                "cost_for_plan": 25.34242739
               }
             ]
           },
@@ -2394,8 +2380,7 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
                   }
                 },
                 "rows_for_plan": 4,
-                "cost_for_plan": 2.806835937,
-                "estimated_join_cardinality": 4
+                "cost_for_plan": 2.806835937
               }
             ]
           },
@@ -2409,7 +2394,8 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
             }
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -2562,7 +2548,7 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
                     },
                     "rows_for_plan": 4,
                     "cost_for_plan": 7.606835937,
-                    "estimated_join_cardinality": 4
+                    "pruned_by_hanging_leaf": true
                   }
                 ]
               }
@@ -2585,7 +2571,8 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
             }
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -2740,8 +2727,7 @@ explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
                   }
                 },
                 "rows_for_plan": 4,
-                "cost_for_plan": 2.806835937,
-                "estimated_join_cardinality": 4
+                "cost_for_plan": 2.806835937
               }
             ]
           },
@@ -2755,7 +2741,8 @@ explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
             }
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -2947,8 +2934,7 @@ explain extended select * from t1 where a in (select pk from t10)	{
                         }
                       },
                       "rows_for_plan": 10,
-                      "cost_for_plan": 4.021972656,
-                      "estimated_join_cardinality": 10
+                      "cost_for_plan": 4.021972656
                     }
                   ]
                 }
@@ -3020,8 +3006,7 @@ explain extended select * from t1 where a in (select pk from t10)	{
                       {
                         "chosen_strategy": "SJ-Materialization"
                       }
-                    ],
-                    "estimated_join_cardinality": 3
+                    ]
                   }
                 ]
               },
@@ -3073,7 +3058,8 @@ explain extended select * from t1 where a in (select pk from t10)	{
             }
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -3425,7 +3411,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                 },
                 "rows_for_plan": 1,
                 "cost_for_plan": 0.326073957,
-                "estimated_join_cardinality": 1
+                "pruned_by_hanging_leaf": true
               }
             ]
           },
@@ -3553,8 +3539,7 @@ select f1(a) from t1	{
                   }
                 },
                 "rows_for_plan": 4,
-                "cost_for_plan": 2.806835937,
-                "estimated_join_cardinality": 4
+                "cost_for_plan": 2.806835937
               }
             ]
           },
@@ -3650,8 +3635,7 @@ select f2(a) from t1	{
                   }
                 },
                 "rows_for_plan": 4,
-                "cost_for_plan": 2.806835937,
-                "estimated_join_cardinality": 4
+                "cost_for_plan": 2.806835937
               }
             ]
           },
@@ -3697,7 +3681,7 @@ a
 2
 select length(trace) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 length(trace)
-2141
+2092
 set optimizer_trace_max_mem_size=100;
 select * from t1;
 a
@@ -3711,7 +3695,7 @@ select * from t1	{
       "join_preparation": {
         "select_id": 1,
         "steps": [
-        	2041	0
+        	1992	0
 set optimizer_trace_max_mem_size=0;
 select * from t1;
 a
@@ -3719,7 +3703,7 @@ a
 2
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
-select * from t1		2141	0
+select * from t1		2092	0
 drop table t1;
 set optimizer_trace='enabled=off';
 set @@optimizer_trace_max_mem_size= @save_optimizer_trace_max_mem_size;
@@ -4062,7 +4046,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                     },
                     "rows_for_plan": 3,
                     "cost_for_plan": 4.948514767,
-                    "estimated_join_cardinality": 3
+                    "pruned_by_hanging_leaf": true
                   }
                 ]
               },
@@ -4261,8 +4245,7 @@ explain select * from (select rand() from t1)q	{
                         }
                       },
                       "rows_for_plan": 3,
-                      "cost_for_plan": 2.605126953,
-                      "estimated_join_cardinality": 3
+                      "cost_for_plan": 2.605126953
                     }
                   ]
                 },
@@ -4326,8 +4309,7 @@ explain select * from (select rand() from t1)q	{
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 3.6,
-                "estimated_join_cardinality": 3
+                "cost_for_plan": 3.6
               }
             ]
           },
@@ -4555,8 +4537,7 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                             }
                           },
                           "rows_for_plan": 9,
-                          "cost_for_plan": 6.410253906,
-                          "estimated_join_cardinality": 9
+                          "cost_for_plan": 6.410253906
                         }
                       ]
                     },
@@ -4676,8 +4657,7 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                           {
                             "chosen_strategy": "SJ-Materialization"
                           }
-                        ],
-                        "estimated_join_cardinality": 3
+                        ]
                       }
                     ]
                   },
@@ -4782,7 +4762,8 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
             }
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -5219,8 +5200,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       {
                                         "chosen_strategy": "DuplicateWeedout"
                                       }
-                                    ],
-                                    "estimated_join_cardinality": 27
+                                    ]
                                   }
                                 ]
                               },
@@ -5342,8 +5322,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       {
                                         "chosen_strategy": "DuplicateWeedout"
                                       }
-                                    ],
-                                    "estimated_join_cardinality": 27
+                                    ]
                                   }
                                 ]
                               },
@@ -6664,8 +6643,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             }
                           },
                           "rows_for_plan": 27,
-                          "cost_for_plan": 10.02050781,
-                          "estimated_join_cardinality": 27
+                          "cost_for_plan": 10.02050781
                         }
                       ]
                     },
@@ -6738,8 +6716,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             }
                           },
                           "rows_for_plan": 27,
-                          "cost_for_plan": 10.02050781,
-                          "estimated_join_cardinality": 27
+                          "cost_for_plan": 10.02050781
                         }
                       ]
                     },
@@ -6958,8 +6935,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       {
                                         "chosen_strategy": "SJ-Materialization"
                                       }
-                                    ],
-                                    "estimated_join_cardinality": 27
+                                    ]
                                   }
                                 ]
                               },
@@ -7438,7 +7414,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             }
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -8120,8 +8097,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                         }
                     },
                     "rows_for_plan": 4777.832031,
-                    "cost_for_plan": 1216.438354,
-                    "estimated_join_cardinality": 4777.832031
+                    "cost_for_plan": 1216.438354
                 }
             ]
         },
@@ -8462,7 +8438,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                     "rows_for_plan": 10,
                     "cost_for_plan": 26.0278306,
                     "cost_for_sorting": 10,
-                    "estimated_join_cardinality": 10
+                    "pruned_by_hanging_leaf": true
                 }
             ]
         },
@@ -8668,6 +8644,50 @@ select count(*) from information_schema.optimizer_trace;
 select * from information_schema.optimizer_trace;
 set max_session_mem_used=default;
 #
+# MDEV-22380 Assertion `name.length == strlen(name.str)' failed in Item::print_item_w_name on SELECT w/ optimizer_trace enabled
+#
+SET optimizer_trace="enabled=on";
+SELECT 'a\0' LIMIT 0;
+a\x00
+SELECT query, trace FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+query	trace
+SELECT 'a\0' LIMIT 0	{
+  "steps": [
+    {
+      "join_preparation": {
+        "select_id": 1,
+        "steps": [
+          {
+            "expanded_query": "select 'a\0' AS `a\x00` limit 0"
+          }
+        ]
+      }
+    },
+    {
+      "join_optimization": {
+        "select_id": 1,
+        "steps": []
+      }
+    },
+    {
+      "join_execution": {
+        "select_id": 1,
+        "steps": []
+      }
+    }
+  ]
+}
+SET optimizer_trace=DEFAULT;
+#
+# MDEV-27238: Assertion `got_name == named_item_expected()' failed in Json_writer::on_start_object
+#
+CREATE TABLE t1 (a INT KEY,b INT,KEY(b)) ENGINE=MEMORY;
+SET optimizer_trace=1;
+INSERT INTO t1 VALUES (0,0);
+SELECT a FROM t1 WHERE (a,b) in (SELECT @c,@d);
+a
+DROP TABLE t1;
+#
 # End of 10.4 tests
 #
 set optimizer_trace='enabled=on';
@@ -8738,8 +8758,7 @@ select count(*) from seq_1_to_10000000	{
                   }
                 },
                 "rows_for_plan": 10000000,
-                "cost_for_plan": 12000000,
-                "estimated_join_cardinality": 10000000
+                "cost_for_plan": 12000000
               }
             ]
           },
@@ -9154,8 +9173,7 @@ json_detailed(json_extract(trace, '$**.choose_best_splitting'))
                     },
                     "rows_for_plan": 1.8367,
                     "cost_for_plan": 2.367925794,
-                    "cost_for_sorting": 1.8367,
-                    "estimated_join_cardinality": 1.8367
+                    "cost_for_sorting": 1.8367
                 }
             ]
         },
@@ -9213,5 +9231,22 @@ json_detailed(json_extract(trace, '$**.best_join_order'))
     ]
 ]
 DROP TABLE t1;
+#
+# MDEV-27306: SET STATEMENT optimizer_trace=1 Doesn't save the trace
+#
+set optimizer_trace=0;
+set statement optimizer_trace=1 for select * from seq_1_to_10 where seq<2;
+seq
+1
+# The trace must not be empty:
+select left(trace, 100) from information_schema.optimizer_trace;
+left(trace, 100)
+{
+  "steps": [
+    {
+      "join_preparation": {
+        "select_id": 1,
+        "steps": [
+        
 # End of 10.6 tests
 set optimizer_trace='enabled=off';

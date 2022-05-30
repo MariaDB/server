@@ -1716,18 +1716,6 @@ drop view v1;
 drop table t1;
 
 #
-# using encrypt & substring_index in view (Bug#7024)
-#
-CREATE VIEW v1 AS SELECT ENCRYPT("dhgdhgd");
-disable_result_log;
-SELECT * FROM v1;
-enable_result_log;
-drop view v1;
-CREATE VIEW v1 AS SELECT SUBSTRING_INDEX("dkjhgd:kjhdjh", ":", 1);
-SELECT * FROM v1;
-drop view v1;
-
-#
 # hide underlying tables names in case of imposibility to update (Bug#10773)
 #
 create table t1 (f59 int, f60 int, f61 int);
@@ -2292,6 +2280,7 @@ CREATE VIEW v1 AS SELECT 42 AS Meaning;
 DROP FUNCTION IF EXISTS f1;
 --enable_warnings
 DELIMITER //;
+--enable_prepare_warnings
 CREATE FUNCTION f1() RETURNS INTEGER
 BEGIN
   DECLARE retn INTEGER;
@@ -2300,6 +2289,7 @@ BEGIN
 END
 //
 DELIMITER ;//
+--disable_prepare_warnings
 CREATE VIEW v2 AS SELECT f1();
 select * from v2;
 drop view v2,v1;
@@ -2476,6 +2466,7 @@ drop view t1, v1;
 # using SP function
 create table t1 (a int);
 delimiter //;
+--enable_prepare_warnings
 create function f1() returns int
 begin
   declare mx int;
@@ -2483,6 +2474,7 @@ begin
   return mx;
 end//
 delimiter ;//
+--disable_prepare_warnings
 create view v1 as select f1() as a;
 create view v2 as select * from v1;
 drop table t1;
@@ -3081,7 +3073,9 @@ create view v1 as select * from t1 order by f2;
 select * from v1;
 explain extended select * from v1;
 select * from v1 order by f1;
+--enable_prepare_warnings
 explain extended select * from v1 order by f1;
+--disable_prepare_warnings
 drop view v1;
 drop table t1;
 
@@ -3115,12 +3109,13 @@ DROP VIEW IF EXISTS v1;
 
 let $query = SELECT * FROM (SELECT 1) AS t into @w;
 
+--enable_prepare_warnings
 eval $query;
 --error ER_PARSE_ERROR
 eval CREATE VIEW v1 AS $query;
 --echo # Previously the following would fail.
 eval $query;
-
+--disable_prepare_warnings
 
 #
 # Bug#24532 The return data type of IS TRUE is different from similar operations
@@ -3883,11 +3878,13 @@ CREATE TABLE t1 (a INT);
 CREATE TABLE t2 (a INT);
 
 delimiter //;
+--enable_prepare_warnings
 CREATE FUNCTION f1() RETURNS INT
 BEGIN
   SELECT a FROM v2 INTO @a;
   RETURN @a;
 END//
+--disable_prepare_warnings
 delimiter ;//
 
 --echo # Trigger pre-locking when opening v2.
@@ -4421,7 +4418,9 @@ CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT f1 FROM t1;
 CREATE ALGORITHM=MERGE VIEW v2 AS SELECT f1 FROM v1 ORDER BY f1;
 
 SELECT * FROM v2 AS a1, v2 AS a2;
+--enable_prepare_warnings
 EXPLAIN EXTENDED SELECT * FROM v2 AS a1, v2 AS a2;
+--disable_prepare_warnings
 
 DROP VIEW v1, v2;
 DROP TABLE t1;
@@ -6501,6 +6500,44 @@ DROP TABLE t1;
 DROP VIEW v1;
 
 --echo #
+--echo # MDEV-26299: Some views force server (and mysqldump) to generate
+--echo # invalid SQL for their definitions
+--echo #
+
+create view v1 as
+ select * from
+  (select
+  "12345678901234567890123456789012345678901234567890123456789012345") as t1;
+
+let $definition=`select VIEW_DEFINITION from information_schema.views where TABLE_NAME="v1"`;
+
+drop view v1;
+
+eval CREATE VIEW v1 AS $definition;
+
+
+drop view v1;
+
+--echo #
+--echo # MDEV-25631: view with outer reference in select used
+--echo #             as argument of set function
+--echo #
+
+create table t1 (c int);
+insert into t1 values (1);
+create view v1 as select c from t1 where (select t1.c from t1 t) = 1;
+
+select * from (select sum((select * from v1)) as r) dt;
+
+with cte as (select c from t1 where (select t1.c from t1 t) = 1)
+select * from (select sum((select * from cte)) as r) dt1
+union
+select * from (select sum((select * from cte)) as r) dt2;
+
+drop view v1;
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
@@ -6538,6 +6575,32 @@ SELECT v.id, v.foo AS bar  FROM v1 v
 #Cleanup
 Drop View v1;
 Drop table t1;
+
+--echo #
+--echo # MDEV-24281: Execution of PREPARE from CREATE VIEW statement
+--echo #
+
+create table t1 (s1 int);
+insert into t1 values (3), (7), (1);
+
+prepare stmt from "
+create view v1 as select 's1', s1, 1 as My_exp_s1 from t1;
+";
+execute stmt;
+deallocate prepare stmt;
+show create view v1;
+select * from v1;
+drop view v1;
+
+prepare stmt from "
+create view v1 as select 's1', s1, 1 as My_exp_s1 from t1;
+";
+execute stmt;
+--error ER_TABLE_EXISTS_ERROR
+execute stmt;
+deallocate prepare stmt;
+drop view v1;
+drop table t1;
 
 --echo #
 --echo # End of 10.3 tests

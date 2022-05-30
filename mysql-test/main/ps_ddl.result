@@ -2244,7 +2244,6 @@ SUCCESS
 drop table if exists t1;
 create table t1 (a varchar(20));
 prepare stmt from "load data infile '../std_data_ln/words.dat' into table t1";
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 drop table t1;
 #
 # SQLCOM_SHOW_DATABASES
@@ -2516,7 +2515,6 @@ SUCCESS
 drop view if exists v1;
 create view v1 as select 1;
 prepare stmt from "alter view v1 as select 2";
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 drop view v1;
 # Cleanup
 #

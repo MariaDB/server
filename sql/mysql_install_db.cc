@@ -127,15 +127,6 @@ ATTRIBUTE_NORETURN  static void die(const char *fmt, ...)
   fprintf(stderr, "FATAL ERROR: ");
   vfprintf(stderr, fmt, args);
   fputc('\n', stderr);
-  if (verbose_errors)
-  {
-   fprintf(stderr,
-   "https://mariadb.com/kb/en/installation-issues-on-windows contains some help\n"
-   "for solving the most common problems.  If this doesn't help you, please\n"
-   "leave a comment in the Knowledge Base or file a bug report at\n"
-   "https://jira.mariadb.org");
-  }
-  fflush(stderr);
   va_end(args);
   my_end(0);
   exit(1);
@@ -252,8 +243,6 @@ int main(int argc, char **argv)
 
   DBUG_ASSERT(datadir);
 
-  /* Print some help on errors */
-  verbose_errors= TRUE;
 
   /* Workaround WiX bug (strip possible quote character at the end of path) */
   size_t len= strlen(datadir);
@@ -286,11 +275,11 @@ int main(int argc, char **argv)
   Convert slashes in paths into MySQL-compatible form
 */
 
-static void convert_slashes(char *s)
+static void convert_slashes(char *s, char replacement)
 {
-  for (; *s ; s++)
-   if (*s == '\\')
-     *s= '/';
+  for (; *s; s++)
+    if (*s == '\\' || *s == '/')
+      *s= replacement;
 }
 
 
@@ -300,15 +289,16 @@ static void convert_slashes(char *s)
   E.g basedir for C:\my\bin\mysqld.exe would be C:\my
 */
 
-static void get_basedir(char *basedir, int size, const char *mysqld_path)
+static void get_basedir(char *basedir, int size, const char *mysqld_path,
+                        char slash)
 {
   strcpy_s(basedir, size,  mysqld_path);
-  convert_slashes(basedir);
-  char *p= strrchr(basedir,'/');
+  convert_slashes(basedir, '\\');
+  char *p= strrchr(basedir, '\\');
   if (p)
   {
     *p = 0;
-    p= strrchr(basedir, '/');
+    p= strrchr(basedir, '\\');
     if (p)
       *p= 0;
   }
@@ -320,7 +310,7 @@ static void get_basedir(char *basedir, int size, const char *mysqld_path)
 static char *get_plugindir()
 {
   static char plugin_dir[2*MAX_PATH];
-  get_basedir(plugin_dir, sizeof(plugin_dir), mysqld_path);
+  get_basedir(plugin_dir, sizeof(plugin_dir), mysqld_path, '/');
   strcat(plugin_dir, "/" STR(INSTALL_PLUGINDIR));
 
   if (access(plugin_dir, 0) == 0)
@@ -343,7 +333,7 @@ static char *init_bootstrap_command_line(char *cmdline, size_t size)
     " %s"
     " --bootstrap"
     " --datadir=."
-    " --loose-innodb-buffer-pool-size=10M"
+    " --loose-innodb-buffer-pool-size=20M"
     "\""
     , mysqld_path, opt_verbose_bootstrap ? "--console" : "");
   return cmdline;
@@ -391,7 +381,7 @@ static int create_myini()
   }
 
   /* Write out server settings. */
-  convert_slashes(path_buf);
+  convert_slashes(path_buf,'/');
   write_myini_str("datadir",path_buf);
 
   if (opt_skip_networking)
@@ -600,7 +590,8 @@ static void clean_directory(const char *dir)
   (defined as username or group string or as SID)
 */
 
-static int set_directory_permissions(const char *dir, const char *os_user)
+static int set_directory_permissions(const char *dir, const char *os_user,
+                                     DWORD permission)
 {
 
    struct{
@@ -676,12 +667,19 @@ static int set_directory_permissions(const char *dir, const char *os_user)
     ea.Trustee.TrusteeForm= TRUSTEE_IS_SID;
     ea.Trustee.ptstrName= (LPTSTR)pSid;
   }
+  ea.Trustee.TrusteeType= TRUSTEE_IS_UNKNOWN;
   ea.grfAccessMode= GRANT_ACCESS;
-  ea.grfAccessPermissions= GENERIC_ALL; 
-  ea.grfInheritance= CONTAINER_INHERIT_ACE|OBJECT_INHERIT_ACE; 
-  ea.Trustee.TrusteeType= TRUSTEE_IS_UNKNOWN; 
-  ACL* pNewDACL= 0; 
-  SetEntriesInAcl(1,&ea,pOldDACL,&pNewDACL);
+  ea.grfAccessPermissions= permission;
+  ea.grfInheritance= CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE;
+  ACL *pNewDACL= 0;
+
+  ACCESS_MASK access_mask;
+  if (GetEffectiveRightsFromAcl(pOldDACL, &ea.Trustee, &access_mask) != ERROR_SUCCESS
+    || (access_mask & permission) != permission)
+  {
+    SetEntriesInAcl(1, &ea, pOldDACL, &pNewDACL);
+  }
+
   if (pNewDACL)
   {
     SetSecurityInfo(hDir,SE_FILE_OBJECT,DACL_SECURITY_INFORMATION,NULL, NULL,
@@ -695,7 +693,65 @@ static int set_directory_permissions(const char *dir, const char *os_user)
   return 0;
 }
 
+static void set_permissions(const char *datadir, const char *service_user)
+{
+  /*
+    Set data directory permissions for both current user and
+    the one who who runs services.
+  */
+  set_directory_permissions(datadir, NULL,
+                            FILE_GENERIC_READ | FILE_GENERIC_WRITE);
+  if (!service_user)
+    return;
 
+  /* Datadir permission for the service. */
+  set_directory_permissions(datadir, service_user, FILE_ALL_ACCESS);
+  char basedir[MAX_PATH];
+  char path[MAX_PATH];
+
+  struct
+  {
+    const char *subdir;
+    DWORD perm;
+  } all_subdirs[]= {
+      {STR(INSTALL_PLUGINDIR), FILE_GENERIC_READ | FILE_GENERIC_EXECUTE},
+      {STR(INSTALL_SHAREDIR), FILE_GENERIC_READ},
+  };
+
+
+  if (strncmp(service_user,"NT SERVICE\\",sizeof("NT SERVICE\\")-1) == 0)
+  {
+  	/*
+     Read and execute permission for executables can/should be given
+     to any service account, rather than specific one.
+    */
+    service_user="NT SERVICE\\ALL SERVICES";
+  }
+ 
+  get_basedir(basedir, sizeof(basedir), mysqld_path, '\\');
+  for (int i= 0; i < array_elements(all_subdirs); i++)
+  {
+    auto subdir=
+        snprintf(path, sizeof(path), "%s\\%s", basedir, all_subdirs[i].subdir);
+    if (access(path, 0) == 0)
+    {
+      set_directory_permissions(path, service_user, all_subdirs[i].perm);
+    }
+  }
+
+  /* Bindir, the directory where mysqld_path is located. */
+  strcpy_s(path, mysqld_path);
+  char *end= strrchr(path, '/');
+  if (!end)
+    end= strrchr(path, '\\');
+  if (end)
+    *end= 0;
+  if (access(path, 0) == 0)
+  {
+    set_directory_permissions(path, service_user,
+                              FILE_GENERIC_READ | FILE_GENERIC_EXECUTE);
+  }
+}
 
 /* Create database instance (including registering as service etc) .*/
 
@@ -776,18 +832,12 @@ static int create_db_instance(const char *datadir)
       goto end;
     service_created = true;
   }
+
+  set_permissions(datadir, service_user.c_str());
+
   if (opt_large_pages)
   {
     handle_user_privileges(service_user.c_str(), L"SeLockMemoryPrivilege", true);
-  }
-  /*
-    Set data directory permissions for both current user and
-    the one who who runs services.
-  */
-  set_directory_permissions(datadir, NULL);
-  if (!service_user.empty())
-  {
-    set_directory_permissions(datadir, service_user.c_str());
   }
 
   /*

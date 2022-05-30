@@ -1,0 +1,14 @@
+#
+# When `completion_type = CHAIN` is used, transaction started should not have previous writeset.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+SET AUTOCOMMIT = OFF;
+SET completion_type = CHAIN;
+CREATE TABLE t1(f1 INT) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 VALUES (1);
+ROLLBACK;
+DROP TABLE t1;

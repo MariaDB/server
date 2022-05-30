@@ -25,13 +25,13 @@
 #include "mariadb.h"                         /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "unireg.h"
-#include "sql_derived.h"
 #include "sql_select.h"
 #include "derived_handler.h"
 #include "sql_base.h"
 #include "sql_view.h"                         // check_duplicate_names
 #include "sql_acl.h"                          // SELECT_ACL
 #include "sql_class.h"
+#include "sql_derived.h"
 #include "sql_cte.h"
 #include "my_json_writer.h"
 #include "opt_trace.h"
@@ -1371,6 +1371,67 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
   unit->reinit_exec_mechanism();
   unit->set_thd(thd);
   DBUG_RETURN(FALSE);
+}
+
+
+/*
+  @brief
+    Given condition cond and transformer+argument, try transforming as many
+    conjuncts as possible.
+
+  @detail
+    The motivation of this function is to convert the condition that's being
+    pushed into a WHERE clause with derived_field_transformer_for_where or
+    with derived_grouping_field_transformer_for_where.
+    The transformer may fail for some sub-condition, in this case we want to
+    convert the most restrictive part of the condition that can be pushed.
+
+    This function only does it for top-level AND: conjuncts that could not be
+    converted are dropped.
+
+  @return
+    Converted condition, or NULL if nothing could be converted
+*/
+
+Item *transform_condition_or_part(THD *thd,
+                                  Item *cond,
+                                  Item_transformer transformer,
+                                  uchar *arg)
+{
+  if (cond->type() != Item::COND_ITEM ||
+      ((Item_cond*) cond)->functype() != Item_func::COND_AND_FUNC)
+  {
+    Item *new_item= cond->transform(thd, transformer, arg);
+      // Indicate that the condition is not pushable
+    if (!new_item)
+      cond->clear_extraction_flag();
+    return new_item;
+  }
+
+  List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
+  Item *item;
+  while ((item=li++))
+  {
+    Item *new_item= item->transform(thd, transformer, arg);
+    if (!new_item)
+    {
+      // Indicate that the condition is not pushable
+      item->clear_extraction_flag();
+      li.remove();
+    }
+    else
+      li.replace(new_item);
+  }
+
+  switch (((Item_cond*) cond)->argument_list()->elements)
+  {
+  case 0:
+    return NULL;
+  case 1:
+    return ((Item_cond*) cond)->argument_list()->head();
+  default:
+    return cond;
+  }
 }
 
 

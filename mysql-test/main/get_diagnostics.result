@@ -258,12 +258,10 @@ DROP PROCEDURE p1;
 # Test GET DIAGNOSTICS runtime
 #
 
-# GET DIAGNOSTICS cannot be the object of a PREPARE statement.
+# GET DIAGNOSTICS can be the object of a PREPARE statement.
 
 PREPARE stmt FROM "GET DIAGNOSTICS CONDITION 1 @var = CLASS_ORIGIN";
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 PREPARE stmt FROM "GET DIAGNOSTICS @var = NUMBER";
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 
 # GET DIAGNOSTICS does not clear the diagnostics area.
 
@@ -791,3 +789,13 @@ GET DIAGNOSTICS @var1 = NUMBER;
 SHOW STATUS LIKE 'Com%get_diagnostics';
 Variable_name	Value
 Com_get_diagnostics	1
+#
+# MDEV-26695: Number of an invalid row is not calculated for table value constructor
+#
+CREATE TABLE t1 (a CHAR(1)) VALUES ('a'),('b'),('foo');
+Warnings:
+Warning	1406	Data too long for column 'a' at row 3
+CREATE TABLE t2 (a char(1)) VALUES ('a'),('b') UNION VALUES ('foo');
+Warnings:
+Warning	1406	Data too long for column 'a' at row 3
+DROP TABLE t1, t2;

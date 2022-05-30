@@ -268,12 +268,11 @@ extern "C" my_bool wsrep_thd_order_before(const THD *left, const THD *right)
 extern "C" my_bool wsrep_thd_is_aborting(const MYSQL_THD thd)
 {
   mysql_mutex_assert_owner(&thd->LOCK_thd_data);
-  if (thd != 0)
+
+  const wsrep::client_state& cs(thd->wsrep_cs());
+  const enum wsrep::transaction::state tx_state(cs.transaction().state());
+  switch (tx_state)
   {
-    const wsrep::client_state& cs(thd->wsrep_cs());
-    const enum wsrep::transaction::state tx_state(cs.transaction().state());
-    switch (tx_state)
-    {
     case wsrep::transaction::s_must_abort:
       return (cs.state() == wsrep::client_state::s_exec ||
               cs.state() == wsrep::client_state::s_result);
@@ -282,8 +281,8 @@ extern "C" my_bool wsrep_thd_is_aborting(const MYSQL_THD thd)
       return true;
     default:
       return false;
-    }
   }
+
   return false;
 }
 
@@ -400,5 +399,13 @@ extern "C" void wsrep_report_bf_lock_wait(const THD *thd,
                 wsrep_thd_is_toi(thd),
                 wsrep_thd_is_local(thd),
                 wsrep_thd_query(thd));
+  }
+}
+
+extern "C" void  wsrep_thd_set_PA_unsafe(THD *thd)
+{
+  if (thd && thd->wsrep_cs().mark_transaction_pa_unsafe())
+  {
+    WSREP_DEBUG("session does not have active transaction, can not mark as PA unsafe");
   }
 }

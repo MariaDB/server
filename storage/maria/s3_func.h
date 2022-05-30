@@ -1,6 +1,6 @@
 #ifndef S3_FUNC_INCLUDED
 #define S3_FUNC_INCLUDED
-/* Copyright (C) 2019, 2020 MariaDB Corporation Ab
+/* Copyright (C) 2019, 2022, MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -41,7 +41,7 @@ extern TYPELIB s3_protocol_typelib;
 
 /* Store information about a s3 connection */
 
-typedef struct s3_info
+struct s3_info
 {
   /* Connection strings */
   LEX_CSTRING access_key, secret_key, region, bucket, host_name;
@@ -63,7 +63,7 @@ typedef struct s3_info
 
   /* Protocol for the list bucket API call. 1 for Amazon, 2 for some others */
   uint8_t protocol_version;
-} S3_INFO;
+};
 
 
 /* flag + length is stored in this header */
@@ -141,7 +141,6 @@ C_MODE_END
 C_MODE_START
 /* Dummy structures and interfaces to be used when compiling without S3 */
 struct s3_info;
-typedef struct s3_info S3_INFO;
 struct ms3_st;
 C_MODE_END
 #endif /* WITH_S3_STORAGE_ENGINE */

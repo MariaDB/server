@@ -4,7 +4,9 @@
 CREATE TABLE t1 (a INT, b INT, c INT, vc INT AS (c), UNIQUE(a), UNIQUE(b)) WITH SYSTEM VERSIONING;
 INSERT IGNORE INTO t1 (a,b,c) VALUES (1,2,3);
 
+--enable_prepare_warnings
 SELECT a, b, c FROM t1 INTO OUTFILE '15330.data';
+--disable_prepare_warnings
 LOAD DATA INFILE '15330.data' IGNORE INTO TABLE t1 (a,b,c);
 LOAD DATA INFILE '15330.data' REPLACE INTO TABLE t1 (a,b,c);
 

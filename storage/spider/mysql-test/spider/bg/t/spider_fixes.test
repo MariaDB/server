@@ -164,7 +164,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
   }
   if (!$OUTPUT_CHILD_GROUP2)
   {
@@ -206,7 +206,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
   }
   if (!$OUTPUT_CHILD_GROUP2)
   {
@@ -248,7 +248,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
   }
   if (!$OUTPUT_CHILD_GROUP2)
   {
@@ -337,7 +337,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -359,7 +359,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -381,7 +381,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -403,7 +403,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -425,7 +425,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -447,7 +447,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -469,7 +469,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -491,7 +491,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -513,7 +513,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -535,7 +535,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -557,7 +557,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -579,7 +579,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
   }
   if (!$OUTPUT_CHILD_GROUP2)
   {
@@ -676,7 +676,7 @@ if ($HAVE_TRIGGER)
     --connection child2_1
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
     }
     eval $CHILD2_1_SELECT_TABLES4;
     if (!$OUTPUT_CHILD_GROUP2)
@@ -722,7 +722,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
   }
   if (!$OUTPUT_CHILD_GROUP2)
   {
@@ -812,7 +812,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
   }
   if (!$OUTPUT_CHILD_GROUP2)
   {
@@ -899,8 +899,8 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%update %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%update %';
   }
   if (!$OUTPUT_CHILD_GROUP2)
   {
@@ -1073,8 +1073,10 @@ eval CREATE TABLE t1 (
   id int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (id)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_INCREMENT1_1;
+--disable_ps_protocol
 eval $MASTER_1_AUTO_INCREMENT_INCREMENT2;
 eval $MASTER_1_AUTO_INCREMENT_OFFSET2;
+--enable_ps_protocol
 if ($USE_REPLICATION)
 {
   SET SESSION sql_log_bin= 1;
@@ -1139,7 +1141,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
   }
   eval $CHILD2_1_SELECT_INCREMENT_TABLES1;
   if ($OUTPUT_CHILD_GROUP2)
@@ -1324,7 +1326,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
   }
   eval $CHILD2_1_SELECT_TEXT_PK_TABLES1;
   if (!$OUTPUT_CHILD_GROUP2)
@@ -1380,7 +1382,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
   }
   eval $CHILD2_1_SELECT_TEXT_PK_TABLES1;
   if (!$OUTPUT_CHILD_GROUP2)

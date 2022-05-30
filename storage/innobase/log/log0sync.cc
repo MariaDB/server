@@ -222,7 +222,7 @@ group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num, c
   thread_local_waiter.m_value = num;
   thread_local_waiter.m_group_commit_leader= false;
   std::unique_lock<std::mutex> lk(m_mtx, std::defer_lock);
-  while (num > value())
+  while (num > value() || thread_local_waiter.m_group_commit_leader)
   {
     lk.lock();
 
@@ -232,11 +232,9 @@ group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num, c
     {
       lk.unlock();
       do_completion_callback(callback);
-      thread_local_waiter.m_group_commit_leader=false;
       return lock_return_code::EXPIRED;
     }
 
-    thread_local_waiter.m_group_commit_leader= false;
     if (!m_lock)
     {
       /* Take the lock, become group commit leader.*/
@@ -249,17 +247,23 @@ group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num, c
       return lock_return_code::ACQUIRED;
     }
 
-    if (callback && m_waiters_list)
+    if (callback && (m_waiters_list || num <= pending()))
     {
       /*
-       We need to have at least one waiter,
-       so it can become the new group commit leader.
+      If num > pending(), we have a good candidate for the next group
+      commit lead, that will be taking over the lock after current owner
+      releases it.  We put current thread into waiter's list so it sleeps
+      and can be signaled and marked as group commit lead  during lock release.
+
+      For this to work well, pending() must deliver a good approximation for N
+      in the next call to group_commit_lock::release(N).
       */
       m_pending_callbacks.push_back({num, *callback});
       return lock_return_code::CALLBACK_QUEUED;
     }
 
     /* Add yourself to waiters list.*/
+    thread_local_waiter.m_group_commit_leader= false;
     thread_local_waiter.m_next = m_waiters_list;
     m_waiters_list = &thread_local_waiter;
     lk.unlock();
@@ -274,11 +278,11 @@ group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num, c
   return lock_return_code::EXPIRED;
 }
 
-void group_commit_lock::release(value_type num)
+group_commit_lock::value_type group_commit_lock::release(value_type num)
 {
   completion_callback callbacks[1000];
   size_t callback_count = 0;
-
+  value_type ret = 0;
   std::unique_lock<std::mutex> lk(m_mtx);
   m_lock = false;
 
@@ -359,9 +363,26 @@ void group_commit_lock::release(value_type num)
     {
       wakeup_list->m_group_commit_leader=true;
     }
+    else
+    {
+      /* Tell the caller that some pending callbacks left, and he should
+      do something to prevent stalls. This should be a rare situation.*/
+      ret= m_pending_callbacks[0].first;
+    }
   }
 
   lk.unlock();
+
+  /*
+    Release designated next group commit lead first,
+    to minimize spurious wakeups.
+  */
+  if (wakeup_list && wakeup_list->m_group_commit_leader)
+  {
+    next = wakeup_list->m_next;
+    wakeup_list->m_sema.wake();
+    wakeup_list= next;
+  }
 
   for (size_t i = 0; i < callback_count; i++)
     callbacks[i].m_callback(callbacks[i].m_param);
@@ -371,6 +392,7 @@ void group_commit_lock::release(value_type num)
     next= cur->m_next;
     cur->m_sema.wake();
   }
+  return ret;
 }
 
 #ifndef DBUG_OFF

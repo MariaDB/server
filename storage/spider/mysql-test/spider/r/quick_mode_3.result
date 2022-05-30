@@ -91,10 +91,10 @@ pkey
 28
 29
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `pkey` from `auto_test_remote`.`tbl_a` order by `pkey`
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_a ORDER BY pkey;
 pkey
 0
@@ -128,7 +128,7 @@ pkey
 28
 29
 connection child2_2;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 0
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 1
@@ -160,7 +160,7 @@ select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 26
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 27
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 28
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 29
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_b ORDER BY pkey;
 pkey
 0
@@ -235,10 +235,10 @@ pkey
 28
 29
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `pkey` from `auto_test_remote`.`tbl_a` order by `pkey`
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_a ORDER BY pkey;
 pkey
 0
@@ -272,7 +272,7 @@ pkey
 28
 29
 connection child2_2;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 0
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 1
@@ -304,7 +304,7 @@ select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 26
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 27
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 28
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 29
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_b ORDER BY pkey;
 pkey
 0
@@ -379,10 +379,10 @@ pkey
 28
 29
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `pkey` from `auto_test_remote`.`tbl_a` order by `pkey`
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_a ORDER BY pkey;
 pkey
 0
@@ -416,7 +416,7 @@ pkey
 28
 29
 connection child2_2;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 0
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 1
@@ -448,7 +448,7 @@ select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 26
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 27
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 28
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 29
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_b ORDER BY pkey;
 pkey
 0

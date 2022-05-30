@@ -53,6 +53,8 @@ DROP TABLE t1;
 --echo # The following statements return deprecated syntax warnings
 --echo #
 
+--enable_prepare_warnings
+
 --eval CREATE TABLE t1 (a $type BINARY COMPRESSED)
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
@@ -63,6 +65,7 @@ DROP TABLE t1;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
+--disable_prepare_warnings
 
 --echo #
 --echo # The following statements fail by the grammar,

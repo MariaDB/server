@@ -140,15 +140,6 @@ uint8_t
 get_innobase_type_from_mysql_type(unsigned *unsigned_flag, const Field *field);
 
 /******************************************************************//**
-Get the variable length bounds of the given character set. */
-void
-innobase_get_cset_width(
-/*====================*/
-	ulint	cset,		/*!< in: MySQL charset-collation code */
-	unsigned*mbminlen,	/*!< out: minimum length of a char (in bytes) */
-	unsigned*mbmaxlen);	/*!< out: maximum length of a char (in bytes) */
-
-/******************************************************************//**
 Compares NUL-terminated UTF-8 strings case insensitively.
 @return 0 if a=b, <0 if a<b, >1 if a>b */
 int
@@ -207,6 +198,14 @@ but can be used for comparison.
 */
 extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd);
 
+
+/**
+  Indicate the start of an async operation in a foreground thread.
+@param thd          current_thd
+@return thd
+@retval nullptr   if this is not a foreground thread */
+THD *innodb_thd_increment_pending_ops(THD *thd);
+
 /** Determines the current SQL statement.
 Thread unsafe, can only be called from the thread owning the THD.
 @param[in]	thd	MySQL thread handle
@@ -242,7 +241,7 @@ const char *thd_innodb_tmpdir(THD *thd);
 /******************************************************************//**
 Returns the lock wait timeout for the current connection.
 @return the lock wait timeout, in seconds */
-ulong
+uint&
 thd_lock_wait_timeout(
 /*==================*/
 	THD*	thd);	/*!< in: thread handle, or NULL to query
@@ -453,7 +452,7 @@ normalize_table_name_c_low(
 	char*		norm_name,	/*!< out: normalized name as a
 					null-terminated string */
 	const char*	name,		/*!< in: table name string */
-	ibool		set_lower_case); /*!< in: TRUE if we want to set
+	bool		set_lower_case); /*!< in: true if we want to set
 					name to lower case */
 
 /** Create a MYSQL_THD for a background thread and mark it as such.

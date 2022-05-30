@@ -58,15 +58,15 @@ connection child2_1_2;
 SELECT SLEEP(1);
 SLEEP(1)
 0
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%checksum %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%checksum %';
 argument
 checksum table `auto_test_remote`.`tbl_a` extended
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%checksum %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%checksum %'
 connection child2_2_2;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%checksum %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%checksum %';
 argument
 checksum table `auto_test_remote2`.`tbl_a` extended
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%checksum %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%checksum %'
 connection child2_1;
 UNLOCK TABLES;
 SELECT pkey FROM tbl_a ORDER BY pkey;

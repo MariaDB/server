@@ -1,0 +1,72 @@
+# 
+# SYSTEM_VERSIONING_ASOF sysvar
+#
+create table t (a int) with system versioning;
+set @before= UNIX_TIMESTAMP(now(6));
+insert into t values (1);
+set @after= UNIX_TIMESTAMP(now(6));
+update t set a= 2;
+set global system_versioning_asof= FROM_UNIXTIME(@after);
+set system_versioning_asof= FROM_UNIXTIME(@after);
+select * from t as nonempty;
+a
+1
+connect  subcon,127.0.0.1,root,,,$SERVER_MYPORT_1;
+connection subcon;
+select * from t as nonempty;
+a
+1
+disconnect subcon;
+connection default;
+set global system_versioning_asof= FROM_UNIXTIME(@before);
+select * from t as nonempty;
+a
+1
+connect  subcon,127.0.0.1,root,,,$SERVER_MYPORT_1;
+connection subcon;
+select * from t as empty;
+a
+disconnect subcon;
+connection default;
+drop table t;
+set global system_versioning_asof= DEFAULT;
+set system_versioning_asof= DEFAULT;
+#
+# DELETE HISTORY and privileges
+#
+connect  root,localhost,root,,test;
+connection root;
+create database mysqltest;
+create user mysqltest_1@localhost;
+connect  user1,localhost,mysqltest_1,,test;
+connection user1;
+connection root;
+create table mysqltest.t (a int) with system versioning;
+connection user1;
+show grants;
+Grants for mysqltest_1@localhost
+GRANT USAGE ON *.* TO `mysqltest_1`@`localhost`
+delete history from mysqltest.t before system_time now();
+ERROR 42000: DELETE HISTORY command denied to user 'mysqltest_1'@'localhost' for table 't'
+connection root;
+grant delete history on mysqltest.* to mysqltest_1@localhost;
+grant delete history on mysqltest.t to mysqltest_1@localhost;
+connection user1;
+show grants;
+Grants for mysqltest_1@localhost
+GRANT USAGE ON *.* TO `mysqltest_1`@`localhost`
+GRANT DELETE HISTORY ON `mysqltest`.* TO `mysqltest_1`@`localhost`
+GRANT DELETE HISTORY ON `mysqltest`.`t` TO `mysqltest_1`@`localhost`
+delete history from mysqltest.t before system_time now();
+connection root;
+grant all on *.* to mysqltest_1@localhost;
+show grants for mysqltest_1@localhost;
+Grants for mysqltest_1@localhost
+GRANT ALL PRIVILEGES ON *.* TO `mysqltest_1`@`localhost`
+GRANT DELETE HISTORY ON `mysqltest`.* TO `mysqltest_1`@`localhost`
+GRANT DELETE HISTORY ON `mysqltest`.`t` TO `mysqltest_1`@`localhost`
+drop user mysqltest_1@localhost;
+drop database mysqltest;
+disconnect user1;
+disconnect root;
+connection default;

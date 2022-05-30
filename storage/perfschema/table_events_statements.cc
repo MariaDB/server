@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2018, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -51,47 +51,47 @@ table_events_statements_current::m_share=
   sizeof(pos_events_statements_current), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_statements_current("
-                      "THREAD_ID BIGINT unsigned not null,"
-                      "EVENT_ID BIGINT unsigned not null,"
-                      "END_EVENT_ID BIGINT unsigned,"
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "SOURCE VARCHAR(64),"
-                      "TIMER_START BIGINT unsigned,"
-                      "TIMER_END BIGINT unsigned,"
-                      "TIMER_WAIT BIGINT unsigned,"
-                      "LOCK_TIME bigint unsigned not null,"
-                      "SQL_TEXT LONGTEXT,"
-                      "DIGEST VARCHAR(32),"
-                      "DIGEST_TEXT LONGTEXT,"
-                      "CURRENT_SCHEMA VARCHAR(64),"
-                      "OBJECT_TYPE VARCHAR(64),"
-                      "OBJECT_SCHEMA VARCHAR(64),"
-                      "OBJECT_NAME VARCHAR(64),"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned,"
-                      "MYSQL_ERRNO INTEGER,"
-                      "RETURNED_SQLSTATE VARCHAR(5),"
-                      "MESSAGE_TEXT VARCHAR(128),"
-                      "ERRORS BIGINT unsigned not null,"
-                      "WARNINGS BIGINT unsigned not null,"
-                      "ROWS_AFFECTED BIGINT unsigned not null,"
-                      "ROWS_SENT BIGINT unsigned not null,"
-                      "ROWS_EXAMINED BIGINT unsigned not null,"
-                      "CREATED_TMP_DISK_TABLES BIGINT unsigned not null,"
-                      "CREATED_TMP_TABLES BIGINT unsigned not null,"
-                      "SELECT_FULL_JOIN BIGINT unsigned not null,"
-                      "SELECT_FULL_RANGE_JOIN BIGINT unsigned not null,"
-                      "SELECT_RANGE BIGINT unsigned not null,"
-                      "SELECT_RANGE_CHECK BIGINT unsigned not null,"
-                      "SELECT_SCAN BIGINT unsigned not null,"
-                      "SORT_MERGE_PASSES BIGINT unsigned not null,"
-                      "SORT_RANGE BIGINT unsigned not null,"
-                      "SORT_ROWS BIGINT unsigned not null,"
-                      "SORT_SCAN BIGINT unsigned not null,"
-                      "NO_INDEX_USED BIGINT unsigned not null,"
-                      "NO_GOOD_INDEX_USED BIGINT unsigned not null,"
-                      "NESTING_EVENT_ID BIGINT unsigned,"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT'),"
-                      "NESTING_EVENT_LEVEL INT)") },
+                      "THREAD_ID BIGINT unsigned not null comment 'Thread associated with the event. Together with EVENT_ID uniquely identifies the row.',"
+                      "EVENT_ID BIGINT unsigned not null comment 'Thread''s current event number at the start of the event. Together with THREAD_ID uniquely identifies the row.',"
+                      "END_EVENT_ID BIGINT unsigned comment 'NULL when the event starts, set to the thread''s current event number at the end of the event.',"
+                      "EVENT_NAME VARCHAR(128) not null comment 'Event instrument name and a NAME from the setup_instruments table',"
+                      "SOURCE VARCHAR(64) comment 'Name and line number of the source file containing the instrumented code that produced the event.',"
+                      "TIMER_START BIGINT unsigned comment 'Value in picoseconds when the event timing started or NULL if timing is not collected.',"
+                      "TIMER_END BIGINT unsigned comment 'Value in picoseconds when the event timing ended, or NULL if the event has not ended or timing is not collected.',"
+                      "TIMER_WAIT BIGINT unsigned comment 'Value in picoseconds of the event''s duration or NULL if the event has not ended or timing is not collected.',"
+                      "LOCK_TIME bigint unsigned not null comment 'Time in picoseconds spent waiting for locks. The time is calculated in microseconds but stored in picoseconds for compatibility with other timings.',"
+                      "SQL_TEXT LONGTEXT comment 'The SQL statement, or NULL if the command is not associated with an SQL statement.',"
+                      "DIGEST VARCHAR(32) comment 'Statement digest.',"
+                      "DIGEST_TEXT LONGTEXT comment 'Statement digest text.',"
+                      "CURRENT_SCHEMA VARCHAR(64) comment 'Statement''s default database for the statement, or NULL if there was none.',"
+                      "OBJECT_TYPE VARCHAR(64) comment 'NULL for top level statements. The parent statement object type for nested statements (stored programs).',"
+                      "OBJECT_SCHEMA VARCHAR(64) comment 'NULL for top level statements. The parent statement object schema for nested statements (stored programs).',"
+                      "OBJECT_NAME VARCHAR(64) comment 'NULL for top level statements. The parent statement object name for nested statements (stored programs).',"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned comment 'Address in memory of the statement object.',"
+                      "MYSQL_ERRNO INTEGER comment 'Error code. See MariaDB Error Codes for a full list.',"
+                      "RETURNED_SQLSTATE VARCHAR(5) comment 'The SQLSTATE value.',"
+                      "MESSAGE_TEXT VARCHAR(128) comment 'Statement error message. See MariaDB Error Codes.',"
+                      "ERRORS BIGINT unsigned not null comment '0 if SQLSTATE signifies completion (starting with 00) or warning (01), otherwise 1.',"
+                      "WARNINGS BIGINT unsigned not null comment 'Number of warnings from the diagnostics area.',"
+                      "ROWS_AFFECTED BIGINT unsigned not null comment 'Number of rows affected the statement affected.',"
+                      "ROWS_SENT BIGINT unsigned not null comment 'Number of rows returned.',"
+                      "ROWS_EXAMINED BIGINT unsigned not null comment 'Number of rows read during the statement''s execution.',"
+                      "CREATED_TMP_DISK_TABLES BIGINT unsigned not null comment 'Number of on-disk temp tables created by the statement.',"
+                      "CREATED_TMP_TABLES BIGINT unsigned not null comment 'Number of temp tables created by the statement.',"
+                      "SELECT_FULL_JOIN BIGINT unsigned not null comment 'Number of joins performed by the statement which did not use an index.',"
+                      "SELECT_FULL_RANGE_JOIN BIGINT unsigned not null comment 'Number of joins performed by the statement which used a range search of the first table.',"
+                      "SELECT_RANGE BIGINT unsigned not null comment 'Number of joins performed by the statement which used a range of the first table.',"
+                      "SELECT_RANGE_CHECK BIGINT unsigned not null comment 'Number of joins without keys performed by the statement that check for key usage after each row.',"
+                      "SELECT_SCAN BIGINT unsigned not null comment 'Number of joins performed by the statement which used a full scan of the first table.',"
+                      "SORT_MERGE_PASSES BIGINT unsigned not null comment 'Number of merge passes by the sort algorithm performed by the statement. If too high, you may need to increase the sort_buffer_size.',"
+                      "SORT_RANGE BIGINT unsigned not null comment 'Number of sorts performed by the statement which used a range.',"
+                      "SORT_ROWS BIGINT unsigned not null comment 'Number of rows sorted by the statement.',"
+                      "SORT_SCAN BIGINT unsigned not null comment 'Number of sorts performed by the statement which used a full table scan.',"
+                      "NO_INDEX_USED BIGINT unsigned not null comment '0 if the statement performed a table scan with an index, 1 if without an index.',"
+                      "NO_GOOD_INDEX_USED BIGINT unsigned not null comment '0 if a good index was found for the statement, 1 if no good index was found. See the Range checked for each record description in the EXPLAIN article.',"
+                      "NESTING_EVENT_ID BIGINT unsigned comment 'NULL for top level statements. The parent statement event id for nested statements (stored programs).',"
+                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'NULL for top level statements. The parent statement event type for nested statements (stored programs).',"
+                      "NESTING_EVENT_LEVEL INT comment '0 for top level statements. The parent statement level plus 1 for nested statements (stored programs).')") },
   false  /* perpetual */
 };
 
@@ -109,47 +109,47 @@ table_events_statements_history::m_share=
   sizeof(pos_events_statements_history), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_statements_history("
-                      "THREAD_ID BIGINT unsigned not null,"
-                      "EVENT_ID BIGINT unsigned not null,"
-                      "END_EVENT_ID BIGINT unsigned,"
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "SOURCE VARCHAR(64),"
-                      "TIMER_START BIGINT unsigned,"
-                      "TIMER_END BIGINT unsigned,"
-                      "TIMER_WAIT BIGINT unsigned,"
-                      "LOCK_TIME bigint unsigned not null,"
-                      "SQL_TEXT LONGTEXT,"
-                      "DIGEST VARCHAR(32),"
-                      "DIGEST_TEXT LONGTEXT,"
-                      "CURRENT_SCHEMA VARCHAR(64),"
-                      "OBJECT_TYPE VARCHAR(64),"
-                      "OBJECT_SCHEMA VARCHAR(64),"
-                      "OBJECT_NAME VARCHAR(64),"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned,"
-                      "MYSQL_ERRNO INTEGER,"
-                      "RETURNED_SQLSTATE VARCHAR(5),"
-                      "MESSAGE_TEXT VARCHAR(128),"
-                      "ERRORS BIGINT unsigned not null,"
-                      "WARNINGS BIGINT unsigned not null,"
-                      "ROWS_AFFECTED BIGINT unsigned not null,"
-                      "ROWS_SENT BIGINT unsigned not null,"
-                      "ROWS_EXAMINED BIGINT unsigned not null,"
-                      "CREATED_TMP_DISK_TABLES BIGINT unsigned not null,"
-                      "CREATED_TMP_TABLES BIGINT unsigned not null,"
-                      "SELECT_FULL_JOIN BIGINT unsigned not null,"
-                      "SELECT_FULL_RANGE_JOIN BIGINT unsigned not null,"
-                      "SELECT_RANGE BIGINT unsigned not null,"
-                      "SELECT_RANGE_CHECK BIGINT unsigned not null,"
-                      "SELECT_SCAN BIGINT unsigned not null,"
-                      "SORT_MERGE_PASSES BIGINT unsigned not null,"
-                      "SORT_RANGE BIGINT unsigned not null,"
-                      "SORT_ROWS BIGINT unsigned not null,"
-                      "SORT_SCAN BIGINT unsigned not null,"
-                      "NO_INDEX_USED BIGINT unsigned not null,"
-                      "NO_GOOD_INDEX_USED BIGINT unsigned not null,"
-                      "NESTING_EVENT_ID BIGINT unsigned,"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT'),"
-                      "NESTING_EVENT_LEVEL INT)") },
+                      "THREAD_ID BIGINT unsigned not null comment 'Thread associated with the event. Together with EVENT_ID uniquely identifies the row.',"
+                      "EVENT_ID BIGINT unsigned not null comment 'Thread''s current event number at the start of the event. Together with THREAD_ID uniquely identifies the row.',"
+                      "END_EVENT_ID BIGINT unsigned comment 'NULL when the event starts, set to the thread''s current event number at the end of the event.',"
+                      "EVENT_NAME VARCHAR(128) not null comment 'Event instrument name and a NAME from the setup_instruments table',"
+                      "SOURCE VARCHAR(64) comment 'Name and line number of the source file containing the instrumented code that produced the event.',"
+                      "TIMER_START BIGINT unsigned comment 'Value in picoseconds when the event timing started or NULL if timing is not collected.',"
+                      "TIMER_END BIGINT unsigned comment 'Value in picoseconds when the event timing ended, or NULL if the event has not ended or timing is not collected.',"
+                      "TIMER_WAIT BIGINT unsigned comment 'Value in picoseconds of the event''s duration or NULL if the event has not ended or timing is not collected.',"
+                      "LOCK_TIME bigint unsigned not null comment 'Time in picoseconds spent waiting for locks. The time is calculated in microseconds but stored in picoseconds for compatibility with other timings.',"
+                      "SQL_TEXT LONGTEXT comment 'The SQL statement, or NULL if the command is not associated with an SQL statement.',"
+                      "DIGEST VARCHAR(32) comment 'Statement digest.',"
+                      "DIGEST_TEXT LONGTEXT comment 'Statement digest text.',"
+                      "CURRENT_SCHEMA VARCHAR(64) comment 'Statement''s default database for the statement, or NULL if there was none.',"
+                      "OBJECT_TYPE VARCHAR(64) comment 'NULL for top level statements. The parent statement object type for nested statements (stored programs).',"
+                      "OBJECT_SCHEMA VARCHAR(64) comment 'NULL for top level statements. The parent statement object schema for nested statements (stored programs).',"
+                      "OBJECT_NAME VARCHAR(64) comment 'NULL for top level statements. The parent statement object name for nested statements (stored programs).',"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned comment 'Address in memory of the statement object.',"
+                      "MYSQL_ERRNO INTEGER comment 'Error code. See MariaDB Error Codes for a full list.',"
+                      "RETURNED_SQLSTATE VARCHAR(5) comment 'The SQLSTATE value.',"
+                      "MESSAGE_TEXT VARCHAR(128) comment 'Statement error message. See MariaDB Error Codes.',"
+                      "ERRORS BIGINT unsigned not null comment '0 if SQLSTATE signifies completion (starting with 00) or warning (01), otherwise 1.',"
+                      "WARNINGS BIGINT unsigned not null comment 'Number of warnings from the diagnostics area.',"
+                      "ROWS_AFFECTED BIGINT unsigned not null comment 'Number of rows affected the statement affected.',"
+                      "ROWS_SENT BIGINT unsigned not null comment 'Number of rows returned.',"
+                      "ROWS_EXAMINED BIGINT unsigned not null comment 'Number of rows read during the statement''s execution.',"
+                      "CREATED_TMP_DISK_TABLES BIGINT unsigned not null comment 'Number of on-disk temp tables created by the statement.',"
+                      "CREATED_TMP_TABLES BIGINT unsigned not null comment 'Number of temp tables created by the statement.',"
+                      "SELECT_FULL_JOIN BIGINT unsigned not null comment 'Number of joins performed by the statement which did not use an index.',"
+                      "SELECT_FULL_RANGE_JOIN BIGINT unsigned not null comment 'Number of joins performed by the statement which used a range search of the first table.',"
+                      "SELECT_RANGE BIGINT unsigned not null comment 'Number of joins performed by the statement which used a range of the first table.',"
+                      "SELECT_RANGE_CHECK BIGINT unsigned not null comment 'Number of joins without keys performed by the statement that check for key usage after each row.',"
+                      "SELECT_SCAN BIGINT unsigned not null comment 'Number of joins performed by the statement which used a full scan of the first table.',"
+                      "SORT_MERGE_PASSES BIGINT unsigned not null comment 'Number of merge passes by the sort algorithm performed by the statement. If too high, you may need to increase the sort_buffer_size.',"
+                      "SORT_RANGE BIGINT unsigned not null comment 'Number of sorts performed by the statement which used a range.',"
+                      "SORT_ROWS BIGINT unsigned not null comment 'Number of rows sorted by the statement.',"
+                      "SORT_SCAN BIGINT unsigned not null comment 'Number of sorts performed by the statement which used a full table scan.',"
+                      "NO_INDEX_USED BIGINT unsigned not null comment '0 if the statement performed a table scan with an index, 1 if without an index.',"
+                      "NO_GOOD_INDEX_USED BIGINT unsigned not null comment '0 if a good index was found for the statement, 1 if no good index was found. See the Range checked for each record description in the EXPLAIN article.',"
+                      "NESTING_EVENT_ID BIGINT unsigned comment 'NULL for top level statements. The parent statement event id for nested statements (stored programs).',"
+                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'NULL for top level statements. The parent statement event type for nested statements (stored programs).',"
+                      "NESTING_EVENT_LEVEL INT comment '0 for top level statements. The parent statement level plus 1 for nested statements (stored programs).')") },
   false  /* perpetual */
 };
 
@@ -167,47 +167,47 @@ table_events_statements_history_long::m_share=
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_statements_history_long("
-                      "THREAD_ID BIGINT unsigned not null,"
-                      "EVENT_ID BIGINT unsigned not null,"
-                      "END_EVENT_ID BIGINT unsigned,"
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "SOURCE VARCHAR(64),"
-                      "TIMER_START BIGINT unsigned,"
-                      "TIMER_END BIGINT unsigned,"
-                      "TIMER_WAIT BIGINT unsigned,"
-                      "LOCK_TIME bigint unsigned not null,"
-                      "SQL_TEXT LONGTEXT,"
-                      "DIGEST VARCHAR(32),"
-                      "DIGEST_TEXT LONGTEXT,"
-                      "CURRENT_SCHEMA VARCHAR(64),"
-                      "OBJECT_TYPE VARCHAR(64),"
-                      "OBJECT_SCHEMA VARCHAR(64),"
-                      "OBJECT_NAME VARCHAR(64),"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned,"
-                      "MYSQL_ERRNO INTEGER,"
-                      "RETURNED_SQLSTATE VARCHAR(5),"
-                      "MESSAGE_TEXT VARCHAR(128),"
-                      "ERRORS BIGINT unsigned not null,"
-                      "WARNINGS BIGINT unsigned not null,"
-                      "ROWS_AFFECTED BIGINT unsigned not null,"
-                      "ROWS_SENT BIGINT unsigned not null,"
-                      "ROWS_EXAMINED BIGINT unsigned not null,"
-                      "CREATED_TMP_DISK_TABLES BIGINT unsigned not null,"
-                      "CREATED_TMP_TABLES BIGINT unsigned not null,"
-                      "SELECT_FULL_JOIN BIGINT unsigned not null,"
-                      "SELECT_FULL_RANGE_JOIN BIGINT unsigned not null,"
-                      "SELECT_RANGE BIGINT unsigned not null,"
-                      "SELECT_RANGE_CHECK BIGINT unsigned not null,"
-                      "SELECT_SCAN BIGINT unsigned not null,"
-                      "SORT_MERGE_PASSES BIGINT unsigned not null,"
-                      "SORT_RANGE BIGINT unsigned not null,"
-                      "SORT_ROWS BIGINT unsigned not null,"
-                      "SORT_SCAN BIGINT unsigned not null,"
-                      "NO_INDEX_USED BIGINT unsigned not null,"
-                      "NO_GOOD_INDEX_USED BIGINT unsigned not null,"
-                      "NESTING_EVENT_ID BIGINT unsigned,"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT'),"
-                      "NESTING_EVENT_LEVEL INT)") },
+                      "THREAD_ID BIGINT unsigned not null comment 'Thread associated with the event. Together with EVENT_ID uniquely identifies the row.',"
+                      "EVENT_ID BIGINT unsigned not null comment 'Thread''s current event number at the start of the event. Together with THREAD_ID uniquely identifies the row.',"
+                      "END_EVENT_ID BIGINT unsigned comment 'NULL when the event starts, set to the thread''s current event number at the end of the event.',"
+                      "EVENT_NAME VARCHAR(128) not null comment 'Event instrument name and a NAME from the setup_instruments table',"
+                      "SOURCE VARCHAR(64) comment 'Name and line number of the source file containing the instrumented code that produced the event.',"
+                      "TIMER_START BIGINT unsigned comment 'Value in picoseconds when the event timing started or NULL if timing is not collected.',"
+                      "TIMER_END BIGINT unsigned comment 'Value in picoseconds when the event timing ended, or NULL if the event has not ended or timing is not collected.',"
+                      "TIMER_WAIT BIGINT unsigned comment 'Value in picoseconds of the event''s duration or NULL if the event has not ended or timing is not collected.',"
+                      "LOCK_TIME bigint unsigned not null comment 'Time in picoseconds spent waiting for locks. The time is calculated in microseconds but stored in picoseconds for compatibility with other timings.',"
+                      "SQL_TEXT LONGTEXT comment 'The SQL statement, or NULL if the command is not associated with an SQL statement.',"
+                      "DIGEST VARCHAR(32) comment 'Statement digest.',"
+                      "DIGEST_TEXT LONGTEXT comment 'Statement digest text.',"
+                      "CURRENT_SCHEMA VARCHAR(64) comment 'Statement''s default database for the statement, or NULL if there was none.',"
+                      "OBJECT_TYPE VARCHAR(64) comment 'NULL for top level statements. The parent statement object type for nested statements (stored programs).',"
+                      "OBJECT_SCHEMA VARCHAR(64) comment 'NULL for top level statements. The parent statement object schema for nested statements (stored programs).',"
+                      "OBJECT_NAME VARCHAR(64) comment 'NULL for top level statements. The parent statement object name for nested statements (stored programs).',"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned comment 'Address in memory of the statement object.',"
+                      "MYSQL_ERRNO INTEGER comment 'Error code. See MariaDB Error Codes for a full list.',"
+                      "RETURNED_SQLSTATE VARCHAR(5) comment 'The SQLSTATE value.',"
+                      "MESSAGE_TEXT VARCHAR(128) comment 'Statement error message. See MariaDB Error Codes.',"
+                      "ERRORS BIGINT unsigned not null comment '0 if SQLSTATE signifies completion (starting with 00) or warning (01), otherwise 1.',"
+                      "WARNINGS BIGINT unsigned not null comment 'Number of warnings from the diagnostics area.',"
+                      "ROWS_AFFECTED BIGINT unsigned not null comment 'Number of rows affected the statement affected.',"
+                      "ROWS_SENT BIGINT unsigned not null comment 'Number of rows returned.',"
+                      "ROWS_EXAMINED BIGINT unsigned not null comment 'Number of rows read during the statement''s execution.',"
+                      "CREATED_TMP_DISK_TABLES BIGINT unsigned not null comment 'Number of on-disk temp tables created by the statement.',"
+                      "CREATED_TMP_TABLES BIGINT unsigned not null comment 'Number of temp tables created by the statement.',"
+                      "SELECT_FULL_JOIN BIGINT unsigned not null comment 'Number of joins performed by the statement which did not use an index.',"
+                      "SELECT_FULL_RANGE_JOIN BIGINT unsigned not null comment 'Number of joins performed by the statement which used a range search of the first table.',"
+                      "SELECT_RANGE BIGINT unsigned not null comment 'Number of joins performed by the statement which used a range of the first table.',"
+                      "SELECT_RANGE_CHECK BIGINT unsigned not null comment 'Number of joins without keys performed by the statement that check for key usage after each row.',"
+                      "SELECT_SCAN BIGINT unsigned not null comment 'Number of joins performed by the statement which used a full scan of the first table.',"
+                      "SORT_MERGE_PASSES BIGINT unsigned not null comment 'Number of merge passes by the sort algorithm performed by the statement. If too high, you may need to increase the sort_buffer_size.',"
+                      "SORT_RANGE BIGINT unsigned not null comment 'Number of sorts performed by the statement which used a range.',"
+                      "SORT_ROWS BIGINT unsigned not null comment 'Number of rows sorted by the statement.',"
+                      "SORT_SCAN BIGINT unsigned not null comment 'Number of sorts performed by the statement which used a full table scan.',"
+                      "NO_INDEX_USED BIGINT unsigned not null comment '0 if the statement performed a table scan with an index, 1 if without an index.',"
+                      "NO_GOOD_INDEX_USED BIGINT unsigned not null comment '0 if a good index was found for the statement, 1 if no good index was found. See the Range checked for each record description in the EXPLAIN article.',"
+                      "NESTING_EVENT_ID BIGINT unsigned comment 'NULL for top level statements. The parent statement event id for nested statements (stored programs).',"
+                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'NULL for top level statements. The parent statement event type for nested statements (stored programs).',"
+                      "NESTING_EVENT_LEVEL INT comment '0 for top level statements. The parent statement level plus 1 for nested statements (stored programs).')") },
   false  /* perpetual */
 };
 
@@ -228,17 +228,18 @@ void table_events_statements_common::make_row_part_1(PFS_events_statements *stat
 
   m_row_exists= false;
 
-  PFS_statement_class *unsafe= (PFS_statement_class*) statement->m_class;
+  PFS_statement_class *unsafe= (PFS_statement_class*)
+    statement->m_event.m_class;
   PFS_statement_class *klass= sanitize_statement_class(unsafe);
   if (unlikely(klass == NULL))
     return;
 
-  m_row.m_thread_internal_id= statement->m_thread_internal_id;
-  m_row.m_event_id= statement->m_event_id;
-  m_row.m_end_event_id= statement->m_end_event_id;
-  m_row.m_nesting_event_id= statement->m_nesting_event_id;
-  m_row.m_nesting_event_type= statement->m_nesting_event_type;
-  m_row.m_nesting_event_level= statement->m_nesting_event_level;
+  m_row.m_thread_internal_id= statement->m_event.m_thread_internal_id;
+  m_row.m_event_id= statement->m_event.m_event_id;
+  m_row.m_end_event_id= statement->m_event.m_end_event_id;
+  m_row.m_nesting_event_id= statement->m_event.m_nesting_event_id;
+  m_row.m_nesting_event_type= statement->m_event.m_nesting_event_type;
+  m_row.m_nesting_event_level= statement->m_event.m_nesting_event_level;
 
   if (m_row.m_end_event_id == 0)
   {
@@ -246,10 +247,10 @@ void table_events_statements_common::make_row_part_1(PFS_events_statements *stat
   }
   else
   {
-    timer_end= statement->m_timer_end;
+    timer_end= statement->m_event.m_timer_end;
   }
 
-  m_normalizer->to_pico(statement->m_timer_start, timer_end,
+  m_normalizer->to_pico(statement->m_event.m_timer_start, timer_end,
                       & m_row.m_timer_start, & m_row.m_timer_end, & m_row.m_timer_wait);
   m_row.m_lock_time= statement->m_lock_time * MICROSEC_TO_PICOSEC;
 
@@ -376,7 +377,7 @@ int table_events_statements_common::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 3);
+  assert(table->s->null_bytes == 3);
   buf[0]= 0;
   buf[1]= 0;
   buf[2]= 0;
@@ -565,7 +566,7 @@ int table_events_statements_common::read_row_values(TABLE *table,
           set_field_ulong(f, m_row.m_nesting_event_level);
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }
@@ -658,11 +659,11 @@ int table_events_statements_current::rnd_pos(const void *pos)
         return HA_ERR_RECORD_DELETED;
     }
 
-    DBUG_ASSERT(m_pos.m_index_2 < statement_stack_max);
+    assert(m_pos.m_index_2 < statement_stack_max);
 
     statement= &pfs_thread->m_statement_stack[m_pos.m_index_2];
 
-    if (statement->m_class != NULL)
+    if (statement->m_event.m_class)
     {
       make_row(pfs_thread, statement);
       return 0;
@@ -762,7 +763,7 @@ int table_events_statements_history::rnd_next(void)
 
       statement= &pfs_thread->m_statements_history[m_pos.m_index_2];
 
-      if (statement->m_class != NULL)
+      if (statement->m_event.m_class)
       {
         make_row(pfs_thread, statement);
         /* Next iteration, look for the next history in this thread */
@@ -780,20 +781,20 @@ int table_events_statements_history::rnd_pos(const void *pos)
   PFS_thread *pfs_thread;
   PFS_events_statements *statement;
 
-  DBUG_ASSERT(events_statements_history_per_thread != 0);
+  assert(events_statements_history_per_thread != 0);
   set_position(pos);
 
   pfs_thread= global_thread_container.get(m_pos.m_index_1);
   if (pfs_thread != NULL)
   {
-    DBUG_ASSERT(m_pos.m_index_2 < events_statements_history_per_thread);
+    assert(m_pos.m_index_2 < events_statements_history_per_thread);
 
     if ( ! pfs_thread->m_statements_history_full &&
         (m_pos.m_index_2 >= pfs_thread->m_statements_history_index))
       return HA_ERR_RECORD_DELETED;
 
     statement= &pfs_thread->m_statements_history[m_pos.m_index_2];
-    if (statement->m_class != NULL)
+    if (statement->m_event.m_class)
     {
       make_row(pfs_thread, statement);
       return 0;
@@ -876,7 +877,7 @@ int table_events_statements_history_long::rnd_next(void)
   {
     statement= &events_statements_history_long_array[m_pos.m_index];
 
-    if (statement->m_class != NULL)
+    if (statement->m_event.m_class)
     {
       make_row(statement);
       /* Next iteration, look for the next entry */
@@ -908,7 +909,7 @@ int table_events_statements_history_long::rnd_pos(const void *pos)
 
   statement= &events_statements_history_long_array[m_pos.m_index];
 
-  if (statement->m_class == NULL)
+  if (!statement->m_event.m_class)
     return HA_ERR_RECORD_DELETED;
 
   make_row(statement);

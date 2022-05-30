@@ -14,10 +14,24 @@
 #include <pthread_np.h>
 #endif
 
+#if defined(HAVE_INTEGER_PTHREAD_SELF)
+#include <cstdint>
+#endif
+
 typedef pthread_key_t thread_local_key_t;
 typedef pthread_t my_thread_handle;
 typedef pthread_attr_t my_thread_attr_t;
+#if defined(HAVE_PTHREAD_THREADID_NP) || defined(HAVE_GETTID) || defined(HAVE_SYS_GETTID) || defined(HAVE_GETTHRID)
+typedef pid_t my_thread_os_id_t;
+#elif defined(_WIN32)
 typedef uint32 my_thread_os_id_t;
+#elif defined(HAVE_PTHREAD_GETTHREADID_NP)
+typedef int my_thread_os_id_t;
+#elif defined(HAVE_INTEGER_PTHREAD_SELF)
+typedef uintptr_t my_thread_os_id_t;
+#else
+typedef unsigned long long my_thread_os_id_t;
+#endif
 
 #define LOCK_plugin_delete LOCK_plugin
 
@@ -50,12 +64,14 @@ static inline my_thread_os_id_t my_thread_os_id()
   pthread_threadid_np(nullptr, &tid64);
   return (pid_t)tid64;
 #else
+#ifdef HAVE_GETTID
+  /* Linux glibc-2.30+ */
+  return gettid();
+#else
 #ifdef HAVE_SYS_GETTID
   /*
-    Linux.
+    Linux before glibc-2.30
     See man gettid
-    See GLIBC Bug 6399 - gettid() should have a wrapper
-    https://sourceware.org/bugzilla/show_bug.cgi?id=6399
   */
   return syscall(SYS_gettid);
 #else
@@ -72,8 +88,8 @@ static inline my_thread_os_id_t my_thread_os_id()
   return getthrid();
 #else
 #ifdef HAVE_INTEGER_PTHREAD_SELF
-  /* Unknown platform, fallback. */
-  return pthread_self();
+  /* NetBSD, and perhaps something else, fallback. */
+  return (my_thread_os_id_t) pthread_self();
 #else
   /* Feature not available. */
   return 0;
@@ -82,7 +98,8 @@ static inline my_thread_os_id_t my_thread_os_id()
 #endif /* HAVE_PTHREAD_GETTHREADID_NP */
 #endif /* _WIN32 */
 #endif /* HAVE_SYS_GETTID */
-#endif /* HAVE_SYS_THREAD_SELFID */
+#endif /* HAVE_GETTID */
+#endif /* HAVE_PTHREAD_THREADID_NP */
 }
 
 #define CHANNEL_NAME_LENGTH MAX_CONNECTION_NAME

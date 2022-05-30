@@ -18,7 +18,7 @@
 #include "mysys_err.h"
 #include <sys/types.h>
 #include <sys/stat.h>
-#ifdef __WIN__
+#ifdef _WIN32
 #include <direct.h>
 #endif
 

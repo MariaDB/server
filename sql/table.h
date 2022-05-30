@@ -1,7 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -855,7 +855,6 @@ struct TABLE_SHARE
   /* This is set for temporary tables where CREATE was binary logged */
   bool table_creation_was_logged;
   bool non_determinstic_insert;
-  bool vcols_need_refixing;
   bool has_update_default_function;
   bool can_do_row_logging;              /* 1 if table supports RBR */
   bool long_unique_table;
@@ -1487,8 +1486,15 @@ public:
   */
   bool auto_increment_field_not_null;
   bool insert_or_update;             /* Can be used by the handler */
+  /*
+     NOTE: alias_name_used is only a hint! It works only in need_correct_ident()
+     condition. On other cases it is FALSE even if table_name is alias.
+
+     E.g. in update t1 as x set a = 1
+  */
   bool alias_name_used;              /* true if table_name is alias */
   bool get_fields_in_item_tree;      /* Signal to fix_field */
+  List<Virtual_column_info> vcol_refix_list;
 private:
   bool m_needs_reopen;
   bool created;    /* For tmp tables. TRUE <=> tmp table was actually created.*/
@@ -1549,8 +1555,9 @@ public:
   MY_BITMAP *prepare_for_keyread(uint index, MY_BITMAP *map);
   MY_BITMAP *prepare_for_keyread(uint index)
   { return prepare_for_keyread(index, &tmp_set); }
-  void mark_columns_used_by_index(uint index, MY_BITMAP *map);
-  void mark_columns_used_by_index_no_reset(uint index, MY_BITMAP *map);
+  void mark_index_columns(uint index, MY_BITMAP *bitmap);
+  void mark_index_columns_no_reset(uint index, MY_BITMAP *bitmap);
+  void mark_index_columns_for_read(uint index);
   void restore_column_maps_after_keyread(MY_BITMAP *backup);
   void mark_auto_increment_column(void);
   void mark_columns_needed_for_update(void);
@@ -1611,6 +1618,8 @@ public:
   {
     m_needs_reopen= value;
   }
+
+  bool init_expr_arena(MEM_ROOT *mem_root);
 
   bool alloc_keys(uint key_count);
   bool check_tmp_key(uint key, uint key_parts,
@@ -1681,7 +1690,8 @@ public:
                                       TABLE *tmp_table,
                                       TMP_TABLE_PARAM *tmp_table_param,
                                       bool with_cleanup);
-  int fix_vcol_exprs(THD *thd);
+  bool vcol_fix_expr(THD *thd);
+  bool vcol_cleanup_expr(THD *thd);
   Field *find_field_by_name(LEX_CSTRING *str) const;
   bool export_structure(THD *thd, class Row_definition_list *defs);
   bool is_splittable() { return spl_opt_info != NULL; }
@@ -1771,7 +1781,9 @@ public:
   bool vers_check_update(List<Item> &items);
   static bool check_period_overlaps(const KEY &key, const uchar *lhs, const uchar *rhs);
   int delete_row();
+  /* Used in majority of DML (called from fill_record()) */
   void vers_update_fields();
+  /* Used in DELETE, DUP REPLACE and insert history row */
   void vers_update_end();
   void find_constraint_correlated_indexes();
 
@@ -2633,7 +2645,7 @@ struct TABLE_LIST
   List<String> *partition_names;
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
 
-  void calc_md5(const char *buffer);
+  void calc_md5(char *buffer);
   int view_check_option(THD *thd, bool ignore_failure);
   bool create_field_translation(THD *thd);
   bool setup_underlying(THD *thd);

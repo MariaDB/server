@@ -610,7 +610,7 @@ int PROFILING::fill_statistics_info(THD *thd_arg, TABLE_LIST *tables, Item *cond
       table->field[9]->store((uint32)(entry->rusage.ru_oublock -
                              previous->rusage.ru_oublock));
       table->field[9]->set_notnull();
-#elif defined(__WIN__)
+#elif defined(_WIN32)
       ULONGLONG reads_delta = entry->io_count.ReadOperationCount - 
                               previous->io_count.ReadOperationCount;
       ULONGLONG writes_delta = entry->io_count.WriteOperationCount - 
@@ -643,7 +643,7 @@ int PROFILING::fill_statistics_info(THD *thd_arg, TABLE_LIST *tables, Item *cond
       table->field[13]->store((uint32)(entry->rusage.ru_minflt -
                              previous->rusage.ru_minflt), true);
       table->field[13]->set_notnull();
-#elif defined(__WIN__)
+#elif defined(_WIN32)
       /* Windows APIs don't easily distinguish between hard and soft page
          faults, so we just fill the 'major' column and leave the second NULL.
       */

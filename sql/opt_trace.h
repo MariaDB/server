@@ -72,14 +72,18 @@ struct Opt_trace_info
 */
 
 
-class Opt_trace_start {
+class Opt_trace_start
+{
  public:
-  Opt_trace_start(THD *thd_arg, TABLE_LIST *tbl,
-                  enum enum_sql_command sql_command,
-                  List<set_var_base> *set_vars,
-                  const char *query,
-                  size_t query_length,
-                  const CHARSET_INFO *query_charset);
+  Opt_trace_start(THD *thd_arg): ctx(&thd_arg->opt_trace), traceable(false) {}
+
+  void init(THD *thd, TABLE_LIST *tbl,
+            enum enum_sql_command sql_command,
+            List<set_var_base> *set_vars,
+            const char *query,
+            size_t query_length,
+            const CHARSET_INFO *query_charset);
+
   ~Opt_trace_start();
 
  private:

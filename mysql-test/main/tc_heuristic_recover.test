@@ -66,7 +66,7 @@ SELECT * FROM t1;
 --source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN= \\[ERROR\\] Can\\'t init tc log
 --source include/search_pattern_in_file.inc
---let SEARCH_PATTERN= Please restart mysqld without --tc-heuristic-recover
+--let SEARCH_PATTERN= Please restart without --tc-heuristic-recover
 --source include/search_pattern_in_file.inc
 
 --error 1
@@ -78,7 +78,7 @@ SELECT * FROM t1;
 --source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN= \\[ERROR\\] Can\\'t init tc log
 --source include/search_pattern_in_file.inc
---let SEARCH_PATTERN= Please restart mysqld without --tc-heuristic-recover
+--let SEARCH_PATTERN= Please restart without --tc-heuristic-recover
 --source include/search_pattern_in_file.inc
 
 --source include/start_mysqld.inc

@@ -116,7 +116,6 @@ extern bool opt_ignore_builtin_innodb;
 extern my_bool opt_character_set_client_handshake;
 extern my_bool debug_assert_on_not_freed_memory;
 extern MYSQL_PLUGIN_IMPORT bool volatile abort_loop;
-extern Atomic_counter<uint> connection_count;
 extern my_bool opt_safe_user_create;
 extern my_bool opt_safe_show_db, opt_local_infile, opt_myisam_use_mmap;
 extern my_bool opt_slave_compressed_protocol, use_temp_pool;
@@ -192,7 +191,8 @@ enum vers_system_time_t
 struct vers_asof_timestamp_t
 {
   ulong type;
-  MYSQL_TIME ltime;
+  my_time_t unix_time;
+  ulong second_part;
 };
 
 enum vers_alter_history_enum
@@ -640,7 +640,9 @@ extern PSI_stage_info stage_upgrading_lock;
 extern PSI_stage_info stage_user_lock;
 extern PSI_stage_info stage_user_sleep;
 extern PSI_stage_info stage_verifying_table;
+extern PSI_stage_info stage_waiting_for_ddl;
 extern PSI_stage_info stage_waiting_for_delay_list;
+extern PSI_stage_info stage_waiting_for_flush;
 extern PSI_stage_info stage_waiting_for_gtid_to_be_written_to_binary_log;
 extern PSI_stage_info stage_waiting_for_handler_insert;
 extern PSI_stage_info stage_waiting_for_handler_lock;
@@ -698,7 +700,7 @@ void init_sql_statement_info();
 void init_com_statement_info();
 #endif /* HAVE_PSI_STATEMENT_INTERFACE */
 
-#ifndef __WIN__
+#ifndef _WIN32
 extern pthread_t signal_thread;
 #endif
 
@@ -759,7 +761,6 @@ extern mysql_rwlock_t LOCK_ssl_refresh;
 extern mysql_prlock_t LOCK_system_variables_hash;
 extern mysql_cond_t COND_start_thread;
 extern mysql_cond_t COND_manager;
-extern Atomic_counter<uint32_t> thread_count;
 
 extern my_bool opt_use_ssl;
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
@@ -967,6 +968,7 @@ extern int mysqld_main(int argc, char **argv);
 extern HANDLE hEventShutdown;
 extern void mysqld_win_initiate_shutdown();
 extern void mysqld_win_set_startup_complete();
+extern void mysqld_win_extend_service_timeout(DWORD sec);
 extern void mysqld_set_service_status_callback(void (*)(DWORD, DWORD, DWORD));
 extern void mysqld_win_set_service_name(const char *name);
 #endif

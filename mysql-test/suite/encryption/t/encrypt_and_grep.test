@@ -1,9 +1,6 @@
 -- source include/have_innodb.inc
 -- source include/have_file_key_management_plugin.inc
 
-# embedded does not support restart
--- source include/not_embedded.inc
-
 #
 # MDEV-8138: strange results from encrypt-and-grep test
 #
@@ -35,7 +32,7 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 --sorted_result
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 
---source include/shutdown_mysqld.inc
+FLUSH TABLES t1,t2,t3 FOR EXPORT;
 
 --let SEARCH_PATTERN=foobarsecret
 --echo # t1 yes on expecting NOT FOUND
@@ -54,7 +51,7 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 -- let SEARCH_FILE=$ib1_IBD
 -- source include/search_pattern_in_file.inc
 
--- source include/start_mysqld.inc
+UNLOCK TABLES;
 
 --echo # Now turn off encryption and wait for threads to decrypt everything
 
@@ -71,7 +68,7 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 --sorted_result
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 
---source include/shutdown_mysqld.inc
+FLUSH TABLES t1,t2,t3 FOR EXPORT;
 
 --let SEARCH_PATTERN=foobarsecret
 --echo # t1 yes on expecting NOT FOUND
@@ -90,8 +87,7 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 -- let SEARCH_FILE=$ib1_IBD
 -- source include/search_pattern_in_file.inc
 
-
--- source include/start_mysqld.inc
+UNLOCK TABLES;
 
 --echo # Now turn on encryption and wait for threads to encrypt all spaces
 SET GLOBAL innodb_encrypt_tables = on;
@@ -106,7 +102,7 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 --sorted_result
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 
---source include/shutdown_mysqld.inc
+FLUSH TABLES t1,t2,t3 FOR EXPORT;
 
 --let SEARCH_PATTERN=foobarsecret
 --echo # t1 yes on expecting NOT FOUND
@@ -125,6 +121,6 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 -- let SEARCH_FILE=$ib1_IBD
 -- source include/search_pattern_in_file.inc
 
--- source include/start_mysqld.inc
+UNLOCK TABLES;
 
 drop table t1, t2, t3;

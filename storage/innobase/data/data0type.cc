@@ -61,10 +61,10 @@ dtype_get_at_most_n_mbchars(
 					length is being determined */
 {
 	ut_a(len_is_stored(data_len));
-	ut_ad(!mbmaxlen || !(prefix_len % mbmaxlen));
+	ut_ad(!mbmaxlen || !(prefix_len % mbmaxlen) || !(prefix_len % 4));
 
 	if (mbminlen != mbmaxlen) {
-		ut_a(!(prefix_len % mbmaxlen));
+		ut_a(!(prefix_len % mbmaxlen) || !(prefix_len % 4));
 		return(innobase_get_at_most_n_mbchars(
 			dtype_get_charset_coll(prtype),
 			prefix_len, data_len, str));

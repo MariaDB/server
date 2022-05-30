@@ -932,6 +932,7 @@ rocksdb_force_flush_memtable_now	OFF
 rocksdb_force_index_records_in_range	0
 rocksdb_git_hash	#
 rocksdb_hash_index_allow_collision	ON
+rocksdb_ignore_datadic_errors	0
 rocksdb_ignore_unknown_options	ON
 rocksdb_index_type	kBinarySearch
 rocksdb_info_log_level	error_level

@@ -25,6 +25,7 @@ typedef struct JKCOL {
 	PCOL   Colp;
 	char  *Key;
 	int    N;
+	bool   Array;
 } *PJKC;
 
 /***********************************************************************/
@@ -33,18 +34,18 @@ typedef struct JKCOL {
 class JNCOL : public BLOCK {
 public:
 	// Constructor
-	JNCOL(bool ar) { Klist = NULL; Array = ar; }
+//JNCOL(bool ar) { Klist = NULL; Array = ar; }
+	JNCOL(void) { Klist = NULL; }
 
 	// Methods
 	void AddCol(PGLOBAL g, PCOL colp, PSZ jp);
 
 	//Members
 	PJKC   Klist;
-	bool   Array;
 }; // end of JNCOL;
 
 /***********************************************************************/
-/*  JMgoConn class.                                                   */
+/*  JMgoConn class.                                                    */
 /***********************************************************************/
 class JMgoConn : public JAVAConn {
 	friend class TDBJMG;
@@ -81,11 +82,12 @@ public:
 	bool    GetMethodId(PGLOBAL g, MODE mode);
 	jobject MakeObject(PGLOBAL g, PCOL colp, bool& error);
 	jobject MakeDoc(PGLOBAL g, PJNCOL jcp);
-	int     DocWrite(PGLOBAL g);
+	int     DocWrite(PGLOBAL g, PCSZ line);
 	int     DocUpdate(PGLOBAL g, PTDB tdbp);
 	int     DocDelete(PGLOBAL g, bool all);
 	bool    Rewind(void);
 	PSZ     GetDocument(void);
+	bool    Stringify(PCOL colp);
 
 protected:
 	// Members
@@ -100,6 +102,7 @@ protected:
 	jmethodID getdocid;									// The GetDoc method ID
 	jmethodID objfldid;									// The ObjectField method ID
 	jmethodID mkdocid;									// The MakeDocument method ID
+	jmethodID mkbsonid;								  // The MakeBson method ID
 	jmethodID docaddid;									// The DocAdd method ID
 	jmethodID mkarid;										// The MakeArray method ID
 	jmethodID araddid;									// The ArrayAdd method ID

@@ -21,6 +21,7 @@ create table t10 (c1 int);
 --enable_warnings
 
 # Query PS to know initial read count for frm file.
+--enable_prepare_warnings
 select Sum(ALL(COUNT_READ)) from performance_schema.file_summary_by_instance where FILE_NAME 
 like "%show_table_lw_db%" AND FILE_NAME like "%.frm%" AND EVENT_NAME='wait/io/file/sql/FRM'
 into @count_read_before;
@@ -45,6 +46,7 @@ into @count_read_after;
 
 select @count_read_after-@count_read_before;
 
+--disable_prepare_warnings
 --disable_warnings
 drop table t1;
 drop database show_table_lw_db;

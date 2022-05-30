@@ -1586,3 +1586,29 @@ SELECT * FROM t2;
 DROP TABLE t2;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-26732 Assertion `0' failed in Item::val_native
+--echo #
+
+# This tests Item_copy_inet6::val_native()
+SELECT CAST(CONCAT('::', REPEAT('',RAND())) AS INET6) AS f, var_pop('x') FROM dual HAVING f > '';
+SELECT CAST(CONCAT('::', REPEAT('',RAND())) AS INET6) AS f, var_pop(1) FROM dual HAVING f >= '::';
+
+# This tests Item_copy_inet6::save_in_field()
+CREATE TABLE t1(id INET6 NOT NULL PRIMARY KEY, dsc INET6);
+INSERT INTO t1 VALUES ('::1', '1::1'),('::3', '1::3'),('::4', NULL);
+CREATE TABLE t2 SELECT COALESCE(t1.dsc), COUNT(*) FROM t1 GROUP BY t1.id;
+SELECT * FROM t2 ORDER BY 1,2;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-24619 Wrong result or Assertion `0' in Item::val_native / Type_handler_inet6::Item_val_native_with_conversion
+--echo #
+
+CREATE TABLE t1 (a INET6);
+INSERT INTO t1 VALUES ('::'),('::');
+SELECT IF(1, '::', a) AS f FROM t1 GROUP BY 'foo' HAVING f != '';
+SELECT IF(1, '::', a) AS f FROM t1 GROUP BY 'foo' HAVING f != '::';
+SELECT IF(1, '::', a) AS f FROM t1 GROUP BY 'foo' HAVING f != '::1';
+DROP TABLE t1;

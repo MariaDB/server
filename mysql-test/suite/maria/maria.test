@@ -1437,7 +1437,7 @@ CREATE TABLE t1 (
 ) ENGINE=aria DEFAULT CHARSET=utf8 PACK_KEYS=0;
 let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
---exec $MARIA_CHK -d $MYSQLD_DATADIR/test/t1
+--exec $MARIA_CHK -d --ignore-control-file $MYSQLD_DATADIR/test/t1
 DROP TABLE t1;
 
 # Test warnings with transactional=1 with MyISAM
@@ -2099,3 +2099,27 @@ aria_page_checksum=$default_checksum,
 aria_log_file_size=$default_log_file_size;
 --enable_result_log
 --enable_query_log
+
+--echo #
+--echo # MDEV-22284 Aria table key read crash because wrong index used
+--echo #
+create table t1 (
+    a int auto_increment,
+    b int, c int,
+    key(c, a), unique(b)
+) engine aria
+partition by hash (b);
+replace into t1 values (1, 0, 0), (2, 0, 0), (0, 0, 0);
+# cleanup
+drop table t1;
+
+--echo #
+--echo # MDEV-28269 Assertion `save_errno' in maria_write or ER_GET_ERRNO
+--echo #
+
+connect (session1,localhost,root,,);
+SET big_tables= on;
+SET NAMES 'sjis';
+SELECT 'למטה' AS a UNION SELECT 'Wetter' AS a;
+connection default;
+disconnect session1;

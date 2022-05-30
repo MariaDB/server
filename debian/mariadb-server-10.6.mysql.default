@@ -1,9 +1,9 @@
 #
 # NOTE: This file is read only by the traditional SysV init script.
-# Debian 9 and Ubuntu 17.04 onwards do not normally read this file as they use
+# Debian 9 and Ubuntu 17.04 onward do not normally read this file as they use
 # systemd by default.
 #
-# For similar behaviour, systemd users should override ExecStart by dropping
+# For similar behavior, systemd users should override ExecStart by dropping
 # files into /etc/systemd/system/mariadb.service.d/
 #
 # See also:

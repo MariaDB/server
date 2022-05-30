@@ -74,6 +74,8 @@ DROP TABLE t2,t3;
 CREATE TABLE t0(a INT PRIMARY KEY) ENGINE=InnoDB;
 ERROR HY000: Can't create table `test`.`t0` (errno: 184 "Tablespace already exists")
 CREATE TABLE t0(a INT PRIMARY KEY) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t0` (errno: 184 "Tablespace already exists")
+CREATE TABLE t0(a INT PRIMARY KEY) ENGINE=InnoDB;
 DROP TABLE t0;
 CREATE TABLE u1(a INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE u2(a INT PRIMARY KEY) ENGINE=InnoDB;

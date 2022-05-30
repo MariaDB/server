@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -185,9 +185,8 @@ rtr_index_build_node_ptr(
 }
 
 /**************************************************************//**
-Update the mbr field of a spatial index row.
-@return true if update is successful */
-bool
+Update the mbr field of a spatial index row. */
+void
 rtr_update_mbr_field(
 /*=================*/
 	btr_cur_t*	cursor,		/*!< in/out: cursor pointed to rec.*/
@@ -231,7 +230,7 @@ rtr_update_mbr_field(
 	ut_ad(page == buf_block_get_frame(block));
 
 	child = btr_node_ptr_get_child_page_no(rec, offsets);
-	const ulint n_core = page_is_leaf(block->frame)
+	const ulint n_core = page_is_leaf(block->page.frame)
 		? index->n_core_fields : 0;
 
 	if (new_rec) {
@@ -535,8 +534,6 @@ update_mbr:
 			  page_is_comp(page))));
 
 	mem_heap_free(heap);
-
-	return(true);
 }
 
 /**************************************************************//**
@@ -590,8 +587,8 @@ rtr_adjust_upper_level(
 
 	page_cursor = btr_cur_get_page_cur(&cursor);
 
-	rtr_update_mbr_field(&cursor, offsets, NULL, block->frame, mbr, NULL,
-			     mtr);
+	rtr_update_mbr_field(&cursor, offsets, nullptr, block->page.frame, mbr,
+			     nullptr, mtr);
 
 	/* Already updated parent MBR, reset in our path */
 	if (sea_cur->rtr_info) {
@@ -605,7 +602,7 @@ rtr_adjust_upper_level(
 	/* Insert the node for the new page. */
 	node_ptr_upper = rtr_index_build_node_ptr(
 		index, new_mbr,
-		page_rec_get_next(page_get_infimum_rec(new_block->frame)),
+		page_rec_get_next(page_get_infimum_rec(new_block->page.frame)),
 		new_page_no, heap);
 
 	ulint	up_match = 0;
@@ -660,15 +657,15 @@ rtr_adjust_upper_level(
 
 	ut_ad(block->zip_size() == index->table->space->zip_size());
 
-	const uint32_t next_page_no = btr_page_get_next(block->frame);
+	const uint32_t next_page_no = btr_page_get_next(block->page.frame);
 
 	if (next_page_no != FIL_NULL) {
 		buf_block_t*	next_block = btr_block_get(
 			*index, next_page_no, RW_X_LATCH, false, mtr);
 #ifdef UNIV_BTR_DEBUG
-		ut_a(page_is_comp(next_block->frame)
-		     == page_is_comp(block->frame));
-		ut_a(btr_page_get_prev(next_block->frame)
+		ut_a(page_is_comp(next_block->page.frame)
+		     == page_is_comp(block->page.frame));
+		ut_a(btr_page_get_prev(next_block->page.frame)
 		     == block->page.id().page_no());
 #endif /* UNIV_BTR_DEBUG */
 
@@ -744,8 +741,7 @@ rtr_split_page_move_rec_list(
 		log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
 	}
 
-	max_to_move = page_get_n_recs(
-				buf_block_get_frame(block));
+	max_to_move = page_get_n_recs(buf_block_get_frame(block));
 	rec_move = static_cast<rtr_rec_move_t*>(mem_heap_alloc(
 			heap,
 			sizeof (*rec_move) * max_to_move));
@@ -979,7 +975,7 @@ func_start:
 	if (page_level && UNIV_LIKELY_NULL(new_page_zip)) {
 		/* ROW_FORMAT=COMPRESSED non-leaf pages are not expected
 		to contain FIL_NULL in FIL_PAGE_PREV at this stage. */
-		memset_aligned<4>(new_block->frame + FIL_PAGE_PREV, 0, 4);
+		memset_aligned<4>(new_block->page.frame + FIL_PAGE_PREV, 0, 4);
 	}
 	btr_page_create(new_block, new_page_zip, cursor->index,
 			page_level, mtr);
@@ -1170,15 +1166,6 @@ after_insert:
 	page_zip = buf_block_get_page_zip(root_block);
 	page_set_ssn_id(root_block, page_zip, next_ssn, mtr);
 
-	/* Insert fit on the page: update the free bits for the
-	left and right pages in the same mtr */
-
-	if (page_is_leaf(page)) {
-		ibuf_update_free_bits_for_two_pages_low(
-			block, new_block, mtr);
-	}
-
-
 	/* If the new res insert fail, we need to do another split
 	 again. */
 	if (!rec) {
@@ -1272,12 +1259,8 @@ rtr_ins_enlarge_mbr(
 		page = buf_block_get_frame(block);
 
 		/* Update the mbr field of the rec. */
-		if (!rtr_update_mbr_field(&cursor, offsets, NULL, page,
-					  &new_mbr, NULL, mtr)) {
-			err = DB_ERROR;
-			break;
-		}
-
+		rtr_update_mbr_field(&cursor, offsets, NULL, page,
+				     &new_mbr, NULL, mtr);
 		page_cursor = btr_cur_get_page_cur(&cursor);
 		block = page_cur_get_block(page_cursor);
 	}
@@ -1587,7 +1570,7 @@ rtr_merge_mbr_changed(
 
 /****************************************************************//**
 Merge 2 mbrs and update the the mbr that cursor is on. */
-dberr_t
+void
 rtr_merge_and_update_mbr(
 /*=====================*/
 	btr_cur_t*		cursor,		/*!< in/out: cursor */
@@ -1597,27 +1580,15 @@ rtr_merge_and_update_mbr(
 	page_t*			child_page,	/*!< in: the page. */
 	mtr_t*			mtr)		/*!< in: mtr */
 {
-	dberr_t			err = DB_SUCCESS;
 	rtr_mbr_t		new_mbr;
-	bool			changed = false;
 
-	ut_ad(dict_index_is_spatial(cursor->index));
-
-	changed = rtr_merge_mbr_changed(cursor, cursor2, offsets, offsets2,
-					&new_mbr);
-
-	/* Update the mbr field of the rec. And will delete the record
-	pointed by cursor2 */
-	if (changed) {
-		if (!rtr_update_mbr_field(cursor, offsets, cursor2, child_page,
-					  &new_mbr, NULL, mtr)) {
-			err = DB_ERROR;
-		}
+	if (rtr_merge_mbr_changed(cursor, cursor2, offsets, offsets2,
+                                  &new_mbr)) {
+		rtr_update_mbr_field(cursor, offsets, cursor2, child_page,
+				     &new_mbr, NULL, mtr);
 	} else {
 		rtr_node_ptr_delete(cursor2, mtr);
 	}
-
-	return(err);
 }
 
 /*************************************************************//**
@@ -1879,7 +1850,7 @@ err_exit:
 	/* Scan records in root page and calculate area. */
 	double	area = 0;
 	for (const rec_t* rec = page_rec_get_next(
-		     page_get_infimum_rec(block->frame));
+		     page_get_infimum_rec(block->page.frame));
 	     !page_rec_is_supremum(rec);
 	     rec = page_rec_get_next_const(rec)) {
 		rtr_mbr_t	mbr;

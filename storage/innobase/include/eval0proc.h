@@ -89,6 +89,6 @@ return_step(
 /*========*/
 	que_thr_t*	thr);	/*!< in: query thread */
 
-#include "eval0proc.ic"
+#include "eval0proc.inl"
 
 #endif

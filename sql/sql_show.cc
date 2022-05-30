@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -65,6 +65,18 @@
 #include "transaction.h"
 #include "opt_trace.h"
 #include "my_cpu.h"
+
+
+#include "lex_symbol.h"
+#define KEYWORD_SIZE 64
+
+extern SYMBOL symbols[];
+extern size_t symbols_length;
+
+extern SYMBOL sql_functions[];
+extern size_t sql_functions_length;
+
+extern Native_func_registry_array native_func_registry_array;
 
 enum enum_i_s_events_fields
 {
@@ -1651,7 +1663,7 @@ static void append_directory(THD *thd, String *packet, LEX_CSTRING *dir_type,
     packet->append(' ');
     packet->append(dir_type);
     packet->append(STRING_WITH_LEN(" DIRECTORY='"));
-#ifdef __WIN__
+#ifdef _WIN32
     /* Convert \ to / to be able to create table on unix */
     char *winfilename= (char*) thd->memdup(filename, length);
     char *pos, *end;
@@ -2222,11 +2234,11 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
     }
     else
     {
-      if (field->flags & VERS_SYS_START_FLAG)
+      if (field->flags & VERS_ROW_START)
       {
         packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW START"));
       }
-      else if (field->flags & VERS_SYS_END_FLAG)
+      else if (field->flags & VERS_ROW_END)
       {
         packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW END"));
       }
@@ -2621,7 +2633,8 @@ static int show_create_view(THD *thd, TABLE_LIST *table, String *buff)
          tbl;
          tbl= tbl->next_global)
     {
-      if (cmp(&table->view_db, tbl->view ? &tbl->view_db : &tbl->db))
+      if (!tbl->is_derived() &&
+          cmp(&table->view_db, tbl->view ? &tbl->view_db : &tbl->db))
       {
         table->compact_view_format= FALSE;
         break;
@@ -3548,6 +3561,30 @@ ulonglong get_status_vars_version(void)
 }
 
 /**
+  A union holding a pointer to a type that can be referred by a status variable.
+ */
+union Any_pointer {
+  const void *as_void;
+  const uchar *as_uchar;
+  const char *as_char;
+  const char ** as_charptr;
+  const double *as_double;
+  const int * as_int;
+  const uint * as_uint;
+  const long *as_long;
+  const longlong *as_longlong;
+  const bool *as_bool;
+  const my_bool *as_my_bool;
+  const sys_var *as_sys_var;
+  const system_status_var *as_system_status_var;
+  const ha_rows *as_ha_rows;
+  const LEX_STRING *as_lex_cstring;
+  const SHOW_COMP_OPTION *as_show_comp_options;
+  intptr as_intptr;
+  Atomic_counter<uint32_t>* as_atomic_counter;
+};
+
+/**
   @brief Returns the value of a system or a status variable.
 
   @param thd         [in]     The handle of the current THD.
@@ -3570,16 +3607,18 @@ const char* get_one_variable(THD *thd,
                              const CHARSET_INFO **charset, char *buff,
                              size_t *length)
 {
-  void *value= variable->value;
+  Any_pointer value, status_var_value;
+  value.as_void= variable->value;
+  status_var_value.as_system_status_var= status_var;
   const char *pos= buff;
   const char *end= buff;
 
 
   if (show_type == SHOW_SYS)
   {
-    sys_var *var= (sys_var *) value;
+    const sys_var *var= value.as_sys_var;
     show_type= var->show_type();
-    value= var->value_ptr(thd, value_type, &null_clex_str);
+    value.as_uchar= var->value_ptr(thd, value_type, &null_clex_str);
     *charset= var->charset(thd);
   }
 
@@ -3589,72 +3628,71 @@ const char* get_one_variable(THD *thd,
   */
   switch (show_type) {
   case SHOW_DOUBLE_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_DOUBLE:
     /* 6 is the default precision for '%f' in sprintf() */
-    end= buff + my_fcvt(*(double *) value, 6, buff, NULL);
+    end= buff + my_fcvt(*value.as_double, 6, buff, NULL);
     break;
   case SHOW_LONG_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_ULONG:
   case SHOW_LONG_NOFLUSH: // the difference lies in refresh_status()
 #ifndef _WIN64
   case SHOW_SIZE_T:
 #endif
-    end= int10_to_str(*(long*) value, buff, 10);
+    end= int10_to_str(*value.as_long, buff, 10);
     break;
   case SHOW_LONGLONG_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_ULONGLONG:
 #ifdef _WIN64
   case SHOW_SIZE_T:
 #endif
-    end= longlong10_to_str(*(longlong*) value, buff, 10);
+    end= longlong10_to_str(*value.as_longlong, buff, 10);
     break;
   case SHOW_HA_ROWS:
-    end= longlong10_to_str((longlong) *(ha_rows*) value, buff, 10);
+    end= longlong10_to_str((longlong) *value.as_ha_rows, buff, 10);
     break;
   case SHOW_BOOL:
-    end= strmov(buff, *(bool*) value ? "ON" : "OFF");
+    end= strmov(buff, *value.as_bool ? "ON" : "OFF");
     break;
   case SHOW_MY_BOOL:
-    end= strmov(buff, *(my_bool*) value ? "ON" : "OFF");
+    end= strmov(buff, *value.as_my_bool ? "ON" : "OFF");
     break;
   case SHOW_UINT32_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_UINT:
-    end= int10_to_str((long) *(uint*) value, buff, 10);
+    end= int10_to_str((long) *value.as_uint, buff, 10);
     break;
   case SHOW_SINT:
-    end= int10_to_str((long) *(int*) value, buff, -10);
+    end= int10_to_str((long) *value.as_int, buff, -10);
     break;
   case SHOW_SLONG:
-    end= int10_to_str(*(long*) value, buff, -10);
+    end= int10_to_str(*value.as_long, buff, -10);
     break;
   case SHOW_SLONGLONG:
-    end= longlong10_to_str(*(longlong*) value, buff, -10);
+    end= longlong10_to_str(*value.as_longlong, buff, -10);
     break;
   case SHOW_HAVE:
     {
-      SHOW_COMP_OPTION tmp= *(SHOW_COMP_OPTION*) value;
-      pos= show_comp_option_name[(int) tmp];
+      pos= show_comp_option_name[(int) *value.as_show_comp_options];
       end= strend(pos);
       break;
     }
   case SHOW_CHAR:
     {
-      if (!(pos= (char*)value))
+      if (!(pos= value.as_char))
         pos= "";
       end= strend(pos);
       break;
     }
   case SHOW_CHAR_PTR:
     {
-      if (!(pos= *(char**) value))
+      if (!(pos= *value.as_charptr))
         pos= "";
 
       end= strend(pos);
@@ -3662,17 +3700,14 @@ const char* get_one_variable(THD *thd,
     }
   case SHOW_LEX_STRING:
     {
-      LEX_STRING *ls=(LEX_STRING*)value;
-      if (!(pos= ls->str))
+      if (!(pos= value.as_lex_cstring->str))
         end= pos= "";
       else
-        end= pos + ls->length;
+        end= pos + value.as_lex_cstring->length;
       break;
     }
   case SHOW_ATOMIC_COUNTER_UINT32_T:
-    end= int10_to_str(
-           static_cast<long>(*static_cast<Atomic_counter<uint32_t>*>(value)),
-           buff, 10);
+    end= int10_to_str(static_cast<long>(*value.as_atomic_counter), buff, 10);
     break;
   case SHOW_UNDEF:
     break;                                        // Return empty string
@@ -4445,7 +4480,9 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
   if (!lookup_field_vals->wild_table_value &&
       lookup_field_vals->table_value.str)
   {
-    if (lookup_field_vals->table_value.length > NAME_LEN)
+    if (check_table_name(lookup_field_vals->table_value.str,
+                         lookup_field_vals->table_value.length,
+                         false))
     {
       /*
         Impossible value for a table name,
@@ -4481,6 +4518,9 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
   if (db_name == &INFORMATION_SCHEMA_NAME)
     return (schema_tables_add(thd, table_names,
                               lookup_field_vals->table_value.str));
+
+  if (check_db_name((LEX_STRING*)db_name))
+    return 0; // Impossible TABLE_SCHEMA name
 
   find_files_result res= find_files(thd, table_names, db_name, path,
                                     &lookup_field_vals->table_value);
@@ -5060,7 +5100,8 @@ end:
   */
   DBUG_ASSERT(thd->open_tables == NULL);
   thd->mdl_context.rollback_to_savepoint(open_tables_state_backup->mdl_system_tables_svp);
-  thd->clear_error();
+  if (!thd->is_fatal_error)
+    thd->clear_error();
   return res;
 }
 
@@ -5110,6 +5151,7 @@ public:
 
 int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 {
+  DBUG_ENTER("get_all_tables");
   LEX *lex= thd->lex;
   TABLE *table= tables->table;
   TABLE_LIST table_acl_check;
@@ -5127,7 +5169,29 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   uint table_open_method= tables->table_open_method;
   bool can_deadlock;
   MEM_ROOT tmp_mem_root;
-  DBUG_ENTER("get_all_tables");
+  /*
+    We're going to open FRM files for tables.
+    In case of VIEWs that contain stored function calls,
+    these stored functions will be parsed and put to the SP cache.
+
+    Suppose we have a view containing a stored function call:
+      CREATE VIEW v1 AS SELECT f1() AS c1;
+    and now we're running:
+      SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME=f1();
+    If a parallel thread invalidates the cache,
+    e.g. by creating or dropping some stored routine,
+    the SELECT query will re-parse f1() when processing "v1"
+    and replace the outdated cached version of f1() to a new one.
+    But the old version of f1() is referenced from the m_sp member
+    of the Item_func_sp instances used in the WHERE condition.
+    We cannot destroy it. To avoid such clashes, let's remember
+    all old routines into a temporary SP cache collection
+    and process tables with a new empty temporary SP cache collection.
+    Then restore to the old SP cache collection at the end.
+  */
+  Sp_caches old_sp_caches;
+
+  old_sp_caches.sp_caches_swap(*thd);
 
   bzero(&tmp_mem_root, sizeof(tmp_mem_root));
 
@@ -5276,6 +5340,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
               error= 0;
               goto err;
             }
+            if (thd->is_fatal_error)
+              goto err;
 
             DEBUG_SYNC(thd, "before_open_in_get_all_tables");
             if (fill_schema_table_by_open(thd, &tmp_mem_root, FALSE,
@@ -5300,6 +5366,13 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 err:
   thd->restore_backup_open_tables_state(&open_tables_state_backup);
   free_root(&tmp_mem_root, 0);
+
+  /*
+    Now restore to the saved SP cache collection
+    and clear the temporary SP cache collection.
+  */
+  old_sp_caches.sp_caches_swap(*thd);
+  old_sp_caches.sp_caches_clear();
 
   DBUG_RETURN(error);
 }
@@ -6065,7 +6138,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     }
     else if (field->flags & VERS_SYSTEM_FIELD)
     {
-      if (field->flags & VERS_SYS_START_FLAG)
+      if (field->flags & VERS_ROW_START)
       {
         table->field[21]->store(STRING_WITH_LEN("ROW START"), cs);
         buf.set(STRING_WITH_LEN("STORED GENERATED"), cs);
@@ -6685,6 +6758,16 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
       LEX_CSTRING unknown= {STRING_WITH_LEN("?unknown field?") };
       for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
       {
+        if (key_part->field->invisible >= INVISIBLE_SYSTEM &&
+            DBUG_EVALUATE_IF("test_completely_invisible", 0, 1))
+        {
+          /*
+            NOTE: we will get SEQ_IN_INDEX gap inside the result if this key_part
+            is not last (currently not possible). Though nothing is wrong with
+            that probably.
+          */
+          continue;
+        }
         restore_record(table, s->default_values);
         table->field[0]->store(STRING_WITH_LEN("def"), cs);
         table->field[1]->store(db_name->str, db_name->length, cs);
@@ -7860,6 +7943,58 @@ int fill_variables(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_RETURN(res);
 }
 
+int add_symbol_to_table(const char* name, TABLE* table){
+  DBUG_ENTER("add_symbol_to_table");
+
+  size_t length= strlen(name);
+
+  // If you've added a new SQL keyword longer than KEYWORD_SIZE,
+  // please increase the defined max length
+  DBUG_ASSERT(length < KEYWORD_SIZE);
+
+  restore_record(table, s->default_values);
+  table->field[0]->set_notnull();
+  table->field[0]->store(name, length,
+                         system_charset_info);
+  if (schema_table_store_record(table->in_use, table))
+    DBUG_RETURN(1);
+
+  DBUG_RETURN(0);
+}
+
+int fill_i_s_keywords(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  DBUG_ENTER("fill_i_s_keywords");
+
+  TABLE *table= tables->table;
+
+  for (uint i= 0; i < symbols_length; i++){
+    const char *name= symbols[i].name;
+    if (add_symbol_to_table(name, table))
+      DBUG_RETURN(1);
+  }
+
+  DBUG_RETURN(0);
+}
+
+int fill_i_s_sql_functions(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  DBUG_ENTER("fill_i_s_sql_functions");
+
+  TABLE *table= tables->table;
+
+  for (uint i= 0; i < sql_functions_length; i++)
+    if (add_symbol_to_table(sql_functions[i].name, table))
+      DBUG_RETURN(1);
+
+  for (uint i= 0; i < native_func_registry_array.count(); i++)
+    if (add_symbol_to_table(native_func_registry_array.element(i).name.str,
+                            table))
+      DBUG_RETURN(1);
+
+  DBUG_RETURN(0);
+}
+
 
 int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
 {
@@ -8545,6 +8680,7 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
         if (bitmap_is_set(table->read_set, i))
         {
           field->move_field(cur);
+          field->reset();
           *to_recinfo++= *from_recinfo;
           cur+= from_recinfo->length;
         }
@@ -8566,6 +8702,7 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
         to_recinfo->type= FIELD_NORMAL;
         to_recinfo++;
       }
+      store_record(table, s->default_values);
       p->recinfo= to_recinfo;
 
       // TODO switch from Aria to Memory if all blobs were optimized away?
@@ -8951,7 +9088,7 @@ ST_FIELD_INFO columns_fields_info[]=
   Column("ORDINAL_POSITION",        ULonglong(), NOT_NULL,          OPEN_FRM_ONLY),
   Column("COLUMN_DEFAULT", Longtext(MAX_FIELD_VARCHARLENGTH),
                                                  NULLABLE, "Default",OPEN_FRM_ONLY),
-  Column("IS_NULLABLE",             Yesno(),     NOT_NULL, "Null",  OPEN_FRM_ONLY),
+  Column("IS_NULLABLE",          Yes_or_empty(), NOT_NULL, "Null",  OPEN_FRM_ONLY),
   Column("DATA_TYPE",               Name(),      NOT_NULL,          OPEN_FRM_ONLY),
   Column("CHARACTER_MAXIMUM_LENGTH",ULonglong(), NULLABLE,          OPEN_FRM_ONLY),
   Column("CHARACTER_OCTET_LENGTH",  ULonglong(), NULLABLE,          OPEN_FRM_ONLY),
@@ -8962,7 +9099,7 @@ ST_FIELD_INFO columns_fields_info[]=
   Column("COLLATION_NAME",          CSName(),    NULLABLE, "Collation", OPEN_FRM_ONLY),
   Column("COLUMN_TYPE",         Longtext(65535), NOT_NULL, "Type",  OPEN_FRM_ONLY),
   Column("COLUMN_KEY",              Varchar(3),  NOT_NULL, "Key",   OPEN_FRM_ONLY),
-  Column("EXTRA",                   Varchar(30), NOT_NULL, "Extra", OPEN_FRM_ONLY),
+  Column("EXTRA",                   Varchar(80), NOT_NULL, "Extra", OPEN_FRM_ONLY),
   Column("PRIVILEGES",              Varchar(80), NOT_NULL, "Privileges", OPEN_FRM_ONLY),
   Column("COLUMN_COMMENT", Varchar(COLUMN_COMMENT_MAXLEN), NOT_NULL, "Comment",
                                                                  OPEN_FRM_ONLY),
@@ -8988,8 +9125,8 @@ ST_FIELD_INFO collation_fields_info[]=
   Column("COLLATION_NAME",               CSName(),     NOT_NULL, "Collation"),
   Column("CHARACTER_SET_NAME",           CSName(),     NOT_NULL, "Charset"),
   Column("ID", SLonglong(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL, "Id"),
-  Column("IS_DEFAULT",                   Yesno(),      NOT_NULL, "Default"),
-  Column("IS_COMPILED",                  Yesno(),      NOT_NULL, "Compiled"),
+  Column("IS_DEFAULT",                 Yes_or_empty(), NOT_NULL, "Default"),
+  Column("IS_COMPILED",                Yes_or_empty(), NOT_NULL, "Compiled"),
   Column("SORTLEN",                      SLonglong(3), NOT_NULL, "Sortlen"),
   CEnd()
 };
@@ -8997,10 +9134,10 @@ ST_FIELD_INFO collation_fields_info[]=
 
 ST_FIELD_INFO applicable_roles_fields_info[]=
 {
-  Column("GRANTEE",                  Userhost(), NOT_NULL),
+  Column("GRANTEE",                  Userhost(),     NOT_NULL),
   Column("ROLE_NAME", Varchar(USERNAME_CHAR_LENGTH), NOT_NULL),
-  Column("IS_GRANTABLE",             Yesno(),    NOT_NULL),
-  Column("IS_DEFAULT",               Yesno(),    NULLABLE),
+  Column("IS_GRANTABLE",             Yes_or_empty(), NOT_NULL),
+  Column("IS_DEFAULT",               Yes_or_empty(), NULLABLE),
   CEnd()
 };
 
@@ -9008,6 +9145,18 @@ ST_FIELD_INFO applicable_roles_fields_info[]=
 ST_FIELD_INFO enabled_roles_fields_info[]=
 {
   Column("ROLE_NAME", Varchar(USERNAME_CHAR_LENGTH), NULLABLE),
+  CEnd()
+};
+
+ST_FIELD_INFO keywords_field_info[]=
+{
+  Column("WORD", Varchar(KEYWORD_SIZE), NULLABLE),
+  CEnd()
+};
+
+ST_FIELD_INFO sql_functions_field_info[]=
+{
+  Column("FUNCTION", Varchar(KEYWORD_SIZE), NULLABLE),
   CEnd()
 };
 
@@ -9111,7 +9260,7 @@ ST_FIELD_INFO stat_fields_info[]=
   Column("INDEX_NAME",    Name(),      NOT_NULL, "Key_name",    OPEN_FRM_ONLY),
   Column("SEQ_IN_INDEX",  SLonglong(2),NOT_NULL, "Seq_in_index",OPEN_FRM_ONLY),
   Column("COLUMN_NAME",   Name(),      NOT_NULL, "Column_name", OPEN_FRM_ONLY),
-  Column("COLLATION",     Varchar(1),  NULLABLE, "Collation",   OPEN_FRM_ONLY),
+  Column("COLLATION",     Varchar(1),  NULLABLE, "Collation",   OPEN_FULL_TABLE),
   Column("CARDINALITY",   SLonglong(), NULLABLE, "Cardinality", OPEN_FULL_TABLE),
   Column("SUB_PART",      SLonglong(3),NULLABLE, "Sub_part",    OPEN_FRM_ONLY),
   Column("PACKED",        Varchar(10), NULLABLE, "Packed",      OPEN_FRM_ONLY),
@@ -9132,7 +9281,7 @@ ST_FIELD_INFO view_fields_info[]=
   Column("TABLE_NAME",           Name(),     NOT_NULL, OPEN_FRM_ONLY),
   Column("VIEW_DEFINITION", Longtext(65535), NOT_NULL, OPEN_FRM_ONLY),
   Column("CHECK_OPTION",         Varchar(8), NOT_NULL, OPEN_FRM_ONLY),
-  Column("IS_UPDATABLE",         Yesno(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("IS_UPDATABLE",     Yes_or_empty(), NOT_NULL, OPEN_FULL_TABLE),
   Column("DEFINER",              Definer(),  NOT_NULL, OPEN_FRM_ONLY),
   Column("SECURITY_TYPE",        Varchar(7), NOT_NULL, OPEN_FRM_ONLY),
   Column("CHARACTER_SET_CLIENT", CSName(),   NOT_NULL, OPEN_FRM_ONLY),
@@ -9144,46 +9293,46 @@ ST_FIELD_INFO view_fields_info[]=
 
 ST_FIELD_INFO user_privileges_fields_info[]=
 {
-  Column("GRANTEE",        Userhost(), NOT_NULL),
-  Column("TABLE_CATALOG",  Catalog(),  NOT_NULL),
-  Column("PRIVILEGE_TYPE", Name(),     NOT_NULL),
-  Column("IS_GRANTABLE",   Yesno(),    NOT_NULL),
+  Column("GRANTEE",        Userhost(),     NOT_NULL),
+  Column("TABLE_CATALOG",  Catalog(),      NOT_NULL),
+  Column("PRIVILEGE_TYPE", Name(),         NOT_NULL),
+  Column("IS_GRANTABLE",   Yes_or_empty(), NOT_NULL),
   CEnd()
 };
 
 
 ST_FIELD_INFO schema_privileges_fields_info[]=
 {
-  Column("GRANTEE",        Userhost(), NOT_NULL),
-  Column("TABLE_CATALOG",  Catalog(),  NOT_NULL),
-  Column("TABLE_SCHEMA",   Name(),     NOT_NULL),
-  Column("PRIVILEGE_TYPE", Name(),     NOT_NULL),
-  Column("IS_GRANTABLE",   Yesno(),    NOT_NULL),
+  Column("GRANTEE",        Userhost(),     NOT_NULL),
+  Column("TABLE_CATALOG",  Catalog(),      NOT_NULL),
+  Column("TABLE_SCHEMA",   Name(),         NOT_NULL),
+  Column("PRIVILEGE_TYPE", Name(),         NOT_NULL),
+  Column("IS_GRANTABLE",   Yes_or_empty(), NOT_NULL),
   CEnd()
 };
 
 
 ST_FIELD_INFO table_privileges_fields_info[]=
 {
-  Column("GRANTEE",        Userhost(), NOT_NULL),
-  Column("TABLE_CATALOG",  Catalog(),  NOT_NULL),
-  Column("TABLE_SCHEMA",   Name(),     NOT_NULL),
-  Column("TABLE_NAME",     Name(),     NOT_NULL),
-  Column("PRIVILEGE_TYPE", Name(),     NOT_NULL),
-  Column("IS_GRANTABLE",   Yesno(),    NOT_NULL),
+  Column("GRANTEE",        Userhost(),     NOT_NULL),
+  Column("TABLE_CATALOG",  Catalog(),      NOT_NULL),
+  Column("TABLE_SCHEMA",   Name(),         NOT_NULL),
+  Column("TABLE_NAME",     Name(),         NOT_NULL),
+  Column("PRIVILEGE_TYPE", Name(),         NOT_NULL),
+  Column("IS_GRANTABLE",   Yes_or_empty(), NOT_NULL),
   CEnd()
 };
 
 
 ST_FIELD_INFO column_privileges_fields_info[]=
 {
-  Column("GRANTEE",        Userhost(), NOT_NULL),
-  Column("TABLE_CATALOG",  Catalog(),  NOT_NULL),
-  Column("TABLE_SCHEMA",   Name(),     NOT_NULL),
-  Column("TABLE_NAME",     Name(),     NOT_NULL),
-  Column("COLUMN_NAME",    Name(),     NOT_NULL),
-  Column("PRIVILEGE_TYPE", Name(),     NOT_NULL),
-  Column("IS_GRANTABLE",   Yesno(),    NOT_NULL),
+  Column("GRANTEE",        Userhost(),     NOT_NULL),
+  Column("TABLE_CATALOG",  Catalog(),      NOT_NULL),
+  Column("TABLE_SCHEMA",   Name(),         NOT_NULL),
+  Column("TABLE_NAME",     Name(),         NOT_NULL),
+  Column("COLUMN_NAME",    Name(),         NOT_NULL),
+  Column("PRIVILEGE_TYPE", Name(),         NOT_NULL),
+  Column("IS_GRANTABLE",   Yes_or_empty(), NOT_NULL),
   CEnd()
 };
 
@@ -9324,7 +9473,7 @@ ST_FIELD_INFO sysvars_fields_info[]=
   Column("NUMERIC_MAX_VALUE",    Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
   Column("NUMERIC_BLOCK_SIZE",   Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
   Column("ENUM_VALUE_LIST",      Longtext(65535),                  NULLABLE),
-  Column("READ_ONLY",            Yesno(),                          NOT_NULL),
+  Column("READ_ONLY",            Yes_or_empty(),                   NOT_NULL),
   Column("COMMAND_LINE_ARGUMENT",Name(),                           NULLABLE),
   Column("GLOBAL_VALUE_PATH",    Varchar(2048),                    NULLABLE),
   CEnd()
@@ -9590,6 +9739,8 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_status, make_old_format, 0, 0, -1, 0, 0},
   {"GLOBAL_VARIABLES", Show::variables_fields_info, 0,
    fill_variables, make_old_format, 0, 0, -1, 0, 0},
+  {"KEYWORDS", Show::keywords_field_info, 0,
+   fill_i_s_keywords, 0, 0, -1, -1, 0, 0},
   {"KEY_CACHES", Show::keycache_fields_info, 0,
    fill_key_cache_tables, 0, 0, -1,-1, 0, 0},
   {"KEY_COLUMN_USAGE", Show::key_column_usage_fields_info, 0,
@@ -9627,6 +9778,8 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"STATISTICS", Show::stat_fields_info, 0,
    get_all_tables, make_old_format, get_schema_stat_record, 1, 2, 0,
    OPEN_TABLE_ONLY|OPTIMIZE_I_S_TABLE},
+  {"SQL_FUNCTIONS", Show::sql_functions_field_info, 0,
+   fill_i_s_sql_functions, 0, 0, -1, -1, 0, 0},
   {"SYSTEM_VARIABLES", Show::sysvars_fields_info, 0,
    fill_sysvars, make_old_format, 0, 0, -1, 0, 0},
   {"TABLES", Show::tables_fields_info, 0,
@@ -9840,7 +9993,7 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
     thd->variables.time_zone->gmt_sec_to_TIME(&timestamp,
                                               (my_time_t)(trigger->create_time/100));
     timestamp.second_part= (trigger->create_time % 100) * 10000;
-    p->store(&timestamp, 2);
+    p->store_datetime(&timestamp, 2);
   }
   else
     p->store_null();

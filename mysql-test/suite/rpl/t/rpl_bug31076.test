@@ -1,3 +1,8 @@
+if (`SELECT $PS_PROTOCOL != 0`)
+{
+   --skip Need regular protocol but ps-protocol was specified
+}
+
 source include/have_binlog_format_mixed_or_row.inc;
 source include/master-slave.inc;
 

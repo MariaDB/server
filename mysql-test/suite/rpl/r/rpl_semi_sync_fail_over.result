@@ -1,0 +1,256 @@
+include/master-slave.inc
+[connection master]
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+RESET MASTER;
+SET @@global.max_binlog_size= 4096;
+connection server_2;
+RESET MASTER;
+SET @@global.max_binlog_size= 4096;
+set @@global.rpl_semi_sync_slave_enabled = 1;
+set @@global.gtid_slave_pos = "";
+CHANGE MASTER TO master_use_gtid= slave_pos;
+include/start_slave.inc
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+set @@global.rpl_semi_sync_master_enabled = 1;
+set @@global.rpl_semi_sync_master_wait_point=AFTER_SYNC;
+CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+INSERT INTO t1 VALUES (1, 'dummy1');
+connection server_2;
+connection server_1;
+#
+#  Case:1
+#
+# CRASH the original master, and FAILOVER to the new
+# INSERT INTO t1 VALUES (2, REPEAT("x", 4100))
+# Row - 2 will be in master's binlog but not committed, gets replicated
+# to slave and applied. On crash master should have 1 row and slave
+# should have 2 rows.
+#
+# Expected State post crash:
+#=================================================================
+# Master                 |  Slave                                |
+# 0-1-4 (Not committed)  |  0-1-4 (Received through semi-sync    |
+#                        |         replication and applied)      |
+#=================================================================
+connect  conn_client,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync SIGNAL con1_ready WAIT_FOR con1_go";
+INSERT INTO t1 VALUES (2, REPEAT("x", 4100));
+connection server_1;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+# Kill the server
+connection server_2;
+include/wait_for_slave_param.inc [Slave_SQL_Running_State]
+include/stop_slave.inc
+include/assert.inc [Table t1 should have 2 rows.]
+SELECT @@GLOBAL.gtid_current_pos;
+@@GLOBAL.gtid_current_pos
+0-1-4
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1
+connection server_1;
+include/assert.inc [Table t1 should have 1 rows.]
+FOUND 1 /truncated binlog file:.*master.*000001/ in mysqld.1.err
+disconnect conn_client;
+connection server_2;
+set global rpl_semi_sync_master_enabled = 1;
+set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
+connection server_1;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS;
+set global rpl_semi_sync_slave_enabled = 1;
+set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
+include/start_slave.inc
+#
+# Server_2 promoted as master will send 0-1-4 to new slave Server_1
+#
+connection server_2;
+INSERT INTO t1 VALUES (3, 'dummy3');
+# The gtid state on current master must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-2-5
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-1-4
+connection server_1;
+SELECT COUNT(*) = 3 as 'true' FROM t1;
+true
+1
+# ... the gtid states on the slave:
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-2-5
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-2-5
+connection server_2;
+#
+#  Case:2
+#
+# CRASH the new master, and FAILOVER back to the original
+# INSERT INTO t1 VALUES (4, REPEAT("x", 4100))
+# INSERT INTO t1 VALUES (5, REPEAT("x", 4100))
+# Rows 4 and 5 will be in master's binlog but not committed, they get
+# replicated to slave and applied. On crash master should have 3 rows
+# and slave should have 5 rows.
+#
+# Expected State post crash:
+#=================================================================
+# Master                |  Slave                                 |
+# 0-2-6 (Not commited)  |  0-2-6 (Received through semi-sync     |
+#                       |         replication and applied)       |
+# 0-2-7 (Not commited)  |  0-2-7 (Received through semi-sync     |
+#                       |         replication and applied)       |
+#=================================================================
+connect  conn_client,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con1_ready WAIT_FOR con1_go";
+INSERT INTO t1 VALUES (4, REPEAT("x", 4100));
+connect  conn_client_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+SET GLOBAL debug_dbug="d,Notify_binlog_EOF";
+INSERT INTO t1 VALUES (5, REPEAT("x", 4100));
+connection server_2;
+SET DEBUG_SYNC= "now WAIT_FOR eof_reached";
+# Kill the server
+connection server_1;
+include/wait_for_slave_param.inc [Slave_SQL_Running_State]
+include/stop_slave.inc
+include/assert.inc [Table t1 should have 5 rows.]
+SELECT @@GLOBAL.gtid_current_pos;
+@@GLOBAL.gtid_current_pos
+0-2-7
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1
+connection server_2;
+include/assert.inc [Table t1 should have 3 rows.]
+FOUND 1 /truncated binlog file:.*slave.*000002/ in mysqld.2.err
+disconnect conn_client;
+connection server_1;
+set global rpl_semi_sync_master_enabled = 1;
+set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
+connection server_2;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS;
+set global rpl_semi_sync_slave_enabled = 1;
+set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
+include/start_slave.inc
+#
+# Server_1 promoted as master will send 0-2-6  and 0-2-7 to slave Server_2
+#
+connection server_1;
+INSERT INTO t1 VALUES (6, 'dummy6');
+# The gtid state on current master must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-1-8
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-2-7
+connection server_2;
+SELECT COUNT(*) = 6 as 'true' FROM t1;
+true
+1
+# ... the gtid states on the slave:
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-1-8
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-1-8
+include/diff_tables.inc [server_1:t1, server_2:t1]
+connection server_1;
+#
+#  Case:3
+#
+# CRASH the master and FAILOVER to slave
+# INSERT INTO t1 VALUES (7, REPEAT("x", 4100))
+# INSERT INTO t1 VALUES (8, REPEAT("x", 4100))
+# Rows 7 and 8 will be in master's binlog but not committed, only 7
+# gets replicated to slave and applied. On crash master should have 6
+# rows and slave should have 7 rows.
+#
+# Expected State post crash:
+#=================================================================
+# Master                  | Slave                                |
+# 0-1-9  (Not commited)   | 0-1-9 (Received through semi-sync    |
+#                         |  replication and applied)            |
+# 0-1-10 (Not commited -  |                                      |
+#  never sent to slave)   |                                      |
+#=================================================================
+connect  conn_client,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con1_ready WAIT_FOR con1_go";
+INSERT INTO t1 VALUES (7, REPEAT("x", 4100));
+connect  conn_client_3,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+SET DEBUG_SYNC= "commit_before_update_binlog_end_pos SIGNAL con3_ready WAIT_FOR con1_go";
+INSERT INTO t1 VALUES (8, REPEAT("x", 4100));
+connection server_1;
+SET DEBUG_SYNC= "now WAIT_FOR con3_ready";
+# Kill the server
+connection server_2;
+include/wait_for_slave_param.inc [Slave_SQL_Running_State]
+include/stop_slave.inc
+include/assert.inc [Table t1 should have 7 rows.]
+SELECT @@GLOBAL.gtid_current_pos;
+@@GLOBAL.gtid_current_pos
+0-1-9
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1
+connection server_1;
+include/assert.inc [Table t1 should have 6 rows.]
+NOT FOUND /truncated binlog file:.*master.*000003/ in mysqld.1.err
+disconnect conn_client;
+connection server_2;
+set global rpl_semi_sync_master_enabled = 1;
+set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
+connection server_1;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS;
+set global rpl_semi_sync_slave_enabled = 1;
+set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
+include/start_slave.inc
+#
+# Server_2 promoted as master will send 0-1-9 to slave Server_1
+#
+connection server_2;
+INSERT INTO t1 VALUES (8, 'Done');
+include/save_master_gtid.inc
+# The gtid state on current master must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-2-10
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-1-9
+connection server_1;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*) = 8 as 'true' FROM t1;
+true
+1
+# ... the gtid states on the slave:
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-2-10
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-2-10
+#
+# Cleanup
+#
+include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled = 0;
+set global rpl_semi_sync_master_enabled = 0;
+set global rpl_semi_sync_master_wait_point=default;
+RESET MASTER;
+RESET SLAVE;
+connection server_2;
+RESET MASTER;
+RESET SLAVE;
+set @@global.rpl_semi_sync_master_enabled = 0;
+set @@global.rpl_semi_sync_slave_enabled = 0;
+set @@global.rpl_semi_sync_master_wait_point=default;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root', master_use_gtid=SLAVE_POS;
+set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t1;
+connection server_2;
+connection default;
+include/rpl_end.inc

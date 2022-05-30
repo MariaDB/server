@@ -47,6 +47,13 @@
 #define uid cr_uid
 #define ucred xucred
 
+#elif defined HAVE_UNPCBID
+#include <sys/un.h>
+#define level 0
+#define SO_PEERCRED LOCAL_PEEREID
+#define uid unp_euid
+#define ucred unpcbid
+
 #elif defined HAVE_GETPEERUCRED
 #include <ucred.h>
 

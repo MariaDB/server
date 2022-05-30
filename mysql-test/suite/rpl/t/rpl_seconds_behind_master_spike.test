@@ -1,0 +1,102 @@
+#
+# Purpose:
+#   This test validates that a slave's relay log format description event is
+# not used to calculate the Seconds_Behind_Master time displayed by
+# SHOW SLAVE STATUS.
+#
+# Methodology:
+#   Ensure that a slave's reported Seconds_Behind_Master does not point before
+# a time in which we can prove that it has progressed beyond. The slave's
+# relay log events are created using the timestamp at which the IO thread was
+# created. Therefore, after starting the slave's IO thread, we sleep so any
+# proceeding events are forced to have later timestamps. After sleeping, we run
+# MDL statements on the master and save the time at which they are binlogged.
+# Once the slave executes these MDL commands, we have proven that the slave has
+# caught up to this saved timestamp. At this point, if the value of
+# Seconds_Behind_Master points before the time in which the MDL events were
+# logged, it is invalid.
+#
+# References:
+#   MDEV-16091: Seconds_Behind_Master spikes to millions of seconds
+#
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+SET @save_dbug= @@GLOBAL.debug_dbug;
+SET @@global.debug_dbug="+d,pause_sql_thread_on_fde";
+--source include/start_slave.inc
+
+--let $sleep_time=2
+--echo # Future events must be logged at least $sleep_time seconds after
+--echo # the slave starts
+--sleep $sleep_time
+
+--connection master
+--echo # Write events to ensure slave will be consistent with master
+create table t1 (a int);
+insert into t1 values (1);
+--let $t_master_events_logged= `SELECT UNIX_TIMESTAMP()`
+
+--echo # Flush logs on master forces slave to generate a Format description
+--echo # event in its relay log
+flush logs;
+
+--connection slave
+--echo # Ignore FDEs that happen before the CREATE/INSERT commands
+SET DEBUG_SYNC='now WAIT_FOR paused_on_fde';
+SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
+SET DEBUG_SYNC='now WAIT_FOR paused_on_fde';
+SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
+
+--echo # On the next FDE, the slave should have the master CREATE/INSERT events
+SET DEBUG_SYNC='now WAIT_FOR paused_on_fde';
+select count(*)=1 from t1;
+
+--echo # The relay log FDE has been processed - here we check to ensure it was
+--echo # not considered in Seconds_Behind_Master calculation
+--connection slave1
+let $sbm= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1);
+--let $t_now= `SELECT UNIX_TIMESTAMP()`
+
+# Ensure Seconds_Behind_Master does not point beyond when we have proven the
+# events we have proven to have executed. The extra second is needed as a
+# buffer because the recorded times are not exact with when the events were
+# recorded on the master.
+if(`select $sbm > $t_now - $t_master_events_logged + 1`)
+{
+    die "A relay log event was incorrectly used to set Seconds_Behind_Master";
+}
+
+--echo # Safely resume slave SQL thread
+
+--let $dbug_wait_state="debug sync point: now"
+--echo # Prove SQL thread is in state $dbug_wait_state
+--let $wait_condition= SELECT STATE=$dbug_wait_state from information_schema.PROCESSLIST where COMMAND="Slave_SQL"
+--source include/wait_condition.inc
+
+SET @@global.debug_dbug="-d,pause_sql_thread_on_fde";
+SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
+
+# We have to wait for the SQL thread to acknowledge the sql_thread_continue
+# signal. Otherwise the below RESET command can overwrite the signal before
+# the SQL thread is notified to proceed, causing it to "permanently" become
+# stuck awaiting the signal (until timeout is reached).
+
+--echo # Wait for SQL thread to continue into normal execution
+--let $wait_condition= SELECT STATE!= $dbug_wait_state from information_schema.PROCESSLIST where COMMAND="Slave_SQL"
+--source include/wait_condition.inc
+
+# Reset last sql_thread_continue signal
+SET DEBUG_SYNC='RESET';
+
+# Cleanup
+--connection master
+DROP TABLE t1;
+
+--connection slave
+SET @@global.debug_dbug=$save_dbug;
+
+--source include/rpl_end.inc

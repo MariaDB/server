@@ -76,14 +76,14 @@ typedef struct st_key_part_info {	/* Info about a key part */
   uint  offset;                         /* Offset in record (from 0) */
   uint  null_offset;                    /* Offset to null_bit in record */
   /* Length of key part in bytes, excluding NULL flag and length bytes */
-  uint16 length;
+  uint length;
   /* 
     Number of bytes required to store the keypart value. This may be
     different from the "length" field as it also counts
      - possible NULL-flag byte (see HA_KEY_NULL_LENGTH)
      - possible HA_KEY_BLOB_LENGTH bytes needed to store actual value length.
   */
-  uint16 store_length;
+  uint store_length;
   uint16 key_type;
   field_index_t fieldnr;                /* Fieldnr begins counting from 1 */
   uint16 key_part_flag;                 /* 0 or HA_REVERSE_SORT */
@@ -537,7 +537,8 @@ public:
     OPT_OR_REPLACE= 16,                // CREATE OR REPLACE TABLE
     OPT_OR_REPLACE_SLAVE_GENERATED= 32,// REPLACE was added on slave, it was
                                        // not in the original query on master.
-    OPT_IF_EXISTS= 64
+    OPT_IF_EXISTS= 64,
+    OPT_CREATE_SELECT= 128             // CREATE ... SELECT
   };
 
 private:
@@ -565,6 +566,8 @@ public:
   { return m_options & OPT_OR_REPLACE_SLAVE_GENERATED; }
   bool like() const { return m_options & OPT_LIKE; }
   bool if_exists() const { return m_options & OPT_IF_EXISTS; }
+  bool is_create_select() const { return m_options & OPT_CREATE_SELECT; }
+
   void add(const DDL_options_st::Options other)
   {
     m_options= (Options) ((uint) m_options | (uint) other);

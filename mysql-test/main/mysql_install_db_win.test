@@ -42,15 +42,22 @@ remove_file $log;
 
 rmdir $ddir;
 
+# MDEV-28471 - mysql_install_db.exe fails with --innodb-page-size=64K
+--disable_result_log
+exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --password=foo -R --innodb-page-size=64K --verbose
+--enable_result_log
+rmdir $ddir;
+
+# Tests with config file
 let $restart_parameters=;
 connection default;
 
 # Test --template option
 let _BASEDIR = $MYSQLTEST_VARDIR/tmp/basedir;
 perl;
-
-  open(IN, '<', "std_data/mysql_install_db_win.ini.in") or die;
-  open(OUT, '>', "$ENV{MYSQLTEST_VARDIR}/tmp/mysql_install_db_win.ini") or die;
+  use autodie;
+  open(IN, '<', "std_data/mysql_install_db_win.ini");
+  open(OUT, '>', "$ENV{MYSQLTEST_VARDIR}/tmp/mysql_install_db_win.ini");
   while (<IN>) {
     s/BASEDIR/$ENV{_BASEDIR}/g;
     print OUT $_;
@@ -68,7 +75,8 @@ exec $MYSQL_INSTALL_DB_EXE -o --port=3307 --config=$MYSQLTEST_VARDIR/tmp/mysql_i
 
 # dump the modified config in data directory
 perl;
-  open(IN, '<', "$ENV{_BASEDIR}/data/my.ini") or die;
+  use autodie;
+  open(IN, '<', "$ENV{_BASEDIR}/data/my.ini");
   while (<IN>) {
     s/$ENV{_BASEDIR}/BASEDIR/g;
     # when testing on installation layout, client's plugin

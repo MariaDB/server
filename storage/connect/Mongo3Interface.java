@@ -1,5 +1,6 @@
 package wrappers;
 
+//import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Date;
@@ -9,6 +10,7 @@ import java.util.Set;
 import org.bson.BsonArray;
 import org.bson.BsonBoolean;
 import org.bson.BsonDateTime;
+//import org.bson.BsonDecimal128;
 import org.bson.BsonDocument;
 import org.bson.BsonDouble;
 import org.bson.BsonInt32;
@@ -18,6 +20,7 @@ import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.bson.Document;
 import org.bson.conversions.Bson;
+//import org.bson.types.Decimal128;
 
 import com.mongodb.MongoClient;
 import com.mongodb.MongoClientURI;
@@ -34,6 +37,7 @@ import com.mongodb.client.result.UpdateResult;
 public class Mongo3Interface {
 	boolean DEBUG = false;
 	String Errmsg = "No error";
+	String bvalName = null;
 	Set<String> Colnames = null;
 	MongoClient client = null;
 	MongoDatabase db = null;
@@ -167,7 +171,7 @@ public class Mongo3Interface {
 
 		try {
 			if (query != null) {
-				Bson dbq = Document.parse((query != null) ? query : "{}");
+				Bson dbq = Document.parse(query);
 				finditer = coll.find(dbq);
 			} else
 				finditer = coll.find();
@@ -218,17 +222,23 @@ public class Mongo3Interface {
 	} // end of Rewind
 
 	public int ReadNext() {
-		if (cursor.hasNext()) {
-			doc = cursor.next();
+		try {
+			if (cursor.hasNext()) {
+				doc = cursor.next();
 
-			if (DEBUG)
-				System.out.println("Class doc = " + doc.getClass());
+				if (DEBUG)
+					System.out.println("Class doc = " + doc.getClass());
 
-			Colnames = doc.keySet();
-			return 1;
-		} else
-			return 0;
+				Colnames = doc.keySet();
+				return Colnames.size();
+			} else
+				return 0;
 
+		} catch (MongoException mx) {
+			SetErrmsg(mx);
+		} // end try/catch
+
+		return -1;
 	} // end of ReadNext
 
 	public boolean Fetch(int row) {
@@ -254,13 +264,11 @@ public class Mongo3Interface {
 	} // end of GetColumns
 
 	public String ColumnName(int n) {
-		int i = 1;
+		if (n < Colnames.size())
+			return (String) Colnames.toArray()[n];
+		else
+			return null;
 
-		for (String name : Colnames)
-			if (i++ == n)
-				return name;
-
-		return null;
 	} // end of ColumnName
 
 	public int ColumnType(int n, String name) {
@@ -278,22 +286,103 @@ public class Mongo3Interface {
 		return 666; // Not a type
 	} // end of ColumnType
 
-	public String ColumnDesc(int n, int[] val) {
-		// if (rsmd == null) {
-		// System.out.println("No result metadata");
-		// return null;
-		// } else try {
-		// val[0] = rsmd.getColumnType(n);
-		// val[1] = rsmd.getPrecision(n);
-		// val[2] = rsmd.getScale(n);
-		// val[3] = rsmd.isNullable(n);
-		// return rsmd.getColumnLabel(n);
-		// } catch (SQLException se) {
-		// SetErrmsg(se);
-		// } //end try/catch
+	public Object ColumnDesc(Object obj, int n, int[] val, int lvl) {
+		Object ret = null;
+		BsonValue bval = (BsonValue) ((obj != null) ? obj : doc);
+		BsonDocument dob = (bval instanceof BsonDocument) ? (BsonDocument) bval : null;
+		BsonArray ary = (bval instanceof BsonArray) ? (BsonArray) bval : null;
 
+		try {
+			if (ary != null) {
+				bval = ary.get(n);
+				bvalName = Integer.toString(n);
+			} else if (dob != null) {
+				// String[] k = dob.keySet().toArray(new String[0]);
+				Object[] k = dob.keySet().toArray();
+				bval = dob.get(k[n]);
+				bvalName = (String) k[n];
+			} else
+				bvalName = "x" + Integer.toString(n);
+
+			val[0] = 0; // ColumnType
+			val[1] = 0; // Precision
+			val[2] = 0; // Scale
+			val[3] = 0; // Nullable
+			val[4] = 0; // ncol
+
+			if (bval.isString()) {
+				val[0] = 1;
+				val[1] = bval.asString().getValue().length();
+			} else if (bval.isInt32()) {
+				val[0] = 7;
+				val[1] = Integer.toString(bval.asInt32().getValue()).length();
+			} else if (bval.isInt64()) {
+				val[0] = 5;
+				val[1] = Long.toString(bval.asInt64().getValue()).length();
+			} else if (bval.isObjectId()) {
+				val[0] = 1;
+				val[1] = bval.asObjectId().getValue().toString().length();
+			} else if (bval.isDateTime()) {
+				Long TS = (bval.asDateTime().getValue() / 1000);
+				val[0] = 8;
+				val[1] = TS.toString().length();
+			} else if (bval.isDouble()) {
+				String d = Double.toString(bval.asDouble().getValue());
+				int i = d.indexOf('.') + 1;
+
+				val[0] = 2;
+				val[1] = d.length();
+				val[2] = (i > 0) ? val[1] - i : 0;
+			} else if (bval.isBoolean()) {
+				val[0] = 4;
+				val[1] = 1;
+			} else if (bval.isDocument()) {
+				if (lvl > 0) {
+					ret = bval;
+					val[0] = 1;
+					val[4] = bval.asDocument().keySet().size();
+				} else if (lvl == 0) {
+					val[0] = 1;
+					val[1] = bval.asDocument().toJson().length();
+				} // endif lvl
+
+			} else if (bval.isArray()) {
+				if (lvl > 0) {
+					ret = bval;
+					val[0] = 2;
+					val[4] = bval.asArray().size();
+				} else if (lvl == 0) {
+					val[0] = 1;
+					util = new BsonDocument("arr", bval.asArray());
+					String s = util.toJson();
+					int i1 = s.indexOf('[');
+					int i2 = s.lastIndexOf(']');
+					val[1] = i2 - i1 + 1;
+				} // endif lvl
+
+			} else if (bval.isDecimal128()) {
+				val[0] = 9;
+				val[1] = bval.asDecimal128().toString().length();
+			} else if (bval.isNull()) {
+				val[0] = 0;
+				val[3] = 1;
+			} else {
+				SetErrmsg("Type " + bval.getBsonType() + " of " + bvalName + " not supported");
+				val[0] = -1;
+			} // endif's
+
+			return ret;
+		} catch (Exception ex) {
+			SetErrmsg(ex);
+		} // end try/catch
+
+		val[0] = -1;
 		return null;
 	} // end of ColumnDesc
+
+	public String ColDescName() {
+		return bvalName;
+	} // end of ColDescName
 
 	protected BsonValue GetFieldObject(String path) {
 		BsonValue o = doc;
@@ -301,7 +390,7 @@ public class Mongo3Interface {
 		BsonArray ary = null;
 		String[] names = null;
 
-		if (path == null || path.equals("*"))
+		if (path == null || path.equals("") || path.equals("*"))
 			return doc;
 		else if (o instanceof BsonDocument)
 			dob = doc;
@@ -362,6 +451,8 @@ public class Mongo3Interface {
 				return TS.toString();
 			} else if (o.isDouble()) {
 				return Double.toString(o.asDouble().getValue());
+			} else if (o.isBoolean()) {
+				return o.asBoolean().getValue() ? "1" : "0";
 			} else if (o.isDocument()) {
 				return o.asDocument().toJson();
 			} else if (o.isArray()) {
@@ -370,6 +461,8 @@ public class Mongo3Interface {
 				int i1 = s.indexOf('[');
 				int i2 = s.lastIndexOf(']');
 				return s.substring(i1, i2 + 1);
+			} else if (o.isDecimal128()) {
+				return o.asDecimal128().toString();
 			} else if (o.isNull()) {
 				return null;
 			} else
@@ -380,14 +473,33 @@ public class Mongo3Interface {
 
 	} // end of GetField
 
-	protected BsonValue ObjToBson(Object val) {
+	public Object MakeBson(String s, int json) {
+		BsonValue bval;
+
+		if (json == 1)
+			bval = BsonDocument.parse(s);
+		else if (json == 2)
+			bval = BsonArray.parse(s);
+		else
+			bval = null;
+
+		return bval;
+	} // end of MakeBson
+
+	protected BsonValue ObjToBson(Object val, int json) {
 		BsonValue bval = null;
 
 		if (val == null)
 			bval = bsonull;
-		else if (val.getClass() == String.class)
-			bval = new BsonString((String) val);
-		else if (val.getClass() == Integer.class)
+		else if (val.getClass() == String.class) {
+			if (json == 1)
+				bval = BsonDocument.parse((String) val);
+			else if (json == 2)
+				bval = BsonArray.parse((String) val);
+			else
+				bval = new BsonString((String) val);
+
+		} else if (val.getClass() == Integer.class)
 			bval = new BsonInt32((int) val);
 		else if (val.getClass() == Double.class)
 			bval = new BsonDouble((double) val);
@@ -401,6 +513,8 @@ public class Mongo3Interface {
 			bval = (BsonDocument) val;
 		else if (val.getClass() == BsonArray.class)
 			bval = (BsonArray) val;
+		// else if (val.getClass() == BigDecimal.class)
+		// bval = new BsonDecimal128((BigDecimal) val);
 
 		return bval;
 	} // end of ObjToBson
@@ -409,9 +523,9 @@ public class Mongo3Interface {
 		return new BsonDocument();
 	} // end of MakeDocument
 
-	public boolean DocAdd(Object bdc, String key, Object val) {
+	public boolean DocAdd(Object bdc, String key, Object val, int json) {
 		try {
-			((BsonDocument) bdc).append(key, ObjToBson(val));
+			((BsonDocument) bdc).append(key, ObjToBson(val, json));
 		} catch (MongoException me) {
 			SetErrmsg(me);
 			return true;
@@ -424,12 +538,12 @@ public class Mongo3Interface {
 		return new BsonArray();
 	} // end of MakeArray
 
-	public boolean ArrayAdd(Object bar, int n, Object val) {
+	public boolean ArrayAdd(Object bar, int n, Object val, int json) {
 		try {
 			for (int i = ((BsonArray) bar).size(); i < n; i++)
 				((BsonArray) bar).add(bsonull);
 
-			((BsonArray) bar).add(ObjToBson(val));
+			((BsonArray) bar).add(ObjToBson(val, json));
 		} catch (MongoException me) {
 			SetErrmsg(me);
 			return true;
@@ -501,4 +615,4 @@ public class Mongo3Interface {
 		return n;
 	} // end of CollDelete
 
-} // end of class MongoInterface
+} // end of class Mongo3Interface

@@ -1,5 +1,6 @@
 connection node_2;
 connection node_1;
+connection node_1;
 CREATE TABLE t1 (
 f1 VARCHAR(255) PRIMARY KEY
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;

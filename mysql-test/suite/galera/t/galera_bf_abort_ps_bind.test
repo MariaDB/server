@@ -1,0 +1,61 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/no_protocol.inc
+
+CREATE TABLE t (i int primary key auto_increment, j varchar(20) character set utf8);
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+
+--connection node_1
+insert into t values (1, 'first');
+
+# prepare a statement for inserting rows into table t
+--PS_prepare INSERT INTO t(j) VALUES (?);
+
+# bind parameter, to insert with column j having value 'node1'
+--PS_bind node1
+
+# insert two rows with the PS
+# this is for showing that two execute commands can follow a bind command
+--PS_execute
+--PS_execute
+select * from t;
+
+# close the prepared statement, and prepare a new PS,
+# this happens to be same as the first PS
+# also bind parameter for the PS
+--PS_close
+--PS_prepare INSERT INTO t(j) VALUES (?);
+--PS_bind node1
+
+# start a transaction and make one update
+# leaving the transaction open
+begin;
+update t set j='node1' where i=1;
+
+# replicate a transaction from node2, which BF aborts the open
+# transaction in node1
+--connection node_2
+update t set j='node2' where i=1;
+
+# wait until the BF has completed, and update from node_2 has committed
+--connection node_1a
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t WHERE j='node2'
+--source include/wait_condition.inc
+
+# continue the open transaction, trying to insert third row, deadlock is now observed
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--PS_execute
+
+# try to insert one more row
+--PS_execute
+commit;
+
+--PS_close
+
+select * from t;
+
+drop table t;

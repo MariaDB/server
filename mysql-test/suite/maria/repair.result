@@ -22,3 +22,43 @@ i
 1
 UNLOCK TABLES;
 DROP TABLE t1;
+#
+# MDEV-23824 SIGSEGV in end_io_cache on REPAIR LOCAL TABLE for Aria table
+#
+CREATE TABLE t1 (i INT) ENGINE=Aria;
+INSERT INTO t1 VALUES (1);
+SET max_session_mem_used=50000;
+REPAIR LOCAL TABLE t1 USE_FRM;
+REPAIR LOCAL TABLE t1;
+DROP TABLE t1;
+SET max_session_mem_used=default;
+
+# MDEV-17223 Assertion `thd->killed != 0' failed in
+# ha_maria::enable_indexes
+#
+CREATE OR REPLACE TABLE t1 (c VARCHAR(1024) NOT NULL) ENGINE=Aria ROW_FORMAT FIXED;
+insert into t1 select char(seq) from seq_65_to_256;
+insert into t1 values ("a");
+ALTER TABLE t1 ADD PRIMARY KEY(c(67));
+ERROR 23000: Duplicate entry 'a' for key 'PRIMARY'
+select count(*) from t1;
+count(*)
+193
+drop table t1;
+
+# MDEV-17223 Assertion `thd->killed != 0' failed in
+# ha_maria::enable_indexes
+#
+SET SESSION aria_sort_buffer_size=1023;
+Warnings:
+Warning	1292	Truncated incorrect aria_sort_buffer_size value: '1023'
+CREATE TABLE t2 (c TEXT,INDEX(c(1000))) ENGINE=Aria;
+INSERT INTO t2 select char(seq) from seq_65_to_255;
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+191
+DROP TABLE t2;
+SET SESSION aria_sort_buffer_size=default;
+#
+# End of 10.3 tests
+#

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -496,7 +496,7 @@ lock_prdt_insert_check_and_lock(
 	lock_prdt_t*	prdt)	/*!< in: Predicates with Minimum Bound
 				Rectangle */
 {
-  ut_ad(block->frame == page_align(rec));
+  ut_ad(block->page.frame == page_align(rec));
   ut_ad(!index->table->is_temporary());
   ut_ad(index->is_spatial());
 
@@ -533,7 +533,7 @@ lock_prdt_insert_check_and_lock(
         trx->mutex_lock();
         /* Allocate MBR on the lock heap */
         lock_init_prdt_from_mbr(prdt, mbr, 0, trx->lock.lock_heap);
-        err= lock_rec_enqueue_waiting(c_lock, mode, id, block->frame,
+        err= lock_rec_enqueue_waiting(c_lock, mode, id, block->page.frame,
                                       PRDT_HEAPNO, index, thr, prdt);
         trx->mutex_unlock();
       }
@@ -753,28 +753,19 @@ lock_prdt_lock(
 			lock = lock_prdt_has_lock(
 				mode, g.cell(), id, prdt, trx);
 
-			if (lock == NULL) {
-
-				lock_t*	wait_for;
-
-				wait_for = lock_prdt_other_has_conflicting(
-					prdt_mode, g.cell(), id, prdt, trx);
-
-				if (wait_for != NULL) {
-
-					err = lock_rec_enqueue_waiting(
-						wait_for,
-						prdt_mode,
-						id, block->frame, PRDT_HEAPNO,
-						index, thr, prdt);
-				} else {
-
-					lock_prdt_add_to_queue(
-						prdt_mode, block, index, trx,
-						prdt, true);
-
-					status = LOCK_REC_SUCCESS;
-				}
+			if (lock) {
+			} else if (lock_t* wait_for
+				   = lock_prdt_other_has_conflicting(
+					   prdt_mode, g.cell(), id, prdt,
+					   trx)) {
+				err = lock_rec_enqueue_waiting(
+					wait_for, prdt_mode, id,
+					block->page.frame, PRDT_HEAPNO,
+					index, thr, prdt);
+			} else {
+				lock_prdt_add_to_queue(
+					prdt_mode, block, index, trx,
+					prdt, true);
 			}
 
 			trx->mutex_unlock();

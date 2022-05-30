@@ -34,13 +34,18 @@ ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
     NUMJOBS = $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
     MAKEFLAGS += -j$(NUMJOBS)
 else
-    # NUMJOBS cannot be empty as it is used as a parameter to mtr, default to 1.
-    NUMJOBS = 1
+    # NUMJOBS cannot be empty as it is used as a parameter to mtr, default to 'auto'.
+    NUMJOBS = auto
 endif
 
 # RocksDB cannot build on 32-bit platforms
 ifeq (32,$(DEB_HOST_ARCH_BITS))
     CMAKEFLAGS += -DPLUGIN_ROCKSDB=NO
+endif
+
+# ColumnStore can build only on amd64 and arm64
+ifneq (,$(filter $(DEB_HOST_ARCH_CPU),amd64 arm64))
+    CMAKEFLAGS += -DPLUGIN_COLUMNSTORE=NO
 endif
 
 # Cross building requires stack direction instruction
@@ -55,16 +60,8 @@ endif
 
 # Only attempt to build with PMEM on archs that have package libpmem-dev available
 # See https://packages.debian.org/search?searchon=names&keywords=libpmem-dev
-ifneq (,$(filter $(DEB_HOST_ARCH_CPU),amd64 arm64 ppc64el))
+ifneq (,$(filter $(DEB_HOST_ARCH_CPU),amd64 arm64 ppc64el riscv64))
 		CMAKEFLAGS += -DWITH_PMEM=yes
-endif
-
-# Add extra flag to avoid WolfSSL code crashing the entire mariadbd on s390x. This
-# can be removed once upstream has made the code s390x compatible, see
-# https://jira.mariadb.org/browse/MDEV-21705 and
-# https://github.com/wolfSSL/wolfssl/issues/2828
-ifeq ($(DEB_HOST_ARCH),s390x)
-    CFLAGS += -DWC_NO_CACHE_RESISTANT
 endif
 
 # Add support for verbose builds
@@ -74,11 +71,7 @@ override_dh_auto_clean:
 	@echo "RULES.$@"
 	dh_testdir
 	dh_testroot
-	rm -rf $(BUILDDIR) builddir-native
-
-	[ ! -f debian/mysql-test-unstable-tests.orig ] || \
-	    mv debian/mysql-test-unstable-tests.orig mysql-test/unstable-tests
-
+	rm -rf $(BUILDDIR) builddir-native mysql-test/unstable-tests
 	debconf-updatepo # Update po-files when clean runs before each build
 
 override_dh_auto_configure:
@@ -89,10 +82,13 @@ ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
 	dpkg-architecture -a$(DEB_BUILD_ARCH) -f -c dh_auto_configure --builddirectory=builddir-native
 	dh_auto_build --builddirectory=builddir-native -- import_executables
 endif
+
 	echo "server:Version=$(DEB_VERSION)" >> debian/substvars
 
-	# Don't build ColumnStore as part of the native build, only build it when
-	# triggered by autobake-deb.sh. Saves build time and disk space.
+	# Don't build ColumnStore as part of the native build as it does not meet the
+	# quality standards in Debian. Also building it requires an extra 4 GB of disk
+	# space which makes native Debian builds fail as the total disk space needed
+	# for MariaDB becomes over 10 GB. Only build CS via autobake-deb.sh.
 	PATH=$${MYSQL_BUILD_PATH:-"/usr/lib/ccache:/usr/local/bin:/usr/bin:/bin"} \
 	    NO_UPDATE_BUILD_VERSION=1 \
 	    dh_auto_configure --builddirectory=$(BUILDDIR) -- \
@@ -106,7 +102,7 @@ endif
 	    -DBUILD_CONFIG=mysql_release \
 	    -DCONC_DEFAULT_CHARSET=utf8mb4 \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
-	    -DPLUGIN_COLUMNSTORE=NO \
+			-DPLUGIN_COLUMNSTORE=NO \
 	    -DIGNORE_AIO_CHECK=YES \
 	    -DWITH_URING=yes \
 	    -DDEB=$(DEB_VENDOR)
@@ -116,13 +112,12 @@ override_dh_auto_build:
 	@echo "RULES.$@"
 	# Print build env info to help debug builds on different platforms
 	dpkg-architecture
-	cd $(BUILDDIR) && $(MAKE)
+	cd $(BUILDDIR) && $(MAKE) --output-sync=target
 
 override_dh_auto_test:
 	@echo "RULES.$@"
 	dh_testdir
-	# Skip unstable tests if such are defined for arch
-	cp mysql-test/unstable-tests debian/mysql-test-unstable-tests.orig
+	touch mysql-test/unstable-tests
 	[ ! -f debian/unstable-tests.$(DEB_HOST_ARCH) ] || cat debian/unstable-tests.$(DEB_HOST_ARCH) >> mysql-test/unstable-tests
 	# Run testsuite
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
@@ -155,7 +150,7 @@ endif
 	# If mariadb-test package is removed, also remove most of it's files
 	grep --quiet "Package: mariadb-test" debian/control || rm -rf $(TMP)/usr/share/mysql/mysql-test
 
-	# Delete private files from libraries so they don't get shipped in the -dev pacakges
+	# Delete private files from libraries so they don't get shipped in the -dev packages
 	rm -r $(TMP)/usr/include/mariadb/server/private
 
 	# Don't ship sql-bench at all, just delete it completely even though it builds

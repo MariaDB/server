@@ -42,11 +42,10 @@ IF(HAVE_PAM_APPL_H AND HAVE_GETGROUPLIST)
   IF (TARGET auth_pam)
     MYSQL_ADD_EXECUTABLE(auth_pam_tool auth_pam_tool.c DESTINATION ${INSTALL_PLUGINDIR}/auth_pam_tool_dir COMPONENT Server)
     TARGET_LINK_LIBRARIES(auth_pam_tool pam)
-    INSTALL(CODE "EXECUTE_PROCESS(
-                     COMMAND chmod u=rwx,g=,o= auth_pam_tool_dir
-                     COMMAND chmod u=rwxs,g=rx,o=rx auth_pam_tool_dir/auth_pam_tool
-                     WORKING_DIRECTORY \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${INSTALL_PLUGINDIR}/)"
-                   COMPONENT Server)
+    SET(CPACK_RPM_server_USER_FILELIST ${CPACK_RPM_server_USER_FILELIST}
+        "%attr(700,-,-) ${INSTALL_PLUGINDIRABS}/auth_pam_tool_dir"
+        "%attr(4755,-,-) ${INSTALL_PLUGINDIRABS}/auth_pam_tool_dir/auth_pam_tool")
+    SET(CPACK_RPM_server_USER_FILELIST ${CPACK_RPM_server_USER_FILELIST} PARENT_SCOPE)
   ENDIF()
   IF(TARGET auth_pam OR TARGET auth_pam_v1)
     ADD_SUBDIRECTORY(testing)
@@ -56,7 +55,7 @@ IF(HAVE_PAM_APPL_H AND HAVE_GETGROUPLIST)
     IF(INSTALL_PAMDIR)
       INSTALL(TARGETS pam_user_map DESTINATION ${INSTALL_PAMDIR} COMPONENT Server)
       INSTALL(FILES mapper/user_map.conf DESTINATION ${INSTALL_PAMDATADIR} COMPONENT Server)
-      SET(CPACK_RPM_server_USER_FILELIST ${CPACK_RPM_server_USER_FILELIST} "%config(noreplace) ${INSTALL_PAMDATADIR}/*" PARENT_SCOPE)
+      SET(CPACK_RPM_server_USER_FILELIST ${CPACK_RPM_server_USER_FILELIST} "%config(noreplace) ${INSTALL_PAMDATADIRABS}/*" PARENT_SCOPE)
     ENDIF()
   ENDIF()
 ENDIF()

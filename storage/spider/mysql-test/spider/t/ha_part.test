@@ -274,20 +274,20 @@ if ($HAVE_PARTITION)
     --connection child2_1
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     }
     eval $CHILD2_1_SELECT_TABLES;
     eval $CHILD2_1_SELECT_TABLES2;
     --connection child2_2
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     }
     eval $CHILD2_2_SELECT_TABLES;
     --connection child2_3
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     }
     eval $CHILD2_3_SELECT_TABLES;
     if (!$OUTPUT_CHILD_GROUP2)
@@ -356,14 +356,14 @@ if ($HAVE_PARTITION)
     --connection child2_1
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     }
     eval $CHILD2_1_SELECT_TABLES;
     eval $CHILD2_1_SELECT_TABLES2;
     --connection child2_2
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     }
     eval $CHILD2_2_SELECT_TABLES;
     if (!$OUTPUT_CHILD_GROUP2)
@@ -501,20 +501,20 @@ if ($HAVE_PARTITION)
     --connection child2_1
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     }
     eval $CHILD2_1_SELECT_TABLES;
     eval $CHILD2_1_SELECT_TABLES2;
     --connection child2_2
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     }
     eval $CHILD2_2_SELECT_TABLES;
     --connection child2_3
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     }
     eval $CHILD2_3_SELECT_TABLES;
     if (!$OUTPUT_CHILD_GROUP2)
@@ -723,20 +723,20 @@ if ($HAVE_PARTITION)
     --connection child2_1
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     }
     eval $CHILD2_1_SELECT_TABLES;
     eval $CHILD2_1_SELECT_TABLES2;
     --connection child2_2
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     }
     eval $CHILD2_2_SELECT_TABLES;
     --connection child2_3
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     }
     eval $CHILD2_3_SELECT_TABLES;
     if (!$OUTPUT_CHILD_GROUP2)
@@ -809,19 +809,19 @@ if ($HAVE_PARTITION)
     --connection child2_1
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     }
     eval $CHILD2_1_SELECT_TABLES;
     --connection child2_2
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     }
     eval $CHILD2_2_SELECT_TABLES;
     --connection child2_3
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     }
     eval $CHILD2_3_SELECT_TABLES;
     if (!$OUTPUT_CHILD_GROUP2)
@@ -933,20 +933,20 @@ if ($HAVE_PARTITION)
     --connection child2_1
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     }
     eval $CHILD2_1_SELECT_TABLES;
     eval $CHILD2_1_SELECT_TABLES2;
     --connection child2_2
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     }
     eval $CHILD2_2_SELECT_TABLES;
     --connection child2_3
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     }
     eval $CHILD2_3_SELECT_TABLES;
     if (!$OUTPUT_CHILD_GROUP2)
@@ -981,6 +981,13 @@ if ($HAVE_PARTITION)
     }
   }
 }
+
+--connection master_1
+ 
+CREATE TABLE t (c INT) PARTITION BY LIST COLUMNS (c) (PARTITION p DEFAULT ENGINE=SPIDER);
+SHOW FIELDS FROM t;
+SHOW FIELDS FROM t;
+DROP TABLE t;
 
 --echo
 --echo deinit

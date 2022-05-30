@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -164,10 +164,10 @@ trx_sysf_create(
 
 	ut_a(block->page.id() == page_id_t(0, TRX_SYS_PAGE_NO));
 
-	mtr->write<2>(*block, FIL_PAGE_TYPE + block->frame,
+	mtr->write<2>(*block, FIL_PAGE_TYPE + block->page.frame,
 		      FIL_PAGE_TYPE_TRX_SYS);
 
-	ut_ad(!mach_read_from_4(block->frame
+	ut_ad(!mach_read_from_4(block->page.frame
 				+ TRX_SYS_DOUBLEWRITE
 				+ TRX_SYS_DOUBLEWRITE_MAGIC));
 
@@ -191,23 +191,73 @@ trx_sysf_create(
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sys_rseg_find_free(block);
 	buf_block_t* rblock = trx_rseg_header_create(fil_system.sys_space,
-						     slot_no, block, mtr);
+						     slot_no, 0, block, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
 	ut_a(rblock->page.id() == page_id_t(0, FSP_FIRST_RSEG_PAGE_NO));
 }
 
-/** Create the instance */
-void
-trx_sys_t::create()
+void trx_sys_t::create()
 {
-	ut_ad(this == &trx_sys);
-	ut_ad(!is_initialised());
-	m_initialised = true;
-	trx_list.create();
-	rseg_history_len= 0;
+  ut_ad(this == &trx_sys);
+  ut_ad(!is_initialised());
+  m_initialised= true;
+  trx_list.create();
+  rw_trx_hash.init();
+}
 
-	rw_trx_hash.init();
+size_t trx_sys_t::history_size()
+{
+  ut_ad(is_initialised());
+  size_t size= 0;
+  for (auto &rseg : rseg_array)
+  {
+    rseg.latch.rd_lock(SRW_LOCK_CALL);
+    size+= rseg.history_size;
+  }
+  for (auto &rseg : rseg_array)
+    rseg.latch.rd_unlock();
+  return size;
+}
+
+bool trx_sys_t::history_exceeds(size_t threshold)
+{
+  ut_ad(is_initialised());
+  size_t size= 0;
+  bool exceeds= false;
+  size_t i;
+  for (i= 0; i < array_elements(rseg_array); i++)
+  {
+    rseg_array[i].latch.rd_lock(SRW_LOCK_CALL);
+    size+= rseg_array[i].history_size;
+    if (size > threshold)
+    {
+      exceeds= true;
+      i++;
+      break;
+    }
+  }
+  while (i)
+    rseg_array[--i].latch.rd_unlock();
+  return exceeds;
+}
+
+TPOOL_SUPPRESS_TSAN bool trx_sys_t::history_exists()
+{
+  ut_ad(is_initialised());
+  for (auto &rseg : rseg_array)
+    if (rseg.history_size)
+      return true;
+  return false;
+}
+
+TPOOL_SUPPRESS_TSAN size_t trx_sys_t::history_size_approx() const
+{
+  ut_ad(is_initialised());
+  size_t size= 0;
+  for (auto &rseg : rseg_array)
+    size+= rseg.history_size;
+  return size;
 }
 
 /*****************************************************************//**
@@ -225,10 +275,42 @@ trx_sys_create_sys_pages(void)
 	mtr_commit(&mtr);
 }
 
+/** Create a persistent rollback segment.
+@param space_id   system or undo tablespace id
+@return pointer to new rollback segment
+@retval nullptr  on failure */
+static trx_rseg_t *trx_rseg_create(ulint space_id)
+{
+  trx_rseg_t *rseg= nullptr;
+  mtr_t mtr;
+
+  mtr.start();
+
+  if (fil_space_t *space= mtr.x_lock_space(space_id))
+  {
+    ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
+    if (buf_block_t *sys_header= trx_sysf_get(&mtr))
+    {
+      ulint rseg_id= trx_sys_rseg_find_free(sys_header);
+      if (buf_block_t *rblock= rseg_id == ULINT_UNDEFINED
+          ? nullptr : trx_rseg_header_create(space, rseg_id, 0, sys_header,
+                                             &mtr))
+      {
+        ut_ad(trx_sysf_rseg_get_space(sys_header, rseg_id) == space_id);
+        rseg= &trx_sys.rseg_array[rseg_id];
+        rseg->init(space, rblock->page.id().page_no());
+        ut_ad(rseg->is_persistent());
+      }
+    }
+  }
+
+  mtr.commit();
+  return rseg;
+}
+
 /** Create the rollback segments.
 @return	whether the creation succeeded */
-bool
-trx_sys_create_rsegs()
+bool trx_sys_create_rsegs()
 {
 	/* srv_available_undo_logs reflects the number of persistent
 	rollback segments that have been initialized in the
@@ -308,14 +390,11 @@ trx_sys_t::close()
 
 	/* There can't be any active transactions. */
 
-	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-		if (trx_rseg_t* rseg = rseg_array[i]) {
-			trx_rseg_mem_free(rseg);
-		}
-
-		if (trx_rseg_t* rseg = temp_rsegs[i]) {
-			trx_rseg_mem_free(rseg);
-		}
+	for (ulint i = 0; i < array_elements(temp_rsegs); ++i) {
+		temp_rsegs[i].destroy();
+	}
+	for (ulint i = 0; i < array_elements(rseg_array); ++i) {
+		rseg_array[i].destroy();
 	}
 
 	ut_a(trx_list.empty());

@@ -173,7 +173,7 @@ replace t1 values (1,2),(1,3),(2,4);
 --echo # MDEV-14829 Assertion `0' failed in Protocol::end_statement upon concurrent UPDATE
 --echo #
 set @old_lock_wait_timeout= @@innodb_lock_wait_timeout;
-set @@innodb_lock_wait_timeout= 1073741824;
+set @@innodb_lock_wait_timeout= 100000000;
 create or replace table t1 (pk int, a char(3), b char(3), primary key(pk))
   engine=innodb with system versioning;
 
@@ -327,8 +327,31 @@ select *, check_row(row_start, row_end) from t2 for system_time all order by row
 drop tables t1, t2, t3;
 
 --echo #
+--echo # MDEV-26778 row_start is not updated in current row for InnoDB
+--echo #
+create or replace table t1 (x int) with system versioning;
+insert t1 values (1);
+update t1 set x= 1;
+select row_start into @r from t1;
+select check_row_ts(row_start, row_end) from t1 for system_time all where row_start = @r;
+drop table t1;
+
+--echo #
+--echo # MDEV-22973 Assertion in compare_record upon multi-update involving versioned table via view
+--echo #
+create or replace table t1 (a int, primary key (a)) engine=myisam;
+insert into t1 values (0);
+create or replace table t2 (pk int, b int, primary key (pk), key(b)) engine=innodb with system versioning;
+insert into t2 values (1, 0), (2, 0);
+create or replace view v as select a, b from t1, t2; 
+update v set b= null where a = 0 order by b;
+# cleanup
+drop view v;
+drop table t1, t2;
+
+--echo #
 --echo # MDEV-24522 Assertion `inited==NONE' fails upon UPDATE on versioned table with unique blob
---echo
+--echo #
 create table t1 (a int, b int, c text, unique(c), key (b)) engine=myisam with system versioning;
 insert into t1 values (1, 1, 'foo'), (2, 11, 'bar');
 
@@ -349,5 +372,7 @@ update t1, t2 set t1.a = 3, t2.a = 3 where t1.b <= 10 and t2.b <= 10 and t1.b = 
 
 # cleanup
 drop tables t1, t2;
+
+--echo # End of 10.4 tests
 
 source suite/versioning/common_finish.inc;

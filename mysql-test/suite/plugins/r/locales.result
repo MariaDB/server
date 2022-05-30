@@ -17,7 +17,7 @@ ID	NAME	DESCRIPTION	MAX_MONTH_NAME_LENGTH	MAX_DAY_NAME_LENGTH	DECIMAL_POINT	THOU
 14	cs_CZ	Czech - Czech Republic	8	7	,	 	czech
 15	da_DK	Danish - Denmark	9	7	,	.	danish
 16	de_AT	German - Austria	9	10	,		german
-17	es_ES	Spanish - Spain	10	9	,		spanish
+17	es_ES	Spanish - Spain	10	9	,	.	spanish
 18	et_EE	Estonian - Estonia	9	9	,	 	estonian
 19	eu_ES	Basque - Basque	9	10	,		english
 20	fi_FI	Finnish - Finland	9	11	,	 	english
@@ -82,24 +82,24 @@ ID	NAME	DESCRIPTION	MAX_MONTH_NAME_LENGTH	MAX_DAY_NAME_LENGTH	DECIMAL_POINT	THOU
 79	en_ZA	English - South Africa	9	9	.	,	english
 80	en_ZW	English - Zimbabwe	9	9	.	,	english
 81	es_AR	Spanish - Argentina	10	9	,	.	spanish
-82	es_BO	Spanish - Bolivia	10	9	,		spanish
-83	es_CL	Spanish - Chile	10	9	,		spanish
-84	es_CO	Spanish - Columbia	10	9	,		spanish
-85	es_CR	Spanish - Costa Rica	10	9	.		spanish
-86	es_DO	Spanish - Dominican Republic	10	9	.		spanish
-87	es_EC	Spanish - Ecuador	10	9	,		spanish
-88	es_GT	Spanish - Guatemala	10	9	.		spanish
-89	es_HN	Spanish - Honduras	10	9	.		spanish
-90	es_MX	Spanish - Mexico	10	9	.		spanish
-91	es_NI	Spanish - Nicaragua	10	9	.		spanish
-92	es_PA	Spanish - Panama	10	9	.		spanish
-93	es_PE	Spanish - Peru	10	9	.		spanish
-94	es_PR	Spanish - Puerto Rico	10	9	.		spanish
-95	es_PY	Spanish - Paraguay	10	9	,		spanish
-96	es_SV	Spanish - El Salvador	10	9	.		spanish
+82	es_BO	Spanish - Bolivia	10	9	,	.	spanish
+83	es_CL	Spanish - Chile	10	9	,	.	spanish
+84	es_CO	Spanish - Columbia	10	9	,	.	spanish
+85	es_CR	Spanish - Costa Rica	10	9	,	 	spanish
+86	es_DO	Spanish - Dominican Republic	10	9	.	,	spanish
+87	es_EC	Spanish - Ecuador	10	9	,	.	spanish
+88	es_GT	Spanish - Guatemala	10	9	.	,	spanish
+89	es_HN	Spanish - Honduras	10	9	.	,	spanish
+90	es_MX	Spanish - Mexico	10	9	.	,	spanish
+91	es_NI	Spanish - Nicaragua	10	9	.	,	spanish
+92	es_PA	Spanish - Panama	10	9	.	,	spanish
+93	es_PE	Spanish - Peru	10	9	.	,	spanish
+94	es_PR	Spanish - Puerto Rico	10	9	.	,	spanish
+95	es_PY	Spanish - Paraguay	10	9	,	.	spanish
+96	es_SV	Spanish - El Salvador	10	9	.	,	spanish
 97	es_US	Spanish - United States	10	9	.	,	spanish
-98	es_UY	Spanish - Uruguay	10	9	,		spanish
-99	es_VE	Spanish - Venezuela	10	9	,		spanish
+98	es_UY	Spanish - Uruguay	10	9	,	.	spanish
+99	es_VE	Spanish - Venezuela	10	9	,	.	spanish
 100	fr_BE	French - Belgium	9	8	,	.	french
 101	fr_CA	French - Canada	9	8	,	 	french
 102	fr_CH	French - Switzerland	9	8	,		french

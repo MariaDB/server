@@ -4,9 +4,8 @@
 #       settings are not relevant.
 set @subselect_innodb_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
+SET @saved_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = OFF;
 
 #
 # key field overflow test
@@ -164,7 +163,9 @@ EXECUTE my_stmt;
 deallocate prepare my_stmt;
 drop table t1,t2;
 
-# End of 4.1 tests
+--echo #
+--echo # End of 4.1 tests
+--echo #
 
 CREATE TABLE t1 (
   school_name varchar(45) NOT NULL,
@@ -289,8 +290,6 @@ LIMIT 10;
 DROP TABLE t1;
 DROP TABLE t2;
 
---echo # End of Bug #58756
-
 --echo #
 --echo # Bug#60085 crash in Item::save_in_field() with time data type
 --echo #
@@ -354,7 +353,9 @@ eval $query;
 
 DROP TABLE t1,t2;
 
---echo End of 5.1 tests
+--echo #
+--echo # End of 5.1 tests
+--echo #
 
 --echo #
 --echo # lp:827416 Crash in select_describe() on EXPLAIN with DISTINCT in nested subqueries
@@ -507,8 +508,6 @@ drop table t1,t2;
 --echo #             for a subquery from the expression used in ref access 
 --echo #
 
---source include/have_innodb.inc
- 
 CREATE TABLE t1 (i1 INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1),(2);
  
@@ -578,7 +577,7 @@ from
 drop table t1,t2;
 
 --echo #
---echo # mdev-12931: semi-join in ON expression of STRAIGHT_JOIN 
+--echo # MDEV-12931: semi-join in ON expression of STRAIGHT_JOIN 
 --echo #             joining a base table and a mergeable derived table
 --echo #
 
@@ -628,6 +627,49 @@ DROP TABLE t1,t2;
 
 set character_set_connection=@save_character_set_connection;
 
+--echo #
+--echo # MDEV-26047: MariaDB server crash at Item_subselect::init_expr_cache_tracker
+--echo #
+CREATE TABLE t1 (a int) engine=innodb;
+
+SELECT 1 IN (
+  SELECT NULL
+  FROM t1
+  WHERE
+    a IS NOT NULL
+  GROUP BY
+    (SELECT NULL from dual WHERE a = 1)
+);
+drop table t1;
+
+--echo # Testcase from MDEV-26164
+create table t1(a int);
+--echo # Disable the warning as it includes current time and changes for every test run.
+--disable_warnings
+select 1 from t1 where not exists
+(
+  select 1 from t1 where binary current_time()
+  group by (select a),(select 1)
+);
+--enable_warnings
+drop table t1;
+
+--echo #
+--echo # MDEV-28437: Assertion `!eliminated' failed in Item_subselect::exec
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (3),(4);
+ 
+SELECT 1 IN (SELECT a FROM t1 LEFT JOIN t2 ON (a = b AND EXISTS (SELECT * FROM t1)));
+
+drop table t1,t2;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
 --echo # 
 --echo # MDEV-17362: SIGSEGV in JOIN::optimize_inner or Assertion `fixed == 0'
 --echo # failed in  Item_equal::fix_fields, server crashes after 2nd execution
@@ -661,4 +703,16 @@ execute stmt;
 
 drop table t1,t2;
 
+--echo #
+--echo # MDEV-28097 use-after-free when WHERE has subquery with an outer reference in HAVING
+--echo #
+create table t1 (a text(60) not null) engine=innodb;
+insert into t1 values ('1'),('0');
+select distinct a from t1 where '' in (select 'x' like a having a like a);
+drop table t1;
+
+--echo #
 --echo # End of 10.4 tests
+--echo #
+
+SET GLOBAL innodb_stats_persistent = @saved_stats_persistent;

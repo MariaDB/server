@@ -52,11 +52,11 @@ connection slave1_1;
 connection master_1;
 SET SESSION sql_log_bin= 0;
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%delete %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%delete %';
 argument
 delete from `auto_test_remote`.`tbl_a` where `pkey` = 0 and `f` is null limit 1
 delete from `auto_test_remote`.`tbl_a` where `pkey` = 1 and `f` = /* create function to_float(a decimal(20,6)) returns float return a */ to_float(0.671437) limit 1
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%delete %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%delete %'
 SELECT pkey, f FROM tbl_a ORDER BY pkey;
 pkey	f
 connection slave1_1;

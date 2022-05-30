@@ -9,7 +9,7 @@
 
 #include <my_global.h>
 #include <my_config.h>
-#ifndef __WIN__
+#ifndef _WIN32
 #include <sys/types.h>
 #include <sys/un.h>
 #endif
@@ -43,7 +43,7 @@ namespace dena {
 void
 ignore_sigpipe()
 {
-#if defined(SIGPIPE) && !defined(__WIN__)
+#if defined(SIGPIPE) && !defined(_WIN32)
   if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
     fatal_abort("SIGPIPE SIG_IGN");
   }
@@ -80,7 +80,7 @@ socket_args::set(const config& conf)
 void
 socket_args::set_unix_domain(const char *path)
 {
-#ifndef __WIN__
+#ifndef _WIN32
   family = AF_UNIX; 
   addr = sockaddr_storage();
   addrlen = sizeof(sockaddr_un);
@@ -112,7 +112,7 @@ socket_set_timeout(auto_file& fd, const socket_args& args, String& err_r)
   if (!args.nonblocking) {
 #if defined(SO_SNDTIMEO) && defined(SO_RCVTIMEO)
     if (args.recv_timeout != 0) {
-#ifndef __WIN__
+#ifndef _WIN32
       struct timeval tv;
       tv.tv_sec = args.recv_timeout;
       tv.tv_usec = 0;
@@ -120,7 +120,7 @@ socket_set_timeout(auto_file& fd, const socket_args& args, String& err_r)
       int tv = args.recv_timeout * 1000;
 #endif
       if (setsockopt(fd.get(), SOL_SOCKET, SO_RCVTIMEO,
-#ifndef __WIN__
+#ifndef _WIN32
           (const void *) &tv,
 #else
           (const char *) &tv,
@@ -130,7 +130,7 @@ socket_set_timeout(auto_file& fd, const socket_args& args, String& err_r)
       }
     }
     if (args.send_timeout != 0) {
-#ifndef __WIN__
+#ifndef _WIN32
       struct timeval tv;
       tv.tv_sec = args.send_timeout;
       tv.tv_usec = 0;
@@ -138,7 +138,7 @@ socket_set_timeout(auto_file& fd, const socket_args& args, String& err_r)
       int tv = args.send_timeout * 1000;
 #endif
       if (setsockopt(fd.get(), SOL_SOCKET, SO_SNDTIMEO,
-#ifndef __WIN__
+#ifndef _WIN32
           (const void *) &tv,
 #else
           (const char *) &tv,
@@ -157,7 +157,7 @@ socket_set_options(auto_file& fd, const socket_args& args, String& err_r)
 {
   if (args.timeout != 0 && !args.nonblocking) {
 #if defined(SO_SNDTIMEO) && defined(SO_RCVTIMEO)
-#ifndef __WIN__
+#ifndef _WIN32
     struct timeval tv;
     tv.tv_sec = args.timeout;
     tv.tv_usec = 0;
@@ -165,7 +165,7 @@ socket_set_options(auto_file& fd, const socket_args& args, String& err_r)
     int tv = args.timeout * 1000;
 #endif
     if (setsockopt(fd.get(), SOL_SOCKET, SO_RCVTIMEO,
-#ifndef __WIN__
+#ifndef _WIN32
         (const void *) &tv,
 #else
         (const char *) &tv,
@@ -173,14 +173,14 @@ socket_set_options(auto_file& fd, const socket_args& args, String& err_r)
         sizeof(tv)) != 0) {
       return errno_string("setsockopt SO_RCVTIMEO", errno, err_r);
     }
-#ifndef __WIN__
+#ifndef _WIN32
     tv.tv_sec = args.timeout;
     tv.tv_usec = 0;
 #else
     tv = args.timeout * 1000;
 #endif
     if (setsockopt(fd.get(), SOL_SOCKET, SO_SNDTIMEO,
-#ifndef __WIN__
+#ifndef _WIN32
         (const void *) &tv,
 #else
         (const char *) &tv,
@@ -190,7 +190,7 @@ socket_set_options(auto_file& fd, const socket_args& args, String& err_r)
     }
 #endif
   }
-#ifndef __WIN__
+#ifndef _WIN32
   if (args.nonblocking && fcntl(fd.get(), F_SETFL, O_NONBLOCK) != 0) {
     return errno_string("fcntl O_NONBLOCK", errno, err_r);
   }
@@ -198,7 +198,7 @@ socket_set_options(auto_file& fd, const socket_args& args, String& err_r)
   if (args.sndbuf != 0) {
     const int v = args.sndbuf;
     if (setsockopt(fd.get(), SOL_SOCKET, SO_SNDBUF,
-#ifndef __WIN__
+#ifndef _WIN32
         (const void *) &v,
 #else
         (const char *) &v,
@@ -210,7 +210,7 @@ socket_set_options(auto_file& fd, const socket_args& args, String& err_r)
   if (args.rcvbuf != 0) {
     const int v = args.rcvbuf;
     if (setsockopt(fd.get(), SOL_SOCKET, SO_RCVBUF,
-#ifndef __WIN__
+#ifndef _WIN32
         (const void *) &v,
 #else
         (const char *) &v,
@@ -242,7 +242,7 @@ socket_connect(auto_file& fd, const socket_args& args, String& err_r)
   if (connect(fd.get(), reinterpret_cast<const sockaddr *>(&args.addr),
     args.addrlen) != 0) {
     if (!args.nonblocking
-#ifndef __WIN__
+#ifndef _WIN32
       || errno != EINPROGRESS
 #endif
     ) {
@@ -260,7 +260,7 @@ socket_bind(auto_file& fd, const socket_args& args, String& err_r)
     return errno_string("socket", errno, err_r);
   }
   if (args.reuseaddr) {
-#ifndef __WIN__
+#ifndef _WIN32
     if (args.family == AF_UNIX) {
       const sockaddr_un *const ap =
         reinterpret_cast<const sockaddr_un *>(&args.addr);
@@ -271,7 +271,7 @@ socket_bind(auto_file& fd, const socket_args& args, String& err_r)
 #endif
       int v = 1;
       if (setsockopt(fd.get(), SOL_SOCKET, SO_REUSEADDR,
-#ifndef __WIN__
+#ifndef _WIN32
         (const void *) &v,
 #else
         (const char *) &v,
@@ -279,7 +279,7 @@ socket_bind(auto_file& fd, const socket_args& args, String& err_r)
         sizeof(v)) != 0) {
         return errno_string("setsockopt SO_REUSEADDR", errno, err_r);
       }
-#ifndef __WIN__
+#ifndef _WIN32
     }
 #endif
   }
@@ -290,7 +290,7 @@ socket_bind(auto_file& fd, const socket_args& args, String& err_r)
   if (listen(fd.get(), args.listen_backlog) != 0) {
     return errno_string("listen", errno, err_r);
   }
-#ifndef __WIN__
+#ifndef _WIN32
   if (args.nonblocking && fcntl(fd.get(), F_SETFL, O_NONBLOCK) != 0) {
     return errno_string("fcntl O_NONBLOCK", errno, err_r);
   }

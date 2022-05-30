@@ -80,19 +80,7 @@ public:
   Select_materialize(THD *thd_arg, select_result *result_arg):
     select_unit(thd_arg), result(result_arg), materialized_cursor(0) {}
   virtual bool send_result_set_metadata(List<Item> &list, uint flags);
-  bool send_eof()
-  {
-    if (materialized_cursor)
-      materialized_cursor->on_table_fill_finished();
-    return false;
-  }
-
-  void abort_result_set()
-  {
-    if (materialized_cursor)
-      materialized_cursor->on_table_fill_finished();
-  }
-
+  bool send_eof() { return false; }
   bool view_structure_only() const
   {
     return result->view_structure_only();
@@ -197,7 +185,7 @@ int mysql_open_cursor(THD *thd, select_result *result,
     }
 
     *pcursor= materialized_cursor;
-    thd->stmt_arena->cleanup_stmt();
+    rc|= (thd->stmt_arena->cleanup_stmt(true)? 1 : 0);
   }
 
 end:
@@ -332,6 +320,8 @@ int Materialized_cursor::open(JOIN *join __attribute__((unused)))
   {
     result->abort_result_set();
   }
+
+  on_table_fill_finished();
 
   return rc;
 }

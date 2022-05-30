@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -71,10 +71,6 @@ static my_bool non_blocking_api_enabled= 0;
 #include "../tests/nonblock-wrappers.h"
 #endif
 
-/* Use cygwin for --exec and --system before 5.0 */
-#if MYSQL_VERSION_ID < 50000
-#define USE_CYGWIN
-#endif
 
 #define MAX_VAR_NAME_LENGTH    256
 #define MAX_COLUMNS            256
@@ -89,6 +85,8 @@ static my_bool non_blocking_api_enabled= 0;
 #define QUERY_REAP_FLAG  2
 
 #define QUERY_PRINT_ORIGINAL_FLAG 4
+
+#define CLOSED_CONNECTION "-closed_connection-"
 
 #ifndef HAVE_SETENV
 static int setenv(const char *name, const char *value, int overwrite);
@@ -134,6 +132,7 @@ static my_bool disable_info= 1;
 static my_bool abort_on_error= 1, opt_continue_on_error= 0;
 static my_bool server_initialized= 0;
 static my_bool is_windows= 0;
+static my_bool optimizer_trace_active= 0;
 static char **default_argv;
 static const char *load_default_groups[]=
 { "mysqltest", "mariadb-test", "client", "client-server", "client-mariadb",
@@ -157,6 +156,7 @@ static struct property prop_list[] = {
   { &display_session_track_info, 0, 1, 1, "$ENABLED_STATE_CHANGE_INFO" },
   { &display_metadata, 0, 0, 0, "$ENABLED_METADATA" },
   { &ps_protocol_enabled, 0, 0, 0, "$ENABLED_PS_PROTOCOL" },
+  { &view_protocol_enabled, 0, 0, 0, "$ENABLED_VIEW_PROTOCOL"},
   { &disable_query_log, 0, 0, 1, "$ENABLED_QUERY_LOG" },
   { &disable_result_log, 0, 0, 1, "$ENABLED_RESULT_LOG" },
   { &disable_warnings, 0, 0, 1, "$ENABLED_WARNINGS" }
@@ -171,6 +171,7 @@ enum enum_prop {
   P_SESSION_TRACK,
   P_META,
   P_PS,
+  P_VIEW,
   P_QUERY,
   P_RESULT,
   P_WARN,
@@ -318,6 +319,7 @@ struct st_connection
   char *name;
   size_t name_len;
   MYSQL_STMT* stmt;
+  MYSQL_BIND *ps_params;
   /* Set after send to disallow other queries before reap */
   my_bool pending;
 
@@ -376,6 +378,7 @@ enum enum_commands {
   Q_LOWERCASE,
   Q_START_TIMER, Q_END_TIMER,
   Q_CHARACTER_SET, Q_DISABLE_PS_PROTOCOL, Q_ENABLE_PS_PROTOCOL,
+  Q_DISABLE_VIEW_PROTOCOL, Q_ENABLE_VIEW_PROTOCOL,
   Q_ENABLE_NON_BLOCKING_API, Q_DISABLE_NON_BLOCKING_API,
   Q_DISABLE_RECONNECT, Q_ENABLE_RECONNECT,
   Q_IF,
@@ -390,6 +393,11 @@ enum enum_commands {
   Q_MOVE_FILE, Q_REMOVE_FILES_WILDCARD, Q_SEND_EVAL,
   Q_ENABLE_PREPARE_WARNINGS, Q_DISABLE_PREPARE_WARNINGS,
   Q_RESET_CONNECTION,
+  Q_OPTIMIZER_TRACE,
+  Q_PS_PREPARE,
+  Q_PS_BIND,
+  Q_PS_EXECUTE,
+  Q_PS_CLOSE,
   Q_UNKNOWN,			       /* Unknown command.   */
   Q_COMMENT,			       /* Comments, ignored. */
   Q_COMMENT_WITH_COMMAND,
@@ -462,6 +470,8 @@ const char *command_names[]=
   "character_set",
   "disable_ps_protocol",
   "enable_ps_protocol",
+  "disable_view_protocol",
+  "enable_view_protocol",
   "enable_non_blocking_api",
   "disable_non_blocking_api",
   "disable_reconnect",
@@ -500,7 +510,11 @@ const char *command_names[]=
   "enable_prepare_warnings",
   "disable_prepare_warnings",
   "reset_connection",
-
+  "optimizer_trace",
+  "PS_prepare",
+  "PS_bind",
+  "PS_execute",
+  "PS_close",
   0
 };
 
@@ -617,7 +631,6 @@ const char *get_errname_from_code (uint error_code);
 int multi_reg_replace(struct st_replace_regex* r,char* val);
 
 #ifdef _WIN32
-void free_tmp_sh_file();
 void free_win_path_patterns();
 #endif
 
@@ -646,6 +659,9 @@ void free_all_replace(){
 }
 
 void var_set_int(const char* name, int value);
+void enable_optimizer_trace(struct st_connection *con);
+void display_optimizer_trace(struct st_connection *con,
+                             DYNAMIC_STRING *ds);
 
 
 class LogFile {
@@ -1385,6 +1401,16 @@ void close_connections()
   DBUG_VOID_RETURN;
 }
 
+void close_util_connections()
+{
+  DBUG_ENTER("close_util_connections");
+  if (cur_con->util_mysql)
+  {
+    mysql_close(cur_con->util_mysql);
+    cur_con->util_mysql = 0;
+  }
+  DBUG_VOID_RETURN;
+}
 
 void close_statements()
 {
@@ -1455,15 +1481,24 @@ void free_used_memory()
   free_re();
   my_free(read_command_buf);
 #ifdef _WIN32
-  free_tmp_sh_file();
   free_win_path_patterns();
 #endif
   DBUG_VOID_RETURN;
 }
 
 
+#ifdef EMBEDDED_LIBRARY
+void ha_pre_shutdown();
+#endif
+
+
 ATTRIBUTE_NORETURN static void cleanup_and_exit(int exit_code)
 {
+#ifdef EMBEDDED_LIBRARY
+  if (server_initialized)
+    ha_pre_shutdown();
+#endif
+
   free_used_memory();
 
   /* Only call mysql_server_end if mysql_server_init has been called */
@@ -1545,6 +1580,8 @@ static void die(const char *fmt, ...)
 {
   char buff[DIE_BUFF_SIZE];
   va_list args;
+  DBUG_ENTER("die");
+
   va_start(args, fmt);
   make_error_message(buff, sizeof(buff), fmt, args);
   really_die(buff);
@@ -3187,33 +3224,6 @@ void do_source(struct st_command *command)
 }
 
 
-#if defined _WIN32
-
-#ifdef USE_CYGWIN
-/* Variables used for temporary sh files used for emulating Unix on Windows */
-char tmp_sh_name[64], tmp_sh_cmd[70];
-#endif
-
-void init_tmp_sh_file()
-{
-#ifdef USE_CYGWIN
-  /* Format a name for the tmp sh file that is unique for this process */
-  my_snprintf(tmp_sh_name, sizeof(tmp_sh_name), "tmp_%d.sh", getpid());
-  /* Format the command to execute in order to run the script */
-  my_snprintf(tmp_sh_cmd, sizeof(tmp_sh_cmd), "sh %s", tmp_sh_name);
-#endif
-}
-
-
-void free_tmp_sh_file()
-{
-#ifdef USE_CYGWIN
-  my_delete(tmp_sh_name, MYF(0));
-#endif
-}
-#endif
-
-
 static void init_builtin_echo(void)
 {
 #ifdef _WIN32
@@ -3329,14 +3339,12 @@ void do_exec(struct st_command *command)
   }
 
 #ifdef _WIN32
-#ifndef USE_CYGWIN
   /* Replace /dev/null with NUL */
   while(replace(&ds_cmd, "/dev/null", 9, "NUL", 3) == 0)
     ;
   /* Replace "closed stdout" with non existing output fd */
   while(replace(&ds_cmd, ">&-", 3, ">&4", 3) == 0)
     ;
-#endif
 #endif
 
   if (disable_result_log)
@@ -3495,13 +3503,7 @@ int do_modify_var(struct st_command *command,
 
 int my_system(DYNAMIC_STRING* ds_cmd)
 {
-#if defined _WIN32 && defined USE_CYGWIN
-  /* Dump the command into a sh script file and execute with system */
-  str_to_file(tmp_sh_name, ds_cmd->str, ds_cmd->length);
-  return system(tmp_sh_cmd);
-#else
   return system(ds_cmd->str);
-#endif
 }
 
 
@@ -3535,11 +3537,9 @@ void do_system(struct st_command *command)
   do_eval(&ds_cmd, command->first_argument, command->end, !is_windows);
 
 #ifdef _WIN32
-#ifndef USE_CYGWIN
    /* Replace /dev/null with NUL */
    while(replace(&ds_cmd, "/dev/null", 9, "NUL", 3) == 0)
      ;
-#endif
 #endif
 
 
@@ -5010,13 +5010,34 @@ int query_get_string(MYSQL* mysql, const char* query,
 }
 
 
+#ifdef _WIN32
+#define SIGKILL 9
+#include <my_minidump.h>
 static int my_kill(int pid, int sig)
 {
-  DBUG_PRINT("info", ("Killing server, pid: %d", pid));
-#ifdef _WIN32
-#define SIGKILL 9 /* ignored anyway, see below */
   HANDLE proc;
-  if ((proc= OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, FALSE, pid)) == NULL)
+  if (sig == SIGABRT)
+  {
+    /*
+     Create a minidump. If process is being debugged, debug break
+     Otherwise, terminate.
+    */
+    verbose_msg("Aborting %d",pid);
+    my_create_minidump(pid,TRUE);
+    proc= OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+    if(!proc)
+      return -1;
+    BOOL debugger_present;
+    if (CheckRemoteDebuggerPresent(proc,&debugger_present) && debugger_present)
+    {
+      if (DebugBreakProcess(proc))
+      {
+        CloseHandle(proc);
+        return 0;
+      }
+    }
+  }
+  else if ((proc= OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, FALSE, pid)) == NULL)
     return -1;
   if (sig == 0)
   {
@@ -5027,12 +5048,30 @@ static int my_kill(int pid, int sig)
   (void)TerminateProcess(proc, 201);
   CloseHandle(proc);
   return 1;
-#else
-  return kill(pid, sig);
-#endif
 }
 
 
+/* Wait until process is gone, with timeout */
+static int wait_until_dead(int pid, int timeout)
+{
+  HANDLE proc= OpenProcess(SYNCHRONIZE, FALSE, pid);
+  if (!proc)
+    return 0; /* already dead */
+  DBUG_ASSERT(timeout >= 0);
+  DBUG_ASSERT(timeout <= UINT_MAX/1000);
+  DWORD wait_result= WaitForSingleObject(proc, (DWORD)timeout*1000);
+  CloseHandle(proc);
+  return (int)wait_result;
+}
+
+#else /* !_WIN32 */
+
+
+static int my_kill(int pid, int sig)
+{
+  DBUG_PRINT("info", ("Killing server, pid: %d", pid));
+  return kill(pid, sig);
+}
 
 /*
   Shutdown the server of current connection and
@@ -5067,6 +5106,7 @@ static int wait_until_dead(int pid, int timeout)
   }
   DBUG_RETURN(1);                               // Did not die
 }
+#endif /* _WIN32 */
 
 
 void do_shutdown_server(struct st_command *command)
@@ -5583,11 +5623,13 @@ void do_close_connection(struct st_command *command)
   my_free(con->name);
 
   /*
-    When the connection is closed set name to "-closed_connection-"
+    When the connection is closed set name to CLOSED_CONNECTION
     to make it possible to reuse the connection name.
   */
-  if (!(con->name = my_strdup(PSI_NOT_INSTRUMENTED, "-closed_connection-", MYF(MY_WME))))
+  if (!(con->name = my_strdup(PSI_NOT_INSTRUMENTED, CLOSED_CONNECTION,
+                              MYF(MY_WME))))
     die("Out of memory");
+  con->name_len= sizeof(CLOSED_CONNECTION)-1;
 
   if (con == cur_con)
   {
@@ -5990,7 +6032,7 @@ void do_connect(struct st_command *command)
     con_slot= next_con;
   else
   {
-    if (!(con_slot= find_connection_by_name("-closed_connection-")))
+    if (!(con_slot= find_connection_by_name(CLOSED_CONNECTION)))
       die("Connection limit exhausted, you can have max %d connections",
           opt_max_connections);
     my_free(con_slot->name);
@@ -7875,6 +7917,15 @@ static void handle_no_active_connection(struct st_command *command,
   var_set_errno(2006);
 }
 
+/* handler functions to execute prepared statement calls in client C API */
+void run_prepare_stmt(struct st_connection *cn, struct st_command *command, const char *query,
+                      size_t query_len, DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings);
+void run_bind_stmt(struct st_connection *cn, struct st_command *command, const char *query,
+                   size_t query_len, DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings);
+void run_execute_stmt(struct st_connection *cn, struct st_command *command, const char *query,
+                      size_t query_len, DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings);
+void run_close_stmt(struct st_connection *cn, struct st_command *command, const char *query,
+                    size_t query_len, DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings);
 
 /*
   Run query using MySQL C API
@@ -7890,7 +7941,7 @@ static void handle_no_active_connection(struct st_command *command,
 */
 
 void run_query_normal(struct st_connection *cn, struct st_command *command,
-                      int flags, char *query, size_t query_len,
+                      int flags, const char *query, size_t query_len,
                       DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings)
 {
   MYSQL_RES *res= 0;
@@ -7904,6 +7955,32 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
   {
     handle_no_active_connection(command, cn, ds);
     DBUG_VOID_RETURN;
+  }
+
+  /* handle prepared statement commands */
+  switch (command->type) {
+  case Q_PS_PREPARE:
+    run_prepare_stmt(cn, command, query, query_len, ds, ds_warnings);
+    flags &= ~QUERY_SEND_FLAG;
+    goto end;
+    break;
+  case Q_PS_BIND:
+    run_bind_stmt(cn, command, query, query_len, ds, ds_warnings);
+    flags &= ~QUERY_SEND_FLAG;
+    goto end;
+    break;
+  case Q_PS_EXECUTE:
+    run_execute_stmt(cn, command, query, query_len, ds, ds_warnings);
+    flags &= ~QUERY_SEND_FLAG;
+    goto end;
+    break;
+  case Q_PS_CLOSE:
+    run_close_stmt(cn, command, query, query_len, ds, ds_warnings);
+    flags &= ~QUERY_SEND_FLAG;
+    goto end;
+    break;
+  default: /* not a prepared statement command */
+    break;
   }
 
   if (flags & QUERY_SEND_FLAG)
@@ -8009,6 +8086,7 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 
   /* If we come here the query is both executed and read successfully */
   handle_no_error(command);
+  display_optimizer_trace(cn, ds);
   revert_properties();
 
 end:
@@ -8293,13 +8371,381 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
     Get the warnings from mysql_stmt_prepare and keep them in a
     separate string
   */
-  if (!disable_warnings)
+  if (!disable_warnings && prepare_warnings_enabled)
     append_warnings(&ds_prepare_warnings, mysql);
 
   /*
     No need to call mysql_stmt_bind_param() because we have no
     parameter markers.
   */
+
+#if MYSQL_VERSION_ID >= 50000
+  if (cursor_protocol_enabled)
+  {
+    /*
+      Use cursor when retrieving result
+    */
+    ulong type= CURSOR_TYPE_READ_ONLY;
+    if (mysql_stmt_attr_set(stmt, STMT_ATTR_CURSOR_TYPE, (void*) &type))
+      die("mysql_stmt_attr_set(STMT_ATTR_CURSOR_TYPE) failed': %d %s",
+          mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
+  }
+#endif
+
+  /*
+    Execute the query
+  */
+  if (do_stmt_execute(cn))
+  {
+    handle_error(command, mysql_stmt_errno(stmt),
+                 mysql_stmt_error(stmt), mysql_stmt_sqlstate(stmt), ds);
+    goto end;
+  }
+
+  int err;
+  do
+  {
+    /*
+      When running in cursor_protocol get the warnings from execute here
+      and keep them in a separate string for later.
+    */
+    if (cursor_protocol_enabled && !disable_warnings)
+      append_warnings(&ds_execute_warnings, mysql);
+
+    /*
+      We instruct that we want to update the "max_length" field in
+      mysql_stmt_store_result(), this is our only way to know how much
+      buffer to allocate for result data
+    */
+    {
+      my_bool one= 1;
+      if (mysql_stmt_attr_set(stmt, STMT_ATTR_UPDATE_MAX_LENGTH, (void*) &one))
+        die("mysql_stmt_attr_set(STMT_ATTR_UPDATE_MAX_LENGTH) failed': %d %s",
+            mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
+    }
+
+    /*
+      If we got here the statement succeeded and was expected to do so,
+      get data. Note that this can still give errors found during execution!
+      Store the result of the query if if will return any fields
+    */
+    if (mysql_stmt_field_count(stmt) && mysql_stmt_store_result(stmt))
+    {
+      handle_error(command, mysql_stmt_errno(stmt),
+                   mysql_stmt_error(stmt), mysql_stmt_sqlstate(stmt), ds);
+      goto end;
+    }
+
+    if (!disable_result_log)
+    {
+      /*
+        Not all statements creates a result set. If there is one we can
+        now create another normal result set that contains the meta
+        data. This set can be handled almost like any other non prepared
+        statement result set.
+      */
+      if ((res= mysql_stmt_result_metadata(stmt)) != NULL)
+      {
+        /* Take the column count from meta info */
+        MYSQL_FIELD *fields= mysql_fetch_fields(res);
+        uint num_fields= mysql_num_fields(res);
+
+        if (display_metadata)
+          append_metadata(ds, fields, num_fields);
+
+        if (!display_result_vertically)
+          append_table_headings(ds, fields, num_fields);
+
+        append_stmt_result(ds, stmt, fields, num_fields);
+
+        mysql_free_result(res);     /* Free normal result set with meta data */
+
+        /*
+          Normally, if there is a result set, we do not show warnings from the
+          prepare phase. This is because some warnings are generated both during
+          prepare and execute; this would generate different warning output
+          between normal and ps-protocol test runs.
+
+          The --enable_prepare_warnings command can be used to change this so
+          that warnings from both the prepare and execute phase are shown.
+        */
+        if (!disable_warnings && !prepare_warnings_enabled)
+          dynstr_set(&ds_prepare_warnings, NULL);
+      }
+      else
+      {
+        /*
+          This is a query without resultset
+        */
+      }
+
+      /*
+        Fetch info before fetching warnings, since it will be reset
+        otherwise.
+      */
+      if (!disable_info)
+        append_info(ds, mysql_stmt_affected_rows(stmt), mysql_info(mysql));
+
+      if (display_session_track_info)
+        append_session_track_info(ds, mysql);
+
+
+      if (!disable_warnings && !mysql_more_results(stmt->mysql))
+      {
+        /* Get the warnings from execute */
+
+        /* Append warnings to ds - if there are any */
+        if (append_warnings(&ds_execute_warnings, mysql) ||
+            ds_execute_warnings.length ||
+            ds_prepare_warnings.length ||
+            ds_warnings->length)
+        {
+          dynstr_append_mem(ds, "Warnings:\n", 10);
+          if (ds_warnings->length)
+            dynstr_append_mem(ds, ds_warnings->str,
+                              ds_warnings->length);
+          if (ds_prepare_warnings.length)
+            dynstr_append_mem(ds, ds_prepare_warnings.str,
+                              ds_prepare_warnings.length);
+          if (ds_execute_warnings.length)
+            dynstr_append_mem(ds, ds_execute_warnings.str,
+                              ds_execute_warnings.length);
+        }
+      }
+    }
+  } while ( !(err= mysql_stmt_next_result(stmt)));
+
+  if (err > 0)
+    /* We got an error from mysql_next_result, maybe expected */
+    handle_error(command, mysql_errno(mysql), mysql_error(mysql),
+                 mysql_sqlstate(mysql), ds);
+  else
+    handle_no_error(command);
+end:
+  if (!disable_warnings)
+  {
+    dynstr_free(&ds_prepare_warnings);
+    dynstr_free(&ds_execute_warnings);
+  }
+
+  /*
+    We save the return code (mysql_stmt_errno(stmt)) from the last call sent
+    to the server into the mysqltest builtin variable $mysql_errno. This
+    variable then can be used from the test case itself.
+  */
+
+  var_set_errno(mysql_stmt_errno(stmt));
+
+  revert_properties();
+
+  /* Close the statement if reconnect, need new prepare */
+  {
+#ifndef EMBEDDED_LIBRARY
+    my_bool reconnect;
+    mysql_get_option(mysql, MYSQL_OPT_RECONNECT, &reconnect);
+    if (reconnect)
+#else
+    if (mysql->reconnect)
+#endif
+    {
+      mysql_stmt_close(stmt);
+      cn->stmt= NULL;
+    }
+  }
+
+  DBUG_VOID_RETURN;
+}
+
+/*
+ prepare query using prepared statement C API
+
+  SYNPOSIS
+  run_prepare_stmt
+  mysql - mysql handle
+  command - current command pointer
+  query - query string to execute
+  query_len - length query string to execute
+  ds - output buffer where to store result form query
+
+  RETURN VALUE
+  error - function will not return
+*/
+
+void run_prepare_stmt(struct st_connection *cn, struct st_command *command, const char *query, size_t query_len, DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings)
+{
+
+  MYSQL *mysql= cn->mysql;
+  MYSQL_STMT *stmt;
+  DYNAMIC_STRING ds_prepare_warnings;
+  DBUG_ENTER("run_prepare_stmt");
+  DBUG_PRINT("query", ("'%-.60s'", query));
+
+  /*
+    Init a new stmt if it's not already one created for this connection
+  */
+  if(!(stmt= cn->stmt))
+  {
+    if (!(stmt= mysql_stmt_init(mysql)))
+      die("unable to init stmt structure");
+    cn->stmt= stmt;
+  }
+
+  /* Init dynamic strings for warnings */
+  if (!disable_warnings)
+  {
+    init_dynamic_string(&ds_prepare_warnings, NULL, 0, 256);
+  }
+
+  /*
+    Prepare the query
+  */
+  char* PS_query= command->first_argument;
+  size_t PS_query_len= command->end - command->first_argument;
+  if (do_stmt_prepare(cn, PS_query, PS_query_len))
+  {
+    handle_error(command,  mysql_stmt_errno(stmt),
+                 mysql_stmt_error(stmt), mysql_stmt_sqlstate(stmt), ds);
+    goto end;
+  }
+
+  /*
+    Get the warnings from mysql_stmt_prepare and keep them in a
+    separate string
+  */
+  if (!disable_warnings)
+  {
+    append_warnings(&ds_prepare_warnings, mysql);
+    dynstr_free(&ds_prepare_warnings);
+  }
+ end:
+  DBUG_VOID_RETURN;
+}
+
+/*
+ bind parameters for a prepared statement C API
+
+  SYNPOSIS
+  run_bind_stmt
+  mysql - mysql handle
+  command - current command pointer
+  query - query string to execute
+  query_len - length query string to execute
+  ds - output buffer where to store result form query
+
+  RETURN VALUE
+  error - function will not return
+*/
+
+void run_bind_stmt(struct st_connection *cn, struct st_command *command,
+                    const char *query, size_t query_len, DYNAMIC_STRING *ds,
+                      DYNAMIC_STRING *ds_warnings
+                      )
+{
+  MYSQL_STMT *stmt= cn->stmt;
+  DBUG_ENTER("run_bind_stmt");
+  DBUG_PRINT("query", ("'%-.60s'", query));
+  MYSQL_BIND *ps_params= cn->ps_params;
+  if (ps_params)
+  {
+    for (size_t i=0; i<stmt->param_count; i++)
+    {
+      my_free(ps_params[i].buffer);
+      ps_params[i].buffer= NULL;
+    }
+    my_free(ps_params);
+    ps_params= NULL;
+  }
+
+  /* Init PS-parameters. */
+  cn->ps_params=  ps_params = (MYSQL_BIND*)my_malloc(PSI_NOT_INSTRUMENTED,
+                                                     sizeof(MYSQL_BIND) *
+                                                     stmt->param_count,
+                                                     MYF(MY_WME));
+  bzero((char *) ps_params, sizeof(MYSQL_BIND) * stmt->param_count);
+
+  int i=0;
+  char *c;
+  long *l;
+  double *d;
+
+  char *p= strtok((char*)command->first_argument, " ");
+  while (p != nullptr)
+  {
+    (void)strtol(p, &c, 10);
+    if (!*c)
+    {
+      ps_params[i].buffer_type= MYSQL_TYPE_LONG;
+      l= (long*)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(long), MYF(MY_WME));
+      *l= strtol(p, &c, 10);
+      ps_params[i].buffer= (void*)l;
+      ps_params[i].buffer_length= 8;
+    }
+    else
+    {
+      (void)strtod(p, &c);
+      if (!*c)
+      {
+        ps_params[i].buffer_type= MYSQL_TYPE_DECIMAL;
+        d= (double*)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(double),
+                              MYF(MY_WME));
+        *d= strtod(p, &c);
+        ps_params[i].buffer= (void*)d;
+        ps_params[i].buffer_length= 8;
+      }
+      else
+      {
+        ps_params[i].buffer_type= MYSQL_TYPE_STRING;
+        ps_params[i].buffer= my_strdup(PSI_NOT_INSTRUMENTED, p, MYF(MY_WME));
+        ps_params[i].buffer_length= (unsigned long)strlen(p);
+      }
+    }
+
+    p= strtok(nullptr, " ");
+    i++;
+  }
+
+  int rc= mysql_stmt_bind_param(stmt, ps_params);
+  if (rc)
+  {
+      die("mysql_stmt_bind_param() failed': %d %s",
+          mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
+  }
+
+  DBUG_VOID_RETURN;
+}
+
+/*
+ execute query using prepared statement C API
+
+  SYNPOSIS
+  run_axecute_stmt
+  mysql - mysql handle
+  command - current command pointer
+  query - query string to execute
+  query_len - length query string to execute
+  ds - output buffer where to store result form query
+
+  RETURN VALUE
+  error - function will not return
+*/
+
+void run_execute_stmt(struct st_connection *cn, struct st_command *command,
+                    const char *query, size_t query_len, DYNAMIC_STRING *ds,
+                      DYNAMIC_STRING *ds_warnings
+                      )
+{
+  MYSQL_RES *res= NULL;     /* Note that here 'res' is meta data result set */
+  MYSQL *mysql= cn->mysql;
+  MYSQL_STMT *stmt= cn->stmt;
+  DYNAMIC_STRING ds_execute_warnings;
+  DBUG_ENTER("run_execute_stmt");
+  DBUG_PRINT("query", ("'%-.60s'", query));
+
+  /* Init dynamic strings for warnings */
+  if (!disable_warnings)
+  {
+    init_dynamic_string(&ds_execute_warnings, NULL, 0, 256);
+  }
 
 #if MYSQL_VERSION_ID >= 50000
   if (cursor_protocol_enabled)
@@ -8390,9 +8836,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
         The --enable_prepare_warnings command can be used to change this so
         that warnings from both the prepare and execute phase are shown.
       */
-      if (!disable_warnings && !prepare_warnings_enabled)
-        dynstr_set(&ds_prepare_warnings, NULL);
-    }
+     }
     else
     {
       /*
@@ -8418,16 +8862,12 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
       /* Append warnings to ds - if there are any */
       if (append_warnings(&ds_execute_warnings, mysql) ||
           ds_execute_warnings.length ||
-          ds_prepare_warnings.length ||
           ds_warnings->length)
       {
         dynstr_append_mem(ds, "Warnings:\n", 10);
         if (ds_warnings->length)
           dynstr_append_mem(ds, ds_warnings->str,
                             ds_warnings->length);
-        if (ds_prepare_warnings.length)
-          dynstr_append_mem(ds, ds_prepare_warnings.str,
-                            ds_prepare_warnings.length);
         if (ds_execute_warnings.length)
           dynstr_append_mem(ds, ds_execute_warnings.str,
                             ds_execute_warnings.length);
@@ -8438,7 +8878,6 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
 end:
   if (!disable_warnings)
   {
-    dynstr_free(&ds_prepare_warnings);
     dynstr_free(&ds_execute_warnings);
   }
 
@@ -8462,10 +8901,65 @@ end:
     if (mysql->reconnect)
 #endif
     {
+      if (cn->ps_params)
+      {
+        for (size_t i=0; i<stmt->param_count; i++)
+        {
+          my_free(cn->ps_params[i].buffer);
+	  cn->ps_params[i].buffer= NULL;
+        }
+        my_free(cn->ps_params);
+      }
       mysql_stmt_close(stmt);
       cn->stmt= NULL;
+      cn->ps_params= NULL;
     }
   }
+  DBUG_VOID_RETURN;
+}
+
+/*
+ close a prepared statement C API
+
+  SYNPOSIS
+  run_close_stmt
+  mysql - mysql handle
+  command - current command pointer
+  query - query string to execute
+  query_len - length query string to execute
+  ds - output buffer where to store result form query
+
+  RETURN VALUE
+  error - function will not return
+*/
+
+void run_close_stmt(struct st_connection *cn, struct st_command *command,
+                    const char *query, size_t query_len, DYNAMIC_STRING *ds,
+                    DYNAMIC_STRING *ds_warnings
+                    )
+{
+  MYSQL_STMT *stmt= cn->stmt;
+  DBUG_ENTER("run_close_stmt");
+  DBUG_PRINT("query", ("'%-.60s'", query));
+
+  if (cn->ps_params)
+  {
+
+    for (size_t i=0; i<stmt->param_count; i++)
+    {
+      my_free(cn->ps_params[i].buffer);
+      cn->ps_params[i].buffer= NULL;
+    }
+    my_free(cn->ps_params);
+  }
+
+  /* Close the statement */
+  if (stmt)
+  {
+    mysql_stmt_close(stmt);
+    cn->stmt= NULL;
+  }
+  cn->ps_params= NULL;
 
   DBUG_VOID_RETURN;
 }
@@ -8611,7 +9105,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   log_file.flush();
   dynstr_set(&ds_res, 0);
 
-  if (view_protocol_enabled &&
+  if (view_protocol_enabled && mysql &&
       complete_query &&
       match_re(&view_re, query))
   {
@@ -8657,7 +9151,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
     dynstr_free(&query_str);
   }
 
-  if (sp_protocol_enabled &&
+  if (sp_protocol_enabled && mysql &&
       complete_query &&
       match_re(&sp_re, query))
   {
@@ -8720,7 +9214,13 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   */
   if (ps_protocol_enabled &&
       complete_query &&
-      match_re(&ps_re, query))
+      /*
+        Check that a statement is not one of PREPARE FROM, EXECUTE,
+        DEALLOCATE PREPARE (possibly prefixed with the 'SET STATEMENT ... FOR'
+        clause. These statement shouldn't be run using prepared statement C API.
+        All other statements can be run using prepared statement C API.
+      */
+      !match_re(&ps_re, query))
     run_query_stmt(cn, command, query, query_len, ds, &ds_warnings);
   else
     run_query_normal(cn, command, flags, query, query_len,
@@ -8794,10 +9294,30 @@ void init_re_comp(regex_t *re, const char* str)
 void init_re(void)
 {
   /*
-    Filter for queries that can be run using the
-    MySQL Prepared Statements C API
-  */
+   * Prior to the task MDEV-16708 a value of the string ps_re_str contained
+   * a regular expression to match statements that SHOULD BE run in PS mode.
+   * The task MDEV-16708 modifies interpretation of this regular expression
+   * and now it is used for matching statements that SHOULDN'T be run in
+   * PS mode. These statement are PREPARE FROM, EXECUTE, DEALLOCATE PREPARE
+   * possibly prefixed with the clause SET STATEMENT ... FOR
+   */
   const char *ps_re_str =
+      "^("
+      "[[:space:]]*PREPARE[[:space:]]|"
+      "[[:space:]]*EXECUTE[[:space:]]|"
+      "[[:space:]]*DEALLOCATE[[:space:]]+PREPARE[[:space:]]|"
+      "[[:space:]]*DROP[[:space:]]+PREPARE[[:space:]]|"
+      "(SET[[:space:]]+STATEMENT[[:space:]]+.+[[:space:]]+FOR[[:space:]]+)?"
+      "EXECUTE[[:space:]]+|"
+      "(SET[[:space:]]+STATEMENT[[:space:]]+.+[[:space:]]+FOR[[:space:]]+)?"
+      "PREPARE[[:space:]]+"
+      ")";
+
+  /*
+    Filter for queries that can be run using the
+    Stored procedures
+  */
+  const char *sp_re_str =
     "^("
     "[[:space:]]*ALTER[[:space:]]+SEQUENCE[[:space:]]|"
     "[[:space:]]*ALTER[[:space:]]+TABLE[[:space:]]|"
@@ -8849,12 +9369,6 @@ void init_re(void)
     "[[:space:]]*UNINSTALL[[:space:]]+|"
     "[[:space:]]*UPDATE[[:space:]]"
     ")";
-
-  /*
-    Filter for queries that can be run using the
-    Stored procedures
-  */
-  const char *sp_re_str =ps_re_str;
 
   /*
     Filter for queries that can be run as views
@@ -9020,7 +9534,7 @@ static void dump_backtrace(void)
   struct st_connection *conn= cur_con;
 
   fprintf(stderr, "read_command_buf (%p): ", read_command_buf);
-  my_safe_print_str(read_command_buf, sizeof(read_command_buf));
+  fprintf(stderr, "%.*s\n", (int)read_command_buflen, read_command_buf);
   fputc('\n', stderr);
 
   if (conn)
@@ -9189,10 +9703,7 @@ int main(int argc, char **argv)
 
   init_builtin_echo();
 #ifdef _WIN32
-#ifndef USE_CYGWIN
   is_windows= 1;
-#endif
-  init_tmp_sh_file();
   init_win_path_patterns();
 #endif
 
@@ -9513,6 +10024,10 @@ int main(int argc, char **argv)
 	/* fall through */
       case Q_QUERY:
       case Q_REAP:
+      case Q_PS_PREPARE:
+      case Q_PS_BIND:
+      case Q_PS_EXECUTE:
+      case Q_PS_CLOSE:
       {
 	my_bool old_display_result_vertically= display_result_vertically;
         /* Default is full query, both reap and send  */
@@ -9642,6 +10157,9 @@ int main(int argc, char **argv)
       case Q_RESET_CONNECTION:
         do_reset_connection();
         break;
+      case Q_OPTIMIZER_TRACE:
+        enable_optimizer_trace(cur_con);
+        break;
       case Q_SEND_SHUTDOWN:
         handle_command_error(command,
                              mysql_shutdown(cur_con->mysql,
@@ -9672,6 +10190,14 @@ int main(int argc, char **argv)
         break;
       case Q_ENABLE_PS_PROTOCOL:
         set_property(command, P_PS, ps_protocol);
+        break;
+      case Q_DISABLE_VIEW_PROTOCOL:
+        set_property(command, P_VIEW, 0);
+        /* Close only util connections */
+        close_util_connections();
+        break;
+      case Q_ENABLE_VIEW_PROTOCOL:
+        set_property(command, P_VIEW, view_protocol);
         break;
       case Q_DISABLE_NON_BLOCKING_API:
         non_blocking_api_enabled= 0;
@@ -11321,4 +11847,91 @@ char *mysql_authentication_dialog_ask(MYSQL *mysql, int type,
   fputc('\n', stdout);
 
   return buf;
+}
+
+/*
+  Enable optimizer trace for the next command
+*/
+
+LEX_CSTRING enable_optimizer_trace_query=
+{
+  STRING_WITH_LEN("set @mysqltest_save_optimzer_trace=@@optimizer_trace,@@optimizer_trace=\"enabled=on\"")
+};
+
+LEX_CSTRING restore_optimizer_trace_query=
+{
+  STRING_WITH_LEN("set @@optimizer_trace=@mysqltest_save_optimzer_trace")
+};
+
+
+LEX_CSTRING display_optimizer_trace_query
+{
+  STRING_WITH_LEN("SELECT * from information_schema.optimizer_trace")
+};
+
+
+void enable_optimizer_trace(struct st_connection *con)
+{
+  MYSQL *mysql= con->mysql;
+  my_bool save_ps_protocol_enabled= ps_protocol_enabled;
+  my_bool save_view_protocol_enabled= view_protocol_enabled;
+  DYNAMIC_STRING ds_result;
+  DYNAMIC_STRING ds_warnings;
+  struct st_command command;
+  DBUG_ENTER("enable_optimizer_trace");
+
+  if (!mysql)
+    DBUG_VOID_RETURN;
+  ps_protocol_enabled= view_protocol_enabled= 0;
+
+  init_dynamic_string(&ds_result, NULL, 0, 256);
+  init_dynamic_string(&ds_warnings, NULL, 0, 256);
+  bzero(&command, sizeof(command));
+
+  run_query_normal(con, &command, QUERY_SEND_FLAG | QUERY_REAP_FLAG,
+                   enable_optimizer_trace_query.str,
+                   enable_optimizer_trace_query.length,
+                   &ds_result, &ds_warnings);
+  dynstr_free(&ds_result);
+  dynstr_free(&ds_warnings);
+  ps_protocol_enabled= save_ps_protocol_enabled;
+  view_protocol_enabled= save_view_protocol_enabled;
+  optimizer_trace_active= 1;
+  DBUG_VOID_RETURN;
+}
+
+
+void display_optimizer_trace(struct st_connection *con,
+                             DYNAMIC_STRING *ds)
+{
+  my_bool save_ps_protocol_enabled= ps_protocol_enabled;
+  my_bool save_view_protocol_enabled= view_protocol_enabled;
+  DYNAMIC_STRING ds_result;
+  DYNAMIC_STRING ds_warnings;
+  struct st_command command;
+  DBUG_ENTER("display_optimizer_trace");
+
+  if (!optimizer_trace_active)
+    DBUG_VOID_RETURN;
+
+  optimizer_trace_active= 0;
+  ps_protocol_enabled= view_protocol_enabled= 0;
+
+  init_dynamic_string(&ds_result, NULL, 0, 256);
+  init_dynamic_string(&ds_warnings, NULL, 0, 256);
+  bzero(&command, sizeof(command));
+
+  run_query_normal(con, &command, QUERY_SEND_FLAG | QUERY_REAP_FLAG,
+                   display_optimizer_trace_query.str,
+                   display_optimizer_trace_query.length,
+                   ds, &ds_warnings);
+  run_query_normal(con, &command, QUERY_SEND_FLAG | QUERY_REAP_FLAG,
+                   restore_optimizer_trace_query.str,
+                   restore_optimizer_trace_query.length,
+                   ds, &ds_warnings);
+  dynstr_free(&ds_result);
+  dynstr_free(&ds_warnings);
+  ps_protocol_enabled= save_ps_protocol_enabled;
+  view_protocol_enabled= save_view_protocol_enabled;
+  DBUG_VOID_RETURN;
 }

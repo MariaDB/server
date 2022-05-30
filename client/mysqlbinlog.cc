@@ -2565,6 +2565,7 @@ static Exit_status handle_event_raw_mode(PRINT_EVENT_INFO *print_event_info,
     error("Could not write into log file '%s'", out_file_name);
     DBUG_RETURN(ERROR_STOP);
   }
+  fflush(result_file);
 
   DBUG_RETURN(OK_CONTINUE);
 }
@@ -2918,7 +2919,7 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       stdin in binary mode. Errors on setting this mode result in 
       halting the function and printing an error message to stderr.
     */
-#if defined (__WIN__) || defined(_WIN64)
+#if defined (_WIN32)
     if (_setmode(fileno(stdin), O_BINARY) == -1)
     {
       error("Could not set binary mode on stdin.");

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 1996, 2022, Oracle and/or its affiliates.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,16 +28,15 @@ Created 5/7/1996 Heikki Tuuri
 #define lock0lock_h
 
 #include "buf0types.h"
-#include "trx0types.h"
+#include "trx0trx.h"
 #include "mtr0types.h"
 #include "rem0types.h"
-#include "que0types.h"
-#include "lock0types.h"
 #include "hash0hash.h"
 #include "srv0srv.h"
 #include "ut0vec.h"
 #include "gis0rtree.h"
 #include "lock0prdt.h"
+#include "transactional_lock_guard.h"
 
 // Forward declaration
 class ReadView;
@@ -62,8 +61,10 @@ lock_get_min_heap_no(
 /*=================*/
 	const buf_block_t*	block);	/*!< in: buffer block */
 
-/** Discard locks for an index */
-void lock_discard_for_index(const dict_index_t &index);
+/** Discard locks for an index when purging DELETE FROM SYS_INDEXES
+after an aborted CREATE INDEX operation.
+@param index   a stale index on which ADD INDEX operation was aborted */
+ATTRIBUTE_COLD void lock_discard_for_index(const dict_index_t &index);
 
 /*************************************************************//**
 Updates the lock table when we have reorganized a page. NOTE: we copy
@@ -135,6 +136,41 @@ void lock_update_root_raise(const buf_block_t &block, const page_id_t root);
 @param new_block  the target page
 @param old        old page (not index root page) */
 void lock_update_copy_and_discard(const buf_block_t &new_block, page_id_t old);
+
+/** Update gap locks between the last record of the left_block and the
+first record of the right_block when a record is about to be inserted
+at the start of the right_block, even though it should "naturally" be
+inserted as the last record of the left_block according to the
+current node pointer in the parent page.
+
+That is, we assume that the lowest common ancestor of the left_block
+and right_block routes the key of the new record to the left_block,
+but a heuristic which tries to avoid overflowing left_block has chosen
+to insert the record into right_block instead. Said ancestor performs
+this routing by comparing the key of the record to a "split point" -
+all records greater or equal to than the split point (node pointer)
+are in right_block, and smaller ones in left_block.
+The split point may be smaller than the smallest key in right_block.
+
+The gap between the last record on the left_block and the first record
+on the right_block is represented as a gap lock attached to the supremum
+pseudo-record of left_block, and a gap lock attached to the new first
+record of right_block.
+
+Thus, inserting the new record, and subsequently adjusting the node
+pointers in parent pages to values smaller or equal to the new
+records' key, will mean that gap will be sliced at a different place
+("moved to the left"): fragment of the 1st gap will now become treated
+as 2nd. Therefore, we must copy any GRANTED locks from 1st gap to the
+2nd gap. Any WAITING locks must be of INSERT_INTENTION type (as no
+other GAP locks ever wait for anything) and can stay at 1st gap, as
+their only purpose is to notify the requester they can retry
+insertion, and there's no correctness requirement to avoid waking them
+up too soon.
+@param left_block   left page
+@param right_block  right page */
+void lock_update_node_pointer(const buf_block_t *left_block,
+                              const buf_block_t *right_block);
 /*************************************************************//**
 Updates the lock table when a page is split to the left. */
 void
@@ -221,6 +257,17 @@ state was stored on the infimum of a page.
 whose infimum stored the lock state; lock bits are reset on the infimum */
 void lock_rec_restore_from_page_infimum(const buf_block_t &block,
 					const rec_t *rec, page_id_t donator);
+
+/**
+Create a table lock, without checking for deadlocks or lock compatibility.
+@param table      table on which the lock is created
+@param type_mode  lock type and mode
+@param trx        transaction
+@param c_lock     conflicting lock
+@return the created lock object */
+lock_t *lock_table_create(dict_table_t *table, unsigned type_mode, trx_t *trx,
+                          lock_t *c_lock= nullptr);
+
 /*********************************************************************//**
 Checks if locks of other transactions prevent an immediate insert of
 a record. If they do, first tests if the query thread should anyway
@@ -362,18 +409,18 @@ lock_clust_rec_read_check_and_lock_alt(
 					LOCK_REC_NOT_GAP */
 	que_thr_t*		thr)	/*!< in: query thread */
 	MY_ATTRIBUTE((warn_unused_result));
-/*********************************************************************//**
-Locks the specified database table in the mode given. If the lock cannot
-be granted immediately, the query thread is put to wait.
-@return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
-dberr_t
-lock_table(
-/*=======*/
-	dict_table_t*	table,	/*!< in/out: database table
-				in dictionary cache */
-	lock_mode	mode,	/*!< in: lock mode */
-	que_thr_t*	thr)	/*!< in: query thread */
-	MY_ATTRIBUTE((warn_unused_result));
+
+/** Acquire a table lock.
+@param table   table to be locked
+@param fktable pointer to table, in case of a FOREIGN key check
+@param mode    lock mode
+@param thr     SQL execution thread
+@retval DB_SUCCESS    if the lock was acquired
+@retval DB_DEADLOCK   if a deadlock occurred, or fktable && *fktable != table
+@retval DB_LOCK_WAIT  if lock_wait() must be invoked */
+dberr_t lock_table(dict_table_t *table, dict_table_t *const*fktable,
+                   lock_mode mode, que_thr_t *thr)
+  MY_ATTRIBUTE((warn_unused_result));
 
 /** Create a table lock object for a resurrected transaction.
 @param table    table to be X-locked
@@ -382,16 +429,20 @@ lock_table(
 void lock_table_resurrect(dict_table_t *table, trx_t *trx, lock_mode mode);
 
 /** Sets a lock on a table based on the given mode.
-@param[in]	table	table to lock
-@param[in,out]	trx	transaction
-@param[in]	mode	LOCK_X or LOCK_S
-@return error code or DB_SUCCESS. */
-dberr_t
-lock_table_for_trx(
-	dict_table_t*	table,
-	trx_t*		trx,
-	enum lock_mode	mode)
+@param table	table to lock
+@param trx	transaction
+@param mode	LOCK_X or LOCK_S
+@param no_wait  whether to skip handling DB_LOCK_WAIT
+@return error code */
+dberr_t lock_table_for_trx(dict_table_t *table, trx_t *trx, lock_mode mode,
+                           bool no_wait= false)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Exclusively lock the data dictionary tables.
+@param trx  dictionary transaction
+@return error code
+@retval DB_SUCCESS on success */
+dberr_t lock_sys_tables(trx_t *trx);
 
 /*************************************************************//**
 Removes a granted record lock of a transaction from the queue and grants
@@ -409,6 +460,15 @@ lock_rec_unlock(
 /** Release the explicit locks of a committing transaction,
 and release possible other transactions waiting because of these locks. */
 void lock_release(trx_t* trx);
+
+/** Release the explicit locks of a committing transaction while
+dict_sys.latch is exclusively locked,
+and release possible other transactions waiting because of these locks. */
+void lock_release_on_drop(trx_t *trx);
+
+/** Release non-exclusive locks on XA PREPARE,
+and release possible other transactions waiting because of these locks. */
+void lock_release_on_prepare(trx_t *trx);
 
 /** Release locks on a table whose creation is being rolled back */
 ATTRIBUTE_COLD void lock_release_on_rollback(trx_t *trx, dict_table_t *table);
@@ -550,6 +610,9 @@ class lock_sys_t
 {
   friend struct LockGuard;
   friend struct LockMultiGuard;
+  friend struct TMLockGuard;
+  friend struct TMLockMutexGuard;
+  friend struct TMLockTrxGuard;
 
   /** Hash table latch */
   struct hash_latch
@@ -564,10 +627,15 @@ class lock_sys_t
     void acquire() { if (!try_acquire()) wait(); }
     /** Release a lock */
     void release();
+    /** @return whether any lock is being held or waited for by any thread */
+    bool is_locked_or_waiting() const
+    { return rw_lock::is_locked_or_waiting(); }
+    /** @return whether this latch is possibly held by any thread */
+    bool is_locked() const { return rw_lock::is_locked(); }
 #else
   {
   private:
-    srw_lock_low lock;
+    srw_spin_lock_low lock;
   public:
     /** Try to acquire a lock */
     bool try_acquire() { return lock.wr_lock_try(); }
@@ -575,11 +643,11 @@ class lock_sys_t
     void acquire() { lock.wr_lock(); }
     /** Release a lock */
     void release() { lock.wr_unlock(); }
-#endif
-#ifdef UNIV_DEBUG
+    /** @return whether any lock may be held by any thread */
+    bool is_locked_or_waiting() const noexcept
+    { return lock.is_locked_or_waiting(); }
     /** @return whether this latch is possibly held by any thread */
-    bool is_locked() const
-    { return memcmp(this, field_ref_zero, sizeof *this); }
+    bool is_locked() const noexcept { return lock.is_locked(); }
 #endif
   };
 
@@ -592,8 +660,9 @@ public:
 
     /** Number of array[] elements per hash_latch.
     Must be LATCH less than a power of 2. */
-    static constexpr size_t ELEMENTS_PER_LATCH= CPU_LEVEL1_DCACHE_LINESIZE /
-      sizeof(void*) - LATCH;
+    static constexpr size_t ELEMENTS_PER_LATCH= (64 / sizeof(void*)) - LATCH;
+    static constexpr size_t EMPTY_SLOTS_PER_LATCH=
+      ((CPU_LEVEL1_DCACHE_LINESIZE / 64) - 1) * (64 / sizeof(void*));
 
     /** number of payload elements in array[]. Protected by lock_sys.latch. */
     ulint n_cells;
@@ -615,9 +684,15 @@ public:
 
     /** @return the index of an array element */
     inline ulint calc_hash(ulint fold) const;
+
     /** @return raw array index converted to padded index */
     static ulint pad(ulint h)
-    { return LATCH + LATCH * (h / ELEMENTS_PER_LATCH) + h; }
+    {
+      ulint latches= LATCH * (h / ELEMENTS_PER_LATCH);
+      ulint empty_slots= (h / ELEMENTS_PER_LATCH) * EMPTY_SLOTS_PER_LATCH;
+      return LATCH + latches + empty_slots + h;
+    }
+
     /** Get a latch. */
     static hash_latch *latch(hash_cell_t *cell)
     {
@@ -649,10 +724,10 @@ private:
   bool m_initialised;
 
   /** mutex proteting the locks */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) srw_lock latch;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_spin_lock latch;
 #ifdef UNIV_DEBUG
   /** The owner of exclusive latch (0 if none); protected by latch */
-  std::atomic<os_thread_id_t> writer{0};
+  std::atomic<pthread_t> writer{0};
   /** Number of shared latches */
   std::atomic<ulint> readers{0};
 #endif
@@ -672,7 +747,7 @@ public:
   hash_table prdt_page_hash;
 
   /** mutex covering lock waits; @see trx_lock_t::wait_lock */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t wait_mutex;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t wait_mutex;
 private:
   /** The increment of wait_count for a wait. Anything smaller is a
   pending wait count. */
@@ -716,14 +791,14 @@ public:
     mysql_mutex_assert_not_owner(&wait_mutex);
     ut_ad(!is_writer());
     latch.wr_lock();
-    ut_ad(!writer.exchange(os_thread_get_curr_id(),
+    ut_ad(!writer.exchange(pthread_self(),
                            std::memory_order_relaxed));
   }
   /** Release exclusive lock_sys.latch */
   void wr_unlock()
   {
     ut_ad(writer.exchange(0, std::memory_order_relaxed) ==
-          os_thread_get_curr_id());
+          pthread_self());
     latch.wr_unlock();
   }
   /** Acquire shared lock_sys.latch */
@@ -749,7 +824,7 @@ public:
   {
     ut_ad(!is_writer());
     if (!latch.wr_lock_try()) return false;
-    ut_ad(!writer.exchange(os_thread_get_curr_id(),
+    ut_ad(!writer.exchange(pthread_self(),
                            std::memory_order_relaxed));
     return true;
   }
@@ -771,7 +846,14 @@ public:
 #ifdef UNIV_DEBUG
   /** @return whether the current thread is the lock_sys.latch writer */
   bool is_writer() const
-  { return writer.load(std::memory_order_relaxed) == os_thread_get_curr_id(); }
+  {
+# ifdef SUX_LOCK_GENERIC
+    return writer.load(std::memory_order_relaxed) == pthread_self();
+# else
+    return writer.load(std::memory_order_relaxed) == pthread_self() ||
+      (xtest() && !latch.is_locked_or_waiting());
+# endif
+  }
   /** Assert that a lock shard is exclusively latched (by some thread) */
   void assert_locked(const lock_t &lock) const;
   /** Assert that a table lock shard is exclusively latched by this thread */
@@ -808,13 +890,14 @@ public:
   void deadlock_check();
 
   /** Cancel a waiting lock request.
-  @param lock          waiting lock request
-  @param trx           active transaction
-  @param check_victim  whether to check trx->lock.was_chosen_as_deadlock_victim
+  @tparam check_victim  whether to check for DB_DEADLOCK
+  @param lock           waiting lock request
+  @param trx            active transaction
   @retval DB_SUCCESS    if no lock existed
   @retval DB_DEADLOCK   if trx->lock.was_chosen_as_deadlock_victim was set
   @retval DB_LOCK_WAIT  if the lock was canceled */
-  static dberr_t cancel(trx_t *trx, lock_t *lock, bool check_victim);
+  template<bool check_victim>
+  static dberr_t cancel(trx_t *trx, lock_t *lock);
   /** Cancel a waiting lock request (if any) when killing a transaction */
   static void cancel(trx_t *trx);
 
@@ -870,10 +953,8 @@ public:
   @param page whether to discard also from lock_sys.prdt_hash */
   void prdt_page_free_from_discard(const page_id_t id, bool all= false);
 
-#ifdef WITH_WSREP
   /** Cancel possible lock waiting for a transaction */
   static void cancel_lock_wait_for_trx(trx_t *trx);
-#endif /* WITH_WSREP */
 };
 
 /** The lock system */
@@ -951,6 +1032,149 @@ private:
   hash_cell_t *cell1_;
   /** The second hash array cell */
   hash_cell_t *cell2_;
+};
+
+/** lock_sys.latch exclusive guard using transactional memory */
+struct TMLockMutexGuard
+{
+  TRANSACTIONAL_INLINE
+  TMLockMutexGuard(SRW_LOCK_ARGS(const char *file, unsigned line))
+  {
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+    if (xbegin())
+    {
+      if (was_elided())
+        return;
+      xabort();
+    }
+#endif
+    lock_sys.wr_lock(SRW_LOCK_ARGS(file, line));
+  }
+  TRANSACTIONAL_INLINE
+  ~TMLockMutexGuard()
+  {
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+    if (was_elided()) xend(); else
+#endif
+    lock_sys.wr_unlock();
+  }
+
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+  bool was_elided() const noexcept
+  { return !lock_sys.latch.is_locked_or_waiting(); }
+#else
+  bool was_elided() const noexcept { return false; }
+#endif
+};
+
+/** lock_sys latch guard for 1 page_id_t, using transactional memory */
+struct TMLockGuard
+{
+  TRANSACTIONAL_TARGET
+  TMLockGuard(lock_sys_t::hash_table &hash, const page_id_t id);
+  TRANSACTIONAL_INLINE ~TMLockGuard()
+  {
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+    if (elided)
+    {
+      xend();
+      return;
+    }
+#endif
+    lock_sys_t::hash_table::latch(cell_)->release();
+    /* Must be last, to avoid a race with lock_sys_t::hash_table::resize() */
+    lock_sys.rd_unlock();
+  }
+  /** @return the hash array cell */
+  hash_cell_t &cell() const { return *cell_; }
+private:
+  /** The hash array cell */
+  hash_cell_t *cell_;
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+  /** whether the latches were elided */
+  bool elided;
+#endif
+};
+
+/** guard for shared lock_sys.latch and trx_t::mutex using
+transactional memory */
+struct TMLockTrxGuard
+{
+  trx_t &trx;
+
+  TRANSACTIONAL_INLINE
+#ifndef UNIV_PFS_RWLOCK
+  TMLockTrxGuard(trx_t &trx) : trx(trx)
+# define TMLockTrxArgs(trx) trx
+#else
+  TMLockTrxGuard(const char *file, unsigned line, trx_t &trx) : trx(trx)
+# define TMLockTrxArgs(trx) SRW_LOCK_CALL, trx
+#endif
+  {
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+    if (xbegin())
+    {
+      if (!lock_sys.latch.is_write_locked() && was_elided())
+        return;
+      xabort();
+    }
+#endif
+    lock_sys.rd_lock(SRW_LOCK_ARGS(file, line));
+    trx.mutex_lock();
+  }
+  TRANSACTIONAL_INLINE
+  ~TMLockTrxGuard()
+  {
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+    if (was_elided())
+    {
+      xend();
+      return;
+    }
+#endif
+    lock_sys.rd_unlock();
+    trx.mutex_unlock();
+  }
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+  bool was_elided() const noexcept { return !trx.mutex_is_locked(); }
+#else
+  bool was_elided() const noexcept { return false; }
+#endif
+};
+
+/** guard for trx_t::mutex using transactional memory */
+struct TMTrxGuard
+{
+  trx_t &trx;
+
+  TRANSACTIONAL_INLINE TMTrxGuard(trx_t &trx) : trx(trx)
+  {
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+    if (xbegin())
+    {
+      if (was_elided())
+        return;
+      xabort();
+    }
+#endif
+    trx.mutex_lock();
+  }
+  TRANSACTIONAL_INLINE ~TMTrxGuard()
+  {
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+    if (was_elided())
+    {
+      xend();
+      return;
+    }
+#endif
+    trx.mutex_unlock();
+  }
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+  bool was_elided() const noexcept { return !trx.mutex_is_locked(); }
+#else
+  bool was_elided() const noexcept { return false; }
+#endif
 };
 
 /*********************************************************************//**
@@ -1040,6 +1264,6 @@ lock_rtr_move_rec_list(
 						moved */
 	ulint			num_move);	/*!< in: num of rec to move */
 
-#include "lock0lock.ic"
+#include "lock0lock.inl"
 
 #endif

@@ -114,7 +114,7 @@ void maria_chk_init(HA_CHECK *param)
   param->use_buffers= PAGE_BUFFER_INIT;
   param->read_buffer_length=READ_BUFFER_INIT;
   param->write_buffer_length=READ_BUFFER_INIT;
-  param->sort_buffer_length=SORT_BUFFER_INIT;
+  param->orig_sort_buffer_length=SORT_BUFFER_INIT;
   param->sort_key_blocks=BUFFERS_WHEN_SORTING;
   param->tmpfile_createflag=O_RDWR | O_TRUNC | O_EXCL;
   param->myf_rw=MYF(MY_NABP | MY_WME | MY_WAIT_IF_FULL);
@@ -413,6 +413,12 @@ int maria_chk_size(HA_CHECK *param, register MARIA_HA *info)
   register my_off_t skr,size;
   char buff[22],buff2[22];
   DBUG_ENTER("maria_chk_size");
+
+  if (info->s3)
+  {
+    /* We cannot check file sizes for S3 */
+    DBUG_RETURN(0);
+  }
 
   if (!(param->testflag & T_SILENT))
     puts("- check file-size");
@@ -2479,6 +2485,8 @@ static int initialize_variables_for_repair(HA_CHECK *param,
   tmp= (size_t) MY_MIN(sort_info->filelength,
                        (my_off_t) (SIZE_T_MAX/10/threads));
   tmp= MY_MAX(tmp * 8 * threads, (size_t) 65536);         /* Some margin */
+  param->sort_buffer_length= MY_MIN(param->orig_sort_buffer_length,
+                                    tmp);
   set_if_smaller(param->sort_buffer_length, tmp);
   /* Protect against too big sort buffer length */
 #if SIZEOF_SIZE_T >= 8
@@ -3417,6 +3425,9 @@ static my_bool maria_zerofill_index(HA_CHECK *param, MARIA_HA *info,
   my_bool zero_lsn= (share->base.born_transactional &&
                      !(param->testflag & T_ZEROFILL_KEEP_LSN));
   int error= 1;
+  enum pagecache_page_type page_type= (share->base.born_transactional ?
+                                       PAGECACHE_LSN_PAGE :
+                                       PAGECACHE_PLAIN_PAGE);
   DBUG_ENTER("maria_zerofill_index");
 
   if (!(param->testflag & T_SILENT))
@@ -3431,7 +3442,7 @@ static my_bool maria_zerofill_index(HA_CHECK *param, MARIA_HA *info,
     if (!(buff= pagecache_read(share->pagecache,
                                &share->kfile, page,
                                DFLT_INIT_HITS, 0,
-                               PAGECACHE_PLAIN_PAGE, PAGECACHE_LOCK_WRITE,
+                               page_type, PAGECACHE_LOCK_WRITE,
                                &page_link.link)))
     {
       pagecache_unlock_by_link(share->pagecache, page_link.link,
@@ -3508,6 +3519,9 @@ static my_bool maria_zerofill_data(HA_CHECK *param, MARIA_HA *info,
   uint block_size= share->block_size;
   MARIA_FILE_BITMAP *bitmap= &share->bitmap;
   my_bool zero_lsn= !(param->testflag & T_ZEROFILL_KEEP_LSN), error;
+  enum pagecache_page_type read_page_type= (share->base.born_transactional ?
+                                            PAGECACHE_LSN_PAGE :
+                                            PAGECACHE_PLAIN_PAGE);
   DBUG_ENTER("maria_zerofill_data");
 
   /* This works only with BLOCK_RECORD files */
@@ -3531,7 +3545,7 @@ static my_bool maria_zerofill_data(HA_CHECK *param, MARIA_HA *info,
     if (!(buff= pagecache_read(share->pagecache,
                                &info->dfile,
                                page, 1, 0,
-                               PAGECACHE_PLAIN_PAGE, PAGECACHE_LOCK_WRITE,
+                               read_page_type, PAGECACHE_LOCK_WRITE,
                                &page_link.link)))
     {
       _ma_check_print_error(param,
@@ -4287,7 +4301,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
 			const char * name, my_bool rep_quick)
 {
   int got_error;
-  uint i,key, total_key_length, istep;
+  uint i,key, istep;
   ha_rows start_records;
   my_off_t new_header_length,del;
   File new_file;
@@ -4449,7 +4463,9 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     _ma_check_print_error(param,"Not enough memory for key!");
     goto err;
   }
-  total_key_length=0;
+#ifdef USING_SECOND_APPROACH
+  uint total_key_length=0;
+#endif
   rec_per_key_part= param->new_rec_per_key_part;
   share->state.state.records=share->state.state.del=share->state.split=0;
   share->state.state.empty=0;
@@ -4519,7 +4535,9 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
       if (keyseg->flag & HA_NULL_PART)
         sort_param[i].key_length++;
     }
+#ifdef USING_SECOND_APPROACH
     total_key_length+=sort_param[i].key_length;
+#endif
 
     if (sort_param[i].keyinfo->flag & HA_FULLTEXT)
     {
@@ -5013,7 +5031,8 @@ static int sort_get_next_record(MARIA_SORT_PARAM *sort_param)
         DBUG_RETURN(-1);
       }
       /* Retry only if wrong record, not if disk error */
-      if (flag != HA_ERR_WRONG_IN_RECORD && flag != HA_ERR_WRONG_CRC)
+      if (flag != HA_ERR_WRONG_IN_RECORD && flag != HA_ERR_WRONG_CRC &&
+          flag != HA_ERR_DECRYPTION_FAILED)
       {
         retry_if_quick(sort_param, flag);
         DBUG_RETURN(flag);
@@ -6833,7 +6852,8 @@ read_next_page:
                            PAGECACHE_READ_UNKNOWN_PAGE,
                            PAGECACHE_LOCK_LEFT_UNLOCKED, 0)))
       {
-        if (my_errno == HA_ERR_WRONG_CRC)
+        if (my_errno == HA_ERR_WRONG_CRC ||
+            my_errno == HA_ERR_DECRYPTION_FAILED)
         {
           /*
             Don't give errors for zero filled blocks. These can

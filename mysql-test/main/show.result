@@ -40,5 +40,28 @@ nm	varchar(32)	YES		NULL
 a	int(11)	YES		NULL	
 drop table t1;
 #
+# MDEV-4621 select returns null for information_schema.statistics.collation field
+#
+create table t1 (f varchar(64), key(f));
+select index_name, column_name, collation, cardinality from information_schema.STATISTICS where table_schema='test' and table_name='t1';
+index_name	column_name	collation	cardinality
+f	f	A	NULL
+select index_name, column_name, collation from information_schema.STATISTICS where table_schema='test' and table_name='t1';
+index_name	column_name	collation
+f	f	A
+drop table t1;
+#
 # End of 10.2 tests
+#
+#
+# MDEV-28253 Mysqldump - INVISIBLE column error
+#
+create table t1 (a int, b datetime invisible on update now() without system versioning) with system versioning;
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	datetime	YES		NULL	on update current_timestamp(), INVISIBLE, WITHOUT SYSTEM VERSIONING
+drop table t1;
+#
+# End of 10.3 tests
 #

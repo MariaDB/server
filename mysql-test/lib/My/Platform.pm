@@ -22,7 +22,7 @@ use File::Basename;
 use File::Path;
 
 use base qw(Exporter);
-our @EXPORT= qw(IS_CYGWIN IS_WINDOWS IS_WIN32PERL
+our @EXPORT= qw(IS_CYGWIN IS_WINDOWS IS_WIN32PERL IS_AIX
 		native_path posix_path mixed_path
                 check_socket_path_length process_alive open_for_append);
 
@@ -51,6 +51,15 @@ BEGIN {
   }
   else {
     eval 'sub IS_WINDOWS { 0 }';
+  }
+}
+
+BEGIN {
+  if ($^O eq "aix") {
+    eval 'sub IS_AIX { 1 }';
+  }
+  else {
+    eval 'sub IS_AIX { 0 }';
   }
 }
 

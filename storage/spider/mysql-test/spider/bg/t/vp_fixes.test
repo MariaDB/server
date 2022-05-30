@@ -206,7 +206,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
   }
   eval $CHILD2_1_SELECT_TABLES5;
   if (!$OUTPUT_CHILD_GROUP2)
@@ -303,7 +303,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
   }
   eval $CHILD2_1_SELECT_TABLES5;
   if (!$OUTPUT_CHILD_GROUP2)

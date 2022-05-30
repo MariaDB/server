@@ -77,7 +77,7 @@ log_reserve_and_write_fast(
 Checks if there is need for a log buffer flush or a new checkpoint, and does
 this if yes. Any database operation should call this when it has modified
 more than about 4 pages. NOTE that this function may only be called when the
-OS thread owns no synchronization objects except the dictionary mutex. */
+OS thread owns no synchronization objects except dict_sys.latch. */
 UNIV_INLINE
 void
 log_free_check(void);
@@ -113,12 +113,16 @@ struct completion_callback;
 void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key = false,
   const completion_callback* cb=nullptr);
 
-/** write to the log file up to the last log entry.
-@param[in]	sync	whether we want the written log
-also to be flushed to disk. */
-void
-log_buffer_flush_to_disk(
-	bool sync = true);
+/** Write to the log file up to the last log entry.
+@param sync  whether to wait for a durable write to complete */
+void log_buffer_flush_to_disk(bool sync= true);
+
+
+/** Prepare to invoke log_write_and_flush(), before acquiring log_sys.mutex. */
+ATTRIBUTE_COLD void log_write_and_flush_prepare();
+
+/** Durably write the log up to log_sys.lsn() and release log_sys.mutex. */
+ATTRIBUTE_COLD void log_write_and_flush();
 
 /** Make a checkpoint */
 ATTRIBUTE_COLD void log_make_checkpoint();
@@ -348,26 +352,6 @@ or the MySQL version that created the redo log file. */
 					header */
 #define LOG_FILE_HDR_SIZE	(4 * OS_FILE_LOG_BLOCK_SIZE)
 
-/** Memory mapped file */
-class mapped_file_t
-{
-public:
-  mapped_file_t()= default;
-  mapped_file_t(const mapped_file_t &)= delete;
-  mapped_file_t &operator=(const mapped_file_t &)= delete;
-  mapped_file_t(mapped_file_t &&)= delete;
-  mapped_file_t &operator=(mapped_file_t &&)= delete;
-  ~mapped_file_t() noexcept;
-
-  dberr_t map(const char *path, bool read_only= false,
-              bool nvme= false) noexcept;
-  dberr_t unmap() noexcept;
-  byte *data() noexcept { return m_area.data(); }
-
-private:
-  span<byte> m_area;
-};
-
 /** Abstraction for reading, writing and flushing file cache to disk */
 class file_io
 {
@@ -467,7 +451,7 @@ struct log_t{
 
 private:
   /** The log sequence number of the last change of durable InnoDB files */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE)
   std::atomic<lsn_t> lsn;
   /** the first guaranteed-durable log sequence number */
   std::atomic<lsn_t> flushed_to_disk_lsn;
@@ -477,7 +461,7 @@ private:
   std::atomic<bool> check_flush_or_checkpoint_;
 public:
   /** mutex protecting the log */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t mutex;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t mutex;
   /** first free offset within the log buffer in use */
   size_t buf_free;
   /** recommended maximum size of buf, after which the buffer is flushed */
@@ -486,7 +470,7 @@ public:
   dirty blocks in the list. The idea behind this mutex is to be able
   to release log_sys.mutex during mtr_commit and still ensure that
   insertions in the flush_list happen in the LSN order. */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t flush_order_mutex;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t flush_order_mutex;
   /** log_buffer, append data here */
   byte *buf;
   /** log_buffer, writing data to file from this buffer.
@@ -617,15 +601,13 @@ public:
 					/*!< next checkpoint number */
   /** latest completed checkpoint (protected by log_sys.mutex) */
   Atomic_relaxed<lsn_t> last_checkpoint_lsn;
-	lsn_t		next_checkpoint_lsn;
-					/*!< next checkpoint lsn */
-	ulint		n_pending_checkpoint_writes;
-					/*!< number of currently pending
-					checkpoint writes */
+  /** next checkpoint LSN (protected by log_sys.mutex) */
+  lsn_t next_checkpoint_lsn;
+  /** whether a checkpoint is pending */
+  Atomic_relaxed<bool> checkpoint_pending;
 
-	/** buffer for checkpoint header */
-	MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE)
-	byte		checkpoint_buf[OS_FILE_LOG_BLOCK_SIZE];
+  /** buffer for checkpoint header */
+  byte *checkpoint_buf;
 	/* @} */
 
 private:
@@ -705,15 +687,6 @@ public:
 
   /** Shut down the redo log subsystem. */
   void close();
-
-  /** Initiate a write of the log buffer to the file if needed.
-  @param flush  whether to initiate a durable write */
-  inline void initiate_write(bool flush)
-  {
-    const lsn_t lsn= get_lsn();
-    if (!flush || get_flushed_lsn() < lsn)
-      log_write_up_to(lsn, flush);
-  }
 };
 
 /** Redo log system */
@@ -762,6 +735,6 @@ inline void log_t::file::set_lsn_offset(lsn_t a_lsn)
   lsn_offset= a_lsn;
 }
 
-#include "log0log.ic"
+#include "log0log.inl"
 
 #endif

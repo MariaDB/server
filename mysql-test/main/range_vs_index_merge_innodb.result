@@ -4,8 +4,6 @@ set @innodb_stats_persistent_sample_pages_save=
 @@innodb_stats_persistent_sample_pages;
 set global innodb_stats_persistent= 1;
 set global innodb_stats_persistent_sample_pages=100;
-DROP TABLE IF EXISTS t1,t2,t3,t4;
-DROP DATABASE IF EXISTS world;
 set names utf8;
 CREATE DATABASE world;
 use world;

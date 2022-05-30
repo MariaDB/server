@@ -1,4 +1,5 @@
 --source include/not_embedded.inc
+--source include/not_aix.inc
 # Test that wait_timeout does not cause connection to be closed, when connection is delayed due to
 # threadpool internal problems, e.g misconfiguration - too few threads and queueing.
 # So if client did not cause wait_timeout, do not report it either.

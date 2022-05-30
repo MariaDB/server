@@ -4,6 +4,7 @@
 --source include/not_embedded.inc
 --source include/have_innodb.inc
 --source include/have_debug.inc
+--source include/have_debug_sync.inc
 --source include/not_crashrep.inc
 
 --disable_query_log
@@ -195,3 +196,34 @@ disconnect con1;
 DROP TABLE t1;
 SET DEBUG_SYNC = 'RESET';
 SET SQL_MODE=DEFAULT;
+
+--echo #
+--echo # MDEV-26936 Recovery crash on rolling back DELETE FROM SYS_INDEXES
+--echo #
+
+CREATE TABLE t1(a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1,1);
+
+connect ddl, localhost, root;
+SET DEBUG_SYNC = 'row_merge_after_scan SIGNAL scanned WAIT_FOR commit';
+SET DEBUG_SYNC = 'before_commit_rollback_inplace SIGNAL c WAIT_FOR ever';
+send ALTER TABLE t1 ADD UNIQUE INDEX(b), ALGORITHM=INPLACE;
+
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR scanned';
+BEGIN;
+INSERT INTO t1 VALUES(2,1);
+COMMIT;
+SET DEBUG_SYNC = 'now SIGNAL commit';
+SET DEBUG_SYNC = 'now WAIT_FOR c';
+# Make all pending changes durable for recovery.
+SET GLOBAL innodb_fil_make_page_dirty_debug=0;
+
+--source include/kill_mysqld.inc
+disconnect ddl;
+--source include/start_mysqld.inc
+
+CHECK TABLE t1;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;

@@ -2882,3 +2882,28 @@ insert into t1 values (8,'0');
 ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
 unlock tables;
 drop table t1;
+#
+# MDEV-22284 Aria table key read crash because wrong index used
+#
+create table t1 (
+a int auto_increment,
+b int, c int,
+key(c, a), unique(b)
+) engine aria
+partition by hash (b);
+replace into t1 values (1, 0, 0), (2, 0, 0), (0, 0, 0);
+drop table t1;
+#
+# MDEV-28269 Assertion `save_errno' in maria_write or ER_GET_ERRNO
+#
+connect  session1,localhost,root,,;
+SET big_tables= on;
+Warnings:
+Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+SET NAMES 'sjis';
+SELECT 'למטה' AS a UNION SELECT 'Wetter' AS a;
+a
+למט�?
+Wetter
+connection default;
+disconnect session1;

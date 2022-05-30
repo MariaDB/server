@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, 2020, MariaDB Corporation.
+Copyright (c) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -90,15 +90,6 @@ ut_fold_ull(
 /*========*/
 	ib_uint64_t	d)	/*!< in: 64-bit integer */
 	MY_ATTRIBUTE((const));
-/*************************************************************//**
-Folds a character string ending in the null character.
-@return folded value */
-UNIV_INLINE
-ulint
-ut_fold_string(
-/*===========*/
-	const char*	str)	/*!< in: null-terminated string */
-	MY_ATTRIBUTE((warn_unused_result));
 /***********************************************************//**
 Looks for a prime number slightly greater than the given argument.
 The prime is chosen so that it is not near any power of 2.
@@ -132,6 +123,6 @@ ut_fold_binary(
 	ulint		len)	/*!< in: length */
 	MY_ATTRIBUTE((pure));
 
-#include "ut0rnd.ic"
+#include "ut0rnd.inl"
 
 #endif

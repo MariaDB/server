@@ -91,16 +91,15 @@ datadir_set=
 
 #
 # Use LSB init script functions for printing messages, if possible
-#
+# Include non-LSB RedHat init functions to make systemctl redirect work
+init_functions="/etc/init.d/functions"
 lsb_functions="/lib/lsb/init-functions"
-if test -f $lsb_functions ; then
+if test -f $lsb_functions; then
   . $lsb_functions
-else
-  # Include non-LSB RedHat init functions to make systemctl redirect work
-  init_functions="/etc/init.d/functions"
-  if test -f $init_functions; then
-    . $init_functions
-  fi
+fi
+
+if test -f $init_functions; then
+  . $init_functions
   log_success_msg()
   {
     echo " SUCCESS! $@"
@@ -200,11 +199,11 @@ su_kill() {
 extra_args=""
 if test -r "$basedir/my.cnf"
 then
-  extra_args="-e $basedir/my.cnf"
+  extra_args="--defaults-extra-file= $basedir/my.cnf"
 else
   if test -r "$datadir/my.cnf"
   then
-    extra_args="-e $datadir/my.cnf"
+    extra_args="--defaults-extra-file= $datadir/my.cnf"
   fi
 fi
 

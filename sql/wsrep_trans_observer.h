@@ -232,6 +232,10 @@ static inline int wsrep_before_prepare(THD* thd, bool all)
   WSREP_DEBUG("wsrep_before_prepare: %d", wsrep_is_real(thd, all));
   int ret= 0;
   DBUG_ASSERT(wsrep_run_commit_hook(thd, all));
+  if ((ret= thd->wsrep_parallel_slave_wait_for_prior_commit()))
+  {
+    DBUG_RETURN(ret);
+  }
   if ((ret= thd->wsrep_cs().before_prepare()) == 0)
   {
     DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
@@ -426,7 +430,14 @@ static inline
 int wsrep_after_statement(THD* thd)
 {
   DBUG_ENTER("wsrep_after_statement");
-  DBUG_RETURN(thd->wsrep_cs().state() != wsrep::client_state::s_none &&
+  WSREP_DEBUG("wsrep_after_statement for %lu client_state %s "
+              " client_mode %s trans_state %s",
+              thd_get_thread_id(thd),
+              wsrep::to_c_string(thd->wsrep_cs().state()),
+              wsrep::to_c_string(thd->wsrep_cs().mode()),
+              wsrep::to_c_string(thd->wsrep_cs().transaction().state()));
+  DBUG_RETURN((thd->wsrep_cs().state() != wsrep::client_state::s_none &&
+               thd->wsrep_cs().mode() == Wsrep_client_state::m_local) &&
               !thd->internal_transaction() ?
               thd->wsrep_cs().after_statement() : 0);
 }

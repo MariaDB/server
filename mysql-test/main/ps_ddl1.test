@@ -30,6 +30,7 @@ drop view if exists t1;
 drop schema if exists mysqltest;
 --enable_warnings
 
+--enable_prepare_warnings
 delimiter |;
 create procedure p_verify_reprepare_count(expected int)
 begin
@@ -48,6 +49,7 @@ begin
     select '' as "SUCCESS";
   end if;
 end|
+--disable_prepare_warnings
 delimiter ;|
 set @reprepare_count= 0;
 flush status;

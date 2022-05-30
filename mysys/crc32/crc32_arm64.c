@@ -2,12 +2,12 @@
 #include <string.h>
 #include <stdint.h>
 
+static int pmull_supported;
+
 #if defined(HAVE_ARMV8_CRC)
 
 #if defined(__APPLE__)
 #include <sys/sysctl.h>
-
-static int pmull_supported;
 
 int crc32_aarch64_available(void)
 {
@@ -47,8 +47,6 @@ static unsigned long getauxval(unsigned int key)
 #ifndef HWCAP_PMULL
 # define HWCAP_PMULL (1 << 4)
 #endif
-
-static int pmull_supported;
 
 /* ARM made crc32 default from ARMv8.1 but optional in ARMv8A
  * Runtime check API.

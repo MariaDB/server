@@ -92,10 +92,10 @@ value
 26
 27
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `value` from `auto_test_remote`.`tbl_a` where (`value` < 100)
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT value FROM tbl_a ORDER BY value;
 value
 4
@@ -109,10 +109,10 @@ value
 28
 29
 connection child2_2;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `value` from `auto_test_remote2`.`tbl_a` where (`value` < 100)
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT value FROM tbl_a ORDER BY value;
 value
 0
@@ -126,10 +126,10 @@ value
 24
 25
 connection child2_3;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `value` from `auto_test_remote3`.`tbl_a` where (`value` < 100)
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT value FROM tbl_a ORDER BY value;
 value
 2

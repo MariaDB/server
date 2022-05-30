@@ -10,5 +10,9 @@
 
 --source include/have_innodb.inc
 let $engine_type= InnoDB;
+SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
 
 --source include/rowid_order.inc
+
+SET GLOBAL innodb_stats_persistent=@save_stats_persistent;

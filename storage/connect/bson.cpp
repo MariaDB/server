@@ -30,7 +30,7 @@
 #define CheckType(X,Y)
 #endif
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 #define EL  "\r\n"
 #else
 #define EL  "\n"
@@ -1205,15 +1205,14 @@ void BJSON::SetArrayValue(PBVAL bap, PBVAL nvp, int n)
   int   i = 0;
   PBVAL bvp = NULL;
 
-  if (bap->To_Val)
-    for (bvp = GetArray(bap); bvp; i++, bvp = GetNext(bvp))
-      if (i == n) {
-        SetValueVal(bvp, nvp);
-        return;
-      }
+  for (bvp = GetArray(bap); i < n; i++, bvp = bvp ? GetNext(bvp) : NULL)
+    if (!bvp)
+      AddArrayValue(bap, NewVal());
 
   if (!bvp)
     AddArrayValue(bap, MOF(nvp));
+  else
+    SetValueVal(bvp, nvp);
 
 } // end of SetValue
 

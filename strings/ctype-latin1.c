@@ -17,6 +17,7 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-simple.h"
 
 const char charset_name_latin1[]= "latin1";
 #define charset_name_latin1_length  sizeof(charset_name_latin1)-1
@@ -730,6 +731,7 @@ static MY_COLLATION_HANDLER my_collation_german2_ci_handler=
   NULL,			/* init */
   my_strnncoll_latin1_de,
   my_strnncollsp_latin1_de,
+  my_strnncollsp_nchars_generic_8bit,
   my_strnxfrm_latin1_de,
   my_strnxfrmlen_simple,
   my_like_range_simple,
@@ -737,7 +739,9 @@ static MY_COLLATION_HANDLER my_collation_german2_ci_handler=
   my_strcasecmp_8bit,
   my_instr_simple,
   my_hash_sort_latin1_de,
-  my_propagate_complex
+  my_propagate_complex,
+  my_min_str_8bit_simple,
+  my_max_str_8bit_simple
 };
 
 

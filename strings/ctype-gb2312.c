@@ -26,6 +26,7 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-mb.h"
 
 #ifdef HAVE_CHARSET_gb2312
 
@@ -173,7 +174,7 @@ static const uchar sort_order_gb2312[]=
 #define IS_MB1_CHAR(x)        ((uchar) (x) < 0x80)
 #define IS_MB2_CHAR(x,y)      (isgb2312head(x) && isgb2312tail(y))
 #define DEFINE_ASIAN_ROUTINES
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 
 
 static MY_UNICASE_CHARACTER cA2[256]=
@@ -6337,27 +6338,27 @@ my_mb_wc_gb2312(CHARSET_INFO *cs  __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _gb2312_chinese_ci
 #define WEIGHT_MB1(x)        (sort_order_gb2312[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (gb2312code(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _gb2312_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (gb2312code(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _gb2312_chinese_nopad_ci
 #define WEIGHT_MB1(x)        (sort_order_gb2312[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (gb2312code(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _gb2312_nopad_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (gb2312code(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 static MY_COLLATION_HANDLER my_collation_handler_gb2312_chinese_ci=
@@ -6365,6 +6366,7 @@ static MY_COLLATION_HANDLER my_collation_handler_gb2312_chinese_ci=
   NULL,                 /* init */
   my_strnncoll_gb2312_chinese_ci,
   my_strnncollsp_gb2312_chinese_ci,
+  my_strnncollsp_nchars_gb2312_chinese_ci,
   my_strnxfrm_mb,       /* strnxfrm   */
   my_strnxfrmlen_simple,
   my_like_range_mb,     /* like_range */
@@ -6372,7 +6374,9 @@ static MY_COLLATION_HANDLER my_collation_handler_gb2312_chinese_ci=
   my_strcasecmp_mb,     /* instr      */
   my_instr_mb,
   my_hash_sort_simple,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -6381,6 +6385,7 @@ static MY_COLLATION_HANDLER my_collation_handler_gb2312_bin=
   NULL,	                /* init */
   my_strnncoll_gb2312_bin,
   my_strnncollsp_gb2312_bin,
+  my_strnncollsp_nchars_gb2312_bin,
   my_strnxfrm_mb,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -6388,7 +6393,9 @@ static MY_COLLATION_HANDLER my_collation_handler_gb2312_bin=
   my_strcasecmp_mb_bin,
   my_instr_mb,
   my_hash_sort_mb_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -6397,6 +6404,7 @@ static MY_COLLATION_HANDLER my_collation_handler_gb2312_chinese_nopad_ci=
   NULL,                 /* init */
   my_strnncoll_gb2312_chinese_ci,
   my_strnncollsp_gb2312_chinese_nopad_ci,
+  my_strnncollsp_nchars_gb2312_chinese_nopad_ci,
   my_strnxfrm_mb_nopad,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -6404,7 +6412,9 @@ static MY_COLLATION_HANDLER my_collation_handler_gb2312_chinese_nopad_ci=
   my_strcasecmp_mb,
   my_instr_mb,
   my_hash_sort_simple_nopad,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 
@@ -6413,6 +6423,7 @@ static MY_COLLATION_HANDLER my_collation_handler_gb2312_nopad_bin=
   NULL,	                /* init */
   my_strnncoll_gb2312_bin,
   my_strnncollsp_gb2312_nopad_bin,
+  my_strnncollsp_nchars_gb2312_nopad_bin,
   my_strnxfrm_mb_nopad,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -6420,7 +6431,9 @@ static MY_COLLATION_HANDLER my_collation_handler_gb2312_nopad_bin=
   my_strcasecmp_mb_bin,
   my_instr_mb,
   my_hash_sort_mb_nopad_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 

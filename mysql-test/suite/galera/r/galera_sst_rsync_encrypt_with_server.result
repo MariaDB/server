@@ -2,8 +2,6 @@ connection node_2;
 connection node_1;
 connection node_1;
 connection node_2;
-connection node_2;
-CALL mtr.add_suppression("\\[ERROR\\] .*ib_buffer_pool' for reading: No such file or directory");
 connection node_1;
 Performing State Transfer on a server that has been shut down cleanly and restarted
 connection node_1;

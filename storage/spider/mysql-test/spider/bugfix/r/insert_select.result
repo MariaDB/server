@@ -58,7 +58,7 @@ INSERT IGNORE INTO tbl_b (SELECT skey, CAST(CONCAT(dt, ' ', tm) AS datetime) FRO
 INSERT IGNORE INTO tbl_b (SELECT skey, CAST(CONCAT(dt, ' ', tm) AS datetime) FROM tbl_a WHERE skey = 6 AND dt > DATE_ADD('2012-12-01', INTERVAL -10 DAY));
 INSERT IGNORE INTO tbl_b (SELECT skey, CAST(CONCAT(dt, ' ', tm) AS datetime) FROM tbl_a WHERE skey = 5 AND dt > DATE_ADD('2012-12-01', INTERVAL -10 DAY));
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select t0.`skey` `skey`,cast((concat(t0.`dt` , _latin1' ' , t0.`tm`)) as datetime) `CAST(CONCAT(dt, ' ', tm) AS datetime)` from `auto_test_remote`.`tbl_a` t0 where ((t0.`skey` = 4) and (t0.`dt` > _latin1'2012-11-21')) lock in share mode
 select t0.`skey` `skey`,cast((concat(t0.`dt` , _latin1' ' , t0.`tm`)) as datetime) `CAST(CONCAT(dt, ' ', tm) AS datetime)` from `auto_test_remote`.`tbl_a` t0 where ((t0.`skey` = 3) and (t0.`dt` > _latin1'2012-11-21')) lock in share mode
@@ -70,7 +70,7 @@ select t0.`skey` `skey`,cast((concat(t0.`dt` , _latin1' ' , t0.`tm`)) as datetim
 select t0.`skey` `skey`,cast((concat(t0.`dt` , _latin1' ' , t0.`tm`)) as datetime) `CAST(CONCAT(dt, ' ', tm) AS datetime)` from `auto_test_remote`.`tbl_a` t0 where ((t0.`skey` = 7) and (t0.`dt` > _latin1'2012-11-21')) lock in share mode
 select t0.`skey` `skey`,cast((concat(t0.`dt` , _latin1' ' , t0.`tm`)) as datetime) `CAST(CONCAT(dt, ' ', tm) AS datetime)` from `auto_test_remote`.`tbl_a` t0 where ((t0.`skey` = 6) and (t0.`dt` > _latin1'2012-11-21')) lock in share mode
 select t0.`skey` `skey`,cast((concat(t0.`dt` , _latin1' ' , t0.`tm`)) as datetime) `CAST(CONCAT(dt, ' ', tm) AS datetime)` from `auto_test_remote`.`tbl_a` t0 where ((t0.`skey` = 5) and (t0.`dt` > _latin1'2012-11-21')) lock in share mode
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey, dt FROM tbl_b ORDER BY pkey;
 pkey	dt
 0	2013-01-01 13:00:00

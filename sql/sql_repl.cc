@@ -2828,6 +2828,12 @@ static int send_one_binlog_file(binlog_send_info *info,
      */
     if (send_events(info, log, linfo, end_pos))
       return 1;
+    DBUG_EXECUTE_IF("Notify_binlog_EOF",
+                    {
+                      const char act[]= "now signal eof_reached";
+                      DBUG_ASSERT(!debug_sync_set_action(current_thd,
+                                                         STRING_WITH_LEN(act)));
+                    };);
   }
 
   return 1;
@@ -3953,6 +3959,16 @@ err:
   mi->unlock_slave_threads();
   if (ret == FALSE)
     my_ok(thd);
+  else
+  {
+    /*
+      Depending on where CHANGE MASTER failed, the logs may be waiting to be
+      reopened. This would break future log updates and CHANGE MASTER calls.
+      `try_fix_log_state()` allows the relay log to fix its state to no longer
+      expect to be reopened.
+    */
+    mi->rli.relay_log.try_fix_log_state();
+  }
   DBUG_RETURN(ret);
 }
 
@@ -4381,6 +4397,7 @@ bool show_binlogs(THD* thd)
   Protocol *protocol= thd->protocol;
   uint retry_count= 0;
   size_t cur_dir_len;
+  uint64 expected_reset_masters;
   DBUG_ENTER("show_binlogs");
 
   if (!mysql_bin_log.is_open())
@@ -4405,6 +4422,7 @@ retry:
   mysql_mutex_lock(mysql_bin_log.get_log_lock());
   mysql_bin_log.lock_index();
   mysql_bin_log.raw_get_current_log(&cur);
+  expected_reset_masters= mysql_bin_log.get_reset_master_count();
   mysql_mutex_unlock(mysql_bin_log.get_log_lock());
   
   /* The following call unlocks lock_index */
@@ -4424,6 +4442,16 @@ retry:
     /* Skip directory name as we shouldn't include this in the result */
     cur_link->name.str+=    dir_len;
     cur_link->name.length-= dir_len;
+
+    if (mysql_bin_log.get_reset_master_count() > expected_reset_masters)
+    {
+      /*
+        Reset master was called after we cached filenames.
+        Reinitialize the cache.
+      */
+      free_root(&mem_root, MYF(MY_MARK_BLOCKS_FREE));
+      goto retry;
+    }
 
     if (!(strncmp(fname+dir_len, cur.log_file_name+cur_dir_len, length)))
       cur_link->size= cur.pos;  /* The active log, use the active position */

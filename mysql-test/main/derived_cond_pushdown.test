@@ -1064,9 +1064,10 @@ DROP TABLE t1,t2;
 CREATE TABLE t1 (i INT);
 CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
 INSERT INTO t1 VALUES (1),(2);
-
+--enable_prepare_warnings
 EXPLAIN FORMAT=JSON
 SELECT * FROM v1 WHERE i <= ANY ( SELECT 3 );
+--disable_prepare_warnings
 
 SELECT * FROM v1 WHERE i <= ANY ( SELECT 3 );
 
@@ -2213,6 +2214,118 @@ select * from v1 where m > 0;
 drop view v1;
 drop table t1;
 
+--echo #
+--echo # MDEV-25635: pushdown into grouping view using aggregate functions
+--echo #             with constant arguments via a mergeable derived table
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1), (3), (7), (7), (3);
+
+create view v1 as select a, sum(1) as f, sum(1) as g from t1 group by a;
+select * from v1;
+let $q1=
+select * from (select * from v1) as dt where a=f and a=g;
+eval $q1;
+eval explain extended $q1;
+
+create view v2 as select a, min(1) as f, min(1) as g from t1 group by a;
+select * from v2;
+let $q2=
+select * from (select * from v2) as dt where a=f and a=g;
+eval $q2;
+eval explain extended $q2;
+
+drop view v1,v2;
+drop table t1;
+
+--echo #
+--echo # MDEV-25969: Condition pushdown into derived table doesn't work if select list uses SP
+--echo #
+create function f1(a int) returns int DETERMINISTIC return (a+1);
+
+create table t1 (
+  pk int primary key,
+  a int,
+  b int,
+  key(a)
+);
+
+create table t2(a int);
+insert into t2 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t3(a int);
+insert into t3 select A.a + B.a* 10 + C.a * 100 from t2 A, t2 B, t2 C;
+
+insert into t1 select a,a,a from t3;
+
+create view v1 as
+select
+  t1.a as col1,
+  f1(t1.b) as col2
+from
+  t1;
+
+create view v2 as
+select
+  t1.a as col1,
+  f1(t1.b) as col2
+from
+  t1;
+create view v3 as
+select col2, col1 from v1
+union all
+select col2, col1 from v2;
+
+explain select * from v3 where col1=123;
+
+--echo # This must use ref accesses for reading table t1, not full scans:
+explain format=json
+select * from v3 where col1=123 and col2=321;
+
+drop function f1;
+drop view v1,v2,v3;
+drop table t1, t2,t3;
+
+--echo #
+--echo # Another testcase, with pushdown through GROUP BY
+--echo #
+create table t1 (a int, b  int);
+insert into t1 values (1,1),(2,2),(3,3);
+
+create function f1(a int) returns int DETERMINISTIC return (a+1);
+
+create view v2(a, a2, s) as 
+select a, f1(a), sum(b) from t1 group by a, f1(a);
+
+--echo # Here, 
+--echo #   "(s+1) > 10" will be pushed into HAVING
+--echo #   "a > 1" will be pushed all the way to the table scan on t1
+--echo #   "a2>123" will be pushed into HAVING (as it refers to an SP call which
+--echo #                                       prevents pushing it to the WHERE)
+explain format=json
+select * from v2 where (s+1) > 10 AND a > 1 and a2>123;
+
+--echo # Extra test for 10.4+: Check that this works for pushdown into IN
+--echo # subqueries:
+
+create table t4 (a int, b int, c decimal);
+insert into t4 select a,a,a from t1;
+
+--echo # The subquery must be materialized and must have
+--echo #  "attached_condition": "t1.a + 1 > 10",
+--echo #  "having_condition": "`f1(a)` > 1 and `sum(b)` > 123",
+explain format=json
+select *
+from t4
+where
+  (a,b,c) in (select a, f1(a), sum(b) from t1 group by a, f1(a))
+  and
+   (a+1) > 10 AND b > 1 and c>123;
+
+drop view v2;
+drop function f1;
+drop table t1, t4;
 --echo # End of 10.2 tests
 
 --echo #
@@ -3515,6 +3628,248 @@ execute stmt;
 deallocate prepare stmt;
 
 drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-MDEV-27132: Splittable derived with equality in WHERE
+--echo #
+
+CREATE TABLE t1 (
+  id int PRIMARY KEY
+) ENGINE=MyISAM;
+
+INSERT INTO t1 VALUES
+(-1),(2070),(4826),(4827),(4828),(4829),(4830),(4831),(4832),(4833),(4834),
+(4835),(4836),(4837),(4838),(4839),(4840),(4841),(4842),(4843),(4844),
+(4845),(4846),(4847),(4848),(4849),(4850),(4851),(4852),(4853),(4854),
+(4855),(4856),(4857),(4858),(4859),(4860),(4861),(4862),(4863),(4864),
+(4865),(4866),(4867),(4868),(4869),(4870),(4871),(4872),(4873),(4874),
+(4875),(4876);
+
+CREATE TABLE t2 (
+  id int PRIMARY KEY AUTO_INCREMENT,
+  deleted int(1),
+  t1_id int,
+  email varchar(255),
+  reporting_person int(1),
+  KEY t1_id (t1_id)
+) ENGINE=MyISAM;
+
+INSERT INTO t2 VALUES
+(1,0,2064,'1test@test.ee',1),(2,1626095588,2066,'2test@test.ee',1),
+(3,0,2066,'3test@test.ee',1),(4,0,2068,'4test@test.ee',1),
+(5,0,2068,'5test@test.ee',1),(6,0,2069,'6test@test.ee',1),(7,0,2070,'',0),
+(8,0,2070,'',0),(9,0,2071,'',0),(10,0,2071,'',0),(11,0,2072,'',0),
+(12,0,2072,'',0),(13,0,2072,'13test@test.ee',1),(14,0,2073,'14test@test.ee',1),
+(15,0,2074,'15test@test.ee',1),(16,0,2075,'16test@test.ee',1),(17,0,2075,'',0),
+(18,0,2075,'',0),(19,0,2076,'19test@test.ee',1),(20,0,2077,'',0),
+(21,0,2078,'21test@test.ee',1),(22,0,2078,'22test@test.ee',1);
+
+INSERT INTO t2(deleted, t1_id, email, reporting_person)
+  SELECT deleted, t1_id, email, reporting_person FROM t2;
+INSERT INTO t2(deleted, t1_id, email, reporting_person)
+  SELECT deleted, t1_id+10000, email, reporting_person FROM t2;
+INSERT INTO t2(deleted, t1_id, email, reporting_person)
+  SELECT deleted, t1_id+20000, email, reporting_person FROM t2;
+INSERT INTO t2(deleted, t1_id, email, reporting_person)
+  SELECT deleted, t1_id+40000, email, reporting_person FROM t2;
+INSERT INTO t2(deleted, t1_id, email, reporting_person)
+  SELECT deleted, t1_id+80000, email, reporting_person FROM t2;
+INSERT INTO t2(deleted, t1_id, email, reporting_person)
+  SELECT deleted, t1_id+160000, email, reporting_person FROM t2;
+
+CREATE TABLE t3 (
+  id int PRIMARY KEY,
+  deleted int,
+  t1_id int,
+  YEAR int(4),
+  quarter int(1),
+  KEY t1_id (t1_id,year,quarter)
+) ENGINE=MyISAM;
+
+INSERT INTO t3 VALUES
+(1,0,3885,2020,1),(2,0,2064,2020,1),(3,1611670734,2225,2020,1),
+(4,0,2070,2020,1),(5,1611055981,2095,2020,1),(6,1610970096,2102,2020,1),
+(7,0,3974,2020,1),(153,1609851928,3892,2020,2),(154,0,3885,2020,2),
+(155,0,2064,2020,2),(156,1611670717,2225,2020,2),(157,0,2070,2020,2),
+(317,0,2257,2020,2),(318,0,3885,2020,3),(319,0,2064,2020,3),
+(320,1611670709,2225,2020,3),(321,0,2070,2020,3),(322,0,2095,2020,3),
+(323,0,2102,2020,3),(324,0,3974,2020,3),(325,0,3886,2020,3),
+(326,1609939963,2104,2020,3),(327,0,3887,2020,3),(328,0,3888,2020,3),
+(329,0,2148,2020,3),(330,0,3889,2020,3),(331,0,3890,2020,3),
+(332,0,2179,2020,3),(333,0,2115,2020,3),(334,0,2193,2020,3),
+(335,0,2213,2020,3),(336,0,3891,2020,3),(337,1609851955,3892,2020,3),
+(338,1610447706,2232,2020,3),(339,0,2235,2020,3),(340,0,2237,2020,3),
+(341,0,3972,2020,3),(342,1610449357,2242,2020,3),(343,0,3893,2020,3),
+(344,0,2257,2020,3),(345,0,3951,2020,3),(346,0,3894,2020,3),
+(347,0,3912,2020,3),(348,0,3895,2020,3),(349,0,2301,2020,3),
+(350,0,2304,2020,3),(351,0,3896,2020,3);
+
+ANALYZE TABLE t1,t2,t3;
+
+let $q=
+SELECT t1.id
+FROM t1
+     JOIN t3
+     ON t3.t1_id = t1.id
+     JOIN (SELECT t1_id FROM t2 WHERE reporting_person = 1 GROUP BY t1_id) tx
+     ON tx.t1_id = t1.id
+WHERE t1.id BETWEEN 200 AND 100000;
+
+set  optimizer_switch='split_materialized=on';
+
+eval $q;
+eval EXPLAIN $q;
+eval EXPLAIN FORMAT=JSON $q;
+
+set  optimizer_switch='split_materialized=off';
+
+eval $q;
+
+set  optimizer_switch='split_materialized=default';
+
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-27510: Splittable derived with grouping over two tables
+--echo #
+
+CREATE TABLE ledgers (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(32)
+) ENGINE=MyISAM;
+
+CREATE TABLE charges (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  from_ledger_id BIGINT UNSIGNED NOT NULL,
+  to_ledger_id BIGINT UNSIGNED NOT NULL,
+  amount INT NOT NULL,
+  KEY fk_charge_from_ledger (from_ledger_id),
+  KEY fk_charge_to_ledger (to_ledger_id)
+) ENGINE=MyISAM;
+
+CREATE TABLE transactions (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  ledger_id BIGINT UNSIGNED NOT NULL,
+  KEY fk_transactions_ledger (ledger_id)
+) ENGINE=MyISAM;
+
+CREATE TABLE transaction_items (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  transaction_id BIGINT UNSIGNED NOT NULL,
+  charge_id BIGINT UNSIGNED,
+  amount INT NOT NULL,
+  KEY fk_items_transaction (transaction_id),
+  KEY fk_items_charge (charge_id)
+) ENGINE=MyISAM;
+
+INSERT INTO ledgers (id, name) VALUES
+(1, 'Anna'), (2, 'John'), (3, 'Fred');
+
+INSERT INTO charges (id, from_ledger_id, to_ledger_id, amount) VALUES
+(1, 2, 1, 200), (2, 1, 2, 330), (3, 1, 2, 640), (4, 3, 1, 640), (5, 3, 2, 1000),
+(6, 3, 1, 660), (7, 2, 3, 650), (8, 3, 2, 160), (9, 2, 1, 740), (10, 3, 2, 310),
+(11, 2, 1, 640), (12, 3, 2, 240), (13, 3, 2, 340), (14, 2, 1, 720),
+(15, 2, 3, 100),
+(16, 2, 3, 980), (17, 2, 1, 80), (18, 1, 2, 760), (19, 2, 3, 740),
+(20, 2, 1, 990);
+
+INSERT INTO transactions (id, ledger_id) VALUES
+(2, 1), (3, 1), (5, 1), (8, 1), (12, 1), (18, 1), (22, 1), (28, 1),
+(34, 1), (35, 1),
+(40, 1), (1, 2), (4, 2), (6, 2), (10, 2), (13, 2), (16, 2), (17, 2),
+(20, 2), (21, 2),
+(24, 2), (26, 2), (27, 2), (29, 2), (31, 2), (33, 2), (36, 2), (37, 2),
+(39, 2), (7, 3),
+(9, 3), (11, 3), (14, 3), (15, 3), (19, 3), (23, 3), (25, 3), (30, 3),
+(32, 3), (38, 3);
+
+INSERT INTO transaction_items (id, transaction_id, charge_id, amount) VALUES
+(1, 1, 1, -200), (2, 2, 1, 200), (3, 3, 2, -330), (4, 4, 2, 330),
+(5, 5, 3, -640),
+(6, 6, 3, 640), (7, 7, 4, -640), (8, 8, 4, 640), (9, 9, 5, -1000),
+(10, 10, 5, 1000),
+(11, 11, 6, -660), (12, 12, 6, 660), (13, 13, 7, -650), (14, 14, 7, 650),
+(15, 15, 8, -160),
+(16, 16, 8, 160), (17, 17, 9, -740), (18, 18, 9, 740), (19, 19, 10, -310),
+(20, 20, 10, 310),
+(21, 21, 11, -640), (22, 22, 11, 640), (23, 23, 12, -240), (24, 24, 12, 240),
+(25, 25, 13, -340),
+(26, 26, 13, 340), (27, 27, 14, -720), (28, 28, 14, 720), (29, 29, 15, -100),
+(30, 30, 15, 100),
+(31, 31, 16, -980), (32, 32, 16, 980), (33, 33, 17, -80), (34, 34, 17, 80),
+(35, 35, 18, -760),
+(36, 36, 18, 760), (37, 37, 19, -740), (38, 38, 19, 740), (39, 39, 20, -990),
+(40, 40, 20, 990);
+
+ANALYZE TABLE ledgers, charges, transactions, transaction_items;
+
+let $q=
+SELECT
+    charges.id,
+    charges.from_ledger_id,
+    charges.to_ledger_id,
+    from_agg_items.num_rows AS from_num_rows
+FROM charges
+INNER JOIN (
+    SELECT
+        transactions.ledger_id,
+        transaction_items.charge_id,
+        count(*) as num_rows
+    FROM transaction_items
+    INNER JOIN transactions ON transaction_items.transaction_id = transactions.id
+    GROUP BY transactions.ledger_id, transaction_items.charge_id
+) AS from_agg_items
+ON from_agg_items.charge_id = charges.id AND
+   from_agg_items.ledger_id = charges.from_ledger_id
+WHERE charges.to_ledger_id = 2;
+
+set optimizer_switch='split_materialized=on';
+eval $q;
+eval EXPLAIN $q;
+eval EXPLAIN FORMAT=JSON $q;
+
+set optimizer_switch='split_materialized=off';
+eval $q;
+eval EXPLAIN $q;
+
+INSERT INTO charges (id, from_ledger_id, to_ledger_id, amount) VALUES
+(101, 4, 2, 100), (102, 7, 2, 200);
+
+let $q1=
+SELECT
+    charges.id,
+    charges.from_ledger_id,
+    charges.to_ledger_id,
+    from_agg_items.num_rows AS from_num_rows
+FROM charges
+LEFT JOIN (
+    SELECT
+        transactions.ledger_id,
+        transaction_items.charge_id,
+        count(*) as num_rows
+    FROM transaction_items
+    INNER JOIN transactions ON transaction_items.transaction_id = transactions.id
+    GROUP BY transactions.ledger_id, transaction_items.charge_id
+) AS from_agg_items
+ON from_agg_items.charge_id = charges.id AND
+   from_agg_items.ledger_id = charges.from_ledger_id
+WHERE charges.to_ledger_id = 2;
+
+set optimizer_switch='split_materialized=on';
+eval $q1;
+eval EXPLAIN $q1;
+eval EXPLAIN FORMAT=JSON $q1;
+
+set optimizer_switch='split_materialized=off';
+eval $q1;
+eval EXPLAIN $q1;
+
+set optimizer_switch='split_materialized=default';
+
+DROP TABLE transaction_items;
+DROP TABLE transactions;
+DROP TABLE charges;
+DROP TABLE ledgers;
 
 --echo # End of 10.3 tests
 

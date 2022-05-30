@@ -14,6 +14,10 @@ PARTITION test_jfg_partition_name_with_60_chars_1234567890123456789012 VALUES LE
 PARTITION pmax VALUES LESS THAN MAXVALUE ENGINE = InnoDB);
 select database_name, table_name, length(table_name) from mysql.innodb_table_stats where database_name = 'mysqltest1';
 database_name	table_name	length(table_name)
+mysqltest1	test_jfg_table_name_with_64_chars_123456789012345678901234567890#P#pmax#SP#pmaxsp0	82
+mysqltest1	test_jfg_table_name_with_64_chars_123456789012345678901234567890#P#pmax#SP#pmaxsp1	82
+mysqltest1	test_jfg_table_name_with_64_chars_123456789012345678901234567890#P#test_jfg_partition_name_with_60_chars_1234567890123456789012#SP#test_jfg_partition_name_with_60_chars_1234567890123456789012sp0	194
+mysqltest1	test_jfg_table_name_with_64_chars_123456789012345678901234567890#P#test_jfg_partition_name_with_60_chars_1234567890123456789012#SP#test_jfg_partition_name_with_60_chars_1234567890123456789012sp1	194
 CREATE TABLE mysqltest1.éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé (
 id int(10) unsigned NOT NULL,
 id2 int(10) unsigned NOT NULL,

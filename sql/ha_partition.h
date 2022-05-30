@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2005, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,8 +21,19 @@
 #include "sql_partition.h"      /* part_id_range, partition_element */
 #include "queues.h"             /* QUEUE */
 
-#define PARTITION_BYTES_IN_POS 2
+struct Ordered_blob_storage
+{
+  String blob;
+  bool set_read_value;
+  Ordered_blob_storage() : set_read_value(false)
+  {}
+};
+
 #define PAR_EXT ".par"
+#define PARTITION_BYTES_IN_POS 2
+#define ORDERED_PART_NUM_OFFSET sizeof(Ordered_blob_storage **)
+#define ORDERED_REC_OFFSET (ORDERED_PART_NUM_OFFSET + PARTITION_BYTES_IN_POS)
+
 
 /** Struct used for partition_name_hash */
 typedef struct st_part_name_def
@@ -527,10 +538,6 @@ public:
     Meta data routines to CREATE, DROP, RENAME table and often used at
     ALTER TABLE (update_create_info used from ALTER TABLE and SHOW ..).
 
-    update_table_comment is used in SHOW TABLE commands to provide a
-    chance for the handler to add any interesting comments to the table
-    comments not provided by the users comment.
-
     create_partitioning_metadata is called before opening a new handler object
     with openfrm to call create. It is used to create any local handler
     object needed in opening the object in openfrm
@@ -546,7 +553,6 @@ public:
     override;
   bool check_if_updates_are_ignored(const char *op) const override;
   void update_create_info(HA_CREATE_INFO *create_info) override;
-  char *update_table_comment(const char *comment) override;
   int change_partitions(HA_CREATE_INFO *create_info, const char *path,
                         ulonglong * const copied, ulonglong * const deleted,
                         const uchar *pack_frm_data, size_t pack_frm_len)
@@ -584,8 +590,9 @@ private:
     And one method to read it in.
   */
   bool create_handler_file(const char *name);
-  bool setup_engine_array(MEM_ROOT *mem_root);
+  bool setup_engine_array(MEM_ROOT *mem_root, handlerton *first_engine);
   bool read_par_file(const char *name);
+  handlerton *get_def_part_engine(const char *name);
   bool get_from_handler_file(const char *name, MEM_ROOT *mem_root,
                              bool is_clone);
   bool new_handlers_from_part_info(MEM_ROOT *mem_root);
@@ -940,6 +947,7 @@ private:
   int handle_ordered_next(uchar * buf, bool next_same);
   int handle_ordered_prev(uchar * buf);
   void return_top_record(uchar * buf);
+  void swap_blobs(uchar* rec_buf, Ordered_blob_storage ** storage, bool restore);
 public:
   /*
     -------------------------------------------------------------------------
@@ -1099,10 +1107,6 @@ public:
     to this rule.
     NOTE: This cannot be cached since it can depend on TRANSACTION ISOLATION
     LEVEL which is dynamic, see bug#39084.
-
-    HA_READ_RND_SAME:
-    Not currently used. (Means that the handler supports the rnd_same() call)
-    (MyISAM, HEAP)
 
     HA_TABLE_SCAN_ON_INDEX:
     Used to avoid scanning full tables on an index. If this flag is set then
@@ -1612,7 +1616,6 @@ public:
     for (; part_id < part_id_end; ++part_id)
     {
       handler *file= m_file[part_id];
-      DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), part_id));
       file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK | HA_STATUS_OPEN);
       part_recs+= file->stats.records;
     }

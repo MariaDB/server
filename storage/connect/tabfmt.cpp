@@ -20,7 +20,7 @@
 /***********************************************************************/
 #include "my_global.h"
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -156,14 +156,14 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
 	p = (char*)GetStringTableOption(g, topt, "Separator", ",");
 	tdp->Sep = (strlen(p) == 2 && p[0] == '\\' && p[1] == 't') ? '\t' : *p;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 	if (tdp->Sep == ',' || strnicmp(setlocale(LC_NUMERIC, NULL), "French", 6))
 		dechar = '.';
 	else
 		dechar = ',';
-#else   // !__WIN__
+#else   // !_WIN32
 	dechar = '.';
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 	sep = tdp->Sep;
 	tdp->Quoted = GetIntegerTableOption(g, topt, "Quoted", -1);

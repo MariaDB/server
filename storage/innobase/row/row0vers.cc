@@ -474,7 +474,7 @@ row_vers_build_clust_v_col(
 			dfield_t *vfield = innobase_get_computed_value(
 				row, col, clust_index, &vc.heap,
 				heap, NULL, thd, maria_table, record, NULL,
-				NULL, NULL);
+				NULL);
 			if (!vfield) {
 				innobase_report_computed_value_failed(row);
 				ut_ad(0);
@@ -1211,6 +1211,10 @@ row_vers_build_for_consistent_read(
 	return(err);
 }
 
+#if defined __aarch64__&&defined __GNUC__&&__GNUC__==4&&!defined __clang__
+/* Avoid GCC 4.8.5 internal compiler error "could not split insn". */
+# pragma GCC optimize ("O0")
+#endif
 /*****************************************************************//**
 Constructs the last committed version of a clustered index record,
 which should be seen by a semi-consistent read. */

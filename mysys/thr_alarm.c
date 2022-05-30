@@ -50,7 +50,7 @@
 
 my_bool thr_alarm_inited= 0, my_disable_thr_alarm= 0;
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 
 uint thr_client_alarm;
 static int alarm_aborted=1;			/* No alarm thread */

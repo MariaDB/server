@@ -31,9 +31,9 @@ ${SSL_INTERNAL_INCLUDE_DIRS}
 
 SET(GEN_SOURCES
 ${CMAKE_BINARY_DIR}/sql/sql_yacc.hh 
-${CMAKE_BINARY_DIR}/sql/sql_yacc.cc
-${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.hh
-${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.cc
+${CMAKE_BINARY_DIR}/sql/yy_mariadb.cc
+${CMAKE_BINARY_DIR}/sql/yy_oracle.hh
+${CMAKE_BINARY_DIR}/sql/yy_oracle.cc
 ${CMAKE_BINARY_DIR}/sql/lex_hash.h 
 )
 
@@ -145,6 +145,9 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
 ADD_CONVENIENCE_LIBRARY(sql_embedded ${SQL_EMBEDDED_SOURCES})
 DTRACE_INSTRUMENT(sql_embedded)
 ADD_DEPENDENCIES(sql_embedded GenError GenServerSource)
+IF(TARGET pcre2)
+  ADD_DEPENDENCIES(sql_embedded pcre2)
+ENDIF()
 
 # On Windows, static embedded server library is called mysqlserver.lib
 # On Unix, it is libmysqld.a

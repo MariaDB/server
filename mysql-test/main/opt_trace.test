@@ -1,10 +1,10 @@
 --source include/not_embedded.inc
 --source include/have_sequence.inc
 SELECT table_name, column_name FROM information_schema.columns where table_name="OPTIMIZER_TRACE";
-show variables like 'optimizer_trace';
 set optimizer_trace="enabled=on";
 show variables like 'optimizer_trace';
 set optimizer_trace="enabled=off";
+show variables like 'optimizer_trace';
 create table t1 (a int, b int);
 insert into t1 values (1,2),(2,3);
 
@@ -47,13 +47,16 @@ ANALYZE TABLE t2;
 create view v1 as select a from t1 group by b;
 create view v2 as select a from t2;
 
+# MDEV-27421 ./mtr --ps-protocol main.opt_trace fails to produce some traces
+--disable_ps_protocol
 --echo # Mergeable view
+--optimizer_trace
 explain select * from v2 ;
-select * from information_schema.OPTIMIZER_TRACE;
 
 --echo # Non-Mergeable view
+--optimizer_trace
 explain select * from v1 ;
-select * from information_schema.OPTIMIZER_TRACE;
+--enable_ps_protocol
 drop table t1,t2;
 drop view v1,v2;
 
@@ -263,12 +266,14 @@ begin
   return a;
 end|
 
+--enable_prepare_warnings
 create function f2(a int) returns int
 begin
   declare a int default 0;
   select count(*) from t2 into a;
   return a;
 end|
+--disable_prepare_warnings
 
 delimiter ;|
 set optimizer_trace='enabled=on';
@@ -635,6 +640,25 @@ select * from information_schema.optimizer_trace;
 set max_session_mem_used=default;
 
 --echo #
+--echo # MDEV-22380 Assertion `name.length == strlen(name.str)' failed in Item::print_item_w_name on SELECT w/ optimizer_trace enabled
+--echo #
+
+SET optimizer_trace="enabled=on";
+SELECT 'a\0' LIMIT 0;
+SELECT query, trace FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+SET optimizer_trace=DEFAULT;
+
+--echo #
+--echo # MDEV-27238: Assertion `got_name == named_item_expected()' failed in Json_writer::on_start_object
+--echo #
+
+CREATE TABLE t1 (a INT KEY,b INT,KEY(b)) ENGINE=MEMORY;
+SET optimizer_trace=1;
+INSERT INTO t1 VALUES (0,0);
+SELECT a FROM t1 WHERE (a,b) in (SELECT @c,@d);
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #
 
@@ -853,6 +877,14 @@ SELECT * FROM t1 WHERE id IN
 select json_detailed(json_extract(trace, '$**.best_join_order'))
     from information_schema.OPTIMIZER_TRACE;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-27306: SET STATEMENT optimizer_trace=1 Doesn't save the trace
+--echo #
+set optimizer_trace=0;
+set statement optimizer_trace=1 for select * from seq_1_to_10 where seq<2;
+--echo # The trace must not be empty:
+select left(trace, 100) from information_schema.optimizer_trace;
 
 --echo # End of 10.6 tests
 set optimizer_trace='enabled=off';

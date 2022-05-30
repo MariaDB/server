@@ -34,7 +34,6 @@ ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
 # PACKAGE and PS
 #
 PREPARE stmt FROM 'CREATE PACKAGE test2 AS FUNCTION f1 RETURN INT; END test2';
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 CREATE PACKAGE test2 AS
 FUNCTION f1 RETURN INT;
 END;
@@ -42,7 +41,6 @@ $$
 PREPARE stmt FROM 'CREATE PACKAGE BODY test2 AS'
                   '  FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;'
                   'END test2';
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 DROP PACKAGE test2;
 #
 # Package and READ ONLY transactions
@@ -727,6 +725,10 @@ END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
 Database Collation	latin1_swedish_ci
+Warnings:
+Level	Note
+Code	1585
+Message	This function 'concat' has the same name as a native function
 SHOW CREATE PACKAGE BODY test2;
 Package body	test2
 sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT
@@ -747,6 +749,10 @@ END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
 Database Collation	latin1_swedish_ci
+Warnings:
+Level	Note
+Code	1585
+Message	This function 'concat' has the same name as a native function
 DROP PACKAGE BODY test2;
 SELECT test2.f1();
 ERROR 42000: FUNCTION test.test2.f1 does not exist
@@ -2954,3 +2960,311 @@ END $$
 CALL xyz.xyz123(17,18,@R);
 DROP PACKAGE xyz;
 DROP TABLE t1;
+#
+# MDEV-28166 sql_mode=ORACLE: fully qualified package function calls do not work: db.pkg.func()
+#
+SELECT `db `.pkg.func();
+ERROR 42000: Incorrect database name 'db '
+SELECT db.`pkg `.func();
+ERROR 42000: Incorrect routine name 'pkg '
+SELECT db.pkg.`func `();
+ERROR 42000: Incorrect routine name 'func '
+CREATE DATABASE db1;
+USE db1;
+CREATE PACKAGE pkg1 AS
+FUNCTION f1 RETURN TEXT;
+FUNCTION f2_db1_pkg1_f1 RETURN TEXT;
+FUNCTION f2_pkg1_f1 RETURN TEXT;
+FUNCTION f2_f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+FUNCTION f1 RETURN TEXT IS
+BEGIN
+RETURN 'This is db1.pkg1.f1';
+END;
+FUNCTION f2_db1_pkg1_f1 RETURN TEXT IS
+BEGIN
+RETURN db1.pkg1.f1();
+END;
+FUNCTION f2_pkg1_f1 RETURN TEXT IS
+BEGIN
+RETURN pkg1.f1();
+END;
+FUNCTION f2_f1 RETURN TEXT IS
+BEGIN
+RETURN f1();
+END;
+END;
+$$
+USE db1;
+SELECT pkg1.f2_db1_pkg1_f1();
+pkg1.f2_db1_pkg1_f1()
+This is db1.pkg1.f1
+SELECT pkg1.f2_pkg1_f1();
+pkg1.f2_pkg1_f1()
+This is db1.pkg1.f1
+SELECT pkg1.f2_f1();
+pkg1.f2_f1()
+This is db1.pkg1.f1
+SELECT db1.pkg1.f2_db1_pkg1_f1();
+db1.pkg1.f2_db1_pkg1_f1()
+This is db1.pkg1.f1
+SELECT db1.pkg1.f2_pkg1_f1();
+db1.pkg1.f2_pkg1_f1()
+This is db1.pkg1.f1
+SELECT db1.pkg1.f2_f1();
+db1.pkg1.f2_f1()
+This is db1.pkg1.f1
+USE test;
+SELECT db1.pkg1.f2_db1_pkg1_f1();
+db1.pkg1.f2_db1_pkg1_f1()
+This is db1.pkg1.f1
+SELECT db1.pkg1.f2_pkg1_f1();
+db1.pkg1.f2_pkg1_f1()
+This is db1.pkg1.f1
+SELECT db1.pkg1.f2_f1();
+db1.pkg1.f2_f1()
+This is db1.pkg1.f1
+DROP DATABASE db1;
+CREATE DATABASE db1;
+CREATE DATABASE db2;
+CREATE PACKAGE db1.pkg1 AS
+FUNCTION f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY db1.pkg1 AS
+FUNCTION f1 RETURN TEXT AS
+BEGIN
+RETURN 'This is db1.pkg1.f1';
+END;
+END;
+$$
+CREATE PACKAGE db2.pkg1 AS
+FUNCTION f1 RETURN TEXT;
+FUNCTION var1 RETURN TEXT;
+FUNCTION var2 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY db2.pkg1 AS
+m_var1 TEXT;
+m_var2 TEXT;
+FUNCTION f1 RETURN TEXT AS
+BEGIN
+RETURN 'This is db2.pkg1.f1';
+END;
+FUNCTION var1 RETURN TEXT AS
+BEGIN
+RETURN m_var1;
+END;
+FUNCTION var2 RETURN TEXT AS
+BEGIN
+RETURN m_var2;
+END;
+BEGIN
+m_var1:= db1.pkg1.f1();
+m_var2:= db2.pkg1.f1();
+END;
+$$
+SELECT db2.pkg1.var1(), db2.pkg1.var2();
+db2.pkg1.var1()	db2.pkg1.var2()
+This is db1.pkg1.f1	This is db2.pkg1.f1
+DROP DATABASE db1;
+DROP DATABASE db2;
+CREATE PACKAGE pkg1 AS
+FUNCTION f1(a TEXT) RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+FUNCTION f1(a TEXT) RETURN TEXT AS
+BEGIN
+RETURN a;
+END;
+END;
+$$
+SELECT test.pkg1.f1('xxx');
+test.pkg1.f1('xxx')
+xxx
+SELECT test.pkg1.f1('xxx' AS a);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'AS a)' at line 1
+DROP PACKAGE pkg1;
+#
+# MDEV-19328 sql_mode=ORACLE: Package function in VIEW
+#
+SET sql_mode=ORACLE;
+CREATE PACKAGE test1 AS
+FUNCTION f_test RETURN number;
+END test1;
+$$
+CREATE PACKAGE BODY test1
+AS
+FUNCTION f_test RETURN NUMBER IS
+BEGIN
+RETURN 1;
+END;
+END test1;
+$$
+SET sql_mode=ORACLE;
+CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test1.f_test();
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE VIEW "v_test" AS select 1 AS "c1" from DUAL  where 1 = "test"."test1"."f_test"()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+SET sql_mode=DEFAULT;
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_test` AS select 1 AS `c1` from DUAL  where 1 = `test`.`test1`.`f_test`()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+DROP VIEW v_test;
+SET sql_mode=DEFAULT;
+CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test1.f_test();
+ERROR 42000: FUNCTION test1.f_test does not exist
+SET sql_mode=ORACLE;
+CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test.test1.f_test();
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE VIEW "v_test" AS select 1 AS "c1" from DUAL  where 1 = "test"."test1"."f_test"()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+SET sql_mode=DEFAULT;
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_test` AS select 1 AS `c1` from DUAL  where 1 = `test`.`test1`.`f_test`()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+DROP VIEW v_test;
+SET sql_mode=DEFAULT;
+CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test.test1.f_test();
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_test` AS select 1 AS `c1` from DUAL  where 1 = `test`.`test1`.`f_test`()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+SET sql_mode=ORACLE;
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE VIEW "v_test" AS select 1 AS "c1" from DUAL  where 1 = "test"."test1"."f_test"()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+DROP VIEW v_test;
+SET sql_mode=ORACLE;
+DROP PACKAGE test1;
+#
+# MDEV-19804 sql_mode=ORACLE: call procedure in packages
+#
+CALL `db1 `.pkg.p;
+ERROR 42000: Incorrect database name 'db1 '
+CALL db1.`pkg `.p;
+ERROR 42000: Incorrect routine name 'pkg '
+CALL db1.pkg.`p `;
+ERROR 42000: Incorrect routine name 'p '
+SET sql_mode=ORACLE;
+CREATE PACKAGE pkg1 as
+PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY pkg1 as
+PROCEDURE p1() as
+BEGIN
+SELECT 'test-function' AS c1;
+END;
+END;
+$$
+CALL pkg1.p1;
+c1
+test-function
+CALL test.pkg1.p1;
+c1
+test-function
+SET sql_mode=DEFAULT;
+CALL test.pkg1.p1;
+c1
+test-function
+SET sql_mode=ORACLE;
+BEGIN
+CALL pkg1.p1;
+CALL test.pkg1.p1;
+END
+$$
+c1
+test-function
+c1
+test-function
+BEGIN
+pkg1.p1;
+test.pkg1.p1;
+END
+$$
+c1
+test-function
+c1
+test-function
+DROP PACKAGE pkg1;
+CREATE DATABASE db1;
+CREATE PACKAGE db1.pkg1 AS
+PROCEDURE p1(a OUT TEXT);
+END;
+$$
+CREATE PACKAGE BODY db1.pkg1 AS
+PROCEDURE p1(a OUT TEXT) AS
+BEGIN
+a:= 'This is db1.pkg1.p1';
+END;
+END;
+$$
+CREATE DATABASE db2;
+CREATE PACKAGE db2.pkg1 AS
+FUNCTION var1 RETURN TEXT;
+PROCEDURE p1(a OUT TEXT);
+PROCEDURE p2_db1_pkg1_p1;
+END;
+$$
+CREATE PACKAGE BODY db2.pkg1 AS
+m_var1 TEXT;
+FUNCTION var1 RETURN TEXT AS
+BEGIN
+RETURN m_var1;
+END;
+PROCEDURE p1(a OUT TEXT) AS
+BEGIN
+a:= 'This is db2.pkg1.p1';
+END;
+PROCEDURE p2_db1_pkg1_p1 AS
+a TEXT;
+BEGIN
+db1.pkg1.p1(a);
+SELECT a;
+END;
+BEGIN
+db1.pkg1.p1(m_var1);
+END;
+$$
+SELECT db2.pkg1.var1();
+db2.pkg1.var1()
+This is db1.pkg1.p1
+CALL db2.pkg1.p2_db1_pkg1_p1;
+a
+This is db1.pkg1.p1
+DROP DATABASE db1;
+DROP DATABASE db2;

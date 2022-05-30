@@ -561,9 +561,7 @@ ERROR 42000: Bad SQLSTATE: '00001'
 # PART 2: non preparable statements
 #
 prepare stmt from 'SIGNAL SQLSTATE \'23000\'';
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 prepare stmt from 'RESIGNAL SQLSTATE \'23000\'';
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 #
 # PART 3: runtime execution
 #

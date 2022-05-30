@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -25,8 +25,7 @@ The B-tree
 Created 6/2/1994 Heikki Tuuri
 *******************************************************/
 
-#ifndef btr0btr_h
-#define btr0btr_h
+#pragma once
 
 #include "dict0dict.h"
 #include "data0data.h"
@@ -188,34 +187,12 @@ void btr_corruption_report(const buf_block_t* block,const dict_index_t* index);
 		btr_corruption_report(block, index)
 
 /**************************************************************//**
-Gets the root node of a tree and sx-latches it for segment access.
-@return root page, sx-latched */
-page_t*
-btr_root_get(
-/*=========*/
-	const dict_index_t*	index,	/*!< in: index tree */
-	mtr_t*			mtr)	/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull));
-
-/**************************************************************//**
 Checks and adjusts the root node of a tree during IMPORT TABLESPACE.
 @return error code, or DB_SUCCESS */
 dberr_t
 btr_root_adjust_on_import(
 /*======================*/
 	const dict_index_t*	index)	/*!< in: index tree */
-	MY_ATTRIBUTE((warn_unused_result));
-
-/**************************************************************//**
-Gets the height of the B-tree (the level of the root, when the leaf
-level is assumed to be 0). The caller must hold an S or X latch on
-the index.
-@return tree height (level of the root) */
-ulint
-btr_height_get(
-/*===========*/
-	const dict_index_t*	index,	/*!< in: index tree */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Get an index page and declare its latching order level.
@@ -337,9 +314,9 @@ btr_create(
 void btr_free_if_exists(fil_space_t *space, uint32_t page,
                         index_id_t index_id, mtr_t *mtr);
 
-/** Free an index tree in a temporary tablespace.
-@param[in]	page_id		root page id */
-void btr_free(const page_id_t page_id);
+/** Drop a temporary table
+@param table   temporary table */
+void btr_drop_temporary_table(const dict_table_t &table);
 
 /** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC.
 @param[in,out]	index	clustered index
@@ -482,9 +459,9 @@ template<bool has_prev= false>
 inline void btr_set_min_rec_mark(rec_t *rec, const buf_block_t &block,
                                  mtr_t *mtr)
 {
-  ut_ad(block.frame == page_align(rec));
-  ut_ad(!page_is_leaf(block.frame));
-  ut_ad(has_prev == page_has_prev(block.frame));
+  ut_ad(block.page.frame == page_align(rec));
+  ut_ad(!page_is_leaf(block.page.frame));
+  ut_ad(has_prev == page_has_prev(block.page.frame));
 
   rec-= page_rec_is_comp(rec) ? REC_NEW_INFO_BITS : REC_OLD_INFO_BITS;
 
@@ -547,17 +524,6 @@ btr_discard_page(
 	btr_cur_t*	cursor,	/*!< in: cursor on the page to discard: not on
 				the root page */
 	mtr_t*		mtr);	/*!< in: mtr */
-/**************************************************************//**
-Gets the number of pages in a B-tree.
-@return number of pages, or ULINT_UNDEFINED if the index is unavailable */
-ulint
-btr_get_size(
-/*=========*/
-	const dict_index_t*	index,	/*!< in: index */
-	ulint		flag,	/*!< in: BTR_N_LEAF_PAGES or BTR_TOTAL_SIZE */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
-				is s-latched */
-	MY_ATTRIBUTE((warn_unused_result));
 
 /**************************************************************//**
 Allocates a new file page to be used in an index tree. NOTE: we assume
@@ -624,7 +590,6 @@ btr_root_block_get(
 	rw_lock_type_t		mode,	/*!< in: either RW_S_LATCH
 					or RW_X_LATCH */
 	mtr_t*			mtr);	/*!< in: mtr */
-
 /*************************************************************//**
 Reorganizes an index page.
 
@@ -689,8 +654,9 @@ btr_validate_index(
 @param[in]	block		page to remove
 @param[in]	index		index tree
 @param[in,out]	mtr		mini-transaction */
-void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
-			   mtr_t* mtr);
+dberr_t btr_level_list_remove(const buf_block_t& block,
+                              const dict_index_t& index, mtr_t* mtr)
+  MY_ATTRIBUTE((warn_unused_result));
 
 /*************************************************************//**
 If page is the only on its level, this function moves its records to the
@@ -709,11 +675,8 @@ btr_lift_page_up(
 #define BTR_N_LEAF_PAGES	1
 #define BTR_TOTAL_SIZE		2
 
-#include "btr0btr.ic"
+#include "btr0btr.inl"
 
 /****************************************************************
 Global variable controlling if scrubbing should be performed */
 extern my_bool srv_immediate_scrub_data_uncompressed;
-extern Atomic_counter<uint32_t> btr_validate_index_running;
-
-#endif

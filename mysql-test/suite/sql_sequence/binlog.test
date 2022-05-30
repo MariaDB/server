@@ -1,5 +1,5 @@
---source include/have_udf.inc
---source include/have_log_bin.inc
+--source include/have_sequence.inc
+--source include/have_binlog_format_mixed_or_row.inc
 --source include/binlog_start_pos.inc
 
 #
@@ -20,6 +20,17 @@ select next value for s1, minimum_value from s1 where maximum_value> 4;
 # Alter sequence
 #
 alter sequence s1 maxvalue 1000;
+
+# MDEV-24617 OPTIMIZE on a sequence causes unexpected
+# ER_BINLOG_UNSAFE_STATEMENT The test below verifies no unsafe
+# warnings anymore for any relavant commands that like OPTIMIZE can
+# not produce ROW format events therefore the unsafe warning either.
+optimize table s1;
+analyze table s1;
+repair table s1;
+check table s1;
+rename table s1 to tmp_s;
+rename table tmp_s to s1;
 
 drop sequence s1;
 

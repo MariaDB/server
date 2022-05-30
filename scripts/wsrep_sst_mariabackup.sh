@@ -1,5 +1,8 @@
-#!/bin/bash -ue
-# Copyright (C) 2017-2021 MariaDB
+#!/usr/bin/env bash
+
+set -ue
+
+# Copyright (C) 2017-2022 MariaDB
 # Copyright (C) 2013 Percona Inc
 #
 # This program is free software; you can redistribute it and/or modify
@@ -20,26 +23,24 @@
 # https://mariadb.com/kb/en/mariabackup-overview/
 # Make sure to read that before proceeding!
 
+OS="$(uname)"
+
 . $(dirname "$0")/wsrep_sst_common
 wsrep_check_datadir
 
-OS="$(uname)"
 ealgo=""
 eformat=""
 ekey=""
 ekeyfile=""
 encrypt=0
-nproc=1
-ecode=0
 ssyslog=""
 ssystag=""
-MARIABACKUP_PID=""
-SST_PORT=""
-REMOTEIP=""
+BACKUP_PID=""
 tcert=""
+tcap=""
 tpem=""
 tkey=""
-tmode="DISABLED"
+tmode=""
 sockopt=""
 progress=""
 ttime=0
@@ -55,7 +56,7 @@ ib_home_dir=""
 ib_log_dir=""
 ib_undo_dir=""
 
-sfmt="tar"
+sfmt=""
 strmcmd=""
 tfmt=""
 tcmd=""
@@ -79,39 +80,41 @@ compress='none'
 compress_chunk=""
 compress_threads=""
 
-readonly SECRET_TAG="secret"
+backup_threads=""
+
+encrypt_threads=""
+encrypt_chunk=""
+
+readonly SECRET_TAG='secret'
+readonly TOTAL_TAG='secret /total'
 
 # Required for backup locks
 # For backup locks it is 1 sent by joiner
-# 5.6.21 PXC and later can't donate to an older joiner
 sst_ver=1
 
-if [ -n "$(command -v pv)" ] && pv --help | grep -qw -- '-F'; then
+if [ -n "$(commandex pv)" ] && pv --help | grep -qw -F -- '-F'; then
     pvopts="$pvopts $pvformat"
 fi
 pcmd="pv $pvopts"
 declare -a RC
 
-MARIABACKUP_BIN="$(command -v mariabackup)"
-if [ ! -x "$MARIABACKUP_BIN" ]; then
-    wsrep_log_error 'mariabackup binary not found in $PATH'
+BACKUP_BIN=$(commandex 'mariabackup')
+if [ -z "$BACKUP_BIN" ]; then
+    wsrep_log_error 'mariabackup binary not found in path'
     exit 42
 fi
-MBSTREAM_BIN=mbstream
 
 DATA="$WSREP_SST_OPT_DATA"
-INFO_FILE="xtrabackup_galera_info"
-IST_FILE="xtrabackup_ist"
+INFO_FILE='xtrabackup_galera_info'
+IST_FILE='xtrabackup_ist'
 MAGIC_FILE="$DATA/$INFO_FILE"
 
 INNOAPPLYLOG="$DATA/mariabackup.prepare.log"
 INNOMOVELOG="$DATA/mariabackup.move.log"
 INNOBACKUPLOG="$DATA/mariabackup.backup.log"
 
-# Setting the path for ss and ip
-export PATH="/usr/sbin:/sbin:$PATH"
-
-timeit(){
+timeit()
+{
     local stage="$1"
     shift
     local cmd="$@"
@@ -143,14 +146,14 @@ get_keys()
 
     if [ $encrypt -eq 0 ]; then
         if [ -n "$ealgo" -o -n "$ekey" -o -n "$ekeyfile" ]; then
-            wsrep_log_error "Options for encryption are specified, " \
+            wsrep_log_error "Options for encryption are specified," \
                             "but encryption itself is disabled. SST may fail."
         fi
         return
     fi
 
-    if [ $sfmt = 'tar' ]; then
-        wsrep_log_info "NOTE: key-based encryption (encrypt=1) " \
+    if [ "$sfmt" = 'tar' ]; then
+        wsrep_log_info "NOTE: key-based encryption (encrypt=1)" \
                        "cannot be enabled with tar format"
         encrypt=-1
         return
@@ -164,23 +167,24 @@ get_keys()
     fi
 
     if [ -z "$ekey" -a ! -r "$ekeyfile" ]; then
-        wsrep_log_error "FATAL: Either key or keyfile must be readable"
+        wsrep_log_error "FATAL: Either key must be specified" \
+                        "or keyfile must be readable"
         exit 3
     fi
 
     if [ "$eformat" = 'openssl' ]; then
         get_openssl
         if [ -z "$OPENSSL_BINARY" ]; then
-            wsrep_log_error "If encryption using the openssl is enabled, " \
+            wsrep_log_error "If encryption using the openssl is enabled," \
                             "then you need to install openssl"
             exit 2
         fi
         ecmd="'$OPENSSL_BINARY' enc -$ealgo"
-        if "$OPENSSL_BINARY" enc -help 2>&1 | grep -qw -- '-pbkdf2'; then
+        if "$OPENSSL_BINARY" enc -help 2>&1 | grep -qw -F -- '-pbkdf2'; then
             ecmd="$ecmd -pbkdf2"
-        elif "$OPENSSL_BINARY" enc -help 2>&1 | grep -qw -- '-iter'; then
+        elif "$OPENSSL_BINARY" enc -help 2>&1 | grep -qw -F -- '-iter'; then
             ecmd="$ecmd -iter 1"
-        elif "$OPENSSL_BINARY" enc -help 2>&1 | grep -qw -- '-md'; then
+        elif "$OPENSSL_BINARY" enc -help 2>&1 | grep -qw -F -- '-md'; then
             ecmd="$ecmd -md sha256"
         fi
         if [ -z "$ekey" ]; then
@@ -189,43 +193,45 @@ get_keys()
             ecmd="$ecmd -k '$ekey'"
         fi
     elif [ "$eformat" = 'xbcrypt' ]; then
-        if [ -z "$(command -v xbcrypt)" ]; then
-            wsrep_log_error "If encryption using the xbcrypt is enabled, " \
+        if [ -z "$(commandex xbcrypt)" ]; then
+            wsrep_log_error "If encryption using the xbcrypt is enabled," \
                             "then you need to install xbcrypt"
             exit 2
         fi
-        wsrep_log_info "NOTE: xbcrypt-based encryption, " \
+        wsrep_log_info "NOTE: xbcrypt-based encryption," \
                        "supported only from Xtrabackup 2.1.4"
         if [ -z "$ekey" ]; then
             ecmd="xbcrypt --encrypt-algo='$ealgo' --encrypt-key-file='$ekeyfile'"
         else
             ecmd="xbcrypt --encrypt-algo='$ealgo' --encrypt-key='$ekey'"
         fi
+        if [ -n "$encrypt_threads" ]; then
+            ecmd="$ecmd --encrypt-threads=$encrypt_threads"
+        fi
+        if [ -n "$encrypt_chunk" ]; then
+            ecmd="$ecmd --encrypt-chunk-size=$encrypt_chunk"
+        fi
     else
         wsrep_log_error "Unknown encryption format='$eformat'"
         exit 2
     fi
 
-    if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
-        ecmd="$ecmd -d"
-    fi
+    [ "$WSREP_SST_OPT_ROLE" = 'joiner' ] && ecmd="$ecmd -d"
 
     stagemsg="$stagemsg-XB-Encrypted"
 }
 
 get_transfer()
 {
-    TSST_PORT="$SST_PORT"
-
-    if [ $tfmt = 'nc' ]; then
+    if [ "$tfmt" = 'nc' ]; then
         wsrep_log_info "Using netcat as streamer"
         wsrep_check_programs nc
-        tcmd="nc"
+        tcmd='nc'
         if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
-            if nc -h 2>&1 | grep -q 'ncat'; then
+            if nc -h 2>&1 | grep -q -F 'ncat'; then
                 wsrep_log_info "Using Ncat as streamer"
                 tcmd="$tcmd -l"
-            elif nc -h 2>&1 | grep -qw -- '-d'; then
+            elif nc -h 2>&1 | grep -qw -F -- '-d'; then
                 wsrep_log_info "Using Debian netcat as streamer"
                 tcmd="$tcmd -dl"
                 if [ $WSREP_SST_OPT_HOST_IPv6 -eq 1 ]; then
@@ -238,7 +244,7 @@ get_transfer()
                 wsrep_log_info "Using traditional netcat as streamer"
                 tcmd="$tcmd -l -p"
             fi
-            tcmd="$tcmd $TSST_PORT"
+            tcmd="$tcmd $SST_PORT"
         else
             # Check to see if netcat supports the '-N' flag.
             # -N Shutdown the network socket after EOF on stdin
@@ -247,20 +253,20 @@ get_transfer()
             # transfer and cause the command to timeout.
             # Older versions of netcat did not need this flag and will
             # return an error if the flag is used.
-            if nc -h 2>&1 | grep -qw -- '-N'; then
+            if nc -h 2>&1 | grep -qw -F -- '-N'; then
                 tcmd="$tcmd -N"
                 wsrep_log_info "Using nc -N"
             fi
             # netcat doesn't understand [] around IPv6 address
-            if nc -h 2>&1 | grep -q ncat; then
+            if nc -h 2>&1 | grep -q -F 'ncat'; then
                 wsrep_log_info "Using Ncat as streamer"
-            elif nc -h 2>&1 | grep -qw -- '-d'; then
+            elif nc -h 2>&1 | grep -qw -F -- '-d'; then
                 wsrep_log_info "Using Debian netcat as streamer"
             else
                 wsrep_log_info "Using traditional netcat as streamer"
                 tcmd="$tcmd -q0"
             fi
-            tcmd="$tcmd $WSREP_SST_OPT_HOST_UNESCAPED $TSST_PORT"
+            tcmd="$tcmd $WSREP_SST_OPT_HOST_UNESCAPED $SST_PORT"
         fi
     else
         tfmt='socat'
@@ -268,79 +274,145 @@ get_transfer()
         wsrep_log_info "Using socat as streamer"
         wsrep_check_programs socat
 
-        if [ $encrypt -eq 2 -o $encrypt -eq 3 ] && ! socat -V | grep -q -F 'WITH_OPENSSL 1'; then
-            wsrep_log_error "Encryption requested, but socat is not OpenSSL enabled (encrypt=$encrypt)"
+        if [ -n "$sockopt" ]; then
+            sockopt=$(trim_string "$sockopt" ',')
+            if [ -n "$sockopt" ]; then
+                sockopt=",$sockopt"
+            fi
+        fi
+
+        # Add an option for ipv6 if needed:
+        if [ $WSREP_SST_OPT_HOST_IPv6 -eq 1 ]; then
+            # If sockopt contains 'pf=ip6' somewhere in the middle,
+            # this will not interfere with socat, but exclude the trivial
+            # cases when sockopt contains 'pf=ip6' as prefix or suffix:
+            if [ "$sockopt" = "${sockopt#,pf=ip6}" -a \
+                 "$sockopt" = "${sockopt%,pf=ip6}" ]
+            then
+                sockopt=",pf=ip6$sockopt"
+            fi
+        fi
+
+        if [ $encrypt -lt 2 ]; then
+            if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+                tcmd="socat -u TCP-LISTEN:$SST_PORT,reuseaddr$sockopt stdio"
+            else
+                tcmd="socat -u stdio TCP:$REMOTEIP:$SST_PORT$sockopt"
+            fi
+            return
+        fi
+
+        if ! socat -V | grep -q -F 'WITH_OPENSSL 1'; then
+            wsrep_log_error "******** FATAL ERROR ************************************************ "
+            wsrep_log_error "* Encryption requested, but socat is not OpenSSL enabled (encrypt=$encrypt) *"
+            wsrep_log_error "********************************************************************* "
             exit 2
         fi
 
-        # Determine the socat version
-        SOCAT_VERSION=$(socat -V 2>&1 | grep -m1 -oe '[0-9]\.[0-9][\.0-9]*')
-        if [ -z "$SOCAT_VERSION" ]; then
-            wsrep_log_error "******** FATAL ERROR ******************"
-            wsrep_log_error "* Cannot determine the socat version. *"
-            wsrep_log_error "***************************************"
-            exit 2
+        local action='Decrypting'
+        if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+            tcmd="socat -u openssl-listen:$SST_PORT,reuseaddr"
+        else
+            tcmd="socat -u stdio openssl-connect:$REMOTEIP:$SST_PORT"
+            action='Encrypting'
         fi
 
-        if ! check_for_version "$SOCAT_VERSION" "1.7.3"; then
-            # socat versions < 1.7.3 will have 512-bit dhparams (too small)
-            # so create 2048-bit dhparams and send that as a parameter:
-            check_for_dhparams
-            sockopt=",dhparam='$ssl_dhparams'$sockopt"
+        if [ "${sockopt#*,dhparam=}" != "$sockopt" ]; then
+            if [ -z "$ssl_dhparams" ]; then
+                # Determine the socat version
+                SOCAT_VERSION=$(socat -V 2>&1 | \
+                                grep -m1 -owE '[0-9]+(\.[0-9]+)+' | \
+                                head -n1 || :)
+                if [ -z "$SOCAT_VERSION" ]; then
+                    wsrep_log_error "******** FATAL ERROR ******************"
+                    wsrep_log_error "* Cannot determine the socat version. *"
+                    wsrep_log_error "***************************************"
+                    exit 2
+                fi
+                if ! check_for_version "$SOCAT_VERSION" '1.7.3'; then
+                    # socat versions < 1.7.3 will have 512-bit dhparams (too small)
+                    # so create 2048-bit dhparams and send that as a parameter:
+                    check_for_dhparams
+                fi
+            fi
+            if [ -n "$ssl_dhparams" ]; then
+                tcmd="$tcmd,dhparam='$ssl_dhparams'"
+            fi
         fi
+
+        CN_option=",commonname=''"
 
         if [ $encrypt -eq 2 ]; then
-            wsrep_log_info "Using openssl based encryption with socat: with crt and pem"
-            if [ -z "$tpem" -o -z "$tcert" ]; then
-                wsrep_log_error "Both PEM and CRT files required"
+            wsrep_log_info \
+                "Using openssl based encryption with socat: with crt and pem"
+            if [ -z "$tpem" -o -z "$tcert$tcap" ]; then
+                wsrep_log_error \
+                    "Both PEM file and CRT file (or path) are required"
                 exit 22
+            fi
+            verify_ca_matches_cert "$tpem" "$tcert" "$tcap"
+            tcmd="$tcmd,cert='$tpem'"
+            if [ -n "$tcert" ]; then
+                tcmd="$tcmd,cafile='$tcert'"
+            fi
+            if [ -n "$tcap" ]; then
+                tcmd="$tcmd,capath='$tcap'"
             fi
             stagemsg="$stagemsg-OpenSSL-Encrypted-2"
-            if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
-                wsrep_log_info "Decrypting with cert=${tpem}, cafile=${tcert}"
-                tcmd="socat -u openssl-listen:$TSST_PORT,reuseaddr,cert='$tpem',cafile='$tcert'$sockopt stdio"
-            else
-                wsrep_log_info "Encrypting with cert=${tpem}, cafile=${tcert}"
-                tcmd="socat -u stdio openssl-connect:$REMOTEIP:$TSST_PORT,cert='$tpem',cafile='$tcert'$sockopt"
-            fi
-        elif [ $encrypt -eq 3 ]; then
-            wsrep_log_info "Using openssl based encryption with socat: with key and crt"
+            wsrep_log_info "$action with cert='$tpem', ca='$tcert', capath='$tcap'"
+        elif [ $encrypt -eq 3 -o $encrypt -eq 4 ]; then
+            wsrep_log_info \
+                "Using openssl based encryption with socat: with key and crt"
             if [ -z "$tpem" -o -z "$tkey" ]; then
-                wsrep_log_error "Both certificate and key files required"
+                wsrep_log_error "Both the certificate file (or path) and" \
+                                "the key file are required"
                 exit 22
             fi
+            verify_cert_matches_key "$tpem" "$tkey"
             stagemsg="$stagemsg-OpenSSL-Encrypted-3"
-            if [ -z "$tcert" ]; then
-                # no verification
-                if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
-                    wsrep_log_info "Decrypting with cert=${tpem}, key=${tkey}, verify=0"
-                    tcmd="socat -u openssl-listen:$TSST_PORT,reuseaddr,cert='$tpem',key='$tkey',verify=0$sockopt stdio"
-                else
-                    wsrep_log_info "Encrypting with cert=${tpem}, key=${tkey}, verify=0"
-                    tcmd="socat -u stdio openssl-connect:$REMOTEIP:$TSST_PORT,cert='$tpem',key='$tkey',verify=0$sockopt"
+            if [ -z "$tcert$tcap" ]; then
+                if [ $encrypt -eq 4 ]; then
+                    wsrep_log_error \
+                        "Peer certificate file (or path) required if encrypt=4"
+                    exit 22
                 fi
+                # no verification
+                CN_option=""
+                tcmd="$tcmd,cert='$tpem',key='$tkey',verify=0"
+                wsrep_log_info \
+                    "$action with cert='$tpem', key='$tkey', verify=0"
             else
                 # CA verification
-                if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
-                    wsrep_log_info "Decrypting with cert=${tpem}, key=${tkey}, cafile=${tcert}"
-                    tcmd="socat -u openssl-listen:$TSST_PORT,reuseaddr,cert='$tpem',key='$tkey',cafile='$tcert'$sockopt stdio"
+                verify_ca_matches_cert "$tpem" "$tcert" "$tcap"
+                if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
+                    CN_option=",commonname='$WSREP_SST_OPT_REMOTE_USER'"
+                elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' -o $encrypt -eq 4 ]
+                then
+                    CN_option=",commonname=''"
+                elif is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
+                    CN_option=',commonname=localhost'
                 else
-                    CN_option=""
-                    if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
-                        CN_option=",commonname='$WSREP_SST_OPT_REMOTE_USER'"
-                    elif is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
-                        CN_option=',commonname=localhost'
-                    fi
-                    wsrep_log_info "Encrypting with cert=${tpem}, key=${tkey}, cafile=${tcert}"
-                    tcmd="socat -u stdio openssl-connect:$REMOTEIP:$TSST_PORT,cert='$tpem',key='$tkey',cafile='$tcert'$CN_option$sockopt"
+                    CN_option=",commonname='$WSREP_SST_OPT_HOST_UNESCAPED'"
                 fi
+                tcmd="$tcmd,cert='$tpem',key='$tkey'"
+                if [ -n "$tcert" ]; then
+                    tcmd="$tcmd,cafile='$tcert'"
+                fi
+                if [ -n "$tcap" ]; then
+                    tcmd="$tcmd,capath='$tcap'"
+                fi
+                wsrep_log_info "$action with cert='$tpem', key='$tkey'," \
+                               "ca='$tcert', capath='$tcap'"
             fi
         else
-            if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
-                tcmd="socat -u TCP-LISTEN:$TSST_PORT,reuseaddr$sockopt stdio"
-            else
-                tcmd="socat -u stdio TCP:$REMOTEIP:$TSST_PORT$sockopt"
-            fi
+            wsrep_log_info "Unknown encryption mode: encrypt=$encrypt"
+            exit 22
+        fi
+
+        tcmd="$tcmd$CN_option$sockopt"
+
+        if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+            tcmd="$tcmd stdio"
         fi
     fi
 }
@@ -348,7 +420,9 @@ get_transfer()
 get_footprint()
 {
     pushd "$WSREP_SST_OPT_DATA" 1>/dev/null
-    payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' -type f -print0 | du --files0-from=- --block-size=1 -c | awk 'END { print $1 }')
+    payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
+              -type f -print0 | du --files0-from=- --block-size=1 -c -s | \
+              awk 'END { print $1 }')
     if [ "$compress" != 'none' ]; then
         # QuickLZ has around 50% compression ratio
         # When compression/compaction used, the progress is only an approximate.
@@ -361,7 +435,7 @@ get_footprint()
 
 adjust_progress()
 {
-    if [ -z "$(command -v pv)" ]; then
+    if [ -z "$(commandex pv)" ]; then
         wsrep_log_error "pv not found in path: $PATH"
         wsrep_log_error "Disabling all progress/rate-limiting"
         pcmd=""
@@ -378,7 +452,7 @@ adjust_progress()
         fi
     elif [ -z "$progress" -a -n "$rlimit" ]; then
             # When rlimit is non-zero
-            pcmd="pv -q"
+            pcmd='pv -q'
     fi
 
     if [ -n "$rlimit" -a "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
@@ -389,59 +463,60 @@ adjust_progress()
 
 encgroups='--mysqld|sst|xtrabackup'
 
-check_server_ssl_config()
-{
-    tcert=$(parse_cnf "$encgroups" 'ssl-ca')
-    tpem=$(parse_cnf "$encgroups" 'ssl-cert')
-    tkey=$(parse_cnf "$encgroups" 'ssl-key')
-}
-
 read_cnf()
 {
     sfmt=$(parse_cnf sst streamfmt 'mbstream')
     tfmt=$(parse_cnf sst transferfmt 'socat')
 
     encrypt=$(parse_cnf "$encgroups" 'encrypt' 0)
-    tmode=$(parse_cnf "$encgroups" 'ssl-mode' 'DISABLED' | tr [:lower:] [:upper:])
+    tmode=$(parse_cnf "$encgroups" 'ssl-mode' 'DISABLED' | \
+            tr '[[:lower:]]' '[[:upper:]]')
 
-    if [ $encrypt -eq 0 -o $encrypt -ge 2 ]
-    then
-        if [ "$tmode" != 'DISABLED' -o $encrypt -ge 2 ]
-        then
-            tcert=$(parse_cnf 'sst' 'tca')
-            tpem=$(parse_cnf 'sst' 'tcert')
-            tkey=$(parse_cnf 'sst' 'tkey')
+    case "$tmode" in
+    'VERIFY_IDENTITY'|'VERIFY_CA'|'REQUIRED'|'DISABLED')
+        ;;
+    *)
+        wsrep_log_error "Unrecognized ssl-mode option: '$tmode'"
+        exit 22 # EINVAL
+        ;;
+    esac
+
+    if [ $encrypt -eq 0 -o $encrypt -ge 2 ]; then
+        if [ "$tmode" != 'DISABLED' -o $encrypt -ge 2 ]; then
+            check_server_ssl_config
         fi
-        if [ "$tmode" != 'DISABLED' ]
-        then # backward-incompatible behavior
-            if [ -z "$tpem" -a -z "$tkey" -a -z "$tcert" ]
-            then # no old-style SSL config in [sst]
-                check_server_ssl_config
-            fi
+        if [ "$tmode" != 'DISABLED' ]; then
             if [ 0 -eq $encrypt -a -n "$tpem" -a -n "$tkey" ]
             then
                 encrypt=3 # enable cert/key SSL encyption
-
                 # avoid CA verification if not set explicitly:
-                # nodes may happen to have different CA if self-generated
-                # zeroing up tcert does the trick
-                [ "${tmode#VERIFY}" != "$tmode" ] || tcert=""
+                # nodes may happen to have different CA if self-generated,
+                # zeroing up tcert and tcap does the trick:
+                if [ "${tmode#VERIFY}" = "$tmode" ]; then
+                    tcert=""
+                    tcap=""
+                fi
             fi
         fi
     elif [ $encrypt -eq 1 ]; then
         ealgo=$(parse_cnf "$encgroups" 'encrypt-algo')
         eformat=$(parse_cnf "$encgroups" 'encrypt-format' 'openssl')
         ekey=$(parse_cnf "$encgroups" 'encrypt-key')
-        ekeyfile=$(parse_cnf "$encgroups" 'encrypt-key-file')
+        # The keyfile should be read only when the key
+        # is not specified or empty:
+        if [ -z "$ekey" ]; then
+            ekeyfile=$(parse_cnf "$encgroups" 'encrypt-key-file')
+        fi
     fi
 
-    wsrep_log_info "SSL configuration: CA='$tcert', CERT='$tpem'," \
-                   "KEY='$tkey', MODE='$tmode', encrypt='$encrypt'"
+    wsrep_log_info "SSL configuration: CA='$tcert', CAPATH='$tcap'," \
+                   "CERT='$tpem', KEY='$tkey', MODE='$tmode'," \
+                   "encrypt='$encrypt'"
 
     sockopt=$(parse_cnf sst sockopt "")
     progress=$(parse_cnf sst progress "")
     ttime=$(parse_cnf sst time 0)
-    cpat='.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$'
+    cpat='.*\.pem$\|.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$'
     [ "$OS" = 'FreeBSD' ] && cpat=$(echo "$cpat" | sed 's/\\|/|/g')
     cpat=$(parse_cnf sst cpat "$cpat")
     scomp=$(parse_cnf sst compressor "")
@@ -458,10 +533,18 @@ read_cnf()
     ssystag=$(parse_cnf mysqld_safe syslog-tag "${SST_SYSLOG_TAG:-}")
     ssystag="$ssystag-"
     sstlogarchive=$(parse_cnf sst sst-log-archive 1)
-    sstlogarchivedir=$(parse_cnf sst sst-log-archive-dir '/tmp/sst_log_archive')
+    sstlogarchivedir=""
+    if [ $sstlogarchive -ne 0 ]; then
+        sstlogarchivedir=$(parse_cnf sst sst-log-archive-dir \
+                           '/tmp/sst_log_archive')
+        if [ -n "$sstlogarchivedir" ]; then
+            sstlogarchivedir=$(trim_dir "$sstlogarchivedir")
+        fi
+    fi
 
     if [ $speciald -eq 0 ]; then
-        wsrep_log_error "sst-special-dirs equal to 0 is not supported, falling back to 1"
+        wsrep_log_error \
+            "sst-special-dirs equal to 0 is not supported, falling back to 1"
         speciald=1
     fi
 
@@ -476,133 +559,103 @@ read_cnf()
             compress_threads=$(parse_cnf "$encgroups" 'compress-threads')
         fi
     fi
+
+    backup_threads=$(parse_cnf "$encgroups" 'backup-threads')
+
+    if [ "$eformat" = 'xbcrypt' ]; then
+        encrypt_threads=$(parse_cnf "$encgroups" 'encrypt-threads')
+        encrypt_chunk=$(parse_cnf "$encgroups" 'encrypt-chunk-size')
+    fi
 }
 
 get_stream()
 {
     if [ "$sfmt" = 'mbstream' -o "$sfmt" = 'xbstream' ]; then
-        wsrep_log_info "Streaming with ${sfmt}"
+        sfmt='mbstream'
+        local STREAM_BIN=$(commandex "$sfmt")
+        if [ -z "$STREAM_BIN" ]; then
+            wsrep_log_error "Streaming with $sfmt, but $sfmt not found in path"
+            exit 42
+        fi
         if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
-            strmcmd="$MBSTREAM_BIN -x"
+            strmcmd="'$STREAM_BIN' -x"
         else
-            strmcmd="$MBSTREAM_BIN -c '$INFO_FILE'"
+            strmcmd="'$STREAM_BIN' -c '$INFO_FILE'"
         fi
     else
-        sfmt="tar"
-        wsrep_log_info "Streaming with tar"
-        if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]]; then
-            strmcmd="tar xfi -"
+        sfmt='tar'
+        if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+            strmcmd='tar xfi -'
         else
             strmcmd="tar cf - '$INFO_FILE'"
         fi
     fi
+    wsrep_log_info "Streaming with $sfmt"
 }
 
-get_proc()
-{
-    set +e
-    nproc=$(grep -c processor /proc/cpuinfo)
-    [ -z $nproc -o $nproc -eq 0 ] && nproc=1
-    set -e
-}
-
-sig_joiner_cleanup()
-{
-    wsrep_log_error "Removing $MAGIC_FILE file due to signal"
-    [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
-}
-
-cleanup_joiner()
+cleanup_at_exit()
 {
     # Since this is invoked just after exit NNN
     local estatus=$?
     if [ $estatus -ne 0 ]; then
-        wsrep_log_error "Cleanup after exit with status:$estatus"
-    elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+        wsrep_log_error "Cleanup after exit with status: $estatus"
+    fi
+
+    [ "$(pwd)" != "$OLD_PWD" ] && cd "$OLD_PWD"
+
+    if [ $estatus -ne 0 ]; then
+        wsrep_log_error "Removing $MAGIC_FILE file due to signal"
+        [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE" || :
+    fi
+
+    if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
         wsrep_log_info "Removing the sst_in_progress file"
         wsrep_cleanup_progress_file
-    fi
-    if [ -n "$progress" -a -p "$progress" ]; then
-        wsrep_log_info "Cleaning up fifo file $progress"
-        rm "$progress"
-    fi
-
-    if [ -n "$STATDIR" ]; then
-       [ -d "$STATDIR" ] && rm -rf "$STATDIR"
-    fi
-
-    # Final cleanup
-    pgid=$(ps -o pgid= $$ | grep -o '[0-9]*')
-
-    # This means no setsid done in mysqld.
-    # We don't want to kill mysqld here otherwise.
-    if [ $$ -eq $pgid ]; then
-        # This means a signal was delivered to the process.
-        # So, more cleanup.
-        if [ $estatus -ge 128 ]; then
-            kill -KILL -$$ || true
+    else
+        if [ -n "$BACKUP_PID" ]; then
+            if check_pid "$BACKUP_PID" 1; then
+                wsrep_log_error \
+                    "mariabackup process is still running. Killing..."
+                cleanup_pid $CHECK_PID "$BACKUP_PID"
+            fi
         fi
+        [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE" || :
     fi
-
-    exit $estatus
-}
-
-check_pid()
-{
-    local pid_file="$1"
-    [ -r "$pid_file" ] && ps -p $(cat "$pid_file") 2>&1 >/dev/null
-}
-
-cleanup_donor()
-{
-    # Since this is invoked just after exit NNN
-    local estatus=$?
-    if [ $estatus -ne 0 ]; then
-        wsrep_log_error "Cleanup after exit with status:$estatus"
-    fi
-
-    if [ -n "$MARIABACKUP_PID" ]; then
-        if check_pid $MARIABACKUP_PID
-        then
-            wsrep_log_error "mariabackup process is still running. Killing..."
-            kill_mariabackup
-        fi
-    fi
-
-    [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE"
 
     if [ -n "$progress" -a -p "$progress" ]; then
-        wsrep_log_info "Cleaning up fifo file $progress"
-        rm -f "$progress" || true
+        wsrep_log_info "Cleaning up fifo file: $progress"
+        rm -f "$progress" || :
     fi
 
     wsrep_log_info "Cleaning up temporary directories"
 
-    [ -n "$xtmpdir" -a -d "$xtmpdir" ] && rm -rf "$xtmpdir" || true
-    [ -n "$itmpdir" -a -d "$itmpdir" ] && rm -rf "$itmpdir" || true
+    if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+        [ -n "$STATDIR" -a -d "$STATDIR" ] && rm -rf "$STATDIR" || :
+    else
+        [ -n "$xtmpdir" -a -d "$xtmpdir" ] && rm -rf "$xtmpdir" || :
+        [ -n "$itmpdir" -a -d "$itmpdir" ] && rm -rf "$itmpdir" || :
+    fi
 
     # Final cleanup
-    pgid=$(ps -o pgid= $$ | grep -o '[0-9]*')
+    pgid=$(ps -o pgid= $$ 2>/dev/null | grep -o -E '[0-9]+' || :)
 
     # This means no setsid done in mysqld.
     # We don't want to kill mysqld here otherwise.
-    if [ $$ -eq $pgid ]; then
-        # This means a signal was delivered to the process.
-        # So, more cleanup.
-        if [ $estatus -ge 128 ]; then
-            kill -KILL -$$ || true
+    if [ -n "$pgid" ]; then
+        if [ $$ -eq $pgid ]; then
+            # This means a signal was delivered to the process.
+            # So, more cleanup.
+            if [ $estatus -ge 128 ]; then
+                kill -KILL -- -$$ || :
+            fi
         fi
     fi
 
-    exit $estatus
-}
+    if [ -n "${SST_PID:-}" ]; then
+        [ -f "$SST_PID" ] && rm -f "$SST_PID" || :
+    fi
 
-kill_mariabackup()
-{
-    local PID=$(cat "$MARIABACKUP_PID")
-    [ -n "$PID" -a "0" != "$PID" ] && kill $PID && (kill $PID && kill -9 $PID) || :
-    wsrep_log_info "Removing mariabackup pid file ($MARIABACKUP_PID)"
-    rm -f "$MARIABACKUP_PID" || true
+    exit $estatus
 }
 
 setup_ports()
@@ -615,56 +668,19 @@ setup_ports()
     fi
 }
 
-check_port()
-{
-    local PORT="$1"
-    local UTILS="$2"
-
-    local port_info is_util
-
-    if [ $lsof_available -ne 0 ]; then
-        port_info=$(lsof -i ":$PORT" -Pn 2>/dev/null | \
-            grep -F '(LISTEN)')
-        is_util=$(echo "$port_info" | \
-            grep -E "^($UTILS)[^[:space:]]*[[:space:]]+[0-9]+[[:space:]]+")
-    elif [ $sockstat_available -ne 0 ]; then
-        port_info=$(sockstat -p "$PORT" 2>/dev/null | \
-            grep -F 'LISTEN')
-        is_util=$(echo "$port_info" | \
-            grep -E "[[:space:]]+($UTILS)[^[:space:]]*[[:space:]]+[0-9]+[[:space:]]+")
-    elif [ $ss_available -ne 0 ]; then
-        port_info=$(ss -H -p -n -l "( sport = :$PORT )" 2>/dev/null)
-        is_util=$(echo "$port_info" | \
-            grep -E "users:\\(.*\\(\"($UTILS)[^[:space:]]*\".*\<pid=[0-9]+\>.*\\)")
-    else
-        wsrep_log_error "unknown sockets utility"
-        exit 2 # ENOENT
-    fi
-
-    if [ -z "$is_util" ]; then
-        return 1
-    fi
-
-    return 0
-}
-
-# waits ~10 seconds for nc to open the port and then reports ready
-# (regardless of timeout)
+#
+# Waits ~30 seconds for socat or nc to open the port and
+# then reports ready, regardless of timeout.
+#
 wait_for_listen()
 {
-    local PORT="$1"
-    local ADDR="$2"
-    local MODULE="$3"
-
-    for i in {1..50}
-    do
-        if check_port "$PORT" 'socat|nc'
-        then
+    for i in {1..150}; do
+        if check_port "" "$SST_PORT" 'socat|nc'; then
             break
         fi
         sleep 0.2
     done
-    echo "ready $ADDR/$MODULE//$sst_ver"
+    echo "ready $ADDR:$SST_PORT/$MODULE/$lsn/$sst_ver"
 }
 
 check_extra()
@@ -675,8 +691,8 @@ check_extra()
         if [ "$thread_handling" = 'pool-of-threads' ]; then
             local eport=$(parse_cnf '--mysqld' 'extra-port')
             if [ -n "$eport" ]; then
-                # mariabackup works only locally, hence,
-                # setting host to 127.0.0.1 unconditionally:
+                # mariabackup works only locally.
+                # Hence, setting host to 127.0.0.1 unconditionally:
                 wsrep_log_info "SST through extra_port $eport"
                 INNOEXTRA="$INNOEXTRA --host=127.0.0.1 --port=$eport"
                 use_socket=0
@@ -708,8 +724,8 @@ recv_joiner()
 
     local ltcmd="$tcmd"
     if [ $tmt -gt 0 ]; then
-        if [ -n "$(command -v timeout)" ]; then
-            if timeout --help | grep -qw -- '-k'; then
+        if [ -n "$(commandex timeout)" ]; then
+            if timeout --help | grep -qw -F -- '-k'; then
                 ltcmd="timeout -k $(( tmt+10 )) $tmt $tcmd"
             else
                 ltcmd="timeout -s9 $tmt $tcmd"
@@ -717,27 +733,25 @@ recv_joiner()
         fi
     fi
 
-    pushd "$dir" 1>/dev/null
-    set +e
-
     if [ $wait -ne 0 ]; then
-        wait_for_listen "$SST_PORT" "$ADDR" "$MODULE" &
+        wait_for_listen &
     fi
 
+    cd "$dir"
+    set +e
     timeit "$msg" "$ltcmd | $strmcmd; RC=( "\${PIPESTATUS[@]}" )"
-
     set -e
-    popd 1>/dev/null
+    cd "$OLD_PWD"
 
     if [ ${RC[0]} -eq 124 ]; then
-        wsrep_log_error "Possible timeout in receiving first data from " \
+        wsrep_log_error "Possible timeout in receiving first data from" \
                         "donor in gtid stage: exit codes: ${RC[@]}"
         exit 32
     fi
 
     for ecode in "${RC[@]}"; do
         if [ $ecode -ne 0 ]; then
-            wsrep_log_error "Error while getting data from donor node: " \
+            wsrep_log_error "Error while getting data from donor node:" \
                             "exit codes: ${RC[@]}"
             exit 32
         fi
@@ -745,25 +759,26 @@ recv_joiner()
 
     if [ $checkf -eq 1 ]; then
         if [ ! -r "$MAGIC_FILE" ]; then
-            # this message should cause joiner to abort
-            wsrep_log_error "receiving process ended without creating " \
-                            "'$MAGIC_FILE'"
-            wsrep_log_info "Contents of datadir"
+            # this message should cause joiner to abort:
+            wsrep_log_error "receiving process ended without creating" \
+                            "magic file ($MAGIC_FILE)"
+            wsrep_log_info "Contents of datadir:"
             wsrep_log_info $(ls -l "$dir/"*)
             exit 32
         fi
-
-        # check donor supplied secret
-        SECRET=$(grep -- "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | cut -d ' ' -f 2)
+        # Select the "secret" tag whose value does not start
+        # with a slash symbol. All new tags must to start with
+        # the space and the slash symbol after the word "secret" -
+        # to be removed by older versions of the SST scripts:
+        SECRET=$(grep -m1 -E "^$SECRET_TAG[[:space:]]+[^/]" \
+                      -- "$MAGIC_FILE" || :)
+        # Check donor supplied secret:
+        SECRET=$(trim_string "${SECRET#$SECRET_TAG}")
         if [ "$SECRET" != "$MY_SECRET" ]; then
             wsrep_log_error "Donor does not know my secret!"
-            wsrep_log_info "Donor:'$SECRET', my:'$MY_SECRET'"
+            wsrep_log_info "Donor: '$SECRET', my: '$MY_SECRET'"
             exit 32
         fi
-
-        # remove secret from magic file
-        grep -v -- "$SECRET_TAG " "$MAGIC_FILE" > "$MAGIC_FILE.new"
-        mv "$MAGIC_FILE.new" "$MAGIC_FILE"
     fi
 }
 
@@ -772,15 +787,15 @@ send_donor()
     local dir="$1"
     local msg="$2"
 
-    pushd "$dir" 1>/dev/null
+    cd "$dir"
     set +e
     timeit "$msg" "$strmcmd | $tcmd; RC=( "\${PIPESTATUS[@]}" )"
     set -e
-    popd 1>/dev/null
+    cd "$OLD_PWD"
 
     for ecode in "${RC[@]}"; do
         if [ $ecode -ne 0 ]; then
-            wsrep_log_error "Error while sending data to joiner node: " \
+            wsrep_log_error "Error while sending data to joiner node:" \
                             "exit codes: ${RC[@]}"
             exit 32
         fi
@@ -791,55 +806,42 @@ monitor_process()
 {
     local sst_stream_pid=$1
 
-    while true ; do
-        if ! ps -p "$WSREP_SST_OPT_PARENT" &>/dev/null; then
-            wsrep_log_error "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT) terminated unexpectedly."
+    while :; do
+        if ! ps -p "$WSREP_SST_OPT_PARENT" >/dev/null 2>&1; then
+            wsrep_log_error \
+                "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT)" \
+                "terminated unexpectedly."
+            kill -- -"$WSREP_SST_OPT_PARENT"
             exit 32
         fi
-        if ! ps -p "$sst_stream_pid" &>/dev/null; then
+        if ! ps -p "$sst_stream_pid" >/dev/null 2>&1; then
             break
         fi
         sleep 0.1
     done
 }
 
-wsrep_check_programs "$MARIABACKUP_BIN"
-
 [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
-
-if [ "$WSREP_SST_OPT_ROLE" != 'joiner' -a "$WSREP_SST_OPT_ROLE" != 'donor' ]; then
-    wsrep_log_error "Invalid role ${WSREP_SST_OPT_ROLE}"
-    exit 22
-fi
 
 read_cnf
 setup_ports
 
-if "$MARIABACKUP_BIN" --help 2>/dev/null | grep -qw -- '--version-check'; then
-    disver='--no-version-check'
-fi
-
-# if no command line argument and INNODB_DATA_HOME_DIR environment variable
-# is not set, try to get it from my.cnf:
-if [ -z "$INNODB_DATA_HOME_DIR" ]; then
-    INNODB_DATA_HOME_DIR=$(parse_cnf '--mysqld' 'innodb-data-home-dir')
+if "$BACKUP_BIN" --help 2>/dev/null | grep -qw -F -- '--version-check'; then
+    disver=' --no-version-check'
 fi
 
 OLD_PWD="$(pwd)"
 
-cd "$WSREP_SST_OPT_DATA"
-if [ -n "$INNODB_DATA_HOME_DIR" ]; then
-    # handle both relative and absolute paths
-    [ ! -d "$INNODB_DATA_HOME_DIR" ] && mkdir -p "$INNODB_DATA_HOME_DIR"
-    cd "$INNODB_DATA_HOME_DIR"
+if [ -n "$DATA" -a "$DATA" != '.' ]; then
+    [ ! -d "$DATA" ] && mkdir -p "$DATA"
+    cd "$DATA"
 fi
-INNODB_DATA_HOME_DIR=$(pwd -P)
+DATA_DIR="$(pwd)"
 
 cd "$OLD_PWD"
 
 if [ $ssyslog -eq 1 ]; then
-
-    if [ -n "$(command -v logger)" ]; then
+    if [ -n "$(commandex logger)" ]; then
         wsrep_log_info "Logging all stderr of SST/mariabackup to syslog"
 
         exec 2> >(logger -p daemon.err -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE)
@@ -856,89 +858,90 @@ if [ $ssyslog -eq 1 ]; then
     else
         wsrep_log_error "logger not in path: $PATH. Ignoring"
     fi
-
     INNOAPPLY="2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-apply"
     INNOMOVE="2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-move"
     INNOBACKUP="2> >(logger -p daemon.err -t ${ssystag}innobackupex-backup)"
-
 else
-
-if [ $sstlogarchive -eq 1 ]
-then
-    ARCHIVETIMESTAMP=$(date "+%Y.%m.%d-%H.%M.%S.%N")
-
-    if [ -n "$sstlogarchivedir" ]; then
-        if [ ! -d "$sstlogarchivedir" ]; then
-            mkdir -p "$sstlogarchivedir"
-        fi
-    fi
-
-    if [ -e "$INNOAPPLYLOG" ]
+    if [ $sstlogarchive -eq 1 ]
     then
-        if [ -n "$sstlogarchivedir" ]
-        then
-            newfile=$(basename "$INNOAPPLYLOG")
-            newfile="$sstlogarchivedir/$newfile.$ARCHIVETIMESTAMP"
-        else
-            newfile="$INNOAPPLYLOG.$ARCHIVETIMESTAMP"
-        fi
-        wsrep_log_info "Moving '$INNOAPPLYLOG' to '$newfile'"
-        mv "$INNOAPPLYLOG" "$newfile"
-        gzip "$newfile"
-    fi
+        ARCHIVETIMESTAMP=$(date '+%Y.%m.%d-%H.%M.%S.%N')
 
-    if [ -e "$INNOMOVELOG" ]
-    then
-        if [ -n "$sstlogarchivedir" ]
-        then
-            newfile=$(basename "$INNOMOVELOG")
-            newfile="$sstlogarchivedir/$newfile.$ARCHIVETIMESTAMP"
-        else
-            newfile="$INNOMOVELOG.$ARCHIVETIMESTAMP"
+        if [ -n "$sstlogarchivedir" ]; then
+            if [ ! -d "$sstlogarchivedir" ]; then
+                if ! mkdir -p "$sstlogarchivedir"; then
+                    sstlogarchivedir=""
+                    wsrep_log_warning \
+                        "Unable to create '$sstlogarchivedir' directory"
+                fi
+            elif [ ! -w "$sstlogarchivedir" ]; then
+                sstlogarchivedir=""
+                wsrep_log_warning \
+                    "The '$sstlogarchivedir' directory is not writtable"
+            fi
         fi
-        wsrep_log_info "Moving '$INNOMOVELOG' to '$newfile'"
-        mv "$INNOMOVELOG" "$newfile"
-        gzip "$newfile"
-    fi
 
-    if [ -e "$INNOBACKUPLOG" ]
-    then
-        if [ -n "$sstlogarchivedir" ]
-        then
-            newfile=$(basename "$INNOBACKUPLOG")
-            newfile="$sstlogarchivedir/$newfile.$ARCHIVETIMESTAMP"
-        else
-            newfile="$INNOBACKUPLOG.$ARCHIVETIMESTAMP"
+        if [ -e "$INNOAPPLYLOG" ]; then
+            if [ -n "$sstlogarchivedir" ]; then
+                newfile=$(basename "$INNOAPPLYLOG")
+                newfile="$sstlogarchivedir/$newfile.$ARCHIVETIMESTAMP"
+            else
+                newfile="$INNOAPPLYLOG.$ARCHIVETIMESTAMP"
+            fi
+            wsrep_log_info "Moving '$INNOAPPLYLOG' to '$newfile'"
+            mv "$INNOAPPLYLOG" "$newfile" && gzip "$newfile" || \
+                wsrep_log_warning "Failed to archive log file ('$newfile')"
         fi
-        wsrep_log_info "Moving '$INNOBACKUPLOG' to '$newfile'"
-        mv "$INNOBACKUPLOG" "$newfile"
-        gzip "$newfile"
-    fi
-fi
 
-    INNOAPPLY="&> '$INNOAPPLYLOG'"
-    INNOMOVE="&> '$INNOMOVELOG'"
+        if [ -e "$INNOMOVELOG" ]; then
+            if [ -n "$sstlogarchivedir" ]; then
+                newfile=$(basename "$INNOMOVELOG")
+                newfile="$sstlogarchivedir/$newfile.$ARCHIVETIMESTAMP"
+            else
+                newfile="$INNOMOVELOG.$ARCHIVETIMESTAMP"
+            fi
+            wsrep_log_info "Moving '$INNOMOVELOG' to '$newfile'"
+            mv "$INNOMOVELOG" "$newfile" && gzip "$newfile" || \
+                wsrep_log_warning "Failed to archive log file ('$newfile')"
+        fi
+
+        if [ -e "$INNOBACKUPLOG" ]; then
+            if [ -n "$sstlogarchivedir" ]; then
+                newfile=$(basename "$INNOBACKUPLOG")
+                newfile="$sstlogarchivedir/$newfile.$ARCHIVETIMESTAMP"
+            else
+                newfile="$INNOBACKUPLOG.$ARCHIVETIMESTAMP"
+            fi
+            wsrep_log_info "Moving '$INNOBACKUPLOG' to '$newfile'"
+            mv "$INNOBACKUPLOG" "$newfile" && gzip "$newfile" || \
+                wsrep_log_warning "Failed to archive log file ('$newfile')"
+        fi
+    fi
+    INNOAPPLY="> '$INNOAPPLYLOG' 2>&1"
+    INNOMOVE="> '$INNOMOVELOG' 2>&1"
     INNOBACKUP="2> '$INNOBACKUPLOG'"
-
 fi
 
 setup_commands()
 {
     local mysqld_args=""
     if [ -n "$WSREP_SST_OPT_MYSQLD" ]; then
-        mysqld_args="--mysqld-args $WSREP_SST_OPT_MYSQLD"
+        mysqld_args=" --mysqld-args $WSREP_SST_OPT_MYSQLD"
     fi
-    INNOAPPLY="$MARIABACKUP_BIN --prepare $disver $iapts $INNOEXTRA --target-dir='$DATA' --datadir='$DATA' $mysqld_args $INNOAPPLY"
-    INNOMOVE="$MARIABACKUP_BIN $WSREP_SST_OPT_CONF --move-back $disver $impts --force-non-empty-directories --target-dir='$DATA' --datadir='${TDATA:-$DATA}' $INNOMOVE"
-    INNOBACKUP="$MARIABACKUP_BIN $WSREP_SST_OPT_CONF --backup $disver $iopts $tmpopts $INNOEXTRA --galera-info --stream='$sfmt' --target-dir='$itmpdir' --datadir='$DATA' $mysqld_args $INNOBACKUP"
+    local recovery=""
+    if [ -n "$INNODB_FORCE_RECOVERY" ]; then
+        recovery=" --innodb-force-recovery=$INNODB_FORCE_RECOVERY"
+    fi
+    INNOAPPLY="$BACKUP_BIN --prepare$disver$recovery${iapts:+ }$iapts$INNOEXTRA --target-dir='$DATA' --datadir='$DATA'$mysqld_args $INNOAPPLY"
+    INNOMOVE="$BACKUP_BIN$WSREP_SST_OPT_CONF --move-back$disver${impts:+ }$impts$INNOEXTRA --force-non-empty-directories --target-dir='$DATA' --datadir='${TDATA:-$DATA}' $INNOMOVE"
+    INNOBACKUP="$BACKUP_BIN$WSREP_SST_OPT_CONF --backup$disver${iopts:+ }$iopts$tmpopts$INNOEXTRA --galera-info --stream=$sfmt --target-dir='$itmpdir' --datadir='$DATA'$mysqld_args $INNOBACKUP"
 }
 
 get_stream
 get_transfer
 
-if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]
-then
-    trap cleanup_donor EXIT
+if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
+
+    trap cleanup_at_exit EXIT
 
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
     then
@@ -951,12 +954,17 @@ then
         tmpdir=$(parse_cnf "$encgroups" 'tmpdir')
         if [ -z "$tmpdir" ]; then
             xtmpdir="$(mktemp -d)"
-            tmpopts="--tmpdir='$xtmpdir'"
-            wsrep_log_info "Using $xtmpdir as mariabackup temporary directory"
+        elif [ "$OS" = 'Linux' ]; then
+            xtmpdir=$(mktemp '-d' "--tmpdir=$tmpdir")
+        else
+            xtmpdir=$(TMPDIR="$tmpdir"; mktemp '-d')
         fi
 
+        wsrep_log_info "Using '$xtmpdir' as mariabackup temporary directory"
+        tmpopts=" --tmpdir='$xtmpdir'"
+
         itmpdir="$(mktemp -d)"
-        wsrep_log_info "Using $itmpdir as mariabackup temporary directory"
+        wsrep_log_info "Using '$itmpdir' as mariabackup working directory"
 
         usrst=0
         if [ -n "$WSREP_SST_OPT_USER" ]; then
@@ -997,9 +1005,9 @@ then
 
         send_donor "$DATA" "$stagemsg-gtid"
 
+        # Restore the transport commmand to its original state
         tcmd="$ttcmd"
 
-        # Restore the transport commmand to its original state
         if [ -n "$progress" ]; then
             get_footprint
             tcmd="$pcmd | $tcmd"
@@ -1011,7 +1019,7 @@ then
         wsrep_log_info "Sleeping before data transfer for SST"
         sleep 10
 
-        wsrep_log_info "Streaming the backup to joiner at ${REMOTEIP}:${SST_PORT}"
+        wsrep_log_info "Streaming the backup to joiner at $REMOTEIP:$SST_PORT"
 
         # Add compression to the head of the stream (if specified)
         if [ -n "$scomp" ]; then
@@ -1023,33 +1031,44 @@ then
             tcmd="$ecmd | $tcmd"
         fi
 
-        iopts="$iopts --databases-exclude='lost+found'"
+        iopts="--databases-exclude='lost+found'${iopts:+ }$iopts"
 
         if [ ${FORCE_FTWRL:-0} -eq 1 ]; then
-           wsrep_log_info "Forcing FTWRL due to environment variable FORCE_FTWRL equal to $FORCE_FTWRL"
-           iopts="$iopts --no-backup-locks"
+            wsrep_log_info "Forcing FTWRL due to environment variable" \
+                           "FORCE_FTWRL equal to $FORCE_FTWRL"
+            iopts="--no-backup-locks${iopts:+ }$iopts"
         fi
 
         # if compression is enabled for backup files, then add the
         # appropriate options to the mariabackup command line:
         if [ "$compress" != 'none' ]; then
-            iopts="$iopts --compress${compress:+=$compress}"
+            iopts="--compress${compress:+=$compress}${iopts:+ }$iopts"
             if [ -n "$compress_threads" ]; then
-                iopts="$iopts --compress-threads=$compress_threads"
+                iopts="--compress-threads=$compress_threads${iopts:+ }$iopts"
             fi
             if [ -n "$compress_chunk" ]; then
-                iopts="$iopts --compress-chunk-size=$compress_chunk"
+                iopts="--compress-chunk-size=$compress_chunk${iopts:+ }$iopts"
             fi
         fi
 
+        if [ -n "$backup_threads" ]; then
+            iopts="--parallel=$backup_threads${iopts:+ }$iopts"
+        fi
+
+        max_binlogs=$(parse_cnf "$encgroups" 'sst-max-binlogs')
+        if [ -n "$max_binlogs" ]; then
+            iopts="--sst-max-binlogs=$max_binlogs${iopts:+ }$iopts"
+        fi
+
         setup_commands
+
         set +e
         timeit "$stagemsg-SST" "$INNOBACKUP | $tcmd; RC=( "\${PIPESTATUS[@]}" )"
         set -e
 
         if [ ${RC[0]} -ne 0 ]; then
-            wsrep_log_error "${MARIABACKUP_BIN} finished with error: ${RC[0]}. " \
-                            "Check syslog or ${INNOBACKUPLOG} for details"
+            wsrep_log_error "mariabackup finished with error: ${RC[0]}." \
+                            "Check syslog or '$INNOBACKUPLOG' for details"
             exit 22
         elif [ ${RC[$(( ${#RC[@]}-1 ))]} -eq 1 ]; then
             wsrep_log_error "$tcmd finished with error: ${RC[1]}"
@@ -1057,7 +1076,7 @@ then
         fi
 
         # mariabackup implicitly writes PID to fixed location in $xtmpdir
-        MARIABACKUP_PID="$xtmpdir/xtrabackup_pid"
+        BACKUP_PID="$xtmpdir/xtrabackup_pid"
 
     else # BYPASS FOR IST
 
@@ -1087,57 +1106,106 @@ then
     echo "done $WSREP_SST_OPT_GTID"
     wsrep_log_info "Total time on donor: $totime seconds"
 
-elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]
-then
-    [ -e "$SST_PROGRESS_FILE" ] && wsrep_log_info "Stale sst_in_progress file: $SST_PROGRESS_FILE"
+else # joiner
+
+    [ -e "$SST_PROGRESS_FILE" ] && \
+        wsrep_log_info "Stale sst_in_progress file: $SST_PROGRESS_FILE"
     [ -n "$SST_PROGRESS_FILE" ] && touch "$SST_PROGRESS_FILE"
 
-    ib_home_dir="$INNODB_DATA_HOME_DIR"
+    # if no command line argument and INNODB_DATA_HOME_DIR environment
+    # variable is not set, try to get it from the my.cnf:
+    if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+        INNODB_DATA_HOME_DIR=$(parse_cnf '--mysqld' 'innodb-data-home-dir')
+        INNODB_DATA_HOME_DIR=$(trim_dir "$INNODB_DATA_HOME_DIR")
+    fi
+
+    if [ -n "$INNODB_DATA_HOME_DIR" -a "$INNODB_DATA_HOME_DIR" != '.' ]; then
+        # handle both relative and absolute paths:
+        cd "$DATA"
+        [ ! -d "$INNODB_DATA_HOME_DIR" ] && mkdir -p "$INNODB_DATA_HOME_DIR"
+        cd "$INNODB_DATA_HOME_DIR"
+        ib_home_dir="$(pwd)"
+        cd "$OLD_PWD"
+    fi
 
     # if no command line argument and INNODB_LOG_GROUP_HOME is not set,
-    # try to get it from my.cnf:
+    # then try to get it from the my.cnf:
     if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
         INNODB_LOG_GROUP_HOME=$(parse_cnf '--mysqld' 'innodb-log-group-home-dir')
+        INNODB_LOG_GROUP_HOME=$(trim_dir "$INNODB_LOG_GROUP_HOME")
     fi
 
-    ib_log_dir="$INNODB_LOG_GROUP_HOME"
+    if [ -n "$INNODB_LOG_GROUP_HOME" -a "$INNODB_LOG_GROUP_HOME" != '.' ]; then
+        # handle both relative and absolute paths:
+        cd "$DATA"
+        [ ! -d "$INNODB_LOG_GROUP_HOME" ] && mkdir -p "$INNODB_LOG_GROUP_HOME"
+        cd "$INNODB_LOG_GROUP_HOME"
+        ib_log_dir="$(pwd)"
+        cd "$OLD_PWD"
+    fi
 
-    # if no command line argument then try to get it from my.cnf:
+    # if no command line argument and INNODB_UNDO_DIR is not set,
+    # then try to get it from the my.cnf:
     if [ -z "$INNODB_UNDO_DIR" ]; then
         INNODB_UNDO_DIR=$(parse_cnf '--mysqld' 'innodb-undo-directory')
+        INNODB_UNDO_DIR=$(trim_dir "$INNODB_UNDO_DIR")
     fi
 
-    ib_undo_dir="$INNODB_UNDO_DIR"
+    if [ -n "$INNODB_UNDO_DIR" -a "$INNODB_UNDO_DIR" != '.' ]; then
+        # handle both relative and absolute paths:
+        cd "$DATA"
+        [ ! -d "$INNODB_UNDO_DIR" ] && mkdir -p "$INNODB_UNDO_DIR"
+        cd "$INNODB_UNDO_DIR"
+        ib_undo_dir="$(pwd)"
+        cd "$OLD_PWD"
+    fi
+
+    if [ -n "$backup_threads" ]; then
+        impts="--parallel=$backup_threads${impts:+ }$impts"
+    fi
+
+    SST_PID="$WSREP_SST_OPT_DATA/wsrep_sst.pid"
+
+    # give some time for previous SST to complete:
+    check_round=0
+    while check_pid "$SST_PID" 0; do
+        wsrep_log_info "previous SST is not completed, waiting for it to exit"
+        check_round=$(( check_round + 1 ))
+        if [ $check_round -eq 10 ]; then
+            wsrep_log_error "previous SST script still running."
+            exit 114 # EALREADY
+        fi
+        sleep 1
+    done
+
+    trap simple_cleanup EXIT
+    echo $$ > "$SST_PID"
 
     stagemsg='Joiner-Recv'
 
-    sencrypted=1
-    nthreads=1
-
-    MODULE="xtrabackup_sst"
+    MODULE="${WSREP_SST_OPT_MODULE:-xtrabackup_sst}"
 
     [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE"
 
     # May need xtrabackup_checkpoints later on
-    [ -f "$DATA/xtrabackup_binary"      ] && rm -f "$DATA/xtrabackup_binary"
+    [ -f "$DATA/xtrabackup_binary" ]      && rm -f "$DATA/xtrabackup_binary"
     [ -f "$DATA/xtrabackup_galera_info" ] && rm -f "$DATA/xtrabackup_galera_info"
-    [ -f "$DATA/ib_logfile0"            ] && rm -f "$DATA/ib_logfile0"
 
-    ADDR="$WSREP_SST_OPT_ADDR"
+    ADDR="$WSREP_SST_OPT_HOST"
 
-    if [ "${tmode#VERIFY}" != "$tmode" ]
-    then # backward-incompatible behavior
+    if [ "${tmode#VERIFY}" != "$tmode" ]; then
+        # backward-incompatible behavior:
         CN=""
-        if [ -n "$tpem" ]
-        then
+        if [ -n "$tpem" ]; then
             # find out my Common Name
             get_openssl
             if [ -z "$OPENSSL_BINARY" ]; then
-                wsrep_log_error 'openssl not found but it is required for authentication'
+                wsrep_log_error \
+                    'openssl not found but it is required for authentication'
                 exit 42
             fi
             CN=$("$OPENSSL_BINARY" x509 -noout -subject -in "$tpem" | \
-                 tr "," "\n" | grep -F 'CN =' | cut -d= -f2 | sed s/^\ // | \
+                 tr ',' '\n' | grep -F 'CN =' | cut -d '=' -f2 | sed s/^\ // | \
                  sed s/\ %//)
         fi
         MY_SECRET="$(wsrep_gen_secret)"
@@ -1147,8 +1215,7 @@ then
         MY_SECRET="" # for check down in recv_joiner()
     fi
 
-    trap sig_joiner_cleanup HUP PIPE INT TERM
-    trap cleanup_joiner EXIT
+    trap cleanup_at_exit EXIT
 
     if [ -n "$progress" ]; then
         adjust_progress
@@ -1156,7 +1223,7 @@ then
     fi
 
     get_keys
-    if [ $encrypt -eq 1 -a $sencrypted -eq 1 ]; then
+    if [ $encrypt -eq 1 ]; then
         strmcmd="$ecmd | $strmcmd"
     fi
 
@@ -1171,17 +1238,18 @@ then
 
     recv_joiner "$STATDIR" "$stagemsg-gtid" $stimeout 1 1
 
-    if ! ps -p "$WSREP_SST_OPT_PARENT" &>/dev/null
-    then
-        wsrep_log_error "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT) terminated unexpectedly."
+    if ! ps -p "$WSREP_SST_OPT_PARENT" >/dev/null 2>&1; then
+        wsrep_log_error "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT)" \
+                        "terminated unexpectedly."
         exit 32
     fi
 
-    if [ ! -r "$STATDIR/$IST_FILE" ]
-    then
+    if [ ! -r "$STATDIR/$IST_FILE" ]; then
 
         if [ -d "$DATA/.sst" ]; then
-            wsrep_log_info "WARNING: Stale temporary SST directory: ${DATA}/.sst from previous state transfer. Removing"
+            wsrep_log_info \
+                "WARNING: Stale temporary SST directory:" \
+                "'$DATA/.sst' from previous state transfer, removing..."
             rm -rf "$DATA/.sst"
         fi
         mkdir -p "$DATA/.sst"
@@ -1189,29 +1257,50 @@ then
         jpid=$!
         wsrep_log_info "Proceeding with SST"
 
-        wsrep_log_info "Cleaning the existing datadir and innodb-data/log directories"
-        if [ "$OS" = 'FreeBSD' ]; then
-            find -E ${ib_home_dir:+"$ib_home_dir"} \
-                    ${ib_undo_dir:+"$ib_undo_dir"} \
-                    ${ib_log_dir:+"$ib_log_dir"} \
-                    "$DATA" -mindepth 1 -prune -regex "$cpat" -o -exec rm -rfv {} 1>&2 \+
-        else
-            find ${ib_home_dir:+"$ib_home_dir"} \
-                 ${ib_undo_dir:+"$ib_undo_dir"} \
-                 ${ib_log_dir:+"$ib_log_dir"} \
-                 "$DATA" -mindepth 1 -prune -regex "$cpat" -o -exec rm -rfv {} 1>&2 \+
-        fi
-
         get_binlog
 
         if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
             binlog_dir=$(dirname "$WSREP_SST_OPT_BINLOG")
-            cd "$binlog_dir"
-            wsrep_log_info "Cleaning the binlog directory $binlog_dir as well"
-            rm -fv "$WSREP_SST_OPT_BINLOG".[0-9]* 1>&2 \+ || true
-            binlog_index="${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
-            [ -f "$binlog_index" ] && rm -fv "$binlog_index" 1>&2 \+ || true
+            binlog_base=$(basename "$WSREP_SST_OPT_BINLOG")
+            binlog_index="$WSREP_SST_OPT_BINLOG_INDEX"
+            cd "$DATA"
+            wsrep_log_info "Cleaning the old binary logs"
+            # If there is a file with binlogs state, delete it:
+            [ -f "$binlog_base.state" ] && rm -f "$binlog_base.state" >&2
+            # Clean up the old binlog files and index:
+            if [ -f "$binlog_index" ]; then
+                while read bin_file || [ -n "$bin_file" ]; do
+                    rm -f "$bin_file" >&2 || :
+                done < "$binlog_index"
+                rm -f "$binlog_index" >&2
+            fi
+            if [ -n "$binlog_dir" -a "$binlog_dir" != '.' -a \
+                 -d "$binlog_dir" ]
+            then
+                cd "$binlog_dir"
+                if [ "$(pwd)" != "$DATA_DIR" ]; then
+                    wsrep_log_info \
+                       "Cleaning the binlog directory '$binlog_dir' as well"
+                fi
+            fi
+            rm -f "$binlog_base".[0-9]* >&2 || :
             cd "$OLD_PWD"
+        fi
+
+        wsrep_log_info \
+            "Cleaning the existing datadir and innodb-data/log directories"
+        if [ "$OS" = 'FreeBSD' ]; then
+            find -E ${ib_home_dir:+"$ib_home_dir"} \
+                    ${ib_undo_dir:+"$ib_undo_dir"} \
+                    ${ib_log_dir:+"$ib_log_dir"} \
+                    "$DATA" -mindepth 1 -prune -regex "$cpat" \
+                    -o -exec rm -rf {} >&2 \+
+        else
+            find ${ib_home_dir:+"$ib_home_dir"} \
+                 ${ib_undo_dir:+"$ib_undo_dir"} \
+                 ${ib_log_dir:+"$ib_log_dir"} \
+                 "$DATA" -mindepth 1 -prune -regex "$cpat" \
+                 -o -exec rm -rf {} >&2 \+
         fi
 
         TDATA="$DATA"
@@ -1222,12 +1311,13 @@ then
         monitor_process $jpid
 
         if [ ! -s "$DATA/xtrabackup_checkpoints" ]; then
-            wsrep_log_error "xtrabackup_checkpoints missing, failed mariabackup/SST on donor"
+            wsrep_log_error "xtrabackup_checkpoints missing," \
+                            "failed mariabackup/SST on donor"
             exit 2
         fi
 
         # Compact backups are not supported by mariabackup
-        if grep -q -F 'compact = 1' "$DATA/xtrabackup_checkpoints"; then
+        if grep -qw -F 'compact = 1' "$DATA/xtrabackup_checkpoints"; then
             wsrep_log_info "Index compaction detected"
             wsrel_log_error "Compact backups are not supported by mariabackup"
             exit 2
@@ -1237,7 +1327,7 @@ then
         if [ -n "$qpfiles" ]; then
             wsrep_log_info "Compressed qpress files found"
 
-            if [ -z "$(command -v qpress)" ]; then
+            if [ -z "$(commandex qpress)" ]; then
                 wsrep_log_error "qpress utility not found in the path"
                 exit 22
             fi
@@ -1246,11 +1336,13 @@ then
 
             dcmd="xargs -n 2 qpress -dT$nproc"
 
-            if [ -n "$progress" ] && pv --help | grep -qw -- '--line-mode'; then
+            if [ -n "$progress" ] && \
+               pv --help | grep -qw -F -- '--line-mode'
+            then
                 count=$(find "$DATA" -type f -name '*.qp' | wc -l)
                 count=$(( count*2 ))
                 pvopts="-f -s $count -l -N Decompression"
-                if pv --help | grep -qw -- '-F'; then
+                if pv --help | grep -qw -F -- '-F'; then
                     pvopts="$pvopts -F '%N => Rate:%r Elapsed:%t %e Progress: [%b/$count]'"
                 fi
                 pcmd="pv $pvopts"
@@ -1260,14 +1352,18 @@ then
 
             # Decompress the qpress files
             wsrep_log_info "Decompression with $nproc threads"
-            timeit "Joiner-Decompression" "find '$DATA' -type f -name '*.qp' -printf '%p\n%h\n' | $dcmd"
+            timeit 'Joiner-Decompression' \
+                   "find '$DATA' -type f -name '*.qp' -printf '%p\n%h\n' | \
+                   $dcmd"
             extcode=$?
 
             if [ $extcode -eq 0 ]; then
                 wsrep_log_info "Removing qpress files after decompression"
                 find "$DATA" -type f -name '*.qp' -delete
                 if [ $? -ne 0 ]; then
-                    wsrep_log_error "Something went wrong with deletion of qpress files. Investigate"
+                    wsrep_log_error \
+                        "Something went wrong with deletion of qpress files." \
+                        "Investigate"
                 fi
             else
                 wsrep_log_error "Decompression failed. Exit code: $extcode"
@@ -1275,61 +1371,84 @@ then
             fi
         fi
 
-        if  [ -n "$WSREP_SST_OPT_BINLOG" ]; then
-
-            BINLOG_DIRNAME=$(dirname "$WSREP_SST_OPT_BINLOG")
-            BINLOG_FILENAME=$(basename "$WSREP_SST_OPT_BINLOG")
-
-            # To avoid comparing data directory and BINLOG_DIRNAME
-            mv "$DATA/$BINLOG_FILENAME".* "$BINLOG_DIRNAME/" 2>/dev/null || true
-
-            cd "$BINLOG_DIRNAME"
-            for bfile in $(ls -1 "$BINLOG_FILENAME".[0-9]*); do
-                echo "$BINLOG_DIRNAME/$bfile" >> "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
-            done
-            cd "$OLD_PWD"
-
-        fi
-
-        wsrep_log_info "Preparing the backup at ${DATA}"
+        wsrep_log_info "Preparing the backup at $DATA"
         setup_commands
-        timeit "mariabackup prepare stage" "$INNOAPPLY"
-
+        timeit 'mariabackup prepare stage' "$INNOAPPLY"
         if [ $? -ne 0 ]; then
-            wsrep_log_error "${MARIABACKUP_BIN} apply finished with errors. Check syslog or ${INNOAPPLYLOG} for details"
+            wsrep_log_error "mariabackup apply finished with errors." \
+                            "Check syslog or '$INNOAPPLYLOG' for details."
             exit 22
         fi
 
-        MAGIC_FILE="$TDATA/$INFO_FILE"
-        wsrep_log_info "Moving the backup to ${TDATA}"
-        timeit "mariabackup move stage" "$INNOMOVE"
+        if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
+            cd "$DATA"
+            binlogs=""
+            if [ -f 'xtrabackup_binlog_info' ]; then
+                NL=$'\n'
+                while read bin_string || [ -n "$bin_string" ]; do
+                    bin_file=$(echo "$bin_string" | cut -f1)
+                    if [ -f "$bin_file" ]; then
+                        binlogs="$binlogs${binlogs:+$NL}$bin_file"
+                    fi
+                done < 'xtrabackup_binlog_info'
+            else
+                binlogs=$(ls -d -1 "$binlog_base".[0-9]* 2>/dev/null || :)
+            fi
+            cd "$DATA_DIR"
+            if [ -n "$binlog_dir" -a "$binlog_dir" != '.' ]; then
+                [ ! -d "$binlog_dir" ] && mkdir -p "$binlog_dir"
+            fi
+            index_dir=$(dirname "$binlog_index");
+            if [ -n "$index_dir" -a "$index_dir" != '.' ]; then
+                [ ! -d "$index_dir" ] && mkdir -p "$index_dir"
+            fi
+            if [ -n "$binlogs" ]; then
+                wsrep_log_info "Moving binary logs to $binlog_dir"
+                echo "$binlogs" | \
+                while read bin_file || [ -n "$bin_file" ]; do
+                    mv "$DATA/$bin_file" "$binlog_dir"
+                    echo "$binlog_dir${binlog_dir:+/}$bin_file" >> "$binlog_index"
+                done
+            fi
+            cd "$OLD_PWD"
+        fi
 
+        MAGIC_FILE="$TDATA/$INFO_FILE"
+
+        wsrep_log_info "Moving the backup to $TDATA"
+        timeit 'mariabackup move stage' "$INNOMOVE"
         if [ $? -eq 0 ]; then
-            wsrep_log_info "Move successful, removing ${DATA}"
+            wsrep_log_info "Move successful, removing $DATA"
             rm -rf "$DATA"
             DATA="$TDATA"
         else
-            wsrep_log_error "Move failed, keeping ${DATA} for further diagnosis"
-            wsrep_log_error "Check syslog or ${INNOMOVELOG} for details"
+            wsrep_log_error "Move failed, keeping '$DATA' for further diagnosis"
+            wsrep_log_error "Check syslog or '$INNOMOVELOG' for details"
             exit 22
         fi
 
     else
 
-        wsrep_log_info "${IST_FILE} received from donor: Running IST"
+        wsrep_log_info "'$IST_FILE' received from donor: Running IST"
+        if [ $WSREP_SST_OPT_BYPASS -eq 0 ]; then
+            readonly WSREP_SST_OPT_BYPASS=1
+            readonly WSREP_TRANSFER_TYPE='IST'
+        fi
 
     fi
 
     if [ ! -r "$MAGIC_FILE" ]; then
-        wsrep_log_error "SST magic file ${MAGIC_FILE} not found/readable"
+        wsrep_log_error "SST magic file '$MAGIC_FILE' not found/readable"
         exit 2
     fi
 
-    coords=$(cat "$MAGIC_FILE")
+    # Remove special tags from the magic file, and from the output:
+    coords=$(grep -v -E "^$SECRET_TAG[[:space:]]" -- "$MAGIC_FILE")
     wsrep_log_info "Galera co-ords from recovery: $coords"
-    cat "$MAGIC_FILE" # Output : UUID:seqno wsrep_gtid_domain_id
+    echo "$coords" # Output : UUID:seqno wsrep_gtid_domain_id
 
     wsrep_log_info "Total time on joiner: $totime seconds"
 fi
 
+wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE completed on $WSREP_SST_OPT_ROLE"
 exit 0

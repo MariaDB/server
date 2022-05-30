@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include "osutil.h"
 
-#ifdef __WIN__
+#ifdef _WIN32
 my_bool CloseFileHandle(HANDLE h) 
   {
   return !CloseHandle(h);

@@ -11,6 +11,6 @@ SELECT name 'Space_Name',
 	filename 'Path'
 	FROM information_schema.innodb_sys_tablespaces
 	WHERE name != 'innodb_system'
-	AND name NOT LIKE 'mysql/%' AND name NOT LIKE '%/#sql-ib%'
+	AND name NOT LIKE 'mysql/%'
 	ORDER BY space;
 --enable_query_log

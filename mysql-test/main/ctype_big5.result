@@ -4710,7 +4710,7 @@ SELECT @@character_set_client, @@character_set_connection, @@character_set_resul
 @@character_set_client	@@character_set_connection	@@character_set_results
 binary	big5	binary
 SELECT HEX('à\['), HEX('\à\[');
-HEX('à\[')	HEX('\à\[')
+HEX('\xE0\[')	HEX('\\xE0\[')
 E05B	E05B
 CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;

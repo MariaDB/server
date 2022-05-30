@@ -55,6 +55,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include "xtrabackup.h"
 #include "common.h"
 #include "backup_copy.h"
+#include "backup_debug.h"
 #include "backup_mysql.h"
 #include <btr0btr.h>
 
@@ -199,6 +200,8 @@ datadir_iter_new(const char *path, bool skip_first_level = true)
 	datadir_iter_t *it;
 
 	it = static_cast<datadir_iter_t *>(malloc(sizeof(datadir_iter_t)));
+	if (!it)
+		goto error;
 	memset(it, 0, sizeof(datadir_iter_t));
 
 	pthread_mutex_init(&it->mutex, NULL);
@@ -578,7 +581,6 @@ datafile_read(datafile_cur_t *cursor)
 Check to see if a file exists.
 Takes name of the file to check.
 @return true if file exists. */
-static
 bool
 file_exists(const char *filename)
 {
@@ -1442,6 +1444,13 @@ bool backup_start(CorruptedPages &corrupted_pages)
 
 	msg("Waiting for log copy thread to read lsn %llu", (ulonglong)server_lsn_after_lock);
 	backup_wait_for_lsn(server_lsn_after_lock);
+	DBUG_EXECUTE_FOR_KEY("sleep_after_waiting_for_lsn", {},
+		{
+			ulong milliseconds = strtoul(dbug_val, NULL, 10);
+			msg("sleep_after_waiting_for_lsn");
+			my_sleep(milliseconds*1000UL);
+		});
+
 	backup_fix_ddl(corrupted_pages);
 
 	// There is no need to stop slave thread before coping non-Innodb data when
@@ -1473,13 +1482,14 @@ bool backup_start(CorruptedPages &corrupted_pages)
 		if (!write_galera_info(mysql_connection)) {
 			return(false);
 		}
-		write_current_binlog_file(mysql_connection);
 	}
 
-	if (opt_binlog_info == BINLOG_INFO_ON) {
+	bool with_binlogs = opt_binlog_info == BINLOG_INFO_ON;
 
-		lock_binlog_maybe(mysql_connection);
-		write_binlog_info(mysql_connection);
+	if (with_binlogs || opt_galera_info) {
+		if (!write_current_binlog_file(mysql_connection, with_binlogs)) {
+			return(false);
+		}
 	}
 
 	if (have_flush_engine_logs && !opt_no_lock) {
@@ -1513,15 +1523,34 @@ void backup_release()
 	}
 }
 
+static const char *default_buffer_pool_file = "ib_buffer_pool";
+
+static
+const char * get_buffer_pool_filename(size_t *length)
+{
+	/* If mariabackup is run for Galera, then the file
+	name is changed to the default so that the receiving
+	node can find this file and rename it according to its
+	settings, otherwise we keep the original file name: */
+	size_t dir_length = 0;
+	const char *dst_name = default_buffer_pool_file;
+	if (!opt_galera_info) {
+		dir_length = dirname_length(buffer_pool_filename);
+		dst_name = buffer_pool_filename + dir_length;
+	}
+	if (length) {
+		*length=dir_length;
+	}
+	return dst_name;
+}
+
 /** Finish after backup_start() and backup_release() */
 bool backup_finish()
 {
 	/* Copy buffer pool dump or LRU dump */
 	if (!opt_rsync) {
 		if (buffer_pool_filename && file_exists(buffer_pool_filename)) {
-			const char *dst_name;
-
-			dst_name = trim_dotslash(buffer_pool_filename);
+			const char *dst_name = get_buffer_pool_filename(NULL);
 			copy_file(ds_data, buffer_pool_filename, dst_name, 0);
 		}
 		if (file_exists("ib_lru_dump")) {
@@ -1610,17 +1639,14 @@ ibx_copy_incremental_over_full()
 
 		/* copy buffer pool dump */
 		if (innobase_buffer_pool_filename) {
-			const char *src_name;
-
-			src_name = trim_dotslash(innobase_buffer_pool_filename);
+			const char *src_name = get_buffer_pool_filename(NULL);
 
 			snprintf(path, sizeof(path), "%s/%s",
 				xtrabackup_incremental_dir,
 				src_name);
 
 			if (file_exists(path)) {
-				copy_file(ds_data, path,
-					  innobase_buffer_pool_filename, 0);
+				copy_file(ds_data, path, src_name, 0);
 			}
 		}
 
@@ -1867,6 +1893,14 @@ copy_back()
 
 	datadir_node_init(&node);
 
+	/* If mariabackup is run for Galera, then the file
+	name is changed to the default so that the receiving
+	node can find this file and rename it according to its
+	settings, otherwise we keep the original file name: */
+	size_t dir_length;
+	const char *src_buffer_pool;
+	src_buffer_pool = get_buffer_pool_filename(&dir_length);
+
 	while (datadir_iter_next(it, &node)) {
 		const char *ext_list[] = {"backup-my.cnf",
 			"xtrabackup_binary", "xtrabackup_binlog_info",
@@ -1928,6 +1962,11 @@ copy_back()
 			continue;
 		}
 
+		/* skip buffer pool dump */
+		if (!strcmp(filename, src_buffer_pool)) {
+			continue;
+		}
+
 		/* skip innodb data files */
 		for (Tablespace::const_iterator iter(srv_sys_space.begin()),
 		       end(srv_sys_space.end()); iter != end; ++iter) {
@@ -1946,23 +1985,18 @@ copy_back()
 
 	/* copy buffer pool dump */
 
-	if (innobase_buffer_pool_filename) {
-		const char *src_name;
-		char path[FN_REFLEN];
-
-		src_name = trim_dotslash(innobase_buffer_pool_filename);
-
-		snprintf(path, sizeof(path), "%s/%s",
-			mysql_data_home,
-			src_name);
-
-		/* could be already copied with other files
-		from data directory */
-		if (file_exists(src_name) &&
-			!file_exists(innobase_buffer_pool_filename)) {
-			copy_or_move_file(src_name,
-					  innobase_buffer_pool_filename,
-					  mysql_data_home, 0);
+	if (file_exists(src_buffer_pool)) {
+		char dst_dir[FN_REFLEN];
+		while (IS_TRAILING_SLASH(buffer_pool_filename, dir_length)) {
+			dir_length--;
+		}
+		memcpy(dst_dir, buffer_pool_filename, dir_length);
+		dst_dir[dir_length] = 0;
+		if (!(ret = copy_or_move_file(src_buffer_pool,
+				src_buffer_pool,
+				dst_dir, 1)))
+		{
+			goto cleanup;
 		}
 	}
 

@@ -25,6 +25,8 @@ flush status;
 #     (select event_name from
 #       performance_schema.memory_summary_by_account_by_event_name));
 
+--enable_prepare_warnings
+
 delimiter $;
 create procedure check_instrument(in instr_name varchar(128))
 begin
@@ -273,6 +275,8 @@ begin
 end
 $
 delimiter ;$
+
+--disable_prepare_warnings
 
 # Check the configuration is ok
 show global variables like "performance_schema%";

@@ -1,0 +1,66 @@
+source include/not_embedded.inc;
+source include/have_perfschema.inc;
+
+--echo #
+--echo # MDEV-15888 Implement FLUSH TABLES tbl_name [, tbl_name] ... WITH READ LOCK for views.
+--echo #
+
+--echo #
+--echo # privilege checks with views
+--echo #
+create database mysqltest1;
+create table mysqltest1.t1 (a int);
+create user u1@localhost;
+grant reload on *.* to u1@localhost;
+grant select on mysqltest1.* to u1@localhost;
+connect u1,localhost,u1;
+error ER_DBACCESS_DENIED_ERROR;
+flush tables mysqltest1.t1 for export;
+create view v as select * from mysqltest1.t1;
+create view v2 as select * from v;
+create view v3 as select * from (select * from mysqltest1.t1) x;
+error ER_DBACCESS_DENIED_ERROR;
+flush tables v for export;
+error ER_DBACCESS_DENIED_ERROR;
+flush tables v2 for export;
+error ER_DBACCESS_DENIED_ERROR;
+flush tables v3 for export;
+disconnect u1;
+connection default;
+drop database mysqltest1;
+drop view v, v2, v3;
+drop user u1@localhost;
+
+--echo #
+--echo # MDEV-25906: SIGSEGV in flush_tables_with_read_lock on FTWRL or FTFE | SIGSEGV in ha_maria::extra
+--echo #
+CREATE VIEW v0 AS SELECT * FROM information_schema.columns; # Aria
+CREATE VIEW v1 AS SELECT * FROM information_schema.collations; # Heap
+CREATE VIEW v2 AS SELECT * FROM performance_schema.accounts;
+
+--disable_abort_on_error
+--echo #
+--echo # first try to flush tables directly
+--echo #
+FLUSH TABLE information_schema.collations WITH READ LOCK;
+FLUSH TABLE performance_schema.accounts WITH READ LOCK;
+FLUSH TABLE information_schema.colums WITH READ LOCK;
+FLUSH TABLE information_schema.collations FOR EXPORT;
+FLUSH TABLE performance_schema.accounts FOR EXPORT;
+FLUSH TABLE information_schema.colums FOR EXPORT;
+
+--echo #
+--echo # and now via views
+--echo #
+FLUSH TABLE v0 WITH READ LOCK;
+FLUSH TABLE v1 WITH READ LOCK;
+FLUSH TABLE v2 WITH READ LOCK;
+FLUSH TABLE v0 FOR EXPORT;
+FLUSH TABLE v1 FOR EXPORT;
+FLUSH TABLE v2 FOR EXPORT;
+--enable_abort_on_error
+DROP VIEW v0, v1, v2;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

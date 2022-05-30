@@ -23,7 +23,7 @@
     (defined(__alpha__) && defined(__GNUC__))
 #define HAVE_STACKTRACE 1
 #endif
-#elif defined(__WIN__) || defined(HAVE_PRINTSTACK)
+#elif defined(_WIN32) || defined(HAVE_PRINTSTACK)
 #define HAVE_STACKTRACE 1
 #endif
 
@@ -49,12 +49,12 @@ void my_write_core(int sig);
 # if BACKTRACE_DEMANGLE
 char *my_demangle(const char *mangled_name, int *status);
 # endif /* BACKTRACE_DEMANGLE */
-# ifdef __WIN__
+# ifdef _WIN32
 #  define my_setup_stacktrace()
 void my_set_exception_pointers(EXCEPTION_POINTERS *ep);
 # else
 void my_setup_stacktrace(void);
-# endif /* __WIN__ */
+# endif /* _WIN32 */
 #else
 # define my_setup_stacktrace()
 #endif /* ! (defined(HAVE_STACKTRACE) || defined(HAVE_BACKTRACE)) */

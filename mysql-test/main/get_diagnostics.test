@@ -331,12 +331,10 @@ DROP PROCEDURE p1;
 --echo #
 
 --echo
---echo # GET DIAGNOSTICS cannot be the object of a PREPARE statement.
+--echo # GET DIAGNOSTICS can be the object of a PREPARE statement.
 --echo
 
---error ER_UNSUPPORTED_PS
 PREPARE stmt FROM "GET DIAGNOSTICS CONDITION 1 @var = CLASS_ORIGIN";
---error ER_UNSUPPORTED_PS
 PREPARE stmt FROM "GET DIAGNOSTICS @var = NUMBER";
 
 --echo
@@ -853,3 +851,12 @@ FLUSH STATUS;
 SHOW STATUS LIKE 'Com%get_diagnostics';
 GET DIAGNOSTICS @var1 = NUMBER;
 SHOW STATUS LIKE 'Com%get_diagnostics';
+
+--echo #
+--echo # MDEV-26695: Number of an invalid row is not calculated for table value constructor
+--echo #
+
+CREATE TABLE t1 (a CHAR(1)) VALUES ('a'),('b'),('foo');
+CREATE TABLE t2 (a char(1)) VALUES ('a'),('b') UNION VALUES ('foo');
+
+DROP TABLE t1, t2;

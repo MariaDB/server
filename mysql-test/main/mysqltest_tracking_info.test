@@ -84,4 +84,10 @@ SET SESSION session_track_system_variables=NULL;
 #--disable_session_track_info
 #set @@session.session_track_user_variables=0;
 
+#--echo #
+#--echo # MDEV-22709 Assertion `store.length() <= (256L*256L*256L-1)' failed in net_send_ok
+#--echo #
+#SET SESSION session_track_user_variables=1;
+#SET @inserted_value=REPEAT(1,16777180);  # Only crashes when >=16777180 (max = 16777216)
+
 --echo # End of 10.5 tests

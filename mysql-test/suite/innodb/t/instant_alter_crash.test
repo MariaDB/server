@@ -55,7 +55,6 @@ ALTER TABLE t2 DROP COLUMN c3, ADD COLUMN c5 TEXT DEFAULT 'naturam abhorrere';
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR ddl';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
-SET debug_dbug='+d,dict_sys_mutex_avoid';
 UPDATE t1 SET c2=c2+1;
 
 --source include/kill_mysqld.inc
@@ -84,7 +83,6 @@ ALTER TABLE t2 ADD COLUMN (c4 TEXT NOT NULL DEFAULT ' et malorum');
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR ddl';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
-SET debug_dbug='+d,dict_sys_mutex_avoid';
 DELETE FROM t1;
 
 --source include/kill_mysqld.inc
@@ -191,7 +189,6 @@ ALTER TABLE t3 ADD COLUMN c3 TEXT NOT NULL DEFAULT 'sic transit gloria mundi';
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR ddl';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
-SET debug_dbug='+d,dict_sys_mutex_avoid';
 INSERT INTO t1 VALUES(0,0);
 
 --source include/kill_mysqld.inc

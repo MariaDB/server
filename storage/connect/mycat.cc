@@ -62,10 +62,10 @@
 #include "tabvct.h"
 #endif   // VCT_SUPPORT
 #include "tabsys.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include "tabmac.h"
 #include "tabwmi.h"
-#endif   // __WIN__
+#endif   // _WIN32
 //#include "tabtbl.h"
 #include "tabxcl.h"
 #include "tabtbl.h"
@@ -105,9 +105,9 @@
 /***********************************************************************/
 /*  Extern static variables.                                           */
 /***********************************************************************/
-#if defined(__WIN__)
+#if defined(_WIN32)
 extern "C" HINSTANCE s_hModule;           // Saved module handle
-#endif  // !__WIN__
+#endif  // !_WIN32
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
 bool MongoEnabled(void);
 #endif   // JAVA_SUPPORT || CMGO_SUPPORT
@@ -122,6 +122,15 @@ char *GetPluginDir(void)
 {
   return opt_plugin_dir;
 } // end of GetPluginDir
+
+/***********************************************************************/
+/*  Get the lc_messages_dir, it is where error messages for various    */
+/*  languages are installed, and by default the INSTALL_MYSQLSHAREDIR. */
+/***********************************************************************/
+char *GetMessageDir(void)
+{
+  return lc_messages_dir;
+} // end of GetMessageDir
 
 /***********************************************************************/
 /*  Get a unique enum table type ID.                                   */
@@ -152,10 +161,10 @@ TABTYPE GetTypeID(const char *type)
                  : (!stricmp(type, "MYSQL")) ? TAB_MYSQL
                  : (!stricmp(type, "MYPRX")) ? TAB_MYSQL
                  : (!stricmp(type, "DIR"))   ? TAB_DIR
-#if defined(__WIN__)
+#if defined(_WIN32)
                  : (!stricmp(type, "MAC"))   ? TAB_MAC
                  : (!stricmp(type, "WMI"))   ? TAB_WMI
-#endif   // __WIN__
+#endif   // _WIN32
                  : (!stricmp(type, "TBL"))   ? TAB_TBL
                  : (!stricmp(type, "XCOL"))  ? TAB_XCL
                  : (!stricmp(type, "OCCUR")) ? TAB_OCCUR
@@ -374,11 +383,11 @@ uint GetFuncID(const char *func)
 /***********************************************************************/
 CATALOG::CATALOG(void)
   {
-#if defined(__WIN__)
+#if defined(_WIN32)
 //DataPath= ".\\";
-#else   // !__WIN__
+#else   // !_WIN32
 //DataPath= "./";
-#endif  // !__WIN__
+#endif  // !_WIN32
   memset(&Ctb, 0, sizeof(CURTAB));
   Cbuf= NULL;
   Cblen= 0;
@@ -472,10 +481,10 @@ PTABDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
 #if defined(JAVA_SUPPORT)
     case TAB_JDBC: tdp= new(g) JDBCDEF; break;
 #endif   // JAVA_SUPPORT
-#if defined(__WIN__)
+#if defined(_WIN32)
     case TAB_MAC: tdp= new(g) MACDEF;   break;
     case TAB_WMI: tdp= new(g) WMIDEF;   break;
-#endif   // __WIN__
+#endif   // _WIN32
     case TAB_OEM: tdp= new(g) OEMDEF;   break;
     case TAB_TBL: tdp= new(g) TBLDEF;   break;
     case TAB_XCL: tdp= new(g) XCLDEF;   break;

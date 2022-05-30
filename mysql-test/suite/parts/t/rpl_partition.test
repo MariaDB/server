@@ -74,7 +74,7 @@ BEGIN
      SET ins_count = ins_count - 1;
    END WHILE;
    
-   SELECT MAX(id) FROM t1 INTO del_count;
+   SELECT MAX(id) INTO del_count FROM t1;
    WHILE del_count > 0 DO
      DELETE FROM t1 WHERE id = del_count;
      SET del_count = del_count - 2;
@@ -99,7 +99,7 @@ BEGIN
      SET ins_count = ins_count - 1;
    END WHILE;
    
-   SELECT MAX(id) FROM t2 INTO del_count;
+   SELECT MAX(id) INTO del_count FROM t2;
    WHILE del_count > 0 DO
      DELETE FROM t2 WHERE id = del_count;
      SET del_count = del_count - 2;
@@ -124,7 +124,7 @@ BEGIN
      SET ins_count = ins_count - 1;
    END WHILE;
 
-   SELECT MAX(id) FROM t3 INTO del_count;
+   SELECT MAX(id) INTO del_count FROM t3;
    WHILE del_count > 0 DO
      DELETE FROM t3 WHERE id = del_count;
    SET del_count = del_count - 2;

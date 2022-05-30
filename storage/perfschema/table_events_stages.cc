@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2018, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -49,18 +49,18 @@ table_events_stages_current::m_share=
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_stages_current("
-                      "THREAD_ID BIGINT unsigned not null,"
-                      "EVENT_ID BIGINT unsigned not null,"
-                      "END_EVENT_ID BIGINT unsigned,"
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "SOURCE VARCHAR(64),"
-                      "TIMER_START BIGINT unsigned,"
-                      "TIMER_END BIGINT unsigned,"
-                      "TIMER_WAIT BIGINT unsigned,"
-                      "WORK_COMPLETED BIGINT unsigned,"
-                      "WORK_ESTIMATED BIGINT unsigned,"
-                      "NESTING_EVENT_ID BIGINT unsigned,"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT'))") },
+                      "THREAD_ID BIGINT unsigned not null comment 'Thread associated with the event. Together with EVENT_ID uniquely identifies the row.',"
+                      "EVENT_ID BIGINT unsigned not null comment 'Thread''s current event number at the start of the event. Together with THREAD_ID uniquely identifies the row.',"
+                      "END_EVENT_ID BIGINT unsigned comment 'NULL when the event starts, set to the thread''s current event number at the end of the event.',"
+                      "EVENT_NAME VARCHAR(128) not null comment 'Event instrument name and a NAME from the setup_instruments table',"
+                      "SOURCE VARCHAR(64) comment 'Name and line number of the source file containing the instrumented code that produced the event.',"
+                      "TIMER_START BIGINT unsigned comment 'Value in picoseconds when the event timing started or NULL if timing is not collected.',"
+                      "TIMER_END BIGINT unsigned comment 'Value in picoseconds when the event timing ended, or NULL if the event has not ended or timing is not collected.',"
+                      "TIMER_WAIT BIGINT unsigned comment 'Value in picoseconds of the event''s duration or NULL if the event has not ended or timing is not collected.',"
+                      "WORK_COMPLETED BIGINT unsigned comment 'The number of work units completed for the stage. NULL if the stage event progress is not instrumented.',"
+                      "WORK_ESTIMATED BIGINT unsigned comment 'The number of work units expected for the stage. NULL if the stage event progress is not instrumented.',"
+                      "NESTING_EVENT_ID BIGINT unsigned comment 'EVENT_ID of event within which this event nests.',"
+                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'Nesting event type. Either transaction, statement, stage or wait.')") },
   false  /* perpetual */
 };
 
@@ -78,18 +78,18 @@ table_events_stages_history::m_share=
   sizeof(pos_events_stages_history), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_stages_history("
-                      "THREAD_ID BIGINT unsigned not null,"
-                      "EVENT_ID BIGINT unsigned not null,"
-                      "END_EVENT_ID BIGINT unsigned,"
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "SOURCE VARCHAR(64),"
-                      "TIMER_START BIGINT unsigned,"
-                      "TIMER_END BIGINT unsigned,"
-                      "TIMER_WAIT BIGINT unsigned,"
-                      "WORK_COMPLETED BIGINT unsigned,"
-                      "WORK_ESTIMATED BIGINT unsigned,"
-                      "NESTING_EVENT_ID BIGINT unsigned,"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT'))") },
+                      "THREAD_ID BIGINT unsigned not null comment 'Thread associated with the event. Together with EVENT_ID uniquely identifies the row.',"
+                      "EVENT_ID BIGINT unsigned not null comment 'Thread''s current event number at the start of the event. Together with THREAD_ID uniquely identifies the row.',"
+                      "END_EVENT_ID BIGINT unsigned comment 'NULL when the event starts, set to the thread''s current event number at the end of the event.',"
+                      "EVENT_NAME VARCHAR(128) not null comment 'Event instrument name and a NAME from the setup_instruments table',"
+                      "SOURCE VARCHAR(64) comment 'Name and line number of the source file containing the instrumented code that produced the event.',"
+                      "TIMER_START BIGINT unsigned comment 'Value in picoseconds when the event timing started or NULL if timing is not collected.',"
+                      "TIMER_END BIGINT unsigned comment 'Value in picoseconds when the event timing ended, or NULL if the event has not ended or timing is not collected.',"
+                      "TIMER_WAIT BIGINT unsigned comment 'Value in picoseconds of the event''s duration or NULL if the event has not ended or timing is not collected.',"
+                      "WORK_COMPLETED BIGINT unsigned comment 'The number of work units completed for the stage. NULL if the stage event progress is not instrumented.',"
+                      "WORK_ESTIMATED BIGINT unsigned comment 'The number of work units expected for the stage. NULL if the stage event progress is not instrumented.',"
+                      "NESTING_EVENT_ID BIGINT unsigned comment 'EVENT_ID of event within which this event nests.',"
+                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'Nesting event type. Either transaction, statement, stage or wait.')") },
   false  /* perpetual */
 };
 
@@ -107,18 +107,18 @@ table_events_stages_history_long::m_share=
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_stages_history_long("
-                      "THREAD_ID BIGINT unsigned not null,"
-                      "EVENT_ID BIGINT unsigned not null,"
-                      "END_EVENT_ID BIGINT unsigned,"
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "SOURCE VARCHAR(64),"
-                      "TIMER_START BIGINT unsigned,"
-                      "TIMER_END BIGINT unsigned,"
-                      "TIMER_WAIT BIGINT unsigned,"
-                      "WORK_COMPLETED BIGINT unsigned,"
-                      "WORK_ESTIMATED BIGINT unsigned,"
-                      "NESTING_EVENT_ID BIGINT unsigned,"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT'))") },
+                      "THREAD_ID BIGINT unsigned not null comment 'Thread associated with the event. Together with EVENT_ID uniquely identifies the row.',"
+                      "EVENT_ID BIGINT unsigned not null comment 'Thread''s current event number at the start of the event. Together with THREAD_ID uniquely identifies the row.',"
+                      "END_EVENT_ID BIGINT unsigned comment 'NULL when the event starts, set to the thread''s current event number at the end of the event.',"
+                      "EVENT_NAME VARCHAR(128) not null comment 'Event instrument name and a NAME from the setup_instruments table',"
+                      "SOURCE VARCHAR(64) comment 'Name and line number of the source file containing the instrumented code that produced the event.',"
+                      "TIMER_START BIGINT unsigned comment 'Value in picoseconds when the event timing started or NULL if timing is not collected.',"
+                      "TIMER_END BIGINT unsigned comment 'Value in picoseconds when the event timing ended, or NULL if the event has not ended or timing is not collected.',"
+                      "TIMER_WAIT BIGINT unsigned comment 'Value in picoseconds of the event''s duration or NULL if the event has not ended or timing is not collected.',"
+                      "WORK_COMPLETED BIGINT unsigned comment 'The number of work units completed for the stage. NULL if the stage event progress is not instrumented.',"
+                      "WORK_ESTIMATED BIGINT unsigned comment 'The number of work units expected for the stage. NULL if the stage event progress is not instrumented.',"
+                      "NESTING_EVENT_ID BIGINT unsigned comment 'EVENT_ID of event within which this event nests.',"
+                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'Nesting event type. Either transaction, statement, stage or wait.')") },
   false  /* perpetual */
 };
 
@@ -193,7 +193,7 @@ int table_events_stages_common::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 2);
+  assert(table->s->null_bytes == 2);
   buf[0]= 0;
   buf[1]= 0;
 
@@ -264,7 +264,7 @@ int table_events_stages_common::read_row_values(TABLE *table,
           f->set_null();
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }
@@ -413,10 +413,10 @@ int table_events_stages_history::rnd_pos(const void *pos)
   PFS_thread *pfs_thread;
   PFS_events_stages *stage;
 
-  DBUG_ASSERT(events_stages_history_per_thread != 0);
+  assert(events_stages_history_per_thread != 0);
   set_position(pos);
 
-  DBUG_ASSERT(m_pos.m_index_2 < events_stages_history_per_thread);
+  assert(m_pos.m_index_2 < events_stages_history_per_thread);
 
   pfs_thread= global_thread_container.get(m_pos.m_index_1);
   if (pfs_thread != NULL)

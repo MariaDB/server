@@ -421,7 +421,7 @@ static bool disable_execute_entry(uint entry_pos)
   uchar buff[1];
   DBUG_ENTER("disable_execute_entry");
 
-  buff[0]= DDL_IGNORE_LOG_ENTRY_CODE;
+  buff[0]= DDL_LOG_IGNORE_ENTRY_CODE;
   DBUG_RETURN(mysql_file_pwrite(global_ddl_log.file_id, buff, sizeof(buff),
                                 global_ddl_log.io_size * entry_pos +
                                 DDL_LOG_ENTRY_TYPE_POS,
@@ -858,7 +858,7 @@ static bool ddl_log_increment_phase_no_lock(uint entry_pos)
       if (ddl_log_entry_phases[action] <= phase)
       {
         DBUG_ASSERT(phase == ddl_log_entry_phases[action]);
-        /* Same effect as setting DDL_IGNORE_LOG_ENTRY_CODE */
+        /* Same effect as setting DDL_LOG_IGNORE_ENTRY_CODE */
         phase= DDL_LOG_FINAL_PHASE;
       }
       file_entry_buf[DDL_LOG_PHASE_POS]= phase;
@@ -910,9 +910,10 @@ public:
   int handled_errors;
   int unhandled_errors;
   int first_error;
+  bool only_ignore_non_existing_errors;
 
   ddl_log_error_handler() : handled_errors(0), unhandled_errors(0),
-                            first_error(0)
+                            first_error(0), only_ignore_non_existing_errors(0)
   {}
 
   bool handle_condition(THD *thd,
@@ -923,8 +924,10 @@ public:
                         Sql_condition ** cond_hdl)
   {
     *cond_hdl= NULL;
-    if (non_existing_table_error(sql_errno) || sql_errno == EE_LINK ||
-        sql_errno == EE_DELETE || sql_errno == ER_TRG_NO_DEFINER)
+    if (non_existing_table_error(sql_errno) ||
+        (!only_ignore_non_existing_errors &&
+         (sql_errno == EE_LINK ||
+          sql_errno == EE_DELETE || sql_errno == ER_TRG_NO_DEFINER)))
     {
       handled_errors++;
       return TRUE;
@@ -936,7 +939,6 @@ public:
       unhandled_errors++;
     return FALSE;
   }
-
   bool safely_trapped_errors()
   {
     return (handled_errors > 0 && unhandled_errors == 0);
@@ -1306,7 +1308,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
               ddl_log_entry->from_name.str,
               ddl_log_entry->tmp_name.str));
 
-  if (ddl_log_entry->entry_type == DDL_IGNORE_LOG_ENTRY_CODE ||
+  if (ddl_log_entry->entry_type == DDL_LOG_IGNORE_ENTRY_CODE ||
       ddl_log_entry->phase == DDL_LOG_FINAL_PHASE)
     DBUG_RETURN(FALSE);
 
@@ -1421,7 +1423,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       (void) file->ha_rename_table(ddl_log_entry->tmp_name.str,
                                    ddl_log_entry->name.str);
       /* disable the entry and sync */
-      file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]= DDL_IGNORE_LOG_ENTRY_CODE;
+      file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]= DDL_LOG_IGNORE_ENTRY_CODE;
       (void) write_ddl_log_file_entry(entry_pos);
       (void) ddl_log_sync_no_lock();
       break;
@@ -1537,7 +1539,10 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     case DDL_DROP_PHASE_TABLE:
       if (hton)
       {
-        if ((error= hton->drop_table(hton, path.str)))
+        no_such_table_handler.only_ignore_non_existing_errors= 1;
+        error= hton->drop_table(hton, path.str);
+        no_such_table_handler.only_ignore_non_existing_errors= 0;
+        if (error)
         {
           if (!non_existing_table_error(error))
             break;
@@ -2285,6 +2290,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
 
 end:
   delete file;
+  /* We are only interested in errors that where not ignored */
   if ((error= (no_such_table_handler.unhandled_errors > 0)))
     my_errno= no_such_table_handler.first_error;
   thd->pop_internal_handler();
@@ -2400,7 +2406,7 @@ static bool ddl_log_execute_entry_no_lock(THD *thd, uint first_entry)
       break;
     }
     DBUG_ASSERT(ddl_log_entry.entry_type == DDL_LOG_ENTRY_CODE ||
-                ddl_log_entry.entry_type == DDL_IGNORE_LOG_ENTRY_CODE);
+                ddl_log_entry.entry_type == DDL_LOG_IGNORE_ENTRY_CODE);
 
     if (ddl_log_execute_action(thd, &mem_root, &ddl_log_entry))
     {
@@ -2478,11 +2484,11 @@ bool ddl_log_write_entry(DDL_LOG_ENTRY *ddl_log_entry,
 
   if (unlikely(write_ddl_log_file_entry((*active_entry)->entry_pos)))
   {
+    sql_print_error("DDL_LOG: Failed to write entry %u",
+                    (*active_entry)->entry_pos);
     ddl_log_release_memory_entry(*active_entry);
     *active_entry= 0;
     error= TRUE;
-    sql_print_error("DDL_LOG: Failed to write entry %u",
-                    (*active_entry)->entry_pos);
   }
   DBUG_RETURN(error);
 }
@@ -2539,13 +2545,13 @@ bool ddl_log_write_execute_entry(uint first_entry,
  }
   if (write_ddl_log_file_entry((*active_entry)->entry_pos))
   {
+    sql_print_error("DDL_LOG: Error writing execute entry %u",
+                    (*active_entry)->entry_pos);
     if (got_free_entry)
     {
       ddl_log_release_memory_entry(*active_entry);
       *active_entry= 0;
     }
-    sql_print_error("DDL_LOG: Error writing execute entry %u",
-                    (*active_entry)->entry_pos);
     DBUG_RETURN(TRUE);
   }
   (void) ddl_log_sync_no_lock();
@@ -2902,23 +2908,24 @@ void ddl_log_complete(DDL_LOG_STATE *state)
   This is called for failed rename table, create trigger or drop trigger.
 */
 
-void ddl_log_revert(THD *thd, DDL_LOG_STATE *state)
+bool ddl_log_revert(THD *thd, DDL_LOG_STATE *state)
 {
+  bool res= 0;
   DBUG_ENTER("ddl_log_revert");
 
   if (unlikely(!state->list))
-    DBUG_VOID_RETURN;                           // ddl log not used
+    DBUG_RETURN(0);                             // ddl log not used
 
   mysql_mutex_lock(&LOCK_gdl);
   if (likely(state->execute_entry))
   {
-    ddl_log_execute_entry_no_lock(thd, state->list->entry_pos);
+    res= ddl_log_execute_entry_no_lock(thd, state->list->entry_pos);
     ddl_log_disable_execute_entry(&state->execute_entry);
   }
   ddl_log_release_entries(state);
   mysql_mutex_unlock(&LOCK_gdl);
   state->list= 0;
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(res);
 }
 
 
@@ -3123,6 +3130,16 @@ bool ddl_log_drop_view_init(THD *thd, DDL_LOG_STATE *ddl_state,
   return ddl_log_drop_init(thd, ddl_state, DDL_LOG_DROP_INIT_ACTION,
                            db, &empty_clex_str);
 }
+
+
+/**
+   Log DROP TABLE to the ddl log.
+
+   This code does not call ddl_log_write() as we want the events to
+   be stored in call order instead of reverse order, which is the normal
+   case for all other events.
+   See also comment before ddl_log_drop_init().
+*/
 
 static bool ddl_log_drop(THD *thd, DDL_LOG_STATE *ddl_state,
                          ddl_log_action_code action_code,

@@ -69,7 +69,6 @@ drop table t1;
 
 create table t1 (a int, b int) engine=aria select seq as a,seq+10 as b from seq_1_to_10;
 lock table t1 write;
---error ER_OPEN_AS_READONLY
 alter table t1 add column c int, engine=s3;
 unlock tables;
 select count(*), sum(a), sum(b), sum(c) from t1;

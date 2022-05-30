@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -38,7 +38,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "ilist.h"
 
 #include <vector>
-#include <set>
 
 // Forward declaration
 struct mtr_t;
@@ -79,7 +78,7 @@ void trx_free_at_shutdown(trx_t *trx);
 void trx_disconnect_prepared(trx_t *trx);
 
 /** Initialize (resurrect) transactions at startup. */
-void trx_lists_init_at_db_start();
+dberr_t trx_lists_init_at_db_start();
 
 /*************************************************************//**
 Starts the transaction if it is not yet started. */
@@ -96,18 +95,11 @@ trx_start_if_not_started_low(
 	trx_t*	trx,		/*!< in/out: transaction */
 	bool	read_write);	/*!< in: true if read write transaction */
 
-/*************************************************************//**
-Starts a transaction for internal processing. */
-void
-trx_start_internal_low(
-/*===================*/
-	trx_t*	trx);		/*!< in/out: transaction */
-
-/** Starts a read-only transaction for internal processing.
-@param[in,out] trx	transaction to be started */
-void
-trx_start_internal_read_only_low(
-	trx_t*	trx);
+/**
+Start a transaction for internal processing.
+@param trx          transaction
+@param read_write   whether writes may be performed */
+void trx_start_internal_low(trx_t *trx, bool read_write);
 
 #ifdef UNIV_DEBUG
 #define trx_start_if_not_started_xa(t, rw)			\
@@ -128,24 +120,20 @@ trx_start_internal_read_only_low(
 	do {							\
 	(t)->start_line = __LINE__;				\
 	(t)->start_file = __FILE__;				\
-	trx_start_internal_low((t));				\
+	trx_start_internal_low(t, true);			\
 	} while (false)
-
 #define trx_start_internal_read_only(t)				\
 	do {							\
 	(t)->start_line = __LINE__;				\
 	(t)->start_file = __FILE__;				\
-	trx_start_internal_read_only_low(t);			\
+	trx_start_internal_low(t, false);			\
 	} while (false)
 #else
 #define trx_start_if_not_started(t, rw)				\
 	trx_start_if_not_started_low((t), rw)
 
-#define trx_start_internal(t)					\
-	trx_start_internal_low((t))
-
-#define trx_start_internal_read_only(t)				\
-	trx_start_internal_read_only_low(t)
+#define trx_start_internal(t) trx_start_internal_low(t, true)
+#define trx_start_internal_read_only(t) trx_start_internal_low(t, false)
 
 #define trx_start_if_not_started_xa(t, rw)			\
 	trx_start_if_not_started_xa_low((t), (rw))
@@ -354,6 +342,38 @@ struct trx_lock_t
   1=another transaction chose this as a victim in deadlock resolution. */
   Atomic_relaxed<byte> was_chosen_as_deadlock_victim;
 
+  /** Clear the deadlock victim status. */
+  void clear_deadlock_victim()
+  {
+#ifndef WITH_WSREP
+    was_chosen_as_deadlock_victim= false;
+#elif defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    /* There is no 8-bit version of the 80386 BTR instruction.
+    Technically, this is the wrong addressing mode (16-bit), but
+    there are other data members stored after the byte. */
+    __asm__ __volatile__("lock btrw $0, %0"
+                         : "+m" (was_chosen_as_deadlock_victim));
+#else
+    was_chosen_as_deadlock_victim.fetch_and(byte(~1));
+#endif
+  }
+
+#ifdef WITH_WSREP
+  /** Flag the lock owner as a victim in Galera conflict resolution. */
+  void set_wsrep_victim()
+  {
+# if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    /* There is no 8-bit version of the 80386 BTS instruction.
+    Technically, this is the wrong addressing mode (16-bit), but
+    there are other data members stored after the byte. */
+    __asm__ __volatile__("lock btsw $1, %0"
+                         : "+m" (was_chosen_as_deadlock_victim));
+# else
+    was_chosen_as_deadlock_victim.fetch_or(2);
+# endif
+  }
+#endif
+
   /** Next available rec_pool[] entry */
   byte rec_cached;
   /** Next available table_pool[] entry */
@@ -367,13 +387,13 @@ struct trx_lock_t
 					only be modified by the thread that is
 					serving the running transaction. */
 
-	/** Pre-allocated record locks */
-	struct {
-		ib_lock_t lock; byte pad[256];
-	} rec_pool[8];
+  /** Pre-allocated record locks */
+  struct {
+    alignas(CPU_LEVEL1_DCACHE_LINESIZE) ib_lock_t lock;
+  } rec_pool[8];
 
-	/** Pre-allocated table locks */
-	ib_lock_t	table_pool[8];
+  /** Pre-allocated table locks */
+  ib_lock_t table_pool[8];
 
   /** Memory heap for trx_locks. Protected by lock_sys.assert_locked()
   and lock_sys.is_writer() || trx->mutex_is_owner(). */
@@ -412,7 +432,8 @@ class trx_mod_table_time_t
 
   /** First modification of the table, possibly ORed with BULK */
   undo_no_t first;
-  /** First modification of a system versioned column (or NONE) */
+  /** First modification of a system versioned column
+  (NONE= no versioning, BULK= the table was dropped) */
   undo_no_t first_versioned= NONE;
 public:
   /** Constructor
@@ -427,15 +448,24 @@ public:
   { auto f= first & LIMIT; return f <= first_versioned && f <= rows; }
 #endif /* UNIV_DEBUG */
   /** @return if versioned columns were modified */
-  bool is_versioned() const { return first_versioned != NONE; }
+  bool is_versioned() const { return (~first_versioned & LIMIT) != 0; }
+  /** @return if the table was dropped */
+  bool is_dropped() const { return first_versioned == BULK; }
 
   /** After writing an undo log record, set is_versioned() if needed
   @param rows   number of modified rows so far */
   void set_versioned(undo_no_t rows)
   {
-    ut_ad(!is_versioned());
+    ut_ad(first_versioned == NONE);
     first_versioned= rows;
     ut_ad(valid(rows));
+  }
+
+  /** After writing an undo log record, note that the table will be dropped */
+  void set_dropped()
+  {
+    ut_ad(first_versioned == NONE);
+    first_versioned= BULK;
   }
 
   /** Notify the start of a bulk insert operation */
@@ -492,7 +522,7 @@ no longer be associated with a session when the server is restarted.
 
 A session may be served by at most one thread at a time. The serving
 thread of a session might change in some MySQL implementations.
-Therefore we do not have os_thread_get_curr_id() assertions in the code.
+Therefore we do not have pthread_self() assertions in the code.
 
 Normally, only the thread that is currently associated with a running
 transaction may access (read and modify) the trx object, and it may do
@@ -520,10 +550,6 @@ struct trx_undo_ptr_t {
 					yet */
 	trx_undo_t*	undo;		/*!< pointer to the undo log, or
 					NULL if nothing logged yet */
-	trx_undo_t*     old_insert;	/*!< pointer to recovered
-					insert undo log, or NULL if no
-					INSERT transactions were
-					recovered from old-format undo logs */
 };
 
 /** An instance of temporary rollback segment. */
@@ -557,6 +583,7 @@ private:
     that it is no longer "active".
   */
 
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE)
   Atomic_counter<int32_t> n_ref;
 
 
@@ -571,10 +598,10 @@ public:
 private:
   /** mutex protecting state and some of lock
   (some are protected by lock_sys.latch) */
-  srw_mutex mutex;
+  srw_spin_mutex mutex;
 #ifdef UNIV_DEBUG
   /** The owner of mutex (0 if none); protected by mutex */
-  std::atomic<os_thread_id_t> mutex_owner{0};
+  std::atomic<pthread_t> mutex_owner{0};
 #endif /* UNIV_DEBUG */
 public:
   void mutex_init() { mutex.init(); }
@@ -585,22 +612,25 @@ public:
   {
     ut_ad(!mutex_is_owner());
     mutex.wr_lock();
-    ut_ad(!mutex_owner.exchange(os_thread_get_curr_id(),
+    ut_ad(!mutex_owner.exchange(pthread_self(),
                                 std::memory_order_relaxed));
   }
   /** Release the mutex */
   void mutex_unlock()
   {
     ut_ad(mutex_owner.exchange(0, std::memory_order_relaxed)
-	  == os_thread_get_curr_id());
+	  == pthread_self());
     mutex.wr_unlock();
   }
+#ifndef SUX_LOCK_GENERIC
+  bool mutex_is_locked() const noexcept { return mutex.is_locked(); }
+#endif
 #ifdef UNIV_DEBUG
   /** @return whether the current thread holds the mutex */
   bool mutex_is_owner() const
   {
     return mutex_owner.load(std::memory_order_relaxed) ==
-      os_thread_get_curr_id();
+      pthread_self();
   }
 #endif /* UNIV_DEBUG */
 
@@ -669,7 +699,7 @@ public:
 
   /** The locks of the transaction. Protected by lock_sys.latch
   (insertions also by trx_t::mutex). */
-  trx_lock_t lock;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) trx_lock_t lock;
 
 #ifdef WITH_WSREP
   /** whether wsrep_on(mysql_thd) held at the start of transaction */
@@ -736,13 +766,15 @@ public:
 					flush the log in
 					trx_commit_complete_for_mysql() */
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
-	bool		dict_operation;	/**< whether this modifies InnoDB
-					data dictionary */
-	ib_uint32_t	dict_operation_lock_mode;
-					/*!< 0, RW_S_LATCH, or RW_X_LATCH:
-					the latch mode trx currently holds
-					on dict_sys.latch. Protected
-					by dict_sys.latch. */
+  /** whether this modifies InnoDB dictionary tables */
+  bool dict_operation;
+#ifdef UNIV_DEBUG
+  /** copy of dict_operation during commit() */
+  bool was_dict_operation;
+#endif
+	/** whether dict_sys.latch is held exclusively; protected by
+	dict_sys.latch */
+	bool dict_operation_lock_mode;
 
 	/** wall-clock time of the latest transition to TRX_STATE_ACTIVE;
 	used for diagnostic purposes only */
@@ -833,6 +865,10 @@ public:
 	bool		auto_commit;	/*!< true if it is an autocommit */
 	bool		will_lock;	/*!< set to inform trx_start_low() that
 					the transaction may acquire locks */
+	/* True if transaction has to read the undo log and
+	log the DML changes for online DDL table */
+	bool		apply_online_log = false;
+
 	/*------------------------------*/
 	fts_trx_t*	fts_trx;	/*!< FTS information, or NULL if
 					transaction hasn't modified tables
@@ -843,18 +879,12 @@ public:
 					count of tables being flushed. */
 
 	/*------------------------------*/
-	bool		internal;	/*!< true if it is a system/internal
-					transaction background task. This
-					includes DDL transactions too.  Such
-					transactions are always treated as
-					read-write. */
-	/*------------------------------*/
 #ifdef UNIV_DEBUG
 	unsigned	start_line;	/*!< Track where it was started from */
 	const char*	start_file;	/*!< Filename where it was started */
 #endif /* UNIV_DEBUG */
 
-	XID*		xid;		/*!< X/Open XA transaction
+	XID		xid;		/*!< X/Open XA transaction
 					identification to identify a
 					transaction branch */
 	trx_mod_tables_t mod_tables;	/*!< List of tables that were modified
@@ -876,13 +906,6 @@ public:
 	bool has_logged() const
 	{
 		return(has_logged_persistent() || rsegs.m_noredo.undo);
-	}
-
-	/** @return whether any undo log has been generated or
-	recovered */
-	bool has_logged_or_recovered() const
-	{
-		return(has_logged() || rsegs.m_redo.old_insert);
 	}
 
 	/** @return rollback segment for modifying temporary tables */
@@ -919,16 +942,41 @@ public:
   @retval false if the rollback was aborted by shutdown */
   inline bool rollback_finish();
 private:
+  /** Apply any changes to tables for which online DDL is in progress. */
+  ATTRIBUTE_COLD void apply_log();
   /** Process tables that were modified by the committing transaction. */
   inline void commit_tables();
-  /** Mark a transaction committed in the main memory data structures. */
+  /** Mark a transaction committed in the main memory data structures.
+  @param mtr  mini-transaction (if there are any persistent modifications) */
   inline void commit_in_memory(const mtr_t *mtr);
+  /** Write log for committing the transaction. */
+  void commit_persist();
+  /** Clean up the transaction after commit_in_memory() */
+  void commit_cleanup();
   /** Commit the transaction in a mini-transaction.
   @param mtr  mini-transaction (if there are any persistent modifications) */
   void commit_low(mtr_t *mtr= nullptr);
 public:
   /** Commit the transaction. */
   void commit();
+
+
+  /** Try to drop a persistent table.
+  @param table       persistent table
+  @param fk          whether to drop FOREIGN KEY metadata
+  @return error code */
+  dberr_t drop_table(const dict_table_t &table);
+  /** Try to drop the foreign key constraints for a persistent table.
+  @param name        name of persistent table
+  @return error code */
+  dberr_t drop_table_foreign(const table_name_t &name);
+  /** Try to drop the statistics for a persistent table.
+  @param name        name of persistent table
+  @return error code */
+  dberr_t drop_table_statistics(const table_name_t &name);
+  /** Commit the transaction, possibly after drop_table().
+  @param deleted   handles of data files that were deleted */
+  void commit(std::vector<pfs_os_file_t> &deleted);
 
 
   /** Discard all savepoints */
@@ -989,6 +1037,7 @@ public:
     ut_ad(!autoinc_locks || ib_vector_is_empty(autoinc_locks));
     ut_ad(UT_LIST_GET_LEN(lock.evicted_tables) == 0);
     ut_ad(!dict_operation);
+    ut_ad(!apply_online_log);
   }
 
   /** This has to be invoked on SAVEPOINT or at the end of a statement.
@@ -1101,6 +1150,6 @@ struct commit_node_t{
 };
 
 
-#include "trx0trx.ic"
+#include "trx0trx.inl"
 
 #endif

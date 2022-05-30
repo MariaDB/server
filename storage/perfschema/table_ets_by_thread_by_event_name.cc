@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -50,23 +50,23 @@ table_ets_by_thread_by_event_name::m_share=
   sizeof(pos_ets_by_thread_by_event_name),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_transactions_summary_by_thread_by_event_name("
-  "THREAD_ID BIGINT unsigned not null,"
-  "EVENT_NAME VARCHAR(128) not null,"
-  "COUNT_STAR BIGINT unsigned not null,"
-  "SUM_TIMER_WAIT BIGINT unsigned not null,"
-  "MIN_TIMER_WAIT BIGINT unsigned not null,"
-  "AVG_TIMER_WAIT BIGINT unsigned not null,"
-  "MAX_TIMER_WAIT BIGINT unsigned not null,"
-  "COUNT_READ_WRITE BIGINT unsigned not null,"
-  "SUM_TIMER_READ_WRITE BIGINT unsigned not null,"
-  "MIN_TIMER_READ_WRITE BIGINT unsigned not null,"
-  "AVG_TIMER_READ_WRITE BIGINT unsigned not null,"
-  "MAX_TIMER_READ_WRITE BIGINT unsigned not null,"
-  "COUNT_READ_ONLY BIGINT unsigned not null,"
-  "SUM_TIMER_READ_ONLY BIGINT unsigned not null,"
-  "MIN_TIMER_READ_ONLY BIGINT unsigned not null,"
-  "AVG_TIMER_READ_ONLY BIGINT unsigned not null,"
-  "MAX_TIMER_READ_ONLY BIGINT unsigned not null)")},
+  "THREAD_ID BIGINT unsigned not null comment 'Thread for which summary is generated.',"
+  "EVENT_NAME VARCHAR(128) not null comment 'Event name for which summary is generated.',"
+  "COUNT_STAR BIGINT unsigned not null comment 'The number of summarized events. This value includes all events, whether timed or nontimed.',"
+  "SUM_TIMER_WAIT BIGINT unsigned not null comment 'The total wait time of the summarized timed events. This value is calculated only for timed events because nontimed events have a wait time of NULL. The same is true for the other xxx_TIMER_WAIT values.',"
+  "MIN_TIMER_WAIT BIGINT unsigned not null comment 'The minimum wait time of the summarized timed events.',"
+  "AVG_TIMER_WAIT BIGINT unsigned not null comment 'The average wait time of the summarized timed events.',"
+  "MAX_TIMER_WAIT BIGINT unsigned not null comment 'The maximum wait time of the summarized timed events.',"
+  "COUNT_READ_WRITE BIGINT unsigned not null comment 'The total number of only READ/WRITE transaction events.',"
+  "SUM_TIMER_READ_WRITE BIGINT unsigned not null comment 'The total wait time of only READ/WRITE transaction events.',"
+  "MIN_TIMER_READ_WRITE BIGINT unsigned not null comment 'The minimum wait time of only READ/WRITE transaction events.',"
+  "AVG_TIMER_READ_WRITE BIGINT unsigned not null comment 'The average wait time of only READ/WRITE transaction events.',"
+  "MAX_TIMER_READ_WRITE BIGINT unsigned not null comment 'The maximum wait time of only READ/WRITE transaction events.',"
+  "COUNT_READ_ONLY BIGINT unsigned not null comment 'The total number of only READ ONLY transaction events.',"
+  "SUM_TIMER_READ_ONLY BIGINT unsigned not null comment 'The total wait time of only READ ONLY transaction events.',"
+  "MIN_TIMER_READ_ONLY BIGINT unsigned not null comment 'The minimum wait time of only READ ONLY transaction events.',"
+  "AVG_TIMER_READ_ONLY BIGINT unsigned not null comment 'The average wait time of only READ ONLY transaction events.',"
+  "MAX_TIMER_READ_ONLY BIGINT unsigned not null comment 'The maximum wait time of only READ ONLY transaction events.')")},
   false  /* perpetual */
 };
 
@@ -187,7 +187,7 @@ int table_ets_by_thread_by_event_name
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 0);
+  assert(table->s->null_bytes == 0);
 
   for (; (f= *fields) ; fields++)
   {

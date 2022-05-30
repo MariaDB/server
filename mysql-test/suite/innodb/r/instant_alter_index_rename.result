@@ -232,5 +232,17 @@ t1	ind3	n_diff_pfx01
 t1	ind3	n_diff_pfx02
 t1	ind3	n_leaf_pages
 t1	ind3	size
+ALTER TABLE t1 DROP b, FORCE;
+SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+table_name	index_name	stat_name
+t1	GEN_CLUST_INDEX	n_diff_pfx01
+t1	GEN_CLUST_INDEX	n_leaf_pages
+t1	GEN_CLUST_INDEX	size
+t1	ind2	n_diff_pfx01
+t1	ind2	n_diff_pfx02
+t1	ind2	n_leaf_pages
+t1	ind2	size
 UPDATE t1 SET a = 1 WHERE c = 'foo';
 DROP TABLE t1;
+SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+table_name	index_name	stat_name

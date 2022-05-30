@@ -129,7 +129,7 @@ create table t2(a char(20), key(a), foreign key(a) references t1(f1)) engine=inn
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 show warnings;
 Level	Code	Message
-Warning	150	Create  table `test`.`t2` with foreign key (a) constraint failed. Field type or character set for column 'a' does not mach referenced column 'f1'.
+Warning	150	Create  table `test`.`t2` with foreign key (a) constraint failed. Field type or character set for column 'a' does not match referenced column 'f1'.
 Error	1005	Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `t2`
 drop table t1;

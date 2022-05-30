@@ -1,0 +1,104 @@
+# ==== Purpose ====
+#
+# Test verifies the truncation of single binary log file.
+#
+# ==== References ====
+#
+# MDEV-21117: recovery for --rpl-semi-sync-slave-enabled server
+
+--source include/have_innodb.inc
+--source include/have_aria.inc
+# File: binlog_truncate_active_log.inc included in test makes use of
+#       'debug_sync' facility.
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_statement.inc
+
+call mtr.add_suppression("Can.t init tc log");
+call mtr.add_suppression("Aborting");
+
+# The following cases are tested:
+# A. 2pc transaction is followed by a blank "zero-engines" one
+# B. 2pc transaction follows the blank one
+# C. Similarly to A, with the XA blank transaction
+
+RESET MASTER;
+SET @@global.sync_binlog=1;
+CREATE TABLE t (f INT) ENGINE=INNODB;
+CREATE TABLE t2 (f INT) ENGINE=INNODB;
+CREATE TABLE t4 (f INT) ENGINE=INNODB;
+CREATE TABLE tm (f INT) ENGINE=Aria;
+
+# Old (pre-crash) binlog file index initial value.
+# It keeps incremented at the end of each case.
+--let $binlog_file_index=1
+
+--echo # Case A.
+# Using 'debug_sync' hold 'query1' execution after 'query1' is flushed and
+# synced to binary log but not yet committed. In an another connection hold
+# 'query2' execution after 'query2' is flushed and synced to binlog.
+# Crash and restart server with --rpl-semi-sync-slave-enabled=1
+#
+# During recovery of binary log 'query1' status is checked with InnoDB engine,
+# it will be in prepared but not yet commited. All transactions starting from
+# 'query1' onwards will be removed from the binary log.
+# Show-binlog-events is to prove that.
+
+--let $truncate_gtid_pos = 0-1-7
+--let $query1 = INSERT INTO t VALUES (20)
+--let $query2 = DELETE FROM t2 WHERE f = 0 /* no such record */
+--source binlog_truncate_active_log.inc
+
+--echo # Case B.
+# The inverted sequence ends up to truncate starting from $query2
+--let $truncate_gtid_pos = 0-1-11
+--let $query1 = DELETE FROM t2 WHERE f = 0
+--let $query2 = INSERT INTO t VALUES (20)
+--source binlog_truncate_active_log.inc
+
+
+--echo # Case C.
+delimiter |;
+CREATE PROCEDURE sp_blank_xa()
+BEGIN
+ XA START   'blank';
+ DELETE FROM t2 WHERE f = 0 /* no such record */;
+ XA END     'blank';
+ XA PREPARE 'blank';
+END|
+delimiter ;|
+
+# The same as in A with $query2 being the zero-engine XA transaction.
+# Both $query1 and $query2 are going to be truncated.
+--let $truncate_gtid_pos = 0-1-15
+--let $query1 = INSERT INTO t VALUES (20)
+--let $query2 = CALL sp_blank_xa
+--source binlog_truncate_active_log.inc
+
+DROP PROCEDURE sp_blank_xa;
+
+
+--echo # Case D.
+delimiter |;
+CREATE PROCEDURE sp_xa()
+BEGIN
+ XA START   'xid';
+ DELETE FROM t WHERE f = 10;
+ XA END     'xid';
+ XA PREPARE 'xid';
+END|
+delimiter ;|
+
+# The same as in B with $query1 being the prepared XA transaction.
+# Truncation must occurs at $query2.
+--let $truncate_gtid_pos = 0-1-21
+--let $query1 = CALL sp_xa
+--let $query2 = INSERT INTO t2 VALUES (20)
+--source binlog_truncate_active_log.inc
+
+DROP PROCEDURE sp_xa;
+
+
+--echo # Cleanup
+DROP TABLE t,t2,tm;
+SET @@global.sync_binlog= default;
+--echo # End of the tests

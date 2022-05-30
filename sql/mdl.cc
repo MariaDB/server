@@ -241,6 +241,35 @@ private:
   static const uint MAX_SEARCH_DEPTH= 32;
 };
 
+#ifndef DBUG_OFF
+
+/*
+  Print a list of all locks to DBUG trace to help with debugging
+*/
+
+static int mdl_dbug_print_lock(MDL_ticket *mdl_ticket, void *arg, bool granted)
+{
+  String *tmp= (String*) arg;
+  char buffer[128];
+  MDL_key *mdl_key= mdl_ticket->get_key();
+  size_t length;
+  length= my_snprintf(buffer, sizeof(buffer)-1,
+                      "\nname: %s  db: %.*s  key_name: %.*s (%s)",
+                      mdl_ticket->get_type_name()->str,
+                      (int) mdl_key->db_name_length(), mdl_key->db_name(),
+                      (int) mdl_key->name_length(),    mdl_key->name(),
+                      granted ? "granted" : "waiting");
+  tmp->append(buffer, length);
+  return 0;
+}
+
+const char *mdl_dbug_print_locks()
+{
+  static String tmp;
+  mdl_iterate(mdl_dbug_print_lock, (void*) &tmp);
+  return tmp.c_ptr();
+}
+#endif /* DBUG_OFF */
 
 /**
   Enter a node of a wait-for graph. After
@@ -755,7 +784,7 @@ int mdl_iterate(mdl_iterator_callback callback, void *arg)
 my_hash_value_type mdl_hash_function(CHARSET_INFO *cs,
                                      const uchar *key, size_t length)
 {
-  MDL_key *mdl_key= (MDL_key*) (key - my_offsetof(MDL_key, m_ptr));
+  MDL_key *mdl_key= (MDL_key*) (key - offsetof(MDL_key, m_ptr));
   return mdl_key->hash_value();
 }
 
@@ -2307,11 +2336,13 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   mysql_prlock_unlock(&lock->m_rwlock);
 
+#ifdef HAVE_PSI_INTERFACE
   PSI_metadata_locker_state state __attribute__((unused));
   PSI_metadata_locker *locker= NULL;
 
   if (ticket->m_psi != NULL)
     locker= PSI_CALL_start_metadata_wait(&state, ticket->m_psi, __FILE__, __LINE__);
+#endif
 
   will_wait_for(ticket);
 
@@ -2358,8 +2389,10 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   done_waiting_for();
 
+#ifdef HAVE_PSI_INTERFACE
   if (locker != NULL)
     PSI_CALL_end_metadata_wait(locker, 0);
+#endif
 
   if (wait_status != MDL_wait::GRANTED)
   {
@@ -2368,7 +2401,9 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     switch (wait_status)
     {
     case MDL_wait::VICTIM:
-      mdl_dbug_print_locks();
+      DBUG_LOCK_FILE;
+      DBUG_PRINT("mdl_locks", ("%s", mdl_dbug_print_locks()));
+      DBUG_UNLOCK_FILE;
       my_error(ER_LOCK_DEADLOCK, MYF(0));
       break;
     case MDL_wait::TIMEOUT:
@@ -3256,34 +3291,3 @@ void MDL_ticket::wsrep_report(bool debug) const
               psi_stage->m_name);
 }
 #endif /* WITH_WSREP */
-
-
-#ifndef DBUG_OFF
-
-/*
-  Print a list of all locks to DBUG trace to help with debugging
-*/
-
-static int mdl_dbug_print_lock(MDL_ticket *mdl_ticket, void *arg, bool granted)
-{
-  String *tmp= (String*) arg;
-  char buffer[128];
-  MDL_key *mdl_key= mdl_ticket->get_key();
-  size_t length;
-  length= my_snprintf(buffer, sizeof(buffer)-1,
-                      "\nname: %s  db: %.*s  key_name: %.*s (%s)",
-                      mdl_ticket->get_type_name()->str,
-                      (int) mdl_key->db_name_length(), mdl_key->db_name(),
-                      (int) mdl_key->name_length(),    mdl_key->name(),
-                      granted ? "granted" : "waiting");
-  tmp->append(buffer, length);
-  return 0;
-}
-
-void mdl_dbug_print_locks()
-{
-  String tmp;
-  mdl_iterate(mdl_dbug_print_lock, (void*) &tmp);
-  DBUG_PRINT("mdl_locks", ("%s", tmp.c_ptr()));
-}
-#endif /* DBUG_OFF */
