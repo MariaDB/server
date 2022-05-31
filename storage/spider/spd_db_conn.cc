@@ -8560,12 +8560,10 @@ int spider_db_open_item_int(
       thd->variables.time_zone = UTC;
       print_quoted_string = TRUE;
     } else {
-#ifdef SPIDER_ITEM_HAS_CMP_TYPE
       DBUG_PRINT("info",("spider cmp_type=%u", item->cmp_type()));
       if (item->cmp_type() == TIME_RESULT)
         print_quoted_string = TRUE;
       else
-#endif
         print_quoted_string = FALSE;
     }
 
