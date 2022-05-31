@@ -225,7 +225,11 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                     "cost": 1.125146475,
                     "uses_join_buffering": false
                   }
-                },
+                }
+              },
+              {
+                "plan_prefix": [],
+                "table": "t1",
                 "rows_for_plan": 1,
                 "cost_for_plan": 1.325146475,
                 "pruned_by_hanging_leaf": true

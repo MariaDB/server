@@ -359,6 +359,13 @@ typedef struct st_join_table {
 
   table_map	dependent,key_dependent;
   /*
+    This is set for embedded sub queries.  It contains the table map of
+    the outer expression, like 'A' in the following expression:
+    WHERE A in (SELECT ....)
+  */
+  table_map     embedded_dependent;
+
+  /*
      1 - use quick select
      2 - use "Range checked for each record"
   */
@@ -1286,10 +1293,12 @@ public:
 
   /* Finally picked QEP. This is result of join optimization */
   POSITION *best_positions;
+  POSITION *sort_positions;    /* Temporary space used by greedy_search */
+  POSITION *next_sort_position; /* Next free space in sort_positions */
 
   Pushdown_query *pushdown_query;
   JOIN_TAB *original_join_tab;
-  uint	   original_table_count;
+  uint	   original_table_count, sort_space;
 
 /******* Join optimization state members start *******/
   /*

@@ -5219,6 +5219,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   int error= 0;
   TABLE *UNINIT_VAR(table); /* inited in all loops */
   uint i,table_count,const_count,key;
+  uint sort_space;
   table_map found_const_table_map, all_table_map;
   key_map const_ref, eq_part;
   bool has_expensive_keyparts;
@@ -5236,6 +5237,13 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   table_count=join->table_count;
 
   /*
+    best_extension_by_limited_search need sort space for 2POSITIION
+    objects per remaining table, which gives us
+    2*(T +  T-1 + T-2 + T-3...1 POSITIONS) = 2*(T+1)/2*T = (T*T+T)
+  */
+  join->sort_space= sort_space= (table_count*table_count + table_count);
+
+  /*
     best_positions is ok to allocate with alloc() as we copy things to it with
     memcpy()
   */
@@ -5246,6 +5254,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
                         &stat_vector, sizeof(JOIN_TAB*)* (table_count +1),
                         &table_vector, sizeof(TABLE*)*(table_count*2),
                         &join->positions, sizeof(POSITION)*(table_count + 1),
+                        &join->sort_positions, sizeof(POSITION)*(sort_space),
                         &join->best_positions,
                         sizeof(POSITION)*(table_count + 1),
                         NullS))
@@ -5257,6 +5266,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   /* Initialize POSITION objects */
   for (i=0 ; i <= table_count ; i++)
     (void) new ((char*) (join->positions + i)) POSITION;
+  for (i=0 ; i <= sort_space ; i++)
+    (void) new ((char*) (join->sort_positions + i)) POSITION;
 
   join->best_ref= stat_vector;
 
@@ -5420,6 +5431,17 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         goto error;
       }
       s->key_dependent= s->dependent;
+    }
+  }
+
+  {
+    for (JOIN_TAB *s= stat ; s < stat_end ; s++)
+    {
+      TABLE_LIST *tl= s->table->pos_in_table_list;
+      if (tl->embedding && tl->embedding->sj_subq_pred)
+      {
+        s->embedded_dependent= tl->embedding->original_subq_pred_used_tables;
+      }
     }
   }
 
@@ -8272,10 +8294,13 @@ best_access_path(JOIN      *join,
     */
     if (s->key_start_dependent)
       key_dependent= s->key_dependent;
+    /* Add dependencey for sub queries */
+    key_dependent|= s->embedded_dependent;
   }
   /* Check that s->key_dependent contains all used_tables found in s->keyuse */
   key_dependent&= ~PSEUDO_TABLE_BITS;
-  DBUG_ASSERT((key_dependent & s->key_dependent) == key_dependent);
+  DBUG_ASSERT((key_dependent & (s->key_dependent | s->embedded_dependent)) ==
+               key_dependent);
 
   /* 
     If there is no key to access the table, but there is an equi-join
@@ -9181,6 +9206,7 @@ greedy_search(JOIN      *join,
                                          :
                                          ~(table_map)0));
 
+  join->next_sort_position= join->sort_positions;
   do {
     /* Find the extension of the current QEP with the lowest cost */
     join->best_read= DBL_MAX;
@@ -9244,13 +9270,13 @@ greedy_search(JOIN      *join,
     while (pos && best_table != pos)
       pos= join->best_ref[++best_idx];
     DBUG_ASSERT((pos != NULL)); // should always find 'best_table'
+
     /*
-      move 'best_table' at the first free position in the array of joins,
-      keeping the sorted table order intact
+      Move 'best_table' at the first free position in the array of joins
+      We don't need to keep the array sorted as
+      best_extension_by_limited_search() will sort them.
     */
-    memmove(join->best_ref + idx + 1, join->best_ref + idx,
-            sizeof(JOIN_TAB*) * (best_idx - idx));
-    join->best_ref[idx]= best_table;
+    swap_variables(JOIN_TAB*, join->best_ref[idx], join->best_ref[best_idx]);
 
     /* compute the cost of the new plan extended with 'best_table' */
     record_count= COST_MULT(record_count, join->positions[idx].records_read);
@@ -9855,6 +9881,34 @@ check_if_edge_table(POSITION *pos,
 }
 
 
+struct SORT_POSITION
+{
+  JOIN_TAB **join_tab;
+  POSITION *position;
+};
+
+
+/*
+  Sort SORT_POSITIONS according to expected number of rows found
+  If number of combinations are the same sort according to join_tab order
+  (same table order as used in the original SQL query)
+*/
+
+static int
+sort_positions(SORT_POSITION *a, SORT_POSITION *b)
+{
+  int cmp;
+  if ((cmp= compare_embedding_subqueries(*a->join_tab, *b->join_tab)) != 0)
+    return cmp;
+
+  if (a->position->records_read > b->position->records_read)
+    return 1;
+  if (a->position->records_read < b->position->records_read)
+    return -1;
+  return CMP_NUM(*a->join_tab, *b->join_tab);
+}
+
+
 /**
   Find a good, possibly optimal, query execution plan (QEP) by a possibly
   exhaustive search.
@@ -9994,14 +10048,18 @@ best_extension_by_limited_search(JOIN      *join,
      'join' is a partial plan with lower cost than the best plan so far,
      so continue expanding it further with the tables in 'remaining_tables'.
   */
-  JOIN_TAB *s, **pos;
+  JOIN_TAB *s;
   double best_record_count= DBL_MAX;
   double best_read_time=    DBL_MAX;
   bool disable_jbuf= join->thd->variables.join_cache_level == 0;
   enum_best_search best_res;
+  uint tables_left= join->table_count - idx, found_tables;
+  POSITION *sort_position= join->next_sort_position;
+  SORT_POSITION *sort= (SORT_POSITION*) alloca(sizeof(SORT_POSITION)*tables_left);
+  SORT_POSITION *sort_end;
   DBUG_ENTER("best_extension_by_limited_search");
 
-  DBUG_EXECUTE_IF("show_explain_probe_best_ext_lim_search", 
+  DBUG_EXECUTE_IF("show_explain_probe_best_ext_lim_search",
                   if (dbug_user_var_equals_int(thd, 
                                                "show_explain_probe_select_id", 
                                                join->select_lex->select_number))
@@ -10013,6 +10071,7 @@ best_extension_by_limited_search(JOIN      *join,
 
   DBUG_EXECUTE("opt", print_plan(join, idx, record_count, read_time, read_time,
                                 "part_plan"););
+  status_var_increment(thd->status_var.optimizer_join_prefixes_check_calls);
 
   /*
     If we are searching for the execution plan of a materialized semi-join nest
@@ -10022,21 +10081,55 @@ best_extension_by_limited_search(JOIN      *join,
   if (join->emb_sjm_nest)
     allowed_tables= join->emb_sjm_nest->sj_inner_tables & ~join->const_table_map;
 
-  for (pos= join->best_ref + idx ; (s= *pos) ; pos++)
   {
-    table_map real_table_bit= s->table->map;
-    DBUG_ASSERT(remaining_tables & real_table_bit);
+    Json_writer_object trace_one_table(thd);
+    if (unlikely(thd->trace_started()))
+      trace_plan_prefix(join, idx, remaining_tables);
 
-    swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
-
-    if ((allowed_tables & real_table_bit) &&
-        !(remaining_tables & s->dependent) &&
-        !check_interleaving_with_nj(s))
+    /*
+      Sort tables in ascending order of generated row combinations
+    */
+    sort_end= sort;
+    for (JOIN_TAB **pos= join->best_ref + idx ; (s= *pos) ; pos++)
     {
+      table_map real_table_bit= s->table->map;
+      DBUG_ASSERT(remaining_tables & real_table_bit);
+
+      if ((allowed_tables & real_table_bit) &&
+          !(remaining_tables & s->dependent))
+      {
+        sort_end->join_tab= pos;
+        sort_end->position= sort_position;
+
+        if (unlikely(thd->trace_started()))
+          trace_one_table.add_table_name(s);
+
+        /* Find the best access method from 's' to the current partial plan */
+        best_access_path(join, s, remaining_tables, join->positions, idx,
+                         disable_jbuf, record_count,
+                         sort_position, sort_position + 1);
+        sort_end++;
+        sort_position+= 2;
+      }
+    }
+    found_tables= sort_end - sort;
+    if (found_tables > 1)
+      my_qsort(sort, found_tables, sizeof(SORT_POSITION),
+               (qsort_cmp) sort_positions);
+  }
+  join->next_sort_position+= found_tables*2;
+  DBUG_ASSERT(join->next_sort_position <=
+              join->sort_positions + join->sort_space);
+
+  for (SORT_POSITION *pos= sort ; pos < sort_end ; pos++)
+  {
+    s= *pos->join_tab;
+    if (!check_interleaving_with_nj(s))
+    {
+      table_map real_table_bit= s->table->map;
       double current_record_count, current_read_time;
       double partial_join_cardinality;
-      POSITION *position= join->positions + idx;
-      POSITION loose_scan_pos;
+      POSITION *position= join->positions + idx, *loose_scan_pos;
       Json_writer_object trace_one_table(thd);
 
       if (unlikely(thd->trace_started()))
@@ -10045,9 +10138,8 @@ best_extension_by_limited_search(JOIN      *join,
         trace_one_table.add_table_name(s);
       }
 
-      /* Find the best access method from 's' to the current partial plan */
-      best_access_path(join, s, remaining_tables, join->positions, idx,
-                       disable_jbuf, record_count, position, &loose_scan_pos);
+      *position= *pos->position;                // Get stored result
+      loose_scan_pos= pos->position+1;
 
       /* Compute the cost of the new plan extended with 's' */
       current_record_count= COST_MULT(record_count, position->records_read);
@@ -10066,7 +10158,7 @@ best_extension_by_limited_search(JOIN      *join,
         trace_one_table.add("cost_for_plan", current_read_time);
       }
       optimize_semi_joins(join, remaining_tables, idx, &current_record_count,
-                          &current_read_time, &loose_scan_pos);
+                          &current_read_time, loose_scan_pos);
 
       /* Expand only partial plans with lower cost than the best QEP so far */
       if (current_read_time >= join->best_read)
@@ -10149,6 +10241,8 @@ best_extension_by_limited_search(JOIN      *join,
       {
         /* Recursively expand the current partial plan */
         Json_writer_array trace_rest(thd, "rest_of_plan");
+
+        swap_variables(JOIN_TAB*, join->best_ref[idx], *pos->join_tab);
         best_res=
           best_extension_by_limited_search(join,
                                            remaining_tables &
@@ -10159,6 +10253,8 @@ best_extension_by_limited_search(JOIN      *join,
                                            search_depth - 1,
                                            prune_level,
                                            use_cond_selectivity);
+        swap_variables(JOIN_TAB*, join->best_ref[idx], *pos->join_tab);
+
         if ((int) best_res < (int) SEARCH_OK)
           goto end;                             // Return best_res
         if (best_res == SEARCH_FOUND_EDGE &&
@@ -10212,19 +10308,7 @@ best_extension_by_limited_search(JOIN      *join,
   best_res= SEARCH_OK;
 
 end:
-  /* Restore original table order */
-  if (!*pos)
-    pos--;                                      // Revert last pos++ in for loop
-  if (pos != join->best_ref + idx)
-  {
-    JOIN_TAB *tmp= join->best_ref[idx];
-    uint elements= (uint) (pos - (join->best_ref + idx));
-
-    memmove((void*) (join->best_ref + idx),
-            (void*) (join->best_ref + idx + 1),
-            elements * sizeof(JOIN_TAB*));
-    *pos= tmp;
-  }
+  join->next_sort_position-= found_tables*2;
   DBUG_RETURN(best_res);
 }
 
