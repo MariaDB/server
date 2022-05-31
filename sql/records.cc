@@ -37,6 +37,7 @@
 
 static int rr_quick(READ_RECORD *info);
 int rr_sequential(READ_RECORD *info);
+int rr_sequential_sample(READ_RECORD *info);
 static int rr_from_tempfile(READ_RECORD *info);
 template<bool> static int rr_unpack_from_tempfile(READ_RECORD *info);
 template<bool,bool> static int rr_unpack_from_buffer(READ_RECORD *info);
@@ -321,6 +322,14 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
       DBUG_RETURN(1);
     }
   }
+  else if (table->tablesample)
+  {
+    double fract= table->tablesample->val_real() / 100.0;
+    info->sample_counter= (ha_rows)(table->file->records() * fract + 0.5);
+    info->read_record_func= rr_sequential_sample;
+    if (table->file->ha_sample_init())
+      DBUG_RETURN(1);
+  }
   else
   {
     DBUG_PRINT("info",("using rr_sequential"));
@@ -517,6 +526,21 @@ int rr_sequential(READ_RECORD *info)
 {
   int tmp;
   while ((tmp= info->table->file->ha_rnd_next(info->record())))
+  {
+    tmp= rr_handle_error(info, tmp);
+    break;
+  }
+  return tmp;
+}
+
+int rr_sequential_sample(READ_RECORD *info)
+{
+  int tmp;
+  if (!info->sample_counter)
+    return -1; // End of file
+
+  info->sample_counter--;
+  while ((tmp= info->table->file->ha_sample_next(info->record())))
   {
     tmp= rr_handle_error(info, tmp);
     break;

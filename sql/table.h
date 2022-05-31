@@ -1497,7 +1497,7 @@ public:
   /* used in RBR Triggers */
   bool master_had_triggers;
 #endif
-
+  Item *tablesample;
   REGINFO reginfo;			/* field connections */
   MEM_ROOT mem_root;
   /**
@@ -2180,6 +2180,7 @@ struct TABLE_LIST
     alias= (alias_arg ? *alias_arg : *table_name_arg);
     lock_type= lock_type_arg;
     updating= lock_type >= TL_FIRST_WRITE;
+    tablesample= NULL;
     MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, db.str, table_name.str,
                      mdl_type, MDL_TRANSACTION);
   }
@@ -2221,7 +2222,7 @@ struct TABLE_LIST
     *last_ptr= &next_global;
     for_insert_data= insert_data;
   }
-
+  Item *tablesample;
 
   /*
     List of tables local to a subquery (used by SQL_I_List). Considers
@@ -2724,6 +2725,7 @@ struct TABLE_LIST
     TABLE::force_index and TABLE::covering_keys.
   */
   bool process_index_hints(TABLE *table);
+  bool process_table_sample(TABLE *tbl);
 
   /**
     Compare the version of metadata from the previous execution

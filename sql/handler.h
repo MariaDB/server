@@ -3531,7 +3531,8 @@ public:
   /* this is necessary in many places, e.g. in HANDLER command */
   int ha_index_or_rnd_end()
   {
-    return inited == INDEX ? ha_index_end() : inited == RND ? ha_rnd_end() : 0;
+    return inited == INDEX ? ha_index_end() : inited == RND ? ha_rnd_end() : 
+      inited == SAMPLING? ha_sample_end(): 0;
   }
   /**
     The cached_table_flags is set at ha_open and ha_external_lock

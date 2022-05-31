@@ -5554,6 +5554,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   opt_range_condition_rows=0;
   no_cache= false;
   initialize_opt_range_structures();
+  tablesample= NULL;
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
   master_had_triggers= 0;
@@ -8529,6 +8530,24 @@ bool TABLE_LIST::process_index_hints(TABLE *tbl)
   /* make sure covering_keys don't include indexes disabled with a hint */
   tbl->covering_keys.intersect(tbl->keys_in_use_for_query);
   return 0;
+}
+
+bool TABLE_LIST::process_table_sample(TABLE *tbl)
+{
+  if (tablesample)
+  {
+    if (lock_type != TL_READ_DEFAULT)
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "Updates to tables using sampling");
+      return true;
+    }
+    tbl->keys_in_use_for_query.clear_all();
+    tbl->keys_in_use_for_group_by.clear_all();
+    tbl->keys_in_use_for_order_by.clear_all();
+    tbl->covering_keys.clear_all();
+    tbl->tablesample= tablesample;
+  }
+  return false;
 }
 
 

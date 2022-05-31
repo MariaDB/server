@@ -61,6 +61,7 @@ struct READ_RECORD
   SQL_SELECT *select;
   uint ref_length, reclength, rec_cache_size, error_offset;
 
+  ha_rows sample_counter;
   /**
     Counting records when reading result from filesort().
     Used when filesort leaves the result in the filesort buffer.

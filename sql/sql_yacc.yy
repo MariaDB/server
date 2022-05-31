@@ -678,6 +678,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> SUM_SYM                       /* SQL-2003-N */
 %token  <kwd> SYSDATE
 %token  <kwd> TABLE_REF_PRIORITY
+%token  <kwd> TABLESAMPLE                   /* SQL-2016-R */
 %token  <kwd> TABLE_SYM                     /* SQL-2003-R */
 %token  <kwd> TERMINATED
 %token  <kwd> THEN_SYM                      /* SQL-2003-R */
@@ -1498,7 +1499,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <item_param> param_marker
 
 %type <item_num>
-        NUM_literal
+        NUM_literal opt_table_sample
 
 %type <item_basic_constant> text_literal
 
@@ -11700,10 +11701,19 @@ join_table_parens:
           }
         ;
 
+/* psergey */
+opt_table_sample:
+          /* empty */ { $$=0; }
+        | TABLESAMPLE SYSTEM '(' NUM_literal ')'
+        {
+          $$=$4;
+        }
+        ;
 
 table_primary_ident:
           table_ident opt_use_partition opt_for_system_time_clause
           opt_table_alias_clause opt_key_definition
+          opt_table_sample
           {
             if (!($$= Select->add_table_to_list(thd, $1, $4,
                                                 0,
@@ -11714,6 +11724,8 @@ table_primary_ident:
               MYSQL_YYABORT;
             if ($3)
               $$->vers_conditions= Lex->vers_conditions;
+            if ($6)
+              $$->tablesample= $6;
           }
         ;
 
