@@ -249,6 +249,7 @@ void Apc_target::process_apc_requests()
     {
       request->processed= TRUE;
       request->call->call_in_target_thread();
+      request->what="func called by process_apc_requests";
       mysql_cond_signal(&request->COND_request);
       mysql_mutex_unlock(&request->LOCK_request);
     }
@@ -262,7 +263,6 @@ void Apc_target::process_apc_requests()
 
     mysql_mutex_unlock(LOCK_thd_kill_ptr);
     mysql_mutex_lock(LOCK_thd_kill_ptr);
-    request->what="func called by process_apc_requests";
 
 #ifndef DBUG_OFF
     n_calls_processed++;
