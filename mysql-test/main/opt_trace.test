@@ -654,5 +654,15 @@ SELECT a FROM t1 WHERE (a,b) in (SELECT @c,@d);
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-28598: Assertion `got_name == named_item_expected()' failed in Json_writer::on_start_object
+--echo #
+
+CREATE TABLE t1 (a int);
+SET optimizer_trace=1;
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT * FROM t1 WHERE a IN (SELECT 1 a FROM t1 WHERE EXISTS (select 1));
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

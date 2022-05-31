@@ -189,7 +189,7 @@ public:
       str.append(c);
   }
 
-  const String *get_string() { return &str; }
+  String *get_string() { return &str; }
   size_t length() { return str.length(); }
 private:
   String str;
@@ -295,6 +295,56 @@ private:
   void append_indent();
   void start_element();
   void start_sub_element();
+
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+  /*
+    Prints the tail of JSON composed so far to stderr.
+    Output is limited by MAX_JSON_LEN_FOR_STDERR characters.
+    Format is as follows:
+    "JSON writer error: <description of the error>.
+    JSON tail: <...JSON...>
+  */
+  void print_json_tail_to_stderr(const char *err_descr);
+
+  enum { MAX_JSON_LEN_FOR_STDERR = 1000 };
+
+  /*
+    If the context of the JSON document is expecting a unnamed member
+    but a named one is added this will trigger an assertion failure.
+    The same works vice versa unless the "fix_wth_implicit_member"
+    flag is set. When fix_wth_implicit_member == true and the context is
+    expecting a named member but has got an unnamed one,
+    the function will implicitly add a JSON member and automatically assign
+    its name. In this case correctness of JSON document is preserved
+    and no assertion will trigger.
+    Example:
+      transformation": {
+        "select_id": 2,
+        {
+          "join_optimization": {
+            "select_id": 3,
+            "steps": []
+        }
+
+     will be converted to
+      transformation": {
+        "select_id": 2,
+        "implicitly_added_member_#1": {
+          "join_optimization": {
+            "select_id": 3,
+            "steps": []
+        }
+  */
+  void validate_named_item_expectation(bool fix_wth_implicit_member= false);
+
+  void add_implicit_member();
+
+  /*
+    This incremental counter is used to automatically assign names
+    for implicitly added members
+  */
+  unsigned int implicit_member_num= 1;
+#endif
 
 public:
   String_with_limit output;

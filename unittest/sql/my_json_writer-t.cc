@@ -65,8 +65,43 @@ int main(int args, char **argv)
   {
     Json_writer w;
     w.start_object();
+    w.add_ll(123678456);
+    ok(w.invalid_json, "Unnamed LL value in an object");
+  }
+
+  {
+    Json_writer w;
+    w.start_object();
     w.add_ull(123);
-    ok(w.invalid_json, "Unnamed value in an object");
+    ok(w.invalid_json, "Unnamed ULL value in an object");
+  }
+
+  {
+    Json_writer w;
+    w.start_object();
+    w.add_size(567890);
+    ok(w.invalid_json, "Unnamed size value in an object");
+  }
+
+  {
+    Json_writer w;
+    w.start_object();
+    w.add_double(123.567867);
+    ok(w.invalid_json, "Unnamed double value in an object");
+  }
+
+  {
+    Json_writer w;
+    w.start_object();
+    w.add_bool(true);
+    ok(w.invalid_json, "Unnamed bool value in an object");
+  }
+
+  {
+    Json_writer w;
+    w.start_object();
+    w.add_null();
+    ok(w.invalid_json, "Unnamed null value in an object");
   }
 
   {
@@ -79,15 +114,33 @@ int main(int args, char **argv)
   {
     Json_writer w;
     w.start_object();
+    w.add_str("some string");
+    ok(w.invalid_json, "Unnamed string (const char*) in an object");
+  }
+
+  {
+    Json_writer w;
+    w.start_object();
+    CHARSET_INFO cs_info{};
+    String str("another string", &cs_info);
+    w.add_str(str);
+    ok(w.invalid_json, "Unnamed string (class String) in an object");
+  }
+
+  {
+    Json_writer w;
+    w.start_object();
     w.start_array();
-    ok(w.invalid_json, "Unnamed array in an object");
+    ok(!w.invalid_json, "Implicitly added member for the unnamed array"
+                        " in an object");
   }
 
   {
     Json_writer w;
     w.start_object();
     w.start_object();
-    ok(w.invalid_json, "Unnamed object in an object");
+    ok(!w.invalid_json, "Implicitly added member for the unnamed object"
+                        " in an object");
   }
 
   {
@@ -118,8 +171,6 @@ int main(int args, char **argv)
     w.end_array();
     ok(w.invalid_json, "JSON array end of object");
   }
-
-
 
   diag("Done");
 
