@@ -105,7 +105,11 @@ select * from db1.t1	{
                     "cost": 2.005126953,
                     "uses_join_buffering": false
                   }
-                },
+                }
+              },
+              {
+                "plan_prefix": [],
+                "table": "t1",
                 "rows_for_plan": 3,
                 "cost_for_plan": 2.605126953
               }
@@ -226,7 +230,11 @@ select * from db1.v1	{
                     "cost": 2.005126953,
                     "uses_join_buffering": false
                   }
-                },
+                }
+              },
+              {
+                "plan_prefix": [],
+                "table": "t1",
                 "rows_for_plan": 3,
                 "cost_for_plan": 2.605126953
               }

@@ -885,6 +885,6 @@ set optimizer_trace=0;
 set statement optimizer_trace=1 for select * from seq_1_to_10 where seq<2;
 --echo # The trace must not be empty:
 select left(trace, 100) from information_schema.optimizer_trace;
+set optimizer_trace='enabled=off';
 
 --echo # End of 10.6 tests
-set optimizer_trace='enabled=off';

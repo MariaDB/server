@@ -219,7 +219,11 @@ explain select * from t1 where a=1 or b=1	{
                     "cost": 2.484903732,
                     "uses_join_buffering": false
                   }
-                },
+                }
+              },
+              {
+                "plan_prefix": [],
+                "table": "t1",
                 "rows_for_plan": 2,
                 "cost_for_plan": 2.884903732
               }
