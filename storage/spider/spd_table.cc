@@ -2377,6 +2377,7 @@ int spider_parse_connect_info(
             "hwr", hs_write_to_reads, 0, 1);
           SPIDER_PARAM_STR_LIST("hws", hs_write_socks);
 #endif
+          SPIDER_PARAM_DEPRECATED_WARNING("isa");
           SPIDER_PARAM_INT("isa", init_sql_alloc_size, 0);
           SPIDER_PARAM_INT_WITH_MAX("idl", internal_delayed, 0, 1);
           SPIDER_PARAM_DEPRECATED_WARNING("ilm");
@@ -2682,6 +2683,7 @@ int spider_parse_connect_info(
           error_num = connect_string_parse.print_param_error();
           goto error;
         case 19:
+          SPIDER_PARAM_DEPRECATED_WARNING("init_sql_alloc_size");
           SPIDER_PARAM_INT("init_sql_alloc_size", init_sql_alloc_size, 0);
           SPIDER_PARAM_INT_WITH_MAX(
             "auto_increment_mode", auto_increment_mode, 0, 3);

@@ -596,7 +596,7 @@ longlong spider_param_semi_split_read_limit(
  */
 static MYSQL_THDVAR_INT(
   init_sql_alloc_size, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Initial sql string alloc size", /* comment */
   NULL, /* check */
   spider_use_table_value_deprecated, /* update */

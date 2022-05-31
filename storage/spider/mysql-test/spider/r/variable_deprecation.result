@@ -196,6 +196,21 @@ Warnings:
 Warning	1287	The table parameter 'buffer_size' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
+# MDEV-27926 Deprecate spider_init_sql_alloc_size
+SET spider_init_sql_alloc_size = 1;
+Warnings:
+Warning	1287	'@@spider_init_sql_alloc_size' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_init_sql_alloc_size";
+Variable_name	Value
+spider_init_sql_alloc_size	1
+CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='isa "1"';
+Warnings:
+Warning	1287	The table parameter 'isa' is deprecated and will be removed in a future release
+CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='init_sql_alloc_size "1"';
+Warnings:
+Warning	1287	The table parameter 'init_sql_alloc_size' is deprecated and will be removed in a future release
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
 DROP DATABASE auto_test_local;
 for master_1
 for child2
