@@ -140,8 +140,16 @@ struct mtr_t {
   mtr_log_t get_log_mode() const
   {
     static_assert(MTR_LOG_ALL == 0, "efficiency");
-    ut_ad(m_log_mode <= MTR_LOG_NO_REDO);
     return static_cast<mtr_log_t>(m_log_mode);
+  }
+
+  /** @return whether log is to be written for changes */
+  bool is_logged() const
+  {
+    static_assert(MTR_LOG_ALL == 0, "efficiency");
+    static_assert(MTR_LOG_NONE & MTR_LOG_NO_REDO, "efficiency");
+    static_assert(!(MTR_LOG_NONE & MTR_LOG_SUB), "efficiency");
+    return !(m_log_mode & MTR_LOG_NONE);
   }
 
   /** Change the logging mode.
@@ -152,6 +160,15 @@ struct mtr_t {
     const mtr_log_t old_mode= get_log_mode();
     m_log_mode= mode & 3;
     return old_mode;
+  }
+
+  /** Set the log mode of a sub-minitransaction
+  @param mtr  parent mini-transaction */
+  void set_log_mode_sub(const mtr_t &mtr)
+  {
+    ut_ad(mtr.m_log_mode == MTR_LOG_ALL || mtr.m_log_mode == MTR_LOG_NO_REDO);
+    m_log_mode= mtr.m_log_mode | MTR_LOG_SUB;
+    static_assert((MTR_LOG_SUB | MTR_LOG_NO_REDO) == MTR_LOG_NO_REDO, "");
   }
 
   /** Check if we are holding a block latch in exclusive mode

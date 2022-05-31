@@ -6995,7 +6995,7 @@ btr_store_big_rec_extern_fields(
 
 			mtr.start();
 			index->set_modified(mtr);
-			mtr.set_log_mode(btr_mtr->get_log_mode());
+			mtr.set_log_mode_sub(*btr_mtr);
 
 			buf_page_get(rec_block->page.id(),
 				     rec_block->zip_size(), RW_X_LATCH, &mtr);
@@ -7336,7 +7336,7 @@ btr_free_externally_stored_field(
 
 		mtr_start(&mtr);
 		mtr.set_spaces(*local_mtr);
-		mtr.set_log_mode(local_mtr->get_log_mode());
+		mtr.set_log_mode_sub(*local_mtr);
 
 		ut_ad(!index->table->is_temporary()
 		      || local_mtr->get_log_mode() == MTR_LOG_NO_REDO);

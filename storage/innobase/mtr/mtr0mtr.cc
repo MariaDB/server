@@ -436,7 +436,7 @@ void mtr_t::commit()
 
     std::pair<lsn_t,page_flush_ahead> lsns;
 
-    if (UNIV_LIKELY(m_log_mode == MTR_LOG_ALL))
+    if (UNIV_LIKELY(is_logged()))
     {
       lsns= do_write();
 
@@ -674,19 +674,9 @@ void mtr_t::commit_files(lsn_t checkpoint_lsn)
 bool
 mtr_t::is_named_space(ulint space) const
 {
-	ut_ad(!m_user_space || m_user_space->id != TRX_SYS_SPACE);
-
-	switch (m_log_mode) {
-	case MTR_LOG_NONE:
-	case MTR_LOG_NO_REDO:
-		return(true);
-	case MTR_LOG_ALL:
-		return(m_user_space_id == space
-		       || is_predefined_tablespace(space));
-	}
-
-	ut_error;
-	return(false);
+  ut_ad(!m_user_space || m_user_space->id != TRX_SYS_SPACE);
+  return !is_logged() || m_user_space_id == space ||
+    is_predefined_tablespace(space);
 }
 /** Check if a tablespace is associated with the mini-transaction
 (needed for generating a FILE_MODIFY record)
@@ -696,16 +686,8 @@ bool mtr_t::is_named_space(const fil_space_t* space) const
 {
   ut_ad(!m_user_space || m_user_space->id != TRX_SYS_SPACE);
 
-  switch (m_log_mode) {
-  case MTR_LOG_NONE:
-  case MTR_LOG_NO_REDO:
-    return true;
-  case MTR_LOG_ALL:
-    return m_user_space == space || is_predefined_tablespace(space->id);
-  }
-
-  ut_error;
-  return false;
+  return !is_logged() || m_user_space == space ||
+    is_predefined_tablespace(space->id);
 }
 #endif /* UNIV_DEBUG */
 
@@ -979,9 +961,27 @@ static mtr_t::page_flush_ahead log_close(lsn_t lsn)
   return mtr_t::PAGE_FLUSH_SYNC;
 }
 
-/** @return checksum for an OPT_PAGE_CHECKSUM record */
-uint32_t buf_page_t::checksum() const
+inline void mtr_t::page_checksum(const buf_page_t &bpage)
 {
+  const byte *page= bpage.frame;
+  size_t size= srv_page_size;
+
+  if (UNIV_LIKELY_NULL(bpage.zip.data))
+  {
+    size= (UNIV_ZIP_SIZE_MIN >> 1) << bpage.zip.ssize;
+    switch (fil_page_get_type(bpage.zip.data)) {
+    case FIL_PAGE_TYPE_ALLOCATED:
+    case FIL_PAGE_INODE:
+    case FIL_PAGE_IBUF_BITMAP:
+    case FIL_PAGE_TYPE_FSP_HDR:
+    case FIL_PAGE_TYPE_XDES:
+      /* These are essentially uncompressed pages. */
+      break;
+    default:
+      page= bpage.zip.data;
+    }
+  }
+
   /* We have to exclude from the checksum the normal
   page checksum that is written by buf_flush_init_for_writing()
   and FIL_PAGE_LSN which would be updated once we have actually
@@ -992,28 +992,23 @@ uint32_t buf_page_t::checksum() const
   format we will unconditionally exclude the 8 bytes at
   FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
   a.k.a. FIL_RTREE_SPLIT_SEQ_NUM. */
-  return my_crc32c(my_crc32c(my_crc32c(0, frame + FIL_PAGE_OFFSET,
-                                       FIL_PAGE_LSN - FIL_PAGE_OFFSET),
-                             frame + FIL_PAGE_TYPE, 2),
-                   frame + FIL_PAGE_SPACE_ID,
-                   srv_page_size - (FIL_PAGE_SPACE_ID + 8));
-}
+  const uint32_t checksum=
+    my_crc32c(my_crc32c(my_crc32c(0, page + FIL_PAGE_OFFSET,
+                                  FIL_PAGE_LSN - FIL_PAGE_OFFSET),
+                        page + FIL_PAGE_TYPE, 2),
+              page + FIL_PAGE_SPACE_ID, size - (FIL_PAGE_SPACE_ID + 8));
 
-inline void mtr_t::page_checksum(const buf_page_t &bpage)
-{
-  if (UNIV_LIKELY_NULL(bpage.zip.data))
-    return; /* FIXME: support ROW_FORMAT=COMPRESSED */
   byte *l= log_write<OPTION>(bpage.id(), nullptr, 5, true, 0);
   *l++= OPT_PAGE_CHECKSUM;
-  mach_write_to_4(l, bpage.checksum());
+  mach_write_to_4(l, checksum);
   m_log.close(l + 4);
 }
 
 /** Write OPT_PAGE_CHECKSUM records for modified pages */
-struct Write_OPT_PAGE_CHECKSUM
+struct WriteOPT_PAGE_CHECKSUM
 {
   mtr_t &mtr;
-  Write_OPT_PAGE_CHECKSUM(mtr_t &mtr) : mtr(mtr) {}
+  WriteOPT_PAGE_CHECKSUM(mtr_t &mtr) : mtr(mtr) {}
 
   /** @return true always */
   bool operator()(const mtr_memo_slot_t *slot) const
@@ -1043,14 +1038,16 @@ struct mtr_write_log
 std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
 {
 	ut_ad(!recv_no_log_write);
-	ut_ad(m_log_mode == MTR_LOG_ALL);
+	ut_ad(is_logged());
 
 	ulint	len	= m_log.size();
 	ut_ad(len > 0);
 
 #ifdef UNIV_DEBUG
-	m_memo.for_each_block(CIterate<Write_OPT_PAGE_CHECKSUM>(*this));
-	len = m_log.size();
+	if (m_log_mode == MTR_LOG_ALL) {
+		m_memo.for_each_block(CIterate<WriteOPT_PAGE_CHECKSUM>(*this));
+		len = m_log.size();
+	}
 #endif
 
 	if (len > srv_log_buffer_size / 2) {
@@ -1088,7 +1085,7 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
 @return {start_lsn,flush_ahead} */
 inline std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::finish_write(ulint len)
 {
-	ut_ad(m_log_mode == MTR_LOG_ALL);
+	ut_ad(is_logged());
 	mysql_mutex_assert_owner(&log_sys.mutex);
 	ut_ad(m_log.size() == len);
 	ut_ad(len > 0);
