@@ -1215,9 +1215,6 @@ struct buf_block_t{
   @param zip_size ROW_FORMAT=COMPRESSED page size, or 0
   @param fix      initial buf_fix_count() */
   void initialise(const page_id_t page_id, ulint zip_size, uint32_t fix= 0);
-
-  /** @return checksum for an OPT_PAGE_CHECKSUM record */
-  uint32_t page_checksum() const;
 };
 
 /**********************************************************************//**
