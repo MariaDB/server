@@ -7056,13 +7056,16 @@ static int binlog_log_row_online_alter(TABLE* table,
       trans_register_ha(thd, true, binlog_hton, 0);
   }
 
-  // We need to log all columns for the case if alter table changes primary key.
-  table->use_all_columns();
-  bitmap_set_all(table->rpl_write_set);
+  // We need to log all columns for the case if alter table changes primary key
+  DBUG_ASSERT(!before_record || bitmap_is_set_all(table->read_set));
+  MY_BITMAP *old_rpl_write_set= table->rpl_write_set;
+  table->rpl_write_set= &table->s->all_set;
 
   int error= (*log_func)(thd, table, table->s->online_alter_binlog,
                          table->online_alter_cache, has_trans,
                          before_record, after_record);
+
+  table->rpl_write_set= old_rpl_write_set;
 
   return unlikely(error) ? HA_ERR_RBR_LOGGING_FAILED : 0;
 }

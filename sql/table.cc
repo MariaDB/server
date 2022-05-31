@@ -7506,6 +7506,17 @@ void TABLE::mark_columns_needed_for_delete()
     bitmap_set_bit(write_set, s->vers.end_fieldno);
     need_signal= true;
   }
+#ifdef HAVE_REPLICATION
+  if (s->online_alter_binlog)
+  {
+    /*
+      For online alter we have to read all columns, because we need PK columns
+      in the row event, and we don't know what columns will be in PK after ALTER
+    */
+    bitmap_set_all(read_set);
+    need_signal= true;
+  }
+#endif
 
   if (need_signal)
     file->column_bitmaps_signal();
@@ -7590,9 +7601,20 @@ void TABLE::mark_columns_needed_for_update()
       For System Versioning we have to read all columns since we store
       a copy of previous row with modified row_end back to a table.
     */
-    bitmap_union(read_set, &s->all_set);
+    bitmap_set_all(read_set);
     need_signal= true;
   }
+#ifdef HAVE_REPLICATION
+  if (s->online_alter_binlog)
+  {
+    /*
+      For online alter we have to read all columns, because we need PK columns
+      in the row event, and we don't know what columns will be in PK after ALTER
+    */
+    bitmap_set_all(read_set);
+    need_signal= true;
+  }
+#endif
   if (check_constraints)
   {
     mark_check_constraint_columns_for_read();
