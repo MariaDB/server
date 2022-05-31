@@ -1630,13 +1630,8 @@ int spider_db_append_key_where_internal(
 
   if (sql_kind == SPIDER_SQL_KIND_HANDLER)
   {
-#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
     const char *key_name = key_info->name.str;
     key_name_length = key_info->name.length;
-#else
-    const char *key_name = key_info->name;
-    key_name_length = strlen(key_name);
-#endif
     if (str->reserve(SPIDER_SQL_READ_LEN +
       /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 + key_name_length))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -8167,13 +8162,8 @@ int spider_db_open_item_ident(
   }
   if (str)
   {
-#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
     if (item_ident->field_name.str)
       field_name_length = item_ident->field_name.length;
-#else
-    if (item_ident->field_name)
-      field_name_length = strlen(item_ident->field_name);
-#endif
     else
       field_name_length = 0;
     if (share->access_charset->cset == system_charset_info->cset)
@@ -8184,14 +8174,9 @@ int spider_db_open_item_ident(
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       }
       str->q_append(alias, alias_length);
-#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
       if ((error_num = spider_dbton[dbton_id].db_util->
         append_escaped_name(str, item_ident->field_name.str,
           field_name_length)))
-#else
-      if ((error_num = spider_dbton[dbton_id].db_util->
-        append_escaped_name(str, item_ident->field_name, field_name_length)))
-#endif
       {
         DBUG_RETURN(error_num);
       }
@@ -8199,15 +8184,9 @@ int spider_db_open_item_ident(
       if (str->reserve(alias_length))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       str->q_append(alias, alias_length);
-#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
       if ((error_num = spider_dbton[dbton_id].db_util->
         append_escaped_name_with_charset(str, item_ident->field_name.str,
           field_name_length, system_charset_info)))
-#else
-      if ((error_num = spider_dbton[dbton_id].db_util->
-        append_escaped_name_with_charset(str, item_ident->field_name,
-          field_name_length, system_charset_info)))
-#endif
       {
         DBUG_RETURN(error_num);
       }
@@ -8318,7 +8297,6 @@ int spider_db_open_item_ref(
   DBUG_ENTER("spider_db_open_item_ref");
   if (item_ref->ref)
   {
-#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
     if (
       (*(item_ref->ref))->type() != Item::CACHE_ITEM &&
       item_ref->ref_type() != Item_ref::VIEW_REF &&
@@ -8326,34 +8304,16 @@ int spider_db_open_item_ref(
       item_ref->name.str &&
       item_ref->alias_name_used
     )
-#else
-    if (
-      (*(item_ref->ref))->type() != Item::CACHE_ITEM &&
-      item_ref->ref_type() != Item_ref::VIEW_REF &&
-      !item_ref->table_name &&
-      item_ref->name &&
-      item_ref->alias_name_used
-    )
-#endif
     {
       if (str)
       {
-#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
         uint length = item_ref->name.length;
-#else
-        uint length = strlen(item_ref->name);
-#endif
         if (str->reserve(length + /* SPIDER_SQL_NAME_QUOTE_LEN */ 2))
         {
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         }
-#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
         if ((error_num = spider_dbton[dbton_id].db_util->
           append_name(str, item_ref->name.str, length)))
-#else
-        if ((error_num = spider_dbton[dbton_id].db_util->
-          append_name(str, item_ref->name, length)))
-#endif
         {
           DBUG_RETURN(error_num);
         }
@@ -10020,13 +9980,8 @@ int spider_db_udf_copy_key_row(
 ) {
   int error_num;
   DBUG_ENTER("spider_db_udf_copy_key_row");
-#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
   if ((error_num = spider_db_append_name_with_quote_str(str,
     (char *) field->field_name.str, dbton_id)))
-#else
-  if ((error_num = spider_db_append_name_with_quote_str(str,
-    (char *) field->field_name, dbton_id)))
-#endif
     DBUG_RETURN(error_num);
   if (str->reserve(joint_length + *length + SPIDER_SQL_AND_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);

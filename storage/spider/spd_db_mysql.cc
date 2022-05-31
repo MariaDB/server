@@ -3825,13 +3825,8 @@ void spider_db_mbase::set_dup_key_idx(
       key_name = spider->share->tgt_pk_names[all_link_idx];
       key_name_length = spider->share->tgt_pk_names_lengths[all_link_idx];
     } else {
-#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
       key_name = table->key_info[roop_count].name.str;
       key_name_length = table->key_info[roop_count].name.length;
-#else
-      key_name = table->key_info[roop_count].name;
-      key_name_length = strlen(key_name);
-#endif
     }
     DBUG_PRINT("info",("spider key_name=%s", key_name));
     if (
