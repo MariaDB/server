@@ -96,28 +96,3 @@ FLUSH STATUS;
 #
 include/assert.inc [Global value requested from the default session after FLUSH must remain the same]
 include/assert.inc [Default session value after FLUSH must remain zero]
-# BUG: results from inactive connections are not shown
-SET time_zone= '+2:00';
-connect  con1, localhost, root,,;
-set time_zone= '+10:00';
-SELECT THREAD_ID INTO @con1_thread_id FROM performance_schema.threads 
-WHERE PROCESSLIST_ID = CONNECTION_ID();
-SELECT thread_id = @con1_thread_id as current, variable_value
-FROM performance_schema.variables_by_thread
-WHERE variable_name = "time_zone";
-current	variable_value
-0	+02:00
-1	+10:00
-connection default;
-SELECT 1;
-1
-1
-disconnect con1;
-connection default;
-SELECT THREAD_ID INTO @def_thread_id FROM performance_schema.threads 
-WHERE PROCESSLIST_ID = CONNECTION_ID();
-SELECT thread_id = @def_thread_id as current, variable_value 
-FROM performance_schema.variables_by_thread
-WHERE variable_name = "time_zone";
-current	variable_value
-1	+02:00

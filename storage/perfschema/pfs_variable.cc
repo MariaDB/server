@@ -384,7 +384,7 @@ void PFS_system_variable_cache::refresh_one_var(uint index)
 int PFS_system_variable_cache::make_call(Request_func func, uint param)
 {
   int ret= 0;
-  THD *requestor_thd= current_thd;
+  THD *requestor_thd= m_current_thd;
   if (requestor_thd == m_safe_thd)
   {
     mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
@@ -405,8 +405,9 @@ int PFS_system_variable_cache::make_call(Request_func func, uint param)
         return 1;
       }
     }
+    DEBUG_SYNC(requestor_thd, "apc_after_notify");
     ret= m_safe_thd->apc_target.wait_for_completion(requestor_thd, request,
-                                                    30, &timed_out);
+                                                    10, &timed_out);
     if (!timed_out)
     {
       delete request;

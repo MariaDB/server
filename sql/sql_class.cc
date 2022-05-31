@@ -4377,6 +4377,7 @@ void thd_net_process_apc_requests(THD *thd)
 {
   if (unlikely(thd->apc_target.have_apc_requests()))
     thd->apc_target.process_apc_requests();
+  DEBUG_SYNC(thd, "net_after_apc");
 }
 
 

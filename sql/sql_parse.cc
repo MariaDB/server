@@ -1296,7 +1296,8 @@ dispatch_command_return do_command(THD *thd, bool blocking)
     goto out;
   }
 
-  thd->apc_target.process_apc_requests();
+  if (unlikely(thd->apc_target.have_apc_requests()))
+    thd->apc_target.process_apc_requests();
 
   packet= (char*) net->read_pos;
   /*
@@ -1408,6 +1409,8 @@ dispatch_command_return do_command(THD *thd, bool blocking)
 resume:
   return_value= dispatch_command(command, thd, packet+1,
                                  (uint) (packet_length-1), blocking);
+  DEBUG_SYNC(thd, "after_dispatch_command");
+
   if (return_value == DISPATCH_COMMAND_WOULDBLOCK)
   {
     /* Save current state, and resume later.*/
