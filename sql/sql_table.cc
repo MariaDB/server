@@ -11532,6 +11532,22 @@ bool mysql_trans_commit_alter_copy_data(THD *thd)
 }
 
 #ifdef HAVE_REPLICATION
+/*
+  locking ALTER TABLE doesn't issue ER_NO_DEFAULT_FOR_FIELD, so online
+  ALTER shouldn't either
+*/
+class Has_default_error_handler : public Internal_error_handler
+{
+public:
+  bool handle_condition(THD *, uint sql_errno, const char *,
+                        Sql_condition::enum_warning_level *,
+                        const char *, Sql_condition **)
+  {
+    return sql_errno == ER_NO_DEFAULT_FOR_FIELD;
+  }
+};
+
+
 static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
                                          Cache_flip_event_log *log)
 {
@@ -11548,6 +11564,8 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
   thd_progress_report(thd, 0, my_b_write_tell(log_file));
 
   Abort_on_warning_instant_set old_abort_on_warning(thd, 0);
+  Has_default_error_handler hdeh;
+  thd->push_internal_handler(&hdeh);
   do
   {
     const auto *descr_event= rgi->rli->relay_log.description_event_for_exec;
@@ -11567,6 +11585,7 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
     thd_progress_report(thd, my_b_tell(log_file), thd->progress.max_counter);
     DEBUG_SYNC(thd, "alter_table_online_progress");
   } while(!error);
+  thd->pop_internal_handler();
 
   return error;
 }
