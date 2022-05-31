@@ -38,13 +38,7 @@ inline void Json_writer::on_start_object()
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   if(!fmt_helper.is_making_writer_calls())
   {
-    if (got_name != named_item_expected())
-    {
-      sql_print_error(got_name
-                      ? "Json_writer got a member name which is not expected.\n"
-                      : "Json_writer: a member name was expected.\n");
-      VALIDITY_ASSERT(got_name == named_item_expected());
-    }
+    validate_named_item_expectation(true);
     named_items_expectation.push_back(true);
   }
 #endif
@@ -74,7 +68,7 @@ void Json_writer::start_array()
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   if(!fmt_helper.is_making_writer_calls())
   {
-    VALIDITY_ASSERT(got_name == named_item_expected());
+    validate_named_item_expectation(true);
     named_items_expectation.push_back(false);
     got_name= false;
     if (document_start)
@@ -99,9 +93,20 @@ void Json_writer::start_array()
 void Json_writer::end_object()
 {
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
-  VALIDITY_ASSERT(named_item_expected());
+  if (!named_item_expected())
+  {
+    print_json_tail_to_stderr(
+          "end_object failed since an unnamed item is expected");
+    VALIDITY_ASSERT(false);
+  }
   named_items_expectation.pop_back();
-  VALIDITY_ASSERT(!got_name);
+
+  if (got_name)
+  {
+    print_json_tail_to_stderr(
+          "end_object failed since got_name==true");
+    VALIDITY_ASSERT(false);
+  }
   got_name= false;
   VALIDITY_ASSERT(named_items.size());
   named_items.pop();
@@ -117,7 +122,12 @@ void Json_writer::end_object()
 void Json_writer::end_array()
 {
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
-  VALIDITY_ASSERT(!named_item_expected());
+  if (named_item_expected())
+  {
+    print_json_tail_to_stderr(
+          "end_array failed since a named item is expected");
+    VALIDITY_ASSERT(false);
+  }
   named_items_expectation.pop_back();
   got_name= false;
 #endif
@@ -140,8 +150,18 @@ Json_writer& Json_writer::add_member(const char *name, size_t len)
 {
   if (!fmt_helper.on_add_member(name, len))
   {
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
     // assert that we are in an object
-    DBUG_ASSERT(!element_started);
+    if (element_started)
+    {
+      char err_descr[200];
+      snprintf(err_descr, sizeof(err_descr),
+               "failed to add_member(\"%s\", %zu) since element_started=false",
+               name, len);
+      print_json_tail_to_stderr(err_descr);
+      VALIDITY_ASSERT(false);
+    }
+#endif
     start_element();
 
     output.append('"');
@@ -256,8 +276,12 @@ void Json_writer::add_unquoted_str(const char* str)
 
 void Json_writer::add_unquoted_str(const char* str, size_t len)
 {
-  VALIDITY_ASSERT(fmt_helper.is_making_writer_calls() ||
-                  got_name == named_item_expected());
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+  if (!fmt_helper.is_making_writer_calls())
+  {
+    validate_named_item_expectation();
+  }
+#endif
   if (on_add_str(str, len))
     return;
 
@@ -272,6 +296,10 @@ inline bool Json_writer::on_add_str(const char *str, size_t num_bytes)
 {
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   got_name= false;
+  if (!fmt_helper.is_making_writer_calls())
+  {
+    validate_named_item_expectation();
+  }
 #endif
   bool helped= fmt_helper.on_add_str(str, num_bytes);
   return helped;
@@ -289,8 +317,12 @@ void Json_writer::add_str(const char *str)
 
 void Json_writer::add_str(const char* str, size_t num_bytes)
 {
-  VALIDITY_ASSERT(fmt_helper.is_making_writer_calls() ||
-                  got_name == named_item_expected());
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+  if (!fmt_helper.is_making_writer_calls())
+  {
+    validate_named_item_expectation();
+  }
+#endif
   if (on_add_str(str, num_bytes))
     return;
 
@@ -307,6 +339,53 @@ void Json_writer::add_str(const String &str)
 {
   add_str(str.ptr(), str.length());
 }
+
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+void Json_writer::print_json_tail_to_stderr(const char *err_descr)
+{
+  size_t pos_to_print_from=
+    output.get_string()->length() < MAX_JSON_LEN_FOR_STDERR ?
+      0 : output.get_string()->length() - MAX_JSON_LEN_FOR_STDERR;
+  auto str_to_print= output.get_string()->c_ptr() + pos_to_print_from;
+  fprintf(stderr, "JSON writer error: %s.\nJSON tail: %s\n",
+          err_descr, str_to_print);
+}
+
+void Json_writer::validate_named_item_expectation(bool fix_wth_implicit_member)
+{
+  if (got_name != named_item_expected())
+  {
+    if (!got_name && fix_wth_implicit_member)
+    {
+      /*
+        Context is expecting a named member but has an unnamed one.
+        Add a member with automatically assigned name to preserve
+        JSON document correctness
+      */
+      add_implicit_member();
+      return;
+    }
+    const char *expected= named_item_expected() ?
+          "named" : "unnamed";
+    const char *actual= named_item_expected() ?
+          "unnamed" : "named";
+    char err_descr[100];
+    snprintf(err_descr, sizeof(err_descr),
+             "expected a %s member but a %s one has been added",
+             expected, actual);
+    print_json_tail_to_stderr(err_descr);
+    VALIDITY_ASSERT(false);
+  }
+}
+
+void Json_writer::add_implicit_member()
+{
+  char name[50];
+  sprintf(name, "implicitly_added_member_#%u", implicit_member_num);
+  add_member(name);
+  implicit_member_num++;
+}
+#endif
 
 #ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
 thread_local std::vector<bool> Json_writer_struct::named_items_expectation;
@@ -328,6 +407,7 @@ bool Single_line_formatting_helper::on_add_member(const char *name,
   DBUG_ASSERT(state== INACTIVE || state == DISABLED);
   if (memchr(name, 0, len))
     return false;
+
   if (state != DISABLED)
   {
     // remove everything from the array
