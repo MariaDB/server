@@ -86,7 +86,7 @@ is bigger than the lsn we are able to scan up to, that is an indication that
 the recovery failed and the database may be corrupt. */
 static lsn_t	recv_max_page_lsn;
 
-/** Stored physical log record with logical LSN (@see log_t::FORMAT_10_5) */
+/** Stored physical log record */
 struct log_phys_t : public log_rec_t
 {
   /** start LSN of the mini-transaction (not necessarily of this record) */
@@ -178,6 +178,35 @@ public:
     return false;
   }
 
+  /** Check an OPT_PAGE_CHECKSUM record.
+  @see mtr_t::page_checksum()
+  @param block   buffer page
+  @param l       pointer to checksum
+  @return whether an unrecoverable mismatch was found */
+  static bool page_checksum(const buf_block_t &block, const byte *l)
+  {
+    size_t size;
+    const byte *page= block.page.zip.data;
+    if (UNIV_LIKELY_NULL(page))
+      size= (UNIV_ZIP_SIZE_MIN >> 1) << block.page.zip.ssize;
+    else
+    {
+      page= block.frame;
+      size= srv_page_size;
+    }
+    if (UNIV_LIKELY(my_crc32c(my_crc32c(my_crc32c(0, page + FIL_PAGE_OFFSET,
+                                                  FIL_PAGE_LSN -
+                                                  FIL_PAGE_OFFSET),
+                                        page + FIL_PAGE_TYPE, 2),
+                              page + FIL_PAGE_SPACE_ID,
+                              size - (FIL_PAGE_SPACE_ID + 8)) ==
+                    mach_read_from_4(l)))
+      return false;
+
+    ib::error() << "OPT_PAGE_CHECKSUM mismatch on " << block.page.id();
+    return !srv_force_recovery;
+  }
+
   /** The status of apply() */
   enum apply_status {
     /** The page was not affected */
@@ -267,19 +296,13 @@ public:
       case OPTION:
         ut_ad(rlen == 5);
         ut_ad(*l == OPT_PAGE_CHECKSUM);
-        ut_ad(!block.page.zip.data);
-        if (UNIV_UNLIKELY(block.page_checksum() != mach_read_from_4(l + 1)))
+        if (page_checksum(block, l + 1))
         {
-          ib::error() << "InnoDB: OPT_PAGE_CHECKSUM mismatch on "
-                      << block.page.id();
-          if (!srv_force_recovery)
-          {
-            applied= APPLIED_YES;
+          applied= APPLIED_YES;
 page_corrupted:
-            ib::error() << "Set innodb_force_recovery=1 to ignore corruption.";
-            recv_sys.found_corrupt_log= true;
-            return applied;
-          }
+          ib::error() << "Set innodb_force_recovery=1 to ignore corruption.";
+          recv_sys.found_corrupt_log= true;
+          return applied;
         }
         goto next_after_applying;
       }

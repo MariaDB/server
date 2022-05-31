@@ -1306,7 +1306,7 @@ page_cur_insert_rec_low(
   ut_ad(!page_rec_is_supremum(cur->rec));
 
   /* We should not write log for ROW_FORMAT=COMPRESSED pages here. */
-  ut_ad(mtr->get_log_mode() != MTR_LOG_ALL ||
+  ut_ad(!mtr->is_logged() ||
         !(index->table->flags & DICT_TF_MASK_ZIP_SSIZE));
 
   /* 1. Get the size of the physical record in the page */
@@ -1505,7 +1505,7 @@ inc_dir:
     }
     rec_set_bit_field_1(next_rec, n_owned + 1, REC_NEW_N_OWNED,
                         REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
-    if (mtr->get_log_mode() != MTR_LOG_ALL)
+    if (!mtr->is_logged())
     {
       mtr->set_modified(*block);
       goto copied;
@@ -1547,7 +1547,7 @@ inc_dir:
     }
     rec_set_bit_field_1(next_rec, n_owned + 1, REC_OLD_N_OWNED,
                         REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
-    if (mtr->get_log_mode() != MTR_LOG_ALL)
+    if (!mtr->is_logged())
     {
       mtr->set_modified(*block);
       goto copied;
@@ -1568,7 +1568,7 @@ inc_dir:
   }
 
   /* Insert the record, possibly copying from the preceding record. */
-  ut_ad(mtr->get_log_mode() == MTR_LOG_ALL);
+  ut_ad(mtr->is_logged());
 
   {
     const byte *r= rec;

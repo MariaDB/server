@@ -44,6 +44,11 @@ enum mtr_log_t {
 	Set for attempting modification of a ROW_FORMAT=COMPRESSED page. */
 	MTR_LOG_NONE,
 
+	/** Log all operations, but do not write any OPT_PAGE_CHECKSUM
+	records because some of the modified pages were also modified
+	by another mini-transaction that did not write its log yet. */
+	MTR_LOG_SUB,
+
 	/** Don't generate REDO log but add dirty pages to flush list */
 	MTR_LOG_NO_REDO
 };
