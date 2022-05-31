@@ -182,12 +182,7 @@ size_t vio_read(Vio *vio, uchar *buf, size_t size)
 
     /* Wait for input data to become available. */
     if ((ret= vio_socket_io_wait(vio, VIO_IO_EVENT_READ)))
-    {
-      error= socket_errno;
-      fprintf(stderr, "vio_read: socket error is %d\n", error);
-      if (error != SOCKET_EINTR)
-        break;
-    }
+      break;
   }
 #ifndef DBUG_OFF
   if (ret == -1)
