@@ -68,8 +68,10 @@ private:
   std::condition_variable m_cv;
   unsigned int m_tasks_running;
   unsigned int m_max_concurrent_tasks;
+  const bool m_enable_task_release;
+
 public:
-  task_group(unsigned int max_concurrency= 100000);
+  task_group(unsigned int max_concurrency= 100000, bool m_enable_task_release= true);
   void set_max_tasks(unsigned int max_concurrent_tasks);
   void execute(task* t);
   void cancel_pending(task *t);
