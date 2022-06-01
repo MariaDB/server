@@ -62,6 +62,7 @@ struct READ_RECORD
   uint ref_length, reclength, rec_cache_size, error_offset;
 
   ha_rows sample_counter;
+  double sample_factor;
   /**
     Counting records when reading result from filesort().
     Used when filesort leaves the result in the filesort buffer.

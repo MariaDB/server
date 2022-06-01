@@ -571,6 +571,7 @@ SYMBOL symbols[] = {
   /** sql_function and condition_property_name for GET DIAGNOSTICS */
   { "ROW_NUMBER",	SYM(ROW_NUMBER_SYM)},
   { "RTREE",		SYM(RTREE_SYM)},
+    {"SAMPLE_METHOD", SYM(SAMPLE_METHOD)},
   { "SAVEPOINT",	SYM(SAVEPOINT_SYM)},
   { "SCHEDULE",		SYM(SCHEDULE_SYM)},
   { "SCHEMA",		SYM(DATABASE)},

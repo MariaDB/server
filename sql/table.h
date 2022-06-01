@@ -1498,6 +1498,7 @@ public:
   bool master_had_triggers;
 #endif
   Item *tablesample;
+  Item *sample_method_flag; /* rand_sample if>=1.0, full_scan_sample another*/
   REGINFO reginfo;			/* field connections */
   MEM_ROOT mem_root;
   /**
@@ -2223,6 +2224,7 @@ struct TABLE_LIST
     for_insert_data= insert_data;
   }
   Item *tablesample;
+  Item *sample_method_flag;
 
   /*
     List of tables local to a subquery (used by SQL_I_List). Considers

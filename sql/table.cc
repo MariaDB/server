@@ -5555,6 +5555,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   no_cache= false;
   initialize_opt_range_structures();
   tablesample= NULL;
+  sample_method_flag= NULL;
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
   master_had_triggers= 0;
@@ -8546,6 +8547,7 @@ bool TABLE_LIST::process_table_sample(TABLE *tbl)
     tbl->keys_in_use_for_order_by.clear_all();
     tbl->covering_keys.clear_all();
     tbl->tablesample= tablesample;
+    tbl->sample_method_flag= sample_method_flag;
   }
   return false;
 }
