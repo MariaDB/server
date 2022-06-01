@@ -501,6 +501,14 @@ void TABLE_SHARE::destroy()
     }
   }
 
+#ifdef HAVE_REPLICATION
+  if (online_alter_binlog)
+  {
+    online_alter_binlog->cleanup();
+    online_alter_binlog= NULL;
+  }
+#endif
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   plugin_unlock(NULL, default_part_plugin);
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
