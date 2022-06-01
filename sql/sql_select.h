@@ -1261,6 +1261,8 @@ public:
   table_map outer_join;
   /* Bitmap of tables used in the select list items */
   table_map select_list_used_tables;
+
+  table_map allowed_top_level_tables;
   ha_rows  send_records,found_records,join_examined_rows, accepted_rows;
 
   /*
@@ -1765,6 +1767,8 @@ public:
   bool transform_in_predicates_into_in_subq(THD *thd);
 
   bool optimize_upper_rownum_func();
+  void calc_allowed_top_level_tables(SELECT_LEX *lex);
+  table_map get_allowed_nj_tables(uint idx);
 
 private:
   /**
