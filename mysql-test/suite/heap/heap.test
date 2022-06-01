@@ -277,6 +277,7 @@ explain select count(*) from t1 where v between 'a' and 'a ' and v between 'a  '
 --error ER_DUP_ENTRY
 alter table t1 add unique(v);
 select concat('*',v,'*',c,'*',t,'*') as qq from t1 where v='a' order by length(concat('*',v,'*',c,'*',t,'*'));
+flush tables;
 explain select * from t1 where v='a';
 
 # GROUP BY
