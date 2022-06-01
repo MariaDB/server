@@ -111,12 +111,14 @@ static void optimize_straight_join(JOIN *join, table_map join_tables);
 static bool greedy_search(JOIN *join, table_map remaining_tables,
                           uint depth, uint prune_level,
                           uint use_cond_selectivity);
+
 enum enum_best_search {
   SEARCH_ABORT= -2,
   SEARCH_ERROR= -1,
   SEARCH_OK= 0,
   SEARCH_FOUND_EDGE=1
 };
+
 static enum_best_search
 best_extension_by_limited_search(JOIN *join,
                                  table_map remaining_tables,
@@ -492,6 +494,7 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
   original_join_tab= 0;
   explain= NULL;
   tmp_table_keep_current_rowid= 0;
+  allowed_top_level_tables= 0;
 
   all_fields= fields_arg;
   if (&fields_list != &fields_arg)      /* Avoid valgrind-warning */
@@ -2162,6 +2165,9 @@ JOIN::optimize_inner()
     if (arena)
       thd->restore_active_arena(arena, &backup);
   }
+
+  if (!allowed_top_level_tables)
+    calc_allowed_top_level_tables(select_lex);
 
   if (optimize_constant_subqueries())
     DBUG_RETURN(1);
@@ -9192,6 +9198,7 @@ greedy_search(JOIN      *join,
   uint      idx= join->const_tables; // index into 'join->best_ref'
   uint      best_idx;
   uint      size_remain;    // cardinality of remaining_tables
+  table_map usable_tables;
   POSITION  best_pos;
   JOIN_TAB  *best_table; // the next plan node to be added to the curr QEP
   // ==join->tables or # tables in the sj-mat nest we're optimizing
@@ -9199,16 +9206,20 @@ greedy_search(JOIN      *join,
   DBUG_ENTER("greedy_search");
 
   /* number of tables that remain to be optimized */
-  n_tables= size_remain= my_count_bits(remaining_tables &
-                                       (join->emb_sjm_nest? 
-                                         (join->emb_sjm_nest->sj_inner_tables &
-                                          ~join->const_table_map)
-                                         :
-                                         ~(table_map)0));
+  usable_tables= (join->emb_sjm_nest ?
+                  (join->emb_sjm_nest->sj_inner_tables &
+                   ~join->const_table_map & remaining_tables):
+                  remaining_tables);
+  n_tables= size_remain= my_count_bits(usable_tables);
 
   join->next_sort_position= join->sort_positions;
   do {
-    /* Find the extension of the current QEP with the lowest cost */
+    /*
+      Find the extension of the current QEP with the lowest cost
+      We are using remaining_table instead of usable tables here as
+      in case of an emb_sjm_nest, we want to be able to check if
+      an embedded table is depending on an outer table.
+    */
     join->best_read= DBL_MAX;
     if ((int) best_extension_by_limited_search(join, remaining_tables, idx,
                                                record_count,
@@ -10054,6 +10065,8 @@ best_extension_by_limited_search(JOIN      *join,
   bool disable_jbuf= join->thd->variables.join_cache_level == 0;
   enum_best_search best_res;
   uint tables_left= join->table_count - idx, found_tables;
+  uint accepted_tables __attribute__((unused));
+  table_map allowed_tables, allowed_current_tables;
   POSITION *sort_position= join->next_sort_position;
   SORT_POSITION *sort= (SORT_POSITION*) alloca(sizeof(SORT_POSITION)*tables_left);
   SORT_POSITION *sort_end;
@@ -10073,13 +10086,28 @@ best_extension_by_limited_search(JOIN      *join,
                                 "part_plan"););
   status_var_increment(thd->status_var.optimizer_join_prefixes_check_calls);
 
-  /*
-    If we are searching for the execution plan of a materialized semi-join nest
-    then allowed_tables contains bits only for the tables from this nest.
-  */
-  table_map allowed_tables= ~(table_map)0;
   if (join->emb_sjm_nest)
-    allowed_tables= join->emb_sjm_nest->sj_inner_tables & ~join->const_table_map;
+  {
+    /*
+      If we are searching for the execution plan of a materialized semi-join nest
+      then allowed_tables contains bits only for the tables from this nest.
+    */
+    allowed_tables= (join->emb_sjm_nest->sj_inner_tables & remaining_tables);
+    allowed_current_tables= join->get_allowed_nj_tables(idx) & remaining_tables;
+  }
+  else
+  {
+    /*
+      allowed_tables is used to check if there are tables left that can improve
+      a key search and to see if there are more tables to add in next iteration.
+
+      allowed_current_tables tells us which tables we can add to the current
+      plan at this stage.
+    */
+    allowed_tables= remaining_tables;
+    allowed_current_tables= join->get_allowed_nj_tables(idx) & remaining_tables;
+  }
+  DBUG_ASSERT(allowed_tables & remaining_tables);
 
   {
     Json_writer_object trace_one_table(thd);
@@ -10093,11 +10121,13 @@ best_extension_by_limited_search(JOIN      *join,
     for (JOIN_TAB **pos= join->best_ref + idx ; (s= *pos) ; pos++)
     {
       table_map real_table_bit= s->table->map;
-      DBUG_ASSERT(remaining_tables & real_table_bit);
-
-      if ((allowed_tables & real_table_bit) &&
+      if ((allowed_current_tables & real_table_bit) &&
           !(remaining_tables & s->dependent))
       {
+#ifdef DBUG_ASSERT_EXISTS
+        DBUG_ASSERT(!check_interleaving_with_nj(s));
+        restore_prev_nj_state(s);       // Revert effect of check_... call
+#endif
         sort_end->join_tab= pos;
         sort_end->position= sort_position;
 
@@ -10111,8 +10141,17 @@ best_extension_by_limited_search(JOIN      *join,
         sort_end++;
         sort_position+= 2;
       }
+      else
+      {
+        /* Verify that 'allowed_current_tables' was calculated correctly */
+        DBUG_ASSERT((remaining_tables & s->dependent) ||
+                    !(remaining_tables & real_table_bit) ||
+                    !(allowed_tables & real_table_bit) ||
+                    check_interleaving_with_nj(s));
+      }
     }
     found_tables= sort_end - sort;
+    DBUG_ASSERT(found_tables > 0);
     if (found_tables > 1)
       my_qsort(sort, found_tables, sizeof(SORT_POSITION),
                (qsort_cmp) sort_positions);
@@ -10121,6 +10160,7 @@ best_extension_by_limited_search(JOIN      *join,
   DBUG_ASSERT(join->next_sort_position <=
               join->sort_positions + join->sort_space);
 
+  accepted_tables= 0;
   for (SORT_POSITION *pos= sort ; pos < sort_end ; pos++)
   {
     s= *pos->join_tab;
@@ -10138,6 +10178,7 @@ best_extension_by_limited_search(JOIN      *join,
         trace_one_table.add_table_name(s);
       }
 
+      accepted_tables++;
       *position= *pos->position;                // Get stored result
       loose_scan_pos= pos->position+1;
 
@@ -10236,8 +10277,8 @@ best_extension_by_limited_search(JOIN      *join,
         }
       }
 
-      if ((search_depth > 1) && (remaining_tables & ~real_table_bit) &
-          allowed_tables)
+      if ((search_depth > 1) &&
+          ((remaining_tables & ~real_table_bit) & allowed_tables))
       {
         /* Recursively expand the current partial plan */
         Json_writer_array trace_rest(thd, "rest_of_plan");
@@ -10305,6 +10346,7 @@ best_extension_by_limited_search(JOIN      *join,
       }
     }
   }
+  DBUG_ASSERT(accepted_tables > 0);
   best_res= SEARCH_OK;
 
 end:
@@ -17588,6 +17630,116 @@ static void restore_prev_nj_state(JOIN_TAB *last)
   }
 }
 
+
+/*
+  Compute allowed_top_level_tables - a bitmap of tables one can put into the
+  join order if the last table in the join prefix is not inside any outer
+  join nest.
+
+  NESTED_JOIN::direct_children_map - a bitmap of tables ... if the last
+  table in the join prefix is inside the join nest.
+
+  Note: it looks like a sensible way to do this is a top-down descent on
+  JOIN::join_list, but apparently that list is missing I_S tables.
+  e.g. for SHOW TABLES WHERE col IN (SELECT ...) it will just have a
+  semi-join nest.
+*/
+
+void JOIN::calc_allowed_top_level_tables(SELECT_LEX *lex)
+{
+  TABLE_LIST *tl;
+  List_iterator<TABLE_LIST> ti(lex->leaf_tables);
+  DBUG_ENTER("JOIN::calc_allowed_top_level_tables");
+  DBUG_ASSERT(allowed_top_level_tables == 0);   // Should only be called once
+
+  while ((tl= ti++))
+  {
+    table_map map;
+    TABLE_LIST *embedding= tl->embedding;
+
+    if (tl->table)
+      map= tl->table->map;
+    else
+    {
+      DBUG_ASSERT(tl->jtbm_subselect);
+      map= table_map(1) << tl->jtbm_table_no;
+    }
+
+    if (!(embedding= tl->embedding))
+    {
+      allowed_top_level_tables |= map;
+      continue;
+    }
+
+    // Walk out of any semi-join nests
+    while (embedding && !embedding->on_expr)
+    {
+      // semi-join nest or an INSERT-INTO view...
+      embedding->nested_join->direct_children_map |= map;
+      embedding= embedding->embedding;
+    }
+
+    // Ok we are in the parent nested outer join nest.
+    if (!embedding)
+    {
+      allowed_top_level_tables |= map;
+      continue;
+    }
+    embedding->nested_join->direct_children_map |= map;
+
+    // Walk to grand-parent join nest.
+    embedding= embedding->embedding;
+
+    // Walk out of any semi-join nests
+    while (embedding && !embedding->on_expr)
+    {
+      DBUG_ASSERT(embedding->sj_on_expr);
+      embedding->nested_join->direct_children_map |= map;
+      embedding= embedding->embedding;
+    }
+
+    if (embedding)
+    {
+      DBUG_ASSERT(embedding->on_expr);          // Impossible, see above
+      embedding->nested_join->direct_children_map |= map;
+    }
+    else
+      allowed_top_level_tables |= map;
+  }
+  DBUG_VOID_RETURN;
+}
+
+
+/*
+  Get the tables that one is allowed to have as the next table in the
+  current plan
+*/
+
+table_map JOIN::get_allowed_nj_tables(uint idx)
+{
+  TABLE_LIST *last_emb;
+  if (idx > const_tables &&
+      (last_emb= positions[idx-1].table->table->pos_in_table_list->embedding))
+  {
+    for (;last_emb && last_emb != emb_sjm_nest;
+         last_emb= last_emb->embedding)
+    {
+      if (!last_emb->sj_on_expr)
+      {
+        NESTED_JOIN *nest= last_emb->nested_join;
+        if (!nest->is_fully_covered())
+        {
+          // Return tables that are direct members of this join nest
+          return nest->direct_children_map;
+        }
+      }
+    }
+  }
+  // Return bitmap of tables not in any join nest
+  if (emb_sjm_nest)
+    return emb_sjm_nest->nested_join->direct_children_map;
+  return allowed_top_level_tables;
+}
 
 
 /*
