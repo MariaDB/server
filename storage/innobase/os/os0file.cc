@@ -2479,6 +2479,7 @@ os_file_get_last_error_low(
 	case EXDEV:
 	case ENOTDIR:
 	case EISDIR:
+	case EPERM:
 		return(OS_FILE_PATH_ERROR);
 	case EAGAIN:
 		if (srv_use_native_aio) {
