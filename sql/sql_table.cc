@@ -11592,17 +11592,7 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
 
   return error;
 }
-#endif // HAVE_REPLICATION
-
-static void online_alter_cleanup_binlog(THD *thd, TABLE_SHARE *s)
-{
-#ifdef HAVE_REPLICATION
-  if (!s->online_alter_binlog)
-    return;
-  s->online_alter_binlog->cleanup();
-  s->online_alter_binlog= NULL;
 #endif
-}
 
 static int
 copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
@@ -11805,7 +11795,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 #ifdef HAVE_REPLICATION
     if (online)
     {
-      from->s->online_alter_binlog= new (thd->mem_root) Cache_flip_event_log();
+      from->s->online_alter_binlog= new (&from->s->mem_root) Cache_flip_event_log();
       if (!from->s->online_alter_binlog)
         DBUG_RETURN(1);
       from->s->online_alter_binlog->init_pthread_objects();
@@ -11813,7 +11803,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
       if (error)
       {
-        online_alter_cleanup_binlog(thd, from->s);
+        from->s->online_alter_binlog->cleanup();
+        from->s->online_alter_binlog= NULL;
         goto err;
       }
 
@@ -12023,21 +12014,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
   else if (online) // error was on copy stage
   {
-    /*
-       We need to issue a barrier to clean up gracefully.
-       Without this, following possible:
-       T1: ALTER TABLE starts
-       T2: INSERT starts
-       T1: ALTER TABLE fails with error (i.e. ER_DUP_KEY)
-       T1: from->s->online_alter_binlog sets to NULL
-       T2: INSERT committs
-       T2: thd->online_alter_cache_list is not empty
-       T2: binlog_commit: DBUG_ASSERT(binlog); is issued.
-    */
-    // Ignore the return result. We already have an error.
-    thd->mdl_context.upgrade_shared_lock(from->mdl_ticket, 
-                                         MDL_SHARED_NO_WRITE,
-                                         thd->variables.lock_wait_timeout);
+    from->s->tdc->flushed= 1; // to free the binlog
   }
 #endif
 
@@ -12057,9 +12034,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
  err:
   if (bulk_insert_started)
     (void) to->file->ha_end_bulk_insert();
-
-/* Free resources */
-  online_alter_cleanup_binlog(thd, from->s);
 
   if (init_read_record_done)
     end_read_record(&info);
