@@ -8891,14 +8891,9 @@ join_tab_cmp(const void *dummy, const void* ptr1, const void* ptr2)
   if ((cmp= compare_embedding_subqueries(jt1, jt2)) != 0)
     return cmp;
   /*
-    After that,
-    take care about ordering imposed by LEFT JOIN constraints,
-    possible [eq]ref accesses, and numbers of matching records in the table.
+    After that do ordering according to numbers of
+    records in the table.
   */
-  if (jt1->dependent & jt2->table->map)
-    return 1;
-  if (jt2->dependent & jt1->table->map)
-    return -1;  
   if (jt1->found_records > jt2->found_records)
     return 1;
   if (jt1->found_records < jt2->found_records)
@@ -8929,10 +8924,15 @@ join_tab_cmp_straight(const void *dummy, const void* ptr1, const void* ptr2)
   if ((cmp= compare_embedding_subqueries(jt1, jt2)) != 0)
     return cmp;
 
+  /*
+    We have to check dependency with straight_join as we don't reorder
+    later as we do for other plans in best_extension_by_limited_search().
+  */
   if (jt1->dependent & jt2->table->map)
     return 1;
   if (jt2->dependent & jt1->table->map)
     return -1;
+
   return jt1 > jt2 ? 1 : (jt1 < jt2 ? -1 : 0);
 }
 
@@ -8953,11 +8953,6 @@ join_tab_cmp_embedded_first(const void *emb,  const void* ptr1, const void* ptr2
     return -1;
   if (jt1->emb_sj_nest != emb_nest && jt2->emb_sj_nest == emb_nest)
     return 1;
-
-  if (jt1->dependent & jt2->table->map)
-    return 1;
-  if (jt2->dependent & jt1->table->map)
-    return -1;
 
   if (jt1->found_records > jt2->found_records)
     return 1;
@@ -9031,9 +9026,9 @@ determine_search_depth(JOIN *join)
     access method. The final optimal plan is stored in the array
     'join->best_positions', and the corresponding cost in 'join->best_read'.
 
-  @param join          pointer to the structure providing all context info for
-                       the query
-  @param join_tables   set of the tables in the query
+  @param join              pointer to the structure providing all context info
+                           for the query
+  @param remaining_tables  set of the tables in the query
 
   @note
     This function can be applied to:
