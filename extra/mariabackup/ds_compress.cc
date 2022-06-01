@@ -238,25 +238,24 @@ compress_write(ds_file_t *file, const uchar *buf, size_t len)
 
 			xb_a(threads[i].to_len > 0);
 
-			if (ds_write(dest_file, "NEWBNEWB", 8) ||
-			    write_uint64_le(dest_file,
-					    comp_file->bytes_processed)) {
-				msg("compress: write to the destination stream "
-				    "failed.");
-				return 1;
-			}
-
+			bool fail = ds_write(dest_file, "NEWBNEWB", 8) ||
+				write_uint64_le(dest_file,
+						comp_file->bytes_processed);
 			comp_file->bytes_processed += threads[i].from_len;
 
-			if (write_uint32_le(dest_file, threads[i].adler) ||
-			    ds_write(dest_file, threads[i].to,
-					   threads[i].to_len)) {
-				msg("compress: write to the destination stream "
-				    "failed.");
-				return 1;
+			if (!fail) {
+				fail = write_uint32_le(dest_file, threads[i].adler) ||
+					ds_write(dest_file, threads[i].to,
+						 threads[i].to_len);
 			}
 
 			pthread_mutex_unlock(&threads[i].data_mutex);
+
+			if (fail) {
+				msg("compress: write to the destination stream "
+				    "failed.");
+				return 1;
+			}
 		}
 	}
 
