@@ -86,7 +86,6 @@ encrypt_threads=""
 encrypt_chunk=""
 
 readonly SECRET_TAG='secret'
-readonly TOTAL_TAG='secret /total'
 
 # Required for backup locks
 # For backup locks it is 1 sent by joiner
@@ -419,7 +418,7 @@ get_transfer()
 
 get_footprint()
 {
-    pushd "$WSREP_SST_OPT_DATA" 1>/dev/null
+    cd "$DATA_DIR"
     payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
               -type f -print0 | du --files0-from=- --block-size=1 -c -s | \
               awk 'END { print $1 }')
@@ -428,7 +427,7 @@ get_footprint()
         # When compression/compaction used, the progress is only an approximate.
         payload=$(( payload*1/2 ))
     fi
-    popd 1>/dev/null
+    cd "$OLD_PWD"
     pcmd="$pcmd -s $payload"
     adjust_progress
 }

@@ -1847,6 +1847,7 @@ dict_load_columns(
 			the flag is set before the table is created. */
 			if (table->fts == NULL) {
 				table->fts = fts_create(table);
+				table->fts->cache = fts_cache_create(table);
 				fts_optimize_add_table(table);
 			}
 
