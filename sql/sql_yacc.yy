@@ -1314,6 +1314,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         TEXT_STRING
         NCHAR_STRING
         json_text_literal
+        json_text_literal_or_num
 
 %type <lex_str_ptr>
         opt_table_alias_clause
@@ -11292,6 +11293,26 @@ json_text_literal:
           }
         ;
 
+json_text_literal_or_num:
+          json_text_literal
+        | NUM
+          {
+            Lex->json_table->m_text_literal_cs= NULL;
+          }
+        | LONG_NUM
+          {
+            Lex->json_table->m_text_literal_cs= NULL;
+          }
+        | DECIMAL_NUM
+          {
+            Lex->json_table->m_text_literal_cs= NULL;
+          }
+        | FLOAT_NUM
+          {
+            Lex->json_table->m_text_literal_cs= NULL;
+          }
+        ;
+
 join_table_list:
           derived_table_list { MYSQL_YYABORT_UNLESS($$=$1); }
         ;
@@ -11406,7 +11427,7 @@ json_on_response:
           {
             $$.m_response= Json_table_column::RESPONSE_NULL;
           }
-        | DEFAULT json_text_literal
+        | DEFAULT json_text_literal_or_num
           {
             $$.m_response= Json_table_column::RESPONSE_DEFAULT;
             $$.m_default= $2;

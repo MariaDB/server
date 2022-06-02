@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1283,9 +1283,8 @@ inline void mtr_t::page_insert(const buf_block_t &block, bool reuse,
 
 /***********************************************************//**
 Inserts a record next to page cursor on an uncompressed page.
-Returns pointer to inserted record if succeed, i.e., enough
-space available, NULL otherwise. The cursor stays at the same position.
-@return pointer to record if succeed, NULL otherwise */
+@return pointer to record
+@retval nullptr if not enough space was available */
 rec_t*
 page_cur_insert_rec_low(
 /*====================*/
@@ -1579,8 +1578,12 @@ inc_dir:
     const byte *r= rec;
     const byte *c= cur->rec;
     const byte *c_end= cur->rec + data_size;
+    static_assert(REC_N_OLD_EXTRA_BYTES == REC_N_NEW_EXTRA_BYTES + 1, "");
     if (c <= insert_buf && c_end > insert_buf)
       c_end= insert_buf;
+    else if (c_end < next_rec &&
+             c_end >= next_rec - REC_N_OLD_EXTRA_BYTES + comp)
+      c_end= next_rec - REC_N_OLD_EXTRA_BYTES + comp;
     else
       c_end= std::min<const byte*>(c_end, block->page.frame + srv_page_size -
                                    PAGE_DIR - PAGE_DIR_SLOT_SIZE *

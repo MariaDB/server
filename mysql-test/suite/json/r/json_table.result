@@ -57,14 +57,14 @@ Jeans	{"color": "blue", "price": 50}	blue
 select * from t1 right join json_table(t1.item_props,'$' columns( color varchar(100) path '$.color')) as T on 1;
 ERROR 42S22: Unknown column 't1.item_props' in 'JSON_TABLE argument'
 DROP TABLE t1;
-select * from JSON_TABLE( '[ {"xa": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+select * from JSON_TABLE( '[ {"xa": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default 101 on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
 a	b
 101	11
 101	111
 2	22
 2	222
 3	NULL
-select * from JSON_TABLE( '[ {"xa": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default '202' on error, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+select * from JSON_TABLE( '[ {"xa": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default 202 on error, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
 a	b
 NULL	11
 NULL	111
@@ -953,6 +953,20 @@ converted	original
 Warnings:
 Warning	1264	Out of range value for column 'converted' at row 2
 Warning	1366	Incorrect integer value: 'foo' for column ``.`(temporary)`.`converted` at row 3
+select * from
+json_table('[{"color": "blue",  "price": { "high": 10, "low": 5}},
+               {"color": "white",   "price": "pretty low"},
+               {"color": "yellow",  "price": 256.20},
+               {"color": "red",   "price": { "high": 20, "low": 8}}]',
+'$[*]' columns(color varchar(100) path '$.color',
+price json path '$.price'
+                        )
+) as T;
+color	price
+blue	{ "high": 10, "low": 5}
+white	"pretty low"
+yellow	256.20
+red	{ "high": 20, "low": 8}
 #
 # MDEV-27696 Json table columns accept redundant COLLATE syntax
 #
