@@ -706,8 +706,9 @@ The following specify which files/extra groups are read (specified before remain
  Controls the heuristic(s) applied during query
  optimization to prune less-promising partial plans from
  the optimizer search space. Meaning: 0 - do not apply any
- heuristic, thus perform exhaustive search; 1 - prune
- plans based on number of retrieved rows
+ heuristic, thus perform exhaustive search: 1 - prune
+ plans based on cost and number of retrieved rows eq_ref:
+ 2 - prune also if we find an eq_ref chain
  --optimizer-search-depth=# 
  Maximum depth of search performed by the query optimizer.
  Values larger than the number of relations in a query
@@ -1662,7 +1663,7 @@ old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE
 optimizer-max-sel-arg-weight 32000
-optimizer-prune-level 1
+optimizer-prune-level 2
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
 optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on
