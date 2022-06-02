@@ -769,7 +769,7 @@ void JOIN::add_keyuses_for_splitting()
     added_keyuse->validity_ref= &keyuse_ext->validity_var;
   }
 
-  if (sort_and_filter_keyuse(thd, &keyuse, true))
+  if (sort_and_filter_keyuse(this, &keyuse, true))
     goto err;
   optimize_keyuse(this, &keyuse);
 
