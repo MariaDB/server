@@ -147,6 +147,7 @@ public:
   };
 
   enum_type m_column_type;
+  bool m_format_json;
   json_path_t m_path;
   On_response m_on_error;
   On_response m_on_empty;

@@ -4359,7 +4359,7 @@ lock_print_info_summary(
 	fprintf(file,
 		"Purge done for trx's n:o < " TRX_ID_FMT
 		" undo n:o < " TRX_ID_FMT " state: %s\n"
-		"History list length %u\n",
+		"History list length %zu\n",
 		purge_sys.tail.trx_no,
 		purge_sys.tail.undo_no,
 		purge_sys.enabled()

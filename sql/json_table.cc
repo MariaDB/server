@@ -19,6 +19,7 @@
 #include "sql_priv.h"
 #include "sql_class.h" /* TMP_TABLE_PARAM */
 #include "table.h"
+#include "sql_type_json.h"
 #include "item_jsonfunc.h"
 #include "json_table.h"
 #include "sql_show.h"
@@ -377,6 +378,25 @@ static void store_json_in_field(Field *f, const json_engine_t *je)
 }
 
 
+static int store_json_in_json(Field *f, json_engine_t *je)
+{
+  const uchar *from= je->value_begin;
+  const uchar *to;
+
+  if (json_value_scalar(je))
+    to= je->value_end;
+  else
+  {
+    int error;
+    if ((error= json_skip_level(je)))
+      return error;
+    to= je->s.c_str;
+  }
+  f->store((const char *) from, (uint32) (to - from), je->s.cs);
+  return 0;
+}
+
+
 bool Json_table_nested_path::check_error(const char *str)
 {
   if (m_engine.s.error)
@@ -541,7 +561,12 @@ int ha_json_table::fill_column_values(THD *thd, uchar * buf, uchar *pos)
           }
           else
           {
-            if (!(error= !json_value_scalar(&je)))
+            if (jc->m_format_json)
+            {
+              if (!(error= store_json_in_json(*f, &je)))
+                error= er_handler.errors;
+            }
+            else if (!(error= !json_value_scalar(&je)))
             {
               store_json_in_field(*f, &je);
               error= er_handler.errors;
@@ -869,6 +894,10 @@ int Json_table_column::set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
     anctual content. Not sure though if we should.
   */
   m_path.s.c_str= (const uchar *) path.str;
+
+  if (ctype == PATH)
+    m_format_json= m_field->type_handler() == &type_handler_long_blob_json;
+
   return 0;
 }
 

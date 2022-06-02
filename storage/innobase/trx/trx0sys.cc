@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -206,10 +206,10 @@ void trx_sys_t::create()
   rw_trx_hash.init();
 }
 
-uint32_t trx_sys_t::history_size()
+size_t trx_sys_t::history_size()
 {
   ut_ad(is_initialised());
-  uint32_t size= 0;
+  size_t size= 0;
   for (auto &rseg : rseg_array)
   {
     rseg.latch.rd_lock(SRW_LOCK_CALL);
@@ -220,10 +220,10 @@ uint32_t trx_sys_t::history_size()
   return size;
 }
 
-bool trx_sys_t::history_exceeds(uint32_t threshold)
+bool trx_sys_t::history_exceeds(size_t threshold)
 {
   ut_ad(is_initialised());
-  uint32_t size= 0;
+  size_t size= 0;
   bool exceeds= false;
   size_t i;
   for (i= 0; i < array_elements(rseg_array); i++)
@@ -251,10 +251,10 @@ TPOOL_SUPPRESS_TSAN bool trx_sys_t::history_exists()
   return false;
 }
 
-TPOOL_SUPPRESS_TSAN uint32_t trx_sys_t::history_size_approx() const
+TPOOL_SUPPRESS_TSAN size_t trx_sys_t::history_size_approx() const
 {
   ut_ad(is_initialised());
-  uint32_t size= 0;
+  size_t size= 0;
   for (auto &rseg : rseg_array)
     size+= rseg.history_size;
   return size;
