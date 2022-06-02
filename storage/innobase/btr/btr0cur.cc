@@ -2846,7 +2846,7 @@ btr_cur_open_at_index_side(
 
 	return err;
 }
-
+extern unsigned long long my_counter;
 /**********************************************************************//**
 Positions a cursor at a randomly chosen position within a B-tree.
 @return DB_SUCCESS if the index is available and we have put the cursor,
@@ -3156,8 +3156,10 @@ btr_cur_open_at_rnd_pos(
 	// getting 0..1 pseudo random number from ut_rnd_gen()
 	// and exchange division by multiplication like
 	// (b / c) < a <=> b < (a * c)
-	if(sim_uniform_dist && (ut_rnd_gen() < (p * ~(uint32_t)0)))
+	if(sim_uniform_dist && (ut_rnd_gen() < (p * ~(uint32_t)0))) {
 		err = DB_RECORD_NOT_FOUND;
+                my_counter++;
+        }
 
 	return err;
 }
