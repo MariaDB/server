@@ -708,3 +708,11 @@ drop table t1;
 --echo # MDEV-15538 '-N' Produce html output wrong
 --echo #
 --exec $MYSQL -NHe "select 1 as a"
+
+
+#
+# Test obsolete option --enable-cleartext-plugin
+# This should proceed with a warning
+#
+--echo
+--exec $MYSQL test --enable-cleartext-plugin -e "select 1"
