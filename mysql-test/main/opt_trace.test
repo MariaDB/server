@@ -888,3 +888,4 @@ select left(trace, 100) from information_schema.optimizer_trace;
 set optimizer_trace='enabled=off';
 
 --echo # End of 10.6 tests
+

@@ -1261,6 +1261,8 @@ public:
   table_map outer_join;
   /* Bitmap of tables used in the select list items */
   table_map select_list_used_tables;
+  /* Tables that have a possiblity to use EQ_ref */
+  table_map eq_ref_tables;
 
   table_map allowed_top_level_tables;
   ha_rows  send_records,found_records,join_examined_rows, accepted_rows;
@@ -2432,7 +2434,7 @@ void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist)
 double get_tmp_table_lookup_cost(THD *thd, double row_count, uint row_size);
 double get_tmp_table_write_cost(THD *thd, double row_count, uint row_size);
 void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array);
-bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
+bool sort_and_filter_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse,
                             bool skip_unprefixed_keyparts);
 
 struct st_cond_statistic

@@ -692,13 +692,13 @@ create table t2 (a int, b int, primary key(a));
 insert into t2 select @v:=A.a+10*B.a, @v  from t1 A, t1 B;
 
 explain select * from t1;
-show status like '%cost%';
+show status like 'Last_query_cost';
 select 'The cost of accessing t1 (dont care if it changes' '^';
 
 select 'vv: Following query must use ALL(t1), eq_ref(A), eq_ref(B): vv' Z;
 
 explain select * from t1, t2 A, t2 B where A.a = t1.a and B.a=A.b;
-show status like '%cost%';
+show status like 'Last_query_cost';
 select '^^: The above should be ~= 20 + cost(select * from t1). Value less than 20 is an error' Z;
 
 

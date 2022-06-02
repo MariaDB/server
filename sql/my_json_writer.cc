@@ -159,10 +159,8 @@ Json_writer& Json_writer::add_member(const char *name, size_t len)
     auto is_uniq_key= emplaced.second;
     if(!is_uniq_key)
     {
-#ifdef QQQ
       sql_print_error("Duplicated key: %s\n", emplaced.first->c_str());
       VALIDITY_ASSERT(is_uniq_key);
-#endif /* QQQ */
     }
   }
 #endif
