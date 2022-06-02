@@ -8942,7 +8942,7 @@ determine_search_depth(JOIN *join)
 */
 
 static void
-optimize_straight_join(JOIN *join, table_map join_tables)
+optimize_straight_join(JOIN *join, table_map remaining_tables)
 {
   JOIN_TAB *s;
   uint idx= join->const_tables;
@@ -8960,30 +8960,32 @@ optimize_straight_join(JOIN *join, table_map join_tables)
     Json_writer_object trace_one_table(thd);
     if (unlikely(thd->trace_started()))
     {
-      trace_plan_prefix(join, idx, join_tables);
+      trace_plan_prefix(join, idx, remaining_tables);
       trace_one_table.add_table_name(s);
     }
     /* Find the best access method from 's' to the current partial plan */
-    best_access_path(join, s, join_tables, join->positions, idx,
+    best_access_path(join, s, remaining_tables, join->positions, idx,
                      disable_jbuf, record_count,
                      position, &loose_scan_pos);
 
-    /* compute the cost of the new plan extended with 's' */
+    /* Compute the cost of the new plan extended with 's' */
     record_count= COST_MULT(record_count, position->records_read);
     const double filter_cmp_gain= position->range_rowid_filter_info
       ? position->range_rowid_filter_info->get_cmp_gain(record_count)
       : 0;
-    read_time+= COST_ADD(read_time - filter_cmp_gain,
-                         COST_ADD(position->read_time,
-                                  record_count / TIME_FOR_COMPARE));
-    advance_sj_state(join, join_tables, idx, &record_count, &read_time,
+    read_time= COST_ADD(read_time,
+                        COST_ADD(position->read_time -
+                                 filter_cmp_gain,
+                                 record_count /
+                                 TIME_FOR_COMPARE));
+    advance_sj_state(join, remaining_tables, idx, &record_count, &read_time,
                      &loose_scan_pos);
 
-    join_tables&= ~(s->table->map);
+    remaining_tables&= ~(s->table->map);
     double pushdown_cond_selectivity= 1.0;
     if (use_cond_selectivity > 1)
       pushdown_cond_selectivity= table_cond_selectivity(join, idx, s,
-                                                        join_tables);
+                                                        remaining_tables);
     position->cond_selectivity= pushdown_cond_selectivity;
     ++idx;
   }
@@ -9965,16 +9967,16 @@ best_extension_by_limited_search(JOIN      *join,
       best_access_path(join, s, remaining_tables, join->positions, idx,
                        disable_jbuf, record_count, position, &loose_scan_pos);
 
-      /* Compute the cost of extending the plan with 's' */
+      /* Compute the cost of the new plan extended with 's' */
       current_record_count= COST_MULT(record_count, position->records_read);
       const double filter_cmp_gain= position->range_rowid_filter_info
         ? position->range_rowid_filter_info->get_cmp_gain(current_record_count)
         : 0;
-      current_read_time=COST_ADD(read_time,
-                                 COST_ADD(position->read_time -
-                                          filter_cmp_gain,
-                                          current_record_count /
-                                          TIME_FOR_COMPARE));
+      current_read_time= COST_ADD(read_time,
+                                  COST_ADD(position->read_time -
+                                           filter_cmp_gain,
+                                           current_record_count /
+                                           TIME_FOR_COMPARE));
 
       if (unlikely(thd->trace_started()))
       {
