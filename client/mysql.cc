@@ -1527,6 +1527,8 @@ static struct my_option my_long_options[] =
    &delimiter_str, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"execute", 'e', "Execute command and quit. (Disables --force and history file.)", 0,
    0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"enable-cleartext-plugin", OPT_COMPATIBILTY_CLEARTEXT_PLUGIN, "Obsolete option. Exists only for MySQL compatibility.",
+   0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"vertical", 'E', "Print the output of a query (rows) vertically.",
    &vertical, &vertical, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0,
    0},
@@ -1835,6 +1837,14 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
 #else /*EMBEDDED_LIBRARY */
     printf("WARNING: --server-arg option not supported in this configuration.\n");
 #endif
+    break;
+  case OPT_COMPATIBILTY_CLEARTEXT_PLUGIN:
+    /*
+      This option exists in MySQL client but not in MariaDB. Users switching from
+      MySQL might still have this option in their commands, and it will not work
+      in MariaDB unless it is handled. Therefore output a warning and continue.
+    */
+    printf("WARNING: option '--enable-cleartext-plugin' is obsolete.\n");
     break;
   case 'A':
     opt_rehash= 0;

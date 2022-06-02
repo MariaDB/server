@@ -1383,6 +1383,7 @@ dict_load_columns(
 			the flag is set before the table is created. */
 			if (table->fts == NULL) {
 				table->fts = fts_create(table);
+				table->fts->cache = fts_cache_create(table);
 			}
 
 			ut_a(table->fts->doc_col == ULINT_UNDEFINED);
