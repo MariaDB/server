@@ -6718,7 +6718,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
         can be satisfied only with the strict mode that ensures
         against "genuine" gtid duplicates.
       */
-      rpl_gtid *gtid_in_slave_state=
+      rpl_gtid *gtid_in_slave_state __attribute__((unused))=
         mi->gtid_current_pos.find(mi->last_queued_gtid.domain_id);
 
       // Slave gtid state must not have updated yet to the last received gtid.
