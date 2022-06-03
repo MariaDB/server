@@ -40,7 +40,7 @@ class Arg_comparator;
 
 typedef int (Arg_comparator::*arg_cmp_func)();
 
-typedef int (*Item_field_cmpfunc)(Item *f1, Item *f2, void *arg); 
+typedef int (*Item_field_cmpfunc)(Item *f1, Item *f2, void *arg);
 
 class Arg_comparator: public Sql_alloc
 {
@@ -376,7 +376,7 @@ protected:
   Item_cache *cache;
   Item *expr_cache;
   bool save_cache;
-  /* 
+  /*
     Stores the value of "NULL IN (SELECT ...)" for uncorrelated subqueries:
       UNKNOWN - "NULL in (SELECT ...)" has not yet been evaluated
       FALSE   - result is FALSE
@@ -653,10 +653,10 @@ class Item_maxmin_subselect;
 /*
   trigcond<param>(arg) ::= param? arg : TRUE
 
-  The class Item_func_trig_cond is used for guarded predicates 
+  The class Item_func_trig_cond is used for guarded predicates
   which are employed only for internal purposes.
   A guarded predicate is an object consisting of an a regular or
-  a guarded predicate P and a pointer to a boolean guard variable g. 
+  a guarded predicate P and a pointer to a boolean guard variable g.
   A guarded predicate P/g is evaluated to true if the value of the
   guard g is false, otherwise it is evaluated to the same value that
   the predicate P: val(P/g)= g ? val(P):true.
@@ -668,12 +668,12 @@ class Item_maxmin_subselect;
   the objects consisting of three elements: a predicate P, a pointer
   to a variable g and a firing value s with following evaluation
   rule: val(P/g,s)= g==s? val(P) : true. It will allow us to build only
-  one item for the objects of the form P/g1/g2... 
+  one item for the objects of the form P/g1/g2...
 
   Objects of this class are built only for query execution after
   the execution plan has been already selected. That's why this
-  class needs only val_int out of generic methods. 
- 
+  class needs only val_int out of generic methods.
+
   Current uses of Item_func_trig_cond objects:
    - To wrap selection conditions when executing outer joins
    - To wrap condition that is pushed down into subquery
@@ -776,10 +776,10 @@ public:
                                       usable_tables, sargables, true);
   }
   bool check_equality(THD *thd, COND_EQUAL *cond, List<Item> *eq_list) override;
-  /* 
+  /*
     - If this equality is created from the subquery's IN-equality:
       number of the item it was created from, e.g. for
-       (a,b) IN (SELECT c,d ...)  a=c will have in_equality_no=0, 
+       (a,b) IN (SELECT c,d ...)  a=c will have in_equality_no=0,
        and b=d will have in_equality_no=1.
     - Otherwise, UINT_MAX
   */
@@ -1353,7 +1353,7 @@ class Item_func_nullif :public Item_func_case_expression
   Item_cache *m_cache;
   int compare();
   void reset_first_arg_if_needed()
-  { 
+  {
     if (arg_count == 3 && args[0] != args[2])
       args[0]= args[2];
   }
@@ -1392,7 +1392,7 @@ public:
     return name;
   }
   void print(String *str, enum_query_type query_type) override;
-  void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array, 
+  void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                       List<Item> &fields, uint flags) override;
   void update_used_tables() override;
   table_map not_null_tables() const override { return 0; }
@@ -1462,8 +1462,8 @@ public:
     my_qsort2(base,used_count,size,compare,(void*)collation);
   }
   bool find(Item *item);
-  
-  /* 
+
+  /*
     Create an instance of Item_{type} (e.g. Item_decimal) constant object
     which type allows it to hold an element of this vector without any
     conversions.
@@ -1472,7 +1472,7 @@ public:
     for every array element you get (i.e. this implements "FlyWeight" pattern)
   */
   virtual Item* create_item(THD *thd) { return NULL; }
-  
+
   /*
     Store the value at position #pos into provided item object
     SYNOPSIS
@@ -1482,7 +1482,7 @@ public:
               type that create_item() returns.
   */
   virtual void value_to_item(uint pos, Item *item) { }
-  
+
   /* Compare values number pos1 and pos2 for equality */
   bool compare_elems(uint pos1, uint pos2)
   {
@@ -1514,7 +1514,7 @@ public:
   uchar *get_value(Item *item) override;
   Item* create_item(THD *thd) override;
   void value_to_item(uint pos, Item *item) override
-  {    
+  {
     String *str=((String*) base)+pos;
     Item_string_for_in_vector *to= (Item_string_for_in_vector*) item;
     to->set_value(str);
@@ -1528,10 +1528,10 @@ class in_longlong :public in_vector
 protected:
   /*
     Here we declare a temporary variable (tmp) of the same type as the
-    elements of this vector. tmp is used in finding if a given value is in 
-    the list. 
+    elements of this vector. tmp is used in finding if a given value is in
+    the list.
   */
-  struct packed_longlong 
+  struct packed_longlong
   {
     longlong val;
     longlong unsigned_flag;  // Use longlong, not bool, to preserve alignment
@@ -1742,7 +1742,7 @@ public:
   {
     cmp_item_string *l_cmp= (cmp_item_string *) ci;
     return sortcmp(value_res, l_cmp->value_res, cmp_charset);
-  } 
+  }
   cmp_item *make_same(THD *thd);
   void set_charset(CHARSET_INFO *cs)
   {
@@ -1883,7 +1883,7 @@ public:
 };
 
 
-/* 
+/*
    cmp_item for optimized IN with row (right part string, which never
    be changed)
 */
@@ -2411,7 +2411,7 @@ public:
     if (clone && clone->Predicant_to_list_comparator::init_clone(thd, ncases))
       return NULL;
     return clone;
-  } 
+  }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_case_simple>(thd, this); }
 };
@@ -2564,7 +2564,7 @@ public:
                       table_map usable_tables, SARGABLE_PARAM **sargables)
     override;
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr) override;
-  SEL_TREE *get_func_row_mm_tree(RANGE_OPT_PARAM *param, Item_row *key_row); 
+  SEL_TREE *get_func_row_mm_tree(RANGE_OPT_PARAM *param, Item_row *key_row);
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
     override
   {
@@ -2762,7 +2762,7 @@ public:
 
 class Item_in_subselect;
 
-/* 
+/*
   This is like IS NOT NULL but it also remembers if it ever has
   encountered a NULL.
 */
@@ -2895,7 +2895,7 @@ public:
       TODO:
       We could still replace "expr1" to "const" in "expr1 LIKE expr2"
       in case of a "PAD SPACE" collation, but only if "expr2" has '%'
-      at the end.         
+      at the end.
     */
     return compare_collation() == &my_charset_bin ? COND_TRUE : COND_OK;
   }
@@ -2965,7 +2965,7 @@ public:
   }
 
   bool find_selective_predicates_list_processor(void *arg) override;
-  
+
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_like>(thd, this); }
 };
@@ -3210,10 +3210,10 @@ template <template<class> class LI, class T> class Item_equal_iterator;
   A conjunction of the predicates f2=f1 and f3=f1 and f3=f2 will be
   substituted for the item representing the same multiple equality
   f1=f2=f3.
-  An item Item_equal(f1,f2) can appear instead of a conjunction of 
+  An item Item_equal(f1,f2) can appear instead of a conjunction of
   f2=f1 and f1=f2, or instead of just the predicate f1=f2.
 
-  An item of the class Item_equal inherits equalities from outer 
+  An item of the class Item_equal inherits equalities from outer
   conjunctive levels.
 
   Suppose we have a where condition of the following form:
@@ -3224,7 +3224,7 @@ template <template<class> class LI, class T> class Item_equal_iterator;
     f1=f3 will be substituted for Item_equal(f1,f2,f3,f4,f5);
 
   An object of the class Item_equal can contain an optional constant
-  item c. Then it represents a multiple equality of the form 
+  item c. Then it represents a multiple equality of the form
   c=f1=...=fk.
 
   Objects of the class Item_equal are used for the following:
@@ -3239,13 +3239,13 @@ template <template<class> class LI, class T> class Item_equal_iterator;
   It also can give us additional index scans and can allow us to
   improve selectivity estimates.
 
-  3. An object Item_equal(t1.f1,...,tk.fk) is used to optimize the 
-  selected execution plan for the query: if table ti is accessed 
+  3. An object Item_equal(t1.f1,...,tk.fk) is used to optimize the
+  selected execution plan for the query: if table ti is accessed
   before the table tj then in any predicate P in the where condition
   the occurrence of tj.fj is substituted for ti.fi. This can allow
   an evaluation of the predicate at an earlier step.
 
-  When feature 1 is supported they say that join transitive closure 
+  When feature 1 is supported they say that join transitive closure
   is employed.
   When feature 2 is supported they say that search argument transitive
   closure is employed.
@@ -3254,7 +3254,7 @@ template <template<class> class LI, class T> class Item_equal_iterator;
   We do not just add predicates, we rather dynamically replace some
   predicates that can not be used to access tables in the investigated
   plan for those, obtained by substitution of some fields for equal fields,
-  that can be used.     
+  that can be used.
 
   Prepared Statements/Stored Procedures note: instances of class
   Item_equal are created only at the time a PS/SP is executed and
@@ -3284,27 +3284,27 @@ class Item_equal: public Item_bool_func
 
     Use objects of the companion class Item_equal_fields_iterator to iterate
     over all items from the list of the Item_field/Item_direct_view_ref classes.
-  */ 
-  List<Item> equal_items; 
-  /* 
+  */
+  List<Item> equal_items;
+  /*
      TRUE <-> one of the items is a const item.
      Such item is always first in in the equal_items list
   */
-  bool with_const;        
-  /* 
+  bool with_const;
+  /*
     The field eval_item is used when this item is evaluated
     with the method val_int()
-  */  
+  */
   cmp_item *eval_item;
   /*
     This initially is set to FALSE. It becomes TRUE when this item is evaluated
-    as being always false. If the flag is TRUE the contents of the list 
+    as being always false. If the flag is TRUE the contents of the list
     the equal_items should be ignored.
   */
   bool cond_false;
   /*
     This initially is set to FALSE. It becomes TRUE when this item is evaluated
-    as being always true. If the flag is TRUE the contents of the list 
+    as being always true. If the flag is TRUE the contents of the list
     the equal_items should be ignored.
   */
   bool cond_true;
@@ -3332,7 +3332,7 @@ public:
   void add(Item *f, MEM_ROOT *root) { equal_items.push_back(f, root); }
   bool contains(Field *field);
   Item* get_first(struct st_join_table *context, Item *field);
-  /** Get number of field items / references to field items in this object */   
+  /** Get number of field items / references to field items in this object */
   uint n_field_items() { return equal_items.elements - MY_TEST(with_const); }
   void merge(THD *thd, Item_equal *item);
   bool merge_with_check(THD *thd, Item_equal *equal_item, bool save_merged);
@@ -3340,7 +3340,7 @@ public:
                       bool only_intersected);
   void update_const(THD *thd);
   enum Functype functype() const override { return MULT_EQUAL_FUNC; }
-  longlong val_int() override; 
+  longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("multiple equal") };
@@ -3398,18 +3398,18 @@ public:
                                     Item_equal *item_equal);
   friend bool setup_sj_materialization_part1(struct st_join_table *tab);
   friend bool setup_sj_materialization_part2(struct st_join_table *tab);
-}; 
+};
 
 class COND_EQUAL: public Sql_alloc
 {
 public:
   uint max_members;               /* max number of members the current level
-                                     list and all lower level lists */ 
+                                     list and all lower level lists */
   COND_EQUAL *upper_levels;       /* multiple equalities of upper and levels */
-  List<Item_equal> current_level; /* list of multiple equalities of 
+  List<Item_equal> current_level; /* list of multiple equalities of
                                      the current and level           */
   COND_EQUAL()
-  { 
+  {
     upper_levels= 0;
   }
   COND_EQUAL(Item_equal *item, MEM_ROOT *mem_root)
@@ -3433,15 +3433,15 @@ public:
 };
 
 
-/* 
+/*
   The template Item_equal_iterator is used to define classes
   Item_equal_fields_iterator and Item_equal_fields_iterator_slow.
   These are helper classes for the class Item equal
   Both classes are used to iterate over references to table/view columns
-  from the list of equal items that included in an Item_equal object. 
+  from the list of equal items that included in an Item_equal object.
   The second class supports the operation of removal of the current member
   from the list when performing an iteration.
-*/ 
+*/
 
 template <template<class> class LI, typename T> class Item_equal_iterator
   : public LI<T>
@@ -3450,7 +3450,7 @@ protected:
   Item_equal *item_equal;
   Item *curr_item;
 public:
-  Item_equal_iterator<LI,T>(Item_equal &item_eq) 
+  Item_equal_iterator(Item_equal &item_eq)
     :LI<T> (item_eq.equal_items)
   {
     curr_item= NULL;
@@ -3462,23 +3462,23 @@ public:
     }
   }
   Item* operator++(int)
-  { 
+  {
     LI<T> *list_it= this;
     curr_item= (*list_it)++;
     return curr_item;
   }
-  void rewind(void) 
-  { 
+  void rewind(void)
+  {
     LI<T> *list_it= this;
     list_it->rewind();
     if (item_equal->with_const)
       curr_item= (*list_it)++;
-  }  
+  }
   Field *get_curr_field()
   {
     Item_field *item= (Item_field *) (curr_item->real_item());
      return item->field;
-  }  
+  }
 };
 
 typedef  Item_equal_iterator<List_iterator_fast,Item >  Item_equal_iterator_fast;
@@ -3487,7 +3487,7 @@ class Item_equal_fields_iterator
   :public Item_equal_iterator_fast
 {
 public:
-  Item_equal_fields_iterator(Item_equal &item_eq) 
+  Item_equal_fields_iterator(Item_equal &item_eq)
     :Item_equal_iterator_fast(item_eq)
   { }
   Item ** ref()
@@ -3502,7 +3502,7 @@ class Item_equal_fields_iterator_slow
   :public Item_equal_iterator_iterator_slow
 {
 public:
-  Item_equal_fields_iterator_slow(Item_equal &item_eq) 
+  Item_equal_fields_iterator_slow(Item_equal &item_eq)
     :Item_equal_iterator_iterator_slow(item_eq)
   { }
   void remove()
@@ -3515,9 +3515,9 @@ public:
 class Item_cond_and final :public Item_cond
 {
 public:
-  COND_EQUAL m_cond_equal;  /* contains list of Item_equal objects for 
+  COND_EQUAL m_cond_equal;  /* contains list of Item_equal objects for
                                the current and level and reference
-                               to multiple equalities of upper and levels */  
+                               to multiple equalities of upper and levels */
   Item_cond_and(THD *thd): Item_cond(thd) {}
   Item_cond_and(THD *thd, Item *i1,Item *i2): Item_cond(thd, i1, i2) {}
   Item_cond_and(THD *thd, Item_cond_and *item): Item_cond(thd, item) {}

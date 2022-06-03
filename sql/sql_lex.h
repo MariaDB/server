@@ -2048,7 +2048,8 @@ public:
   */
   inline bool is_stmt_row_injection() const {
     return binlog_stmt_flags &
-      (1U << (BINLOG_STMT_UNSAFE_COUNT + BINLOG_STMT_TYPE_ROW_INJECTION));
+      (1U << (static_cast<unsigned int>(BINLOG_STMT_UNSAFE_COUNT) +
+              static_cast<unsigned int>(BINLOG_STMT_TYPE_ROW_INJECTION)));
   }
 
   /**
@@ -2059,7 +2060,8 @@ public:
   inline void set_stmt_row_injection() {
     DBUG_ENTER("set_stmt_row_injection");
     binlog_stmt_flags|=
-      (1U << (BINLOG_STMT_UNSAFE_COUNT + BINLOG_STMT_TYPE_ROW_INJECTION));
+      (1U << static_cast<unsigned int>((BINLOG_STMT_UNSAFE_COUNT) +
+             static_cast<unsigned int>(BINLOG_STMT_TYPE_ROW_INJECTION)));
     DBUG_VOID_RETURN;
   }
 
