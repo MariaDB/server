@@ -94,3 +94,11 @@ SELECT * FROM cscl;
 DROP DATABASE db1;
 
 DROP VIEW cscl;
+
+
+--echo #
+--echo # MDEV-28117 Multiple conflicting table COLLATE clauses are not rejected
+--echo #
+
+--error ER_CONFLICTING_DECLARATIONS
+CREATE DATABASE db1 COLLATE latin1_swedish_ci COLLATE latin1_bin;

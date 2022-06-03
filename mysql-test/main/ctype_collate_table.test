@@ -20,3 +20,10 @@ DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(10)) CHARACTER SET utf8mb4 COLLATE DEFAULT;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-28117 Multiple conflicting table COLLATE clauses are not rejected
+--echo #
+
+--error ER_CONFLICTING_DECLARATIONS
+CREATE TABLE t1 (a CHAR(10)) COLLATE latin1_swedish_ci COLLATE latin1_bin;
