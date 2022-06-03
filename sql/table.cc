@@ -5554,8 +5554,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   opt_range_condition_rows=0;
   no_cache= false;
   initialize_opt_range_structures();
-  tablesample= NULL;
-  sample_method_flag= NULL;
+  tablesample_method= NULL;
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
   master_had_triggers= 0;
@@ -8535,7 +8534,7 @@ bool TABLE_LIST::process_index_hints(TABLE *tbl)
 
 bool TABLE_LIST::process_table_sample(TABLE *tbl)
 {
-  if (tablesample)
+  if (tablesample_method)
   {
     if (lock_type != TL_READ_DEFAULT)
     {
@@ -8546,8 +8545,7 @@ bool TABLE_LIST::process_table_sample(TABLE *tbl)
     tbl->keys_in_use_for_group_by.clear_all();
     tbl->keys_in_use_for_order_by.clear_all();
     tbl->covering_keys.clear_all();
-    tbl->tablesample= tablesample;
-    tbl->sample_method_flag= sample_method_flag;
+    tbl->tablesample_method= tablesample_method;
   }
   return false;
 }

@@ -323,26 +323,23 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
       DBUG_RETURN(1);
     }
   }
-  else if (table->tablesample)
+
+  else if (table->tablesample_method)
   {
-    double fract= table->tablesample->val_real() / 100.0;
+    int method = table->tablesample_method->val_int();
+    double fract= (method  % 100) / 100.0;
     info->sample_factor = fract;
     info->sample_counter= (ha_rows)(table->file->records() * fract + 0.5);
-    if(table->sample_method_flag && table->sample_method_flag->val_real() > 1.0)
+    method /= 100000;
+    if(method == 1)
     {
       info->read_record_func= rr_full_scan_sample;
-    }
-    else
-    {
-      info->read_record_func= rr_sequential_sample;
-    }
-    if(table->sample_method_flag && table->sample_method_flag->val_real() > 1.0)
-    {
       if (table->file->ha_rnd_init(TRUE))
         DBUG_RETURN(1);
     }
-    else
+    else if(method == 2)
     {
+      info->read_record_func= rr_sequential_sample;
       if (table->file->ha_sample_init())
         DBUG_RETURN(1);
     }

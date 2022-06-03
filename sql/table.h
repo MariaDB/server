@@ -1497,8 +1497,7 @@ public:
   /* used in RBR Triggers */
   bool master_had_triggers;
 #endif
-  Item *tablesample;
-  Item *sample_method_flag; /* rand_sample if>=1.0, full_scan_sample another*/
+  Item *tablesample_method;
   REGINFO reginfo;			/* field connections */
   MEM_ROOT mem_root;
   /**
@@ -2181,7 +2180,7 @@ struct TABLE_LIST
     alias= (alias_arg ? *alias_arg : *table_name_arg);
     lock_type= lock_type_arg;
     updating= lock_type >= TL_FIRST_WRITE;
-    tablesample= NULL;
+    tablesample_method= NULL;
     MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, db.str, table_name.str,
                      mdl_type, MDL_TRANSACTION);
   }
@@ -2223,12 +2222,11 @@ struct TABLE_LIST
     *last_ptr= &next_global;
     for_insert_data= insert_data;
   }
-  Item *tablesample;
-  Item *sample_method_flag;
+  Item *tablesample_method;
 
   /*
     List of tables local to a subquery (used by SQL_I_List). Considers
-    views as leaves (unlike 'next_leaf' below). Created at parse time
+    views as leaves (unlike 'next_leaf' below). Created+ at parse time
     in st_select_lex::add_table_to_list() -> table_list.link_in_list().
   */
   TABLE_LIST *next_local;

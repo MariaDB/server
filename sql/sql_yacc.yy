@@ -679,7 +679,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> SYSDATE
 %token  <kwd> TABLE_REF_PRIORITY
 %token  <kwd> TABLESAMPLE                   /* SQL-2016-R */
-%token  <kwd> SAMPLE_METHOD
+%token  <kwd> BERNOULLI
 %token  <kwd> TABLE_SYM                     /* SQL-2003-R */
 %token  <kwd> TERMINATED
 %token  <kwd> THEN_SYM                      /* SQL-2003-R */
@@ -1500,7 +1500,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <item_param> param_marker
 
 %type <item_num>
-        NUM_literal opt_table_sample opt_sample_method
+        NUM_literal opt_table_sample sample_method
 
 %type <item_basic_constant> text_literal
 
@@ -11702,27 +11702,32 @@ join_table_parens:
           }
         ;
 
+sample_method:
+    /* empty */{$$=0;}
+    | SYSTEM
+    {
+        $$=new (thd->mem_root) Item_int(thd, "1", 1);
+    }
+    | BERNOULLI
+    {
+        $$=new (thd->mem_root) Item_int(thd, "2", 1);
+    }
+    ;
+
 /* psergey */
 opt_table_sample:
-          /* empty */ { $$=0; }
-        | TABLESAMPLE SYSTEM '(' NUM_literal ')'
+        /* empty */{$$=0;}
+        |
+        TABLESAMPLE sample_method '(' NUM_literal ')'
         {
-          $$=$4;
-        }
-        ;
-
-opt_sample_method:
-        /* empty */ { $$=0; }
-        | SAMPLE_METHOD '(' NUM_literal ')'
-        {
-          $$=$3;
+          $$= new (thd->mem_root) Item_int(thd, ($2->val_int()*100000) + (int)($4->val_real()+0.5), 1);;
         }
         ;
 
 table_primary_ident:
           table_ident opt_use_partition opt_for_system_time_clause
           opt_table_alias_clause opt_key_definition
-          opt_table_sample opt_sample_method
+          opt_table_sample
           {
             if (!($$= Select->add_table_to_list(thd, $1, $4,
                                                 0,
@@ -11733,10 +11738,9 @@ table_primary_ident:
               MYSQL_YYABORT;
             if ($3)
               $$->vers_conditions= Lex->vers_conditions;
-            if ($6)
-              $$->tablesample= $6;
-            if ($7)
-              $$->sample_method_flag= $7;
+
+            if($6)
+              $$->tablesample_method= $6;
           }
         ;
 
