@@ -1180,7 +1180,9 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                     "table": "t1",
                     "rows_for_plan": 100,
                     "cost_for_plan": 242.3759623,
-                    "pruned_by_cost": true
+                    "pruned_by_cost": true,
+                    "current_cost": 242.3759623,
+                    "best_cost": 242.3759623
                   }
                 ]
               }
@@ -4352,7 +4354,9 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                     "table": "t0",
                     "rows_for_plan": 6,
                     "cost_for_plan": 5.55027215,
-                    "pruned_by_cost": true
+                    "pruned_by_cost": true,
+                    "current_cost": 5.55027215,
+                    "best_cost": 4.948514767
                   }
                 ]
               }
@@ -6004,7 +6008,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "chosen_strategy": "FirstMatch"
                                       }
                                     ],
-                                    "pruned_by_cost": true
+                                    "pruned_by_cost": true,
+                                    "current_cost": 9562.749707,
+                                    "best_cost": 568.8615234
                                   }
                                 ]
                               },
@@ -6089,7 +6095,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "rows_for_plan": 6561,
                                 "cost_for_plan": 1490.256396,
                                 "semijoin_strategy_choice": [],
-                                "pruned_by_cost": true
+                                "pruned_by_cost": true,
+                                "current_cost": 1490.256396,
+                                "best_cost": 568.8615234
                               },
                               {
                                 "plan_prefix": [
@@ -6102,7 +6110,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "rows_for_plan": 2187,
                                 "cost_for_plan": 615.4461426,
                                 "semijoin_strategy_choice": [],
-                                "pruned_by_cost": true
+                                "pruned_by_cost": true,
+                                "current_cost": 615.4461426,
+                                "best_cost": 568.8615234
                               }
                             ]
                           }
@@ -6559,7 +6569,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "chosen_strategy": "DuplicateWeedout"
                                       }
                                     ],
-                                    "pruned_by_cost": true
+                                    "pruned_by_cost": true,
+                                    "current_cost": 7409.761523,
+                                    "best_cost": 565.2615234
                                   }
                                 ]
                               },
@@ -6644,7 +6656,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "rows_for_plan": 6561,
                                 "cost_for_plan": 1486.656396,
                                 "semijoin_strategy_choice": [],
-                                "pruned_by_cost": true
+                                "pruned_by_cost": true,
+                                "current_cost": 1486.656396,
+                                "best_cost": 565.2615234
                               },
                               {
                                 "plan_prefix": [
@@ -6657,7 +6671,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "rows_for_plan": 2187,
                                 "cost_for_plan": 611.8461426,
                                 "semijoin_strategy_choice": [],
-                                "pruned_by_cost": true
+                                "pruned_by_cost": true,
+                                "current_cost": 611.8461426,
+                                "best_cost": 565.2615234
                               }
                             ]
                           }
@@ -7168,7 +7184,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "rows_for_plan": 2187,
                                 "cost_for_plan": 503.8461426,
                                 "semijoin_strategy_choice": [],
-                                "pruned_by_cost": true
+                                "pruned_by_cost": true,
+                                "current_cost": 503.8461426,
+                                "best_cost": 320.4615234
                               },
                               {
                                 "plan_prefix": [
@@ -7181,7 +7199,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "rows_for_plan": 2187,
                                 "cost_for_plan": 503.8461426,
                                 "semijoin_strategy_choice": [],
-                                "pruned_by_cost": true
+                                "pruned_by_cost": true,
+                                "current_cost": 503.8461426,
+                                "best_cost": 320.4615234
                               }
                             ]
                           },
@@ -8305,7 +8325,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "rows_for_plan": 243,
                                 "cost_for_plan": 67.35639648,
                                 "semijoin_strategy_choice": [],
-                                "pruned_by_cost": true
+                                "pruned_by_cost": true,
+                                "current_cost": 67.35639648,
+                                "best_cost": 23.46152344
                               }
                             ]
                           },
@@ -8315,7 +8337,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             "rows_for_plan": 243,
                             "cost_for_plan": 78.83076172,
                             "semijoin_strategy_choice": [],
-                            "pruned_by_cost": true
+                            "pruned_by_cost": true,
+                            "current_cost": 78.83076172,
+                            "best_cost": 23.46152344
                           },
                           {
                             "plan_prefix": ["t_outer_1", "t_outer_2", "t_inner_1"],
@@ -8323,7 +8347,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             "rows_for_plan": 729,
                             "cost_for_plan": 176.0410156,
                             "semijoin_strategy_choice": [],
-                            "pruned_by_cost": true
+                            "pruned_by_cost": true,
+                            "current_cost": 176.0410156,
+                            "best_cost": 23.46152344
                           }
                         ]
                       },
@@ -8333,7 +8359,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         "rows_for_plan": 243,
                         "cost_for_plan": 60.63588867,
                         "semijoin_strategy_choice": [],
-                        "pruned_by_cost": true
+                        "pruned_by_cost": true,
+                        "current_cost": 60.63588867,
+                        "best_cost": 23.46152344
                       },
                       {
                         "plan_prefix": ["t_outer_1", "t_outer_2"],
@@ -8341,7 +8369,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         "rows_for_plan": 81,
                         "cost_for_plan": 28.22563477,
                         "semijoin_strategy_choice": [],
-                        "pruned_by_cost": true
+                        "pruned_by_cost": true,
+                        "current_cost": 28.22563477,
+                        "best_cost": 23.46152344
                       },
                       {
                         "plan_prefix": ["t_outer_1", "t_outer_2"],
@@ -8349,7 +8379,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         "rows_for_plan": 243,
                         "cost_for_plan": 60.63588867,
                         "semijoin_strategy_choice": [],
-                        "pruned_by_cost": true
+                        "pruned_by_cost": true,
+                        "current_cost": 60.63588867,
+                        "best_cost": 23.46152344
                       }
                     ]
                   },
@@ -8447,7 +8479,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         "rows_for_plan": 81,
                         "cost_for_plan": 24.62563477,
                         "semijoin_strategy_choice": [],
-                        "pruned_by_cost": true
+                        "pruned_by_cost": true,
+                        "current_cost": 24.62563477,
+                        "best_cost": 23.46152344
                       },
                       {
                         "plan_prefix": ["t_outer_1", "t_inner_1"],
@@ -8603,7 +8637,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "rows_for_plan": 81,
                                 "cost_for_plan": 33.74614258,
                                 "semijoin_strategy_choice": [],
-                                "pruned_by_cost": true
+                                "pruned_by_cost": true,
+                                "current_cost": 33.74614258,
+                                "best_cost": 23.46152344
                               },
                               {
                                 "plan_prefix": [
@@ -8616,7 +8652,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "rows_for_plan": 243,
                                 "cost_for_plan": 66.15639648,
                                 "semijoin_strategy_choice": [],
-                                "pruned_by_cost": true
+                                "pruned_by_cost": true,
+                                "current_cost": 66.15639648,
+                                "best_cost": 23.46152344
                               }
                             ]
                           },
@@ -8686,7 +8724,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "rows_for_plan": 81,
                                 "cost_for_plan": 30.14614258,
                                 "semijoin_strategy_choice": [],
-                                "pruned_by_cost": true
+                                "pruned_by_cost": true,
+                                "current_cost": 30.14614258,
+                                "best_cost": 23.46152344
                               },
                               {
                                 "plan_prefix": [
@@ -8699,7 +8739,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "rows_for_plan": 81,
                                 "cost_for_plan": 30.14614258,
                                 "semijoin_strategy_choice": [],
-                                "pruned_by_cost": true
+                                "pruned_by_cost": true,
+                                "current_cost": 30.14614258,
+                                "best_cost": 23.46152344
                               }
                             ]
                           },
@@ -8727,7 +8769,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                         "rows_for_plan": 81,
                         "cost_for_plan": 24.62563477,
                         "semijoin_strategy_choice": [],
-                        "pruned_by_cost": true
+                        "pruned_by_cost": true,
+                        "current_cost": 24.62563477,
+                        "best_cost": 23.46152344
                       }
                     ]
                   },
@@ -9738,7 +9782,9 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
             "table": "B",
             "rows_for_plan": 800,
             "cost_for_plan": 204.1972656,
-            "pruned_by_cost": true
+            "pruned_by_cost": true,
+            "current_cost": 204.1972656,
+            "best_cost": 26.02294779
         }
     ]
 ]
@@ -10048,7 +10094,9 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                     "table": "t1",
                     "rows_for_plan": 1000,
                     "cost_for_plan": 224.2416992,
-                    "pruned_by_cost": true
+                    "pruned_by_cost": true,
+                    "current_cost": 224.2416992,
+                    "best_cost": 36.0278306
                 }
             ]
         }
