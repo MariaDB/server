@@ -2895,7 +2895,7 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
        pos[-1].inner_tables_handled_with_other_sjs;
   }
 
-  pos->prefix_cost.convert_from_cost(*current_read_time);
+  pos->prefix_cost= *current_read_time;
   pos->prefix_record_count= *current_record_count;
 
   {
@@ -3017,7 +3017,7 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
 
   update_sj_state(join, new_join_tab, idx, remaining_tables);
 
-  pos->prefix_cost.convert_from_cost(*current_read_time);
+  pos->prefix_cost= *current_read_time;
   pos->prefix_record_count= *current_record_count;
   pos->dups_producing_tables= dups_producing_tables;
 }
@@ -3107,15 +3107,15 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     else
     {
       /* This is SJ-Materialization with lookups */
-      Cost_estimate prefix_cost; 
+      double prefix_cost;
       signed int first_tab= (int)idx - mat_info->tables;
-      double prefix_rec_count;
+      double prefix_rec_count, mat_read_time;
       Json_writer_object trace(join->thd);
       trace.add("strategy", "SJ-Materialization");
 
       if (first_tab < (int)join->const_tables)
       {
-        prefix_cost.reset();
+        prefix_cost= 0;
         prefix_rec_count= 1.0;
       }
       else
@@ -3124,9 +3124,8 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
         prefix_rec_count= join->positions[first_tab].prefix_record_count;
       }
 
-      double mat_read_time= prefix_cost.total_cost();
       mat_read_time=
-        COST_ADD(mat_read_time,
+        COST_ADD(prefix_cost,
                  COST_ADD(mat_info->materialization_cost.total_cost(),
                           COST_MULT(prefix_rec_count,
                                     mat_info->lookup_cost.total_cost())));
@@ -3171,7 +3170,7 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     }
     else
     {
-      prefix_cost= join->positions[first_tab - 1].prefix_cost.total_cost();
+      prefix_cost= join->positions[first_tab - 1].prefix_cost;
       prefix_rec_count= join->positions[first_tab - 1].prefix_record_count;
     }
 
@@ -3535,7 +3534,7 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
     }
     else
     {
-      dups_cost= join->positions[first_tab - 1].prefix_cost.total_cost();
+      dups_cost= join->positions[first_tab - 1].prefix_cost;
       prefix_rec_count= join->positions[first_tab - 1].prefix_record_count;
       temptable_rec_size= 8; /* This is not true but we'll make it so */
     }
