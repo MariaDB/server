@@ -1589,8 +1589,9 @@ public:
       if (!example)
         return false;
       value_cached= true;
-      null_value= example->val_native_with_conversion_result(current_thd,
-                                                 &m_value, type_handler());
+      null_value_inside= null_value=
+        example->val_native_with_conversion_result(current_thd,
+                                                   &m_value, type_handler());
       return true;
     }
     String* val_str(String *to)

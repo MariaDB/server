@@ -1612,3 +1612,20 @@ SELECT IF(1, '::', a) AS f FROM t1 GROUP BY 'foo' HAVING f != '';
 SELECT IF(1, '::', a) AS f FROM t1 GROUP BY 'foo' HAVING f != '::';
 SELECT IF(1, '::', a) AS f FROM t1 GROUP BY 'foo' HAVING f != '::1';
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-28491 Uuid. "UPDATE/DELETE" not working "WHERE id IN (SELECT id FROM ..)"
+--echo #
+
+CREATE TABLE companies (id INET6, name varchar(10));
+INSERT INTO companies (id) values ('00::01');
+
+CREATE TABLE divisions (company_id INET6);
+INSERT INTO divisions (company_id) values ('00::01');
+SELECT * FROM companies WHERE id IN (SELECT company_id FROM divisions);
+UPDATE companies SET name = 'value' WHERE id IN (SELECT company_id FROM divisions);
+SELECT * FROM companies;
+DELETE FROM companies WHERE id IN (SELECT company_id FROM divisions);
+SELECT * FROM companies;
+DROP TABLE divisions;
+DROP TABLE companies;
