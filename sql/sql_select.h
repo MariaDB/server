@@ -952,6 +952,9 @@ public:
 
   double    prefix_record_count;
 
+  /* Cost for the join prefix */
+  double prefix_cost;
+
   /*
     NULL  -  'index' or 'range' or 'index_merge' or 'ALL' access is used.
     Other - [eq_]ref[_or_null] access is used. Pointer to {t.keypart1 = expr}
@@ -982,9 +985,6 @@ public:
   Firstmatch_picker         firstmatch_picker;
   LooseScan_picker          loosescan_picker;
   Sj_materialization_picker sjmat_picker;
-
-  /* Cumulative cost and record count for the join prefix */
-  Cost_estimate prefix_cost;
 
   /*
     Current optimization state: Semi-join strategy to be used for this
