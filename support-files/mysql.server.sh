@@ -100,6 +100,7 @@ fi
 
 if test -f $init_functions; then
   . $init_functions
+else
   log_success_msg()
   {
     echo " SUCCESS! $@"
