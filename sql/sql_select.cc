@@ -17945,7 +17945,7 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
 
   if (first_tab > join->const_tables)
   {
-    cost=      join->positions[first_tab - 1].prefix_cost.total_cost();
+    cost=      join->positions[first_tab - 1].prefix_cost;
     rec_count= join->positions[first_tab - 1].prefix_record_count;
   }
   else
