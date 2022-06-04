@@ -1511,6 +1511,47 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
     table_list->delete_while_scanning= false;
   }
 
+
+  {
+    if (thd->lex->describe)
+      select_options|= SELECT_DESCRIBE;
+
+    /*
+      When in EXPLAIN, delay deleting the joins so that they are still
+      available when we're producing EXPLAIN EXTENDED warning text.
+    */
+    if (select_options & SELECT_DESCRIBE)
+      free_join= 0;
+    select_options|=
+      SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK | OPTION_SETUP_TABLES_DONE;
+
+    if (!(join= new (thd->mem_root) JOIN(thd, empty_list,
+                                         select_options, result)))
+	DBUG_RETURN(TRUE);
+    THD_STAGE_INFO(thd, stage_init);
+    select_lex->join= join;
+    thd->lex->used_tables=0;
+    if ((err= join->prepare(table_list, select_lex->where,
+                            select_lex->order_list.elements,
+                            select_lex->order_list.first,
+                            false, NULL, NULL, NULL,
+                            select_lex, &lex->unit)))
+
+    {
+      goto err;
+    }
+
+    if (!multitable &&
+        select_lex->sj_subselects.elements &&
+        !select_lex->order_list.elements &&
+        select_lex->master_unit()->lim.get_select_limit() == HA_POS_ERROR &&
+        !thd->lex->has_returning())
+      multitable= true;
+
+    if (!multitable)
+      ((multi_delete *)result)->set_delete_tables(0);
+  }
+
   if (multitable)
   {
     /*
@@ -1552,7 +1593,8 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
       {
         TABLE_LIST *duplicate;
         if ((duplicate= unique_table(thd, target_tbl->correspondent_table,
-                                     lex->query_tables, 0)))
+                                     lex->query_tables, 0)) &&
+             !duplicate->select_lex->is_sj_subselect_lifted_to_top())
         {
           update_non_unique_table_error(target_tbl->correspondent_table,
                                         "DELETE", duplicate);
@@ -1566,38 +1608,6 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
     */
     lex->first_select_lex()->exclude_from_table_unique_test= FALSE;
   }
-
-  {
-    if (thd->lex->describe)
-      select_options|= SELECT_DESCRIBE;
-
-    /*
-      When in EXPLAIN, delay deleting the joins so that they are still
-      available when we're producing EXPLAIN EXTENDED warning text.
-    */
-    if (select_options & SELECT_DESCRIBE)
-      free_join= 0;
-    select_options|=
-      SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK | OPTION_SETUP_TABLES_DONE;
-
-    if (!(join= new (thd->mem_root) JOIN(thd, empty_list,
-                                         select_options, result)))
-	DBUG_RETURN(TRUE);
-    THD_STAGE_INFO(thd, stage_init);
-    select_lex->join= join;
-    thd->lex->used_tables=0;
-    if ((err= join->prepare(table_list, select_lex->where,
-                            select_lex->order_list.elements,
-                            select_lex->order_list.first,
-                            false, NULL, NULL, NULL,
-                            select_lex, &lex->unit)))
-
-    {
-      goto err;
-    }
-
-  }
-
 
   if (setup_returning_fields(thd, table_list) ||
       setup_ftfuncs(select_lex))

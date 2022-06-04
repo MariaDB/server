@@ -675,9 +675,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         3. Subquery does not have GROUP BY or ORDER BY
         4. Subquery does not use aggregate functions or HAVING
         5. Subquery predicate is at the AND-top-level of ON/WHERE clause
-        6. We are not in a subquery of a single table UPDATE/DELETE that 
-             doesn't have a JOIN (TODO: We should handle this at some
-             point by switching to multi-table UPDATE/DELETE)
+        6. We are not in a top level subquery of a single table DELETE
+           with RETURNING
         7. We're not in a table-less subquery like "SELECT 1"
         8. No execution method was already chosen (by a prepared statement)
         9. Parent select is not a table-less select
@@ -692,9 +691,9 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         !select_lex->group_list.elements && !join->order &&           // 3
         !join->having && !select_lex->with_sum_func &&                // 4
         in_subs->emb_on_expr_nest &&                                  // 5
-        select_lex->outer_select()->join &&                           // 6
-        (!thd->lex->m_sql_cmd ||
-	 thd->lex->m_sql_cmd->sql_command_code() == SQLCOM_UPDATE_MULTI) &&
+        !(thd->lex->sql_command == SQLCOM_DELETE &&                   // 6
+          thd->lex->has_returning() &&                                // 6
+          !select_lex->outer_select()->outer_select()) &&             // 6
         parent_unit->first_select()->leaf_tables.elements &&          // 7
         !in_subs->has_strategy() &&                                   // 8
         select_lex->outer_select()->table_list.first &&               // 9
@@ -7191,4 +7190,24 @@ exit:
 bool TABLE_LIST::is_sjm_scan_table()
 {
   return is_active_sjm() && sj_mat_info->is_sj_scan;
+}
+
+
+bool SELECT_LEX::is_sj_subselect_lifted_to_top()
+{
+  st_select_lex *sl= this;
+  st_select_lex *outer_sl= outer_select();
+  for ( ; outer_sl; sl= outer_sl, outer_sl= outer_sl->outer_select())
+  {
+    List_iterator_fast<Item_in_subselect> it(outer_sl->sj_subselects);
+    Item_in_subselect *in_subs;
+    while ((in_subs= it++))
+    {
+      if (in_subs->unit->first_select() == sl)
+        break;
+    }
+    if (!in_subs)
+      return false;
+  }
+  return true;
 }
