@@ -112,6 +112,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fil0pagecompress.h"
 #include "ut0mem.h"
 #include "row0ext.h"
+#include "row0sel.h"
 
 #include "lz4.h"
 #include "lzo/lzo1x.h"
@@ -3037,7 +3038,8 @@ ha_innobase::ha_innobase(
                           | HA_CAN_ONLINE_BACKUPS
 			  | HA_CONCURRENT_OPTIMIZE
 			  | HA_CAN_SKIP_LOCKED
-			  |  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0)
+			  |  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0
+                          | HA_NATIVE_SAMPLING)
 		  ),
 	m_start_of_scan(),
         m_mysql_has_locked()
@@ -9461,6 +9463,66 @@ ha_innobase::rnd_next(
 	}
 
 	DBUG_RETURN(error);
+}
+
+int
+ha_innobase::sample_init()
+{
+  int		err;
+
+  /* Store the active index value so that we can restore the original
+  value after a scan */
+
+  if (m_prebuilt->clust_index_was_generated) {
+    err = change_active_index(MAX_KEY);
+  } else {
+    err = change_active_index(m_primary_key);
+  }
+
+  return(err);
+}
+
+int
+ha_innobase::sample_end()
+{
+  return(index_end());
+}
+int
+ha_innobase::sample_next(
+/*=====================*/
+    uchar *buf)
+{
+  mtr_t		mtr;
+  btr_pcur_t*	pcur= m_prebuilt->pcur;
+  rec_t*        rec;
+  bool          res;
+  dberr_t       err;
+  rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+  rec_offs*	offsets= offsets_;
+  rec_offs_init(offsets_);
+
+  dict_index_t*	index= innobase_get_index(MAX_KEY);
+  mtr.start();
+  err= btr_pcur_open_at_rnd_pos(index, BTR_SEARCH_LEAF, pcur, &mtr, true);
+  mtr.commit();
+  if(err != DB_SUCCESS)
+  {
+    return HA_ERR_KEY_NOT_FOUND;
+  }
+  rec= btr_pcur_get_rec(pcur);
+  mem_heap_t*	heap= NULL;
+  auto _ = make_scope_exit([heap]() { if(heap) mem_heap_free(heap); });
+
+  offsets= rec_get_offsets(rec, index, offsets, index->n_core_fields, ULINT_UNDEFINED, &heap);
+  ut_ad(offsets);
+  if (!offsets)
+    return HA_ERR_INTERNAL_ERROR;
+
+  res= row_sel_store_mysql_rec(
+      buf, m_prebuilt, rec, NULL, true,
+      index, offsets);
+
+  return res ? 0 : HA_ERR_INTERNAL_ERROR;
 }
 
 /**********************************************************************//**

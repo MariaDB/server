@@ -478,15 +478,19 @@ btr_pcur_open_at_index_side(
 
 /**********************************************************************//**
 Positions a cursor at a randomly chosen position within a B-tree.
-@return true if the index is available and we have put the cursor, false
-if the index is unavailable */
+@return DB_SUCCESS if the index is available and we have put the cursor,
+error code if the index is unavailable. If simulate_uniform=true, could be
+DB_RECORD_NOT_FOUND returned, which means that no record is chosen in the
+generated tree path. The caller should retry a call, that will
+try a new tree path */
 UNIV_INLINE
-bool
+dberr_t
 btr_pcur_open_at_rnd_pos(
-	dict_index_t*	index,		/*!< in: index */
-	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
-	btr_pcur_t*	cursor,		/*!< in/out: B-tree pcur */
-	mtr_t*		mtr)		/*!< in: mtr */
+	dict_index_t*	index,	    /*!< in: index */
+	ulint		latch_mode, /*!< in: BTR_SEARCH_LEAF, ... */
+	btr_pcur_t*	cursor,	    /*!< in/out: B-tree pcur */
+	mtr_t*		mtr,	    /*!< in: mtr */
+	bool sim_uniform_dist)      /*!< in: uniform distribution simulation */
 {
 	/* Initialize the cursor */
 
@@ -495,17 +499,17 @@ btr_pcur_open_at_rnd_pos(
 
 	btr_pcur_init(cursor);
 
-	bool	available;
+	dberr_t	err;
 
-	available = btr_cur_open_at_rnd_pos(index, latch_mode,
+	err = btr_cur_open_at_rnd_pos(index, latch_mode,
 					    btr_pcur_get_btr_cur(cursor),
-					    mtr);
+					    mtr, sim_uniform_dist);
 	cursor->pos_state = BTR_PCUR_IS_POSITIONED;
 	cursor->old_stored = false;
 
 	cursor->trx_if_known = NULL;
 
-	return(available);
+	return err;
 }
 
 /**************************************************************//**

@@ -366,7 +366,10 @@ enum chf_create_flags {
 /* Implements SELECT ... FOR UPDATE SKIP LOCKED */
 #define HA_CAN_SKIP_LOCKED  (1ULL << 61)
 
-#define HA_LAST_TABLE_FLAG HA_CAN_SKIP_LOCKED
+/* Implements native sampling (MDEV-19556) */
+#define HA_NATIVE_SAMPLING (1ULL << 62)
+
+#define HA_LAST_TABLE_FLAG HA_NATIVE_SAMPLING
 
 
 /* bits in index_flags(index_number) for what you can do with index */
@@ -3214,7 +3217,7 @@ public:
   /** Length of ref (1-8 or the clustered key length) */
   uint ref_length;
   FT_INFO *ft_handler;
-  enum init_stat { NONE=0, INDEX, RND };
+  enum init_stat { NONE=0, INDEX, RND, SAMPLING };
   init_stat inited, pre_inited;
 
   const COND *pushed_cond;
@@ -3475,6 +3478,25 @@ public:
   }
   int ha_rnd_init_with_error(bool scan) __attribute__ ((warn_unused_result));
   int ha_reset();
+  int ha_sample_init()
+  {
+    int result;
+    DBUG_ENTER("ha_sample_init");
+    DBUG_ASSERT(inited == NONE);
+    result= sample_init();
+    inited= result ? NONE: SAMPLING;
+    end_range= NULL;
+    DBUG_RETURN(result);
+  }
+  int ha_sample_next(uchar* buf);
+  int ha_sample_end()
+  {
+    DBUG_ENTER("ha_sample_end");
+    DBUG_ASSERT(inited==SAMPLING);
+    inited= NONE;
+    end_range= NULL;
+    DBUG_RETURN(sample_end());
+  }
   /* this is necessary in many places, e.g. in HANDLER command */
   int ha_index_or_rnd_end()
   {
@@ -3999,6 +4021,11 @@ public:
   virtual int ft_read(uchar *buf) { return HA_ERR_WRONG_COMMAND; }
   virtual int rnd_next(uchar *buf)=0;
   virtual int rnd_pos(uchar * buf, uchar *pos)=0;
+
+  virtual int sample_init() {return 0;}
+  virtual int sample_next(uchar *buf) { return 0;}
+  virtual int sample_end() {return 0;}
+
   /**
     This function only works for handlers having
     HA_PRIMARY_KEY_REQUIRED_FOR_POSITION set.

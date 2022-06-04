@@ -2757,29 +2757,28 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
 
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
-    table_field= *field_ptr;   
+    table_field= *field_ptr;
     if (!table_field->collected_stats)
-      continue; 
+      continue;
     table_field->collected_stats->init(thd, table_field);
   }
 
   restore_record(table, s->default_values);
 
-  /* Perform a full table scan to collect statistics on 'table's columns */
-  if (!(rc= file->ha_rnd_init(TRUE)))
+  if(file->ha_table_flags() & HA_NATIVE_SAMPLING)
   {
-    DEBUG_SYNC(table->in_use, "statistics_collection_start");
+    if(!(rc= file->ha_sample_init())) {
+      DEBUG_SYNC(table->in_use, "statistics_collection_start");
+      rows = file->records() * (thd->variables.sample_percentage / 100);
 
-    while ((rc= file->ha_rnd_next(table->record[0])) != HA_ERR_END_OF_FILE)
-    {
-      if (thd->killed)
-        break;
-
-      if (rc)
-        break;
-
-      if (thd_rnd(thd) <= sample_fraction)
+      for (ulonglong i= 0; i < rows; ++i)
       {
+        rc = file->ha_sample_next(table->record[0]);
+        if (thd->killed)
+          break;
+
+        if (rc)
+          break;
         for (field_ptr= table->field; *field_ptr; field_ptr++)
         {
           table_field= *field_ptr;
@@ -2790,12 +2789,47 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
         }
         if (rc)
           break;
-        rows++;
       }
+      file->ha_sample_end();
     }
-    file->ha_rnd_end();
+    rc= (rc == 0 && !thd->killed) ? 0 : 1;
   }
-  rc= (rc == HA_ERR_END_OF_FILE && !thd->killed) ? 0 : 1;
+  else
+  {
+
+    /* Perform a full table scan to collect statistics on 'table's columns */
+    if (!(rc= file->ha_rnd_init(TRUE)))
+    {
+      DEBUG_SYNC(table->in_use, "statistics_collection_start");
+
+      while ((rc= file->ha_rnd_next(table->record[0])) != HA_ERR_END_OF_FILE)
+      {
+        if (thd->killed)
+          break;
+
+        if (rc)
+          break;
+
+        if (thd_rnd(thd) <= sample_fraction)
+        {
+          for (field_ptr= table->field; *field_ptr; field_ptr++)
+          {
+            table_field= *field_ptr;
+            if (!table_field->collected_stats)
+              continue;
+            if ((rc= table_field->collected_stats->add()))
+              break;
+          }
+          if (rc)
+            break;
+          rows++;
+        }
+      }
+      file->ha_rnd_end();
+    }
+    rc= (rc == HA_ERR_END_OF_FILE && !thd->killed) ? 0 : 1;
+  }
+
 
   /* 
     Calculate values for all statistical characteristics on columns and

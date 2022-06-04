@@ -2846,14 +2846,18 @@ btr_cur_open_at_index_side(
 
 /**********************************************************************//**
 Positions a cursor at a randomly chosen position within a B-tree.
-@return true if the index is available and we have put the cursor, false
-if the index is unavailable */
-bool
+@return DB_SUCCESS if the index is available and we have put the cursor,
+error code if the index is unavailable. If simulate_uniform=true, could be
+DB_RECORD_NOT_FOUND returned, which means that no record is chosen in the
+generated tree path. The caller should retry a call, that will
+try a new tree path */
+dberr_t
 btr_cur_open_at_rnd_pos(
-	dict_index_t*	index,		/*!< in: index */
-	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
-	btr_cur_t*	cursor,		/*!< in/out: B-tree cursor */
-	mtr_t*		mtr)		/*!< in: mtr */
+	dict_index_t*	index,	    /*!< in: index */
+	ulint		latch_mode, /*!< in: BTR_SEARCH_LEAF, ... */
+	btr_cur_t*	cursor,	    /*!< in/out: B-tree cursor */
+	mtr_t*		mtr,        /*!< in: mtr */
+        bool sim_uniform_dist)      /*!< in: uniform distribution simulation */
 {
 	page_cur_t*	page_cursor;
 	ulint		node_ptr_max_size = srv_page_size / 2;
@@ -2865,6 +2869,11 @@ btr_cur_open_at_rnd_pos(
 	ulint		n_blocks = 0;
 	ulint		n_releases = 0;
 	mem_heap_t*	heap		= NULL;
+	/* For uniform distribution simulation is used naive A/R sampling
+	    algorithm, check link below for details
+	   https://courses.cs.washington.edu/courses/cse590q/05au/papers/Olken-Sampling.pdf
+	*/
+        double          p = 1.0;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
@@ -2914,7 +2923,7 @@ btr_cur_open_at_rnd_pos(
 	}
 
 	DBUG_EXECUTE_IF("test_index_is_unavailable",
-			return(false););
+			return(DB_ERROR););
 
 	if (index->page == FIL_NULL) {
 		/* Since we don't hold index lock until just now, the index
@@ -2922,7 +2931,7 @@ btr_cur_open_at_rnd_pos(
 		statistics updater for referenced table, it could be marked
 		as unavailable by 'DROP TABLE' in the mean time, since
 		we don't hold lock for statistics updater */
-		return(false);
+		return(DB_ERROR);
 	}
 
 	const rw_lock_type_t root_leaf_rw_latch = btr_cur_latch_for_root_leaf(
@@ -3000,8 +3009,18 @@ btr_cur_open_at_rnd_pos(
 			/* We are in the root node */
 
 			height = btr_page_get_level(page);
+		} else {
+			if(sim_uniform_dist) {
+				ulint n_recs = page_get_n_recs(block->page.frame);
+				int extra_bytes = dict_table_is_comp(index->table) ?
+				REC_N_NEW_EXTRA_BYTES : REC_N_OLD_EXTRA_BYTES;
+				// Get max fanout from n_recs / (srv_page_size /
+				// extra_bytes +1), but exchange two divisons by
+				// one multiplication and one division
+				p *= (double)n_recs * (extra_bytes + 1) /
+					(double)srv_page_size;
+			}
 		}
-
 		if (height == 0) {
 			if (rw_latch == RW_NO_LATCH
 			    || srv_read_only_mode) {
@@ -3035,7 +3054,7 @@ btr_cur_open_at_rnd_pos(
 			}
 		}
 
-		page_cur_open_on_rnd_user_rec(block, page_cursor);
+                page_cur_open_on_rnd_user_rec(block, page_cursor);
 
 		if (height == 0) {
 
@@ -3130,7 +3149,14 @@ btr_cur_open_at_rnd_pos(
 		mem_heap_free(heap);
 	}
 
-	return err == DB_SUCCESS;
+	// We get max value of type by using ~(type)0 for
+	// getting 0..1 pseudo random number from ut_rnd_gen()
+	// and exchange division by multiplication like
+	// (b / c) < a <=> b < (a * c)
+	if(sim_uniform_dist && (ut_rnd_gen() < (p * ~(uint32_t)0)))
+		err = DB_RECORD_NOT_FOUND;
+
+	return err;
 }
 
 /*==================== B-TREE INSERT =========================*/
