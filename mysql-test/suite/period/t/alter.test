@@ -151,3 +151,26 @@ alter table t1 add system versioning;
 
 # cleanup
 drop table t1;
+
+--echo #
+--echo # MDEV-18873 Server crashes in Compare_identifiers::operator or in 
+--echo # my_strcasecmp_utf8 upon ADD PERIOD IF NOT EXISTS with empty name
+--echo #
+
+# When there is no table defined.
+--error ER_WRONG_COLUMN_NAME
+alter table t add period if not exists for `` (s,e);
+
+# When there is an actual table.
+create table t(s DATE, e DATE);
+--error ER_WRONG_COLUMN_NAME
+alter table t add period if not exists for `` (s,e);
+
+# When the last character is space
+--error ER_WRONG_COLUMN_NAME
+alter table t add period if not exists for ` ` (s,e);
+
+# Create table with an empty period name
+--error ER_WRONG_COLUMN_NAME
+create table t2 (period for `` (s,e)) select * from t;
+drop table t;

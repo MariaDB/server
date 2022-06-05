@@ -33,6 +33,7 @@
 #include "sql_tvc.h"
 #include "item.h"
 #include "sql_schema.h"
+#include "table.h"
 
 /* Used for flags of nesting constructs */
 #define SELECT_NESTING_MAP_SIZE 64
@@ -4449,6 +4450,11 @@ public:
 
   int add_period(Lex_ident name, Lex_ident_sys_st start, Lex_ident_sys_st end)
   {
+    if (check_period_name(name.str)) {
+      my_error(ER_WRONG_COLUMN_NAME, MYF(0), name.str);
+      return 1;
+    }
+
     if (lex_string_cmp(system_charset_info, &start, &end) == 0)
     {
       my_error(ER_FIELD_SPECIFIED_TWICE, MYF(0), start.str);
