@@ -347,6 +347,60 @@ set debug_sync= 'now SIGNAL end';
 --reap
 select * from t1;
 
+--echo # MYISAM + error
+
+create or replace table t1 (a int primary key) engine=myisam;
+insert t1 values (5);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+--error ER_DUP_ENTRY
+insert into t1 values (1),(2),(3),(4),(5),(6);
+select * from t1;
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo # Aria + error
+
+set @@binlog_format=row; # otherwise aria upgrades the lock to TL_READ_NO_INSERT
+create or replace table t1 (a int primary key) engine=aria;
+insert t1 values (5);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+--error ER_DUP_ENTRY
+insert into t1 values (1),(2),(3),(4),(5),(6);
+select * from t1;
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+set @@binlog_format=default;
+
 --echo # Test incompatible changes
 create or replace table t1 (a int primary key, b int);
 insert t1 values (1, 22);
