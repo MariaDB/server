@@ -4918,6 +4918,12 @@ bool check_column_name(const char *name)
 }
 
 
+bool check_period_name(const char *name)
+{
+  return check_column_name(name);
+}
+
+
 /**
   Checks whether a table is intact. Should be done *just* after the table has
   been opened.

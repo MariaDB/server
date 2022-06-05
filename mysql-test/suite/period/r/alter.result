@@ -190,3 +190,17 @@ alter table t1 add primary key(x, s, e);
 ERROR 23000: Duplicate entry '1-2020-03-01-2020-03-02' for key 'PRIMARY'
 alter table t1 add system versioning;
 drop table t1;
+#
+# MDEV-18873 Server crashes in Compare_identifiers::operator or in 
+# my_strcasecmp_utf8 upon ADD PERIOD IF NOT EXISTS with empty name
+#
+alter table t add period if not exists for `` (s,e);
+ERROR 42000: Incorrect column name ''
+create table t(s DATE, e DATE);
+alter table t add period if not exists for `` (s,e);
+ERROR 42000: Incorrect column name ''
+alter table t add period if not exists for ` ` (s,e);
+ERROR 42000: Incorrect column name ' '
+create table t2 (period for `` (s,e)) select * from t;
+ERROR 42000: Incorrect column name ''
+drop table t;
