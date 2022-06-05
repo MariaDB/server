@@ -156,14 +156,9 @@ static void thread_attach(THD* thd)
 #endif /* WITH_WSREP */
   set_mysys_var(thd->mysys_var);
   thd->thread_stack=(char*)&thd;
-  thd->store_globals();
+  setup_connection_thread_globals(thd);
   PSI_CALL_set_thread(thd->get_psi());
   mysql_socket_set_thread_owner(thd->net.vio->mysql_socket);
-#if !defined(DBUG_OFF)
-  char con_name[16];
-  snprintf(con_name, sizeof con_name, "con_%llu", thd->thread_id);
-  pthread_setname_np(thd->real_id, con_name);
-#endif
 }
 
 /*

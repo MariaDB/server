@@ -1023,7 +1023,7 @@ retry:
             goto end;
           }
 
-#if !defined(_WIN32) && defined(MYSQL_SERVER)
+#if defined(MYSQL_SERVER)
 	  /*
 	    We got an error that there was no data on the socket. We now set up
 	    an alarm to not 'read forever', change the socket to the blocking

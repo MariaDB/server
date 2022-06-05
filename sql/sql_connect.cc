@@ -1155,6 +1155,11 @@ static int check_connection(THD *thd)
 void setup_connection_thread_globals(THD *thd)
 {
   thd->store_globals();
+#if !defined(DBUG_OFF)
+  char con_name[16];
+  snprintf(con_name, sizeof con_name, "con_%llu", thd->thread_id);
+  pthread_setname_np(thd->real_id, con_name);
+#endif
 }
 
 
@@ -1410,18 +1415,25 @@ class Thread_apc_context
   {
     my_socket listener= socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (listener == INVALID_SOCKET)
+    {
+      sql_print_error("Error creating socket: %d", socket_errno);
       return 1;
+    }
+    int ret = 0;
+    sockaddr_in inaddr;
 
-    addrinfo addr_hint, *addr;
+    memset(&inaddr, 0, sizeof inaddr);
+    inaddr.sin_family= AF_INET;
+    inaddr.sin_addr.s_addr= htonl(INADDR_LOOPBACK);
+    inaddr.sin_port= 0;
 
-    memset(&addr_hint, 0, sizeof addr_hint);
-    addr_hint.ai_family = AF_INET;
-    addr_hint.ai_socktype = SOCK_STREAM;
-    addr_hint.ai_protocol = IPPROTO_TCP;
-    addr_hint.ai_flags = AI_PASSIVE;
-    getaddrinfo(NULL, 0, &addr_hint, &addr);
-
-    int ret= bind(listener, addr->ai_addr, (int)addr->ai_addrlen);
+    if (unlikely(ret != 0))
+    {
+      sql_print_error("getaddrinfo returned error: %d", ret);
+      closesocket(listener);
+      return 1;
+    }
+    ret= bind(listener, (sockaddr*)&inaddr, sizeof inaddr);
 
     if (likely(ret != SOCKET_ERROR))
       ret= listen(listener, 1);
@@ -1432,21 +1444,23 @@ class Thread_apc_context
     if (unlikely(out[0] == INVALID_SOCKET))
       ret= SOCKET_ERROR;
 
+    sockaddr client_addr;
+    int len= sizeof client_addr;
     if (likely(ret != SOCKET_ERROR))
-      ret= connect(out[0], addr->ai_addr, (int)addr->ai_addrlen);
+      ret= getsockname(listener, &client_addr, &len);
+
+    if (likely(ret != SOCKET_ERROR))
+      ret= connect(out[0], &client_addr, len);
 
     if (likely(ret != SOCKET_ERROR))
       out[1] = accept(listener, NULL, NULL);
 
 
     closesocket(listener);
-    freeaddrinfo(addr);
-
-    sql_print_information("created sockets: %d %d, ret: %d", out[0], out[1], ret);
 
     if (unlikely(ret == SOCKET_ERROR || out[1] == INVALID_SOCKET))
     {
-      sql_print_error("error pairing socket: %d", socket_errno);
+      sql_print_error("Error pairing socket: %d.", socket_errno);
       closesocket(out[0]);
       closesocket(out[1]);
       WSACleanup();
@@ -1530,8 +1544,8 @@ my_socket threadlocal_get_self_pipe()
 static void self_pipe_write()
 {
   DBUG_ASSERT(_THR_APC_CTX);
-  int buf = 0;
-  write((int)_THR_APC_CTX->self_pipe[1], &buf, sizeof buf);
+  char buf[4]{};
+  send(_THR_APC_CTX->self_pipe[1], buf, sizeof buf, 0);
 }
 #endif
 
@@ -1545,6 +1559,7 @@ bool thread_scheduler_notify_apc(THD *thd, THD *this_thd)
   auto status= QueueUserAPC(
       [](ULONG_PTR param){ self_pipe_write(); },
       hthread, (ULONG_PTR)thd);
+  CloseHandle(hthread);
   return status != 0;
 #else
   return pthread_kill(thd->mysys_var->pthread_self, SIG_APC_NOTIFY) == 0;
@@ -1611,6 +1626,7 @@ void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
   thd->thread_stack= (char*) &thd;
   setup_connection_thread_globals(thd);
 
+
   for (;;)
   {
     bool create_user= TRUE;
@@ -1658,7 +1674,7 @@ end_thread:
       We have to call store_globals to update mysys_var->id and lock_info
       with the new thread_id
     */
-    thd->store_globals();
+    setup_connection_thread_globals(thd);
 
     /* reset abort flag for the thread */
     thd->mysys_var->abort= 0;

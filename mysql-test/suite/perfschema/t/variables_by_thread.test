@@ -44,7 +44,8 @@ SELECT thread_id = @def_thread_id as current, variable_value
 --echo #
 --echo # Notify APC before net_read
 --echo #
-
+--connection con2
+select "good";
 --connection con1
 --send
 set debug_sync= "before_do_command_net_read SIGNAL net WAIT_FOR pass";
@@ -66,7 +67,8 @@ set debug_sync= "now SIGNAL pass";
 
 set @old_dbug= @@global.debug_dbug;
 set global debug_dbug= "+d,apc_timeout";
-
+--connection con2
+select "good";
 --connection con1
 --send
 set debug_sync= "now WAIT_FOR pass";
@@ -79,7 +81,8 @@ set debug_sync= "now SIGNAL pass";
 --connection con1
 --reap
 SELECT "ok";
-
+--connection con2
+select "good";
 --connection default
 set global debug_dbug= @old_dbug;
 
@@ -107,15 +110,18 @@ SELECT thread_id = @def_thread_id as current, variable_value
 --reap
 --connection con2
 --reap
+select "good";
 
 --echo #
 --echo # Result from the killed query is shown.
 --echo #
 
 --connection con1
-set debug_sync= "after_dispatch_command SIGNAL dispatched WAIT_FOR pass";
+SELECT "OKK";
 --send
-SELECT "work";
+set debug_sync= "after_dispatch_command SIGNAL dispatched WAIT_FOR pass";
+#--send
+#SELECT "work";
 --connection default
 set debug_sync= "now WAIT_FOR dispatched";
 KILL QUERY @con1_kill_thread_id;
