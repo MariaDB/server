@@ -234,7 +234,7 @@ bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call,
 void Apc_target::process_apc_requests()
 {
   process_epoch++;
-  DEBUG_SYNC(current_thd, "tp_before_lock_2");
+  //DEBUG_SYNC(current_thd, "tp_before_lock_2");
   mysql_mutex_lock(LOCK_thd_kill_ptr);
 
   while (Call_request *request= get_first_in_queue())
