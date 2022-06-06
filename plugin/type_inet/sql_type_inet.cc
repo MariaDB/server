@@ -1113,9 +1113,14 @@ public:
     if (!example)
       return false;
     value_cached= true;
-    null_value= example->val_native_with_conversion_result(current_thd,
-                                                           &m_value,
-                                                           type_handler());
+    /*
+      Merge comments: in 10.7 this code migrated to
+      Item_cache_fbt in to sql/sql_type_fixedbin.h
+    */
+    null_value_inside= null_value=
+      example->val_native_with_conversion_result(current_thd,
+                                                 &m_value,
+                                                 type_handler());
     return true;
   }
   String* val_str(String *to)
