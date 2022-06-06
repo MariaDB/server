@@ -192,8 +192,9 @@ restart:
 			BTR_MODIFY_LEAF, &mtr) == btr_pcur_t::SAME_ALL);
 	}
 
-	if (btr_cur_optimistic_delete(&node->pcur.btr_cur, 0, &mtr)) {
-		err = DB_SUCCESS;
+	err = btr_cur_optimistic_delete(&node->pcur.btr_cur, 0, &mtr);
+
+	if (err != DB_FAIL) {
 		goto func_exit;
 	}
 
@@ -233,7 +234,7 @@ func_exit:
 	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_INSERT_METADATA) {
 		/* When rolling back the very first instant ADD COLUMN
 		operation, reset the root page to the basic state. */
-		btr_reset_instant(*index, true, &mtr);
+		err = btr_reset_instant(*index, true, &mtr);
 	}
 
 	btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
@@ -305,8 +306,7 @@ row_undo_ins_remove_sec_low(
 		btr_cur_t* btr_cur = btr_pcur_get_btr_cur(&pcur);
 
 		if (modify_leaf) {
-			err = btr_cur_optimistic_delete(btr_cur, 0, &mtr)
-				? DB_SUCCESS : DB_FAIL;
+			err = btr_cur_optimistic_delete(btr_cur, 0, &mtr);
 		} else {
 			/* Passing rollback=false here, because we are
 			deleting a secondary index record: the distinction
@@ -375,7 +375,7 @@ retry:
 static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 {
 	dict_index_t*	clust_index;
-	byte*		ptr;
+	const byte*	ptr;
 	undo_no_t	undo_no;
 	table_id_t	table_id;
 	ulint		dummy;
@@ -421,16 +421,14 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		      == !is_system_tablespace(table->space_id));
 		size_t len = mach_read_from_2(node->undo_rec)
 			+ size_t(node->undo_rec - ptr) - 2;
-		ptr[len] = 0;
-		const char* name = reinterpret_cast<char*>(ptr);
-		if (strcmp(table->name.m_name, name)) {
-			dict_table_rename_in_cache(
-				table, name,
-				!dict_table_t::is_temporary_name(name),
-				true);
+		const span<const char> name(reinterpret_cast<const char*>(ptr),
+					    len);
+		if (strlen(table->name.m_name) != len
+		    || memcmp(table->name.m_name, ptr, len)) {
+			dict_table_rename_in_cache(table, name, true);
 		} else if (table->space && table->space->id) {
 			const auto s = table->space->name();
-			if (len != s.size() || memcmp(name, s.data(), len)) {
+			if (len != s.size() || memcmp(ptr, s.data(), len)) {
 				table->rename_tablespace(name, true);
 			}
 		}
@@ -509,16 +507,15 @@ row_undo_ins_remove_sec_rec(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	dberr_t		err	= DB_SUCCESS;
-	dict_index_t*	index	= node->index;
+	dict_index_t*	index;
 	mem_heap_t*	heap;
 
 	heap = mem_heap_create(1024);
 
-	while (index != NULL) {
-		dtuple_t*	entry;
-
-		if (index->type & DICT_FTS || !index->is_committed()) {
-			dict_table_next_uncorrupted_index(index);
+	for (index = node->index; index;
+             index = dict_table_get_next_index(index)) {
+		if (index->type & (DICT_FTS | DICT_CORRUPT)
+		    || !index->is_committed()) {
 			continue;
 		}
 
@@ -526,7 +523,7 @@ row_undo_ins_remove_sec_rec(
 		always contain all fields of the index. It does not
 		matter if any indexes were created afterwards; all
 		index entries can be reconstructed from the row. */
-		entry = row_build_index_entry(
+		dtuple_t* entry = row_build_index_entry(
 			node->row, node->ext, index, heap);
 		if (UNIV_UNLIKELY(!entry)) {
 			/* The database must have crashed after
@@ -549,7 +546,6 @@ row_undo_ins_remove_sec_rec(
 		}
 
 		mem_heap_empty(heap);
-		dict_table_next_uncorrupted_index(index);
 	}
 
 func_exit:
@@ -593,8 +589,6 @@ row_undo_ins(
 	case TRX_UNDO_INSERT_REC:
 		/* Skip the clustered index (the first index) */
 		node->index = dict_table_get_next_index(node->index);
-
-		dict_table_skip_corrupt_index(node->index);
 
 		err = row_undo_ins_remove_sec_rec(node, thr);
 
@@ -640,8 +634,7 @@ row_undo_ins(
 		err = row_undo_ins_remove_clust_rec(node);
 		break;
 	case TRX_UNDO_EMPTY:
-		node->table->clear(thr);
-		err = DB_SUCCESS;
+		err = node->table->clear(thr);
 		break;
 	}
 

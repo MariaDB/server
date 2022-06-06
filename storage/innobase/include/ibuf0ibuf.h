@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -327,9 +327,11 @@ exist entries for such a page if the page belonged to an index which
 subsequently was dropped.
 @param block    X-latched page to try to apply changes to, or NULL to discard
 @param page_id  page identifier
-@param zip_size ROW_FORMAT=COMPRESSED page size, or 0 */
-void ibuf_merge_or_delete_for_page(buf_block_t *block, const page_id_t page_id,
-                                   ulint zip_size);
+@param zip_size ROW_FORMAT=COMPRESSED page size, or 0
+@return error code */
+dberr_t ibuf_merge_or_delete_for_page(buf_block_t *block,
+                                      const page_id_t page_id,
+                                      ulint zip_size);
 
 /** Delete all change buffer entries for a tablespace,
 in DISCARD TABLESPACE, IMPORT TABLESPACE, or crash recovery.

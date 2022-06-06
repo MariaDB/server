@@ -319,28 +319,17 @@ nothing_read:
 				       ? IORequest::READ_SYNC
 				       : IORequest::READ_ASYNC),
 			     page_id.page_no() * len, len, dst, bpage);
-	*err= fio.err;
+	*err = fio.err;
 
 	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
-		if (!sync || fio.err == DB_TABLESPACE_DELETED
-		    || fio.err == DB_IO_ERROR) {
-			buf_pool.corrupted_evict(bpage);
-			return false;
-		}
-
-		ut_error;
-	}
-
-	if (sync) {
+		ut_d(auto n=) buf_pool.n_pend_reads--;
+		ut_ad(n > 0);
+		buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
+	} else if (sync) {
 		thd_wait_end(NULL);
-
 		/* The i/o was already completed in space->io() */
 		*err = bpage->read_complete(*fio.node);
 		space->release();
-
-		if (*err != DB_SUCCESS) {
-			return false;
-		}
 	}
 
 	return true;
@@ -487,26 +476,6 @@ void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
 	if (buf_read_page_low(&err, space, false, BUF_READ_ANY_PAGE,
 			      page_id, zip_size, false)) {
 		srv_stats.buf_pool_reads.add(1);
-	}
-
-	switch (err) {
-	case DB_SUCCESS:
-	case DB_ERROR:
-		break;
-	case DB_TABLESPACE_DELETED:
-		ib::info() << "trying to read page " << page_id
-			<< " in the background"
-			" in a non-existing or being-dropped tablespace";
-		break;
-	case DB_PAGE_CORRUPTED:
-	case DB_DECRYPTION_FAILED:
-		ib::error()
-			<< "Background Page read failed to "
-			"read or decrypt " << page_id;
-		break;
-	default:
-		ib::fatal() << "Error " << err << " in background read of "
-			<< page_id;
 	}
 
 	/* We do not increment number of I/O operations used for LRU policy
@@ -742,8 +711,8 @@ void buf_read_recv_pages(ulint space_id, const uint32_t* page_nos, ulint n)
 				  BUF_READ_ANY_PAGE, cur_page_id, zip_size,
 				  true);
 
-		if (err == DB_DECRYPTION_FAILED || err == DB_PAGE_CORRUPTED) {
-			ib::error() << "Recovery failed to read or decrypt "
+		if (err != DB_SUCCESS) {
+			ib::error() << "Recovery failed to read "
 				<< cur_page_id;
 		}
 	}

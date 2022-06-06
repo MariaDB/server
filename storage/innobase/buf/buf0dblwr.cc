@@ -83,7 +83,13 @@ bool buf_dblwr_t::create()
 start_again:
   mtr.start();
 
+  dberr_t err;
   buf_block_t *trx_sys_block= buf_dblwr_trx_sys_get(&mtr);
+  if (!trx_sys_block)
+  {
+    mtr.commit();
+    return false;
+  }
 
   if (mach_read_from_4(TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_MAGIC +
                        trx_sys_block->page.frame) ==
@@ -98,10 +104,10 @@ start_again:
 
   if (UT_LIST_GET_FIRST(fil_system.sys_space->chain)->size < 3 * size)
   {
-too_small:
     ib::error() << "Cannot create doublewrite buffer: "
                    "the first file in innodb_data_file_path must be at least "
                 << (3 * (size >> (20U - srv_page_size_shift))) << "M.";
+fail:
     mtr.commit();
     return false;
   }
@@ -109,9 +115,13 @@ too_small:
   {
     buf_block_t *b= fseg_create(fil_system.sys_space,
                                 TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_FSEG,
-                                &mtr, false, trx_sys_block);
+                                &mtr, &err, false, trx_sys_block);
     if (!b)
-      goto too_small;
+    {
+      ib::error() << "Cannot create doublewrite buffer: " << err;
+      goto fail;
+    }
+
     ib::info() << "Doublewrite buffer not found: creating new";
 
     /* FIXME: After this point, the doublewrite buffer creation
@@ -126,8 +136,9 @@ too_small:
   for (uint32_t prev_page_no= 0, i= 0, extent_size= FSP_EXTENT_SIZE;
        i < 2 * size + extent_size / 2; i++)
   {
-    buf_block_t *new_block= fseg_alloc_free_page(fseg_header, prev_page_no + 1,
-                                                 FSP_UP, &mtr);
+    buf_block_t *new_block=
+      fseg_alloc_free_page_general(fseg_header, prev_page_no + 1, FSP_UP,
+                                   false, &mtr, &mtr, &err);
     if (!new_block)
     {
       ib::error() << "Cannot create doublewrite buffer: "
@@ -395,9 +406,12 @@ next_page:
                             physical_size, read_buf);
 
     if (UNIV_UNLIKELY(fio.err != DB_SUCCESS))
+    {
        ib::warn() << "Double write buffer recovery: " << page_id
                   << " ('" << space->chain.start->name
                   << "') read failed with error: " << fio.err;
+       continue;
+    }
 
     if (buf_is_zeroes(span<const byte>(read_buf, physical_size)))
     {

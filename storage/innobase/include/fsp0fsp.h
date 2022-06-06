@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -207,16 +207,17 @@ typedef	byte	fseg_inode_t;
 	(16 + 3 * FLST_BASE_NODE_SIZE			\
 	 + FSEG_FRAG_ARR_N_SLOTS * FSEG_FRAG_SLOT_SIZE)
 
-static constexpr uint32_t FSEG_MAGIC_N_VALUE= 97937874;
+static constexpr byte FSEG_MAGIC_N_BYTES[4]={0x05,0xd6,0x69,0xd2};
 
-#define	FSEG_FILLFACTOR		8	/* If this value is x, then if
-					the number of unused but reserved
+#define	FSEG_FILLFACTOR		8	/* If the number of unused but reserved
 					pages in a segment is less than
-					reserved pages * 1/x, and there are
+					reserved pages / FSEG_FILLFACTOR,
+					and there are
 					at least FSEG_FRAG_LIMIT used pages,
 					then we allow a new empty extent to
 					be added to the segment in
-					fseg_alloc_free_page. Otherwise, we
+					fseg_alloc_free_page_general().
+					Otherwise, we
 					use unused pages of the segment. */
 
 #define FSEG_FRAG_LIMIT		FSEG_FRAG_ARR_N_SLOTS
@@ -345,22 +346,25 @@ fsp_header_check_encryption_key(
 /** Initialize a tablespace header.
 @param[in,out]	space	tablespace
 @param[in]	size	current size in blocks
-@param[in,out]	mtr	mini-transaction */
-void fsp_header_init(fil_space_t* space, uint32_t size, mtr_t* mtr)
-	MY_ATTRIBUTE((nonnull));
+@param[in,out]	mtr	mini-transaction
+@return error code */
+dberr_t fsp_header_init(fil_space_t *space, uint32_t size, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Create a new segment.
 @param space                tablespace
 @param byte_offset          byte offset of the created segment header
 @param mtr                  mini-transaction
+@param err                  error code
 @param has_done_reservation whether fsp_reserve_free_extents() was invoked
 @param block                block where segment header is placed,
                             or NULL to allocate an additional page for that
 @return the block where the segment header is placed, x-latched
-@retval NULL if could not create segment because of lack of space */
+@retval nullptr if could not create segment */
 buf_block_t*
-fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
-            bool has_done_reservation= false, buf_block_t *block= NULL);
+fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr, dberr_t *err,
+            bool has_done_reservation= false, buf_block_t *block= nullptr)
+  MY_ATTRIBUTE((nonnull(1,3,4), warn_unused_result));
 
 /** Calculate the number of pages reserved by a segment,
 and how many pages are currently used.
@@ -373,22 +377,6 @@ ulint fseg_n_reserved_pages(const buf_block_t &block,
                             const fseg_header_t *header, ulint *used,
                             mtr_t *mtr)
   MY_ATTRIBUTE((nonnull));
-/**********************************************************************//**
-Allocates a single free page from a segment. This function implements
-the intelligent allocation strategy which tries to minimize
-file space fragmentation.
-@param[in,out] seg_header segment header
-@param[in] hint hint of which page would be desirable
-@param[in] direction if the new page is needed because
-				of an index page split, and records are
-				inserted there in order, into which
-				direction they go alphabetically: FSP_DOWN,
-				FSP_UP, FSP_NO_DIR
-@param[in,out] mtr mini-transaction
-@return X-latched block, or NULL if no page could be allocated */
-#define fseg_alloc_free_page(seg_header, hint, direction, mtr)		\
-	fseg_alloc_free_page_general(seg_header, hint, direction,	\
-				     false, mtr, mtr)
 /**********************************************************************//**
 Allocates a single free page from a segment. This function implements
 the intelligent allocation strategy which tries to minimize file space
@@ -411,8 +399,9 @@ fseg_alloc_free_page_general(
 				is no need to do the check for this individual
 				page */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
-	mtr_t*		init_mtr)/*!< in/out: mtr or another mini-transaction
+	mtr_t*		init_mtr,/*!< in/out: mtr or another mini-transaction
 				in which the page should be initialized. */
+	dberr_t*	err)	/*!< out: error code */
 	MY_ATTRIBUTE((warn_unused_result, nonnull));
 
 /** Reserves free pages from a tablespace. All mini-transactions which may
@@ -441,19 +430,21 @@ if the table only occupies < FSP_EXTENT_SIZE pages. That is why we apply
 different rules in that special case, just ensuring that there are n_pages
 free pages available.
 
-@param[out]	n_reserved	number of extents actually reserved; if we
-				return true and the tablespace size is <
-				FSP_EXTENT_SIZE pages, then this can be 0,
-				otherwise it is n_ext
-@param[in,out]	space		tablespace
-@param[in]	n_ext		number of extents to reserve
-@param[in]	alloc_type	page reservation type (FSP_BLOB, etc)
-@param[in,out]	mtr		the mini transaction
-@param[in]	n_pages		for small tablespaces (tablespace size is
-				less than FSP_EXTENT_SIZE), number of free
-				pages to reserve.
-@return true if we were able to make the reservation */
-bool
+@param[out]     n_reserved      number of extents actually reserved; if we
+                                return true and the tablespace size is <
+                                FSP_EXTENT_SIZE pages, then this can be 0,
+                                otherwise it is n_ext
+@param[in,out]  space           tablespace
+@param[in]      n_ext           number of extents to reserve
+@param[in]      alloc_type      page reservation type (FSP_BLOB, etc)
+@param[in,out]  mtr             the mini transaction
+@param[out]     err             error code
+@param[in]      n_pages         for small tablespaces (tablespace size is
+                                less than FSP_EXTENT_SIZE), number of free
+                                pages to reserve.
+@return error code
+@retval DB_SUCCESS if we were able to make the reservation */
+dberr_t
 fsp_reserve_free_extents(
 	uint32_t*	n_reserved,
 	fil_space_t*	space,
@@ -467,21 +458,25 @@ fsp_reserve_free_extents(
 @param[in,out]	space		tablespace
 @param[in]	offset		page number
 @param[in,out]	mtr		mini-transaction
-@param[in]	have_latch	whether space->x_lock() was already called */
-void
+@param[in]	have_latch	whether space->x_lock() was already called
+@return error code */
+dberr_t
 fseg_free_page(
 	fseg_header_t*	seg_header,
 	fil_space_t*	space,
 	uint32_t	offset,
 	mtr_t*		mtr,
-	bool		have_latch = false);
-/** Determine whether a page is free.
-@param[in,out]	space	tablespace
-@param[in]	page	page number
-@return whether the page is marked as free */
-bool
-fseg_page_is_free(fil_space_t* space, unsigned page)
+	bool		have_latch = false)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Determine whether a page is allocated.
+@param space   tablespace
+@param page    page number
+@return error code
+@retval DB_SUCCESS             if the page is marked as free
+@retval DB_SUCCESS_LOCKED_REC  if the page is marked as allocated */
+dberr_t fseg_page_is_allocated(fil_space_t *space, unsigned page)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Frees part of a segment. This function can be used to free
 a segment by repeatedly calling this function in different

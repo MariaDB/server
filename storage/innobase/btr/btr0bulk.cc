@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -61,17 +61,22 @@ PageBulk::init()
 		m_index->set_modified(alloc_mtr);
 
 		uint32_t n_reserved;
-		if (!fsp_reserve_free_extents(&n_reserved,
-					      m_index->table->space,
-					      1, FSP_NORMAL, &alloc_mtr)) {
+		dberr_t err = fsp_reserve_free_extents(
+			&n_reserved, m_index->table->space, 1, FSP_NORMAL,
+			&alloc_mtr);
+		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+oom:
 			alloc_mtr.commit();
 			m_mtr.commit();
-			return(DB_OUT_OF_FILE_SPACE);
+			return err;
 		}
 
 		/* Allocate a new page. */
 		new_block = btr_page_alloc(m_index, 0, FSP_UP, m_level,
-					   &alloc_mtr, &m_mtr);
+					   &alloc_mtr, &m_mtr, &err);
+		if (!new_block) {
+			goto oom;
+		}
 
 		m_index->table->space->release_free_extents(n_reserved);
 
@@ -103,9 +108,12 @@ PageBulk::init()
 	} else {
 		new_block = btr_block_get(*m_index, m_page_no, RW_X_LATCH,
 					  false, &m_mtr);
+		if (!new_block) {
+			m_mtr.commit();
+			return(DB_CORRUPTION);
+		}
 
 		new_page = buf_block_get_frame(new_block);
-		ut_ad(new_block->page.id().page_no() == m_page_no);
 
 		ut_ad(page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW);
 
@@ -840,38 +848,19 @@ PageBulk::release()
 }
 
 /** Start mtr and latch the block */
-dberr_t
-PageBulk::latch()
+void PageBulk::latch()
 {
-	m_mtr.start();
-	m_index->set_modified(m_mtr);
+  m_mtr.start();
+  m_index->set_modified(m_mtr);
+#ifdef BTR_CUR_HASH_ADAPT
+  ut_ad(!m_block->index);
+#endif
+  m_block->page.lock.x_lock();
+  ut_ad(m_block->page.buf_fix_count());
+  m_mtr.memo_push(m_block, MTR_MEMO_PAGE_X_FIX);
 
-	ut_ad(m_block->page.buf_fix_count());
-
-	/* In case the block is U-latched by page_cleaner. */
-	if (!buf_page_optimistic_get(RW_X_LATCH, m_block, m_modify_clock,
-				     &m_mtr)) {
-		/* FIXME: avoid another lookup */
-		m_block = buf_page_get_gen(page_id_t(m_index->table->space_id,
-						     m_page_no),
-					   0, RW_X_LATCH,
-					   m_block, BUF_GET_IF_IN_POOL,
-					   &m_mtr, &m_err);
-
-		if (m_err != DB_SUCCESS) {
-			return (m_err);
-		}
-
-		ut_ad(m_block != NULL);
-	}
-
-	ut_d(const auto buf_fix_count =) m_block->page.unfix();
-
-	ut_ad(buf_fix_count);
-	ut_ad(m_cur_rec > m_page);
-	ut_ad(m_cur_rec < m_heap_top);
-
-	return (m_err);
+  ut_ad(m_cur_rec > m_page);
+  ut_ad(m_cur_rec < m_heap_top);
 }
 
 /** Split a page
@@ -1199,6 +1188,13 @@ BtrBulk::finish(dberr_t	err)
 		ut_ad(last_page_no != FIL_NULL);
 		last_block = btr_block_get(*m_index, last_page_no, RW_X_LATCH,
 					   false, &mtr);
+		if (!last_block) {
+			err = DB_CORRUPTION;
+err_exit:
+			mtr.commit();
+			return err;
+		}
+
 		first_rec = page_rec_get_next(
 			page_get_infimum_rec(last_block->page.frame));
 		ut_ad(page_rec_is_user_rec(first_rec));
@@ -1206,18 +1202,18 @@ BtrBulk::finish(dberr_t	err)
 		/* Copy last page to root page. */
 		err = root_page_bulk.init();
 		if (err != DB_SUCCESS) {
-			mtr.commit();
-			return(err);
+			goto err_exit;
 		}
 		root_page_bulk.copyIn(first_rec);
 		root_page_bulk.finish();
 
 		/* Remove last page. */
-		btr_page_free(m_index, last_block, &mtr);
-
+		err = btr_page_free(m_index, last_block, &mtr);
 		mtr.commit();
 
-		err = pageCommit(&root_page_bulk, NULL, false);
+		if (dberr_t e = pageCommit(&root_page_bulk, NULL, false)) {
+			err = e;
+		}
 		ut_ad(err == DB_SUCCESS);
 	}
 

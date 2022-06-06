@@ -11,8 +11,8 @@
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
 call mtr.add_suppression("InnoDB: Table `test`\\.`t[12]` (has an unreadable root page|is corrupted)");
-call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[12]\\.ibd' cannot be decrypted\\.");
-call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\]");
+call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[12]\\.ibd' cannot be decrypted; key_version=1");
+call mtr.add_suppression("failed to read \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\]");
 call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=3\\] in file .*test.t1.ibd looks corrupted; key_version=1");
 call mtr.add_suppression("InnoDB: Table `test`\\.`t[12]` is corrupted");
 call mtr.add_suppression("File '.*mysql-test.std_data.keysbad3\\.txt' not found");

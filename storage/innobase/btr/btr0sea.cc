@@ -1436,19 +1436,13 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
 	block = buf_page_get_gen(page_id, 0, RW_X_LATCH, NULL,
 				 BUF_PEEK_IF_IN_POOL, &mtr);
 
-	if (block) {
-		/* If AHI is still valid, page can't be in free state.
-		AHI is dropped when page is freed. */
-		DBUG_ASSERT(!block->page.is_freed());
-
-		if (block->index) {
-			/* In all our callers, the table handle should
-			be open, or we should be in the process of
-			dropping the table (preventing eviction). */
-			DBUG_ASSERT(block->index->table->get_ref_count()
-				    || dict_sys.locked());
-			btr_search_drop_page_hash_index(block);
-		}
+	if (block && block->index) {
+		/* In all our callers, the table handle should
+		be open, or we should be in the process of
+		dropping the table (preventing eviction). */
+		DBUG_ASSERT(block->index->table->get_ref_count()
+			    || dict_sys.locked());
+		btr_search_drop_page_hash_index(block);
 	}
 
 	mtr_commit(&mtr);

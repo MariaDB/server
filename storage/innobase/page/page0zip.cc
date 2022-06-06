@@ -4383,9 +4383,9 @@ IMPORTANT: if page_zip_reorganize() is invoked on a leaf page of a
 non-clustered index, the caller must update the insert buffer free
 bits in the same mini-transaction in such a way that the modification
 will be redo-logged.
-@retval true on success
-@retval false on failure; the block will be left intact */
-bool
+@return error code
+@retval DB_FAIL on overflow; the block_zip will be left intact */
+dberr_t
 page_zip_reorganize(
 	buf_block_t*	block,	/*!< in/out: page with compressed page;
 				on the compressed page, in: size;
@@ -4436,20 +4436,22 @@ page_zip_reorganize(
 	/* Copy the records from the temporary space to the recreated page;
 	do not copy the lock bits yet */
 
-	page_copy_rec_list_end_no_locks(block, temp_block,
-					page_get_infimum_rec(temp_page),
-					index, mtr);
+	dberr_t err = page_copy_rec_list_end_no_locks(
+		block, temp_block, page_get_infimum_rec(temp_page),
+		index, mtr);
 
 	/* Copy the PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC. */
 	memcpy_aligned<8>(page + (PAGE_HEADER + PAGE_MAX_TRX_ID),
 			  temp_page + (PAGE_HEADER + PAGE_MAX_TRX_ID), 8);
 	/* PAGE_MAX_TRX_ID must be set on secondary index leaf pages. */
-	ut_ad(dict_index_is_clust(index) || !page_is_leaf(temp_page)
+	ut_ad(err != DB_SUCCESS
+	      || index->is_clust() || !page_is_leaf(temp_page)
 	      || page_get_max_trx_id(page) != 0);
 	/* PAGE_MAX_TRX_ID must be zero on non-leaf pages other than
 	clustered index root pages. */
-	ut_ad(page_get_max_trx_id(page) == 0
-	      || (dict_index_is_clust(index)
+	ut_ad(err != DB_SUCCESS
+	      || page_get_max_trx_id(page) == 0
+	      || (index->is_clust()
 		  ? !page_has_siblings(temp_page)
 		  : page_is_leaf(temp_page)));
 
@@ -4481,14 +4483,13 @@ page_zip_reorganize(
 #endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
 		}
 
-		buf_block_free(temp_block);
-		return false;
+		err = DB_FAIL;
+	} else {
+		lock_move_reorganize_page(block, temp_block);
 	}
 
-	lock_move_reorganize_page(block, temp_block);
-
 	buf_block_free(temp_block);
-	return true;
+	return err;
 }
 
 /**********************************************************************//**

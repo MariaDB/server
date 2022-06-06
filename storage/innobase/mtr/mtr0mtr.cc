@@ -1124,18 +1124,17 @@ bool mtr_t::memo_contains(const fil_space_t& space, bool shared)
 }
 
 #ifdef BTR_CUR_HASH_ADAPT
-/** If a stale adaptive hash index exists on the block, drop it.
-Multiple executions of btr_search_drop_page_hash_index() on the
-same block must be prevented by exclusive page latch. */
+/** If a stale adaptive hash index exists on the block, drop it. */
 ATTRIBUTE_COLD
-static void mtr_defer_drop_ahi(buf_block_t *block, mtr_memo_type_t fix_type)
+void mtr_t::defer_drop_ahi(buf_block_t *block, mtr_memo_type_t fix_type)
 {
   switch (fix_type) {
-  case MTR_MEMO_BUF_FIX:
-    /* We do not drop the adaptive hash index, because safely doing
-    so would require acquiring block->lock, and that is not safe
-    to acquire in some RW_NO_LATCH access paths. Those code paths
-    should have no business accessing the adaptive hash index anyway. */
+  default:
+    ut_ad(fix_type == MTR_MEMO_BUF_FIX);
+    /* We do not drop the adaptive hash index, because safely doing so
+    would require acquiring exclusive block->page.lock, which could
+    lead to hangs in some access paths. Those code paths should have
+    no business accessing the adaptive hash index anyway. */
     break;
   case MTR_MEMO_PAGE_S_FIX:
     /* Temporarily release our S-latch. */
@@ -1155,8 +1154,7 @@ static void mtr_defer_drop_ahi(buf_block_t *block, mtr_memo_type_t fix_type)
         btr_search_drop_page_hash_index(block);
     block->page.lock.x_u_downgrade();
     break;
-  default:
-    ut_ad(fix_type == MTR_MEMO_PAGE_X_FIX);
+  case MTR_MEMO_PAGE_X_FIX:
     btr_search_drop_page_hash_index(block);
   }
 }
@@ -1245,7 +1243,7 @@ void mtr_t::page_lock(buf_block_t *block, ulint rw_latch)
 #ifdef BTR_CUR_HASH_ADAPT
   if (dict_index_t *index= block->index)
     if (index->freed())
-      mtr_defer_drop_ahi(block, fix_type);
+      defer_drop_ahi(block, fix_type);
 #endif /* BTR_CUR_HASH_ADAPT */
 
 done:

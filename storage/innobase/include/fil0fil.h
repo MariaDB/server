@@ -418,12 +418,16 @@ public:
   /** MariaDB encryption data */
   fil_space_crypt_t *crypt_data;
 
-  /** Checks that this tablespace in a list of unflushed tablespaces. */
+  /** Whether needs_flush(), or this is in fil_system.unflushed_spaces */
   bool is_in_unflushed_spaces;
-  /** Checks that this tablespace needs key rotation. */
+
+  /** Whether this in fil_system.default_encrypt_tables (needs key rotation) */
   bool is_in_default_encrypt;
 
 private:
+  /** Whether any corrupton of this tablespace has been reported */
+  mutable std::atomic_flag is_corrupted;
+
   /** mutex to protect freed_ranges and last_freed_lsn */
   std::mutex freed_range_mutex;
 
@@ -500,6 +504,9 @@ public:
   Initially, purpose=FIL_TYPE_IMPORT so that no redo log is
   written while the space ID is being updated in each page. */
   inline void set_imported();
+
+  /** Report the tablespace as corrupted */
+  ATTRIBUTE_COLD void set_corrupted() const;
 
   /** @return whether the storage device is rotational (HDD, not SSD) */
   inline bool is_rotational() const;

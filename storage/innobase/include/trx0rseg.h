@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,52 +27,25 @@ Created 3/26/1996 Heikki Tuuri
 #pragma once
 #include "trx0types.h"
 #include "fut0lst.h"
-#ifdef WITH_WSREP
-# include "trx0xa.h"
-#endif /* WITH_WSREP */
-
-/** Gets a rollback segment header.
-@param[in]	space		space where placed
-@param[in]	page_no		page number of the header
-@param[in,out]	mtr		mini-transaction
-@return rollback segment header, page x-latched */
-UNIV_INLINE
-buf_block_t*
-trx_rsegf_get(fil_space_t* space, uint32_t page_no, mtr_t* mtr);
-
-/** Gets a newly created rollback segment header.
-@param[in]	space		space where placed
-@param[in]	page_no		page number of the header
-@param[in,out]	mtr		mini-transaction
-@return rollback segment header, page x-latched */
-UNIV_INLINE
-buf_block_t*
-trx_rsegf_get_new(
-	ulint			space,
-	uint32_t		page_no,
-	mtr_t*			mtr);
 
 /** Create a rollback segment header.
-@param[in,out]	space		system, undo, or temporary tablespace
-@param[in]	rseg_id		rollback segment identifier
-@param[in]	max_trx_id	new value of TRX_RSEG_MAX_TRX_ID
-@param[in,out]	sys_header	the TRX_SYS page (NULL for temporary rseg)
-@param[in,out]	mtr		mini-transaction
+@param[in,out]  space           system, undo, or temporary tablespace
+@param[in]      rseg_id         rollback segment identifier
+@param[in]      max_trx_id      new value of TRX_RSEG_MAX_TRX_ID
+@param[in,out]  mtr             mini-transaction
+@param[out]     err             error code
 @return the created rollback segment
-@retval	NULL	on failure */
-buf_block_t*
-trx_rseg_header_create(
-	fil_space_t*	space,
-	ulint		rseg_id,
-	trx_id_t	max_trx_id,
-	buf_block_t*	sys_header,
-	mtr_t*		mtr);
+@retval nullptr on failure */
+buf_block_t *trx_rseg_header_create(fil_space_t *space, ulint rseg_id,
+                                    trx_id_t max_trx_id, mtr_t *mtr,
+                                    dberr_t *err)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Initialize or recover the rollback segments at startup. */
 dberr_t trx_rseg_array_init();
 
 /** Create the temporary rollback segments. */
-void trx_temp_rseg_create();
+dberr_t trx_temp_rseg_create(mtr_t *mtr);
 
 /* Number of undo log slots in a rollback segment file copy */
 #define TRX_RSEG_N_SLOTS	(srv_page_size / 16)
@@ -225,6 +198,12 @@ public:
     last_commit_and_offset= static_cast<uint64_t>(last_offset) << 48 | trx_no;
   }
 
+  /** @return the page identifier */
+  page_id_t page_id() const { return page_id_t{space->id, page_no}; }
+
+  /** @return the rollback segment header page, exclusively latched */
+  buf_block_t *get(mtr_t *mtr, dberr_t *err) const;
+
   /** @return whether the rollback segment is persistent */
   bool is_persistent() const
   {
@@ -280,32 +259,8 @@ If no binlog information is present, the first byte is NUL. */
 #define TRX_RSEG_BINLOG_NAME_LEN	512
 
 #ifdef WITH_WSREP
-/** The offset to WSREP XID headers */
-#define	TRX_RSEG_WSREP_XID_INFO		TRX_RSEG_MAX_TRX_ID + 16 + 512
+# include "trx0xa.h"
 
-/** WSREP XID format (1 if present and valid, 0 if not present) */
-#define TRX_RSEG_WSREP_XID_FORMAT	TRX_RSEG_WSREP_XID_INFO
-/** WSREP XID GTRID length */
-#define TRX_RSEG_WSREP_XID_GTRID_LEN	TRX_RSEG_WSREP_XID_INFO + 4
-/** WSREP XID bqual length */
-#define TRX_RSEG_WSREP_XID_BQUAL_LEN	TRX_RSEG_WSREP_XID_INFO + 8
-/** WSREP XID data (XIDDATASIZE bytes) */
-#define TRX_RSEG_WSREP_XID_DATA		TRX_RSEG_WSREP_XID_INFO + 12
-#endif /* WITH_WSREP*/
-
-/*-------------------------------------------------------------*/
-
-/** Read the page number of an undo log slot.
-@param[in]      rseg_header     rollback segment header
-@param[in]      n               slot number */
-inline uint32_t trx_rsegf_get_nth_undo(const buf_block_t *rseg_header, ulint n)
-{
-  ut_ad(n < TRX_RSEG_N_SLOTS);
-  return mach_read_from_4(TRX_RSEG + TRX_RSEG_UNDO_SLOTS +
-                          n * TRX_RSEG_SLOT_SIZE + rseg_header->page.frame);
-}
-
-#ifdef WITH_WSREP
 /** Update the WSREP XID information in rollback segment header.
 @param[in,out]	rseg_header	rollback segment header
 @param[in]	xid		WSREP XID
@@ -331,6 +286,16 @@ void trx_rseg_update_wsrep_checkpoint(const XID* xid);
 bool trx_rseg_read_wsrep_checkpoint(XID& xid);
 #endif /* WITH_WSREP */
 
+/** Read the page number of an undo log slot.
+@param[in]      rseg_header     rollback segment header
+@param[in]      n               slot number */
+inline uint32_t trx_rsegf_get_nth_undo(const buf_block_t *rseg_header, ulint n)
+{
+  ut_ad(n < TRX_RSEG_N_SLOTS);
+  return mach_read_from_4(TRX_RSEG + TRX_RSEG_UNDO_SLOTS +
+                          n * TRX_RSEG_SLOT_SIZE + rseg_header->page.frame);
+}
+
 /** Upgrade a rollback segment header page to MariaDB 10.3 format.
 @param[in,out]	rseg_header	rollback segment header page
 @param[in,out]	mtr		mini-transaction */
@@ -345,5 +310,3 @@ up to which replication has proceeded.
 @param[in,out]	mtr		mini-transaction */
 void trx_rseg_update_binlog_offset(buf_block_t *rseg_header, const trx_t *trx,
                                    mtr_t *mtr);
-
-#include "trx0rseg.inl"

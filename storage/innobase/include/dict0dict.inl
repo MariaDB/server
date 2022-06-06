@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1098,19 +1098,6 @@ dict_max_v_field_len_store_undo(
 	}
 
 	return(max_log_len);
-}
-
-/********************************************************************//**
-Check whether the table is corrupted.
-@return nonzero for corrupted table, zero for valid tables */
-UNIV_INLINE
-ulint
-dict_table_is_corrupted(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table */
-{
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-	return(table->corrupted);
 }
 
 /** Check if the table is found is a file_per_table tablespace.

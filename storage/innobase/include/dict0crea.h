@@ -110,7 +110,7 @@ uint32_t dict_drop_index_tree(btr_pcur_t *pcur, trx_t *trx, mtr_t *mtr)
 /***************************************************************//**
 Creates an index tree for the index if it is not a member of a cluster.
 Don't update SYSTEM TABLES.
-@return	DB_SUCCESS or DB_OUT_OF_FILE_SPACE */
+@return	error code */
 dberr_t
 dict_create_index_tree_in_mem(
 /*==========================*/

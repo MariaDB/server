@@ -54,6 +54,12 @@ Created 10/25/1995 Heikki Tuuri
 # include <dirent.h>
 #endif
 
+ATTRIBUTE_COLD void fil_space_t::set_corrupted() const
+{
+  if (!is_stopping() && !is_corrupted.test_and_set())
+    sql_print_error("InnoDB: File '%s' is corrupted", chain.start->name);
+}
+
 /** Determine if the space id is a user tablespace id or not.
 @param space_id tablespace identifier
 @return true if it is a user tablespace ID */
@@ -1435,8 +1441,6 @@ fil_write_flushed_lsn(
 		fio = fil_system.sys_space->io(IORequestWrite,
 					       0, srv_page_size, buf);
 		fil_flush_file_spaces();
-	} else {
-		fil_system.sys_space->release();
 	}
 
 	aligned_free(buf);
@@ -2104,9 +2108,8 @@ err_exit:
 		IF_WIN(node->find_metadata(), node->find_metadata(file, true));
 		mtr.start();
 		mtr.set_named_space(space);
-		fsp_header_init(space, size, &mtr);
+		ut_a(fsp_header_init(space, size, &mtr) == DB_SUCCESS);
 		mtr.commit();
-		*err = DB_SUCCESS;
 		return space;
 	}
 
@@ -2764,16 +2767,16 @@ func_exit:
 
 /** Report information about an invalid page access. */
 ATTRIBUTE_COLD
-static void fil_invalid_page_access_msg(bool fatal, const char *name,
+static void fil_invalid_page_access_msg(const char *name,
                                         os_offset_t offset, ulint len,
                                         bool is_read)
 {
-  sql_print_error("%s%s %zu bytes at " UINT64PF
+  sql_print_error("%s %zu bytes at " UINT64PF
                   " outside the bounds of the file: %s",
-                  fatal ? "[FATAL] InnoDB: " : "InnoDB: ",
-                  is_read ? "Trying to read" : "Trying to write",
-                  len, offset, name);
-  if (fatal)
+                  is_read
+                  ? "InnoDB: Trying to read"
+                  : "[FATAL] InnoDB: Trying to write", len, offset, name);
+  if (!is_read)
     abort();
 }
 
@@ -2822,14 +2825,14 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 
 	fil_node_t* node= UT_LIST_GET_FIRST(chain);
 	ut_ad(node);
+	ulint p = static_cast<ulint>(offset >> srv_page_size_shift);
+	dberr_t err;
 
 	if (type.type == IORequest::READ_ASYNC && is_stopping()) {
-		release();
-		return {DB_TABLESPACE_DELETED, nullptr};
+		err = DB_TABLESPACE_DELETED;
+		node = nullptr;
+		goto release;
 	}
-
-	ulint p = static_cast<ulint>(offset >> srv_page_size_shift);
-	bool fatal;
 
 	if (UNIV_LIKELY_NULL(UT_LIST_GET_NEXT(chain, node))) {
 		ut_ad(this == fil_system.sys_space
@@ -2840,16 +2843,18 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 			p -= node->size;
 			node = UT_LIST_GET_NEXT(chain, node);
 			if (!node) {
-				release();
-				if (type.type != IORequest::READ_ASYNC) {
-					fatal = true;
 fail:
+				if (type.type != IORequest::READ_ASYNC) {
 					fil_invalid_page_access_msg(
-						fatal, node->name,
+						node->name,
 						offset, len,
 						type.is_read());
 				}
-				return {DB_IO_ERROR, nullptr};
+
+				set_corrupted();
+				err = DB_IO_ERROR;
+				node = nullptr;
+				goto release;
 			}
 		}
 
@@ -2857,20 +2862,8 @@ fail:
 	}
 
 	if (UNIV_UNLIKELY(node->size <= p)) {
-		release();
-
-		if (type.type == IORequest::READ_ASYNC) {
-			/* If we can tolerate the non-existent pages, we
-			should return with DB_ERROR and let caller decide
-			what to do. */
-			return {DB_ERROR, nullptr};
-		}
-
-		fatal = node->space->purpose != FIL_TYPE_IMPORT;
 		goto fail;
 	}
-
-	dberr_t err;
 
 	if (type.type == IORequest::PUNCH_RANGE) {
 		err = os_file_punch_hole(node->handle, offset, len);
@@ -2897,12 +2890,14 @@ release_sync_write:
 			node->complete_write();
 release:
 			release();
+			goto func_exit;
 		}
 		ut_ad(fil_validate_skip());
 	}
 	if (err != DB_SUCCESS) {
 		goto release;
 	}
+func_exit:
 	return {err, node};
 }
 
@@ -2948,8 +2943,9 @@ write_completed:
         mysql_mutex_unlock(&recv_sys.mutex);
       }
 
-      ib::error() << "Failed to read page " << id.page_no()
-                  << " from file '" << request.node->name << "': " << err;
+      if (err != DB_FAIL)
+        ib::error() << "Failed to read page " << id.page_no()
+                    << " from file '" << request.node->name << "': " << err;
     }
   }
 

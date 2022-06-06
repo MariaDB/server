@@ -1887,9 +1887,7 @@ row_upd_sec_index_entry(
 	ut_ad(trx->id != 0);
 
 	index = node->index;
-	if (!index->is_committed()) {
-		return DB_SUCCESS;
-	}
+	ut_ad(index->is_committed());
 
 	/* For secondary indexes, index->online_status==ONLINE_INDEX_COMPLETE
 	if index->is_committed(). */
@@ -2594,6 +2592,10 @@ row_upd_clust_step(
 
 	index = dict_table_get_first_index(node->table);
 
+	if (index->is_corrupted()) {
+		return DB_TABLE_CORRUPT;
+	}
+
 	const bool referenced = row_upd_index_is_referenced(index, trx);
 #ifdef WITH_WSREP
 	const bool foreign = wsrep_row_upd_index_is_foreign(index, trx);
@@ -2808,14 +2810,11 @@ row_upd(
 	DBUG_EXECUTE_IF("row_upd_skip_sec", node->index = NULL;);
 
 	do {
-		/* Skip corrupted index */
-		dict_table_skip_corrupt_index(node->index);
-
 		if (!node->index) {
 			break;
 		}
 
-		if (!(node->index->type & DICT_FTS)
+		if (!(node->index->type & (DICT_FTS | DICT_CORRUPT))
 		    && node->index->is_committed()) {
 			err = row_upd_sec_step(node, thr);
 
