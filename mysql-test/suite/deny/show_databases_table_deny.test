@@ -18,14 +18,9 @@ create database some_db;
 
 create table some_db.t1 (a int, secret int);
 
-
 show databases;
 
-#TODO(cvicentiu) Currently table level denies are not supported.
---error ER_UNSUPPORTED_DENY
 deny select on t1 to foo;
-
---error ER_UNSUPPORTED_DENY
 deny select on some_db.t1 to foo;
 
 show grants for foo;

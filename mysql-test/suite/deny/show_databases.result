@@ -511,7 +511,7 @@ connection default;
 select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv
 where user = 'foo';
 user	host	JSON_EXTRACT(priv, '$.deny')
-foo	%	{"global": 16384, "db": [{"name": "mysql", "access": 264207}], "version_id": VERSION_ID}
+foo	%	{"global": 16384, "db": [{"name": "`mysql`", "access": 264207}], "version_id": VERSION_ID}
 show grants for foo;
 Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
