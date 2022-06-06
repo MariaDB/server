@@ -2834,6 +2834,14 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 		goto release;
 	}
 
+	DBUG_EXECUTE_IF("intermittent_recovery_failure",
+			if (type.is_read() && !(~get_rnd_value() & 0x3ff0))
+			goto io_error;);
+
+	DBUG_EXECUTE_IF("intermittent_read_failure",
+			if (srv_was_started && type.is_read() &&
+			    !(~get_rnd_value() & 0x3ff0)) goto io_error;);
+
 	if (UNIV_LIKELY_NULL(UT_LIST_GET_NEXT(chain, node))) {
 		ut_ad(this == fil_system.sys_space
 		      || this == fil_system.temp_space);
@@ -2850,7 +2858,9 @@ fail:
 						offset, len,
 						type.is_read());
 				}
-
+#ifndef DBUG_OFF
+io_error:
+#endif
 				set_corrupted();
 				err = DB_IO_ERROR;
 				node = nullptr;
