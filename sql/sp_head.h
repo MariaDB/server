@@ -988,6 +988,13 @@ public:
     being opened is probably enough).
   */
   SQL_I_List<Item_trigger_field> m_trg_table_fields;
+
+  /**
+    List of Trigger objects one of that corresponds to (instantiated
+    for the sake of) this sp_head object. This data member is set on table's
+    triggers loading at the function check_n_load
+  */
+  Table_triggers_list *m_trg_list= nullptr;
 }; // class sp_head : public Sql_alloc
 
 

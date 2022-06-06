@@ -569,6 +569,29 @@ void sp_lex_instr::cleanup_before_parsing()
 }
 
 
+/**
+  Set up field object for every NEW/OLD item of the trigger.
+
+  @param thd  current thread
+  @param sp   sp_head object of the trigger
+*/
+
+static void setup_table_fields_for_trigger(THD *thd, sp_head *sp)
+{
+  Trigger *trigger= sp->m_trg_list->find_trigger(&sp->m_name, false);
+
+  DBUG_ASSERT(trigger);
+
+  for (Item_trigger_field *trg_field= sp->m_trg_table_fields.first;
+      trg_field;
+      trg_field= trg_field->next_trg_field)
+  {
+    trg_field->setup_field(thd, sp->m_trg_list->get_subject_table(),
+                           &trigger->subject_table_grants);
+  }
+}
+
+
 LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp)
 {
   String sql_query;
@@ -594,7 +617,7 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp)
   if (parser_state.init(thd, sql_query.c_ptr(), sql_query.length()))
     return nullptr;
 
-  // Create a new LEX and intialize it.
+  // Create a new LEX and initialize it.
 
   LEX *lex_saved= thd->lex;
 
@@ -619,7 +642,6 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp)
 
   thd->lex->sphead= sp;
   thd->lex->spcont= m_ctx;
-  thd->lex->set_trg_event_type_for_tables();
 
   sql_digest_state *parent_digest= thd->m_digest;
   PSI_statement_locker *parent_locker= thd->m_statement_psi;
@@ -648,6 +670,9 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp)
   if (!parsing_failed)
   {
     thd->lex->set_trg_event_type_for_tables();
+    if (sp->m_handler->type() == SP_TYPE_TRIGGER)
+      setup_table_fields_for_trigger(thd, sp);
+
     adjust_sql_command(thd->lex);
     parsing_failed= on_after_expr_parsing(thd);
     /*

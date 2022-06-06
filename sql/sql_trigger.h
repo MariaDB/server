@@ -343,6 +343,12 @@ private:
     }
     return false;
   }
+
+public:
+  TABLE *get_subject_table()
+  {
+    return trigger_table;
+  }
 };
 
 

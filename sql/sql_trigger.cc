@@ -1802,6 +1802,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
                                  &trigger->subject_table_grants);
         }
 
+        sp->m_trg_list= trigger_list;
         lex_end(&lex);
       }
       thd->reset_db(&save_db);
