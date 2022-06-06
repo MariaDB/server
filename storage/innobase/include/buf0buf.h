@@ -24,8 +24,7 @@ The database buffer pool high-level routines
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef buf0buf_h
-#define buf0buf_h
+#pragma once
 
 /** Magic value to use instead of checksums when they are disabled */
 #define BUF_NO_CHECKSUM_MAGIC 0xDEADBEEFUL
@@ -2201,5 +2200,3 @@ struct	CheckUnzipLRUAndLRUList {
 #include "buf0buf.inl"
 
 #endif /* !UNIV_INNOCHECKSUM */
-
-#endif

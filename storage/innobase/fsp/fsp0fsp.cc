@@ -475,26 +475,20 @@ updating an allocation bitmap page.
 @param[in]	mtr	mini-transaction */
 void fil_space_t::modify_check(const mtr_t& mtr) const
 {
-	switch (mtr.get_log_mode()) {
-	case MTR_LOG_NONE:
-		/* These modes are only allowed within a non-bitmap page
-		when there is a higher-level redo log record written. */
-		ut_ad(purpose == FIL_TYPE_TABLESPACE
-		      || purpose == FIL_TYPE_TEMPORARY);
-		break;
-	case MTR_LOG_NO_REDO:
-		ut_ad(purpose == FIL_TYPE_TEMPORARY
-		      || purpose == FIL_TYPE_IMPORT);
-		return;
-	case MTR_LOG_ALL:
-		/* We may only write redo log for a persistent
-		tablespace. */
-		ut_ad(purpose == FIL_TYPE_TABLESPACE);
-		ut_ad(mtr.is_named_space(id));
-		return;
-	}
-
-	ut_ad("invalid log mode" == 0);
+  switch (mtr.get_log_mode()) {
+  case MTR_LOG_NONE:
+    /* These modes are only allowed within a non-bitmap page
+       when there is a higher-level redo log record written. */
+    ut_ad(purpose == FIL_TYPE_TABLESPACE || purpose == FIL_TYPE_TEMPORARY);
+    break;
+  case MTR_LOG_NO_REDO:
+    ut_ad(purpose == FIL_TYPE_TEMPORARY || purpose == FIL_TYPE_IMPORT);
+    break;
+  default:
+    /* We may only write redo log for a persistent tablespace. */
+    ut_ad(purpose == FIL_TYPE_TABLESPACE);
+    ut_ad(mtr.is_named_space(id));
+  }
 }
 #endif
 

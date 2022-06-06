@@ -411,12 +411,8 @@ static void page_zip_compress_write_log(buf_block_t *block,
 {
   ut_ad(!index->is_ibuf());
 
-  if (mtr->get_log_mode() != MTR_LOG_ALL)
-  {
-    ut_ad(mtr->get_log_mode() == MTR_LOG_NONE ||
-          mtr->get_log_mode() == MTR_LOG_NO_REDO);
+  if (!mtr->is_logged())
     return;
-  }
 
   const page_t *page= block->page.frame;
   const page_zip_des_t *page_zip= &block->page.zip;
