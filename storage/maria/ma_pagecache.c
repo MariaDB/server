@@ -2893,10 +2893,14 @@ static void read_big_block(PAGECACHE *pagecache,
   if (pagecache->big_block_read(pagecache, &args, &block->hash_link->file,
                                 &data))
   {
+    pagecache->big_block_free(&data);
     pagecache_pthread_mutex_lock(&pagecache->cache_lock);
     block_to_read->status|= PCBLOCK_ERROR;
     block_to_read->error= (int16) my_errno;
-    pagecache->big_block_free(&data);
+
+    /* Handle the block that we originally wanted with read */
+    block->status|= PCBLOCK_ERROR;
+    block->error= block_to_read->error;
     goto error;
   }
 
@@ -2980,6 +2984,7 @@ end:
   block_to_read->status&= ~PCBLOCK_BIG_READ;
   if (block_to_read != block)
   {
+    /* Unlock the 'first block' in the big read */
     remove_reader(block_to_read);
     unreg_request(pagecache, block_to_read, 1);
   }
@@ -2993,18 +2998,11 @@ error:
     Read failed. Mark all readers waiting for the a block covered by the
     big block that the read failed
   */
-  for (offset= pagecache->block_size, page= page_to_read + 1;
-       offset < data.length;
-       offset+= pagecache->block_size, page++)
+  for (offset= 0, page= page_to_read + 1;
+       offset < big_block_size_in_pages;
+       offset++)
   {
-    DBUG_ASSERT(offset + pagecache->block_size <= data.length);
-    if (page == our_page)
-    {
-      DBUG_ASSERT(!(block->status & PCBLOCK_READ));
-      block->status|= PCBLOCK_ERROR;
-      block->error= (int16) my_errno;
-    }
-    else
+    if (page != our_page)
     {
       PAGECACHE_BLOCK_LINK *bl;
       bl= find_block(pagecache,  &block->hash_link->file, page, 1,
