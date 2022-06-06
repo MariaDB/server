@@ -236,9 +236,7 @@ fil_space_get_by_id(
 	mysql_mutex_assert_owner(&fil_system.mutex);
 
 	HASH_SEARCH(hash, &fil_system.spaces, id,
-		    fil_space_t*, space,
-		    ut_ad(space->magic_n == FIL_SPACE_MAGIC_N),
-		    space->id == id);
+		    fil_space_t*, space,, space->id == id);
 
 	return(space);
 }
@@ -803,8 +801,6 @@ pfs_os_file_t fil_system_t::detach(fil_space_t *space, bool detach_handle)
   else if (space == temp_space)
     temp_space= nullptr;
 
-  ut_a(space->magic_n == FIL_SPACE_MAGIC_N);
-
   for (fil_node_t* node= UT_LIST_GET_FIRST(space->chain); node;
        node= UT_LIST_GET_NEXT(chain, node))
     if (node->is_open())
@@ -943,7 +939,6 @@ fil_space_t *fil_space_t::create(ulint id, ulint flags,
 	space->purpose = purpose;
 	space->flags = flags;
 
-	space->magic_n = FIL_SPACE_MAGIC_N;
 	space->crypt_data = crypt_data;
 	space->n_pending.store(CLOSING, std::memory_order_relaxed);
 

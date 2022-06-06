@@ -434,8 +434,6 @@ public:
 	/** Stores last page freed lsn. Protected by freed_mutex */
 	lsn_t		last_freed_lsn;
 
-	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
-
   /** @return whether doublewrite buffering is needed */
   inline bool use_doublewrite() const;
 
@@ -1085,9 +1083,6 @@ private:
 };
 
 #ifndef UNIV_INNOCHECKSUM
-/** Value of fil_space_t::magic_n */
-#define	FIL_SPACE_MAGIC_N	89472
-
 /** File node of a tablespace or the log data space */
 struct fil_node_t final
 {
