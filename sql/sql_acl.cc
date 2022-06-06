@@ -3679,7 +3679,8 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
     privilege_t deny_mask= acl_get_effective_deny_mask(thd->security_ctx,
                                                        dst_db_name);
     //TODO(cvicentiu) compute correct deny mask...
-    if (!cur_access && check_grant_db(thd->security_ctx, dst_db_name.str, NO_ACL))
+    if (!cur_access && check_grant_db(thd->security_ctx, dst_db_name.str,
+                                      deny_mask))
     {
       status_var_increment(thd->status_var.access_denied_errors);
       my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
