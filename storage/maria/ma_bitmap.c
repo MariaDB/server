@@ -1082,6 +1082,10 @@ static my_bool _ma_read_bitmap_page(MARIA_HA *info,
     bitmap->used_size= (uint) ((data + 1) - end);
     DBUG_ASSERT(bitmap->used_size <= bitmap->total_size);
   }
+  else
+  {
+    _ma_set_fatal_error(info, my_errno);
+  }
   /*
     We can't check maria_bitmap_marker here as if the bitmap page
     previously had a true checksum and the user switched mode to not checksum
@@ -3204,6 +3208,7 @@ _ma_bitmap_create_missing_into_pagecache(MARIA_SHARE *share,
   */
   return FALSE;
 err:
+  _ma_set_fatal_error_with_share(share, my_errno);
   return TRUE;
 }
 

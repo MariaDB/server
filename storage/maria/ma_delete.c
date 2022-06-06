@@ -45,10 +45,10 @@ int maria_delete(MARIA_HA *info,const uchar *record)
 
   /* Test if record is in datafile */
   DBUG_EXECUTE_IF("maria_pretend_crashed_table_on_usage",
-                  maria_print_error(share, HA_ERR_CRASHED);
+                  _ma_print_error(info, HA_ERR_CRASHED, 0);
                   DBUG_RETURN(my_errno= HA_ERR_CRASHED););
   DBUG_EXECUTE_IF("my_error_test_undefined_error",
-                  maria_print_error(share, INT_MAX);
+                  _ma_print_error(info, INT_MAX, 0);
                   DBUG_RETURN(my_errno= INT_MAX););
   if (!(info->update & HA_STATE_AKTIV))
   {
@@ -139,7 +139,7 @@ err:
   info->update|=HA_STATE_WRITTEN;	/* Buffer changed */
   if (save_errno != HA_ERR_RECORD_CHANGED)
   {
-    _ma_set_fatal_error(share, HA_ERR_CRASHED);
+    _ma_set_fatal_error(info, HA_ERR_CRASHED);
     save_errno= HA_ERR_CRASHED;
   }
   DBUG_RETURN(my_errno= save_errno);
@@ -215,7 +215,7 @@ my_bool _ma_ck_real_delete(register MARIA_HA *info, MARIA_KEY *key,
 
   if ((old_root=*root) == HA_OFFSET_ERROR)
   {
-    _ma_set_fatal_error(info->s, HA_ERR_CRASHED);
+    _ma_set_fatal_error(info, HA_ERR_CRASHED);
     DBUG_RETURN(1);
   }
 
@@ -354,7 +354,7 @@ static int d_search(MARIA_HA *info, MARIA_KEY *key, uint32 comp_flag,
       if (!(tmp_key_length=(*keyinfo->get_key)(&tmp_key, page_flag, nod_flag,
                                                &kpos)))
       {
-        _ma_set_fatal_error(share, HA_ERR_CRASHED);
+        _ma_set_fatal_error(info, HA_ERR_CRASHED);
         goto err;
       }
       root= _ma_row_pos_from_key(&tmp_key);
@@ -415,7 +415,7 @@ static int d_search(MARIA_HA *info, MARIA_KEY *key, uint32 comp_flag,
     {
       /* This should newer happend */
       DBUG_PRINT("error",("Didn't find key"));
-      _ma_set_fatal_error(share, HA_ERR_CRASHED);
+      _ma_set_fatal_error(info, HA_ERR_CRASHED);
       goto err;
     }
     save_flag=0;

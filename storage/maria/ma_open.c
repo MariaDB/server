@@ -44,7 +44,7 @@ static uchar *_ma_state_info_read(uchar *, MARIA_STATE_INFO *, myf);
 #define disk_pos_assert(share, pos, end_pos)     \
 if (pos > end_pos)             \
 {                              \
-  _ma_set_fatal_error(share, HA_ERR_CRASHED);    \
+  _ma_set_fatal_error_with_share(share, HA_ERR_CRASHED);    \
   goto err;                    \
 }
 
@@ -232,7 +232,8 @@ err:
   if ((save_errno == HA_ERR_CRASHED) ||
       (save_errno == HA_ERR_CRASHED_ON_USAGE) ||
       (save_errno == HA_ERR_CRASHED_ON_REPAIR))
-    _ma_report_error(save_errno, &share->open_file_name);
+    _ma_report_error(save_errno, &share->open_file_name,
+                     MYF(ME_ERROR_LOG));
   switch (errpos) {
   case 6:
     (*share->end)(&info);
@@ -475,7 +476,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     {
       if (mysql_file_pread(kfile, disk_cache, info_length, 0L, MYF(MY_NABP)))
       {
-        _ma_set_fatal_error(share, HA_ERR_CRASHED);
+        _ma_set_fatal_error_with_share(share, HA_ERR_CRASHED);
         goto err;
       }
     }
@@ -583,7 +584,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     /* sanity check */
     if (share->base.keystart > 65535 || share->base.rec_reflength > 8)
     {
-      _ma_set_fatal_error(share, HA_ERR_CRASHED);
+      _ma_set_fatal_error_with_share(share, HA_ERR_CRASHED);
       goto err;
     }
 
@@ -784,7 +785,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
               pos[0].language= pos[-1].language;
               if (!(pos[0].charset= pos[-1].charset))
               {
-                _ma_set_fatal_error(share, HA_ERR_CRASHED);
+                _ma_set_fatal_error_with_share(share, HA_ERR_CRASHED);
                 goto err;
               }
               pos++;
@@ -1192,7 +1193,7 @@ err:
     LEX_STRING tmp_name;
     tmp_name.str= (char*) name;
     tmp_name.length= strlen(name);
-    _ma_report_error(save_errno, &tmp_name);
+    _ma_report_error(save_errno, &tmp_name, MYF(ME_ERROR_LOG));
   }
   switch (errpos) {
   case 7:
@@ -2126,7 +2127,7 @@ int maria_enable_indexes(MARIA_HA *info)
     DBUG_PRINT("error", ("data_file_length: %lu  key_file_length: %lu",
                          (ulong) share->state.state.data_file_length,
                          (ulong) share->state.state.key_file_length));
-    _ma_set_fatal_error(share, HA_ERR_CRASHED);
+    _ma_set_fatal_error(info, HA_ERR_CRASHED);
     error= HA_ERR_CRASHED;
   }
   else
