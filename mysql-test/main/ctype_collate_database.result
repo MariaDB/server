@@ -104,3 +104,8 @@ DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME
 utf8mb4	utf8mb4_bin
 DROP DATABASE db1;
 DROP VIEW cscl;
+#
+# MDEV-28117 Multiple conflicting table COLLATE clauses are not rejected
+#
+CREATE DATABASE db1 COLLATE latin1_swedish_ci COLLATE latin1_bin;
+ERROR HY000: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'

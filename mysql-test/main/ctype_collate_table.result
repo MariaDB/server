@@ -25,3 +25,8 @@ t1	CREATE TABLE `t1` (
   `a` char(10) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4
 DROP TABLE t1;
+#
+# MDEV-28117 Multiple conflicting table COLLATE clauses are not rejected
+#
+CREATE TABLE t1 (a CHAR(10)) COLLATE latin1_swedish_ci COLLATE latin1_bin;
+ERROR HY000: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
