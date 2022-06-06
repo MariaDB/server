@@ -26,11 +26,18 @@ deny select on some_db.* to foo;
 deny show view on some_db.* to foo;
 deny insert on some_other_db.* to foo;
 deny insert on some_other_db.* to bar;
+deny select on some_other_db.some_table to foo;
+deny insert on some_other_db.some_table_second to foo;
+deny update on some_other_db.some_table_third to foo;
+--error ER_UNSUPPORTED_DENY
+deny select(a, b) on some_other_db.some_table_third to foo;
+--error ER_UNSUPPORTED_DENY
+deny select, insert(a, b, c) on some_other_db.some_table_fourth to foo;
 
 --replace_regex $REGEX_VERSION_ID
-select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+select user, host, JSON_DETAILED(JSON_EXTRACT(priv, '$.deny')) from mysql.global_priv where user = 'foo';
 --replace_regex $REGEX_VERSION_ID
-select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'bar';
+select user, host, JSON_DETAILED(JSON_EXTRACT(priv, '$.deny')) from mysql.global_priv where user = 'bar';
 
 #TODO(cvicentiu) Update results with further deny types.
 
