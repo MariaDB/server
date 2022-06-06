@@ -633,6 +633,16 @@ public:
     DBUG_RETURN(false);
   }
 
+
+  /**
+    Delete all auxiliary LEX objects created on parsing a statement and
+    restore a value of the data member THD::lex to point on the LEX object
+    that was actual before parsing started.
+  */
+
+  void unwind_aux_lexes_and_restore_original_lex();
+
+
   /**
     Iterate through the LEX stack from the top (the newest) to the bottom
     (the oldest) and find the one that contains a non-zero spname.

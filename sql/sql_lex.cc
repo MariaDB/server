@@ -3850,14 +3850,20 @@ void st_select_lex::print_limit(THD *thd,
 void LEX::cleanup_lex_after_parse_error(THD *thd)
 {
   /*
-    Delete sphead for the side effect of restoring of the original
-    LEX state, thd->lex, thd->mem_root and thd->free_list if they
-    were replaced when parsing stored procedure statements.  We
-    will never use sphead object after a parse error, so it's okay
-    to delete it only for the sake of the side effect.
-    TODO: make this functionality explicit in sp_head class.
-    Sic: we must nullify the member of the main lex, not the
-    current one that will be thrown away
+    Don't delete an instance of the class sp_head pointed by the data member
+    thd->lex->sphead since sp_head's destructor deletes every instruction
+    created during parsing the stored routine. One of deleted instruction
+    is used later in the method sp_head::execute by the following
+    construction
+      ctx->handle_sql_condition(thd, &ip, i)
+    Here the variable 'i' references to the instruction that could be deleted
+    by sp_head's destructor and it would result in server abnormal termination.
+    This use case can theoretically happen in case the current stored routine's
+    instruction causes re-compilation of a SP intruction's statement and
+    internal parse error happens during this process.
+
+    Rather, just restore the original LEX object used before parser has been
+    run.
   */
   if (thd->lex->sphead)
   {
@@ -3879,10 +3885,7 @@ void LEX::cleanup_lex_after_parse_error(THD *thd)
       thd->lex->sphead= NULL;
     }
     else
-    {
-      sp_head::destroy(thd->lex->sphead);
-      thd->lex->sphead= NULL;
-    }
+      thd->lex->sphead->unwind_aux_lexes_and_restore_original_lex();
   }
   else if (thd->lex->sp_mem_root_ptr)
   {
