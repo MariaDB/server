@@ -415,27 +415,35 @@ private:
   pthread_t latch_owner;
   ut_d(Atomic_relaxed<uint32_t> latch_count;)
 public:
-	/** MariaDB encryption data */
-	fil_space_crypt_t* crypt_data;
+  /** MariaDB encryption data */
+  fil_space_crypt_t *crypt_data;
 
-	/** Checks that this tablespace in a list of unflushed tablespaces. */
-	bool is_in_unflushed_spaces;
+  /** Checks that this tablespace in a list of unflushed tablespaces. */
+  bool is_in_unflushed_spaces;
+  /** Checks that this tablespace needs key rotation. */
+  bool is_in_default_encrypt;
 
-	/** Checks that this tablespace needs key rotation. */
-	bool is_in_default_encrypt;
+private:
+  /** mutex to protect freed_ranges and last_freed_lsn */
+  std::mutex freed_range_mutex;
 
-	/** mutex to protect freed ranges */
-	std::mutex	freed_range_mutex;
+  /** Ranges of freed page numbers; protected by freed_range_mutex */
+  range_set freed_ranges;
 
-	/** Variables to store freed ranges. This can be used to write
-	zeroes/punch the hole in files. Protected by freed_mutex */
-	range_set	freed_ranges;
+  /** LSN of freeing last page; protected by freed_range_mutex */
+  lsn_t last_freed_lsn;
 
-	/** Stores last page freed lsn. Protected by freed_mutex */
-	lsn_t		last_freed_lsn;
-
+public:
   /** @return whether doublewrite buffering is needed */
   inline bool use_doublewrite() const;
+
+  /** @return whether a page has been freed */
+  inline bool is_freed(uint32_t page);
+
+  /** Apply freed_ranges to the file.
+  @param writable whether the file is writable
+  @return number of pages written or hole-punched */
+  uint32_t flush_freed(bool writable);
 
 	/** Append a file to the chain of files of a space.
 	@param[in]	name		file name of a file that is not open

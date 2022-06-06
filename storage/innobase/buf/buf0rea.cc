@@ -685,6 +685,13 @@ failed:
   return count;
 }
 
+/** @return whether a page has been freed */
+inline bool fil_space_t::is_freed(uint32_t page)
+{
+  std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
+  return freed_ranges.contains(page);
+}
+
 /** Issues read requests for pages which recovery wants to read in.
 @param[in]	space_id	tablespace id
 @param[in]	page_nos	array of page numbers to read, with the
@@ -704,7 +711,7 @@ void buf_read_recv_pages(ulint space_id, const uint32_t* page_nos, ulint n)
 	for (ulint i = 0; i < n; i++) {
 
 		/* Ignore if the page already present in freed ranges. */
-		if (space->freed_ranges.contains(page_nos[i])) {
+		if (space->is_freed(page_nos[i])) {
 			continue;
 		}
 
