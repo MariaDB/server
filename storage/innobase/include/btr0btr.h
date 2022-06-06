@@ -129,10 +129,6 @@ enum btr_latch_mode {
 	BTR_PURGE_TREE = BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE
 };
 
-/** This flag ORed to btr_latch_mode says that we do the search in query
-optimization */
-#define BTR_ESTIMATE		1024U
-
 /** This flag ORed to BTR_INSERT says that we can ignore possible
 UNIQUE definition on secondary indexes when we decide if we can use
 the insert buffer to speed up inserts */
@@ -160,7 +156,6 @@ record is in spatial index */
 				| BTR_RTREE_UNDO_INS		\
 				| BTR_RTREE_DELETE_MARK		\
 				| BTR_DELETE			\
-				| BTR_ESTIMATE			\
 				| BTR_IGNORE_SEC_UNIQUE		\
 				| BTR_ALREADY_S_LATCHED		\
 				| BTR_LATCH_FOR_INSERT		\
