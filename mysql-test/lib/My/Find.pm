@@ -142,19 +142,16 @@ sub my_find_dir {
   find_error($base, $paths, $dirs);
 }
 
-
+use Time::HiRes qw(clock_gettime CLOCK_REALTIME );
 sub my_build_path_list {
   my ($base, $paths, $names, $extension)= @_;
+
 
   # Convert the arguments into two normal arrays to ease
   # further mappings
   my (@names, @paths);
   push(@names, ref $names eq "ARRAY" ? @$names : $names);
   push(@paths, ref $paths eq "ARRAY" ? @$paths : $paths);
-
-  #print "base: $base\n";
-  #print "names: @names\n";
-  #print "paths: @paths\n";
 
   # User can select to look in a special build dir
   # which is a subdirectory of any of the paths
@@ -187,7 +184,7 @@ sub my_build_path_list {
   push(@paths, map { my $path= $_;
 		     map  { "$path/$_" } @extra_dirs
 		   } @paths);
-  #print "paths: @paths\n";
+  print "paths: @paths\n";
 
   # -------------------------------------------------------
   # Build cross product of "paths * names"
@@ -202,12 +199,14 @@ sub my_build_path_list {
   # -------------------------------------------------------
   @paths= map { "$base/$_" } @paths;
   #print "paths: @paths\n";
-
+  my $t = clock_gettime(CLOCK_REALTIME);
   # -------------------------------------------------------
   # Glob all paths to expand wildcards
   # -------------------------------------------------------
   @paths= map { glob("$_") } @paths;
   #print "paths: @paths\n";
+  my $t1 = clock_gettime(CLOCK_REALTIME);
+  printf("=== TIME %.3f ===\n", $t1-$t);
 
   # -------------------------------------------------------
   # Return the list of paths

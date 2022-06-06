@@ -1033,6 +1033,7 @@ retry:
 	  {
 	    if (!thr_alarm(&alarmed,net->read_timeout,&alarm_buff)) /* Don't wait too long */
 	    {
+#ifndef WIN32
 	      my_bool old_mode;
 	      while (vio_blocking(net->vio, TRUE, &old_mode) < 0)
 	      {
@@ -1051,6 +1052,7 @@ retry:
 		MYSQL_SERVER_my_error(ER_NET_FCNTL_ERROR, MYF(0));
 		goto end;
 	      }
+#endif
 	      retry_count=0;
 	      continue;
 	    }

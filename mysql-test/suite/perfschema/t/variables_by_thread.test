@@ -5,7 +5,6 @@
 --echo #
 --echo # Results from inactive connections are shown
 --echo #
-
 SET time_zone= '+2:00';
 
 SELECT THREAD_ID INTO @def_thread_id FROM performance_schema.threads
@@ -64,7 +63,6 @@ set debug_sync= "now SIGNAL pass";
 --echo #
 --echo # Test timeout
 --echo #
-
 set @old_dbug= @@global.debug_dbug;
 set global debug_dbug= "+d,apc_timeout";
 --connection con2
@@ -117,14 +115,13 @@ select "good";
 --echo #
 
 --connection con1
-SELECT "OKK";
---send
 set debug_sync= "after_dispatch_command SIGNAL dispatched WAIT_FOR pass";
-#--send
-#SELECT "work";
+--send
+SELECT "work";
 --connection default
 set debug_sync= "now WAIT_FOR dispatched";
 KILL QUERY @con1_kill_thread_id;
+--connection default
 SELECT thread_id = @def_thread_id as current, variable_value
   FROM performance_schema.variables_by_thread
   WHERE variable_name = "time_zone";

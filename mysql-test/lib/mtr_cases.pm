@@ -121,6 +121,7 @@ sub collect_test_cases ($$$$) {
   {
     foreach my $suite (split(",", $suites))
     {
+      mtr_report($suite);
       push(@$cases, collect_suite_name($suite, $opt_cases));
     }
   }

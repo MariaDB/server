@@ -58,7 +58,6 @@ static void  threadpool_remove_connection(THD *thd);
 static dispatch_command_return threadpool_process_request(THD *thd);
 static THD*  threadpool_add_connection(CONNECT *connect, TP_connection *c);
 
-extern bool do_command(THD*);
 
 static inline TP_connection *get_TP_connection(THD *thd)
 {
@@ -244,7 +243,7 @@ retry:
 
   int error= c->start_io();
 
-  DEBUG_SYNC(thd, "tp_before_processing_2");
+ // DEBUG_SYNC(thd, "tp_before_processing_2");
 
   return error == 0;
 }
