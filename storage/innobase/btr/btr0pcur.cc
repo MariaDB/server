@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -547,26 +547,12 @@ btr_pcur_move_backward_from_page(
 	ulint		prev_page_no;
 	page_t*		page;
 	buf_block_t*	prev_block;
-	ulint		latch_mode;
-	ulint		latch_mode2;
 
-	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 	ut_ad(btr_pcur_is_before_first_on_page(cursor));
 	ut_ad(!btr_pcur_is_before_first_in_tree(cursor));
 
-	latch_mode = cursor->latch_mode;
-
-	if (latch_mode == BTR_SEARCH_LEAF) {
-
-		latch_mode2 = BTR_SEARCH_PREV;
-
-	} else if (latch_mode == BTR_MODIFY_LEAF) {
-
-		latch_mode2 = BTR_MODIFY_PREV;
-	} else {
-		latch_mode2 = 0; /* To eliminate compiler warning */
-		ut_error;
-	}
+	const ulint latch_mode = cursor->latch_mode;
+	ut_ad(latch_mode == BTR_SEARCH_LEAF || latch_mode == BTR_MODIFY_LEAF);
 
 	btr_pcur_store_position(cursor, mtr);
 
@@ -574,7 +560,10 @@ btr_pcur_move_backward_from_page(
 
 	mtr_start(mtr);
 
-	cursor->restore_position(latch_mode2, mtr);
+	static_assert(BTR_SEARCH_PREV == (4 | BTR_SEARCH_LEAF), "");
+	static_assert(BTR_MODIFY_PREV == (4 | BTR_MODIFY_LEAF), "");
+
+	cursor->restore_position(4 | latch_mode, mtr);
 
 	page = btr_pcur_get_page(cursor);
 

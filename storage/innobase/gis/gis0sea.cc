@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -105,7 +105,6 @@ rtr_pcur_getnext_from_path(
 	ulint		my_latch_mode;
 	ulint		skip_parent = false;
 	bool		new_split = false;
-	bool		need_parent;
 	bool		for_delete = false;
 	bool		for_undo_ins = false;
 
@@ -131,13 +130,12 @@ rtr_pcur_getnext_from_path(
 
 	/* Whether need to track parent information. Only need so
 	when we do tree altering operations (such as index page merge) */
-	need_parent = ((my_latch_mode == BTR_MODIFY_TREE
-		        || my_latch_mode == BTR_CONT_MODIFY_TREE)
-		       && mode == PAGE_CUR_RTREE_LOCATE);
+	static_assert(BTR_CONT_MODIFY_TREE == (4 | BTR_MODIFY_TREE), "");
+
+	const bool need_parent = mode == PAGE_CUR_RTREE_LOCATE
+		&& (my_latch_mode | 4) == BTR_CONT_MODIFY_TREE;
 
 	if (!index_locked) {
-		ut_ad(latch_mode & BTR_SEARCH_LEAF
-		      || latch_mode & BTR_MODIFY_LEAF);
 		mtr_s_lock_index(index, mtr);
 	} else {
 		ut_ad(mtr->memo_contains_flagged(&index->lock,
@@ -156,7 +154,7 @@ rtr_pcur_getnext_from_path(
 		buf_block_t*	block;
 		node_seq_t	path_ssn;
 		const page_t*	page;
-		ulint		rw_latch = RW_X_LATCH;
+		rw_lock_type_t	rw_latch;
 		ulint		tree_idx;
 
 		mysql_mutex_lock(&rtr_info->rtr_path_mutex);
@@ -215,18 +213,14 @@ rtr_pcur_getnext_from_path(
 		One reason for pre-latch is that we might need to position
 		some parent position (requires latch) during search */
 		if (level == 0) {
-			/* S latched for SEARCH_LEAF, and X latched
-			for MODIFY_LEAF */
-			if (my_latch_mode <= BTR_MODIFY_LEAF) {
-				rw_latch = my_latch_mode;
-			}
-
-			if (my_latch_mode == BTR_CONT_MODIFY_TREE
-			    || my_latch_mode == BTR_MODIFY_TREE) {
-				rw_latch = RW_NO_LATCH;
-			}
-
-		} else if (level == target_level) {
+			static_assert(ulint{BTR_SEARCH_LEAF} ==
+				      ulint{RW_S_LATCH}, "");
+			static_assert(ulint{BTR_MODIFY_LEAF} ==
+				      ulint{RW_X_LATCH}, "");
+			rw_latch = (my_latch_mode | 4) == BTR_CONT_MODIFY_TREE
+				? RW_NO_LATCH
+				: rw_lock_type_t(my_latch_mode);
+		} else {
 			rw_latch = RW_X_LATCH;
 		}
 
@@ -257,8 +251,7 @@ rtr_pcur_getnext_from_path(
 		/* set up savepoint to record any locks to be taken */
 		rtr_info->tree_savepoints[tree_idx] = mtr_set_savepoint(mtr);
 
-		ut_ad(my_latch_mode == BTR_MODIFY_TREE
-		      || my_latch_mode == BTR_CONT_MODIFY_TREE
+		ut_ad((my_latch_mode | 4) == BTR_CONT_MODIFY_TREE
 		      || !page_is_leaf(btr_cur_get_page(btr_cur))
 		      || !btr_cur->page_cur.block->page.lock.have_any());
 
@@ -543,7 +536,8 @@ rtr_pcur_open(
 	ulint		low_match;
 	rec_t*		rec;
 
-	ut_ad(latch_mode & BTR_MODIFY_LEAF || latch_mode & BTR_MODIFY_TREE);
+	static_assert(BTR_MODIFY_TREE == (8 | BTR_MODIFY_LEAF), "");
+	ut_ad(latch_mode & BTR_MODIFY_LEAF);
 	ut_ad(mode == PAGE_CUR_RTREE_LOCATE);
 
 	/* Initialize the cursor */
@@ -566,7 +560,7 @@ rtr_pcur_open(
 		btr_cursor->rtr_info->thr = btr_cursor->thr;
 	}
 
-	if ((latch_mode & BTR_MODIFY_TREE) && index->lock.have_u_not_x()) {
+	if ((latch_mode & 8) && index->lock.have_u_not_x()) {
 		index->lock.u_x_upgrade(SRW_LOCK_CALL);
 		mtr->lock_upgrade(index->lock);
 	}
@@ -595,7 +589,7 @@ rtr_pcur_open(
 		}
 		/* Did not find matched row in first dive. Release
 		latched block if any before search more pages */
-		if (latch_mode & BTR_MODIFY_LEAF) {
+		if (!(latch_mode & 8)) {
 			ulint		tree_idx = btr_cursor->tree_height - 1;
 			rtr_info_t*	rtr_info = btr_cursor->rtr_info;
 
@@ -610,7 +604,7 @@ rtr_pcur_open(
 
 		bool	ret = rtr_pcur_getnext_from_path(
 			tuple, mode, btr_cursor, 0, latch_mode,
-			latch_mode & (BTR_MODIFY_TREE | BTR_ALREADY_S_LATCHED),
+			latch_mode & (8 | BTR_ALREADY_S_LATCHED),
 			mtr);
 
 		if (ret) {

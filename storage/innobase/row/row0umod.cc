@@ -693,12 +693,13 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 		due to avoid undel-mark a wrong rec in rolling back in
 		partial update.  Later, we could log some info in
 		secondary index updates to avoid this. */
-		ut_ad(mode & BTR_MODIFY_LEAF);
+		static_assert(BTR_MODIFY_TREE == (8 | BTR_MODIFY_LEAF), "");
+		ut_ad(!(mode & 8));
 		mode |= BTR_RTREE_DELETE_MARK;
 	}
 
 try_again:
-	row_mtr_start(&mtr, index, !(mode & BTR_MODIFY_LEAF));
+	row_mtr_start(&mtr, index, mode & 8);
 
 	btr_cur->thr = thr;
 

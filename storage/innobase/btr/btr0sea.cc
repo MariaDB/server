@@ -1124,15 +1124,14 @@ fail:
 		block->page.fix();
 		block->page.set_accessed();
 		buf_page_make_young_if_needed(&block->page);
-		mtr_memo_type_t	fix_type;
-		if (latch_mode == BTR_SEARCH_LEAF) {
-			fix_type = MTR_MEMO_PAGE_S_FIX;
-			ut_ad(!block->page.is_read_fixed());
-		} else {
-			fix_type = MTR_MEMO_PAGE_X_FIX;
-			ut_ad(!block->page.is_io_fixed());
-		}
-		mtr->memo_push(block, fix_type);
+		ut_ad(!block->page.is_read_fixed());
+		ut_ad(latch_mode == BTR_SEARCH_LEAF
+		      || !block->page.is_io_fixed());
+		static_assert(ulint{MTR_MEMO_PAGE_S_FIX} ==
+			      ulint{BTR_SEARCH_LEAF}, "");
+		static_assert(ulint{MTR_MEMO_PAGE_X_FIX} ==
+			      ulint{BTR_MODIFY_LEAF}, "");
+		mtr->memo_push(block, mtr_memo_type_t(latch_mode));
 
 		++buf_pool.stat.n_page_gets;
 

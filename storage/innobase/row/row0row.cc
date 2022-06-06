@@ -1306,7 +1306,7 @@ row_search_index_entry(
 
 	switch (btr_pcur_get_btr_cur(pcur)->flag) {
 	case BTR_CUR_DELETE_REF:
-		ut_ad(mode & BTR_DELETE);
+		ut_ad(!(~mode & BTR_DELETE));
 		ut_ad(!index->is_spatial());
 		return(ROW_NOT_DELETED_REF);
 

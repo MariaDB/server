@@ -210,9 +210,6 @@ btr_cur_latch_leaves(
 	btr_cur_t*		cursor,
 	mtr_t*			mtr)
 {
-	rw_lock_type_t	mode;
-	uint32_t	left_page_no;
-	uint32_t	right_page_no;
 	buf_block_t*	get_block;
 	bool		spatial;
 	btr_latch_leaves_t latch_leaves = {{NULL, NULL, NULL}, {0, 0, 0}};
@@ -230,7 +227,15 @@ btr_cur_latch_leaves(
 					    | MTR_MEMO_X_LOCK
 					    | MTR_MEMO_SX_LOCK));
 
+	const rw_lock_type_t mode = rw_lock_type_t(
+		latch_mode & (RW_X_LATCH | RW_S_LATCH));
+	static_assert(ulint{RW_S_LATCH} == ulint{BTR_SEARCH_LEAF}, "");
+	static_assert(ulint{RW_X_LATCH} == ulint{BTR_MODIFY_LEAF}, "");
+	static_assert(BTR_SEARCH_LEAF & BTR_SEARCH_TREE, "");
+
 	switch (latch_mode) {
+		uint32_t	left_page_no;
+		uint32_t	right_page_no;
 	case BTR_SEARCH_LEAF:
 	case BTR_MODIFY_LEAF:
 	case BTR_SEARCH_TREE:
@@ -239,7 +244,6 @@ btr_cur_latch_leaves(
 				= mtr_set_savepoint(mtr);
 		}
 
-		mode = latch_mode == BTR_MODIFY_LEAF ? RW_X_LATCH : RW_S_LATCH;
 		latch_leaves.savepoints[1] = mtr_set_savepoint(mtr);
 		get_block = btr_block_get(*cursor->index,
 					  block->page.id().page_no(), mode,
@@ -335,7 +339,6 @@ btr_cur_latch_leaves(
 
 	case BTR_SEARCH_PREV:
 	case BTR_MODIFY_PREV:
-		mode = latch_mode == BTR_SEARCH_PREV ? RW_S_LATCH : RW_X_LATCH;
 		/* Because we are holding index->lock, no page splits
 		or merges may run concurrently, and we may read
 		FIL_PAGE_PREV from a buffer-fixed, unlatched page. */
@@ -787,8 +790,13 @@ btr_cur_optimistic_latch_leaves(
 			left_page_no = btr_page_get_prev(block->page.frame);
 		}
 
-		const rw_lock_type_t mode = *latch_mode == BTR_SEARCH_PREV
-			? RW_S_LATCH : RW_X_LATCH;
+		static_assert(BTR_SEARCH_PREV & BTR_SEARCH_LEAF, "");
+		static_assert(BTR_MODIFY_PREV & BTR_MODIFY_LEAF, "");
+		static_assert((BTR_SEARCH_PREV ^ BTR_MODIFY_PREV)
+			      == (RW_S_LATCH ^ RW_X_LATCH), "");
+
+		const rw_lock_type_t mode = rw_lock_type_t(
+			*latch_mode & (RW_X_LATCH | RW_S_LATCH));
 
 		if (left_page_no != FIL_NULL) {
 			dberr_t	err = DB_SUCCESS;
@@ -1328,10 +1336,8 @@ btr_cur_search_to_nth_level_func(
 	/* These flags are mutually exclusive, they are lumped together
 	with the latch mode for historical reasons. It's possible for
 	none of the flags to be set. */
-	switch (UNIV_EXPECT(latch_mode
-			    & (BTR_INSERT | BTR_DELETE | BTR_DELETE_MARK),
-			    0)) {
-	case 0:
+	switch (UNIV_EXPECT(latch_mode & BTR_DELETE, 0)) {
+	default:
 		btr_op = BTR_NO_OP;
 		break;
 	case BTR_INSERT:
@@ -1346,10 +1352,6 @@ btr_cur_search_to_nth_level_func(
 	case BTR_DELETE_MARK:
 		btr_op = BTR_DELMARK_OP;
 		break;
-	default:
-		/* only one of BTR_INSERT, BTR_DELETE, BTR_DELETE_MARK
-		should be specified at a time */
-		ut_error;
 	}
 
 	/* Operations on the insert buffer tree cannot be buffered. */
@@ -1941,17 +1943,18 @@ retry_page_get:
 		/* Need to use BTR_MODIFY_TREE to do the MBR adjustment */
 		if (search_mode == PAGE_CUR_RTREE_INSERT
 		    && cursor->rtr_info->mbr_adj) {
-			if (latch_mode & BTR_MODIFY_LEAF) {
+			static_assert(BTR_MODIFY_TREE
+                                      == (8 | BTR_MODIFY_LEAF), "");
+
+			if (!(latch_mode & 8)) {
 				/* Parent MBR needs updated, should retry
 				with BTR_MODIFY_TREE */
 				goto func_exit;
-			} else if (latch_mode & BTR_MODIFY_TREE) {
-				rtree_parent_modified = true;
-				cursor->rtr_info->mbr_adj = false;
-				mbr_adj = true;
-			} else {
-				ut_ad(0);
 			}
+
+			rtree_parent_modified = true;
+			cursor->rtr_info->mbr_adj = false;
+			mbr_adj = true;
 		}
 
 		if (found && page_mode == PAGE_CUR_RTREE_GET_FATHER) {
