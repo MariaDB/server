@@ -24,8 +24,7 @@ The database buffer pool high-level routines
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef buf0buf_h
-#define buf0buf_h
+#pragma once
 
 /** Magic value to use instead of checksums when they are disabled */
 #define BUF_NO_CHECKSUM_MAGIC 0xDEADBEEFUL
@@ -43,21 +42,12 @@ Created 11/5/1995 Heikki Tuuri
 #include "transactional_lock_guard.h"
 #include <ostream>
 
-// Forward declaration
-struct fil_addr_t;
-
 /** @name Modes for buf_page_get_gen */
 /* @{ */
 #define BUF_GET			10	/*!< get always */
 #define	BUF_GET_IF_IN_POOL	11	/*!< get if in pool */
 #define BUF_PEEK_IF_IN_POOL	12	/*!< get if in pool, do not make
 					the block young in the LRU list */
-#define BUF_GET_NO_LATCH	14	/*!< get and bufferfix, but
-					set no latch; we have
-					separated this case, because
-					it is error-prone programming
-					not to set a latch, and it
-					should be used with care */
 #define BUF_GET_IF_IN_POOL_OR_WATCH	15
 					/*!< Get the page only if it's in the
 					buffer pool, if not then set a watch
@@ -65,7 +55,6 @@ struct fil_addr_t;
 #define BUF_GET_POSSIBLY_FREED		16
 					/*!< Like BUF_GET, but do not mind
 					if the file page has been freed. */
-#define BUF_EVICT_IF_IN_POOL	20	/*!< evict a clean block if found */
 /* @} */
 
 /** If LRU list of a buf_pool is less than this size then LRU eviction
@@ -167,21 +156,9 @@ buf_block_free(
 /*===========*/
 	buf_block_t*	block);	/*!< in, own: block to be freed */
 
-/**************************************************************//**
-NOTE! The following macros should be used instead of buf_page_get_gen,
-to improve debugging. Only values RW_S_LATCH and RW_X_LATCH are allowed
-in LA! */
 #define buf_page_get(ID, SIZE, LA, MTR)					\
 	buf_page_get_gen(ID, SIZE, LA, NULL, BUF_GET, MTR)
 
-/**************************************************************//**
-Use these macros to bufferfix a page with no latching. Remember not to
-read the contents of the page unless you know it is safe. Do not modify
-the contents of the page! We have separated this case, because it is
-error-prone programming not to set a latch, and it should be used
-with care. */
-#define buf_page_get_with_no_latch(ID, SIZE, MTR)	\
-	buf_page_get_gen(ID, SIZE, RW_NO_LATCH, NULL, BUF_GET_NO_LATCH, MTR)
 /** Try to acquire a page latch.
 @param rw_latch      RW_S_LATCH or RW_X_LATCH
 @param block         guessed block
@@ -217,8 +194,8 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id, ulint zip_size);
 @param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
 @param[in]	guess			guessed block or NULL
 @param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
-BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
-@param[in]	mtr			mini-transaction
+BUF_PEEK_IF_IN_POOL, or BUF_GET_IF_IN_POOL_OR_WATCH
+@param[in,out]	mtr			mini-transaction
 @param[out]	err			DB_SUCCESS or error code
 @param[in]	allow_ibuf_merge	Allow change buffer merge while
 reading the pages from file.
@@ -232,7 +209,8 @@ buf_page_get_gen(
 	ulint			mode,
 	mtr_t*			mtr,
 	dberr_t*		err = NULL,
-	bool			allow_ibuf_merge = false);
+	bool			allow_ibuf_merge = false)
+	MY_ATTRIBUTE((nonnull(6), warn_unused_result));
 
 /** This is the low level function used to get access to a database page.
 @param[in]	page_id			page id
@@ -240,8 +218,9 @@ buf_page_get_gen(
 @param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
 @param[in]	guess			guessed block or NULL
 @param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
-BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
-@param[in]	mtr			mini-transaction
+BUF_PEEK_IF_IN_POOL, or BUF_GET_IF_IN_POOL_OR_WATCH
+@param[in,out]	mtr			mini-transaction, or NULL if a
+					block with page_id is to be evicted
 @param[out]	err			DB_SUCCESS or error code
 @param[in]	allow_ibuf_merge	Allow change buffer merge to happen
 while reading the page from file
@@ -1390,8 +1369,9 @@ public:
   }
 
   /** Release and evict a corrupted page.
-  @param bpage    page that was being read */
-  ATTRIBUTE_COLD void corrupted_evict(buf_page_t *bpage);
+  @param bpage    x-latched page that was found corrupted
+  @param state    expected current state of the page */
+  ATTRIBUTE_COLD void corrupted_evict(buf_page_t *bpage, uint32_t state);
 
   /** Release a memory block to the buffer pool. */
   ATTRIBUTE_COLD void free_block(buf_block_t *block);
@@ -2216,5 +2196,3 @@ struct	CheckUnzipLRUAndLRUList {
 #include "buf0buf.inl"
 
 #endif /* !UNIV_INNOCHECKSUM */
-
-#endif

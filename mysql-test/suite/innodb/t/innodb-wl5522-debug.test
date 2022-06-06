@@ -29,6 +29,8 @@ call mtr.add_suppression("InnoDB: Page for tablespace ");
 call mtr.add_suppression("InnoDB: Invalid FSP_SPACE_FLAGS=");
 call mtr.add_suppression("InnoDB: Unknown index id .* on page");
 call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
+call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed read of file '.*ibdata1' page");
+call mtr.add_suppression("InnoDB: File '.*ibdata1' is corrupted");
 FLUSH TABLES;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
@@ -1173,19 +1175,28 @@ ALTER TABLE t1 DISCARD TABLESPACE;
 SELECT COUNT(*) FROM t1;
 
 # Restore files
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+
 perl;
 do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
 ib_restore_tablespaces("test", "t1");
+my $page;
+my $ps = $ENV{INNODB_PAGE_SIZE};
+my $file = "$ENV{MYSQLD_DATADIR}/test/t1.ibd";
+open(FILE, "+<$file") || die "Unable to open $file";
+binmode FILE;
+sysseek(FILE, 3*$ps, 0) || die "Unable to seek $file\n";
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+substr($page,24,2)='42';
+sysseek(FILE, 3*$ps, 0) || die "Unable to rewind $file\n";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+close(FILE) || die "Unable to close $file";
 EOF
-
-SET SESSION debug_dbug="+d,buf_page_import_corrupt_failure";
 
 --replace_regex /'.*t1.cfg'/'t1.cfg'/
 
---error ER_INTERNAL_ERROR
+--error ER_NOT_KEYFILE
 ALTER TABLE t1 IMPORT TABLESPACE;
-
-SET SESSION debug_dbug=@saved_debug_dbug;
 
 DROP TABLE t1;
 

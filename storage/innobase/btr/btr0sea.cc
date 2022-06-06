@@ -1124,15 +1124,14 @@ fail:
 		block->page.fix();
 		block->page.set_accessed();
 		buf_page_make_young_if_needed(&block->page);
-		mtr_memo_type_t	fix_type;
-		if (latch_mode == BTR_SEARCH_LEAF) {
-			fix_type = MTR_MEMO_PAGE_S_FIX;
-			ut_ad(!block->page.is_read_fixed());
-		} else {
-			fix_type = MTR_MEMO_PAGE_X_FIX;
-			ut_ad(!block->page.is_io_fixed());
-		}
-		mtr->memo_push(block, fix_type);
+		ut_ad(!block->page.is_read_fixed());
+		ut_ad(latch_mode == BTR_SEARCH_LEAF
+		      || !block->page.is_io_fixed());
+		static_assert(ulint{MTR_MEMO_PAGE_S_FIX} ==
+			      ulint{BTR_SEARCH_LEAF}, "");
+		static_assert(ulint{MTR_MEMO_PAGE_X_FIX} ==
+			      ulint{BTR_MODIFY_LEAF}, "");
+		mtr->memo_push(block, mtr_memo_type_t(latch_mode));
 
 		++buf_pool.stat.n_page_gets;
 
@@ -1437,19 +1436,13 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
 	block = buf_page_get_gen(page_id, 0, RW_X_LATCH, NULL,
 				 BUF_PEEK_IF_IN_POOL, &mtr);
 
-	if (block) {
-		/* If AHI is still valid, page can't be in free state.
-		AHI is dropped when page is freed. */
-		DBUG_ASSERT(!block->page.is_freed());
-
-		if (block->index) {
-			/* In all our callers, the table handle should
-			be open, or we should be in the process of
-			dropping the table (preventing eviction). */
-			DBUG_ASSERT(block->index->table->get_ref_count()
-				    || dict_sys.locked());
-			btr_search_drop_page_hash_index(block);
-		}
+	if (block && block->index) {
+		/* In all our callers, the table handle should
+		be open, or we should be in the process of
+		dropping the table (preventing eviction). */
+		DBUG_ASSERT(block->index->table->get_ref_count()
+			    || dict_sys.locked());
+		btr_search_drop_page_hash_index(block);
 	}
 
 	mtr_commit(&mtr);

@@ -1445,12 +1445,61 @@ struct dict_foreign_remove_partial
 	}
 };
 
+/** This function returns a new path name after replacing the basename
+in an old path with a new basename.  The old_path is a full path
+name including the extension.  The tablename is in the normal
+form "databasename/tablename".  The new base name is found after
+the forward slash.  Both input strings are null terminated.
+
+This function allocates memory to be returned.  It is the callers
+responsibility to free the return value after it is no longer needed.
+
+@param[in]	old_path		Pathname
+@param[in]	tablename		Contains new base name
+@return own: new full pathname */
+static char *dir_pathname(const char *old_path, span<const char> tablename)
+{
+  /* Split the tablename into its database and table name components.
+  They are separated by a '/'. */
+  const char *base_name= tablename.data();
+  for (const char *last= tablename.end(); last > tablename.data(); last--)
+  {
+    if (last[-1] == '/')
+    {
+      base_name= last;
+      break;
+    }
+  }
+  const size_t base_name_len= tablename.end() - base_name;
+
+  /* Find the offset of the last slash. We will strip off the
+  old basename.ibd which starts after that slash. */
+  const char *last_slash= strrchr(old_path, '/');
+#ifdef _WIN32
+  if (const char *last= strrchr(old_path, '\\'))
+    if (last > last_slash)
+      last_slash= last;
+#endif
+
+  size_t dir_len= last_slash
+    ? size_t(last_slash - old_path)
+    : strlen(old_path);
+
+  /* allocate a new path and move the old directory path to it. */
+  size_t new_path_len= dir_len + base_name_len + sizeof "/.ibd";
+  char *new_path= static_cast<char*>(ut_malloc_nokey(new_path_len));
+  memcpy(new_path, old_path, dir_len);
+  snprintf(new_path + dir_len, new_path_len - dir_len, "/%.*s.ibd",
+           int(base_name_len), base_name);
+  return new_path;
+}
+
 /** Rename the data file.
 @param new_name     name of the table
 @param replace      whether to replace the file with the new name
                     (as part of rolling back TRUNCATE) */
 dberr_t
-dict_table_t::rename_tablespace(const char *new_name, bool replace) const
+dict_table_t::rename_tablespace(span<const char> new_name, bool replace) const
 {
   ut_ad(dict_table_is_file_per_table(this));
   ut_ad(!is_temporary());
@@ -1459,18 +1508,17 @@ dict_table_t::rename_tablespace(const char *new_name, bool replace) const
     return DB_SUCCESS;
 
   const char *old_path= UT_LIST_GET_FIRST(space->chain)->name;
-  fil_space_t::name_type space_name{new_name, strlen(new_name)};
   const bool data_dir= DICT_TF_HAS_DATA_DIR(flags);
   char *path= data_dir
-    ? os_file_make_new_pathname(old_path, new_name)
-    : fil_make_filepath(nullptr, space_name, IBD, false);
+    ? dir_pathname(old_path, new_name)
+    : fil_make_filepath(nullptr, new_name, IBD, false);
   dberr_t err;
   if (!path)
     err= DB_OUT_OF_MEMORY;
   else if (!strcmp(path, old_path))
     err= DB_SUCCESS;
   else if (data_dir &&
-           DB_SUCCESS != RemoteDatafile::create_link_file(space_name, path))
+           DB_SUCCESS != RemoteDatafile::create_link_file(new_name, path))
     err= DB_TABLESPACE_EXISTS;
   else
   {
@@ -1478,8 +1526,8 @@ dict_table_t::rename_tablespace(const char *new_name, bool replace) const
     if (data_dir)
     {
       if (err == DB_SUCCESS)
-        space_name= {name.m_name, strlen(name.m_name)};
-      RemoteDatafile::delete_link_file(space_name);
+        new_name= {name.m_name, strlen(name.m_name)};
+      RemoteDatafile::delete_link_file(new_name);
     }
   }
 
@@ -1494,18 +1542,13 @@ dberr_t
 dict_table_rename_in_cache(
 /*=======================*/
 	dict_table_t*	table,		/*!< in/out: table */
-	const char*	new_name,	/*!< in: new name */
-	bool		rename_also_foreigns,
-					/*!< in: in ALTER TABLE we want
-					to preserve the original table name
-					in constraints which reference it */
+	span<const char> new_name,	/*!< in: new name */
 	bool		replace_new_file)
 					/*!< in: whether to replace the
 					file with the new name
 					(as part of rolling back TRUNCATE) */
 {
 	dict_foreign_t*	foreign;
-	ulint		fold;
 	char		old_name[MAX_FULL_NAME_LEN + 1];
 
 	ut_ad(dict_sys.locked());
@@ -1515,23 +1558,8 @@ dict_table_rename_in_cache(
 	ut_a(old_name_len < sizeof old_name);
 	strcpy(old_name, table->name.m_name);
 
-	fold = my_crc32c(0, new_name, strlen(new_name));
-
-	/* Look for a table with the same name: error if such exists */
-	dict_table_t*	table2;
-	HASH_SEARCH(name_hash, &dict_sys.table_hash, fold,
-			dict_table_t*, table2, ut_ad(table2->cached),
-			(strcmp(table2->name.m_name, new_name) == 0));
-	DBUG_EXECUTE_IF("dict_table_rename_in_cache_failure",
-		if (table2 == NULL) {
-			table2 = (dict_table_t*) -1;
-		} );
-	if (table2) {
-		ib::error() << "Cannot rename table '" << table->name
-			<< "' to '" << new_name << "' since the"
-			" dictionary cache already contains '" << new_name << "'.";
-		return(DB_ERROR);
-	}
+	const uint32_t fold= my_crc32c(0, new_name.data(), new_name.size());
+	ut_a(!dict_sys.find_table(new_name));
 
 	if (!dict_table_is_file_per_table(table)) {
 	} else if (dberr_t err = table->rename_tablespace(new_name,
@@ -1543,8 +1571,14 @@ dict_table_rename_in_cache(
 	HASH_DELETE(dict_table_t, name_hash, &dict_sys.table_hash,
 		    my_crc32c(0, table->name.m_name, old_name_len), table);
 
-	const bool keep_mdl_name = dict_table_t::is_temporary_name(new_name)
-		&& !table->name.is_temporary();
+        bool keep_mdl_name = !table->name.is_temporary();
+
+	if (!keep_mdl_name) {
+	} else if (const char* s = static_cast<const char*>
+		   (memchr(new_name.data(), '/', new_name.size()))) {
+		keep_mdl_name = new_name.end() - s >= 5
+			&& !memcmp(s, "/#sql", 5);
+	}
 
 	if (keep_mdl_name) {
 		/* Preserve the original table name for
@@ -1553,18 +1587,17 @@ dict_table_rename_in_cache(
 							 table->name.m_name);
 	}
 
-	const size_t new_len = strlen(new_name);
-
-	if (new_len > strlen(table->name.m_name)) {
+	if (new_name.size() > strlen(table->name.m_name)) {
 		/* We allocate MAX_FULL_NAME_LEN + 1 bytes here to avoid
 		memory fragmentation, we assume a repeated calls of
 		ut_realloc() with the same size do not cause fragmentation */
-		ut_a(new_len <= MAX_FULL_NAME_LEN);
+		ut_a(new_name.size() <= MAX_FULL_NAME_LEN);
 
 		table->name.m_name = static_cast<char*>(
 			ut_realloc(table->name.m_name, MAX_FULL_NAME_LEN + 1));
 	}
-	strcpy(table->name.m_name, new_name);
+	memcpy(table->name.m_name, new_name.data(), new_name.size());
+	table->name.m_name[new_name.size()] = '\0';
 
 	if (!keep_mdl_name) {
 		table->mdl_name.m_name = table->name.m_name;
@@ -1574,7 +1607,7 @@ dict_table_rename_in_cache(
 	HASH_INSERT(dict_table_t, name_hash, &dict_sys.table_hash, fold,
 		    table);
 
-	if (!rename_also_foreigns) {
+	if (table->name.is_temporary()) {
 		/* In ALTER TABLE we think of the rename table operation
 		in the direction table -> temporary table (#sql...)
 		as dropping the table with the old name and creating
@@ -4079,80 +4112,10 @@ dict_print_info_on_foreign_keys(
 	return str;
 }
 
-/** Given a space_id of a file-per-table tablespace, search the
-dict_sys.table_LRU list and return the dict_table_t* pointer for it.
-@param	space	tablespace
-@return table if found, NULL if not */
-static
-dict_table_t*
-dict_find_single_table_by_space(const fil_space_t* space)
-{
-	dict_table_t*	table;
-	ulint		num_item;
-	ulint		count = 0;
-
-	ut_ad(space->id > 0);
-
-	if (!dict_sys.is_initialised()) {
-		/* This could happen when it's in redo processing. */
-		return(NULL);
-	}
-
-	table = UT_LIST_GET_FIRST(dict_sys.table_LRU);
-	num_item =  UT_LIST_GET_LEN(dict_sys.table_LRU);
-
-	/* This function intentionally does not acquire mutex as it is used
-	by error handling code in deep call stack as last means to avoid
-	killing the server, so it worth to risk some consequences for
-	the action. */
-	while (table && count < num_item) {
-		if (table->space == space) {
-			if (dict_table_is_file_per_table(table)) {
-				return(table);
-			}
-			return(NULL);
-		}
-
-		table = UT_LIST_GET_NEXT(table_LRU, table);
-		count++;
-	}
-
-	return(NULL);
-}
-
-/**********************************************************************//**
-Flags a table with specified space_id corrupted in the data dictionary
-cache
-@return true if successful */
-bool dict_set_corrupted_by_space(const fil_space_t* space)
-{
-	dict_table_t*   table;
-
-	table = dict_find_single_table_by_space(space);
-
-	if (!table) {
-		return false;
-	}
-
-	/* mark the table->corrupted bit only, since the caller
-	could be too deep in the stack for SYS_INDEXES update */
-	table->corrupted = true;
-	table->file_unreadable = true;
-	return true;
-}
-
-/** Flag a table encrypted in the data dictionary cache. */
-void dict_set_encrypted_by_space(const fil_space_t* space)
-{
-	if (dict_table_t* table = dict_find_single_table_by_space(space)) {
-		table->file_unreadable = true;
-	}
-}
-
 /**********************************************************************//**
 Flags an index corrupted both in the data dictionary cache
 and in the SYS_INDEXES */
-void dict_set_corrupted(dict_index_t *index, const char *ctx, bool dict_locked)
+void dict_set_corrupted(dict_index_t *index, const char *ctx)
 {
 	mem_heap_t*	heap;
 	mtr_t		mtr;
@@ -4163,11 +4126,8 @@ void dict_set_corrupted(dict_index_t *index, const char *ctx, bool dict_locked)
 	const char*	status;
 	btr_cur_t	cursor;
 
-	if (!dict_locked) {
-		dict_sys.lock(SRW_LOCK_CALL);
-	}
+	dict_sys.lock(SRW_LOCK_CALL);
 
-	ut_ad(dict_sys.locked());
 	ut_ad(!dict_table_is_comp(dict_sys.sys_tables));
 	ut_ad(!dict_table_is_comp(dict_sys.sys_indexes));
 
@@ -4175,6 +4135,7 @@ void dict_set_corrupted(dict_index_t *index, const char *ctx, bool dict_locked)
 	is corrupted */
 	if (dict_index_is_clust(index)) {
 		index->table->corrupted = TRUE;
+		goto func_exit;
 	}
 
 	if (index->type & DICT_CORRUPT) {
@@ -4213,8 +4174,11 @@ void dict_set_corrupted(dict_index_t *index, const char *ctx, bool dict_locked)
 
 	dict_index_copy_types(tuple, sys_index, 2);
 
-	btr_cur_search_to_nth_level(sys_index, 0, tuple, PAGE_CUR_LE,
-				    BTR_MODIFY_LEAF, &cursor, 0, &mtr);
+	if (btr_cur_search_to_nth_level(sys_index, 0, tuple, PAGE_CUR_LE,
+					BTR_MODIFY_LEAF, &cursor, 0, &mtr)
+	    != DB_SUCCESS) {
+		goto fail;
+	}
 
 	if (cursor.low_match == dtuple_get_n_fields(tuple)) {
 		/* UPDATE SYS_INDEXES SET TYPE=index->type
@@ -4239,33 +4203,7 @@ fail:
 		<< " in table " << index->table->name << " in " << ctx;
 
 func_exit:
-	if (!dict_locked) {
-		dict_sys.unlock();
-	}
-}
-
-/** Flags an index corrupted in the data dictionary cache only. This
-is used mostly to mark a corrupted index when index's own dictionary
-is corrupted, and we force to load such index for repair purpose
-@param[in,out]	index	index which is corrupted */
-void
-dict_set_corrupted_index_cache_only(
-	dict_index_t*	index)
-{
-	ut_ad(index != NULL);
-	ut_ad(index->table != NULL);
-	ut_ad(dict_sys.locked());
-	ut_ad(!dict_table_is_comp(dict_sys.sys_tables));
-	ut_ad(!dict_table_is_comp(dict_sys.sys_indexes));
-
-	/* Mark the table as corrupted only if the clustered index
-	is corrupted */
-	if (dict_index_is_clust(index)) {
-		index->table->corrupted = TRUE;
-		index->table->file_unreadable = true;
-	}
-
-	index->type |= DICT_CORRUPT;
+	dict_sys.unlock();
 }
 
 /** Sets merge_threshold in the SYS_INDEXES
@@ -4311,8 +4249,11 @@ dict_index_set_merge_threshold(
 
 	dict_index_copy_types(tuple, sys_index, 2);
 
-	btr_cur_search_to_nth_level(sys_index, 0, tuple, PAGE_CUR_GE,
-				    BTR_MODIFY_LEAF, &cursor, 0, &mtr);
+	if (btr_cur_search_to_nth_level(sys_index, 0, tuple, PAGE_CUR_GE,
+					BTR_MODIFY_LEAF, &cursor, 0, &mtr)
+	    != DB_SUCCESS) {
+		goto func_exit;
+	}
 
 	if (cursor.up_match == dtuple_get_n_fields(tuple)
 	    && rec_get_n_fields_old(btr_cur_get_rec(&cursor))
@@ -4327,6 +4268,7 @@ dict_index_set_merge_threshold(
 					      field, merge_threshold);
 	}
 
+func_exit:
 	mtr_commit(&mtr);
 	mem_heap_free(heap);
 }

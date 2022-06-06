@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, 2020, MariaDB Corporation.
+Copyright (c) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -170,7 +170,7 @@ public:
 	inline void release();
 
 	/** Start mtr and latch block */
-	inline dberr_t latch();
+	inline void latch();
 
 	/** Check if required space is available in the page for the rec
 	to be inserted.	We check fill factor & padding here.

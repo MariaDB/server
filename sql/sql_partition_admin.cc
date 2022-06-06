@@ -578,6 +578,14 @@ bool Sql_cmd_alter_table_exchange_partition::
   part_table= table_list->table;
   swap_table= swap_table_list->table;
 
+  /* Don't allow to exchange with a VIEW */
+  if (unlikely(swap_table_list->view))
+  {
+    my_error(ER_WRONG_OBJECT, MYF(0), table_list->db.str,
+              swap_table_list->table_name.str, "BASE TABLE");
+    DBUG_RETURN(TRUE);
+  }
+
   if (unlikely(check_exchange_partition(swap_table, part_table)))
     DBUG_RETURN(TRUE);
 

@@ -12,3 +12,6 @@ INSERT INTO t1 VALUES (NEXT VALUE FOR Seq1_1);
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 DROP SEQUENCE Seq1_1;
 DROP TABLE t1;
+CALL mtr.add_suppression("SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
+connection node_2;
+CALL mtr.add_suppression("SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");

@@ -413,46 +413,6 @@ os_file_read_string(
 	}
 }
 
-/** This function returns a new path name after replacing the basename
-in an old path with a new basename.  The old_path is a full path
-name including the extension.  The tablename is in the normal
-form "databasename/tablename".  The new base name is found after
-the forward slash.  Both input strings are null terminated.
-
-This function allocates memory to be returned.  It is the callers
-responsibility to free the return value after it is no longer needed.
-
-@param[in]	old_path		Pathname
-@param[in]	tablename		Contains new base name
-@return own: new full pathname */
-char *os_file_make_new_pathname(const char *old_path, const char *tablename)
-{
-  /* Split the tablename into its database and table name components.
-  They are separated by a '/'. */
-  const char *last_slash= strrchr(tablename, '/');
-  const char *base_name= last_slash ? last_slash + 1 : tablename;
-
-  /* Find the offset of the last slash. We will strip off the
-  old basename.ibd which starts after that slash. */
-  last_slash = strrchr(old_path, '/');
-#ifdef _WIN32
-  if (const char *last= strrchr(old_path, '\\'))
-    if (last > last_slash)
-      last_slash= last;
-#endif
-
-  size_t dir_len= last_slash
-    ? size_t(last_slash - old_path)
-    : strlen(old_path);
-
-  /* allocate a new path and move the old directory path to it. */
-  size_t new_path_len= dir_len + strlen(base_name) + sizeof "/.ibd";
-  char *new_path= static_cast<char*>(ut_malloc_nokey(new_path_len));
-  memcpy(new_path, old_path, dir_len);
-  snprintf(new_path + dir_len, new_path_len - dir_len, "/%s.ibd", base_name);
-  return new_path;
-}
-
 /** This function reduces a null-terminated full remote path name into
 the path that is sent by MySQL for DATA DIRECTORY clause.  It replaces
 the 'databasename/tablename.ibd' found at the end of the path with just
@@ -851,6 +811,7 @@ os_file_get_last_error_low(
 	case EXDEV:
 	case ENOTDIR:
 	case EISDIR:
+	case EPERM:
 		return(OS_FILE_PATH_ERROR);
 	case EAGAIN:
 		if (srv_use_native_aio) {

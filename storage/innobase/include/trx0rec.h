@@ -69,10 +69,10 @@ Returns the start of the undo record data area. */
 /**********************************************************************//**
 Reads from an undo log record the general parameters.
 @return remaining part of undo log record after reading these values */
-byte*
+const byte*
 trx_undo_rec_get_pars(
 /*==================*/
-	trx_undo_rec_t*	undo_rec,	/*!< in: undo log record */
+	const trx_undo_rec_t*	undo_rec,	/*!< in: undo log record */
 	ulint*		type,		/*!< out: undo record type:
 					TRX_UNDO_INSERT_REC, ... */
 	ulint*		cmpl_info,	/*!< out: compiler info, relevant only
@@ -86,10 +86,10 @@ trx_undo_rec_get_pars(
 /*******************************************************************//**
 Builds a row reference from an undo log record.
 @return pointer to remaining part of undo record */
-byte*
+const byte*
 trx_undo_rec_get_row_ref(
 /*=====================*/
-	byte*		ptr,	/*!< in: remaining part of a copy of an undo log
+	const byte*	ptr,	/*!< in: remaining part of a copy of an undo log
 				record, at the start of the row reference;
 				NOTE that this copy of the undo log record must
 				be preserved as long as the row reference is
@@ -97,8 +97,9 @@ trx_undo_rec_get_row_ref(
 				record! */
 	dict_index_t*	index,	/*!< in: clustered index */
 	const dtuple_t**ref,	/*!< out, own: row reference */
-	mem_heap_t*	heap);	/*!< in: memory heap from which the memory
+	mem_heap_t*	heap)	/*!< in: memory heap from which the memory
 				needed is allocated */
+	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Reads from an undo log update record the system field values of the old
 version.
@@ -250,14 +251,14 @@ trx_undo_prev_version_build(
 	ulint		v_status);
 
 /** Read from an undo log record a non-virtual column value.
-@param[in,out]	ptr		pointer to remaining part of the undo record
-@param[in,out]	field		stored field
-@param[in,out]	len		length of the field, or UNIV_SQL_NULL
-@param[in,out]	orig_len	original length of the locally stored part
+@param ptr	pointer to remaining part of the undo record
+@param field	stored field
+@param len	length of the field, or UNIV_SQL_NULL
+@param orig_len	original length of the locally stored part
 of an externally stored column, or 0
 @return remaining part of undo log record after reading these values */
-byte *trx_undo_rec_get_col_val(const byte *ptr, const byte **field,
-                               uint32_t *len, uint32_t *orig_len);
+const byte *trx_undo_rec_get_col_val(const byte *ptr, const byte **field,
+                                     uint32_t *len, uint32_t *orig_len);
 
 /** Read virtual column value from undo log
 @param[in]	table		the table

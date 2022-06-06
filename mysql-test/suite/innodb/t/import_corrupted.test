@@ -3,6 +3,7 @@
 call mtr.add_suppression("Table `test`.`t2` should have 2 indexes but the tablespace has 1 indexes");
 call mtr.add_suppression("Index for table 't2' is corrupt; try to repair it");
 call mtr.add_suppression("Trying to read .* bytes at .* outside the bounds of the file: \\..test.t2\\.ibd");
+call mtr.add_suppression("InnoDB: File '.*test/t2\\.ibd' is corrupted");
 
 let MYSQLD_DATADIR = `SELECT @@datadir`;
 

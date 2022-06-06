@@ -1296,17 +1296,20 @@ row_search_index_entry(
 
 	ut_ad(dtuple_check_typed(entry));
 
-	if (dict_index_is_spatial(index)) {
-		ut_ad(mode & (BTR_MODIFY_LEAF | BTR_MODIFY_TREE));
-		rtr_pcur_open(index, entry, PAGE_CUR_RTREE_LOCATE,
-			      mode, pcur, mtr);
+	if (index->is_spatial()) {
+		if (rtr_pcur_open(index, entry, mode, pcur, mtr)) {
+			return ROW_NOT_FOUND;
+		}
 	} else {
-		btr_pcur_open(index, entry, PAGE_CUR_LE, mode, pcur, mtr);
+		if (btr_pcur_open(index, entry, PAGE_CUR_LE, mode, pcur, mtr)
+		    != DB_SUCCESS) {
+			return ROW_NOT_FOUND;
+		}
 	}
 
 	switch (btr_pcur_get_btr_cur(pcur)->flag) {
 	case BTR_CUR_DELETE_REF:
-		ut_ad(mode & BTR_DELETE);
+		ut_ad(!(~mode & BTR_DELETE));
 		ut_ad(!index->is_spatial());
 		return(ROW_NOT_DELETED_REF);
 

@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -930,6 +930,8 @@ page_create_empty(
 	dict_index_t*	index,	/*!< in: the index of the page */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull(1,2)));
+
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /*************************************************************//**
 Differs from page_copy_rec_list_end, because this function does not
 touch the lock table and max trx id on page or compress the page.
@@ -937,8 +939,10 @@ touch the lock table and max trx id on page or compress the page.
 IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
 if new_block is a compressed leaf page in a secondary index.
 This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit(). */
-void
+or by invoking ibuf_reset_free_bits() before mtr_t::commit().
+
+@return error code */
+dberr_t
 page_copy_rec_list_end_no_locks(
 /*============================*/
 	buf_block_t*	new_block,	/*!< in: index page to copy to */
@@ -954,10 +958,10 @@ The records are copied to the start of the record list on new_page.
 IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
 if new_block is a compressed leaf page in a secondary index.
 This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit().
+or by invoking ibuf_reset_free_bits() before mtr_t::commit().
 
-@return pointer to the original successor of the infimum record on
-new_page, or NULL on zip overflow (new_block will be decompressed) */
+@return pointer to the original successor of the infimum record on new_block
+@retval nullptr on ROW_FORMAT=COMPRESSED page overflow */
 rec_t*
 page_copy_rec_list_end(
 /*===================*/
@@ -965,8 +969,9 @@ page_copy_rec_list_end(
 	buf_block_t*	block,		/*!< in: index page containing rec */
 	rec_t*		rec,		/*!< in: record on page */
 	dict_index_t*	index,		/*!< in: record descriptor */
-	mtr_t*		mtr)		/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull));
+	mtr_t*		mtr,		/*!< in/out: mini-transaction */
+	dberr_t*	err)		/*!< out: error code */
+	MY_ATTRIBUTE((nonnull(1,2,3,4,5), warn_unused_result));
 /*************************************************************//**
 Copies records from page to new_page, up to the given record, NOT
 including that record. Infimum and supremum records are not copied.
@@ -977,8 +982,8 @@ if new_block is a compressed leaf page in a secondary index.
 This has to be done either within the same mini-transaction,
 or by invoking ibuf_reset_free_bits() before mtr_commit().
 
-@return pointer to the original predecessor of the supremum record on
-new_page, or NULL on zip overflow (new_block will be decompressed) */
+@return pointer to the original predecessor of the supremum record on new_block
+@retval nullptr on ROW_FORMAT=COMPRESSED page overflow */
 rec_t*
 page_copy_rec_list_start(
 /*=====================*/
@@ -986,8 +991,9 @@ page_copy_rec_list_start(
 	buf_block_t*	block,		/*!< in: index page containing rec */
 	rec_t*		rec,		/*!< in: record on page */
 	dict_index_t*	index,		/*!< in: record descriptor */
-	mtr_t*		mtr)		/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull));
+	mtr_t*		mtr,		/*!< in/out: mini-transaction */
+	dberr_t*	err)		/*!< out: error code */
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*************************************************************//**
 Deletes records from a page from a given record onward, including that record.
 The infimum and supremum records are not deleted. */
@@ -1015,45 +1021,6 @@ page_delete_rec_list_start(
 	dict_index_t*	index,	/*!< in: record descriptor */
 	mtr_t*		mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((nonnull));
-/*************************************************************//**
-Moves record list end to another page. Moved records include
-split_rec.
-
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
-if new_block is a compressed leaf page in a secondary index.
-This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit().
-
-@return TRUE on success; FALSE on compression failure (new_block will
-be decompressed) */
-ibool
-page_move_rec_list_end(
-/*===================*/
-	buf_block_t*	new_block,	/*!< in/out: index page where to move */
-	buf_block_t*	block,		/*!< in: index page from where to move */
-	rec_t*		split_rec,	/*!< in: first record to move */
-	dict_index_t*	index,		/*!< in: record descriptor */
-	mtr_t*		mtr)		/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull(1, 2, 4, 5)));
-/*************************************************************//**
-Moves record list start to another page. Moved records do not include
-split_rec.
-
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
-if new_block is a compressed leaf page in a secondary index.
-This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit().
-
-@return TRUE on success; FALSE on compression failure */
-ibool
-page_move_rec_list_start(
-/*=====================*/
-	buf_block_t*	new_block,	/*!< in/out: index page where to move */
-	buf_block_t*	block,		/*!< in/out: page containing split_rec */
-	rec_t*		split_rec,	/*!< in: first record not to move */
-	dict_index_t*	index,		/*!< in: record descriptor */
-	mtr_t*		mtr)		/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull(1, 2, 4, 5)));
 /** Create an index page.
 @param[in,out]	block	buffer block
 @param[in]	comp	nonzero=compact page format */

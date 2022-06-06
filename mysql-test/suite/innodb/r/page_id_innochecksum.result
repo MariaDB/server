@@ -3,4 +3,7 @@ create table t1(f1 int not null)engine=innodb;
 insert into t1 values(1), (2), (3);
 # Change the page offset
 FOUND 1 /page id mismatch/ in result.log
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+InnoDB		0 transactions not purged
 drop table t1;
+call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*test/t1\\.ibd': Page read from tablespace is corrupted\\.");

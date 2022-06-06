@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, 2022, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -420,17 +420,14 @@ update_mbr:
 		/* If optimistic insert fail, try reorganize the page
 		and insert again. */
 		if (err != DB_SUCCESS && ins_suc) {
-			btr_page_reorganize(btr_cur_get_page_cur(cursor),
-					    index, mtr);
-
-			err = btr_cur_optimistic_insert(flags,
-							cursor,
-							&insert_offsets,
-							&heap,
-							node_ptr,
-							&insert_rec,
-							&dummy_big_rec,
-							0, NULL, mtr);
+			err = btr_page_reorganize(btr_cur_get_page_cur(cursor),
+						  index, mtr);
+			if (err == DB_SUCCESS) {
+				err = btr_cur_optimistic_insert(
+					flags, cursor, &insert_offsets, &heap,
+					node_ptr, &insert_rec, &dummy_big_rec,
+					0, NULL, mtr);
+			}
 
 			/* Will do pessimistic insert */
 			if (err != DB_SUCCESS) {
@@ -536,10 +533,11 @@ update_mbr:
 	mem_heap_free(heap);
 }
 
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /**************************************************************//**
 Update parent page's MBR and Predicate lock information during a split */
-static MY_ATTRIBUTE((nonnull))
-void
+static
+dberr_t
 rtr_adjust_upper_level(
 /*===================*/
 	btr_cur_t*	sea_cur,	/*!< in: search cursor */
@@ -659,23 +657,26 @@ rtr_adjust_upper_level(
 
 	const uint32_t next_page_no = btr_page_get_next(block->page.frame);
 
-	if (next_page_no != FIL_NULL) {
-		buf_block_t*	next_block = btr_block_get(
-			*index, next_page_no, RW_X_LATCH, false, mtr);
-#ifdef UNIV_BTR_DEBUG
-		ut_a(page_is_comp(next_block->page.frame)
-		     == page_is_comp(block->page.frame));
-		ut_a(btr_page_get_prev(next_block->page.frame)
-		     == block->page.id().page_no());
-#endif /* UNIV_BTR_DEBUG */
-
+	if (next_page_no == FIL_NULL) {
+	} else if (buf_block_t*	next_block =
+		   btr_block_get(*index, next_page_no, RW_X_LATCH,
+				 false, mtr, &err)) {
+		if (UNIV_UNLIKELY(memcmp_aligned<4>(next_block->page.frame
+						    + FIL_PAGE_PREV,
+						    block->page.frame
+						    + FIL_PAGE_OFFSET, 4))) {
+			return DB_CORRUPTION;
+		}
 		btr_page_set_prev(next_block, new_page_no, mtr);
+	} else {
+		return err;
 	}
 
 	btr_page_set_next(block, new_page_no, mtr);
 
 	btr_page_set_prev(new_block, page_no, mtr);
 	btr_page_set_next(new_block, next_page_no, mtr);
+	return DB_SUCCESS;
 }
 
 /*************************************************************//**
@@ -686,9 +687,10 @@ if new_block is a compressed leaf page in a secondary index.
 This has to be done either within the same mini-transaction,
 or by invoking ibuf_reset_free_bits() before mtr_commit().
 
-@return TRUE on success; FALSE on compression failure */
+@return error code
+@retval DB_FAIL on ROW_FORMAT=COMPRESSED compression failure */
 static
-ibool
+dberr_t
 rtr_split_page_move_rec_list(
 /*=========================*/
 	rtr_split_node_t*	node_array,	/*!< in: split node array. */
@@ -802,21 +804,19 @@ rtr_split_page_move_rec_list(
 
 		if (!page_zip_compress(new_block, index,
 				       page_zip_level, mtr)) {
-			ulint	ret_pos;
-
 			/* Before trying to reorganize the page,
 			store the number of preceding records on the page. */
-			ret_pos = page_rec_get_n_recs_before(ret);
+			ulint ret_pos = page_rec_get_n_recs_before(ret);
 			/* Before copying, "ret" was the predecessor
 			of the predefined supremum record.  If it was
 			the predefined infimum record, then it would
 			still be the infimum, and we would have
 			ret_pos == 0. */
 
-			if (UNIV_UNLIKELY
-			    (!page_zip_reorganize(new_block, index,
-						  page_zip_level, mtr))) {
-
+			switch (dberr_t err =
+				page_zip_reorganize(new_block, index,
+						    page_zip_level, mtr)) {
+			case DB_FAIL:
 				if (UNIV_UNLIKELY
 				    (!page_zip_decompress(new_page_zip,
 							  new_page, FALSE))) {
@@ -825,12 +825,12 @@ rtr_split_page_move_rec_list(
 #ifdef UNIV_GIS_DEBUG
 				ut_ad(page_validate(new_page, index));
 #endif
-
-				return(false);
+				/* fall through */
+			default:
+				return err;
+			case DB_SUCCESS:
+				ret = page_rec_get_nth(new_page, ret_pos);
 			}
-
-			/* The page was reorganized: Seek to ret_pos. */
-			ret = page_rec_get_nth(new_page, ret_pos);
 		}
 	}
 
@@ -852,7 +852,7 @@ rtr_split_page_move_rec_list(
 		}
 	}
 
-	return(true);
+	return DB_SUCCESS;
 }
 
 /*************************************************************//**
@@ -874,7 +874,8 @@ rtr_page_split_and_insert(
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
-	mtr_t*		mtr)	/*!< in: mtr */
+	mtr_t*		mtr,	/*!< in: mtr */
+	dberr_t*	err)	/*!< out: error code */
 {
 	buf_block_t*		block;
 	page_t*			page;
@@ -966,9 +967,9 @@ func_start:
 	/* Allocate a new page to the index */
 	const uint16_t page_level = btr_page_get_level(page);
 	new_block = btr_page_alloc(cursor->index, page_id.page_no() + 1,
-				   FSP_UP, page_level, mtr, mtr);
-	if (!new_block) {
-		return NULL;
+				   FSP_UP, page_level, mtr, mtr, err);
+	if (UNIV_UNLIKELY(!new_block)) {
+		return nullptr;
 	}
 
 	new_page_zip = buf_block_get_page_zip(new_block);
@@ -995,10 +996,15 @@ func_start:
 #ifdef UNIV_ZIP_COPY
 	    || page_zip
 #endif
-	    || !rtr_split_page_move_rec_list(rtr_split_node_array,
-					     first_rec_group,
-					     new_block, block, first_rec,
-					     cursor->index, *heap, mtr)) {
+	    || (*err = rtr_split_page_move_rec_list(rtr_split_node_array,
+						    first_rec_group,
+						    new_block, block,
+						    first_rec, cursor->index,
+						    *heap, mtr))) {
+		if (*err != DB_FAIL) {
+			return nullptr;
+		}
+
 		ulint			n		= 0;
 		rec_t*			rec;
 		ulint			moved		= 0;
@@ -1155,13 +1161,19 @@ after_insert:
 	lock_prdt_update_split(new_block, &prdt, &new_prdt, page_id);
 
 	/* Adjust the upper level. */
-	rtr_adjust_upper_level(cursor, flags, block, new_block,
-			       &mbr, &new_mbr, mtr);
+	*err = rtr_adjust_upper_level(cursor, flags, block, new_block,
+				      &mbr, &new_mbr, mtr);
+	if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
+		return nullptr;
+	}
 
 	/* Save the new ssn to the root page, since we need to reinit
 	the first ssn value from it after restart server. */
 
-	root_block = btr_root_block_get(cursor->index, RW_SX_LATCH, mtr);
+	root_block = btr_root_block_get(cursor->index, RW_SX_LATCH, mtr, err);
+        if (UNIV_UNLIKELY(!root_block)) {
+		return nullptr;
+	}
 
 	page_zip = buf_block_get_page_zip(root_block);
 	page_set_ssn_id(root_block, page_zip, next_ssn, mtr);
@@ -1313,7 +1325,6 @@ rtr_page_copy_rec_list_end_no_locks(
 		page_cur_move_to_next(&cur1);
 	}
 
-	btr_assert_not_corrupted(new_block, index);
 	ut_a(page_is_comp(new_page) == page_rec_is_comp(rec));
 	ut_a(mach_read_from_2(new_page + srv_page_size - 10) == (ulint)
 	     (page_is_comp(new_page) ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM));
@@ -1834,7 +1845,8 @@ rtr_estimate_n_rows_in_range(
 	index->set_modified(mtr);
 	mtr_s_lock_index(index, &mtr);
 
-	buf_block_t* block = btr_root_block_get(index, RW_S_LATCH, &mtr);
+	dberr_t err;
+	buf_block_t* block = btr_root_block_get(index, RW_S_LATCH, &mtr, &err);
 	if (!block) {
 err_exit:
 		mtr.commit();

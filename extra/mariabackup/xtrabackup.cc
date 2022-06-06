@@ -584,8 +584,8 @@ void CorruptedPages::zero_out_free_pages()
              space_it->second.pages.begin();
          page_it != space_it->second.pages.end(); ++page_it)
     {
-      bool is_free= fseg_page_is_free(space, *page_it);
-      if (!is_free) {
+      if (fseg_page_is_allocated(space, *page_it))
+      {
         space_info_t &space_info = non_free_pages[space_id];
         space_info.pages.insert(*page_it);
         if (space_info.space_name.empty())

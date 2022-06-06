@@ -2824,8 +2824,14 @@ static void read_big_block(PAGECACHE *pagecache,
         have read our block for us
       */
       struct st_my_thread_var *thread;
-      DBUG_ASSERT(page_st == PAGE_WAIT_TO_BE_READ);
-      DBUG_ASSERT(page_st != PAGE_TO_BE_READ);
+      /*
+        Either the page was not yet read and there is another thread
+        doing the read (page_st == PAGE_WAIT_TO_BE_READ) or the page
+        was just read and there are other threads waiting for the page
+        but they have not yet unmarked the PCLBOCK_BIG_READ flag
+        (page_st == PAGE_READ)
+      */
+      DBUG_ASSERT(page_st == PAGE_READ || page_st == PAGE_WAIT_TO_BE_READ);
       block->status|= PCBLOCK_BIG_READ; // will be read by other thread
       /*
         Block read failed because somebody else is reading the first block
@@ -2844,12 +2850,12 @@ static void read_big_block(PAGECACHE *pagecache,
                                    &pagecache->cache_lock);
       }
       while (thread->next);
-      // page should be read by other  thread
+      // page should be read by other thread
       DBUG_ASSERT(block->status & PCBLOCK_READ ||
                   block->status & PCBLOCK_ERROR);
       /*
         It is possible that other thread already removed  the flag (in
-        case of two threads waiting) but it will not make harm to try to
+        case of two threads waiting) but it will not harm to try to
         remove it even in that case.
       */
       block->status&= ~PCBLOCK_BIG_READ;
@@ -2883,6 +2889,7 @@ static void read_big_block(PAGECACHE *pagecache,
   args.pageno= page_to_read;
   args.data= block->hash_link->file.callback_data;
 
+  pagecache->global_cache_read++;
   if (pagecache->big_block_read(pagecache, &args, &block->hash_link->file,
                                 &data))
   {
