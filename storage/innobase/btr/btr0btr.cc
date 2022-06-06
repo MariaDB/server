@@ -2672,9 +2672,6 @@ released within this function! NOTE that the operation of this
 function must always succeed, we cannot reverse it: therefore enough
 free disk space (2 pages) must be guaranteed to be available before
 this function is called.
-NOTE: jonaso added support for calling function with tuple == NULL
-which cause it to only split a page.
-
 @return inserted record or NULL if run out of space */
 rec_t*
 btr_page_split_and_insert(
@@ -2746,7 +2743,7 @@ func_start:
 	uint32_t hint_page_no = block->page.id().page_no() + 1;
 	byte direction = FSP_UP;
 
-	if (tuple && n_iterations > 0) {
+	if (n_iterations > 0) {
 		split_rec = btr_page_get_split_rec(cursor, tuple, n_ext);
 
 		if (split_rec == NULL) {
@@ -2816,8 +2813,7 @@ func_start:
 					   ? cursor->index->n_core_fields : 0,
 					   n_uniq, heap);
 
-		insert_left = !tuple
-			|| cmp_dtuple_rec(tuple, split_rec, *offsets) < 0;
+		insert_left = cmp_dtuple_rec(tuple, split_rec, *offsets) < 0;
 
 		if (!insert_left && new_page_zip && n_iterations > 0) {
 			/* If a compressed page has already been split,
@@ -2853,22 +2849,12 @@ insert_empty:
 	on the appropriate half-page, we may release the tree x-latch.
 	We can then move the records after releasing the tree latch,
 	thus reducing the tree latch contention. */
-	bool insert_will_fit;
-	if (tuple == NULL) {
-		insert_will_fit = true;
-	} else if (split_rec) {
-		insert_will_fit = !new_page_zip
-			&& btr_page_insert_fits(cursor, split_rec,
-						offsets, tuple, n_ext, heap);
-	} else {
-		if (!insert_left) {
-			UT_DELETE_ARRAY(buf);
-			buf = NULL;
-		}
-
-		insert_will_fit = !new_page_zip
-			&& btr_page_insert_fits(cursor, NULL,
-						offsets, tuple, n_ext, heap);
+	const bool insert_will_fit = !new_page_zip
+		&& btr_page_insert_fits(cursor, split_rec, offsets, tuple,
+					n_ext, heap);
+	if (!split_rec && !insert_left) {
+		UT_DELETE_ARRAY(buf);
+		buf = NULL;
 	}
 
 	if (!srv_read_only_mode
@@ -2992,11 +2978,6 @@ insert_empty:
 	buf_block_t* const insert_block = insert_left
 		? left_block : right_block;
 
-	if (UNIV_UNLIKELY(!tuple)) {
-		rec = NULL;
-		goto func_exit;
-	}
-
 	/* 7. Reposition the cursor for insert and try insertion */
 	page_cursor = btr_cur_get_page_cur(cursor);
 
@@ -3073,7 +3054,6 @@ func_exit:
 	ut_ad(page_validate(buf_block_get_frame(left_block), cursor->index));
 	ut_ad(page_validate(buf_block_get_frame(right_block), cursor->index));
 
-	ut_ad(tuple || !rec);
 	ut_ad(!rec || rec_offs_validate(rec, cursor->index, *offsets));
 	return(rec);
 }
