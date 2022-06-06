@@ -3429,7 +3429,6 @@ check_access(THD *thd, privilege_t want_access,
     */
     const ACL_internal_schema_access *access;
     access= get_cached_schema_access(grant_internal_info, db);
-    /* TODO(cvicentiu) this needs to handle denies. */
     if (access)
     {
       switch (access->check(want_access, save_priv))
@@ -3516,7 +3515,6 @@ check_access(THD *thd, privilege_t want_access,
     Save the union of User-table and the intersection between Db-table and
     Host-table privileges, masked with the deny mask,
     with the already saved internal privileges.
-    TODO(cvicentiu) denies for internal privileges?
   */
   masked_access|= db_access & ~deny_mask;
   *save_priv|= masked_access;
@@ -3685,7 +3683,6 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
 
     privilege_t deny_mask= acl_get_effective_deny_mask(thd->security_ctx,
                                                        dst_db_name);
-    //TODO(cvicentiu) compute correct deny mask...
     if (!cur_access && check_grant_db(thd->security_ctx, dst_db_name.str,
                                       deny_mask))
     {
@@ -4867,16 +4864,22 @@ privilege_t acl_get_effective_deny_mask(const Security_context *ctx,
 
   mysql_mutex_lock(&acl_cache->lock);
   ACL_USER *acl_user= find_user_exact(ctx->priv_host, ctx->priv_user);
-  DBUG_ASSERT(acl_user); //TODO(cvicentiu) check this?
   if (!acl_user)
   {
-    // TODO(cvicentiu)
-    // Somehow the user was lost...
-    // This can probably happen when one connection exists and then
-    // the user is dropped, then the function is invoked.
-    DBUG_ASSERT(0);
+    /*
+       We can't find the user associated with the current security context.
+
+       This can happen when a user is dropped while a connection still exists
+       authenticated as that user.
+
+       There are two possibilities here: block all access or don't block any
+       access. Historical MariaDB behaviour meant that global & database
+       level grants are cached when the connection is made, preserving access.
+       However we do not cache denies in sctx, thus to ensure we do not leak any
+       data unintentionally, we assume the user has every privilege denied!
+    */
     mysql_mutex_unlock(&acl_cache->lock);
-    return NO_ACL;
+    return ALL_KNOWN_ACL;
   }
 
   result= acl_user->denies->get_global();
