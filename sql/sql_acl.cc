@@ -660,6 +660,14 @@ static bool show_table_and_column_privileges(THD *, const char *, const char *,
 static int show_routine_grants(THD *, const char *, const char *,
                                const Sp_handler *sph, char *, int);
 
+static const ACL_internal_schema_access *
+get_cached_schema_access(GRANT_INTERNAL_INFO *grant_internal_info,
+                         const char *schema_name);
+static const ACL_internal_table_access *
+get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
+                        const char *schema_name,
+                        const char *table_name);
+
 class Grant_tables;
 class User_table;
 class Proxies_priv_table;
@@ -14654,7 +14662,7 @@ ACL_internal_schema_registry::lookup(const char *name)
   @param grant_internal_info the cache
   @param schema_name the name of the internal schema
 */
-const ACL_internal_schema_access *
+static const ACL_internal_schema_access *
 get_cached_schema_access(GRANT_INTERNAL_INFO *grant_internal_info,
                          const char *schema_name)
 {
@@ -14677,7 +14685,7 @@ get_cached_schema_access(GRANT_INTERNAL_INFO *grant_internal_info,
   @param schema_name the name of the internal schema
   @param table_name the name of the internal table
 */
-const ACL_internal_table_access *
+static const ACL_internal_table_access *
 get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
                         const char *schema_name,
                         const char *table_name)
