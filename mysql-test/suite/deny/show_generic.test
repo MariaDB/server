@@ -1,0 +1,102 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # This test checks that denies take part in SHOW commands properly.
+--echo #
+create user foo;
+
+create database some_db;
+create table some_db.t1 (id int);
+
+
+--connect (con1,localhost,foo,,)
+--error ER_DBACCESS_DENIED_ERROR
+show tables from some_db;
+disconnect con1;
+connection default;
+
+grant insert on some_db.t1 to foo;
+--connect (con1,localhost,foo,,)
+show tables from some_db;
+disconnect con1;
+
+connection default;
+deny insert on some_db.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+--error ER_DBACCESS_DENIED_ERROR
+show tables from some_db;
+disconnect con1;
+
+connection default;
+
+--echo #
+--echo # Test that dropping a user does not give access to connections that
+--echo # previously had elements denied.
+--echo #
+--echo # We will use two users, foo which will receive denies, bar which will
+--echo # not. This will showcase the difference in behaviour.
+--echo #
+create user bar;
+
+--echo #
+--echo # This global grant is cached in sctx->master_access on connection.
+--echo #
+grant select on *.* to foo;
+grant select on *.* to bar;
+
+--connect (con1,localhost,foo,,)
+show tables from some_db;
+disconnect con1;
+
+connection default;
+--echo #
+--echo # Here we add a mask for some_db, it should no longer be visible to foo.
+--echo #
+deny select on some_db.* to foo;
+
+--connect (con1,localhost,foo,,)
+--error ER_DBACCESS_DENIED_ERROR
+use some_db;
+--error ER_DBACCESS_DENIED_ERROR
+show tables from some_db;
+
+--echo #
+--echo # bar user has access to the database (no denies present)
+--echo #
+--connect (con2,localhost,bar,,)
+use some_db;
+show tables from some_db;
+
+--echo #
+--echo # Do not disconnect foo & bar, but drop the users.
+--echo #
+
+connection default;
+drop user foo;
+drop user bar;
+
+--echo #
+--echo # Our current running connection, because it featured denies previously
+--echo # now doesn't have access.
+--echo #
+connection con1;
+--error ER_DBACCESS_DENIED_ERROR
+use some_db;
+--error ER_DBACCESS_DENIED_ERROR
+show tables from some_db;
+disconnect con1;
+
+--echo #
+--echo # However, bar does not have any denies active. In this case we can keep
+--echo # the previous MariaDB behaviour of using the "cache" within
+--echo # sctx->master_access to grant access.
+--echo #
+connection con2;
+use some_db;
+show tables from some_db;
+disconnect con2;
+
+connection default;
+drop database some_db;
