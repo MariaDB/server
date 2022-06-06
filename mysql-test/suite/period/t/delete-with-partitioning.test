@@ -1,0 +1,25 @@
+--source include/have_partition.inc
+--echo #
+--echo # MDEV-19190 Assertion `part_share->auto_inc_initialized` failed in ha_partition::get_auto_increment
+--echo # BEFORE INSERT trigger only also work
+--echo #
+source suite/period/engines.inc;
+source include/have_log_bin.inc;
+CREATE TABLE t1 (id INT, s DATE, e DATE, PERIOD FOR app(s,e)) PARTITION BY KEY(id);
+INSERT INTO t1 (s,e) VALUES ('2023-07-21','2024-06-07');
+ALTER TABLE t1 MODIFY id INT AUTO_INCREMENT KEY;
+--let $trig_table=t1
+--let $trig_cols=id, s, e
+--source suite/period/create_triggers.inc
+drop trigger tr1del_t1;
+drop trigger tr2del_t1;
+drop trigger tr1upd_t1;
+drop trigger tr2upd_t1;
+drop trigger tr2ins_t1;
+select * from t1;
+DELETE FROM t1 FOR PORTION OF app FROM '2023-07-20' TO '2024-05-23';
+select * from log_tbl order by id;
+select * from t1;
+DROP TABLE t1;
+DROP TABLE log_tbl;
+DROP PROCEDURE log;

@@ -1,0 +1,40 @@
+#
+# MDEV-19190 Assertion `part_share->auto_inc_initialized` failed in ha_partition::get_auto_increment
+# BEFORE INSERT trigger only also work
+#
+CREATE TABLE t1 (id INT, s DATE, e DATE, PERIOD FOR app(s,e)) PARTITION BY KEY(id);
+INSERT INTO t1 (s,e) VALUES ('2023-07-21','2024-06-07');
+ALTER TABLE t1 MODIFY id INT AUTO_INCREMENT KEY;
+create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
+create or replace procedure log(s text)
+insert into log_tbl(log) values(s);
+create trigger tr1upd_t1 before update on t1
+for each row call log(CONCAT('>UPD: ', old.id, ", ",  old.s, ", ",  old.e, ' -> ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr2upd_t1 after  update on t1
+for each row call log(CONCAT('<UPD: ', old.id, ", ",  old.s, ", ",  old.e, ' -> ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr1del_t1 before delete on t1
+for each row call log(CONCAT('>DEL: ', old.id, ", ",  old.s, ", ",  old.e));
+create trigger tr2del_t1 after  delete on t1
+for each row call log(CONCAT('<DEL: ', old.id, ", ",  old.s, ", ",  old.e));
+create trigger tr1ins_t1 before insert on t1
+for each row call log(CONCAT('>INS: ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr2ins_t1 after  insert on t1
+for each row call log(CONCAT('<INS: ', new.id, ", ",  new.s, ", ",  new.e));
+drop trigger tr1del_t1;
+drop trigger tr2del_t1;
+drop trigger tr1upd_t1;
+drop trigger tr2upd_t1;
+drop trigger tr2ins_t1;
+select * from t1;
+id	s	e
+1	2023-07-21	2024-06-07
+DELETE FROM t1 FOR PORTION OF app FROM '2023-07-20' TO '2024-05-23';
+select * from log_tbl order by id;
+id	log
+1	>INS: 2, 2024-05-23, 2024-06-07
+select * from t1;
+id	s	e
+2	2024-05-23	2024-06-07
+DROP TABLE t1;
+DROP TABLE log_tbl;
+DROP PROCEDURE log;
