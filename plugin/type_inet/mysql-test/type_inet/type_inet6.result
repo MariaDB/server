@@ -2195,6 +2195,25 @@ f
 ::
 DROP TABLE t1;
 #
+# MDEV-28491 Uuid. "UPDATE/DELETE" not working "WHERE id IN (SELECT id FROM ..)"
+#
+CREATE TABLE companies (id INET6, name varchar(10));
+INSERT INTO companies (id) values ('00::01');
+CREATE TABLE divisions (company_id INET6);
+INSERT INTO divisions (company_id) values ('00::01');
+SELECT * FROM companies WHERE id IN (SELECT company_id FROM divisions);
+id	name
+::1	NULL
+UPDATE companies SET name = 'value' WHERE id IN (SELECT company_id FROM divisions);
+SELECT * FROM companies;
+id	name
+::1	value
+DELETE FROM companies WHERE id IN (SELECT company_id FROM divisions);
+SELECT * FROM companies;
+id	name
+DROP TABLE divisions;
+DROP TABLE companies;
+#
 # MDEV-22256 Assertion `length == pack_length()' failed in Field_timestamp_with_dec::sort_string
 #
 SET sql_mode='';

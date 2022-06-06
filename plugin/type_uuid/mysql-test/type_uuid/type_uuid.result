@@ -3152,3 +3152,22 @@ f	var_pop('x')
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'x'
 Warning	1292	Incorrect uuid value: ''
+#
+# MDEV-28491 Uuid. "UPDATE/DELETE" not working "WHERE id IN (SELECT id FROM ..)"
+#
+CREATE TABLE companies (id uuid, name varchar(10));
+INSERT INTO companies (id) values ('7bc95b06-cc6c-11ec-96c5-0242ac130002');
+CREATE TABLE divisions (company_id uuid);
+INSERT INTO divisions (company_id) values ('7bc95b06-cc6c-11ec-96c5-0242ac130002');
+SELECT * FROM companies WHERE id IN (SELECT company_id FROM divisions);
+id	name
+7bc95b06-cc6c-11ec-96c5-0242ac130002	NULL
+UPDATE companies SET name = 'value' WHERE id IN (SELECT company_id FROM divisions);
+SELECT * FROM companies;
+id	name
+7bc95b06-cc6c-11ec-96c5-0242ac130002	value
+DELETE FROM companies WHERE id IN (SELECT company_id FROM divisions);
+SELECT * FROM companies;
+id	name
+DROP TABLE divisions;
+DROP TABLE companies;

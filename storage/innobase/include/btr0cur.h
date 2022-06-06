@@ -65,7 +65,6 @@ enum {
 
 /* btr_cur_latch_leaves() returns latched blocks and savepoints. */
 struct btr_latch_leaves_t {
-	/* left block, target block and right block */
 	buf_block_t*	blocks[3];
 	ulint		savepoints[3];
 };
@@ -142,6 +141,7 @@ btr_cur_optimistic_latch_leaves(
 	btr_cur_t*	cursor,
 	mtr_t*		mtr);
 
+MY_ATTRIBUTE((warn_unused_result))
 /********************************************************************//**
 Searches an index tree and positions a tree cursor on a given level.
 NOTE: n_fields_cmp in tuple must be set so that it cannot be compared
@@ -203,7 +203,7 @@ btr_cur_open_at_index_side(
 	ulint		level,		/*!< in: level to search for
 					(0=leaf) */
 	mtr_t*		mtr)		/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((nonnull));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /**********************************************************************//**
 Positions a cursor at a randomly chosen position within a B-tree.
@@ -214,7 +214,8 @@ btr_cur_open_at_rnd_pos(
 	dict_index_t*	index,		/*!< in: index */
 	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_cur_t*	cursor,		/*!< in/out: B-tree cursor */
-	mtr_t*		mtr);		/*!< in: mtr */
+	mtr_t*		mtr)		/*!< in: mtr */
+	MY_ATTRIBUTE((nonnull,warn_unused_result));
 /*************************************************************//**
 Tries to perform an insert to a page in an index tree, next to cursor.
 It is assumed that mtr holds an x-latch on the page. The operation does
@@ -442,25 +443,26 @@ that mtr holds an x-latch on the tree and on the cursor page. To avoid
 deadlocks, mtr must also own x-latches to brothers of page, if those
 brothers exist. NOTE: it is assumed that the caller has reserved enough
 free extents so that the compression will always succeed if done!
-@return TRUE if compression occurred */
-ibool
+@return whether compression occurred */
+bool
 btr_cur_compress_if_useful(
 /*=======================*/
 	btr_cur_t*	cursor,	/*!< in/out: cursor on the page to compress;
-				cursor does not stay valid if compression
-				occurs */
-	ibool		adjust,	/*!< in: TRUE if should adjust the
-				cursor position even if compression occurs */
+				cursor does not stay valid if !adjust and
+				compression occurs */
+	bool		adjust,	/*!< in: whether the cursor position should be
+				adjusted even when compression occurs */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
 /*******************************************************//**
 Removes the record on which the tree cursor is positioned. It is assumed
 that the mtr has an x-latch on the page where the cursor is positioned,
 but no latch on the whole tree.
-@return TRUE if success, i.e., the page did not become too empty */
-ibool
+@return error code
+@retval DB_FAIL if the page would become too empty */
+dberr_t
 btr_cur_optimistic_delete(
-/*===========================*/
+/*======================*/
 	btr_cur_t*	cursor,	/*!< in: cursor on the record to delete;
 				cursor stays valid: if deletion succeeds,
 				on function exit it points to the successor
@@ -502,8 +504,8 @@ btr_cur_pessimistic_delete(
 /** Delete the node pointer in a parent page.
 @param[in,out]	parent	cursor pointing to parent record
 @param[in,out]	mtr	mini-transaction */
-void btr_cur_node_ptr_delete(btr_cur_t* parent, mtr_t* mtr)
-	MY_ATTRIBUTE((nonnull));
+dberr_t btr_cur_node_ptr_delete(btr_cur_t* parent, mtr_t* mtr)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /***********************************************************//**
 Parses a redo log record of updating a record in-place.
 @return end of log record or NULL */
@@ -596,9 +598,7 @@ file segment of the index tree.
 dberr_t
 btr_store_big_rec_extern_fields(
 /*============================*/
-	btr_pcur_t*	pcur,		/*!< in/out: a persistent cursor. if
-					btr_mtr is restarted, then this can
-					be repositioned. */
+	btr_pcur_t*	pcur,		/*!< in: a persistent cursor */
 	rec_offs*	offsets,	/*!< in/out: rec_get_offsets() on
 					pcur. the "external storage" flags
 					in offsets will correctly correspond
@@ -609,7 +609,7 @@ btr_store_big_rec_extern_fields(
 					latches to the clustered index. can be
 					committed and restarted. */
 	enum blob_op	op)		/*! in: operation code */
-	MY_ATTRIBUTE((warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*******************************************************************//**
 Frees the space in an externally stored field to the file space
@@ -698,14 +698,15 @@ btr_rec_copy_externally_stored_field(
 @param[in]	block		leaf page where the search converged
 @param[in]	latch_mode	BTR_SEARCH_LEAF, ...
 @param[in]	cursor		cursor
-@param[in]	mtr		mini-transaction
-@return	blocks and savepoints which actually latched. */
-btr_latch_leaves_t
+@param[in,out]	mtr		mini-transaction
+@param[out]	latch_leaves	latched blocks and savepoints */
+void
 btr_cur_latch_leaves(
 	buf_block_t*		block,
 	ulint			latch_mode,
 	btr_cur_t*		cursor,
-	mtr_t*			mtr);
+	mtr_t*			mtr,
+	btr_latch_leaves_t*	latch_leaves = nullptr);
 
 /*######################################################################*/
 

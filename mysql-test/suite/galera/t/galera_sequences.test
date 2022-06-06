@@ -44,3 +44,9 @@ select NEXT VALUE FOR Seq1_1;
 
 --connection node_1
 DROP SEQUENCE Seq1_1;
+
+CALL mtr.add_suppression("SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
+
+--connection node_2
+
+CALL mtr.add_suppression("SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -93,28 +93,6 @@ trx_undo_trx_id_is_insert(
 {
 	compile_time_assert(DATA_TRX_ID + 1 == DATA_ROLL_PTR);
 	return bool(trx_id[DATA_TRX_ID_LEN] >> 7);
-}
-
-/** Gets an undo log page and x-latches it.
-@param[in]	page_id		page id
-@param[in,out]	mtr		mini-transaction
-@return pointer to page x-latched */
-UNIV_INLINE
-buf_block_t*
-trx_undo_page_get(const page_id_t page_id, mtr_t* mtr)
-{
-  return buf_page_get(page_id, 0, RW_X_LATCH, mtr);
-}
-
-/** Gets an undo log page and s-latches it.
-@param[in]	page_id		page id
-@param[in,out]	mtr		mini-transaction
-@return pointer to page s-latched */
-UNIV_INLINE
-buf_block_t*
-trx_undo_page_get_s_latched(const page_id_t page_id, mtr_t* mtr)
-{
-  return buf_page_get(page_id, 0, RW_S_LATCH, mtr);
 }
 
 /** Determine the end offset of undo log records of an undo log page.

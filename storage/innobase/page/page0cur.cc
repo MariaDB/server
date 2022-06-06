@@ -1310,7 +1310,7 @@ page_cur_insert_rec_low(
   ut_ad(!page_rec_is_supremum(cur->rec));
 
   /* We should not write log for ROW_FORMAT=COMPRESSED pages here. */
-  ut_ad(mtr->get_log_mode() != MTR_LOG_ALL ||
+  ut_ad(!mtr->is_logged() ||
         !(index->table->flags & DICT_TF_MASK_ZIP_SSIZE));
 
   /* 1. Get the size of the physical record in the page */
@@ -1510,7 +1510,7 @@ inc_dir:
     }
     rec_set_bit_field_1(next_rec, n_owned + 1, REC_NEW_N_OWNED,
                         REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
-    if (mtr->get_log_mode() != MTR_LOG_ALL)
+    if (!mtr->is_logged())
     {
       mtr->set_modified(*block);
       goto copied;
@@ -1552,7 +1552,7 @@ inc_dir:
     }
     rec_set_bit_field_1(next_rec, n_owned + 1, REC_OLD_N_OWNED,
                         REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
-    if (mtr->get_log_mode() != MTR_LOG_ALL)
+    if (!mtr->is_logged())
     {
       mtr->set_modified(*block);
       goto copied;
@@ -1573,7 +1573,7 @@ inc_dir:
   }
 
   /* Insert the record, possibly copying from the preceding record. */
-  ut_ad(mtr->get_log_mode() == MTR_LOG_ALL);
+  ut_ad(mtr->is_logged());
 
   {
     const byte *r= rec;
@@ -1785,9 +1785,13 @@ page_cur_insert_rec_zip(
     {
       ulint pos= page_rec_get_n_recs_before(cursor->rec);
 
-      if (!page_zip_reorganize(cursor->block, index, level, mtr, true))
-      {
+      switch (page_zip_reorganize(cursor->block, index, level, mtr, true)) {
+      case DB_FAIL:
         ut_ad(cursor->rec == cursor_rec);
+        return nullptr;
+      case DB_SUCCESS:
+        break;
+      default:
         return nullptr;
       }
 
@@ -1815,28 +1819,30 @@ page_cur_insert_rec_zip(
 
       /* We are writing entire page images to the log.  Reduce the redo
       log volume by reorganizing the page at the same time. */
-      if (page_zip_reorganize(cursor->block, index, level, mtr))
-      {
+      switch (page_zip_reorganize(cursor->block, index, level, mtr)) {
+      case DB_SUCCESS:
         /* The page was reorganized: Seek to pos. */
         cursor->rec= pos > 1
           ? page_rec_get_nth(page, pos - 1)
           : page + PAGE_NEW_INFIMUM;
         insert_rec= page + rec_get_next_offs(cursor->rec, 1);
         rec_offs_make_valid(insert_rec, index, page_is_leaf(page), offsets);
-        return insert_rec;
+        break;
+      case DB_FAIL:
+        /* Theoretically, we could try one last resort of
+           page_zip_reorganize() followed by page_zip_available(), but that
+           would be very unlikely to succeed. (If the full reorganized page
+           failed to compress, why would it succeed to compress the page,
+           plus log the insert of this record?) */
+
+        /* Out of space: restore the page */
+        if (!page_zip_decompress(page_zip, page, false))
+          ut_error; /* Memory corrupted? */
+        ut_ad(page_validate(page, index));
+        /* fall through */
+      default:
+        insert_rec= nullptr;
       }
-
-      /* Theoretically, we could try one last resort of
-      page_zip_reorganize() followed by page_zip_available(), but that
-      would be very unlikely to succeed. (If the full reorganized page
-      failed to compress, why would it succeed to compress the page,
-      plus log the insert of this record?) */
-
-      /* Out of space: restore the page */
-      if (!page_zip_decompress(page_zip, page, false))
-        ut_error; /* Memory corrupted? */
-      ut_ad(page_validate(page, index));
-      insert_rec= nullptr;
     }
     return insert_rec;
   }

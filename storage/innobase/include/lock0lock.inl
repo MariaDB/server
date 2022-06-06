@@ -71,7 +71,6 @@ lock_rec_create(
 					/*!< in: TRUE if caller owns
 					trx mutex */
 {
-	btr_assert_not_corrupted(block, index);
 	return lock_rec_create_low(
 		c_lock,
 		type_mode, block->page.id(), block->page.frame, heap_no,

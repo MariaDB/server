@@ -365,24 +365,23 @@ public:
 	}
 
 private:
-	/** Begin import, position the cursor on the first record. */
-	void	open() UNIV_NOTHROW;
+  /** Begin import, position the cursor on the first record. */
+  inline bool open() noexcept;
 
-	/** Close the persistent curosr and commit the mini-transaction. */
-	void	close() UNIV_NOTHROW;
+  /** Close the persistent cursor and commit the mini-transaction. */
+  void close() noexcept { m_mtr.commit(); btr_pcur_close(&m_pcur); }
 
-	/** Position the cursor on the next record.
-	@return DB_SUCCESS or error code */
-	dberr_t	next() UNIV_NOTHROW;
+  /** Position the cursor on the next record.
+  @return DB_SUCCESS or error code */
+  dberr_t next() noexcept;
 
-	/** Store the persistent cursor position and reopen the
-	B-tree cursor in BTR_MODIFY_TREE mode, because the
-	tree structure may be changed during a pessimistic delete. */
-	void	purge_pessimistic_delete() UNIV_NOTHROW;
+  /** Store the persistent cursor position and reopen the
+  B-tree cursor in BTR_MODIFY_TREE mode, because the
+  tree structure may be changed during a pessimistic delete. */
+  inline dberr_t purge_pessimistic_delete() noexcept;
 
-	/** Purge delete-marked records.
-	@param offsets current row offsets. */
-	void	purge() UNIV_NOTHROW;
+  /** Purge a delete-marked record. */
+  dberr_t purge() noexcept;
 
 protected:
 	// Disable copying
@@ -1481,14 +1480,13 @@ Purge delete marked records.
 dberr_t
 IndexPurge::garbage_collect() UNIV_NOTHROW
 {
-	dberr_t	err;
 	ibool	comp = dict_table_is_comp(m_index->table);
 
 	/* Open the persistent cursor and start the mini-transaction. */
 
-	open();
+	dberr_t err = open() ? next() : DB_CORRUPTION;
 
-	while ((err = next()) == DB_SUCCESS) {
+	for (; err == DB_SUCCESS; err = next()) {
 
 		rec_t*	rec = btr_pcur_get_rec(&m_pcur);
 		ibool	deleted = rec_get_deleted_flag(rec, comp);
@@ -1496,7 +1494,10 @@ IndexPurge::garbage_collect() UNIV_NOTHROW
 		if (!deleted) {
 			++m_n_rows;
 		} else {
-			purge();
+			err = purge();
+			if (err != DB_SUCCESS) {
+				break;
+			}
 		}
 	}
 
@@ -1509,38 +1510,31 @@ IndexPurge::garbage_collect() UNIV_NOTHROW
 
 /**
 Begin import, position the cursor on the first record. */
-void
-IndexPurge::open() UNIV_NOTHROW
+inline bool IndexPurge::open() noexcept
 {
-	mtr_start(&m_mtr);
+  m_mtr.start();
+  m_mtr.set_log_mode(MTR_LOG_NO_REDO);
 
-	mtr_set_log_mode(&m_mtr, MTR_LOG_NO_REDO);
+  if (btr_pcur_open_at_index_side(true, m_index, BTR_MODIFY_LEAF,
+                                  &m_pcur, true, 0, &m_mtr) != DB_SUCCESS)
+    return false;
 
-	btr_pcur_open_at_index_side(
-		true, m_index, BTR_MODIFY_LEAF, &m_pcur, true, 0, &m_mtr);
-	btr_pcur_move_to_next_user_rec(&m_pcur, &m_mtr);
-	if (rec_is_metadata(btr_pcur_get_rec(&m_pcur), *m_index)) {
-		ut_ad(btr_pcur_is_on_user_rec(&m_pcur));
-		/* Skip the metadata pseudo-record. */
-	} else {
-		btr_pcur_move_to_prev_on_page(&m_pcur);
-	}
-}
-
-/**
-Close the persistent curosr and commit the mini-transaction. */
-void
-IndexPurge::close() UNIV_NOTHROW
-{
-	btr_pcur_close(&m_pcur);
-	mtr_commit(&m_mtr);
+  btr_pcur_move_to_next_user_rec(&m_pcur, &m_mtr);
+  if (rec_is_metadata(btr_pcur_get_rec(&m_pcur), *m_index))
+  {
+    if (!btr_pcur_is_on_user_rec(&m_pcur))
+      return false;
+    /* Skip the metadata pseudo-record. */
+  }
+  else
+    btr_pcur_move_to_prev_on_page(&m_pcur);
+  return true;
 }
 
 /**
 Position the cursor on the next record.
 @return DB_SUCCESS or error code */
-dberr_t
-IndexPurge::next() UNIV_NOTHROW
+dberr_t IndexPurge::next() noexcept
 {
 	btr_pcur_move_to_next_on_page(&m_pcur);
 
@@ -1563,7 +1557,10 @@ IndexPurge::next() UNIV_NOTHROW
 
 	mtr_set_log_mode(&m_mtr, MTR_LOG_NO_REDO);
 
-	m_pcur.restore_position(BTR_MODIFY_LEAF, &m_mtr);
+	if (m_pcur.restore_position(BTR_MODIFY_LEAF, &m_mtr)
+	    == btr_pcur_t::CORRUPTED) {
+		return DB_CORRUPTION;
+	}
 	/* The following is based on btr_pcur_move_to_next_user_rec(). */
 	m_pcur.old_stored = false;
 	ut_ad(m_pcur.latch_mode == BTR_MODIFY_LEAF);
@@ -1634,40 +1631,36 @@ IndexPurge::next() UNIV_NOTHROW
 Store the persistent cursor position and reopen the
 B-tree cursor in BTR_MODIFY_TREE mode, because the
 tree structure may be changed during a pessimistic delete. */
-void
-IndexPurge::purge_pessimistic_delete() UNIV_NOTHROW
+inline dberr_t IndexPurge::purge_pessimistic_delete() noexcept
 {
-	dberr_t	err;
+  dberr_t err;
+  if (m_pcur.restore_position(BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
+                              &m_mtr) != btr_pcur_t::CORRUPTED)
+  {
+    ut_ad(rec_get_deleted_flag(btr_pcur_get_rec(&m_pcur),
+                               m_index->table->not_redundant()));
+    btr_cur_pessimistic_delete(&err, FALSE, btr_pcur_get_btr_cur(&m_pcur), 0,
+                               false, &m_mtr);
+  }
+  else
+    err= DB_CORRUPTION;
 
-	m_pcur.restore_position(BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE, &m_mtr);
-
-	ut_ad(rec_get_deleted_flag(
-			btr_pcur_get_rec(&m_pcur),
-			dict_table_is_comp(m_index->table)));
-
-	btr_cur_pessimistic_delete(
-		&err, FALSE, btr_pcur_get_btr_cur(&m_pcur), 0, false, &m_mtr);
-
-	ut_a(err == DB_SUCCESS);
-
-	/* Reopen the B-tree cursor in BTR_MODIFY_LEAF mode */
-	mtr_commit(&m_mtr);
+  m_mtr.commit();
+  return err;
 }
 
-/**
-Purge delete-marked records. */
-void
-IndexPurge::purge() UNIV_NOTHROW
+dberr_t IndexPurge::purge() noexcept
 {
-	btr_pcur_store_position(&m_pcur, &m_mtr);
+  btr_pcur_store_position(&m_pcur, &m_mtr);
+  dberr_t err= purge_pessimistic_delete();
 
-	purge_pessimistic_delete();
-
-	mtr_start(&m_mtr);
-
-	mtr_set_log_mode(&m_mtr, MTR_LOG_NO_REDO);
-
-	m_pcur.restore_position(BTR_MODIFY_LEAF, &m_mtr);
+  m_mtr.start();
+  m_mtr.set_log_mode(MTR_LOG_NO_REDO);
+  if (err == DB_SUCCESS)
+    err= (m_pcur.restore_position(BTR_MODIFY_LEAF, &m_mtr) ==
+          btr_pcur_t::CORRUPTED)
+      ? DB_CORRUPTION : DB_SUCCESS;
+  return err;
 }
 
 /** Adjust the BLOB reference for a single column that is externally stored
@@ -2109,8 +2102,9 @@ dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 	/* If we already had an old page with matching number
 	in the buffer pool, evict it now, because
 	we no longer evict the pages on DISCARD TABLESPACE. */
-	buf_page_get_gen(block->page.id(), get_zip_size(),
-			 RW_NO_LATCH, NULL, BUF_EVICT_IF_IN_POOL, NULL);
+	buf_page_get_low(block->page.id(), get_zip_size(), RW_NO_LATCH,
+			 nullptr, BUF_PEEK_IF_IN_POOL,
+			 nullptr, nullptr, false);
 
 	uint16_t page_type;
 
@@ -2339,26 +2333,20 @@ row_import_set_sys_max_row_id(
 
 	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
 
-	btr_pcur_open_at_index_side(
-		false,		// High end
-		index,
-		BTR_SEARCH_LEAF,
-		&pcur,
-		true,		// Init cursor
-		0,		// Leaf level
-		&mtr);
+	if (btr_pcur_open_at_index_side(false, index, BTR_SEARCH_LEAF,
+					&pcur, true, 0, &mtr) == DB_SUCCESS) {
+		btr_pcur_move_to_prev_on_page(&pcur);
+		rec = btr_pcur_get_rec(&pcur);
 
-	btr_pcur_move_to_prev_on_page(&pcur);
-	rec = btr_pcur_get_rec(&pcur);
-
-	/* Check for empty table. */
-	if (page_rec_is_infimum(rec)) {
-		/* The table is empty. */
-	} else if (rec_is_metadata(rec, *index)) {
-		/* The clustered index contains the metadata record only,
-		that is, the table is empty. */
-	} else {
-		row_id = mach_read_from_6(rec);
+		/* Check for empty table. */
+		if (page_rec_is_infimum(rec)) {
+			/* The table is empty. */
+		} else if (rec_is_metadata(rec, *index)) {
+			/* The clustered index contains the metadata
+			record only, that is, the table is empty. */
+		} else {
+			row_id = mach_read_from_6(rec);
+		}
 	}
 
 	mtr_commit(&mtr);
@@ -3202,14 +3190,6 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
   {
     dict_index_t *index= dict_table_get_first_index(table);
 
-    auto tmp1= table->space_id;
-    table->space_id= page_get_space_id(page.get());
-    SCOPE_EXIT([tmp1, table]() { table->space_id= tmp1; });
-
-    auto tmp2= index->page;
-    index->page= page_get_page_no(page.get());
-    SCOPE_EXIT([tmp2, index]() { index->page= tmp2; });
-
     if (!page_is_comp(page.get()) != !dict_table_is_comp(table))
     {
       ib_errf(current_thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
@@ -3218,7 +3198,7 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
     }
 
     if (btr_cur_instant_root_init(index, page.get()))
-      return DB_ERROR;
+      return DB_CORRUPTION;
 
     ut_ad(index->n_core_null_bytes != dict_index_t::NO_CORE_NULL_BYTES);
 

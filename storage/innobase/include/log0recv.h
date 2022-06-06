@@ -37,11 +37,12 @@ Created 9/20/1997 Heikki Tuuri
 /** @return whether recovery is currently running. */
 #define recv_recovery_is_on() UNIV_UNLIKELY(recv_sys.recovery_on)
 
+ATTRIBUTE_COLD MY_ATTRIBUTE((nonnull, warn_unused_result))
 /** Apply any buffered redo log to a page that was just read from a data file.
 @param[in,out]	space	tablespace
-@param[in,out]	bpage	buffer pool page */
-ATTRIBUTE_COLD void recv_recover_page(fil_space_t* space, buf_page_t* bpage)
-	MY_ATTRIBUTE((nonnull));
+@param[in,out]	bpage	buffer pool page
+@return whether the page was recovered correctly */
+bool recv_recover_page(fil_space_t* space, buf_page_t* bpage);
 
 /** Start recovering from a redo log checkpoint.
 of first system tablespace page
@@ -264,13 +265,16 @@ private:
   @param p        iterator pointing to page_id
   @param mtr      mini-transaction
   @param b        pre-allocated buffer pool block
-  @return whether the page was successfully initialized */
+  @return the recovered block
+  @retval nullptr if the page cannot be initialized based on log records
+  @retval -1      if the page cannot be recovered due to corruption */
   inline buf_block_t *recover_low(const page_id_t page_id, map::iterator &p,
                                   mtr_t &mtr, buf_block_t *b);
   /** Attempt to initialize a page based on redo log records.
   @param page_id  page identifier
   @return the recovered block
-  @retval nullptr if the page cannot be initialized based on log records */
+  @retval nullptr if the page cannot be initialized based on log records
+  @retval -1      if the page cannot be recovered due to corruption */
   buf_block_t *recover_low(const page_id_t page_id);
 
   /** All found log files (multiple ones are possible if we are upgrading
@@ -388,7 +392,8 @@ public:
   /** Attempt to initialize a page based on redo log records.
   @param page_id  page identifier
   @return the recovered block
-  @retval nullptr if the page cannot be initialized based on log records */
+  @retval nullptr if the page cannot be initialized based on log records
+  @retval -1      if the page cannot be recovered due to corruption */
   buf_block_t *recover(const page_id_t page_id)
   {
     return UNIV_UNLIKELY(recovery_on) ? recover_low(page_id) : nullptr;
