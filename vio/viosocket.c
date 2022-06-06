@@ -120,7 +120,6 @@ int vio_socket_io_wait(Vio *vio, enum enum_vio_io_event event)
   case -1:
     /* Upon failure, vio_read/write() shall return -1. */
     ret= -1;
-    fprintf(stderr, "Last error: %d\n", WSAGetLastError());
     break;
   case  0:
     /* The wait timed out. */
@@ -183,23 +182,13 @@ size_t vio_read(Vio *vio, uchar *buf, size_t size)
       fprintf(stderr, "recv returned error %d\n", error);
 #ifdef WIN32
       DBUG_ASSERT(error != WSA_IO_PENDING);
-      if (error == WSA_IO_PENDING)
-      {
-        ULONG transferred, dwFlags;
-        OVERLAPPED ov= {0, 0x333};
-        ret= WSAGetOverlappedResult(vio->mysql_socket.fd, &ov, &transferred, 1, &dwFlags);
-        ret= ret ? transferred : -1;
-      }
 #endif
         break;
     }
 
     /* Wait for input data to become available. */
     if ((ret= vio_socket_io_wait(vio, VIO_IO_EVENT_READ)))
-    {
-      fprintf(stderr, "Last error: %d\n", WSAGetLastError());
       break;
-    }
   }
 #ifndef DBUG_OFF
   if (ret == -1)
