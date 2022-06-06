@@ -8303,7 +8303,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   TABLE *table;
   ST_SCHEMA_TABLE *schema_table= table_list->schema_table;
   ST_FIELD_INFO *fields= schema_table->fields_info;
-  bool need_all_fieds= table_list->schema_table_reformed || // SHOW command
+  bool need_all_fields= table_list->schema_table_reformed || // SHOW command
                        thd->lex->only_view_structure(); // need table structure
   DBUG_ENTER("create_schema_table");
 
@@ -8319,7 +8319,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   bool keep_row_order= is_show_command(thd);
   if (!(table= create_tmp_table_for_schema(thd, tmp_table_param, *schema_table,
                  (select_lex->options | thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS),
-                  table_list->alias, !need_all_fieds, keep_row_order)))
+                  table_list->alias, !need_all_fields, keep_row_order)))
     DBUG_RETURN(0);
   my_bitmap_map* bitmaps=
     (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count));
