@@ -1852,6 +1852,7 @@ dict_load_columns(
 			if (table->fts == NULL) {
 				table->fts = fts_create(table);
 				table->fts->cache = fts_cache_create(table);
+				DICT_TF2_FLAG_SET(table, DICT_TF2_FTS_AUX_HEX_NAME);
 				fts_optimize_add_table(table);
 			}
 
