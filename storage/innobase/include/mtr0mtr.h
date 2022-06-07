@@ -320,11 +320,8 @@ public:
   /** @return true if we are inside the change buffer code */
   bool is_inside_ibuf() const { return m_inside_ibuf; }
 
-  /** Note that pages has been trimed */
+  /** Note that some pages have been freed */
   void set_trim_pages() { m_trim_pages= true; }
-
-  /** @return true if pages has been trimed */
-  bool is_trim_pages() { return m_trim_pages; }
 
   /** Latch a buffer pool block.
   @param block    block to be latched
@@ -614,6 +611,11 @@ public:
 #endif
 
 private:
+  /** Handle any pages that were freed during the mini-transaction. */
+  void process_freed_pages();
+  /** Release modified pages when no log was written. */
+  void release_unlogged();
+
   /** Log a write of a byte string to a page.
   @param block   buffer page
   @param offset  byte offset within page

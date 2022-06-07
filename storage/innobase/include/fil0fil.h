@@ -425,9 +425,10 @@ private:
   /** Whether any corrupton of this tablespace has been reported */
   mutable std::atomic_flag is_corrupted;
 
+public:
   /** mutex to protect freed_ranges and last_freed_lsn */
   std::mutex freed_range_mutex;
-
+private:
   /** Ranges of freed page numbers; protected by freed_range_mutex */
   range_set freed_ranges;
 
@@ -647,11 +648,7 @@ public:
   /** @return last_freed_lsn */
   lsn_t get_last_freed_lsn() { return last_freed_lsn; }
   /** Update last_freed_lsn */
-  void update_last_freed_lsn(lsn_t lsn)
-  {
-    std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
-    last_freed_lsn= lsn;
-  }
+  void update_last_freed_lsn(lsn_t lsn) { last_freed_lsn= lsn; }
 
   /** Note that the file will need fsync().
   @return whether this needs to be added to fil_system.unflushed_spaces */
@@ -672,11 +669,7 @@ public:
 
   /** Clear all freed ranges for undo tablespace when InnoDB
   encounters TRIM redo log record */
-  void clear_freed_ranges()
-  {
-    std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
-    freed_ranges.clear();
-  }
+  void clear_freed_ranges() { freed_ranges.clear(); }
 #endif /* !UNIV_INNOCHECKSUM */
   /** FSP_SPACE_FLAGS and FSP_FLAGS_MEM_ flags;
   check fsp0types.h to more info about flags. */
@@ -949,7 +942,6 @@ public:
   /** Add the set of freed page ranges */
   void add_free_range(const range_t range)
   {
-    std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
     freed_ranges.add_range(range);
   }
 
