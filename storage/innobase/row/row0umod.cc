@@ -93,10 +93,10 @@ row_undo_mod_clust_low(
 	pcur = &node->pcur;
 	btr_cur = btr_pcur_get_btr_cur(pcur);
 
-	ut_d(auto pcur_restore_result =)
-	pcur->restore_position(mode, mtr);
+	if (pcur->restore_position(mode, mtr) != btr_pcur_t::SAME_ALL) {
+		return DB_CORRUPTION;
+	}
 
-	ut_ad(pcur_restore_result == btr_pcur_t::SAME_ALL);
 	ut_ad(rec_get_trx_id(btr_cur_get_rec(btr_cur),
 			     btr_cur_get_index(btr_cur))
 	      == thr_get_trx(thr)->id
@@ -133,8 +133,8 @@ row_undo_mod_clust_low(
 		    && node->ref == &trx_undo_metadata
 		    && btr_cur_get_index(btr_cur)->table->instant
 		    && node->update->info_bits == REC_INFO_METADATA_ADD) {
-			btr_reset_instant(*btr_cur_get_index(btr_cur), false,
-					  mtr);
+			err = btr_reset_instant(*btr_cur_get_index(btr_cur),
+						false, mtr);
 		}
 	}
 
@@ -338,10 +338,12 @@ row_undo_mod_clust(
 
 		if (index->table->is_temporary()) {
 			mtr.set_log_mode(MTR_LOG_NO_REDO);
-			if (btr_cur_optimistic_delete(&pcur->btr_cur, 0,
-						      &mtr)) {
+			err = btr_cur_optimistic_delete(&pcur->btr_cur, 0,
+							&mtr);
+			if (err != DB_FAIL) {
 				goto mtr_commit_exit;
 			}
+			err = DB_SUCCESS;
 			btr_pcur_commit_specify_mtr(pcur, &mtr);
 		} else {
 			index->set_modified(mtr);
@@ -350,10 +352,12 @@ row_undo_mod_clust(
 			if (!row_undo_mod_must_purge(node, &mtr)) {
 				goto mtr_commit_exit;
 			}
-			if (btr_cur_optimistic_delete(&pcur->btr_cur, 0,
-						      &mtr)) {
+			err = btr_cur_optimistic_delete(&pcur->btr_cur, 0,
+							&mtr);
+			if (err != DB_FAIL) {
 				goto mtr_commit_exit;
 			}
+			err = DB_SUCCESS;
 			purge_sys.latch.rd_unlock();
 			btr_pcur_commit_specify_mtr(pcur, &mtr);
 			have_latch = false;
@@ -596,8 +600,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 		}
 
 		if (modify_leaf) {
-			err = btr_cur_optimistic_delete(btr_cur, 0, &mtr)
-				? DB_SUCCESS : DB_FAIL;
+			err = btr_cur_optimistic_delete(btr_cur, 0, &mtr);
 		} else {
 			/* Passing rollback=false,
 			because we are deleting a secondary index record:
@@ -693,12 +696,13 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 		due to avoid undel-mark a wrong rec in rolling back in
 		partial update.  Later, we could log some info in
 		secondary index updates to avoid this. */
-		ut_ad(mode & BTR_MODIFY_LEAF);
+		static_assert(BTR_MODIFY_TREE == (8 | BTR_MODIFY_LEAF), "");
+		ut_ad(!(mode & 8));
 		mode |= BTR_RTREE_DELETE_MARK;
 	}
 
 try_again:
-	row_mtr_start(&mtr, index, !(mode & BTR_MODIFY_LEAF));
+	row_mtr_start(&mtr, index, mode & 8);
 
 	btr_cur->thr = thr;
 
@@ -852,12 +856,11 @@ row_undo_mod_upd_del_sec(
 
 	heap = mem_heap_create(1024);
 
-	while (node->index != NULL) {
-		dict_index_t*	index	= node->index;
-		dtuple_t*	entry;
+	do {
+		dict_index_t* index = node->index;
 
-		if (index->type & DICT_FTS || !index->is_committed()) {
-			dict_table_next_uncorrupted_index(node->index);
+		if (index->type & (DICT_FTS | DICT_CORRUPT)
+		    || !index->is_committed()) {
 			continue;
 		}
 
@@ -868,7 +871,7 @@ row_undo_mod_upd_del_sec(
 		time when the undo log record was written. When we get
 		to roll back an undo log entry TRX_UNDO_DEL_MARK_REC,
 		it should always cover all affected indexes. */
-		entry = row_build_index_entry(
+		dtuple_t* entry = row_build_index_entry(
 			node->row, node->ext, index, heap);
 
 		if (UNIV_UNLIKELY(!entry)) {
@@ -893,8 +896,7 @@ row_undo_mod_upd_del_sec(
 		}
 
 		mem_heap_empty(heap);
-		dict_table_next_uncorrupted_index(node->index);
-	}
+	} while ((node->index = dict_table_get_next_index(node->index)));
 
 	mem_heap_free(heap);
 
@@ -918,12 +920,11 @@ row_undo_mod_del_mark_sec(
 
 	heap = mem_heap_create(1024);
 
-	while (node->index != NULL) {
-		dict_index_t*	index	= node->index;
-		dtuple_t*	entry;
+	do {
+		dict_index_t* index = node->index;
 
-		if (index->type == DICT_FTS || !index->is_committed()) {
-			dict_table_next_uncorrupted_index(node->index);
+		if (index->type & (DICT_FTS | DICT_CORRUPT)
+		    || !index->is_committed()) {
 			continue;
 		}
 
@@ -934,7 +935,7 @@ row_undo_mod_del_mark_sec(
 		time when the undo log record was written. When we get
 		to roll back an undo log entry TRX_UNDO_DEL_MARK_REC,
 		it should always cover all affected indexes. */
-		entry = row_build_index_entry(
+		dtuple_t* entry = row_build_index_entry(
 			node->row, node->ext, index, heap);
 
 		ut_a(entry);
@@ -960,8 +961,7 @@ row_undo_mod_del_mark_sec(
 		}
 
 		mem_heap_empty(heap);
-		dict_table_next_uncorrupted_index(node->index);
-	}
+	} while ((node->index = dict_table_get_next_index(node->index)));
 
 	mem_heap_free(heap);
 
@@ -978,54 +978,33 @@ row_undo_mod_upd_exist_sec(
 	undo_node_t*	node,	/*!< in: row undo node */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	mem_heap_t*	heap;
-	dberr_t		err	= DB_SUCCESS;
-
-	if (node->index == NULL
-	    || ((node->cmpl_info & UPD_NODE_NO_ORD_CHANGE))) {
-		/* No change in secondary indexes */
-
-		return(err);
+	if (node->cmpl_info & UPD_NODE_NO_ORD_CHANGE) {
+		return DB_SUCCESS;
 	}
 
-	heap = mem_heap_create(1024);
+	mem_heap_t* heap = mem_heap_create(1024);
+	dberr_t err = DB_SUCCESS;
 
+	do {
+		dict_index_t* index = node->index;
 
-	while (node->index != NULL) {
-
-		if (!node->index->is_committed()) {
-			dict_table_next_uncorrupted_index(node->index);
+		if (index->type & (DICT_FTS | DICT_CORRUPT)
+		    || !index->is_committed()) {
 			continue;
 		}
 
-		dict_index_t*	index	= node->index;
-		dtuple_t*	entry;
-
-		if (dict_index_is_spatial(index)) {
-			if (!row_upd_changes_ord_field_binary_func(
-				index, node->update,
+		if (!row_upd_changes_ord_field_binary_func(
+			index, node->update,
 #ifdef UNIV_DEBUG
-				thr,
+			thr,
 #endif /* UNIV_DEBUG */
-                                node->row,
-				node->ext, ROW_BUILD_FOR_UNDO)) {
-				dict_table_next_uncorrupted_index(node->index);
-				continue;
-			}
-		} else {
-			if (index->type == DICT_FTS
-			    || !row_upd_changes_ord_field_binary(index,
-								 node->update,
-								 thr, node->row,
-								 node->ext)) {
-				dict_table_next_uncorrupted_index(node->index);
-				continue;
-			}
+			node->row, node->ext, ROW_BUILD_FOR_UNDO)) {
+			continue;
 		}
 
 		/* Build the newest version of the index entry */
-		entry = row_build_index_entry(node->row, node->ext,
-					      index, heap);
+		dtuple_t* entry = row_build_index_entry(
+			node->row, node->ext, index, heap);
 		if (UNIV_UNLIKELY(!entry)) {
 			/* The server must have crashed in
 			row_upd_clust_rec_by_insert() before
@@ -1077,17 +1056,10 @@ row_undo_mod_upd_exist_sec(
 		the secondary index record if we updated its fields
 		but alphabetically they stayed the same, e.g.,
 		'abc' -> 'aBc'. */
-		if (dict_index_is_spatial(index)) {
-			entry = row_build_index_entry_low(node->undo_row,
-							  node->undo_ext,
-							  index, heap,
-							  ROW_BUILD_FOR_UNDO);
-		} else {
-			entry = row_build_index_entry(node->undo_row,
-						      node->undo_ext,
-						      index, heap);
-		}
-
+		entry = row_build_index_entry_low(node->undo_row,
+						  node->undo_ext,
+						  index, heap,
+						  ROW_BUILD_FOR_UNDO);
 		ut_a(entry);
 
 		err = row_undo_mod_del_unmark_sec_and_undo_update(
@@ -1105,8 +1077,7 @@ row_undo_mod_upd_exist_sec(
 		}
 
 		mem_heap_empty(heap);
-		dict_table_next_uncorrupted_index(node->index);
-	}
+	} while ((node->index = dict_table_get_next_index(node->index)));
 
 	mem_heap_free(heap);
 
@@ -1119,7 +1090,6 @@ row_undo_mod_upd_exist_sec(
 static bool row_undo_mod_parse_undo_rec(undo_node_t* node, bool dict_locked)
 {
 	dict_index_t*	clust_index;
-	byte*		ptr;
 	undo_no_t	undo_no;
 	table_id_t	table_id;
 	trx_id_t	trx_id;
@@ -1134,8 +1104,9 @@ static bool row_undo_mod_parse_undo_rec(undo_node_t* node, bool dict_locked)
 	ut_ad(node->trx->in_rollback);
 	ut_ad(!trx_undo_roll_ptr_is_insert(node->roll_ptr));
 
-	ptr = trx_undo_rec_get_pars(node->undo_rec, &type, &cmpl_info,
-				    &dummy_extern, &undo_no, &table_id);
+	const byte *ptr = trx_undo_rec_get_pars(
+		node->undo_rec, &type, &cmpl_info,
+		&dummy_extern, &undo_no, &table_id);
 	node->rec_type = type;
 
 	if (node->state == UNDO_UPDATE_PERSISTENT) {
@@ -1252,7 +1223,7 @@ row_undo_mod(
 	undo_node_t*	node,	/*!< in: row undo node */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	dberr_t	err;
+	dberr_t	err = DB_SUCCESS;
 	ut_ad(thr_get_trx(thr) == node->trx);
 	const bool dict_locked = node->trx->dict_operation_lock_mode;
 
@@ -1272,23 +1243,20 @@ row_undo_mod(
 
 	/* Skip the clustered index (the first index) */
 	node->index = dict_table_get_next_index(node->index);
-
-	/* Skip all corrupted secondary index */
-	dict_table_skip_corrupt_index(node->index);
-
-	switch (node->rec_type) {
-	case TRX_UNDO_UPD_EXIST_REC:
-		err = row_undo_mod_upd_exist_sec(node, thr);
-		break;
-	case TRX_UNDO_DEL_MARK_REC:
-		err = row_undo_mod_del_mark_sec(node, thr);
-		break;
-	case TRX_UNDO_UPD_DEL_REC:
-		err = row_undo_mod_upd_del_sec(node, thr);
-		break;
-	default:
-		ut_error;
-		err = DB_ERROR;
+	if (node->index) {
+		switch (node->rec_type) {
+		case TRX_UNDO_UPD_EXIST_REC:
+			err = row_undo_mod_upd_exist_sec(node, thr);
+			break;
+		case TRX_UNDO_DEL_MARK_REC:
+			err = row_undo_mod_del_mark_sec(node, thr);
+			break;
+		case TRX_UNDO_UPD_DEL_REC:
+			err = row_undo_mod_upd_del_sec(node, thr);
+			break;
+		default:
+			MY_ASSERT_UNREACHABLE();
+		}
 	}
 
 	if (err == DB_SUCCESS) {

@@ -4359,7 +4359,7 @@ lock_print_info_summary(
 	fprintf(file,
 		"Purge done for trx's n:o < " TRX_ID_FMT
 		" undo n:o < " TRX_ID_FMT " state: %s\n"
-		"History list length %u\n",
+		"History list length %zu\n",
 		purge_sys.tail.trx_no,
 		purge_sys.tail.undo_no,
 		purge_sys.enabled()
@@ -4848,9 +4848,7 @@ Validate a record lock's block */
 static void lock_rec_block_validate(const page_id_t page_id)
 {
 	/* The lock and the block that it is referring to may be freed at
-	this point. We pass BUF_GET_POSSIBLY_FREED to skip a debug check.
-	If the lock exists in lock_rec_validate_page() we assert
-	block->page.status != FREED. */
+	this point. */
 
 	buf_block_t*	block;
 	mtr_t		mtr;
@@ -4867,11 +4865,11 @@ static void lock_rec_block_validate(const page_id_t page_id)
 		block = buf_page_get_gen(
 			page_id,
 			space->zip_size(),
-			RW_X_LATCH, NULL,
+			RW_S_LATCH, NULL,
 			BUF_GET_POSSIBLY_FREED,
 			&mtr, &err);
 
-		ut_ad(!block || block->page.is_freed()
+		ut_ad(!block
 		      || lock_rec_validate_page(block, space->is_latched()));
 
 		mtr_commit(&mtr);

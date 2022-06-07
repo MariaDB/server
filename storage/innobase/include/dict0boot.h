@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,9 +33,6 @@ Created 4/18/1996 Heikki Tuuri
 #include "buf0buf.h"
 #include "dict0dict.h"
 
-/** @return the DICT_HDR block, x-latched */
-#define dict_hdr_get(mtr) buf_page_get					\
-	(page_id_t(DICT_HDR_SPACE, DICT_HDR_PAGE_NO), 0, RW_X_LATCH, mtr)
 /**********************************************************************//**
 Returns a new table, index, or space id. */
 void

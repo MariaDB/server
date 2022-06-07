@@ -256,21 +256,6 @@ func_exit:
 	return(found);
 }
 
-/** Try to truncate the undo logs.
-@param[in,out]	trx	transaction */
-static void row_undo_try_truncate(trx_t* trx)
-{
-	if (trx_undo_t*	undo = trx->rsegs.m_redo.undo) {
-		ut_ad(undo->rseg == trx->rsegs.m_redo.rseg);
-		trx_undo_truncate_end(*undo, trx->undo_no, false);
-	}
-
-	if (trx_undo_t* undo = trx->rsegs.m_noredo.undo) {
-		ut_ad(undo->rseg == trx->rsegs.m_noredo.rseg);
-		trx_undo_truncate_end(*undo, trx->undo_no, true);
-	}
-}
-
 /** Get the latest undo log record for rollback.
 @param[in,out]	node		rollback context
 @return	whether an undo log record was fetched */
@@ -280,7 +265,7 @@ static bool row_undo_rec_get(undo_node_t* node)
 
 	if (trx->pages_undone) {
 		trx->pages_undone = 0;
-		row_undo_try_truncate(trx);
+		trx_undo_try_truncate(*trx);
 	}
 
 	trx_undo_t*	undo	= NULL;
@@ -308,7 +293,7 @@ static bool row_undo_rec_get(undo_node_t* node)
 	}
 
 	if (undo == NULL) {
-		row_undo_try_truncate(trx);
+		trx_undo_try_truncate(*trx);
 		/* Mark any ROLLBACK TO SAVEPOINT completed, so that
 		if the transaction object is committed and reused
 		later, we will default to a full ROLLBACK. */
@@ -327,8 +312,12 @@ static bool row_undo_rec_get(undo_node_t* node)
 	mtr_t	mtr;
 	mtr.start();
 
-	buf_block_t* undo_page = trx_undo_page_get_s_latched(
-		page_id_t(undo->rseg->space->id, undo->top_page_no), &mtr);
+	buf_block_t* undo_page = buf_page_get(
+		page_id_t(undo->rseg->space->id, undo->top_page_no),
+		0, RW_S_LATCH, &mtr);
+	if (!undo_page) {
+		return false;
+	}
 
 	uint16_t offset = undo->top_offset;
 

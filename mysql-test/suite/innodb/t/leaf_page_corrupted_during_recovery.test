@@ -3,13 +3,13 @@
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed read of file '.*test.t1\\.ibd' page");
-call mtr.add_suppression("InnoDB: Background Page read failed to read or decrypt \\[page id: space=\\d+, page number=19\\]");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Failed to read page 19 from file '.*test.t1\\.ibd': Page read from tablespace is corrupted\\.");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Plugin initialization aborted at srv0start\\.cc.* with error Data structure corruption");
 call mtr.add_suppression("\\[ERROR\\] Plugin 'InnoDB' (init function|registration)");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: We detected index corruption");
 call mtr.add_suppression("\\[ERROR\\] (mysqld|mariadbd).*: Index for table 't1' is corrupt; try to repair it");
 call mtr.add_suppression("InnoDB: btr_pcur_open_low level: 0 table: `test`\\.`t1` index: `PRIMARY`");
+call mtr.add_suppression("InnoDB: File '.*test/t1\\.ibd' is corrupted");
 --enable_query_log
 CREATE TABLE t1 (pk INT PRIMARY KEY, c CHAR(255))ENGINE=InnoDB STATS_PERSISTENT=0;
 

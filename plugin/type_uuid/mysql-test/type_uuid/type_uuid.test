@@ -1652,3 +1652,21 @@ DROP TABLE t1;
 --echo #
 
 SELECT uuid() AS f, var_pop('x') FROM dual HAVING f > '';
+
+
+--echo #
+--echo # MDEV-28491 Uuid. "UPDATE/DELETE" not working "WHERE id IN (SELECT id FROM ..)"
+--echo #
+
+CREATE TABLE companies (id uuid, name varchar(10));
+INSERT INTO companies (id) values ('7bc95b06-cc6c-11ec-96c5-0242ac130002');
+
+CREATE TABLE divisions (company_id uuid);
+INSERT INTO divisions (company_id) values ('7bc95b06-cc6c-11ec-96c5-0242ac130002');
+SELECT * FROM companies WHERE id IN (SELECT company_id FROM divisions);
+UPDATE companies SET name = 'value' WHERE id IN (SELECT company_id FROM divisions);
+SELECT * FROM companies;
+DELETE FROM companies WHERE id IN (SELECT company_id FROM divisions);
+SELECT * FROM companies;
+DROP TABLE divisions;
+DROP TABLE companies;

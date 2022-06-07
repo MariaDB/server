@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -557,13 +557,8 @@ opt_search_plan_for_table(
 {
 	plan_t*		plan;
 	dict_index_t*	index;
-	dict_index_t*	best_index;
 	ulint		n_fields;
-	ulint		goodness;
-	ulint		last_op		= 75946965;	/* Eliminate a Purify
-							warning */
-	ulint		best_goodness;
-	ulint		best_last_op = 0; /* remove warning */
+	ulint		best_last_op;
 	que_node_t*	index_plan[256];
 	que_node_t*	best_index_plan[256];
 
@@ -576,28 +571,27 @@ opt_search_plan_for_table(
 
 	/* Calculate goodness for each index of the table */
 
-	index = dict_table_get_first_index(table);
-	best_index = index; /* Eliminate compiler warning */
-	best_goodness = 0;
+	plan->index = index = dict_table_get_first_index(table);
+	ulint best_goodness = opt_calc_index_goodness(
+		index, sel_node, i, best_index_plan, &best_last_op);
 
-	do {
-		goodness = opt_calc_index_goodness(index, sel_node, i,
-						   index_plan, &last_op);
+	while ((index = dict_table_get_next_index(index))) {
+		if (!index->is_btree()) {
+			continue;
+		}
+		ulint last_op;
+		ulint goodness = opt_calc_index_goodness(index, sel_node, i,
+							 index_plan, &last_op);
 		if (goodness > best_goodness) {
-
-			best_index = index;
 			best_goodness = goodness;
+			plan->index = index;
 			n_fields = opt_calc_n_fields_from_goodness(goodness);
 
 			memcpy(best_index_plan, index_plan,
 			       n_fields * sizeof *index_plan);
 			best_last_op = last_op;
 		}
-
-		dict_table_next_uncorrupted_index(index);
-	} while (index);
-
-	plan->index = best_index;
+	}
 
 	n_fields = opt_calc_n_fields_from_goodness(best_goodness);
 
@@ -616,27 +610,25 @@ opt_search_plan_for_table(
 
 		memcpy(plan->tuple_exps, best_index_plan,
 		       n_fields * sizeof *best_index_plan);
-		if (best_last_op == '='
-		    || best_last_op == PARS_LIKE_TOKEN_EXACT
-                    || best_last_op == PARS_LIKE_TOKEN_PREFIX
-                    || best_last_op == PARS_LIKE_TOKEN_SUFFIX
-                    || best_last_op == PARS_LIKE_TOKEN_SUBSTR) {
-			plan->n_exact_match = n_fields;
-		} else {
-			plan->n_exact_match = n_fields - 1;
+
+		switch (best_last_op) {
+		case '=':
+		case PARS_LIKE_TOKEN_EXACT:
+		case PARS_LIKE_TOKEN_PREFIX:
+		case PARS_LIKE_TOKEN_SUFFIX:
+		case PARS_LIKE_TOKEN_SUBSTR:
+			break;
+		default:
+			n_fields--;
 		}
 
+		plan->n_exact_match = n_fields;
 		plan->mode = opt_op_to_search_mode(sel_node->asc,
 						   best_last_op);
 	}
 
-	if (dict_index_is_clust(best_index)
-	    && (plan->n_exact_match >= dict_index_get_n_unique(best_index))) {
-
-		plan->unique_search = TRUE;
-	} else {
-		plan->unique_search = FALSE;
-	}
+	plan->unique_search = plan->index->is_clust()
+		&& plan->n_exact_match >= plan->index->n_uniq;
 
 	plan->old_vers_heap = NULL;
 

@@ -1137,9 +1137,12 @@ row_ins_foreign_check_on_constraint(
 
 		ref = row_build_row_ref(ROW_COPY_POINTERS, index, rec,
 					tmp_heap);
-		btr_pcur_open_with_no_init(clust_index, ref,
-					   PAGE_CUR_LE, BTR_SEARCH_LEAF,
-					   cascade->pcur, 0, mtr);
+		err = btr_pcur_open_with_no_init(clust_index, ref,
+						 PAGE_CUR_LE, BTR_SEARCH_LEAF,
+						 cascade->pcur, 0, mtr);
+		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+			goto nonstandard_exit_func;
+		}
 
 		clust_rec = btr_pcur_get_rec(cascade->pcur);
 		clust_block = btr_pcur_get_block(cascade->pcur);
@@ -1350,7 +1353,10 @@ row_ins_foreign_check_on_constraint(
 
 	/* Restore pcur position */
 
-	pcur->restore_position(BTR_SEARCH_LEAF, mtr);
+	if (pcur->restore_position(BTR_SEARCH_LEAF, mtr)
+	    != btr_pcur_t::SAME_ALL) {
+		err = DB_CORRUPTION;
+	}
 
 	if (tmp_heap) {
 		mem_heap_free(tmp_heap);
@@ -1369,7 +1375,10 @@ nonstandard_exit_func:
 	mtr_commit(mtr);
 	mtr_start(mtr);
 
-	pcur->restore_position(BTR_SEARCH_LEAF, mtr);
+	if (pcur->restore_position(BTR_SEARCH_LEAF, mtr)
+	    != btr_pcur_t::SAME_ALL && err == DB_SUCCESS) {
+		err = DB_CORRUPTION;
+	}
 
 	DBUG_RETURN(err);
 }
@@ -1613,8 +1622,11 @@ row_ins_check_foreign_constraint(
 
 	dtuple_set_n_fields_cmp(entry, foreign->n_fields);
 
-	btr_pcur_open(check_index, entry, PAGE_CUR_GE,
-		      BTR_SEARCH_LEAF, &pcur, &mtr);
+	err = btr_pcur_open(check_index, entry, PAGE_CUR_GE,
+			    BTR_SEARCH_LEAF, &pcur, &mtr);
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+		goto end_scan;
+	}
 
 	/* Scan index records and check if there is a matching record */
 
@@ -1822,7 +1834,7 @@ do_possible_lock_wait:
 	}
 
 exit_func:
-	if (heap != NULL) {
+	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
 
@@ -2021,8 +2033,6 @@ row_ins_scan_sec_index_for_duplicate(
 	int		cmp;
 	ulint		n_fields_cmp;
 	btr_pcur_t	pcur;
-	dberr_t		err		= DB_SUCCESS;
-	ulint		allow_duplicates;
 	rec_offs	offsets_[REC_OFFS_SEC_INDEX_SIZE];
 	rec_offs*	offsets		= offsets_;
 	DBUG_ENTER("row_ins_scan_sec_index_for_duplicate");
@@ -2052,10 +2062,13 @@ row_ins_scan_sec_index_for_duplicate(
 	n_fields_cmp = dtuple_get_n_fields_cmp(entry);
 
 	dtuple_set_n_fields_cmp(entry, n_unique);
+	const auto allow_duplicates = thr_get_trx(thr)->duplicates;
 
-	btr_pcur_open(index, entry, PAGE_CUR_GE, BTR_SEARCH_LEAF, &pcur, mtr);
-
-	allow_duplicates = thr_get_trx(thr)->duplicates;
+	dberr_t err = btr_pcur_open(index, entry, PAGE_CUR_GE, BTR_SEARCH_LEAF,
+				    &pcur, mtr);
+	if (err != DB_SUCCESS) {
+		goto end_scan;
+	}
 
 	/* Scan index records and check if there is a duplicate */
 
@@ -2447,9 +2460,8 @@ row_ins_index_entry_big_rec(
 	mtr_t		mtr;
 	btr_pcur_t	pcur;
 	rec_t*		rec;
-	dberr_t		error;
 
-	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->is_primary());
 
 	DEBUG_SYNC_C_IF_THD(thd, "before_row_ins_extern_latch");
 
@@ -2460,8 +2472,12 @@ row_ins_index_entry_big_rec(
 		index->set_modified(mtr);
 	}
 
-	btr_pcur_open(index, entry, PAGE_CUR_LE, BTR_MODIFY_TREE,
-		      &pcur, &mtr);
+	dberr_t error = btr_pcur_open(index, entry, PAGE_CUR_LE,
+				      BTR_MODIFY_TREE, &pcur, &mtr);
+	if (error != DB_SUCCESS) {
+		return error;
+	}
+
 	rec = btr_pcur_get_rec(&pcur);
 	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
 				  ULINT_UNDEFINED, heap);
@@ -2487,7 +2503,7 @@ extern "C" int thd_is_slave(const MYSQL_THD thd);
 /* Avoid GCC 4.8.5 internal compiler error due to srw_mutex::wr_unlock().
 We would only need this for row_ins_clust_index_entry_low(),
 but GCC 4.8.5 does not support pop_options. */
-# pragma GCC optimize ("no-expensive-optimizations")
+# pragma GCC optimize ("O0")
 #endif
 
 /***************************************************************//**
@@ -2848,7 +2864,7 @@ row_ins_sec_index_entry_low(
 
 	btr_cur_t	cursor;
 	ulint		search_mode	= mode;
-	dberr_t		err		= DB_SUCCESS;
+	dberr_t		err;
 	ulint		n_unique;
 	mtr_t		mtr;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
@@ -2881,10 +2897,6 @@ row_ins_sec_index_entry_low(
 	the function will return in both low_match and up_match of the
 	cursor sensible values */
 
-	if (!thr_get_trx(thr)->check_unique_secondary) {
-		search_mode |= BTR_IGNORE_SEC_UNIQUE;
-	}
-
 	if (dict_index_is_spatial(index)) {
 		cursor.index = index;
 		rtr_init_rtr_info(&rtr_info, false, &cursor, index, false);
@@ -2895,8 +2907,10 @@ row_ins_sec_index_entry_low(
 			search_mode,
 			&cursor, 0, &mtr);
 
-		if (mode == BTR_MODIFY_LEAF && rtr_info.mbr_adj) {
+		if (err == DB_SUCCESS && search_mode == BTR_MODIFY_LEAF
+		    && rtr_info.mbr_adj) {
 			mtr_commit(&mtr);
+			search_mode = mode = BTR_MODIFY_TREE;
 			rtr_clean_rtr_info(&rtr_info, true);
 			rtr_init_rtr_info(&rtr_info, false, &cursor,
 					  index, false);
@@ -2907,13 +2921,10 @@ row_ins_sec_index_entry_low(
 			} else {
 				index->set_modified(mtr);
 			}
-			search_mode &= ulint(~BTR_MODIFY_LEAF);
-			search_mode |= BTR_MODIFY_TREE;
 			err = btr_cur_search_to_nth_level(
 				index, 0, entry, PAGE_CUR_RTREE_INSERT,
 				search_mode,
 				&cursor, 0, &mtr);
-			mode = BTR_MODIFY_TREE;
 		}
 
 		DBUG_EXECUTE_IF(
@@ -2921,6 +2932,10 @@ row_ins_sec_index_entry_low(
 			goto func_exit;});
 
 	} else {
+		if (!thr_get_trx(thr)->check_unique_secondary) {
+			search_mode |= BTR_IGNORE_SEC_UNIQUE;
+		}
+
 		err = btr_cur_search_to_nth_level(
 			index, 0, entry, PAGE_CUR_LE,
 			search_mode,
@@ -2929,13 +2944,7 @@ row_ins_sec_index_entry_low(
 
 	if (err != DB_SUCCESS) {
 		if (err == DB_DECRYPTION_FAILED) {
-			ib_push_warning(thr_get_trx(thr)->mysql_thd,
-				DB_DECRYPTION_FAILED,
-				"Table %s is encrypted but encryption service or"
-				" used key_id is not available. "
-				" Can't continue reading table.",
-				index->table->name.m_name);
-			index->table->file_unreadable = true;
+			btr_decryption_failed(*index);
 		}
 		goto func_exit;
 	}
@@ -3006,11 +3015,14 @@ row_ins_sec_index_entry_low(
 		prevent any insertion of a duplicate by another
 		transaction. Let us now reposition the cursor and
 		continue the insertion. */
-		btr_cur_search_to_nth_level(
+		err = btr_cur_search_to_nth_level(
 			index, 0, entry, PAGE_CUR_LE,
 			(search_mode
 			 & ~(BTR_INSERT | BTR_IGNORE_SEC_UNIQUE)),
 			&cursor, 0, &mtr);
+		if (err != DB_SUCCESS) {
+			goto func_exit;
+		}
 	}
 
 	if (row_ins_must_modify_rec(&cursor)) {
@@ -3590,8 +3602,7 @@ row_ins(
 
 	ut_ad(node->state == INS_NODE_INSERT_ENTRIES);
 
-	while (node->index != NULL) {
-		dict_index_t *index = node->index;
+	while (dict_index_t *index = node->index) {
 		/*
 		   We do not insert history rows into FTS_DOC_ID_INDEX because
 		   it is unique by FTS_DOC_ID only and we do not want to add
@@ -3600,7 +3611,7 @@ row_ins(
 		   FTS_DOC_ID for history is enough.
 		*/
 		const unsigned type = index->type;
-		if (index->type & DICT_FTS
+		if (index->type & (DICT_FTS | DICT_CORRUPT)
 		    || !index->is_committed()) {
 		} else if (!(type & DICT_UNIQUE) || index->n_uniq > 1
 			   || !node->vers_history_row()) {
@@ -3621,12 +3632,6 @@ row_ins(
 
 		node->index = dict_table_get_next_index(node->index);
 		++node->entry;
-
-		/* Skip corrupted secondary index and its entry */
-		while (node->index && node->index->is_corrupted()) {
-			node->index = dict_table_get_next_index(node->index);
-			++node->entry;
-		}
 	}
 
 	ut_ad(node->entry == node->entry_list.end());

@@ -405,9 +405,6 @@ start_log:
 			    buf, byte_offset, srv_sort_buf_size)
 		    != DB_SUCCESS) {
 write_failed:
-			/* We set the flag directly instead of invoking
-			dict_set_corrupted_index_cache_only(index) here,
-			because the index is not "public" yet. */
 			index->type |= DICT_CORRUPT;
 		}
 
@@ -1681,11 +1678,13 @@ row_log_table_apply_delete_low(
 
 	btr_cur_pessimistic_delete(&error, FALSE, btr_pcur_get_btr_cur(pcur),
 				   BTR_CREATE_FLAG, false, mtr);
-	mtr_commit(mtr);
-
 	if (error != DB_SUCCESS) {
-		return(error);
+err_exit:
+		mtr->commit();
+		return error;
 	}
+
+	mtr->commit();
 
 	while ((index = dict_table_get_next_index(index)) != NULL) {
 		if (index->type & DICT_FTS) {
@@ -1696,9 +1695,12 @@ row_log_table_apply_delete_low(
 			row, ext, index, heap);
 		mtr->start();
 		index->set_modified(*mtr);
-		btr_pcur_open(index, entry, PAGE_CUR_LE,
-			      BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-			      pcur, mtr);
+		error = btr_pcur_open(index, entry, PAGE_CUR_LE,
+				      BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
+				      pcur, mtr);
+		if (error) {
+			goto err_exit;
+		}
 #ifdef UNIV_DEBUG
 		switch (btr_pcur_get_btr_cur(pcur)->flag) {
 		case BTR_CUR_DELETE_REF:
@@ -1777,9 +1779,12 @@ row_log_table_apply_delete(
 
 	mtr_start(&mtr);
 	index->set_modified(mtr);
-	btr_pcur_open(index, old_pk, PAGE_CUR_LE,
-		      BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-		      &pcur, &mtr);
+	dberr_t err = btr_pcur_open(index, old_pk, PAGE_CUR_LE,
+				    BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
+				    &pcur, &mtr);
+	if (err != DB_SUCCESS) {
+		goto all_done;
+	}
 #ifdef UNIV_DEBUG
 	switch (btr_pcur_get_btr_cur(&pcur)->flag) {
 	case BTR_CUR_DELETE_REF:
@@ -1806,7 +1811,7 @@ all_done:
 		ROW_T_INSERT was skipped or
 		ROW_T_UPDATE was interpreted as ROW_T_DELETE
 		due to BLOBs having been freed by rollback. */
-		return(DB_SUCCESS);
+		return err;
 	}
 
 	offsets = rec_get_offsets(btr_pcur_get_rec(&pcur), index, nullptr,
@@ -1908,10 +1913,24 @@ row_log_table_apply_update(
 		return(error);
 	}
 
-	mtr_start(&mtr);
+	mtr.start();
 	index->set_modified(mtr);
-	btr_pcur_open(index, old_pk, PAGE_CUR_LE,
-		      BTR_MODIFY_TREE, &pcur, &mtr);
+	error = btr_pcur_open(index, old_pk, PAGE_CUR_LE,
+			      BTR_MODIFY_TREE, &pcur, &mtr);
+	if (error != DB_SUCCESS) {
+func_exit:
+		mtr.commit();
+func_exit_committed:
+		ut_ad(mtr.has_committed());
+
+		if (error != DB_SUCCESS) {
+			/* Report the erroneous row using the new
+			version of the table. */
+			innobase_row_to_mysql(dup->table, log->table, row);
+		}
+
+		return error;
+	}
 #ifdef UNIV_DEBUG
 	switch (btr_pcur_get_btr_cur(&pcur)->flag) {
 	case BTR_CUR_DELETE_REF:
@@ -1961,18 +1980,7 @@ row_log_table_apply_update(
 		index, entry, btr_pcur_get_rec(&pcur), cur_offsets,
 		false, NULL, heap, dup->table, &error);
 	if (error != DB_SUCCESS || !update->n_fields) {
-func_exit:
-		mtr.commit();
-func_exit_committed:
-		ut_ad(mtr.has_committed());
-
-		if (error != DB_SUCCESS) {
-			/* Report the erroneous row using the new
-			version of the table. */
-			innobase_row_to_mysql(dup->table, log->table, row);
-		}
-
-		return error;
+		goto func_exit;
 	}
 
 	const bool	pk_updated
@@ -2069,7 +2077,7 @@ func_exit_committed:
 			dtuple_copy_v_fields(old_row, old_pk);
 		}
 
-		mtr_commit(&mtr);
+		mtr.commit();
 
 		entry = row_build_index_entry(old_row, old_ext, index, heap);
 		if (!entry) {
@@ -2077,7 +2085,7 @@ func_exit_committed:
 			return(DB_CORRUPTION);
 		}
 
-		mtr_start(&mtr);
+		mtr.start();
 		index->set_modified(mtr);
 
 		if (ROW_FOUND != row_search_index_entry(
@@ -2095,7 +2103,7 @@ func_exit_committed:
 			break;
 		}
 
-		mtr_commit(&mtr);
+		mtr.commit();
 
 		entry = row_build_index_entry(row, NULL, index, heap);
 		error = row_ins_sec_index_entry_low(
@@ -2109,7 +2117,7 @@ func_exit_committed:
 			thr_get_trx(thr)->error_key_num = n_index;
 		}
 
-		mtr_start(&mtr);
+		mtr.start();
 		index->set_modified(mtr);
 	}
 
@@ -3067,11 +3075,14 @@ row_log_apply_op_low(
 	record. The operation may already have been performed,
 	depending on when the row in the clustered index was
 	scanned. */
-	btr_cur_search_to_nth_level(index, 0, entry, PAGE_CUR_LE,
-				    has_index_lock
-				    ? BTR_MODIFY_TREE
-				    : BTR_MODIFY_LEAF,
-				    &cursor, 0, &mtr);
+	*error = btr_cur_search_to_nth_level(index, 0, entry, PAGE_CUR_LE,
+					     has_index_lock
+					     ? BTR_MODIFY_TREE
+					     : BTR_MODIFY_LEAF,
+					     &cursor, 0, &mtr);
+	if (UNIV_UNLIKELY(*error != DB_SUCCESS)) {
+		goto func_exit;
+	}
 
 	ut_ad(dict_index_get_n_unique(index) > 0);
 	/* This test is somewhat similar to row_ins_must_modify_rec(),
@@ -3105,9 +3116,10 @@ row_log_apply_op_low(
 				goto func_exit;
 			}
 
-			if (btr_cur_optimistic_delete(
-				    &cursor, BTR_CREATE_FLAG, &mtr)) {
-				*error = DB_SUCCESS;
+			*error = btr_cur_optimistic_delete(
+				&cursor, BTR_CREATE_FLAG, &mtr);
+
+			if (*error != DB_FAIL) {
 				break;
 			}
 
@@ -3117,10 +3129,12 @@ row_log_apply_op_low(
 				mtr_commit(&mtr);
 				mtr_start(&mtr);
 				index->set_modified(mtr);
-				btr_cur_search_to_nth_level(
+				*error = btr_cur_search_to_nth_level(
 					index, 0, entry, PAGE_CUR_LE,
 					BTR_MODIFY_TREE, &cursor, 0, &mtr);
-
+				if (UNIV_UNLIKELY(*error != DB_SUCCESS)) {
+					goto func_exit;
+				}
 				/* No other thread than the current one
 				is allowed to modify the index tree.
 				Thus, the record should still exist. */
@@ -3219,9 +3233,12 @@ insert_the_rec:
 				mtr_commit(&mtr);
 				mtr_start(&mtr);
 				index->set_modified(mtr);
-				btr_cur_search_to_nth_level(
+				*error = btr_cur_search_to_nth_level(
 					index, 0, entry, PAGE_CUR_LE,
 					BTR_MODIFY_TREE, &cursor, 0, &mtr);
+				if (*error != DB_SUCCESS) {
+					break;
+				}
 			}
 
 			/* We already determined that the
@@ -3692,9 +3709,6 @@ func_exit:
 		}
 		/* fall through */
 	default:
-		/* We set the flag directly instead of invoking
-		dict_set_corrupted_index_cache_only(index) here,
-		because the index is not "public" yet. */
 		index->type |= DICT_CORRUPT;
 	}
 
@@ -3739,8 +3753,7 @@ row_log_apply(
 
 	index->lock.x_lock(SRW_LOCK_CALL);
 
-	if (!dict_table_is_corrupted(index->table)
-	    && index->online_log) {
+	if (index->online_log && !index->table->corrupted) {
 		error = row_log_apply_ops(trx, index, &dup, stage);
 	} else {
 		error = DB_SUCCESS;
@@ -3748,9 +3761,6 @@ row_log_apply(
 
 	if (error != DB_SUCCESS) {
 		ut_ad(index->table->space);
-		/* We set the flag directly instead of invoking
-		dict_set_corrupted_index_cache_only(index) here,
-		because the index is not "public" yet. */
 		index->type |= DICT_CORRUPT;
 		index->table->drop_aborted = TRUE;
 
@@ -3779,8 +3789,9 @@ dberr_t row_log_get_error(const dict_index_t *index)
   return index->online_log->error;
 }
 
-void dict_table_t::clear(que_thr_t *thr)
+dberr_t dict_table_t::clear(que_thr_t *thr)
 {
+  dberr_t err= DB_SUCCESS;
   for (dict_index_t *index= UT_LIST_GET_FIRST(indexes); index;
        index= UT_LIST_GET_NEXT(indexes, index))
   {
@@ -3798,8 +3809,10 @@ void dict_table_t::clear(que_thr_t *thr)
       MY_ASSERT_UNREACHABLE();
       break;
     }
-    index->clear(thr);
+    if (dberr_t err_index= index->clear(thr))
+      err= err_index;
   }
+  return err;
 }
 
 const rec_t *
