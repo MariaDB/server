@@ -4514,7 +4514,7 @@ int schema_tables_add(THD *thd, Dynamic_array<LEX_CSTRING*> *files,
 
 static int
 make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
-                     LEX *lex, LOOKUP_FIELD_VALUES *lookup_field_vals,
+                     LOOKUP_FIELD_VALUES *lookup_field_vals,
                      LEX_CSTRING *db_name)
 {
   char path[FN_REFLEN + 1];
@@ -5309,7 +5309,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #endif
     {
       Dynamic_array<LEX_CSTRING*> table_names(PSI_INSTRUMENT_MEM);
-      int res= make_table_name_list(thd, &table_names, lex,
+      int res= make_table_name_list(thd, &table_names,
                                     &plan->lookup_field_vals, db_name);
       if (unlikely(res == 2))   /* Not fatal error, continue */
         continue;
