@@ -56,7 +56,7 @@ EOF
 # MDEV-19168 Reload SSL certificate
 # This test reloads server SSL certs ./mysqladmin flush-ssl, and checks that new SSL
 # connection use new certificate.
-# SWtatus variable Ssl_server_not_after is used to tell the old certificate from new.
+# Status variable Ssl_server_not_after is used to tell the old certificate from new.
 #
 
 source include/have_ssl_communication.inc;
@@ -72,8 +72,7 @@ copy_file $MYSQL_TEST_DIR/std_data/server-key.pem $ssl_key;
 copy_file $MYSQL_TEST_DIR/std_data/server-cert.pem $ssl_cert;
 
 let $restart_parameters=--ssl-key=$ssl_key --ssl-cert=$ssl_cert;
---source include/kill_mysqld.inc
---source include/start_mysqld.inc
+--source include/restart_mysqld.inc
 
 connect  ssl_con,localhost,root,,,,,SSL;
 SELECT VARIABLE_VALUE INTO @ssl_not_after FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_server_not_after';
@@ -94,7 +93,6 @@ exec $MYSQL --ssl  -e  "SELECT IF(VARIABLE_VALUE <> '$ssl_not_after', 'OK', 'FAI
 --echo # Cleanup
 remove_file $ssl_cert;
 remove_file $ssl_key;
-# restart with usuall SSL
+# restart with usual SSL
 let $restart_parameters=;
---source include/kill_mysqld.inc
---source include/start_mysqld.inc
+--source include/restart_mysqld.inc
