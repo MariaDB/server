@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1304,7 +1304,8 @@ dict_sys_tables_rec_read(
 	high bit set in n_cols, and flags would be zero.
 	MySQL 4.1 was the first version to support innodb_file_per_table,
 	that is, *space_id != 0. */
-	if (not_redundant || *space_id != 0 || *n_cols & DICT_N_COLS_COMPACT) {
+	if (not_redundant || *space_id != 0 || *n_cols & DICT_N_COLS_COMPACT
+	    || fil_system.sys_space->full_crc32()) {
 
 		/* Get flags2 from SYS_TABLES.MIX_LEN */
 		field = rec_get_nth_field_old(
