@@ -1073,7 +1073,7 @@ public:
       my_snprintf(m_view_access_denied_message, MYSQL_ERRMSG_SIZE,
                   ER_THD(thd, ER_TABLEACCESS_DENIED_ERROR), "SHOW VIEW",
                   m_sctx->priv_user,
-                  m_sctx->host_or_ip, m_top_view->get_table_name());
+                  m_sctx->host_or_ip, m_top_view->get_table_name().str);
     }
     return m_view_access_denied_message_ptr;
   }

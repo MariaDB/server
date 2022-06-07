@@ -2880,7 +2880,7 @@ struct TABLE_LIST: public Table_name
      @brief Returns the name of the database that the referenced table belongs
      to.
   */
-  const char *get_db_name() const { return view != NULL ? view_db.str : db.str; }
+  const LEX_CSTRING &get_db_name() const { return view != NULL ? view_db : db; }
 
   /**
      @brief Returns the name of the table that this TABLE_LIST represents.
@@ -2888,7 +2888,7 @@ struct TABLE_LIST: public Table_name
      @details The unqualified table name or view name for a table or view,
      respectively.
    */
-  const char *get_table_name() const { return view != NULL ? view_name.str : table_name.str; }
+  const LEX_CSTRING &get_table_name() const { return view != NULL ? view_name : table_name; }
   bool is_active_sjm();
   bool is_sjm_scan_table();
   bool is_jtbm() { return MY_TEST(jtbm_subselect != NULL); }

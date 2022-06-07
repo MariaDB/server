@@ -3838,7 +3838,7 @@ check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
     //denies with that.
 
     if (check_access(thd, want_access,
-                     table_ref->get_db_name(),
+                     table_ref->get_db_name().str,
                      &table_ref->grant.privilege,
                      &table_ref->grant.m_internal,
                      0, no_errors))
@@ -8517,8 +8517,8 @@ static int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       continue;					// Add next user
     }
 
-    db_name= table_list->get_db_name();
-    table_name= table_list->get_table_name();
+    db_name= table_list->get_db_name().str;
+    table_name= table_list->get_table_name().str;
 
     /* Find/create cached table grant */
     grant_table= table_hash_search(Str->host.str, NullS, db_name,
@@ -9561,8 +9561,8 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
 
     const ACL_internal_table_access *access=
       get_cached_table_access(&t_ref->grant.m_internal,
-                              t_ref->get_db_name(),
-                              t_ref->get_table_name());
+                              t_ref->get_db_name().str,
+                              t_ref->get_table_name().str);
 
     /* TODO(cvicentiu) evaluate internal tables interaction with denies. */
     if (access)
@@ -9590,9 +9590,9 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     */
     //TODO(cvicentiu) database denies need to be accounted for...
     //TODO(cvicentiu) ugly constructing lex_cstring here.
-    DBUG_ASSERT(t_ref->get_db_name());
-    LEX_CSTRING table_db{t_ref->get_db_name(), strlen(t_ref->get_db_name())};
-    privilege_t deny_mask= acl_get_effective_deny_mask(sctx, table_db);
+    DBUG_ASSERT(t_ref->get_db_name().str);
+    privilege_t deny_mask= acl_get_effective_deny_mask(sctx,
+                                                       t_ref->get_db_name());
 
     want_access&= ~(sctx->master_access & ~deny_mask);
     if (!want_access)
@@ -9661,14 +9661,14 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     }
 
     grant_table= table_hash_search(sctx->host, sctx->ip,
-                                   t_ref->get_db_name(),
+                                   t_ref->get_db_name().str,
                                    sctx->priv_user,
-                                   t_ref->get_table_name(),
+                                   t_ref->get_table_name().str,
                                    FALSE);
     if (sctx->priv_role[0])
-      grant_table_role= table_hash_search("", NULL, t_ref->get_db_name(),
+      grant_table_role= table_hash_search("", NULL, t_ref->get_db_name().str,
                                           sctx->priv_role,
-                                          t_ref->get_table_name(),
+                                          t_ref->get_table_name().str,
                                           TRUE);
 
     const bool no_grant_table_rights=
@@ -9729,7 +9729,7 @@ err:
              command,
              sctx->priv_user,
              sctx->host_or_ip,
-             tl ? tl->get_table_name() : "unknown");
+             tl ? tl->get_table_name().str : "unknown");
   }
   DBUG_RETURN(TRUE);
 }
