@@ -1247,11 +1247,6 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_ha_hash.array.size_of_element);
 
     trx->thd = (THD*) thd;
-    if (thd)
-      trx->thd_hash_value = my_calc_hash(&spider_allocated_thds,
-        (uchar*) thd, sizeof(THD *));
-    else
-      trx->thd_hash_value = 0;
     pthread_mutex_lock(&spider_thread_id_mutex);
     trx->spider_thread_id = spider_thread_id;
     ++spider_thread_id;

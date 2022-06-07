@@ -654,11 +654,11 @@ result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER S
 	
 query	CREATE DATABASE
 attrs	COLLATE DEFAULT CHARACTER SET utf8mb4 CHARACTER SET latin1
-result	ERROR: COLLATION 'utf8mb4_general_ci' is not valid for CHARACTER SET 'latin1'
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
 	
 query	CREATE DATABASE
 attrs	COLLATE utf8mb4_bin CHARACTER SET utf8mb4 CHARACTER SET latin1
-result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
 	
 query	CREATE DATABASE
 attrs	COLLATE latin1_swedish_ci CHARACTER SET utf8mb4 CHARACTER SET latin1
@@ -674,7 +674,7 @@ result	ERROR: Conflicting declarations: 'CHARACTER SET DEFAULT (utf8mb4)' and 'C
 	
 query	CREATE DATABASE
 attrs	CHARACTER SET utf8mb4 COLLATE DEFAULT CHARACTER SET latin1
-result	ERROR: COLLATION 'utf8mb4_general_ci' is not valid for CHARACTER SET 'latin1'
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
 	
 query	CREATE DATABASE
 attrs	COLLATE utf8mb4_bin COLLATE DEFAULT CHARACTER SET latin1
@@ -694,7 +694,7 @@ result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
 	
 query	CREATE DATABASE
 attrs	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin CHARACTER SET latin1
-result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
 	
 query	CREATE DATABASE
 attrs	COLLATE DEFAULT COLLATE utf8mb4_bin CHARACTER SET latin1
@@ -774,7 +774,7 @@ result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER S
 	
 query	CREATE DATABASE
 attrs	COLLATE DEFAULT CHARACTER SET latin1 CHARACTER SET utf8mb4
-result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
 	
 query	CREATE DATABASE
 attrs	COLLATE utf8mb4_bin CHARACTER SET latin1 CHARACTER SET utf8mb4
@@ -782,11 +782,11 @@ result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
 	
 query	CREATE DATABASE
 attrs	COLLATE latin1_swedish_ci CHARACTER SET latin1 CHARACTER SET utf8mb4
-result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
 	
 query	CREATE DATABASE
 attrs	COLLATE latin1_bin CHARACTER SET latin1 CHARACTER SET utf8mb4
-result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
 	
 query	CREATE DATABASE
 attrs	CHARACTER SET latin1 CHARACTER SET utf8mb4 CHARACTER SET utf8mb4
@@ -802,7 +802,7 @@ result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
 	
 query	CREATE DATABASE
 attrs	CHARACTER SET latin1 COLLATE DEFAULT CHARACTER SET utf8mb4
-result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
 	
 query	CREATE DATABASE
 attrs	COLLATE utf8mb4_bin COLLATE DEFAULT CHARACTER SET utf8mb4
@@ -838,7 +838,7 @@ result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8
 	
 query	CREATE DATABASE
 attrs	CHARACTER SET latin1 COLLATE latin1_swedish_ci CHARACTER SET utf8mb4
-result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
 	
 query	CREATE DATABASE
 attrs	CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci CHARACTER SET utf8mb4
@@ -866,7 +866,7 @@ result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
 	
 query	CREATE DATABASE
 attrs	CHARACTER SET latin1 COLLATE latin1_bin CHARACTER SET utf8mb4
-result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
 	
 query	CREATE DATABASE
 attrs	CHARACTER SET utf8mb4 COLLATE latin1_bin CHARACTER SET utf8mb4

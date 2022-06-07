@@ -634,7 +634,6 @@ typedef struct st_spider_transaction
   bool               updated_in_this_trx;
 
   THD                *thd;
-  my_hash_value_type thd_hash_value;
   XID                xid;
   HASH               trx_conn_hash;
   uint               trx_conn_hash_id;

@@ -203,6 +203,7 @@ public:
   bool with_collate() const { return m_with_collate; }
   CHARSET_INFO *find_bin_collation() const;
   CHARSET_INFO *find_default_collation() const;
+  bool raise_if_charsets_differ(const Lex_exact_charset &cs) const;
   bool raise_if_not_applicable(const Lex_exact_collation &cl) const;
   /*
     Add another COLLATE clause (exact or context).
@@ -281,14 +282,17 @@ public:
     TYPE_EMPTY= 0,
     TYPE_CHARACTER_SET= 1,
     TYPE_COLLATE_EXACT= 2,
-    TYPE_COLLATE_CONTEXTUALLY_TYPED= 3
+    TYPE_CHARACTER_SET_COLLATE_EXACT= 3,
+    TYPE_COLLATE_CONTEXTUALLY_TYPED= 4
   };
 
 // Number of bits required to store enum Type values
 
-#define LEX_CHARSET_COLLATION_TYPE_BITS 2
-  static_assert(((1<<LEX_CHARSET_COLLATION_TYPE_BITS)-1) >=
-                 TYPE_COLLATE_CONTEXTUALLY_TYPED,
+#define LEX_CHARSET_COLLATION_TYPE_BITS 3
+#define LEX_CHARSET_COLLATION_TYPE_MASK ((1<<LEX_CHARSET_COLLATION_TYPE_BITS)-1)
+
+  static_assert(LEX_CHARSET_COLLATION_TYPE_MASK >=
+                TYPE_COLLATE_CONTEXTUALLY_TYPED,
                  "Lex_exact_charset_extended_collation_attrs_st::Type bits");
 
 protected:
@@ -330,37 +334,37 @@ public:
   }
   void init(const Lex_exact_charset_opt_extended_collate &cscl)
   {
-    cscl.with_collate() ? init(cscl.collation()) :
-                          init(cscl.charset());
+    if (cscl.with_collate())
+      init(cscl.collation().charset_info(), TYPE_CHARACTER_SET_COLLATE_EXACT);
+    else
+      init(cscl.charset());
   }
   bool is_empty() const
   {
     return m_type == TYPE_EMPTY;
   }
-  void set_charset(CHARSET_INFO *cs)
+  void set_charset(const Lex_exact_charset &cs)
   {
-    DBUG_ASSERT(cs);
-    m_ci= cs;
+    m_ci= cs.charset_info();
     m_type= TYPE_CHARACTER_SET;
   }
-  bool set_charset_collate_default(CHARSET_INFO *cs)
+  bool set_charset_collate_default(const Lex_exact_charset &cs)
   {
-    DBUG_ASSERT(cs);
-    if (!(cs= Lex_exact_charset_opt_extended_collate(cs, true).
+    CHARSET_INFO *ci;
+    if (!(ci= Lex_exact_charset_opt_extended_collate(cs).
                 find_default_collation()))
       return true;
-    m_ci= cs;
-    m_type= TYPE_COLLATE_EXACT;
+    m_ci= ci;
+    m_type= TYPE_CHARACTER_SET_COLLATE_EXACT;
     return false;
   }
-  bool set_charset_collate_binary(CHARSET_INFO *cs)
+  bool set_charset_collate_binary(const Lex_exact_charset &cs)
   {
-    DBUG_ASSERT(cs);
-    if (!(cs= Lex_exact_charset_opt_extended_collate(cs, true).
-                find_bin_collation()))
+    CHARSET_INFO *ci;
+    if (!(ci= Lex_exact_charset_opt_extended_collate(cs).find_bin_collation()))
       return true;
-    m_ci= cs;
-    m_type= TYPE_COLLATE_EXACT;
+    m_ci= ci;
+    m_type= TYPE_CHARACTER_SET_COLLATE_EXACT;
     return false;
   }
   void set_collate_default()
@@ -407,6 +411,7 @@ public:
       return merge_exact_collation(Lex_exact_collation(cl.charset_info()));
     case TYPE_COLLATE_CONTEXTUALLY_TYPED:
     case TYPE_CHARACTER_SET:
+    case TYPE_CHARACTER_SET_COLLATE_EXACT:
       break;
     }
     DBUG_ASSERT(0);
@@ -430,6 +435,7 @@ public:
       return merge_exact_collation(Lex_exact_collation(cl.charset_info()));
     case TYPE_COLLATE_CONTEXTUALLY_TYPED:
     case TYPE_CHARACTER_SET:
+    case TYPE_CHARACTER_SET_COLLATE_EXACT:
       break;
     }
     DBUG_ASSERT(0);
@@ -527,33 +533,18 @@ class Lex_extended_charset_extended_collation_attrs_st:
     order of CHARACTER SET clauses in case of conflicts.
   */
   charset_type_t m_charset_order;
-  /*
-    The parent class Lex_exact_charset_extended_collation_attrs_st
-    does not let know if a "COLLATE cl_exact" was used in combination with
-    "CHARACTER SET cs_exact" or just alone.
-    Here we need to distinguish:
-    - CHARACTER SET cs_exact COLLATE cl_exact, or
-    - COLLATE cl_exact CHARACTER SET cs_exact
-    versus just:
-    - COLLATE cl_exact
-    to produce better error messages in case of conflicts.
-    So let's add a flag member:
-  */
-  bool m_had_charset_exact;
 public:
   void init()
   {
     Lex_opt_context_charset_st::init();
     Lex_exact_charset_extended_collation_attrs_st::init();
     m_charset_order= CHARSET_TYPE_EMPTY;
-    m_had_charset_exact= false;
   }
   void init(const Lex_exact_charset_opt_extended_collate &c)
   {
     Lex_opt_context_charset_st::init();
     Lex_exact_charset_extended_collation_attrs_st::init(c);
     m_charset_order= CHARSET_TYPE_EXACT;
-    m_had_charset_exact= true;
   }
   bool is_empty() const
   {

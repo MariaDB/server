@@ -704,7 +704,9 @@ public:
     m_handler= handler;
     m_ci= coll.charset_info();
     Lex_length_and_dec_st::operator=(length_and_dec);
-    m_collation_type= ((uint8) coll.type()) & 0x3;
+    // Using bit-and to avoid the warning:
+    // conversion from ‘uint8’ to ‘unsigned char:3’ may change value
+    m_collation_type= ((uint8) coll.type()) & LEX_CHARSET_COLLATION_TYPE_MASK;
   }
   void set(const Type_handler *handler,
            const Lex_column_charset_collation_attrs_st &coll)
@@ -712,7 +714,9 @@ public:
     m_handler= handler;
     m_ci= coll.charset_info();
     Lex_length_and_dec_st::reset();
-    m_collation_type= ((uint8) coll.type()) & 0x3;
+    // Using bit-and to avoid the warning:
+    // conversion from ‘uint8’ to ‘unsigned char:3’ may change value
+    m_collation_type= ((uint8) coll.type()) & LEX_CHARSET_COLLATION_TYPE_MASK;
   }
   void set(const Type_handler *handler, CHARSET_INFO *cs= NULL)
   {

@@ -73,6 +73,20 @@ bool Lex_exact_charset::
 
 
 bool Lex_exact_charset_opt_extended_collate::
+  raise_if_charsets_differ(const Lex_exact_charset &cs) const
+{
+  if (!my_charset_same(m_ci, cs.charset_info()))
+  {
+    my_error(ER_CONFLICTING_DECLARATIONS, MYF(0),
+             "CHARACTER SET ", m_ci->cs_name.str,
+             "CHARACTER SET ", cs.charset_info()->cs_name.str);
+    return true;
+  }
+  return false;
+}
+
+
+bool Lex_exact_charset_opt_extended_collate::
   raise_if_not_applicable(const Lex_exact_collation &cl) const
 {
   if (!my_charset_same(m_ci, cl.charset_info()))
@@ -386,8 +400,7 @@ CHARSET_INFO *Lex_exact_charset_extended_collation_attrs_st::
   case TYPE_EMPTY:
     return def;
   case TYPE_CHARACTER_SET:
-    DBUG_ASSERT(m_ci);
-    return m_ci;
+  case TYPE_CHARACTER_SET_COLLATE_EXACT:
   case TYPE_COLLATE_EXACT:
     DBUG_ASSERT(m_ci);
     return m_ci;
@@ -418,11 +431,13 @@ bool Lex_exact_charset_extended_collation_attrs_st::
   case TYPE_CHARACTER_SET:
     {
       // CHARACTER SET latin1 .. COLLATE latin1_swedish_ci
-      if (Lex_exact_charset(m_ci).raise_if_not_applicable(cl))
+      Lex_exact_charset_opt_extended_collate tmp(m_ci, false);
+      if (tmp.merge_exact_collation(cl))
         return true;
-      *this= Lex_exact_charset_extended_collation_attrs(cl);
+      *this= Lex_exact_charset_extended_collation_attrs(tmp);
       return false;
     }
+  case TYPE_CHARACTER_SET_COLLATE_EXACT:
   case TYPE_COLLATE_EXACT:
     {
       // [CHARACTER SET latin1] COLLATE latin1_bin .. COLLATE latin1_bin
@@ -460,9 +475,10 @@ bool Lex_exact_charset_extended_collation_attrs_st::
       Lex_exact_charset_opt_extended_collate tmp(m_ci, false);
       if (tmp.merge_context_collation(cl))
         return true;
-      *this= Lex_exact_charset_extended_collation_attrs(tmp.collation());
+      *this= Lex_exact_charset_extended_collation_attrs(tmp);
       return false;
     }
+  case TYPE_CHARACTER_SET_COLLATE_EXACT:
   case TYPE_COLLATE_EXACT:
     // [CHARACTER SET latin1] COLLATE latin1_swedish_ci .. COLLATE DEFAULT
     return Lex_exact_collation(m_ci).
@@ -538,7 +554,15 @@ bool Lex_exact_charset_extended_collation_attrs_st::
 
   case TYPE_COLLATE_EXACT:
     // COLLATE latin1_bin .. CHARACTER SET cs
-    return cs.raise_if_not_applicable(Lex_exact_collation(m_ci));
+    if (cs.raise_if_not_applicable(Lex_exact_collation(m_ci)))
+      return true;
+    m_type= TYPE_CHARACTER_SET_COLLATE_EXACT;
+    return false;
+
+  case TYPE_CHARACTER_SET_COLLATE_EXACT:
+    // CHARACTER SET cs1 COLLATE cl .. CHARACTER SET cs2
+    return Lex_exact_charset_opt_extended_collate(m_ci, true).
+             raise_if_charsets_differ(cs);
 
   case TYPE_COLLATE_CONTEXTUALLY_TYPED:
     // COLLATE DEFAULT .. CHARACTER SET cs
@@ -546,7 +570,7 @@ bool Lex_exact_charset_extended_collation_attrs_st::
       Lex_exact_charset_opt_extended_collate tmp(cs);
       if (tmp.merge_context_collation(Lex_context_collation(m_ci)))
         return true;
-      *this= Lex_exact_charset_extended_collation_attrs(tmp.collation());
+      *this= Lex_exact_charset_extended_collation_attrs(tmp);
       return false;
     }
   }
@@ -567,7 +591,6 @@ bool Lex_extended_charset_extended_collation_attrs_st::merge_charset_default()
 bool Lex_extended_charset_extended_collation_attrs_st::
        merge_exact_charset(const Lex_exact_charset &cs)
 {
-  m_had_charset_exact= true;
   if (m_charset_order == CHARSET_TYPE_EMPTY)
     m_charset_order= CHARSET_TYPE_EXACT;
   return Lex_exact_charset_extended_collation_attrs_st::merge_exact_charset(cs);
@@ -621,6 +644,7 @@ Lex_extended_charset_extended_collation_attrs_st::
     }
     return m_ci;
 
+  case TYPE_CHARACTER_SET_COLLATE_EXACT:
   case TYPE_COLLATE_EXACT:
   {
     /*
@@ -629,7 +653,7 @@ Lex_extended_charset_extended_collation_attrs_st::
         [ CHARACTER SET cs_exact ]
         CHARACTER SET DEFAULT;
     */
-    if (m_had_charset_exact &&
+    if (m_type == TYPE_CHARACTER_SET_COLLATE_EXACT &&
         raise_if_charset_conflicts_with_default(ctx.charset_default()))
     {
       /*
