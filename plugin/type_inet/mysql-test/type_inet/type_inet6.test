@@ -1613,6 +1613,7 @@ SELECT IF(1, '::', a) AS f FROM t1 GROUP BY 'foo' HAVING f != '::';
 SELECT IF(1, '::', a) AS f FROM t1 GROUP BY 'foo' HAVING f != '::1';
 DROP TABLE t1;
 
+
 --echo #
 --echo # MDEV-28491 Uuid. "UPDATE/DELETE" not working "WHERE id IN (SELECT id FROM ..)"
 --echo #

@@ -553,14 +553,12 @@ void _ma_mark_file_crashed(MARIA_SHARE *share)
 {
   uchar buff[2];
   DBUG_ENTER("_ma_mark_file_crashed");
-  CRASH_IF_S3_TABLE(share);
 
   share->state.changed|= STATE_CRASHED;
   if (share->no_status_updates)
     DBUG_VOID_RETURN;                           /* Safety */
 
   mi_int2store(buff, share->state.changed);
-
 
   /*
     We can ignore the errors, as if the mark failed, there isn't anything

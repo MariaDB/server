@@ -44,6 +44,9 @@ my_bool _ma_read_cache(MARIA_HA *handler, IO_CACHE *info, uchar *buff,
   DBUG_ENTER("_ma_read_cache");
   DBUG_ASSERT(!(info->myflags & MY_ENCRYPT));
 
+  if (unlikely(pos >= info->end_of_file) && (flag & READING_HEADER))
+    DBUG_RETURN(-1);
+
   if (pos < info->pos_in_file)
   {
     read_length=length;
@@ -95,14 +98,17 @@ my_bool _ma_read_cache(MARIA_HA *handler, IO_CACHE *info, uchar *buff,
   if (!(flag & READING_HEADER) || (int) read_length == -1 ||
       read_length+in_buff_length < 3)
   {
+    if ((flag & READING_HEADER) && read_length + in_buff_length == 0)
+      DBUG_RETURN(-1);                          /* End of file */
+
     DBUG_PRINT("error",
-               ("Error %d reading next-multi-part block (Got %d bytes)",
-                my_errno, (int) read_length));
+               ("Error %d reading next-multi-part block (Got %d of %d bytes)",
+                my_errno, (int) read_length, (int) length));
     if (!my_errno || my_errno == HA_ERR_FILE_TOO_SHORT)
     {
       if (!handler->in_check_table)
-        _ma_set_fatal_error(handler->s, HA_ERR_WRONG_IN_RECORD);
-      else
+        _ma_set_fatal_error(handler->s, HA_ERR_FILE_TOO_SHORT);
+      if (!my_errno)
         my_errno= HA_ERR_WRONG_IN_RECORD;
     }
     DBUG_RETURN(1);
