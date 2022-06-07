@@ -260,13 +260,18 @@ void log_t::header_write(byte *buf, lsn_t lsn, bool encrypted)
   mach_write_to_4(my_assume_aligned<4>(buf) + LOG_HEADER_FORMAT,
                   log_sys.FORMAT_10_8);
   mach_write_to_8(my_assume_aligned<8>(buf + LOG_HEADER_START_LSN), lsn);
-  static constexpr const char LOG_HEADER_CREATOR_CURRENT[]=
-    "MariaDB " PACKAGE_VERSION;
 
-  strcpy(reinterpret_cast<char*>(buf) + LOG_HEADER_CREATOR,
-         LOG_HEADER_CREATOR_CURRENT);
-  static_assert(LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR >=
-                sizeof LOG_HEADER_CREATOR_CURRENT, "compatibility");
+#if defined __GNUC__ && __GNUC__ > 7
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wstringop-truncation"
+#endif
+  strncpy(reinterpret_cast<char*>(buf) + LOG_HEADER_CREATOR,
+          "MariaDB " PACKAGE_VERSION,
+          LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR);
+#if defined __GNUC__ && __GNUC__ > 7
+# pragma GCC diagnostic pop
+#endif
+
   if (encrypted)
     log_crypt_write_header(buf + LOG_HEADER_CREATOR_END);
   mach_write_to_4(my_assume_aligned<4>(508 + buf), my_crc32c(0, buf, 508));
