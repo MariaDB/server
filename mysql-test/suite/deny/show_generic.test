@@ -119,6 +119,9 @@ where user = 'foo';
 
 --connect (con1,localhost,foo,,)
 show tables from some_db;
+--error ER_TABLEACCESS_DENIED_ERROR
+show columns from some_db.t1;
+show columns from some_db.t2;
 disconnect con1;
 
 connection default;
@@ -126,6 +129,9 @@ grant insert on some_db.* to foo;
 
 --connect (con1,localhost,foo,,)
 show tables from some_db;
+--error ER_TABLEACCESS_DENIED_ERROR
+show columns from some_db.t1;
+show columns from some_db.t2;
 disconnect con1;
 
 connection default;
@@ -134,6 +140,10 @@ deny select on some_db.t2 to foo;
 
 --connect (con1,localhost,foo,,)
 show tables from some_db;
+--error ER_TABLEACCESS_DENIED_ERROR
+show columns from some_db.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+show columns from some_db.t2;
 disconnect con1;
 
 connection default;
