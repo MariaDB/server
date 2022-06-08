@@ -368,6 +368,14 @@ class Master_info : public Slave_reporting_capability
     Cache the value so future RESET SLAVE commands don't revert to Slave_Pos.
   */
   bool master_supports_gtid;
+
+  /*
+    When TRUE, transition this server from being an active master to a slave.
+    This updates the replication state to account for any transactions which
+    were committed into the binary log. In particular, it merges
+    gtid_binlog_pos into gtid_slave_pos.
+  */
+  bool is_demotion;
 };
 
 struct start_alter_thd_args
