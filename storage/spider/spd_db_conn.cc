@@ -7935,9 +7935,7 @@ int spider_db_print_item_type(
         field, spider, str, alias, alias_length, dbton_id, use_fields, fields));
     case Item::SUBSELECT_ITEM:
     case Item::TRIGGER_FIELD_ITEM:
-#ifdef SPIDER_HAS_EXPR_CACHE_ITEM
     case Item::EXPR_CACHE_ITEM:
-#endif
       DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
     default:
       DBUG_RETURN(spider_db_print_item_type_default(item, spider, str));

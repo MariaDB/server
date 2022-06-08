@@ -6387,15 +6387,12 @@ int spider_db_mbase_util::open_item_func(
           bool has_other_item = FALSE;
           while((item = lif++))
           {
-#ifdef SPIDER_HAS_EXPR_CACHE_ITEM
             if (
               item->type() == Item::EXPR_CACHE_ITEM
             ) {
               DBUG_PRINT("info",("spider EXPR_CACHE_ITEM"));
               has_expr_cache_item = TRUE;
-            } else
-#endif
-            if (
+            } else if (
               item->type() == Item::FUNC_ITEM &&
               ((Item_func *) item)->functype() == Item_func::ISNOTNULL_FUNC
             ) {
