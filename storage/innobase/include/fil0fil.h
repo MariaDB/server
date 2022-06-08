@@ -24,8 +24,7 @@ The low-level file system
 Created 10/25/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef fil0fil_h
-#define fil0fil_h
+#pragma once
 
 #include "fsp0types.h"
 #include "mach0data.h"
@@ -1902,7 +1901,4 @@ void test_make_filepath();
 @return	block size */
 ulint fil_space_get_block_size(const fil_space_t* space, unsigned offset);
 
-#include "fil0fil.inl"
 #endif /* UNIV_INNOCHECKSUM */
-
-#endif /* fil0fil_h */

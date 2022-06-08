@@ -403,28 +403,22 @@ static bool buf_page_decrypt_after_read(buf_page_t *bpage,
 		return (true);
 	}
 
-	if (node.space->purpose == FIL_TYPE_TEMPORARY
+	buf_tmp_buffer_t* slot;
+
+	if (id.space() == SRV_TMP_SPACE_ID
 	    && innodb_encrypt_temporary_tables) {
-		buf_tmp_buffer_t* slot = buf_pool.io_buf_reserve();
+		slot = buf_pool.io_buf_reserve();
 		ut_a(slot);
 		slot->allocate();
-
-		if (!buf_tmp_page_decrypt(slot->crypt_buf, dst_frame)) {
-			slot->release();
-			ib::error() << "Encrypted page " << id
-				    << " in file " << node.name;
-			return false;
-		}
-
+		bool ok = buf_tmp_page_decrypt(slot->crypt_buf, dst_frame);
 		slot->release();
-		return true;
+		return ok;
 	}
 
 	/* Page is encrypted if encryption information is found from
 	tablespace and page contains used key_version. This is true
 	also for pages first compressed and then encrypted. */
 
-	buf_tmp_buffer_t* slot;
 	uint key_version = buf_page_get_key_version(dst_frame, flags);
 
 	if (page_compressed && !key_version) {
@@ -441,13 +435,9 @@ decompress:
 		slot->allocate();
 
 decompress_with_slot:
-		ut_d(fil_page_type_validate(node.space, dst_frame));
-
 		ulint write_size = fil_page_decompress(
 			slot->crypt_buf, dst_frame, flags);
 		slot->release();
-		ut_ad(!write_size
-		      || fil_page_type_validate(node.space, dst_frame));
 		ut_ad(node.space->referenced());
 		return write_size != 0;
 	}
@@ -467,15 +457,12 @@ decrypt_failed:
 		slot = buf_pool.io_buf_reserve();
 		ut_a(slot);
 		slot->allocate();
-		ut_d(fil_page_type_validate(node.space, dst_frame));
 
 		/* decrypt using crypt_buf to dst_frame */
 		if (!fil_space_decrypt(node.space, slot->crypt_buf, dst_frame)) {
 			slot->release();
 			goto decrypt_failed;
 		}
-
-		ut_d(fil_page_type_validate(node.space, dst_frame));
 
 		if ((fil_space_t::full_crc32(flags) && page_compressed)
 		    || fil_page_get_type(dst_frame)

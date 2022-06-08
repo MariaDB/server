@@ -296,7 +296,8 @@ byte* fil_space_encrypt(
 @param[in]	physical_size		page size
 @param[in]	fsp_flags		Tablespace flags
 @param[in,out]	src_frame		Page to decrypt
-@return DB_SUCCESS or error */
+@retval DB_SUCCESS on success
+@retval DB_DECRYPTION_FAILED on error */
 dberr_t
 fil_space_decrypt(
 	ulint			space_id,
@@ -312,7 +313,8 @@ Decrypt a page
 @param[in]	tmp_frame		Temporary buffer used for decrypting
 @param[in,out]	src_frame		Page to decrypt
 @return decrypted page, or original not encrypted page if decryption is
-not needed.*/
+not needed.
+@retval nullptr on failure */
 byte*
 fil_space_decrypt(
 	const fil_space_t* space,

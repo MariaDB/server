@@ -128,7 +128,6 @@ SET(INNOBASE_SOURCES
 	include/fil0crypt.h
 	include/fil0crypt.inl
 	include/fil0fil.h
-	include/fil0fil.inl
 	include/fil0pagecompress.h
 	include/fsp0file.h
 	include/fsp0fsp.h
