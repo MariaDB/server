@@ -1,0 +1,34 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # Start of 10.10 tests
+--echo #
+
+--echo #
+--echo # MDEV-23287 The INET4 data type
+--echo # MDEV-20844 RBR from binary(16) to inet6 fails with error 171: The event was corrupt, leading to illegal data being read
+--echo #
+
+CREATE TABLE t1 (a INET4);
+
+--sync_slave_with_master
+ALTER TABLE t1 MODIFY a BINARY(4);
+
+--connection master
+INSERT INTO t1 VALUES ('0.0.0.0');
+INSERT INTO t1 VALUES ('192.168.0.1');
+INSERT INTO t1 VALUES ('255.0.0.0');
+INSERT INTO t1 VALUES ('255.0.0.1');
+SELECT a FROM t1 ORDER BY a;
+--sync_slave_with_master
+SELECT CAST(a AS INET4) FROM t1 ORDER BY a;
+
+--connection master
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.10 tests
+--echo #
+
+--source include/rpl_end.inc
