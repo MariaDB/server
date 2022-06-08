@@ -69,12 +69,15 @@ set global debug_dbug= "+d,apc_timeout";
 select "good";
 --connection con1
 --send
-set debug_sync= "now WAIT_FOR pass";
+set debug_sync= "now SIGNAL waiting WAIT_FOR pass";
 --connection default
+set debug_sync= "now WAIT_FOR waiting";
 --echo # Should timeout in 1ms.
 SELECT thread_id = @def_thread_id as current, variable_value
   FROM performance_schema.variables_by_thread
-  WHERE variable_name = "time_zone";
+  WHERE variable_name = "time_zone"       
+  and thread_id in (@def_thread_id, 
+                    @con1_thread_id); # con2 can be nondeterministically skipped
 set debug_sync= "now SIGNAL pass";
 --connection con1
 --reap
