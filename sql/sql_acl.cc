@@ -265,7 +265,7 @@ public:
     {
       String key;
       construct_identifier(&key, db, table);
-      res= db_denies->find(key.c_ptr(), key.length());
+      res= table_denies->find(key.c_ptr(), key.length());
     }
     if (!res)
       return NO_ACL;
@@ -3613,9 +3613,34 @@ check_access(THD *thd, privilege_t want_access,
       database specific access rights to be able to handle queries of type
       UPDATE t1 SET a=1 WHERE b > 0
       In that case the shortcut won't work.
+
+      !!
+      When denies are active, this shortcut does not work. Callers typically
+      expect that if "SELECT" is granted on a global/database level, that it
+      can not be eliminated. With denies active, the SELECT_ACL can be
+      eliminated on a table / column level, which this function does not check.
+
+      Hence we need to continue to gather rights in save_priv from database
+      level grants. Here is a scenario where this is important:
+
+      GRANT select on *.* to foo;
+      GRANT insert on some_db.* to foo;
+      DENY insert on some_db.t1;
+      DENY select on some_db.t2;
+
+      (as foo)
+      show tables from some_db;
+      --> If the shortcut is taken, only t1 will be displayed.
+
+      TODO(cvicentiu): This is a very blanket-like disable of this shortcut,
+      but it helps to covers all possible cases. A better approach would be
+      for the caller to clarify the check_access call, which privileges it
+      actually needs. Is SELECT the critical one, or "any" global DB/TABLE
+      level privilege works.
   */
   if ((masked_access & want_access) == want_access &&
-      (masked_access & SELECT_ACL))
+      (masked_access & SELECT_ACL) &&
+      !(sctx->denies_active & (~GLOBAL_PRIV)))
   {
     *save_priv|= masked_access;
     DBUG_RETURN(FALSE);
@@ -4979,11 +5004,27 @@ static bool compute_acl_cache_key(const char *ip,
 
 
 privilege_t acl_get_effective_deny_mask(const Security_context *ctx,
-                                        const LEX_CSTRING &db)
+                                        const LEX_CSTRING &db,
+                                        const LEX_CSTRING &table)
 {
   privilege_t result;
 
-  if (!(ctx->denies_active & (GLOBAL_PRIV | DATABASE_PRIV)))
+  /*
+     Shortcut so we do not take a lock. We assume most connections will
+     go down this branch.
+  */
+  if (likely(!ctx->denies_active))
+    return NO_ACL;
+
+  /*
+    Finer grained shortcuts.
+    No database and no global level denies.
+  */
+  if (!db.str && !(ctx->denies_active & GLOBAL_PRIV))
+    return NO_ACL;
+
+  /* No specific table and no GLOBAL or DATABASE level denies. */
+  if (!table.str && !(ctx->denies_active & (GLOBAL_PRIV | DATABASE_PRIV)))
     return NO_ACL;
 
   mysql_mutex_lock(&acl_cache->lock);
@@ -5008,6 +5049,7 @@ privilege_t acl_get_effective_deny_mask(const Security_context *ctx,
 
   result= acl_user->denies->get_global();
   result|= acl_user->denies->get_db_deny(db);
+  result|= acl_user->denies->get_table_deny(db, table);
 
   //TODO(cvicentiu) roles
   mysql_mutex_unlock(&acl_cache->lock);
@@ -9705,10 +9747,10 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
        level denies.
     */
     //TODO(cvicentiu) database denies need to be accounted for...
-    //TODO(cvicentiu) ugly constructing lex_cstring here.
     DBUG_ASSERT(t_ref->get_db_name().str);
     privilege_t deny_mask= acl_get_effective_deny_mask(sctx,
-                                                       t_ref->get_db_name());
+                                                       t_ref->get_db_name(),
+                                                       t_ref->get_table_name());
 
     want_access&= ~(sctx->master_access & ~deny_mask);
     if (!want_access)

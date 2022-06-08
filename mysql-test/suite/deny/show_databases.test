@@ -462,6 +462,10 @@ drop user foo;
 --echo #
 --echo # Test table level denies interacting with show databases
 --echo #
+--echo # If a user gets access to a database via a higher level grant,
+--echo # but has all the resources in that database denied individually,
+--echo # the user should still be able to see the database, empty.
+--echo #
 
 create database some_db;
 create user foo;
@@ -471,7 +475,11 @@ grant select on *.* to foo;
 deny select on some_db.t1 to foo;
 
 --connect (con1,localhost,foo,,)
+--echo #
+--echo # some_db should still be visible, but it should show up as empty.
+--echo #
 show databases;
+show tables from some_db;
 disconnect con1;
 
 connection default;

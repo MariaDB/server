@@ -570,3 +570,34 @@ drop package body mysql.util_functions;
 drop package mysql.util_functions;
 set sql_mode=@old_sql_mode;
 drop user foo;
+#
+# Test table level denies interacting with show databases
+#
+# If a user gets access to a database via a higher level grant,
+# but has all the resources in that database denied individually,
+# the user should still be able to see the database, empty.
+#
+create database some_db;
+create user foo;
+create table some_db.t1 (a int);
+grant select on *.* to foo;
+deny select on some_db.t1 to foo;
+connect  con1,localhost,foo,,;
+#
+# some_db should still be visible, but it should show up as empty.
+#
+show databases;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+some_db
+sys
+test
+show tables from some_db;
+Tables_in_some_db
+disconnect con1;
+connection default;
+drop user foo;
+drop database some_db;

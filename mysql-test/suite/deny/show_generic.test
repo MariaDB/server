@@ -100,3 +100,42 @@ disconnect con2;
 
 connection default;
 drop database some_db;
+
+--echo #
+--echo # Test table level denies interacting with show tables
+--echo #
+create database some_db;
+create user foo;
+create table some_db.t1 (a int);
+create table some_db.t2 (a int);
+
+grant select on *.* to foo;
+deny select on some_db.t1 to foo;
+deny insert on some_db.t2 to foo;
+
+--replace_regex $REGEX_VERSION_ID
+select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv
+where user = 'foo';
+
+--connect (con1,localhost,foo,,)
+show tables from some_db;
+disconnect con1;
+
+connection default;
+grant insert on some_db.* to foo;
+
+--connect (con1,localhost,foo,,)
+show tables from some_db;
+disconnect con1;
+
+connection default;
+deny insert on some_db.t1 to foo;
+deny select on some_db.t2 to foo;
+
+--connect (con1,localhost,foo,,)
+show tables from some_db;
+disconnect con1;
+
+connection default;
+drop user foo;
+drop database some_db;
