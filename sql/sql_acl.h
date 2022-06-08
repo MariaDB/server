@@ -159,8 +159,9 @@ check_table_access(THD *thd, privilege_t requirements,TABLE_LIST *tables,
 
 privilege_t get_table_grant(THD *thd, TABLE_LIST *table);
 privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
-                             const char *db_name, const char *table_name,
-                             const char *field_name);
+                             const LEX_CSTRING &db_name,
+                             const LEX_CSTRING &table_name,
+                             const LEX_CSTRING &field_name);
 bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
                    const char **hostname, const char **rolename);
 void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,

@@ -1118,8 +1118,8 @@ public:
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, 
                           ER_VIEW_INVALID,
                           ER_THD(thd, ER_VIEW_INVALID),
-                          m_top_view->get_db_name(),
-                          m_top_view->get_table_name());
+                          m_top_view->get_db_name().str,
+                          m_top_view->get_table_name().str);
       is_handled= TRUE;
       break;
 
@@ -6122,8 +6122,8 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     check_access(thd,SELECT_ACL, db_name->str,
                  &tables->grant.privilege, 0, 0, MY_TEST(tables->schema_table));
     col_access= get_column_grant(thd, &tables->grant,
-                                 db_name->str, table_name->str,
-                                 field->field_name.str) & COL_ACLS;
+                                 *db_name, *table_name,
+                                 field->field_name) & COL_ACLS;
     if (!tables->schema_table && !col_access)
       continue;
     char *end= tmp;
