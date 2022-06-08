@@ -3953,7 +3953,6 @@ check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
 
     if (table_ref->schema_table_reformed)
     {
-      //TODO(cvicentiu) check show access needs to handle denies.
       if (check_show_access(thd, table_ref))
         return 1;
       continue;
@@ -4237,6 +4236,10 @@ bool check_fk_parent_table_access(THD *thd,
        Having privilege on any of the parent_table column is not
        enough so checking whether user has any of the "privileges"
        at table level only here.
+
+       TODO(cvicentiu): check_some_access is horribly inefficient. Luckily here
+       it only checks 2 bits. Rewrite check_some_access to not run check_access
+       and check_grant in a loop.
       */
       if (check_some_access(thd, privileges, &parent_table) ||
           parent_table.grant.want_privilege)
