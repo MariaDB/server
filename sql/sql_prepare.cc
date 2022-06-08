@@ -4024,6 +4024,7 @@ Reprepare_observer::report_error(THD *thd)
   */
   thd->get_stmt_da()->set_error_status(ER_NEED_REPREPARE);
   m_invalidated= TRUE;
+  m_attempt++;
 
   return TRUE;
 }
@@ -4587,7 +4588,6 @@ Prepared_statement::set_parameters(String *expanded_query,
   @retval  FALSE   successfully executed the statement, perhaps
                    after having reprepared it a few times.
 */
-const static int MAX_REPREPARE_ATTEMPTS= 3;
 
 bool
 Prepared_statement::execute_loop(String *expanded_query,
@@ -4597,7 +4597,6 @@ Prepared_statement::execute_loop(String *expanded_query,
 {
   Reprepare_observer reprepare_observer;
   bool error;
-  int reprepare_attempt= 0;
   iterations= FALSE;
 
   /*
@@ -4649,7 +4648,7 @@ reexecute:
       (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
       !thd->is_fatal_error && !thd->killed &&
       reprepare_observer.is_invalidated() &&
-      reprepare_attempt++ < MAX_REPREPARE_ATTEMPTS)
+      reprepare_observer.can_retry())
   {
     DBUG_ASSERT(thd->get_stmt_da()->sql_errno() == ER_NEED_REPREPARE);
     thd->clear_error();
@@ -4778,8 +4777,6 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
   // iterations changed by set_bulk_parameters
   while ((iterations || start_param) && !error && !thd->is_error())
   {
-    int reprepare_attempt= 0;
-
     /*
       Here we set parameters for not optimized commands,
       optimized commands do it inside thier internal loop.
@@ -4839,7 +4836,7 @@ reexecute:
         (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
         !thd->is_fatal_error && !thd->killed &&
         reprepare_observer.is_invalidated() &&
-        reprepare_attempt++ < MAX_REPREPARE_ATTEMPTS)
+        reprepare_observer.can_retry())
     {
       DBUG_ASSERT(thd->get_stmt_da()->sql_errno() == ER_NEED_REPREPARE);
       thd->clear_error();
