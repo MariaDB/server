@@ -665,15 +665,7 @@ static dberr_t fil_space_decrypt_full_crc32(
 					   (uint) space, offset, lsn);
 
 	if (rc != MY_AES_OK || dstlen != srclen) {
-		if (rc == -1) {
-			return DB_DECRYPTION_FAILED;
-		}
-
-		ib::fatal() << "Unable to decrypt data-block "
-			    << " src: " << src << "srclen: "
-			    << srclen << " buf: " << dst << "buflen: "
-			    << dstlen << " return-code: " << rc
-			    << " Can't continue!";
+		return DB_DECRYPTION_FAILED;
 	}
 
 	/* Copy only checksum part in the trailer */
@@ -735,18 +727,7 @@ static dberr_t fil_space_decrypt_for_non_full_checksum(
 					   space, offset, lsn);
 
 	if (! ((rc == MY_AES_OK) && ((ulint) dstlen == srclen))) {
-
-		if (rc == -1) {
-			return DB_DECRYPTION_FAILED;
-		}
-
-		ib::fatal() << "Unable to decrypt data-block "
-			    << " src: " << static_cast<const void*>(src)
-			    << "srclen: "
-			    << srclen << " buf: "
-			    << static_cast<const void*>(dst) << "buflen: "
-			    << dstlen << " return-code: " << rc
-			    << " Can't continue!";
+		return DB_DECRYPTION_FAILED;
 	}
 
 	/* For compressed tables we do not store the FIL header because

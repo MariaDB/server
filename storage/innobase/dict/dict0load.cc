@@ -2657,7 +2657,6 @@ static dberr_t dict_load_foreign_cols(dict_foreign_t *foreign, trx_id_t trx_id)
 		goto func_exit;
 	}
 	for (ulint i = 0; i < foreign->n_fields; i++) {
-retry:
 		ut_a(btr_pcur_is_on_user_rec(&pcur));
 
 		const rec_t* rec = btr_pcur_get_rec(&pcur);
@@ -2690,9 +2689,7 @@ retry:
 
 		if (rec_get_deleted_flag(rec, 0)) {
 			ut_ad(id);
-next:
-			btr_pcur_move_to_next_user_rec(&pcur, &mtr);
-			goto retry;
+			goto next;
 		}
 
 		field = rec_get_nth_field_old(
@@ -2718,7 +2715,7 @@ next:
 				rec, DICT_FLD__SYS_FOREIGN_COLS__REF_COL_NAME,
 				&ref_col_name_len);
 
-			ib::fatal	sout;
+			ib::error	sout;
 
 			sout << "Unable to load column names for foreign"
 				" key '" << foreign->id
@@ -2733,6 +2730,9 @@ next:
 			sout << "', REF_COL_NAME='";
 			sout.write(ref_col_name, ref_col_name_len);
 			sout << "')";
+
+			err = DB_CORRUPTION;
+			break;
 		}
 
 		field = rec_get_nth_field_old(
@@ -2750,6 +2750,7 @@ next:
 		foreign->referenced_col_names[i] = mem_heap_strdupl(
 			foreign->heap, (char*) field, len);
 
+next:
 		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
 	}
 func_exit:

@@ -1393,9 +1393,7 @@ fil_set_max_space_id_if_bigger(
 /*===========================*/
 	ulint	max_id)	/*!< in: maximum known id */
 {
-	if (max_id >= SRV_SPACE_ID_UPPER_BOUND) {
-		ib::fatal() << "Max tablespace id is too high, " << max_id;
-	}
+	ut_a(max_id < SRV_SPACE_ID_UPPER_BOUND);
 
 	mysql_mutex_lock(&fil_system.mutex);
 

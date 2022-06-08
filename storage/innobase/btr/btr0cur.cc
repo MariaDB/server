@@ -71,6 +71,7 @@ Created 10/16/1994 Heikki Tuuri
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif /* WITH_WSREP */
+#include "log.h"
 
 /** Buffered B-tree operation types, introduced as part of delete buffering. */
 enum btr_op_t {
@@ -7196,29 +7197,29 @@ func_exit:
 }
 
 /** Check the FIL_PAGE_TYPE on an uncompressed BLOB page.
-@param[in]      block   uncompressed BLOB page
-@param[in]      read    true=read, false=purge */
-static void btr_check_blob_fil_page_type(const buf_block_t& block, bool read)
+@param block   uncompressed BLOB page
+@param op      operation
+@return whether the type is invalid */
+static bool btr_check_blob_fil_page_type(const buf_block_t& block,
+                                         const char *op)
 {
   uint16_t type= fil_page_get_type(block.page.frame);
 
-  if (UNIV_LIKELY(type == FIL_PAGE_TYPE_BLOB))
-    return;
-  /* FIXME: take the tablespace as a parameter */
-  if (fil_space_t *space= fil_space_t::get(block.page.id().space()))
+  if (UNIV_LIKELY(type == FIL_PAGE_TYPE_BLOB));
+  else if (fil_space_t *space= fil_space_t::get(block.page.id().space()))
   {
     /* Old versions of InnoDB did not initialize FIL_PAGE_TYPE on BLOB
     pages.  Do not print anything about the type mismatch when reading
     a BLOB page that may be from old versions. */
-    if (space->full_crc32() || DICT_TF_HAS_ATOMIC_BLOBS(space->flags))
-    {
-      ib::fatal() << "FIL_PAGE_TYPE=" << type
-		  << (read ? " on BLOB read file " : " on BLOB purge file ")
-		  << space->chain.start->name
-		  << " page " << block.page.id().page_no();
-    }
+    bool fail= space->full_crc32() || DICT_TF_HAS_ATOMIC_BLOBS(space->flags);
+    if (fail)
+      sql_print_error("InnoDB: FIL_PAGE_TYPE=%u on BLOB %s file %s page %u",
+                      type, op, space->chain.start->name,
+                      block.page.id().page_no());
     space->release();
+    return fail;
   }
+  return false;
 }
 
 /*******************************************************************//**
@@ -7365,7 +7366,7 @@ skip_free:
 			}
 		} else {
 			ut_ad(!block->page.zip.data);
-			btr_check_blob_fil_page_type(*ext_block, false);
+			btr_check_blob_fil_page_type(*ext_block, "purge");
 
 			const uint32_t next_page_no = mach_read_from_4(
 				page + FIL_PAGE_DATA
@@ -7499,13 +7500,11 @@ btr_copy_blob_prefix(
 		mtr_start(&mtr);
 
 		block = buf_page_get(id, 0, RW_S_LATCH, &mtr);
-		if (!block) {
+		if (!block || btr_check_blob_fil_page_type(*block, "read")) {
 			mtr.commit();
 			return copied_len;
 		}
 		page = buf_block_get_frame(block);
-
-		btr_check_blob_fil_page_type(*block, true);
 
 		blob_header = page + offset;
 		part_len = btr_blob_get_part_len(blob_header);

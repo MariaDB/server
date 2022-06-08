@@ -1305,10 +1305,12 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
     page_get_max_insert_size_after_reorganize(block->page.frame, 1);
 
   if (UNIV_UNLIKELY(data_size1 != data_size2 || max1 != max2))
-    ib::fatal() << "Page old data size " << data_size1
-                << " new data size " << data_size2
-                << ", page old max ins size " << max1
-                << " new max ins size " << max2;
+  {
+    sql_print_error("InnoDB: Page old data size %u new data size %u"
+                    ", page old max ins size %zu new max ins size %zu",
+                    data_size1, data_size2, max1, max2);
+    return DB_CORRUPTION;
+  }
 
   /* Restore the cursor position. */
   if (pos)
