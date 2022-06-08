@@ -5300,12 +5300,13 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     LEX_CSTRING *db_name= db_names.at(i);
     DBUG_ASSERT(db_name->length <= NAME_LEN);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    //TODO(cvicentiu) denies...
+    privilege_t deny_mask= acl_get_effective_deny_mask(sctx, *db_name);
+    //TODO(cvicentiu) denies -> write tests
     if (!(check_access(thd, SELECT_ACL, db_name->str,
                        &thd->col_access, NULL, 0, 1) ||
           (!thd->col_access && check_grant_db(sctx, db_name->str, NO_ACL))) ||
-        sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-        acl_get_current_auth(sctx, db_name->str, false))
+        (sctx->master_access & ~deny_mask) & (DB_ACLS | SHOW_DB_ACL) ||
+        (acl_get_current_auth(sctx, db_name->str, false) & ~deny_mask))
 #endif
     {
       Dynamic_array<LEX_CSTRING*> table_names(PSI_INSTRUMENT_MEM);
@@ -5322,11 +5323,13 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
         DBUG_ASSERT(table_name->length <= NAME_LEN);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-        if (!(thd->col_access & TABLE_ACLS))
+        privilege_t table_deny_mask= acl_get_effective_deny_mask(sctx, *db_name,
+                                                                 *table_name);
+        if (!((thd->col_access & ~table_deny_mask) & TABLE_ACLS))
         {
           table_acl_check.db= *db_name;
           table_acl_check.table_name= *table_name;
-          table_acl_check.grant.privilege= thd->col_access;
+          table_acl_check.grant.privilege= thd->col_access & ~table_deny_mask;
           if (check_grant(thd, TABLE_ACLS, &table_acl_check, TRUE, 1, TRUE))
             continue;
         }
