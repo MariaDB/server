@@ -109,6 +109,11 @@ connect  con1,localhost,foo,,;
 show tables from some_db;
 Tables_in_some_db
 t2
+show columns from some_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+show columns from some_db.t2;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
 disconnect con1;
 connection default;
 grant insert on some_db.* to foo;
@@ -117,6 +122,11 @@ show tables from some_db;
 Tables_in_some_db
 t1
 t2
+show columns from some_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+show columns from some_db.t2;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
 disconnect con1;
 connection default;
 deny insert on some_db.t1 to foo;
@@ -124,6 +134,10 @@ deny select on some_db.t2 to foo;
 connect  con1,localhost,foo,,;
 show tables from some_db;
 Tables_in_some_db
+show columns from some_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+show columns from some_db.t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
 disconnect con1;
 connection default;
 drop user foo;
