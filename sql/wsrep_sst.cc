@@ -998,12 +998,14 @@ static ssize_t sst_prepare_other (const char*  method,
                  WSREP_SST_OPT_ADDR " '%s' "
                  WSREP_SST_OPT_DATA " '%s' "
                  "%s"
-                 WSREP_SST_OPT_PARENT " '%d'"
+                 WSREP_SST_OPT_PARENT " %d "
+                 WSREP_SST_OPT_PROGRESS " %d"
                  "%s"
                  "%s",
                  method, addr_in, mysql_real_data_home,
                  wsrep_defaults_file,
                  (int)getpid(),
+                 0,
                  binlog_opt_val, binlog_index_opt_val);
 
   my_free(binlog_opt_val);
@@ -1724,16 +1726,18 @@ static int sst_donate_other (const char*   method,
                  "wsrep_sst_%s "
                  WSREP_SST_OPT_ROLE " 'donor' "
                  WSREP_SST_OPT_ADDR " '%s' "
-                 WSREP_SST_OPT_LPORT " '%u' "
+                 WSREP_SST_OPT_LPORT " %u "
                  WSREP_SST_OPT_SOCKET " '%s' "
+                 WSREP_SST_OPT_PROGRESS " %d "
                  WSREP_SST_OPT_DATA " '%s' "
                  "%s"
                  WSREP_SST_OPT_GTID " '%s:%lld' "
-                 WSREP_SST_OPT_GTID_DOMAIN_ID " '%d'"
+                 WSREP_SST_OPT_GTID_DOMAIN_ID " %d"
                  "%s"
                  "%s"
                  "%s",
                  method, addr, mysqld_port, mysqld_unix_port,
+                 0,
                  mysql_real_data_home,
                  wsrep_defaults_file,
                  uuid, (long long) seqno, wsrep_gtid_domain_id,
