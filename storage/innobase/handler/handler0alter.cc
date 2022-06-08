@@ -1993,7 +1993,7 @@ static bool innobase_table_is_empty(const dict_table_t *table,
   btr_pcur_t pcur;
   buf_block_t *block;
   page_cur_t *cur;
-  const rec_t *rec;
+  rec_t *rec;
   bool next_page= false;
 
   mtr.start();
@@ -2004,9 +2004,9 @@ non_empty:
     mtr.commit();
     return false;
   }
-  btr_pcur_move_to_next_user_rec(&pcur, &mtr);
-  if (!rec_is_metadata(btr_pcur_get_rec(&pcur), *clust_index))
-    btr_pcur_move_to_prev_on_page(&pcur);
+  rec= page_rec_get_next(btr_pcur_get_rec(&pcur));
+  if (rec_is_metadata(rec, *clust_index))
+    btr_pcur_get_page_cur(&pcur)->rec= rec;
 scan_leaf:
   cur= btr_pcur_get_page_cur(&pcur);
   page_cur_move_to_next(cur);

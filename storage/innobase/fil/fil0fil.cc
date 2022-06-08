@@ -2860,7 +2860,7 @@ fail:
 io_error:
 #endif
 				set_corrupted();
-				err = DB_IO_ERROR;
+				err = DB_CORRUPTION;
 				node = nullptr;
 				goto release;
 			}
