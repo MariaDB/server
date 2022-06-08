@@ -820,14 +820,6 @@ PageBulk::storeExt(
 	dberr_t	err = btr_store_big_rec_extern_fields(
 		&btr_pcur, offsets, big_rec, &m_mtr, BTR_STORE_INSERT_BULK);
 
-	/* Reset m_block and m_cur_rec from page cursor, because
-	block may be changed during blob insert. (FIXME: Can it really?) */
-	ut_ad(m_block == btr_pcur.btr_cur.page_cur.block);
-
-	m_block = btr_pcur.btr_cur.page_cur.block;
-	m_cur_rec = btr_pcur.btr_cur.page_cur.rec;
-	m_page = buf_block_get_frame(m_block);
-
 	return(err);
 }
 

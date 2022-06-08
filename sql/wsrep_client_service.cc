@@ -85,18 +85,37 @@ int Wsrep_client_service::prepare_data_for_replication()
   DBUG_ASSERT(m_thd == current_thd);
   DBUG_ENTER("Wsrep_client_service::prepare_data_for_replication");
   size_t data_len= 0;
-  IO_CACHE* cache= wsrep_get_trans_cache(m_thd);
+  IO_CACHE* transactional_cache= wsrep_get_cache(m_thd, true);
+  IO_CACHE* stmt_cache= wsrep_get_cache(m_thd, false);
 
-  if (cache)
+  if (transactional_cache || stmt_cache)
   {
     m_thd->binlog_flush_pending_rows_event(true);
-    if (wsrep_write_cache(m_thd, cache, &data_len))
+
+    size_t transactional_data_len= 0;
+    size_t stmt_data_len= 0;
+
+    // Write transactional cache
+    if (transactional_cache &&
+        wsrep_write_cache(m_thd, transactional_cache, &transactional_data_len))
     {
       WSREP_ERROR("rbr write fail, data_len: %zu",
                   data_len);
       // wsrep_override_error(m_thd, ER_ERROR_DURING_COMMIT);
       DBUG_RETURN(1);
     }
+
+    // Write stmt cache
+    if (stmt_cache && wsrep_write_cache(m_thd, stmt_cache, &stmt_data_len))
+    {
+      WSREP_ERROR("rbr write fail, data_len: %zu",
+                  data_len);
+      // wsrep_override_error(m_thd, ER_ERROR_DURING_COMMIT);
+      DBUG_RETURN(1);
+    }
+
+    // Complete data written from both caches
+    data_len = transactional_data_len + stmt_data_len;
   }
 
   if (data_len == 0)
@@ -138,7 +157,7 @@ int Wsrep_client_service::prepare_fragment_for_replication(
   DBUG_ASSERT(m_thd == current_thd);
   THD* thd= m_thd;
   DBUG_ENTER("Wsrep_client_service::prepare_fragment_for_replication");
-  IO_CACHE* cache= wsrep_get_trans_cache(thd);
+  IO_CACHE* cache= wsrep_get_cache(thd, true);
   thd->binlog_flush_pending_rows_event(true);
 
   if (!cache)
@@ -220,7 +239,7 @@ bool Wsrep_client_service::statement_allowed_for_streaming() const
 
 size_t Wsrep_client_service::bytes_generated() const
 {
-  IO_CACHE* cache= wsrep_get_trans_cache(m_thd);
+  IO_CACHE* cache= wsrep_get_cache(m_thd, true);
   if (cache)
   {
     size_t pending_rows_event_length= 0;

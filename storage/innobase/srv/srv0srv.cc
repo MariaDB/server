@@ -523,9 +523,8 @@ static srv_sys_t	srv_sys;
 struct purge_coordinator_state
 {
   /** Snapshot of the last history length before the purge call.*/
-  uint32 m_history_length;
-  Atomic_counter<int> m_running;
-  purge_coordinator_state() : m_history_length(), m_running(0) {}
+  size_t m_history_length= 0;
+  Atomic_counter<int> m_running{0};
 };
 
 static purge_coordinator_state purge_state;
@@ -1724,7 +1723,7 @@ static bool srv_purge_should_exit()
     return true;
 
   /* Slow shutdown was requested. */
-  if (const uint32_t history_size= trx_sys.rseg_history_len)
+  if (const size_t history_size= trx_sys.rseg_history_len)
   {
     static time_t progress_time;
     time_t now= time(NULL);
@@ -1733,7 +1732,7 @@ static bool srv_purge_should_exit()
       progress_time= now;
 #if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
       service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-				     "InnoDB: to purge %u transactions",
+				     "InnoDB: to purge %zu transactions",
 				     history_size);
       ib::info() << "to purge " << history_size << " transactions";
 #endif
@@ -1784,13 +1783,13 @@ Atomic_counter<int> srv_purge_thread_count_changed;
 /** Do the actual purge operation.
 @param[in,out]	n_total_purged	total number of purged pages
 @return length of history list before the last purge batch. */
-static uint32_t srv_do_purge(ulint* n_total_purged)
+static size_t srv_do_purge(ulint* n_total_purged)
 {
 	ulint		n_pages_purged;
 
 	static ulint	count = 0;
 	static ulint	n_use_threads = 0;
-	static uint32_t	rseg_history_len = 0;
+	static size_t	rseg_history_len = 0;
 	ulint		old_activity_count = srv_get_activity_count();
 	static ulint	n_threads = srv_n_purge_threads;
 

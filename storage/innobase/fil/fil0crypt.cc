@@ -1961,8 +1961,7 @@ fil_crypt_rotate_page(
 		/* If block read failed mtr memo and log should be empty. */
 		ut_ad(!mtr.has_modifications());
 		ut_ad(!mtr.is_dirty());
-		ut_ad(mtr.get_memo()->size() == 0);
-		ut_ad(mtr.get_log()->size() == 0);
+		ut_ad(mtr.is_empty());
 		mtr.commit();
 	}
 

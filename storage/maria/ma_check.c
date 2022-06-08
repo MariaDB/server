@@ -6326,6 +6326,9 @@ int maria_update_state_info(HA_CHECK *param, MARIA_HA *info,uint update)
   MARIA_SHARE *share= info->s;
   DBUG_ENTER("maria_update_state_info");
 
+  if (info->s->no_status_updates)
+    DBUG_RETURN(0);                             /* S3 readonly table */
+
   if (update & UPDATE_OPEN_COUNT)
   {
     share->state.open_count=0;
