@@ -10510,10 +10510,12 @@ privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
 
   mysql_rwlock_rdlock(&LOCK_grant);
 
-  /* TODO(cvicentiu) save this alongside grant->version to speed lookup. */
-  DBUG_ASSERT(db_name);
+  /*
+     TODO(cvicentiu) One idea is to save this alongside grant->version to
+     speed up lookup.
+  */
   deny_mask= acl_get_effective_deny_mask(thd->security_ctx,
-                                         {db_name, strlen(db_name)});
+                                         db_name, table_name);
 
   /* reload table if someone has modified any grants */
   if (grant->version != grant_version)
@@ -10560,8 +10562,8 @@ privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
     }
   }
   mysql_rwlock_unlock(&LOCK_grant);
-  /* TODO(cvicentiu) This mask only covers global & database denies. Table and
-     column level denies need dedicated handling. */
+  /* TODO(cvicentiu) This mask only covers global, database, table denies.
+     Column level denies need dedicated handling. */
   return priv & ~deny_mask;
 }
 
