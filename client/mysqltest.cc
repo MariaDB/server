@@ -2017,11 +2017,11 @@ void show_diff(DYNAMIC_STRING* ds,
     dynstr_append(&ds_tmp, " --- ");
     dynstr_append(&ds_tmp, filename1);
     dynstr_append(&ds_tmp, " >>>\n");
-    cat_file(&ds_tmp, filename1);
+    // cat_file(&ds_tmp, filename1);
     dynstr_append(&ds_tmp, "<<<\n --- ");
     dynstr_append(&ds_tmp, filename1);
     dynstr_append(&ds_tmp, " >>>\n");
-    cat_file(&ds_tmp, filename2);
+    // cat_file(&ds_tmp, filename2);
     dynstr_append(&ds_tmp, "<<<<\n");
   }
 

@@ -84,6 +84,10 @@ my %debuggers = (
         if ::mtr_grab_file('/proc/sys/kernel/perf_event_paranoid') > 1;
     }
   },
+  ttd => {
+    options => '-out {log} {exe} {args} --loose-skip-innodb-use-native-aio --loose-innodb-flush-method=fsync',
+    run => 'C:\TTD\TTD.exe'
+  },
   valgdb => {
     term => 1,
     run => 'gdb',
