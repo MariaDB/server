@@ -332,10 +332,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   bool delete_record= false;
   bool delete_while_scanning;
   bool portion_of_time_through_update;
+  bool ops_batch_started= false;
   DBUG_ENTER("mysql_delete");
 
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
+  query_plan.using_batched_ops= can_use_operations_batch(table_list);
 
   create_explain_query(thd->lex, thd->mem_root);
   if (open_and_lock_tables(thd, table_list, TRUE, 0))
@@ -637,7 +639,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       !table_list->has_period())
   {
     table->mark_columns_needed_for_delete();
-    table->file->start_operations_batch();
     if (!table->check_virtual_columns_marked_for_read())
     {
       DBUG_PRINT("info", ("Trying direct delete"));
@@ -659,7 +660,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
         THD_STAGE_INFO(thd, stage_updating);
         if (!(error= table->file->ha_direct_delete_rows(&deleted)))
           error= -1;
-        table->file->end_operations_batch();
         goto terminate_delete;
       }
     }
@@ -669,6 +669,11 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (query_plan.using_filesort)
   {
     {
+      if (query_plan.using_batched_ops)
+      {
+        table->file->start_operations_batch();
+        ops_batch_started= true;
+      }
       Filesort fsort(order, HA_POS_ERROR, true, select);
       DBUG_ASSERT(query_plan.index == MAX_KEY);
 
@@ -693,6 +698,11 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       if (!returning)
         free_underlaid_joins(thd, select_lex);
       select= 0;
+      if (ops_batch_started)
+      {
+        table->file->end_operations_batch();
+        ops_batch_started= false;
+      }
     }
   }
 
@@ -811,6 +821,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   THD_STAGE_INFO(thd, stage_updating);
   fix_rownum_pointers(thd, thd->lex->current_select, &deleted);
 
+  if (query_plan.using_batched_ops)
+  {
+    table->file->start_operations_batch();
+    ops_batch_started= true;
+  }
+
   thd->get_stmt_da()->reset_current_row_for_warning(0);
   while (likely(!(error=info.read_record())) && likely(!thd->killed) &&
          likely(!thd->is_error()))
@@ -891,6 +907,13 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     else
       break;
   }
+
+  if (ops_batch_started)
+  {
+    table->file->end_operations_batch();
+    ops_batch_started= false;
+  }
+
   thd->get_stmt_da()->reset_current_row_for_warning(1);
 
 terminate_delete:
@@ -1013,6 +1036,12 @@ send_nothing_and_leave:
   DBUG_RETURN((return_error || thd->is_error() || thd->killed) ? 1 : 0);
 
 got_error:
+  if (ops_batch_started)
+  {
+    table->file->end_operations_batch();
+    ops_batch_started= false;
+  }
+
   return_error= 1;
   goto send_nothing_and_leave;
 }

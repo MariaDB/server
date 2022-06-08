@@ -2516,4 +2516,6 @@ void propagate_new_equalities(THD *thd, Item *cond,
                               bool *is_simplifiable_cond);
 
 bool dbug_user_var_equals_str(THD *thd, const char *name, const char *value);
+bool can_use_operations_batch(TABLE_LIST *query_tables);
+
 #endif /* SQL_SELECT_INCLUDED */
