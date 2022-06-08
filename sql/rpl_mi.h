@@ -361,6 +361,14 @@ class Master_info : public Slave_reporting_capability
     at time its alter info struct is about to be appened to the list.
   */
   bool is_shutdown;
+
+  /*
+    When TRUE, transition this server from being an active master to a slave.
+    This updates the replication state to account for any transactions which
+    were committed into the binary log. In particular, it merges
+    gtid_binlog_pos into gtid_slave_pos.
+  */
+  bool is_demotion;
 };
 
 struct start_alter_thd_args

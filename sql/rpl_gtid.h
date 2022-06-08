@@ -261,6 +261,7 @@ struct rpl_slave_state
   bool domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid);
   int load(THD *thd, const char *state_from_master, size_t len, bool reset,
            bool in_statement);
+  int merge(THD *thd, rpl_gtid *gtid_list, size_t n_gtids);
   bool is_empty();
 
   element *get_element(uint32 domain_id);

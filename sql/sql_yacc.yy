@@ -936,6 +936,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  MASTER_USER_SYM
 %token  <kwd>  MASTER_USE_GTID_SYM
 %token  <kwd>  MASTER_HEARTBEAT_PERIOD_SYM
+%token  <kwd>  MASTER_DEMOTE_TO_SLAVE_SYM
 %token  <kwd>  MAX_CONNECTIONS_PER_HOUR
 %token  <kwd>  MAX_QUERIES_PER_HOUR
 %token  <kwd>  MAX_ROWS
@@ -2290,6 +2291,10 @@ master_file_def:
             if (unlikely(Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_UNCHANGED))
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MASTER_use_gtid"));
             Lex->mi.use_gtid_opt= LEX_MASTER_INFO::LEX_GTID_NO;
+          }
+        | MASTER_DEMOTE_TO_SLAVE_SYM '=' bool
+          {
+            Lex->mi.is_demotion_opt= (bool) $3;
           }
         ;
 

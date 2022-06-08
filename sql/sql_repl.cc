@@ -3870,6 +3870,49 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   }
 
   /*
+    MASTER_DEMOTE_TO_SLAVE is set. Merge gtid_binlog_pos into gtid_slave_pos.
+  */
+  if (lex_mi->is_demotion_opt)
+  {
+    uint32 n_binlog_gtids;
+    rpl_gtid *binlog_gtid_list;
+
+    if (mi->using_gtid != Master_info::USE_GTID_SLAVE_POS)
+    {
+      my_error(ER_CM_OPTION_MISSING_REQUIREMENT, MYF(0),
+               "MASTER_DEMOTE_TO_SLAVE", "TRUE", "Using_Gtid=Slave_Pos");
+      ret= TRUE;
+      goto err;
+    }
+
+    if (!mysql_bin_log.is_open())
+    {
+      my_error(ER_NO_BINARY_LOGGING, MYF(0));
+      ret= TRUE;
+      goto err;
+    }
+
+    if (mysql_bin_log.get_most_recent_gtid_list(&binlog_gtid_list,
+                                                &n_binlog_gtids))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      ret= TRUE;
+      goto err;
+    }
+
+    if (rpl_global_gtid_slave_state->merge(thd, binlog_gtid_list,
+                                           (size_t) n_binlog_gtids))
+    {
+      my_error(ER_MASTER_INFO, MYF(0), (int) lex_mi->connection_name.length,
+               lex_mi->connection_name.str);
+      my_free(binlog_gtid_list);
+      ret= TRUE;
+      goto err;
+    }
+    my_free(binlog_gtid_list);
+  }
+
+  /*
     Relay log's IO_CACHE may not be inited, if rli->inited==0 (server was never
     a slave before).
   */
