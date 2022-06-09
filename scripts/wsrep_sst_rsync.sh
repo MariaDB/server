@@ -842,7 +842,7 @@ EOF
     fi
 
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]; then
-        if grep -m1 -qE "^$BYPASS_TAG([[space]]+.*)?\$" -- "$MAGIC_FILE"; then
+        if grep -m1 -qE "^$BYPASS_TAG([[:space:]]+.*)?\$" -- "$MAGIC_FILE"; then
             readonly WSREP_SST_OPT_BYPASS=1
             readonly WSREP_TRANSFER_TYPE='IST'
         fi

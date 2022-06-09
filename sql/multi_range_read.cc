@@ -179,6 +179,8 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
       {
         /* Can't scan one range => can't do MRR scan at all */
         total_rows= HA_POS_ERROR;
+        if (thd->is_error())
+          DBUG_RETURN(HA_POS_ERROR);
         break;
       }
       if (pages.first_page == UNUSED_PAGE_NO)

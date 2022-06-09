@@ -107,7 +107,7 @@ my_bool _ma_read_cache(MARIA_HA *handler, IO_CACHE *info, uchar *buff,
     if (!my_errno || my_errno == HA_ERR_FILE_TOO_SHORT)
     {
       if (!handler->in_check_table)
-        _ma_set_fatal_error(handler->s, HA_ERR_FILE_TOO_SHORT);
+        _ma_set_fatal_error(handler, HA_ERR_FILE_TOO_SHORT);
       if (!my_errno)
         my_errno= HA_ERR_WRONG_IN_RECORD;
     }

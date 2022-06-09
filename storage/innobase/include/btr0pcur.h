@@ -331,10 +331,11 @@ void
 btr_pcur_move_to_next_on_page(
 /*==========================*/
 	btr_pcur_t*	cursor);/*!< in/out: persistent cursor */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /*********************************************************//**
 Moves the persistent cursor to the previous record on the same page. */
 UNIV_INLINE
-void
+rec_t*
 btr_pcur_move_to_prev_on_page(
 /*==========================*/
 	btr_pcur_t*	cursor);/*!< in/out: persistent cursor */

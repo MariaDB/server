@@ -592,7 +592,6 @@ static byte *buf_page_encrypt(fil_space_t* space, buf_page_t* bpage, byte* s,
   ut_ad(space->id == bpage->id().space());
   ut_ad(!*slot);
 
-  ut_d(fil_page_type_validate(space, s));
   const uint32_t page_no= bpage->id().page_no();
 
   switch (page_no) {
@@ -689,7 +688,6 @@ not_compressed:
 
     /* Workaround for MDEV-15527. */
     memset(tmp + len, 0 , srv_page_size - len);
-    ut_d(fil_page_type_validate(space, tmp));
 
     if (encrypted)
       tmp= fil_space_encrypt(space, page_no, tmp, d);
@@ -704,7 +702,6 @@ not_compressed:
     d= tmp;
   }
 
-  ut_d(fil_page_type_validate(space, d));
   (*slot)->out_buf= d;
   return d;
 }

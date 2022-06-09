@@ -2036,23 +2036,25 @@ ibuf_get_merge_page_nos_func(
 
 	*n_stored = 0;
 
-	limit = ut_min(IBUF_MAX_N_PAGES_MERGED,
-		       buf_pool_get_curr_size() / 4);
-
 	if (page_rec_is_supremum(rec)) {
 
 		rec = page_rec_get_prev_const(rec);
+		if (UNIV_UNLIKELY(!rec)) {
+corruption:
+			ut_ad("corrupted page" == 0);
+			return 0;
+		}
 	}
 
 	if (page_rec_is_infimum(rec)) {
-
 		rec = page_rec_get_next_const(rec);
+		if (page_rec_is_supremum(rec)) {
+			return 0;
+		}
 	}
 
-	if (page_rec_is_supremum(rec)) {
-
-		return(0);
-	}
+	limit = ut_min(IBUF_MAX_N_PAGES_MERGED,
+		       buf_pool_get_curr_size() / 4);
 
 	first_page_no = ibuf_rec_get_page_no(mtr, rec);
 	first_space_id = ibuf_rec_get_space(mtr, rec);
@@ -2084,7 +2086,9 @@ ibuf_get_merge_page_nos_func(
 		prev_page_no = rec_page_no;
 		prev_space_id = rec_space_id;
 
-		rec = page_rec_get_prev_const(rec);
+		if (UNIV_UNLIKELY(!(rec = page_rec_get_prev_const(rec)))) {
+			goto corruption;
+		}
 	}
 
 	rec = page_rec_get_next_const(rec);
@@ -2810,14 +2814,16 @@ ibuf_get_volume_buffered(
 	page = page_align(rec);
 	ut_ad(page_validate(page, ibuf.index));
 
-	if (page_rec_is_supremum(rec)) {
-		rec = page_rec_get_prev_const(rec);
+	if (page_rec_is_supremum(rec)
+	    && UNIV_UNLIKELY(!(rec = page_rec_get_prev_const(rec)))) {
+corruption:
+		ut_ad("corrupted page" == 0);
+		return srv_page_size;
 	}
 
 	uint32_t prev_page_no;
 
-	for (; !page_rec_is_infimum(rec);
-	     rec = page_rec_get_prev_const(rec)) {
+	for (; !page_rec_is_infimum(rec); ) {
 		ut_ad(page_align(rec) == page);
 
 		if (page_no != ibuf_rec_get_page_no(mtr, rec)
@@ -2829,6 +2835,10 @@ ibuf_get_volume_buffered(
 		volume += ibuf_get_volume_buffered_count(
 			mtr, rec,
 			hash_bitmap, UT_ARR_SIZE(hash_bitmap), n_recs);
+
+		if (UNIV_UNLIKELY(!(rec = page_rec_get_prev_const(rec)))) {
+			goto corruption;
+		}
 	}
 
 	/* Look at the previous page */
@@ -2854,13 +2864,16 @@ ibuf_get_volume_buffered(
 
         if (UNIV_UNLIKELY(memcmp_aligned<4>(prev_page + FIL_PAGE_NEXT,
                                             page + FIL_PAGE_OFFSET, 4))) {
-		return 0;
+		return srv_page_size;
         }
 
-	rec = page_get_supremum_rec(prev_page);
-	rec = page_rec_get_prev_const(rec);
+	rec = page_rec_get_prev_const(page_get_supremum_rec(prev_page));
 
-	for (;; rec = page_rec_get_prev_const(rec)) {
+	if (UNIV_UNLIKELY(!rec)) {
+		goto corruption;
+	}
+
+	for (;;) {
 		ut_ad(page_align(rec) == prev_page);
 
 		if (page_rec_is_infimum(rec)) {
@@ -2881,6 +2894,10 @@ ibuf_get_volume_buffered(
 		volume += ibuf_get_volume_buffered_count(
 			mtr, rec,
 			hash_bitmap, UT_ARR_SIZE(hash_bitmap), n_recs);
+
+		if (UNIV_UNLIKELY(!(rec = page_rec_get_prev_const(rec)))) {
+			goto corruption;
+		}
 	}
 
 count_later:
@@ -3802,7 +3819,10 @@ ibuf_insert_to_index_page(
 		buffered one. */
 
 		page_cur_delete_rec(&page_cur, index, offsets, mtr);
-		page_cur_move_to_prev(&page_cur);
+		if (!(page_cur_move_to_prev(&page_cur))) {
+			err = DB_CORRUPTION;
+			goto updated_in_place;
+		}
 	} else {
 		offsets = NULL;
         }

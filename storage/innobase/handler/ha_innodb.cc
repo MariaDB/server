@@ -7396,9 +7396,12 @@ ha_innobase::build_template(
 
 	ulint num_v = 0;
 
-	if ((active_index != MAX_KEY
-	     && active_index == pushed_idx_cond_keyno)
-	    || (pushed_rowid_filter && rowid_filter_is_active)) {
+	if (active_index != MAX_KEY
+	     && active_index == pushed_idx_cond_keyno) {
+		m_prebuilt->idx_cond = this;
+		goto icp;
+	} else if (pushed_rowid_filter && rowid_filter_is_active) {
+icp:
 		/* Push down an index condition or an end_range check. */
 		for (ulint i = 0; i < n_fields; i++) {
 			const Field* field = table->field[i];
@@ -7578,9 +7581,6 @@ ha_innobase::build_template(
 					num_v++;
 				}
 			}
-		}
-		if (active_index == pushed_idx_cond_keyno) {
-			m_prebuilt->idx_cond = this;
 		}
 	} else {
 no_icp:
