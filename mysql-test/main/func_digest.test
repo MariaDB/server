@@ -458,6 +458,8 @@ SELECT SHA2( x'f4259473bfd39877bfe9597353d7ce8dd520c66d1fc7884e4e03b655c63a77217
 SELECT SHA2( x'd60da691585b7c0c3714905411ae8e3515e8490dbbaf07d1b2431f501a96c7bcf4f52766d7e9b2c9e460b5cafc08303e30fce6ad78a2b055a8d31672a13d20bdc4066a33adb277171d47473a37af2c7af05dd989c134bcf09ea48e532c1628f62f8a9880417e74ffca126e2d2c6b29f23e554b29fc2cd4a77dfcae7925e784', 512 ) = 'ec83376ff6f633ee2d898d87a6a91efb0788bce188fac7d3c4c35f81ba6015640dbfad1f8584557ec210478a0cb566f1490643ce602aa5abfab63d46f7f1d4ee'  as NIST_SHA512_test_vector;
 SELECT SHA2( x'b7d5d5f8955d1ad349b9e618c7987814f6dc7bdc6c4ee59a79902026685468d601cc74965361583bb0a8aa14f892e3c21be3094ad9e58b69cc5d6d28a9bea4afc39dc45ed065d81af04c91e5eb85a4b2bab76d774aafd8837c52811270d51a1f03300e7996cf6319128be5b328da818bde42ef8a471494919156a60d460191cc', 512 ) = '6e7fb797dfca7577432c0b339fe9003b36942a549b112d32016b257c9a866e4385e01d4e757d4378b8e61f5a8a29aa73f2daafdaab23dfe4e0b93df21374e594'  as NIST_SHA512_test_vector;
 
+#view protocol generates additional warnings
+--disable_view_protocol
 ## Test some unusual parameters items.
 ## First, the ones that must return NULL.
 SELECT SHA2( x'ff', 1 );
@@ -467,6 +469,7 @@ SELECT SHA2( x'ff', 511 );
 SELECT SHA2( x'ff', least(123, 42) );
 SELECT SHA2( x'ff', 10000000000000 );
 SELECT SHA2( SHA2( NULL, 224), 224 );
+--enable_view_protocol
 ## Second, things that mustn't return NULL;
 SELECT SHA2( SHA2( x'ff', 224), 224 ) is not NULL;
 SELECT SHA2( SHA2( x'ff', NULL), 224 ) is not NULL;
@@ -485,6 +488,8 @@ SELECT LENGTH(SHA2( 'computed', 512 )) / 2 * 8   = 512;
 --echo #
 --echo # Bug#54661 sha2() returns BINARY result
 --echo #
+
+--disable_view_protocol
 --enable_metadata
 SET NAMES binary;
 SELECT sha2('1',224);
@@ -493,6 +498,7 @@ SELECT sha2('1',224);
 SET NAMES latin1;
 SELECT sha2('1',224);
 --disable_metadata
+--disable_view_protocol
 
 --echo #
 --echo # Start of 10.1 tests

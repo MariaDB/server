@@ -1,6 +1,10 @@
 #
 # Test latin_de character set
 #
+
+# Enable after fix MDEV-27904 and not earlier version 10.6
+-- source include/no_view_protocol.inc
+
 create database latin1_german2_ci default character set latin1 collate latin1_german2_ci;
 use latin1_german2_ci;
 

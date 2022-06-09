@@ -3,6 +3,7 @@
 #
 -- source include/have_innodb.inc
 -- source include/not_embedded.inc
+-- source include/no_view_protocol.inc
 
 set sql_mode="";
 

@@ -39,6 +39,8 @@ commit;
 analyze table test_table;
 
 explain select * from (select id, lead(id) over(order by id) next_id from test_table order by id) a limit 10;
+#enable after fix MDEV-27871
+--disable_view_protocol
 
 flush status;
 select * from (select id, lead(id) over(order by id) next_id from test_table order by id) a limit 10;
@@ -46,5 +48,6 @@ select variable_name,
        case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
 from information_schema.session_status
 where variable_name like 'Sort_merge_passes';
+--enable_view_protocol
 
 drop table test_table;

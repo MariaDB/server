@@ -442,10 +442,13 @@ INSERT INTO t1 VALUES (1,'foo','bar'),(2,'bar','foo');
 CREATE TABLE t2 (pk2 INT PRIMARY KEY, a2 VARCHAR(3), KEY(a2)) ENGINE=MyISAM;
 INSERT INTO t2 VALUES (1,'abc'),(2,'xyz'),(3,'foo');
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT 'qux' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 );
 SELECT 'bar' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 );
 EXPLAIN 
 SELECT 'bar' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 );
+--enable_view_protocol
 
 DROP TABLE t1,t2;
 

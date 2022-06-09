@@ -847,7 +847,7 @@ create table t2 (c int, d int, key(c), key(d)) engine=myisam;
 insert t2 select floor(rand()*1e5/2)*2, floor(rand()*1e5/3)*3 from t1;
 
 analyze table t1,t2;
-
+--disable_view_protocol
 set optimizer_use_condition_selectivity=1;
 explain extended 
 select * from t1, t2, t1 as t3
@@ -863,7 +863,7 @@ select * from t1, t2, t1 as t3
 --sorted_result
 select * from t1, t2, t1 as t3
   where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
-
+--enable_view_protocol
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 
 drop table t1,t2;

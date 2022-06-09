@@ -633,9 +633,12 @@ DROP TABLE t1, t2;
 --echo # MDEV-16872 Add CAST(expr AS FLOAT)
 --echo #
 
+#'float' in the note is written with in lowercase in --view-protocol
+--disable_view_protocol
 SELECT CAST(0.671437 AS FLOAT), CONCAT(CAST(0.671437 AS FLOAT));
 SELECT CAST(1e40 AS FLOAT), CONCAT(CAST(1e40 AS FLOAT));
 SELECT CAST(-1e40 AS FLOAT), CONCAT(CAST(-1e40 AS FLOAT));
+--enable_view_protocol
 
 SET sql_mode='STRICT_ALL_TABLES,STRICT_TRANS_TABLES';
 CREATE TABLE t1 (a FLOAT);

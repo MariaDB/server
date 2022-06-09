@@ -1,3 +1,4 @@
+--source include/no_view_protocol.inc
 --source include/not_embedded.inc
 
 CREATE ROLE IF NOT EXISTS role1 WITH ADMIN user1;
