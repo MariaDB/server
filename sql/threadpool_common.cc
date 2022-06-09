@@ -666,9 +666,9 @@ static bool tp_notify_apc(THD *thd, THD *this_thd)
              poll, then we will wait until the epoch change, therefore, will wait
              until the task will reach the worker by the queue, which can be
              long.
-             So longer sleep here.
+             So longer sleep here (1ms).
            */
-          sleep(1);
+          my_sleep(1000);
         }
       }
     }

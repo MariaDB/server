@@ -185,9 +185,9 @@ int TP_connection_win::start_io()
 
 int TP_connection_win::cancel_io()
 {
-  if (!CancelIoEx(sock.m_handle, &sock.m_overlapped))
-    return GetLastError() == ERROR_NOT_FOUND ? 0 : -1;
-  return 1;
+  if (CancelIoEx(sock.m_handle, &sock.m_overlapped))
+    return 0;
+  return GetLastError() == ERROR_NOT_FOUND ? 1 : -1;
 }
 
 /*
