@@ -106,8 +106,8 @@ drop database some_db;
 --echo #
 create database some_db;
 create user foo;
-create table some_db.t1 (a int);
-create table some_db.t2 (a int);
+create table some_db.t1 (a int, b int);
+create table some_db.t2 (a int, b int);
 
 grant select on *.* to foo;
 deny select on some_db.t1 to foo;
@@ -122,6 +122,10 @@ show tables from some_db;
 --error ER_TABLEACCESS_DENIED_ERROR
 show columns from some_db.t1;
 show columns from some_db.t2;
+
+select table_name, column_name, privileges from information_schema.columns
+where table_schema like 'some_db' order by table_name, column_name;
+
 disconnect con1;
 
 connection default;
@@ -129,9 +133,17 @@ grant insert on some_db.* to foo;
 
 --connect (con1,localhost,foo,,)
 show tables from some_db;
+--echo #
+--echo # See MDEV-28783, this should not error out when global/db grants exist
+--echo # (except for SELECT priv).
+--echo #
 --error ER_TABLEACCESS_DENIED_ERROR
 show columns from some_db.t1;
 show columns from some_db.t2;
+
+select table_name, column_name, privileges from information_schema.columns
+where table_schema like 'some_db' order by table_name, column_name;
+
 disconnect con1;
 
 connection default;
@@ -139,11 +151,38 @@ deny insert on some_db.t1 to foo;
 deny select on some_db.t2 to foo;
 
 --connect (con1,localhost,foo,,)
+--echo #
+--echo # some_db should still be visible, but it should show up as empty.
+--echo #
+show databases;
 show tables from some_db;
 --error ER_TABLEACCESS_DENIED_ERROR
 show columns from some_db.t1;
 --error ER_TABLEACCESS_DENIED_ERROR
 show columns from some_db.t2;
+
+select table_name, column_name, privileges from information_schema.columns
+where table_schema like 'some_db' order by table_name, column_name;
+
+disconnect con1;
+
+connection default;
+
+grant select(a) on some_db.t1 to foo;
+grant update(a) on some_db.t1 to foo;
+
+--connect (con1,localhost,foo,,)
+--echo #
+--echo # Update privilege on the column is not masked, only see a column.
+--echo #
+show tables from some_db;
+show columns from some_db.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+show columns from some_db.t2;
+
+select table_name, column_name, privileges from information_schema.columns
+where table_schema like 'some_db' order by table_name, column_name;
+
 disconnect con1;
 
 connection default;
