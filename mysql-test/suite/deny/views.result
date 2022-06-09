@@ -1,0 +1,135 @@
+#
+# Test view SQL SECURITY interacting with DENIES
+#
+create database some_db;
+create user foo;
+create user bar;
+grant all on some_db.* to foo;
+grant select on some_db.* to bar;
+connect  con1, localhost, foo,,;
+create table some_db.t1 (pk int, b char);
+insert into some_db.t1 values (1, 'a'), (2, 'b'), (3, 'c');
+create table some_db.t2 (pk int, fk int);
+insert into some_db.t2 values (10, 1), (20, 2), (30, 3);
+create view some_db.v1 (a, b) as
+select pk, b from some_db.t1
+order by pk;
+create view some_db.v2 (pk1, pk2, b) as
+select t1.pk, t2.pk, t1.b
+from some_db.t1 join some_db.t2 on t1.pk = t2.fk
+order by t1.pk, t2.pk;
+create SQL SECURITY INVOKER view some_db.v3 (pk1, pk2, b) as
+select t1.pk, t2.pk, t1.b
+from some_db.t1 join some_db.t2 on t1.pk = t2.fk
+order by t1.pk, t2.pk;
+select * from some_db.v1;
+a	b
+1	a
+2	b
+3	c
+select * from some_db.v2;
+pk1	pk2	b
+1	10	a
+2	20	b
+3	30	c
+disconnect con1;
+connect  con2, localhost, bar,,;
+select * from some_db.v1;
+a	b
+1	a
+2	b
+3	c
+select * from some_db.v2;
+pk1	pk2	b
+1	10	a
+2	20	b
+3	30	c
+disconnect con2;
+connection default;
+deny select on some_db.* to foo;
+show create view some_db.v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`foo`@`%` SQL SECURITY DEFINER VIEW `some_db`.`v1` AS select `some_db`.`t1`.`pk` AS `a`,`some_db`.`t1`.`b` AS `b` from `some_db`.`t1` order by `some_db`.`t1`.`pk`	latin1	latin1_swedish_ci
+show create view some_db.v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`foo`@`%` SQL SECURITY DEFINER VIEW `some_db`.`v2` AS select `some_db`.`t1`.`pk` AS `pk1`,`some_db`.`t2`.`pk` AS `pk2`,`some_db`.`t1`.`b` AS `b` from (`some_db`.`t1` join `some_db`.`t2` on(`some_db`.`t1`.`pk` = `some_db`.`t2`.`fk`)) order by `some_db`.`t1`.`pk`,`some_db`.`t2`.`pk`	latin1	latin1_swedish_ci
+connect  con1, localhost, foo,,;
+select * from some_db.v1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'v1'
+select * from some_db.v2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'v2'
+disconnect con1;
+connect  con2, localhost, bar,,;
+select * from some_db.v1;
+ERROR HY000: View 'some_db.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+select * from some_db.v2;
+ERROR HY000: View 'some_db.v2' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+disconnect con2;
+connection default;
+revoke deny select on some_db.* from foo;
+deny select on some_db.t2 to foo;
+connect  con1, localhost, foo,,;
+select * from some_db.v1;
+a	b
+1	a
+2	b
+3	c
+select * from some_db.v2;
+ERROR HY000: View 'some_db.v2' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+disconnect con1;
+connect  con2, localhost, bar,,;
+select * from some_db.v1;
+a	b
+1	a
+2	b
+3	c
+select * from some_db.v2;
+ERROR HY000: View 'some_db.v2' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+disconnect con2;
+#
+# Test that VIEWS correctly apply denies of the SQL SECURITY setting.
+#
+connect  con2, localhost, bar,,;
+select * from some_db.v1;
+a	b
+1	a
+2	b
+3	c
+select * from some_db.v2;
+ERROR HY000: View 'some_db.v2' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+#
+# v3 uses bar's rights, so bar should be able to see it.
+#
+select * from some_db.v3;
+pk1	pk2	b
+1	10	a
+2	20	b
+3	30	c
+disconnect con2;
+connection default;
+deny select on some_db.t1 to bar;
+connect  con2, localhost, bar,,;
+select * from some_db.v1;
+a	b
+1	a
+2	b
+3	c
+select * from some_db.v2;
+ERROR HY000: View 'some_db.v2' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+select * from some_db.v3;
+ERROR HY000: View 'some_db.v3' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+disconnect con2;
+connection default;
+deny select on some_db.v1 to bar;
+connect  con2, localhost, bar,,;
+select * from some_db.v1;
+ERROR 42000: SELECT command denied to user 'bar'@'localhost' for table 'v1'
+select * from some_db.v2;
+ERROR HY000: View 'some_db.v2' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+select * from some_db.v3;
+ERROR HY000: View 'some_db.v3' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+disconnect con2;
+connection default;
+drop database some_db;
+drop user foo;
+drop user bar;
