@@ -5459,6 +5459,11 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     "cost_for_plan": 451.86,
                                     "semijoin_strategy_choice": [
                                       {
+                                        "strategy": "FirstMatch",
+                                        "records": 27,
+                                        "read_time": 665.23
+                                      },
+                                      {
                                         "strategy": "DuplicateWeedout",
                                         "records": 27,
                                         "read_time": 565.26
@@ -5634,16 +5639,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 },
                                 "rows_for_plan": 2187,
                                 "cost_for_plan": 611.85,
-                                "semijoin_strategy_choice": [
-                                  {
-                                    "strategy": "FirstMatch",
-                                    "records": 81,
-                                    "read_time": 2232.8
-                                  },
-                                  {
-                                    "chosen_strategy": "FirstMatch"
-                                  }
-                                ],
+                                "semijoin_strategy_choice": [],
                                 "pruned_by_cost": true
                               },
                               {

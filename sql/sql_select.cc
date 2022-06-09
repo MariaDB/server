@@ -8335,6 +8335,10 @@ choose_plan(JOIN *join, table_map join_tables)
   {
     choose_initial_table_order(join);
   }
+  /*
+    Note: constant tables are already in the join prefix. We don't
+    put them into the cur_sj_inner_tables, though.
+  */
   join->cur_sj_inner_tables= 0;
 
   if (straight_join)
@@ -8648,8 +8652,8 @@ optimize_straight_join(JOIN *join, table_map join_tables)
     read_time+= COST_ADD(read_time - filter_cmp_gain,
                          COST_ADD(position->read_time,
                                   record_count / (double) TIME_FOR_COMPARE));
-    advance_sj_state(join, join_tables, idx, &record_count, &read_time,
-                     &loose_scan_pos);
+    optimize_semi_joins(join, join_tables, idx, &record_count, &read_time,
+                        &loose_scan_pos);
 
     join_tables&= ~(s->table->map);
     double pushdown_cond_selectivity= 1.0;
@@ -8826,6 +8830,12 @@ greedy_search(JOIN      *join,
     /* This has been already checked by best_extension_by_limited_search */
     DBUG_ASSERT(!is_interleave_error);
 
+    /*
+      Also, update the semi-join optimization state. Information about the
+      picked semi-join operation is in best_pos->...picker, but we need to
+      update the global state in the JOIN object, too.
+    */
+    update_sj_state(join, best_table, idx, remaining_tables);
 
     /* find the position of 'best_table' in 'join->best_ref' */
     best_idx= idx;
@@ -9624,8 +9634,8 @@ best_extension_by_limited_search(JOIN      *join,
         trace_one_table.add("rows_for_plan", current_record_count);
         trace_one_table.add("cost_for_plan", current_read_time);
       }
-      advance_sj_state(join, remaining_tables, idx, &current_record_count,
-                       &current_read_time, &loose_scan_pos);
+      optimize_semi_joins(join, remaining_tables, idx, &current_record_count,
+                          &current_read_time, &loose_scan_pos);
 
       /* Expand only partial plans with lower cost than the best QEP so far */
       if (current_read_time >= join->best_read)
