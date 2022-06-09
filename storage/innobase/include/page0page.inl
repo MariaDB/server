@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -23,9 +23,6 @@ Index page routines
 
 Created 2/2/1994 Heikki Tuuri
 *******************************************************/
-
-#ifndef page0page_ic
-#define page0page_ic
 
 #ifndef UNIV_INNOCHECKSUM
 #include "rem0cmp.h"
@@ -506,7 +503,8 @@ page_rec_get_next_non_del_marked(
 
 /************************************************************//**
 Gets the pointer to the previous record.
-@return pointer to previous record */
+@return pointer to previous record
+@retval nullptr on error */
 UNIV_INLINE
 const rec_t*
 page_rec_get_prev_const(
@@ -528,42 +526,28 @@ page_rec_get_prev_const(
 
 	slot_no = page_dir_find_owner_slot(rec);
 
-	ut_a(slot_no != 0);
+	if (UNIV_UNLIKELY(!slot_no || slot_no == ULINT_UNDEFINED)) {
+		return nullptr;
+	}
 
 	slot = page_dir_get_nth_slot(page, slot_no - 1);
 
 	rec2 = page_dir_slot_get_rec(slot);
 
 	if (page_is_comp(page)) {
-		while (rec != rec2) {
+		while (rec2 && rec != rec2) {
 			prev_rec = rec2;
 			rec2 = page_rec_get_next_low(rec2, TRUE);
 		}
 	} else {
-		while (rec != rec2) {
+		while (rec2 && rec != rec2) {
 			prev_rec = rec2;
 			rec2 = page_rec_get_next_low(rec2, FALSE);
 		}
 	}
 
-	ut_a(prev_rec);
-
 	return(prev_rec);
 }
-
-/************************************************************//**
-Gets the pointer to the previous record.
-@return pointer to previous record */
-UNIV_INLINE
-rec_t*
-page_rec_get_prev(
-/*==============*/
-	rec_t*	rec)	/*!< in: pointer to record, must not be page
-			infimum */
-{
-	return((rec_t*) page_rec_get_prev_const(rec));
-}
-
 #endif /* UNIV_INNOCHECKSUM */
 
 /************************************************************//**
@@ -720,5 +704,3 @@ page_get_instant(const page_t* page)
 	return static_cast<uint16_t>(i >> 3);  /* i / 8 */
 }
 #endif /* !UNIV_INNOCHECKSUM */
-
-#endif

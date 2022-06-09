@@ -71,6 +71,7 @@ Created 10/16/1994 Heikki Tuuri
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif /* WITH_WSREP */
+#include "log.h"
 
 /** Buffered B-tree operation types, introduced as part of delete buffering. */
 enum btr_op_t {
@@ -2131,12 +2132,10 @@ need_opposite_intention:
 				if (matched_fields
 				    >= rec_offs_n_fields(offsets) - 1) {
 					detected_same_key_root = true;
-				} else {
-					const rec_t*	last_rec;
-
-					last_rec = page_rec_get_prev_const(
-						page_get_supremum_rec(page));
-
+				} else if (const rec_t* last_rec
+					   = page_rec_get_prev_const(
+						   page_get_supremum_rec(
+							   page))) {
 					matched_fields = 0;
 
 					offsets2 = rec_get_offsets(
@@ -2150,6 +2149,9 @@ need_opposite_intention:
 					    >= rec_offs_n_fields(offsets) - 1) {
 						detected_same_key_root = true;
 					}
+				} else {
+					err = DB_CORRUPTION;
+					goto func_exit;
 				}
 			}
 		}
@@ -2709,7 +2711,10 @@ btr_cur_open_at_index_side(
 		if (from_left) {
 			page_cur_move_to_next(page_cursor);
 		} else {
-			page_cur_move_to_prev(page_cursor);
+			if (!page_cur_move_to_prev(page_cursor)) {
+				err = DB_CORRUPTION;
+				goto exit_loop;
+			}
 		}
 
 		if (estimate) {
@@ -2799,7 +2804,7 @@ btr_cur_open_at_index_side(
 	}
 
  exit_loop:
-	if (heap) {
+	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
 
@@ -3844,6 +3849,7 @@ static void btr_cur_write_sys(
 	trx_write_roll_ptr(static_cast<byte*>(r->data), roll_ptr);
 }
 
+MY_ATTRIBUTE((warn_unused_result))
 /** Update DB_TRX_ID, DB_ROLL_PTR in a clustered index record.
 @param[in,out]  block           clustered index leaf page
 @param[in,out]  rec             clustered index record
@@ -3851,11 +3857,12 @@ static void btr_cur_write_sys(
 @param[in]      offsets         rec_get_offsets(rec, index)
 @param[in]      trx             transaction
 @param[in]      roll_ptr        DB_ROLL_PTR value
-@param[in,out]  mtr             mini-transaction */
-static void btr_cur_upd_rec_sys(buf_block_t *block, rec_t *rec,
-                                dict_index_t *index, const rec_offs *offsets,
-                                const trx_t *trx, roll_ptr_t roll_ptr,
-                                mtr_t *mtr)
+@param[in,out]  mtr             mini-transaction
+@return error code */
+static dberr_t btr_cur_upd_rec_sys(buf_block_t *block, rec_t *rec,
+                                   dict_index_t *index, const rec_offs *offsets,
+                                   const trx_t *trx, roll_ptr_t roll_ptr,
+                                   mtr_t *mtr)
 {
   ut_ad(index->is_primary());
   ut_ad(rec_offs_validate(rec, index, offsets));
@@ -3864,7 +3871,7 @@ static void btr_cur_upd_rec_sys(buf_block_t *block, rec_t *rec,
   {
     page_zip_write_trx_id_and_roll_ptr(block, rec, offsets, index->db_trx_id(),
                                        trx->id, roll_ptr, mtr);
-    return;
+    return DB_SUCCESS;
   }
 
   ulint offset= index->trx_id_offset;
@@ -3894,8 +3901,8 @@ static void btr_cur_upd_rec_sys(buf_block_t *block, rec_t *rec,
   if (UNIV_LIKELY(index->trx_id_offset))
   {
     const rec_t *prev= page_rec_get_prev_const(rec);
-    if (UNIV_UNLIKELY(prev == rec))
-      ut_ad(0);
+    if (UNIV_UNLIKELY(!prev || prev == rec))
+      return DB_CORRUPTION;
     else if (page_rec_is_infimum(prev));
     else
       for (src= prev + offset; d < DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN; d++)
@@ -3933,6 +3940,8 @@ static void btr_cur_upd_rec_sys(buf_block_t *block, rec_t *rec,
 
   if (UNIV_LIKELY(len)) /* extra safety, to avoid corrupting the log */
     mtr->memcpy<mtr_t::MAYBE_NOP>(*block, dest, sys + d, len);
+
+  return DB_SUCCESS;
 }
 
 /*************************************************************//**
@@ -4238,8 +4247,11 @@ btr_cur_update_in_place(
 	}
 
 	if (!(flags & BTR_KEEP_SYS_FLAG)) {
-		btr_cur_upd_rec_sys(block, rec, index, offsets,
-				    thr_get_trx(thr), roll_ptr, mtr);
+		err = btr_cur_upd_rec_sys(block, rec, index, offsets,
+					  thr_get_trx(thr), roll_ptr, mtr);
+		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+			goto func_exit;
+		}
 	}
 
 	was_delete_marked = rec_get_deleted_flag(
@@ -4693,7 +4705,9 @@ any_extern:
 
 	page_cur_delete_rec(page_cursor, index, *offsets, mtr);
 
-	page_cur_move_to_prev(page_cursor);
+	if (!page_cur_move_to_prev(page_cursor)) {
+		return DB_CORRUPTION;
+	}
 
 	if (!(flags & BTR_KEEP_SYS_FLAG)) {
 		btr_cur_write_sys(new_entry, index, trx_id, roll_ptr);
@@ -5055,7 +5069,10 @@ btr_cur_pessimistic_update(
 
 	page_cur_delete_rec(page_cursor, index, *offsets, mtr);
 
-	page_cur_move_to_prev(page_cursor);
+	if (!page_cur_move_to_prev(page_cursor)) {
+		err = DB_CORRUPTION;
+		goto return_after_reservations;
+	}
 
 	rec = btr_cur_insert_if_possible(cursor, new_entry,
 					 offsets, offsets_heap, n_ext, mtr);
@@ -5353,8 +5370,8 @@ btr_cur_del_mark_set_clust_rec(
 		 << ib::hex(trx->id) << ": "
 		 << rec_printer(rec, offsets).str());
 
-	btr_cur_upd_rec_sys(block, rec, index, offsets, trx, roll_ptr, mtr);
-	return(err);
+	return btr_cur_upd_rec_sys(block, rec, index, offsets, trx, roll_ptr,
+				   mtr);
 }
 
 /*==================== B-TREE RECORD REMOVE =========================*/
@@ -7195,29 +7212,29 @@ func_exit:
 }
 
 /** Check the FIL_PAGE_TYPE on an uncompressed BLOB page.
-@param[in]      block   uncompressed BLOB page
-@param[in]      read    true=read, false=purge */
-static void btr_check_blob_fil_page_type(const buf_block_t& block, bool read)
+@param block   uncompressed BLOB page
+@param op      operation
+@return whether the type is invalid */
+static bool btr_check_blob_fil_page_type(const buf_block_t& block,
+                                         const char *op)
 {
   uint16_t type= fil_page_get_type(block.page.frame);
 
-  if (UNIV_LIKELY(type == FIL_PAGE_TYPE_BLOB))
-    return;
-  /* FIXME: take the tablespace as a parameter */
-  if (fil_space_t *space= fil_space_t::get(block.page.id().space()))
+  if (UNIV_LIKELY(type == FIL_PAGE_TYPE_BLOB));
+  else if (fil_space_t *space= fil_space_t::get(block.page.id().space()))
   {
     /* Old versions of InnoDB did not initialize FIL_PAGE_TYPE on BLOB
     pages.  Do not print anything about the type mismatch when reading
     a BLOB page that may be from old versions. */
-    if (space->full_crc32() || DICT_TF_HAS_ATOMIC_BLOBS(space->flags))
-    {
-      ib::fatal() << "FIL_PAGE_TYPE=" << type
-		  << (read ? " on BLOB read file " : " on BLOB purge file ")
-		  << space->chain.start->name
-		  << " page " << block.page.id().page_no();
-    }
+    bool fail= space->full_crc32() || DICT_TF_HAS_ATOMIC_BLOBS(space->flags);
+    if (fail)
+      sql_print_error("InnoDB: FIL_PAGE_TYPE=%u on BLOB %s file %s page %u",
+                      type, op, space->chain.start->name,
+                      block.page.id().page_no());
     space->release();
+    return fail;
   }
+  return false;
 }
 
 /*******************************************************************//**
@@ -7364,7 +7381,7 @@ skip_free:
 			}
 		} else {
 			ut_ad(!block->page.zip.data);
-			btr_check_blob_fil_page_type(*ext_block, false);
+			btr_check_blob_fil_page_type(*ext_block, "purge");
 
 			const uint32_t next_page_no = mach_read_from_4(
 				page + FIL_PAGE_DATA
@@ -7498,13 +7515,11 @@ btr_copy_blob_prefix(
 		mtr_start(&mtr);
 
 		block = buf_page_get(id, 0, RW_S_LATCH, &mtr);
-		if (!block) {
+		if (!block || btr_check_blob_fil_page_type(*block, "read")) {
 			mtr.commit();
 			return copied_len;
 		}
 		page = buf_block_get_frame(block);
-
-		btr_check_blob_fil_page_type(*block, true);
 
 		blob_header = page + offset;
 		part_len = btr_blob_get_part_len(blob_header);

@@ -148,6 +148,11 @@ before_first:
 
 	if (page_rec_is_supremum_low(offs)) {
 		rec = page_rec_get_prev(rec);
+		if (UNIV_UNLIKELY(!rec || page_rec_is_infimum(rec))) {
+			ut_ad("corrupted index" == 0);
+			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
+			return;
+		}
 
 		ut_ad(!page_rec_is_infimum(rec));
 		if (UNIV_UNLIKELY(rec_is_metadata(rec, *index))) {
@@ -486,7 +491,17 @@ btr_pcur_move_to_next_page(
 	const page_t* page = btr_pcur_get_page(cursor);
 	const uint32_t next_page_no = btr_page_get_next(page);
 
-	ut_ad(next_page_no != FIL_NULL);
+	switch (next_page_no) {
+	case 0:
+	case 1:
+	case FIL_NULL:
+		return DB_CORRUPTION;
+	}
+
+	if (UNIV_UNLIKELY(next_page_no == btr_pcur_get_block(cursor)
+			  ->page.id().page_no())) {
+		return DB_CORRUPTION;
+	}
 
 	ulint mode = cursor->latch_mode;
 	switch (mode) {
@@ -599,13 +614,9 @@ btr_pcur_move_to_prev(
 	cursor->old_stored = false;
 
 	if (btr_pcur_is_before_first_on_page(cursor)) {
-		if (btr_pcur_is_before_first_in_tree(cursor)
-		    || btr_pcur_move_backward_from_page(cursor, mtr)) {
-			return false;
-		}
-	} else {
-		btr_pcur_move_to_prev_on_page(cursor);
+		return (!btr_pcur_is_before_first_in_tree(cursor)
+			&& !btr_pcur_move_backward_from_page(cursor, mtr));
 	}
 
-	return true;
+	return btr_pcur_move_to_prev_on_page(cursor) != nullptr;
 }

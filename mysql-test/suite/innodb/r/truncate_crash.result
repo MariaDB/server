@@ -8,6 +8,10 @@ connection default;
 SET DEBUG_SYNC='now WAIT_FOR c';
 # restart
 disconnect wait;
+SET @save_frequency=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+InnoDB		0 transactions not purged
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 0

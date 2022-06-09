@@ -42,7 +42,7 @@ let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 --let SEARCH_PATTERN= InnoDB: New log file created, LSN=175964\d{8}
 --source include/search_pattern_in_file.inc
 
-CREATE TABLE t(i INT) ENGINE INNODB;
+CREATE TABLE t(i INT) ENGINE=INNODB ENCRYPTED=YES;
 INSERT INTO t VALUES(1);
 
 echo # xtrabackup backup;
@@ -58,6 +58,22 @@ exec $XTRABACKUP  --prepare --target-dir=$targetdir;
 --source include/restart_and_restore.inc
 --enable_result_log
 SELECT * FROM t;
+FLUSH TABLE t FOR EXPORT;
+copy_file $_datadir/test/t.ibd $_datadir/test/t_copy.ibd;
+copy_file $_datadir/test/t.cfg $_datadir/test/t_copy.cfg;
+UNLOCK TABLES;
+ALTER TABLE t DISCARD TABLESPACE;
+move_file $_datadir/test/t_copy.ibd $_datadir/test/t.ibd;
+move_file $_datadir/test/t_copy.cfg $_datadir/test/t.cfg;
+ALTER TABLE t IMPORT TABLESPACE;
+FLUSH TABLE t FOR EXPORT;
+copy_file $_datadir/test/t.ibd $_datadir/test/t_copy.ibd;
+copy_file $_datadir/test/t.cfg $_datadir/test/t_copy.cfg;
+UNLOCK TABLES;
+ALTER TABLE t DISCARD TABLESPACE;
+move_file $_datadir/test/t_copy.ibd $_datadir/test/t.ibd;
+move_file $_datadir/test/t_copy.cfg $_datadir/test/t.cfg;
+ALTER TABLE t IMPORT TABLESPACE;
 DROP TABLE t;
 rmdir $targetdir;
 let $targetdir= $targetdir_old;

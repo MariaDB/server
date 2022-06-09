@@ -82,7 +82,8 @@ is 50 x 4 bytes = 200 bytes. */
 
 /***************************************************************//**
 Looks for the directory slot which owns the given record.
-@return the directory slot number */
+@return the directory slot number
+@retval ULINT_UNDEFINED on corruption */
 ulint
 page_dir_find_owner_slot(
 /*=====================*/
@@ -135,7 +136,7 @@ page_dir_find_owner_slot(
 					      + mach_decode_2(rec_offs_bytes));
 			}
 
-			ut_error;
+			return ULINT_UNDEFINED;
 		}
 
 		slot += PAGE_DIR_SLOT_SIZE;
@@ -589,12 +590,12 @@ page_copy_rec_list_end(
 
 		/* For spatial index, we need to insert recs one by one
 		to keep recs ordered. */
-		rtr_page_copy_rec_list_end_no_locks(new_block,
-						    block, rec, index,
-						    heap, rec_move,
-						    max_to_move,
-						    &num_moved,
-						    mtr);
+		*err = rtr_page_copy_rec_list_end_no_locks(new_block,
+							   block, rec, index,
+							   heap, rec_move,
+							   max_to_move,
+							   &num_moved,
+							   mtr);
 	} else {
 		*err = page_copy_rec_list_end_no_locks(new_block, block, rec,
 						       index, mtr);
@@ -719,6 +720,11 @@ page_copy_rec_list_start(
 	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
+	if (UNIV_UNLIKELY(!ret)) {
+		*err = DB_CORRUPTION;
+		return ret;
+	}
+
 	/* Here, "ret" may be pointing to a user record or the
 	predefined infimum record. */
 
@@ -753,10 +759,14 @@ page_copy_rec_list_start(
 
 		/* For spatial index, we need to insert recs one by one
 		to keep recs ordered. */
-		rtr_page_copy_rec_list_start_no_locks(new_block,
-						      block, rec, index, heap,
-						      rec_move, max_to_move,
-						      &num_moved, mtr);
+		*err = rtr_page_copy_rec_list_start_no_locks(new_block,
+							     block, rec, index,
+							     heap, rec_move,
+							     max_to_move,
+							     &num_moved, mtr);
+		if (*err != DB_SUCCESS) {
+			return nullptr;
+		}
 	} else {
 		while (page_cur_get_rec(&cur1) != rec) {
 			offsets = rec_get_offsets(cur1.rec, index, offsets,
@@ -857,7 +867,7 @@ zip_reorganize:
 /*************************************************************//**
 Deletes records from a page from a given record onward, including that record.
 The infimum and supremum records are not deleted. */
-void
+dberr_t
 page_delete_rec_list_end(
 /*=====================*/
 	rec_t*		rec,	/*!< in: pointer to record on page */
@@ -884,7 +894,7 @@ page_delete_rec_list_end(
   {
     ut_ad(n_recs == 0 || n_recs == ULINT_UNDEFINED);
     /* Nothing to do, there are no records bigger than the page supremum. */
-    return;
+    return DB_SUCCESS;
   }
 
   if (page_rec_is_infimum(rec) ||
@@ -895,7 +905,7 @@ page_delete_rec_list_end(
   {
     /* We are deleting all records. */
     page_create_empty(block, index, mtr);
-    return;
+    return DB_SUCCESS;
   }
 
 #if 0 // FIXME: consider deleting the last record as a special case
@@ -903,7 +913,7 @@ page_delete_rec_list_end(
   {
     page_cur_t cursor= { index, rec, offsets, block };
     page_cur_delete_rec(&cursor, index, offsets, mtr);
-    return;
+    return DB_SUCCESS;
   }
 #endif
 
@@ -936,12 +946,16 @@ page_delete_rec_list_end(
 
     if (UNIV_LIKELY_NULL(heap))
       mem_heap_free(heap);
-    return;
+    return DB_SUCCESS;
   }
 #endif
 
   byte *prev_rec= page_rec_get_prev(rec);
+  if (UNIV_UNLIKELY(!prev_rec))
+    return DB_CORRUPTION;
   byte *last_rec= page_rec_get_prev(page_get_supremum_rec(page));
+  if (UNIV_UNLIKELY(!last_rec))
+    return DB_CORRUPTION;
 
   // FIXME: consider a special case of shrinking PAGE_HEAP_TOP
 
@@ -998,8 +1012,10 @@ page_delete_rec_list_end(
     ut_ad(n_owned > count);
     n_owned-= count;
     slot_index= page_dir_find_owner_slot(owner_rec);
-    ut_ad(slot_index > 0);
   }
+
+  if (UNIV_UNLIKELY(!slot_index || slot_index == ULINT_UNDEFINED))
+    return DB_CORRUPTION;
 
   mtr->write<2,mtr_t::MAYBE_NOP>(*block, my_assume_aligned<2>
                                  (PAGE_N_DIR_SLOTS + PAGE_HEADER + page),
@@ -1046,7 +1062,7 @@ page_delete_rec_list_end(
       mach_write_to_2(last_rec - REC_NEXT, free
                     ? static_cast<uint16_t>(free - page_offset(last_rec))
                     : 0U);
-      return;
+      return DB_SUCCESS;
     }
 #endif
     mtr->write<1,mtr_t::MAYBE_NOP>(*block, owned, new_owned);
@@ -1066,6 +1082,8 @@ page_delete_rec_list_end(
     mtr->write<2>(*block, prev_rec - REC_NEXT, PAGE_OLD_SUPREMUM);
     mtr->write<2>(*block, last_rec - REC_NEXT, free);
   }
+
+  return DB_SUCCESS;
 }
 
 /*************************************************************//**

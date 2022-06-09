@@ -1519,15 +1519,10 @@ inline bool IndexPurge::open() noexcept
                                   &m_pcur, true, 0, &m_mtr) != DB_SUCCESS)
     return false;
 
-  btr_pcur_move_to_next_user_rec(&m_pcur, &m_mtr);
-  if (rec_is_metadata(btr_pcur_get_rec(&m_pcur), *m_index))
-  {
-    if (!btr_pcur_is_on_user_rec(&m_pcur))
-      return false;
+  rec_t *rec= page_rec_get_next(btr_pcur_get_rec(&m_pcur));
+  if (rec_is_metadata(rec, *m_index))
     /* Skip the metadata pseudo-record. */
-  }
-  else
-    btr_pcur_move_to_prev_on_page(&m_pcur);
+    btr_pcur_get_page_cur(&m_pcur)->rec= rec;
   return true;
 }
 
@@ -1570,55 +1565,10 @@ dberr_t IndexPurge::next() noexcept
 				return DB_END_OF_INDEX;
 			}
 
-			buf_block_t* block = btr_pcur_get_block(&m_pcur);
-			uint32_t next_page = btr_page_get_next(
-				block->page.frame);
-
-			/* MDEV-13542 FIXME: Make these checks part of
-			btr_pcur_move_to_next_page(), and introduce a
-			return status that will be checked in all callers! */
-			switch (next_page) {
-			default:
-				if (next_page != block->page.id().page_no()) {
-					break;
-				}
-				/* MDEV-20931 FIXME: Check that
-				next_page is within the tablespace
-				bounds! Also check that it is not a
-				change buffer bitmap page. */
-				/* fall through */
-			case 0:
-			case 1:
-			case FIL_NULL:
-				return DB_CORRUPTION;
+			if (dberr_t err = btr_pcur_move_to_next_page(&m_pcur,
+								     &m_mtr)) {
+				return err;
 			}
-
-			dict_index_t* index = m_pcur.btr_cur.index;
-			buf_block_t* next_block = btr_block_get(
-				*index, next_page, BTR_MODIFY_LEAF, false,
-				&m_mtr);
-
-			if (UNIV_UNLIKELY(!next_block
-					  || !fil_page_index_page_check(
-						  next_block->page.frame)
-					  || !!dict_index_is_spatial(index)
-					  != (fil_page_get_type(
-						      next_block->page.frame)
-					      == FIL_PAGE_RTREE)
-					  || page_is_comp(next_block->page.frame)
-					  != page_is_comp(block->page.frame)
-					  || btr_page_get_prev(
-						  next_block->page.frame)
-					  != block->page.id().page_no())) {
-				return DB_CORRUPTION;
-			}
-
-			btr_leaf_page_release(block, BTR_MODIFY_LEAF, &m_mtr);
-
-			page_cur_set_before_first(next_block,
-						  &m_pcur.btr_cur.page_cur);
-
-			ut_d(page_check_dir(next_block->page.frame));
 		} else {
 			btr_pcur_move_to_next_on_page(&m_pcur);
 		}
@@ -2335,11 +2285,11 @@ row_import_set_sys_max_row_id(
 
 	if (btr_pcur_open_at_index_side(false, index, BTR_SEARCH_LEAF,
 					&pcur, true, 0, &mtr) == DB_SUCCESS) {
-		btr_pcur_move_to_prev_on_page(&pcur);
-		rec = btr_pcur_get_rec(&pcur);
+		rec = btr_pcur_move_to_prev_on_page(&pcur);
 
-		/* Check for empty table. */
-		if (page_rec_is_infimum(rec)) {
+		if (!rec) {
+			/* The table is corrupted. */
+		} else if (page_rec_is_infimum(rec)) {
 			/* The table is empty. */
 		} else if (rec_is_metadata(rec, *index)) {
 			/* The clustered index contains the metadata

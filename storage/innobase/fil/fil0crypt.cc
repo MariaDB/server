@@ -640,10 +640,7 @@ static dberr_t fil_space_decrypt_full_crc32(
 	lsn_t lsn = mach_read_from_8(src_frame + FIL_PAGE_LSN);
 	uint offset = mach_read_from_4(src_frame + FIL_PAGE_OFFSET);
 
-	ut_a(key_version != ENCRYPTION_KEY_NOT_ENCRYPTED);
-
-	ut_ad(crypt_data);
-	ut_ad(crypt_data->is_encrypted());
+	ut_ad(key_version != ENCRYPTION_KEY_NOT_ENCRYPTED);
 
 	memcpy(tmp_frame, src_frame, FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 
@@ -665,15 +662,7 @@ static dberr_t fil_space_decrypt_full_crc32(
 					   (uint) space, offset, lsn);
 
 	if (rc != MY_AES_OK || dstlen != srclen) {
-		if (rc == -1) {
-			return DB_DECRYPTION_FAILED;
-		}
-
-		ib::fatal() << "Unable to decrypt data-block "
-			    << " src: " << src << "srclen: "
-			    << srclen << " buf: " << dst << "buflen: "
-			    << dstlen << " return-code: " << rc
-			    << " Can't continue!";
+		return DB_DECRYPTION_FAILED;
 	}
 
 	/* Copy only checksum part in the trailer */
@@ -707,8 +696,7 @@ static dberr_t fil_space_decrypt_for_non_full_checksum(
 			src_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	ib_uint64_t lsn = mach_read_from_8(src_frame + FIL_PAGE_LSN);
 
-	ut_a(key_version != ENCRYPTION_KEY_NOT_ENCRYPTED);
-	ut_a(crypt_data != NULL && crypt_data->is_encrypted());
+	ut_ad(key_version != ENCRYPTION_KEY_NOT_ENCRYPTED);
 
 	/* read space & lsn */
 	uint header_len = FIL_PAGE_DATA;
@@ -735,18 +723,7 @@ static dberr_t fil_space_decrypt_for_non_full_checksum(
 					   space, offset, lsn);
 
 	if (! ((rc == MY_AES_OK) && ((ulint) dstlen == srclen))) {
-
-		if (rc == -1) {
-			return DB_DECRYPTION_FAILED;
-		}
-
-		ib::fatal() << "Unable to decrypt data-block "
-			    << " src: " << static_cast<const void*>(src)
-			    << "srclen: "
-			    << srclen << " buf: "
-			    << static_cast<const void*>(dst) << "buflen: "
-			    << dstlen << " return-code: " << rc
-			    << " Can't continue!";
+		return DB_DECRYPTION_FAILED;
 	}
 
 	/* For compressed tables we do not store the FIL header because
@@ -772,8 +749,8 @@ static dberr_t fil_space_decrypt_for_non_full_checksum(
 @param[in]	tmp_frame		Temporary buffer
 @param[in]	physical_size		page size
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	err			DB_SUCCESS or DB_DECRYPTION_FAILED
-@return DB_SUCCESS or error */
+@retval DB_SUCCESS on success
+@retval DB_DECRYPTION_FAILED on error */
 dberr_t
 fil_space_decrypt(
 	uint32_t		space_id,
@@ -783,6 +760,10 @@ fil_space_decrypt(
 	ulint			physical_size,
 	byte*			src_frame)
 {
+	if (!crypt_data || !crypt_data->is_encrypted()) {
+		return DB_DECRYPTION_FAILED;
+	}
+
 	if (fil_space_t::full_crc32(fsp_flags)) {
 		return fil_space_decrypt_full_crc32(
 			space_id, crypt_data, tmp_frame, src_frame);
@@ -799,7 +780,8 @@ Decrypt a page.
 @param[in]	tmp_frame		Temporary buffer used for decrypting
 @param[in,out]	src_frame		Page to decrypt
 @return decrypted page, or original not encrypted page if decryption is
-not needed.*/
+not needed.
+@retval nullptr on failure */
 byte*
 fil_space_decrypt(
 	const fil_space_t* space,
@@ -808,7 +790,6 @@ fil_space_decrypt(
 {
 	const ulint physical_size = space->physical_size();
 
-	ut_ad(space->crypt_data != NULL && space->crypt_data->is_encrypted());
 	ut_ad(space->referenced());
 
 	if (DB_SUCCESS != fil_space_decrypt(space->id, space->flags,
@@ -820,9 +801,7 @@ fil_space_decrypt(
 
 	/* Copy the decrypted page back to page buffer, not
 	really any other options. */
-	memcpy(src_frame, tmp_frame, physical_size);
-
-	return src_frame;
+	return static_cast<byte*>(memcpy(src_frame, tmp_frame, physical_size));
 }
 
 /***********************************************************************/

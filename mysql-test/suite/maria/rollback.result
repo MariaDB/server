@@ -1,4 +1,4 @@
-call mtr.add_suppression("Table '.*' is marked as crashed and should be repaired");
+call mtr.add_suppression("Table was marked as crashed");
 call mtr.add_suppression("Checking table: .*");
 create table t1 (a int primary key auto_increment, b int) engine=aria transactional= 1;
 create table t2 (a int primary key auto_increment, b int) engine=aria transactional= 0;
@@ -54,7 +54,7 @@ a	b
 10	11
 11	12
 Warnings:
-Error	145	Table './test/t2' is marked as crashed and should be repaired
+Error	145	Got error '145 "Table was marked as crashed and should be repaired"' for './test/t2'
 Warning	1034	1 client is using or hasn't closed the table properly
 Note	1034	Table is fixed
 insert into t1 (b) values (100),(200);
@@ -92,7 +92,7 @@ NEXT VALUE for s1	seq
 11	3
 12	4
 Warnings:
-Error	145	Table './test/s1' is marked as crashed and should be repaired
+Error	145	Got error '145 "Table was marked as crashed and should be repaired"' for './test/s1'
 Warning	1034	1 client is using or hasn't closed the table properly
 Note	1034	Table is fixed
 drop table t1,t2;
@@ -100,7 +100,7 @@ drop sequence s1;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `mtr`; INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_latin1'Table \'.*\' is marked as crashed and should be repaired' COLLATE 'latin1_swedish_ci'))
+master-bin.000001	#	Query	#	#	use `mtr`; INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_latin1'Table was marked as crashed' COLLATE 'latin1_swedish_ci'))
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `mtr`; INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_latin1'Checking table: .*' COLLATE 'latin1_swedish_ci'))

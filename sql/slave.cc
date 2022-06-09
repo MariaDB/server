@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -6718,8 +6718,8 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
         can be satisfied only with the strict mode that ensures
         against "genuine" gtid duplicates.
       */
-      rpl_gtid *gtid_in_slave_state=
-        mi->gtid_current_pos.find(mi->last_queued_gtid.domain_id);
+      IF_DBUG(rpl_gtid *gtid_in_slave_state=
+              mi->gtid_current_pos.find(mi->last_queued_gtid.domain_id),);
 
       // Slave gtid state must not have updated yet to the last received gtid.
       DBUG_ASSERT((mi->using_gtid == Master_info::USE_GTID_NO ||

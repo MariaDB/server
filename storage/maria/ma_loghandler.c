@@ -1219,12 +1219,12 @@ void translog_interpret_file_header(LOGHANDLER_FILE_INFO *desc,
   ptr+= 4;
   desc->mysql_version= uint4korr(ptr);
   ptr+= 4;
-  desc->server_id= uint4korr(ptr + 4);
+  desc->server_id= uint4korr(ptr);
   ptr+= 4;
   desc->page_size= uint2korr(ptr) + 1;
   ptr+= 2;
   desc->file_number= uint3korr(ptr);
-  ptr+=3;
+  ptr+= 3;
   desc->max_lsn= lsn_korr(ptr);
 }
 

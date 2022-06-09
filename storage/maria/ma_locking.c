@@ -82,7 +82,7 @@ int maria_lock_database(MARIA_HA *info, int lock_type)
 	if (end_io_cache(&info->rec_cache))
 	{
 	  error= my_errno;
-          _ma_set_fatal_error(share, error);
+          _ma_set_fatal_error(info, error);
 	}
       }
       if (!count)
@@ -129,7 +129,7 @@ int maria_lock_database(MARIA_HA *info, int lock_type)
 	  else
 	    share->not_flushed=1;
 	  if (error)
-            _ma_set_fatal_error(share, error);
+            _ma_set_fatal_error(info, error);
 	}
       }
       info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
@@ -570,29 +570,6 @@ void _ma_mark_file_crashed(MARIA_SHARE *share)
                    MARIA_FILE_CHANGED_OFFSET,
                    MYF(MY_NABP));
   DBUG_VOID_RETURN;
-}
-
-/*
-  Handle a fatal error
-
-  - Mark the table as crashed
-  - Print an error message, if we had not issued an error message before
-    that the table had been crashed.
-  - set my_errno to error
-  - If 'maria_assert_if_crashed_table is set, then assert.
-*/
-
-void _ma_set_fatal_error(MARIA_SHARE *share, int error)
-{
-  DBUG_PRINT("error", ("error: %d", error));
-  maria_mark_crashed_share(share);
-  if (!(share->state.changed & STATE_CRASHED_PRINTED))
-  {
-    share->state.changed|= STATE_CRASHED_PRINTED;
-    maria_print_error(share, error);
-  }
-  my_errno= error;
-  DBUG_ASSERT(!maria_assert_if_crashed_table);
 }
 
 

@@ -415,7 +415,7 @@ static int _ma_find_writepos(MARIA_HA *info,
 	   BLOCK_DELETED))
     {
       DBUG_PRINT("error",("Delete link crashed"));
-      _ma_set_fatal_error(info->s, HA_ERR_WRONG_IN_RECORD);
+      _ma_set_fatal_error_with_share(info->s, HA_ERR_WRONG_IN_RECORD);
       DBUG_RETURN(-1);
     }
     info->s->state.dellink=block_info.next_filepos;
@@ -544,7 +544,7 @@ static my_bool update_backward_delete_link(MARIA_HA *info,
     }
     else
     {
-      _ma_set_fatal_error(info->s, HA_ERR_WRONG_IN_RECORD);
+      _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
       DBUG_RETURN(1);				/* Wrong delete link */
     }
   }
@@ -577,7 +577,7 @@ static my_bool delete_dynamic_record(MARIA_HA *info, MARIA_RECORD_POS filepos,
 	(length=(uint) (block_info.filepos-filepos) +block_info.block_len) <
 	MARIA_MIN_BLOCK_LENGTH)
     {
-      _ma_set_fatal_error(info->s, HA_ERR_WRONG_IN_RECORD);
+      _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
       DBUG_RETURN(1);
     }
     /* Check if next block is a delete block */
@@ -863,7 +863,7 @@ static my_bool update_dynamic_record(MARIA_HA *info, MARIA_RECORD_POS filepos,
       {
 	DBUG_PRINT("error",("Got wrong block info"));
 	if (!(error & BLOCK_FATAL_ERROR))
-          _ma_set_fatal_error(info->s, HA_ERR_WRONG_IN_RECORD);
+          _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
 	goto err;
       }
       length=(ulong) (block_info.filepos-filepos) + block_info.block_len;
@@ -1381,7 +1381,7 @@ size_t _ma_rec_unpack(register MARIA_HA *info, register uchar *to, uchar *from,
     DBUG_RETURN(found_length);
 
 err:
-  _ma_set_fatal_error(info->s, HA_ERR_WRONG_IN_RECORD);
+  _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
   DBUG_PRINT("error",("to_end: %p -> %p  from_end: %p -> %p",
 		      to, to_end, from, from_end));
   DBUG_DUMP("from", info->rec_buff, info->s->base.min_pack_length);
@@ -1580,7 +1580,7 @@ err:
   DBUG_RETURN(my_errno);
 
 panic:
-  _ma_set_fatal_error(info->s, HA_ERR_WRONG_IN_RECORD);
+  _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
   goto err;
 }
 
@@ -1686,7 +1686,7 @@ my_bool _ma_cmp_dynamic_record(register MARIA_HA *info,
 	}
       } else if (reclength < block_info.data_len)
       {
-        _ma_set_fatal_error(info->s, HA_ERR_WRONG_IN_RECORD);
+        _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
 	goto err;
       }
       reclength-= block_info.data_len;
@@ -1925,7 +1925,7 @@ int _ma_read_rnd_dynamic_record(MARIA_HA *info,
 	  if (my_errno == HA_ERR_FILE_TOO_SHORT)
           {
             /* Unexpected end of file */
-            _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+            _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
           }
 	  goto err;
 	}
@@ -1954,7 +1954,7 @@ int _ma_read_rnd_dynamic_record(MARIA_HA *info,
 
 panic:
   /* Something is fatal wrong */
-  _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+  _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
 err:
   fast_ma_writeinfo(info);
   DBUG_RETURN(my_errno);
@@ -2103,7 +2103,7 @@ err:
   if (!handler->in_check_table)
   {
     /* We may be scanning the table for new rows; Don't give an error */
-    _ma_set_fatal_error(handler->s, HA_ERR_WRONG_IN_RECORD);
+    _ma_set_fatal_error(handler, HA_ERR_WRONG_IN_RECORD);
   }
   return BLOCK_ERROR;
 }

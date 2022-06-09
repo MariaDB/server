@@ -376,6 +376,8 @@ typedef struct st_join_table {
   uint          used_null_fields;
   uint          used_uneven_bit_fields;
   enum join_type type;
+  /* If first key part is used for any key in 'key_dependent' */
+  bool          key_start_dependent;
   bool          cached_eq_ref_table,eq_ref_table;
   bool          shortcut_for_distinct;
   bool          sorted;
@@ -958,6 +960,8 @@ public:
   /* If ref-based access is used: bitmap of tables this table depends on  */
   table_map ref_depend_map;
 
+  /* tables that may help best_access_path() to find a better key */
+  table_map key_dependent;
   /*
     Bitmap of semi-join inner tables that are in the join prefix and for
     which there's no provision for how to eliminate semi-join duplicates
@@ -1307,9 +1311,15 @@ public:
     Bitmap of inner tables of semi-join nests that have a proper subset of
     their tables in the current join prefix. That is, of those semi-join
     nests that have their tables both in and outside of the join prefix.
+    (Note: tables that are constants but have not been pulled out of semi-join
+    nests are not considered part of semi-join nests)
   */
   table_map cur_sj_inner_tables;
-  
+
+#ifndef DBUG_OFF
+  void dbug_verify_sj_inner_tables(uint n_positions) const;
+#endif
+
   /* We also maintain a stack of join optimization states in * join->positions[] */
 /******* Join optimization state members end *******/
 
