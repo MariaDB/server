@@ -780,12 +780,6 @@ sp_head::init(LEX *lex)
   if (!lex->spcont)
     DBUG_VOID_RETURN;
 
-  /*
-    Altough trg_table_fields list is used only in triggers we init for all
-    types of stored procedures to simplify reset_lex()/restore_lex() code.
-  */
-  lex->trg_table_fields.empty();
-
   DBUG_VOID_RETURN;
 }
 
@@ -2470,8 +2464,6 @@ sp_head::merge_lex(THD *thd, LEX *oldlex, LEX *sublex)
   DBUG_ENTER("sp_head::merge_lex");
 
   sublex->set_trg_event_type_for_tables();
-
-  oldlex->trg_table_fields.push_back(&sublex->trg_table_fields);
 
   /* If this substatement is unsafe, the entire routine is too. */
   DBUG_PRINT("info", ("sublex->get_stmt_unsafe_flags: 0x%x",
