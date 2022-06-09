@@ -8680,7 +8680,7 @@ ER_JSON_ESCAPING
         eng "Incorrect escaping in JSON text in argument %d to function '%s' at position %d"
 ER_JSON_DEPTH
         chi "超过JSON嵌套深度的%d限制 参数%d 函数'%s' 位置%d的"
-        eng "Limit of %d on JSON nested strucures depth is reached in argument %d to function '%s' at position %d"
+        eng "Limit of %d on JSON nested structures depth is reached in argument %d to function '%s' at position %d"
 ER_JSON_PATH_EOS
         chi "JSON文本路径错误 参数%d 函数'%s'"
         eng "Unexpected end of JSON path in argument %d to function '%s'"
