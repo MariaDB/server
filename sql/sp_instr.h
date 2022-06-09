@@ -48,6 +48,9 @@ public:
 // "Instructions"...
 //
 
+// Forward declaration for use in the method sp_instr::opt_move().
+class sp_instr_opt_meta;
+
 class sp_instr :public Query_arena, public Sql_alloc
 {
   sp_instr(const sp_instr &);   /**< Prevent use of these */
@@ -150,7 +153,7 @@ public:
     must also take care of their destination pointers. Forward jumps get
     pushed to the backpatch list 'ibp'.
   */
-  virtual void opt_move(uint dst, List<sp_instr> *ibp)
+  virtual void opt_move(uint dst, List<sp_instr_opt_meta> *ibp)
   {
     m_ip= dst;
   }
@@ -484,7 +487,7 @@ public:
 
   uint opt_shortcut_jump(sp_head *sp, sp_instr *start) override;
 
-  void opt_move(uint dst, List<sp_instr> *ibp) override;
+  void opt_move(uint dst, List<sp_instr_opt_meta> *ibp) override;
 
   void backpatch(uint dest, sp_pcontext *dst_ctx) override
   {
@@ -539,7 +542,7 @@ public:
     return m_ip;
   }
 
-  void opt_move(uint dst, List<sp_instr> *ibp) override;
+  void opt_move(uint dst, List<sp_instr_opt_meta> *ibp) override;
 
   void set_destination(uint old_dest, uint new_dest) override
   {
@@ -1009,7 +1012,7 @@ public:
 
   uint opt_mark(sp_head *sp, List<sp_instr> *leads) override;
 
-  void opt_move(uint dst, List<sp_instr> *ibp) override;
+  void opt_move(uint dst, List<sp_instr_opt_meta> *ibp) override;
 
   void set_destination(uint old_dest, uint new_dest) override
   {
