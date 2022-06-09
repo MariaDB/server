@@ -97,11 +97,13 @@ set debug_sync= "before_do_command_net_read SIGNAL net WAIT_FOR pass";
 SELECT "work";
 --connection con2
 set debug_sync= "now WAIT_FOR net";
+set debug_sync= "apc_after_notify SIGNAL con2_hangs";
 --send
-SELECT thread_id = @def_thread_id as current, variable_value
+SELECT thread_id = @con1_thread_id as `con1's`, variable_value
   FROM performance_schema.variables_by_thread
   WHERE variable_name = "time_zone";
 --connection default
+set debug_sync= "now WAIT_FOR con2_hangs";
 set debug_sync= "apc_after_notify SIGNAL pass";
 SELECT thread_id = @def_thread_id as current, variable_value
   FROM performance_schema.variables_by_thread

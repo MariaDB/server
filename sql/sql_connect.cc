@@ -1453,6 +1453,12 @@ class Thread_apc_context
       ret= connect(out[0], &client_addr, len);
 
     if (likely(ret != SOCKET_ERROR))
+    {
+      ulong arg= 1;
+      ret= ioctlsocket(out[0], FIONBIO, &arg);
+    }
+
+    if (likely(ret != SOCKET_ERROR))
       out[1] = accept(listener, NULL, NULL);
 
 
