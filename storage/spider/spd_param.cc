@@ -2186,32 +2186,6 @@ int spider_param_bka_mode(
 
 /*
  -1 :use table parameter
-  0 :not use
-  1 :use handler
- */
-static MYSQL_THDVAR_INT(
-  use_handler, /* name */
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
-  "Use handler for reading", /* comment */
-  NULL, /* check */
-  spider_use_table_value_deprecated, /* update */
-  0, /* def */
-  -1, /* min */
-  3, /* max */
-  0 /* blk */
-);
-
-int spider_param_use_handler(
-  THD *thd,
-  int use_handler
-) {
-  DBUG_ENTER("spider_param_use_handler");
-  DBUG_RETURN(THDVAR(thd, use_handler) == -1 ?
-    use_handler : THDVAR(thd, use_handler));
-}
-
-/*
- -1 :use table parameter
   0 :return error if error
   1 :return 0 record if error
  */
@@ -3017,7 +2991,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(connect_mutex),
   MYSQL_SYSVAR(bka_engine),
   MYSQL_SYSVAR(bka_mode),
-  MYSQL_SYSVAR(use_handler),
   MYSQL_SYSVAR(error_read_mode),
   MYSQL_SYSVAR(error_write_mode),
   MYSQL_SYSVAR(skip_default_condition),

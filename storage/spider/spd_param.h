@@ -286,10 +286,6 @@ int spider_param_bka_mode(
   THD *thd,
   int bka_mode
 );
-int spider_param_use_handler(
-  THD *thd,
-  int use_handler
-);
 int spider_param_error_read_mode(
   THD *thd,
   int error_read_mode

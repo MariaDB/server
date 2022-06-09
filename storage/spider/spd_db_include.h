@@ -167,9 +167,6 @@ typedef st_spider_result SPIDER_RESULT;
 
 #define SPIDER_CONN_KIND_MYSQL (1 << 0)
 
-#define SPIDER_SQL_KIND_SQL (1 << 0)
-#define SPIDER_SQL_KIND_HANDLER (1 << 1)
-
 #define SPIDER_SQL_TYPE_SELECT_SQL (1 << 0)
 #define SPIDER_SQL_TYPE_INSERT_SQL (1 << 1)
 #define SPIDER_SQL_TYPE_UPDATE_SQL (1 << 2)
@@ -178,7 +175,6 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_TYPE_TMP_SQL (1 << 5)
 #define SPIDER_SQL_TYPE_DROP_TMP_TABLE_SQL (1 << 6)
 #define SPIDER_SQL_TYPE_OTHER_SQL (1 << 7)
-#define SPIDER_SQL_TYPE_HANDLER (1 << 8)
 #define SPIDER_SQL_TYPE_SELECT_HS (1 << 9)
 #define SPIDER_SQL_TYPE_INSERT_HS (1 << 10)
 #define SPIDER_SQL_TYPE_UPDATE_HS (1 << 11)
@@ -1096,8 +1092,6 @@ public:
   ) = 0;
   virtual uint get_lock_table_hash_count() = 0;
   virtual void reset_lock_table_hash() = 0;
-  virtual uint get_opened_handler_count() = 0;
-  virtual void reset_opened_handler() = 0;
   virtual void set_dup_key_idx(
     ha_spider *spider,
     int link_idx
@@ -1363,16 +1357,6 @@ public:
     ulong sql_type,
     uint multi_range_cnt
   ) = 0;
-  virtual int append_open_handler_part(
-    ulong sql_type,
-    uint handler_id,
-    SPIDER_CONN *conn,
-    int link_idx
-  ) = 0;
-  virtual int append_close_handler_part(
-    ulong sql_type,
-    int link_idx
-  ) = 0;
   virtual int append_insert_terminator_part(
     ulong sql_type
   ) = 0;
@@ -1535,19 +1519,8 @@ public:
     SPIDER_CONN *conn,
     int link_idx
   ) = 0;
-  virtual int insert_opened_handler(
-    SPIDER_CONN *conn,
-    int link_idx
-  ) = 0;
-  virtual int delete_opened_handler(
-    SPIDER_CONN *conn,
-    int link_idx
-  ) = 0;
   virtual int sync_from_clone_source(
     spider_db_handler *dbton_hdl
-  ) = 0;
-  virtual bool support_use_handler(
-    int use_handler
   ) = 0;
   virtual bool minimum_select_bit_is_set(
     uint field_index
@@ -1737,7 +1710,6 @@ typedef struct st_spider_position
   bool                   use_position;
   bool                   mrr_with_cnt;
   bool                   direct_aggregate;
-  uint                   sql_kind;
   uchar                  *position_bitmap;
   st_spider_ft_info      *ft_first;
   st_spider_ft_info      *ft_current;
@@ -1786,9 +1758,6 @@ typedef struct st_spider_result_list
   int                     key_order;
   spider_string           *sqls;
   int                     ha_read_kind;
-  bool                    have_sql_kind_backup;
-  uint                    *sql_kind_backup;
-  uint                    sql_kinds_backup;
   bool                    use_union;
   bool                    use_both_key;
   const key_range         *end_key;

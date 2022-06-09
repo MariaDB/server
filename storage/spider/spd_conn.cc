@@ -2161,8 +2161,6 @@ int spider_bg_conn_search(
               result_list->split_read ?
               result_list->split_read :
               result_list->internal_limit - result_list->record_num;
-            DBUG_PRINT("info",("spider sql_kinds=%u", spider->sql_kinds));
-            if (spider->sql_kinds & SPIDER_SQL_KIND_SQL)
             {
               if ((error_num = spider->reappend_limit_sql_part(
                 result_list->internal_offset + result_list->record_num,
@@ -2177,17 +2175,6 @@ int spider_bg_conn_search(
                 (error_num = spider->append_select_lock_sql_part(
                   SPIDER_SQL_TYPE_SELECT_SQL))
               ) {
-                pthread_mutex_unlock(&conn->bg_conn_mutex);
-                DBUG_RETURN(error_num);
-              }
-            }
-            if (spider->sql_kinds & SPIDER_SQL_KIND_HANDLER)
-            {
-              spider_db_append_handler_next(spider);
-              if ((error_num = spider->reappend_limit_sql_part(
-                0, result_list->limit_num,
-                SPIDER_SQL_TYPE_HANDLER)))
-              {
                 pthread_mutex_unlock(&conn->bg_conn_mutex);
                 DBUG_RETURN(error_num);
               }
@@ -2310,8 +2297,6 @@ int spider_bg_conn_search(
             result_list->split_read ?
             result_list->split_read :
             result_list->internal_limit - result_list->record_num;
-          DBUG_PRINT("info",("spider sql_kinds=%u", spider->sql_kinds));
-          if (spider->sql_kinds & SPIDER_SQL_KIND_SQL)
           {
             if ((error_num = spider->reappend_limit_sql_part(
               result_list->internal_offset + result_list->record_num,
@@ -2326,17 +2311,6 @@ int spider_bg_conn_search(
               (error_num = spider->append_select_lock_sql_part(
                 SPIDER_SQL_TYPE_SELECT_SQL))
             ) {
-              pthread_mutex_unlock(&conn->bg_conn_mutex);
-              DBUG_RETURN(error_num);
-            }
-          }
-          if (spider->sql_kinds & SPIDER_SQL_KIND_HANDLER)
-          {
-            spider_db_append_handler_next(spider);
-            if ((error_num = spider->reappend_limit_sql_part(
-              0, result_list->limit_num,
-              SPIDER_SQL_TYPE_HANDLER)))
-            {
               pthread_mutex_unlock(&conn->bg_conn_mutex);
               DBUG_RETURN(error_num);
             }
@@ -2542,11 +2516,8 @@ void *spider_bg_conn_action(
         !result_list->bgs_current->result
       ) {
         ulong sql_type;
-          if (spider->sql_kind[conn->link_idx] == SPIDER_SQL_KIND_SQL)
           {
             sql_type = SPIDER_SQL_TYPE_SELECT_SQL | SPIDER_SQL_TYPE_TMP_SQL;
-          } else {
-            sql_type = SPIDER_SQL_TYPE_HANDLER;
           }
         pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
         if (dbton_handler->need_lock_before_set_sql_for_exec(sql_type))
@@ -3928,91 +3899,6 @@ bool spider_conn_check_recovery_link(
       DBUG_RETURN(TRUE);
   }
   DBUG_RETURN(FALSE);
-}
-
-bool spider_conn_use_handler(
-  ha_spider *spider,
-  int lock_mode,
-  int link_idx
-) {
-  THD *thd = spider->wide_handler->trx->thd;
-  int use_handler = spider_param_use_handler(thd,
-    spider->share->use_handlers[link_idx]);
-  DBUG_ENTER("spider_conn_use_handler");
-  DBUG_PRINT("info",("spider use_handler=%d", use_handler));
-  DBUG_PRINT("info",("spider spider->conn_kind[link_idx]=%u",
-    spider->conn_kind[link_idx]));
-  if (spider->do_direct_update)
-  {
-    spider->sql_kinds |= SPIDER_SQL_KIND_SQL;
-    spider->sql_kind[link_idx] = SPIDER_SQL_KIND_SQL;
-      spider->direct_update_kinds |= SPIDER_SQL_KIND_SQL;
-      DBUG_PRINT("info",("spider FALSE by using direct_update"));
-      DBUG_RETURN(FALSE);
-  }
-  if (spider->use_spatial_index)
-  {
-    DBUG_PRINT("info",("spider FALSE by use_spatial_index"));
-    spider->sql_kinds |= SPIDER_SQL_KIND_SQL;
-    spider->sql_kind[link_idx] = SPIDER_SQL_KIND_SQL;
-    DBUG_RETURN(FALSE);
-  }
-  uint dbton_id;
-  spider_db_handler *dbton_hdl;
-  dbton_id = spider->share->sql_dbton_ids[spider->conn_link_idx[link_idx]];
-  dbton_hdl = spider->dbton_handler[dbton_id];
-  if (!dbton_hdl->support_use_handler(use_handler))
-  {
-    DBUG_PRINT("info",("spider FALSE by dbton"));
-    spider->sql_kinds |= SPIDER_SQL_KIND_SQL;
-    spider->sql_kind[link_idx] = SPIDER_SQL_KIND_SQL;
-    DBUG_RETURN(FALSE);
-  }
-  if (
-    spider->wide_handler->sql_command == SQLCOM_HA_READ &&
-    (
-      !(use_handler & 2) ||
-      (
-        spider_param_sync_trx_isolation(thd) &&
-        thd_tx_isolation(thd) == ISO_SERIALIZABLE
-      )
-    )
-  ) {
-    DBUG_PRINT("info",("spider TRUE by HA"));
-    spider->sql_kinds |= SPIDER_SQL_KIND_HANDLER;
-    spider->sql_kind[link_idx] = SPIDER_SQL_KIND_HANDLER;
-    DBUG_RETURN(TRUE);
-  }
-  if (
-    spider->wide_handler->sql_command != SQLCOM_HA_READ &&
-    lock_mode == SPIDER_LOCK_MODE_NO_LOCK &&
-    spider_param_sync_trx_isolation(thd) &&
-    thd_tx_isolation(thd) != ISO_SERIALIZABLE &&
-    (use_handler & 1)
-  ) {
-    DBUG_PRINT("info",("spider TRUE by PARAM"));
-    spider->sql_kinds |= SPIDER_SQL_KIND_HANDLER;
-    spider->sql_kind[link_idx] = SPIDER_SQL_KIND_HANDLER;
-    DBUG_RETURN(TRUE);
-  }
-  spider->sql_kinds |= SPIDER_SQL_KIND_SQL;
-  spider->sql_kind[link_idx] = SPIDER_SQL_KIND_SQL;
-  DBUG_RETURN(FALSE);
-}
-
-bool spider_conn_need_open_handler(
-  ha_spider *spider,
-  uint idx,
-  int link_idx
-) {
-  DBUG_ENTER("spider_conn_need_open_handler");
-  DBUG_PRINT("info",("spider spider=%p", spider));
-  if (spider->handler_opened(link_idx, spider->conn_kind[link_idx]))
-  {
-      DBUG_PRINT("info",("spider HA already opened"));
-      DBUG_RETURN(FALSE);
-  }
-  DBUG_RETURN(TRUE);
 }
 
 SPIDER_CONN* spider_get_conn_from_idle_connection(
