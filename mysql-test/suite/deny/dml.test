@@ -59,6 +59,7 @@ deny select on deny_db.* to foo;
 --echo # rights.
 --echo #
 
+show grants;
 --error ER_COLUMNACCESS_DENIED_ERROR
 update deny_db.t1 set a=a*10 where a = 1;
 
@@ -131,14 +132,9 @@ disconnect con1;
 --echo # Test masking database & global level grants.
 --echo #
 connection default;
-grant select on *.* to foo;
-grant insert on *.* to foo;
-grant update on *.* to foo;
-grant delete on *.* to foo;
-grant select on deny_db.* to foo;
-grant insert on deny_db.* to foo;
-grant update on deny_db.* to foo;
-grant delete on deny_db.* to foo;
+grant select, insert, update, delete on *.* to foo;
+grant select, insert, update, delete on deny_db.* to foo;
+grant select, insert, update, delete on deny_db.t1 to foo;
 deny select, insert on deny_db.* to foo;
 
 --connect (con1,localhost,foo,,)
@@ -179,6 +175,40 @@ update deny_db.t1 set a=a*10;
 
 --error ER_TABLEACCESS_DENIED_ERROR
 delete from deny_db.t1 where a = 20;
+disconnect con1;
+
+--echo #
+--echo # Test revoking all denies.
+--echo #
+connection default;
+revoke deny select, insert, update, delete on deny_db.* from foo;
+truncate deny_db.t1;
+
+--connect (con1,localhost,foo,,)
+insert into deny_db.t1 (a,b) values (1,10), (2, 20), (3, 30);
+update deny_db.t1 set a=a*10;
+select * from deny_db.t1;
+delete from deny_db.t1 where a = 20;
+disconnect con1;
+
+connection default;
+
+--echo #
+--echo # Test masking via table level denies
+--echo #
+
+deny select on deny_db.t1 to foo;
+
+--connect (con1,localhost,foo,,)
+insert into deny_db.t1 (a,b) values (1,10), (2, 20), (3, 30);
+--error ER_COLUMNACCESS_DENIED_ERROR
+update deny_db.t1 set a=a*10;
+--error ER_COLUMNACCESS_DENIED_ERROR
+update deny_db.t1 set a=a*10 where a = 10;
+--error ER_COLUMNACCESS_DENIED_ERROR
+delete from deny_db.t1 where a = 20;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from deny_db.t1;
 disconnect con1;
 
 connection default;
