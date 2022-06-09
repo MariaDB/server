@@ -128,7 +128,7 @@ my_bool _ma_fetch_keypage(MARIA_PAGE *page, MARIA_HA *info,
   {
     DBUG_PRINT("error",("Got errno: %d from pagecache_read",my_errno));
     info->last_keypage=HA_OFFSET_ERROR;
-    _ma_set_fatal_error(share, HA_ERR_CRASHED);
+    _ma_set_fatal_error(info, my_errno);
     DBUG_RETURN(1);
   }
   info->last_keypage= pos;
@@ -160,7 +160,7 @@ my_bool _ma_fetch_keypage(MARIA_PAGE *page, MARIA_HA *info,
                           _ma_get_keynr(share, tmp)));
       DBUG_DUMP("page", tmp, page_size);
       info->last_keypage = HA_OFFSET_ERROR;
-      _ma_set_fatal_error(share, HA_ERR_CRASHED);
+      _ma_set_fatal_error(info, HA_ERR_CRASHED);
       DBUG_RETURN(1);
     }
   }
@@ -433,7 +433,10 @@ my_off_t _ma_new(register MARIA_HA *info, int level,
                                (pgcache_page_no_t) (pos / block_size), level,
                                0, share->page_type,
                                PAGECACHE_LOCK_WRITE, &(*page_link)->link)))
+    {
       pos= HA_OFFSET_ERROR;
+      _ma_set_fatal_error(info, my_errno);
+    }
     else
     {
       /*
@@ -566,7 +569,7 @@ my_bool _ma_compact_keypage(MARIA_PAGE *ma_page, TrID min_read_from)
     {
       DBUG_PRINT("error",("Couldn't find last key:  page_pos: %p",
                           page));
-      _ma_set_fatal_error(share, HA_ERR_CRASHED);
+      _ma_set_fatal_error(info, HA_ERR_CRASHED);
       DBUG_RETURN(1);
     }
     if (key_has_transid(page-1))

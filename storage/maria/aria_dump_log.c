@@ -66,7 +66,7 @@ static struct my_option my_long_options[] =
 
 static void print_version(void)
 {
-  printf("%s Ver 1.0 for %s on %s\n",
+  printf("%s Ver 1.1 for %s on %s\n",
               my_progname_short, SYSTEM_TYPE, MACHINE_TYPE);
 }
 
@@ -78,8 +78,9 @@ static void usage(void)
   puts("This software comes with ABSOLUTELY NO WARRANTY. This is free software,");
   puts("and you are welcome to modify and redistribute it under the GPL license\n");
 
-  puts("Dump content of aria log pages.");
-  printf("\nUsage: %s -f file OPTIONS\n", my_progname_short);
+  puts("Dump the raw content of aria log pages.");
+  puts("For a logical dump, use aria_read_log");
+  printf("\nUsage: %s OPTIONS aria_log_file\n", my_progname_short);
   my_print_help(my_long_options);
   print_defaults("my", load_default_groups);
   my_print_variables(my_long_options);
@@ -114,6 +115,9 @@ static void get_options(int *argc,char ***argv)
 
   if ((ho_error=handle_options(argc, argv, my_long_options, get_one_option)))
     exit(ho_error);
+
+  if (opt_file == NULL && *argc == 1)
+    opt_file= **argv;
 
   if (opt_file == NULL)
   {

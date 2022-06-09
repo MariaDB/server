@@ -637,7 +637,7 @@ PageBulk::getSplitRec()
 		 < total_used_size / 2);
 
 	/* Keep at least one record on left page */
-	if (page_rec_is_infimum(page_rec_get_prev(rec))) {
+	if (page_rec_is_second(rec, m_page)) {
 		rec = page_rec_get_next(rec);
 		ut_ad(page_rec_is_user_rec(rec));
 	}
@@ -679,35 +679,40 @@ void
 PageBulk::copyOut(
 	rec_t*		split_rec)
 {
-	rec_t*		rec;
-	rec_t*		last_rec;
-	ulint		n;
-
 	/* Suppose before copyOut, we have 5 records on the page:
 	infimum->r1->r2->r3->r4->r5->supremum, and r3 is the split rec.
 
 	after copyOut, we have 2 records on the page:
 	infimum->r1->r2->supremum. slot ajustment is not done. */
 
-	rec = page_rec_get_next(page_get_infimum_rec(m_page));
-	last_rec = page_rec_get_prev(page_get_supremum_rec(m_page));
-	n = 0;
+	rec_t *rec = page_get_infimum_rec(m_page);
+	ulint n;
 
-	while (rec != split_rec) {
-		rec = page_rec_get_next(rec);
-		n++;
+	for (n = 0;; n++) {
+		rec_t *next = page_rec_get_next(rec);
+		if (next == split_rec) {
+			break;
+		}
+		rec = next;
 	}
 
 	ut_ad(n > 0);
 
+        const rec_t *last_rec = split_rec;
+	for (;;) {
+		const rec_t *next = page_rec_get_next_const(last_rec);
+		if (page_rec_is_supremum(next)) {
+			break;
+		}
+		last_rec = next;
+	}
+
 	/* Set last record's next in page */
-	rec_offs*	offsets = NULL;
-	rec = page_rec_get_prev(split_rec);
 	const ulint n_core = page_rec_is_leaf(split_rec)
 		? m_index->n_core_fields : 0;
 
-	offsets = rec_get_offsets(rec, m_index, offsets, n_core,
-				  ULINT_UNDEFINED, &m_heap);
+	rec_offs* offsets = rec_get_offsets(rec, m_index, nullptr, n_core,
+					    ULINT_UNDEFINED, &m_heap);
 	mach_write_to_2(rec - REC_NEXT, m_is_comp
 			? static_cast<uint16_t>
 			(PAGE_NEW_SUPREMUM - page_offset(rec))

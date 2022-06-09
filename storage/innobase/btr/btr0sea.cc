@@ -781,7 +781,7 @@ btr_search_check_guess(
 	mem_heap_t*	heap		= NULL;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets		= offsets_;
-	ibool		success		= FALSE;
+	bool		success		= false;
 	rec_offs_init(offsets_);
 
 	n_unique = dict_index_get_n_unique_in_tree(cursor->index);
@@ -807,7 +807,7 @@ btr_search_check_guess(
 		cursor->up_match = match;
 
 		if (match >= n_unique) {
-			success = TRUE;
+			success = true;
 			goto exit_func;
 		}
 	} else if (mode == PAGE_CUR_LE) {
@@ -836,9 +836,12 @@ btr_search_check_guess(
 	match = 0;
 
 	if ((mode == PAGE_CUR_G) || (mode == PAGE_CUR_GE)) {
-		ut_ad(!page_rec_is_infimum(rec));
-
 		const rec_t* prev_rec = page_rec_get_prev(rec);
+
+		if (UNIV_UNLIKELY(!prev_rec)) {
+			ut_ad("corrupted index" == 0);
+			goto exit_func;
+		}
 
 		if (page_rec_is_infimum(prev_rec)) {
 			success = !page_has_prev(page_align(prev_rec));

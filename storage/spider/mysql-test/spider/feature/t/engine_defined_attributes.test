@@ -134,6 +134,7 @@ DROP TABLE tbl_a;
 --echo # COMMENT + engine-defined option (invalid)
 --connection master_1
 
+--replace_result error: error
 --error ER_CANT_CREATE_TABLE
 eval CREATE TABLE tbl_a (
   a INT,
@@ -142,6 +143,7 @@ eval CREATE TABLE tbl_a (
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET
 REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" COMMENT='tbl "tbl_b"';
 
+--replace_result error: error
 --error ER_CANT_CREATE_TABLE
 eval CREATE TABLE tbl_a (
   a INT,

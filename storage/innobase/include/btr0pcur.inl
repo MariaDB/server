@@ -171,17 +171,16 @@ btr_pcur_move_to_next_on_page(
 /*********************************************************//**
 Moves the persistent cursor to the previous record on the same page. */
 UNIV_INLINE
-void
+rec_t*
 btr_pcur_move_to_prev_on_page(
 /*==========================*/
 	btr_pcur_t*	cursor)	/*!< in/out: persistent cursor */
 {
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
-
-	page_cur_move_to_prev(btr_pcur_get_page_cur(cursor));
-
 	cursor->old_stored = false;
+
+	return page_cur_move_to_prev(btr_pcur_get_page_cur(cursor));
 }
 
 /*********************************************************//**

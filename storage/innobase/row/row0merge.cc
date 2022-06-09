@@ -139,7 +139,10 @@ public:
 
 			if (log_sys.check_flush_or_checkpoint()) {
 				if (mtr_started) {
-					btr_pcur_move_to_prev_on_page(pcur);
+					if (!btr_pcur_move_to_prev_on_page(pcur)) {
+						error = DB_CORRUPTION;
+						break;
+					}
 					btr_pcur_store_position(pcur, scan_mtr);
 					scan_mtr->commit();
 					mtr_started = false;
@@ -2009,14 +2012,27 @@ row_merge_read_clustered_index(
 err_exit:
 		trx->error_key_num = 0;
 		goto func_exit;
-	}
-	btr_pcur_move_to_next_user_rec(&pcur, &mtr);
-	if (rec_is_metadata(btr_pcur_get_rec(&pcur), *clust_index)) {
-		ut_ad(btr_pcur_is_on_user_rec(&pcur));
-		/* Skip the metadata pseudo-record. */
 	} else {
-		ut_ad(!clust_index->is_instant());
-		btr_pcur_move_to_prev_on_page(&pcur);
+		rec_t* rec = page_rec_get_next(btr_pcur_get_rec(&pcur));
+		if (!rec) {
+corrupted_metadata:
+			err = DB_CORRUPTION;
+			goto err_exit;
+		}
+		if (rec_get_info_bits(rec, page_rec_is_comp(rec))
+		    & REC_INFO_MIN_REC_FLAG) {
+			if (!clust_index->is_instant()) {
+				goto corrupted_metadata;
+			}
+			if (page_rec_is_comp(rec)
+			    && rec_get_status(rec) != REC_STATUS_INSTANT) {
+				goto corrupted_metadata;
+			}
+			/* Skip the metadata pseudo-record. */
+			btr_pcur_get_page_cur(&pcur)->rec = rec;
+		} else if (clust_index->is_instant()) {
+			goto corrupted_metadata;
+		}
 	}
 
 	/* Check if the table is supposed to be empty for our read view.
@@ -2156,13 +2172,16 @@ err_exit:
 
 				/* Store the cursor position on the last user
 				record on the page. */
-				btr_pcur_move_to_prev_on_page(&pcur);
+				if (!btr_pcur_move_to_prev_on_page(&pcur)) {
+					goto corrupted_index;
+				}
 				/* Leaf pages must never be empty, unless
 				this is the only page in the index tree. */
-				ut_ad(btr_pcur_is_on_user_rec(&pcur)
-				      || btr_pcur_get_block(
-					      &pcur)->page.id().page_no()
-				      == clust_index->page);
+				if (!btr_pcur_is_on_user_rec(&pcur)
+				    && btr_pcur_get_block(&pcur)->page.id()
+				    .page_no() != clust_index->page) {
+					goto corrupted_index;
+				}
 
 				btr_pcur_store_position(&pcur, &mtr);
 				mtr.commit();
@@ -2665,8 +2684,10 @@ write_buffers:
 						we must reread it on the next
 						loop iteration. */
 						if (mtr_started) {
-							btr_pcur_move_to_prev_on_page(
-								&pcur);
+							if (!btr_pcur_move_to_prev_on_page(&pcur)) {
+								err = DB_CORRUPTION;
+								goto func_exit;
+							}
 							btr_pcur_store_position(
 								&pcur, &mtr);
 

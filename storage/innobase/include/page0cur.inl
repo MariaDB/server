@@ -168,14 +168,14 @@ page_cur_move_to_next(
 /**********************************************************//**
 Moves the cursor to the previous record on page. */
 UNIV_INLINE
-void
+rec_t*
 page_cur_move_to_prev(
 /*==================*/
 	page_cur_t*	cur)	/*!< in/out: page cursor, not before first */
 {
 	ut_ad(!page_cur_is_before_first(cur));
 
-	cur->rec = page_rec_get_prev(cur->rec);
+	return cur->rec = page_rec_get_prev(cur->rec);
 }
 
 /** Search the right position for a page cursor.
