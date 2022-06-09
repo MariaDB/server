@@ -410,6 +410,9 @@ compress_worker_thread_func(void *arg)
 	pthread_mutex_lock(&thd->data_mutex);
 
 	while (1) {
+		thd->data_avail = FALSE;
+		pthread_cond_signal(&thd->data_cond);
+
 		while (!thd->data_avail && !thd->cancelled) {
 			pthread_cond_wait(&thd->data_cond, &thd->data_mutex);
 		}
