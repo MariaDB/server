@@ -1999,10 +1999,6 @@ PageConverter::update_header(
 		ib::warn() << "Space id check in the header failed: ignored";
 	}
 
-	mach_write_to_8(
-		get_frame(block) + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
-		m_current_lsn);
-
 	/* Write back the adjusted flags. */
 	mach_write_to_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
 			+ get_frame(block), m_space_flags);
