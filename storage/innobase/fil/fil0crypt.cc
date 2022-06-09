@@ -640,10 +640,7 @@ static dberr_t fil_space_decrypt_full_crc32(
 	lsn_t lsn = mach_read_from_8(src_frame + FIL_PAGE_LSN);
 	uint offset = mach_read_from_4(src_frame + FIL_PAGE_OFFSET);
 
-	ut_a(key_version != ENCRYPTION_KEY_NOT_ENCRYPTED);
-
-	ut_ad(crypt_data);
-	ut_ad(crypt_data->is_encrypted());
+	ut_ad(key_version != ENCRYPTION_KEY_NOT_ENCRYPTED);
 
 	memcpy(tmp_frame, src_frame, FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 
@@ -665,15 +662,7 @@ static dberr_t fil_space_decrypt_full_crc32(
 					   (uint) space, offset, lsn);
 
 	if (rc != MY_AES_OK || dstlen != srclen) {
-		if (rc == -1) {
-			return DB_DECRYPTION_FAILED;
-		}
-
-		ib::fatal() << "Unable to decrypt data-block "
-			    << " src: " << src << "srclen: "
-			    << srclen << " buf: " << dst << "buflen: "
-			    << dstlen << " return-code: " << rc
-			    << " Can't continue!";
+		return DB_DECRYPTION_FAILED;
 	}
 
 	/* Copy only checksum part in the trailer */
@@ -707,8 +696,7 @@ static dberr_t fil_space_decrypt_for_non_full_checksum(
 			src_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	ib_uint64_t lsn = mach_read_from_8(src_frame + FIL_PAGE_LSN);
 
-	ut_a(key_version != ENCRYPTION_KEY_NOT_ENCRYPTED);
-	ut_a(crypt_data != NULL && crypt_data->is_encrypted());
+	ut_ad(key_version != ENCRYPTION_KEY_NOT_ENCRYPTED);
 
 	/* read space & lsn */
 	uint header_len = FIL_PAGE_DATA;
@@ -735,18 +723,7 @@ static dberr_t fil_space_decrypt_for_non_full_checksum(
 					   space, offset, lsn);
 
 	if (! ((rc == MY_AES_OK) && ((ulint) dstlen == srclen))) {
-
-		if (rc == -1) {
-			return DB_DECRYPTION_FAILED;
-		}
-
-		ib::fatal() << "Unable to decrypt data-block "
-			    << " src: " << static_cast<const void*>(src)
-			    << "srclen: "
-			    << srclen << " buf: "
-			    << static_cast<const void*>(dst) << "buflen: "
-			    << dstlen << " return-code: " << rc
-			    << " Can't continue!";
+		return DB_DECRYPTION_FAILED;
 	}
 
 	/* For compressed tables we do not store the FIL header because
@@ -772,8 +749,8 @@ static dberr_t fil_space_decrypt_for_non_full_checksum(
 @param[in]	tmp_frame		Temporary buffer
 @param[in]	physical_size		page size
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	err			DB_SUCCESS or DB_DECRYPTION_FAILED
-@return DB_SUCCESS or error */
+@retval DB_SUCCESS on success
+@retval DB_DECRYPTION_FAILED on error */
 dberr_t
 fil_space_decrypt(
 	uint32_t		space_id,
@@ -783,6 +760,10 @@ fil_space_decrypt(
 	ulint			physical_size,
 	byte*			src_frame)
 {
+	if (!crypt_data || !crypt_data->is_encrypted()) {
+		return DB_DECRYPTION_FAILED;
+	}
+
 	if (fil_space_t::full_crc32(fsp_flags)) {
 		return fil_space_decrypt_full_crc32(
 			space_id, crypt_data, tmp_frame, src_frame);
@@ -799,7 +780,8 @@ Decrypt a page.
 @param[in]	tmp_frame		Temporary buffer used for decrypting
 @param[in,out]	src_frame		Page to decrypt
 @return decrypted page, or original not encrypted page if decryption is
-not needed.*/
+not needed.
+@retval nullptr on failure */
 byte*
 fil_space_decrypt(
 	const fil_space_t* space,
@@ -808,7 +790,6 @@ fil_space_decrypt(
 {
 	const ulint physical_size = space->physical_size();
 
-	ut_ad(space->crypt_data != NULL && space->crypt_data->is_encrypted());
 	ut_ad(space->referenced());
 
 	if (DB_SUCCESS != fil_space_decrypt(space->id, space->flags,
@@ -820,9 +801,7 @@ fil_space_decrypt(
 
 	/* Copy the decrypted page back to page buffer, not
 	really any other options. */
-	memcpy(src_frame, tmp_frame, physical_size);
-
-	return src_frame;
+	return static_cast<byte*>(memcpy(src_frame, tmp_frame, physical_size));
 }
 
 /***********************************************************************/
@@ -914,43 +893,32 @@ fil_crypt_needs_rotation(
 
 /** Read page 0 and possible crypt data from there.
 @param[in,out]	space		Tablespace */
-static inline
-void
-fil_crypt_read_crypt_data(fil_space_t* space)
+static inline void fil_crypt_read_crypt_data(fil_space_t *space)
 {
-	if (space->crypt_data || space->size || !space->get_size()) {
-		/* The encryption metadata has already been read, or
-		the tablespace is not encrypted and the file has been
-		opened already, or the file cannot be accessed,
-		likely due to a concurrent DROP
-		(possibly as part of TRUNCATE or ALTER TABLE).
-		FIXME: The file can become unaccessible any time
-		after this check! We should really remove this
-		function and instead make crypt_data an integral
-		part of fil_space_t. */
-		return;
-	}
+  if (space->crypt_data || space->size || !space->get_size())
+    /* The encryption metadata has already been read, or the
+    tablespace is not encrypted and the file has been opened already,
+    or the file cannot be accessed, likely due to a concurrent DROP
+    (possibly as part of TRUNCATE or ALTER TABLE).
 
-	const ulint zip_size = space->zip_size();
-	mtr_t	mtr;
-	mtr.start();
-	if (buf_block_t* block = buf_page_get_gen(page_id_t(space->id, 0),
-						  zip_size, RW_S_LATCH,
-						  nullptr,
-						  BUF_GET_POSSIBLY_FREED,
-						  &mtr)) {
-		if (block->page.is_freed()) {
-			goto func_exit;
-		}
-		mysql_mutex_lock(&fil_system.mutex);
-		if (!space->crypt_data && !space->is_stopping()) {
-			space->crypt_data = fil_space_read_crypt_data(
-				zip_size, block->page.frame);
-		}
-		mysql_mutex_unlock(&fil_system.mutex);
-	}
-func_exit:
-	mtr.commit();
+    FIXME: The file can become unaccessible any time after this check!
+    We should really remove this function and instead make crypt_data
+    an integral part of fil_space_t. */
+    return;
+
+  const ulint zip_size= space->zip_size();
+  mtr_t mtr;
+  mtr.start();
+  if (buf_block_t* b= buf_page_get_gen(page_id_t{space->id, 0}, zip_size,
+                                       RW_S_LATCH, nullptr,
+                                       BUF_GET_POSSIBLY_FREED, &mtr))
+  {
+    mysql_mutex_lock(&fil_system.mutex);
+    if (!space->crypt_data && !space->is_stopping())
+      space->crypt_data= fil_space_read_crypt_data(zip_size, b->page.frame);
+    mysql_mutex_unlock(&fil_system.mutex);
+  }
+  mtr.commit();
 }
 
 /** Start encrypting a space
@@ -997,15 +965,9 @@ func_exit:
 	mtr.start();
 
 	/* 2 - get page 0 */
-	dberr_t err = DB_SUCCESS;
 	if (buf_block_t* block = buf_page_get_gen(
 		    page_id_t(space->id, 0), space->zip_size(),
-		    RW_X_LATCH, NULL, BUF_GET_POSSIBLY_FREED,
-		    &mtr, &err)) {
-		if (block->page.is_freed()) {
-			goto abort;
-		}
-
+		    RW_X_LATCH, NULL, BUF_GET_POSSIBLY_FREED, &mtr)) {
 		crypt_data->type = CRYPT_SCHEME_1;
 		crypt_data->min_key_version = 0; // all pages are unencrypted
 		crypt_data->rotate_state.start_time = time(0);
@@ -1716,7 +1678,8 @@ fil_crypt_get_page_throttle(
 		return NULL;
 	}
 
-	if (fseg_page_is_free(space, state->offset)) {
+	if (DB_SUCCESS_LOCKED_REC
+	    != fseg_page_is_allocated(space, state->offset)) {
 		/* page is already freed */
 		return NULL;
 	}
@@ -1794,10 +1757,7 @@ fil_crypt_rotate_page(
 		const lsn_t block_lsn = mach_read_from_8(FIL_PAGE_LSN + frame);
 		uint kv = buf_page_get_key_version(frame, space->flags);
 
-		if (block->page.is_freed()) {
-			/* Do not modify freed pages to avoid an assertion
-			failure on recovery.*/
-		} else if (block->page.oldest_modification() > 1) {
+		if (block->page.oldest_modification() > 1) {
 			/* Do not unnecessarily touch pages that are
 			already dirty. */
 		} else if (space->is_stopping()) {
@@ -1809,11 +1769,11 @@ fil_crypt_rotate_page(
 			allocated. Because key rotation is accessing
 			pages in a pattern that is unlike the normal
 			B-tree and undo log access pattern, we cannot
-			invoke fseg_page_is_free() here, because that
+			invoke fseg_page_is_allocated() here, because that
 			could result in a deadlock. If we invoked
-			fseg_page_is_free() and released the
+			fseg_page_is_allocated() and released the
 			tablespace latch before acquiring block->lock,
-			then the fseg_page_is_free() information
+			then the fseg_page_is_allocated() information
 			could be stale already. */
 
 			/* If the data file was originally created
@@ -1872,8 +1832,7 @@ fil_crypt_rotate_page(
 		/* If block read failed mtr memo and log should be empty. */
 		ut_ad(!mtr.has_modifications());
 		ut_ad(!mtr.is_dirty());
-		ut_ad(mtr.get_memo()->size() == 0);
-		ut_ad(mtr.get_log()->size() == 0);
+		ut_ad(mtr.is_empty());
 		mtr.commit();
 	}
 
@@ -1974,10 +1933,8 @@ fil_crypt_flush_space(
 	if (buf_block_t* block = buf_page_get_gen(
 		    page_id_t(space->id, 0), space->zip_size(),
 		    RW_X_LATCH, NULL, BUF_GET_POSSIBLY_FREED, &mtr)) {
-		if (!block->page.is_freed()) {
-			mtr.set_named_space(space);
-			crypt_data->write_page0(block, &mtr);
-		}
+		mtr.set_named_space(space);
+		crypt_data->write_page0(block, &mtr);
 	}
 
 	mtr.commit();

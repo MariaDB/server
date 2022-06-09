@@ -164,68 +164,6 @@ inline void buf_pool_t::delete_from_flush_list_low(buf_page_t *bpage) noexcept
   UT_LIST_REMOVE(flush_list, bpage);
 }
 
-/** Insert a modified block into the flush list.
-@param block    modified block
-@param lsn      start LSN of the mini-transaction that modified the block */
-void buf_pool_t::insert_into_flush_list(buf_block_t *block, lsn_t lsn) noexcept
-{
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(recv_recovery_is_on() || log_sys.latch.is_locked());
-#endif
-  ut_ad(lsn > 2);
-  static_assert(log_t::FIRST_LSN >= 2, "compatibility");
-  ut_ad(!fsp_is_system_temporary(block->page.id().space()));
-
-  mysql_mutex_lock(&flush_list_mutex);
-  if (ut_d(const lsn_t old=) block->page.oldest_modification())
-  {
-    ut_ad(old == 1);
-    delete_from_flush_list_low(&block->page);
-  }
-  else
-    stat.flush_list_bytes+= block->physical_size();
-  ut_ad(stat.flush_list_bytes <= curr_pool_size);
-  ut_ad(lsn >= log_sys.last_checkpoint_lsn);
-
-  block->page.set_oldest_modification(lsn);
-  MEM_CHECK_DEFINED(block->page.zip.data
-                    ? block->page.zip.data : block->page.frame,
-                    block->physical_size());
-rescan:
-  if (buf_page_t *prev= UT_LIST_GET_FIRST(flush_list))
-  {
-    lsn_t om= prev->oldest_modification();
-    if (om == 1)
-    {
-      delete_from_flush_list(prev);
-      goto rescan;
-    }
-    ut_ad(om > 2);
-    if (om <= lsn)
-      goto insert_first;
-    while (buf_page_t *next= UT_LIST_GET_NEXT(list, prev))
-    {
-      om= next->oldest_modification();
-      if (om == 1)
-      {
-        delete_from_flush_list(next);
-        continue;
-      }
-      ut_ad(om > 2);
-      if (om <= lsn)
-        break;
-      else
-        prev= next;
-    }
-    flush_hp.adjust(prev);
-    UT_LIST_INSERT_AFTER(flush_list, prev, &block->page);
-  }
-  else
-  insert_first:
-    UT_LIST_ADD_FIRST(flush_list, &block->page);
-  mysql_mutex_unlock(&flush_list_mutex);
-}
-
 /** Remove a block from flush_list.
 @param bpage   buffer pool page
 @param clear   whether to invoke buf_page_t::clear_oldest_modification() */
@@ -654,7 +592,6 @@ static byte *buf_page_encrypt(fil_space_t* space, buf_page_t* bpage, byte* s,
   ut_ad(space->id == bpage->id().space());
   ut_ad(!*slot);
 
-  ut_d(fil_page_type_validate(space, s));
   const uint32_t page_no= bpage->id().page_no();
 
   switch (page_no) {
@@ -751,7 +688,6 @@ not_compressed:
 
     /* Workaround for MDEV-15527. */
     memset(tmp + len, 0 , srv_page_size - len);
-    ut_d(fil_page_type_validate(space, tmp));
 
     if (encrypted)
       tmp= fil_space_encrypt(space, page_no, tmp, d);
@@ -766,7 +702,6 @@ not_compressed:
     d= tmp;
   }
 
-  ut_d(fil_page_type_validate(space, d));
   (*slot)->out_buf= d;
   return d;
 }
@@ -1030,63 +965,58 @@ static page_id_t buf_flush_check_neighbors(const fil_space_t &space,
   return i;
 }
 
-MY_ATTRIBUTE((nonnull, warn_unused_result))
-/** Write punch-hole or zeroes of the freed ranges when
-innodb_immediate_scrub_data_uncompressed from the freed ranges.
-@param space    tablespace which may contain ranges of freed pages
-@param writable whether the tablespace is writable
+MY_ATTRIBUTE((warn_unused_result))
+/** Apply freed_ranges to the file.
+@param writable whether the file is writable
 @return number of pages written or hole-punched */
-static uint32_t buf_flush_freed_pages(fil_space_t *space, bool writable)
+uint32_t fil_space_t::flush_freed(bool writable)
 {
-  const bool punch_hole= space->chain.start->punch_hole == 1;
+  const bool punch_hole= chain.start->punch_hole == 1;
   if (!punch_hole && !srv_immediate_scrub_data_uncompressed)
     return 0;
 
   mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
   mysql_mutex_assert_not_owner(&buf_pool.mutex);
 
-  space->freed_range_mutex.lock();
-  if (space->freed_ranges.empty() ||
-      log_sys.get_flushed_lsn() < space->get_last_freed_lsn())
+  freed_range_mutex.lock();
+  if (freed_ranges.empty() || log_sys.get_flushed_lsn() < get_last_freed_lsn())
   {
-    space->freed_range_mutex.unlock();
+    freed_range_mutex.unlock();
     return 0;
   }
 
-  const unsigned physical_size{space->physical_size()};
+  const unsigned physical{physical_size()};
 
-  range_set freed_ranges= std::move(space->freed_ranges);
+  range_set freed= std::move(freed_ranges);
   uint32_t written= 0;
 
   if (!writable);
   else if (punch_hole)
   {
-    for (const auto &range : freed_ranges)
+    for (const auto &range : freed)
     {
       written+= range.last - range.first + 1;
-      space->reacquire();
-      space->io(IORequest(IORequest::PUNCH_RANGE),
-                          os_offset_t{range.first} * physical_size,
-                          (range.last - range.first + 1) * physical_size,
-                          nullptr);
+      reacquire();
+      io(IORequest(IORequest::PUNCH_RANGE),
+         os_offset_t{range.first} * physical,
+         (range.last - range.first + 1) * physical, nullptr);
     }
   }
   else
   {
-    for (const auto &range : freed_ranges)
+    for (const auto &range : freed)
     {
       written+= range.last - range.first + 1;
       for (os_offset_t i= range.first; i <= range.last; i++)
       {
-        space->reacquire();
-        space->io(IORequest(IORequest::WRITE_ASYNC),
-                  i * physical_size, physical_size,
-                  const_cast<byte*>(field_ref_zero));
+        reacquire();
+        io(IORequest(IORequest::WRITE_ASYNC), i * physical, physical,
+           const_cast<byte*>(field_ref_zero));
       }
     }
   }
 
-  space->freed_range_mutex.unlock();
+  freed_range_mutex.unlock();
   return written;
 }
 
@@ -1214,7 +1144,7 @@ static ulint buf_free_from_unzip_LRU_list_batch(ulint max)
 static std::pair<fil_space_t*, uint32_t> buf_flush_space(const uint32_t id)
 {
   if (fil_space_t *space= fil_space_t::get(id))
-    return {space, buf_flush_freed_pages(space, true)};
+    return {space, space->flush_freed(true)};
   return {nullptr, 0};
 }
 
@@ -1596,7 +1526,7 @@ bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed)
 
   bool acquired= space->acquire();
   {
-    const uint32_t written{buf_flush_freed_pages(space, acquired)};
+    const uint32_t written{space->flush_freed(acquired)};
     mysql_mutex_lock(&buf_pool.mutex);
     if (written)
       buf_pool.stat.n_pages_written+= written;

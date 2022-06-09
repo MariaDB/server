@@ -1219,12 +1219,12 @@ void translog_interpret_file_header(LOGHANDLER_FILE_INFO *desc,
   ptr+= 4;
   desc->mysql_version= uint4korr(ptr);
   ptr+= 4;
-  desc->server_id= uint4korr(ptr + 4);
+  desc->server_id= uint4korr(ptr);
   ptr+= 4;
   desc->page_size= uint2korr(ptr) + 1;
   ptr+= 2;
   desc->file_number= uint3korr(ptr);
-  ptr+=3;
+  ptr+= 3;
   desc->max_lsn= lsn_korr(ptr);
 }
 
@@ -7995,22 +7995,14 @@ void translog_flush_buffers(TRANSLOG_ADDRESS *lsn,
   }
   else
   {
-    if (log_descriptor.bc.buffer->last_lsn == LSN_IMPOSSIBLE)
+    if (log_descriptor.bc.buffer->last_lsn == LSN_IMPOSSIBLE &&
+        log_descriptor.bc.buffer->prev_last_lsn == LSN_IMPOSSIBLE)
     {
-      /*
-        In this case both last_lsn & prev_last_lsn are LSN_IMPOSSIBLE
-        otherwise it will go in the first IF because LSN_IMPOSSIBLE less
-        then any real LSN and cmp_translog_addr(*lsn,
-        log_descriptor.bc.buffer->prev_last_lsn) will be TRUE
-      */
-      DBUG_ASSERT(log_descriptor.bc.buffer->prev_last_lsn ==
-                  LSN_IMPOSSIBLE);
       DBUG_PRINT("info", ("There is no LSNs yet generated => do nothing"));
       translog_unlock();
       DBUG_VOID_RETURN;
     }
 
-    DBUG_ASSERT(log_descriptor.bc.buffer->prev_last_lsn != LSN_IMPOSSIBLE);
     /* fix lsn if it was horizon */
     *lsn= log_descriptor.bc.buffer->prev_last_lsn;
     DBUG_PRINT("info", ("LSN to flush fixed to prev last lsn: " LSN_FMT,

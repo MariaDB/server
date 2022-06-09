@@ -24,8 +24,7 @@ Mini-transaction buffer
 Created 11/26/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef mtr0mtr_h
-#define mtr0mtr_h
+#pragma once
 
 #include "fil0fil.h"
 #include "dyn0buf.h"
@@ -53,16 +52,6 @@ savepoint. */
 @return true if released */
 #define mtr_memo_release(m, o, t)					\
 				(m)->memo_release((o), (t))
-
-/** Print info of an mtr handle. */
-#define mtr_print(m)		(m)->print()
-
-/** Return the log object of a mini-transaction buffer.
-@return	log */
-#define mtr_get_log(m)		(m)->get_log()
-
-/** Push an object to an mtr memo stack. */
-#define mtr_memo_push(m, o, t)	(m)->memo_push(o, t)
 
 #ifdef UNIV_PFS_RWLOCK
 # define mtr_s_lock_index(i,m)	(m)->s_lock(__FILE__, __LINE__, &(i)->lock)
@@ -148,8 +137,16 @@ struct mtr_t {
   mtr_log_t get_log_mode() const
   {
     static_assert(MTR_LOG_ALL == 0, "efficiency");
-    ut_ad(m_log_mode <= MTR_LOG_NO_REDO);
     return static_cast<mtr_log_t>(m_log_mode);
+  }
+
+  /** @return whether log is to be written for changes */
+  bool is_logged() const
+  {
+    static_assert(MTR_LOG_ALL == 0, "efficiency");
+    static_assert(MTR_LOG_NONE & MTR_LOG_NO_REDO, "efficiency");
+    static_assert(!(MTR_LOG_NONE & MTR_LOG_SUB), "efficiency");
+    return !(m_log_mode & MTR_LOG_NONE);
   }
 
   /** Change the logging mode.
@@ -160,6 +157,15 @@ struct mtr_t {
     const mtr_log_t old_mode= get_log_mode();
     m_log_mode= mode & 3;
     return old_mode;
+  }
+
+  /** Set the log mode of a sub-minitransaction
+  @param mtr  parent mini-transaction */
+  void set_log_mode_sub(const mtr_t &mtr)
+  {
+    ut_ad(mtr.m_log_mode == MTR_LOG_ALL || mtr.m_log_mode == MTR_LOG_NO_REDO);
+    m_log_mode= mtr.m_log_mode | MTR_LOG_SUB;
+    static_assert((MTR_LOG_SUB | MTR_LOG_NO_REDO) == MTR_LOG_NO_REDO, "");
   }
 
   /** Check if we are holding a block latch in exclusive mode
@@ -314,11 +320,8 @@ public:
   /** @return true if we are inside the change buffer code */
   bool is_inside_ibuf() const { return m_inside_ibuf; }
 
-  /** Note that pages has been trimed */
+  /** Note that some pages have been freed */
   void set_trim_pages() { m_trim_pages= true; }
-
-  /** @return true if pages has been trimed */
-  bool is_trim_pages() { return m_trim_pages; }
 
   /** Latch a buffer pool block.
   @param block    block to be latched
@@ -361,29 +364,12 @@ public:
 		const byte*	ptr,
 		ulint		flags) const;
 
-	/** Print info of an mtr handle. */
-	void print() const;
-
 	/** @return true if mini-transaction contains modifications. */
 	bool has_modifications() const { return m_modifications; }
-
-	/** @return the memo stack */
-	const mtr_buf_t* get_memo() const { return &m_memo; }
-
-	/** @return the memo stack */
-	mtr_buf_t* get_memo() { return &m_memo; }
 #endif /* UNIV_DEBUG */
 
 	/** @return true if a record was added to the mini-transaction */
 	bool is_dirty() const { return m_made_dirty; }
-
-	/** Get the buffered redo log of this mini-transaction.
-	@return	redo log */
-	const mtr_buf_t* get_log() const { return &m_log; }
-
-	/** Get the buffered redo log of this mini-transaction.
-	@return	redo log */
-	mtr_buf_t* get_log() { return &m_log; }
 
 	/** Push an object to an mtr memo stack.
 	@param object	object
@@ -395,6 +381,14 @@ public:
 	@return true if the mtr is dirtying a clean page. */
 	static inline bool is_block_dirtied(const buf_block_t* block)
 		MY_ATTRIBUTE((warn_unused_result));
+
+  /** @return the size of the log is empty */
+  size_t get_log_size() const { return m_log.size(); }
+  /** @return whether the log and memo are empty */
+  bool is_empty() const { return m_memo.size() == 0 && m_log.size() == 0; }
+
+  /** Write an OPT_PAGE_CHECKSUM record. */
+  inline void page_checksum(const buf_page_t &bpage);
 
   /** Write request types */
   enum write_type
@@ -494,9 +488,9 @@ public:
   @param[in,out]        b       buffer page */
   void init(buf_block_t *b);
   /** Free a page.
-  @param[in]      space   tablespace contains page to be freed
-  @param[in]      offset  page offset to be freed */
-  inline void free(fil_space_t &space, uint32_t offset);
+  @param space   tablespace
+  @param offset  offset of the page to be freed */
+  void free(const fil_space_t &space, uint32_t offset);
   /** Write log for partly initializing a B-tree or R-tree page.
   @param block    B-tree or R-tree page
   @param comp     false=ROW_FORMAT=REDUNDANT, true=COMPACT or DYNAMIC */
@@ -610,7 +604,18 @@ public:
     PAGE_FLUSH_SYNC
   };
 
+#ifdef BTR_CUR_HASH_ADAPT
+  /** If a stale adaptive hash index exists on the block, drop it. */
+  ATTRIBUTE_COLD
+  static void defer_drop_ahi(buf_block_t *block, mtr_memo_type_t fix_type);
+#endif
+
 private:
+  /** Handle any pages that were freed during the mini-transaction. */
+  void process_freed_pages();
+  /** Release modified pages when no log was written. */
+  void release_unlogged();
+
   /** Log a write of a byte string to a page.
   @param block   buffer page
   @param offset  byte offset within page
@@ -727,5 +732,3 @@ private:
 };
 
 #include "mtr0mtr.inl"
-
-#endif /* mtr0mtr_h */

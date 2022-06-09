@@ -650,7 +650,7 @@ static std::string wsrep_server_incoming_address()
     bool is_ipv6= false;
     unsigned int my_bind_ip= INADDR_ANY; // default if not set
 
-    if (my_bind_addr_str && strlen(my_bind_addr_str) && 
+    if (my_bind_addr_str && strlen(my_bind_addr_str) &&
         strcmp(my_bind_addr_str, "*") != 0)
     {
       my_bind_ip= wsrep_check_ip(my_bind_addr_str, &is_ipv6);
@@ -715,9 +715,13 @@ static std::string wsrep_server_incoming_address()
 
     snprintf(inc_addr, inc_addr_max, fmt, addr.get_address(), port);
   }
-  
+
  done:
-  ret= wsrep_node_incoming_address;
+  if (!strlen(inc_addr))
+    ret= wsrep_node_incoming_address;
+  else
+    ret= inc_addr;
+  WSREP_DEBUG("wsrep_incoming_address = %s", ret.c_str());
   return ret;
 }
 

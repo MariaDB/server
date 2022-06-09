@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -34,6 +34,16 @@ Created 4/18/1996 Heikki Tuuri
 #include "buf0flu.h"
 #include "log0recv.h"
 #include "os0file.h"
+
+/** The DICT_HDR page identifier */
+static constexpr page_id_t hdr_page_id{DICT_HDR_SPACE, DICT_HDR_PAGE_NO};
+
+/** @return the DICT_HDR block, x-latched */
+static buf_block_t *dict_hdr_get(mtr_t *mtr)
+{
+  /* We assume that the DICT_HDR page is always readable and available. */
+  return buf_page_get_gen(hdr_page_id, 0, RW_X_LATCH, nullptr, BUF_GET, mtr);
+}
 
 /**********************************************************************//**
 Returns a new table, index, or space id. */
@@ -97,25 +107,25 @@ void dict_hdr_flush_row_id(row_id_t id)
 }
 
 /** Create the DICT_HDR page on database initialization.
-@return whether the operation failed */
-static bool dict_hdr_create()
+@return error code */
+dberr_t dict_create()
 {
-	buf_block_t*	block;
 	ulint		root_page_no;
 
-	bool fail = false;
+	dberr_t err;
 	mtr_t mtr;
 	mtr.start();
 	compile_time_assert(DICT_HDR_SPACE == 0);
 
 	/* Create the dictionary header file block in a new, allocated file
 	segment in the system tablespace */
-	block = fseg_create(fil_system.sys_space,
-			    DICT_HDR + DICT_HDR_FSEG_HEADER, &mtr);
-
-	ut_a(block->page.id() == page_id_t(DICT_HDR_SPACE, DICT_HDR_PAGE_NO));
-
-	buf_block_t* d = dict_hdr_get(&mtr);
+	buf_block_t* d = fseg_create(fil_system.sys_space,
+				     DICT_HDR + DICT_HDR_FSEG_HEADER, &mtr,
+                                     &err);
+	if (!d) {
+		goto func_exit;
+	}
+	ut_a(d->page.id() == hdr_page_id);
 
 	/* Start counting row, table, index, and tree ids from
 	DICT_HDR_FIRST_ID */
@@ -139,10 +149,8 @@ static bool dict_hdr_create()
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_TABLES_ID,
-				  nullptr, &mtr);
+				  nullptr, &mtr, &err);
 	if (root_page_no == FIL_NULL) {
-failed:
-		fail = true;
 		goto func_exit;
 	}
 
@@ -151,9 +159,9 @@ failed:
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_UNIQUE,
 				  fil_system.sys_space, DICT_TABLE_IDS_ID,
-				  nullptr, &mtr);
+				  nullptr, &mtr, &err);
 	if (root_page_no == FIL_NULL) {
-		goto failed;
+		goto func_exit;
 	}
 
 	mtr.write<4>(*d, DICT_HDR + DICT_HDR_TABLE_IDS + d->page.frame,
@@ -161,9 +169,9 @@ failed:
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_COLUMNS_ID,
-				  nullptr, &mtr);
+				  nullptr, &mtr, &err);
 	if (root_page_no == FIL_NULL) {
-		goto failed;
+		goto func_exit;
 	}
 
 	mtr.write<4>(*d, DICT_HDR + DICT_HDR_COLUMNS + d->page.frame,
@@ -171,9 +179,9 @@ failed:
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_INDEXES_ID,
-				  nullptr, &mtr);
+				  nullptr, &mtr, &err);
 	if (root_page_no == FIL_NULL) {
-		goto failed;
+		goto func_exit;
 	}
 
 	mtr.write<4>(*d, DICT_HDR + DICT_HDR_INDEXES + d->page.frame,
@@ -181,25 +189,23 @@ failed:
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_FIELDS_ID,
-				  nullptr, &mtr);
+				  nullptr, &mtr, &err);
 	if (root_page_no == FIL_NULL) {
-		goto failed;
+		goto func_exit;
 	}
 
 	mtr.write<4>(*d, DICT_HDR + DICT_HDR_FIELDS + d->page.frame,
 		     root_page_no);
 func_exit:
 	mtr.commit();
-	return fail;
+	return err ? err : dict_boot();
 }
 
 /*****************************************************************//**
 Initializes the data dictionary memory structures when the database is
 started. This function is also called when the data dictionary is created.
 @return DB_SUCCESS or error code. */
-dberr_t
-dict_boot(void)
-/*===========*/
+dberr_t dict_boot()
 {
 	dict_table_t*	table;
 	dict_index_t*	index;
@@ -222,17 +228,23 @@ dict_boot(void)
 	static_assert(DICT_NUM_COLS__SYS_FOREIGN_COLS == 4, "compatibility");
 	static_assert(DICT_NUM_FIELDS__SYS_FOREIGN_COLS == 6, "compatibility");
 
-	mtr_start(&mtr);
-
+	mtr.start();
 	/* Create the hash tables etc. */
 	dict_sys.create();
+
+	dberr_t err;
+	const buf_block_t *d = buf_page_get_gen(hdr_page_id, 0, RW_X_LATCH,
+						nullptr, BUF_GET, &mtr, &err);
+        if (!d) {
+		mtr.commit();
+		return err;
+        }
 
 	heap = mem_heap_create(450);
 
 	dict_sys.lock(SRW_LOCK_CALL);
 
-	/* Get the dictionary header */
-	const byte* dict_hdr = &dict_hdr_get(&mtr)->page.frame[DICT_HDR];
+	const byte* dict_hdr = &d->page.frame[DICT_HDR];
 
 	/* Because we only write new row ids to disk-based data structure
 	(dictionary header) when it is divisible by
@@ -406,9 +418,9 @@ dict_boot(void)
 	table->indexes.start->n_core_null_bytes = static_cast<uint8_t>(
 		UT_BITS_IN_BYTES(unsigned(table->indexes.start->n_nullable)));
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
-	dberr_t	err = ibuf_init_at_db_start();
+	err = ibuf_init_at_db_start();
 
 	if (err == DB_SUCCESS) {
 		/* Load definitions of other indexes on system tables */
@@ -423,13 +435,5 @@ dict_boot(void)
 		dict_sys.unlock();
 	}
 
-	return(err);
-}
-
-/*****************************************************************//**
-Creates and initializes the data dictionary at the server bootstrap.
-@return DB_SUCCESS or error code. */
-dberr_t dict_create()
-{
-  return dict_hdr_create() ? DB_ERROR : dict_boot();
+	return err;
 }

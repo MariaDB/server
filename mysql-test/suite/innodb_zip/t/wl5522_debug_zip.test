@@ -25,6 +25,8 @@ call mtr.add_suppression("InnoDB: Error number \\d+ means");
 call mtr.add_suppression("InnoDB: Cannot open datafile .*t1\\.ibd");
 call mtr.add_suppression("InnoDB: Ignoring tablespace for test/t1 ");
 call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
+call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed read of file '.*ibdata1' page");
+call mtr.add_suppression("InnoDB: File '.*ibdata1' is corrupted");
 FLUSH TABLES;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
@@ -435,18 +437,28 @@ ALTER TABLE t1 DISCARD TABLESPACE;
 SELECT COUNT(*) FROM t1;
 
 # Restore files
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+let MYSQLD_DATADIR=`select @@datadir`;
+
 perl;
 do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test", "t1");
+my $page;
+my $ps = $ENV{INNODB_PAGE_SIZE};
+my $file = "$ENV{MYSQLD_DATADIR}/test/t1.ibd";
+open(FILE, "+<$file") || die "Unable to open $file";
+binmode FILE;
+sysseek(FILE, 4*$ps, 0) || die "Unable to seek $file\n";
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+substr($page,24,2)='42';
+sysseek(FILE, 4*$ps, 0) || die "Unable to rewind $file\n";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+close(FILE) || die "Unable to close $file";
 EOF
 
-SET SESSION debug_dbug="+d,buf_page_import_corrupt_failure";
-
 # Following alter is failing
---error ER_INTERNAL_ERROR
+--error ER_INTERNAL_ERROR,ER_NOT_KEYFILE
 ALTER TABLE t1 IMPORT TABLESPACE;
-
-SET SESSION debug_dbug=@saved_debug_dbug;
 
 DROP TABLE t1;
 

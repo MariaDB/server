@@ -216,10 +216,9 @@ fts_update_max_cache_size(
 /*********************************************************************//**
 This function fetches the document just inserted right before
 we commit the transaction, and tokenize the inserted text data
-and insert into FTS auxiliary table and its cache.
-@return TRUE if successful */
+and insert into FTS auxiliary table and its cache. */
 static
-ulint
+void
 fts_add_doc_by_id(
 /*==============*/
 	fts_trx_table_t*ftt,		/*!< in: FTS trx table */
@@ -1648,24 +1647,26 @@ on the given table.
 static dberr_t fts_drop_common_tables(trx_t *trx, fts_table_t *fts_table,
                                       bool rename)
 {
-	dberr_t		error = DB_SUCCESS;
+  dberr_t error= DB_SUCCESS;
 
-	for (ulint i = 0; fts_common_tables[i] != NULL; ++i) {
-		dberr_t	err;
-		char	table_name[MAX_FULL_NAME_LEN];
+  for (ulint i= 0; fts_common_tables[i]; ++i)
+  {
+    char table_name[MAX_FULL_NAME_LEN];
 
-		fts_table->suffix = fts_common_tables[i];
-		fts_get_table_name(fts_table, table_name, true);
+    fts_table->suffix= fts_common_tables[i];
+    fts_get_table_name(fts_table, table_name, true);
 
-		err = fts_drop_table(trx, table_name, rename);
+    if (dberr_t err= fts_drop_table(trx, table_name, rename))
+    {
+      if (trx->state != TRX_STATE_ACTIVE)
+        return err;
+      /* We only return the status of the last error. */
+      if (err != DB_FAIL)
+        error= err;
+    }
+  }
 
-		/* We only return the status of the last error. */
-		if (err != DB_SUCCESS && err != DB_FAIL) {
-			error = err;
-		}
-	}
-
-	return(error);
+  return error;
 }
 
 /****************************************************************//**
@@ -3299,10 +3300,9 @@ fts_add_doc_from_tuple(
 /*********************************************************************//**
 This function fetches the document inserted during the committing
 transaction, and tokenize the inserted text data and insert into
-FTS auxiliary table and its cache.
-@return TRUE if successful */
+FTS auxiliary table and its cache. */
 static
-ulint
+void
 fts_add_doc_by_id(
 /*==============*/
 	fts_trx_table_t*ftt,		/*!< in: FTS trx table */
@@ -3358,12 +3358,11 @@ fts_add_doc_by_id(
 	mach_write_to_8((byte*) &temp_doc_id, doc_id);
 	dfield_set_data(dfield, &temp_doc_id, sizeof(temp_doc_id));
 
-	btr_pcur_open_with_no_init(
-		fts_id_index, tuple, PAGE_CUR_LE, BTR_SEARCH_LEAF,
-		&pcur, 0, &mtr);
-
 	/* If we have a match, add the data to doc structure */
-	if (btr_pcur_get_low_match(&pcur) == 1) {
+	if (btr_pcur_open_with_no_init(fts_id_index, tuple, PAGE_CUR_LE,
+				       BTR_SEARCH_LEAF, &pcur, 0, &mtr)
+	    == DB_SUCCESS
+	    && btr_pcur_get_low_match(&pcur) == 1) {
 		const rec_t*	rec;
 		btr_pcur_t*	doc_pcur;
 		const rec_t*	clust_rec;
@@ -3396,13 +3395,16 @@ fts_add_doc_by_id(
 			row_build_row_ref_in_tuple(
 				clust_ref, rec, fts_id_index, NULL);
 
-			btr_pcur_open_with_no_init(
-				clust_index, clust_ref, PAGE_CUR_LE,
-				BTR_SEARCH_LEAF, &clust_pcur, 0, &mtr);
+			if (btr_pcur_open_with_no_init(clust_index, clust_ref,
+						       PAGE_CUR_LE,
+						       BTR_SEARCH_LEAF,
+						       &clust_pcur, 0, &mtr)
+			    != DB_SUCCESS) {
+				goto func_exit;
+			}
 
 			doc_pcur = &clust_pcur;
 			clust_rec = btr_pcur_get_rec(&clust_pcur);
-
 		}
 
 		offsets = rec_get_offsets(clust_rec, clust_index, NULL,
@@ -3483,10 +3485,12 @@ fts_add_doc_by_id(
 				mtr_start(&mtr);
 
 				if (i < num_idx - 1) {
-					ut_d(auto status=)
-					  doc_pcur->restore_position(
-					      BTR_SEARCH_LEAF, &mtr);
-					ut_ad(status == btr_pcur_t::SAME_ALL);
+					if (doc_pcur->restore_position(
+					      BTR_SEARCH_LEAF, &mtr)
+					    != btr_pcur_t::SAME_ALL) {
+						ut_ad("invalid state" == 0);
+						i = num_idx - 1;
+					}
 				}
 			}
 
@@ -3503,7 +3507,6 @@ func_exit:
 	ut_free(pcur.old_rec_buf);
 
 	mem_heap_free(heap);
-	return(TRUE);
 }
 
 
@@ -3559,10 +3562,9 @@ fts_get_max_doc_id(
 	mtr_start(&mtr);
 
 	/* fetch the largest indexes value */
-	btr_pcur_open_at_index_side(
-		false, index, BTR_SEARCH_LEAF, &pcur, true, 0, &mtr);
-
-	if (!page_is_empty(btr_pcur_get_page(&pcur))) {
+	if (btr_pcur_open_at_index_side(false, index, BTR_SEARCH_LEAF, &pcur,
+					true, 0, &mtr) != DB_SUCCESS) {
+	} else if (!page_is_empty(btr_pcur_get_page(&pcur))) {
 		const rec_t*    rec = NULL;
 
 		do {
@@ -4291,16 +4293,11 @@ FTS auxiliary INDEX table and clear the cache at the end.
 @return DB_SUCCESS on success, error code on failure. */
 dberr_t fts_sync_table(dict_table_t* table, bool wait)
 {
-	dberr_t	err = DB_SUCCESS;
+  ut_ad(table->fts);
 
-	ut_ad(table->fts);
-
-	if (table->space && table->fts->cache
-	    && !dict_table_is_corrupted(table)) {
-		err = fts_sync(table->fts->cache->sync, !wait, wait);
-	}
-
-	return(err);
+  return table->space && !table->corrupted && table->fts->cache
+    ? fts_sync(table->fts->cache->sync, !wait, wait)
+    : DB_SUCCESS;
 }
 
 /** Check if a fts token is a stopword or less than fts_min_token_size

@@ -644,7 +644,7 @@ int _ma_read_key_record(MARIA_HA *info, uchar *buf, MARIA_RECORD_POS filepos)
     {				/* Read only key */
       if (_ma_put_key_in_record(info, (uint)info->lastinx, TRUE, buf))
       {
-        _ma_set_fatal_error(info->s, HA_ERR_CRASHED);
+        _ma_set_fatal_error(info, HA_ERR_CRASHED);
 	return -1;
       }
       info->update|= HA_STATE_AKTIV; /* We should find a record */
@@ -687,7 +687,7 @@ check_result_t ma_check_index_cond(register MARIA_HA *info, uint keynr,
     if (_ma_put_key_in_record(info, keynr, FALSE, record))
     {
       /* Impossible case; Can only happen if bug in code */
-      maria_print_error(info->s, HA_ERR_CRASHED);
+      _ma_print_error(info, HA_ERR_CRASHED, 0);
       info->cur_row.lastpos= HA_OFFSET_ERROR;   /* No active record */
       my_errno= HA_ERR_CRASHED;
       res= CHECK_ERROR;

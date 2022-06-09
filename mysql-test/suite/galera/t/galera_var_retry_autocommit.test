@@ -30,7 +30,7 @@ TRUNCATE TABLE t1;
 --connection node_1
 --error ER_LOCK_DEADLOCK
 --reap
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) FROM t1;
 
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t1;
@@ -54,8 +54,9 @@ SET DEBUG_SYNC = 'now WAIT_FOR before_cert';
 TRUNCATE TABLE t1;
 
 --connection node_1
+--error 0,ER_LOCK_DEADLOCK
 --reap
-SELECT COUNT(*) = 1 FROM t1;
+SELECT COUNT(*) FROM t1;
 
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t1;
@@ -82,17 +83,17 @@ TRUNCATE TABLE t1;
 
 --connection node_1a
 SET DEBUG_SYNC = 'now WAIT_FOR wsrep_retry_autocommit_reached';
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) FROM t1;
 SET DEBUG_SYNC = 'now SIGNAL wsrep_retry_autocommit_continue WAIT_FOR before_cert';
 
 --connection node_2
 TRUNCATE TABLE t1;
 
 --connection node_1a
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) FROM t1;
 
 --connection node_1
---error ER_LOCK_DEADLOCK
+--error 0,ER_LOCK_DEADLOCK
 --reap
 
 SET DEBUG_SYNC = 'RESET';
@@ -126,7 +127,7 @@ while ($count)
 
   --connection node_1a
   SET DEBUG_SYNC = 'now WAIT_FOR wsrep_retry_autocommit_reached';
-  SELECT COUNT(*) = 1 FROM t1;
+  SELECT COUNT(*) FROM t1;
   SET DEBUG_SYNC = 'now SIGNAL wsrep_retry_autocommit_continue';
 
   --dec $count
@@ -135,8 +136,9 @@ while ($count)
 --enable_query_log
 
 --connection node_1
+--error 0,ER_LOCK_DEADLOCK
 --reap
-SELECT COUNT(*) = 1 FROM t1;
+SELECT COUNT(*) FROM t1;
 
 SET DEBUG_SYNC = 'RESET';
 SET GLOBAL debug_dbug = NULL;

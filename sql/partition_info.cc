@@ -1049,10 +1049,12 @@ void partition_info::vers_check_limit(THD *thd)
     bitmap_set_all(), but this is not optimal since there can be quite a number
     of partitions.
   */
+#ifndef DBUG_OFF
   const uint32 sub_factor= num_subparts ? num_subparts : 1;
   uint32 part_id= vers_info->hist_part->id * sub_factor;
-  const uint32 part_id_end= part_id + sub_factor;
+  const uint32 part_id_end __attribute__((unused)) = part_id + sub_factor;
   DBUG_ASSERT(part_id_end <= num_parts * sub_factor);
+#endif
 
   ha_partition *hp= (ha_partition*)(table->file);
   ha_rows hist_rows= hp->part_records(vers_info->hist_part);

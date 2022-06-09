@@ -24,8 +24,7 @@ The low-level file system
 Created 10/25/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef fil0fil_h
-#define fil0fil_h
+#pragma once
 
 #include "fsp0types.h"
 #include "mach0data.h"
@@ -412,29 +411,40 @@ private:
   pthread_t latch_owner;
   ut_d(Atomic_relaxed<uint32_t> latch_count;)
 public:
-	/** MariaDB encryption data */
-	fil_space_crypt_t* crypt_data;
+  /** MariaDB encryption data */
+  fil_space_crypt_t *crypt_data;
 
-	/** Checks that this tablespace in a list of unflushed tablespaces. */
-	bool is_in_unflushed_spaces;
+  /** Whether needs_flush(), or this is in fil_system.unflushed_spaces */
+  bool is_in_unflushed_spaces;
 
-	/** Checks that this tablespace needs key rotation. */
-	bool is_in_default_encrypt;
+  /** Whether this in fil_system.default_encrypt_tables (needs key rotation) */
+  bool is_in_default_encrypt;
 
-	/** mutex to protect freed ranges */
-	std::mutex	freed_range_mutex;
+private:
+  /** Whether any corrupton of this tablespace has been reported */
+  mutable std::atomic_flag is_corrupted;
 
-	/** Variables to store freed ranges. This can be used to write
-	zeroes/punch the hole in files. Protected by freed_mutex */
-	range_set	freed_ranges;
+public:
+  /** mutex to protect freed_ranges and last_freed_lsn */
+  std::mutex freed_range_mutex;
+private:
+  /** Ranges of freed page numbers; protected by freed_range_mutex */
+  range_set freed_ranges;
 
-	/** Stores last page freed lsn. Protected by freed_mutex */
-	lsn_t		last_freed_lsn;
+  /** LSN of freeing last page; protected by freed_range_mutex */
+  lsn_t last_freed_lsn;
 
-	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
-
+public:
   /** @return whether doublewrite buffering is needed */
   inline bool use_doublewrite() const;
+
+  /** @return whether a page has been freed */
+  inline bool is_freed(uint32_t page);
+
+  /** Apply freed_ranges to the file.
+  @param writable whether the file is writable
+  @return number of pages written or hole-punched */
+  uint32_t flush_freed(bool writable);
 
 	/** Append a file to the chain of files of a space.
 	@param[in]	name		file name of a file that is not open
@@ -491,6 +501,9 @@ public:
   Initially, purpose=FIL_TYPE_IMPORT so that no redo log is
   written while the space ID is being updated in each page. */
   inline void set_imported();
+
+  /** Report the tablespace as corrupted */
+  ATTRIBUTE_COLD void set_corrupted() const;
 
   /** @return whether the storage device is rotational (HDD, not SSD) */
   inline bool is_rotational() const;
@@ -634,11 +647,7 @@ public:
   /** @return last_freed_lsn */
   lsn_t get_last_freed_lsn() { return last_freed_lsn; }
   /** Update last_freed_lsn */
-  void update_last_freed_lsn(lsn_t lsn)
-  {
-    std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
-    last_freed_lsn= lsn;
-  }
+  void update_last_freed_lsn(lsn_t lsn) { last_freed_lsn= lsn; }
 
   /** Note that the file will need fsync().
   @return whether this needs to be added to fil_system.unflushed_spaces */
@@ -659,11 +668,7 @@ public:
 
   /** Clear all freed ranges for undo tablespace when InnoDB
   encounters TRIM redo log record */
-  void clear_freed_ranges()
-  {
-    std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
-    freed_ranges.clear();
-  }
+  void clear_freed_ranges() { freed_ranges.clear(); }
 #endif /* !UNIV_INNOCHECKSUM */
   /** FSP_SPACE_FLAGS and FSP_FLAGS_MEM_ flags;
   check fsp0types.h to more info about flags. */
@@ -936,7 +941,6 @@ public:
   /** Add the set of freed page ranges */
   void add_free_range(const range_t range)
   {
-    std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
     freed_ranges.add_range(range);
   }
 
@@ -1032,9 +1036,6 @@ private:
 };
 
 #ifndef UNIV_INNOCHECKSUM
-/** Value of fil_space_t::magic_n */
-#define	FIL_SPACE_MAGIC_N	89472
-
 /** File node of a tablespace or the log data space */
 struct fil_node_t final
 {
@@ -1215,8 +1216,9 @@ struct fil_addr_t {
 
 /** For the first page in a system tablespace data file(ibdata*, not *.ibd):
 the file has been flushed to disk at least up to this lsn
-For other pages: 32-bit key version used to encrypt the page + 32-bit checksum
-or 64 bites of zero if no encryption */
+For other pages of tablespaces not in innodb_checksum_algorithm=full_crc32
+format: 32-bit key version used to encrypt the page + 32-bit checksum
+or 64 bits of zero if no encryption */
 #define FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION 26U
 
 /** This overloads FIL_PAGE_FILE_FLUSH_LSN for RTREE Split Sequence Number */
@@ -1775,7 +1777,4 @@ void test_make_filepath();
 @return	block size */
 ulint fil_space_get_block_size(const fil_space_t* space, unsigned offset);
 
-#include "fil0fil.inl"
 #endif /* UNIV_INNOCHECKSUM */
-
-#endif /* fil0fil_h */

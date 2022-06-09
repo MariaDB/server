@@ -3450,7 +3450,7 @@ protected:
   Item_equal *item_equal;
   Item *curr_item;
 public:
-  Item_equal_iterator<LI,T>(Item_equal &item_eq) 
+  Item_equal_iterator(Item_equal &item_eq)
     :LI<T> (item_eq.equal_items)
   {
     curr_item= NULL;

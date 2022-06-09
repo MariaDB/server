@@ -3960,10 +3960,10 @@ a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	min_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279.3333	6	20	214	6	20	315	279
 6	20	315	279.3333	6	20	315	279.3333	8	33	114	8	80	800	314
 6	20	315	279.3333	6	20	315	279.3333	6	20	214	6	23	303	909
-6	20	315	279.3333	8	33	404	213.6667	6	20	214	6	20	315	279
-6	20	315	279.3333	8	33	404	213.6667	6	20	214	6	23	303	909
 8	33	404	213.6667	6	20	315	279.3333	8	33	114	8	64	248	107
 8	33	404	213.6667	6	20	315	279.3333	8	33	114	8	80	800	314
+6	20	315	279.3333	8	33	404	213.6667	6	20	214	6	20	315	279
+6	20	315	279.3333	8	33	404	213.6667	6	20	214	6	23	303	909
 8	33	404	213.6667	8	33	404	213.6667	7	11	708	7	13	312	406
 8	33	404	213.6667	8	33	404	213.6667	8	33	114	8	64	248	107
 8	33	404	213.6667	8	33	404	213.6667	6	20	214	6	20	315	279
@@ -3978,10 +3978,10 @@ a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	min_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279.3333	6	20	214	6	20	315	279
 6	20	315	279.3333	6	20	315	279.3333	8	33	114	8	80	800	314
 6	20	315	279.3333	6	20	315	279.3333	6	20	214	6	23	303	909
-6	20	315	279.3333	8	33	404	213.6667	6	20	214	6	20	315	279
-6	20	315	279.3333	8	33	404	213.6667	6	20	214	6	23	303	909
 8	33	404	213.6667	6	20	315	279.3333	8	33	114	8	64	248	107
 8	33	404	213.6667	6	20	315	279.3333	8	33	114	8	80	800	314
+6	20	315	279.3333	8	33	404	213.6667	6	20	214	6	20	315	279
+6	20	315	279.3333	8	33	404	213.6667	6	20	214	6	23	303	909
 8	33	404	213.6667	8	33	404	213.6667	7	11	708	7	13	312	406
 8	33	404	213.6667	8	33	404	213.6667	8	33	114	8	64	248	107
 8	33	404	213.6667	8	33	404	213.6667	6	20	214	6	20	315	279
@@ -3993,8 +3993,8 @@ and (v1.max_c<500) and (v3.a=t2.a) and (v2.max_c>300);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
 1	PRIMARY	<derived4>	ref	key0	key0	5	test.t2.a	2	Using where
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (incremental, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
@@ -4054,15 +4054,51 @@ EXPLAIN
       {
         "block-nl-join": {
           "table": {
+            "table_name": "<derived2>",
+            "access_type": "ALL",
+            "rows": 20,
+            "filtered": 100,
+            "attached_condition": "v1.max_c < 500"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "715",
+          "join_type": "BNL",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "having_condition": "max_c < 707 and max_c < 500",
+              "filesort": {
+                "sort_key": "t1.a, t1.b",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 20,
+                        "filtered": 100
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
             "table_name": "<derived3>",
             "access_type": "ALL",
             "rows": 20,
             "filtered": 100,
             "attached_condition": "v2.max_c > 300"
           },
-          "buffer_type": "flat",
-          "buffer_size": "715",
+          "buffer_type": "incremental",
+          "buffer_size": "9Kb",
           "join_type": "BNL",
+          "attached_condition": "v2.a = v1.a or v1.a = t2.a",
           "materialized": {
             "query_block": {
               "select_id": 3,
@@ -4078,42 +4114,6 @@ EXPLAIN
                         "rows": 20,
                         "filtered": 100,
                         "attached_condition": "t1.a > 5"
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "<derived2>",
-            "access_type": "ALL",
-            "rows": 20,
-            "filtered": 100,
-            "attached_condition": "v1.max_c < 500"
-          },
-          "buffer_type": "incremental",
-          "buffer_size": "9Kb",
-          "join_type": "BNL",
-          "attached_condition": "v1.a = v2.a or v1.a = t2.a",
-          "materialized": {
-            "query_block": {
-              "select_id": 2,
-              "having_condition": "max_c < 707 and max_c < 500",
-              "filesort": {
-                "sort_key": "t1.a, t1.b",
-                "temporary_table": {
-                  "nested_loop": [
-                    {
-                      "table": {
-                        "table_name": "t1",
-                        "access_type": "ALL",
-                        "rows": 20,
-                        "filtered": 100
                       }
                     }
                   ]
@@ -11120,11 +11120,24 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "<derived2>",
+          "table_name": "t1",
           "access_type": "ALL",
           "rows": 2,
           "filtered": 100,
-          "attached_condition": "1 in (0,dt1.a)",
+          "attached_condition": "1 in (0,t1.a) and t1.a is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t1.a"],
+          "rows": 2,
+          "filtered": 100,
           "materialized": {
             "query_block": {
               "select_id": 2,
@@ -11146,20 +11159,6 @@ EXPLAIN
               }
             }
           }
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 2,
-            "filtered": 100
-          },
-          "buffer_type": "flat",
-          "buffer_size": "65",
-          "join_type": "BNL",
-          "attached_condition": "t1.a = dt1.a"
         }
       }
     ]
@@ -11189,11 +11188,24 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "<derived2>",
+          "table_name": "t1",
           "access_type": "ALL",
           "rows": 2,
           "filtered": 100,
-          "attached_condition": "dt.a in (1,dt.a)",
+          "attached_condition": "t1.a in (1,t1.a) and t1.a is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t1.a"],
+          "rows": 2,
+          "filtered": 100,
           "materialized": {
             "query_block": {
               "select_id": 2,
@@ -11215,20 +11227,6 @@ EXPLAIN
               }
             }
           }
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 2,
-            "filtered": 100
-          },
-          "buffer_type": "flat",
-          "buffer_size": "119",
-          "join_type": "BNL",
-          "attached_condition": "t1.a = dt.a"
         }
       }
     ]
@@ -11920,11 +11918,24 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "<derived3>",
+          "table_name": "t1",
           "access_type": "ALL",
           "rows": 2,
           "filtered": 100,
-          "attached_condition": "t.f2 < 2",
+          "attached_condition": "t1.f2 < 2 and t1.f2 is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["f2"],
+          "ref": ["test.t1.f2"],
+          "rows": 2,
+          "filtered": 100,
           "materialized": {
             "query_block": {
               "select_id": 3,
@@ -11941,15 +11952,6 @@ EXPLAIN
               ]
             }
           }
-        }
-      },
-      {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 2,
-          "filtered": 100,
-          "attached_condition": "t1.f2 = t.f2"
         }
       }
     ]
@@ -11971,11 +11973,24 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "<derived3>",
+          "table_name": "t1",
           "access_type": "ALL",
           "rows": 2,
           "filtered": 100,
-          "attached_condition": "t.f2 < 2",
+          "attached_condition": "t1.f2 < 2 and t1.f2 is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["f2"],
+          "ref": ["test.t1.f2"],
+          "rows": 1,
+          "filtered": 100,
           "materialized": {
             "query_block": {
               "select_id": 3,
@@ -11994,20 +12009,6 @@ EXPLAIN
               }
             }
           }
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 2,
-            "filtered": 100
-          },
-          "buffer_type": "flat",
-          "buffer_size": "65",
-          "join_type": "BNL",
-          "attached_condition": "t1.f2 = t.f2"
         }
       }
     ]
@@ -16484,8 +16485,8 @@ a	b	c	a	b	c
 3	21	500	3	21	231
 explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	2	Using where
 2	DERIVED	t3	range	i1	i1	5	NULL	2	Using index condition
 3	UNION	t3	range	i1	i1	5	NULL	1	Using index condition
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -16497,9 +16498,23 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "<derived2>",
+          "table_name": "t2",
           "access_type": "ALL",
-          "rows": 3,
+          "rows": 9,
+          "filtered": 100,
+          "attached_condition": "t2.b is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["b"],
+          "ref": ["test.t2.b"],
+          "rows": 2,
           "filtered": 100,
           "attached_condition": "v1.a < 4",
           "materialized": {
@@ -16553,20 +16568,6 @@ EXPLAIN
               }
             }
           }
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "t2",
-            "access_type": "ALL",
-            "rows": 9,
-            "filtered": 100
-          },
-          "buffer_type": "flat",
-          "buffer_size": "173",
-          "join_type": "BNL",
-          "attached_condition": "t2.b = v1.b"
         }
       }
     ]

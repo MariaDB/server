@@ -1,6 +1,6 @@
---- ./mysql-test/main/alter_table.result	2020-02-27 19:35:41.279992329 +0300
-+++ ./mysql-test/main/alter_table,aria.reject	2020-02-27 19:37:13.251994491 +0300
-@@ -2716,8 +2716,7 @@
+--- main/alter_table_combinations.result	2022-05-24 17:16:56.769146869 +0200
++++ main/alter_table_combinations.reject	2022-05-24 17:25:20.847126357 +0200
+@@ -173,8 +173,7 @@
  t3	CREATE TABLE `t3` (
    `a` int(11) DEFAULT NULL,
    `b` int(11) DEFAULT NULL,
@@ -10,7 +10,7 @@
  ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
  ALTER TABLE t1 RENAME COLUMN bb TO b;
  SHOW CREATE TABLE t1;
-@@ -2733,8 +2732,7 @@
+@@ -190,8 +189,7 @@
  t3	CREATE TABLE `t3` (
    `a` int(11) DEFAULT NULL,
    `c` int(11) DEFAULT NULL,

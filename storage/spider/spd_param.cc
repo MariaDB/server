@@ -560,7 +560,7 @@ longlong spider_param_semi_split_read_limit(
  */
 static MYSQL_THDVAR_INT(
   init_sql_alloc_size, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Initial sql string alloc size", /* comment */
   NULL, /* check */
   spider_use_table_value_deprecated, /* update */
@@ -2472,17 +2472,6 @@ uint spider_param_log_result_error_with_sql()
   DBUG_RETURN(spider_log_result_error_with_sql);
 }
 
-static char *spider_version = (char *) SPIDER_DETAIL_VERSION;
-static MYSQL_SYSVAR_STR(
-  version,
-  spider_version,
-  PLUGIN_VAR_NOCMDOPT | PLUGIN_VAR_READONLY,
-  "The version of Spider",
-  NULL,
-  NULL,
-  SPIDER_DETAIL_VERSION
-);
-
 /*
   0: server_id + thread_id
   1: server_id + thread_id + query_id
@@ -3003,7 +2992,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(conn_wait_timeout),
   MYSQL_SYSVAR(log_result_errors),
   MYSQL_SYSVAR(log_result_error_with_sql),
-  MYSQL_SYSVAR(version),
   MYSQL_SYSVAR(internal_xa_id_type),
   MYSQL_SYSVAR(casual_read),
   MYSQL_SYSVAR(dry_access),

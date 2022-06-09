@@ -93,6 +93,15 @@ eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='buffer_size "1"';
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 
+--echo # MDEV-27926 Deprecate spider_init_sql_alloc_size
+SET spider_init_sql_alloc_size = 1;
+SHOW VARIABLES LIKE "spider_init_sql_alloc_size";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='isa "1"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='init_sql_alloc_size "1"';
+
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
 DROP DATABASE auto_test_local;
 
 --disable_query_log

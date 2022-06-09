@@ -470,9 +470,10 @@ static int ma_encrypt(MARIA_SHARE *share, MARIA_CRYPT_DATA *crypt_data,
     */
     my_errno= HA_ERR_DECRYPTION_FAILED;
     my_printf_error(HA_ERR_DECRYPTION_FAILED,
-                    "Unknown key id %u. Can't continue!",
+                    "Unknown key id %u for %s. Can't continue!",
                     MYF(ME_FATAL|ME_ERROR_LOG),
-                    crypt_data->scheme.key_id);
+                    crypt_data->scheme.key_id,
+                    share->open_file_name.str);
     return 1;
   }
 

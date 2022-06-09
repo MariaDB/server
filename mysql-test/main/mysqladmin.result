@@ -17,7 +17,6 @@ mysqld is alive
 # Creating an empty file 'cnf_file'
 # Using --defaults-extra-file option with 'cnf_file'.
 mysqld is alive
-# Kill the server
 # restart: --ssl-key=MYSQLTEST_VARDIR/tmp/ssl_key.pem --ssl-cert=MYSQLTEST_VARDIR/tmp/ssl_cert.pem
 connect  ssl_con,localhost,root,,,,,SSL;
 SELECT VARIABLE_VALUE INTO @ssl_not_after FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_server_not_after';
@@ -26,5 +25,4 @@ SELECT VARIABLE_VALUE INTO @ssl_not_after FROM INFORMATION_SCHEMA.SESSION_STATUS
 Result
 OK
 # Cleanup
-# Kill the server
 # restart

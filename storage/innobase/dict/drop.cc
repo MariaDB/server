@@ -83,7 +83,10 @@ dberr_t trx_t::drop_table_foreign(const table_name_t &name)
   ut_ad(dict_operation);
   ut_ad(dict_operation_lock_mode);
 
-  if (!dict_sys.sys_foreign || !dict_sys.sys_foreign_cols)
+  if (!dict_sys.sys_foreign || dict_sys.sys_foreign->corrupted)
+    return DB_SUCCESS;
+
+  if (!dict_sys.sys_foreign_cols || dict_sys.sys_foreign_cols->corrupted)
     return DB_SUCCESS;
 
   pars_info_t *info= pars_info_create();
@@ -172,7 +175,7 @@ dberr_t trx_t::drop_table(const dict_table_t &table)
   ut_ad(found_x);
 #endif
 
-  if (dict_sys.sys_virtual)
+  if (dict_sys.sys_virtual && !dict_sys.sys_virtual->corrupted)
   {
     pars_info_t *info= pars_info_create();
     pars_info_add_ull_literal(info, "id", table.id);

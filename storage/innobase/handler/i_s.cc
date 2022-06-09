@@ -46,7 +46,6 @@ Created July 18, 2007 Vasil Dimov
 #include "trx0i_s.h"
 #include "trx0trx.h"
 #include "srv0mon.h"
-#include "fut0fut.h"
 #include "pars0pars.h"
 #include "fts0types.h"
 #include "fts0opt.h"

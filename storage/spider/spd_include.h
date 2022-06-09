@@ -14,8 +14,8 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#define SPIDER_DETAIL_VERSION "3.3.15"
-#define SPIDER_HEX_VERSION 0x0303
+#define SPIDER_DETAIL_VERSION PACKAGE_VERSION
+#define SPIDER_HEX_VERSION (MYSQL_VERSION_MAJOR << 8 | MYSQL_VERSION_MINOR)
 
 #define spider_my_free(A,B) my_free(A)
 #ifdef pthread_mutex_t

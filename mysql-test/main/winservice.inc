@@ -18,7 +18,7 @@ error 0,$ERROR_SERVICE_DOES_NOT_EXIST;
 exec $sc_exe delete $service_name;
 --enable_result_log
 
-source include/kill_mysqld.inc;
+source include/shutdown_mysqld.inc;
 echo # run mysql_install_db with --service parameter;
 --disable_result_log
 exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --port=$MASTER_MYPORT --password=$password --service=$service_name -R;

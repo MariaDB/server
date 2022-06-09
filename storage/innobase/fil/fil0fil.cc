@@ -60,6 +60,12 @@ Created 10/25/1995 Heikki Tuuri
 #include "bzlib.h"
 #include "snappy-c.h"
 
+ATTRIBUTE_COLD void fil_space_t::set_corrupted() const
+{
+  if (!is_stopping() && !is_corrupted.test_and_set())
+    sql_print_error("InnoDB: File '%s' is corrupted", chain.start->name);
+}
+
 /** Try to close a file to adhere to the innodb_open_files limit.
 @param print_info   whether to diagnose why a file cannot be closed
 @return whether a file was closed */
@@ -227,9 +233,7 @@ fil_space_t *fil_space_get_by_id(uint32_t id)
 	mysql_mutex_assert_owner(&fil_system.mutex);
 
 	HASH_SEARCH(hash, &fil_system.spaces, id,
-		    fil_space_t*, space,
-		    ut_ad(space->magic_n == FIL_SPACE_MAGIC_N),
-		    space->id == id);
+		    fil_space_t*, space,, space->id == id);
 
 	return(space);
 }
@@ -801,8 +805,6 @@ pfs_os_file_t fil_system_t::detach(fil_space_t *space, bool detach_handle)
   else if (space == temp_space)
     temp_space= nullptr;
 
-  ut_a(space->magic_n == FIL_SPACE_MAGIC_N);
-
   for (fil_node_t* node= UT_LIST_GET_FIRST(space->chain); node;
        node= UT_LIST_GET_NEXT(chain, node))
     if (node->is_open())
@@ -942,7 +944,6 @@ fil_space_t *fil_space_t::create(uint32_t id, uint32_t flags,
 	space->purpose = purpose;
 	space->flags = flags;
 
-	space->magic_n = FIL_SPACE_MAGIC_N;
 	space->crypt_data = crypt_data;
 	space->n_pending.store(CLOSING, std::memory_order_relaxed);
 
@@ -1432,7 +1433,7 @@ inline void mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
   ut_ad(!strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD));
 
   flag_modified();
-  if (m_log_mode != MTR_LOG_ALL)
+  if (!is_logged())
     return;
   m_last= nullptr;
 
@@ -2051,9 +2052,8 @@ err_exit:
 		IF_WIN(node->find_metadata(), node->find_metadata(file, true));
 		mtr.start();
 		mtr.set_named_space(space);
-		fsp_header_init(space, size, &mtr);
+		ut_a(fsp_header_init(space, size, &mtr) == DB_SUCCESS);
 		mtr.commit();
-		*err = DB_SUCCESS;
 		return space;
 	}
 
@@ -2709,16 +2709,16 @@ func_exit:
 
 /** Report information about an invalid page access. */
 ATTRIBUTE_COLD
-static void fil_invalid_page_access_msg(bool fatal, const char *name,
+static void fil_invalid_page_access_msg(const char *name,
                                         os_offset_t offset, ulint len,
                                         bool is_read)
 {
-  sql_print_error("%s%s %zu bytes at " UINT64PF
+  sql_print_error("%s %zu bytes at " UINT64PF
                   " outside the bounds of the file: %s",
-                  fatal ? "[FATAL] InnoDB: " : "InnoDB: ",
-                  is_read ? "Trying to read" : "Trying to write",
-                  len, offset, name);
-  if (fatal)
+                  is_read
+                  ? "InnoDB: Trying to read"
+                  : "[FATAL] InnoDB: Trying to write", len, offset, name);
+  if (!is_read)
     abort();
 }
 
@@ -2767,14 +2767,22 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 
 	fil_node_t* node= UT_LIST_GET_FIRST(chain);
 	ut_ad(node);
+	ulint p = static_cast<ulint>(offset >> srv_page_size_shift);
+	dberr_t err;
 
 	if (type.type == IORequest::READ_ASYNC && is_stopping()) {
-		release();
-		return {DB_TABLESPACE_DELETED, nullptr};
+		err = DB_TABLESPACE_DELETED;
+		node = nullptr;
+		goto release;
 	}
 
-	ulint p = static_cast<ulint>(offset >> srv_page_size_shift);
-	bool fatal;
+	DBUG_EXECUTE_IF("intermittent_recovery_failure",
+			if (type.is_read() && !(~get_rnd_value() & 0x3ff0))
+			goto io_error;);
+
+	DBUG_EXECUTE_IF("intermittent_read_failure",
+			if (srv_was_started && type.is_read() &&
+			    !(~get_rnd_value() & 0x3ff0)) goto io_error;);
 
 	if (UNIV_LIKELY_NULL(UT_LIST_GET_NEXT(chain, node))) {
 		ut_ad(this == fil_system.sys_space
@@ -2785,16 +2793,20 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 			p -= node->size;
 			node = UT_LIST_GET_NEXT(chain, node);
 			if (!node) {
-				release();
-				if (type.type != IORequest::READ_ASYNC) {
-					fatal = true;
 fail:
+				if (type.type != IORequest::READ_ASYNC) {
 					fil_invalid_page_access_msg(
-						fatal, node->name,
+						node->name,
 						offset, len,
 						type.is_read());
 				}
-				return {DB_IO_ERROR, nullptr};
+#ifndef DBUG_OFF
+io_error:
+#endif
+				set_corrupted();
+				err = DB_CORRUPTION;
+				node = nullptr;
+				goto release;
 			}
 		}
 
@@ -2802,20 +2814,8 @@ fail:
 	}
 
 	if (UNIV_UNLIKELY(node->size <= p)) {
-		release();
-
-		if (type.type == IORequest::READ_ASYNC) {
-			/* If we can tolerate the non-existent pages, we
-			should return with DB_ERROR and let caller decide
-			what to do. */
-			return {DB_ERROR, nullptr};
-		}
-
-		fatal = node->space->purpose != FIL_TYPE_IMPORT;
 		goto fail;
 	}
-
-	dberr_t err;
 
 	if (type.type == IORequest::PUNCH_RANGE) {
 		err = os_file_punch_hole(node->handle, offset, len);
@@ -2842,12 +2842,14 @@ release_sync_write:
 			node->complete_write();
 release:
 			release();
+			goto func_exit;
 		}
 		ut_ad(fil_validate_skip());
 	}
 	if (err != DB_SUCCESS) {
 		goto release;
 	}
+func_exit:
 	return {err, node};
 }
 
@@ -2893,8 +2895,9 @@ write_completed:
         mysql_mutex_unlock(&recv_sys.mutex);
       }
 
-      ib::error() << "Failed to read page " << id.page_no()
-                  << " from file '" << request.node->name << "': " << err;
+      if (err != DB_FAIL)
+        ib::error() << "Failed to read page " << id.page_no()
+                    << " from file '" << request.node->name << "': " << err;
     }
   }
 
@@ -3108,7 +3111,7 @@ lsn_t fil_names_clear(lsn_t lsn)
 
 	for (auto it = fil_system.named_spaces.begin();
 	     it != fil_system.named_spaces.end(); ) {
-		if (mtr.get_log()->size() + strlen(it->chain.start->name)
+		if (mtr.get_log_size() + strlen(it->chain.start->name)
 		    >= recv_sys.MTR_SIZE_MAX - (3 + 5)) {
 			/* Prevent log parse buffer overflow */
 			mtr.commit_files();

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -48,7 +48,7 @@ extern const char *page_compression_algorithms[];
 If records are inserted in order, there are the following
 flags to tell this (their type is made byte for the compiler
 to warn if direction and hint parameters are switched in
-fseg_alloc_free_page) */
+fseg_alloc_free_page_general) */
 /* @{ */
 #define	FSP_UP		((byte)111)	/*!< alphabetically upwards */
 #define	FSP_DOWN	((byte)112)	/*!< alphabetically downwards */
