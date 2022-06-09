@@ -9768,6 +9768,18 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
                                                        t_ref->get_table_name());
 
     want_access&= ~(sctx->master_access & ~deny_mask);
+
+    /*
+       Make sure that whatever privileges were inherited from the global
+       level, that they are masked here properly.
+
+       TODO(cvicentiu) -> It would be better if check_grant didn't rely
+       on check_access being called with &table->grant.privilege as a
+       parameter, so we can avoid this hard-coupling between the 2 function
+       calls.
+    */
+    t_ref->grant.privilege&= ~deny_mask;
+
     if (!want_access)
       continue;                                 // ok
 
@@ -9790,12 +9802,8 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
       continue;
     }
 
-    // TODO(cvicentiu) table level denies need to be checked here.
-    // This can be achieved by computing the effective deny_mask for t_ref.
-    if (!(~(t_ref->grant.privilege & ~deny_mask) & want_access))
-    {
+    if (!(~t_ref->grant.privilege & want_access))
       continue;
-    }
 
     if (is_temporary_table(t_ref))
     {
@@ -9958,7 +9966,7 @@ bool check_grant_column(const Security_context *sctx,
   if (!want_access)
     DBUG_RETURN(0);				// Already checked
 
-  privilege_t deny_mask= acl_get_effective_deny_mask(sctx, db_name);
+  privilege_t deny_mask= acl_get_effective_deny_mask(sctx, db_name, table_name);
   if (want_access & deny_mask)
     goto err;
 
