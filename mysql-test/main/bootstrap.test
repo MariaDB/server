@@ -133,4 +133,30 @@ EOF
 --exec $MYSQLD_BOOTSTRAP_CMD --default-time-zone=Europe/Moscow < $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
 --remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
 
+--echo #
+--echo # MDEV-28782 mariadb-tzinfo-to-sql to work in bootstrap mode
+--echo #
+
+--write_file $MYSQLTEST_VARDIR/tmp/tz.sql
+use test;
+
+create table time_zone                 like mysql.time_zone;
+create table time_zone_leap_second     like mysql.time_zone_leap_second;
+create table time_zone_name            like mysql.time_zone_name;
+create table time_zone_transition      like mysql.time_zone_transition;
+create table time_zone_transition_type like mysql.time_zone_transition_type;
+
+EOF
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog std_data/zoneinfo/GMT GMT 2>/dev/null >> $MYSQLTEST_VARDIR/tmp/tz.sql
+--append_file $MYSQLTEST_VARDIR/tmp/tz.sql
+DROP TABLE time_zone, time_zone_leap_second, time_zone_name, time_zone_transition, time_zone_transition_type;
+EOF
+--exec $MYSQLD_BOOTSTRAP_CMD < $MYSQLTEST_VARDIR/tmp/tz.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/tz.sql
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
+
+# restore
 --source include/start_mysqld.inc
