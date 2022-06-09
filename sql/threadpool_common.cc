@@ -210,7 +210,7 @@ retry:
           thd->async_state.m_state = thd_async_state::enum_async_state::RESUMED;
           goto retry;
         }
-        return false;
+        return true;
       case DISPATCH_COMMAND_CLOSE_CONNECTION:
         /*
           QUIT or an error occurred.
