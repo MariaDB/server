@@ -388,6 +388,11 @@ public:
     bool entry_exists= entry != nullptr;
     if (!entry) /* No previous entry */
     {
+      /* Shortcut, revoking a non-existing entry does nothing to the
+         hash table. */
+      if (priv_spec.revoke)
+        return false;
+
       entry= new deny_entry();
       if (!entry)
         return true;
@@ -410,6 +415,13 @@ public:
       entry->second&= ~priv_spec.access;
     else
       entry->second|= priv_spec.access;
+
+    /* A no privilege entry should be removed from the hash. */
+    if (entry_exists && !entry->second)
+    {
+      (*hash)->remove(entry);
+      return false;
+    }
 
     if (!entry_exists)
     {
@@ -462,7 +474,14 @@ public:
     }
     if (hash && update_hash(priv_spec, hash))
       return true;
-    specified_denies|= priv_spec.spec_type;
+    if (!hash /* Global spec */ || !(*hash)->is_empty())
+      specified_denies|= priv_spec.spec_type;
+    else if ((*hash)->is_empty())
+    {
+      DBUG_ASSERT(priv_spec.revoke);
+      /* Clear this bit from the specified denies flag to speed up lookups. */
+      specified_denies&= ~priv_spec.spec_type;
+    }
     return false;
   }
 
