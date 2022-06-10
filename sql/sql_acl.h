@@ -102,9 +102,6 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
                                      const char *name, size_t length, Field *fld);
 bool check_grant_all_columns(THD *thd, privilege_t want_access,
                              Field_iterator_table_ref *fields);
-bool check_grant_routine(THD *thd, privilege_t want_access,
-                         TABLE_LIST *procs, const Sp_handler *sph,
-                         bool no_error);
 bool check_grant_db(Security_context *sctx, const char *db, privilege_t db_deny_mask);
 bool check_global_access(THD *thd, const privilege_t want_access, bool no_errors= false);
 bool check_access(THD *thd, privilege_t want_access,
