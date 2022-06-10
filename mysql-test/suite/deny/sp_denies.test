@@ -1,0 +1,168 @@
+--source include/not_embedded.inc
+
+connection default;
+create user foo;
+create database some_db;
+create table some_db.p1 (a int, b int);
+
+DELIMITER |;
+
+CREATE PROCEDURE some_db.p1 (OUT param1 INT)
+ BEGIN
+  SELECT COUNT(*) INTO param1 FROM p1;
+ END;
+|
+
+CREATE FUNCTION some_db.p1(IN c INT) RETURNS INT
+BEGIN
+  SET c = 100;
+  RETURN c + c;
+END;
+|
+
+set @old_sql_mode=@@sql_mode|
+set sql_mode=ORACLE|
+
+create package some_db.util_functions as
+  function f1(id int) return int;
+end|
+
+
+create package body some_db.util_functions as
+  function f1(id int) return int as result int;
+  begin
+    return 10;
+  end;
+end|
+
+delimiter ;|
+
+--echo #
+--echo # Test some illegal denies for packages.
+--echo #
+--error ER_ILLEGAL_GRANT_FOR_TABLE
+deny execute on some_db.p1 to foo;
+--error ER_ILLEGAL_GRANT_FOR_TABLE
+deny select on procedure some_db.p1 to foo;
+--error ER_ILLEGAL_GRANT_FOR_TABLE
+deny select on function some_db.p1 to foo;
+
+
+--connect (con1,localhost,foo,,)
+
+--error ER_PROCACCESS_DENIED_ERROR
+select some_db.p1(1);
+--error ER_PROCACCESS_DENIED_ERROR
+select some_db.util_functions.f1(1);
+--error ER_PROCACCESS_DENIED_ERROR
+call some_db.p1(20);
+--error ER_PROCACCESS_DENIED_ERROR
+alter procedure some_db.p1 SQL SECURITY definer;
+--error ER_SP_DOES_NOT_EXIST
+show create procedure some_db.p1;
+
+disconnect con1;
+
+connection default;
+
+grant all on some_db.* to foo;
+grant all on procedure some_db.p1 to foo;
+grant all on function some_db.p1 to foo;
+grant all on package some_db.util_functions to foo;
+grant all on package body some_db.util_functions to foo;
+
+--connect (con1,localhost,foo,,)
+
+select some_db.p1(1);
+select some_db.util_functions.f1(1);
+call some_db.p1(@var);
+alter procedure some_db.p1 SQL SECURITY definer;
+show create procedure some_db.p1;
+
+disconnect con1;
+
+connection default;
+
+deny execute on procedure some_db.p1 to foo;
+deny execute on function some_db.p1 to foo;
+deny execute on package some_db.util_functions to foo;
+deny execute on package body some_db.util_functions to foo;
+
+--connect (con1,localhost,foo,,)
+
+--error ER_PROCACCESS_DENIED_ERROR
+select some_db.p1(1);
+--error ER_PROCACCESS_DENIED_ERROR
+select some_db.util_functions.f1(1);
+--error ER_PROCACCESS_DENIED_ERROR
+call some_db.p1(20);
+alter procedure some_db.p1 SQL SECURITY definer;
+show create procedure some_db.p1;
+
+disconnect con1;
+
+connection default;
+deny all on procedure some_db.p1 to foo;
+deny all on function some_db.p1 to foo;
+deny all on package some_db.util_functions to foo;
+deny all on package body some_db.util_functions to foo;
+
+--connect (con1,localhost,foo,,)
+
+--error ER_PROCACCESS_DENIED_ERROR
+select some_db.p1(1);
+--error ER_PROCACCESS_DENIED_ERROR
+select some_db.util_functions.f1(1);
+--error ER_PROCACCESS_DENIED_ERROR
+call some_db.p1(20);
+--error ER_PROCACCESS_DENIED_ERROR
+alter procedure some_db.p1 SQL SECURITY invoker;
+show create procedure some_db.p1;
+
+
+disconnect con1;
+
+connection default;
+deny all on some_db.* to foo;
+
+--connect (con1,localhost,foo,,)
+
+--error ER_PROCACCESS_DENIED_ERROR
+select some_db.p1(1);
+--error ER_PROCACCESS_DENIED_ERROR
+select some_db.util_functions.f1(1);
+--error ER_PROCACCESS_DENIED_ERROR
+call some_db.p1(20);
+--error ER_SP_DOES_NOT_EXIST
+show create procedure some_db.p1;
+
+disconnect con1;
+
+connection default;
+--replace_regex $REGEX_VERSION_ID
+select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+
+revoke all on some_db.* from foo;
+revoke deny all on some_db.* from foo;
+
+--echo #
+--echo # Test that proc denies mask access to the database too.
+--echo #
+--echo # Here foo has no more rights on any of the objects in some_db, hence
+--echo # he should be denied access.
+--echo #
+
+--connect (con1,localhost,foo,,)
+
+--error ER_DBACCESS_DENIED_ERROR
+use some_db;
+--error ER_SP_DOES_NOT_EXIST
+show create procedure some_db.p1;
+disconnect con1;
+
+connection default;
+
+set sql_mode=@old_sql_mode;
+
+drop user foo;
+drop database some_db;
