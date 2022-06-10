@@ -13523,15 +13523,11 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
 
 
   mysql_mutex_lock(&acl_cache->lock);
-  if ((au= find_user_exact(sctx->priv_host,
-                           sctx->priv_user)))
-    goto found_acl;
-
+  au= find_user_exact(sctx->priv_host, sctx->priv_user);
   mysql_mutex_unlock(&acl_cache->lock);
-  DBUG_RETURN(TRUE);
 
- found_acl:
-  mysql_mutex_unlock(&acl_cache->lock);
+  if (!au)
+    DBUG_RETURN(TRUE);
 
   bzero((char*)tables, sizeof(TABLE_LIST));
   resolved_user_list.empty();
