@@ -528,7 +528,6 @@ show tables from some_db;
 disconnect con1;
 
 
-
 connection default;
 drop user foo;
 drop database some_db;

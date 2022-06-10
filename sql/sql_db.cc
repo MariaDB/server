@@ -1790,7 +1790,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
   // TODO(cvicentiu) check how force_switch impacts denies.
   if (!force_switch &&
       !(db_access & DB_ACLS) &&
-      check_grant_db(thd->security_ctx, new_db_file_name.str, deny_mask))
+      check_grant_db(thd->security_ctx, new_db_file_name, deny_mask))
   {
     my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
              sctx->priv_user,

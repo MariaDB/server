@@ -3954,7 +3954,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
 
     privilege_t deny_mask= acl_get_effective_deny_mask(thd->security_ctx,
                                                        dst_db_name);
-    if (!cur_access && check_grant_db(thd->security_ctx, dst_db_name.str,
+    if (!cur_access && check_grant_db(thd->security_ctx, dst_db_name,
                                       deny_mask))
     {
       status_var_increment(thd->status_var.access_denied_errors);
@@ -5136,15 +5136,45 @@ static enum object_type get_corresponding_object_type(const Sp_handler &sph)
 {
   switch (sph.type())
   {
-    case SP_TYPE_FUNCTION: return FUNCTION_TYPE;
-    case SP_TYPE_PACKAGE_BODY: return PACKAGE_BODY_TYPE;
-    case SP_TYPE_PACKAGE: return PACKAGE_SPEC_TYPE;
     case SP_TYPE_PROCEDURE: return PROCEDURE_TYPE;
+    case SP_TYPE_FUNCTION: return FUNCTION_TYPE;
+    case SP_TYPE_PACKAGE: return PACKAGE_SPEC_TYPE;
+    case SP_TYPE_PACKAGE_BODY: return PACKAGE_BODY_TYPE;
     default:
       DBUG_ASSERT(0);
   }
   /* We should never reach here. */
   return TABLE_TYPE;
+}
+
+static HASH *get_corresponding_routine_hash(enum object_type type)
+{
+  switch (type)
+  {
+    case FUNCTION_TYPE: return &func_priv_hash;
+    case PROCEDURE_TYPE: return &proc_priv_hash;
+    case PACKAGE_SPEC_TYPE: return &package_spec_priv_hash;
+    case PACKAGE_BODY_TYPE: return &package_body_priv_hash;
+    default:
+      DBUG_ASSERT(0);
+  }
+  /* We should never reach here. */
+  return nullptr;
+}
+
+static enum PRIV_TYPE get_corresponding_priv_spec_type(enum object_type type)
+{
+  switch (type)
+  {
+    case FUNCTION_TYPE: return FUNCTION_PRIV;
+    case PROCEDURE_TYPE: return PROCEDURE_PRIV;
+    case PACKAGE_SPEC_TYPE: return PACKAGE_SPEC_PRIV;
+    case PACKAGE_BODY_TYPE: return PACKAGE_BODY_PRIV;
+    default:
+      DBUG_ASSERT(0);
+  }
+  /* We should never reach here. */
+  return NO_PRIV;
 }
 
 static enum PRIV_TYPE get_corresponding_priv_spec_type(const Sp_handler &sph)
@@ -10367,22 +10397,37 @@ err:
 }
 
 
-static bool check_grant_db_routine(Security_context *sctx, const char *db,
-                                   HASH *hash, privilege_t db_deny_mask)
+static bool check_grant_db_routine(Security_context *sctx,
+                                   const LEX_CSTRING &db,
+                                   enum object_type routine_type,
+                                   privilege_t db_deny_mask)
 {
+  HASH *hash= get_corresponding_routine_hash(routine_type);
   for (uint idx= 0; idx < hash->records; ++idx)
   {
     GRANT_NAME *item= (GRANT_NAME*) my_hash_element(hash, idx);
 
     if (strcmp(item->user, sctx->priv_user) == 0 &&
-        strcmp(item->db, db) == 0 &&
+        strcmp(item->db, db.str) == 0 &&
         compare_hostname(&item->host, sctx->host, sctx->ip))
     {
-      if (item->privs & ~db_deny_mask)
+      privilege_t usable_mask= db_deny_mask;
+      /*
+         Only re-compute the deny mask if there are specific denies active
+         that might impact it.
+      */
+      if (sctx->denies_active & get_corresponding_priv_spec_type(routine_type))
+      {
+        LEX_CSTRING routine_name= {item->tname, strlen(item->tname)};
+        usable_mask= acl_get_effective_deny_mask_impl(sctx, db, routine_name,
+                                                      routine_type);
+      }
+      if (item->privs & ~usable_mask)
         return FALSE;
     }
+    /* TODO(cvicentiu) make this work for role denies too. */
     if (sctx->priv_role[0] && strcmp(item->user, sctx->priv_role) == 0 &&
-        strcmp(item->db, db) == 0 &&
+        strcmp(item->db, db.str) == 0 &&
         (!item->host.hostname || !item->host.hostname[0]))
     {
       if (item->privs & ~db_deny_mask)
@@ -10400,7 +10445,8 @@ static bool check_grant_db_routine(Security_context *sctx, const char *db,
   Return 1 if access is denied
 */
 
-bool check_grant_db(Security_context *sctx, const char *db,
+bool check_grant_db(Security_context *sctx,
+                    const LEX_CSTRING &db,
                     privilege_t db_deny_mask)
 {
   char helping [SAFE_NAME_LEN + USERNAME_LENGTH+2], *end;
@@ -10408,16 +10454,18 @@ bool check_grant_db(Security_context *sctx, const char *db,
   uint len, UNINIT_VAR(len2);
   bool error= TRUE;
 
+  LEX_CSTRING lower_case_db= db;
+
   tmp_db= strmov(helping, sctx->priv_user) + 1;
-  end= strnmov(tmp_db, db, helping + sizeof(helping) - tmp_db);
+  end= strnmov(tmp_db, db.str, helping + sizeof(helping) - tmp_db);
 
   if (end >= helping + sizeof(helping)) // db name was truncated
     return 1;                           // no privileges for an invalid db name
 
   if (lower_case_table_names)
   {
-    end = tmp_db + my_casedn_str(files_charset_info, tmp_db);
-    db=tmp_db;
+    end= tmp_db + my_casedn_str(files_charset_info, tmp_db);
+    lower_case_db.str= tmp_db;
   }
 
   len= (uint) (end - helping) + 1;
@@ -10428,7 +10476,7 @@ bool check_grant_db(Security_context *sctx, const char *db,
   if (sctx->priv_role[0])
   {
     end= strmov(helping2, sctx->priv_role) + 1;
-    end= strnmov(end, db, helping2 + sizeof(helping2) - end);
+    end= strnmov(end, lower_case_db.str, helping2 + sizeof(helping2) - end);
     len2= (uint) (end - helping2) + 1;
   }
 
@@ -10521,10 +10569,10 @@ bool check_grant_db(Security_context *sctx, const char *db,
 
   //TODO(cvicentiu) implement deny_mask for check_grant_db_routine
   if (error)
-    error= check_grant_db_routine(sctx, db, &proc_priv_hash, deny_mask) &&
-           check_grant_db_routine(sctx, db, &func_priv_hash, deny_mask) &&
-           check_grant_db_routine(sctx, db, &package_spec_priv_hash, deny_mask) &&
-           check_grant_db_routine(sctx, db, &package_body_priv_hash, deny_mask);
+    error= check_grant_db_routine(sctx, lower_case_db, PROCEDURE_TYPE, deny_mask) &&
+           check_grant_db_routine(sctx, lower_case_db, FUNCTION_TYPE, deny_mask) &&
+           check_grant_db_routine(sctx, lower_case_db, PACKAGE_SPEC_TYPE, deny_mask) &&
+           check_grant_db_routine(sctx, lower_case_db, PACKAGE_BODY_TYPE, deny_mask);
 
 error:
   mysql_rwlock_unlock(&LOCK_grant);
