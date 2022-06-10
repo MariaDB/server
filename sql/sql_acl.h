@@ -80,7 +80,8 @@ privilege_t acl_get_current_auth(Security_context *ctx, const char *db,
                                  bool db_is_pattern);
 privilege_t acl_get_effective_deny_mask(const Security_context *ctx,
                                         const LEX_CSTRING &db={nullptr, 0},
-                                        const LEX_CSTRING &table={nullptr, 0});
+                                        const LEX_CSTRING &table={nullptr, 0},
+                                        const LEX_CSTRING &column={nullptr, 0});
 bool acl_authenticate(THD *thd, uint com_change_user_pkt_len);
 bool acl_getroot(Security_context *sctx, const char *user, const char *host,
                  const char *ip, const char *db);

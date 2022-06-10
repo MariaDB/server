@@ -129,7 +129,7 @@ disconnect con1;
 connection default;
 select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
 user	host	JSON_EXTRACT(priv, '$.deny')
-foo	%	{"global": 0, "version_id": VERSION_ID}
+foo	%	{"version_id": VERSION_ID}
 deny select on some_db.* to foo;
 connect  con1,localhost,foo,,;
 select * from information_schema.views
