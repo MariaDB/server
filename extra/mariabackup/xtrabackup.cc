@@ -4697,13 +4697,10 @@ fail:
 
 	if (recv_sys.find_checkpoint() != DB_SUCCESS) {
 		msg("Error: cannot read redo log header");
-unlock_and_fail:
-		mysql_mutex_unlock(&recv_sys.mutex);
 	}
 
 	if (!log_sys.is_latest()) {
 		msg("Error: cannot process redo log before MariaDB 10.8");
-		goto unlock_and_fail;
 	}
 
 	recv_needed_recovery = true;
