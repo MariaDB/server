@@ -104,7 +104,7 @@ deny insert on some_db.t2 to foo;
 select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv
 where user = 'foo';
 user	host	JSON_EXTRACT(priv, '$.deny')
-foo	%	{"table": [{"name": "`some_db`.`t1`", "access": 1}, {"name": "`some_db`.`t2`", "access": 2}], "version_id": 100900}
+foo	%	{"table": [{"name": "`some_db`.`t1`", "access": 1}, {"name": "`some_db`.`t2`", "access": 2}], "version_id": VERSION_ID}
 connect  con1,localhost,foo,,;
 show tables from some_db;
 Tables_in_some_db
