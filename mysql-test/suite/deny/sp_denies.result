@@ -114,7 +114,7 @@ disconnect con1;
 connection default;
 select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
 user	host	JSON_EXTRACT(priv, '$.deny')
-foo	%	{"db": [{"name": "`some_db`", "access": 770127935}], "function": [{"name": "`some_db`.`p1`", "access": 17039360}], "procedure": [{"name": "`some_db`.`p1`", "access": 17039360}], "package_spec": [{"name": "`some_db`.`util_functions`", "access": 17039360}], "package_body": [{"name": "`some_db`.`util_functions`", "access": 17039360}], "version_id": 100900}
+foo	%	{"db": [{"name": "`some_db`", "access": 770127935}], "function": [{"name": "`some_db`.`p1`", "access": 17039360}], "procedure": [{"name": "`some_db`.`p1`", "access": 17039360}], "package_spec": [{"name": "`some_db`.`util_functions`", "access": 17039360}], "package_body": [{"name": "`some_db`.`util_functions`", "access": 17039360}], "version_id": VERSION_ID}
 revoke all on some_db.* from foo;
 revoke deny all on some_db.* from foo;
 #
