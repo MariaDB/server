@@ -5157,6 +5157,38 @@ static enum PRIV_TYPE get_corresponding_priv_spec_type(const Sp_handler &sph)
   return NO_PRIV;
 }
 
+static privilege_t acl_get_effective_deny_mask_impl(
+    const Deny_spec &denies,
+    const LEX_CSTRING &db,
+    const LEX_CSTRING &object_name,
+    enum object_type type)
+{
+  privilege_t result= denies.get_global();
+  result|= denies.get_db_deny(db);
+  if (object_name.str)
+  {
+    switch (type)
+    {
+      case TABLE_TYPE:
+        result|= denies.get_table_deny(db, object_name);
+        break;
+      case PROCEDURE_TYPE:
+        result|= denies.get_procedure_deny(db, object_name);
+        break;
+      case FUNCTION_TYPE:
+        result|= denies.get_function_deny(db, object_name);
+        break;
+      case PACKAGE_SPEC_TYPE:
+        result|= denies.get_package_spec_deny(db, object_name);
+        break;
+      case PACKAGE_BODY_TYPE:
+        result|= denies.get_package_body_deny(db, object_name);
+        break;
+    }
+  }
+  return result;
+}
+
 privilege_t acl_get_effective_deny_mask_impl(const Security_context *ctx,
                                              const LEX_CSTRING &db,
                                              const LEX_CSTRING &object_name,
@@ -5202,29 +5234,9 @@ privilege_t acl_get_effective_deny_mask_impl(const Security_context *ctx,
     return ALL_KNOWN_ACL;
   }
 
-  result= acl_user->denies->get_global();
-  result|= acl_user->denies->get_db_deny(db);
-  if (object_name.str)
-  {
-    switch (type)
-    {
-      case TABLE_TYPE:
-        result|= acl_user->denies->get_table_deny(db, object_name);
-        break;
-      case PROCEDURE_TYPE:
-        result|= acl_user->denies->get_procedure_deny(db, object_name);
-        break;
-      case FUNCTION_TYPE:
-        result|= acl_user->denies->get_function_deny(db, object_name);
-        break;
-      case PACKAGE_SPEC_TYPE:
-        result|= acl_user->denies->get_package_spec_deny(db, object_name);
-        break;
-      case PACKAGE_BODY_TYPE:
-        result|= acl_user->denies->get_package_body_deny(db, object_name);
-        break;
-    }
-  }
+  result= acl_get_effective_deny_mask_impl(*acl_user->denies,
+                                           db, object_name, type);
+
 
   //TODO(cvicentiu) roles
   mysql_mutex_unlock(&acl_cache->lock);
@@ -10126,6 +10138,7 @@ bool check_grant_column(const Security_context *sctx,
   if (!want_access)
     DBUG_RETURN(0);				// Already checked
 
+  /* TODO(cvicentiu) column level denies need to be checked here. */
   privilege_t deny_mask= acl_get_effective_deny_mask(sctx, db_name, table_name);
   if (want_access & deny_mask)
     goto err;
@@ -10147,7 +10160,6 @@ bool check_grant_column(const Security_context *sctx,
     grant->version= grant_version;		/* purecov: inspected */
   }
 
-  /* TODO(cvicentiu) table / column level denies need to be checked here. */
   check_grant_column_int(grant->grant_table_user, field_name, &want_access);
   check_grant_column_int(grant->grant_table_role, field_name, &want_access);
 
@@ -10363,7 +10375,7 @@ err:
 
 
 static bool check_grant_db_routine(Security_context *sctx, const char *db,
-                                   HASH *hash, privilege_t deny_mask)
+                                   HASH *hash, privilege_t db_deny_mask)
 {
   for (uint idx= 0; idx < hash->records; ++idx)
   {
@@ -10373,14 +10385,14 @@ static bool check_grant_db_routine(Security_context *sctx, const char *db,
         strcmp(item->db, db) == 0 &&
         compare_hostname(&item->host, sctx->host, sctx->ip))
     {
-      if (item->privs & ~deny_mask)
+      if (item->privs & ~db_deny_mask)
         return FALSE;
     }
     if (sctx->priv_role[0] && strcmp(item->user, sctx->priv_role) == 0 &&
         strcmp(item->db, db) == 0 &&
         (!item->host.hostname || !item->host.hostname[0]))
     {
-      if (item->privs & ~deny_mask)
+      if (item->privs & ~db_deny_mask)
         return FALSE; /* Found current role match */
     }
   }
@@ -10446,9 +10458,32 @@ bool check_grant_db(Security_context *sctx, const char *db,
         !memcmp(grant_table->hash_key, helping, len) &&
         compare_hostname(&grant_table->host, sctx->host, sctx->ip))
     {
-      if (grant_table->privs & ~deny_mask || grant_table->cols & ~deny_mask)
+      LEX_CSTRING db_name{grant_table->db, strlen(grant_table->db)};
+      LEX_CSTRING table_name{grant_table->tname, strlen(grant_table->tname)};
+
+      /*
+         TODO(cvicentiu)
+         This does a find_user_exact in a loop. It can be optimized by
+         fetching the ACL_USER before the for loop and using Denies object
+         directly, see acl_get_effective_deny_mask_impl(Deny_spec &, ...)
+      */
+      deny_mask= acl_get_effective_deny_mask(sctx, db_name, table_name);
+      if (grant_table->privs & ~deny_mask)
       {
-        error= FALSE; /* Found match. */
+        error= false; /* Found match. */
+        break;
+      }
+      /*
+         We can stop looking in the hash columns if there are no column-level
+         denies and whatever is granted at the column level is not denied by
+         upper level denies (TABLE and up)
+         TODO(cvicentiu) add a test that showcases this shortcut not
+         being taken because "cols" is not fully masked.
+      */
+      if ((grant_table->cols & ~deny_mask) &&
+          !(sctx->denies_active & COLUMN_PRIV))
+      {
+        error= false;
         break;
       }
 
@@ -10458,10 +10493,12 @@ bool check_grant_db(Security_context *sctx, const char *db,
 
          If the deny mask is not null and there are table or column 
       */
-      if (deny_mask)
+      if (deny_mask || (sctx->denies_active & COLUMN_PRIV))
       {
-        //TODO(cvicentiu) deny_mask needs to be updated when table
-        //and column denies are added.
+        /*
+           TODO(cvicentiu) deny_mask needs to be updated when column denies are
+           added.
+        */
         for (size_t col_idx= 0; col_idx < grant_table->hash_columns.records;
              col_idx++)
         {
@@ -14096,7 +14133,7 @@ static bool maria_deny(THD *thd, const User_table &user_table,
     DBUG_RETURN(true);
   }
   /*
-     TODO(cvicentiu) column-level checks, routine level checks, etc.
+     TODO(cvicentiu) column-level checks, etc.
      Write tests for these too.
   */
 

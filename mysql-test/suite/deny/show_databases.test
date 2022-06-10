@@ -486,3 +486,49 @@ connection default;
 
 drop user foo;
 drop database some_db;
+
+--echo #
+--echo # Test table level denies masking table and column level grants.
+--echo #
+
+connection default;
+create user foo;
+create database some_db;
+create table some_db.t1 (a int, b int);
+
+grant select on some_db.t1 to foo;
+grant insert(a) on some_db.t1 to foo;
+
+--connect (con1,localhost,foo,,)
+use some_db;
+show tables;
+show full columns from some_db.t1;
+disconnect con1;
+
+connection default;
+deny select on some_db.t1 to foo;
+
+--connect (con1,localhost,foo,,)
+use some_db;
+show tables from some_db;
+show full columns from some_db.t1;
+disconnect con1;
+
+connection default;
+deny insert on some_db.t1 to foo;
+
+--echo #
+--echo # Now all rights for t1 are denied.
+--echo #
+--connect (con1,localhost,foo,,)
+--error ER_DBACCESS_DENIED_ERROR
+use some_db;
+--error ER_DBACCESS_DENIED_ERROR
+show tables from some_db;
+disconnect con1;
+
+
+
+connection default;
+drop user foo;
+drop database some_db;
