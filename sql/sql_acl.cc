@@ -1265,6 +1265,10 @@ static privilege_t acl_get(const char *host, const char *ip, const char *user,
 static bool check_grant_routine(THD *thd, privilege_t want_access,
                                 TABLE_LIST *procs, const Sp_handler *sph,
                                 bool no_error);
+
+static bool check_routine_level_acl(THD *thd, const LEX_CSTRING &db,
+                                    const LEX_CSTRING &name,
+                                    const Sp_handler &sph);
 static int acl_db_compare(const ACL_DB *a, const ACL_DB *b);
 static void rebuild_acl_dbs();
 static void init_check_host(void);
@@ -4159,8 +4163,9 @@ check_routine_access(THD *thd, privilege_t want_access, const LEX_CSTRING *db,
     1            error
 */
 
-bool check_some_routine_access(THD *thd, const char *db, const char *name,
-                               const Sp_handler *sph)
+bool check_some_routine_access(THD *thd,
+                               const LEX_CSTRING &db, const LEX_CSTRING &name,
+                               const Sp_handler &sph)
 {
   privilege_t save_priv(NO_ACL);
   /*
@@ -4174,7 +4179,7 @@ bool check_some_routine_access(THD *thd, const char *db, const char *name,
   */
   if (thd->security_ctx->master_access & SHOW_PROC_ACLS)
     return FALSE;
-  if (!check_access(thd, SHOW_PROC_ACLS, db, &save_priv, NULL, 0, 1) ||
+  if (!check_access(thd, SHOW_PROC_ACLS, db.str, &save_priv, NULL, 0, 1) ||
       (save_priv & SHOW_PROC_ACLS))
     return FALSE;
   return check_routine_level_acl(thd, db, name, sph);
@@ -7267,11 +7272,11 @@ static GRANT_NAME *name_hash_search(HASH *name_hash,
 
 static GRANT_NAME *
 routine_hash_search(const char *host, const char *ip, const char *db,
-                    const char *user, const char *tname, const Sp_handler *sph,
+                    const char *user, const char *tname, const Sp_handler &sph,
                     bool exact)
 {
   return (GRANT_NAME*)
-    name_hash_search(sph->get_priv_hash(),
+    name_hash_search(sph.get_priv_hash(),
 		     host, ip, db, user, tname, exact, TRUE);
 }
 
@@ -7659,15 +7664,15 @@ table_error:
   @retval      -1  error
 */
 static int replace_routine_table(THD *thd, GRANT_NAME *grant_name,
-			      TABLE *table, const LEX_USER &combo,
-			      const char *db, const char *routine_name,
-			      const Sp_handler *sph,
-			      privilege_t rights, bool revoke_grant)
+                                 TABLE *table, const LEX_USER &combo,
+                                 const char *db, const char *routine_name,
+                                 const Sp_handler &sph,
+                                 privilege_t rights, bool revoke_grant)
 {
   char grantor[USER_HOST_BUFF_SIZE];
   int old_row_exists= 1;
   int error=0;
-  HASH *hash= sph->get_priv_hash();
+  HASH *hash= sph.get_priv_hash();
   DBUG_ENTER("replace_routine_table");
 
   if (!table)
@@ -7698,7 +7703,7 @@ static int replace_routine_table(THD *thd, GRANT_NAME *grant_name,
   table->field[2]->store(combo.user.str,combo.user.length, &my_charset_latin1);
   table->field[3]->store(routine_name,(uint) strlen(routine_name),
                          &my_charset_latin1);
-  table->field[4]->store((longlong) sph->type(), true);
+  table->field[4]->store((longlong) sph.type(), true);
   store_record(table,record[1]);			// store at pos 1
 
   if (table->file->ha_index_read_idx_map(table->record[0], 0,
@@ -8980,7 +8985,7 @@ static int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 */
 
 static bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
-                                const Sp_handler *sph,
+                                const Sp_handler &sph,
                                 List <LEX_USER> &user_list, privilege_t rights,
                                 bool revoke_grant, bool write_to_binlog,
                                 bool create_new_users)
@@ -8992,7 +8997,7 @@ static bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
 
   if (!revoke_grant)
   {
-    if (sph->sp_exist_routines(thd, table_list))
+    if (sph.sp_exist_routines(thd, table_list))
       DBUG_RETURN(TRUE);
   }
 
@@ -9040,7 +9045,7 @@ static bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
                                  user->user.str, table_name,
                                  rights, TRUE);
       if (!grant_name ||
-        my_hash_insert(sph->get_priv_hash(), (uchar*) grant_name))
+        my_hash_insert(sph.get_priv_hash(), (uchar*) grant_name))
       {
         result= TRUE;
         continue;
@@ -9055,7 +9060,7 @@ static bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
     }
     if (user->is_role())
       propagate_role_grants(find_acl_role(user->user.str),
-                            sp_privs_to_merge(sph->type()),
+                            sp_privs_to_merge(sph.type()),
                             db_name, table_name);
   }
   thd->mem_root= old_root;
@@ -10548,12 +10553,12 @@ static bool check_grant_routine(THD *thd, privilege_t want_access,
 
     GRANT_NAME *grant_proc;
     if ((grant_proc= routine_hash_search(host, sctx->ip, table->db.str, user,
-                                         table->table_name.str, sph, 0)))
+                                         table->table_name.str, *sph, 0)))
       table->grant.privilege|= grant_proc->privs;
     if (role[0]) /* current role set check */
     {
       if ((grant_proc= routine_hash_search("", NULL, table->db.str, role,
-                                           table->table_name.str, sph, 0)))
+                                           table->table_name.str, *sph, 0)))
       table->grant.privilege|= grant_proc->privs;
     }
 
@@ -10603,25 +10608,27 @@ err:
    1            error
 */
 
-bool check_routine_level_acl(THD *thd, const char *db, const char *name,
-                             const Sp_handler *sph)
+static
+bool check_routine_level_acl(THD *thd,
+                             const LEX_CSTRING &db, const LEX_CSTRING &name,
+                             const Sp_handler &sph)
 {
   bool no_routine_acl= 1;
   GRANT_NAME *grant_proc;
   Security_context *sctx= thd->security_ctx;
   mysql_rwlock_rdlock(&LOCK_grant);
   if ((grant_proc= routine_hash_search(sctx->priv_host,
-                                       sctx->ip, db,
+                                       sctx->ip, db.str,
                                        sctx->priv_user,
-                                       name, sph, 0)))
+                                       name.str, sph, 0)))
     no_routine_acl= !(grant_proc->privs & SHOW_PROC_ACLS);
 
   if (no_routine_acl && sctx->priv_role[0]) /* current set role check */
   {
     if ((grant_proc= routine_hash_search("",
-                                         NULL, db,
+                                         NULL, db.str,
                                          sctx->priv_role,
-                                         name, sph, 0)))
+                                         name.str, sph, 0)))
       no_routine_acl= !(grant_proc->privs & SHOW_PROC_ACLS);
   }
   mysql_rwlock_unlock(&LOCK_grant);
@@ -13090,13 +13097,13 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
 
 
 static bool
-mysql_revoke_sp_privs(THD *thd, Grant_tables *tables, const Sp_handler *sph,
+mysql_revoke_sp_privs(THD *thd, Grant_tables *tables, const Sp_handler &sph,
                       const LEX_USER *lex_user)
 {
   bool rc= false;
   uint counter, revoked;
   do {
-    HASH *hash= sph->get_priv_hash();
+    HASH *hash= sph.get_priv_hash();
     for (counter= 0, revoked= 0 ; counter < hash->records ; )
     {
       const char *user,*host;
@@ -13272,10 +13279,10 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
     } while (revoked);
 
     /* Remove procedure access */
-    if (mysql_revoke_sp_privs(thd, &tables, &sp_handler_function, lex_user) ||
-        mysql_revoke_sp_privs(thd, &tables, &sp_handler_procedure, lex_user) ||
-        mysql_revoke_sp_privs(thd, &tables, &sp_handler_package_spec, lex_user) ||
-        mysql_revoke_sp_privs(thd, &tables, &sp_handler_package_body, lex_user))
+    if (mysql_revoke_sp_privs(thd, &tables, sp_handler_function, lex_user) ||
+        mysql_revoke_sp_privs(thd, &tables, sp_handler_procedure, lex_user) ||
+        mysql_revoke_sp_privs(thd, &tables, sp_handler_package_spec, lex_user) ||
+        mysql_revoke_sp_privs(thd, &tables, sp_handler_package_body, lex_user))
       result= -1;
 
     ACL_USER_BASE *user_or_role;
@@ -13468,7 +13475,7 @@ bool sp_revoke_privileges(THD *thd, const char *sp_db, const char *sp_name,
         if (replace_routine_table(thd, grant_proc,
                                   tables.procs_priv_table().table(), lex_user,
                                   grant_proc->db, grant_proc->tname,
-                                  sph, ALL_KNOWN_ACL, 1) == 0)
+                                  *sph, ALL_KNOWN_ACL, 1) == 0)
 	{
 	  revoked= 1;
 	  continue;
@@ -13557,7 +13564,7 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
     as all errors will be handled later.
   */
   thd->push_internal_handler(&error_handler);
-  result= mysql_routine_grant(thd, tables, sph, resolved_user_list,
+  result= mysql_routine_grant(thd, tables, *sph, resolved_user_list,
                               DEFAULT_CREATE_PROC_ACLS, FALSE, FALSE,
                               create_new_users);
   thd->pop_internal_handler();
@@ -14202,7 +14209,7 @@ bool Sql_cmd_grant_sp::execute(THD *thd)
   }
   else
   {
-    if (mysql_routine_grant(thd, lex->query_tables, &m_sph,
+    if (mysql_routine_grant(thd, lex->query_tables, m_sph,
                             m_resolved_users, grants,
                             is_revoke(), true, m_create_new_users))
       return true;
@@ -15008,11 +15015,12 @@ void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
 /****************************************************************************
  Dummy wrappers when we don't have any access checks
 ****************************************************************************/
-
-bool check_routine_level_acl(THD *thd, const char *db, const char *name,
-                             const Sp_handler *sph)
+static
+bool check_routine_level_acl(THD *thd,
+                             const LEX_CSTRING &db, const LEX_CSTRING &name,
+                             const Sp_handler &sph)
 {
-  return FALSE;
+  return false;
 }
 
 #endif
