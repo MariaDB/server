@@ -1,5 +1,7 @@
 --source include/not_embedded.inc
 
+let $REGEX_VERSION_ID=/$mysql_get_server_version/VERSION_ID/;
+
 connection default;
 create user foo;
 create database some_db;
