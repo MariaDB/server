@@ -531,3 +531,63 @@ disconnect con1;
 connection default;
 drop user foo;
 drop database some_db;
+
+--echo #
+--echo # Test column level denies masking column level grants.
+--echo #
+connection default;
+create user foo;
+create database some_db;
+create table some_db.t1 (a int, b int);
+grant insert(a) on some_db.t1 to foo;
+
+deny select(a) on some_db.t1 to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+use some_db;
+show tables from some_db;
+show full columns from some_db.t1;
+disconnect con1;
+connection default;
+
+deny insert(a) on some_db.t1 to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+--error ER_DBACCESS_DENIED_ERROR
+use some_db;
+--error ER_DBACCESS_DENIED_ERROR
+show tables from some_db;
+--error ER_TABLEACCESS_DENIED_ERROR
+show full columns from some_db.t1;
+disconnect con1;
+connection default;
+
+grant select(b) on some_db.t1 to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+use some_db;
+show tables from some_db;
+show full columns from some_db.t1;
+disconnect con1;
+connection default;
+
+connection default;
+
+deny select(b) on some_db.t1 to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+--error ER_DBACCESS_DENIED_ERROR
+use some_db;
+--error ER_DBACCESS_DENIED_ERROR
+show tables from some_db;
+--error ER_TABLEACCESS_DENIED_ERROR
+show full columns from some_db.t1;
+disconnect con1;
+
+connection default;
+drop user foo;
+drop database some_db;

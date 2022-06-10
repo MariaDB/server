@@ -645,3 +645,74 @@ disconnect con1;
 connection default;
 drop user foo;
 drop database some_db;
+#
+# Test column level denies masking column level grants.
+#
+connection default;
+create user foo;
+create database some_db;
+create table some_db.t1 (a int, b int);
+grant insert(a) on some_db.t1 to foo;
+deny select(a) on some_db.t1 to foo;
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+some_db
+test
+use some_db;
+show tables from some_db;
+Tables_in_some_db
+t1
+show full columns from some_db.t1;
+Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
+a	int(11)	NULL	YES		NULL		insert	
+disconnect con1;
+connection default;
+deny insert(a) on some_db.t1 to foo;
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+test
+use some_db;
+ERROR 42000: Access denied for user 'foo'@'%' to database 'some_db'
+show tables from some_db;
+ERROR 42000: Access denied for user 'foo'@'%' to database 'some_db'
+show full columns from some_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+disconnect con1;
+connection default;
+grant select(b) on some_db.t1 to foo;
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+some_db
+test
+use some_db;
+show tables from some_db;
+Tables_in_some_db
+t1
+show full columns from some_db.t1;
+Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
+b	int(11)	NULL	YES		NULL		select	
+disconnect con1;
+connection default;
+connection default;
+deny select(b) on some_db.t1 to foo;
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+test
+use some_db;
+ERROR 42000: Access denied for user 'foo'@'%' to database 'some_db'
+show tables from some_db;
+ERROR 42000: Access denied for user 'foo'@'%' to database 'some_db'
+show full columns from some_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+disconnect con1;
+connection default;
+drop user foo;
+drop database some_db;

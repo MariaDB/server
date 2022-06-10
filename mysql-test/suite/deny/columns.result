@@ -1,0 +1,125 @@
+create user foo;
+create database deny_db;
+create table deny_db.t1 (a int, b int, secret int);
+create table deny_db.t2 (a2 int, b2 int, secret2 int);
+insert into deny_db.t2 values (100, 200, 300);
+grant all on *.* to foo;
+grant all on deny_db.* to foo;
+grant all on deny_db.t1 to foo;
+grant all on deny_db.t2 to foo;
+grant select (a, b, secret) on deny_db.t1 to foo;
+grant insert (a, b, secret) on deny_db.t1 to foo;
+grant update (a, b, secret) on deny_db.t1 to foo;
+grant references (a, b, secret) on deny_db.t1 to foo;
+grant select (a2, b2, secret2) on deny_db.t2 to foo;
+grant insert (a2, b2, secret2) on deny_db.t2 to foo;
+grant update (a2, b2, secret2) on deny_db.t2 to foo;
+grant references (a2, b2, secret2) on deny_db.t2 to foo;
+#
+# Test select and insert ... select commands.
+#
+deny select (secret) on deny_db.t1 to foo;
+connect  con1,localhost,foo,,;
+select * from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'secret' in table 't1'
+select secret from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'secret' in table 't1'
+#
+# These are different code paths. Check both.
+#
+insert into deny_db.t1 (a, b, secret) values (1, 2, 3);
+insert into deny_db.t1 values (1, 2, 3);
+#
+# Check INSERT SELECT as we need to account for 2 different kinds of
+# privileges.
+#
+insert into deny_db.t1 select * from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'secret' in table 't1'
+insert into deny_db.t1 select * from deny_db.t2;
+show full columns from deny_db.t1;
+Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
+a	int(11)	NULL	YES		NULL		select,insert,update,references	
+b	int(11)	NULL	YES		NULL		select,insert,update,references	
+secret	int(11)	NULL	YES		NULL		insert,update,references	
+show full columns from deny_db.t2;
+Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
+a2	int(11)	NULL	YES		NULL		select,insert,update,references	
+b2	int(11)	NULL	YES		NULL		select,insert,update,references	
+secret2	int(11)	NULL	YES		NULL		select,insert,update,references	
+disconnect con1;
+connection default;
+revoke deny select (secret) on deny_db.t1 from foo;
+deny select(secret2) on deny_db.t2 to foo;
+connect  con1,localhost,foo,,;
+insert into deny_db.t1 (a, b, secret) values (1, 2, 3);
+insert into deny_db.t1 values (1, 2, 3);
+insert into deny_db.t1 select * from deny_db.t1;
+insert into deny_db.t1 select * from deny_db.t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'secret2' in table 't2'
+show full columns from deny_db.t1;
+Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
+a	int(11)	NULL	YES		NULL		select,insert,update,references	
+b	int(11)	NULL	YES		NULL		select,insert,update,references	
+secret	int(11)	NULL	YES		NULL		select,insert,update,references	
+show full columns from deny_db.t2;
+Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
+a2	int(11)	NULL	YES		NULL		select,insert,update,references	
+b2	int(11)	NULL	YES		NULL		select,insert,update,references	
+secret2	int(11)	NULL	YES		NULL		insert,update,references	
+disconnect con1;
+#
+# Test insert commands
+#
+connection default;
+deny insert (secret) on deny_db.t1 to foo;
+connect  con1,localhost,foo,,;
+insert into deny_db.t1 (a, b, secret) values (1, 2, 3);
+ERROR 42000: INSERT command denied to user 'foo'@'localhost' for column 'secret' in table 't1'
+insert into deny_db.t1 values (1, 2, 3);
+ERROR 42000: INSERT command denied to user 'foo'@'localhost' for column 'secret' in table 't1'
+insert into deny_db.t1 select * from deny_db.t1;
+ERROR 42000: INSERT command denied to user 'foo'@'localhost' for column 'secret' in table 't1'
+insert into deny_db.t1 select * from deny_db.t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'secret2' in table 't2'
+show full columns from deny_db.t1;
+Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
+a	int(11)	NULL	YES		NULL		select,insert,update,references	
+b	int(11)	NULL	YES		NULL		select,insert,update,references	
+secret	int(11)	NULL	YES		NULL		select,update,references	
+disconnect con1;
+#
+# Test update commands.
+#
+connection default;
+deny select (secret) on deny_db.t1 to foo;
+deny select (secret2) on deny_db.t2 to foo;
+connect  con1, localhost,foo,,;
+update deny_db.t1 set a=111, b=222 where secret=10;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'secret' in table 't1'
+update deny_db.t1 set a=123 where a = (select secret2 from deny_db.t2);
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'secret2' in table 't2'
+show full columns from deny_db.t1;
+Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
+a	int(11)	NULL	YES		NULL		select,insert,update,references	
+b	int(11)	NULL	YES		NULL		select,insert,update,references	
+secret	int(11)	NULL	YES		NULL		update,references	
+show full columns from deny_db.t2;
+Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
+a2	int(11)	NULL	YES		NULL		select,insert,update,references	
+b2	int(11)	NULL	YES		NULL		select,insert,update,references	
+secret2	int(11)	NULL	YES		NULL		insert,update,references	
+disconnect con1;
+connection default;
+deny update (secret) on deny_db.t1 to foo;
+connect  con1, localhost,foo,,;
+update deny_db.t1 set a=111, b=222;
+update deny_db.t1 set secret=333, a=111;
+ERROR 42000: UPDATE command denied to user 'foo'@'localhost' for column 'secret' in table 't1'
+update deny_db.t1 set secret=333;
+ERROR 42000: UPDATE command denied to user 'foo'@'localhost' for column 'secret' in table 't1'
+update deny_db.t1 set a=123, secret=333;
+ERROR 42000: UPDATE command denied to user 'foo'@'localhost' for column 'secret' in table 't1'
+disconnect con1;
+connection default;
+drop user foo;
+drop database deny_db;

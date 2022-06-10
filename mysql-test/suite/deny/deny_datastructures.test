@@ -29,9 +29,7 @@ deny insert on some_other_db.* to bar;
 deny select on some_other_db.some_table to foo;
 deny insert on some_other_db.some_table_second to foo;
 deny update on some_other_db.some_table_third to foo;
---error ER_UNSUPPORTED_DENY
 deny select(a, b) on some_other_db.some_table_third to foo;
---error ER_UNSUPPORTED_DENY
 deny select, insert(a, b, c) on some_other_db.some_table_fourth to foo;
 
 --replace_regex $REGEX_VERSION_ID

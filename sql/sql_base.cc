@@ -8484,14 +8484,21 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
 
        - the table is a derived table
 
-       - the table is a view with SELECT privilege
+       - the table is a view with SELECT privilege and the
+         SELECT privilege could not have been masked by a DENY via column denies.
 
-       - the table is a base table with SELECT privilege
+       - the table is a base table with SELECT privilege and the
+         SELECT privilege could not have been masked by a DENY via column denies.
+         See check_grant's output for grant.want_privilege
     */
     if (!any_privileges &&
         !tables->is_derived() &&
-        !(tables->is_view() && (tables->grant.privilege & SELECT_ACL)) &&
-        !(table && (table->grant.privilege & SELECT_ACL)))
+        !(tables->is_view() &&
+          (tables->grant.privilege & SELECT_ACL) &&
+          !(tables->grant.want_privilege & SELECT_ACL)) &&
+        !(table &&
+          (table->grant.privilege & SELECT_ACL) &&
+          !(tables->grant.want_privilege & SELECT_ACL)))
     {
       field_iterator.set(tables);
       if (check_grant_all_columns(thd, SELECT_ACL, &field_iterator))
