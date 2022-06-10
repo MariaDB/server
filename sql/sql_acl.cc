@@ -4089,9 +4089,6 @@ check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
                     INSERT_ACL : SELECT_ACL);
     }
 
-    //TODO(cvicentiu) see how a table_ref can get a security_ctx and test
-    //denies with that.
-
     if (check_access(thd, want_access,
                      table_ref->get_db_name().str,
                      &table_ref->grant.privilege,
@@ -4127,8 +4124,9 @@ check_routine_access(THD *thd, privilege_t want_access, const LEX_CSTRING *db,
     Since the I_S and P_S do not contain routines, this bypass is ok,
     as long as this code path is not abused to create routines.
     The assert enforce that.
-    TODO(cvicentiu) This shortcut doesn't work with denies properly. We can't
-    assume access is granted here. It could be removed via a more granular deny.
+
+    This shortcut also works with DENIES, because the denied access bits
+    are enforced by check_grant_routine.
   */
   DBUG_ASSERT((want_access & CREATE_PROC_ACL) == NO_ACL);
   if ((thd->security_ctx->master_access & want_access) == want_access)
@@ -9927,13 +9925,6 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
 
     want_access= orig_want_access;
 
-    /*
-       TODO(cvicentiu)
-       Here we need to stop in case there is a table specific deny that
-       conflicts with want_access. For now, we just check global and database
-       level denies.
-    */
-    //TODO(cvicentiu) database denies need to be accounted for...
     DBUG_ASSERT(t_ref->get_db_name().str);
     privilege_t deny_mask= acl_get_effective_deny_mask(sctx,
                                                        t_ref->get_db_name(),
@@ -9991,14 +9982,9 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     }
 
     /*
-      TODO(cvicentiu) check this.
       We are now past "special" internal tables. Regular privileges apply.
       If the current db && deny mask show an impossible grant, no reason to keep
       looking further.
-      TODO(cvicentiu)
-      It seems logical that if this is the case, we abort before reaching *this*
-      function? Maybe interacting with I_S and PERF_SCHEMA needs some thought,
-      those are exceptions that could bypass "want_access".
     */
     if (!any_combination_will_do && (deny_mask & want_access))
     {
