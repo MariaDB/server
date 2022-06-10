@@ -596,8 +596,8 @@ public:
 
     while (true)
     {
-      const char *db_deny_obj_start;
-      int db_deny_obj_len;
+      const char *deny_obj_start;
+      int deny_obj_len;
 
       const char *name_start;
       int name_len;
@@ -607,19 +607,18 @@ public:
       privilege_t denied_priv;
 
       value_type= json_get_array_item(array_start, array_end, idx,
-                                      &db_deny_obj_start,
-                                      &db_deny_obj_len);
+                                      &deny_obj_start, &deny_obj_len);
       if (value_type == JSV_NOTHING)
         break;
       if (value_type != JSV_OBJECT)
         return true;
 
-      value_type= json_get_object_key(db_deny_obj_start, end, "name",
+      value_type= json_get_object_key(deny_obj_start, end, "name",
                                       &name_start, &name_len);
       if (value_type != JSV_STRING)
         return true;
 
-      value_type= json_get_object_key(db_deny_obj_start, end, "access",
+      value_type= json_get_object_key(deny_obj_start, end, "access",
                                       &access_start, &access_len);
       if (value_type != JSV_NUMBER)
         return true;
