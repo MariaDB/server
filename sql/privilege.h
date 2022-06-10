@@ -759,13 +759,16 @@ static inline privilege_t get_rights_for_procedure(privilege_t access)
 
 enum PRIV_TYPE: unsigned long long
 {
-  NO_PRIV          = 0,
-  GLOBAL_PRIV      = (1 << 0),
-  DATABASE_PRIV    = (1 << 1),
-  TABLE_PRIV       = (1 << 2),
-  COLUMN_PRIV      = (1 << 3),
-  ROUTINE_PRIV     = (1 << 4),
-  PROXY_PRIV       = (1 << 5)
+  NO_PRIV           = 0,
+  GLOBAL_PRIV       = (1 << 0),
+  DATABASE_PRIV     = (1 << 1),
+  TABLE_PRIV        = (1 << 2),
+  COLUMN_PRIV       = (1 << 3),
+  FUNCTION_PRIV     = (1 << 4),
+  PROCEDURE_PRIV    = (1 << 5),
+  PACKAGE_SPEC_PRIV = (1 << 6),
+  PACKAGE_BODY_PRIV = (1 << 7),
+  PROXY_PRIV        = (1 << 8)
 };
 
 static inline constexpr PRIV_TYPE operator|(PRIV_TYPE a, PRIV_TYPE b)

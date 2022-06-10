@@ -185,6 +185,9 @@ class Deny_spec
   Hash_set<deny_entry> *db_denies;
   Hash_set<deny_entry> *table_denies;
   Hash_set<deny_entry> *procedure_denies;
+  Hash_set<deny_entry> *function_denies;
+  Hash_set<deny_entry> *package_spec_denies;
+  Hash_set<deny_entry> *package_body_denies;
   //Dynamic_array<std::pair<LEX_CSTRING, privilege_t>> db_denies_wild;
 
   static uchar * pair_first_key(const deny_entry *elem,
@@ -232,13 +235,18 @@ class Deny_spec
   // TODO(cvicentiu) proxy denies.
 public:
   Deny_spec() : specified_denies{NO_PRIV}, global_denies{NO_ACL},
-    db_denies{nullptr}, table_denies{nullptr}, procedure_denies{nullptr} {}
+    db_denies{nullptr}, table_denies{nullptr}, procedure_denies{nullptr},
+    function_denies{nullptr}, package_spec_denies{nullptr},
+    package_body_denies{nullptr} {}
 
   ~Deny_spec()
   {
     delete db_denies;
     delete table_denies;
     delete procedure_denies;
+    delete function_denies;
+    delete package_spec_denies;
+    delete package_body_denies;
   }
 
   privilege_t get_global() const { return global_denies; }
@@ -264,22 +272,18 @@ public:
   privilege_t get_function_deny(const LEX_CSTRING &db,
                                 const LEX_CSTRING &function) const
   {
-    // TODO(cvicentiu): procedure deny
-    return NO_ACL;
+    return get_hash_value(function_denies, db, function);
   }
 
-  privilege_t get_package_spec_deny(const LEX_CSTRING &db,
-                                    const LEX_CSTRING &package_spec) const
+  privilege_t get_package_spec_deny(const LEX_CSTRING &db, const LEX_CSTRING &package_spec) const
   {
-    // TODO(cvicentiu): procedure deny
-    return NO_ACL;
+    return get_hash_value(package_spec_denies, db, package_spec);
   }
 
   privilege_t get_package_body_deny(const LEX_CSTRING &db,
                                     const LEX_CSTRING &package_body) const
   {
-    // TODO(cvicentiu): procedure deny
-    return NO_ACL;
+    return get_hash_value(package_body_denies, db, package_body);
   }
 
   static privilege_t get_hash_value(const Hash_set<deny_entry> *hash,
@@ -382,12 +386,45 @@ public:
       append_comma= true;
     }
 
-    if (specified_denies & ROUTINE_PRIV)
+    if (specified_denies & FUNCTION_PRIV)
     {
       if (append_comma)
         s->append(',');
-      s->append(STRING_WITH_LEN("\"routines\":["));
+      s->append(STRING_WITH_LEN("\"function\":["));
+      if (print_hash_table(s, function_denies))
+        return true;
+      s->append(']');
+      append_comma= true;
+    }
+
+    if (specified_denies & PROCEDURE_PRIV)
+    {
+      if (append_comma)
+        s->append(',');
+      s->append(STRING_WITH_LEN("\"procedure\":["));
       if (print_hash_table(s, procedure_denies))
+        return true;
+      s->append(']');
+      append_comma= true;
+    }
+
+    if (specified_denies & PACKAGE_SPEC_PRIV)
+    {
+      if (append_comma)
+        s->append(',');
+      s->append(STRING_WITH_LEN("\"package_spec\":["));
+      if (print_hash_table(s, package_spec_denies))
+        return true;
+      s->append(']');
+      append_comma= true;
+    }
+
+    if (specified_denies & PACKAGE_BODY_PRIV)
+    {
+      if (append_comma)
+        s->append(',');
+      s->append(STRING_WITH_LEN("\"package_body\":["));
+      if (print_hash_table(s, package_body_denies))
         return true;
       s->append(']');
       append_comma= true;
@@ -403,7 +440,8 @@ public:
     return false;
   }
 
-  static bool update_hash(const Priv_spec &priv_spec, Hash_set<deny_entry> **hash)
+  static bool update_hash(const Priv_spec &priv_spec,
+                          Hash_set<deny_entry> **hash)
   {
     deny_entry *entry= nullptr;
     if (!*hash)
@@ -496,9 +534,17 @@ public:
       // TODO(cvicentiu)
       DBUG_ASSERT(0);
       break;
-    /* TODO(cvicentiu): Split routine_priv */
-    case ROUTINE_PRIV:
+    case PROCEDURE_PRIV:
       hash= &procedure_denies;
+      break;
+    case FUNCTION_PRIV:
+      hash= &function_denies;
+      break;
+    case PACKAGE_SPEC_PRIV:
+      hash= &package_spec_denies;
+      break;
+    case PACKAGE_BODY_PRIV:
+      hash= &package_body_denies;
       break;
     case PROXY_PRIV:
       // TODO(cvicentiu)
@@ -632,13 +678,26 @@ public:
     }
 
     if (load_hash_from_json(start, end, "db", &db_denies) ||
-        load_hash_from_json(start, end, "table", &table_denies))
+        load_hash_from_json(start, end, "table", &table_denies) ||
+        load_hash_from_json(start, end, "procedure", &procedure_denies) ||
+        load_hash_from_json(start, end, "function", &function_denies) ||
+        load_hash_from_json(start, end, "package_spec", &package_spec_denies) ||
+        load_hash_from_json(start, end, "package_body", &package_body_denies)
+        )
       return true;
 
     if (db_denies)
       specified_denies|= DATABASE_PRIV;
     if (table_denies)
       specified_denies|= TABLE_PRIV;
+    if (procedure_denies)
+      specified_denies|= PROCEDURE_PRIV;
+    if (function_denies)
+      specified_denies|= FUNCTION_PRIV;
+    if (package_spec_denies)
+      specified_denies|= PACKAGE_SPEC_PRIV;
+    if (package_body_denies)
+      specified_denies|= PACKAGE_BODY_PRIV;
 
     // TODO(cvicentiu) continue loading column denies and other json denies.
     return false;
@@ -5070,6 +5129,36 @@ enum object_type {
   PACKAGE_BODY_TYPE
 };
 
+static enum object_type get_corresponding_object_type(const Sp_handler &sph)
+{
+  switch (sph.type())
+  {
+    case SP_TYPE_FUNCTION: return FUNCTION_TYPE;
+    case SP_TYPE_PACKAGE_BODY: return PACKAGE_BODY_TYPE;
+    case SP_TYPE_PACKAGE: return PACKAGE_SPEC_TYPE;
+    case SP_TYPE_PROCEDURE: return PROCEDURE_TYPE;
+    default:
+      DBUG_ASSERT(0);
+  }
+  /* We should never reach here. */
+  return TABLE_TYPE;
+}
+
+static enum PRIV_TYPE get_corresponding_priv_spec_type(const Sp_handler &sph)
+{
+  switch (sph.type())
+  {
+    case SP_TYPE_FUNCTION: return FUNCTION_PRIV;
+    case SP_TYPE_PROCEDURE: return PROCEDURE_PRIV;
+    case SP_TYPE_PACKAGE: return PACKAGE_SPEC_PRIV;
+    case SP_TYPE_PACKAGE_BODY: return PACKAGE_BODY_PRIV;
+    default:
+      DBUG_ASSERT(0);
+  }
+  /* We should never reach here. */
+  return NO_PRIV;
+}
+
 privilege_t acl_get_effective_deny_mask_impl(const Security_context *ctx,
                                              const LEX_CSTRING &db,
                                              const LEX_CSTRING &object_name,
@@ -8901,14 +8990,6 @@ static bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
   const char *db_name, *table_name;
   DBUG_ENTER("mysql_routine_grant");
 
-  if (rights & ~PROC_ACLS)
-  {
-    my_message(ER_ILLEGAL_GRANT_FOR_TABLE,
-               ER_THD(thd, ER_ILLEGAL_GRANT_FOR_TABLE),
-               MYF(0));
-    DBUG_RETURN(TRUE);
-  }
-
   if (!revoke_grant)
   {
     if (sph->sp_exist_routines(thd, table_list))
@@ -10459,6 +10540,12 @@ static bool check_grant_routine(THD *thd, privilege_t want_access,
   mysql_rwlock_rdlock(&LOCK_grant);
   for (table= procs; table; table= table->next_global)
   {
+    privilege_t deny_mask= acl_get_effective_deny_mask_impl(
+        thd->security_ctx,
+        table->get_db_name(),
+        table->get_table_name(),
+        get_corresponding_object_type(*sph));
+
     GRANT_NAME *grant_proc;
     if ((grant_proc= routine_hash_search(host, sctx->ip, table->db.str, user,
                                          table->table_name.str, sph, 0)))
@@ -10469,6 +10556,8 @@ static bool check_grant_routine(THD *thd, privilege_t want_access,
                                            table->table_name.str, sph, 0)))
       table->grant.privilege|= grant_proc->privs;
     }
+
+    table->grant.privilege&= ~deny_mask;
 
     if (want_access & ~table->grant.privilege)
     {
@@ -14021,16 +14110,27 @@ static bool maria_deny(THD *thd, const User_table &user_table,
            * propagating deny proxy */
           DBUG_ASSERT(0);
           break;
-        case ROUTINE_PRIV:
+        case FUNCTION_PRIV:
           /* TODO(cvicentiu) figure out if we need to call this twice and why. */
           propagate_role_grants(find_acl_role(user->user.str),
                                 PRIVS_TO_MERGE::FUNC);
+          DBUG_ASSERT(0);
+          break;
+        case PROCEDURE_PRIV:
           propagate_role_grants(find_acl_role(user->user.str),
                                 PRIVS_TO_MERGE::PROC);
           DBUG_ASSERT(0);
           break;
-        /* TODO(cvicentiu) what happens to PACKAGE_SPEC and PACKAGE_BODY
-         * and other kinds of grants? */
+        case PACKAGE_SPEC_PRIV:
+          propagate_role_grants(find_acl_role(user->user.str),
+                                PRIVS_TO_MERGE::PACKAGE_SPEC);
+          DBUG_ASSERT(0);
+          break;
+        case PACKAGE_BODY_PRIV:
+          propagate_role_grants(find_acl_role(user->user.str),
+                                PRIVS_TO_MERGE::PACKAGE_BODY);
+          DBUG_ASSERT(0);
+          break;
         default:
           /* TODO(cvicentiu) are we going to implement REVOKE DENY ALL? */
           break;
@@ -14054,6 +14154,14 @@ bool Sql_cmd_grant_sp::execute(THD *thd)
   else
     grants= m_gp.object_privilege();
 
+  if (grants & ~PROC_ACLS)
+  {
+    my_message(ER_ILLEGAL_GRANT_FOR_TABLE,
+               ER_THD(thd, ER_ILLEGAL_GRANT_FOR_TABLE),
+               MYF(0));
+    return true;
+  }
+
   if (!table) // e.g: GRANT EXECUTE ON PROCEDURE *.*
   {
     my_message(ER_ILLEGAL_GRANT_FOR_TABLE, ER_THD(thd, ER_ILLEGAL_GRANT_FOR_TABLE),
@@ -14076,8 +14184,8 @@ bool Sql_cmd_grant_sp::execute(THD *thd)
     bool result;
     Priv_spec priv_spec(grants, is_revoke(), m_gp.db(),
                         table->get_table_name(), true);
-    priv_spec.spec_type = ROUTINE_PRIV; //TODO (cvicentiu) clean this up,
-                                        // use constructor.
+    priv_spec.spec_type = get_corresponding_priv_spec_type(m_sph);
+                          //TODO (cvicentiu) clean this up, use constructor.
     if (tables.open_and_lock(thd, Table_user, TL_WRITE))
       return true;
 
