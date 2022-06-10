@@ -121,8 +121,9 @@ bool check_routine_access(THD *thd, privilege_t want_access,
                           const LEX_CSTRING *name,
                           const Sp_handler *sph, bool no_errors);
 bool check_some_access(THD *thd, privilege_t want_access, TABLE_LIST *table);
-bool check_some_routine_access(THD *thd, const char *db, const char *name,
-                               const Sp_handler *sph);
+bool check_some_routine_access(THD *thd,
+                               const LEX_CSTRING &db, const LEX_CSTRING &name,
+                               const Sp_handler &sph);
 bool check_table_access(THD *thd, privilege_t requirements,TABLE_LIST *tables,
                         bool any_combination_of_privileges_will_do,
                         uint number,
@@ -153,9 +154,9 @@ inline bool check_some_access(THD *thd, privilege_t want_access, TABLE_LIST *tab
   table->grant.privilege= want_access;
   return false;
 }
-inline bool check_some_routine_access(THD *thd, const char *db,
-                                      const char *name,
-                                      const Sp_handler *sph)
+inline bool check_some_routine_access(THD *thd,
+                                      const LEX_CSTRING &db, const LEX_CSTRING &name,
+                                      const Sp_handler &sph)
 { return false; }
 inline bool
 check_table_access(THD *thd, privilege_t requirements,TABLE_LIST *tables,
@@ -191,8 +192,6 @@ bool sp_revoke_privileges(THD *thd, const char *sp_db, const char *sp_name,
                           const Sp_handler *sph);
 bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
                          const Sp_handler *sph);
-bool check_routine_level_acl(THD *thd, const char *db, const char *name,
-                             const Sp_handler *sph);
 bool is_acl_user(const char *host, const char *user);
 int fill_schema_user_privileges(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_schema_schema_privileges(THD *thd, TABLE_LIST *tables, COND *cond);
