@@ -79,6 +79,7 @@ perl;
     close FILE;
 EOF
 --replace_result \\ /
+--replace_regex /for '.*t_corrupted2/for 't_corrupted2/
 --enable_prepare_warnings
 select * from t_corrupted2; # should show corruption and repair messages
 --disable_prepare_warnings
