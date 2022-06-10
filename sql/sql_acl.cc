@@ -10538,7 +10538,9 @@ static bool check_grant_routine(THD *thd, privilege_t want_access,
   char *role= sctx->priv_role;
   DBUG_ENTER("check_grant_routine");
 
-  want_access&= ~sctx->master_access;
+  /* This shortcut only works if there are denies only on the global level. */
+  if (!(sctx->denies_active & ~GLOBAL_PRIV))
+    want_access&= ~sctx->master_access;
   if (!want_access)
     DBUG_RETURN(0);                             // ok
 
@@ -10616,12 +10618,18 @@ bool check_routine_level_acl(THD *thd,
   bool no_routine_acl= 1;
   GRANT_NAME *grant_proc;
   Security_context *sctx= thd->security_ctx;
+
+  privilege_t deny_mask=
+    acl_get_effective_deny_mask_impl(thd->security_context(),
+                                     db, name,
+                                     get_corresponding_object_type(sph));
+
   mysql_rwlock_rdlock(&LOCK_grant);
   if ((grant_proc= routine_hash_search(sctx->priv_host,
                                        sctx->ip, db.str,
                                        sctx->priv_user,
                                        name.str, sph, 0)))
-    no_routine_acl= !(grant_proc->privs & SHOW_PROC_ACLS);
+    no_routine_acl= !((grant_proc->privs & SHOW_PROC_ACLS) & ~deny_mask);
 
   if (no_routine_acl && sctx->priv_role[0]) /* current set role check */
   {
@@ -10629,7 +10637,7 @@ bool check_routine_level_acl(THD *thd,
                                          NULL, db.str,
                                          sctx->priv_role,
                                          name.str, sph, 0)))
-      no_routine_acl= !(grant_proc->privs & SHOW_PROC_ACLS);
+      no_routine_acl= !((grant_proc->privs & SHOW_PROC_ACLS) & ~deny_mask);
   }
   mysql_rwlock_unlock(&LOCK_grant);
   return no_routine_acl;
@@ -14077,13 +14085,31 @@ static bool maria_deny(THD *thd, const User_table &user_table,
   bool result= false;
   DBUG_ENTER("maria_deny");
 
-  /* Only allow DB level denies. */
+  /*
+     TODO(cvicentiu) make this privilege checking uniform across
+     GRANT/REVOKE commands. - One place for all.
+  */
+  /* Only allow db level denies for database denies. */
   if (priv_spec.spec_type == DATABASE_PRIV &&
       (priv_spec.access & DB_ACLS) != priv_spec.access)
   {
     my_error(ER_WRONG_USAGE, MYF(0), "DATABASE DENY", "GLOBAL PRIVILEGES");
     DBUG_RETURN(true);
   }
+
+  /* Only allow table level denies for table denies. */
+  if (priv_spec.spec_type == TABLE_PRIV &&
+      (priv_spec.access & TABLE_ACLS) != priv_spec.access)
+  {
+    my_message(ER_ILLEGAL_GRANT_FOR_TABLE,
+               ER_THD(thd, ER_ILLEGAL_GRANT_FOR_TABLE),
+               MYF(0));
+    DBUG_RETURN(true);
+  }
+  /*
+     TODO(cvicentiu) column-level checks, routine level checks, etc.
+     Write tests for these too.
+  */
 
   /* go through users in user_list */
   for (LEX_USER *user= it++; user != NULL; user= it++)
