@@ -33,6 +33,7 @@
 
 #include <string>
 #include <sstream>
+#include <thread>
 
 #define WSREP_SCHEMA          "mysql"
 #define WSREP_STREAMING_TABLE "wsrep_streaming_log"
@@ -1565,13 +1566,12 @@ out:
 
 void Wsrep_schema::store_allowlist(std::vector<std::string>& ip_allowlist)
 {
-  THD* thd= new THD(next_thread_id());
+  THD* thd= new THD(0);
   if (!thd)
   {
     WSREP_ERROR("Unable to get thd");
     return;
   }
-  my_thread_init();
   thd->thread_stack= (char*)&thd;
   wsrep_init_thd_for_schema(thd);
   TABLE* allowlist_table= 0;
@@ -1602,81 +1602,82 @@ void Wsrep_schema::store_allowlist(std::vector<std::string>& ip_allowlist)
   Wsrep_schema_impl::finish_stmt(thd);
 out:
   delete thd;
-  my_thread_end();
 }
 
 bool Wsrep_schema::allowlist_check(Wsrep_allowlist_key key,
                                    const std::string& value)
 {
-  // We don't have wsrep schema initialized at this point
-  if (wsrep_schema_ready == false)
-  {
-    return true;
-  }
-  THD *thd = new THD(next_thread_id());
-  if (!thd)
-  {
-    WSREP_ERROR("Unable to get thd");
-    return false;
-  }
-  my_thread_init();
-  thd->thread_stack= (char*)&thd;
-  int error;
-  TABLE *allowlist_table= 0;
-  bool match_found_or_empty= false;
-  bool table_have_rows= false;
-  char row[64]= { 0, };
-  wsrep_init_thd_for_schema(thd);
+    // We don't have wsrep schema initialized at this point
+    if (wsrep_schema_ready == false)
+    {
+      return true;
+    }
+    bool allowlist_check_result= false;
+    std::thread allowlist_check_thread([value, &allowlist_check_result](){
+    THD *thd = new THD(0);
+    if (!thd)
+    {
+      WSREP_ERROR("Unable to get thd");
+      return false;
+    }
+    thd->thread_stack= (char*)&thd;
+    wsrep_init_thd_for_schema(thd);
 
-  /*
-   * Read allowlist table
-   */
-  Wsrep_schema_impl::init_stmt(thd);
-  if (Wsrep_schema_impl::open_for_read(thd,
-                                       allowlist_table_str.c_str(),
-                                       &allowlist_table) ||
-      Wsrep_schema_impl::init_for_scan(allowlist_table))
-  {
-    goto out;
-  }
-  while (true)
-  {
-    if ((error= Wsrep_schema_impl::next_record(allowlist_table)) == 0)
-    {
-      if (Wsrep_schema_impl::scan(allowlist_table, 0, row, sizeof(row)))
-      {
-        goto out;
-      }
-      table_have_rows= true;
-      if (!value.compare(row))
-      {
-        match_found_or_empty= true;
-        break;
-      }
-    }
-    else if (error == HA_ERR_END_OF_FILE)
-    {
-      if (!table_have_rows)
-      {
-        WSREP_DEBUG("allowlist table empty, allowing all connections.");
-        // If table is empty we are allowing all connections
-        match_found_or_empty= true;
-      }
-      break;
-    }
-    else
+    int error;
+    TABLE *allowlist_table= 0;
+    bool table_have_rows= false;
+    char row[64]= { 0, };
+    /*
+    * Read allowlist table
+    */
+    Wsrep_schema_impl::init_stmt(thd);
+    if (Wsrep_schema_impl::open_for_read(thd,
+                                        allowlist_table_str.c_str(),
+                                        &allowlist_table) ||
+        Wsrep_schema_impl::init_for_scan(allowlist_table))
     {
       goto out;
     }
-  }
-  if (Wsrep_schema_impl::end_scan(allowlist_table))
-  {
-    goto out;
-  }
-  Wsrep_schema_impl::finish_stmt(thd);
-  (void)trans_commit(thd);
-out:
-  delete thd;
-  my_thread_end();
-  return match_found_or_empty;
+    while (true)
+    {
+      if ((error= Wsrep_schema_impl::next_record(allowlist_table)) == 0)
+      {
+        if (Wsrep_schema_impl::scan(allowlist_table, 0, row, sizeof(row)))
+        {
+          goto out;
+        }
+        table_have_rows= true;
+        if (!value.compare(row))
+        {
+          allowlist_check_result= true;
+          break;
+        }
+      }
+      else if (error == HA_ERR_END_OF_FILE)
+      {
+        if (!table_have_rows)
+        {
+          WSREP_DEBUG("allowlist table empty, allowing all connections.");
+          // If table is empty we are allowing all connections
+          allowlist_check_result= true;
+        }
+        break;
+      }
+      else
+      {
+        goto out;
+      }
+    }
+    if (Wsrep_schema_impl::end_scan(allowlist_table))
+    {
+      goto out;
+    }
+    Wsrep_schema_impl::finish_stmt(thd);
+    (void)trans_commit(thd);
+  out:
+    delete thd;
+    return false;
+   });
+  allowlist_check_thread.join();
+  return allowlist_check_result;
 }
