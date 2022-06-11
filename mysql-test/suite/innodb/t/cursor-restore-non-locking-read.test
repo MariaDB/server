@@ -1,0 +1,44 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+
+CREATE TABLE t1 (pk int PRIMARY KEY, c int UNIQUE) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (10,10),(20,20),(30,30);
+
+--connect(prevent_purge,localhost,root,,)
+start transaction with consistent snapshot;
+# We need this to update page's transaction id for secondary index.
+UPDATE t1 SET c=300 WHERE pk = 30;
+
+--connection default
+DELETE FROM t1 WHERE pk = 10;
+INSERT INTO t1 VALUES(5,10);
+SET DEBUG_SYNC = "row_search_clust_unlatched SIGNAL unlatched WAIT_FOR cont";
+# With the above sync point row_search_mvcc() will be blocked on delete-marked
+# record (10,10) in secondary index just after all page latches are released.
+# After this record is purged, row_searc_mvcc() will be unblocked, and cursor
+# will be restored to the secondary index record (10,5). As the unique field is
+# the same as in the cursor's stored record, and the bug is not fixed, there
+# value 5 will be doubled in the result set.
+--send SELECT pk FROM t1 FORCE INDEX (c)
+
+--connect(con1,localhost,root,,)
+SET DEBUG_SYNC = "now WAIT_FOR unlatched";
+--disconnect prevent_purge
+let $wait_all_purged= 1;
+--source include/wait_all_purged.inc
+SET DEBUG_SYNC = 'now SIGNAL cont';
+--disconnect con1
+
+--connection default
+--reap
+
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
+--source include/wait_until_count_sessions.inc
