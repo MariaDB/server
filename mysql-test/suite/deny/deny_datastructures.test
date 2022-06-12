@@ -18,9 +18,6 @@ select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where use
 
 flush privileges;
 
-#TODO(cvicentiu) Show denies where appropriate.
-show grants for foo;
-show grants for bar;
 
 deny select on some_db.* to foo;
 deny show view on some_db.* to foo;

@@ -136,6 +136,7 @@ grant insert on some_db.t1 to foo;
 show grants for foo;
 Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
+DENY SELECT, INSERT, UPDATE, SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT SELECT, UPDATE ON `some_db`.* TO `foo`@`%`
 GRANT INSERT ON `some_db`.`t1` TO `foo`@`%`
 connect  con1,localhost,foo,,;
@@ -149,6 +150,7 @@ grant delete on some_db.t1 to foo;
 show grants for foo;
 Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
+DENY SELECT, INSERT, UPDATE, SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT SELECT, UPDATE ON `some_db`.* TO `foo`@`%`
 GRANT INSERT, DELETE ON `some_db`.`t1` TO `foo`@`%`
 connect  con1,localhost,foo,,;
@@ -177,6 +179,7 @@ grant references (a) on some_db.t1 to foo;
 show grants for foo;
 Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
+DENY SELECT, INSERT, UPDATE, DELETE, SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT SELECT, UPDATE ON `some_db`.* TO `foo`@`%`
 GRANT INSERT, DELETE, REFERENCES (a) ON `some_db`.`t1` TO `foo`@`%`
 connect  con1,localhost,foo,,;
@@ -191,6 +194,7 @@ deny references on *.* to foo;
 show grants for foo;
 Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
+DENY SELECT, INSERT, UPDATE, DELETE, REFERENCES, SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT SELECT, UPDATE ON `some_db`.* TO `foo`@`%`
 GRANT INSERT, DELETE, REFERENCES (a) ON `some_db`.`t1` TO `foo`@`%`
 connect  con1,localhost,foo,,;
@@ -337,6 +341,7 @@ connection default;
 show grants for foo;
 Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
+DENY SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT INSERT ON `mysql`.* TO `foo`@`%`
 grant update on mysql.* to foo;
 connect  con1,localhost,foo,,;
@@ -361,6 +366,7 @@ connect  con1,localhost,foo,,;
 show grants;
 Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
+DENY SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
 show databases;
 Database
@@ -380,6 +386,7 @@ grant insert on mysql.t1 to foo;
 show grants for foo;
 Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
+DENY SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
 GRANT INSERT ON `mysql`.`t1` TO `foo`@`%`
 connect  con1,localhost,foo,,;
@@ -396,6 +403,7 @@ grant delete on mysql.t1 to foo;
 show grants for foo;
 Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
+DENY SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
 GRANT INSERT, DELETE ON `mysql`.`t1` TO `foo`@`%`
 connect  con1,localhost,foo,,;
@@ -430,6 +438,7 @@ grant references (a) on mysql.t1 to foo;
 show grants for foo;
 Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
+DENY SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
 GRANT INSERT, DELETE, REFERENCES (a) ON `mysql`.`t1` TO `foo`@`%`
 connect  con1,localhost,foo,,;
@@ -447,6 +456,7 @@ deny references on mysql.* to foo;
 show grants for foo;
 Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
+DENY SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
 GRANT INSERT, DELETE, REFERENCES (a) ON `mysql`.`t1` TO `foo`@`%`
 connect  con1,localhost,foo,,;
@@ -515,6 +525,7 @@ foo	%	{"global": 16384, "db": [{"name": "`mysql`", "access": 264207}], "version_
 show grants for foo;
 Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
+DENY SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
 GRANT INSERT, DELETE, REFERENCES (a) ON `mysql`.`t1` TO `foo`@`%`
 GRANT EXECUTE ON PROCEDURE `mysql`.`proc_1` TO `foo`@`%`

@@ -1,0 +1,31 @@
+--source include/not_embedded.inc
+
+create user foo;
+create role bar;
+create database some_db;
+create database secret_db;
+create table some_db.t1 (a int, b char);
+
+#create procedure
+#create function
+#create package
+#create package body
+
+grant select,insert on *.* to foo;
+deny select, update on *.* to foo;
+
+grant select, delete on some_db.* to foo;
+deny insert, update on some_db.* to foo;
+
+deny all on secret_db.* to foo with grant option;
+
+
+#TODO(cvicentiu) Show denies where appropriate.
+show grants for foo;
+show grants for bar;
+
+
+drop database some_db;
+drop database secret_db;
+drop user foo;
+drop role bar;
