@@ -1101,7 +1101,7 @@ CREATE TABLE t3(
   formatid int  NOT NULL default '0',
   status int default NULL,
   path varchar(100) NOT NULL default '',
-  datemodified timestamp NOT NULL ,
+  datemodified timestamp NOT NULL default now(),
   resourcetype int  NOT NULL default '1',
   parameters text,
   signature int  default NULL,
