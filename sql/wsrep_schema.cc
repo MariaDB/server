@@ -1526,7 +1526,7 @@ void Wsrep_schema::clear_allowlist()
     WSREP_ERROR("Unable to get thd");
     return;
   }
-  my_thread_init();
+
   thd->thread_stack= (char*)&thd;
   wsrep_init_thd_for_schema(thd);
   TABLE* allowlist_table= 0;
@@ -1562,7 +1562,6 @@ void Wsrep_schema::clear_allowlist()
   Wsrep_schema_impl::finish_stmt(thd);
 out:
   delete thd;
-  my_thread_end();
 }
 
 void Wsrep_schema::store_allowlist(std::vector<std::string>& ip_allowlist)
@@ -1573,7 +1572,7 @@ void Wsrep_schema::store_allowlist(std::vector<std::string>& ip_allowlist)
     WSREP_ERROR("Unable to get thd");
     return;
   }
-  my_thread_init();
+
   thd->thread_stack= (char*)&thd;
   wsrep_init_thd_for_schema(thd);
   TABLE* allowlist_table= 0;
@@ -1604,38 +1603,41 @@ void Wsrep_schema::store_allowlist(std::vector<std::string>& ip_allowlist)
   Wsrep_schema_impl::finish_stmt(thd);
 out:
   delete thd;
-  my_thread_end();
 }
 
-bool Wsrep_schema::allowlist_check(Wsrep_allowlist_key key,
-                                   const std::string& value)
+typedef struct Allowlist_check_arg
 {
-  // We don't have wsrep schema initialized at this point
-  if (wsrep_schema_ready == false)
+  Allowlist_check_arg(const std::string& value)
+      : value(value)
+      , response(false)
   {
-    return true;
   }
-  THD *thd = new THD(next_thread_id());
-  if (!thd)
-  {
-    WSREP_ERROR("Unable to get thd");
-    return false;
-  }
+  std::string value;
+  bool response;
+} Allowlist_check_arg;
+
+static void *allowlist_check_thread(void *param)
+{
+  Allowlist_check_arg *arg= (Allowlist_check_arg *) param;
+
   my_thread_init();
-  thd->thread_stack= (char*)&thd;
+  THD thd(0);
+  thd.thread_stack= (char *) &thd;
+  wsrep_init_thd_for_schema(&thd);
+
   int error;
   TABLE *allowlist_table= 0;
   bool match_found_or_empty= false;
   bool table_have_rows= false;
-  char row[64]= { 0, };
-  wsrep_init_thd_for_schema(thd);
+  char row[64]= {
+      0,
+  };
 
   /*
    * Read allowlist table
    */
-  Wsrep_schema_impl::init_stmt(thd);
-  if (Wsrep_schema_impl::open_for_read(thd,
-                                       allowlist_table_str.c_str(),
+  Wsrep_schema_impl::init_stmt(&thd);
+  if (Wsrep_schema_impl::open_for_read(&thd, allowlist_table_str.c_str(),
                                        &allowlist_table) ||
       Wsrep_schema_impl::init_for_scan(allowlist_table))
   {
@@ -1650,7 +1652,7 @@ bool Wsrep_schema::allowlist_check(Wsrep_allowlist_key key,
         goto out;
       }
       table_have_rows= true;
-      if (!value.compare(row))
+      if (!arg->value.compare(row))
       {
         match_found_or_empty= true;
         break;
@@ -1675,10 +1677,34 @@ bool Wsrep_schema::allowlist_check(Wsrep_allowlist_key key,
   {
     goto out;
   }
-  Wsrep_schema_impl::finish_stmt(thd);
-  (void)trans_commit(thd);
+  Wsrep_schema_impl::finish_stmt(&thd);
+  (void) trans_commit(&thd);
 out:
-  delete thd;
   my_thread_end();
-  return match_found_or_empty;
+  arg->response = match_found_or_empty;
+  return 0;
+}
+
+bool Wsrep_schema::allowlist_check(Wsrep_allowlist_key key,
+                                   const std::string &value)
+{
+  // We don't have wsrep schema initialized at this point
+  if (wsrep_schema_ready == false)
+  {
+    return true;
+  }
+  pthread_t allowlist_check_thd;
+  int ret;
+  Allowlist_check_arg arg(value);
+  ret= mysql_thread_create(0, /* Not instrumented */
+                           &allowlist_check_thd, NULL,
+                           allowlist_check_thread, &arg);
+  if (ret)                              
+  {
+    WSREP_ERROR("allowlist_check(): mysql_thread_create() failed: %d (%s)",
+                ret, strerror(ret));
+    return false;
+  }                              
+  pthread_join(allowlist_check_thd, NULL);
+  return arg.response;
 }

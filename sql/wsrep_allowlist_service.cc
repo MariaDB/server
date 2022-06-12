@@ -36,7 +36,8 @@ bool Wsrep_allowlist_service::allowlist_cb (
   WSREP_NOEXCEPT
 {
   std::string string_value(value.data());
-  return (wsrep_schema->allowlist_check(key, string_value));
+  bool res= wsrep_schema->allowlist_check(key, string_value);
+  return res;
 }
 
 std::unique_ptr<wsrep::allowlist_service> entrypoint;
