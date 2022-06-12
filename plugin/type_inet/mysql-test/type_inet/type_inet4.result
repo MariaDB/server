@@ -1754,7 +1754,7 @@ UPDATE t1 SET b=a;
 ERROR HY000: Illegal parameter data types timestamp and inet4 for operation 'SET'
 SELECT * FROM t1;
 a	b
-0.0.0.0	2001-01-01 10:20:30
+0.0.0.0	NULL
 DROP TABLE t1;
 SET timestamp=DEFAULT;
 CREATE OR REPLACE TABLE t1 (a INET4);

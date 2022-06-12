@@ -22,7 +22,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(11) NOT NULL,
   `target` inet4 DEFAULT '99.99.99.99',
-  `source` timestamp NOT NULL DEFAULT '2001-01-01 10:20:30',
+  `source` timestamp NULL DEFAULT '2001-01-01 10:20:30',
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t3 LIKE t2;
@@ -188,7 +188,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(11) NOT NULL,
-  `target` timestamp NOT NULL DEFAULT '2001-01-01 10:20:30',
+  `target` timestamp NULL DEFAULT '2001-01-01 10:20:30',
   `source` inet4 DEFAULT '99.99.99.99',
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
