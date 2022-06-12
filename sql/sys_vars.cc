@@ -726,7 +726,7 @@ static Sys_var_mybool Sys_explicit_defaults_for_timestamp(
        "as NULL with DEFAULT NULL attribute, Without this option, "
        "TIMESTAMP columns are NOT NULL and have implicit DEFAULT clauses.",
        READ_ONLY GLOBAL_VAR(opt_explicit_defaults_for_timestamp),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
 
 static Sys_var_ulonglong Sys_bulk_insert_buff_size(

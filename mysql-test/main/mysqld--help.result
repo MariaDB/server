@@ -288,6 +288,7 @@ The following specify which files/extra groups are read (specified before remain
  columns as NULL with DEFAULT NULL attribute, Without this
  option, TIMESTAMP columns are NOT NULL and have implicit
  DEFAULT clauses.
+ (Defaults to on; use --skip-explicit-defaults-for-timestamp to disable.)
  --external-locking  Use system (external) locking (disabled by default). 
  With this option enabled you can run myisamchk to test
  (not repair) tables while the MySQL server is running.
@@ -1534,7 +1535,7 @@ eq-range-index-dive-limit 200
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0
-explicit-defaults-for-timestamp FALSE
+explicit-defaults-for-timestamp TRUE
 external-locking FALSE
 extra-max-connections 1
 extra-port 0
