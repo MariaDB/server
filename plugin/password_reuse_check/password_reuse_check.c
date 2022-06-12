@@ -95,7 +95,7 @@ static int create_table(MYSQL *mysql)
         // 512/8 = 64
         STRING_WITH_LEN("CREATE TABLE mysql." HISTORY_DB_NAME
                         " ( hash binary(64),"
-                        " time timestamp default current_timestamp,"
+                        " time timestamp not null default current_timestamp,"
                         " primary key (hash), index tm (time) )"
                         " ENGINE=Aria")))
   {

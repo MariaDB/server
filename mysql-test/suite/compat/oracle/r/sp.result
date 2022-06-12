@@ -1796,7 +1796,7 @@ def				tm6	tm6	11	17	15	Y	128	6	63
 def				dt0	dt0	12	19	19	Y	128	0	63
 def				dt3	dt3	12	23	23	Y	128	3	63
 def				dt6	dt6	12	26	26	Y	128	6	63
-def				ts0	ts0	7	19	19	Y	9376	0	63
+def				ts0	ts0	7	19	19	Y	160	0	63
 def				ts3	ts3	7	23	23	Y	160	3	63
 def				ts6	ts6	7	26	26	Y	160	6	63
 bit6	0
