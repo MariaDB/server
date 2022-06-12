@@ -2161,7 +2161,7 @@ show create table tp1;
 Table	Create Table
 tp1	CREATE TABLE `tp1` (
   `x` int(11) NOT NULL AUTO_INCREMENT,
-  `t` timestamp(6) NOT NULL DEFAULT '2001-11-11 11:11:11.000000',
+  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
   `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
   `c` varchar(1033) CHARACTER SET utf8mb3 NOT NULL,
   `u` int(11) DEFAULT NULL,
@@ -2186,7 +2186,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) NOT NULL AUTO_INCREMENT,
-  `t` timestamp(6) NOT NULL DEFAULT '2001-11-11 11:11:11.000000',
+  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
   `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
   `c` varchar(1033) CHARACTER SET utf8mb3 NOT NULL,
   `u` int(11) DEFAULT NULL,
@@ -2794,7 +2794,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) NOT NULL AUTO_INCREMENT,
-  `t` timestamp(6) NOT NULL DEFAULT '2001-11-11 11:11:11.000000',
+  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
   `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
   `c` varchar(1033) CHARACTER SET utf8mb3 NOT NULL,
   `u` int(11) DEFAULT NULL,
@@ -2831,7 +2831,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) NOT NULL AUTO_INCREMENT,
-  `t` timestamp(6) NOT NULL DEFAULT '2001-11-11 11:11:11.000000',
+  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
   `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
   `c` varchar(1033) CHARACTER SET utf8mb3 NOT NULL,
   `u` int(11) DEFAULT NULL,
@@ -2866,7 +2866,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) NOT NULL AUTO_INCREMENT,
-  `t` timestamp(6) NOT NULL DEFAULT '2001-11-11 11:11:11.000000',
+  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
   `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
   `c` varchar(1033) CHARACTER SET utf8mb3 NOT NULL,
   `u` int(11) DEFAULT NULL,

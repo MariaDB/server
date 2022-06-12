@@ -47,31 +47,8 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
 connection slave;
-set global explicit_defaults_for_timestamp=1;
-include/reset_slave.inc
-include/start_slave.inc
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `f1` timestamp NULL DEFAULT NULL,
-  `f2` timestamp NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-show create table t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` timestamp NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-set time_zone='+2:00';
-select * from t1;
-f1	f2
-NULL	NULL
-NULL	NULL
-drop table t1;
-include/stop_slave.inc
 set global explicit_defaults_for_timestamp=0;
 include/reset_slave.inc
-Warnings:
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 include/start_slave.inc
 show create table t1;
 Table	Create Table
@@ -84,10 +61,33 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set time_zone='+2:00';
 select * from t1;
 f1	f2
 2022-07-23 16:24:48	2022-07-23 16:24:48
 2022-07-23 16:25:35	0000-00-00 00:00:00
+drop table t1;
+include/stop_slave.inc
+set global explicit_defaults_for_timestamp=1;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
+include/start_slave.inc
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` timestamp NULL DEFAULT NULL,
+  `f2` timestamp NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` timestamp NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select * from t1;
+f1	f2
+NULL	NULL
+NULL	NULL
 drop table t1;
 connection master;
 drop table t2;

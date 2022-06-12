@@ -2599,7 +2599,7 @@ create table t1 (a timestamp, c bigint generated always as (timestampdiff(MONTH,
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `a` timestamp NULL DEFAULT NULL,
   `c` bigint(20) GENERATED ALWAYS AS (timestampdiff(MONTH,`a`,`a`)) VIRTUAL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 insert into t1 values ('2003-02-01',default);
