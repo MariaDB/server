@@ -229,6 +229,12 @@ class Deny_spec
   }
 
   static deny_entry *get_hash_entry(const Hash_set<deny_entry> &hash,
+                                    const deny_entry &other)
+  {
+    return hash.find(other.first.str, other.first.length);
+  }
+
+  static deny_entry *get_hash_entry(const Hash_set<deny_entry> &hash,
                                     String &key)
   {
     return hash.find(key.c_ptr(), key.length());
@@ -306,7 +312,8 @@ public:
     return get_hash_value(function_denies, db, function);
   }
 
-  privilege_t get_package_spec_deny(const LEX_CSTRING &db, const LEX_CSTRING &package_spec) const
+  privilege_t get_package_spec_deny(const LEX_CSTRING &db,
+                                    const LEX_CSTRING &package_spec) const
   {
     return get_hash_value(package_spec_denies, db, package_spec);
   }
@@ -785,6 +792,69 @@ public:
 
     return false;
   }
+
+  static bool merge_hash(Hash_set<deny_entry> **sink,
+                         const Hash_set<deny_entry> &source) 
+  {
+    bool sink_was_empty= false;
+    if (!*sink)
+    {
+      *sink= new Hash_set<deny_entry>(
+            PSI_INSTRUMENT_MEM, &my_charset_bin, 10, 0, 0,
+            (my_hash_get_key)pair_first_key,
+            free_deny_entry, HASH_UNIQUE);
+      if (!*sink)
+        return true;
+    }
+
+    sink_was_empty= (*sink)->is_empty();
+
+    for (size_t i= 0; i < source.size(); i++)
+    {
+      const deny_entry *entry= source.at(i); 
+      deny_entry *sink_entry;
+      if (sink_was_empty || !(sink_entry= get_hash_entry(source, *entry)))
+      {
+        sink_entry= new deny_entry();
+        if (!entry)
+          return true;
+        sink_entry->first.str= my_strdup(PSI_INSTRUMENT_MEM,
+                                         entry->first.str, MYF(0));
+        if (!sink_entry->first.str)
+        {
+          my_free(const_cast<char*>(sink_entry->first.str));
+          delete sink_entry;
+          return true;
+        }
+        sink_entry->first.length= entry->first.length;
+        sink_entry->second= NO_ACL;
+      }
+      sink_entry->second|= entry->second;
+    }
+    return false;
+  }
+
+  bool merge_from(const Deny_spec &spec)
+  {
+    specified_denies|= spec.specified_denies;
+    global_denies|= spec.global_denies;
+    if ((spec.db_denies &&
+           merge_hash(&db_denies, *spec.db_denies)) ||
+        (spec.table_denies &&
+           merge_hash(&table_denies, *spec.table_denies)) ||
+        (spec.column_denies &&
+           merge_hash(&column_denies, *spec.column_denies)) ||
+        (spec.procedure_denies &&
+           merge_hash(&procedure_denies, *spec.procedure_denies)) ||
+        (spec.function_denies &&
+           merge_hash(&function_denies, *spec.function_denies)) ||
+        (spec.package_spec_denies &&
+           merge_hash(&package_spec_denies, *spec.package_spec_denies)) ||
+        (spec.package_body_denies &&
+           merge_hash(&package_body_denies, *spec.package_body_denies)))
+      return true;
+    return false;
+  }
 };
 
 
@@ -806,6 +876,18 @@ public:
   char *db;
 };
 
+/* various flags valid for ACL_USER */
+#define IS_ROLE                 (1L << 0)
+/* Flag to mark that a ROLE is on the recursive DEPTH_FIRST_SEARCH stack */
+#define ROLE_ON_STACK            (1L << 1)
+/*
+  Flag to mark that a ROLE and all it's neighbours have
+  been visited
+*/
+#define ROLE_EXPLORED           (1L << 2)
+/* Flag to mark that on_node was already called for this role */
+#define ROLE_OPENED             (1L << 3)
+
 class ACL_USER_BASE :public ACL_ACCESS, public Sql_alloc
 {
 
@@ -819,8 +901,9 @@ public:
   LEX_CSTRING user;
   /* list to hold references to granted roles (ACL_ROLE instances) */
   DYNAMIC_ARRAY role_grants;
-  const Deny_spec* denies;
+  Deny_spec* denies;
   const char *get_username() { return user.str; }
+  bool is_role() const { return flags & IS_ROLE; }
 };
 
 
@@ -927,6 +1010,7 @@ public:
     initial_role_access holds initial grants, as granted directly to the role
   */
   privilege_t initial_role_access;
+  Deny_spec *initial_denies;
   /*
     In subgraph traversal, when we need to traverse only a part of the graph
     (e.g. all direct and indirect grantees of a role X), the counter holds the
@@ -960,15 +1044,17 @@ ulong role_global_merges= 0, role_db_merges= 0, role_table_merges= 0,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static void update_hostname(acl_host_and_ip *host, const char *hostname);
+static void print_access(String *str, privilege_t access,
+                         privilege_t all_possible_access);
 static bool show_proxy_grants (THD *, const char *, const char *,
                                char *, size_t);
 static bool show_role_grants(THD *, const char *,
                              ACL_USER_BASE *, char *, size_t);
 static bool show_default_role(THD *, ACL_USER *, char *, size_t);
 static bool show_global_privileges(THD *, ACL_USER_BASE *,
-                                   bool, char *, size_t);
-static bool show_database_privileges(THD *, const char *, const char *,
-                                     char *, size_t);
+                                   bool, char *, size_t, bool);
+static bool show_database_privileges(THD *, ACL_USER_BASE *,
+                                     char *, size_t, bool);
 static bool show_table_and_column_privileges(THD *, const char *, const char *,
                                              char *, size_t);
 static int show_routine_grants(THD *, const char *, const char *,
@@ -1307,18 +1393,6 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, const char *username,
 #define ROLE_ASSIGN_COLUMN_IDX  44
 #define DEFAULT_ROLE_COLUMN_IDX 45
 #define MAX_STATEMENT_TIME_COLUMN_IDX 46
-
-/* various flags valid for ACL_USER */
-#define IS_ROLE                 (1L << 0)
-/* Flag to mark that a ROLE is on the recursive DEPTH_FIRST_SEARCH stack */
-#define ROLE_ON_STACK            (1L << 1)
-/*
-  Flag to mark that a ROLE and all it's neighbours have
-  been visited
-*/
-#define ROLE_EXPLORED           (1L << 2)
-/* Flag to mark that on_node was already called for this role */
-#define ROLE_OPENED             (1L << 3)
 
 static DYNAMIC_ARRAY acl_hosts, acl_users, acl_proxy_users;
 static Dynamic_array<ACL_DB> acl_dbs(PSI_INSTRUMENT_MEM, 0, 50);
@@ -2899,7 +2973,7 @@ ACL_ROLE::ACL_ROLE(ACL_USER *user, MEM_ROOT *root)
 
 ACL_ROLE::ACL_ROLE(const char * rolename, privilege_t privileges,
                    MEM_ROOT *root) :
-  initial_role_access(privileges), counter(0)
+  initial_role_access(privileges), initial_denies(nullptr), counter(0)
 {
   this->access= initial_role_access;
   this->user.str= safe_strdup_root(root, rolename);
@@ -4809,7 +4883,11 @@ static int check_user_can_set_role(THD *thd, const char *user,
     if (acl_user == NULL)
       result= ER_INVALID_CURRENT_USER;
     else if (access)
+    {
       *access= acl_user->access;
+      if (acl_user->denies)
+        *access&= ~acl_user->denies->get_global();
+    }
 
     goto end;
   }
@@ -4849,9 +4927,9 @@ static int check_user_can_set_role(THD *thd, const char *user,
     *access = acl_user->access | role->access;
     /* TODO(cvicentiu) IGNORE_DENIES_PRIV! */
     if (acl_user->denies)
-      *access&= acl_user->denies->get_global();
+      *access&= ~acl_user->denies->get_global();
     if (role->denies)
-      *access&= role->denies->get_global();
+      *access&= ~role->denies->get_global();
   }
 
 end:
@@ -4957,7 +5035,7 @@ static uchar* check_get_key(ACL_USER *buff, size_t *length,
 
 
 static void acl_update_role(const char *rolename, const privilege_t privileges,
-                            const Deny_spec *deny_spec)
+                            Deny_spec *deny_spec)
 {
   ACL_ROLE *role= find_acl_role(rolename);
   DBUG_ASSERT(role);
@@ -4988,7 +5066,7 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
                            const LEX_USER &combo,
                            const Account_options &options,
                            const privilege_t privileges,
-                           const Deny_spec *deny_spec)
+                           Deny_spec *deny_spec)
 {
   ACL_USER_PARAM::AUTH *work_copy= NULL;
   if (nauth)
@@ -5101,7 +5179,7 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
 
 
 static void acl_insert_role(const char *rolename, privilege_t privileges,
-                            const Deny_spec *deny_spec)
+                            Deny_spec *deny_spec)
 {
   ACL_ROLE *entry;
 
@@ -5365,8 +5443,11 @@ privilege_t acl_get_effective_deny_mask_impl(const Security_context *ctx,
   result= acl_get_effective_deny_mask_impl(*acl_user->denies,
                                            db, object_name, column_name, type);
 
+  ACL_ROLE *role= find_acl_role(ctx->priv_role);
+  if (role)
+    result|= acl_get_effective_deny_mask_impl(*role->denies, db,
+                                              object_name, column_name, type);
 
-  //TODO(cvicentiu) roles
   mysql_mutex_unlock(&acl_cache->lock);
   return result;
 }
@@ -7955,7 +8036,8 @@ struct PRIVS_TO_MERGE
 {
   enum what
   {
-    ALL, GLOBAL, DB, TABLE_COLUMN, PROC, FUNC, PACKAGE_SPEC, PACKAGE_BODY
+    ALL, GLOBAL, DB, TABLE_COLUMN, PROC, FUNC, PACKAGE_SPEC, PACKAGE_BODY,
+    DENIES
   } what;
   const char *db, *name;
 };
@@ -8762,6 +8844,23 @@ static bool merge_role_routine_grant_privileges(ACL_ROLE *grantee,
   return update_flags;
 }
 
+bool merge_role_denies(ACL_ROLE *grantee, role_hash_t *role_hash)
+{
+  // TODO(cvicentiu) this should return true only if things were actually
+  // changed.
+  // Also, there's no way to do error reporting with the merging algorithm.
+  if (!grantee->denies)
+    grantee->denies= new Deny_spec;
+
+  for (size_t i= 0; i < role_hash->size(); i++)
+  {
+    const ACL_ROLE *source= role_hash->at(i);
+    if (source->denies)
+      grantee->denies->merge_from(*source->denies);
+  }
+  return true;
+}
+
 /**
   update privileges of the 'grantee' from all roles, granted to it
 */
@@ -8808,6 +8907,8 @@ static int merge_role_privileges(ACL_ROLE *role __attribute__((unused)),
     changed|= merge_role_routine_grant_privileges(grantee,
                             data->db, data->name, &role_hash,
                             &package_body_priv_hash);
+  if (all || data->what == PRIVS_TO_MERGE::DENIES)
+    changed|= merge_role_denies(grantee, &role_hash);
   return !changed; // don't recurse into the subgraph if privs didn't change
 }
 
@@ -11289,10 +11390,16 @@ static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
   if (show_role_grants(thd, "", role, buff, sizeof(buff)))
     return TRUE;
 
-  if (show_global_privileges(thd, role, TRUE, buff, sizeof(buff)))
+  if (show_global_privileges(thd, role, TRUE, buff, sizeof(buff), false))
     return TRUE;
 
-  if (show_database_privileges(thd, role->user.str, "", buff, sizeof(buff)))
+  if (show_global_privileges(thd, role, TRUE, buff, sizeof(buff), true))
+    return TRUE;
+
+  if (show_database_privileges(thd, role, buff, sizeof(buff), false))
+    return TRUE;
+
+  if (show_database_privileges(thd, role, buff, sizeof(buff), true))
     return TRUE;
 
   if (show_table_and_column_privileges(thd, role->user.str, "", buff, sizeof(buff)))
@@ -11562,11 +11669,17 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
       goto end;
 
     /* Add first global access grants */
-    if (show_global_privileges(thd, acl_user, FALSE, buff, sizeof(buff)))
+    if (show_global_privileges(thd, acl_user, FALSE, buff, sizeof(buff), false))
+      goto end;
+
+    if (show_global_privileges(thd, acl_user, FALSE, buff, sizeof(buff), true))
       goto end;
 
     /* Add database access */
-    if (show_database_privileges(thd, username, hostname, buff, sizeof(buff)))
+    if (show_database_privileges(thd, acl_user, buff, sizeof(buff), false))
+      goto end;
+
+    if (show_database_privileges(thd, acl_user, buff, sizeof(buff), true))
       goto end;
 
     /* Add table & column access */
@@ -11720,40 +11833,39 @@ static bool show_role_grants(THD *thd, const char *hostname,
 
 static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
                                    bool handle_as_role,
-                                   char *buff, size_t buffsize)
+                                   char *buff, size_t buffsize,
+                                   bool deny)
 {
-  uint counter;
   privilege_t want_access(NO_ACL);
   Protocol *protocol= thd->protocol;
 
   String global(buff, buffsize, system_charset_info);
   global.length(0);
-  global.append(STRING_WITH_LEN("GRANT "));
+  Deny_spec *denies= nullptr;
+  if (deny)
+  {
+    global.append(STRING_WITH_LEN("DENY "));
+    if (handle_as_role)
+      denies= static_cast<ACL_ROLE *>(acl_entry)->initial_denies;
+    else
+      denies= acl_entry->denies;
 
-  if (handle_as_role)
-    want_access= ((ACL_ROLE *)acl_entry)->initial_role_access;
-  else
-    want_access= acl_entry->access;
-  if (test_all_bits(want_access, (GLOBAL_ACLS & ~ GRANT_ACL)))
-    global.append(STRING_WITH_LEN("ALL PRIVILEGES"));
-  else if (!(want_access & ~GRANT_ACL))
-    global.append(STRING_WITH_LEN("USAGE"));
+    /* Nothing to print. */
+    if (!denies || !denies->get_global())
+      return FALSE;
+
+    want_access= denies->get_global();
+  }
   else
   {
-    bool found=0;
-    ulonglong j;
-    privilege_t test_access(want_access & ~GRANT_ACL);
-    for (counter=0, j = SELECT_ACL;j <= GLOBAL_ACLS;counter++,j <<= 1)
-    {
-      if (test_access & j)
-      {
-        if (found)
-          global.append(STRING_WITH_LEN(", "));
-        found=1;
-        global.append(command_array[counter],command_lengths[counter]);
-      }
-    }
+    global.append(STRING_WITH_LEN("GRANT "));
+    if (handle_as_role)
+      want_access= static_cast<ACL_ROLE *>(acl_entry)->initial_role_access;
+    else
+      want_access= acl_entry->access;
   }
+
+  print_access(&global, want_access, GLOBAL_ACLS);
   global.append (STRING_WITH_LEN(" ON *.* TO "));
   append_identifier(thd, &global, acl_entry->user.str, acl_entry->user.length);
 
@@ -11786,21 +11898,80 @@ static void add_to_user(THD *thd, String *result, const char *user,
   }
 }
 
+static void print_access(String *str, privilege_t access,
+                         privilege_t all_possible_access)
+{
+  if (test_all_bits(access,(all_possible_access & ~GRANT_ACL)))
+    str->append(STRING_WITH_LEN("ALL PRIVILEGES"));
+  else if (!(access & ~GRANT_ACL))
+    str->append(STRING_WITH_LEN("USAGE"));
+  else
+  {
+    bool append_comma= false;
+    privilege_t test_access(access & ~GRANT_ACL);
+    for (ulonglong cnt= 0, j= SELECT_ACL; j <= all_possible_access; cnt++,j <<= 1)
+    {
+      if (test_access & j)
+      {
+        if (append_comma)
+          str->append(STRING_WITH_LEN(", "));
+        append_comma= true;
+        str->append(command_array[cnt], command_lengths[cnt]);
+      }
+    }
+  }
+}
 
-static bool show_database_privileges(THD *thd, const char *username,
-                                     const char *hostname,
-                                     char *buff, size_t buffsize)
+
+static void print_grant_for_db(THD *thd,
+                               String *db, privilege_t access,
+                               const char *hostname, const char *username,
+                               const char *database, bool is_user, bool deny)
+{
+  if (deny)
+    db->append(STRING_WITH_LEN("DENY "));
+  else
+    db->append(STRING_WITH_LEN("GRANT "));
+
+  print_access(db, access, DB_ACLS);
+  db->append (STRING_WITH_LEN(" ON "));
+  append_identifier(thd, db, database, strlen(database));
+  db->append (STRING_WITH_LEN(".*"));
+  add_to_user(thd, db, username, is_user, hostname);
+  if (access & GRANT_ACL)
+    db->append(STRING_WITH_LEN(" WITH GRANT OPTION"));
+}
+
+static bool show_database_privileges(THD *thd,
+                                     ACL_USER_BASE *acl_entry,
+                                     char *buff, size_t buffsize,
+                                     bool deny)
 {
   privilege_t want_access(NO_ACL);
   Protocol *protocol= thd->protocol;
+  String db(buff, buffsize, system_charset_info);
+  const char *hostname= "";
+  const Deny_spec *denies;
+  if (!acl_entry->is_role())
+  {
+    hostname= static_cast<ACL_USER *>(acl_entry)->host.hostname;
+    denies= acl_entry->denies;
+  }
+  else
+    denies= static_cast<ACL_ROLE *>(acl_entry)->initial_denies;
+
+  if (deny)
+  {
+    (void) denies; /* TODO(cvicentiu) make denies produce an iterator. */
+    return false;
+  }
 
   for (size_t i=0 ; i < acl_dbs.elements() ; i++)
   {
-    const char *user, *host;
+    const ACL_DB &acl_db= acl_dbs.at(i);
+    const char *user= acl_db.user;
+    const char *host= acl_db.host.hostname;
 
-    ACL_DB *acl_db= &acl_dbs.at(i);
-    user= acl_db->user;
-    host=acl_db->host.hostname;
 
     /*
       We do not make SHOW GRANTS case-sensitive here (like REVOKE),
@@ -11809,7 +11980,7 @@ static bool show_database_privileges(THD *thd, const char *username,
       would be wrong from a security point of view.
     */
 
-    if (!strcmp(username, user) &&
+    if (!strcmp(acl_entry->user.str, user) &&
         !my_strcasecmp(system_charset_info, hostname, host))
     {
       /*
@@ -11817,52 +11988,23 @@ static bool show_database_privileges(THD *thd, const char *username,
         the role bits present in the table are what matters
       */
       if (*hostname) // User
-        want_access=acl_db->access;
+        want_access=acl_db.access;
       else // Role
-        want_access=acl_db->initial_access;
+        want_access=acl_db.initial_access;
       if (want_access)
       {
-        String db(buff, buffsize, system_charset_info);
         db.length(0);
-        db.append(STRING_WITH_LEN("GRANT "));
 
-        if (test_all_bits(want_access,(DB_ACLS & ~GRANT_ACL)))
-          db.append(STRING_WITH_LEN("ALL PRIVILEGES"));
-        else if (!(want_access & ~GRANT_ACL))
-          db.append(STRING_WITH_LEN("USAGE"));
-        else
-        {
-          int found=0, cnt;
-          ulonglong j;
-          privilege_t test_access(want_access & ~GRANT_ACL);
-          for (cnt=0, j = SELECT_ACL; j <= DB_ACLS; cnt++,j <<= 1)
-          {
-            if (test_access & j)
-            {
-              if (found)
-                db.append(STRING_WITH_LEN(", "));
-              found = 1;
-              db.append(command_array[cnt],command_lengths[cnt]);
-            }
-          }
-        }
-        db.append (STRING_WITH_LEN(" ON "));
-        append_identifier(thd, &db, acl_db->db, strlen(acl_db->db));
-        db.append (STRING_WITH_LEN(".*"));
-        add_to_user(thd, &db, username, (*hostname), host);
-        if (want_access & GRANT_ACL)
-          db.append(STRING_WITH_LEN(" WITH GRANT OPTION"));
+        print_grant_for_db(thd, &db, want_access, host, acl_entry->user.str,
+                           acl_db.db, (*hostname), deny);
         protocol->prepare_for_resend();
         protocol->store(db.ptr(),db.length(),db.charset());
         if (protocol->write())
-        {
-          return TRUE;
-        }
+          return true;
       }
     }
   }
-  return FALSE;
-
+  return false;
 }
 
 static bool show_table_and_column_privileges(THD *thd, const char *username,
@@ -14472,53 +14614,12 @@ static bool maria_deny(THD *thd, const User_table &user_table,
                            no_auto_create_users))
       result= true;
 
+    if (result)
+      continue;
+
     if (user->is_role())
-    {
-      switch (priv_spec.spec_type) {
-        case GLOBAL_PRIV:
-          propagate_role_grants(find_acl_role(user->user.str),
-                                PRIVS_TO_MERGE::GLOBAL);
-          break;
-        case DATABASE_PRIV:
-          propagate_role_grants(find_acl_role(user->user.str),
-                                PRIVS_TO_MERGE::DB);
-          break;
-        case TABLE_PRIV:
-        case COLUMN_PRIV:
-          propagate_role_grants(find_acl_role(user->user.str),
-                                PRIVS_TO_MERGE::TABLE_COLUMN);
-          break;
-        case PROXY_PRIV:
-          /* TODO(cvicentiu) figure out what needs to happen to roles when
-           * propagating deny proxy */
-          DBUG_ASSERT(0);
-          break;
-        case FUNCTION_PRIV:
-          /* TODO(cvicentiu) figure out if we need to call this twice and why. */
-          propagate_role_grants(find_acl_role(user->user.str),
-                                PRIVS_TO_MERGE::FUNC);
-          DBUG_ASSERT(0);
-          break;
-        case PROCEDURE_PRIV:
-          propagate_role_grants(find_acl_role(user->user.str),
-                                PRIVS_TO_MERGE::PROC);
-          DBUG_ASSERT(0);
-          break;
-        case PACKAGE_SPEC_PRIV:
-          propagate_role_grants(find_acl_role(user->user.str),
-                                PRIVS_TO_MERGE::PACKAGE_SPEC);
-          DBUG_ASSERT(0);
-          break;
-        case PACKAGE_BODY_PRIV:
-          propagate_role_grants(find_acl_role(user->user.str),
-                                PRIVS_TO_MERGE::PACKAGE_BODY);
-          DBUG_ASSERT(0);
-          break;
-        default:
-          /* TODO(cvicentiu) are we going to implement REVOKE DENY ALL? */
-          break;
-      }
-    }
+      propagate_role_grants(find_acl_role(user->user.str),
+                                          PRIVS_TO_MERGE::DENIES);
   }
   DBUG_RETURN(result);
 }
