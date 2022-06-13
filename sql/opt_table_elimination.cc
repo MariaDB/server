@@ -472,11 +472,22 @@ const size_t Dep_module_key::iterator_size=
 class Dep_module_pseudo_key : public Dep_module
 {
 public:
+  /*
+  @param table_arg         Table for which the pseudo-key is being created
+  @param key_fields_cnt    Number of fields in GROUP BY expression
+                           i.e. parts of the pseudo-key
+  @param field_indexes     Indexes of GROUP BY fields on the SELECT list.
+                           heir count may be greater than key_fields_cnt, e.g.
+                           'SELECT a, b, max(c), a as a2, b as b2 FROM t1
+                              GROUP BY a,b'
+                           has key_fields_cnt=2 and field_indexes={0,1,3,4}
+  */
   Dep_module_pseudo_key(Dep_value_table *table_arg,
+                        uint key_fields_cnt,
                         std::set<field_index_t>&& field_indexes)
       : table(table_arg), derived_table_field_indexes(field_indexes)
   {
-    unbound_args= static_cast<uint>(field_indexes.size());
+    unbound_args= key_fields_cnt;
   }
 
   Dep_value_table *table;
@@ -588,7 +599,7 @@ public:
 private:
   void create_unique_pseudo_key_if_needed(TABLE_LIST *table_list,
                                           Dep_value_table *tbl_dep);
-  int find_field_in_list(List<Item> &fields_list, Item *field);
+  std::vector<int> find_field_in_list(List<Item> &fields_list, Item *field);
 };
 
 
@@ -1740,8 +1751,9 @@ void Dep_analysis_context::create_unique_pseudo_key_if_needed(
         valid= false;
         break;
       }
-      auto field_idx= find_field_in_list(first_select->join->fields_list, elem);
-      if (field_idx == -1)
+      auto field_indexes= find_field_in_list(first_select->join->fields_list,
+                                             elem);
+      if (field_indexes.empty())
       {
         /*
           This GROUP BY element is not present in the select list. This is a
@@ -1754,12 +1766,13 @@ void Dep_analysis_context::create_unique_pseudo_key_if_needed(
         valid= false;
         break;
       }
-      exposed_fields_indexes.insert(field_idx);
+      exposed_fields_indexes.insert(field_indexes.begin(), field_indexes.end());
     }
     if (valid)
     {
       Dep_module_pseudo_key *pseudo_key;
       pseudo_key= new Dep_module_pseudo_key(tbl_dep,
+                                            first_select->group_list.elements,
                                             std::move(exposed_fields_indexes));
       tbl_dep->pseudo_key= pseudo_key;
     }
@@ -1769,22 +1782,24 @@ void Dep_analysis_context::create_unique_pseudo_key_if_needed(
 
 /*
   Iterate the list of fields and look for the given field.
-  Returns the index of the field if it is found on the list
-  and -1 otherwise
+  Returns vector of indexes of the field in the list. If a single field
+  appears more than once then all occurences will be included into
+  the result
 */
 
-int Dep_analysis_context::find_field_in_list(List<Item> &fields_list,
+std::vector<int> Dep_analysis_context::find_field_in_list(List<Item> &fields_list,
                                              Item *field)
 {
   List_iterator<Item> it(fields_list);
   int field_idx= 0;
+  std::vector<int> indexes;
   while (auto next_field= it++)
   {
     if (next_field->eq(field, false))
-      return field_idx;
+      indexes.push_back(field_idx);
     field_idx++;
   }
-  return -1; /*not found*/
+  return indexes;
 }
 
 

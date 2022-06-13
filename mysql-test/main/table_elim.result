@@ -985,3 +985,30 @@ drop table t1, t11, t12, t13, t2;
 #
 # End of MDEV-26278: Table elimination does not work across derived tables
 #
+#
+# MDEV-28817 Derived table elimination does not work for 
+#            multiple occurencies of a field
+#
+create table t1 (a int, b int);
+insert into t1 select seq, seq+10 from seq_1_to_10;
+create table t2 (a int, b int, c int);
+insert into t2 select A.seq, B.seq, 123 from seq_1_to_3 A, seq_1_to_3 B;
+explain select t1.* from t1 left join
+(select a as a1, max(c), b as b1, b as b2, a as a2
+from t2 group by a, b) D
+on D.a1=t1.a and D.b2=t1.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+explain select t1.* from t1 left join
+(select a as a1, b as b1, b as b2, a as a2, count(*)
+from t2 group by a, b) D
+on D.a2=t1.a and D.b1=t1.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+explain select t1.* from t1 left join
+(select a as a1, b as b1, b as b2, min(a+b) as minab, a as a2
+from t2 group by a1, b2) D
+on D.a2=t1.a and D.b1=t1.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+drop table t1, t2;
