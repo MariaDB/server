@@ -2485,8 +2485,7 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
           !sj_nest->sj_subq_pred->is_correlated && 
            sj_nest->sj_subq_pred->types_allow_materialization)
       {
-        join->emb_sjm_nest= sj_nest;
-        if (choose_plan(join, all_table_map &~join->const_table_map))
+        if (choose_plan(join, all_table_map &~join->const_table_map, sj_nest))
           DBUG_RETURN(TRUE); /* purecov: inspected */
         /*
           The best plan to run the subquery is now in join->best_positions,
@@ -2579,7 +2578,6 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
       }
     }
   }
-  join->emb_sjm_nest= NULL;
   DBUG_RETURN(FALSE);
 }
 
