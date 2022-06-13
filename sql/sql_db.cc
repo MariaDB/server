@@ -1701,7 +1701,9 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
 
   Security_context *sctx= thd->security_ctx;
   privilege_t db_access(sctx->db_access);
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
   privilege_t deny_mask= NO_ACL;
+#endif
   CHARSET_INFO *db_default_cl;
   DBUG_ENTER("mysql_change_db");
 

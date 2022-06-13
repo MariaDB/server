@@ -104,16 +104,17 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
 bool check_grant_all_columns(THD *thd, privilege_t want_access,
                              Field_iterator_table_ref *fields);
 bool check_grant_db(Security_context *sctx, const LEX_CSTRING &db, privilege_t db_deny_mask);
-bool check_global_access(THD *thd, const privilege_t want_access, bool no_errors= false);
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
 bool check_access(THD *thd, privilege_t want_access,
                   const char *db, privilege_t *save_priv,
                   GRANT_INTERNAL_INFO *grant_internal_info,
                   bool dont_check_global_grants, bool no_errors);
+bool check_global_access(THD *thd, const privilege_t want_access, bool no_errors= false);
 bool check_fk_parent_table_access(THD *thd,
                                   HA_CREATE_INFO *create_info,
                                   Alter_info *alter_info,
                                   const char* create_db);
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 bool check_one_table_access(THD *thd, privilege_t privilege, TABLE_LIST *tables);
 bool check_single_table_access(THD *thd, privilege_t privilege,
                                TABLE_LIST *tables, bool no_errors);
@@ -130,6 +131,18 @@ bool check_table_access(THD *thd, privilege_t requirements,TABLE_LIST *tables,
                         uint number,
                         bool no_errors);
 #else
+inline bool check_access(THD *thd, privilege_t want_access,
+                         const char *db, privilege_t *save_priv,
+                         GRANT_INTERNAL_INFO *grant_internal_info,
+                         bool dont_check_global_grants, bool no_errors)
+{ return false; }
+inline bool check_global_access(THD *thd, const privilege_t want_access, bool no_errors= false)
+{ return false; }
+inline bool check_fk_parent_table_access(THD *thd,
+                                         HA_CREATE_INFO *create_info,
+                                         Alter_info *alter_info,
+                                         const char* create_db)
+{ return false; }
 inline bool check_one_table_access(THD *thd, privilege_t privilege, TABLE_LIST *tables)
 { return false; }
 inline bool check_single_table_access(THD *thd, privilege_t privilege,

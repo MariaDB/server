@@ -4373,8 +4373,6 @@ bool check_some_access(THD *thd, privilege_t want_access, TABLE_LIST *table)
   DBUG_RETURN(1);
 }
 
-#endif /*NO_EMBEDDED_ACCESS_CHECKS*/
-
 
 /**
   check for global access and give descriptive error message if it fails.
@@ -4394,7 +4392,6 @@ bool check_some_access(THD *thd, privilege_t want_access, TABLE_LIST *table)
 
 bool check_global_access(THD *thd, const privilege_t want_access, bool no_errors)
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   char command[128];
   if (thd->security_ctx->master_access & want_access)
     return 0;
@@ -4405,9 +4402,6 @@ bool check_global_access(THD *thd, const privilege_t want_access, bool no_errors
   }
   status_var_increment(thd->status_var.access_denied_errors);
   return 1;
-#else
-  return 0;
-#endif
 }
 
 
@@ -4544,6 +4538,8 @@ bool check_fk_parent_table_access(THD *thd,
 
   return false;
 }
+
+#endif /*NO_EMBEDDED_ACCESS_CHECKS*/
 
 
 
@@ -15485,13 +15481,6 @@ void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
 /****************************************************************************
  Dummy wrappers when we don't have any access checks
 ****************************************************************************/
-static
-bool check_routine_level_acl(THD *thd,
-                             const LEX_CSTRING &db, const LEX_CSTRING &name,
-                             const Sp_handler &sph)
-{
-  return false;
-}
 
 #endif
 
@@ -15603,6 +15592,7 @@ ACL_internal_schema_registry::lookup(const char *name)
   return NULL;
 }
 
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
 /**
   Get a cached internal schema access.
   @param grant_internal_info the cache
@@ -15647,6 +15637,7 @@ get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
   }
   return grant_internal_info->m_table_access;
 }
+#endif
 
 
 /****************************************************************************
