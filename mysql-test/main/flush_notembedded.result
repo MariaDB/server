@@ -9,6 +9,7 @@ create table mysqltest1.t1 (a int);
 create user u1@localhost;
 grant reload on *.* to u1@localhost;
 grant select on mysqltest1.* to u1@localhost;
+grant all on test.* to u1@localhost;
 connect u1,localhost,u1;
 flush tables mysqltest1.t1 for export;
 ERROR 42000: Access denied for user 'u1'@'localhost' to database 'mysqltest1'

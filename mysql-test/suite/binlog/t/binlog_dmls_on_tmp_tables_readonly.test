@@ -26,7 +26,7 @@ DROP TABLE IF EXISTS t1 ;
 --echo # READ_ONLY does nothing to SUPER users
 --echo # so we use a non-SUPER one:
 CREATE USER test@localhost;
-GRANT CREATE, SELECT, DROP ON *.* TO test@localhost;
+GRANT CREATE TEMPORARY TABLES, SELECT, DROP ON *.* TO test@localhost;
 
 connect (con1,localhost,test,,test);
 

@@ -10,6 +10,8 @@ DROP USER ddicttestuser1@'localhost';
 DROP USER ddicttestuser2@'localhost';
 CREATE USER ddicttestuser1@'localhost';
 CREATE USER ddicttestuser2@'localhost';
+GRANT SELECT,UPDATE,DELETE,INSERT,CREATE,CREATE TEMPORARY TABLES,CREATE VIEW,DROP on test.* to ddicttestuser1@'localhost';
+GRANT SELECT,UPDATE,DELETE,INSERT,CREATE,CREATE TEMPORARY TABLES,CREATE VIEW,DROP on test.* to ddicttestuser2@'localhost';
 SET PASSWORD FOR ddicttestuser1@'localhost' = PASSWORD('ddictpass');
 SET PASSWORD FOR ddicttestuser2@'localhost' = PASSWORD('ddictpass');
 ####################################################################################
@@ -152,6 +154,7 @@ ERROR 42000: Access denied for user 'ddicttestuser1'@'localhost' to database 'in
 SHOW GRANTS;
 Grants for ddicttestuser1@localhost
 GRANT USAGE ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 CREATE INDEX i_processlist ON processlist (user);
 ERROR 42000: Access denied for user 'ddicttestuser1'@'localhost' to database 'information_schema'
 DROP TABLE processlist;
@@ -188,6 +191,7 @@ connection con100;
 SHOW GRANTS;
 Grants for ddicttestuser1@localhost
 GRANT PROCESS ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	starting	SHOW processlist	TIME_MS
@@ -202,6 +206,7 @@ connect  con101,localhost,ddicttestuser1,ddictpass,information_schema;
 SHOW GRANTS;
 Grants for ddicttestuser1@localhost
 GRANT PROCESS ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	root	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
@@ -255,6 +260,7 @@ ddicttestuser1 are visible.
 SHOW GRANTS;
 Grants for ddicttestuser1@localhost
 GRANT USAGE ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
@@ -298,6 +304,7 @@ Only the processes of ddicttestuser1 user are visible.
 SHOW GRANTS FOR 'ddicttestuser1'@'localhost';
 Grants for ddicttestuser1@localhost
 GRANT SUPER ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
@@ -325,6 +332,7 @@ Only the processes of ddicttestuser1 are visible.
 SHOW GRANTS FOR 'ddicttestuser1'@'localhost';
 Grants for ddicttestuser1@localhost
 GRANT USAGE ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
@@ -353,6 +361,7 @@ Try to grant PROCESS privilege to user ddicttestuser2 without having it.
 SHOW GRANTS FOR 'ddicttestuser1'@'localhost';
 Grants for ddicttestuser1@localhost
 GRANT SUPER ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1' WITH GRANT OPTION
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 GRANT PROCESS ON *.* TO 'ddicttestuser2'@'localhost';
 ERROR 28000: Access denied for user 'ddicttestuser1'@'localhost' (using password: YES)
 ####################################################################################
@@ -369,6 +378,7 @@ Grant PROCESS privilege to user ddicttestuser2
 SHOW GRANTS FOR 'ddicttestuser1'@'localhost';
 Grants for ddicttestuser1@localhost
 GRANT PROCESS, SUPER ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1' WITH GRANT OPTION
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 GRANT PROCESS ON *.* TO 'ddicttestuser2'@'localhost';
 ####################################################################################
 10.4 New connection con200 (ddicttestuser2 with PROCESS privilege)
@@ -378,6 +388,7 @@ ddicttestuser2 has now the PROCESS privilege and sees all connections
 SHOW GRANTS FOR 'ddicttestuser2'@'localhost';
 Grants for ddicttestuser2@localhost
 GRANT PROCESS ON *.* TO `ddicttestuser2`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser2`@`localhost`
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	root	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
@@ -418,6 +429,7 @@ ddicttestuser2 has no more the PROCESS privilege and can only see own connects
 SHOW GRANTS;
 Grants for ddicttestuser2@localhost
 GRANT USAGE ON *.* TO `ddicttestuser2`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser2`@`localhost`
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	ddicttestuser2	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
@@ -441,6 +453,7 @@ He is also unable to GRANT the PROCESS privilege to ddicttestuser2
 SHOW GRANTS FOR 'ddicttestuser1'@'localhost';
 Grants for ddicttestuser1@localhost
 GRANT USAGE ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 GRANT PROCESS ON *.* TO 'ddicttestuser2'@'localhost';
 ERROR 28000: Access denied for user 'ddicttestuser1'@'localhost' (using password: YES)
 SHOW processlist;
@@ -480,6 +493,7 @@ Therefore the missing SELECT privilege does not affect SELECTs on PROCESSLIST.
 SHOW GRANTS FOR 'ddicttestuser1'@'localhost';
 Grants for ddicttestuser1@localhost
 GRANT USAGE ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS

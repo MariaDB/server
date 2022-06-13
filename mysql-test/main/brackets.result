@@ -489,8 +489,6 @@ drop table t1;
 #
 select * from ( mysql.db );
 Host	Db	User	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Create_tmp_table_priv	Lock_tables_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Execute_priv	Event_priv	Trigger_priv	Delete_history_priv
-%	test		Y	Y	Y	Y	Y	Y	N	Y	Y	Y	Y	Y	Y	Y	Y	N	N	Y	Y	Y
-%	test\_%		Y	Y	Y	Y	Y	Y	N	Y	Y	Y	Y	Y	Y	Y	Y	N	N	Y	Y	Y
 create table t1 (a int);
 insert into t1 values (7), (2), (7);
 select * from (t1);

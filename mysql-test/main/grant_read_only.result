@@ -27,10 +27,10 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a INT);
 CREATE USER user1@localhost IDENTIFIED BY '';
-GRANT INSERT, UPDATE, DELETE, READ_ONLY ADMIN ON *.* TO user1@localhost;
+GRANT SELECT, INSERT, UPDATE, DELETE, READ_ONLY ADMIN ON *.* TO user1@localhost;
 SHOW GRANTS FOR user1@localhost;
 Grants for user1@localhost
-GRANT INSERT, UPDATE, DELETE, READ_ONLY ADMIN ON *.* TO `user1`@`localhost`
+GRANT SELECT, INSERT, UPDATE, DELETE, READ_ONLY ADMIN ON *.* TO `user1`@`localhost`
 SET @@GLOBAL.read_only=1;
 connect  con1,localhost,user1,,;
 connection con1;
@@ -50,10 +50,10 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a INT);
 CREATE USER user1@localhost IDENTIFIED BY '';
-GRANT INSERT, UPDATE, DELETE, SUPER ON *.* TO user1@localhost;
+GRANT SELECT, INSERT, UPDATE, DELETE, SUPER ON *.* TO user1@localhost;
 SHOW GRANTS FOR user1@localhost;
 Grants for user1@localhost
-GRANT INSERT, UPDATE, DELETE, SUPER ON *.* TO `user1`@`localhost`
+GRANT SELECT, INSERT, UPDATE, DELETE, SUPER ON *.* TO `user1`@`localhost`
 SET @@GLOBAL.read_only=1;
 connect  con1,localhost,user1,,;
 connection con1;

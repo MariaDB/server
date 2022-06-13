@@ -545,7 +545,7 @@ ERROR 42000: DROP command denied to user 'mysqltest_1'@'localhost' for table 't1
 drop database mysqltest;
 ERROR 42000: Access denied for user 'mysqltest_1'@'localhost' to database 'mysqltest'
 disconnect con1;
-connect  con2,localhost,mysqltest_2,,test;
+connect  con2,localhost,mysqltest_2,,"*NO-ONE*";
 connection con2;
 select * from mysqltest.t1;
 ERROR 42000: SELECT command denied to user 'mysqltest_2'@'localhost' for table 't1'
@@ -556,7 +556,7 @@ ERROR 42000: DROP command denied to user 'mysqltest_2'@'localhost' for table 't1
 drop database mysqltest;
 ERROR 42000: Access denied for user 'mysqltest_2'@'localhost' to database 'mysqltest'
 disconnect con2;
-connect  con3,localhost,mysqltest_3,,test;
+connect  con3,localhost,mysqltest_3,,"*NO-ONE*";
 connection con3;
 select * from mysqltest.t1;
 ERROR 42000: SELECT command denied to user 'mysqltest_3'@'localhost' for table 't1'
@@ -1471,7 +1471,7 @@ DROP EVENT ev1;
 SHOW STORAGE ENGINES;
 CREATE USER test_u@localhost;
 GRANT PROCESS ON *.* TO test_u@localhost;
-connect  conn1, localhost, test_u,,;
+connect  conn1, localhost, test_u,,"*NO-ONE*";
 SHOW ENGINE MYISAM MUTEX;
 SHOW ENGINE MYISAM STATUS;
 disconnect conn1;

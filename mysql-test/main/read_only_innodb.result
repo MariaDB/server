@@ -1,6 +1,6 @@
 DROP TABLE IF EXISTS table_11733 ;
 create user test@localhost;
-grant CREATE, SELECT, DROP on *.* to test@localhost;
+grant CREATE, SELECT, DROP, INSERT on *.* to test@localhost;
 connect  con1,localhost,test,,test;
 connection default;
 set global read_only=0;
@@ -25,7 +25,7 @@ drop table table_11733 ;
 drop user test@localhost;
 disconnect con1;
 create user test@localhost;
-GRANT CREATE, SELECT, DROP ON *.* TO test@localhost;
+GRANT CREATE, SELECT, DROP, LOCK TABLES ON *.* TO test@localhost;
 connect con1, localhost, test, , test;
 connection default;
 CREATE TABLE t1(a INT) ENGINE=INNODB;

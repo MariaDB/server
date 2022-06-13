@@ -86,6 +86,7 @@ alter user test_pam password expire;
 drop user test_pam;
 drop user pam_test;
 create user PAM_TEST identified via pam using 'mariadb_mtr';
+grant all on test.* to PAM_TEST;
 
 --echo #
 --echo # athentication is unsuccessful
@@ -109,6 +110,7 @@ drop user PAM_TEST;
 --echo # MDEV-27341 Use SET PASSWORD to change PAM service
 --echo #
 create user pam_test identified via pam using 'mariadb_mtr';
+grant all on test.* to pam_test;
 --write_file $MYSQLTEST_VARDIR/tmp/setpwd.txt
 not very secret challenge
 9225

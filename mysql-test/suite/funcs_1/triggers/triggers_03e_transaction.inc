@@ -27,7 +27,6 @@ let $message= #########      Testcase for transactions:   ########;
 
 	revoke ALL PRIVILEGES, GRANT OPTION FROM test_yesprivs@localhost;
 
-	connect (yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK);
 
 	connection default;
         select current_user;
@@ -35,9 +34,9 @@ let $message= #########      Testcase for transactions:   ########;
 	        on priv_db.t1 to test_yesprivs@localhost;
 	show grants for test_yesprivs@localhost;
 
+	connect (yes_privs,localhost,test_yesprivs,PWD,priv_db,$MASTER_MYPORT,$MASTER_MYSOCK);
 	connection yes_privs;
         select current_user;
-	use priv_db;
 	set autocommit=0;
 	create definer=current_user trigger trg1_1
 		before INSERT on t1 for each row

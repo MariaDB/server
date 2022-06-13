@@ -6056,8 +6056,7 @@ SET join_cache_level = 3;
 explain
 SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.db WHERE Select_priv = PAGE_FAULTS_MINOR;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	PROFILING	ALL	NULL	NULL	NULL	NULL	NULL	Using where
-1	SIMPLE	db	hash_ALL	NULL	#hash#$hj	1	information_schema.PROFILING.PAGE_FAULTS_MINOR	2	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 set join_cache_level=@save_join_cache_level;
 create table t1 (c1 date not null, key (c1)) engine=innodb;
 insert t1 values ('2017-12-27');

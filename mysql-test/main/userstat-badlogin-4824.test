@@ -8,7 +8,7 @@ create user foo@localhost identified by 'foo';
 flush user_statistics;
 set global userstat=1;
 
-connect(foo, localhost, foo, foo, test);
+connect(foo, localhost, foo, foo, "*NO-ONE*");
 select 1;
 disconnect foo;
 connection default;

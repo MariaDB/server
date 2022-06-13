@@ -842,7 +842,7 @@ Database	Table	In_use	Name_locked
 mysql	user	0	0
 show status where variable_name like "%database%";
 Variable_name	Value
-Acl_database_grants	2
+Acl_database_grants	0
 Com_show_databases	3
 show variables where variable_name like "skip_show_databas";
 Variable_name	Value

@@ -33,11 +33,11 @@ GRANT SELECT (a) ON test1.t2 TO role1;
 
 --echo # Open connections to the 2 nodes using 'foo' user.
 --let $port_1= \$NODE_MYPORT_1
---connect(foo_node_1,127.0.0.1,foo,,test,$port_1,)
+--connect(foo_node_1,127.0.0.1,foo,,"*NO-ONE*",$port_1,)
 
 --let $port_2= \$NODE_MYPORT_2
 --sleep 1
---connect(foo_node_2,127.0.0.1,foo,,test,$port_2,)
+--connect(foo_node_2,127.0.0.1,foo,,"*NO-ONE*",$port_2,)
 
 --echo
 --echo # Connect with foo_node_1

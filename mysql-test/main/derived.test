@@ -109,6 +109,7 @@ SELECT a.x FROM (SELECT 1 AS x) AS a HAVING a.x = 1;
 #
 # Connect without a database as user mysqltest_1
 create user mysqltest_1;
+grant all on test.* to mysqltest_1;
 create table t1 select 1 as a;
 connect (con1,localhost,mysqltest_1,,*NO-ONE*,$MASTER_MYPORT,$MASTER_MYSOCK);
 connection con1;
