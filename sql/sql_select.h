@@ -359,7 +359,23 @@ typedef struct st_join_table {
   double        cached_scan_time;
   double        cached_scan_and_compare_time;
 
-  table_map	dependent,key_dependent;
+  /*
+    dependent is the table that must be read before the current one
+    Used for example with STRAIGHT_JOIN or outer joins
+  */
+  table_map	dependent;
+  /*
+    key_dependent is dependent but add those tables that are used to compare
+    with a key field in a simple expression. See add_key_field().
+    It is only used to prune searches in best_extension_by_limited_search()
+  */
+  table_map     key_dependent;
+   /*
+    Tables that have expression in their attached condition clause that depends
+    on this table.
+  */
+  table_map     related_tables;
+
   /*
     Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
     column, or 0 if there is no info.
@@ -1249,6 +1265,13 @@ public:
   bool     hash_join;
   bool	   do_send_rows;
   table_map const_table_map;
+
+  /*
+    Tables one is allowed to use in choose_plan(). Either all or
+    set to a mapt of the tables in the materialized semi-join nest
+  */
+  table_map allowed_tables;
+
   /** 
     Bitmap of semijoin tables that the current partial plan decided
     to materialize and access by lookups
@@ -2348,7 +2371,7 @@ inline Item * or_items(THD *thd, Item* cond, Item *item)
 {
   return (cond ? (new (thd->mem_root) Item_cond_or(thd, cond, item)) : item);
 }
-bool choose_plan(JOIN *join, table_map join_tables);
+bool choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest);
 void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab, 
                                 table_map last_remaining_tables, 
                                 bool first_alt, uint no_jbuf_before,

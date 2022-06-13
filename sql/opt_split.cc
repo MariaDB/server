@@ -973,7 +973,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
       table_map all_table_map= (((table_map) 1) << join->table_count) - 1;
       reset_validity_vars_for_keyuses(best_key_keyuse_ext_start, best_table,
                                       best_key, remaining_tables, true);
-      choose_plan(join, all_table_map & ~join->const_table_map);
+      choose_plan(join, all_table_map & ~join->const_table_map, 0);
 
       /*
         Check that the chosen plan is really a splitting plan.
