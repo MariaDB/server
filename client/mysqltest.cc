@@ -5794,6 +5794,7 @@ void safe_connect(MYSQL* mysql, const char *name, const char *host,
   con               - connection structure to be used
   host, user, pass, - connection parameters
   db, port, sock
+  default_db        - 0 if db was explicitly passed
 
   DESCRIPTION
   This function will try to establish a connection to server and handle
@@ -5811,7 +5812,8 @@ void safe_connect(MYSQL* mysql, const char *name, const char *host,
 int connect_n_handle_errors(struct st_command *command,
                             MYSQL* con, const char* host,
                             const char* user, const char* pass,
-                            const char* db, int port, const char* sock)
+                            const char* db, int port, const char* sock,
+                            my_bool default_db)
 {
   DYNAMIC_STRING *ds;
   int failed_attempts= 0;
@@ -5852,8 +5854,10 @@ int connect_n_handle_errors(struct st_command *command,
 
   mysql_options(con, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(con, MYSQL_OPT_CONNECT_ATTR_ADD, "program_name", "mysqltest");
-  while (!mysql_real_connect(con, host, user, pass, db, port, sock ? sock: 0,
-                          CLIENT_MULTI_STATEMENTS))
+  while (!mysql_real_connect(con, host, user, pass,
+                             (default_db ? "" : db),
+                             port, (sock ? sock : 0),
+                             CLIENT_MULTI_STATEMENTS))
   {
     /*
       If we have used up all our connections check whether this
@@ -5892,6 +5896,13 @@ do_handle_error:
 		 mysql_sqlstate(con), ds);
     return 0; /* Not connected */
   }
+
+  if (default_db && db && db[0] != '\0')
+  {
+    mysql_select_db(con, db);
+    // Ignore errors intentionally
+  }
+
 
   var_set_errno(0);
   handle_no_error(command);
@@ -5946,6 +5957,7 @@ void do_connect(struct st_command *command)
   int connect_timeout= 0;
   char *csname=0;
   struct st_connection* con_slot;
+  my_bool default_db;
 
   static DYNAMIC_STRING ds_connection_name;
   static DYNAMIC_STRING ds_host;
@@ -6152,7 +6164,12 @@ void do_connect(struct st_command *command)
 
   /* Use default db name */
   if (ds_database.length == 0)
+  {
     dynstr_set(&ds_database, opt_db);
+    default_db= 1;
+  }
+  else
+    default_db= 0;
 
   if (opt_plugin_dir && *opt_plugin_dir)
     mysql_options(con_slot->mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
@@ -6167,7 +6184,7 @@ void do_connect(struct st_command *command)
   if (connect_n_handle_errors(command, con_slot->mysql,
                               ds_host.str,ds_user.str,
                               ds_password.str, ds_database.str,
-                              con_port, ds_sock.str))
+                              con_port, ds_sock.str, default_db))
   {
     DBUG_PRINT("info", ("Inserting connection %s in connection pool",
                         ds_connection_name.str));

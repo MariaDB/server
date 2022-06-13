@@ -33,7 +33,7 @@ eval SET GLOBAL general_log_file = '$MYSQLTEST_VARDIR/log/rewrite_general_con.lo
 SET GLOBAL log_output =       'FILE,TABLE';
 SET GLOBAL general_log=       'ON';
 
-connect(con1, localhost, root,,);
+connect(con1, localhost, root,,test);
 
 select NAME, PROCESSLIST_USER, PROCESSLIST_HOST, CONNECTION_TYPE
   from performance_schema.threads

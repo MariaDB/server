@@ -476,8 +476,8 @@ TIME,HOSTNAME,plug,localhost,ID,0,DISCONNECT,,,0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'GRANT PROXY ON plug_dest TO plug',0
-TIME,HOSTNAME,plug,localhost,ID,0,CONNECT,test,,0
-TIME,HOSTNAME,plug,localhost,ID,0,PROXY_CONNECT,test,`plug_dest`@`%`,0
+TIME,HOSTNAME,plug,localhost,ID,0,CONNECT,,,0
+TIME,HOSTNAME,plug,localhost,ID,0,PROXY_CONNECT,,`plug_dest`@`%`,0
 TIME,HOSTNAME,plug,localhost,ID,ID,QUERY,test,'select USER(),CURRENT_USER()',0
 TIME,HOSTNAME,plug,localhost,ID,0,DISCONNECT,test,,0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,

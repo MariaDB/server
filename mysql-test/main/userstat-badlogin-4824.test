@@ -12,7 +12,7 @@ create user foo@localhost identified by 'foo';
 flush user_statistics;
 set global userstat=1;
 
-connect(foo, localhost, foo, foo);
+connect(foo, localhost, foo, foo, test);
 select 1;
 disconnect foo;
 connection default;
@@ -27,7 +27,7 @@ select user, bytes_received from information_schema.user_statistics where user =
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect(foo, localhost, foo, bar);
+connect(foo, localhost, foo, bar, test);
 
 connection default;
 
