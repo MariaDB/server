@@ -70,7 +70,7 @@ connection server_4;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
 MASTER_USE_GTID=CURRENT_POS;
 Warnings:
-Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 include/start_slave.inc
 SELECT * FROM t1 ORDER BY a;
 a	b
@@ -92,7 +92,7 @@ include/stop_slave.inc
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_4,
 MASTER_USE_GTID=CURRENT_POS;
 Warnings:
-Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 include/start_slave.inc
 connection server_4;
 UPDATE t2 SET b="j1a" WHERE a=5;
@@ -122,7 +122,7 @@ connection server_3;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_4,
 MASTER_USE_GTID=CURRENT_POS;
 Warnings:
-Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 SELECT * FROM t2 ORDER BY a;

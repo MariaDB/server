@@ -6,7 +6,7 @@ include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=current_pos;
 Warnings:
-Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 include/start_slave.inc
 *** MDEV-6589: Incorrect relay log start position when restarting SQL thread after error in parallel replication ***
 connection server_1;

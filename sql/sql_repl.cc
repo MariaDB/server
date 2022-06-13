@@ -3814,14 +3814,10 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_CURRENT_POS)
   {
     mi->using_gtid= Master_info::USE_GTID_CURRENT_POS;
-    /* Review notes to 57a7c5c4e:
-       TODO: In the docs/blogs we should examplify a typical use case of the demoted master.
-    */
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,
-                        ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX), // ER_WARN_DEPRECATED_SYNTAX_WITH_VER would be even better 
-
-                        "master_use_gtid=current_pos", "master_demote_to_slave=Yes");
+                        ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),
+                        "master_use_gtid=current_pos", "master_demote_to_slave=1");
   }
   else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_NO ||
            lex_mi->log_file_name || lex_mi->pos ||

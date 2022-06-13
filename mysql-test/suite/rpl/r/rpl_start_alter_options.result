@@ -4,7 +4,7 @@ connection slave;
 stop slave;
 change master to master_use_gtid= current_pos;
 Warnings:
-Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
 set global gtid_strict_mode=1;
@@ -97,7 +97,7 @@ connection slave;
 stop slave;
 change master to master_use_gtid= current_pos;
 Warnings:
-Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
 set global gtid_strict_mode=1;
@@ -190,7 +190,7 @@ connection slave;
 stop slave;
 change master to master_use_gtid= current_pos;
 Warnings:
-Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
 set global gtid_strict_mode=1;
@@ -322,7 +322,7 @@ connection slave;
 stop slave;
 change master to master_use_gtid= current_pos;
 Warnings:
-Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
 set global gtid_strict_mode=1;
@@ -415,7 +415,7 @@ connection slave;
 stop slave;
 change master to master_use_gtid= current_pos;
 Warnings:
-Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
 set global gtid_strict_mode=1;

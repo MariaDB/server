@@ -5,7 +5,7 @@ connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=CURRENT_POS;
 Warnings:
-Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 include/rpl_stop_server.inc [server_number=2]
 include/rpl_start_server.inc [server_number=2]
 connection master;
