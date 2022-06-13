@@ -3874,8 +3874,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   */
   if (lex_mi->is_demotion_opt)
   {
-    uint32 n_binlog_gtids;
-    rpl_gtid *binlog_gtid_list;
+    String new_gtid_state;
 
     if (mi->using_gtid != Master_info::USE_GTID_SLAVE_POS)
     {
@@ -3892,24 +3891,16 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
       goto err;
     }
 
-    if (mysql_bin_log.get_most_recent_gtid_list(&binlog_gtid_list,
-                                                &n_binlog_gtids))
-    {
-      my_error(ER_OUT_OF_RESOURCES, MYF(0));
-      ret= TRUE;
+    if ((ret= rpl_append_gtid_state(&new_gtid_state, true)))
       goto err;
-    }
 
-    if (rpl_global_gtid_slave_state->merge(thd, binlog_gtid_list,
-                                           (size_t) n_binlog_gtids))
+    if (rpl_global_gtid_slave_state->load(
+            thd, new_gtid_state.ptr(), new_gtid_state.length(), false, false))
     {
-      my_error(ER_MASTER_INFO, MYF(0), (int) lex_mi->connection_name.length,
-               lex_mi->connection_name.str);
-      my_free(binlog_gtid_list);
+      my_error(ER_FAILED_GTID_STATE_INIT, MYF(0));
       ret= TRUE;
       goto err;
     }
-    my_free(binlog_gtid_list);
   }
 
   /*

@@ -1420,40 +1420,6 @@ rpl_slave_state::load(THD *thd, const char *state_from_master, size_t len,
   return 0;
 }
 
-/*
-  Update the slave replication state by merging in a list of new GTIDs. GTIDs
-  that are more recent in the slave state are preserved. This is used by
-  CHANGE MASTER TO MASTER_DEMOTE_TO_SLAVE to merge the current binlog GTID
-  position into the slave state.
-
-  Returns 0 if ok, non-zero if error.
-*/
-int rpl_slave_state::merge(THD *thd, rpl_gtid *gtid_list, size_t n_gtids)
-{
-  for (size_t i= 0; i < n_gtids; i++)
-  {
-    rpl_gtid *gtid= &gtid_list[i];
-    uint64 sub_id;
-    void *hton= NULL;
-    struct element *elem= (element *) my_hash_search(
-        &hash, (const uchar *) &(gtid->domain_id), sizeof(rpl_gtid::domain_id));
-
-    /*
-      Preserve replication state as it has already proceeded beyond this gtid
-    */
-    if (elem && elem->highest_seq_no > gtid->seq_no)
-      continue;
-
-    if (!(sub_id= next_sub_id(gtid->domain_id)) ||
-        record_gtid(thd, gtid, sub_id, false, false, &hton) ||
-        update(gtid->domain_id, gtid->server_id, sub_id, gtid->seq_no, hton,
-               NULL))
-      return 1;
-  }
-  return 0;
-}
-
-
 bool
 rpl_slave_state::is_empty()
 {

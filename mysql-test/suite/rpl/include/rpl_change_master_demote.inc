@@ -17,7 +17,7 @@
 --echo ##############################################
 
 --connection master
-SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' ORDER BY VARIABLE_NAME ASC;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
 
 --let $extra_cm_args=
 if (`SELECT strcmp("$ignore_domain_ids","") != 0`)
@@ -25,9 +25,21 @@ if (`SELECT strcmp("$ignore_domain_ids","") != 0`)
     --let $extra_cm_args=, ignore_domain_ids=($ignore_domain_ids)
 }
 
+--echo # First ensure gtid_slave_pos after master_demote_to_slave matches
+--echo # gtid_current_pos calculation
+--let $current_pos= `SELECT @@gtid_current_pos`
 --replace_result $SLAVE_MYPORT SLAVE_PORT
 --eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SLAVE_MYPORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 $extra_cm_args
-SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' ORDER BY VARIABLE_NAME ASC;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+--let $slave_pos= `SELECT @@gtid_slave_pos`
+--echo # Validating gtid_slave_pos == gtid_binlog_pos..
+if ($slave_pos != $current_pos)
+{
+    SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+    die gtid_slave_pos calculation after master_demote_to_slave=1 differs from gtid_current_pos;
+}
+--echo # ..success
+
 --source include/start_slave.inc
 
 --connection slave
@@ -57,7 +69,7 @@ DROP TABLE repl_t;
 
 --connection master
 --source include/sync_with_master_gtid.inc
-SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' ORDER BY VARIABLE_NAME ASC;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
 
 --echo ##############################################
 --echo # Connection semantics change:

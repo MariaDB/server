@@ -12,8 +12,9 @@
 # merges the binlog GTID state into the replication state. Each test case
 # sets up the context in which it will demote the master to a slave, and then
 # calls into an include file to perform the actual demotion and validation.
-# Specifically, the include file will demote the master to be the slave, promote
-# the slave to be the master, ensure replication works correctly in this new
+# Specifically, the include file will demote the master to be the slave,
+# promote the slave to be the master, ensure that gtid_slave_pos matches
+# gtid_current_pos, ensure replication works correctly in this new
 # configuration, and return the master and slave to their previous roles.
 #
 # The test cases are as follows:
@@ -35,9 +36,11 @@
 #   new GTIDs to gtid_slave_pos with the latest seq_no from each domain.
 #
 #       6) If gtid_slave_pos has multiple GTID positions and gtid_binlog_pos
-#   contains updates on existing domain ids and new domains entirely,
-#   MASTER_DEMOTE_TO_SLAVE=1 will update gtid_slave_pos to have the latest
-#   seq_no in all domains.
+#   contains updates on existing domain ids, new domains, and differing
+#   server_ids, MASTER_DEMOTE_TO_SLAVE=1 will update gtid_slave_pos such that
+#   it will have the seq_nos only from the GTIDs last applied by this server.
+#   In other words, any GTIDs with server ids that don't match that of the
+#   demoting server will be ignored in the update.
 #
 #       7) If MASTER_DEMOTE_TO_SLAVE=1 is combined with IGNORE_DOMAIN_IDS such
 #   that gtid_binlog_pos has more recent GTIDs than gtid_slave_pos in ignored
@@ -52,11 +55,12 @@
 #   immediately after SSU because gtid_slave_pos should already be after the
 #   UNTIL GTID.
 #
-#       9) MASTER_DEMOTE_TO_SLAVE=0 should not change replication state when
-#   gtid_binlog_pos is more recent than gtid_slave_pos.
-#
-#      10) If gtid_slave_pos is more recent than gtid_binlog_pos when demoting
+#       9) If gtid_slave_pos is more recent than gtid_binlog_pos when demoting
 #   the master to become a slave, the replication state should be preserved.
+#
+#      10) MASTER_DEMOTE_TO_SLAVE=0 should not change replication state,
+#   regardless of gtid_slave_pos in comparison to gtid_binlog_pos.
+#
 #
 # Error cases:
 #       Error Case 1) MASTER_DEMOTE_TO_SLAVE=1 combined with
@@ -90,6 +94,7 @@ change master to master_use_gtid=slave_pos;
 --echo #
 --source include/rpl_change_master_demote.inc
 
+
 --echo #
 --echo # Test Case 2: If gtid_slave_pos is empty, gtid_binlog_pos will
 --echo # completely overwrite it with MASTER_DEMOTE_TO_SLAVE=1.
@@ -110,6 +115,7 @@ INSERT INTO t1 VALUES (1);
 --source include/sync_with_master_gtid.inc
 --source include/rpl_change_master_demote.inc
 
+
 --echo #
 --echo # Test Case 3: Using a single domain id, if neither gtid_slave_pos nor
 --echo # gtid_binlog_pos are empty, and gtid_binlog_pos is more recent, then
@@ -122,6 +128,7 @@ INSERT INTO t1 VALUES (2);
 --connection slave
 --source include/sync_with_master_gtid.inc
 --source include/rpl_change_master_demote.inc
+
 
 --echo #
 --echo # Test Case 4: If gtid_slave_pos and gtid_binlog_pos are equivalent,
@@ -137,6 +144,7 @@ INSERT INTO t1 VALUES (3);
 RESET SLAVE ALL;
 
 --source include/rpl_change_master_demote.inc
+
 
 --echo #
 --echo # Test Case 5: If a new domain id is added into gtid_binlog_pos while
@@ -159,11 +167,15 @@ INSERT INTO t2 VALUES (1);
 --source include/sync_with_master_gtid.inc
 --source include/rpl_change_master_demote.inc
 
+
 --echo #
 --echo # Test Case 6: If gtid_slave_pos has multiple GTID positions and
---echo # gtid_binlog_pos contains updates on existing domain ids and new
---echo # domains entirely, MASTER_DEMOTE_TO_SLAVE=1 will update gtid_slave_pos
---echo # to have the latest seq_no in all domains.
+--echo # gtid_binlog_pos contains updates on existing domain ids, new
+--echo # domains, and differing server_ids, MASTER_DEMOTE_TO_SLAVE=1 will
+--echo # update gtid_slave_pos such that it will have the seq_nos only from
+--echo # the GTIDs last applied by this server. In other words, any GTIDs
+--echo # with server ids that don't match that of the demoting server will be
+--echo # ignored in the update.
 --echo #
 
 --connection master
@@ -181,10 +193,24 @@ set session gtid_domain_id= 2;
 CREATE TABLE t3 (a int);
 INSERT INTO t3 VALUES (1);
 
+--echo # The following events have a different server_id and should not go into
+--echo # gtid_slave_pos
+set @old_server_id = @@server_id;
+set session gtid_domain_id= 1;
+set session server_id= 3;
+INSERT INTO t2 VALUES (3);
+
+set session gtid_domain_id= 4;
+set session server_id= 3;
+CREATE TABLE t5 (a int);
+INSERT INTO t5 VALUES (1);
+set session server_id= @old_server_id;
+
 --source include/save_master_gtid.inc
 --connection slave
 --source include/sync_with_master_gtid.inc
 --source include/rpl_change_master_demote.inc
+
 
 --echo #
 --echo # Test Case 7: If MASTER_DEMOTE_TO_SLAVE=1 is combined with
@@ -208,6 +234,7 @@ INSERT INTO t4 VALUES (1);
 --source include/sync_with_master_gtid.inc
 --let $ignore_domain_ids=2,3
 --source include/rpl_change_master_demote.inc
+
 
 --echo #
 --echo # Test Case 8: If gtid_binlog_pos is more recent than gtid_slave_pos,
@@ -264,48 +291,24 @@ if (`SELECT strcmp("$sql_state","") != 0`)
     die "SQL thread should not be running after START SLAVE UNTIL master_gtid_pos using a pre-existing GTID";
 }
 --echo # ..success
-#--let $status_items= Slave_SQL_Running_State,Slave_IO_State
-#--source include/show_slave_status.inc
 
 --echo # Clean slave state of master
 RESET SLAVE ALL;
 
 
 --echo #
---echo # Test Case 9: MASTER_DEMOTE_TO_SLAVE=0 should not change replication
---echo # state when gtid_binlog_pos is more recent than gtid_slave_pos
---echo #
---let $old_slave_pos= `SELECT @@gtid_slave_pos`
-set session gtid_domain_id= 0;
-INSERT INTO t1 VALUES (8);
---replace_result $SLAVE_MYPORT SLAVE_PORT
---eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SLAVE_MYPORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=0
---let $new_slave_pos= `SELECT @@gtid_slave_pos`
-
---echo # Validating gtid_slave_pos is unchanged..
-if ($old_slave_pos != $new_slave_pos)
-{
-    SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' ORDER BY VARIABLE_NAME ASC;
-    die "gtid_slave_pos should not change when MASTER_DEMOTE_TO_SLAVE=0";
-}
---echo # ..success
-
---echo # Clean slave state of master
-RESET SLAVE ALL;
-
---connection slave
---source include/start_slave.inc
-
---echo #
---echo # Test Case 10: If gtid_slave_pos is more recent than gtid_binlog_pos
+--echo # Test Case 9: If gtid_slave_pos is more recent than gtid_binlog_pos
 --echo # when demoting the master to become a slave, the replication state
 --echo # should be preserved.
 --echo #
 
---connection master
 --echo # rpl_change_master_demote.inc should force
---echo # gtid_slave_pos > gtid_binlog_pos from replication validation
+--echo # gtid_slave_pos > gtid_binlog_pos in domain 0 (due to the step which
+--echo # validates replication works)
+--connection master
 --source include/rpl_change_master_demote.inc
+
+--let $current_pos= `SELECT @@gtid_current_pos`
 
 --echo # Demote master to slave with the more recent gtid_slave_pos
 --connection master
@@ -317,13 +320,65 @@ RESET SLAVE ALL;
 --echo # Validating gtid_slave_pos is unchanged..
 if ($old_slave_pos != $new_slave_pos)
 {
-    SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' ORDER BY VARIABLE_NAME ASC;
+    SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
     die "gtid_slave_pos should not change when MASTER_DEMOTE_TO_SLAVE=0";
+}
+--echo # ..success
+
+--echo # Validating gtid_slave_pos == gtid_binlog_pos..
+if ($new_slave_pos != $current_pos)
+{
+    SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+    die gtid_slave_pos calculation after master_demote_to_slave=1 differs from gtid_current_pos;
 }
 --echo # ..success
 
 --echo # Clean slave state of master
 RESET SLAVE ALL;
+
+
+--echo #
+--echo # Test Case 10: MASTER_DEMOTE_TO_SLAVE=0 should not change replication
+--echo # state, regardless of gtid_slave_pos in comparison to gtid_binlog_pos.
+--echo #
+
+--echo # In domain 0, make gtid_slave_pos > gtid_binlog_pos
+--connection master
+--source include/rpl_change_master_demote.inc
+
+--echo # Tag gtid_slave_pos now (before binlog updates) for later comparison
+--let $old_slave_pos= `SELECT @@gtid_slave_pos`
+
+--connection master
+--echo # In domain 1, make gtid_slave_pos < gtid_binlog_pos
+set session gtid_domain_id= 1;
+INSERT INTO t2 VALUES (4);
+
+--echo # In domains 2, 3 and 4, gtid_slave_pos == gtid_binlog_pos
+
+--echo # Include a new domain id (5)
+set session gtid_domain_id= 5;
+CREATE TABLE t6 (a int);
+INSERT INTO t6 VALUES (1);
+
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' ORDER BY VARIABLE_NAME ASC;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+--eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SLAVE_MYPORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=0
+
+--echo # Validating gtid_slave_pos is unchanged..
+--let $new_slave_pos= `SELECT @@gtid_slave_pos`
+if ($old_slave_pos != $new_slave_pos)
+{
+    SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' ORDER BY VARIABLE_NAME ASC;
+    die gtid_slave_pos should not change when MASTER_DEMOTE_TO_SLAVE=0;
+}
+--echo # ..success
+
+--echo # Clean slave state of master
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+--eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SLAVE_MYPORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1
+RESET SLAVE ALL;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' ORDER BY VARIABLE_NAME ASC;
 
 
 --echo #
@@ -340,6 +395,7 @@ RESET SLAVE ALL;
 --replace_result $SLAVE_MYPORT SLAVE_PORT
 --error 4190
 --eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SLAVE_MYPORT, master_user='root', master_use_gtid=no, master_demote_to_slave=1
+
 
 --echo #
 --echo # Error Case 2: Error when MASTER_DEMOTE_TO_SLAVE=1 is used without
@@ -383,6 +439,7 @@ EOF
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
+
 --echo #
 --echo # Error Case 3: Error when MASTER_DEMOTE_TO_SLAVE is provided a
 --echo # non-boolean value.
@@ -398,7 +455,7 @@ EOF
 --echo # Cleanup
 --echo #
 --connection master
-DROP TABLE t1, t2, t3, t4;
+DROP TABLE t1, t2, t3, t4, t5, t6;
 --source include/save_master_gtid.inc
 
 --connection slave
