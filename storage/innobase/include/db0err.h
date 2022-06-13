@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -147,9 +147,6 @@ enum dberr_t {
 	DB_IO_ERROR = 100,		/*!< Generic IO error */
 
 	DB_IO_PARTIAL_FAILED,		/*!< Partial IO request failed */
-
-	DB_FORCED_ABORT,		/*!< Transaction was forced to rollback
-					by a higher priority transaction */
 
 	DB_TABLE_CORRUPT,		/*!< Table/clustered index is
 					corrupted */
