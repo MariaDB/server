@@ -5941,7 +5941,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     /* Find an optimal join order of the non-constant tables. */
     if (join->const_tables != join->table_count)
     {
-      if (choose_plan(join, all_table_map & ~join->const_table_map))
+      if (choose_plan(join, all_table_map & ~join->const_table_map, 0))
         goto error;
 
 #ifdef HAVE_valgrind
@@ -8989,6 +8989,7 @@ static void choose_initial_table_order(JOIN *join)
   @param join         pointer to the structure providing all context info for
                       the query
   @param join_tables  set of the tables in the query
+  @param emb_sjm_nest List of tables in case of materialized semi-join nest
 
   @retval
     FALSE       ok
@@ -8997,7 +8998,7 @@ static void choose_initial_table_order(JOIN *join)
 */
 
 bool
-choose_plan(JOIN *join, table_map join_tables)
+choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest)
 {
   uint search_depth= join->thd->variables.optimizer_search_depth;
   uint prune_level=  join->thd->variables.optimizer_prune_level;
@@ -9005,18 +9006,25 @@ choose_plan(JOIN *join, table_map join_tables)
          join->thd->variables.optimizer_use_condition_selectivity;
   bool straight_join= MY_TEST(join->select_options & SELECT_STRAIGHT_JOIN);
   THD *thd= join->thd;
+  qsort2_cmp jtab_sort_func;
   DBUG_ENTER("choose_plan");
 
   join->cur_embedding_map= 0;
   reset_nj_counters(join, join->join_list);
-  qsort2_cmp jtab_sort_func;
 
-  if (join->emb_sjm_nest)
+  if ((join->emb_sjm_nest= emb_sjm_nest))
   {
     /* We're optimizing semi-join materialization nest, so put the 
        tables from this semi-join as first
     */
     jtab_sort_func= join_tab_cmp_embedded_first;
+    /*
+      If we are searching for the execution plan of a materialized semi-join
+      nest then allowed_tables contains bits only for the tables from this
+      nest.
+    */
+    join->allowed_tables= (join->emb_sjm_nest->sj_inner_tables &
+                           ~join->const_table_map);
   }
   else
   {
@@ -9029,6 +9037,7 @@ choose_plan(JOIN *join, table_map join_tables)
         of records accessed.
     */
     jtab_sort_func= straight_join ? join_tab_cmp_straight : join_tab_cmp;
+    join->allowed_tables= ~join->const_table_map;
   }
 
   /*
@@ -9039,15 +9048,14 @@ choose_plan(JOIN *join, table_map join_tables)
   */
   my_qsort2(join->best_ref + join->const_tables,
             join->table_count - join->const_tables, sizeof(JOIN_TAB*),
-            jtab_sort_func, (void*)join->emb_sjm_nest);
+            jtab_sort_func, (void*) emb_sjm_nest);
 
   Json_writer_object wrapper(thd);
   Json_writer_array trace_plan(thd,"considered_execution_plans");
 
-  if (!join->emb_sjm_nest)
-  {
+  if (!emb_sjm_nest)
     choose_initial_table_order(join);
-  }
+
   join->cur_sj_inner_tables= 0;
 
   if (straight_join)
@@ -9073,6 +9081,8 @@ choose_plan(JOIN *join, table_map join_tables)
   */
   if (join->thd->lex->is_single_level_stmt())
     join->thd->status_var.last_query_cost= join->best_read;
+
+  join->emb_sjm_nest= 0;
   DBUG_RETURN(FALSE);
 }
 
@@ -9478,14 +9488,14 @@ greedy_search(JOIN      *join,
   // ==join->tables or # tables in the sj-mat nest we're optimizing
   uint      n_tables __attribute__((unused));
   DBUG_ENTER("greedy_search");
+  DBUG_ASSERT(!(remaining_tables & join->const_table_map));
 
   /* number of tables that remain to be optimized */
   n_tables= size_remain= my_count_bits(remaining_tables &
-                                       (join->emb_sjm_nest? 
-                                         (join->emb_sjm_nest->sj_inner_tables &
-                                          ~join->const_table_map)
-                                         :
-                                         ~(table_map)0));
+                                       (join->emb_sjm_nest ?
+                                        (join->emb_sjm_nest->sj_inner_tables &
+                                         ~join->const_table_map) :
+                                        ~(table_map)0));
 
   do {
     /* Find the extension of the current QEP with the lowest cost */
@@ -10276,28 +10286,21 @@ best_extension_by_limited_search(JOIN      *join,
   double best_record_count= DBL_MAX;
   double best_read_time=    DBL_MAX;
   bool disable_jbuf= join->thd->variables.join_cache_level == 0;
-  table_map allowed_tables= ~(table_map) 0;
 
   DBUG_EXECUTE("opt", print_plan(join, idx, record_count, read_time, read_time,
                                 "part_plan"););
   if (unlikely(thd->check_killed()))  // Abort
     DBUG_RETURN(TRUE);
 
-  /* 
-    If we are searching for the execution plan of a materialized semi-join nest
-    then allowed_tables contains bits only for the tables from this nest.
-  */
-  if (join->emb_sjm_nest)
-    allowed_tables= (join->emb_sjm_nest->sj_inner_tables &
-                     ~join->const_table_map);
-
   for (JOIN_TAB **pos= join->best_ref + idx ; (s= *pos) ; pos++)
   {
     table_map real_table_bit= s->table->map;
-    if ((remaining_tables & real_table_bit) &&
-        (allowed_tables & real_table_bit) &&
+    DBUG_ASSERT(remaining_tables & real_table_bit);
+    DBUG_ASSERT(real_table_bit & ~join->const_table_map);
+
+    if ((join->allowed_tables & real_table_bit) &&
         !(remaining_tables & s->dependent) &&
-        (!idx || !check_interleaving_with_nj(s)))
+        !check_interleaving_with_nj(s))
     {
       double current_record_count, current_read_time;
       double partial_join_cardinality;
@@ -10356,7 +10359,7 @@ best_extension_by_limited_search(JOIN      *join,
           if (best_record_count >= current_record_count &&
               best_read_time >= current_read_time &&
               /* TODO: What is the reasoning behind this condition? */
-              (!(s->key_dependent & allowed_tables & remaining_tables) ||
+              (!(s->key_dependent & join->allowed_tables & remaining_tables) ||
                join->positions[idx].records_read < 2.0))
           {
             best_record_count= current_record_count;
@@ -10396,7 +10399,7 @@ best_extension_by_limited_search(JOIN      *join,
       }
 
       if (search_depth > 1 && ((remaining_tables & ~real_table_bit) &
-                               allowed_tables))
+                               join->allowed_tables))
       { /* Recursively expand the current partial plan */
         swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
         Json_writer_array trace_rest(thd, "rest_of_plan");
@@ -17678,10 +17681,12 @@ static bool check_interleaving_with_nj(JOIN_TAB *next_tab)
         join->cur_embedding_map |= next_emb->nested_join->nj_map;
       }
       
+      DBUG_ASSERT(next_emb->nested_join->n_tables >=
+                  next_emb->nested_join->counter);
+
       if (next_emb->nested_join->n_tables !=
           next_emb->nested_join->counter)
         break;
-
       /*
         We're currently at Y or Z-bracket as depicted in the above picture.
         Mark that we've left it and continue walking up the brackets hierarchy.
@@ -29125,7 +29130,7 @@ JOIN::reoptimize(Item *added_where, table_map join_tables,
     return REOPT_ERROR;
 
   /* Re-run the join optimizer to compute a new query plan. */
-  if (choose_plan(this, join_tables))
+  if (choose_plan(this, join_tables, 0))
     return REOPT_ERROR;
 
   return REOPT_NEW_PLAN;
