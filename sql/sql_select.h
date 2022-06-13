@@ -1295,9 +1295,15 @@ public:
     Bitmap of inner tables of semi-join nests that have a proper subset of
     their tables in the current join prefix. That is, of those semi-join
     nests that have their tables both in and outside of the join prefix.
+    (Note: tables that are constants but have not been pulled out of semi-join
+    nests are not considered part of semi-join nests)
   */
   table_map cur_sj_inner_tables;
-  
+
+#ifndef DBUG_OFF
+  void dbug_verify_sj_inner_tables(uint n_positions) const;
+#endif
+
   /* We also maintain a stack of join optimization states in * join->positions[] */
 /******* Join optimization state members end *******/
 
