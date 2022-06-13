@@ -1381,6 +1381,7 @@ use test;
 
 # Create user without sufficient privs to perform the requested operation
 create user mysqltest_1@localhost;
+grant all on test.* to  mysqltest_1@localhost;
 create table t1(a int, b varchar(34));
 
 # To get consistent output, reset the master, starts over from first log
@@ -2696,6 +2697,8 @@ drop tables t2, t1;
 --echo # (work around for MDEV-20939)
 --echo #
 
+create user a;
+grant SELECT on test.* to  a;
 use mysql;
 
 --echo # check that all tables we need are not empty
@@ -2721,6 +2724,7 @@ let SEARCH_PATTERN=CREATE TABLE `proc`;
 source include/search_pattern_in_file.inc;
 
 --remove_file $MYSQLTEST_VARDIR/tmp/MDEV-20939.sql
+drop user a;
 use test;
 
 --echo # End of 10.1 tests

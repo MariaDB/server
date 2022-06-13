@@ -7,7 +7,7 @@ SELECT @@global.tx_isolation;
 @@global.tx_isolation
 REPEATABLE-READ
 # keep_locks == 1
-GRANT USAGE ON test.* TO mysqltest@localhost;
+GRANT ALL ON test.* TO mysqltest@localhost;
 
 **
 ** two UPDATE's running and both changing distinct result sets

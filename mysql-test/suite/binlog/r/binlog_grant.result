@@ -2,9 +2,11 @@ connection default;
 reset master;
 set @saved_binlog_format = @@global.binlog_format;
 create user mysqltest_1@localhost;
+GRANT SELECT on test.* to mysqltest_1@localhost;
 show grants for mysqltest_1@localhost;
 Grants for mysqltest_1@localhost
 GRANT USAGE ON *.* TO `mysqltest_1`@`localhost`
+GRANT SELECT ON `test`.* TO `mysqltest_1`@`localhost`
 connect  plain,localhost,mysqltest_1,,test;
 connect  root,localhost,root,,test;
 **** Variable SQL_LOG_BIN ****
@@ -34,7 +36,7 @@ set global binlog_format = @saved_binlog_format;
 drop user mysqltest_1@localhost;
 CREATE USER 'mysqltest_1'@'localhost';
 GRANT REPLICATION CLIENT ON *.* TO 'mysqltest_1'@'localhost';
-connect rpl,localhost,mysqltest_1,,;
+connect rpl,localhost,mysqltest_1,,"*NO-ONE*";
 connection rpl;
 SHOW MASTER LOGS;
 SHOW BINARY LOGS;
@@ -88,7 +90,7 @@ DROP USER user1@localhost;
 # Test if PURGE BINLOG is allowed with BINLOG ADMIN
 CREATE USER user1@localhost;
 GRANT BINLOG ADMIN ON *.* TO user1@localhost;
-connect user1,localhost,user1,,;
+connect user1,localhost,user1,,"*NO-ONE*";
 connection user1;
 PURGE BINARY LOGS BEFORE '2001-01-01 00:00:00';
 disconnect user1;
@@ -97,7 +99,7 @@ DROP USER user1@localhost;
 # Test if PURGE BINLOG is allowed with SUPER
 CREATE USER user1@localhost;
 GRANT SUPER ON *.* TO user1@localhost;
-connect user1,localhost,user1,,;
+connect user1,localhost,user1,,"*NO-ONE*";
 connection user1;
 PURGE BINARY LOGS BEFORE '2001-01-01 00:00:00';
 disconnect user1;
@@ -117,7 +119,7 @@ DROP USER user1@localhost;
 # Test if SHOW BINLOG EVENTS is allowed with BINLOG MONITOR
 CREATE USER user1@localhost;
 GRANT BINLOG MONITOR ON *.* TO user1@localhost;
-connect user1,localhost,user1,,;
+connect user1,localhost,user1,,"*NO-ONE*";
 connection user1;
 SHOW BINLOG EVENTS;
 disconnect user1;
@@ -132,6 +134,7 @@ DROP USER user1@localhost;
 #
 CREATE USER user1@localhost;
 GRANT BINLOG REPLAY ON *.* TO user1@localhost;
+GRANT ALL ON test.* TO user1@localhost;
 RESET MASTER;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2),(3);

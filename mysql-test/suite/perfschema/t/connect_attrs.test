@@ -45,7 +45,7 @@ SELECT COUNT(DISTINCT PROCESSLIST_ID)
 
 CREATE USER wl5924@localhost;
 
-connect(non_privileged_user,localhost,wl5924,,test);
+connect(non_privileged_user,localhost,wl5924,,"*NO-ONE*");
 connection default;
 
 --echo # must return 1

@@ -3727,6 +3727,7 @@ use test;
 # Bug#21215 mysqldump creating incomplete backups without warning
 #
 create user mysqltest_1@localhost;
+grant all on test.* to  mysqltest_1@localhost;
 create table t1(a int, b varchar(34));
 reset master;
 mysqldump: Couldn't execute 'FLUSH /*!40101 LOCAL */ TABLES': Access denied; you need (at least one of) the RELOAD privilege(s) for this operation (1227)
@@ -5784,6 +5785,8 @@ drop tables t2, t1;
 # MDEV-22037: Add ability to skip content of some tables
 # (work around for MDEV-20939)
 #
+create user a;
+grant SELECT on test.* to  a;
 use mysql;
 # check that all tables we need are not empty
 select count(*) >=  1 from  mysql.proc;
@@ -5797,6 +5800,7 @@ FOUND 1 /INSERT INTO `proc`/ in MDEV-20939.sql
 NOT FOUND /INSERT INTO `db`/ in MDEV-20939.sql
 FOUND 1 /CREATE TABLE `db`/ in MDEV-20939.sql
 FOUND 1 /CREATE TABLE `proc`/ in MDEV-20939.sql
+drop user a;
 use test;
 # End of 10.1 tests
 #

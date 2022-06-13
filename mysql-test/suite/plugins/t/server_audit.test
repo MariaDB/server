@@ -200,7 +200,7 @@ connect(plug_con,localhost,plug,plug_dest);
 --sleep 2
 GRANT PROXY ON plug_dest TO plug;
 --sleep 2
-connect(plug_con,localhost,plug,plug_dest);
+connect(plug_con,localhost,plug,plug_dest,"*NO-ONE*");
 connection plug_con;
 select USER(),CURRENT_USER();
 connection default;

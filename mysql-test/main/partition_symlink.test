@@ -77,6 +77,7 @@ DROP TABLE t1, t2;
 -- echo # user root:
 --disable_service_connection
   CREATE USER mysqltest_1@localhost;
+  GRANT ALL ON test.* to mysqltest_1@localhost;
   CREATE DATABASE mysqltest2;
   USE mysqltest2;
   CREATE TABLE t1 (a INT) ENGINE = MyISAM;

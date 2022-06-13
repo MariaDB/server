@@ -24,7 +24,8 @@ show grants for test_noprivs@localhost;
 Grants for test_noprivs@localhost
 GRANT USAGE ON *.* TO `test_noprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
 GRANT SELECT, INSERT ON `priv_db`.* TO `test_noprivs`@`localhost`
-connect  yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  yes_privs,localhost,test_yesprivs,PWD,priv_db,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection yes_privs;
 
 no trigger privilege on db level for create:
 --------------------------------------------
@@ -32,8 +33,8 @@ use priv_db;
 create trigger trg1_1 before INSERT on t1 for each row
 set new.f1 = 'trig 1_1-no';
 ERROR 42000: TRIGGER command denied to user 'test_yesprivs'@'localhost' for table `priv_db`.`t1`
-connect  no_privs,localhost,test_noprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
-use priv_db;
+connect  no_privs,localhost,test_noprivs,PWD,priv_db,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection no_privs;
 insert into t1 (f1) values ('insert-yes');
 select f1 from t1 order by f1;
 f1
@@ -271,8 +272,10 @@ revoke ALL PRIVILEGES, GRANT OPTION FROM test_yesprivs@localhost;
 create User test_noprivs@localhost;
 set password for test_noprivs@localhost = password('PWD');
 revoke ALL PRIVILEGES, GRANT OPTION FROM test_noprivs@localhost;
-connect  yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
-connect  no_privs,localhost,test_noprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  yes_privs,localhost,test_yesprivs,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK;
+connection yes_privs;
+connect  no_privs,localhost,test_noprivs,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK;
+connection no_privs;
 
 no trigger privilege on table level for create:
 -----------------------------------------------
@@ -824,10 +827,8 @@ Grants for test_noprivs@localhost
 GRANT USAGE ON *.* TO `test_noprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
 GRANT SELECT, INSERT, UPDATE ON `priv1_db`.* TO `test_noprivs`@`localhost`
 GRANT SELECT, INSERT ON `priv2_db`.* TO `test_noprivs`@`localhost`
-connect  yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
-use priv1_db;
-connect  no_privs,localhost,test_noprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
-use priv1_db;
+connect  yes_privs,localhost,test_yesprivs,PWD,priv1_db,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  no_privs,localhost,test_noprivs,PWD,priv1_db,$MASTER_MYPORT,$MASTER_MYSOCK;
 
 trigger privilege on one db1 db level, not on db2
 -------------------------------------------------
@@ -1055,7 +1056,8 @@ create User test_useprivs@localhost;
 set password for test_useprivs@localhost = password('PWD');
 revoke ALL PRIVILEGES, GRANT OPTION FROM test_yesprivs@localhost;
 revoke ALL PRIVILEGES, GRANT OPTION FROM test_useprivs@localhost;
-connect  yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  yes_privs,localhost,test_yesprivs,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK;
+connection yes_privs;
 connection default;
 select current_user;
 current_user
@@ -1085,11 +1087,11 @@ select f1 from t1 order by f1;
 f1
 trig 1_1-yes
 prepare ins1 from 'insert into t1 (f1) values (''insert2-no'')';
-connect  use_privs,localhost,test_useprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  use_privs,localhost,test_useprivs,PWD,priv_db,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection use_privs;
 select current_user;
 current_user
 test_useprivs@localhost
-use priv_db;
 prepare ins1 from 'insert into t1 (f1) values (''insert3-no'')';
 execute ins1;
 select f1 from t1 order by f1;
@@ -1301,7 +1303,8 @@ create table t1 (f1 char(20)) engine= innodb;
 create User test_yesprivs@localhost;
 set password for test_yesprivs@localhost = password('PWD');
 revoke ALL PRIVILEGES, GRANT OPTION FROM test_yesprivs@localhost;
-connect  yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  yes_privs,localhost,test_yesprivs,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK;
+connection yes_privs;
 connection default;
 select current_user;
 current_user
@@ -1407,7 +1410,6 @@ create table t1 (f1 char(20)) engine= innodb;
 create User test_yesprivs@localhost;
 set password for test_yesprivs@localhost = password('PWD');
 revoke ALL PRIVILEGES, GRANT OPTION FROM test_yesprivs@localhost;
-connect  yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection default;
 select current_user;
 current_user
@@ -1418,11 +1420,11 @@ show grants for test_yesprivs@localhost;
 Grants for test_yesprivs@localhost
 GRANT USAGE ON *.* TO `test_yesprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
 GRANT SELECT, INSERT, UPDATE, TRIGGER ON `priv_db`.`t1` TO `test_yesprivs`@`localhost`
+connect  yes_privs,localhost,test_yesprivs,PWD,priv_db,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection yes_privs;
 select current_user;
 current_user
 test_yesprivs@localhost
-use priv_db;
 set autocommit=0;
 create definer=current_user trigger trg1_1
 before INSERT on t1 for each row
@@ -1484,8 +1486,10 @@ show grants for test_noprivs@localhost;
 Grants for test_noprivs@localhost
 GRANT USAGE ON *.* TO `test_noprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
 GRANT SELECT, UPDATE ON `priv_db`.* TO `test_noprivs`@`localhost`
-connect  yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
-connect  no_privs,localhost,test_noprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  yes_privs,localhost,test_yesprivs,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK;
+connection yes_privs;
+connect  no_privs,localhost,test_noprivs,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK;
+connection no_privs;
 
 update only on column:
 ----------------------
