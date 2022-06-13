@@ -95,7 +95,6 @@ When one supplies long data for a placeholder:
 #include "sql_base.h"  // open_normal_and_derived_tables
 #include "sql_cache.h"                          // query_cache_*
 #include "sql_view.h"                          // create_view_precheck
-#include "sql_delete.h"                        // mysql_prepare_delete
 #include "sql_select.h" // for JOIN
 #include "sql_insert.h" // upgrade_lock_type_for_insert, mysql_prepare_insert
 #include "sql_db.h"     // mysql_opt_change_db, mysql_change_db
@@ -1398,56 +1397,6 @@ static bool mysql_test_insert(Prepared_statement *stmt,
 }
 
 
-/**
-  Validate DELETE statement.
-
-  @param stmt               prepared statement
-  @param tables             list of tables used in this query
-
-  @retval
-    FALSE             success
-  @retval
-    TRUE              error, error message is set in THD
-*/
-
-static bool mysql_test_delete(Prepared_statement *stmt,
-                              TABLE_LIST *table_list)
-{
-  uint table_count= 0;
-  THD *thd= stmt->thd;
-  LEX *lex= stmt->lex;
-  bool delete_while_scanning;
-  DBUG_ENTER("mysql_test_delete");
-
-  if (delete_precheck(thd, table_list) ||
-      open_tables(thd, &table_list, &table_count, MYSQL_OPEN_FORCE_SHARED_MDL))
-    goto error;
-
-  if (mysql_handle_derived(thd->lex, DT_INIT))
-    goto error;
-  if (mysql_handle_derived(thd->lex, DT_MERGE_FOR_INSERT))
-    goto error;
-  if (mysql_handle_derived(thd->lex, DT_PREPARE))
-    goto error;
-
-  if (!table_list->single_table_updatable())
-  {
-    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "DELETE");
-    goto error;
-  }
-  if (!table_list->table || !table_list->table->is_created())
-  {
-    my_error(ER_VIEW_DELETE_MERGE_VIEW, MYF(0),
-             table_list->view_db.str, table_list->view_name.str);
-    goto error;
-  }
-
-  DBUG_RETURN(mysql_prepare_delete(thd, table_list,
-                                   &lex->first_select_lex()->where,
-                                   &delete_while_scanning));
-error:
-  DBUG_RETURN(TRUE);
-}
 
 
 /**
@@ -2031,48 +1980,6 @@ err:
 
 
 /**
-  Validate and prepare for execution a multi delete statement.
-
-  @param stmt               prepared statement
-  @param tables             list of tables used in this query
-
-  @retval
-    FALSE             success
-  @retval
-    TRUE              error, error message in THD is set.
-*/
-
-static bool mysql_test_multidelete(Prepared_statement *stmt,
-                                  TABLE_LIST *tables)
-{
-  THD *thd= stmt->thd;
-
-  thd->lex->current_select= thd->lex->first_select_lex();
-  if (add_item_to_list(thd, new (thd->mem_root)
-                       Item_null(thd)))
-  {
-    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 0);
-    goto error;
-  }
-
-  if (multi_delete_precheck(thd, tables) ||
-      select_like_stmt_test_with_open(stmt, tables,
-                                      &mysql_multi_delete_prepare,
-                                      OPTION_SETUP_TABLES_DONE))
-    goto error;
-  if (!tables->table)
-  {
-    my_error(ER_VIEW_DELETE_MERGE_VIEW, MYF(0),
-             tables->view_db.str, tables->view_name.str);
-    goto error;
-  }
-  return FALSE;
-error:
-  return TRUE;
-}
-
-
-/**
   Wrapper for mysql_insert_select_prepare, to make change of local tables
   after open_normal_and_derived_tables() call.
 
@@ -2354,14 +2261,13 @@ static bool check_prepared_statement(Prepared_statement *stmt)
 
   case SQLCOM_UPDATE:
   case SQLCOM_UPDATE_MULTI:
+  case SQLCOM_DELETE:
+  case SQLCOM_DELETE_MULTI:
     res = lex->m_sql_cmd->prepare(thd);
     if (!res)
       lex->m_sql_cmd->unprepare(thd);
     break;
 
-  case SQLCOM_DELETE:
-    res= mysql_test_delete(stmt, tables);
-    break;
   /* The following allow WHERE clause, so they must be tested like SELECT */
   case SQLCOM_SHOW_DATABASES:
   case SQLCOM_SHOW_TABLES:
@@ -2496,10 +2402,6 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     break;
   case SQLCOM_SET_OPTION:
     res= mysql_test_set_fields(stmt, tables, &lex->var_list);
-    break;
-
-  case SQLCOM_DELETE_MULTI:
-    res= mysql_test_multidelete(stmt, tables);
     break;
 
   case SQLCOM_INSERT_SELECT:

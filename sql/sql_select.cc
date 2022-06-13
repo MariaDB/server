@@ -28846,7 +28846,8 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
   @note
     This function takes into account table->opt_range_condition_rows statistic
     (that is calculated by the make_join_statistics function).
-    However, single table procedures such as mysql_update() and mysql_delete()
+    However, single table procedures such as Sql_cmd_update:update_single_table()
+    and Sql_cmd_delete::delete_single_table()
     never call make_join_statistics, so they have to update it manually
     (@see get_index_for_order()).
 */
@@ -30280,6 +30281,67 @@ static bool process_direct_rownum_comparison(THD *thd, SELECT_LEX_UNIT *unit,
 }
 
 
+static void MYSQL_DML_START(THD *thd)
+{
+  switch (thd->lex->sql_command) {
+
+  case SQLCOM_UPDATE:
+    MYSQL_UPDATE_START(thd->query());
+    break;
+  case SQLCOM_UPDATE_MULTI:
+    MYSQL_MULTI_UPDATE_START(thd->query());
+    break;
+  case SQLCOM_DELETE:
+    MYSQL_DELETE_START(thd->query());
+    break;
+  case SQLCOM_DELETE_MULTI:
+    MYSQL_MULTI_DELETE_START(thd->query());
+    break;
+  default:
+    DBUG_ASSERT(0);
+  }
+}
+
+
+static void MYSQL_DML_DONE(THD *thd, int rc)
+{
+  switch (thd->lex->sql_command) {
+
+  case SQLCOM_UPDATE:
+    MYSQL_UPDATE_DONE(
+    rc,
+    (rc ? 0 :
+     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
+     ->num_found()),
+    (rc ? 0 :
+     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
+     ->num_updated()));
+    break;
+  case SQLCOM_UPDATE_MULTI:
+    MYSQL_MULTI_UPDATE_DONE(
+    rc,
+    (rc ? 0 :
+     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
+     ->num_found()),
+    (rc ? 0 :
+     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
+     ->num_updated()));
+    break;
+  case SQLCOM_DELETE:
+    MYSQL_DELETE_DONE(rc, (rc ? 0 : (ulong) (thd->get_row_count_func())));
+    break;
+  case SQLCOM_DELETE_MULTI:
+    MYSQL_MULTI_DELETE_DONE(
+    rc,
+    (rc ? 0 :
+     ((multi_delete*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
+     ->num_deleted()));
+    break;
+  default:
+    DBUG_ASSERT(0);
+  }
+}
+
 bool Sql_cmd_dml::prepare(THD *thd)
 {
   lex= thd->lex;
@@ -30290,6 +30352,8 @@ bool Sql_cmd_dml::prepare(THD *thd)
   // Perform a coarse statement-specific privilege check.
   if (precheck(thd))
      goto err;
+
+  MYSQL_DML_START(thd);
 
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
 
@@ -30338,6 +30402,9 @@ bool Sql_cmd_dml::execute(THD *thd)
   {
     if (precheck(thd))
       goto err;
+
+    MYSQL_DML_START(thd);
+
     if (open_tables_for_query(thd, lex->query_tables, &table_count, 0,
                               get_dml_prelocking_strategy()))
       goto err;
@@ -30345,7 +30412,6 @@ bool Sql_cmd_dml::execute(THD *thd)
 
   THD_STAGE_INFO(thd, stage_init);
 
-  DBUG_ASSERT(!lex->is_query_tables_locked());
   /*
     Locking of tables is done after preparation but before optimization.
     This allows to do better partition pruning and avoid locking unused
@@ -30373,10 +30439,13 @@ bool Sql_cmd_dml::execute(THD *thd)
 
   THD_STAGE_INFO(thd, stage_end);
 
+  MYSQL_DML_DONE(thd, res);
+
   return res;
 
 err:
   DBUG_ASSERT(thd->is_error() || thd->killed);
+  MYSQL_DML_DONE(thd, 1);
   THD_STAGE_INFO(thd, stage_end);
   (void)unit->cleanup();
 

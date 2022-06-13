@@ -197,21 +197,10 @@ static bool check_fields(THD *thd, TABLE_LIST *table, List<Item> &items,
 
       return true;
     }
-    DBUG_ASSERT(thd->lex->sql_command == SQLCOM_UPDATE);
-    for (List_iterator_fast<Item> it(items); (item=it++);)
-    {
-      Field *f= item->field_for_view_update()->field;
-      vers_select_conds_t &period= table->period_conditions;
-      if (period.field_start->field == f || period.field_end->field == f)
-      {
-        my_error(ER_PERIOD_COLUMNS_UPDATED, MYF(0),
-                 item->name.str, period.name.str);
-        return true;
-      }
-    }
   }
   return FALSE;
 }
+
 
 bool TABLE::vers_check_update(List<Item> &items)
 {
@@ -655,8 +644,8 @@ bool Sql_cmd_update::update_single_table(THD *thd)
     }
 
     if (use_direct_update &&
-        !table->file->info_push(INFO_KIND_UPDATE_FIELDS, &fields) &&
-        !table->file->info_push(INFO_KIND_UPDATE_VALUES, &values) &&
+        !table->file->info_push(INFO_KIND_UPDATE_FIELDS, fields) &&
+        !table->file->info_push(INFO_KIND_UPDATE_VALUES, values) &&
         !table->file->direct_update_rows_init(fields))
     {
       do_direct_update= TRUE;
@@ -1240,6 +1229,9 @@ update_end:
     thd->lex->current_select->save_leaf_tables(thd);
     thd->lex->current_select->first_cond_optimization= 0;
   }
+  ((multi_update *)result)->set_found(found);
+  ((multi_update *)result)->set_updated(updated);
+
   if (unlikely(thd->lex->analyze_stmt))
     goto emit_explain_and_leave;
 
@@ -1271,75 +1263,6 @@ emit_explain_and_leave:
   DBUG_RETURN((err2 || thd->is_error()) ? 1 : 0);
 }
 
-/*
-  Prepare items in UPDATE statement
-
-  SYNOPSIS
-    mysql_prepare_update()
-    thd			- thread handler
-    table_list		- global/local table list
-    conds		- conditions
-    order_num		- number of ORDER BY list entries
-    order		- ORDER BY clause list
-
-  RETURN VALUE
-    FALSE OK
-    TRUE  error
-*/
-bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
-			 Item **conds, uint order_num, ORDER *order)
-{
-  Item *fake_conds= 0;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  TABLE *table= table_list->table;
-#endif
-  List<Item> all_fields;
-  SELECT_LEX *select_lex= thd->lex->first_select_lex();
-  DBUG_ENTER("mysql_prepare_update");
-
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  table_list->grant.want_privilege= table->grant.want_privilege= 
-    (SELECT_ACL & ~table->grant.privilege);
-  table_list->register_want_access(SELECT_ACL);
-#endif
-
-  thd->lex->allow_sum_func.clear_all();
-
-  if (table_list->has_period() &&
-      select_lex->period_setup_conds(thd, table_list))
-      DBUG_RETURN(true);
-
-  DBUG_ASSERT(table_list->table);
-  // conds could be cached from previous SP call
-  DBUG_ASSERT(!table_list->vers_conditions.need_setup() ||
-              !*conds || thd->stmt_arena->is_stmt_execute());
-  if (select_lex->vers_setup_conds(thd, table_list))
-    DBUG_RETURN(TRUE);
-
-  *conds= select_lex->where;
-
-  /*
-    We do not call DT_MERGE_FOR_INSERT because it has no sense for simple
-    (not multi-) update
-  */
-  if (mysql_handle_derived(thd->lex, DT_PREPARE))
-    DBUG_RETURN(TRUE);
-
-  if (setup_tables_and_check_access(thd, &select_lex->context, 
-                                    &select_lex->top_join_list, table_list,
-                                    select_lex->leaf_tables,
-                                    FALSE, UPDATE_ACL, SELECT_ACL, TRUE) ||
-      setup_conds(thd, table_list, select_lex->leaf_tables, conds) ||
-      select_lex->setup_ref_array(thd, order_num) ||
-      setup_order(thd, select_lex->ref_pointer_array,
-		  table_list, all_fields, all_fields, order) ||
-      setup_ftfuncs(select_lex))
-    DBUG_RETURN(TRUE);
-
-
-  select_lex->fix_prepare_information(thd, conds, &fake_conds);
-  DBUG_RETURN(FALSE);
-}
 
 /**
   Check that we are not using table that we are updating in a sub select
@@ -1596,7 +1519,13 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
       mysql_handle_derived(lex, DT_PREPARE))
     DBUG_RETURN(1);
 
-  /*
+  if (table_list->has_period() && table_list->is_view_or_derived())
+  {
+    my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
+    DBUG_RETURN(TRUE);
+  }
+
+   /*
     setup_tables() need for VIEWs. JOIN::prepare() will call setup_tables()
     second time, but this call will do nothing (there are check for second
     call in setup_tables()).
@@ -1606,6 +1535,10 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
       &select_lex->top_join_list, table_list, select_lex->leaf_tables,
       FALSE, UPDATE_ACL, SELECT_ACL, TRUE))
     DBUG_RETURN(1);
+
+  if (table_list->has_period() &&
+      select_lex->period_setup_conds(thd, table_list))
+    DBUG_RETURN(true);
 
   List<Item> *fields= &lex->first_select_lex()->item_list;
   if (setup_fields_with_no_wrap(thd, Ref_ptr_array(),
@@ -1713,153 +1646,6 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
   }
 
   DBUG_RETURN(0);
-}
-
-/*
-  make update specific preparation and checks after opening tables
-
-  SYNOPSIS
-    mysql_multi_update_prepare()
-    thd         thread handler
-
-  RETURN
-    FALSE OK
-    TRUE  Error
-*/
-
-int mysql_multi_update_prepare(THD *thd)
-{
-  LEX *lex= thd->lex;
-  TABLE_LIST *table_list= lex->query_tables;
-  TABLE_LIST *tl;
-  Multiupdate_prelocking_strategy prelocking_strategy;
-  uint table_count= lex->table_count;
-  DBUG_ENTER("mysql_multi_update_prepare");
-
-  /*
-    Open tables and create derived ones, but do not lock and fill them yet.
-
-    During prepare phase acquire only S metadata locks instead of SW locks to
-    keep prepare of multi-UPDATE compatible with concurrent LOCK TABLES WRITE
-    and global read lock.
-
-    Don't evaluate any subqueries even if constant, because
-    tables aren't locked yet.
-  */
-  lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
-  if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI)
-  {
-    if (open_tables(thd, &table_list, &table_count,
-        thd->stmt_arena->is_stmt_prepare() ? MYSQL_OPEN_FORCE_SHARED_MDL : 0,
-        &prelocking_strategy))
-      DBUG_RETURN(TRUE);
-  }
-  else
-  {
-    /* following need for prepared statements, to run next time multi-update */
-    thd->lex->sql_command= SQLCOM_UPDATE_MULTI;
-    prelocking_strategy.reset(thd);
-    if (prelocking_strategy.handle_end(thd))
-      DBUG_RETURN(TRUE);
-  }
-
-  /* now lock and fill tables */
-  if (!thd->stmt_arena->is_stmt_prepare() &&
-      lock_tables(thd, table_list, table_count, 0))
-    DBUG_RETURN(TRUE);
-
-  lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_DERIVED;
-
-  (void) read_statistics_for_tables_if_needed(thd, table_list);
-  /* @todo: downgrade the metadata locks here. */
-
-  /*
-    Check that we are not using table that we are updating, but we should
-    skip all tables of UPDATE SELECT itself
-  */
-  lex->first_select_lex()->exclude_from_table_unique_test= TRUE;
-  /* We only need SELECT privilege for columns in the values list */
-  List_iterator<TABLE_LIST> ti(lex->first_select_lex()->leaf_tables);
-  while ((tl= ti++))
-  {
-    if (tl->is_jtbm())
-      continue;
-    TABLE *table= tl->table;
-    TABLE_LIST *tlist;
-    if (!(tlist= tl->top_table())->derived)
-    {
-      tlist->grant.want_privilege=
-        (SELECT_ACL & ~tlist->grant.privilege);
-      table->grant.want_privilege= (SELECT_ACL & ~table->grant.privilege);
-    }
-    DBUG_PRINT("info", ("table: %s  want_privilege: %llx", tl->alias.str,
-                        (longlong) table->grant.want_privilege));
-  }
-  /*
-    Set exclude_from_table_unique_test value back to FALSE. It is needed for
-    further check in multi_update::prepare whether to use record cache.
-  */
-  lex->first_select_lex()->exclude_from_table_unique_test= FALSE;
-
-  if (lex->save_prep_leaf_tables())
-    DBUG_RETURN(TRUE);
-
-  DBUG_RETURN (FALSE);
-}
-
-
-/*
-  Setup multi-update handling and call SELECT to do the join
-*/
-
-bool mysql_multi_update(THD *thd, TABLE_LIST *table_list, List<Item> *fields,
-                        List<Item> *values, COND *conds, ulonglong options,
-                        enum enum_duplicates handle_duplicates,
-                        bool ignore, SELECT_LEX_UNIT *unit,
-                        SELECT_LEX *select_lex, multi_update **result)
-{
-  bool res;
-  DBUG_ENTER("mysql_multi_update");
-
-  if (!(*result= new (thd->mem_root) multi_update(thd, table_list,
-                                 &thd->lex->first_select_lex()->leaf_tables,
-                                 fields, values, handle_duplicates, ignore)))
-  {
-    DBUG_RETURN(TRUE);
-  }
-
-  if ((*result)->init(thd))
-    DBUG_RETURN(1);
-
-  thd->abort_on_warning= !ignore && thd->is_strict_mode();
-  List<Item> total_list;
-
-  if (setup_tables(thd, &select_lex->context, &select_lex->top_join_list,
-                   table_list, select_lex->leaf_tables, FALSE, FALSE))
-    DBUG_RETURN(1);
-
-  if (select_lex->vers_setup_conds(thd, table_list))
-    DBUG_RETURN(1);
-
-  res= mysql_select(thd,
-                    table_list, total_list, conds,
-                    select_lex->order_list.elements,
-                    select_lex->order_list.first, NULL, NULL, NULL,
-                    options | SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK |
-                    OPTION_SETUP_TABLES_DONE,
-                    *result, unit, select_lex);
-
-  DBUG_PRINT("info",("res: %d  report_error: %d", res, (int) thd->is_error()));
-  res|= thd->is_error();
-  if (unlikely(res))
-    (*result)->abort_result_set();
-  else
-  {
-    if (thd->lex->describe || thd->lex->analyze_stmt)
-      res= thd->lex->explain->send_explain(thd);
-  }
-  thd->abort_on_warning= 0;
-  DBUG_RETURN(res);
 }
 
 
@@ -3021,7 +2807,15 @@ bool Sql_cmd_update::precheck(THD *thd)
     if (multi_update_precheck(thd, lex->query_tables))
       return true;
   }
+
+  WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
+
   return false;
+
+#ifdef WITH_WSREP
+wsrep_error_label:
+#endif
+  return true;
 }
 
 
@@ -3029,26 +2823,31 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
 {
   JOIN *join;
   int err= 0;
-  //  uint table_cnt= 0;
   SELECT_LEX *const select_lex = thd->lex->first_select_lex();
   TABLE_LIST *const table_list = select_lex->get_table_list();
   ulonglong select_options= select_lex->options;
   bool free_join= 1;
-  //  bool orig_multitable= multitable;
   DBUG_ENTER("Sql_cmd_update::prepare_inner");
+
+  (void) read_statistics_for_tables_if_needed(thd, table_list);
+
+  THD_STAGE_INFO(thd, stage_init_update);
+
+  if (!multitable)
+  {
+    if (mysql_handle_derived(lex, DT_INIT))
+      DBUG_RETURN(TRUE);
+  }
+
+  if (table_list->has_period() && table_list->is_view_or_derived())
+  {
+     my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
+     DBUG_RETURN(TRUE);
+  }
 
   if (!multitable)
   {
     TABLE_LIST *update_source_table= 0;
-
-    if (mysql_handle_derived(lex, DT_INIT))
-      DBUG_RETURN(TRUE);
-
-    if (table_list->has_period() && table_list->is_view_or_derived())
-    {
-       my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
-       DBUG_RETURN(TRUE);
-    }
 
     if (((update_source_table=unique_table(thd, table_list,
                                           table_list->next_global, 0)) ||
@@ -3088,8 +2887,8 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
     DBUG_RETURN(TRUE);
   }
 
-    if (((multi_update *)result)->init(thd))
-      DBUG_RETURN(TRUE);
+  if (((multi_update *)result)->init(thd))
+    DBUG_RETURN(TRUE);
 
   if (setup_tables(thd, &select_lex->context, &select_lex->top_join_list,
                    table_list, select_lex->leaf_tables, false, false))
@@ -3130,6 +2929,31 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
 
   }
 
+  if (table_list->has_period())
+  {
+    Item *item;
+    for (List_iterator_fast<Item> it(select_lex->item_list); (item=it++);)
+    {
+      Field *f= item->field_for_view_update()->field;
+      vers_select_conds_t &period= table_list->period_conditions;
+      if (period.field_start->field == f || period.field_end->field == f)
+      {
+        my_error(ER_PERIOD_COLUMNS_UPDATED, MYF(0),
+                 item->name.str, period.name.str);
+        DBUG_RETURN(true);
+      }
+    }
+
+    if (!table_list->period_conditions.start.item->const_item()
+        || !table_list->period_conditions.end.item->const_item())
+    {
+      my_error(ER_NOT_CONSTANT_EXPRESSION, MYF(0), "FOR PORTION OF");
+      DBUG_RETURN(true);
+    }
+    table_list->table->no_cache= true;
+  }
+
+
   free_join= false;
 
 err:
@@ -3147,8 +2971,16 @@ err:
 
 bool Sql_cmd_update::execute_inner(THD *thd)
 {
-  bool res= multitable ? Sql_cmd_dml::execute_inner(thd)
-                         : update_single_table(thd);
+  bool res= 0;
+
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
+  if (!multitable)
+    res= update_single_table(thd);
+  else
+  {
+    thd->abort_on_warning= !thd->lex->ignore && thd->is_strict_mode();
+    res= Sql_cmd_dml::execute_inner(thd);
+  }
 
   res|= thd->is_error();
   if (multitable)

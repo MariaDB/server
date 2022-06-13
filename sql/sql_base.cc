@@ -1074,7 +1074,9 @@ TABLE_LIST* find_dup_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
   */
   if (table->table &&
       thd->lex->sql_command != SQLCOM_UPDATE &&
-      thd->lex->sql_command != SQLCOM_UPDATE_MULTI)
+      thd->lex->sql_command != SQLCOM_UPDATE_MULTI &&
+      thd->lex->sql_command != SQLCOM_DELETE &&
+      thd->lex->sql_command != SQLCOM_DELETE_MULTI)
   {
     /* All MyISAMMRG children are plain MyISAM tables. */
     DBUG_ASSERT(table->table->file->ht->db_type != DB_TYPE_MRG_MYISAM);
@@ -7570,6 +7572,9 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
   if (!select_lex->with_wild)
     DBUG_RETURN(0);
 
+  if (!fields.elements)
+    DBUG_RETURN(0);
+
   /*
     Don't use arena if we are not in prepared statements or stored procedures
     For PS/SP we have to use arena to remember the changes
@@ -7872,7 +7877,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
     while ((table_list= ti++))
     {
       TABLE *table= table_list->table;
-      if (table)
+      if (table && !table->pos_in_table_list)
         table->pos_in_table_list= table_list;
       if (first_select_table &&
           table_list->top_table() == first_select_table)
@@ -7888,7 +7893,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
       }
       else if (table)
       {
-        table->pos_in_table_list= table_list;
+	//       table->pos_in_table_list= table_list;
         setup_table_map(table, table_list, tablenr);
 
         if (table_list->process_index_hints(table))
