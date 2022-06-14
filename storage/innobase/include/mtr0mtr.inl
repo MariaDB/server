@@ -46,7 +46,7 @@ mtr_t::memo_push(void* object, mtr_memo_type_t type)
 	ut_ad(object != NULL);
 	ut_ad(type >= MTR_MEMO_PAGE_S_FIX);
 	ut_ad(type <= MTR_MEMO_SPACE_S_LOCK);
-	ut_ad(ut_is_2pow(type));
+	ut_ad(type == MTR_MEMO_PAGE_X_MODIFY || ut_is_2pow(type));
 
 	/* If this mtr has x-fixed a clean page then we set
 	the made_dirty flag. This tells us if we need to
