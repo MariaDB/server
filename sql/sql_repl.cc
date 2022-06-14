@@ -3901,7 +3901,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
       goto err;
 
     if (rpl_global_gtid_slave_state->load(
-            thd, new_gtid_state.ptr(), new_gtid_state.length(), true, false))
+            thd, new_gtid_state.ptr(), new_gtid_state.length(), true, true))
     {
       my_error(ER_FAILED_GTID_STATE_INIT, MYF(0));
       ret= TRUE;
