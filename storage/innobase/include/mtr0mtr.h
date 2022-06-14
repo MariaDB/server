@@ -290,9 +290,9 @@ struct mtr_t {
   @param[in]	type	object type: MTR_MEMO_PAGE_X_FIX, ... */
   void release_page(const void *ptr, mtr_memo_type_t type);
 
-private:
   /** Note that the mini-transaction will modify data. */
   void flag_modified() { m_modifications = true; }
+private:
   /** Mark the given latched page as modified.
   @param block   page that will be modified */
   void modify(const buf_block_t& block);
