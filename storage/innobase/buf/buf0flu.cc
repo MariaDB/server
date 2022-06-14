@@ -1206,7 +1206,6 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n)
          n->flushed + n->evicted < max) ||
         recv_recovery_is_on()); ++scanned)
   {
-  retry:
     buf_page_t *prev= UT_LIST_GET_PREV(LRU, bpage);
     const lsn_t oldest_modification= bpage->oldest_modification();
     buf_pool.lru_hp.set(prev);
@@ -1242,7 +1241,6 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n)
           mysql_mutex_lock(&buf_pool.mutex);
           if (p.second)
             buf_pool.stat.n_pages_written+= p.second;
-          bpage= buf_pool.lru_hp.get();
           goto retry;
         }
         else
@@ -1274,6 +1272,7 @@ reacquire_mutex:
     must_skip:
       /* Can't evict or dispatch this block. Go to previous. */
       ut_ad(buf_pool.lru_hp.is_hp(prev));
+  retry:
     bpage= buf_pool.lru_hp.get();
   }
 
