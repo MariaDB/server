@@ -30,6 +30,7 @@ connection con1;
 connection con2;
 /* conneciton con2 */ SELECT * FROM t1 WHERE MATCH(title) AGAINST('mysql database');
 FTS_DOC_ID	title
+1	mysql database
 connection default;
 # make con1 & con2 show up in mysql.slow_log
 SELECT SLEEP(2);
@@ -39,41 +40,11 @@ SLEEP(2)
 SELECT sql_text FROM mysql.slow_log WHERE query_time >= '00:00:02';
 sql_text
 INSERT INTO t1(title) VALUES('mysql database')
+SELECT * FROM t1 WHERE MATCH(title) AGAINST('mysql database')
 SET GLOBAL debug_dbug = @old_debug;
 TRUNCATE TABLE mysql.slow_log;
 DROP TABLE t1;
-# Case 2: Sync blocks DML(insert) on other tables.
-CREATE TABLE t1 (
-FTS_DOC_ID BIGINT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
-title VARCHAR(200),
-FULLTEXT(title)
-) ENGINE = InnoDB;
-CREATE TABLE t2(id INT);
-connection con1;
-SET GLOBAL debug_dbug='+d,fts_instrument_sync_request,fts_instrument_sync_sleep';
-SET DEBUG_SYNC= 'fts_instrument_sync_request SIGNAL begin WAIT_FOR continue';
-INSERT INTO t1(title) VALUES('mysql database');
-connection con2;
-SET DEBUG_SYNC= 'now WAIT_FOR begin';
-INSERT INTO t2 VALUES(1);
-connection default;
-SET DEBUG_SYNC= 'now SIGNAL continue';
-connection con1;
-/* connection con1 */ INSERT INTO t1(title) VALUES('mysql database');
-connection con2;
-/* conneciton con2 */ INSERT INTO t2 VALUES(1);
-connection default;
-SET DEBUG_SYNC = 'RESET';
-# make con1 & con2 show up in mysql.slow_log
-SELECT SLEEP(2);
-SLEEP(2)
-0
-# slow log results should be empty here.
-SELECT sql_text FROM mysql.slow_log WHERE query_time >= '00:00:02';
-sql_text
-SET GLOBAL debug_dbug = @old_debug;
-TRUNCATE TABLE mysql.slow_log;
-DROP TABLE t1,t2;
+SET DEBUG_SYNC=RESET;
 disconnect con1;
 disconnect con2;
 # Restore slow log settings.

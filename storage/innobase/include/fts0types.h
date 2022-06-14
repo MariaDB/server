@@ -75,7 +75,6 @@ struct fts_index_cache_t {
 
 	que_t**		ins_graph;	/*!< Insert query graphs */
 
-	que_t**		sel_graph;	/*!< Select query graphs */
 	CHARSET_INFO*	charset;	/*!< charset */
 };
 
@@ -87,35 +86,7 @@ struct fts_stopword_t {
 	CHARSET_INFO*	charset;	/*!< charset for stopword */
 };
 
-/** The SYNC state of the cache. There is one instance of this struct
-associated with each ADD thread. */
-struct fts_sync_t {
-	trx_t*		trx;		/*!< The transaction used for SYNCing
-					the cache to disk */
-	dict_table_t*	table;		/*!< Table with FTS index(es) */
-	ulint		max_cache_size;	/*!< Max size in bytes of the cache */
-	ibool		cache_full;	/*!< flag, when true it indicates that
-					we need to sync the cache to disk */
-	ulint		lower_index;	/*!< the start index of the doc id
-					vector from where to start adding
-					documents to the FTS cache */
-	ulint		upper_index;	/*!< max index of the doc id vector to
-					add to the FTS cache */
-	ibool		interrupted;	/*!< TRUE if SYNC was interrupted */
-	doc_id_t	min_doc_id;	/*!< The smallest doc id added to the
-					cache. It should equal to
-					doc_ids[lower_index] */
-	doc_id_t	max_doc_id;	/*!< The doc id at which the cache was
-					noted as being full, we use this to
-					set the upper_limit field */
-	time_t		start_time;	/*!< SYNC start time; only used if
-					fts_enable_diag_print */
-	bool		in_progress;	/*!< flag whether sync is in progress.*/
-	bool		unlock_cache;	/*!< flag whether unlock cache when
-					write fts node */
-  /** condition variable for in_progress; used with table->fts->cache->lock */
-  pthread_cond_t cond;
-};
+struct fts_sync_t;
 
 /** The cache for the FTS system. It is a memory-based inverted index
 that new entries are added to, until it grows over the configured maximum
@@ -204,7 +175,6 @@ struct fts_node_t {
 	ulint		ilist_size_alloc;
 					/*!< Allocated size of ilist in
 					bytes */
-	bool		synced;		/*!< flag whether the node is synced */
 };
 
 /** A tokenizer word. Contains information about one word. */
