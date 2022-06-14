@@ -68,6 +68,13 @@ PARTITION p1 VALUES LESS THAN MAXVALUE
 Warnings:
 Warning	1618	<INDEX DIRECTORY> table option of old schema is ignored
 DROP TABLE t2;
+#
+# MDEV-26127 Assertion `err != DB_DUPLICATE_KEY' failed or InnoDB: Failing assertion: id != 0 on ALTER ... REBUILD PARTITION
+#
+CREATE TABLE t1 (c INT) ENGINE=MyISAM PARTITION BY KEY(c) PARTITIONS 4;;
+LOCK TABLES t1 WRITE, t1 AS a READ;
+ALTER TABLE t1 REBUILD PARTITION p0;
+DROP TABLE t1;
 create table t1 ( c1 int, c2 int, c3 varchar(100)) delay_key_write=1
 partition by key(c1) (
 partition p01 data directory = 'MYSQL_TMP_DIR'

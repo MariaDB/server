@@ -78,3 +78,11 @@ if (`SELECT IF('$engine' != 'InnoDB', 1, 0)`)
 
 --remove_files_wildcard $MYSQLTEST_VARDIR/tmp/mdev_27065 *
 --rmdir $MYSQLTEST_VARDIR/tmp/mdev_27065
+
+--echo #
+--echo # MDEV-26127 Assertion `err != DB_DUPLICATE_KEY' failed or InnoDB: Failing assertion: id != 0 on ALTER ... REBUILD PARTITION
+--echo #
+--eval CREATE TABLE t1 (c INT) ENGINE=$engine PARTITION BY KEY(c) PARTITIONS 4;
+LOCK TABLES t1 WRITE, t1 AS a READ;
+ALTER TABLE t1 REBUILD PARTITION p0;
+DROP TABLE t1;
