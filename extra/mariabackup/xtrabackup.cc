@@ -4524,31 +4524,31 @@ fail:
 reread_log_header:
 	dberr_t err = recv_find_max_checkpoint(&max_cp_field);
 
-	if (err != DB_SUCCESS) {
+	if (err != DB_SUCCESS)
 		msg("Error: cannot read redo log header");
-unlock_and_fail:
-		mysql_mutex_unlock(&log_sys.mutex);
-	}
-
-	if (log_sys.log.format == 0) {
+	else if (log_sys.log.format == 0) {
 		msg("Error: cannot process redo log before MariaDB 10.2.2");
-		goto unlock_and_fail;
+		err = DB_ERROR;
 	}
+	else {
+		byte* buf = log_sys.checkpoint_buf;
+		checkpoint_lsn_start = log_sys.log.get_lsn();
+		checkpoint_no_start = log_sys.next_checkpoint_no;
 
-	byte* buf = log_sys.checkpoint_buf;
-	checkpoint_lsn_start = log_sys.log.get_lsn();
-	checkpoint_no_start = log_sys.next_checkpoint_no;
+		log_sys.log.read(max_cp_field, {buf, OS_FILE_LOG_BLOCK_SIZE});
 
-	log_sys.log.read(max_cp_field, {buf, OS_FILE_LOG_BLOCK_SIZE});
-
-	if (checkpoint_no_start != mach_read_from_8(buf + LOG_CHECKPOINT_NO)
-	    || checkpoint_lsn_start
-	    != mach_read_from_8(buf + LOG_CHECKPOINT_LSN)
-	    || log_sys.log.get_lsn_offset()
-	    != mach_read_from_8(buf + LOG_CHECKPOINT_OFFSET))
-		goto reread_log_header;
-
+		if (checkpoint_no_start
+		    != mach_read_from_8(buf + LOG_CHECKPOINT_NO)
+		    || checkpoint_lsn_start
+		    != mach_read_from_8(buf + LOG_CHECKPOINT_LSN)
+		    || log_sys.log.get_lsn_offset()
+		    != mach_read_from_8(buf + LOG_CHECKPOINT_OFFSET))
+			goto reread_log_header;
+	}
 	mysql_mutex_unlock(&log_sys.mutex);
+
+	if (err != DB_SUCCESS)
+		goto fail;
 
 	xtrabackup_init_datasinks();
 
