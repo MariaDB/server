@@ -249,6 +249,16 @@ public:
   uint32_t format;
   /** Log file */
   log_file_t log;
+#if defined __linux__ || defined _WIN32
+  /** whether file system caching is enabled for the log */
+  my_bool log_buffered;
+# ifdef _WIN32
+  static constexpr bool log_maybe_unbuffered= true;
+# else
+  /** whether file system caching may be disabled */
+  bool log_maybe_unbuffered;
+# endif
+#endif
 
 	/** Fields involved in checkpoints @{ */
 	lsn_t		log_capacity;	/*!< capacity of the log; if
@@ -289,9 +299,16 @@ public:
 
   bool is_opened() const noexcept { return log.is_opened(); }
 
+  static constexpr bool resize_in_progress() { return false; }
+
   /** Rename a log file after resizing.
   @return whether an error occurred */
   static bool rename_resized() noexcept;
+
+#if defined __linux__ || defined _WIN32
+  /** Try to enable or disable file system caching (update log_buffered) */
+  void set_buffered(bool buffered);
+#endif
 
   void attach(log_file_t file, os_offset_t size);
 

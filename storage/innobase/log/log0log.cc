@@ -209,6 +209,8 @@ void log_t::attach(log_file_t file, os_offset_t size)
 #if defined __linux__ || defined _WIN32
       set_block_size(CPU_LEVEL1_DCACHE_LINESIZE);
 #endif
+      log_maybe_unbuffered= true;
+      log_buffered= false;
       return;
     }
   }
@@ -220,18 +222,11 @@ void log_t::attach(log_file_t file, os_offset_t size)
 #endif
 
 #if defined __linux__ || defined _WIN32
-  if (!block_size)
-    set_block_size(512);
-# ifdef __linux__
-  else if (srv_file_flush_method != SRV_O_DSYNC &&
-           srv_file_flush_method != SRV_O_DIRECT &&
-           srv_file_flush_method != SRV_O_DIRECT_NO_FSYNC)
-    sql_print_information("InnoDB: Buffered log writes (block size=%u bytes)",
-                          block_size);
-#endif
-  else
-    sql_print_information("InnoDB: File system buffers for log"
-                          " disabled (block size=%u bytes)", block_size);
+  sql_print_information("InnoDB: %s (block size=%u bytes)",
+                        log_buffered
+                        ? "Buffered log writes"
+                        : "File system buffers for log disabled",
+                        block_size);
 #endif
 
 #ifdef HAVE_PMEM
@@ -326,6 +321,62 @@ void log_t::close_file()
     if (const dberr_t err= log.close())
       ib::fatal() << "closing ib_logfile0 failed: " << err;
 }
+
+#if defined __linux__ || defined _WIN32
+/** Acquire all latches that protect the log. */
+static void log_resize_acquire()
+{
+  if (!log_sys.is_pmem())
+  {
+    while (flush_lock.acquire(log_sys.get_lsn() + 1, nullptr) !=
+           group_commit_lock::ACQUIRED);
+    while (write_lock.acquire(log_sys.get_lsn() + 1, nullptr) !=
+           group_commit_lock::ACQUIRED);
+  }
+
+  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+}
+
+/** Release the latches that protect the log. */
+void log_resize_release()
+{
+  log_sys.latch.wr_unlock();
+
+  if (!log_sys.is_pmem())
+  {
+    lsn_t lsn1= write_lock.release(write_lock.value());
+    lsn_t lsn2= flush_lock.release(flush_lock.value());
+    if (lsn1 || lsn2)
+      log_write_up_to(std::max(lsn1, lsn2), true, nullptr);
+  }
+}
+
+/** Try to enable or disable file system caching (update log_buffered) */
+void log_t::set_buffered(bool buffered)
+{
+  if (!log_maybe_unbuffered || is_pmem() || high_level_read_only)
+    return;
+  log_resize_acquire();
+  if (!resize_in_progress() && is_opened() && bool(log_buffered) != buffered)
+  {
+    os_file_close_func(log.m_file);
+    log.m_file= OS_FILE_CLOSED;
+    std::string path{get_log_file_path()};
+    log_buffered= buffered;
+    bool success;
+    log.m_file= os_file_create_func(path.c_str(),
+                                    OS_FILE_OPEN, OS_FILE_NORMAL, OS_LOG_FILE,
+                                    false, &success);
+    ut_a(log.m_file != OS_FILE_CLOSED);
+    sql_print_information("InnoDB: %s (block size=%u bytes)",
+                          log_buffered
+                          ? "Buffered log writes"
+                          : "File system buffers for log disabled",
+                          block_size);
+  }
+  log_resize_release();
+}
+#endif
 
 /** Write an aligned buffer to ib_logfile0.
 @param buf    buffer to be written
