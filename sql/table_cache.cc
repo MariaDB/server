@@ -51,7 +51,6 @@
 #include "table.h"
 #include "sql_base.h"
 
-
 /** Configuration. */
 ulong tdc_size; /**< Table definition cache threshold for LRU eviction. */
 ulong tc_size; /**< Table cache threshold for LRU eviction. */
@@ -122,7 +121,7 @@ struct Table_cache_instance
     records, Share_free_tables::List (TABLE::prev and TABLE::next),
     TABLE::in_use.
   */
-  mysql_mutex_t LOCK_table_cache;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t LOCK_table_cache;
   I_P_List <TABLE, I_P_List_adapter<TABLE, &TABLE::global_free_next,
                                     &TABLE::global_free_prev>,
             I_P_List_null_counter, I_P_List_fast_push_back<TABLE> >
@@ -130,8 +129,6 @@ struct Table_cache_instance
   ulong records;
   uint mutex_waits;
   uint mutex_nowaits;
-  /** Avoid false sharing between instances */
-  char pad[CPU_LEVEL1_DCACHE_LINESIZE];
 
   Table_cache_instance(): records(0), mutex_waits(0), mutex_nowaits(0)
   {
@@ -144,6 +141,16 @@ struct Table_cache_instance
     mysql_mutex_destroy(&LOCK_table_cache);
     DBUG_ASSERT(free_tables.is_empty());
     DBUG_ASSERT(records == 0);
+  }
+
+  void* operator new[](size_t size)
+  {
+    return aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
+  }
+
+  void operator delete[](void *ptr)
+  {
+    aligned_free(ptr);
   }
 
   /**
@@ -211,7 +218,6 @@ struct Table_cache_instance
 
 
 static Table_cache_instance *tc;
-
 
 static void intern_close_table(TABLE *table)
 {
@@ -594,8 +600,9 @@ bool tdc_init(void)
   mysql_cond_register("sql", all_tc_conds, array_elements(all_tc_conds));
 #endif
   /* Extra instance is allocated to avoid false sharing */
-  if (!(tc= new Table_cache_instance[tc_instances + 1]))
+  if (!(tc= new Table_cache_instance[tc_instances]))
     DBUG_RETURN(true);
+  static_assert(!((sizeof *tc) % CPU_LEVEL1_DCACHE_LINESIZE), "alignment");
   tdc_inited= true;
   mysql_mutex_init(key_LOCK_unused_shares, &LOCK_unused_shares,
                    MY_MUTEX_INIT_FAST);

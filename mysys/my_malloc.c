@@ -249,3 +249,23 @@ char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf my_fla
   DBUG_RETURN(ptr);
 }
 
+void *aligned_malloc(size_t size, size_t align)
+{
+#ifdef _MSC_VER
+  return _aligned_malloc(size, align);
+#else
+  void *result;
+  if (posix_memalign(&result, align, size))
+    result= NULL;
+  return result;
+#endif
+}
+
+void aligned_free(void *ptr)
+{
+#ifdef _MSC_VER
+  _aligned_free(ptr);
+#else
+  free(ptr);
+#endif
+}
