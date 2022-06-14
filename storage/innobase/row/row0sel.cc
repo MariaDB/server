@@ -4715,6 +4715,15 @@ wait_table_again:
 			pcur, moves_up, &mtr);
 
 		if (UNIV_UNLIKELY(need_to_process)) {
+			if (UNIV_UNLIKELY(!btr_pcur_get_rec(pcur))) {
+				mtr.commit();
+				trx->op_info = "";
+				if (UNIV_LIKELY_NULL(heap)) {
+					mem_heap_free(heap);
+				}
+				return DB_CORRUPTION;
+			}
+
 			if (UNIV_UNLIKELY(prebuilt->row_read_type
 					  == ROW_READ_DID_SEMI_CONSISTENT)) {
 				/* We did a semi-consistent read,
@@ -4732,7 +4741,7 @@ wait_table_again:
 			pessimistic locking read, the record
 			cannot be skipped. */
 
-			goto next_rec;
+			goto next_rec_after_check;
 		}
 
 	} else if (dtuple_get_n_fields(search_tuple) > 0) {
@@ -5727,6 +5736,7 @@ next_rec:
 			  == ROW_READ_DID_SEMI_CONSISTENT)) {
 		prebuilt->row_read_type = ROW_READ_TRY_SEMI_CONSISTENT;
 	}
+next_rec_after_check:
 	did_semi_consistent_read = false;
 	prebuilt->new_rec_locks = 0;
 	vrow = NULL;
@@ -5752,7 +5762,6 @@ next_rec:
 		/* No need to do store restore for R-tree */
 		mtr.commit();
 		mtr.start();
-		mtr_extra_clust_savepoint = 0;
 	} else if (mtr_extra_clust_savepoint) {
 		/* We must release any clustered index latches
 		if we are moving to the next non-clustered
@@ -5760,8 +5769,9 @@ next_rec:
 		order if we would access a different clustered
 		index page right away without releasing the previous. */
 		mtr.rollback_to_savepoint(mtr_extra_clust_savepoint);
-		mtr_extra_clust_savepoint = 0;
 	}
+
+	mtr_extra_clust_savepoint = 0;
 
 	if (moves_up) {
 		if (UNIV_UNLIKELY(spatial_search)) {
@@ -5791,6 +5801,10 @@ next_rec:
 	} else {
 		if (btr_pcur_move_to_prev(pcur, &mtr)) {
 			goto rec_loop;
+		}
+		if (UNIV_UNLIKELY(!btr_pcur_get_rec(pcur))) {
+			err = DB_CORRUPTION;
+			goto normal_return;
 		}
 	}
 

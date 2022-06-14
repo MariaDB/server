@@ -1621,7 +1621,9 @@ copied:
 
   if (UNIV_UNLIKELY(n_owned == PAGE_DIR_SLOT_MAX_N_OWNED))
   {
-    const auto owner= page_dir_find_owner_slot(next_rec);
+    const ulint owner= page_dir_find_owner_slot(next_rec);
+    if (UNIV_UNLIKELY(owner == ULINT_UNDEFINED))
+      return nullptr;
     page_dir_split_slot(*block,
                         page_dir_get_nth_slot(block->page.frame, owner));
   }
@@ -2047,8 +2049,12 @@ inc_dir:
   record. If the number exceeds PAGE_DIR_SLOT_MAX_N_OWNED,
   we have to split the corresponding directory slot in two. */
   if (UNIV_UNLIKELY(n_owned == PAGE_DIR_SLOT_MAX_N_OWNED))
-    page_zip_dir_split_slot(cursor->block,
-                            page_dir_find_owner_slot(next_rec), mtr);
+  {
+    const ulint owner= page_dir_find_owner_slot(next_rec);
+    if (UNIV_UNLIKELY(owner == ULINT_UNDEFINED))
+      return nullptr;
+    page_zip_dir_split_slot(cursor->block, owner, mtr);
+  }
 
   page_zip_write_rec(cursor->block, insert_rec, index, offsets, 1, mtr);
   return insert_rec;
@@ -2144,7 +2150,6 @@ page_cur_delete_rec(
 	rec_t*		current_rec;
 	rec_t*		prev_rec	= NULL;
 	rec_t*		next_rec;
-	ulint		cur_slot_no;
 	ulint		cur_n_owned;
 	rec_t*		rec;
 
@@ -2188,8 +2193,13 @@ page_cur_delete_rec(
 	}
 
 	/* Save to local variables some data associated with current_rec */
-	cur_slot_no = page_dir_find_owner_slot(current_rec);
-	ut_ad(cur_slot_no > 0);
+	ulint cur_slot_no = page_dir_find_owner_slot(current_rec);
+
+	if (UNIV_UNLIKELY(!cur_slot_no || cur_slot_no == ULINT_UNDEFINED)) {
+		/* Avoid crashing due to a corrupted page. */
+		return;
+	}
+
 	cur_dir_slot = page_dir_get_nth_slot(block->page.frame, cur_slot_no);
 	cur_n_owned = page_dir_slot_get_n_owned(cur_dir_slot);
 

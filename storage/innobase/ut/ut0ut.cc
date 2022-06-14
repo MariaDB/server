@@ -449,9 +449,6 @@ ut_strerr(
 		return("Table is encrypted but decrypt failed.");
 	case DB_IO_PARTIAL_FAILED:
 		return("Partial IO failed");
-	case DB_FORCED_ABORT:
-		return("Transaction aborted by another higher priority "
-		       "transaction");
 	case DB_COMPUTE_VALUE_FAILED:
 		return("Compute generated column failed");
 	case DB_NO_FK_ON_S_BASE_COL:

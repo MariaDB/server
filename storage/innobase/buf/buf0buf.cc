@@ -2587,7 +2587,8 @@ loop:
 	checksum cannot be decypted. */
 
 	if (dberr_t local_err = buf_read_page(page_id, zip_size)) {
-		if (mode != BUF_GET_POSSIBLY_FREED
+		if (local_err != DB_CORRUPTION
+		    && mode != BUF_GET_POSSIBLY_FREED
 		    && retries++ < BUF_PAGE_READ_MAX_RETRIES) {
 			DBUG_EXECUTE_IF("intermittent_read_failure",
 					retries = BUF_PAGE_READ_MAX_RETRIES;);

@@ -337,9 +337,12 @@ rtr_get_parent_cursor(
 	ulint		level,		/*!< in: index level of buffer page */
 	ulint		is_insert);	/*!< in: whether insert operation */
 
+MY_ATTRIBUTE((warn_unused_result))
 /*************************************************************//**
-Copy recs from a page to new_block of rtree. */
-void
+Copy recs from a page to new_block of rtree.
+
+@return error code */
+dberr_t
 rtr_page_copy_rec_list_end_no_locks(
 /*================================*/
 	buf_block_t*	new_block,	/*!< in: index page to copy to */
@@ -352,9 +355,12 @@ rtr_page_copy_rec_list_end_no_locks(
 	ulint*		num_moved,	/*!< out: num of rec to move */
 	mtr_t*		mtr);		/*!< in: mtr */
 
+MY_ATTRIBUTE((warn_unused_result))
 /*************************************************************//**
-Copy recs till a specified rec from a page to new_block of rtree. */
-void
+Copy recs till a specified rec from a page to new_block of rtree.
+
+@return error code */
+dberr_t
 rtr_page_copy_rec_list_start_no_locks(
 /*==================================*/
 	buf_block_t*	new_block,	/*!< in: index page to copy to */

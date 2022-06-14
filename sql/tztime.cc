@@ -2488,15 +2488,6 @@ MEM_ROOT tz_storage;
 char fullname[FN_REFLEN + 1];
 char *root_name_end;
 
-/*
-  known file types that exist in the zoneinfo directory that are safe to
-  silently skip
-*/
-const char *known_extensions[]= {
-  ".tab",
-  NullS
-};
-
 
 /*
   Recursively scan zoneinfo directory and print all found time zone
@@ -2593,20 +2584,19 @@ scan_tz_dir(char * name_end, uint symlink_recursion_level, uint verbose)
         else
         {
           /*
-            Some systems (like debian, opensuse etc) have description
-            files (.tab).  We skip these silently if verbose is > 0
+            Some systems (like Debian, openSUSE, etc) have non-timezone files:
+              * iso3166.tab
+              * leap-seconds.list
+              * leapseconds
+              * tzdata.zi
+              * zone.tab
+              * zone1970.tab
+            We skip these silently unless verbose > 0.
           */
           const char *current_ext= fn_ext(fullname);
-          my_bool known_ext= 0;
+          my_bool known_ext= strlen(current_ext) ||
+                             !strcmp(my_basename(fullname), "leapseconds");
 
-          for (const char **ext= known_extensions ; *ext ; ext++)
-          {
-            if (!strcmp(*ext, current_ext))
-            {
-              known_ext= 1;
-              break;
-            }
-          }
           if (verbose > 0 || !known_ext)
           {
             fflush(stdout);

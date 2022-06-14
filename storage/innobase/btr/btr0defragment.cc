@@ -707,9 +707,11 @@ processed:
 			page_t* last_page = buf_block_get_frame(last_block);
 			rec_t* rec = page_rec_get_prev(
 				page_get_supremum_rec(last_page));
-			ut_a(page_rec_is_user_rec(rec));
-			page_cur_position(rec, last_block,
-					  btr_pcur_get_page_cur(item->pcur));
+			if (rec && page_rec_is_user_rec(rec)) {
+				page_cur_position(rec, last_block,
+						  btr_pcur_get_page_cur(
+							  item->pcur));
+			}
 			btr_pcur_store_position(item->pcur, &mtr);
 			mtr_commit(&mtr);
 			/* Update the last_processed time of this index. */

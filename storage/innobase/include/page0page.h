@@ -669,7 +669,8 @@ page_dir_calc_reserved_space(
 	ulint	n_recs);	/*!< in: number of records */
 /***************************************************************//**
 Looks for the directory slot which owns the given record.
-@return the directory slot number */
+@return the directory slot number
+@retval ULINT_UNDEFINED on corruption */
 ulint
 page_dir_find_owner_slot(
 /*=====================*/
@@ -763,7 +764,8 @@ page_rec_get_next_non_del_marked(
 	const rec_t*	rec);	/*!< in: pointer to record */
 /************************************************************//**
 Gets the pointer to the previous record.
-@return pointer to previous record */
+@return pointer to previous record
+@retval nullptr on error */
 UNIV_INLINE
 const rec_t*
 page_rec_get_prev_const(
@@ -772,13 +774,13 @@ page_rec_get_prev_const(
 				infimum */
 /************************************************************//**
 Gets the pointer to the previous record.
-@return pointer to previous record */
-UNIV_INLINE
-rec_t*
-page_rec_get_prev(
-/*==============*/
-	rec_t*		rec);	/*!< in: pointer to record,
-				must not be page infimum */
+@param rec  record (not page infimum)
+@return pointer to previous record
+@retval nullptr on error */
+inline rec_t *page_rec_get_prev(rec_t *rec)
+{
+  return const_cast<rec_t*>(page_rec_get_prev_const(rec));
+}
 
 /************************************************************//**
 true if the record is the first user record on a page.
@@ -997,7 +999,7 @@ page_copy_rec_list_start(
 /*************************************************************//**
 Deletes records from a page from a given record onward, including that record.
 The infimum and supremum records are not deleted. */
-void
+dberr_t
 page_delete_rec_list_end(
 /*=====================*/
 	rec_t*		rec,	/*!< in: pointer to record on page */
@@ -1009,7 +1011,7 @@ page_delete_rec_list_end(
 				records in the end of the chain to
 				delete, or ULINT_UNDEFINED if not known */
 	mtr_t*		mtr)	/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*************************************************************//**
 Deletes records from page, up to the given record, NOT including
 that record. Infimum and supremum records are not deleted. */

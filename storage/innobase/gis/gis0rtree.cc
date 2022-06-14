@@ -718,7 +718,6 @@ rtr_split_page_move_rec_list(
 	page_zip_des_t*		new_page_zip
 		= buf_block_get_page_zip(new_block);
 	rec_t*			rec;
-	rec_t*			ret;
 	ulint			moved		= 0;
 	ulint			max_to_move	= 0;
 	rtr_rec_move_t*		rec_move	= NULL;
@@ -733,7 +732,6 @@ rtr_split_page_move_rec_list(
 
 	page = buf_block_get_frame(block);
 	new_page = buf_block_get_frame(new_block);
-	ret = page_rec_get_prev(page_get_supremum_rec(new_page));
 
 	end_split_node = node_array + page_get_n_recs(page);
 
@@ -804,32 +802,15 @@ rtr_split_page_move_rec_list(
 
 		if (!page_zip_compress(new_block, index,
 				       page_zip_level, mtr)) {
-			/* Before trying to reorganize the page,
-			store the number of preceding records on the page. */
-			ulint ret_pos = page_rec_get_n_recs_before(ret);
-			/* Before copying, "ret" was the predecessor
-			of the predefined supremum record.  If it was
-			the predefined infimum record, then it would
-			still be the infimum, and we would have
-			ret_pos == 0. */
-
-			switch (dberr_t err =
+			if (dberr_t err =
 				page_zip_reorganize(new_block, index,
 						    page_zip_level, mtr)) {
-			case DB_FAIL:
-				if (UNIV_UNLIKELY
-				    (!page_zip_decompress(new_page_zip,
-							  new_page, FALSE))) {
-					ut_error;
+				if (err == DB_FAIL) {
+					ut_a(page_zip_decompress(new_page_zip,
+								 new_page,
+								 FALSE));
 				}
-#ifdef UNIV_GIS_DEBUG
-				ut_ad(page_validate(new_page, index));
-#endif
-				/* fall through */
-			default:
 				return err;
-			case DB_SUCCESS:
-				ret = page_rec_get_nth(new_page, ret_pos);
 			}
 		}
 	}
@@ -1284,14 +1265,9 @@ rtr_ins_enlarge_mbr(
 
 /*************************************************************//**
 Copy recs from a page to new_block of rtree.
-Differs from page_copy_rec_list_end, because this function does not
-touch the lock table and max trx id on page or compress the page.
 
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
-if new_block is a compressed leaf page in a secondary index.
-This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit(). */
-void
+@return error code */
+dberr_t
 rtr_page_copy_rec_list_end_no_locks(
 /*================================*/
 	buf_block_t*	new_block,	/*!< in: index page to copy to */
@@ -1355,8 +1331,7 @@ rtr_page_copy_rec_list_end_no_locks(
 					  offsets1, offsets2, index, false,
 					  &cur_matched_fields);
 			if (cmp < 0) {
-				page_cur_move_to_prev(&page_cur);
-				break;
+				goto move_to_prev;
 			} else if (cmp > 0) {
 				/* Skip small recs. */
 				page_cur_move_to_next(&page_cur);
@@ -1379,26 +1354,23 @@ rtr_page_copy_rec_list_end_no_locks(
 		/* If position is on suprenum rec, need to move to
 		previous rec. */
 		if (page_rec_is_supremum(cur_rec)) {
-			page_cur_move_to_prev(&page_cur);
+move_to_prev:
+			cur_rec = page_cur_move_to_prev(&page_cur);
+		} else {
+			cur_rec = page_cur_get_rec(&page_cur);
 		}
 
-		cur_rec = page_cur_get_rec(&page_cur);
+		if (UNIV_UNLIKELY(!cur_rec)) {
+			return DB_CORRUPTION;
+		}
 
 		offsets1 = rec_get_offsets(cur1_rec, index, offsets1, n_core,
 					   ULINT_UNDEFINED, &heap);
 
 		ins_rec = page_cur_insert_rec_low(&page_cur, index,
 						  cur1_rec, offsets1, mtr);
-		if (UNIV_UNLIKELY(!ins_rec)) {
-			fprintf(stderr, "page number %u and %u\n",
-				new_block->page.id().page_no(),
-				block->page.id().page_no());
-
-			ib::fatal() << "rec offset " << page_offset(rec)
-				<< ", cur1 offset "
-				<<  page_offset(page_cur_get_rec(&cur1))
-				<< ", cur_rec offset "
-				<< page_offset(cur_rec);
+		if (UNIV_UNLIKELY(!ins_rec || moved >= max_move)) {
+			return DB_CORRUPTION;
 		}
 
 		rec_move[moved].new_rec = ins_rec;
@@ -1406,20 +1378,18 @@ rtr_page_copy_rec_list_end_no_locks(
 		rec_move[moved].moved = false;
 		moved++;
 next:
-		if (moved > max_move) {
-			ut_ad(0);
-			break;
-		}
-
 		page_cur_move_to_next(&cur1);
 	}
 
 	*num_moved = moved;
+	return DB_SUCCESS;
 }
 
 /*************************************************************//**
-Copy recs till a specified rec from a page to new_block of rtree. */
-void
+Copy recs till a specified rec from a page to new_block of rtree.
+
+@return error code */
+dberr_t
 rtr_page_copy_rec_list_start_no_locks(
 /*==================================*/
 	buf_block_t*	new_block,	/*!< in: index page to copy to */
@@ -1474,9 +1444,7 @@ rtr_page_copy_rec_list_start_no_locks(
 					      offsets1, offsets2, index, false,
 					      &cur_matched_fields);
 			if (cmp < 0) {
-				page_cur_move_to_prev(&page_cur);
-				cur_rec = page_cur_get_rec(&page_cur);
-				break;
+				goto move_to_prev;
 			} else if (cmp > 0) {
 				/* Skip small recs. */
 				page_cur_move_to_next(&page_cur);
@@ -1500,23 +1468,22 @@ rtr_page_copy_rec_list_start_no_locks(
 		/* If position is on suprenum rec, need to move to
 		previous rec. */
 		if (page_rec_is_supremum(cur_rec)) {
-			page_cur_move_to_prev(&page_cur);
+move_to_prev:
+			cur_rec = page_cur_move_to_prev(&page_cur);
+			if (UNIV_UNLIKELY(!cur_rec)) {
+				return DB_CORRUPTION;
+			}
+		} else {
+			cur_rec = page_cur_get_rec(&page_cur);
 		}
-
-		cur_rec = page_cur_get_rec(&page_cur);
 
 		offsets1 = rec_get_offsets(cur1_rec, index, offsets1, n_core,
 					   ULINT_UNDEFINED, &heap);
 
 		ins_rec = page_cur_insert_rec_low(&page_cur, index,
 						  cur1_rec, offsets1, mtr);
-		if (UNIV_UNLIKELY(!ins_rec)) {
-			ib::fatal() << new_block->page.id()
-				<< "rec offset " << page_offset(rec)
-				<< ", cur1 offset "
-				<<  page_offset(page_cur_get_rec(&cur1))
-				<< ", cur_rec offset "
-				<< page_offset(cur_rec);
+		if (UNIV_UNLIKELY(!ins_rec || moved >= max_move)) {
+			return DB_CORRUPTION;
 		}
 
 		rec_move[moved].new_rec = ins_rec;
@@ -1524,15 +1491,11 @@ rtr_page_copy_rec_list_start_no_locks(
 		rec_move[moved].moved = false;
 		moved++;
 next:
-		if (moved > max_move) {
-			ut_ad(0);
-			break;
-		}
-
 		page_cur_move_to_next(&cur1);
 	}
 
 	*num_moved = moved;
+	return DB_SUCCESS;
 }
 
 /****************************************************************//**

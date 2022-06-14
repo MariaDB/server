@@ -1993,7 +1993,7 @@ static bool innobase_table_is_empty(const dict_table_t *table,
   btr_pcur_t pcur;
   buf_block_t *block;
   page_cur_t *cur;
-  const rec_t *rec;
+  rec_t *rec;
   bool next_page= false;
 
   mtr.start();
@@ -2004,9 +2004,9 @@ non_empty:
     mtr.commit();
     return false;
   }
-  btr_pcur_move_to_next_user_rec(&pcur, &mtr);
-  if (!rec_is_metadata(btr_pcur_get_rec(&pcur), *clust_index))
-    btr_pcur_move_to_prev_on_page(&pcur);
+  rec= page_rec_get_next(btr_pcur_get_rec(&pcur));
+  if (rec_is_metadata(rec, *clust_index))
+    btr_pcur_get_page_cur(&pcur)->rec= rec;
 scan_leaf:
   cur= btr_pcur_get_page_cur(&pcur);
   page_cur_move_to_next(cur);
@@ -11415,12 +11415,8 @@ foreign_fail:
 		ut_d(dict_table_check_for_dup_indexes(
 			     ctx->new_table, CHECK_ABORTED_OK));
 
-#ifdef UNIV_DEBUG
-		if (!(ctx->new_table->fts != NULL
-			&& ctx->new_table->fts->cache->sync->in_progress)) {
-			ut_a(fts_check_cached_index(ctx->new_table));
-		}
-#endif
+		ut_ad(!ctx->new_table->fts
+		      || fts_check_cached_index(ctx->new_table));
 	}
 
 	unlock_and_close_files(deleted, trx);
