@@ -2190,12 +2190,8 @@ int spider_db_fetch_for_item_sum_func(
           }
           Item *free_list = thd->free_list;
           spider->direct_aggregate_item_current->item =
-#ifdef SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY
             new (&spider->direct_aggregate_item_current->mem_root)
               Item_string(thd, "", 0, share->access_charset);
-#else
-            new Item_string(share->access_charset);
-#endif
           if (!spider->direct_aggregate_item_current->item)
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
           thd->free_list = free_list;
@@ -2206,12 +2202,8 @@ int spider_db_fetch_for_item_sum_func(
           (Item_string *) spider->direct_aggregate_item_current->item;
         if (row->is_null())
         {
-#ifdef SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY
           item->val_str(NULL)->length(0);
           item->append(NULL, 0);
-#else
-          item->set_str_with_copy(NULL, 0);
-#endif
           item->null_value = TRUE;
         } else {
           char buf[MAX_FIELD_WIDTH];
@@ -2220,12 +2212,8 @@ int spider_db_fetch_for_item_sum_func(
           tmp_str.length(0);
           if ((error_num = row->append_to_str(&tmp_str)))
             DBUG_RETURN(error_num);
-#ifdef SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY
           item->val_str(NULL)->length(0);
           item->append((char *) tmp_str.ptr(), tmp_str.length());
-#else
-          item->set_str_with_copy(tmp_str.ptr(), tmp_str.length());
-#endif
           item->null_value = FALSE;
         }
         item_sum_min_max->direct_add(item);
