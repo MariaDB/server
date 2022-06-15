@@ -25,16 +25,10 @@ drop trigger tr2del_t1;
 drop trigger tr1upd_t1;
 drop trigger tr2upd_t1;
 drop trigger tr2ins_t1;
-select * from t1;
-id	s	e
-1	2023-07-21	2024-06-07
 DELETE FROM t1 FOR PORTION OF app FROM '2023-07-20' TO '2024-05-23';
 select * from log_tbl order by id;
 id	log
 1	>INS: 2, 2024-05-23, 2024-06-07
-select * from t1;
-id	s	e
-2	2024-05-23	2024-06-07
 DROP TABLE t1;
 DROP TABLE log_tbl;
 DROP PROCEDURE log;
