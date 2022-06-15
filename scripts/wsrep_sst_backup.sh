@@ -72,7 +72,7 @@ then
         # (c) ERROR file, in case flush tables operation failed.
 
         while [ ! -r "$FLUSHED" ] && \
-                ! grep -q -F ':' -- "$FLUSHED" >/dev/null 2>&1
+                ! grep -q -F ':' -- "$FLUSHED"
         do
             # Check whether ERROR file exists.
             if [ -f "$ERROR" ]; then
@@ -105,4 +105,5 @@ else # joiner
 
 fi
 
+wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE completed on $WSREP_SST_OPT_ROLE"
 exit 0
