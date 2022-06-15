@@ -1470,7 +1470,8 @@ static void innodb_drop_database(handlerton*, char *path)
     "WHILE 1 = 1 LOOP\n"
     "  FETCH tab INTO tid,name;\n"
     "  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
-    "  IF SUBSTR(name, 0, LENGTH(:db)) <> :db THEN EXIT; END IF;\n"
+    "  IF TO_BINARY(SUBSTR(name, 0, LENGTH(:db))) <> TO_BINARY(:db)"
+    " THEN EXIT; END IF;\n"
     "  DELETE FROM SYS_COLUMNS WHERE TABLE_ID=tid;\n"
     "  DELETE FROM SYS_TABLES WHERE ID=tid;\n"
     "  OPEN idx;\n"
@@ -4062,6 +4063,14 @@ static int innodb_init_params()
 			srv_file_flush_method = SRV_O_DIRECT;
 			fprintf(stderr, "InnoDB: using O_DIRECT due to atomic writes.\n");
 		}
+	}
+#endif
+
+#if defined __linux__ || defined _WIN32
+	if (srv_flush_log_at_trx_commit == 2) {
+		/* Do not disable the file system cache if
+		innodb_flush_log_at_trx_commit=2. */
+		log_sys.log_buffered = true;
 	}
 #endif
 
@@ -18441,6 +18450,16 @@ buffer_pool_load_abort(
 	}
 }
 
+#if defined __linux__ || defined _WIN32
+static void innodb_log_file_buffering_update(THD *thd, st_mysql_sys_var*,
+                                             void *, const void *save)
+{
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  log_sys.set_buffered(*static_cast<const my_bool*>(save));
+  mysql_mutex_lock(&LOCK_global_system_variables);
+}
+#endif
+
 static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
                                         void *var, const void *save)
 {
@@ -18908,7 +18927,7 @@ static MYSQL_SYSVAR_ENUM(flush_method, srv_file_flush_method,
 
 static MYSQL_SYSVAR_STR(log_group_home_dir, srv_log_group_home_dir,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Path to InnoDB log files.", NULL, NULL, NULL);
+  "Path to ib_logfile0", NULL, NULL, NULL);
 
 static MYSQL_SYSVAR_DOUBLE(max_dirty_pages_pct, srv_max_buf_pool_modified_pct,
   PLUGIN_VAR_RQCMDARG,
@@ -19299,6 +19318,13 @@ static MYSQL_SYSVAR_SIZE_T(log_buffer_size, log_sys.buf_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Redo log buffer size in bytes.",
   NULL, NULL, 16U << 20, 2U << 20, SIZE_T_MAX, 4096);
+
+#if defined __linux__ || defined _WIN32
+static MYSQL_SYSVAR_BOOL(log_file_buffering, log_sys.log_buffered,
+  PLUGIN_VAR_OPCMDARG,
+  "Whether the file system cache for ib_logfile0 is enabled",
+  nullptr, innodb_log_file_buffering_update, FALSE);
+#endif
 
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG,
@@ -19743,6 +19769,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(deadlock_report),
   MYSQL_SYSVAR(page_size),
   MYSQL_SYSVAR(log_buffer_size),
+#if defined __linux__ || defined _WIN32
+  MYSQL_SYSVAR(log_file_buffering),
+#endif
   MYSQL_SYSVAR(log_file_size),
   MYSQL_SYSVAR(log_group_home_dir),
   MYSQL_SYSVAR(max_dirty_pages_pct),

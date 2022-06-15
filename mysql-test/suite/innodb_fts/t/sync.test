@@ -26,7 +26,7 @@ connection con1;
 SET @old_dbug = @@SESSION.debug_dbug;
 SET debug_dbug = '+d,fts_instrument_sync_debug';
 
-SET DEBUG_SYNC= 'fts_write_node SIGNAL written WAIT_FOR selected';
+SET DEBUG_SYNC= 'fts_sync_end SIGNAL written WAIT_FOR selected';
 
 send INSERT INTO t1(title) VALUES('mysql database');
 
@@ -73,7 +73,7 @@ connection con1;
 
 SET debug_dbug = '+d,fts_instrument_sync_debug';
 
-SET DEBUG_SYNC= 'fts_write_node SIGNAL written WAIT_FOR inserted';
+SET DEBUG_SYNC= 'fts_sync_end SIGNAL written WAIT_FOR inserted';
 
 send INSERT INTO t1(title) VALUES('mysql database');
 

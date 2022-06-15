@@ -1,6 +1,13 @@
 # These should be moved, see https://jira.mariadb.org/browse/MDEV-21654
 arch-dependent-file-in-usr-share usr/share/mysql/mysql-test/suite/plugins/pam/pam_mariadb_mtr.so
 arch-independent-package-contains-binary-or-object usr/share/mysql/mysql-test/suite/plugins/pam/pam_mariadb_mtr.so
+# Mainly for support for *BSD family. Not right way to do but this is test package and not for production
+incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mysql-test/std_data/checkDBI_DBD-MariaDB.pl]
+incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mysql-test/suite/engines/rr_trx/run_stress_tx_rr.pl]
+incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mysql-test/suite/funcs_1/lib/DataGen_local.pl]
+incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mysql-test/suite/funcs_1/lib/DataGen_modify.pl]
+incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mysql-test/suite/funcs_2/lib/gen_charset_utf8.pl]
+incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mysql-test/suite/rpl/extension/checksum.pl]
 # Intentional for test files
 national-encoding usr/share/mysql/mysql-test/*
 # Extra test documentation files that really need to be kept in context in test directory
