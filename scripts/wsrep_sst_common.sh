@@ -17,7 +17,8 @@
 
 # This is a common command line parser to be sourced by other SST scripts
 
-set -ue
+trap 'exit 32' HUP PIPE
+trap 'exit 3'  INT QUIT TERM
 
 # Setting the path for some utilities on CentOS
 export PATH="$PATH:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -79,6 +80,7 @@ to_minuses()
 }
 
 WSREP_SST_OPT_BYPASS=0
+WSREP_SST_OPT_PROGRESS=0
 WSREP_SST_OPT_BINLOG=""
 WSREP_SST_OPT_BINLOG_INDEX=""
 WSREP_SST_OPT_LOG_BASENAME=""
@@ -184,7 +186,11 @@ case "$1" in
         shift
         ;;
     '--bypass')
-        WSREP_SST_OPT_BYPASS=1
+        readonly WSREP_SST_OPT_BYPASS=1
+        ;;
+    '--progress')
+        readonly WSREP_SST_OPT_PROGRESS=$(( $2 ))
+        shift
         ;;
     '--datadir')
         # Let's remove the trailing slash:
@@ -245,11 +251,11 @@ case "$1" in
         shift
         ;;
     '--local-port')
-        readonly WSREP_SST_OPT_LPORT="$2"
+        readonly WSREP_SST_OPT_LPORT=$(( $2 ))
         shift
         ;;
     '--parent')
-        readonly WSREP_SST_OPT_PARENT="$2"
+        readonly WSREP_SST_OPT_PARENT=$(( $2 ))
         shift
         ;;
     '--password')
@@ -257,7 +263,7 @@ case "$1" in
         shift
         ;;
     '--port')
-        readonly WSREP_SST_OPT_PORT="$2"
+        readonly WSREP_SST_OPT_PORT=$(( $2 ))
         shift
         ;;
     '--role')
@@ -511,7 +517,26 @@ case "$1" in
 esac
 shift
 done
-readonly WSREP_SST_OPT_BYPASS
+
+WSREP_TRANSFER_TYPE='SST'
+[ $WSREP_SST_OPT_BYPASS -ne 0 ] && readonly WSREP_TRANSFER_TYPE='IST'
+# Let's take the name of the current script as a base,
+# removing the directory, extension and "wsrep_sst_" prefix:
+WSREP_METHOD="${0##*/}"
+WSREP_METHOD="${WSREP_METHOD%.*}"
+readonly WSREP_METHOD="${WSREP_METHOD#wsrep_sst_}"
+if [ -n "${WSREP_SST_OPT_ROLE+x}" ]; then
+    if [ "$WSREP_SST_OPT_ROLE" != 'donor' -a \
+         "$WSREP_SST_OPT_ROLE" != 'joiner' ]
+    then
+        wsrep_log_error "Unrecognized role: '$WSREP_SST_OPT_ROLE'"
+        exit 22 # EINVAL
+    fi
+else
+    readonly WSREP_SST_OPT_ROLE='donor'
+fi
+
+readonly WSREP_SST_OPT_PROGRESS
 
 # The same argument can be present on the command line several
 # times, in this case we must take its last value:
@@ -719,7 +744,7 @@ wsrep_log()
 {
     # echo everything to stderr so that it gets into common error log
     # deliberately made to look different from the rest of the log
-    local readonly tst="$(date +%Y%m%d\ %H:%M:%S.%N | cut -b -21)"
+    local readonly tst=$(date "+%Y%m%d %H:%M:%S.%N" | cut -b -21)
     echo "WSREP_SST: $* ($tst)" >&2
 }
 
@@ -1050,7 +1075,7 @@ is_local_ip()
     [ "$1" = '127.0.0.1' -o \
       "$1" = '127.0.0.2' -o \
       "$1" = 'localhost' -o \
-      "$1" = '[::1]' ] && return 0
+      "$1" = '::1' ] && return 0
     # If the address starts with "127." this is probably a local
     # address, but we need to clarify what follows this prefix:
     if [ "${1#127.}" != "$1" ]; then
@@ -1067,21 +1092,25 @@ is_local_ip()
          "$1" = "$(hostname -f)" -o \
          "$1" = "$(hostname -d)" ] && return 0
     fi
+    # If the address contains anything other than digits
+    # and separators, it is not a local address:
+    [ "${1#*[!0-9.]}" != "$1" ] && \
+    [ "${1#*[!0-9A-Fa-f:\[\]]}" != "$1" ] && return 1
     # Now let's check if the given address is assigned to
     # one of the network cards:
     local ip_util=$(commandex 'ip')
     if [ -n "$ip_util" ]; then
         # ip address show ouput format is " inet[6] <address>/<mask>":
         "$ip_util" address show \
-             | grep -E '^[[:space:]]*inet.? [^[:space:]]+/' -o \
-             | grep -F " $1/" >/dev/null && return 0
+            | grep -o -E '^[[:space:]]*inet.?[[:space:]]+[^[:space:]]+/' \
+            | grep -qw -F -- "$1/" && return 0
     else
         local ifconfig_util=$(commandex 'ifconfig')
         if [ -n "$ifconfig_util" ]; then
             # ifconfig output format is " inet[6] <address> ...":
             "$ifconfig_util" \
-                 | grep -E '^[[:space:]]*inet.? [^[:space:]]+ ' -o \
-                 | grep -F " $1 " >/dev/null && return 0
+                | grep -o -E '^[[:space:]]*inet.?[[:space:]]+[^[:space:]]+' \
+                | grep -qw -F -- "$1" && return 0
         fi
     fi
     return 1
@@ -1403,7 +1432,7 @@ get_proc()
     if [ -z "$nproc" ]; then
         set +e
         if [ "$OS" = 'Linux' ]; then
-            nproc=$(grep -c processor /proc/cpuinfo 2>/dev/null)
+            nproc=$(grep -cw -E '^processor' /proc/cpuinfo 2>/dev/null)
         elif [ "$OS" = 'Darwin' -o "$OS" = 'FreeBSD' ]; then
             nproc=$(sysctl -n hw.ncpu)
         fi
@@ -1452,3 +1481,19 @@ check_server_ssl_config()
         fi
     fi
 }
+
+simple_cleanup()
+{
+    # Since this is invoked just after exit NNN
+    local estatus=$?
+    if [ $estatus -ne 0 ]; then
+        wsrep_log_error "Cleanup after exit with status: $estatus"
+    fi
+    if [ -n "${SST_PID:-}" ]; then
+        [ "$(pwd)" != "$OLD_PWD" ] && cd "$OLD_PWD"
+        [ -f "$SST_PID" ] && rm -f "$SST_PID" || :
+    fi
+    exit $estatus
+}
+
+wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE started on $WSREP_SST_OPT_ROLE"

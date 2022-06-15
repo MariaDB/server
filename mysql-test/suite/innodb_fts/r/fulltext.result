@@ -718,4 +718,18 @@ t1	CREATE TABLE `t1` (
   FULLTEXT KEY `a_2` (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+# MDEV-25257 SEGV in fts_get_next_doc_id upon some INSERT
+#
+SET @save = @@global.innodb_file_per_table;
+SET @@global.innodb_file_per_table = 0;
+CREATE TABLE t1 (
+col_int INTEGER, col_text TEXT,
+col_int_g INTEGER GENERATED ALWAYS AS (col_int)
+) ENGINE = InnoDB ROW_FORMAT = Redundant ;
+ALTER TABLE t1 ADD FULLTEXT KEY `ftidx` ( col_text ) ;
+ALTER TABLE t1 DROP KEY `ftidx` ;
+INSERT INTO t1 (col_int, col_text) VALUES ( 1255, NULL);
+DROP TABLE t1;
+SET @@global.innodb_file_per_table = @save;
 # End of 10.3 tests

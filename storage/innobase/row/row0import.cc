@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1995,10 +1995,6 @@ PageConverter::update_header(
 	case ULINT_UNDEFINED:
 		ib::warn() << "Space id check in the header failed: ignored";
 	}
-
-	mach_write_to_8(
-		get_frame(block) + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
-		m_current_lsn);
 
 	/* Write back the adjusted flags. */
 	mach_write_to_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS

@@ -64,7 +64,7 @@ then
         [ -f "$FLUSHED" ] && rm -f "$FLUSHED"
         [ -f "$ERROR"   ] && rm -f "$ERROR"
 
-         echo "flush tables"
+        echo "flush tables"
 
         # Wait for :
         # (a) Tables to be flushed, AND
@@ -72,7 +72,7 @@ then
         # (c) ERROR file, in case flush tables operation failed.
 
         while [ ! -r "$FLUSHED" ] && \
-                ! grep -q -F ':' '--' "$FLUSHED" >/dev/null 2>&1
+                ! grep -q -F ':' -- "$FLUSHED"
         do
             # Check whether ERROR file exists.
             if [ -f "$ERROR" ]; then
@@ -98,15 +98,12 @@ then
 
     echo "done $STATE"
 
-elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]
-then
-    wsrep_log_error "Unrecognized role: '$WSREP_SST_OPT_ROLE'"
+else # joiner
+
+    wsrep_log_error "Unsupported role: '$WSREP_SST_OPT_ROLE'"
     exit 22 # EINVAL
 
-
-else
-    wsrep_log_error "Unrecognized role: '$WSREP_SST_OPT_ROLE'"
-    exit 22 # EINVAL
 fi
 
+wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE completed on $WSREP_SST_OPT_ROLE"
 exit 0

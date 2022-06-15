@@ -86,15 +86,12 @@ encrypt_threads=""
 encrypt_chunk=""
 
 readonly SECRET_TAG='secret'
+readonly TOTAL_TAG='total'
 
 # Required for backup locks
 # For backup locks it is 1 sent by joiner
 sst_ver=1
 
-if [ -n "$(commandex pv)" ] && pv --help | grep -qw -F -- '-F'; then
-    pvopts="$pvopts $pvformat"
-fi
-pcmd="pv $pvopts"
 declare -a RC
 
 BACKUP_BIN=$(commandex 'mariabackup')
@@ -121,18 +118,19 @@ timeit()
 
     if [ $ttime -eq 1 ]; then
         x1=$(date +%s)
-        wsrep_log_info "Evaluating $cmd"
-        eval "$cmd"
-        extcode=$?
+    fi
+
+    wsrep_log_info "Evaluating $cmd"
+    eval $cmd
+    extcode=$?
+
+    if [ $ttime -eq 1 ]; then
         x2=$(date +%s)
         took=$(( x2-x1 ))
         wsrep_log_info "NOTE: $stage took $took seconds"
         totime=$(( totime+took ))
-    else
-        wsrep_log_info "Evaluating $cmd"
-        eval "$cmd"
-        extcode=$?
     fi
+
     return $extcode
 }
 
@@ -165,12 +163,10 @@ get_keys()
         exit 3
     fi
 
-    if [ -z "$ekey" ]; then
-        if [ ! -r "$ekeyfile" ]; then
-            wsrep_log_error "FATAL: Either key must be specified" \
-                            "or keyfile must be readable"
-            exit 3
-        fi
+    if [ -z "$ekey" -a ! -r "$ekeyfile" ]; then
+        wsrep_log_error "FATAL: Either key must be specified" \
+                        "or keyfile must be readable"
+        exit 3
     fi
 
     if [ "$eformat" = 'openssl' ]; then
@@ -217,9 +213,7 @@ get_keys()
         exit 2
     fi
 
-    if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
-        ecmd="$ecmd -d"
-    fi
+    [ "$WSREP_SST_OPT_ROLE" = 'joiner' ] && ecmd="$ecmd -d"
 
     stagemsg="$stagemsg-XB-Encrypted"
 }
@@ -324,7 +318,8 @@ get_transfer()
             if [ -z "$ssl_dhparams" ]; then
                 # Determine the socat version
                 SOCAT_VERSION=$(socat -V 2>&1 | \
-                                grep -m1 -owE '[0-9]+(\.[0-9]+)+' | head -n1)
+                                grep -m1 -owE '[0-9]+(\.[0-9]+)+' | \
+                                head -n1 || :)
                 if [ -z "$SOCAT_VERSION" ]; then
                     wsrep_log_error "******** FATAL ERROR ******************"
                     wsrep_log_error "* Cannot determine the socat version. *"
@@ -421,45 +416,91 @@ get_transfer()
 
 get_footprint()
 {
-    pushd "$WSREP_SST_OPT_DATA" 1>/dev/null
-    payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
-              -type f -print0 | du --files0-from=- --block-size=1 -c -s | \
-              awk 'END { print $1 }')
+    cd "$DATA_DIR"
+    local payload_data=$(find . \
+        -regex '.*undo[0-9]+$\|.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
+        -type f -print0 | du --files0-from=- --block-size=1 -c -s | \
+        awk 'END { print $1 }')
+
+    local payload_undo=0
+    if [ -n "$ib_undo_dir" -a -d "$ib_undo_dir" ]; then
+        cd "$ib_undo_dir"
+        payload_undo=$(find . -regex '.*undo[0-9]+$' -type f -print0 | \
+            du --files0-from=- --block-size=1 -c -s | awk 'END { print $1 }')
+    fi
+    cd "$OLD_PWD"
+
+    wsrep_log_info \
+        "SST footprint estimate: data: $payload_data, undo: $payload_undo"
+
+    payload=$(( payload_data + payload_undo ))
+
     if [ "$compress" != 'none' ]; then
         # QuickLZ has around 50% compression ratio
         # When compression/compaction used, the progress is only an approximate.
         payload=$(( payload*1/2 ))
     fi
-    popd 1>/dev/null
-    pcmd="$pcmd -s $payload"
+
+    if [ $WSREP_SST_OPT_PROGRESS -eq 1 ]; then
+        # report to parent the total footprint of the SST
+        echo "$TOTAL_TAG $payload"
+    fi
+
     adjust_progress
 }
 
 adjust_progress()
 {
-    if [ -z "$(commandex pv)" ]; then
-        wsrep_log_error "pv not found in path: $PATH"
-        wsrep_log_error "Disabling all progress/rate-limiting"
-        pcmd=""
-        rlimit=""
-        progress=""
-        return
-    fi
+    pcmd=""
+    rcmd=""
 
-    if [ -n "$progress" -a "$progress" != '1' ]; then
-        if [ -e "$progress" ]; then
-            pcmd="$pcmd 2>>'$progress'"
-        else
-            pcmd="$pcmd 2>'$progress'"
-        fi
-    elif [ -z "$progress" -a -n "$rlimit" ]; then
-            # When rlimit is non-zero
-            pcmd='pv -q'
-    fi
+    [ "$progress" = 'none' ] && return
 
+    rlimitopts=""
     if [ -n "$rlimit" -a "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         wsrep_log_info "Rate-limiting SST to $rlimit"
-        pcmd="$pcmd -L \$rlimit"
+        rlimitopts=" -L $rlimit"
+    fi
+
+    if [ -n "$progress" ]; then
+
+        # Backward compatibility: user-configured progress output
+        pcmd="pv $pvopts$rlimitopts"
+
+        if [ -z "${PV_FORMAT+x}" ]; then
+           PV_FORMAT=0
+           pv --help | grep -qw -F -- '-F' && PV_FORMAT=1
+        fi
+        if [ $PV_FORMAT -eq 1 ]; then
+            pcmd="$pcmd $pvformat"
+        fi
+
+        if [ $payload -ne 0 ]; then
+            pcmd="$pcmd -s $payload"
+        fi
+
+        if [ "$progress" != '1' ]; then
+            if [ -e "$progress" ]; then
+                pcmd="$pcmd 2>>'$progress'"
+            else
+                pcmd="$pcmd 2>'$progress'"
+            fi
+        fi
+
+    elif [ $WSREP_SST_OPT_PROGRESS -eq 1 ]; then
+
+        # Default progress output parseable by parent
+        pcmd="pv -f -i 1 -n -b$rlimitopts"
+
+        # read progress data, add tag and post to stdout
+        # for the parent
+        rcmd="stdbuf -oL tr '\r' '\n' | xargs -n1 echo complete"
+
+    elif [ -n "$rlimitopts" ]; then
+
+        # Rate-limiting only, when rlimit is non-zero
+        pcmd="pv -q$rlimitopts"
+
     fi
 }
 
@@ -595,18 +636,6 @@ get_stream()
     wsrep_log_info "Streaming with $sfmt"
 }
 
-sig_joiner_cleanup()
-{
-    local estatus=$?
-    if [ $estatus -ne 0 ]; then
-        wsrep_log_error "Cleanup after exit with status: $estatus"
-    fi
-    wsrep_log_error "Removing $MAGIC_FILE file due to signal"
-    [ "$(pwd)" != "$OLD_PWD" ] && cd "$OLD_PWD"
-    [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
-    exit $estatus
-}
-
 cleanup_at_exit()
 {
     # Since this is invoked just after exit NNN
@@ -616,6 +645,11 @@ cleanup_at_exit()
     fi
 
     [ "$(pwd)" != "$OLD_PWD" ] && cd "$OLD_PWD"
+
+    if [ $estatus -ne 0 ]; then
+        wsrep_log_error "Removing $MAGIC_FILE file due to signal"
+        [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE" || :
+    fi
 
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
         wsrep_log_info "Removing the sst_in_progress file"
@@ -646,7 +680,7 @@ cleanup_at_exit()
     fi
 
     # Final cleanup
-    pgid=$(ps -o pgid= $$ 2>/dev/null | grep -o -E '[0-9]*' || :)
+    pgid=$(ps -o pgid= $$ 2>/dev/null | grep -o -E '[0-9]+' || :)
 
     # This means no setsid done in mysqld.
     # We don't want to kill mysqld here otherwise.
@@ -742,17 +776,15 @@ recv_joiner()
         fi
     fi
 
-    pushd "$dir" 1>/dev/null
-    set +e
-
     if [ $wait -ne 0 ]; then
         wait_for_listen &
     fi
 
+    cd "$dir"
+    set +e
     timeit "$msg" "$ltcmd | $strmcmd; RC=( "\${PIPESTATUS[@]}" )"
-
     set -e
-    popd 1>/dev/null
+    cd "$OLD_PWD"
 
     if [ ${RC[0]} -eq 124 ]; then
         wsrep_log_error "Possible timeout in receiving first data from" \
@@ -770,26 +802,36 @@ recv_joiner()
 
     if [ $checkf -eq 1 ]; then
         if [ ! -r "$MAGIC_FILE" ]; then
-            # this message should cause joiner to abort
+            # this message should cause joiner to abort:
             wsrep_log_error "receiving process ended without creating" \
-                            "'$MAGIC_FILE'"
-            wsrep_log_info "Contents of datadir"
+                            "magic file ($MAGIC_FILE)"
+            wsrep_log_info "Contents of datadir:"
             wsrep_log_info $(ls -l "$dir/"*)
             exit 32
         fi
 
-        # check donor supplied secret
-        SECRET=$(grep -F -- "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | \
-                 cut -d ' ' -f2)
-        if [ "$SECRET" != "$MY_SECRET" ]; then
-            wsrep_log_error "Donor does not know my secret!"
-            wsrep_log_info "Donor: '$SECRET', my: '$MY_SECRET'"
-            exit 32
+        if [ -n "$MY_SECRET" ]; then
+            # Check donor supplied secret:
+            SECRET=$(grep -m1 -E "^$SECRET_TAG[[:space:]]" "$MAGIC_FILE" || :)
+            SECRET=$(trim_string "${SECRET#$SECRET_TAG}")
+            if [ "$SECRET" != "$MY_SECRET" ]; then
+                wsrep_log_error "Donor does not know my secret!"
+                wsrep_log_info "Donor: '$SECRET', my: '$MY_SECRET'"
+                exit 32
+            fi
         fi
 
-        # remove secret from the magic file
-        grep -v -F -- "$SECRET_TAG " "$MAGIC_FILE" > "$MAGIC_FILE.new"
-        mv "$MAGIC_FILE.new" "$MAGIC_FILE"
+        if [ $WSREP_SST_OPT_PROGRESS -eq 1 ]; then
+            # check total SST footprint
+            payload=$(grep -m1 -E "^$TOTAL_TAG[[:space:]]" "$MAGIC_FILE" || :)
+            if [ -n "$payload" ]; then
+                payload=$(trim_string "${payload#$TOTAL_TAG}")
+                if [ $payload -ge 0 ]; then
+                    # report to parent
+                    echo "$TOTAL_TAG $payload"
+                fi
+            fi
+        fi
     fi
 }
 
@@ -798,11 +840,11 @@ send_donor()
     local dir="$1"
     local msg="$2"
 
-    pushd "$dir" 1>/dev/null
+    cd "$dir"
     set +e
     timeit "$msg" "$strmcmd | $tcmd; RC=( "\${PIPESTATUS[@]}" )"
     set -e
-    popd 1>/dev/null
+    cd "$OLD_PWD"
 
     for ecode in "${RC[@]}"; do
         if [ $ecode -ne 0 ]; then
@@ -817,7 +859,7 @@ monitor_process()
 {
     local sst_stream_pid=$1
 
-    while true ; do
+    while :; do
         if ! ps -p "$WSREP_SST_OPT_PARENT" >/dev/null 2>&1; then
             wsrep_log_error \
                 "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT)" \
@@ -834,15 +876,16 @@ monitor_process()
 
 [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
 
-if [ "$WSREP_SST_OPT_ROLE" != 'joiner' -a \
-     "$WSREP_SST_OPT_ROLE" != 'donor' ]
-then
-    wsrep_log_error "Invalid role '$WSREP_SST_OPT_ROLE'"
-    exit 22
-fi
-
 read_cnf
 setup_ports
+
+if [ "$progress" = 'none' ]; then
+    wsrep_log_info "All progress/rate-limiting disabled by configuration"
+elif [ -z "$(commandex pv)" ]; then
+    wsrep_log_info "Progress reporting tool pv not found in path: $PATH"
+    wsrep_log_info "Disabling all progress/rate-limiting"
+    progress='none'
+fi
 
 if "$BACKUP_BIN" --help 2>/dev/null | grep -qw -F -- '--version-check'; then
     disver=' --no-version-check'
@@ -957,8 +1000,8 @@ setup_commands()
 get_stream
 get_transfer
 
-if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]
-then
+if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
+
     trap cleanup_at_exit EXIT
 
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
@@ -999,6 +1042,14 @@ then
 
         check_extra
 
+        if [ -n "$progress" -o $WSREP_SST_OPT_PROGRESS -eq 1 ]; then
+            wsrep_log_info "Estimating total transfer size"
+            get_footprint
+            wsrep_log_info "To transfer: $payload"
+        else
+            adjust_progress
+        fi
+
         wsrep_log_info "Streaming GTID file before SST"
 
         # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
@@ -1008,6 +1059,11 @@ then
         if [ -n "$WSREP_SST_OPT_REMOTE_PSWD" ]; then
             # Let joiner know that we know its secret
             echo "$SECRET_TAG $WSREP_SST_OPT_REMOTE_PSWD" >> "$MAGIC_FILE"
+        fi
+
+        if [ $WSREP_SST_OPT_PROGRESS -eq 1 ]; then
+            # Tell joiner what to expect:
+            echo "$TOTAL_TAG $payload" >> "$MAGIC_FILE"
         fi
 
         ttcmd="$tcmd"
@@ -1026,12 +1082,14 @@ then
         # Restore the transport commmand to its original state
         tcmd="$ttcmd"
 
-        if [ -n "$progress" ]; then
-            get_footprint
-            tcmd="$pcmd | $tcmd"
-        elif [ -n "$rlimit" ]; then
-            adjust_progress
-            tcmd="$pcmd | $tcmd"
+        if [ -n "$pcmd" ]; then
+            if [ -n "$rcmd" ]; then
+                # redirect pv stderr to rcmd for tagging and output to parent
+                tcmd="{ $pcmd 2>&3 | $tcmd; } 3>&1 | $rcmd"
+            else
+                # use user-configured pv output
+                tcmd="$pcmd | $tcmd"
+            fi
         fi
 
         wsrep_log_info "Sleeping before data transfer for SST"
@@ -1079,6 +1137,7 @@ then
         fi
 
         setup_commands
+
         set +e
         timeit "$stagemsg-SST" "$INNOBACKUP | $tcmd; RC=( "\${PIPESTATUS[@]}" )"
         set -e
@@ -1122,10 +1181,9 @@ then
 
     echo "done $WSREP_SST_OPT_GTID"
     wsrep_log_info "Total time on donor: $totime seconds"
-    wsrep_log_info "mariabackup SST/IST completed on donor"
 
-elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]
-then
+else # joiner
+
     [ -e "$SST_PROGRESS_FILE" ] && \
         wsrep_log_info "Stale sst_in_progress file: $SST_PROGRESS_FILE"
     [ -n "$SST_PROGRESS_FILE" ] && touch "$SST_PROGRESS_FILE"
@@ -1196,6 +1254,7 @@ then
         sleep 1
     done
 
+    trap simple_cleanup EXIT
     echo $$ > "$SST_PID"
 
     stagemsg='Joiner-Recv'
@@ -1205,7 +1264,7 @@ then
     [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE"
 
     # May need xtrabackup_checkpoints later on
-    [ -f "$DATA/xtrabackup_binary"      ] && rm -f "$DATA/xtrabackup_binary"
+    [ -f "$DATA/xtrabackup_binary" ]      && rm -f "$DATA/xtrabackup_binary"
     [ -f "$DATA/xtrabackup_galera_info" ] && rm -f "$DATA/xtrabackup_galera_info"
 
     ADDR="$WSREP_SST_OPT_HOST"
@@ -1232,14 +1291,6 @@ then
         MY_SECRET="" # for check down in recv_joiner()
     fi
 
-    trap sig_joiner_cleanup HUP PIPE INT TERM
-    trap cleanup_at_exit EXIT
-
-    if [ -n "$progress" ]; then
-        adjust_progress
-        tcmd="$tcmd | $pcmd"
-    fi
-
     get_keys
     if [ $encrypt -eq 1 ]; then
         strmcmd="$ecmd | $strmcmd"
@@ -1251,19 +1302,31 @@ then
 
     check_sockets_utils
 
+    trap cleanup_at_exit EXIT
+
     STATDIR="$(mktemp -d)"
     MAGIC_FILE="$STATDIR/$INFO_FILE"
 
     recv_joiner "$STATDIR" "$stagemsg-gtid" $stimeout 1 1
 
-    if ! ps -p "$WSREP_SST_OPT_PARENT" >/dev/null 2>&1
-    then
+    if ! ps -p "$WSREP_SST_OPT_PARENT" >/dev/null 2>&1; then
         wsrep_log_error "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT)" \
                         "terminated unexpectedly."
         exit 32
     fi
 
     if [ ! -r "$STATDIR/$IST_FILE" ]; then
+
+        adjust_progress
+        if [ -n "$pcmd" ]; then
+            if [ -n "$rcmd" ]; then
+                # redirect pv stderr to rcmd for tagging and output to parent
+                strmcmd="{ $pcmd 2>&3 | $strmcmd; } 3>&1 | $rcmd"
+            else
+                # use user-configured pv output
+                strmcmd="$pcmd | $strmcmd"
+            fi
+        fi
 
         if [ -d "$DATA/.sst" ]; then
             wsrep_log_info \
@@ -1285,13 +1348,13 @@ then
             cd "$DATA"
             wsrep_log_info "Cleaning the old binary logs"
             # If there is a file with binlogs state, delete it:
-            [ -f "$binlog_base.state" ] && rm -fv "$binlog_base.state" 1>&2
+            [ -f "$binlog_base.state" ] && rm "$binlog_base.state" >&2
             # Clean up the old binlog files and index:
             if [ -f "$binlog_index" ]; then
                 while read bin_file || [ -n "$bin_file" ]; do
-                    rm -fv "$bin_file" 1>&2 || :
+                    rm -f "$bin_file" >&2 || :
                 done < "$binlog_index"
-                rm -fv "$binlog_index" 1>&2
+                rm "$binlog_index" >&2
             fi
             if [ -n "$binlog_dir" -a "$binlog_dir" != '.' -a \
                  -d "$binlog_dir" ]
@@ -1302,7 +1365,7 @@ then
                        "Cleaning the binlog directory '$binlog_dir' as well"
                 fi
             fi
-            rm -fv "$binlog_base".[0-9]* 1>&2 || :
+            rm -f "$binlog_base".[0-9]* >&2 || :
             cd "$OLD_PWD"
         fi
 
@@ -1313,13 +1376,13 @@ then
                     ${ib_undo_dir:+"$ib_undo_dir"} \
                     ${ib_log_dir:+"$ib_log_dir"} \
                     "$DATA" -mindepth 1 -prune -regex "$cpat" \
-                    -o -exec rm -rfv {} 1>&2 \+
+                    -o -exec rm -rf {} >&2 \+
         else
             find ${ib_home_dir:+"$ib_home_dir"} \
                  ${ib_undo_dir:+"$ib_undo_dir"} \
                  ${ib_log_dir:+"$ib_log_dir"} \
                  "$DATA" -mindepth 1 -prune -regex "$cpat" \
-                 -o -exec rm -rfv {} 1>&2 \+
+                 -o -exec rm -rf {} >&2 \+
         fi
 
         TDATA="$DATA"
@@ -1355,16 +1418,14 @@ then
 
             dcmd="xargs -n 2 qpress -dT$nproc"
 
-            if [ -n "$progress" ] && \
+            if [ -n "$progress" -a "$progress" != 'none' ] && \
                pv --help | grep -qw -F -- '--line-mode'
             then
-                count=$(find "$DATA" -type f -name '*.qp' | wc -l)
+                count=$(find "$DATA" -maxdepth 1 -type f -name '*.qp' | wc -l)
                 count=$(( count*2 ))
-                pvopts="-f -s $count -l -N Decompression"
-                if pv --help | grep -qw -F -- '-F'; then
-                    pvopts="$pvopts -F '%N => Rate:%r Elapsed:%t %e Progress: [%b/$count]'"
-                fi
-                pcmd="pv $pvopts"
+                pvopts='-f -l -N Decompression'
+                pvformat="-F '%N => Rate:%r Elapsed:%t %e Progress: [%b/$count]'"
+                payload=$count
                 adjust_progress
                 dcmd="$pcmd | $dcmd"
             fi
@@ -1393,7 +1454,6 @@ then
         wsrep_log_info "Preparing the backup at $DATA"
         setup_commands
         timeit 'mariabackup prepare stage' "$INNOAPPLY"
-
         if [ $? -ne 0 ]; then
             wsrep_log_error "mariabackup apply finished with errors." \
                             "Check syslog or '$INNOAPPLYLOG' for details."
@@ -1450,6 +1510,10 @@ then
     else
 
         wsrep_log_info "'$IST_FILE' received from donor: Running IST"
+        if [ $WSREP_SST_OPT_BYPASS -eq 0 ]; then
+            readonly WSREP_SST_OPT_BYPASS=1
+            readonly WSREP_TRANSFER_TYPE='IST'
+        fi
 
     fi
 
@@ -1458,12 +1522,13 @@ then
         exit 2
     fi
 
-    coords=$(cat "$MAGIC_FILE")
+    # Remove special tags from the magic file, and from the output:
+    coords=$(head -n1 "$MAGIC_FILE")
     wsrep_log_info "Galera co-ords from recovery: $coords"
-    cat "$MAGIC_FILE" # Output : UUID:seqno wsrep_gtid_domain_id
+    echo "$coords" # Output : UUID:seqno wsrep_gtid_domain_id
 
     wsrep_log_info "Total time on joiner: $totime seconds"
-    wsrep_log_info "mariabackup SST/IST completed on joiner"
 fi
 
+wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE completed on $WSREP_SST_OPT_ROLE"
 exit 0

@@ -60,6 +60,7 @@ class MYSQLDEF : public EXTDEF           {/* Logical table description */
   bool    Isview;             /* true if this table is a MySQL view    */
   bool    Bind;               /* Use prepared statement on insert      */
   bool    Delayed;            /* Delayed insert                        */
+  bool    Ignored;            /* Use insert IGNORE                     */
 //bool    Xsrc;               /* Execution type                        */
   bool    Huge;               /* True for big table                    */
   }; // end of MYSQLDEF
@@ -132,6 +133,7 @@ class TDBMYSQL : public TDBEXT {
   bool        Isview;         // True if this table is a MySQL view
   bool        Prep;           // Use prepared statement on insert
   bool        Delayed;        // Use delayed insert
+  bool        Ignored;        // Use insert IGNORE
   int         m_Rc;           // Return code from command
 //int         AftRows;        // The number of affected rows
   int         N;              // The current table index

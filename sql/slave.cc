@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation
+   Copyright (c) 2009, 2022, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -6586,8 +6586,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
         can be satisfied only with the strict mode that ensures
         against "genuine" gtid duplicates.
       */
-      rpl_gtid *gtid_in_slave_state=
-        mi->gtid_current_pos.find(mi->last_queued_gtid.domain_id);
+      IF_DBUG(rpl_gtid *gtid_in_slave_state=
+              mi->gtid_current_pos.find(mi->last_queued_gtid.domain_id),);
 
       // Slave gtid state must not have updated yet to the last received gtid.
       DBUG_ASSERT((mi->using_gtid == Master_info::USE_GTID_NO ||
@@ -7003,8 +7003,9 @@ dbug_gtid_accept:
       mi->using_gtid != Master_info::USE_GTID_NO &&
       mi->events_queued_since_last_gtid > 0 &&
       ( (mi->last_queued_gtid_standalone &&
-         !Log_event::is_part_of_group((Log_event_type)(uchar)
-                                      buf[EVENT_TYPE_OFFSET])) ||
+         (LOG_EVENT_IS_QUERY((Log_event_type)(uchar)
+                             buf[EVENT_TYPE_OFFSET]) ||
+          (uchar)buf[EVENT_TYPE_OFFSET] == INCIDENT_EVENT)) ||
         (!mi->last_queued_gtid_standalone &&
          ((uchar)buf[EVENT_TYPE_OFFSET] == XID_EVENT ||
           ((uchar)buf[EVENT_TYPE_OFFSET] == QUERY_EVENT &&    /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
