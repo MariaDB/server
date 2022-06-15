@@ -214,7 +214,7 @@ fi
 max_plugins="--with-plugins=max"
 max_no_embedded_configs="$SSL_LIBRARY $max_plugins"
 max_no_qc_configs="$SSL_LIBRARY $max_plugins --without-query-cache"
-max_configs="$SSL_LIBRARY $max_plugins --with-embedded-server --with-libevent --with-plugin-rocksdb=dynamic --with-plugin-test_sql_discovery=DYNAMIC --with-plugin-file_key_management=DYNAMIC"
+max_configs="$SSL_LIBRARY $max_plugins --with-embedded-server --with-libevent --with-plugin-rocksdb=dynamic --with-plugin-test_sql_discovery=DYNAMIC --with-plugin-file_key_management=DYNAMIC --with-plugin-hashicorp_key_management=DYNAMIC"
 all_configs="$SSL_LIBRARY $max_plugins --with-embedded-server --with-innodb_plugin --with-libevent"
 
 #
