@@ -1055,6 +1055,7 @@ os_file_create_simple_func(
 	we open the same file in the same mode, see man page of open(2). */
 	if (!srv_read_only_mode && *success) {
 		switch (srv_file_flush_method) {
+		case SRV_O_DSYNC:
 		case SRV_O_DIRECT:
 		case SRV_O_DIRECT_NO_FSYNC:
 			os_file_set_nocache(file, name, mode_str);
@@ -1240,13 +1241,13 @@ os_file_create_func(
 
 #if (defined(UNIV_SOLARIS) && defined(DIRECTIO_ON)) || defined O_DIRECT
 	if (type == OS_DATA_FILE) {
-# ifdef __linux__
-use_o_direct:
-# endif
 		switch (srv_file_flush_method) {
 		case SRV_O_DSYNC:
 		case SRV_O_DIRECT:
 		case SRV_O_DIRECT_NO_FSYNC:
+# ifdef __linux__
+use_o_direct:
+# endif
 			os_file_set_nocache(file, name, mode_str);
 			break;
 		default:
@@ -1263,9 +1264,6 @@ use_o_direct:
 			goto skip_o_direct;
 		}
 		MSAN_STAT_WORKAROUND(&st);
-		if (st.st_size & 4095) {
-			goto skip_o_direct;
-		}
 		if (snprintf(b, sizeof b,
 			     "/sys/dev/block/%u:%u/queue/physical_block_size",
 			     major(st.st_dev), minor(st.st_dev))
@@ -1298,11 +1296,16 @@ use_o_direct:
 			if (s > 4096 || s < 64 || !ut_is_2pow(s)) {
 				goto skip_o_direct;
 			}
+			log_sys.log_maybe_unbuffered= true;
 			log_sys.set_block_size(uint32_t(s));
-			goto use_o_direct;
+			if (!log_sys.log_buffered && !(st.st_size & (s - 1))) {
+				goto use_o_direct;
+			}
 		} else {
 skip_o_direct:
-			log_sys.set_block_size(0);
+			log_sys.log_maybe_unbuffered= false;
+			log_sys.log_buffered= true;
+			log_sys.set_block_size(512);
 		}
 	}
 # endif
@@ -2057,7 +2060,7 @@ os_file_create_directory(
 }
 
 /** Get disk sector size for a file. */
-size_t get_sector_size(HANDLE file)
+static size_t get_sector_size(HANDLE file)
 {
   FILE_STORAGE_INFO fsi;
   ULONG s= 4096;
@@ -2065,9 +2068,7 @@ size_t get_sector_size(HANDLE file)
   {
     s= fsi.PhysicalBytesPerSectorForPerformance;
     if (s > 4096 || s < 64 || !ut_is_2pow(s))
-    {
       return 4096;
-    }
   }
   return s;
 }
@@ -2165,8 +2166,9 @@ os_file_create_func(
 		? FILE_FLAG_OVERLAPPED : 0;
 
 	if (type == OS_LOG_FILE) {
-		if(srv_flush_log_at_trx_commit != 2 && !log_sys.is_opened())
+		if (!log_sys.is_opened() && !log_sys.log_buffered) {
 			attributes|= FILE_FLAG_NO_BUFFERING;
+		}
 		if (srv_file_flush_method == SRV_O_DSYNC)
 			attributes|= FILE_FLAG_WRITE_THROUGH;
 	}
@@ -2197,21 +2199,22 @@ os_file_create_func(
 			name, access, share_mode, my_win_file_secattr(),
 			create_flag, attributes, NULL);
 
-		if (file != INVALID_HANDLE_VALUE && type == OS_LOG_FILE
-			&& (attributes & FILE_FLAG_NO_BUFFERING)) {
-			uint32 s= (uint32_t) get_sector_size(file);
-			log_sys.set_block_size(uint32_t(s));
-			/* FIXME! remove it when backup is fixed, so that it
-				does not produce redo with irregular sizes.*/
-			if (os_file_get_size(file) % s) {
-				attributes &= ~FILE_FLAG_NO_BUFFERING;
-				create_flag = OPEN_ALWAYS;
-				CloseHandle(file);
-				continue;
+		*success = file != INVALID_HANDLE_VALUE;
+
+		if (*success && type == OS_LOG_FILE) {
+			uint32_t s = uint32_t(get_sector_size(file));
+			log_sys.set_block_size(s);
+			if (attributes & FILE_FLAG_NO_BUFFERING) {
+				if (os_file_get_size(file) % s) {
+					attributes &= ~FILE_FLAG_NO_BUFFERING;
+					create_flag = OPEN_ALWAYS;
+					CloseHandle(file);
+					continue;
+				}
+				log_sys.log_buffered = false;
 			}
 		}
 
-		*success = (file != INVALID_HANDLE_VALUE);
 		if (*success) {
 			break;
 		}

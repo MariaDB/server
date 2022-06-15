@@ -11434,12 +11434,8 @@ foreign_fail:
 		ut_d(dict_table_check_for_dup_indexes(
 			     ctx->new_table, CHECK_ABORTED_OK));
 
-#ifdef UNIV_DEBUG
-		if (!(ctx->new_table->fts != NULL
-			&& ctx->new_table->fts->cache->sync->in_progress)) {
-			ut_a(fts_check_cached_index(ctx->new_table));
-		}
-#endif
+		ut_ad(!ctx->new_table->fts
+		      || fts_check_cached_index(ctx->new_table));
 	}
 
 	unlock_and_close_files(deleted, trx);

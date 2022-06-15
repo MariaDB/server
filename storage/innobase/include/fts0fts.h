@@ -656,12 +656,6 @@ fts_optimize_remove_table(
 void
 fts_optimize_shutdown();
 
-/** Send sync fts cache for the table.
-@param[in]	table	table to sync */
-void
-fts_optimize_request_sync_table(
-	dict_table_t*	table);
-
 /**********************************************************************//**
 Take a FTS savepoint. */
 void
@@ -716,9 +710,8 @@ fts_savepoint_rollback_last_stmt(
 /** Run SYNC on the table, i.e., write out data from the cache to the
 FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	table		fts table
-@param[in]	wait		whether to wait for existing sync to finish
 @return DB_SUCCESS on success, error code on failure. */
-dberr_t fts_sync_table(dict_table_t* table, bool wait = true);
+dberr_t fts_sync_table(dict_table_t* table);
 
 /****************************************************************//**
 Create an FTS index cache. */
