@@ -10423,6 +10423,7 @@ handle_error:
 				sql_print_error("InnoDB: %s: %s\n", op,
 						ut_strerr(error));
 				DBUG_ASSERT(error == DB_IO_ERROR
+					    || error == DB_LOCK_TABLE_FULL
 					    || error == DB_DECRYPTION_FAILED
 					    || error == DB_PAGE_CORRUPTED
 					    || error == DB_CORRUPTION);
