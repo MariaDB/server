@@ -148,6 +148,12 @@ public:
 
   constexpr ulonglong raw() const { return m_id; }
 
+  /** Flag the page identifier as corrupted. */
+  void set_corrupted() { m_id= ~0ULL; }
+
+  /** @return whether the page identifier belongs to a corrupted page */
+  constexpr bool is_corrupted() const { return m_id == ~0ULL; }
+
 private:
   /** The page identifier */
   uint64_t m_id;

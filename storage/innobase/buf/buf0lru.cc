@@ -1218,14 +1218,14 @@ void buf_pool_t::corrupted_evict(buf_page_t *bpage, uint32_t state)
 
   ut_ad(!bpage->oldest_modification());
   bpage->set_corrupt_id();
-  auto unfix= state - buf_page_t::UNFIXED;
+  auto unfix= state - buf_page_t::FREED;
   auto s= bpage->zip.fix.fetch_sub(unfix) - unfix;
   bpage->lock.x_unlock(true);
 
-  while (s != buf_page_t::UNFIXED)
+  while (s != buf_page_t::FREED || bpage->lock.is_locked_or_waiting())
   {
-    ut_ad(s > buf_page_t::UNFIXED);
-    ut_ad(s < buf_page_t::READ_FIX);
+    ut_ad(s >= buf_page_t::FREED);
+    ut_ad(s < buf_page_t::UNFIXED);
     /* Wait for other threads to release the fix count
     before releasing the bpage from LRU list. */
     (void) LF_BACKOFF();
