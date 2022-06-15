@@ -1368,6 +1368,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <simple_string>
         remember_name remember_end
         remember_tok_start
+        remember_cpp_ptr
         wild_and_where
 
 %type <const_simple_string>
@@ -3705,21 +3706,11 @@ RETURN_ALLMODES_SYM:
         ;
 
 sp_proc_stmt_return:
-          RETURN_ALLMODES_SYM remember_name expr_lex remember_end
+          RETURN_ALLMODES_SYM expr_lex
           {
-            sp_head *sp= $3->sphead;
-            LEX_CSTRING expr_str= empty_clex_str;
-
-            if (Lex->is_metadata_used())
-            {
-              expr_str= make_string(thd, $2, $4);
-              if (expr_str.str == nullptr)
-                MYSQL_YYABORT;
-            }
-
-            if (unlikely(sp->m_handler->add_instr_freturn(thd, sp, $3->spcont,
-                                                          $3->get_item(), $3,
-                                                          expr_str)))
+            sp_head *sp= $2->sphead;
+            if (unlikely(sp->m_handler->add_instr_freturn(thd, sp, $2->spcont,
+                                                          $2->get_item(), $2)))
               MYSQL_YYABORT;
           }
         | RETURN_ORACLE_SYM
@@ -3821,7 +3812,7 @@ expr_lex:
             if (Lex->main_select_push(true))
               MYSQL_YYABORT;
           }
-          remember_name expr remember_end
+          remember_cpp_ptr expr remember_end
           {
             LEX_CSTRING expr_str= empty_clex_str;
 
@@ -8991,6 +8982,12 @@ remember_name:
 remember_end:
           {
             $$= (char*) YYLIP->get_cpp_tok_end_rtrim();
+          }
+        ;
+
+remember_cpp_ptr:
+          {
+	      $$= (char*) YYLIP->get_cpp_ptr();
           }
         ;
 
@@ -16430,7 +16427,7 @@ option_value_no_option_type:
             if (sp_create_assignment_lex(thd, $1.pos()))
               MYSQL_YYABORT;
           }
-          remember_name set_expr_or_default remember_end
+          remember_cpp_ptr set_expr_or_default remember_end
           {
             Lex_ident_sys tmp(thd, &$1);
             LEX_CSTRING expr_str= empty_clex_str;

@@ -43,6 +43,7 @@ struct TABLE;
 struct TABLE_LIST;
 typedef struct st_hash HASH;
 template <typename T> class SQL_I_List;
+class sp_expr_lex;
 
 /*
   Values for the type enum. This reflects the order of the enum declaration
@@ -185,8 +186,7 @@ public:
   }
   virtual bool add_instr_freturn(THD *thd, sp_head *sp,
                                  sp_pcontext *spcont,
-                                 Item *item, LEX *lex,
-                                 LEX_CSTRING expr_query) const;
+                                 Item *item, sp_expr_lex *lex) const;
   virtual bool add_instr_preturn(THD *thd, sp_head *sp,
                                  sp_pcontext *spcont) const;
 
@@ -325,7 +325,7 @@ public:
   HASH *get_priv_hash() const;
 #endif
   bool add_instr_freturn(THD *thd, sp_head *sp, sp_pcontext *spcont,
-                         Item *item, LEX *lex, LEX_CSTRING expr_query) const;
+                         Item *item, sp_expr_lex *lex) const;
 };
 
 

@@ -392,8 +392,8 @@ public:
   }
 
   bool
-  add_instr_freturn(THD *thd, sp_pcontext *spcont, Item *item, LEX *lex,
-                    LEX_CSTRING expr_query);
+  add_instr_freturn(THD *thd, sp_pcontext *spcont, Item *item,
+                    sp_expr_lex *lex);
 
   bool
   add_instr_preturn(THD *thd, sp_pcontext *spcont);
@@ -914,8 +914,9 @@ public:
 protected:
 
   MEM_ROOT *m_thd_root;		///< Temp. store for thd's mem_root
+public:
   THD *m_thd;			///< Set if we have reset mem_root
-
+protected:
   sp_pcontext *m_pcont;		///< Parse context
   List<LEX> m_lex;		///< Temp. store for the other lex
   DYNAMIC_ARRAY m_instr;	///< The "instructions"

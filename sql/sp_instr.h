@@ -365,10 +365,7 @@ protected:
     @return the expression query string. This string can not be passed directly
     to the parser as it is most likely not a valid SQL-statement.
   */
-  virtual LEX_CSTRING get_expr_query() const
-  {
-    return null_clex_str;
-  }
+  virtual LEX_CSTRING get_expr_query() const = 0;
 
 
   /**
@@ -450,6 +447,10 @@ protected:
     return false;
   }
 
+  LEX_CSTRING get_expr_query() const override
+  {
+    return LEX_CSTRING{m_query.str, m_query.length};
+  }
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
@@ -878,7 +879,8 @@ public:
                    Item *val, const Type_handler *handler, LEX *lex,
                    LEX_CSTRING expr_query)
     : sp_lex_instr(ip, ctx, lex, true),
-      m_value(val), m_type_handler(handler)
+      m_value(val), m_type_handler(handler),
+      m_expr_str(expr_query)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -913,6 +915,13 @@ protected:
     /* TODO: be careful and check that the object referenced by m_value
        is not leaked */
     m_value= nullptr;
+  }
+
+  bool on_after_expr_parsing(THD *thd) override
+  {
+    DBUG_ASSERT(thd->lex->current_select->item_list.elements == 1);
+    m_value= thd->lex->current_select->item_list.head();
+    return m_value == nullptr;
   }
 
 private:
@@ -1105,6 +1114,12 @@ public:
     sql_query->append(m_cursor_query.str, m_cursor_query.length);
   }
 
+protected:
+  LEX_CSTRING get_expr_query() const override
+  {
+    return null_clex_str;
+  }
+
 private:
 
   uint m_cursor;                /**< Frame offset (for debugging) */
@@ -1228,6 +1243,11 @@ public:
   static PSI_statement_info psi_info;
 
 protected:
+  LEX_CSTRING get_expr_query() const override
+  {
+    return null_clex_str;
+  }
+
   bool on_after_expr_parsing(THD *) override
   {
     m_valid= true;

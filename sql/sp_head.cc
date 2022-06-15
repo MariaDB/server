@@ -3064,12 +3064,12 @@ bool sp_head::add_instr_jump_forward_with_backpatch(THD *thd,
 
 
 bool sp_head::add_instr_freturn(THD *thd, sp_pcontext *spcont,
-                                Item *item, LEX *lex, LEX_CSTRING expr_query)
+                                Item *item, sp_expr_lex *lex)
 {
   sp_instr_freturn *i= new (thd->mem_root)
                        sp_instr_freturn(instructions(), spcont, item,
                                         m_return_field_def.type_handler(), lex,
-                                        expr_query);
+                                        lex->get_expr_str());
   if (i == NULL || add_instr(i))
     return true;
   m_flags|= sp_head::HAS_RETURN;

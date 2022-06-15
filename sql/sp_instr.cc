@@ -661,7 +661,12 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp)
   const char *m_tmp_query_bak= sp->m_tmp_query;
   sp->m_tmp_query= sql_query.c_ptr();
 
+  THD *thd_bak= thd->lex->sphead->m_thd;
+  thd->lex->sphead->m_thd= thd;
+
   bool parsing_failed= parse_sql(thd, &parser_state, nullptr);
+
+  thd->lex->sphead->m_thd= thd_bak;
 
   sp->m_tmp_query= m_tmp_query_bak;
   thd->m_digest= parent_digest;
