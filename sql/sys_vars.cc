@@ -789,7 +789,9 @@ static bool check_charset(sys_var *self, THD *thd, set_var *var)
   else // INT_RESULT
   {
     int csno= (int)var->value->val_int();
-    if (!(var->save_result.ptr= get_charset(csno, MYF(0))))
+    CHARSET_INFO *cs;
+    if (!(var->save_result.ptr= cs= get_charset(csno, MYF(0))) ||
+        !(cs->state & MY_CS_PRIMARY))
     {
       my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), llstr(csno, buff));
       return true;

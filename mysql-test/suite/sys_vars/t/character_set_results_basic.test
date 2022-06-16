@@ -153,29 +153,42 @@ SELECT @@global.character_set_results;
 ##############################################################
 SET @@character_set_results = 1;
 SELECT @@character_set_results;
+
+--echo # latin2_czech_cs is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
 SET @@character_set_results = 2;
-SELECT @@character_set_results;
+
 SET @@character_set_results = 3;
 SELECT @@character_set_results;
 SET @@character_set_results = 36;
 SELECT @@character_set_results;
-SET @@character_set_results = 99;
-SELECT @@character_set_results;
 
+--echo # cp1250_polish_ci is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
+SET @@character_set_results = 99;
+
+--echo # Collation ID 100 does not exist
 --Error ER_UNKNOWN_CHARACTER_SET
 SET @@character_set_results = 100;
 
+
 SET @@global.character_set_results = 1;
 SELECT @@global.character_set_results;
+
+--echo # latin2_czech_cs is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
 SET @@global.character_set_results = 2;
-SELECT @@global.character_set_results;
+
 SET @@global.character_set_results = 3;
 SELECT @@global.character_set_results;
 SET @@global.character_set_results = 36;
 SELECT @@global.character_set_results;
-SET @@global.character_set_results = 99;
-SELECT @@global.character_set_results;
 
+--echo # cp1250_polish_ci is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
+SET @@global.character_set_results = 99;
+
+--echo # Collation ID 100 does not exist
 --Error ER_UNKNOWN_CHARACTER_SET
 SET @@global.character_set_results = 100;
 
