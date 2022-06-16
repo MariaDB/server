@@ -1093,10 +1093,11 @@ insert into t1 values (1);
 update v2 set s1 = 1;
 select * from v2;
 select * from t2;
-# scheck how VIEWs with subqueries work with prepared statements
+# check how VIEWs with subqueries work with prepared statements
 prepare stmt1 from "select * from v2;";
 execute stmt1;
 insert into t1 values (0);
+--sorted_result
 execute stmt1;
 deallocate prepare stmt1;
 drop view v2;
