@@ -60,7 +60,13 @@ int json_find_overlap_with_array(json_engine_t *js,
                                              json_engine_t *value,
                                              bool compare_whole);
 
-
+bool create_hash(json_engine_t *value, HASH *items, bool &hash_inited);
+bool create_item(LEX_CSTRING *&new_entry,
+                                    const uchar *value_start, size_t value_len);
+bool get_current_value(json_engine_t *js, const uchar *&value_start,
+                         size_t &value_len);
+bool get_intersect_between_arrays(String *str,
+                                         json_engine_t *value);
 
 class Json_engine_scan: public json_engine_t
 {
@@ -491,6 +497,25 @@ public:
 };
 
 
+class Item_func_json_object_to_array: public Item_json_func
+{
+  protected:
+  String tmp;
+public:
+  Item_func_json_object_to_array(THD *thd, Item *a):
+    Item_json_func(thd, a) {}
+  String *val_str(String *) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("json_object_to_array") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_json_object_to_array>(thd, this); }
+};
+
+
 class Item_func_json_length: public Item_long_func
 {
   bool check_arguments() const override
@@ -852,6 +877,69 @@ public:
   bool get_key_value(json_engine_t *je, String *str);
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_key_value>(thd, this); }
+};
+
+class Item_func_json_array_intersect: public Item_str_func
+{
+protected:
+  String tmp_js1, tmp_js2;
+  bool hash_inited, root_inited;
+  HASH items;
+  MEM_ROOT hash_root;
+public:
+  Item_func_json_array_intersect(THD *thd, Item *a, Item *b):
+    Item_str_func(thd, a, b) { hash_inited= root_inited= false; }
+  String *val_str(String *) override;
+  bool fix_length_and_dec(THD *thd) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("json_array_intersect") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_json_array_intersect>(thd, this); }
+  void cleanup() override
+  {
+    if (hash_inited)
+      my_hash_free(&items);
+  }
+  ~Item_func_json_array_intersect()
+  {
+    if (root_inited)
+      free_root(&hash_root, MYF(0));
+  }
+};
+
+class Item_func_json_object_filter_keys: public Item_str_func
+{
+protected:
+  String tmp_js1, tmp_js2;
+  bool hash_inited, root_inited;
+  HASH items;
+  MEM_ROOT hash_root;
+public:
+  Item_func_json_object_filter_keys(THD *thd, Item *a, Item *b):
+    Item_str_func(thd, a, b) { hash_inited= root_inited= false; }
+  String *val_str(String *) override;
+  bool fix_length_and_dec(THD *thd) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("json_object_filter_keys") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_json_object_filter_keys>(thd, this); }
+
+  void cleanup() override
+  {
+    if (hash_inited)
+      my_hash_free(&items);
+  }
+  ~Item_func_json_object_filter_keys()
+  {
+    if (root_inited)
+      free_root(&hash_root, MYF(0));
+  }
 };
 
 
