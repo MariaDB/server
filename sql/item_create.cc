@@ -958,6 +958,17 @@ protected:
   virtual ~Create_func_json_normalize() = default;
 };
 
+class Create_func_json_object_to_array : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_json_object_to_array s_singleton;
+
+protected:
+  Create_func_json_object_to_array() {}
+  virtual ~Create_func_json_object_to_array() {}
+};
 
 class Create_func_json_equals : public Create_func_arg2
 {
@@ -1374,6 +1385,32 @@ public:
 protected:
   Create_func_json_key_value() = default;
   virtual ~Create_func_json_key_value() = default;
+};
+
+
+class Create_func_json_array_intersect : public Create_func_arg2
+{
+public:
+  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+
+  static Create_func_json_array_intersect s_singleton;
+
+protected:
+  Create_func_json_array_intersect() {}
+  virtual ~Create_func_json_array_intersect() {}
+};
+
+
+class Create_func_json_object_filter_keys : public Create_func_arg2
+{
+public:
+  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+
+  static Create_func_json_object_filter_keys s_singleton;
+
+protected:
+  Create_func_json_object_filter_keys() {}
+  virtual ~Create_func_json_object_filter_keys() {}
 };
 
 
@@ -3818,6 +3855,15 @@ Create_func_json_normalize::create_1_arg(THD *thd, Item *arg1)
   return new (thd->mem_root) Item_func_json_normalize(thd, arg1);
 }
 
+Create_func_json_object_to_array Create_func_json_object_to_array::s_singleton;
+
+Item*
+Create_func_json_object_to_array::create_1_arg(THD *thd, Item *arg1)
+{
+  status_var_increment(thd->status_var.feature_json);
+  return new (thd->mem_root) Item_func_json_object_to_array(thd, arg1);
+}
+
 
 Create_func_json_equals Create_func_json_equals::s_singleton;
 
@@ -4202,6 +4248,27 @@ Create_func_json_length::create_native(THD *thd, const LEX_CSTRING *name,
 
   status_var_increment(thd->status_var.feature_json);
   return func;
+}
+
+Create_func_json_array_intersect Create_func_json_array_intersect::s_singleton;
+Item*
+Create_func_json_array_intersect::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  if (unlikely( ( !arg1 || !arg2 ) )) // json, json
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0));
+  }
+  status_var_increment(thd->status_var.feature_json);
+  return new (thd->mem_root) Item_func_json_array_intersect(thd, arg1, arg2);
+}
+
+Create_func_json_object_filter_keys Create_func_json_object_filter_keys::s_singleton;
+
+Item*
+Create_func_json_object_filter_keys::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  status_var_increment(thd->status_var.feature_json);
+  return new (thd->mem_root) Item_func_json_object_filter_keys(thd, arg1, arg2);
 }
 
 
@@ -5822,6 +5889,7 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("JSON_ARRAY") }, BUILDER(Create_func_json_array)},
   { { STRING_WITH_LEN("JSON_ARRAY_APPEND") }, BUILDER(Create_func_json_array_append)},
   { { STRING_WITH_LEN("JSON_ARRAY_INSERT") }, BUILDER(Create_func_json_array_insert)},
+  { { STRING_WITH_LEN("JSON_ARRAY_INTERSECT") }, BUILDER(Create_func_json_array_intersect)},
   { { STRING_WITH_LEN("JSON_COMPACT") }, BUILDER(Create_func_json_compact)},
   { { STRING_WITH_LEN("JSON_CONTAINS") }, BUILDER(Create_func_json_contains)},
   { { STRING_WITH_LEN("JSON_CONTAINS_PATH") }, BUILDER(Create_func_json_contains_path)},
@@ -5843,6 +5911,8 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("JSON_QUERY") }, BUILDER(Create_func_json_query)},
   { { STRING_WITH_LEN("JSON_QUOTE") }, BUILDER(Create_func_json_quote)},
   { { STRING_WITH_LEN("JSON_OBJECT") }, BUILDER(Create_func_json_object)},
+  { { STRING_WITH_LEN("JSON_OBJECT_FILTER_KEYS") }, BUILDER(Create_func_json_object_filter_keys)},
+  { { STRING_WITH_LEN("JSON_OBJECT_TO_ARRAY") }, BUILDER(Create_func_json_object_to_array)},
   { { STRING_WITH_LEN("JSON_OVERLAPS") }, BUILDER(Create_func_json_overlaps)},
   { { STRING_WITH_LEN("JSON_REMOVE") }, BUILDER(Create_func_json_remove)},
   { { STRING_WITH_LEN("JSON_REPLACE") }, BUILDER(Create_func_json_replace)},

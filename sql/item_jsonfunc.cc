@@ -4982,3 +4982,515 @@ bool Item_func_json_key_value::fix_length_and_dec(THD *thd)
 
   return FALSE;
 }
+
+
+bool create_hash(json_engine_t *value, HASH *items, bool &hash_inited,
+                 MEM_ROOT *hash_root)
+{
+  int level= value->stack_p;
+  if (my_hash_init(PSI_INSTRUMENT_ME, items, value->s.cs, 0, 0, 0,
+                   (my_hash_get_key) get_key_name, NULL, 0))
+    return true;
+  hash_inited= true;
+
+  while (json_scan_next(value) == 0 && value->stack_p >= level)
+  {
+    const uchar *value_start= NULL;
+    size_t value_len= 0;
+    DYNAMIC_STRING norm_val;
+
+    if (json_read_value(value) ||
+        get_current_value(value, value_start, value_len) ||
+        init_dynamic_string(&norm_val, NULL, 0, 0))
+      return true;
+
+    if (json_normalize(&norm_val, (const char*) value_start,
+                       value_len, value->s.cs))
+    {
+      dynstr_free(&norm_val);
+      return true;
+    }
+
+    char *new_entry= (char*)alloc_root(hash_root,
+                                       norm_val.length+1);
+    if (!new_entry)
+    {
+      dynstr_free(&norm_val);
+      return true;
+    }
+    else
+    {
+      strncpy(new_entry, norm_val.str, norm_val.length);
+      new_entry[norm_val.length]='\0';
+
+      dynstr_free(&norm_val);
+
+      if (my_hash_insert(items, (const uchar *) new_entry))
+      {
+        my_free(new_entry);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+
+/*
+  Get the starting pointer and length of the value of the current layer.
+  RETURN
+    FALSE - The function was successfully completed without errors.
+    TRUE  - An error occurred while running.
+*/
+bool get_current_value(json_engine_t *js, const uchar *&value_start,
+                         size_t &value_len)
+{
+  value_start= js->value_begin;
+
+  if (json_value_scalar(js))
+  {
+    value_len= js->value_end - value_start;
+  }
+  else
+  {
+    if (json_skip_level(js))
+      return true;
+    value_len= js->s.c_str - value_start;
+  }
+  return false;
+}
+
+
+/*
+  If the outermost layer of JSON is an array,
+  the intersection of arrays is independent of order.
+  Create a hash containing all elements in the array,
+  itterate over another array and add the common elements
+  to the result.
+
+  RETURN
+    FALSE  - if two array documents have intersection
+    TRUE   - If two array documents do not have intersection
+*/
+bool get_intersect_between_arrays(String *str, json_engine_t *value,
+                                  HASH items)
+{
+  bool res= true, has_value= false;
+  int level= value->stack_p;
+  String temp_str(0);
+
+  temp_str.append('[');
+  while (json_scan_next(value) == 0 && value->stack_p >= level)
+  {
+    const uchar *value_start= NULL;
+    size_t value_len= 0;
+    DYNAMIC_STRING norm_val;
+
+    if (json_read_value(value) ||
+        get_current_value(value, value_start, value_len) ||
+        init_dynamic_string(&norm_val, NULL, 0, 0))
+      goto error;
+
+    if (json_normalize(&norm_val, (const char*) value_start,
+                         value_len, value->s.cs))
+    {
+      dynstr_free(&norm_val);
+      goto error;
+    }
+
+    char *new_entry= (char*)malloc(norm_val.length+1);
+    if (!new_entry)
+    {
+      dynstr_free(&norm_val);
+      goto error;
+    }
+    strncpy(new_entry, norm_val.str, norm_val.length);
+    new_entry[norm_val.length]='\0';
+
+    dynstr_free(&norm_val);
+
+    /*
+      If the same value is found in the hash table, add
+      that value to str. At the same time, update the number
+      of times the value appears in the hash table.
+    */
+    uchar * found= NULL;
+    if ((found= my_hash_search(&items,
+                                (const uchar *) new_entry,
+                                strlen(new_entry))))
+    {
+      has_value= true;
+      temp_str.append( (const char*) value_start, value_len);
+      temp_str.append(',');
+      if (my_hash_delete(&items, found))
+      {
+        free(new_entry);
+        goto error;
+      }
+    }
+    free(new_entry);
+  }
+
+  res= false;
+
+  if (has_value)
+  {
+    temp_str.chop(); /* remove last comma because there are no values after that. */
+    temp_str.append(']');
+    str->append(temp_str.ptr(), temp_str.length());
+  }
+
+error:
+  return res;
+}
+
+
+String* Item_func_json_array_intersect::val_str(String *str)
+{
+  DBUG_ASSERT(fixed());
+
+  json_engine_t je2, res_je;
+  String *js2= args[1]->val_json(&tmp_js2);
+
+  if (null_value || args[1]->null_value)
+    goto null_return;
+
+  str->set_charset(js2->charset());
+  str->length(0);
+
+  json_scan_start(&je2, js2->charset(), (const uchar *) js2->ptr(),
+                  (const uchar *) js2->ptr() + js2->length());
+
+  if (json_read_value(&je2) || je2.value_type != JSON_VALUE_ARRAY)
+    goto error_return;
+
+  if (get_intersect_between_arrays(str, &je2, items))
+    goto error_return;
+
+  if (str->length())
+  {
+    json_scan_start(&res_je, str->charset(), (const uchar *) str->ptr(),
+                  (const uchar *) str->ptr() + str->length());
+    str= &tmp_js1;
+    if (json_nice(&res_je, str, Item_func_json_format::LOOSE))
+      goto error_return;
+
+    null_value= 0;
+    return str;
+  }
+  else
+  {
+    goto null_return;
+  }
+
+error_return:
+  if (je2.s.error)
+    report_json_error(js2, &je2, 1);
+null_return:
+  null_value= 1;
+  return NULL;
+}
+
+bool Item_func_json_array_intersect::fix_length_and_dec(THD *thd)
+{
+  json_engine_t je1;
+  String *js1= args[0]->val_json(&tmp_js1);
+
+  if (args[0]->null_value)
+  {
+    null_value= true;
+    return FALSE;
+  }
+  json_scan_start(&je1, js1->charset(), (const uchar *) js1->ptr(),
+                  (const uchar *) js1->ptr() + js1->length());
+  /*
+    Scan value uses the hash table to get the intersection of two arrays.
+  */
+
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
+  root_inited= true;
+
+  if (json_read_value(&je1) || je1.value_type != JSON_VALUE_ARRAY ||
+      create_hash(&je1, &items, hash_inited, &hash_root))
+  {
+    if (je1.s.error)
+      report_json_error(js1, &je1, 0);
+    null_value= 1;
+    return FALSE;
+  }
+
+  max_length= (args[0]->max_length < args[1]->max_length) ?
+               args[0]->max_length : args[1]->max_length;
+
+  set_maybe_null();
+  return FALSE;
+}
+
+
+bool filter_keys(json_engine_t *je1, String *str, HASH items)
+{
+  int level= je1->stack_p;
+  String temp_str(0);
+  bool res= true, has_value= false;
+
+  temp_str.append('{');
+  while (json_scan_next(je1)==0 && level <= je1->stack_p)
+  {
+    switch(je1->state)
+    {
+      case JST_KEY:
+      {
+        const uchar *key_start= je1->s.c_str;
+        const uchar *key_end;
+        String str("", 0, je1->s.cs);
+        str.append('"');
+
+        do
+        {
+          key_end= je1->s.c_str;
+        } while (json_read_keyname_chr(je1) == 0);
+
+        if (unlikely(je1->s.error))
+          goto error;
+        if (json_read_value(je1))
+          goto error;
+
+        const uchar* value_start= NULL;
+        size_t value_len= 0;
+        if (get_current_value(je1, value_start, value_len))
+          goto error;
+
+        str.append((const char*)key_start, (size_t)(key_end-key_start));
+        str.append('"');
+        str.append('\0');
+
+        char *curr_key= (char*)malloc((size_t)(key_end-key_start+3));
+        strncpy(curr_key, str.ptr(), str.length());
+
+        if (my_hash_search(&items, (const uchar*)curr_key, strlen(curr_key)))
+        {
+          has_value= true;
+
+          temp_str.append('"');
+          temp_str.append((const char*)key_start, (size_t)(key_end-key_start));
+          temp_str.append('"');
+
+          temp_str.append(':');
+
+          temp_str.append((const char*)value_start, value_len);
+
+          temp_str.append(',');
+        }
+        free(curr_key);
+      }
+    }
+  }
+
+  res= false;
+
+  if (has_value)
+  {
+    temp_str.chop();
+    temp_str.append('}');
+    str->append(temp_str.ptr(), temp_str.length());
+  }
+
+error:
+  return res;
+}
+
+String* Item_func_json_object_filter_keys::val_str(String *str)
+{
+  DBUG_ASSERT(fixed());
+
+  json_engine_t je1, res_je;
+  String *js1= args[0]->val_json(&tmp_js1);
+
+  if (null_value || args[0]->null_value)
+    goto null_return;
+
+  str->set_charset(js1->charset());
+  str->length(0);
+
+  json_scan_start(&je1, js1->charset(),(const uchar *) js1->ptr(),
+                  (const uchar *) js1->ptr() + js1->length());
+
+  if (json_read_value(&je1) || je1.value_type != JSON_VALUE_OBJECT)
+    goto error_return;
+
+  if(filter_keys(&je1, str, items))
+    goto null_return;
+
+   if (str->length())
+   {
+    json_scan_start(&res_je, str->charset(), (const uchar *) str->ptr(),
+                  (const uchar *) str->ptr() + str->length());
+    str= &tmp_js1;
+    if (json_nice(&res_je, str, Item_func_json_format::LOOSE))
+      goto error_return;
+
+    null_value= 0;
+    return str;
+  }
+  else
+  {
+    goto null_return;
+  }
+
+
+error_return:
+  if (je1.s.error)
+    report_json_error(js1, &je1, 0);
+null_return:
+  null_value= 1;
+  return NULL;
+}
+
+
+bool Item_func_json_object_filter_keys::fix_length_and_dec(THD *thd)
+{
+  String *js2= args[1]->val_json(&tmp_js2);
+  json_engine_t je2;
+
+  if (args[1]->null_value)
+  {
+    null_value= 1;
+    return FALSE;
+  }
+
+  json_scan_start(&je2, js2->charset(),(const uchar *) js2->ptr(),
+                  (const uchar *) js2->ptr() + js2->length());
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
+  root_inited= true;
+
+  if (json_read_value(&je2) || je2.value_type != JSON_VALUE_ARRAY ||
+      create_hash(&je2, &items, hash_inited, &hash_root))
+  {
+    if (je2.s.error)
+      report_json_error(js2, &je2, 0);
+    null_value= 1;
+    return FALSE;
+  }
+
+  max_length= args[0]->max_length;
+  set_maybe_null();
+
+  return FALSE;
+}
+
+bool convert_to_array(json_engine_t *je, String *str)
+{
+  int level= je->stack_p;
+  String temp_str(0);
+  temp_str.append('[');
+
+  while (json_scan_next(je)==0 && level <= je->stack_p)
+  {
+    switch(je->state)
+    {
+      case JST_KEY:
+      {
+        temp_str.append('[');
+
+        const uchar *key_start= je->s.c_str;
+        const uchar *key_end;
+
+        do
+        {
+          key_end= je->s.c_str;
+        } while (json_read_keyname_chr(je) == 0);
+
+        if (unlikely(je->s.error))
+          return true;
+
+        temp_str.append('"');
+        temp_str.append((const char*)key_start, (size_t)(key_end-key_start));
+        temp_str.append('"');
+
+        temp_str.append(',');
+
+        int v_len= 0;
+        const uchar *value= NULL;
+
+        if (json_read_value(je))
+          return true;
+        value= je->value_begin;
+        if (json_value_scalar(je))
+          v_len= (int)(je->value_end - value);
+        else
+        {
+          if (json_skip_level(je))
+            return true;
+          v_len= (int)(je->s.c_str - value);
+        }
+        temp_str.append((const char *) value, v_len);
+
+        temp_str.append(']');
+        temp_str.append(',');
+      }
+    }
+  }
+  if (je->s.error)
+    return true;
+
+  temp_str.chop(); /* remove the last comma. */
+  temp_str.append(']');
+  str->append(temp_str.ptr(), temp_str.length());
+  return false;
+}
+
+String* Item_func_json_object_to_array::val_str(String *str)
+{
+  DBUG_ASSERT(fixed());
+
+  json_engine_t je;
+  String *js1= args[0]->val_str(&tmp);
+
+  if (args[0]->null_value)
+    goto null_return;
+
+  str->set_charset(js1->charset());
+  str->length(0);
+
+  json_scan_start(&je, js1->charset(),(const uchar *) js1->ptr(),
+                  (const uchar *) js1->ptr() + js1->length());
+
+  if (json_read_value(&je))
+    goto error_return;
+  if (je.value_type != JSON_VALUE_OBJECT)
+    goto null_return;
+
+  if (convert_to_array(&je, str))
+    goto error_return;
+
+  if (str->length())
+  {
+    json_scan_start(&je, str->charset(), (const uchar *) str->ptr(),
+                  (const uchar *) str->ptr() + str->length());
+    str= &tmp;
+    if (json_nice(&je, str, Item_func_json_format::LOOSE))
+      goto error_return;
+
+    null_value= 0;
+    return str;
+  }
+  else
+  {
+    goto null_return;
+  }
+
+error_return:
+  if (je.s.error)
+    report_json_error(js1, &je, 0);
+null_return:
+  null_value= 1;
+  return NULL;
+}
+
+
+bool Item_func_json_object_to_array::fix_length_and_dec(THD *thd)
+{
+  max_length= args[0]->max_length + (args[0]->max_length/2);
+  set_maybe_null();
+  return FALSE;
+}
