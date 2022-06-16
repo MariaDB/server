@@ -80,7 +80,7 @@ Warnings:
 Warning	1287	'@@spider_internal_limit' is deprecated and will be removed in a future release
 SHOW VARIABLES LIKE "spider_internal_limit";
 Variable_name	Value
-spider_internal_limit	9223372032559808513
+spider_internal_limit	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='ilm "1"';
 Warnings:
 Warning	1287	The table parameter 'ilm' is deprecated and will be removed in a future release
