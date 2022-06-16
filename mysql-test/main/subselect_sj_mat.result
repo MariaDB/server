@@ -107,11 +107,10 @@ a1	a2
 explain extended
 select * from t1i where a1 in (select b1 from t2i where b1 > '0');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1i	index	_it1_idx	_it1_idx	#	NULL	3	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	#	func	1	100.00	
-2	MATERIALIZED	t2i	index	it2i1,it2i3	it2i1	#	NULL	5	100.00	Using where; 
+1	PRIMARY	t2i	index	it2i1,it2i3	it2i1	#	NULL	5	50.00	Using where; Using index; LooseScan
+1	PRIMARY	t1i	ref	_it1_idx	_it1_idx	#	_ref_	1	100.00	
 Warnings:
-Note	1003	select `test`.`t1i`.`a1` AS `a1`,`test`.`t1i`.`a2` AS `a2` from `test`.`t1i` semi join (`test`.`t2i`) where `test`.`t2i`.`b1` > '0'
+Note	1003	select `test`.`t1i`.`a1` AS `a1`,`test`.`t1i`.`a2` AS `a2` from `test`.`t1i` semi join (`test`.`t2i`) where `test`.`t1i`.`a1` = `test`.`t2i`.`b1` and `test`.`t2i`.`b1` > '0'
 select * from t1i where a1 in (select b1 from t2i where b1 > '0');
 a1	a2
 1 - 01	2 - 01
@@ -131,11 +130,10 @@ a1	a2
 explain extended
 select * from t1i where (a1, a2) in (select b1, b2 from t2i where b1 > '0');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1i	index	_it1_idx	_it1_idx	#	NULL	3	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	#	func,func	1	100.00	
-2	MATERIALIZED	t2i	index	it2i1,it2i2,it2i3	it2i3	#	NULL	5	100.00	Using where; 
+1	PRIMARY	t2i	index	it2i1,it2i2,it2i3	it2i3	#	NULL	5	50.00	Using where; Using index; LooseScan
+1	PRIMARY	t1i	ref	_it1_idx	_it1_idx	#	_ref_	1	100.00	
 Warnings:
-Note	1003	select `test`.`t1i`.`a1` AS `a1`,`test`.`t1i`.`a2` AS `a2` from `test`.`t1i` semi join (`test`.`t2i`) where `test`.`t2i`.`b1` > '0'
+Note	1003	select `test`.`t1i`.`a1` AS `a1`,`test`.`t1i`.`a2` AS `a2` from `test`.`t1i` semi join (`test`.`t2i`) where `test`.`t1i`.`a1` = `test`.`t2i`.`b1` and `test`.`t1i`.`a2` = `test`.`t2i`.`b2` and `test`.`t2i`.`b1` > '0'
 select * from t1i where (a1, a2) in (select b1, b2 from t2i where b1 > '0');
 a1	a2
 1 - 01	2 - 01
@@ -278,11 +276,10 @@ a1	a2
 explain extended
 select * from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1i	index	it1i1,it1i2,it1i3	it1i3	18	NULL	3	100.00	Using index
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	16	func,func	1	100.00	
-2	MATERIALIZED	t2i	index	it2i1,it2i2,it2i3	it2i3	18	NULL	5	100.00	Using index
+1	PRIMARY	t2i	index	it2i1,it2i2,it2i3	it2i3	18	NULL	5	50.00	Using where; Using index; LooseScan
+1	PRIMARY	t1i	ref	it1i1,it1i2,it1i3	it1i3	18	test.t2i.b1,test.t2i.b2	1	100.00	Using index
 Warnings:
-Note	1003	select `test`.`t1i`.`a1` AS `a1`,`test`.`t1i`.`a2` AS `a2` from `test`.`t1i` semi join (`test`.`t2i`) where 1
+Note	1003	select `test`.`t1i`.`a1` AS `a1`,`test`.`t1i`.`a2` AS `a2` from `test`.`t1i` semi join (`test`.`t2i`) where `test`.`t1i`.`a1` = `test`.`t2i`.`b1` and `test`.`t1i`.`a2` = `test`.`t2i`.`b2`
 select * from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
 a1	a2
 1 - 01	2 - 01
@@ -1546,8 +1543,7 @@ SET @@optimizer_switch='semijoin=on,materialization=on';
 EXPLAIN SELECT COUNT(*) FROM t1 WHERE (f1,f2) IN (SELECT f1,f2 FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	7	func,func	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 SELECT COUNT(*) FROM t1 WHERE (f1,f2) IN (SELECT f1,f2 FROM t2);
 COUNT(*)
 2
@@ -2232,9 +2228,8 @@ mysqltest1
 EXPLAIN EXTENDED
 SELECT db FROM t1 WHERE db IN (SELECT SCHEMA_NAME FROM information_schema.schemata) ORDER BY db DESC;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
-1	PRIMARY	t1	eq_ref	db	db	764	information_schema.schemata.SCHEMA_NAME	1	100.00	Using where; Using index
-2	MATERIALIZED	schemata	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	schemata	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Start temporary; Using temporary; Using filesort
+1	PRIMARY	t1	eq_ref	db	db	764	information_schema.schemata.SCHEMA_NAME	1	100.00	Using where; Using index; End temporary
 Warnings:
 Note	1003	select `test`.`t1`.`db` AS `db` from `test`.`t1` semi join (`information_schema`.`schemata`) where `test`.`t1`.`db` = `information_schema`.`schemata`.`SCHEMA_NAME` order by `test`.`t1`.`db` desc
 drop table t1;
@@ -2480,8 +2475,8 @@ alter table t1 add key(id);
 explain
 SELECT 1 FROM t1 where t1.id IN (SELECT t2.i1 FROM t2 WHERE t2.i1 = t2.i2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	id	id	4	NULL	9	Using index
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
+1	PRIMARY	t1	ref	id	id	4	test.t2.i1	2	Using index
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT 1 FROM t1 where t1.id IN (SELECT t2.i1 FROM t2 WHERE t2.i1 = t2.i2);
 1
@@ -2537,8 +2532,8 @@ INSERT INTO t2 VALUES  (11,11),(12,12),(13,13);
 CREATE VIEW v1 AS SELECT t2.i1 FROM t2 where t2.i1 = t2.i2;
 explain SELECT 1 FROM t1 where t1.id IN (SELECT v1.i1 from v1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	id	id	4	NULL	9	Using index
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
+1	PRIMARY	t1	ref	id	id	4	test.t2.i1	2	Using index
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT 1 FROM t1 where t1.id IN (SELECT v1.i1 from v1);
 1

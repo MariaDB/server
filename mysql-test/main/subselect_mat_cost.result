@@ -60,47 +60,19 @@ Q1.1m:
 MATERIALIZATION: there are too many rows in the outer query
 to be looked up in the inner table.
 set statement optimizer_cache_hit_ratio=20 for EXPLAIN
-SELECT Name FROM Country
+SELECT count(*) FROM Country
 WHERE (Code IN (select Country from City where City.Population > 100000) OR
 Name LIKE 'L%') AND
-surfacearea > 1000000;
+surfacearea > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	ALL	Name,SurfaceArea	NULL	NULL	NULL	239	Using where
 3	MATERIALIZED	City	ALL	Population,Country	NULL	NULL	NULL	4079	Using where
-set statement optimizer_cache_hit_ratio=20 for SELECT Name FROM Country
+set statement optimizer_cache_hit_ratio=20 for SELECT count(*) FROM Country
 WHERE (Code IN (select Country from City where City.Population > 100000) OR
 Name LIKE 'L%') AND
-surfacearea > 1000000;
-Name
-Algeria
-Angola
-Argentina
-Australia
-Bolivia
-Brazil
-Egypt
-South Africa
-Ethiopia
-Indonesia
-India
-Iran
-Canada
-Kazakstan
-China
-Colombia
-Congo, The Democratic Republic of the
-Libyan Arab Jamahiriya
-Mali
-Mauritania
-Mexico
-Mongolia
-Niger
-Peru
-Saudi Arabia
-Sudan
-Chad
-Russian Federation
-United States
+surfacearea > 100000;
+count(*)
+107
 Q1.1e:
 IN-EXISTS: the materialization cost is the same as above, but
 there are much fewer outer rows to be looked up, thus the
