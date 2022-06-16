@@ -8586,7 +8586,7 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
 
         if (!tables->schema_table && 
             !(fld->have_privileges=
-              (get_column_grant(thd, field_iterator.grant(),
+              (get_column_grant(thd->security_context(), field_iterator.grant(),
                                 field_db_name, field_table_name,
                                 fld->field_name) &
                VIEW_ANY_ACL)))

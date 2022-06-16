@@ -199,6 +199,11 @@ public:
 };
 
 
+enum object_type {
+  TABLE_TYPE, PROCEDURE_TYPE, FUNCTION_TYPE, PACKAGE_SPEC_TYPE,
+  PACKAGE_BODY_TYPE
+};
+
 class Deny_spec
 {
   typedef std::pair<LEX_CSTRING, privilege_t> deny_entry;
@@ -4303,6 +4308,13 @@ check_routine_access(THD *thd, privilege_t want_access, const LEX_CSTRING *db,
   return check_grant_routine(thd, want_access, tables, sph, no_errors);
 }
 
+static privilege_t acl_get_effective_deny_mask_impl(
+    const Deny_spec &denies,
+    const Deny_spec *role_denies,
+    const LEX_CSTRING &db,
+    const LEX_CSTRING &object_name,
+    const LEX_CSTRING &column_name,
+    enum object_type type);
 
 /**
   Check if the routine has any of the routine privileges.
@@ -4337,6 +4349,52 @@ bool check_some_routine_access(THD *thd,
       (save_priv & SHOW_PROC_ACLS))
     return FALSE;
   return check_routine_level_acl(thd, db, name, sph);
+}
+
+
+bool check_if_any_column_is_denied(Security_context *sctx,
+                                   privilege_t privilege_needed,
+                                   const LEX_CSTRING &db,
+                                   const LEX_CSTRING &table,
+                                   Field **fields)
+{
+  const Deny_spec *denies;
+  const Deny_spec *role_denies= nullptr;
+
+  mysql_mutex_lock(&acl_cache->lock);
+  /*
+     TODO(cvicentiu) this snippet really repeats in too many places. Factor
+     it out into a function.
+  */
+  ACL_USER *acl_user= find_user_exact(sctx->priv_host, sctx->priv_user);
+  if (!acl_user)
+  {
+    mysql_mutex_unlock(&acl_cache->lock);
+    return true;
+  }
+  denies= acl_user->denies;
+  /* This function should only be called when denies are active. */
+  DBUG_ASSERT(denies);
+
+  ACL_ROLE *role= find_acl_role(sctx->priv_role);
+  if (role)
+    role_denies= role->denies;
+
+  while (*fields)
+  {
+    privilege_t deny_mask= acl_get_effective_deny_mask_impl(
+        *denies, role_denies, db, table, (*fields)->field_name, TABLE_TYPE);
+
+    if (privilege_needed & deny_mask)
+    {
+      mysql_mutex_unlock(&acl_cache->lock);
+      return true;
+    }
+    fields++;
+  }
+
+  mysql_mutex_unlock(&acl_cache->lock);
+  return false;
 }
 
 
@@ -5283,11 +5341,6 @@ static bool compute_acl_cache_key(const char *ip,
 }
 
 
-enum object_type {
-  TABLE_TYPE, PROCEDURE_TYPE, FUNCTION_TYPE, PACKAGE_SPEC_TYPE,
-  PACKAGE_BODY_TYPE
-};
-
 static enum object_type get_corresponding_object_type(const Sp_handler &sph)
 {
   switch (sph.type())
@@ -5348,7 +5401,7 @@ static enum PRIV_TYPE get_corresponding_priv_spec_type(const Sp_handler &sph)
   return NO_PRIV;
 }
 
-static privilege_t acl_get_effective_deny_mask_impl(
+static privilege_t get_deny_mask(
     const Deny_spec &denies,
     const LEX_CSTRING &db,
     const LEX_CSTRING &object_name,
@@ -5382,6 +5435,21 @@ static privilege_t acl_get_effective_deny_mask_impl(
   }
   return result;
 }
+
+static privilege_t acl_get_effective_deny_mask_impl(
+    const Deny_spec &denies,
+    const Deny_spec *role_denies,
+    const LEX_CSTRING &db,
+    const LEX_CSTRING &object_name,
+    const LEX_CSTRING &column_name,
+    enum object_type type)
+{
+  privilege_t result= get_deny_mask(denies, db, object_name, column_name, type);
+  if (role_denies)
+    result|= get_deny_mask(*role_denies, db, object_name, column_name, type);
+  return result;
+}
+
 
 privilege_t acl_get_effective_deny_mask_impl(const Security_context *ctx,
                                              const LEX_CSTRING &db,
@@ -5436,13 +5504,11 @@ privilege_t acl_get_effective_deny_mask_impl(const Security_context *ctx,
     return ALL_KNOWN_ACL;
   }
 
-  result= acl_get_effective_deny_mask_impl(*acl_user->denies,
-                                           db, object_name, column_name, type);
+  result= get_deny_mask(*acl_user->denies, db, object_name, column_name, type);
 
   ACL_ROLE *role= find_acl_role(ctx->priv_role);
   if (role)
-    result|= acl_get_effective_deny_mask_impl(*role->denies, db,
-                                              object_name, column_name, type);
+    result|= get_deny_mask(*role->denies, db, object_name, column_name, type);
 
   mysql_mutex_unlock(&acl_cache->lock);
   return result;
@@ -10024,9 +10090,9 @@ bool grant_reload(THD *thd)
 }
 
 
-/* TODO(cvicentiu) extend this to pass in both user and role denies. */
 static
 bool check_some_grants_remain(const Deny_spec &denies,
+                              const Deny_spec *role_denies,
                               privilege_t table_deny_mask, GRANT_TABLE *table)
 {
   if (!table)
@@ -10044,6 +10110,9 @@ bool check_some_grants_remain(const Deny_spec &denies,
 
     privilege_t col_deny_mask=
       table_deny_mask | denies.get_column_deny(db, table_name, column_name);
+
+    if (role_denies)
+      col_deny_mask|= role_denies->get_column_deny(db, table_name, column_name);
 
     if (grant_column->rights & ~col_deny_mask)
       return true;
@@ -10071,13 +10140,26 @@ bool check_some_grants_remain(Security_context *sctx,
   }
 
   DBUG_ASSERT(sctx->denies_active && acl_user->denies);
-  const Deny_spec& denies= *acl_user->denies;
+  const Deny_spec &denies= *acl_user->denies;
+  const Deny_spec *role_denies= nullptr;
+
   privilege_t deny_mask= denies.get_global() |
                          denies.get_db_deny(db) |
                          denies.get_table_deny(db, table);
 
-  result= check_some_grants_remain(denies, deny_mask, grant_table) ||
-          check_some_grants_remain(denies, deny_mask, grant_table_role);
+  ACL_ROLE *role= find_acl_role(sctx->priv_role);
+  if (role && role->denies)
+  {
+    role_denies= role->denies;
+    deny_mask|= role_denies->get_global() |
+                role_denies->get_db_deny(db) |
+                role_denies->get_table_deny(db, table);
+  }
+
+  result= check_some_grants_remain(denies, role_denies,
+                                   deny_mask, grant_table) ||
+          check_some_grants_remain(denies, role_denies,
+                                   deny_mask, grant_table_role);
 
   mysql_mutex_unlock(&acl_cache->lock);
   return result;
@@ -10371,7 +10453,6 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     t_ref->grant.version= grant_version;
     t_ref->grant.privilege|= grant_table ? grant_table->privs : NO_ACL;
     t_ref->grant.privilege|= grant_table_role ? grant_table_role->privs : NO_ACL;
-    // TODO(cvicentiu) here the deny mask for the role must be created too.
     t_ref->grant.privilege&= ~deny_mask;
 
     /*
@@ -10571,7 +10652,10 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
     if (table_ref->belong_to_view &&
         thd->lex->sql_command == SQLCOM_SHOW_FIELDS)
     {
-      view_privs= get_column_grant(thd, grant,
+      /* !!! TODO(cvicentiu) This changes from always thd->security_context
+       * to also point to table_ref->security_ctx, CHECK! Perhaps
+       * this is not the intent *here* !*/
+      view_privs= get_column_grant(sctx, grant,
                                    *db_name, *table_name, {name, length});
       if (view_privs & VIEW_ANY_ACL)
       {
@@ -10625,6 +10709,7 @@ bool check_grant_all_columns(THD *thd, privilege_t want_access_arg,
   GRANT_TABLE *UNINIT_VAR(grant_table);
   GRANT_TABLE *UNINIT_VAR(grant_table_role);
   const Deny_spec *denies= nullptr;
+  const Deny_spec *role_denies= nullptr;
   const bool denies_could_interfere=
     sctx->denies_active & (GLOBAL_PRIV | DATABASE_PRIV | TABLE_PRIV |
                            COLUMN_PRIV);
@@ -10645,6 +10730,7 @@ bool check_grant_all_columns(THD *thd, privilege_t want_access_arg,
     mysql_mutex_lock(&acl_cache->lock);
     /* TODO(cvicentiu) modify this for role denies too! */
     ACL_USER *acl_user= find_user_exact(sctx->priv_host, sctx->priv_user);
+    ACL_ROLE *acl_role= find_acl_role(sctx->priv_role);
     if (!acl_user)
       goto err; /* See acl_get_effective_deny_mask_impl, same shortcut. */
     /*
@@ -10652,6 +10738,8 @@ bool check_grant_all_columns(THD *thd, privilege_t want_access_arg,
        it again.
     */
     denies= acl_user->denies;
+    if (acl_role)
+      role_denies= acl_role->denies;
   }
 
   for (; !fields->end_of_fields(); fields->next())
@@ -10671,10 +10759,10 @@ bool check_grant_all_columns(THD *thd, privilege_t want_access_arg,
     if (sctx->denies_active & (GLOBAL_PRIV | DATABASE_PRIV | TABLE_PRIV |
                                COLUMN_PRIV))
     {
-      /* TODO(cvicentiu) -> Role denies too... */
       field_deny_mask=
         acl_get_effective_deny_mask_impl(
             *denies,
+            role_denies,
             {fields->get_db_name(), strlen(fields->get_db_name())},
             {fields->get_table_name(), strlen(fields->get_table_name())},
             *field_name,
@@ -10786,33 +10874,32 @@ static bool check_grant_db_routine(Security_context *sctx,
   HASH *hash= get_corresponding_routine_hash(routine_type);
   for (uint idx= 0; idx < hash->records; ++idx)
   {
+    privilege_t usable_mask= db_deny_mask;
     GRANT_NAME *item= (GRANT_NAME*) my_hash_element(hash, idx);
+    /*
+       Only re-compute the deny mask if there are specific denies active
+       that might impact it.
+    */
+    if (sctx->denies_active & get_corresponding_priv_spec_type(routine_type))
+    {
+      LEX_CSTRING routine_name= {item->tname, strlen(item->tname)};
+      usable_mask= acl_get_effective_deny_mask_impl(sctx, db, routine_name,
+                                                    {nullptr, 0},
+                                                    routine_type);
+    }
 
     if (strcmp(item->user, sctx->priv_user) == 0 &&
         strcmp(item->db, db.str) == 0 &&
         compare_hostname(&item->host, sctx->host, sctx->ip))
     {
-      privilege_t usable_mask= db_deny_mask;
-      /*
-         Only re-compute the deny mask if there are specific denies active
-         that might impact it.
-      */
-      if (sctx->denies_active & get_corresponding_priv_spec_type(routine_type))
-      {
-        LEX_CSTRING routine_name= {item->tname, strlen(item->tname)};
-        usable_mask= acl_get_effective_deny_mask_impl(sctx, db, routine_name,
-                                                      {nullptr, 0},
-                                                      routine_type);
-      }
       if (item->privs & ~usable_mask)
         return FALSE;
     }
-    /* TODO(cvicentiu) make this work for role denies too. */
     if (sctx->priv_role[0] && strcmp(item->user, sctx->priv_role) == 0 &&
         strcmp(item->db, db.str) == 0 &&
         (!item->host.hostname || !item->host.hostname[0]))
     {
-      if (item->privs & ~db_deny_mask)
+      if (item->privs & ~usable_mask)
         return FALSE; /* Found current role match */
     }
   }
@@ -10838,6 +10925,7 @@ bool check_grant_db(Security_context *sctx,
   bool denies_at_table_or_column_level=
     sctx->denies_active & (TABLE_PRIV | COLUMN_PRIV);
   const Deny_spec *denies= nullptr;
+  const Deny_spec *role_denies= nullptr;
 
   LEX_CSTRING lower_case_db= db;
 
@@ -10879,11 +10967,15 @@ bool check_grant_db(Security_context *sctx,
     ACL_USER *acl_user= find_user_exact(sctx->priv_host, sctx->priv_user);
     if (!acl_user)
       goto error; /* See acl_get_effective_deny_mask_impl, same shortcut. */
+
+    ACL_ROLE *role= find_acl_role(sctx->priv_role);
     /*
        Caching denies here, vs for every hash entry means we don't need to find
        it again.
     */
     denies= acl_user->denies;
+    if (role)
+      role_denies= role->denies;
   }
 
   for (size_t idx=0 ; idx < column_priv_hash.records ; idx++)
@@ -10900,6 +10992,8 @@ bool check_grant_db(Security_context *sctx,
       {
         table_name= {grant_table->tname, strlen(grant_table->tname)};
         deny_mask|= denies->get_table_deny(db, table_name);
+        if (role_denies)
+          deny_mask|= role_denies->get_table_deny(db, table_name);
       }
 
       if (grant_table->privs & ~deny_mask)
@@ -10929,7 +11023,7 @@ bool check_grant_db(Security_context *sctx,
            to check if there is an explicit deny on each of those columns
            and compute the effective privileges.
         */
-        if (check_some_grants_remain(*denies, deny_mask, grant_table))
+        if (check_some_grants_remain(*denies, role_denies, deny_mask, grant_table))
         {
           error= false;
           goto error;
@@ -10941,7 +11035,6 @@ bool check_grant_db(Security_context *sctx,
         !memcmp(grant_table->hash_key, helping2, len2) &&
         (!grant_table->host.hostname || !grant_table->host.hostname[0]))
     {
-      //TODO(cvicentiu) implement for roles...
       if (grant_table->privs & ~deny_mask || grant_table->cols & ~deny_mask)
       {
         error= FALSE; /* Found role match. */
@@ -11104,39 +11197,36 @@ bool check_routine_level_acl(THD *thd,
   Functions to retrieve the grant for a table/column  (for SHOW functions)
 *****************************************************************************/
 
-privilege_t get_table_grant(THD *thd, TABLE_LIST *table)
+privilege_t get_table_grant(Security_context *sctx,
+                            privilege_t db_access,
+                            const LEX_CSTRING &db, const LEX_CSTRING &table)
 {
-  Security_context *sctx= thd->security_ctx;
-  const char *db = table->db.str ? table->db.str : thd->db.str;
   GRANT_TABLE *grant_table;
   GRANT_TABLE *grant_table_role= NULL;
+  privilege_t result= db_access;
+
   //TODO(cvicentiu) table level and column level deny mask recompute per table.
-  privilege_t deny_mask= acl_get_effective_deny_mask(sctx, {db, strlen(db)});
+  privilege_t deny_mask= acl_get_effective_deny_mask(sctx, db, table);
 
   mysql_rwlock_rdlock(&LOCK_grant);
 #ifdef EMBEDDED_LIBRARY
   grant_table= NULL;
   grant_table_role= NULL;
 #else
-  grant_table= table_hash_search(sctx->host, sctx->ip, db, sctx->priv_user,
-				 table->table_name.str, 0);
+  grant_table= table_hash_search(sctx->host, sctx->ip, db.str, sctx->priv_user,
+				                         table.str, 0);
   if (sctx->priv_role[0])
-    grant_table_role= table_hash_search("", "", db, sctx->priv_role,
-                                        table->table_name.str, 0);
+    grant_table_role= table_hash_search("", "", db.str, sctx->priv_role,
+                                        table.str, 0);
 #endif
-  table->grant.grant_table_user= grant_table; // Remember for column test
-  table->grant.grant_table_role= grant_table_role;
-  table->grant.version=grant_version;
   if (grant_table)
-    table->grant.privilege|= grant_table->privs;
+    result|= grant_table->privs;
   if (grant_table_role)
-    table->grant.privilege|= grant_table_role->privs;
+    result|= grant_table_role->privs;
 
-  table->grant.privilege &= ~deny_mask;
-
-  privilege_t privilege(table->grant.privilege);
+  result&= ~deny_mask;
   mysql_rwlock_unlock(&LOCK_grant);
-  return privilege;
+  return result;
 }
 
 
@@ -11158,7 +11248,7 @@ privilege_t get_table_grant(THD *thd, TABLE_LIST *table)
     The access priviliges for the field db_name.table_name.field_name
 */
 
-privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
+privilege_t get_column_grant(Security_context *sctx, GRANT_INFO *grant,
                              const LEX_CSTRING &db_name,
                              const LEX_CSTRING &table_name,
                              const LEX_CSTRING &field_name)
@@ -11171,14 +11261,12 @@ privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
 
   mysql_rwlock_rdlock(&LOCK_grant);
 
-  deny_mask= acl_get_effective_deny_mask(thd->security_ctx,
+  deny_mask= acl_get_effective_deny_mask(sctx,
                                          db_name, table_name, field_name);
 
   /* reload table if someone has modified any grants */
   if (grant->version != grant_version)
   {
-    Security_context *sctx= thd->security_ctx;
-
     grant->grant_table_user=
       table_hash_search(sctx->host, sctx->ip,
                         db_name.str, sctx->priv_user,

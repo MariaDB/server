@@ -6124,7 +6124,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     ulonglong col_access;
     check_access(thd,SELECT_ACL, db_name->str,
                  &tables->grant.privilege, 0, 0, MY_TEST(tables->schema_table));
-    col_access= get_column_grant(thd, &tables->grant,
+    col_access= get_column_grant(thd->security_context(), &tables->grant,
                                  *db_name, *table_name,
                                  field->field_name) & COL_ACLS;
     if (!tables->schema_table && !col_access)
@@ -6949,19 +6949,38 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
       else
       {
         if ((thd->col_access & (SHOW_VIEW_ACL|SELECT_ACL)) ==
-            (SHOW_VIEW_ACL|SELECT_ACL))
+            (SHOW_VIEW_ACL|SELECT_ACL) &&
+            !(thd->security_ctx->denies_active & (TABLE_PRIV | COLUMN_PRIV)))
+        {
           tables->allowed_show= TRUE;
+        }
         else
         {
-          TABLE_LIST table_list;
-          table_list.reset();
-          table_list.db= tables->db;
-          table_list.table_name= tables->table_name;
-          table_list.grant.privilege= thd->col_access;
-          privilege_t view_access(get_table_grant(thd, &table_list));
-	  if ((view_access & (SHOW_VIEW_ACL|SELECT_ACL)) ==
-	      (SHOW_VIEW_ACL|SELECT_ACL))
-	    tables->allowed_show= TRUE;
+          privilege_t view_access(get_table_grant(thd->security_context(),
+                                                  thd->col_access, tables->db,
+                                                  tables->table_name));
+          if ((view_access & (SHOW_VIEW_ACL|SELECT_ACL)) ==
+              (SHOW_VIEW_ACL|SELECT_ACL))
+          {
+            if (thd->security_context()->denies_active & COLUMN_PRIV)
+            {
+              /*
+                 Only allow show of the view's definition *if* we have
+                 TABLE or higher SELECT & SHOW VIEW privilege *and*
+                 we do not have any columns in the view with a denied
+                 SELECT.
+              */
+              if (!check_if_any_column_is_denied(thd->security_context(),
+                                                 SELECT_ACL,
+                                                 tables->db, tables->table_name,
+                                                 tables->table->field))
+                tables->allowed_show= TRUE;
+            }
+            else
+            {
+              tables->allowed_show= TRUE;
+            }
+          }
         }
       }
 #endif

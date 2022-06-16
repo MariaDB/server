@@ -198,3 +198,104 @@ drop view v1, v2;
 drop table t1;
 drop user foo;
 drop database some_db;
+#
+# Test showing / not showing view body with SHOW VIEW and SELECT
+# privilege denies.
+#
+connection default;
+create user foo;
+create database some_db;
+create table some_db.t1 (a int, b int);
+create view some_db.v1 as (select * from some_db.t1);
+grant select, show view on *.* to foo;
+grant select, show view on some_db.* to foo;
+grant select, show view on some_db.v1 to foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views where table_schema = 'some_db';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1	(select `some_db`.`t1`.`a` AS `a`,`some_db`.`t1`.`b` AS `b` from `some_db`.`t1`)	NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+disconnect con1;
+#
+#  Table level denies.
+#
+connection default;
+deny show view on some_db.v1 to foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views where table_schema = 'some_db';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+disconnect con1;
+connection default;
+revoke deny show view on some_db.v1 from foo;
+deny select on some_db.v1 to foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views where table_schema = 'some_db';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+disconnect con1;
+#
+#  Database level denies.
+#
+connection default;
+revoke deny select on some_db.v1 from foo;
+deny select on some_db.* to foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views where table_schema = 'some_db';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+disconnect con1;
+connection default;
+revoke deny select on some_db.* from foo;
+deny show view on some_db.* to foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views where table_schema = 'some_db';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+disconnect con1;
+#
+#  Global level denies.
+#
+connection default;
+revoke deny show view on some_db.* from foo;
+deny show view on *.* to foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views where table_schema = 'some_db';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+disconnect con1;
+connection default;
+revoke deny show view on *.* from foo;
+deny select on *.* to foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views where table_schema = 'some_db';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+disconnect con1;
+#
+#  Column level denies.
+#
+connection default;
+revoke deny select on *.* from foo;
+#
+# All denies have been revoked from the user, back to regular
+# privilege checking.
+#
+connect  con1,localhost,foo,,;
+select * from information_schema.views where table_schema = 'some_db';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1	(select `some_db`.`t1`.`a` AS `a`,`some_db`.`t1`.`b` AS `b` from `some_db`.`t1`)	NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+disconnect con1;
+connection default;
+#
+# Here because we have column level denies, a user is not allowed
+# to see the view.
+#
+deny select (a) on some_db.v1 to foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views where table_schema = 'some_db';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+disconnect con1;
+connection default;
+drop user foo;
+drop database some_db;
