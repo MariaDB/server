@@ -122,6 +122,12 @@
 #define READ_RECORD_BUFFER	(uint) (IO_SIZE*8) /* Pointer_buffer_size */
 #define DISK_BUFFER_SIZE	(uint) (IO_SIZE*16) /* Size of diskbuffer */
 
+/*
+  When reading big blocks, assume that each block of this size is
+  is of simlar cost as key lookup (1)
+*/
+#define DISK_FAST_READ_SIZE     ((uint) (IO_SIZE*16))
+
 #define FRM_VER_TRUE_VARCHAR (FRM_VER+4) /* 10 */
 #define FRM_VER_EXPRESSSIONS (FRM_VER+5) /* 11 */
 #define FRM_VER_CURRENT  FRM_VER_EXPRESSSIONS
