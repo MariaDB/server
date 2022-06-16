@@ -1,0 +1,541 @@
+#
+# Prepare a pseudo MySQL data directory
+#
+# restart: --datadir=MYSQLTEST_VARDIR/tmp/mysql
+#
+# Run mariadb-upgrade
+#
+MariaDB upgrade detected
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.engine_cost                                  OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.gtid_executed                                OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.ndb_binlog_index                             OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.server_cost                                  OK
+mysql.servers                                      OK
+mysql.slave_master_info                            OK
+mysql.slave_relay_log_info                         OK
+mysql.slave_worker_info                            OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.user                                         OK
+Upgrading from a version before MariaDB-10.1
+Phase 2/7: Installing used storage engines
+Checking for tables with unknown storage engine
+Phase 3/7: Fixing views from mysql
+sys.host_summary
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.host_summary_by_file_io
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.host_summary_by_file_io_type
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.host_summary_by_stages
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.host_summary_by_statement_latency
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.host_summary_by_statement_type
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.innodb_buffer_stats_by_schema
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.innodb_buffer_stats_by_table
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.innodb_lock_waits
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.io_by_thread_by_latency
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.io_global_by_file_by_bytes
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.io_global_by_file_by_latency
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.io_global_by_wait_by_bytes
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.io_global_by_wait_by_latency
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.latest_file_io
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.memory_by_host_by_current_bytes
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.memory_by_thread_by_current_bytes
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.memory_by_user_by_current_bytes
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.memory_global_by_current_bytes
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.memory_global_total
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.metrics
+Error    : Unknown column 'information_schema.INNODB_METRICS.STATUS' in 'field list'
+Error    : View 'sys.metrics' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+error    : Corrupt
+sys.processlist
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.schema_table_statistics
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.schema_table_statistics_with_buffer
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.schema_tables_with_full_table_scans
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.schema_unused_indexes                          OK
+sys.session
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.session_ssl_status                             OK
+sys.statement_analysis
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.statements_with_errors_or_warnings
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.statements_with_full_table_scans
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.statements_with_runtimes_in_95th_percentile
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.statements_with_sorting
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.statements_with_temp_tables
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.user_summary
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.user_summary_by_file_io
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.user_summary_by_file_io_type
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.user_summary_by_stages
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.user_summary_by_statement_latency
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.user_summary_by_statement_type
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.wait_classes_global_by_latency
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.waits_by_host_by_latency
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.waits_by_user_by_latency
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.waits_global_by_latency
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.x$schema_table_statistics
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.x$schema_table_statistics_with_buffer
+Error    : Column count of mysql.proc is wrong. Expected 21, found 20. Created with MariaDB 50738, now running 101000. Please use mariadb-upgrade to fix this error
+error    : Corrupt
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+idb_encryption_db1
+idb_encryption_db1.idb_encryption_t1               OK
+idb_page_comp_db1
+idb_page_comp_db1.idb_page_comp_t1                 OK
+idb_partition_db1
+idb_partition_db1.idb_partition_t1                 OK
+idb_tablespace_db1
+idb_tablespace_db1.idb_tablespace_t1               OK
+information_schema
+normal_db1
+normal_db1.normal_t1                               OK
+performance_schema
+sys
+sys.sys_config                                     OK
+test
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+# restart: --datadir=MYSQLTEST_VARDIR/tmp/mysql
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.engine_cost                                  OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_executed                                OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.server_cost                                  OK
+mysql.servers                                      OK
+mysql.slave_master_info                            OK
+mysql.slave_relay_log_info                         OK
+mysql.slave_worker_info                            OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+mysql.user                                         OK
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+idb_encryption_db1
+idb_encryption_db1.idb_encryption_t1               OK
+idb_page_comp_db1
+idb_page_comp_db1.idb_page_comp_t1                 OK
+idb_partition_db1
+idb_partition_db1.idb_partition_t1                 OK
+idb_tablespace_db1
+idb_tablespace_db1.idb_tablespace_t1               OK
+information_schema
+normal_db1
+normal_db1.normal_t1                               OK
+performance_schema
+sys
+sys.sys_config                                     OK
+test
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+#
+# Test that MariaDB can access tables partitioned with "native" InnoDb partition handler
+#
+use idb_partition_db1;
+SHOW TABLES;
+Tables_in_idb_partition_db1
+idb_partition_t1
+select * from idb_partition_t1;
+id	year
+0	1997
+1	1998
+2	1999
+3	2000
+ALTER TABLE idb_partition_t1
+PARTITION BY HASH(id)
+PARTITIONS 8;
+select * from idb_partition_t1;
+id	year
+0	1997
+1	1998
+2	1999
+3	2000
+#
+# Test that MariaDB can access tables compressed using MySQL punch-hole compression
+#
+use idb_page_comp_db1;
+SHOW TABLES;
+Tables_in_idb_page_comp_db1
+idb_page_comp_t1
+select count(*) as EXPECT_3000 from idb_page_comp_t1;
+EXPECT_3000
+3000
+#
+# Test that stored procedure are not changed after upgrade
+# This does not cover all format of stored procedure
+#
+SHOW CREATE PROCEDURE idb_page_comp_db1.populatePageCompTable;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+populatePageCompTable	ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `populatePageCompTable`()
+BEGIN
+    DECLARE id INT DEFAULT 0;
+    WHILE id < 3000 DO
+        INSERT idb_page_comp_t1 (id, year)
+            VALUES (id, 2000);
+        SET id = id + 1;
+    END While;
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+#
+# Test that MariaDB can access tables encrypted in MySQL with keyring_file plug-in
+#
+use idb_encryption_db1;
+SHOW TABLES;
+Tables_in_idb_encryption_db1
+idb_encryption_t1
+select * from idb_encryption_t1;
+id	year
+0	2001
+1	2002
+2	2003
+3	2004
+#
+# Test that table in tablespace created by MySQL CREATE TABLESPACE command is still accessible
+#
+use idb_tablespace_db1;
+SHOW TABLES;
+Tables_in_idb_tablespace_db1
+idb_tablespace_t1
+select * from idb_tablespace_t1;
+id	year
+0	2001
+1	2002
+2	2003
+3	2004
+#
+# Test that undo logs in MariaDB still work
+#
+use test;
+CREATE TABLE test_t1
+(id INT,
+year INT)
+ENGINE=InnoDB;
+COMMIT;
+SET autocommit=0;
+START TRANSACTION;
+INSERT INTO test_t1(id, year)
+VALUES
+(0,2001),
+(1,2002),
+(2,2003),
+(3,2004);
+select count(*) as EXPECT_4 from test_t1;
+EXPECT_4
+4
+ROLLBACK;
+select count(*) as EXPECT_0 from test_t1;
+EXPECT_0
+0
+#
+# Tested that MariaDB can access normal table created from MySQL
+#
+use normal_db1;
+SHOW TABLES;
+Tables_in_normal_db1
+normal_t1
+select * from normal_t1;
+id	year
+0	2001
+1	2002
+2	2003
+3	2004
+#
+# Clean up
+#
+use test;
+# restart: --datadir=MYSQLTEST_VARDIR/mysqld.1/data/
