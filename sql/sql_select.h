@@ -2491,10 +2491,13 @@ struct TMPTABLE_COSTS
   double create;
   double lookup;
   double write;
+  double avg_io_cost;
+  double cache_hit_ratio;
+  double block_size;
 };
 
 TMPTABLE_COSTS get_tmp_table_costs(THD *thd, double row_count, uint row_size,
-                                   bool blobs_used);
+                                   bool blobs_used, bool add_row_copy_cost);
 
 struct st_cond_statistic
 {

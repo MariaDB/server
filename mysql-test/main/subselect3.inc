@@ -1110,6 +1110,7 @@ insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 as select a as a, a as b, a as c from t0 where a < 3;
 create table t2 as select a as a, a as b from t0 where a < 3;
 insert into t2 select * from t2;
+select count(*) from t2;
 
 explain select * from t1 where (a,b,c) in (select X.a, Y.a, Z.a from t2 X, t2 Y, t2 Z where X.b=33);
 
@@ -1155,7 +1156,7 @@ drop table t0, t1;
 create table t1 (
   idIndividual int primary key
 );
-insert into t1 values (1),(2);
+insert into t1 values (1),(2),(1000);
 
 create table t2 (
   idContact int primary key,
@@ -1170,12 +1171,18 @@ create table t3 (
   postalStripped varchar(100)
 );
 
-insert into t3 values (1,1, 'foo'), (2,2,'bar');
+insert into t3 values (1,1, 'foo'), (2,2,'T2H3B2');
 
 --echo The following must be converted to a semi-join:
 set @save_optimizer_switch=@@optimizer_switch;
 set @@optimizer_switch='materialization=off';
 explain extended SELECT a.idIndividual FROM t1 a 
+WHERE a.idIndividual IN 
+	(	SELECT c.idObj FROM t3 cona 
+		INNER JOIN t2 c ON c.idContact=cona.idContact 
+		WHERE cona.postalStripped='T2H3B2'
+	);
+SELECT a.idIndividual FROM t1 a 
 WHERE a.idIndividual IN 
 	(	SELECT c.idObj FROM t3 cona 
 		INNER JOIN t2 c ON c.idContact=cona.idContact 

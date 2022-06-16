@@ -554,7 +554,7 @@ DROP TABLE t1;
 create table t1 (a int);
 insert into t1 values (1),(2);
 create table t2(a int, b int);
-insert into t2 values (1,1), (2, 1000);
+insert into t2 values (1,1), (2, 1000),(5000,5000);
 create table t3 (a int, b int, filler char(100), key(a), key(b));
 insert into t3 select 1000, 1000,'filler' from seq_1_to_1000;
 insert into t3 values (1,1,'data');
@@ -566,7 +566,7 @@ where t2.a=t1.a and (t3.a=t2.b or t3.b=t2.b or t3.b=t2.b+1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
 2	MATERIALIZED	t3	ALL	a,b	NULL	NULL	NULL	1002	Range checked for each record (index map: 0x3)
 select * from t1 
 where exists (select 1 from t2, t3 

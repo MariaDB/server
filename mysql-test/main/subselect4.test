@@ -946,7 +946,7 @@ drop table t1, t2;
 
 CREATE TABLE t1 (c1 varchar(1) DEFAULT NULL);
 CREATE TABLE t2 (c1 varchar(1) DEFAULT NULL);
-INSERT INTO t2 VALUES ('k'), ('d');
+INSERT INTO t2 VALUES ('k'), ('d'),('x');
 CREATE TABLE t3 (c1 varchar(1) DEFAULT NULL);
 INSERT INTO t3 VALUES ('a'), ('b'), ('c');
 CREATE TABLE t4 (c1 varchar(1) primary key);
@@ -2284,9 +2284,13 @@ INSERT INTO t4 VALUES
 SET @save_join_cache_level=@@join_cache_level;
 SET join_cache_level=0;
 
+explain select 1
+from t2 join t1 on
+('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 10;
+
 select 1
 from t2 join t1 on
-('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 500;
+('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 10;
 SET join_cache_level= @save_join_cache_level;
 
 DROP TABLE t1,t2,t3,t4;
