@@ -300,7 +300,7 @@ set optimizer_switch=@save_optimizer_switch;
 CREATE TABLE t1 (f1 varchar(8), KEY(f1)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES ('qux'),('foo');
 CREATE TABLE t2 (f2 varchar(8)) ENGINE=InnoDB;
-INSERT INTO t2 VALUES ('bar'),('foo'),('qux');
+INSERT INTO t2 VALUES ('bar'),('foo'),('qux'),('qq1'),('qq2');
 
 let $q=
 SELECT f1 FROM t1 

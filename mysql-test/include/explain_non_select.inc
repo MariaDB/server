@@ -73,11 +73,11 @@ INSERT INTO t2 VALUES (1), (2), (3);
 --source include/explain_utils.inc
 DROP TABLE t1, t2;
 
---echo #7
+--echo #7a
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1), (2), (3);
 CREATE TABLE t2 (b INT);
-INSERT INTO t2 VALUES (1), (2), (3);
+INSERT INTO t2 VALUES (1), (2), (3), (1000);
 --let $query =  UPDATE        t1, t2 SET a = 10 WHERE a IN (SELECT b FROM t2 WHERE t2.b < 3)
 --let $select = SELECT * FROM t1, t2            WHERE a IN (SELECT b FROM t2 WHERE t2.b < 3)
 --source include/explain_utils.inc
@@ -197,7 +197,7 @@ DROP TABLE t1, t2, t3;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1), (2), (3);
 CREATE TABLE t2 (a INT);
-INSERT INTO t2 VALUES (1), (2), (3);
+INSERT INTO t2 VALUES (1), (2), (3), (1000);
 --let $query =  UPDATE t1 SET a = 10 WHERE a IN (SELECT a FROM t2)
 --let $select = SELECT * FROM t1     WHERE a IN (SELECT a FROM t2)
 --source include/explain_utils.inc

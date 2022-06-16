@@ -4408,7 +4408,7 @@ CREATE TABLE t1 (a INT, b int, primary key(a));
 CREATE TABLE t2 (a INT, b INT);
 INSERT INTO t1 (a,b) VALUES (58,1),(96,2),(273,3),(23,4),(231,5),(525,6),
 (2354,7),(321421,3),(535,2),(4535,3);
-INSERT INTO t2 (a,b) VALUES (58,3),(96,3),(273,3);
+INSERT INTO t2 (a,b) VALUES (58,3),(96,3),(273,3),(1000,1000),(2000,2000);
 # Join order should have the SJM scan table as the first table for both
 # the queries with GROUP BY and ORDER BY clause.
 EXPLAIN SELECT t1.a
@@ -4416,9 +4416,9 @@ FROM t1
 WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
 ORDER BY t1.a DESC;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	Using filesort
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	5	Using filesort
 1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	Using index
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
 EXPLAIN FORMAT=JSON SELECT t1.a
 FROM t1
 WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
@@ -4436,7 +4436,7 @@ EXPLAIN
               "table_name": "<subquery2>",
               "access_type": "ALL",
               "possible_keys": ["distinct_key"],
-              "rows": 3,
+              "rows": 5,
               "filtered": 100,
               "materialized": {
                 "unique": 1,
@@ -4447,7 +4447,7 @@ EXPLAIN
                       "table": {
                         "table_name": "t2",
                         "access_type": "ALL",
-                        "rows": 3,
+                        "rows": 5,
                         "filtered": 100,
                         "attached_condition": "t2.b = 3 and t2.a is not null"
                       }
@@ -4489,9 +4489,9 @@ FROM t1
 WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
 GROUP BY t1.a DESC;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	Using filesort
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	5	Using filesort
 1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
 EXPLAIN FORMAT=JSON SELECT t1.a, group_concat(t1.b)
 FROM t1
 WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
@@ -4509,7 +4509,7 @@ EXPLAIN
               "table_name": "<subquery2>",
               "access_type": "ALL",
               "possible_keys": ["distinct_key"],
-              "rows": 3,
+              "rows": 5,
               "filtered": 100,
               "materialized": {
                 "unique": 1,
@@ -4520,7 +4520,7 @@ EXPLAIN
                       "table": {
                         "table_name": "t2",
                         "access_type": "ALL",
-                        "rows": 3,
+                        "rows": 5,
                         "filtered": 100,
                         "attached_condition": "t2.b = 3 and t2.a is not null"
                       }

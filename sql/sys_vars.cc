@@ -6978,6 +6978,15 @@ static Sys_var_ulong Sys_optimizer_max_sel_arg_weight(
   cost of finding the key, on cached pages, that we have to take into account.
 */
 
+static bool update_optimizer_cache_hit_ratio(sys_var *self, THD *thd,
+                                            enum_var_type type)
+{
+  if (type == OPT_SESSION)
+    thd->optimizer_cache_hit_ratio=
+      cache_hit_ratio(thd->variables.optimizer_cache_hit_ratio);
+  return 0;
+}
+
 static Sys_var_uint Sys_optimizer_cache_hit_ratio(
   "optimizer_cache_hit_ratio",
   "Expected hit rate of the row and index cache in storage engines. "
@@ -6985,7 +6994,7 @@ static Sys_var_uint Sys_optimizer_cache_hit_ratio(
   "empty and 99 means that value is almost always in the cache.",
   SESSION_VAR(optimizer_cache_hit_ratio), CMD_LINE(REQUIRED_ARG),
   VALID_RANGE(0, 99), DEFAULT(DEFAULT_CACHE_HIT_RATIO), 1, NO_MUTEX_GUARD,
-  NOT_IN_BINLOG);
+  NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_optimizer_cache_hit_ratio));
 
 static Sys_var_double Sys_optimizer_key_copy_cost(
   "optimizer_key_copy_cost",

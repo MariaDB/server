@@ -1122,26 +1122,35 @@ INSERT INTO t1 VALUES
 (16,'n',3),(17,'r',2),(18,'v',1),(19,'p',0);
 
 CREATE TABLE t2 (
-  pk INT, d VARCHAR(1), e INT,
+  pk INT, d VARCHAR(1), e INT, f int,
   PRIMARY KEY(pk), KEY(d,e)
 ) ENGINE=InnoDB;
 
-INSERT INTO t2 VALUES
+INSERT INTO t2 (pk,d,e) VALUES
 (1,'x',1),(2,'d',2),(3,'r',3),(4,'f',4),(5,'y',5),
 (6,'u',6),(7,'m',7),(8,'k',8),(9,'o',9),(10,'w',1),
 (11,'m',2),(12,'q',3),(13,'m',4),(14,'d',5),
 (15,'g',6),(16,'x',7),(17,'f',8);
+update t2 set f=pk/2;
 
 analyze table t1,t2;
 
+--echo # Original query, changed because of new optimizations
 explain
 SELECT * FROM t1 WHERE b IN (
   SELECT d FROM t2, t1
   WHERE a = d AND ( pk < 2 OR d = 'z' )
 );
+
+explain
 SELECT * FROM t1 WHERE b IN (
   SELECT d FROM t2, t1
-  WHERE a = d AND ( pk < 2 OR d = 'z' )
+  WHERE a = d AND ( pk < 2 OR d = 'z' ) and f > 0
+);
+
+SELECT * FROM t1 WHERE b IN (
+  SELECT d FROM t2, t1
+  WHERE a = d AND ( pk < 2 OR d = 'z' ) and f > 0
 );
 
 DROP TABLE t1, t2;

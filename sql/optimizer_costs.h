@@ -39,7 +39,7 @@
 
 /* Convert ratio to cost */
 
-static inline double cache_hit_cost(uint ratio)
+static inline double cache_hit_ratio(uint ratio)
 {
   return (((double) (100 - ratio)) / 100.0);
 }
@@ -166,6 +166,8 @@ static inline double cache_hit_cost(uint ratio)
 #define HEAP_TEMPTABLE_CREATE_COST 1.0
 #define DISK_TEMPTABLE_LOOKUP_COST 1.0
 #define DISK_TEMPTABLE_CREATE_COST 4.0 /* Creating and deleting 2 temp tables */
+#define DISK_TEMPTABLE_BLOCK_SIZE  8192
+
 #define SORT_INDEX_CMP_COST 0.02
 
 #define COST_MAX (DBL_MAX * (1.0 - DBL_EPSILON))
