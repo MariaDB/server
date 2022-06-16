@@ -122,6 +122,12 @@
 #define READ_RECORD_BUFFER	(uint) (IO_SIZE*8) /* Pointer_buffer_size */
 #define DISK_BUFFER_SIZE	(uint) (IO_SIZE*16) /* Size of diskbuffer */
 
+/*
+  When reading big blocks, assume that each block of this size is
+  is of simlar cost as key lookup (1)
+*/
+#define DISK_FAST_READ_SIZE     ((uint) (IO_SIZE*16))
+
 #define FRM_VER_TRUE_VARCHAR (FRM_VER+4) /* 10 */
 #define FRM_VER_EXPRESSSIONS (FRM_VER+5) /* 11 */
 #define FRM_VER_CURRENT  FRM_VER_EXPRESSSIONS
@@ -218,7 +224,7 @@
 
 /* Convert ratio to cost */
 
-static inline double cache_hit_cost(uint ratio)
+static inline double cache_hit_ratio(uint ratio)
 {
   return (((double) (100 - ratio)) / 100.0);
 }
@@ -353,6 +359,8 @@ static inline double cache_hit_cost(uint ratio)
 #define HEAP_TEMPTABLE_CREATE_COST 1.0
 #define DISK_TEMPTABLE_LOOKUP_COST 1.0
 #define DISK_TEMPTABLE_CREATE_COST 4.0 /* Creating and deleting 2 temp tables */
+#define DISK_TEMPTABLE_BLOCK_SIZE  8192
+
 #define SORT_INDEX_CMP_COST 0.02
 
 #define COST_MAX (DBL_MAX * (1.0 - DBL_EPSILON))

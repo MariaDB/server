@@ -2638,6 +2638,8 @@ public:
   struct  system_status_var org_status_var; // For user statistics
   struct  system_status_var *initial_status_var; /* used by show status */
   THR_LOCK_INFO lock_info;              // Locking info of this thread
+  double optimizer_cache_hit_ratio;     // From optimizer_cache_hit_ratio
+
   /**
     Protects THD data accessed from other threads:
     - thd->query and thd->query_length (used by SHOW ENGINE
