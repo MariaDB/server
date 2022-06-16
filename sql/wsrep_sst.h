@@ -32,6 +32,7 @@
 #define WSREP_SST_OPT_PARENT   "--parent"
 #define WSREP_SST_OPT_BINLOG   "--binlog"
 #define WSREP_SST_OPT_BINLOG_INDEX "--binlog-index"
+#define WSREP_SST_OPT_PROGRESS "--progress"
 #define WSREP_SST_OPT_MYSQLD   "--mysqld-args"
 
 // mysqldump-specific options
