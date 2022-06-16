@@ -2556,22 +2556,35 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
                                               &blobs_used);
         TMPTABLE_COSTS cost= get_tmp_table_costs(join->thd,
                                                  subjoin_out_rows, rowlen,
-                                                 blobs_used);
+                                                 blobs_used, 1);
+        double scan_cost, total_cost;
+        double row_copy_cost= ROW_COPY_COST_THD(thd);
+
         /*
           Let materialization cost include the cost to write the data into the
-          temporary table:
+          temporary table. Note that smj->materialization_cost already includes
+          row copy and compare costs of finding the original row.
         */ 
         sjm->materialization_cost.add_io(subjoin_out_rows, cost.write);
         sjm->materialization_cost.copy_cost+= cost.create;
 
         /*
           Set the cost to do a full scan of the temptable (will need this to 
-          consider doing sjm-scan):
-        */ 
-        sjm->scan_cost.reset();
-        sjm->scan_cost.add_io(sjm->rows, cost.lookup);
+          consider doing sjm-scan). See ha_scan_time() for the basics of
+          the calculations.
+          We don't need to check the where clause for each row, so no
+          WHERE_COST is needed.
+        */
+        scan_cost= (TABLE_SCAN_SETUP_COST +
+                    (cost.block_size == 0 ? 0 :
+                     ((rowlen * (double) sjm->rows) / cost.block_size +
+                      TABLE_SCAN_SETUP_COST)));
+        total_cost= (scan_cost * cost.cache_hit_ratio * cost.avg_io_cost +
+                     row_copy_cost * sjm->rows);
+        sjm->scan_cost.convert_from_cost(total_cost);
 
-        sjm->lookup_cost.convert_from_cost(cost.lookup);
+        /* When reading a row, we have also to check the where clause */
+        sjm->lookup_cost.convert_from_cost(cost.lookup + WHERE_COST_THD(thd));
         sj_nest->sj_mat_info= sjm;
         DBUG_EXECUTE("opt", print_sjm(sjm););
       }
@@ -2662,9 +2675,11 @@ static uint get_tmp_table_rec_length(Ref_ptr_array p_items, uint elements,
 */
 
 TMPTABLE_COSTS
-get_tmp_table_costs(THD *thd, double row_count, uint row_size, bool blobs_used)
+get_tmp_table_costs(THD *thd, double row_count, uint row_size, bool blobs_used,
+                    bool add_copy_cost)
 {
   TMPTABLE_COSTS cost;
+  double row_copy_cost= add_copy_cost ? ROW_COPY_COST_THD(thd) : 0;
 
   /* From heap_prepare_hp_create_info(), assuming one hash key used */
   row_size+= sizeof(char*)*2;
@@ -2674,16 +2689,23 @@ get_tmp_table_costs(THD *thd, double row_count, uint row_size, bool blobs_used)
       blobs_used)
   {
     /* Disk based table */
-    cost.lookup= (DISK_TEMPTABLE_LOOKUP_COST *
-                  cache_hit_cost(thd->variables.optimizer_cache_hit_ratio));
-    cost.write=   cost.lookup;
-    cost.create=  DISK_TEMPTABLE_CREATE_COST;
+    cost.lookup=          ((DISK_TEMPTABLE_LOOKUP_COST *
+                            thd->optimizer_cache_hit_ratio)) + row_copy_cost;
+    cost.write=           cost.lookup + row_copy_cost;
+    cost.create=          DISK_TEMPTABLE_CREATE_COST;
+    cost.block_size=      DISK_TEMPTABLE_BLOCK_SIZE;
+    cost.avg_io_cost=     1.0;
+    cost.cache_hit_ratio= thd->optimizer_cache_hit_ratio;
   }
   else
   {
-    cost.lookup=  HEAP_TEMPTABLE_LOOKUP_COST;
-    cost.write=   cost.lookup;
-    cost.create=  HEAP_TEMPTABLE_CREATE_COST;
+    /* Values are as they are in heap.h */
+    cost.lookup=          HEAP_TEMPTABLE_LOOKUP_COST + row_copy_cost;
+    cost.write=           cost.lookup + row_copy_cost;
+    cost.create=          HEAP_TEMPTABLE_CREATE_COST;
+    cost.block_size=      0;
+    cost.avg_io_cost=     HEAP_TEMPTABLE_LOOKUP_COST;
+    cost.cache_hit_ratio= 1.0;
   }
   return cost;
 }
@@ -3623,11 +3645,15 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
       records, and we will make 
       - sj_outer_fanout table writes
       - sj_inner_fanout*sj_outer_fanout lookups.
+
+      There is no row copy cost (as we are only copying rowid) and no
+      compare cost (as we are only checking if the row exists by
+      checking if we got a write error.
     */
     TMPTABLE_COSTS one_cost= get_tmp_table_costs(join->thd,
                                                  sj_outer_fanout,
                                                  temptable_rec_size,
-                                                 0);
+                                                 0, 0);
     double write_cost=
       COST_ADD(one_cost.create,
                COST_MULT(join->positions[first_tab].prefix_record_count,
@@ -6696,7 +6722,7 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
                                           &blobs_used);
     /* The cost of using the temp table */
     TMPTABLE_COSTS cost= get_tmp_table_costs(thd, inner_record_count_1,
-                                             rowlen, blobs_used);
+                                             rowlen, blobs_used, 1);
     /*
       The cost of executing the subquery and storing its result in an indexed
       temporary table.
@@ -6704,7 +6730,8 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
     double materialization_cost=
       COST_ADD(cost.create,
                COST_ADD(inner_read_time_1,
-                        COST_MULT(cost.write, inner_record_count_1)));
+                        COST_MULT((cost.write + WHERE_COST_THD(thd)),
+                                  inner_record_count_1)));
 
     materialize_strategy_cost=
       COST_ADD(materialization_cost,
@@ -6727,6 +6754,7 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
     }
     if (unlikely(thd->trace_started()))
     {
+      Json_writer_object trace_wrapper(thd);
       Json_writer_object trace_subquery(thd, "subquery_plan");
       trace_subquery.
         add("records", inner_record_count_1).
@@ -6768,6 +6796,7 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
 
     if (unlikely(thd->trace_started()))
     {
+      Json_writer_object trace_wrapper(thd);
       Json_writer_object trace_subquery(thd, "subquery_plan_revert");
       trace_subquery.add("choosen", "in_to_exists");
     }

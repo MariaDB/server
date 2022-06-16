@@ -516,9 +516,9 @@ explain extended select (select a+1) from t1;
 select (select a+1) from t1;
 drop table t1;
 
-#
-# Null with keys
-#
+--echo #
+--echo # Null with keys
+--echo #
 
 CREATE TABLE t1 (a int(11) NOT NULL default '0', PRIMARY KEY  (a));
 CREATE TABLE t2 (a int(11) default '0', INDEX (a));
@@ -3321,15 +3321,15 @@ GROUP BY a;
 DROP TABLE t1;
 
 
-#
-# Bug#32036 EXISTS within a WHERE clause with a UNION crashes MySQL 5.122
-#
+--echo #
+--echo # Bug#32036 EXISTS within a WHERE clause with a UNION crashes MySQL 5.122
+--echo #
 
 CREATE TABLE t1 (a INT);
 CREATE TABLE t2 (a INT);
 
 INSERT INTO t1 VALUES (1),(2),(3),(4);
-INSERT INTO t2 VALUES (1),(2);
+INSERT INTO t2 VALUES (1),(2),(1000);
 
 SELECT 2 FROM t1 WHERE EXISTS ((SELECT 1 FROM t2 WHERE t1.a=t2.a));
 EXPLAIN EXTENDED
@@ -4794,7 +4794,7 @@ CREATE TABLE t1 (a int) ;
 INSERT INTO t1 VALUES (NULL), (1), (NULL), (2);
 
 CREATE TABLE t2 (a int, INDEX idx(a)) ;
-INSERT INTO t2 VALUES (NULL), (1), (NULL);
+INSERT INTO t2 VALUES (NULL), (1), (NULL),(1000);
 
 SELECT * FROM t1
   WHERE EXISTS (SELECT a FROM t2 USE INDEX () WHERE t2.a = t1.a);

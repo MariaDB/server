@@ -8747,6 +8747,5 @@ void handler::set_optimizer_costs(THD *thd)
   optimizer_row_copy_cost= thd->variables.optimizer_row_copy_cost;
   optimizer_where_cost= thd->variables.optimizer_where_cost;
   optimizer_key_cmp_cost= thd->variables.optimizer_key_cmp_cost;
-  set_optimizer_cache_cost(cache_hit_cost(thd->variables.
-                                          optimizer_cache_hit_ratio));
+  set_optimizer_cache_cost(thd->optimizer_cache_hit_ratio);
 }
