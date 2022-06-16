@@ -1247,7 +1247,7 @@ drop table t1, t2;
 #
 CREATE TABLE t1 (c1 varchar(1) DEFAULT NULL);
 CREATE TABLE t2 (c1 varchar(1) DEFAULT NULL);
-INSERT INTO t2 VALUES ('k'), ('d');
+INSERT INTO t2 VALUES ('k'), ('d'),('x');
 CREATE TABLE t3 (c1 varchar(1) DEFAULT NULL);
 INSERT INTO t3 VALUES ('a'), ('b'), ('c');
 CREATE TABLE t4 (c1 varchar(1) primary key);
@@ -1260,16 +1260,16 @@ EXPLAIN
 SELECT * FROM t1 RIGHT JOIN t2 ON t1.c1 WHERE 's' IN (SELECT c1 FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1)
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; FirstMatch(t1)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
 SELECT * FROM t1 RIGHT JOIN t2 ON t1.c1 WHERE 's' IN (SELECT c1 FROM t2);
 c1	c1
 EXPLAIN
 SELECT * FROM t2 LEFT JOIN t1 ON t1.c1 WHERE 's' IN (SELECT c1 FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1)
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; FirstMatch(t1)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
 SELECT * FROM t2 LEFT JOIN t1 ON t1.c1 WHERE 's' IN (SELECT c1 FROM t2);
 c1	c1
 SET optimizer_switch='materialization=on';
@@ -1277,10 +1277,10 @@ EXPLAIN
 SELECT * FROM (t2 LEFT JOIN t1 ON t1.c1) LEFT JOIN t3 on t3.c1 WHERE 's' IN (SELECT c1 FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT * FROM (t2 LEFT JOIN t1 ON t1.c1) LEFT JOIN t3 on t3.c1 WHERE 's' IN (SELECT c1 FROM t2);
 c1	c1	c1
 EXPLAIN
@@ -1288,8 +1288,8 @@ SELECT * FROM t4 LEFT JOIN t2 ON t4.c1 WHERE 's' IN (SELECT c1 FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t4	index	NULL	PRIMARY	3	NULL	2	Using index
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT * FROM t4 LEFT JOIN t2 ON t4.c1 WHERE 's' IN (SELECT c1 FROM t2);
 c1	c1
 SET optimizer_switch=@save_optimizer_switch;
@@ -2753,12 +2753,21 @@ INSERT INTO t4 VALUES
 ('w'),('w'),('x'),('x'), (NULL),(NULL);
 SET @save_join_cache_level=@@join_cache_level;
 SET join_cache_level=0;
+explain select 1
+from t2 join t1 on
+('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t1	index	NULL	v1	9	NULL	5	Using index
+2	SUBQUERY	t1	ref_or_null	v1	v1	4	const	3	Using where; Using index
+2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	4	Using where
+2	SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	50	Using where
 select 1
 from t2 join t1 on
-('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 500;
+('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 10;
 1
 Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 3020 rows, which exceeds LIMIT ROWS EXAMINED (500). The query result may be incomplete
+Warning	1931	Query execution was interrupted. The query examined at least 11 rows, which exceeds LIMIT ROWS EXAMINED (10). The query result may be incomplete
 SET join_cache_level= @save_join_cache_level;
 DROP TABLE t1,t2,t3,t4;
 #
@@ -2788,9 +2797,8 @@ set names 'utf8';
 EXPLAIN
 SELECT * FROM t2 WHERE (t2.a,t2.b) IN (('abc',1), ('def', 2));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	16	func,func	1	Using where
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived3>	ref	key1	key1	4	test.t2.b	2	Using where; FirstMatch(t2)
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 set names default;
 set @@in_predicate_conversion_threshold= @save_in_predicate_conversion_threshold;

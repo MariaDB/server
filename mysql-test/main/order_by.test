@@ -2681,7 +2681,7 @@ CREATE TABLE t2 (a INT, b INT);
 
 INSERT INTO t1 (a,b) VALUES (58,1),(96,2),(273,3),(23,4),(231,5),(525,6),
                             (2354,7),(321421,3),(535,2),(4535,3);
-INSERT INTO t2 (a,b) VALUES (58,3),(96,3),(273,3);
+INSERT INTO t2 (a,b) VALUES (58,3),(96,3),(273,3),(1000,1000),(2000,2000);
 
 --echo # Join order should have the SJM scan table as the first table for both
 --echo # the queries with GROUP BY and ORDER BY clause.

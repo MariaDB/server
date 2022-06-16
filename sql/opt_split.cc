@@ -672,7 +672,7 @@ double spl_postjoin_oper_cost(THD *thd, double join_record_count, uint rec_len)
 {
   double cost;
   TMPTABLE_COSTS tmp_cost= get_tmp_table_costs(thd, join_record_count,
-                                               rec_len, 0);
+                                               rec_len, 0, 1);
   // cost to fill tmp table
   cost= tmp_cost.create + tmp_cost.write * join_record_count;
    // cost to perform post join operation used here
