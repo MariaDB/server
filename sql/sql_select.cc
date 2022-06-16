@@ -9983,7 +9983,6 @@ sort_positions(SORT_POSITION *a, SORT_POSITION *b)
   Call best_access_path() for a set of tables and collect results
 
   @param join             JOIN object
-  @param trace_one_table  Current optimizer_trace
   @param pos              Pointer to remanining tables
   @param allowed_tables   bitmap of allowed tables. On return set to
                           the collected tables.
@@ -10002,7 +10001,6 @@ sort_positions(SORT_POSITION *a, SORT_POSITION *b)
 static bool
 get_costs_for_tables(JOIN *join, table_map remaining_tables, uint idx,
                      double record_count,
-                     Json_writer_object *trace_one_table,
                      JOIN_TAB **pos, SORT_POSITION **store_position,
                      table_map *allowed_tables,
                      bool stop_on_eq_ref)
@@ -10186,6 +10184,11 @@ get_costs_for_tables(JOIN *join, table_map remaining_tables, uint idx,
                           (values: 0 = EXHAUSTIVE, 1 = PRUNE_BY_TIME_OR_ROWS)
   @param use_cond_selectivity  specifies how the selectivity of the conditions
                           pushed to a table should be taken into account
+  @param processed_eq_ref_tables  if @@optimizer_prune_level > 2, this is a
+                          bitmap of tables that use eq_ref access. The
+                          optimizer will prune away tables that are not using
+                          eq_ref access if there are tables that are using
+                          eq_ref access.
 
   @retval
     enum_best_search::SEARCH_OK          All fine
@@ -10281,24 +10284,21 @@ best_extension_by_limited_search(JOIN      *join,
       */
       table_map table_map= join->eq_ref_tables & allowed_current_tables;
       if (get_costs_for_tables(join, remaining_tables, idx, record_count,
-                               &trace_one_table, best_ref, &sort_end,
-                               &table_map, 1))
+                               best_ref, &sort_end, &table_map, 1))
         used_eq_ref_table= (*sort->join_tab)->table->map;
       else
       {
         /* We didn't find another EQ_REF table, add remaining tables */
         if ((table_map= allowed_current_tables & ~table_map))
           get_costs_for_tables(join, remaining_tables, idx, record_count,
-                               &trace_one_table, best_ref, &sort_end, &table_map,
-                               0);
+                               best_ref, &sort_end, &table_map, 0);
       }
     }
     else
     {
       table_map table_map= allowed_current_tables;
       get_costs_for_tables(join, remaining_tables, idx, record_count,
-                           &trace_one_table, best_ref, &sort_end, &table_map,
-                           0);
+                           best_ref, &sort_end, &table_map, 0);
     }
     found_tables= (uint) (sort_end - sort);
     DBUG_ASSERT(found_tables > 0);

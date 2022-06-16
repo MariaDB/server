@@ -706,9 +706,9 @@ The following specify which files/extra groups are read (specified before remain
  Controls the heuristic(s) applied during query
  optimization to prune less-promising partial plans from
  the optimizer search space. Meaning: 0 - do not apply any
- heuristic, thus perform exhaustive search: 1 - prune
- plans based on cost and number of retrieved rows eq_ref:
- 2 - prune also if we find an eq_ref chain
+ heuristic, thus perform exhaustive search, 1 - prune
+ plans based on cost and number of retrieved rows, 2 -
+ also prune if we find an eq_ref chain
  --optimizer-search-depth=# 
  Maximum depth of search performed by the query optimizer.
  Values larger than the number of relations in a query

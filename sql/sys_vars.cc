@@ -2734,8 +2734,8 @@ static Sys_var_ulong Sys_optimizer_prune_level(
        "Controls the heuristic(s) applied during query optimization to prune "
        "less-promising partial plans from the optimizer search space. "
        "Meaning: 0 - do not apply any heuristic, thus perform exhaustive "
-       "search: 1 - prune plans based on cost and number of retrieved rows "
-       "eq_ref: 2 - prune also if we find an eq_ref chain",
+       "search, 1 - prune plans based on cost and number of retrieved rows, "
+       "2 - also prune if we find an eq_ref chain",
        SESSION_VAR(optimizer_prune_level), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 2), DEFAULT(2), BLOCK_SIZE(1));
 
