@@ -15,6 +15,10 @@ SET @json2= '{"key1":"val1"}';
 --error ER_STACK_OVERRUN_NEED_MORE
 SELECT JSON_OVERLAPS(@json1, @json2);
 
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT JSON_INTERSECT(@json1, @json2);
+
 SET @@debug_dbug= @saved_dbug;
 
 --echo #

@@ -1339,6 +1339,17 @@ protected:
   virtual ~Create_func_json_overlaps() {}
 };
 
+class Create_func_json_intersect : public Create_func_arg2
+{
+public:
+  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+
+  static Create_func_json_intersect s_singleton;
+
+protected:
+  Create_func_json_intersect() {}
+  virtual ~Create_func_json_intersect() {}
+};
 
 class Create_func_last_day : public Create_func_arg1
 {
@@ -4158,6 +4169,17 @@ Create_func_json_length::create_native(THD *thd, const LEX_CSTRING *name,
   return func;
 }
 
+Create_func_json_intersect Create_func_json_intersect::s_singleton;
+Item*
+Create_func_json_intersect::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  if (unlikely( ( !arg1 || !arg2 ) )) // json, json
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0));
+  }
+  status_var_increment(thd->status_var.feature_json);
+  return new (thd->mem_root) Item_func_json_intersect(thd, arg1, arg2);
+}
 
 Create_func_json_merge Create_func_json_merge::s_singleton;
 
@@ -5766,6 +5788,7 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("JSON_EXISTS") }, BUILDER(Create_func_json_exists)},
   { { STRING_WITH_LEN("JSON_EXTRACT") }, BUILDER(Create_func_json_extract)},
   { { STRING_WITH_LEN("JSON_INSERT") }, BUILDER(Create_func_json_insert)},
+  { { STRING_WITH_LEN("JSON_INTERSECT") }, BUILDER(Create_func_json_intersect)},
   { { STRING_WITH_LEN("JSON_KEYS") }, BUILDER(Create_func_json_keys)},
   { { STRING_WITH_LEN("JSON_LENGTH") }, BUILDER(Create_func_json_length)},
   { { STRING_WITH_LEN("JSON_LOOSE") }, BUILDER(Create_func_json_loose)},

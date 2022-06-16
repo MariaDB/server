@@ -10079,3 +10079,7 @@ ER_CM_OPTION_MISSING_REQUIREMENT
         eng "CHANGE MASTER TO option '%s=%s' is missing requirement %s"
 ER_SLAVE_STATEMENT_TIMEOUT 70100
         eng "Slave log event execution was interrupted (slave_max_statement_time exceeded)"
+ER_JSON_NON_UNIQUE_KEY_FOUND
+        chi "同一对象中有重复的键"
+        eng "Duplicate keys in the same object"
+        spa "Duplicar claves en el mismo objeto"

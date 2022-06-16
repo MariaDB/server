@@ -2350,3 +2350,291 @@ JSON_OVERLAPS(@json1, @json2)
 #
 # End of 10.9 Test
 #
+#
+# Beginning of 10.11 tests
+#
+# MDEV-26182: Implement JSON_INTERSECT()
+#
+# scalar(number) intersect scalar(number)
+SET @json1 = '1';
+SET @json2 = '1';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+1
+SET @json1 = '1';
+SET @json2 = '2';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+NULL
+SET @json1 = '1.0';
+SET @json2 = '1.00';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+1.0
+# scalar intersect scalar array
+SET @json1 = '3';
+SET @json2 = '[1,2,3,4,5]';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+3
+SET @json1 = '6';
+SET @json2 = '[1,2,3,4,5]';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+NULL
+# scalar(string) intersect scalar(string)
+SET @json1 = '"a"';
+SET @json2 = '"a"';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+"a"
+SET @json1 = '"a"';
+SET @json2 = '"b"';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+NULL
+# scalar(string) intersect scalar(string) array
+SET @json1 = '"z"';
+SET @json2 = '["a","b","cd","ef","f"]';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+NULL
+# sclar intersect object
+SET @json1 = '"z"';
+SET @json2 = '{"key1":"value1"}';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+NULL
+SET @json1 = '3';
+SET @json2 = '{"key1":"value1"}';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+NULL
+# object intersect object
+SET @json1 = '{"key1":"value1","key2":"value2"}';
+SET @json2 = '{"key2":"value2","key1":"value1"}';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+{"key1": "value1", "key2": "value2"}
+SET @json1 = '{"key1":"value1"}';
+SET @json2 = '{"key2":"value2"}';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+NULL
+# object intersect object array
+SET @json1 = '{"key1":"value1"}';
+SET @json2 = '[{"key1":"value1"},{"key2":"value2"}]';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+{"key1": "value1"}
+# object inersect scalar
+SET @json1 = '{"key1":"value1"}';
+SET @json2 = '1';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+NULL
+# nested object intersect nested object
+SET @json1 = '{"key1":{"kkey1":"vvalue1"}}';
+SET @json2 = '{"key1":{"kkey1":"vvalue1"}}';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+{"key1": {"kkey1": "vvalue1"}}
+SET @json1= '{"key1":{"key1":{"key1":"value1"}}}';
+SET @json2= '{"key1":{"key1":{"key1":"value1"}}}';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+{"key1": {"key1": {"key1": "value1"}}}
+SET @json1 = '{"key1":{"kkey1":"vvalue1","kkey2":"vvalue2"}}';
+SET @json2 = '{"key1":{"kkey1":"vvalue1"}}';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+NULL
+SET @json1 = '{"key1":{"kkey1":"vvalue1","kkey2":"vvalue2"},"key2":{"kkey2":"vvalue2","kkey3":"vvalue3"},"key3":{"kkey3":{"kkkey3":"vvvalue3"}},"key5":"value3"}';
+SET @json2 = '{"key1":{"kkey1":"vvalue1"},"key2":{"kkey2":"vvalue2"},"key3":{"kkey3":{"kkkey3":"vvvalue3"}},"key4":"value3"}';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+{"key3": {"kkey3": {"kkkey3": "vvvalue3"}}}
+SET @json1 = '{"key1":[{"kkey1":"vvalue1"},{"kkey2":"vvalue2"}]}';
+SET @json2 = '{"key1":{"kkey1":"vvalue1"}}';
+SELECT JSON_INTERSECT(@json1,@json2);
+JSON_INTERSECT(@json1,@json2)
+NULL
+SET @json1= '{"key1":"val1", "key2":"val2", "key3":{"key7":"val7"}}';
+SET @json2= '{"key4":"val4", "key2":"val2", "key5":"val5", "key3":"val3", "key6":"val6"}';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+{"key2": "val2"}
+# object have duplicate keys
+SET @json1= '{"key1":"val1", "key2":"val2", "key3":"val3"}';
+SET @json2= '{"key3":"val3", "key2":"val2", "key4":"val4", "key3":"val3", "key5":"val5"}';
+SELECT JSON_INTERSECT(@json1, @json2);
+ERROR HY000: Duplicate keys in the same object
+SELECT JSON_INTERSECT(@json2, @json1);
+ERROR HY000: Duplicate keys in the same object
+SET @json1 = '{"k1":"v1","k2":"v2","k3":{"kk1":"v1","kk1":"v2"}}';
+SET @json2 = '{"k1":"v1","k2":"v2","k3":{"kk1":"v1","kk1":"v2"}}';
+SELECT JSON_INTERSECT(@json1, @json2);
+ERROR HY000: Duplicate keys in the same object
+# syntax error
+SET @json1= '{"key1":"value1"';
+SET @json2= '{"key1":"val3", "key2":"val2", "key4":"val4", "key3":"val3", "key5":"val5"}';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_intersect'
+SET @json1= '[1,2,3,4';
+SET @json2= '[1,2,3,4]';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_intersect'
+SET @json1= '[{"key1":"value1"}]';
+SET @json2= '["key1":"value1"]';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_intersect' at position 8
+# array intersect array
+SET @json1= '[1,2,3]';
+SET @json2= '[1,2,3]';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+[1, 2, 3]
+SET @json1= '[1,2,3]';
+SET @json2= '[1,2,4]';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+[1, 2]
+# object(with array value)intersect object
+SET @json1= '{"key1":[1,2,3]}';
+SET @json2= '{"key1":[1,2,3]}';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+{"key1": [1, 2, 3]}
+SET @json1= '{"key1":[1,2,3]}';
+SET @json2= '{"key1":[1,2,4]}';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+NULL
+# object array intersect object array
+SET @json1 = '[{"kkey1":"vvalue1"},{"kkey2":"vvalue2"}]';
+SET @json2 = '[{"kkey1":"vvalue1"},{"kkey2":"vvalue2"}]';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+[{"kkey1": "vvalue1"}, {"kkey2": "vvalue2"}]
+SET @json1 = '[{"kkey1":"vvalue1"},{"kkey3":"vvalue2"}]';
+SET @json2 = '[{"kkey1":"vvalue1"},{"kkey2":"vvalue2"}]';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+[{"kkey1": "vvalue1"}]
+# object array inersect object
+SET @json1 = '[{"kkey1":"vvalue1"},{"kkey2":"vvalue2"}]';
+SET @json2 = '{"kkey2":"vvalue2"}';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+{"kkey2": "vvalue2"}
+# deeply nested object  intersect object
+SET @json1 = '{"key1":{"kkey1":{"kkkey1":{"kkkkey1":"value1"}}}}';
+SET @json2 = '{"key1":{"kkey1":{"kkkey1":{"kkkkey1":"value1"}}}}';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+{"key1": {"kkey1": {"kkkey1": {"kkkkey1": "value1"}}}}
+SET @json1 = '{"key1":{"kkey1":{"kkkey1":{"kkkkey1":"value1"}}}}';
+SET @json2 = '{"key1":{"kkey1":{"kkkey2":{"kkkkey1":"value1"}}}}';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+NULL
+SET @json1 = '{"key1":{"kkey1":{"kkkey1":{"kkkkey1":"value1"}}}}';
+SET @json2 = '{"key1":{"kkey1":{"kkkey1":{"kkkkey1":"value1_not"}}}}';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+NULL
+SET @json1 = '{"key1":{"kkey1":{"kkkey1":{"kkkkey1":"value1"}}},"key2":{"kkey1":{"kkkey1":{"kkkkey1":"value1"}}},"key3":[{"kkey3":"vvalue3"},4,"666"]}';
+SET @json2 = '{"key2":{"kkey1":{"kkkey1":{"kkkkey1":"value1"}}} ,"key1":{"kkey1":{"kkkey1":{"kkkkey1":"value1_not"}}}, "key3":[{"kkey3":"vvalue3"},4,"666"]}';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+{"key2": {"kkey1": {"kkkey1": {"kkkkey1": "value1"}}}, "key3": [{"kkey3": "vvalue3"}, 4, "666"]}
+SET @json1 = '{"k1":{"kk1":"vv1","kk2":"vv2","kk3":{"kkk4":"vvv4","kkk5":"vvv5"}},"k2":{"kk1":"vv1","kk2":"vv2","kk3":{"kkk4":"vvv4","kkk5":"vvv4"}},"k3":[{"kk1":{"kk1":"vv1","kk2":"vv2"}},{"kk1":"vv1"}],"k4":[{"kk1":"vv1"},{"kk1":{"kk1":"vv1","kk2":"vv2"}}]}';
+SET @json2 = '{"k1":{"kk1":"vv1","kk2":"vv2","kk3":{"kkk4":"vvv4","kkk5":"vvv5"}},"k2":{"kk1":"vv1","kk2":"vv2","kk3":{"kkk4":"vvv4","kkk5":"vvv5"}},"k3":[{"kk1":{"kk1":"vv1","kk2":"vv2"}},{"kk1":"vv1"}],"k4":[{"kk1":{"kk1":"vv1","kk2":"vv2"}},{"kk1":"vv1"}]}';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+{"k1": {"kk1": "vv1", "kk2": "vv2", "kk3": {"kkk4": "vvv4", "kkk5": "vvv5"}}, "k3": [{"kk1": {"kk1": "vv1", "kk2": "vv2"}}, {"kk1": "vv1"}]}
+# nested array intersect array
+SET @json1= '[1,2,3]';
+SET @json2= '[1.0,2.0,3.0]';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+[1.0, 2.0, 3.0]
+SET @json1= '[6,6,6]';
+SET @json2= '[[1,2,3],[4,5,6],[1,3,2]]';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+NULL
+SET @json1= '[[1,2,3],[4,5,6],[1,3,2]]';
+SET @json2= '[[1,2,3],[4,5,6],[1,3,2]]';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+[[1, 2, 3], [4, 5, 6], [1, 3, 2]]
+# array intersect array(with the same KV pair.)
+SET @json1 = '[{"k1":"v1","k2":"v2"},{"k2":"v2"}]';
+SET @json2 = '[{"kkey1":"vvalue1"},{"k2":"v2","k1":"v1"}]';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+[{"k2": "v2", "k1": "v1"}]
+SET @json1 = '[{"k1":"v1","k2":"v2"},{"k2":"v2","k1":"v1"}]';
+SET @json2 = '[{"k1":"v1","k2":"v2"},{"k1":"v1","k2":"v2"}]';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+[{"k1": "v1", "k2": "v2"}, {"k1": "v1", "k2": "v2"}]
+SET @json1 = '[{"k1":"v1","k2":"v2"},{"k2":"v2","k1":"v1"}]';
+SET @json2 = '[{"k1":"v1","k2":"v2"},{"k1":"v1","k2":"v2"},{"k1":"v1","k2":"v2"}]';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+[{"k1": "v1", "k2": "v2"}, {"k1": "v1", "k2": "v2"}]
+SET @json1 = '[{"k1":"v1","k2":[1,2,3]},{"k2":"v2","k1":"v1"}]';
+SET @json2 = '[{"k1":"v1","k2":"v2"},{"k1":"v1","k2":[1,2,3]},{"k1":"v1","k2":"v2"}]';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+[{"k1": "v1", "k2": "v2"}, {"k1": "v1", "k2": [1, 2, 3]}]
+SET @json1 = '[{"k1":"v1","k2":[1,2,3]},{"k2":"v2","k1":"v1"}]';
+SET @json2 = '[{"k1":"v1","k2":"v2"},{"k1":"v1","k2":[3,2,1]},{"k1":"v1","k2":"v2"}]';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+[{"k1": "v1", "k2": "v2"}]
+SET @json1 = '{"k1":"v1","k2":"v2","k3":{"kk1":"v1","kk3":"v2"}}';
+SET @json2 = '{"k1":"v1","k2":"v2","k3":{"k1":"v1","k2":"v2"}}';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+{"k1": "v1", "k2": "v2"}
+#  multi type nesting
+SET @json1 = '{"k2":{"1":"2"},"k1":{"k1":"v1","k2":"v2"}}';
+SET @json2 = '{"k1":{"k1":"v1","k2":"v2"},"k2":{"1":"2"}}';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+{"k2": {"1": "2"}, "k1": {"k1": "v1", "k2": "v2"}}
+SET @json1 = '{"k1":1,"k2":{"kk1":"vv1"},"k3":3}';
+SET @json2 = '{"k3":3,"k2":{"kk1":"vv1"},"k4":4}';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+{"k2": {"kk1": "vv1"}, "k3": 3}
+SET @json1 = '{"k1":1,"k2":[1,2,3],"k3":3}';
+SET @json2 = '{"k3":3,"k2":[1,2,3],"k4":4}';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+{"k2": [1, 2, 3], "k3": 3}
+SET @json1 = '{"k1":1,"k2":{"kk2":"vv2","kk1":"vv1"},"k3":3}';
+SET @json2 = '{"k3":3,"k2":{"kk1":"vv1","kk2":"vv2"},"k4":4}';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+{"k2": {"kk2": "vv2", "kk1": "vv1"}, "k3": 3}
+SET @json1 = '{"k1":1,"k2":{"kk2":"vv2","kk1":{"k1":"v1"}},"k3":3}';
+SET @json2 = '{"k3":3,"k2":{"kk1":"vv1","kk2":{"k1":"v1"}},"k4":4}';
+SELECT JSON_INTERSECT(@json1, @json2);
+JSON_INTERSECT(@json1, @json2)
+{"k3": 3}
+#
+# End of 10.11 Test
+#
