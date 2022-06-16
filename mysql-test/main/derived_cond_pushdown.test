@@ -3601,7 +3601,7 @@ insert into t1 values
 (17,1),(17,3010),(17,3013),(17,3053),(21,2446),(21,2467),(21,2);
 
 create table t2 (a int) engine=myisam;
-insert into t2 values (1),(2),(3);
+insert into t2 values (1),(2),(3),(1000),(2000),(3000);
 
 create  table t3 (id int) engine=myisam;
 insert into t3 values (1),(2);
