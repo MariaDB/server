@@ -624,7 +624,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       while ((item= it++))
       {
         Item_field *fld= item->field_for_view_update();
-        privilege_t priv(get_column_grant(thd, &view->grant,
+        privilege_t priv(get_column_grant(thd->security_context(), &view->grant,
                                           view->db,
                                           view->table_name,
                                           item->name) &

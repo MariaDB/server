@@ -6197,7 +6197,8 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (any_privileges)
   {
-    if (!(have_privileges= (get_column_grant(thd, &field->table->grant,
+    if (!(have_privileges= (get_column_grant(thd->security_context(),
+                                             &field->table->grant,
                                              field->table->s->db,
                                              field->table->s->table_name,
                                              field_name) &

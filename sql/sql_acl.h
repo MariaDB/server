@@ -130,6 +130,12 @@ bool check_table_access(THD *thd, privilege_t requirements,TABLE_LIST *tables,
                         bool any_combination_of_privileges_will_do,
                         uint number,
                         bool no_errors);
+
+bool check_if_any_column_is_denied(Security_context *ctx,
+                                   privilege_t privilege_needed,
+                                   const LEX_CSTRING &db, const LEX_CSTRING &table,
+                                   Field **fields);
+
 #else
 inline bool check_access(THD *thd, privilege_t want_access,
                          const char *db, privilege_t *save_priv,
@@ -168,10 +174,18 @@ check_table_access(THD *thd, privilege_t requirements,TABLE_LIST *tables,
                    uint number,
                    bool no_errors)
 { return false; }
+inline bool
+check_if_any_column_is_denied(Security_context *sctx,
+                              privilege_t privilege_needed,
+                              const LEX_CSTRING &db, const LEX_CSTRING &table,
+                              Field **fields);
+
 #endif /*NO_EMBEDDED_ACCESS_CHECKS*/
 
-privilege_t get_table_grant(THD *thd, TABLE_LIST *table);
-privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
+privilege_t get_table_grant(Security_context *sctx,
+                            privilege_t db_access,
+                            const LEX_CSTRING &db, const LEX_CSTRING &table);
+privilege_t get_column_grant(Security_context *sctx, GRANT_INFO *grant,
                              const LEX_CSTRING &db_name,
                              const LEX_CSTRING &table_name,
                              const LEX_CSTRING &field_name);
