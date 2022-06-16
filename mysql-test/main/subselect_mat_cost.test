@@ -74,15 +74,15 @@ set @@optimizer_switch = 'in_to_exists=on,semijoin=on,materialization=on,partial
 -- echo MATERIALIZATION: there are too many rows in the outer query
 -- echo to be looked up in the inner table.
 set statement optimizer_cache_hit_ratio=20 for EXPLAIN
-SELECT Name FROM Country
+SELECT count(*) FROM Country
 WHERE (Code IN (select Country from City where City.Population > 100000) OR
        Name LIKE 'L%') AND
-      surfacearea > 1000000;
+      surfacearea > 100000;
 
-set statement optimizer_cache_hit_ratio=20 for SELECT Name FROM Country
+set statement optimizer_cache_hit_ratio=20 for SELECT count(*) FROM Country
 WHERE (Code IN (select Country from City where City.Population > 100000) OR
        Name LIKE 'L%') AND
-      surfacearea > 1000000;
+      surfacearea > 100000;
 
 -- echo Q1.1e:
 -- echo IN-EXISTS: the materialization cost is the same as above, but

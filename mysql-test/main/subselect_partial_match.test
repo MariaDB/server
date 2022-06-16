@@ -614,11 +614,9 @@ drop table t1,t2;
 --echo #
 
 CREATE TABLE t1 (a1 int DEFAULT NULL, a2 int DEFAULT NULL);
-INSERT INTO t1 VALUES (NULL,2);
-INSERT INTO t1 VALUES (4,NULL);
+INSERT INTO t1 VALUES (NULL,2), (4,NULL),(100,100);
 CREATE TABLE t2 (b1 int DEFAULT NULL, b2 int DEFAULT NULL);
-INSERT INTO t2 VALUES (6,NULL);
-INSERT INTO t2 VALUES (NULL,0);
+INSERT INTO t2 VALUES (6,NULL), (NULL,0),(1000,1000);
 
 set @@optimizer_switch='materialization=on,semijoin=off,partial_match_rowid_merge=on,partial_match_table_scan=on';
 
@@ -637,7 +635,7 @@ DROP TABLE t1, t2;
 set @@optimizer_switch='materialization=on,semijoin=off,partial_match_rowid_merge=on,partial_match_table_scan=off';
 
 create table t1 (a1 char(3) DEFAULT NULL, a2 char(3) DEFAULT NULL);
-insert into t1 values (NULL, 'a21'), (NULL, 'a22');
+insert into t1 values (NULL, 'a21'), (NULL, 'a22'), ('xxx','xxx');
 explain select * from t1 where (a1, a2) not in (select a1, a2 from t1);
 select * from t1 where (a1, a2) not in (select a1, a2 from t1);
 drop table t1;
