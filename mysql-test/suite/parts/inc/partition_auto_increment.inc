@@ -873,5 +873,16 @@ UPDATE t1 SET pk = 0;
 DROP TABLE t1;
 }
 
+if (!$skip_update)
+{
+--echo #
+--echo # MDEV-21027 Assertion `part_share->auto_inc_initialized || !can_use_for_auto_inc_init()'
+--echo # ha_partition::set_auto_increment_if_higher
+--echo #
+eval CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY) ENGINE=$engine PARTITION BY HASH (a) PARTITIONS 3;
+REPLACE INTO t1 PARTITION (p0) VALUES (3);
+DROP TABLE t1;
+}
+
 --echo ##############################################################################
 }

@@ -80,6 +80,7 @@ to_minuses()
 }
 
 WSREP_SST_OPT_BYPASS=0
+WSREP_SST_OPT_PROGRESS=0
 WSREP_SST_OPT_BINLOG=""
 WSREP_SST_OPT_BINLOG_INDEX=""
 WSREP_SST_OPT_LOG_BASENAME=""
@@ -187,6 +188,10 @@ case "$1" in
     '--bypass')
         readonly WSREP_SST_OPT_BYPASS=1
         ;;
+    '--progress')
+        readonly WSREP_SST_OPT_PROGRESS=$(( $2 ))
+        shift
+        ;;
     '--datadir')
         # Let's remove the trailing slash:
         readonly WSREP_SST_OPT_DATA=$(trim_dir "$2")
@@ -246,11 +251,11 @@ case "$1" in
         shift
         ;;
     '--local-port')
-        readonly WSREP_SST_OPT_LPORT="$2"
+        readonly WSREP_SST_OPT_LPORT=$(( $2 ))
         shift
         ;;
     '--parent')
-        readonly WSREP_SST_OPT_PARENT="$2"
+        readonly WSREP_SST_OPT_PARENT=$(( $2 ))
         shift
         ;;
     '--password')
@@ -258,7 +263,7 @@ case "$1" in
         shift
         ;;
     '--port')
-        readonly WSREP_SST_OPT_PORT="$2"
+        readonly WSREP_SST_OPT_PORT=$(( $2 ))
         shift
         ;;
     '--role')
@@ -530,6 +535,8 @@ if [ -n "${WSREP_SST_OPT_ROLE+x}" ]; then
 else
     readonly WSREP_SST_OPT_ROLE='donor'
 fi
+
+readonly WSREP_SST_OPT_PROGRESS
 
 # The same argument can be present on the command line several
 # times, in this case we must take its last value:
