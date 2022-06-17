@@ -131,7 +131,7 @@ xb_mysql_connect()
 	       opt_socket ? opt_socket : "not set");
 
 #ifdef HAVE_OPENSSL
-	if (opt_use_ssl)
+	if (opt_use_ssl && opt_protocol <= MYSQL_PROTOCOL_SOCKET)
 	{
 		mysql_ssl_set(connection, opt_ssl_key, opt_ssl_cert,
 			      opt_ssl_ca, opt_ssl_capath,
