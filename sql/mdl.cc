@@ -230,25 +230,32 @@ private:
   Print a list of all locks to DBUG trace to help with debugging
 */
 
+const char *dbug_print_mdl(MDL_ticket *mdl_ticket)
+{
+  thread_local char buffer[256];
+  MDL_key *mdl_key= mdl_ticket->get_key();
+  my_snprintf(buffer, sizeof(buffer) - 1, "%.*s/%.*s (%s)",
+              (int) mdl_key->db_name_length(), mdl_key->db_name(),
+              (int) mdl_key->name_length(),    mdl_key->name(),
+              mdl_ticket->get_type_name()->str);
+  return buffer;
+}
+
+
 static int mdl_dbug_print_lock(MDL_ticket *mdl_ticket, void *arg, bool granted)
 {
   String *tmp= (String*) arg;
-  char buffer[128];
-  MDL_key *mdl_key= mdl_ticket->get_key();
-  size_t length;
-  length= my_snprintf(buffer, sizeof(buffer)-1,
-                      "\nname: %s  db: %.*s  key_name: %.*s (%s)",
-                      mdl_ticket->get_type_name()->str,
-                      (int) mdl_key->db_name_length(), mdl_key->db_name(),
-                      (int) mdl_key->name_length(),    mdl_key->name(),
-                      granted ? "granted" : "waiting");
+  char buffer[256];
+  size_t length= my_snprintf(buffer, sizeof(buffer) - 1,
+                             "\n    %s (%s)", dbug_print_mdl(mdl_ticket),
+                             granted ? "granted" : "waiting");
   tmp->append(buffer, length);
   return 0;
 }
 
 const char *mdl_dbug_print_locks()
 {
-  static String tmp;
+  thread_local String tmp;
   mdl_iterate(mdl_dbug_print_lock, (void*) &tmp);
   return tmp.c_ptr();
 }
@@ -2268,13 +2275,19 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   MDL_ticket *ticket;
   MDL_wait::enum_wait_status wait_status;
   DBUG_ENTER("MDL_context::acquire_lock");
+#ifndef DBUG_OFF
+  const char *mdl_lock_name= get_mdl_lock_name(
+    mdl_request->key.mdl_namespace(), mdl_request->type)->str;
+#endif
   DBUG_PRINT("enter", ("lock_type: %s  timeout: %f",
-                       get_mdl_lock_name(mdl_request->key.mdl_namespace(),
-                                         mdl_request->type)->str,
+                       mdl_lock_name,
                        lock_wait_timeout));
 
   if (try_acquire_lock_impl(mdl_request, &ticket))
+  {
+    DBUG_PRINT("mdl", ("OOM: %s", mdl_lock_name));
     DBUG_RETURN(TRUE);
+  }
 
   if (mdl_request->ticket)
   {
@@ -2284,8 +2297,13 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
       accordingly, so we can simply return success.
     */
     DBUG_PRINT("info", ("Got lock without waiting"));
+    DBUG_PRINT("mdl", ("Seized:   %s", dbug_print_mdl(mdl_request->ticket)));
     DBUG_RETURN(FALSE);
   }
+
+#ifndef DBUG_OFF
+    const char *ticket_msg= dbug_print_mdl(ticket);
+#endif
 
   /*
     Our attempt to acquire lock without waiting has failed.
@@ -2297,6 +2315,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   if (lock_wait_timeout == 0)
   {
+    DBUG_PRINT("mdl", ("Nowait:  %s", ticket_msg));
     mysql_prlock_unlock(&lock->m_rwlock);
     MDL_ticket::destroy(ticket);
     my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
@@ -2335,6 +2354,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   mysql_prlock_unlock(&lock->m_rwlock);
 
+  DBUG_PRINT("mdl", ("Waiting:  %s", ticket_msg));
   will_wait_for(ticket);
 
   /* There is a shared or exclusive lock on the object. */
@@ -2387,15 +2407,16 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     switch (wait_status)
     {
     case MDL_wait::VICTIM:
-      DBUG_LOCK_FILE;
-      DBUG_PRINT("mdl_locks", ("%s", mdl_dbug_print_locks()));
-      DBUG_UNLOCK_FILE;
+      DBUG_PRINT("mdl", ("Deadlock: %s", ticket_msg));
+      DBUG_PRINT("mdl_locks", ("Existing locks:%s", mdl_dbug_print_locks()));
       my_error(ER_LOCK_DEADLOCK, MYF(0));
       break;
     case MDL_wait::TIMEOUT:
+      DBUG_PRINT("mdl", ("Timeout:  %s", ticket_msg));
       my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
       break;
     case MDL_wait::KILLED:
+      DBUG_PRINT("mdl", ("Killed:  %s", ticket_msg));
       get_thd()->send_kill_message();
       break;
     default:
@@ -2417,6 +2438,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   mdl_request->ticket= ticket;
 
+  DBUG_PRINT("mdl", ("Acquired: %s", ticket_msg));
   DBUG_RETURN(FALSE);
 }
 
@@ -2845,6 +2867,7 @@ void MDL_context::release_lock(enum_mdl_duration duration, MDL_ticket *ticket)
                        lock->key.db_name(), lock->key.name()));
 
   DBUG_ASSERT(this == ticket->get_ctx());
+  DBUG_PRINT("mdl", ("Released: %s", dbug_print_mdl(ticket)));
 
   lock->remove_ticket(m_pins, &MDL_lock::m_granted, ticket);
 
