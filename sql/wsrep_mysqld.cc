@@ -3053,6 +3053,11 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
       WSREP_DEBUG("BF thread waiting for FLUSH");
       ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+      if (granted_thd->current_backup_stage != BACKUP_FINISHED &&
+	  wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP))
+      {
+	wsrep_abort_thd(request_thd, granted_thd, 1);
+      }
     }
     else if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE)
     {
