@@ -7614,6 +7614,7 @@ ha_innobase::prepare_inplace_alter_table(
 	if (!(ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)) {
 		/* Nothing to do */
 		DBUG_ASSERT(!m_prebuilt->trx->dict_operation_lock_mode);
+		m_prebuilt->trx_id = 0;
 		DBUG_RETURN(false);
 	}
 
@@ -10423,6 +10424,7 @@ handle_error:
 				sql_print_error("InnoDB: %s: %s\n", op,
 						ut_strerr(error));
 				DBUG_ASSERT(error == DB_IO_ERROR
+					    || error == DB_LOCK_TABLE_FULL
 					    || error == DB_DECRYPTION_FAILED
 					    || error == DB_PAGE_CORRUPTED
 					    || error == DB_CORRUPTION);

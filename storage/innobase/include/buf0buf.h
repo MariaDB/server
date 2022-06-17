@@ -2011,7 +2011,7 @@ inline void buf_page_t::set_corrupt_id()
           is_write_locked());
   }
 #endif
-  id_= page_id_t(~0ULL);
+  id_.set_corrupted();
 }
 
 /** Set oldest_modification when adding to buf_pool.flush_list */
