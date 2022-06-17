@@ -4692,22 +4692,26 @@ fail:
 
 	log_sys.create();
 	/* get current checkpoint_lsn */
+	{
+		mysql_mutex_lock(&recv_sys.mutex);
 
-	mysql_mutex_lock(&recv_sys.mutex);
+		dberr_t err = recv_sys.find_checkpoint();
 
-	if (recv_sys.find_checkpoint() != DB_SUCCESS) {
-		msg("Error: cannot read redo log header");
-unlock_and_fail:
+		if (err != DB_SUCCESS) {
+			msg("Error: cannot read redo log header");
+		} else if (!log_sys.is_latest()) {
+			msg("Error: cannot process redo log before "
+			    "MariaDB 10.8");
+			err = DB_ERROR;
+		} else {
+			recv_needed_recovery = true;
+		}
 		mysql_mutex_unlock(&recv_sys.mutex);
-	}
 
-	if (!log_sys.is_latest()) {
-		msg("Error: cannot process redo log before MariaDB 10.8");
-		goto unlock_and_fail;
+		if (err != DB_SUCCESS) {
+			goto fail;
+		}
 	}
-
-	recv_needed_recovery = true;
-	mysql_mutex_unlock(&recv_sys.mutex);
 
 	/* create extra LSN dir if it does not exist. */
 	if (xtrabackup_extra_lsndir

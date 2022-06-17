@@ -2861,7 +2861,9 @@ ibuf_merge_corrupted:
 				*err = e;
 			}
 
-			buf_pool.corrupted_evict(&block->page, state);
+			if (block->page.id().is_corrupted()) {
+				buf_pool.corrupted_evict(&block->page, state);
+			}
 			return nullptr;
 		}
 
@@ -3199,6 +3201,7 @@ static buf_block_t *buf_page_create_low(page_id_t page_id, ulint zip_size,
   free_block->initialise(page_id, zip_size, buf_page_t::MEMORY);
 
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
+retry:
   mysql_mutex_lock(&buf_pool.mutex);
 
   buf_page_t *bpage= buf_pool.page_hash.get(page_id, chain);
@@ -3217,6 +3220,12 @@ static buf_block_t *buf_page_create_low(page_id_t page_id, ulint zip_size,
       {
         mysql_mutex_unlock(&buf_pool.mutex);
         bpage->lock.x_lock();
+        const page_id_t id{bpage->id()};
+        if (UNIV_UNLIKELY(id != page_id))
+        {
+          ut_ad(id.is_corrupted());
+          goto retry;
+        }
         mysql_mutex_lock(&buf_pool.mutex);
       }
 
