@@ -515,7 +515,7 @@ int mysql_update(THD *thd,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   /* Check values */
-  if (thd->security_ctx->denies_active & COLUMN_PRIV)
+  if (thd->security_ctx->denies_active() & COLUMN_PRIV)
     table_list->grant.want_privilege= table->grant.want_privilege= SELECT_ACL;
   else
     table_list->grant.want_privilege= table->grant.want_privilege=
@@ -1429,7 +1429,7 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
   DBUG_ENTER("mysql_prepare_update");
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  if (thd->security_ctx->denies_active & COLUMN_PRIV)
+  if (thd->security_ctx->denies_active() & COLUMN_PRIV)
     table_list->grant.want_privilege= table->grant.want_privilege= SELECT_ACL;
   else
     table_list->grant.want_privilege=

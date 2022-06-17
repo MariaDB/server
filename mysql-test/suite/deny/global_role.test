@@ -1,0 +1,36 @@
+--source include/not_embedded.inc
+
+create role r1, r2;
+create user foo;
+
+create database some_db;
+create table some_db.t1 (a int, b int, secret int);
+create view some_db.v1 as (select a, b, secret from some_db.t1);
+
+grant all on *.* to foo;
+grant all on some_db.* to foo;
+grant all on some_db.t1 to foo;
+grant all on some_db.v1 to foo;
+
+grant r2 to r1;
+grant r1 to foo;
+
+deny select on *.* to r2;
+
+--connect (con1, localhost, foo,,)
+select * from some_db.t1;
+set role r1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from some_db.t1;
+
+set role none;
+select * from some_db.t1;
+
+show grants;
+disconnect con1;
+
+connection default;
+drop role r1, r2;
+drop user foo;
+drop database some_db;

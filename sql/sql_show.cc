@@ -6950,7 +6950,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
       {
         if ((thd->col_access & (SHOW_VIEW_ACL|SELECT_ACL)) ==
             (SHOW_VIEW_ACL|SELECT_ACL) &&
-            !(thd->security_ctx->denies_active & (TABLE_PRIV | COLUMN_PRIV)))
+            !(thd->security_ctx->denies_active() & (TABLE_PRIV | COLUMN_PRIV)))
         {
           tables->allowed_show= TRUE;
         }
@@ -6962,7 +6962,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
           if ((view_access & (SHOW_VIEW_ACL|SELECT_ACL)) ==
               (SHOW_VIEW_ACL|SELECT_ACL))
           {
-            if (thd->security_context()->denies_active & COLUMN_PRIV)
+            if (thd->security_context()->denies_active() & COLUMN_PRIV)
             {
               /*
                  Only allow show of the view's definition *if* we have

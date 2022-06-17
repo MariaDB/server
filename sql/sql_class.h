@@ -1468,7 +1468,8 @@ public:
   Security_context()
    :master_access(NO_ACL),
     db_access(NO_ACL),
-    denies_active(NO_PRIV)
+    user_denies_active(NO_PRIV),
+    role_denies_active(NO_PRIV)
   {}                      /* Remove gcc warning */
   /*
     host - host of the client
@@ -1491,7 +1492,19 @@ public:
   const char *host_or_ip;
   privilege_t master_access;            /* Global privileges from mysql.global_priv */
   privilege_t db_access;                /* Privileges for current db */
-  PRIV_TYPE denies_active;              /* Bitmap of what type of denies are active. */
+private:
+  PRIV_TYPE user_denies_active;         /* Bitmap of what type of denies are active on the user level. */
+  PRIV_TYPE role_denies_active;         /* Bitmap of what type of denies are active on the role level. */
+public:
+  PRIV_TYPE denies_active() const {
+    return user_denies_active | role_denies_active;
+  }
+  void set_role_denies(PRIV_TYPE denies) {
+    role_denies_active= denies;
+  }
+  void set_user_denies(PRIV_TYPE denies) {
+    user_denies_active= denies;
+  }
 
 
   bool password_expired;
