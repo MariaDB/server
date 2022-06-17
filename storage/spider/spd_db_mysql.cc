@@ -6551,7 +6551,6 @@ int spider_db_mbase_util::open_item_func(
       }
       break;
     case Item_func::LIKE_FUNC:
-#ifdef SPIDER_LIKE_FUNC_HAS_GET_NEGATED
       if (str)
       {
          if (((Item_func_like *)item_func)->get_negated())
@@ -6567,9 +6566,6 @@ int spider_db_mbase_util::open_item_func(
          }
       }
       break;
-#else
-      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
-#endif
     case Item_func::CASE_SEARCHED_FUNC:
     case Item_func::CASE_SIMPLE_FUNC:
 #ifdef ITEM_FUNC_CASE_PARAMS_ARE_PUBLIC
