@@ -17,6 +17,9 @@
 #define SQL_DELETE_INCLUDED
 
 #include "my_base.h"                            /* ha_rows */
+#include "sql_class.h"                          /* enum_duplicates */
+#include "sql_cmd.h"                            // Sql_cmd_dml
+#include "sql_base.h"
 
 class THD;
 struct TABLE_LIST;
@@ -26,10 +29,36 @@ class select_result;
 typedef class Item COND;
 template <typename T> class SQL_I_List;
 
-int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list, Item **conds,
-                         bool *delete_while_scanning);
-bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
-                  SQL_I_List<ORDER> *order, ha_rows rows, 
-                  ulonglong options, select_result *result);
+class Sql_cmd_delete final : public Sql_cmd_dml
+{
+public:
+  Sql_cmd_delete(bool multitable_arg)
+    :  multitable(multitable_arg), save_protocol(NULL) {}
 
+  enum_sql_command sql_command_code() const override
+  {
+    return multitable ? SQLCOM_DELETE_MULTI : SQLCOM_DELETE;
+  }
+
+  DML_prelocking_strategy *get_dml_prelocking_strategy()
+  {
+    return &dml_prelocking_strategy;
+  }
+
+protected:
+  bool precheck(THD *thd) override;
+
+  bool prepare_inner(THD *thd) override;
+
+  bool execute_inner(THD *thd) override;
+
+ private:
+  bool delete_from_single_table(THD *thd);
+
+  bool multitable;
+
+  DML_prelocking_strategy dml_prelocking_strategy;
+  List<Item> empty_list;
+  Protocol *save_protocol;
+};
 #endif /* SQL_DELETE_INCLUDED */
