@@ -8173,7 +8173,6 @@ bool ha_spider::check_direct_update_sql_part(
   DBUG_RETURN(FALSE);
 }
 
-#ifdef SPIDER_MDEV_16246
 /**
   Perform initialization for a direct update request.
 
@@ -8186,9 +8185,6 @@ bool ha_spider::check_direct_update_sql_part(
 int ha_spider::direct_update_rows_init(
   List<Item> *update_fields
 )
-#else
-int ha_spider::direct_update_rows_init()
-#endif
 {
   st_select_lex *select_lex;
   longlong select_limit;

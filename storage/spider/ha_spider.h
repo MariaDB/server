@@ -422,13 +422,9 @@ public:
     longlong select_limit,
     longlong offset_limit
   );
-#ifdef SPIDER_MDEV_16246
   int direct_update_rows_init(
     List<Item> *update_fields
   );
-#else
-  int direct_update_rows_init();
-#endif
   int direct_update_rows(
     ha_rows *update_rows,
     ha_rows *found_row
