@@ -218,6 +218,21 @@ get_keys()
     stagemsg="$stagemsg-XB-Encrypted"
 }
 
+get_socat_ver()
+{
+    [ -n "${SOCAT_VERSION+x}" ] && return
+    # Determine the socat version
+    SOCAT_VERSION=$(socat -V 2>&1 | \
+                    grep -m1 -owE '[0-9]+(\.[0-9]+)+' | \
+                    head -n1 || :)
+    if [ -z "$SOCAT_VERSION" ]; then
+        wsrep_log_error "******** FATAL ERROR ******************"
+        wsrep_log_error "* Cannot determine the socat version. *"
+        wsrep_log_error "***************************************"
+        exit 2
+    fi
+}
+
 get_transfer()
 {
     if [ "$tfmt" = 'nc' ]; then
@@ -283,7 +298,7 @@ get_transfer()
             # If sockopt contains 'pf=ip6' somewhere in the middle,
             # this will not interfere with socat, but exclude the trivial
             # cases when sockopt contains 'pf=ip6' as prefix or suffix:
-            if [ "$sockopt" = "${sockopt#,pf=ip6}" -a \
+            if [ "$sockopt" = "${sockopt#,pf=ip6,}" -a \
                  "$sockopt" = "${sockopt%,pf=ip6}" ]
             then
                 sockopt=",pf=ip6$sockopt"
@@ -310,22 +325,26 @@ get_transfer()
         if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
             tcmd="socat -u openssl-listen:$SST_PORT,reuseaddr"
         else
-            tcmd="socat -u stdio openssl-connect:$REMOTEIP:$SST_PORT"
+            local addr="$REMOTEIP:$SST_PORT"
+            tcmd="socat -u stdio openssl-connect:$addr"
             action='Encrypting'
+            get_socat_ver
+            if ! check_for_version "$SOCAT_VERSION" '1.7.4.1'; then
+                if check_for_version "$SOCAT_VERSION" '1.7.3.3'; then
+                    # Workaround for a bug known as 'Red Hat issue 1870279'
+                    # (connection reset by peer) in socat versions 1.7.3.3
+                    # to 1.7.4.0:
+                    tcmd="socat stdio openssl-connect:$addr,linger=10"
+                    wsrep_log_info \
+                        "Use workaround for socat $SOCAT_VERSION bug"
+                fi
+            fi
         fi
+
 
         if [ "${sockopt#*,dhparam=}" != "$sockopt" ]; then
             if [ -z "$ssl_dhparams" ]; then
-                # Determine the socat version
-                SOCAT_VERSION=$(socat -V 2>&1 | \
-                                grep -m1 -owE '[0-9]+(\.[0-9]+)+' | \
-                                head -n1 || :)
-                if [ -z "$SOCAT_VERSION" ]; then
-                    wsrep_log_error "******** FATAL ERROR ******************"
-                    wsrep_log_error "* Cannot determine the socat version. *"
-                    wsrep_log_error "***************************************"
-                    exit 2
-                fi
+                get_socat_ver
                 if ! check_for_version "$SOCAT_VERSION" '1.7.3'; then
                     # socat versions < 1.7.3 will have 512-bit dhparams (too small)
                     # so create 2048-bit dhparams and send that as a parameter:
