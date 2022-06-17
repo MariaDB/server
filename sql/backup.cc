@@ -36,6 +36,7 @@
 #include <my_sys.h>
 #include <strfunc.h>                           // strconvert()
 #include "wsrep_mysqld.h"
+#include "debug_sync.h"
 
 static const char *stage_names[]=
 {"START", "FLUSH", "BLOCK_DDL", "BLOCK_COMMIT", "END", 0};
@@ -292,7 +293,7 @@ static bool backup_block_ddl(THD *thd)
     We desync the node for BACKUP STAGE because applier threads
     bypass backup MDL locks (see MDL_lock::can_grant_lock)
   */
-  if (WSREP_NNULL(thd))
+  if (WSREP_NNULL(thd) && !wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP))
   {
     Wsrep_server_state &server_state= Wsrep_server_state::instance();
     if (server_state.desync_and_pause().is_undefined()) {
@@ -338,6 +339,18 @@ static bool backup_block_ddl(THD *thd)
   /* There can't be anything more that needs to be logged to ddl log */
   THD_STAGE_INFO(thd, org_stage);
   stop_ddl_logging();
+#ifdef WITH_WSREP
+  // Allow tests to block the applier thread using the DBUG facilities
+  DBUG_EXECUTE_IF("sync.wsrep_after_mdl_block_ddl",
+                  {
+                   const char act[]=
+                     "now "
+                     "signal signal.wsrep_apply_toi";
+                   DBUG_ASSERT(!debug_sync_set_action(thd,
+                                                      STRING_WITH_LEN(act)));
+                  };);
+#endif /* WITH_WSREP */
+
   DBUG_RETURN(0);
 err:
   THD_STAGE_INFO(thd, org_stage);
@@ -397,7 +410,8 @@ bool backup_end(THD *thd)
     thd->current_backup_stage= BACKUP_FINISHED;
     thd->mdl_context.release_lock(old_ticket);
 #ifdef WITH_WSREP
-    if (WSREP_NNULL(thd) && thd->wsrep_desynced_backup_stage)
+    if (WSREP_NNULL(thd) && thd->wsrep_desynced_backup_stage &&
+	!wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP))
     {
       Wsrep_server_state &server_state= Wsrep_server_state::instance();
       THD_STAGE_INFO(thd, stage_waiting_flow);

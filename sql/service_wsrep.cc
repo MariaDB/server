@@ -241,7 +241,7 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
     victim_thd->awake_no_mutex(KILL_QUERY);
     mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
   } else {
-    WSREP_DEBUG("wsrep_thd_bf_abort skipped awake");
+    WSREP_DEBUG("wsrep_thd_bf_abort skipped awake, signal %d", signal);
   }
   return ret;
 }
@@ -277,7 +277,6 @@ extern "C" my_bool wsrep_thd_is_aborting(const MYSQL_THD thd)
       return (cs.state() == wsrep::client_state::s_exec ||
               cs.state() == wsrep::client_state::s_result);
     case wsrep::transaction::s_aborting:
-    case wsrep::transaction::s_aborted:
       return true;
     default:
       return false;
