@@ -5441,13 +5441,19 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     }
   }
 
+  /* Set JOIN_TAB::embedded_dependent for tables inside semi-joins */
   {
     for (JOIN_TAB *s= stat ; s < stat_end ; s++)
     {
-      TABLE_LIST *tl= s->table->pos_in_table_list;
-      if (tl->embedding && tl->embedding->sj_subq_pred)
+      TABLE_LIST *emb= s->table->pos_in_table_list->embedding;
+      while (emb)
       {
-        s->embedded_dependent= tl->embedding->original_subq_pred_used_tables;
+        if (emb->sj_subq_pred)
+        {
+          s->embedded_dependent= emb->original_subq_pred_used_tables;
+          break;
+        }
+        emb= emb->embedding;
       }
     }
   }
@@ -8366,7 +8372,7 @@ best_access_path(JOIN      *join,
     */
     if (s->key_start_dependent)
       key_dependent= s->key_dependent;
-    /* Add dependencey for sub queries */
+    /* Add dependency from semi-join subquery */
     key_dependent|= s->embedded_dependent;
   }
   /* Check that s->key_dependent contains all used_tables found in s->keyuse */
@@ -9953,8 +9959,8 @@ check_if_edge_table(POSITION *pos,
 
 struct SORT_POSITION
 {
-  JOIN_TAB **join_tab;
-  POSITION *position;
+  JOIN_TAB **join_tab; /* Position of the JOIN_TAB in join->best_ref array */
+  POSITION *position; /* Pointer to how we read the table */
 };
 
 

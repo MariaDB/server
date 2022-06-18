@@ -359,9 +359,11 @@ typedef struct st_join_table {
 
   table_map	dependent,key_dependent;
   /*
-    This is set for embedded sub queries.  It contains the table map of
-    the outer expression, like 'A' in the following expression:
-    WHERE A in (SELECT ....)
+    This is non-zero for tables in semi-join nests. It contains bits
+    of tables that the subquery depends on.
+    For example, for
+       WHERE t1.col in (SELECT t10.col FROM t10 WHERE t10.col<t2.col)
+    t10->embedded_dependent= {t1, t2}
   */
   table_map     embedded_dependent;
 
