@@ -123,7 +123,7 @@ update t for portion of apptime from @s to g() set t.id= t.id + 5;
 
 --echo # success
 update t for portion of apptime from @s to h() set t.id= t.id + 5;
---echo # select value is cached
+--error ER_NOT_CONSTANT_EXPRESSION
 update t for portion of apptime from (select s from t2 limit 1) to h() set t.id= t.id + 5;
 
 --echo # auto_inrement field is updated
