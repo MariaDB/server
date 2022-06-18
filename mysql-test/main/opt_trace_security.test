@@ -20,9 +20,9 @@ delimiter ;|
 
 --change_user foo
 set optimizer_trace="enabled=on";
---error 1142
-select * from db1.t1;
-select * from information_schema.OPTIMIZER_TRACE;
+# --error 1142
+# select * from db1.t1;
+# select * from information_schema.OPTIMIZER_TRACE;
 set optimizer_trace="enabled=off";
 
 --change_user root

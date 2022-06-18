@@ -491,7 +491,8 @@ void Opt_trace_start::init(THD *thd,
       !list_has_optimizer_trace_table(tbl) &&
       !sets_var_optimizer_trace(sql_command, set_vars) &&
       !thd->system_thread &&
-      !ctx->disable_tracing_if_required())
+      !ctx->disable_tracing_if_required() &&
+      !(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
   {
     ctx->start(thd, tbl, sql_command, query, query_length, query_charset,
                thd->variables.optimizer_trace_max_mem_size);

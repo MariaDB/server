@@ -69,6 +69,8 @@
 #include "my_base.h"
 #include "sql_type_json.h"
 #include "json_table.h"
+#include "sql_update.h"
+#include "sql_delete.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -1683,7 +1685,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_mi_check_type opt_to mi_check_types 
         table_to_table_list table_to_table opt_table_list opt_as
         handler_rkey_function handler_read_or_scan
-        single_multi table_wild_list table_wild_one opt_wild
+        single_multi opt_wild
         opt_and
         select_var_list select_var_list_init help
         opt_extended_describe shutdown
@@ -13259,9 +13261,14 @@ update:
           opt_low_priority opt_ignore update_table_list
           SET update_list
           {
+            bool is_multiupdate= false;
+            LEX *lex= Lex;
             SELECT_LEX *slex= Lex->first_select_lex();
             if (slex->table_list.elements > 1)
+            {
               Lex->sql_command= SQLCOM_UPDATE_MULTI;
+              is_multiupdate= true;
+            }
             else if (slex->get_table_list()->derived)
             {
               /* it is single table update and it is update of derived table */
@@ -13269,10 +13276,13 @@ update:
                        slex->get_table_list()->alias.str, "UPDATE");
               MYSQL_YYABORT;
             }
+            if (!(lex->m_sql_cmd=
+                  new (thd->mem_root) Sql_cmd_update(is_multiupdate)))
+              MYSQL_YYABORT;
             /*
               In case of multi-update setting write lock for all tables may
-              be too pessimistic. We will decrease lock level if possible in
-              mysql_multi_update().
+              be too pessimistic. We will decrease lock level if possible
+              later while processing the statement.
             */
             slex->set_lock_for_tables($3, slex->table_list.elements == 1, false);
           }
@@ -13329,12 +13339,11 @@ delete:
           DELETE_SYM
           {
             LEX *lex= Lex;
-            lex->sql_command= SQLCOM_DELETE;
             YYPS->m_lock_type= TL_WRITE_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_WRITE;
             if (Lex->main_select_push())
               MYSQL_YYABORT;
-            lex->init_select();
+            mysql_init_delete(lex);
             lex->ignore= 0;
             lex->first_select_lex()->order_list.empty();
           }
@@ -13360,8 +13369,13 @@ delete_part2:
           opt_delete_options single_multi {}
         | HISTORY_SYM delete_single_table opt_delete_system_time
           {
-            Lex->last_table()->vers_conditions= Lex->vers_conditions;
-            Lex->pop_select(); //main select
+            LEX *lex= Lex;
+            lex->last_table()->vers_conditions= lex->vers_conditions;
+            lex->pop_select(); //main select
+            lex->sql_command= SQLCOM_DELETE;
+            if (!(lex->m_sql_cmd=
+                  new (thd->mem_root) Sql_cmd_delete(false)))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -13395,12 +13409,22 @@ single_multi:
           delete_limit_clause
           opt_returning
           {
+            LEX *lex= Lex;
             if ($3)
               Select->order_list= *($3);
-            Lex->pop_select(); //main select
+            lex->pop_select(); //main select
+            lex->sql_command= SQLCOM_DELETE;
+            if (!(lex->m_sql_cmd=
+                  new (thd->mem_root) Sql_cmd_delete(false)))
+              MYSQL_YYABORT;
           }
-        | table_wild_list
+        | table_alias_ref_list
           {
+            LEX *lex= Lex;
+            lex->sql_command= SQLCOM_DELETE_MULTI;
+            if (!(lex->m_sql_cmd=
+                  new (thd->mem_root) Sql_cmd_delete(true)))
+              MYSQL_YYABORT;
             mysql_init_multi_delete(Lex);
             YYPS->m_lock_type= TL_READ_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_READ;
@@ -13412,6 +13436,11 @@ single_multi:
           } stmt_end {}
         | FROM table_alias_ref_list
           {
+            LEX *lex= Lex;
+            lex->sql_command= SQLCOM_DELETE_MULTI;
+            if (!(lex->m_sql_cmd=
+                  new (thd->mem_root) Sql_cmd_delete(true)))
+              MYSQL_YYABORT;
             mysql_init_multi_delete(Lex);
             YYPS->m_lock_type= TL_READ_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_READ;
@@ -13458,44 +13487,6 @@ opt_returning:
           {
             thd->lex->pop_context();
             thd->lex->current_select->parsing_place= NO_MATTER;
-          }
-        ;
-
-table_wild_list:
-          table_wild_one
-        | table_wild_list ',' table_wild_one
-        ;
-
-table_wild_one:
-          ident opt_wild
-          {
-            Table_ident *ti= new (thd->mem_root) Table_ident(&$1);
-            if (unlikely(ti == NULL))
-              MYSQL_YYABORT;
-            if (unlikely(!Select->
-                         add_table_to_list(thd,
-                                           ti,
-                                           NULL,
-                                           (TL_OPTION_UPDATING |
-                                            TL_OPTION_ALIAS),
-                                           YYPS->m_lock_type,
-                                           YYPS->m_mdl_type)))
-              MYSQL_YYABORT;
-          }
-        | ident '.' ident opt_wild
-          {
-            Table_ident *ti= new (thd->mem_root) Table_ident(thd, &$1, &$3, 0);
-            if (unlikely(ti == NULL))
-              MYSQL_YYABORT;
-            if (unlikely(!Select->
-                         add_table_to_list(thd,
-                                           ti,
-                                           NULL,
-                                           (TL_OPTION_UPDATING |
-                                            TL_OPTION_ALIAS),
-                                           YYPS->m_lock_type,
-                                           YYPS->m_mdl_type)))
-              MYSQL_YYABORT;
           }
         ;
 

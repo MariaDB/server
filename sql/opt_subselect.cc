@@ -693,6 +693,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         !join->having && !select_lex->with_sum_func &&                // 4
         in_subs->emb_on_expr_nest &&                                  // 5
         select_lex->outer_select()->join &&                           // 6
+        (!thd->lex->m_sql_cmd ||
+	 thd->lex->m_sql_cmd->sql_command_code() == SQLCOM_UPDATE_MULTI) &&
         parent_unit->first_select()->leaf_tables.elements &&          // 7
         !in_subs->has_strategy() &&                                   // 8
         select_lex->outer_select()->table_list.first &&               // 9
