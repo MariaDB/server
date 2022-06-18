@@ -237,7 +237,7 @@ drop table t1;
 create table t1 (c1 integer) engine=InnoDb;
 create table t2 (c1 integer) engine=InnoDb;
 create view v1 as select t1.c1 as "t1c1" ,t2.c1 as "t2c1" from t1,t2 where t1.c1=t2.c1;
---error ER_BAD_FIELD_ERROR
+# 'order by 1' should be considered as in 'select * from v1 order 1'
 update v1 set t1c1=2 order by 1;
 update v1 set t1c1=2 limit 1;
 drop table t1;

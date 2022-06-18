@@ -12,11 +12,6 @@ insert into t2 select * from t1;
 return a+1;
 END|
 set optimizer_trace="enabled=on";
-select * from db1.t1;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
-select * from information_schema.OPTIMIZER_TRACE;
-QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
-		0	1
 set optimizer_trace="enabled=off";
 grant select(a)  on db1.t1 to 'foo'@'%';
 set optimizer_trace="enabled=on";

@@ -1447,7 +1447,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     }
   }
 
-  if (setup_fields(thd, ref_ptrs, fields_list, MARK_COLUMNS_READ,
+  if (setup_fields(thd, ref_ptrs, fields_list, select_lex->item_list_usage,
                    &all_fields, &select_lex->pre_fix, 1))
     DBUG_RETURN(-1);
   thd->lex->current_select->context_analysis_place= save_place;
@@ -1736,6 +1736,8 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
 
   if (!procedure && result && result->prepare(fields_list, unit_arg))
     goto err;					/* purecov: inspected */
+
+  select_lex->where_cond_after_prepare= conds;
 
   unit= unit_arg;
   if (prepare_stage2())
@@ -29513,7 +29515,8 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
   @note
     This function takes into account table->opt_range_condition_rows statistic
     (that is calculated by the make_join_statistics function).
-    However, single table procedures such as mysql_update() and mysql_delete()
+    However, single table procedures such as Sql_cmd_update:update_single_table()
+    and Sql_cmd_delete::delete_single_table()
     never call make_join_statistics, so they have to update it manually
     (@see get_index_for_order()).
 */
@@ -30949,6 +30952,266 @@ static bool process_direct_rownum_comparison(THD *thd, SELECT_LEX_UNIT *unit,
   DBUG_RETURN(false);
 }
 
+
+static void MYSQL_DML_START(THD *thd)
+{
+  switch (thd->lex->sql_command) {
+
+  case SQLCOM_UPDATE:
+    MYSQL_UPDATE_START(thd->query());
+    break;
+  case SQLCOM_UPDATE_MULTI:
+    MYSQL_MULTI_UPDATE_START(thd->query());
+    break;
+  case SQLCOM_DELETE:
+    MYSQL_DELETE_START(thd->query());
+    break;
+  case SQLCOM_DELETE_MULTI:
+    MYSQL_MULTI_DELETE_START(thd->query());
+    break;
+  default:
+    DBUG_ASSERT(0);
+  }
+}
+
+
+static void MYSQL_DML_DONE(THD *thd, int rc)
+{
+  switch (thd->lex->sql_command) {
+
+  case SQLCOM_UPDATE:
+    MYSQL_UPDATE_DONE(
+    rc,
+    (rc ? 0 :
+     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
+     ->num_found()),
+    (rc ? 0 :
+     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
+     ->num_updated()));
+    break;
+  case SQLCOM_UPDATE_MULTI:
+    MYSQL_MULTI_UPDATE_DONE(
+    rc,
+    (rc ? 0 :
+     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
+     ->num_found()),
+    (rc ? 0 :
+     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
+     ->num_updated()));
+    break;
+  case SQLCOM_DELETE:
+    MYSQL_DELETE_DONE(rc, (rc ? 0 : (ulong) (thd->get_row_count_func())));
+    break;
+  case SQLCOM_DELETE_MULTI:
+    MYSQL_MULTI_DELETE_DONE(
+    rc,
+    (rc ? 0 :
+     ((multi_delete*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
+     ->num_deleted()));
+    break;
+  default:
+    DBUG_ASSERT(0);
+  }
+}
+
+/*
+  @brief Perform actions needed before locking tables for a DML statement
+
+  @param thd  global context the processed statement
+  @returns false if success, true if error
+
+  @details
+  This function calls the precheck() procedure fo the processed statement,
+  then is opens tables used in the statement and finally it calls the function
+  prepare_inner() that is specific for the type of the statement.
+
+  @note
+  The function are used when processing:
+  - a DML statement
+  - PREPARE stmt FROM <DML "statement>"
+  - EXECUTE stmt when stmt is prepared from a DML statement.
+*/
+
+bool Sql_cmd_dml::prepare(THD *thd)
+{
+  lex= thd->lex;
+  SELECT_LEX_UNIT *unit= &lex->unit;
+
+  DBUG_ASSERT(!is_prepared());
+
+  // Perform a coarse statement-specific privilege check.
+  if (precheck(thd))
+     goto err;
+
+  MYSQL_DML_START(thd);
+
+  lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
+
+  if (open_tables_for_query(thd, lex->query_tables, &table_count, 0,
+                            get_dml_prelocking_strategy()))
+  {
+    if (thd->is_error())
+      goto err;
+    (void)unit->cleanup();
+    return true;
+  }
+
+  if (prepare_inner(thd))
+    goto err;
+
+  lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_DERIVED;
+
+  set_prepared();
+  unit->set_prepared();
+
+  return false;
+
+err:
+  DBUG_ASSERT(thd->is_error());
+  DBUG_PRINT("info", ("report_error: %d", thd->is_error()));
+
+  (void)unit->cleanup();
+
+  return true;
+}
+
+
+/**
+  @brief Execute a DML statement
+
+  @param thd  global context the processed statement
+  @returns false if success, true if error
+
+  @details
+  The function assumes that each type of a DML statement has its own
+  implementation of the virtunal functions precheck(). It is also
+  assumed that that the virtual function execute execute_inner() is to be
+  overridden by the implementations for specific commands.
+
+  @note
+  Currently only UPDATE and DELETE statement are executed using this function.
+*/
+
+bool Sql_cmd_dml::execute(THD *thd)
+{
+  lex = thd->lex;
+  bool res;
+
+  SELECT_LEX_UNIT *unit = &lex->unit;
+  SELECT_LEX *select_lex= lex->first_select_lex();
+
+  if (!is_prepared())
+  {
+    /*
+      This is called when processing
+      - a DML statement
+      - PREPARE stmt FROM <DML "statement>"
+      - EXECUTE stmt when stmt is prepared from a DML statement.
+      The call will invoke  open_tables_for_query()
+    */
+    if (prepare(thd))
+       goto err;
+  }
+  else // This branch currently is never used for DML commands
+  {
+    if (precheck(thd))
+      goto err;
+
+    MYSQL_DML_START(thd);
+
+    if (open_tables_for_query(thd, lex->query_tables, &table_count, 0,
+                              get_dml_prelocking_strategy()))
+      goto err;
+  }
+
+  THD_STAGE_INFO(thd, stage_init);
+
+  /*
+    Locking of tables is done after preparation but before optimization.
+    This allows to do better partition pruning and avoid locking unused
+    partitions. As a consequence, in such a case, prepare stage can rely only
+    on metadata about tables used and not data from them.
+  */
+  if (!is_empty_query())
+  {
+    if (lock_tables(thd, lex->query_tables, table_count, 0))
+      goto err;
+  }
+
+  unit->set_limit(select_lex);
+
+  /* Perform statement-specific execution */
+  res = execute_inner(thd);
+
+  if (res)
+    goto err;
+
+  res= unit->cleanup();
+
+  /* "Unprepare" this object since unit->cleanup actually unprepares */
+  unprepare(thd);
+
+  THD_STAGE_INFO(thd, stage_end);
+
+  MYSQL_DML_DONE(thd, res);
+
+  return res;
+
+err:
+  DBUG_ASSERT(thd->is_error() || thd->killed);
+  MYSQL_DML_DONE(thd, 1);
+  THD_STAGE_INFO(thd, stage_end);
+  (void)unit->cleanup();
+
+  return thd->is_error();
+}
+
+/**
+  @brief Generic implemention of optimization and execution phases
+  @param thd  global context the processed statement
+  @returns false if success, true if error
+
+  @note
+  This implementation assumes that the processed DML statement is represented
+  as a SELECT_LEX or SELECT_LEX_UNIT tree with attached corresponding
+  JOIN structures. Any JOIN structure is constructed at the prepare phase.
+  When created at the top level join it is provided with an object of a class
+  derived from select_result_sink. The pointer to the object is saved in
+  the this->result field. For different types of DML statements different
+  derived classes are used for this object. The class of this object determines
+  additional specific actions performed at the phases of context analysis,
+  optimization and execution.
+*/
+
+bool Sql_cmd_dml::execute_inner(THD *thd)
+{
+  SELECT_LEX_UNIT *unit = &lex->unit;
+  SELECT_LEX *select_lex= unit->first_select();
+  JOIN *join= select_lex->join;
+
+  if (join->optimize())
+    goto err;
+
+  if (thd->lex->describe & DESCRIBE_EXTENDED)
+  {
+    join->conds_history= join->conds;
+    join->having_history= (join->having?join->having:join->tmp_having);
+  }
+
+  if (unlikely(thd->is_error()))
+    goto err;
+
+  join->exec();
+
+  if (thd->lex->describe & DESCRIBE_EXTENDED)
+  {
+    select_lex->where= join->conds_history;
+    select_lex->having= join->having_history;
+  }
+
+err:
+  return join->error;
+}
 
 
 /**
