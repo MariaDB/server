@@ -7097,6 +7097,7 @@ public:
 	       enum_duplicates handle_duplicates, bool ignore);
   ~multi_update();
   bool init(THD *thd);
+  bool init_for_single_table(THD *thd);
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   int send_data(List<Item> &items);
   bool initialize_tables (JOIN *join);
@@ -7105,6 +7106,8 @@ public:
   bool send_eof();
   inline ha_rows num_found() const { return found; }
   inline ha_rows num_updated() const { return updated; }
+  inline void set_found (ha_rows n) { found= n; }
+  inline void set_updated (ha_rows n) { updated= n; }
   virtual void abort_result_set();
   void update_used_tables();
   void prepare_to_read_rows();
