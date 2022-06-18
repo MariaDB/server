@@ -897,13 +897,7 @@ public:
   Item_func_des_encrypt(THD *thd, Item *a, Item *b)
    :Item_str_binary_checksum_func(thd, a, b) {}
   String *val_str(String *) override;
-  bool fix_length_and_dec(THD *thd) override
-  {
-    set_maybe_null();
-    /* 9 = MAX ((8- (arg_len % 8)) + 1) */
-    max_length = args[0]->max_length + 9;
-    return FALSE;
-  }
+  bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("des_encrypt") };
@@ -922,15 +916,7 @@ public:
   Item_func_des_decrypt(THD *thd, Item *a, Item *b)
    :Item_str_binary_checksum_func(thd, a, b) {}
   String *val_str(String *) override;
-  bool fix_length_and_dec(THD *thd) override
-  {
-    set_maybe_null();
-    /* 9 = MAX ((8- (arg_len % 8)) + 1) */
-    max_length= args[0]->max_length;
-    if (max_length >= 9U)
-      max_length-= 9U;
-    return FALSE;
-  }
+  bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("des_decrypt") };

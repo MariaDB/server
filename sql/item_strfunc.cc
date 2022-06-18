@@ -733,6 +733,17 @@ bool Item_func_concat::fix_length_and_dec(THD *thd)
     Encryption result is longer than original by formula:
   @code new_length= org_length + (8-(org_length % 8))+1 @endcode
 */
+bool Item_func_des_encrypt::fix_length_and_dec(THD *thd)
+{
+  set_maybe_null();
+  /* 9 = MAX ((8- (arg_len % 8)) + 1) */
+  max_length = args[0]->max_length + 9;
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_WARN_DEPRECATED_SYNTAX,
+                      ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
+                      func_name_cstring().str);
+  return FALSE;
+}
+
 
 String *Item_func_des_encrypt::val_str(String *str)
 {
@@ -830,6 +841,20 @@ error:
 #endif /* defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY) */
   null_value=1;
   return 0;
+}
+
+
+bool Item_func_des_decrypt::fix_length_and_dec(THD *thd)
+{
+  set_maybe_null();
+  /* 9 = MAX ((8- (arg_len % 8)) + 1) */
+  max_length= args[0]->max_length;
+  if (max_length >= 9U)
+    max_length-= 9U;
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_WARN_DEPRECATED_SYNTAX,
+                      ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
+                      func_name_cstring().str);
+  return FALSE;
 }
 
 
