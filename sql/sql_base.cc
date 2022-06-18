@@ -1087,7 +1087,11 @@ TABLE_LIST* find_dup_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
     (table->table equal to 0) and right names is in current TABLE_LIST
     object.
   */
-  if (table->table)
+  if (table->table &&
+      thd->lex->sql_command != SQLCOM_UPDATE &&
+      thd->lex->sql_command != SQLCOM_UPDATE_MULTI &&
+      thd->lex->sql_command != SQLCOM_DELETE &&
+      thd->lex->sql_command != SQLCOM_DELETE_MULTI)
   {
     /* All MyISAMMRG children are plain MyISAM tables. */
     DBUG_ASSERT(table->table->file->ht->db_type != DB_TYPE_MRG_MYISAM);
@@ -5675,6 +5679,28 @@ bool open_tables_only_view_structure(THD *thd, TABLE_LIST *table_list,
 }
 
 
+bool open_tables_for_query(THD *thd, TABLE_LIST *tables,
+                           uint *table_count, uint flags,
+                           DML_prelocking_strategy *prelocking_strategy)
+{
+  MDL_savepoint mdl_savepoint = thd->mdl_context.mdl_savepoint();
+
+  DBUG_ASSERT(tables == thd->lex->query_tables);
+
+  if (open_tables(thd, &tables, table_count,
+                  thd->stmt_arena->is_stmt_prepare() ? MYSQL_OPEN_FORCE_SHARED_MDL : 0,
+                  prelocking_strategy))
+  {
+    close_thread_tables(thd);
+    /* Don't keep locks for a failed statement. */
+    thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+    return true;
+  }
+
+  return false;
+}
+
+
 /*
   Mark all real tables in the list as free for reuse.
 
@@ -7818,6 +7844,9 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
   if (!select_lex->with_wild)
     DBUG_RETURN(0);
 
+  if (!fields.elements)
+    DBUG_RETURN(0);
+
   /*
     Don't use arena if we are not in prepared statements or stored procedures
     For PS/SP we have to use arena to remember the changes
@@ -8120,7 +8149,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
     while ((table_list= ti++))
     {
       TABLE *table= table_list->table;
-      if (table)
+      if (table && !table->pos_in_table_list)
         table->pos_in_table_list= table_list;
       if (first_select_table &&
           table_list->top_table() == first_select_table)
@@ -8136,7 +8165,6 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
       }
       else if (table)
       {
-        table->pos_in_table_list= table_list;
         setup_table_map(table, table_list, tablenr);
 
         if (table_list->process_index_hints(table))
