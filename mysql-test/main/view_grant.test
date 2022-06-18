@@ -809,6 +809,7 @@ INSERT INTO mysqltest1.v_ti VALUES (100);
 UPDATE mysqltest1.v_ts SET x= 200 WHERE x = 100;
 --error ER_TABLEACCESS_DENIED_ERROR
 UPDATE mysqltest1.v_ts SET x= 200;
+--error ER_COLUMNACCESS_DENIED_ERROR
 UPDATE mysqltest1.v_tu SET x= 200 WHERE x = 100;
 UPDATE mysqltest1.v_tus SET x= 200 WHERE x = 100;
 UPDATE mysqltest1.v_tu SET x= 200;

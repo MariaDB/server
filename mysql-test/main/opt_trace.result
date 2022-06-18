@@ -4286,6 +4286,16 @@ QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain delete from t0 where t0.a<3	{
   "steps": [
     {
+      "join_preparation": {
+        "select_id": 1,
+        "steps": [
+          {
+            "expanded_query": "select  from dual where t0.a < 3"
+          }
+        ]
+      }
+    },
+    {
       "table": "t0",
       "range_analysis": {
         "table_scan": {
@@ -4317,7 +4327,7 @@ explain delete from t0 where t0.a<3	{
         },
         "group_index_range": {
           "chosen": false,
-          "cause": "no join"
+          "cause": "no group by or distinct"
         },
         "chosen_range_access_summary": {
           "range_access_plan": {
@@ -4360,7 +4370,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
         "select_id": 1,
         "steps": [
           {
-            "expanded_query": "select NULL AS `NULL` from t0 join t1 where t0.a = t1.a and t1.a < 3"
+            "expanded_query": "select  from t0 join t1 where t0.a = t1.a and t1.a < 3"
           }
         ]
       }

@@ -248,7 +248,7 @@ enum chf_create_flags {
   Example:
   UPDATE a=1 WHERE pk IN (<keys>)
 
-  mysql_update()
+  Sql_cmd_update::update_single_table()
   {
     if (<conditions for starting read removal>)
       start_read_removal()
@@ -1807,7 +1807,8 @@ struct THD_TRANS
     modified non-transactional tables of top-level statements. At
     the end of the previous statement and at the beginning of the session,
     it is reset to FALSE.  If such functions
-    as mysql_insert, mysql_update, mysql_delete etc modify a
+    as mysql_insert(), Sql_cmd_update::update_single_table,
+    Sql_cmd_delete::delete_single_table modify a
     non-transactional table, they set this flag to TRUE.  At the
     end of the statement, the value of stmt.modified_non_trans_table 
     is merged with all.modified_non_trans_table and gets reset.

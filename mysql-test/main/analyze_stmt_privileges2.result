@@ -3016,6 +3016,7 @@ ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for unde
 ANALYZE UPDATE v1 SET a = 10;
 ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 UPDATE v1 SET a = a + 1;
+ERROR 42000: SELECT command denied to user 'privtest'@'localhost' for column 'a' in table 'v1'
 EXPLAIN UPDATE v1 SET a = a + 1;
 ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 ANALYZE UPDATE v1 SET a = a + 1;
@@ -4743,6 +4744,7 @@ ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for unde
 ANALYZE UPDATE v2 SET a = 10;
 ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 UPDATE v2 SET a = a + 1;
+ERROR 42000: SELECT command denied to user 'privtest'@'localhost' for column 'a' in table 'v2'
 EXPLAIN UPDATE v2 SET a = a + 1;
 ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 ANALYZE UPDATE v2 SET a = a + 1;
@@ -4841,12 +4843,11 @@ ANALYZE UPDATE v2 SET a = 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	43	43.00	100.00	6.98	Using where
 UPDATE v2 SET a = a + 1;
+ERROR 42000: SELECT command denied to user 'privtest'@'localhost' for column 'a' in table 'v2'
 EXPLAIN UPDATE v2 SET a = a + 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	43	Using where
+ERROR 42000: SELECT command denied to user 'privtest'@'localhost' for column 'a' in table 'v2'
 ANALYZE UPDATE v2 SET a = a + 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	43	43.00	100.00	6.98	Using where
+ERROR 42000: SELECT command denied to user 'privtest'@'localhost' for column 'a' in table 'v2'
 UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
 ERROR 42000: SELECT command denied to user 'privtest'@'localhost' for column 'a' in table 'v2'
 EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
