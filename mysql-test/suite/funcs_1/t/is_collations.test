@@ -83,7 +83,7 @@ INSERT INTO information_schema.collations
 VALUES (  'cp1251_bin',          'cp1251',50,        '',         '',0);
 
 --error ER_DBACCESS_DENIED_ERROR,ER_NON_UPDATABLE_TABLE
-UPDATE information_schema.collations SET description = 'just updated';
+UPDATE information_schema.collations SET collation_name = 'just updated';
 
 --error ER_DBACCESS_DENIED_ERROR
 DELETE FROM information_schema.collations WHERE table_name = 't1';

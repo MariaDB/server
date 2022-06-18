@@ -681,6 +681,7 @@ ERROR 42000: UPDATE command denied to user 'readonly'@'localhost' for table `mys
 UPDATE mysqltest1.v_ts SET x= 200;
 ERROR 42000: UPDATE command denied to user 'readonly'@'localhost' for table `mysqltest1`.`v_ts`
 UPDATE mysqltest1.v_tu SET x= 200 WHERE x = 100;
+ERROR 42000: SELECT command denied to user 'readonly'@'localhost' for column 'x' in table 'v_tu'
 UPDATE mysqltest1.v_tus SET x= 200 WHERE x = 100;
 UPDATE mysqltest1.v_tu SET x= 200;
 DELETE FROM mysqltest1.v_ts WHERE x= 200;

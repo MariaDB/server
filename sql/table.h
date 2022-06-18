@@ -2380,6 +2380,7 @@ struct TABLE_LIST: public Table_name
   */
   select_unit  *derived_result;
   /* Stub used for materialized derived tables. */
+  bool delete_while_scanning;
   table_map	map;                    /* ID bit of table (1,2,4,8,16...) */
   table_map get_map()
   {

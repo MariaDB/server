@@ -34,9 +34,7 @@
 #include "sql_locale.h"                         // my_locale_en_US
 #include "log.h"                                // flush_error_log
 #include "sql_view.h"         // mysql_create_view, mysql_drop_view
-#include "sql_delete.h"       // mysql_delete
 #include "sql_insert.h"       // mysql_insert
-#include "sql_update.h"       // mysql_update, mysql_multi_update
 #include "sql_partition.h"    // struct partition_info
 #include "sql_db.h"           // mysql_change_db, mysql_create_db,
                               // mysql_rm_db, mysql_upgrade_db,
@@ -3443,7 +3441,6 @@ int
 mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 {
   int res= 0;
-  int  up_result= 0;
   LEX  *lex= thd->lex;
   /* first SELECT_LEX (have special meaning for many of non-SELECTcommands) */
   SELECT_LEX *select_lex= lex->first_select_lex();
@@ -3455,7 +3452,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   SELECT_LEX_UNIT *unit= &lex->unit;
 #ifdef HAVE_REPLICATION
   /* have table map for update for multi-update statement (BUG#37051) */
-  bool have_table_map_for_update= FALSE;
   /* */
   Rpl_filter *rpl_filter;
 #endif
@@ -3577,7 +3573,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if (lex->sql_command == SQLCOM_UPDATE_MULTI &&
         thd->table_map_for_update)
     {
-      have_table_map_for_update= TRUE;
       table_map table_map_for_update= thd->table_map_for_update;
       uint nr= 0;
       TABLE_LIST *table;
@@ -4382,130 +4377,15 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     break;
   }
   case SQLCOM_UPDATE:
-  {
-    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
-    ha_rows found= 0, updated= 0;
-    DBUG_ASSERT(first_table == all_tables && first_table != 0);
-    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
-
-    if (update_precheck(thd, all_tables))
-      break;
-
-    /*
-      UPDATE IGNORE can be unsafe. We therefore use row based
-      logging if mixed or row based logging is available.
-      TODO: Check if the order of the output of the select statement is
-      deterministic. Waiting for BUG#42415
-    */
-    if (lex->ignore)
-      lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_UPDATE_IGNORE);
-
-    DBUG_ASSERT(select_lex->limit_params.offset_limit == 0);
-    unit->set_limit(select_lex);
-    MYSQL_UPDATE_START(thd->query());
-    res= up_result= mysql_update(thd, all_tables,
-                                  select_lex->item_list,
-                                  lex->value_list,
-                                  select_lex->where,
-                                  select_lex->order_list.elements,
-                                  select_lex->order_list.first,
-                                  unit->lim.get_select_limit(),
-                                  lex->ignore, &found, &updated);
-    MYSQL_UPDATE_DONE(res, found, updated);
-    /* mysql_update return 2 if we need to switch to multi-update */
-    if (up_result != 2)
-      break;
-    if (thd->lex->period_conditions.is_set())
-    {
-      DBUG_ASSERT(0); // Should never happen
-      goto error;
-    }
-  }
-  /* fall through */
   case SQLCOM_UPDATE_MULTI:
+  case SQLCOM_DELETE:
+  case SQLCOM_DELETE_MULTI:
   {
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
-    /* if we switched from normal update, rights are checked */
-    if (up_result != 2)
-    {
-      WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
-      if ((res= multi_update_precheck(thd, all_tables)))
-        break;
-    }
-    else
-      res= 0;
+    DBUG_ASSERT(lex->m_sql_cmd != NULL);
 
-    unit->set_limit(select_lex);
-    /*
-      We can not use mysql_explain_union() because of parameters of
-      mysql_select in mysql_multi_update so just set the option if needed
-    */
-    if (thd->lex->describe)
-    {
-      select_lex->set_explain_type(FALSE);
-      select_lex->options|= SELECT_DESCRIBE;
-    }
-
-    res= mysql_multi_update_prepare(thd);
-
-#ifdef HAVE_REPLICATION
-    /* Check slave filtering rules */
-    if (unlikely(thd->slave_thread && !have_table_map_for_update))
-    {
-      if (all_tables_not_ok(thd, all_tables))
-      {
-        if (res!= 0)
-        {
-          res= 0;             /* don't care of prev failure  */
-          thd->clear_error(); /* filters are of highest prior */
-        }
-        /* we warn the slave SQL thread */
-        my_error(ER_SLAVE_IGNORED_TABLE, MYF(0));
-        break;
-      }
-      if (res)
-        break;
-    }
-    else
-    {
-#endif /* HAVE_REPLICATION */
-      if (res)
-        break;
-      if (opt_readonly &&
-	  !(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
-	  some_non_temp_table_to_be_updated(thd, all_tables))
-      {
-	my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
-	break;
-      }
-#ifdef HAVE_REPLICATION
-    }  /* unlikely */
-#endif
-    {
-      multi_update *result_obj;
-      MYSQL_MULTI_UPDATE_START(thd->query());
-      res= mysql_multi_update(thd, all_tables,
-                              &select_lex->item_list,
-                              &lex->value_list,
-                              select_lex->where,
-                              select_lex->options,
-                              lex->duplicates,
-                              lex->ignore,
-                              unit,
-                              select_lex,
-                              &result_obj);
-      if (result_obj)
-      {
-        MYSQL_MULTI_UPDATE_DONE(res, result_obj->num_found(),
-                                result_obj->num_updated());
-        res= FALSE; /* Ignore errors here */
-        delete result_obj;
-      }
-      else
-      {
-        MYSQL_MULTI_UPDATE_DONE(1, 0, 0);
-      }
-    }
+    res = lex->m_sql_cmd->execute(thd);
+    thd->abort_on_warning= 0;
     break;
   }
   case SQLCOM_REPLACE:
@@ -4765,129 +4645,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       thd->first_successful_insert_id_in_cur_stmt=
         thd->first_successful_insert_id_in_prev_stmt;
 
-    break;
-  }
-  case SQLCOM_DELETE:
-  {
-    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
-    select_result *sel_result= NULL;
-    DBUG_ASSERT(first_table == all_tables && first_table != 0);
-    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
-
-    if ((res= delete_precheck(thd, all_tables)))
-      break;
-    DBUG_ASSERT(select_lex->limit_params.offset_limit == 0);
-    unit->set_limit(select_lex);
-
-    MYSQL_DELETE_START(thd->query());
-    Protocol *save_protocol= NULL;
-
-    if (lex->has_returning())
-    {
-      /* This is DELETE ... RETURNING.  It will return output to the client */
-      if (thd->lex->analyze_stmt)
-      {
-        /* 
-          Actually, it is ANALYZE .. DELETE .. RETURNING. We need to produce
-          output and then discard it.
-        */
-        sel_result= new (thd->mem_root) select_send_analyze(thd);
-        save_protocol= thd->protocol;
-        thd->protocol= new Protocol_discard(thd);
-      }
-      else
-      {
-        if (!lex->result && !(sel_result= new (thd->mem_root) select_send(thd)))
-          goto error;
-      }
-    }
-
-    res = mysql_delete(thd, all_tables, 
-                       select_lex->where, &select_lex->order_list,
-                       unit->lim.get_select_limit(), select_lex->options,
-                       lex->result ? lex->result : sel_result);
-
-    if (save_protocol)
-    {
-      delete thd->protocol;
-      thd->protocol= save_protocol;
-    }
-
-    if (thd->lex->analyze_stmt || thd->lex->describe)
-    {
-      if (!res)
-        res= thd->lex->explain->send_explain(thd);
-    }
-
-    delete sel_result;
-    MYSQL_DELETE_DONE(res, (ulong) thd->get_row_count_func());
-    break;
-  }
-  case SQLCOM_DELETE_MULTI:
-  {
-    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
-    DBUG_ASSERT(first_table == all_tables && first_table != 0);
-    TABLE_LIST *aux_tables= thd->lex->auxiliary_table_list.first;
-    multi_delete *result;
-    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
-
-    if ((res= multi_delete_precheck(thd, all_tables)))
-      break;
-
-    /* condition will be TRUE on SP re-excuting */
-    if (select_lex->item_list.elements != 0)
-      select_lex->item_list.empty();
-    if (add_item_to_list(thd, new (thd->mem_root) Item_null(thd)))
-      goto error;
-
-    THD_STAGE_INFO(thd, stage_init);
-    if ((res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
-      break;
-
-    MYSQL_MULTI_DELETE_START(thd->query());
-    if (unlikely(res= mysql_multi_delete_prepare(thd)))
-    {
-      MYSQL_MULTI_DELETE_DONE(1, 0);
-      goto error;
-    }
-
-    if (likely(!thd->is_fatal_error))
-    {
-      result= new (thd->mem_root) multi_delete(thd, aux_tables,
-                                               lex->table_count_update);
-      if (likely(result))
-      {
-        if (unlikely(select_lex->vers_setup_conds(thd, aux_tables)))
-          goto multi_delete_error;
-        res= mysql_select(thd,
-                          select_lex->get_table_list(),
-                          select_lex->item_list,
-                          select_lex->where,
-                          0, (ORDER *)NULL, (ORDER *)NULL, (Item *)NULL,
-                          (ORDER *)NULL,
-                          (select_lex->options | thd->variables.option_bits |
-                          SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK |
-                          OPTION_SETUP_TABLES_DONE) & ~OPTION_BUFFER_RESULT,
-                          result, unit, select_lex);
-        res|= (int)(thd->is_error());
-
-        MYSQL_MULTI_DELETE_DONE(res, result->num_deleted());
-        if (res)
-          result->abort_result_set(); /* for both DELETE and EXPLAIN DELETE */
-        else
-        {
-          if (lex->describe || lex->analyze_stmt)
-            res= thd->lex->explain->send_explain(thd);
-        }
-      multi_delete_error:
-        delete result;
-      }
-    }
-    else
-    {
-      res= TRUE;                                // Error
-      MYSQL_MULTI_DELETE_DONE(1, 0);
-    }
     break;
   }
   case SQLCOM_DROP_SEQUENCE:
@@ -7757,12 +7514,16 @@ void create_select_for_variable(THD *thd, LEX_CSTRING *var_name)
 }
 
 
-void mysql_init_multi_delete(LEX *lex)
+void mysql_init_delete(LEX *lex)
 {
-  lex->sql_command=  SQLCOM_DELETE_MULTI;
   mysql_init_select(lex);
   lex->first_select_lex()->limit_params.clear();
   lex->unit.lim.clear();
+}
+
+void mysql_init_multi_delete(LEX *lex)
+{
+  lex->sql_command=  SQLCOM_DELETE_MULTI;
   lex->first_select_lex()->table_list.
     save_and_clear(&lex->auxiliary_table_list);
   lex->query_tables= 0;

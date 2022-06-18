@@ -1305,6 +1305,8 @@ void LEX::start(THD *thd_arg)
   wild= 0;
   exchange= 0;
 
+  table_count= 0;
+
   DBUG_VOID_RETURN;
 }
 
@@ -3030,6 +3032,7 @@ void st_select_lex::init_select()
   curr_tvc_name= 0;
   versioned_tables= 0;
   nest_flags= 0;
+  item_list_usage= MARK_COLUMNS_READ;
 }
 
 /*
@@ -3287,34 +3290,6 @@ void st_select_lex_unit::exclude_level()
 }
 
 
-#if 0
-/*
-  Exclude subtree of current unit from tree of SELECTs
-
-  SYNOPSYS
-    st_select_lex_unit::exclude_tree()
-*/
-void st_select_lex_unit::exclude_tree()
-{
-  for (SELECT_LEX *sl= first_select(); sl; sl= sl->next_select())
-  {
-    // unlink current level from global SELECTs list
-    if (sl->link_prev && (*sl->link_prev= sl->link_next))
-      sl->link_next->link_prev= sl->link_prev;
-
-    // unlink underlay levels
-    for (SELECT_LEX_UNIT *u= sl->first_inner_unit(); u; u= u->next_unit())
-    {
-      u->exclude_level();
-    }
-  }
-  // exclude currect unit from list of nodes
-  (*prev)= next;
-  if (next)
-    next->prev= prev;
-}
-#endif
-
 
 /*
   st_select_lex_node::mark_as_dependent mark all st_select_lex struct from 
@@ -3536,7 +3511,7 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
                        select_n_where_fields +
                        order_group_num +
                        hidden_bit_fields +
-                       fields_in_window_functions) * (size_t) 5;
+                       fields_in_window_functions + 1) * (size_t) 5;
   DBUG_ASSERT(n_elems % 5 == 0);
   if (!ref_pointer_array.is_null())
   {
@@ -4079,6 +4054,13 @@ bool LEX::can_not_use_merged(bool no_update_or_delete)
   case SQLCOM_UPDATE_MULTI:
   case SQLCOM_DELETE_MULTI:
     if (no_update_or_delete)
+      return TRUE;
+    /* Fall through */
+
+  case SQLCOM_UPDATE:
+    if (no_update_or_delete && m_sql_cmd &&
+        (m_sql_cmd->sql_command_code() == SQLCOM_UPDATE_MULTI ||
+         query_tables->is_multitable()))
       return TRUE;
     /* Fall through */
 
