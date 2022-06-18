@@ -37,6 +37,7 @@
 #include "json_table.h"               // Json_table_column
 #include "sql_schema.h"
 #include "table.h"
+#include "sql_class.h"                // enum enum_column_usage
 
 /* Used for flags of nesting constructs */
 #define SELECT_NESTING_MAP_SIZE 64
@@ -875,6 +876,8 @@ public:
   {
   }
 
+  void set_query_result(select_result *res) { result= res; }
+
   TABLE *table; /* temporary table using for appending UNION results */
   select_result *result;
   st_select_lex *pre_last_parse;
@@ -1007,6 +1010,7 @@ public:
 
   bool add_fake_select_lex(THD *thd);
   void init_prepare_fake_select_lex(THD *thd, bool first_execution);
+  void set_prepared() { prepared = true; }
   inline bool is_prepared() { return prepared; }
   bool change_result(select_result_interceptor *result,
                      select_result_interceptor *old_result);
@@ -1112,6 +1116,7 @@ public:
   Item *prep_having;/* saved HAVING clause for prepared statement processing */
   Item *cond_pushed_into_where;  /* condition pushed into WHERE  */
   Item *cond_pushed_into_having; /* condition pushed into HAVING */
+  Item *where_cond_after_prepare;
 
   /*
     nest_levels are local to the query or VIEW,
@@ -1220,6 +1225,7 @@ public:
   List<List_item> save_many_values;
   List<Item> *save_insert_list;
 
+  enum_column_usage   item_list_usage;
   bool                is_item_list_lookup:1;
   /*
     Needed to correctly generate 'PRIMARY' or 'SIMPLE' for select_type column
@@ -1749,11 +1755,39 @@ public:
   Sroutine_hash_entry **sroutines_list_own_last;
   uint sroutines_list_own_elements;
 
+  /**
+    Locking state of tables in this particular statement.
+
+    If we under LOCK TABLES or in prelocked mode we consider tables
+    for the statement to be "locked" if there was a call to lock_tables()
+    (which called handler::start_stmt()) for tables of this statement
+    and there was no matching close_thread_tables() call.
+
+    As result this state may differ significantly from one represented
+    by Open_tables_state::lock/locked_tables_mode more, which are always
+    "on" under LOCK TABLES or in prelocked mode.
+  */
+  enum enum_lock_tables_state { LTS_NOT_LOCKED = 0, LTS_LOCKED };
+  enum_lock_tables_state lock_tables_state;
+  bool is_query_tables_locked() const
+  {
+    return (lock_tables_state == LTS_LOCKED);
+  }
+
+  /**
+    Number of tables which were open by open_tables() and to be locked
+    by lock_tables().
+    Note that we set this member only in some cases, when this value
+    needs to be passed from open_tables() to lock_tables() which are
+    separated by some amount of code.
+  */
+  uint table_count;
+
    /*
     These constructor and destructor serve for creation/destruction
     of Query_tables_list instances which are used as backup storage.
   */
-  Query_tables_list() {}
+  Query_tables_list() : lock_tables_state(LTS_NOT_LOCKED) {}
   ~Query_tables_list() {}
 
   /* Initializes (or resets) Query_tables_list object for "real" use. */
@@ -3387,6 +3421,7 @@ public:
   bool default_used:1;    /* using default() function */
   bool with_rownum:1;     /* Using rownum() function */
   bool is_lex_started:1;  /* If lex_start() did run. For debugging. */
+
   /*
     This variable is used in post-parse stage to declare that sum-functions,
     or functions which have sense only if GROUP BY is present, are allowed.
