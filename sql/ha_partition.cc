@@ -4683,8 +4683,8 @@ exit:
     part_share->next_auto_inc_val if needed.
     (not to be used if auto_increment on secondary field in a multi-column
     index)
-    mysql_update does not set table->next_number_field, so we use
-    table->found_next_number_field instead.
+    Sql_cmd_update::update_single_table() does not set table->next_number_field,
+    so we use table->found_next_number_field instead.
     Also checking that the field is marked in the write set.
   */
   if (table->found_next_number_field &&
@@ -4797,7 +4797,7 @@ int ha_partition::delete_row(const uchar *buf)
 
     Called from item_sum.cc by Item_func_group_concat::clear(),
     Item_sum_count::clear(), and Item_func_group_concat::clear().
-    Called from sql_delete.cc by mysql_delete().
+    Called from sql_delete.cc by Sql_cmd_delete::delete_single_table().
     Called from sql_select.cc by JOIN::reset().
     Called from sql_union.cc by st_select_lex_unit::exec().
 */
