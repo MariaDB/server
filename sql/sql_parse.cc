@@ -3021,9 +3021,9 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
     So just execute the statement.
   */
   my_counter = 0;
-  sql_print_warning("Rejection count: %ull", my_counter);
+  sql_print_information("Rejection count: %ull", my_counter);
   int res= sp->execute_procedure(thd, &thd->lex->value_list);
-  sql_print_warning("Rejection count: %llu", my_counter);
+  sql_print_information("Rejection count: %llu", my_counter);
   thd->variables.select_limit= select_limit;
   thd->server_status&= ~bits_to_be_cleared;
 

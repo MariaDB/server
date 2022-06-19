@@ -6,6 +6,7 @@ use My::Platform;
 
 if (-d '../sql' && !&::using_extern()) {
   my $src = "$::bindir/plugin/auth_pam/auth_pam_tool";
+  print("plugin".$::plugindir);
   my $dst = "$::plugindir/auth_pam_tool_dir/auth_pam_tool";
   ::mkpath( "$::plugindir/auth_pam_tool_dir");
   eval { symlink $src, $dst } or ::copy $src, $dst;

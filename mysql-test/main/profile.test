@@ -1,0 +1,67 @@
+--source include/have_innodb.inc
+
+select @@innodb_buffer_pool_size;
+--disable_query_log
+--disable_result_log
+# --source $MYSQL_TEST_DIR/std_data/cars.inc
+
+let no_vehicles = `select count(*)=0 from information_schema.tables where TABLE_NAME = 'vehicle_reg'`;
+--if ($no_vehicles) {
+--echo generating vehicle_reg from fixture, rerun with --start-dirty
+CREATE TABLE vehicle_reg (
+  _id int DEFAULT NULL,
+  RegistrationCategory varchar(64) DEFAULT NULL,
+  RegistrationTerm int DEFAULT NULL,
+  PurposeofUse varchar(64) DEFAULT NULL,
+  BodyShape varchar(64) DEFAULT NULL,
+  YearofManufacture int DEFAULT NULL,
+  Make varchar(64) DEFAULT NULL,
+  Model varchar(64) DEFAULT NULL,
+  Colour varchar(64) DEFAULT NULL,
+  FuelType varchar(64) DEFAULT NULL,
+  NumberofCylinders int DEFAULT NULL,
+  NumberofSeats int DEFAULT NULL,
+  ATMWeight varchar(64) DEFAULT NULL,
+  GCMWeight varchar(64) DEFAULT NULL,
+  GTMWeight varchar(64) DEFAULT NULL,
+  GVMWeight varchar(64) DEFAULT NULL,
+  TAREWeight varchar(64) DEFAULT NULL,
+  VINPrefix varchar(64) DEFAULT NULL
+) engine=innodb;
+
+#  vehicle_reg - Japan auto table, 765628 rows
+let $MYSQLD_DATADIR= `select @@datadir`;
+ALTER TABLE vehicle_reg DISCARD TABLESPACE;
+--copy_file std_data/vehicle_reg.ibd $MYSQLD_DATADIR/test/vehicle_reg.ibd
+--copy_file std_data/vehicle_reg.cfg $MYSQLD_DATADIR/test/vehicle_reg.cfg
+ALTER TABLE vehicle_reg IMPORT TABLESPACE;
+--let t1=`select UNIX_TIMESTAMP()`
+ALTER TABLE vehicle_reg FORCE;
+--let tdiff=`select UNIX_TIMESTAMP() - $t1`
+--echo ALTER TABLE took $tdiff s
+--}
+
+# Yeah, no "else", brothers
+--if (!$no_vehicles) {
+create temporary table counters_new_method (
+  pk_value int,
+  counter int,
+  index (pk_value)
+) engine=myisam;
+
+
+--let $i= 5
+--echo i=$i
+--let $method=bernoulli
+--let percent=1
+--echo method=$method $percent%
+--while($i)
+  eval
+  # INSERT INTO counters_new_method
+        SELECT _id, 0 FROM vehicle_reg tablesample $method($percent)
+  #      ON DUPLICATE KEY UPDATE counter = counter + 1
+  ;
+--dec $i
+--}
+--}
+--enable_query_log

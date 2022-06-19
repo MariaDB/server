@@ -2766,7 +2766,7 @@ sub run_testcase ($) {
   # If --start-and-exit or --start-dirty given, stop here to let user manually
   # run tests
   # ----------------------------------------------------------------------
-  if ( $opt_start_and_exit or $opt_start_dirty )
+  if ( $opt_start_and_exit )
   {
     mtr_timer_stop_all($glob_timers);
     mtr_report("\nServers started, exiting");

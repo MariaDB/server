@@ -326,7 +326,7 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
 
   else if (table->tablesample_method)
   {
-    int method = table->tablesample_method->val_int();
+    longlong method = table->tablesample_method->val_int();
     double fract= (method  % 100) / 100.0;
     info->sample_factor = fract;
     info->sample_counter= (ha_rows)(table->file->records() * fract + 0.5);

@@ -25,7 +25,7 @@ MACRO (MY_CHECK_C_COMPILER_FLAG flag)
 ENDMACRO()
 
 MACRO (MY_CHECK_CXX_COMPILER_FLAG flag)
-  STRING(REGEX REPLACE "[-,= +]" "_" result "have_CXX_${flag}")
+  STRING(REGEX REPLACE "[-,=. +]" "_" result "have_CXX_${flag}")
   SET(SAVE_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
   SET(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${flag}")
   CHECK_CXX_SOURCE_COMPILES("int main(void) { return 0; }" ${result}
