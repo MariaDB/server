@@ -85,3 +85,7 @@ db_name	table_name	hist_type_equal	histogram_equal
 test	t1	1	1
 test	t2	1	1
 drop table t1,t2,t4;
+#
+# MDEV-28866 mariadb-upgrade to 10.8 mysql.column_stats hist_type + histogram errors
+#
+FOUND 2 /Incorrect definition of table mysql.column_stats:/ in mysqld.1.err
