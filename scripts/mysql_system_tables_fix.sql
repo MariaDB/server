@@ -29,6 +29,18 @@ set default_storage_engine=Aria;
 set enforce_storage_engine=NULL;
 set alter_algorithm=DEFAULT;
 
+
+--
+-- Upgrade mysql.column_stats table early because its quite noisy otherwise
+--
+
+ALTER TABLE column_stats
+  modify min_value varbinary(255) DEFAULT NULL,
+  modify max_value varbinary(255) DEFAULT NULL,
+  modify hist_type enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON_HB'),
+  modify histogram longblob,
+  ENGINE=Aria transactional=0;
+
 set @have_innodb= (select count(engine) from information_schema.engines where engine='INNODB' and support != 'NO');
 
 # MDEV-21873: 10.2 to 10.3 upgrade doesn't remove semi-sync reference from
@@ -66,7 +78,6 @@ ALTER TABLE help_category ENGINE=Aria transactional=0;
 ALTER TABLE help_relation ENGINE=Aria transactional=0;
 ALTER TABLE help_keyword ENGINE=Aria transactional=0;
 ALTER TABLE table_stats ENGINE=Aria transactional=0;
-ALTER TABLE column_stats ENGINE=Aria transactional=0;
 ALTER TABLE index_stats ENGINE=Aria transactional=0;
 
 ALTER TABLE user add File_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
@@ -780,9 +791,6 @@ flush privileges;
 ALTER TABLE help_category MODIFY url TEXT NOT NULL;
 ALTER TABLE help_topic MODIFY url TEXT NOT NULL;
 
-# MDEV-7383 - varbinary on mix/max of column_stats
-alter table column_stats modify min_value varbinary(255) DEFAULT NULL, modify max_value varbinary(255) DEFAULT NULL;
-
 DELIMITER //
 IF 'BASE TABLE' = (select table_type from information_schema.tables where table_schema=database() and table_name='user') THEN
   CREATE TABLE IF NOT EXISTS global_priv (Host char(255) binary DEFAULT '', User char(128) binary DEFAULT '', Priv JSON NOT NULL DEFAULT '{}' CHECK(JSON_VALID(Priv)), PRIMARY KEY Host (Host,User)) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin comment='Users and global privileges'
@@ -842,11 +850,3 @@ IF 1 = (SELECT count(*) FROM information_schema.VIEWS WHERE TABLE_CATALOG = 'def
 END IF//
 
 DELIMITER ;
-
---
--- Upgrade mysql.column_stats table
---
-
-ALTER TABLE column_stats
-  modify hist_type enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON_HB'),
-  modify histogram longblob;
