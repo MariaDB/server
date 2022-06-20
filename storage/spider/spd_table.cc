@@ -6614,25 +6614,12 @@ int spider_db_done(
   void *p
 ) {
   int roop_count;
-  bool do_delete_thd;
-  THD *thd = current_thd, *tmp_thd;
+  THD *tmp_thd;
   SPIDER_CONN *conn;
   SPIDER_INIT_ERROR_TABLE *spider_init_error_table;
   SPIDER_TABLE_MON_LIST *table_mon_list;
   SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share;
   DBUG_ENTER("spider_db_done");
-
-  /* Begin Spider plugin deinit */
-  if (thd)
-    do_delete_thd = FALSE;
-  else
-  {
-    /* Create a thread for Spider plugin deinit */
-    thd = spider_create_thd();
-    if (!thd)
-      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-    do_delete_thd = TRUE;
-  }
 
   for (roop_count = SPIDER_DBTON_SIZE - 1; roop_count >= 0; roop_count--)
   {
@@ -6849,14 +6836,6 @@ int spider_db_done(
         spider_current_alloc_mem[roop_count] ? "NG" : "OK"
       ));
   }
-
-  /* End Spider plugin deinit */
-  if (do_delete_thd)
-    spider_destroy_thd(thd);
-
-/*
-DBUG_ASSERT(0);
-*/
   DBUG_RETURN(0);
 }
 

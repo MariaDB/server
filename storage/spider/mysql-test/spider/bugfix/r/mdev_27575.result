@@ -1,0 +1,8 @@
+#
+# MDEV-27575 SIGSEGV in intern_plugin_lock on SHUTDOWN when setting Spider as default storage engine (temporary or global)
+#
+INSTALL PLUGIN spider SONAME 'ha_spider.so';
+SET GLOBAL storage_engine=Spider;
+UNINSTALL PLUGIN spider;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown

@@ -1,0 +1,16 @@
+--echo #
+--echo # MDEV-27575 SIGSEGV in intern_plugin_lock on SHUTDOWN when setting Spider as default storage engine (temporary or global)
+--echo #
+
+INSTALL PLUGIN spider SONAME 'ha_spider.so';
+SET GLOBAL storage_engine=Spider;
+
+# A workaround for MDEV-27912
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.1.expect
+--shutdown_server
+--source include/wait_until_disconnected.inc
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+UNINSTALL PLUGIN spider;
