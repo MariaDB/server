@@ -4074,6 +4074,7 @@ bool LEX::can_not_use_merged(bool no_update_or_delete)
         (m_sql_cmd->sql_command_code() == SQLCOM_UPDATE_MULTI ||
          query_tables->is_multitable()))
       return TRUE;
+    /* Fall through */
 
   default:
     return FALSE;

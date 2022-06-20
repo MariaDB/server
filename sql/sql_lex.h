@@ -1782,7 +1782,7 @@ public:
     These constructor and destructor serve for creation/destruction
     of Query_tables_list instances which are used as backup storage.
   */
-  Query_tables_list() {}
+  Query_tables_list() : lock_tables_state(LTS_NOT_LOCKED) {}
   ~Query_tables_list() {}
 
   /* Initializes (or resets) Query_tables_list object for "real" use. */
