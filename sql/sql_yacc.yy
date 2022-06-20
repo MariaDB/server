@@ -13370,8 +13370,21 @@ delete_single_table:
                                            YYPS->m_lock_type,
                                            YYPS->m_mdl_type,
                                            NULL,
+                                           0)))
+              MYSQL_YYABORT;
+            Select->table_list.save_and_clear(&Lex->auxiliary_table_list);
+            Lex->table_count= 1;
+            Lex->query_tables= 0;
+            Lex->query_tables_last= &Lex->query_tables;
+            if (unlikely(!Select->
+                         add_table_to_list(thd, $2, NULL, TL_OPTION_UPDATING,
+                                           YYPS->m_lock_type,
+                                           YYPS->m_mdl_type,
+                                           NULL,
                                            $3)))
               MYSQL_YYABORT;
+            Lex->auxiliary_table_list.first->correspondent_table=
+              Lex->query_tables;
             YYPS->m_lock_type= TL_READ_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_READ;
           }

@@ -1591,10 +1591,16 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
                             select_lex->order_list.first,
                             false, NULL, NULL, NULL,
                             select_lex, &lex->unit)))
-
     {
       goto err;
     }
+
+    if (!multitable &&
+        select_lex->sj_subselects.elements)
+      multitable= true;
+
+    if (!multitable)
+      ((multi_delete *)result)->set_delete_tables(0);
   }
 
   if (multitable)
@@ -1638,7 +1644,8 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
       {
         TABLE_LIST *duplicate;
         if ((duplicate= unique_table(thd, target_tbl->correspondent_table,
-                                     lex->query_tables, 0)))
+                                     lex->query_tables, 0)) &&
+             !duplicate->select_lex->is_sj_subselect_lifted_to_top())
         {
           update_non_unique_table_error(target_tbl->correspondent_table,
                                         "DELETE", duplicate);

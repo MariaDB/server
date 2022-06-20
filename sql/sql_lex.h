@@ -1642,6 +1642,8 @@ public:
   void lex_start(LEX *plex);
   bool is_unit_nest() { return (nest_flags & UNIT_NEST_FL); }
   void mark_as_unit_nest() { nest_flags= UNIT_NEST_FL; }
+  bool is_sj_conversion_prohibited(THD *thd);
+  bool is_sj_subselect_lifted_to_top();
 };
 typedef class st_select_lex SELECT_LEX;
 

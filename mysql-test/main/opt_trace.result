@@ -3948,6 +3948,16 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                 }
               },
               {
+                "table": "t0",
+                "rowid_filters": [
+                  {
+                    "key": "a",
+                    "build_cost": 0.174715752,
+                    "rows": 3
+                  }
+                ]
+              },
+              {
                 "selectivity_for_indexes": [
                   {
                     "index_name": "a",
@@ -4011,6 +4021,16 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                     "chosen": true
                   }
                 }
+              },
+              {
+                "table": "t1",
+                "rowid_filters": [
+                  {
+                    "key": "a",
+                    "build_cost": 0.174715752,
+                    "rows": 3
+                  }
+                ]
               },
               {
                 "selectivity_for_indexes": [
