@@ -46,6 +46,10 @@ SELECT * FROM t1;
 SET AUTOCOMMIT=ON;
 --send INSERT INTO t1 VALUES (3, 'c')
 
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_LOCK_WAITS;
+--source include/wait_condition.inc
+
 --connection node_2
 SELECT * FROM t1;
 
@@ -54,8 +58,8 @@ SELECT * FROM t1;
 --send UPDATE t1 SET f2 = 'a' WHERE f1 = 2
 
 --connection node_1
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER != 'system user' AND STATE = 'Updating';
---source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.INNODB_LOCK_WAITS;
+--source include/wait_condition.inc 
 
 # Will deadlock
 --connection node_1b
