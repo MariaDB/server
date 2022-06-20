@@ -5745,11 +5745,8 @@ int spider_free_share(
 ) {
   DBUG_ENTER("spider_free_share");
   pthread_mutex_lock(&spider_tbl_mutex);
-  bool do_delete_thd = false;
-  THD *thd = current_thd;
   if (!--share->use_count)
   {
-#ifndef WITHOUT_SPIDER_BG_SEARCH
     spider_free_sts_thread(share);
     spider_free_crd_thread(share);
     spider_free_mon_threads(share);
@@ -5762,55 +5759,6 @@ int spider_free_share(
     {
       spider_table_remove_share_from_crd_thread(share);
       spider_free_spider_object_for_share(&share->crd_spider);
-    }
-#endif
-    if (
-      share->sts_init &&
-      spider_param_store_last_sts(share->store_last_sts)
-    ) {
-      if (!thd)
-      {
-        /* Create a thread for Spider system table update */
-        thd = spider_create_thd();
-        if (!thd)
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        do_delete_thd = TRUE;
-      }
-      spider_sys_insert_or_update_table_sts(
-        thd,
-        share->lgtm_tblhnd_share->table_name,
-        share->lgtm_tblhnd_share->table_name_length,
-        &share->data_file_length,
-        &share->max_data_file_length,
-        &share->index_file_length,
-        &share->records,
-        &share->mean_rec_length,
-        &share->check_time,
-        &share->create_time,
-        &share->update_time,
-        FALSE
-      );
-    }
-    if (
-      share->crd_init &&
-      spider_param_store_last_crd(share->store_last_crd)
-    ) {
-      if (!thd)
-      {
-        /* Create a thread for Spider system table update */
-        thd = spider_create_thd();
-        if (!thd)
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        do_delete_thd = TRUE;
-      }
-      spider_sys_insert_or_update_table_crd(
-        thd,
-        share->lgtm_tblhnd_share->table_name,
-        share->lgtm_tblhnd_share->table_name_length,
-        share->cardinality,
-        share->table_share->fields,
-        FALSE
-      );
     }
     spider_free_share_alloc(share);
 #ifdef HASH_UPDATE_WITH_HASH_VALUE
@@ -5826,8 +5774,6 @@ int spider_free_share(
     free_root(&share->mem_root, MYF(0));
     spider_free(spider_current_trx, share, MYF(0));
   }
-  if (do_delete_thd)
-    spider_destroy_thd(thd);
   pthread_mutex_unlock(&spider_tbl_mutex);
   DBUG_RETURN(0);
 }
@@ -6860,11 +6806,58 @@ DBUG_ASSERT(0);
   DBUG_RETURN(0);
 }
 
-int spider_panic(
-  handlerton *hton,
-  ha_panic_function type
-) {
+/*
+  Shut down the Spider storage engine.
+*/
+int spider_panic(handlerton *hton, ha_panic_function type)
+{
+  THD *thd= current_thd;
+  SPIDER_SHARE *share;
+  int loop_count= 0;
+
   DBUG_ENTER("spider_panic");
+
+  pthread_mutex_lock(&spider_tbl_mutex);
+  while ((share= (SPIDER_SHARE *) my_hash_element(&spider_open_tables,
+                                                  loop_count)))
+  {
+    DBUG_ASSERT(share->use_count == 0);
+    DBUG_ASSERT(0);
+
+    spider_free_sts_thread(share);
+    spider_free_crd_thread(share);
+    spider_free_mon_threads(share);
+    if (share->sts_spider_init)
+    {
+      spider_table_remove_share_from_sts_thread(share);
+      spider_free_spider_object_for_share(&share->sts_spider);
+    }
+    if (share->crd_spider_init)
+    {
+      spider_table_remove_share_from_crd_thread(share);
+      spider_free_spider_object_for_share(&share->crd_spider);
+    }
+
+    if (share->sts_init && spider_param_store_last_sts(share->store_last_sts))
+    {
+      spider_sys_insert_or_update_table_sts(
+          thd, share->lgtm_tblhnd_share->table_name,
+          share->lgtm_tblhnd_share->table_name_length,
+          &share->data_file_length, &share->max_data_file_length,
+          &share->index_file_length, &share->records, &share->mean_rec_length,
+          &share->check_time, &share->create_time, &share->update_time, FALSE);
+    }
+    if (share->crd_init && spider_param_store_last_crd(share->store_last_crd))
+    {
+      spider_sys_insert_or_update_table_crd(
+          thd, share->lgtm_tblhnd_share->table_name,
+          share->lgtm_tblhnd_share->table_name_length, share->cardinality,
+          share->table_share->fields, FALSE);
+    }
+    loop_count++;
+  }
+  pthread_mutex_unlock(&spider_tbl_mutex);
+
   DBUG_RETURN(0);
 }
 

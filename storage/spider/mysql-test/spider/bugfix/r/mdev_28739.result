@@ -1,0 +1,33 @@
+#
+# MDEV-28739 Trying to lock uninitialized mutex or hang upon shutdown after using Spider with query_cache
+#
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+CREATE TABLE tbl_a (id INT);
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+set global query_cache_type= on;
+set spider_same_server_link = on;
+CREATE TABLE tbl_a (
+id INT
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+SELECT * FROM tbl_a;
+id
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
