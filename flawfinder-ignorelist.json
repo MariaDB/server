@@ -1,0 +1,730 @@
+{
+  "$schema": "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Flawfinder",
+          "version": "2.0.19",
+          "informationUri": "https://dwheeler.com/flawfinder/",
+          "supportedTaxonomies": [
+            {
+              "name": "CWE",
+              "guid": "FFC64C90-42B6-44CE-8BEB-F6B7DAE649E5"
+            }
+          ]
+        }
+      },
+      "columnKind": "utf16CodeUnits",
+      "results": [
+        {
+          "ruleId": "FF1035",
+          "level": "error",
+          "message": {
+            "text": "race/readlink:This accepts filename arguments; if an attacker can move those files or change the link content, a race condition results.  Also, it does not terminate with ASCII NUL. (CWE-362, CWE-20)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./extra/mariabackup/xtrabackup.cc",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 7034,
+                  "startColumn": 17,
+                  "endColumn": 57,
+                  "snippet": {
+                    "text": "  ssize_t ret = readlink(\"/proc/self/exe\", buf, size-1);"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "11523490c7f8cba115bce125bbce94de5cd5e7f66d4dd07a391aac70fbbdd353"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1033",
+          "level": "error",
+          "message": {
+            "text": "race/chmod:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./client/mysqltest.cc",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 3869,
+                  "startColumn": 13,
+                  "endColumn": 38,
+                  "snippet": {
+                    "text": "  err_code= chmod(ds_file.str, mode);"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "12a7fa6bbd4c81be975838bae2b7b26fe841acaf9804e6d0299188683e230908"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1031",
+          "level": "error",
+          "message": {
+            "text": "race/chown:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./storage/columnstore/columnstore/writeengine/shared/we_typeext.h",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 101,
+                  "startColumn": 12,
+                  "endColumn": 63,
+                  "snippet": {
+                    "text": "    if (fs.chown(fileName.c_str(), uid, gid, funcErrno) == -1)"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "16bbd2ed7b8f86182e8f66980ee23b9e0dfe63a9330b7c16a2c2b81a3e8a9377"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1031",
+          "level": "error",
+          "message": {
+            "text": "race/chown:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./storage/columnstore/columnstore/utils/idbdatafile/PosixFileSystem.cpp",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 304,
+                  "startColumn": 16,
+                  "endColumn": 49,
+                  "snippet": {
+                    "text": "  if ((ret = ::chown(objectName, p_uid, p_gid)))"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "1882617c363794bedb3e70a4a3be704a3ee928778709b75f971e91ffc7a224b6"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1031",
+          "level": "error",
+          "message": {
+            "text": "race/chown:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./libmariadb/external/zlib/examples/gun.c",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 530,
+                  "startColumn": 11,
+                  "endColumn": 45,
+                  "snippet": {
+                    "text": "    (void)chown(to, was.st_uid, was.st_gid);"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "29cdc74512c56c56c73604ac5fd1c08bf2b38845b3aa91f4129ef9424bdb7f7f"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1014",
+          "level": "error",
+          "message": {
+            "text": "buffer/gets:Does not check for buffer overflows (CWE-120, CWE-20)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./extra/readline/tilde.c",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 441,
+                  "startColumn": 12,
+                  "endColumn": 24,
+                  "snippet": {
+                    "text": "      if (!gets (line))"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "34a940ccc6e0248a2cf725e8a0c3f808d1f36d47fc814bd9daadb17f5563d357"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1033",
+          "level": "error",
+          "message": {
+            "text": "race/chmod:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./sql/sql_class.cc",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 3253,
+                  "startColumn": 10,
+                  "endColumn": 28,
+                  "snippet": {
+                    "text": "  (void) chmod(path, 0644);"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "3f97fd0452062ab69db87a04222a17c37c216c4e28e2ae3622730da8dd070d2e"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1033",
+          "level": "error",
+          "message": {
+            "text": "race/chmod:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./mysys/my_chmod.c",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 40,
+                  "startColumn": 7,
+                  "endColumn": 25,
+                  "snippet": {
+                    "text": "  if (chmod(name, mode))"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "46805eec1d288b072d4edb3214822220d394307195be79a33ec3bce455d14750"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1035",
+          "level": "error",
+          "message": {
+            "text": "race/readlink:This accepts filename arguments; if an attacker can move those files or change the link content, a race condition results.  Also, it does not terminate with ASCII NUL. (CWE-362, CWE-20)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./sql/signal_handler.cc",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 61,
+                  "startColumn": 13,
+                  "endColumn": 68,
+                  "snippet": {
+                    "text": "  if ((len= readlink(\"/proc/self/cwd\", buff, sizeof(buff)-1)) >= 0)"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "4c4d621e451a67f86c3e999e9dd3ceb2639bf4f63b0a946b7836b01d752ca557"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1035",
+          "level": "error",
+          "message": {
+            "text": "race/readlink:This accepts filename arguments; if an attacker can move those files or change the link content, a race condition results.  Also, it does not terminate with ASCII NUL. (CWE-362, CWE-20)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./storage/columnstore/columnstore/primitives/blockcache/fsutils.cpp",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 58,
+                  "startColumn": 25,
+                  "endColumn": 77,
+                  "snippet": {
+                    "text": "  ssize_t realnamelen = readlink(path.string().c_str(), realname, PATH_MAX);"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "52b685022ce9db6c7c332217d74745fc48b65e3e00f2cfdbde8f858d28b8aa9f"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1031",
+          "level": "error",
+          "message": {
+            "text": "race/chown:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./storage/columnstore/columnstore/utils/idbdatafile/IDBFileSystem.h",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 140,
+                  "startColumn": 15,
+                  "endColumn": 104,
+                  "snippet": {
+                    "text": "  virtual int chown(const char* objectName, const uid_t p_uid, const gid_t p_pid, int& funcErrno) const"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "5eb02dbd4395b5c1a30be2665e0db914b8a6fcc6997ae18f8cc8651ec2e788cb"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1033",
+          "level": "error",
+          "message": {
+            "text": "race/chmod:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./libmariadb/external/zlib/examples/gun.c",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 527,
+                  "startColumn": 11,
+                  "endColumn": 42,
+                  "snippet": {
+                    "text": "    (void)chmod(to, was.st_mode & 07777);"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "6044966208b061aada8a837a2be969922745fc7d445f7429417ab77f19c40fa5"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1033",
+          "level": "error",
+          "message": {
+            "text": "race/chmod:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./storage/columnstore/columnstore/tools/passwd/secrets.cpp",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 668,
+                  "startColumn": 9,
+                  "endColumn": 40,
+                  "snippet": {
+                    "text": "    if (chmod(filepathc, S_IRUSR) == 0)"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "6f7b5195eb8526770ad61729bd310387d05d0407d1be5dc902f7116e365f4232"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1031",
+          "level": "error",
+          "message": {
+            "text": "race/chown:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./storage/columnstore/columnstore/tools/passwd/secrets.cpp",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 675,
+                  "startColumn": 13,
+                  "endColumn": 71,
+                  "snippet": {
+                    "text": "        if (chown(filepathc, userinfo->pw_uid, userinfo->pw_gid) == 0)"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "745b105be1b6a7c1e78f52a190edb9aaa848acd9c284c18f40e8a613520ae3df"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1033",
+          "level": "error",
+          "message": {
+            "text": "race/chmod:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./storage/columnstore/columnstore/versioning/BRM/oidserver.cpp",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 315,
+                  "startColumn": 7,
+                  "endColumn": 86,
+                  "snippet": {
+                    "text": "      chmod(fFilename.c_str(), 0664);  // XXXPAT: override umask at least for testing"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "7ccf3c7811cbce45e635a9fd32003a9477eeee78679105dd973ad921fb72672a"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1035",
+          "level": "error",
+          "message": {
+            "text": "race/readlink:This accepts filename arguments; if an attacker can move those files or change the link content, a race condition results.  Also, it does not terminate with ASCII NUL. (CWE-362, CWE-20)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./mysys/my_symlink.c",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 55,
+                  "startColumn": 15,
+                  "endColumn": 56,
+                  "snippet": {
+                    "text": "  if ((length=readlink(filename, to, FN_REFLEN-1)) < 0)"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "7da5207ac0f5baba73c026472a2d3805eed92931852575db64f513702977dd70"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1031",
+          "level": "error",
+          "message": {
+            "text": "race/chown:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./storage/columnstore/columnstore/utils/idbdatafile/PosixFileSystem.h",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 40,
+                  "startColumn": 7,
+                  "endColumn": 106,
+                  "snippet": {
+                    "text": "  int chown(const char* objectName, const uid_t p_uid, const gid_t p_pid, int& funcErrno) const override;"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "837ef3ca85cb450e25a7db58e83d60ce5268b46e9130f6e47d781aff97b9a832"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1031",
+          "level": "error",
+          "message": {
+            "text": "race/chown:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./storage/columnstore/columnstore/utils/idbdatafile/PosixFileSystem.cpp",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 300,
+                  "startColumn": 22,
+                  "endColumn": 111,
+                  "snippet": {
+                    "text": "int PosixFileSystem::chown(const char* objectName, const uid_t p_uid, const gid_t p_gid, int& funcErrno) const"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "92873ab0b24cc9dc2ab7ec959968b3d3568e0d9e92b1659c4f823c322397f33a"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1031",
+          "level": "error",
+          "message": {
+            "text": "race/chown:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./mysys/my_redel.c",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 116,
+                  "startColumn": 7,
+                  "endColumn": 49,
+                  "snippet": {
+                    "text": "  if (chown(to, statbuf.st_uid, statbuf.st_gid))"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "97d2cfe4cb9428e812b796eb39c27f28dc8b198ab9655c2aff8c442de39bdcfe"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1035",
+          "level": "error",
+          "message": {
+            "text": "race/readlink:This accepts filename arguments; if an attacker can move those files or change the link content, a race condition results.  Also, it does not terminate with ASCII NUL. (CWE-362, CWE-20)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./storage/rocksdb/rocksdb/port/stack_trace.cc",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 41,
+                  "startColumn": 15,
+                  "endColumn": 54,
+                  "snippet": {
+                    "text": "  auto read = readlink(link, name, sizeof(name) - 1);"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "acb399f2a4a15ef8da36c47631bc4ee4bcc1bb0577dfbda141d2eb5d7723af40"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1033",
+          "level": "error",
+          "message": {
+            "text": "race/chmod:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./mysys/my_copy.c",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 111,
+                  "startColumn": 9,
+                  "endColumn": 46,
+                  "snippet": {
+                    "text": "    if (chmod(to, stat_buff.st_mode & 07777))"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "bddb795a7efbd73a4387bbd33fd4f9e505b4f759d784e5d51f60cc43011ee610"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1031",
+          "level": "error",
+          "message": {
+            "text": "race/chown:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./mysys/my_copy.c",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 121,
+                  "startColumn": 9,
+                  "endColumn": 55,
+                  "snippet": {
+                    "text": "    if (chown(to, stat_buff.st_uid, stat_buff.st_gid))"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "c63a81105d753de4762cbcab48d9700f7069da3cd9d57bf4329a6d20fad288aa"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1033",
+          "level": "error",
+          "message": {
+            "text": "race/chmod:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./sql/mysqld.cc",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 2634,
+                  "startColumn": 12,
+                  "endColumn": 71,
+                  "snippet": {
+                    "text": "    (void) chmod(mysqld_unix_port,S_IFSOCK);\t/* Fix solaris 2.6 bug */"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "d0c4f1302290e2367e246ef7c8d3ea69589cbc4bc148e0efdd4c283fa03cbe01"
+          },
+          "rank": 1.0
+        },
+        {
+          "ruleId": "FF1033",
+          "level": "error",
+          "message": {
+            "text": "race/chmod:This accepts filename arguments; if an attacker can move those files, a race condition results. (CWE-362)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "./mysys/my_redel.c",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 101,
+                  "startColumn": 7,
+                  "endColumn": 42,
+                  "snippet": {
+                    "text": "  if (chmod(to, statbuf.st_mode & 07777))"
+                  }
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "contextHash/v1": "e11b8df9cbb9e459e4d67a0af5e627b6b1285c78fe23f5a1c823285da96495a8"
+          },
+          "rank": 1.0
+        }
+      ],
+      "externalPropertyFileReferences": {
+        "taxonomies": [
+          {
+            "location": {
+              "uri": "https://raw.githubusercontent.com/sarif-standard/taxonomies/main/CWE_v4.4.sarif"
+            },
+            "guid": "FFC64C90-42B6-44CE-8BEB-F6B7DAE649E5"
+          }
+        ]
+      }
+    }
+  ]
+}
