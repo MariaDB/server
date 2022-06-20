@@ -2918,7 +2918,7 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 		const log_phys_t* l = static_cast<const log_phys_t*>(recv);
 		ut_ad(l->lsn);
 		ut_ad(end_lsn <= l->lsn);
-		ut_ad(l->lsn <= log_sys.get_lsn());
+		ut_ad(l->lsn <= recv_sys.lsn);
 
 		ut_ad(l->start_lsn);
 		ut_ad(recv_start_lsn <= l->start_lsn);
@@ -3561,13 +3561,11 @@ next_free_block:
 
   if (last_batch && srv_operation != SRV_OPERATION_RESTORE &&
       srv_operation != SRV_OPERATION_RESTORE_EXPORT)
+    /* Instead of flushing, last_batch sorts the buf_pool.flush_list
+    in ascending order of buf_page_t::oldest_modification. */
     log_sort_flush_list();
   else
-  {
-    /* Instead of flushing, last_batch could sort the buf_pool.flush_list
-    in ascending order of buf_page_t::oldest_modification. */
     buf_flush_sync_batch(lsn);
-  }
 
   if (!last_batch)
   {
@@ -3738,7 +3736,6 @@ static bool recv_scan_log(bool last_phase)
         else
         {
           ut_ad(store == STORE_IF_EXISTS);
-          log_sys.set_recovered_lsn(recv_sys.lsn);
           recv_sys.apply(false);
         }
       }
