@@ -1,5 +1,6 @@
 /* Copyright (c) 2008, 2021, Oracle and/or its affiliates. All rights
    reserved.
+  Copyright (c) 2022, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -30,6 +31,8 @@
 #include "pfs_global.h"
 #include "pfs_builtin_memory.h"
 #include "log.h"
+#include "aligned.h"
+#include "assume_aligned.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -46,9 +49,6 @@
 #ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
-#ifdef HAVE_MALLOC_H
-#include <malloc.h>
-#endif
 
 bool pfs_initialized= false;
 
@@ -62,41 +62,16 @@ void *pfs_malloc(PFS_builtin_memory_class *klass, size_t size, myf flags)
   assert(klass != NULL);
   assert(size > 0);
 
-  void *ptr= NULL;
+  const size_t aligned_size= MY_ALIGN(size, CPU_LEVEL1_DCACHE_LINESIZE);
 
-#ifdef PFS_ALIGNEMENT
-#ifdef HAVE_POSIX_MEMALIGN
-  /* Linux */
-  if (unlikely(posix_memalign(& ptr, PFS_ALIGNEMENT, size)))
-    return NULL;
-#else
-#ifdef HAVE_MEMALIGN
-  /* Solaris */
-  ptr= memalign(PFS_ALIGNEMENT, size);
+  void *ptr= aligned_malloc(aligned_size, CPU_LEVEL1_DCACHE_LINESIZE);
   if (unlikely(ptr == NULL))
     return NULL;
-#else
-#ifdef HAVE_ALIGNED_MALLOC
-  /* Windows */
-  ptr= _aligned_malloc(size, PFS_ALIGNEMENT);
-  if (unlikely(ptr == NULL))
-    return NULL;
-#else
-#error "Missing implementation for PFS_ALIGNENT"
-#endif /* HAVE_ALIGNED_MALLOC */
-#endif /* HAVE_MEMALIGN */
-#endif /* HAVE_POSIX_MEMALIGN */
-#else /* PFS_ALIGNMENT */
-  /* Everything else */
-  ptr= malloc(size);
-  if (unlikely(ptr == NULL))
-    return NULL;
-#endif
 
   klass->count_alloc(size);
 
   if (flags & MY_ZEROFILL)
-    memset(ptr, 0, size);
+    memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(ptr, 0, aligned_size);
   return ptr;
 }
 
@@ -105,24 +80,7 @@ void pfs_free(PFS_builtin_memory_class *klass, size_t size, void *ptr)
   if (ptr == NULL)
     return;
 
-#ifdef HAVE_POSIX_MEMALIGN
-  /* Allocated with posix_memalign() */
-  free(ptr);
-#else
-#ifdef HAVE_MEMALIGN
-  /* Allocated with memalign() */
-  free(ptr);
-#else
-#ifdef HAVE_ALIGNED_MALLOC
-  /* Allocated with _aligned_malloc() */
-  _aligned_free(ptr);
-#else
-  /* Allocated with malloc() */
-  free(ptr);
-#endif /* HAVE_ALIGNED_MALLOC */
-#endif /* HAVE_MEMALIGN */
-#endif /* HAVE_POSIX_MEMALIGN */
-
+  aligned_free(ptr);
   klass->count_free(size);
 }
 

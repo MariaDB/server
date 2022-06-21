@@ -1,4 +1,5 @@
 /* Copyright (c) 2010, 2021, Oracle and/or its affiliates.
+  Copyright (c) 2022, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -49,7 +50,7 @@ extern bool flag_events_stages_history;
 extern bool flag_events_stages_history_long;
 
 extern bool events_stages_history_long_full;
-extern PFS_ALIGNED PFS_cacheline_uint32 events_stages_history_long_index;
+PFS_ALIGNED extern PFS_cacheline_uint32 events_stages_history_long_index;
 extern PFS_events_stages *events_stages_history_long_array;
 extern ulong events_stages_history_long_size;
 

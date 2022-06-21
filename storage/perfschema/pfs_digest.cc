@@ -1,4 +1,5 @@
 /* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
+  Copyright (c) 2022, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -56,7 +57,7 @@ bool flag_statements_digest= true;
   Current index in Stat array where new record is to be inserted.
   index 0 is reserved for "all else" case when entire array is full.
 */
-static PFS_ALIGNED PFS_cacheline_uint32 digest_monotonic_index;
+PFS_ALIGNED static PFS_cacheline_uint32 digest_monotonic_index;
 
 bool digest_full= false;
 
