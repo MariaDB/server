@@ -3,6 +3,8 @@
 --source include/not_windows.inc
 --source include/no_protocol.inc
 
+let $is_embedded=`select version() like '%embedded%'`;
+
 CREATE TABLE time_zone LIKE mysql.time_zone;
 CREATE TABLE time_zone_name LIKE mysql.time_zone_name;
 CREATE TABLE time_zone_transition LIKE mysql.time_zone_transition;
@@ -61,6 +63,9 @@ SELECT COUNT(*) FROM time_zone_transition;
 SELECT COUNT(*) FROM time_zone_transition_type;
 SELECT COUNT(*) FROM time_zone_leap_second;
 
+if ($is_embedded) {
+--replace_column 1 0 2 0
+}
 SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@SQL_LOG_BIN;
 SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
   FROM information_schema.global_status g
@@ -95,6 +100,9 @@ SELECT COUNT(*) FROM time_zone_transition;
 SELECT COUNT(*) FROM time_zone_transition_type;
 SELECT COUNT(*) FROM time_zone_leap_second;
 
+if ($is_embedded) {
+--replace_column 1 0 2 0
+}
 SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@SQL_LOG_BIN;
 SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
   FROM information_schema.global_status g
@@ -127,6 +135,9 @@ SELECT COUNT(*) FROM time_zone_transition;
 SELECT COUNT(*) FROM time_zone_transition_type;
 SELECT COUNT(*) FROM time_zone_leap_second;
 
+if ($is_embedded) {
+--replace_column 1 0 2 0
+}
 SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@SQL_LOG_BIN;
 SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
   FROM information_schema.global_status g
@@ -159,6 +170,9 @@ SELECT COUNT(*) FROM time_zone_transition;
 SELECT COUNT(*) FROM time_zone_transition_type;
 SELECT COUNT(*) FROM time_zone_leap_second;
 
+if ($is_embedded) {
+--replace_column 1 0 2 0
+}
 SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@SQL_LOG_BIN;
 SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
   FROM information_schema.global_status g
@@ -191,6 +205,9 @@ SELECT COUNT(*) FROM time_zone_transition;
 SELECT COUNT(*) FROM time_zone_transition_type;
 SELECT COUNT(*) FROM time_zone_leap_second;
 
+if ($is_embedded) {
+--replace_column 1 0 2 0
+}
 SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@SQL_LOG_BIN;
 SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
   FROM information_schema.global_status g

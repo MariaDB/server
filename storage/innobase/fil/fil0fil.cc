@@ -125,16 +125,6 @@ bool fil_space_t::try_to_close(bool print_info)
   return false;
 }
 
-/** Rename a single-table tablespace.
-The tablespace must exist in the memory cache.
-@param[in]	id		tablespace identifier
-@param[in]	old_path	old file name
-@param[in]	new_path_in	new file name,
-or NULL if it is located in the normal data directory
-@return true if success */
-static bool fil_rename_tablespace(uint32_t id, const char *old_path,
-                                  const char *new_path_in);
-
 /*
 		IMPLEMENTATION OF THE TABLESPACE MEMORY CACHE
 		=============================================
@@ -1475,40 +1465,6 @@ inline void mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
     m_log.push(reinterpret_cast<const byte*>(path), uint32_t(len));
 }
 
-/** Write redo log for renaming a file.
-@param[in]	space_id	tablespace id
-@param[in]	old_name	tablespace file name
-@param[in]	new_name	tablespace file name after renaming
-@param[in,out]	mtr		mini-transaction */
-static void fil_name_write_rename_low(uint32_t space_id, const char *old_name,
-                                      const char *new_name, mtr_t *mtr)
-{
-  ut_ad(!is_predefined_tablespace(space_id));
-  mtr->log_file_op(FILE_RENAME, space_id, old_name, new_name);
-}
-
-static void fil_name_commit_durable(mtr_t *mtr)
-{
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
-  auto lsn= mtr->commit_files();
-  log_sys.latch.wr_unlock();
-  mtr->flag_wr_unlock();
-  log_write_up_to(lsn, true);
-}
-
-/** Write redo log for renaming a file.
-@param[in]	space_id	tablespace id
-@param[in]	old_name	tablespace file name
-@param[in]	new_name	tablespace file name after renaming */
-static void fil_name_write_rename(uint32_t space_id,
-				  const char *old_name, const char* new_name)
-{
-  mtr_t mtr;
-  mtr.start();
-  fil_name_write_rename_low(space_id, old_name, new_name, &mtr);
-  fil_name_commit_durable(&mtr);
-}
-
 /** Write FILE_MODIFY for a file.
 @param[in]	space_id	tablespace id
 @param[in]	name		tablespace file name
@@ -1636,40 +1592,8 @@ pfs_os_file_t fil_delete_tablespace(uint32_t id)
     mtr_t mtr;
     mtr.start();
     mtr.log_file_op(FILE_DELETE, id, space->chain.start->name);
-    fil_name_commit_durable(&mtr);
-
-    /* Remove any additional files. */
-    if (char *cfg_name= fil_make_filepath(space->chain.start->name,
-					  fil_space_t::name_type{}, CFG,
-					  false))
-    {
-      os_file_delete_if_exists(innodb_data_file_key, cfg_name, nullptr);
-      ut_free(cfg_name);
-    }
-    if (FSP_FLAGS_HAS_DATA_DIR(space->flags))
-      RemoteDatafile::delete_link_file(space->name());
-
-    /* Remove the directory entry. The file will actually be deleted
-    when our caller closes the handle. */
-    os_file_delete(innodb_data_file_key, space->chain.start->name);
-
-    mysql_mutex_lock(&fil_system.mutex);
-    /* Sanity checks after reacquiring fil_system.mutex */
-    ut_ad(space == fil_space_get_by_id(id));
-    ut_ad(!space->referenced());
-    ut_ad(space->is_stopping());
-    ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
-    /* Detach the file handle. */
-    handle= fil_system.detach(space, true);
-    mysql_mutex_unlock(&fil_system.mutex);
-
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
-    if (space->max_lsn)
-    {
-      ut_d(space->max_lsn = 0);
-      fil_system.named_spaces.remove(*space);
-    }
-    log_sys.latch.wr_unlock();
+    handle= space->chain.start->handle;
+    mtr.commit_file(*space, nullptr);
 
     fil_space_free_low(space);
   }
@@ -1794,120 +1718,55 @@ char *fil_make_filepath(const char* path, const table_name_t name,
 dberr_t fil_space_t::rename(const char *path, bool log, bool replace)
 {
   ut_ad(UT_LIST_GET_LEN(chain) == 1);
-  ut_ad(!is_system_tablespace(id));
+  ut_ad(!is_predefined_tablespace(id));
 
   const char *old_path= chain.start->name;
+
+  ut_ad(strchr(old_path, '/'));
+  ut_ad(strchr(path, '/'));
 
   if (!strcmp(path, old_path))
     return DB_SUCCESS;
 
-  if (log)
+  if (!log)
   {
-    bool exists= false;
-    os_file_type_t ftype;
-
-    if (os_file_status(old_path, &exists, &ftype) && !exists)
-    {
-      ib::error() << "Cannot rename '" << old_path << "' to '" << path
-                  << "' because the source file does not exist.";
-      return DB_TABLESPACE_NOT_FOUND;
-    }
-
-    exists= false;
-    if (replace);
-    else if (!os_file_status(path, &exists, &ftype) || exists)
-    {
-      ib::error() << "Cannot rename '" << old_path << "' to '" << path
-                  << "' because the target file exists.";
-      return DB_TABLESPACE_EXISTS;
-    }
-
-    fil_name_write_rename(id, old_path, path);
+    if (!os_file_rename(innodb_data_file_key, old_path, path))
+      return DB_ERROR;
+    mysql_mutex_lock(&fil_system.mutex);
+    ut_free(chain.start->name);
+    chain.start->name= mem_strdup(path);
+    mysql_mutex_unlock(&fil_system.mutex);
+    return DB_SUCCESS;
   }
 
-  return fil_rename_tablespace(id, old_path, path) ? DB_SUCCESS : DB_ERROR;
-}
+  bool exists= false;
+  os_file_type_t ftype;
 
-/** Rename a single-table tablespace.
-The tablespace must exist in the memory cache.
-@param[in]	id		tablespace identifier
-@param[in]	old_path	old file name
-@param[in]	new_path_in	new file name,
-or NULL if it is located in the normal data directory
-@return true if success */
-static bool fil_rename_tablespace(uint32_t id, const char *old_path,
-                                  const char *new_path_in)
-{
-	fil_space_t*	space;
-	fil_node_t*	node;
-	ut_a(id != 0);
+  /* Check upfront if the rename operation might succeed, because we
+  must durably write redo log before actually attempting to execute
+  the rename in the file system. */
+  if (os_file_status(old_path, &exists, &ftype) && !exists)
+  {
+    sql_print_error("InnoDB: Cannot rename '%s' to '%s'"
+                    " because the source file does not exist.",
+                    old_path, path);
+    return DB_TABLESPACE_NOT_FOUND;
+  }
 
-	mysql_mutex_lock(&fil_system.mutex);
+  exists= false;
+  if (replace);
+  else if (!os_file_status(path, &exists, &ftype) || exists)
+  {
+    sql_print_error("InnoDB: Cannot rename '%s' to '%s'"
+                    " because the target file exists.",
+                    old_path, path);
+    return DB_TABLESPACE_EXISTS;
+  }
 
-	space = fil_space_get_by_id(id);
-
-	if (space == NULL) {
-		ib::error() << "Cannot find space id " << id
-			<< " in the tablespace memory cache, though the file '"
-			<< old_path
-			<< "' in a rename operation should have that id.";
-		mysql_mutex_unlock(&fil_system.mutex);
-		return(false);
-	}
-
-	/* The following code must change when InnoDB supports
-	multiple datafiles per tablespace. */
-	ut_a(UT_LIST_GET_LEN(space->chain) == 1);
-	node = UT_LIST_GET_FIRST(space->chain);
-	space->reacquire();
-
-	mysql_mutex_unlock(&fil_system.mutex);
-
-	char*	new_file_name = mem_strdup(new_path_in);
-	char*	old_file_name = node->name;
-
-	ut_ad(strchr(old_file_name, '/'));
-	ut_ad(strchr(new_file_name, '/'));
-
-	if (!recv_recovery_is_on()) {
-		log_sys.latch.wr_lock(SRW_LOCK_CALL);
-	}
-
-	/* log_sys.latch is above fil_system.mutex in the latching order */
-#ifndef SUX_LOCK_GENERIC
-	ut_ad(log_sys.latch.is_write_locked() ||
-	      srv_operation == SRV_OPERATION_RESTORE_DELTA);
-#endif
-	mysql_mutex_lock(&fil_system.mutex);
-	space->release();
-	ut_ad(node->name == old_file_name);
-	bool success;
-	DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
-			goto skip_second_rename; );
-	success = os_file_rename(innodb_data_file_key,
-				 old_file_name,
-				 new_file_name);
-	DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
-skip_second_rename:
-                       success = false; );
-
-	ut_ad(node->name == old_file_name);
-
-	if (success) {
-		node->name = new_file_name;
-	} else {
-		old_file_name = new_file_name;
-	}
-
-	if (!recv_recovery_is_on()) {
-		log_sys.latch.wr_unlock();
-	}
-
-	mysql_mutex_unlock(&fil_system.mutex);
-
-	ut_free(old_file_name);
-
-	return(success);
+  mtr_t mtr;
+  mtr.start();
+  mtr.log_file_op(FILE_RENAME, id, old_path, path);
+  return mtr.commit_file(*this, path) ? DB_SUCCESS : DB_ERROR;
 }
 
 /** Create a tablespace file.
@@ -1953,7 +1812,11 @@ fil_ibd_create(
 
 	mtr.start();
 	mtr.log_file_op(FILE_CREATE, space_id, path);
-	fil_name_commit_durable(&mtr);
+	log_sys.latch.wr_lock(SRW_LOCK_CALL);
+	auto lsn= mtr.commit_files();
+	log_sys.latch.wr_unlock();
+	mtr.flag_wr_unlock();
+	log_write_up_to(lsn, true);
 
 	ulint type;
 	static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096,

@@ -48,6 +48,7 @@ support cross-platform development and expose comonly used SQL names. */
 
 #include <my_global.h>
 #include "my_counter.h"
+#include "aligned.h"
 #include <m_string.h>
 #include <mysqld_error.h>
 
