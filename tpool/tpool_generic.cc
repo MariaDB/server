@@ -33,6 +33,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #include <my_dbug.h>
 #include <thr_timer.h>
 #include <stdlib.h>
+#include "aligned.h"
 
 namespace tpool
 {
@@ -180,23 +181,13 @@ struct alignas(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
   {}
 
   /*Define custom new/delete because of overaligned structure. */
-  void* operator new(size_t size)
+  static void *operator new(size_t size)
   {
-#ifdef _WIN32
-    return _aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
-#else
-    void* ptr;
-    int ret = posix_memalign(&ptr, CPU_LEVEL1_DCACHE_LINESIZE, size);
-    return ret ? 0 : ptr;
-#endif
+    return aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
   }
-  void operator delete(void* p)
+  static void operator delete(void* p)
   {
-#ifdef _WIN32
-    _aligned_free(p);
-#else
-    free(p);
-#endif
+    aligned_free(p);
   }
 };
 

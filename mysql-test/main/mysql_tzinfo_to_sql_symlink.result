@@ -7,9 +7,9 @@ CREATE TABLE time_zone_leap_second LIKE mysql.time_zone_leap_second;
 # MDEV-5226 mysql_tzinfo_to_sql errors with tzdata 2013f and above
 #
 # Verbose run
-set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+set @wsrep_is_on=(select sum(SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_on');
 SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
-set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_mode');
 execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone'", 'do 0');
 execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone ENGINE=InnoDB', 'do 0');
 execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_name_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_name'", 'do 0');
@@ -56,9 +56,9 @@ execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_t
 # MDEV-28263: mariadb-tzinfo-to-sql improve wsrep and binlog cases
 #
 # Run on zoneinfo directory
-set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+set @wsrep_is_on=(select sum(SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_on');
 SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
-set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_mode');
 execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone'", 'do 0');
 execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone ENGINE=InnoDB', 'do 0');
 execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_name_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_name'", 'do 0');
@@ -116,9 +116,9 @@ COUNT(*)
 #
 # Run on zoneinfo directory --skip-write-binlog
 #
-set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+set @wsrep_is_on=(select sum(SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_on');
 SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
-set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_mode');
 execute immediate if(@wsrep_is_on, 'SET @save_wsrep_on=@@WSREP_ON, WSREP_ON=OFF', 'do 0');
 SET @save_sql_log_bin=@@SQL_LOG_BIN;
 SET SESSION SQL_LOG_BIN=0;
@@ -188,9 +188,9 @@ TRUNCATE TABLE time_zone_leap_second;
 #
 # Testing with explicit timezonefile
 #
-set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+set @wsrep_is_on=(select sum(SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_on');
 SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
-set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_mode');
 execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone'", 'do 0');
 execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone ENGINE=InnoDB', 'do 0');
 execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_name_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_name'", 'do 0');
@@ -252,9 +252,9 @@ TRUNCATE TABLE time_zone_leap_second;
 #
 # Testing with explicit timezonefile --skip-write-binlog
 #
-set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+set @wsrep_is_on=(select sum(SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_on');
 SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
-set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_mode');
 execute immediate if(@wsrep_is_on, 'SET @save_wsrep_on=@@WSREP_ON, WSREP_ON=OFF', 'do 0');
 SET @save_sql_log_bin=@@SQL_LOG_BIN;
 SET SESSION SQL_LOG_BIN=0;
@@ -310,9 +310,9 @@ TRUNCATE TABLE time_zone_leap_second;
 #
 # Testing --leap
 #
-set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+set @wsrep_is_on=(select sum(SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_on');
 SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
-set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_mode');
 execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone'", 'do 0');
 execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone ENGINE=InnoDB', 'do 0');
 execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_name_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_name'", 'do 0');
@@ -373,9 +373,9 @@ TRUNCATE TABLE time_zone_leap_second;
 #
 # Testing --skip-write-binlog --leap
 #
-set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+set @wsrep_is_on=(select sum(SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_on');
 SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
-set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_mode');
 execute immediate if(@wsrep_is_on, 'SET @save_wsrep_on=@@WSREP_ON, WSREP_ON=OFF', 'do 0');
 SET @save_sql_log_bin=@@SQL_LOG_BIN;
 SET SESSION SQL_LOG_BIN=0;
@@ -425,9 +425,9 @@ COM_TRUNCATE	1
 #
 # Testing --skip-write-binlog
 #
-set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+set @wsrep_is_on=(select sum(SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_on');
 SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
-set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_mode');
 execute immediate if(@wsrep_is_on, 'SET @save_wsrep_on=@@WSREP_ON, WSREP_ON=OFF', 'do 0');
 SET @save_sql_log_bin=@@SQL_LOG_BIN;
 SET SESSION SQL_LOG_BIN=0;
@@ -447,9 +447,9 @@ UNLOCK TABLES;
 COMMIT;
 SET SESSION SQL_LOG_BIN=@save_sql_log_bin;
 execute immediate if(@wsrep_is_on, 'SET SESSION WSREP_ON=@save_wsrep_on', 'do 0');
-set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+set @wsrep_is_on=(select sum(SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_on');
 SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
-set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_mode');
 execute immediate if(@wsrep_is_on, 'SET @save_wsrep_on=@@WSREP_ON, WSREP_ON=OFF', 'do 0');
 SET @save_sql_log_bin=@@SQL_LOG_BIN;
 SET SESSION SQL_LOG_BIN=0;
@@ -471,9 +471,9 @@ execute immediate if(@wsrep_is_on, 'SET SESSION WSREP_ON=@save_wsrep_on', 'do 0'
 #
 # MDEV-6236 - [PATCH] mysql_tzinfo_to_sql may produce invalid SQL
 #
-set @wsrep_is_on=(select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES);
+set @wsrep_is_on=(select sum(SESSION_VALUE='ON') from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_on');
 SELECT concat('%', GROUP_CONCAT(OPTION), '%') INTO @replicate_opt  FROM   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION    FROM information_schema.TABLES    WHERE TABLE_SCHEMA=DATABASE()      AND TABLE_NAME IN ('time_zone',                         'time_zone_name',                         'time_zone_transition',                         'time_zone_transition_type',                         'time_zone_leap_second')      AND ENGINE in ('MyISAM',                     'Aria')) AS o ORDER BY OPTION DESC;
-set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES);
+set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (select sum(GLOBAL_VALUE NOT LIKE @replicate_opt) from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_mode');
 execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone'", 'do 0');
 execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone ENGINE=InnoDB', 'do 0');
 execute immediate if(@wsrep_cannot_replicate_tz, "select ENGINE into @time_zone_name_engine from information_schema.TABLES where TABLE_SCHEMA=DATABASE() and TABLE_NAME='time_zone_name'", 'do 0');

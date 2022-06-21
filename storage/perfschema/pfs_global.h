@@ -1,4 +1,5 @@
 /* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
+  Copyright (c) 2022, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -35,23 +36,7 @@ extern bool pfs_initialized;
 /** Total memory allocated by the performance schema, in bytes. */
 extern size_t pfs_allocated_memory;
 
-#if defined(HAVE_POSIX_MEMALIGN) || defined(HAVE_MEMALIGN) || defined(HAVE_ALIGNED_MALLOC)
-#define PFS_ALIGNEMENT CPU_LEVEL1_DCACHE_LINESIZE
-#define PFS_ALIGNED MY_ALIGNED(PFS_ALIGNEMENT)
-#else
-/*
-  Known platforms that do not provide aligned memory:
-  - MacOSX Darwin (osx10.5)
-  For these platforms, compile without the alignment optimization.
-*/
-#define PFS_ALIGNED
-#endif /* HAVE_POSIX_MEMALIGN || HAVE_MEMALIGN || HAVE_ALIGNED_MALLOC */
-
-#ifdef CPU_LEVEL1_DCACHE_LINESIZE
-#define PFS_CACHE_LINE_SIZE CPU_LEVEL1_DCACHE_LINESIZE
-#else
-#define PFS_CACHE_LINE_SIZE 128
-#endif
+#define PFS_ALIGNED alignas(CPU_LEVEL1_DCACHE_LINESIZE)
 
 /**
   A uint32 variable, guaranteed to be alone in a CPU cache line.
@@ -60,7 +45,7 @@ extern size_t pfs_allocated_memory;
 struct PFS_cacheline_uint32
 {
   uint32 m_u32;
-  char m_full_cache_line[PFS_CACHE_LINE_SIZE - sizeof(uint32)];
+  char m_full_cache_line[CPU_LEVEL1_DCACHE_LINESIZE - sizeof(uint32)];
 
   PFS_cacheline_uint32()
   : m_u32(0)
@@ -74,7 +59,7 @@ struct PFS_cacheline_uint32
 struct PFS_cacheline_uint64
 {
   uint64 m_u64;
-  char m_full_cache_line[PFS_CACHE_LINE_SIZE - sizeof(uint64)];
+  char m_full_cache_line[CPU_LEVEL1_DCACHE_LINESIZE - sizeof(uint64)];
 
   PFS_cacheline_uint64()
   : m_u64(0)

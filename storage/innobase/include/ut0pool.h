@@ -64,15 +64,8 @@ struct Pool {
 
 		ut_a(m_start == 0);
 
-#ifdef _MSC_VER
 		m_start = static_cast<Element*>(
-			_aligned_malloc(m_size, CPU_LEVEL1_DCACHE_LINESIZE));
-#else
-		void* start;
-		ut_a(!posix_memalign(&start, CPU_LEVEL1_DCACHE_LINESIZE,
-				     m_size));
-		m_start = static_cast<Element*>(start);
-#endif
+			aligned_malloc(m_size, CPU_LEVEL1_DCACHE_LINESIZE));
 		memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(
 			m_start, 0, m_size);
 

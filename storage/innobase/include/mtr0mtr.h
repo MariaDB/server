@@ -102,6 +102,12 @@ struct mtr_t {
   @param space   tablespace that is being shrunk */
   ATTRIBUTE_COLD void commit_shrink(fil_space_t &space);
 
+  /** Commit a mini-transaction that is deleting or renaming a file.
+  @param space   tablespace that is being renamed or deleted
+  @param name    new file name (nullptr=the file will be deleted)
+  @return whether the operation succeeded */
+  ATTRIBUTE_COLD bool commit_file(fil_space_t &space, const char *name);
+
   /** Commit a mini-transaction that did not modify any pages,
   but generated some redo log on a higher level, such as
   FILE_MODIFY records and an optional FILE_CHECKPOINT marker.

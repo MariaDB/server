@@ -2730,11 +2730,11 @@ static const char *trunc_tables_const=
   "TRUNCATE TABLE time_zone_transition;\n"
   "TRUNCATE TABLE time_zone_transition_type;\n";
 static const char *wsrep_is_on=
-  "select sum(VARIABLE_NAME='wsrep_on' AND SESSION_VALUE='ON')"
-  " from information_schema.SYSTEM_VARIABLES";
+  "select sum(SESSION_VALUE='ON')"
+  " from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_on'";
 static const char *wsrep_cannot_replicate_tz=
-  "select sum(VARIABLE_NAME='wsrep_mode' and GLOBAL_VALUE NOT LIKE @replicate_opt)"
-  " from information_schema.SYSTEM_VARIABLES";
+  "select sum(GLOBAL_VALUE NOT LIKE @replicate_opt)"
+  " from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_mode'";
 
 int
 main(int argc, char **argv)

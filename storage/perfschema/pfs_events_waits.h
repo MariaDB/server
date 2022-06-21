@@ -1,5 +1,5 @@
 /* Copyright (c) 2008, 2021, Oracle and/or its affiliates..
-   Copyright (c) 2017, 2019, MariaDB Corporation.
+   Copyright (c) 2017, 2012, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -127,7 +127,7 @@ extern bool flag_global_instrumentation;
 extern bool flag_thread_instrumentation;
 
 extern bool events_waits_history_long_full;
-extern PFS_ALIGNED PFS_cacheline_uint32 events_waits_history_long_index;
+PFS_ALIGNED extern PFS_cacheline_uint32 events_waits_history_long_index;
 extern PFS_events_waits *events_waits_history_long_array;
 extern ulong events_waits_history_long_size;
 

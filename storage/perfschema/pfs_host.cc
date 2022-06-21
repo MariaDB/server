@@ -1,4 +1,5 @@
 /* Copyright (c) 2010, 2021, Oracle and/or its affiliates.
+  Copyright (c) 2022, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -135,7 +136,7 @@ static void set_host_key(PFS_host_key *key,
 PFS_host *find_or_create_host(PFS_thread *thread,
                               const char *hostname, uint hostname_length)
 {
-  static PFS_ALIGNED PFS_cacheline_uint32 monotonic;
+  PFS_ALIGNED static PFS_cacheline_uint32 monotonic;
 
   LF_PINS *pins= get_host_hash_pins(thread);
   if (unlikely(pins == NULL))
