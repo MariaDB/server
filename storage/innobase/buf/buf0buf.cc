@@ -3235,6 +3235,7 @@ retry:
         if (UNIV_UNLIKELY(id != page_id))
         {
           ut_ad(id.is_corrupted());
+          bpage->lock.x_unlock();
           goto retry;
         }
         mysql_mutex_lock(&buf_pool.mutex);
