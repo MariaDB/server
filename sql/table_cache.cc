@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2011 Monty Program Ab
+   Copyright (c) 2010, 2022, MariaDB Corporation.
    Copyright (C) 2013 Sergey Vojtovich and MariaDB Foundation
 
    This program is free software; you can redistribute it and/or modify
@@ -50,6 +50,7 @@
 #include "lf.h"
 #include "table.h"
 #include "sql_base.h"
+#include "aligned.h"
 
 
 /** Configuration. */
@@ -122,6 +123,7 @@ struct Table_cache_instance
     records, Share_free_tables::List (TABLE::prev and TABLE::next),
     TABLE::in_use.
   */
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE)
   mysql_mutex_t LOCK_table_cache;
   I_P_List <TABLE, I_P_List_adapter<TABLE, &TABLE::global_free_next,
                                     &TABLE::global_free_prev>,
@@ -130,11 +132,10 @@ struct Table_cache_instance
   ulong records;
   uint mutex_waits;
   uint mutex_nowaits;
-  /** Avoid false sharing between instances */
-  char pad[CPU_LEVEL1_DCACHE_LINESIZE];
 
   Table_cache_instance(): records(0), mutex_waits(0), mutex_nowaits(0)
   {
+    static_assert(!(sizeof(*this) % CPU_LEVEL1_DCACHE_LINESIZE), "alignment");
     mysql_mutex_init(key_LOCK_table_cache, &LOCK_table_cache,
                      MY_MUTEX_INIT_FAST);
   }
@@ -145,6 +146,10 @@ struct Table_cache_instance
     DBUG_ASSERT(free_tables.is_empty());
     DBUG_ASSERT(records == 0);
   }
+
+  static void *operator new[](size_t size)
+  { return aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE); }
+  static void operator delete[](void *ptr) { aligned_free(ptr); }
 
   /**
     Lock table cache mutex and check contention.

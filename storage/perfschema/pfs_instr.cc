@@ -1,4 +1,5 @@
 /* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
+  Copyright (c) 2022, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -88,7 +89,7 @@ PFS_stage_stat *global_instr_class_stages_array= NULL;
 PFS_statement_stat *global_instr_class_statements_array= NULL;
 PFS_memory_stat *global_instr_class_memory_array= NULL;
 
-static PFS_ALIGNED PFS_cacheline_uint64 thread_internal_id_counter;
+PFS_ALIGNED static PFS_cacheline_uint64 thread_internal_id_counter;
 
 /** Hash table for instrumented files. */
 LF_HASH pfs_filename_hash;

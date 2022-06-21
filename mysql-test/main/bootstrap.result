@@ -34,4 +34,10 @@ name	dl
 EXAMPLE	ha_example.so
 truncate table mysql.plugin;
 # Kill the server
+#
+# MDEV-28782 mariadb-tzinfo-to-sql to work in bootstrap mode
+#
+#
+# End of 10.6 tests
+#
 # restart
