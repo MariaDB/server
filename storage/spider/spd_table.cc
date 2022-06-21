@@ -2460,7 +2460,9 @@ int spider_parse_connect_info(
 #ifdef WITH_PARTITION_STORAGE_ENGINE
           SPIDER_PARAM_INT_WITH_MAX("ssy", sts_sync, 0, 2);
 #endif
+          SPIDER_PARAM_DEPRECATED_WARNING("stc");
           SPIDER_PARAM_INT_WITH_MAX("stc", semi_table_lock_conn, 0, 1);
+          SPIDER_PARAM_DEPRECATED_WARNING("stl");
           SPIDER_PARAM_INT_WITH_MAX("stl", semi_table_lock, 0, 1);
           SPIDER_PARAM_LONGLONG("srs", static_records_for_status, 0);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("svc", tgt_ssl_vscs, 0, 1);
@@ -2608,6 +2610,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_DEPRECATED_WARNING("internal_offset");
           SPIDER_PARAM_LONGLONG("internal_offset", internal_offset, 0);
           SPIDER_PARAM_INT_WITH_MAX("reset_sql_alloc", reset_sql_alloc, 0, 1);
+          SPIDER_PARAM_DEPRECATED_WARNING("semi_table_lock");
           SPIDER_PARAM_INT_WITH_MAX("semi_table_lock", semi_table_lock, 0, 1);
           SPIDER_PARAM_LONGLONG("quick_page_byte", quick_page_byte, 0);
           SPIDER_PARAM_LONGLONG("quick_page_size", quick_page_size, 0);
@@ -2749,6 +2752,7 @@ int spider_parse_connect_info(
           error_num = connect_string_parse.print_param_error();
           goto error;
         case 26:
+          SPIDER_PARAM_DEPRECATED_WARNING("semi_table_lock_connection");
           SPIDER_PARAM_INT_WITH_MAX(
             "semi_table_lock_connection", semi_table_lock_conn, 0, 1);
           error_num = connect_string_parse.print_param_error();

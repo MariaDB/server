@@ -805,11 +805,11 @@ static int spider_param_semi_table_lock_check(
  */
 static MYSQL_THDVAR_INT(
   semi_table_lock, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Table lock during execute a sql", /* comment */
   &spider_param_semi_table_lock_check, /* check */
   NULL, /* update */
-  1, /* def */
+  0, /* def */
   0, /* min */
   1, /* max */
   0 /* blk */
@@ -870,7 +870,7 @@ static int spider_param_semi_table_lock_connection_check(
  */
 static MYSQL_THDVAR_INT(
   semi_table_lock_connection, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Use different connection if semi_table_lock is enabled", /* comment */
   &spider_param_semi_table_lock_connection_check, /* check */
   spider_var_deprecated_int, /* update */
