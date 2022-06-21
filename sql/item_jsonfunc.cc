@@ -20,6 +20,21 @@
 #include "item.h"
 #include "sql_parse.h"
 
+/*
+  Allocating memory and *also* using it (reading and
+  writing from it) because some build instructions cause
+  compiler to optimize out stack_used_up. Since alloca()
+  here depends on stack_used_up, it doesnt get executed
+  correctly and causes json_debug_nonembedded to fail
+  ( --error ER_STACK_OVERRUN_NEED_MORE does not occur).
+*/
+#define ALLOCATE_MEM_ON_STACK(A) do \
+                              { \
+                                uchar *array= (uchar*)alloca(A); \
+                                array[0]= 1; \
+                                array[0]++; \
+                                array[0] ? array[0]++ : array[0]--; \
+                              } while(0)
 
 /*
   Compare ASCII string against the string with the specified
@@ -4407,10 +4422,12 @@ int json_find_overlap_with_object(json_engine_t *js, json_engine_t *value,
 */
 int check_overlaps(json_engine_t *js, json_engine_t *value, bool compare_whole)
 {
+  long arbitrary_var;
+  long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {alloca(my_thread_stack_size-(STACK_MIN_SIZE));}); 
-  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, NULL))
-    return 0;
+                  {ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return 1;
 
   switch (js->value_type)
   {
