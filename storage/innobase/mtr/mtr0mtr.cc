@@ -626,6 +626,92 @@ void mtr_t::commit_shrink(fil_space_t &space)
   release_resources();
 }
 
+/** Commit a mini-transaction that is deleting or renaming a file.
+@param space   tablespace that is being renamed or deleted
+@param name    new file name (nullptr=the file will be deleted)
+@return whether the operation succeeded */
+bool mtr_t::commit_file(fil_space_t &space, const char *name)
+{
+  ut_ad(is_active());
+  ut_ad(!is_inside_ibuf());
+  ut_ad(!high_level_read_only);
+  ut_ad(m_modifications);
+  ut_ad(!m_made_dirty);
+  ut_ad(!recv_recovery_is_on());
+  ut_ad(m_log_mode == MTR_LOG_ALL);
+  ut_ad(UT_LIST_GET_LEN(space.chain) == 1);
+
+  log_write_and_flush_prepare();
+
+  do_write();
+
+  mysql_mutex_assert_owner(&log_sys.mutex);
+
+  if (!name && space.max_lsn)
+  {
+    ut_d(space.max_lsn= 0);
+    fil_system.named_spaces.remove(space);
+  }
+
+  /* Block log_checkpoint(). */
+  mysql_mutex_lock(&buf_pool.flush_list_mutex);
+
+  /* Durably write the log for the file system operation. */
+  log_write_and_flush();
+
+  char *old_name= space.chain.start->name;
+  bool success;
+
+  if (name)
+  {
+    success= os_file_rename(innodb_data_file_key, old_name, name);
+
+    if (success)
+    {
+      mysql_mutex_lock(&fil_system.mutex);
+      space.chain.start->name= mem_strdup(name);
+      mysql_mutex_unlock(&fil_system.mutex);
+      ut_free(old_name);
+    }
+  }
+  else
+  {
+    /* Remove any additional files. */
+    if (char *cfg_name= fil_make_filepath(old_name,
+					  fil_space_t::name_type{}, CFG,
+                                          false))
+    {
+      os_file_delete_if_exists(innodb_data_file_key, cfg_name, nullptr);
+      ut_free(cfg_name);
+    }
+
+    if (FSP_FLAGS_HAS_DATA_DIR(space.flags))
+      RemoteDatafile::delete_link_file(space.name());
+
+    /* Remove the directory entry. The file will actually be deleted
+    when our caller closes the handle. */
+    os_file_delete(innodb_data_file_key, old_name);
+
+    mysql_mutex_lock(&fil_system.mutex);
+    /* Sanity checks after reacquiring fil_system.mutex */
+    ut_ad(&space == fil_space_get_by_id(space.id));
+    ut_ad(!space.referenced());
+    ut_ad(space.is_stopping());
+
+    fil_system.detach(&space, true);
+    mysql_mutex_unlock(&fil_system.mutex);
+
+    success= true;
+  }
+
+  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+  ut_d(m_log.erase());
+  release_resources();
+
+  srv_stats.log_write_requests.inc();
+  return success;
+}
+
 /** Commit a mini-transaction that did not modify any pages,
 but generated some redo log on a higher level, such as
 FILE_MODIFY records and an optional FILE_CHECKPOINT marker.
