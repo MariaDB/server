@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,6 +18,7 @@
 
 #include "mysys_priv.h"
 #include "mysys_err.h"
+#include "aligned.h"
 #include <my_list.h>
 
 #ifdef HAVE_MLOCK
@@ -39,7 +41,7 @@ uchar *my_malloc_lock(uint size,myf MyFlags)
   DBUG_ENTER("my_malloc_lock");
 
   size=((size-1) & ~(pagesize-1))+pagesize;
-  if (!(ptr=memalign(pagesize,size)))
+  if (!(ptr=aligned_malloc(size,pagesize)))
   {
     if (MyFlags & (MY_FAE+MY_WME))
       my_error(EE_OUTOFMEMORY, MYF(ME_BELL+ME_FATAL), size);
@@ -91,7 +93,7 @@ void my_free_lock(uchar *ptr)
   }
   mysql_mutex_unlock(&THR_LOCK_malloc);
   my_free(element);
-  free(ptr);					/* Free even if not locked */
+  aligned_free(ptr);				/* Free even if not locked */
 }
 
 #endif /* HAVE_MLOCK */

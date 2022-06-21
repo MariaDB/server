@@ -75,9 +75,10 @@ struct TableLockGetNode
 void lock_sys_t::hash_table::create(ulint n)
 {
   n_cells= ut_find_prime(n);
-  const size_t size= pad(n_cells) * sizeof *array;
-  void* v= aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
-  memset(v, 0, size);
+  const size_t size= MY_ALIGN(pad(n_cells) * sizeof *array,
+                              CPU_LEVEL1_DCACHE_LINESIZE);
+  void *v= aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
+  memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(v, 0, size);
   array= static_cast<hash_cell_t*>(v);
 }
 
@@ -87,9 +88,10 @@ void lock_sys_t::hash_table::resize(ulint n)
 {
   ut_ad(lock_sys.is_writer());
   ulint new_n_cells= ut_find_prime(n);
-  const size_t size= pad(new_n_cells) * sizeof *array;
-  void* v= aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
-  memset(v, 0, size);
+  const size_t size= MY_ALIGN(pad(new_n_cells) * sizeof *array,
+                              CPU_LEVEL1_DCACHE_LINESIZE);
+  void *v= aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
+  memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(v, 0, size);
   hash_cell_t *new_array= static_cast<hash_cell_t*>(v);
 
   for (auto i= pad(n_cells); i--; )
