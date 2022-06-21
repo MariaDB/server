@@ -96,3 +96,4 @@ from t200;
 SET @j = '{ "A":1,"B":[2,3]}';
 
 SELECT JSON_DETAILED(@j);
+SELECT JSON_PRETTY(@j);

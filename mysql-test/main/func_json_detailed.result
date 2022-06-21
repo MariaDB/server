@@ -130,3 +130,13 @@ JSON_DETAILED(@j)
         3
     ]
 }
+SELECT JSON_PRETTY(@j);
+JSON_PRETTY(@j)
+{
+    "A": 1,
+    "B": 
+    [
+        2,
+        3
+    ]
+}
