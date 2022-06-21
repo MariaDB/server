@@ -1011,11 +1011,10 @@ protected:
 };
 
 
-class Create_func_json_detailed: public Create_native_func
+class Create_func_json_detailed: public Create_func_arg1
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
 
   static Create_func_json_detailed s_singleton;
 
@@ -3796,8 +3795,7 @@ Create_func_json_exists::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 Create_func_json_detailed Create_func_json_detailed::s_singleton;
 
 Item*
-Create_func_json_detailed::create_native(THD *thd, const LEX_CSTRING *name,
-                                         List<Item> *item_list)
+Create_func_json_detailed::create_1_arg(THD *thd, Item *arg1)
 {
   Item *func= NULL;
   int arg_count= 0;
@@ -3814,7 +3812,7 @@ Create_func_json_detailed::create_native(THD *thd, const LEX_CSTRING *name,
     func= new (thd->mem_root) Item_func_json_format(thd, *item_list);
   }
 
-  status_var_increment(thd->status_var.feature_json);
+  status_var_increment(current_thd->status_var.feature_json);
   return func;
 }
 
