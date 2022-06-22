@@ -10702,6 +10702,10 @@ bool ha_partition::can_use_for_auto_inc_init()
   DBUG_RETURN(TRUE);
 }
 
+bool ha_partition::is_need_auto_inc_init()
+{
+  return !part_share->auto_inc_initialized || need_info_for_auto_inc();
+}
 
 int ha_partition::reset_auto_increment(ulonglong value)
 {

@@ -3803,6 +3803,7 @@ public:
   virtual int start_stmt(THD *thd, thr_lock_type lock_type) {return 0;}
   virtual bool need_info_for_auto_inc() { return 0; }
   virtual bool can_use_for_auto_inc_init() { return 1; }
+  virtual bool is_need_auto_inc_init() { return 0; }
   virtual void get_auto_increment(ulonglong offset, ulonglong increment,
                                   ulonglong nb_desired_values,
                                   ulonglong *first_value,

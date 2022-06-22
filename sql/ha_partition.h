@@ -1355,6 +1355,7 @@ public:
   */
   bool need_info_for_auto_inc() override;
   bool can_use_for_auto_inc_init() override;
+  bool is_need_auto_inc_init() override;
   void get_auto_increment(ulonglong offset, ulonglong increment,
                           ulonglong nb_desired_values,
                           ulonglong *first_value,
