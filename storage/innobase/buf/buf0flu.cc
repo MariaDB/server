@@ -576,9 +576,12 @@ static void buf_tmp_reserve_compression_buf(buf_tmp_buffer_t* slot)
   buffer be bigger than input buffer. Adjust the allocated size. */
   ulint size= srv_page_size;
 #ifdef HAVE_LZO
-  size+= LZO1X_1_15_MEM_COMPRESS;
+  size= size + LZO1X_1_15_MEM_COMPRESS;
 #elif defined HAVE_SNAPPY
   size= snappy_max_compressed_length(size);
+#endif
+#if defined HAVE_ALIGNED_ALLOC && (defined HAVE_LZO || defined HAVE_SNAPPY)
+  size= MY_ALIGN(size, srv_page_size);
 #endif
   slot->comp_buf= static_cast<byte*>(aligned_malloc(size, srv_page_size));
 }
