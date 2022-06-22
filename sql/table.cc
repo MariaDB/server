@@ -8649,7 +8649,13 @@ int TABLE::update_generated_fields()
     next_number_field= found_next_number_field;
     res= found_next_number_field->set_default();
     if (likely(!res))
+    {
+      if (file->need_info_for_auto_inc())
+      {
+        file->info(HA_STATUS_AUTO);
+      }
       res= file->update_auto_increment();
+    }
   }
 
   if (likely(!res) && vfield)

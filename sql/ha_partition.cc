@@ -10614,8 +10614,7 @@ int ha_partition::cmp_ref(const uchar *ref1, const uchar *ref2)
 
 void ha_partition::update_next_auto_inc_val()
 {
-  if (!part_share->auto_inc_initialized ||
-      need_info_for_auto_inc())
+  if (need_info_for_auto_inc())
     info(HA_STATUS_AUTO);
 }
 
@@ -10635,6 +10634,9 @@ bool ha_partition::need_info_for_auto_inc()
 {
   handler **file= m_file;
   DBUG_ENTER("ha_partition::need_info_for_auto_inc");
+
+  if (!part_share->auto_inc_initialized)
+    DBUG_RETURN(TRUE);
 
   do
   {
