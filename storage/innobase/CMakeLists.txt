@@ -236,7 +236,6 @@ SET(INNOBASE_SOURCES
 	include/trx0i_s.h
 	include/trx0purge.h
 	include/trx0rec.h
-	include/trx0rec.inl
 	include/trx0roll.h
 	include/trx0rseg.h
 	include/trx0sys.h

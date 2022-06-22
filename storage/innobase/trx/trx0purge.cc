@@ -55,10 +55,6 @@ ulong		srv_max_purge_lag_delay = 0;
 /** The global data structure coordinating a purge */
 purge_sys_t	purge_sys;
 
-/** A dummy undo record used as a return value when we have a whole undo log
-which needs no purge */
-trx_undo_rec_t	trx_purge_dummy_rec;
-
 #ifdef UNIV_DEBUG
 my_bool		srv_purge_view_update_only_debug;
 #endif /* UNIV_DEBUG */
@@ -1022,7 +1018,9 @@ TRANSACTIONAL_TARGET static void trx_purge_choose_next_log()
 
 /***********************************************************************//**
 Gets the next record to purge and updates the info in the purge system.
-@return copy of an undo log record or pointer to the dummy undo log record */
+@return copy of an undo log record
+@retval -1 if there is nothing to purge
+@retval nullptr on corruption */
 static
 trx_undo_rec_t*
 trx_purge_get_next_rec(
@@ -1048,11 +1046,10 @@ trx_purge_get_next_rec(
 		/* Look for the next undo log and record to purge */
 
 		trx_purge_choose_next_log();
-
-		return(&trx_purge_dummy_rec);
+		return reinterpret_cast<trx_undo_rec_t*>(-1);
 	}
 
-	mtr_start(&mtr);
+	mtr.start();
 
 	const buf_block_t* undo_page
 		= buf_page_get_gen(page_id, 0, RW_S_LATCH, nullptr,
@@ -1060,7 +1057,7 @@ trx_purge_get_next_rec(
 	if (UNIV_UNLIKELY(!undo_page)) {
 corrupted:
 		mtr.commit();
-		return &trx_purge_dummy_rec;
+		return nullptr;
 	}
 
 	const buf_block_t* rec2_page = undo_page;
@@ -1105,16 +1102,16 @@ corrupted:
 	trx_undo_rec_t*	rec_copy = trx_undo_rec_copy(undo_page->page.frame
 						     + offset, heap);
 
-	mtr_commit(&mtr);
-
-	return(rec_copy);
+	mtr.commit();
+	return rec_copy;
 }
 
 /********************************************************************//**
 Fetches the next undo log record from the history list to purge. It must be
 released with the corresponding release function.
-@return copy of an undo log record or pointer to trx_purge_dummy_rec,
-if the whole undo log can skipped in purge; NULL if none left */
+@return copy of an undo log record
+@retval -1 if the whole undo log can skipped in purge
+@retval nullptr if nothing is left, or on corruption */
 static MY_ATTRIBUTE((warn_unused_result))
 trx_undo_rec_t*
 trx_purge_fetch_next_rec(
@@ -1130,13 +1127,12 @@ trx_purge_fetch_next_rec(
 		if (!purge_sys.next_stored) {
 			DBUG_PRINT("ib_purge",
 				   ("no logs left in the history list"));
-			return(NULL);
+			return nullptr;
 		}
 	}
 
 	if (purge_sys.tail.trx_no >= purge_sys.low_limit_no()) {
-
-		return(NULL);
+		return nullptr;
 	}
 
 	/* fprintf(stderr, "Thread %lu purging trx %llu undo record %llu\n",
@@ -1152,7 +1148,7 @@ trx_purge_fetch_next_rec(
 	/* The following call will advance the stored values of the
 	purge iterator. */
 
-	return(trx_purge_get_next_rec(n_pages_handled, heap));
+	return trx_purge_get_next_rec(n_pages_handled, heap);
 }
 
 /** Run a purge batch.
@@ -1229,7 +1225,8 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 
 		if (purge_rec.undo_rec == NULL) {
 			break;
-		} else if (purge_rec.undo_rec == &trx_purge_dummy_rec) {
+		} else if (purge_rec.undo_rec
+			   == reinterpret_cast<trx_undo_rec_t*>(-1)) {
 			continue;
 		}
 
