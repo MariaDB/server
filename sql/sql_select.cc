@@ -22776,8 +22776,6 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
                 bool from_window_spec)
 { 
   SELECT_LEX *select = thd->lex->current_select;
-  enum_parsing_place context_analysis_place=
-                     thd->lex->current_select->context_analysis_place;
   thd->where="order clause";
   const bool for_union = select->master_unit()->is_union() &&
                          select == select->master_unit()->fake_select_lex;
@@ -22787,7 +22785,7 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
                            all_fields, false, true, from_window_spec))
       return 1;
     if ((*order->item)->with_window_func &&
-        context_analysis_place != IN_ORDER_BY)
+        thd->lex->current_select->context_analysis_place != IN_ORDER_BY)
     {
       my_error(ER_WINDOW_FUNCTION_IN_WINDOW_SPEC, MYF(0));
       return 1;
@@ -22847,8 +22845,6 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 	    List<Item> &fields, List<Item> &all_fields, ORDER *order,
 	    bool *hidden_group_fields, bool from_window_spec)
 {
-  enum_parsing_place context_analysis_place=
-                     thd->lex->current_select->context_analysis_place;
   *hidden_group_fields=0;
   ORDER *ord;
 
@@ -22864,14 +22860,15 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
                            all_fields, true, true, from_window_spec))
       return 1;
     (*ord->item)->marker= UNDEF_POS;		/* Mark found */
-    if ((*ord->item)->with_sum_func && context_analysis_place == IN_GROUP_BY)
+    if ((*ord->item)->with_sum_func &&
+        thd->lex->current_select->context_analysis_place == IN_GROUP_BY)
     {
       my_error(ER_WRONG_GROUP_FIELD, MYF(0), (*ord->item)->full_name());
       return 1;
     }
     if ((*ord->item)->with_window_func)
     {
-      if (context_analysis_place == IN_GROUP_BY)
+      if (thd->lex->current_select->context_analysis_place == IN_GROUP_BY)
         my_error(ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION, MYF(0));
       else
         my_error(ER_WINDOW_FUNCTION_IN_WINDOW_SPEC, MYF(0));
@@ -22883,7 +22880,7 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
                                    all_fields, SPLIT_SUM_SELECT);
   }
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
-      context_analysis_place == IN_GROUP_BY)
+      thd->lex->current_select->context_analysis_place == IN_GROUP_BY)
   {
     /*
       Don't allow one to use fields that is not used in GROUP BY
