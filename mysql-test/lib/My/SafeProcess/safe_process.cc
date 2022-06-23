@@ -140,13 +140,19 @@ void handle_core(pid_t pid __attribute__((unused))) {}
 static int kill_child(bool was_killed)
 {
   int status= 0;
+  pid_t ret_pid;
 
   message("Killing child: %d", child_pid);
   // Terminate whole process group
   if (! was_killed)
-    kill(-child_pid, SIGKILL);
+  {
+    kill(-child_pid, SIGTERM);
+    sleep(10); // will be interrupted by SIGCHLD
+    if (!(ret_pid= waitpid(child_pid, &status, WNOHANG)))
+      kill(-child_pid, SIGKILL);
+  }
 
-  pid_t ret_pid= waitpid(child_pid, &status, 0);
+  ret_pid= waitpid(child_pid, &status, 0);
   if (ret_pid == child_pid)
   {
     int exit_code= 1;
