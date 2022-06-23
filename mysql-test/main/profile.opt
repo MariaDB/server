@@ -1,2 +1,2 @@
---innodb_buffer_pool_size=8M
+--innodb_buffer_pool_size=1G
 

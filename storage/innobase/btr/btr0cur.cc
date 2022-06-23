@@ -2847,6 +2847,7 @@ btr_cur_open_at_index_side(
 	return err;
 }
 extern unsigned long long my_counter;
+ulint get_last_nth();
 /**********************************************************************//**
 Positions a cursor at a randomly chosen position within a B-tree.
 @return DB_SUCCESS if the index is available and we have put the cursor,
@@ -2952,8 +2953,10 @@ btr_cur_open_at_rnd_pos(
 	}
 
 	height = ULINT_UNDEFINED;
+        fprintf(stderr, "SAMPLE root page_id=%d\n", page_id.page_no());
 
 	for (;;) {
+		bool root= false;
 		page_t*		page;
 
 		ut_ad(n_blocks < BTR_MAX_LEVELS);
@@ -3012,6 +3015,7 @@ btr_cur_open_at_rnd_pos(
 			/* We are in the root node */
 
 			height = btr_page_get_level(page);
+                        root= true;
 		} else {
 			if(sim_uniform_dist) {
 				ulint n_recs = page_get_n_recs(block->page.frame);
@@ -3059,6 +3063,12 @@ btr_cur_open_at_rnd_pos(
 
                 page_cur_open_on_rnd_user_rec(block, page_cursor);
 
+                fprintf(stderr, "SAMPLE node=%x root=%d p=%lf height=%ld size=%d child_no=%ld ",
+                        page_id.page_no(), root,
+                        p,
+                        height,
+                        page_get_n_recs(block->page.frame),
+                        get_last_nth());
 		if (height == 0) {
 
 			break;
@@ -3145,6 +3155,8 @@ btr_cur_open_at_rnd_pos(
 		page_id.set_page_no(
 			btr_node_ptr_get_child_page_no(node_ptr, offsets));
 
+                fprintf(stderr, "child_page=%x\n", page_id.page_no());
+
 		n_blocks++;
 	}
 
@@ -3156,10 +3168,12 @@ btr_cur_open_at_rnd_pos(
 	// getting 0..1 pseudo random number from ut_rnd_gen()
 	// and exchange division by multiplication like
 	// (b / c) < a <=> b < (a * c)
-	if(sim_uniform_dist && (ut_rnd_gen() < (p * ~(uint32_t)0))) {
+	if(sim_uniform_dist && (ut_rnd_gen() > (p * ~(uint32_t)0))) {
 		err = DB_RECORD_NOT_FOUND;
                 my_counter++;
+                fprintf(stderr, "REJECT\n");
         }
+        else fprintf(stderr, "\n");
 
 	return err;
 }

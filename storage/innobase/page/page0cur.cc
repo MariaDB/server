@@ -764,6 +764,13 @@ up_rec_match:
 }
 #endif /* BTR_CUR_HASH_ADAPT */
 
+
+thread_local ulint last_nth;
+ulint get_last_nth()
+{
+  return last_nth;
+}
+
 /***********************************************************//**
 Positions a page cursor on a randomly chosen user record on a page. If there
 are no user records, sets the cursor on the infimum record. */
@@ -782,8 +789,9 @@ page_cur_open_on_rnd_user_rec(
 		return;
 	}
 
+        last_nth= ut_rnd_interval(n_recs) + 1;
 	cursor->rec = page_rec_get_nth(block->page.frame,
-				       ut_rnd_interval(n_recs) + 1);
+				       last_nth);
 }
 
 /**
