@@ -419,6 +419,7 @@ create table t (old_table_field int);
 create or replace table t as select 1 as b, 2 as b;
 --error ER_DUP_FIELDNAME
 create or replace temporary table t as select 1 as b, 2 as b;
+drop table t;
 create table t (new_table_field int);
 
 --source include/show_binlog_events.inc

@@ -3848,7 +3848,8 @@ select_insert::select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
   sel_result(result),
   table_list(table_list_par), table(table_par), fields(fields_par),
   autoinc_value_of_last_inserted_row(0),
-  insert_into_view(table_list_par && table_list_par->view != 0)
+  insert_into_view(table_list_par && table_list_par->view != 0),
+  binary_logged(false), atomic_replace(false), create_info(NULL)
 {
   bzero((char*) &info,sizeof(info));
   info.handle_duplicates= duplic;
@@ -3857,6 +3858,37 @@ select_insert::select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
   info.update_values= update_values;
   info.view= (table_list_par->view ? table_list_par : 0);
   info.table_list= table_list_par;
+  tmp_table= table ? table->s->tmp_table != NO_TMP_TABLE : false;
+}
+
+
+select_create::select_create(THD *thd, TABLE_LIST *table_arg,
+                             Table_specification_st *create_info_par,
+                             Alter_info *alter_info_arg,
+                             List<Item> &select_fields,
+                             enum_duplicates duplic, bool ignore,
+                             TABLE_LIST *select_tables_arg):
+  select_insert(thd, table_arg, NULL, &select_fields, 0, 0, duplic,
+                ignore, NULL),
+  orig_table(table_arg),
+  select_tables(select_tables_arg),
+  alter_info(alter_info_arg),
+  m_plock(NULL), exit_done(0),
+  saved_tmp_table_share(0)
+{
+  DBUG_ASSERT(create_info_par->default_table_charset);
+  bzero(&ddl_log_state_create, sizeof(ddl_log_state_create));
+  bzero(&ddl_log_state_rm, sizeof(ddl_log_state_rm));
+  create_info= create_info_par;
+  if (!thd->is_current_stmt_binlog_format_row() ||
+      !ha_check_storage_engine_flag(create_info->db_type,
+                                    HTON_NO_BINLOG_ROW_OPT))
+    atomic_replace= create_info->is_atomic_replace();
+  else
+    DBUG_ASSERT(!atomic_replace);
+  create_info->ddl_log_state_create= &ddl_log_state_create;
+  create_info->ddl_log_state_rm= &ddl_log_state_rm;
+  tmp_table= create_info->tmp_table();
 }
 
 
@@ -4178,10 +4210,10 @@ void select_insert::store_values(List<Item> &values)
 bool select_insert::prepare_eof()
 {
   int error;
+#ifndef DBUG_OFF
   bool const trans_table= table->file->has_transactions_and_rollback();
+#endif
   bool changed;
-  bool binary_logged= 0;
-  killed_state killed_status= thd->killed;
 
   DBUG_ENTER("select_insert::prepare_eof");
   DBUG_PRINT("enter", ("trans_table: %d, table_type: '%s'",
@@ -4199,11 +4231,30 @@ bool select_insert::prepare_eof()
     error= thd->get_stmt_da()->sql_errno();
 
   if (info.ignore || info.handle_duplicates != DUP_ERROR)
-      if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
-        table->file->ha_rnd_end();
+    if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
+      table->file->ha_rnd_end();
   table->file->extra(HA_EXTRA_END_ALTER_COPY);
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
+
+  if (atomic_replace)
+  {
+    DBUG_ASSERT(table->s->tmp_table);
+
+    /*
+       Note: InnoDB does autocommit on external unlock.
+       We cannot do commit twice and we must commit after binlog
+       (flush row events is done at commit), so we cannot do it here.
+       Test: rpl.create_or_replace_row
+    */
+    ulonglong save_options_bits= thd->variables.option_bits;
+    thd->variables.option_bits|= OPTION_NOT_AUTOCOMMIT;
+    int lock_error= table->file->ha_external_lock(thd, F_UNLCK);
+    thd->variables.option_bits= save_options_bits;
+
+    if (lock_error)
+      DBUG_RETURN(true); /* purecov: inspected */
+  }
 
   if (likely((changed= (info.copied || info.deleted || info.updated))))
   {
@@ -4222,19 +4273,54 @@ bool select_insert::prepare_eof()
   DBUG_ASSERT(trans_table || !changed || 
               thd->transaction->stmt.modified_non_trans_table);
 
+  if (unlikely(error))
+  {
+    if ((thd->transaction->stmt.modified_non_trans_table ||
+         thd->log_current_statement()) && !atomic_replace)
+    {
+      if (binlog_query())
+        table->file->print_error(error,MYF(0));
+    }
+    else
+      table->file->ha_release_auto_increment();
+    DBUG_RETURN(true);
+  }
+
+  DBUG_RETURN(false);
+}
+
+bool select_insert::binlog_query()
+{
+  /* For atomic_replace table was already closed in send_eof(). */
+  DBUG_ASSERT(table || atomic_replace);
+  const bool trans_table= table ? table->file->has_transactions_and_rollback() :
+                                  false;
+  killed_state killed_status= thd->killed;
+  DBUG_ENTER("select_insert::binlog_query");
+
   /*
     Write to binlog before commiting transaction.  No statement will
     be written by the binlog_query() below in RBR mode.  All the
     events are in the transaction cache and will be written when
     ha_autocommit_or_rollback() is issued below.
   */
-  if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
-      (likely(!error) || thd->transaction->stmt.modified_non_trans_table ||
-       thd->log_current_statement()))
+  if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()))
   {
+
+    debug_crash_here("ddl_log_create_before_binlog");
+
+    if (create_info && !create_info->tmp_table())
+    {
+      thd->binlog_xid= thd->query_id;
+      /* Remember xid's for the case of row based logging */
+      ddl_log_update_xid(create_info->ddl_log_state_create, thd->binlog_xid);
+      if (create_info->ddl_log_state_rm->is_active() && !atomic_replace)
+        ddl_log_update_xid(create_info->ddl_log_state_rm, thd->binlog_xid);
+    }
+
     int errcode= 0;
     int res;
-    if (likely(!error))
+    if (thd->is_error())
       thd->clear_error();
     else
       errcode= query_error_code(thd, killed_status == NOT_KILLED);
@@ -4243,20 +4329,24 @@ bool select_insert::prepare_eof()
     res= thd->binlog_query(THD::ROW_QUERY_TYPE,
                            thd->query(), thd->query_length(),
                            trans_table, FALSE, FALSE, errcode);
+    /*
+      NOTE: binlog_xid must be cleared after commit because pending row events
+            are written at commit phase.
+    */
     if (res > 0)
     {
-      table->file->ha_release_auto_increment();
+      thd->binlog_xid= 0;
+      if (table)
+        table->file->ha_release_auto_increment();
       DBUG_RETURN(true);
     }
-    binary_logged= res == 0 || !table->s->tmp_table;
+    binary_logged= res == 0 || !tmp_table;
   }
-  table->s->table_creation_was_logged|= binary_logged;
-  table->file->ha_release_auto_increment();
-
-  if (unlikely(error))
+  if (table)
   {
-    table->file->print_error(error,MYF(0));
-    DBUG_RETURN(true);
+    /* NOTE: used in binlog_drop_table(), not needed for atomic_replace */
+    table->s->table_creation_was_logged|= binary_logged;
+    table->file->ha_release_auto_increment();
   }
 
   DBUG_RETURN(false);
@@ -4303,7 +4393,8 @@ bool select_insert::send_eof()
 {
   bool res;
   DBUG_ENTER("select_insert::send_eof");
-  res= (prepare_eof() || (!suppress_my_ok && send_ok_packet()));
+  res= (prepare_eof() || binlog_query() ||
+        (!suppress_my_ok && send_ok_packet()));
   DBUG_RETURN(res);
 }
 
@@ -4368,7 +4459,11 @@ void select_insert::abort_result_set()
           res= thd->binlog_query(THD::ROW_QUERY_TYPE, thd->query(),
                                  thd->query_length(),
                                  transactional_table, FALSE, FALSE, errcode);
-          binary_logged= res == 0 || !table->s->tmp_table;
+
+          /* TODO: Update binary_logged in do_postlock() for RBR? */
+          const bool tmp_table= create_info ? create_info->tmp_table() :
+                                              (bool) table->s->tmp_table;
+          binary_logged= res == 0 || !tmp_table;
         }
 	if (changed)
 	  query_cache_invalidate3(thd, table, 1);
@@ -4446,6 +4541,8 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   List_iterator_fast<Item> it(*items);
   Item *item;
   bool save_table_creation_was_logged;
+  int create_table_mode= C_ORDINARY_CREATE;
+  LEX_CUSTRING frm= {0, 0};
   DBUG_ENTER("select_create::create_table_from_items");
 
   tmp_table.s= &share;
@@ -4516,6 +4613,13 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     create_info->mdl_ticket= table_list->table->mdl_ticket;
   }
 
+  if (atomic_replace)
+  {
+    if (create_info->make_tmp_table_list(thd, &table_list,
+                                         &create_table_mode))
+      DBUG_RETURN(NULL);
+  }
+
   /*
     Create and lock table.
 
@@ -4533,11 +4637,14 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     open_table().
   */
 
-  if (!mysql_create_table_no_lock(thd, &ddl_log_state_create, &ddl_log_state_rm,
+  if (!mysql_create_table_no_lock(thd,
+                                  &orig_table->db,
+                                  &orig_table->table_name,
                                   &table_list->db,
                                   &table_list->table_name,
                                   create_info, alter_info, NULL,
-                                  C_ORDINARY_CREATE, table_list))
+                                  create_table_mode, table_list,
+                                  atomic_replace ? &frm : NULL))
   {
     DEBUG_SYNC(thd,"create_table_select_before_open");
 
@@ -4547,7 +4654,58 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     */
     table_list->table= 0;
 
-    if (!create_info->tmp_table())
+    if (atomic_replace)
+    {
+      char tmp_path[FN_REFLEN + 1];
+      build_table_filename(tmp_path, sizeof(tmp_path) - 1, table_list->db.str,
+                           table_list->table_name.str, "", FN_IS_TMP);
+
+      table_list->table=
+          thd->create_and_open_tmp_table(&frm, tmp_path, orig_table->db.str,
+                                         orig_table->table_name.str, false);
+      /*
+        NOTE: if create_and_open_tmp_table() fails the table is dropped by
+        ddl_log_state_create
+      */
+      if (table_list->table)
+      {
+        table_list->table->s->tmp_table= TMP_TABLE_ATOMIC_REPLACE;
+        /*
+          NOTE: Aria tables require table locking to work in transactional
+          mode. Since we don't lock our temporary table we get problems with
+          unproperly initialized transactional mode: seg-fault while accessing
+          uninitialized trn member (reproduced by
+          atomic.create_replace,aria,stmt).
+
+          This hack disables logging for Aria table (that is not needed anyway
+          for a temporary table).
+        */
+        TABLE *table= table_list->table;
+        int error;
+
+        /* Disable logging of inserted rows */
+        mysql_trans_prepare_alter_copy_data(thd);
+
+        if ((DBUG_IF("atomic_replace_external_lock_fail") &&
+              (error= HA_ERR_LOCK_TABLE_FULL)) ||
+              (error= table->file->ha_external_lock(thd, F_WRLCK)))
+        {
+          table->file->print_error(error, MYF(0));
+          /*
+            Enable transaction logging. We cannot call ha_enable_transaction()
+            as this would write the transaction to the binary log
+          */
+          thd->transaction->on= true;
+          table->file->ha_reset();
+          thd->drop_temporary_table(table, NULL, false);
+          table_list->table= 0;
+          goto err;
+        }
+
+        table_list->table->s->can_do_row_logging= 1;
+      }
+    }
+    else if (!create_info->tmp_table())
     {
       Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN);
       TABLE_LIST::enum_open_strategy save_open_strategy;
@@ -4588,13 +4746,18 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   }
   else
     table_list->table= 0;                     // Create failed
-  
+
+err:
+  DBUG_ASSERT(!table_list->table || frm.str || !atomic_replace);
+  my_free(const_cast<uchar *>(frm.str));
+
   if (unlikely(!(table= table_list->table)))
   {
-    if (likely(!thd->is_error()))             // CREATE ... IF NOT EXISTS
-      my_ok(thd);                             //   succeed, but did nothing
-    ddl_log_complete(&ddl_log_state_rm);
-    ddl_log_complete(&ddl_log_state_create);
+    const bool error= thd->is_error();
+    /* CREATE ... IF NOT EXISTS succeed, but did nothing */
+    if (likely(!error))
+      my_ok(thd);
+    create_info->finalize_ddl(thd, error);
     DBUG_RETURN(NULL);
   }
 
@@ -4613,9 +4776,13 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     mysql_lock_tables() below should never fail with request to reopen table
     since it won't wait for the table lock (we have exclusive metadata lock on
     the table) and thus can't get aborted.
+
+    In case of atomic_replace we have already called ha_external_lock() above
+    on the newly created temporary table.
   */
-  if (unlikely(!((*lock)= mysql_lock_tables(thd, &table, 1, 0)) ||
-               postlock(thd, &table)))
+  if ((!atomic_replace &&
+       unlikely(!((*lock)= mysql_lock_tables(thd, &table, 1, 0)))) ||
+       postlock(thd, &table))
   {
     /* purecov: begin tested */
     /*
@@ -4632,13 +4799,24 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       *lock= 0;
     }
     drop_open_table(thd, table, &table_list->db, &table_list->table_name);
-    ddl_log_complete(&ddl_log_state_rm);
-    ddl_log_complete(&ddl_log_state_create);
+    if (atomic_replace)
+      create_info->finalize_ddl(thd, 1);
+    else
+    {
+      debug_crash_here("ddl_log_create_log_complete");
+      ddl_log_complete(&ddl_log_state_create);
+      debug_crash_here("ddl_log_create_log_complete2");
+    }
+    thd->transaction->on= true;
     DBUG_RETURN(NULL);
     /* purecov: end */
   }
+  DBUG_ASSERT(
+      create_info->tmp_table() ||
+      thd->mdl_context.is_lock_owner(MDL_key::TABLE, orig_table->db.str,
+                                     orig_table->table_name.str, MDL_SHARED));
   table->s->table_creation_was_logged= save_table_creation_was_logged;
-  if (!table->s->tmp_table)
+  if (!create_info->tmp_table())
     table->file->prepare_for_row_logging();
 
   /*
@@ -4686,11 +4864,10 @@ int select_create::postlock(THD *thd, TABLE **tables)
   if (unlikely(error))
     return error;
 
-  TABLE const *const table = *tables;
-  if (thd->is_current_stmt_binlog_format_row() &&
-      !table->s->tmp_table)
-    return binlog_show_create_table(thd, *tables, create_info);
-  return 0;
+  if (thd->is_current_stmt_binlog_format_row() && !create_info->tmp_table())
+    error= binlog_show_create_table(thd, *tables, create_info);
+
+  return error;
 }
 
 
@@ -4717,7 +4894,11 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
 
   if (!(table= create_table_from_items(thd, &values, &extra_lock)))
   {
-    if (create_info->or_replace())
+    /*
+       TODO: Use create_info->table_was_deleted
+             (now binlog.binlog_stm_binlog fails).
+    */
+    if (create_info->or_replace() && !atomic_replace)
     {
       /* Original table was deleted. We have to log it */
       log_drop_table(thd, &table_list->db, &table_list->table_name,
@@ -4731,6 +4912,8 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
     DBUG_RETURN(-1);
   }
 
+  DBUG_ASSERT(table == table_list->table);
+
   if (create_info->tmp_table())
   {
     /*
@@ -4740,17 +4923,26 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
       list to keep them inaccessible from inner statements.
       e.g. CREATE TEMPORARY TABLE `t1` AS SELECT * FROM `t1`;
     */
-    saved_tmp_table_share= thd->save_tmp_table_share(table_list->table);
+    saved_tmp_table_share= thd->save_tmp_table_share(table);
   }
 
   if (extra_lock)
   {
     DBUG_ASSERT(m_plock == NULL);
 
-    if (create_info->tmp_table())
+    if (table->s->tmp_table)
+    {
+      /* Table is a temporary table, don't write table map to binary log */
       m_plock= &m_lock;
+    }
     else
+    {
+      /*
+        Table is a normal table. Inform binlog_write_table_maps() that
+        it should write the table map for the current table.
+      */
       m_plock= &thd->extra_lock;
+    }
 
     *m_plock= extra_lock;
   }
@@ -4842,6 +5034,14 @@ static int binlog_show_create_table(THD *thd, TABLE *table,
                             create_info, WITH_DB_NAME);
   DBUG_ASSERT(result == 0); /* show_create_table() always return 0 */
 
+  /*
+    NOTE: why it does show_create_table() even if !mysql_bin_log.is_open()?
+
+    Because Galera needs it even if there is no binlog.
+    (I assume Galera will hijack the binlog information and use it itself
+    if there is no binlog). That is the the only thing that makes sence
+    looking at the if statement... Monty
+  */
   if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
   {
     int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
@@ -4963,29 +5163,11 @@ bool select_create::send_eof()
     is in select_insert::prepare_eof(). For that reason, we
     mark the flag at this point.
   */
-  if (table->s->tmp_table)
+  if (create_info->tmp_table())
     thd->transaction->stmt.mark_created_temp_table();
 
   if (thd->slave_thread)
     thd->variables.binlog_annotate_row_events= 0;
-
-  debug_crash_here("ddl_log_create_before_binlog");
-
-  /*
-    In case of crash, we have to add DROP TABLE to the binary log as
-    the CREATE TABLE will already be logged if we are not using row based
-    replication.
-  */
-  if (!thd->is_current_stmt_binlog_format_row())
-  {
-    if (ddl_log_state_create.is_active())       // Not temporary table
-      ddl_log_update_phase(&ddl_log_state_create, DDL_CREATE_TABLE_PHASE_LOG);
-    /*
-      We can ignore if we replaced an old table as ddl_log_state_create will
-      now handle the logging of the drop if needed.
-    */
-    ddl_log_complete(&ddl_log_state_rm);
-  }
 
   if (prepare_eof())
   {
@@ -4994,7 +5176,7 @@ bool select_create::send_eof()
   }
   debug_crash_here("ddl_log_create_after_prepare_eof");
 
-  if (table->s->tmp_table)
+  if (create_info->tmp_table())
   {
     /*
       Now is good time to add the new table to THD temporary tables list.
@@ -5020,11 +5202,11 @@ bool select_create::send_eof()
     tables.  This can fail, but we should unlock the table
     nevertheless.
   */
-  if (!table->s->tmp_table)
+  if (!create_info->tmp_table())
   {
 #ifdef WITH_WSREP
     if (WSREP(thd) &&
-        table->file->ht->db_type == DB_TYPE_INNODB)
+        create_info->db_type->db_type == DB_TYPE_INNODB)
     {
       if (thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
       {
@@ -5059,14 +5241,45 @@ bool select_create::send_eof()
       thd->get_stmt_da()->set_overwrite_status(true);
     }
 #endif /* WITH_WSREP */
-    thd->binlog_xid= thd->query_id;
-    /* Remember xid's for the case of row based logging */
-    ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
-    ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
+    if (atomic_replace)
+    {
+      table_list= orig_table;
+      create_info->table= orig_table->table;
+      thd->transaction->on= true;
+      table->file->ha_reset();
+      /*
+        Remove the temporary table structures from memory but keep the table
+        files.
+      */
+      thd->drop_temporary_table(table, NULL, false);
+      table= NULL;
+
+      if (create_info->finalize_atomic_replace(thd, orig_table))
+      {
+        abort_result_set();
+        DBUG_RETURN(true);
+      }
+    }
+
+    if (binlog_query())
+    {
+      abort_result_set();
+      DBUG_RETURN(true);
+    }
+
+    debug_crash_here("ddl_log_create_after_binlog");
     trans_commit_stmt(thd);
     if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
       trans_commit_implicit(thd);
     thd->binlog_xid= 0;
+
+    /*
+      If are using statement based replication the table will be deleted here
+      in case of a crash as we can't use xid to check if the query was logged
+      (as the query was logged before commit!)
+    */
+    create_info->finalize_ddl(thd, false);
+
 
 #ifdef WITH_WSREP
     if (WSREP(thd))
@@ -5099,17 +5312,22 @@ bool select_create::send_eof()
     ddl_log.org_database=   table_list->db;
     ddl_log.org_table=      table_list->table_name;
     ddl_log.org_table_id=   create_info->tabledef_version;
+    /*
+      Since atomic replace doesn't do mysql_rm_table_no_locks() we have
+      to log DROP entry now. It was already prepared in create_table_impl().
+    */
+    if (create_info->drop_entry.query.length)
+    {
+      DBUG_ASSERT(atomic_replace);
+      backup_log_ddl(&create_info->drop_entry);
+    }
     backup_log_ddl(&ddl_log);
   }
-  /*
-    If are using statement based replication the table will be deleted here
-    in case of a crash as we can't use xid to check if the query was logged
-    (as the query was logged before commit!)
-  */
-  debug_crash_here("ddl_log_create_after_binlog");
-  ddl_log_complete(&ddl_log_state_rm);
-  ddl_log_complete(&ddl_log_state_create);
-  debug_crash_here("ddl_log_create_log_complete");
+  else if (binlog_query())
+  {
+    abort_result_set();
+    DBUG_RETURN(true);
+  }
 
   /*
     exit_done must only be set after last potential call to
@@ -5117,10 +5335,9 @@ bool select_create::send_eof()
   */
   exit_done= 1;                                 // Avoid double calls
 
-  send_ok_packet();
-
   if (m_plock)
   {
+    DBUG_ASSERT(!atomic_replace);
     MYSQL_LOCK *lock= *m_plock;
     *m_plock= NULL;
     m_plock= NULL;
@@ -5139,11 +5356,20 @@ bool select_create::send_eof()
                                                 create_info->
                                                 pos_in_locked_tables,
                                                 table, lock))
+      {
+        send_ok_packet();
         DBUG_RETURN(false);                     // ok
+      }
       /* Fail. Continue without locking the table */
+      thd->clear_error();
     }
     mysql_unlock_tables(thd, lock);
   }
+  else if (atomic_replace && create_info->pos_in_locked_tables &&
+           create_info->finalize_locked_tables(thd))
+    DBUG_RETURN(true);
+
+  send_ok_packet();
   DBUG_RETURN(false);
 }
 
@@ -5181,6 +5407,7 @@ void select_create::abort_result_set()
   thd->variables.option_bits&= ~OPTION_BIN_LOG;
   select_insert::abort_result_set();
   thd->transaction->stmt.modified_non_trans_table= FALSE;
+  thd->transaction->on= true;
   thd->variables.option_bits= save_option_bits;
 
   /* possible error of writing binary log is ignored deliberately */
@@ -5188,9 +5415,7 @@ void select_create::abort_result_set()
 
   if (table)
   {
-    bool tmp_table= table->s->tmp_table;
-    bool table_creation_was_logged= (!tmp_table ||
-                                     table->s->table_creation_was_logged);
+    bool tmp_table= create_info->tmp_table();
     if (tmp_table)
     {
       DBUG_ASSERT(saved_tmp_table_share);
@@ -5212,7 +5437,14 @@ void select_create::abort_result_set()
       m_plock= NULL;
     }
 
-    drop_open_table(thd, table, &table_list->db, &table_list->table_name);
+    if (atomic_replace)
+    {
+      (void) table->file->ha_external_lock(thd, F_UNLCK);
+      (void) thd->drop_temporary_table(table, NULL, true);
+    }
+    else
+      drop_open_table(thd, table, &table_list->db,
+                      &table_list->table_name);
     table=0;                                    // Safety
     if (thd->log_current_statement())
     {
@@ -5220,23 +5452,8 @@ void select_create::abort_result_set()
       {
         /* Remove logging of drop, create + insert rows */
         binlog_reset_cache(thd);
-        /* Original table was deleted. We have to log it */
-        if (table_creation_was_logged)
-        {
-          thd->binlog_xid= thd->query_id;
-          ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
-          ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
-          debug_crash_here("ddl_log_create_before_binlog");
-          log_drop_table(thd, &table_list->db, &table_list->table_name,
-                         &create_info->org_storage_engine_name,
-                         create_info->db_type == partition_hton,
-                         &create_info->tabledef_version,
-                         tmp_table);
-          debug_crash_here("ddl_log_create_after_binlog");
-          thd->binlog_xid= 0;
-        }
       }
-      else if (!tmp_table)
+      else if (!tmp_table && !atomic_replace)
       {
         backup_log_info ddl_log;
         bzero(&ddl_log, sizeof(ddl_log));
@@ -5251,8 +5468,8 @@ void select_create::abort_result_set()
     }
   }
 
-  ddl_log_complete(&ddl_log_state_rm);
-  ddl_log_complete(&ddl_log_state_create);
+  create_info->finalize_ddl(thd, !binary_logged);
+  DBUG_ASSERT(!thd->binlog_xid);
 
   if (create_info->table_was_deleted)
   {
@@ -5260,6 +5477,7 @@ void select_create::abort_result_set()
     (void) trans_rollback_stmt(thd);
     thd->locked_tables_list.unlock_locked_table(thd, create_info->mdl_ticket);
   }
-
+  else if (atomic_replace && create_info->pos_in_locked_tables)
+    (void) create_info->finalize_locked_tables(thd);
   DBUG_VOID_RETURN;
 }

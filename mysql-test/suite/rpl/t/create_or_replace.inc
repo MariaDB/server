@@ -47,12 +47,13 @@ create or replace table t1;
 drop table if exists t1;
 # The following is not logged as t1 does not exists;
 --error ER_DUP_ENTRY
-create or replace table t1 (a int primary key) select a from t2;
+create or replace table t1 (b int primary key) select a as b from t2;
 
-create table t1 (a int);
+create table t1 (c int);
 # This should as a delete as we will delete t1
 --error ER_DUP_ENTRY
-create or replace table t1 (a int primary key) select a from t2;
+create or replace table t1 (d int primary key) select a as d from t2;
+drop table t1;
 
 # Same with temporary table
 create temporary table t9 (a int);
@@ -69,7 +70,7 @@ show tables;
 connection server_1;
 
 --let $binlog_start=query_get_value(SHOW MASTER STATUS, Position, 1)
-create table t1 (a int);
+create table t1 (e int);
 --error ER_DUP_FIELDNAME
 create or replace table t1 (a int, a int) select * from t2;
 --source include/show_binlog_events.inc
@@ -169,7 +170,7 @@ sync_with_master;
 --let $binlog_start=query_get_value(SHOW MASTER STATUS, Position, 1)
 connection server_1;
 
-create table t1 (a int);
+create table t1 (f int);
 insert into t1 values (0),(1),(2);
 create table t2 engine=myisam select * from t1;
 create or replace table t2 engine=innodb select * from t1;

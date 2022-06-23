@@ -1931,8 +1931,9 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       DBUG_PRINT("info",("Using locked table"));
 #ifdef WITH_PARTITION_STORAGE_ENGINE
       part_names_error= set_partitions_as_used(table_list, table);
-      if (!part_names_error
-          && table->vers_switch_partition(thd, table_list, ot_ctx))
+      if (!part_names_error &&
+          table_list->lock_type >= TL_WRITE_ALLOW_WRITE &&
+          table->vers_switch_partition(thd, table_list, ot_ctx))
         DBUG_RETURN(true);
 #endif
       goto reset;
@@ -2193,6 +2194,7 @@ retry_share:
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (!part_names_error &&
+      table_list->lock_type >= TL_WRITE_ALLOW_WRITE &&
       table->vers_switch_partition(thd, table_list, ot_ctx))
   {
     MYSQL_UNBIND_TABLE(table->file);
@@ -3133,7 +3135,7 @@ ret:
 static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
 {
   if (Table_triggers_list::check_n_load(thd, &share->db,
-                                        &share->table_name, entry, 0))
+                                        &share->table_name, entry, false, 0))
     return TRUE;
 
   /*

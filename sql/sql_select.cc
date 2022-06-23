@@ -55,6 +55,7 @@
 #include "sql_window.h"
 #include "tztime.h"
 
+#include "debug.h"
 #include "debug_sync.h"          // DEBUG_SYNC
 #include <m_ctype.h>
 #include <my_bit.h>
@@ -22520,6 +22521,7 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
       // error < 0 => duplicate row
       join->duplicate_rows++;
     }
+    debug_crash_here("ddl_log_create_after_send_data");
   }
 
   join->send_records++;
