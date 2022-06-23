@@ -4,10 +4,12 @@
 wsrep_sst_method=rsync
 
 [mysqld.1]
+#!run-master-sh
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=1;pc.ignore_sb=true'
 
 [mysqld.2]
-innodb_data_home_dir=@ENV.MYSQL_TMP_DIR/rsync_test_2
+#!use-slave-opt
+#!run-slave-sh
 wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcache.size=1;pc.ignore_sb=true'
 
 [sst]

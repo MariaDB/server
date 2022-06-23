@@ -311,7 +311,7 @@ my %mysqld_logs;
 my $opt_debug_sync_timeout= 300; # Default timeout for WAIT_FOR actions.
 my $warn_seconds = 60;
 
-my $rebootstrap_re= '--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)|data[-_]file[-_]path|force_rebootstrap';
+my $rebootstrap_re= '--(?:loose[-_])?innodb[-_](?:page[-_]size|file(?:[-_]format|per[-_]table)|compression[-_](?:default|algorithm)|checksum(?:s|[-_]algorithm)|undo[-_](?:directory|tablespaces)|(?:data|log[-_]group)[-_]home[-_]dir|buffer[-_]pool[-_]filename|data[-_]file[-_]path|encrypt[-_](?:log|tables)|default[-_](?:encryption[-_]key[-_]id|page[-_]encryption)|sys[-_]|(?:index|table)[-_]stats)|force_rebootstrap|--(?:loose[-_])?aria[-_]log[-_](?:dir[-_]path|file[-_]size)';
 
 sub testcase_timeout ($) { return $opt_testcase_timeout * 60; }
 sub check_timeout ($) { return testcase_timeout($_[0]); }
@@ -2771,6 +2771,24 @@ sub mysql_server_start($) {
     }
   }
 
+  # Run <tname>-master.sh
+  if ($mysqld->option('#!run-master-sh') and
+      defined $tinfo->{master_sh} and
+      run_system('/bin/sh ' . $tinfo->{master_sh}) )
+  {
+    $tinfo->{'comment'}= "Failed to execute '$tinfo->{master_sh}'";
+    return 1;
+  }
+
+  # Run <tname>-slave.sh
+  if ($mysqld->option('#!run-slave-sh') and
+      defined $tinfo->{slave_sh} and
+      run_system('/bin/sh ' . $tinfo->{slave_sh}))
+  {
+    $tinfo->{'comment'}= "Failed to execute '$tinfo->{slave_sh}'";
+    return 1;
+  }
+
   my $mysqld_basedir= $mysqld->value('basedir');
   my $extra_opts= get_extra_opts($mysqld, $tinfo);
 
@@ -2811,24 +2829,6 @@ sub mysql_server_start($) {
 
   # Write start of testcase to log file
   mark_log($mysqld->value('log-error'), $tinfo);
-
-  # Run <tname>-master.sh
-  if ($mysqld->option('#!run-master-sh') and
-      defined $tinfo->{master_sh} and 
-      run_system('/bin/sh ' . $tinfo->{master_sh}) )
-  {
-    $tinfo->{'comment'}= "Failed to execute '$tinfo->{master_sh}'";
-    return 1;
-  }
-
-  # Run <tname>-slave.sh
-  if ($mysqld->option('#!run-slave-sh') and
-      defined $tinfo->{slave_sh} and
-      run_system('/bin/sh ' . $tinfo->{slave_sh}))
-  {
-    $tinfo->{'comment'}= "Failed to execute '$tinfo->{slave_sh}'";
-    return 1;
-  }
 
   if (!$opt_embedded_server)
   {
