@@ -1194,17 +1194,14 @@ inline size_t recv_sys_t::files_size()
 }
 
 /** Process a file name from a FILE_* record.
-@param[in,out]	name		file name
+@param[in]	name		file name
 @param[in]	len		length of the file name
 @param[in]	space_id	the tablespace ID
 @param[in]	deleted		whether this is a FILE_DELETE record
 @param[in]	lsn		lsn of the redo log
-@param[in]	store		whether the redo log has to
-				stored */
-static
-void
-fil_name_process(char* name, ulint len, ulint space_id,
-		 bool deleted, lsn_t lsn, store_t *store)
+@param[in]	store		whether the redo log has to be stored */
+static void fil_name_process(const char *name, ulint len, ulint space_id,
+                             bool deleted, lsn_t lsn, const store_t *store)
 {
 	if (srv_operation == SRV_OPERATION_BACKUP
 	    || srv_operation == SRV_OPERATION_BACKUP_NO_DEFER) {
@@ -1226,13 +1223,17 @@ fil_name_process(char* name, ulint len, ulint space_id,
 
 	file_name_t&	f = p.first->second;
 
-	if (deleted) {
-		/* Got FILE_DELETE */
-		if (auto d = deferred_spaces.find(static_cast<uint32_t>(
-							  space_id))) {
+	if (auto d = deferred_spaces.find(static_cast<uint32_t>(space_id))) {
+		if (deleted) {
 			d->deleted = true;
+			goto got_deleted;
 		}
+		goto reload;
+	}
 
+	if (deleted) {
+got_deleted:
+		/* Got FILE_DELETE */
 		if (!p.second && f.status != file_name_t::DELETED) {
 			f.status = file_name_t::DELETED;
 			if (f.space != NULL) {
@@ -1244,6 +1245,7 @@ fil_name_process(char* name, ulint len, ulint space_id,
 		ut_ad(f.space == NULL);
 	} else if (p.second // the first FILE_MODIFY or FILE_RENAME
 		   || f.name != fname.name) {
+reload:
 		fil_space_t*	space;
 
 		/* Check if the tablespace file exists and contains
