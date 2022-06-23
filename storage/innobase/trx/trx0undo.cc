@@ -307,8 +307,10 @@ inline void UndorecApplier::assign_rec(const buf_block_t &block,
   this->undo_rec= trx_undo_rec_copy(block.page.frame + offset, heap);
 }
 
-void UndorecApplier::apply_undo_rec()
+inline void UndorecApplier::apply_undo_rec()
 {
+  if (!undo_rec)
+    return;
   bool updated_extern= false;
   undo_no_t undo_no= 0;
   table_id_t table_id= 0;

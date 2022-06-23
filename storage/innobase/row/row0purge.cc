@@ -1114,7 +1114,7 @@ row_purge(
 	trx_undo_rec_t*	undo_rec,	/*!< in: record to purge */
 	que_thr_t*	thr)		/*!< in: query thread */
 {
-	if (undo_rec != &trx_purge_dummy_rec) {
+	if (undo_rec != reinterpret_cast<trx_undo_rec_t*>(-1)) {
 		bool	updated_extern;
 
 		while (row_purge_parse_undo_rec(
