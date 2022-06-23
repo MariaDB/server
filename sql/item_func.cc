@@ -1448,6 +1448,11 @@ double Item_func_minus::real_op()
 }
 
 
+/*
+  Suppress run-time checks in this function for overflow because it
+  intentionally performs integer overflow in error checking.
+*/
+__attribute__((no_sanitize("signed-integer-overflow")))
 longlong Item_func_minus::int_op()
 {
   longlong val0= args[0]->val_int();
