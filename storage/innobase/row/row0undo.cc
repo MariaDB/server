@@ -342,7 +342,11 @@ static bool row_undo_rec_get(undo_node_t* node)
 					   node->heap);
 	mtr.commit();
 
-	switch (trx_undo_rec_get_type(node->undo_rec)) {
+	if (UNIV_UNLIKELY(!node->undo_rec)) {
+		return false;
+	}
+
+	switch (node->undo_rec[2] & (TRX_UNDO_CMPL_INFO_MULT - 1)) {
 	case TRX_UNDO_INSERT_METADATA:
 		/* This record type was introduced in MDEV-11369
 		instant ADD COLUMN, which was implemented after
@@ -356,13 +360,12 @@ static bool row_undo_rec_get(undo_node_t* node)
 	case TRX_UNDO_INSERT_REC:
 	case TRX_UNDO_EMPTY:
 		node->roll_ptr |= 1ULL << ROLL_PTR_INSERT_FLAG_POS;
-		node->state = undo == temp
+		node->state = is_temp
 			? UNDO_INSERT_TEMPORARY : UNDO_INSERT_PERSISTENT;
 		break;
 	default:
-		node->state = undo == temp
+		node->state = is_temp
 			? UNDO_UPDATE_TEMPORARY : UNDO_UPDATE_PERSISTENT;
-		break;
 	}
 
 	trx->undo_no = node->undo_no = trx_undo_rec_get_undo_no(

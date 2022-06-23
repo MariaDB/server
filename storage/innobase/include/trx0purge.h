@@ -33,10 +33,6 @@ Created 3/26/1996 Heikki Tuuri
 
 #include <queue>
 
-/** A dummy undo record used as a return value when we have a whole undo log
-which needs no purge */
-extern trx_undo_rec_t	trx_purge_dummy_rec;
-
 /** Prepend the history list with an undo log.
 Remove the undo log segment from the rseg slot if it is too big for reuse.
 @param[in]	trx		transaction

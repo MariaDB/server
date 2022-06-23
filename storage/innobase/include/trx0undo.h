@@ -360,7 +360,7 @@ public:
   page_id_t get_page_id() const { return page_id; }
 
   /** Handle the DML undo log and apply it on online indexes */
-  void apply_undo_rec();
+  inline void apply_undo_rec();
 
   ~UndorecApplier()
   {
