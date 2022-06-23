@@ -43,25 +43,60 @@ ALTER TABLE vehicle_reg FORCE;
 
 # Yeah, no "else", brothers
 --if (!$no_vehicles) {
-create temporary table counters_new_method (
+create or replace temporary table counters (
   pk_value int,
   counter int,
-  index (pk_value)
+  primary key (pk_value)
 ) engine=myisam;
 
 
---let $i= 5
+--let $i= 500
 --echo i=$i
 --let $method=bernoulli
 --let percent=1
 --echo method=$method $percent%
 --while($i)
   eval
-  # INSERT INTO counters_new_method
+  INSERT INTO counters
         SELECT _id, 0 FROM vehicle_reg tablesample $method($percent)
-  #      ON DUPLICATE KEY UPDATE counter = counter + 1
+       ON DUPLICATE KEY UPDATE counter = counter + 1
   ;
 --dec $i
 --}
+--enable_query_log
+--enable_result_log
+select pk_value div 10000, sum(counter) from counters group by pk_value div 10000;
+
+create or replace temporary table counters (
+  pk_value int,
+  counter int,
+  primary key (pk_value)
+) engine=myisam;
+
+
+--echo ==================================================================
+--echo ==================================================================
+--echo ==================================================================
+--echo ==================================================================
+--echo ==================================================================
+--echo ==================================================================
+--echo ==================================================================
+--echo ==================================================================
+
+--let $i= 500
+--echo i=$i
+--let $method=system
+--let percent=1
+--echo method=$method $percent%
+--while($i)
+  eval
+INSERT INTO counters
+  SELECT _id, 0 FROM vehicle_reg tablesample $method($percent)
+ON DUPLICATE KEY UPDATE counter = counter + 1
+;
+--dec $i
 --}
 --enable_query_log
+--enable_result_log
+select pk_value div 10000, sum(counter) from counters group by pk_value div 10000;
+--}
