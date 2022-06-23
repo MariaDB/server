@@ -327,21 +327,22 @@ public:
     int m_period;
     std::mutex m_mtx;
     bool m_on;
-    std::atomic<bool> m_running;
+    std::atomic<int> m_running;
 
     void run()
     {
       /*
         In rare cases, multiple callbacks can be scheduled,
-        e.g with set_time(0,0) in a loop.
-        We do not allow parallel execution, as user is not prepared.
+        at the same time,. e.g with set_time(0,0) in a loop.
+        We do not allow parallel execution, since it is against the expectations.
       */
-      bool expected = false;
-      if (!m_running.compare_exchange_strong(expected, true))
+      if (m_running.fetch_add(1, std::memory_order_acquire) > 0)
         return;
-
-      m_callback(m_data);
-      m_running = false;
+      do
+      {
+        m_callback(m_data);
+      }
+      while (m_running.fetch_sub(1, std::memory_order_release) != 1);
 
       if (m_pool && m_period)
       {
