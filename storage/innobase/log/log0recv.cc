@@ -1185,12 +1185,9 @@ inline size_t recv_sys_t::files_size()
 @param[in]	space_id	the tablespace ID
 @param[in]	deleted		whether this is a FILE_DELETE record
 @param[in]	lsn		lsn of the redo log
-@param[in]	store		whether the redo log has to
-				stored */
-static
-void
-fil_name_process(const char* name, ulint len, uint32_t space_id,
-		 bool deleted, lsn_t lsn, store_t store)
+@param[in]	store		whether the redo log has to be stored */
+static void fil_name_process(const char *name, ulint len, uint32_t space_id,
+                             bool deleted, lsn_t lsn, store_t store)
 {
 	if (srv_operation == SRV_OPERATION_BACKUP
 	    || srv_operation == SRV_OPERATION_BACKUP_NO_DEFER) {
@@ -1212,13 +1209,17 @@ fil_name_process(const char* name, ulint len, uint32_t space_id,
 
 	file_name_t&	f = p.first->second;
 
-	if (deleted) {
-		/* Got FILE_DELETE */
-		if (auto d = deferred_spaces.find(static_cast<uint32_t>(
-							  space_id))) {
+	if (auto d = deferred_spaces.find(space_id)) {
+		if (deleted) {
 			d->deleted = true;
+			goto got_deleted;
 		}
+		goto reload;
+	}
 
+	if (deleted) {
+got_deleted:
+		/* Got FILE_DELETE */
 		if (!p.second && f.status != file_name_t::DELETED) {
 			f.status = file_name_t::DELETED;
 			if (f.space != NULL) {
@@ -1230,6 +1231,7 @@ fil_name_process(const char* name, ulint len, uint32_t space_id,
 		ut_ad(f.space == NULL);
 	} else if (p.second // the first FILE_MODIFY or FILE_RENAME
 		   || f.name != fname.name) {
+reload:
 		fil_space_t*	space;
 
 		/* Check if the tablespace file exists and contains
@@ -1240,8 +1242,7 @@ fil_name_process(const char* name, ulint len, uint32_t space_id,
 		case FIL_LOAD_OK:
 			ut_ad(space != NULL);
 
-			deferred_spaces.remove(
-				static_cast<uint32_t>(space_id));
+			deferred_spaces.remove(space_id);
 			if (!f.space) {
 				if (f.size
 				    || f.flags != f.initial_flags) {
@@ -1304,8 +1305,7 @@ same_space:
 			when lsn is already processed */
 			if (store != store_t::STORE_IF_EXISTS) {
 				deferred_spaces.add(
-					static_cast<uint32_t>(space_id),
-					fname.name.c_str(), lsn);
+					space_id, fname.name.c_str(), lsn);
 			}
 			break;
 		case FIL_LOAD_INVALID:

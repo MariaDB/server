@@ -29971,11 +29971,12 @@ bool build_notnull_conds_for_range_scans(JOIN *join, Item *cond,
 
   DBUG_ENTER("build_notnull_conds_for_range_scans");
 
-  for (JOIN_TAB *s= join->join_tab + join->const_tables ;
+  for (JOIN_TAB *s= join->join_tab;
        s < join->join_tab + join->table_count ; s++)
   {
     /* Clear all needed bitmaps to mark found fields */
-    if (allowed & s->table->map)
+    if ((allowed & s->table->map) &&
+        !(s->table->map && join->const_table_map))
       bitmap_clear_all(&s->table->tmp_set);
   }
 
@@ -29990,17 +29991,18 @@ bool build_notnull_conds_for_range_scans(JOIN *join, Item *cond,
     For each table t from 'allowed' build a conjunction of NOT NULL predicates
     constructed for all found fields if they are included in some indexes.
     If the construction of the conjunction succeeds attach the formula to
-    t->table->notnull_cond. The condition will be used to look for complementary
-    range scans.
+    t->table->notnull_cond. The condition will be used to look for
+    complementary range scans.
   */
-  for (JOIN_TAB *s= join->join_tab + join->const_tables ;
+  for (JOIN_TAB *s= join->join_tab ;
        s < join->join_tab + join->table_count ; s++)
   {
     TABLE *tab= s->table;
     List<Item> notnull_list;
     Item *notnull_cond= 0;
 
-    if (!(allowed & tab->map))
+    if (!(allowed & tab->map) ||
+        (s->table->map && join->const_table_map))
       continue;
 
     for (Field** field_ptr= tab->field; *field_ptr; field_ptr++)
