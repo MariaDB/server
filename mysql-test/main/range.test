@@ -2492,6 +2492,24 @@ DROP TABLE t1, t2;
 
 SET @@optimizer_switch= @save_optimizer_switch;
 
+--echo
+--echo # MDEV-28858 Wrong result with table elimination combined with
+--echo # not_null_range_scan
+--echo #
+
+CREATE TABLE t1 (a INT, b INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES  (10,1),(null,2);
+CREATE TABLE t2 (pk INT PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(2);
+
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch= 'not_null_range_scan=on';
+SELECT t1.b FROM t1 LEFT JOIN t2 ON t1.a = t2.pk WHERE t1.a IS NULL ORDER BY t1.b;
+SET optimizer_switch= 'not_null_range_scan=off';
+SELECT t1.b FROM t1 LEFT JOIN t2 ON t1.a = t2.pk WHERE t1.a IS NULL ORDER BY t1.b;
+SET @@optimizer_switch=@save_optimizer_switch;
+drop table t1,t2;
+
 --echo #
 --echo # End of 10.5 tests
 --echo #
