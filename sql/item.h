@@ -1838,6 +1838,16 @@ public:
   */
   virtual bool is_evaluable_expression() const { return true; }
 
+  virtual bool check_assignability_to(const Field *to) const
+  {
+    /*
+      "this" must be neither DEFAULT/IGNORE,
+      nor Item_param bound to DEFAULT/IGNORE.
+    */
+    DBUG_ASSERT(is_evaluable_expression());
+    return to->check_assignability_from(type_handler());
+  }
+
   /**
    * Check whether the item is a parameter  ('?') of stored routine.
    * Default implementation returns false. Method is overridden in the class
@@ -4091,6 +4101,7 @@ class Item_param :public Item_basic_value,
   const String *value_query_val_str(THD *thd, String* str) const;
   Item *value_clone_item(THD *thd);
   bool is_evaluable_expression() const override;
+  bool check_assignability_to(const Field *field) const override;
   bool can_return_value() const;
 
 public:
@@ -6771,6 +6782,10 @@ public:
   {
     str->append(STRING_WITH_LEN("default"));
   }
+  bool check_assignability_to(const Field *to) const override
+  {
+    return false;
+  }
   int save_in_field(Field *field_arg, bool) override
   {
     return field_arg->save_in_field_default_value(false);
@@ -6803,6 +6818,10 @@ public:
   void print(String *str, enum_query_type) override
   {
     str->append(STRING_WITH_LEN("ignore"));
+  }
+  bool check_assignability_to(const Field *to) const override
+  {
+    return false;
   }
   int save_in_field(Field *field_arg, bool) override
   {

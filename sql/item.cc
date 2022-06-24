@@ -4509,6 +4509,22 @@ bool Item_param::is_evaluable_expression() const
 }
 
 
+bool Item_param::check_assignability_to(const Field *to) const
+{
+  switch (state) {
+  case SHORT_DATA_VALUE:
+  case LONG_DATA_VALUE:
+  case NULL_VALUE:
+    return to->check_assignability_from(type_handler());
+  case NO_VALUE:
+  case IGNORE_VALUE:
+  case DEFAULT_VALUE:
+    break;
+  }
+  return false;
+}
+
+
 bool Item_param::can_return_value() const
 {
   // There's no "default". See comments in Item_param::save_in_field().

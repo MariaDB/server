@@ -1686,6 +1686,27 @@ public:
   Field **field_to_fill();
   bool validate_default_values_of_unset_fields(THD *thd) const;
 
+  // Check if the value list is assignable to the explicit field list
+  static bool check_assignability_explicit_fields(List<Item> fields,
+                                                  List<Item> values);
+  // Check if the value list is assignable to all visible fields
+  bool check_assignability_all_visible_fields(List<Item> &values) const;
+  /*
+    Check if the value list is assignable to:
+    - The explicit field list if fields.elements > 0, e.g.
+        INSERT INTO t1 (a,b) VALUES (1,2);
+    - All visible fields, if fields.elements==0, e.g.
+        INSERT INTO t1 VALUES (1,2);
+  */
+  bool check_assignability_opt_fields(List<Item> fields,
+                                      List<Item> values) const
+  {
+    DBUG_ASSERT(values.elements);
+    return fields.elements ?
+           check_assignability_explicit_fields(fields, values) :
+           check_assignability_all_visible_fields(values);
+  }
+
   bool insert_all_rows_into_tmp_table(THD *thd, 
                                       TABLE *tmp_table,
                                       TMP_TABLE_PARAM *tmp_table_param,

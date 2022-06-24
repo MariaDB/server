@@ -9242,6 +9242,60 @@ bool TABLE::validate_default_values_of_unset_fields(THD *thd) const
 }
 
 
+/*
+  Check assignment compatibility of a value list against an explicitly
+  specified field list, e.g.
+    INSERT INTO t1 (a,b) VALUES (1,2);
+*/
+bool TABLE::check_assignability_explicit_fields(List<Item> fields,
+                                                List<Item> values)
+{
+  DBUG_ENTER("TABLE::check_assignability_explicit_fields");
+  DBUG_ASSERT(fields.elements == values.elements);
+
+  List_iterator<Item> fi(fields);
+  List_iterator<Item> vi(values);
+  Item *f, *value;
+  while ((f= fi++) && (value= vi++))
+  {
+    Item_field *item_field= f->field_for_view_update();
+    if (!item_field)
+    {
+      /*
+        A non-updatable field of a view found.
+        This scenario is caught later and an error is raised.
+        We could eventually move error reporting here. For now just continue.
+      */
+      continue;
+    }
+    if (value->check_assignability_to(item_field->field))
+      DBUG_RETURN(true);
+  }
+  DBUG_RETURN(false);
+}
+
+
+/*
+  Check assignment compatibility for a value list against
+  all visible fields of the table, e.g.
+    INSERT INTO t1 VALUES (1,2);
+*/
+bool TABLE::check_assignability_all_visible_fields(List<Item> &values) const
+{
+  DBUG_ENTER("TABLE::check_assignability_all_visible_fields");
+  DBUG_ASSERT(s->visible_fields == values.elements);
+
+  List_iterator<Item> vi(values);
+  for (uint i= 0; i < s->fields; i++)
+  {
+    if (!field[i]->invisible &&
+        (vi++)->check_assignability_to(field[i]))
+      DBUG_RETURN(true);
+  }
+  DBUG_RETURN(false);
+}
+
+
 bool TABLE::insert_all_rows_into_tmp_table(THD *thd,
                                            TABLE *tmp_table,
                                            TMP_TABLE_PARAM *tmp_table_param,
