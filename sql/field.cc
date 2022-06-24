@@ -964,6 +964,32 @@ Type_handler::aggregate_for_result_traditional(const Type_handler *a,
 }
 
 
+bool Field::check_assignability_from(const Type_handler *from) const
+{
+  /*
+    Using type_handler_for_item_field() here to get the data type handler
+    on both sides. This is needed to make sure aggregation for Field
+    works the same way with how Item_field aggregates for UNION or CASE,
+    so these statements:
+      SELECT a FROM t1 UNION SELECT b FROM t1; // Item_field vs Item_field
+      UPDATE t1 SET a=b;                       // Field      vs Item_field
+    either both return "Illegal parameter data types" or both pass
+    the data type compatibility test.
+    For MariaDB standard data types, using type_handler_for_item_field()
+    turns ENUM/SET into just CHAR.
+  */
+  Type_handler_hybrid_field_type th(type_handler()->
+                                      type_handler_for_item_field());
+  if (th.aggregate_for_result(from->type_handler_for_item_field()))
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+             type_handler()->name().ptr(), from->name().ptr(), "SET");
+    return true;
+  }
+  return false;
+}
+
+
 /*
   Test if the given string contains important data:
   not spaces for character string,
