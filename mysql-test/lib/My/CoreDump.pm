@@ -19,9 +19,141 @@ package My::CoreDump;
 use strict;
 use Carp;
 use My::Platform;
+use Text::Wrap;
+use Data::Dumper;
 
 use File::Temp qw/ tempfile tempdir /;
 use mtr_results;
+use mtr_report;
+
+my %opts;
+my %config;
+my $help = "\n\nOptions for printing core dumps\n\n";
+
+sub register_opt($$$) {
+  my ($name, $format, $msg)= @_;
+  my @names= split(/\|/, $name);
+  my $option_name= $names[0];
+  $option_name=~ s/-/_/;
+  $opts{$name. $format}= \$config{$option_name};
+  $help.= wrap(sprintf("  %-23s", join(', ', @names)), ' 'x25, "$msg\n");
+}
+
+# To preserve order we use array instead of hash
+my @print_formats= (
+  short => {
+    description => "Failing stack trace",
+    codes => {}
+  },
+  medium => {
+    description => "All stack traces",
+    codes => {}
+  },
+  detailed => {
+    description => "All stack traces with debug context",
+    codes => {}
+  },
+  custom => {
+    description => "Custom debugger script for printing stack"
+  },
+  # 'no' must be last (check generated help)
+  no => {
+    description => "Skip stack trace printing"
+  }
+);
+
+# TODO: make class for each {method, get_code}
+my @print_methods= (IS_WINDOWS) ? (cdb => { method => \&_cdb }) : (
+  gdb => {
+    method => \&_gdb,
+    get_code => \&_gdb_format,
+  },
+  dbx => {
+    method => \&_dbx
+  },
+  lldb => {
+    method => \&_lldb
+  },
+  # 'auto' must be last (check generated help)
+  auto => {
+    method => \&_auto
+  }
+);
+
+# But we also use hash
+my %print_formats= @print_formats;
+my %print_methods= @print_methods;
+
+# and scalar
+my $x= 0;
+my $print_formats= join(', ', grep { ++$x % 2 } @print_formats);
+$x= 0;
+my $print_methods=  join(', ', grep { ++$x % 2 } @print_methods);
+
+# Fill 'short' and 'detailed' formats per each print_method
+# that has interface for that
+for my $f (keys %print_formats)
+{
+  next unless exists $print_formats{$f}->{codes};
+  for my $m (keys %print_methods)
+  {
+    next unless exists $print_methods{$m}->{get_code};
+    # That calls f.ex. _gdb_format('short')
+    # and assigns { gdb => value-of-_gdb_format } into $print_formats{short}->{format}: 
+    $print_formats{$f}->{codes}->{$m}= $print_methods{$m}->{get_code}->($f);
+  }
+}
+
+register_opt('print-core|C', ':s',
+  "Print core dump format: ". $print_formats. " (for not printing cores). ".
+  "Defaults to value of MTR_PRINT_CORE or 'short'");
+if (!IS_WINDOWS)
+{
+  register_opt('print-method', '=s',
+    "Print core method: ". join(', ', $print_methods). " (try each method until success). ".
+    "Defaults to 'auto'");
+}
+
+sub options() { %opts }
+sub help() { $help }
+
+
+sub env_or_default($$) {
+  my ($default, $env)= @_;
+  if (exists $ENV{$env}) {
+    my $f= $ENV{$env};
+    $f= 'custom'
+      if $f =~ m/^custom:/;
+    return $ENV{$env}
+      if exists $print_formats{$f};
+    mtr_verbose("$env value ignored: $ENV{$env}");
+  }
+  return $default;
+}
+
+sub pre_setup() {
+  $config{print_core}= env_or_default('short', 'MTR_PRINT_CORE')
+    if not defined $config{print_core};
+  $config{print_method}= (IS_WINDOWS) ? 'cdb' : 'auto'
+    if not defined $config{print_method};
+  # If the user has specified 'custom' we fill appropriate print_format
+  # and that will be used automatically
+  # Note: this can assign 'custom' to method 'auto'.
+  if ($config{print_core} =~ m/^custom:(.+)$/) {
+    $config{print_core}= 'custom';
+    $print_formats{'custom'}= {
+      $config{print_method} => $1 
+    }
+  } 
+  mtr_error "Wrong value for --print-core: $config{print_core}"
+    if not exists $print_formats{$config{print_core}};
+  mtr_error "Wrong value for --print-method: $config{print_method}"
+    if not exists $print_methods{$config{print_method}};
+
+  mtr_debug(Data::Dumper->Dump(
+    [\%config, \%print_formats, \%print_methods],
+    [qw(config print_formats print_methods)]));
+}
 
 my $hint_mysqld;		# Last resort guess for executable path
 
@@ -50,8 +182,38 @@ sub _verify_binpath {
   return $binpath;
 }
 
+
+# Returns GDB code according to specified format
+
+# Note: this is like simple hash, separate interface was made
+# in advance for implementing below TODO
+
+# TODO: _gdb_format() and _gdb() should be separate class
+# (like the other printing methods)
+
+sub _gdb_format($) {
+  my ($format)= @_;
+  my %formats= (
+    short => "bt\n",
+    medium => "thread apply all bt\n",
+    detailed =>
+      "bt\n".
+      "set print sevenbit on\n".
+      "set print static-members off\n".
+      "set print frame-arguments all\n".
+      "thread apply all bt full\n".
+      "quit\n"
+  );
+  confess "Unknown format: ". $format
+    unless exists $formats{$format};
+  return $formats{$format};
+}
+
+
 sub _gdb {
-  my ($core_name)= @_;
+  my ($core_name, $code)= @_;
+  confess "Undefined format"
+    unless defined $code;
 
   # Check that gdb exists
   `gdb --version`;
@@ -61,7 +223,7 @@ sub _gdb {
   }
 
   if (-f $core_name) {
-    print "\nTrying 'gdb' to get a backtrace from coredump $core_name\n";
+    mtr_verbose("Trying 'gdb' to get a backtrace from coredump $core_name");
   } else {
     print "\nCoredump $core_name does not exist, cannot run 'gdb'\n";
     return;
@@ -76,13 +238,7 @@ sub _gdb {
 
   # Create tempfile containing gdb commands
   my ($tmp, $tmp_name) = tempfile();
-  print $tmp
-    "bt\n",
-    "set print sevenbit on\n",
-    "set print static-members off\n",
-    "set print frame-arguments all\n",
-    "thread apply all bt full\n",
-    "quit\n";
+  print $tmp $code;
   close $tmp or die "Error closing $tmp_name: $!";
 
   # Run gdb
@@ -105,7 +261,7 @@ EOF
 
 
 sub _dbx {
-  my ($core_name)= @_;
+  my ($core_name, $format)= @_;
 
   print "\nTrying 'dbx' to get a backtrace\n";
 
@@ -167,7 +323,7 @@ sub cdb_check {
 
 
 sub _cdb {
-  my ($core_name)= @_;
+  my ($core_name, $format)= @_;
   print "\nTrying 'cdb' to get a backtrace\n";
   return unless -f $core_name;
   
@@ -304,32 +460,47 @@ EOF
 }
 
 
+sub _auto
+{
+  my ($core_name, $code, $rest)= @_;
+  # We use ordered array @print_methods and omit auto itself
+  my @valid_methods= @print_methods[0 .. $#print_methods - 2];
+  my $x= 0;
+  my @methods= grep { ++$x % 2} @valid_methods;
+  my $f= $config{print_core};
+  foreach my $m (@methods)
+  {
+    my $debugger= $print_methods{$m};
+    confess "Broken @print_methods"
+      if $debugger->{method} == \&_auto;
+    # If we didn't find format for 'auto' (that is only possible for 'custom')
+    # we get format for specific debugger
+    if (not defined $code && defined $print_formats{$f} and
+        exists $print_formats{$f}->{codes}->{$m})
+    {
+      $code= $print_formats{$f}->{codes}->{$m};
+    }
+    mtr_verbose2("Trying to print with method ${m}:${f}");
+    if ($debugger->{method}->($core_name, $code)) {
+      return;
+    }
+  }
+}
+
 
 sub show {
   my ($class, $core_name, $exe_mysqld, $parallel)= @_;
-  $hint_mysqld= $exe_mysqld;
-
-  # On Windows, rely on cdb to be there...
-  if (IS_WINDOWS)
-  {
-    _cdb($core_name);
-    return;
-  }
-  
-  my @debuggers =
-    (
-     \&_gdb,
-     \&_dbx,
-     \&_lldb,
-     # TODO...
-   );
-
-  # Try debuggers until one succeeds
-
-  foreach my $debugger (@debuggers){
-    if ($debugger->($core_name)){
-      return;
+  if ($config{print_core} ne 'no') {
+    my $f= $config{print_core};
+    my $m= $config{print_method};
+    my $code= undef;
+    if (exists $print_formats{$f}->{codes} and
+        exists $print_formats{$f}->{codes}->{$m}) {
+      $code= $print_formats{$f}->{codes}->{$m};
     }
+    mtr_verbose2("Printing core with method ${m}:${f}");
+    mtr_debug("code: ${code}");
+    $print_methods{$m}->{method}->($core_name, $code);
   }
   return;
 }
