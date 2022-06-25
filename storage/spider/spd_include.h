@@ -951,7 +951,6 @@ typedef struct st_spider_share
   int                selupd_lock_mode;
   int                query_cache;
   int                query_cache_sync;
-  int                internal_delayed;
   int                bulk_size;
   int                bulk_update_mode;
   int                bulk_update_size;
