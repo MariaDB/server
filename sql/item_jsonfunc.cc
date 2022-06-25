@@ -2800,7 +2800,7 @@ longlong Item_func_json_depth::val_int()
 bool Item_func_json_type::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8mb3_general_ci);
-  max_length= 12;
+  max_length= 12 * collation.collation->mbmaxlen;
   set_maybe_null();
   return FALSE;
 }
