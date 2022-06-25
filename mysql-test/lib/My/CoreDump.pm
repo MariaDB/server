@@ -316,13 +316,10 @@ sub show {
     return;
   }
   
-  # We try dbx first; gdb itself may coredump if run on a Sun Studio
-  # compiled binary on Solaris.
-
   my @debuggers =
     (
-     \&_dbx,
      \&_gdb,
+     \&_dbx,
      \&_lldb,
      # TODO...
    );
