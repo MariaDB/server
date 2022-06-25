@@ -5,6 +5,7 @@ use warnings;
 use Text::Wrap;
 use Cwd;
 use My::Platform;
+use mtr_report;
 
 # 1. options to support:
 #       --xxx[=ARGS]
@@ -105,6 +106,10 @@ EEE
 
 my %opts;
 my %opt_vals;
+my $debugger;
+my $boot_debugger;
+my $client_debugger;
+
 my $help = "\n\nOptions for running debuggers\n\n";
 
 for my $k (sort keys %debuggers) {
@@ -161,7 +166,7 @@ sub do_args($$$$$) {
   if ($v->{script}) {
     ::mtr_tonewfile($vars{script}, subst($v->{script}, %vars)."\n".$script);
   } elsif ($script) {
-    die "$k is not using a script file, nowhere to write the script \n---\n$script\n---\n";
+    mtr_error "$k is not using a script file, nowhere to write the script \n---\n$script\n---";
   }
 
   my $options = subst($v->{options}, %vars);
@@ -186,23 +191,60 @@ sub help() { $help }
 sub fix_options(@) {
   my $re=join '|', keys %opts;
   $re =~ s/=s//g;
+  # FIXME: what is '=;'? What about ':s' to denote optional argument in register_opt()
   map { $_ . (/^--($re)$/ and '=;') } @_;
 }
 
 sub pre_setup() {
   my $used;
+  my %options;
+  my %client_options;
+  my %boot_options;
+
+  my $embedded= $::opt_embedded_server ? ' with --embedded' : '';
+
   for my $k (keys %debuggers) {
     for my $opt ($k, "manual-$k", "boot-$k", "client-$k") {
-      if ($opt_vals{$opt})
-      {
+      my $val= $opt_vals{$opt};
+      if ($val) {
         $used = 1;
         if ($debuggers{$k}->{pre}) {
           $debuggers{$k}->{pre}->();
           delete $debuggers{$k}->{pre};
         }
+        if ($opt eq $k) {
+          $options{$opt}= $val;
+          $client_options{$opt}= $val
+            if $embedded;
+        } elsif ($opt eq "manual-$k") {
+          $options{$opt}= $val;
+        } elsif ($opt eq "boot-$k") {
+          $boot_options{$opt}= $val;
+        } elsif ($opt eq "client-$k") {
+          $client_options{$opt}= $val;
+        }
       }
     }
   }
+
+  if ((keys %options) > 1) {
+    mtr_error "Multiple debuggers specified: ",
+        join (" ", map { "--$_" } keys %options);
+  }
+
+  if ((keys %boot_options) > 1) {
+    mtr_error "Multiple boot debuggers specified: ",
+        join (" ", map { "--$_" } keys %boot_options);
+  }
+
+  if ((keys %client_options) > 1) {
+    mtr_error "Multiple client debuggers specified: ",
+        join (" ", map { "--$_" } keys %client_options);
+  }
+
+  $debugger= (keys %options)[0];
+  $boot_debugger= (keys %boot_options)[0];
+  $client_debugger= (keys %client_options)[0];
 
   if ($used) {
     $ENV{ASAN_OPTIONS}= 'abort_on_error=1:'.($ENV{ASAN_OPTIONS} || '');
@@ -219,49 +261,20 @@ sub pre_setup() {
 
 sub setup_boot_args($$$) {
   my ($args, $exe, $input) = @_;
-  my $found;
-
-  for my $k (keys %debuggers) {
-    if ($opt_vals{"boot-$k"}) {
-      die "--boot-$k and --$found cannot be used at the same time\n" if $found;
-
-      $found="boot-$k";
-      do_args($args, $exe, $input, 'bootstrap', $found);
-    }
-  }
+  do_args($args, $exe, $input, 'bootstrap', $boot_debugger)
+    if defined $boot_debugger;
 }
 
 sub setup_client_args($$) {
   my ($args, $exe) = @_;
-  my $found;
-  my $embedded = $::opt_embedded_server ? ' with --embedded' : '';
-
-  for my $k (keys %debuggers) {
-    my @opt_names=("client-$k");
-    push @opt_names, $k if $embedded;
-    for my $opt (@opt_names) {
-      if ($opt_vals{$opt}) {
-        die "--$opt and --$found cannot be used at the same time$embedded\n" if $found;
-        $found=$opt;
-        do_args($args, $exe, IS_WINDOWS() ? 'NUL' : '/dev/null', 'client', $found);
-      }
-    }
-  }
+  do_args($args, $exe, IS_WINDOWS() ? 'NUL' : '/dev/null', 'client', $client_debugger)
+    if defined $client_debugger;
 }
 
 sub setup_args($$$) {
   my ($args, $exe, $type) = @_;
-  my $found;
-
-  for my $k (keys %debuggers) {
-    for my $opt ($k, "manual-$k") {
-      if ($opt_vals{$opt}) {
-        die "--$opt and --$found cannot be used at the same time\n" if $found;
-        $found=$opt;
-        do_args($args, $exe, IS_WINDOWS() ? 'NUL' : '/dev/null', $type, $found);
-      }
-    }
-  }
+  do_args($args, $exe, IS_WINDOWS() ? 'NUL' : '/dev/null', $type, $debugger)
+    if defined $debugger;
 }
 
 1;
