@@ -6279,8 +6279,10 @@ prepare_inplace_alter_table_dict(
 		/* If we promised ALGORITHM=NOCOPY or ALGORITHM=INSTANT,
 		we must retain the original ROW_FORMAT of the table. */
 		flags = (user_table->flags & (DICT_TF_MASK_COMPACT
+					      | DICT_TF_MASK_ZIP_SSIZE
 					      | DICT_TF_MASK_ATOMIC_BLOBS))
 			| (flags & ~(DICT_TF_MASK_COMPACT
+				     | DICT_TF_MASK_ZIP_SSIZE
 				     | DICT_TF_MASK_ATOMIC_BLOBS));
 	}
 
