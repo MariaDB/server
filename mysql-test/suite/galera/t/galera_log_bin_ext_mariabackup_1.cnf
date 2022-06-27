@@ -16,4 +16,4 @@ log-slave-updates
 
 [sst]
 transferfmt=@ENV.MTR_GALERA_TFMT
-sst_max_binlogs=-1
+sst_max_binlogs=1

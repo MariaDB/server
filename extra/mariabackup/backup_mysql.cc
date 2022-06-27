@@ -1634,70 +1634,71 @@ write_current_binlog_file(MYSQL *connection, bool write_binlogs)
 	gtid_exists = (executed_gtid_set && *executed_gtid_set)
 			|| (gtid_binlog_state && *gtid_binlog_state);
 
-	if (write_binlogs || gtid_exists) {
-
-		if (opt_log_bin != NULL && strchr(opt_log_bin, FN_LIBCHAR)) {
-			/* If log_bin is set, it has priority */
-			if (log_bin_dir) {
-				free(log_bin_dir);
-			}
-			log_bin_dir = strdup(opt_log_bin);
-		} else if (log_bin_dir == NULL) {
-			/* Default location is MySQL datadir */
-			log_bin_dir = static_cast<char*>(malloc(3));
-			ut_a(log_bin_dir);
-			log_bin_dir[0] = '.';
-			log_bin_dir[1] = FN_LIBCHAR;
-			log_bin_dir[2] = 0;
+	if (opt_log_bin != NULL && strchr(opt_log_bin, FN_LIBCHAR)) {
+		/* If log_bin is set, it has priority */
+		if (log_bin_dir) {
+			free(log_bin_dir);
 		}
+		log_bin_dir = strdup(opt_log_bin);
+	} else if (log_bin_dir == NULL) {
+		/* Default location is MySQL datadir */
+		log_bin_dir = static_cast<char*>(malloc(3));
+		ut_a(log_bin_dir);
+		log_bin_dir[0] = '.';
+		log_bin_dir[1] = FN_LIBCHAR;
+		log_bin_dir[2] = 0;
+	}
 
-		size_t log_bin_dir_length;
+	size_t log_bin_dir_length;
 
-		dirname_part(log_bin_dir, log_bin_dir, &log_bin_dir_length);
+	dirname_part(log_bin_dir, log_bin_dir, &log_bin_dir_length);
 
-		/* strip final slash if it is not the only path component */
-		while (IS_TRAILING_SLASH(log_bin_dir, log_bin_dir_length)) {
-			log_bin_dir_length--;
-		}
-		log_bin_dir[log_bin_dir_length] = 0;
+	/* strip final slash if it is not the only path component */
+	while (IS_TRAILING_SLASH(log_bin_dir, log_bin_dir_length)) {
+		log_bin_dir_length--;
+	}
+	log_bin_dir[log_bin_dir_length] = 0;
 
-		if (log_bin_dir == NULL) {
-			msg("Failed to locate binary log files");
-			result = false;
+	if (log_bin_dir == NULL) {
+		msg("Failed to locate binary log files");
+		result = false;
+		goto cleanup;
+	}
+
+	uint max_binlogs;
+	max_binlogs = opt_max_binlogs;
+	if (max_binlogs == 0) {
+		if (!write_binlogs || gtid_exists) {
+			max_binlogs = 1;
+		} else {
 			goto cleanup;
 		}
+	}
 
-		uint max_binlogs;
-		max_binlogs = opt_max_binlogs;
-		if (max_binlogs == 0) {
-			if (gtid_exists) {
-				max_binlogs = 1;
-			} else {
-				goto cleanup;
-			}
-		}
-
+	if (write_binlogs) {
 		xb_mysql_query(connection, "FLUSH BINARY LOGS", false);
+	}
 
-		MYSQL_RES *mysql_result;
+	MYSQL_RES *mysql_result;
 
-		mysql_result = xb_mysql_query(connection, "SHOW BINARY LOGS", true);
+	mysql_result = xb_mysql_query(connection, "SHOW BINARY LOGS", true);
 
-		ut_ad(mysql_num_fields(mysql_result) >= 2);
+	ut_ad(mysql_num_fields(mysql_result) >= 2);
 
-		my_ulonglong n_rows;
-		my_ulonglong start;
+	my_ulonglong n_rows;
+	my_ulonglong start;
 
-		n_rows = mysql_num_rows(mysql_result);
+	n_rows = mysql_num_rows(mysql_result);
 
-		start = 0;
-		if (max_binlogs < n_rows) {
-			start = n_rows - max_binlogs;
-		}
-		if (start) {
-			mysql_data_seek(mysql_result, start);
-		}
+	start = 0;
+	if (max_binlogs < n_rows) {
+		start = n_rows - max_binlogs;
+	}
+	if (start) {
+		mysql_data_seek(mysql_result, start);
+	}
 
+	if (write_binlogs) {
 		MYSQL_ROW row;
 		while ((row = mysql_fetch_row(mysql_result))) {
 			const char *binlog_name = row[0];
@@ -1709,14 +1710,14 @@ write_current_binlog_file(MYSQL *connection, bool write_binlogs)
 				if (!result) break;
 			}
 		}
-
-		if (result) {
-			write_binlog_info(connection, log_bin_dir,
-					  mysql_result, n_rows, start);
-		}
-
-		mysql_free_result(mysql_result);
 	}
+
+	if (result) {
+		write_binlog_info(connection, log_bin_dir,
+				  mysql_result, n_rows, start);
+	}
+
+	mysql_free_result(mysql_result);
 
 cleanup:
 	free_mysql_variables(vars);

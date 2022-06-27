@@ -433,8 +433,8 @@ EOF
             # Let's check the existence of the file with the index:
             if [ -f "$WSREP_SST_OPT_BINLOG_INDEX" ]; then
                 # Let's read the binlog index:
-                max_binlogs=$(parse_cnf "$encgroups" 'sst-max-binlogs')
-                if [ -n "$max_binlogs" ]; then
+                max_binlogs=$(parse_cnf "$encgroups" 'sst-max-binlogs' 1)
+                if [ "$max_binlogs" -ge 0 ]; then
                     binlog_files=""
                     if [ $max_binlogs -gt 0 ]; then
                         binlog_files=$(tail -n $max_binlogs \
