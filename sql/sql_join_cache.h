@@ -1124,6 +1124,27 @@ protected:
   void read_next_candidate_for_match(uchar *rec_ptr);
 
 public:
+  /*
+    The following functions are used by a 3rd party storage engine
+    to iterate over the contents of the join buffer for engine condition
+    pushdown during JOINs.
+  */
+
+  bool iterator_init() { return prepare_look_for_matches(false); }
+
+  uchar *iterator_get_next() { return get_next_candidate_for_match(); }
+
+  void iterator_unpack_current(uchar *rec_ptr) {
+    return read_next_candidate_for_match(rec_ptr);
+  }
+
+  uint get_num_fields() { return fields; }
+
+  CACHE_FIELD *get_field_descr() { return field_descr; }
+
+  CACHE_FIELD **get_blob_ptr() { return blob_ptr; }
+
+  /**************************************/
 
   /* 
     This constructor creates an unlinked BNL join cache. The cache is to be
