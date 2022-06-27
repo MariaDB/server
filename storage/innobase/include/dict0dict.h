@@ -1487,28 +1487,16 @@ public:
   }
 #endif
 
-  /** Move a table to the non-LRU list from the LRU list.
-  @return whether the table was evictable */
-  bool prevent_eviction(dict_table_t *table)
+  /** Move a table to the non-LRU list from the LRU list. */
+  void prevent_eviction(dict_table_t *table)
   {
     ut_d(locked());
     ut_ad(find(table));
     if (!table->can_be_evicted)
-      return false;
+      return;
     table->can_be_evicted= false;
     UT_LIST_REMOVE(table_LRU, table);
     UT_LIST_ADD_LAST(table_non_LRU, table);
-    return true;
-  }
-  /** Move a table from the non-LRU list to the LRU list. */
-  void allow_eviction(dict_table_t *table)
-  {
-    ut_d(locked());
-    ut_ad(find(table));
-    ut_ad(!table->can_be_evicted);
-    table->can_be_evicted= true;
-    UT_LIST_REMOVE(table_non_LRU, table);
-    UT_LIST_ADD_FIRST(table_LRU, table);
   }
 
 #ifdef UNIV_DEBUG
