@@ -801,32 +801,10 @@ sub run_test_server ($$$) {
               no_chdir => 1,
               wanted => sub
               {
-                my $core_file= $File::Find::name;
-                my $core_name= basename($core_file);
-
-                # Name beginning with core, not ending in .gz
-                if (($core_name =~ /^core/ and $core_name !~ /\.gz$/)
-                    or (IS_WINDOWS and $core_name =~ /\.dmp$/))
-                {
-                  # Ending with .dmp
-                  mtr_report(" - found '$core_name'",
-                             "($num_saved_cores/$opt_max_save_core)");
-
-                  My::CoreDump->show($core_file, $exe_mysqld, $opt_parallel);
-
-                  # Limit number of core files saved
-                  if ($num_saved_cores >= $opt_max_save_core)
-                  {
-                    mtr_report(" - deleting it, already saved",
-                               "$opt_max_save_core");
-                    unlink("$core_file");
-                  }
-                  else
-                  {
-                    mtr_compress_file($core_file) unless @opt_cases;
-                    ++$num_saved_cores;
-                  }
-                }
+                My::CoreDump::core_wanted(\$num_saved_cores,
+                                          $opt_max_save_core,
+                                          @opt_cases == 0,
+                                          $exe_mysqld, $opt_parallel);
               }
             },
             $worker_savedir);
