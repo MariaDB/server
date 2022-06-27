@@ -980,10 +980,13 @@ buf_madvise_do_dump()
 }
 #endif
 
+#ifndef UNIV_DEBUG
 static inline byte hex_to_ascii(byte hex_digit)
 {
-  return hex_digit <= 9 ? '0' + hex_digit : ('a' - 10) + hex_digit;
+  const int offset= hex_digit <= 9 ? '0' : 'a' - 10;
+  return byte(hex_digit + offset);
 }
+#endif
 
 /** Dump a page to stderr.
 @param[in]	read_buf	database page
