@@ -1829,7 +1829,13 @@ btr_root_raise_and_insert(
 	    || !page_copy_rec_list_end(new_block, root,
 				       page_get_infimum_rec(root->page.frame),
 				       index, mtr, err)) {
-		if (*err != DB_SUCCESS && *err != DB_FAIL) {
+		switch (*err) {
+		case DB_SUCCESS:
+			break;
+		case DB_FAIL:
+			*err = DB_SUCCESS;
+			break;
+		default:
 			return nullptr;
 		}
 
@@ -1964,14 +1970,8 @@ btr_root_raise_and_insert(
 	}
 
 	/* Split the child and insert tuple */
-	if (dict_index_is_spatial(index)) {
-		/* Split rtree page and insert tuple */
-		return(rtr_page_split_and_insert(flags, cursor, offsets, heap,
-						 tuple, n_ext, mtr, err));
-	} else {
-		return(btr_page_split_and_insert(flags, cursor, offsets, heap,
-						 tuple, n_ext, mtr, err));
-	}
+	return btr_page_split_and_insert(flags, cursor, offsets, heap,
+					 tuple, n_ext, mtr, err);
 }
 
 /** Decide if the page should be split at the convergence point of inserts
@@ -3348,7 +3348,13 @@ btr_lift_page_up(
 	    || !page_copy_rec_list_end(father_block, block,
 				       page_get_infimum_rec(page),
 				       index, mtr, err)) {
-		if (*err != DB_SUCCESS && *err != DB_FAIL) {
+		switch (*err) {
+		case DB_SUCCESS:
+			break;
+		case DB_FAIL:
+			*err = DB_SUCCESS;
+			break;
+		default:
 			return nullptr;
 		}
 
