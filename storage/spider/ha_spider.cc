@@ -1110,9 +1110,6 @@ THR_LOCK_DATA **ha_spider::store_lock(
     case TL_READ_HIGH_PRIORITY:
       high_priority = TRUE;
       break;
-    case TL_WRITE_DELAYED:
-      insert_delayed = TRUE;
-      break;
     case TL_WRITE_LOW_PRIORITY:
       low_priority = TRUE;
       break;
@@ -1222,7 +1219,6 @@ THR_LOCK_DATA **ha_spider::store_lock(
         lock_type = TL_READ;
       if (
         lock_type >= TL_WRITE_CONCURRENT_INSERT && lock_type <= TL_WRITE &&
-        lock_type != TL_WRITE_DELAYED &&
         !thd->in_lock_tables && !thd_tablespace_op(thd)
       )
         lock_type = TL_WRITE_ALLOW_WRITE;
@@ -1804,7 +1800,6 @@ int ha_spider::reset()
   insert_with_update = FALSE;
   low_priority = FALSE;
   high_priority = FALSE;
-  insert_delayed = FALSE;
   use_pre_call = FALSE;
   use_pre_records = FALSE;
   pre_bitmap_checked = FALSE;
@@ -9556,7 +9551,6 @@ ulonglong ha_spider::table_flags() const
     HA_CAN_FULLTEXT |
     HA_CAN_SQL_HANDLER |
     HA_FILE_BASED |
-    HA_CAN_INSERT_DELAYED |
     HA_CAN_BIT_FIELD |
     HA_NO_COPY_ON_ALTER |
     HA_BINLOG_ROW_CAPABLE |
@@ -13955,7 +13949,6 @@ int ha_spider::sync_from_clone_source(
     update_request = spider->update_request;
     lock_mode = spider->lock_mode;
     high_priority = spider->high_priority;
-    insert_delayed = spider->insert_delayed;
     low_priority = spider->low_priority;
     memcpy(conns, spider->conns,
       sizeof(SPIDER_CONN *) * share->link_count);
@@ -13997,7 +13990,6 @@ int ha_spider::sync_from_clone_source(
     update_request = spider->update_request;
     lock_mode = spider->lock_mode;
     high_priority = spider->high_priority;
-    insert_delayed = spider->insert_delayed;
     low_priority = spider->low_priority;
 
     if ((error_num = spider_check_trx_and_get_conn(spider->trx->thd,
