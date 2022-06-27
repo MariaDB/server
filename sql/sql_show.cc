@@ -6991,19 +6991,18 @@ static int get_check_constraints_record(THD *thd, TABLE_LIST *tables,
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     TABLE_LIST table_acl_check;
     bzero((char*) &table_acl_check, sizeof(table_acl_check));
+
+    if (!(thd->col_access & TABLE_ACLS))
+    {
+      table_acl_check.db= *db_name;
+      table_acl_check.table_name= *table_name;
+      table_acl_check.grant.privilege= thd->col_access;
+      if (check_grant(thd, TABLE_ACLS, &table_acl_check, FALSE, 1, TRUE))
+        DBUG_RETURN(res);
+    }
 #endif
     for (uint i= 0; i < tables->table->s->table_check_constraints; i++)
     {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-      if (!(thd->col_access & TABLE_ACLS))
-      {
-        table_acl_check.db= *db_name;
-        table_acl_check.table_name= *table_name;
-        table_acl_check.grant.privilege= thd->col_access;
-        if (check_grant(thd, TABLE_ACLS, &table_acl_check, FALSE, 1, TRUE))
-          continue;
-      }
-#endif
       Virtual_column_info *check= tables->table->check_constraints[i];
       table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
       table->field[3]->store(check->name.str, check->name.length,

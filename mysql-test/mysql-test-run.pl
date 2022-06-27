@@ -3253,17 +3253,21 @@ sub do_before_run_mysqltest($)
     if ($^O eq "MSWin32") {
       push @cmd, '--binary';
     }
-    push @cmd, (qw/-r - -f -s -o/, $dest, $base_result, $resfile);
+    push @cmd, (qw/-r - -f -s -o/, $dest . $$, $base_result, $resfile);
     if (-w $resdir) {
       # don't rebuild a file if it's up to date
       unless (-e $dest and -M $dest < -M $resfile
                        and -M $dest < -M $base_result) {
         run_system(@cmd);
+        rename $cmd[-3], $dest or unlink $cmd[-3];
       }
     } else {
-      $cmd[-3] = $dest = $opt_tmpdir . '/' . basename($dest);
+      $dest = $opt_tmpdir . '/' . basename($dest);
+      $cmd[-3] = $dest . $$;
       run_system(@cmd);
+      rename $cmd[-3], $dest or unlink $cmd[-3];
     }
+
     $tinfo->{result_file} = $dest;
   }
 

@@ -1362,9 +1362,8 @@ i_s_cmp_per_index_fill_low(
 
 	for (iter = snap.begin(), i = 0; iter != snap.end(); iter++, i++) {
 
-		dict_index_t*	index = dict_index_find_on_id_low(iter->first);
-
-		if (index != NULL) {
+		if (dict_index_t* index
+		    = dict_index_get_if_in_cache_low(iter->first)) {
 			char	db_utf8[MAX_DB_UTF8_LEN];
 			char	table_utf8[MAX_TABLE_UTF8_LEN];
 
