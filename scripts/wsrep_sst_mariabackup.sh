@@ -1153,7 +1153,7 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
             iopts="--parallel=$backup_threads${iopts:+ }$iopts"
         fi
 
-        max_binlogs=$(parse_cnf "$encgroups" 'sst-max-binlogs')
+        max_binlogs=$(parse_cnf "$encgroups" 'sst-max-binlogs' 1)
         if [ -n "$max_binlogs" ]; then
             iopts="--sst-max-binlogs=$max_binlogs${iopts:+ }$iopts"
         fi

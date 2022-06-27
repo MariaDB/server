@@ -1545,10 +1545,8 @@ bool backup_start(CorruptedPages &corrupted_pages)
 		}
 	}
 
-	bool with_binlogs = opt_binlog_info == BINLOG_INFO_ON;
-
-	if (with_binlogs || opt_galera_info) {
-		if (!write_current_binlog_file(mysql_connection, with_binlogs)) {
+	if (opt_binlog_info == BINLOG_INFO_ON || opt_galera_info) {
+		if (!write_current_binlog_file(mysql_connection, opt_galera_info)) {
 			return(false);
 		}
 	}

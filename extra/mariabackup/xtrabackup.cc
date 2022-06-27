@@ -348,10 +348,9 @@ uint opt_lock_wait_timeout = 0;
 uint opt_lock_wait_threshold = 0;
 uint opt_debug_sleep_before_unlock = 0;
 uint opt_safe_slave_backup_timeout = 0;
-uint opt_max_binlogs = UINT_MAX;
+uint opt_max_binlogs = 0;
 
 const char *opt_history = NULL;
-
 
 char mariabackup_exe[FN_REFLEN];
 char orig_argv1[FN_REFLEN];
@@ -1453,16 +1452,22 @@ struct my_option xb_client_options[]= {
      &opt_log_innodb_page_corruption, &opt_log_innodb_page_corruption, 0,
      GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
-    {"sst_max_binlogs", OPT_MAX_BINLOGS,
-     "Number of recent binary logs to be included in the backup. "
-     "Setting this parameter to zero normally disables transmission "
-     "of binary logs to the joiner nodes during SST using Galera. "
-     "But sometimes a single current binlog can still be transmitted "
-     "to the joiner even with sst_max_binlogs=0, because it is "
-     "required for Galera to work properly with GTIDs support.",
+    {"sst-max-binlogs", OPT_MAX_BINLOGS,
+     "The number of recent binary logs that will be included in the "
+     "backup or transferred to another node during SST. By default, "
+     "binary logs files are not saved as part of a backup, and only "
+     "one (last) of them is transferred to the joiner node during SST "
+     "(since SST scripts use --sst_max_binlogs=1 by default). "
+     "If you set this parameter to the special value -1 or just to "
+     "a very large number, then all binary log files will be saved "
+     "or transferred. Setting this parameter to zero normally disables "
+     "transmission of binary logs to the joiner nodes during SST. But "
+     "sometimes a single current binlog file can still be transmitted "
+     "to the joiner node even with sst_max_binlogs=0, because it is "
+     "required for Galera to work properly when GTIDs are enabled.",
      (G_PTR *) &opt_max_binlogs,
-     (G_PTR *) &opt_max_binlogs, 0, GET_UINT, OPT_ARG,
-     UINT_MAX, 0, UINT_MAX, 0, 1, 0},
+     (G_PTR *) &opt_max_binlogs, 0, GET_INT, OPT_ARG,
+     0, -1, INT_MAX, 0, 1, 0},
 
 #define MYSQL_CLIENT
 #include "sslopt-longopts.h"

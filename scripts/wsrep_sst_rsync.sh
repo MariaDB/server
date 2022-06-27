@@ -408,7 +408,7 @@ EOF
         # (b) Cluster state ID & wsrep_gtid_domain_id to be written to the file, OR
         # (c) ERROR file, in case flush tables operation failed.
 
-        while [ ! -r "$FLUSHED" ] && \
+        while [ ! -r "$FLUSHED" ] || \
                 ! grep -q -F ':' -- "$FLUSHED"
         do
             # Check whether ERROR file exists.
@@ -433,8 +433,8 @@ EOF
             # Let's check the existence of the file with the index:
             if [ -f "$WSREP_SST_OPT_BINLOG_INDEX" ]; then
                 # Let's read the binlog index:
-                max_binlogs=$(parse_cnf "$encgroups" 'sst-max-binlogs')
-                if [ -n "$max_binlogs" ]; then
+                max_binlogs=$(parse_cnf "$encgroups" 'sst-max-binlogs' 1)
+                if [ "$max_binlogs" -ge 0 ]; then
                     binlog_files=""
                     if [ $max_binlogs -gt 0 ]; then
                         binlog_files=$(tail -n $max_binlogs \

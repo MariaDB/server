@@ -11,4 +11,4 @@ log-bin-index = hostname2.bdx
 log-slave-updates
 
 [sst]
-sst_max_binlogs=-1
+sst_max_binlogs=1
