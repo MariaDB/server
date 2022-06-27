@@ -95,6 +95,80 @@ EXECUTE IMMEDIATE @alter;
 ERROR HY000: Illegal parameter data types time and uuid for operation 'SET'
 DROP TABLE t3;
 DROP TABLE t2;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE src time DEFAULT NULL;
+DECLARE dst uuid DEFAULT NULL;
+SET dst=src;
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data types uuid and time for operation 'SET'
+DROP PROCEDURE p1;
+CREATE FUNCTION f1(a uuid) RETURNS INT RETURN NULL;;
+SELECT f1((SELECT source FROM t1 ORDER BY source LIMIT 1));
+ERROR HY000: Illegal parameter data types uuid and time for operation 'SET'
+DROP FUNCTION f1;
+CREATE PROCEDURE p1(a uuid) BEGIN END;;
+CALL p1((SELECT source FROM t1 ORDER BY source LIMIT 1));
+ERROR HY000: Illegal parameter data types uuid and time for operation 'SET'
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1(OUT dst uuid)
+BEGIN
+DECLARE src time DEFAULT NULL;
+SET dst=src;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE dst uuid DEFAULT NULL;
+CALL p1(dst);
+END;
+$$
+CALL p2();
+ERROR HY000: Illegal parameter data types uuid and time for operation 'SET'
+SHOW WARNINGS;
+Level	Code	Message
+Error	4078	Illegal parameter data types uuid and time for operation 'SET'
+Note	4094	At line 4 in test.p1
+Note	4094	At line 4 in test.p2
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+CREATE FUNCTION f1() RETURNS uuid
+BEGIN
+DECLARE rc time DEFAULT NULL;
+RETURN rc;
+END;
+$$
+SELECT f1();
+ERROR HY000: Illegal parameter data types uuid and time for operation 'SET'
+DROP FUNCTION f1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE src time DEFAULT NULL;
+DECLARE cur1 CURSOR(t uuid) FOR SELECT * FROM t1 WHERE target=t;
+OPEN cur1(src);
+CLOSE cur1;
+END;
+$$
+CALL p1();
+ERROR HY000: Illegal parameter data types uuid and time for operation 'SET'
+DROP PROCEDURE p1;
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t2 VALUES ();
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE dst uuid DEFAULT NULL;
+DECLARE cur2 CURSOR FOR SELECT source FROM t2 ORDER BY source LIMIT 1;
+OPEN cur2;
+FETCH cur2 INTO dst;
+CLOSE cur2;
+END;
+$$
+CALL p1();
+ERROR HY000: Illegal parameter data types uuid and time for operation 'SET'
+DROP PROCEDURE p1;
+DROP TABLE t2;
 # End of type_store_assignment_incompatible.inc
 DROP TABLE t1;
 CREATE TABLE t1 (target TIME DEFAULT '00:00:00', source UUID DEFAULT '00000000-0000-0000-0000-000000000000');
@@ -187,6 +261,80 @@ ALTER TABLE t3 MODIFY target uuid
 EXECUTE IMMEDIATE @alter;
 ERROR HY000: Illegal parameter data types uuid and time for operation 'SET'
 DROP TABLE t3;
+DROP TABLE t2;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE src uuid DEFAULT NULL;
+DECLARE dst time DEFAULT NULL;
+SET dst=src;
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data types time and uuid for operation 'SET'
+DROP PROCEDURE p1;
+CREATE FUNCTION f1(a time) RETURNS INT RETURN NULL;;
+SELECT f1((SELECT source FROM t1 ORDER BY source LIMIT 1));
+ERROR HY000: Illegal parameter data types time and uuid for operation 'SET'
+DROP FUNCTION f1;
+CREATE PROCEDURE p1(a time) BEGIN END;;
+CALL p1((SELECT source FROM t1 ORDER BY source LIMIT 1));
+ERROR HY000: Illegal parameter data types time and uuid for operation 'SET'
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1(OUT dst time)
+BEGIN
+DECLARE src uuid DEFAULT NULL;
+SET dst=src;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE dst time DEFAULT NULL;
+CALL p1(dst);
+END;
+$$
+CALL p2();
+ERROR HY000: Illegal parameter data types time and uuid for operation 'SET'
+SHOW WARNINGS;
+Level	Code	Message
+Error	4078	Illegal parameter data types time and uuid for operation 'SET'
+Note	4094	At line 4 in test.p1
+Note	4094	At line 4 in test.p2
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+CREATE FUNCTION f1() RETURNS time
+BEGIN
+DECLARE rc uuid DEFAULT NULL;
+RETURN rc;
+END;
+$$
+SELECT f1();
+ERROR HY000: Illegal parameter data types time and uuid for operation 'SET'
+DROP FUNCTION f1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE src uuid DEFAULT NULL;
+DECLARE cur1 CURSOR(t time) FOR SELECT * FROM t1 WHERE target=t;
+OPEN cur1(src);
+CLOSE cur1;
+END;
+$$
+CALL p1();
+ERROR HY000: Illegal parameter data types time and uuid for operation 'SET'
+DROP PROCEDURE p1;
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t2 VALUES ();
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE dst time DEFAULT NULL;
+DECLARE cur2 CURSOR FOR SELECT source FROM t2 ORDER BY source LIMIT 1;
+OPEN cur2;
+FETCH cur2 INTO dst;
+CLOSE cur2;
+END;
+$$
+CALL p1();
+ERROR HY000: Illegal parameter data types time and uuid for operation 'SET'
+DROP PROCEDURE p1;
 DROP TABLE t2;
 # End of type_store_assignment_incompatible.inc
 DROP TABLE t1;
