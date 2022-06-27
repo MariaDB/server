@@ -31,6 +31,7 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 # MDEV-25200 Index count mismatch due to aborted FULLTEXT INDEX
 #
 CREATE TABLE t1(a INT, b TEXT, c TEXT, FULLTEXT INDEX(b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, "test", "test_1");
 connect con1,localhost,root,,test;
 SET DEBUG_DBUG="+d,innodb_OOM_inplace_alter";
 SET DEBUG_SYNC='innodb_commit_inplace_alter_table_enter SIGNAL s2 WAIT_FOR g2';
@@ -40,6 +41,7 @@ SET DEBUG_SYNC='now WAIT_FOR s2';
 START TRANSACTION;
 SELECT * FROM t1;
 a	b	c
+1	test	test_1
 SET DEBUG_SYNC='now SIGNAL g2';
 connection con1;
 ERROR HY000: Out of memory.
@@ -63,3 +65,12 @@ ERROR HY000: Got error -1 "Internal error < 0 (Not system error)" from storage e
 SET debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
 # End of 10.3 tests
+CREATE TABLE t1(f1 INT NOT NULL, f2 CHAR(100))ENGINE=InnoDB;
+SET DEBUG_DBUG="+d,stats_lock_fail";
+ALTER TABLE t1 ADD FULLTEXT(f2);
+ERROR HY000: Got error 15 "Block device required" from storage engine InnoDB
+SET DEBUG_DBUG="-d,stats_lock_fail";
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1 ADD FULLTEXT(f2);
+ERROR HY000: Tablespace has been discarded for table `t1`
+DROP TABLE t1;

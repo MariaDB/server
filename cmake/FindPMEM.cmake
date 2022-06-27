@@ -7,12 +7,12 @@ if(DEFINED PMEM_LIBRARIES)
   return()
 endif()
 
-find_path(PMEM_INCLUDE_DIR NAMES libpmem.h)
+find_path(PMEM_INCLUDE_DIRS NAMES libpmem.h)
 find_library(PMEM_LIBRARIES NAMES pmem)
 
 include(FindPackageHandleStandardArgs)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(
     PMEM DEFAULT_MSG
-    PMEM_LIBRARIES PMEM_INCLUDE_DIR)
+    PMEM_LIBRARIES PMEM_INCLUDE_DIRS)
 
-mark_as_advanced(PMEM_INCLUDE_DIR PMEM_LIBRARIES)
+mark_as_advanced(PMEM_INCLUDE_DIRS PMEM_LIBRARIES)

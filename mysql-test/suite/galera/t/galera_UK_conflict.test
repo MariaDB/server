@@ -207,6 +207,8 @@ INSERT INTO t1 VALUES (5, 5, 2);
 --source include/galera_wait_sync_point.inc
 --source include/galera_clear_sync_point.inc
 
+# first applier is now  waiting in before commit, and local trx in commit monitor
+
 # set sync point before replaying
 SET GLOBAL DEBUG_DBUG = "d,sync.wsrep_replay_cb";
 

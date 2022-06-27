@@ -387,7 +387,7 @@ previous value for t1
 1
 drop sequence t1;
 select previous value for t1;
-ERROR 42S02: Table 'test.t1' doesn't exist
+ERROR 42S02: Unknown SEQUENCE: 't1'
 CREATE SEQUENCE t1 start with 5 minvalue 1 maxvalue 10 increment by 1 cache 5 cycle;
 select previous value for t1;
 previous value for t1

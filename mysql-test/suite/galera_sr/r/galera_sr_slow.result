@@ -1,0 +1,13 @@
+connection node_2;
+connection node_1;
+connection node_1;
+SET GLOBAL wsrep_trx_fragment_unit='bytes';
+SET GLOBAL wsrep_trx_fragment_size=10240000;
+SET GLOBAL slow_query_log=ON;
+SET GLOBAL log_output='TABLE';
+SELECT SLEEP(10);
+SLEEP(10)
+0
+SET GLOBAL wsrep_trx_fragment_unit=DEFAULT;
+SET GLOBAL wsrep_trx_fragment_size=DEFAULT;
+SET GLOBAL log_output=DEFAULT;

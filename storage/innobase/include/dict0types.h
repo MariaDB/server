@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -71,18 +71,20 @@ enum dict_err_ignore_t {
 	DICT_ERR_IGNORE_NONE = 0,	/*!< no error to ignore */
 	DICT_ERR_IGNORE_FK_NOKEY = 1,	/*!< ignore error if any foreign
 					key is missing */
-	DICT_ERR_IGNORE_INDEX_ROOT = 2,	/*!< ignore error if index root
-					page is FIL_NULL or incorrect value */
-	DICT_ERR_IGNORE_CORRUPT = 4,	/*!< skip corrupted indexes */
-	DICT_ERR_IGNORE_RECOVER_LOCK = 8,
+	DICT_ERR_IGNORE_INDEX = 2,	/*!< ignore corrupted indexes */
+	DICT_ERR_IGNORE_RECOVER_LOCK = 4 | DICT_ERR_IGNORE_FK_NOKEY,
 					/*!< Used when recovering table locks
 					for resurrected transactions.
 					Silently load a missing
 					tablespace, and do not load
 					incomplete index definitions. */
 	/** ignore all errors above */
-	DICT_ERR_IGNORE_ALL = 15,
-	/** prepare to drop the table; do not attempt to load tablespace */
+	DICT_ERR_IGNORE_ALL = 7,
+	/** prepare some DDL operation;
+	do not attempt to load tablespace */
+	DICT_ERR_IGNORE_TABLESPACE = 15,
+	/** prepare to drop the table; do not attempt to load tablespace
+	or the metadata */
 	DICT_ERR_IGNORE_DROP = 31
 };
 

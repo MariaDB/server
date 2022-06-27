@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -54,6 +54,11 @@ C_MODE_END
 #include "sql_show.h"                           // append_identifier
 #include <sql_repl.h>
 #include "sql_statistics.h"
+
+/* fmtlib include (https://fmt.dev/). */
+#define FMT_STATIC_THOUSANDS_SEPARATOR ','
+#define FMT_HEADER_ONLY 1
+#include "fmt/format-inl.h"
 
 size_t username_char_length= USERNAME_CHAR_LENGTH;
 
@@ -355,6 +360,8 @@ String *Item_aes_crypt::val_str(String *str2)
                  rkey, AES_KEY_LENGTH / 8, 0, 0))
       {
         str2->length((uint) aes_length);
+        DBUG_ASSERT(collation.collation == &my_charset_bin);
+        str2->set_charset(&my_charset_bin);
         return str2;
       }
     }
@@ -734,7 +741,7 @@ String *Item_func_des_encrypt::val_str(String *str)
   if ((null_value= args[0]->null_value))
     return 0;                                   // ENCRYPT(NULL) == NULL
   if ((res_length=res->length()) == 0)
-    return make_empty_result();
+    return make_empty_result(str);
   if (arg_count == 1)
   {
     /* Protect against someone doing FLUSH DES_KEY_FILE */
@@ -937,7 +944,7 @@ String *Item_func_concat_ws::val_str(String *str)
     }
 
   if (i ==  arg_count)
-    return make_empty_result();
+    return make_empty_result(str);
 
   for (i++; i < arg_count ; i++)
   {
@@ -1088,7 +1095,7 @@ String *Item_func_reverse::val_str(String *str)
     return 0;
   /* An empty string is a special case as the string pointer may be null */
   if (!res->length())
-    return make_empty_result();
+    return make_empty_result(str);
   if (str->alloc(res->length()))
   {
     null_value= 1;
@@ -1301,6 +1308,138 @@ bool Item_func_replace::fix_length_and_dec()
   return FALSE;
 }
 
+/*
+  this is done in the constructor to be in the same memroot as
+  the item itself
+*/
+Item_func_sformat::Item_func_sformat(THD *thd, List<Item> &list)
+  : Item_str_func(thd, list)
+{
+  val_arg= new (thd->mem_root) String[arg_count];
+}
+
+
+bool Item_func_sformat::fix_length_and_dec()
+{
+  if (!val_arg)
+    return TRUE;
+
+  ulonglong char_length= 0;
+
+  uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
+              MY_COLL_ALLOW_COERCIBLE_CONV |
+              MY_COLL_ALLOW_NUMERIC_CONV;
+
+  if (Type_std_attributes::agg_item_collations(collation, func_name_cstring(),
+        args, arg_count, flags, 1))
+    return TRUE;
+
+  DTCollation c= collation;
+  if (c.collation->mbminlen > 1)
+    c.collation= &my_charset_utf8mb4_bin;
+
+  for (uint i=0 ; i < arg_count ; i++)
+  {
+    char_length+= args[i]->max_char_length();
+    if (args[i]->result_type() == STRING_RESULT &&
+        Type_std_attributes::agg_item_set_converter(c, func_name_cstring(),
+                                                    args+i, 1, flags, 1))
+      return TRUE;
+  }
+
+  fix_char_length_ulonglong(char_length);
+  return FALSE;
+}
+
+/*
+  allow fmt to take String arguments directly.
+  Inherit from string_view, so all string formatting works.
+  but {:p} doesn't, because it's not char*, not a pointer.
+*/
+namespace fmt {
+  template <> struct formatter<String>: formatter<string_view> {
+    template <typename FormatContext>
+    auto format(String c, FormatContext& ctx) -> decltype(ctx.out()) {
+      string_view name = { c.ptr(), c.length() };
+      return formatter<string_view>::format(name, ctx);
+    };
+  };
+};
+
+/*
+  SFORMAT(format_string, ...)
+  This function receives a formatting specification string and N parameters
+  (N >= 0), and it returns string formatted using the rules the user passed
+  in the specification. It uses fmtlib (https://fmt.dev/).
+*/
+String *Item_func_sformat::val_str(String *res)
+{
+  DBUG_ASSERT(fixed());
+  using                         ctx=     fmt::format_context;
+  String                       *fmt_arg= NULL;
+  String                       *parg=    NULL;
+  fmt::format_args::format_arg *vargs=   NULL;
+
+  null_value= true;
+  if (!(fmt_arg= args[0]->val_str(res)))
+    return NULL;
+
+  if (!(vargs= new fmt::format_args::format_arg[arg_count - 1]))
+    return NULL;
+
+  /* Creates the array of arguments for vformat */
+  for (uint carg= 1; carg < arg_count; carg++)
+  {
+    switch (args[carg]->result_type())
+    {
+    case INT_RESULT:
+      vargs[carg-1]= fmt::detail::make_arg<ctx>(args[carg]->val_int());
+      break;
+    case DECIMAL_RESULT: // TODO
+    case REAL_RESULT:
+      if (args[carg]->field_type() == MYSQL_TYPE_FLOAT)
+        vargs[carg-1]= fmt::detail::make_arg<ctx>((float)args[carg]->val_real());
+      else
+        vargs[carg-1]= fmt::detail::make_arg<ctx>(args[carg]->val_real());
+      break;
+    case STRING_RESULT:
+      if (!(parg= args[carg]->val_str(&val_arg[carg-1])))
+      {
+        delete [] vargs;
+        return NULL;
+      }
+      vargs[carg-1]= fmt::detail::make_arg<ctx>(*parg);
+      break;
+    case TIME_RESULT: // TODO
+    case ROW_RESULT: // TODO
+    default:
+      DBUG_ASSERT(0);
+      delete [] vargs;
+      return NULL;
+    }
+  }
+
+  null_value= false;
+  /* Create the string output  */
+  try
+  {
+    auto text = fmt::vformat(fmt_arg->c_ptr_safe(),
+                             fmt::format_args(vargs, arg_count-1));
+    res->length(0);
+    res->set_charset(collation.collation);
+    res->append(text.c_str(), text.size(), fmt_arg->charset());
+  }
+  catch (const fmt::format_error &ex)
+  {
+    THD *thd= current_thd;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        WARN_SFORMAT_ERROR,
+                        ER_THD(thd, WARN_SFORMAT_ERROR), ex.what());
+    null_value= true;
+  }
+  delete [] vargs;
+  return null_value ? NULL : res;
+}
 
 /*********************************************************************/
 bool Item_func_regexp_replace::fix_length_and_dec()
@@ -1626,7 +1765,7 @@ String *Item_func_left::val_str(String *str)
 
   /* if "unsigned_flag" is set, we have a *huge* positive number. */
   if ((length <= 0) && (!args[1]->unsigned_flag))
-    return make_empty_result();
+    return make_empty_result(str);
   if ((res->length() <= (ulonglong) length) ||
       (res->length() <= (char_pos= res->charpos((int) length))))
     return res;
@@ -1670,7 +1809,7 @@ String *Item_func_right::val_str(String *str)
 
   /* if "unsigned_flag" is set, we have a *huge* positive number. */
   if ((length <= 0) && (!args[1]->unsigned_flag))
-    return make_empty_result(); /* purecov: inspected */
+    return make_empty_result(str); /* purecov: inspected */
 
   if (res->length() <= (ulonglong) length)
     return res; /* purecov: inspected */
@@ -1712,7 +1851,7 @@ String *Item_func_substr::val_str(String *str)
   /* Negative or zero length, will return empty string. */
   if ((arg_count == 3) && (length <= 0) && 
       (length == 0 || !args[2]->unsigned_flag))
-    return make_empty_result();
+    return make_empty_result(str);
 
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Set here so that rest of code sees out-of-bound value as such. */
@@ -1723,12 +1862,12 @@ String *Item_func_substr::val_str(String *str)
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   if ((!args[1]->unsigned_flag && (start < INT_MIN32 || start > INT_MAX32)) ||
       (args[1]->unsigned_flag && ((ulonglong) start > INT_MAX32)))
-    return make_empty_result();
+    return make_empty_result(str);
 
   start= ((start < 0) ? res->numchars() + start : start - 1);
   start= res->charpos((int) start);
   if ((start < 0) || ((uint) start + 1 > res->length()))
-    return make_empty_result();
+    return make_empty_result(str);
 
   length= res->charpos((int) length, (uint32) start);
   tmp_length= res->length() - start;
@@ -1798,7 +1937,7 @@ String *Item_func_substr_index::val_str(String *str)
   null_value=0;
   uint delimiter_length= delimiter->length();
   if (!res->length() || !delimiter_length || !count)
-    return make_empty_result();		// Wrong parameters
+    return make_empty_result(str);      // Wrong parameters
 
   res->set_charset(collation.collation);
 
@@ -2208,7 +2347,7 @@ String *Item_func_password::val_str_ascii(String *str)
   switch (alg){
   case NEW:
     if (args[0]->null_value || res->length() == 0)
-      return make_empty_result();
+      return make_empty_result(str);
     my_make_scrambled_password(tmp_value, res->ptr(), res->length());
     str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH, &my_charset_latin1);
     break;
@@ -2216,7 +2355,7 @@ String *Item_func_password::val_str_ascii(String *str)
     if ((null_value=args[0]->null_value))
       return 0;
     if (res->length() == 0)
-      return make_empty_result();
+      return make_empty_result(str);
     my_make_scrambled_password_323(tmp_value, res->ptr(), res->length());
     str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH_323, &my_charset_latin1);
     break;
@@ -2255,13 +2394,15 @@ char *Item_func_password::alloc(THD *thd, const char *password,
 String *Item_func_encrypt::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
+
 #ifdef HAVE_CRYPT
   String *res  =args[0]->val_str(str);
+
   char salt[3],*salt_ptr;
   if ((null_value=args[0]->null_value))
     return 0;
   if (res->length() == 0)
-    return make_empty_result();
+    return make_empty_result(str);
   if (arg_count == 1)
   {					// generate random salt
     time_t timestamp=current_thd->query_start();
@@ -2559,8 +2700,8 @@ String *Item_func_soundex::val_str(String *str)
   for ( ; ; ) /* Skip pre-space */
   {
     if ((rc= cs->mb_wc(&wc, (uchar*) from, (uchar*) end)) <= 0)
-      return make_empty_result(); /* EOL or invalid byte sequence */
-    
+      return make_empty_result(str); /* EOL or invalid byte sequence */
+
     if (rc == 1 && cs->m_ctype)
     {
       /* Single byte letter found */
@@ -2584,7 +2725,7 @@ String *Item_func_soundex::val_str(String *str)
         {
           /* Extra safety - should not really happen */
           DBUG_ASSERT(false);
-          return make_empty_result();
+          return make_empty_result(str);
         }
         to+= rc;
         break;
@@ -2885,7 +3026,7 @@ String *Item_func_make_set::val_str(String *str)
   ulonglong bits;
   bool first_found=0;
   Item **ptr=args+1;
-  String *result= make_empty_result();
+  String *result= make_empty_result(str);
 
   bits=args[0]->val_int();
   if ((null_value=args[0]->null_value))
@@ -2909,7 +3050,7 @@ String *Item_func_make_set::val_str(String *str)
 	  else
 	  {
 	    if (tmp_str.copy(*res))		// Don't use 'str'
-              return make_empty_result();
+              return make_empty_result(str);
 	    result= &tmp_str;
 	  }
 	}
@@ -2919,11 +3060,11 @@ String *Item_func_make_set::val_str(String *str)
 	  {					// Copy data to tmp_str
 	    if (tmp_str.alloc(result->length()+res->length()+1) ||
 		tmp_str.copy(*result))
-              return make_empty_result();
+              return make_empty_result(str);
 	    result= &tmp_str;
 	  }
 	  if (tmp_str.append(STRING_WITH_LEN(","), &my_charset_bin) || tmp_str.append(*res))
-            return make_empty_result();
+            return make_empty_result(str);
 	}
       }
     }
@@ -3064,7 +3205,7 @@ String *Item_func_repeat::val_str(String *str)
   null_value= 0;
 
   if (count <= 0 && (count == 0 || !args[1]->unsigned_flag))
-    return make_empty_result();
+    return make_empty_result(str);
 
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Bounds check on count:  If this is triggered, we will error. */
@@ -3129,7 +3270,7 @@ String *Item_func_space::val_str(String *str)
   null_value= 0;
 
   if (count <= 0 && (count == 0 || !args[0]->unsigned_flag))
-    return make_empty_result();
+    return make_empty_result(str);
   /*
    Assumes that the maximum length of a String is < INT_MAX32.
    Bounds check on count:  If this is triggered, we will error.
@@ -3296,7 +3437,7 @@ String *Item_func_rpad::val_str(String *str)
   null_value=0;
 
   if (count == 0)
-    return make_empty_result();
+    return make_empty_result(str);
 
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Set here so that rest of code sees out-of-bound value as such. */
@@ -3388,7 +3529,7 @@ String *Item_func_lpad::val_str(String *str)
   null_value=0;
 
   if (count == 0)
-    return make_empty_result();
+    return make_empty_result(str);
 
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Set here so that rest of code sees out-of-bound value as such. */
@@ -3577,11 +3718,13 @@ String *Item_func_set_collation::val_str(String *str)
 
 bool Item_func_set_collation::fix_length_and_dec()
 {
-  if (!my_charset_same(args[0]->collation.collation, m_set_collation))
+  if (agg_arg_charsets_for_string_result(collation, args, 1))
+    return true;
+  if (!my_charset_same(collation.collation, m_set_collation))
   {
     my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0),
              m_set_collation->coll_name.str,
-             args[0]->collation.collation->cs_name.str);
+             collation.collation->cs_name.str);
     return TRUE;
   }
   collation.set(m_set_collation, DERIVATION_EXPLICIT,
@@ -3757,7 +3900,7 @@ String *Item_func_hex::val_str_ascii_from_val_real(String *str)
     dec= ~(longlong) 0;
   else
     dec= (ulonglong) (val + (val > 0 ? 0.5 : -0.5));
-  return str->set_hex(dec) ? make_empty_result() : str;
+  return str->set_hex(dec) ? make_empty_result(str) : str;
 }
 
 
@@ -3768,7 +3911,7 @@ String *Item_func_hex::val_str_ascii_from_val_str(String *str)
   DBUG_ASSERT(res != str);
   if ((null_value= (res == NULL)))
     return NULL;
-  return str->set_hex(res->ptr(), res->length()) ? make_empty_result() : str;
+  return str->set_hex(res->ptr(), res->length()) ? make_empty_result(str) : str;
 }
 
 
@@ -3777,7 +3920,7 @@ String *Item_func_hex::val_str_ascii_from_val_int(String *str)
   ulonglong dec= (ulonglong) args[0]->val_int();
   if ((null_value= args[0]->null_value))
     return 0;
-  return str->set_hex(dec) ? make_empty_result() : str;
+  return str->set_hex(dec) ? make_empty_result(str) : str;
 }
 
 
@@ -4373,26 +4516,6 @@ err:
   return 0;
 }
 #endif
-
-
-String *Item_func_uuid::val_str(String *str)
-{
-  DBUG_ASSERT(fixed());
-  uchar guid[MY_UUID_SIZE];
-  size_t length= (without_separators ?
-                  MY_UUID_ORACLE_STRING_LENGTH :
-                  MY_UUID_STRING_LENGTH);
-
-  str->alloc(length+1);
-  str->length(length);
-  str->set_charset(system_charset_info);
-  my_uuid(guid);
-  if (without_separators)
-    my_uuid2str_oracle(guid, (char *)str->ptr());
-  else
-    my_uuid2str(guid, (char *)str->ptr());
-  return str;
-}
 
 
 Item_func_dyncol_create::Item_func_dyncol_create(THD *thd, List<Item> &args,
@@ -5298,6 +5421,282 @@ String *Item_temptable_rowid::val_str(String *str)
     table->file->position(table->record[0]);
   str_value.set((char*)(table->file->ref), max_length, &my_charset_bin);
   return &str_value;
+}
+
+/**
+  Helper routine to encode length prefix
+  in natsort_encode_numeric_string().
+
+  The idea is so that bigger input numbers correspond
+  lexicographically bigger output strings.
+
+  Note, that in real use the number would typically
+  small, as it only computes variable *length prefixes*.
+
+  @param[in] n - the number
+  @param[in] s - output string
+
+  @return - length of encoding
+
+  Here is how encoding works
+
+  - n is from 0 to 8
+   Output string calculated as '0'+n (range '0' - '8')
+
+  - n is from 9 to 17
+    Output calculated as concat('9', '0' + n -9)'
+    Output range: '90'-'98'
+
+   -n is from 18 to 26
+    Output calculated as concat('99', '0' + n -18)'
+    Output range '990'-'998'
+
+  - n is from 27 to SIZE_T_MAX
+    Output starts with '999',
+    then log10(n) is encoded as 2-digit decimal number
+    then the number itself is added.
+    Example : for 28 key is concat('999', '01' , '28')
+    i.e '9990128'
+
+    Key length is 5 + ceil(log10(n))
+
+   Output range is
+     (64bit)'9990128' - '9991918446744073709551615'
+     (32bit)'9990128' - '999094294967295'
+*/
+
+/* Largest length of encoded string.*/
+static size_t natsort_encode_length_max(size_t n)
+{
+  return (n < 27) ? n/9+1 : 26;
+}
+
+static void natsort_encode_length(size_t n, String* out)
+{
+  if (n < 27)
+  {
+    if (n >= 9)
+      out->fill(out->length() + n/9,'9');
+    out->append(char(n % 9 + '0'));
+    return;
+  }
+
+  size_t log10n= 0;
+  for (size_t tmp= n / 10; tmp; tmp/= 10)
+    log10n++;
+  out->fill(out->length() + 3, '9');
+  out->append('0' + (char) (log10n / 10));
+  out->append('0' + (char) (log10n % 10));
+  out->append_ulonglong(n);
+}
+
+enum class NATSORT_ERR
+{
+  SUCCESS= 0,
+  KEY_TOO_LARGE= 1,
+  ALLOC_ERROR= 2
+};
+
+/*
+   Encode numeric string for natural sorting.
+
+   @param[in] in - start of the numeric string
+   skipping leading zeros
+
+   @param[in] n_digits - length of the string,
+   in characters, not counting leading zeros.
+
+   @param[out] out - String to write to. The string should
+   have enough preallocated space to fit the encoded key.
+
+   @return
+     NATSORT_ERR::SUCCESS  - success
+     NATSORT_ERR::KEY_TOO_LARGE  - out string does not have enough
+     space left to accomodate the key.
+
+
+   The resulting encoding of the numeric string is then
+
+   CONCAT(natsort_encode_length(n_digits), in)
+*/
+static NATSORT_ERR natsort_encode_numeric_string(const char *in,
+                                                 size_t n_digits,
+                                                 String *out)
+{
+  DBUG_ASSERT(in);
+  DBUG_ASSERT(n_digits);
+
+  if (out->length() + natsort_encode_length_max(n_digits - 1) + n_digits >
+      out->alloced_length())
+    return NATSORT_ERR::KEY_TOO_LARGE;
+
+  natsort_encode_length(n_digits - 1, out);
+  out->append(in, n_digits);
+  return NATSORT_ERR::SUCCESS;
+}
+
+/*
+  Calculate max size of the natsort key.
+
+  A digit in string expands to 2 chars  length_prefix , and  the digit
+
+  With even length L=2N, the largest key corresponds to input string
+  in form REPEAT(<digit><letter>,N) and the length of a key is
+  2N + N = 3N
+
+  With odd input length L=2N+1, largest key is built by appending
+  a digit at the end, with key length 3N+2
+
+*/
+static size_t natsort_max_key_size(size_t input_size)
+{
+  return input_size + (input_size + 1)/2 ;
+}
+
+/**
+  Convert a string to natural sort key.
+  @param[in]   in - input string
+  @param[out]  out - output string
+  @param[in]   max_key_size - the maximum size of the output
+               key, in bytes.
+  @return NATSORT_ERR::SUCCESS - successful completion
+          NATSORT_ERR::ALLOC_ERROR - memory allocation error
+          NATSORT_ERR::KEY_TOO_LARGE - resulting key would exceed max_key_size
+*/
+static NATSORT_ERR to_natsort_key(const String *in, String *out,
+                                  size_t max_key_size)
+{
+  size_t n_digits= 0;
+  size_t n_lead_zeros= 0;
+  size_t num_start;
+  size_t reserve_length= std::min(
+      natsort_max_key_size(in->length()) + MAX_BIGINT_WIDTH + 2, max_key_size);
+
+  out->length(0);
+  out->set_charset(in->charset());
+
+  if (out->alloc((uint32) reserve_length))
+    return NATSORT_ERR::ALLOC_ERROR;
+
+  for (size_t pos= 0;; pos++)
+  {
+    char c= pos < in->length() ? (*in)[pos] : 0;
+    bool is_digit= (c >= '0' && c <= '9');
+    if (!is_digit && (n_digits || n_lead_zeros))
+    {
+      /* Handle end of digits run.*/
+      if (!n_digits)
+      {
+        /*We only have zeros.*/
+        n_lead_zeros--;
+        num_start= pos - 1;
+        n_digits= 1;
+      }
+      NATSORT_ERR err= natsort_encode_numeric_string(
+          in->ptr() + num_start, n_digits, out);
+      if (err != NATSORT_ERR::SUCCESS)
+        return err;
+
+      /* Reset state.*/
+      n_digits= 0;
+      num_start= size_t(-1);
+      n_lead_zeros= 0;
+    }
+
+    if (pos == in->length())
+      break;
+
+    if (!is_digit)
+    {
+      if (out->length() == max_key_size)
+        return NATSORT_ERR::KEY_TOO_LARGE;
+      out->append(c);
+    }
+    else if (c == '0' && !n_digits)
+      n_lead_zeros++;
+    else if (!n_digits++)
+      num_start= pos;
+  }
+  return NATSORT_ERR::SUCCESS;
+}
+
+String *Item_func_natural_sort_key::val_str(String *out)
+{
+  String *in= args[0]->val_str();
+  if (args[0]->null_value || !in)
+  {
+    null_value= true;
+    return nullptr;
+  }
+  NATSORT_ERR err= NATSORT_ERR::SUCCESS;
+  CHARSET_INFO *cs= in->charset();
+  ulong max_allowed_packet= current_thd->variables.max_allowed_packet;
+  uint errs;
+  String tmp;
+  /*
+    to_natsort_key() only support charsets where digits are represented by
+    a single byte in range 0x30-0x39. Almost everything is OK, just utf16/32
+    won't do. Full ASCII compatibility is not required, so that SJIS and SWE7
+    are fine.
+  */
+  if (cs->mbminlen != 1)
+  {
+    if (tmp.copy(in, &my_charset_utf8mb4_bin, &errs))
+      goto error_exit;
+    in= &tmp;
+  }
+
+  err= to_natsort_key(in, out, max_allowed_packet / cs->mbminlen);
+
+  if (err != NATSORT_ERR::SUCCESS)
+  {
+    if (err == NATSORT_ERR::KEY_TOO_LARGE)
+    {
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+                          ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED), func_name(),
+                          max_allowed_packet);
+    }
+    goto error_exit;
+  }
+
+  if (cs->mbminlen != 1)
+  {
+    /* output string is now utf8, convert to input charset.*/
+    if (tmp.copy(out, cs, &errs) || out->copy(tmp))
+      goto error_exit;
+  }
+  null_value= false;
+  return out;
+
+error_exit:
+  null_value= true;
+  return nullptr;
+}
+
+bool Item_func_natural_sort_key::fix_length_and_dec(void)
+{
+  if (agg_arg_charsets_for_string_result(collation, args, 1))
+    return true;
+  DBUG_ASSERT(collation.collation != NULL);
+  uint32 max_char_len=
+      (uint32) natsort_max_key_size(args[0]->max_char_length());
+  fix_char_length(max_char_len);
+
+  set_maybe_null(args[0]->maybe_null() ||
+                 max_char_len * collation.collation->mbmaxlen >
+                     current_thd->variables.max_allowed_packet);
+  return false;
+}
+
+/**
+  Disable use in stored virtual functions. Temporarily(?), until
+  the encoding is stable.
+*/
+bool Item_func_natural_sort_key::check_vcol_func_processor(void *arg)
+{
+  return mark_unsupported_function(func_name(), "()", arg,
+                                   VCOL_NON_DETERMINISTIC);
 }
 
 #ifdef WITH_WSREP

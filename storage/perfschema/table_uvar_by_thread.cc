@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2013, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -141,9 +141,9 @@ table_uvar_by_thread::m_share=
   sizeof(pos_t),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE user_variables_by_thread("
-  "THREAD_ID BIGINT unsigned not null,"
-  "VARIABLE_NAME VARCHAR(64) not null,"
-  "VARIABLE_VALUE LONGBLOB)") },
+  "THREAD_ID BIGINT unsigned not null comment 'The thread identifier of the session in which the variable is defined.',"
+  "VARIABLE_NAME VARCHAR(64) not null comment 'The variable name, without the leading @ character.',"
+  "VARIABLE_VALUE LONGBLOB comment 'The variable value')") },
   false  /* perpetual */
 };
 
@@ -286,11 +286,11 @@ int table_uvar_by_thread
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 1);
+  assert(table->s->null_bytes == 1);
   buf[0]= 0;
 
-  DBUG_ASSERT(m_row.m_variable_name != NULL);
-  DBUG_ASSERT(m_row.m_variable_value != NULL);
+  assert(m_row.m_variable_name != NULL);
+  assert(m_row.m_variable_value != NULL);
 
   for (; (f= *fields) ; fields++)
   {
@@ -319,7 +319,7 @@ int table_uvar_by_thread
         }
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }

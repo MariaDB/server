@@ -666,7 +666,7 @@ SET GLOBAL innodb_monitor_reset = module_ddl;
 
 --echo # Skip sort
 --echo # Change PK from (f1,f2,f5,f6) to (f1,f2,f5)
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column f6;
 --enable_info
 alter table t1 drop column f6, drop primary key, add primary key(f1,f2,f5);
@@ -692,7 +692,7 @@ SET GLOBAL innodb_monitor_reset = module_ddl;
 
 --echo # Must sort
 --echo # Change PK from (f1,f2,f5) to (f1,f5)
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column f2;
 --enable_info
 alter table t1 drop column f2, drop primary key, add primary key(f1,f5);
@@ -908,9 +908,9 @@ drop table t1;
 create table t1(f1 int not null, f2 int not null,
 		primary key (f1), unique key(f1, f2))engine=innodb;
 insert into t1 values(1,3), (2,2);
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column f1;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column f1, drop primary key;
 # DROP PRIMARY KEY is implied for a single-column PRIMARY KEY
 alter table t1 drop column f1, drop key f1;
@@ -1012,7 +1012,7 @@ drop table t1;
 # pk(o1,o2,o3) to pk(o2,o3) by drop o1
 create table t1(o1 int, o2 int, o3 int, primary key(o1,o2,o3)) engine = innodb;
 insert into t1 values(1,2,2),(2,1,1);
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop o1, lock=none;
 alter table t1 drop o1, drop primary key, add primary key(o2,o3), lock=none;
 drop table t1;
@@ -1020,7 +1020,7 @@ drop table t1;
 # pk(o1,o2,o3) to pk(o1,o3) by drop o2
 create table t1(o1 int, o2 int, o3 int, primary key(o1,o2,o3)) engine = innodb;
 insert into t1 values(1,1,2),(1,2,1);
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop o2, lock=none;
 alter table t1 drop o2, drop primary key, add primary key(o1,o3), lock=none;
 drop table t1;
@@ -1028,7 +1028,7 @@ drop table t1;
 # pk(o1,o2,o3) to pk(o3) by drop o1,o2
 create table t1(o1 int, o2 int, o3 int, primary key(o1,o2,o3)) engine = innodb;
 insert into t1 values(1,2,2),(2,1,1);
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop o1, drop o2, lock=none;
 alter table t1 drop o1, drop o2,drop primary key,add primary key(o3),lock=none;
 drop table t1;
@@ -1196,7 +1196,6 @@ DROP TABLE t;
 --disable_query_log
 
 call mtr.add_suppression("InnoDB: Tablespace .* was not found at .*t[12].ibd.");
-call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");

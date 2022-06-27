@@ -1,21 +1,30 @@
 version: build-{build}~branch-{branch}
 
-before_build:
-  - md %APPVEYOR_BUILD_FOLDER%\win_build
-  - cd %APPVEYOR_BUILD_FOLDER%\win_build
-  - cmake .. -DWITH_UNIT_TESTS=0 -DWITH_MARIABACKUP=0 -DMYSQL_MAINTAINER_MODE=ERR -DPLUGIN_ROCKSDB=NO -DPLUGIN_CONNECT=NO -DBISON_EXECUTABLE=C:\cygwin64\bin\bison
+clone_depth: 1
 
-build:
-  project: win_build\MySQL.sln
-  parallel: true
-  verbosity: minimal
-
-configuration: RelWithDebInfo
-platform: x64
+build_script:
+  # dump some system info
+  - echo  processor='%PROCESSOR_IDENTIFIER%' , processor count= %NUMBER_OF_PROCESSORS%
+  - cd %APPVEYOR_BUILD_FOLDER%
+  # Disable unneeded submodules for the faster build
+  - git config submodule.storage/columnstore/columnstore.update none
+  - git config submodule.storage/maria/libmarias3.update none
+  - git config submodule.storage/rocksdb/rocksdb.update none
+  - git config submodule.wsrep-lib.update none
+  # Build minimal configuration
+  - mkdir _build
+  - cd _build
+  - set BUILD_TYPE=MinSizeRel
+  - set GENERATOR=-GNinja
+  - call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+  - cmake -E time cmake %GENERATOR% .. -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DMYSQL_MAINTAINER_MODE=ERR -DFAST_BUILD=1 -DBISON_EXECUTABLE=C:\cygwin64\bin\bison.exe -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_FEEDBACK=NO
+  - set /A jobs=2*%NUMBER_OF_PROCESSORS%
+  - cmake -E time cmake --build . -j %jobs% --config %BUILD_TYPE% --target minbuild
 
 test_script:
   - set PATH=C:\Strawberry\perl\bin;%PATH%;C:\Program Files (x86)\Windows Kits\10\Debuggers\x64
-  - cd %APPVEYOR_BUILD_FOLDER%\win_build\mysql-test
-  - perl mysql-test-run.pl --force --max-test-fail=10 --parallel=4 --testcase-timeout=10 --suite=main
+  - cd %APPVEYOR_BUILD_FOLDER%\_build\mysql-test
+  - set /A parallel=4*%NUMBER_OF_PROCESSORS%
+  - perl mysql-test-run.pl --force --max-test-fail=10 --retry=2 -parallel=%parallel% --testcase-timeout=4 --suite=main  --skip-test-list=%APPVEYOR_BUILD_FOLDER%\win\appveyor_skip_tests.txt --mysqld=--loose-innodb-flush-log-at-trx-commit=2
 
-image: Visual Studio 2019
+image: Visual Studio 2022

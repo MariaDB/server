@@ -1286,7 +1286,7 @@ CALL p1();
 a	b
 127	200
 Warnings:
-Warning	1264	Out of range value for column 'a' at row 1
+Warning	1264	Out of range value for column 'a' at row 0
 DROP PROCEDURE p1;
 DROP TABLE t1;
 #
@@ -2549,7 +2549,18 @@ idx
 1
 DROP PROCEDURE p1;
 #
-# Start of 10.4 tests
+# MDEV-28588 SIGSEGV in __memmove_avx_unaligned_erms, strmake_root
+#
+SET sql_mode=ORACLE;
+BEGIN END;
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW BEGIN END;
+SELECT ACTION_STATEMENT FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_SCHEMA='test' AND TRIGGER_NAME='tr';
+ACTION_STATEMENT	BEGIN END
+DROP TRIGGER tr;
+DROP TABLE t1;
+#
+# End of 10.3 tests
 #
 #
 # MDEV-19637 Crash on an SP variable assignment to a wrong subselect

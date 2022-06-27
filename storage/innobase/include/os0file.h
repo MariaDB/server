@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -50,6 +50,8 @@ extern bool	os_has_said_disk_full;
 
 /** File offset in bytes */
 typedef ib_uint64_t os_offset_t;
+
+class buf_tmp_buffer_t;
 
 #ifdef _WIN32
 
@@ -206,11 +208,13 @@ public:
     PUNCH_RANGE= WRITE_SYNC | 128,
   };
 
-  constexpr IORequest(buf_page_t *bpage, fil_node_t *node, Type type) :
-    bpage(bpage), node(node), type(type) {}
+  constexpr IORequest(buf_page_t *bpage, buf_tmp_buffer_t *slot,
+                      fil_node_t *node, Type type) :
+    bpage(bpage), slot(slot), node(node), type(type) {}
 
-  constexpr IORequest(Type type= READ_SYNC, buf_page_t *bpage= nullptr) :
-    bpage(bpage), type(type) {}
+  constexpr IORequest(Type type= READ_SYNC, buf_page_t *bpage= nullptr,
+                      buf_tmp_buffer_t *slot= nullptr) :
+    bpage(bpage), slot(slot), type(type) {}
 
   bool is_read() const { return (type & READ_SYNC) != 0; }
   bool is_write() const { return (type & WRITE_SYNC) != 0; }
@@ -237,7 +241,10 @@ private:
 
 public:
   /** Page to be written on write operation */
-  buf_page_t* const bpage= nullptr;
+  buf_page_t *const bpage= nullptr;
+
+  /** Memory to be used for encrypted or page_compressed pages */
+  buf_tmp_buffer_t *const slot= nullptr;
 
   /** File descriptor */
   fil_node_t *const node= nullptr;
@@ -263,8 +270,8 @@ struct os_file_size_t {
 constexpr ulint OS_AIO_N_PENDING_IOS_PER_THREAD= 256;
 
 extern Atomic_counter<ulint> os_n_file_reads;
-extern ulint	os_n_file_writes;
-extern ulint	os_n_fsyncs;
+extern Atomic_counter<size_t> os_n_file_writes;
+extern Atomic_counter<size_t> os_n_fsyncs;
 
 /* File types for directory entry data type */
 
@@ -1049,23 +1056,6 @@ os_file_status(
 	bool*		exists,
 	os_file_type_t* type);
 
-/** This function returns a new path name after replacing the basename
-in an old path with a new basename.  The old_path is a full path
-name including the extension.  The tablename is in the normal
-form "databasename/tablename".  The new base name is found after
-the forward slash.  Both input strings are null terminated.
-
-This function allocates memory to be returned.  It is the callers
-responsibility to free the return value after it is no longer needed.
-
-@param[in]	old_path		pathname
-@param[in]	new_name		new file name
-@return own: new full pathname */
-char*
-os_file_make_new_pathname(
-	const char*	old_path,
-	const char*	new_name);
-
 /** This function reduces a null-terminated full remote path name into
 the path that is sent by MySQL for DATA DIRECTORY clause.  It replaces
 the 'databasename/tablename.ibd' found at the end of the path with just
@@ -1111,8 +1101,7 @@ void os_aio_free();
 @retval DB_IO_ERROR on I/O error */
 dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n);
 
-/** Wait until there are no pending asynchronous writes.
-Only used on FLUSH TABLES...FOR EXPORT. */
+/** Wait until there are no pending asynchronous writes. */
 void os_aio_wait_until_no_pending_writes();
 
 /** Wait until all pending asynchronous reads have completed. */
@@ -1228,6 +1217,6 @@ inline bool is_absolute_path(const char *path)
   return false;
 }
 
-#include "os0file.ic"
+#include "os0file.inl"
 
 #endif /* os0file_h */

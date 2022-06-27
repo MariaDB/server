@@ -1,5 +1,7 @@
 connection node_2;
 connection node_1;
+connection node_1;
+connection node_2;
 connection node_2;
 SET SESSION wsrep_on=OFF;
 CREATE TABLE test.t1 (f2 INTEGER);
@@ -35,3 +37,4 @@ Killing server ...
 CALL mtr.add_suppression("Inconsistent by consensus.");
 CALL mtr.add_suppression("WSREP: Failed to execute TOI action");
 CALL mtr.add_suppression("WSREP: TO isolation end failed");
+connection node_1;

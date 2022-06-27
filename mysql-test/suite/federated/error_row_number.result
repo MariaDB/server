@@ -1,0 +1,26 @@
+#
+#    MDEV-26654 ROW_NUMBER is wrong upon INSERT into Federated table
+#
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
+CREATE DATABASE federated;
+connection slave;
+CREATE DATABASE federated;
+connection master;
+create table t (pk int primary key);
+create table tfed engine=FEDERATED connection='mysql://root@localhost:$MASTER_MYPORT/test/t';
+insert into tfed values (1),(2),(1);
+ERROR 23000: Can't write; duplicate key in table 'tfed'
+get diagnostics condition 1 @val = row_number;
+# federated is doing bulk insert here, the exact row number is unknown
+select @val;
+@val
+0
+drop table tfed, t;
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;

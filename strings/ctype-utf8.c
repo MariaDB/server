@@ -21,6 +21,7 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-mb.h"
 
 #ifndef EILSEQ
 #define EILSEQ ENOENT
@@ -31,7 +32,7 @@
 #include "ctype-unidata.h"
 
 
-/* Definitions for strcoll.ic */
+/* Definitions for strcoll.inl */
 #define IS_MB1_CHAR(x)              ((uchar) (x) < 0x80)
 #define IS_MB1_MBHEAD_UNUSED_GAP(x) ((uchar) (x) < 0xC2)
 #define IS_MB2_CHAR(x,y)            IS_UTF8MB2_STEP2(x,y)
@@ -1035,6 +1036,268 @@ static MY_UNICASE_CHARACTER plane05[]={
   {0x05FE,0x05FE,0x05FE},  {0x05FF,0x05FF,0x05FF}
 };
 
+static MY_UNICASE_CHARACTER plane06[]={ /* This page is dummy */
+  {0x0600,0x0600,0x0600},  {0x0601,0x0601,0x0601}, /* 0600 */
+  {0x0602,0x0602,0x0602},  {0x0603,0x0603,0x0603}, /* 0602 */
+  {0x0604,0x0604,0x0604},  {0x0605,0x0605,0x0605}, /* 0604 */
+  {0x0606,0x0606,0x0606},  {0x0607,0x0607,0x0607}, /* 0606 */
+  {0x0608,0x0608,0x0608},  {0x0609,0x0609,0x0609}, /* 0608 */
+  {0x060A,0x060A,0x060A},  {0x060B,0x060B,0x060B}, /* 060A */
+  {0x060C,0x060C,0x060C},  {0x060D,0x060D,0x060D}, /* 060C */
+  {0x060E,0x060E,0x060E},  {0x060F,0x060F,0x060F}, /* 060E */
+  {0x0610,0x0610,0x0610},  {0x0611,0x0611,0x0611}, /* 0610 */
+  {0x0612,0x0612,0x0612},  {0x0613,0x0613,0x0613}, /* 0612 */
+  {0x0614,0x0614,0x0614},  {0x0615,0x0615,0x0615}, /* 0614 */
+  {0x0616,0x0616,0x0616},  {0x0617,0x0617,0x0617}, /* 0616 */
+  {0x0618,0x0618,0x0618},  {0x0619,0x0619,0x0619}, /* 0618 */
+  {0x061A,0x061A,0x061A},  {0x061B,0x061B,0x061B}, /* 061A */
+  {0x061C,0x061C,0x061C},  {0x061D,0x061D,0x061D}, /* 061C */
+  {0x061E,0x061E,0x061E},  {0x061F,0x061F,0x061F}, /* 061E */
+  {0x0620,0x0620,0x0620},  {0x0621,0x0621,0x0621}, /* 0620 */
+  {0x0622,0x0622,0x0622},  {0x0623,0x0623,0x0623}, /* 0622 */
+  {0x0624,0x0624,0x0624},  {0x0625,0x0625,0x0625}, /* 0624 */
+  {0x0626,0x0626,0x0626},  {0x0627,0x0627,0x0627}, /* 0626 */
+  {0x0628,0x0628,0x0628},  {0x0629,0x0629,0x0629}, /* 0628 */
+  {0x062A,0x062A,0x062A},  {0x062B,0x062B,0x062B}, /* 062A */
+  {0x062C,0x062C,0x062C},  {0x062D,0x062D,0x062D}, /* 062C */
+  {0x062E,0x062E,0x062E},  {0x062F,0x062F,0x062F}, /* 062E */
+  {0x0630,0x0630,0x0630},  {0x0631,0x0631,0x0631}, /* 0630 */
+  {0x0632,0x0632,0x0632},  {0x0633,0x0633,0x0633}, /* 0632 */
+  {0x0634,0x0634,0x0634},  {0x0635,0x0635,0x0635}, /* 0634 */
+  {0x0636,0x0636,0x0636},  {0x0637,0x0637,0x0637}, /* 0636 */
+  {0x0638,0x0638,0x0638},  {0x0639,0x0639,0x0639}, /* 0638 */
+  {0x063A,0x063A,0x063A},  {0x063B,0x063B,0x063B}, /* 063A */
+  {0x063C,0x063C,0x063C},  {0x063D,0x063D,0x063D}, /* 063C */
+  {0x063E,0x063E,0x063E},  {0x063F,0x063F,0x063F}, /* 063E */
+  {0x0640,0x0640,0x0640},  {0x0641,0x0641,0x0641}, /* 0640 */
+  {0x0642,0x0642,0x0642},  {0x0643,0x0643,0x0643}, /* 0642 */
+  {0x0644,0x0644,0x0644},  {0x0645,0x0645,0x0645}, /* 0644 */
+  {0x0646,0x0646,0x0646},  {0x0647,0x0647,0x0647}, /* 0646 */
+  {0x0648,0x0648,0x0648},  {0x0649,0x0649,0x0649}, /* 0648 */
+  {0x064A,0x064A,0x064A},  {0x064B,0x064B,0x064B}, /* 064A */
+  {0x064C,0x064C,0x064C},  {0x064D,0x064D,0x064D}, /* 064C */
+  {0x064E,0x064E,0x064E},  {0x064F,0x064F,0x064F}, /* 064E */
+  {0x0650,0x0650,0x0650},  {0x0651,0x0651,0x0651}, /* 0650 */
+  {0x0652,0x0652,0x0652},  {0x0653,0x0653,0x0653}, /* 0652 */
+  {0x0654,0x0654,0x0654},  {0x0655,0x0655,0x0655}, /* 0654 */
+  {0x0656,0x0656,0x0656},  {0x0657,0x0657,0x0657}, /* 0656 */
+  {0x0658,0x0658,0x0658},  {0x0659,0x0659,0x0659}, /* 0658 */
+  {0x065A,0x065A,0x065A},  {0x065B,0x065B,0x065B}, /* 065A */
+  {0x065C,0x065C,0x065C},  {0x065D,0x065D,0x065D}, /* 065C */
+  {0x065E,0x065E,0x065E},  {0x065F,0x065F,0x065F}, /* 065E */
+  {0x0660,0x0660,0x0660},  {0x0661,0x0661,0x0661}, /* 0660 */
+  {0x0662,0x0662,0x0662},  {0x0663,0x0663,0x0663}, /* 0662 */
+  {0x0664,0x0664,0x0664},  {0x0665,0x0665,0x0665}, /* 0664 */
+  {0x0666,0x0666,0x0666},  {0x0667,0x0667,0x0667}, /* 0666 */
+  {0x0668,0x0668,0x0668},  {0x0669,0x0669,0x0669}, /* 0668 */
+  {0x066A,0x066A,0x066A},  {0x066B,0x066B,0x066B}, /* 066A */
+  {0x066C,0x066C,0x066C},  {0x066D,0x066D,0x066D}, /* 066C */
+  {0x066E,0x066E,0x066E},  {0x066F,0x066F,0x066F}, /* 066E */
+  {0x0670,0x0670,0x0670},  {0x0671,0x0671,0x0671}, /* 0670 */
+  {0x0672,0x0672,0x0672},  {0x0673,0x0673,0x0673}, /* 0672 */
+  {0x0674,0x0674,0x0674},  {0x0675,0x0675,0x0675}, /* 0674 */
+  {0x0676,0x0676,0x0676},  {0x0677,0x0677,0x0677}, /* 0676 */
+  {0x0678,0x0678,0x0678},  {0x0679,0x0679,0x0679}, /* 0678 */
+  {0x067A,0x067A,0x067A},  {0x067B,0x067B,0x067B}, /* 067A */
+  {0x067C,0x067C,0x067C},  {0x067D,0x067D,0x067D}, /* 067C */
+  {0x067E,0x067E,0x067E},  {0x067F,0x067F,0x067F}, /* 067E */
+  {0x0680,0x0680,0x0680},  {0x0681,0x0681,0x0681}, /* 0680 */
+  {0x0682,0x0682,0x0682},  {0x0683,0x0683,0x0683}, /* 0682 */
+  {0x0684,0x0684,0x0684},  {0x0685,0x0685,0x0685}, /* 0684 */
+  {0x0686,0x0686,0x0686},  {0x0687,0x0687,0x0687}, /* 0686 */
+  {0x0688,0x0688,0x0688},  {0x0689,0x0689,0x0689}, /* 0688 */
+  {0x068A,0x068A,0x068A},  {0x068B,0x068B,0x068B}, /* 068A */
+  {0x068C,0x068C,0x068C},  {0x068D,0x068D,0x068D}, /* 068C */
+  {0x068E,0x068E,0x068E},  {0x068F,0x068F,0x068F}, /* 068E */
+  {0x0690,0x0690,0x0690},  {0x0691,0x0691,0x0691}, /* 0690 */
+  {0x0692,0x0692,0x0692},  {0x0693,0x0693,0x0693}, /* 0692 */
+  {0x0694,0x0694,0x0694},  {0x0695,0x0695,0x0695}, /* 0694 */
+  {0x0696,0x0696,0x0696},  {0x0697,0x0697,0x0697}, /* 0696 */
+  {0x0698,0x0698,0x0698},  {0x0699,0x0699,0x0699}, /* 0698 */
+  {0x069A,0x069A,0x069A},  {0x069B,0x069B,0x069B}, /* 069A */
+  {0x069C,0x069C,0x069C},  {0x069D,0x069D,0x069D}, /* 069C */
+  {0x069E,0x069E,0x069E},  {0x069F,0x069F,0x069F}, /* 069E */
+  {0x06A0,0x06A0,0x06A0},  {0x06A1,0x06A1,0x06A1}, /* 06A0 */
+  {0x06A2,0x06A2,0x06A2},  {0x06A3,0x06A3,0x06A3}, /* 06A2 */
+  {0x06A4,0x06A4,0x06A4},  {0x06A5,0x06A5,0x06A5}, /* 06A4 */
+  {0x06A6,0x06A6,0x06A6},  {0x06A7,0x06A7,0x06A7}, /* 06A6 */
+  {0x06A8,0x06A8,0x06A8},  {0x06A9,0x06A9,0x06A9}, /* 06A8 */
+  {0x06AA,0x06AA,0x06AA},  {0x06AB,0x06AB,0x06AB}, /* 06AA */
+  {0x06AC,0x06AC,0x06AC},  {0x06AD,0x06AD,0x06AD}, /* 06AC */
+  {0x06AE,0x06AE,0x06AE},  {0x06AF,0x06AF,0x06AF}, /* 06AE */
+  {0x06B0,0x06B0,0x06B0},  {0x06B1,0x06B1,0x06B1}, /* 06B0 */
+  {0x06B2,0x06B2,0x06B2},  {0x06B3,0x06B3,0x06B3}, /* 06B2 */
+  {0x06B4,0x06B4,0x06B4},  {0x06B5,0x06B5,0x06B5}, /* 06B4 */
+  {0x06B6,0x06B6,0x06B6},  {0x06B7,0x06B7,0x06B7}, /* 06B6 */
+  {0x06B8,0x06B8,0x06B8},  {0x06B9,0x06B9,0x06B9}, /* 06B8 */
+  {0x06BA,0x06BA,0x06BA},  {0x06BB,0x06BB,0x06BB}, /* 06BA */
+  {0x06BC,0x06BC,0x06BC},  {0x06BD,0x06BD,0x06BD}, /* 06BC */
+  {0x06BE,0x06BE,0x06BE},  {0x06BF,0x06BF,0x06BF}, /* 06BE */
+  {0x06C0,0x06C0,0x06C0},  {0x06C1,0x06C1,0x06C1}, /* 06C0 */
+  {0x06C2,0x06C2,0x06C2},  {0x06C3,0x06C3,0x06C3}, /* 06C2 */
+  {0x06C4,0x06C4,0x06C4},  {0x06C5,0x06C5,0x06C5}, /* 06C4 */
+  {0x06C6,0x06C6,0x06C6},  {0x06C7,0x06C7,0x06C7}, /* 06C6 */
+  {0x06C8,0x06C8,0x06C8},  {0x06C9,0x06C9,0x06C9}, /* 06C8 */
+  {0x06CA,0x06CA,0x06CA},  {0x06CB,0x06CB,0x06CB}, /* 06CA */
+  {0x06CC,0x06CC,0x06CC},  {0x06CD,0x06CD,0x06CD}, /* 06CC */
+  {0x06CE,0x06CE,0x06CE},  {0x06CF,0x06CF,0x06CF}, /* 06CE */
+  {0x06D0,0x06D0,0x06D0},  {0x06D1,0x06D1,0x06D1}, /* 06D0 */
+  {0x06D2,0x06D2,0x06D2},  {0x06D3,0x06D3,0x06D3}, /* 06D2 */
+  {0x06D4,0x06D4,0x06D4},  {0x06D5,0x06D5,0x06D5}, /* 06D4 */
+  {0x06D6,0x06D6,0x06D6},  {0x06D7,0x06D7,0x06D7}, /* 06D6 */
+  {0x06D8,0x06D8,0x06D8},  {0x06D9,0x06D9,0x06D9}, /* 06D8 */
+  {0x06DA,0x06DA,0x06DA},  {0x06DB,0x06DB,0x06DB}, /* 06DA */
+  {0x06DC,0x06DC,0x06DC},  {0x06DD,0x06DD,0x06DD}, /* 06DC */
+  {0x06DE,0x06DE,0x06DE},  {0x06DF,0x06DF,0x06DF}, /* 06DE */
+  {0x06E0,0x06E0,0x06E0},  {0x06E1,0x06E1,0x06E1}, /* 06E0 */
+  {0x06E2,0x06E2,0x06E2},  {0x06E3,0x06E3,0x06E3}, /* 06E2 */
+  {0x06E4,0x06E4,0x06E4},  {0x06E5,0x06E5,0x06E5}, /* 06E4 */
+  {0x06E6,0x06E6,0x06E6},  {0x06E7,0x06E7,0x06E7}, /* 06E6 */
+  {0x06E8,0x06E8,0x06E8},  {0x06E9,0x06E9,0x06E9}, /* 06E8 */
+  {0x06EA,0x06EA,0x06EA},  {0x06EB,0x06EB,0x06EB}, /* 06EA */
+  {0x06EC,0x06EC,0x06EC},  {0x06ED,0x06ED,0x06ED}, /* 06EC */
+  {0x06EE,0x06EE,0x06EE},  {0x06EF,0x06EF,0x06EF}, /* 06EE */
+  {0x06F0,0x06F0,0x06F0},  {0x06F1,0x06F1,0x06F1}, /* 06F0 */
+  {0x06F2,0x06F2,0x06F2},  {0x06F3,0x06F3,0x06F3}, /* 06F2 */
+  {0x06F4,0x06F4,0x06F4},  {0x06F5,0x06F5,0x06F5}, /* 06F4 */
+  {0x06F6,0x06F6,0x06F6},  {0x06F7,0x06F7,0x06F7}, /* 06F6 */
+  {0x06F8,0x06F8,0x06F8},  {0x06F9,0x06F9,0x06F9}, /* 06F8 */
+  {0x06FA,0x06FA,0x06FA},  {0x06FB,0x06FB,0x06FB}, /* 06FA */
+  {0x06FC,0x06FC,0x06FC},  {0x06FD,0x06FD,0x06FD}, /* 06FC */
+  {0x06FE,0x06FE,0x06FE},  {0x06FF,0x06FF,0x06FF} /* 06FE */
+};
+
+static MY_UNICASE_CHARACTER plane07[]={ /* This page is dummy */
+  {0x0700,0x0700,0x0700},  {0x0701,0x0701,0x0701}, /* 0700 */
+  {0x0702,0x0702,0x0702},  {0x0703,0x0703,0x0703}, /* 0702 */
+  {0x0704,0x0704,0x0704},  {0x0705,0x0705,0x0705}, /* 0704 */
+  {0x0706,0x0706,0x0706},  {0x0707,0x0707,0x0707}, /* 0706 */
+  {0x0708,0x0708,0x0708},  {0x0709,0x0709,0x0709}, /* 0708 */
+  {0x070A,0x070A,0x070A},  {0x070B,0x070B,0x070B}, /* 070A */
+  {0x070C,0x070C,0x070C},  {0x070D,0x070D,0x070D}, /* 070C */
+  {0x070E,0x070E,0x070E},  {0x070F,0x070F,0x070F}, /* 070E */
+  {0x0710,0x0710,0x0710},  {0x0711,0x0711,0x0711}, /* 0710 */
+  {0x0712,0x0712,0x0712},  {0x0713,0x0713,0x0713}, /* 0712 */
+  {0x0714,0x0714,0x0714},  {0x0715,0x0715,0x0715}, /* 0714 */
+  {0x0716,0x0716,0x0716},  {0x0717,0x0717,0x0717}, /* 0716 */
+  {0x0718,0x0718,0x0718},  {0x0719,0x0719,0x0719}, /* 0718 */
+  {0x071A,0x071A,0x071A},  {0x071B,0x071B,0x071B}, /* 071A */
+  {0x071C,0x071C,0x071C},  {0x071D,0x071D,0x071D}, /* 071C */
+  {0x071E,0x071E,0x071E},  {0x071F,0x071F,0x071F}, /* 071E */
+  {0x0720,0x0720,0x0720},  {0x0721,0x0721,0x0721}, /* 0720 */
+  {0x0722,0x0722,0x0722},  {0x0723,0x0723,0x0723}, /* 0722 */
+  {0x0724,0x0724,0x0724},  {0x0725,0x0725,0x0725}, /* 0724 */
+  {0x0726,0x0726,0x0726},  {0x0727,0x0727,0x0727}, /* 0726 */
+  {0x0728,0x0728,0x0728},  {0x0729,0x0729,0x0729}, /* 0728 */
+  {0x072A,0x072A,0x072A},  {0x072B,0x072B,0x072B}, /* 072A */
+  {0x072C,0x072C,0x072C},  {0x072D,0x072D,0x072D}, /* 072C */
+  {0x072E,0x072E,0x072E},  {0x072F,0x072F,0x072F}, /* 072E */
+  {0x0730,0x0730,0x0730},  {0x0731,0x0731,0x0731}, /* 0730 */
+  {0x0732,0x0732,0x0732},  {0x0733,0x0733,0x0733}, /* 0732 */
+  {0x0734,0x0734,0x0734},  {0x0735,0x0735,0x0735}, /* 0734 */
+  {0x0736,0x0736,0x0736},  {0x0737,0x0737,0x0737}, /* 0736 */
+  {0x0738,0x0738,0x0738},  {0x0739,0x0739,0x0739}, /* 0738 */
+  {0x073A,0x073A,0x073A},  {0x073B,0x073B,0x073B}, /* 073A */
+  {0x073C,0x073C,0x073C},  {0x073D,0x073D,0x073D}, /* 073C */
+  {0x073E,0x073E,0x073E},  {0x073F,0x073F,0x073F}, /* 073E */
+  {0x0740,0x0740,0x0740},  {0x0741,0x0741,0x0741}, /* 0740 */
+  {0x0742,0x0742,0x0742},  {0x0743,0x0743,0x0743}, /* 0742 */
+  {0x0744,0x0744,0x0744},  {0x0745,0x0745,0x0745}, /* 0744 */
+  {0x0746,0x0746,0x0746},  {0x0747,0x0747,0x0747}, /* 0746 */
+  {0x0748,0x0748,0x0748},  {0x0749,0x0749,0x0749}, /* 0748 */
+  {0x074A,0x074A,0x074A},  {0x074B,0x074B,0x074B}, /* 074A */
+  {0x074C,0x074C,0x074C},  {0x074D,0x074D,0x074D}, /* 074C */
+  {0x074E,0x074E,0x074E},  {0x074F,0x074F,0x074F}, /* 074E */
+  {0x0750,0x0750,0x0750},  {0x0751,0x0751,0x0751}, /* 0750 */
+  {0x0752,0x0752,0x0752},  {0x0753,0x0753,0x0753}, /* 0752 */
+  {0x0754,0x0754,0x0754},  {0x0755,0x0755,0x0755}, /* 0754 */
+  {0x0756,0x0756,0x0756},  {0x0757,0x0757,0x0757}, /* 0756 */
+  {0x0758,0x0758,0x0758},  {0x0759,0x0759,0x0759}, /* 0758 */
+  {0x075A,0x075A,0x075A},  {0x075B,0x075B,0x075B}, /* 075A */
+  {0x075C,0x075C,0x075C},  {0x075D,0x075D,0x075D}, /* 075C */
+  {0x075E,0x075E,0x075E},  {0x075F,0x075F,0x075F}, /* 075E */
+  {0x0760,0x0760,0x0760},  {0x0761,0x0761,0x0761}, /* 0760 */
+  {0x0762,0x0762,0x0762},  {0x0763,0x0763,0x0763}, /* 0762 */
+  {0x0764,0x0764,0x0764},  {0x0765,0x0765,0x0765}, /* 0764 */
+  {0x0766,0x0766,0x0766},  {0x0767,0x0767,0x0767}, /* 0766 */
+  {0x0768,0x0768,0x0768},  {0x0769,0x0769,0x0769}, /* 0768 */
+  {0x076A,0x076A,0x076A},  {0x076B,0x076B,0x076B}, /* 076A */
+  {0x076C,0x076C,0x076C},  {0x076D,0x076D,0x076D}, /* 076C */
+  {0x076E,0x076E,0x076E},  {0x076F,0x076F,0x076F}, /* 076E */
+  {0x0770,0x0770,0x0770},  {0x0771,0x0771,0x0771}, /* 0770 */
+  {0x0772,0x0772,0x0772},  {0x0773,0x0773,0x0773}, /* 0772 */
+  {0x0774,0x0774,0x0774},  {0x0775,0x0775,0x0775}, /* 0774 */
+  {0x0776,0x0776,0x0776},  {0x0777,0x0777,0x0777}, /* 0776 */
+  {0x0778,0x0778,0x0778},  {0x0779,0x0779,0x0779}, /* 0778 */
+  {0x077A,0x077A,0x077A},  {0x077B,0x077B,0x077B}, /* 077A */
+  {0x077C,0x077C,0x077C},  {0x077D,0x077D,0x077D}, /* 077C */
+  {0x077E,0x077E,0x077E},  {0x077F,0x077F,0x077F}, /* 077E */
+  {0x0780,0x0780,0x0780},  {0x0781,0x0781,0x0781}, /* 0780 */
+  {0x0782,0x0782,0x0782},  {0x0783,0x0783,0x0783}, /* 0782 */
+  {0x0784,0x0784,0x0784},  {0x0785,0x0785,0x0785}, /* 0784 */
+  {0x0786,0x0786,0x0786},  {0x0787,0x0787,0x0787}, /* 0786 */
+  {0x0788,0x0788,0x0788},  {0x0789,0x0789,0x0789}, /* 0788 */
+  {0x078A,0x078A,0x078A},  {0x078B,0x078B,0x078B}, /* 078A */
+  {0x078C,0x078C,0x078C},  {0x078D,0x078D,0x078D}, /* 078C */
+  {0x078E,0x078E,0x078E},  {0x078F,0x078F,0x078F}, /* 078E */
+  {0x0790,0x0790,0x0790},  {0x0791,0x0791,0x0791}, /* 0790 */
+  {0x0792,0x0792,0x0792},  {0x0793,0x0793,0x0793}, /* 0792 */
+  {0x0794,0x0794,0x0794},  {0x0795,0x0795,0x0795}, /* 0794 */
+  {0x0796,0x0796,0x0796},  {0x0797,0x0797,0x0797}, /* 0796 */
+  {0x0798,0x0798,0x0798},  {0x0799,0x0799,0x0799}, /* 0798 */
+  {0x079A,0x079A,0x079A},  {0x079B,0x079B,0x079B}, /* 079A */
+  {0x079C,0x079C,0x079C},  {0x079D,0x079D,0x079D}, /* 079C */
+  {0x079E,0x079E,0x079E},  {0x079F,0x079F,0x079F}, /* 079E */
+  {0x07A0,0x07A0,0x07A0},  {0x07A1,0x07A1,0x07A1}, /* 07A0 */
+  {0x07A2,0x07A2,0x07A2},  {0x07A3,0x07A3,0x07A3}, /* 07A2 */
+  {0x07A4,0x07A4,0x07A4},  {0x07A5,0x07A5,0x07A5}, /* 07A4 */
+  {0x07A6,0x07A6,0x07A6},  {0x07A7,0x07A7,0x07A7}, /* 07A6 */
+  {0x07A8,0x07A8,0x07A8},  {0x07A9,0x07A9,0x07A9}, /* 07A8 */
+  {0x07AA,0x07AA,0x07AA},  {0x07AB,0x07AB,0x07AB}, /* 07AA */
+  {0x07AC,0x07AC,0x07AC},  {0x07AD,0x07AD,0x07AD}, /* 07AC */
+  {0x07AE,0x07AE,0x07AE},  {0x07AF,0x07AF,0x07AF}, /* 07AE */
+  {0x07B0,0x07B0,0x07B0},  {0x07B1,0x07B1,0x07B1}, /* 07B0 */
+  {0x07B2,0x07B2,0x07B2},  {0x07B3,0x07B3,0x07B3}, /* 07B2 */
+  {0x07B4,0x07B4,0x07B4},  {0x07B5,0x07B5,0x07B5}, /* 07B4 */
+  {0x07B6,0x07B6,0x07B6},  {0x07B7,0x07B7,0x07B7}, /* 07B6 */
+  {0x07B8,0x07B8,0x07B8},  {0x07B9,0x07B9,0x07B9}, /* 07B8 */
+  {0x07BA,0x07BA,0x07BA},  {0x07BB,0x07BB,0x07BB}, /* 07BA */
+  {0x07BC,0x07BC,0x07BC},  {0x07BD,0x07BD,0x07BD}, /* 07BC */
+  {0x07BE,0x07BE,0x07BE},  {0x07BF,0x07BF,0x07BF}, /* 07BE */
+  {0x07C0,0x07C0,0x07C0},  {0x07C1,0x07C1,0x07C1}, /* 07C0 */
+  {0x07C2,0x07C2,0x07C2},  {0x07C3,0x07C3,0x07C3}, /* 07C2 */
+  {0x07C4,0x07C4,0x07C4},  {0x07C5,0x07C5,0x07C5}, /* 07C4 */
+  {0x07C6,0x07C6,0x07C6},  {0x07C7,0x07C7,0x07C7}, /* 07C6 */
+  {0x07C8,0x07C8,0x07C8},  {0x07C9,0x07C9,0x07C9}, /* 07C8 */
+  {0x07CA,0x07CA,0x07CA},  {0x07CB,0x07CB,0x07CB}, /* 07CA */
+  {0x07CC,0x07CC,0x07CC},  {0x07CD,0x07CD,0x07CD}, /* 07CC */
+  {0x07CE,0x07CE,0x07CE},  {0x07CF,0x07CF,0x07CF}, /* 07CE */
+  {0x07D0,0x07D0,0x07D0},  {0x07D1,0x07D1,0x07D1}, /* 07D0 */
+  {0x07D2,0x07D2,0x07D2},  {0x07D3,0x07D3,0x07D3}, /* 07D2 */
+  {0x07D4,0x07D4,0x07D4},  {0x07D5,0x07D5,0x07D5}, /* 07D4 */
+  {0x07D6,0x07D6,0x07D6},  {0x07D7,0x07D7,0x07D7}, /* 07D6 */
+  {0x07D8,0x07D8,0x07D8},  {0x07D9,0x07D9,0x07D9}, /* 07D8 */
+  {0x07DA,0x07DA,0x07DA},  {0x07DB,0x07DB,0x07DB}, /* 07DA */
+  {0x07DC,0x07DC,0x07DC},  {0x07DD,0x07DD,0x07DD}, /* 07DC */
+  {0x07DE,0x07DE,0x07DE},  {0x07DF,0x07DF,0x07DF}, /* 07DE */
+  {0x07E0,0x07E0,0x07E0},  {0x07E1,0x07E1,0x07E1}, /* 07E0 */
+  {0x07E2,0x07E2,0x07E2},  {0x07E3,0x07E3,0x07E3}, /* 07E2 */
+  {0x07E4,0x07E4,0x07E4},  {0x07E5,0x07E5,0x07E5}, /* 07E4 */
+  {0x07E6,0x07E6,0x07E6},  {0x07E7,0x07E7,0x07E7}, /* 07E6 */
+  {0x07E8,0x07E8,0x07E8},  {0x07E9,0x07E9,0x07E9}, /* 07E8 */
+  {0x07EA,0x07EA,0x07EA},  {0x07EB,0x07EB,0x07EB}, /* 07EA */
+  {0x07EC,0x07EC,0x07EC},  {0x07ED,0x07ED,0x07ED}, /* 07EC */
+  {0x07EE,0x07EE,0x07EE},  {0x07EF,0x07EF,0x07EF}, /* 07EE */
+  {0x07F0,0x07F0,0x07F0},  {0x07F1,0x07F1,0x07F1}, /* 07F0 */
+  {0x07F2,0x07F2,0x07F2},  {0x07F3,0x07F3,0x07F3}, /* 07F2 */
+  {0x07F4,0x07F4,0x07F4},  {0x07F5,0x07F5,0x07F5}, /* 07F4 */
+  {0x07F6,0x07F6,0x07F6},  {0x07F7,0x07F7,0x07F7}, /* 07F6 */
+  {0x07F8,0x07F8,0x07F8},  {0x07F9,0x07F9,0x07F9}, /* 07F8 */
+  {0x07FA,0x07FA,0x07FA},  {0x07FB,0x07FB,0x07FB}, /* 07FA */
+  {0x07FC,0x07FC,0x07FC},  {0x07FD,0x07FD,0x07FD}, /* 07FC */
+  {0x07FE,0x07FE,0x07FE},  {0x07FF,0x07FF,0x07FF} /* 07FE */
+};
+
 static MY_UNICASE_CHARACTER plane1E[]={
   {0x1E00,0x1E01,0x0041},  {0x1E00,0x1E01,0x0041},
   {0x1E02,0x1E03,0x0042},  {0x1E02,0x1E03,0x0042},
@@ -1694,7 +1957,7 @@ static MY_UNICASE_CHARACTER planeFF[]={
 MY_UNICASE_CHARACTER *my_unicase_default_pages[256]=
 {
     my_unicase_default_page00,
-             plane01, plane02, plane03, plane04, plane05, NULL,    NULL,
+             plane01, plane02, plane03, plane04, plane05, plane06, plane07,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL, plane1E, plane1F,
@@ -1741,7 +2004,7 @@ MY_UNICASE_INFO my_unicase_default=
 */
 MY_UNICASE_CHARACTER *my_unicase_pages_mysql500[256]={
  plane00_mysql500,
-          plane01, plane02, plane03, plane04, plane05,    NULL,    NULL,
+          plane01, plane02, plane03, plane04, plane05, plane06, plane07,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL, plane1E, plane1F,
@@ -1928,7 +2191,7 @@ static MY_UNICASE_CHARACTER turk00[]=
 
 static MY_UNICASE_CHARACTER *my_unicase_pages_turkish[256]=
 {
-  turk00, plane01, plane02, plane03, plane04, plane05,    NULL,    NULL,
+  turk00, plane01, plane02, plane03, plane04, plane05, plane06, plane07,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL, plane1E, plane1F,
@@ -4332,7 +4595,7 @@ static MY_UNICASE_CHARACTER u520p104[]={
 
 MY_UNICASE_CHARACTER *my_unicase_pages_unicode520[4352]=
 {
- u520p00, u520p01, u520p02, u520p03, u520p04, u520p05,    NULL,    NULL,
+ u520p00, u520p01, u520p02, u520p03, u520p04, u520p05, plane06, plane06,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
  u520p10,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL, u520p1D, u520p1E, u520p1F,
@@ -5213,7 +5476,7 @@ int my_charlen_utf8mb3(CHARSET_INFO *cs __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)       my_ ## x ## _utf8mb3
 #define CHARLEN(cs,str,end)       my_charlen_utf8mb3(cs,str,end)
 #define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 #undef MY_FUNCTION_NAME
 #undef CHARLEN
 #undef DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
@@ -5230,7 +5493,17 @@ static inline int my_weight_mb2_utf8mb3_general_ci(uchar b0, uchar b1)
 {
   my_wc_t wc= UTF8MB2_CODE(b0, b1);
   MY_UNICASE_CHARACTER *page= my_unicase_default_pages[wc >> 8];
-  return (int) (page ? page[wc & 0xFF].sort : wc);
+  /*
+    2-byte utf8 sequences encode Unicode characters up to U+07FF.
+    my_unicase_default_pages[N] has non-NULL page pointers
+    for all N in the range [0..7].
+    - my_unicase_default_pages[0..5] point to real translation data
+    - my_unicase_default_pages[6..7] point to dummy pages
+      (without real translation).
+    By adding these dummy pages we can avoid testing 'page' against NULL.
+    This gives up to 20% performance improvement.
+  */
+  return (int) page[wc & 0xFF].sort;
 }
 
 
@@ -5254,7 +5527,8 @@ static inline int my_weight_mb3_utf8mb3_general_ci(uchar b0, uchar b1, uchar b2)
 #define WEIGHT_MB1(x)            my_weight_mb1_utf8mb3_general_ci(x)
 #define WEIGHT_MB2(x,y)          my_weight_mb2_utf8mb3_general_ci(x,y)
 #define WEIGHT_MB3(x,y,z)        my_weight_mb3_utf8mb3_general_ci(x,y,z)
-#include "strcoll.ic"
+#define STRCOLL_MB7_TOUPPER
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -5263,7 +5537,8 @@ static inline int my_weight_mb3_utf8mb3_general_ci(uchar b0, uchar b1, uchar b2)
 #define WEIGHT_MB1(x)          my_weight_mb1_utf8mb3_general_ci(x)
 #define WEIGHT_MB2(x,y)        my_weight_mb2_utf8mb3_general_ci(x,y)
 #define WEIGHT_MB3(x,y,z)      my_weight_mb3_utf8mb3_general_ci(x,y,z)
-#include "strcoll.ic"
+#define STRCOLL_MB7_TOUPPER
+#include "strcoll.inl"
 
 
 static inline int my_weight_mb1_utf8mb3_general_mysql500_ci(uchar b)
@@ -5276,7 +5551,11 @@ static inline int my_weight_mb2_utf8mb3_general_mysql500_ci(uchar b0, uchar b1)
 {
   my_wc_t wc= UTF8MB2_CODE(b0, b1);
   MY_UNICASE_CHARACTER *page= my_unicase_pages_mysql500[wc >> 8];
-  return (int) (page ? page[wc & 0xFF].sort : wc);
+  /*
+    `page` should never be NULL for 2-byte utf8 characters.
+    See comments in my_weight_mb2_utf8mb3_general_ci().
+  */
+  return (int) page[wc & 0xFF].sort;
 }
 
 
@@ -5300,7 +5579,8 @@ my_weight_mb3_utf8mb3_general_mysql500_ci(uchar b0, uchar b1, uchar b2)
 #define WEIGHT_MB1(x)            my_weight_mb1_utf8mb3_general_mysql500_ci(x)
 #define WEIGHT_MB2(x,y)          my_weight_mb2_utf8mb3_general_mysql500_ci(x,y)
 #define WEIGHT_MB3(x,y,z)        my_weight_mb3_utf8mb3_general_mysql500_ci(x,y,z)
-#include "strcoll.ic"
+#define STRCOLL_MB7_TOUPPER
+#include "strcoll.inl"
 
 
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf8mb3_bin
@@ -5311,7 +5591,8 @@ my_weight_mb3_utf8mb3_general_mysql500_ci(uchar b0, uchar b1, uchar b2)
 #define WEIGHT_MB1(x)            ((int) (uchar) (x))
 #define WEIGHT_MB2(x,y)          ((int) UTF8MB2_CODE(x,y))
 #define WEIGHT_MB3(x,y,z)        ((int) UTF8MB3_CODE(x,y,z))
-#include "strcoll.ic"
+#define STRCOLL_MB7_BIN
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -5320,7 +5601,8 @@ my_weight_mb3_utf8mb3_general_mysql500_ci(uchar b0, uchar b1, uchar b2)
 #define WEIGHT_MB1(x)          ((int) (uchar) (x))
 #define WEIGHT_MB2(x,y)        ((int) UTF8MB2_CODE(x,y))
 #define WEIGHT_MB3(x,y,z)      ((int) UTF8MB3_CODE(x,y,z))
-#include "strcoll.ic"
+#define STRCOLL_MB7_BIN
+#include "strcoll.inl"
 
 /*
   TODO-10.2: join this with pad_max_char() in ctype-mb.c
@@ -5359,6 +5641,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_ci_handler =
     NULL,               /* init */
     my_strnncoll_utf8mb3_general_ci,
     my_strnncollsp_utf8mb3_general_ci,
+    my_strnncollsp_nchars_utf8mb3_general_ci,
     my_strnxfrm_utf8mb3_general_ci,
     my_strnxfrmlen_unicode,
     my_like_range_mb,
@@ -5366,7 +5649,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_ci_handler =
     my_strcasecmp_utf8mb3,
     my_instr_mb,
     my_hash_sort_utf8mb3,
-    my_propagate_complex
+    my_propagate_complex,
+    my_min_str_mb_simple,
+    my_max_str_mb_simple
 };
 
 
@@ -5375,6 +5660,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_mysql500_ci_handler =
     NULL,               /* init */
     my_strnncoll_utf8mb3_general_mysql500_ci,
     my_strnncollsp_utf8mb3_general_mysql500_ci,
+    my_strnncollsp_nchars_utf8mb3_general_mysql500_ci,
     my_strnxfrm_utf8mb3_general_mysql500_ci,
     my_strnxfrmlen_unicode,
     my_like_range_mb,
@@ -5382,7 +5668,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_mysql500_ci_handler =
     my_strcasecmp_utf8mb3,
     my_instr_mb,
     my_hash_sort_utf8mb3,
-    my_propagate_complex
+    my_propagate_complex,
+    my_min_str_mb_simple,
+    my_max_str_mb_simple
 };
 
 
@@ -5391,6 +5679,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_bin_handler =
     NULL,		/* init */
     my_strnncoll_utf8mb3_bin,
     my_strnncollsp_utf8mb3_bin,
+    my_strnncollsp_nchars_utf8mb3_bin,
     my_strnxfrm_utf8mb3_bin,
     my_strnxfrmlen_unicode,
     my_like_range_mb,
@@ -5398,7 +5687,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_bin_handler =
     my_strcasecmp_mb_bin,
     my_instr_mb,
     my_hash_sort_mb_bin,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_mb_simple,
+    my_max_str_mb_simple
 };
 
 
@@ -5407,6 +5698,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_nopad_ci_handler =
   NULL,               /* init */
   my_strnncoll_utf8mb3_general_ci,
   my_strnncollsp_utf8mb3_general_nopad_ci,
+  my_strnncollsp_nchars_utf8mb3_general_nopad_ci,
   my_strnxfrm_nopad_utf8mb3_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_mb,
@@ -5414,7 +5706,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_nopad_ci_handler =
   my_strcasecmp_utf8mb3,
   my_instr_mb,
   my_hash_sort_utf8mb3_nopad,
-  my_propagate_complex
+  my_propagate_complex,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 
@@ -5423,6 +5717,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_nopad_bin_handler =
   NULL,		/* init */
   my_strnncoll_utf8mb3_bin,
   my_strnncollsp_utf8mb3_nopad_bin,
+  my_strnncollsp_nchars_utf8mb3_nopad_bin,
   my_strnxfrm_nopad_utf8mb3_bin,
   my_strnxfrmlen_unicode,
   my_like_range_mb,
@@ -5430,7 +5725,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_nopad_bin_handler =
   my_strcasecmp_mb_bin,
   my_instr_mb,
   my_hash_sort_mb_nopad_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 
@@ -5753,6 +6050,7 @@ static MY_COLLATION_HANDLER my_collation_cs_handler =
     NULL,		/* init */
     my_strnncoll_utf8mb3_cs,
     my_strnncollsp_utf8mb3_cs,
+    my_strnncollsp_nchars_generic,
     my_strnxfrm_utf8mb3_general_ci,
     my_strnxfrmlen_unicode,
     my_like_range_simple,
@@ -5760,7 +6058,9 @@ static MY_COLLATION_HANDLER my_collation_cs_handler =
     my_strcasecmp_utf8mb3,
     my_instr_mb,
     my_hash_sort_utf8mb3,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_mb_simple,
+    my_max_str_mb_simple
 };
 
 struct charset_info_st my_charset_utf8mb3_general_cs=
@@ -7042,7 +7342,7 @@ my_wc_to_printable_filename(CHARSET_INFO *cs, my_wc_t wc,
 #define MY_FUNCTION_NAME(x)       my_ ## x ## _filename
 #define CHARLEN(cs,str,end)       my_charlen_filename(cs,str,end)
 #define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 #undef MY_FUNCTION_NAME
 #undef CHARLEN
 #undef DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
@@ -7063,7 +7363,7 @@ my_wc_to_printable_filename(CHARSET_INFO *cs, my_wc_t wc,
 #define WEIGHT_MB2(x,y)          my_weight_mb2_utf8mb3_general_ci(x,y)
 #define WEIGHT_MB3(x,y,z)        my_weight_mb3_utf8mb3_general_ci(x,y,z)
 */
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 static MY_COLLATION_HANDLER my_collation_filename_handler =
@@ -7071,6 +7371,7 @@ static MY_COLLATION_HANDLER my_collation_filename_handler =
     NULL,               /* init */
     my_strnncoll_simple,
     my_strnncollsp_simple,
+    my_strnncollsp_nchars_generic,
     my_strnxfrm_filename,
     my_strnxfrmlen_unicode,
     my_like_range_mb,
@@ -7078,7 +7379,9 @@ static MY_COLLATION_HANDLER my_collation_filename_handler =
     my_strcasecmp_utf8mb3,
     my_instr_mb,
     my_hash_sort_utf8mb3,
-    my_propagate_complex
+    my_propagate_complex,
+    my_min_str_mb_simple,
+    my_max_str_mb_simple
 };
 
 static MY_CHARSET_HANDLER my_charset_filename_handler=
@@ -7646,7 +7949,7 @@ my_charlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)       my_ ## x ## _utf8mb4
 #define CHARLEN(cs,str,end)       my_charlen_utf8mb4(cs,str,end)
 #define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 #undef MY_FUNCTION_NAME
 #undef CHARLEN
 #undef DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
@@ -7670,7 +7973,8 @@ my_charlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
   All non-BMP characters have the same weight.
 */
 #define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
-#include "strcoll.ic"
+#define STRCOLL_MB7_TOUPPER
+#include "strcoll.inl"
 
 
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf8mb4_bin
@@ -7679,7 +7983,8 @@ my_charlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_MB2(b0,b1)        ((int) UTF8MB2_CODE(b0,b1))
 #define WEIGHT_MB3(b0,b1,b2)     ((int) UTF8MB3_CODE(b0,b1,b2))
 #define WEIGHT_MB4(b0,b1,b2,b3)  ((int) UTF8MB4_CODE(b0,b1,b2,b3))
-#include "strcoll.ic"
+#define STRCOLL_MB7_BIN
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -7693,7 +7998,8 @@ my_charlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
   All non-BMP characters have the same weight.
 */
 #define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
-#include "strcoll.ic"
+#define STRCOLL_MB7_TOUPPER
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -7703,7 +8009,8 @@ my_charlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_MB2(b0,b1)        ((int) UTF8MB2_CODE(b0,b1))
 #define WEIGHT_MB3(b0,b1,b2)     ((int) UTF8MB3_CODE(b0,b1,b2))
 #define WEIGHT_MB4(b0,b1,b2,b3)  ((int) UTF8MB4_CODE(b0,b1,b2,b3))
-#include "strcoll.ic"
+#define STRCOLL_MB7_BIN
+#include "strcoll.inl"
 
 
 static MY_COLLATION_HANDLER my_collation_utf8mb4_general_ci_handler=
@@ -7711,6 +8018,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general_ci_handler=
   NULL,               /* init */
   my_strnncoll_utf8mb4_general_ci,
   my_strnncollsp_utf8mb4_general_ci,
+  my_strnncollsp_nchars_utf8mb4_general_ci,
   my_strnxfrm_utf8mb4_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_mb,
@@ -7718,7 +8026,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general_ci_handler=
   my_strcasecmp_utf8mb4,
   my_instr_mb,
   my_hash_sort_utf8mb4,
-  my_propagate_complex
+  my_propagate_complex,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -7727,6 +8037,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_bin_handler =
     NULL,              /* init */
     my_strnncoll_utf8mb4_bin,
     my_strnncollsp_utf8mb4_bin,
+    my_strnncollsp_nchars_utf8mb4_bin,
     my_strnxfrm_unicode_full_bin,
     my_strnxfrmlen_unicode_full_bin,
     my_like_range_mb,
@@ -7734,7 +8045,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_bin_handler =
     my_strcasecmp_mb_bin,
     my_instr_mb,
     my_hash_sort_mb_bin,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_mb_simple,
+    my_max_str_mb_simple
 };
 
 
@@ -7743,6 +8056,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general_nopad_ci_handler=
   NULL,               /* init */
   my_strnncoll_utf8mb4_general_ci,
   my_strnncollsp_utf8mb4_general_nopad_ci,
+  my_strnncollsp_nchars_utf8mb4_general_nopad_ci,
   my_strnxfrm_nopad_utf8mb4_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_mb,
@@ -7750,7 +8064,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general_nopad_ci_handler=
   my_strcasecmp_utf8mb4,
   my_instr_mb,
   my_hash_sort_utf8mb4_nopad,
-  my_propagate_complex
+  my_propagate_complex,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 
@@ -7759,6 +8075,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_nopad_bin_handler =
   NULL,		/* init */
   my_strnncoll_utf8mb4_bin,
   my_strnncollsp_utf8mb4_nopad_bin,
+  my_strnncollsp_nchars_utf8mb4_nopad_bin,
   my_strnxfrm_unicode_full_nopad_bin,
   my_strnxfrmlen_unicode_full_bin,
   my_like_range_mb,
@@ -7766,7 +8083,9 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_nopad_bin_handler =
   my_strcasecmp_mb_bin,
   my_instr_mb,
   my_hash_sort_mb_nopad_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 

@@ -1,0 +1,250 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-4958 Adding datatype UUID
+#
+SET default_storage_engine=MEMORY;
+#
+# Range optimizer
+#
+CREATE TABLE t1 (a UUID, INDEX(a));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` uuid DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+FOR i IN 0..255
+DO
+INSERT INTO t1 VALUES (CONCAT(REPEAT(0x00, 15),CHAR(i USING BINARY)));
+END FOR
+$$
+SELECT * FROM t1 WHERE a='00000000-0000-0000-0000-0000000000ff';
+a
+00000000-0000-0000-0000-0000000000ff
+EXPLAIN SELECT * FROM t1 WHERE a='00000000-0000-0000-0000-0000000000ff';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	17	const	4	Using where
+SELECT * FROM t1 WHERE a='garbage';
+a
+Warnings:
+Warning	1292	Incorrect uuid value: 'garbage'
+EXPLAIN SELECT * FROM t1 WHERE a='garbage';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Warning	1292	Incorrect uuid value: 'garbage'
+SELECT * FROM t1 WHERE a>='00000000-0000-0000-0000-0000000000fe';
+a
+00000000-0000-0000-0000-0000000000fe
+00000000-0000-0000-0000-0000000000ff
+EXPLAIN SELECT * FROM t1 WHERE a>='00000000-0000-0000-0000-0000000000fe';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	256	Using where
+SELECT * FROM t1 WHERE a>='garbage';
+a
+Warnings:
+Warning	1292	Incorrect uuid value: 'garbage'
+EXPLAIN SELECT * FROM t1 WHERE a>='garbage';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	256	Using where
+SELECT * FROM t1 WHERE a IN
+(
+'00000000-0000-0000-0000-000000000080',
+'00000000-0000-0000-0000-0000000000a0',
+'00000000-0000-0000-0000-0000000000f0'
+);
+a
+00000000-0000-0000-0000-000000000080
+00000000-0000-0000-0000-0000000000a0
+00000000-0000-0000-0000-0000000000f0
+EXPLAIN SELECT * FROM t1 WHERE a IN
+(
+'00000000-0000-0000-0000-000000000080',
+'00000000-0000-0000-0000-0000000000a0',
+'00000000-0000-0000-0000-0000000000f0'
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	12	Using where
+SELECT * FROM t1 WHERE a IN
+(
+'00000000-0000-0000-0000-000000000080',
+'00000000-0000-0000-0000-0000000000a0',
+'garbage'
+);
+a
+00000000-0000-0000-0000-000000000080
+00000000-0000-0000-0000-0000000000a0
+Warnings:
+Warning	1292	Incorrect uuid value: 'garbage'
+EXPLAIN SELECT * FROM t1 WHERE a IN
+(
+'00000000-0000-0000-0000-000000000080',
+'00000000-0000-0000-0000-0000000000a0',
+'garbage'
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	8	Using where
+Warnings:
+Warning	1292	Incorrect uuid value: 'garbage'
+SELECT * FROM t1 WHERE a BETWEEN
+'00000000-0000-0000-0000-000000000080' AND
+'00000000-0000-0000-0000-000000000081';
+a
+00000000-0000-0000-0000-000000000080
+00000000-0000-0000-0000-000000000081
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN
+'00000000-0000-0000-0000-000000000080' AND
+'00000000-0000-0000-0000-000000000081';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	256	Using where
+SELECT * FROM t1 WHERE a BETWEEN
+'00000000-0000-0000-0000-000000000080' AND
+'garbage';
+a
+Warnings:
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+Warning	1292	Incorrect uuid value: 'garbage'
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN
+'00000000-0000-0000-0000-000000000080' AND
+'garbage';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	256	Using where
+SELECT * FROM t1 WHERE a=CAST('00000000-0000-0000-0000-0000000000ff' AS UUID);
+a
+00000000-0000-0000-0000-0000000000ff
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST('00000000-0000-0000-0000-0000000000ff' AS UUID);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	a	a	17	const	4	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = UUID'00000000-0000-0000-0000-0000000000ff'
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a UUID,KEY(a));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` uuid DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+BEGIN;
+FOR i IN 0..255
+DO
+INSERT INTO t1 VALUES (REPLACE('XX000000-0000-0000-0000-000000000000','XX',LPAD(HEX(i),2,'0')));
+INSERT INTO t1 VALUES (REPLACE('00XX0000-0000-0000-0000-000000000000','XX',LPAD(HEX(i),2,'0')));
+INSERT INTO t1 VALUES (REPLACE('0000XX00-0000-0000-0000-000000000000','XX',LPAD(HEX(i),2,'0')));
+INSERT INTO t1 VALUES (REPLACE('000000XX-0000-0000-0000-000000000000','XX',LPAD(HEX(i),2,'0')));
+INSERT INTO t1 VALUES (REPLACE('00000000-XX00-0000-0000-000000000000','XX',LPAD(HEX(i),2,'0')));
+INSERT INTO t1 VALUES (REPLACE('00000000-00XX-0000-0000-000000000000','XX',LPAD(HEX(i),2,'0')));
+INSERT INTO t1 VALUES (REPLACE('00000000-0000-XX00-0000-000000000000','XX',LPAD(HEX(i),2,'0')));
+INSERT INTO t1 VALUES (REPLACE('00000000-0000-00XX-0000-000000000000','XX',LPAD(HEX(i),2,'0')));
+INSERT INTO t1 VALUES (REPLACE('00000000-0000-0000-XX00-000000000000','XX',LPAD(HEX(i),2,'0')));
+INSERT INTO t1 VALUES (REPLACE('00000000-0000-0000-00XX-000000000000','XX',LPAD(HEX(i),2,'0')));
+INSERT INTO t1 VALUES (REPLACE('00000000-0000-0000-0000-XX0000000000','XX',LPAD(HEX(i),2,'0')));
+INSERT INTO t1 VALUES (REPLACE('00000000-0000-0000-0000-00XX00000000','XX',LPAD(HEX(i),2,'0')));
+INSERT INTO t1 VALUES (REPLACE('00000000-0000-0000-0000-0000XX000000','XX',LPAD(HEX(i),2,'0')));
+INSERT INTO t1 VALUES (REPLACE('00000000-0000-0000-0000-000000XX0000','XX',LPAD(HEX(i),2,'0')));
+INSERT INTO t1 VALUES (REPLACE('00000000-0000-0000-0000-00000000XX00','XX',LPAD(HEX(i),2,'0')));
+INSERT INTO t1 VALUES (REPLACE('00000000-0000-0000-0000-0000000000XX','XX',LPAD(HEX(i),2,'0')));
+END FOR;
+$$
+COMMIT;
+EXPLAIN SELECT * FROM t1 WHERE a='ff000000-0000-0000-0000-000000000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	17	const	2	Using where
+EXPLAIN SELECT * FROM t1 WHERE a='00ff0000-0000-0000-0000-000000000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	17	const	2	Using where
+EXPLAIN SELECT * FROM t1 WHERE a='0000ff00-0000-0000-0000-000000000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	17	const	2	Using where
+EXPLAIN SELECT * FROM t1 WHERE a='000000ff-0000-0000-0000-000000000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	17	const	2	Using where
+EXPLAIN SELECT * FROM t1 WHERE a='00000000-ff00-0000-0000-000000000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	17	const	2	Using where
+EXPLAIN SELECT * FROM t1 WHERE a='00000000-00ff-0000-0000-000000000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	17	const	2	Using where
+EXPLAIN SELECT * FROM t1 WHERE a='00000000-0000-ff00-0000-000000000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	17	const	2	Using where
+EXPLAIN SELECT * FROM t1 WHERE a='00000000-0000-00ff-0000-000000000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	17	const	2	Using where
+EXPLAIN SELECT * FROM t1 WHERE a='00000000-0000-0000-ff00-000000000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	17	const	2	Using where
+EXPLAIN SELECT * FROM t1 WHERE a='00000000-0000-0000-00ff-000000000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	17	const	2	Using where
+EXPLAIN SELECT * FROM t1 WHERE a='00000000-0000-0000-0000-ff0000000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	17	const	2	Using where
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#

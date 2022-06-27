@@ -3852,7 +3852,7 @@ bool Rdb_validate_tbls::scan_for_frms(const std::string &datadir,
 
   /* Scan through the files in the directory */
   struct fileinfo *file_info = dir_info->dir_entry;
-  for (uint ii = 0; ii < dir_info->number_of_files; ii++, file_info++) {
+  for (size_t ii = 0; ii < dir_info->number_of_files; ii++, file_info++) {
     /* Find .frm files that are not temp files (those that contain '#sql') */
     const char *ext = strrchr(file_info->name, '.');
     if (ext != nullptr && strstr(file_info->name, tmp_file_prefix) == nullptr &&
@@ -3897,7 +3897,7 @@ bool Rdb_validate_tbls::compare_to_actual_tables(const std::string &datadir,
   }
 
   file_info = dir_info->dir_entry;
-  for (uint ii = 0; ii < dir_info->number_of_files; ii++, file_info++) {
+  for (size_t ii = 0; ii < dir_info->number_of_files; ii++, file_info++) {
     /* Ignore files/dirs starting with '.' */
     if (file_info->name[0] == '.') continue;
 
@@ -5266,6 +5266,12 @@ void Rdb_dict_manager::log_start_drop_index(GL_INDEX_ID gl_index_id,
           "from index id (%u,%u). MyRocks data dictionary may "
           "get corrupted.",
           gl_index_id.cf_id, gl_index_id.index_id);
+      if (rocksdb_ignore_datadic_errors)
+      {
+        sql_print_error("RocksDB: rocksdb_ignore_datadic_errors=1, "
+                        "trying to continue");
+        return;
+      }
       abort();
     }
   }

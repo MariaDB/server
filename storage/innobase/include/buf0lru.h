@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,11 +24,10 @@ The database buffer pool LRU replacement algorithm
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef buf0lru_h
-#define buf0lru_h
+#pragma once
 
-#include "ut0byte.h"
 #include "buf0types.h"
+#include "hash0hash.h"
 
 // Forward declaration
 struct trx_t;
@@ -132,14 +131,6 @@ policy at the end of each interval. */
 void
 buf_LRU_stat_update();
 
-/** Remove one page from LRU list and put it to free list.
-@param bpage     file page to be freed
-@param id        page identifier
-@param hash_lock buf_pool.page_hash latch (will be released here) */
-void buf_LRU_free_one_page(buf_page_t *bpage, const page_id_t id,
-                           page_hash_latch *hash_lock)
-  MY_ATTRIBUTE((nonnull));
-
 #ifdef UNIV_DEBUG
 /** Validate the LRU list. */
 void buf_LRU_validate();
@@ -200,5 +191,3 @@ Increments the I/O counter in buf_LRU_stat_cur. */
 /********************************************************************//**
 Increments the page_zip_decompress() counter in buf_LRU_stat_cur. */
 #define buf_LRU_stat_inc_unzip() buf_LRU_stat_cur.unzip++
-
-#endif

@@ -11,13 +11,13 @@ InnoDB		0 transactions not purged
 connection default;
 # Cleanly shutdown mysqld
 disconnect con1;
-# Corrupt FIL_PAGE_OFFSET in bug16720368.ibd,
+# Corrupt FIL_PAGE_TYPE in bug16720368.ibd,
 # and recompute innodb_checksum_algorithm=crc32
 # restart
 SELECT COUNT(*) FROM bug16720368;
 ERROR 42S02: Table 'test.bug16720368' doesn't exist in engine
 INSERT INTO bug16720368 VALUES(1);
-ERROR 42S02: Table 'test.bug16720368' doesn't exist in engine
+ERROR HY000: Table test/bug16720368 is corrupted. Please drop the table and recreate.
 INSERT INTO bug16720368_1 VALUES(1);
 # Shut down the server to uncorrupt the data.
 # restart

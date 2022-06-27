@@ -35,5 +35,24 @@ show fields from test.t1 where field in
 drop table t1;
 
 --echo #
+--echo # MDEV-4621 select returns null for information_schema.statistics.collation field
+--echo #
+create table t1 (f varchar(64), key(f));
+select index_name, column_name, collation, cardinality from information_schema.STATISTICS where table_schema='test' and table_name='t1';
+select index_name, column_name, collation from information_schema.STATISTICS where table_schema='test' and table_name='t1';
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-28253 Mysqldump - INVISIBLE column error
+--echo #
+create table t1 (a int, b datetime invisible on update now() without system versioning) with system versioning;
+desc t1;
+drop table t1;
+
+--echo #
+--echo # End of 10.3 tests
 --echo #

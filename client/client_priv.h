@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2001, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -101,6 +101,8 @@ enum options_client
   OPT_SSL_CRL, OPT_SSL_CRLPATH,
   OPT_IGNORE_DATA,
   OPT_PRINT_ROW_COUNT, OPT_PRINT_ROW_EVENT_POSITIONS,
+  OPT_CHECK_IF_UPGRADE_NEEDED,
+  OPT_COMPATIBILTY_CLEARTEXT_PLUGIN,
   OPT_SHUTDOWN_WAIT_FOR_SLAVES,
   OPT_COPY_S3_TABLES,
   OPT_PRINT_TABLE_METADATA,

@@ -951,6 +951,20 @@ public:
   void unlock_binlog_end_pos() { mysql_mutex_unlock(&LOCK_binlog_end_pos); }
   mysql_mutex_t* get_binlog_end_pos_lock() { return &LOCK_binlog_end_pos; }
 
+  /*
+    Ensures the log's state is either LOG_OPEN or LOG_CLOSED. If something
+    failed along the desired path and left the log in invalid state, i.e.
+    LOG_TO_BE_OPENED, forces the state to be LOG_CLOSED.
+  */
+  void try_fix_log_state()
+  {
+    mysql_mutex_lock(get_log_lock());
+    /* Only change the log state if it is LOG_TO_BE_OPENED */
+    if (log_state == LOG_TO_BE_OPENED)
+      log_state= LOG_CLOSED;
+    mysql_mutex_unlock(get_log_lock());
+  }
+
   int wait_for_update_binlog_end_pos(THD* thd, struct timespec * timeout);
 
   /*
@@ -1101,8 +1115,7 @@ public:
                          const char *query, size_t query_length);
 
   /* we use this function to setup all enabled log event handlers */
-  int set_handlers(ulonglong error_log_printer,
-                   ulonglong slow_log_printer,
+  int set_handlers(ulonglong slow_log_printer,
                    ulonglong general_log_printer);
   void init_error_log(ulonglong error_log_printer);
   void init_slow_log(ulonglong slow_log_printer);
@@ -1240,7 +1253,7 @@ static inline TC_LOG *get_tc_log_implementation()
 }
 
 #ifdef WITH_WSREP
-IO_CACHE* wsrep_get_trans_cache(THD *);
+IO_CACHE* wsrep_get_cache(THD *, bool);
 void wsrep_thd_binlog_trx_reset(THD * thd);
 void wsrep_thd_binlog_stmt_rollback(THD * thd);
 #endif /* WITH_WSREP */

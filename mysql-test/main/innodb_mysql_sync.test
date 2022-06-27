@@ -176,6 +176,7 @@ DROP DATABASE db1;
 --echo # Test 2: Primary index (implicit), should block writes.
 
 CREATE TABLE t1(a INT NOT NULL, b INT NOT NULL) engine=innodb;
+INSERT INTO t1 VALUES(1, 2);
 SET DEBUG_SYNC= "alter_table_inplace_after_lock_downgrade SIGNAL manage WAIT_FOR query";
 --echo # Sending:
 --send ALTER TABLE t1 ADD UNIQUE INDEX(a), LOCK=SHARED
@@ -185,13 +186,13 @@ SET DEBUG_SYNC= "now WAIT_FOR manage";
 USE test;
 SELECT * FROM t1;
 --echo # Sending:
---send UPDATE t1 SET a=NULL
+--send UPDATE t1 SET a=3
 
 connection con2;
 --echo # Waiting for SELECT to be blocked by the metadata lock on t1
 let $wait_condition= SELECT COUNT(*)= 1 FROM information_schema.processlist
   WHERE state= 'Waiting for table metadata lock'
-  AND info='UPDATE t1 SET a=NULL';
+  AND info='UPDATE t1 SET a=3';
 --source include/wait_condition.inc
 SET DEBUG_SYNC= "now SIGNAL query";
 
@@ -200,7 +201,7 @@ connection default;
 --reap
 
 connection con1;
---echo # Reaping: UPDATE t1 SET a=NULL
+--echo # Reaping: UPDATE t1 SET a=3
 --reap
 
 --echo # Test 3: Primary index (explicit), should block writes.
@@ -215,13 +216,13 @@ connection con1;
 SET DEBUG_SYNC= "now WAIT_FOR manage";
 SELECT * FROM t1;
 --echo # Sending:
---send UPDATE t1 SET a=NULL
+--send UPDATE t1 SET a=4
 
 connection con2;
 --echo # Waiting for SELECT to be blocked by the metadata lock on t1
 let $wait_condition= SELECT COUNT(*)= 1 FROM information_schema.processlist
   WHERE state= 'Waiting for table metadata lock'
-  AND info='UPDATE t1 SET a=NULL';
+  AND info='UPDATE t1 SET a=4';
 --source include/wait_condition.inc
 SET DEBUG_SYNC= "now SIGNAL query";
 
@@ -230,7 +231,7 @@ connection default;
 --reap
 
 connection con1;
---echo # Reaping: UPDATE t1 SET a=NULL
+--echo # Reaping: UPDATE t1 SET a=4
 --reap
 
 --echo # Test 4: Secondary unique index, should not block reads.

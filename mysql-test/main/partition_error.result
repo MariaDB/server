@@ -6,7 +6,18 @@ drop table if exists t1, t2;
 CREATE TABLE t1 (a int);
 CREATE OR REPLACE VIEW v1 AS SELECT * FROM t1;
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE v1;
-ERROR 42000: Can't open table
+ERROR HY000: 'test.v1' is not of type 'BASE TABLE'
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-28599 EXCHANGE PARTITION on view causes ER_CHECK_NO_SUCH_TABLE instead of ER_WRONG_OBJECT
+#
+CREATE TABLE t1 (a int)
+PARTITION BY HASH (a)
+PARTITIONS 2;
+CREATE OR REPLACE VIEW v1 AS SELECT * FROM t1;
+ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE v1;
+ERROR HY000: 'test.v1' is not of type 'BASE TABLE'
 DROP VIEW v1;
 DROP TABLE t1;
 #
@@ -18,7 +29,7 @@ INSERT INTO t1 VALUES (5,3),(5,6);
 ALTER TABLE t1 PARTITION BY KEY(b) PARTITIONS 3 ;
 ALTER TABLE t1 REPAIR PARTITION p1, p3;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 ALTER TABLE t1 ORDER BY b;
 DROP TABLE t1;
 #
@@ -32,7 +43,7 @@ PARTITION p1 VALUES LESS THAN MAXVALUE ) ;
 ALTER TABLE t1 DROP PARTITION p1;
 ALTER TABLE t1 ANALYZE PARTITION p0, p1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 ALTER TABLE t1 COMMENT 'altered';
 DROP TABLE t1;
 #

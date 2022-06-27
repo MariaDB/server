@@ -201,7 +201,7 @@ drop table t1;
 set debug_dbug= "+d,test_pseudo_invisible";
 Create table t1( a int default(99) invisible, b int);
 
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 Create table t2( a int default(99) invisible, b int, unique(invisible));
 
 set debug_dbug=@old_debug;
@@ -211,9 +211,9 @@ insert into t1 values(3);
 insert into t1 values(4);
 select * from t1 order by b;
 select invisible, a, b from t1 order by b;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 add index(invisible);
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 add index(b,invisible);
 show index from t1;
 drop table t1;
@@ -223,7 +223,7 @@ drop table t1;
 set debug_dbug= "+d,test_completely_invisible";
 Create table t1( a int default(99) invisible, b int);
 
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 Create table t2( a int default(99) invisible, b int, unique(invisible));
 insert into t1 values(1);
 insert into t1 values(2);
@@ -233,9 +233,9 @@ select * from t1 order by b;
 select invisible, a, b from t1 order by b;
 set debug_dbug=@old_debug;
 
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 add index(invisible);
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 add index(b,invisible);
 show index from t1;
 drop table t1;
@@ -262,7 +262,7 @@ select invisible, a ,b from t1;
 set debug_dbug=@old_debug;
 Show index from t1;
 ## Sytem Generated Index modification
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 create index a1 on t1(invisible);
 set debug_dbug= "+d,test_completely_invisible,test_invisible_index";
 ## index does not exist for user

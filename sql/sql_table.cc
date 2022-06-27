@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB
+   Copyright (c) 2010, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -667,10 +667,12 @@ void build_lower_case_table_filename(char *buff, size_t bufflen,
 */
 
 uint build_table_shadow_filename(char *buff, size_t bufflen, 
-                                 ALTER_PARTITION_PARAM_TYPE *lpt)
+                                 ALTER_PARTITION_PARAM_TYPE *lpt,
+                                 bool backup)
 {
   char tmp_name[FN_REFLEN];
-  my_snprintf(tmp_name, sizeof (tmp_name), "%s-shadow-%lx-%s", tmp_file_prefix,
+  my_snprintf(tmp_name, sizeof (tmp_name), "%s-%s-%lx-%s", tmp_file_prefix,
+              backup ? "backup" : "shadow",
               (ulong) current_thd->thread_id, lpt->table_name.str);
   return build_table_filename(buff, bufflen, lpt->db.str, tmp_name, "",
                               FN_IS_TMP);
@@ -704,6 +706,11 @@ uint build_table_shadow_filename(char *buff, size_t bufflen,
     tables since it only handles partitioned data if it exists.
 */
 
+
+/*
+  TODO: Partitioning atomic DDL refactoring: WFRM_WRITE_SHADOW
+  should be merged with create_table_impl(frm_only == true).
+*/
 bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 {
   /*
@@ -717,8 +724,11 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
   char shadow_frm_name[FN_REFLEN+1];
   char frm_name[FN_REFLEN+1];
 #ifdef WITH_PARTITION_STORAGE_ENGINE
+  char bak_path[FN_REFLEN+1];
+  char bak_frm_name[FN_REFLEN+1];
   char *part_syntax_buf;
   uint syntax_len;
+  partition_info *part_info= lpt->part_info;
 #endif
   DBUG_ENTER("mysql_write_frm");
 
@@ -777,6 +787,94 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
       goto end;
     }
   }
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (flags & WFRM_WRITE_CONVERTED_TO)
+  {
+    THD *thd= lpt->thd;
+    Alter_table_ctx *alter_ctx= lpt->alter_ctx;
+    HA_CREATE_INFO *create_info= lpt->create_info;
+
+    LEX_CSTRING new_path= { alter_ctx->get_new_path(), 0 };
+    partition_info *work_part_info= thd->work_part_info;
+    handlerton *db_type= create_info->db_type;
+    DBUG_ASSERT(lpt->table->part_info);
+    DBUG_ASSERT(lpt->table->part_info == part_info);
+    handler *file= ((ha_partition *)(lpt->table->file))->get_child_handlers()[0];
+    DBUG_ASSERT(file);
+    new_path.length= strlen(new_path.str);
+    strxnmov(frm_name, sizeof(frm_name) - 1, new_path.str, reg_ext, NullS);
+    create_info->alias= alter_ctx->table_name;
+    thd->work_part_info= NULL;
+    create_info->db_type= work_part_info->default_engine_type;
+    /* NOTE: partitioned temporary tables are not supported. */
+    DBUG_ASSERT(!create_info->tmp_table());
+    if (ddl_log_create_table(thd, part_info, create_info->db_type, &new_path,
+                             &alter_ctx->new_db, &alter_ctx->new_name, true) ||
+        ERROR_INJECT("create_before_create_frm"))
+      DBUG_RETURN(TRUE);
+
+    if (mysql_prepare_create_table(thd, create_info, lpt->alter_info,
+                                   &lpt->db_options, file,
+                                   &lpt->key_info_buffer, &lpt->key_count,
+                                   C_ALTER_TABLE, alter_ctx->new_db,
+                                   alter_ctx->new_name))
+      DBUG_RETURN(TRUE);
+
+    lpt->create_info->table_options= lpt->db_options;
+    LEX_CUSTRING frm= build_frm_image(thd, alter_ctx->new_name, create_info,
+                                      lpt->alter_info->create_list,
+                                      lpt->key_count, lpt->key_info_buffer,
+                                      file);
+    if (unlikely(!frm.str))
+      DBUG_RETURN(TRUE);
+
+    thd->work_part_info= work_part_info;
+    create_info->db_type= db_type;
+
+    ERROR_INJECT("alter_partition_after_create_frm");
+
+    error= writefile(frm_name, alter_ctx->new_db.str, alter_ctx->new_name.str,
+                     create_info->tmp_table(), frm.str, frm.length);
+    my_free((void *) frm.str);
+    if (unlikely(error) || ERROR_INJECT("alter_partition_after_write_frm"))
+    {
+      mysql_file_delete(key_file_frm, frm_name, MYF(0));
+      DBUG_RETURN(TRUE);
+    }
+
+    DBUG_RETURN(false);
+  }
+  if (flags & WFRM_BACKUP_ORIGINAL)
+  {
+    build_table_filename(path, sizeof(path) - 1, lpt->db.str,
+                         lpt->table_name.str, "", 0);
+    strxnmov(frm_name, sizeof(frm_name), path, reg_ext, NullS);
+
+    build_table_shadow_filename(bak_path, sizeof(bak_path) - 1, lpt, true);
+    strxmov(bak_frm_name, bak_path, reg_ext, NullS);
+
+    DDL_LOG_MEMORY_ENTRY *main_entry= part_info->main_entry;
+    mysql_mutex_lock(&LOCK_gdl);
+    if (write_log_replace_frm(lpt, part_info->list->entry_pos,
+                              (const char*) bak_path,
+                              (const char*) path) ||
+        ddl_log_write_execute_entry(part_info->list->entry_pos,
+                                    &part_info->execute_entry))
+    {
+      mysql_mutex_unlock(&LOCK_gdl);
+      DBUG_RETURN(TRUE);
+    }
+    mysql_mutex_unlock(&LOCK_gdl);
+    part_info->main_entry= main_entry;
+    if (mysql_file_rename(key_file_frm, frm_name, bak_frm_name, MYF(MY_WME)))
+      DBUG_RETURN(TRUE);
+    if (lpt->table->file->ha_create_partitioning_metadata(bak_path, path,
+                                                          CHF_RENAME_FLAG))
+      DBUG_RETURN(TRUE);
+  }
+#else /* !WITH_PARTITION_STORAGE_ENGINE */
+  DBUG_ASSERT(!(flags & WFRM_BACKUP_ORIGINAL));
+#endif /* !WITH_PARTITION_STORAGE_ENGINE */
   if (flags & WFRM_INSTALL_SHADOW)
   {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -798,20 +896,25 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
       completing this we write a new phase to the log entry that will
       deactivate it.
     */
-    if (mysql_file_delete(key_file_frm, frm_name, MYF(MY_WME)) ||
+    if (!(flags & WFRM_BACKUP_ORIGINAL) && (
+        mysql_file_delete(key_file_frm, frm_name, MYF(MY_WME))
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-        lpt->table->file->ha_create_partitioning_metadata(path, shadow_path,
+        || lpt->table->file->ha_create_partitioning_metadata(path, shadow_path,
                                                           CHF_DELETE_FLAG) ||
-        ddl_log_increment_phase(part_info->frm_log_entry->entry_pos) ||
-        (ddl_log_sync(), FALSE) ||
-        mysql_file_rename(key_file_frm,
-                          shadow_frm_name, frm_name, MYF(MY_WME)) ||
-        lpt->table->file->ha_create_partitioning_metadata(path, shadow_path,
-                                                          CHF_RENAME_FLAG))
-#else
-        mysql_file_rename(key_file_frm,
-                          shadow_frm_name, frm_name, MYF(MY_WME)))
+        ddl_log_increment_phase(part_info->main_entry->entry_pos) ||
+        (ddl_log_sync(), FALSE)
 #endif
+      ))
+    {
+      error= 1;
+      goto err;
+    }
+    if (mysql_file_rename(key_file_frm, shadow_frm_name, frm_name, MYF(MY_WME))
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+        || lpt->table->file->ha_create_partitioning_metadata(path, shadow_path,
+                                                          CHF_RENAME_FLAG)
+#endif
+      )
     {
       error= 1;
       goto err;
@@ -850,8 +953,8 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 
 err:
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    ddl_log_increment_phase(part_info->frm_log_entry->entry_pos);
-    part_info->frm_log_entry= NULL;
+    ddl_log_increment_phase(part_info->main_entry->entry_pos);
+    part_info->main_entry= NULL;
     (void) ddl_log_sync();
 #endif
     ;
@@ -1896,17 +1999,13 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
                     const char *table_path)
 {
   char path[FN_REFLEN + 1];
+  const size_t pathmax = sizeof(path) - 1 - reg_ext_length;
   int error= 0;
   DBUG_ENTER("quick_rm_table");
 
   size_t path_length= table_path ?
-    (strxnmov(path, sizeof(path) - 1, table_path, reg_ext, NullS) - path) :
-    build_table_filename(path, sizeof(path)-1, db->str, table_name->str,
-                         reg_ext, flags);
-  if (!(flags & NO_FRM_RENAME))
-    if (mysql_file_delete(key_file_frm, path, MYF(0)))
-      error= 1; /* purecov: inspected */
-  path[path_length - reg_ext_length]= '\0'; // Remove reg_ext
+    (strxnmov(path, pathmax, table_path, NullS) - path) :
+    build_table_filename(path, pathmax, db->str, table_name->str, "", flags);
   if ((flags & (NO_HA_TABLE | NO_PAR_TABLE)) == NO_HA_TABLE)
   {
     handler *file= get_new_handler((TABLE_SHARE*) 0, thd->mem_root, base);
@@ -1916,8 +2015,14 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
     delete file;
   }
   if (!(flags & (FRM_ONLY|NO_HA_TABLE)))
-    if (ha_delete_table(thd, base, path, db, table_name, 0) > 0)
-    error= 1;
+    error|= ha_delete_table(thd, base, path, db, table_name, 0) > 0;
+
+  if (!(flags & NO_FRM_RENAME))
+  {
+    memcpy(path + path_length, reg_ext, reg_ext_length + 1);
+    if (mysql_file_delete(key_file_frm, path, MYF(0)))
+      error= 1; /* purecov: inspected */
+  }
 
   if (likely(error == 0))
   {
@@ -2758,8 +2863,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     */
     if (sql_field->stored_in_db())
       record_offset+= sql_field->pack_length;
-    if (sql_field->flags & VERS_SYSTEM_FIELD)
-      continue;
   }
   /* Update virtual fields' offset and give error if
      All fields are invisible */
@@ -2825,15 +2928,19 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       Foreign_key *fk_key= (Foreign_key*) key;
       if (fk_key->validate(alter_info->create_list))
         DBUG_RETURN(TRUE);
-      if (fk_key->ref_columns.elements &&
-	  fk_key->ref_columns.elements != fk_key->columns.elements)
+      if (fk_key->ref_columns.elements)
       {
-        my_error(ER_WRONG_FK_DEF, MYF(0),
-                 (fk_key->name.str ? fk_key->name.str :
-                                     "foreign key without name"),
-                 ER_THD(thd, ER_KEY_REF_DO_NOT_MATCH_TABLE_REF));
-	DBUG_RETURN(TRUE);
+        if (fk_key->ref_columns.elements != fk_key->columns.elements)
+        {
+          my_error(ER_WRONG_FK_DEF, MYF(0),
+                  (fk_key->name.str ? fk_key->name.str :
+                                      "foreign key without name"),
+                  ER_THD(thd, ER_KEY_REF_DO_NOT_MATCH_TABLE_REF));
+          DBUG_RETURN(TRUE);
+        }
       }
+      else
+        fk_key->ref_columns.append(&fk_key->columns);
       continue;
     }
     (*key_count)++;
@@ -3110,14 +3217,14 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       if (!sql_field || (sql_field->invisible > INVISIBLE_USER &&
                          !column->generated))
       {
-	my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
+	my_error(ER_KEY_COLUMN_DOES_NOT_EXIST, MYF(0), column->field_name.str);
 	DBUG_RETURN(TRUE);
       }
       if (sql_field->invisible > INVISIBLE_USER &&
           !(sql_field->flags & VERS_SYSTEM_FIELD) &&
-          !key->invisible && DBUG_EVALUATE_IF("test_invisible_index", 0, 1))
+          !key->invisible && !DBUG_IF("test_invisible_index"))
       {
-        my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
+        my_error(ER_KEY_COLUMN_DOES_NOT_EXIST, MYF(0), column->field_name.str);
         DBUG_RETURN(TRUE);
       }
       while ((dup_column= cols2++) != column)
@@ -3246,8 +3353,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
               /* Align key length to multibyte char boundary */
               key_part_length-= key_part_length % sql_field->charset->mbmaxlen;
             }
-            else
-              is_hash_field_needed= true;
           }
         }
         // Catch invalid use of partial keys 
@@ -3293,11 +3398,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         }
         else
         {
-          if (key->type == Key::UNIQUE)
-          {
-            is_hash_field_needed= true;
-          }
-          else
+          if (key->type != Key::UNIQUE)
           {
             key_part_length= MY_MIN(max_key_length, file->max_key_part_length());
             my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
@@ -3305,6 +3406,11 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
           }
         }
       }
+
+      if (key->type == Key::UNIQUE
+          && key_part_length > MY_MIN(max_key_length,
+                                      file->max_key_part_length()))
+        is_hash_field_needed= true;
 
       /* We can not store key_part_length more then 2^16 - 1 in frm */
       if (is_hash_field_needed && column->length > UINT_MAX16)
@@ -3340,7 +3446,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       unique_key=1;
     key_info->key_length=(uint16) key_length;
     if (key_info->key_length > max_key_length && key->type == Key::UNIQUE)
-      is_hash_field_needed= true;
+      is_hash_field_needed= true;  // for case "a BLOB UNIQUE"
     if (key_length > max_key_length && key->type != Key::FULLTEXT &&
         !is_hash_field_needed)
     {
@@ -3453,9 +3559,30 @@ without_overlaps_err:
     my_message(ER_WRONG_AUTO_KEY, ER_THD(thd, ER_WRONG_AUTO_KEY), MYF(0));
     DBUG_RETURN(TRUE);
   }
-  /* Sort keys in optimized order */
-  my_qsort((uchar*) *key_info_buffer, *key_count, sizeof(KEY),
-	   (qsort_cmp) sort_keys);
+  /*
+    We cannot do qsort of key info if MyISAM/Aria does inplace. These engines
+    do not synchronise key info on inplace alter and that qsort is
+    indeterministic (MDEV-25803).
+
+    Yet we do not know whether we do inplace or not. That detection is done
+    after this create_table_impl() and that cannot be changed because of chicken
+    and egg problem (inplace processing requires key info made by
+    create_table_impl()).
+
+    MyISAM/Aria cannot add index inplace so we are safe to qsort key info in
+    that case. And if we don't add index then we do not need qsort at all.
+  */
+  if (!(create_info->options & HA_SKIP_KEY_SORT))
+  {
+    /*
+      Sort keys in optimized order.
+
+      Note: PK must be always first key, otherwise init_from_binary_frm_image()
+      can not understand it.
+    */
+    my_qsort((uchar*) *key_info_buffer, *key_count, sizeof(KEY),
+             (qsort_cmp) sort_keys);
+  }
   create_info->null_bits= null_fields;
 
   /* Check fields. */
@@ -4164,7 +4291,6 @@ err:
   @retval -1 table existed but IF NOT EXISTS was used
 */
 
-static
 int create_table_impl(THD *thd,
                       DDL_LOG_STATE *ddl_log_state_create,
                       DDL_LOG_STATE *ddl_log_state_rm,
@@ -4333,7 +4459,7 @@ int create_table_impl(THD *thd,
       else if (options.if_not_exists())
       {
         /*
-          We never come here as part of normal create table as table existance
+          We never come here as part of normal create table as table existence
           is  checked in open_and_lock_tables(). We may come here as part of
           ALTER TABLE when converting a table for a distributed engine to a
           a local one.
@@ -5124,8 +5250,15 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   /* Partition info is not handled by mysql_prepare_alter_table() call. */
   if (src_table->table->part_info)
-    thd->work_part_info= src_table->table->part_info->get_clone(thd);
-#endif
+  {
+    /*
+      The CREATE TABLE LIKE should not inherit the DATA DIRECTORY
+      and INDEX DIRECTORY from the base table.
+      So that TRUE argument for the get_clone.
+    */
+    thd->work_part_info= src_table->table->part_info->get_clone(thd, TRUE);
+  }
+#endif /*WITH_PARTITION_STORAGE_ENGINE*/
 
   /*
     Adjust description of source table before using it for creation of
@@ -6018,9 +6151,8 @@ remove_key:
         if (!part_elem)
         {
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                              ER_DROP_PARTITION_NON_EXISTENT,
-                              ER_THD(thd, ER_DROP_PARTITION_NON_EXISTENT),
-                              "DROP");
+                              ER_PARTITION_DOES_NOT_EXIST,
+                              ER_THD(thd, ER_PARTITION_DOES_NOT_EXIST));
           names_it.remove();
         }
       }
@@ -7347,7 +7479,8 @@ static bool mysql_inplace_alter_table(THD *thd,
     necessary only for prepare phase (unless we are not under LOCK TABLES) and
     user has not explicitly requested exclusive lock.
   */
-  if ((inplace_supported == HA_ALTER_INPLACE_COPY_NO_LOCK ||
+  if (!ha_alter_info->mdl_exclusive_after_prepare &&
+      (inplace_supported == HA_ALTER_INPLACE_COPY_NO_LOCK ||
        inplace_supported == HA_ALTER_INPLACE_COPY_LOCK ||
        inplace_supported == HA_ALTER_INPLACE_NOCOPY_LOCK ||
        inplace_supported == HA_ALTER_INPLACE_NOCOPY_NO_LOCK) &&
@@ -7641,6 +7774,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 {
   /* New column definitions are added here */
   List<Create_field> new_create_list;
+  /* System-invisible fields must be added last */
+  List<Create_field> new_create_tail;
   /* New key definitions are added here */
   List<Key> new_key_list;
   List<Alter_rename_key> rename_key_list(alter_info->alter_rename_key_list);
@@ -7669,7 +7804,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   uint used_fields, dropped_sys_vers_fields= 0;
   KEY *key_info=table->key_info;
   bool rc= TRUE;
-  bool modified_primary_key= FALSE;
   bool vers_system_invisible= false;
   Create_field *def;
   Field **f_ptr,*field;
@@ -7854,15 +7988,20 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       def= new (thd->mem_root) Create_field(thd, field, field);
       def->invisible= INVISIBLE_SYSTEM;
       alter_info->flags|= ALTER_CHANGE_COLUMN;
-      if (field->flags & VERS_SYS_START_FLAG)
-        create_info->vers_info.as_row.start= def->field_name= Vers_parse_info::default_start;
+      if (field->flags & VERS_ROW_START)
+        create_info->vers_info.period.start=
+          create_info->vers_info.as_row.start=
+          def->field_name= Vers_parse_info::default_start;
+
       else
-        create_info->vers_info.as_row.end= def->field_name= Vers_parse_info::default_end;
+        create_info->vers_info.period.end=
+          create_info->vers_info.as_row.end=
+          def->field_name= Vers_parse_info::default_end;
       new_create_list.push_back(def, thd->mem_root);
       dropped_sys_vers_fields|= field->flags;
       drop_it.remove();
     }
-    else
+    else if (field->invisible < INVISIBLE_SYSTEM)
     {
       /*
         This field was not dropped and not changed, add it to the list
@@ -7885,10 +8024,16 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           def->change= alter->name;
           def->field_name= alter->new_name;
           column_rename_param.fields.push_back(def);
-          if (field->flags & VERS_SYS_START_FLAG)
+          if (field->flags & VERS_ROW_START)
+          {
             create_info->vers_info.as_row.start= alter->new_name;
-          else if (field->flags & VERS_SYS_END_FLAG)
+            create_info->vers_info.period.start= alter->new_name;
+          }
+          else if (field->flags & VERS_ROW_END)
+          {
             create_info->vers_info.as_row.end= alter->new_name;
+            create_info->vers_info.period.end= alter->new_name;
+          }
           if (table->s->period.name)
           {
             if (field == table->period_start_field())
@@ -7906,6 +8051,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
 	alter_it.remove();
       }
+    }
+    else
+    {
+      DBUG_ASSERT(field->invisible == INVISIBLE_SYSTEM);
+      def= new (thd->mem_root) Create_field(thd, field, field);
+      new_create_tail.push_back(def, thd->mem_root);
     }
   }
 
@@ -7949,9 +8100,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       !vers_system_invisible)
   {
     StringBuffer<NAME_LEN*3> tmp;
-    if (!(dropped_sys_vers_fields & VERS_SYS_START_FLAG))
+    if (!(dropped_sys_vers_fields & VERS_ROW_START))
       append_drop_column(thd, &tmp, table->vers_start_field());
-    if (!(dropped_sys_vers_fields & VERS_SYS_END_FLAG))
+    if (!(dropped_sys_vers_fields & VERS_ROW_END))
       append_drop_column(thd, &tmp, table->vers_end_field());
     my_error(ER_MISSING, MYF(0), table->s->table_name.str, tmp.c_ptr());
     goto err;
@@ -8069,6 +8220,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       alter_it.remove();
     }
   }
+
+  new_create_list.append(&new_create_tail);
+
   if (unlikely(alter_info->alter_list.elements))
   {
     my_error(ER_BAD_FIELD_ERROR, MYF(0),
@@ -8093,6 +8247,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     if (key_info->flags & HA_INVISIBLE_KEY)
       continue;
     const char *key_name= key_info->name.str;
+    const bool primary_key= table->s->primary_key == i;
+    const bool explicit_pk= primary_key &&
+                            !my_strcasecmp(system_charset_info, key_name,
+                                           primary_key_name.str);
+    const bool implicit_pk= primary_key && !explicit_pk;
+
     Alter_drop *drop;
     drop_it.rewind();
     while ((drop=drop_it++))
@@ -8106,7 +8266,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (table->s->tmp_table == NO_TMP_TABLE)
       {
         (void) delete_statistics_for_index(thd, table, key_info, FALSE);
-        if (i == table->s->primary_key)
+        if (primary_key)
 	{
           KEY *tab_key_info= table->key_info;
 	  for (uint j=0; j < table->s->keys; j++, tab_key_info++)
@@ -8205,13 +8365,19 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
       if (!cfield)
       {
-        if (table->s->primary_key == i)
-          modified_primary_key= TRUE;
+        if (primary_key)
+          alter_ctx->modified_primary_key= true;
         delete_index_stat= TRUE;
         if (!(kfield->flags & VERS_SYSTEM_FIELD))
           dropped_key_part= key_part_name;
 	continue;				// Field is removed
       }
+
+      DBUG_ASSERT(!primary_key || kfield->flags & NOT_NULL_FLAG);
+      if (implicit_pk && !alter_ctx->modified_primary_key &&
+          !(cfield->flags & NOT_NULL_FLAG))
+        alter_ctx->modified_primary_key= true;
+
       key_part_length= key_part->length;
       if (cfield->field)			// Not new field
       {
@@ -8260,7 +8426,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     {
       if (delete_index_stat) 
         (void) delete_statistics_for_index(thd, table, key_info, FALSE);
-      else if (modified_primary_key &&
+      else if (alter_ctx->modified_primary_key &&
                key_info->user_defined_key_parts != key_info->ext_key_parts)
         (void) delete_statistics_for_index(thd, table, key_info, TRUE);
     }
@@ -8305,13 +8471,13 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         key_type= Key::SPATIAL;
       else if (key_info->flags & HA_NOSAME)
       {
-        if (! my_strcasecmp(system_charset_info, key_name, primary_key_name.str))
+        if (explicit_pk)
           key_type= Key::PRIMARY;
         else
           key_type= Key::UNIQUE;
         if (dropped_key_part)
         {
-          my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), dropped_key_part);
+          my_error(ER_KEY_COLUMN_DOES_NOT_EXIST, MYF(0), dropped_key_part);
           if (long_hash_key)
           {
             key_info->algorithm= HA_KEY_ALG_LONG_HASH;
@@ -9286,7 +9452,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 {
   bool engine_changed, error, frm_is_created= false, error_handler_pushed= false;
   bool no_ha_table= true;  /* We have not created table in storage engine yet */
-  TABLE *table, *new_table;
+  TABLE *table, *new_table= nullptr;
   DDL_LOG_STATE ddl_log_state;
   Turn_errors_to_warnings_handler errors_to_warnings;
 
@@ -9312,7 +9478,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   bool varchar= create_info->varchar, table_creation_was_logged= 0;
   bool binlog_as_create_select= 0, log_if_exists= 0;
   uint tables_opened;
-  handlerton *new_db_type, *old_db_type= nullptr;
+  handlerton *new_db_type= create_info->db_type, *old_db_type;
   ha_rows copied=0, deleted=0;
   LEX_CUSTRING frm= {0,0};
   LEX_CSTRING backup_name;
@@ -9588,7 +9754,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
         Table maybe does not exist, but we got an exclusive lock
         on the name, now we can safely try to find out for sure.
       */
-      if (ha_table_exists(thd, &alter_ctx.new_db, &alter_ctx.new_name))
+      if (!(alter_info->partition_flags & ALTER_PARTITION_CONVERT_IN) &&
+          ha_table_exists(thd, &alter_ctx.new_db, &alter_ctx.new_name))
       {
         /* Table will be closed in do_command() */
         my_error(ER_TABLE_EXISTS_ERROR, MYF(0), alter_ctx.new_alias.str);
@@ -9661,22 +9828,24 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     create_info->used_fields |= HA_CREATE_USED_ROW_FORMAT;
   }
 
+  old_db_type= table->s->db_type();
+  new_db_type= create_info->db_type;
+
   DBUG_PRINT("info", ("old type: %s  new type: %s",
-             ha_resolve_storage_engine_name(table->s->db_type()),
-             ha_resolve_storage_engine_name(create_info->db_type)));
-  if (ha_check_storage_engine_flag(table->s->db_type(), HTON_ALTER_NOT_SUPPORTED))
+             ha_resolve_storage_engine_name(old_db_type),
+             ha_resolve_storage_engine_name(new_db_type)));
+  if (ha_check_storage_engine_flag(old_db_type, HTON_ALTER_NOT_SUPPORTED))
   {
     DBUG_PRINT("info", ("doesn't support alter"));
-    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(table->s->db_type())->str,
+    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(old_db_type)->str,
              alter_ctx.db.str, alter_ctx.table_name.str);
     DBUG_RETURN(true);
   }
 
-  if (ha_check_storage_engine_flag(create_info->db_type,
-                                   HTON_ALTER_NOT_SUPPORTED))
+  if (ha_check_storage_engine_flag(new_db_type, HTON_ALTER_NOT_SUPPORTED))
   {
     DBUG_PRINT("info", ("doesn't support alter"));
-    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(create_info->db_type)->str,
+    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(new_db_type)->str,
              alter_ctx.new_db.str, alter_ctx.new_name.str);
     DBUG_RETURN(true);
   }
@@ -9838,6 +10007,17 @@ do_continue:;
       DBUG_RETURN(true);
     }
   }
+  /*
+    If the old table had partitions and we are doing ALTER TABLE ...
+    engine= <new_engine>, the new table must preserve the original
+    partitioning. This means that the new engine is still the
+    partitioning engine, not the engine specified in the parser.
+    This is discovered in prep_alter_part_table, which in such case
+    updates create_info->db_type.
+    It's therefore important that the assignment below is done
+    after prep_alter_part_table.
+  */
+  new_db_type= create_info->db_type;
 #endif
 
   if (mysql_prepare_alter_table(thd, table, create_info, alter_info,
@@ -9896,10 +10076,8 @@ do_continue:;
     }
 
     // In-place execution of ALTER TABLE for partitioning.
-    DBUG_RETURN(fast_alter_partition_table(thd, table, alter_info,
-                                           create_info, table_list,
-                                           &alter_ctx.db,
-                                           &alter_ctx.table_name));
+    DBUG_RETURN(fast_alter_partition_table(thd, table, alter_info, &alter_ctx,
+                                           create_info, table_list));
   }
 #endif
 
@@ -9918,7 +10096,7 @@ do_continue:;
        Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
       || is_inplace_alter_impossible(table, create_info, alter_info)
       || IF_PARTITIONING((partition_changed &&
-          !(table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION)), 0))
+          !(old_db_type->partition_flags() & HA_USE_AUTO_PARTITION)), 0))
   {
     if (alter_info->algorithm(thd) ==
         Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
@@ -9936,23 +10114,9 @@ do_continue:;
     request table rebuild. Set ALTER_RECREATE flag to force table
     rebuild.
   */
-  if (create_info->db_type == table->s->db_type() &&
+  if (new_db_type == old_db_type &&
       create_info->used_fields & HA_CREATE_USED_ENGINE)
     alter_info->flags|= ALTER_RECREATE;
-
-  /*
-    If the old table had partitions and we are doing ALTER TABLE ...
-    engine= <new_engine>, the new table must preserve the original
-    partitioning. This means that the new engine is still the
-    partitioning engine, not the engine specified in the parser.
-    This is discovered in prep_alter_part_table, which in such case
-    updates create_info->db_type.
-    It's therefore important that the assignment below is done
-    after prep_alter_part_table.
-  */
-  new_db_type= create_info->db_type;
-  old_db_type= table->s->db_type();
-  new_table= NULL;
 
   /*
     Handling of symlinked tables:
@@ -10038,6 +10202,10 @@ do_continue:;
 
   tmp_disable_binlog(thd);
   create_info->options|=HA_CREATE_TMP_ALTER;
+  if (!(alter_info->flags & ALTER_ADD_INDEX) && !alter_ctx.modified_primary_key)
+    create_info->options|= HA_SKIP_KEY_SORT;
+  else
+    alter_info->flags|= ALTER_INDEX_ORDER;
   create_info->alias= alter_ctx.table_name;
   /*
     Create the .frm file for the new table. Storage engine table will not be
@@ -10096,7 +10264,7 @@ do_continue:;
     */
 
     if (!(ha_alter_info.handler_flags &
-          ~(ALTER_COLUMN_ORDER | ALTER_RENAME_COLUMN)))
+          ~(ALTER_COLUMN_ORDER | ALTER_RENAME_COLUMN | ALTER_INDEX_ORDER)))
     {
       /*
         No-op ALTER, no need to call handler API functions.
@@ -10111,6 +10279,9 @@ do_continue:;
         Also note that we ignore the LOCK clause here.
 
         TODO don't create partitioning metadata in the first place
+
+        TODO: Now case-change index name is treated as noop which is not quite
+              correct.
       */
       table->file->ha_create_partitioning_metadata(alter_ctx.get_tmp_path(),
                                                    NULL, CHF_DELETE_FLAG);
@@ -10917,6 +11088,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       if (!(*ptr)->vcol_info)
       {
         bitmap_set_bit(from->read_set, def->field->field_index);
+        if ((*ptr)->check_assignability_from(def->field))
+          goto err;
         (copy_end++)->set(*ptr,def->field,0);
       }
     }
@@ -11004,7 +11177,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   if (ignore && !alter_ctx->fk_error_if_delete_row)
     to->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
-  thd->get_stmt_da()->reset_current_row_for_warning();
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
   restore_record(to, s->default_values);        // Create empty record
   to->reset_default_fields();
 
@@ -11760,14 +11933,30 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
         tables, like mysql replication does. Also check if the requested
         engine is allowed/supported.
       */
-      if (WSREP(thd) &&
-          !check_engine(thd, create_table->db.str, create_table->table_name.str,
-                        &create_info) &&
-          (!thd->is_current_stmt_binlog_format_row() ||
-           !create_info.tmp_table()))
+      if (WSREP(thd))
       {
-        WSREP_TO_ISOLATION_BEGIN_CREATE(create_table->db.str, create_table->table_name.str,
-                                        create_table, &create_info);
+        handlerton *orig_ht= create_info.db_type;
+        if (!check_engine(thd, create_table->db.str,
+                          create_table->table_name.str,
+                          &create_info) &&
+            (!thd->is_current_stmt_binlog_format_row() ||
+             !create_info.tmp_table()))
+        {
+#ifdef WITH_WSREP
+          WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str,
+                                         create_table->table_name.str,
+                                         first_table, &alter_info, NULL,
+                                         &create_info)
+	  {
+	    WSREP_WARN("CREATE TABLE isolation failure");
+	    DBUG_RETURN(true);
+	  }
+#endif /* WITH_WSREP */
+        }
+        // check_engine will set db_type to  NULL if e.g. TEMPORARY is
+        // not supported by the storage engine, this case is checked
+        // again in mysql_create_table
+        create_info.db_type= orig_ht;
       }
       /* Regular CREATE TABLE */
       res= mysql_create_table(thd, create_table, &create_info, &alter_info);
@@ -11789,9 +11978,4 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 
 end_with_restore_list:
   DBUG_RETURN(res);
-
-#ifdef WITH_WSREP
-wsrep_error_label:
-  DBUG_RETURN(true);
-#endif
 }

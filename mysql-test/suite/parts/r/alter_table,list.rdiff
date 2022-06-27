@@ -1,0 +1,87 @@
+--- alter_table.result
++++ alter_table,list.reject
+@@ -62,13 +62,13 @@
+ partition pn values less than maxvalue);
+ ERROR HY000: Partitioned tables do not support CREATE TEMPORARY TABLE
+ create or replace table t1 (x int)
+-partition by range(x) (
+-partition p1 values less than (10),
+-partition p2 values less than (20),
+-partition p3 values less than (30),
+-partition p4 values less than (40),
+-partition p5 values less than (50),
+-partition pn values less than maxvalue);
++partition by list(x) (
++partition p1 values in (2, 3, 4),
++partition p2 values in (12, 13, 14),
++partition p3 values in (22, 23, 24),
++partition p4 values in (32, 33, 34),
++partition p5 values in (42, 43, 44),
++partition pn values in (52, 53, 54));
+ insert into t1 values (2), (12), (22), (32), (42), (52);
+ create or replace table tp2 (y int);
+ insert tp2 values (88);
+@@ -108,12 +108,12 @@
+ t1	CREATE TABLE `t1` (
+   `x` int(11) DEFAULT NULL
+ ) ENGINE=X DEFAULT CHARSET=latin1
+- PARTITION BY RANGE (`x`)
+-(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+- PARTITION `p3` VALUES LESS THAN (30) ENGINE = X,
+- PARTITION `p4` VALUES LESS THAN (40) ENGINE = X,
+- PARTITION `p5` VALUES LESS THAN (50) ENGINE = X,
+- PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
++ PARTITION BY LIST (`x`)
++(PARTITION `p1` VALUES IN (2,3,4) ENGINE = X,
++ PARTITION `p3` VALUES IN (22,23,24) ENGINE = X,
++ PARTITION `p4` VALUES IN (32,33,34) ENGINE = X,
++ PARTITION `p5` VALUES IN (42,43,44) ENGINE = X,
++ PARTITION `pn` VALUES IN (52,53,54) ENGINE = X)
+ select * from t1 order by x;
+ x
+ 2
+@@ -138,11 +138,11 @@
+ t1	CREATE TABLE `t1` (
+   `x` int(11) DEFAULT NULL
+ ) ENGINE=X DEFAULT CHARSET=latin1
+- PARTITION BY RANGE (`x`)
+-(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+- PARTITION `p4` VALUES LESS THAN (40) ENGINE = X,
+- PARTITION `p5` VALUES LESS THAN (50) ENGINE = X,
+- PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
++ PARTITION BY LIST (`x`)
++(PARTITION `p1` VALUES IN (2,3,4) ENGINE = X,
++ PARTITION `p4` VALUES IN (32,33,34) ENGINE = X,
++ PARTITION `p5` VALUES IN (42,43,44) ENGINE = X,
++ PARTITION `pn` VALUES IN (52,53,54) ENGINE = X)
+ select * from t1 order by x;
+ x
+ 2
+@@ -168,10 +168,10 @@
+ t1	CREATE TABLE `t1` (
+   `x` int(11) DEFAULT NULL
+ ) ENGINE=X DEFAULT CHARSET=latin1
+- PARTITION BY RANGE (`x`)
+-(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+- PARTITION `p5` VALUES LESS THAN (50) ENGINE = X,
+- PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
++ PARTITION BY LIST (`x`)
++(PARTITION `p1` VALUES IN (2,3,4) ENGINE = X,
++ PARTITION `p5` VALUES IN (42,43,44) ENGINE = X,
++ PARTITION `pn` VALUES IN (52,53,54) ENGINE = X)
+ select * from t1 order by x;
+ x
+ 2
+@@ -193,9 +193,9 @@
+ t1	CREATE TABLE `t1` (
+   `x` int(11) DEFAULT NULL
+ ) ENGINE=X DEFAULT CHARSET=latin1
+- PARTITION BY RANGE (`x`)
+-(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+- PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
++ PARTITION BY LIST (`x`)
++(PARTITION `p1` VALUES IN (2,3,4) ENGINE = X,
++ PARTITION `pn` VALUES IN (52,53,54) ENGINE = X)
+ select * from t1 order by x;
+ x
+ 2

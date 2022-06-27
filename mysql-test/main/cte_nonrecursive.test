@@ -1217,7 +1217,9 @@ DROP TABLE test.t;
 --echo # MDEV-22781: create view with CTE without default database
 --echo #
 
-drop database test;
+create database db;
+use db;
+drop database db;
 create database db1;
 create table db1.t1 (a int);
 insert into db1.t1 values (3),(7),(1);
@@ -1239,7 +1241,6 @@ drop view db1.v1;
 drop table db1.t1;
 drop database db1;
 
-create database test;
 use test;
 
 --echo #
@@ -1552,6 +1553,124 @@ call sp();
 call sp();
 
 drop procedure sp;
+drop table t1;
+
+--echo #
+--echo # MDEV-26825: query with two usage of CTE that refers to another CTE
+--echo #             with stored function using a base table.
+--echo #
+
+create table t1 (id int primary key);
+insert into t1 values
+(1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+
+create  function f(in_id int) returns integer
+return (select id from t1 where t1.id = in_id);
+
+with c1 as (select id from t1 where f(id)=id group by id),
+     c2 as (select id from c1 as pt group by id)
+select id from c2 as s1 union select id from c2 as s2;
+
+with c1 as (select id from t1 as r where f(id)=id group by id),
+     c2 as (select id from c1 as pt group by id)
+select id from c2 as s1 union select id from c2 as s2;
+
+create function g() returns int return (select count(*) from t1);
+create  procedure sp1()
+
+with c1 as (select id from t1 a where g() > 10),
+     c2 as (select id from c1)
+select id from c2 as s1 union select id from c2 as s2;
+
+call sp1();
+call sp1();
+
+drop procedure sp1;
+drop function g;
+
+drop function f;
+drop table t1;
+
+--echo #
+--echo # MDEV-27086: union using CTEs in CREATE TABLE
+--echo #
+
+create or replace temporary table tmp as
+with cte1 as (select 1 as a), cte2 as (select 2 as a)
+select * from cte1 union select * from cte2;
+select * from tmp;
+
+create table t1 as
+with cte1 as (select 1 as a), cte2 as (select 2 as a)
+select * from cte1 union select * from cte2;
+select * from t1;
+
+insert into t1 values (3);
+
+create table t2 as
+with cte1 as (select * from t1 where a <2), cte2 as (select * from t1 where a > 2)
+select * from cte1 union select * from cte2;
+select * from t2;
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-26470: CTE in WITH clause of subquery used in DELETE
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1), (5);
+
+create table t2 (b int);
+insert into t2 values (4), (1), (3), (2);
+
+delete from t1
+  where a in (with cte(a) as (select * from t2 where b <=2) select a from cte);
+select * from t1;
+
+insert into t1 values (1), (3);
+
+delete t1 from t1, t2
+  where t1.a=t2.b or
+        t1.a in (with cte(a) as (select b+1 from t2) select * from cte);
+select * from t1;
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-25766: Unused CTE lead to a crash in
+--echo # find_field_in_tables/find_order_in_list
+--echo #
+
+create table t1 (f1 INTEGER);
+
+create view v1 as
+select
+    subq_0.c4 as c2,
+    subq_0.c4 as c4
+  from
+    (select
+          ref_0.f1 as c4
+        from
+          t1 as ref_0
+        where (select 1)
+        ) as subq_0
+  order by c2, c4 desc;
+
+WITH
+unused_with AS (select
+    subq_0.c4 as c6
+  from
+    (select
+            11 as c4
+          from
+            v1 as ref_0
+     ) as subq_0,
+     v1 as ref_2
+)
+select 1 ;
+
+drop view v1;
 drop table t1;
 
 --echo # End of 10.2 tests

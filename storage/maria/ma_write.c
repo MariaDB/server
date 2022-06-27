@@ -98,7 +98,7 @@ int maria_write(MARIA_HA *info, const uchar *record)
                       share->kfile.file, info->dfile.file));
 
   DBUG_EXECUTE_IF("maria_pretend_crashed_table_on_usage",
-                  maria_print_error(info->s, HA_ERR_CRASHED);
+                  _ma_print_error(info, HA_ERR_CRASHED, 0);
                   DBUG_RETURN(my_errno= HA_ERR_CRASHED););
   if (share->options & HA_OPTION_READ_ONLY_DATA)
   {
@@ -403,10 +403,7 @@ err:
   }
 
   if (fatal_error)
-  {
-    maria_print_error(info->s, HA_ERR_CRASHED);
-    maria_mark_crashed(info);
-  }
+    _ma_set_fatal_error(info, HA_ERR_CRASHED);
 
   info->update= (HA_STATE_CHANGED | HA_STATE_WRITTEN | HA_STATE_ROW_CHANGED);
   my_errno=save_errno;
@@ -731,7 +728,10 @@ static int w_search(register MARIA_HA *info, uint32 comp_flag, MARIA_KEY *key,
     }
   }
   if (flag == MARIA_FOUND_WRONG_KEY)
+  {
+    my_errno= HA_ERR_CRASHED;
     goto err;
+  }
   if (!was_last_key)
     insert_last=0;
   next_page= _ma_kpos(page.node, keypos);
@@ -832,7 +832,7 @@ int _ma_insert(register MARIA_HA *info, MARIA_KEY *key,
   {
     if (t_length >= keyinfo->maxlength*2+MARIA_INDEX_OVERHEAD_SIZE)
     {
-      _ma_set_fatal_error(share, HA_ERR_CRASHED);
+      _ma_set_fatal_error(info, HA_ERR_CRASHED);
       DBUG_RETURN(-1);
     }
     bmove_upp(endpos+t_length, endpos, (uint) (endpos-key_pos));
@@ -841,7 +841,7 @@ int _ma_insert(register MARIA_HA *info, MARIA_KEY *key,
   {
     if (-t_length >= keyinfo->maxlength*2+MARIA_INDEX_OVERHEAD_SIZE)
     {
-      _ma_set_fatal_error(share, HA_ERR_CRASHED);
+      _ma_set_fatal_error(info, HA_ERR_CRASHED);
       DBUG_RETURN(-1);
     }
     bmove(key_pos,key_pos-t_length,(uint) (endpos-key_pos)+t_length);
@@ -1203,7 +1203,7 @@ static uchar *_ma_find_last_pos(MARIA_KEY *int_key, MARIA_PAGE *ma_page,
 
   if (!(length=(*keyinfo->get_key)(&tmp_key, page_flag, 0, &page)))
   {
-    _ma_set_fatal_error(share, HA_ERR_CRASHED);
+    _ma_set_fatal_error(info, HA_ERR_CRASHED);
     DBUG_RETURN(0);
   }
 
@@ -1216,7 +1216,7 @@ static uchar *_ma_find_last_pos(MARIA_KEY *int_key, MARIA_PAGE *ma_page,
     memcpy(int_key->data, key_buff, length);		/* previous key */
     if (!(length=(*keyinfo->get_key)(&tmp_key, page_flag, 0, &page)))
     {
-      _ma_set_fatal_error(share, HA_ERR_CRASHED);
+      _ma_set_fatal_error(info, HA_ERR_CRASHED);
       DBUG_RETURN(0);
     }
   } while (page < end);

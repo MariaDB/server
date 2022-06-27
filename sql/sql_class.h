@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -560,7 +560,8 @@ typedef enum enum_diag_condition_item_name
   DIAG_CURSOR_NAME= 9,
   DIAG_MESSAGE_TEXT= 10,
   DIAG_MYSQL_ERRNO= 11,
-  LAST_DIAG_SET_PROPERTY= DIAG_MYSQL_ERRNO
+  DIAG_ROW_NUMBER= 12,
+  LAST_DIAG_SET_PROPERTY= DIAG_ROW_NUMBER
 } Diag_condition_item_name;
 
 /**
@@ -1131,6 +1132,7 @@ struct THD_count
 {
   static Atomic_counter<uint32_t> count;
   static uint value() { return static_cast<uint>(count); }
+  static uint connection_thd_count();
   THD_count() { count++; }
   ~THD_count() { count--; }
 };
@@ -1179,7 +1181,7 @@ public:
   /* We build without RTTI, so dynamic_cast can't be used. */
   enum Type
   {
-    STATEMENT, PREPARED_STATEMENT, STORED_PROCEDURE, TABLE_ARENA
+    STATEMENT, PREPARED_STATEMENT, STORED_PROCEDURE
   };
 
   Query_arena(MEM_ROOT *mem_root_arg, enum enum_state state_arg) :
@@ -1230,7 +1232,7 @@ public:
 
   void free_items();
   /* Close the active state associated with execution of this statement */
-  virtual void cleanup_stmt(bool /*restore_set_statement_vars*/);
+  virtual bool cleanup_stmt(bool /*restore_set_statement_vars*/);
 };
 
 
@@ -2357,6 +2359,39 @@ struct wait_for_commit
   void reinit();
 };
 
+
+class Sp_caches
+{
+public:
+  sp_cache *sp_proc_cache;
+  sp_cache *sp_func_cache;
+  sp_cache *sp_package_spec_cache;
+  sp_cache *sp_package_body_cache;
+  Sp_caches()
+   :sp_proc_cache(NULL),
+    sp_func_cache(NULL),
+    sp_package_spec_cache(NULL),
+    sp_package_body_cache(NULL)
+  { }
+  ~Sp_caches()
+  {
+    // All caches must be freed by the caller explicitly
+    DBUG_ASSERT(sp_proc_cache == NULL);
+    DBUG_ASSERT(sp_func_cache == NULL);
+    DBUG_ASSERT(sp_package_spec_cache == NULL);
+    DBUG_ASSERT(sp_package_body_cache == NULL);
+  }
+  void sp_caches_swap(Sp_caches &rhs)
+  {
+    swap_variables(sp_cache*, sp_proc_cache, rhs.sp_proc_cache);
+    swap_variables(sp_cache*, sp_func_cache, rhs.sp_func_cache);
+    swap_variables(sp_cache*, sp_package_spec_cache, rhs.sp_package_spec_cache);
+    swap_variables(sp_cache*, sp_package_body_cache, rhs.sp_package_body_cache);
+  }
+  void sp_caches_clear();
+};
+
+
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
 
@@ -2552,7 +2587,8 @@ class THD: public THD_count, /* this must be first */
            */
            public Item_change_list,
            public MDL_context_owner,
-           public Open_tables_state
+           public Open_tables_state,
+           public Sp_caches
 {
 private:
   inline bool is_stmt_prepare() const
@@ -3220,6 +3256,13 @@ public:
     auto_inc_intervals_forced.empty(); // in case of multiple SET INSERT_ID
     auto_inc_intervals_forced.append(next_id, ULONGLONG_MAX, 0);
   }
+  inline void set_binlog_bit()
+  {
+    if (variables.sql_log_bin)
+      variables.option_bits |= OPTION_BIN_LOG;
+    else
+      variables.option_bits &= ~OPTION_BIN_LOG;
+  }
 
   ulonglong  limit_found_rows;
 
@@ -3581,10 +3624,6 @@ public:
   enum_sql_command last_sql_command;  // Last sql_command exceuted in mysql_execute_command()
 
   sp_rcontext *spcont;		// SP runtime context
-  sp_cache   *sp_proc_cache;
-  sp_cache   *sp_func_cache;
-  sp_cache   *sp_package_spec_cache;
-  sp_cache   *sp_package_body_cache;
 
   /** number of name_const() substitutions, see sp_head.cc:subst_spvars() */
   uint       query_name_consts;
@@ -3918,6 +3957,11 @@ public:
     user_time= t;
     set_time();
   }
+  inline void force_set_time(my_time_t t, ulong sec_part)
+  {
+    start_time= system_time.sec= t;
+    start_time_sec_part= system_time.sec_part= sec_part;
+  }
   /*
     this is only used by replication and BINLOG command.
     usecs > TIME_MAX_SECOND_PART means "was not in binlog"
@@ -3929,15 +3973,9 @@ public:
     else
     {
       if (sec_part <= TIME_MAX_SECOND_PART)
-      {
-        start_time= system_time.sec= t;
-        start_time_sec_part= system_time.sec_part= sec_part;
-      }
+        force_set_time(t, sec_part);
       else if (t != system_time.sec)
-      {
-        start_time= system_time.sec= t;
-        start_time_sec_part= system_time.sec_part= 0;
-      }
+        force_set_time(t, 0);
       else
       {
         start_time= t;
@@ -4154,6 +4192,8 @@ public:
   bool convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
 		      const char *from, size_t from_length,
 		      CHARSET_INFO *from_cs);
+  bool reinterpret_string_from_binary(LEX_CSTRING *to, CHARSET_INFO *to_cs,
+                                      const char *from, size_t from_length);
   bool convert_string(LEX_CSTRING *to, CHARSET_INFO *to_cs,
                       const char *from, size_t from_length,
                       CHARSET_INFO *from_cs)
@@ -4170,6 +4210,8 @@ public:
   {
     if (!simple_copy_is_possible)
       return unlikely(convert_string(to, tocs, from->str, from->length, fromcs));
+    if (fromcs == &my_charset_bin)
+      return reinterpret_string_from_binary(to, tocs, from->str, from->length);
     *to= *from;
     return false;
   }
@@ -4379,8 +4421,7 @@ public:
 
   bool is_item_tree_change_register_required()
   {
-    return !stmt_arena->is_conventional()
-           || stmt_arena->type() == Query_arena::TABLE_ARENA;
+    return !stmt_arena->is_conventional();
   }
 
   void change_item_tree(Item **place, Item *new_value)
@@ -4605,13 +4646,13 @@ public:
     */
     DBUG_PRINT("debug",
                ("temporary_tables: %s, in_sub_stmt: %s, system_thread: %s",
-                YESNO(has_thd_temporary_tables()), YESNO(in_sub_stmt),
+                YESNO(has_temporary_tables()), YESNO(in_sub_stmt),
                 show_system_thread(system_thread)));
     if (in_sub_stmt == 0)
     {
       if (wsrep_binlog_format() == BINLOG_FORMAT_ROW)
         set_current_stmt_binlog_format_row();
-      else if (!has_thd_temporary_tables())
+      else if (!has_temporary_tables())
         set_current_stmt_binlog_format_stmt();
     }
     DBUG_VOID_RETURN;
@@ -4800,45 +4841,17 @@ private:
     @param msg the condition message text
     @return The condition raised, or NULL
   */
-  Sql_condition*
-  raise_condition(uint sql_errno,
-                  const char* sqlstate,
-                  Sql_condition::enum_warning_level level,
-                  const char* msg)
+  Sql_condition* raise_condition(uint sql_errno, const char* sqlstate,
+                  Sql_condition::enum_warning_level level, const char* msg)
   {
-    return raise_condition(sql_errno, sqlstate, level,
-                           Sql_user_condition_identity(), msg);
+    Sql_condition cond(NULL, // don't strdup the msg
+                       Sql_condition_identity(sql_errno, sqlstate, level,
+                                              Sql_user_condition_identity()),
+                       msg, get_stmt_da()->current_row_for_warning());
+    return raise_condition(&cond);
   }
 
-  /**
-    Raise a generic or a user defined SQL condition.
-    @param ucid      - the user condition identity
-                       (or an empty identity if not a user condition)
-    @param sql_errno - the condition error number
-    @param sqlstate  - the condition SQLSTATE
-    @param level     - the condition level
-    @param msg       - the condition message text
-    @return The condition raised, or NULL
-  */
-  Sql_condition*
-  raise_condition(uint sql_errno,
-                  const char* sqlstate,
-                  Sql_condition::enum_warning_level level,
-                  const Sql_user_condition_identity &ucid,
-                  const char* msg);
-
-  Sql_condition*
-  raise_condition(const Sql_condition *cond)
-  {
-    Sql_condition *raised= raise_condition(cond->get_sql_errno(),
-                                           cond->get_sqlstate(),
-                                           cond->get_level(),
-                                           *cond/*Sql_user_condition_identity*/,
-                                           cond->get_message_text());
-    if (raised)
-      raised->copy_opt_attributes(cond);
-    return raised;
-  }
+  Sql_condition* raise_condition(const Sql_condition *cond);
 
 private:
   void push_warning_truncated_priv(Sql_condition::enum_warning_level level,
@@ -4998,18 +5011,18 @@ public:
       mdl_context.release_transactional_locks(this);
   }
   int decide_logging_format(TABLE_LIST *tables);
-  /*
-   In Some cases when decide_logging_format is called it does not have all
-   information to decide the logging format. So that cases we call decide_logging_format_2
-   at later stages in execution.
-   One example would be binlog format for IODKU but column with unique key is not inserted.
-   We don't have inserted columns info when we call decide_logging_format so on later stage we call
-   decide_logging_format_low
 
-   @returns 0 if no format is changed
-            1 if there is change in binlog format
+  /*
+   In Some cases when decide_logging_format is called it does not have
+   all information to decide the logging format. So that cases we call
+   decide_logging_format_2 at later stages in execution.
+
+   One example would be binlog format for insert on duplicate key
+   (IODKU) but column with unique key is not inserted.  We do not have
+   inserted columns info when we call decide_logging_format so on
+   later stage we call reconsider_logging_format_for_iodup()
   */
-  int decide_logging_format_low(TABLE *table);
+  void reconsider_logging_format_for_iodup(TABLE *table);
 
   enum need_invoker { INVOKER_NONE=0, INVOKER_USER, INVOKER_ROLE};
   void binlog_invoker(bool role) { m_binlog_invoker= role ? INVOKER_ROLE : INVOKER_USER; }
@@ -5259,6 +5272,14 @@ public:
   bool is_binlog_dump_thread();
 #endif
 
+  /*
+    Indicates if this thread is suspended due to awaiting an ACK from a
+    replica. True if suspended, false otherwise.
+
+    Note that this variable is protected by Repl_semi_sync_master::LOCK_binlog
+  */
+  bool is_awaiting_semisync_ack;
+
   inline ulong wsrep_binlog_format() const
   {
     return WSREP_BINLOG_FORMAT(variables.binlog_format);
@@ -5316,6 +5337,10 @@ public:
   /* thread who has started kill for this THD protected by LOCK_thd_data*/
   my_thread_id              wsrep_aborter;
 
+  /* true if BF abort is observed in do_command() right after reading
+  client's packet, and if the client has sent PS execute command. */
+  bool                      wsrep_delayed_BF_abort;
+
   /*
     Transaction id:
     * m_wsrep_next_trx_id is assigned on the first query after
@@ -5347,7 +5372,10 @@ public:
   {
     return m_wsrep_next_trx_id;
   }
-
+  /*
+    If node is async slave and have parallel execution, wait for prior commits.
+   */
+  bool wsrep_parallel_slave_wait_for_prior_commit();
 private:
   wsrep_trx_id_t m_wsrep_next_trx_id; /* cast from query_id_t */
   /* wsrep-lib */
@@ -5401,9 +5429,9 @@ public:
       thr_timer_end(&query_timer);
 #endif
   }
-  void restore_set_statement_var()
+  bool restore_set_statement_var()
   {
-    main_lex.restore_set_statement_var();
+    return main_lex.restore_set_statement_var();
   }
   /* Copy relevant `stmt` transaction flags to `all` transaction. */
   void merge_unsafe_rollback_flags()
@@ -5412,7 +5440,8 @@ public:
       transaction->all.modified_non_trans_table= TRUE;
     transaction->all.m_unsafe_rollback_flags|=
       (transaction->stmt.m_unsafe_rollback_flags &
-       (THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
+       (THD_TRANS::MODIFIED_NON_TRANS_TABLE |
+        THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
         THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL |
         THD_TRANS::EXECUTED_TABLE_ADMIN_CMD));
   }
@@ -5464,7 +5493,8 @@ public:
   bool restore_from_local_lex_to_old_lex(LEX *oldlex);
 
   Item *sp_fix_func_item(Item **it_addr);
-  Item *sp_prepare_func_item(Item **it_addr, uint cols= 1);
+  Item *sp_fix_func_item_for_assignment(const Field *to, Item **it_addr);
+  Item *sp_prepare_func_item(Item **it_addr, uint cols);
   bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
 
   bool sql_parser(LEX *old_lex, LEX *lex,
@@ -5573,8 +5603,8 @@ my_eof(THD *thd)
 
 inline date_conv_mode_t sql_mode_for_dates(THD *thd)
 {
-  static_assert((date_conv_mode_t::KNOWN_MODES &
-                time_round_mode_t::KNOWN_MODES) == 0,
+  static_assert((ulonglong(date_conv_mode_t::KNOWN_MODES) &
+                 ulonglong(time_round_mode_t::KNOWN_MODES)) == 0,
                 "date_conv_mode_t and time_round_mode_t must use different "
                 "bit values");
   static_assert(MODE_NO_ZERO_DATE    == date_mode_t::NO_ZERO_DATE &&
@@ -6681,6 +6711,7 @@ public:
   bool cmp_int();
   bool cmp_decimal();
   bool cmp_str();
+  bool cmp_time();
 };
 
 /* EXISTS subselect interface class */
@@ -7559,6 +7590,19 @@ public:
   }
   void copy(MEM_ROOT *mem_root, const LEX_CSTRING &db,
                                 const LEX_CSTRING &name);
+
+  static Database_qualified_name split(const LEX_CSTRING &txt)
+  {
+    DBUG_ASSERT(txt.str[txt.length] == '\0'); // Expect 0-terminated input
+    const char *dot= strchr(txt.str, '.');
+    if (!dot)
+      return Database_qualified_name(NULL, 0, txt.str, txt.length);
+    size_t dblen= dot - txt.str;
+    Lex_cstring db(txt.str, dblen);
+    Lex_cstring name(txt.str + dblen + 1, txt.length - dblen - 1);
+    return Database_qualified_name(db, name);
+  }
+
   // Export db and name as a qualified name string: 'db.name'
   size_t make_qname(char *dst, size_t dstlen) const
   {

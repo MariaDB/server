@@ -42,6 +42,8 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-simple.h"
+
 
 #else
 
@@ -671,11 +673,12 @@ my_like_range_win1250ch(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static MY_COLLATION_HANDLER my_collation_czech_ci_handler =
+static MY_COLLATION_HANDLER my_collation_czech_cs_handler =
 {
   NULL,				/* init */
   my_strnncoll_win1250ch,
   my_strnncollsp_win1250ch,
+  my_strnncollsp_nchars_generic_8bit,
   my_strnxfrm_win1250ch,
   my_strnxfrmlen_simple,
   my_like_range_win1250ch,
@@ -683,11 +686,13 @@ static MY_COLLATION_HANDLER my_collation_czech_ci_handler =
   my_strcasecmp_8bit,
   my_instr_simple,
   my_hash_sort_simple,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_8bit_simple,
+  my_max_str_8bit_simple
 };
 
 
-struct charset_info_st my_charset_cp1250_czech_ci =
+struct charset_info_st my_charset_cp1250_czech_cs =
 {
   34,0,0,                                     /* number    */
   MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_CSSORT|
@@ -712,12 +717,12 @@ struct charset_info_st my_charset_cp1250_czech_ci =
   1,				/* mbminlen  */
   1,				/* mbmaxlen  */
   0,				/* min_sort_char */
-  0,				/* max_sort_char */
+  0xFF,                         /* max_sort_char */
   ' ',                          /* pad char      */
   0,                            /* escape_with_backslash_is_dangerous */
   2,                            /* levels_for_order   */
   &my_charset_8bit_handler,
-  &my_collation_czech_ci_handler
+  &my_collation_czech_cs_handler
 };
 
 

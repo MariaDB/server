@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2021, MariaDB
+   Copyright (c) 2011, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -370,7 +370,8 @@ int mysql_update(THD *thd,
                  ha_rows *found_return, ha_rows *updated_return)
 {
   bool		using_limit= limit != HA_POS_ERROR;
-  bool          safe_update= thd->variables.option_bits & OPTION_SAFE_UPDATES;
+  bool          safe_update= (thd->variables.option_bits & OPTION_SAFE_UPDATES)
+                             && !thd->lex->describe;
   bool          used_key_is_modified= FALSE, transactional_table;
   bool          will_batch= FALSE;
   bool		can_compare_record;
@@ -522,6 +523,9 @@ int mysql_update(THD *thd,
     DBUG_RETURN(1);				/* purecov: inspected */
   }
 
+  if (table_list->table->check_assignability_explicit_fields(fields, values))
+    DBUG_RETURN(true);
+
   if (check_unique_table(thd, table_list))
     DBUG_RETURN(TRUE);
 
@@ -597,7 +601,7 @@ int mysql_update(THD *thd,
   }
 
   /* If running in safe sql mode, don't allow updates without keys */
-  if (table->opt_range_keys.is_clear_all())
+  if (!select || !select->quick)
   {
     thd->set_status_no_index_used();
     if (safe_update && !using_limit)
@@ -754,15 +758,20 @@ int mysql_update(THD *thd,
       !table->check_virtual_columns_marked_for_write())
   {
     DBUG_PRINT("info", ("Trying direct update"));
-    if (select && select->cond &&
-        (select->cond->used_tables() == table->map))
+    bool use_direct_update= !select || !select->cond;
+    if (!use_direct_update &&
+        (select->cond->used_tables() & ~RAND_TABLE_BIT) == table->map)
     {
       DBUG_ASSERT(!table->file->pushed_cond);
       if (!table->file->cond_push(select->cond))
+      {
+        use_direct_update= TRUE;
         table->file->pushed_cond= select->cond;
+      }
     }
 
-    if (!table->file->info_push(INFO_KIND_UPDATE_FIELDS, &fields) &&
+    if (use_direct_update &&
+        !table->file->info_push(INFO_KIND_UPDATE_FIELDS, &fields) &&
         !table->file->info_push(INFO_KIND_UPDATE_VALUES, &values) &&
         !table->file->direct_update_rows_init(&fields))
     {
@@ -997,6 +1006,7 @@ update_begin:
 
   THD_STAGE_INFO(thd, stage_updating);
   fix_rownum_pointers(thd, thd->lex->current_select, &updated_or_same);
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
   while (!(error=info.read_record()) && !thd->killed)
   {
     explain->tracker.on_record_read();
@@ -2075,7 +2085,8 @@ int multi_update::prepare(List<Item> &not_used_values,
   */
 
   int error= setup_fields(thd, Ref_ptr_array(),
-                          *values, MARK_COLUMNS_READ, 0, NULL, 0);
+                          *values, MARK_COLUMNS_READ, 0, NULL, 0) ||
+             TABLE::check_assignability_explicit_fields(*fields, *values);
 
   ti.rewind();
   while ((table_ref= ti++))
@@ -2116,10 +2127,9 @@ int multi_update::prepare(List<Item> &not_used_values,
       if (!tl)
 	DBUG_RETURN(1);
       update.link_in_list(tl, &tl->next_local);
-      tl->shared= table_count++;
+      table_ref->shared= tl->shared= table_count++;
       table->no_keyread=1;
       table->covering_keys.clear_all();
-      table->pos_in_table_list= tl;
       table->prepare_triggers_for_update_stmt_or_event();
       table->reset_default_fields();
     }
@@ -2289,6 +2299,11 @@ multi_update::initialize_tables(JOIN *join)
   if (unlikely((thd->variables.option_bits & OPTION_SAFE_UPDATES) &&
                error_if_full_join(join)))
     DBUG_RETURN(1);
+  if (join->implicit_grouping)
+  {
+    my_error(ER_INVALID_GROUP_FUNC_USE, MYF(0));
+    DBUG_RETURN(1);
+  }
   main_table=join->join_tab->table;
   table_to_update= 0;
 

@@ -956,14 +956,14 @@ f6 decimal unsigned not null default 199.91,
 f7 decimal unsigned not null default 999.9, 
 f8 decimal unsigned not null default 9999.99);
 Warnings:
-Note	1265	Data truncated for column 'f1' at row 1
-Note	1265	Data truncated for column 'f2' at row 1
-Note	1265	Data truncated for column 'f3' at row 1
-Note	1265	Data truncated for column 'f4' at row 1
-Note	1265	Data truncated for column 'f5' at row 1
-Note	1265	Data truncated for column 'f6' at row 1
-Note	1265	Data truncated for column 'f7' at row 1
-Note	1265	Data truncated for column 'f8' at row 1
+Note	1265	Data truncated for column 'f1' at row 0
+Note	1265	Data truncated for column 'f2' at row 0
+Note	1265	Data truncated for column 'f3' at row 0
+Note	1265	Data truncated for column 'f4' at row 0
+Note	1265	Data truncated for column 'f5' at row 0
+Note	1265	Data truncated for column 'f6' at row 0
+Note	1265	Data truncated for column 'f7' at row 0
+Note	1265	Data truncated for column 'f8' at row 0
 insert into t1 (f1) values (1);
 select * from t1;
 f1	f2	f3	f4	f5	f6	f7	f8
@@ -1458,8 +1458,8 @@ cast(a as DECIMAL(3,2))
 9.99
 Warnings:
 Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
-Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
-Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
+Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 2
+Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 3
 select cast(a as DECIMAL(3,2)), count(*)
 from (select 11.1233 as a
 UNION select 11.1234
@@ -1470,8 +1470,8 @@ cast(a as DECIMAL(3,2))	count(*)
 Warnings:
 Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
 Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
-Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
-Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
+Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 2
+Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 3
 create table t1 (s varchar(100));
 insert into t1 values (0.00000000010000000000000000364321973154977415791655470655996396089904010295867919921875);
 drop table t1;
@@ -2292,7 +2292,7 @@ a
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '1e-10000');
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2301,7 +2301,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '0.1 ');
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2310,7 +2310,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '0.10001 ');
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2319,7 +2319,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '0.10001');
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2328,7 +2328,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT 0.10001);
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2337,7 +2337,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT 0.10001e0);
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2455,6 +2455,30 @@ t1	CREATE TABLE `t1` (
   `a` decimal(39,38) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
+#
+# MDEV-25317 Assertion `scale <= precision' failed in
+# decimal_bin_size And Assertion `scale >= 0 && precision > 0 && scale <= precision'
+# failed in decimal_bin_size_inline/decimal_bin_size.
+#
+SELECT AVG(DISTINCT 0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001);
+AVG(DISTINCT 0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0.00000000000000000000000000000000000000
+CREATE TABLE t1 AS SELECT NULL AS v1;
+SELECT 1 FROM t1 GROUP BY v1 ORDER BY AVG ( from_unixtime ( '' ) ) ;
+1
+1
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: ''
+DROP TABLE t1;
+SELECT SUM(DISTINCT 0.000000000000000000000000000000000000001);
+SUM(DISTINCT 0.000000000000000000000000000000000000001)
+0.00000000000000000000000000000000000000
+CREATE TABLE t1 AS SELECT 1.000000000000000000000000000000000 AS a;
+ALTER TABLE t1 ADD COLUMN b INT;
+SELECT ROUND (a,b) AS c FROM t1 ORDER BY c;
+c
+NULL
+DROP TABLE t1;
 #
 # End of 10.2 tests
 #

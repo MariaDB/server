@@ -319,7 +319,7 @@ drop table t1;
 drop table t3;
 create temporary table t1 (i int);
 create trigger trg before insert on t1 for each row set @a:=1;
-ERROR HY000: Trigger's 't1' is view or temporary table
+ERROR HY000: Trigger's 't1' is a view, temporary table or sequence
 drop table t1;
 create table t1 (x1col char);
 create trigger tx1 before insert on t1 for each row set new.x1col = 'x';
@@ -2308,18 +2308,20 @@ DROP TABLE t1, t2;
 set time_zone="+00:00";
 SET TIMESTAMP=UNIX_TIMESTAMP('2001-01-01 10:20:30');
 SET @@session.sql_mode = 'STRICT_ALL_TABLES,STRICT_TRANS_TABLES';
+set @rpt=1;
 CREATE TABLE t1 (c CHAR(1) NOT NULL);
 CREATE TRIGGER t1_bi
 BEFORE INSERT
 ON t1
 FOR EACH ROW
 BEGIN
-SET NEW.c = 'www';
+SET NEW.c = repeat(@rpt,@rpt);
+set @rpt=@rpt+1;
 END;
 |
 SET @@session.sql_mode = default;
-INSERT INTO t1 VALUES ('a');
-ERROR 22001: Data too long for column 'c' at row 1
+INSERT INTO t1 VALUES ('a'),('b');
+ERROR 22001: Data too long for column 'c' at row 0
 show create trigger t1_bi;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 t1_bi	STRICT_TRANS_TABLES,STRICT_ALL_TABLES	CREATE DEFINER=`root`@`localhost` TRIGGER t1_bi
@@ -2327,7 +2329,8 @@ BEFORE INSERT
 ON t1
 FOR EACH ROW
 BEGIN
-SET NEW.c = 'www';
+SET NEW.c = repeat(@rpt,@rpt);
+set @rpt=@rpt+1;
 END	latin1	latin1_swedish_ci	latin1_swedish_ci	2001-01-01 10:20:30.00
 DROP TRIGGER t1_bi;
 DROP TABLE t1;
@@ -2427,6 +2430,13 @@ INSERT INTO t1 () VALUES ();
 CREATE TRIGGER t1_trigger BEFORE INSERT ON t1 FOR EACH ROW BEGIN END;
 INSERT INTO t1 () VALUES ();
 DROP TABLE t1;
+#
+# Bug#33141958 - THE FIRST ASAN UAF ISSUE OF MYSQL SERVER
+#
+create table t1 (a int);
+create trigger tr1 after insert on t1 for each row alter table t1 tablespace s2;
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
+drop table t1;
 #
 # End of 10.2 tests
 #

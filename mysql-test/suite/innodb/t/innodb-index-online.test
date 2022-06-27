@@ -98,7 +98,8 @@ eval $innodb_metrics_select;
 # Insert a duplicate entry (4) for the already started UNIQUE INDEX(c2).
 BEGIN;
 INSERT INTO t1 VALUES(7,4,2);
-ROLLBACK;
+COMMIT;
+DELETE FROM t1 where c1 = 7;
 SET DEBUG_SYNC = 'now SIGNAL rollback_done';
 
 connection con1;
@@ -121,7 +122,7 @@ INSERT INTO t1 VALUES(6,3,1);
 SET DEBUG_SYNC = 'now SIGNAL dml_done';
 connection con1;
 # This is due to the duplicate entry (6,3,1).
---error ER_DUP_UNKNOWN_IN_INDEX
+--error ER_DUP_ENTRY
 reap;
 DELETE FROM t1 WHERE c1=6;
 ALTER TABLE t1 ADD UNIQUE INDEX(c2);
@@ -237,17 +238,11 @@ SET DEBUG_SYNC = 'now WAIT_FOR c2e_created';
 # At this point, the clustered index scan must have completed,
 # but the modification log keeps accumulating due to the DEBUG_SYNC.
 eval $innodb_metrics_select;
-let $c= 4;
+let $c= 8;
 while ($c)
 {
-  BEGIN;
-  DELETE FROM t1;
-  ROLLBACK;
   UPDATE t1 SET c2 = c2 + 1;
-  BEGIN;
-  UPDATE t1 SET c2 = c2 + 1;
-  DELETE FROM t1;
-  ROLLBACK;
+  UPDATE t1 SET c2 = c2 + 2;
   dec $c;
 }
 # Incomplete index c2e should exist until the DDL thread notices the overflow.
@@ -325,17 +320,16 @@ connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR c2f_created';
 # Generate some log (delete-mark, delete-unmark, insert etc.)
 eval $innodb_metrics_select;
-let $c= 2;
+let $c= 6;
 while ($c)
 {
 BEGIN;
 INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 160;
 DELETE FROM t1 WHERE c1 > 320;
-ROLLBACK;
+COMMIT;
 BEGIN;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
+COMMIT;
 dec $c;
 }
 eval $innodb_metrics_select;
@@ -475,12 +469,12 @@ DROP TABLE t1;
 --echo # MDEV-13205 assertion !dict_index_is_online_ddl(index) upon ALTER TABLE
 --echo #
 CREATE TABLE t1 (c VARCHAR(64)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES('foo');
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL t1u_created WAIT_FOR dup_done';
 send ALTER TABLE t1 ADD UNIQUE(c);
 
 connection con1;
 SET DEBUG_SYNC = 'now WAIT_FOR t1u_created';
-BEGIN;
 INSERT INTO t1 VALUES('bar'),('bar');
 SET DEBUG_SYNC = 'now SIGNAL dup_done';
 
@@ -497,6 +491,7 @@ ALTER TABLE t2 ADD FOREIGN KEY (c) REFERENCES t1 (c);
 DROP TABLE t2,t1;
 
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(0,0);
 
 connect (con1,localhost,root,,);
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL created WAIT_FOR inserted';

@@ -611,3 +611,52 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`id`)
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 drop table t1;
+#
+# MDEV-26928 Column-inclusive WITH SYSTEM VERSIONING doesn't work with explicit system fields
+#
+create or replace table t1 (x int, y int with system versioning);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
+  `y` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+x int, y int with system versioning,
+row_start timestamp(6) as row start,
+row_end timestamp(6) as row end,
+period for system_time(row_start, row_end));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
+  `y` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+drop table t1;
+#
+# MDEV-27452 TIMESTAMP(0) system field is allowed for certain creation of system-versioned table
+#
+create or replace table t (
+a int,
+s timestamp as row start,
+e timestamp as row end,
+period for system_time (s, e))
+with system versioning;
+ERROR HY000: `s` must be of type TIMESTAMP(6) for system-versioned table `t`
+create or replace table t (
+a int with system versioning,
+s timestamp as row start,
+e timestamp as row end,
+period for system_time (s, e));
+ERROR HY000: `s` must be of type TIMESTAMP(6) for system-versioned table `t`
+create or replace table t (
+a int with system versioning,
+b int with system versioning,
+s timestamp(6) as row start,
+e timestamp(6) as row end,
+period for system_time (s, e));
+insert into t () values (),();
+drop table t;

@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -353,9 +353,18 @@ enum chf_create_flags {
   run ANALYZE TABLE on it
  */
 #define HA_ONLINE_ANALYZE             (1ULL << 59)
+/*
+  Rowid's are not comparable. This is set if the rowid is unique to the
+  current open handler, like it is with federated where the rowid is a
+  pointer to a local result set buffer. The effect of having this set is
+  that the optimizer will not consirer the following optimizations for
+  the table:
+  ror scans or filtering
+*/
+#define HA_NON_COMPARABLE_ROWID (1ULL << 60)
 
 /* Implements SELECT ... FOR UPDATE SKIP LOCKED */
-#define HA_CAN_SKIP_LOCKED  (1ULL << 60)
+#define HA_CAN_SKIP_LOCKED  (1ULL << 61)
 
 #define HA_LAST_TABLE_FLAG HA_CAN_SKIP_LOCKED
 
@@ -483,6 +492,7 @@ enum chf_create_flags {
 #define HA_CREATE_TMP_ALTER     8U
 #define HA_LEX_CREATE_SEQUENCE  16U
 #define HA_VERSIONED_TABLE      32U
+#define HA_SKIP_KEY_SORT        64U
 
 #define HA_MAX_REC_LENGTH	65535
 
@@ -789,11 +799,16 @@ typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
 */
 #define ALTER_COLUMN_INDEX_LENGTH            (1ULL << 60)
 
+/**
+  Indicate that index order might have been changed. Disables inplace algorithm
+  by default (not for InnoDB).
+*/
+#define ALTER_INDEX_ORDER                    (1ULL << 61)
 
 /**
   Means that the ignorability of an index is changed.
 */
-#define ALTER_INDEX_IGNORABILITY              (1ULL << 61)
+#define ALTER_INDEX_IGNORABILITY              (1ULL << 62)
 
 /*
   Flags set in partition_flags when altering partitions
@@ -823,7 +838,9 @@ typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
 // Set by Sql_cmd_alter_table_truncate_partition::execute()
 #define ALTER_PARTITION_TRUNCATE    (1ULL << 11)
 // Set for REORGANIZE PARTITION
-#define ALTER_PARTITION_TABLE_REORG           (1ULL << 12)
+#define ALTER_PARTITION_TABLE_REORG (1ULL << 12)
+#define ALTER_PARTITION_CONVERT_IN  (1ULL << 13)
+#define ALTER_PARTITION_CONVERT_OUT (1ULL << 14)
 
 /*
   This is master database for most of system tables. However there
@@ -885,12 +902,13 @@ struct xid_t {
     if ((bqual_length= bl))
       memcpy(data+gl, b, bl);
   }
-  void set(ulonglong xid)
+  // Populate server_id if it's specified, otherwise use the current server_id
+  void set(ulonglong xid, decltype(::server_id) trx_server_id= server_id)
   {
     my_xid tmp;
     formatID= 1;
     set(MYSQL_XID_PREFIX_LEN, 0, MYSQL_XID_PREFIX);
-    memcpy(data+MYSQL_XID_PREFIX_LEN, &server_id, sizeof(server_id));
+    memcpy(data+MYSQL_XID_PREFIX_LEN, &trx_server_id, sizeof(trx_server_id));
     tmp= xid;
     memcpy(data+MYSQL_XID_OFFSET, &tmp, sizeof(tmp));
     gtrid_length=MYSQL_XID_GTRID_LEN;
@@ -915,6 +933,12 @@ struct xid_t {
     return gtrid_length == MYSQL_XID_GTRID_LEN && bqual_length == 0 &&
            !memcmp(data, MYSQL_XID_PREFIX, MYSQL_XID_PREFIX_LEN) ?
            quick_get_my_xid() : 0;
+  }
+  decltype(::server_id) get_trx_server_id()
+  {
+    decltype(::server_id) trx_server_id;
+    memcpy(&trx_server_id, data+MYSQL_XID_PREFIX_LEN, sizeof(trx_server_id));
+    return trx_server_id;
   }
   uint length()
   {
@@ -941,6 +965,7 @@ typedef struct xid_t XID;
 */
 typedef uint Binlog_file_id;
 const Binlog_file_id MAX_binlog_id= UINT_MAX;
+const my_off_t       MAX_off_t    = (~(my_off_t) 0);
 /*
   Compound binlog-id and byte offset of transaction's first event
   in a sequence (e.g the recovery sequence) of binlog files.
@@ -955,51 +980,27 @@ struct xid_recovery_member
   my_xid xid;
   uint in_engine_prepare;  // number of engines that have xid prepared
   bool decided_to_commit;
-  Binlog_offset binlog_coord; // semisync recovery binlog offset
+  /*
+    Semisync recovery binlog offset. It's initialized with the maximum
+    unreachable offset. The max value will remain for any transaction
+    not found in binlog to yield its rollback decision as it's guaranteed
+    to be within a truncated tail part of the binlog.
+  */
+  Binlog_offset binlog_coord;
   XID *full_xid;           // needed by wsrep or past it recovery
+  decltype(::server_id) server_id;         // server id of orginal server
 
   xid_recovery_member(my_xid xid_arg, uint prepare_arg, bool decided_arg,
-                      XID *full_xid_arg)
+                      XID *full_xid_arg, decltype(::server_id) server_id_arg)
     : xid(xid_arg), in_engine_prepare(prepare_arg),
-      decided_to_commit(decided_arg), full_xid(full_xid_arg) {};
+      decided_to_commit(decided_arg),
+      binlog_coord(Binlog_offset(MAX_binlog_id, MAX_off_t)),
+      full_xid(full_xid_arg), server_id(server_id_arg) {};
 };
 
 /* for recover() handlerton call */
 #define MIN_XID_LIST_SIZE  128
 #define MAX_XID_LIST_SIZE  (1024*128)
-
-/*
-  These structures are used to pass information from a set of SQL commands
-  on add/drop/change tablespace definitions to the proper hton.
-*/
-#define UNDEF_NODEGROUP 65535
-enum ts_command_type
-{
-  TS_CMD_NOT_DEFINED = -1,
-  CREATE_TABLESPACE = 0,
-  ALTER_TABLESPACE = 1,
-  CREATE_LOGFILE_GROUP = 2,
-  ALTER_LOGFILE_GROUP = 3,
-  DROP_TABLESPACE = 4,
-  DROP_LOGFILE_GROUP = 5,
-  CHANGE_FILE_TABLESPACE = 6,
-  ALTER_ACCESS_MODE_TABLESPACE = 7
-};
-
-enum ts_alter_tablespace_type
-{
-  TS_ALTER_TABLESPACE_TYPE_NOT_DEFINED = -1,
-  ALTER_TABLESPACE_ADD_FILE = 1,
-  ALTER_TABLESPACE_DROP_FILE = 2
-};
-
-enum tablespace_access_mode
-{
-  TS_NOT_DEFINED= -1,
-  TS_READ_ONLY = 0,
-  TS_READ_WRITE = 1,
-  TS_NOT_ACCESSIBLE = 2
-};
 
 /* Statistics about batch operations like bulk_insert */
 struct ha_copy_info
@@ -1009,50 +1010,6 @@ struct ha_copy_info
   ha_rows copied;
   ha_rows deleted;
   ha_rows updated;
-};
-
-struct handlerton;
-class st_alter_tablespace : public Sql_alloc
-{
-  public:
-  const char *tablespace_name;
-  const char *logfile_group_name;
-  enum ts_command_type ts_cmd_type;
-  enum ts_alter_tablespace_type ts_alter_tablespace_type;
-  const char *data_file_name;
-  const char *undo_file_name;
-  const char *redo_file_name;
-  ulonglong extent_size;
-  ulonglong undo_buffer_size;
-  ulonglong redo_buffer_size;
-  ulonglong initial_size;
-  ulonglong autoextend_size;
-  ulonglong max_size;
-  uint nodegroup_id;
-  handlerton *storage_engine;
-  bool wait_until_completed;
-  const char *ts_comment;
-  enum tablespace_access_mode ts_access_mode;
-  st_alter_tablespace()
-  {
-    tablespace_name= NULL;
-    logfile_group_name= "DEFAULT_LG"; //Default log file group
-    ts_cmd_type= TS_CMD_NOT_DEFINED;
-    data_file_name= NULL;
-    undo_file_name= NULL;
-    redo_file_name= NULL;
-    extent_size= 1024*1024;        //Default 1 MByte
-    undo_buffer_size= 8*1024*1024; //Default 8 MByte
-    redo_buffer_size= 8*1024*1024; //Default 8 MByte
-    initial_size= 128*1024*1024;   //Default 128 MByte
-    autoextend_size= 0;            //No autoextension as default
-    max_size= 0;                   //Max size == initial size => no extension
-    storage_engine= NULL;
-    nodegroup_id= UNDEF_NODEGROUP;
-    wait_until_completed= TRUE;
-    ts_comment= NULL;
-    ts_access_mode= TS_NOT_DEFINED;
-  }
 };
 
 /* The handler for a table type.  Will be included in the TABLE structure */
@@ -1118,32 +1075,8 @@ typedef bool (stat_print_fn)(THD *thd, const char *type, size_t type_len,
 enum ha_stat_type { HA_ENGINE_STATUS, HA_ENGINE_LOGS, HA_ENGINE_MUTEX };
 extern MYSQL_PLUGIN_IMPORT st_plugin_int *hton2plugin[MAX_HA];
 
+struct handlerton;
 #define view_pseudo_hton ((handlerton *)1)
-
-/* Transaction log maintains type definitions */
-enum log_status
-{
-  HA_LOG_STATUS_FREE= 0,      /* log is free and can be deleted */
-  HA_LOG_STATUS_INUSE= 1,     /* log can't be deleted because it is in use */
-  HA_LOG_STATUS_NOSUCHLOG= 2  /* no such log (can't be returned by
-                                the log iterator status) */
-};
-/*
-  Function for signaling that the log file changed its state from
-  LOG_STATUS_INUSE to LOG_STATUS_FREE
-
-  Now it do nothing, will be implemented as part of new transaction
-  log management for engines.
-  TODO: implement the function.
-*/
-void signal_log_not_needed(struct handlerton, char *log_file);
-/*
-  Data of transaction log iterator.
-*/
-struct handler_log_file_data {
-  LEX_STRING filename;
-  enum log_status status;
-};
 
 /*
   Definitions for engine-specific table/field/index options in the CREATE TABLE.
@@ -1258,46 +1191,6 @@ typedef struct st_ha_create_table_option {
   const char *values;
   struct st_mysql_sys_var *var;
 } ha_create_table_option;
-
-enum handler_iterator_type
-{
-  /* request of transaction log iterator */
-  HA_TRANSACTLOG_ITERATOR= 1
-};
-enum handler_create_iterator_result
-{
-  HA_ITERATOR_OK,          /* iterator created */
-  HA_ITERATOR_UNSUPPORTED, /* such type of iterator is not supported */
-  HA_ITERATOR_ERROR        /* error during iterator creation */
-};
-
-/*
-  Iterator structure. Can be used by handler/handlerton for different purposes.
-
-  Iterator should be created in the way to point "before" the first object
-  it iterate, so next() call move it to the first object or return !=0 if
-  there is nothing to iterate through.
-*/
-struct handler_iterator {
-  /*
-    Moves iterator to next record and return 0 or return !=0
-    if there is no records.
-    iterator_object will be filled by this function if next() returns 0.
-    Content of the iterator_object depend on iterator type.
-  */
-  int (*next)(struct handler_iterator *, void *iterator_object);
-  /*
-    Free resources allocated by iterator, after this call iterator
-    is not usable.
-  */
-  void (*destroy)(struct handler_iterator *);
-  /*
-    Pointer to buffer for the iterator to use.
-    Should be allocated by function which created the iterator and
-    destroyed by freed by above "destroy" call
-  */
-  void *buffer;
-};
 
 class handler;
 class group_by_handler;
@@ -1548,8 +1441,7 @@ struct handlerton
    bool (*show_status)(handlerton *hton, THD *thd, stat_print_fn *print, enum ha_stat_type stat);
    uint (*partition_flags)();
    alter_table_operations (*alter_table_flags)(alter_table_operations flags);
-   int (*alter_tablespace)(handlerton *hton, THD *thd, st_alter_tablespace *ts_info);
-   int (*fill_is_table)(handlerton *hton, THD *thd, TABLE_LIST *tables, 
+   int (*fill_is_table)(handlerton *hton, THD *thd, TABLE_LIST *tables,
                         class Item *cond, 
                         enum enum_schema_tables);
    uint32 flags;                                /* global handler flags */
@@ -1563,22 +1455,6 @@ struct handlerton
                             const char *query, uint query_length,
                             const char *db, const char *table_name);
 
-   /*
-     Get log status.
-     If log_status is null then the handler do not support transaction
-     log information (i.e. log iterator can't be created).
-     (see example of implementation in handler.cc, TRANS_LOG_MGM_EXAMPLE_CODE)
-
-   */
-   enum log_status (*get_log_status)(handlerton *hton, char *log);
-
-   /*
-     Iterators creator.
-     Presence of the pointer should be checked before using
-   */
-   enum handler_create_iterator_result
-     (*create_iterator)(handlerton *hton, enum handler_iterator_type type,
-                        struct handler_iterator *fill_this_in);
    void (*abort_transaction)(handlerton *hton, THD *bf_thd,
 			    THD *victim_thd, my_bool signal);
    int (*set_checkpoint)(handlerton *hton, const XID* xid);
@@ -1775,6 +1651,9 @@ struct handlerton
    @retval 0 if no system-versioned data was affected by the transaction */
    ulonglong (*prepare_commit_versioned)(THD *thd, ulonglong *trx_id);
 
+  /** Disable or enable the internal writes of a storage engine */
+  void (*disable_internal_writes)(bool disable);
+
   /* backup */
   void (*prepare_for_backup)(void);
   void (*end_backup)(void);
@@ -1946,9 +1825,13 @@ struct THD_TRANS
  /*
     Define the type of statements which cannot be rolled back safely.
     Each type occupies one bit in m_unsafe_rollback_flags.
+    MODIFIED_NON_TRANS_TABLE is limited to mark only the temporary
+    non-transactional table *when* it's cached along with the transactional
+    events; the regular table is covered by the "namesake" bool var.
   */
   enum unsafe_statement_types
   {
+    MODIFIED_NON_TRANS_TABLE= 1,
     CREATED_TEMP_TABLE= 2,
     DROPPED_TEMP_TABLE= 4,
     DID_WAIT= 8,
@@ -1956,6 +1839,14 @@ struct THD_TRANS
     EXECUTED_TABLE_ADMIN_CMD= 0x20
   };
 
+  void mark_modified_non_trans_temp_table()
+  {
+    m_unsafe_rollback_flags|= MODIFIED_NON_TRANS_TABLE;
+  }
+  bool has_modified_non_trans_temp_table() const
+  {
+    return (m_unsafe_rollback_flags & MODIFIED_NON_TRANS_TABLE) != 0;
+  }
   void mark_executed_table_admin_cmd()
   {
     DBUG_PRINT("debug", ("mark_executed_table_admin_cmd"));
@@ -2682,6 +2573,9 @@ public:
   /** true when InnoDB should abort the alter when table is not empty */
   const bool error_if_not_empty;
 
+  /** True when DDL should avoid downgrading the MDL */
+  bool mdl_exclusive_after_prepare= false;
+
   Alter_inplace_info(HA_CREATE_INFO *create_info_arg,
                      Alter_info *alter_info_arg,
                      KEY *key_info_arg, uint key_count_arg,
@@ -3337,6 +3231,9 @@ public:
   Rowid_filter *pushed_rowid_filter;
   /* true when the pushed rowid filter has been already filled */
   bool rowid_filter_is_active;
+  /* Used for disabling/enabling pushed_rowid_filter */
+  Rowid_filter *save_pushed_rowid_filter;
+  bool save_rowid_filter_is_active;
 
   Discrete_interval auto_inc_interval_for_cur_row;
   /**
@@ -3458,6 +3355,8 @@ public:
     pushed_idx_cond_keyno(MAX_KEY),
     pushed_rowid_filter(NULL),
     rowid_filter_is_active(0),
+    save_pushed_rowid_filter(NULL),
+    save_rowid_filter_is_active(false),
     auto_inc_intervals_count(0),
     m_psi(NULL),
     m_psi_batch_mode(PSI_BATCH_MODE_NONE),
@@ -4101,14 +4000,12 @@ public:
   inline int ha_read_first_row(uchar *buf, uint primary_key);
 
   /**
-    The following 3 function is only needed for tables that may be
+    The following 2 function is only needed for tables that may be
     internal temporary tables during joins.
   */
   virtual int remember_rnd_pos()
     { return HA_ERR_WRONG_COMMAND; }
   virtual int restart_rnd_next(uchar *buf)
-    { return HA_ERR_WRONG_COMMAND; }
-  virtual int rnd_same(uchar *buf, uint inx)
     { return HA_ERR_WRONG_COMMAND; }
 
   virtual ha_rows records_in_range(uint inx, const key_range *min_key,
@@ -4540,6 +4437,27 @@ public:
  {
    pushed_rowid_filter= NULL;
    rowid_filter_is_active= false;
+ }
+
+ virtual void disable_pushed_rowid_filter()
+ {
+   DBUG_ASSERT(pushed_rowid_filter != NULL &&
+               save_pushed_rowid_filter == NULL);
+   save_pushed_rowid_filter= pushed_rowid_filter;
+   if (rowid_filter_is_active)
+     save_rowid_filter_is_active= rowid_filter_is_active;
+   pushed_rowid_filter= NULL;
+   rowid_filter_is_active= false;
+ }
+
+ virtual void enable_pushed_rowid_filter()
+ {
+   DBUG_ASSERT(save_pushed_rowid_filter != NULL &&
+               pushed_rowid_filter == NULL);
+   pushed_rowid_filter= save_pushed_rowid_filter;
+   if (save_rowid_filter_is_active)
+     rowid_filter_is_active= true;
+   save_pushed_rowid_filter= NULL;
  }
 
  virtual bool rowid_filter_push(Rowid_filter *rowid_filter) { return true; }
@@ -5121,6 +5039,11 @@ public:
                                 const uchar *pack_frm_data,
                                 size_t pack_frm_len)
   { return HA_ERR_WRONG_COMMAND; }
+  /* @return true if it's necessary to switch current statement log format from
+   STATEMENT to ROW if binary log format is MIXED and autoincrement values
+   are changed in the statement */
+  virtual bool autoinc_lock_mode_stmt_unsafe() const
+  { return false; }
   virtual int drop_partitions(const char *path)
   { return HA_ERR_WRONG_COMMAND; }
   virtual int rename_partitions(const char *path)
@@ -5259,7 +5182,7 @@ static inline const char *ha_resolve_storage_engine_name(const handlerton *db_ty
 
 static inline bool ha_check_storage_engine_flag(const handlerton *db_type, uint32 flag)
 {
-  return db_type == NULL ? FALSE : MY_TEST(db_type->flags & flag);
+  return db_type && (db_type->flags & flag);
 }
 
 static inline bool ha_storage_engine_is_enabled(const handlerton *db_type)
@@ -5295,6 +5218,8 @@ int ha_delete_table_force(THD *thd, const char *path, const LEX_CSTRING *db,
 void ha_prepare_for_backup();
 void ha_end_backup();
 void ha_pre_shutdown();
+
+void ha_disable_internal_writes(bool disable);
 
 /* statistics and info */
 bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat);

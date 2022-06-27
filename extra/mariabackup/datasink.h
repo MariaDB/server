@@ -63,7 +63,6 @@ static inline int dummy_remove(const char *) {
 typedef enum {
 	DS_TYPE_STDOUT,
 	DS_TYPE_LOCAL,
-	DS_TYPE_ARCHIVE,
 	DS_TYPE_XBSTREAM,
 	DS_TYPE_COMPRESS,
 	DS_TYPE_ENCRYPT,

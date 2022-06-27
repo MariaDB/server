@@ -1,0 +1,20 @@
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t VALUES (3);
+BEGIN;
+connection default;
+UPDATE t SET a = 2;
+connect con1,localhost,root;
+DELETE FROM t;
+connection default;
+UPDATE t SET a = 1;
+COMMIT;
+connection con1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+disconnect con1;
+connection default;
+# The above DELETE must delete all the rows in the table, so the
+# following SELECT must show 0 rows.
+SELECT count(*) FROM t;
+count(*)
+1
+DROP TABLE t;

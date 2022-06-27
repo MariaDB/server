@@ -1,0 +1,58 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_sequence.inc
+
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+		f3 CHAR(200), f4 CHAR(200),
+		PRIMARY KEY(f1))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(6000, 6000, "InnoDB", "MariaDB");
+
+# InnoDB DML thread applies the online log, aborts other online index
+
+SET DEBUG_SYNC="inplace_after_index_build SIGNAL dml_start WAIT_FOR dml_commit";
+SEND ALTER TABLE t1 ADD UNIQUE KEY(f2), ADD UNIQUE INDEX(f4(10));
+
+# InnoDB DML thread applies insert log
+
+connect(con1,localhost,root,,,);
+SET DEBUG_SYNC="now WAIT_FOR dml_start";
+# Rollback should avoid online index
+BEGIN;
+DELETE FROM t1 WHERE f1= 6000;
+INSERT INTO t1 VALUES(6000, 6000, "InnoDB", "MariaDB");
+ROLLBACK;
+
+# Insert log will fetch the previous version in this case
+BEGIN;
+DELETE FROM t1 WHERE f1= 6000;
+INSERT INTO t1 VALUES(6000, 6000, "InnoDB", "MariaDB");
+INSERT INTO t1 SELECT seq, seq, repeat('a', 200), repeat('b', 200) FROM seq_1_to_4000;
+COMMIT;
+SET DEBUG_SYNC="now SIGNAL dml_commit";
+
+connection default;
+--error ER_DUP_ENTRY
+reap;
+
+# DML Thread applies update log
+
+SET DEBUG_SYNC="inplace_after_index_build SIGNAL dml_start WAIT_FOR dml_commit";
+SEND ALTER TABLE t1 ADD UNIQUE KEY(f2), ADD INDEX(f3(10));
+
+connection con1;
+SET DEBUG_SYNC="now WAIT_FOR dml_start";
+BEGIN;
+DELETE FROM t1;
+INSERT INTO t1 SELECT seq, seq, repeat('d', 200), repeat('e', 200) FROM
+seq_1_to_4000;
+UPDATE t1 SET f3=repeat('c', 200), f4= repeat('d', 200), f2=3;
+COMMIT;
+SET DEBUG_SYNC="now SIGNAL dml_commit";
+
+connection default;
+--error ER_DUP_ENTRY
+reap;
+disconnect con1;
+CHECK TABLE t1;
+DROP TABLE t1;
+SET DEBUG_SYNC=reset;

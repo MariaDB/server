@@ -1,4 +1,4 @@
-/* Copyright (C) 2019, 2020, MariaDB Corporation.
+/* Copyright (C) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute itand /or modify
 it under the terms of the GNU General Public License as published by
@@ -117,7 +117,7 @@ enum class aio_opcode
   AIO_PREAD,
   AIO_PWRITE
 };
-constexpr size_t MAX_AIO_USERDATA_LEN= 3 * sizeof(void*);
+constexpr size_t MAX_AIO_USERDATA_LEN= 4 * sizeof(void*);
 
 /** IO control block, includes parameters for the IO, and the callback*/
 
@@ -161,7 +161,7 @@ class aio
 {
 public:
   /**
-    Submit asyncronous IO.
+    Submit asynchronous IO.
     On completion, cb->m_callback is executed.
   */
   virtual int submit_io(aiocb *cb)= 0;
@@ -170,6 +170,20 @@ public:
   /** "Unind" file to AIO handler (used on Windows only) */
   virtual int unbind(const native_file_handle &fd)= 0;
   virtual ~aio(){};
+protected:
+  static void synchronous(aiocb *cb);
+  /** finish a partial read/write callback synchronously */
+  static inline void finish_synchronous(aiocb *cb)
+  {
+    if (!cb->m_err && cb->m_ret_len != cb->m_len)
+    {
+      /* partial read/write */
+      cb->m_buffer= (char *) cb->m_buffer + cb->m_ret_len;
+      cb->m_len-= (unsigned int) cb->m_ret_len;
+      cb->m_offset+= cb->m_ret_len;
+      synchronous(cb);
+    }
+  }
 };
 
 class timer
@@ -183,18 +197,6 @@ public:
 class thread_pool;
 
 extern aio *create_simulated_aio(thread_pool *tp);
-
-#ifndef DBUG_OFF
-/*
-  This function is useful for debugging to make sure all mutexes are released
-  inside a task callback
-*/
-void set_after_task_callback(callback_func_np cb);
-void execute_after_task_callback();
-#define dbug_execute_after_task_callback() execute_after_task_callback()
-#else
-#define dbug_execute_after_task_callback() do{}while(0)
-#endif
 
 class thread_pool
 {
@@ -257,9 +259,9 @@ create_thread_pool_win(int min_threads= DEFAULT_MIN_POOL_THREADS,
   opened with FILE_FLAG_OVERLAPPED, and bound to completion
   port.
 */
-int pwrite(const native_file_handle &h, void *buf, size_t count,
+SSIZE_T pwrite(const native_file_handle &h, void *buf, size_t count,
            unsigned long long offset);
-int pread(const native_file_handle &h, void *buf, size_t count,
+SSIZE_T pread(const native_file_handle &h, void *buf, size_t count,
           unsigned long long offset);
 HANDLE win_get_syncio_event();
 #endif

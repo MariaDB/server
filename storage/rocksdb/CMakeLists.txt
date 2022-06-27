@@ -1,5 +1,9 @@
 # TODO: Copyrights
 
+SET(CPACK_RPM_rocksdb-engine_PACKAGE_SUMMARY "RocksDB storage engine for MariaDB" PARENT_SCOPE)
+SET(CPACK_RPM_rocksdb-engine_PACKAGE_DESCRIPTION "The RocksDB storage engine is a high performance storage engine, aimed
+at maximising storage efficiency while maintaining InnoDB-like performance." PARENT_SCOPE)
+
 MACRO(SKIP_ROCKSDB_PLUGIN msg)
   MESSAGE_ONCE(SKIP_ROCKSDB_PLUGIN "Can't build rocksdb engine - ${msg}")
   ADD_FEATURE_INFO(ROCKSDB "OFF" "Storage Engine")
@@ -128,14 +132,19 @@ SET(ROCKSDB_SE_SOURCES
 # This is a strong requirement coming from RocksDB. No conditional checks here.
 #ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX
 #)
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "riscv64")
+
+if (HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)
   SET(ATOMIC_EXTRA_LIBS -latomic)
 else()
   SET(ATOMIC_EXTRA_LIBS)
 endif()
 
+# don't use compression providers, there are standalone executables below
+GET_PROPERTY(dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
+LIST(REMOVE_ITEM dirs ${CMAKE_SOURCE_DIR}/include/providers)
+SET_PROPERTY(DIRECTORY PROPERTY INCLUDE_DIRECTORIES "${dirs}")
+
 MYSQL_ADD_PLUGIN(rocksdb ${ROCKSDB_SE_SOURCES} MODULE_ONLY STORAGE_ENGINE
-                 MODULE_OUTPUT_NAME ha_rocksdb
                  LINK_LIBRARIES ${ATOMIC_EXTRA_LIBS}
                  COMPONENT rocksdb-engine)
 
@@ -143,8 +152,6 @@ IF(NOT TARGET rocksdb)
   # Bail out if compilation with rocksdb engine is not requested
   RETURN()
 ENDIF()
-
-
 
 CHECK_CXX_SOURCE_COMPILES("
 #if defined(_MSC_VER) && !defined(__thread)

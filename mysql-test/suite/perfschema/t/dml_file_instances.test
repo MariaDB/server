@@ -34,6 +34,13 @@ UNLOCK TABLES;
 LOCK TABLES performance_schema.file_instances WRITE;
 UNLOCK TABLES;
 
+--echo #
+--echo # MDEV-25325 column_comment for performance_schema tables
+--echo #
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='file_instances';
+
 --echo ###
 --echo ### Bug#26152751: INNODB LEAKS MEMORY, PERFORMANCE_SCHEMA FILE_INSTANCES
 --echo ###               #SQL-IB3129987-252773.IBD
@@ -42,57 +49,65 @@ UNLOCK TABLES;
 CREATE DATABASE db_26152751;
 USE db_26152751;
 
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 
 CREATE TABLE t_db_26152751 (a INT) ENGINE=MYISAM;
 
 --sorted_result
 --replace_regex /.*\/t_db_26152751/t_db_26152751/
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 
 RENAME TABLE t_db_26152751 to t_db_26152751_new;
 
 --sorted_result
 --replace_regex /.*\/t_db_26152751/t_db_26152751/
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 
 RENAME TABLE t_db_26152751_new to t_db_26152751;
 
 --sorted_result
 --replace_regex /.*\/t_db_26152751/t_db_26152751/
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 
 ALTER TABLE t_db_26152751 ADD COLUMN b INT;
 
 --replace_regex /.*\/t_db_26152751/t_db_26152751/
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 
 DROP TABLE t_db_26152751;
 
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 
 CREATE TABLE t_db_26152751 (a INT) ENGINE=INNODB;
 
 --replace_regex /.*\/t_db_26152751/t_db_26152751/
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 
 RENAME TABLE t_db_26152751 to t_db_26152751_new;
 
 --replace_regex /.*\/t_db_26152751/t_db_26152751/
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 
 RENAME TABLE t_db_26152751_new to t_db_26152751;
 
 --replace_regex /.*\/t_db_26152751/t_db_26152751/
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 
 ALTER TABLE t_db_26152751 ADD COLUMN b INT;
 
 --replace_regex /.*\/t_db_26152751/t_db_26152751/
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 
 DROP TABLE t_db_26152751;
 
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 
 DROP DATABASE db_26152751;
+
+
+--echo #
+--echo # MDEV-25325 column_comment for performance_schema tables
+--echo #
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='file_instances';

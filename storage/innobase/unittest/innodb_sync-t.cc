@@ -62,7 +62,7 @@ static void test_srw_lock()
   }
 }
 
-static ssux_lock_low ssux;
+static ssux_lock_impl<false> ssux;
 
 static void test_ssux_lock()
 {
@@ -95,7 +95,7 @@ static void test_ssux_lock()
   }
 }
 
-static sux_lock<ssux_lock_low> sux;
+static sux_lock<ssux_lock_impl<true>> sux;
 
 static void test_sux_lock()
 {

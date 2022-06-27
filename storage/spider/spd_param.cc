@@ -174,6 +174,34 @@ static MYSQL_SYSVAR_BOOL(
   TRUE
 );
 
+static void spider_var_deprecated_int(THD *thd, st_mysql_sys_var *,
+                                      void *var_ptr, const void *save)
+{
+  int val= *static_cast<const int *>(save);
+  *static_cast<int *>(var_ptr)= val;
+  if (val == -1)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        HA_ERR_UNSUPPORTED,
+                        "The option value -1 (use table value) is deprecated "
+                        "and will be removed in a future release");
+  }
+}
+
+static void spider_var_deprecated_longlong(THD *thd, st_mysql_sys_var *,
+                                           void *var_ptr, const void *save)
+{
+  longlong val= *static_cast<const longlong *>(save);
+  *static_cast<longlong *>(var_ptr)= val;
+  if (val == -1)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        HA_ERR_UNSUPPORTED,
+                        "The option value -1 (use table value) is deprecated "
+                        "and will be removed in a future release");
+  }
+}
+
 my_bool spider_param_support_xa()
 {
   DBUG_ENTER("spider_param_support_xa");
@@ -255,8 +283,8 @@ static MYSQL_SYSVAR_INT(
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Use table charset for remote access",
   NULL,
-  NULL,
-  -1,
+  spider_var_deprecated_int,
+  1,
   -1,
   1,
   0
@@ -432,7 +460,7 @@ uint spider_param_force_commit(
  */
 static MYSQL_THDVAR_UINT(
   xa_register_mode, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Mode of XA transaction register into system table", /* comment */
   NULL, /* check */
   NULL, /* update */
@@ -455,11 +483,11 @@ uint spider_param_xa_register_mode(
  */
 static MYSQL_THDVAR_LONGLONG(
   internal_offset, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Internal offset", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_longlong, /* update */
+  0, /* def */
   -1, /* min */
   9223372036854775807LL, /* max */
   0 /* blk */
@@ -480,11 +508,11 @@ longlong spider_param_internal_offset(
  */
 static MYSQL_THDVAR_LONGLONG(
   internal_limit, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Internal limit", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_longlong, /* update */
+  9223372036854775807LL, /* def */
   -1, /* min */
   9223372036854775807LL, /* max */
   0 /* blk */
@@ -508,8 +536,8 @@ static MYSQL_THDVAR_LONGLONG(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Number of rows at a select", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_longlong, /* update */
+  9223372036854775807LL, /* def */
   -1, /* min */
   9223372036854775807LL, /* max */
   0 /* blk */
@@ -534,8 +562,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Use offset and limit parameter in SQL for split_read parameter.", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  2, /* def */
   -1, /* min */
   2147483647, /* max */
   0 /* blk */
@@ -559,8 +587,8 @@ static MYSQL_THDVAR_LONGLONG(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "The limit value for semi_split_read", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_longlong, /* update */
+  9223372036854775807LL, /* def */
   -1, /* min */
   9223372036854775807LL, /* max */
   0 /* blk */
@@ -582,11 +610,11 @@ longlong spider_param_semi_split_read_limit(
  */
 static MYSQL_THDVAR_INT(
   init_sql_alloc_size, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Initial sql string alloc size", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  1024, /* def */
   -1, /* min */
   2147483647, /* max */
   0 /* blk */
@@ -611,8 +639,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Reset sql string alloc after execute", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  1, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */
@@ -664,8 +692,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Sprit read mode for multi range", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  100, /* def */
   -1, /* min */
   2147483647, /* max */
   0 /* blk */
@@ -689,8 +717,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Max columns for order by", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  32767, /* def */
   -1, /* min */
   32767, /* max */
   0 /* blk */
@@ -777,11 +805,11 @@ static int spider_param_semi_table_lock_check(
  */
 static MYSQL_THDVAR_INT(
   semi_table_lock, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Table lock during execute a sql", /* comment */
   &spider_param_semi_table_lock_check, /* check */
   NULL, /* update */
-  1, /* def */
+  0, /* def */
   0, /* min */
   1, /* max */
   0 /* blk */
@@ -842,11 +870,11 @@ static int spider_param_semi_table_lock_connection_check(
  */
 static MYSQL_THDVAR_INT(
   semi_table_lock_connection, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Use different connection if semi_table_lock is enabled", /* comment */
   &spider_param_semi_table_lock_connection_check, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  1, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */
@@ -894,8 +922,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Lock for select with update", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  1, /* def */
   -1, /* min */
   2, /* max */
   0 /* blk */
@@ -983,8 +1011,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Bulk insert size", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  16000, /* def */
   -1, /* min */
   2147483647, /* max */
   0 /* blk */
@@ -1012,8 +1040,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "The mode of bulk updating and deleting", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   2, /* max */
   0 /* blk */
@@ -1037,8 +1065,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Bulk update size", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  16000, /* def */
   -1, /* min */
   2147483647, /* max */
   0 /* blk */
@@ -1059,11 +1087,11 @@ int spider_param_bulk_update_size(
  */
 static MYSQL_THDVAR_INT(
   buffer_size, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Buffer size", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  16000, /* def */
   -1, /* min */
   2147483647, /* max */
   0 /* blk */
@@ -1088,8 +1116,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Execute optimize to remote server", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */
@@ -1114,8 +1142,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Execute optimize to remote server with local", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */
@@ -1263,8 +1291,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Wait timeout of connecting to remote server", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  6, /* def */
   -1, /* min */
   2147483647, /* max */
   0 /* blk */
@@ -1290,8 +1318,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Wait timeout of receiving data from remote server", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  600, /* def */
   -1, /* min */
   2147483647, /* max */
   0 /* blk */
@@ -1317,8 +1345,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Wait timeout of sending data to remote server", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  600, /* def */
   -1, /* min */
   2147483647, /* max */
   0 /* blk */
@@ -1348,8 +1376,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "The retrieval result from a remote server is acquired by acquisition one by one", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  3, /* def */
   -1, /* min */
   3, /* max */
   0 /* blk */
@@ -1373,8 +1401,8 @@ static MYSQL_THDVAR_LONGLONG(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Number of records in a page when acquisition one by one", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  1024, /* def */
   -1, /* min */
   9223372036854775807LL, /* max */
   0 /* blk */
@@ -1398,8 +1426,8 @@ static MYSQL_THDVAR_LONGLONG(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "The limitation of memory size in a page when acquisition one by one", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  10485760, /* def */
   -1, /* min */
   9223372036854775807LL, /* max */
   0 /* blk */
@@ -1424,8 +1452,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Use low memory mode when SQL(SELECT) internally issued to a remote server is executed and get a result list", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  1, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */
@@ -1451,8 +1479,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "The mode of using columns at select clause", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  1, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */
@@ -1480,8 +1508,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Mode of background search", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   3, /* max */
   0 /* blk */
@@ -1506,8 +1534,8 @@ static MYSQL_THDVAR_LONGLONG(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Number of first read records when background search is used", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  2, /* def */
   -1, /* min */
   9223372036854775807LL, /* max */
   0 /* blk */
@@ -1532,8 +1560,8 @@ static MYSQL_THDVAR_LONGLONG(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Number of second read records when background search is used", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  100, /* def */
   -1, /* min */
   9223372036854775807LL, /* max */
   0 /* blk */
@@ -1559,8 +1587,8 @@ static MYSQL_THDVAR_LONGLONG(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Number of first read records", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   9223372036854775807LL, /* max */
   0 /* blk */
@@ -1585,8 +1613,8 @@ static MYSQL_THDVAR_LONGLONG(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Number of second read records", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   9223372036854775807LL, /* max */
   0 /* blk */
@@ -1611,8 +1639,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Interval of cardinality confirmation.(second)", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  51, /* def */
   -1, /* min */
   2147483647, /* max */
   0 /* blk */
@@ -1636,11 +1664,11 @@ double spider_param_crd_interval(
  */
 static MYSQL_THDVAR_INT(
   crd_mode, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Mode of cardinality confirmation.", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  1, /* def */
   -1, /* min */
   3, /* max */
   0 /* blk */
@@ -1668,8 +1696,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Cardinality synchronization in partitioned table.", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   2, /* max */
   0 /* blk */
@@ -1693,11 +1721,11 @@ int spider_param_crd_sync(
  */
 static MYSQL_THDVAR_INT(
   crd_type, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Type of cardinality calculation.", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  2, /* def */
   -1, /* min */
   2, /* max */
   0 /* blk */
@@ -1718,11 +1746,11 @@ int spider_param_crd_type(
  */
 static MYSQL_THDVAR_INT(
   crd_weight, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Weight coefficient to calculate effectiveness of index from cardinality of column.", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  2, /* def */
   -1, /* min */
   2147483647, /* max */
   0 /* blk */
@@ -1749,8 +1777,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Mode of cardinality confirmation at background.", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  2, /* def */
   -1, /* min */
   2, /* max */
   0 /* blk */
@@ -1776,8 +1804,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Interval of table state confirmation.(second)", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  10, /* def */
   -1, /* min */
   2147483647, /* max */
   0 /* blk */
@@ -1800,11 +1828,11 @@ double spider_param_sts_interval(
  */
 static MYSQL_THDVAR_INT(
   sts_mode, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Mode of table state confirmation.", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  1, /* def */
   -1, /* min */
   2, /* max */
   0 /* blk */
@@ -1832,8 +1860,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Table state synchronization in partitioned table.", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   2, /* max */
   0 /* blk */
@@ -1861,8 +1889,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Mode of table state confirmation at background.", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  2, /* def */
   -1, /* min */
   2, /* max */
   0 /* blk */
@@ -1937,8 +1965,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Mode of auto increment.", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   3, /* max */
   0 /* blk */
@@ -2005,7 +2033,7 @@ static MYSQL_THDVAR_INT(
   "Remote server transmission existence when UDF is used at condition and \"engine_condition_pushdown=1\"", /* comment */
   NULL, /* check */
   NULL, /* update */
-  -1, /* def */
+  0, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */
@@ -2030,8 +2058,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Execute \"REPLACE\" and \"INSERT IGNORE\" on remote server and avoid duplicate check on local server", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */
@@ -2097,7 +2125,7 @@ uint spider_param_udf_table_mon_mutex_count()
  */
 static MYSQL_THDVAR_LONGLONG(
   udf_ds_bulk_insert_rows, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Number of rows for bulk inserting", /* comment */
   NULL, /* check */
   NULL, /* update */
@@ -2124,7 +2152,7 @@ longlong spider_param_udf_ds_bulk_insert_rows(
  */
 static MYSQL_THDVAR_INT(
   udf_ds_table_loop_mode, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Table loop mode if the number of tables in table list are less than the number of result sets", /* comment */
   NULL, /* check */
   NULL, /* update */
@@ -2457,8 +2485,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Mode of BKA for Spider", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  1, /* def */
   -1, /* min */
   2, /* max */
   0 /* blk */
@@ -2481,7 +2509,7 @@ static int spider_udf_ct_bulk_insert_interval;
 static MYSQL_SYSVAR_INT(
   udf_ct_bulk_insert_interval,
   spider_udf_ct_bulk_insert_interval,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "The interval time between bulk insert and next bulk insert at coping",
   NULL,
   NULL,
@@ -2507,7 +2535,7 @@ static longlong spider_udf_ct_bulk_insert_rows;
 static MYSQL_SYSVAR_LONGLONG(
   udf_ct_bulk_insert_rows,
   spider_udf_ct_bulk_insert_rows,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "The number of rows inserted with bulk insert of one time at coping",
   NULL,
   NULL,
@@ -2680,11 +2708,11 @@ int spider_param_use_hs_write(
  */
 static MYSQL_THDVAR_INT(
   use_handler, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Use handler for reading", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   3, /* max */
   0 /* blk */
@@ -2709,8 +2737,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Read error mode if error", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */
@@ -2735,8 +2763,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Write error mode if error", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */
@@ -2761,8 +2789,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Skip generating internal default condition", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */
@@ -2789,8 +2817,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Skip parallel search by specific conditions", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   3, /* max */
   0 /* blk */
@@ -2815,8 +2843,8 @@ static MYSQL_THDVAR_LONGLONG(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Send 'ORDER BY' and 'LIMIT' to remote server directly", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  9223372036854775807LL, /* def */
   -1, /* min */
   9223372036854775807LL, /* max */
   0 /* blk */
@@ -2841,8 +2869,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Read only", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */
@@ -2895,7 +2923,7 @@ int spider_param_bulk_access_free(
  */
 static MYSQL_THDVAR_INT(
   udf_ds_use_real_table, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Use real table for temporary table list", /* comment */
   NULL, /* check */
   NULL, /* update */
@@ -3090,8 +3118,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Read casually if it is possible", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   63, /* max */
   0 /* blk */
@@ -3133,8 +3161,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "The type of delete_all_rows", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  1, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */
@@ -3159,8 +3187,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "The type of temporary table name for bka", /* comment */
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  0, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */
@@ -3208,11 +3236,11 @@ static int spider_store_last_sts;
 static MYSQL_SYSVAR_INT(
   store_last_sts,
   spider_store_last_sts,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "Store last sts result into system table",
   NULL,
-  NULL,
-  -1,
+  spider_var_deprecated_int,
+  1,
   -1,
   1,
   0
@@ -3235,11 +3263,11 @@ static int spider_store_last_crd;
 static MYSQL_SYSVAR_INT(
   store_last_crd,
   spider_store_last_crd,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "Store last crd result into system table",
   NULL,
-  NULL,
-  -1,
+  spider_var_deprecated_int,
+  1,
   -1,
   1,
   0
@@ -3262,11 +3290,11 @@ static int spider_load_sts_at_startup;
 static MYSQL_SYSVAR_INT(
   load_sts_at_startup,
   spider_load_sts_at_startup,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "Load sts from system table at startup",
   NULL,
-  NULL,
-  -1,
+  spider_var_deprecated_int,
+  1,
   -1,
   1,
   0
@@ -3289,11 +3317,11 @@ static int spider_load_crd_at_startup;
 static MYSQL_SYSVAR_INT(
   load_crd_at_startup,
   spider_load_crd_at_startup,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "Load crd from system table at startup",
   NULL,
-  NULL,
-  -1,
+  spider_var_deprecated_int,
+  1,
   -1,
   1,
   0
@@ -3462,8 +3490,8 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Use columns in select clause strictly for group by clause",
   NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
+  spider_var_deprecated_int, /* update */
+  1, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */

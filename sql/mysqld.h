@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -679,6 +679,13 @@ extern PSI_stage_info stage_slave_background_process_request;
 extern PSI_stage_info stage_slave_background_wait_request;
 extern PSI_stage_info stage_waiting_for_deadlock_kill;
 extern PSI_stage_info stage_starting;
+#ifdef WITH_WSREP
+// Aditional Galera thread states
+extern PSI_stage_info stage_waiting_isolation;
+extern PSI_stage_info stage_waiting_certification;
+extern PSI_stage_info stage_waiting_ddl;
+extern PSI_stage_info stage_waiting_flow;
+#endif /* WITH_WSREP */
 
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
 /**
@@ -970,6 +977,7 @@ extern int mysqld_main(int argc, char **argv);
 extern HANDLE hEventShutdown;
 extern void mysqld_win_initiate_shutdown();
 extern void mysqld_win_set_startup_complete();
+extern void mysqld_win_extend_service_timeout(DWORD sec);
 extern void mysqld_set_service_status_callback(void (*)(DWORD, DWORD, DWORD));
 extern void mysqld_win_set_service_name(const char *name);
 #endif

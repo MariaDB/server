@@ -3,6 +3,7 @@
 call mtr.add_suppression("Table `test`.`t2` should have 2 indexes but the tablespace has 1 indexes");
 call mtr.add_suppression("Index for table 't2' is corrupt; try to repair it");
 call mtr.add_suppression("Trying to read .* bytes at .* outside the bounds of the file: \\..test.t2\\.ibd");
+call mtr.add_suppression("InnoDB: File '.*test/t2\\.ibd' is corrupted");
 
 let MYSQLD_DATADIR = `SELECT @@datadir`;
 
@@ -56,14 +57,10 @@ CREATE TABLE t2 (
 
 ALTER TABLE t2 DISCARD TABLESPACE;
 
---copy_file $MYSQLD_DATADIR/test/tmp.ibd $MYSQLD_DATADIR/test/t2.ibd
---copy_file $MYSQLD_DATADIR/test/tmp.cfg $MYSQLD_DATADIR/test/t2.cfg
+--move_file $MYSQLD_DATADIR/test/tmp.ibd $MYSQLD_DATADIR/test/t2.ibd
+--move_file $MYSQLD_DATADIR/test/tmp.cfg $MYSQLD_DATADIR/test/t2.cfg
 
 --error ER_NOT_KEYFILE
 ALTER TABLE t2 IMPORT TABLESPACE;
 
 DROP TABLE t2;
-
---remove_file $MYSQLD_DATADIR/test/t2.ibd
---remove_file $MYSQLD_DATADIR/test/tmp.ibd
---remove_file $MYSQLD_DATADIR/test/tmp.cfg

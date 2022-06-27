@@ -116,7 +116,7 @@ ENDMACRO()
 
 IF(MSVC)
   IF(MSVC_VERSION LESS 1920)
-    MESSAGE(FATAL_ERROR "Visual Studio q2019 or later is required")
+    MESSAGE(FATAL_ERROR "Visual Studio 2019 or later is required")
   ENDIF()
   # Disable mingw based pkg-config found in Strawberry perl
   SET(PKG_CONFIG_EXECUTABLE 0 CACHE INTERNAL "")
@@ -177,7 +177,19 @@ IF(MSVC)
    IF((NOT "${${flag}}" MATCHES "/Zi") AND (NOT "${${flag}}" MATCHES "/Z7"))
     STRING(APPEND ${flag} " /Zi")
    ENDIF()
+   # Remove inlining flags, added by CMake, if any.
+   # Compiler default is fine.
+   STRING(REGEX REPLACE "/Ob[0-3]" "" "${flag}"  "${${flag}}" )
   ENDFOREACH()
+
+  # Allow to overwrite the inlining flag
+  SET(MSVC_INLINE "" CACHE STRING
+    "MSVC Inlining option, either empty, or one of /Ob0,/Ob1,/Ob2,/Ob3")
+  IF(MSVC_INLINE MATCHES "/Ob[0-3]")
+    ADD_COMPILE_OPTIONS(${MSVC_INLINE})
+  ELSEIF(NOT(MSVC_INLINE STREQUAL ""))
+    MESSAGE(FATAL_ERROR "Invalid option for MSVC_INLINE")
+  ENDIF()
 
   IF(WITH_ASAN OR WITH_UBSAN)
     # Workaround something Linux specific
@@ -254,12 +266,12 @@ IF(MSVC)
       ENDFOREACH()
     ENDFOREACH()
   ENDIF()
-  IF(MSVC_VERSION LESS 1910)
-    # Noisy warning C4800: 'type': forcing value to bool 'true' or 'false' (performance warning),
-    # removed in VS2017
-    STRING(APPEND CMAKE_CXX_FLAGS " /wd4800")
+
+  IF(FAST_BUILD)
+    STRING (REGEX REPLACE "/RTC(su|[1su])" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
   ELSEIF (NOT CLANG_CL)
-    STRING(APPEND CMAKE_CXX_FLAGS " /d2OptimizeHugeFunctions")
+    STRING(APPEND CMAKE_CXX_FLAGS_RELEASE " /d2OptimizeHugeFunctions")
+    STRING(APPEND CMAKE_CXX_FLAGS_RELWITHDEBINFO " /d2OptimizeHugeFunctions")
   ENDIF()
 ENDIF()
 

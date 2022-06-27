@@ -5,7 +5,7 @@ Maintainer: MariaDB Developers <maria-developers@lists.launchpad.net>
 Build-Depends: bison,
                cmake,
                cracklib-runtime <!nocheck>,
-               debhelper (>= 9.20160709~),
+               debhelper (>= 10),
                dh-exec,
                flex [amd64],
                gdb <!nocheck>,
@@ -18,27 +18,31 @@ Build-Depends: bison,
                libboost-regex-dev [amd64],
                libboost-system-dev [amd64],
                libboost-thread-dev [amd64],
+               libbz2-dev,
                libcrack2-dev (>= 2.9.0),
                libcurl4-openssl-dev | libcurl4-dev,
                libedit-dev,
                libedit-dev:native,
+               libfmt-dev (>= 7.0.0),
                libjemalloc-dev [linux-any],
                libjudy-dev,
                libkrb5-dev,
                liblz4-dev,
+               liblzma-dev,
+               liblzo2-dev,
                libncurses5-dev (>= 5.0-6~),
                libncurses5-dev:native (>= 5.0-6~),
                libnuma-dev [linux-any],
                libpam0g-dev,
                libpcre2-dev,
-               libpmem-dev [amd64 arm64 ppc64el],
+               libpmem-dev [amd64 arm64 ppc64el riscv64],
                libsnappy-dev,
                libssl-dev,
                libssl-dev:native,
                libsystemd-dev [linux-any],
                liburing-dev [linux-any],
                libxml2-dev,
-               libzstd-dev,
+               libzstd-dev (>= 1.1.3),
                lsb-release,
                perl:any,
                po-debconf,
@@ -378,6 +382,7 @@ Description: MariaDB database core client binaries
 Package: mariadb-client-10.7
 Architecture: any
 Depends: debianutils (>=1.6),
+         libconfig-inifiles-perl,
          mariadb-client-core-10.7 (>= ${source:Version}),
          mariadb-common,
          ${misc:Depends},
@@ -533,6 +538,7 @@ Conflicts: mariadb-server-core-10.0,
            mariadb-server-core-10.3,
            mariadb-server-core-10.4,
            mariadb-server-core-10.5,
+           mariadb-server-core-10.6,
            mariadb-server-core-5.1,
            mariadb-server-core-5.2,
            mariadb-server-core-5.3,
@@ -628,7 +634,7 @@ Recommends: libhtml-template-perl
 Pre-Depends: adduser (>= 3.40),
              debconf,
              mariadb-common (>= ${source:Version})
-Depends: galera-4 (>=26.4),
+Depends: galera-4 (>= 26.4),
          gawk,
          iproute2 [linux-any],
          libdbi-perl,
@@ -652,6 +658,7 @@ Conflicts: mariadb-server (<< ${source:Version}),
            mariadb-server-10.3,
            mariadb-server-10.4,
            mariadb-server-10.5,
+           mariadb-server-10.6,
            mariadb-server-5.1,
            mariadb-server-5.2,
            mariadb-server-5.3,
@@ -691,6 +698,7 @@ Replaces: handlersocket-mysql-5.5,
           mariadb-server-10.3,
           mariadb-server-10.4,
           mariadb-server-10.5,
+          mariadb-server-10.6,
           mariadb-server-5.1,
           mariadb-server-5.2,
           mariadb-server-5.3,
@@ -933,6 +941,76 @@ Description: CrackLib Password Validation Plugin for MariaDB
  sufficiently secure (as defined by cracklib) user passwords in MariaDB.
  .
  Install and configure this to enforce stronger passwords for MariaDB users.
+
+Package: mariadb-plugin-provider-bzip2
+Architecture: any
+Depends: mariadb-server-10.7,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: BZip2 compression support in the server and storage engines
+ The various MariaDB storage engines, such as InnoDB, RocksDB, Mroonga,
+ can use different compression libraries.
+ .
+ Plugin provides BZip2 (https://sourceware.org/bzip2/) compression
+ .
+ Note that these affect InnoDB and Mroonga only;
+ RocksDB still uses the compression algorithms from its own library
+
+Package: mariadb-plugin-provider-lz4
+Architecture: any
+Depends: mariadb-server-10.7,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: LZ4 compression support in the server and storage engines
+ The various MariaDB storage engines, such as InnoDB, RocksDB, Mroonga,
+ can use different compression libraries.
+ .
+ Plugin provides LZ4 (http://lz4.github.io/lz4/) compression
+ .
+ Note that these affect InnoDB and Mroonga only;
+ RocksDB still uses the compression algorithms from its own library
+
+Package: mariadb-plugin-provider-lzma
+Architecture: any
+Depends: mariadb-server-10.7,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: LZMA compression support in the server and storage engines
+ The various MariaDB storage engines, such as InnoDB, RocksDB, Mroonga,
+ can use different compression libraries.
+ .
+ Plugin provides LZMA (https://tukaani.org/lzma/) compression
+ .
+ Note that these affect InnoDB and Mroonga only;
+ RocksDB still uses the compression algorithms from its own library
+
+Package: mariadb-plugin-provider-lzo
+Architecture: any
+Depends: mariadb-server-10.7,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: LZO compression support in the server and storage engines
+ The various MariaDB storage engines, such as InnoDB, RocksDB, Mroonga,
+ can use different compression libraries.
+ .
+ Plugin provides LZO (http://www.oberhumer.com/opensource/lzo/) compression
+ .
+ Note that these affect InnoDB and Mroonga only;
+ RocksDB still uses the compression algorithms from its own library
+
+Package: mariadb-plugin-provider-snappy
+Architecture: any
+Depends: mariadb-server-10.7,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: Snappy compression support in the server and storage engines
+ The various MariaDB storage engines, such as InnoDB, RocksDB, Mroonga,
+ can use different compression libraries.
+ .
+ Plugin provides Snappy (https://github.com/google/snappy) compression
+ .
+ Note that these affect InnoDB and Mroonga only;
+ RocksDB still uses the compression algorithms from its own library
 
 Package: mariadb-test
 Architecture: any

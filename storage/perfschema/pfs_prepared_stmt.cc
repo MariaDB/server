@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, 2017, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2014, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -126,9 +126,9 @@ create_prepared_stmt(void *identity,
     if (pfs_stmt)
     {
       if (pfs_program)
-        pfs->m_owner_event_id= pfs_stmt->m_nesting_event_id;
+        pfs->m_owner_event_id= pfs_stmt->m_event.m_nesting_event_id;
       else
-        pfs->m_owner_event_id= pfs_stmt->m_event_id;
+        pfs->m_owner_event_id= pfs_stmt->m_event.m_event_id;
     }
 
     /* Insert this record. */

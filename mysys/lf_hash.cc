@@ -103,8 +103,9 @@ retry:
   do { /* PTR() isn't necessary below, head is a dummy node */
     cursor->curr= my_assume_aligned<sizeof(LF_SLIST *)>((LF_SLIST *)(*cursor->prev));
     lf_pin(pins, 1, cursor->curr);
-  } while (my_atomic_loadptr((void **)my_assume_aligned<sizeof(LF_SLIST *)>(cursor->prev)) != cursor->curr &&
-           LF_BACKOFF());
+  } while (my_atomic_loadptr(
+           (void **)my_assume_aligned<sizeof(LF_SLIST *)>(cursor->prev))
+             != cursor->curr && LF_BACKOFF());
   for (;;)
   {
     if (unlikely(!cursor->curr))
@@ -114,14 +115,17 @@ retry:
     cur_keylen= cursor->curr->keylen;
     /* The key element needs to be aligned, not necessary what it points to */
     my_assume_aligned<sizeof(const uchar *)>(&cursor->curr->key);
-    cur_key= cursor->curr->key;
+    cur_key= (const uchar *) my_atomic_loadptr_explicit((void **) &cursor->curr->key,
+                                        MY_MEMORY_ORDER_ACQUIRE);
 
     do {
       /* attempting to my_assume_aligned onlink below broke the implementation */
-      link= cursor->curr->link;
+      link= (intptr) my_atomic_loadptr_explicit((void **) &cursor->curr->link,
+                                                MY_MEMORY_ORDER_RELAXED);
       cursor->next= my_assume_aligned<sizeof(LF_SLIST *)>(PTR(link));
       lf_pin(pins, 0, cursor->next);
-    } while (link != cursor->curr->link && LF_BACKOFF());
+    } while (link != (intptr) my_atomic_loadptr((void *volatile *) &cursor->curr->link)
+             && LF_BACKOFF());
 
     if (!DELETED(link))
     {

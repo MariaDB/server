@@ -20,6 +20,10 @@
 #include <my_sys.h>                             // pthread_mutex_t
 #include "m_string.h"                           // LEX_CUSTRING
 
+#define ERROR_INJECT(code) \
+  ((DBUG_IF("crash_" code) && (DBUG_SUICIDE(), 0)) || \
+   (DBUG_IF("fail_" code) && (my_error(ER_UNKNOWN_ERROR, MYF(0)), 1)))
+
 class Alter_info;
 class Alter_table_ctx;
 class Column_definition;
@@ -53,6 +57,8 @@ enum enum_explain_filename_mode
 #define WFRM_WRITE_SHADOW 1
 #define WFRM_INSTALL_SHADOW 2
 #define WFRM_KEEP_SHARE 4
+#define WFRM_WRITE_CONVERTED_TO 8
+#define WFRM_BACKUP_ORIGINAL 16
 
 /* Flags for conversion functions. */
 static const uint FN_FROM_IS_TMP=  1 << 0;
@@ -77,7 +83,8 @@ bool check_mysql50_prefix(const char *name);
 uint build_table_filename(char *buff, size_t bufflen, const char *db,
                           const char *table, const char *ext, uint flags);
 uint build_table_shadow_filename(char *buff, size_t bufflen,
-                                 ALTER_PARTITION_PARAM_TYPE *lpt);
+                                 ALTER_PARTITION_PARAM_TYPE *lpt,
+                                 bool backup= false);
 void build_lower_case_table_filename(char *buff, size_t bufflen,
                                      const LEX_CSTRING *db,
                                      const LEX_CSTRING *table,

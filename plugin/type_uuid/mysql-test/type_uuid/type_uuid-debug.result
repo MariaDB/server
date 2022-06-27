@@ -1,0 +1,18 @@
+#
+# MDEV-4958 Adding datatype UUID
+#
+SET @old_debug_dbug=@@debug_dbug;
+SET debug_dbug="+d,frm_data_type_info";
+CREATE TABLE t1 (c01 UUID, c02 UUID);
+Warnings:
+Note	1105	build_frm_image: Field data type info length: 12
+Note	1105	DBUG: [0] name='c01' type_info='uuid'
+Note	1105	DBUG: [1] name='c02' type_info='uuid'
+SET debug_dbug=@old_debug_dbug;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c01` uuid DEFAULT NULL,
+  `c02` uuid DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;

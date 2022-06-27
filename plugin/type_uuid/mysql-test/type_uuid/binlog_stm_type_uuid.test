@@ -1,0 +1,32 @@
+--source include/not_embedded.inc
+--source include/have_binlog_format_statement.inc
+
+--disable_query_log
+reset master; # get rid of previous tests binlog
+--enable_query_log
+
+--echo #
+--echo # MDEV-4958 Adding datatype UUID
+--echo #
+
+CREATE TABLE t1 (a UUID);
+INSERT INTO t1 VALUES ('00000000-0000-0000-0000-000000000000');
+INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff');
+
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (?)';
+EXECUTE stmt USING CAST('00000000-0000-0000-0000-000000000001' AS UUID);
+EXECUTE stmt USING CAST(CONCAT(REPEAT(0x00,15), 0x02) AS UUID);
+DEALLOCATE PREPARE stmt;
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a UUID DEFAULT '00000000-0000-0000-0000-000000000003';
+  INSERT INTO t1 VALUES (a);
+END;
+$$
+DELIMITER ;$$
+
+DROP TABLE t1;
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;

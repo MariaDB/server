@@ -1,0 +1,47 @@
+connection node_2;
+connection node_1;
+CREATE TABLE author (
+id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(100) NOT NULL
+) ENGINE = InnoDB;
+CREATE TABLE book (
+id MEDIUMINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+title VARCHAR(200) NOT NULL,
+author_id SMALLINT UNSIGNED NOT NULL,
+CONSTRAINT `fk_book_author`
+    FOREIGN KEY (author_id) REFERENCES author (id)
+ON DELETE CASCADE
+ON UPDATE RESTRICT
+) ENGINE = InnoDB;
+INSERT INTO author (name) VALUES ('Abdul Alhazred');
+INSERT INTO book (title, author_id) VALUES ('Necronomicon', LAST_INSERT_ID());
+TRUNCATE TABLE book;
+SELECT * FROM author;
+id	name
+1	Abdul Alhazred
+SELECT * FROM book;
+id	title	author_id
+connection node_2;
+SELECT * FROM author;
+id	name
+1	Abdul Alhazred
+SELECT * FROM book;
+id	title	author_id
+INSERT INTO author (name) VALUES ('Abdul Alhazred');
+INSERT INTO book (title, author_id) VALUES ('Necronomicon', LAST_INSERT_ID());
+TRUNCATE TABLE book;
+SELECT * FROM author;
+id	name
+1	Abdul Alhazred
+2	Abdul Alhazred
+SELECT * FROM book;
+id	title	author_id
+connection node_1;
+TRUNCATE TABLE book;
+SELECT * FROM author;
+id	name
+1	Abdul Alhazred
+2	Abdul Alhazred
+SELECT * FROM book;
+id	title	author_id
+DROP TABLE book, author;

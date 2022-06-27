@@ -150,21 +150,21 @@ struct st_maria_share;
 struct st_maria_handler;                        /* For referense */
 struct st_maria_keydef;
 
-typedef struct st_maria_key                 /* Internal info about a key */
+struct st_maria_key                 /* Internal info about a key */
 {
   uchar *data;                              /* Data for key */
   struct st_maria_keydef *keyinfo;          /* Definition for key */
   uint data_length;                         /* Length of key data */
   uint ref_length;                          /* record ref + transid */
   uint32 flag;                               /* 0 or SEARCH_PART_KEY */
-} MARIA_KEY;
+};
 
-typedef struct st_maria_decode_tree     /* Decode huff-table */
+struct st_maria_decode_tree     /* Decode huff-table */
 {
   uint16 *table;
   uint quick_table_bits;
   uchar *intervalls;
-} MARIA_DECODE_TREE;
+};
 
 
 typedef struct s3_info S3_INFO;
@@ -787,6 +787,7 @@ typedef struct st_maria_share
   my_bool changed,			/* If changed since lock */
     global_changed,			/* If changed since open */
     not_flushed;
+  my_bool no_status_updates;            /* Set to 1 if S3 readonly table */
   my_bool internal_table;               /* Internal tmp table */
   my_bool lock_key_trees;               /* If we have to lock trees on read */
   my_bool non_transactional_concurrent_insert;
@@ -803,6 +804,7 @@ typedef struct st_maria_share
   my_bool key_del_used;                         /* != 0 if key_del is locked */
   my_bool deleting;                     /* we are going to delete this table */
   my_bool redo_error_given;             /* Used during recovery */
+  my_bool silence_encryption_errors;    /* Used during recovery */
   THR_LOCK lock;
   void (*lock_restore_status)(void *);
   /**
@@ -974,6 +976,7 @@ struct st_maria_handler
   uint opt_flag;			/* Optim. for space/speed */
   uint open_flags;                      /* Flags used in open() */
   uint update;				/* If file changed since open */
+  uint error_count;                     /* Incremented for each error given */
   int lastinx;				/* Last used index */
   uint last_rkey_length;		/* Last length in maria_rkey() */
   uint *last_rtree_keypos;              /* Last key positions for rtrees */
@@ -1139,20 +1142,6 @@ struct ha_table_option_struct
 #define maria_is_crashed_on_repair(x) ((x)->s->state.changed & STATE_CRASHED_ON_REPAIR)
 #define maria_in_repair(x) ((x)->s->state.changed & STATE_IN_REPAIR)
 
-#ifdef EXTRA_DEBUG
-/**
-  Brings additional information in certain debug builds and in standalone
-  (non-ha_maria) programs. To help debugging. Not in ha_maria, to not spam the
-  user (some messages can be produced many times per statement, or even
-  wrongly during some repair operations).
-*/
-#define maria_print_error(SHARE, ERRNO)                         \
-  do{ if (!maria_in_ha_maria)                                   \
-      _ma_report_error((ERRNO), &(SHARE)->index_file_name); }    \
-  while(0)
-#else
-#define maria_print_error(SHARE, ERRNO) while (0)
-#endif
 #define DBUG_DUMP_KEY(name, key) DBUG_DUMP(name, (key)->data, (key)->data_length + (key)->ref_length)
 
 /* Functions to store length of space packed keys, VARCHAR or BLOB keys */
@@ -1202,7 +1191,8 @@ struct ha_table_option_struct
 #define PACK_TYPE_SELECTED	1U	/* Bits in field->pack_type */
 #define PACK_TYPE_SPACE_FIELDS	2U
 #define PACK_TYPE_ZERO_FILL	4U
-#define MARIA_FOUND_WRONG_KEY 32768U	/* Impossible value from ha_key_cmp */
+
+#define MARIA_FOUND_WRONG_KEY INT_MAX32	/* Impossible value from ha_key_cmp */
 
 #define MARIA_BLOCK_SIZE(key_length,data_pointer,key_pointer,block_size)  (((((key_length)+(data_pointer)+(key_pointer))*4+(key_pointer)+2)/(block_size)+1)*(block_size))
 #define MARIA_MAX_KEYPTR_SIZE	5	/* For calculating block lengths */
@@ -1410,7 +1400,8 @@ extern int _ma_test_if_changed(MARIA_HA *info);
 extern int _ma_mark_file_changed(MARIA_SHARE *info);
 extern int _ma_mark_file_changed_now(MARIA_SHARE *info);
 extern void _ma_mark_file_crashed(MARIA_SHARE *share);
-void _ma_set_fatal_error(MARIA_SHARE *share, int error);
+extern void _ma_set_fatal_error(MARIA_HA *share, int error);
+extern void _ma_set_fatal_error_with_share(MARIA_SHARE *share, int error);
 extern my_bool _ma_set_uuid(MARIA_SHARE *info, my_bool reset_uuid);
 extern my_bool _ma_check_if_zero(uchar *pos, size_t size);
 extern int _ma_decrement_open_count(MARIA_HA *info, my_bool lock_table);
@@ -1597,7 +1588,9 @@ extern uint _ma_pack_get_block_info(MARIA_HA *maria, MARIA_BIT_BUFF *bit_buff,
                                     size_t *rec_buff_size,
                                     File file, my_off_t filepos);
 extern void _ma_store_blob_length(uchar *pos, uint pack_length, uint length);
-extern void _ma_report_error(int errcode, const LEX_STRING *file_name);
+extern void _ma_report_error(int errcode, const LEX_STRING *file_name,
+                             myf flags);
+extern void _ma_print_error(MARIA_HA *info, int error, my_bool write_to_log);
 extern my_bool _ma_memmap_file(MARIA_HA *info);
 extern void _ma_unmap_file(MARIA_HA *info);
 extern uint _ma_save_pack_length(uint version, uchar * block_buff,
@@ -1767,3 +1760,5 @@ static inline void decrement_share_in_trans(MARIA_SHARE *share)
 }
 C_MODE_END
 #endif
+
+#define CRASH_IF_S3_TABLE(share) DBUG_ASSERT(!share->no_status_updates)

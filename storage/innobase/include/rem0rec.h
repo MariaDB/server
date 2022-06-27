@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -727,11 +727,9 @@ in the clustered index for instant ADD COLUMN or ALTER TABLE.
 @param[in]	rec	leaf page record
 @param[in]	index	index of the record
 @return	whether the record is the metadata pseudo-record */
-inline bool rec_is_metadata(const rec_t* rec, const dict_index_t& index)
+inline bool rec_is_metadata(const rec_t *rec, const dict_index_t &index)
 {
-	bool is = rec_is_metadata(rec, dict_table_is_comp(index.table));
-	ut_ad(!is || index.is_instant());
-	return is;
+  return rec_is_metadata(rec, index.table->not_redundant());
 }
 
 /** Determine if the record is the metadata pseudo-record
@@ -1293,7 +1291,7 @@ int wsrep_rec_get_foreign_key(
 	ibool		new_protocol); /* in: protocol > 1 */
 #endif /* WITH_WSREP */
 
-#include "rem0rec.ic"
+#include "rem0rec.inl"
 
 #endif /* !UNIV_INNOCHECKSUM */
 #endif /* rem0rec_h */

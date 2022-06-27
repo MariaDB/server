@@ -94,7 +94,7 @@ TODO:
 
 #ifdef _WIN32
 #define srandom  srand
-#define random   rand
+#define random() (long)rand()
 #endif
 
 

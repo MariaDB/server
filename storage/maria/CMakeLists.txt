@@ -117,15 +117,18 @@ SET(S3_SOURCES s3_func.c
     libmarias3/src/sha256-internal.c libmarias3/src/xml.c
     libmarias3/src/assume_role.c)
 
-IF(NOT PLUGIN_S3 STREQUAL NO)
+IF(NOT PLUGIN_S3 STREQUAL NO AND NOT WIN32)
   FIND_PACKAGE(CURL)
 ENDIF()
 
 IF (CURL_FOUND)
-  LINK_DIRECTORIES(${PC_CURL_LIBDIR})
+  INCLUDE_DIRECTORIES(${CURL_INCLUDE_DIRS})
   MYSQL_ADD_PLUGIN(s3 ha_s3.cc ${S3_SOURCES} COMPONENT s3-engine
-    LINK_LIBRARIES curl z STORAGE_ENGINE NOT_EMBEDDED CONFIG s3.cnf)
+    LINK_LIBRARIES ${CURL_LIBRARIES} z STORAGE_ENGINE NOT_EMBEDDED CONFIG s3.cnf)
 ENDIF()
+
+SET(CPACK_RPM_s3-engine_PACKAGE_SUMMARY "Amazon S3 archival storage engine for MariaDB" PARENT_SCOPE)
+SET(CPACK_RPM_s3-engine_PACKAGE_DESCRIPTION "The S3 storage engine allows one to archive MariaDB tables in Amazon S3 (or any third-party public or private cloud that implements S3 API), but still have them accessible in MariaDB in read-only mode." PARENT_SCOPE)
 
 IF(TARGET s3)
   MYSQL_ADD_EXECUTABLE(aria_s3_copy aria_s3_copy.cc ${S3_SOURCES} COMPONENT s3-engine)

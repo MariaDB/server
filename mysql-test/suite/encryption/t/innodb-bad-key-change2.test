@@ -8,13 +8,13 @@
 # MDEV-8768: Server crash at file btr0btr.ic line 122 when checking encrypted table using incorrect keys
 # MDEV-8727: Server/InnoDB hangs on shutdown after trying to read an encrypted table with a wrong key
 #
-call mtr.add_suppression("InnoDB: Table `test`\\.`t1` (has an unreadable root page|is corrupted|does not exist.*is trying to rename)");
-call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t1(new)?\\.ibd' cannot be decrypted\\.");
+call mtr.add_suppression("InnoDB: Table `test`\\.`t1` (has an unreadable root page|does not exist.*is trying to rename)");
+call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t1(new)?\\.ibd' cannot be decrypted; key_version=1");
 call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\]");
 # Suppression for builds where file_key_management plugin is linked statically
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
 call mtr.add_suppression("InnoDB: Tablespace for table \`test\`.\`t1\` is set as discarded\\.");
-call mtr.add_suppression("InnoDB: Table `test`\\.`t1` is corrupted");
+call mtr.add_suppression("Table .*t1.* is corrupted");
 call mtr.add_suppression("InnoDB: Cannot delete tablespace .* because it is not found in the tablespace memory cache");
 call mtr.add_suppression("InnoDB: ALTER TABLE `test`\\.`t1` DISCARD TABLESPACE failed to find tablespace");
 # for innodb_checksum_algorithm=full_crc32 only
@@ -36,7 +36,7 @@ INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
 SELECT * FROM t1;
 --replace_regex /key_id [1-9][0-9]*/\1 /
 SHOW WARNINGS;
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 ALTER TABLE t1 ENGINE=InnoDB;
 --replace_regex /key_id [1-9][0-9]*/\1 /
 SHOW WARNINGS;
@@ -97,7 +97,7 @@ SHOW CREATE TABLE t1;
 
 --error ER_ERROR_ON_RENAME
 RENAME TABLE t1 TO t1new;
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 ALTER TABLE t1 RENAME TO t1new;
-# Drop should pass even with incorrect keys
+# Drop should succeed even with incorrect keys
 DROP TABLE t1;

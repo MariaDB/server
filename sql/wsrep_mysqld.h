@@ -225,9 +225,9 @@ extern bool wsrep_check_mode_after_open_table (THD *thd, const handlerton *hton,
 extern bool wsrep_check_mode_before_cmd_execute (THD *thd);
 extern bool wsrep_must_sync_wait (THD* thd, uint mask= WSREP_SYNC_WAIT_BEFORE_READ);
 extern bool wsrep_sync_wait (THD* thd, uint mask= WSREP_SYNC_WAIT_BEFORE_READ);
+extern bool wsrep_sync_wait (THD* thd, enum enum_sql_command command);
 extern enum wsrep::provider::status
 wsrep_sync_wait_upto (THD* thd, wsrep_gtid_t* upto, int timeout);
-extern void wsrep_last_committed_id (wsrep_gtid_t* gtid);
 extern int  wsrep_check_opts();
 extern void wsrep_prepend_PATH (const char* path);
 extern bool wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* table, wsrep::key_array* keys);
@@ -407,7 +407,6 @@ bool wsrep_node_is_synced();
 void wsrep_init_SR();
 void wsrep_verify_SE_checkpoint(const wsrep_uuid_t& uuid, wsrep_seqno_t seqno);
 int wsrep_replay_from_SR_store(THD*, const wsrep_trx_meta_t&);
-void wsrep_node_uuid(wsrep_uuid_t&);
 
 class Log_event;
 int wsrep_ignored_error_code(Log_event* ev, int error);

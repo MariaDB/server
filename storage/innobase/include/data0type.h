@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,9 +24,7 @@ Data types
 Created 1/16/1996 Heikki Tuuri
 *******************************************************/
 
-#ifndef data0type_h
-#define data0type_h
-
+#pragma once
 #include "univ.i"
 
 /** Special length indicating a missing instantly added column */
@@ -196,9 +194,6 @@ constexpr uint8_t DATA_MBR_LEN= uint8_t(SPDIMS * 2 * sizeof(double));
 /** system-versioned user data column */
 #define DATA_VERSIONED (DATA_VERS_START|DATA_VERS_END)
 
-/** Check whether locking is disabled (never). */
-#define dict_table_is_locking_disabled(table) false
-
 /*-------------------------------------------*/
 
 /* This many bytes we need to store the type information affecting the
@@ -325,7 +320,6 @@ dtype_get_prtype(
 
 /*********************************************************************//**
 Compute the mbminlen and mbmaxlen members of a data type structure. */
-UNIV_INLINE
 void
 dtype_get_mblen(
 /*============*/
@@ -588,6 +582,4 @@ static const byte REC_INFO_METADATA_ADD
 static const byte REC_INFO_METADATA_ALTER
 	= REC_INFO_METADATA_ADD | REC_INFO_DELETED_FLAG;
 
-#include "data0type.ic"
-
-#endif
+#include "data0type.inl"

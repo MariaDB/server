@@ -12,7 +12,7 @@ PLUGIN_STATUS	ACTIVE
 PLUGIN_TYPE	STORAGE ENGINE
 PLUGIN_TYPE_VERSION	#
 PLUGIN_LIBRARY	ha_example.so
-PLUGIN_LIBRARY_VERSION	1.14
+PLUGIN_LIBRARY_VERSION	1.15
 PLUGIN_AUTHOR	Brian Aker, MySQL AB
 PLUGIN_DESCRIPTION	Example storage engine
 PLUGIN_LICENSE	GPL
@@ -25,7 +25,7 @@ PLUGIN_STATUS	ACTIVE
 PLUGIN_TYPE	DAEMON
 PLUGIN_TYPE_VERSION	#
 PLUGIN_LIBRARY	ha_example.so
-PLUGIN_LIBRARY_VERSION	1.14
+PLUGIN_LIBRARY_VERSION	1.15
 PLUGIN_AUTHOR	Sergei Golubchik
 PLUGIN_DESCRIPTION	Unusable Daemon
 PLUGIN_LICENSE	GPL
@@ -40,11 +40,15 @@ a
 set global example_ulong_var=500;
 set global example_enum_var= e1;
 set session example_int_var= -1;
+set global example_deprecated_var=1;
+Warnings:
+Warning	1287	'@@example_deprecated_var' is deprecated and will be removed in a future release
 show status like 'example%';
 Variable_name	Value
 Example_func_example	enum_var is 0, ulong_var is 500, int_var is -1, double_var is 8.500000, really
 show variables like 'example%';
 Variable_name	Value
+example_deprecated_var	0
 example_double_thdvar	8.500000
 example_double_var	8.500000
 example_enum_var	e1
@@ -64,7 +68,7 @@ PLUGIN_STATUS	DELETED
 PLUGIN_TYPE	STORAGE ENGINE
 PLUGIN_TYPE_VERSION	#
 PLUGIN_LIBRARY	ha_example.so
-PLUGIN_LIBRARY_VERSION	1.14
+PLUGIN_LIBRARY_VERSION	1.15
 PLUGIN_AUTHOR	Brian Aker, MySQL AB
 PLUGIN_DESCRIPTION	Example storage engine
 PLUGIN_LICENSE	GPL
@@ -320,7 +324,7 @@ select plugin_name from information_schema.plugins where plugin_library like 'ha
 plugin_name
 set names utf8;
 select convert('admin𝌆' using utf8);
-convert('admin𝌆' using utf8)
+convert('admin\xF0\x9D\x8C\x86' using utf8)
 admin????
 Warnings:
 Warning	1300	Invalid utf8mb3 character string: '\xF0\x9D\x8C\x86'
@@ -353,6 +357,15 @@ select * from mysql.plugin WHERE name='unexisting_plugin';
 name	dl
 UNINSTALL PLUGIN unexisting_plugin;
 ERROR 42000: PLUGIN unexisting_plugin does not exist
+#
+# MDEV-26323 use-after-poison issue of MariaDB server
+#
+INSTALL PLUGIN DEALLOCATE SONAME '';
+ERROR HY000: Can't open shared library '.so'
+INSTALL PLUGIN DEALLOCATE SONAME 'x';
+ERROR HY000: Can't open shared library 'x.so'
+INSTALL PLUGIN DEALLOCATE SONAME 'xx';
+ERROR HY000: Can't open shared library 'xx.so'
 # End of 10.2 tests
 #
 # MDEV-16294: INSTALL PLUGIN IF NOT EXISTS / UNINSTALL PLUGIN IF EXISTS

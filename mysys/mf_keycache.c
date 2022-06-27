@@ -164,18 +164,18 @@ typedef struct st_simple_key_cache_cb
   size_t key_cache_mem_size;     /* specified size of the cache memory       */
   size_t allocated_mem_size;     /* size of the memory actually allocated    */
   uint key_cache_block_size;     /* size of the page buffer of a cache block */
-  ulong min_warm_blocks;         /* min number of warm blocks;               */
-  ulong age_threshold;           /* age threshold for hot blocks             */
+  size_t min_warm_blocks;        /* min number of warm blocks;               */
+  size_t age_threshold;          /* age threshold for hot blocks             */
   ulonglong keycache_time;       /* total number of block link operations    */
   uint hash_entries;             /* max number of entries in the hash table  */
   uint changed_blocks_hash_size;	 /* Number of hash buckets for file blocks   */
   int hash_links;                /* max number of hash links                 */
   int hash_links_used;           /* number of hash links currently used      */
   int disk_blocks;               /* max number of blocks in the cache        */
-  ulong blocks_used;           /* maximum number of concurrently used blocks */
-  ulong blocks_unused;           /* number of currently unused blocks        */
-  ulong blocks_changed;          /* number of currently dirty blocks         */
-  ulong warm_blocks;             /* number of blocks in warm sub-chain       */
+  size_t blocks_used;            /* maximum number of concurrently used blocks */
+  size_t blocks_unused;          /* number of currently unused blocks        */
+  size_t blocks_changed;         /* number of currently dirty blocks         */
+  size_t warm_blocks;            /* number of blocks in warm sub-chain       */
   ulong cnt_for_resize_op;       /* counter to block resize operation        */
   long blocks_available;      /* number of blocks available in the LRU chain */
   HASH_LINK **hash_root;         /* arr. of entries into hash table buckets  */
@@ -478,7 +478,7 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
 		          size_t use_mem, uint division_limit,
 		          uint age_threshold, uint changed_blocks_hash_size)
 {
-  ulong blocks, hash_links;
+  size_t blocks, hash_links;
   size_t length;
   int error;
   DBUG_ENTER("init_simple_key_cache");
@@ -519,8 +519,8 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
   DBUG_PRINT("info", ("key_cache_block_size: %u",
 		      key_cache_block_size));
 
-  blocks= (ulong) (use_mem / (sizeof(BLOCK_LINK) + 2 * sizeof(HASH_LINK) +
-                              sizeof(HASH_LINK*) * 5/4 + key_cache_block_size));
+  blocks= use_mem / (sizeof(BLOCK_LINK) + 2 * sizeof(HASH_LINK) +
+                              sizeof(HASH_LINK*) * 5/4 + key_cache_block_size);
 
   /* Changed blocks hash needs to be a power of 2 */
   changed_blocks_hash_size= my_round_up_to_next_power(MY_MAX(changed_blocks_hash_size,
@@ -532,7 +532,7 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
     for ( ; ; )
     {
       /* Set my_hash_entries to the next bigger 2 power */
-      if ((keycache->hash_entries= next_power(blocks)) < blocks * 5/4)
+      if ((keycache->hash_entries= next_power((uint)blocks)) < blocks * 5/4)
         keycache->hash_entries<<= 1;
       hash_links= 2 * blocks;
 #if defined(MAX_THREADS)
@@ -543,8 +543,8 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
 		       ALIGN_SIZE(hash_links * sizeof(HASH_LINK)) +
 		       ALIGN_SIZE(sizeof(HASH_LINK*) *
                                   keycache->hash_entries) +
-                       sizeof(BLOCK_LINK*)* (changed_blocks_hash_size*2))) +
-             ((size_t) blocks * keycache->key_cache_block_size) > use_mem && blocks > 8)
+                       sizeof(BLOCK_LINK*)* ((size_t)changed_blocks_hash_size*2))) +
+             (blocks * keycache->key_cache_block_size) > use_mem && blocks > 8)
         blocks--;
       keycache->allocated_mem_size= blocks * keycache->key_cache_block_size;
       if ((keycache->block_mem= my_large_malloc(&keycache->allocated_mem_size,
@@ -584,7 +584,7 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
     }
     keycache->blocks_unused= blocks;
     keycache->disk_blocks= (int) blocks;
-    keycache->hash_links= hash_links;
+    keycache->hash_links= (int)hash_links;
     keycache->hash_links_used= 0;
     keycache->free_hash_list= NULL;
     keycache->blocks_used= keycache->blocks_changed= 0;
@@ -4854,7 +4854,7 @@ static int cache_empty(SIMPLE_KEY_CACHE_CB *keycache)
   }
   if (errcnt)
   {
-    fprintf(stderr, "blocks: %d  used: %lu\n",
+    fprintf(stderr, "blocks: %d  used: %zu\n",
             keycache->disk_blocks, keycache->blocks_used);
     fprintf(stderr, "hash_links: %d  used: %d\n",
             keycache->hash_links, keycache->hash_links_used);

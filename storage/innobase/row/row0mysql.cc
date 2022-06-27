@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -701,6 +701,8 @@ handle_new_error:
 		trx->rollback();
 		break;
 
+	case DB_IO_ERROR:
+	case DB_TABLE_CORRUPT:
 	case DB_CORRUPTION:
 	case DB_PAGE_CORRUPTED:
 		ib::error() << "We detected index corruption in an InnoDB type"
@@ -1124,7 +1126,7 @@ row_lock_table_autoinc_for_mysql(
 
 		trx_start_if_not_started_xa(trx, true);
 
-		err = lock_table(prebuilt->table, LOCK_AUTO_INC, thr);
+		err = lock_table(prebuilt->table, NULL, LOCK_AUTO_INC, thr);
 
 		trx->error_state = err;
 	} while (err != DB_SUCCESS
@@ -1166,7 +1168,7 @@ row_lock_table(row_prebuilt_t* prebuilt)
 
 		trx_start_if_not_started_xa(trx, false);
 
-		err = lock_table(prebuilt->table, static_cast<lock_mode>(
+		err = lock_table(prebuilt->table, NULL, static_cast<lock_mode>(
 					 prebuilt->select_lock_type), thr);
 		trx->error_state = err;
 	} while (err != DB_SUCCESS
@@ -1199,10 +1201,10 @@ row_mysql_get_table_status(
 			// to decrypt
 			if (push_warning) {
 				ib_push_warning(trx, DB_DECRYPTION_FAILED,
-					"Table %s in tablespace %lu encrypted."
+					"Table %s is encrypted."
 					"However key management plugin or used key_id is not found or"
 					" used encryption algorithm or method does not match.",
-					table->name.m_name, table->space);
+					table->name.m_name);
 			}
 
 			err = DB_DECRYPTION_FAILED;
@@ -1250,30 +1252,19 @@ row_insert_for_mysql(
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->magic_n2 == ROW_PREBUILT_ALLOCATED);
 
-	if (!prebuilt->table->space) {
-
-		ib::error() << "The table " << prebuilt->table->name
+	if (!table->space) {
+		ib::error() << "The table " << table->name
 			<< " doesn't have a corresponding tablespace, it was"
 			" discarded.";
 
 		return(DB_TABLESPACE_DELETED);
-
-	} else if (!prebuilt->table->is_readable()) {
-		return(row_mysql_get_table_status(prebuilt->table, trx, true));
+	} else if (!table->is_readable()) {
+		return row_mysql_get_table_status(table, trx, true);
 	} else if (high_level_read_only) {
 		return(DB_READ_ONLY);
-	}
-
-	DBUG_EXECUTE_IF("mark_table_corrupted", {
-		/* Mark the table corrupted for the clustered index */
-		dict_index_t*	index = dict_table_get_first_index(table);
-		ut_ad(dict_index_is_clust(index));
-		dict_set_corrupted(index, "INSERT TABLE", false); });
-
-	if (dict_table_is_corrupted(table)) {
-
-		ib::error() << "Table " << table->name << " is corrupt.";
-		return(DB_TABLE_CORRUPT);
+	} else if (UNIV_UNLIKELY(table->corrupted)
+		   || dict_table_get_first_index(table)->is_corrupted()) {
+		return DB_TABLE_CORRUPT;
 	}
 
 	trx->op_info = "inserting";
@@ -1370,23 +1361,6 @@ error_exit:
 					<< next_doc_id - 1 << " for table "
 					<< table->name;
 
-				err = DB_FTS_INVALID_DOCID;
-				trx->error_state = DB_FTS_INVALID_DOCID;
-				goto error_exit;
-			}
-
-			/* Difference between Doc IDs are restricted within
-			4 bytes integer. See fts_get_encoded_len(). Consecutive
-			doc_ids difference should not exceed
-			FTS_DOC_ID_MAX_STEP value. */
-
-			if (doc_id - next_doc_id >= FTS_DOC_ID_MAX_STEP) {
-				 ib::error() << "Doc ID " << doc_id
-					<< " is too big. Its difference with"
-					" largest used Doc ID "
-					<< next_doc_id - 1 << " cannot"
-					" exceed or equal to "
-					<< FTS_DOC_ID_MAX_STEP;
 				err = DB_FTS_INVALID_DOCID;
 				trx->error_state = DB_FTS_INVALID_DOCID;
 				goto error_exit;
@@ -1809,56 +1783,29 @@ row_unlock_for_mysql(
 	row_prebuilt_t*	prebuilt,
 	ibool		has_latches_on_recs)
 {
-	btr_pcur_t*	pcur		= prebuilt->pcur;
-	btr_pcur_t*	clust_pcur	= prebuilt->clust_pcur;
-	trx_t*		trx		= prebuilt->trx;
-
-	ut_ad(prebuilt != NULL);
-	ut_ad(trx != NULL);
-	ut_ad(trx->isolation_level <= TRX_ISO_READ_COMMITTED);
-
-	if (dict_index_is_spatial(prebuilt->index)) {
-		return;
-	}
-
-	trx->op_info = "unlock_row";
-
-	if (prebuilt->new_rec_locks >= 1) {
+	if (prebuilt->new_rec_locks == 1 && prebuilt->index->is_clust()) {
+		trx_t* trx = prebuilt->trx;
+		ut_ad(trx->isolation_level <= TRX_ISO_READ_COMMITTED);
+		trx->op_info = "unlock_row";
 
 		const rec_t*	rec;
 		dict_index_t*	index;
 		trx_id_t	rec_trx_id;
 		mtr_t		mtr;
+		btr_pcur_t*	pcur	= prebuilt->pcur;
 
 		mtr_start(&mtr);
 
 		/* Restore the cursor position and find the record */
 
-		if (!has_latches_on_recs) {
-			btr_pcur_restore_position(BTR_SEARCH_LEAF, pcur, &mtr);
+		if (!has_latches_on_recs
+		    && pcur->restore_position(BTR_SEARCH_LEAF, &mtr)
+		    != btr_pcur_t::SAME_ALL) {
+			goto no_unlock;
 		}
 
 		rec = btr_pcur_get_rec(pcur);
 		index = btr_pcur_get_btr_cur(pcur)->index;
-
-		if (prebuilt->new_rec_locks >= 2) {
-			/* Restore the cursor position and find the record
-			in the clustered index. */
-
-			if (!has_latches_on_recs) {
-				btr_pcur_restore_position(BTR_SEARCH_LEAF,
-							  clust_pcur, &mtr);
-			}
-
-			rec = btr_pcur_get_rec(clust_pcur);
-			index = btr_pcur_get_btr_cur(clust_pcur)->index;
-		}
-
-		if (!dict_index_is_clust(index)) {
-			/* This is not a clustered index record.  We
-			do not know how to unlock the record. */
-			goto no_unlock;
-		}
 
 		/* If the record has been modified by this
 		transaction, do not unlock it. */
@@ -1894,24 +1841,11 @@ row_unlock_for_mysql(
 				rec,
 				static_cast<enum lock_mode>(
 					prebuilt->select_lock_type));
-
-			if (prebuilt->new_rec_locks >= 2) {
-				rec = btr_pcur_get_rec(clust_pcur);
-
-				lock_rec_unlock(
-					trx,
-					btr_pcur_get_block(clust_pcur)
-					->page.id(),
-					rec,
-					static_cast<enum lock_mode>(
-						prebuilt->select_lock_type));
-			}
 		}
 no_unlock:
 		mtr_commit(&mtr);
+		trx->op_info = "";
 	}
-
-	trx->op_info = "";
 }
 
 /** Write query start time as SQL field data to a buffer. Needed by InnoDB.
@@ -2314,6 +2248,13 @@ row_mysql_table_id_reassign(
 	trx_t*		trx,
 	table_id_t*	new_id)
 {
+	if (!dict_sys.sys_tables || dict_sys.sys_tables->corrupted ||
+	    !dict_sys.sys_columns || dict_sys.sys_columns->corrupted ||
+	    !dict_sys.sys_indexes || dict_sys.sys_indexes->corrupted ||
+	    !dict_sys.sys_virtual || dict_sys.sys_virtual->corrupted) {
+		return DB_CORRUPTION;
+	}
+
 	dberr_t		err;
 	pars_info_t*	info	= pars_info_create();
 
@@ -2464,9 +2405,6 @@ row_discard_tablespace(
 	/* All persistent operations successful, update the
 	data dictionary memory cache. */
 
-	table->file_unreadable = true;
-	table->space = NULL;
-	table->flags2 |= DICT_TF2_DISCARDED;
 	dict_table_change_id_in_cache(table, new_id);
 
 	dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
@@ -2501,7 +2439,7 @@ dberr_t row_discard_tablespace_for_mysql(dict_table_t *table, trx_t *trx)
   if (fts_exist)
   {
     fts_optimize_remove_table(table);
-    purge_sys.stop_FTS();
+    purge_sys.stop_FTS(*table);
     err= fts_lock_tables(trx, *table);
     if (err != DB_SUCCESS)
     {
@@ -2512,6 +2450,8 @@ rollback:
         fts_optimize_add_table(table);
       }
       trx->rollback();
+      if (trx->dict_operation_lock_mode)
+        row_mysql_unlock_data_dictionary(trx);
       return err;
     }
   }
@@ -2525,10 +2465,7 @@ rollback:
 
   err= row_discard_tablespace_foreign_key_checks(trx, table);
   if (err != DB_SUCCESS)
-  {
-    row_mysql_unlock_data_dictionary(trx);
     goto rollback;
-  }
 
   /* Note: The following cannot be rolled back. Rollback would see the
   UPDATE of SYS_INDEXES.TABLE_ID as two operations: DELETE and INSERT.
@@ -2539,6 +2476,9 @@ rollback:
 
   It would be better to remove the integrity-breaking
   ALTER TABLE...DISCARD TABLESPACE operation altogether. */
+  table->file_unreadable= true;
+  table->space= nullptr;
+  table->flags2|= DICT_TF2_DISCARDED;
   err= row_discard_tablespace(trx, table);
   DBUG_EXECUTE_IF("ib_discard_before_commit_crash",
                   log_buffer_flush_to_disk(); DBUG_SUICIDE(););
@@ -2547,7 +2487,6 @@ rollback:
   trx->commit(deleted);
   const auto space_id= table->space_id;
   pfs_os_file_t d= fil_delete_tablespace(space_id);
-  table->space= nullptr;
   DBUG_EXECUTE_IF("ib_discard_after_commit_crash", DBUG_SUICIDE(););
   row_mysql_unlock_data_dictionary(trx);
 
@@ -2913,7 +2852,8 @@ row_rename_table_for_mysql(
 		DEBUG_SYNC_C("innodb_rename_in_cache");
 		/* The following call will also rename the .ibd file */
 		err = dict_table_rename_in_cache(
-			table, new_name, !new_is_tmp);
+			table, span<const char>{new_name,strlen(new_name)},
+			false);
 		if (err != DB_SUCCESS) {
 			goto rollback_and_exit;
 		}
@@ -2930,7 +2870,7 @@ row_rename_table_for_mysql(
 		dict_names_t	fk_tables;
 
 		err = dict_load_foreigns(
-			new_name, NULL, false,
+			new_name, nullptr, trx->id,
 			!old_is_tmp || trx->check_foreigns,
 			use_fk
 			? DICT_ERR_IGNORE_NONE

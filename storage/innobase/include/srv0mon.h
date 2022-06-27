@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -174,8 +174,6 @@ enum monitor_id_t {
 	MONITOR_OVLD_BUF_POOL_PAGES_FREE,
 	MONITOR_OVLD_PAGE_CREATED,
 	MONITOR_OVLD_PAGES_WRITTEN,
-	MONITOR_OVLD_INDEX_PAGES_WRITTEN,
-	MONITOR_OVLD_NON_INDEX_PAGES_WRITTEN,
 	MONITOR_OVLD_PAGES_READ,
 	MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS,
 	MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS_AVOIDED,
@@ -863,6 +861,6 @@ void
 srv_mon_default_on(void);
 /*====================*/
 
-#include "srv0mon.ic"
+#include "srv0mon.inl"
 
 #endif

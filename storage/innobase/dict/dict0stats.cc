@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2009, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -167,10 +167,7 @@ dict_stats_should_ignore_index(
 /*===========================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	return((index->type & (DICT_FTS | DICT_SPATIAL))
-	       || index->is_corrupted()
-	       || index->to_be_dropped
-	       || !index->is_committed());
+  return !index->is_btree() || index->to_be_dropped || !index->is_committed();
 }
 
 
@@ -1024,6 +1021,355 @@ dict_stats_snapshot_free(
 	dict_stats_table_clone_free(t);
 }
 
+/** Statistics for one field of an index. */
+struct index_field_stats_t
+{
+  ib_uint64_t n_diff_key_vals;
+  ib_uint64_t n_sample_sizes;
+  ib_uint64_t n_non_null_key_vals;
+
+  index_field_stats_t(ib_uint64_t n_diff_key_vals= 0,
+                      ib_uint64_t n_sample_sizes= 0,
+                      ib_uint64_t n_non_null_key_vals= 0)
+      : n_diff_key_vals(n_diff_key_vals), n_sample_sizes(n_sample_sizes),
+        n_non_null_key_vals(n_non_null_key_vals)
+  {
+  }
+};
+
+/*******************************************************************//**
+Record the number of non_null key values in a given index for
+each n-column prefix of the index where 1 <= n <= dict_index_get_n_unique(index).
+The estimates are eventually stored in the array:
+index->stat_n_non_null_key_vals[], which is indexed from 0 to n-1. */
+static
+void
+btr_record_not_null_field_in_rec(
+/*=============================*/
+	ulint		n_unique,	/*!< in: dict_index_get_n_unique(index),
+					number of columns uniquely determine
+					an index entry */
+	const rec_offs*	offsets,	/*!< in: rec_get_offsets(rec, index),
+					its size could be for all fields or
+					that of "n_unique" */
+	ib_uint64_t*	n_not_null)	/*!< in/out: array to record number of
+					not null rows for n-column prefix */
+{
+	ulint	i;
+
+	ut_ad(rec_offs_n_fields(offsets) >= n_unique);
+
+	if (n_not_null == NULL) {
+		return;
+	}
+
+	for (i = 0; i < n_unique; i++) {
+		if (rec_offs_nth_sql_null(offsets, i)) {
+			break;
+		}
+
+		n_not_null[i]++;
+	}
+}
+
+/** Estimated table level stats from sampled value.
+@param value sampled stats
+@param index index being sampled
+@param sample number of sampled rows
+@param ext_size external stored data size
+@param not_empty table not empty
+@return estimated table wide stats from sampled value */
+#define BTR_TABLE_STATS_FROM_SAMPLE(value, index, sample, ext_size, not_empty) \
+	(((value) * static_cast<ib_uint64_t>(index->stat_n_leaf_pages) \
+	  + (sample) - 1 + (ext_size) + (not_empty)) / ((sample) + (ext_size)))
+
+/** Estimates the number of different key values in a given index, for
+each n-column prefix of the index where 1 <= n <= dict_index_get_n_unique(index).
+The estimates are stored in the array index->stat_n_diff_key_vals[] (indexed
+0..n_uniq-1) and the number of pages that were sampled is saved in
+result.n_sample_sizes[].
+If innodb_stats_method is nulls_ignored, we also record the number of
+non-null values for each prefix and stored the estimates in
+array result.n_non_null_key_vals.
+@param index          B-tree index
+@param bulk_trx_id    the value of index->table->bulk_trx_id at the start
+@return vector with statistics information
+empty vector if the index is unavailable. */
+static
+std::vector<index_field_stats_t>
+btr_estimate_number_of_different_key_vals(dict_index_t* index,
+					  trx_id_t bulk_trx_id)
+{
+	btr_cur_t	cursor;
+	page_t*		page;
+	rec_t*		rec;
+	ulint		n_cols;
+	ib_uint64_t*	n_diff;
+	ib_uint64_t*	n_not_null;
+	ibool		stats_null_not_equal;
+	uintmax_t	n_sample_pages=1; /* number of pages to sample */
+	ulint		not_empty_flag	= 0;
+	ulint		total_external_size = 0;
+	uintmax_t	add_on;
+	mtr_t		mtr;
+	mem_heap_t*	heap		= NULL;
+	rec_offs*	offsets_rec	= NULL;
+	rec_offs*	offsets_next_rec = NULL;
+
+	std::vector<index_field_stats_t> result;
+
+	ut_ad(!index->is_spatial());
+
+	n_cols = dict_index_get_n_unique(index);
+
+	heap = mem_heap_create((sizeof *n_diff + sizeof *n_not_null)
+			       * n_cols
+			       + dict_index_get_n_fields(index)
+			       * (sizeof *offsets_rec
+				  + sizeof *offsets_next_rec));
+
+	n_diff = (ib_uint64_t*) mem_heap_zalloc(
+		heap, n_cols * sizeof(n_diff[0]));
+
+	n_not_null = NULL;
+
+	/* Check srv_innodb_stats_method setting, and decide whether we
+	need to record non-null value and also decide if NULL is
+	considered equal (by setting stats_null_not_equal value) */
+	switch (srv_innodb_stats_method) {
+	case SRV_STATS_NULLS_IGNORED:
+		n_not_null = (ib_uint64_t*) mem_heap_zalloc(
+			heap, n_cols * sizeof *n_not_null);
+		/* fall through */
+
+	case SRV_STATS_NULLS_UNEQUAL:
+		/* for both SRV_STATS_NULLS_IGNORED and SRV_STATS_NULLS_UNEQUAL
+		case, we will treat NULLs as unequal value */
+		stats_null_not_equal = TRUE;
+		break;
+
+	case SRV_STATS_NULLS_EQUAL:
+		stats_null_not_equal = FALSE;
+		break;
+
+	default:
+		ut_error;
+	}
+
+	if (srv_stats_sample_traditional) {
+		/* It makes no sense to test more pages than are contained
+		in the index, thus we lower the number if it is too high */
+		if (srv_stats_transient_sample_pages > index->stat_index_size) {
+			if (index->stat_index_size > 0) {
+				n_sample_pages = index->stat_index_size;
+			}
+		} else {
+			n_sample_pages = srv_stats_transient_sample_pages;
+		}
+	} else {
+		/* New logaritmic number of pages that are estimated.
+		Number of pages estimated should be between 1 and
+		index->stat_index_size.
+
+		If we have only 0 or 1 index pages then we can only take 1
+		sample. We have already initialized n_sample_pages to 1.
+
+		So taking index size as I and sample as S and log(I)*S as L
+
+		requirement 1) we want the out limit of the expression to not exceed I;
+		requirement 2) we want the ideal pages to be at least S;
+		so the current expression is min(I, max( min(S,I), L)
+
+		looking for simplifications:
+
+		case 1: assume S < I
+		min(I, max( min(S,I), L) -> min(I , max( S, L))
+
+		but since L=LOG2(I)*S and log2(I) >=1   L>S always so max(S,L) = L.
+
+		so we have: min(I , L)
+
+		case 2: assume I < S
+		    min(I, max( min(S,I), L) -> min(I, max( I, L))
+
+		case 2a: L > I
+		    min(I, max( I, L)) -> min(I, L) -> I
+
+		case 2b: when L < I
+		    min(I, max( I, L))  ->  min(I, I ) -> I
+
+		so taking all case2 paths is I, our expression is:
+		n_pages = S < I? min(I,L) : I
+                */
+		if (index->stat_index_size > 1) {
+			n_sample_pages = (srv_stats_transient_sample_pages < index->stat_index_size)
+				? ut_min(index->stat_index_size,
+					 static_cast<ulint>(
+						 log2(double(index->stat_index_size))
+						 * double(srv_stats_transient_sample_pages)))
+				: index->stat_index_size;
+		}
+	}
+
+	/* Sanity check */
+	ut_ad(n_sample_pages > 0 && n_sample_pages <= (index->stat_index_size <= 1 ? 1 : index->stat_index_size));
+
+	/* We sample some pages in the index to get an estimate */
+
+	for (ulint i = 0; i < n_sample_pages; i++) {
+		mtr.start();
+
+		if (!btr_cur_open_at_rnd_pos(index, BTR_SEARCH_LEAF,
+					     &cursor, &mtr)
+		    || index->table->bulk_trx_id != bulk_trx_id
+		    || !index->is_readable()) {
+			mtr.commit();
+			goto exit_loop;
+		}
+
+		/* Count the number of different key values for each prefix of
+		the key on this index page. If the prefix does not determine
+		the index record uniquely in the B-tree, then we subtract one
+		because otherwise our algorithm would give a wrong estimate
+		for an index where there is just one key value. */
+
+		page = btr_cur_get_page(&cursor);
+
+		rec = page_rec_get_next(page_get_infimum_rec(page));
+		const ulint n_core = page_is_leaf(page)
+			? index->n_core_fields : 0;
+
+		if (!page_rec_is_supremum(rec)) {
+			not_empty_flag = 1;
+			offsets_rec = rec_get_offsets(rec, index, offsets_rec,
+						      n_core,
+						      ULINT_UNDEFINED, &heap);
+
+			if (n_not_null != NULL) {
+				btr_record_not_null_field_in_rec(
+					n_cols, offsets_rec, n_not_null);
+			}
+		}
+
+		while (!page_rec_is_supremum(rec)) {
+			ulint	matched_fields;
+			rec_t*	next_rec = page_rec_get_next(rec);
+			if (page_rec_is_supremum(next_rec)) {
+				total_external_size +=
+					btr_rec_get_externally_stored_len(
+						rec, offsets_rec);
+				break;
+			}
+
+			offsets_next_rec = rec_get_offsets(next_rec, index,
+							   offsets_next_rec,
+							   n_core,
+							   ULINT_UNDEFINED,
+							   &heap);
+
+			cmp_rec_rec(rec, next_rec,
+				    offsets_rec, offsets_next_rec,
+				    index, stats_null_not_equal,
+				    &matched_fields);
+
+			for (ulint j = matched_fields; j < n_cols; j++) {
+				/* We add one if this index record has
+				a different prefix from the previous */
+
+				n_diff[j]++;
+			}
+
+			if (n_not_null != NULL) {
+				btr_record_not_null_field_in_rec(
+					n_cols, offsets_next_rec, n_not_null);
+			}
+
+			total_external_size
+				+= btr_rec_get_externally_stored_len(
+					rec, offsets_rec);
+
+			rec = next_rec;
+			/* Initialize offsets_rec for the next round
+			and assign the old offsets_rec buffer to
+			offsets_next_rec. */
+			{
+				rec_offs* offsets_tmp = offsets_rec;
+				offsets_rec = offsets_next_rec;
+				offsets_next_rec = offsets_tmp;
+			}
+		}
+
+		if (n_cols == dict_index_get_n_unique_in_tree(index)
+		    && page_has_siblings(page)) {
+
+			/* If there is more than one leaf page in the tree,
+			we add one because we know that the first record
+			on the page certainly had a different prefix than the
+			last record on the previous index page in the
+			alphabetical order. Before this fix, if there was
+			just one big record on each clustered index page, the
+			algorithm grossly underestimated the number of rows
+			in the table. */
+
+			n_diff[n_cols - 1]++;
+		}
+
+		mtr.commit();
+	}
+
+exit_loop:
+	/* If we saw k borders between different key values on
+	n_sample_pages leaf pages, we can estimate how many
+	there will be in index->stat_n_leaf_pages */
+
+	/* We must take into account that our sample actually represents
+	also the pages used for external storage of fields (those pages are
+	included in index->stat_n_leaf_pages) */
+
+	result.reserve(n_cols);
+
+	for (ulint j = 0; j < n_cols; j++) {
+		index_field_stats_t stat;
+
+		stat.n_diff_key_vals
+			= BTR_TABLE_STATS_FROM_SAMPLE(
+				n_diff[j], index, n_sample_pages,
+				total_external_size, not_empty_flag);
+
+		/* If the tree is small, smaller than
+		10 * n_sample_pages + total_external_size, then
+		the above estimate is ok. For bigger trees it is common that we
+		do not see any borders between key values in the few pages
+		we pick. But still there may be n_sample_pages
+		different key values, or even more. Let us try to approximate
+		that: */
+
+		add_on = index->stat_n_leaf_pages
+			/ (10 * (n_sample_pages
+				 + total_external_size));
+
+		if (add_on > n_sample_pages) {
+			add_on = n_sample_pages;
+		}
+
+		stat.n_diff_key_vals += add_on;
+
+		stat.n_sample_sizes = n_sample_pages;
+
+		if (n_not_null != NULL) {
+			stat.n_non_null_key_vals =
+				 BTR_TABLE_STATS_FROM_SAMPLE(
+					n_not_null[j], index, n_sample_pages,
+					total_external_size, not_empty_flag);
+		}
+
+		result.push_back(stat);
+	}
+
+	mem_heap_free(heap);
+	return result;
+}
+
 /*********************************************************************//**
 Calculates new estimates for index statistics. This function is
 relatively quick and is used to calculate transient statistics that
@@ -1054,39 +1400,51 @@ dummy_empty:
 	} else if (ibuf_debug && !dict_index_is_clust(index)) {
 		goto dummy_empty;
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
+	} else if (dict_index_is_online_ddl(index) || !index->is_committed()
+		   || !index->table->space) {
+		goto dummy_empty;
 	} else {
 		mtr_t	mtr;
-		ulint	size;
 
 		mtr.start();
 		mtr_s_lock_index(index, &mtr);
-		size = btr_get_size(index, BTR_TOTAL_SIZE, &mtr);
-
-		if (size != ULINT_UNDEFINED) {
-			index->stat_index_size = size;
-
-			size = btr_get_size(
-				index, BTR_N_LEAF_PAGES, &mtr);
+		dberr_t err;
+		buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH,
+						       &mtr, &err);
+		if (!root) {
+invalid:
+			mtr.commit();
+			goto dummy_empty;
 		}
+
+		const auto bulk_trx_id = index->table->bulk_trx_id;
+		if (bulk_trx_id && trx_sys.find(nullptr, bulk_trx_id, false)) {
+			goto invalid;
+		}
+
+		mtr.x_lock_space(index->table->space);
+
+		ulint dummy, size;
+		index->stat_index_size
+			= fseg_n_reserved_pages(*root, PAGE_HEADER
+						+ PAGE_BTR_SEG_LEAF
+						+ root->page.frame, &size,
+						&mtr)
+			+ fseg_n_reserved_pages(*root, PAGE_HEADER
+						+ PAGE_BTR_SEG_TOP
+						+ root->page.frame, &dummy,
+						&mtr);
 
 		mtr.commit();
 
-		switch (size) {
-		case ULINT_UNDEFINED:
-			goto dummy_empty;
-		case 0:
-			/* The root node of the tree is a leaf */
-			size = 1;
-		}
-
-		index->stat_n_leaf_pages = size;
+		index->stat_n_leaf_pages = size ? size : 1;
 
 		/* Do not continue if table decryption has failed or
 		table is already marked as corrupted. */
 		if (index->is_readable()) {
 			std::vector<index_field_stats_t> stats
 				= btr_estimate_number_of_different_key_vals(
-					index);
+					index, bulk_trx_id);
 
 			if (!stats.empty()) {
 				index->table->stats_mutex_lock();
@@ -1270,9 +1628,12 @@ dict_stats_analyze_index_level(
 	/* Position pcur on the leftmost record on the leftmost page
 	on the desired level. */
 
-	btr_pcur_open_at_index_side(
-		true, index, BTR_SEARCH_TREE_ALREADY_S_LATCHED,
-		&pcur, true, level, mtr);
+	if (btr_pcur_open_at_index_side(
+		    true, index, BTR_SEARCH_TREE_ALREADY_S_LATCHED,
+		    &pcur, true, level, mtr) != DB_SUCCESS) {
+		goto func_exit;
+	}
+
 	btr_pcur_move_to_next_on_page(&pcur);
 
 	page = btr_pcur_get_page(&pcur);
@@ -1283,11 +1644,17 @@ dict_stats_analyze_index_level(
 	ut_ad(btr_pcur_get_rec(&pcur)
 	      == page_rec_get_next_const(page_get_infimum_rec(page)));
 
-	/* check that we are indeed on the desired level */
-	ut_a(btr_page_get_level(page) == level);
+	prev_rec = NULL;
+	prev_rec_is_copied = false;
 
-	/* there should not be any pages on the left */
-	ut_a(!page_has_prev(page));
+	/* no records by default */
+	*total_recs = 0;
+
+	*total_pages = 0;
+
+	if (page_has_prev(page) || btr_page_get_level(page) != level) {
+		goto func_exit;
+	}
 
 	if (REC_INFO_MIN_REC_FLAG & rec_get_info_bits(
 		    btr_pcur_get_rec(&pcur), page_is_comp(page))) {
@@ -1297,19 +1664,11 @@ dict_stats_analyze_index_level(
 			ut_ad(index->is_instant());
 			btr_pcur_move_to_next_user_rec(&pcur, mtr);
 		}
-	} else {
+	} else if (UNIV_UNLIKELY(level != 0)) {
 		/* The first record on the leftmost page must be
 		marked as such on each level except the leaf level. */
-		ut_a(level == 0);
+		goto func_exit;
 	}
-
-	prev_rec = NULL;
-	prev_rec_is_copied = false;
-
-	/* no records by default */
-	*total_recs = 0;
-
-	*total_pages = 0;
 
 	/* iterate over all user records on this level
 	and compare each two adjacent ones, even the last on page
@@ -1512,11 +1871,8 @@ dict_stats_analyze_index_level(
 	}
 #endif /* UNIV_STATS_DEBUG */
 
-	/* Release the latch on the last page, because that is not done by
-	btr_pcur_close(). This function works also for non-leaf pages. */
 	btr_leaf_page_release(btr_pcur_get_block(&pcur), BTR_SEARCH_LEAF, mtr);
-
-	btr_pcur_close(&pcur);
+func_exit:
 	ut_free(prev_rec_buf);
 	mem_heap_free(heap);
 }
@@ -1719,16 +2075,18 @@ dict_stats_analyze_index_below_cur(
 
 	/* descend to the leaf level on the B-tree */
 	for (;;) {
-
-		dberr_t err = DB_SUCCESS;
+		dberr_t err;
 
 		block = buf_page_get_gen(page_id, zip_size,
 					 RW_S_LATCH, NULL, BUF_GET,
 					 &mtr, &err,
 					 !index->is_clust()
 					 && 1 == btr_page_get_level(page));
+		if (!block) {
+			goto func_exit;
+		}
 
-		page = buf_block_get_frame(block);
+		page = block->page.frame;
 
 		if (page_is_leaf(page)) {
 			/* leaf level */
@@ -1792,6 +2150,7 @@ dict_stats_analyze_index_below_cur(
 		     __func__, page_no, n_diff);
 #endif
 
+func_exit:
 	mtr_commit(&mtr);
 	mem_heap_free(heap);
 }
@@ -1872,47 +2231,42 @@ dict_stats_analyze_index_for_n_prefix(
 #endif
 
 	ut_ad(mtr->memo_contains(index->lock, MTR_MEMO_SX_LOCK));
+	ut_ad(n_diff_data->level);
 
 	/* Position pcur on the leftmost record on the leftmost page
 	on the desired level. */
 
-	btr_pcur_open_at_index_side(
-		true, index, BTR_SEARCH_TREE_ALREADY_S_LATCHED,
-		&pcur, true, n_diff_data->level, mtr);
+	n_diff_data->n_diff_all_analyzed_pages = 0;
+	n_diff_data->n_external_pages_sum = 0;
+
+	if (btr_pcur_open_at_index_side(true, index,
+					BTR_SEARCH_TREE_ALREADY_S_LATCHED,
+					&pcur, true, n_diff_data->level, mtr)
+	    != DB_SUCCESS) {
+		return;
+	}
+
 	btr_pcur_move_to_next_on_page(&pcur);
 
 	page = btr_pcur_get_page(&pcur);
 
 	const rec_t*	first_rec = btr_pcur_get_rec(&pcur);
 
-	/* We shouldn't be scanning the leaf level. The caller of this function
-	should have stopped the descend on level 1 or higher. */
-	ut_ad(n_diff_data->level > 0);
-	ut_ad(!page_is_leaf(page));
-
 	/* The page must not be empty, except when
 	it is the root page (and the whole index is empty). */
-	ut_ad(btr_pcur_is_on_user_rec(&pcur));
-	ut_ad(first_rec == page_rec_get_next_const(page_get_infimum_rec(page)));
-
-	/* check that we are indeed on the desired level */
-	ut_a(btr_page_get_level(page) == n_diff_data->level);
-
-	/* there should not be any pages on the left */
-	ut_a(!page_has_prev(page));
-
-	/* check whether the first record on the leftmost page is marked
-	as such; we are on a non-leaf level */
-	ut_a(rec_get_info_bits(first_rec, page_is_comp(page))
-	     & REC_INFO_MIN_REC_FLAG);
+	if (page_has_prev(page)
+	    || !btr_pcur_is_on_user_rec(&pcur)
+	    || btr_page_get_level(page) != n_diff_data->level
+	    || first_rec != page_rec_get_next_const(page_get_infimum_rec(page))
+	    || !(rec_get_info_bits(first_rec, page_is_comp(page))
+		 & REC_INFO_MIN_REC_FLAG)) {
+		return;
+	}
 
 	const ib_uint64_t	last_idx_on_level = boundaries->at(
 		static_cast<unsigned>(n_diff_data->n_diff_on_level - 1));
 
 	rec_idx = 0;
-
-	n_diff_data->n_diff_all_analyzed_pages = 0;
-	n_diff_data->n_external_pages_sum = 0;
 
 	for (i = 0; i < n_diff_data->n_leaf_pages_to_analyze; i++) {
 		/* there are n_diff_on_level elements
@@ -2022,8 +2376,6 @@ dict_stats_analyze_index_for_n_prefix(
 
 		n_diff_data->n_external_pages_sum += n_external_pages;
 	}
-
-	btr_pcur_close(&pcur);
 }
 
 /** statistics for an index */
@@ -2037,7 +2389,7 @@ struct index_stats_t
   {
     stats.reserve(n_uniq);
     for (ulint i= 0; i < n_uniq; ++i)
-      stats.push_back(index_field_stats_t(0, 1, 0));
+      stats.push_back(index_field_stats_t{0, 1, 0});
   }
 };
 
@@ -2123,15 +2475,12 @@ stat_n_leaf_pages. This function can be slow.
 @return index stats */
 static index_stats_t dict_stats_analyze_index(dict_index_t* index)
 {
-	ulint		root_level;
-	ulint		level;
 	bool		level_is_analyzed;
 	ulint		n_uniq;
 	ulint		n_prefix;
 	ib_uint64_t	total_recs;
 	ib_uint64_t	total_pages;
 	mtr_t		mtr;
-	ulint		size;
 	index_stats_t	result(index->n_uniq);
 	DBUG_ENTER("dict_stats_analyze_index");
 
@@ -2150,30 +2499,36 @@ static index_stats_t dict_stats_analyze_index(dict_index_t* index)
 
 	mtr.start();
 	mtr_s_lock_index(index, &mtr);
-	size = btr_get_size(index, BTR_TOTAL_SIZE, &mtr);
-
-	if (size != ULINT_UNDEFINED) {
-		result.index_size = size;
-		size = btr_get_size(index, BTR_N_LEAF_PAGES, &mtr);
-	}
-
-	/* Release the X locks on the root page taken by btr_get_size() */
-	mtr.commit();
-
-	switch (size) {
-	case ULINT_UNDEFINED:
+	dberr_t err;
+        buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, &mtr, &err);
+	if (!root) {
+empty_index:
+		mtr.commit();
 		dict_stats_assert_initialized_index(index);
 		DBUG_RETURN(result);
-	case 0:
-		/* The root node of the tree is a leaf */
-		size = 1;
 	}
 
-	result.n_leaf_pages = size;
+	uint16_t root_level = btr_page_get_level(root->page.frame);
+	mtr.x_lock_space(index->table->space);
+	ulint dummy, size;
+	result.index_size
+		= fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
+					+ root->page.frame, &size, &mtr)
+		+ fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_TOP
+					+ root->page.frame, &dummy, &mtr);
+	result.n_leaf_pages = size ? size : 1;
+
+	const auto bulk_trx_id = index->table->bulk_trx_id;
+	if (bulk_trx_id && trx_sys.find(nullptr, bulk_trx_id, false)) {
+		result.index_size = 1;
+		result.n_leaf_pages = 1;
+		goto empty_index;
+	}
+
+	mtr.commit();
 
 	mtr.start();
 	mtr_sx_lock_index(index, &mtr);
-	root_level = btr_height_get(index, &mtr);
 
 	n_uniq = dict_index_get_n_unique(index);
 
@@ -2251,7 +2606,7 @@ static index_stats_t dict_stats_analyze_index(dict_index_t* index)
 	So if we find that the first level containing D distinct
 	keys (on n_prefix columns) is L, we continue from L when
 	searching for D distinct keys on n_prefix-1 columns. */
-	level = root_level;
+	auto level = root_level;
 	level_is_analyzed = false;
 
 	for (n_prefix = n_uniq; n_prefix >= 1; n_prefix--) {
@@ -2265,7 +2620,10 @@ static index_stats_t dict_stats_analyze_index(dict_index_t* index)
 		mtr.commit();
 		mtr.start();
 		mtr_sx_lock_index(index, &mtr);
-		if (root_level != btr_height_get(index, &mtr)) {
+		buf_block_t *root = btr_root_block_get(index, RW_S_LATCH,
+						       &mtr, &err);
+		if (!root || root_level != btr_page_get_level(root->page.frame)
+		    || index->table->bulk_trx_id != bulk_trx_id) {
 			/* Just quit if the tree has changed beyond
 			recognition here. The old stats from previous
 			runs will remain in the values that we have
@@ -2276,6 +2634,8 @@ static index_stats_t dict_stats_analyze_index(dict_index_t* index)
 			read uninitialized memory later. */
 			break;
 		}
+
+		mtr.memo_release(root, MTR_MEMO_PAGE_S_FIX);
 
 		/* check whether we should pick the current level;
 		we pick level 1 even if it does not have enough
@@ -2726,7 +3086,9 @@ release_and_exit:
 		ret = lock_table_for_trx(index_stats, trx, LOCK_X);
 	}
 	if (ret != DB_SUCCESS) {
-		trx->commit();
+		if (trx->state != TRX_STATE_NOT_STARTED) {
+			trx->commit();
+		}
 		goto unlocked_free_and_exit;
 	}
 
@@ -2871,6 +3233,11 @@ unlocked_free_and_exit:
 		if (ret != DB_SUCCESS) {
 			goto rollback_and_exit;
 		}
+	}
+
+	ret= trx->bulk_insert_apply();
+	if (ret != DB_SUCCESS) {
+		goto rollback_and_exit;
 	}
 
 	trx->commit();
@@ -3247,6 +3614,41 @@ dict_stats_fetch_from_ps(
 	stats. */
 	dict_stats_empty_table(table, true);
 
+	THD* thd = current_thd;
+	MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
+	dict_table_t* table_stats = dict_table_open_on_name(
+		TABLE_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
+	if (table_stats) {
+		dict_sys.freeze(SRW_LOCK_CALL);
+		table_stats = dict_acquire_mdl_shared<false>(table_stats, thd,
+							     &mdl_table);
+		dict_sys.unfreeze();
+	}
+	if (!table_stats
+	    || strcmp(table_stats->name.m_name, TABLE_STATS_NAME)) {
+release_and_exit:
+		if (table_stats) {
+			dict_table_close(table_stats, false, thd, mdl_table);
+		}
+		return DB_STATS_DO_NOT_EXIST;
+	}
+
+	dict_table_t* index_stats = dict_table_open_on_name(
+		INDEX_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
+	if (index_stats) {
+		dict_sys.freeze(SRW_LOCK_CALL);
+		index_stats = dict_acquire_mdl_shared<false>(index_stats, thd,
+							     &mdl_index);
+		dict_sys.unfreeze();
+	}
+	if (!index_stats) {
+		goto release_and_exit;
+	}
+	if (strcmp(index_stats->name.m_name, INDEX_STATS_NAME)) {
+		dict_table_close(index_stats, false, thd, mdl_index);
+		goto release_and_exit;
+	}
+
 	trx = trx_create();
 
 	trx_start_internal_read_only(trx);
@@ -3328,6 +3730,9 @@ dict_stats_fetch_from_ps(
 			   "END;", trx);
 	/* pinfo is freed by que_eval_sql() */
 	dict_sys.unlock();
+
+	dict_table_close(table_stats, false, thd, mdl_table);
+	dict_table_close(index_stats, false, thd, mdl_index);
 
 	trx_commit_for_mysql(trx);
 
@@ -3427,12 +3832,19 @@ dict_stats_update(
 
 	if (!table->is_readable()) {
 		return (dict_stats_report_error(table));
-	} else if (srv_force_recovery > SRV_FORCE_NO_IBUF_MERGE) {
+	} else if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
 		/* If we have set a high innodb_force_recovery level, do
 		not calculate statistics, as a badly corrupted index can
 		cause a crash in it. */
 		dict_stats_empty_table(table, false);
 		return(DB_SUCCESS);
+	}
+
+	if (trx_id_t bulk_trx_id = table->bulk_trx_id) {
+		if (trx_sys.find(nullptr, bulk_trx_id, false)) {
+			dict_stats_empty_table(table, false);
+			return DB_SUCCESS;
+		}
 	}
 
 	switch (stats_upd_option) {

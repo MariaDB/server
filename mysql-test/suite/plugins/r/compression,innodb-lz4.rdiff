@@ -1,0 +1,24 @@
+--- suite/plugins/r/compression.result
++++ suite/plugins/r/compression.reject
+@@ -1,8 +1,8 @@
+ #
+-# Testing bzip2 compression provider with innodb
++# Testing lz4 compression provider with innodb
+ #
+ call mtr.add_suppression("MariaDB tried to use the .+ compression, but its provider plugin is not loaded");
+-set global innodb_compression_algorithm = bzip2;
++set global innodb_compression_algorithm = lz4;
+ call mtr.add_suppression("Background Page read failed to read, uncompress, or decrypt");
+ call mtr.add_suppression("Table is compressed or encrypted but uncompress or decrypt failed");
+ call mtr.add_suppression("Table .*t1.* is compressed with (\\w+), which is not currently loaded. Please load the \\1 provider plugin to open the table");
+@@ -15,8 +15,8 @@
+ 0	abcabcabc	300
+ 1	defdefdef	3000
+ 2	ghighighi	30000
+-# restart: --disable-provider-bzip2
++# restart: --disable-provider-lz4
+ select a, left(b, 9), length(b) from t1;
+-ERROR HY000: Table test/t1 is compressed with bzip2, which is not currently loaded. Please load the bzip2 provider plugin to open the table
++ERROR HY000: Table test/t1 is compressed with lz4, which is not currently loaded. Please load the lz4 provider plugin to open the table
+ drop table t1;
+ # restart

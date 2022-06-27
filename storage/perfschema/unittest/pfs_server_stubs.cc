@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2017, Oracle and/or its affiliates. All rights
+/* Copyright (c) 2010, 2021, Oracle and/or its affiliates. All rights
    reserved.
 
   This program is free software; you can redistribute it and/or modify
@@ -51,7 +51,7 @@ void sql_print_warning(const char *format, ...)
 }
 
 class sys_var { public: enum where { AUTO }; };
-void set_sys_var_value_origin(void *ptr, enum sys_var::where here)
+void set_sys_var_value_origin(void *, enum sys_var::where, const char *)
 {
 }
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -65,7 +65,6 @@ enum {
 
 /* btr_cur_latch_leaves() returns latched blocks and savepoints. */
 struct btr_latch_leaves_t {
-	/* left block, target block and right block */
 	buf_block_t*	blocks[3];
 	ulint		savepoints[3];
 };
@@ -73,36 +72,10 @@ struct btr_latch_leaves_t {
 #include "que0types.h"
 #include "row0types.h"
 
-#ifdef UNIV_DEBUG
-/*********************************************************//**
-Returns the page cursor component of a tree cursor.
-@return pointer to page cursor component */
-UNIV_INLINE
-page_cur_t*
-btr_cur_get_page_cur(
-/*=================*/
-	const btr_cur_t*	cursor);/*!< in: tree cursor */
-/*********************************************************//**
-Returns the buffer block on which the tree cursor is positioned.
-@return pointer to buffer block */
-UNIV_INLINE
-buf_block_t*
-btr_cur_get_block(
-/*==============*/
-	const btr_cur_t*	cursor);/*!< in: tree cursor */
-/*********************************************************//**
-Returns the record pointer of a tree cursor.
-@return pointer to record */
-UNIV_INLINE
-rec_t*
-btr_cur_get_rec(
-/*============*/
-	const btr_cur_t*	cursor);/*!< in: tree cursor */
-#else /* UNIV_DEBUG */
-# define btr_cur_get_page_cur(cursor)	(&(cursor)->page_cur)
-# define btr_cur_get_block(cursor)	((cursor)->page_cur.block)
-# define btr_cur_get_rec(cursor)	((cursor)->page_cur.rec)
-#endif /* UNIV_DEBUG */
+#define btr_cur_get_page_cur(cursor)	(&(cursor)->page_cur)
+#define btr_cur_get_block(cursor)	((cursor)->page_cur.block)
+#define btr_cur_get_rec(cursor)	((cursor)->page_cur.rec)
+
 /*********************************************************//**
 Returns the compressed page on which the tree cursor is positioned.
 @return pointer to compressed page, or NULL if the page is not compressed */
@@ -168,6 +141,7 @@ btr_cur_optimistic_latch_leaves(
 	btr_cur_t*	cursor,
 	mtr_t*		mtr);
 
+MY_ATTRIBUTE((warn_unused_result))
 /********************************************************************//**
 Searches an index tree and positions a tree cursor on a given level.
 NOTE: n_fields_cmp in tuple must be set so that it cannot be compared
@@ -201,7 +175,7 @@ btr_cur_search_to_nth_level_func(
 	btr_cur_t*	cursor, /*!< in/out: tree cursor; the cursor page is
 				s- or x-latched, but see also above! */
 #ifdef BTR_CUR_HASH_ADAPT
-	srw_lock*	ahi_latch,
+	srw_spin_lock*	ahi_latch,
 				/*!< in: currently held AHI rdlock, or NULL */
 #endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
@@ -229,7 +203,7 @@ btr_cur_open_at_index_side(
 	ulint		level,		/*!< in: level to search for
 					(0=leaf) */
 	mtr_t*		mtr)		/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((nonnull));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /**********************************************************************//**
 Positions a cursor at a randomly chosen position within a B-tree.
@@ -240,7 +214,8 @@ btr_cur_open_at_rnd_pos(
 	dict_index_t*	index,		/*!< in: index */
 	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_cur_t*	cursor,		/*!< in/out: B-tree cursor */
-	mtr_t*		mtr);		/*!< in: mtr */
+	mtr_t*		mtr)		/*!< in: mtr */
+	MY_ATTRIBUTE((nonnull,warn_unused_result));
 /*************************************************************//**
 Tries to perform an insert to a page in an index tree, next to cursor.
 It is assumed that mtr holds an x-latch on the page. The operation does
@@ -468,44 +443,36 @@ that mtr holds an x-latch on the tree and on the cursor page. To avoid
 deadlocks, mtr must also own x-latches to brothers of page, if those
 brothers exist. NOTE: it is assumed that the caller has reserved enough
 free extents so that the compression will always succeed if done!
-@return TRUE if compression occurred */
-ibool
+@return whether compression occurred */
+bool
 btr_cur_compress_if_useful(
 /*=======================*/
 	btr_cur_t*	cursor,	/*!< in/out: cursor on the page to compress;
-				cursor does not stay valid if compression
-				occurs */
-	ibool		adjust,	/*!< in: TRUE if should adjust the
-				cursor position even if compression occurs */
+				cursor does not stay valid if !adjust and
+				compression occurs */
+	bool		adjust,	/*!< in: whether the cursor position should be
+				adjusted even when compression occurs */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
 /*******************************************************//**
 Removes the record on which the tree cursor is positioned. It is assumed
 that the mtr has an x-latch on the page where the cursor is positioned,
 but no latch on the whole tree.
-@return TRUE if success, i.e., the page did not become too empty */
-ibool
-btr_cur_optimistic_delete_func(
-/*===========================*/
+@return error code
+@retval DB_FAIL if the page would become too empty */
+dberr_t
+btr_cur_optimistic_delete(
+/*======================*/
 	btr_cur_t*	cursor,	/*!< in: cursor on the record to delete;
 				cursor stays valid: if deletion succeeds,
 				on function exit it points to the successor
 				of the deleted record */
-# ifdef UNIV_DEBUG
 	ulint		flags,	/*!< in: BTR_CREATE_FLAG or 0 */
-# endif /* UNIV_DEBUG */
 	mtr_t*		mtr)	/*!< in: mtr; if this function returns
 				TRUE on a leaf page of a secondary
 				index, the mtr must be committed
 				before latching any further pages */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-# ifdef UNIV_DEBUG
-#  define btr_cur_optimistic_delete(cursor, flags, mtr)		\
-	btr_cur_optimistic_delete_func(cursor, flags, mtr)
-# else /* UNIV_DEBUG */
-#  define btr_cur_optimistic_delete(cursor, flags, mtr)		\
-	btr_cur_optimistic_delete_func(cursor, mtr)
-# endif /* UNIV_DEBUG */
 /*************************************************************//**
 Removes the record on which the tree cursor is positioned. Tries
 to compress the page if its fillfactor drops below a threshold
@@ -537,8 +504,8 @@ btr_cur_pessimistic_delete(
 /** Delete the node pointer in a parent page.
 @param[in,out]	parent	cursor pointing to parent record
 @param[in,out]	mtr	mini-transaction */
-void btr_cur_node_ptr_delete(btr_cur_t* parent, mtr_t* mtr)
-	MY_ATTRIBUTE((nonnull));
+dberr_t btr_cur_node_ptr_delete(btr_cur_t* parent, mtr_t* mtr)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /***********************************************************//**
 Parses a redo log record of updating a record in-place.
 @return end of log record or NULL */
@@ -574,37 +541,6 @@ btr_estimate_n_rows_in_range(
 	dict_index_t*	index,
         btr_pos_t*      range_start,
         btr_pos_t*      range_end);
-
-
-/** Statistics for one field of an index. */
-struct index_field_stats_t
-{
-  ib_uint64_t n_diff_key_vals;
-  ib_uint64_t n_sample_sizes;
-  ib_uint64_t n_non_null_key_vals;
-
-  index_field_stats_t(ib_uint64_t n_diff_key_vals= 0,
-                      ib_uint64_t n_sample_sizes= 0,
-                      ib_uint64_t n_non_null_key_vals= 0)
-      : n_diff_key_vals(n_diff_key_vals), n_sample_sizes(n_sample_sizes),
-        n_non_null_key_vals(n_non_null_key_vals)
-  {
-  }
-};
-
-/** Estimates the number of different key values in a given index, for
-each n-column prefix of the index where 1 <= n <= dict_index_get_n_unique(index).
-The estimates are stored in the array index->stat_n_diff_key_vals[] (indexed
-0..n_uniq-1) and the number of pages that were sampled is saved in
-index->stat_n_sample_sizes[].
-If innodb_stats_method is nulls_ignored, we also record the number of
-non-null values for each prefix and stored the estimates in
-array index->stat_n_non_null_key_vals.
-@param[in]	index	index
-@return stat vector if the index is available and we get the estimated numbers,
-empty vector if the index is unavailable. */
-std::vector<index_field_stats_t>
-btr_estimate_number_of_different_key_vals(dict_index_t* index);
 
 /** Gets the externally stored size of a record, in units of a database page.
 @param[in]	rec	record
@@ -662,9 +598,7 @@ file segment of the index tree.
 dberr_t
 btr_store_big_rec_extern_fields(
 /*============================*/
-	btr_pcur_t*	pcur,		/*!< in/out: a persistent cursor. if
-					btr_mtr is restarted, then this can
-					be repositioned. */
+	btr_pcur_t*	pcur,		/*!< in: a persistent cursor */
 	rec_offs*	offsets,	/*!< in/out: rec_get_offsets() on
 					pcur. the "external storage" flags
 					in offsets will correctly correspond
@@ -675,7 +609,7 @@ btr_store_big_rec_extern_fields(
 					latches to the clustered index. can be
 					committed and restarted. */
 	enum blob_op	op)		/*! in: operation code */
-	MY_ATTRIBUTE((warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*******************************************************************//**
 Frees the space in an externally stored field to the file space
@@ -764,14 +698,15 @@ btr_rec_copy_externally_stored_field(
 @param[in]	block		leaf page where the search converged
 @param[in]	latch_mode	BTR_SEARCH_LEAF, ...
 @param[in]	cursor		cursor
-@param[in]	mtr		mini-transaction
-@return	blocks and savepoints which actually latched. */
-btr_latch_leaves_t
+@param[in,out]	mtr		mini-transaction
+@param[out]	latch_leaves	latched blocks and savepoints */
+void
 btr_cur_latch_leaves(
 	buf_block_t*		block,
 	ulint			latch_mode,
 	btr_cur_t*		cursor,
-	mtr_t*			mtr);
+	mtr_t*			mtr,
+	btr_latch_leaves_t*	latch_leaves = nullptr);
 
 /*######################################################################*/
 
@@ -990,6 +925,6 @@ extern ulint	btr_cur_n_sea_old;
 extern uint	btr_cur_limit_optimistic_insert_debug;
 #endif /* UNIV_DEBUG */
 
-#include "btr0cur.ic"
+#include "btr0cur.inl"
 
 #endif

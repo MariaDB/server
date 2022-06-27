@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,10 +32,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "srw_lock.h"
 
 #include <queue>
-
-/** A dummy undo record used as a return value when we have a whole undo log
-which needs no purge */
-extern trx_undo_rec_t	trx_purge_dummy_rec;
 
 /** Prepend the history list with an undo log.
 Remove the undo log segment from the rseg slot if it is too big for reuse.
@@ -125,7 +121,7 @@ class purge_sys_t
 {
 public:
   /** latch protecting view, m_enabled */
-  MY_ALIGNED(CACHE_LINE_SIZE) mutable srw_lock latch;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mutable srw_spin_lock latch;
 private:
   /** The purge will not remove undo logs which are >= this view */
   ReadViewBase view;
@@ -283,6 +279,13 @@ public:
     trx_sys.clone_oldest_view(&view);
     latch.wr_unlock();
   }
+
+  /** Stop the purge thread and check n_ref_count of all auxiliary
+  and common table associated with the fts table.
+  @param	table		parent FTS table
+  @param	already_stopped	True indicates purge threads were
+				already stopped */
+  void stop_FTS(const dict_table_t &table, bool already_stopped=false);
 };
 
 /** The global data structure coordinating a purge */

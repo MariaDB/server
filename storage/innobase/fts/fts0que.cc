@@ -34,6 +34,7 @@ Completed 2011/7/10 Sunny and Jimmy Yang
 #include "fts0pars.h"
 #include "fts0types.h"
 #include "fts0plugin.h"
+#include "fts0vlc.h"
 
 #include <iomanip>
 #include <vector>
@@ -3225,7 +3226,7 @@ fts_query_filter_doc_ids(
 	ulint			len,		/*!< in: doc id ilist size */
 	ibool			calc_doc_count)	/*!< in: whether to remember doc count */
 {
-	byte*		ptr = static_cast<byte*>(data);
+	const byte*	ptr = static_cast<byte*>(data);
 	doc_id_t	doc_id = 0;
 	ulint		decoded = 0;
 	ib_rbt_t*	doc_freqs = word_freq->doc_freqs;
@@ -3235,8 +3236,8 @@ fts_query_filter_doc_ids(
 		ulint		freq = 0;
 		fts_doc_freq_t*	doc_freq;
 		fts_match_t*	match = NULL;
-		ulint		last_pos = 0;
-		ulint		pos = fts_decode_vlc(&ptr);
+		doc_id_t	last_pos = 0;
+		doc_id_t	pos = fts_decode_vlc(&ptr);
 
 		/* Some sanity checks. */
 		if (doc_id == 0) {

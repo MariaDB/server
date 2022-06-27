@@ -89,7 +89,12 @@ else()
 endif()
 set_target_properties(libgroonga PROPERTIES OUTPUT_NAME "groonga")
 
+if (HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)
+  set(ATOMIC_LIBS atomic)
+endif()
+
 set(GRN_ALL_LIBRARIES
+    ${ATOMIC_LIBS}
     ${EXECINFO_LIBS}
     ${RT_LIBS}
     ${PTHREAD_LIBS}

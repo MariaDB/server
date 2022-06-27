@@ -174,7 +174,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       if ((error= flush_io_cache(&info->rec_cache)))
       {
         /* Fatal error found */
-        _ma_set_fatal_error(share, HA_ERR_CRASHED);
+        _ma_set_fatal_error(info, HA_ERR_CRASHED);
       }
     }
     break;
@@ -210,7 +210,13 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
 	    info->last_key.data + share->base.max_key_length*2,
 	    info->save_lastkey_data_length + info->save_lastkey_ref_length);
       info->update=	info->save_update | HA_STATE_WRITTEN;
-      info->lastinx=	info->save_lastinx;
+      if (info->lastinx != info->save_lastinx)             /* Index changed */
+      {
+        info->lastinx = info->save_lastinx;
+        info->last_key.keyinfo= info->s->keyinfo + info->lastinx;
+        info->last_key.flag= 0;
+        info->page_changed=1;
+      }
       info->cur_row.lastpos= info->save_lastpos;
       info->last_key.data_length= info->save_lastkey_data_length;
       info->last_key.ref_length= info->save_lastkey_ref_length;
@@ -435,7 +441,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       {
 	/* Fatal error found */
 	share->changed= 1;
-        _ma_set_fatal_error(share, HA_ERR_CRASHED);
+        _ma_set_fatal_error(info, HA_ERR_CRASHED);
       }
     }
     mysql_mutex_unlock(&share->intern_lock);
@@ -578,6 +584,7 @@ int maria_reset(MARIA_HA *info)
   info->page_changed= 1;
   info->update= ((info->update & HA_STATE_CHANGED) | HA_STATE_NEXT_FOUND |
                  HA_STATE_PREV_FOUND);
+  info->error_count= 0;
   DBUG_RETURN(error);
 }
 
@@ -659,7 +666,7 @@ int _ma_flush_table_files(MARIA_HA *info, uint flush_data_or_index,
   if (!error)
     DBUG_RETURN(0);
 
-  _ma_set_fatal_error(info->s, HA_ERR_CRASHED);
+  _ma_set_fatal_error(info, HA_ERR_CRASHED);
   DBUG_RETURN(1);
 }
 

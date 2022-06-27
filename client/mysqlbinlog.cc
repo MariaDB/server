@@ -954,7 +954,7 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       Log_event *e= NULL;
 
       // Print the row_event from the last one to the first one
-      for (uint i= events_in_stmt.elements; i > 0; --i)
+      for (size_t i= events_in_stmt.elements; i > 0; --i)
       {
         e= *(dynamic_element(&events_in_stmt, i - 1, Log_event**));
         result= result || print_base64(print_event_info, e);
@@ -962,7 +962,7 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       // Copy all output into the Log_event
       ev->output_buf.copy(e->output_buf);
       // Delete Log_event
-      for (uint i= 0; i < events_in_stmt.elements-1; ++i)
+      for (size_t i= 0; i < events_in_stmt.elements-1; ++i)
       {
         e= *(dynamic_element(&events_in_stmt, i, Log_event**));
         delete e;
@@ -2565,6 +2565,7 @@ static Exit_status handle_event_raw_mode(PRINT_EVENT_INFO *print_event_info,
     error("Could not write into log file '%s'", out_file_name);
     DBUG_RETURN(ERROR_STOP);
   }
+  fflush(result_file);
 
   DBUG_RETURN(OK_CONTINUE);
 }
@@ -3170,7 +3171,7 @@ int main(int argc, char** argv)
   */
   if (opt_flashback && retval != ERROR_STOP)
   {
-    for (uint i= binlog_events.elements; i > 0; --i)
+    for (size_t i= binlog_events.elements; i > 0; --i)
     {
       LEX_STRING *event_str= dynamic_element(&binlog_events, i - 1,
                                              LEX_STRING*);

@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1184,6 +1184,16 @@ public:
 	/** @return whether this is the change buffer */
 	bool is_ibuf() const { return UNIV_UNLIKELY(type & DICT_IBUF); }
 
+	/** @return whether this index requires locking */
+	bool has_locking() const { return !is_ibuf(); }
+
+	/** @return whether this is a normal B-tree index
+        (not the change buffer, not SPATIAL or FULLTEXT) */
+	bool is_btree() const {
+		return UNIV_LIKELY(!(type & (DICT_IBUF | DICT_SPATIAL
+					     | DICT_FTS | DICT_CORRUPT)));
+	}
+
 	/** @return whether the index includes virtual columns */
 	bool has_virtual() const { return type & DICT_VIRTUAL; }
 
@@ -1300,8 +1310,9 @@ public:
   ulint get_new_n_vcol() const
   { return new_vcol_info ? new_vcol_info->n_v_col : 0; }
 
-  /** Reconstruct the clustered index fields. */
-  inline void reconstruct_fields();
+  /** Reconstruct the clustered index fields.
+  @return whether metadata is incorrect */
+  inline bool reconstruct_fields();
 
   /** Check if the index contains a column or a prefix of that column.
   @param[in]	n		column number
@@ -1396,8 +1407,23 @@ public:
 
   /** Clear the index tree and reinitialize the root page, in the
   rollback of TRX_UNDO_EMPTY. The BTR_SEG_LEAF is freed and reinitialized.
-  @param thr query thread */
-  void clear(que_thr_t *thr);
+  @param thr query thread
+  @return error code */
+  dberr_t clear(que_thr_t *thr);
+
+  /** Check whether the online log is dummy value to indicate
+  whether table undergoes active DDL.
+  @retval true if online log is dummy value */
+  bool online_log_is_dummy() const
+  {
+    return online_log == reinterpret_cast<const row_log_t*>(this);
+  }
+
+  /** Assign clustered index online log to dummy value */
+  void online_log_make_dummy()
+  {
+    online_log= reinterpret_cast<row_log_t*>(this);
+  }
 };
 
 /** Detach a virtual column from an index.
@@ -1933,28 +1959,29 @@ struct dict_table_t {
 	/** For overflow fields returns potential max length stored inline */
 	inline size_t get_overflow_field_local_len() const;
 
-	/** Parse the table file name into table name and database name.
-	@tparam		dict_locked	whether dict_sys.lock() was called
-	@param[in,out]	db_name		database name buffer
-	@param[in,out]	tbl_name	table name buffer
-	@param[out]	db_name_len	database name length
-	@param[out]	tbl_name_len	table name length
-	@return whether the table name is visible to SQL */
-	template<bool dict_locked= false>
-	bool parse_name(char (&db_name)[NAME_LEN + 1],
-			char (&tbl_name)[NAME_LEN + 1],
-			size_t *db_name_len, size_t *tbl_name_len) const;
+  /** Parse the table file name into table name and database name.
+  @tparam        dict_frozen  whether the caller holds dict_sys.latch
+  @param[in,out] db_name      database name buffer
+  @param[in,out] tbl_name     table name buffer
+  @param[out] db_name_len     database name length
+  @param[out] tbl_name_len    table name length
+  @return whether the table name is visible to SQL */
+  template<bool dict_frozen= false>
+  bool parse_name(char (&db_name)[NAME_LEN + 1],
+                  char (&tbl_name)[NAME_LEN + 1],
+                  size_t *db_name_len, size_t *tbl_name_len) const;
 
-  /** Clear the table when rolling back TRX_UNDO_EMPTY */
-  void clear(que_thr_t *thr);
+  /** Clear the table when rolling back TRX_UNDO_EMPTY
+  @return error code */
+  dberr_t clear(que_thr_t *thr);
 
 #ifdef UNIV_DEBUG
   /** @return whether the current thread holds the lock_mutex */
   bool lock_mutex_is_owner() const
-  { return lock_mutex_owner == os_thread_get_curr_id(); }
+  { return lock_mutex_owner == pthread_self(); }
   /** @return whether the current thread holds the stats_mutex (lock_mutex) */
   bool stats_mutex_is_owner() const
-  { return lock_mutex_owner == os_thread_get_curr_id(); }
+  { return lock_mutex_owner == pthread_self(); }
 #endif /* UNIV_DEBUG */
   void lock_mutex_init() { lock_mutex.init(); }
   void lock_mutex_destroy() { lock_mutex.destroy(); }
@@ -1963,27 +1990,31 @@ struct dict_table_t {
   {
     ut_ad(!lock_mutex_is_owner());
     lock_mutex.wr_lock();
-    ut_ad(!lock_mutex_owner.exchange(os_thread_get_curr_id()));
+    ut_ad(!lock_mutex_owner.exchange(pthread_self()));
   }
   /** Try to acquire lock_mutex */
   bool lock_mutex_trylock()
   {
     ut_ad(!lock_mutex_is_owner());
     bool acquired= lock_mutex.wr_lock_try();
-    ut_ad(!acquired || !lock_mutex_owner.exchange(os_thread_get_curr_id()));
+    ut_ad(!acquired || !lock_mutex_owner.exchange(pthread_self()));
     return acquired;
   }
   /** Release lock_mutex */
   void lock_mutex_unlock()
   {
-    ut_ad(lock_mutex_owner.exchange(0) == os_thread_get_curr_id());
+    ut_ad(lock_mutex_owner.exchange(0) == pthread_self());
     lock_mutex.wr_unlock();
   }
+#ifndef SUX_LOCK_GENERIC
+  /** @return whether the lock mutex is held by some thread */
+  bool lock_mutex_is_locked() const noexcept { return lock_mutex.is_locked(); }
+#endif
 
   /* stats mutex lock currently defaults to lock_mutex but in the future,
   there could be a use-case to have separate mutex for stats.
-  extra indirection (through inline so no performance hit) should
-  help simplify code and increase long-term maintainability */
+  extra indirection (through inline so no performance hit) should
+  help simplify code and increase long-term maintainability */
   void stats_mutex_init() { lock_mutex_init(); }
   void stats_mutex_destroy() { lock_mutex_destroy(); }
   void stats_mutex_lock() { lock_mutex_lock(); }
@@ -1993,7 +2024,7 @@ struct dict_table_t {
   @param new_name     name of the table
   @param replace      whether to replace the file with the new name
                       (as part of rolling back TRUNCATE) */
-  dberr_t rename_tablespace(const char *new_name, bool replace) const;
+  dberr_t rename_tablespace(span<const char> new_name, bool replace) const;
 
 private:
 	/** Initialize instant->field_map.
@@ -2268,13 +2299,13 @@ public:
 	lock_t*					autoinc_lock;
 
   /** Mutex protecting autoinc and freed_indexes. */
-  srw_mutex autoinc_mutex;
+  srw_spin_mutex autoinc_mutex;
 private:
   /** Mutex protecting locks on this table. */
-  srw_mutex lock_mutex;
+  srw_spin_mutex lock_mutex;
 #ifdef UNIV_DEBUG
   /** The owner of lock_mutex (0 if none) */
-  Atomic_relaxed<os_thread_id_t> lock_mutex_owner{0};
+  Atomic_relaxed<pthread_t> lock_mutex_owner{0};
 #endif
 public:
   /** Autoinc counter value to give to the next inserted row. */
@@ -2355,6 +2386,12 @@ public:
     return false;
   }
 
+  /** @return whether a DDL operation is in progress on this table */
+  bool is_active_ddl() const
+  {
+    return UT_LIST_GET_FIRST(indexes)->online_log;
+  }
+
   /** @return whether the name is
   mysql.innodb_index_stats or mysql.innodb_table_stats */
   bool is_stats_table() const;
@@ -2370,6 +2407,16 @@ public:
   static dict_table_t *create(const span<const char> &name, fil_space_t *space,
                               ulint n_cols, ulint n_v_cols, ulint flags,
                               ulint flags2);
+
+  /** Check whether the table has any spatial indexes */
+  bool has_spatial_index() const
+  {
+    for (auto i= UT_LIST_GET_FIRST(indexes);
+         (i= UT_LIST_GET_NEXT(indexes, i)) != nullptr; )
+      if (i->is_spatial())
+        return true;
+    return false;
+  }
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const
@@ -2462,7 +2509,7 @@ inline void dict_index_t::clear_instant_alter()
 			      { return a.col->ind < b.col->ind; });
 	table->instant = NULL;
 	if (ai_col) {
-		auto a = std::find_if(begin, end,
+		auto a = std::find_if(fields, end,
 				      [ai_col](const dict_field_t& f)
 				      { return f.col == ai_col; });
 		table->persistent_autoinc = (a == end)
@@ -2545,6 +2592,6 @@ inline void dict_stats_empty_defrag_stats(dict_index_t* index)
 	index->stat_defrag_n_page_split = 0;
 }
 
-#include "dict0mem.ic"
+#include "dict0mem.inl"
 
 #endif /* dict0mem_h */

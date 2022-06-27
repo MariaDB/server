@@ -518,7 +518,8 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
       found_condition=
         new (callers_arena->mem_root) Sql_condition(callers_arena->mem_root,
                                                     da->get_error_condition_identity(),
-                                                    da->message());
+                                                    da->message(),
+                                                    da->current_row_for_warning());
     }
   }
   else if (da->current_statement_warn_count())
@@ -714,7 +715,7 @@ Item_cache *sp_rcontext::create_case_expr_holder(THD *thd,
 bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
                                 Item **case_expr_item_ptr)
 {
-  Item *case_expr_item= thd->sp_prepare_func_item(case_expr_item_ptr);
+  Item *case_expr_item= thd->sp_prepare_func_item(case_expr_item_ptr, 1);
   if (!case_expr_item)
     return true;
 

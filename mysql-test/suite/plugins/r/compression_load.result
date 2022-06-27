@@ -1,0 +1,33 @@
+select plugin_name, plugin_status from information_schema.plugins where plugin_name='provider_lz4';
+plugin_name	plugin_status
+set global innodb_compression_algorithm = lz4;
+ERROR 42000: Variable 'innodb_compression_algorithm' can't be set to the value of 'lz4'
+install plugin provider_lz4 soname 'provider_lz4';
+select plugin_name, plugin_status from information_schema.plugins where plugin_name='provider_lz4';
+plugin_name	plugin_status
+provider_lz4	ACTIVE
+set global innodb_compression_algorithm = lz4;
+create table t1 (a int, b text) engine=innodb page_compressed=1;
+insert t1 (a, b) values (0, repeat("abc", 100));
+insert t1 (a, b) values (1, repeat("def", 1000));
+insert t1 (a, b) values (2, repeat("ghi", 10000));
+select a, left(b, 9), length(b) from t1;
+a	left(b, 9)	length(b)
+0	abcabcabc	300
+1	defdefdef	3000
+2	ghighighi	30000
+uninstall plugin provider_lz4;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+select plugin_name, plugin_status from information_schema.plugins where plugin_name='provider_lz4';
+plugin_name	plugin_status
+provider_lz4	INACTIVE
+set global innodb_compression_algorithm = default;
+set global innodb_compression_algorithm = lz4;
+set global innodb_compression_algorithm = default;
+select a, left(b, 9), length(b) from t1;
+a	left(b, 9)	length(b)
+0	abcabcabc	300
+1	defdefdef	3000
+2	ghighighi	30000
+drop table t1;

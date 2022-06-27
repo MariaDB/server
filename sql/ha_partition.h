@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2005, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -590,8 +590,9 @@ private:
     And one method to read it in.
   */
   bool create_handler_file(const char *name);
-  bool setup_engine_array(MEM_ROOT *mem_root);
+  bool setup_engine_array(MEM_ROOT *mem_root, handlerton *first_engine);
   bool read_par_file(const char *name);
+  handlerton *get_def_part_engine(const char *name);
   bool get_from_handler_file(const char *name, MEM_ROOT *mem_root,
                              bool is_clone);
   bool new_handlers_from_part_info(MEM_ROOT *mem_root);
@@ -1107,10 +1108,6 @@ public:
     NOTE: This cannot be cached since it can depend on TRANSACTION ISOLATION
     LEVEL which is dynamic, see bug#39084.
 
-    HA_READ_RND_SAME:
-    Not currently used. (Means that the handler supports the rnd_same() call)
-    (MyISAM, HEAP)
-
     HA_TABLE_SCAN_ON_INDEX:
     Used to avoid scanning full tables on an index. If this flag is set then
     the handler always has a primary key (hidden if not defined) and this
@@ -1619,7 +1616,6 @@ public:
     for (; part_id < part_id_end; ++part_id)
     {
       handler *file= m_file[part_id];
-      DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), part_id));
       file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK | HA_STATUS_OPEN);
       part_recs+= file->stats.records;
     }

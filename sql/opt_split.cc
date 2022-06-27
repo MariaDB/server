@@ -311,6 +311,8 @@ struct SplM_field_ext_info: public SplM_field_info
        occurred also in the select list of this join
     9. There are defined some keys usable for ref access of fields from C
        with available statistics.
+    10. The select doesn't use WITH ROLLUP (This limitation can probably be
+       lifted)
 
   @retval
     true   if the answer is positive
@@ -327,7 +329,8 @@ bool JOIN::check_for_splittable_materialized()
       (unit->first_select()->next_select()) ||                        // !(3)
       (derived->prohibit_cond_pushdown) ||                            // !(4)
       (derived->is_recursive_with_table()) ||                         // !(5)
-      (table_count == 0 || const_tables == top_join_tab_count))       // !(6)
+      (table_count == 0 || const_tables == top_join_tab_count) ||     // !(6)
+      rollup.state != ROLLUP::STATE_NONE)                             // (10)
     return false;
   if (group_list)                                                     // (7.1)
   {
@@ -704,7 +707,7 @@ double spl_postjoin_oper_cost(THD *thd, double join_record_count, uint rec_len)
 void JOIN::add_keyuses_for_splitting()
 {
   uint i;
-  uint idx;
+  size_t idx;
   KEYUSE_EXT *keyuse_ext;
   KEYUSE_EXT keyuse_ext_end;
   double oper_cost;
@@ -1060,16 +1063,16 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
     Inject equalities for splitting used by the materialization join
 
   @param
-    remaining_tables  used to filter out the equalities that cannot
+    excluded_tables  used to filter out the equalities that cannot
                       be pushed.
 
   @details
-    This function is called by JOIN_TAB::fix_splitting that is used
-    to fix the chosen splitting of a splittable materialized table T
-    in the final query execution plan. In this plan the table T
-    is joined just before the 'remaining_tables'. So all equalities
-    usable for splitting whose right parts do not depend on any of
-    remaining tables can be pushed into join for T.
+    This function injects equalities pushed into a derived table T for which
+    the split optimization has been chosen by the optimizer. The function
+    is called by JOIN::inject_splitting_cond_for_all_tables_with_split_op().
+    All equalities usable for splitting T whose right parts do not depend on
+    any of the 'excluded_tables' can be pushed into the where clause of the
+    derived table T.
     The function also marks the select that specifies T as
     UNCACHEABLE_DEPENDENT_INJECTED.
 
@@ -1078,7 +1081,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
     true   on failure
 */
 
-bool JOIN::inject_best_splitting_cond(table_map remaining_tables)
+bool JOIN::inject_best_splitting_cond(table_map excluded_tables)
 {
   Item *inj_cond= 0;
   List<Item> *inj_cond_list= &spl_opt_info->inj_cond_list;
@@ -1086,7 +1089,7 @@ bool JOIN::inject_best_splitting_cond(table_map remaining_tables)
   KEY_FIELD *added_key_field;
   while ((added_key_field= li++))
   {
-    if (remaining_tables & added_key_field->val->used_tables())
+    if (excluded_tables & added_key_field->val->used_tables())
       continue;
     if (inj_cond_list->push_back(added_key_field->cond, thd->mem_root))
       return true;
@@ -1103,7 +1106,7 @@ bool JOIN::inject_best_splitting_cond(table_map remaining_tables)
   if (inj_cond)
     inj_cond->fix_fields(thd,0);
 
-  if (inject_cond_into_where(inj_cond))
+  if (inject_cond_into_where(inj_cond->copy_andor_structure(thd)))
     return true;
 
   select_lex->uncacheable|= UNCACHEABLE_DEPENDENT_INJECTED;
@@ -1180,8 +1183,6 @@ bool JOIN_TAB::fix_splitting(SplM_plan_info *spl_plan,
     memcpy((char *) md_join->best_positions,
            (char *) spl_plan->best_positions,
            sizeof(POSITION) * md_join->table_count);
-    if (md_join->inject_best_splitting_cond(remaining_tables))
-      return true;
     /*
       This is called for a proper work of JOIN::get_best_combination()
       called for the join that materializes T
@@ -1225,11 +1226,53 @@ bool JOIN::fix_all_splittings_in_plan()
     if (tab->table->is_splittable())
     {
       SplM_plan_info *spl_plan= cur_pos->spl_plan;
-      if (tab->fix_splitting(spl_plan, all_tables & ~prev_tables,
+      if (tab->fix_splitting(spl_plan,
+                             all_tables & ~prev_tables,
                              tablenr < const_tables ))
           return true;
     }
     prev_tables|= tab->table->map;
+  }
+  return false;
+}
+
+
+/**
+  @brief
+    Inject splitting conditions into WHERE of split derived
+
+  @details
+    The function calls JOIN_TAB::inject_best_splitting_cond() for each
+    materialized derived table T used in this join for which the split
+    optimization has been chosen by the optimizer. It is done in order to
+    inject equalities pushed into the where clause of the specification
+    of T that would be helpful to employ the splitting technique.
+
+  @retval
+    false  on success
+    true   on failure
+*/
+
+bool JOIN::inject_splitting_cond_for_all_tables_with_split_opt()
+{
+  table_map prev_tables= 0;
+  table_map all_tables= (table_map(1) << table_count) - 1;
+  for (uint tablenr= 0; tablenr < table_count; tablenr++)
+  {
+    POSITION *cur_pos= &best_positions[tablenr];
+    JOIN_TAB *tab= cur_pos->table;
+    prev_tables|= tab->table->map;
+    if (!(tab->table->is_splittable() && cur_pos->spl_plan))
+      continue;
+    SplM_opt_info *spl_opt_info= tab->table->spl_opt_info;
+    JOIN *join= spl_opt_info->join;
+    /*
+      Currently the equalities referencing columns of SJM tables with
+      look-up access cannot be pushed into materialized derived.
+    */
+    if (join->inject_best_splitting_cond((all_tables & ~prev_tables) |
+				          sjm_lookup_tables))
+        return true;
   }
   return false;
 }

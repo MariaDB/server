@@ -33,6 +33,7 @@
 #include "sql_statistics.h"
 #include "wsrep_mysqld.h"
 
+const LEX_CSTRING msg_status= {STRING_WITH_LEN("status")};
 const LEX_CSTRING msg_repair= { STRING_WITH_LEN("repair") };
 const LEX_CSTRING msg_assign_to_keycache=
 { STRING_WITH_LEN("assign_to_keycache") };
@@ -443,51 +444,20 @@ dbug_err:
   return open_error;
 }
 
-#ifdef WITH_WSREP
-/*
-  OPTIMIZE, REPAIR and ALTER may take MDL locks not only for the
-  affected table, but also for the table referenced by foreign key
-  constraint.
 
-  This wsrep_toi_replication() function handles TOI replication for
-  OPTIMIZE and REPAIR so that certification keys for potential FK
-  parent tables are also appended in the write set.  ALTER TABLE
-  case is handled elsewhere.
-*/
 
-static bool wsrep_toi_replication(THD *thd, TABLE_LIST *tables)
+static void send_read_only_warning(THD *thd, const LEX_CSTRING *msg_status,
+                                   const LEX_CSTRING *table_name)
 {
-  LEX *lex= thd->lex;
-  /* only handle OPTIMIZE and REPAIR here */
-  switch (lex->sql_command)
-  {
-  case SQLCOM_OPTIMIZE:
-  case SQLCOM_REPAIR:
-    break;
-  default:
-    return false;
-  }
-
-  close_thread_tables(thd);
-  wsrep::key_array keys;
-
-  wsrep_append_fk_parent_table(thd, tables, &keys);
-
-  /* now TOI replication, with no locks held */
-  if (keys.empty())
-  {
-    WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, tables);
-  } else {
-    WSREP_TO_ISOLATION_BEGIN_FK_TABLES(NULL, NULL, tables, &keys) {
-      return true;
-    }
-  }
-  return false;
-
- wsrep_error_label:
-  return true;
+  Protocol *protocol= thd->protocol;
+  char buf[MYSQL_ERRMSG_SIZE];
+  size_t length;
+  length= my_snprintf(buf, sizeof(buf),
+                      ER_THD(thd, ER_OPEN_AS_READONLY),
+                      table_name->str);
+  protocol->store(msg_status, system_charset_info);
+  protocol->store(buf, length, system_charset_info);
 }
-#endif /* WITH_WSREP */
 
 
 /**
@@ -577,16 +547,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   close_thread_tables(thd);
   for (table= tables; table; table= table->next_local)
     table->table= NULL;
-#ifdef WITH_WSREP
-  if (WSREP(thd))
-  {
-    if(wsrep_toi_replication(thd, tables))
-    {
-      WSREP_INFO("wsrep TOI replication of has failed.");
-      goto err;
-    }
-  }
-#endif /* WITH_WSREP */
 
   for (table= tables; table; table= table->next_local)
   {
@@ -697,8 +657,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             protocol->store(operator_name, system_charset_info);
             protocol->store(&error_clex_str, system_charset_info);
             length= my_snprintf(buff, sizeof(buff),
-                                ER_THD(thd, ER_DROP_PARTITION_NON_EXISTENT),
-                                table_name.str);
+                                ER_THD(thd, ER_PARTITION_DOES_NOT_EXIST));
             protocol->store(buff, length, system_charset_info);
             if(protocol->write())
               goto err;
@@ -774,20 +733,16 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       goto send_result;
     }
 
-    if ((table->table->db_stat & HA_READ_ONLY) && open_for_modify)
+    if ((table->table->db_stat & HA_READ_ONLY) && open_for_modify &&
+        operator_func != &handler::ha_analyze)
     {
       /* purecov: begin inspected */
-      char buff[FN_REFLEN + MYSQL_ERRMSG_SIZE];
-      size_t length;
       enum_sql_command save_sql_command= lex->sql_command;
       DBUG_PRINT("admin", ("sending error message"));
       protocol->prepare_for_resend();
       protocol->store(&table_name, system_charset_info);
       protocol->store(operator_name, system_charset_info);
-      protocol->store(&error_clex_str, system_charset_info);
-      length= my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_OPEN_AS_READONLY),
-                          table_name.str);
-      protocol->store(buff, length, system_charset_info);
+      send_read_only_warning(thd, &error_clex_str, &table_name);
       trans_commit_stmt(thd);
       trans_commit(thd);
       close_thread_tables(thd);
@@ -923,6 +878,15 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 
     if (compl_result_code == HA_ADMIN_OK && collect_eis)
     {
+      if (result_code == HA_ERR_TABLE_READONLY)
+      {
+        protocol->prepare_for_resend();
+        protocol->store(&table_name, system_charset_info);
+        protocol->store(operator_name, system_charset_info);
+        send_read_only_warning(thd, &msg_status, &table_name);
+        (void) protocol->write();
+        result_code= HA_ADMIN_OK;
+      }
       /*
         Here we close and reopen table in read mode because operation of
         collecting statistics is long and it will be better do not block
@@ -1032,7 +996,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         protocol->prepare_for_resend();
         protocol->store(&table_name, system_charset_info);
         protocol->store(operator_name, system_charset_info);
-        protocol->store(STRING_WITH_LEN("status"), system_charset_info);
+        protocol->store(&msg_status, system_charset_info);
 	protocol->store(STRING_WITH_LEN("Engine-independent statistics collected"), 
                         system_charset_info);
         if (protocol->write())
@@ -1102,25 +1066,25 @@ send_result_message:
       break;
 
     case HA_ADMIN_OK:
-      protocol->store(STRING_WITH_LEN("status"), system_charset_info);
+      protocol->store(&msg_status, system_charset_info);
       protocol->store(STRING_WITH_LEN("OK"), system_charset_info);
       break;
 
     case HA_ADMIN_FAILED:
-      protocol->store(STRING_WITH_LEN("status"), system_charset_info);
+      protocol->store(&msg_status, system_charset_info);
       protocol->store(STRING_WITH_LEN("Operation failed"),
                       system_charset_info);
       break;
 
     case HA_ADMIN_REJECT:
-      protocol->store(STRING_WITH_LEN("status"), system_charset_info);
+      protocol->store(&msg_status, system_charset_info);
       protocol->store(STRING_WITH_LEN("Operation need committed state"),
                       system_charset_info);
       open_for_modify= FALSE;
       break;
 
     case HA_ADMIN_ALREADY_DONE:
-      protocol->store(STRING_WITH_LEN("status"), system_charset_info);
+      protocol->store(&msg_status, system_charset_info);
       protocol->store(STRING_WITH_LEN("Table is already up to date"),
                       system_charset_info);
       break;
@@ -1265,7 +1229,11 @@ send_result_message:
       fatal_error=1;
       break;
     }
-
+    case HA_ERR_TABLE_READONLY:
+    {
+      send_read_only_warning(thd, &msg_status, &table_name);
+      break;
+    }
     default:				// Probably HA_ADMIN_INTERNAL_ERROR
       {
         char buf[MYSQL_ERRMSG_SIZE];
@@ -1537,6 +1505,7 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
 
+  WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
   res= (specialflag & SPECIAL_NO_NEW_FUNC) ?
     mysql_recreate_table(thd, first_table, true) :
     mysql_admin_table(thd, first_table, &m_lex->check_opt,
@@ -1545,6 +1514,9 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
   m_lex->first_select_lex()->table_list.first= first_table;
   m_lex->query_tables= first_table;
 
+#ifdef WITH_WSREP
+wsrep_error_label:
+#endif /* WITH_WSREP */
 error:
   DBUG_RETURN(res);
 }
@@ -1560,6 +1532,7 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   if (check_table_access(thd, SELECT_ACL | INSERT_ACL, first_table,
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
+  WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, &msg_repair,
                          TL_WRITE, 1,
                          MY_TEST(m_lex->check_opt.sql_flags & TT_USEFRM),
@@ -1569,6 +1542,9 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   m_lex->first_select_lex()->table_list.first= first_table;
   m_lex->query_tables= first_table;
 
+#ifdef WITH_WSREP
+wsrep_error_label:
+#endif /* WITH_WSREP */
 error:
   DBUG_RETURN(res);
 }

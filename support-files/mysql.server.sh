@@ -9,7 +9,7 @@
 # When this is done the mysql server will be started when the machine is
 # started and shut down when the systems goes down.
 
-# Comments to support chkconfig on RedHat Linux
+# Comments to support chkconfig on Red Hat Linux
 # chkconfig: 2345 64 36
 # description: A very fast and reliable SQL database engine.
 
@@ -52,7 +52,7 @@ datadir=
 # Negative numbers mean to wait indefinitely
 service_startup_timeout=900
 
-# Lock directory for RedHat / SuSE.
+# Lock directory for Red Hat / SuSE.
 lockdir='/var/lock/subsys'
 lock_file_path="$lockdir/mysql"
 
@@ -91,16 +91,16 @@ datadir_set=
 
 #
 # Use LSB init script functions for printing messages, if possible
-#
+# Include non-LSB Red Hat init functions to make systemctl redirect work
+init_functions="/etc/init.d/functions"
 lsb_functions="/lib/lsb/init-functions"
-if test -f $lsb_functions ; then
+if test -f $lsb_functions; then
   . $lsb_functions
+fi
+
+if test -f $init_functions; then
+  . $init_functions
 else
-  # Include non-LSB RedHat init functions to make systemctl redirect work
-  init_functions="/etc/init.d/functions"
-  if test -f $init_functions; then
-    . $init_functions
-  fi
   log_success_msg()
   {
     echo " SUCCESS! $@"
@@ -310,7 +310,7 @@ case "$mode" in
       $bindir/mysqld_safe --datadir="$datadir" --pid-file="$mariadbd_pid_file_path" "$@" &
       wait_for_ready; return_value=$?
 
-      # Make lock for RedHat / SuSE
+      # Make lock for Red Hat / SuSE
       if test -w "$lockdir"
       then
         touch "$lock_file_path"
@@ -340,7 +340,7 @@ case "$mode" in
         rm "$mariadbd_pid_file_path"
       fi
 
-      # Delete lock for RedHat / SuSE
+      # Delete lock for Red Hat / SuSE
       if test -f "$lock_file_path"
       then
         rm -f "$lock_file_path"

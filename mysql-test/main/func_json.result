@@ -765,8 +765,8 @@ DROP TABLE t1;
 #
 # MDEV-16054 simple json functions flatline cpu on garbage input.
 #
-select json_array(1,uuid(),compress(5.140264e+307));
-json_array(1,uuid(),compress(5.140264e+307))
+select json_array(1,user(),compress(5.140264e+307));
+json_array(1,user(),compress(5.140264e+307))
 NULL
 #
 # MDEV-16869 String functions don't respect character set of JSON_VALUE.
@@ -933,6 +933,30 @@ CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DOUBLE) AS cf,
 CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DECIMAL) AS cd;
 cf	cd
 0	0
+#
+# MDEV-24585 Assertion `je->s.cs == nice_js->charset()' failed in json_nice.
+#
+SELECT JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' );
+JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' )
+["x"]
+#
+# MDEV-18284 JSON casting using JSON_COMPACT doesn't always work
+#            with values from subqueries
+#
+CREATE TABLE json_test(a JSON, b JSON);
+INSERT INTO json_test VALUES ("[1,2,3]", '{"a":"foo"}');
+SELECT * FROM json_test;
+a	b
+[1,2,3]	{"a":"foo"}
+SELECT json_object("a", json_compact(a), "b", b)
+FROM (SELECT * FROM json_test) AS json_test_values;
+json_object("a", json_compact(a), "b", b)
+{"a": [1,2,3], "b": {"a":"foo"}}
+SELECT json_object("a", json_compact(a), "b", json_compact(b))
+FROM (SELECT * FROM json_test) AS json_test_values;
+json_object("a", json_compact(a), "b", json_compact(b))
+{"a": [1,2,3], "b": {"a":"foo"}}
+DROP TABLE json_test;
 #
 # End of 10.2 tests
 #
@@ -1381,6 +1405,15 @@ id	materials
 3	[{"id": 4}]
 DROP TABLE t1;
 DROP TABLE t2;
+#
+# MDEV-27018 IF and COALESCE lose "json" property
+#
+SELECT json_object('a', if(1, json_object('b', 'c'), json_object('e', 'f')));
+json_object('a', if(1, json_object('b', 'c'), json_object('e', 'f')))
+{"a": {"b": "c"}}
+SELECT json_object('a', coalesce(json_object('b', 'c')));
+json_object('a', coalesce(json_object('b', 'c')))
+{"a": {"b": "c"}}
 #
 # MDEV-26054 Server crashes in Item_func_json_arrayagg::get_str_from_field
 #

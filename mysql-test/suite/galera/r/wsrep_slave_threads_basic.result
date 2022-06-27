@@ -1,0 +1,51 @@
+connection node_2;
+connection node_1;
+#
+# wsrep_slave_threads
+#
+# save the initial value
+SET @wsrep_slave_threads_global_saved = @@global.wsrep_slave_threads;
+# default
+SELECT @@global.wsrep_slave_threads;
+@@global.wsrep_slave_threads
+1
+
+# scope
+SELECT @@session.wsrep_slave_threads;
+ERROR HY000: Variable 'wsrep_slave_threads' is a GLOBAL variable
+SET @@global.wsrep_slave_threads=1;
+SELECT @@global.wsrep_slave_threads;
+@@global.wsrep_slave_threads
+1
+
+# valid values
+SET @@global.wsrep_slave_threads=10;
+SELECT @@global.wsrep_slave_threads;
+@@global.wsrep_slave_threads
+10
+SET @@global.wsrep_slave_threads=0;
+Warnings:
+Warning	1292	Truncated incorrect wsrep_slave_threads value: '0'
+SELECT @@global.wsrep_slave_threads;
+@@global.wsrep_slave_threads
+1
+SET @@global.wsrep_slave_threads=default;
+SELECT @global.wsrep_slave_threads;
+@global.wsrep_slave_threads
+NULL
+
+# invalid values
+SET @@global.wsrep_slave_threads=NULL;
+ERROR 42000: Incorrect argument type to variable 'wsrep_slave_threads'
+SET @@global.wsrep_slave_threads='junk';
+ERROR 42000: Incorrect argument type to variable 'wsrep_slave_threads'
+SET @@global.wsrep_slave_threads=-1;
+Warnings:
+Warning	1292	Truncated incorrect wsrep_slave_threads value: '-1'
+SELECT @global.wsrep_slave_threads;
+@global.wsrep_slave_threads
+NULL
+
+# restore the initial value
+SET @@global.wsrep_slave_threads = @wsrep_slave_threads_global_saved;
+# End of test

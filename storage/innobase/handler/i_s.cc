@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -46,7 +46,6 @@ Created July 18, 2007 Vasil Dimov
 #include "trx0i_s.h"
 #include "trx0trx.h"
 #include "srv0mon.h"
-#include "fut0fut.h"
 #include "pars0pars.h"
 #include "fts0types.h"
 #include "fts0opt.h"
@@ -56,6 +55,7 @@ Created July 18, 2007 Vasil Dimov
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "dict0crea.h"
+#include "fts0vlc.h"
 #include "scope.h"
 
 /** The latest successfully looked up innodb_fts_aux_table */
@@ -115,10 +115,8 @@ struct buf_page_info_t{
 	ulint		block_id;	/*!< Buffer Pool block ID */
 	/** page identifier */
 	page_id_t	id;
-	unsigned	access_time:32;	/*!< Time of first access */
-	unsigned	io_fix:2;	/*!< type of pending I/O operation */
-	uint32_t	fix_count;	/*!< Count of how manyfold this block
-					is bufferfixed */
+	uint32_t	access_time;	/*!< Time of first access */
+	uint32_t	state;		/*!< buf_page_t::state() */
 #ifdef BTR_CUR_HASH_ADAPT
 	unsigned	hashed:1;	/*!< Whether hash index has been
 					built on this page */
@@ -129,7 +127,7 @@ struct buf_page_info_t{
 					buf_pool.freed_page_clock */
 	unsigned	zip_ssize:PAGE_ZIP_SSIZE_BITS;
 					/*!< Compressed page size */
-	unsigned	page_state:3; /*!< Page state */
+	unsigned	compressed_only:1; /*!< ROW_FORMAT=COMPRESSED only */
 	unsigned	page_type:I_S_PAGE_TYPE_BITS;	/*!< Page type */
 	unsigned	num_recs:UNIV_PAGE_SIZE_SHIFT_MAX-2;
 					/*!< Number of records on Page */
@@ -319,7 +317,7 @@ static ST_FIELD_INFO innodb_trx_fields_info[]=
 
 #define IDX_TRX_ISOLATION_LEVEL	16
   Column("trx_isolation_level",
-         Enum(&isolation_level_values_typelib), NOT_NULL, DEFAULT_NONE),
+         Enum(&isolation_level_values_typelib), NOT_NULL),
 
 #define IDX_TRX_UNIQUE_CHECKS	17
   Column("trx_unique_checks", SLong(1), NOT_NULL),
@@ -597,10 +595,10 @@ static ST_FIELD_INFO innodb_locks_fields_info[]=
   Column("lock_trx_id", ULonglong(), NOT_NULL),
 
 #define IDX_LOCK_MODE		2
-  Column("lock_mode",   Enum(&lock_mode_values_typelib), NOT_NULL, DEFAULT_NONE),
+  Column("lock_mode",   Enum(&lock_mode_values_typelib), NOT_NULL),
 
 #define IDX_LOCK_TYPE		3
-  Column("lock_type",   Enum(&lock_type_values_typelib), NOT_NULL, DEFAULT_NONE),
+  Column("lock_type",   Enum(&lock_type_values_typelib), NOT_NULL),
 
 #define IDX_LOCK_TABLE		4
   Column("lock_table",  Varchar(1024), NOT_NULL),
@@ -1883,7 +1881,7 @@ static ST_FIELD_INFO innodb_metrics_fields_info[]=
   Column("ENABLED", SLong(1), NOT_NULL),
 
 #define	METRIC_TYPE		15
-  Column("TYPE",    Enum(&metric_type_values_typelib), NOT_NULL, DEFAULT_NONE),
+  Column("TYPE",    Enum(&metric_type_values_typelib), NOT_NULL),
 
 #define	METRIC_DESC		16
   Column("COMMENT",         Varchar(NAME_LEN + 1),       NOT_NULL),
@@ -2697,7 +2695,7 @@ i_s_fts_index_cache_fill_one_index(
 		/* Decrypt the ilist, and display Dod ID and word position */
 		for (ulint i = 0; i < ib_vector_size(word->nodes); i++) {
 			fts_node_t*	node;
-			byte*		ptr;
+			const byte*	ptr;
 			ulint		decoded = 0;
 			doc_id_t	doc_id = 0;
 
@@ -2707,13 +2705,11 @@ i_s_fts_index_cache_fill_one_index(
 			ptr = node->ilist;
 
 			while (decoded < node->ilist_size) {
-				ulint	pos = fts_decode_vlc(&ptr);
 
-				doc_id += pos;
+				doc_id += fts_decode_vlc(&ptr);
 
 				/* Get position info */
 				while (*ptr) {
-					pos = fts_decode_vlc(&ptr);
 
 					OK(field_store_string(
 						   fields[I_S_FTS_WORD],
@@ -2734,7 +2730,7 @@ i_s_fts_index_cache_fill_one_index(
 						   doc_id, true));
 
 					OK(fields[I_S_FTS_ILIST_DOC_POS]->store(
-						   pos, true));
+						   fts_decode_vlc(&ptr), true));
 
 					OK(schema_table_store_record(
 						   thd, table));
@@ -3061,7 +3057,7 @@ i_s_fts_index_table_fill_one_fetch(
 		/* Decrypt the ilist, and display Dod ID and word position */
 		for (ulint i = 0; i < ib_vector_size(word->nodes); i++) {
 			fts_node_t*	node;
-			byte*		ptr;
+			const byte*	ptr;
 			ulint		decoded = 0;
 			doc_id_t	doc_id = 0;
 
@@ -3071,13 +3067,10 @@ i_s_fts_index_table_fill_one_fetch(
 			ptr = node->ilist;
 
 			while (decoded < node->ilist_size) {
-				ulint	pos = fts_decode_vlc(&ptr);
-
-				doc_id += pos;
+				doc_id += fts_decode_vlc(&ptr);
 
 				/* Get position info */
 				while (*ptr) {
-					pos = fts_decode_vlc(&ptr);
 
 					OK(field_store_string(
 						   fields[I_S_FTS_WORD],
@@ -3096,7 +3089,7 @@ i_s_fts_index_table_fill_one_fetch(
 						longlong(doc_id), true));
 
 					OK(fields[I_S_FTS_ILIST_DOC_POS]->store(
-						   pos, true));
+						   fts_decode_vlc(&ptr), true));
 
 					OK(schema_table_store_record(
 						   thd, table));
@@ -3820,12 +3813,11 @@ static const LEX_CSTRING io_values[] =
 {
 	{ STRING_WITH_LEN("IO_NONE") },
 	{ STRING_WITH_LEN("IO_READ") },
-	{ STRING_WITH_LEN("IO_WRITE") },
-	{ STRING_WITH_LEN("IO_PIN") }
+	{ STRING_WITH_LEN("IO_WRITE") }
 };
 
 
-static TypelibBuffer<4> io_values_typelib(io_values);
+static TypelibBuffer<3> io_values_typelib(io_values);
 
 namespace Show {
 /* Fields of the dynamic table INNODB_BUFFER_POOL_PAGE. */
@@ -3881,10 +3873,10 @@ static ST_FIELD_INFO i_s_innodb_buffer_page_fields_info[]=
   Column("COMPRESSED_SIZE", ULonglong(), NOT_NULL),
 
 #define IDX_BUFFER_PAGE_STATE		15 + I_S_AHI
-  Column("PAGE_STATE", Enum(&page_state_values_typelib), NOT_NULL, DEFAULT_NONE),
+  Column("PAGE_STATE", Enum(&page_state_values_typelib), NOT_NULL),
 
 #define IDX_BUFFER_PAGE_IO_FIX		16 + I_S_AHI
-  Column("IO_FIX", Enum(&io_values_typelib), NOT_NULL, DEFAULT_NONE),
+  Column("IO_FIX", Enum(&io_values_typelib), NOT_NULL),
 
 #define IDX_BUFFER_PAGE_IS_OLD		17 + I_S_AHI
   Column("IS_OLD", SLong(1), NOT_NULL),
@@ -3948,7 +3940,7 @@ i_s_innodb_buffer_page_fill(
 		OK(fields[IDX_BUFFER_PAGE_FLUSH_TYPE]->store(0, true));
 
 		OK(fields[IDX_BUFFER_PAGE_FIX_COUNT]->store(
-			   page_info->fix_count, true));
+			   ~buf_page_t::LRU_MASK & page_info->state, true));
 
 #ifdef BTR_CUR_HASH_ADAPT
 		OK(fields[IDX_BUFFER_PAGE_HASHED]->store(
@@ -4021,12 +4013,27 @@ i_s_innodb_buffer_page_fill(
 			   ? (UNIV_ZIP_SIZE_MIN >> 1) << page_info->zip_ssize
 			   : 0, true));
 
-		OK(fields[IDX_BUFFER_PAGE_STATE]->store(
-			   1 + std::min<unsigned>(page_info->page_state,
-						  BUF_BLOCK_FILE_PAGE), true));
+		static_assert(buf_page_t::NOT_USED == 0, "compatibility");
+		static_assert(buf_page_t::MEMORY == 1, "compatibility");
+		static_assert(buf_page_t::REMOVE_HASH == 2, "compatibility");
 
-		OK(fields[IDX_BUFFER_PAGE_IO_FIX]->store(
-			   1 + page_info->io_fix, true));
+		OK(fields[IDX_BUFFER_PAGE_STATE]->store(
+			   std::min<uint32_t>(3, page_info->state) + 1, true));
+
+		static_assert(buf_page_t::UNFIXED == 1U << 29, "comp.");
+		static_assert(buf_page_t::READ_FIX == 4U << 29, "comp.");
+		static_assert(buf_page_t::WRITE_FIX == 5U << 29, "comp.");
+
+		unsigned io_fix = page_info->state >> 29;
+		if (io_fix < 4) {
+			io_fix = 1;
+		} else if (io_fix > 5) {
+			io_fix = 3;
+		} else {
+			io_fix -= 2;
+		}
+
+		OK(fields[IDX_BUFFER_PAGE_IO_FIX]->store(io_fix, true));
 
 		OK(fields[IDX_BUFFER_PAGE_IS_OLD]->store(
 			   page_info->is_old, true));
@@ -4110,26 +4117,22 @@ i_s_innodb_buffer_page_get_info(
 {
 	page_info->block_id = pos;
 
-	compile_time_assert(BUF_BLOCK_NOT_USED == 0);
-	compile_time_assert(BUF_BLOCK_MEMORY == 1);
-	compile_time_assert(BUF_BLOCK_REMOVE_HASH == 2);
-	compile_time_assert(BUF_BLOCK_FILE_PAGE == 3);
-	compile_time_assert(BUF_BLOCK_ZIP_PAGE == 4);
+	static_assert(buf_page_t::NOT_USED == 0, "compatibility");
+	static_assert(buf_page_t::MEMORY == 1, "compatibility");
+	static_assert(buf_page_t::REMOVE_HASH == 2, "compatibility");
+	static_assert(buf_page_t::UNFIXED == 1U << 29, "compatibility");
+	static_assert(buf_page_t::READ_FIX == 4U << 29, "compatibility");
+	static_assert(buf_page_t::WRITE_FIX == 5U << 29, "compatibility");
 
-	auto state = bpage->state();
-	page_info->page_state= int{state} & 7;
+	page_info->state = bpage->state();
 
-	switch (state) {
-	default:
+	if (page_info->state < buf_page_t::FREED) {
 		page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;
-		break;
-	case BUF_BLOCK_FILE_PAGE:
-	case BUF_BLOCK_ZIP_PAGE:
+		page_info->compressed_only = false;
+	} else {
 		const byte*	frame;
 
 		page_info->id = bpage->id();
-
-		page_info->fix_count = bpage->buf_fix_count();
 
 		page_info->oldest_mod = bpage->oldest_modification();
 
@@ -4137,34 +4140,28 @@ i_s_innodb_buffer_page_get_info(
 
 		page_info->zip_ssize = bpage->zip.ssize;
 
-		page_info->io_fix = bpage->io_fix() & 3;
-
 		page_info->is_old = bpage->old;
 
 		page_info->freed_page_clock = bpage->freed_page_clock;
 
-		switch (bpage->io_fix()) {
-		case BUF_IO_NONE:
-		case BUF_IO_WRITE:
-		case BUF_IO_PIN:
-			break;
-		case BUF_IO_READ:
+		if (page_info->state >= buf_page_t::READ_FIX
+		    && page_info->state < buf_page_t::WRITE_FIX) {
 			page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;
 			page_info->newest_mod = 0;
 			return;
 		}
 
-		if (state == BUF_BLOCK_FILE_PAGE) {
-			const buf_block_t*block;
-
-			block = reinterpret_cast<const buf_block_t*>(bpage);
-			frame = block->frame;
+		page_info->compressed_only = !bpage->frame,
+		frame = bpage->frame;
+		if (UNIV_LIKELY(frame != nullptr)) {
 #ifdef BTR_CUR_HASH_ADAPT
 			/* Note: this may be a false positive, that
 			is, block->index will not always be set to
 			NULL when the last adaptive hash index
 			reference is dropped. */
-			page_info->hashed = (block->index != NULL);
+			page_info->hashed =
+				reinterpret_cast<const buf_block_t*>(bpage)
+				->index != nullptr;
 #endif /* BTR_CUR_HASH_ADAPT */
 		} else {
 			ut_ad(page_info->zip_ssize);
@@ -4393,7 +4390,7 @@ static ST_FIELD_INFO i_s_innodb_buf_page_lru_fields_info[] =
   Column("COMPRESSED", SLong(1), NOT_NULL),
 
 #define IDX_BUF_LRU_PAGE_IO_FIX		16 + I_S_AHI
-  Column("IO_FIX", Enum(&io_values_typelib), NOT_NULL, DEFAULT_NONE),
+  Column("IO_FIX", Enum(&io_values_typelib), NOT_NULL),
 
 #define IDX_BUF_LRU_PAGE_IS_OLD		17 + I_S_AHI
   Column("IS_OLD", SLong(1), NULLABLE),
@@ -4451,7 +4448,7 @@ i_s_innodb_buf_page_lru_fill(
 		OK(fields[IDX_BUF_LRU_PAGE_FLUSH_TYPE]->store(0, true));
 
 		OK(fields[IDX_BUF_LRU_PAGE_FIX_COUNT]->store(
-			   page_info->fix_count, true));
+			   ~buf_page_t::LRU_MASK & page_info->state, true));
 
 #ifdef BTR_CUR_HASH_ADAPT
 		OK(fields[IDX_BUF_LRU_PAGE_HASHED]->store(
@@ -4524,11 +4521,22 @@ i_s_innodb_buf_page_lru_fill(
 			   ? 512 << page_info->zip_ssize : 0, true));
 
 		OK(fields[IDX_BUF_LRU_PAGE_STATE]->store(
-			   page_info->page_state == BUF_BLOCK_ZIP_PAGE,
-			   true));
+			   page_info->compressed_only, true));
 
-		OK(fields[IDX_BUF_LRU_PAGE_IO_FIX]->store(
-			   1 + page_info->io_fix, true));
+		static_assert(buf_page_t::UNFIXED == 1U << 29, "comp.");
+		static_assert(buf_page_t::READ_FIX == 4U << 29, "comp.");
+		static_assert(buf_page_t::WRITE_FIX == 5U << 29, "comp.");
+
+		unsigned io_fix = page_info->state >> 29;
+		if (io_fix < 4) {
+			io_fix = 1;
+		} else if (io_fix > 5) {
+			io_fix = 3;
+		} else {
+			io_fix -= 2;
+		}
+
+		OK(fields[IDX_BUF_LRU_PAGE_IO_FIX]->store(io_fix, true));
 
 		OK(fields[IDX_BUF_LRU_PAGE_IS_OLD]->store(
 			   page_info->is_old, true));
@@ -4799,12 +4807,13 @@ i_s_dict_fill_sys_tables(
 
 /** Convert one SYS_TABLES record to dict_table_t.
 @param pcur      persistent cursor position on SYS_TABLES record
+@param mtr       mini-transaction (nullptr=use the dict_sys cache)
 @param rec       record to read from (nullptr=use the dict_sys cache)
 @param table     the converted dict_table_t
 @return error message
 @retval nullptr on success */
-static const char *i_s_sys_tables_rec(const btr_pcur_t &pcur, const rec_t *rec,
-                                      dict_table_t **table)
+static const char *i_s_sys_tables_rec(const btr_pcur_t &pcur, mtr_t *mtr,
+                                      const rec_t *rec, dict_table_t **table)
 {
   static_assert(DICT_FLD__SYS_TABLES__NAME == 0, "compatibility");
   size_t len;
@@ -4822,12 +4831,11 @@ static const char *i_s_sys_tables_rec(const btr_pcur_t &pcur, const rec_t *rec,
       return "corrupted SYS_TABLES.NAME";
   }
 
-  const span<const char>name{reinterpret_cast<const char*>(pcur.old_rec), len};
-
   if (rec)
-    return dict_load_table_low(name, rec, table);
+    return dict_load_table_low(mtr, rec, table);
 
-  *table= dict_sys.load_table(name);
+  *table= dict_sys.load_table
+    (span<const char>{reinterpret_cast<const char*>(pcur.old_rec), len});
   return *table ? nullptr : "Table not found in cache";
 }
 
@@ -4869,7 +4877,7 @@ i_s_sys_tables_fill_table(
 
 		/* Create and populate a dict_table_t structure with
 		information from SYS_TABLES row */
-		err_msg = i_s_sys_tables_rec(pcur, rec, &table_rec);
+		err_msg = i_s_sys_tables_rec(pcur, &mtr, rec, &table_rec);
 		mtr.commit();
 		dict_sys.unlock();
 
@@ -5107,7 +5115,8 @@ i_s_sys_tables_fill_table_stats(
 		mtr.commit();
 		/* Fetch the dict_table_t structure corresponding to
 		this SYS_TABLES record */
-		err_msg = i_s_sys_tables_rec(pcur, nullptr, &table_rec);
+		err_msg = i_s_sys_tables_rec(pcur, nullptr, nullptr,
+                                             &table_rec);
 
 		if (UNIV_LIKELY(!err_msg)) {
 			bool evictable = dict_sys.prevent_eviction(table_rec);
@@ -6474,6 +6483,8 @@ static ST_FIELD_INFO innodb_sys_tablespaces_fields_info[]=
 };
 } // namespace Show
 
+extern size_t os_file_get_fs_block_size(const char *path);
+
 /** Produce one row of INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES.
 @param thd  connection
 @param s    tablespace
@@ -6515,31 +6526,18 @@ static int i_s_sys_tablespaces_fill(THD *thd, const fil_space_t &s, TABLE *t)
   OK(field_store_string(fields[SYS_TABLESPACES_FILENAME], filepath));
 
   OK(fields[SYS_TABLESPACES_PAGE_SIZE]->store(s.physical_size(), true));
-  os_file_stat_t stat;
-  stat.block_size= 0;
+  size_t fs_block_size;
   os_file_size_t file= os_file_get_size(filepath);
   if (file.m_total_size == os_offset_t(~0))
   {
     file.m_total_size= 0;
     file.m_alloc_size= 0;
+    fs_block_size= 0;
   }
   else
-  {
-    /* Get the file system (or Volume) block size. */
-    switch (dberr_t err= os_file_get_status(filepath, &stat, false, false)) {
-    case DB_FAIL:
-      ib::warn() << "File '" << filepath << "', failed to get stats";
-      break;
-    case DB_SUCCESS:
-    case DB_NOT_FOUND:
-      break;
-    default:
-      ib::error() << "File '" << filepath << "' " << err;
-      break;
-    }
-  }
+    fs_block_size= os_file_get_fs_block_size(filepath);
 
-  OK(fields[SYS_TABLESPACES_FS_BLOCK_SIZE]->store(stat.block_size, true));
+  OK(fields[SYS_TABLESPACES_FS_BLOCK_SIZE]->store(fs_block_size, true));
   OK(fields[SYS_TABLESPACES_FILE_SIZE]->store(file.m_total_size, true));
   OK(fields[SYS_TABLESPACES_ALLOC_SIZE]->store(file.m_alloc_size, true));
 

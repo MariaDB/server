@@ -1068,7 +1068,7 @@ ALTER TABLE t1 ADD b TIME NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1265	Data truncated for column 'b' at row 1
+Note	1265	Data truncated for column 'b' at row 0
 SELECT * FROM t1;
 a	b
 10	10:20:30

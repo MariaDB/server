@@ -72,7 +72,7 @@ struct WinIoInit
 static WinIoInit win_io_init;
 
 
-int pread(const native_file_handle &h, void *buf, size_t count,
+SSIZE_T pread(const native_file_handle &h, void *buf, size_t count,
                  unsigned long long offset)
 {
   OVERLAPPED ov{};
@@ -81,6 +81,8 @@ int pread(const native_file_handle &h, void *buf, size_t count,
   ov.Offset= uli.LowPart;
   ov.OffsetHigh= uli.HighPart;
   ov.hEvent= win_get_syncio_event();
+  if (count > 0xFFFFFFFF)
+    count= 0xFFFFFFFF;
 
   if (ReadFile(h, buf, (DWORD) count, 0, &ov) ||
       (GetLastError() == ERROR_IO_PENDING))
@@ -93,7 +95,7 @@ int pread(const native_file_handle &h, void *buf, size_t count,
   return -1;
 }
 
-int pwrite(const native_file_handle &h, void *buf, size_t count,
+SSIZE_T pwrite(const native_file_handle &h, void *buf, size_t count,
                   unsigned long long offset)
 {
   OVERLAPPED ov{};
@@ -102,7 +104,8 @@ int pwrite(const native_file_handle &h, void *buf, size_t count,
   ov.Offset= uli.LowPart;
   ov.OffsetHigh= uli.HighPart;
   ov.hEvent= win_get_syncio_event();
-
+  if (count > 0xFFFFFFFF)
+    count= 0xFFFFFFFF;
   if (WriteFile(h, buf, (DWORD) count, 0, &ov) ||
       (GetLastError() == ERROR_IO_PENDING))
   {
@@ -133,32 +136,7 @@ public:
   static void simulated_aio_callback(void *param)
   {
     aiocb *cb= (aiocb *) param;
-#ifdef _WIN32
-    size_t ret_len;
-#else
-    ssize_t ret_len;
-#endif
-    int err= 0;
-    switch (cb->m_opcode)
-    {
-    case aio_opcode::AIO_PREAD:
-      ret_len= pread(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
-      break;
-    case aio_opcode::AIO_PWRITE:
-      ret_len= pwrite(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
-      break;
-    default:
-      abort();
-    }
-#ifdef _WIN32
-    if (static_cast<int>(ret_len) < 0)
-      err= GetLastError();
-#else
-    if (ret_len < 0)
-      err= errno;
-#endif
-    cb->m_ret_len = ret_len;
-    cb->m_err = err;
+    synchronous(cb);
     cb->m_internal_task.m_func= cb->m_callback;
     thread_pool *pool= (thread_pool *)cb->m_internal;
     pool->submit_task(&cb->m_internal_task);

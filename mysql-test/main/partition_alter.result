@@ -201,3 +201,67 @@ pk
 delete from t1;
 drop table t1;
 # End of 10.3 tests
+create or replace table t1 (x int primary key)
+partition by range(x) (
+p1 values less than (10),
+partition p2 values less than (20),
+p3 values less than (30),
+partition p4 values less than (40),
+p5 values less than (50),
+pn values less than maxvalue);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+create or replace table t1 (x int)
+partition by list(x) (
+partition p1 values in (2, 3, 4),
+partition p2 values in (12, 13, 14),
+partition p3 values in (22, 23, 24),
+p4 values in (32, 33, 34),
+p5 values in (42, 43, 44),
+pn values in (52, 53, 54));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`x`)
+(PARTITION `p1` VALUES IN (2,3,4) ENGINE = MyISAM,
+ PARTITION `p2` VALUES IN (12,13,14) ENGINE = MyISAM,
+ PARTITION `p3` VALUES IN (22,23,24) ENGINE = MyISAM,
+ PARTITION `p4` VALUES IN (32,33,34) ENGINE = MyISAM,
+ PARTITION `p5` VALUES IN (42,43,44) ENGINE = MyISAM,
+ PARTITION `pn` VALUES IN (52,53,54) ENGINE = MyISAM)
+create or replace table t1 (x int)
+partition by list(x) (
+partition partition p1 values in (2, 3, 4),
+pn values in (52, 53, 54));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'partition p1 values in (2, 3, 4),
+pn values in (52, 53, 54))' at line 3
+create or replace table t1 (x int)
+partition by list(x) (
+partition partition values in (2, 3, 4),
+pn values in (52, 53, 54));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'partition values in (2, 3, 4),
+pn values in (52, 53, 54))' at line 3
+create or replace table t1 (x int)
+partition by list(x) (
+partition values in (2, 3, 4),
+pn values in (52, 53, 54));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'in (2, 3, 4),
+pn values in (52, 53, 54))' at line 3
+create or replace table t1 (x int)
+partition by list(x) (
+partitio values in (2, 3, 4),
+pn values in (52, 53, 54));
+drop table t1;

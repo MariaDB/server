@@ -1,7 +1,7 @@
 /*************** Colblk H Declares Source Code File (.H) ***************/
 /*  Name: COLBLK.H    Version 1.7                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2019    */
 /*                                                                     */
 /*  This file contains the COLBLK and derived classes declares.        */
 /***********************************************************************/

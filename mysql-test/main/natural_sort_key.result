@@ -1,0 +1,214 @@
+SET NAMES utf8mb4;
+SELECT NATURAL_SORT_KEY(NULL);
+NATURAL_SORT_KEY(NULL)
+NULL
+SELECT NATURAL_SORT_KEY(repeat('a1',@@max_allowed_packet/2-1));
+NATURAL_SORT_KEY(repeat('a1',@@max_allowed_packet/2-1))
+NULL
+Warnings:
+Warning	1301	Result of natural_sort_key() was larger than max_allowed_packet (16777216) - truncated
+SELECT NATURAL_SORT_KEY(repeat('1',@@max_allowed_packet-1));
+NATURAL_SORT_KEY(repeat('1',@@max_allowed_packet-1))
+NULL
+Warnings:
+Warning	1301	Result of natural_sort_key() was larger than max_allowed_packet (16777216) - truncated
+CREATE TABLE t1(
+c VARCHAR(30) CHARACTER SET latin1 COLLATE latin1_bin,
+k VARCHAR(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AS (NATURAL_SORT_KEY(CONVERT(c USING utf8mb4))) VIRTUAL INVISIBLE);
+INSERT INTO t1 values
+('A1'),('a1'),('A100'),('a100'),('A2'),('ä2'),('a2'),('A99'),
+('äb'),('B1'),('B100'),('B9'),('C'),('100');
+#Natural sort order.
+SELECT c FROM t1 ORDER BY k,c;
+c
+100
+A1
+a1
+A2
+a2
+ä2
+A99
+A100
+a100
+äb
+B1
+B9
+B100
+C
+#Unnatural but  unicode aware) sort order
+SELECT c FROM t1 ORDER BY CONVERT(c USING utf8mb4) COLLATE utf8mb4_unicode_ci,c;
+c
+100
+A1
+a1
+A100
+a100
+A2
+a2
+ä2
+A99
+äb
+B1
+B100
+B9
+C
+CREATE TABLE t2 AS SELECT c, NATURAL_SORT_KEY(c) FROM t1 WHERE 0;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` varchar(30) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL,
+  `NATURAL_SORT_KEY(c)` varchar(45) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1,t2;
+CREATE TABLE t1(c VARCHAR(1), k VARCHAR(2) AS (NATURAL_SORT_KEY(c)) STORED);
+ERROR HY000: Function or expression 'natural_sort_key()' cannot be used in the GENERATED ALWAYS AS clause of `k`
+SELECT RPAD(val,28,' ') value , RPAD(NATURAL_SORT_KEY(val),36,' ') sortkey , LENGTH(NATURAL_SORT_KEY(val)) - LENGTH(val) encoding_overhead
+FROM
+(
+SELECT '0' val
+UNION  SELECT seq FROM seq_1_to_9
+UNION  SELECT CONCAT('1',repeat('0',seq)) FROM seq_1_to_27
+) AS numbers ORDER BY sortkey;
+value	sortkey	encoding_overhead
+0                           	00                                  	1
+1                           	01                                  	1
+2                           	02                                  	1
+3                           	03                                  	1
+4                           	04                                  	1
+5                           	05                                  	1
+6                           	06                                  	1
+7                           	07                                  	1
+8                           	08                                  	1
+9                           	09                                  	1
+10                          	110                                 	1
+100                         	2100                                	1
+1000                        	31000                               	1
+10000                       	410000                              	1
+100000                      	5100000                             	1
+1000000                     	61000000                            	1
+10000000                    	710000000                           	1
+100000000                   	8100000000                          	1
+1000000000                  	901000000000                        	2
+10000000000                 	9110000000000                       	2
+100000000000                	92100000000000                      	2
+1000000000000               	931000000000000                     	2
+10000000000000              	9410000000000000                    	2
+100000000000000             	95100000000000000                   	2
+1000000000000000            	961000000000000000                  	2
+10000000000000000           	9710000000000000000                 	2
+100000000000000000          	98100000000000000000                	2
+1000000000000000000         	9901000000000000000000              	3
+10000000000000000000        	99110000000000000000000             	3
+100000000000000000000       	992100000000000000000000            	3
+1000000000000000000000      	9931000000000000000000000           	3
+10000000000000000000000     	99410000000000000000000000          	3
+100000000000000000000000    	995100000000000000000000000         	3
+1000000000000000000000000   	9961000000000000000000000000        	3
+10000000000000000000000000  	99710000000000000000000000000       	3
+100000000000000000000000000 	998100000000000000000000000000      	3
+1000000000000000000000000000	99901271000000000000000000000000000 	7
+SELECT natural_sort_key('1') = natural_sort_key('0001');
+natural_sort_key('1') = natural_sort_key('0001')
+1
+SELECT natural_sort_key('1.1') = natural_sort_key('1.00001');
+natural_sort_key('1.1') = natural_sort_key('1.00001')
+1
+SELECT RPAD(val,20,' ') value, NATURAL_SORT_KEY(val) FROM
+(SELECT '' val WHERE 0 UNION VALUES
+('fred'),
+('pic2'),
+('pic100a'),
+('pic120'),
+('pic121'),
+('jane'),
+('tom'),
+('pic02a'),
+('pic3'),
+('pic4'),
+('1-20'),
+('pic100'),
+('pic02000'),
+('10-20'),
+('1-02'),
+('1-2'),
+('pic01'),
+('pic02'),
+('pic 6'),
+('pic   7'),
+('pic 5'),
+('pic05'),
+('pic 5 '),
+('pic 5 something'),
+('pic 4 else'),
+('2000-1-10'),
+('1999-12-25'),
+('1999-3-3'),
+('2000-3-23'),
+('2000-1-2'),
+('100.200.300.400'),
+('100.50.60.70'),
+('100.8.9.0'),
+('a1b1'),
+('a01b2'),
+('a1b2'),
+('a01b3')
+)AS data ORDER BY 2,1;
+value	NATURAL_SORT_KEY(val)
+1-02                	01-02
+1-2                 	01-02
+1-20                	01-120
+10-20               	110-120
+100.8.9.0           	2100.08.09.00
+100.50.60.70        	2100.150.160.170
+100.200.300.400     	2100.2200.2300.2400
+1999-3-3            	31999-03-03
+1999-12-25          	31999-112-125
+2000-1-2            	32000-01-02
+2000-1-10           	32000-01-110
+2000-3-23           	32000-03-123
+a1b1                	a01b01
+a01b2               	a01b02
+a1b2                	a01b02
+a01b3               	a01b03
+fred                	fred
+jane                	jane
+pic   7             	pic   07
+pic 4 else          	pic 04 else
+pic 5               	pic 05
+pic 5 something     	pic 05 something
+pic 6               	pic 06
+pic01               	pic01
+pic02               	pic02
+pic2                	pic02
+pic02a              	pic02a
+pic3                	pic03
+pic4                	pic04
+pic05               	pic05
+pic100              	pic2100
+pic100a             	pic2100a
+pic120              	pic2120
+pic121              	pic2121
+pic02000            	pic32000
+tom                 	tom
+create table t (a varchar(8), b varchar(8) as (natural_sort_key(a)));
+insert into t (a) values ('a2'),(NULL),('a11');
+select * from t order by b;
+a	b
+NULL	NULL
+a2	a02
+a11	a111
+select a, b from t order by b;
+a	b
+NULL	NULL
+a2	a02
+a11	a111
+drop table t;
+select natural_sort_key(_utf16 0x0031),natural_sort_key(_ucs2 0x0031), natural_sort_key(_utf32 0x00000031);
+natural_sort_key(_utf16 0x0031)	natural_sort_key(_ucs2 0x0031)	natural_sort_key(_utf32 0x00000031)
+01	01	01
+select get_lock('a', 0);
+get_lock('a', 0)
+1
+select natural_sort_key(release_lock('a'));
+natural_sort_key(release_lock('a'))
+01

@@ -1,0 +1,52 @@
+let $engine=`select regexp_replace('$MTR_COMBINATIONS', '-.*', '')`;
+let $alg=`select regexp_replace('$MTR_COMBINATIONS', '.*-', '')`;
+
+if (`select count(*) = 0 from information_schema.plugins where plugin_name = '$engine' and plugin_status='active'`)
+{
+  skip Needs $engine engine;
+}
+
+if (`select count(*) = 0 from information_schema.plugins where plugin_name = 'provider_$alg' and plugin_status='active'`)
+{
+  skip Needs provider_$alg plugin;
+}
+
+--echo #
+--echo # Testing $alg compression provider with $engine
+--echo #
+
+call mtr.add_suppression("MariaDB tried to use the .+ compression, but its provider plugin is not loaded");
+if ($engine == "innodb") {
+  eval set global innodb_compression_algorithm = $alg;
+  let $table_params = page_compressed = 1;
+  call mtr.add_suppression("Background Page read failed to read, uncompress, or decrypt");
+  call mtr.add_suppression("Table is compressed or encrypted but uncompress or decrypt failed");
+  call mtr.add_suppression("Table .*t1.* is compressed with (\\w+), which is not currently loaded. Please load the \\1 provider plugin to open the table");
+}
+if ($engine == "mroonga") {
+  let $column_params = `select upper('COMMENT \'flags "COLUMN_SCALAR|COMPRESS_$alg"\'')`;
+  let $table_params = charset = utf8;
+}
+
+eval create table t1 (a int, b text $column_params) engine = $engine $table_params;
+
+insert t1 (a, b) values (0, repeat("abc", 100));
+insert t1 (a, b) values (1, repeat("def", 1000));
+insert t1 (a, b) values (2, repeat("ghi", 10000));
+select a, left(b, 9), length(b) from t1;
+
+let $restart_parameters = --disable-provider-$alg;
+source include/restart_mysqld.inc;
+
+if ($engine == "innodb") {
+  error ER_PROVIDER_NOT_LOADED;
+  select a, left(b, 9), length(b) from t1;
+}
+if ($engine == "mroonga"){
+  select a, left(b, 9), length(b) from t1;
+  select a, left(b, 9), length(b) from t1; # a warning once per statement
+}
+drop table t1;
+
+let $restart_parameters =;
+source include/restart_mysqld.inc;

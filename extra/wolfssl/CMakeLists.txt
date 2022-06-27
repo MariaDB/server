@@ -94,7 +94,6 @@ ${WOLFCRYPT_SRCDIR}/md5.c
 ${WOLFCRYPT_SRCDIR}/memory.c
 ${WOLFCRYPT_SRCDIR}/pkcs12.c
 ${WOLFCRYPT_SRCDIR}/pwdbased.c
-${WOLFCRYPT_SRCDIR}/rabbit.c
 ${WOLFCRYPT_SRCDIR}/random.c
 ${WOLFCRYPT_SRCDIR}/rsa.c
 ${WOLFCRYPT_SRCDIR}/sha.c
@@ -104,6 +103,7 @@ ${WOLFCRYPT_SRCDIR}/wc_port.c
 ${WOLFCRYPT_SRCDIR}/wc_encrypt.c
 ${WOLFCRYPT_SRCDIR}/hash.c
 ${WOLFCRYPT_SRCDIR}/wolfmath.c
+${WOLFCRYPT_SRCDIR}/kdf.c
 )
 
 # Use fastmath large number math library.

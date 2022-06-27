@@ -84,7 +84,7 @@ drop table t1;
 db.opt
 t0.ARZ
 #
-# discover of table non-existance on drop
+# discover of table non-existence on drop
 #
 select * from t0;
 a

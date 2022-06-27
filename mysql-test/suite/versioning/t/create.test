@@ -412,11 +412,11 @@ drop tables t0, t1, t2, t3;
 --echo #
 --echo # MDEV-23968 CREATE TEMPORARY TABLE .. LIKE (system versioned table) returns error if unique index is defined in the table
 --echo #
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 create table t1 (id int primary key, index(row_start)) with system versioning;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 create table t1 (id int primary key, index(row_end)) with system versioning;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 create table t1 (id int, primary key(id, row_end, row_end)) with system versioning;
 create table t1 (id int primary key) with system versioning;
 create temporary table t2 like t1;
@@ -454,3 +454,49 @@ show index from t1;
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-26928 Column-inclusive WITH SYSTEM VERSIONING doesn't work with explicit system fields
+--echo #
+create or replace table t1 (x int, y int with system versioning);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+create or replace table t1 (
+    x int, y int with system versioning,
+    row_start timestamp(6) as row start,
+    row_end timestamp(6) as row end,
+    period for system_time(row_start, row_end));
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-27452 TIMESTAMP(0) system field is allowed for certain creation of system-versioned table
+--echo #
+--error ER_VERS_FIELD_WRONG_TYPE
+create or replace table t (
+  a int,
+  s timestamp as row start,
+  e timestamp as row end,
+  period for system_time (s, e))
+with system versioning;
+
+--error ER_VERS_FIELD_WRONG_TYPE
+create or replace table t (
+  a int with system versioning,
+  s timestamp as row start,
+  e timestamp as row end,
+  period for system_time (s, e));
+
+create or replace table t (
+  a int with system versioning,
+  b int with system versioning,
+  s timestamp(6) as row start,
+  e timestamp(6) as row end,
+  period for system_time (s, e));
+insert into t () values (),();
+ 
+# cleanup
+drop table t;

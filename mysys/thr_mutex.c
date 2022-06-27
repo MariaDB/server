@@ -332,7 +332,8 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
         */
         pthread_mutex_lock(&THR_LOCK_mutex);
 
-        if (!my_hash_search(mutex_root->locked_mutex, (uchar*) &mp->id, 0))
+        if (!my_hash_search(mutex_root->locked_mutex, (uchar*) &mp->id,
+                            sizeof(mp->id)))
         {
           safe_mutex_deadlock_t *deadlock;
           safe_mutex_t *mutex;
@@ -352,7 +353,8 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
           mutex= mutex_root;
           do
           {
-            if (my_hash_search(mp->locked_mutex, (uchar*) &mutex->id, 0))
+            if (my_hash_search(mp->locked_mutex, (uchar*) &mutex->id,
+                               sizeof(mutex->id)))
             {
               print_deadlock_warning(mp, mutex);
               /* Mark wrong usage to avoid future warnings for same error */
@@ -772,7 +774,8 @@ static my_bool remove_from_locked_mutex(safe_mutex_t *mp,
                        delete_mutex->id, mp->id));
 
   found= (safe_mutex_deadlock_t *) my_hash_search(mp->locked_mutex,
-                                               (uchar*) &delete_mutex->id, 0);
+                                                 (uchar*) &delete_mutex->id,
+                                                 sizeof(delete_mutex->id));
   DBUG_ASSERT(found);
   if (found)
   {

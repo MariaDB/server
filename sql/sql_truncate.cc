@@ -467,15 +467,13 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
       {
         if (keys.empty())
         {
-          WSREP_TO_ISOLATION_BEGIN_IF(table_ref->db.str, table_ref->table_name.str, NULL)
-          {
+          if (wsrep_to_isolation_begin(thd, table_ref->db.str, table_ref->table_name.str, NULL))
             DBUG_RETURN(TRUE);
-          }
-        } else {
-          WSREP_TO_ISOLATION_BEGIN_FK_TABLES(NULL, NULL, table_ref, &keys)
-          {
+        }
+        else
+        {
+          if (wsrep_to_isolation_begin(thd, NULL, NULL, table_ref, NULL, &keys))
             DBUG_RETURN(TRUE);
-          }
         }
       }
     }
@@ -494,10 +492,9 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
 
       if (thd->locked_tables_mode && thd->locked_tables_list.reopen_tables(thd, false))
       {
-        thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
-        error=1;
+          thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+          error= 1;
       }
-
       /* No need to binlog a failed truncate-by-recreate. */
       binlog_stmt= !error;
     }

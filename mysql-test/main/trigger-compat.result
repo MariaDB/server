@@ -142,3 +142,298 @@ DROP TRIGGER tr12;
 DROP TRIGGER tr11;
 DROP TABLE t1;
 DROP TABLE t2;
+#
+# MDEV-25659 trigger name is empty after upgrade to 10.4
+#
+# START: Total triggers 1, broken triggers 1, DROP TABLE
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+FLUSH TABLES;
+DELETE FROM t1 WHERE a=1;
+ERROR 42000: Trigger 'tr1' has an error in its body: 'Undeclared variable: unknown_variable'
+INSERT INTO t1 VALUES (2);
+ERROR 42000: Trigger 'tr1' has an error in its body: 'Undeclared variable: unknown_variable'
+SET time_zone='+00:00';
+SHOW TRIGGERS LIKE 't1';
+Trigger	tr1
+Event	DELETE
+Table	t1
+Statement	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER DELETE ON t1 FOR EACH ROW
+BEGIN
+  IF unknown_variable
+  THEN
+    INSERT INTO t2 VALUES (OLD.a);
+  END IF;
+END
+Timing	AFTER
+Created	2022-01-13 08:23:06.47
+sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+Definer	
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	latin1_swedish_ci
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
+TRIGGER_CATALOG	def
+TRIGGER_SCHEMA	test
+TRIGGER_NAME	tr1
+EVENT_MANIPULATION	DELETE
+EVENT_OBJECT_CATALOG	def
+EVENT_OBJECT_SCHEMA	test
+EVENT_OBJECT_TABLE	t1
+ACTION_ORDER	1
+ACTION_CONDITION	NULL
+ACTION_STATEMENT	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER DELETE ON t1 FOR EACH ROW
+BEGIN
+  IF unknown_variable
+  THEN
+    INSERT INTO t2 VALUES (OLD.a);
+  END IF;
+END
+ACTION_ORIENTATION	ROW
+ACTION_TIMING	AFTER
+ACTION_REFERENCE_OLD_TABLE	NULL
+ACTION_REFERENCE_NEW_TABLE	NULL
+ACTION_REFERENCE_OLD_ROW	OLD
+ACTION_REFERENCE_NEW_ROW	NEW
+CREATED	2022-01-13 08:23:06.47
+SQL_MODE	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+DEFINER	
+CHARACTER_SET_CLIENT	utf8mb3
+COLLATION_CONNECTION	utf8mb3_general_ci
+DATABASE_COLLATION	latin1_swedish_ci
+SET time_zone=DEFAULT;
+# Listing trigger files
+t1.TRG
+tr1.TRN
+# Listing trigger files done
+DROP TABLE t1;
+# Listing trigger files
+# Listing trigger files done
+# END: Total triggers 1, broken triggers 1, DROP TABLE
+# START: Total triggers 1, broken triggers 1, DROP TRIGGER
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+FLUSH TABLES;
+DELETE FROM t1 WHERE a=1;
+ERROR 42000: Trigger 'tr1' has an error in its body: 'Undeclared variable: unknown_variable'
+INSERT INTO t1 VALUES (2);
+ERROR 42000: Trigger 'tr1' has an error in its body: 'Undeclared variable: unknown_variable'
+SET time_zone='+00:00';
+SHOW TRIGGERS LIKE 't1';
+Trigger	tr1
+Event	DELETE
+Table	t1
+Statement	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER DELETE ON t1 FOR EACH ROW
+BEGIN
+  IF unknown_variable
+  THEN
+    INSERT INTO t2 VALUES (OLD.a);
+  END IF;
+END
+Timing	AFTER
+Created	2022-01-13 08:23:06.47
+sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+Definer	
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	latin1_swedish_ci
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
+TRIGGER_CATALOG	def
+TRIGGER_SCHEMA	test
+TRIGGER_NAME	tr1
+EVENT_MANIPULATION	DELETE
+EVENT_OBJECT_CATALOG	def
+EVENT_OBJECT_SCHEMA	test
+EVENT_OBJECT_TABLE	t1
+ACTION_ORDER	1
+ACTION_CONDITION	NULL
+ACTION_STATEMENT	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER DELETE ON t1 FOR EACH ROW
+BEGIN
+  IF unknown_variable
+  THEN
+    INSERT INTO t2 VALUES (OLD.a);
+  END IF;
+END
+ACTION_ORIENTATION	ROW
+ACTION_TIMING	AFTER
+ACTION_REFERENCE_OLD_TABLE	NULL
+ACTION_REFERENCE_NEW_TABLE	NULL
+ACTION_REFERENCE_OLD_ROW	OLD
+ACTION_REFERENCE_NEW_ROW	NEW
+CREATED	2022-01-13 08:23:06.47
+SQL_MODE	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+DEFINER	
+CHARACTER_SET_CLIENT	utf8mb3
+COLLATION_CONNECTION	utf8mb3_general_ci
+DATABASE_COLLATION	latin1_swedish_ci
+SET time_zone=DEFAULT;
+# Listing trigger files
+t1.TRG
+tr1.TRN
+# Listing trigger files done
+DROP TRIGGER tr1;
+# Listing trigger files
+# Listing trigger files done
+DROP TABLE t1;
+# END: Total triggers 1, broken triggers 1, DROP TRIGGER
+# START: Total triggers 2, broken triggers 1, DROP TABLE
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+FLUSH TABLES;
+DELETE FROM t1 WHERE a=1;
+ERROR 42000: Trigger 'tr1' has an error in its body: 'Undeclared variable: unknown_variable'
+INSERT INTO t1 VALUES (2);
+ERROR 42000: Trigger 'tr1' has an error in its body: 'Undeclared variable: unknown_variable'
+SET time_zone='+00:00';
+SHOW TRIGGERS LIKE 't1';
+Trigger	tr2
+Event	INSERT
+Table	t1
+Statement	INSERT INTO t2 VALUES (NEW.a+100)
+Timing	AFTER
+Created	2022-01-13 10:01:48.74
+sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+Definer	root@localhost
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	latin1_swedish_ci
+Trigger	tr1
+Event	DELETE
+Table	t1
+Statement	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER DELETE ON t1 FOR EACH ROW
+BEGIN
+  IF unknown_variable
+  THEN
+    INSERT INTO t2 VALUES (OLD.a);
+  END IF;
+END
+Timing	AFTER
+Created	2022-01-13 10:01:48.73
+sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+Definer	
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	latin1_swedish_ci
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
+TRIGGER_CATALOG	def
+TRIGGER_SCHEMA	test
+TRIGGER_NAME	tr1
+EVENT_MANIPULATION	DELETE
+EVENT_OBJECT_CATALOG	def
+EVENT_OBJECT_SCHEMA	test
+EVENT_OBJECT_TABLE	t1
+ACTION_ORDER	1
+ACTION_CONDITION	NULL
+ACTION_STATEMENT	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER DELETE ON t1 FOR EACH ROW
+BEGIN
+  IF unknown_variable
+  THEN
+    INSERT INTO t2 VALUES (OLD.a);
+  END IF;
+END
+ACTION_ORIENTATION	ROW
+ACTION_TIMING	AFTER
+ACTION_REFERENCE_OLD_TABLE	NULL
+ACTION_REFERENCE_NEW_TABLE	NULL
+ACTION_REFERENCE_OLD_ROW	OLD
+ACTION_REFERENCE_NEW_ROW	NEW
+CREATED	2022-01-13 10:01:48.73
+SQL_MODE	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+DEFINER	
+CHARACTER_SET_CLIENT	utf8mb3
+COLLATION_CONNECTION	utf8mb3_general_ci
+DATABASE_COLLATION	latin1_swedish_ci
+SET time_zone=DEFAULT;
+# Listing trigger files
+t1.TRG
+tr1.TRN
+tr2.TRN
+# Listing trigger files done
+DROP TABLE t1;
+# Listing trigger files
+# Listing trigger files done
+# END: Total triggers 2, broken triggers 1, using DROP TABLE
+# START: Total triggers 2, broken triggers 1, DROP TRIGGER
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+FLUSH TABLES;
+DELETE FROM t1 WHERE a=1;
+ERROR 42000: Trigger 'tr1' has an error in its body: 'Undeclared variable: unknown_variable'
+INSERT INTO t1 VALUES (2);
+ERROR 42000: Trigger 'tr1' has an error in its body: 'Undeclared variable: unknown_variable'
+SET time_zone='+00:00';
+SHOW TRIGGERS LIKE 't1';
+Trigger	tr2
+Event	INSERT
+Table	t1
+Statement	INSERT INTO t2 VALUES (NEW.a+100)
+Timing	AFTER
+Created	2022-01-13 10:01:48.74
+sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+Definer	root@localhost
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	latin1_swedish_ci
+Trigger	tr1
+Event	DELETE
+Table	t1
+Statement	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER DELETE ON t1 FOR EACH ROW
+BEGIN
+  IF unknown_variable
+  THEN
+    INSERT INTO t2 VALUES (OLD.a);
+  END IF;
+END
+Timing	AFTER
+Created	2022-01-13 10:01:48.73
+sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+Definer	
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	latin1_swedish_ci
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
+TRIGGER_CATALOG	def
+TRIGGER_SCHEMA	test
+TRIGGER_NAME	tr1
+EVENT_MANIPULATION	DELETE
+EVENT_OBJECT_CATALOG	def
+EVENT_OBJECT_SCHEMA	test
+EVENT_OBJECT_TABLE	t1
+ACTION_ORDER	1
+ACTION_CONDITION	NULL
+ACTION_STATEMENT	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER DELETE ON t1 FOR EACH ROW
+BEGIN
+  IF unknown_variable
+  THEN
+    INSERT INTO t2 VALUES (OLD.a);
+  END IF;
+END
+ACTION_ORIENTATION	ROW
+ACTION_TIMING	AFTER
+ACTION_REFERENCE_OLD_TABLE	NULL
+ACTION_REFERENCE_NEW_TABLE	NULL
+ACTION_REFERENCE_OLD_ROW	OLD
+ACTION_REFERENCE_NEW_ROW	NEW
+CREATED	2022-01-13 10:01:48.73
+SQL_MODE	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+DEFINER	
+CHARACTER_SET_CLIENT	utf8mb3
+COLLATION_CONNECTION	utf8mb3_general_ci
+DATABASE_COLLATION	latin1_swedish_ci
+SET time_zone=DEFAULT;
+# Listing trigger files
+t1.TRG
+tr1.TRN
+tr2.TRN
+# Listing trigger files done
+DROP TRIGGER tr1;
+# Listing trigger files
+t1.TRG
+tr2.TRN
+# Listing trigger files done
+INSERT INTO t1 VALUES (100);
+ERROR 42S02: Table 'test.t2' doesn't exist
+DROP TABLE t1;
+# Listing trigger files
+# Listing trigger files done
+# END: Total triggers 2, broken triggers 1, using DROP TRIGGER

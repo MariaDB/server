@@ -4,6 +4,11 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../galera/include/auto_increment_offset_save.inc
+
 --connection node_2
 SET SESSION wsrep_on=OFF;
 CREATE TABLE test.t1 (f2 INTEGER);
@@ -36,3 +41,7 @@ SHOW TABLES IN test;
 CALL mtr.add_suppression("Inconsistent by consensus.");
 CALL mtr.add_suppression("WSREP: Failed to execute TOI action");
 CALL mtr.add_suppression("WSREP: TO isolation end failed");
+
+--connection node_1
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

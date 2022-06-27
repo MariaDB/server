@@ -1,0 +1,366 @@
+RESET MASTER;
+connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
+change master to relay_log_file='' for channel 'abc1';
+ERROR HY000: Failed initializing relay log position: Could not find target log during relay log initialization
+change master to master_host='' for channel 'abc2';
+ERROR HY000: Incorrect arguments to MASTER_HOST
+change master to
+master_port=MYPORT_1,
+master_host='127.0.0.1',
+master_user='root'
+for channel 'master1';
+start slave for channel 'master1';
+set default_master_connection = 'master1';
+include/wait_for_slave_to_start.inc
+connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
+connection slave;
+#
+# Checking SHOW SLAVE 'master1' STATUS
+#
+Master_Port = 'MYPORT_1'
+Relay_Log_File = 'mysqld-relay-bin-master1.000002'
+Slave_IO_Running = 'Yes'
+Slave_SQL_Running = 'Yes'
+Last_Errno = '0'
+Last_SQL_Errno = '0'
+#
+# Checking SHOW SLAVE STATUS
+#
+Master_Port = 'MYPORT_1'
+Relay_Log_File = 'mysqld-relay-bin-master1.000002'
+Slave_IO_Running = 'Yes'
+Slave_SQL_Running = 'Yes'
+Last_Errno = '0'
+Last_SQL_Errno = '0'
+#
+# Checking SHOW ALL SLAVES STATUS
+#
+Connection_name = 'master1'
+Master_Port = 'MYPORT_1'
+Relay_Log_File = 'mysqld-relay-bin-master1.000002'
+Slave_IO_Running = 'Yes'
+Slave_SQL_Running = 'Yes'
+Last_Errno = '0'
+Last_SQL_Errno = '0'
+Slave_heartbeat_period = '60.000'
+#
+connection master1;
+drop database if exists db1;
+create database db1;
+use db1;
+create table t1 (i int auto_increment, f1 varchar(16), primary key pk (i,f1)) engine=MyISAM;
+Warnings:
+Warning	1280	Name 'pk' ignored for PRIMARY key.
+insert into t1 (f1) values ('one'),('two');
+connection slave;
+select * from db1.t1;
+i	f1
+1	one
+2	two
+# List of relay log files in the datadir
+mysqld-relay-bin-master1.000001
+mysqld-relay-bin-master1.000002
+mysqld-relay-bin-master1.index
+include/show_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+mysqld-relay-bin-master1.000001	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+mysqld-relay-bin-master1.000001	#	Rotate	#	#	mysqld-relay-bin-master1.000002;pos=4
+include/show_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+mysqld-relay-bin-master1.000002	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+mysqld-relay-bin-master1.000002	#	Rotate	#	#	master-bin.000001;pos=POS
+mysqld-relay-bin-master1.000002	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+mysqld-relay-bin-master1.000002	#	Gtid_list	#	#	[]
+mysqld-relay-bin-master1.000002	#	Binlog_checkpoint	#	#	master-bin.000001
+mysqld-relay-bin-master1.000002	#	Gtid	#	#	GTID #-#-#
+mysqld-relay-bin-master1.000002	#	Query	#	#	drop database if exists db1
+mysqld-relay-bin-master1.000002	#	Gtid	#	#	GTID #-#-#
+mysqld-relay-bin-master1.000002	#	Query	#	#	create database db1
+mysqld-relay-bin-master1.000002	#	Gtid	#	#	GTID #-#-#
+mysqld-relay-bin-master1.000002	#	Query	#	#	use `db1`; create table t1 (i int auto_increment, f1 varchar(16), primary key pk (i,f1)) engine=MyISAM
+mysqld-relay-bin-master1.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-relay-bin-master1.000002	#	Intvar	#	#	INSERT_ID=1
+mysqld-relay-bin-master1.000002	#	Query	#	#	use `db1`; insert into t1 (f1) values ('one'),('two')
+mysqld-relay-bin-master1.000002	#	Query	#	#	COMMIT
+change master to
+master_port=MYPORT_2,
+master_host='127.0.0.1',
+master_user='root'
+for channel 'master1';
+ERROR HY000: This operation cannot be performed as you have a running slave 'master1'; run STOP SLAVE 'master1' first
+change master to
+master_port=MYPORT_2,
+master_host='127.0.0.1',
+master_user='root';
+ERROR HY000: This operation cannot be performed as you have a running slave 'master1'; run STOP SLAVE 'master1' first
+change master to
+master_port=MYPORT_1,
+master_host='127.0.0.1',
+master_user='root' for channel 'master2';
+ERROR HY000: Connection 'master2' conflicts with existing connection 'master1'
+set default_master_connection = '';
+change master to
+master_port=MYPORT_2,
+master_host='127.0.0.1',
+master_user='root';
+start slave;
+include/wait_for_slave_to_start.inc
+#
+# Checking SHOW ALL SLAVES STATUS
+#
+Connection_name = ''
+Connection_name = 'master1'
+Master_Port = 'MYPORT_2'
+Master_Port = 'MYPORT_1'
+Relay_Log_File = 'mysqld-relay-bin.000002'
+Relay_Log_File = 'mysqld-relay-bin-master1.000002'
+Slave_IO_Running = 'Yes'
+Slave_IO_Running = 'Yes'
+Slave_SQL_Running = 'Yes'
+Slave_SQL_Running = 'Yes'
+Last_Errno = '0'
+Last_Errno = '0'
+Last_SQL_Errno = '0'
+Last_SQL_Errno = '0'
+Slave_heartbeat_period = '60.000'
+Slave_heartbeat_period = '60.000'
+#
+connection master1;
+insert into t1 (f1) values ('three');
+connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+drop database if exists db2;
+create database db2;
+use db2;
+create table t1 (pk int auto_increment primary key, f1 int) engine=InnoDB;
+begin;
+insert into t1 (f1) values (1),(2);
+connection slave;
+connection master2;
+connection slave;
+select * from db1.t1;
+i	f1
+1	one
+2	two
+3	three
+select * from db2.t1;
+pk	f1
+connection master2;
+commit;
+connection slave;
+select * from db2.t1;
+pk	f1
+1	1
+2	2
+connection master1;
+flush logs;
+connection slave;
+connection master1;
+purge binary logs to 'master-bin.000002';
+show binary logs;
+Log_name	File_size
+master-bin.000002	filesize
+insert into t1 (f1) values ('four');
+create table db1.t3 (f1 int) engine=InnoDB;
+connection slave;
+#
+# Checking SHOW ALL SLAVES STATUS
+#
+Connection_name = ''
+Connection_name = 'master1'
+Master_Port = 'MYPORT_2'
+Master_Port = 'MYPORT_1'
+Relay_Log_File = 'mysqld-relay-bin.000002'
+Relay_Log_File = 'mysqld-relay-bin-master1.000004'
+Slave_IO_Running = 'Yes'
+Slave_IO_Running = 'Yes'
+Slave_SQL_Running = 'Yes'
+Slave_SQL_Running = 'Yes'
+Last_Errno = '0'
+Last_Errno = '0'
+Last_SQL_Errno = '0'
+Last_SQL_Errno = '0'
+Slave_heartbeat_period = '60.000'
+Slave_heartbeat_period = '60.000'
+#
+#
+# MDEV:16437: merge 5.7 P_S replication instrumentation and tables
+#
+SELECT * FROM performance_schema.replication_applier_status_by_coordinator;
+CHANNEL_NAME	master1
+THREAD_ID	#
+SERVICE_STATE	ON
+LAST_ERROR_NUMBER	0
+LAST_ERROR_MESSAGE	
+LAST_ERROR_TIMESTAMP	0000-00-00 00:00:00
+LAST_SEEN_TRANSACTION	0-1-7
+LAST_TRANS_RETRY_COUNT	0
+CHANNEL_NAME	
+THREAD_ID	#
+SERVICE_STATE	ON
+LAST_ERROR_NUMBER	0
+LAST_ERROR_MESSAGE	
+LAST_ERROR_TIMESTAMP	0000-00-00 00:00:00
+LAST_SEEN_TRANSACTION	0-2-4
+LAST_TRANS_RETRY_COUNT	0
+select * from db1.t1;
+i	f1
+1	one
+2	two
+3	three
+4	four
+include/show_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+mysqld-relay-bin.000001	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+mysqld-relay-bin.000001	#	Rotate	#	#	mysqld-relay-bin.000002;pos=4
+include/show_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+mysqld-relay-bin.000002	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+mysqld-relay-bin.000002	#	Rotate	#	#	master-bin.000001;pos=POS
+mysqld-relay-bin.000002	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+mysqld-relay-bin.000002	#	Gtid_list	#	#	[]
+mysqld-relay-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000001
+mysqld-relay-bin.000002	#	Gtid	#	#	GTID #-#-#
+mysqld-relay-bin.000002	#	Query	#	#	drop database if exists db2
+mysqld-relay-bin.000002	#	Gtid	#	#	GTID #-#-#
+mysqld-relay-bin.000002	#	Query	#	#	create database db2
+mysqld-relay-bin.000002	#	Gtid	#	#	GTID #-#-#
+mysqld-relay-bin.000002	#	Query	#	#	use `db2`; create table t1 (pk int auto_increment primary key, f1 int) engine=InnoDB
+mysqld-relay-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-relay-bin.000002	#	Intvar	#	#	INSERT_ID=1
+mysqld-relay-bin.000002	#	Query	#	#	use `db2`; insert into t1 (f1) values (1),(2)
+mysqld-relay-bin.000002	#	Xid	#	#	COMMIT /* XID */
+disconnect slave;
+connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
+stop slave io_thread;
+show status like 'Slave_running';
+Variable_name	Value
+Slave_running	OFF
+set default_master_connection = 'master1';
+show status like 'Slave_running';
+Variable_name	Value
+Slave_running	ON
+
+#
+# syntax compatible test
+#
+
+#
+# show relaylog events
+#
+SHOW RELAYLOG EVENTS for channel 'master1';
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+mysqld-relay-bin-master1.000003	4	Format_desc	3	256	Server ver: Version
+mysqld-relay-bin-master1.000003	256	Rotate	1	1358	master-bin.000002;pos=4
+mysqld-relay-bin-master1.000003	304	Rotate	3	366	mysqld-relay-bin-master1.000004;pos=4
+
+show slave status for channel 'master1'
+Master_Port = 'MYPORT_1'
+Relay_Log_File = 'mysqld-relay-bin-master1.000004'
+Slave_IO_Running = 'Yes'
+Slave_SQL_Running = 'Yes'
+Last_Errno = '0'
+Last_SQL_Errno = '0'
+
+#
+# stop slave
+#
+STOP SLAVE for channel 'master1';
+
+show slave status for channel 'master1'
+Master_Port = 'MYPORT_1'
+Relay_Log_File = 'mysqld-relay-bin-master1.000004'
+Slave_IO_Running = 'No'
+Slave_SQL_Running = 'No'
+Last_Errno = '0'
+Last_SQL_Errno = '0'
+
+#
+# start slave
+#
+START SLAVE for channel 'master1';
+include/wait_for_slave_to_start.inc
+
+show slave status for channel 'master1'
+Master_Port = 'MYPORT_1'
+Relay_Log_File = 'mysqld-relay-bin-master1.000005'
+Slave_IO_Running = 'Yes'
+Slave_SQL_Running = 'Yes'
+Last_Errno = '0'
+Last_SQL_Errno = '0'
+
+#
+# flush relay logs
+#
+FLUSH RELAY LOGS for channel 'master1';
+
+show slave status for channel 'master1'
+Master_Port = 'MYPORT_1'
+Relay_Log_File = 'mysqld-relay-bin-master1.000006'
+Slave_IO_Running = 'Yes'
+Slave_SQL_Running = 'Yes'
+Last_Errno = '0'
+Last_SQL_Errno = '0'
+
+#
+# stop slave
+#
+STOP SLAVE for channel 'master1';
+
+show slave status for channel 'master1'
+Master_Port = 'MYPORT_1'
+Relay_Log_File = 'mysqld-relay-bin-master1.000006'
+Slave_IO_Running = 'No'
+Slave_SQL_Running = 'No'
+Last_Errno = '0'
+Last_SQL_Errno = '0'
+
+#
+# reset slave
+#
+RESET SLAVE for channel 'master1';
+
+show slave status for channel 'master1'
+Master_Port = 'MYPORT_1'
+Relay_Log_File = ''
+Slave_IO_Running = 'No'
+Slave_SQL_Running = 'No'
+Last_Errno = '0'
+Last_SQL_Errno = '0'
+
+#
+# show relaylog events after reset slave
+#
+SHOW RELAYLOG EVENTS for channel 'master1';
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+
+#
+# check error syntax
+#
+RESET SLAVE 'master1' for channel 'mmaster2';
+ERROR HY000: Incorrect arguments to CONNECTION_NAME AND FOR CHANNEL CAN NOT BE SPECIFIED AT THE SAME TIME)
+STOP SLAVE 'master1' for channel 'master2';
+ERROR HY000: Incorrect arguments to CONNECTION_NAME AND FOR CHANNEL CAN NOT BE SPECIFIED AT THE SAME TIME)
+FLUSH RELAY LOGS 'master1' for channel 'master2';
+ERROR HY000: Incorrect arguments to CONNECTION_NAME AND FOR CHANNEL CAN NOT BE SPECIFIED AT THE SAME TIME)
+START SLAVE 'master1' for channel 'master2';
+ERROR HY000: Incorrect arguments to CONNECTION_NAME AND FOR CHANNEL CAN NOT BE SPECIFIED AT THE SAME TIME)
+SHOW RELAYLOG 'master1' EVENTS for channel 'master2';
+ERROR HY000: Incorrect arguments to CONNECTION_NAME AND FOR CHANNEL CAN NOT BE SPECIFIED AT THE SAME TIME)
+SHOW SLAVE 'master1' STATUS for channel 'master2';
+ERROR HY000: Incorrect arguments to CONNECTION_NAME AND FOR CHANNEL CAN NOT BE SPECIFIED AT THE SAME TIME)
+
+drop database db1;
+drop database db2;
+include/reset_master_slave.inc
+disconnect slave;
+connection master1;
+drop database db1;
+include/reset_master_slave.inc
+disconnect master1;
+connection master2;
+drop database db2;
+include/reset_master_slave.inc
+disconnect master2;
+connection default;
+CREATE TABLE channel (channel int);
+DROP TABLE channel;

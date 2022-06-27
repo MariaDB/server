@@ -1,12 +1,12 @@
 SHOW CREATE TABLE INFORMATION_SCHEMA.INNODB_SYS_TABLES;
 Table	Create Table
 INNODB_SYS_TABLES	CREATE TEMPORARY TABLE `INNODB_SYS_TABLES` (
-  `TABLE_ID` bigint(21) unsigned NOT NULL DEFAULT 0,
-  `NAME` varchar(655) NOT NULL DEFAULT '',
-  `FLAG` int(11) NOT NULL DEFAULT 0,
-  `N_COLS` int(11) unsigned NOT NULL DEFAULT 0,
-  `SPACE` int(11) unsigned NOT NULL DEFAULT 0,
-  `ROW_FORMAT` enum('Redundant','Compact','Compressed','Dynamic') DEFAULT NULL,
-  `ZIP_PAGE_SIZE` int(11) unsigned NOT NULL DEFAULT 0,
-  `SPACE_TYPE` enum('Single','System') DEFAULT NULL
+  `TABLE_ID` bigint(21) unsigned NOT NULL,
+  `NAME` varchar(655) NOT NULL,
+  `FLAG` int(11) NOT NULL,
+  `N_COLS` int(11) unsigned NOT NULL,
+  `SPACE` int(11) unsigned NOT NULL,
+  `ROW_FORMAT` enum('Redundant','Compact','Compressed','Dynamic'),
+  `ZIP_PAGE_SIZE` int(11) unsigned NOT NULL,
+  `SPACE_TYPE` enum('Single','System')
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3

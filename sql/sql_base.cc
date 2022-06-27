@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB
+   Copyright (c) 2010, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -807,6 +807,16 @@ int close_thread_tables(THD *thd)
     DBUG_PRINT("tcache", ("table: '%s'  query_id: %lu",
                           table->s->table_name.str, (ulong) table->query_id));
 
+    if (thd->locked_tables_mode)
+    {
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+      if (table->part_info && table->part_info->vers_require_hist_part(thd) &&
+          !thd->stmt_arena->is_stmt_prepare())
+        table->part_info->vers_check_limit(thd);
+#endif
+      table->vcol_cleanup_expr(thd);
+    }
+
     /* Detach MERGE children after every statement. Even under LOCK TABLES. */
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES ||
         table->query_id == thd->query_id)
@@ -943,6 +953,8 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
                                              table->s->db.str,
                                              table->s->table_name.str,
                                              MDL_SHARED));
+
+  table->vcol_cleanup_expr(thd);
   table->mdl_ticket= NULL;
 
   if (table->file)
@@ -1670,6 +1682,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
   MDL_ticket *mdl_ticket;
   TABLE_SHARE *share;
   uint gts_flags;
+  bool from_share= false;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   int part_names_error=0;
 #endif
@@ -2032,6 +2045,7 @@ retry_share:
 
     /* Add table to the share's used tables list. */
     tc_add_table(thd, table);
+    from_share= true;
   }
 
   if (!(flags & MYSQL_OPEN_HAS_MDL_LOCK) &&
@@ -2122,6 +2136,9 @@ retry_share:
   DBUG_ASSERT(table->file->pushed_cond == NULL);
   table_list->updatable= 1; // It is not derived table nor non-updatable VIEW
   table_list->table= table;
+
+  if (!from_share && table->vcol_fix_expr(thd))
+    DBUG_RETURN(true);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (unlikely(table->part_info))
@@ -2616,7 +2633,9 @@ void Locked_tables_list::mark_table_for_reopen(THD *thd, TABLE *table)
 bool
 Locked_tables_list::reopen_tables(THD *thd, bool need_reopen)
 {
-  Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN);
+  bool is_ok= thd->get_stmt_da()->is_ok();
+  Open_table_context ot_ctx(thd, !is_ok ? MYSQL_OPEN_REOPEN:
+                                  MYSQL_OPEN_IGNORE_KILLED | MYSQL_OPEN_REOPEN);
   uint reopen_count= 0;
   MYSQL_LOCK *lock;
   MYSQL_LOCK *merged_lock;
@@ -4474,6 +4493,7 @@ restart:
     {
       enum_sql_command sql_command= thd->lex->sql_command;
       bool is_dml_stmt= thd->get_command() != COM_STMT_PREPARE &&
+                    !thd->stmt_arena->is_stmt_prepare()        &&
                     (sql_command == SQLCOM_INSERT ||
                      sql_command == SQLCOM_INSERT_SELECT ||
                      sql_command == SQLCOM_REPLACE ||
@@ -4686,7 +4706,7 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
 
     if ((op & trg2bit(TRG_EVENT_DELETE) && fk_modifies_child(fk->delete_method))
      || (op & trg2bit(TRG_EVENT_UPDATE) && fk_modifies_child(fk->update_method)))
-      lock_type= TL_WRITE_ALLOW_WRITE;
+      lock_type= TL_FIRST_WRITE;
     else
       lock_type= TL_READ;
 
@@ -5433,54 +5453,6 @@ static void mark_real_tables_as_free_for_reuse(TABLE_LIST *table_list)
   DBUG_VOID_RETURN;
 }
 
-int TABLE::fix_vcol_exprs(THD *thd)
-{
-  for (Field **vf= vfield; vf && *vf; vf++)
-    if (fix_session_vcol_expr(thd, (*vf)->vcol_info))
-      return 1;
-
-  for (Field **df= default_field; df && *df; df++)
-    if ((*df)->default_value &&
-        fix_session_vcol_expr(thd, (*df)->default_value))
-      return 1;
-
-  for (Virtual_column_info **cc= check_constraints; cc && *cc; cc++)
-    if (fix_session_vcol_expr(thd, (*cc)))
-      return 1;
-
-  return 0;
-}
-
-
-static bool fix_all_session_vcol_exprs(THD *thd, TABLE_LIST *tables)
-{
-  Security_context *save_security_ctx= thd->security_ctx;
-  TABLE_LIST *first_not_own= thd->lex->first_not_own_table();
-  DBUG_ENTER("fix_session_vcol_expr");
-
-  int error= 0;
-  for (TABLE_LIST *table= tables; table && table != first_not_own && !error;
-       table= table->next_global)
-  {
-    TABLE *t= table->table;
-    if (!table->placeholder() && t->s->vcols_need_refixing &&
-         table->lock_type >= TL_FIRST_WRITE)
-    {
-      Query_arena *stmt_backup= thd->stmt_arena;
-      if (thd->stmt_arena->is_conventional())
-        thd->stmt_arena= t->expr_arena;
-      if (table->security_ctx)
-        thd->security_ctx= table->security_ctx;
-
-      error= t->fix_vcol_exprs(thd);
-
-      thd->security_ctx= save_security_ctx;
-      thd->stmt_arena= stmt_backup;
-    }
-  }
-  DBUG_RETURN(error);
-}
-
 
 /**
   Lock all tables in a list.
@@ -5656,9 +5628,8 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
     }
   }
 
-  bool res= fix_all_session_vcol_exprs(thd, tables);
-  if (!res && !(flags & MYSQL_OPEN_IGNORE_LOGGING_FORMAT))
-    res= thd->decide_logging_format(tables);
+  const bool res= !(flags & MYSQL_OPEN_IGNORE_LOGGING_FORMAT) &&
+    thd->decide_logging_format(tables);
 
   DBUG_RETURN(res);
 }
@@ -6045,7 +6016,7 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
   if (field)
   {
     if (field->invisible == INVISIBLE_FULL &&
-        DBUG_EVALUATE_IF("test_completely_invisible", 0, 1))
+        !DBUG_IF("test_completely_invisible"))
       DBUG_RETURN((Field*)0);
 
     if (field->invisible == INVISIBLE_SYSTEM &&
@@ -6423,8 +6394,9 @@ find_field_in_tables(THD *thd, Item_ident *item,
                                  TRUE, &(item->cached_field_index));
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
       /* Check if there are sufficient access rights to the found field. */
-      if (found && check_privileges &&
-          check_column_grant_in_table_ref(thd, table_ref, name, length, found))
+      if (found && check_privileges && !is_temporary_table(table_ref) &&
+          check_column_grant_in_table_ref(thd, table_ref, name, length,
+                                          found))
         found= WRONG_GRANT;
 #endif
     }
@@ -6453,8 +6425,11 @@ find_field_in_tables(THD *thd, Item_ident *item,
         for (SELECT_LEX *sl= current_sel; sl && sl!=last_select;
              sl=sl->outer_select())
         {
-          Item_in_subselect *in_subs=
-            sl->master_unit()->item->get_IN_subquery();
+          Item *subs= sl->master_unit()->item;
+          if (!subs)
+            continue;
+
+          Item_in_subselect *in_subs= subs->get_IN_subquery();
           if (in_subs &&
               in_subs->substype() == Item_subselect::IN_SUBS &&
               in_subs->test_strategy(SUBS_SEMI_JOIN))
@@ -7655,6 +7630,17 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
 
   thd->column_usage= column_usage;
   DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
+  /*
+    Followimg 2 condition always should be true (but they was added
+    due to an error present only in 10.3):
+    1) nest_level shoud be 0 or positive;
+    2) nest level of all SELECTs on the same level shoud be equal first
+       SELECT on this level (and each other).
+  */
+  DBUG_ASSERT(thd->lex->current_select->nest_level >= 0);
+  DBUG_ASSERT(thd->lex->current_select->master_unit()->first_select()
+                ->nest_level ==
+              thd->lex->current_select->nest_level);
   if (allow_sum_func)
     thd->lex->allow_sum_func.set_bit(thd->lex->current_select->nest_level);
   thd->where= THD::DEFAULT_WHERE;
@@ -8420,9 +8406,11 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
     thd->lex->which_check_option_applicable();
   bool save_is_item_list_lookup= select_lex->is_item_list_lookup;
   TABLE_LIST *derived= select_lex->master_unit()->derived;
+  bool save_resolve_in_select_list= select_lex->context.resolve_in_select_list;
   DBUG_ENTER("setup_conds");
 
   select_lex->is_item_list_lookup= 0;
+  select_lex->context.resolve_in_select_list= false;
 
   thd->column_usage= MARK_COLUMNS_READ;
   DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
@@ -8475,7 +8463,8 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
     select_lex->where= *conds;
   }
   thd->lex->current_select->is_item_list_lookup= save_is_item_list_lookup;
-  DBUG_RETURN(MY_TEST(thd->is_error()));
+  select_lex->context.resolve_in_select_list= save_resolve_in_select_list;
+  DBUG_RETURN(thd->is_error());
 
 err_no_arena:
   select_lex->is_item_list_lookup= save_is_item_list_lookup;
@@ -8853,6 +8842,8 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   if (!thd->is_error())
   {
     thd->abort_on_warning= FALSE;
+    if (table->default_field && table->update_default_fields(ignore_errors))
+      goto err;
     if (table->versioned())
       table->vers_update_fields();
     if (table->vfield &&
@@ -8920,7 +8911,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
 
 my_bool mysql_rm_tmp_tables(void)
 {
-  uint i, idx;
+  size_t i, idx;
   char	path[FN_REFLEN], *tmpdir, path_copy[FN_REFLEN];
   MY_DIR *dirp;
   FILEINFO *file;
@@ -8942,7 +8933,7 @@ my_bool mysql_rm_tmp_tables(void)
 
     /* Remove all SQLxxx tables from directory */
 
-    for (idx=0 ; idx < (uint) dirp->number_of_files ; idx++)
+    for (idx=0 ; idx < dirp->number_of_files ; idx++)
     {
       file=dirp->dir_entry+idx;
 

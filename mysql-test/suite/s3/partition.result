@@ -54,14 +54,15 @@ ALTER TABLE t2 TRUNCATE PARTITION p3;
 ERROR HY000: Table 't2' is read only
 ALTER TABLE t2 ANALYZE PARTITION p3;
 Table	Op	Msg_type	Msg_text
-s3.t2	analyze	error	Table 's3.t2' is read only
+s3.t2	analyze	status	Table 's3.t2' is read only
+s3.t2	analyze	status	Engine-independent statistics collected
+s3.t2	analyze	status	OK
 SELECT count(*) FROM t2;
 count(*)
 6
 ALTER TABLE t2 CHECK PARTITION p3;
 Table	Op	Msg_type	Msg_text
-s3.t2	check	error	Subpartition p3sp0 returned error
-s3.t2	check	error	Unknown - internal error 165 during operation
+s3.t2	check	status	OK
 SELECT count(*) FROM t2;
 count(*)
 6

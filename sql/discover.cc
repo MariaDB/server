@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -72,6 +72,7 @@ int readfrm(const char *name, const uchar **frmdata, size_t *len)
   error= 2;
   if (mysql_file_fstat(file, &state, MYF(0)))
     goto err;
+  MSAN_STAT_WORKAROUND(&state);
   read_len= (size_t)MY_MIN(FRM_MAX_SIZE, state.st_size); // safety
 
   // Read whole frm file
@@ -232,7 +233,7 @@ int extension_based_table_discovery(MY_DIR *dirp, const char *ext_meta,
     cur++;
   }
   advance(from, to, cur, skip);
-  dirp->number_of_files= (uint)(to - dirp->dir_entry);
+  dirp->number_of_files= to - dirp->dir_entry;
   return 0;
 }
 

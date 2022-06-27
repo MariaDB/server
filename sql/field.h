@@ -517,6 +517,7 @@ enum enum_vcol_info_type
 {
   VCOL_GENERATED_VIRTUAL, VCOL_GENERATED_STORED,
   VCOL_DEFAULT, VCOL_CHECK_FIELD, VCOL_CHECK_TABLE,
+  VCOL_USING_HASH,
   /* Additional types should be added here */
   /* Following is the highest value last   */
   VCOL_TYPE_NONE = 127 // Since the 0 value is already in use
@@ -534,6 +535,8 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
   case VCOL_CHECK_FIELD:
   case VCOL_CHECK_TABLE:
     return "CHECK";
+  case VCOL_USING_HASH:
+    return "USING HASH";
   case VCOL_TYPE_NONE:
     return "UNTYPED";
   }
@@ -635,6 +638,14 @@ public:
   {
     in_partitioning_expr= TRUE;
   }
+  bool need_refix() const
+  {
+    return flags & VCOL_SESSION_FUNC;
+  }
+  bool fix_expr(THD *thd);
+  bool fix_session_expr(THD *thd);
+  bool cleanup_session_expr();
+  bool fix_and_check_expr(THD *thd, TABLE *table);
   inline bool is_equal(const Virtual_column_info* vcol) const;
   inline void print(String*);
 };
@@ -893,6 +904,12 @@ public:
   }
 
   bool is_unsigned() const { return flags & UNSIGNED_FLAG; }
+
+  bool check_assignability_from(const Type_handler *from) const;
+  bool check_assignability_from(const Field *from) const
+  {
+    return check_assignability_from(from->type_handler());
+  }
 
   /**
     Convenience definition of a copy function returned by
@@ -1651,6 +1668,8 @@ protected:
   }
   int warn_if_overflow(int op_result);
   Copy_func *get_identical_copy_func() const;
+  bool cmp_is_done_using_type_handler_of_this(const Item_bool_func *cond,
+                                              const Item *item) const;
   bool can_optimize_scalar_range(const RANGE_OPT_PARAM *param,
                                  const KEY_PART *key_part,
                                  const Item_bool_func *cond,
@@ -1800,7 +1819,7 @@ public:
 
   bool vers_sys_field() const
   {
-    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
+    return flags & (VERS_ROW_START | VERS_ROW_END);
   }
 
   bool vers_update_unversioned() const
@@ -4012,12 +4031,7 @@ public:
                    NONE, field_name_arg, collation),
      can_alter_field_type(1) {};
 
-  const Type_handler *type_handler() const override
-  {
-    if (is_var_string())
-      return &type_handler_var_string;
-    return &type_handler_string;
-  }
+  const Type_handler *type_handler() const override;
   enum ha_base_keytype key_type() const override
     { return binary() ? HA_KEYTYPE_BINARY : HA_KEYTYPE_TEXT; }
   en_fieldtype tmp_engine_column_type(bool use_packed_rows) const override;
@@ -4136,8 +4150,7 @@ public:
     share->varchar_fields++;
   }
 
-  const Type_handler *type_handler() const override
-  { return &type_handler_varchar; }
+  const Type_handler *type_handler() const override;
   en_fieldtype tmp_engine_column_type(bool use_packed_rows) const override
   {
     return FIELD_VARCHAR;
@@ -4721,6 +4734,8 @@ private:
 class Field_enum :public Field_str {
   static void do_field_enum(Copy_field *copy_field);
   longlong val_int(const uchar *) const;
+  bool can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
+                                         const Item *item) const;
 protected:
   uint packlength;
 public:
@@ -4813,9 +4828,12 @@ public:
                       uint param_data) override;
 
   bool can_optimize_keypart_ref(const Item_bool_func *cond,
-                                const Item *item) const override;
-  bool can_optimize_group_min_max(const Item_bool_func *, const Item *)
-    const override
+                                const Item *item) const override
+  {
+    return can_optimize_range_or_keypart_ref(cond, item);
+  }
+  bool can_optimize_group_min_max(const Item_bool_func *cond,
+                                  const Item *const_item) const override
   {
     /*
       Can't use GROUP_MIN_MAX optimization for ENUM and SET,
@@ -4828,7 +4846,10 @@ public:
   }
   bool can_optimize_range(const Item_bool_func *cond,
                           const Item *item,
-                          bool is_eq_func) const override;
+                          bool is_eq_func) const override
+  {
+    return can_optimize_range_or_keypart_ref(cond, item);
+  }
   Binlog_type_info binlog_type_info() const override;
 private:
   bool is_equal(const Column_definition &new_field) const override;
@@ -5306,7 +5327,7 @@ public:
   }
   bool vers_sys_field() const
   {
-    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
+    return flags & (VERS_ROW_START | VERS_ROW_END);
   }
   void create_length_to_internal_length_bit();
   void create_length_to_internal_length_newdecimal();

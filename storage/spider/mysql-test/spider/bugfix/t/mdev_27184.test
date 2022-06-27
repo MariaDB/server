@@ -1,0 +1,31 @@
+--echo #
+--echo # MDEV-27184 Assertion `(old_top == initial_top (av) && old_size == 0) ||
+--echo # ((unsigned long) (old_size) >= MINSIZE && prev_inuse (old_top) &&
+--echo # ((unsigned long) old_end & (pagesize - 1)) == 0)' failed,
+--echo # Assertion `str.alloced_length() >= str.length() + data_len' failed
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection master_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+CREATE TABLE tbl_a (a FLOAT) ENGINE=SPIDER;
+
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+INSERT INTO tbl_a VALUES
+    (0xF5A7),(0xF5A8),(0xF5A9),(0xF5AA),(0xF5AB),(0xF5AC),(0xF5AD),(0xF5AE),
+    (0xF5A7),(0xF5A8),(0xF5A9),(0xF5AA),(0xF5AB),(0xF5AC),(0xF5AD),(0xF5AE);
+
+DROP DATABASE auto_test_remote;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

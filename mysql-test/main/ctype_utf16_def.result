@@ -8,3 +8,8 @@ character_set_server	utf16
 SHOW VARIABLES LIKE 'ft_stopword_file';
 Variable_name	Value
 ft_stopword_file	(built-in)
+#
+# MDEV-23269 SIGSEGV in ft_boolean_check_syntax_string on setting ft_boolean_syntax
+#
+SET GLOBAL ft_boolean_syntax='+ -><()~*:""&|';
+SET GLOBAL ft_boolean_syntax=DEFAULT;

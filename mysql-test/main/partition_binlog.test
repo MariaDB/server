@@ -22,7 +22,7 @@ INSERT INTO t1 VALUES (1), (10), (100), (1000);
 
 --error ER_UNKNOWN_PARTITION
 ALTER TABLE t1 TRUNCATE PARTITION p1;
---error ER_DROP_PARTITION_NON_EXISTENT
+--error ER_PARTITION_DOES_NOT_EXIST
 ALTER TABLE t1 DROP PARTITION p1;
 
 --echo # No error returned, output in table format instead:

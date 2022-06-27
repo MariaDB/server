@@ -32,6 +32,7 @@
 #include "sql_class.h" /* system variables */
 #include "transaction.h" /* trans_xxx */
 #include "sql_base.h" /* close_thread_tables */
+#include "debug_sync.h"
 
 static void init_service_thd(THD* thd, char* thread_stack)
 {
@@ -388,6 +389,16 @@ int Wsrep_server_service::wait_committing_transactions(int timeout)
   return wsrep_wait_committing_connections_close(timeout);
 }
 
-void Wsrep_server_service::debug_sync(const char*)
+void Wsrep_server_service::debug_sync(const char* sync_point)
 {
+  DBUG_EXECUTE_IF(sync_point, {
+      std::stringstream dbug_action;
+      dbug_action << "now "
+                  << "SIGNAL " << sync_point << "_reached "
+                  << "WAIT_FOR " << sync_point << "_continue";
+      const std::string& action(dbug_action.str());
+      DBUG_ASSERT(!debug_sync_set_action(current_thd,
+                                         action.c_str(),
+                                         action.length()));
+    };);
 }

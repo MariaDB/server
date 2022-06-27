@@ -122,7 +122,7 @@ bool sequence_definition::check_and_adjust(bool set_reserved_until)
       start >= min_value &&
       max_value != LONGLONG_MAX &&
       min_value != LONGLONG_MIN &&
-      cache < (LONGLONG_MAX - max_increment) / max_increment &&
+      cache >= 0 && cache < (LONGLONG_MAX - max_increment) / max_increment &&
       ((real_increment > 0 && reserved_until >= min_value) ||
        (real_increment < 0 && reserved_until <= max_value)))
     DBUG_RETURN(FALSE);
@@ -309,6 +309,11 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
       DBUG_RETURN(TRUE);
   }
 
+#ifdef WITH_WSREP
+  if (WSREP_ON && seq->cache != 0)
+    WSREP_WARN("CREATE SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
+#endif
+
   /* If not temporary table */
   if (!temporary_table)
   {
@@ -365,9 +370,14 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
 
   seq->reserved_until= seq->start;
   error= seq->write_initial_sequence(table);
-
-  if (trans_commit_stmt(thd))
-    error= 1;
+  {
+    uint save_unsafe_rollback_flags=
+      thd->transaction->stmt.m_unsafe_rollback_flags;
+    if (trans_commit_stmt(thd))
+      error= 1;
+    thd->transaction->stmt.m_unsafe_rollback_flags=
+      save_unsafe_rollback_flags;
+  }
   if (trans_commit_implicit(thd))
     error= 1;
 
@@ -896,15 +906,28 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   No_such_table_error_handler no_such_table_handler;
   DBUG_ENTER("Sql_cmd_alter_sequence::execute");
 
+
   if (check_access(thd, ALTER_ACL, first_table->db.str,
                    &first_table->grant.privilege,
                    &first_table->grant.m_internal,
                    0, 0))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
+#ifdef WITH_WSREP
+  if (WSREP_ON && new_seq->cache != 0)
+    WSREP_WARN("ALTER SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
+#endif
+
   if (check_grant(thd, ALTER_ACL, first_table, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
+#ifdef WITH_WSREP
+  if (WSREP_ON && WSREP(thd) &&
+      wsrep_to_isolation_begin(thd, first_table->db.str,
+	                       first_table->table_name.str,
+		               first_table))
+    DBUG_RETURN(TRUE);
+#endif /* WITH_WSREP */
   if (if_exists())
     thd->push_internal_handler(&no_such_table_handler);
   error= open_and_lock_tables(thd, first_table, FALSE, 0);

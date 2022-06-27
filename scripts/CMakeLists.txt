@@ -179,6 +179,7 @@ ENDIF()
 
 SET(HOSTNAME "uname -n")
 SET(MYSQLD_USER "mysql")
+SET(MYSQLD_GROUP "mysql")
 ENDIF(UNIX)
 
 # Really ugly, one script, "mysql_install_db", needs prefix set to ".",
@@ -258,7 +259,7 @@ SET(mysql_config_COMPONENT Development)
 SET(msql2mysql_COMPONENT Client)
 SET(mariadb-access_COMPONENT Client)
 SET(mariadb-find-rows_COMPONENT Client)
-SET(mytop_COMPONENT Mytop)
+SET(mytop_COMPONENT Client)
 SET(mariadb-hotcopy_COMPONENT COMPONENT Client)
 SET(mariadb-convert-table-format_COMPONENT COMPONENT Client)
 SET(mariadb-setpermission_COMPONENT COMPONENT Client)
@@ -296,6 +297,7 @@ ELSE()
       wsrep_sst_mysqldump
       wsrep_sst_rsync
       wsrep_sst_mariabackup
+      wsrep_sst_backup
     )
     # The following script is sourced from other SST scripts, so it should
     # not be made executable.

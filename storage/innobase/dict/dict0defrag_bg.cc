@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -173,10 +173,10 @@ dict_stats_defrag_pool_del(
 /*****************************************************************//**
 Get the first index that has been added for updating persistent defrag
 stats and eventually save its stats. */
-static void dict_stats_process_entry_from_defrag_pool()
+static void dict_stats_process_entry_from_defrag_pool(THD *thd)
 {
-  table_id_t	table_id;
-  index_id_t	index_id;
+  table_id_t table_id;
+  index_id_t index_id;
 
   ut_ad(!srv_read_only_mode);
 
@@ -185,31 +185,28 @@ static void dict_stats_process_entry_from_defrag_pool()
     /* no index in defrag pool */
     return;
 
-  dict_sys.freeze(SRW_LOCK_CALL);
-
   /* If the table is no longer cached, we've already lost the in
   memory stats so there's nothing really to write to disk. */
-  dict_table_t *table= dict_sys.find_table(table_id);
-  dict_index_t *index= table && table->corrupted
-    ? nullptr : dict_table_find_index_on_id(table, index_id);
-  const bool save= index && !index->is_corrupted();
-  if (save)
-    table->acquire();
-  dict_sys.unfreeze();
-  if (save)
+  MDL_ticket *mdl= nullptr;
+  if (dict_table_t *table=
+      dict_table_open_on_id(table_id, false, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
+                            thd, &mdl))
   {
-    dict_stats_save_defrag_stats(index);
-    table->release();
+    if (dict_index_t *index= !table->corrupted
+        ? dict_table_find_index_on_id(table, index_id) : nullptr)
+      if (index->is_btree())
+        dict_stats_save_defrag_stats(index);
+    dict_table_close(table, false, thd, mdl);
   }
 }
 
 /**
 Get the first index that has been added for updating persistent defrag
 stats and eventually save its stats. */
-void dict_defrag_process_entries_from_defrag_pool()
+void dict_defrag_process_entries_from_defrag_pool(THD *thd)
 {
   while (!defrag_pool.empty())
-    dict_stats_process_entry_from_defrag_pool();
+    dict_stats_process_entry_from_defrag_pool(thd);
 }
 
 /*********************************************************************//**
@@ -256,7 +253,9 @@ release_and_exit:
   trx_t *trx= trx_create();
   trx->mysql_thd= thd;
   trx_start_internal(trx);
-  dberr_t ret= lock_table_for_trx(table_stats, trx, LOCK_X);
+  dberr_t ret= trx->read_only
+    ? DB_READ_ONLY
+    : lock_table_for_trx(table_stats, trx, LOCK_X);
   if (ret == DB_SUCCESS)
     ret= lock_table_for_trx(index_stats, trx, LOCK_X);
   row_mysql_lock_data_dictionary(trx);
@@ -308,7 +307,8 @@ btr_get_size_and_reserved(
 		return(ULINT_UNDEFINED);
 	}
 
-	buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, mtr);
+	dberr_t err;
+	buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, mtr, &err);
 	*used = 0;
 	if (!root) {
 		return ULINT_UNDEFINED;
@@ -317,11 +317,11 @@ btr_get_size_and_reserved(
 	mtr->x_lock_space(index->table->space);
 
 	ulint n = fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
-					+ root->frame, used, mtr);
+					+ root->page.frame, used, mtr);
 	if (flag == BTR_TOTAL_SIZE) {
 		n += fseg_n_reserved_pages(*root,
 					   PAGE_HEADER + PAGE_BTR_SEG_TOP
-					   + root->frame, &dummy, mtr);
+					   + root->page.frame, &dummy, mtr);
 		*used += dummy;
 	}
 
@@ -391,7 +391,9 @@ release_and_exit:
   trx_t *trx= trx_create();
   trx->mysql_thd= thd;
   trx_start_internal(trx);
-  dberr_t ret= lock_table_for_trx(table_stats, trx, LOCK_X);
+  dberr_t ret= trx->read_only
+    ? DB_READ_ONLY
+    : lock_table_for_trx(table_stats, trx, LOCK_X);
   if (ret == DB_SUCCESS)
     ret= lock_table_for_trx(index_stats, trx, LOCK_X);
 

@@ -186,6 +186,7 @@ connect stop_purge,localhost,root;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connect ddl,localhost,root,,test;
 DELETE FROM t1;
+INSERT INTO t1 VALUES(1, 2);
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
 send ALTER TABLE t1 FORCE;
 connection default;
@@ -236,11 +237,11 @@ connection ddl;
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
 send ALTER TABLE t1 FORCE;
 
-connection stop_purge;
-COMMIT;
-
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR copied';
+connection stop_purge;
+COMMIT;
+connection default;
 let $wait_all_purged = 1;
 --source include/wait_all_purged.inc
 let $wait_all_purged = 0;
@@ -265,10 +266,9 @@ connection ddl;
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
 send ALTER TABLE t1 ADD COLUMN b INT NOT NULL DEFAULT 2 AFTER a, FORCE;
 
-disconnect stop_purge;
-
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR copied';
+disconnect stop_purge;
 let $wait_all_purged = 1;
 --source include/wait_all_purged.inc
 let $wait_all_purged = 0;
@@ -303,7 +303,6 @@ ROLLBACK;
 SET DEBUG_SYNC = 'now SIGNAL logged';
 
 connection ddl;
---error ER_INVALID_USE_OF_NULL
 reap;
 disconnect ddl;
 
@@ -519,7 +518,7 @@ DROP TABLE t1;
 CREATE TABLE t1
 (a INT NOT NULL, b INT, c INT, d INT, e INT, f INT, g INT, h INT, i TEXT)
 ENGINE=InnoDB;
-
+INSERT INTO t1 VALUES(1, 2, 3, 4, 5, 6, 7, 8, "test");
 ALTER TABLE t1 MODIFY a INT NULL;
 
 SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL alter WAIT_FOR go';
@@ -533,10 +532,27 @@ set DEBUG_SYNC='now SIGNAL go';
 connection default;
 reap;
 
-disconnect con1;
 SELECT * FROM t1;
 DROP TABLE t1;
 SET DEBUG_SYNC=RESET;
+
+--echo #
+--echo # MDEV-27962 Instant DDL downgrades the MDL when table is empty
+--echo #
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL)ENGINE=InnoDB;
+SET DEBUG_SYNC="alter_table_inplace_after_lock_downgrade SIGNAL try_insert WAIT_FOR alter_progress";
+send ALTER TABLE t1 ADD INDEX(f1), ADD INDEX(f2);
+connection con1;
+SET SESSION lock_wait_timeout=1;
+SET DEBUG_SYNC="now WAIT_FOR try_insert";
+--error ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t1 VALUES(1, 2);
+SET DEBUG_SYNC="now SIGNAL alter_progress";
+disconnect con1;
+connection default;
+reap;
+DROP TABLE t1;
+SET DEBUG_SYNC=reset;
 
 --echo # End of 10.4 tests
 

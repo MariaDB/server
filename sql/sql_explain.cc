@@ -604,27 +604,29 @@ void Explain_union::print_explain_json(Explain_query *query,
   else
     writer->add_member("union_result").start_object();
 
-  // using_temporary_table
-  make_union_table_name(table_name_buffer);
-  writer->add_member("table_name").add_str(table_name_buffer);
-  writer->add_member("access_type").add_str("ALL"); // not very useful
-
-  /* r_loops (not present in tabular output) */
-  if (is_analyze)
+  if (using_tmp)
   {
-    writer->add_member("r_loops").add_ll(fake_select_lex_tracker.get_loops());
-  }
+    make_union_table_name(table_name_buffer);
+    writer->add_member("table_name").add_str(table_name_buffer);
+    writer->add_member("access_type").add_str("ALL"); // not very useful
 
-  /* `r_rows` */
-  if (is_analyze)
-  {
-    writer->add_member("r_rows");
-    if (fake_select_lex_tracker.has_scans())
-      writer->add_double(fake_select_lex_tracker.get_avg_rows());
-    else
-      writer->add_null();
-  }
+    /* r_loops (not present in tabular output) */
+    if (is_analyze)
+    {
+      writer->add_member("r_loops").add_ll(
+          fake_select_lex_tracker.get_loops());
+    }
 
+    /* `r_rows` */
+    if (is_analyze)
+    {
+      writer->add_member("r_rows");
+      if (fake_select_lex_tracker.has_scans())
+        writer->add_double(fake_select_lex_tracker.get_avg_rows());
+      else
+        writer->add_null();
+    }
+  }
   writer->add_member("query_specifications").start_array();
 
   for (int i= 0; i < (int) union_members.elements(); i++)
@@ -1929,7 +1931,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
 
 
 /*
-  Elements in this array match members of enum Extra_tag, defined in
+  Elements in this array match members of enum explain_extra_tag, defined in
   sql_explain.h
 */
 

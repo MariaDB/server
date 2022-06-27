@@ -1,4 +1,3 @@
-drop table if exists t1;
 CREATE TABLE t1 (c1 BIGINT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (9223372036854775807, null);
 INSERT INTO t1 (c2) VALUES ('innodb');
@@ -1622,3 +1621,27 @@ id	name
 -1	dog
 2	cat
 DROP PROCEDURE autoinc_mdev15353_one;
+#
+# MDEV-28416 Incorrect AUTO_INCREMENT may be issued
+#
+SET @aii=@@auto_increment_increment;
+SET auto_increment_increment=300;
+CREATE TABLE t1 (a SERIAL) ENGINE=innodb;
+INSERT INTO t1 VALUES (18446744073709551613);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  UNIQUE KEY `a` (`a`)
+) ENGINE=InnoDB AUTO_INCREMENT=18446744073709551614 DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (NULL);
+ERROR 22003: Out of range value for column 'a' at row 1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  UNIQUE KEY `a` (`a`)
+) ENGINE=InnoDB AUTO_INCREMENT=18446744073709551615 DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET auto_increment_increment=@aii;
+# End of 10.2 tests

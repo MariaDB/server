@@ -1,6 +1,6 @@
 #
 # This "body" file checks general properties of XA transaction replication
-# as of MDEV-7974.
+# as of MDEV-742.
 # Parameters:
 # --let rpl_xa_check= SELECT ...
 #
@@ -353,3 +353,81 @@ source include/sync_with_master_gtid.inc;
 connection master;
 --eval drop database test_ign
 drop table t1, t2, t3, tm;
+
+--echo #
+--echo # MDEV-26682 slave lock timeout with XA and gap locks
+--echo #
+create table t1 (a int primary key, b int unique) engine=innodb;
+insert t1 values (1,1),(3,3),(5,5);
+sync_slave_with_master;
+
+# set a strong isolation level to keep the read view below.
+# alternatively a long-running select can do that too even in read-committed
+set session tx_isolation='repeatable-read';
+start transaction;
+# opens a read view to disable purge on the slave
+select * from t1;
+
+connect m2, localhost, root;
+# now, delete a value, purge it on the master, but not on the slave
+delete from t1 where a=3;
+xa start 'x1';
+# this sets a gap lock on <3>, when it exists (so, on the slave)
+update t1 set b=3 where a=5;
+xa end 'x1';
+xa prepare 'x1';
+
+connect m3, localhost, root;
+# and this tries to insert straight into the locked gap
+insert t1 values (2, 2);
+
+echo -->slave;
+sync_slave_with_master;
+commit;
+select * from t1;
+
+connection m2;
+xa rollback 'x1';
+disconnect m2;
+disconnect m3;
+
+connection master;
+
+drop table t1;
+
+create table t1 (id int auto_increment primary key, c1 int not null unique)
+engine=innodb;
+
+create table t2 (id int auto_increment primary key, c1 int not null,
+foreign key(c1) references t1(c1), unique key(c1)) engine=innodb;
+
+insert t1 values (869,1), (871,3), (873,4), (872,5), (870,6), (877,7);
+insert t2 values (795,6), (800,7);
+
+xa start '1';
+update t2 set id = 9, c1 = 5 where c1 in (null, null, null, null, null, 7, 3);
+
+connect con1, localhost,root;
+xa start '2';
+delete from t1 where c1 like '3%';
+xa end '2';
+xa prepare '2';
+
+connection master;
+xa end '1';
+xa prepare '1';
+
+echo ->slave;
+
+sync_slave_with_master;
+
+connection slave;
+source include/sync_with_master_gtid.inc;
+
+connection con1;
+xa commit '2';
+disconnect con1;
+
+connection master;
+xa commit '1';
+drop table t2, t1;

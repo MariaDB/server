@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -45,11 +45,6 @@ Created Apr 25, 2012 Vasil Dimov
 /** Minimum time interval between stats recalc for a given table */
 #define MIN_RECALC_INTERVAL	10 /* seconds */
 static void dict_stats_schedule(int ms);
-
-#ifdef UNIV_DEBUG
-/** Used by SET GLOBAL innodb_dict_stats_disabled_debug = 1; */
-my_bool				innodb_dict_stats_disabled_debug;
-#endif /* UNIV_DEBUG */
 
 /** Protects recalc_pool */
 static mysql_mutex_t recalc_pool_mutex;
@@ -108,17 +103,18 @@ static void dict_stats_recalc_pool_add(table_id_t id)
 {
   ut_ad(!srv_read_only_mode);
   ut_ad(id);
+  bool schedule = false;
   mysql_mutex_lock(&recalc_pool_mutex);
 
   const auto begin= recalc_pool.begin(), end= recalc_pool.end();
   if (end == std::find_if(begin, end, [&](const recalc &r){return r.id == id;}))
   {
     recalc_pool.emplace_back(recalc{id, recalc::IDLE});
+    schedule = true;
   }
 
   mysql_mutex_unlock(&recalc_pool_mutex);
-
-  if (begin == end)
+  if (schedule)
     dict_stats_schedule_now();
 }
 
@@ -216,7 +212,7 @@ void dict_stats_recalc_pool_del(table_id_t id, bool have_mdl_exclusive)
 
   mysql_mutex_lock(&recalc_pool_mutex);
 
-  const auto end= recalc_pool.end();
+  auto end= recalc_pool.end();
   auto i= std::find_if(recalc_pool.begin(), end,
                        [&](const recalc &r){return r.id == id;});
   if (i != end)
@@ -227,7 +223,14 @@ void dict_stats_recalc_pool_del(table_id_t id, bool have_mdl_exclusive)
       {
         i->state= recalc::IN_PROGRESS_DELETING;
         do
+        {
           my_cond_wait(&recalc_pool_cond, &recalc_pool_mutex.m_mutex);
+          end= recalc_pool.end();
+          i= std::find_if(recalc_pool.begin(), end,
+                          [&](const recalc &r){return r.id == id;});
+          if (i == end)
+            goto done;
+        }
         while (i->state == recalc::IN_PROGRESS_DELETING);
       }
       /* fall through */
@@ -241,6 +244,7 @@ void dict_stats_recalc_pool_del(table_id_t id, bool have_mdl_exclusive)
     }
   }
 
+done:
   mysql_mutex_unlock(&recalc_pool_mutex);
 }
 
@@ -368,21 +372,6 @@ done:
   return update_now;
 }
 
-#ifdef UNIV_DEBUG
-/** Disables dict stats thread. It's used by:
-	SET GLOBAL innodb_dict_stats_disabled_debug = 1 (0).
-@param[in]	save		immediate result from check function */
-void dict_stats_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
-				      const void* save)
-{
-	const bool disable = *static_cast<const my_bool*>(save);
-	if (disable)
-		dict_stats_shutdown();
-	else
-		dict_stats_start();
-}
-#endif /* UNIV_DEBUG */
-
 static tpool::timer* dict_stats_timer;
 static std::mutex dict_stats_mutex;
 
@@ -391,7 +380,7 @@ static void dict_stats_func(void*)
   THD *thd= innobase_create_background_thd("InnoDB statistics");
   set_current_thd(thd);
   while (dict_stats_process_entry_from_recalc_pool(thd)) {}
-  dict_defrag_process_entries_from_defrag_pool();
+  dict_defrag_process_entries_from_defrag_pool(thd);
   set_current_thd(nullptr);
   innobase_destroy_background_thd(thd);
 }

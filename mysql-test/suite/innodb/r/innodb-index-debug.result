@@ -81,6 +81,7 @@ COUNT(k1)	k2	k3
 drop table t1;
 create table t1(k1 int auto_increment primary key,
 k2 char(200),k3 char(200))engine=innodb;
+INSERT INTO t1 VALUES(1, "test", "test");
 SET DEBUG_SYNC= 'row_merge_after_scan
 SIGNAL opened WAIT_FOR flushed';
 ALTER TABLE t1 FORCE, ADD COLUMN k4 int;
@@ -100,6 +101,7 @@ SELECT COUNT(k1),k2,k3 FROM t1 GROUP BY k2,k3;
 COUNT(k1)	k2	k3
 480	aaa	bbb
 480	aaaa	bbbb
+1	test	test
 disconnect con1;
 connection default;
 show create table t1;
@@ -109,26 +111,28 @@ t1	CREATE TABLE `t1` (
   `k2` char(200) DEFAULT NULL,
   `k3` char(200) DEFAULT NULL,
   PRIMARY KEY (`k1`)
-) ENGINE=InnoDB AUTO_INCREMENT=1023 DEFAULT CHARSET=latin1
+) ENGINE=InnoDB AUTO_INCREMENT=1024 DEFAULT CHARSET=latin1
 drop table t1;
 drop table t480;
 #
 # MDEV-12827 Assertion failure when reporting duplicate key error
 # in online table rebuild
 #
-CREATE TABLE t1 (j INT UNIQUE, i INT UNIQUE) ENGINE=InnoDB;
+CREATE TABLE t1 (j INT UNIQUE, i INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(2, 2);
 connect  con1,localhost,root,,test;
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL built WAIT_FOR log';
-ALTER TABLE t1 DROP j, FORCE;
+ALTER TABLE t1 DROP j, ADD UNIQUE INDEX(i), FORCE;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR built';
 SET DEBUG_DBUG='+d,row_ins_row_level';
 INSERT INTO t1 (i) VALUES (0),(0);
-ERROR 23000: Duplicate entry '0' for key 'i'
 SET DEBUG_SYNC='now SIGNAL log';
 SET DEBUG_DBUG=@saved_debug_dbug;
 connection con1;
 ERROR 23000: Duplicate entry '0' for key 'i'
+DELETE FROM t1;
+ALTER TABLE t1 ADD UNIQUE INDEX(i);
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL built2 WAIT_FOR log2';
 ALTER TABLE t1 DROP j, FORCE;
 connection default;
@@ -138,7 +142,6 @@ UPDATE t1 SET i=0;
 ERROR 23000: Duplicate entry '0' for key 'i'
 SET DEBUG_SYNC='now SIGNAL log2';
 connection con1;
-ERROR 23000: Duplicate entry '0' for key 'i'
 disconnect con1;
 connection default;
 SET DEBUG_SYNC='RESET';

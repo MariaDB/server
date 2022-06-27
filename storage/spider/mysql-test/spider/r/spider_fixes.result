@@ -297,10 +297,16 @@ CREATE TABLE t1 (
 id int(11) NOT NULL,
 PRIMARY KEY (id)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_LOCK1
+Warnings:
+Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
+Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
 CREATE TABLE t2 (
 id int(11) NOT NULL,
 PRIMARY KEY (id)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_LOCK2
+Warnings:
+Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
+Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
 LOCK TABLES t1 READ, t2 READ;
 UNLOCK TABLES;
 
@@ -413,6 +419,10 @@ connection master_1;
 
 read only
 connection master_1;
+SET @original_spider_read_only_mode = @@SESSION.spider_read_only_mode;
+SET SESSION spider_read_only_mode = -1;
+Warnings:
+Warning	138	The option value -1 (use table value) is deprecated and will be removed in a future release
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
 id int(11) NOT NULL,
@@ -441,10 +451,19 @@ DELETE FROM t1;
 ERROR HY000: Table 'auto_test_local.t1' is read only
 TRUNCATE t1;
 ERROR HY000: Table 'auto_test_local.t1' is read only
+SET SESSION spider_read_only_mode = @original_spider_read_only_mode;
 
 2.27
 error mode
 connection master_1;
+SET @original_spider_error_read_mode = @@SESSION.spider_error_read_mode;
+SET @original_spider_error_write_mode = @@SESSION.spider_error_write_mode;
+SET SESSION spider_error_read_mode = -1;
+Warnings:
+Warning	138	The option value -1 (use table value) is deprecated and will be removed in a future release
+SET SESSION spider_error_write_mode = -1;
+Warnings:
+Warning	138	The option value -1 (use table value) is deprecated and will be removed in a future release
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
 id int(11) NOT NULL,
@@ -466,6 +485,8 @@ Error	1146	Table 'auto_test_remote.ter1_1' doesn't exist
 TRUNCATE t1;
 Warnings:
 Error	1146	Table 'auto_test_remote.ter1_1' doesn't exist
+SET SESSION spider_error_read_mode = @original_spider_error_read_mode;
+SET SESSION spider_error_write_mode = @original_spider_error_write_mode;
 
 3.0
 is null
@@ -596,6 +617,13 @@ connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
 connection child2_2;
 DROP DATABASE IF EXISTS auto_test_remote2;
+connection master_1;
+SET @@global.expire_logs_days=11;
+connect  master_purge, localhost, root, , , $MASTER_1_MYPORT, $MASTER_1_MYSOCK;
+SET @@global.binlog_checksum=NONE;
+SET @@global.binlog_checksum=$binlog_checksum;
+SET @@global.expire_logs_days=$expire_logs_days;
+disconnect master_purge;
 for slave1_1
 for master_1
 for child2

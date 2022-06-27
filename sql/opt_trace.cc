@@ -471,12 +471,14 @@ void Opt_trace_context::end()
   current_trace= NULL;
 }
 
-Opt_trace_start::Opt_trace_start(THD *thd, TABLE_LIST *tbl,
-                  enum enum_sql_command sql_command,
-                  List<set_var_base> *set_vars,
-                  const char *query,
-                  size_t query_length,
-                  const CHARSET_INFO *query_charset):ctx(&thd->opt_trace)
+
+void Opt_trace_start::init(THD *thd,
+                           TABLE_LIST *tbl,
+                           enum enum_sql_command sql_command,
+                           List<set_var_base> *set_vars,
+                           const char *query,
+                           size_t query_length,
+                           const CHARSET_INFO *query_charset)
 {
   /*
     if optimizer trace is enabled and the statment we have is traceable,
@@ -496,6 +498,9 @@ Opt_trace_start::Opt_trace_start(THD *thd, TABLE_LIST *tbl,
     ctx->set_query(query, query_length, query_charset);
     traceable= TRUE;
     opt_trace_disable_if_no_tables_access(thd, tbl);
+    Json_writer *w= ctx->get_current_json();
+    w->start_object();
+    w->add_member("steps").start_array();
   }
 }
 
@@ -503,6 +508,9 @@ Opt_trace_start::~Opt_trace_start()
 {
   if (traceable)
   {
+    Json_writer *w= ctx->get_current_json();
+    w->end_array();
+    w->end_object();
     ctx->end();
     traceable= FALSE;
   }

@@ -1,0 +1,30 @@
+include/rpl_init.inc [topology=1->2->3]
+call mtr.add_suppression('Unsafe statement written to the binary log using ');
+connection server_1;
+set binlog_format=statement;
+#first bug
+create table t1 (a int);
+create temporary table tmp like t1;
+load data local infile 'MYSQLTEST_VARDIR/load_data' INTO TABLE tmp;
+insert into t1 select * from tmp;
+#second bug
+create table t2 (a int);
+create temporary table tmp2 like t2;
+insert into tmp2 values(10);
+update tmp2 set a = 20 limit 1;
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. The statement is unsafe because it uses a LIMIT clause. This is unsafe because the set of rows included cannot be predicted
+insert into t2 select * from tmp2;
+connection server_2;
+connection server_3;
+#t1 should have 2 rows
+select count(*) = 2 from t1;
+count(*) = 2
+1
+#t2 should have 1 rows with a = 20
+select * from t2;
+a
+20
+connection server_1;
+drop table t1, t2, tmp, tmp2;
+include/rpl_end.inc

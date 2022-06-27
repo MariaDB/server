@@ -324,6 +324,14 @@ ENDIF()
 CHECK_FUNCTION_EXISTS (accept4 HAVE_ACCEPT4)
 CHECK_FUNCTION_EXISTS (access HAVE_ACCESS)
 CHECK_FUNCTION_EXISTS (alarm HAVE_ALARM)
+IF (CMAKE_SYSTEM_NAME MATCHES "Linux" AND NOT WITH_ASAN)
+  # When an old custom memory allocator library is used, aligned_alloc()
+  # could invoke the built-in allocator in libc, not matching
+  # the overriden free() in the custom memory allocator.
+  SET(HAVE_ALIGNED_ALLOC 0)
+ELSE()
+  CHECK_FUNCTION_EXISTS (aligned_alloc HAVE_ALIGNED_ALLOC)
+ENDIF()
 SET(HAVE_ALLOCA 1)
 CHECK_FUNCTION_EXISTS (backtrace HAVE_BACKTRACE)
 CHECK_FUNCTION_EXISTS (backtrace_symbols HAVE_BACKTRACE_SYMBOLS)
@@ -421,7 +429,6 @@ CHECK_FUNCTION_EXISTS (thr_setconcurrency HAVE_THR_SETCONCURRENCY)
 CHECK_FUNCTION_EXISTS (thr_yield HAVE_THR_YIELD)
 CHECK_FUNCTION_EXISTS (vasprintf HAVE_VASPRINTF)
 CHECK_FUNCTION_EXISTS (vsnprintf HAVE_VSNPRINTF)
-CHECK_FUNCTION_EXISTS (memalign HAVE_MEMALIGN)
 CHECK_FUNCTION_EXISTS (nl_langinfo HAVE_NL_LANGINFO)
 
 IF(HAVE_SYS_EVENT_H)
@@ -863,11 +870,43 @@ MARK_AS_ADVANCED(NO_ALARM)
 CHECK_CXX_SOURCE_COMPILES("
 int main()
 {
-  long long int var= 1;
-  long long int *ptr= &var;
-  return (int)__atomic_load_n(ptr, __ATOMIC_SEQ_CST);
+  char x=1;
+  short y=1;
+  int z=1;
+  long w = 1;
+  long long s = 1;
+  x = __atomic_add_fetch(&x, 1, __ATOMIC_SEQ_CST);
+  y = __atomic_add_fetch(&y, 1, __ATOMIC_SEQ_CST);
+  z = __atomic_add_fetch(&z, 1, __ATOMIC_SEQ_CST);
+  w = __atomic_add_fetch(&w, 1, __ATOMIC_SEQ_CST);
+  return (int)__atomic_load_n(&s, __ATOMIC_SEQ_CST);
 }"
-HAVE_GCC_C11_ATOMICS)
+HAVE_GCC_C11_ATOMICS_WITHOUT_LIBATOMIC)
+IF (HAVE_GCC_C11_ATOMICS_WITHOUT_LIBATOMIC)
+  SET(HAVE_GCC_C11_ATOMICS True)
+ELSE()
+  SET(OLD_CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES})
+  LIST(APPEND CMAKE_REQUIRED_LIBRARIES "atomic")
+  CHECK_CXX_SOURCE_COMPILES("
+  int main()
+  {
+    char x=1;
+    short y=1;
+    int z=1;
+    long w = 1;
+    long long s = 1;
+    x = __atomic_add_fetch(&x, 1, __ATOMIC_SEQ_CST);
+    y = __atomic_add_fetch(&y, 1, __ATOMIC_SEQ_CST);
+    z = __atomic_add_fetch(&z, 1, __ATOMIC_SEQ_CST);
+    w = __atomic_add_fetch(&w, 1, __ATOMIC_SEQ_CST);
+    return (int)__atomic_load_n(&s, __ATOMIC_SEQ_CST);
+  }"
+  HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)
+  IF(HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)
+    SET(HAVE_GCC_C11_ATOMICS True)
+  ENDIF()
+  SET(CMAKE_REQUIRED_LIBRARIES ${OLD_CMAKE_REQUIRED_LIBRARIES})
+ENDIF()
 
 IF(WITH_VALGRIND)
   SET(HAVE_valgrind 1)
@@ -950,4 +989,20 @@ IF(NOT MSVC)
   }"
   HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE
   )
+ENDIF()
+
+MY_CHECK_C_COMPILER_FLAG("-Werror")
+IF(have_C__Werror)
+  SET(SAVE_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
+  SET(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -Werror")
+  CHECK_C_SOURCE_COMPILES("
+    #include <unistd.h>
+    int main()
+    {
+      pid_t pid=vfork();
+      return (int)pid;
+    }"
+    HAVE_VFORK
+  )
+  SET(CMAKE_REQUIRED_FLAGS ${SAVE_CMAKE_REQUIRED_FLAGS})
 ENDIF()

@@ -34,6 +34,7 @@ CREATE TABLE t1(f1 INT, f2 INT,
 PRIMARY KEY(f1, f2),
 UNIQUE INDEX uidx2 (f1, f2),
 UNIQUE INDEX uidx1 (f2))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(2, 2);
 ALTER TABLE t1 DROP PRIMARY KEY;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -66,14 +67,14 @@ test.t1	check	status	OK
 DROP TABLE t1;
 SET SQL_MODE= strict_trans_tables;
 CREATE TABLE t1(a INT UNIQUE) ENGINE=InnoDB;
-INSERT INTO t1 VALUES(3);
+INSERT INTO t1 VALUES(1);
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL dml WAIT_FOR dml_done';
 ALTER TABLE t1 MODIFY COLUMN a INT NOT NULL;
 connection con1;
 SET DEBUG_SYNC='now WAIT_FOR dml';
 BEGIN;
 INSERT INTO t1 SET a=NULL;
-ROLLBACK;
+COMMIT;
 set DEBUG_SYNC='now SIGNAL dml_done';
 connection default;
 ERROR 22004: Invalid use of NULL value

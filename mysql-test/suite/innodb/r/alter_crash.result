@@ -169,9 +169,6 @@ INSERT INTO t1(f1, f2) VALUES(2, "This is column2 value");
 ROLLBACK;
 set DEBUG_SYNC = 'now SIGNAL insert_done';
 connection default;
-Warnings:
-Warning	1265	Data truncated for column 'f3' at row 3
-Warning	1265	Data truncated for column 'f4' at row 3
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -189,3 +186,38 @@ disconnect con1;
 DROP TABLE t1;
 SET DEBUG_SYNC = 'RESET';
 SET SQL_MODE=DEFAULT;
+#
+# MDEV-26936 Recovery crash on rolling back DELETE FROM SYS_INDEXES
+#
+CREATE TABLE t1(a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1,1);
+connect ddl, localhost, root;
+SET DEBUG_SYNC = 'row_merge_after_scan SIGNAL scanned WAIT_FOR commit';
+SET DEBUG_SYNC = 'before_commit_rollback_inplace SIGNAL c WAIT_FOR ever';
+ALTER TABLE t1 ADD UNIQUE INDEX(b), ALGORITHM=INPLACE;
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR scanned';
+BEGIN;
+INSERT INTO t1 VALUES(2,1);
+COMMIT;
+SET DEBUG_SYNC = 'now SIGNAL commit';
+SET DEBUG_SYNC = 'now WAIT_FOR c';
+SET GLOBAL innodb_fil_make_page_dirty_debug=0;
+# Kill the server
+disconnect ddl;
+# restart
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+a	b
+1	1
+2	1
+DROP TABLE t1;

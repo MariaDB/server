@@ -841,6 +841,8 @@ constexpr const char* const auto_event_names[] =
   "buf0buf",
   "buf0dblwr",
   "buf0dump",
+  "buf0lru",
+  "buf0rea",
   "dict0dict",
   "dict0mem",
   "dict0stats",

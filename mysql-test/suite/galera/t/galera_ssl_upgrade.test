@@ -9,9 +9,9 @@
 --source include/have_ssl_communication.inc
 
 --connection node_1
-call mtr.add_suppression("WSREP: write_handler(): protocol is shutdown.*");
+call mtr.add_suppression("WSREP: write_handler().*");
 --connection node_2
-call mtr.add_suppression("WSREP: write_handler(): protocol is shutdown.*");
+call mtr.add_suppression("WSREP: write_handler():.*");
 
 # Save original auto_increment_offset values.
 --let $node_1=node_1
@@ -76,4 +76,8 @@ SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_N
 # Restore original auto_increment_offset values.
 --source include/auto_increment_offset_restore.inc
 
---source include/galera_end.inc
+--connection node_1
+call mtr.add_suppression("WSREP: write_handler().*");
+--connection node_2
+call mtr.add_suppression("WSREP: write_handler():.*");
+

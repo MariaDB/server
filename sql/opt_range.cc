@@ -370,7 +370,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
                                                    double read_time);
 static
 TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
-                                         double read_time);
+                                         double read_time, bool named_trace= false);
 static
 TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
                                         TRP_INDEX_MERGE *imerge_trp,
@@ -2695,6 +2695,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   notnull_cond= head->notnull_cond;
   if (!records)
     records++;					/* purecov: inspected */
+  if (head->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
+    only_single_index_range_scan= 1;
 
   if (head->force_index || force_quick_range)
     scan_time= read_time= DBL_MAX;
@@ -3283,6 +3285,25 @@ double records_in_column_ranges(PARAM *param, uint idx,
 
 
 /*
+  Compare quick select ranges according to number of found rows
+  If there is equal amounts of rows, use the long key part.
+  The idea is that if we have keys (a),(a,b) and (a,b,c) and we have
+  a query like WHERE a=1 and b=1 and c=1,
+  it is better to use key (a,b,c) than (a) as it will ensure we don't also
+  use histograms for columns b and c
+*/
+
+static
+int cmp_quick_ranges(TABLE *table, uint *a, uint *b)
+{
+  int tmp= CMP_NUM(table->opt_range[*a].rows, table->opt_range[*b].rows);
+  if (tmp)
+    return tmp;
+  return -CMP_NUM(table->opt_range[*a].key_parts, table->opt_range[*b].key_parts);
+}
+
+
+/*
   Calculate the selectivity of the condition imposed on the rows of a table
 
   SYNOPSIS
@@ -3318,10 +3339,10 @@ double records_in_column_ranges(PARAM *param, uint idx,
 
 bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 {
-  uint keynr;
-  uint max_quick_key_parts= 0;
+  uint keynr, range_index, ranges;
   MY_BITMAP *used_fields= &table->cond_set;
-  double table_records= (double)table->stat_records(); 
+  double table_records= (double)table->stat_records();
+  uint optimal_key_order[MAX_KEY];
   DBUG_ENTER("calculate_cond_selectivity_for_table");
 
   table->cond_selectivity= 1.0;
@@ -3360,23 +3381,21 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   Json_writer_object trace_wrapper(thd);
   Json_writer_array selectivity_for_indexes(thd, "selectivity_for_indexes");
 
-  for (keynr= 0;  keynr < table->s->keys; keynr++)
-  {
-    if (table->opt_range_keys.is_set(keynr))
-      set_if_bigger(max_quick_key_parts, table->opt_range[keynr].key_parts);
-  }
-
-  /* 
-    Walk through all indexes, indexes where range access uses more keyparts 
-    go first.
+  /*
+    Walk through all quick ranges in the order of least found rows.
   */
-  for (uint quick_key_parts= max_quick_key_parts;
-       quick_key_parts; quick_key_parts--)
+  for (ranges= keynr= 0 ; keynr < table->s->keys; keynr++)
+    if (table->opt_range_keys.is_set(keynr))
+      optimal_key_order[ranges++]= keynr;
+
+  my_qsort2(optimal_key_order, ranges,
+            sizeof(optimal_key_order[0]),
+            (qsort2_cmp) cmp_quick_ranges, table);
+
+  for (range_index= 0 ; range_index < ranges ; range_index++)
   {
-    for (keynr= 0;  keynr < table->s->keys; keynr++)
+    uint keynr= optimal_key_order[range_index];
     {
-      if (table->opt_range_keys.is_set(keynr) &&
-          table->opt_range[keynr].key_parts == quick_key_parts)
       {
         uint i;
         uint used_key_parts= table->opt_range[keynr].key_parts;
@@ -5084,7 +5103,7 @@ double get_sweep_read_cost(const PARAM *param, ha_rows records)
 
 static
 TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
-                                         double read_time)
+                                         double read_time, bool named_trace)
 {
   SEL_TREE **ptree;
   TRP_INDEX_MERGE *imerge_trp= NULL;
@@ -5132,7 +5151,8 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
                                              n_child_scans)))
     DBUG_RETURN(NULL);
 
-  Json_writer_object trace_best_disjunct(thd);
+  const char* trace_best_disjunct_obj_name= named_trace ? "best_disjunct_quick" : nullptr;
+  Json_writer_object trace_best_disjunct(thd, trace_best_disjunct_obj_name);
   Json_writer_array to_merge(thd, "indexes_to_merge");
   /*
     Collect best 'range' scan for each of disjuncts, and, while doing so,
@@ -5488,7 +5508,7 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
   DBUG_ASSERT(imerge->trees_next>imerge->trees);
 
   if (imerge->trees_next-imerge->trees > 1)
-    trp= get_best_disjunct_quick(param, imerge, read_time);
+    trp= get_best_disjunct_quick(param, imerge, read_time, true);
   else
   {
     /*
@@ -5676,7 +5696,7 @@ void print_keyparts(THD *thd, KEY *key, uint key_parts)
   DBUG_ASSERT(thd->trace_started());
 
   KEY_PART_INFO *part= key->key_part;
-  Json_writer_array keyparts= Json_writer_array(thd, "keyparts");
+  Json_writer_array keyparts(thd, "keyparts");
   for(uint i= 0; i < key_parts; i++, part++)
     keyparts.add(part->field->field_name);
 }
@@ -6936,7 +6956,7 @@ static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
     DBUG_PRINT("info", ("info->total_cost= %g", info->total_cost));
   }
   else
-    trace_costs->add("disk_sweep_cost", static_cast<longlong>(0));
+    trace_costs->add("disk_sweep_cost", 0);
 
   DBUG_PRINT("info", ("New out_rows: %g", info->out_rows));
   DBUG_PRINT("info", ("New cost: %g, %scovering", info->total_cost,
@@ -10267,7 +10287,7 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
 
   uint max_part_no= MY_MAX(key1->max_part_no, key2->max_part_no);
 
-  for (key2=key2->first(); key2; )
+  for (key2=key2->first(); ; )
   {
     /*
       key1 consists of one or more ranges. tmp is the range currently
@@ -10281,6 +10301,16 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
                   ^
                   tmp
     */
+    if (key1->min_flag & NO_MIN_RANGE &&
+        key1->max_flag & NO_MAX_RANGE)
+    {
+      if (key1->maybe_flag)
+        return new SEL_ARG(SEL_ARG::MAYBE_KEY);
+      return 0;   // Always true OR
+    }
+    if (!key2)
+      break;
+
     SEL_ARG *tmp=key1->find_range(key2);
 
     /*
@@ -10351,6 +10381,13 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
         key2->copy_min(tmp);
         if (!(key1=key1->tree_delete(tmp)))
         {                                       // Only one key in tree
+          if (key2->min_flag & NO_MIN_RANGE &&
+              key2->max_flag & NO_MAX_RANGE)
+          {
+            if (key2->maybe_flag)
+              return new SEL_ARG(SEL_ARG::MAYBE_KEY);
+            return 0;   // Always true OR
+          }
           key1=key2;
           key1->make_root();
           key2=key2_next;
@@ -11666,6 +11703,9 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
                                 table_key->user_defined_key_parts);
   uint pk_number;
   
+  if (param->table->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
+    return false;
+
   for (KEY_PART_INFO *kp= table_key->key_part; kp < key_part; kp++)
   {
     field_index_t fieldnr= (param->table->key_info[keynr].
@@ -12608,10 +12648,10 @@ int QUICK_RANGE_SELECT::reset()
 
   if (!mrr_buf_desc)
     empty_buf.buffer= empty_buf.buffer_end= empty_buf.end_of_used_area= NULL;
- 
-  error= file->multi_range_read_init(&seq_funcs, (void*)this, ranges.elements,
-                                     mrr_flags, mrr_buf_desc? mrr_buf_desc: 
-                                                              &empty_buf);
+
+  error= file->multi_range_read_init(&seq_funcs, (void*)this,
+                                     (uint)ranges.elements, mrr_flags,
+                                     mrr_buf_desc? mrr_buf_desc: &empty_buf);
 err:
   /* Restore bitmaps set on entry */
   if (in_ror_merged_scan)
@@ -12723,7 +12763,7 @@ int QUICK_RANGE_SELECT::get_next_prefix(uint prefix_length,
       }
     }
 
-    uint count= ranges.elements - (uint)(cur_range - (QUICK_RANGE**) ranges.buffer);
+    size_t count= ranges.elements - (size_t)(cur_range - (QUICK_RANGE**) ranges.buffer);
     if (count == 0)
     {
       /* Ranges have already been used up before. None is left for read. */
@@ -12768,7 +12808,7 @@ int QUICK_RANGE_SELECT_GEOM::get_next()
 	DBUG_RETURN(result);
     }
 
-    uint count= ranges.elements - (uint)(cur_range - (QUICK_RANGE**) ranges.buffer);
+    size_t count= ranges.elements - (size_t)(cur_range - (QUICK_RANGE**) ranges.buffer);
     if (count == 0)
     {
       /* Ranges have already been used up before. None is left for read. */
@@ -12809,9 +12849,9 @@ int QUICK_RANGE_SELECT_GEOM::get_next()
 bool QUICK_RANGE_SELECT::row_in_ranges()
 {
   QUICK_RANGE *res;
-  uint min= 0;
-  uint max= ranges.elements - 1;
-  uint mid= (max + min)/2;
+  size_t min= 0;
+  size_t max= ranges.elements - 1;
+  size_t mid= (max + min)/2;
 
   while (min != max)
   {
@@ -13997,7 +14037,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
         key_part_range[1]= last_part;
 
         /* Check if cur_part is referenced in the WHERE clause. */
-        if (join->conds->walk(&Item::find_item_in_field_list_processor, 0,
+        if (join->conds->walk(&Item::find_item_in_field_list_processor, true,
                               key_part_range))
         {
           cause= "keypart reference from where clause";
@@ -15797,7 +15837,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_max_in_range()
 
   DBUG_ASSERT(min_max_ranges.elements > 0);
 
-  for (uint range_idx= min_max_ranges.elements; range_idx > 0; range_idx--)
+  for (size_t range_idx= min_max_ranges.elements; range_idx > 0; range_idx--)
   { /* Search from the right-most range to the left. */
     get_dynamic(&min_max_ranges, (uchar*)&cur_range, range_idx - 1);
 
@@ -16343,7 +16383,7 @@ void QUICK_GROUP_MIN_MAX_SELECT::dbug_dump(int indent, bool verbose)
   }
   if (min_max_ranges.elements > 0)
   {
-    fprintf(DBUG_FILE, "%*susing %d quick_ranges for MIN/MAX:\n",
+    fprintf(DBUG_FILE, "%*susing %zu quick_ranges for MIN/MAX:\n",
             indent, "", min_max_ranges.elements);
   }
 }

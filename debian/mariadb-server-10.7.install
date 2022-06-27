@@ -45,6 +45,7 @@ usr/lib/mysql/plugin/ha_sphinx.so
 usr/lib/mysql/plugin/handlersocket.so
 usr/lib/mysql/plugin/locales.so
 usr/lib/mysql/plugin/metadata_lock_info.so
+usr/lib/mysql/plugin/password_reuse_check.so
 usr/lib/mysql/plugin/query_cache_info.so
 usr/lib/mysql/plugin/query_response_time.so
 usr/lib/mysql/plugin/server_audit.so

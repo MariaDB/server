@@ -1,9 +1,9 @@
-call mtr.add_suppression("InnoDB: Table `test`\\.`t1` (has an unreadable root page|is corrupted|does not exist.*is trying to rename)");
-call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t1(new)?\\.ibd' cannot be decrypted\\.");
+call mtr.add_suppression("InnoDB: Table `test`\\.`t1` (has an unreadable root page|does not exist.*is trying to rename)");
+call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t1(new)?\\.ibd' cannot be decrypted; key_version=1");
 call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\]");
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
 call mtr.add_suppression("InnoDB: Tablespace for table \`test\`.\`t1\` is set as discarded\\.");
-call mtr.add_suppression("InnoDB: Table `test`\\.`t1` is corrupted");
+call mtr.add_suppression("Table .*t1.* is corrupted");
 call mtr.add_suppression("InnoDB: Cannot delete tablespace .* because it is not found in the tablespace memory cache");
 call mtr.add_suppression("InnoDB: ALTER TABLE `test`\\.`t1` DISCARD TABLESPACE failed to find tablespace");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Cannot decrypt \\[page id: space=");
@@ -19,20 +19,20 @@ SHOW WARNINGS;
 Level	Code	Message
 Error	1932	Table 'test.t1' doesn't exist in engine
 ALTER TABLE t1 ENGINE=InnoDB;
-ERROR 42S02: Table 'test.t1' doesn't exist in engine
+ERROR HY000: Table test/t1 is corrupted. Please drop the table and recreate.
 SHOW WARNINGS;
 Level	Code	Message
-Error	1932	Table 'test.t1' doesn't exist in engine
+Error	1877	Table test/t1 is corrupted. Please drop the table and recreate.
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	Error	Table 'test.t1' doesn't exist in engine
-test.t1	optimize	status	Operation failed
+test.t1	optimize	Error	Table test/t1 is corrupted. Please drop the table and recreate.
+test.t1	optimize	error	Corrupt
 SHOW WARNINGS;
 Level	Code	Message
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Table 'test.t1' doesn't exist in engine
-test.t1	check	status	Operation failed
+test.t1	check	Error	Table test/t1 is corrupted. Please drop the table and recreate.
+test.t1	check	error	Corrupt
 SHOW WARNINGS;
 Level	Code	Message
 # restart: --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
@@ -65,5 +65,5 @@ t1	CREATE TABLE `t1` (
 RENAME TABLE t1 TO t1new;
 ERROR HY000: Error on rename of './test/t1' to './test/t1new' (errno: 155 "The table does not exist in the storage engine")
 ALTER TABLE t1 RENAME TO t1new;
-ERROR 42S02: Table 'test.t1' doesn't exist in engine
+ERROR HY000: Table test/t1 is corrupted. Please drop the table and recreate.
 DROP TABLE t1;

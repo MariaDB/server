@@ -97,11 +97,11 @@ ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	0
-BEGIN;
 INSERT INTO t1 VALUES(4,7,2);
 SET DEBUG_SYNC = 'now SIGNAL insert_done';
 connection con1;
 ERROR 23000: Duplicate entry '4' for key 'PRIMARY'
+DELETE FROM t1 WHERE c1=4 and c2=7;
 connection default;
 ROLLBACK;
 connection con1;
@@ -202,10 +202,10 @@ SET lock_wait_timeout = 10;
 ALTER TABLE t1 ROW_FORMAT=COMPACT
 PAGE_COMPRESSED = YES PAGE_COMPRESSION_LEVEL = 1, ALGORITHM = INPLACE;
 connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR rebuilt2';
 INSERT INTO t1 SELECT  80 + c1, c2, c3 FROM t1;
 INSERT INTO t1 SELECT 160 + c1, c2, c3 FROM t1;
 UPDATE t1 SET c2 = c2 + 1;
-SET DEBUG_SYNC = 'now WAIT_FOR rebuilt2';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
@@ -213,30 +213,22 @@ ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	1
-BEGIN;
-DELETE FROM t1;
-ROLLBACK;
 UPDATE t1 SET c2 = c2 + 1;
-BEGIN;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
-BEGIN;
-DELETE FROM t1;
-ROLLBACK;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-BEGIN;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
-BEGIN;
-DELETE FROM t1;
-ROLLBACK;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-BEGIN;
+UPDATE t1 SET c2 = c2 + 2;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
+UPDATE t1 SET c2 = c2 + 2;
+UPDATE t1 SET c2 = c2 + 1;
+UPDATE t1 SET c2 = c2 + 2;
+UPDATE t1 SET c2 = c2 + 1;
+UPDATE t1 SET c2 = c2 + 2;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
@@ -286,7 +278,7 @@ SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL rebuilt3 WAIT_FOR dml3_done
 ALTER TABLE t1 ADD PRIMARY KEY(c22f), CHANGE c2 c22f INT;
 ERROR 42000: Multiple primary key defined
 ALTER TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY(c22f), CHANGE c2 c22f INT;
-ERROR 23000: Duplicate entry '5' for key 'PRIMARY'
+ERROR 23000: Duplicate entry '26' for key 'PRIMARY'
 ALTER TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY(c22f,c1,c4(5)),
 CHANGE c2 c22f INT, CHANGE c3 c3 CHAR(255) NULL, CHANGE c1 c1 INT AFTER c22f,
 ADD COLUMN c4 VARCHAR(6) DEFAULT 'Online', LOCK=NONE;
@@ -302,11 +294,8 @@ ddl_log_file_alter_table	1
 BEGIN;
 INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 240;
 DELETE FROM t1 WHERE c1 > 320;
-ROLLBACK;
-BEGIN;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
+COMMIT;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
@@ -374,12 +363,11 @@ SET DEBUG_SYNC = 'now WAIT_FOR c3p5_created0';
 BEGIN;
 INSERT INTO t1 VALUES(347,33101,'Pikku kakkosen posti','YLETV2');
 INSERT INTO t1 VALUES(33101,347,NULL,'');
+COMMIT;
 SET DEBUG_SYNC = 'now SIGNAL ins_done0';
 connection con1;
-ERROR 01000: Data truncated for column 'c3' at row 323
-connection default;
-ROLLBACK;
-connection con1;
+ERROR 22004: Invalid use of NULL value
+DELETE FROM t1 WHERE c1= 347 and c22f = 33101;
 ALTER TABLE t1 MODIFY c3 CHAR(255) NOT NULL;
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL c3p5_created WAIT_FOR ins_done';
 ALTER TABLE t1 DROP PRIMARY KEY, DROP COLUMN c22f,
@@ -405,20 +393,20 @@ ddl_log_file_alter_table	2
 connection default;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
-321
+322
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
 SELECT * FROM t1 LIMIT 10;
 c22f	c1	c3	c4
-5	1	1foo	Online
-5	6	6foofoofoofoofoofoo	Online
-5	11	11foofoofoofoofoofoofoofoofoofoofoo	Online
-5	16	16foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
-5	21	21foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
-5	26	26foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
-5	31	31foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
-5	36	36foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
-5	41	41foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
-5	46	46foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
+27	1	1foo	Online
+27	6	6foofoofoofoofoofoo	Online
+27	11	11foofoofoofoofoofoofoofoofoofoofoo	Online
+27	16	16foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
+27	21	21foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
+27	26	26foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
+27	31	31foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
+27	36	36foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
+27	41	41foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
+27	46	46foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
 connection con1;
 ALTER TABLE t1 DISCARD TABLESPACE;
 connection default;
@@ -434,6 +422,7 @@ t1	CREATE TABLE `t1` (
 SET GLOBAL innodb_monitor_disable = module_ddl;
 DROP TABLE t1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b blob) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(0,NULL);
 connection con1;
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL created WAIT_FOR ins';
 ALTER TABLE t1 FORCE;
@@ -448,6 +437,7 @@ disconnect con1;
 connection default;
 SELECT * FROM t1;
 a	b
+0	NULL
 DROP TABLE t1;
 SET DEBUG_SYNC = 'RESET';
 SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;

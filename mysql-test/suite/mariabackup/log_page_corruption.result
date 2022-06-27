@@ -98,12 +98,12 @@ test/t3_inc
 ------
 # Full backup prepare
 # "innodb_corrupted_pages" file must not exist after successful prepare
-FOUND 1 /was successfuly fixed.*/ in backup.log
+FOUND 1 /was successfully fixed.*/ in backup.log
 # Check that fixed pages are zero-filled
 # Incremental backup prepare
 # "innodb_corrupted_pages" file must not exist after successful prepare
 # do not remove "innodb_corrupted_pages" in incremental dir
-FOUND 1 /was successfuly fixed.*/ in backup.log
+FOUND 1 /was successfully fixed.*/ in backup.log
 # Check that fixed pages are zero-filled
 # shutdown server
 # remove datadir

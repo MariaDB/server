@@ -1,5 +1,6 @@
 CREATE TABLE t1 (a TEST_INT8, b TEST_DOUBLE);
 Field   1:  `a`
+Org_field:  `a`
 Catalog:    `def`
 Database:   `test`
 Table:      `t1`
@@ -12,6 +13,7 @@ Decimals:   0
 Flags:      NUM 
 
 Field   2:  `b`
+Org_field:  `b`
 Catalog:    `def`
 Database:   `test`
 Table:      `t1`

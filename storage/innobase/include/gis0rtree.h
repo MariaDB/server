@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -93,7 +93,8 @@ rtr_page_split_and_insert(
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
-	mtr_t*		mtr);	/*!< in: mtr */
+	mtr_t*		mtr,	/*!< in: mtr */
+	dberr_t*	err);	/*!< out: error code */
 
 /**************************************************************//**
 Sets the child node mbr in a node pointer. */
@@ -123,7 +124,8 @@ rtr_pcur_move_to_next(
 				function may release the page latch */
 	ulint		cur_level,
 				/*!< in: current level */
-	mtr_t*		mtr);	/*!< in: mtr */
+	mtr_t*		mtr)	/*!< in: mtr */
+	MY_ATTRIBUTE((warn_unused_result));
 
 /****************************************************************//**
 Searches the right position in rtree for a page cursor. */
@@ -257,18 +259,20 @@ rtr_get_mbr_from_tuple(
 @param[in]	offsets		work area for the return value
 @param[in]	index		rtree index
 @param[in]	block		child page in the index
-@param[in]	mtr		mtr
+@param[in,out]	mtr		mtr
 @param[in]	sea_cur		search cursor, contains information
 				about parent nodes in search
-@param[in]	cursor		cursor on node pointer record,
-				its page x-latched */
-void
+@param[out]	cursor		cursor on node pointer record,
+				its page x-latched
+@return whether the cursor was successfully positioned */
+bool
 rtr_page_get_father(
 	dict_index_t*	index,
 	buf_block_t*	block,
 	mtr_t*		mtr,
 	btr_cur_t*	sea_cur,
-	btr_cur_t*	cursor);
+	btr_cur_t*	cursor)
+	MY_ATTRIBUTE((nonnull(1,2,3,5), warn_unused_result));
 
 /************************************************************//**
 Returns the father block to a page. It is assumed that mtr holds
@@ -302,21 +306,14 @@ rtr_store_parent_path(
 /**************************************************************//**
 Initializes and opens a persistent cursor to an index tree. It should be
 closed with btr_pcur_close. */
-void
+bool
 rtr_pcur_open(
 	dict_index_t*	index,	/*!< in: index */
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
-	page_cur_mode_t	mode,	/*!< in: PAGE_CUR_L, ...;
-				NOTE that if the search is made using a unique
-				prefix of a record, mode should be
-				PAGE_CUR_LE, not PAGE_CUR_GE, as the latter
-				may end up on the previous page from the
-				record! */
 	ulint		latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor,	/*!< in: memory buffer for persistent cursor */
-	mtr_t*		mtr);	/*!< in: mtr */
-
-struct btr_cur_t;
+	mtr_t*		mtr)	/*!< in: mtr */
+	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************//**
 Returns the R-Tree node stored in the parent search path
@@ -340,9 +337,12 @@ rtr_get_parent_cursor(
 	ulint		level,		/*!< in: index level of buffer page */
 	ulint		is_insert);	/*!< in: whether insert operation */
 
+MY_ATTRIBUTE((warn_unused_result))
 /*************************************************************//**
-Copy recs from a page to new_block of rtree. */
-void
+Copy recs from a page to new_block of rtree.
+
+@return error code */
+dberr_t
 rtr_page_copy_rec_list_end_no_locks(
 /*================================*/
 	buf_block_t*	new_block,	/*!< in: index page to copy to */
@@ -355,9 +355,12 @@ rtr_page_copy_rec_list_end_no_locks(
 	ulint*		num_moved,	/*!< out: num of rec to move */
 	mtr_t*		mtr);		/*!< in: mtr */
 
+MY_ATTRIBUTE((warn_unused_result))
 /*************************************************************//**
-Copy recs till a specified rec from a page to new_block of rtree. */
-void
+Copy recs till a specified rec from a page to new_block of rtree.
+
+@return error code */
+dberr_t
 rtr_page_copy_rec_list_start_no_locks(
 /*==================================*/
 	buf_block_t*	new_block,	/*!< in: index page to copy to */
@@ -372,7 +375,7 @@ rtr_page_copy_rec_list_start_no_locks(
 
 /****************************************************************//**
 Merge 2 mbrs and update the the mbr that cursor is on. */
-dberr_t
+void
 rtr_merge_and_update_mbr(
 /*=====================*/
 	btr_cur_t*		cursor,		/*!< in/out: cursor */
@@ -404,9 +407,8 @@ rtr_merge_mbr_changed(
 
 
 /**************************************************************//**
-Update the mbr field of a spatial index row.
-@return true if successful */
-bool
+Update the mbr field of a spatial index row. */
+void
 rtr_update_mbr_field(
 /*=================*/
 	btr_cur_t*	cursor,		/*!< in: cursor pointed to rec.*/
@@ -483,5 +485,5 @@ rtr_estimate_n_rows_in_range(
 	const dtuple_t*	tuple,
 	page_cur_mode_t	mode);
 
-#include "gis0rtree.ic"
+#include "gis0rtree.inl"
 #endif /*!< gis0rtree.h */

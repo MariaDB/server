@@ -11,14 +11,14 @@
 --echo #
 
 BACKUP LOCK test.t1;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
 BACKUP UNLOCK;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
 BACKUP LOCK t1;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
 BACKUP UNLOCK;
 BACKUP LOCK non_existing.t1;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
 BACKUP UNLOCK;
 
 --echo #
@@ -43,10 +43,39 @@ SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.me
 --error ER_LOCK_DEADLOCK
 select * from t1;
 backup unlock;
+connection con1;
+--reap
+connection default;
+
+--echo #
+--echo # Check that BACKUP LOCK blocks some operations
+--echo #
+
+# These test has to be done with timeouts as we want to ensure that the tables
+# doesn't change
+
+create sequence seq1;
+create sequence seq2;
+backup lock seq1;
+connection con1;
+--error ER_SEQUENCE_INVALID_DATA
+CREATE OR REPLACE SEQUENCE seq1 START -28;
+--error ER_STATEMENT_TIMEOUT
+SET STATEMENT max_statement_time=10 FOR CREATE OR REPLACE SEQUENCE seq1 START 50;
+--error ER_STATEMENT_TIMEOUT
+SET STATEMENT max_statement_time=10 FOR ALTER SEQUENCE IF EXISTS seq1 NOMAXVALUE;
+--error ER_STATEMENT_TIMEOUT
+SET STATEMENT max_statement_time=10 FOR ALTER SEQUENCE IF EXISTS seq1 MAXVALUE 1000;
+--error ER_STATEMENT_TIMEOUT
+SET STATEMENT max_statement_time=10 for rename table seq2 to seq3, seq3 to seq1;
+connection default;
+backup unlock;
+drop table seq1,seq2;
 
 --echo #
 --echo # BACKUP LOCK and BACKUP UNLOCK are not allowed in procedures.
 --echo #
+
 delimiter |;
 --error ER_SP_BADSTATEMENT
 CREATE PROCEDURE p_BACKUP_LOCK()
@@ -162,8 +191,6 @@ SET STATEMENT max_statement_time=180 FOR BACKUP LOCK test.u;
 
 --echo #
 
-connection con1;
---reap
 connection default;
 disconnect con1;
 show tables;

@@ -1,3 +1,27 @@
+#
+# MDEV-14429 sql_safe_updates in my.cnf not work
+#
 select @@sql_safe_updates;
 @@sql_safe_updates
 1
+#
+# MDEV-18304 sql_safe_updates does not work with OR clauses
+#
+create table t1 (a int, b int, primary key (a), key (b));
+update t1 set b=2 where a=1 or b=2;
+ERROR HY000: You are using safe update mode and you tried to update a table without a WHERE that uses a KEY column
+explain update t1 set b=2 where a=1 or b=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	Using where
+delete from t1 where a=1 or b=2;
+ERROR HY000: You are using safe update mode and you tried to update a table without a WHERE that uses a KEY column
+explain delete from t1 where a=1 or b=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	Using where
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8);
+update t1 set b=2 where a=1 or b=2;
+delete from t1 where a=1 or b=2;
+drop table t1;
+#
+# End of 10.3 tests
+#

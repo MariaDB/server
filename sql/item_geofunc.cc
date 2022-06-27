@@ -1,5 +1,5 @@
 /* Copyright (c) 2003, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2021, MariaDB
+   Copyright (c) 2011, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2989,19 +2989,19 @@ protected:
 
 class Create_func_distance_sphere: public Create_native_func
 {
-  public:
-    Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
-      override;
-    static Create_func_distance_sphere s_singleton;
+public:
+  Item *create_native(THD *thd, const LEX_CSTRING *name, List<Item> *item_list)
+    override;
+  static Create_func_distance_sphere s_singleton;
 
-  protected:
-    Create_func_distance_sphere() {}
-    virtual ~Create_func_distance_sphere() {}
+protected:
+  Create_func_distance_sphere() {}
+  virtual ~Create_func_distance_sphere() {}
 };
 
 
 Item*
-Create_func_distance_sphere::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_distance_sphere::create_native(THD *thd, const LEX_CSTRING *name,
                                            List<Item> *item_list)
 {
   int arg_count= 0;
@@ -3121,7 +3121,8 @@ protected:
 class Create_func_geometry_from_text : public Create_native_func
 {
 public:
-  Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name, List<Item> *item_list)
+    override;
 
   static Create_func_geometry_from_text s_singleton;
 
@@ -3132,7 +3133,8 @@ protected:
 
 
 Item*
-Create_func_geometry_from_text::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_geometry_from_text::create_native(THD *thd,
+                                              const LEX_CSTRING *name,
                                               List<Item> *item_list)
 {
   Item *func= NULL;
@@ -3170,7 +3172,8 @@ Create_func_geometry_from_text::create_native(THD *thd, LEX_CSTRING *name,
 class Create_func_geometry_from_wkb : public Create_native_func
 {
 public:
-  Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name, List<Item> *item_list)
+    override;
 
   static Create_func_geometry_from_wkb s_singleton;
 
@@ -3181,7 +3184,7 @@ protected:
 
 
 Item*
-Create_func_geometry_from_wkb::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_geometry_from_wkb::create_native(THD *thd, const LEX_CSTRING *name,
                                              List<Item> *item_list)
 {
   Item *func= NULL;
@@ -3219,7 +3222,8 @@ Create_func_geometry_from_wkb::create_native(THD *thd, LEX_CSTRING *name,
 class Create_func_geometry_from_json : public Create_native_func
 {
 public:
-  Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name, List<Item> *item_list)
+    override;
 
   static Create_func_geometry_from_json s_singleton;
 
@@ -3230,8 +3234,9 @@ protected:
 
 
 Item*
-Create_func_geometry_from_json::create_native(THD *thd, LEX_CSTRING *name,
-                                             List<Item> *item_list)
+Create_func_geometry_from_json::create_native(THD *thd,
+                                              const LEX_CSTRING *name,
+                                              List<Item> *item_list)
 {
   Item *func= NULL;
   int arg_count= 0;
@@ -3277,7 +3282,8 @@ Create_func_geometry_from_json::create_native(THD *thd, LEX_CSTRING *name,
 class Create_func_as_geojson : public Create_native_func
 {
 public:
-  Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name, List<Item> *item_list)
+    override;
 
   static Create_func_as_geojson s_singleton;
 
@@ -3288,8 +3294,8 @@ protected:
 
 
 Item*
-Create_func_as_geojson::create_native(THD *thd, LEX_CSTRING *name,
-                                             List<Item> *item_list)
+Create_func_as_geojson::create_native(THD *thd, const LEX_CSTRING *name,
+                                      List<Item> *item_list)
 {
   Item *func= NULL;
   int arg_count= 0;

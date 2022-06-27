@@ -84,9 +84,8 @@ MYSQL_ADD_EXECUTABLE(mariadb-conv mariadb-conv.cc
                      ${CMAKE_SOURCE_DIR}/sql/sql_string.cc)
 TARGET_LINK_LIBRARIES(mariadb-conv mysys strings)
 
-# "WIN32" also covers 64 bit. "echo" is used in some files below "mysql-test/".
 IF(WIN32)
-  MYSQL_ADD_EXECUTABLE(echo echo.c COMPONENT Junk)
+  MYSQL_ADD_EXECUTABLE(echo echo.c COMPONENT Test)
 ENDIF(WIN32)
 
 # async_example is just a code example, do not install it.

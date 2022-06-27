@@ -39,11 +39,10 @@ Help
 More help is available from the Maria Discuss mailing list
 https://launchpad.net/~maria-discuss, MariaDB's Zulip
 instance, https://mariadb.zulipchat.com/ 
-and the #maria IRC channel on Freenode.
 
 Live QA for beginner contributors
 ----
-MariaDB has a dedicated time each week when we answer new contributor questions live on Zulip and IRC.
+MariaDB has a dedicated time each week when we answer new contributor questions live on Zulip.
 From 8:00 to 10:00 UTC on Mondays, and 10:00 to 12:00 UTC on Thursdays,
 anyone can ask any questions they’d like, and a live developer will be available to assist.
 

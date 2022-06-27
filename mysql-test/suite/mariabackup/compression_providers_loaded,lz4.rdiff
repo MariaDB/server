@@ -1,0 +1,13 @@
+--- suite/mariabackup/compression_providers_loaded.result
++++ suite/mariabackup/compression_providers_loaded.reject
+@@ -1,8 +1,8 @@
+ #
+-# Testing mariabackup with bzip2 compression
++# Testing mariabackup with lz4 compression
+ #
+ # Creating table
+-set global innodb_compression_algorithm = bzip2;
++set global innodb_compression_algorithm = lz4;
+ create table t1 (a int, b text ) engine = innodb page_compressed = 1;
+ insert t1 (a, b) values (0, repeat("abc", 100));
+ insert t1 (a, b) values (1, repeat("def", 1000));

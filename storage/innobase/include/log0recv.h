@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -44,11 +44,12 @@ dberr_t
 recv_find_max_checkpoint(ulint* max_field)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+ATTRIBUTE_COLD MY_ATTRIBUTE((nonnull, warn_unused_result))
 /** Apply any buffered redo log to a page that was just read from a data file.
 @param[in,out]	space	tablespace
-@param[in,out]	bpage	buffer pool page */
-ATTRIBUTE_COLD void recv_recover_page(fil_space_t* space, buf_page_t* bpage)
-	MY_ATTRIBUTE((nonnull));
+@param[in,out]	bpage	buffer pool page
+@return whether the page was recovered correctly */
+bool recv_recover_page(fil_space_t* space, buf_page_t* bpage);
 
 /** Start recovering from a redo log checkpoint.
 @param[in]	flush_lsn	FIL_PAGE_FILE_FLUSH_LSN
@@ -82,14 +83,18 @@ void recv_sys_justify_left_parsing_buf();
 
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
-@param[in]	create		whether the file is being created
+@param[in]	type		file operation redo log type
 @param[in]	name		file name (not NUL-terminated)
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-extern void (*log_file_op)(uint32_t space_id, bool create,
+extern void (*log_file_op)(uint32_t space_id, int type,
 			   const byte* name, ulint len,
 			   const byte* new_name, ulint new_len);
+
+/** Report an operation which does INIT_PAGE for page0 during backup.
+@param	space_id	tablespace identifier */
+extern void (*first_page_init)(uint32_t space_id);
 
 /** Stored redo log record */
 struct log_rec_t
@@ -225,7 +230,7 @@ private:
 public:
   /** whether we are applying redo log records during crash recovery */
   bool recovery_on;
-  /** whether recv_recover_page(), invoked from buf_page_read_complete(),
+  /** whether recv_recover_page(), invoked from buf_page_t::read_complete(),
   should apply log records*/
   bool apply_log_recs;
 	byte*		buf;	/*!< buffer for parsing log records */
@@ -292,13 +297,16 @@ private:
   @param p        iterator pointing to page_id
   @param mtr      mini-transaction
   @param b        pre-allocated buffer pool block
-  @return whether the page was successfully initialized */
+  @return the recovered block
+  @retval nullptr if the page cannot be initialized based on log records
+  @retval -1      if the page cannot be recovered due to corruption */
   inline buf_block_t *recover_low(const page_id_t page_id, map::iterator &p,
                                   mtr_t &mtr, buf_block_t *b);
   /** Attempt to initialize a page based on redo log records.
   @param page_id  page identifier
   @return the recovered block
-  @retval nullptr if the page cannot be initialized based on log records */
+  @retval nullptr if the page cannot be initialized based on log records
+  @retval -1      if the page cannot be recovered due to corruption */
   buf_block_t *recover_low(const page_id_t page_id);
 
   /** All found log files (multiple ones are possible if we are upgrading
@@ -336,12 +344,12 @@ public:
   bool is_initialised() const { return last_stored_lsn != 0; }
 
   /** Register a redo log snippet for a page.
-  @param page_id  page identifier
+  @param it       page iterator
   @param start_lsn start LSN of the mini-transaction
   @param lsn      @see mtr_t::commit_lsn()
   @param l        redo log snippet @see log_t::FORMAT_10_5
   @param len      length of l, in bytes */
-  inline void add(const page_id_t page_id, lsn_t start_lsn, lsn_t lsn,
+  inline void add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
                   const byte *l, size_t len);
 
   /** Parse and register one mini-transaction in log_t::FORMAT_10_5.
@@ -400,7 +408,8 @@ public:
   /** Attempt to initialize a page based on redo log records.
   @param page_id  page identifier
   @return the recovered block
-  @retval nullptr if the page cannot be initialized based on log records */
+  @retval nullptr if the page cannot be initialized based on log records
+  @retval -1      if the page cannot be recovered due to corruption */
   buf_block_t *recover(const page_id_t page_id)
   {
     return UNIV_UNLIKELY(recovery_on) ? recover_low(page_id) : nullptr;

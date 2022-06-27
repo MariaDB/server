@@ -1,0 +1,80 @@
+#
+# MDEV-27553 Assertion `inited==INDEX' failed: int handler::ha_index_end()
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+--source suite/galera/include/auto_increment_offset_save.inc
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+
+--connection node_2
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+SELECT COUNT(*) `Expect 1` FROM mysql.wsrep_streaming_log;
+
+#
+# Issue ROLLBACK and make sure it fails to clean up
+# the streaming log. Failure to remove fragments
+# results in apply failure of the rollback fragment.
+# The node should disconnect from the cluster.
+#
+SET @@global.debug_dbug="+d,ha_index_init_fail";
+ROLLBACK;
+
+
+#
+# Expect the cluster to shrink
+#
+--connection node_1
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+#
+# ROLLBACK should clean up the streaming log just fine in node 1
+#
+SELECT COUNT(*) `Expect 0` FROM mysql.wsrep_streaming_log;
+
+
+#
+# Expect the failure on ROLLBACK to leave a entry in streaming log
+#
+--connection node_2
+SET @@global.debug_dbug="";
+SET SESSION wsrep_sync_wait = 0;
+# Expect node to be disconnected
+--let wait_condition = SELECT VARIABLE_VALUE = 'Disconnected' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+SELECT COUNT(*) `Expect 1` FROM mysql.wsrep_streaming_log;
+
+
+#
+# Restart node 2, so that it joins the cluster back
+#
+--connection node_2
+SET GLOBAL wsrep_on=OFF;
+--source include/restart_mysqld.inc
+
+#
+# After restart, the streaming log is empty in node 2
+#
+SELECT COUNT(*) `Expect 0` FROM mysql.wsrep_streaming_log;
+
+#
+# Cleanup
+#
+DROP TABLE t1;
+
+CALL mtr.add_suppression("WSREP: Failed to init table for index scan");
+CALL mtr.add_suppression("WSREP: Failed to apply write set");
+CALL mtr.add_suppression("Failed to report last committed");
+
+--source suite/galera/include/auto_increment_offset_restore.inc

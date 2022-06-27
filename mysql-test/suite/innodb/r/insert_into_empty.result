@@ -182,3 +182,102 @@ CREATE TABLE t (i INT) ENGINE=InnoDB PARTITION BY HASH (i) PARTITIONS 2;
 INSERT INTO t VALUES (0);
 INSERT INTO t VALUES (1),(0),(1);
 DROP TABLE t;
+#
+# MDEV-26947 UNIQUE column checks fail in InnoDB resulting
+#	in table corruption
+#
+CREATE TABLE t (c1 INT KEY,c2 INT UNIQUE) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t VALUES (1,0),(2,0);
+ERROR HY000: Got error 1 "Operation not permitted" during COMMIT
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+COMMIT;
+DROP TABLE t;
+CREATE TABLE t (i INT UNIQUE)ENGINE=InnoDB;
+INSERT INTO t VALUES (0),(0);
+ERROR HY000: Got error 1 "Operation not permitted" during COMMIT
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+CREATE TABLE t (c INT PRIMARY KEY,c2 CHAR(1) UNIQUE)ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t VALUES(1, ''),(2, '');
+ERROR HY000: Got error 1 "Operation not permitted" during COMMIT
+SELECT * FROM t;
+c	c2
+DELETE FROM t;
+COMMIT;
+DROP TABLE t;
+#
+#  MDEV-26956 LeakSanitizer/Valgrind errors in
+#     trx_mod_table_time_t::start_bulk_insert
+#	upon adding system versioning
+#
+CREATE TABLE t1(id INT, s DATE, e DATE, PERIOD FOR p(s,e),
+PRIMARY KEY(id, p WITHOUT OVERLAPS)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD COLUMN row_start BIGINT UNSIGNED AS ROW START,
+ADD COLUMN row_end BIGINT UNSIGNED AS ROW END,
+ADD PERIOD FOR SYSTEM_TIME(row_start,row_end), WITH SYSTEM VERSIONING;
+DROP TABLE t1;
+#
+#  MDEV-27316  Assertion `!(index)->is_spatial()' failed.
+#
+CREATE TABLE t (c POINT NOT NULL, SPATIAL INDEX(c)) ENGINE=InnoDB;
+INSERT INTO t VALUES (POINT(1, 1));
+SELECT COUNT(*) FROM t WHERE MBRWithin(t.c, POINT(1,1));
+COUNT(*)
+1
+DROP TABLE t;
+#
+#  MDEV-27318	Assertion data_size < srv_sort_buf_size failed in row_merge_bulk_buf_add
+#
+CREATE TABLE t1(f1 MEDIUMTEXT)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(REPEAT(1, 8459264));
+SELECT length(f1) FROM t1;
+length(f1)
+8459264
+DROP TABLE t1;
+#
+#  MDEV-27858  Assertion `page_dir_get_n_heap(new_page) == 2U' failed in PageBulk::init
+#
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+LOCK TABLES t1 WRITE,t2 WRITE;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+DROP TABLE t2, t1;
+#
+#  MDEV-28138  MariaDB Assertion Failed in mtr_buf_t::has_space
+#
+CREATE TABLE t1(
+f1 SERIAL,
+f2 LINESTRING NOT NULL DEFAULT LineFromText('LINESTRING(1 1,2 2,3 3)'),
+SPATIAL INDEX(f2))ENGINE=InnoDB;
+INSERT INTO t1(f1) VALUES(0), (1), (2);
+ERROR 23000: Duplicate entry '1' for key 'f1'
+DROP TABLE t1;
+#
+#  MDEV-28237  Assertion `0' failed in row_upd_sec_index_entry on DELETE
+#
+CREATE TABLE t1 (c0 YEAR UNIQUE) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0),(0),(0),(0),(0),(0),(0);
+ERROR HY000: Got error 1 "Operation not permitted" during COMMIT
+DELETE FROM t1;
+DROP TABLE t1;
+#
+#  MDEV-28037 Assertion `trx->bulk_insert' failed in innodb_prepare_commit_versioned
+#
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT) ENGINE=InnoDB;
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW UPDATE t2 SET c=1;
+INSERT INTO t1 VALUES (0);
+SELECT * FROM t1;
+c
+0
+SELECT * FROM t2;
+c
+DROP TABLE t2, t1;

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2016, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2014, 2021, MariaDB Corporation.
+   Copyright (c) 2014, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -52,6 +52,12 @@ The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 #include "fil0crypt.h"           /* fil_space_verify_crypt_checksum */
 
 #include <string.h>
+
+#ifdef UNIV_NONINL
+# include "fsp0fsp.inl"
+# include "mach0data.inl"
+# include "ut0rnd.inl"
+#endif
 
 #ifndef PRIuMAX
 #define PRIuMAX   "llu"
@@ -806,7 +812,7 @@ parse_page(
 
 			is_leaf = (!*(const uint16*) (page + (PAGE_HEADER + PAGE_LEVEL)));
 
-			if (page_type_dump) {
+			if (file) {
 				fprintf(file, "#::" UINT32PF "\t\t|\t\tIndex page\t\t\t|"
 					"\tindex id=%llu,", cur_page_num, id);
 
@@ -858,7 +864,7 @@ parse_page(
 				index.total_data_bytes += data_bytes;
 				index.pages_in_size_range[size_range_id] ++;
 			}
-		} else {
+		} else if (file) {
 			fprintf(file, "#::" UINT32PF "\t\t|\t\tEncrypted Index page\t\t\t|"
 				"\tkey_version " UINT32PF ",%s\n", cur_page_num, key_version, str);
 		}
@@ -869,7 +875,7 @@ parse_page(
 		page_type.n_fil_page_undo_log++;
 		undo_page_type = mach_read_from_2(page +
 				     TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE);
-		if (page_type_dump) {
+		if (file) {
 			fprintf(file, "#::" UINT32PF "\t\t|\t\tUndo log page\t\t\t|",
 				cur_page_num);
 		}
@@ -879,7 +885,7 @@ parse_page(
 		switch (undo_page_type) {
 			case TRX_UNDO_ACTIVE:
 				page_type.n_undo_state_active++;
-				if (page_type_dump) {
+				if (file) {
 					fprintf(file, ", %s", "Undo log of "
 						"an active transaction");
 				}
@@ -887,7 +893,7 @@ parse_page(
 
 			case TRX_UNDO_CACHED:
 				page_type.n_undo_state_cached++;
-				if (page_type_dump) {
+				if (file) {
 					fprintf(file, ", %s", "Page is "
 						"cached for quick reuse");
 				}
@@ -895,7 +901,7 @@ parse_page(
 
 			case TRX_UNDO_TO_PURGE:
 				page_type.n_undo_state_to_purge++;
-				if (page_type_dump) {
+				if (file) {
 					fprintf(file, ", %s", "Will be "
 						"freed in purge when all undo"
 					"data in it is removed");
@@ -904,7 +910,7 @@ parse_page(
 
 			case TRX_UNDO_PREPARED:
 				page_type.n_undo_state_prepared++;
-				if (page_type_dump) {
+				if (file) {
 					fprintf(file, ", %s", "Undo log of "
 						"an prepared transaction");
 				}
@@ -914,14 +920,14 @@ parse_page(
 				page_type.n_undo_state_other++;
 				break;
 		}
-		if(page_type_dump) {
+		if(file) {
 			fprintf(file, ", %s\n", str);
 		}
 		break;
 
 	case FIL_PAGE_INODE:
 		page_type.n_fil_page_inode++;
-		if (page_type_dump) {
+		if (file) {
 			fprintf(file, "#::" UINT32PF "\t\t|\t\tInode page\t\t\t|"
 				"\t%s\n",cur_page_num, str);
 		}
@@ -929,7 +935,7 @@ parse_page(
 
 	case FIL_PAGE_IBUF_FREE_LIST:
 		page_type.n_fil_page_ibuf_free_list++;
-		if (page_type_dump) {
+		if (file) {
 			fprintf(file, "#::" UINT32PF "\t\t|\t\tInsert buffer free list"
 				" page\t|\t%s\n", cur_page_num, str);
 		}
@@ -937,7 +943,7 @@ parse_page(
 
 	case FIL_PAGE_TYPE_ALLOCATED:
 		page_type.n_fil_page_type_allocated++;
-		if (page_type_dump) {
+		if (file) {
 			fprintf(file, "#::" UINT32PF "\t\t|\t\tFreshly allocated "
 				"page\t\t|\t%s\n", cur_page_num, str);
 		}
@@ -945,7 +951,7 @@ parse_page(
 
 	case FIL_PAGE_IBUF_BITMAP:
 		page_type.n_fil_page_ibuf_bitmap++;
-		if (page_type_dump) {
+		if (file) {
 			fprintf(file, "#::" UINT32PF "\t\t|\t\tInsert Buffer "
 				"Bitmap\t\t|\t%s\n", cur_page_num, str);
 		}
@@ -953,7 +959,7 @@ parse_page(
 
 	case FIL_PAGE_TYPE_SYS:
 		page_type.n_fil_page_type_sys++;
-		if (page_type_dump) {
+		if (file) {
 			fprintf(file, "#::" UINT32PF "\t\t|\t\tSystem page\t\t\t|"
 				"\t%s\n", cur_page_num, str);
 		}
@@ -961,7 +967,7 @@ parse_page(
 
 	case FIL_PAGE_TYPE_TRX_SYS:
 		page_type.n_fil_page_type_trx_sys++;
-		if (page_type_dump) {
+		if (file) {
 			fprintf(file, "#::" UINT32PF "\t\t|\t\tTransaction system "
 				"page\t\t|\t%s\n", cur_page_num, str);
 		}
@@ -969,7 +975,7 @@ parse_page(
 
 	case FIL_PAGE_TYPE_FSP_HDR:
 		page_type.n_fil_page_type_fsp_hdr++;
-		if (page_type_dump) {
+		if (file) {
 			fprintf(file, "#::" UINT32PF "\t\t|\t\tFile Space "
 				"Header\t\t|\t%s\n", cur_page_num, str);
 		}
@@ -977,7 +983,7 @@ parse_page(
 
 	case FIL_PAGE_TYPE_XDES:
 		page_type.n_fil_page_type_xdes++;
-		if (page_type_dump) {
+		if (file) {
 			fprintf(file, "#::" UINT32PF "\t\t|\t\tExtent descriptor "
 				"page\t\t|\t%s\n", cur_page_num, str);
 		}
@@ -985,7 +991,7 @@ parse_page(
 
 	case FIL_PAGE_TYPE_BLOB:
 		page_type.n_fil_page_type_blob++;
-		if (page_type_dump) {
+		if (file) {
 			fprintf(file, "#::" UINT32PF "\t\t|\t\tBLOB page\t\t\t|\t%s\n",
 				cur_page_num, str);
 		}
@@ -993,7 +999,7 @@ parse_page(
 
 	case FIL_PAGE_TYPE_ZBLOB:
 		page_type.n_fil_page_type_zblob++;
-		if (page_type_dump) {
+		if (file) {
 			fprintf(file, "#::" UINT32PF "\t\t|\t\tCompressed BLOB "
 				"page\t\t|\t%s\n", cur_page_num, str);
 		}
@@ -1001,7 +1007,7 @@ parse_page(
 
 	case FIL_PAGE_TYPE_ZBLOB2:
 		page_type.n_fil_page_type_zblob2++;
-		if (page_type_dump) {
+		if (file) {
 			fprintf(file, "#::" UINT32PF "\t\t|\t\tSubsequent Compressed "
 				"BLOB page\t|\t%s\n", cur_page_num, str);
 		}
@@ -1009,7 +1015,7 @@ parse_page(
 
 	case FIL_PAGE_PAGE_COMPRESSED:
 		page_type.n_fil_page_type_page_compressed++;
-		if (page_type_dump) {
+		if (file) {
 			fprintf(file, "#::" UINT32PF "\t\t|\t\tPage compressed "
 				"page\t|\t%s\n", cur_page_num, str);
 		}
@@ -1017,7 +1023,7 @@ parse_page(
 
 	case FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED:
 		page_type.n_fil_page_type_page_compressed_encrypted++;
-		if (page_type_dump) {
+		if (file) {
 			fprintf(file, "#::" UINT32PF "\t\t|\t\tPage compressed encrypted "
 				"page\t|\t%s\n", cur_page_num, str);
 		}
@@ -1183,6 +1189,8 @@ static struct my_option innochecksum_options[] = {
   {"allow-mismatches", 'a', "Maximum checksum mismatch allowed.",
     &allow_mismatches, &allow_mismatches, 0,
     GET_ULL, REQUIRED_ARG, 0, 0, ULLONG_MAX, 0, 1, 0},
+  {"write", 'w', "Rewrite the checksum.",
+    &do_write, &do_write, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"page-type-summary", 'S', "Display a count of each page type "
    "in a tablespace.", &page_type_summary, &page_type_summary, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -1777,6 +1785,18 @@ unexpected_eof:
 			}
 
 			if (ferror(fil_in)) {
+#ifdef _AIX
+				/*
+				  AIX fseeko can go past eof without error.
+				  the error occurs on read, hence output the
+				  same error here as would show up on other
+				  platforms. This shows up in the mtr test
+				  innodb_zip.innochecksum_3-4k,crc32,innodb
+				*/
+				if (errno == EFBIG) {
+					goto unexpected_eof;
+				}
+#endif
 				fprintf(stderr, "Error reading " ULINTPF " bytes",
 					physical_page_size);
 				perror(" ");

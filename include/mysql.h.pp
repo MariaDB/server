@@ -239,9 +239,6 @@ typedef char **MYSQL_ROW;
 typedef unsigned int MYSQL_FIELD_OFFSET;
 typedef unsigned long long my_ulonglong;
 extern "C" {
-}
-extern "C" {
-struct PSI_thread;
 typedef unsigned int PSI_memory_key;
 }
 extern "C" {

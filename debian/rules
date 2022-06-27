@@ -34,8 +34,18 @@ ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
     NUMJOBS = $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
     MAKEFLAGS += -j$(NUMJOBS)
 else
-    # NUMJOBS cannot be empty as it is used as a parameter to mtr, default to 1.
-    NUMJOBS = 1
+    # NUMJOBS cannot be empty as it is used as a parameter to mtr, default to 'auto'.
+    NUMJOBS = auto
+endif
+
+# RocksDB cannot build on 32-bit platforms
+ifeq (32,$(DEB_HOST_ARCH_BITS))
+    CMAKEFLAGS += -DPLUGIN_ROCKSDB=NO
+endif
+
+# ColumnStore can build only on amd64 and arm64
+ifneq (,$(filter $(DEB_HOST_ARCH_CPU),amd64 arm64))
+    CMAKEFLAGS += -DPLUGIN_COLUMNSTORE=NO
 endif
 
 # Cross building requires stack direction instruction
@@ -50,7 +60,7 @@ endif
 
 # Only attempt to build with PMEM on archs that have package libpmem-dev available
 # See https://packages.debian.org/search?searchon=names&keywords=libpmem-dev
-ifneq (,$(filter $(DEB_HOST_ARCH_CPU),amd64 arm64 ppc64el))
+ifneq (,$(filter $(DEB_HOST_ARCH_CPU),amd64 arm64 ppc64el riscv64))
 		CMAKEFLAGS += -DWITH_PMEM=yes
 endif
 
@@ -75,13 +85,15 @@ endif
 
 	echo "server:Version=$(DEB_VERSION)" >> debian/substvars
 
-	# RocksDB and Column Store cannot build on 32-bit platforms
+	# Don't build ColumnStore as part of the native build as it does not meet the
+	# quality standards in Debian. Also building it requires an extra 4 GB of disk
+	# space which makes native Debian builds fail as the total disk space needed
+	# for MariaDB becomes over 10 GB. Only build CS via autobake-deb.sh.
 	PATH=$${MYSQL_BUILD_PATH:-"/usr/lib/ccache:/usr/local/bin:/usr/bin:/bin"} \
 	    NO_UPDATE_BUILD_VERSION=1 \
 	    dh_auto_configure --builddirectory=$(BUILDDIR) -- \
 	    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
 	    $(CMAKEFLAGS) \
-	    $(if $(findstring $(DEB_HOST_ARCH_BITS),32),-DPLUGIN_ROCKSDB=NO -DPLUGIN_COLUMNSTORE=NO) \
 	    $(if $(filter $(DEB_BUILD_ARCH),$(DEB_HOST_ARCH)),,-DIMPORT_EXECUTABLES=$(CURDIR)/builddir-native/import_executables.cmake) \
 	    -DCOMPILATION_COMMENT="mariadb.org binary distribution" \
 	    -DMYSQL_SERVER_SUFFIX="-$(DEB_VERSION_REVISION)" \
@@ -90,6 +102,7 @@ endif
 	    -DBUILD_CONFIG=mysql_release \
 	    -DCONC_DEFAULT_CHARSET=utf8mb4 \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
+			-DPLUGIN_COLUMNSTORE=NO \
 	    -DIGNORE_AIO_CHECK=YES \
 	    -DWITH_URING=yes \
 	    -DDEB=$(DEB_VENDOR)
@@ -99,7 +112,7 @@ override_dh_auto_build:
 	@echo "RULES.$@"
 	# Print build env info to help debug builds on different platforms
 	dpkg-architecture
-	cd $(BUILDDIR) && $(MAKE)
+	cd $(BUILDDIR) && $(MAKE) --output-sync=target
 
 override_dh_auto_test:
 	@echo "RULES.$@"

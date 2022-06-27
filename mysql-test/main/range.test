@@ -2240,6 +2240,30 @@ select * from t1 inner join t2 on ( t2.b = t1.v or t2.a = t1.pk);
 drop table t1, t2;
 
 --echo #
+--echo # MDEV-26553: Always FALSE/NULL disjunct on top level of WHERE is removed
+--echo #
+
+create table t1 (a int, b int, index idx(a,b));
+insert into t1 values (1,1), (1,2), (2,1), (2,2), (3,3);
+
+create table t2 (c int);
+insert into t2 values (5), (2), (3), (4);
+
+select 1 from t1 s1
+  where 1 not in (select 1 from t1
+                    where ((a = 1 or a = 2) and b = 1) or (b > 5 and b < 1));
+
+select 1 from t1 s1
+  where 1 not in (select 1 from t1
+                    where ((a = 1 or a = 2) and b = 1) or b = NULL);
+
+select c from t2
+  where 2 not in (select 1 from t1
+                    where ((a=1 or a=2) and b = 1) or (b > 5 and b < 1));
+
+drop table t1,t2;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
@@ -2467,6 +2491,24 @@ eval $q;
 DROP TABLE t1, t2;
 
 SET @@optimizer_switch= @save_optimizer_switch;
+
+--echo
+--echo # MDEV-28858 Wrong result with table elimination combined with
+--echo # not_null_range_scan
+--echo #
+
+CREATE TABLE t1 (a INT, b INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES  (10,1),(null,2);
+CREATE TABLE t2 (pk INT PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(2);
+
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch= 'not_null_range_scan=on';
+SELECT t1.b FROM t1 LEFT JOIN t2 ON t1.a = t2.pk WHERE t1.a IS NULL ORDER BY t1.b;
+SET optimizer_switch= 'not_null_range_scan=off';
+SELECT t1.b FROM t1 LEFT JOIN t2 ON t1.a = t2.pk WHERE t1.a IS NULL ORDER BY t1.b;
+SET @@optimizer_switch=@save_optimizer_switch;
+drop table t1,t2;
 
 --echo #
 --echo # End of 10.5 tests

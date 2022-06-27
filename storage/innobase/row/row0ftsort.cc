@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -285,8 +285,7 @@ row_fts_psort_info_init(
 		psort_info[j].psort_common = common_info;
 		psort_info[j].error = DB_SUCCESS;
 		psort_info[j].memory_used = 0;
-		mysql_mutex_init(fts_pll_tokenize_mutex_key,
-				 &psort_info[j].mutex, nullptr);
+		mysql_mutex_init(0, &psort_info[j].mutex, nullptr);
 	}
 
 	/* Initialize merge_info structures parallel merge and insert
@@ -876,7 +875,9 @@ loop:
 	if (t_ctx.rows_added[t_ctx.buf_used] && !processed) {
 		row_merge_buf_sort(buf[t_ctx.buf_used], NULL);
 		row_merge_buf_write(buf[t_ctx.buf_used],
+#ifndef DBUG_OFF
 				    merge_file[t_ctx.buf_used],
+#endif
 				    block[t_ctx.buf_used]);
 
 		if (!row_merge_write(merge_file[t_ctx.buf_used]->fd,
@@ -942,8 +943,11 @@ exit:
 	for (i = 0; i < FTS_NUM_AUX_INDEX; i++) {
 		if (t_ctx.rows_added[i]) {
 			row_merge_buf_sort(buf[i], NULL);
-			row_merge_buf_write(
-				buf[i], merge_file[i], block[i]);
+			row_merge_buf_write(buf[i],
+#ifndef DBUG_OFF
+					    merge_file[i],
+#endif
+					    block[i]);
 
 			/* Write to temp file, only if records have
 			been flushed to temp file before (offset > 0):
@@ -1637,7 +1641,6 @@ row_fts_merge_insert(
 	aux_table = dict_table_open_on_name(aux_table_name, false,
 					    DICT_ERR_IGNORE_NONE);
 	ut_ad(aux_table != NULL);
-	aux_table->release();
 	aux_index = dict_table_get_first_index(aux_table);
 
 	ut_ad(!aux_index->is_instant());
@@ -1770,6 +1773,8 @@ exit:
 
 	error = ins_ctx.btr_bulk->finish(error);
 	UT_DELETE(ins_ctx.btr_bulk);
+
+	aux_table->release();
 
 	trx->free();
 

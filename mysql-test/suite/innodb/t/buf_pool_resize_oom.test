@@ -9,7 +9,6 @@
 
 call mtr.add_suppression("InnoDB: failed to allocate the chunk array");
 
-SET GLOBAL innodb_disable_resize_buffer_pool_debug=OFF;
 SET GLOBAL debug_dbug='+d,buf_pool_resize_chunk_null';
 
 --disable_warnings

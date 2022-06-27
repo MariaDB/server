@@ -161,70 +161,121 @@ static void EscapeCommandLine(const wchar_t *in, wchar_t *out, size_t buflen)
   }
   out[pos++]= 0;
 }
-/*
-  Check for if directory is empty during install,
-  sets "<PROPERTY>_NOT_EMPTY" otherise
-*/
-extern "C" UINT __stdcall CheckDirectoryEmpty(MSIHANDLE hInstall,
-  const wchar_t *PropertyName)
-{
-  HRESULT hr = S_OK;
-  UINT er = ERROR_SUCCESS;
-  wchar_t buf[MAX_PATH];
-  DWORD len = MAX_PATH;
+
+bool IsDirectoryEmptyOrNonExisting(const wchar_t *dir) {
+  wchar_t wildcard[MAX_PATH+3];
   WIN32_FIND_DATAW data;
   HANDLE h;
-  bool empty;
+  wcscpy_s(wildcard, MAX_PATH, dir);
+  wcscat_s(wildcard, MAX_PATH, L"*.*");
+  bool empty= true;
+  h= FindFirstFile(wildcard, &data);
+  if (h != INVALID_HANDLE_VALUE)
+  {
+    for (;;)
+    {
+      if (wcscmp(data.cFileName, L".") && wcscmp(data.cFileName, L".."))
+      {
+        empty= false;
+        break;
+      }
+      if (!FindNextFile(h, &data))
+        break;
+    }
+    FindClose(h);
+  }
+  return empty;
+}
 
-  hr = WcaInitialize(hInstall, __FUNCTION__);
+extern "C" UINT __stdcall CheckInstallDirectory(MSIHANDLE hInstall)
+{
+  HRESULT hr= S_OK;
+  UINT er= ERROR_SUCCESS;
+  wchar_t *path= 0;
+
+  hr= WcaInitialize(hInstall, __FUNCTION__);
+  ExitOnFailure(hr, "Failed to initialize");
+  WcaGetFormattedString(L"[INSTALLDIR]", &path);
+  if (!IsDirectoryEmptyOrNonExisting(path))
+  {
+    wchar_t msg[2*MAX_PATH];
+    swprintf(msg,countof(msg), L"Installation directory '%s' exists and is not empty. Choose a "
+                  "different install directory",path);
+    WcaSetProperty(L"INSTALLDIRERROR", msg);
+  }
+LExit:
+  ReleaseStr(path);
+  return WcaFinalize(er);
+}
+
+/*
+  Check for valid data directory is empty during install
+  A valid data directory is non-existing, or empty.
+
+  In addition, it must be different from any directories that
+  are going to be installed. This is required. because the full
+  directory is removed on a feature uninstall, and we do not want
+  it to be lib or bin.
+*/
+extern "C" UINT __stdcall CheckDataDirectory(MSIHANDLE hInstall)
+{
+  HRESULT hr= S_OK;
+  UINT er= ERROR_SUCCESS;
+  wchar_t datadir[MAX_PATH];
+  DWORD len= MAX_PATH;
+  bool empty;
+  wchar_t *path= 0;
+
+  MsiGetPropertyW(hInstall, L"DATADIR", datadir, &len);
+  hr= WcaInitialize(hInstall, __FUNCTION__);
   ExitOnFailure(hr, "Failed to initialize");
   WcaLog(LOGMSG_STANDARD, "Initialized.");
 
-  MsiGetPropertyW(hInstall, PropertyName, buf, &len);
-  wcscat_s(buf, MAX_PATH, L"*.*");
-
-  WcaLog(LOGMSG_STANDARD, "Checking files in %S", buf);
-
-  h= FindFirstFile(buf, &data);
-  if (h !=  INVALID_HANDLE_VALUE)
-  {
-     empty= true;
-     for(;;)
-     {
-       if (wcscmp(data.cFileName, L".") &&  wcscmp(data.cFileName, L".."))
-       {
-         empty= false;
-         break;
-       }
-       if (!FindNextFile(h, &data))
-         break;
-     }
-     FindClose(h);
-  }
+  WcaLog(LOGMSG_STANDARD, "Checking files in %S", datadir);
+  empty= IsDirectoryEmptyOrNonExisting(datadir);
+  if (empty)
+    WcaLog(LOGMSG_STANDARD, "DATADIR is empty or non-existent");
   else
+    WcaLog(LOGMSG_STANDARD, "DATADIR is NOT empty");
+
+  if (!empty)
   {
-    /* Non-existent directory, we handle it as empty */
-    empty = true;
+    WcaSetProperty(L"DATADIRERROR", L"data directory exist and not empty");
+    goto LExit;
   }
+  WcaSetProperty(L"DATADIRERROR", L"");
 
-  if(empty)
-    WcaLog(LOGMSG_STANDARD, "Directory %S is empty or non-existent",
-    PropertyName);
-  else
-    WcaLog(LOGMSG_STANDARD, "Directory %S is NOT empty", PropertyName);
 
-  wcscpy_s(buf, MAX_PATH, PropertyName);
-  wcscat_s(buf, L"NOTEMPTY");
-  WcaSetProperty(buf, empty? L"":L"1");
-
+  WcaGetFormattedString(L"[INSTALLDIR]",&path);
+  if (path && !wcsicmp(datadir, path))
+  {
+    WcaSetProperty(L"DATADIRERROR", L"data directory can not be "
+                                    L"installation root directory");
+    ReleaseStr(path);
+    goto LExit;
+  }
+  for (auto dir :
+       {L"[INSTALLDIR]bin\\", L"[INSTALLDIR]include\\",
+        L"[INSTALLDIR]lib\\", L"[INSTALLDIR]share\\"})
+  {
+    WcaGetFormattedString(dir, &path);
+    if (path && !wcsnicmp(datadir, path, wcslen(path)))
+    {
+      const wchar_t *subdir= dir + sizeof("[INSTALLDIR]") - 1;
+      wchar_t msg[MAX_PATH]= L"data directory conflicts with '";
+      wcsncat_s(msg, subdir, wcslen(subdir) - 1);
+      wcscat_s(msg, L"' directory, which is part of this installation");
+      WcaSetProperty(L"DATADIRERROR", msg);
+      ReleaseStr(path);
+      goto LExit;
+    }
+    ReleaseStr(path);
+    path= 0;
+  }
 LExit:
   return WcaFinalize(er);
 }
 
-extern "C" UINT __stdcall CheckDataDirectoryEmpty(MSIHANDLE hInstall)
-{
-  return CheckDirectoryEmpty(hInstall, L"DATADIR");
-}
 
 bool CheckServiceExists(const wchar_t *name)
 {
@@ -613,6 +664,12 @@ unsigned long long GetMaxBufferSize(unsigned long long totalPhys)
 
 
 /*
+  Magic undocumented number for bufferpool minimum,
+  allows innodb to start also for all page sizes.
+*/
+static constexpr unsigned long long minBufferpoolMB= 20;
+
+/*
   Checks SERVICENAME, PORT and BUFFERSIZE parameters
 */
 extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
@@ -740,34 +797,37 @@ extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
      unsigned long long availableMemory=
        GetMaxBufferSize(memstatus.ullTotalPhys)/ONE_MB;
      swprintf_s(invalidValueMsg,
-        L"Invalid buffer pool size. Please use a number between 1 and %llu",
-         availableMemory);
-     if(BufferPoolSizeLen == 0 || BufferPoolSizeLen > 15)
+        L"Invalid buffer pool size. Please use a number between %llu and %llu",
+         minBufferpoolMB, availableMemory);
+     if (BufferPoolSizeLen == 0 || BufferPoolSizeLen > 15 || !BufferPoolSize[0])
      {
        ErrorMsg= invalidValueMsg;
        goto LExit;
      }
-     for (DWORD i=0; i < BufferPoolSizeLen && BufferPoolSize[BufferPoolSizeLen];
-       i++)
-     {
-       if(BufferPoolSize[i]< '0' || BufferPoolSize[i] > '9')
-       {
-         ErrorMsg= invalidValueMsg;
-         goto LExit;
-       }
-     }
+
      BufferPoolSize[BufferPoolSizeLen]=0;
      MsiSetPropertyW(hInstall, L"BUFFERPOOLSIZE", BufferPoolSize);
-     long long sz = _wtoi64(BufferPoolSize);
-     if(sz <= 0 || sz > (long long)availableMemory)
+     wchar_t *end;
+     unsigned long long sz = wcstoull(BufferPoolSize, &end, 10);
+     if (sz > availableMemory || sz < minBufferpoolMB || *end)
      {
-       if(sz > 0)
+       if (*end == 0)
        {
-         swprintf_s(invalidValueMsg,
-           L"Value for buffer pool size is too large."
-           L"Only approximately %llu MB is available for allocation."
-           L"Please use a number between 1 and %llu.",
-          availableMemory, availableMemory);
+         if(sz > availableMemory)
+         {
+           swprintf_s(invalidValueMsg,
+             L"Value for buffer pool size is too large."
+             L"Only approximately %llu MB is available for allocation."
+             L"Please use a number between %llu and %llu.",
+             availableMemory, minBufferpoolMB, availableMemory);
+         }
+         else if(sz < minBufferpoolMB)
+         {
+           swprintf_s(invalidValueMsg,
+             L"Value for buffer pool size is too small."
+             L"Please use a number between %llu and %llu.",
+             minBufferpoolMB, availableMemory);
+         }
        }
        ErrorMsg= invalidValueMsg;
        goto LExit;

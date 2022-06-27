@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,7 +28,6 @@ Created 2007-03-27 Sunny Bains
 #define INNOBASE_FTS0TYPES_H
 
 #include "fts0fts.h"
-#include "fut0fut.h"
 #include "pars0pars.h"
 #include "que0types.h"
 #include "ut0byte.h"
@@ -76,7 +75,6 @@ struct fts_index_cache_t {
 
 	que_t**		ins_graph;	/*!< Insert query graphs */
 
-	que_t**		sel_graph;	/*!< Select query graphs */
 	CHARSET_INFO*	charset;	/*!< charset */
 };
 
@@ -88,35 +86,7 @@ struct fts_stopword_t {
 	CHARSET_INFO*	charset;	/*!< charset for stopword */
 };
 
-/** The SYNC state of the cache. There is one instance of this struct
-associated with each ADD thread. */
-struct fts_sync_t {
-	trx_t*		trx;		/*!< The transaction used for SYNCing
-					the cache to disk */
-	dict_table_t*	table;		/*!< Table with FTS index(es) */
-	ulint		max_cache_size;	/*!< Max size in bytes of the cache */
-	ibool		cache_full;	/*!< flag, when true it indicates that
-					we need to sync the cache to disk */
-	ulint		lower_index;	/*!< the start index of the doc id
-					vector from where to start adding
-					documents to the FTS cache */
-	ulint		upper_index;	/*!< max index of the doc id vector to
-					add to the FTS cache */
-	ibool		interrupted;	/*!< TRUE if SYNC was interrupted */
-	doc_id_t	min_doc_id;	/*!< The smallest doc id added to the
-					cache. It should equal to
-					doc_ids[lower_index] */
-	doc_id_t	max_doc_id;	/*!< The doc id at which the cache was
-					noted as being full, we use this to
-					set the upper_limit field */
-	time_t		start_time;	/*!< SYNC start time; only used if
-					fts_enable_diag_print */
-	bool		in_progress;	/*!< flag whether sync is in progress.*/
-	bool		unlock_cache;	/*!< flag whether unlock cache when
-					write fts node */
-  /** condition variable for in_progress; used with table->fts->cache->lock */
-  pthread_cond_t cond;
-};
+struct fts_sync_t;
 
 /** The cache for the FTS system. It is a memory-based inverted index
 that new entries are added to, until it grows over the configured maximum
@@ -149,6 +119,9 @@ struct fts_cache_t
 	size_t		total_size;	/*!< total size consumed by the ilist
 					field of all nodes. SYNC is run
 					whenever this gets too big */
+	/** total_size at the time of the previous SYNC request */
+	size_t		total_size_at_sync;
+
 	fts_sync_t*	sync;		/*!< sync structure to sync data to
 					disk */
 	ib_alloc_t*	sync_heap;	/*!< The heap allocator, for indexes
@@ -202,7 +175,6 @@ struct fts_node_t {
 	ulint		ilist_size_alloc;
 					/*!< Allocated size of ilist in
 					bytes */
-	bool		synced;		/*!< flag whether the node is synced */
 };
 
 /** A tokenizer word. Contains information about one word. */
@@ -314,16 +286,6 @@ int fts_doc_id_cmp(
 	const void*	p2);			/*!< in: id2 */
 
 /******************************************************************//**
-Decode and return the integer that was encoded using our VLC scheme.*/
-UNIV_INLINE
-ulint
-fts_decode_vlc(
-/*===========*/
-			/*!< out: value decoded */
-	byte**	ptr);	/*!< in: ptr to decode from, this ptr is
-			incremented by the number of bytes decoded */
-
-/******************************************************************//**
 Duplicate a string. */
 UNIV_INLINE
 void
@@ -336,28 +298,6 @@ fts_string_dup(
 	fts_string_t*		dst,		/*!< in: dup to here */
 	const fts_string_t*	src,		/*!< in: src string */
 	mem_heap_t*		heap);		/*!< in: heap to use */
-
-/******************************************************************//**
-Return length of val if it were encoded using our VLC scheme. */
-UNIV_INLINE
-ulint
-fts_get_encoded_len(
-/*================*/
-						/*!< out: length of value
-						 encoded, in bytes */
-	ulint		val);			/*!< in: value to encode */
-
-/******************************************************************//**
-Encode an integer using our VLC scheme and return the length in bytes. */
-UNIV_INLINE
-ulint
-fts_encode_int(
-/*===========*/
-						/*!< out: length of value
-						encoded, in bytes */
-	ulint		val,			/*!< in: value to encode */
-	byte*		buf);			/*!< in: buffer, must have
-						enough space */
 
 /******************************************************************//**
 Get the selected FTS aux INDEX suffix. */
@@ -379,7 +319,6 @@ fts_select_index(
 	const byte*		str,
 	ulint			len);
 
-#include "fts0types.ic"
-#include "fts0vlc.ic"
+#include "fts0types.inl"
 
 #endif /* INNOBASE_FTS0TYPES_H */

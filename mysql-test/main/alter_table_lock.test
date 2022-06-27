@@ -1,0 +1,29 @@
+--source include/not_msan.inc
+
+--echo #
+--echo # MDEV-23836: Assertion `! is_set() || m_can_overwrite_status' in
+--echo # Diagnostics_area::set_error_status (interrupted ALTER TABLE under LOCK)
+--echo #
+
+SET @max_session_mem_used_save= @@max_session_mem_used;
+
+CREATE TABLE t1 (a INT);
+SELECT * FROM t1;
+
+--error ER_NO_SUCH_TABLE
+ALTER TABLE x MODIFY xx INT;
+
+SET SESSION max_session_mem_used= 8192;
+--error 0,ER_OPTION_PREVENTS_STATEMENT
+LOCK TABLE t1 WRITE;
+
+--disable_warnings
+--error 0,ER_OPTION_PREVENTS_STATEMENT
+ALTER TABLE t1 CHANGE COLUMN IF EXISTS b c INT;
+--enable_warnings
+
+SET SESSION max_session_mem_used = @max_session_mem_used_save;
+UNLOCK TABLES;
+DROP TABLE t1;
+
+--echo # End of 10.5 tests

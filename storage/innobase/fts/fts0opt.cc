@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -36,6 +36,14 @@ Completed 2011/7/10 Sunny and Jimmy Yang
 #include "ut0list.h"
 #include "zlib.h"
 #include "fts0opt.h"
+#include "fts0vlc.h"
+#include "wsrep.h"
+
+#ifdef WITH_WSREP
+extern Atomic_relaxed<bool> wsrep_sst_disable_writes;
+#else
+constexpr bool wsrep_sst_disable_writes= false;
+#endif
 
 /** The FTS optimize thread's work queue. */
 ib_wqueue_t* fts_optimize_wq;
@@ -75,9 +83,8 @@ enum fts_msg_type_t {
 	FTS_MSG_ADD_TABLE,		/*!< Add table to the optimize thread's
 					work queue */
 
-	FTS_MSG_DEL_TABLE,		/*!< Remove a table from the optimize
+	FTS_MSG_DEL_TABLE		/*!< Remove a table from the optimize
 					threads work queue */
-	FTS_MSG_SYNC_TABLE		/*!< Sync fts cache of a table */
 };
 
 /** Compressed list of words that have been read from FTS INDEX
@@ -1120,7 +1127,7 @@ fts_optimize_encode_node(
 	ulint		pos_enc_len;
 	doc_id_t	doc_id_delta;
 	dberr_t		error = DB_SUCCESS;
-	byte*		src = enc->src_ilist_ptr;
+	const byte*	src = enc->src_ilist_ptr;
 
 	if (node->first_doc_id == 0) {
 		ut_a(node->last_doc_id == 0);
@@ -1177,7 +1184,7 @@ fts_optimize_encode_node(
 
 	/* Encode the doc id. Cast to ulint, the delta should be small and
 	therefore no loss of precision. */
-	dst += fts_encode_int((ulint) doc_id_delta, dst);
+	dst = fts_encode_int(doc_id_delta, dst);
 
 	/* Copy the encoded pos array. */
 	memcpy(dst, src, pos_enc_len);
@@ -1224,7 +1231,8 @@ fts_optimize_node(
 		doc_id_t	delta;
 		doc_id_t	del_doc_id = FTS_NULL_DOC_ID;
 
-		delta = fts_decode_vlc(&enc->src_ilist_ptr);
+		delta = fts_decode_vlc(
+			(const byte**)&enc->src_ilist_ptr);
 
 test_again:
 		/* Check whether the doc id is in the delete list, if
@@ -1252,7 +1260,7 @@ test_again:
 
 			/* Skip the entries for this document. */
 			while (*enc->src_ilist_ptr) {
-				fts_decode_vlc(&enc->src_ilist_ptr);
+				fts_decode_vlc((const byte**)&enc->src_ilist_ptr);
 			}
 
 			/* Skip the end of word position marker. */
@@ -2616,34 +2624,6 @@ fts_optimize_remove_table(
   mysql_mutex_unlock(&fts_optimize_wq->mutex);
 }
 
-/** Send sync fts cache for the table.
-@param[in]	table	table to sync */
-void
-fts_optimize_request_sync_table(
-	dict_table_t*	table)
-{
-	/* if the optimize system not yet initialized, return */
-	if (!fts_optimize_wq) {
-		return;
-	}
-
-	mysql_mutex_lock(&fts_optimize_wq->mutex);
-
-	/* FTS optimizer thread is already exited */
-	if (fts_opt_start_shutdown) {
-		ib::info() << "Try to sync table " << table->name
-			<< " after FTS optimize thread exiting.";
-	} else if (table->fts->sync_message) {
-		/* If the table already has SYNC message in
-		fts_optimize_wq queue then ignore it */
-	} else {
-		add_msg(fts_optimize_create_msg(FTS_MSG_SYNC_TABLE, table));
-		table->fts->sync_message = true;
-	}
-
-	mysql_mutex_unlock(&fts_optimize_wq->mutex);
-}
-
 /** Add a table to fts_slots if it doesn't already exist. */
 static bool fts_optimize_new_table(dict_table_t* table)
 {
@@ -2785,7 +2765,8 @@ static void fts_optimize_sync_table(dict_table_t *table,
 
   if (sync_table->fts && sync_table->fts->cache && sync_table->is_accessible())
   {
-    fts_sync_table(sync_table, false);
+    fts_sync_table(sync_table);
+
     if (process_message)
     {
       mysql_mutex_lock(&fts_optimize_wq->mutex);
@@ -2827,6 +2808,20 @@ static void fts_optimize_callback(void *)
 		    && ib_wqueue_is_empty(fts_optimize_wq)
 		    && n_tables > 0
 		    && n_optimize > 0) {
+
+			/* The queue is empty but we have tables
+			to optimize. */
+			if (UNIV_UNLIKELY(wsrep_sst_disable_writes)) {
+retry_later:
+				if (fts_is_sync_needed()) {
+					fts_need_sync = true;
+				}
+				if (n_tables) {
+					timer->set_time(5000, 0);
+				}
+				return;
+			}
+
 			fts_slot_t* slot = static_cast<fts_slot_t*>(
 				ib_vector_get(fts_slots, current));
 
@@ -2841,19 +2836,13 @@ static void fts_optimize_callback(void *)
 				n_optimize = fts_optimize_how_many();
 				current = 0;
 			}
-
 		} else if (n_optimize == 0
 			   || !ib_wqueue_is_empty(fts_optimize_wq)) {
 			fts_msg_t* msg = static_cast<fts_msg_t*>
 				(ib_wqueue_nowait(fts_optimize_wq));
 			/* Timeout ? */
-			if (msg == NULL) {
-				if (fts_is_sync_needed()) {
-					fts_need_sync = true;
-				}
-				if (n_tables)
-					timer->set_time(5000, 0);
-				return;
+			if (!msg) {
+				goto retry_later;
 			}
 
 			switch (msg->type) {
@@ -2877,19 +2866,6 @@ static void fts_optimize_callback(void *)
 					--n_tables;
 				}
 				break;
-
-			case FTS_MSG_SYNC_TABLE:
-				DBUG_EXECUTE_IF(
-					"fts_instrument_msg_sync_sleep",
-					std::this_thread::sleep_for(
-						std::chrono::milliseconds(
-							300)););
-
-				fts_optimize_sync_table(
-					static_cast<dict_table_t*>(msg->ptr),
-					true);
-				break;
-
 			default:
 				ut_error;
 			}
@@ -2937,7 +2913,6 @@ fts_optimize_init(void)
 
 	/* Create FTS optimize work queue */
 	fts_optimize_wq = ib_wqueue_create();
-  ut_a(fts_optimize_wq != NULL);
 	timer = srv_thread_pool->create_timer(timer_callback);
 
 	/* Create FTS vector to store fts_slot_t */
@@ -3023,7 +2998,7 @@ void fts_sync_during_ddl(dict_table_t* table)
   if (!sync_message)
     return;
 
-  fts_sync_table(table, false);
+  fts_sync_table(table);
 
   mysql_mutex_lock(&fts_optimize_wq->mutex);
   table->fts->sync_message = false;

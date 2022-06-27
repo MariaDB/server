@@ -9,11 +9,14 @@
 
 call mtr.add_suppression("Plugin 'file_key_management'");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error.");
-call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[1-4]\\.ibd' cannot be decrypted");
+call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[1-4]\\.ibd' cannot be decrypted; key_version=1");
+call mtr.add_suppression("InnoDB: File '.*test/t[1234]\\.ibd' is corrupted");
 call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\]");
 call mtr.add_suppression("InnoDB: Unable to decompress .*.test.t[12]\\.ibd\\[page id: space=[1-9][0-9]*, page number=[0-9]+\\]");
 call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed read of file '.*test.t[12]\\.ibd'");
 call mtr.add_suppression("InnoDB: Failed to read page .* from file '.*'");
+call mtr.add_suppression("InnoDB: OPT_PAGE_CHECKSUM mismatch");
+call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore corruption");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
 # for innodb_checksum_algorithm=full_crc32 only

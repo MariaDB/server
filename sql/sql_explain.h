@@ -121,11 +121,13 @@ public:
   */
   enum explain_connection_type connection_type;
 
+protected:
   /* 
     A node may have children nodes. When a node's explain structure is 
     created, children nodes may not yet have QPFs. This is why we store ids.
   */
   Dynamic_array<int> children;
+public:
   void add_child(int select_no)
   {
     children.append(select_no);

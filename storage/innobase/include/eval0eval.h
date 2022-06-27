@@ -104,6 +104,6 @@ eval_cmp(
 	func_node_t*	cmp_node);	/*!< in: comparison node */
 
 
-#include "eval0eval.ic"
+#include "eval0eval.inl"
 
 #endif

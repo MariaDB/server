@@ -12,7 +12,7 @@ ALTER TABLE bug44571 CHANGE foo bar INT;
 # because the CHANGE foo bar is successful. And
 # the column name change would communicate to
 # InnoDB with the fix from bug #47621
--- error ER_KEY_COLUMN_DOES_NOT_EXITS
+-- error ER_KEY_COLUMN_DOES_NOT_EXIST
 ALTER TABLE bug44571 ADD INDEX bug44571b (foo);
 # The following create indexes should succeed,
 # indirectly confirm the CHANGE foo bar is successful.

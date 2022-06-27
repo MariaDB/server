@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, 2020, MariaDB Corporation.
+/* Copyright (c) 2018, 2022, MariaDB Corporation.
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; version 2 of the License.
@@ -257,9 +257,13 @@ static bool backup_flush(THD *thd)
     This will probably require a callback from the InnoDB code.
 */
 
+/* Retry to get inital lock for 0.1 + 0.5 + 2.25 + 11.25 + 56.25 = 70.35 sec */
+#define MAX_RETRY_COUNT 5
+
 static bool backup_block_ddl(THD *thd)
 {
   PSI_stage_info org_stage;
+  uint sleep_time;
   DBUG_ENTER("backup_block_ddl");
 
   kill_delayed_threads();
@@ -302,18 +306,33 @@ static bool backup_block_ddl(THD *thd)
     block new DDL's, in addition to all previous blocks
     We didn't do this lock above, as we wanted DDL's to be executed while
     we wait for non transactional tables (which may take a while).
+
+    We do this lock in a loop as we can get a deadlock if there are multi-object
+    ddl statements like
+    RENAME TABLE t1 TO t2, t3 TO t3
+    and the MDL happens in the middle of it.
  */
   THD_STAGE_INFO(thd, stage_waiting_for_ddl);
-  if (thd->mdl_context.upgrade_shared_lock(backup_flush_ticket,
-                                           MDL_BACKUP_WAIT_DDL,
-                                           thd->variables.lock_wait_timeout))
+  sleep_time= 100;                              // Start with 0.1 seconds
+  for (uint i= 0 ; i <= MAX_RETRY_COUNT ; i++)
   {
-    /*
-      Could be a timeout. Downgrade lock to what is was before this function
-      was called so that this function can be called again
-    */
-    backup_flush_ticket->downgrade_lock(MDL_BACKUP_FLUSH);
-    goto err;
+    if (!thd->mdl_context.upgrade_shared_lock(backup_flush_ticket,
+                                              MDL_BACKUP_WAIT_DDL,
+                                              thd->variables.lock_wait_timeout))
+      break;
+    if (thd->get_stmt_da()->sql_errno() != ER_LOCK_DEADLOCK || thd->killed ||
+        i == MAX_RETRY_COUNT)
+    {
+      /*
+        Could be a timeout. Downgrade lock to what is was before this function
+        was called so that this function can be called again
+      */
+      backup_flush_ticket->downgrade_lock(MDL_BACKUP_FLUSH);
+      goto err;
+    }
+    thd->clear_error();                         // Forget the DEADLOCK error
+    my_sleep(sleep_time);
+    sleep_time*= 5;                             // Wait a bit longer next time
   }
 
   /* There can't be anything more that needs to be logged to ddl log */
@@ -381,6 +400,9 @@ bool backup_end(THD *thd)
     if (WSREP_NNULL(thd) && thd->wsrep_desynced_backup_stage)
     {
       Wsrep_server_state &server_state= Wsrep_server_state::instance();
+      THD_STAGE_INFO(thd, stage_waiting_flow);
+      WSREP_DEBUG("backup_end: waiting for flow control for %s",
+                  wsrep_thd_query(thd));
       server_state.resume_and_resync();
       thd->wsrep_desynced_backup_stage= false;
     }
@@ -532,7 +554,7 @@ static char *add_id_to_buffer(char *ptr, const LEX_CUSTRING *from)
 
   tmp.str= buff;
   tmp.length= MY_UUID_STRING_LENGTH;
-  my_uuid2str(from->str, buff);
+  my_uuid2str(from->str, buff, 1);
   return add_str_to_buffer(ptr, &tmp);
 }
 

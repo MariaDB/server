@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -136,65 +136,47 @@ trx_sysf_get_n_rseg_slots()
 	mtr.commit();
 }
 
-/*****************************************************************//**
-Creates the file page for the transaction system. This function is called only
-at the database creation, before trx_sys_init. */
-static
-void
-trx_sysf_create(
-/*============*/
-	mtr_t*	mtr)	/*!< in: mtr */
+/** Initialize the transaction system when creating the database. */
+dberr_t trx_sys_create_sys_pages(mtr_t *mtr)
 {
-	ulint		slot_no;
-	buf_block_t*	block;
+  mtr->start();
+  mtr->x_lock_space(fil_system.sys_space);
+  static_assert(TRX_SYS_SPACE == 0, "compatibility");
 
-	ut_ad(mtr);
+  /* Create the trx sys file block in a new allocated file segment */
+  dberr_t err;
+  buf_block_t *block= fseg_create(fil_system.sys_space,
+                                  TRX_SYS + TRX_SYS_FSEG_HEADER, mtr, &err);
+  if (UNIV_UNLIKELY(!block))
+  {
+  error:
+    mtr->commit();
+    return err;
+  }
+  ut_a(block->page.id() == page_id_t(0, TRX_SYS_PAGE_NO));
 
-	/* Note that below we first reserve the file space x-latch, and
-	then enter the kernel: we must do it in this order to conform
-	to the latching order rules. */
+  mtr->write<2>(*block, FIL_PAGE_TYPE + block->page.frame,
+                FIL_PAGE_TYPE_TRX_SYS);
 
-	mtr->x_lock_space(fil_system.sys_space);
-	compile_time_assert(TRX_SYS_SPACE == 0);
+  /* Reset the rollback segment slots.  Old versions of InnoDB
+  (before MySQL 5.5) define TRX_SYS_N_RSEGS as 256 and expect
+  that the whole array is initialized. */
+  static_assert(256 >= TRX_SYS_N_RSEGS, "");
+  static_assert(TRX_SYS + TRX_SYS_RSEGS + 256 * TRX_SYS_RSEG_SLOT_SIZE <=
+                UNIV_PAGE_SIZE_MIN - FIL_PAGE_DATA_END, "");
+  mtr->write<4>(*block, TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO +
+                block->page.frame, FSP_FIRST_RSEG_PAGE_NO);
+  mtr->memset(block, TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_SLOT_SIZE,
+              255 * TRX_SYS_RSEG_SLOT_SIZE, 0xff);
 
-	/* Create the trx sys file block in a new allocated file segment */
-	block = fseg_create(fil_system.sys_space,
-			    TRX_SYS + TRX_SYS_FSEG_HEADER,
-			    mtr);
+  buf_block_t *r= trx_rseg_header_create(fil_system.sys_space, 0, 0,
+                                         mtr, &err);
+  if (UNIV_UNLIKELY(!r))
+    goto error;
+  ut_a(r->page.id() == page_id_t(0, FSP_FIRST_RSEG_PAGE_NO));
+  mtr->commit();
 
-	ut_a(block->page.id() == page_id_t(0, TRX_SYS_PAGE_NO));
-
-	mtr->write<2>(*block, FIL_PAGE_TYPE + block->frame,
-		      FIL_PAGE_TYPE_TRX_SYS);
-
-	ut_ad(!mach_read_from_4(block->frame
-				+ TRX_SYS_DOUBLEWRITE
-				+ TRX_SYS_DOUBLEWRITE_MAGIC));
-
-	/* Reset the rollback segment slots.  Old versions of InnoDB
-	(before MySQL 5.5) define TRX_SYS_N_RSEGS as 256 and expect
-	that the whole array is initialized. */
-	compile_time_assert(256 >= TRX_SYS_N_RSEGS);
-	compile_time_assert(TRX_SYS + TRX_SYS_RSEGS
-			    + 256 * TRX_SYS_RSEG_SLOT_SIZE
-			    <= UNIV_PAGE_SIZE_MIN - FIL_PAGE_DATA_END);
-	mtr->memset(block, TRX_SYS + TRX_SYS_RSEGS,
-		    256 * TRX_SYS_RSEG_SLOT_SIZE, 0xff);
-	/* Initialize all of the page.  This part used to be uninitialized. */
-	mtr->memset(block, TRX_SYS + TRX_SYS_RSEGS
-		    + 256 * TRX_SYS_RSEG_SLOT_SIZE,
-		    srv_page_size
-		    - (FIL_PAGE_DATA_END + TRX_SYS + TRX_SYS_RSEGS
-		       + 256 * TRX_SYS_RSEG_SLOT_SIZE),
-		    0);
-
-	/* Create the first rollback segment in the SYSTEM tablespace */
-	slot_no = trx_sys_rseg_find_free(block);
-	buf_block_t* rblock = trx_rseg_header_create(fil_system.sys_space,
-						     slot_no, block, mtr);
-
-	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
-	ut_a(rblock->page.id() == page_id_t(0, FSP_FIRST_RSEG_PAGE_NO));
+  return trx_lists_init_at_db_start();
 }
 
 void trx_sys_t::create()
@@ -206,13 +188,13 @@ void trx_sys_t::create()
   rw_trx_hash.init();
 }
 
-uint32_t trx_sys_t::history_size()
+size_t trx_sys_t::history_size()
 {
   ut_ad(is_initialised());
-  uint32_t size= 0;
+  size_t size= 0;
   for (auto &rseg : rseg_array)
   {
-    rseg.latch.rd_lock();
+    rseg.latch.rd_lock(SRW_LOCK_CALL);
     size+= rseg.history_size;
   }
   for (auto &rseg : rseg_array)
@@ -220,15 +202,15 @@ uint32_t trx_sys_t::history_size()
   return size;
 }
 
-bool trx_sys_t::history_exceeds(uint32_t threshold)
+bool trx_sys_t::history_exceeds(size_t threshold)
 {
   ut_ad(is_initialised());
-  uint32_t size= 0;
+  size_t size= 0;
   bool exceeds= false;
   size_t i;
   for (i= 0; i < array_elements(rseg_array); i++)
   {
-    rseg_array[i].latch.rd_lock();
+    rseg_array[i].latch.rd_lock(SRW_LOCK_CALL);
     size+= rseg_array[i].history_size;
     if (size > threshold)
     {
@@ -251,28 +233,13 @@ TPOOL_SUPPRESS_TSAN bool trx_sys_t::history_exists()
   return false;
 }
 
-TPOOL_SUPPRESS_TSAN uint32_t trx_sys_t::history_size_approx() const
+TPOOL_SUPPRESS_TSAN size_t trx_sys_t::history_size_approx() const
 {
   ut_ad(is_initialised());
-  uint32_t size= 0;
+  size_t size= 0;
   for (auto &rseg : rseg_array)
     size+= rseg.history_size;
   return size;
-}
-
-/*****************************************************************//**
-Creates and initializes the transaction system at the database creation. */
-void
-trx_sys_create_sys_pages(void)
-/*==========================*/
-{
-	mtr_t	mtr;
-
-	mtr_start(&mtr);
-
-	trx_sysf_create(&mtr);
-
-	mtr_commit(&mtr);
 }
 
 /** Create a persistent rollback segment.
@@ -292,14 +259,21 @@ static trx_rseg_t *trx_rseg_create(uint32_t space_id)
     if (buf_block_t *sys_header= trx_sysf_get(&mtr))
     {
       ulint rseg_id= trx_sys_rseg_find_free(sys_header);
+      dberr_t err;
       if (buf_block_t *rblock= rseg_id == ULINT_UNDEFINED
-          ? nullptr : trx_rseg_header_create(space, rseg_id, sys_header,
-                                             &mtr))
+          ? nullptr : trx_rseg_header_create(space, rseg_id, 0, &mtr, &err))
       {
-        ut_ad(trx_sysf_rseg_get_space(sys_header, rseg_id) == space_id);
         rseg= &trx_sys.rseg_array[rseg_id];
         rseg->init(space, rblock->page.id().page_no());
         ut_ad(rseg->is_persistent());
+        mtr.write<4,mtr_t::MAYBE_NOP>
+          (*sys_header, TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_SPACE +
+           rseg_id * TRX_SYS_RSEG_SLOT_SIZE + sys_header->page.frame,
+           space_id);
+        mtr.write<4,mtr_t::MAYBE_NOP>
+          (*sys_header, TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO +
+           rseg_id * TRX_SYS_RSEG_SLOT_SIZE + sys_header->page.frame,
+           rseg->page_no);
       }
     }
   }

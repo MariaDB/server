@@ -31,6 +31,7 @@ defaults=""
 defaults_group_suffix=""
 mysqld_opt=""
 user=""
+group=""
 silent_startup="--silent-startup"
 
 force=0
@@ -95,6 +96,11 @@ Usage: $0 [OPTIONS]
                        user.  You must be root to use this option.  By default
                        mysqld runs using your current login name and files and
                        directories that it creates will be owned by you.
+  --group=group_name   The login group to use for running mysqld.  Files and
+                       directories created by mysqld will be owned by this
+                       group. You must be root to use this option.  By default
+                       mysqld runs using your current group and files and
+                       directories that it creates will be owned by you.
 
 All other options are passed to the mysqld program
 
@@ -144,11 +150,11 @@ parse_arguments()
       --ldata=*|--datadir=*|--data=*) ldata=`parse_arg "$arg"` ;;
       --log-error=*)
        log_error=`parse_arg "$arg"` ;;
-      --user=*)
         # Note that the user will be passed to mysqld so that it runs
         # as 'user' (crucial e.g. if log-bin=/some_other_path/
         # where a chown of datadir won't help)
-        user=`parse_arg "$arg"` ;;
+      --user=*) user=`parse_arg "$arg"` ;;
+      --group=*) group=`parse_arg "$arg"` ;;
       --skip-name-resolve) ip_only=1 ;;
       --verbose) verbose=1 ; silent_startup="" ;;
       --rpm) in_rpm=1 ;;
@@ -468,7 +474,12 @@ do
   fi
   if test -n "$user"
   then
-    chown $user "$dir"
+    if test -z "$group"
+    then
+      chown $user $dir
+    else
+      chown $user:$group $dir
+    fi
     if test $? -ne 0
     then
       echo "Cannot change ownership of the database directories to the '$user'"
@@ -501,6 +512,12 @@ then
   fi
   args="$args --user=$user"
 fi
+
+#To be enabled if/when we enable --group as an option to mysqld
+#if test -n "$group"
+#then
+#  args="$args --group=$group"
+#fi
 
 if test -f "$ldata/mysql/user.frm"
 then
@@ -560,6 +577,7 @@ cat_sql()
 s_echo "Installing MariaDB/MySQL system tables in '$ldata' ..."
 if cat_sql | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
+    printf "@VERSION@-MariaDB" > "$ldata/mysql_upgrade_info"
   s_echo "OK"
 else
   log_file_place=$ldata
@@ -632,8 +650,7 @@ then
   fi
 
   echo
-  echo "See the MariaDB Knowledgebase at https://mariadb.com/kb or the"
-  echo "MySQL manual for more instructions."
+  echo "See the MariaDB Knowledgebase at https://mariadb.com/kb"
 
   if test "$in_rpm" -eq 0
   then
@@ -649,8 +666,7 @@ then
   echo "Please report any problems at https://mariadb.org/jira"
   echo
   echo "The latest information about MariaDB is available at https://mariadb.org/."
-  echo "You can find additional information about the MySQL part at:"
-  echo "https://dev.mysql.com"
+  echo
   echo "Consider joining MariaDB's strong and vibrant community:"
   echo "https://mariadb.org/get-involved/"
   echo

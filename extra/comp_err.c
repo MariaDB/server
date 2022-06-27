@@ -440,7 +440,7 @@ static void clean_up(struct languages *lang_head, struct errors *error_head)
 {
   struct languages *tmp_lang, *next_language;
   struct errors *tmp_error, *next_error;
-  uint count, i;
+  size_t count, i;
 
   if (default_language_changed)
     my_free((void*) default_language);
@@ -724,7 +724,7 @@ static struct message *find_message(struct errors *err, const char *lang,
                                     my_bool no_default)
 {
   struct message *tmp, *return_val= 0;
-  uint i, count;
+  size_t i, count;
   DBUG_ENTER("find_message");
 
   count= (err->msg).elements;

@@ -1,0 +1,54 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+#
+# Category 1) DO_DOMAIN_IDS and IGNORE_SERVER_IDS specified together
+#
+# Id filtering variable values should be empty initially
+# Set id filtering variables
+CHANGE MASTER TO DO_DOMAIN_IDS=(1), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=(3), MASTER_USE_GTID=SLAVE_POS;
+# do domain id list: 1
+# ignore domain id list: 
+# ignore server id list: 3
+# RESET SLAVE ALL should clear values for all id filtering variables
+RESET SLAVE ALL;
+change master to master_port=MASTER_MYPORT, master_host='127.0.0.1', master_user='root';
+include/start_slave.inc
+include/stop_slave.inc
+#
+# Category 2) IGNORE_DOMAIN_IDS and IGNORE_SERVER_IDS specified together
+#
+# Id filtering variable values should be empty initially
+# Set id filtering variables
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(2), IGNORE_SERVER_IDS=(3), MASTER_USE_GTID=SLAVE_POS;
+# do domain id list: 
+# ignore domain id list: 2
+# ignore server id list: 3
+# RESET SLAVE ALL should clear values for all id filtering variables
+RESET SLAVE ALL;
+change master to master_port=MASTER_MYPORT, master_host='127.0.0.1', master_user='root';
+include/start_slave.inc
+include/stop_slave.inc
+#
+# Category 3) Null check - edge case with all empty lists to ensure a
+# lack of specification doesn't break anything
+#
+# Id filtering variable values should be empty initially
+# Set id filtering variables
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=(), MASTER_USE_GTID=SLAVE_POS;
+# do domain id list: 
+# ignore domain id list: 
+# ignore server id list: 
+# RESET SLAVE ALL should clear values for all id filtering variables
+RESET SLAVE ALL;
+change master to master_port=MASTER_MYPORT, master_host='127.0.0.1', master_user='root';
+include/start_slave.inc
+include/stop_slave.inc
+############################
+# Cleanup
+############################
+connection slave;
+change master to master_port=MASTER_MYPORT, master_host='127.0.0.1', master_user='root';
+include/start_slave.inc
+include/rpl_end.inc

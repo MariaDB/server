@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2021, MariaDB Corporation.
+Copyright (c) 2021, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -68,6 +68,7 @@ before transaction commit and must be rolled back explicitly are as follows:
 
 #include "dict0defrag_bg.h"
 #include "btr0defragment.h"
+#include "lock0lock.h"
 
 #include "que0que.h"
 #include "pars0pars.h"
@@ -82,7 +83,10 @@ dberr_t trx_t::drop_table_foreign(const table_name_t &name)
   ut_ad(dict_operation);
   ut_ad(dict_operation_lock_mode);
 
-  if (!dict_sys.sys_foreign || !dict_sys.sys_foreign_cols)
+  if (!dict_sys.sys_foreign || dict_sys.sys_foreign->corrupted)
+    return DB_SUCCESS;
+
+  if (!dict_sys.sys_foreign_cols || dict_sys.sys_foreign_cols->corrupted)
     return DB_SUCCESS;
 
   pars_info_t *info= pars_info_create();
@@ -152,7 +156,7 @@ dberr_t trx_t::drop_table(const dict_table_t &table)
   ut_ad(table.n_lock_x_or_s == 1);
   ut_ad(UT_LIST_GET_LEN(table.locks) >= 1);
 #ifdef UNIV_DEBUG
-  bool found_x;
+  bool found_x= false;
   for (lock_t *lock= UT_LIST_GET_FIRST(table.locks); lock;
        lock= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock))
   {
@@ -171,7 +175,7 @@ dberr_t trx_t::drop_table(const dict_table_t &table)
   ut_ad(found_x);
 #endif
 
-  if (dict_sys.sys_virtual)
+  if (dict_sys.sys_virtual && !dict_sys.sys_virtual->corrupted)
   {
     pars_info_t *info= pars_info_create();
     pars_info_add_ull_literal(info, "id", table.id);
@@ -234,6 +238,24 @@ void trx_t::commit(std::vector<pfs_os_file_t> &deleted)
   if (dict_operation)
   {
     ut_ad(dict_sys.locked());
+    lock_sys.wr_lock(SRW_LOCK_CALL);
+    mutex_lock();
+    lock_release_on_drop(this);
+    ut_ad(UT_LIST_GET_LEN(lock.trx_locks) == 0);
+    ut_ad(ib_vector_is_empty(autoinc_locks));
+    mem_heap_empty(lock.lock_heap);
+    lock.table_locks.clear();
+    lock.was_chosen_as_deadlock_victim= false;
+    lock.n_rec_locks= 0;
+    while (dict_table_t *table= UT_LIST_GET_FIRST(lock.evicted_tables))
+    {
+      UT_LIST_REMOVE(lock.evicted_tables, table);
+      dict_mem_table_free(table);
+    }
+    dict_operation= false;
+    id= 0;
+    mutex_unlock();
+
     for (const auto &p : mod_tables)
     {
       if (p.second.is_dropped())
@@ -255,6 +277,12 @@ void trx_t::commit(std::vector<pfs_os_file_t> &deleted)
         }
       }
     }
+
+    lock_sys.wr_unlock();
+
+    mysql_mutex_lock(&lock_sys.wait_mutex);
+    lock_sys.deadlock_check();
+    mysql_mutex_unlock(&lock_sys.wait_mutex);
   }
   commit_cleanup();
 }

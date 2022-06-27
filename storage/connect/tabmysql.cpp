@@ -904,6 +904,11 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
   /*********************************************************************/
   if (Mode == MODE_READ || Mode == MODE_READX) {
     MakeSelect(g, Mode == MODE_READX);
+    if (Mode == MODE_READ && !Query)
+    {
+      Myc.Close();
+      return true;
+    }
     m_Rc = (Mode == MODE_READ)
          ? Myc.ExecSQL(g, Query->GetStr()) : RC_OK;
 
@@ -940,15 +945,6 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
         m_Rc = BindColumns(g);
 
       } // endif MakeInsert
-
-    if (m_Rc != RC_FX) {
-      char cmd[64];
-      int  w;
-
-      sprintf(cmd, "ALTER TABLE `%s` DISABLE KEYS", TableName);
-      
-      m_Rc = Myc.ExecSQL(g, cmd, &w);   // may fail for some engines
-      } // endif m_Rc
 
   } else
 //  m_Rc = (Mode == MODE_DELETE) ? MakeDelete(g) : MakeUpdate(g);
@@ -1211,16 +1207,6 @@ int TDBMYSQL::DeleteDB(PGLOBAL g, int irc)
 void TDBMYSQL::CloseDB(PGLOBAL g)
   {
   if (Myc.Connected()) {
-    if (Mode == MODE_INSERT) {
-      char cmd[64];
-      int  w;
-      PDBUSER dup = PlgGetUser(g);
-
-      dup->Step = "Enabling indexes";
-      sprintf(cmd, "ALTER TABLE `%s` ENABLE KEYS", TableName);
-      Myc.m_Rows = -1;      // To execute the query
-      m_Rc = Myc.ExecSQL(g, cmd, &w);  // May fail for some engines
-      } // endif m_Rc
 
     Myc.Close();
     } // endif Myc

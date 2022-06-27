@@ -1,4 +1,5 @@
 source include/not_embedded.inc;
+source include/not_aix.inc;
 
 let $have_plugin = `SELECT COUNT(*) FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_STATUS='ACTIVE' AND PLUGIN_NAME = 'THREAD_POOL_GROUPS'`;
 if(!$have_plugin)

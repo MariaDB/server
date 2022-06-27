@@ -1,24 +1,35 @@
 -- source include/not_embedded.inc
 
---disable_warnings
-DROP TABLE IF EXISTS t1, t2;
-DROP VIEW IF EXISTS v_t1;
---enable_warnings
 
 # Create a base table and a view
 CREATE TABLE t1 (id INT PRIMARY KEY);
-CREATE view v_t1 AS SELECT * FROM t1;
-
 # Verify the base table and view is supported
 CALL sys.table_exists('test', 't1', @exists);
 SELECT @exists;
+DROP TABLE t1;
 
+CREATE view v_t1 AS SELECT 1;
 CALL sys.table_exists('test', 'v_t1', @exists);
 SELECT @exists;
+DROP VIEW v_t1;
+
+CREATE TABLE tv (i int) with system versioning;
+CALL sys.table_exists('test','tv',@exists);
+SELECT @exists;
+DROP TABLE tv;
+
+CREATE SEQUENCE s;
+CALL sys.table_exists('test','s',@exists);
+SELECT @exists;
+DROP SEQUENCE s;
 
 # Replace the base table with a temporary table
 CREATE TEMPORARY TABLE t1 (id INT PRIMARY KEY);
 CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+DROP TEMPORARY TABLE t1;
+
+CALL sys.table_exists('information_schema', 'all_plugins', @exists);
 SELECT @exists;
 
 # Try a non-existing table
@@ -34,8 +45,25 @@ CALL sys.table_exists(@identifier, 't1', @exists);
 -- error 1406
 CALL sys.table_exists('test', @identifier, @exists);
 
-# Clean up
-DROP TEMPORARY TABLE t1;
-DROP TABLE t1;
-DROP VIEW v_t1;
 SET @identifier := NULL;
+
+--echo #
+--echo # MDEV-28391: table_exists procedure fails with
+--echo #             Incorrect table name with backtick identifiers
+--echo #
+CREATE TABLE `ab``c` (t1_id int PRIMARY KEY, t1_val varchar(10));
+CALL sys.table_exists('test', 'ab`c', @tbl_type);
+SELECT @tbl_type;
+DROP TABLE `ab``c`;
+CREATE TEMPORARY TABLE `ab``c` (t1_id int PRIMARY KEY, t1_val varchar(10));
+CALL sys.table_exists('test', 'ab`c', @tbl_type);
+SELECT @tbl_type;
+DROP TABLE `ab``c`;
+CREATE TABLE `ab``c` (t1_id int PRIMARY KEY, t1_val varchar(10));
+CREATE TEMPORARY TABLE `ab``c` (t1_id int PRIMARY KEY, t1_val varchar(10));
+CALL sys.table_exists('test', 'ab`c', @tbl_type);
+SELECT @tbl_type;
+--echo # We cannot send quoted identifer to the procedure, no table will be found
+CALL sys.table_exists('test', '`ab``c`', @tbl_type);
+SELECT @tbl_type;
+DROP TABLE `ab``c`;

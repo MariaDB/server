@@ -1,0 +1,24 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-4958 Adding datatype UUID
+#
+CREATE TABLE t1 (a UUID);
+INSERT INTO t1 VALUES
+('123e4567-e89b-12d3-a456-426655440000'),
+('123e4567-e89b-12d3-a456-426655440001');
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+INSERT INTO t1 VALUES ('123e4567-e89b-12d3-a456-426655440002');
+SELECT * FROM t1 ORDER BY a;
+a
+123e4567-e89b-12d3-a456-426655440000
+123e4567-e89b-12d3-a456-426655440001
+123e4567-e89b-12d3-a456-426655440002
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#

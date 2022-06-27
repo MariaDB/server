@@ -121,10 +121,43 @@ js0	js1	js2	js3
 SELECT js0, JSON_COMPACT(js0), JSON_COMPACT('{}') FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def	test	t1	t1	js0	js0	252 (format=json)	4294967295	0	Y	144	0	33
-def					JSON_COMPACT(js0)	251 (format=json)	4294967295	0	Y	128	0	63
-def					JSON_COMPACT('{}')	253 (format=json)	6	0	Y	128	0	63
+def					JSON_COMPACT(js0)	251 (format=json)	4294967295	0	Y	128	0	33
+def					JSON_COMPACT('{}')	253 (format=json)	6	0	Y	0	0	33
 js0	JSON_COMPACT(js0)	JSON_COMPACT('{}')
 DROP TABLE t1;
+#
+# MDEV-27361 Hybrid functions with JSON arguments do not send format metadata
+#
+CREATE TABLE t1 (a JSON);
+INSERT INTO t1 VALUES ('{"a":"b"}');
+SELECT a, JSON_COMPACT(a), COALESCE(a) FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	a	252 (format=json)	4294967295	9	Y	144	0	33
+def					JSON_COMPACT(a)	251 (format=json)	4294967295	9	Y	128	0	33
+def					COALESCE(a)	251 (format=json)	4294967295	9	Y	128	39	33
+a	JSON_COMPACT(a)	COALESCE(a)
+{"a":"b"}	{"a":"b"}	{"a":"b"}
+SELECT JSON_ARRAYAGG(1), JSON_ARRAYAGG(a) FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					JSON_ARRAYAGG(1)	252 (format=json)	9437184	3	Y	0	0	33
+def					JSON_ARRAYAGG(a)	252 (format=json)	12582912	11	Y	128	0	33
+JSON_ARRAYAGG(1)	JSON_ARRAYAGG(a)
+[1]	[{"a":"b"}]
+SELECT JSON_OBJECTAGG('a','b'), JSON_OBJECTAGG('a',a) FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					JSON_OBJECTAGG('a','b')	252 (format=json)	9437184	9	Y	0	0	33
+def					JSON_OBJECTAGG('a',a)	252 (format=json)	12582912	15	Y	128	0	33
+JSON_OBJECTAGG('a','b')	JSON_OBJECTAGG('a',a)
+{"a":"b"}	{"a":{"a":"b"}}
+DROP TABLE t1;
+#
+# MDEV-27018 IF and COALESCE lose "json" property
+#
+SELECT json_object('a', (SELECT json_objectagg(b, c) FROM (SELECT 'b','c') d)) AS j FROM DUAL;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					j	250 (format=json)	9437283	16	Y	0	39	33
+j
+{"a": {"b":"c"}}
 #
 # End of 10.5 tests
 #

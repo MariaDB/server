@@ -57,9 +57,9 @@ f174 numeric (0),
 f175 numeric (64)
 ) engine = <engine_to_be_used>;
 Warnings:
-Note	1265	Data truncated for column 'f150' at row 1
-Note	1265	Data truncated for column 'f151' at row 1
-Note	1265	Data truncated for column 'f152' at row 1
+Note	1265	Data truncated for column 'f150' at row 0
+Note	1265	Data truncated for column 'f151' at row 0
+Note	1265	Data truncated for column 'f152' at row 0
 
 Testcase: 3.5:
 --------------
@@ -237,7 +237,7 @@ Testcase 3.5.5.2:
 Create temporary table t1_temp (f1 bigint signed, f2 bigint unsigned);
 Create trigger trg2 before INSERT
 on t1_temp for each row set new.f2=9999;
-ERROR HY000: Trigger's 't1_temp' is view or temporary table
+ERROR HY000: Trigger's 't1_temp' is a view, temporary table or sequence
 drop table t1_temp;
 
 Testcase 3.5.5.3:

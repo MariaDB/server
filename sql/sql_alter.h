@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2013, 2020, MariaDB Corporation.
+   Copyright (c) 2013, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -250,13 +250,15 @@ public:
                   const LEX_CSTRING *new_db_arg, const LEX_CSTRING *new_name_arg);
 
   /**
-     @return true if the table is moved to another database, false otherwise.
+     @return true if the table is moved to another database or a new table
+     created by ALTER_PARTITION_CONVERT_OUT, false otherwise.
   */
   bool is_database_changed() const
   { return (new_db.str != db.str); };
 
   /**
-     @return true if the table is renamed, false otherwise.
+     @return true if the table is renamed or a new table created by
+     ALTER_PARTITION_CONVERT_OUT, false otherwise.
   */
   bool is_table_renamed() const
   { return (is_database_changed() || new_name.str != table_name.str); };
@@ -313,9 +315,9 @@ public:
 
   void report_implicit_default_value_error(THD *thd, const TABLE_SHARE *) const;
 public:
-  Create_field *implicit_default_value_error_field;
-  bool         error_if_not_empty;
-  uint         tables_opened;
+  Create_field *implicit_default_value_error_field= nullptr;
+  bool         error_if_not_empty= false;
+  uint         tables_opened= 0;
   LEX_CSTRING  db;
   LEX_CSTRING  table_name;
   LEX_CSTRING  storage_engine_name;
@@ -337,13 +339,14 @@ public:
     of table to the new version ER_FK_CANNOT_DELETE_PARENT error should be
     emitted.
   */
-  bool         fk_error_if_delete_row;
+  bool fk_error_if_delete_row= false;
   /** Name of foreign key for the above error. */
-  const char   *fk_error_id;
+  const char *fk_error_id= nullptr;
   /** Name of table for the above error. */
-  const char   *fk_error_table;
+  const char *fk_error_table= nullptr;
+  bool modified_primary_key= false;
   /** Indicates that we are altering temporary table */
-  bool tmp_table;
+  bool tmp_table= false;
 
 private:
   char new_filename[FN_REFLEN + 1];

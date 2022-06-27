@@ -807,9 +807,6 @@ connection default;
 --echo #
 --echo # SHOW CREATE PROCEDURE p1 called from p1, after p1 was altered
 --echo #
---echo # We are just covering the existing behaviour with tests. The
---echo # results are not necessarily correct."
---echo #
 
 delimiter |;
 CREATE PROCEDURE p1()

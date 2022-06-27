@@ -5,6 +5,10 @@ if("NO" STREQUAL "${PLUGIN_COLUMNSTORE}")
 endif()
 
 add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
+IF(NOT PLUGIN_PERFSCHEMA STREQUAL NO)
+  add_definitions(-DHAVE_PSI_INTERFACE=)
+ENDIF()
+
 
 # this does everything, gets the var from the correct scope, appends new
 # values, sets in the correct scope
@@ -12,6 +16,11 @@ macro(APPEND_FOR_CPACK V)
   get_directory_property(var DIRECTORY columnstore DEFINITION ${V})
   set(${V} "${var}${ARGN}" PARENT_SCOPE)
 endmacro()
+
+# don't use compression providers, there are standalone executables below
+GET_PROPERTY(dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
+LIST(REMOVE_ITEM dirs ${CMAKE_SOURCE_DIR}/include/providers)
+SET_PROPERTY(DIRECTORY PROPERTY INCLUDE_DIRECTORIES "${dirs}")
 
 IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR
 CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64" OR
@@ -31,6 +40,8 @@ CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
             SET(CPACK_RPM_columnstore-engine_POST_INSTALL_SCRIPT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/columnstore/build/postInstall_storage_engine.sh PARENT_SCOPE)
             SET(CPACK_RPM_columnstore-engine_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/columnstore/build/preUn_storage_engine.sh PARENT_SCOPE)
             APPEND_FOR_CPACK(CPACK_RPM_columnstore-engine_PACKAGE_VERSION  "")
+            SET(CPACK_RPM_columnstore-engine_PACKAGE_SUMMARY "MariaDB ColumnStore storage engine" PARENT_SCOPE)
+            SET(CPACK_RPM_columnstore-engine_PACKAGE_DESCRIPTION "The MariaDB ColumnStore storage engine is a high-performance columnar analytical engine, aimed at rapid processing of analytical queries on very large amounts of data." PARENT_SCOPE)
         ENDIF()
         INSTALL_MYSQL_TEST("${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/" "plugin/columnstore")
     ENDIF()

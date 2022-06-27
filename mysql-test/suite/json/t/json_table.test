@@ -30,9 +30,9 @@ select * from t1 right join json_table(t1.item_props,'$' columns( color varchar(
 
 DROP TABLE t1;
 
-select * from JSON_TABLE( '[ {"xa": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+select * from JSON_TABLE( '[ {"xa": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default 101 on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
 
-select * from JSON_TABLE( '[ {"xa": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default '202' on error, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+select * from JSON_TABLE( '[ {"xa": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default 202 on error, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
 
 select * from JSON_TABLE( '[ {"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
 
@@ -813,6 +813,55 @@ select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted
 select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt order by converted;
  
 select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt order by original;
+
+select * from
+  json_table('[{"color": "blue",  "price": { "high": 10, "low": 5}},
+               {"color": "white",   "price": "pretty low"},
+               {"color": "yellow",  "price": 256.20},
+               {"color": "red",   "price": { "high": 20, "low": 8}}]',
+             '$[*]' columns(color varchar(100) path '$.color',
+                          price json path '$.price'
+                        )
+             ) as T;
+
+--echo #
+--echo # MDEV-27696 Json table columns accept redundant COLLATE syntax
+--echo #
+
+--error ER_PARSE_ERROR
+SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
+  COLUMNS (
+    name BLOB COLLATE `binary` PATH '$.name'
+  )
+) AS jt;
+
+
+--error ER_PARSE_ERROR
+SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
+  COLUMNS (
+    name VARCHAR(10) COLLATE latin1_bin COLLATE latin1_swedish_ci PATH '$.name'
+  )
+) AS jt;
+
+
+--error ER_PARSE_ERROR
+SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
+  COLUMNS (
+    name VARCHAR(10) BINARY COLLATE utf8_czech_ci path '$.name'
+  )
+) AS jt;
+
+
+--echo #
+--echo # MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+--echo #
+
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) CHARACTER SET latin1 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+
 
 --echo #
 --echo # End of 10.6 tests

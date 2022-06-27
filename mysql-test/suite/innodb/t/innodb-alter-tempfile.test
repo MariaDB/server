@@ -79,7 +79,7 @@ BEGIN;
 DELETE FROM mysql.innodb_table_stats;
 
 connect (con2,localhost,root,,);
-SET DEBUG_SYNC='inplace_after_index_build SIGNAL blocked WAIT_FOR ever';
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL blocked WAIT_FOR ever';
 send ALTER TABLE t1 FORCE;
 
 connection default;

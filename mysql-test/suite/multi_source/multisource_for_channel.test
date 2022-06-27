@@ -1,0 +1,429 @@
+#
+# This is the basic test of support mysql syntax "for channel" used for
+# multi-source replication
+#
+# Test basic replication functionality in multi-source setup
+#
+
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/have_perfschema.inc
+--source include/binlog_start_pos.inc
+--let $rpl_server_count= 0
+
+RESET MASTER;
+
+--connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
+
+# MDEV-3984: crash/read of freed memory when changing master with named connection
+# This fails after adding the new master 'abc1', check we do not free twice.
+--error ER_RELAY_LOG_INIT
+change master to relay_log_file='' for channel 'abc1';
+# This fails before adding the new master, check that we do free it.
+--error ER_WRONG_ARGUMENTS
+change master to master_host='' for channel 'abc2';
+
+# Start replication from the first master
+
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval change master to
+master_port=$SERVER_MYPORT_1,
+master_host='127.0.0.1',
+master_user='root'
+for channel 'master1';
+
+start slave for channel 'master1';
+set default_master_connection = 'master1';
+--source include/wait_for_slave_to_start.inc
+
+--connect (master1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--save_master_pos
+
+--connection slave
+--sync_with_master 0,'master1'
+
+# Here and further: add an extra check on SQL thread status
+# as the normal sync is not always enough
+--source include/wait_for_sql_thread_read_all.inc
+
+# each of the 3 commands should produce
+# 'master1' status
+
+let $wait_for_all= 1;
+let $show_statement= SHOW ALL SLAVES STATUS;
+let $field= Slave_IO_State;
+let $condition= = 'Waiting for master to send event';
+--source include/wait_show_condition.inc
+
+--echo #
+--echo # Checking SHOW SLAVE 'master1' STATUS
+--echo #
+--let $status_items= Master_Port, Relay_Log_File, Slave_IO_Running, Slave_SQL_Running, Last_Errno, Last_SQL_Errno
+--let $slave_field_result_replace= /$SERVER_MYPORT_1/MYPORT_1/
+--let $slave_name= 'master1'
+--let for_channel= 1
+--source include/show_slave_status.inc
+--let $slave_name=
+--let for_channel=
+
+--echo #
+--echo # Checking SHOW SLAVE STATUS
+--echo #
+--source include/show_slave_status.inc
+
+--echo #
+--echo # Checking SHOW ALL SLAVES STATUS
+--echo #
+--let $all_slaves_status= 1
+--let $status_items= Connection_name, Master_Port, Relay_Log_File, Slave_IO_Running, Slave_SQL_Running, Last_Errno, Last_SQL_Errno, Slave_heartbeat_period
+--source include/show_slave_status.inc
+--let $all_slaves_status=
+--echo #
+
+
+# Check that replication actually works
+
+--connection master1
+
+--disable_warnings
+drop database if exists db1;
+--enable_warnings
+create database db1;
+use db1;
+create table t1 (i int auto_increment, f1 varchar(16), primary key pk (i,f1)) engine=MyISAM;
+insert into t1 (f1) values ('one'),('two');
+--save_master_pos
+
+--connection slave
+--sync_with_master 0,'master1'
+
+--sorted_result
+select * from db1.t1;
+
+--let $datadir = `SELECT @@datadir`
+
+--echo # List of relay log files in the datadir
+--list_files $datadir mysqld-relay-bin-master1.*
+
+# Check that relay logs are recognizable
+
+let binlog_start=4;
+let binlog_file=;
+source include/show_relaylog_events.inc;
+let binlog_file= mysqld-relay-bin-master1.000002;
+source include/show_relaylog_events.inc;
+
+# Try to configure connection with the same name again,
+# should get an error because the slave is running
+
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+--error ER_SLAVE_MUST_STOP
+eval change master to
+master_port=$SERVER_MYPORT_2,
+master_host='127.0.0.1',
+master_user='root'
+for channel 'master1';
+
+# Try to configure using the default connection name
+# (which is 'master1' at the moment),
+# again, should get an error
+
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+--error ER_SLAVE_MUST_STOP
+eval change master to
+master_port=$SERVER_MYPORT_2,
+master_host='127.0.0.1',
+master_user='root';
+
+# Try to configure a connection with the same master
+# using a different name, should get a conflict
+
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+--error ER_CONNECTION_ALREADY_EXISTS
+eval change master to
+master_port=$SERVER_MYPORT_1,
+master_host='127.0.0.1',
+master_user='root' for channel 'master2';
+
+
+# Set up a proper 'default' connection to master2
+
+set default_master_connection = '';
+
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval change master to
+master_port=$SERVER_MYPORT_2,
+master_host='127.0.0.1',
+master_user='root';
+
+start slave;
+--source include/wait_for_slave_to_start.inc
+
+--source include/wait_for_sql_thread_read_all.inc
+
+# See both connections in the same status output
+
+let $wait_for_all= 1;
+let $show_statement= SHOW ALL SLAVES STATUS;
+let $field= Slave_IO_State;
+let $condition= = 'Waiting for master to send event';
+--source include/wait_show_condition.inc
+
+--echo #
+--echo # Checking SHOW ALL SLAVES STATUS
+--echo #
+--let $all_slaves_status= 1
+--let $status_items= Connection_name, Master_Port, Relay_Log_File, Slave_IO_Running, Slave_SQL_Running, Last_Errno, Last_SQL_Errno, Slave_heartbeat_period
+--let $slave_field_result_replace= /$SERVER_MYPORT_1/MYPORT_1/ /$SERVER_MYPORT_2/MYPORT_2/
+--source include/show_slave_status.inc
+--let $all_slaves_status=
+--echo #
+
+# Check that replication from two servers actually works
+
+--connection master1
+
+insert into t1 (f1) values ('three');
+--save_master_pos
+
+--connect (master2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+
+--disable_warnings
+drop database if exists db2;
+--enable_warnings
+create database db2;
+use db2;
+create table t1 (pk int auto_increment primary key, f1 int) engine=InnoDB;
+begin;
+insert into t1 (f1) values (1),(2);
+
+--connection slave
+--sync_with_master 0,'master1'
+
+--connection master2
+--save_master_pos
+
+--connection slave
+--sync_with_master 0
+--sorted_result
+select * from db1.t1;
+select * from db2.t1;
+
+--connection master2
+commit;
+--save_master_pos
+
+--connection slave
+--sync_with_master 0
+--sorted_result
+select * from db2.t1;
+
+# Flush and purge logs on one master,
+# make sure slaves don't get confused
+
+--connection master1
+flush logs;
+--source include/wait_for_binlog_checkpoint.inc
+--save_master_pos
+--connection slave
+--sync_with_master 0, 'master1'
+
+--connection master1
+purge binary logs to 'master-bin.000002';
+# Additional events: 43 (Gtid_list) + 2 x 44 (Binlog_checkpoint) = 131
+let filesize=`select $binlog_start_pos+131`;
+--replace_result $filesize filesize
+show binary logs;
+insert into t1 (f1) values ('four');
+create table db1.t3 (f1 int) engine=InnoDB;
+--save_master_pos
+
+--connection slave
+--sync_with_master 0,'master1'
+
+--source include/wait_for_sql_thread_read_all.inc
+
+let $wait_for_all= 1;
+let $show_statement= SHOW ALL SLAVES STATUS;
+let $field= Slave_IO_State;
+let $condition= = 'Waiting for master to send event';
+--source include/wait_show_condition.inc
+
+--echo #
+--echo # Checking SHOW ALL SLAVES STATUS
+--echo #
+--let $all_slaves_status= 1
+--let $status_items= Connection_name, Master_Port, Relay_Log_File, Slave_IO_Running, Slave_SQL_Running, Last_Errno, Last_SQL_Errno, Slave_heartbeat_period
+--let $slave_field_result_replace= /$SERVER_MYPORT_1/MYPORT_1/ /$SERVER_MYPORT_2/MYPORT_2/
+--source include/show_slave_status.inc
+--let $all_slaves_status=
+--echo #
+
+--echo #
+--echo # MDEV:16437: merge 5.7 P_S replication instrumentation and tables
+--echo #
+--replace_column 2 #
+query_vertical SELECT * FROM performance_schema.replication_applier_status_by_coordinator;
+
+--sorted_result
+select * from db1.t1;
+
+# This should show relay log events for the default master
+# (the one with the empty name)
+let binlog_file=;
+source include/show_relaylog_events.inc;
+let binlog_file= mysqld-relay-bin.000002;
+source include/show_relaylog_events.inc;
+
+# Make sure we don't lose control over replication connections
+# after reconnecting to the slave
+
+--disconnect slave
+--connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
+
+stop slave io_thread;
+show status like 'Slave_running';
+set default_master_connection = 'master1';
+show status like 'Slave_running';
+
+--echo
+--echo #
+--echo # syntax compatible test
+--echo #
+--echo
+--echo #
+--echo # show relaylog events
+--echo #
+--replace_regex /Server ver:.*/Server ver: Version/
+SHOW RELAYLOG EVENTS for channel 'master1';
+
+--echo
+--echo show slave status for channel 'master1'
+--let $status_items= Master_Port, Relay_Log_File, Slave_IO_Running, Slave_SQL_Running, Last_Errno, Last_SQL_Errno
+--let $slave_field_result_replace= /$SERVER_MYPORT_1/MYPORT_1/
+--let $slave_name= 'master1'
+--let $for_channel= 1
+--source include/show_slave_status.inc
+
+--echo
+--echo #
+--echo # stop slave
+--echo #
+STOP SLAVE for channel 'master1';
+
+--echo
+--echo show slave status for channel 'master1'
+--let $status_items= Master_Port, Relay_Log_File, Slave_IO_Running, Slave_SQL_Running, Last_Errno, Last_SQL_Errno
+--let $slave_field_result_replace= /$SERVER_MYPORT_1/MYPORT_1/
+--let $slave_name= 'master1'
+--let $for_channel= 1
+--source include/show_slave_status.inc
+
+--echo
+--echo #
+--echo # start slave
+--echo #
+START SLAVE for channel 'master1';
+--source include/wait_for_slave_to_start.inc
+
+--echo
+--echo show slave status for channel 'master1'
+--let $status_items= Master_Port, Relay_Log_File, Slave_IO_Running, Slave_SQL_Running, Last_Errno, Last_SQL_Errno
+--let $slave_field_result_replace= /$SERVER_MYPORT_1/MYPORT_1/ /Preparing/Yes/
+--let $slave_name= 'master1'
+--let $for_channel= 1
+--source include/show_slave_status.inc
+
+--echo
+--echo #
+--echo # flush relay logs
+--echo #
+FLUSH RELAY LOGS for channel 'master1';
+--source include/wait_for_sql_thread_read_all.inc
+
+--echo
+--echo show slave status for channel 'master1'
+--let $status_items= Master_Port, Relay_Log_File, Slave_IO_Running, Slave_SQL_Running, Last_Errno, Last_SQL_Errno
+--let $slave_field_result_replace= /$SERVER_MYPORT_1/MYPORT_1/
+--let $slave_name= 'master1'
+--let $for_channel= 1
+--source include/show_slave_status.inc
+
+--echo
+--echo #
+--echo # stop slave
+--echo #
+STOP SLAVE for channel 'master1';
+
+--echo
+--echo show slave status for channel 'master1'
+--let $status_items= Master_Port, Relay_Log_File, Slave_IO_Running, Slave_SQL_Running, Last_Errno, Last_SQL_Errno
+--let $slave_field_result_replace= /$SERVER_MYPORT_1/MYPORT_1/
+--let $slave_name= 'master1'
+--let $for_channel= 1
+--source include/show_slave_status.inc
+
+--echo
+--echo #
+--echo # reset slave
+--echo #
+RESET SLAVE for channel 'master1';
+
+--echo
+--echo show slave status for channel 'master1'
+--let $status_items= Master_Port, Relay_Log_File, Slave_IO_Running, Slave_SQL_Running, Last_Errno, Last_SQL_Errno
+--let $slave_field_result_replace= /$SERVER_MYPORT_1/MYPORT_1/
+--let $slave_name= 'master1'
+--let $for_channel= 1
+--source include/show_slave_status.inc
+
+--echo
+--echo #
+--echo # show relaylog events after reset slave
+--echo #
+SHOW RELAYLOG EVENTS for channel 'master1';
+
+--let $slave_name=
+--let for_channel=
+
+--echo
+--echo #
+--echo # check error syntax
+--echo #
+--error ER_WRONG_ARGUMENTS
+RESET SLAVE 'master1' for channel 'mmaster2';
+--error ER_WRONG_ARGUMENTS
+STOP SLAVE 'master1' for channel 'master2';
+--error ER_WRONG_ARGUMENTS
+FLUSH RELAY LOGS 'master1' for channel 'master2';
+--error ER_WRONG_ARGUMENTS
+START SLAVE 'master1' for channel 'master2';
+--error ER_WRONG_ARGUMENTS
+SHOW RELAYLOG 'master1' EVENTS for channel 'master2';
+--error ER_WRONG_ARGUMENTS
+SHOW SLAVE 'master1' STATUS for channel 'master2';
+
+--echo
+# Cleanup
+drop database db1;
+drop database db2;
+
+--source include/reset_master_slave.inc
+--disconnect slave
+
+--connection master1
+drop database db1;
+--source include/reset_master_slave.inc
+--disconnect master1
+
+--connection master2
+drop database db2;
+--source include/reset_master_slave.inc
+--disconnect master2
+
+#
+# Check channel as a keyword
+#
+--connection default
+CREATE TABLE channel (channel int);
+DROP TABLE channel;

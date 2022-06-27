@@ -1,0 +1,525 @@
+--- alter_partition.result
++++ alter_partition,innodb.reject
+@@ -17,12 +17,9 @@
+ end $
+ # QUERY: ALTER TABLE t1 CONVERT PARTITION p1 TO TABLE tp1
+ # CRASH: crash_create_before_create_frm
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -38,12 +35,9 @@
+ 12
+ 22
+ # CRASH: crash_alter_partition_after_create_frm
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -59,12 +53,9 @@
+ 12
+ 22
+ # CRASH: crash_alter_partition_after_write_frm
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -80,12 +71,9 @@
+ 12
+ 22
+ # CRASH: crash_convert_partition_1
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -101,12 +89,9 @@
+ 12
+ 22
+ # CRASH: crash_convert_partition_2
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -122,12 +107,9 @@
+ 12
+ 22
+ # CRASH: crash_convert_partition_3
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -143,12 +125,9 @@
+ 12
+ 22
+ # CRASH: crash_convert_partition_4
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -164,12 +143,9 @@
+ 12
+ 22
+ # CRASH: crash_convert_partition_5
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -185,12 +161,9 @@
+ 12
+ 22
+ # CRASH: crash_convert_partition_6
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -206,12 +179,9 @@
+ 12
+ 22
+ # CRASH: crash_convert_partition_7
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -227,12 +197,9 @@
+ 12
+ 22
+ # CRASH: crash_convert_partition_8
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -248,15 +215,12 @@
+ 12
+ 22
+ # CRASH: crash_convert_partition_9
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+-tp1.MYD
+-tp1.MYI
+ tp1.frm
++tp1.ibd
+ master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT PARTITION p1 TO TABLE tp1
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -275,15 +239,12 @@
+ x
+ 12
+ # CRASH: crash_convert_partition_10
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+-tp1.MYD
+-tp1.MYI
+ tp1.frm
++tp1.ibd
+ master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT PARTITION p1 TO TABLE tp1
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -302,15 +263,12 @@
+ x
+ 12
+ # CRASH: crash_convert_partition_11
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+-tp1.MYD
+-tp1.MYI
+ tp1.frm
++tp1.ibd
+ master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT PARTITION p1 TO TABLE tp1
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -330,14 +288,10 @@
+ 12
+ # QUERY: ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)
+ # NO CRASH: crash_create_before_create_frm
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#p2.MYD
+-t1#P#p2.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#p2.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)
+@@ -357,14 +311,10 @@
+ 32
+ 39
+ # NO CRASH: crash_alter_partition_after_create_frm
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#p2.MYD
+-t1#P#p2.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#p2.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)
+@@ -384,14 +334,10 @@
+ 32
+ 39
+ # NO CRASH: crash_alter_partition_after_write_frm
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#p2.MYD
+-t1#P#p2.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#p2.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)
+@@ -411,17 +357,13 @@
+ 32
+ 39
+ # CRASH: crash_convert_partition_1
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+-tp2.MYD
+-tp2.MYI
+ tp2.frm
++tp2.ibd
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `x` int(11) DEFAULT NULL
+@@ -442,17 +384,13 @@
+ 32
+ 39
+ # CRASH: crash_convert_partition_2
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+-tp2.MYD
+-tp2.MYI
+ tp2.frm
++tp2.ibd
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `x` int(11) DEFAULT NULL
+@@ -473,17 +411,13 @@
+ 32
+ 39
+ # CRASH: crash_convert_partition_3
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+-tp2.MYD
+-tp2.MYI
+ tp2.frm
++tp2.ibd
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `x` int(11) DEFAULT NULL
+@@ -504,17 +438,13 @@
+ 32
+ 39
+ # CRASH: crash_convert_partition_4
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+-tp2.MYD
+-tp2.MYI
+ tp2.frm
++tp2.ibd
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `x` int(11) DEFAULT NULL
+@@ -535,17 +465,13 @@
+ 32
+ 39
+ # CRASH: crash_convert_partition_5
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+-tp2.MYD
+-tp2.MYI
+ tp2.frm
++tp2.ibd
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `x` int(11) DEFAULT NULL
+@@ -566,17 +492,13 @@
+ 32
+ 39
+ # CRASH: crash_convert_partition_6
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+-tp2.MYD
+-tp2.MYI
+ tp2.frm
++tp2.ibd
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `x` int(11) DEFAULT NULL
+@@ -597,17 +519,13 @@
+ 32
+ 39
+ # CRASH: crash_convert_partition_7
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+-tp2.MYD
+-tp2.MYI
+ tp2.frm
++tp2.ibd
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `x` int(11) DEFAULT NULL
+@@ -628,17 +546,13 @@
+ 32
+ 39
+ # CRASH: crash_convert_partition_8
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+-tp2.MYD
+-tp2.MYI
+ tp2.frm
++tp2.ibd
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `x` int(11) DEFAULT NULL
+@@ -659,14 +573,10 @@
+ 32
+ 39
+ # CRASH: crash_convert_partition_9
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#p2.MYD
+-t1#P#p2.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#p2.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)
+@@ -686,14 +596,10 @@
+ 32
+ 39
+ # CRASH: crash_convert_partition_10
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#p2.MYD
+-t1#P#p2.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#p2.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)
+@@ -713,14 +619,10 @@
+ 32
+ 39
+ # CRASH: crash_convert_partition_11
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#p2.MYD
+-t1#P#p2.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#p2.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)

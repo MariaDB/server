@@ -1,0 +1,15 @@
+FIND_PACKAGE(LZ4 1.6)
+
+SET(CPACK_RPM_provider-lz4_PACKAGE_SUMMARY "LZ4 compression support in the server and storage engines" PARENT_SCOPE)
+SET(CPACK_RPM_provider-lz4_PACKAGE_DESCRIPTION "LZ4 compression support in the server and storage engines" PARENT_SCOPE)
+
+IF (LZ4_FOUND)
+  GET_PROPERTY(dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
+  LIST(REMOVE_ITEM dirs ${CMAKE_SOURCE_DIR}/include/providers)
+  SET_PROPERTY(DIRECTORY PROPERTY INCLUDE_DIRECTORIES "${dirs}")
+
+  INCLUDE_DIRECTORIES(${LZ4_INCLUDE_DIRS})
+
+  MYSQL_ADD_PLUGIN(provider_lz4 plugin.c COMPONENT provider-lz4
+    LINK_LIBRARIES ${LZ4_LIBRARIES} CONFIG provider_lz4.cnf)
+ENDIF()

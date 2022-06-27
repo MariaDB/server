@@ -20,6 +20,30 @@
 
 
 /*
+  U+00DF LATIN SMALL LETTER SHARP S = _utf8 x'C39F' = _latin1 x'DF'
+*/
+
+#define UTF8_sz   "\xC3\x9F"
+#define LATIN1_sz "\xDF"
+
+/*
+  U+00C5 LATIN CAPITAL LETTER A WITH RING ABOVE = _utf8 x'C385'
+*/
+
+#define UTF8_ARING "\xC3\x85"
+
+/*
+  U+00E4 LATIN SMALL LETTER A WITH DIAERESIS = _utf8 x'C3A4'
+*/
+#define UTF8_auml   "\xC3\xA4"
+#define LATIN1_auml "\xE4"
+
+#define UCS2_a  "\x00\x61"
+#define UCS2_b  "\x00\x62"
+#define UCS2_sp "\x00\x20"
+
+
+/*
   Test that like_range() returns well-formed results.
 */
 static int
@@ -760,11 +784,736 @@ test_strcollsp()
 }
 
 
-int main()
+typedef struct
+{
+  size_t size;
+  size_t nchars;
+  LEX_CSTRING min;
+  LEX_CSTRING max;
+} MINMAX_PARAM;
+
+
+static MINMAX_PARAM minmax_param_latin1_swedish_ci[]=
+{
+  {0, 0, {CSTR("")},             {CSTR("")}},
+  {0, 1, {CSTR("")},             {CSTR("")}},
+  {0, 2, {CSTR("")},             {CSTR("")}},
+  {0, 3, {CSTR("")},             {CSTR("")}},
+  {1, 0, {CSTR("")},             {CSTR("")}},
+  {1, 1, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {1, 2, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {1, 3, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {2, 0, {CSTR("")},             {CSTR("")}},
+  {2, 1, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {2, 2, {CSTR("\x00\x00")},     {CSTR("\xFF\xFF")}},
+  {2, 3, {CSTR("\x00\x00")},     {CSTR("\xFF\xFF")}},
+  {3, 0, {CSTR("")},             {CSTR("")}},
+  {3, 1, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {3, 2, {CSTR("\x00\x00")},     {CSTR("\xFF\xFF")}},
+  {3, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xFF\xFF\xFF")}}
+};
+
+
+static MINMAX_PARAM minmax_param_latin1_nopad_bin[]=
+{
+  {0, 0, {CSTR("")},             {CSTR("")}},
+  {0, 1, {CSTR("")},             {CSTR("")}},
+  {0, 2, {CSTR("")},             {CSTR("")}},
+  {0, 3, {CSTR("")},             {CSTR("")}},
+  {1, 0, {CSTR("")},             {CSTR("")}},
+  {1, 1, {CSTR("")},             {CSTR("\xFF")}},
+  {1, 2, {CSTR("")},             {CSTR("\xFF")}},
+  {1, 3, {CSTR("")},             {CSTR("\xFF")}},
+  {2, 0, {CSTR("")},             {CSTR("")}},
+  {2, 1, {CSTR("")},             {CSTR("\xFF")}},
+  {2, 2, {CSTR("")},             {CSTR("\xFF\xFF")}},
+  {2, 3, {CSTR("")},             {CSTR("\xFF\xFF")}},
+  {3, 0, {CSTR("")},             {CSTR("")}},
+  {3, 1, {CSTR("")},             {CSTR("\xFF")}},
+  {3, 2, {CSTR("")},             {CSTR("\xFF\xFF")}},
+  {3, 3, {CSTR("")},             {CSTR("\xFF\xFF\xFF")}}
+};
+
+
+static MINMAX_PARAM minmax_param_utf8mb3_unicode_ci[]=
+{
+  {0, 0, {CSTR("")},             {CSTR("")}},
+  {0, 1, {CSTR("")},             {CSTR("")}},
+  {0, 2, {CSTR("")},             {CSTR("")}},
+  {0, 3, {CSTR("")},             {CSTR("")}},
+  {1, 0, {CSTR("")},             {CSTR("")}},
+  {1, 1, {CSTR("\x09")},         {CSTR("")}},
+  {1, 2, {CSTR("\x09")},         {CSTR("")}},
+  {1, 3, {CSTR("\x09")},         {CSTR("")}},
+  {2, 0, {CSTR("")},             {CSTR("")}},
+  {2, 1, {CSTR("\x09")},         {CSTR("")}},
+  {2, 2, {CSTR("\x09\x09")},     {CSTR("")}},
+  {2, 3, {CSTR("\x09\x09")},     {CSTR("")}},
+  {3, 0, {CSTR("")},             {CSTR("")}},
+  {3, 1, {CSTR("\x09")},         {CSTR("\xEF\xBF\xBF")}},
+  {3, 2, {CSTR("\x09\x09")},     {CSTR("\xEF\xBF\xBF")}},
+  {3, 3, {CSTR("\x09\x09\x09")}, {CSTR("\xEF\xBF\xBF")}},
+  {4, 0, {CSTR("")},             {CSTR("")}},
+  {4, 1, {CSTR("\x09")},         {CSTR("\xEF\xBF\xBF")}},
+  {4, 2, {CSTR("\x09\x09")},     {CSTR("\xEF\xBF\xBF")}},
+  {4, 3, {CSTR("\x09\x09\x09")}, {CSTR("\xEF\xBF\xBF")}},
+  {5, 0, {CSTR("")},             {CSTR("")}},
+  {5, 1, {CSTR("\x09")},         {CSTR("\xEF\xBF\xBF")}},
+  {5, 2, {CSTR("\x09\x09")},     {CSTR("\xEF\xBF\xBF")}},
+  {5, 3, {CSTR("\x09\x09\x09")}, {CSTR("\xEF\xBF\xBF")}},
+  {6, 0, {CSTR("")},             {CSTR("")}},
+  {6, 1, {CSTR("\x09")},         {CSTR("\xEF\xBF\xBF")}},
+  {6, 2, {CSTR("\x09\x09")},     {CSTR("\xEF\xBF\xBF\xEF\xBF\xBF")}},
+  {6, 3, {CSTR("\x09\x09\x09")}, {CSTR("\xEF\xBF\xBF\xEF\xBF\xBF")}},
+  {7, 0, {CSTR("")},             {CSTR("")}},
+  {7, 1, {CSTR("\x09")},         {CSTR("\xEF\xBF\xBF")}},
+  {7, 2, {CSTR("\x09\x09")},     {CSTR("\xEF\xBF\xBF\xEF\xBF\xBF")}},
+  {7, 3, {CSTR("\x09\x09\x09")}, {CSTR("\xEF\xBF\xBF\xEF\xBF\xBF")}},
+  {8, 0, {CSTR("")},             {CSTR("")}},
+  {8, 1, {CSTR("\x09")},         {CSTR("\xEF\xBF\xBF")}},
+  {8, 2, {CSTR("\x09\x09")},     {CSTR("\xEF\xBF\xBF\xEF\xBF\xBF")}},
+  {8, 3, {CSTR("\x09\x09\x09")}, {CSTR("\xEF\xBF\xBF\xEF\xBF\xBF")}},
+  {9, 0, {CSTR("")},             {CSTR("")}},
+  {9, 1, {CSTR("\x09")},         {CSTR("\xEF\xBF\xBF")}},
+  {9, 2, {CSTR("\x09\x09")},     {CSTR("\xEF\xBF\xBF\xEF\xBF\xBF")}},
+  {9, 3, {CSTR("\x09\x09\x09")}, {CSTR("\xEF\xBF\xBF\xEF\xBF\xBF\xEF\xBF\xBF")}},
+};
+
+
+#ifdef HAVE_CHARSET_big5
+static MINMAX_PARAM minmax_param_big5_chinese_ci[]=
+{
+  {0, 0, {CSTR("")},             {CSTR("")}},
+  {0, 1, {CSTR("")},             {CSTR("")}},
+  {0, 2, {CSTR("")},             {CSTR("")}},
+  {0, 3, {CSTR("")},             {CSTR("")}},
+  {1, 0, {CSTR("")},             {CSTR("")}},
+  {1, 1, {CSTR("\x00")},         {CSTR("")}},
+  {1, 2, {CSTR("\x00")},         {CSTR("")}},
+  {1, 3, {CSTR("\x00")},         {CSTR("")}},
+  {2, 0, {CSTR("")},             {CSTR("")}},
+  {2, 1, {CSTR("\x00")},         {CSTR("\xF9\xD5")}},
+  {2, 2, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5")}},
+  {2, 3, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5")}},
+  {3, 0, {CSTR("")},             {CSTR("")}},
+  {3, 1, {CSTR("\x00")},         {CSTR("\xF9\xD5")}},
+  {3, 2, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5")}},
+  {3, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xF9\xD5")}},
+  {4, 0, {CSTR("")},             {CSTR("")}},
+  {4, 1, {CSTR("\x00")},         {CSTR("\xF9\xD5")}},
+  {4, 2, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5\xF9\xD5")}},
+  {4, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xF9\xD5\xF9\xD5")}},
+  {5, 0, {CSTR("")},             {CSTR("")}},
+  {5, 1, {CSTR("\x00")},         {CSTR("\xF9\xD5")}},
+  {5, 2, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5\xF9\xD5")}},
+  {5, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xF9\xD5\xF9\xD5")}},
+  {6, 0, {CSTR("")},             {CSTR("")}},
+  {6, 1, {CSTR("\x00")},         {CSTR("\xF9\xD5")}},
+  {6, 2, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5\xF9\xD5")}},
+  {6, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xF9\xD5\xF9\xD5\xF9\xD5")}},
+  {7, 0, {CSTR("")},             {CSTR("")}},
+  {7, 1, {CSTR("\x00")},         {CSTR("\xF9\xD5")}},
+  {7, 2, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5\xF9\xD5")}},
+  {7, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xF9\xD5\xF9\xD5\xF9\xD5")}},
+  {8, 0, {CSTR("")},             {CSTR("")}},
+  {8, 1, {CSTR("\x00")},         {CSTR("\xF9\xD5")}},
+  {8, 2, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5\xF9\xD5")}},
+  {8, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xF9\xD5\xF9\xD5\xF9\xD5")}},
+  {9, 0, {CSTR("")},             {CSTR("")}},
+  {9, 1, {CSTR("\x00")},         {CSTR("\xF9\xD5")}},
+  {9, 2, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5\xF9\xD5")}},
+  {9, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xF9\xD5\xF9\xD5\xF9\xD5")}},
+};
+#endif
+
+#ifdef HAVE_CHARSET_cp1250
+static MINMAX_PARAM minmax_param_cp1250_czech_cs[]=
+{
+  {0, 0, {CSTR("")},             {CSTR("")}},
+  {0, 1, {CSTR("")},             {CSTR("")}},
+  {0, 2, {CSTR("")},             {CSTR("")}},
+  {0, 3, {CSTR("")},             {CSTR("")}},
+  {1, 0, {CSTR("")},             {CSTR("")}},
+  {1, 1, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {1, 2, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {1, 3, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {2, 0, {CSTR("")},             {CSTR("")}},
+  {2, 1, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {2, 2, {CSTR("\x00\x00")},     {CSTR("\xFF\xFF")}},
+  {2, 3, {CSTR("\x00\x00")},     {CSTR("\xFF\xFF")}},
+  {3, 0, {CSTR("")},             {CSTR("")}},
+  {3, 1, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {3, 2, {CSTR("\x00\x00")},     {CSTR("\xFF\xFF")}},
+  {3, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xFF\xFF\xFF")}}
+};
+#endif
+
+
+#ifdef HAVE_CHARSET_latin2
+static MINMAX_PARAM minmax_param_latin2_czech_cs[]=
+{
+  {0, 0, {CSTR("")},             {CSTR("")}},
+  {0, 1, {CSTR("")},             {CSTR("")}},
+  {0, 2, {CSTR("")},             {CSTR("")}},
+  {0, 3, {CSTR("")},             {CSTR("")}},
+  {1, 0, {CSTR("")},             {CSTR("")}},
+  {1, 1, {CSTR("\x00")},         {CSTR("\xAE")}},
+  {1, 2, {CSTR("\x00")},         {CSTR("\xAE")}},
+  {1, 3, {CSTR("\x00")},         {CSTR("\xAE")}},
+  {2, 0, {CSTR("")},             {CSTR("")}},
+  {2, 1, {CSTR("\x00")},         {CSTR("\xAE")}},
+  {2, 2, {CSTR("\x00\x00")},     {CSTR("\xAE\xAE")}},
+  {2, 3, {CSTR("\x00\x00")},     {CSTR("\xAE\xAE")}},
+  {3, 0, {CSTR("")},             {CSTR("")}},
+  {3, 1, {CSTR("\x00")},         {CSTR("\xAE")}},
+  {3, 2, {CSTR("\x00\x00")},     {CSTR("\xAE\xAE")}},
+  {3, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xAE\xAE\xAE")}}
+};
+#endif
+
+
+static int test_minmax_str_one(CHARSET_INFO *cs,
+                               const MINMAX_PARAM *params, size_t count)
+{
+  size_t i;
+  int failed_total= 0;
+  for (i= 0; i < count; i++)
+  {
+    int failed;
+    char min[32], hmin[64];
+    char max[32], hmax[64];
+    const MINMAX_PARAM *prm= &params[i];
+    size_t minlen= cs->coll->min_str(cs, (uchar *) min, prm->size,
+                                                        prm->nchars);
+    size_t maxlen= cs->coll->max_str(cs, (uchar *) max, prm->size,
+                                                        prm->nchars);
+    failed= minlen != prm->min.length || memcmp(min, prm->min.str, minlen) ||
+            maxlen != prm->max.length || memcmp(max, prm->max.str, maxlen);
+
+    str2hex(hmin, sizeof(hmin), min, minlen);
+    str2hex(hmax, sizeof(hmax), max, maxlen);
+    diag("%-32s %2d %2d   %-10s   %-10s%s",
+         cs->coll_name.str, (int) prm->size, (int) prm->nchars, hmin, hmax,
+         failed ? " FAILED" : "");
+    if (failed)
+    {
+      str2hex(hmin, sizeof(hmin), prm->min.str, prm->min.length);
+      str2hex(hmax, sizeof(hmax), prm->max.str, prm->max.length);
+      diag("%-40s %-10s   %-10s EXPECTED", cs->coll_name.str, hmin, hmax);
+    }
+    failed_total+= failed;
+  }
+  return failed_total;
+}
+
+
+static int test_minmax_str()
+{
+  int failed= 0;
+  failed+= test_minmax_str_one(&my_charset_latin1_nopad_bin,
+                               minmax_param_latin1_nopad_bin,
+                               array_elements(minmax_param_latin1_nopad_bin));
+  failed+= test_minmax_str_one(&my_charset_latin1,
+                               minmax_param_latin1_swedish_ci,
+                               array_elements(minmax_param_latin1_swedish_ci));
+  failed+= test_minmax_str_one(&my_charset_utf8mb3_unicode_ci,
+                               minmax_param_utf8mb3_unicode_ci,
+                               array_elements(minmax_param_utf8mb3_unicode_ci));
+#ifdef HAVE_CHARSET_big5
+  failed+= test_minmax_str_one(&my_charset_big5_chinese_ci,
+                               minmax_param_big5_chinese_ci,
+                               array_elements(minmax_param_big5_chinese_ci));
+#endif
+#ifdef HAVE_CHARSET_cp1250
+  failed+= test_minmax_str_one(&my_charset_cp1250_czech_cs,
+                               minmax_param_cp1250_czech_cs,
+                               array_elements(minmax_param_cp1250_czech_cs));
+#endif
+#ifdef HAVE_CHARSET_latin2
+  failed+= test_minmax_str_one(&my_charset_latin2_czech_cs,
+                               minmax_param_latin2_czech_cs,
+                               array_elements(minmax_param_latin2_czech_cs));
+#endif
+  return failed;
+}
+
+typedef struct
+{
+  LEX_CSTRING a;
+  LEX_CSTRING b;
+  size_t nchars;
+  int res;
+} STRNNCOLLSP_CHAR_PARAM;
+
+
+/*
+  Some lines in the below test data are marked as follows:
+
+  IF  - An ignorable failure. The scanner finds an ignorable character
+        followed by a normal character (or by a contraction),
+        but the "nchars" limit allows only one character to be scanned.
+        The whole sequence is ignored an is treated as end-of-line.
+  CF - A contraction failure. The scanner finds a contraction consisting
+        of two characters, but the "nchars" limit allows only one character
+        to be scanned. The whole contraction is ignored and is treated
+        as end-of-line.
+*/
+
+
+/*
+  Tests for mbminlen1 character sets,
+  for both PAD SPACE and NOPAD collations
+*/
+static STRNNCOLLSP_CHAR_PARAM strnncollsp_char_mbminlen1_xpad_common[]=
+{
+  {{CSTR("a")},              {CSTR("a")},                       0,  0},
+  {{CSTR("a")},              {CSTR("a")},                       1,  0},
+  {{CSTR("a")},              {CSTR("a")},                       2,  0},
+  {{CSTR("a")},              {CSTR("a")},                       3,  0},
+  {{CSTR("a")},              {CSTR("a")},                     100,  0},
+
+  {{CSTR("a")},              {CSTR("ab")},                      0,  0},
+  {{CSTR("a")},              {CSTR("ab")},                      1,  0},
+  {{CSTR("a")},              {CSTR("ab")},                      2, -1},
+  {{CSTR("a")},              {CSTR("ab")},                      3, -1},
+  {{CSTR("a")},              {CSTR("ab")},                    100, -1},
+
+  {{CSTR("a")},              {CSTR("a ")},                      0,  0},
+  {{CSTR("a")},              {CSTR("a ")},                      1,  0},
+  {{CSTR("a")},              {CSTR("a ")},                      2,  0},
+  {{CSTR("a")},              {CSTR("a ")},                      3,  0},
+  {{CSTR("a")},              {CSTR("a ")},                    100,  0},
+
+  {{CSTR("a")},              {CSTR("a  ")},                     0,  0},
+  {{CSTR("a")},              {CSTR("a  ")},                     1,  0},
+  {{CSTR("a")},              {CSTR("a  ")},                     2,  0},
+  {{CSTR("a")},              {CSTR("a  ")},                     3,  0},
+  {{CSTR("a")},              {CSTR("a  ")},                   100,  0},
+
+  {{CSTR("ss")},             {CSTR("ss")},                      0,  0},
+  {{CSTR("ss")},             {CSTR("ss")},                      1,  0},
+  {{CSTR("ss")},             {CSTR("ss")},                      2,  0},
+  {{CSTR("ss")},             {CSTR("ss")},                      3,  0},
+  {{CSTR("ss")},             {CSTR("ss")},                    100,  0},
+
+  {{NULL, 0},                {NULL, 0},                         0,  0}
+};
+
+
+/* Tests for utf8, for both PAD SPACE and NOPAD collations */
+static STRNNCOLLSP_CHAR_PARAM strnncollsp_char_utf8mbx_xpad_common[]=
+{
+  {{CSTR(UTF8_sz)},          {CSTR(UTF8_sz)},                   0,  0},
+  {{CSTR(UTF8_sz)},          {CSTR(UTF8_sz)},                   1,  0},
+  {{CSTR(UTF8_sz)},          {CSTR(UTF8_sz)},                   2,  0},
+  {{CSTR(UTF8_sz)},          {CSTR(UTF8_sz)},                   3,  0},
+  {{CSTR(UTF8_sz)},          {CSTR(UTF8_sz)},                 100,  0},
+
+  {{NULL, 0},                {NULL, 0},                         0,  0}
+};
+
+
+/* Tests for latin1, for both PAD and NOPAD collations */
+static STRNNCOLLSP_CHAR_PARAM strnncollsp_char_latin1_xpad_common[]=
+{
+  {{CSTR(LATIN1_sz)},        {CSTR(LATIN1_sz)},                 0,  0},
+  {{CSTR(LATIN1_sz)},        {CSTR(LATIN1_sz)},                 1,  0},
+  {{CSTR(LATIN1_sz)},        {CSTR(LATIN1_sz)},                 2,  0},
+  {{CSTR(LATIN1_sz)},        {CSTR(LATIN1_sz)},                 3,  0},
+  {{CSTR(LATIN1_sz)},        {CSTR(LATIN1_sz)},               100,  0},
+
+  {{NULL, 0},                {NULL, 0},                         0,  0}
+};
+
+
+/* Tests for utf8 collations that sort "A WITH DIAERESIS" equal to "A" */
+static STRNNCOLLSP_CHAR_PARAM strnncollsp_char_utf8mbx_xpad_a_eq_auml[]=
+{
+  {{CSTR(UTF8_auml "h")},    {CSTR("ah")},                      0,  0},
+  {{CSTR(UTF8_auml "h")},    {CSTR("ah")},                      1,  0},
+  {{CSTR(UTF8_auml "h")},    {CSTR("ah")},                      2,  0},
+  {{CSTR(UTF8_auml "h")},    {CSTR("ah")},                      3,  0},
+  {{CSTR(UTF8_auml "h")},    {CSTR("ah")},                    100,  0},
+
+  {{CSTR(UTF8_auml "h")},    {CSTR("ah ")},                     0,  0},
+  {{CSTR(UTF8_auml "h")},    {CSTR("ah ")},                     1,  0},
+  {{CSTR(UTF8_auml "h")},    {CSTR("ah ")},                     2,  0},
+  {{CSTR(UTF8_auml "h")},    {CSTR("ah ")},                     3,  0},
+  {{CSTR(UTF8_auml "h")},    {CSTR("ah ")},                   100,  0},
+
+  {{NULL, 0},                {NULL, 0},                         0,  0}
+};
+
+
+static STRNNCOLLSP_CHAR_PARAM strnncollsp_char_utf8mb3_unicode_ci[]=
+{
+  {{CSTR("ss")},             {CSTR("s" "\x00" "s")},            0,  0},
+  {{CSTR("ss")},             {CSTR("s" "\x00" "s")},            1,  0},
+  {{CSTR("ss")},             {CSTR("s" "\x00" "s")}/*IF*/,      2,  1},
+  {{CSTR("ss")},             {CSTR("s" "\x00" "s")},            3,  0},
+  {{CSTR("ss")},             {CSTR("s" "\x00" "s")},            4,  0},
+  {{CSTR("ss")},             {CSTR("s" "\x00" "s")},          100,  0},
+
+  {{CSTR("ss")},             {CSTR(UTF8_sz)},                   0,  0},
+  {{CSTR("ss")},             {CSTR(UTF8_sz)},                   1, -1},
+  {{CSTR("ss")},             {CSTR(UTF8_sz)},                   2,  0},
+  {{CSTR("ss")},             {CSTR(UTF8_sz)},                   3,  0},
+  {{CSTR("ss")},             {CSTR(UTF8_sz)},                   4,  0},
+  {{CSTR("ss")},             {CSTR(UTF8_sz)},                 100,  0},
+
+  {{NULL, 0},                {NULL, 0},                         0,  0}
+};
+
+
+static STRNNCOLLSP_CHAR_PARAM strnncollsp_char_utf8mb3_unicode_nopad_ci[]=
+{
+  {{CSTR("ss")},             {CSTR("s" "\x00" "s")},            0,  0},
+  {{CSTR("ss")},             {CSTR("s" "\x00" "s")},            1,  0},
+  {{CSTR("ss")},             {CSTR("s" "\x00" "s")}/*IF*/,      2,  1},
+  {{CSTR("ss")},             {CSTR("s" "\x00" "s")},            3,  1},
+  {{CSTR("ss")},             {CSTR("s" "\x00" "s")},            4,  1},
+  {{CSTR("ss")},             {CSTR("s" "\x00" "s")},          100,  1},
+
+  {{CSTR("ss")},             {CSTR(UTF8_sz)},                   0,  0},
+  {{CSTR("ss")},             {CSTR(UTF8_sz)},                   1, -1},
+  {{CSTR("ss")},             {CSTR(UTF8_sz)},                   2, -1},
+  {{CSTR("ss")},             {CSTR(UTF8_sz)},                   3, -1},
+  {{CSTR("ss")},             {CSTR(UTF8_sz)},                   4, -1},
+  {{CSTR("ss")},             {CSTR(UTF8_sz)},                 100, -1},
+
+  {{NULL, 0},                {NULL, 0},                         0,  0}
+};
+
+
+static STRNNCOLLSP_CHAR_PARAM strnncollsp_char_utf8mb3_danish_ci[]=
+{
+  {{CSTR("aa")},             {CSTR("")},                        0,  0},
+  {{CSTR("aa")}/*CF*/,       {CSTR("")},                        1,  1},
+  {{CSTR("aa")},             {CSTR("")},                        2,  1},
+  {{CSTR("aa")},             {CSTR("")},                        3,  1},
+  {{CSTR("aa")},             {CSTR("")},                      100,  1},
+
+  {{CSTR("aa")},             {CSTR("a")},                       0,  0},
+  {{CSTR("aa")}/*CF*/,       {CSTR("a")},                       1,  0},
+  {{CSTR("aa")},             {CSTR("a")},                       2,  1},
+  {{CSTR("aa")},             {CSTR("a")},                       3,  1},
+  {{CSTR("aa")},             {CSTR("a")},                     100,  1},
+
+  {{CSTR("aa")},             {CSTR("aa")},                      0,  0},
+  {{CSTR("aa")}/*CF*/,       {CSTR("aa")}/*CF*/,                1,  0},
+  {{CSTR("aa")},             {CSTR("aa")},                      2,  0},
+  {{CSTR("aa")},             {CSTR("aa")},                      3,  0},
+  {{CSTR("aa")},             {CSTR("aa")},                    100,  0},
+
+  {{CSTR("aa")},             {CSTR("\x00" "a")},                0,  0},
+  {{CSTR("aa")}/*CF*/,       {CSTR("\x00" "a")}/*IF*/,          1,  1},
+  {{CSTR("aa")},             {CSTR("\x00" "a")},                2,  1},
+  {{CSTR("aa")},             {CSTR("\x00" "a")},                3,  1},
+  {{CSTR("aa")},             {CSTR("\x00" "a")},              100,  1},
+
+  {{CSTR("aa")},             {CSTR("\x00" "aa")},                0,  0},
+  {{CSTR("aa")}/*CF*/,       {CSTR("\x00" "aa")}/*IF*/,          1,  1},
+  {{CSTR("aa")},             {CSTR("\x00" "aa")}/*IF*/,          2,  1},
+  {{CSTR("aa")},             {CSTR("\x00" "aa")},                3,  0},
+  {{CSTR("aa")},             {CSTR("\x00" "aa")},              100,  0},
+
+  {{CSTR("aa")},             {CSTR("a" "\x00" "a")},            0,  0},
+  {{CSTR("aa")}/*CF*/,       {CSTR("a" "\x00" "a")},            1,  0},
+  {{CSTR("aa")},             {CSTR("a" "\x00" "a")}/*IF*/,      2,  1},
+  {{CSTR("aa")},             {CSTR("a" "\x00" "a")},            3,  1},
+  {{CSTR("aa")},             {CSTR("a" "\x00" "a")},          100,  1},
+
+  {{CSTR("aa")},             {CSTR(UTF8_ARING)},                0,  0},
+  {{CSTR("aa")}/*CF*/,       {CSTR(UTF8_ARING)},                1, -1},
+  {{CSTR("aa")},             {CSTR(UTF8_ARING)},                2,  0},
+  {{CSTR("aa")},             {CSTR(UTF8_ARING)},                3,  0},
+  {{CSTR("aa")},             {CSTR(UTF8_ARING)},              100,  0},
+
+  {{NULL, 0},                {NULL, 0},                         0,  0}
+};
+
+
+static STRNNCOLLSP_CHAR_PARAM strnncollsp_char_latin1_german2_ci[]=
+{
+  {{CSTR("ss")},             {CSTR(LATIN1_sz)},                 0,  0},
+  {{CSTR("ss")},             {CSTR(LATIN1_sz)},                 1, -1},
+  {{CSTR("ss")},             {CSTR(LATIN1_sz)},                 2,  0},
+  {{CSTR("ss")},             {CSTR(LATIN1_sz)},                 3,  0},
+  {{CSTR("ss")},             {CSTR(LATIN1_sz)},               100,  0},
+
+  {{CSTR("ae")},             {CSTR(LATIN1_auml)},               0,  0},
+  {{CSTR("ae")},             {CSTR(LATIN1_auml)},               1, -1},
+  {{CSTR("ae")},             {CSTR(LATIN1_auml)},               2,  0},
+  {{CSTR("ae")},             {CSTR(LATIN1_auml)},               3,  0},
+  {{CSTR("ae")},             {CSTR(LATIN1_auml)},             100,  0},
+
+  {{CSTR("ae")},             {CSTR(LATIN1_auml " ")},           0,  0},
+  {{CSTR("ae")},             {CSTR(LATIN1_auml " ")},           1, -1},
+  {{CSTR("ae")},             {CSTR(LATIN1_auml " ")},           2,  0},
+  {{CSTR("ae")},             {CSTR(LATIN1_auml " ")},           3,  0},
+  {{CSTR("ae")},             {CSTR(LATIN1_auml " ")},         100,  0},
+
+  {{NULL, 0},                {NULL, 0},                         0,  0}
+};
+
+
+static STRNNCOLLSP_CHAR_PARAM strnncollsp_char_utf8mbx_german2_ci[]=
+{
+  {{CSTR("ss")},             {CSTR(UTF8_sz)},                   0,  0},
+  {{CSTR("ss")},             {CSTR(UTF8_sz)},                   1, -1},
+  {{CSTR("ss")},             {CSTR(UTF8_sz)},                   2,  0},
+  {{CSTR("ss")},             {CSTR(UTF8_sz)},                   3,  0},
+  {{CSTR("ss")},             {CSTR(UTF8_sz)},                 100,  0},
+
+  {{CSTR("ae")},             {CSTR(UTF8_auml)},                 0,  0},
+  {{CSTR("ae")},             {CSTR(UTF8_auml)},                 1, -1},
+  {{CSTR("ae")},             {CSTR(UTF8_auml)},                 2,  0},
+  {{CSTR("ae")},             {CSTR(UTF8_auml)},                 3,  0},
+  {{CSTR("ae")},             {CSTR(UTF8_auml)},               100,  0},
+
+  {{CSTR("ae")},             {CSTR(UTF8_auml " ")},             0,  0},
+  {{CSTR("ae")},             {CSTR(UTF8_auml " ")},             1, -1},
+  {{CSTR("ae")},             {CSTR(UTF8_auml " ")},             2,  0},
+  {{CSTR("ae")},             {CSTR(UTF8_auml " ")},             3,  0},
+  {{CSTR("ae")},             {CSTR(UTF8_auml " ")},           100,  0},
+
+  {{NULL, 0},                {NULL, 0},                         0,  0}
+};
+
+
+static STRNNCOLLSP_CHAR_PARAM strnncollsp_char_mbminlen1_xpad_czech[]=
+{
+  {{CSTR("c")},              {CSTR("ch")},                      0,  0},
+  {{CSTR("c")},              {CSTR("ch")},                      1,  0},
+  {{CSTR("c")},              {CSTR("ch")},                      2, -1},
+
+  {{CSTR("h")},              {CSTR("ch")},                      0,  0},
+  {{CSTR("h")},              {CSTR("ch")},                      1,  1},
+  {{CSTR("h")},              {CSTR("ch")},                      2, -1},
+
+  {{CSTR("i")},              {CSTR("ch")},                      0,  0},
+  {{CSTR("i")},              {CSTR("ch")},                      1,  1},
+  {{CSTR("i")},              {CSTR("ch")},                      2,  1},
+
+  {{NULL, 0},                {NULL, 0},                         0,  0}
+};
+
+
+static STRNNCOLLSP_CHAR_PARAM strnncollsp_char_mbminlen2_xpad_common[]=
+{
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a)},                    0,  0},
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a)},                    1,  0},
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a)},                    2,  0},
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a)},                    3,  0},
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a)},                  100,  0},
+
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a UCS2_sp)},            0,  0},
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a UCS2_sp)},            1,  0},
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a UCS2_sp)},            2,  0},
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a UCS2_sp)},            3,  0},
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a UCS2_sp)},          100,  0},
+
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a UCS2_sp UCS2_sp)},    0,  0},
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a UCS2_sp UCS2_sp)},    1,  0},
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a UCS2_sp UCS2_sp)},    2,  0},
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a UCS2_sp UCS2_sp)},    3,  0},
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a UCS2_sp UCS2_sp)},  100,  0},
+
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a UCS2_b)},             0,  0},
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a UCS2_b)},             1,  0},
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a UCS2_b)},             2, -1},
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a UCS2_b)},             3, -1},
+  {{CSTR(UCS2_a)},           {CSTR(UCS2_a UCS2_b)},           100, -1},
+
+  {{NULL, 0},                {NULL, 0},                         0,  0}
+};
+
+
+static int
+strnncollsp_char_one(CHARSET_INFO *cs, const STRNNCOLLSP_CHAR_PARAM *p)
+{
+  int failed= 0;
+  char ahex[64], bhex[64];
+  int res= cs->coll->strnncollsp_nchars(cs,
+                                        (uchar *) p->a.str, p->a.length,
+                                        (uchar *) p->b.str, p->b.length,
+                                        p->nchars);
+  str2hex(ahex, sizeof(ahex), p->a.str, p->a.length);
+  str2hex(bhex, sizeof(bhex), p->b.str, p->b.length);
+  diag("%-25s %-12s %-12s %3d %7d %7d%s",
+       cs->cs_name.str, ahex, bhex, (int) p->nchars, p->res, res,
+       eqres(res, p->res) ? "" : " FAILED");
+  if (!eqres(res, p->res))
+  {
+    failed++;
+  }
+  else
+  {
+    /* Test in reverse order */
+    res= cs->coll->strnncollsp_nchars(cs,
+                                      (uchar *) p->b.str, p->b.length,
+                                      (uchar *) p->a.str, p->a.length,
+                                      p->nchars);
+    if (!eqres(res, -p->res))
+    {
+      diag("Comparison in reverse order failed. Expected %d, got %d",
+           -p->res, res);
+      failed++;
+    }
+  }
+  return failed;
+}
+
+
+static int
+strnncollsp_char(const char *collation, const STRNNCOLLSP_CHAR_PARAM *param)
+{
+  int failed= 0;
+  const STRNNCOLLSP_CHAR_PARAM *p;
+  CHARSET_INFO *cs= get_charset_by_name(collation, MYF(0));
+
+  if (!cs)
+  {
+    diag("get_charset_by_name() failed");
+    return 1;
+  }
+
+  diag("%-25s %-12s %-12s %-3s %7s %7s",
+       "Collation", "a", "b", "Nch", "ExpSign", "Actual");
+
+  for (p= param; p->a.str; p++)
+  {
+    failed+= strnncollsp_char_one(cs, p);
+  }
+
+  return failed;
+}
+
+
+static int
+strnncollsp_char_mbminlen1(const char *collation,
+                           const STRNNCOLLSP_CHAR_PARAM *specific)
+{
+  int failed= 0;
+  failed+= strnncollsp_char(collation, strnncollsp_char_mbminlen1_xpad_common);
+  if (specific)
+    failed+= strnncollsp_char(collation, specific);
+  return failed;
+}
+
+
+static int
+strnncollsp_char_mbminlen2(const char *collation,
+                           const STRNNCOLLSP_CHAR_PARAM *specific)
+{
+  int failed= 0;
+  failed+= strnncollsp_char(collation, strnncollsp_char_mbminlen2_xpad_common);
+  if (specific)
+    failed+= strnncollsp_char(collation, specific);
+  return failed;
+}
+
+
+static int
+strnncollsp_char_latin1(const char *collation,
+                        const STRNNCOLLSP_CHAR_PARAM *specific)
+{
+  int failed= 0;
+  failed+= strnncollsp_char(collation, strnncollsp_char_mbminlen1_xpad_common);
+  failed+= strnncollsp_char(collation, strnncollsp_char_latin1_xpad_common);
+  if (specific)
+    failed+= strnncollsp_char(collation, specific);
+  return failed;
+}
+
+
+static int
+strnncollsp_char_utf8mbx(const char *collation,
+                         const STRNNCOLLSP_CHAR_PARAM *specific)
+{
+  int failed= 0;
+  failed+= strnncollsp_char(collation, strnncollsp_char_mbminlen1_xpad_common);
+  failed+= strnncollsp_char(collation, strnncollsp_char_utf8mbx_xpad_common);
+
+  if (!strstr(collation, "_bin") &&
+      !strstr(collation, "_german2") &&
+      !strstr(collation, "_danish"))
+    failed+= strnncollsp_char(collation,
+                              strnncollsp_char_utf8mbx_xpad_a_eq_auml);
+  if (specific)
+    failed+= strnncollsp_char(collation, specific);
+  return failed;
+}
+
+
+static int
+test_strnncollsp_char()
+{
+  int failed= 0;
+  failed+= strnncollsp_char_latin1("latin1_swedish_ci", NULL);
+  failed+= strnncollsp_char_latin1("latin1_swedish_nopad_ci", NULL);
+  failed+= strnncollsp_char_latin1("latin1_bin", NULL);
+  failed+= strnncollsp_char_latin1("latin1_nopad_bin", NULL);
+  failed+= strnncollsp_char_latin1("latin1_german2_ci",
+                                   strnncollsp_char_latin1_german2_ci);
+
+#ifdef HAVE_CHARSET_cp1250
+  failed+= strnncollsp_char_mbminlen1("cp1250_czech_cs",
+                                      strnncollsp_char_mbminlen1_xpad_czech);
+#endif
+
+#ifdef HAVE_CHARSET_latin2
+  failed+= strnncollsp_char_mbminlen1("latin2_czech_cs",
+                                      strnncollsp_char_mbminlen1_xpad_czech);
+#endif
+
+#ifdef HAVE_CHARSET_tis620
+  failed+= strnncollsp_char_mbminlen1("tis620_thai_ci", NULL);
+#endif
+
+#ifdef HAVE_CHARSET_big5
+  failed+= strnncollsp_char_mbminlen1("big5_chinese_ci", NULL);
+  failed+= strnncollsp_char_mbminlen1("big5_chinese_nopad_ci", NULL);
+  failed+= strnncollsp_char_mbminlen1("big5_bin", NULL);
+  failed+= strnncollsp_char_mbminlen1("big5_nopad_bin", NULL);
+#endif
+
+  failed+= strnncollsp_char_utf8mbx("utf8mb3_general_ci", NULL);
+  failed+= strnncollsp_char_utf8mbx("utf8mb3_general_nopad_ci", NULL);
+  failed+= strnncollsp_char_utf8mbx("utf8mb3_bin", NULL);
+  failed+= strnncollsp_char_utf8mbx("utf8mb3_nopad_bin", NULL);
+
+  failed+= strnncollsp_char_utf8mbx("utf8mb3_unicode_ci",
+                                    strnncollsp_char_utf8mb3_unicode_ci);
+  failed+= strnncollsp_char_utf8mbx("utf8mb3_unicode_nopad_ci",
+                                    strnncollsp_char_utf8mb3_unicode_nopad_ci);
+  failed+= strnncollsp_char_utf8mbx("utf8mb3_danish_ci",
+                                    strnncollsp_char_utf8mb3_danish_ci);
+  failed+= strnncollsp_char_utf8mbx("utf8mb3_german2_ci",
+                                    strnncollsp_char_utf8mbx_german2_ci);
+  failed+= strnncollsp_char_utf8mbx("utf8mb3_czech_ci",
+                                    strnncollsp_char_mbminlen1_xpad_czech);
+
+#ifdef HAVE_CHARSET_ucs2
+  failed+= strnncollsp_char_mbminlen2("ucs2_general_ci", NULL);
+  failed+= strnncollsp_char_mbminlen2("ucs2_general_nopad_ci", NULL);
+  failed+= strnncollsp_char_mbminlen2("ucs2_bin", NULL);
+  failed+= strnncollsp_char_mbminlen2("ucs2_nopad_bin", NULL);
+  failed+= strnncollsp_char_mbminlen2("ucs2_unicode_ci", NULL);
+  failed+= strnncollsp_char_mbminlen2("ucs2_unicode_nopad_ci", NULL);
+#endif
+
+  return failed;
+}
+
+
+int main(int ac, char **av)
 {
   size_t i, failed= 0;
-  
-  plan(2);
+
+  MY_INIT(av[0]);
+
+  plan(4);
   diag("Testing my_like_range_xxx() functions");
   
   for (i= 0; i < array_elements(charset_list); i++)
@@ -781,6 +1530,16 @@ int main()
   diag("my_ci_strnncollsp()");
   failed= test_strcollsp();
   ok(failed == 0, "Testing my_ci_strnncollsp()");
+
+  diag("Testing min_str() and max_str()");
+  failed= test_minmax_str();
+  ok(failed == 0, "Testing min_str() and max_str() functions");
+
+  diag("Testing cs->coll->strnncollsp_char()");
+  failed= test_strnncollsp_char();
+  ok(failed == 0, "Testing cs->coll->strnncollsp_char()");
+
+  my_end(0);
 
   return exit_status();
 }

@@ -64,8 +64,8 @@ typedef struct st_hash {
 typedef uint HASH_SEARCH_STATE;
 
 #define my_hash_init(A,B,C,D,E,F,G,H,I) my_hash_init2(A,B,0,C,D,E,F,G,0,H,I)
-my_bool my_hash_init2(PSI_memory_key psi_key, HASH *hash, uint growth_size,
-                      CHARSET_INFO *charset, ulong default_array_elements,
+my_bool my_hash_init2(PSI_memory_key psi_key, HASH *hash, size_t growth_size,
+                      CHARSET_INFO *charset, size_t default_array_elements,
                       size_t key_offset, size_t key_length,
                       my_hash_get_key get_key, my_hash_function hash_function,
                       void (*free_element)(void*), uint flags);

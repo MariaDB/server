@@ -4,7 +4,7 @@ Copyright (c) 2000, 2020, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -79,7 +79,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "dict0load.h"
 #include "btr0defragment.h"
 #include "dict0crea.h"
-#include "dict0dict.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
 #include "fil0fil.h"
@@ -94,9 +93,9 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "mtr0mtr.h"
 #include "os0file.h"
 #include "page0zip.h"
-#include "rem0types.h"
 #include "row0import.h"
 #include "row0ins.h"
+#include "row0log.h"
 #include "row0merge.h"
 #include "row0mysql.h"
 #include "row0quiesce.h"
@@ -113,6 +112,12 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fil0pagecompress.h"
 #include "ut0mem.h"
 #include "row0ext.h"
+
+#include "lz4.h"
+#include "lzo/lzo1x.h"
+#include "lzma.h"
+#include "bzlib.h"
+#include "snappy-c.h"
 
 #include <limits>
 
@@ -149,6 +154,11 @@ void close_thread_tables(THD* thd);
 #include <mysql/service_md5.h>
 #include "wsrep_sst.h"
 #endif /* WITH_WSREP */
+
+#ifdef HAVE_URING
+/** The Linux kernel version if io_uring() is considered unsafe */
+const char *io_uring_may_be_unsafe;
+#endif
 
 #define INSIDE_HA_INNOBASE_CC
 
@@ -195,7 +205,7 @@ static char*	innodb_version_str = (char*) INNODB_VERSION_STR;
 extern uint srv_fil_crypt_rotate_key_age;
 extern uint srv_n_fil_crypt_iops;
 
-#if defined SAFE_MUTEX && defined UNIV_DEBUG
+#ifdef UNIV_DEBUG
 my_bool innodb_evict_tables_on_commit_debug;
 #endif
 
@@ -228,6 +238,14 @@ static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
   {
     if (thd_kill_level(thd))
       break;
+    /* Adjust for purge_coordinator_state::refresh() */
+    mysql_mutex_lock(&log_sys.mutex);
+    const lsn_t last= log_sys.last_checkpoint_lsn,
+      max_age= log_sys.max_checkpoint_age;
+    mysql_mutex_unlock(&log_sys.mutex);
+    const lsn_t lsn= log_sys.get_lsn();
+    if ((lsn - last) / 4 >= max_age / 5)
+      buf_flush_ahead(last + max_age / 5, false);
     srv_wake_purge_thread_if_not_active();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
@@ -509,12 +527,10 @@ mysql_pfs_key_t	fts_cache_mutex_key;
 mysql_pfs_key_t	fts_cache_init_mutex_key;
 mysql_pfs_key_t	fts_delete_mutex_key;
 mysql_pfs_key_t	fts_doc_id_mutex_key;
-mysql_pfs_key_t	fts_pll_tokenize_mutex_key;
 mysql_pfs_key_t	ibuf_bitmap_mutex_key;
 mysql_pfs_key_t	ibuf_mutex_key;
 mysql_pfs_key_t	ibuf_pessimistic_insert_mutex_key;
 mysql_pfs_key_t	log_sys_mutex_key;
-mysql_pfs_key_t	log_cmdq_mutex_key;
 mysql_pfs_key_t	log_flush_order_mutex_key;
 mysql_pfs_key_t	recalc_pool_mutex_key;
 mysql_pfs_key_t	purge_sys_pq_mutex_key;
@@ -532,10 +548,6 @@ mysql_pfs_key_t	trx_pool_manager_mutex_key;
 mysql_pfs_key_t	lock_wait_mutex_key;
 mysql_pfs_key_t	trx_sys_mutex_key;
 mysql_pfs_key_t	srv_threads_mutex_key;
-mysql_pfs_key_t	thread_mutex_key;
-mysql_pfs_key_t row_drop_list_mutex_key;
-mysql_pfs_key_t	rw_trx_hash_element_mutex_key;
-mysql_pfs_key_t	read_view_mutex_key;
 
 /* all_innodb_mutexes array contains mutexes that are
 performance schema instrumented if "UNIV_PFS_MUTEX"
@@ -552,7 +564,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(fts_delete_mutex),
 	PSI_KEY(fts_doc_id_mutex),
 	PSI_KEY(log_flush_order_mutex),
-	PSI_KEY(ibuf_bitmap_mutex),
 	PSI_KEY(ibuf_mutex),
 	PSI_KEY(ibuf_pessimistic_insert_mutex),
 	PSI_KEY(index_online_log),
@@ -583,6 +594,7 @@ mysql_pfs_key_t	fil_space_latch_key;
 mysql_pfs_key_t trx_i_s_cache_lock_key;
 mysql_pfs_key_t	trx_purge_latch_key;
 mysql_pfs_key_t lock_latch_key;
+mysql_pfs_key_t trx_rseg_latch_key;
 
 /* all_innodb_rwlocks array contains rwlocks that are
 performance schema instrumented if "UNIV_PFS_RWLOCK"
@@ -597,6 +609,7 @@ static PSI_rwlock_info all_innodb_rwlocks[] =
   { &trx_i_s_cache_lock_key, "trx_i_s_cache_lock", 0 },
   { &trx_purge_latch_key, "trx_purge_latch", 0 },
   { &lock_latch_key, "lock_latch", 0 },
+  { &trx_rseg_latch_key, "trx_rseg_latch", 0 },
   { &index_tree_rw_lock_key, "index_tree_rw_lock", PSI_RWLOCK_FLAG_SX }
 };
 # endif /* UNIV_PFS_RWLOCK */
@@ -691,6 +704,18 @@ innodb_stopword_table_validate(
 	void*				save,	/*!< out: immediate result
 						for update function */
 	struct st_mysql_value*		value);	/*!< in: incoming string */
+
+static
+void innodb_ft_cache_size_update(THD*, st_mysql_sys_var*, void*, const void* save)
+{
+  fts_max_cache_size= *static_cast<const size_t*>(save);
+}
+
+static
+void innodb_ft_total_cache_size_update(THD*, st_mysql_sys_var*, void*, const void* save)
+{
+  fts_max_total_cache_size= *static_cast<const size_t*>(save);
+}
 
 static bool is_mysql_datadir_path(const char *path);
 
@@ -833,11 +858,6 @@ innodb_compression_algorithm_validate(
 						for update function */
 	struct st_mysql_value*		value);	/*!< in: incoming string */
 
-static ibool innodb_have_lzo=IF_LZO(1, 0);
-static ibool innodb_have_lz4=IF_LZ4(1, 0);
-static ibool innodb_have_lzma=IF_LZMA(1, 0);
-static ibool innodb_have_bzip2=IF_BZIP2(1, 0);
-static ibool innodb_have_snappy=IF_SNAPPY(1, 0);
 static ibool innodb_have_punch_hole=IF_PUNCH_HOLE(1, 0);
 
 static
@@ -1013,10 +1033,6 @@ static SHOW_VAR innodb_status_variables[]= {
   /* Status variables for page compression */
   {"page_compression_saved",
    &export_vars.innodb_page_compression_saved, SHOW_LONGLONG},
-  {"num_index_pages_written",
-   &export_vars.innodb_index_pages_written, SHOW_LONGLONG},
-  {"num_non_index_pages_written",
-   &export_vars.innodb_non_index_pages_written, SHOW_LONGLONG},
   {"num_pages_page_compressed",
    &export_vars.innodb_pages_page_compressed, SHOW_LONGLONG},
   {"num_page_compressed_trim_op",
@@ -1029,11 +1045,11 @@ static SHOW_VAR innodb_status_variables[]= {
    &export_vars.innodb_pages_encrypted, SHOW_LONGLONG},
   {"num_pages_decrypted",
    &export_vars.innodb_pages_decrypted, SHOW_LONGLONG},
-  {"have_lz4", &innodb_have_lz4, SHOW_BOOL},
-  {"have_lzo", &innodb_have_lzo, SHOW_BOOL},
-  {"have_lzma", &innodb_have_lzma, SHOW_BOOL},
-  {"have_bzip2", &innodb_have_bzip2, SHOW_BOOL},
-  {"have_snappy", &innodb_have_snappy, SHOW_BOOL},
+  {"have_lz4",        &(provider_service_lz4->is_loaded),    SHOW_BOOL},
+  {"have_lzo",        &(provider_service_lzo->is_loaded),    SHOW_BOOL},
+  {"have_lzma",       &(provider_service_lzma->is_loaded),   SHOW_BOOL},
+  {"have_bzip2",      &(provider_service_bzip2->is_loaded),  SHOW_BOOL},
+  {"have_snappy",     &(provider_service_snappy->is_loaded), SHOW_BOOL},
   {"have_punch_hole", &innodb_have_punch_hole, SHOW_BOOL},
 
   /* Defragmentation */
@@ -1071,8 +1087,6 @@ static SHOW_VAR innodb_status_variables[]= {
    &export_vars.innodb_encryption_rotation_pages_flushed, SHOW_SIZE_T},
   {"encryption_rotation_estimated_iops",
    &export_vars.innodb_encryption_rotation_estimated_iops, SHOW_SIZE_T},
-  {"encryption_key_rotation_list_length",
-   &export_vars.innodb_key_rotation_list_length, SHOW_LONGLONG},
   {"encryption_n_merge_blocks_encrypted",
    &export_vars.innodb_n_merge_blocks_encrypted, SHOW_LONGLONG},
   {"encryption_n_merge_blocks_decrypted",
@@ -1208,7 +1222,7 @@ struct log_flush_request
 };
 
 /** Buffer of pending innodb_log_flush_request() */
-MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) static
+alignas(CPU_LEVEL1_DCACHE_LINESIZE) static
 struct
 {
   /** first request */
@@ -1462,7 +1476,8 @@ static void innodb_drop_database(handlerton*, char *path)
     "WHILE 1 = 1 LOOP\n"
     "  FETCH tab INTO tid,name;\n"
     "  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
-    "  IF SUBSTR(name, 0, LENGTH(:db)) <> :db THEN EXIT; END IF;\n"
+    "  IF TO_BINARY(SUBSTR(name, 0, LENGTH(:db))) <> TO_BINARY(:db)"
+    " THEN EXIT; END IF;\n"
     "  DELETE FROM SYS_COLUMNS WHERE TABLE_ID=tid;\n"
     "  DELETE FROM SYS_TABLES WHERE ID=tid;\n"
     "  OPEN idx;\n"
@@ -1519,20 +1534,27 @@ static void innodb_drop_database(handlerton*, char *path)
     we will "manually" purge the tablespaces that belong to the
     records that we delete-marked. */
 
-    mem_heap_t *heap= mem_heap_create(100);
-    dtuple_t *tuple= dtuple_create(heap, 1);
-    dfield_t *dfield= dtuple_get_nth_field(tuple, 0);
+    dfield_t dfield;
+    dtuple_t tuple{
+      0,1,1,&dfield,0,nullptr
+#ifdef UNIV_DEBUG
+      , DATA_TUPLE_MAGIC_N
+#endif
+    };
     dict_index_t* sys_index= UT_LIST_GET_FIRST(dict_sys.sys_tables->indexes);
     btr_pcur_t pcur;
     namebuf[len++]= '/';
-    dfield_set_data(dfield, namebuf, len);
-    dict_index_copy_types(tuple, sys_index, 1);
+    dfield_set_data(&dfield, namebuf, len);
+    dict_index_copy_types(&tuple, sys_index, 1);
     std::vector<pfs_os_file_t> to_close;
     mtr_t mtr;
     mtr.start();
-    for (btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
+    err= btr_pcur_open_on_user_rec(sys_index, &tuple, PAGE_CUR_GE,
                                    BTR_SEARCH_LEAF, &pcur, &mtr);
-         btr_pcur_is_on_user_rec(&pcur);
+    if (err != DB_SUCCESS)
+      goto err_exit;
+
+    for (; btr_pcur_is_on_user_rec(&pcur);
          btr_pcur_move_to_next_user_rec(&pcur, &mtr))
     {
       const rec_t *rec= btr_pcur_get_rec(&pcur);
@@ -1573,8 +1595,8 @@ static void innodb_drop_database(handlerton*, char *path)
           to_close.emplace_back(detached);
       }
     }
+  err_exit:
     mtr.commit();
-    mem_heap_free(heap);
     for (pfs_os_file_t detached : to_close)
       os_file_close(detached);
     /* Any changes must be persisted before we return. */
@@ -1929,6 +1951,59 @@ thd_to_trx_id(
 	return(thd_to_trx(thd)->id);
 }
 
+Atomic_relaxed<bool> wsrep_sst_disable_writes;
+
+static void sst_disable_innodb_writes()
+{
+  const uint old_count= srv_n_fil_crypt_threads;
+  fil_crypt_set_thread_cnt(0);
+  srv_n_fil_crypt_threads= old_count;
+
+  wsrep_sst_disable_writes= true;
+  dict_stats_shutdown();
+  purge_sys.stop();
+  /* We are holding a global MDL thanks to FLUSH TABLES WITH READ LOCK.
+
+  That will prevent any writes from arriving into InnoDB, but it will
+  not prevent writes of modified pages from the buffer pool, or log
+  checkpoints.
+
+  Let us perform a log checkpoint to ensure that the entire buffer
+  pool is clean, so that no writes to persistent files will be
+  possible during the snapshot, and to guarantee that no crash
+  recovery will be necessary when starting up on the snapshot. */
+  log_make_checkpoint();
+  /* If any FILE_MODIFY records were written by the checkpoint, an
+  extra write of a FILE_CHECKPOINT record could still be invoked by
+  buf_flush_page_cleaner(). Let us prevent that by invoking another
+  checkpoint (which will write the FILE_CHECKPOINT record). */
+  log_make_checkpoint();
+  ut_d(recv_no_log_write= true);
+  /* If this were not a no-op, an assertion would fail due to
+  recv_no_log_write. */
+  ut_d(log_make_checkpoint());
+}
+
+static void sst_enable_innodb_writes()
+{
+  ut_ad(recv_no_log_write);
+  ut_d(recv_no_log_write= false);
+  dict_stats_start();
+  purge_sys.resume();
+  wsrep_sst_disable_writes= false;
+  const uint old_count= srv_n_fil_crypt_threads;
+  srv_n_fil_crypt_threads= 0;
+  fil_crypt_set_thread_cnt(old_count);
+}
+
+static void innodb_disable_internal_writes(bool disable)
+{
+  if (disable)
+    sst_disable_innodb_writes();
+  else
+    sst_enable_innodb_writes();
+}
+
 static void wsrep_abort_transaction(handlerton*, THD *, THD *, my_bool);
 static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
@@ -1995,8 +2070,10 @@ static void drop_garbage_tables_after_restore()
   ut_d(purge_sys.stop_FTS());
 
   mtr.start();
-  btr_pcur_open_at_index_side(true, dict_sys.sys_tables->indexes.start,
-                              BTR_SEARCH_LEAF, &pcur, true, 0, &mtr);
+  if (btr_pcur_open_at_index_side(true, dict_sys.sys_tables->indexes.start,
+                                  BTR_SEARCH_LEAF, &pcur, true, 0, &mtr) !=
+      DB_SUCCESS)
+    goto all_fail;
   for (;;)
   {
     btr_pcur_move_to_next_user_rec(&pcur, &mtr);
@@ -2080,12 +2157,14 @@ fail:
       os_file_close(d);
 
     mtr.start();
-    btr_pcur_restore_position(BTR_SEARCH_LEAF, &pcur, &mtr);
+    if (pcur.restore_position(BTR_SEARCH_LEAF, &mtr) == btr_pcur_t::CORRUPTED)
+      break;
   }
 
-  btr_pcur_close(&pcur);
+all_fail:
   mtr.commit();
   trx->free();
+  ut_free(pcur.old_rec_buf);
   ut_d(purge_sys.resume_FTS());
 }
 
@@ -2132,7 +2211,7 @@ convert_error_code_to_mysql(
 				    "constraints that exceed max "
 				    "depth of %d. Please "
 				    "drop extra constraints and try "
-				    "again", DICT_FK_MAX_RECURSIVE_LOAD);
+				    "again", FK_MAX_CASCADE_DEL);
 		return(HA_ERR_FK_DEPTH_EXCEEDED);
 
 	case DB_CANT_CREATE_GEOMETRY_OBJECT:
@@ -2206,6 +2285,7 @@ convert_error_code_to_mysql(
 						code should be introduced */
 
 	case DB_CORRUPTION:
+	case DB_PAGE_CORRUPTED:
 		return(HA_ERR_CRASHED);
 
 	case DB_OUT_OF_FILE_SPACE:
@@ -2324,7 +2404,7 @@ innobase_mysql_print_thd(
 
 /******************************************************************//**
 Get the variable length bounds of the given character set. */
-void
+static void
 innobase_get_cset_width(
 /*====================*/
 	ulint	cset,		/*!< in: MySQL charset-collation code */
@@ -2336,7 +2416,7 @@ innobase_get_cset_width(
 	ut_ad(mbminlen);
 	ut_ad(mbmaxlen);
 
-	cs = all_charsets[cset];
+	cs = cset ? get_charset((uint)cset, MYF(MY_WME)) : NULL;
 	if (cs) {
 		*mbminlen = cs->mbminlen;
 		*mbmaxlen = cs->mbmaxlen;
@@ -2360,6 +2440,29 @@ innobase_get_cset_width(
 			ut_a(cset == 0);
 		}
 
+		*mbminlen = *mbmaxlen = 0;
+	}
+}
+
+/*********************************************************************//**
+Compute the mbminlen and mbmaxlen members of a data type structure. */
+void
+dtype_get_mblen(
+/*============*/
+	ulint	mtype,		/*!< in: main type */
+	ulint	prtype,		/*!< in: precise type (and collation) */
+	unsigned*mbminlen,	/*!< out: minimum length of a
+				multi-byte character */
+	unsigned*mbmaxlen)	/*!< out: maximum length of a
+				multi-byte character */
+{
+	if (dtype_is_string_type(mtype)) {
+		innobase_get_cset_width(dtype_get_charset_coll(prtype),
+					mbminlen, mbmaxlen);
+		ut_ad(*mbminlen <= *mbmaxlen);
+		ut_ad(*mbminlen < DATA_MBMAX);
+		ut_ad(*mbmaxlen < DATA_MBMAX);
+	} else {
 		*mbminlen = *mbmaxlen = 0;
 	}
 }
@@ -2771,44 +2874,6 @@ overflow:
 	return(~(ulonglong) 0);
 }
 
-/*******************************************************************//**
-Reset the auto-increment counter to the given value, i.e. the next row
-inserted will get the given value. This is called e.g. after TRUNCATE
-is emulated by doing a 'DELETE FROM t'. HA_ERR_WRONG_COMMAND is
-returned by storage engines that don't support this operation.
-@return	0 or error code */
-int ha_innobase::reset_auto_increment(ulonglong value)
-{
-	DBUG_ENTER("ha_innobase::reset_auto_increment");
-
-	dberr_t	error;
-
-	update_thd(ha_thd());
-
-	error = row_lock_table_autoinc_for_mysql(m_prebuilt);
-
-	if (error != DB_SUCCESS) {
-err_exit:
-		DBUG_RETURN(convert_error_code_to_mysql(
-				    error, m_prebuilt->table->flags, m_user_thd));
-	}
-
-	/* The next value can never be 0. */
-	if (value == 0) {
-		value = 1;
-	}
-
-	error = innobase_lock_autoinc();
-	if (error != DB_SUCCESS) {
-		goto err_exit;
-	}
-
-	dict_table_autoinc_initialize(m_prebuilt->table, value);
-	m_prebuilt->table->autoinc_mutex.wr_unlock();
-
-	DBUG_RETURN(0);
-}
-
 /*********************************************************************//**
 Initializes some fields in an InnoDB transaction object. */
 static
@@ -2825,7 +2890,7 @@ innobase_trx_init(
 	while holding lock_sys.latch, by lock_rec_enqueue_waiting(),
 	will not end up acquiring LOCK_global_system_variables in
 	intern_sys_var_ptr(). */
-	THDVAR(thd, lock_wait_timeout);
+	(void) THDVAR(thd, lock_wait_timeout);
 
 	trx->check_foreigns = !thd_test_options(
 		thd, OPTION_NO_FOREIGN_KEY_CHECKS);
@@ -3172,6 +3237,7 @@ the query cache.
 @param[in]	table	table object
 @param[in]	trx	transaction object
 @return whether the storing or retrieving from the query cache is permitted */
+TRANSACTIONAL_TARGET
 static bool innobase_query_caching_table_check_low(
 	dict_table_t* table, trx_t* trx)
 {
@@ -3197,6 +3263,16 @@ static bool innobase_query_caching_table_check_low(
 	if (trx->read_view.is_open() && trx->read_view.low_limit_id() < inv) {
 		return false;
 	}
+
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+	if (xbegin()) {
+		if (table->lock_mutex_is_locked())
+			xabort();
+		auto len = UT_LIST_GET_LEN(table->locks);
+		xend();
+		return len == 0;
+	}
+#endif
 
 	table->lock_mutex_lock();
 	auto len= UT_LIST_GET_LEN(table->locks);
@@ -3619,11 +3695,6 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	m_prebuilt->trx->bulk_insert = false;
 }
 
-#ifdef WITH_INNODB_DISALLOW_WRITES
-/** Condition variable for innodb_disallow_writes */
-static pthread_cond_t allow_writes_cond;
-#endif /* WITH_INNODB_DISALLOW_WRITES */
-
 /*********************************************************************//**
 Free any resources that were allocated and return failure.
 @return always return 1 */
@@ -3641,11 +3712,61 @@ static int innodb_init_abort()
 	}
 	srv_tmp_space.shutdown();
 
-#ifdef WITH_INNODB_DISALLOW_WRITES
-	pthread_cond_destroy(&allow_writes_cond);
-#endif /* WITH_INNODB_DISALLOW_WRITES */
 	DBUG_RETURN(1);
 }
+
+/** Return the minimum buffer pool size based on page size */
+static inline ulint min_buffer_pool_size()
+{
+  ulint s= (BUF_LRU_MIN_LEN + BUF_LRU_MIN_LEN / 4) * srv_page_size;
+  /* buf_pool_chunk_size minimum is 1M, so round up to a multiple */
+  ulint alignment= 1U << 20;
+  return UT_CALC_ALIGN(s, alignment);
+}
+
+/** Validate the requested buffer pool size.  Also, reserve the necessary
+memory needed for buffer pool resize.
+@param[in]	thd	thread handle
+@param[in]	var	pointer to system variable
+@param[out]	save	immediate result for update function
+@param[in]	value	incoming string
+@return 0 on success, 1 on failure.
+*/
+static
+int
+innodb_buffer_pool_size_validate(
+	THD*				thd,
+	struct st_mysql_sys_var*	var,
+	void*				save,
+	struct st_mysql_value*		value);
+
+/** Update the system variable innodb_buffer_pool_size using the "saved"
+value. This function is registered as a callback with MySQL.
+@param[in]	thd	thread handle
+@param[in]	var	pointer to system variable
+@param[out]	var_ptr	where the formal string goes
+@param[in]	save	immediate result from check function */
+static
+void
+innodb_buffer_pool_size_update(
+	THD*				thd,
+	struct st_mysql_sys_var*	var,
+	void*				var_ptr,
+	const void*			save);
+
+/* If the default value of innodb_buffer_pool_size is increased to be more than
+BUF_POOL_SIZE_THRESHOLD (srv/srv0start.cc), then srv_buf_pool_instances_default
+can be removed and 8 used instead. The problem with the current setup is that
+with 128MiB default buffer pool size and 8 instances by default we would emit
+a warning when no options are specified. */
+static MYSQL_SYSVAR_ULONGLONG(buffer_pool_size, innobase_buffer_pool_size,
+  PLUGIN_VAR_RQCMDARG,
+  "The size of the memory buffer InnoDB uses to cache data and indexes of its tables.",
+  innodb_buffer_pool_size_validate,
+  innodb_buffer_pool_size_update,
+  128ULL << 20,
+  2ULL << 20,
+  LLONG_MAX, 1024*1024L);
 
 /****************************************************************//**
 Gives the file extension of an InnoDB single-table tablespace. */
@@ -3662,23 +3783,36 @@ static const char* ha_innobase_exts[] = {
 @retval	0	if no system-versioned data was affected by the transaction */
 static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
 {
-	if (const trx_t* trx = thd_to_trx(thd)) {
-		*trx_id = trx->id;
+  if (trx_t *trx= thd_to_trx(thd))
+  {
+    *trx_id= trx->id;
+    bool versioned= false;
 
-		for (const auto& t : trx->mod_tables) {
-			if (t.second.is_versioned()) {
-				DBUG_ASSERT(t.first->versioned_by_id());
-				DBUG_ASSERT(trx->rsegs.m_redo.rseg);
+    for (auto &t : trx->mod_tables)
+    {
+      if (t.second.is_versioned())
+      {
+        DBUG_ASSERT(t.first->versioned_by_id());
+        DBUG_ASSERT(trx->rsegs.m_redo.rseg);
+        versioned= true;
+        if (!trx->bulk_insert)
+          break;
+      }
+      if (t.second.is_bulk_insert())
+      {
+        ut_ad(trx->bulk_insert);
+        ut_ad(!trx->check_unique_secondary);
+        ut_ad(!trx->check_foreigns);
+        if (t.second.write_bulk(t.first, trx))
+          return ULONGLONG_MAX;
+      }
+    }
 
-				return trx_sys.get_new_trx_id();
-			}
-		}
+    return versioned ? trx_sys.get_new_trx_id() : 0;
+  }
 
-		return 0;
-	}
-
-	*trx_id = 0;
-	return 0;
+  *trx_id= 0;
+  return 0;
 }
 
 /** Initialize and normalize innodb_buffer_pool_size. */
@@ -3692,6 +3826,25 @@ static void innodb_buffer_pool_size_init()
 
 	srv_buf_pool_size = buf_pool_size_align(srv_buf_pool_size);
 	innobase_buffer_pool_size = srv_buf_pool_size;
+}
+
+
+static bool
+compression_algorithm_is_not_loaded(ulong compression_algorithm, myf flags)
+{
+  bool is_loaded[PAGE_ALGORITHM_LAST+1]= { 1, 1, provider_service_lz4->is_loaded,
+    provider_service_lzo->is_loaded, provider_service_lzma->is_loaded,
+    provider_service_bzip2->is_loaded, provider_service_snappy->is_loaded };
+
+  DBUG_ASSERT(compression_algorithm <= PAGE_ALGORITHM_LAST);
+
+  if (is_loaded[compression_algorithm])
+    return 0;
+
+  my_printf_error(HA_ERR_UNSUPPORTED, "InnoDB: compression algorithm %s (%u)"
+    " is not available. Please, load the corresponding provider plugin.", flags,
+    page_compression_algorithms[compression_algorithm], compression_algorithm);
+  return 1;
 }
 
 /** Initialize, validate and normalize the InnoDB startup parameters.
@@ -3717,59 +3870,20 @@ static int innodb_init_params()
 
 	/* The buffer pool needs to be able to accommodate enough many
 	pages, even for larger pages */
-	if (srv_page_size > UNIV_PAGE_SIZE_DEF
-	    && innobase_buffer_pool_size < (24 * 1024 * 1024)) {
+	MYSQL_SYSVAR_NAME(buffer_pool_size).min_val= min_buffer_pool_size();
+
+	if (innobase_buffer_pool_size < MYSQL_SYSVAR_NAME(buffer_pool_size).min_val) {
 		ib::error() << "innodb_page_size="
 			<< srv_page_size << " requires "
-			<< "innodb_buffer_pool_size > 24M current "
-			<< innobase_buffer_pool_size;
+			<< "innodb_buffer_pool_size >= "
+			<< (MYSQL_SYSVAR_NAME(buffer_pool_size).min_val >> 20)
+			<< "MiB current " << (innobase_buffer_pool_size >> 20)
+			<< "MiB";
 		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
-#ifndef HAVE_LZ4
-	if (innodb_compression_algorithm == PAGE_LZ4_ALGORITHM) {
-		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				"InnoDB: liblz4 is not installed. \n",
-				innodb_compression_algorithm);
-		DBUG_RETURN(HA_ERR_INITIALIZATION);
-	}
-#endif
-
-#ifndef HAVE_LZO
-	if (innodb_compression_algorithm == PAGE_LZO_ALGORITHM) {
-		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				"InnoDB: liblzo is not installed. \n",
-				innodb_compression_algorithm);
-		DBUG_RETURN(HA_ERR_INITIALIZATION);
-	}
-#endif
-
-#ifndef HAVE_LZMA
-	if (innodb_compression_algorithm == PAGE_LZMA_ALGORITHM) {
-		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				"InnoDB: liblzma is not installed. \n",
-				innodb_compression_algorithm);
-		DBUG_RETURN(HA_ERR_INITIALIZATION);
-	}
-#endif
-
-#ifndef HAVE_BZIP2
-	if (innodb_compression_algorithm == PAGE_BZIP2_ALGORITHM) {
-		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				"InnoDB: libbz2 is not installed. \n",
-				innodb_compression_algorithm);
-		DBUG_RETURN(HA_ERR_INITIALIZATION);
-	}
-#endif
-
-#ifndef HAVE_SNAPPY
-	if (innodb_compression_algorithm == PAGE_SNAPPY_ALGORITHM) {
-		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				"InnoDB: libsnappy is not installed. \n",
-				innodb_compression_algorithm);
-		DBUG_RETURN(HA_ERR_INITIALIZATION);
-	}
-#endif
+        if (compression_algorithm_is_not_loaded(innodb_compression_algorithm, ME_ERROR_LOG))
+          DBUG_RETURN(HA_ERR_INITIALIZATION);
 
 	if ((srv_encrypt_tables || srv_encrypt_log
 	     || innodb_encrypt_temporary_tables)
@@ -4022,6 +4136,14 @@ static int innodb_init_params()
 	cases, we ignore the setting of innodb_use_native_aio. */
 	srv_use_native_aio = FALSE;
 #endif
+#ifdef HAVE_URING
+	if (srv_use_native_aio && io_uring_may_be_unsafe) {
+		sql_print_warning("innodb_use_native_aio may cause "
+				  "hangs with this kernel %s; see "
+				  "https://jira.mariadb.org/browse/MDEV-26674",
+				  io_uring_may_be_unsafe);
+	}
+#endif
 
 #ifndef _WIN32
 	ut_ad(srv_file_flush_method <= SRV_O_DIRECT_NO_FSYNC);
@@ -4097,6 +4219,7 @@ static int innodb_init(void* p)
 	innobase_hton->abort_transaction=wsrep_abort_transaction;
 	innobase_hton->set_checkpoint=innobase_wsrep_set_checkpoint;
 	innobase_hton->get_checkpoint=innobase_wsrep_get_checkpoint;
+	innobase_hton->disable_internal_writes=innodb_disable_internal_writes;
 #endif /* WITH_WSREP */
 
 	innobase_hton->check_version = innodb_check_version;
@@ -4141,10 +4264,6 @@ static int innodb_init(void* p)
 
 	/* After this point, error handling has to use
 	innodb_init_abort(). */
-
-#ifdef WITH_INNODB_DISALLOW_WRITES
-	pthread_cond_init(&allow_writes_cond, nullptr);
-#endif /* WITH_INNODB_DISALLOW_WRITES */
 
 #ifdef HAVE_PSI_INTERFACE
 	/* Register keys with MySQL performance schema */
@@ -4258,9 +4377,6 @@ innobase_end(handlerton*, ha_panic_function)
 
 
 		innodb_shutdown();
-#ifdef WITH_INNODB_DISALLOW_WRITES
-		pthread_cond_destroy(&allow_writes_cond);
-#endif /* WITH_INNODB_DISALLOW_WRITES */
 		mysql_mutex_destroy(&log_requests.mutex);
 	}
 
@@ -4487,9 +4603,6 @@ innobase_commit(
 	if (commit_trx
 	    || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
 
-		DBUG_EXECUTE_IF("crash_innodb_before_commit",
-				DBUG_SUICIDE(););
-
 		/* Run the fast part of commit if we did not already. */
 		if (!trx->active_commit_ordered) {
 			innobase_commit_ordered_2(trx, thd);
@@ -4524,6 +4637,10 @@ innobase_commit(
 		SQL statement */
 
 		trx_mark_sql_stat_end(trx);
+		if (UNIV_UNLIKELY(trx->error_state != DB_SUCCESS)) {
+			trx_rollback_for_mysql(trx);
+			DBUG_RETURN(1);
+		}
 	}
 
 	/* Reset the number AUTO-INC rows required */
@@ -5116,33 +5233,26 @@ ha_innobase::keys_to_use_for_scanning()
 	return(&key_map_full);
 }
 
-/****************************************************************//**
-Ensures that if there's a concurrent inplace ADD INDEX, being-indexed virtual
-columns are computed. They are not marked as indexed in the old table, so the
-server won't add them to the read_set automatically */
-void
-ha_innobase::column_bitmaps_signal()
-/*================================*/
+/** Ensure that indexed virtual columns will be computed. */
+void ha_innobase::column_bitmaps_signal()
 {
-	if (!table->vfield || table->current_lock != F_WRLCK) {
-		return;
-	}
+  if (!table->vfield || table->current_lock != F_WRLCK)
+    return;
 
-	dict_index_t*	clust_index = dict_table_get_first_index(m_prebuilt->table);
-	uint	num_v = 0;
-	for (uint j = 0; j < table->s->virtual_fields; j++) {
-		if (table->vfield[j]->stored_in_db()) {
-			continue;
-		}
+  dict_index_t* clust_index= dict_table_get_first_index(m_prebuilt->table);
+  uint num_v= 0;
+  for (uint j = 0; j < table->s->virtual_fields; j++)
+  {
+    if (table->vfield[j]->stored_in_db())
+      continue;
 
-		dict_col_t*	col = &m_prebuilt->table->v_cols[num_v].m_col;
-		if (col->ord_part ||
-		    (dict_index_is_online_ddl(clust_index) &&
-		     row_log_col_is_indexed(clust_index, num_v))) {
-			table->mark_virtual_column_with_deps(table->vfield[j]);
-		}
-		num_v++;
-	}
+    dict_col_t *col= &m_prebuilt->table->v_cols[num_v].m_col;
+    if (col->ord_part ||
+        (dict_index_is_online_ddl(clust_index) &&
+         row_log_col_is_indexed(clust_index, num_v)))
+      table->mark_virtual_column_with_deps(table->vfield[j]);
+    num_v++;
+  }
 }
 
 
@@ -5808,7 +5918,7 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 		table->persistent_autoinc without
 		autoinc_mutex protection, and there might be multiple
 		ha_innobase::open() executing concurrently. */
-	} else if (srv_force_recovery > SRV_FORCE_NO_IBUF_MERGE) {
+	} else if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
 		/* If the recovery level is set so high that writes
 		are disabled we force the AUTOINC counter to 0
 		value effectively disabling writes to the table.
@@ -6294,8 +6404,8 @@ wsrep_innobase_mysql_sort(
 	case MYSQL_TYPE_LONG_BLOB:
 	case MYSQL_TYPE_VARCHAR:
 	{
-		uchar *tmp_str;
-		ulint tmp_length;
+		uchar tmp_str[REC_VERSION_56_MAX_INDEX_COL_LEN] = {'\0'};
+		ulint tmp_length = REC_VERSION_56_MAX_INDEX_COL_LEN;
 
 		/* Use the charset number to pick the right charset struct for
 		the comparison. Since the MySQL function get_charset may be
@@ -6318,11 +6428,7 @@ wsrep_innobase_mysql_sort(
 			}
 		}
 
-		// Note that strnxfrm may change length of string
-		tmp_length= charset->coll->strnxfrmlen(charset, str_length);
-		tmp_length= ut_max(str_length, tmp_length) + 1;
-		tmp_str= static_cast<uchar *>(ut_malloc_nokey(tmp_length));
-		ut_ad(str_length <= tmp_length);
+		ut_a(str_length <= tmp_length);
 		memcpy(tmp_str, str, str_length);
 
 		tmp_length = charset->strnxfrm(str, str_length,
@@ -6346,7 +6452,6 @@ wsrep_innobase_mysql_sort(
 			ret_length = tmp_length;
 		}
 
-		ut_free(tmp_str);
 		break;
 	}
 	case MYSQL_TYPE_DECIMAL :
@@ -6692,7 +6797,7 @@ wsrep_store_key_val_for_row(
 	THD* 		thd,
 	TABLE*		table,
 	uint		keynr,	/*!< in: key number */
-	uchar*		buff,	/*!< in/out: buffer for the key value (in MySQL
+	char*		buff,	/*!< in/out: buffer for the key value (in MySQL
 				format) */
 	uint		buff_len,/*!< in: buffer length */
 	const uchar*	record,
@@ -6701,7 +6806,7 @@ wsrep_store_key_val_for_row(
 	KEY*		key_info	= table->key_info + keynr;
 	KEY_PART_INFO*	key_part	= key_info->key_part;
 	KEY_PART_INFO*	end		= key_part + key_info->user_defined_key_parts;
-	uchar*		buff_start	= buff;
+	char*		buff_start	= buff;
 	enum_field_types mysql_type;
 	Field*		field;
 	ulint buff_space = buff_len;
@@ -6712,7 +6817,7 @@ wsrep_store_key_val_for_row(
 	*key_is_null = true;
 
 	for (; key_part != end; key_part++) {
-		uchar *sorted = nullptr;
+		uchar sorted[REC_VERSION_56_MAX_INDEX_COL_LEN] = {'\0'};
 		bool part_is_null = false;
 
 		if (key_part->null_bit) {
@@ -6786,19 +6891,19 @@ wsrep_store_key_val_for_row(
 
 			/* In a column prefix index, we may need to truncate
 			the stored value: */
-
 			if (true_len > key_len) {
 				true_len = key_len;
 			}
+			/* cannot exceed max column lenght either, we may need to truncate
+			the stored value: */
+			if (true_len > sizeof(sorted)) {
+			  true_len = sizeof(sorted);
+			}
 
-			const ulint max_len = true_len;
-			sorted= static_cast<uchar *>(ut_malloc_nokey(max_len+1));
 			memcpy(sorted, data, true_len);
 			true_len = wsrep_innobase_mysql_sort(
 				mysql_type, cs->number, sorted, true_len,
-				max_len);
-			ut_ad(true_len <= max_len);
-
+				REC_VERSION_56_MAX_INDEX_COL_LEN);
 			if (wsrep_protocol_version > 1) {
 				/* Note that we always reserve the maximum possible
 				length of the true VARCHAR in the key value, though
@@ -6806,8 +6911,8 @@ wsrep_store_key_val_for_row(
 				actual data. The rest of the space was reset to zero
 				in the bzero() call above. */
 				if (true_len > buff_space) {
-					fprintf (stderr,
-						 "WSREP: key truncated: %s\n",
+					WSREP_DEBUG (
+						 "write set key truncated for: %s\n",
 						 wsrep_thd_query(thd));
 					true_len = buff_space;
 				}
@@ -6883,13 +6988,11 @@ wsrep_store_key_val_for_row(
 				true_len = key_len;
 			}
 
-			const ulint max_len= true_len;
-			sorted= static_cast<uchar *>(ut_malloc_nokey(max_len+1));
 			memcpy(sorted, blob_data, true_len);
 			true_len = wsrep_innobase_mysql_sort(
 				mysql_type, cs->number, sorted, true_len,
-				max_len);
-			ut_ad(true_len <= max_len);
+				REC_VERSION_56_MAX_INDEX_COL_LEN);
+
 
 			/* Note that we always reserve the maximum possible
 			length of the BLOB prefix in the key value. */
@@ -6965,14 +7068,10 @@ wsrep_store_key_val_for_row(
 								cs->mbmaxlen),
 							&error);
 				}
-
-				const ulint max_len = true_len;
-				sorted= static_cast<uchar *>(ut_malloc_nokey(max_len+1));
 				memcpy(sorted, src_start, true_len);
 				true_len = wsrep_innobase_mysql_sort(
 					mysql_type, cs->number, sorted, true_len,
-					max_len);
-				ut_ad(true_len <= max_len);
+					REC_VERSION_56_MAX_INDEX_COL_LEN);
 
 				if (true_len > buff_space) {
 					fprintf (stderr,
@@ -6986,11 +7085,6 @@ wsrep_store_key_val_for_row(
 			}
 			buff       += true_len;
 			buff_space -= true_len;
-		}
-
-		if (sorted) {
-			ut_free(sorted);
-			sorted= NULL;
 		}
 	}
 
@@ -7357,9 +7451,12 @@ ha_innobase::build_template(
 
 	ulint num_v = 0;
 
-	if ((active_index != MAX_KEY
-	     && active_index == pushed_idx_cond_keyno)
-	    || (pushed_rowid_filter && rowid_filter_is_active)) {
+	if (active_index != MAX_KEY
+	     && active_index == pushed_idx_cond_keyno) {
+		m_prebuilt->idx_cond = this;
+		goto icp;
+	} else if (pushed_rowid_filter && rowid_filter_is_active) {
+icp:
 		/* Push down an index condition or an end_range check. */
 		for (ulint i = 0; i < n_fields; i++) {
 			const Field* field = table->field[i];
@@ -7539,9 +7636,6 @@ ha_innobase::build_template(
 					num_v++;
 				}
 			}
-		}
-		if (active_index == pushed_idx_cond_keyno) {
-			m_prebuilt->idx_cond = this;
 		}
 	} else {
 no_icp:
@@ -8127,8 +8221,7 @@ calc_row_difference(
 		    && prebuilt->table->fts
 		    && innobase_strcasecmp(
 			field->field_name.str, FTS_DOC_ID_COL_NAME) == 0) {
-			doc_id = (doc_id_t) mach_read_from_n_little_endian(
-				n_ptr, 8);
+			doc_id = mach_read_uint64_little_endian(n_ptr);
 			if (doc_id == 0) {
 				return(DB_FTS_INVALID_DOCID);
 			}
@@ -8144,34 +8237,13 @@ calc_row_difference(
 			}
 		}
 
-#ifdef UNIV_DEBUG
-		bool	online_ord_part = false;
-#endif
-
 		if (is_virtual) {
 			/* If the virtual column is not indexed,
 			we shall ignore it for update */
 			if (!col->ord_part) {
-				/* Check whether there is a table-rebuilding
-				online ALTER TABLE in progress, and this
-				virtual column could be newly indexed, thus
-				it will be materialized. Then we will have
-				to log its update.
-				Note, we do not support online dropping virtual
-				column while adding new index, nor with
-				online alter column order while adding index,
-				so the virtual column sequence must not change
-				if it is online operation */
-				if (dict_index_is_online_ddl(clust_index)
-				    && row_log_col_is_indexed(clust_index,
-							      num_v)) {
-#ifdef UNIV_DEBUG
-					online_ord_part = true;
-#endif
-				} else {
-					num_v++;
-					continue;
-				}
+			next:
+				num_v++;
+				continue;
 			}
 
 			if (!uvect->old_vrow) {
@@ -8197,8 +8269,7 @@ calc_row_difference(
 					prebuilt, vfield, o_len,
 					col, old_mysql_row_col,
 					col_pack_len, buf);
-			       num_v++;
-			       continue;
+				goto next;
 			}
 		}
 
@@ -8247,7 +8318,7 @@ calc_row_difference(
 				upd_fld_set_virtual_col(ufield);
 				ufield->field_no = num_v;
 
-				ut_ad(col->ord_part || online_ord_part);
+				ut_ad(col->ord_part);
 				ufield->old_v_val = static_cast<dfield_t*>(
 					mem_heap_alloc(
 						uvect->heap,
@@ -8332,7 +8403,7 @@ calc_row_difference(
 				prebuilt, vfield, o_len,
 				col, old_mysql_row_col,
 				col_pack_len, buf);
-			ut_ad(col->ord_part || online_ord_part);
+			ut_ad(col->ord_part);
 			num_v++;
 		}
 	}
@@ -8371,16 +8442,6 @@ calc_row_difference(
 					<< innodb_table->name;
 
 				return(DB_FTS_INVALID_DOCID);
-			} else if ((doc_id
-				    - prebuilt->table->fts->cache->next_doc_id)
-				   >= FTS_DOC_ID_MAX_STEP) {
-
-				ib::warn() << "Doc ID " << doc_id << " is too"
-					" big. Its difference with largest"
-					" Doc ID used " << prebuilt->table->fts
-					->cache->next_doc_id - 1
-					<< " cannot exceed or equal to "
-					<< FTS_DOC_ID_MAX_STEP;
 			}
 
 
@@ -8712,16 +8773,6 @@ ha_innobase::delete_row(
 #endif /* WITH_WSREP */
 	DBUG_RETURN(convert_error_code_to_mysql(
 			    error, m_prebuilt->table->flags, m_user_thd));
-}
-
-/** Delete all rows from the table.
-@return error number or 0 */
-
-int
-ha_innobase::delete_all_rows()
-{
-	DBUG_ENTER("ha_innobase::delete_all_rows");
-	DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 
 /**********************************************************************//**
@@ -9228,6 +9279,14 @@ ha_innobase::change_active_index(
 	build_template(false);
 
 	DBUG_RETURN(0);
+}
+
+/* @return true if it's necessary to switch current statement log format from
+STATEMENT to ROW if binary log format is MIXED and autoincrement values
+are changed in the statement */
+bool ha_innobase::autoinc_lock_mode_stmt_unsafe() const
+{
+  return innobase_autoinc_lock_mode == AUTOINC_NO_LOCKING;
 }
 
 /***********************************************************************//**
@@ -9859,12 +9918,20 @@ wsrep_append_foreign_key(
 	dict_foreign_t*	foreign,	/*!< in: foreign key constraint */
 	const rec_t*	rec,		/*!<in: clustered index record */
 	dict_index_t*	index,		/*!<in: clustered index */
-	ibool		referenced,	/*!<in: is check for referenced table */
+	bool		referenced,	/*!<in: is check for
+					referenced table */
+	upd_node_t*	upd_node,	/*<!in: update node */
+	bool		pa_disable,	/*<!in: disable parallel apply ?*/
 	Wsrep_service_key_type	key_type)	/*!< in: access type of this key
 					(shared, exclusive, reference...) */
 {
-	if (!trx->is_wsrep() || !wsrep_thd_is_local(trx->mysql_thd)) {
+	ut_ad(trx->is_wsrep());
+
+	if (!wsrep_thd_is_local(trx->mysql_thd))
 		return DB_SUCCESS;
+
+	if (upd_node && wsrep_protocol_version < 4) {
+		key_type = WSREP_SERVICE_KEY_SHARED;
 	}
 
 	THD* thd = trx->mysql_thd;
@@ -9930,8 +9997,7 @@ wsrep_append_foreign_key(
 		WSREP_WARN("FK: %s missing in query: %s",
 			   (!foreign->referenced_table) ?
 			   "referenced table" : "foreign table",
-			   (wsrep_thd_query(thd)) ?
-			   wsrep_thd_query(thd) : "void");
+			   wsrep_thd_query(thd));
 		return DB_ERROR;
 	}
 
@@ -10009,18 +10075,22 @@ wsrep_append_foreign_key(
 		wkey_part,
 		(size_t*)&wkey.key_parts_num)) {
 		WSREP_WARN("key prepare failed for cascaded FK: %s",
-			   (wsrep_thd_query(thd)) ?
-			    wsrep_thd_query(thd) : "void");
+			   wsrep_thd_query(thd));
 		return DB_ERROR;
 	}
+
 	rcode = wsrep_thd_append_key(thd, &wkey, 1, key_type);
+
 	if (rcode) {
-		DBUG_PRINT("wsrep", ("row key failed: " ULINTPF, rcode));
 		WSREP_ERROR("Appending cascaded fk row key failed: %s, "
 			    ULINTPF,
-			    (wsrep_thd_query(thd)) ?
-			    wsrep_thd_query(thd) : "void", rcode);
+			    wsrep_thd_query(thd),
+			    rcode);
 		return DB_ERROR;
+	}
+
+	if (pa_disable) {
+		wsrep_thd_set_PA_unsafe(trx->mysql_thd);
 	}
 
 	return DB_SUCCESS;
@@ -10032,7 +10102,7 @@ wsrep_append_key(
 	THD		*thd,
 	trx_t 		*trx,
 	TABLE_SHARE 	*table_share,
-	const uchar*	key,
+	const char*	key,
 	uint16_t        key_len,
 	Wsrep_service_key_type	key_type	/*!< in: access type of this key
 					(shared, exclusive, semi...) */
@@ -10143,8 +10213,8 @@ ha_innobase::wsrep_append_keys(
 	}
 
 	if (wsrep_protocol_version == 0) {
-		uchar 	keyval[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
-		uchar 	*key 		= &keyval[0];
+		char 	keyval[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
+		char 	*key 		= &keyval[0];
 		bool    is_null;
 
 		auto len = wsrep_store_key_val_for_row(
@@ -10185,12 +10255,12 @@ ha_innobase::wsrep_append_keys(
 			/* keyval[] shall contain an ordinal number at byte 0
 			   and the actual key data shall be written at byte 1.
 			   Hence the total data length is the key length + 1 */
-			uchar keyval0[WSREP_MAX_SUPPORTED_KEY_LENGTH+1]= {'\0'};
-			uchar keyval1[WSREP_MAX_SUPPORTED_KEY_LENGTH+1]= {'\0'};
-			keyval0[0] = (uchar)i;
-			keyval1[0] = (uchar)i;
-			uchar* key0 = &keyval0[1];
-			uchar* key1 = &keyval1[1];
+			char keyval0[WSREP_MAX_SUPPORTED_KEY_LENGTH+1]= {'\0'};
+			char keyval1[WSREP_MAX_SUPPORTED_KEY_LENGTH+1]= {'\0'};
+			keyval0[0] = (char)i;
+			keyval1[0] = (char)i;
+			char* key0 = &keyval0[1];
+			char* key1 = &keyval1[1];
 
 			if (!tab) {
 				WSREP_WARN("MariaDB-InnoDB key mismatch %s %s",
@@ -10270,16 +10340,18 @@ ha_innobase::wsrep_append_keys(
 		wsrep_calc_row_hash(digest, record0, table, m_prebuilt);
 
 		if (int rcode = wsrep_append_key(thd, trx, table_share,
-						 digest, 16, key_type)) {
+						 reinterpret_cast<char*>
+						 (digest), 16, key_type)) {
 			DBUG_RETURN(rcode);
 		}
 
 		if (record1) {
 			wsrep_calc_row_hash(
 				digest, record1, table, m_prebuilt);
-			if (int rcode = wsrep_append_key(thd, trx, table_share,
-							 digest, 16,
-							 key_type)) {
+			if (int rcode = wsrep_append_key(
+				    thd, trx, table_share,
+				    reinterpret_cast<char*>(digest), 16,
+				    key_type)) {
 				DBUG_RETURN(rcode);
 			}
 		}
@@ -10802,9 +10874,6 @@ err_col:
 		ut_ad(dict_sys.sys_tables_exist());
 
 		err = row_create_table_for_mysql(table, m_trx);
-
-		DBUG_EXECUTE_IF("ib_crash_during_create_for_encryption",
-				DBUG_SUICIDE(););
 	}
 
 	switch (err) {
@@ -10959,6 +11028,8 @@ create_index(
 		} else {
 			prefix_len = 0;
 		}
+
+		ut_ad(prefix_len % field->charset()->mbmaxlen == 0);
 
 		field_lengths[i] = key_part->length;
 
@@ -11172,9 +11243,12 @@ create_table_info_t::create_options_are_invalid()
 		break;
 	}
 
-	if (m_create_info->data_file_name
-	    && m_create_info->data_file_name[0] != '\0'
-	    && !create_option_data_directory_is_valid()) {
+	if (!m_create_info->data_file_name
+	    || !m_create_info->data_file_name[0]) {
+	} else if (!my_use_symdir) {
+		my_error(WARN_OPTION_IGNORED, MYF(ME_WARNING),
+			 "DATA DIRECTORY");
+	} else if (!create_option_data_directory_is_valid()) {
 		ret = "DATA DIRECTORY";
 	}
 
@@ -11370,7 +11444,7 @@ ha_innobase::update_create_info(
 		return;
 	}
 
-	dict_get_and_save_data_dir_path(m_prebuilt->table, false);
+	dict_get_and_save_data_dir_path(m_prebuilt->table);
 
 	if (m_prebuilt->table->data_dir_path) {
 		create_info->data_file_name = m_prebuilt->table->data_dir_path;
@@ -11446,7 +11520,8 @@ create_table_info_t::parse_table_name(
 	  CREATE TABLE ... DATA DIRECTORY={path} TABLESPACE={name}... ;
 	we ignore the DATA DIRECTORY. */
 	if (m_create_info->data_file_name
-	    && m_create_info->data_file_name[0] != '\0') {
+	    && m_create_info->data_file_name[0]
+	    && my_use_symdir) {
 		if (!create_option_data_directory_is_valid()) {
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -11495,10 +11570,6 @@ bool create_table_info_t::innobase_table_flags()
 	const ulint	zip_ssize_max =
 		ut_min(static_cast<ulint>(UNIV_PAGE_SSIZE_MAX),
 		       static_cast<ulint>(PAGE_ZIP_SSIZE_MAX));
-
-	/* Cache the value of innobase_compression_level, in case it is
-	modified by another thread while the table is being created. */
-	const ulint     default_compression_level = page_zip_level;
 
 	ha_table_option_struct *options= m_form->s->option_struct;
 
@@ -11682,18 +11753,33 @@ index_bad:
 		zip_ssize = 0;
 	}
 
+	ulint level = 0;
+
 	if (is_temp) {
 		m_flags2 |= DICT_TF2_TEMPORARY;
-	} else if (m_use_file_per_table) {
-		m_flags2 |= DICT_TF2_USE_FILE_PER_TABLE;
+	} else {
+		if (m_use_file_per_table) {
+			m_flags2 |= DICT_TF2_USE_FILE_PER_TABLE;
+		}
+
+		level = ulint(options->page_compression_level);
+		if (!level) {
+			level = page_zip_level;
+			if (!level && options->page_compressed) {
+				push_warning_printf(
+					m_thd, Sql_condition::WARN_LEVEL_WARN,
+					ER_ILLEGAL_HA_CREATE_OPTION,
+					"InnoDB: PAGE_COMPRESSED requires"
+					" PAGE_COMPRESSION_LEVEL or"
+					" innodb_compression_level > 0");
+				DBUG_RETURN(false);
+			}
+		}
 	}
 
 	/* Set the table flags */
 	dict_tf_set(&m_flags, innodb_row_format, zip_ssize,
-			m_use_data_dir,
-			options->page_compressed,
-		    	options->page_compression_level == 0 ?
-		        default_compression_level : ulint(options->page_compression_level));
+		    m_use_data_dir, level && options->page_compressed, level);
 
 	if (m_form->s->table_type == TABLE_TYPE_SEQUENCE) {
 		m_flags |= DICT_TF_MASK_NO_ROLLBACK;
@@ -11899,8 +11985,9 @@ create_table_info_t::set_tablespace_type(
 	used with TEMPORARY tables. */
 	m_use_data_dir =
 		m_use_file_per_table
-		&& (m_create_info->data_file_name != NULL)
-		&& (m_create_info->data_file_name[0] != '\0');
+		&& m_create_info->data_file_name
+		&& m_create_info->data_file_name[0]
+		&& my_use_symdir;
 }
 
 /** Initialize the create_table_info_t object.
@@ -12723,7 +12810,8 @@ int create_table_info_t::create_table(bool create_fk)
 	if (err == DB_SUCCESS) {
 		/* Check that also referencing constraints are ok */
 		dict_names_t	fk_tables;
-		err = dict_load_foreigns(m_table_name, NULL, false, true,
+		err = dict_load_foreigns(m_table_name, nullptr,
+					 m_trx->id, true,
 					 DICT_ERR_IGNORE_NONE, fk_tables);
 		while (err == DB_SUCCESS && !fk_tables.empty()) {
 			dict_sys.load_table(
@@ -12791,7 +12879,6 @@ bool create_table_info_t::row_size_is_acceptable(
   return true;
 }
 
-/* FIXME: row size check has some flaws and should be improved */
 dict_index_t::record_size_info_t dict_index_t::record_size_info() const
 {
   ut_ad(!(type & DICT_FTS));
@@ -12881,6 +12968,8 @@ dict_index_t::record_size_info_t dict_index_t::record_size_info() const
     {
       /* dict_index_add_col() should guarantee this */
       ut_ad(!f.prefix_len || f.fixed_len == f.prefix_len);
+      if (f.prefix_len)
+        field_max_size= f.prefix_len;
       /* Fixed lengths are not encoded
       in ROW_FORMAT=COMPACT. */
       goto add_field_size;
@@ -12934,7 +13023,8 @@ dict_index_t::record_size_info_t dict_index_t::record_size_info() const
     unique columns, result.shortest_size equals the size of the
     node pointer record minus the node pointer column. */
     if (i + 1 == dict_index_get_n_unique_in_tree(this) &&
-        result.shortest_size + REC_NODE_PTR_SIZE >= page_ptr_max)
+        result.shortest_size + REC_NODE_PTR_SIZE + (comp ? 0 : 2) >=
+        page_ptr_max)
     {
       result.set_too_big(i);
     }
@@ -12980,7 +13070,6 @@ bool create_table_info_t::row_size_is_acceptable(
   if (info.row_is_too_big())
   {
     ut_ad(info.get_overrun_size() != 0);
-    ut_ad(info.max_leaf_size != 0);
 
     const size_t idx= info.get_first_overrun_field_index();
     const dict_field_t *field= dict_index_get_nth_field(&index, idx);
@@ -13176,9 +13265,7 @@ ha_innobase::create(
 	}
 
 	if (error) {
-		/* Drop the being-created table before rollback,
-		so that rollback can possibly rename back a table
-		that could have been renamed before the failed creation. */
+		/* Rollback will drop the being-created table. */
 		trx_rollback_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);
 	} else {
@@ -13316,25 +13403,6 @@ ha_innobase::discard_or_import_tablespace(
 				    err, m_prebuilt->table->flags, NULL));
 	}
 
-	/* Evict and reload the table definition in order to invoke
-	btr_cur_instant_init(). */
-	table_id_t id = m_prebuilt->table->id;
-	ut_ad(id);
-	dict_sys.lock(SRW_LOCK_CALL);
-	m_prebuilt->table->release();
-	dict_sys.remove(m_prebuilt->table);
-	m_prebuilt->table = dict_table_open_on_id(id, TRUE,
-						  DICT_TABLE_OP_NORMAL);
-	dict_sys.unlock();
-	if (!m_prebuilt->table) {
-		err = DB_TABLE_NOT_FOUND;
-	} else {
-		if (const Field* ai = table->found_next_number_field) {
-			initialize_auto_increment(m_prebuilt->table, ai);
-		}
-		dict_stats_init(m_prebuilt->table);
-	}
-
 	if (dict_stats_is_persistent_enabled(m_prebuilt->table)) {
 		dberr_t		ret;
 
@@ -13412,6 +13480,7 @@ int ha_innobase::delete_table(const char *name)
   dict_sys.unlock();
 
   trx_t *trx= parent_trx;
+  dberr_t err= DB_SUCCESS;
   if (!trx->lock.table_locks.empty() &&
       thd_ddl_options(trx->mysql_thd)->is_create_select())
   {
@@ -13431,11 +13500,28 @@ int ha_innobase::delete_table(const char *name)
   {
     trx= innobase_trx_allocate(thd);
     trx_start_for_ddl(trx);
+
+    if (table->name.is_temporary())
+      /* There is no need to lock any FOREIGN KEY child tables. */;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    else if (table->name.part())
+      /* FOREIGN KEY constraints cannot exist on partitioned tables. */;
+#endif
+    else
+    {
+      dict_sys.freeze(SRW_LOCK_CALL);
+      for (const dict_foreign_t* f : table->referenced_set)
+        if (dict_table_t* child= f->foreign_table)
+          if ((err= lock_table_for_trx(child, trx, LOCK_X)) != DB_SUCCESS)
+            break;
+      dict_sys.unfreeze();
+    }
   }
 
   dict_table_t *table_stats= nullptr, *index_stats= nullptr;
   MDL_ticket *mdl_table= nullptr, *mdl_index= nullptr;
-  dberr_t err= lock_table_for_trx(table, trx, LOCK_X);
+  if (err == DB_SUCCESS)
+    err= lock_table_for_trx(table, trx, LOCK_X);
 
   const bool fts= err == DB_SUCCESS &&
     (table->flags2 & (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS));
@@ -13444,7 +13530,7 @@ int ha_innobase::delete_table(const char *name)
   if (fts)
   {
     fts_optimize_remove_table(table);
-    purge_sys.stop_FTS();
+    purge_sys.stop_FTS(*table);
     err= fts_lock_tables(trx, *table);
   }
 
@@ -13472,6 +13558,8 @@ int ha_innobase::delete_table(const char *name)
   }
 #endif
 
+  DEBUG_SYNC(thd, "before_delete_table_stats");
+
   if (err == DB_SUCCESS && dict_stats_is_persistent_enabled(table) &&
       !table->is_stats_table())
   {
@@ -13495,15 +13583,51 @@ int ha_innobase::delete_table(const char *name)
       dict_sys.unfreeze();
     }
 
+    const bool skip_wait{table->name.is_temporary()};
+
     if (table_stats && index_stats &&
         !strcmp(table_stats->name.m_name, TABLE_STATS_NAME) &&
         !strcmp(index_stats->name.m_name, INDEX_STATS_NAME) &&
-        !(err= lock_table_for_trx(table_stats, trx, LOCK_X)))
-      err= lock_table_for_trx(index_stats, trx, LOCK_X);
+        !(err= lock_table_for_trx(table_stats, trx, LOCK_X, skip_wait)))
+      err= lock_table_for_trx(index_stats, trx, LOCK_X, skip_wait);
+
+    if (err != DB_SUCCESS && skip_wait)
+    {
+      /* We may skip deleting statistics if we cannot lock the tables,
+      when the table carries a temporary name. */
+      ut_ad(err == DB_LOCK_WAIT);
+      ut_ad(trx->error_state == DB_SUCCESS);
+      err= DB_SUCCESS;
+      dict_table_close(table_stats, false, thd, mdl_table);
+      dict_table_close(index_stats, false, thd, mdl_index);
+      table_stats= nullptr;
+      index_stats= nullptr;
+    }
   }
 
   if (err == DB_SUCCESS)
+  {
+    if (!table->space)
+    {
+      const char *data_dir_path= DICT_TF_HAS_DATA_DIR(table->flags)
+        ? table->data_dir_path : nullptr;
+      char *path= fil_make_filepath(data_dir_path, table->name, CFG,
+                                    data_dir_path != nullptr);
+      os_file_delete_if_exists(innodb_data_file_key, path, nullptr);
+      ut_free(path);
+      path= fil_make_filepath(data_dir_path, table->name, IBD,
+                              data_dir_path != nullptr);
+      os_file_delete_if_exists(innodb_data_file_key, path, nullptr);
+      ut_free(path);
+      if (data_dir_path)
+      {
+        path= fil_make_filepath(nullptr, table->name, ISL, false);
+        os_file_delete_if_exists(innodb_data_file_key, path, nullptr);
+        ut_free(path);
+      }
+    }
     err= lock_sys_tables(trx);
+  }
 
   dict_sys.lock(SRW_LOCK_CALL);
 
@@ -13644,7 +13768,6 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 
 	DEBUG_SYNC_C("innodb_rename_table_ready");
 
-	trx_start_if_not_started(trx, true);
 	ut_ad(trx->will_lock);
 
 	error = row_rename_table_for_mysql(norm_from, norm_to, trx, use_fk);
@@ -13751,6 +13874,7 @@ int ha_innobase::truncate()
 
 		int err = create(ib_table->name.m_name, table, &info, true,
 				 trx);
+		ut_ad(!err);
 		if (!err) {
 			err = open(ib_table->name.m_name, 0, 0);
 			m_prebuilt->stored_select_lock_type = stored_lock;
@@ -13772,7 +13896,7 @@ int ha_innobase::truncate()
 
 	mem_heap_t*	heap = mem_heap_create(1000);
 
-	dict_get_and_save_data_dir_path(ib_table, false);
+	dict_get_and_save_data_dir_path(ib_table);
 	info.data_file_name = ib_table->data_dir_path;
 	const char* temp_name = dict_mem_create_temporary_tablename(
 		heap, ib_table->name.m_name, ib_table->id);
@@ -13781,13 +13905,29 @@ int ha_innobase::truncate()
 	dict_table_t *table_stats = nullptr, *index_stats = nullptr;
 	MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
 
-	dberr_t error = lock_table_for_trx(ib_table, trx, LOCK_X);
+	dberr_t error = DB_SUCCESS;
+
+	dict_sys.freeze(SRW_LOCK_CALL);
+	for (const dict_foreign_t* f : ib_table->referenced_set) {
+		if (dict_table_t* child = f->foreign_table) {
+			error = lock_table_for_trx(child, trx, LOCK_X);
+			if (error != DB_SUCCESS) {
+				break;
+			}
+		}
+	}
+	dict_sys.unfreeze();
+
+	if (error == DB_SUCCESS) {
+		error = lock_table_for_trx(ib_table, trx, LOCK_X);
+	}
+
 	const bool fts = error == DB_SUCCESS
 		&& ib_table->flags2 & (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS);
 
 	if (fts) {
 		fts_optimize_remove_table(ib_table);
-		purge_sys.stop_FTS();
+		purge_sys.stop_FTS(*ib_table);
 		error = fts_lock_tables(trx, *ib_table);
 	}
 
@@ -13943,6 +14083,27 @@ ha_innobase::rename_table(
 	normalize_table_name(norm_to, to);
 
 	dberr_t error = DB_SUCCESS;
+	const bool from_temp = dict_table_t::is_temporary_name(norm_from);
+
+	if (from_temp) {
+		/* There is no need to lock any FOREIGN KEY child tables. */
+	} else if (dict_table_t *table = dict_table_open_on_name(
+		    norm_from, false, DICT_ERR_IGNORE_FK_NOKEY)) {
+		dict_sys.freeze(SRW_LOCK_CALL);
+		for (const dict_foreign_t* f : table->referenced_set) {
+			if (dict_table_t* child = f->foreign_table) {
+				error = lock_table_for_trx(child, trx, LOCK_X);
+				if (error != DB_SUCCESS) {
+					break;
+				}
+			}
+		}
+		dict_sys.unfreeze();
+		if (error == DB_SUCCESS) {
+			error = lock_table_for_trx(table, trx, LOCK_X);
+		}
+		table->release();
+	}
 
 	if (strcmp(norm_from, TABLE_STATS_NAME)
 	    && strcmp(norm_from, INDEX_STATS_NAME)
@@ -13965,11 +14126,30 @@ ha_innobase::rename_table(
 			dict_sys.unfreeze();
 		}
 
-		if (table_stats && index_stats
+		if (error == DB_SUCCESS && table_stats && index_stats
 		    && !strcmp(table_stats->name.m_name, TABLE_STATS_NAME)
-		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME) &&
-		    !(error = lock_table_for_trx(table_stats, trx, LOCK_X))) {
-			error = lock_table_for_trx(index_stats, trx, LOCK_X);
+		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME)) {
+			error = lock_table_for_trx(table_stats, trx, LOCK_X,
+						   from_temp);
+			if (error == DB_SUCCESS) {
+				error = lock_table_for_trx(index_stats, trx,
+							   LOCK_X, from_temp);
+			}
+			if (error != DB_SUCCESS && from_temp) {
+				ut_ad(error == DB_LOCK_WAIT);
+				ut_ad(trx->error_state == DB_SUCCESS);
+				error = DB_SUCCESS;
+				/* We may skip renaming statistics if
+				we cannot lock the tables, when the
+				table is being renamed from from a
+				temporary name. */
+				dict_table_close(table_stats, false, thd,
+						 mdl_table);
+				dict_table_close(index_stats, false, thd,
+						 mdl_index);
+				table_stats = nullptr;
+				index_stats = nullptr;
+			}
 		}
 	}
 
@@ -14527,7 +14707,12 @@ ha_innobase::info_low(
 	DBUG_ASSERT(ib_table->get_ref_count() > 0);
 
 	if (!ib_table->is_readable()) {
+		ib_table->stats_mutex_lock();
 		ib_table->stat_initialized = true;
+		ib_table->stat_n_rows = 0;
+		ib_table->stat_clustered_index_size = 0;
+		ib_table->stat_sum_of_other_index_sizes = 0;
+		ib_table->stats_mutex_unlock();
 	}
 
 	if (flag & HA_STATUS_TIME) {
@@ -14787,7 +14972,7 @@ ha_innobase::info_low(
 		}
 	}
 
-	if (srv_force_recovery > SRV_FORCE_NO_IBUF_MERGE) {
+	if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
 
 		goto func_exit;
 
@@ -14863,15 +15048,8 @@ inline int ha_innobase::defragment_table()
   for (dict_index_t *index= dict_table_get_first_index(m_prebuilt->table);
        index; index= dict_table_get_next_index(index))
   {
-    if (index->is_corrupted() || index->is_spatial())
+    if (!index->is_btree())
       continue;
-
-    if (index->page == FIL_NULL)
-    {
-      /* Do not defragment auxiliary tables related to FULLTEXT INDEX. */
-      ut_ad(index->type & DICT_FTS);
-      continue;
-    }
 
     if (btr_defragment_find_index(index))
     {
@@ -14982,7 +15160,6 @@ ha_innobase::check(
 	THD*		thd,		/*!< in: user thread handle */
 	HA_CHECK_OPT*	check_opt)	/*!< in: check options */
 {
-	dict_index_t*	index;
 	ulint		n_rows;
 	ulint		n_rows_in_table	= ULINT_UNDEFINED;
 	bool		is_ok		= true;
@@ -15023,30 +15200,6 @@ ha_innobase::check(
 
 	m_prebuilt->trx->op_info = "checking table";
 
-	if (m_prebuilt->table->corrupted) {
-		/* If some previous operation has marked the table as
-		corrupted in memory, and has not propagated such to
-		clustered index, we will do so here */
-		index = dict_table_get_first_index(m_prebuilt->table);
-
-		if (!index->is_corrupted()) {
-			dict_set_corrupted(index, "CHECK TABLE", false);
-		}
-
-		push_warning_printf(m_user_thd,
-				    Sql_condition::WARN_LEVEL_WARN,
-				    HA_ERR_INDEX_CORRUPT,
-				    "InnoDB: Index %s is marked as"
-				    " corrupted",
-				    index->name());
-
-		/* Now that the table is already marked as corrupted,
-		there is no need to check any index of this table */
-		m_prebuilt->trx->op_info = "";
-
-		DBUG_RETURN(HA_ADMIN_CORRUPT);
-	}
-
 	uint old_isolation_level = m_prebuilt->trx->isolation_level;
 
 	/* We must run the index record counts at an isolation level
@@ -15057,10 +15210,9 @@ ha_innobase::check(
 		? TRX_ISO_READ_UNCOMMITTED
 		: TRX_ISO_REPEATABLE_READ;
 
-	ut_ad(!m_prebuilt->table->corrupted);
-
-	for (index = dict_table_get_first_index(m_prebuilt->table);
-	     index != NULL;
+	for (dict_index_t* index
+	     = dict_table_get_first_index(m_prebuilt->table);
+	     index;
 	     index = dict_table_get_next_index(index)) {
 		/* If this is an index being created or dropped, skip */
 		if (!index->is_committed()) {
@@ -15076,25 +15228,13 @@ ha_innobase::check(
 			if (err != DB_SUCCESS) {
 				is_ok = false;
 
-				if (err == DB_DECRYPTION_FAILED) {
-					push_warning_printf(
-						thd,
-						Sql_condition::WARN_LEVEL_WARN,
-						ER_NO_SUCH_TABLE,
-						"Table %s is encrypted but encryption service or"
-						" used key_id is not available. "
-						" Can't continue checking table.",
-						index->table->name.m_name);
-				} else {
-					push_warning_printf(
-						thd,
-						Sql_condition::WARN_LEVEL_WARN,
-						ER_NOT_KEYFILE,
-						"InnoDB: The B-tree of"
-						" index %s is corrupted.",
-						index->name());
-				}
-
+				push_warning_printf(
+					thd,
+					Sql_condition::WARN_LEVEL_WARN,
+					ER_NOT_KEYFILE,
+					"InnoDB: The B-tree of"
+					" index %s is corrupted.",
+					index->name());
 				continue;
 			}
 		}
@@ -15112,8 +15252,7 @@ ha_innobase::check(
 			if (!index->is_primary()) {
 				m_prebuilt->index_usable = FALSE;
 				dict_set_corrupted(index,
-						   "dict_set_index_corrupted",
-						   false);
+						   "dict_set_index_corrupted");
 			});
 
 		if (UNIV_UNLIKELY(!m_prebuilt->index_usable)) {
@@ -15175,8 +15314,7 @@ ha_innobase::check(
 				" index %s is corrupted.",
 				index->name());
 			is_ok = false;
-			dict_set_corrupted(index, "CHECK TABLE-check index",
-					   false);
+			dict_set_corrupted(index, "CHECK TABLE-check index");
 		}
 
 
@@ -15191,8 +15329,7 @@ ha_innobase::check(
 				" entries, should be " ULINTPF ".",
 				index->name(), n_rows, n_rows_in_table);
 			is_ok = false;
-			dict_set_corrupted(index, "CHECK TABLE; Wrong count",
-					   false);
+			dict_set_corrupted(index, "CHECK TABLE; Wrong count");
 		}
 	}
 
@@ -15551,6 +15688,7 @@ ha_innobase::extra(
 		row_ins_duplicate_error_in_clust() will acquire a
 		shared lock instead of an exclusive lock. */
 	stmt_boundary:
+		trx->bulk_insert_apply();
 		trx->end_bulk_insert(*m_prebuilt->table);
 		trx->bulk_insert = false;
 		break;
@@ -15571,6 +15709,9 @@ ha_innobase::extra(
 		if (trx->is_bulk_insert()) {
 			/* Allow a subsequent INSERT into an empty table
 			if !unique_checks && !foreign_key_checks. */
+			if (dberr_t err = trx->bulk_insert_apply()) {
+				return err;
+			}
 			break;
 		}
 		goto stmt_boundary;
@@ -15684,6 +15825,12 @@ ha_innobase::start_stmt(
 		if (!trx->bulk_insert) {
 			break;
 		}
+
+		/* Trigger could've initiated another stmt.
+		So apply all bulk operation and mark as
+		end bulk insert for all tables */
+		trx->bulk_insert_apply();
+		trx->end_bulk_insert();
 		trx->bulk_insert = false;
 		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
 	}
@@ -16501,8 +16648,8 @@ ha_innobase::get_auto_increment(
 
 	(3) It is restricted only for insert operations. */
 
-	if (increment > 1 && thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE
-	    && autoinc < col_max_value) {
+	if (increment > 1 && increment <= ~autoinc && autoinc < col_max_value
+	    && thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE) {
 
 		ulonglong prev_auto_inc = autoinc;
 
@@ -16885,6 +17032,10 @@ innobase_xa_prepare(
 		SQL statement */
 
 		trx_mark_sql_stat_end(trx);
+		if (UNIV_UNLIKELY(trx->error_state != DB_SUCCESS)) {
+			trx_rollback_for_mysql(trx);
+			return 1;
+		}
 	}
 
 	if (thd_sql_command(thd) != SQLCOM_XA_PREPARE
@@ -17142,7 +17293,12 @@ innodb_max_dirty_pages_pct_update(
 	}
 
 	srv_max_buf_pool_modified_pct = in_val;
-	pthread_cond_signal(&buf_pool.do_flush_list);
+
+	mysql_mutex_unlock(&LOCK_global_system_variables);
+	mysql_mutex_lock(&buf_pool.flush_list_mutex);
+	buf_pool.page_cleaner_wakeup();
+	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 /****************************************************************//**
@@ -17173,7 +17329,12 @@ innodb_max_dirty_pages_pct_lwm_update(
 	}
 
 	srv_max_dirty_pages_pct_lwm = in_val;
-	pthread_cond_signal(&buf_pool.do_flush_list);
+
+	mysql_mutex_unlock(&LOCK_global_system_variables);
+	mysql_mutex_lock(&buf_pool.flush_list_mutex);
+	buf_pool.page_cleaner_wakeup();
+	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 /*************************************************************//**
@@ -17420,8 +17581,10 @@ func_exit:
 	if (block != NULL) {
 		ib::info() << "Dirtying page: " << block->page.id();
 		mtr.write<1,mtr_t::FORCED>(*block,
-					   block->frame + FIL_PAGE_SPACE_ID,
-					   block->frame[FIL_PAGE_SPACE_ID]);
+					   block->page.frame
+					   + FIL_PAGE_SPACE_ID,
+					   block->page.frame
+					   [FIL_PAGE_SPACE_ID]);
 	}
 	mtr.commit();
 	log_write_up_to(mtr.commit_lsn(), true);
@@ -17875,7 +18038,8 @@ static bool innodb_buffer_pool_evict_uncompressed()
 	for (buf_block_t* block = UT_LIST_GET_LAST(buf_pool.unzip_LRU);
 	     block != NULL; ) {
 		buf_block_t*	prev_block = UT_LIST_GET_PREV(unzip_LRU, block);
-		ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
+		ut_ad(block->page.in_file());
+		ut_ad(block->page.belongs_to_unzip_LRU());
 		ut_ad(block->in_unzip_LRU_list);
 		ut_ad(block->page.in_LRU_list);
 
@@ -18472,7 +18636,9 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
     trx_t *vtrx= thd_to_trx(vthd);
     if (vtrx)
     {
-      lock_sys.wr_lock(SRW_LOCK_CALL);
+      /* Do not bother with lock elision using transactional memory here;
+      this is rather complex code */
+      LockMutexGuard g{SRW_LOCK_CALL};
       mysql_mutex_lock(&lock_sys.wait_mutex);
       vtrx->mutex_lock();
       /* victim transaction is either active or prepared, if it has already
@@ -18510,14 +18676,13 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
                       wsrep_thd_transaction_state_str(vthd),
                       wsrep_thd_query(vthd));
           /* Mark transaction as a victim for Galera abort */
-          vtrx->lock.was_chosen_as_deadlock_victim.fetch_or(2);
+          vtrx->lock.set_wsrep_victim();
           if (!wsrep_thd_set_wsrep_aborter(bf_thd, vthd))
             aborting= true;
           else
             WSREP_DEBUG("kill transaction skipped due to wsrep_aborter set");
         }
       }
-      lock_sys.wr_unlock();
       mysql_mutex_unlock(&lock_sys.wait_mutex);
       vtrx->mutex_unlock();
     }
@@ -18565,7 +18730,7 @@ wsrep_abort_transaction(
 			wsrep_thd_transaction_state_str(victim_thd));
 
 	if (victim_trx) {
-		victim_trx->lock.was_chosen_as_deadlock_victim.fetch_or(2);
+		victim_trx->lock.set_wsrep_victim();
 
 		wsrep_thd_kill_LOCK(victim_thd);
 		wsrep_thd_LOCK(victim_thd);
@@ -18736,10 +18901,23 @@ static MYSQL_SYSVAR_ULONG(purge_batch_size, srv_purge_batch_size,
   1,			/* Minimum value */
   5000, 0);		/* Maximum value */
 
+extern void srv_update_purge_thread_count(uint n);
+
+static
+void
+innodb_purge_threads_update(THD*, struct st_mysql_sys_var*, void*, const void*save )
+{
+  srv_update_purge_thread_count(*static_cast<const uint*>(save));
+}
+
 static MYSQL_SYSVAR_UINT(purge_threads, srv_n_purge_threads,
-  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+  PLUGIN_VAR_OPCMDARG,
   "Number of tasks for purging transaction history",
-  NULL, NULL, 4, 1, innodb_purge_threads_MAX, 0);
+  NULL, innodb_purge_threads_update,
+  4,			    /* Default setting */
+  1,			    /* Minimum value */
+  innodb_purge_threads_MAX, /* Maximum value */
+  0);
 
 static MYSQL_SYSVAR_UINT(fast_shutdown, srv_fast_shutdown,
   PLUGIN_VAR_OPCMDARG,
@@ -18783,11 +18961,6 @@ static MYSQL_SYSVAR_ENUM(flush_method, srv_file_flush_method,
   "With which method to flush data.",
   NULL, NULL, IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_O_DIRECT),
   &innodb_flush_method_typelib);
-
-static MYSQL_SYSVAR_BOOL(force_load_corrupted, srv_load_corrupted,
-  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Force InnoDB to load metadata of corrupted table.",
-  NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_STR(log_group_home_dir, srv_log_group_home_dir,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -18925,31 +19098,6 @@ static MYSQL_SYSVAR_UINT(autoextend_increment,
   PLUGIN_VAR_RQCMDARG,
   "Data file autoextend increment in megabytes",
   NULL, NULL, 64, 1, 1000, 0);
-
-/** Validate the requested buffer pool size.  Also, reserve the necessary
-memory needed for buffer pool resize.
-@param[in]	thd	thread handle
-@param[in]	var	pointer to system variable
-@param[out]	save	immediate result for update function
-@param[in]	value	incoming string
-@return 0 on success, 1 on failure.
-*/
-static
-int
-innodb_buffer_pool_size_validate(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				save,
-	struct st_mysql_value*		value);
-
-static MYSQL_SYSVAR_ULONGLONG(buffer_pool_size, innobase_buffer_pool_size,
-  PLUGIN_VAR_RQCMDARG,
-  "The size of the memory buffer InnoDB uses to cache data and indexes of its tables.",
-  innodb_buffer_pool_size_validate,
-  innodb_buffer_pool_size_update,
-  srv_buf_pool_def_size,
-  srv_buf_pool_min_size,
-  LLONG_MAX, 1024*1024L);
 
 static MYSQL_SYSVAR_ULONG(buffer_pool_chunk_size, srv_buf_pool_chunk_unit,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -19112,15 +19260,35 @@ static MYSQL_SYSVAR_STR(ft_aux_table, innodb_ft_aux_table,
   "FTS internal auxiliary table to be checked",
   innodb_ft_aux_table_validate, NULL, NULL);
 
-static MYSQL_SYSVAR_ULONG(ft_cache_size, fts_max_cache_size,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "InnoDB Fulltext search cache size in bytes",
-  NULL, NULL, 8000000, 1600000, 80000000, 0);
+#if UNIV_WORD_SIZE == 4
 
-static MYSQL_SYSVAR_ULONG(ft_total_cache_size, fts_max_total_cache_size,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+static MYSQL_SYSVAR_SIZE_T(ft_cache_size,
+  *reinterpret_cast<size_t*>(&fts_max_cache_size),
+  PLUGIN_VAR_RQCMDARG,
+  "InnoDB Fulltext search cache size in bytes",
+  NULL, innodb_ft_cache_size_update, 8000000, 1600000, 1U << 29, 0);
+
+static MYSQL_SYSVAR_SIZE_T(ft_total_cache_size,
+  *reinterpret_cast<size_t*>(&fts_max_total_cache_size),
+  PLUGIN_VAR_RQCMDARG,
   "Total memory allocated for InnoDB Fulltext Search cache",
-  NULL, NULL, 640000000, 32000000, 1600000000, 0);
+  NULL, innodb_ft_total_cache_size_update, 640000000, 32000000, 1600000000, 0);
+
+#else
+
+static MYSQL_SYSVAR_SIZE_T(ft_cache_size,
+  *reinterpret_cast<size_t*>(&fts_max_cache_size),
+  PLUGIN_VAR_RQCMDARG,
+  "InnoDB Fulltext search cache size in bytes",
+  NULL, innodb_ft_cache_size_update, 8000000, 1600000, 1ULL << 40, 0);
+
+static MYSQL_SYSVAR_SIZE_T(ft_total_cache_size,
+  *reinterpret_cast<size_t*>(&fts_max_total_cache_size),
+  PLUGIN_VAR_RQCMDARG,
+  "Total memory allocated for InnoDB Fulltext Search cache",
+  NULL, innodb_ft_total_cache_size_update, 640000000, 32000000, 1ULL << 40, 0);
+
+#endif
 
 static MYSQL_SYSVAR_SIZE_T(ft_result_cache_limit, fts_result_cache_limit,
   PLUGIN_VAR_RQCMDARG,
@@ -19291,10 +19459,37 @@ static MYSQL_SYSVAR_STR(version, innodb_version_str,
   PLUGIN_VAR_NOCMDOPT | PLUGIN_VAR_READONLY,
   "InnoDB version", NULL, NULL, INNODB_VERSION_STR);
 
+#ifdef HAVE_URING
+# include <sys/utsname.h>
+static utsname uname_for_io_uring;
+#else
+static
+#endif
+bool innodb_use_native_aio_default()
+{
+#ifdef HAVE_URING
+  utsname &u= uname_for_io_uring;
+  if (!uname(&u) && u.release[0] == '5' && u.release[1] == '.' &&
+      u.release[2] == '1' && u.release[3] >= '1' && u.release[3] <= '5' &&
+      u.release[4] == '.')
+  {
+    if (u.release[3] == '5') {
+      const char *s= strstr(u.version, "5.15.");
+      if (s || (s= strstr(u.release, "5.15.")))
+        if ((s[5] >= '3' || s[6] >= '0'))
+          return true; /* 5.15.3 and later should be fine */
+    }
+    io_uring_may_be_unsafe= u.release;
+    return false; /* working around io_uring hangs (MDEV-26674) */
+  }
+#endif
+  return true;
+}
+
 static MYSQL_SYSVAR_BOOL(use_native_aio, srv_use_native_aio,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Use native AIO if supported on this platform.",
-  NULL, NULL, TRUE);
+  NULL, NULL, innodb_use_native_aio_default());
 
 #ifdef HAVE_LIBNUMA
 static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,
@@ -19306,7 +19501,7 @@ static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,
 static MYSQL_SYSVAR_ENUM(change_buffering, innodb_change_buffering,
   PLUGIN_VAR_RQCMDARG,
   "Buffer changes to secondary indexes.",
-  NULL, NULL, IBUF_USE_ALL, &innodb_change_buffering_typelib);
+  NULL, NULL, IBUF_USE_NONE, &innodb_change_buffering_typelib);
 
 static MYSQL_SYSVAR_UINT(change_buffer_max_size,
   srv_change_buffer_max_size,
@@ -19342,42 +19537,6 @@ static MYSQL_SYSVAR_ULONG(buf_dump_status_frequency, srv_buf_dump_status_frequen
   "status is printed when every 10% of number of buffer pool pages are "
   "dumped. Default is 0 (only start and end status is printed).",
   NULL, NULL, 0, 0, 100, 0);
-
-#ifdef WITH_INNODB_DISALLOW_WRITES
-my_bool innodb_disallow_writes;
-
-void innodb_wait_allow_writes()
-{
-  if (UNIV_UNLIKELY(innodb_disallow_writes))
-  {
-    mysql_mutex_lock(&LOCK_global_system_variables);
-    while (innodb_disallow_writes)
-      my_cond_wait(&allow_writes_cond, &LOCK_global_system_variables.m_mutex);
-    mysql_mutex_unlock(&LOCK_global_system_variables);
-  }
-}
-
-/**************************************************************************
-An "update" method for innobase_disallow_writes variable. */
-static
-void
-innobase_disallow_writes_update(THD*, st_mysql_sys_var*,
-				void* var_ptr, const void* save)
-{
-	const my_bool val = *static_cast<const my_bool*>(save);
-	*static_cast<my_bool*>(var_ptr) = val;
-	mysql_mutex_unlock(&LOCK_global_system_variables);
-	if (!val) {
-		pthread_cond_broadcast(&allow_writes_cond);
-	}
-	mysql_mutex_lock(&LOCK_global_system_variables);
-}
-
-static MYSQL_SYSVAR_BOOL(disallow_writes, innodb_disallow_writes,
-  PLUGIN_VAR_NOCMDOPT,
-  "Tell InnoDB to stop any writes to disk",
-  NULL, innobase_disallow_writes_update, FALSE);
-#endif /* WITH_INNODB_DISALLOW_WRITES */
 
 static MYSQL_SYSVAR_BOOL(random_read_ahead, srv_random_read_ahead,
   PLUGIN_VAR_NOCMDARG,
@@ -19448,8 +19607,8 @@ static MYSQL_SYSVAR_BOOL(read_only, srv_read_only_mode,
 
 static MYSQL_SYSVAR_BOOL(read_only_compressed, innodb_read_only_compressed,
   PLUGIN_VAR_OPCMDARG,
-  "Make ROW_FORMAT=COMPRESSED tables read-only (ON by default)",
-  NULL, NULL, TRUE);
+  "Make ROW_FORMAT=COMPRESSED tables read-only",
+  NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_BOOL(cmp_per_index_enabled, srv_cmp_per_index_enabled,
   PLUGIN_VAR_OPCMDARG,
@@ -19483,12 +19642,10 @@ static MYSQL_SYSVAR_BOOL(trx_purge_view_update_only_debug,
   " but the each purges were not done yet.",
   NULL, NULL, FALSE);
 
-# ifdef SAFE_MUTEX
 static MYSQL_SYSVAR_BOOL(evict_tables_on_commit_debug,
   innodb_evict_tables_on_commit_debug, PLUGIN_VAR_OPCMDARG,
   "On transaction commit, try to evict tables from the data dictionary cache.",
   NULL, NULL, FALSE);
-# endif /* SAFE_MUTEX */
 
 static MYSQL_SYSVAR_UINT(data_file_size_debug,
   srv_sys_space_size_debug,
@@ -19505,28 +19662,6 @@ static MYSQL_SYSVAR_UINT(saved_page_number_debug,
   srv_saved_page_number_debug, PLUGIN_VAR_OPCMDARG,
   "An InnoDB page number.",
   NULL, NULL, 0, 0, UINT_MAX32, 0);
-
-static MYSQL_SYSVAR_BOOL(disable_resize_buffer_pool_debug,
-  buf_disable_resize_buffer_pool_debug, PLUGIN_VAR_NOCMDARG,
-  "Disable resizing buffer pool to make assertion code not expensive.",
-  NULL, NULL, TRUE);
-
-static MYSQL_SYSVAR_BOOL(page_cleaner_disabled_debug,
-  innodb_page_cleaner_disabled_debug, PLUGIN_VAR_OPCMDARG,
-  "Disable page cleaner",
-  NULL, NULL, FALSE);
-
-static MYSQL_SYSVAR_BOOL(dict_stats_disabled_debug,
-  innodb_dict_stats_disabled_debug,
-  PLUGIN_VAR_OPCMDARG,
-  "Disable dict_stats thread",
-  NULL, dict_stats_disabled_debug_update, FALSE);
-
-static MYSQL_SYSVAR_BOOL(master_thread_disabled_debug,
-  srv_master_thread_disabled_debug,
-  PLUGIN_VAR_OPCMDARG,
-  "Disable master thread",
-  NULL, srv_master_thread_disabled_debug_update, FALSE);
 #endif /* UNIV_DEBUG */
 
 static MYSQL_SYSVAR_BOOL(force_primary_key,
@@ -19535,7 +19670,7 @@ static MYSQL_SYSVAR_BOOL(force_primary_key,
   "Do not allow creating a table without primary key (off by default)",
   NULL, NULL, FALSE);
 
-static const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", "lzma", "bzip2", "snappy", 0 };
+const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", "lzma", "bzip2", "snappy", 0 };
 static TYPELIB page_compression_algorithms_typelib=
 {
   array_elements(page_compression_algorithms) - 1, 0,
@@ -19666,7 +19801,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(ft_min_token_size),
   MYSQL_SYSVAR(ft_num_word_optimize),
   MYSQL_SYSVAR(ft_sort_pll_degree),
-  MYSQL_SYSVAR(force_load_corrupted),
   MYSQL_SYSVAR(lock_wait_timeout),
   MYSQL_SYSVAR(deadlock_detect),
   MYSQL_SYSVAR(deadlock_report),
@@ -19727,9 +19861,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(change_buffer_dump),
   MYSQL_SYSVAR(change_buffering_debug),
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
-#ifdef WITH_INNODB_DISALLOW_WRITES
-  MYSQL_SYSVAR(disallow_writes),
-#endif /* WITH_INNODB_DISALLOW_WRITES */
   MYSQL_SYSVAR(random_read_ahead),
   MYSQL_SYSVAR(read_ahead_threshold),
   MYSQL_SYSVAR(read_only),
@@ -19764,16 +19895,10 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(trx_rseg_n_slots_debug),
   MYSQL_SYSVAR(limit_optimistic_insert_debug),
   MYSQL_SYSVAR(trx_purge_view_update_only_debug),
-# ifdef SAFE_MUTEX
   MYSQL_SYSVAR(evict_tables_on_commit_debug),
-# endif /* SAFE_MUTEX */
   MYSQL_SYSVAR(data_file_size_debug),
   MYSQL_SYSVAR(fil_make_page_dirty_debug),
   MYSQL_SYSVAR(saved_page_number_debug),
-  MYSQL_SYSVAR(disable_resize_buffer_pool_debug),
-  MYSQL_SYSVAR(page_cleaner_disabled_debug),
-  MYSQL_SYSVAR(dict_stats_disabled_debug),
-  MYSQL_SYSVAR(master_thread_disabled_debug),
 #endif /* UNIV_DEBUG */
   MYSQL_SYSVAR(force_primary_key),
   MYSQL_SYSVAR(fatal_semaphore_wait_threshold),
@@ -20035,48 +20160,6 @@ innobase_rename_vc_templ(
 	table->vc_templ->tb_name = t_tbname;
 }
 
-/** Get the updated parent field value from the update vector for the
-given col_no.
-@param[in]	foreign		foreign key information
-@param[in]	update		updated parent vector.
-@param[in]	col_no		base column position of the child table to check
-@return updated field from the parent update vector, else NULL */
-static
-dfield_t*
-innobase_get_field_from_update_vector(
-	dict_foreign_t*	foreign,
-	upd_t*		update,
-	ulint		col_no)
-{
-	dict_table_t*	parent_table = foreign->referenced_table;
-	dict_index_t*	parent_index = foreign->referenced_index;
-	ulint		parent_field_no;
-	ulint		parent_col_no;
-	ulint		prefix_col_no;
-
-	for (ulint i = 0; i < foreign->n_fields; i++) {
-		if (dict_index_get_nth_col_no(foreign->foreign_index, i)
-		    != col_no) {
-			continue;
-		}
-
-		parent_col_no = dict_index_get_nth_col_no(parent_index, i);
-		parent_field_no = dict_table_get_nth_col_pos(
-			parent_table, parent_col_no, &prefix_col_no);
-
-		for (ulint j = 0; j < update->n_fields; j++) {
-			upd_field_t*	parent_ufield
-				= &update->fields[j];
-
-			if (parent_ufield->field_no == parent_field_no) {
-				return(&parent_ufield->new_val);
-			}
-		}
-	}
-
-	return (NULL);
-}
-
 
 /**
    Allocate a heap and record for calculating virtual fields
@@ -20159,9 +20242,10 @@ void innobase_report_computed_value_failed(dtuple_t *row)
 @param[in]	ifield		index field
 @param[in]	thd		MySQL thread handle
 @param[in,out]	mysql_table	mysql table object
+@param[in,out]	mysql_rec	MariaDB record buffer
 @param[in]	old_table	during ALTER TABLE, this is the old table
 				or NULL.
-@param[in]	parent_update	update vector for the parent row
+@param[in]	update		update vector for the row, if any
 @param[in]	foreign		foreign key information
 @return the field filled with computed value, or NULL if just want
 to store the value in passed in "my_rec" */
@@ -20177,8 +20261,7 @@ innobase_get_computed_value(
 	TABLE*			mysql_table,
 	byte*			mysql_rec,
 	const dict_table_t*	old_table,
-	upd_t*			parent_update,
-	dict_foreign_t*		foreign)
+	const upd_t*		update)
 {
 	byte		rec_buf2[REC_VERSION_56_MAX_INDEX_COL_LEN];
 	byte*		buf;
@@ -20190,6 +20273,8 @@ innobase_get_computed_value(
 		: dict_tf_get_zip_size(index->table->flags);
 
 	ulint		ret = 0;
+
+	dict_index_t *clust_index= dict_table_get_first_index(index->table);
 
 	ut_ad(index->table->vc_templ);
 	ut_ad(thd != NULL);
@@ -20220,14 +20305,17 @@ innobase_get_computed_value(
 			= index->table->vc_templ->vtempl[col_no];
 		const byte*			data;
 
-		if (parent_update != NULL) {
-			/** Get the updated field from update vector
-			of the parent table. */
-			row_field = innobase_get_field_from_update_vector(
-					foreign, parent_update, col_no);
+		if (update) {
+			ulint clust_no = dict_col_get_clust_pos(base_col,
+								clust_index);
+			ut_ad(clust_no != ULINT_UNDEFINED);
+			if (const upd_field_t *uf = upd_get_field_by_field_no(
+				    update, uint16_t(clust_no), false)) {
+				row_field = &uf->new_val;
+			}
 		}
 
-		if (row_field == NULL) {
+		if (!row_field) {
 			row_field = dtuple_get_nth_field(row, col_no);
 		}
 
@@ -20778,7 +20866,18 @@ innodb_buffer_pool_size_validate(
 	struct st_mysql_value*		value)
 {
 	longlong	intbuf;
+
 	value->val_int(value, &intbuf);
+
+	if (static_cast<ulonglong>(intbuf) < MYSQL_SYSVAR_NAME(buffer_pool_size).min_val) {
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    ER_WRONG_ARGUMENTS,
+				    "innodb_buffer_pool_size must be at least"
+				    " %lld for innodb_page_size=%lu",
+				    MYSQL_SYSVAR_NAME(buffer_pool_size).min_val,
+				    srv_page_size);
+		return(1);
+	}
 
 	if (!srv_was_started) {
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -20787,21 +20886,6 @@ innodb_buffer_pool_size_validate(
 				    " because InnoDB is not started.");
 		return(1);
 	}
-
-#ifdef UNIV_DEBUG
-	if (buf_disable_resize_buffer_pool_debug == TRUE) {
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			ER_WRONG_ARGUMENTS,
-			"Cannot update innodb_buffer_pool_size,"
-			" because innodb_disable_resize_buffer_pool_debug"
-			" is set.");
-		ib::warn() << "Cannot update innodb_buffer_pool_size,"
-			" because innodb_disable_resize_buffer_pool_debug"
-			" is set.";
-		return(1);
-	}
-#endif /* UNIV_DEBUG */
-
 
 	mysql_mutex_lock(&buf_pool.mutex);
 
@@ -20864,70 +20948,14 @@ innodb_compression_algorithm_validate(
 						for update function */
 	struct st_mysql_value*		value)	/*!< in: incoming string */
 {
-	ulong		compression_algorithm;
 	DBUG_ENTER("innobase_compression_algorithm_validate");
 
 	if (check_sysvar_enum(thd, var, save, value)) {
 		DBUG_RETURN(1);
 	}
 
-	compression_algorithm = *reinterpret_cast<ulong*>(save);
-	(void)compression_algorithm;
-
-#ifndef HAVE_LZ4
-	if (compression_algorithm == PAGE_LZ4_ALGORITHM) {
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    HA_ERR_UNSUPPORTED,
-				    "InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				    "InnoDB: liblz4 is not installed. \n",
-				    compression_algorithm);
-		DBUG_RETURN(1);
-	}
-#endif
-
-#ifndef HAVE_LZO
-	if (compression_algorithm == PAGE_LZO_ALGORITHM) {
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    HA_ERR_UNSUPPORTED,
-				    "InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				    "InnoDB: liblzo is not installed. \n",
-				    compression_algorithm);
-		DBUG_RETURN(1);
-	}
-#endif
-
-#ifndef HAVE_LZMA
-	if (compression_algorithm == PAGE_LZMA_ALGORITHM) {
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    HA_ERR_UNSUPPORTED,
-				    "InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				    "InnoDB: liblzma is not installed. \n",
-				    compression_algorithm);
-		DBUG_RETURN(1);
-	}
-#endif
-
-#ifndef HAVE_BZIP2
-	if (compression_algorithm == PAGE_BZIP2_ALGORITHM) {
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    HA_ERR_UNSUPPORTED,
-				    "InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				    "InnoDB: libbz2 is not installed. \n",
-				    compression_algorithm);
-		DBUG_RETURN(1);
-	}
-#endif
-
-#ifndef HAVE_SNAPPY
-	if (compression_algorithm == PAGE_SNAPPY_ALGORITHM) {
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    HA_ERR_UNSUPPORTED,
-				    "InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				    "InnoDB: libsnappy is not installed. \n",
-				    compression_algorithm);
-		DBUG_RETURN(1);
-	}
-#endif
+        if (compression_algorithm_is_not_loaded(*(ulong*)save, ME_WARNING))
+          DBUG_RETURN(1);
 	DBUG_RETURN(0);
 }
 
@@ -21209,21 +21237,31 @@ void ins_node_t::vers_update_end(row_prebuilt_t *prebuilt, bool history_row)
   mem_heap_t *local_heap= NULL;
   for (ulint col_no= 0; col_no < dict_table_get_n_v_cols(table); col_no++)
   {
-
     const dict_v_col_t *v_col= dict_table_get_nth_v_col(table, col_no);
     for (ulint i= 0; i < unsigned(v_col->num_base); i++)
-    {
-      dict_col_t *base_col= v_col->base_col[i];
-      if (base_col->ind == table->vers_end)
-      {
+      if (v_col->base_col[i]->ind == table->vers_end)
         innobase_get_computed_value(row, v_col, clust_index, &local_heap,
                                     table->heap, NULL, thd, mysql_table,
-                                    mysql_table->record[0], NULL, NULL, NULL);
-      }
-    }
+                                    mysql_table->record[0], NULL, NULL);
   }
-  if (local_heap)
-  {
+  if (UNIV_LIKELY_NULL(local_heap))
     mem_heap_free(local_heap);
+}
+
+/** Calculate aligned buffer pool size based on srv_buf_pool_chunk_unit,
+if needed.
+@param[in]	size	size in bytes
+@return	aligned size */
+ulint
+buf_pool_size_align(
+	ulint	size)
+{
+  const ulong	m = srv_buf_pool_chunk_unit;
+  size = ut_max((size_t) size, (size_t) MYSQL_SYSVAR_NAME(buffer_pool_size).min_val);
+
+  if (size % m == 0) {
+    return(size);
+  } else {
+    return (ulint)((size / m + 1) * m);
   }
 }

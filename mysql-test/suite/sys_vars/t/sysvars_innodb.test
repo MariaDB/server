@@ -9,9 +9,7 @@ select VARIABLE_NAME, SESSION_VALUE, DEFAULT_VALUE, VARIABLE_SCOPE, VARIABLE_TYP
   where variable_name like 'innodb%' and
   variable_name not in (
     'innodb_version',                   # always the same as the server version
-    'innodb_disallow_writes',           # only available WITH_WSREP
     'innodb_numa_interleave',           # only available WITH_NUMA
-    'innodb_sched_priority_cleaner',    # linux only
     'innodb_evict_tables_on_commit_debug', # one may want to override this
     'innodb_use_native_aio',            # default value depends on OS
     'innodb_buffer_pool_load_pages_abort')            # debug build only, and is only for testing

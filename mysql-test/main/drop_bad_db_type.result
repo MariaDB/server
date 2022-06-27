@@ -3,34 +3,50 @@ SET debug_dbug='+d,unstable_db_type';
 install soname 'ha_archive';
 create table t1 (a int) engine=archive;
 insert t1 values (1),(2),(3);
+create table t2 (a int) engine=archive partition by hash(a) partitions 3;
 flush tables;
 uninstall soname 'ha_archive';
-select table_schema, table_name from information_schema.tables where table_name like 't1';
-table_schema	test
-table_name	t1
-select table_schema, table_name, engine, version from information_schema.tables where table_name like 't1';
-table_schema	test
-table_name	t1
-engine	ARCHIVE
-version	NULL
+select table_schema, table_name from information_schema.tables where table_name like 't_' order by 1,2;
+table_schema	table_name
+test	t1
+test	t2
+select table_schema, table_name, engine, version from information_schema.tables where table_name like 't_' order by 1,2;
+table_schema	table_name	engine	version
+test	t1	ARCHIVE	NULL
+test	t2	NULL	NULL
 Warnings:
-Level	Warning
-Code	1286
-Message	Unknown storage engine 'ARCHIVE'
-select table_schema, table_name, engine, row_format from information_schema.tables where table_name like 't1';
-table_schema	test
-table_name	t1
-engine	ARCHIVE
-row_format	NULL
+Warning	1033	Incorrect information in file: './test/t2.frm'
+Warning	1286	Unknown storage engine 'ARCHIVE'
+select table_schema, table_name, engine, row_format from information_schema.tables where table_name like 't_' order by 1,2;
+table_schema	table_name	engine	row_format
+test	t1	ARCHIVE	NULL
+test	t2	NULL	NULL
 Warnings:
-Level	Warning
-Code	1286
-Message	Unknown storage engine 'ARCHIVE'
+Warning	1033	Incorrect information in file: './test/t2.frm'
+Warning	1286	Unknown storage engine 'ARCHIVE'
 install soname 'ha_archive';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+ PARTITION BY HASH (`a`)
+PARTITIONS 3
 db.opt
 t1.ARZ
 t1.frm
+t2#P#p0.ARZ
+t2#P#p1.ARZ
+t2#P#p2.ARZ
+t2.frm
+t2.par
 drop table t1;
+drop table t2;
 db.opt
 uninstall soname 'ha_archive';
 SET debug_dbug=@saved_dbug;

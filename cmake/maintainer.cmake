@@ -23,6 +23,8 @@ ENDIF()
 SET(MY_WARNING_FLAGS
   -Wall
   -Wdeclaration-after-statement
+  -Wenum-compare
+  -Wenum-conversion
   -Wextra
   -Wformat-security
   -Wno-format-truncation
@@ -45,6 +47,7 @@ SET(MY_ERROR_FLAGS -Werror)
 
 IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
   SET(MY_ERROR_FLAGS ${MY_ERROR_FLAGS} -Wno-error=maybe-uninitialized)
+  SET(MY_ERROR_FLAGS ${MY_ERROR_FLAGS} -Wno-error=non-virtual-dtor) # gcc bug 7302
 ENDIF()
 
 IF(MYSQL_MAINTAINER_MODE MATCHES "OFF|WARN")

@@ -255,7 +255,7 @@ return i+1|
 call sub1("sub1a", (select 7))|
 call sub1("sub1b", (select max(i) from t2))|
 call sub1("sub1c", (select i,d from t2 limit 1))|
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Illegal parameter data types int and row for operation 'SET'
 call sub1("sub1d", (select 1 from (select 1) a))|
 call sub2("sub2")|
 select * from t1 order by id|
@@ -3073,14 +3073,14 @@ select bug9775('a'),bug9775('b'),bug9775('c')|
 bug9775('a')	bug9775('b')	bug9775('c')
 a	b	
 Warnings:
-Warning	1265	Data truncated for column 'bug9775('c')' at row 1
+Warning	1265	Data truncated for column 'bug9775('c')' at row 0
 drop function bug9775|
 create function bug9775(v1 int) returns enum('a','b') return v1|
 select bug9775(1),bug9775(2),bug9775(3)|
 bug9775(1)	bug9775(2)	bug9775(3)
 a	b	
 Warnings:
-Warning	1265	Data truncated for column 'bug9775(3)' at row 1
+Warning	1265	Data truncated for column 'bug9775(3)' at row 0
 drop function bug9775|
 create function bug9775(v1 char(1)) returns set('a','b') return v1|
 select bug9775('a'),bug9775('b'),bug9775('a,b'),bug9775('c')|
@@ -3088,14 +3088,14 @@ bug9775('a')	bug9775('b')	bug9775('a,b')	bug9775('c')
 a	b	a	
 Warnings:
 Warning	1265	Data truncated for column 'v1' at row 1
-Warning	1265	Data truncated for column 'bug9775('c')' at row 1
+Warning	1265	Data truncated for column 'bug9775('c')' at row 0
 drop function bug9775|
 create function bug9775(v1 int) returns set('a','b') return v1|
 select bug9775(1),bug9775(2),bug9775(3),bug9775(4)|
 bug9775(1)	bug9775(2)	bug9775(3)	bug9775(4)
 a	b	a,b	
 Warnings:
-Warning	1265	Data truncated for column 'bug9775(4)' at row 1
+Warning	1265	Data truncated for column 'bug9775(4)' at row 0
 drop function bug9775|
 drop function if exists bug8861|
 create function bug8861(v1 int) returns year return v1|
@@ -3118,10 +3118,10 @@ create procedure bug9004_2(x char(16))
 call bug9004_1(x)|
 call bug9004_1('12345678901234567')|
 Warnings:
-Warning	1265	Data truncated for column 'x' at row 1
+Warning	1265	Data truncated for column 'x' at row 0
 call bug9004_2('12345678901234567890')|
 Warnings:
-Warning	1265	Data truncated for column 'x' at row 1
+Warning	1265	Data truncated for column 'x' at row 0
 delete from t1|
 drop procedure bug9004_1|
 drop procedure bug9004_2|
@@ -4591,7 +4591,7 @@ call bug15231_3()|
 Result
 Missed it (correct)
 Level	Code	Message
-Warning	1366	Incorrect decimal value: 'zap' for column ``.``.`x` at row 1
+Warning	1366	Incorrect decimal value: 'zap' for column ``.``.`x` at row 0
 Result
 Caught it (correct)
 call bug15231_5()|
@@ -6438,7 +6438,7 @@ DROP TABLE t1;
 
 CALL p1('text');
 Warnings:
-Warning	1265	Data truncated for column 'v' at row 1
+Warning	1265	Data truncated for column 'v' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -6458,7 +6458,7 @@ DROP TABLE t1;
 
 CALL p2('text');
 Warnings:
-Warning	1366	Incorrect integer value: 'text' for column ``.``.`v` at row 1
+Warning	1366	Incorrect integer value: 'text' for column ``.``.`v` at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -7070,10 +7070,10 @@ CALL p1(4, 'a');
 1
 1
 Warnings:
-Warning	1265	Data truncated for column 'b' at row 1
-Warning	1265	Data truncated for column 'b' at row 1
-Warning	1265	Data truncated for column 'b' at row 1
-Warning	1265	Data truncated for column 'b' at row 1
+Warning	1265	Data truncated for column 'b' at row 0
+Warning	1265	Data truncated for column 'b' at row 0
+Warning	1265	Data truncated for column 'b' at row 0
+Warning	1265	Data truncated for column 'b' at row 0
 SET @@max_sp_recursion_depth= @save_max_sp_recursion;
 DROP PROCEDURE p1;
 DROP PROCEDURE IF EXISTS p1;
@@ -7091,7 +7091,7 @@ CAST('10 ' as UNSIGNED INTEGER)
 1
 1
 Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
+Warning	1265	Data truncated for column 'a' at row 0
 Note	1292	Truncated incorrect INTEGER value: '10 '
 DROP PROCEDURE p1;
 DROP PROCEDURE IF EXISTS p1;
@@ -7144,7 +7144,7 @@ SELECT f1();
 f1()
 a
 Warnings:
-Warning	1265	Data truncated for column 'f4()' at row 1
+Warning	1265	Data truncated for column 'f4()' at row 0
 DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP FUNCTION f3;
@@ -8478,6 +8478,34 @@ b-c
 0
 drop procedure p1|
 drop function f1|
+#
+# MDEV-24827: MariaDB 10.5.5 crash (sig 11) during a SELECT
+#
+CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 INT);
+CREATE TABLE t2 (c1 INT PRIMARY KEY, c2 INT, KEY idx_c2(c2));
+INSERT INTO t1 (c1, c2) SELECT seq, seq FROM seq_1_to_10000;
+INSERT INTO t2 (c1, c2) SELECT seq, seq FROM seq_1_to_20000;
+CREATE OR REPLACE PROCEDURE p1()
+begin
+DECLARE done INT DEFAULT FALSE;
+DECLARE a INT;
+DECLARE cur1 CURSOR FOR
+SELECT t2.c1 AS c1 FROM t1 LEFT JOIN t2 ON t1.c1 = t2.c1
+WHERE EXISTS (SELECT 1 FROM t1 WHERE c2 = -1) ORDER BY c1;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+OPEN cur1;
+read_loop: LOOP
+FETCH cur1 INTO a;
+IF done THEN
+LEAVE read_loop;
+END IF;
+END LOOP;
+CLOSE cur1;
+END $
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP TABLE t2;
 #End of 10.2 tests
 #
 # MDEV-12007 Allow ROW variables as a cursor FETCH target
@@ -8869,6 +8897,19 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 BEGIN
 RETURN '';
 END' at line 2
+#
+# MDEV-28220: Assert failure in sp_head::~sp_head on parsing a syntax incorrect statement CREATE SEQUENCE ... RESTART inside CREATE PROCEDURE/CREATE FUNCTION
+
+# Specifying the RESTART clause for the statement CREATE SEQUENCE is a syntax error.
+# Check that CREATE PROCEDURE doesn't crash server if the statement
+# CREATE SEQUNCE ... RESTART is specified in its body.
+#
+CREATE PROCEDURE sp1() CREATE SEQUENCE s1 START WITH 300 INCREMENT BY 30 RESTART;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'RESTART' at line 1
+# CREATE SEQUNCE ... RESTART and CREATE SEQUNCE ... RESTART WITH ... are
+# handled by different grammar rules, so check the both cases.
+CREATE PROCEDURE sp1() CREATE SEQUENCE s1 START WITH 300 INCREMENT BY 30 RESTART WITH 100;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'RESTART' at line 1
 # End of 10.3 tests
 #
 # Start of 10.4 tests
@@ -8883,5 +8924,23 @@ END;
 $$
 ERROR 42000: Incorrect usage/placement of 'HIGH_PRIORITY'
 #
+# MDEV-21173: Assertion `m_thd == __null' failed in sp_head::~sp_head
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1() SELECT 1 FROM t1 PROCEDURE ANALYSE( 10, (SELECT a FROM t1));
+ERROR 42000: PROCEDURE does not support subqueries or stored functions
+DROP TABLE t1;
 # End of 10.4 tests
+#
+#
+# MDEV-28129: MariaDB UAF issue at lex_end_nops(LEX*)
+#
+CREATE PROCEDURE sp() SELECT 1 INTO @;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+CREATE PROCEDURE sp() SET @=1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '=1' at line 1
+CREATE PROCEDURE sp() SELECT @;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+#
+# End of 10.7 tests
 #

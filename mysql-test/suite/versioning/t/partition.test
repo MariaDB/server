@@ -1,9 +1,10 @@
 -- source include/have_partition.inc
 -- source suite/versioning/common.inc
 -- source suite/versioning/engines.inc
+-- source include/have_sequence.inc
 
-SET @save_persistent=@@GLOBAL.innodb_stats_persistent;
-SET GLOBAL innodb_stats_persistent=0;
+set @save_persistent=@@global.innodb_stats_persistent;
+set global innodb_stats_persistent= 0;
 
 call mtr.add_suppression("need more HISTORY partitions");
 
@@ -231,19 +232,21 @@ partition by system_time limit 2 partitions 3;
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 
---error ER_DROP_PARTITION_NON_EXISTENT
+--error ER_PARTITION_DOES_NOT_EXIST
 alter table t1 drop partition non_existent;
 
 insert into t1 values (1), (2), (3), (4), (5), (6);
 select * from t1 partition (pn);
 delete from t1 where x < 4;
 delete from t1;
+--echo # You see warning above ^
 select * from t1 partition (p0);
 select * from t1 partition (p1);
 
 insert into t1 values (7), (8);
 --echo ### warn about full partition
 delete from t1;
+--echo # You see warning above ^
 select * from t1 partition (p1) order by x;
 
 
@@ -499,7 +502,9 @@ select * from t1 partition (pnsp1);
 --echo ### warn about full partition
 delete from t1 where x < 3;
 delete from t1;
+--echo # You see warning above ^
 delete from t1;
+--echo # You see warning above ^ (no matter if nothing was deleted)
 select * from t1 partition (p0sp0);
 select * from t1 partition (p0sp1);
 select * from t1 partition (p1sp0);
@@ -675,7 +680,9 @@ alter table t1 partition by system_time limit 1 (
     partition p2 history,
     partition pn current);
 delete from t1 where x = 1;
+--echo # You see warning above ^
 delete from t1 where x = 2;
+--echo # You see warning above ^
 
 --echo #
 --echo # MDEV-14923 Assertion upon INSERT into locked versioned partitioned table
@@ -777,6 +784,17 @@ show create table t1;
 set timestamp= default;
 
 --echo #
+--echo # MDEV-18794 Assertion `!m_innodb' failed in ha_partition::cmp_ref upon SELECT from partitioned table
+--echo #
+create or replace table t1 (pk int auto_increment, i int, c char(1), primary key (pk), key(i))
+engine=innodb with system versioning partition by key() partitions 2;
+insert into t1 (i, c) values (1, 'a'), (2, 'b'), (null, 'c'), (null, 'b');
+alter table t1 drop system versioning;
+replace into t1 select * from t1;
+select * from t1 where i > 0 or pk = 1000 limit 1;
+drop table t1;
+
+--echo #
 --echo # MDEV-19175 Server crashes in ha_partition::vers_can_native upon INSERT DELAYED into versioned partitioned table
 --echo #
 create or replace table t1 (f int) with system versioning partition by hash(f);
@@ -792,7 +810,9 @@ create or replace table t1 (x int) with system versioning partition by system_ti
 lock tables t1 write;
 insert into t1 values (0), (1), (2), (3);
 delete from t1 where x < 3;
+--echo # You see warning above ^
 delete from t1;
+--echo # You see warning above ^
 unlock tables;
 
 --echo #
@@ -907,6 +927,7 @@ create or replace table t1 (f char(6)) engine innodb with system versioning;
 insert into t1 values (null);
 update t1 set f= 'foo';
 update t1 set f= 'bar';
+--echo # You see warning above ^
 
 create or replace view v1 as select * from t1 for system_time all;
 --error ER_TABLE_NOT_LOCKED_FOR_WRITE
@@ -1019,7 +1040,356 @@ explain partitions select * from t1 for system_time as of '2000-01-01 02:00:00';
 explain partitions select * from t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-27244 Table corruption upon adding serial data type
+--echo #
+create table t1 (f int, key(f)) with system versioning
+partition by system_time limit 10 (partition p0 history, partition pn current);
+alter table t1 add x serial;
+alter table t1 add partition (partition p1 history);
+alter table t1 add partition (partition p2 history);
+drop table t1;
+
+--echo #
+--echo # MDEV-27217 DELETE partition selection doesn't work for history partitions
+--echo #
+create table t1 (f char) with system versioning
+partition by system_time limit 10 (
+  partition p0 history,
+  partition p1 history,
+  partition p2 history,
+  partition pn current);
+
+--error ER_VERS_NOT_ALLOWED
+delete from t1 partition (p1);
+--error ER_VERS_NOT_ALLOWED
+delete from t1 partition (p0, pn);
+--error ER_VERS_NOT_ALLOWED
+delete from t1 partition (p0, p1);
+--error ER_VERS_NOT_ALLOWED
+delete from t1 partition (p0, p1, pn);
+drop table t1;
+
+set timestamp=unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day (
+  partition p0 history,
+  partition p1 history,
+  partition pn current);
+set timestamp=unix_timestamp('2000-01-02 00:00:00');
+insert t1 values (1);
+--error ER_VERS_NOT_ALLOWED
+delete from t1 partition (p0, pn);
+--error ER_VERS_NOT_ALLOWED
+delete from t1 partition (p0, p1, pn);
+drop table t1;
+set timestamp= default;
+
+--echo #
+--echo # MDEV-25546 LIMIT partitioning does not respect ROLLBACK
+--echo #
+create or replace table t1 (pk int primary key)
+with system versioning engine innodb
+partition by system_time limit 100 (
+  partition p0 history,
+  partition p1 history,
+  partition pn current);
+insert into t1 select seq from seq_1_to_90;
+
+start transaction;
+# Puts 80 rows into p0
+replace into t1 select seq from seq_1_to_80;
+# Puts another 70 rows into p0
+replace into t1 select seq from seq_1_to_70;
+# Puts 60 rows into p1
+replace into t1 select seq from seq_1_to_60;
+
+select partition_name, table_rows
+from information_schema.partitions
+where table_name = 't1';
+rollback;
+
+select partition_name, table_rows
+from information_schema.partitions
+where table_name = 't1';
+
+# Should put 10 rows into the empty partition p0
+replace into t1 select seq from seq_1_to_10;
+select partition_name, table_rows
+from information_schema.partitions
+where table_name = 't1';
+ # Cleanup
+drop table t1;
+
+--echo #
+--echo # MDEV-28271 Assertion on TRUNCATE PARTITION for PARTITION BY SYSTEM_TIME
+--echo #
+create table t1 (x int) with system versioning
+partition by system_time limit 1 (
+  partition p0 history,
+  partition p1 history,
+  partition p2 history, # p2 just disables warning about p1 partition full
+  partition pn current);
+
+insert into t1 values (0);
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+
+select * from t1 partition (p0);
+select * from t1 partition (p1);
+select * from t1 partition (pn);
+
+delete from t1;
+delete history from t1;
+select * from t1 partition (p0);
+select * from t1 partition (p1);
+select * from t1 partition (pn);
+
+insert into t1 values (0);
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+
+--echo # TRUNCATE PARTITION ALL does the same
+alter table t1 truncate partition all;
+select * from t1 partition (p0);
+select * from t1 partition (p1);
+select * from t1 partition (pn);
+
+insert into t1 values (0);
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+
+--echo # TRUNCATE PARTITION deletes data from HISTORY partition
+alter table t1 truncate partition p1;
+select * from t1 partition (p0);
+select * from t1 partition (p1);
+select * from t1 partition (pn);
+
+--echo # or from CURRENT partition
+alter table t1 truncate partition pn;
+select * from t1 partition (p0);
+select * from t1 partition (p1);
+select * from t1 partition (pn);
+
+drop table t1;
+
+--echo #
+--echo # MDEV-20077 Warning on full history partition is delayed until next DML statement
+--echo #
+--echo # DELETE
+create table t1 (x int) with system versioning
+partition by system_time limit 100 (
+  partition p0 history,
+  partition p1 history,
+  partition pn current);
+
+insert into t1 select seq from seq_0_to_200;
+
+--echo # p0 is filled with 100 records (no warnings):
+delete from t1 where x <= 99;
+--echo # p1 is filled with 1 + 100 records (warning is printed):
+delete from t1 where x <= 100;
+delete from t1;
+--echo # You see warning above ^
+
+select count(*) from t1 partition (p0);
+select count(*) from t1 partition (p1);
+drop table t1;
+
+--echo # DELETE under LOCK TABLES
+create table t1 (x int) with system versioning
+partition by system_time limit 100 (
+  partition p0 history,
+  partition p1 history,
+  partition pn current);
+
+insert into t1 select seq from seq_0_to_200;
+
+lock tables t1 write;
+--echo # (LOCK TABLES) p0 is filled with 100 records (no warnings):
+delete from t1 where x <= 99;
+--echo # (LOCK TABLES) p1 is filled with 1 + 100 records (warning is printed):
+delete from t1 where x <= 100;
+delete from t1;
+--echo # You see warning above ^
+unlock tables;
+
+select count(*) from t1 partition (p0);
+select count(*) from t1 partition (p1);
+drop table t1;
+
+--echo # DELETE multitable
+create table t1 (x int) with system versioning
+partition by system_time limit 100 (
+  partition p0 history,
+  partition p1 history,
+  partition pn current);
+
+create table t2 (y int);
+
+insert into t1 select seq from seq_0_to_200;
+insert into t2 select seq from seq_0_to_3;
+delete t1, t2 from t1 join t2 where x < 50 and y = 0;
+delete t1, t2 from t1 join t2 where x < 100 and y = 1;
+delete t1, t2 from t1 join t2 where x < 150 and y = 2;
+delete t1, t2 from t1 join t2;
+--echo # You see warning above ^
+
+select count(*) from t1 partition (p0);
+select count(*) from t1 partition (p1);
+drop table t1;
+
+--echo # UDPATE
+create table t1 (x int) with system versioning
+partition by system_time limit 100 (
+  partition p0 history,
+  partition p1 history,
+  partition pn current);
+
+insert into t1 select seq from seq_0_to_49;
+
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+--echo # You see warning above ^
+
+select count(*) from t1 partition (p0);
+select count(*) from t1 partition (p1);
+drop tables t1, t2;
+
+--echo # UPDATE multitable
+create table t1 (x int) with system versioning
+partition by system_time limit 100 (
+  partition p0 history,
+  partition p1 history,
+  partition pn current);
+
+create table t2 (y int);
+
+insert into t1 select seq from seq_0_to_49;
+insert into t2 values (5);
+
+update t1, t2 set x= x + 1;
+update t1, t2 set x= x + 1;
+update t1, t2 set x= x + 1;
+update t1, t2 set x= x + 1;
+--echo # You see warning above ^
+
+select count(*) from t1 partition (p0);
+select count(*) from t1 partition (p1);
+drop tables t1, t2;
+
+--echo # INSERT .. ON DUPLICATE KEY UPDATE (ODKU)
+create table t1 (x int primary key) with system versioning
+partition by system_time limit 100 (
+  partition p0 history,
+  partition p1 history,
+  partition pn current);
+
+insert into t1 select seq from seq_0_to_100;
+
+delete from t1 where x <= 99;
+insert into t1 values (100) on duplicate key update x= 400;
+
+select count(*) from t1 partition (p0);
+select count(*) from t1 partition (p1);
+drop table t1;
+
+--echo # INSERT .. SELECT .. ON DUPLICATE KEY UPDATE (ODKU)
+create table t1 (x int primary key) with system versioning
+partition by system_time limit 100 (
+  partition p0 history,
+  partition p1 history,
+  partition pn current);
+
+create table t2 (y int);
+insert into t2 values (100);
+insert into t1 select seq from seq_0_to_100;
+
+delete from t1 where x <= 99;
+insert into t1 select * from t2 on duplicate key update x= 500;
+
+select count(*) from t1 partition (p0);
+select count(*) from t1 partition (p1);
+drop tables t1, t2;
+
+--echo # REPLACE
+create table t1 (x int primary key) with system versioning
+partition by system_time limit 100 (
+  partition p0 history,
+  partition p1 history,
+  partition pn current);
+
+insert into t1 select seq from seq_0_to_100;
+
+delete from t1 where x < 99;
+replace t1 values (100);
+replace t1 values (100);
+
+select count(*) from t1 partition (p0);
+select count(*) from t1 partition (p1);
+drop table t1;
+
+--echo # LOAD DATA .. REPLACE
+create table t1 (x int primary key) with system versioning
+partition by system_time limit 100 (
+  partition p0 history,
+  partition p1 history,
+  partition pn current);
+
+insert into t1 select seq from seq_0_to_49;
+select x into outfile 'MDEV-20077.data' from t1;
+
+load data infile 'MDEV-20077.data' replace into table t1 (x);
+load data infile 'MDEV-20077.data' replace into table t1 (x);
+load data infile 'MDEV-20077.data' replace into table t1 (x);
+load data infile 'MDEV-20077.data' replace into table t1 (x);
+--echo # You see warning above ^
+
+select count(*) from t1 partition (p0);
+select count(*) from t1 partition (p1);
+drop table t1;
+--remove_file $datadir/test/MDEV-20077.data
+
+--echo # REPLACE .. SELECT
+create table t1 (x int primary key) with system versioning
+partition by system_time limit 100 (
+  partition p0 history,
+  partition p1 history,
+  partition pn current);
+
+insert into t1 select seq from seq_0_to_49;
+replace t1 select * from t1;
+replace t1 select * from t1;
+replace t1 select * from t1;
+replace t1 select * from t1;
+--echo # You see warning above ^
+
+select count(*) from t1 partition (p0);
+select count(*) from t1 partition (p1);
+drop table t1;
+
+--echo #
+--echo # MDEV-28552 Assertion `inited==RND' failed in handler::ha_rnd_end
+--echo #
+create table tcount (c int unsigned);
+insert into tcount values (0);
+
+create table t (f int) with system versioning
+partition by system_time limit 1000
+(partition p1 history, partition pn current);
+insert into t values (1),(2);
+create trigger tr before insert on t for each row update tcount set c = c + 1;
+
+insert into t select * from t;
+
+# cleanup
+drop table tcount, t;
+
+--echo #
 --echo # End of 10.3 tests
+--echo #
 
 --echo #
 --echo # MDEV-22283 Server crashes in key_copy or unexpected error 156: The table already existed in the storage engine
@@ -1051,7 +1421,9 @@ replace into t1 select * from t1;
 select * from t1 where i > 0 or pk = 1000 limit 1;
 drop table t1;
 
+--echo #
 --echo # End of 10.4 tests
+--echo #
 
 --echo #
 --echo # MDEV-22153 ALTER add default history partitions makes table inaccessible
@@ -1086,6 +1458,7 @@ drop tables t1;
 --echo #
 --echo # MDEV-22155 ALTER add default history partitions name clash on non-default partitions
 --echo #
+set timestamp= default;
 create or replace table t1 (x int) with system versioning
 partition by system_time limit 1
 (partition p2 history, partition p8 history, partition pn current);
@@ -1105,8 +1478,209 @@ drop tables t1;
 --echo # End of 10.5 tests
 --echo #
 
-SET GLOBAL innodb_stats_persistent=@save_persistent;
+--echo #
+--echo # MDEV-22166 MIGRATE PARTITION: move out partition into a table
+--echo #
+create or replace table t1 (x int)
+with system versioning
+partition by range(x) (
+  partition p1 values less than (10),
+  partition p2 values less than (20),
+  partition p3 values less than (30),
+  partition p4 values less than (40),
+  partition p5 values less than (50),
+  partition pn values less than maxvalue);
 
---echo # End of 10.6 tests
+insert into t1 values (2), (12), (22), (32), (42), (52);
+update t1 set x= x + 1;
+
+alter table t1 convert partition p2 to table tp2;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table tp2;
+select * from tp2;
+select * from tp2 for system_time all order by x;
+
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1 order by x;
+select * from t1 for system_time all order by x;
+
+--echo # SP
+create or replace procedure sp()
+alter table t1 convert partition p3 to table tp3;
+call sp;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table tp3;
+select * from tp3;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1 order by x;
+drop table tp3;
+--error ER_PARTITION_DOES_NOT_EXIST
+call sp;
+--error ER_PARTITION_DOES_NOT_EXIST
+call sp;
+drop procedure sp;
+
+--echo # LOCK TABLES, PS, SP
+create or replace procedure sp()
+alter table t1 convert partition p4 to table tp4;
+lock tables t1 write;
+prepare stmt from 'call sp';
+execute stmt;
+
+# TODO: don't unlock here (see above TODO)
+unlock tables;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table tp4;
+select * from tp4;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1 order by x;
+drop table tp4;
+lock tables t1 write;
+--error ER_PARTITION_DOES_NOT_EXIST
+execute stmt;
+--error ER_PARTITION_DOES_NOT_EXIST
+call sp;
+drop prepare stmt;
+unlock tables;
+drop procedure sp;
+unlock tables;
+
+drop tables t1, tp2;
+
+--echo # System-versioned tables (SYSTEM_TIME LIMIT)
+
+create or replace table t1 (
+  x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time(row_start, row_end)
+) with system versioning
+partition by system_time limit 1 partitions 4;
+
+insert into t1 values (2), (12), (22);
+update t1 set x= x + 1 where x = 2;
+update t1 set x= x + 1 where x = 12;
+update t1 set x= x + 1 where x = 22;
+
+select * from t1 partition (p1);
+--error ER_VERS_WRONG_PARTS
+alter table t1 convert partition pn to table tp1;
+alter table t1 convert partition p1 to table tp1;
+
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table tp1;
+select * from tp1;
+select * from tp1 for system_time all;
+
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1 order by x;
+select * from t1 for system_time all order by x;
+
+drop tables t1, tp1;
+
+--echo # System-versioned tables (SYSTEM_TIME INTERVAL)
+
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (
+  x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time(row_start, row_end)
+) with system versioning
+partition by system_time interval 1 hour partitions 4;
+
+insert into t1 values (2), (12), (22);
+set timestamp= unix_timestamp('2000-01-01 00:00:01');
+update t1 set x= x + 1 where x = 2;
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= x + 1 where x = 12;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 1 where x = 22;
+
+select * from t1 partition (p0);
+select * from t1 partition (p1);
+select * from t1 partition (p2);
+--error ER_VERS_DROP_PARTITION_INTERVAL
+alter table t1 convert partition p1 to table tp1;
+alter table t1 convert partition p0 to table tp0;
+alter table t1 convert partition p1 to table tp1;
+--error ER_VERS_WRONG_PARTS
+alter table t1 convert partition p2 to table tp2;
+
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table tp0;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table tp1;
+select * from tp0;
+select * from tp1;
+select * from tp0 for system_time all;
+select * from tp1 for system_time all;
+
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1;
+select * from t1 for system_time all order by x;
+
+drop tables t1, tp0, tp1;
+
+--echo # System-versioned tables (implicit)
+
+create or replace table t1(x int) with system versioning
+partition by system_time limit 1 partitions 3;
+
+alter table t1 convert partition p1 to table tp1;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table tp1;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+
+drop tables t1, tp1;
+
+if (!$MTR_COMBINATION_HEAP)
+{
+--echo # Complex table
+create or replace table t1 (
+  x int primary key auto_increment,
+  t timestamp(6) default '2001-11-11 11:11:11',
+  b blob(4096) compressed null,
+  c varchar(1033) character set utf8 not null,
+  u int,
+  unique key (x, u),
+  m enum('a', 'b', 'c') not null default 'a' comment 'absolute',
+  i1 tinyint, i2 smallint, i3 bigint,
+  index three(i1, i2, i3),
+  v1 timestamp(6) generated always as (t + interval 1 day),
+  v2 timestamp(6) generated always as (t + interval 1 month) stored,
+  s timestamp(6) as row start,
+  e timestamp(6) as row end,
+  period for system_time (s, e),
+  ps date, pe date,
+  period for app_time (ps, pe),
+  constraint check_constr check (u > -1))
+with system versioning default charset=ucs2
+partition by range(x) (
+  partition p0 values less than (10),
+  partition p1 values less than (20),
+  partition pn values less than maxvalue);
+
+alter table t1 convert partition p1 to table tp1;
+
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table tp1;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+
+drop tables t1, tp1;
+}
+
+--echo #
+--echo # End of 10.7 tests
+--echo #
+
+set global innodb_stats_persistent= @save_persistent;
 
 --source suite/versioning/common_finish.inc

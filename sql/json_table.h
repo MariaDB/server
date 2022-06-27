@@ -147,6 +147,7 @@ public:
   };
 
   enum_type m_column_type;
+  bool m_format_json;
   json_path_t m_path;
   On_response m_on_error;
   On_response m_on_empty;
@@ -159,7 +160,7 @@ public:
   {
     m_column_type= ctype;
   }
-  int set(THD *thd, enum_type ctype, const LEX_CSTRING &path);
+  int set(THD *thd, enum_type ctype, const LEX_CSTRING &path, CHARSET_INFO *cs);
   Json_table_column(Create_field *f, Json_table_nested_path *nest) :
     m_field(f), m_nest(nest), m_explicit_cs(NULL)
   {

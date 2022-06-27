@@ -6661,7 +6661,11 @@ int spider_db_bulk_insert(
 #endif
       if ((error_num = spider->append_insert_values_sql_part(
         SPIDER_SQL_TYPE_INSERT_SQL)))
+      {
+        if (spider->sql_kinds & SPIDER_SQL_KIND_SQL)
+          spider->set_insert_to_pos_sql(SPIDER_SQL_TYPE_INSERT_SQL);
         DBUG_RETURN(error_num);
+      }
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
     }
     if (spider->sql_kinds & SPIDER_SQL_KIND_HS)
@@ -6681,6 +6685,8 @@ int spider_db_bulk_insert(
     if ((error_num = spider->append_insert_terminator_sql_part(
       SPIDER_SQL_TYPE_INSERT_SQL)))
     {
+      if (spider->sql_kinds & SPIDER_SQL_KIND_SQL)
+        spider->set_insert_to_pos_sql(SPIDER_SQL_TYPE_INSERT_SQL);
       DBUG_RETURN(error_num);
     }
 #ifdef HA_CAN_BULK_ACCESS
@@ -6715,6 +6721,8 @@ int spider_db_bulk_insert(
           if ((error_num = dbton_handler->set_sql_for_exec(sql_type,
             roop_count2)))
           {
+            if (spider->sql_kinds & SPIDER_SQL_KIND_SQL)
+              spider->set_insert_to_pos_sql(SPIDER_SQL_TYPE_INSERT_SQL);
             if (dbton_handler->need_lock_before_set_sql_for_exec(sql_type))
             {
               SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -6744,6 +6752,8 @@ int spider_db_bulk_insert(
         conn->mta_conn_mutex_unlock_later = TRUE;
         if ((error_num = spider_db_set_names(spider, conn, roop_count2)))
         {
+          if (spider->sql_kinds & SPIDER_SQL_KIND_SQL)
+            spider->set_insert_to_pos_sql(SPIDER_SQL_TYPE_INSERT_SQL);
           DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
           DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = FALSE;
@@ -10092,8 +10102,7 @@ int spider_db_open_item_ref(
       }
       DBUG_RETURN(0);
     }
-    DBUG_RETURN(spider_db_print_item_type(*(item_ref->ref), NULL, spider, str,
-      alias, alias_length, dbton_id, use_fields, fields));
+    DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM); // MDEV-25116
   }
   DBUG_RETURN(spider_db_open_item_ident((Item_ident *) item_ref, spider, str,
     alias, alias_length, dbton_id, use_fields, fields));

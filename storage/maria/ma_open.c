@@ -1,5 +1,5 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
-   Copyright (c) 2009, 2021, MariaDB Corporation Ab
+   Copyright (c) 2009, 2022, MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -44,7 +44,7 @@ static uchar *_ma_state_info_read(uchar *, MARIA_STATE_INFO *, myf);
 #define disk_pos_assert(share, pos, end_pos)     \
 if (pos > end_pos)             \
 {                              \
-  _ma_set_fatal_error(share, HA_ERR_CRASHED);    \
+  _ma_set_fatal_error_with_share(share, HA_ERR_CRASHED);    \
   goto err;                    \
 }
 
@@ -231,7 +231,8 @@ err:
   if ((save_errno == HA_ERR_CRASHED) ||
       (save_errno == HA_ERR_CRASHED_ON_USAGE) ||
       (save_errno == HA_ERR_CRASHED_ON_REPAIR))
-    _ma_report_error(save_errno, &share->open_file_name);
+    _ma_report_error(save_errno, &share->open_file_name,
+                     MYF(ME_ERROR_LOG));
   switch (errpos) {
   case 6:
     (*share->end)(&info);
@@ -271,7 +272,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
   char name_buff[FN_REFLEN], org_name[FN_REFLEN], index_name[FN_REFLEN],
        data_name[FN_REFLEN];
   uchar *UNINIT_VAR(disk_cache), *disk_pos, *end_pos;
-  MARIA_HA info, *UNINIT_VAR(m_info), *old_info;
+  MARIA_HA info, *UNINIT_VAR(m_info), *old_info= NULL;
   MARIA_SHARE share_buff,*share;
   double *rec_per_key_part;
   ulong  *nulls_per_key_part;
@@ -291,9 +292,9 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
 
 #ifndef WITH_S3_STORAGE_ENGINE
   DBUG_ASSERT(!s3);
-#endif /* WITH_S3_STORAGE_ENGINE */
-
+#else
   if (!s3)
+#endif /* WITH_S3_STORAGE_ENGINE */
   {
     realpath_err= my_realpath(name_buff, fn_format(org_name, name, "",
                                                    MARIA_NAME_IEXT,
@@ -322,7 +323,6 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
   }
 #endif /* WITH_S3_STORAGE_ENGINE */
 
-  old_info= 0;
   if (!internal_table)
     mysql_mutex_lock(&THR_LOCK_maria);
   if ((open_flags & HA_OPEN_COPY) ||
@@ -475,7 +475,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     {
       if (mysql_file_pread(kfile, disk_cache, info_length, 0L, MYF(MY_NABP)))
       {
-        _ma_set_fatal_error(share, HA_ERR_CRASHED);
+        _ma_set_fatal_error_with_share(share, HA_ERR_CRASHED);
         goto err;
       }
     }
@@ -583,7 +583,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     /* sanity check */
     if (share->base.keystart > 65535 || share->base.rec_reflength > 8)
     {
-      _ma_set_fatal_error(share, HA_ERR_CRASHED);
+      _ma_set_fatal_error_with_share(share, HA_ERR_CRASHED);
       goto err;
     }
 
@@ -784,7 +784,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
               pos[0].language= pos[-1].language;
               if (!(pos[0].charset= pos[-1].charset))
               {
-                _ma_set_fatal_error(share, HA_ERR_CRASHED);
+                _ma_set_fatal_error_with_share(share, HA_ERR_CRASHED);
                 goto err;
               }
               pos++;
@@ -1025,7 +1025,8 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       MARIA_STATE_HISTORY_CLOSED *history;
       if ((history= (MARIA_STATE_HISTORY_CLOSED *)
            my_hash_search(&maria_stored_state,
-                       (uchar*) &share->state.create_rename_lsn, 0)))
+                       (uchar*) &share->state.create_rename_lsn,
+                       sizeof(share->state.create_rename_lsn))))
       {
         /*
           Move history from hash to share. This is safe to do as we
@@ -1192,7 +1193,7 @@ err:
     LEX_STRING tmp_name;
     tmp_name.str= (char*) name;
     tmp_name.length= strlen(name);
-    _ma_report_error(save_errno, &tmp_name);
+    _ma_report_error(save_errno, &tmp_name, MYF(ME_ERROR_LOG));
   }
   switch (errpos) {
   case 7:
@@ -2126,7 +2127,7 @@ int maria_enable_indexes(MARIA_HA *info)
     DBUG_PRINT("error", ("data_file_length: %lu  key_file_length: %lu",
                          (ulong) share->state.state.data_file_length,
                          (ulong) share->state.state.key_file_length));
-    _ma_set_fatal_error(share, HA_ERR_CRASHED);
+    _ma_set_fatal_error(info, HA_ERR_CRASHED);
     error= HA_ERR_CRASHED;
   }
   else

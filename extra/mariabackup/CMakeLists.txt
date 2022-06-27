@@ -16,10 +16,10 @@
 
 OPTION(WITH_MARIABACKUP "Include mariabackup" ON)
 ADD_FEATURE_INFO(MARIABACKUP WITH_MARIABACKUP "MariaDB Backup Utility")
+
 IF(NOT WITH_MARIABACKUP)
   RETURN()
 ENDIF()
-
 
 IF(NOT WIN32)
   CHECK_SYMBOL_EXISTS(regcomp regex.h HAVE_SYSTEM_REGEX)
@@ -27,7 +27,6 @@ IF(NOT WIN32)
     ADD_DEFINITIONS(-DHAVE_SYSTEM_REGEX)
   ENDIF()
 ENDIF()
-
 
 INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/include
@@ -68,7 +67,7 @@ MYSQL_ADD_EXECUTABLE(mariadb-backup
   xbstream_write.cc
   backup_mysql.cc
   backup_copy.cc
-  encryption_plugin.cc
+  xb_plugin.cc
   ${PROJECT_BINARY_DIR}/sql/sql_builtin.cc
   ${PROJECT_SOURCE_DIR}/sql/net_serv.cc
   ${PROJECT_SOURCE_DIR}/libmysqld/libmysql.c

@@ -30,78 +30,78 @@ DROP FUNCTION test.f1;
 #########################################################################
 DESCRIBE          information_schema.TRIGGERS;
 Field	Type	Null	Key	Default	Extra
-TRIGGER_CATALOG	varchar(512)	NO			
-TRIGGER_SCHEMA	varchar(64)	NO			
-TRIGGER_NAME	varchar(64)	NO			
-EVENT_MANIPULATION	varchar(6)	NO			
-EVENT_OBJECT_CATALOG	varchar(512)	NO			
-EVENT_OBJECT_SCHEMA	varchar(64)	NO			
-EVENT_OBJECT_TABLE	varchar(64)	NO			
-ACTION_ORDER	bigint(4)	NO		0	
+TRIGGER_CATALOG	varchar(512)	NO		NULL	
+TRIGGER_SCHEMA	varchar(64)	NO		NULL	
+TRIGGER_NAME	varchar(64)	NO		NULL	
+EVENT_MANIPULATION	varchar(6)	NO		NULL	
+EVENT_OBJECT_CATALOG	varchar(512)	NO		NULL	
+EVENT_OBJECT_SCHEMA	varchar(64)	NO		NULL	
+EVENT_OBJECT_TABLE	varchar(64)	NO		NULL	
+ACTION_ORDER	bigint(4)	NO		NULL	
 ACTION_CONDITION	longtext	YES		NULL	
-ACTION_STATEMENT	longtext	NO			
-ACTION_ORIENTATION	varchar(9)	NO			
-ACTION_TIMING	varchar(6)	NO			
+ACTION_STATEMENT	longtext	NO		NULL	
+ACTION_ORIENTATION	varchar(9)	NO		NULL	
+ACTION_TIMING	varchar(6)	NO		NULL	
 ACTION_REFERENCE_OLD_TABLE	varchar(64)	YES		NULL	
 ACTION_REFERENCE_NEW_TABLE	varchar(64)	YES		NULL	
-ACTION_REFERENCE_OLD_ROW	varchar(3)	NO			
-ACTION_REFERENCE_NEW_ROW	varchar(3)	NO			
+ACTION_REFERENCE_OLD_ROW	varchar(3)	NO		NULL	
+ACTION_REFERENCE_NEW_ROW	varchar(3)	NO		NULL	
 CREATED	datetime(2)	YES		NULL	
-SQL_MODE	varchar(8192)	NO			
-DEFINER	varchar(384)	NO			
-CHARACTER_SET_CLIENT	varchar(32)	NO			
-COLLATION_CONNECTION	varchar(32)	NO			
-DATABASE_COLLATION	varchar(32)	NO			
+SQL_MODE	varchar(8192)	NO		NULL	
+DEFINER	varchar(384)	NO		NULL	
+CHARACTER_SET_CLIENT	varchar(32)	NO		NULL	
+COLLATION_CONNECTION	varchar(32)	NO		NULL	
+DATABASE_COLLATION	varchar(32)	NO		NULL	
 SHOW CREATE TABLE information_schema.TRIGGERS;
 Table	Create Table
 TRIGGERS	CREATE TEMPORARY TABLE `TRIGGERS` (
-  `TRIGGER_CATALOG` varchar(512) NOT NULL DEFAULT '',
-  `TRIGGER_SCHEMA` varchar(64) NOT NULL DEFAULT '',
-  `TRIGGER_NAME` varchar(64) NOT NULL DEFAULT '',
-  `EVENT_MANIPULATION` varchar(6) NOT NULL DEFAULT '',
-  `EVENT_OBJECT_CATALOG` varchar(512) NOT NULL DEFAULT '',
-  `EVENT_OBJECT_SCHEMA` varchar(64) NOT NULL DEFAULT '',
-  `EVENT_OBJECT_TABLE` varchar(64) NOT NULL DEFAULT '',
-  `ACTION_ORDER` bigint(4) NOT NULL DEFAULT 0,
-  `ACTION_CONDITION` longtext DEFAULT NULL,
-  `ACTION_STATEMENT` longtext NOT NULL DEFAULT '',
-  `ACTION_ORIENTATION` varchar(9) NOT NULL DEFAULT '',
-  `ACTION_TIMING` varchar(6) NOT NULL DEFAULT '',
-  `ACTION_REFERENCE_OLD_TABLE` varchar(64) DEFAULT NULL,
-  `ACTION_REFERENCE_NEW_TABLE` varchar(64) DEFAULT NULL,
-  `ACTION_REFERENCE_OLD_ROW` varchar(3) NOT NULL DEFAULT '',
-  `ACTION_REFERENCE_NEW_ROW` varchar(3) NOT NULL DEFAULT '',
-  `CREATED` datetime(2) DEFAULT NULL,
-  `SQL_MODE` varchar(8192) NOT NULL DEFAULT '',
-  `DEFINER` varchar(384) NOT NULL DEFAULT '',
-  `CHARACTER_SET_CLIENT` varchar(32) NOT NULL DEFAULT '',
-  `COLLATION_CONNECTION` varchar(32) NOT NULL DEFAULT '',
-  `DATABASE_COLLATION` varchar(32) NOT NULL DEFAULT ''
+  `TRIGGER_CATALOG` varchar(512) NOT NULL,
+  `TRIGGER_SCHEMA` varchar(64) NOT NULL,
+  `TRIGGER_NAME` varchar(64) NOT NULL,
+  `EVENT_MANIPULATION` varchar(6) NOT NULL,
+  `EVENT_OBJECT_CATALOG` varchar(512) NOT NULL,
+  `EVENT_OBJECT_SCHEMA` varchar(64) NOT NULL,
+  `EVENT_OBJECT_TABLE` varchar(64) NOT NULL,
+  `ACTION_ORDER` bigint(4) NOT NULL,
+  `ACTION_CONDITION` longtext,
+  `ACTION_STATEMENT` longtext NOT NULL,
+  `ACTION_ORIENTATION` varchar(9) NOT NULL,
+  `ACTION_TIMING` varchar(6) NOT NULL,
+  `ACTION_REFERENCE_OLD_TABLE` varchar(64),
+  `ACTION_REFERENCE_NEW_TABLE` varchar(64),
+  `ACTION_REFERENCE_OLD_ROW` varchar(3) NOT NULL,
+  `ACTION_REFERENCE_NEW_ROW` varchar(3) NOT NULL,
+  `CREATED` datetime(2),
+  `SQL_MODE` varchar(8192) NOT NULL,
+  `DEFINER` varchar(384) NOT NULL,
+  `CHARACTER_SET_CLIENT` varchar(32) NOT NULL,
+  `COLLATION_CONNECTION` varchar(32) NOT NULL,
+  `DATABASE_COLLATION` varchar(32) NOT NULL
 )  DEFAULT CHARSET=utf8mb3
 SHOW COLUMNS FROM information_schema.TRIGGERS;
 Field	Type	Null	Key	Default	Extra
-TRIGGER_CATALOG	varchar(512)	NO			
-TRIGGER_SCHEMA	varchar(64)	NO			
-TRIGGER_NAME	varchar(64)	NO			
-EVENT_MANIPULATION	varchar(6)	NO			
-EVENT_OBJECT_CATALOG	varchar(512)	NO			
-EVENT_OBJECT_SCHEMA	varchar(64)	NO			
-EVENT_OBJECT_TABLE	varchar(64)	NO			
-ACTION_ORDER	bigint(4)	NO		0	
+TRIGGER_CATALOG	varchar(512)	NO		NULL	
+TRIGGER_SCHEMA	varchar(64)	NO		NULL	
+TRIGGER_NAME	varchar(64)	NO		NULL	
+EVENT_MANIPULATION	varchar(6)	NO		NULL	
+EVENT_OBJECT_CATALOG	varchar(512)	NO		NULL	
+EVENT_OBJECT_SCHEMA	varchar(64)	NO		NULL	
+EVENT_OBJECT_TABLE	varchar(64)	NO		NULL	
+ACTION_ORDER	bigint(4)	NO		NULL	
 ACTION_CONDITION	longtext	YES		NULL	
-ACTION_STATEMENT	longtext	NO			
-ACTION_ORIENTATION	varchar(9)	NO			
-ACTION_TIMING	varchar(6)	NO			
+ACTION_STATEMENT	longtext	NO		NULL	
+ACTION_ORIENTATION	varchar(9)	NO		NULL	
+ACTION_TIMING	varchar(6)	NO		NULL	
 ACTION_REFERENCE_OLD_TABLE	varchar(64)	YES		NULL	
 ACTION_REFERENCE_NEW_TABLE	varchar(64)	YES		NULL	
-ACTION_REFERENCE_OLD_ROW	varchar(3)	NO			
-ACTION_REFERENCE_NEW_ROW	varchar(3)	NO			
+ACTION_REFERENCE_OLD_ROW	varchar(3)	NO		NULL	
+ACTION_REFERENCE_NEW_ROW	varchar(3)	NO		NULL	
 CREATED	datetime(2)	YES		NULL	
-SQL_MODE	varchar(8192)	NO			
-DEFINER	varchar(384)	NO			
-CHARACTER_SET_CLIENT	varchar(32)	NO			
-COLLATION_CONNECTION	varchar(32)	NO			
-DATABASE_COLLATION	varchar(32)	NO			
+SQL_MODE	varchar(8192)	NO		NULL	
+DEFINER	varchar(384)	NO		NULL	
+CHARACTER_SET_CLIENT	varchar(32)	NO		NULL	
+COLLATION_CONNECTION	varchar(32)	NO		NULL	
+DATABASE_COLLATION	varchar(32)	NO		NULL	
 SELECT * FROM information_schema.triggers
 WHERE trigger_catalog IS NOT NULL OR event_object_catalog IS NOT NULL
 OR action_condition IS NOT NULL OR action_reference_old_table IS NOT NULL
@@ -110,16 +110,6 @@ ORDER BY trigger_schema, trigger_name;
 TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_MANIPULATION	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	ACTION_ORDER	ACTION_CONDITION	ACTION_STATEMENT	ACTION_ORIENTATION	ACTION_TIMING	ACTION_REFERENCE_OLD_TABLE	ACTION_REFERENCE_NEW_TABLE	ACTION_REFERENCE_OLD_ROW	ACTION_REFERENCE_NEW_ROW	CREATED	SQL_MODE	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
 def	mtr	gs_insert	INSERT	def	mtr	global_suppressions	1	NULL	BEGIN   DECLARE dummy INT;   SELECT "" REGEXP NEW.pattern INTO dummy; END	ROW	BEFORE	NULL	NULL	OLD	NEW	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
 def	mtr	ts_insert	INSERT	def	mtr	test_suppressions	1	NULL	BEGIN   DECLARE dummy INT;   SELECT "" REGEXP NEW.pattern INTO dummy; END	ROW	BEFORE	NULL	NULL	OLD	NEW	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
-def	sys	sys_config_insert_set_user	INSERT	def	sys	sys_config	1	NULL	BEGIN
-    IF @sys.ignore_sys_config_triggers != true AND NEW.set_by IS NULL THEN
-        SET NEW.set_by = USER();
-    END IF;
-END	ROW	BEFORE	NULL	NULL	OLD	NEW	#		root@localhost	utf8mb3	utf8mb3_general_ci	utf8mb3_general_ci
-def	sys	sys_config_update_set_user	UPDATE	def	sys	sys_config	1	NULL	BEGIN
-    IF @sys.ignore_sys_config_triggers != true AND NEW.set_by IS NULL THEN
-        SET NEW.set_by = USER();
-    END IF;
-END	ROW	BEFORE	NULL	NULL	OLD	NEW	#		root@localhost	utf8mb3	utf8mb3_general_ci	utf8mb3_general_ci
 ##################################################################################
 # Testcase 3.2.18.2 + 3.2.18.3: INFORMATION_SCHEMA.TRIGGERS accessible information
 ##################################################################################

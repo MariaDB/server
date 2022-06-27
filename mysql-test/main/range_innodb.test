@@ -118,6 +118,99 @@ set @@optimizer_switch= @optimizer_switch_save;
 --echo # End of 10.1 tests
 
 --echo #
+--echo # MDEV-27262: Index intersection with full scan over an index
+--echo #
+
+--source include/have_sequence.inc
+
+CREATE TABLE t1 (
+  id int(10) unsigned NOT NULL AUTO_INCREMENT,
+  p char(32) DEFAULT NULL,
+  es tinyint(3) unsigned NOT NULL DEFAULT 0,
+  er tinyint(3) unsigned NOT NULL DEFAULT 0,
+  x mediumint(8) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  INDEX es (es),
+  INDEX x (x),
+  INDEX er (er,x),
+  INDEX p (p)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+insert into t1(es,er) select 0, 1 from seq_1_to_45;
+insert into t1(es,er) select 0, 2 from seq_1_to_49;
+insert into t1(es,er) select 0, 3 from seq_1_to_951;
+insert into t1(es,er) select 0, 3 from seq_1_to_1054;
+insert into t1(es,er) select 0, 6 from seq_1_to_25;
+insert into t1(es,er) select 0, 11 from seq_1_to_1;
+insert into t1(es,er) select 1, 1 from seq_1_to_45;
+insert into t1(es,er) select 1, 2 from seq_1_to_16;
+insert into t1(es,er) select 1, 3 from seq_1_to_511;
+insert into t1(es,er) select 1, 4 from seq_1_to_687;
+insert into t1(es,er) select 1, 6 from seq_1_to_50;
+insert into t1(es,er) select 1, 7 from seq_1_to_4;
+insert into t1(es,er) select 1, 11 from seq_1_to_1;
+insert into t1(es,er) select 2, 1 from seq_1_to_82;
+insert into t1(es,er) select 2, 2 from seq_1_to_82;
+insert into t1(es,er) select 2, 3 from seq_1_to_1626;
+insert into t1(es,er) select 2, 4 from seq_1_to_977;
+insert into t1(es,er) select 2, 6 from seq_1_to_33;
+insert into t1(es,er) select 2, 11 from seq_1_to_1;
+insert into t1(es,er) select 3, 1 from seq_1_to_245;
+insert into t1(es,er) select 3, 2 from seq_1_to_81;
+insert into t1(es,er) select 3, 3 from seq_1_to_852;
+insert into t1(es,er) select 3, 4 from seq_1_to_2243;
+insert into t1(es,er) select 3, 6 from seq_1_to_44;
+insert into t1(es,er) select 3, 11 from seq_1_to_1;
+insert into t1(es,er) select 4, 1 from seq_1_to_91;
+insert into t1(es,er) select 4, 2 from seq_1_to_83;
+insert into t1(es,er) select 4, 3 from seq_1_to_297;
+insert into t1(es,er) select 4, 4 from seq_1_to_2456;
+insert into t1(es,er) select 4, 6 from seq_1_to_19;
+insert into t1(es,er) select 4, 11 from seq_1_to_1;
+update t1 set p='foobar';
+update t1 set x=0;
+set @save_isp=@@innodb_stats_persistent;
+set global innodb_stats_persistent= 1;
+analyze table t1;
+
+let $q=
+SELECT * FROM t1
+  WHERE ((p = 'foo' AND er != 4) OR er = 4 ) AND (es >= 4) LIMIT 2;
+
+set optimizer_switch='index_merge_sort_intersection=on';
+eval $q;
+--replace_column 9 #
+eval EXPLAIN EXTENDED $q;
+
+set optimizer_switch='index_merge_sort_intersection=off';
+# execution of $q and explain for it led to an assertion failure in 10.4
+# (with the optimizer switch rowid_filter set to 'on')
+eval $q;
+--replace_column 9 #
+eval EXPLAIN EXTENDED $q;
+
+let $q=
+SELECT * FROM t1
+  WHERE ((p = 'foo' AND er < 6) OR er >=2 ) AND (es >= 4) LIMIT 2;
+
+set optimizer_switch='index_merge_sort_intersection=on';
+eval $q;
+--replace_column 9 #
+eval EXPLAIN EXTENDED $q;
+
+set optimizer_switch='index_merge_sort_intersection=off';
+eval $q;
+--replace_column 9 #
+eval EXPLAIN EXTENDED $q;
+
+set optimizer_switch='index_merge_sort_intersection=default';
+
+set global innodb_stats_persistent= @save_isp;
+DROP TABLE t1;
+
+--echo # End of 10.2 tests
+
+--echo #
 --echo # MDEV-19634: Assertion `0' failed in row_sel_convert_mysql_key_to_innobase,
 --echo # [Warning] InnoDB: Using a partial-field key prefix in search
 --echo #

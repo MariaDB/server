@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,8 +24,7 @@ The low-level file system
 Created 10/25/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef fil0fil_h
-#define fil0fil_h
+#pragma once
 
 #include "fsp0types.h"
 #include "mach0data.h"
@@ -412,32 +411,42 @@ private:
   static constexpr uint32_t PENDING= ~(STOPPING | CLOSING | NEEDS_FSYNC);
   /** latch protecting all page allocation bitmap pages */
   srw_lock latch;
-  os_thread_id_t latch_owner;
+  pthread_t latch_owner;
   ut_d(Atomic_relaxed<uint32_t> latch_count;)
 public:
-	/** MariaDB encryption data */
-	fil_space_crypt_t* crypt_data;
+  /** MariaDB encryption data */
+  fil_space_crypt_t *crypt_data;
 
-	/** Checks that this tablespace in a list of unflushed tablespaces. */
-	bool is_in_unflushed_spaces;
+  /** Whether needs_flush(), or this is in fil_system.unflushed_spaces */
+  bool is_in_unflushed_spaces;
 
-	/** Checks that this tablespace needs key rotation. */
-	bool is_in_default_encrypt;
+  /** Whether this in fil_system.default_encrypt_tables (needs key rotation) */
+  bool is_in_default_encrypt;
 
-	/** mutex to protect freed ranges */
-	std::mutex	freed_range_mutex;
+private:
+  /** Whether any corrupton of this tablespace has been reported */
+  mutable std::atomic_flag is_corrupted;
 
-	/** Variables to store freed ranges. This can be used to write
-	zeroes/punch the hole in files. Protected by freed_mutex */
-	range_set	freed_ranges;
+  /** mutex to protect freed_ranges and last_freed_lsn */
+  std::mutex freed_range_mutex;
 
-	/** Stores last page freed lsn. Protected by freed_mutex */
-	lsn_t		last_freed_lsn;
+  /** Ranges of freed page numbers; protected by freed_range_mutex */
+  range_set freed_ranges;
 
-	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
+  /** LSN of freeing last page; protected by freed_range_mutex */
+  lsn_t last_freed_lsn;
 
+public:
   /** @return whether doublewrite buffering is needed */
   inline bool use_doublewrite() const;
+
+  /** @return whether a page has been freed */
+  inline bool is_freed(uint32_t page);
+
+  /** Apply freed_ranges to the file.
+  @param writable whether the file is writable
+  @return number of pages written or hole-punched */
+  uint32_t flush_freed(bool writable);
 
 	/** Append a file to the chain of files of a space.
 	@param[in]	name		file name of a file that is not open
@@ -495,6 +504,9 @@ public:
   written while the space ID is being updated in each page. */
   inline void set_imported();
 
+  /** Report the tablespace as corrupted */
+  ATTRIBUTE_COLD void set_corrupted() const;
+
   /** @return whether the storage device is rotational (HDD, not SSD) */
   inline bool is_rotational() const;
 
@@ -511,7 +523,9 @@ public:
 
   /** Note that operations on the tablespace must stop.
   @return whether the operations were already stopped */
-  inline bool set_stopping();
+  inline bool set_stopping_check();
+  /** Note that operations on the tablespace must stop. */
+  inline void set_stopping();
 
   /** Note that operations on the tablespace can resume after truncation */
   inline void clear_stopping();
@@ -566,9 +580,35 @@ public:
 
   /** Clear the NEEDS_FSYNC flag */
   void clear_flush()
-  { n_pending.fetch_and(~NEEDS_FSYNC, std::memory_order_release); }
+  {
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    static_assert(NEEDS_FSYNC == 1U << 29, "compatibility");
+    __asm__ __volatile__("lock btrl $29, %0" : "+m" (n_pending));
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
+    static_assert(NEEDS_FSYNC == 1U << 29, "compatibility");
+    _interlockedbittestandreset(reinterpret_cast<volatile long*>
+                                (&n_pending), 29);
+#else
+    n_pending.fetch_and(~NEEDS_FSYNC, std::memory_order_release);
+#endif
+  }
 
 private:
+  /** Clear the CLOSING flag */
+  void clear_closing()
+  {
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    static_assert(CLOSING == 1U << 30, "compatibility");
+    __asm__ __volatile__("lock btrl $30, %0" : "+m" (n_pending));
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
+    static_assert(CLOSING == 1U << 30, "compatibility");
+    _interlockedbittestandreset(reinterpret_cast<volatile long*>
+                                (&n_pending), 30);
+#else
+    n_pending.fetch_and(~CLOSING, std::memory_order_relaxed);
+#endif
+  }
+
   /** @return pending operations (and flags) */
   uint32_t pending()const { return n_pending.load(std::memory_order_acquire); }
 public:
@@ -651,6 +691,15 @@ public:
   { return flags & FSP_FLAGS_FCRC32_MASK_MARKER; }
   /** @return whether innodb_checksum_algorithm=full_crc32 is active */
   bool full_crc32() const { return full_crc32(flags); }
+  /** Determine if full_crc32 is used along with PAGE_COMPRESSED */
+  static bool is_full_crc32_compressed(uint32_t flags)
+  {
+    if (!full_crc32(flags))
+      return false;
+    auto algo= FSP_FLAGS_FCRC32_GET_COMPRESSED_ALGO(flags);
+    DBUG_ASSERT(algo <= PAGE_ALGORITHM_LAST);
+    return algo != 0;
+  }
   /** Determine the logical page size.
   @param flags	tablespace flags (FSP_SPACE_FLAGS)
   @return the logical page size
@@ -699,17 +748,14 @@ public:
   unsigned zip_size() const { return zip_size(flags); }
   /** @return the physical page size */
   unsigned physical_size() const { return physical_size(flags); }
-  /** Check whether the the tablespace is PAGE_COMPRESSED.
-  @param flags	contents of FSP_SPACE_FLAGS */
+
+  /** Check whether PAGE_COMPRESSED is enabled.
+  @param[in]	flags	tablespace flags */
   static bool is_compressed(uint32_t flags)
   {
-    if (!full_crc32(flags))
-      return FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
-    const uint32_t algo= FSP_FLAGS_FCRC32_GET_COMPRESSED_ALGO(flags);
-    DBUG_ASSERT(algo <= PAGE_ALGORITHM_LAST);
-    return algo > 0;
+    return is_full_crc32_compressed(flags) ||
+      FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
   }
-
   /** @return whether the compression enabled for the tablespace. */
   bool is_compressed() const { return is_compressed(flags); }
 
@@ -956,20 +1002,20 @@ public:
 #ifdef UNIV_DEBUG
   bool is_latched() const { return latch_count != 0; }
 #endif
-  bool is_owner() const { return latch_owner == os_thread_get_curr_id(); }
+  bool is_owner() const { return latch_owner == pthread_self(); }
   /** Acquire the allocation latch in exclusive mode */
   void x_lock()
   {
     latch.wr_lock(SRW_LOCK_CALL);
     ut_ad(!latch_owner);
-    latch_owner= os_thread_get_curr_id();
+    latch_owner= pthread_self();
     ut_ad(!latch_count.fetch_add(1));
   }
   /** Release the allocation latch from exclusive mode */
   void x_unlock()
   {
     ut_ad(latch_count.fetch_sub(1) == 1);
-    ut_ad(latch_owner == os_thread_get_curr_id());
+    ut_ad(latch_owner == pthread_self());
     latch_owner= 0;
     latch.wr_unlock();
   }
@@ -1001,9 +1047,6 @@ private:
 };
 
 #ifndef UNIV_INNOCHECKSUM
-/** Value of fil_space_t::magic_n */
-#define	FIL_SPACE_MAGIC_N	89472
-
 /** File node of a tablespace or the log data space */
 struct fil_node_t final
 {
@@ -1184,8 +1227,9 @@ struct fil_addr_t {
 
 /** For the first page in a system tablespace data file(ibdata*, not *.ibd):
 the file has been flushed to disk at least up to this lsn
-For other pages: 32-bit key version used to encrypt the page + 32-bit checksum
-or 64 bites of zero if no encryption */
+For other pages of tablespaces not in innodb_checksum_algorithm=full_crc32
+format: 32-bit key version used to encrypt the page + 32-bit checksum
+or 64 bits of zero if no encryption */
 #define FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION 26U
 
 /** This overloads FIL_PAGE_FILE_FLUSH_LSN for RTREE Split Sequence Number */
@@ -1393,6 +1437,8 @@ public:
   sized_ilist<fil_space_t, unflushed_spaces_tag_t> unflushed_spaces;
   /** number of currently open files; protected by mutex */
   ulint n_open;
+  /** last time we noted n_open exceeding the limit; protected by mutex */
+  time_t n_open_exceeded_time;
   /** maximum persistent tablespace id that has ever been assigned */
   uint32_t max_assigned_id;
   /** nonzero if fil_node_open_file_low() should avoid moving the tablespace
@@ -1450,16 +1496,49 @@ inline void fil_space_t::reacquire()
 
 /** Note that operations on the tablespace must stop.
 @return whether the operations were already stopped */
-inline bool fil_space_t::set_stopping()
+inline bool fil_space_t::set_stopping_check()
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
+#if (defined __clang_major__ && __clang_major__ < 10) || defined __APPLE_CC__
+  /* Only clang-10 introduced support for asm goto */
   return n_pending.fetch_or(STOPPING, std::memory_order_relaxed) & STOPPING;
+#elif defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+  static_assert(STOPPING == 1U << 31, "compatibility");
+  __asm__ goto("lock btsl $31, %0\t\njnc %l1" : : "m" (n_pending)
+               : "cc", "memory" : not_stopped);
+  return true;
+not_stopped:
+  return false;
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
+  static_assert(STOPPING == 1U << 31, "compatibility");
+  return _interlockedbittestandset(reinterpret_cast<volatile long*>
+                                   (&n_pending), 31);
+#else
+  return n_pending.fetch_or(STOPPING, std::memory_order_relaxed) & STOPPING;
+#endif
+}
+
+/** Note that operations on the tablespace must stop.
+@return whether the operations were already stopped */
+inline void fil_space_t::set_stopping()
+{
+  mysql_mutex_assert_owner(&fil_system.mutex);
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+  static_assert(STOPPING == 1U << 31, "compatibility");
+  __asm__ __volatile__("lock btsl $31, %0" : "+m" (n_pending));
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
+  static_assert(STOPPING == 1U << 31, "compatibility");
+  _interlockedbittestandset(reinterpret_cast<volatile long*>(&n_pending), 31);
+#else
+  n_pending.fetch_or(STOPPING, std::memory_order_relaxed);
+#endif
 }
 
 inline void fil_space_t::clear_stopping()
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-  ut_d(auto n=) n_pending.fetch_and(~STOPPING, std::memory_order_relaxed);
+  static_assert(STOPPING == 1U << 31, "compatibility");
+  ut_d(auto n=) n_pending.fetch_sub(STOPPING, std::memory_order_relaxed);
   ut_ad(n & STOPPING);
 }
 
@@ -1606,10 +1685,7 @@ file inode probably is much faster (the OS caches them) than accessing
 the first page of the file.  This boolean may be initially false, but if
 a remote tablespace is found it will be changed to true.
 
-If the fix_dict boolean is set, then it is safe to use an internal SQL
-statement to update the dictionary tables if they are incorrect.
-
-@param[in]	validate	true if we should validate the tablespace
+@param[in]	validate	0=maybe missing, 1=do not validate, 2=validate
 @param[in]	purpose		FIL_TYPE_TABLESPACE or FIL_TYPE_TEMPORARY
 @param[in]	id		tablespace ID
 @param[in]	flags		expected FSP_SPACE_FLAGS
@@ -1621,7 +1697,7 @@ If file-per-table, it is the table name in the databasename/tablename format
 @retval	NULL	if the tablespace could not be opened */
 fil_space_t*
 fil_ibd_open(
-	bool			validate,
+	unsigned		validate,
 	fil_type_t		purpose,
 	uint32_t		id,
 	uint32_t		flags,
@@ -1734,6 +1810,9 @@ inline bool fil_names_write_if_was_clean(fil_space_t* space)
 	return(was_clean);
 }
 
+
+bool fil_comp_algo_loaded(ulint comp_algo);
+
 /** On a log checkpoint, reset fil_names_dirty_and_write() flags
 and write out FILE_MODIFY and FILE_CHECKPOINT if needed.
 @param[in]	lsn		checkpoint LSN
@@ -1756,7 +1835,4 @@ void test_make_filepath();
 @return	block size */
 ulint fil_space_get_block_size(const fil_space_t* space, unsigned offset);
 
-#include "fil0fil.ic"
 #endif /* UNIV_INNOCHECKSUM */
-
-#endif /* fil0fil_h */

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, 2020, MariaDB Corporation.
+Copyright (c) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -41,6 +41,7 @@ ib_wqueue_create(void)
 	mysql_mutex_init(0, &wq->mutex, nullptr);
 
 	wq->items = ib_list_create();
+	wq->length = 0;
 
 	return(wq);
 }
@@ -71,6 +72,8 @@ ib_wqueue_add(ib_wqueue_t* wq, void* item, mem_heap_t* heap, bool wq_locked)
 	}
 
 	ib_list_add_last(wq->items, item, heap);
+	wq->length++;
+	ut_ad(wq->length == ib_list_len(wq->items));
 
 	if (!wq_locked) {
 		mysql_mutex_unlock(&wq->mutex);
@@ -94,6 +97,8 @@ ib_wqueue_nowait(
 
 		if (node) {
 			ib_list_remove(wq->items, node);
+			--wq->length;
+			ut_ad(wq->length == ib_list_len(wq->items));
 		}
 	}
 
@@ -110,21 +115,4 @@ bool ib_wqueue_is_empty(ib_wqueue_t* wq)
 	bool is_empty = ib_list_is_empty(wq->items);
 	mysql_mutex_unlock(&wq->mutex);
 	return is_empty;
-}
-
-/********************************************************************
-Get number of items on queue.
-@return number of items on queue */
-ulint
-ib_wqueue_len(
-/*==========*/
-	ib_wqueue_t*	wq)		/*<! in: work queue */
-{
-	ulint len = 0;
-
-	mysql_mutex_lock(&wq->mutex);
-	len = ib_list_len(wq->items);
-	mysql_mutex_unlock(&wq->mutex);
-
-        return(len);
 }

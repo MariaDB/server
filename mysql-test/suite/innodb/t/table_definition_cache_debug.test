@@ -29,6 +29,7 @@ SET DEBUG_SYNC = 'now WAIT_FOR scanned';
 # and then hogs the table lock, so that the unique index cannot be dropped.
 BEGIN;
 INSERT INTO to_be_evicted VALUES(3, 2);
+COMMIT;
 SET DEBUG_SYNC = 'now SIGNAL got_duplicate';
 
 connection ddl;

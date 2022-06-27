@@ -2,7 +2,7 @@
 #define SQL_ITEM_INCLUDED
 
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1838,6 +1838,16 @@ public:
   */
   virtual bool is_evaluable_expression() const { return true; }
 
+  virtual bool check_assignability_to(const Field *to) const
+  {
+    /*
+      "this" must be neither DEFAULT/IGNORE,
+      nor Item_param bound to DEFAULT/IGNORE.
+    */
+    DBUG_ASSERT(is_evaluable_expression());
+    return to->check_assignability_from(type_handler());
+  }
+
   /**
    * Check whether the item is a parameter  ('?') of stored routine.
    * Default implementation returns false. Method is overridden in the class
@@ -2064,7 +2074,6 @@ public:
     table during query processing (grouping and so on)
   */
   virtual bool is_result_field() { return 0; }
-  virtual bool is_json_type() { return false; }
   virtual bool is_bool_literal() const { return false; }
   /* This is to handle printing of default values */
   virtual bool need_parentheses_in_default() { return false; }
@@ -2175,6 +2184,12 @@ public:
   virtual bool cleanup_is_expensive_cache_processor(void *arg)
   {
     is_expensive_cache= (int8)(-1);
+    return 0;
+  }
+
+  virtual bool set_extraction_flag_processor(void *arg)
+  {
+    set_extraction_flag(*(int16*)arg);
     return 0;
   }
 
@@ -3486,6 +3501,10 @@ public:
     this variable.
   */
   bool can_be_depended;
+  /*
+     NOTE: came from TABLE::alias_name_used and this is only a hint!
+     See comment for TABLE::alias_name_used.
+  */
   bool alias_name_used; /* true if item was resolved against alias */
 
   Item_ident(THD *thd, Name_resolution_context *context_arg,
@@ -3567,7 +3586,6 @@ public:
   my_decimal *val_decimal_result(my_decimal *) override;
   bool val_bool_result() override;
   bool is_null_result() override;
-  bool is_json_type() override;
   bool send(Protocol *protocol, st_value *buffer) override;
   Load_data_outvar *get_load_data_outvar() override { return this; }
   bool load_data_set_null(THD *thd, const Load_data_param *param) override
@@ -4083,6 +4101,7 @@ class Item_param :public Item_basic_value,
   const String *value_query_val_str(THD *thd, String* str) const;
   Item *value_clone_item(THD *thd);
   bool is_evaluable_expression() const override;
+  bool check_assignability_to(const Field *field) const override;
   bool can_return_value() const;
 
 public:
@@ -5494,7 +5513,7 @@ public:
   Field *sp_result_field;
   Item_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name_arg);
   Item_sp(THD *thd, Item_sp *item);
-  LEX_CSTRING func_name_cstring(THD *thd) const;
+  LEX_CSTRING func_name_cstring(THD *thd, bool is_package_function) const;
   void cleanup();
   bool sp_check_access(THD *thd);
   bool execute(THD *thd, bool *null_value, Item **args, uint arg_count);
@@ -5638,7 +5657,6 @@ public:
   {
     return ref ? (*ref)->get_typelib() : NULL;
   }
-  bool is_json_type() override { return (*ref)->is_json_type(); }
 
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override
   {
@@ -6625,7 +6643,6 @@ class Item_default_value : public Item_field
   void calculate();
 public:
   Item *arg= nullptr;
-  Field *cached_field= nullptr;
   Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a,
                      bool vcol_assignment_arg)
     : Item_field(thd, context_arg),
@@ -6642,6 +6659,10 @@ public:
   bool get_date(THD *thd, MYSQL_TIME *ltime,date_mode_t fuzzydate) override;
   bool val_native(THD *thd, Native *to) override;
   bool val_native_result(THD *thd, Native *to) override;
+  longlong val_datetime_packed(THD *thd) override
+  { return Item::val_datetime_packed(thd); }
+  longlong val_time_packed(THD *thd) override
+  { return Item::val_time_packed(thd); }
 
   /* Result variants */
   double val_result() override;
@@ -6655,6 +6676,7 @@ public:
 
   bool send(Protocol *protocol, st_value *buffer) override;
   int save_in_field(Field *field_arg, bool no_conversions) override;
+  void save_in_result_field(bool no_conversions) override;
   bool save_in_param(THD *, Item_param *param) override
   {
     // It should not be possible to have "EXECUTE .. USING DEFAULT(a)"
@@ -6670,11 +6692,12 @@ public:
   }
   bool vcol_assignment_allowed_value() const override
   { return vcol_assignment_ok; }
-  Field *get_tmp_table_field() override { return nullptr; }
   Item *get_tmp_table_item(THD *) override { return this; }
   Item_field *field_for_view_update() override { return nullptr; }
   bool update_vcol_processor(void *) override { return false; }
+  bool check_field_expression_processor(void *arg) override;
   bool check_func_default_processor(void *) override { return true; }
+  bool register_field_in_read_map(void *arg) override;
   bool walk(Item_processor processor, bool walk_subquery, void *args) override
   {
     return (arg && arg->walk(processor, walk_subquery, args)) ||
@@ -6759,6 +6782,10 @@ public:
   {
     str->append(STRING_WITH_LEN("default"));
   }
+  bool check_assignability_to(const Field *to) const override
+  {
+    return false;
+  }
   int save_in_field(Field *field_arg, bool) override
   {
     return field_arg->save_in_field_default_value(false);
@@ -6791,6 +6818,10 @@ public:
   void print(String *str, enum_query_type) override
   {
     str->append(STRING_WITH_LEN("ignore"));
+  }
+  bool check_assignability_to(const Field *to) const override
+  {
+    return false;
   }
   int save_in_field(Field *field_arg, bool) override
   {
@@ -6953,7 +6984,7 @@ public:
   for any value.
 */
 
-class Item_cache: public Item,
+class Item_cache: public Item_fixed_hybrid,
                   public Type_handler_hybrid_field_type
 {
 protected:
@@ -6984,7 +7015,7 @@ public:
   bool null_value_inside;
 
   Item_cache(THD *thd):
-    Item(thd),
+    Item_fixed_hybrid(thd),
     Type_handler_hybrid_field_type(&type_handler_string),
     example(0), cached_field(0),
     value_cached(0),
@@ -6993,10 +7024,11 @@ public:
     set_maybe_null();
     null_value= 1;
     null_value_inside= true;
+    quick_fix_field();
   }
 protected:
   Item_cache(THD *thd, const Type_handler *handler):
-    Item(thd),
+    Item_fixed_hybrid(thd),
     Type_handler_hybrid_field_type(handler),
     example(0), cached_field(0),
     value_cached(0),
@@ -7005,6 +7037,7 @@ protected:
     set_maybe_null();
     null_value= 1;
     null_value_inside= true;
+    quick_fix_field();
   }
 
 public:
@@ -7057,10 +7090,17 @@ public:
     }
     return mark_unsupported_function("cache", arg, VCOL_IMPOSSIBLE);
   }
+  bool fix_fields(THD *thd, Item **ref) override
+  {
+    quick_fix_field();
+    if (example && !example->fixed())
+      return example->fix_fields(thd, ref);
+    return 0;
+  }
   void cleanup() override
   {
     clear();
-    Item::cleanup();
+    Item_fixed_hybrid::cleanup();
   }
   /**
      Check if saved item has a non-NULL value.
@@ -7698,6 +7738,19 @@ public:
   void close() {}
 };
 
+
+/*
+  fix_escape_item() sets the out "escape" parameter to:
+  - native code in case of an 8bit character set
+  - Unicode code point in case of a multi-byte character set
+
+  The value meaning a not-initialized ESCAPE character must not be equal to
+  any valid value, so must be outside of these ranges:
+  - -128..+127, not to conflict with a valid 8bit charcter
+  - 0..0x10FFFF, not to conflict with a valid Unicode code point
+  The exact value does not matter.
+*/
+#define ESCAPE_NOT_INITIALIZED -1000
 
 /*
   It's used in ::fix_fields() methods of LIKE and JSON_SEARCH

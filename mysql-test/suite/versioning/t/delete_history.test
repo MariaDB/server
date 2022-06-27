@@ -63,8 +63,8 @@ partition by system_time limit 1 partitions 3;
 insert into t values (1);
 update t set a= 2;
 update t set a= 3;
+--echo # You see warning above ^
 delete history from t;
---echo # The above warning is one command late (MDEV-20345) ^^^
 select * from t for system_time all;
 
 --echo # VIEW
@@ -190,5 +190,18 @@ execute stmt;
 select * from t1;
 drop prepare stmt;
 drop table t1;
+
+--echo #
+--echo # MDEV-28201 Server crashes upon SHOW ANALYZE/EXPLAIN FORMAT=JSON
+--echo #
+CREATE TABLE t1 (a INT) WITH SYSTEM VERSIONING;
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+SET optimizer_trace= 'enabled=on';
+--error ER_NON_UPDATABLE_TABLE
+DELETE HISTORY FROM v1 BEFORE SYSTEM_TIME '2021-01-01';
+--error ER_NON_UPDATABLE_TABLE
+DELETE HISTORY FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;
 
 --source suite/versioning/common_finish.inc

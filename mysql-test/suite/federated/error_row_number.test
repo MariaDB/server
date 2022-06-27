@@ -1,0 +1,18 @@
+--echo #
+--echo #    MDEV-26654 ROW_NUMBER is wrong upon INSERT into Federated table
+--echo #
+
+--source suite/federated/have_federatedx.inc
+--source include/federated.inc
+--connection master
+
+create table t (pk int primary key);
+--evalp create table tfed engine=FEDERATED connection='mysql://root@localhost:$MASTER_MYPORT/test/t'
+--error ER_DUP_KEY
+insert into tfed values (1),(2),(1);
+get diagnostics condition 1 @val = row_number;
+--echo # federated is doing bulk insert here, the exact row number is unknown
+select @val;
+
+drop table tfed, t;
+--source include/federated_cleanup.inc

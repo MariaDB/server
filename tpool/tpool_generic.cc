@@ -1,4 +1,4 @@
-/* Copyright (C) 2019, 2020, MariaDB Corporation.
+/* Copyright (C) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute itand /or modify
 it under the terms of the GNU General Public License as published by
@@ -33,6 +33,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #include <my_dbug.h>
 #include <thr_timer.h>
 #include <stdlib.h>
+#include "aligned.h"
 
 namespace tpool
 {
@@ -50,6 +51,45 @@ namespace tpool
 
   static const std::chrono::milliseconds LONG_TASK_DURATION = std::chrono::milliseconds(500);
   static const int  OVERSUBSCRIBE_FACTOR = 2;
+
+/**
+  Process the cb synchronously
+*/
+void aio::synchronous(aiocb *cb)
+{
+#ifdef _WIN32
+  size_t ret_len;
+#else
+  ssize_t ret_len;
+#endif
+  int err= 0;
+  switch (cb->m_opcode)
+  {
+  case aio_opcode::AIO_PREAD:
+    ret_len= pread(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
+    break;
+  case aio_opcode::AIO_PWRITE:
+    ret_len= pwrite(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
+    break;
+  default:
+    abort();
+  }
+#ifdef _WIN32
+  if (static_cast<int>(ret_len) < 0)
+    err= GetLastError();
+#else
+  if (ret_len < 0)
+  {
+    err= errno;
+    ret_len= 0;
+  }
+#endif
+  cb->m_ret_len = ret_len;
+  cb->m_err = err;
+  if (ret_len)
+    finish_synchronous(cb);
+}
+
 
 /**
   Implementation of generic threadpool.
@@ -89,7 +129,7 @@ enum worker_wake_reason
 
 
 /* A per-worker  thread structure.*/
-struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
+struct alignas(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
 {
   /** Condition variable to wakeup this worker.*/
   std::condition_variable m_cv;
@@ -141,23 +181,13 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
   {}
 
   /*Define custom new/delete because of overaligned structure. */
-  void* operator new(size_t size)
+  static void *operator new(size_t size)
   {
-#ifdef _WIN32
-    return _aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
-#else
-    void* ptr;
-    int ret = posix_memalign(&ptr, CPU_LEVEL1_DCACHE_LINESIZE, size);
-    return ret ? 0 : ptr;
-#endif
+    return aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
   }
-  void operator delete(void* p)
+  static void operator delete(void* p)
   {
-#ifdef _WIN32
-    _aligned_free(p);
-#else
-    free(p);
-#endif
+    aligned_free(p);
   }
 };
 
@@ -297,22 +327,22 @@ public:
     int m_period;
     std::mutex m_mtx;
     bool m_on;
-    std::atomic<bool> m_running;
+    std::atomic<int> m_running;
 
     void run()
     {
       /*
         In rare cases, multiple callbacks can be scheduled,
-        e.g with set_time(0,0) in a loop.
-        We do not allow parallel execution, as user is not prepared.
+        at the same time,. e.g with set_time(0,0) in a loop.
+        We do not allow parallel execution, since it is against the expectations.
       */
-      bool expected = false;
-      if (!m_running.compare_exchange_strong(expected, true))
+      if (m_running.fetch_add(1, std::memory_order_acquire) > 0)
         return;
-
-      m_callback(m_data);
-      dbug_execute_after_task_callback();
-      m_running = false;
+      do
+      {
+        m_callback(m_data);
+      }
+      while (m_running.fetch_sub(1, std::memory_order_release) != 1);
 
       if (m_pool && m_period)
       {

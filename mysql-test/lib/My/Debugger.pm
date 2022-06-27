@@ -150,7 +150,8 @@ sub do_args($$$$$) {
   my %vars = (
     vardir => $::opt_vardir,
     exe => $$exe,
-    args => join(' ', map { quote_from_mtr $_ } @$$args, '--loose-gdb'),
+    args => join(' ', map { quote_from_mtr $_ } @$$args,
+                 '--loose-debug-gdb', '--loose-skip-stack-trace'),
     input => $input,
     script => "$::opt_vardir/tmp/${k}init.$type",
     log => "$::opt_vardir/log/$type.$k",

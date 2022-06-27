@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -94,10 +94,6 @@ those defined in mysql file ft_global.h */
 
 /** Threshold where our optimize thread automatically kicks in */
 #define FTS_OPTIMIZE_THRESHOLD		10000000
-
-/** Threshold to avoid exhausting of doc ids. Consecutive doc id difference
-should not exceed FTS_DOC_ID_MAX_STEP */
-#define FTS_DOC_ID_MAX_STEP		65535
 
 /** Maximum possible Fulltext word length in bytes (assuming mbmaxlen=4) */
 #define FTS_MAX_WORD_LEN		(HA_FT_MAXCHARLEN * 4)
@@ -359,10 +355,10 @@ struct fts_stopword_t;
 extern const char*	fts_default_stopword[];
 
 /** Variable specifying the maximum FTS cache size for each table */
-extern ulong		fts_max_cache_size;
+extern Atomic_relaxed<size_t> fts_max_cache_size;
 
 /** Variable specifying the total memory allocated for FTS cache */
-extern ulong		fts_max_total_cache_size;
+extern Atomic_relaxed<size_t> fts_max_total_cache_size;
 
 /** Variable specifying the FTS result cache limit for each query */
 extern size_t		fts_result_cache_limit;
@@ -402,17 +398,6 @@ fts_get_next_doc_id(
 /*================*/
 	const dict_table_t*	table,	/*!< in: table */
 	doc_id_t*		doc_id);/*!< out: new document id */
-/*********************************************************************//**
-Update the next and last Doc ID in the CONFIG table to be the input
-"doc_id" value (+ 1). We would do so after each FTS index build or
-table truncate */
-void
-fts_update_next_doc_id(
-/*===================*/
-	trx_t*			trx,		/*!< in/out: transaction */
-	const dict_table_t*	table,		/*!< in: table */
-	doc_id_t		doc_id)		/*!< in: DOC ID to set */
-	MY_ATTRIBUTE((nonnull(2)));
 
 /******************************************************************//**
 Create a new fts_doc_ids_t.
@@ -671,12 +656,6 @@ fts_optimize_remove_table(
 void
 fts_optimize_shutdown();
 
-/** Send sync fts cache for the table.
-@param[in]	table	table to sync */
-void
-fts_optimize_request_sync_table(
-	dict_table_t*	table);
-
 /**********************************************************************//**
 Take a FTS savepoint. */
 void
@@ -731,9 +710,8 @@ fts_savepoint_rollback_last_stmt(
 /** Run SYNC on the table, i.e., write out data from the cache to the
 FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	table		fts table
-@param[in]	wait		whether to wait for existing sync to finish
 @return DB_SUCCESS on success, error code on failure. */
-dberr_t fts_sync_table(dict_table_t* table, bool wait = true);
+dberr_t fts_sync_table(dict_table_t* table);
 
 /****************************************************************//**
 Create an FTS index cache. */
@@ -953,6 +931,18 @@ and fetch the parent table id and index id
 bool fts_check_aux_table(const char *name,
                          table_id_t *table_id,
                          index_id_t *index_id);
+
+/** Update the last document id. This function could create a new
+transaction to update the last document id.
+@param	table	table to be updated
+@param	doc_id	last document id
+@param	trx	update trx or null
+@retval DB_SUCCESS if OK */
+dberr_t
+fts_update_sync_doc_id(const dict_table_t *table,
+		       doc_id_t  doc_id,
+		       trx_t *trx)
+	MY_ATTRIBUTE((nonnull(1)));
 
 /** Sync the table during commit phase
 @param[in]	table	table to be synced */

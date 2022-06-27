@@ -24,6 +24,7 @@ ENGINE=InnoDB STATS_PERSISTENT=0;
 # change buffering is possible, so that the change buffer will be used
 # whenever possible.
 SET GLOBAL innodb_change_buffering_debug = 1;
+SET GLOBAL innodb_change_buffering=all;
 
 # Create enough rows for the table, so that the change buffer will be
 # used for modifying the secondary index page. There must be multiple

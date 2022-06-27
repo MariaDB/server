@@ -1041,6 +1041,8 @@ INSERT IGNORE INTO t3 VALUES (0),(0);
 
 set @@optimizer_switch='semijoin=off';
 
+--echo # NOTE: the following should have 'SUBQUERY', not 'DEPENDENT SUBQUERY'
+--echo # for line with id=2, see MDEV-27794.
 EXPLAIN
 SELECT * FROM t1 WHERE
 (SELECT f2 FROM t2
@@ -2378,6 +2380,64 @@ SELECT 1
 FROM (t1 JOIN t1 AS ref_t1 ON
 	(t1.i1 > (SELECT ref_t1.i1 AS c0 FROM t1 b ORDER BY -c0)));
 
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22377: Subquery in an UPDATE query uses full scan instead of range
+--echo #
+
+CREATE TABLE t1 (
+  key1 varchar(30) NOT NULL,
+  col1 int(11) NOT NULL,
+  filler char(100)
+);
+insert into t1 select seq, seq, seq from seq_1_to_100;
+
+CREATE TABLE t10 (
+  key1 varchar(30) NOT NULL,
+  col1 int,
+  filler char(100),
+  PRIMARY KEY (key1)
+);
+insert into t10 select seq, seq, seq from seq_1_to_1000;
+
+CREATE TABLE t11 (
+  key1 varchar(30) NOT NULL,
+  filler char(100),
+  PRIMARY KEY (key1)
+);
+insert into t11 select seq, seq from seq_1_to_1000;
+
+
+set @tmp_os=@@optimizer_switch;
+set optimizer_switch='semijoin=off,materialization=off';
+
+--echo # Must use range access (not full scan) for table tms:
+explain select * from t1 hist
+WHERE
+  key1 IN ('1','2','3','4','5','6','7','8','9','10') AND
+  hist.col1 NOT IN (SELECT tn.col1
+                    FROM t10 tn JOIN t11 tms ON tms.key1 = tn.key1
+                    WHERE tn.key1 IN ('1','2','3','4','5','6','7','8','9','10')
+                   );
+
+set optimizer_switch=@tmp_os;
+
+drop table t1, t10, t11;
+
+--echo #
+--echo # MDEV-28268: Server crashes in Expression_cache_tracker::fetch_current_stats
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2),(3,4);
+
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON
+SELECT DISTINCT
+  (SELECT MIN(a) FROM t1 WHERE b <= ANY (SELECT a FROM t1)) AS f
+FROM t1;
+
+# Cleanup
 DROP TABLE t1;
 
 --echo # End of 10.2 tests

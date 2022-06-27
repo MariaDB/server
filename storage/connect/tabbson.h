@@ -318,7 +318,9 @@ protected:
 
   // Members
   PBVAL Docp;                      // The document array
+  PBVAL Docrow;                    // Document row
   int   Multiple;                  // 0: No 1: DIR 2: Section 3: filelist
+  int   Docsize;                   // The document size
   bool  Done;                      // True when document parsing is done
   bool  Changed;                   // After Update, Insert or Delete
 }; // end of class TDBBSON

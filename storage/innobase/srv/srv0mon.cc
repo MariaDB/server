@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -271,18 +271,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 static_cast<monitor_type_t>(
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_WRITTEN},
-
-	{"buffer_index_pages_written", "buffer",
-	 "Number of index pages written (innodb_index_pages_written)",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_INDEX_PAGES_WRITTEN},
-
-	{"buffer_non_index_pages_written", "buffer",
-	 "Number of non index pages written (innodb_non_index_pages_written)",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_NON_INDEX_PAGES_WRITTEN},
 
 	{"buffer_pages_read", "buffer",
 	 "Number of pages read (innodb_pages_read)",
@@ -1505,16 +1493,6 @@ srv_mon_process_existing_counter(
 		value = buf_pool.stat.n_pages_written;
 		break;
 
-	/* innodb_index_pages_written, the number of index pages written */
-	case MONITOR_OVLD_INDEX_PAGES_WRITTEN:
-		value = srv_stats.index_pages_written;
-		break;
-
-	/* innodb_non_index_pages_written, the number of non index pages written */
-	case MONITOR_OVLD_NON_INDEX_PAGES_WRITTEN:
-		value = srv_stats.non_index_pages_written;
-		break;
-
 	case MONITOR_LRU_BATCH_FLUSH_TOTAL_PAGE:
 		value = buf_lru_flush_page_count;
 		break;
@@ -1765,10 +1743,7 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_PENDING_CHECKPOINT_WRITE:
-		mysql_mutex_lock(&log_sys.mutex);
-		value = static_cast<mon_type_t>(
-		    log_sys.n_pending_checkpoint_writes);
-		mysql_mutex_unlock(&log_sys.mutex);
+		value = log_sys.checkpoint_pending;
 		break;
 
 	case MONITOR_LOG_IO:

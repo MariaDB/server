@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,15 +24,15 @@ Modification log for online index creation and online table rebuild
 Created 2011-05-26 Marko Makela
 *******************************************************/
 
-#ifndef row0log_h
-#define row0log_h
+#pragma once
 
 #include "que0types.h"
 #include "mtr0types.h"
 #include "row0types.h"
 #include "rem0types.h"
-#include "data0types.h"
+#include "dict0dict.h"
 #include "trx0types.h"
+#include "trx0undo.h"
 
 class ut_stage_alter_t;
 
@@ -74,37 +74,23 @@ row_log_free(
 
 /******************************************************//**
 Free the row log for an index on which online creation was aborted. */
-UNIV_INLINE
-void
-row_log_abort_sec(
-/*==============*/
-	dict_index_t*	index)	/*!< in/out: index (x-latched) */
-	MY_ATTRIBUTE((nonnull));
+inline void row_log_abort_sec(dict_index_t *index)
+{
+  ut_ad(index->lock.have_u_or_x());
+  ut_ad(!index->is_clust());
+  dict_index_set_online_status(index, ONLINE_INDEX_ABORTED);
+  row_log_free(index->online_log);
+  index->online_log= nullptr;
+}
 
-/******************************************************//**
-Try to log an operation to a secondary index that is
-(or was) being created.
-@retval true if the operation was logged or can be ignored
-@retval false if online index creation is not taking place */
-UNIV_INLINE
-bool
-row_log_online_op_try(
-/*==================*/
-	dict_index_t*	index,	/*!< in/out: index, S or X latched */
-	const dtuple_t* tuple,	/*!< in: index tuple */
-	trx_id_t	trx_id)	/*!< in: transaction ID for insert,
-				or 0 for delete */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/******************************************************//**
-Logs an operation to a secondary index that is (or was) being created. */
-void
-row_log_online_op(
-/*==============*/
-	dict_index_t*	index,	/*!< in/out: index, S or X latched */
-	const dtuple_t*	tuple,	/*!< in: index tuple (NULL=empty the index) */
-	trx_id_t	trx_id)	/*!< in: transaction ID for insert,
-				or 0 for delete */
-	ATTRIBUTE_COLD;
+/** Logs an operation to a secondary index that is (or was) being created.
+@param	index	index, S or X latched
+@param	tuple	index tuple
+@param	trx_id	transaction ID for insert, or 0 for delete
+@retval false if row_log_apply() failure happens
+or true otherwise */
+bool row_log_online_op(dict_index_t *index, const dtuple_t *tuple,
+                       trx_id_t trx_id) ATTRIBUTE_COLD;
 
 /******************************************************//**
 Gets the error status of the online index rebuild log.
@@ -185,22 +171,6 @@ row_log_table_insert(
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
 	const rec_offs*	offsets);/*!< in: rec_get_offsets(rec,index) */
-/******************************************************//**
-Notes that a BLOB is being freed during online ALTER TABLE. */
-void
-row_log_table_blob_free(
-/*====================*/
-	dict_index_t*	index,	/*!< in/out: clustered index, X-latched */
-	ulint		page_no)/*!< in: starting page number of the BLOB */
-	ATTRIBUTE_COLD __attribute__((nonnull));
-/******************************************************//**
-Notes that a BLOB is being allocated during online ALTER TABLE. */
-void
-row_log_table_blob_alloc(
-/*=====================*/
-	dict_index_t*	index,	/*!< in/out: clustered index, X-latched */
-	ulint		page_no)/*!< in: starting page number of the BLOB */
-	ATTRIBUTE_COLD __attribute__((nonnull));
 
 /** Apply the row_log_table log to a table upon completing rebuild.
 @param[in]	thr		query graph
@@ -252,6 +222,11 @@ row_log_apply(
 @return number of n_core_fields */
 unsigned row_log_get_n_core_fields(const dict_index_t *index);
 
+/** Get the error code of online log for the index
+@param	index	online index
+@return error code present in online log */
+dberr_t row_log_get_error(const dict_index_t *index);
+
 #ifdef HAVE_PSI_STAGE_INTERFACE
 /** Estimate how much work is to be done by the log apply phase
 of an ALTER TABLE for this index.
@@ -262,7 +237,3 @@ ulint
 row_log_estimate_work(
 	const dict_index_t*	index);
 #endif /* HAVE_PSI_STAGE_INTERFACE */
-
-#include "row0log.ic"
-
-#endif /* row0log.h */

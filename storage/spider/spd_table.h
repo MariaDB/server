@@ -1,5 +1,5 @@
 /* Copyright (C) 2008-2019 Kentoku Shiba
-   Copyright (C) 2019 MariaDB corp
+   Copyright (C) 2019-2022 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -318,14 +318,6 @@ uchar *spider_wide_share_get_key(
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 );
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-uchar *spider_pt_handler_share_get_key(
-  SPIDER_PARTITION_HANDLER_SHARE *share,
-  size_t *length,
-  my_bool not_used __attribute__ ((unused))
-);
-#endif
 
 uchar *spider_link_get_key(
   SPIDER_LINK_FOR_HASH *link_for_hash,

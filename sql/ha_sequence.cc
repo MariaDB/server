@@ -30,6 +30,10 @@
 #include "sql_base.h"
 #include "log_event.h"
 
+#ifdef WITH_WSREP
+#include "wsrep_trans_observer.h" /* wsrep_start_transaction() */
+#endif
+
 /*
   Table flags we should inherit and disable from the original engine.
   We add HA_STATS_RECORDS_IS_EXACT as ha_sequence::info() will ensure
@@ -204,6 +208,7 @@ int ha_sequence::write_row(const uchar *buf)
   int error;
   sequence_definition tmp_seq;
   bool sequence_locked;
+  THD *thd= table->in_use;
   DBUG_ENTER("ha_sequence::write_row");
   DBUG_ASSERT(table->record[0] == buf);
 
@@ -245,8 +250,6 @@ int ha_sequence::write_row(const uchar *buf)
         on master and slaves
       - Check that the new row is an accurate SEQUENCE object
     */
-
-    THD *thd= table->in_use;
     if (table->s->tmp_table == NO_TMP_TABLE &&
         thd->mdl_context.upgrade_shared_lock(table->mdl_ticket,
                                              MDL_EXCLUSIVE,
@@ -264,6 +267,16 @@ int ha_sequence::write_row(const uchar *buf)
     */
     sequence->write_lock(table);
   }
+
+#ifdef WITH_WSREP
+  /* We need to start Galera transaction for select NEXT VALUE FOR
+  sequence if it is not yet started. Note that ALTER is handled
+  as TOI. */
+  if (WSREP_ON && WSREP(thd) &&
+      !thd->wsrep_trx().active() &&
+      wsrep_thd_is_local(thd))
+    wsrep_start_transaction(thd, thd->wsrep_next_trx_id());
+#endif
 
   if (likely(!(error= file->update_first_row(buf))))
   {
@@ -439,6 +452,9 @@ static int sequence_initialize(void *p)
                                HTON_HIDDEN |
                                HTON_TEMPORARY_NOT_SUPPORTED |
                                HTON_ALTER_NOT_SUPPORTED |
+#ifdef WITH_WSREP
+                               HTON_WSREP_REPLICATION |
+#endif
                                HTON_NO_PARTITION);
   DBUG_RETURN(0);
 }

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2020, MariaDB
+   Copyright (c) 2020, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -356,7 +356,7 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
 end:
   THD_STAGE_INFO(thd, org_stage);
 
-  if (thd->killed)
+  if (thd->killed && !thd->get_stmt_da()->is_ok())
   {
     thd->send_kill_message();
     if (!rc)
@@ -1138,6 +1138,9 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
     else if (WSREP_NNULL(thd) &&
              server_state.state() == Wsrep_server_state::s_synced)
     {
+      THD_STAGE_INFO(thd, stage_waiting_flow);
+      WSREP_DEBUG("unlock_global_read_lock: waiting for flow control for %s",
+                  wsrep_thd_query(thd));
       server_state.resume_and_resync();
       wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
     }

@@ -29,7 +29,7 @@ INSERT INTO t2 VALUES(1, 't2, text 1');
 --echo
 --echo ******************** DELETE ********************
 DELETE FROM t1 WHERE a = 1;
-DELETE FROM t2 WHERE b <> UUID();
+DELETE FROM t2 WHERE b <> SYS_GUID();
 --source suite/rpl/include/rpl_mixed_check_select.inc
 --source suite/rpl/include/rpl_mixed_clear_tables.inc
 
@@ -37,7 +37,7 @@ DELETE FROM t2 WHERE b <> UUID();
 --echo
 --echo ******************** INSERT ********************
 INSERT INTO t1 VALUES(1, 't1, text 1');
-INSERT INTO t1 VALUES(2, UUID());
+INSERT INTO t1 VALUES(2, SYS_GUID());
 INSERT INTO t2 SELECT * FROM t1;
 INSERT INTO t2 VALUES (1, 't1, text 1') ON DUPLICATE KEY UPDATE b = 't2, text 1';
 DELETE FROM t1 WHERE a = 2;
@@ -60,7 +60,7 @@ INSERT INTO t1 VALUES(1, 't1, text 1');
 INSERT INTO t1 VALUES(2, 't1, text 2');
 INSERT INTO t1 VALUES(3, 't1, text 3');
 REPLACE INTO t1 VALUES(1, 't1, text 11');
-REPLACE INTO t1 VALUES(2, UUID());
+REPLACE INTO t1 VALUES(2, SYS_GUID());
 REPLACE INTO t1 SET a=3, b='t1, text 33';
 DELETE FROM t1 WHERE a = 2;
 --source suite/rpl/include/rpl_mixed_check_select.inc
@@ -70,7 +70,7 @@ DELETE FROM t1 WHERE a = 2;
 --echo
 --echo ******************** SELECT ********************
 INSERT INTO t1 VALUES(1, 't1, text 1');
-SELECT * FROM t1 WHERE b <> UUID() ORDER BY a;
+SELECT * FROM t1 WHERE b <> SYS_GUID() ORDER BY a;
 --source suite/rpl/include/rpl_mixed_clear_tables.inc
 
 # JOIN
@@ -89,7 +89,7 @@ SELECT * FROM t1 INNER JOIN  t2 ON t1.b = t2.b ORDER BY t1.a,t2.a;
 --echo ******************** UNION ********************
 INSERT INTO t1 VALUES(1, 't1, text 1');
 INSERT INTO t2 VALUES(1, 't2, text 1');
-SELECT * FROM t1 UNION SELECT * FROM t2 WHERE t2.b <> UUID();
+SELECT * FROM t1 UNION SELECT * FROM t2 WHERE t2.b <> SYS_GUID();
 --source suite/rpl/include/rpl_mixed_clear_tables.inc
 
 # TRUNCATE 
@@ -144,7 +144,7 @@ START TRANSACTION;
 INSERT INTO t1 VALUES (5, 'before savepoint s2');
 SAVEPOINT s2;
 INSERT INTO t1 VALUES (6, 'after savepoint s2');
-INSERT INTO t1 VALUES (7, CONCAT('with UUID() ',UUID()));
+INSERT INTO t1 VALUES (7, CONCAT('with SYS_GUID() ',SYS_GUID()));
 RELEASE SAVEPOINT s2;
 COMMIT;
 DELETE FROM t1 WHERE a = 7;
@@ -257,7 +257,7 @@ BEGIN
 END|
 CREATE PROCEDURE p2 ()
 BEGIN
-  UPDATE t1 SET b = UUID() WHERE a = 202;
+  UPDATE t1 SET b = SYS_GUID() WHERE a = 202;
 END|
 DELIMITER ;|
 INSERT  INTO t1 VALUES(201, 'test 201');
@@ -309,7 +309,7 @@ DROP EVENT e2;
 INSERT INTO t1 VALUES(1, 'test1');
 INSERT INTO t1 VALUES(2, 'test2');
 CREATE VIEW v1 AS SELECT * FROM t1 WHERE a = 1;
-CREATE VIEW v2 AS SELECT * FROM t1 WHERE b <> UUID();
+CREATE VIEW v2 AS SELECT * FROM t1 WHERE b <> SYS_GUID();
 --source suite/rpl/include/rpl_mixed_check_view.inc
 ALTER VIEW v1 AS SELECT * FROM t1 WHERE a = 2;
 --source suite/rpl/include/rpl_mixed_check_view.inc
@@ -323,7 +323,7 @@ DROP VIEW v2;
 --echo ******************** SHOW BINLOG EVENTS ********************
 --source include/show_binlog_events.inc
 sync_slave_with_master;
-# as we're using UUID we don't SELECT but use "diff" like in rpl_row_UUID
+# as we're using SYS_GUID we don't SELECT but use "diff" like in rpl_row_SYS_GUID
 --exec $MYSQL_DUMP --compact --order-by-primary --skip-extended-insert --no-create-info test_rpl > $MYSQLTEST_VARDIR/tmp/rpl_switch_stm_row_mixed_master.sql
 --exec $MYSQL_DUMP_SLAVE --compact --order-by-primary --skip-extended-insert --no-create-info test_rpl > $MYSQLTEST_VARDIR/tmp/rpl_switch_stm_row_mixed_slave.sql
 

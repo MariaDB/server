@@ -1,0 +1,2 @@
+etc/mysql/mariadb.conf.d/provider_lzo.cnf
+usr/lib/mysql/plugin/provider_lzo.so

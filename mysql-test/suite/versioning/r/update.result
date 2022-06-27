@@ -400,8 +400,30 @@ a	check_row(row_start, row_end)
 1	CURRENT ROW
 drop tables t1, t2, t3;
 #
+# MDEV-26778 row_start is not updated in current row for InnoDB
+#
+create or replace table t1 (x int) with system versioning;
+insert t1 values (1);
+update t1 set x= 1;
+select row_start into @r from t1;
+select check_row_ts(row_start, row_end) from t1 for system_time all where row_start = @r;
+check_row_ts(row_start, row_end)
+CURRENT ROW
+drop table t1;
+#
+# MDEV-22973 Assertion in compare_record upon multi-update involving versioned table via view
+#
+create or replace table t1 (a int, primary key (a)) engine=myisam;
+insert into t1 values (0);
+create or replace table t2 (pk int, b int, primary key (pk), key(b)) engine=innodb with system versioning;
+insert into t2 values (1, 0), (2, 0);
+create or replace view v as select a, b from t1, t2;
+update v set b= null where a = 0 order by b;
+drop view v;
+drop table t1, t2;
+#
 # MDEV-24522 Assertion `inited==NONE' fails upon UPDATE on versioned table with unique blob
-
+#
 create table t1 (a int, b int, c text, unique(c), key (b)) engine=myisam with system versioning;
 insert into t1 values (1, 1, 'foo'), (2, 11, 'bar');
 update t1 set a = 3 where b <= 9;
@@ -415,3 +437,4 @@ update t1 set a = 3 where b <= 9;
 update t2 set a = 3 where b <= 9;
 update t1, t2 set t1.a = 3, t2.a = 3 where t1.b <= 10 and t2.b <= 10 and t1.b = t2.b;
 drop tables t1, t2;
+# End of 10.4 tests

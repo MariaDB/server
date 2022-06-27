@@ -279,7 +279,9 @@ static struct my_option my_long_options[] =
    &opt_slave_apply, &opt_slave_apply, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
   {"as-of", OPT_ASOF_TIMESTAMP,
-   "Dump system versioned table as of specified timestamp.",
+   "Dump system versioned table(s) as of specified timestamp. "
+   "Argument is interpreted according to the --tz-utc setting. "
+   "Table structures are always dumped as of current timestamp.",
    &opt_asof_timestamp, &opt_asof_timestamp, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"character-sets-dir", OPT_CHARSETS_DIR,
    "Directory for character set files.", (char **)&charsets_dir,
@@ -577,7 +579,8 @@ static struct my_option my_long_options[] =
    &opt_dump_triggers, &opt_dump_triggers, 0, GET_BOOL,
    NO_ARG, 1, 0, 0, 0, 0, 0},
   {"tz-utc", OPT_TZ_UTC,
-    "SET TIME_ZONE='+00:00' at top of dump to allow dumping of TIMESTAMP data when a server has data in different time zones or data is being moved between servers with different time zones.",
+   "Set connection time zone to UTC before commencing the dump and add "
+   "SET TIME_ZONE=´+00:00´ to the top of the dump file.",
     &opt_tz_utc, &opt_tz_utc, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
 #ifndef DONT_ALLOW_USER_CHANGE
   {"user", 'u', "User for login if not current user.",
@@ -2870,6 +2873,9 @@ static uint dump_routines_for_db(char *db)
                             create_caption_xml[i]);
               continue;
             }
+
+            switch_sql_mode(sql_file, ";", row[1]);
+
             if (opt_drop)
               fprintf(sql_file, "/*!50003 DROP %s IF EXISTS %s */;\n",
                       routine_type[i], routine_name);
@@ -2908,9 +2914,6 @@ static uint dump_routines_for_db(char *db)
                         "The following dump may be incomplete.\n"
                       "--\n");
             }
-
-
-            switch_sql_mode(sql_file, ";", row[1]);
 
             fprintf(sql_file,
                     "DELIMITER ;;\n"
@@ -3412,9 +3415,10 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       }
       else
       {
-        dynstr_append_checked(&insert_pat, " VALUES ");
-        if (!extended_insert)
-          dynstr_append_checked(&insert_pat, "(");
+        if (extended_insert)
+          dynstr_append_checked(&insert_pat, " VALUES\n");
+        else
+          dynstr_append_checked(&insert_pat, " VALUES (");
       }
     }
 
@@ -4487,7 +4491,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
         if (total_length + row_length < opt_net_buffer_length)
         {
           total_length+= row_length;
-          fputc(',',md_result_file);            /* Always row break */
+          fputs(",\n",md_result_file);           /* Always row break */
           fputs(extended_row.str,md_result_file);
         }
         else
@@ -4517,7 +4521,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     if (!opt_xml && opt_copy_s3_tables && (ignore_flag & IGNORE_S3_TABLE))
     {
       DYNAMIC_STRING alter_string;
-      init_dynamic_string_checked(&alter_string, "ATER TABLE ", 1024, 1024);
+      init_dynamic_string_checked(&alter_string, "ALTER TABLE ", 1024, 1024);
       dynstr_append_checked(&alter_string, opt_quoted_table);
       dynstr_append_checked(&alter_string, " ENGINE=S3;\n");
       fputs(alter_string.str, md_result_file);
@@ -5422,6 +5426,55 @@ int init_dumping_views(char *qdatabase __attribute__((unused)))
 
 
 /*
+mysql specific database initialization.
+
+SYNOPSIS
+  init_dumping_mysql_tables
+
+  protections around dumping general/slow query log
+  qdatabase      quoted name of the "mysql" database
+
+RETURN VALUES
+  0        Success.
+  1        Failure.
+*/
+static int init_dumping_mysql_tables(char *qdatabase)
+{
+  DBUG_ENTER("init_dumping_mysql_tables");
+
+  if (opt_drop_database)
+    fprintf(md_result_file,
+            "\n/*!50106 SET @save_log_output=@@LOG_OUTPUT*/;\n"
+            "/*M!100203 EXECUTE IMMEDIATE IF(@@LOG_OUTPUT='TABLE' AND (@@SLOW_QUERY_LOG=1 OR @@GENERAL_LOG=1),"
+              "\"SET GLOBAL LOG_OUTPUT='NONE'\", \"DO 0\") */;\n");
+
+  DBUG_RETURN(init_dumping_tables(qdatabase));
+}
+
+
+static void dump_first_mysql_tables(char *database)
+{
+  char table_type[NAME_LEN];
+  char ignore_flag;
+  DBUG_ENTER("dump_first_mysql_tables");
+
+  if (!get_table_structure((char *) "general_log",
+                           database, table_type, &ignore_flag, NULL) )
+    verbose_msg("-- Warning: get_table_structure() failed with some internal "
+                "error for 'general_log' table\n");
+  if (!get_table_structure((char *) "slow_log",
+                           database, table_type, &ignore_flag, NULL) )
+    verbose_msg("-- Warning: get_table_structure() failed with some internal "
+                "error for 'slow_log' table\n");
+  /* general and slow query logs exist now */
+  if (opt_drop_database)
+    fprintf(md_result_file,
+            "\n/*!50106 SET GLOBAL LOG_OUTPUT=@save_log_output*/;\n\n");
+  DBUG_VOID_RETURN;
+}
+
+
+/*
 Table Specific database initialization.
 
 SYNOPSIS
@@ -5527,7 +5580,6 @@ static int dump_all_tables_in_db(char *database)
   char table_buff[NAME_LEN*2+3];
   char hash_key[2*NAME_LEN+2];  /* "db.tablename" */
   char *afterdot;
-  my_bool general_log_table_exists= 0, slow_log_table_exists=0;
   my_bool transaction_registry_table_exists= 0;
   int using_mysql_db= !my_strcasecmp(charset_info, database, "mysql");
   DBUG_ENTER("dump_all_tables_in_db");
@@ -5535,10 +5587,14 @@ static int dump_all_tables_in_db(char *database)
   afterdot= strmov(hash_key, database);
   *afterdot++= '.';
 
-  if (init_dumping(database, init_dumping_tables))
+  if (init_dumping(database, using_mysql_db ? init_dumping_mysql_tables
+                   : init_dumping_tables))
     DBUG_RETURN(1);
   if (opt_xml)
     print_xml_tag(md_result_file, "", "\n", "database", "name=", database, NullS);
+
+  if (using_mysql_db)
+    dump_first_mysql_tables(database);
 
   if (lock_tables)
   {
@@ -5628,24 +5684,16 @@ static int dump_all_tables_in_db(char *database)
     else
     {
       /*
-        If general_log and slow_log exists in the 'mysql' database,
+        If transaction_registry exists in the 'mysql' database,
          we should dump the table structure. But we cannot
          call get_table_structure() here as 'LOCK TABLES' query got executed
          above on the session and that 'LOCK TABLES' query does not contain
-         'general_log' and 'slow_log' tables. (you cannot acquire lock
-         on log tables). Hence mark the existence of these log tables here and
+         'transaction_registry'. Hence mark the existence of the table here and
          after 'UNLOCK TABLES' query is executed on the session, get the table
          structure from server and dump it in the file.
       */
-      if (using_mysql_db)
-      {
-        if (!my_strcasecmp(charset_info, table, "general_log"))
-          general_log_table_exists= 1;
-        else if (!my_strcasecmp(charset_info, table, "slow_log"))
-          slow_log_table_exists= 1;
-        else if (!my_strcasecmp(charset_info, table, "transaction_registry"))
-          transaction_registry_table_exists= 1;
-      }
+      if (using_mysql_db && !my_strcasecmp(charset_info, table, "transaction_registry"))
+        transaction_registry_table_exists= 1;
     }
   }
 
@@ -5666,38 +5714,24 @@ static int dump_all_tables_in_db(char *database)
     DBUG_PRINT("info", ("Dumping routines for database %s", database));
     dump_routines_for_db(database);
   }
-  if (opt_xml)
-  {
-    fputs("</database>\n", md_result_file);
-    check_io(md_result_file);
-  }
   if (lock_tables)
     (void) mysql_query_with_error_report(mysql, 0, "UNLOCK TABLES");
   if (using_mysql_db)
   {
-    char table_type[NAME_LEN];
-    char ignore_flag;
-    if (general_log_table_exists)
-    {
-      if (!get_table_structure((char *) "general_log",
-                               database, table_type, &ignore_flag, NULL) )
-        verbose_msg("-- Warning: get_table_structure() failed with some internal "
-                    "error for 'general_log' table\n");
-    }
-    if (slow_log_table_exists)
-    {
-      if (!get_table_structure((char *) "slow_log",
-                               database, table_type, &ignore_flag, NULL) )
-        verbose_msg("-- Warning: get_table_structure() failed with some internal "
-                    "error for 'slow_log' table\n");
-    }
     if (transaction_registry_table_exists)
     {
+       char table_type[NAME_LEN];
+       char ignore_flag;
       if (!get_table_structure((char *) "transaction_registry",
                                database, table_type, &ignore_flag, NULL) )
         verbose_msg("-- Warning: get_table_structure() failed with some internal "
                     "error for 'transaction_registry' table\n");
     }
+  }
+  if (opt_xml)
+  {
+    fputs("</database>\n", md_result_file);
+    check_io(md_result_file);
   }
   if (flush_privileges && using_mysql_db)
   {

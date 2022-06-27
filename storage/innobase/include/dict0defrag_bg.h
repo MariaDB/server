@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -80,12 +80,10 @@ dict_stats_defrag_pool_del(
 					all entries for the table */
 	const dict_index_t*	index);	/*!< in: index to remove */
 
-/*****************************************************************//**
+/**
 Get the first index that has been added for updating persistent defrag
 stats and eventually save its stats. */
-void
-dict_defrag_process_entries_from_defrag_pool();
-/*===========================================*/
+void dict_defrag_process_entries_from_defrag_pool(THD *thd);
 
 /*********************************************************************//**
 Save defragmentation result.

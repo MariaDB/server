@@ -10,8 +10,5 @@
 #
 ##############################################################################
 
-GCF-1018B : MDEV-18534 wsrep::transaction::adopt(): Assertion `transaction.is_streaming()' failed
-GCF-1060 : MDEV-20848 galera_sr.GCF_1060
-GCF-585 : MDEV-24698 galera_sr.GCF-585 MTR failed with SIGABRT: no such a transition REPLICATING -> APPLYING
-galera-features#56 : MDEV-24896
-galera_sr_shutdown_master : MDEV-23612: galera_sr.galera_sr_shutdown_master MTR failed: WSREP_SST: [ERROR] Possible timeout in receving first data from donor in gtid stage
+GCF-1060 : MDEV-26528 wrong usage of mutex LOCK_thd_kill and LOCK_thd_kill
+

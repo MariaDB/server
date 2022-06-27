@@ -619,9 +619,6 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
-master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_error_1() VALUES (1), (1)
-master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_error_1)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 -e-e-e-e-e-e-e-e-e-e-e- >> B T Drop-Temp-NN-Temp N Drop-Temp-NN-Temp Te C << -e-e-e-e-e-e-e-e-e-e-e-
 
@@ -1163,9 +1160,6 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
-master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_error_1() VALUES (2), (2)
-master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_error_1)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	ROLLBACK
 -e-e-e-e-e-e-e-e-e-e-e- >> B T Drop-Temp-NN-Temp N Drop-Temp-NN-Temp Te R << -e-e-e-e-e-e-e-e-e-e-e-
 
@@ -1633,12 +1627,6 @@ ERROR 23000: Duplicate entry '3' for key 'PRIMARY'
 COMMIT;
 -b-b-b-b-b-b-b-b-b-b-b- >> B Drop-Temp-T-Temp Create-T-Temp Drop-Temp-T-Temp Drop-Temp-T-Temp Te C << -b-b-b-b-b-b-b-b-b-b-b-
 include/show_binlog_events.inc
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_error_1() VALUES (3), (3)
-master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_error_1)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
-master-bin.000001	#	Query	#	#	COMMIT
 -e-e-e-e-e-e-e-e-e-e-e- >> B Drop-Temp-T-Temp Create-T-Temp Drop-Temp-T-Temp Drop-Temp-T-Temp Te C << -e-e-e-e-e-e-e-e-e-e-e-
 
 SET @commands= 'B Drop-Temp-T-Temp Create-T-Temp Drop-Temp-T-Temp Drop-Temp-T-Temp NeT-trig C';
@@ -1725,12 +1713,6 @@ ERROR 23000: Duplicate entry '4' for key 'PRIMARY'
 ROLLBACK;
 -b-b-b-b-b-b-b-b-b-b-b- >> B Drop-Temp-T-Temp Create-T-Temp Drop-Temp-T-Temp Drop-Temp-T-Temp Te R << -b-b-b-b-b-b-b-b-b-b-b-
 include/show_binlog_events.inc
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_error_1() VALUES (4), (4)
-master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_error_1)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
-master-bin.000001	#	Query	#	#	ROLLBACK
 -e-e-e-e-e-e-e-e-e-e-e- >> B Drop-Temp-T-Temp Create-T-Temp Drop-Temp-T-Temp Drop-Temp-T-Temp Te R << -e-e-e-e-e-e-e-e-e-e-e-
 
 SET @commands= 'B Drop-Temp-T-Temp Create-T-Temp Drop-Temp-T-Temp Drop-Temp-T-Temp NeT-trig R';
@@ -2066,6 +2048,374 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 -e-e-e-e-e-e-e-e-e-e-e- >> B N N-Temp T-SELECT-T-Temp N-Temp NeT-trig R << -e-e-e-e-e-e-e-e-e-e-e-
 
+# > MDEV-26833
+# Errored out and rolled back Te statement should not produce any event to binlog
+#   in the following cases:
+SET @sav_var = @@session.binlog_direct_non_transactional_updates;
+SET @@session.binlog_direct_non_transactional_updates = ON;
+SET @commands= 'B T Drop-Temp-TT-Temp Te C';
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+DROP TEMPORARY TABLE tt_tmp_1, tt_tmp_2;
+INSERT INTO tt_error_1() VALUES (7), (7);
+ERROR 23000: Duplicate entry '7' for key 'PRIMARY'
+COMMIT;
+-b-b-b-b-b-b-b-b-b-b-b- >> B T Drop-Temp-TT-Temp Te C << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+-e-e-e-e-e-e-e-e-e-e-e- >> B T Drop-Temp-TT-Temp Te C << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @commands= 'Drop-Temp-T-Temp B T Create-T-Temp Te C';
+DROP TEMPORARY TABLE tt_tmp_2;
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+CREATE TEMPORARY TABLE tt_tmp_2 ( id INT ) engine= Innodb;
+INSERT INTO tt_error_1() VALUES (8), (8);
+ERROR 23000: Duplicate entry '8' for key 'PRIMARY'
+COMMIT;
+-b-b-b-b-b-b-b-b-b-b-b- >> Drop-Temp-T-Temp B T Create-T-Temp Te C << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+-e-e-e-e-e-e-e-e-e-e-e- >> Drop-Temp-T-Temp B T Create-T-Temp Te C << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @commands= 'B T Drop-Temp-TN-Temp Te C';
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+DROP TEMPORARY TABLE tt_tmp_2, nt_tmp_2;
+INSERT INTO tt_error_1() VALUES (9), (9);
+ERROR 23000: Duplicate entry '9' for key 'PRIMARY'
+COMMIT;
+-b-b-b-b-b-b-b-b-b-b-b- >> B T Drop-Temp-TN-Temp Te C << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+-e-e-e-e-e-e-e-e-e-e-e- >> B T Drop-Temp-TN-Temp Te C << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @commands= 'B T N-Temp Te C';
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+INSERT INTO nt_tmp_xx_1() VALUES (1);
+INSERT INTO tt_error_1() VALUES (10), (10);
+ERROR 23000: Duplicate entry '10' for key 'PRIMARY'
+COMMIT;
+-b-b-b-b-b-b-b-b-b-b-b- >> B T N-Temp Te C << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+-e-e-e-e-e-e-e-e-e-e-e- >> B T N-Temp Te C << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @commands= 'B T Drop-Temp-TT-Temp Te R';
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+DROP TEMPORARY TABLE tt_tmp_1, tt_tmp_2;
+INSERT INTO tt_error_1() VALUES (11), (11);
+ERROR 23000: Duplicate entry '11' for key 'PRIMARY'
+ROLLBACK;
+-b-b-b-b-b-b-b-b-b-b-b- >> B T Drop-Temp-TT-Temp Te R << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	ROLLBACK
+-e-e-e-e-e-e-e-e-e-e-e- >> B T Drop-Temp-TT-Temp Te R << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @commands= 'Drop-Temp-T-Temp B T Create-T-Temp Te R';
+DROP TEMPORARY TABLE tt_tmp_2;
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+CREATE TEMPORARY TABLE tt_tmp_2 ( id INT ) engine= Innodb;
+INSERT INTO tt_error_1() VALUES (12), (12);
+ERROR 23000: Duplicate entry '12' for key 'PRIMARY'
+ROLLBACK;
+-b-b-b-b-b-b-b-b-b-b-b- >> Drop-Temp-T-Temp B T Create-T-Temp Te R << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	ROLLBACK
+-e-e-e-e-e-e-e-e-e-e-e- >> Drop-Temp-T-Temp B T Create-T-Temp Te R << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @commands= 'B T Drop-Temp-TN-Temp Te R';
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+DROP TEMPORARY TABLE tt_tmp_2, nt_tmp_2;
+INSERT INTO tt_error_1() VALUES (13), (13);
+ERROR 23000: Duplicate entry '13' for key 'PRIMARY'
+ROLLBACK;
+-b-b-b-b-b-b-b-b-b-b-b- >> B T Drop-Temp-TN-Temp Te R << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	ROLLBACK
+-e-e-e-e-e-e-e-e-e-e-e- >> B T Drop-Temp-TN-Temp Te R << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @commands= 'B T N-Temp Te R';
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+INSERT INTO nt_tmp_xx_1() VALUES (1);
+INSERT INTO tt_error_1() VALUES (14), (14);
+ERROR 23000: Duplicate entry '14' for key 'PRIMARY'
+ROLLBACK;
+Warnings:
+Warning	#	Some non-transactional changed tables couldn't be rolled back
+-b-b-b-b-b-b-b-b-b-b-b- >> B T N-Temp Te R << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+-e-e-e-e-e-e-e-e-e-e-e- >> B T N-Temp Te R << -e-e-e-e-e-e-e-e-e-e-e-
+
+# Non-transactional side effects.
+SET @commands= 'B T N-Temp Te Ne C';
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+INSERT INTO nt_tmp_xx_1() VALUES (1);
+INSERT INTO tt_error_1() VALUES (15), (15);
+ERROR 23000: Duplicate entry '15' for key 'PRIMARY'
+INSERT INTO nt_error_1() VALUES (13), (13);
+ERROR 23000: Duplicate entry '13' for key 'PRIMARY'
+COMMIT;
+-b-b-b-b-b-b-b-b-b-b-b- >> B T N-Temp Te Ne C << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_error_1() VALUES (13), (13)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_error_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+-e-e-e-e-e-e-e-e-e-e-e- >> B T N-Temp Te Ne C << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @commands= 'B T N-Temp Te Ne R';
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+INSERT INTO nt_tmp_xx_1() VALUES (1);
+INSERT INTO tt_error_1() VALUES (16), (16);
+ERROR 23000: Duplicate entry '16' for key 'PRIMARY'
+INSERT INTO nt_error_1() VALUES (14), (14);
+ERROR 23000: Duplicate entry '14' for key 'PRIMARY'
+ROLLBACK;
+Warnings:
+Warning	#	Some non-transactional changed tables couldn't be rolled back
+-b-b-b-b-b-b-b-b-b-b-b- >> B T N-Temp Te Ne R << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_error_1() VALUES (14), (14)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_error_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+-e-e-e-e-e-e-e-e-e-e-e- >> B T N-Temp Te Ne R << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @@session.binlog_direct_non_transactional_updates = OFF;
+SET @commands= 'B T Drop-Temp-TT-Temp Te C';
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+DROP TEMPORARY TABLE tt_tmp_1, tt_tmp_2;
+INSERT INTO tt_error_1() VALUES (17), (17);
+ERROR 23000: Duplicate entry '17' for key 'PRIMARY'
+COMMIT;
+-b-b-b-b-b-b-b-b-b-b-b- >> B T Drop-Temp-TT-Temp Te C << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+-e-e-e-e-e-e-e-e-e-e-e- >> B T Drop-Temp-TT-Temp Te C << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @commands= 'Drop-Temp-T-Temp B T Create-T-Temp Te C';
+DROP TEMPORARY TABLE tt_tmp_2;
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+CREATE TEMPORARY TABLE tt_tmp_2 ( id INT ) engine= Innodb;
+INSERT INTO tt_error_1() VALUES (18), (18);
+ERROR 23000: Duplicate entry '18' for key 'PRIMARY'
+COMMIT;
+-b-b-b-b-b-b-b-b-b-b-b- >> Drop-Temp-T-Temp B T Create-T-Temp Te C << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+-e-e-e-e-e-e-e-e-e-e-e- >> Drop-Temp-T-Temp B T Create-T-Temp Te C << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @commands= 'B T Drop-Temp-TN-Temp Te C';
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+DROP TEMPORARY TABLE tt_tmp_2, nt_tmp_2;
+INSERT INTO tt_error_1() VALUES (19), (19);
+ERROR 23000: Duplicate entry '19' for key 'PRIMARY'
+COMMIT;
+-b-b-b-b-b-b-b-b-b-b-b- >> B T Drop-Temp-TN-Temp Te C << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+-e-e-e-e-e-e-e-e-e-e-e- >> B T Drop-Temp-TN-Temp Te C << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @commands= 'B T N-Temp Te C';
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+INSERT INTO nt_tmp_xx_1() VALUES (1);
+INSERT INTO tt_error_1() VALUES (20), (20);
+ERROR 23000: Duplicate entry '20' for key 'PRIMARY'
+COMMIT;
+-b-b-b-b-b-b-b-b-b-b-b- >> B T N-Temp Te C << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+-e-e-e-e-e-e-e-e-e-e-e- >> B T N-Temp Te C << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @commands= 'B T Drop-Temp-TT-Temp Te R';
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+DROP TEMPORARY TABLE tt_tmp_1, tt_tmp_2;
+INSERT INTO tt_error_1() VALUES (21), (21);
+ERROR 23000: Duplicate entry '21' for key 'PRIMARY'
+ROLLBACK;
+-b-b-b-b-b-b-b-b-b-b-b- >> B T Drop-Temp-TT-Temp Te R << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	ROLLBACK
+-e-e-e-e-e-e-e-e-e-e-e- >> B T Drop-Temp-TT-Temp Te R << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @commands= 'Drop-Temp-T-Temp B T Create-T-Temp Te R';
+DROP TEMPORARY TABLE tt_tmp_2;
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+CREATE TEMPORARY TABLE tt_tmp_2 ( id INT ) engine= Innodb;
+INSERT INTO tt_error_1() VALUES (22), (22);
+ERROR 23000: Duplicate entry '22' for key 'PRIMARY'
+ROLLBACK;
+-b-b-b-b-b-b-b-b-b-b-b- >> Drop-Temp-T-Temp B T Create-T-Temp Te R << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	ROLLBACK
+-e-e-e-e-e-e-e-e-e-e-e- >> Drop-Temp-T-Temp B T Create-T-Temp Te R << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @commands= 'B T Drop-Temp-TN-Temp Te R';
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+DROP TEMPORARY TABLE tt_tmp_2, nt_tmp_2;
+INSERT INTO tt_error_1() VALUES (23), (23);
+ERROR 23000: Duplicate entry '23' for key 'PRIMARY'
+ROLLBACK;
+-b-b-b-b-b-b-b-b-b-b-b- >> B T Drop-Temp-TN-Temp Te R << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	ROLLBACK
+-e-e-e-e-e-e-e-e-e-e-e- >> B T Drop-Temp-TN-Temp Te R << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @commands= 'B T N-Temp Te R';
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+INSERT INTO nt_tmp_xx_1() VALUES (1);
+INSERT INTO tt_error_1() VALUES (24), (24);
+ERROR 23000: Duplicate entry '24' for key 'PRIMARY'
+ROLLBACK;
+Warnings:
+Warning	#	Some non-transactional changed tables couldn't be rolled back
+-b-b-b-b-b-b-b-b-b-b-b- >> B T N-Temp Te R << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+-e-e-e-e-e-e-e-e-e-e-e- >> B T N-Temp Te R << -e-e-e-e-e-e-e-e-e-e-e-
+
+# Non-transactional side effects.
+SET @commands= 'B T N-Temp Te Ne C';
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+INSERT INTO nt_tmp_xx_1() VALUES (1);
+INSERT INTO tt_error_1() VALUES (25), (25);
+ERROR 23000: Duplicate entry '25' for key 'PRIMARY'
+INSERT INTO nt_error_1() VALUES (15), (15);
+ERROR 23000: Duplicate entry '15' for key 'PRIMARY'
+COMMIT;
+-b-b-b-b-b-b-b-b-b-b-b- >> B T N-Temp Te Ne C << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_error_1() VALUES (15), (15)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_error_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_1() VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+-e-e-e-e-e-e-e-e-e-e-e- >> B T N-Temp Te Ne C << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @commands= 'B T N-Temp Te Ne R';
+BEGIN;
+INSERT INTO tt_xx_1() VALUES (1);
+INSERT INTO nt_tmp_xx_1() VALUES (1);
+INSERT INTO tt_error_1() VALUES (26), (26);
+ERROR 23000: Duplicate entry '26' for key 'PRIMARY'
+INSERT INTO nt_error_1() VALUES (16), (16);
+ERROR 23000: Duplicate entry '16' for key 'PRIMARY'
+ROLLBACK;
+Warnings:
+Warning	#	Some non-transactional changed tables couldn't be rolled back
+-b-b-b-b-b-b-b-b-b-b-b- >> B T N-Temp Te Ne R << -b-b-b-b-b-b-b-b-b-b-b-
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_error_1() VALUES (16), (16)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_error_1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+-e-e-e-e-e-e-e-e-e-e-e- >> B T N-Temp Te Ne R << -e-e-e-e-e-e-e-e-e-e-e-
+
+SET @@session.binlog_direct_non_transactional_updates = @sav_var;
+# < MDEV-26833
 ###################################################################################
 #                               CHECK CONSISTENCY
 ###################################################################################

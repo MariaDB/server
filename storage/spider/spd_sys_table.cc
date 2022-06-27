@@ -3934,6 +3934,10 @@ TABLE *spider_find_temporary_table(
 ) {
   DBUG_ENTER("spider_find_temporary_table");
 #ifdef SPIDER_open_temporary_table
+  if (!thd->has_temporary_tables())
+  {
+    DBUG_RETURN(NULL);
+  }
   if (thd->open_temporary_table(table_list))
   {
     DBUG_RETURN(NULL);

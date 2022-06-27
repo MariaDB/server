@@ -1559,6 +1559,7 @@ int ha_tina::repair(THD* thd, HA_CHECK_OPT* check_opt)
   current_position= next_position= 0;
 
   /* Read the file row-by-row. If everything is ok, repair is not needed. */
+  thd_inc_error_row(thd);
   while (!(rc= find_current_row(buf)))
   {
     thd_inc_error_row(thd);

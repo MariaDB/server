@@ -210,5 +210,12 @@ let $coll_pad='tis620_bin';
 --source include/ctype_pad_all_engines.inc
 
 --echo #
+--echo # MDEV-24901 SIGSEGV in fts_get_table_name, SIGSEGV in ib_vector_size, SIGSEGV in row_merge_fts_doc_tokenize, stack smashing
+--echo #
+
+SELECT HEX(WEIGHT_STRING(_tis620 'a\0b'));
+SELECT HEX(WEIGHT_STRING(_tis620 'a\0b' COLLATE tis620_thai_nopad_ci));
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

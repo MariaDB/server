@@ -296,17 +296,16 @@ byte* fil_space_encrypt(
 @param[in]	tmp_frame		Temporary buffer
 @param[in]	physical_size		page size
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	err			DB_SUCCESS or DB_DECRYPTION_FAILED
-@return true if page decrypted, false if not.*/
-bool
+@retval DB_SUCCESS on success
+@retval DB_DECRYPTION_FAILED on error */
+dberr_t
 fil_space_decrypt(
 	uint32_t		space_id,
 	uint32_t		fsp_flags,
 	fil_space_crypt_t*	crypt_data,
 	byte*			tmp_frame,
 	ulint			physical_size,
-	byte*			src_frame,
-	dberr_t*		err);
+	byte*			src_frame);
 
 /******************************************************************
 Decrypt a page
@@ -314,7 +313,8 @@ Decrypt a page
 @param[in]	tmp_frame		Temporary buffer used for decrypting
 @param[in,out]	src_frame		Page to decrypt
 @return decrypted page, or original not encrypted page if decryption is
-not needed.*/
+not needed.
+@retval nullptr on failure */
 byte*
 fil_space_decrypt(
 	const fil_space_t* space,
@@ -370,7 +370,7 @@ Return crypt statistics
 @param[out]	stat		Crypt statistics */
 void fil_crypt_total_stat(fil_crypt_stat_t *stat);
 
-#include "fil0crypt.ic"
+#include "fil0crypt.inl"
 #endif /* !UNIV_INNOCHECKSUM */
 
 /**

@@ -24,12 +24,11 @@ The database buffer pool flush algorithm
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef buf0flu_h
-#define buf0flu_h
+#pragma once
 
 #include "ut0byte.h"
 #include "log0log.h"
-#include "buf0types.h"
+#include "buf0buf.h"
 
 /** Number of pages flushed. Protected by buf_pool.mutex. */
 extern ulint buf_flush_page_count;
@@ -40,14 +39,7 @@ extern ulint buf_lru_flush_page_count;
 extern ulint buf_lru_freed_page_count;
 
 /** Flag indicating if the page_cleaner is in active state. */
-extern bool buf_page_cleaner_is_active;
-
-#ifdef UNIV_DEBUG
-
-/** Value of MySQL global variable used to disable page cleaner. */
-extern my_bool		innodb_page_cleaner_disabled_debug;
-
-#endif /* UNIV_DEBUG */
+extern Atomic_relaxed<bool> buf_page_cleaner_is_active;
 
 /** Remove all dirty pages belonging to a given tablespace when we are
 deleting the data file of that tablespace.
@@ -87,13 +79,6 @@ buf_flush_init_for_writing(
 	void*			page_zip_,
 	bool			use_full_checksum);
 
-/** Write out dirty blocks from buf_pool.flush_list.
-@param max_n    wished maximum mumber of blocks flushed
-@param lsn      buf_pool.get_oldest_modification(LSN_MAX) target
-@return the number of processed pages
-@retval 0 if a buf_pool.flush_list batch is already running */
-ulint buf_flush_list(ulint max_n= ULINT_UNDEFINED, lsn_t lsn= LSN_MAX);
-
 /** Try to flush dirty pages that belong to a given tablespace.
 @param space       tablespace
 @param n_flushed   number of pages written
@@ -122,15 +107,28 @@ ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious);
 This function should be called at a mini-transaction commit, if a page was
 modified in it. Puts the block to the list of modified blocks, if it not
 already in it. */
-UNIV_INLINE
-void
-buf_flush_note_modification(
-/*========================*/
-	buf_block_t*	block,		/*!< in: block which is modified */
-	lsn_t		start_lsn,	/*!< in: start lsn of the first mtr in a
-					set of mtr's */
-	lsn_t		end_lsn);	/*!< in: end lsn of the last mtr in the
-					set of mtr's */
+inline void buf_flush_note_modification(buf_block_t *b, lsn_t start, lsn_t end)
+{
+  ut_ad(!srv_read_only_mode);
+  ut_d(const auto s= b->page.state());
+  ut_ad(s > buf_page_t::FREED);
+  ut_ad(s < buf_page_t::READ_FIX);
+  ut_ad(mach_read_from_8(b->page.frame + FIL_PAGE_LSN) <= end);
+  mach_write_to_8(b->page.frame + FIL_PAGE_LSN, end);
+  if (UNIV_LIKELY_NULL(b->page.zip.data))
+    memcpy_aligned<8>(FIL_PAGE_LSN + b->page.zip.data,
+                      FIL_PAGE_LSN + b->page.frame, 8);
+
+  const lsn_t oldest_modification= b->page.oldest_modification();
+
+  if (oldest_modification > 1)
+    ut_ad(oldest_modification <= start);
+  else if (fsp_is_system_temporary(b->page.id().space()))
+    b->page.set_temp_modified();
+  else
+    buf_pool.insert_into_flush_list(b, start);
+  srv_stats.buf_pool_write_requests.inc();
+}
 
 /** Initialize page_cleaner. */
 ATTRIBUTE_COLD void buf_flush_page_cleaner_init();
@@ -146,10 +144,10 @@ ATTRIBUTE_COLD void buf_flush_buffer_pool();
 void buf_flush_validate();
 #endif /* UNIV_DEBUG */
 
+/** Synchronously flush dirty blocks during recv_sys_t::apply().
+NOTE: The calling thread is not allowed to hold any buffer page latches! */
+void buf_flush_sync_batch(lsn_t lsn);
+
 /** Synchronously flush dirty blocks.
 NOTE: The calling thread is not allowed to hold any buffer page latches! */
 void buf_flush_sync();
-
-#include "buf0flu.ic"
-
-#endif

@@ -80,6 +80,10 @@ que_node_t */
 #include "que0que.h"
 #include "row0sel.h"
 
+#if defined __GNUC__ && (!defined __clang_major__ || __clang_major__ > 11)
+#pragma GCC diagnostic ignored "-Wfree-nonheap-object"
+#endif
+
 #define YYSTYPE que_node_t*
 
 /* #define __STDC__ */

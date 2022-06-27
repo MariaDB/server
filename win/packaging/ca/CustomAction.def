@@ -5,6 +5,7 @@ PresetDatabaseProperties
 RemoveDataDirectory
 CreateDatabaseRollback
 CheckDatabaseProperties
-CheckDataDirectoryEmpty
+CheckDataDirectory
 CheckDBInUse
 CheckServiceUpgrades
+CheckInstallDirectory

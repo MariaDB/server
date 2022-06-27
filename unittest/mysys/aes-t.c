@@ -21,27 +21,96 @@
 #include <string.h>
 #include <ctype.h>
 
-#define DO_TEST(mode, nopad, slen, fill, dlen, hash)                    \
-  SKIP_BLOCK_IF(mode == 0xDEADBEAF, nopad ? 4 : 5, #mode " not supported")     \
-  {                                                                     \
-    memset(src, fill, src_len= slen);                                   \
-    ok(my_aes_crypt(mode, nopad | ENCRYPTION_FLAG_ENCRYPT,              \
-                    src, src_len, dst, &dst_len,                        \
-                    key, sizeof(key), iv, sizeof(iv)) == MY_AES_OK,     \
-      "encrypt " #mode " %u %s", src_len, nopad ? "nopad" : "pad");     \
-    if (!nopad)                                                         \
-      ok (dst_len == my_aes_get_size(mode, src_len), "my_aes_get_size");\
-    my_md5(md5, (char*)dst, dst_len);                                   \
-    ok(dst_len == dlen && memcmp(md5, hash, sizeof(md5)) == 0, "md5");  \
-    ok(my_aes_crypt(mode, nopad | ENCRYPTION_FLAG_DECRYPT,              \
-                    dst, dst_len, ddst, &ddst_len,                      \
-                    key, sizeof(key), iv, sizeof(iv)) == MY_AES_OK,     \
-       "decrypt " #mode " %u", dst_len);                                \
-    ok(ddst_len == src_len && memcmp(src, ddst, src_len) == 0, "memcmp"); \
-  }
 
-#define DO_TEST_P(M,S,F,D,H) DO_TEST(M,0,S,F,D,H)
-#define DO_TEST_N(M,S,F,D,H) DO_TEST(M,ENCRYPTION_FLAG_NOPAD,S,F,D,H)
+/** Test streaming encryption, bytewise update.*/
+static int aes_crypt_bytewise(enum my_aes_mode mode, int flags, const unsigned char *src,
+                 unsigned int slen, unsigned char *dst, unsigned int *dlen,
+                 const unsigned char *key, unsigned int klen,
+                 const unsigned char *iv, unsigned int ivlen)
+{
+  /* Allocate context on odd address on stack, in order to
+   catch misalignment errors.*/
+  void *ctx= (char *)alloca(MY_AES_CTX_SIZE+1)+1;
+
+  int res1, res2;
+  uint d1= 0, d2;
+  uint i;
+
+  if ((res1= my_aes_crypt_init(ctx, mode, flags, key, klen, iv, ivlen)))
+    return res1;
+  for (i= 0; i < slen; i++)
+  {
+    uint tmp_d1=0;
+    res1= my_aes_crypt_update(ctx, src+i,1, dst, &tmp_d1);
+    if (res1)
+      return res1;
+    d1+= tmp_d1;
+    dst+= tmp_d1;
+  }
+  res2= my_aes_crypt_finish(ctx, dst, &d2);
+  *dlen= d1 + d2;
+  return res1 ? res1 : res2;
+}
+
+
+#ifndef HAVE_EncryptAes128Ctr
+const uint MY_AES_CTR=0xDEADBEAF;
+#endif
+#ifndef HAVE_EncryptAes128Gcm
+const uint MY_AES_GCM=0xDEADBEAF;
+#endif
+
+#define MY_AES_UNSUPPORTED(x)  (x == 0xDEADBEAF)
+
+static void do_test(uint mode, const char *mode_str, int nopad, uint slen,
+                    char fill, size_t dlen, const char *hash)
+{
+  uchar key[16]= {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
+  uchar iv[16]= {2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7};
+  uchar src[1000], dst[1100], dst2[1100], ddst[1000];
+  uchar md5[MY_MD5_HASH_SIZE];
+  uint src_len, dst_len, dst_len2, ddst_len;
+  int result;
+
+  if (MY_AES_UNSUPPORTED(mode))
+  {
+    skip(nopad?7:6, "%s not supported", mode_str);
+    return;
+  }
+  memset(src, fill, src_len= slen);
+  result= my_aes_crypt(mode, nopad | ENCRYPTION_FLAG_ENCRYPT, src, src_len,
+                       dst, &dst_len, key, sizeof(key), iv, sizeof(iv));
+  ok(result == MY_AES_OK, "encrypt %s %u %s", mode_str, src_len,
+     nopad ? "nopad" : "pad");
+
+  if (nopad)
+  {
+    result= aes_crypt_bytewise(mode, nopad | ENCRYPTION_FLAG_ENCRYPT, src,
+                                src_len, dst2, &dst_len2, key, sizeof(key),
+                                iv, sizeof(iv));
+    ok(result == MY_AES_OK, "encrypt bytewise %s %u", mode_str, src_len);
+    /* Compare with non-bytewise encryption result*/
+    ok(dst_len == dst_len2 && memcmp(dst, dst2, dst_len) == 0,
+       "memcmp bytewise  %s %u", mode_str, src_len);
+  }
+  else
+  {
+    int dst_len_real= my_aes_get_size(mode, src_len);
+    ok(dst_len_real= dst_len, "my_aes_get_size");
+  }
+  my_md5(md5, (char *) dst, dst_len);
+  ok(dst_len == dlen, "md5 len");
+  ok(memcmp(md5, hash, sizeof(md5)) == 0, "md5");
+  result= my_aes_crypt(mode, nopad | ENCRYPTION_FLAG_DECRYPT,
+                       dst, dst_len, ddst, &ddst_len, key, sizeof(key), iv,
+                       sizeof(iv));
+
+  ok(result == MY_AES_OK, "decrypt %s %u", mode_str, dst_len);
+  ok(ddst_len == src_len && memcmp(src, ddst, src_len) == 0, "memcmp");
+}
+
+#define DO_TEST_P(M, S, F, D, H) do_test(M, #M, 0, S, F, D, H)
+#define DO_TEST_N(M, S, F, D, H) do_test(M, #M, ENCRYPTION_FLAG_NOPAD, S, F, D, H)
 
 /* useful macro for debugging */
 #define PRINT_MD5()                                     \
@@ -53,25 +122,15 @@
     printf("\"\n");                                     \
   } while(0);
 
-#ifndef HAVE_EncryptAes128Ctr
-const uint MY_AES_CTR=0xDEADBEAF;
-#endif
-#ifndef HAVE_EncryptAes128Gcm
-const uint MY_AES_GCM=0xDEADBEAF;
-#endif
 
 int
 main(int argc __attribute__((unused)),char *argv[])
 {
-  uchar key[16]= {1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6};
-  uchar iv[16]=  {2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7};
-  uchar src[1000], dst[1100], ddst[1000];
-  uchar md5[MY_MD5_HASH_SIZE];
-  uint src_len, dst_len, ddst_len;
 
   MY_INIT(argv[0]);
 
-  plan(87);
+  plan(122);
+
   DO_TEST_P(MY_AES_ECB, 200, '.', 208, "\xd8\x73\x8e\x3a\xbc\x66\x99\x13\x7f\x90\x23\x52\xee\x97\x6f\x9a");
   DO_TEST_P(MY_AES_ECB, 128, '?', 144, "\x19\x58\x33\x85\x4c\xaa\x7f\x06\xd1\xb2\xec\xd7\xb7\x6a\xa9\x5b");
   DO_TEST_P(MY_AES_CBC, 159, '%', 160, "\x4b\x03\x18\x3d\xf1\xa7\xcd\xa1\x46\xb3\xc6\x8a\x92\xc0\x0f\xc9");

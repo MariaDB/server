@@ -38,6 +38,11 @@ else
   # If systemd (and systemctl) is available, but the service did not start, then
   # this smoke test is supposed to fail if next commands don't work.
   echo "Found systemctl, continuing smoke test.."
+  # Compression plugins are separated from main server package
+  # to own packages (for example LZ4 package mariadb-plugin-provider-lz4)
+  # and they are installed after mariadb-server.
+  # which means that they don't exist if MariaDB is not restarted
+  systemctl restart mariadb
 fi
 
 mysql <<EOT
@@ -71,10 +76,10 @@ EOT
 # but disabled  with '#' the options that are not available in this binary build
 mariadb <<EOT
 SET GLOBAL innodb_compression_algorithm=lz4;
-#SET GLOBAL innodb_compression_algorithm=lzo;
-#SET GLOBAL innodb_compression_algorithm=lzma;
-#SET GLOBAL innodb_compression_algorithm=bzip2;
-#SET GLOBAL innodb_compression_algorithm=snappy;
+SET GLOBAL innodb_compression_algorithm=lzo;
+SET GLOBAL innodb_compression_algorithm=lzma;
+SET GLOBAL innodb_compression_algorithm=bzip2;
+SET GLOBAL innodb_compression_algorithm=snappy;
 SET GLOBAL innodb_compression_algorithm=zlib;
 SET GLOBAL innodb_compression_algorithm=none;
 EOT

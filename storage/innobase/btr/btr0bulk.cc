@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -61,17 +61,22 @@ PageBulk::init()
 		m_index->set_modified(alloc_mtr);
 
 		uint32_t n_reserved;
-		if (!fsp_reserve_free_extents(&n_reserved,
-					      m_index->table->space,
-					      1, FSP_NORMAL, &alloc_mtr)) {
+		dberr_t err = fsp_reserve_free_extents(
+			&n_reserved, m_index->table->space, 1, FSP_NORMAL,
+			&alloc_mtr);
+		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+oom:
 			alloc_mtr.commit();
 			m_mtr.commit();
-			return(DB_OUT_OF_FILE_SPACE);
+			return err;
 		}
 
 		/* Allocate a new page. */
 		new_block = btr_page_alloc(m_index, 0, FSP_UP, m_level,
-					   &alloc_mtr, &m_mtr);
+					   &alloc_mtr, &m_mtr, &err);
+		if (!new_block) {
+			goto oom;
+		}
 
 		m_index->table->space->release_free_extents(n_reserved);
 
@@ -103,9 +108,12 @@ PageBulk::init()
 	} else {
 		new_block = btr_block_get(*m_index, m_page_no, RW_X_LATCH,
 					  false, &m_mtr);
+		if (!new_block) {
+			m_mtr.commit();
+			return(DB_CORRUPTION);
+		}
 
 		new_page = buf_block_get_frame(new_block);
-		ut_ad(new_block->page.id().page_no() == m_page_no);
 
 		ut_ad(page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW);
 
@@ -494,8 +502,8 @@ inline void PageBulk::finishPage()
 
 inline bool PageBulk::needs_finish() const
 {
-  ut_ad(page_align(m_cur_rec) == m_block->frame);
-  ut_ad(m_page == m_block->frame);
+  ut_ad(page_align(m_cur_rec) == m_block->page.frame);
+  ut_ad(m_page == m_block->page.frame);
   if (!m_page[PAGE_HEADER + PAGE_DIRECTION_B])
     return true;
   ulint heap_no, n_heap= page_header_get_field(m_page, PAGE_N_HEAP);
@@ -629,7 +637,7 @@ PageBulk::getSplitRec()
 		 < total_used_size / 2);
 
 	/* Keep at least one record on left page */
-	if (page_rec_is_infimum(page_rec_get_prev(rec))) {
+	if (page_rec_is_second(rec, m_page)) {
 		rec = page_rec_get_next(rec);
 		ut_ad(page_rec_is_user_rec(rec));
 	}
@@ -671,35 +679,40 @@ void
 PageBulk::copyOut(
 	rec_t*		split_rec)
 {
-	rec_t*		rec;
-	rec_t*		last_rec;
-	ulint		n;
-
 	/* Suppose before copyOut, we have 5 records on the page:
 	infimum->r1->r2->r3->r4->r5->supremum, and r3 is the split rec.
 
 	after copyOut, we have 2 records on the page:
 	infimum->r1->r2->supremum. slot ajustment is not done. */
 
-	rec = page_rec_get_next(page_get_infimum_rec(m_page));
-	last_rec = page_rec_get_prev(page_get_supremum_rec(m_page));
-	n = 0;
+	rec_t *rec = page_get_infimum_rec(m_page);
+	ulint n;
 
-	while (rec != split_rec) {
-		rec = page_rec_get_next(rec);
-		n++;
+	for (n = 0;; n++) {
+		rec_t *next = page_rec_get_next(rec);
+		if (next == split_rec) {
+			break;
+		}
+		rec = next;
 	}
 
 	ut_ad(n > 0);
 
+        const rec_t *last_rec = split_rec;
+	for (;;) {
+		const rec_t *next = page_rec_get_next_const(last_rec);
+		if (page_rec_is_supremum(next)) {
+			break;
+		}
+		last_rec = next;
+	}
+
 	/* Set last record's next in page */
-	rec_offs*	offsets = NULL;
-	rec = page_rec_get_prev(split_rec);
 	const ulint n_core = page_rec_is_leaf(split_rec)
 		? m_index->n_core_fields : 0;
 
-	offsets = rec_get_offsets(rec, m_index, offsets, n_core,
-				  ULINT_UNDEFINED, &m_heap);
+	rec_offs* offsets = rec_get_offsets(rec, m_index, nullptr, n_core,
+					    ULINT_UNDEFINED, &m_heap);
 	mach_write_to_2(rec - REC_NEXT, m_is_comp
 			? static_cast<uint16_t>
 			(PAGE_NEW_SUPREMUM - page_offset(rec))
@@ -820,14 +833,6 @@ PageBulk::storeExt(
 	dberr_t	err = btr_store_big_rec_extern_fields(
 		&btr_pcur, offsets, big_rec, &m_mtr, BTR_STORE_INSERT_BULK);
 
-	/* Reset m_block and m_cur_rec from page cursor, because
-	block may be changed during blob insert. (FIXME: Can it really?) */
-	ut_ad(m_block == btr_pcur.btr_cur.page_cur.block);
-
-	m_block = btr_pcur.btr_cur.page_cur.block;
-	m_cur_rec = btr_pcur.btr_cur.page_cur.rec;
-	m_page = buf_block_get_frame(m_block);
-
 	return(err);
 }
 
@@ -839,7 +844,7 @@ PageBulk::release()
 	finish();
 
 	/* We fix the block because we will re-pin it soon. */
-	buf_block_buf_fix_inc(m_block);
+	m_block->page.fix();
 
 	/* No other threads can modify this block. */
 	m_modify_clock = buf_block_get_modify_clock(m_block);
@@ -848,37 +853,19 @@ PageBulk::release()
 }
 
 /** Start mtr and latch the block */
-dberr_t
-PageBulk::latch()
+void PageBulk::latch()
 {
-	m_mtr.start();
-	m_index->set_modified(m_mtr);
+  m_mtr.start();
+  m_index->set_modified(m_mtr);
+#ifdef BTR_CUR_HASH_ADAPT
+  ut_ad(!m_block->index);
+#endif
+  m_block->page.lock.x_lock();
+  ut_ad(m_block->page.buf_fix_count());
+  m_mtr.memo_push(m_block, MTR_MEMO_PAGE_X_FIX);
 
-	ut_ad(m_block->page.buf_fix_count());
-
-	/* In case the block is S-latched by page_cleaner. */
-	if (!buf_page_optimistic_get(RW_X_LATCH, m_block, m_modify_clock,
-				     &m_mtr)) {
-		m_block = buf_page_get_gen(page_id_t(m_index->table->space_id,
-						     m_page_no),
-					   0, RW_X_LATCH,
-					   m_block, BUF_GET_IF_IN_POOL,
-					   &m_mtr, &m_err);
-
-		if (m_err != DB_SUCCESS) {
-			return (m_err);
-		}
-
-		ut_ad(m_block != NULL);
-	}
-
-	buf_block_buf_fix_dec(m_block);
-
-	ut_ad(m_block->page.buf_fix_count());
-
-	ut_ad(m_cur_rec > m_page && m_cur_rec < m_heap_top);
-
-	return (m_err);
+  ut_ad(m_cur_rec > m_page);
+  ut_ad(m_cur_rec < m_heap_top);
 }
 
 /** Split a page
@@ -1206,25 +1193,32 @@ BtrBulk::finish(dberr_t	err)
 		ut_ad(last_page_no != FIL_NULL);
 		last_block = btr_block_get(*m_index, last_page_no, RW_X_LATCH,
 					   false, &mtr);
+		if (!last_block) {
+			err = DB_CORRUPTION;
+err_exit:
+			mtr.commit();
+			return err;
+		}
+
 		first_rec = page_rec_get_next(
-			page_get_infimum_rec(last_block->frame));
+			page_get_infimum_rec(last_block->page.frame));
 		ut_ad(page_rec_is_user_rec(first_rec));
 
 		/* Copy last page to root page. */
 		err = root_page_bulk.init();
 		if (err != DB_SUCCESS) {
-			mtr.commit();
-			return(err);
+			goto err_exit;
 		}
 		root_page_bulk.copyIn(first_rec);
 		root_page_bulk.finish();
 
 		/* Remove last page. */
-		btr_page_free(m_index, last_block, &mtr);
-
+		err = btr_page_free(m_index, last_block, &mtr);
 		mtr.commit();
 
-		err = pageCommit(&root_page_bulk, NULL, false);
+		if (dberr_t e = pageCommit(&root_page_bulk, NULL, false)) {
+			err = e;
+		}
 		ut_ad(err == DB_SUCCESS);
 	}
 

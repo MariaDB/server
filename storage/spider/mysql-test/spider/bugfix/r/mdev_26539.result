@@ -1,0 +1,36 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+#
+# MDEV-26539 SIGSEGV in spider_check_and_set_trx_isolation and I_P_List_iterator from THD::drop_temporary_table (10.5.3 opt only) on ALTER
+#
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+CREATE TABLE tbl_a (
+c INT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+CREATE TABLE tbl_a (
+c INT
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a"' PARTITION BY LIST COLUMNS (c) (
+PARTITION pt1 DEFAULT COMMENT = 'srv "s_2_1"'
+);
+INSERT INTO tbl_a VALUES (1);
+ALTER TABLE tbl_a CHECK PARTITION ALL;
+Table	Op	Msg_type	Msg_text
+auto_test_local.tbl_a	check	status	OK
+DROP DATABASE auto_test_local;
+connection child2_1;
+DROP DATABASE auto_test_remote;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3

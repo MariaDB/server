@@ -1,0 +1,470 @@
+#
+# MDEV-25015 Custom formatting of strings in MariaDB queries
+#
+#
+# Normal Test Cases
+#
+select sformat('string test');
+sformat('string test')
+string test
+select sformat(0);
+sformat(0)
+0
+select sformat('C');
+sformat('C')
+C
+select sformat(-4.2);
+sformat(-4.2)
+-4.2
+select sformat(5, 5, 5);
+sformat(5, 5, 5)
+5
+select sformat('{} {}', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+sformat('{} {}', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+0 0
+select sformat('{{{}}}', 0);
+sformat('{{{}}}', 0)
+{0}
+select sformat('{{{}{{', 0);
+sformat('{{{}{{', 0)
+{0{
+select sformat('{{{{{}{{', 'param1');
+sformat('{{{{{}{{', 'param1')
+{{param1{
+select sformat(' {{ {{ {} {{ ', 'param1');
+sformat(' {{ {{ {} {{ ', 'param1')
+ { { param1 { 
+select sformat(' {{ {} {}', 'param1', 'param2');
+sformat(' {{ {} {}', 'param1', 'param2')
+ { param1 param2
+select sformat('A{}C{}E{}', 'B', 'D', 'F');
+sformat('A{}C{}E{}', 'B', 'D', 'F')
+ABCDEF
+select sformat('{} {}', FALSE, TRUE);
+sformat('{} {}', FALSE, TRUE)
+0 1
+select sformat('Add € != {} !=  {}?', '$', '£');
+sformat('Add € != {} !=  {}?', '$', '£')
+Add € != $ !=  £?
+select sformat('Check {} != {} != {}?', '€', '$', '£');
+sformat('Check {} != {} != {}?', '€', '$', '£')
+Check € != $ != £?
+select sformat('{}{}{}', 1, 2, 3);
+sformat('{}{}{}', 1, 2, 3)
+123
+select sformat('Float {} Boolean {} Number {}', 3.14159, True, -50);
+sformat('Float {} Boolean {} Number {}', 3.14159, True, -50)
+Float 3.14159 Boolean 1 Number -50
+select sformat('SUM {} + {} = {}', 2, 3, 2+3);
+sformat('SUM {} + {} = {}', 2, 3, 2+3)
+SUM 2 + 3 = 5
+select sformat('Numbers {} {} {}', 1, 1.11, 1.111);
+sformat('Numbers {} {} {}', 1, 1.11, 1.111)
+Numbers 1 1.11 1.111
+select sformat('what {} is {}?', 'time', 'it');
+sformat('what {} is {}?', 'time', 'it')
+what time is it?
+select sformat('{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+  {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+  {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+  {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}', 1, 2, 3, 4, 5, 6,
+7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
+33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
+58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82,
+83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105,
+106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120);
+sformat('{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+  {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+  {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28
+  29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61
+  62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94
+  95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120
+select sformat('{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+  {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+  {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+  {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}', '1', '2', '3 ',
+'4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20',
+'21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '35', '36',
+'37', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', '51', '52',
+'53', '54', '55', '56', '57', '58', '59', '60', '61', '62', '63', '64', '65', '66', '67', '68',
+'69', '70', '71', '72', '73', '74', '75', '76', '77', '78', '79', '80', '81', '82', '83', '84',
+'85', '86', '87', '88', '89', '90', '91', '92', '93', '94', '95', '96', '97', '98', '99', '100',
+'101', '102', '103', '104', '105', '106', '107', '108', '109', '110', '111', '112', '113', '114',
+'115', '116', '117', '118', '119', '120');
+sformat('{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+  {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+  {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+1 2 3  4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28
+  29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61
+  62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94
+  95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120
+#
+# Error Test Cases
+#
+select sformat('R={ }', 42);
+sformat('R={ }', 42)
+NULL
+Warnings:
+Warning	4183	SFORMAT error: invalid format string
+select sformat(NULL, 'Null', 'Test');
+sformat(NULL, 'Null', 'Test')
+NULL
+select sformat('Null Test {} {} ', 0, NULL);
+sformat('Null Test {} {} ', 0, NULL)
+NULL
+select sformat(NULL);
+sformat(NULL)
+NULL
+select sformat('My { Test');
+sformat('My { Test')
+NULL
+Warnings:
+Warning	4183	SFORMAT error: invalid format string
+select sformat('Test { {');
+sformat('Test { {')
+NULL
+Warnings:
+Warning	4183	SFORMAT error: invalid format string
+select sformat('A{}C{}E{}', 'B', 'D');
+sformat('A{}C{}E{}', 'B', 'D')
+NULL
+Warnings:
+Warning	4183	SFORMAT error: argument not found
+select sformat();
+ERROR 42000: Incorrect parameter count in the call to native function 'sformat'
+#
+# Table Test Cases
+#
+create table t1 (param1 text, param2 text, param3 int);
+insert into  t1 values ('string: {}, number: {}', 'xyz', 123),
+('something {} went {} wrong {}', 'foo', 0),
+('Test case {} -> {}', 'Print', -32);
+select sformat(param1, param2, param3) from t1;
+sformat(param1, param2, param3)
+string: xyz, number: 123
+NULL
+Test case Print -> -32
+Warnings:
+Warning	4183	SFORMAT error: argument not found
+drop table t1;
+create table t2 (param1 FLOAT, param2 SMALLINT, param3 CHAR, param4 DATE);
+insert into t2 values (0.0025, 25, 'A', DATE('2020-06-29')),
+(0.0005,  5, 'B', DATE('2020-6-29')),
+(5.5555, -5, 'C', DATE('200629')),
+(-9,     -9, 'D', DATE('20*06*29'));
+select sformat('p1 {:.4f} p2 {} p3 {} p4 {}', param1, param2, param3, param4) from t2;
+sformat('p1 {:.4f} p2 {} p3 {} p4 {}', param1, param2, param3, param4)
+p1 0.0025 p2 25 p3 A p4 2020-06-29
+p1 0.0005 p2 5 p3 B p4 2020-06-29
+p1 5.5555 p2 -5 p3 C p4 2020-06-29
+p1 -9.0000 p2 -9 p3 D p4 2020-06-29
+drop table t2;
+set names utf8;
+create table t3 (format_str   text character set 'latin1',
+first_param  text character set 'utf8',
+second_param text character set 'latin1');
+insert into t3 values ('test 1 {} {}', UNHEX('C3A5'), UNHEX('E5'));
+select sformat(format_str, first_param, second_param) from t3;
+sformat(format_str, first_param, second_param)
+test 1 å å
+select HEX(sformat(format_str, first_param, second_param)) from t3;
+HEX(sformat(format_str, first_param, second_param))
+74657374203120C3A520C3A5
+drop table t3;
+set names latin1;
+create table t4 (p1 bit(8), p2 boolean, p3 DECIMAL, p4 TIMESTAMP);
+insert into t4 values (42, TRUE,  42, '2021-08-18 16:50:07'),
+(24, FALSE, 24, '0000-00-00 00:00:00');
+select sformat('{}: {} {} {} {}', 'Data', p1, p2, p3, p4) from t4;
+sformat('{}: {} {} {} {}', 'Data', p1, p2, p3, p4)
+Data: 42 1 42 2021-08-18 16:50:07
+Data: 24 0 24 0000-00-00 00:00:00
+drop table t4;
+set names utf8;
+create table t5 (param text character SET utf8 COLLATE utf8_general_ci);
+insert into t5 values (UNHEX('C3A5')),(UNHEX('C5BB')),(UNHEX('e0b1bb')),
+(UNHEX('C38A')), (NULL);
+select sformat('{}', param) from t5;
+sformat('{}', param)
+å
+Ż
+౻
+Ê
+NULL
+select HEX(sformat('{}', param)) from t5;
+HEX(sformat('{}', param))
+C3A5
+C5BB
+E0B1BB
+C38A
+NULL
+drop table t5;
+set names latin1;
+#
+# Format Test Cases
+#
+select sformat('Num {:L}', 13800000000);
+sformat('Num {:L}', 13800000000)
+Num 13,800,000,000
+select sformat('Num [{:20}]', 42);
+sformat('Num [{:20}]', 42)
+Num [                  42]
+select sformat('Number: {:*^{}}', 4, 5);
+sformat('Number: {:*^{}}', 4, 5)
+Number: **4**
+select sformat('{:02} - {:02} - {:02}', 1, 2, 3);
+sformat('{:02} - {:02} - {:02}', 1, 2, 3)
+01 - 02 - 03
+select sformat('Character {:c}', 104);
+sformat('Character {:c}', 104)
+Character h
+select sformat('String {:s}', 'hello');
+sformat('String {:s}', 'hello')
+String hello
+select sformat('Large {0:+010.4g}', 392.64);
+sformat('Large {0:+010.4g}', 392.64)
+Large +0000392.6
+select sformat('Large {:g}', 392.65);
+sformat('Large {:g}', 392.65)
+Large 392.65
+select sformat('Float {:.2f}', 42.0);
+sformat('Float {:.2f}', 42.0)
+Float 42.00
+select sformat('Float {:f}', 42.0);
+sformat('Float {:f}', 42.0)
+Float 42.000000
+select sformat('Number {:d}', 42);
+sformat('Number {:d}', 42)
+Number 42
+select sformat('Number {:{}}', 5, 5);
+sformat('Number {:{}}', 5, 5)
+Number     5
+select sformat('Number [{:10}]', 9999);
+sformat('Number [{:10}]', 9999)
+Number [      9999]
+select sformat('Number {:.3}', 3.1416);
+sformat('Number {:.3}', 3.1416)
+Number 3.14
+select sformat('int: {0:d};  hex: {0:x};  oct: {0:o}', 42);
+sformat('int: {0:d};  hex: {0:x};  oct: {0:o}', 42)
+int: 42;  hex: 2a;  oct: 52
+select sformat('int: {0:d};  hex: {0:#x};  oct: {0:#o}', 42);
+sformat('int: {0:d};  hex: {0:#x};  oct: {0:#o}', 42)
+int: 42;  hex: 0x2a;  oct: 052
+select sformat('The Hexadecimal version of {0} is {0:X}', 255);
+sformat('The Hexadecimal version of {0} is {0:X}', 255)
+The Hexadecimal version of 255 is FF
+select sformat('The Hexadecimal version of {0} is {0:x}', 255);
+sformat('The Hexadecimal version of {0} is {0:x}', 255)
+The Hexadecimal version of 255 is ff
+select sformat('The octal version of {0} is {0:o}', 10);
+sformat('The octal version of {0} is {0:o}', 10)
+The octal version of 10 is 12
+select sformat('The binary version of {0} is {0:b}', 5);
+sformat('The binary version of {0} is {0:b}', 5)
+The binary version of 5 is 101
+select sformat('{:+f}; {:+f}', 3.14, -3.14);
+sformat('{:+f}; {:+f}', 3.14, -3.14)
++3.140000; -3.140000
+select sformat('{: f}; {: f}', 3.14, -3.14);
+sformat('{: f}; {: f}', 3.14, -3.14)
+ 3.140000; -3.140000
+select sformat('{:-f}; {:-f}', 3.14, -3.14);
+sformat('{:-f}; {:-f}', 3.14, -3.14)
+3.140000; -3.140000
+select sformat('The temperature is between {: } and {: } degrees celsius.', -3, 7);
+sformat('The temperature is between {: } and {: } degrees celsius.', -3, 7)
+The temperature is between -3 and  7 degrees celsius.
+select sformat('The temperature is between {:-} and {:-} degrees celsius.', -3, 7);
+sformat('The temperature is between {:-} and {:-} degrees celsius.', -3, 7)
+The temperature is between -3 and 7 degrees celsius.
+select sformat('The temperature is between {:+} and {:+} degrees celsius.', -3, 7);
+sformat('The temperature is between {:+} and {:+} degrees celsius.', -3, 7)
+The temperature is between -3 and +7 degrees celsius.
+select sformat('We have {:<8} chickens.', 49);
+sformat('We have {:<8} chickens.', 49)
+We have 49       chickens.
+select sformat('Center alimgn [{:*^10}]', 'data');
+sformat('Center alimgn [{:*^10}]', 'data')
+Center alimgn [***data***]
+select sformat('Center aling [{:^10}].', 'data');
+sformat('Center aling [{:^10}].', 'data')
+Center aling [   data   ].
+select sformat('Right aling [{:>10}].', 'data');
+sformat('Right aling [{:>10}].', 'data')
+Right aling [      data].
+select sformat('Left align [{:<10}].', 'data');
+sformat('Left align [{:<10}].', 'data')
+Left align [data      ].
+select sformat('{0}{1}{0}', 'abra', 'cad');
+sformat('{0}{1}{0}', 'abra', 'cad')
+abracadabra
+select sformat('Change Order {1} {0}', 'second', 'first');
+sformat('Change Order {1} {0}', 'second', 'first')
+Change Order first second
+#
+# Failed Format Test Cases
+#
+select sformat('Test {:c}', 'word');
+sformat('Test {:c}', 'word')
+NULL
+Warnings:
+Warning	4183	SFORMAT error: invalid type specifier
+select sformat('Test {one} {two} {three}', 1, 2, 3);
+sformat('Test {one} {two} {three}', 1, 2, 3)
+NULL
+Warnings:
+Warning	4183	SFORMAT error: argument not found
+select sformat('Number {:{<}', 8);
+sformat('Number {:{<}', 8)
+NULL
+Warnings:
+Warning	4183	SFORMAT error: invalid fill character '{'
+select sformat('Number {:10000000000}', 5);
+sformat('Number {:10000000000}', 5)
+NULL
+Warnings:
+Warning	4183	SFORMAT error: number is too big
+select sformat('1={1} 2={2} 0={0}', 0, 1);
+sformat('1={1} 2={2} 0={0}', 0, 1)
+NULL
+Warnings:
+Warning	4183	SFORMAT error: argument not found
+select sformat('Number {:.2d}', 42);
+sformat('Number {:.2d}', 42)
+NULL
+Warnings:
+Warning	4183	SFORMAT error: precision not allowed for this argument type
+select sformat('You scored {:.0%}', 0.25);
+sformat('You scored {:.0%}', 0.25)
+NULL
+Warnings:
+Warning	4183	SFORMAT error: invalid type specifier
+select sformat('You scored {:%}', 0.25);
+sformat('You scored {:%}', 0.25)
+NULL
+Warnings:
+Warning	4183	SFORMAT error: invalid type specifier
+select sformat('The price is {:f} dollars.', 45);
+sformat('The price is {:f} dollars.', 45)
+NULL
+Warnings:
+Warning	4183	SFORMAT error: invalid type specifier
+select sformat('The price is {:.2f} dollars.', 45);
+sformat('The price is {:.2f} dollars.', 45)
+NULL
+Warnings:
+Warning	4183	SFORMAT error: precision not allowed for this argument type
+select sformat('We have {:E} chickens.', 5);
+sformat('We have {:E} chickens.', 5)
+NULL
+Warnings:
+Warning	4183	SFORMAT error: invalid type specifier
+select sformat('We have {:e} chickens.', 5);
+sformat('We have {:e} chickens.', 5)
+NULL
+Warnings:
+Warning	4183	SFORMAT error: invalid type specifier
+select sformat('The universe is {:,} years old.', 13800000000);
+sformat('The universe is {:,} years old.', 13800000000)
+NULL
+Warnings:
+Warning	4183	SFORMAT error: invalid type specifier
+select sformat('The universe is {:_} years old.', 13800000000);
+sformat('The universe is {:_} years old.', 13800000000)
+NULL
+Warnings:
+Warning	4183	SFORMAT error: invalid type specifier
+select sformat('String {:-}', 'hello');
+sformat('String {:-}', 'hello')
+NULL
+Warnings:
+Warning	4183	SFORMAT error: format specifier requires numeric argument
+#
+# Table Format Test Cases
+#
+create table t1 (pformat text, data1 FLOAT, data2 INT,
+data3 VARCHAR(30));
+insert into t1 values ('{:.2f} {: } |{:*^15}',  1.11,  1, 'example I'),
+('{:.1f} {:-} |{:^15}',   -2.22, -2, 'example II'),
+('{:.2f} {:+} |{:<15}',    3.33,  3, 'example III'),
+('{:.4f} {:d} |{:^15}',   -4.44, -4, 'example IV');
+select sformat(pformat, data1, data2, data3) from t1;
+sformat(pformat, data1, data2, data3)
+1.11  1 |***example I***
+-2.2 -2 |  example II   
+3.33 +3 |example III    
+-4.4400 -4 |  example IV   
+drop table t1;
+create table t2 (a double);
+insert into t2 values (3.14159265358979323846);
+select a, sformat('{:.15f}', a) from t2;
+a	sformat('{:.15f}', a)
+3.141592653589793	3.141592653589793
+drop table t2;
+#
+# Unsupported/disabled features
+#
+select sformat('{:p}', '50');
+sformat('{:p}', '50')
+NULL
+Warnings:
+Warning	4183	SFORMAT error: invalid type specifier
+#
+# ucs2 test
+#
+select sformat('={}=', _ucs2 x'006100620063');
+sformat('={}=', _ucs2 x'006100620063')
+=abc=
+set names utf8;
+select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442');
+sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442')
+=тест=
+select hex(sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442'));
+hex(sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442'))
+003D0442043504410442003D
+create table t1 as select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442') as x;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` varchar(8) CHARACTER SET ucs2 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+set names latin1;
+#
+# ps parameters
+#
+prepare s from 'select sformat("={:d}=", ?)';
+execute s using 100;
+sformat("={:d}=", ?)
+=100=
+execute s using 'abc';
+sformat("={:d}=", ?)
+NULL
+Warnings:
+Warning	4183	SFORMAT error: invalid type specifier
+#
+# MDEV-26691 SFORMAT: Pass down FLOAT as FLOAT, without upcast to DOUBLE
+#
+select sformat('{}', cast(1.1 as float));
+sformat('{}', cast(1.1 as float))
+1.1
+#
+# MDEV-26646 SFORMAT Does not allow @variable use
+#
+set names utf8;
+set @a=3.14;
+select sformat('{:f}', @a);
+sformat('{:f}', @a)
+3.140000
+set names latin1;
+#
+# End of 10.7 tests
+#

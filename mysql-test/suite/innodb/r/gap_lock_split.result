@@ -1,0 +1,27 @@
+SET @save_frequency=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+CREATE TABLE t1(id INT PRIMARY key, val VARCHAR(16000)) ENGINE=InnoDB;
+INSERT INTO t1 (id,val) SELECT 2*seq,'x' FROM seq_0_to_1023;
+connect con1,localhost,root,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+DELETE FROM t1 WHERE id=1788;
+BEGIN;
+SELECT * FROM t1 WHERE id=1788 FOR UPDATE;
+id	val
+connection con1;
+COMMIT;
+InnoDB		0 transactions not purged
+connection default;
+INSERT INTO t1 (id,val) VALUES (1787, REPEAT('x',2000));
+connection con1;
+SET innodb_lock_wait_timeout=0;
+INSERT INTO t1 (id,val) VALUES (1788, 'x');
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SELECT * FROM t1 WHERE id=1788 FOR UPDATE;
+id	val
+disconnect con1;
+connection default;
+COMMIT;
+DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;

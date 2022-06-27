@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -67,6 +67,7 @@ support cross-platform development and expose comonly used SQL names. */
 
 #include <my_global.h>
 #include "my_counter.h"
+#include "aligned.h"
 #include <m_string.h>
 #include <mysqld_error.h>
 
@@ -191,9 +192,6 @@ using the call command. */
                                                 info output */
 #endif
 
-#define UNIV_BTR_DEBUG				/* check B-tree links */
-#define UNIV_LIGHT_MEM_DEBUG			/* light memory debugging */
-
 // #define UNIV_SQL_DEBUG
 
 #ifndef MY_ATTRIBUTE
@@ -216,36 +214,6 @@ management to ensure correct alignment for doubles etc. */
 			DATABASE VERSION CONTROL
 			========================
 */
-
-#ifdef HAVE_LZO
-#define IF_LZO(A,B) A
-#else
-#define IF_LZO(A,B) B
-#endif
-
-#ifdef HAVE_LZ4
-#define IF_LZ4(A,B) A
-#else
-#define IF_LZ4(A,B) B
-#endif
-
-#ifdef HAVE_LZMA
-#define IF_LZMA(A,B) A
-#else
-#define IF_LZMA(A,B) B
-#endif
-
-#ifdef HAVE_BZIP2
-#define IF_BZIP2(A,B) A
-#else
-#define IF_BZIP2(A,B) B
-#endif
-
-#ifdef HAVE_SNAPPY
-#define IF_SNAPPY(A,B) A
-#else
-#define IF_SNAPPY(A,B) B
-#endif
 
 #if defined (HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE) || defined(_WIN32)
 #define IF_PUNCH_HOLE(A,B) A
@@ -363,22 +331,19 @@ typedef ssize_t lint;
 #ifdef _WIN32
 /* Use the integer types and formatting strings defined in Visual Studio. */
 # define UINT32PF	"%u"
-# define INT64PF	"%lld"
 # define UINT64scan     "llu"
 # define UINT64PFx	"%016llx"
 #elif defined __APPLE__
 /* Apple prefers to call the 64-bit types 'long long'
 in both 32-bit and 64-bit environments. */
 # define UINT32PF	"%" PRIu32
-# define INT64PF	"%lld"
 # define UINT64scan     "llu"
 # define UINT64PFx	"%016llx"
 #elif defined _AIX
 /* Workaround for macros expension trouble */
 # define UINT32PF      "%u"
-# define INT64PF       "%lld"
 # define UINT64scan    "lu"
-# define UINT64PFx     "%016llx"
+# define UINT64PFx     "%016lx"
 #else
 /* Use the integer types and formatting strings defined in the C99 standard. */
 # define UINT32PF	"%" PRIu32
@@ -543,12 +508,10 @@ extern mysql_pfs_key_t fts_cache_mutex_key;
 extern mysql_pfs_key_t fts_cache_init_mutex_key;
 extern mysql_pfs_key_t fts_delete_mutex_key;
 extern mysql_pfs_key_t fts_doc_id_mutex_key;
-extern mysql_pfs_key_t fts_pll_tokenize_mutex_key;
 extern mysql_pfs_key_t ibuf_bitmap_mutex_key;
 extern mysql_pfs_key_t ibuf_mutex_key;
 extern mysql_pfs_key_t ibuf_pessimistic_insert_mutex_key;
 extern mysql_pfs_key_t log_sys_mutex_key;
-extern mysql_pfs_key_t log_cmdq_mutex_key;
 extern mysql_pfs_key_t log_flush_order_mutex_key;
 extern mysql_pfs_key_t recalc_pool_mutex_key;
 extern mysql_pfs_key_t purge_sys_pq_mutex_key;
@@ -565,8 +528,6 @@ extern mysql_pfs_key_t trx_pool_mutex_key;
 extern mysql_pfs_key_t trx_pool_manager_mutex_key;
 extern mysql_pfs_key_t lock_wait_mutex_key;
 extern mysql_pfs_key_t srv_threads_mutex_key;
-extern mysql_pfs_key_t thread_mutex_key;
-extern mysql_pfs_key_t row_drop_list_mutex_key;
 # endif /* UNIV_PFS_MUTEX */
 
 # ifdef UNIV_PFS_RWLOCK
@@ -578,5 +539,6 @@ extern mysql_pfs_key_t index_tree_rw_lock_key;
 extern mysql_pfs_key_t index_online_log_key;
 extern mysql_pfs_key_t trx_sys_rw_lock_key;
 extern mysql_pfs_key_t lock_latch_key;
+extern mysql_pfs_key_t trx_rseg_latch_key;
 # endif /* UNIV_PFS_RWLOCK */
 #endif /* HAVE_PSI_INTERFACE */

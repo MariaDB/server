@@ -1,7 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -855,7 +855,6 @@ struct TABLE_SHARE
   /* This is set for temporary tables where CREATE was binary logged */
   bool table_creation_was_logged;
   bool non_determinstic_insert;
-  bool vcols_need_refixing;
   bool has_update_default_function;
   bool can_do_row_logging;              /* 1 if table supports RBR */
   bool long_unique_table;
@@ -1487,8 +1486,15 @@ public:
   */
   bool auto_increment_field_not_null;
   bool insert_or_update;             /* Can be used by the handler */
+  /*
+     NOTE: alias_name_used is only a hint! It works only in need_correct_ident()
+     condition. On other cases it is FALSE even if table_name is alias.
+
+     E.g. in update t1 as x set a = 1
+  */
   bool alias_name_used;              /* true if table_name is alias */
   bool get_fields_in_item_tree;      /* Signal to fix_field */
+  List<Virtual_column_info> vcol_refix_list;
 private:
   bool m_needs_reopen;
   bool created;    /* For tmp tables. TRUE <=> tmp table was actually created.*/
@@ -1680,11 +1686,33 @@ public:
   Field **field_to_fill();
   bool validate_default_values_of_unset_fields(THD *thd) const;
 
+  // Check if the value list is assignable to the explicit field list
+  static bool check_assignability_explicit_fields(List<Item> fields,
+                                                  List<Item> values);
+  // Check if the value list is assignable to all visible fields
+  bool check_assignability_all_visible_fields(List<Item> &values) const;
+  /*
+    Check if the value list is assignable to:
+    - The explicit field list if fields.elements > 0, e.g.
+        INSERT INTO t1 (a,b) VALUES (1,2);
+    - All visible fields, if fields.elements==0, e.g.
+        INSERT INTO t1 VALUES (1,2);
+  */
+  bool check_assignability_opt_fields(List<Item> fields,
+                                      List<Item> values) const
+  {
+    DBUG_ASSERT(values.elements);
+    return fields.elements ?
+           check_assignability_explicit_fields(fields, values) :
+           check_assignability_all_visible_fields(values);
+  }
+
   bool insert_all_rows_into_tmp_table(THD *thd, 
                                       TABLE *tmp_table,
                                       TMP_TABLE_PARAM *tmp_table_param,
                                       bool with_cleanup);
-  int fix_vcol_exprs(THD *thd);
+  bool vcol_fix_expr(THD *thd);
+  bool vcol_cleanup_expr(THD *thd);
   Field *find_field_by_name(LEX_CSTRING *str) const;
   bool export_structure(THD *thd, class Row_definition_list *defs);
   bool is_splittable() { return spl_opt_info != NULL; }
@@ -1774,7 +1802,9 @@ public:
   bool vers_check_update(List<Item> &items);
   static bool check_period_overlaps(const KEY &key, const uchar *lhs, const uchar *rhs);
   int delete_row();
+  /* Used in majority of DML (called from fill_record()) */
   void vers_update_fields();
+  /* Used in DELETE, DUP REPLACE and insert history row */
   void vers_update_end();
   void find_constraint_correlated_indexes();
 
@@ -3174,9 +3204,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                        bool is_create_table,
                        List<String> *partitions_to_open= NULL);
 bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root);
-bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol);
-bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
-                                    Virtual_column_info *vcol);
 bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
                      bool *error_reported, vcol_init_mode expr);
 TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,

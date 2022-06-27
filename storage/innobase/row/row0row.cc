@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -531,7 +531,11 @@ row_build_low(
 			continue;
 		}
 
-		ut_ad(ind_field < &index->fields[index->n_fields]);
+		if (UNIV_UNLIKELY(ind_field
+				  >= &index->fields[index->n_fields])) {
+			ut_ad(rec_is_metadata(rec, *index));
+			continue;
+		}
 
 		const dict_col_t* col = dict_field_get_col(ind_field);
 
@@ -745,11 +749,15 @@ row_rec_to_index_entry_impl(
 	if (mblob == 2) {
 		ut_ad(info_bits == REC_INFO_METADATA_ALTER
 		      || info_bits == REC_INFO_METADATA_ADD);
-		ut_ad(rec_len <= ulint(index->n_fields + got));
 		if (pad) {
+			ut_ad(rec_len <= ulint(index->n_fields + got));
 			rec_len = ulint(index->n_fields)
 				+ (info_bits == REC_INFO_METADATA_ALTER);
-		} else if (!got && info_bits == REC_INFO_METADATA_ALTER) {
+		} else if (got) {
+			rec_len = std::min(rec_len,
+					   ulint(index->n_fields + got));
+		} else if (info_bits == REC_INFO_METADATA_ALTER) {
+			ut_ad(rec_len <= index->n_fields);
 			rec_len++;
 		}
 	} else {
@@ -1252,8 +1260,6 @@ row_get_clust_rec(
 	dtuple_t*	ref;
 	dict_table_t*	table;
 	btr_pcur_t	pcur;
-	ibool		found;
-	rec_t*		clust_rec;
 
 	ut_ad(!dict_index_is_clust(index));
 
@@ -1263,17 +1269,12 @@ row_get_clust_rec(
 
 	ref = row_build_row_ref(ROW_COPY_POINTERS, index, rec, heap);
 
-	found = row_search_on_row_ref(&pcur, mode, table, ref, mtr);
-
-	clust_rec = found ? btr_pcur_get_rec(&pcur) : NULL;
+	auto found = row_search_on_row_ref(&pcur, mode, table, ref, mtr);
 
 	mem_heap_free(heap);
 
-	btr_pcur_close(&pcur);
-
 	*clust_index = dict_table_get_first_index(table);
-
-	return(clust_rec);
+	return found ? btr_pcur_get_rec(&pcur) : nullptr;
 }
 
 /***************************************************************//**
@@ -1295,17 +1296,20 @@ row_search_index_entry(
 
 	ut_ad(dtuple_check_typed(entry));
 
-	if (dict_index_is_spatial(index)) {
-		ut_ad(mode & (BTR_MODIFY_LEAF | BTR_MODIFY_TREE));
-		rtr_pcur_open(index, entry, PAGE_CUR_RTREE_LOCATE,
-			      mode, pcur, mtr);
+	if (index->is_spatial()) {
+		if (rtr_pcur_open(index, entry, mode, pcur, mtr)) {
+			return ROW_NOT_FOUND;
+		}
 	} else {
-		btr_pcur_open(index, entry, PAGE_CUR_LE, mode, pcur, mtr);
+		if (btr_pcur_open(index, entry, PAGE_CUR_LE, mode, pcur, mtr)
+		    != DB_SUCCESS) {
+			return ROW_NOT_FOUND;
+		}
 	}
 
 	switch (btr_pcur_get_btr_cur(pcur)->flag) {
 	case BTR_CUR_DELETE_REF:
-		ut_ad(mode & BTR_DELETE);
+		ut_ad(!(~mode & BTR_DELETE));
 		ut_ad(!index->is_spatial());
 		return(ROW_NOT_DELETED_REF);
 

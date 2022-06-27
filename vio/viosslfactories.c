@@ -25,7 +25,7 @@ static my_bool     ssl_algorithms_added    = FALSE;
 static my_bool     ssl_error_strings_loaded= FALSE;
 
 /* the function below was generated with "openssl dhparam -2 -C 2048" */
-
+#ifndef HAVE_WOLFSSL
 static
 DH *get_dh2048()
 {
@@ -72,6 +72,7 @@ DH *get_dh2048()
     }
     return dh;
 }
+#endif
 
 static const char*
 ssl_error_string[] =
@@ -228,10 +229,34 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
              enum enum_ssl_init_error *error,
              const char *crl_file, const char *crl_path, ulonglong tls_version)
 {
-  DH *dh;
   struct st_VioSSLFd *ssl_fd;
   long ssl_ctx_options;
   DBUG_ENTER("new_VioSSLFd");
+
+  /*
+    If some optional parameters indicate empty strings, then
+    for compatibility with SSL libraries, replace them with NULL,
+    otherwise these libraries will try to open files with an empty
+    name, etc., and they will return an error code instead performing
+    the necessary operations:
+  */
+  if (ca_file && !ca_file[0])
+  {
+    ca_file  = NULL;
+  }
+  if (ca_path && !ca_path[0])
+  {
+    ca_path  = NULL;
+  }
+  if (crl_file && !crl_file[0])
+  {
+    crl_file = NULL;
+  }
+  if (crl_path && !crl_path[0])
+  {
+    crl_path = NULL;
+  }
+
   DBUG_PRINT("enter",
              ("key_file: '%s'  cert_file: '%s'  ca_file: '%s'  ca_path: '%s'  "
               "cipher: '%s' crl_file: '%s' crl_path: '%s'",
@@ -334,18 +359,21 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
     goto err2;
   }
 
+#ifndef HAVE_WOLFSSL
   /* DH stuff */
   if (!is_client_method)
   {
-    dh=get_dh2048();
+    DH *dh= get_dh2048();
     if (!SSL_CTX_set_tmp_dh(ssl_fd->ssl_context, dh))
     {
       *error= SSL_INITERR_DH;
-      goto err3;
+      DH_free(dh);
+      goto err2;
     }
 
     DH_free(dh);
   }
+#endif
 
 #ifdef HAVE_WOLFSSL
   /* set IO functions used by wolfSSL */
@@ -357,8 +385,6 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
 
   DBUG_RETURN(ssl_fd);
 
-err3:
-  DH_free(dh);
 err2:
   SSL_CTX_free(ssl_fd->ssl_context);
 err1:
@@ -378,6 +404,35 @@ new_VioSSLConnectorFd(const char *key_file, const char *cert_file,
 {
   struct st_VioSSLFd *ssl_fd;
   int verify= SSL_VERIFY_PEER;
+
+  if (ca_file  && ! ca_file[0])  ca_file  = NULL;
+  if (ca_path  && ! ca_path[0])  ca_path  = NULL;
+  if (crl_file && ! crl_file[0]) crl_file = NULL;
+  if (crl_path && ! crl_path[0]) crl_path = NULL;
+
+  /*
+    If some optional parameters indicate empty strings, then
+    for compatibility with SSL libraries, replace them with NULL,
+    otherwise these libraries will try to open files with an empty
+    name, etc., and they will return an error code instead performing
+    the necessary operations:
+  */
+  if (ca_file && !ca_file[0])
+  {
+    ca_file  = NULL;
+  }
+  if (ca_path && !ca_path[0])
+  {
+    ca_path  = NULL;
+  }
+  if (crl_file && !crl_file[0])
+  {
+    crl_file = NULL;
+  }
+  if (crl_path && !crl_path[0])
+  {
+    crl_path = NULL;
+  }
 
   /*
     Turn off verification of servers certificate if both
@@ -411,6 +466,31 @@ new_VioSSLAcceptorFd(const char *key_file, const char *cert_file,
 {
   struct st_VioSSLFd *ssl_fd;
   int verify= SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE;
+
+  /*
+    If some optional parameters indicate empty strings, then
+    for compatibility with SSL libraries, replace them with NULL,
+    otherwise these libraries will try to open files with an empty
+    name, etc., and they will return an error code instead performing
+    the necessary operations:
+  */
+  if (ca_file && !ca_file[0])
+  {
+    ca_file  = NULL;
+  }
+  if (ca_path && !ca_path[0])
+  {
+    ca_path  = NULL;
+  }
+  if (crl_file && !crl_file[0])
+  {
+    crl_file = NULL;
+  }
+  if (crl_path && !crl_path[0])
+  {
+    crl_path = NULL;
+  }
+
   if (!(ssl_fd= new_VioSSLFd(key_file, cert_file, ca_file,
                              ca_path, cipher, FALSE, error,
                              crl_file, crl_path, tls_version)))

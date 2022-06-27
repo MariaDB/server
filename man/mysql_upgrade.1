@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQL_UPGRADE\FR" "1" "20 July 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\FBMARIADB-UPGRADE\FR" "1" "20 July 2020" "MariaDB 10\&.7" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -15,7 +15,7 @@
 .\" upgrading MySQL
 .\" MySQL: upgrading
 .SH "NAME"
-mysql_upgrade \- check tables for MariaDB upgrade
+mariadb-upgrade \- check tables for MariaDB upgrade (mysql_upgrade is now a symlink to mariadb-upgrade)
 .SH "SYNOPSIS"
 .HP \w'\fBmysql_upgrade\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
 \fBmysql_upgrade [\fR\fB\fIoptions\fR\fR\fB]\fR
@@ -229,6 +229,21 @@ Old option accepted for backward compatibility but ignored\&.
 \fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR
 .sp
 Old option accepted for backward compatibility but ignored\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: check-if-upgrade-is-needed option
+.\" check-if-upgrade-is-needed option: mysql_upgrade
+\fB\-\-check\-if\-upgrade\-is\-needed\fR
+.sp
+Exit with a status code indicating if an upgrade is needed\&. Returns 0 if upgrade needed or current version couldn't be determined, 1 when no action required\&.
 .RE
 .sp
 .RS 4

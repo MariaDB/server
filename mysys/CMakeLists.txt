@@ -55,6 +55,7 @@ IF (WIN32)
     my_winerr.c
     my_winfile.c
     my_conio.c
+    my_minidump.cc
     my_win_popen.cc)
 ENDIF()
 
@@ -168,12 +169,16 @@ TARGET_LINK_LIBRARIES(mysys dbug strings ${ZLIB_LIBRARY}
  ${LIBNSL} ${LIBM} ${LIBRT} ${CMAKE_DL_LIBS} ${LIBSOCKET} ${LIBEXECINFO})
 DTRACE_INSTRUMENT(mysys)
 
+IF (HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)
+  TARGET_LINK_LIBRARIES(mysys atomic)
+ENDIF()
+
 IF(HAVE_BFD_H)
   TARGET_LINK_LIBRARIES(mysys bfd)  
 ENDIF(HAVE_BFD_H)
 
 IF (WIN32)
-  TARGET_LINK_LIBRARIES(mysys IPHLPAPI)  
+  TARGET_LINK_LIBRARIES(mysys iphlpapi dbghelp)
 ENDIF(WIN32)
 
 # Need explicit pthread for gcc -fsanitize=address

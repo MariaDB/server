@@ -99,7 +99,8 @@ BEGIN
     mysql.global_priv;
 
   -- verify that no plugin changed its disabled/enabled state
-  SELECT * FROM INFORMATION_SCHEMA.PLUGINS;
+  SELECT * FROM INFORMATION_SCHEMA.PLUGINS
+           WHERE PLUGIN_STATUS != 'INACTIVE';
 
   select * from information_schema.session_variables
     where variable_name = 'debug_sync';

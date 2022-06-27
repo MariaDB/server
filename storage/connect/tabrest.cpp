@@ -12,6 +12,7 @@
 /***********************************************************************/
 #include <my_global.h>    // All MariaDB stuff
 #include <mysqld.h>
+#include <mysqld_error.h>
 #include <sql_error.h>
 #if !defined(_WIN32) && !defined(_WINDOWS)
 #include <sys/types.h>
@@ -37,7 +38,7 @@
 #include "tabrest.h"
 
 #if defined(connect_EXPORTS)
-#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_NOTE, 0, M)
+#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR, M)
 #else
 #define PUSH_WARNING(M) htrc(M)
 #endif
@@ -112,7 +113,11 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 
 	} // endif f
 	
-	pID = vfork();
+#ifdef HAVE_VFORK
+       pID = vfork();
+#else
+       pID = fork();
+#endif
 	sprintf(fn, "-o%s", filename);
 
 	if (pID == 0) {

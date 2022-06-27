@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -37,10 +37,10 @@ table_session_connect_attrs::m_share=
   sizeof(pos_connect_attr_by_thread_by_attr), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE session_connect_attrs("
-                      "PROCESSLIST_ID INT NOT NULL,"
-                      "ATTR_NAME VARCHAR(32) NOT NULL,"
-                      "ATTR_VALUE VARCHAR(1024),"
-                      "ORDINAL_POSITION INT"
+                      "PROCESSLIST_ID INT NOT NULL comment 'Session connection identifier.',"
+                      "ATTR_NAME VARCHAR(32) NOT NULL comment 'Attribute name.',"
+                      "ATTR_VALUE VARCHAR(1024) comment 'Attribute value.',"
+                      "ORDINAL_POSITION INT comment 'Order in which attribute was added to the connection attributes.'"
                       ") CHARACTER SET utf8 COLLATE utf8_bin") },
   false  /* perpetual */
 };

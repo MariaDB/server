@@ -39,16 +39,23 @@ It has a state consisting of
 
 Operations supported on this semaphore
 
-1.acquire(num):
+1.acquire(num, callback):
 - waits until current value exceeds num, or until lock is granted.
+  if running synchronously (callback is nullptr)
 
 - returns EXPIRED if current_value >= num,
-  or ACQUIRED, if current_value < num and lock is granted.
+  or ACQUIRED, if current_value < num and lock is granted,
+  or CALLBACK_QUEUED, if callback was not nullptr, and function
+  would otherwise have to wait
 
 2.release(num)
 - releases lock
 - sets new current value to max(num,current_value)
 - releases some threads waiting in acquire()
+- executes some callbacks
+- might return some lsn, meaning there are some pending
+  callbacks left, and there is no new group commit lead
+  (i.e caller must do something to flush those pending callbacks)
 
 3. value()
 - read current value
@@ -82,7 +89,7 @@ public:
     CALLBACK_QUEUED
   };
   lock_return_code acquire(value_type num, const completion_callback *cb);
-  void release(value_type num);
+  value_type release(value_type num);
   value_type value() const;
   value_type pending() const;
   void set_pending(value_type num);

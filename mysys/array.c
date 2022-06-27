@@ -41,8 +41,9 @@
 */
 
 my_bool init_dynamic_array2(PSI_memory_key psi_key, DYNAMIC_ARRAY *array,
-                            uint element_size, void *init_buffer,
-                            uint init_alloc, uint alloc_increment, myf my_flags)
+                            size_t element_size, void *init_buffer,
+                            size_t init_alloc, size_t alloc_increment,
+                            myf my_flags)
 {
   DBUG_ENTER("init_dynamic_array2");
   if (!alloc_increment)
@@ -198,7 +199,7 @@ void *pop_dynamic(DYNAMIC_ARRAY *array)
     FALSE	Ok
 */
 
-my_bool set_dynamic(DYNAMIC_ARRAY *array, const void *element, uint idx)
+my_bool set_dynamic(DYNAMIC_ARRAY *array, const void *element, size_t idx)
 {
   if (idx >= array->elements)
   {
@@ -209,7 +210,7 @@ my_bool set_dynamic(DYNAMIC_ARRAY *array, const void *element, uint idx)
     array->elements=idx+1;
   }
   memcpy(array->buffer+(idx * array->size_of_element),element,
-	 (size_t) array->size_of_element);
+         array->size_of_element);
   return FALSE;
 }
 
@@ -230,13 +231,13 @@ my_bool set_dynamic(DYNAMIC_ARRAY *array, const void *element, uint idx)
     TRUE	Allocation of new memory failed
 */
 
-my_bool allocate_dynamic(DYNAMIC_ARRAY *array, uint max_elements)
+my_bool allocate_dynamic(DYNAMIC_ARRAY *array, size_t max_elements)
 {
   DBUG_ENTER("allocate_dynamic");
 
   if (max_elements >= array->max_element)
   {
-    uint size;
+    size_t size;
     uchar *new_ptr;
     size= (max_elements + array->alloc_increment)/array->alloc_increment;
     size*= array->alloc_increment;
@@ -277,7 +278,7 @@ my_bool allocate_dynamic(DYNAMIC_ARRAY *array, uint max_elements)
       idx	Index of element wanted.
 */
 
-void get_dynamic(DYNAMIC_ARRAY *array, void *element, uint idx)
+void get_dynamic(DYNAMIC_ARRAY *array, void *element, size_t idx)
 {
   if (idx >= array->elements)
   {
@@ -320,7 +321,7 @@ void delete_dynamic(DYNAMIC_ARRAY *array)
       idx        Index of element to be deleted
 */
 
-void delete_dynamic_element(DYNAMIC_ARRAY *array, uint idx)
+void delete_dynamic_element(DYNAMIC_ARRAY *array, size_t idx)
 {
   char *ptr= (char*) array->buffer+array->size_of_element*idx;
   array->elements--;
@@ -339,7 +340,7 @@ void delete_dynamic_element(DYNAMIC_ARRAY *array, uint idx)
                  deleting the array;
 */
 void delete_dynamic_with_callback(DYNAMIC_ARRAY *array, FREE_FUNC f) {
-  uint i;
+  size_t i;
   char *ptr= (char*) array->buffer;
   for (i= 0; i < array->elements; i++, ptr+= array->size_of_element) {
     f(ptr);
@@ -357,7 +358,7 @@ void delete_dynamic_with_callback(DYNAMIC_ARRAY *array, FREE_FUNC f) {
 
 void freeze_size(DYNAMIC_ARRAY *array)
 {
-  uint elements;
+  size_t elements;
 
   /*
     Do nothing if we are using a static buffer

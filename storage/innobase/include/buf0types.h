@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All rights reserved.
-Copyright (c) 2019, 2021, MariaDB Corporation.
+Copyright (c) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -38,16 +38,6 @@ struct buf_buddy_stat_t;
 
 /** A buffer frame. @see page_t */
 typedef	byte	buf_frame_t;
-
-/** Flags for io_fix types */
-enum buf_io_fix {
-	BUF_IO_NONE = 0,		/**< no pending I/O */
-	BUF_IO_READ,			/**< read pending */
-	BUF_IO_WRITE,			/**< write pending */
-	BUF_IO_PIN			/**< disallow relocation of
-					block and its removal of from
-					the flush_list */
-};
 
 /** Alternatives for srv_checksum_algorithm, which can be changed by
 setting innodb_checksum_algorithm */
@@ -99,20 +89,25 @@ this must be equal to srv_page_size */
 class page_id_t
 {
 public:
-
   /** Constructor from (space, page_no).
   @param space	 tablespace id
   @param page_no page number */
-  page_id_t(uint32_t space, uint32_t page_no) :
+  constexpr page_id_t(uint32_t space, uint32_t page_no) :
     m_id(uint64_t{space} << 32 | page_no) {}
 
-  page_id_t(uint64_t id) : m_id(id) {}
-  bool operator==(const page_id_t& rhs) const { return m_id == rhs.m_id; }
-  bool operator!=(const page_id_t& rhs) const { return m_id != rhs.m_id; }
-  bool operator<(const page_id_t& rhs) const { return m_id < rhs.m_id; }
-  bool operator>(const page_id_t& rhs) const { return m_id > rhs.m_id; }
-  bool operator<=(const page_id_t& rhs) const { return m_id <= rhs.m_id; }
-  bool operator>=(const page_id_t& rhs) const { return m_id >= rhs.m_id; }
+  constexpr page_id_t(uint64_t id) : m_id(id) {}
+  constexpr bool operator==(const page_id_t& rhs) const
+  { return m_id == rhs.m_id; }
+  constexpr bool operator!=(const page_id_t& rhs) const
+  { return m_id != rhs.m_id; }
+  constexpr bool operator<(const page_id_t& rhs) const
+  { return m_id < rhs.m_id; }
+  constexpr bool operator>(const page_id_t& rhs) const
+  { return m_id > rhs.m_id; }
+  constexpr bool operator<=(const page_id_t& rhs) const
+  { return m_id <= rhs.m_id; }
+  constexpr bool operator>=(const page_id_t& rhs) const
+  { return m_id >= rhs.m_id; }
   page_id_t &operator--() { ut_ad(page_no()); m_id--; return *this; }
   page_id_t &operator++()
   {
@@ -133,15 +128,16 @@ public:
 
   /** Retrieve the tablespace id.
   @return tablespace id */
-  uint32_t space() const { return static_cast<uint32_t>(m_id >> 32); }
+  constexpr uint32_t space() const { return static_cast<uint32_t>(m_id >> 32); }
 
   /** Retrieve the page number.
   @return page number */
-  uint32_t page_no() const { return static_cast<uint32_t>(m_id); }
+  constexpr uint32_t page_no() const { return static_cast<uint32_t>(m_id); }
 
   /** Retrieve the fold value.
   @return fold value */
-  ulint fold() const { return (space() << 20) + space() + page_no(); }
+  constexpr ulint fold() const
+  { return (ulint{space()} << 20) + space() + page_no(); }
 
   /** Reset the page number only.
   @param[in]	page_no	page number */
@@ -150,7 +146,13 @@ public:
     m_id= (m_id & ~uint64_t{0} << 32) | page_no;
   }
 
-  ulonglong raw() { return m_id; }
+  constexpr ulonglong raw() const { return m_id; }
+
+  /** Flag the page identifier as corrupted. */
+  void set_corrupted() { m_id= ~0ULL; }
+
+  /** @return whether the page identifier belongs to a corrupted page */
+  constexpr bool is_corrupted() const { return m_id == ~0ULL; }
 
 private:
   /** The page identifier */
@@ -176,35 +178,58 @@ enum rw_lock_type_t
 
 #include "sux_lock.h"
 
-class page_hash_latch : public rw_lock
+#ifdef SUX_LOCK_GENERIC
+class page_hash_latch : private rw_lock
 {
-public:
   /** Wait for a shared lock */
   void read_lock_wait();
   /** Wait for an exclusive lock */
   void write_lock_wait();
-
+public:
   /** Acquire a shared lock */
-  inline void read_lock();
+  inline void lock_shared();
   /** Acquire an exclusive lock */
-  inline void write_lock();
+  inline void lock();
 
-  /** Acquire a lock */
-  template<bool exclusive> void acquire()
-  {
-    if (exclusive)
-      write_lock();
-    else
-      read_lock();
-  }
-  /** Release a lock */
-  template<bool exclusive> void release()
-  {
-    if (exclusive)
-      write_unlock();
-    else
-      read_unlock();
-  }
+  /** @return whether an exclusive lock is being held by any thread */
+  bool is_write_locked() const { return rw_lock::is_write_locked(); }
+
+  /** @return whether any lock is being held by any thread */
+  bool is_locked() const { return rw_lock::is_locked(); }
+  /** @return whether any lock is being held or waited for by any thread */
+  bool is_locked_or_waiting() const { return rw_lock::is_locked_or_waiting(); }
+
+  /** Release a shared lock */
+  void unlock_shared() { read_unlock(); }
+  /** Release an exclusive lock */
+  void unlock() { write_unlock(); }
 };
+#elif defined _WIN32 || SIZEOF_SIZE_T >= 8
+class page_hash_latch
+{
+  srw_spin_lock_low lk;
+public:
+  void lock_shared() { lk.rd_lock(); }
+  void unlock_shared() { lk.rd_unlock(); }
+  void lock() { lk.wr_lock(); }
+  void unlock() { lk.wr_unlock(); }
+  bool is_write_locked() const { return lk.is_write_locked(); }
+  bool is_locked() const { return lk.is_locked(); }
+  bool is_locked_or_waiting() const { return lk.is_locked_or_waiting(); }
+};
+#else
+class page_hash_latch
+{
+  srw_spin_mutex lk;
+public:
+  void lock_shared() { lock(); }
+  void unlock_shared() { unlock(); }
+  void lock() { lk.wr_lock(); }
+  void unlock() { lk.wr_unlock(); }
+  bool is_locked() const { return lk.is_locked(); }
+  bool is_write_locked() const { return is_locked(); }
+  bool is_locked_or_waiting() const { return is_locked(); }
+};
+#endif
 
 #endif /* !UNIV_INNOCHECKSUM */

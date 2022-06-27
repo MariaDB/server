@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -51,12 +51,12 @@ table_esgs_global_by_event_name::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_stages_summary_global_by_event_name("
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "COUNT_STAR BIGINT unsigned not null,"
-                      "SUM_TIMER_WAIT BIGINT unsigned not null,"
-                      "MIN_TIMER_WAIT BIGINT unsigned not null,"
-                      "AVG_TIMER_WAIT BIGINT unsigned not null,"
-                      "MAX_TIMER_WAIT BIGINT unsigned not null)") },
+                      "EVENT_NAME VARCHAR(128) not null comment 'Event name.',"
+                      "COUNT_STAR BIGINT unsigned not null comment 'Number of summarized events, which includes all timed and untimed events.',"
+                      "SUM_TIMER_WAIT BIGINT unsigned not null comment 'Total wait time of the timed summarized events.',"
+                      "MIN_TIMER_WAIT BIGINT unsigned not null comment 'Minimum wait time of the timed summarized events.',"
+                      "AVG_TIMER_WAIT BIGINT unsigned not null comment 'Average wait time of the timed summarized events.',"
+                      "MAX_TIMER_WAIT BIGINT unsigned not null comment 'Maximum wait time of the timed summarized events.')") },
   false  /* perpetual */
 };
 
@@ -168,7 +168,7 @@ int table_esgs_global_by_event_name
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 0);
+  assert(table->s->null_bytes == 0);
 
   for (; (f= *fields) ; fields++)
   {

@@ -10,8 +10,11 @@
 .ninja_*
 *.mri
 *.mri.tpl
+/.cproject
+/.project
 .gdb_history
 .vs/
+/.settings/
 errmsg.sys
 typescript
 _CPack_Packages
@@ -103,6 +106,7 @@ packaging/rpm-oel/mysql.spec
 packaging/rpm-uln/mysql.10.0.11.spec
 packaging/solaris/postinstall-solaris
 extra/pcre2
+extra/libfmt
 plugin/auth_pam/auth_pam_tool
 plugin/auth_pam/config_auth_pam.h
 plugin/aws_key_management/aws-sdk-cpp
@@ -129,6 +133,7 @@ scripts/mysqld_safe
 scripts/mysqldumpslow
 scripts/mysqlhotcopy
 scripts/mytop
+scripts/wsrep_sst_backup
 scripts/wsrep_sst_common
 scripts/wsrep_sst_mysqldump
 scripts/wsrep_sst_rsync
@@ -197,6 +202,7 @@ sql/lex_token.h
 sql/gen_lex_token
 sql/gen_lex_hash
 sql/lex_hash.h
+sql/myskel.m4
 sql/mysql_tzinfo_to_sql
 sql/mysqld
 sql/sql_builtin.cc
@@ -357,6 +363,7 @@ x86/
 build/
 bld/
 [Bb]in/
+/cmake-build-debug/
 [Oo]bj/
 
 # Roslyn cache directories
@@ -540,7 +547,7 @@ compile_commands.json
 .vscode/
 
 # Clion && other JetBrains ides
-.idea
+/.idea/
 
 .cache/clangd
 

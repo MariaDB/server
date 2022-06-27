@@ -825,7 +825,7 @@ SELECT c1,hex(c4),c5,c6,c7 FROM t16 ORDER BY c1;
 --echo *****************
 --echo
 connection slave;
-# 1072 = ER_KEY_COLUMN_DOES_NOT_EXITS
+# 1072 = ER_KEY_COLUMN_DOES_NOT_EXIST
 --let $slave_sql_errno= 1072
 --let $show_slave_sql_error= 1
 --source include/wait_for_slave_sql_error.inc

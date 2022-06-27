@@ -40,6 +40,15 @@ SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master2_ready WAIT
 
 --connection default
 SET DEBUG_SYNC= "now WAIT_FOR master2_ready";
+
+connect(master3,localhost,root,,);
+# The 3nd trx for recovery, it won't get into binlog nor therefore recover
+SET DEBUG_SYNC= "ha_commit_trans_before_log_and_order SIGNAL master3_ready WAIT_FOR master3_go_never_arrives";
+--send INSERT INTO ti VALUES (4, "not gonna be log therefore survive"),(5, "ditto")
+
+--connection default
+SET DEBUG_SYNC= "now WAIT_FOR master3_ready";
+
 --echo "List of binary logs before crash"
 --source include/show_binary_logs.inc
 --echo # The gtid binlog state prior the crash will be truncated at the end of the test
@@ -49,11 +58,12 @@ SELECT @@global.gtid_binlog_state;
 --source include/kill_mysqld.inc
 --disconnect master1
 --disconnect master2
+--disconnect master3
 
 #
 # Server restart
 #
---let $restart_parameters= --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+--let $restart_parameters= --rpl-semi-sync-slave-enabled=1 --sync-binlog=1 --log-warnings=3
 --source include/start_mysqld.inc
 
 # Check error log for a successful truncate message.

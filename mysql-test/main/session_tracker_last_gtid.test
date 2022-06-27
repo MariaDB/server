@@ -17,3 +17,4 @@ select @@last_gtid;
 drop table t1;
 
 --disable_session_track_info
+reset master;

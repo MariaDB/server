@@ -1,0 +1,44 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+#
+# Testing CREATE TABLE statement having foreign key constraint,
+# while having concurrent DML for the referenced parent table.
+#
+# The replication of CREATE TABLE should have all referenced table names
+# appended in the key set, and DML on the parent table should be considered as
+# conflicting.
+# 
+# There are related test scenarios in test mysql-wsrep#332, where a regular table
+# is altered by adding new foreign key reference.
+#
+# We use concurrency facility of test MW-369 to setup the conflict between DDL and DML
+#
+
+# Open connection node_1a here, MW-369.inc will use it later
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+
+# create FK parent table
+--connection node_1
+CREATE TABLE p (id INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+
+# setup conflicting queries
+--let $mw_369_parent_query = INSERT INTO p VALUES(1,0)
+--let $mw_369_child_query = CREATE TABLE c(id INT NOT NULL PRIMARY KEY, p_id INT,  FOREIGN KEY (p_id)  REFERENCES p(id)  ON DELETE CASCADE) ENGINE=InnoDB
+
+# execute above queries through separate nodes
+--source MW-369.inc
+
+# Expect certification failure
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+--connection node_2
+SELECT * FROM p;
+SELECT * FROM c;
+
+DROP TABLE c;
+DROP TABLE p;

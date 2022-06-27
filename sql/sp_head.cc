@@ -411,6 +411,26 @@ Item *THD::sp_fix_func_item(Item **it_addr)
 
 
 /**
+  Prepare an Item for evaluation as an assignment source,
+  for assignment to the given target.
+
+  @param to        - the assignment target
+  @param it_addr   - a pointer on item refernce
+
+  @retval          -  NULL on error
+  @retval          -  a prepared item pointer on success
+*/
+Item *THD::sp_fix_func_item_for_assignment(const Field *to, Item **it_addr)
+{
+  DBUG_ENTER("THD::sp_fix_func_item_for_assignment");
+  Item *res= sp_fix_func_item(it_addr);
+  if (res && (!res->check_assignability_to(to)))
+    DBUG_RETURN(res);
+  DBUG_RETURN(NULL);
+}
+
+
+/**
   Evaluate an expression and store the result in the field.
 
   @param result_field           the field to store the result
@@ -829,7 +849,7 @@ void
 sp_head::set_stmt_end(THD *thd)
 {
   Lex_input_stream *lip= & thd->m_parser_state->m_lip; /* shortcut */
-  const char *end_ptr= lip->get_cpp_ptr(); /* shortcut */
+  const char *end_ptr= lip->get_cpp_tok_start(); /* shortcut */
 
   /* Make the string of parameters. */
 
@@ -3438,8 +3458,13 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     It's reset further in the common code part.
     It's merged with the saved parent's value at the exit of this func.
   */
-  bool parent_modified_non_trans_table= thd->transaction->stmt.modified_non_trans_table;
+  bool parent_modified_non_trans_table=
+    thd->transaction->stmt.modified_non_trans_table;
+  unsigned int parent_unsafe_rollback_flags=
+    thd->transaction->stmt.m_unsafe_rollback_flags;
   thd->transaction->stmt.modified_non_trans_table= FALSE;
+  thd->transaction->stmt.m_unsafe_rollback_flags= 0;
+
   DBUG_ASSERT(!thd->derived_tables);
   DBUG_ASSERT(thd->Item_change_list::is_empty());
   /*
@@ -3484,10 +3509,9 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     thd->lex->safe_to_cache_query= 0;
 #endif
 
-  Opt_trace_start ots(thd,  m_lex->query_tables,
-                        SQLCOM_SELECT, &m_lex->var_list,
-                        NULL, 0,
-                        thd->variables.character_set_client);
+  Opt_trace_start ots(thd);
+  ots.init(thd, m_lex->query_tables, SQLCOM_SELECT, &m_lex->var_list,
+           NULL, 0, thd->variables.character_set_client);
 
   Json_writer_object trace_command(thd);
   Json_writer_array trace_command_steps(thd, "steps");
@@ -3547,6 +3571,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     lex_query_tables_own_last= m_lex->query_tables_own_last;
     prelocking_tables= *lex_query_tables_own_last;
     *lex_query_tables_own_last= NULL;
+    m_lex->query_tables_last= m_lex->query_tables_own_last;
     m_lex->mark_as_requiring_prelocking(NULL);
   }
   thd->rollback_item_tree_changes();
@@ -3562,6 +3587,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     what is needed from the substatement gained
   */
   thd->transaction->stmt.modified_non_trans_table |= parent_modified_non_trans_table;
+  thd->transaction->stmt.m_unsafe_rollback_flags |= parent_unsafe_rollback_flags;
 
   TRANSACT_TRACKER(add_trx_state_from_thd(thd));
 
@@ -4065,7 +4091,7 @@ sp_instr_jump_if_not::exec_core(THD *thd, uint *nextp)
   Item *it;
   int res;
 
-  it= thd->sp_prepare_func_item(&m_expr);
+  it= thd->sp_prepare_func_item(&m_expr, 1);
   if (! it)
   {
     res= -1;

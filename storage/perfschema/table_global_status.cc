@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, 2016, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2015, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -47,8 +47,8 @@ table_global_status::m_share=
   sizeof(pos_t),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE global_status("
-  "VARIABLE_NAME VARCHAR(64) not null,"
-  "VARIABLE_VALUE VARCHAR(1024))") },
+  "VARIABLE_NAME VARCHAR(64) not null comment 'The global status variable name.',"
+  "VARIABLE_VALUE VARCHAR(1024) comment 'The global status variable value.')") },
   true   /* perpetual */
 };
 
@@ -164,7 +164,7 @@ int table_global_status
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 1);
+  assert(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)
@@ -180,7 +180,7 @@ int table_global_status
         m_row.m_variable_value.set_field(f);
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }

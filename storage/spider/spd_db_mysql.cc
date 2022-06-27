@@ -3891,27 +3891,15 @@ int spider_db_mbase::append_lock_tables(
     conn_link_idx = tmp_spider->conn_link_idx[tmp_link_idx];
     spider_mbase_share *db_share = (spider_mbase_share *)
       tmp_spider->share->dbton_share[conn->dbton_id];
-    if (&db_share->db_names_str[conn_link_idx])
-    {
-      db_name = db_share->db_names_str[conn_link_idx].ptr();
-      db_name_length = db_share->db_names_str[conn_link_idx].length();
-      db_name_charset = tmp_spider->share->access_charset;
-    } else {
-      db_name = tmp_spider->share->tgt_dbs[conn_link_idx];
-      db_name_length = tmp_spider->share->tgt_dbs_lengths[conn_link_idx];
-      db_name_charset = system_charset_info;
-    }
-    if (&db_share->table_names_str[conn_link_idx])
-    {
-      table_name = db_share->table_names_str[conn_link_idx].ptr();
-      table_name_length = db_share->table_names_str[conn_link_idx].length();
-      table_name_charset = tmp_spider->share->access_charset;
-    } else {
-      table_name = tmp_spider->share->tgt_table_names[conn_link_idx];
-      table_name_length =
-        tmp_spider->share->tgt_table_names_lengths[conn_link_idx];
-      table_name_charset = system_charset_info;
-    }
+
+    db_name = db_share->db_names_str[conn_link_idx].ptr();
+    db_name_length = db_share->db_names_str[conn_link_idx].length();
+    db_name_charset = tmp_spider->share->access_charset;
+
+    table_name = db_share->table_names_str[conn_link_idx].ptr();
+    table_name_length = db_share->table_names_str[conn_link_idx].length();
+    table_name_charset = tmp_spider->share->access_charset;
+
     if ((error_num = spider_db_mbase_utility->
       append_lock_table_body(
         str,
@@ -4388,7 +4376,7 @@ int spider_db_mariadb_util::append_column_value(
   } else if (float_value)
   {
     if (str->reserve(SPIDER_SQL_CAST_LEN + ptr->length() +
-      SPIDER_SQL_AS_FLOAT_LEN, SPIDER_SQL_CLOSE_PAREN_LEN))
+                     SPIDER_SQL_AS_FLOAT_LEN + SPIDER_SQL_CLOSE_PAREN_LEN))
     {
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
@@ -6676,11 +6664,17 @@ int spider_db_mbase_util::open_item_func(
         separator_str_length = SPIDER_SQL_AND_LEN;
       }
       break;
+    case Item_func::FUNC_SP:
     case Item_func::UDF_FUNC:
       use_pushdown_udf = spider_param_use_pushdown_udf(
         spider->wide_handler->trx->thd,
         spider->share->use_pushdown_udf);
       if (!use_pushdown_udf)
+        /*
+          This is the default behavior because the remote nodes may deal with
+          the function in an unexpected way (e.g. not having the same
+          definition). Users can turn it on if they know what they are doing.
+        */
         DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
       if (str)
       {

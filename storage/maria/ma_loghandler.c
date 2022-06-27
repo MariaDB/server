@@ -1219,12 +1219,12 @@ void translog_interpret_file_header(LOGHANDLER_FILE_INFO *desc,
   ptr+= 4;
   desc->mysql_version= uint4korr(ptr);
   ptr+= 4;
-  desc->server_id= uint4korr(ptr + 4);
+  desc->server_id= uint4korr(ptr);
   ptr+= 4;
   desc->page_size= uint2korr(ptr) + 1;
   ptr+= 2;
   desc->file_number= uint3korr(ptr);
-  ptr+=3;
+  ptr+= 3;
   desc->max_lsn= lsn_korr(ptr);
 }
 
@@ -1342,7 +1342,7 @@ struct st_file_counter
 
 static void translog_mark_file_unfinished(uint32 file)
 {
-  int place, i;
+  ssize_t place, i;
   struct st_file_counter fc, *fc_ptr;
 
   DBUG_ENTER("translog_mark_file_unfinished");
@@ -1375,7 +1375,7 @@ static void translog_mark_file_unfinished(uint32 file)
      goto end;
   }
 
-  if (place == (int)log_descriptor.unfinished_files.elements)
+  if (place == (ssize_t)log_descriptor.unfinished_files.elements)
   {
     insert_dynamic(&log_descriptor.unfinished_files, (uchar*) &fc);
     DBUG_PRINT("info", ("The last element inserted"));
@@ -3399,10 +3399,9 @@ static uint16 translog_get_chunk_header_length(uchar *chunk)
     DBUG_PRINT("info", ("TRANSLOG_CHUNK_LNGTH = 3"));
     DBUG_RETURN(3);
     break;
-  default:
-    DBUG_ASSERT(0);
-    DBUG_RETURN(0);                               /* Keep compiler happy */
   }
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);                               /* Keep compiler happy */
 }
 
 
@@ -3503,7 +3502,7 @@ my_bool translog_walk_filenames(const char *directory,
                                                     const char *))
 {
   MY_DIR *dirp;
-  uint i;
+  size_t i;
   my_bool rc= FALSE;
 
   /* Finds and removes transaction log files */
@@ -5626,8 +5625,8 @@ translog_write_variable_record_mgroup(LSN *lsn,
   TRANSLOG_ADDRESS horizon;
   struct st_buffer_cursor cursor;
   int rc= 0;
-  uint i, chunk2_page, full_pages;
-  uint curr_group= 0;
+  size_t i, curr_group= 0;
+  uint chunk2_page, full_pages;
   translog_size_t record_rest, first_page, chunk3_pages, chunk0_pages= 1;
   translog_size_t done= 0;
   struct st_translog_group_descriptor group;
@@ -5893,11 +5892,11 @@ translog_write_variable_record_mgroup(LSN *lsn,
 
   DBUG_ASSERT(cursor.buffs.unlck_ptr == cursor.buffs.wrt_ptr);
   rc= translog_advance_pointer(pages_to_skip + (int)(chunk0_pages - 1),
-                               record_rest + header_fixed_part +
-                               (groups.elements -
+                               (uint16)(record_rest + header_fixed_part +
+                               ((uint)groups.elements -
                                 ((page_capacity -
                                   header_fixed_part) / (7 + 1)) *
-                                (chunk0_pages - 1)) * (7 + 1),
+                                (chunk0_pages - 1)) * (7 + 1)),
                                 &cursor.buffs);
   buffer_of_last_lsn= log_descriptor.bc.buffer;
   translog_unlock();
@@ -5985,7 +5984,7 @@ translog_write_variable_record_mgroup(LSN *lsn,
                                                  header_length);
   do
   {
-    int limit;
+    size_t limit;
     if (new_page_before_chunk0 &&
         translog_chaser_page_next(&horizon, &cursor))
     {
@@ -6027,9 +6026,8 @@ translog_write_variable_record_mgroup(LSN *lsn,
     */
     limit= (groups_per_page < groups.elements - curr_group ?
             groups_per_page : groups.elements - curr_group);
-    DBUG_PRINT("info", ("Groups: %u  curr: %u  limit: %u",
-                        (uint) groups.elements, (uint) curr_group,
-                        (uint) limit));
+    DBUG_PRINT("info", ("Groups: %zu  curr: %zu  limit: %zu",
+                        groups.elements, curr_group, limit));
 
     if (chunk0_pages == 1)
     {
@@ -7997,22 +7995,14 @@ void translog_flush_buffers(TRANSLOG_ADDRESS *lsn,
   }
   else
   {
-    if (log_descriptor.bc.buffer->last_lsn == LSN_IMPOSSIBLE)
+    if (log_descriptor.bc.buffer->last_lsn == LSN_IMPOSSIBLE &&
+        log_descriptor.bc.buffer->prev_last_lsn == LSN_IMPOSSIBLE)
     {
-      /*
-        In this case both last_lsn & prev_last_lsn are LSN_IMPOSSIBLE
-        otherwise it will go in the first IF because LSN_IMPOSSIBLE less
-        then any real LSN and cmp_translog_addr(*lsn,
-        log_descriptor.bc.buffer->prev_last_lsn) will be TRUE
-      */
-      DBUG_ASSERT(log_descriptor.bc.buffer->prev_last_lsn ==
-                  LSN_IMPOSSIBLE);
       DBUG_PRINT("info", ("There is no LSNs yet generated => do nothing"));
       translog_unlock();
       DBUG_VOID_RETURN;
     }
 
-    DBUG_ASSERT(log_descriptor.bc.buffer->prev_last_lsn != LSN_IMPOSSIBLE);
     /* fix lsn if it was horizon */
     *lsn= log_descriptor.bc.buffer->prev_last_lsn;
     DBUG_PRINT("info", ("LSN to flush fixed to prev last lsn: " LSN_FMT,
@@ -8938,19 +8928,22 @@ void translog_hard_group_commit(my_bool mode)
 
 void translog_sync()
 {
-  uint32 max= get_current_logfile()->number;
-  uint32 min;
   DBUG_ENTER("ma_translog_sync");
 
-  min= soft_sync_min;
-  if (!min)
-    min= max;
+  /* The following is only true if initalization of translog succeded */
+  if (log_descriptor.open_files.elements != 0)
+  {
+    uint32 max= get_current_logfile()->number;
+    uint32 min;
 
-  translog_sync_files(min, max, sync_log_dir >= TRANSLOG_SYNC_DIR_ALWAYS);
+    min= soft_sync_min;
+    if (!min)
+      min= max;
 
+    translog_sync_files(min, max, sync_log_dir >= TRANSLOG_SYNC_DIR_ALWAYS);
+  }
   DBUG_VOID_RETURN;
 }
-
 
 /**
   @brief set rate for group commit

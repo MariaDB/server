@@ -7919,6 +7919,43 @@ a	b
 DROP TABLE t1;
 SET NAMES utf8;
 #
+# MDEV-25402 Assertion `!str || str != Ptr' failed in String::copy
+#
+SET @c:="SET SESSION collation_connection=utf32_spanish_ci";
+PREPARE s FROM @c;
+EXECUTE s;
+CREATE PROCEDURE p (IN i INT) EXECUTE s;
+SET SESSION character_set_connection=latin1;
+SET @c:="SET @b=get_format(DATE,'EUR')";
+PREPARE s FROM @c;
+EXECUTE s;
+CALL p (@a);
+DEALLOCATE PREPARE s;
+DROP PROCEDURE p;
+SET NAMES utf8;
+SET @c:="SET @b=get_format(DATE,'EUR')";
+PREPARE s FROM @c;
+EXECUTE s;
+SET collation_connection=utf32_spanish_ci;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+SET NAMES utf8;
+#
+# MDEV-23210 Assertion `(length % 4) == 0' failed in my_lengthsp_utf32 on ALTER TABLE, SELECT and INSERT
+#
+CREATE TABLE t1 (a CHAR(1));
+SET COLLATION_CONNECTION=utf32_myanmar_ci, CHARACTER_SET_CLIENT=binary;
+ALTER TABLE t1 CHANGE a a ENUM('a','a') CHARACTER SET utf32;
+ERROR HY000: Column 'a' has duplicated value 'a' in ENUM
+ALTER TABLE t1 CHANGE a a ENUM('a','b') CHARACTER SET utf32;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` enum('a','b') CHARACTER SET utf32 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET NAMES utf8;
+#
 # End of 10.2 tests
 #
 #

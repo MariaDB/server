@@ -180,7 +180,7 @@
   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
    - optimize_semijoin_nests() does pre-optimization 
    - during join optimization, the join has one JOIN_TAB (or is it POSITION?) 
-     array, and suffix-based detection is used, see advance_sj_state()
+     array, and suffix-based detection is used, see optimize_semi_joins()
    - after join optimization is done, get_best_combination() switches 
      the data-structure to prefix-based, multiple JOIN_TAB ranges format.
 
@@ -717,6 +717,15 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         if (arena)
           thd->restore_active_arena(arena, &backup);
         in_subs->is_registered_semijoin= TRUE;
+      }
+
+      /*
+        Print the transformation into trace. Do it when we've just set
+        is_registered_semijoin=TRUE above, and also do it when we've already
+        had it set.
+      */
+      if (in_subs->is_registered_semijoin)
+      {
         OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
                             select_lex->select_number,
                             "IN (SELECT)", "semijoin");
@@ -1604,8 +1613,15 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
 {
   SELECT_LEX *parent_lex= parent_join->select_lex;
   TABLE_LIST *emb_tbl_nest= NULL;
+  TABLE_LIST *orig_tl;
   List<TABLE_LIST> *emb_join_list= &parent_lex->top_join_list;
   THD *thd= parent_join->thd;
+  SELECT_LEX *save_lex;
+  Item **left;
+  Item *left_exp;
+  Item *left_exp_orig;
+
+  uint ncols;
   DBUG_ENTER("convert_subq_to_sj");
 
   /*
@@ -1765,18 +1781,18 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
      because view's tables are inserted after the view)
   */
   
-  for (tl= (TABLE_LIST*)(parent_lex->table_list.first); tl->next_local; tl= tl->next_local)
+  for (orig_tl= (TABLE_LIST*)(parent_lex->table_list.first);
+       orig_tl->next_local;
+       orig_tl= orig_tl->next_local)
   {}
 
-  tl->next_local= subq_lex->join->tables_list;
+  orig_tl->next_local= subq_lex->join->tables_list;
 
   /* A theory: no need to re-connect the next_global chain */
 
   /* 3. Remove the original subquery predicate from the WHERE/ON */
 
-  // The subqueries were replaced for Item_int(1) earlier
-  subq_pred->reset_strategy(SUBS_SEMI_JOIN);       // for subsequent executions
-  /*TODO: also reset the 'with_subquery' there. */
+  /*TODO: also reset the 'm_with_subquery' there. */
 
   /* n. Adjust the parent_join->table_count counter */
   uint table_no= parent_join->table_count;
@@ -1811,16 +1827,18 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     Put the subquery's WHERE into semi-join's sj_on_expr
     Add the subquery-induced equalities too.
   */
-  SELECT_LEX *save_lex= thd->lex->current_select;
+  save_lex= thd->lex->current_select;
+  table_map subq_pred_used_tables;
+
   thd->lex->current_select=subq_lex;
-  Item **left= subq_pred->left_exp_ptr();
+  left= subq_pred->left_exp_ptr();
   if ((*left)->fix_fields_if_needed(thd, left))
-    DBUG_RETURN(TRUE);
-  Item *left_exp= *left;
-  Item *left_exp_orig= subq_pred->left_exp_orig();
+    goto restore_tl_and_exit;
+  left_exp= *left;
+  left_exp_orig= subq_pred->left_exp_orig();
   thd->lex->current_select=save_lex;
 
-  table_map subq_pred_used_tables= subq_pred->used_tables();
+  subq_pred_used_tables= subq_pred->used_tables();
   sj_nest->nested_join->sj_corr_tables= subq_pred_used_tables;
   sj_nest->nested_join->sj_depends_on=  subq_pred_used_tables |
                                         left_exp->used_tables();
@@ -1841,7 +1859,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
        Item_direct_view_refs doesn't substitute itself with anything in 
        Item_direct_view_ref::fix_fields.
   */
-  uint ncols= sj_nest->sj_in_exprs= left_exp->cols();
+  ncols= sj_nest->sj_in_exprs= left_exp->cols();
   sj_nest->nested_join->sj_outer_expr_list.empty();
   reset_equality_number_for_subq_conds(sj_nest->sj_on_expr);
 
@@ -1863,7 +1881,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
       new (thd->mem_root) Item_func_eq(thd, left_exp_orig,
                                        subq_lex->ref_pointer_array[0]);
     if (!item_eq)
-      DBUG_RETURN(TRUE);
+      goto restore_tl_and_exit;
     if (left_exp_orig != left_exp)
       thd->change_item_tree(item_eq->arguments(), left_exp);
     item_eq->in_equality_no= 0;
@@ -1884,7 +1902,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
         Item_func_eq(thd, left_exp_orig->element_index(i),
                      subq_lex->ref_pointer_array[i]);
       if (!item_eq)
-        DBUG_RETURN(TRUE);
+        goto restore_tl_and_exit;
       DBUG_ASSERT(left_exp->element_index(i)->fixed());
       if (left_exp_orig->element_index(i) !=
           left_exp->element_index(i))
@@ -1903,13 +1921,13 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     Item_row *row= new (thd->mem_root) Item_row(thd, subq_lex->pre_fix);
     /* fix fields on subquery was call so they should be the same */
     if (!row)
-      DBUG_RETURN(TRUE);
+      goto restore_tl_and_exit;
     DBUG_ASSERT(ncols == row->cols());
     nested_join->sj_outer_expr_list.push_back(left);
     Item_func_eq *item_eq=
       new (thd->mem_root) Item_func_eq(thd, left_exp_orig, row);
     if (!item_eq)
-      DBUG_RETURN(TRUE);
+      goto restore_tl_and_exit;
     for (uint i= 0; i < row->cols(); i++)
     {
       if (row->element_index(i) != subq_lex->ref_pointer_array[i])
@@ -1928,9 +1946,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     we have in here).
   */
   if (sj_nest->sj_on_expr->fix_fields_if_needed(thd, &sj_nest->sj_on_expr))
-  {
-    DBUG_RETURN(TRUE);
-  }
+    goto restore_tl_and_exit;
 
   /*
     Walk through sj nest's WHERE and ON expressions and call
@@ -1955,9 +1971,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     emb_tbl_nest->on_expr->top_level_item();
     if (emb_tbl_nest->on_expr->fix_fields_if_needed(thd,
                                                     &emb_tbl_nest->on_expr))
-    {
-      DBUG_RETURN(TRUE);
-    }
+      goto restore_tl_and_exit;
   }
   else
   {
@@ -1971,9 +1985,8 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     save_lex= thd->lex->current_select;
     thd->lex->current_select=parent_join->select_lex;
     if (parent_join->conds->fix_fields_if_needed(thd, &parent_join->conds))
-    {
-      DBUG_RETURN(1);
-    }
+      goto restore_tl_and_exit;
+
     thd->lex->current_select=save_lex;
     parent_join->select_lex->where= parent_join->conds;
   }
@@ -1986,9 +1999,16 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
       parent_lex->ftfunc_list->push_front(ifm, thd->mem_root);
   }
 
+  // The subqueries were replaced for Item_int(1) earlier
+  subq_pred->reset_strategy(SUBS_SEMI_JOIN);       // for subsequent executions
+
   parent_lex->have_merged_subqueries= TRUE;
   /* Fatal error may have been set to by fix_after_pullout() */
   DBUG_RETURN(thd->is_fatal_error);
+
+restore_tl_and_exit:
+  orig_tl->next_local= NULL;
+  DBUG_RETURN(TRUE);
 }
 
 
@@ -2741,7 +2761,7 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
   Do semi-join optimization step after we've added a new tab to join prefix
 
   SYNOPSIS
-    advance_sj_state()
+    optimize_semi_joins()
       join                        The join we're optimizing
       remaining_tables            Tables not in the join prefix
       new_join_tab                Join tab we've just added to the join prefix
@@ -2801,9 +2821,9 @@ bool is_multiple_semi_joins(JOIN *join, POSITION *prefix, uint idx, table_map in
 }
 
 
-void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx, 
-                      double *current_record_count, double *current_read_time,
-                      POSITION *loose_scan_pos)
+void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
+                         double *current_record_count,
+                         double *current_read_time, POSITION *loose_scan_pos)
 {
   POSITION *pos= join->positions + idx;
   const JOIN_TAB *new_join_tab= pos->table; 
@@ -2994,19 +3014,36 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
     }
   }
 
-  if ((emb_sj_nest= new_join_tab->emb_sj_nest))
+  update_sj_state(join, new_join_tab, idx, remaining_tables);
+
+  pos->prefix_cost.convert_from_cost(*current_read_time);
+  pos->prefix_record_count= *current_record_count;
+  pos->dups_producing_tables= dups_producing_tables;
+}
+
+
+/*
+  Update JOIN's semi-join optimization state after the join tab new_tab
+  has been added into the join prefix.
+
+  @seealso restore_prev_sj_state() does the reverse actoion
+*/
+
+void update_sj_state(JOIN *join, const JOIN_TAB *new_tab,
+                     uint idx, table_map remaining_tables)
+{
+  if (TABLE_LIST *emb_sj_nest= new_tab->emb_sj_nest)
   {
     join->cur_sj_inner_tables |= emb_sj_nest->sj_inner_tables;
 
     /* Remove the sj_nest if all of its SJ-inner tables are in cur_table_map */
     if (!(remaining_tables &
-          emb_sj_nest->sj_inner_tables & ~new_join_tab->table->map))
+          emb_sj_nest->sj_inner_tables & ~new_tab->table->map))
       join->cur_sj_inner_tables &= ~emb_sj_nest->sj_inner_tables;
   }
-
-  pos->prefix_cost.convert_from_cost(*current_read_time);
-  pos->prefix_record_count= *current_record_count;
-  pos->dups_producing_tables= dups_producing_tables;
+#ifndef DBUG_OFF
+  join->dbug_verify_sj_inner_tables(idx + 1);
+#endif
 }
 
 
@@ -3559,10 +3596,45 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
   return FALSE;
 }
 
+#ifndef DBUG_OFF
+/*
+  Verify the value of JOIN::cur_sj_inner_tables by recomputing it
+*/
+void JOIN::dbug_verify_sj_inner_tables(uint prefix_size) const
+{
+  table_map cur_map= const_table_map;
+  table_map nests_entered= 0;
+  if (emb_sjm_nest)
+  {
+    DBUG_ASSERT(cur_sj_inner_tables == 0);
+    return;
+  }
+
+  for (uint i= const_tables; i < prefix_size; i++)
+  {
+    JOIN_TAB *tab= positions[i].table;
+    cur_map |= tab->table->map;
+    if (TABLE_LIST *sj_nest= tab->emb_sj_nest)
+    {
+      nests_entered |= sj_nest->sj_inner_tables;
+      if (!(sj_nest->sj_inner_tables & ~cur_map))
+      {
+        // all nest tables are in the prefix already
+        nests_entered &= ~sj_nest->sj_inner_tables;
+      }
+    }
+  }
+  DBUG_ASSERT(nests_entered == cur_sj_inner_tables);
+}
+#endif
 
 /*
   Remove the last join tab from from join->cur_sj_inner_tables bitmap
-  we assume remaining_tables doesnt contain @tab.
+
+  @note
+  remaining_tables contains @tab.
+
+  @seealso update_sj_state() does the reverse
 */
 
 void restore_prev_sj_state(const table_map remaining_tables, 
@@ -3576,15 +3648,30 @@ void restore_prev_sj_state(const table_map remaining_tables,
     tab->join->sjm_lookup_tables &= ~subq_tables;
   }
 
-  if ((emb_sj_nest= tab->emb_sj_nest))
+  if (!tab->join->emb_sjm_nest && (emb_sj_nest= tab->emb_sj_nest))
   {
+    table_map subq_tables= emb_sj_nest->sj_inner_tables &
+                           ~tab->join->const_table_map;
     /* If we're removing the last SJ-inner table, remove the sj-nest */
-    if ((remaining_tables & emb_sj_nest->sj_inner_tables) == 
-        (emb_sj_nest->sj_inner_tables & ~tab->table->map))
+    if ((remaining_tables & subq_tables) == subq_tables)
     {
+      // All non-const tables of the SJ nest are in the remaining_tables.
+      // we are not in the nest anymore.
       tab->join->cur_sj_inner_tables &= ~emb_sj_nest->sj_inner_tables;
     }
+    else
+    {
+      // Semi-join nest has:
+      // - a table being removed (not in the prefix)
+      // - some tables in the prefix.
+      tab->join->cur_sj_inner_tables |= emb_sj_nest->sj_inner_tables;
+    }
   }
+
+#ifndef DBUG_OFF
+  /* positions[idx] has been removed. Verify the state for [0...idx-1]  */
+  tab->join->dbug_verify_sj_inner_tables(idx);
+#endif
 }
 
 
@@ -3811,8 +3898,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       join->best_positions[first].sj_strategy= SJ_OPT_MATERIALIZE_SCAN;
       join->best_positions[first].n_sj_tables= sjm->tables;
       /* 
-        Do what advance_sj_state did: re-run best_access_path for every table
-        in the [last_inner_table + 1; pos..) range
+        Do what optimize_semi_joins did: re-run best_access_path for every
+        table in the [last_inner_table + 1; pos..) range
       */
       double prefix_rec_count;
       /* Get the prefix record count */
@@ -3839,9 +3926,9 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       Json_writer_array semijoin_plan(thd, "join_order");
       for (i= first + sjm->tables; i <= tablenr; i++)
       {
+        Json_writer_object trace_one_table(thd);
         if (unlikely(thd->trace_started()))
         {
-          Json_writer_object trace_one_table(thd);
           trace_one_table.add_table_name(join->best_positions[i].table);
         }
         best_access_path(join, join->best_positions[i].table, rem_tables,
@@ -3878,9 +3965,9 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       Json_writer_array semijoin_plan(thd, "join_order");
       for (idx= first; idx <= tablenr; idx++)
       {
+        Json_writer_object trace_one_table(thd);
         if (unlikely(thd->trace_started()))
         {
-          Json_writer_object trace_one_table(thd);
           trace_one_table.add_table_name(join->best_positions[idx].table);
         }
         if (join->best_positions[idx].use_join_buffer)
@@ -3917,9 +4004,9 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       Json_writer_array semijoin_plan(thd, "join_order");
       for (idx= first; idx <= tablenr; idx++)
       {
+        Json_writer_object trace_one_table(thd);
         if (unlikely(thd->trace_started()))
         {
-          Json_writer_object trace_one_table(thd);
           trace_one_table.add_table_name(join->best_positions[idx].table);
         }
         if (join->best_positions[idx].use_join_buffer || (idx == first))
@@ -5066,7 +5153,7 @@ int setup_semijoin_loosescan(JOIN *join)
 
   
   The choice between the strategies is made by the join optimizer (see
-  advance_sj_state() and fix_semijoin_strategies_for_picked_join_order()).
+  optimize_semi_joins() and fix_semijoin_strategies_for_picked_join_order()).
   This function sets up all fields/structures/etc needed for execution except
   for setup/initialization of semi-join materialization which is done in 
   setup_sj_materialization() (todo: can't we move that to here also?)

@@ -688,9 +688,9 @@ object_id	geometrytype(geo)	ISSIMPLE(GEO)	ASTEXT(centroid(geo))
 drop table t1;
 create table t1 (fl geometry not null);
 insert into t1 values (1);
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+ERROR HY000: Illegal parameter data types geometry and int for operation 'SET'
 insert into t1 values (1.11);
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+ERROR HY000: Illegal parameter data types geometry and decimal for operation 'SET'
 insert into t1 values ("qwerty");
 ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 insert into t1 values (pointfromtext('point(1,1)'));
@@ -1746,27 +1746,27 @@ drop table t1;
 SHOW CREATE TABLE information_schema.geometry_columns;
 Table	Create Table
 GEOMETRY_COLUMNS	CREATE TEMPORARY TABLE `GEOMETRY_COLUMNS` (
-  `F_TABLE_CATALOG` varchar(512) NOT NULL DEFAULT '',
-  `F_TABLE_SCHEMA` varchar(64) NOT NULL DEFAULT '',
-  `F_TABLE_NAME` varchar(64) NOT NULL DEFAULT '',
-  `F_GEOMETRY_COLUMN` varchar(64) NOT NULL DEFAULT '',
-  `G_TABLE_CATALOG` varchar(512) NOT NULL DEFAULT '',
-  `G_TABLE_SCHEMA` varchar(64) NOT NULL DEFAULT '',
-  `G_TABLE_NAME` varchar(64) NOT NULL DEFAULT '',
-  `G_GEOMETRY_COLUMN` varchar(64) NOT NULL DEFAULT '',
-  `STORAGE_TYPE` tinyint(2) NOT NULL DEFAULT 0,
-  `GEOMETRY_TYPE` int(7) NOT NULL DEFAULT 0,
-  `COORD_DIMENSION` tinyint(2) NOT NULL DEFAULT 0,
-  `MAX_PPR` tinyint(2) NOT NULL DEFAULT 0,
-  `SRID` smallint(5) NOT NULL DEFAULT 0
+  `F_TABLE_CATALOG` varchar(512) NOT NULL,
+  `F_TABLE_SCHEMA` varchar(64) NOT NULL,
+  `F_TABLE_NAME` varchar(64) NOT NULL,
+  `F_GEOMETRY_COLUMN` varchar(64) NOT NULL,
+  `G_TABLE_CATALOG` varchar(512) NOT NULL,
+  `G_TABLE_SCHEMA` varchar(64) NOT NULL,
+  `G_TABLE_NAME` varchar(64) NOT NULL,
+  `G_GEOMETRY_COLUMN` varchar(64) NOT NULL,
+  `STORAGE_TYPE` tinyint(2) NOT NULL,
+  `GEOMETRY_TYPE` int(7) NOT NULL,
+  `COORD_DIMENSION` tinyint(2) NOT NULL,
+  `MAX_PPR` tinyint(2) NOT NULL,
+  `SRID` smallint(5) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3
 SHOW CREATE TABLE information_schema.spatial_ref_sys;
 Table	Create Table
 SPATIAL_REF_SYS	CREATE TEMPORARY TABLE `SPATIAL_REF_SYS` (
-  `SRID` smallint(5) NOT NULL DEFAULT 0,
-  `AUTH_NAME` varchar(512) NOT NULL DEFAULT '',
-  `AUTH_SRID` int(5) NOT NULL DEFAULT 0,
-  `SRTEXT` varchar(2048) NOT NULL DEFAULT ''
+  `SRID` smallint(5) NOT NULL,
+  `AUTH_NAME` varchar(512) NOT NULL,
+  `AUTH_SRID` int(5) NOT NULL,
+  `SRTEXT` varchar(2048) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3
 create table t1(g GEOMETRY, pt POINT);
 create table t2(g LINESTRING, pl POLYGON);

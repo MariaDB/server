@@ -40,8 +40,10 @@ static const char *opt_s3_host_name= DEFAULT_AWS_HOST_NAME;
 static const char *opt_database;
 static const char *opt_s3_bucket="MariaDB";
 static my_bool opt_compression, opt_verbose, opt_force, opt_s3_debug;
+static my_bool opt_s3_use_http;
 static ulong opt_operation= OP_IMPOSSIBLE, opt_protocol_version= 1;
 static ulong opt_block_size;
+static ulong opt_s3_port;
 static char **default_argv=0;
 static ms3_st *global_s3_client= 0;
 
@@ -65,6 +67,12 @@ static struct my_option my_long_options[] =
   {"s3_host_name", 'h', "Host name to S3 provider",
    (char**) &opt_s3_host_name, (char**) &opt_s3_host_name, 0,
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"s3_port", 'p', "Port number to connect to (0 means use default)",
+   (char**) &opt_s3_port, (char**) &opt_s3_port, 0, GET_ULONG, REQUIRED_ARG,
+   0, 0, 65536, 0, 1, 0 },
+  {"s3_use_http", 'P', "If true, force use of HTTP protocol",
+   (char**) &opt_s3_use_http, (char**) &opt_s3_use_http,
+   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"compress", 'c', "Use compression", &opt_compression, &opt_compression,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"op", 'o', "Operation to execute. One of 'from_s3', 'to_s3' or "
@@ -196,6 +204,7 @@ int main(int argc, char** argv)
 {
   MY_INIT(argv[0]);
   get_options(&argc,(char***) &argv);
+  size_t block_size= opt_block_size;
 
   s3_init_library();
   if (!(global_s3_client= ms3_init(opt_s3_access_key,
@@ -207,15 +216,22 @@ int main(int argc, char** argv)
     my_exit(1);
   }
 
-  {
-    size_t block_size= opt_block_size;
-    uint8_t protocol_version= (uint8_t) opt_protocol_version;
-    ms3_set_option(global_s3_client, MS3_OPT_BUFFER_CHUNK_SIZE, &block_size);
+  ms3_set_option(global_s3_client, MS3_OPT_BUFFER_CHUNK_SIZE, &block_size);
 
-    if (protocol_version)
-      ms3_set_option(global_s3_client, MS3_OPT_FORCE_PROTOCOL_VERSION,
-                     &protocol_version);
+  if (opt_protocol_version)
+  {
+    uint8_t protocol_version= (uint8_t) opt_protocol_version;
+    ms3_set_option(global_s3_client, MS3_OPT_FORCE_PROTOCOL_VERSION,
+                   &protocol_version);
   }
+  if (opt_s3_port)
+  {
+    int port= (int) opt_s3_port;
+    ms3_set_option(global_s3_client, MS3_OPT_PORT_NUMBER, &port);
+  }
+  if (opt_s3_use_http)
+    ms3_set_option(global_s3_client, MS3_OPT_USE_HTTP, NULL);
+
 
   for (; *argv ; argv++)
   {

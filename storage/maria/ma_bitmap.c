@@ -661,7 +661,7 @@ static void _ma_bitmap_unpin_all(MARIA_SHARE *share)
                                  dynamic_array_ptr(&bitmap->pinned_pages, 0));
   MARIA_PINNED_PAGE *pinned_page= page_link + bitmap->pinned_pages.elements;
   DBUG_ENTER("_ma_bitmap_unpin_all");
-  DBUG_PRINT("info", ("pinned: %u", bitmap->pinned_pages.elements));
+  DBUG_PRINT("info", ("pinned: %zu", bitmap->pinned_pages.elements));
   while (pinned_page-- != page_link)
     pagecache_unlock_by_link(share->pagecache, pinned_page->link,
                              pinned_page->unlock, PAGECACHE_UNPIN,
@@ -1081,6 +1081,10 @@ static my_bool _ma_read_bitmap_page(MARIA_HA *info,
     {}
     bitmap->used_size= (uint) ((data + 1) - end);
     DBUG_ASSERT(bitmap->used_size <= bitmap->total_size);
+  }
+  else
+  {
+    _ma_set_fatal_error(info, my_errno);
   }
   /*
     We can't check maria_bitmap_marker here as if the bitmap page
@@ -1731,7 +1735,7 @@ static my_bool find_head(MARIA_HA *info, uint length, uint position)
     1  error
 */
 
-static my_bool find_tail(MARIA_HA *info, uint length, uint position)
+static my_bool find_tail(MARIA_HA *info, uint length, size_t position)
 {
   MARIA_FILE_BITMAP *bitmap= &info->s->bitmap;
   MARIA_BITMAP_BLOCK *block;
@@ -1812,7 +1816,7 @@ static my_bool find_blob(MARIA_HA *info, ulong length)
   uint full_page_size= FULL_PAGE_SIZE(info->s);
   ulong pages;
   uint rest_length, used;
-  uint UNINIT_VAR(first_block_pos);
+  size_t UNINIT_VAR(first_block_pos);
   MARIA_BITMAP_BLOCK *first_block= 0;
   DBUG_ENTER("find_blob");
   DBUG_PRINT("enter", ("length: %lu", length));
@@ -1862,7 +1866,8 @@ static my_bool find_blob(MARIA_HA *info, ulong length)
     DBUG_RETURN(1);
   first_block= dynamic_element(&info->bitmap_blocks, first_block_pos,
                                MARIA_BITMAP_BLOCK*);
-  first_block->sub_blocks= info->bitmap_blocks.elements - first_block_pos;
+  first_block->sub_blocks= (uint)(info->bitmap_blocks.elements
+                                  - first_block_pos);
   DBUG_RETURN(0);
 }
 
@@ -1883,7 +1888,7 @@ static my_bool find_blob(MARIA_HA *info, ulong length)
 static my_bool allocate_blobs(MARIA_HA *info, MARIA_ROW *row)
 {
   ulong *length, *end;
-  uint elements;
+  size_t elements;
   /*
     Reserve size for:
     head block
@@ -1897,7 +1902,7 @@ static my_bool allocate_blobs(MARIA_HA *info, MARIA_ROW *row)
     if (*length && find_blob(info, *length))
       return 1;
   }
-  row->extents_count= (info->bitmap_blocks.elements - elements);
+  row->extents_count= (uint)(info->bitmap_blocks.elements - elements);
   return 0;
 }
 
@@ -2170,7 +2175,7 @@ end:
                                  MARIA_BITMAP_BLOCK*);
   blocks->block->sub_blocks= ELEMENTS_RESERVED_FOR_MAIN_PART - position;
   /* First block's page_count is for all blocks */
-  blocks->count= info->bitmap_blocks.elements - position;
+  blocks->count= (uint)(info->bitmap_blocks.elements - position);
   res= 0;
 
 abort:
@@ -2271,7 +2276,7 @@ end:
                                  MARIA_BITMAP_BLOCK*);
   blocks->block->sub_blocks= ELEMENTS_RESERVED_FOR_MAIN_PART - position;
   /* First block's page_count is for all blocks */
-  blocks->count= info->bitmap_blocks.elements - position;
+  blocks->count= (uint)(info->bitmap_blocks.elements - position);
   res= 0;
 
 abort:
@@ -3204,6 +3209,7 @@ _ma_bitmap_create_missing_into_pagecache(MARIA_SHARE *share,
   */
   return FALSE;
 err:
+  _ma_set_fatal_error_with_share(share, my_errno);
   return TRUE;
 }
 

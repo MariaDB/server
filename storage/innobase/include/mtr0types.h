@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -41,6 +41,11 @@ enum mtr_log_t {
 	Set for attempting modification of a ROW_FORMAT=COMPRESSED page. */
 	MTR_LOG_NONE,
 
+	/** Log all operations, but do not write any OPT_PAGE_CHECKSUM
+	records because some of the modified pages were also modified
+	by another mini-transaction that did not write its log yet. */
+	MTR_LOG_SUB,
+
 	/** Don't generate REDO log but add dirty pages to flush list */
 	MTR_LOG_NO_REDO
 };
@@ -77,12 +82,8 @@ type. The following record types refer to data pages:
     RESERVED (6): reserved for future use; a subtype code
     (encoded immediately after the length) would be written
     to reserve code space for further extensions
-    OPTION (7): optional record that may be ignored; a subtype code
-    (encoded immediately after the length) would distinguish actual
-    usage, such as:
-     * MDEV-18976 page checksum record
-     * binlog record
-     * SQL statement (at the start of statement)
+    OPTION (7): optional record that may be ignored; a subtype @see mrec_opt
+    (encoded immediately after the length) would distinguish actual usage
 
 Bits 3..0 indicate the redo log record length, excluding the first
 byte, but including additional length bytes and any other bytes,
@@ -112,13 +113,9 @@ If same_page=1 is set in a record that follows a same_page=0 record
 in a mini-transaction, the tablespace identifier and page number
 fields will be omitted.
 
-(For some file-oriented records (if same_page=1 for the first records
-of a mini-transaction), we will write tablespace identifier using the
-same 1-to-5-byte encoding. TBD: describe the exact format of
-file-oriented records. With MDEV-14425, we could write file-level log
-records to a separate file, not interleaved with page-level redo log
-at all. We could reserve the file ib_logfile0 for checkpoint information
-and for file-level redo log records.)
+For FILE_ records (if same_page=1 for the first record
+of a mini-transaction), we will write a tablespace identifier and
+a page number (always 0) using the same 1-to-5-byte encoding.
 
 For FREE_PAGE or INIT_PAGE, if same_page=1, the record will be treated
 as corrupted (or reserved for future extension).  The type code must
@@ -206,7 +203,7 @@ enum mrec_type_t
   /** Zero-initialize a page. The current byte offset (for subsequent
   records) will be reset to FIL_PAGE_TYPE. */
   INIT_PAGE= 0x10,
-  /** Insert a record into a page. FIXME: implement this! */
+  /** Extended record; @see mrec_ext_t */
   EXTENDED= 0x20,
   /** Write a string of bytes. Followed by the byte offset (unsigned,
   relative to the current byte offset, encoded in 1 to 3 bytes) and
@@ -233,9 +230,7 @@ enum mrec_type_t
   /** Reserved for future use. */
   RESERVED= 0x60,
   /** Optional record that may be ignored in crash recovery.
-  A subtype code will be encoded immediately after the length.
-  Possible subtypes would include a MDEV-18976 page checksum record,
-  a binlog record, or an SQL statement. */
+  A subtype (@see mrec_opt) will be encoded after the page identifier. */
   OPTION= 0x70
 };
 
@@ -287,6 +282,15 @@ enum mrec_ext_t
 };
 
 
+/** Recognized OPTION record subtypes. */
+enum mrec_opt
+{
+  /** page checksum at the end of the mini-transaction */
+  OPT_PAGE_CHECKSUM= 0
+  /* Other possible subtypes: a binlog record, or an SQL statement. */
+};
+
+
 /** Redo log record types for file-level operations. These bit
 patterns will be written to redo log files, so the existing codes or
 their interpretation on crash recovery must not be changed. */
@@ -301,18 +305,14 @@ enum mfile_type_t
   FILE_RENAME = 0xa0,
   /** Modify a file. Followed by tablespace ID and the file name. */
   FILE_MODIFY = 0xb0,
-#if 1 /* MDEV-14425 FIXME: Remove this! */
   /** End-of-checkpoint marker. Followed by 2 dummy bytes of page identifier,
   8 bytes of LSN, and padded with a NUL; @see SIZE_OF_FILE_CHECKPOINT. */
   FILE_CHECKPOINT = 0xf0
-#endif
 };
 
-#if 1 /* MDEV-14425 FIXME: Remove this! */
 /** Size of a FILE_CHECKPOINT record, including the trailing byte to
 terminate the mini-transaction. */
 constexpr byte SIZE_OF_FILE_CHECKPOINT= 3/*type,page_id*/ + 8/*LSN*/ + 1;
-#endif
 
 #ifndef UNIV_INNOCHECKSUM
 /** Types for the mlock objects to store in the mtr_t::m_memo */

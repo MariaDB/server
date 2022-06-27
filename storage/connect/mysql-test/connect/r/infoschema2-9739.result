@@ -1,5 +1,3 @@
-Warnings:
-Warning	1105	No file name. Table will use t1.xml
 create table t1 (i int) engine=Connect table_type=XML option_list='xmlsup=libxml2';
 Warnings:
 Warning	1105	No file name. Table will use t1.xml

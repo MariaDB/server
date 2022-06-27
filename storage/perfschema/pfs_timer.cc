@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -249,7 +249,7 @@ ulonglong get_timer_raw_value(enum_timer_name timer_name)
   case TIMER_NAME_TICK:
     return my_timer_ticks();
   default:
-    DBUG_ASSERT(false);
+    assert(false);
   }
   return 0;
 }
@@ -275,7 +275,7 @@ ulonglong get_timer_raw_value_and_function(enum_timer_name timer_name, timer_fct
     return my_timer_ticks();
   default:
     *fct= NULL;
-    DBUG_ASSERT(false);
+    assert(false);
   }
   return 0;
 }
@@ -303,7 +303,7 @@ ulonglong get_timer_pico_value(enum_timer_name timer_name)
     break;
   default:
     result= 0;
-    DBUG_ASSERT(false);
+    assert(false);
   }
   return result;
 }
@@ -312,8 +312,8 @@ time_normalizer* time_normalizer::get(enum_timer_name timer_name)
 {
   uint index= static_cast<uint> (timer_name);
 
-  DBUG_ASSERT(index >= FIRST_TIMER_NAME);
-  DBUG_ASSERT(index <= LAST_TIMER_NAME);
+  assert(index >= FIRST_TIMER_NAME);
+  assert(index <= LAST_TIMER_NAME);
 
   return & to_pico_data[index];
 }

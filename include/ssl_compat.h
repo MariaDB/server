@@ -24,7 +24,7 @@
 #define SSL_LIBRARY OpenSSL_version(OPENSSL_VERSION)
 #define ERR_remove_state(X) ERR_clear_error()
 #define EVP_CIPHER_CTX_SIZE 176
-#define EVP_MD_CTX_SIZE 48
+#define EVP_MD_CTX_SIZE 72
 #undef EVP_MD_CTX_init
 #define EVP_MD_CTX_init(X) do { memset((X), 0, EVP_MD_CTX_SIZE); EVP_MD_CTX_reset(X); } while(0)
 #undef EVP_CIPHER_CTX_init
@@ -73,8 +73,10 @@
 #define EVP_MD_CTX_SIZE                 sizeof(EVP_MD_CTX)
 #endif
 
+#ifndef DH_set0_pqg
 #define DH_set0_pqg(D,P,Q,G)            ((D)->p= (P), (D)->g= (G))
-#define EVP_CIPHER_CTX_buf_noconst(ctx) ((ctx)->buf)
+#endif
+
 #define EVP_CIPHER_CTX_encrypting(ctx)  ((ctx)->encrypt)
 #define EVP_CIPHER_CTX_SIZE             sizeof(EVP_CIPHER_CTX)
 

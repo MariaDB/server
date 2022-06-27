@@ -5,6 +5,7 @@ usr/bin/mariadb-test-embedded
 usr/lib/*/libmariadb3/plugin/auth_test_plugin.so
 usr/lib/*/libmariadb3/plugin/qa_auth_client.so
 usr/lib/*/libmariadb3/plugin/qa_auth_interface.so
+usr/lib/*/libmariadb3/plugin/test_sql_service.so
 usr/lib/mysql/plugin/adt_null.so
 usr/lib/mysql/plugin/auth_0x0100.so
 usr/lib/mysql/plugin/auth_test_plugin.so

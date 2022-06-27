@@ -107,8 +107,7 @@ select * from db1.t1	{
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.605126953,
-                "estimated_join_cardinality": 3
+                "cost_for_plan": 2.605126953
               }
             ]
           },
@@ -229,8 +228,7 @@ select * from db1.v1	{
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.605126953,
-                "estimated_join_cardinality": 3
+                "cost_for_plan": 2.605126953
               }
             ]
           },

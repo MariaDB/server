@@ -2643,7 +2643,7 @@ Note	1517	Duplicate partition name p5
 alter table t1 drop partition if exists p5;
 alter table t1 drop partition if exists p5;
 Warnings:
-Note	1507	Error in list of partitions to DROP
+Note	1507	Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (a INT) ENGINE=MyISAM PARTITION BY RANGE(a) (PARTITION p1 VALUES LESS THAN (0));
 ALTER TABLE t1 ADD PARTITION (PARTITION p2 VALUES LESS THAN (1));

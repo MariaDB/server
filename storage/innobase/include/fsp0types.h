@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,20 +33,22 @@ constexpr uint32_t SRV_SPACE_ID_UPPER_BOUND= 0xFFFFFFF0U;
 constexpr uint32_t SRV_TMP_SPACE_ID= 0xFFFFFFFEU;
 
 /* Possible values of innodb_compression_algorithm */
-#define PAGE_UNCOMPRESSED	0
-#define PAGE_ZLIB_ALGORITHM	1
-#define PAGE_LZ4_ALGORITHM	2
-#define PAGE_LZO_ALGORITHM	3
-#define PAGE_LZMA_ALGORITHM	4
+#define PAGE_UNCOMPRESSED		0
+#define PAGE_ZLIB_ALGORITHM		1
+#define PAGE_LZ4_ALGORITHM		2
+#define PAGE_LZO_ALGORITHM		3
+#define PAGE_LZMA_ALGORITHM		4
 #define PAGE_BZIP2_ALGORITHM	5
 #define PAGE_SNAPPY_ALGORITHM	6
-#define PAGE_ALGORITHM_LAST	PAGE_SNAPPY_ALGORITHM
+#define PAGE_ALGORITHM_LAST		PAGE_SNAPPY_ALGORITHM
+
+extern const char *page_compression_algorithms[];
 
 /** @name Flags for inserting records in order
 If records are inserted in order, there are the following
 flags to tell this (their type is made byte for the compiler
 to warn if direction and hint parameters are switched in
-fseg_alloc_free_page) */
+fseg_alloc_free_page_general) */
 /* @{ */
 #define	FSP_UP		((byte)111)	/*!< alphabetically upwards */
 #define	FSP_DOWN	((byte)112)	/*!< alphabetically downwards */
