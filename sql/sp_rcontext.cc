@@ -714,7 +714,7 @@ Item_cache *sp_rcontext::create_case_expr_holder(THD *thd,
 bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
                                 Item **case_expr_item_ptr)
 {
-  Item *case_expr_item= thd->sp_prepare_func_item(case_expr_item_ptr);
+  Item *case_expr_item= thd->sp_prepare_func_item(case_expr_item_ptr, 1);
   if (!case_expr_item)
     return true;
 

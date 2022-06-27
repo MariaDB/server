@@ -1453,7 +1453,7 @@ bool Field::sp_prepare_and_store_item(THD *thd, Item **value)
 
   Item *expr_item;
 
-  if (!(expr_item= thd->sp_prepare_func_item(value, 1)))
+  if (!(expr_item= thd->sp_fix_func_item_for_assignment(this, value)))
     goto error;
 
   /*

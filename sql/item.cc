@@ -9892,9 +9892,11 @@ void Item_trigger_field::set_required_privilege(bool rw)
 
 bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
 {
-  Item *item= thd->sp_prepare_func_item(it);
+  if (fix_fields_if_needed(thd, NULL))
+    return true;
 
-  if (!item || fix_fields_if_needed(thd, NULL))
+  Item *item= thd->sp_fix_func_item_for_assignment(field, it);
+  if (!item)
     return true;
 
   // NOTE: field->table->copy_blobs should be false here, but let's
