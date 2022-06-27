@@ -2043,7 +2043,6 @@ int spider_parse_connect_info(
   share->selupd_lock_mode = -1;
   share->query_cache = -1;
   share->query_cache_sync = -1;
-  share->internal_delayed = -1;
   share->bulk_size = -1;
   share->bulk_update_mode = -1;
   share->bulk_update_size = -1;
@@ -2266,7 +2265,6 @@ int spider_parse_connect_info(
           SPIDER_PARAM_STR_LIST("hws", hs_write_socks);
 #endif
           SPIDER_PARAM_INT("isa", init_sql_alloc_size, 0);
-          SPIDER_PARAM_INT_WITH_MAX("idl", internal_delayed, 0, 1);
           SPIDER_PARAM_LONGLONG("ilm", internal_limit, 0);
           SPIDER_PARAM_LONGLONG("ios", internal_offset, 0);
           SPIDER_PARAM_INT_WITH_MAX("iom", internal_optimize, 0, 1);
@@ -2491,8 +2489,6 @@ int spider_parse_connect_info(
             "multi_split_read", multi_split_read, 0, 2147483647);
           SPIDER_PARAM_INT_WITH_MAX(
             "selupd_lock_mode", selupd_lock_mode, 0, 2);
-          SPIDER_PARAM_INT_WITH_MAX(
-            "internal_delayed", internal_delayed, 0, 1);
           SPIDER_PARAM_INT_WITH_MAX(
             "table_count_mode", table_count_mode, 0, 3);
           SPIDER_PARAM_INT_WITH_MAX(
@@ -3817,8 +3813,6 @@ int spider_set_connect_info_default(
     share->query_cache = 0;
   if (share->query_cache_sync == -1)
     share->query_cache_sync = 0;
-  if (share->internal_delayed == -1)
-    share->internal_delayed = 0;
   if (share->bulk_size == -1)
     share->bulk_size = 16000;
   if (share->bulk_update_mode == -1)

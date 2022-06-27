@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1219,45 +1219,6 @@ dict_table_find_index_on_id(
 		if (id == index->id) {
 			/* Found */
 
-			return(index);
-		}
-	}
-
-	return(NULL);
-}
-
-/**********************************************************************//**
-Looks for an index with the given id. NOTE that we do not reserve
-the dictionary mutex: this function is for emergency purposes like
-printing info of a corrupt database page!
-@return index or NULL if not found in cache */
-dict_index_t*
-dict_index_find_on_id_low(
-/*======================*/
-	index_id_t	id)	/*!< in: index id */
-{
-	if (!dict_sys.is_initialised()) return NULL;
-
-	dict_table_t*	table;
-
-	for (table = UT_LIST_GET_FIRST(dict_sys.table_LRU);
-	     table != NULL;
-	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
-
-		dict_index_t*	index = dict_table_find_index_on_id(table, id);
-
-		if (index != NULL) {
-			return(index);
-		}
-	}
-
-	for (table = UT_LIST_GET_FIRST(dict_sys.table_non_LRU);
-	     table != NULL;
-	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
-
-		dict_index_t*	index = dict_table_find_index_on_id(table, id);
-
-		if (index != NULL) {
 			return(index);
 		}
 	}
@@ -4754,9 +4715,19 @@ dict_index_get_if_in_cache_low(
 /*===========================*/
 	index_id_t	index_id)	/*!< in: index id */
 {
-	ut_ad(mutex_own(&dict_sys.mutex));
+  ut_ad(mutex_own(&dict_sys.mutex));
 
-	return(dict_index_find_on_id_low(index_id));
+  for (dict_table_t *table= UT_LIST_GET_FIRST(dict_sys.table_LRU);
+       table; table= UT_LIST_GET_NEXT(table_LRU, table))
+    if (dict_index_t *index= dict_table_find_index_on_id(table, index_id))
+      return index;
+
+  for (dict_table_t *table = UT_LIST_GET_FIRST(dict_sys.table_non_LRU);
+       table; table= UT_LIST_GET_NEXT(table_LRU, table))
+    if (dict_index_t *index= dict_table_find_index_on_id(table, index_id))
+      return index;
+
+  return nullptr;
 }
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG

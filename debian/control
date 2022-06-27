@@ -195,7 +195,8 @@ Depends: libmariadb-dev (= ${binary:Version}),
          libmariadbd19 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
-Breaks: libmysqld-dev
+Breaks: libmysqld-dev,
+        libmariadbd-dev (<= 10.2)
 Replaces: libmysqld-dev
 Description: MariaDB embedded database, development files
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database

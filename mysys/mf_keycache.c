@@ -701,7 +701,7 @@ int prepare_resize_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
   keycache->in_resize= 1;
 
   /* Need to flush only if keycache is enabled. */
-  if (keycache->can_be_used)
+  if (keycache->can_be_used && keycache->disk_blocks != -1)
   {
     /* Start the flush phase. */
     keycache->resize_in_flush= 1;
