@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1405,9 +1405,8 @@ i_s_cmp_per_index_fill_low(
 
 	for (iter = snap.begin(), i = 0; iter != snap.end(); iter++, i++) {
 
-		dict_index_t*	index = dict_index_find_on_id_low(iter->first);
-
-		if (index != NULL) {
+		if (dict_index_t* index
+		    = dict_index_get_if_in_cache_low(iter->first)) {
 			char	db_utf8[MAX_DB_UTF8_LEN];
 			char	table_utf8[MAX_TABLE_UTF8_LEN];
 
