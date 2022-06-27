@@ -541,7 +541,8 @@ uint Explain_union::make_union_table_name(char *buf)
 int Explain_union::print_explain(Explain_query *query, 
                                  select_result_sink *output,
                                  uint8 explain_flags, 
-                                 bool is_analyze)
+                                 bool is_analyze,
+                                 bool is_eliminated)
 {
   THD *thd= output->thd;
   MEM_ROOT *mem_root= thd->mem_root;
@@ -642,7 +643,8 @@ int Explain_union::print_explain(Explain_query *query,
 
 void Explain_union::print_explain_json(Explain_query *query, 
                                        Json_writer *writer, bool is_analyze,
-                                       bool no_tmp_tbl)
+                                       bool no_tmp_tbl,
+                                       bool is_eliminated)
 {
   Json_writer_nesting_guard guard(writer);
   char table_name_buffer[SAFE_NAME_LEN];
@@ -713,8 +715,9 @@ int Explain_node::print_explain_for_children(Explain_query *query,
 {
   for (int i= 0; i < (int) children.elements(); i++)
   {
-    Explain_node *node= query->get_node(children.at(i));
-    if (node->print_explain(query, output, explain_flags, is_analyze))
+    Explain_node *node= query->get_node(children.at(i).select_no);
+    if (node->print_explain(query, output, explain_flags, is_analyze,
+                            children.at(i).is_eliminated))
       return 1;
   }
   return 0;
@@ -758,7 +761,7 @@ void Explain_node::print_explain_json_for_children(Explain_query *query,
   bool started= false;
   for (int i= 0; i < (int) children.elements(); i++)
   {
-    Explain_node *node= query->get_node(children.at(i));
+    Explain_node *node= query->get_node(children.at(i).select_no);
     /* Derived tables are printed inside Explain_table_access objects */
     
     if (!is_connection_printable_in_json(node->connection_type))
@@ -771,7 +774,8 @@ void Explain_node::print_explain_json_for_children(Explain_query *query,
     }
 
     writer->start_object();
-    node->print_explain_json(query, writer, is_analyze, no_tmp_tbl);
+    node->print_explain_json(query, writer, is_analyze, no_tmp_tbl,
+                             children.at(i).is_eliminated);
     writer->end_object();
   }
 
@@ -821,7 +825,8 @@ Explain_basic_join::~Explain_basic_join()
 
 int Explain_select::print_explain(Explain_query *query, 
                                   select_result_sink *output,
-                                  uint8 explain_flags, bool is_analyze)
+                                  uint8 explain_flags, bool is_analyze,
+                                  bool is_eliminated)
 {
   THD *thd= output->thd;
   MEM_ROOT *mem_root= thd->mem_root;
@@ -885,13 +890,20 @@ int Explain_select::print_explain(Explain_query *query,
       }
     }
 
-    for (uint i=0; i< n_join_tabs; i++)
+    /*
+      If there is no elimination of the whole node then do the first pass:
+      print the tables which are not eliminated individually
+    */
+    if (!is_eliminated)
     {
-      join_tabs[i]->print_explain(output, explain_flags, is_analyze, select_id,
-                                  select_type, using_tmp, using_fs);
-      if (i == 0)
+      for (uint i= 0; i < n_join_tabs; i++)
       {
-        /* 
+        if (unlikely(join_tabs[i]->is_eliminated))
+          continue;
+        join_tabs[i]->print_explain(output, explain_flags, is_analyze,
+                                    select_id, select_type, using_tmp,
+                                    using_fs);
+        /*
           "Using temporary; Using filesort" should only be shown near the 1st
           table
         */
@@ -899,11 +911,25 @@ int Explain_select::print_explain(Explain_query *query,
         using_fs= false;
       }
     }
+
+    /*
+      Second pass: print the tables which have been eliminated
+      either due to the whole node elimination or individually
+    */
+    for (uint i= 0; i < n_join_tabs; i++)
+    {
+      if (unlikely(join_tabs[i]->is_eliminated || is_eliminated))
+        join_tabs[i]->print_explain(output, explain_flags, is_analyze,
+                                    select_id, select_type, false,
+                                    false, is_eliminated);
+    }
+
     for (uint i=0; i< n_join_tabs; i++)
     {
       Explain_basic_join* nest;
       if ((nest= join_tabs[i]->sjm_nest))
-        nest->print_explain(query, output, explain_flags, is_analyze);
+        nest->print_explain(query, output, explain_flags, is_analyze,
+                            is_eliminated);
     }
   }
 
@@ -913,7 +939,8 @@ int Explain_select::print_explain(Explain_query *query,
 
 int Explain_basic_join::print_explain(Explain_query *query, 
                                       select_result_sink *output,
-                                      uint8 explain_flags, bool is_analyze)
+                                      uint8 explain_flags, bool is_analyze,
+                                      bool is_eliminated)
 {
   for (uint i=0; i< n_join_tabs; i++)
   {
@@ -952,9 +979,20 @@ void Explain_select::add_linkage(Json_writer *writer)
 
 void Explain_select::print_explain_json(Explain_query *query, 
                                         Json_writer *writer, bool is_analyze,
-                                        bool no_tmp_tbl)
+                                        bool no_tmp_tbl,
+                                        bool is_eliminated)
 {
   Json_writer_nesting_guard guard(writer);
+  if (unlikely(is_eliminated))
+  {
+    writer->add_member("query_block").start_object();
+    writer->add_member("select_id").add_ll(select_id);
+    writer->add_member("eliminated").add_bool(true);
+    Explain_basic_join::print_explain_json_interns(query, writer, is_analyze,
+                                                   no_tmp_tbl, is_eliminated);
+    writer->end_object();
+    return;
+  }
   
   bool started_cache= print_explain_json_cache(writer, is_analyze);
 
@@ -1059,7 +1097,7 @@ void Explain_select::print_explain_json(Explain_query *query,
     }
     
     Explain_basic_join::print_explain_json_interns(query, writer, is_analyze,
-                                                   no_tmp_tbl);
+                                                   no_tmp_tbl, is_eliminated);
 
     for (;started_objects; started_objects--)
       writer->end_object();
@@ -1139,12 +1177,14 @@ void Explain_aggr_window_funcs::print_json_members(Json_writer *writer,
 
 void Explain_basic_join::print_explain_json(Explain_query *query, 
                                             Json_writer *writer, 
-                                            bool is_analyze, bool no_tmp_tbl)
+                                            bool is_analyze, bool no_tmp_tbl,
+                                            bool is_eliminated)
 {
   writer->add_member("query_block").start_object();
   writer->add_member("select_id").add_ll(select_id);
   
-  print_explain_json_interns(query, writer, is_analyze, no_tmp_tbl);
+  print_explain_json_interns(query, writer, is_analyze, no_tmp_tbl,
+    is_eliminated);
 
   writer->end_object();
 }
@@ -1153,26 +1193,49 @@ void Explain_basic_join::print_explain_json(Explain_query *query,
 void Explain_basic_join::
 print_explain_json_interns(Explain_query *query, 
                            Json_writer *writer, 
-                           bool is_analyze, bool no_tmp_tbl)
+                           bool is_analyze, bool no_tmp_tbl,
+                           bool is_eliminated)
 {
   {
     Json_writer_array loop(writer, "nested_loop");
-    for (uint i=0; i< n_join_tabs; i++)
+
+    /*
+      If there is no elimination of the whole node then do the first pass:
+      print the tables which are not eliminated individually
+    */
+    if (!is_eliminated)
     {
-      if (join_tabs[i]->start_dups_weedout)
+      for (uint i= 0; i < n_join_tabs; i++)
       {
-        writer->start_object();
-        writer->add_member("duplicates_removal");
-        writer->start_array();
-      }
+        if (unlikely(join_tabs[i]->is_eliminated))
+          continue;
+        if (join_tabs[i]->start_dups_weedout)
+        {
+          writer->start_object();
+          writer->add_member("duplicates_removal");
+          writer->start_array();
+        }
 
-      join_tabs[i]->print_explain_json(query, writer, is_analyze, no_tmp_tbl);
+        join_tabs[i]->print_explain_json(query, writer, is_analyze,
+                                         no_tmp_tbl);
 
-      if (join_tabs[i]->end_dups_weedout)
-      {
-        writer->end_array();
-        writer->end_object();
+        if (join_tabs[i]->end_dups_weedout)
+        {
+          writer->end_array();
+          writer->end_object();
+        }
       }
+    }
+
+    /*
+      Second pass: print the tables which have been eliminated
+      either due to the whole node elimination or individually
+    */
+    for (uint i= 0; i < n_join_tabs; i++)
+    {
+      if (unlikely(join_tabs[i]->is_eliminated || is_eliminated))
+        join_tabs[i]->print_explain_json(query, writer, is_analyze,
+                                          no_tmp_tbl, true);
     }
   } // "nested_loop"
   print_explain_json_for_children(query, writer, is_analyze, no_tmp_tbl);
@@ -1332,8 +1395,14 @@ double Explain_table_access::get_r_filtered()
 int Explain_table_access::print_explain(select_result_sink *output, uint8 explain_flags, 
                                         bool is_analyze,
                                         uint select_id, const char *select_type,
-                                        bool using_temporary, bool using_filesort)
+                                        bool using_temporary, bool using_filesort,
+                                        bool is_parent_node_eliminated)
 {
+  // Check whether the table is eliminated itself or its parent node
+  if (unlikely(is_eliminated || is_parent_node_eliminated))
+    return print_explain_eliminated(output, explain_flags, is_analyze,
+                                    select_id, select_type);
+
   THD *thd= output->thd; // note: for SHOW EXPLAIN, this is target thd.
   MEM_ROOT *mem_root= thd->mem_root;
 
@@ -1552,6 +1621,72 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
 }
 
 
+int Explain_table_access::print_explain_eliminated(select_result_sink *output,
+                                                   uint8 explain_flags,
+                                                   bool is_analyze,
+                                                   uint select_id,
+                                                   const char *select_type)
+{
+  THD *thd= output->thd; // note: for SHOW EXPLAIN, this is target thd.
+  MEM_ROOT *mem_root= thd->mem_root;
+
+  List<Item> item_list;
+  Item *item_null= new (mem_root) Item_null(thd);
+
+  /* `id` column */
+  item_list.push_back(new (mem_root) Item_int(thd, (int32) select_id),
+                      mem_root);
+
+  /* `select_type` column */
+  push_str(thd, &item_list, select_type);
+
+  /* `table` column */
+  push_string(thd, &item_list, &table_name);
+
+  /* `partitions` column */
+  if (explain_flags & DESCRIBE_PARTITIONS)
+    item_list.push_back(item_null, mem_root);
+
+  /* `type` column */
+  push_str(thd, &item_list, "Eliminated");
+
+  /* `possible_keys` column */
+  item_list.push_back(item_null, mem_root);
+
+  /* `key` */
+  item_list.push_back(item_null, mem_root);
+
+  /* `key_len` */
+  item_list.push_back(item_null, mem_root);
+
+  /* `ref` */
+  item_list.push_back(item_null, mem_root);
+
+  /* `rows` */
+  item_list.push_back(item_null, mem_root);
+
+  /* `r_rows` */
+  if (is_analyze)
+    item_list.push_back(item_null, mem_root);
+
+  /* `filtered` */
+  if (explain_flags &DESCRIBE_EXTENDED || is_analyze)
+    item_list.push_back(item_null, mem_root);
+
+  /* `r_filtered` */
+  if (is_analyze)
+    item_list.push_back(item_null, mem_root);
+
+  /* `Extra` */
+  push_str(thd, &item_list, "");
+
+  if (output->send_data(item_list))
+    return 1;
+
+  return 0;
+}
+
+
 /**
   Adds copy of the string to the list
 
@@ -1760,8 +1895,15 @@ void Explain_rowid_filter::print_explain_json(Explain_query *query,
 
 void Explain_table_access::print_explain_json(Explain_query *query,
                                               Json_writer *writer,
-                                              bool is_analyze, bool no_tmp_tbl)
+                                              bool is_analyze, bool no_tmp_tbl,
+                                              bool is_parent_node_eliminated)
 {
+  if (unlikely(is_eliminated || is_parent_node_eliminated))
+  {
+    print_explain_json_eliminated(query, writer);
+    return;
+  }
+  
   Json_writer_object jsobj(writer);
   
   if (pre_join_sort)
@@ -2001,6 +2143,30 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     writer->end_object(); // read_sorted_file
   }
 
+  writer->end_object();
+}
+
+
+void Explain_table_access::print_explain_json_eliminated(Explain_query *query,
+                                                         Json_writer *writer)
+{
+  Json_writer_object jsobj(writer);
+  writer->add_member("table").start_object();
+  writer->add_member("table_name").add_str(table_name);
+  writer->add_member("access_type").add_str("Eliminated");
+  if (derived_select_number)
+  {
+    /* This is a derived table. Print its contents here */
+    writer->add_member("materialized").start_object();
+    Explain_node *node= query->get_node(derived_select_number);
+    if (node->get_type() == Explain_node::EXPLAIN_SELECT &&
+        ((Explain_select *) node)->is_lateral)
+    {
+      writer->add_member("lateral").add_ll(1);
+    }
+    node->print_explain_json(query, writer, false, false, true);
+    writer->end_object();
+  }
   writer->end_object();
 }
 
@@ -2275,8 +2441,8 @@ void Explain_quick_select::print_key_len(String *str)
 
 int Explain_delete::print_explain(Explain_query *query, 
                                   select_result_sink *output,
-                                  uint8 explain_flags,
-                                  bool is_analyze)
+                                  uint8 explain_flags, bool is_analyze,
+                                  bool is_eliminated)
 {
   if (deleting_all_rows)
   {
@@ -2290,7 +2456,7 @@ int Explain_delete::print_explain(Explain_query *query,
   else
   {
     return Explain_update::print_explain(query, output, explain_flags,
-                                         is_analyze);
+                                         is_analyze, is_eliminated);
   }
 }
 
@@ -2298,7 +2464,8 @@ int Explain_delete::print_explain(Explain_query *query,
 void Explain_delete::print_explain_json(Explain_query *query, 
                                         Json_writer *writer,
                                         bool is_analyze,
-                                        bool no_tmp_tbl)
+                                        bool no_tmp_tbl,
+                                        bool is_eliminated)
 {
   Json_writer_nesting_guard guard(writer);
 
@@ -2320,7 +2487,8 @@ void Explain_delete::print_explain_json(Explain_query *query,
 int Explain_update::print_explain(Explain_query *query, 
                                   select_result_sink *output,
                                   uint8 explain_flags,
-                                  bool is_analyze)
+                                  bool is_analyze,
+                                  bool is_eliminated)
 {
   StringBuffer<64> key_buf;
   StringBuffer<64> key_len_buf;
@@ -2417,7 +2585,8 @@ int Explain_update::print_explain(Explain_query *query,
 void Explain_update::print_explain_json(Explain_query *query,
                                         Json_writer *writer,
                                         bool is_analyze,
-                                        bool no_tmp_tbl)
+                                        bool no_tmp_tbl, 
+                                        bool is_eliminated)
 {
   Json_writer_nesting_guard guard(writer);
 
@@ -2602,7 +2771,8 @@ void Explain_update::print_explain_json(Explain_query *query,
 int Explain_insert::print_explain(Explain_query *query, 
                                   select_result_sink *output, 
                                   uint8 explain_flags,
-                                  bool is_analyze)
+                                  bool is_analyze,
+                                  bool is_eliminated)
 {
   const char *select_type="INSERT";
   print_explain_row(output, explain_flags, is_analyze,
@@ -2625,7 +2795,7 @@ int Explain_insert::print_explain(Explain_query *query,
 
 void Explain_insert::print_explain_json(Explain_query *query, 
                                         Json_writer *writer, bool is_analyze,
-                                        bool no_tmp_tbl)
+                                        bool no_tmp_tbl, bool is_eliminated)
 {
   Json_writer_nesting_guard guard(writer);
 

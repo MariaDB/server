@@ -23,11 +23,13 @@ create table t3 (a int primary key, b int)
 --echo # This will be  eliminated:
 explain select t1.a from t1 left join t2 on t2.a=t1.a;
 explain extended select t1.a from t1 left join t2 on t2.a=t1.a;
+explain format=json select t1.a from t1 left join t2 on t2.a=t1.a;
 
 select t1.a from t1 left join t2 on t2.a=t1.a;
 
 --echo # This will not be eliminated as t2.b is in in select list:
 explain select * from t1 left join t2 on t2.a=t1.a;
+explain format=json select * from t1 left join t2 on t2.a=t1.a;
 
 --echo # This will not be eliminated as t2.b is in in order list:
 explain select t1.a from t1 left join t2 on t2.a=t1.a order by t2.b;
@@ -40,9 +42,11 @@ explain select t1.a from t1 left join t2 on t2.a=t1.a where t2.b < 3 or t2.b is 
 
 --echo # Elimination of multiple tables:
 explain select t1.a from t1 left join (t2 join t3) on t2.a=t1.a and t3.a=t1.a;
+explain format=json select t1.a from t1 left join (t2 join t3) on t2.a=t1.a and t3.a=t1.a;
 
 --echo # Elimination of multiple tables (2):
 explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and t3.a=t1.a;
+explain format=json select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and t3.a=t1.a;
 
 --echo # Elimination when done within an outer join nest:
 explain extended
@@ -50,14 +54,22 @@ select t0.*
 from
   t0 left join (t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
   t3.a=t1.a) on t0.a=t1.a;
+  
+explain format=json
+select t0.*
+from
+  t0 left join (t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
+  t3.a=t1.a) on t0.a=t1.a;
 
 --echo # Elimination with aggregate functions
 explain select count(*) from t1 left join t2 on t2.a=t1.a;
+explain format=json select count(*) from t1 left join t2 on t2.a=t1.a;
 explain select count(1) from t1 left join t2 on t2.a=t1.a;
 explain select count(1) from t1 left join t2 on t2.a=t1.a group by t1.a;
 
 --echo This must not use elimination:
 explain select count(1) from t1 left join t2 on t2.a=t1.a group by t2.a;
+explain format=json select count(1) from t1 left join t2 on t2.a=t1.a group by t2.a;
 
 drop table t0, t1, t2, t3;
 
@@ -109,23 +121,31 @@ from
 
 --echo This should use one table:
 explain select id from v1 where id=2;
+explain format=json select id from v1 where id=2;
 --echo This should use one table:
 explain extended select id from v1 where id in (1,2,3,4);
+explain format=json select id from v1 where id in (1,2,3,4);
 --echo This should use facts and a1 tables:
 explain extended select id from v1 where attr1 between 12 and 14;
+explain format=json select id from v1 where attr1 between 12 and 14;
 --echo This should use facts, a2 and its subquery:
 explain extended select id from v1 where attr2 between 12 and 14;
+explain format=json select id from v1 where attr2 between 12 and 14;
 
 # Repeat for v2: 
 
 --echo This should use one table:
 explain select id from v2 where id=2;
+explain format=json select id from v2 where id=2;
 --echo This should use one table:
 explain extended select id from v2 where id in (1,2,3,4);
+explain format=json select id from v2 where id in (1,2,3,4);
 --echo This should use facts and a1 tables:
 explain extended select id from v2 where attr1 between 12 and 14;
+explain format=json select id from v2 where attr1 between 12 and 14;
 --echo This should use facts, a2 and its subquery:
 explain extended select id from v2 where attr2 between 12 and 14;
+explain format=json select id from v2 where attr2 between 12 and 14;
 
 drop view v1, v2;
 drop table t0, t1, t2;
@@ -144,6 +164,9 @@ insert into t2 select a,a,a,a from t1;
 explain select t1.* from t1 left join t2 on t2.pk1=t1.a and 
                                             t2.pk2=t2.pk1+1 and
                                             t2.pk3=t2.pk2+1;
+explain format=json select t1.* from t1 left join t2 on t2.pk1=t1.a and 
+                                                        t2.pk2=t2.pk1+1 and
+                                                        t2.pk3=t2.pk2+1;
 
 --echo This must use only t1:
 explain select t1.* from t1 left join t2 on t2.pk1=t1.a and 
@@ -175,16 +198,29 @@ insert into t3 select * from t1;
 
 explain 
 select t1.* from t1 left join ( t2 left join t3 on t3.pk=t2.col) on t2.col=t1.col;
+explain format=json
+select t1.* from t1 left join ( t2 left join t3 on t3.pk=t2.col) on t2.col=t1.col;
 
 explain 
+select t1.*, t2.* from t1 left join (t2 left join t3 on t3.pk=t2.col) on t2.pk=t1.col;
+explain format=json
 select t1.*, t2.* from t1 left join (t2 left join t3 on t3.pk=t2.col) on t2.pk=t1.col;
 
 explain select t1.* 
 from 
   t1 left join ( t2 left join t3 on t3.pk=t2.col or t3.pk=t2.col) 
   on t2.col=t1.col or t2.col=t1.col;
+explain format=json select t1.* 
+from 
+  t1 left join ( t2 left join t3 on t3.pk=t2.col or t3.pk=t2.col) 
+  on t2.col=t1.col or t2.col=t1.col;
 
 explain select t1.*, t2.* 
+from 
+  t1 left join 
+  (t2 left join t3 on t3.pk=t2.col or t3.pk=t2.col) 
+  on t2.pk=t1.col or t2.pk=t1.col;
+explain format=json select t1.*, t2.* 
 from 
   t1 left join 
   (t2 left join t3 on t3.pk=t2.col or t3.pk=t2.col) 
@@ -681,11 +717,13 @@ explain select t1.* from t1 left join
   (select t11.a as a, count(*) as b
    from t11 left join t12 on t12.pk=t11.b
    group by t11.a) v2b on v2b.a=t1.a;
+explain format=JSON select t1.* from t1 left join 
+  (select t11.a as a, count(*) as b
+   from t11 left join t12 on t12.pk=t11.b
+   group by t11.a) v2b on v2b.a=t1.a;
 
 --echo # In this case v2b cannot be eliminated (since v2b.b is not unique)!
 explain select t1.* from t1 left join v2b on t1.a=v2b.b;
-
---echo # Check format JSON as well
 explain format=JSON select t1.* from t1 left join v2b on t1.a=v2b.b;
 
 create view v2c as 
@@ -695,14 +733,10 @@ group by t11.a;
 
 --echo # The whole v2c is eliminated
 explain select t1.* from t1 left join v2c on v2c.a=t1.a;
-
---echo # Check format JSON as well
 explain format=JSON select t1.* from t1 left join v2c on v2c.a=t1.a;
 
 --echo # In this case v2c cannot be eliminated (since v2c.b is not unique)!
 explain select t1.* from t1 left join v2c on t1.a=v2c.b;
-
---echo # Check format JSON as well
 explain format=JSON select t1.* from t1 left join v2c on t1.a=v2c.b;
 
 --echo # Create a view with multiple fields in the GROUP BY clause:
@@ -716,6 +750,7 @@ explain select t1.* from t1 left join v2d on v2d.a=t1.a;
 
 --echo # This must be eliminated since both fields are bound:
 explain select t1.* from t1 left join v2d on v2d.a=t1.a and v2d.b=t1.b;
+explain format=JSON select t1.* from t1 left join v2d on v2d.a=t1.a and v2d.b=t1.b;
 
 create table t13 (dt date, b int);
 
@@ -744,6 +779,9 @@ explain select t1.* from t1 left join
 --echo # Now both a and b fields are on the SELECT list and they are bound to t1
 --echo # so derived D must be eliminated
 explain select t1.* from t1 left join 
+  (select a as a1, b as b1, count(*) as cnt from t2 group by a, b) D 
+  on D.a1=t1.a and D.b1=t1.b;
+explain format=JSON select t1.* from t1 left join 
   (select a as a1, b as b1, count(*) as cnt from t2 group by a, b) D 
   on D.a1=t1.a and D.b1=t1.b;
   

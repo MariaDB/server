@@ -1027,6 +1027,7 @@ public:
   unit_common_op common_op();
 
   bool explainable() const;
+  bool is_eliminated() const;
 
   void reset_distinct();
   void fix_distinct();
@@ -1040,8 +1041,6 @@ public:
 
   friend class st_select_lex;
 
-private:
-  bool is_derived_eliminated() const;
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;

@@ -673,6 +673,7 @@ c
 EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 USING (c1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t2	Eliminated	NULL	NULL	NULL	NULL	NULL	
 ALTER TABLE t1 MODIFY c1 VARBINARY(10);
 SELECT t1.* FROM t1 LEFT JOIN t2 USING (c1);
 c1
@@ -682,6 +683,7 @@ c
 EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 USING (c1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t2	Eliminated	NULL	NULL	NULL	NULL	NULL	
 DROP TABLE t1,t2;
 #
 # End of 10.0 tests

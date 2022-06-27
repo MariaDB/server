@@ -28228,19 +28228,17 @@ int JOIN::save_explain_data_intern(Explain_query *output,
       JOIN_TAB *saved_join_tab= NULL;
       TABLE *cur_table= tab->table;
 
-      /* Don't show eliminated tables */
-      if (cur_table->map & join->eliminated_tables)
-      {
-        used_tables|= cur_table->map;
-        continue;
-      }
-
 
       Explain_table_access *eta= (new (output->mem_root)
                                   Explain_table_access(output->mem_root));
 
       if (!eta)
         DBUG_RETURN(1);
+      if (cur_table->map & join->eliminated_tables)
+      {
+        eta->is_eliminated= true;
+      }
+
       if (tab->bush_root_tab != prev_bush_root_tab)
       {
         if (tab->bush_root_tab)
@@ -28293,7 +28291,8 @@ int JOIN::save_explain_data_intern(Explain_query *output,
          tmp_unit;
          tmp_unit= tmp_unit->next_unit())
       if (tmp_unit->explainable())
-        explain->add_child(tmp_unit->first_select()->select_number);
+        explain->add_child(tmp_unit->first_select()->select_number,
+                           tmp_unit->is_eliminated());
 
   if (select_lex->is_top_level_node())
     output->query_plan_ready();
@@ -28355,7 +28354,7 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
       DBUG_ASSERT(ref == unit->item);
     }
 
-    if (unit->explainable())
+    if (unit->explainable() && !unit->is_eliminated())
     {
       if (mysql_explain_union(thd, unit, result))
         DBUG_VOID_RETURN;

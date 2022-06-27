@@ -120,21 +120,29 @@ public:
   enum explain_connection_type connection_type;
 
 protected:
+  struct Child_info
+  {
+    int select_no;
+    bool is_eliminated;
+  };
   /* 
     A node may have children nodes. When a node's explain structure is 
-    created, children nodes may not yet have QPFs. This is why we store ids.
+    created, children nodes may not yet have QPFs. This is why we store
+    pairs {select_no, is_eliminated}.
   */
-  Dynamic_array<int> children;
+  Dynamic_array<Child_info> children;
 public:
-  void add_child(int select_no)
+  void add_child(int select_no, bool is_eliminated= false)
   {
-    children.append(select_no);
+    children.append({select_no, is_eliminated});
   }
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
-                            uint8 explain_flags, bool is_analyze)=0;
+                            uint8 explain_flags, bool is_analyze,
+                            bool is_eliminated= false)= 0;
   virtual void print_explain_json(Explain_query *query, Json_writer *writer, 
-                                  bool is_analyze, bool no_tmp_tbl)= 0;
+                                  bool is_analyze, bool no_tmp_tbl,
+                                  bool is_eliminated= false)= 0;
 
   int print_explain_for_children(Explain_query *query, select_result_sink *output, 
                                  uint8 explain_flags, bool is_analyze);
@@ -172,12 +180,15 @@ public:
   uint select_id;
 
   int print_explain(Explain_query *query, select_result_sink *output,
-                    uint8 explain_flags, bool is_analyze);
-  void print_explain_json(Explain_query *query, Json_writer *writer, 
-                          bool is_analyze, bool no_tmp_tbl);
-
+                    uint8 explain_flags, bool is_analyze,
+                    bool is_eliminated= false) override;
+  void print_explain_json(Explain_query *query, Json_writer *writer,
+                          bool is_analyze, bool no_tmp_tbl,
+                          bool is_eliminated= false) override;
+  // OLEGS: check this func and is the flag is_eliminated required
   void print_explain_json_interns(Explain_query *query, Json_writer *writer,
-                                  bool is_analyze, bool no_tmp_tbl);
+                                  bool is_analyze, bool no_tmp_tbl,
+                                  bool is_eliminated);
 
   /* A flat array of Explain structs for tables. */
   Explain_table_access** join_tabs;
@@ -258,10 +269,12 @@ public:
   */
   Explain_aggr_node* aggr_tree;
 
-  int print_explain(Explain_query *query, select_result_sink *output, 
-                    uint8 explain_flags, bool is_analyze);
-  void print_explain_json(Explain_query *query, Json_writer *writer, 
-                          bool is_analyze, bool no_tmp_tbl);
+  int print_explain(Explain_query *query, select_result_sink *output,
+                    uint8 explain_flags, bool is_analyze,
+                    bool is_eliminated= false) override;
+  void print_explain_json(Explain_query *query, Json_writer *writer,
+                          bool is_analyze, bool no_tmp_tbl,
+                          bool is_eliminated= false) override;
   
   Table_access_tracker *get_using_temporary_read_tracker()
   {
@@ -346,7 +359,7 @@ extern const char *pushed_select_text;
 class Explain_union : public Explain_node
 {
 public:
-  Explain_union(MEM_ROOT *root, bool is_analyze) : 
+  Explain_union(MEM_ROOT *root, bool is_analyze) :
     Explain_node(root), union_members(PSI_INSTRUMENT_MEM),
     is_recursive_cte(false),
     fake_select_lex_explain(root, is_analyze)
@@ -377,10 +390,12 @@ public:
   {
     union_members.append(select_no);
   }
-  int print_explain(Explain_query *query, select_result_sink *output, 
-                    uint8 explain_flags, bool is_analyze);
-  void print_explain_json(Explain_query *query, Json_writer *writer, 
-                          bool is_analyze, bool no_tmp_tbl);
+  int print_explain(Explain_query *query, select_result_sink *output,
+                    uint8 explain_flags, bool is_analyze,
+                    bool is_eliminated) override;
+  void print_explain_json(Explain_query *query, Json_writer *writer,
+                          bool is_analyze, bool no_tmp_tbl,
+                          bool is_eliminated) override;
 
   const char *fake_select_type;
   bool using_filesort;
@@ -755,6 +770,7 @@ public:
     full_scan_on_null_key(false),
     start_dups_weedout(false),
     end_dups_weedout(false),
+    is_eliminated(false),
     where_cond(NULL),
     cache_cond(NULL),
     pushed_index_cond(NULL),
@@ -836,6 +852,9 @@ public:
 
   bool start_dups_weedout;
   bool end_dups_weedout;
+
+  /* OLEGS: comment*/
+  bool is_eliminated;
   
   /*
     Note: lifespan of WHERE condition is less than lifespan of this object.
@@ -874,9 +893,11 @@ public:
   int print_explain(select_result_sink *output, uint8 explain_flags, 
                     bool is_analyze,
                     uint select_id, const char *select_type,
-                    bool using_temporary, bool using_filesort);
+                    bool using_temporary, bool using_filesort, 
+                    bool is_parent_node_eliminated= false);
   void print_explain_json(Explain_query *query, Json_writer *writer,
-                          bool is_analyze, bool no_tmp_tbl);
+                          bool is_analyze, bool no_tmp_tbl,
+                          bool is_parent_node_eliminated= false);
 
 private:
   void append_tag_name(String *str, enum explain_extra_tag tag);
@@ -885,6 +906,11 @@ private:
   double get_r_filtered();
   void tag_to_json(Json_writer *writer, enum explain_extra_tag tag,
                    bool no_tmp_tbl);
+  int print_explain_eliminated(select_result_sink *output, uint8 explain_flags,
+                               bool is_analyze, uint select_id,
+                               const char *select_type);
+  void print_explain_json_eliminated(Explain_query *query,
+                                     Json_writer *writer);
 };
 
 
@@ -965,9 +991,11 @@ public:
   Exec_time_tracker table_tracker;
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
-                            uint8 explain_flags, bool is_analyze);
+                            uint8 explain_flags, bool is_analyze,
+                            bool is_eliminated= false) override;
   virtual void print_explain_json(Explain_query *query, Json_writer *writer,
-                                  bool is_analyze, bool no_tmp_tbl);
+                                  bool is_analyze, bool no_tmp_tbl,
+                                  bool is_eliminated= false) override;
 };
 
 
@@ -991,9 +1019,11 @@ public:
   uint get_select_id() { return 1; /* always root */ }
 
   int print_explain(Explain_query *query, select_result_sink *output, 
-                    uint8 explain_flags, bool is_analyze);
+                    uint8 explain_flags, bool is_analyze,
+                    bool is_eliminated= false) override;
   void print_explain_json(Explain_query *query, Json_writer *writer, 
-                          bool is_analyze, bool no_tmp_tbl);
+                          bool is_analyze, bool no_tmp_tbl,
+                          bool is_eliminated= false) override;
 };
 
 
@@ -1018,9 +1048,11 @@ public:
   virtual uint get_select_id() { return 1; /* always root */ }
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
-                            uint8 explain_flags, bool is_analyze);
+                            uint8 explain_flags, bool is_analyze,
+                            bool is_eliminated= false) override;
   virtual void print_explain_json(Explain_query *query, Json_writer *writer,
-                                  bool is_analyze, bool no_tmp_tbl);
+                                  bool is_analyze, bool no_tmp_tbl,
+                                  bool is_eliminated= false) override;
 };
 
 
