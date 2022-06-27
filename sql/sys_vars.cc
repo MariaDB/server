@@ -2394,6 +2394,41 @@ Sys_gtid_ignore_duplicates(
        DEFAULT(FALSE), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(check_gtid_ignore_duplicates),
        ON_UPDATE(fix_gtid_ignore_duplicates));
+
+static bool
+check_slave_max_statement_time(sys_var *self, THD *thd, set_var *var)
+{
+  return give_error_if_slave_running(0);
+}
+
+static bool
+update_slave_max_statement_time(sys_var *self, THD *thd, enum_var_type type)
+{
+  bool running;
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  running= give_error_if_slave_running(0);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  if (running) return running;
+
+  slave_max_statement_time=
+      double2ulonglong(slave_max_statement_time_double * 1e6);
+
+  return false;
+}
+
+static Sys_var_on_access_global<
+    Sys_var_double, PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_MAX_STATEMENT_TIME>
+    Sys_slave_max_statement_time(
+        "slave_max_statement_time",
+        "A query that has taken more than slave_max_statement_time seconds to "
+        "run on the slave will be aborted. The argument will be treated as a "
+        "decimal value with microsecond precision. A value of 0 (default) "
+        "means no timeout",
+        GLOBAL_VAR(slave_max_statement_time_double), CMD_LINE(REQUIRED_ARG),
+        VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(0), NO_MUTEX_GUARD,
+        NOT_IN_BINLOG, ON_CHECK(check_slave_max_statement_time),
+        ON_UPDATE(update_slave_max_statement_time));
 #endif
 
 

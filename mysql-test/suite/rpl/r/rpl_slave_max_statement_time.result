@@ -1,0 +1,263 @@
+include/master-slave.inc
+[connection master]
+# Use statement format so the slave executes SLEEP functions originally
+# executed on the master
+#
+# Set up
+#
+connection master;
+SET sql_log_bin=0;
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+SET sql_log_bin=1;
+connection slave;
+SET sql_log_bin=0;
+CALL mtr.add_suppression("Slave log event execution was interrupted");
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+SET sql_log_bin=1;
+SET @old_slave_max_statement_time=@@GLOBAL.slave_max_statement_time;
+#
+# Test Case 1) Using a serial slave, the SQL thread should time out when
+# its underlying event executes for longer than slave_max_statement_time
+# and increment Slave_statement_timeouts by one
+#
+connection master;
+CREATE TABLE t1 (a int);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @old_slave_max_statement_time=@@GLOBAL.slave_max_statement_time;
+SET GLOBAL slave_max_statement_time=0.75;
+connection master;
+# Mimic a naturally long running command using SLEEP
+INSERT INTO t1 SELECT SLEEP(1);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+include/save_master_gtid.inc
+connection slave;
+# Starting slave to receive event which will take longer to execute
+# than slave_max_statement_time
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=4174]
+# Ensuring event was not processed..
+# ..success
+# Ensuring Slave_statement_timeouts variable has been incremented..
+# ..success
+# Remove slave timeout and catch up to master
+SET GLOBAL slave_max_statement_time=0;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+# Test case cleanup
+connection master;
+DROP TABLE t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET GLOBAL slave_max_statement_time=@old_slave_max_statement_time;
+include/start_slave.inc
+#
+# Test Case 2) The slave status variable Slave_statement_timeouts should
+# continually increment after each timed out event
+#
+connection master;
+CREATE TABLE t1 (a int);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @old_slave_max_statement_time=@@GLOBAL.slave_max_statement_time;
+SET GLOBAL slave_max_statement_time=0.75;
+connection master;
+# Mimic a naturally long running command using SLEEP
+INSERT INTO t1 SELECT SLEEP(1);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+include/save_master_gtid.inc
+connection slave;
+# Starting slave to receive event which will take longer to execute
+# than slave_max_statement_time
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=4174]
+# Ensuring event was not processed..
+# ..success
+# Ensuring Slave_statement_timeouts variable has been incremented..
+# ..success
+# Remove slave timeout and catch up to master
+SET GLOBAL slave_max_statement_time=0;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+# Test case cleanup
+connection master;
+DROP TABLE t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET GLOBAL slave_max_statement_time=@old_slave_max_statement_time;
+include/start_slave.inc
+connection master;
+CREATE TABLE t1 (a int);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @old_slave_max_statement_time=@@GLOBAL.slave_max_statement_time;
+SET GLOBAL slave_max_statement_time=0.75;
+connection master;
+# Mimic a naturally long running command using SLEEP
+INSERT INTO t1 SELECT SLEEP(1);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+include/save_master_gtid.inc
+connection slave;
+# Starting slave to receive event which will take longer to execute
+# than slave_max_statement_time
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=4174]
+# Ensuring event was not processed..
+# ..success
+# Ensuring Slave_statement_timeouts variable has been incremented..
+# ..success
+# Remove slave timeout and catch up to master
+SET GLOBAL slave_max_statement_time=0;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+# Test case cleanup
+connection master;
+DROP TABLE t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET GLOBAL slave_max_statement_time=@old_slave_max_statement_time;
+include/start_slave.inc
+#
+# Test Case 3) Using a parallel slave, a worker thread should time out
+# when its underlying event executes for longer than
+# slave_max_statement_time
+#
+include/stop_slave.inc
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_threads=2;
+SET GLOBAL slave_parallel_mode='optimistic';
+include/start_slave.inc
+connection master;
+CREATE TABLE t1 (a int);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @old_slave_max_statement_time=@@GLOBAL.slave_max_statement_time;
+SET GLOBAL slave_max_statement_time=0.75;
+connection master;
+# Mimic a naturally long running command using SLEEP
+INSERT INTO t1 SELECT SLEEP(1);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+include/save_master_gtid.inc
+connection slave;
+# Starting slave to receive event which will take longer to execute
+# than slave_max_statement_time
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=4174]
+# Ensuring event was not processed..
+# ..success
+# Ensuring Slave_statement_timeouts variable has been incremented..
+# ..success
+# Remove slave timeout and catch up to master
+SET GLOBAL slave_max_statement_time=0;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+# Test case cleanup
+connection master;
+DROP TABLE t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET GLOBAL slave_max_statement_time=@old_slave_max_statement_time;
+include/start_slave.inc
+include/stop_slave.inc
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+#
+# Test Case 4) Events should time out when waiting for a lock
+#
+connection master;
+CREATE TABLE t1 (a int);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @old_slave_max_statement_time=@@GLOBAL.slave_max_statement_time;
+SET GLOBAL slave_max_statement_time=0.75;
+LOCK TABLES t1 WRITE;
+connection master;
+# Long running command due to a lock conflict
+INSERT INTO t1 VALUES (1);
+include/save_master_gtid.inc
+connection slave;
+# Starting slave to receive event which will take longer to execute
+# than slave_max_statement_time
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=4174]
+# Ensuring event was not processed..
+# ..success
+# Ensuring Slave_statement_timeouts variable has been incremented..
+# ..success
+UNLOCK TABLES;
+# Remove slave timeout and catch up to master
+SET GLOBAL slave_max_statement_time=0;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+# Test case cleanup
+connection master;
+DROP TABLE t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET GLOBAL slave_max_statement_time=@old_slave_max_statement_time;
+include/start_slave.inc
+#
+# Test Case 5) Locally executed long running statements should not time
+# out due to slave_max_statement_time
+#
+connection slave;
+include/stop_slave.inc
+SET @old_slave_max_statement_time=@@GLOBAL.slave_max_statement_time;
+SET @old_gtid_domain_id=@@GLOBAL.gtid_domain_id;
+SET @@GLOBAL.slave_max_statement_time=0.75;
+SET @@GLOBAL.gtid_domain_id=1;
+include/start_slave.inc
+CREATE TABLE t2 (a int);
+INSERT INTO t2 SELECT SLEEP(1);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+DROP TABLE t2;
+include/stop_slave.inc
+SET GLOBAL gtid_domain_id=@old_gtid_domain_id;
+SET GLOBAL slave_max_statement_time=@old_slave_max_statement_time;
+include/start_slave.inc
+#
+# Test Case 6) Reset slave should preserve the value of
+# Slave_statement_timeouts
+#
+# Tagging Slave_statement_timeouts before reset slave
+include/stop_slave.inc
+RESET SLAVE;
+include/start_slave.inc
+# Ensuring Slave_statement_timeouts didn't change after reset slave..
+# ..success
+#
+# Test Case 7) slave_max_statement_time should not be allowed to change
+# while the slave is running
+#
+include/wait_for_slave_to_start.inc
+set @@GLOBAL.slave_max_statement_time= 0;
+ERROR HY000: This operation cannot be performed as you have a running slave ''; run STOP SLAVE '' first
+include/rpl_end.inc
+# End of rpl_slave_max_statement_time.test

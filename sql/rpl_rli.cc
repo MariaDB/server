@@ -61,7 +61,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery, const char* thread_name)
    gtid_skip_flag(GTID_SKIP_NOT), inited(0), abort_slave(0), stop_for_until(0),
    slave_running(MYSQL_SLAVE_NOT_RUN), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
-   sql_delay(0), sql_delay_end(0),
+   statement_timeouts(0), sql_delay(0), sql_delay_end(0),
    until_relay_log_names_defer(false),
    m_flags(0)
 {
@@ -2132,6 +2132,14 @@ end:
   return err;
 }
 
+/*
+  Send a timeout to an active replication worker thread.
+*/
+extern "C" void rgi_query_timeout(rpl_group_info* rgi)
+{
+  rgi->thd->awake(KILL_TIMEOUT);
+}
+
 
 void
 rpl_group_info::reinit(Relay_log_info *rli)
@@ -2153,6 +2161,7 @@ rpl_group_info::reinit(Relay_log_info *rli)
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
   speculation= SPECULATE_NO;
   commit_orderer.reinit();
+  thr_timer_init(&slave_query_timer, (void (*)(void*)) rgi_query_timeout, this);
 }
 
 rpl_group_info::rpl_group_info(Relay_log_info *rli)

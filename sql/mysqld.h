@@ -243,6 +243,8 @@ extern ulonglong binlog_cache_size, binlog_stmt_cache_size, binlog_file_cache_si
 extern ulonglong max_binlog_cache_size, max_binlog_stmt_cache_size;
 extern ulong max_binlog_size;
 extern ulong slave_max_allowed_packet;
+extern ulonglong slave_max_statement_time;
+extern double slave_max_statement_time_double;
 extern ulong opt_binlog_rows_event_max_size;
 extern ulong binlog_row_metadata;
 extern ulong thread_cache_size;

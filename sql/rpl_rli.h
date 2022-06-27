@@ -351,6 +351,12 @@ public:
   Atomic_counter<uint32_t> executed_entries;
 
   /*
+    Number of events which timed out due to executing for longer than
+    slave_max_statement_time
+  */
+  Atomic_counter<uint32_t> statement_timeouts;
+
+  /*
     If the end of the hot relay log is made of master's events ignored by the
     slave I/O thread, these two keep track of the coords (in the master's
     binlog) of the last of these events seen by the slave I/O thread. If not,
@@ -834,9 +840,26 @@ struct rpl_group_info
   };
   uchar killed_for_retry;
 
+  /* Handles timeouts for slave events */
+  thr_timer_t slave_query_timer;
+
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
   void reinit(Relay_log_info *rli);
+
+  void set_slave_query_timer()
+  {
+    if (!slave_max_statement_time||
+        slave_query_timer.expired == 0)
+      return;
+    thr_timer_settime(&slave_query_timer, slave_max_statement_time);
+  }
+
+  void reset_slave_query_timer()
+  {
+    if (!slave_query_timer.expired)
+      thr_timer_end(&slave_query_timer);
+  }
 
   /* 
      Returns true if the argument event resides in the containter;

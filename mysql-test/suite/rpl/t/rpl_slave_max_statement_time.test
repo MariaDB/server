@@ -1,0 +1,166 @@
+#
+# Purpose:
+#   This test ensures that the slave can limit the execution time of its
+# events via the variable slave_max_statement_time. Additionally, it ensures
+# that the status variable Slave_statement_timeouts shown by
+# SHOW ALL SLAVES STATUS reflects the number of events that timed out.
+#
+# Methodology:
+#   This test uses the following test cases to ensure that a slave will
+# correctly limit the execution time of its events:
+#   1) Using a serial slave, the SQL thread should time out when its underlying
+#      event executes for longer than slave_max_statement_time and increment
+#      Slave_statement_timeouts by one.
+#   2) The slave status variable Slave_statement_timeouts should continually
+#      increment after each timed out event.
+#   3) Using a parallel slave, a worker thread should time out when its
+#      underlying event executes for longer than slave_max_statement_time.
+#   4) Events should time out when waiting for a lock.
+#   5) Locally executed long running statements should not time out due to
+#      slave_max_statement_time.
+#   6) Reset slave should preserve the value of Slave_statement_timeouts.
+#   7) slave_max_statement_time should not be allowed to change while the
+#      slave is running.
+#
+# References:
+#   MDEV-27161: Add option for SQL thread to limit maximum execution time per
+#               query replicated
+#
+
+--source include/master-slave.inc
+
+--echo # Use statement format so the slave executes SLEEP functions originally
+--echo # executed on the master
+--source include/have_binlog_format_statement.inc
+
+# Valgrind interferes with thread scheduling
+--source include/not_valgrind.inc
+
+--echo #
+--echo # Set up
+--echo #
+--connection master
+SET sql_log_bin=0;
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+SET sql_log_bin=1;
+--connection slave
+SET sql_log_bin=0;
+CALL mtr.add_suppression("Slave log event execution was interrupted");
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+SET sql_log_bin=1;
+SET @old_slave_max_statement_time=@@GLOBAL.slave_max_statement_time;
+
+# Explicitly nullify with_lock for the tests which don't test using lock
+# conflicts
+--let $with_lock=
+
+
+--echo #
+--echo # Test Case 1) Using a serial slave, the SQL thread should time out when
+--echo # its underlying event executes for longer than slave_max_statement_time
+--echo # and increment Slave_statement_timeouts by one
+--echo #
+--source include/rpl_slave_max_statement_time.inc
+
+
+--echo #
+--echo # Test Case 2) The slave status variable Slave_statement_timeouts should
+--echo # continually increment after each timed out event
+--echo #
+--let $pre_test_timeouts= query_get_value(SHOW ALL SLAVES STATUS, Slave_statement_timeouts, 1)
+--source include/rpl_slave_max_statement_time.inc
+--source include/rpl_slave_max_statement_time.inc
+--let $post_test_timeouts= query_get_value(SHOW ALL SLAVES STATUS, Slave_statement_timeouts, 1)
+if (`SELECT $post_test_timeouts != ($pre_test_timeouts+2)`)
+{
+    --die Two timeouts should have incremented Slave_statement_timeouts by two, but did not
+}
+
+
+--echo #
+--echo # Test Case 3) Using a parallel slave, a worker thread should time out
+--echo # when its underlying event executes for longer than
+--echo # slave_max_statement_time
+--echo #
+
+--source include/stop_slave.inc
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_threads=2;
+SET GLOBAL slave_parallel_mode='optimistic';
+--source include/start_slave.inc
+
+--source include/rpl_slave_max_statement_time.inc
+
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+--source include/start_slave.inc
+
+
+--echo #
+--echo # Test Case 4) Events should time out when waiting for a lock
+--echo #
+--let $with_lock=1
+--source include/rpl_slave_max_statement_time.inc
+--let $with_lock=
+
+
+--echo #
+--echo # Test Case 5) Locally executed long running statements should not time
+--echo # out due to slave_max_statement_time
+--echo #
+
+--connection slave
+--source include/stop_slave.inc
+SET @old_slave_max_statement_time=@@GLOBAL.slave_max_statement_time;
+SET @old_gtid_domain_id=@@GLOBAL.gtid_domain_id;
+SET @@GLOBAL.slave_max_statement_time=0.75;
+SET @@GLOBAL.gtid_domain_id=1;
+--source include/start_slave.inc
+
+CREATE TABLE t2 (a int);
+INSERT INTO t2 SELECT SLEEP(1);
+--let $t2_count= `SELECT COUNT(*) FROM t2`
+if ($t2_count != 1)
+{
+    --die Local long running insert statement should have completed
+}
+DROP TABLE t2;
+
+--source include/stop_slave.inc
+SET GLOBAL gtid_domain_id=@old_gtid_domain_id;
+SET GLOBAL slave_max_statement_time=@old_slave_max_statement_time;
+--source include/start_slave.inc
+
+
+--echo #
+--echo # Test Case 6) Reset slave should preserve the value of
+--echo # Slave_statement_timeouts
+--echo #
+
+--echo # Tagging Slave_statement_timeouts before reset slave
+--let $old_statement_timeouts= query_get_value(SHOW ALL SLAVES STATUS, Slave_statement_timeouts, 1)
+--source include/stop_slave.inc
+RESET SLAVE;
+--source include/start_slave.inc
+--echo # Ensuring Slave_statement_timeouts didn't change after reset slave..
+--let $new_statement_timeouts= query_get_value(SHOW ALL SLAVES STATUS, Slave_statement_timeouts, 1)
+if ($old_statement_timeouts != $new_statement_timeouts)
+{
+    --die RESET SLAVE should not have changed Slave_statement_timeouts value
+}
+--echo # ..success
+
+
+--echo #
+--echo # Test Case 7) slave_max_statement_time should not be allowed to change
+--echo # while the slave is running
+--echo #
+--source include/wait_for_slave_to_start.inc
+--error ER_SLAVE_MUST_STOP
+set @@GLOBAL.slave_max_statement_time= 0;
+
+--source include/rpl_end.inc
+
+--echo # End of rpl_slave_max_statement_time.test

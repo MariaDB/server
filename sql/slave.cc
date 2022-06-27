@@ -3100,6 +3100,10 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                                           MYSQL_TYPE_LONG),
                           mem_root);
     field_list->push_back(new (mem_root)
+                          Item_return_int(thd, "Slave_statement_timeouts", 10,
+                                          MYSQL_TYPE_LONG),
+                          mem_root);
+    field_list->push_back(new (mem_root)
                           Item_return_int(thd, "Slave_received_heartbeats", 10,
                                           MYSQL_TYPE_LONG),
                           mem_root);
@@ -3324,6 +3328,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
       protocol->store((uint32)    mi->rli.retried_trans);
       protocol->store((ulonglong) mi->rli.max_relay_log_size);
       protocol->store(mi->rli.executed_entries);
+      protocol->store(mi->rli.statement_timeouts);
       protocol->store((uint32)    mi->received_heartbeats);
       protocol->store_double(mi->heartbeat_period, 3);
       protocol->store(gtid_pos->ptr(), gtid_pos->length(), &my_charset_bin);
@@ -3847,8 +3852,13 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
                   (thd, STRING_WITH_LEN("now WAIT_FOR continue")));
       DBUG_SET_INITIAL("-d,inject_slave_sql_before_apply_event");
     };);
+
   if (reason == Log_event::EVENT_SKIP_NOT)
+  {
+    rgi->set_slave_query_timer();
     exec_res= ev->apply_event(rgi);
+    rgi->reset_slave_query_timer();
+  }
 
 #ifdef WITH_WSREP
   if (WSREP(thd)) {
@@ -3936,6 +3946,13 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
       GTID from this failed event group (MDEV-4906).
     */
     rgi->gtid_pending= false;
+
+    /*
+      If this transaction failed due to a query timeout, update the counter
+    */
+    if (thd->get_stmt_da()->is_error() &&
+        thd->get_stmt_da()->sql_errno() == ER_SLAVE_STATEMENT_TIMEOUT)
+      rgi->rli->statement_timeouts++;
   }
 
   DBUG_RETURN(exec_res ? 1 : 0);
