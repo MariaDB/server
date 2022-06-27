@@ -3076,14 +3076,17 @@ int spider_get_sys_link_mon_key(
     DBUG_RETURN(ER_SPIDER_SYS_TABLE_VERSION_NUM);
   }
 
-  if (
-    !(db_name = get_field(mem_root,
-      table->field[SPIDER_LINK_MON_SERVERS_DB_NAME_POS])) ||
-    !(table_name = get_field(mem_root,
-      table->field[SPIDER_LINK_MON_SERVERS_TABLE_NAME_POS])) ||
-    !(link_id = get_field(mem_root,
-      table->field[SPIDER_LINK_MON_SERVERS_LINK_ID_POS]))
-  )
+  if (!(db_name=
+        get_field(mem_root,
+                  table->field[SPIDER_LINK_MON_SERVERS_DB_NAME_POS])))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  if (!(table_name=
+        get_field(mem_root,
+                  table->field[SPIDER_LINK_MON_SERVERS_TABLE_NAME_POS])))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  if (!(link_id=
+        get_field(mem_root,
+                  table->field[SPIDER_LINK_MON_SERVERS_LINK_ID_POS])))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
   db_name_length = strlen(db_name);

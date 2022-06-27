@@ -3796,7 +3796,7 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   }
   else
   {
-    check_insert_autoincrement();
+    check_insert_or_replace_autoincrement();
     if (unlikely((error= open_read_partitions(name_buff, sizeof(name_buff)))))
       goto err_handler;
     m_num_locks= m_file_sample->lock_count();
@@ -8846,7 +8846,7 @@ int ha_partition::change_partitions_to_open(List<String> *partition_names)
     return 0;
   }
 
-  check_insert_autoincrement();
+  check_insert_or_replace_autoincrement();
   if (bitmap_cmp(&m_opened_partitions, &m_part_info->read_partitions) != 0)
     return 0;
 
