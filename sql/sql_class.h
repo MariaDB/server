@@ -5432,23 +5432,28 @@ public:
   {
 #ifndef EMBEDDED_LIBRARY
     /*
+      Slave vs user threads have timeouts configured via different variables,
+      so pick the appropriate one to use.
+    */
+    ulonglong timeout_val=
+        slave_thread ? slave_max_statement_time : variables.max_statement_time;
+
+    /*
       Don't start a query timer if
       - If timeouts are not set
       - if we are in a stored procedure or sub statement
-      - If this is a slave thread
       - If we already have set a timeout (happens when running prepared
         statements that calls mysql_execute_command())
     */
-    if (!variables.max_statement_time || spcont  || in_sub_stmt ||
-        slave_thread || query_timer.expired == 0)
+    if (!timeout_val || spcont || in_sub_stmt || query_timer.expired == 0)
       return;
-    thr_timer_settime(&query_timer, variables.max_statement_time);
+    thr_timer_settime(&query_timer, timeout_val);
 #endif
   }
   void reset_query_timer()
   {
 #ifndef EMBEDDED_LIBRARY
-    if (spcont || in_sub_stmt || slave_thread)
+    if (spcont || in_sub_stmt)
       return;
     if (!query_timer.expired)
       thr_timer_end(&query_timer);

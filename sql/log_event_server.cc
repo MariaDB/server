@@ -200,7 +200,7 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
                      err->get_sql_errno());
   }
 
-  if (ha_error != 0)
+  if (ha_error != 0 && !thd->killed)
     rli->report(level, errcode, rgi->gtid_info(),
                 "Could not execute %s event on table %s.%s;"
                 "%s handler error %s; "
@@ -5729,6 +5729,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   DBUG_ASSERT(rgi->thd == thd);
 
   /*
+    Where a Query_log_event can rely on the normal command execution logic to
+    set/reset the slave thread's timer; a Rows_log_event update needs to set
+    the timer itself
+  */
+  thd->set_query_timer();
+
+  /*
     If there is no locks taken, this is the first binrow event seen
     after the table map events.  We should then lock all the tables
     used in the transaction and proceed with execution of the actual
@@ -6120,6 +6127,12 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       if (likely(error == 0) && !transactional_table)
         thd->transaction->all.modified_non_trans_table=
           thd->transaction->stmt.modified_non_trans_table= TRUE;
+      if (likely(error == 0))
+      {
+        error= thd->killed_errno();
+        if (error && !thd->is_error())
+          my_error(error, MYF(0));
+      }
     } // row processing loop
     while (error == 0 && (m_curr_row != m_rows_end));
 
@@ -6189,11 +6202,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
   }
 
+  thd->reset_query_timer();
   DBUG_RETURN(error);
 
 err:
   restore_empty_query_table_list(thd->lex);
   rgi->slave_close_thread_tables(thd);
+  thd->reset_query_timer();
   DBUG_RETURN(error);
 }
 

@@ -461,6 +461,8 @@ ulonglong binlog_cache_size=0;
 ulonglong binlog_file_cache_size=0;
 ulonglong max_binlog_cache_size=0;
 ulong slave_max_allowed_packet= 0;
+double slave_max_statement_time_double;
+ulonglong slave_max_statement_time;
 ulonglong binlog_stmt_cache_size=0;
 ulonglong  max_binlog_stmt_cache_size=0;
 ulonglong test_flags;
@@ -8718,6 +8720,8 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
       max_relay_log_size_var->option.def_value=
         max_binlog_size_var->option.def_value;
     }
+    slave_max_statement_time=
+      double2ulonglong(slave_max_statement_time_double * 1e6);
   }
 #endif
 
