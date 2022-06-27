@@ -1187,28 +1187,27 @@ check_port()
 check_for_dhparams()
 {
     ssl_dhparams="$DATA/dhparams.pem"
-    if [ ! -r "$ssl_dhparams" ]; then
-        get_openssl
-        if [ -n "$OPENSSL_BINARY" ]; then
-            wsrep_log_info \
-                "Could not find dhparams file, creating $ssl_dhparams"
-            local bug=0
-            local errmsg
-            errmsg=$("$OPENSSL_BINARY" \
-                         dhparam -out "$ssl_dhparams" 2048 2>&1) || bug=1
-            if [ $bug -ne 0 ]; then
-                wsrep_log_info "run: \"$OPENSSL_BINARY\" dhparam -out \"$ssl_dhparams\" 2048"
-                wsrep_log_info "output: $errmsg"
-                wsrep_log_error "******** ERROR *****************************************"
-                wsrep_log_error "* Could not create the dhparams.pem file with OpenSSL. *"
-                wsrep_log_error "********************************************************"
-                ssl_dhparams=""
-            fi
-        else
-            # Rollback: if openssl is not installed, then use
-            # the default parameters:
+    get_openssl
+    if [ -n "$OPENSSL_BINARY" ]; then
+        wsrep_log_info \
+            "Could not find dhparams file, creating $ssl_dhparams"
+        local bug=0
+        local errmsg
+        errmsg=$("$OPENSSL_BINARY" \
+                 dhparam -out "$ssl_dhparams" -dsaparam 2048 2>&1) || bug=1
+        if [ $bug -ne 0 ]; then
+            wsrep_log_info "run: \"$OPENSSL_BINARY\" dhparam"\
+                           "-out \"$ssl_dhparams\" -dsaparam 2048"
+            wsrep_log_info "output: $errmsg"
+            wsrep_log_error "******** ERROR *****************************************"
+            wsrep_log_error "* Could not create the dhparams.pem file with OpenSSL. *"
+            wsrep_log_error "********************************************************"
             ssl_dhparams=""
         fi
+    else
+        # Rollback: if openssl is not installed, then use
+        # the default parameters:
+        ssl_dhparams=""
     fi
 }
 
@@ -1310,29 +1309,39 @@ verify_cert_matches_key()
 #
 check_for_version()
 {
-    y1="${1#*.}"
+    local y1="${1#*.}"
     [ "$y1" = "$1" ] && y1=""
-    z1=${y1#*.}
+    local z1="${y1#*.}"
     [ "$z1" = "$y1" ] && z1=""
-    x1="${1%%.*}"
+    local w1="${z1#*.}"
+    [ "$w1" = "$z1" ] && w1=""
+    local x1="${1%%.*}"
     y1="${y1%%.*}"
     z1="${z1%%.*}"
+    w1="${w1%%.*}"
     [ -z "$y1" ] && y1=0
     [ -z "$z1" ] && z1=0
-    y2="${2#*.}"
+    [ -z "$w1" ] && w1=0
+    local y2="${2#*.}"
     [ "$y2" = "$2" ] && y2=""
-    z2="${y2#*.}"
+    local z2="${y2#*.}"
     [ "$z2" = "$y2" ] && z2=""
-    x2="${2%%.*}"
+    local w2="${z2#*.}"
+    [ "$w2" = "$z2" ] && w2=""
+    local x2="${2%%.*}"
     y2="${y2%%.*}"
     z2="${z2%%.*}"
+    w2="${w2%%.*}"
     [ -z "$y2" ] && y2=0
     [ -z "$z2" ] && z2=0
+    [ -z "$w2" ] && w2=0
     [ $x1 -lt $x2 ] && return 1
     [ $x1 -gt $x2 ] && return 0
     [ $y1 -lt $y2 ] && return 1
     [ $y1 -gt $y2 ] && return 0
     [ $z1 -lt $z2 ] && return 1
+    [ $z1 -gt $z2 ] && return 0
+    [ $w1 -lt $w2 ] && return 1
     return 0
 }
 
