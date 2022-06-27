@@ -1,0 +1,16 @@
+--source include/have_innodb.inc
+--source include/innodb_row_format.inc
+
+--echo #
+--echo # MDEV-26577 InnoDB: Failing assertion: dict_tf2_is_valid(flags, flags2)
+--echo # during ADD COLUMN
+--echo #
+
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+CREATE TABLE t2(a INT PRIMARY KEY) ENGINE=InnoDB;
+FLUSH TABLES;
+--let $datadir=`select @@datadir`
+--remove_file $datadir/test/t2.frm
+--copy_file $datadir/test/t1.frm $datadir/test/t2.frm
+ALTER TABLE t2 ADD COLUMN b INT;
+DROP TABLE t1,t2;
