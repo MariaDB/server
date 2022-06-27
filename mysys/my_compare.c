@@ -117,6 +117,11 @@ static int compare_bin(const uchar *a, uint a_length,
 
 #define FCMP(A,B) ((int) (A) - (int) (B))
 
+/*
+  Suppress run-time checks in this function for overflow because it
+  intentionally performs integer overflow in error checking.
+*/
+__attribute__((no_sanitize("shift")))
 int ha_key_cmp(HA_KEYSEG *keyseg, const uchar *a,
                const uchar *b, uint key_length, uint32 nextflag,
 	       uint *diff_pos)
