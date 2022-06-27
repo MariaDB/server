@@ -23,6 +23,8 @@ use Text::Wrap;
 use Data::Dumper;
 
 use File::Temp qw/ tempfile tempdir /;
+use File::Find;
+use File::Basename;
 use mtr_results;
 use mtr_report;
 
@@ -489,7 +491,7 @@ sub _auto
 
 
 sub show {
-  my ($class, $core_name, $exe_mysqld, $parallel)= @_;
+  my ($core_name, $exe_mysqld, $parallel)= @_;
   if ($config{print_core} ne 'no') {
     my $f= $config{print_core};
     my $m= $config{print_method};
@@ -503,6 +505,38 @@ sub show {
     $print_methods{$m}->{method}->($core_name, $code);
   }
   return;
+}
+
+
+sub core_wanted($$$$$) {
+  my ($num_saved_cores, $opt_max_save_core, $compress,
+      $exe_mysqld, $opt_parallel)= @_;
+  my $core_file= $File::Find::name;
+  my $core_name= basename($core_file);
+
+  # Name beginning with core, not ending in .gz
+  if (($core_name =~ /^core/ and $core_name !~ /\.gz$/)
+      or (IS_WINDOWS and $core_name =~ /\.dmp$/))
+  {
+    # Ending with .dmp
+    mtr_report(" - found '$core_name'",
+               "($$num_saved_cores/$opt_max_save_core)");
+
+    show($core_file, $exe_mysqld, $opt_parallel);
+
+    # Limit number of core files saved
+    if ($$num_saved_cores >= $opt_max_save_core)
+    {
+      mtr_report(" - deleting it, already saved",
+                 "$opt_max_save_core");
+      unlink("$core_file");
+    }
+    else
+    {
+      main::mtr_compress_file($core_file) if $compress;
+      ++$$num_saved_cores;
+    }
+  }
 }
 
 
