@@ -6335,7 +6335,6 @@ xb_init()
 			check_all_privileges();
 		}
 		history_start_time = time(NULL);
-
 	} else {
 		xb_init_buffer_pool(innobase_buffer_pool_filename);
 	}

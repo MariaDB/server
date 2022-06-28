@@ -664,6 +664,9 @@ cleanup_at_exit()
     local estatus=$?
     if [ $estatus -ne 0 ]; then
         wsrep_log_error "Cleanup after exit with status: $estatus"
+    elif [ -z "${coords:-}" -a "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+        estatus=32
+        wsrep_log_error "Failed to get current position"
     fi
 
     [ "$(pwd)" != "$OLD_PWD" ] && cd "$OLD_PWD"
@@ -934,6 +937,11 @@ if [ $ssyslog -eq 1 ]; then
             logger -p daemon.err -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@"
         }
 
+        wsrep_log_warning()
+        {
+            logger -p daemon.warning -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@"
+        }
+
         wsrep_log_info()
         {
             logger -p daemon.info -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@"
@@ -1015,7 +1023,7 @@ setup_commands()
         recovery=" --innodb-force-recovery=$INNODB_FORCE_RECOVERY"
     fi
     INNOAPPLY="$BACKUP_BIN --prepare$disver$recovery${iapts:+ }$iapts$INNOEXTRA --target-dir='$DATA' --datadir='$DATA'$mysqld_args $INNOAPPLY"
-    INNOMOVE="$BACKUP_BIN$WSREP_SST_OPT_CONF --move-back$disver${impts:+ }$impts$INNOEXTRA --force-non-empty-directories --target-dir='$DATA' --datadir='${TDATA:-$DATA}' $INNOMOVE"
+    INNOMOVE="$BACKUP_BIN$WSREP_SST_OPT_CONF --move-back$disver${impts:+ }$impts$INNOEXTRA --galera-info --force-non-empty-directories --target-dir='$DATA' --datadir='${TDATA:-$DATA}' $INNOMOVE"
     INNOBACKUP="$BACKUP_BIN$WSREP_SST_OPT_CONF --backup$disver${iopts:+ }$iopts$tmpopts$INNOEXTRA --galera-info --stream=$sfmt --target-dir='$itmpdir' --datadir='$DATA'$mysqld_args $INNOBACKUP"
 }
 

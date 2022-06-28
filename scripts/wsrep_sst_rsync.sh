@@ -38,6 +38,9 @@ cleanup_joiner()
     local estatus=$?
     if [ $estatus -ne 0 ]; then
         wsrep_log_error "Cleanup after exit with status: $estatus"
+    elif [ -z "${coords:-}" ]; then
+        estatus=32
+        wsrep_log_error "Failed to get current position"
     fi
 
     local failure=0

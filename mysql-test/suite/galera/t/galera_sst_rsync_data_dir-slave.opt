@@ -1,1 +1,1 @@
---innodb_data_home_dir=$MYSQLTEST_VARDIR/mysqld.2/innodb_data2
+--innodb_data_home_dir=$MYSQLTEST_VARDIR/mysqld.2/innodb_data2 --innodb_buffer_pool_filename=bp2

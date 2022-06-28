@@ -1593,8 +1593,10 @@ const char * get_buffer_pool_filename(size_t *length)
 	settings, otherwise we keep the original file name: */
 	size_t dir_length = 0;
 	const char *dst_name = default_buffer_pool_file;
-	if (!opt_galera_info) {
+	if (!opt_galera_info || length) {
 		dir_length = dirname_length(buffer_pool_filename);
+	}
+	if (!opt_galera_info) {
 		dst_name = buffer_pool_filename + dir_length;
 	}
 	if (length) {
@@ -2039,13 +2041,14 @@ copy_back()
 
 	if (file_exists(src_buffer_pool)) {
 		char dst_dir[FN_REFLEN];
+		char *dst_name = buffer_pool_filename + dir_length;
 		while (IS_TRAILING_SLASH(buffer_pool_filename, dir_length)) {
 			dir_length--;
 		}
 		memcpy(dst_dir, buffer_pool_filename, dir_length);
 		dst_dir[dir_length] = 0;
 		if (!(ret = copy_or_move_file(src_buffer_pool,
-				src_buffer_pool,
+				dst_name,
 				dst_dir, 1)))
 		{
 			goto cleanup;
