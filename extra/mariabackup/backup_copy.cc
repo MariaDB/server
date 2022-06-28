@@ -1544,6 +1544,7 @@ bool backup_start(CorruptedPages &corrupted_pages)
 		if (!write_galera_info(mysql_connection)) {
 			return(false);
 		}
+                // copied from xtrabackup. what is it needed for here?
 		write_current_binlog_file(mysql_connection);
 	}
 
@@ -1584,16 +1585,15 @@ void backup_release()
 	}
 }
 
+static const char *default_buffer_pool_file = "ib_buffer_pool";
+
 /** Finish after backup_start() and backup_release() */
 bool backup_finish()
 {
 	/* Copy buffer pool dump or LRU dump */
-	if (!opt_rsync) {
+	if (!opt_rsync && opt_galera_info) {
 		if (buffer_pool_filename && file_exists(buffer_pool_filename)) {
-			const char *dst_name;
-
-			dst_name = trim_dotslash(buffer_pool_filename);
-			copy_file(ds_data, buffer_pool_filename, dst_name, 0);
+			copy_file(ds_data, buffer_pool_filename, default_buffer_pool_file, 0);
 		}
 		if (file_exists("ib_lru_dump")) {
 			copy_file(ds_data, "ib_lru_dump", "ib_lru_dump", 0);
@@ -1643,6 +1643,7 @@ ibx_copy_incremental_over_full()
 	char path[FN_REFLEN];
 	int i;
 
+        DBUG_ASSERT(!opt_galera_info);
 	datadir_node_init(&node);
 
 	/* If we were applying an incremental change set, we need to make
@@ -1678,22 +1679,6 @@ ibx_copy_incremental_over_full()
 
 		if (!(ret = backup_files_from_datadir(xtrabackup_incremental_dir)))
 			goto cleanup;
-
-		/* copy buffer pool dump */
-		if (innobase_buffer_pool_filename) {
-			const char *src_name;
-
-			src_name = trim_dotslash(innobase_buffer_pool_filename);
-
-			snprintf(path, sizeof(path), "%s/%s",
-				xtrabackup_incremental_dir,
-				src_name);
-
-			if (file_exists(path)) {
-				copy_file(ds_data, path,
-					  innobase_buffer_pool_filename, 0);
-			}
-		}
 
 		/* copy supplementary files */
 
@@ -1988,6 +1973,11 @@ copy_back()
 			continue;
 		}
 
+                /* skip buffer pool dump */
+                if (!strcmp(filename, default_buffer_pool_file)) {
+                        continue;
+                }
+
 		/* skip innodb data files */
 		is_ibdata_file = false;
 		for (Tablespace::const_iterator iter(srv_sys_space.begin()),
@@ -2010,24 +2000,11 @@ copy_back()
 
 	/* copy buffer pool dump */
 
-	if (innobase_buffer_pool_filename) {
-		const char *src_name;
-		char path[FN_REFLEN];
-
-		src_name = trim_dotslash(innobase_buffer_pool_filename);
-
-		snprintf(path, sizeof(path), "%s/%s",
-			mysql_data_home,
-			src_name);
-
-		/* could be already copied with other files
-		from data directory */
-		if (file_exists(src_name) &&
-			!file_exists(innobase_buffer_pool_filename)) {
-			copy_or_move_file(src_name,
-					  innobase_buffer_pool_filename,
-					  mysql_data_home, 0);
-		}
+        if (file_exists(default_buffer_pool_file) &&
+            innobase_buffer_pool_filename) {
+		copy_or_move_file(default_buffer_pool_file,
+				  innobase_buffer_pool_filename,
+				  mysql_data_home, 0);
 	}
 
 	rocksdb_copy_back();
