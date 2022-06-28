@@ -515,7 +515,7 @@ public:
                         Sql_condition ** cond_hdl)
   {
     *cond_hdl= NULL;
-    if (sql_errno == ER_OPEN_AS_READONLY)
+    if (sql_errno == ER_OPEN_AS_READONLY || sql_errno == ER_LOCK_WAIT_TIMEOUT)
     {
       handled_errors++;
       return TRUE;
@@ -600,24 +600,43 @@ bool flush_tables(THD *thd, flush_tables_type flag)
     else
     {
       /*
-        HA_OPEN_FOR_FLUSH is used to allow us to open the table even if
-        TABLE_SHARE::incompatible_version is set. It also will tell
-        SEQUENCE engine that we don't have to read the sequence information
-        (which may cause deadlocks with concurrently running ALTER TABLE or
-        ALTER SEQUENCE) as we will close the table at once.
+        No free TABLE instances available. We have to open a new one.
+
+        Try to take a MDL lock to ensure we can open a new table instance.
+        If the lock fails, it means that some DDL operation or flush tables
+        with read lock is ongoing.
+        In this case we cannot sending the HA_EXTRA_FLUSH signal.
       */
-      if (!open_table_from_share(thd, share, &empty_clex_str,
-                                 HA_OPEN_KEYFILE, 0,
-                                 HA_OPEN_FOR_ALTER | HA_OPEN_FOR_FLUSH,
-                                 tmp_table, FALSE,
-                                 NULL))
+
+      MDL_request mdl_request;
+      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE,
+                       share->db.str,
+                       share->table_name.str,
+                       MDL_SHARED, MDL_EXPLICIT);
+
+      if (!thd->mdl_context.acquire_lock(&mdl_request, 0))
       {
-        (void) tmp_table->file->extra(HA_EXTRA_FLUSH);
         /*
-          We don't put the table into the TDC as the table was not fully
-          opened (we didn't open triggers)
+          HA_OPEN_FOR_FLUSH is used to allow us to open the table even if
+          TABLE_SHARE::incompatible_version is set. It also will tell
+          SEQUENCE engine that we don't have to read the sequence information
+          (which may cause deadlocks with concurrently running ALTER TABLE or
+          ALTER SEQUENCE) as we will close the table at once.
         */
-        closefrm(tmp_table);
+        if (!open_table_from_share(thd, share, &empty_clex_str,
+                                   HA_OPEN_KEYFILE, 0,
+                                   HA_OPEN_FOR_ALTER | HA_OPEN_FOR_FLUSH,
+                                   tmp_table, FALSE,
+                                   NULL))
+        {
+          (void) tmp_table->file->extra(HA_EXTRA_FLUSH);
+          /*
+            We don't put the table into the TDC as the table was not fully
+            opened (we didn't open triggers)
+          */
+          closefrm(tmp_table);
+        }
+        thd->mdl_context.release_lock(mdl_request.ticket);
       }
     }
     tdc_release_share(share);
