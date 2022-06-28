@@ -606,7 +606,6 @@ typedef struct st_spider_wide_handler
   bool               semi_trx_chk;
   bool               low_priority;
   bool               high_priority;
-  bool               insert_delayed;
   bool               consistent_snapshot;
   bool               quick_mode;
   bool               keyread;
@@ -823,7 +822,6 @@ typedef struct st_spider_share
   int                selupd_lock_mode;
   int                query_cache;
   int                query_cache_sync;
-  int                internal_delayed;
   int                bulk_size;
   int                bulk_update_mode;
   int                bulk_update_size;

@@ -912,17 +912,6 @@ dict_table_copy_types(
 	dtuple_t*		tuple,	/*!< in/out: data tuple */
 	const dict_table_t*	table)	/*!< in: table */
 	MY_ATTRIBUTE((nonnull));
-/**********************************************************************//**
-Looks for an index with the given id. NOTE that we do not acquire
-dict_sys.latch: this function is for emergency purposes like
-printing info of a corrupt database page!
-@return index or NULL if not found from cache */
-dict_index_t*
-dict_index_find_on_id_low(
-/*======================*/
-	index_id_t	id)	/*!< in: index id */
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Adds an index to the dictionary cache, with possible indexing newly
 added column.
 @param[in,out]	index	index; NOTE! The index memory
@@ -1495,28 +1484,16 @@ public:
   }
 #endif
 
-  /** Move a table to the non-LRU list from the LRU list.
-  @return whether the table was evictable */
-  bool prevent_eviction(dict_table_t *table)
+  /** Move a table to the non-LRU list from the LRU list. */
+  void prevent_eviction(dict_table_t *table)
   {
     ut_d(locked());
     ut_ad(find(table));
     if (!table->can_be_evicted)
-      return false;
+      return;
     table->can_be_evicted= false;
     UT_LIST_REMOVE(table_LRU, table);
     UT_LIST_ADD_LAST(table_non_LRU, table);
-    return true;
-  }
-  /** Move a table from the non-LRU list to the LRU list. */
-  void allow_eviction(dict_table_t *table)
-  {
-    ut_d(locked());
-    ut_ad(find(table));
-    ut_ad(!table->can_be_evicted);
-    table->can_be_evicted= true;
-    UT_LIST_REMOVE(table_non_LRU, table);
-    UT_LIST_ADD_FIRST(table_LRU, table);
   }
 
 #ifdef UNIV_DEBUG

@@ -1732,34 +1732,45 @@ int st_spider_param_string_parse::print_param_error()
 #define SPIDER_PARAM_STR_LIST(title_name, param_name) \
   SPIDER_PARAM_STR_LIST_CHECK(title_name, param_name, FALSE)
 #define SPIDER_PARAM_STR_LIST_CHECK(title_name, param_name, already_set) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
+  if (!strncasecmp(tmp_ptr, title_name, title_length))                        \
+  {                                                                           \
+    DBUG_PRINT("info", ("spider " title_name " start"));                      \
     if (already_set)                                    \
     {                                                   \
       error_num= ER_SPIDER_INVALID_CONNECT_INFO_NUM;    \
       goto error;                                       \
     }                                                   \
-    if (!share->param_name) \
-    { \
-      if ((tmp_ptr2 = spider_get_string_between_quote( \
-        start_ptr, FALSE))) \
-      { \
-        share->SPIDER_PARAM_STR_CHARLEN(param_name) = strlen(tmp_ptr2); \
-        if ((error_num = spider_create_string_list( \
-          &share->param_name, \
-          &share->SPIDER_PARAM_STR_LENS(param_name), \
-          &share->SPIDER_PARAM_STR_LEN(param_name), \
-          tmp_ptr2, \
-          share->SPIDER_PARAM_STR_CHARLEN(param_name), \
-          &connect_string_parse))) \
-          goto error; \
-      } else { \
-        error_num = connect_string_parse.print_param_error(); \
-        goto error; \
-      } \
-    } \
-    break; \
+    if (!share->param_name)                                                   \
+    {                                                                         \
+      if ((tmp_ptr2= spider_get_string_between_quote(start_ptr, FALSE)))      \
+      {                                                                       \
+        share->SPIDER_PARAM_STR_CHARLEN(param_name)= strlen(tmp_ptr2);        \
+        if ((error_num= spider_create_string_list(                            \
+                 &share->param_name,                                          \
+                 &share->SPIDER_PARAM_STR_LENS(param_name),                   \
+                 &share->SPIDER_PARAM_STR_LEN(param_name), tmp_ptr2,          \
+                 share->SPIDER_PARAM_STR_CHARLEN(param_name),                 \
+                 &connect_string_parse)))                                     \
+        {                                                                     \
+          goto error;                                                         \
+        }                                                                     \
+        THD *thd= current_thd;                                                \
+        if (share->SPIDER_PARAM_STR_LEN(param_name) > 1 && create_table)      \
+        {                                                                     \
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,            \
+                              HA_ERR_UNSUPPORTED,                             \
+                              "The high availability feature of Spider "      \
+                              "has been deprecated "                          \
+                              "and will be removed in a future release");     \
+        }                                                                     \
+      }                                                                       \
+      else                                                                    \
+      {                                                                       \
+        error_num= connect_string_parse.print_param_error();                  \
+        goto error;                                                           \
+      }                                                                       \
+    }                                                                         \
+    break;                                                                    \
   }
 #define SPIDER_PARAM_HINT(title_name, param_name, check_length, max_size, append_method) \
   if (!strncasecmp(tmp_ptr, title_name, check_length)) \
@@ -2062,7 +2073,6 @@ int spider_parse_connect_info(
   share->selupd_lock_mode = -1;
   share->query_cache = -1;
   share->query_cache_sync = -1;
-  share->internal_delayed = -1;
   share->bulk_size = -1;
   share->bulk_update_mode = -1;
   share->bulk_update_size = -1;
@@ -2261,7 +2271,6 @@ int spider_parse_connect_info(
           SPIDER_PARAM_LONGLONG("frd", first_read, 0);
           SPIDER_PARAM_DEPRECATED_WARNING("isa");
           SPIDER_PARAM_INT("isa", init_sql_alloc_size, 0);
-          SPIDER_PARAM_INT_WITH_MAX("idl", internal_delayed, 0, 1);
           SPIDER_PARAM_DEPRECATED_WARNING("ilm");
           SPIDER_PARAM_LONGLONG("ilm", internal_limit, 0);
           SPIDER_PARAM_DEPRECATED_WARNING("ios");
@@ -2327,7 +2336,9 @@ int spider_parse_connect_info(
           SPIDER_PARAM_DOUBLE("ssr", semi_split_read, 0);
           SPIDER_PARAM_LONGLONG("ssl", semi_split_read_limit, 0);
           SPIDER_PARAM_INT_WITH_MAX("ssy", sts_sync, 0, 2);
+          SPIDER_PARAM_DEPRECATED_WARNING("stc");
           SPIDER_PARAM_INT_WITH_MAX("stc", semi_table_lock_conn, 0, 1);
+          SPIDER_PARAM_DEPRECATED_WARNING("stl");
           SPIDER_PARAM_INT_WITH_MAX("stl", semi_table_lock, 0, 1);
           SPIDER_PARAM_LONGLONG("srs", static_records_for_status, 0);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("svc", tgt_ssl_vscs, 0, 1);
@@ -2450,6 +2461,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_DEPRECATED_WARNING("internal_offset");
           SPIDER_PARAM_LONGLONG("internal_offset", internal_offset, 0);
           SPIDER_PARAM_INT_WITH_MAX("reset_sql_alloc", reset_sql_alloc, 0, 1);
+          SPIDER_PARAM_DEPRECATED_WARNING("semi_table_lock");
           SPIDER_PARAM_INT_WITH_MAX("semi_table_lock", semi_table_lock, 0, 1);
           SPIDER_PARAM_LONGLONG("quick_page_byte", quick_page_byte, 0);
           SPIDER_PARAM_LONGLONG("quick_page_size", quick_page_size, 0);
@@ -2469,8 +2481,6 @@ int spider_parse_connect_info(
             "multi_split_read", multi_split_read, 0, 2147483647);
           SPIDER_PARAM_INT_WITH_MAX(
             "selupd_lock_mode", selupd_lock_mode, 0, 2);
-          SPIDER_PARAM_INT_WITH_MAX(
-            "internal_delayed", internal_delayed, 0, 1);
           SPIDER_PARAM_INT_WITH_MAX(
             "table_count_mode", table_count_mode, 0, 3);
           SPIDER_PARAM_INT_WITH_MAX(
@@ -2570,6 +2580,7 @@ int spider_parse_connect_info(
           error_num = connect_string_parse.print_param_error();
           goto error;
         case 26:
+          SPIDER_PARAM_DEPRECATED_WARNING("semi_table_lock_connection");
           SPIDER_PARAM_INT_WITH_MAX(
             "semi_table_lock_connection", semi_table_lock_conn, 0, 1);
           error_num = connect_string_parse.print_param_error();
@@ -3878,8 +3889,6 @@ int spider_set_connect_info_default(
     share->query_cache = 0;
   if (share->query_cache_sync == -1)
     share->query_cache_sync = 0;
-  if (share->internal_delayed == -1)
-    share->internal_delayed = 0;
   if (share->bulk_size == -1)
     share->bulk_size = 16000;
   if (share->bulk_update_mode == -1)

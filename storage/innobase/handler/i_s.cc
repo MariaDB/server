@@ -1345,9 +1345,8 @@ i_s_cmp_per_index_fill_low(
 
 	for (iter = snap.begin(), i = 0; iter != snap.end(); iter++, i++) {
 
-		dict_index_t*	index = dict_index_find_on_id_low(iter->first);
-
-		if (index != NULL) {
+		if (dict_index_t* index
+		    = dict_index_get_if_in_cache_low(iter->first)) {
 			char	db_utf8[MAX_DB_UTF8_LEN];
 			char	table_utf8[MAX_TABLE_UTF8_LEN];
 
@@ -5011,71 +5010,61 @@ static ST_FIELD_INFO innodb_sys_tablestats_fields_info[]=
 };
 } // namespace Show
 
-/** Populate information_schema.innodb_sys_tablestats table with information
-from SYS_TABLES.
-@param[in]	thd		thread ID
-@param[in,out]	table		table
-@param[in]	ref_count	table reference count
-@param[in,out]	table_to_fill	fill this table
+/** Populate information_schema.innodb_sys_tablestats table with a table,
+and release exclusive dict_sys.latch.
+@param[in]	thd		connection
+@param[in,out]	table		InnoDB table metadata
+@param[in,out]	table_to_fill	INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 @return 0 on success */
 static
 int
-i_s_dict_fill_sys_tablestats(
-	THD*		thd,
-	dict_table_t*	table,
-	ulint		ref_count,
-	TABLE*		table_to_fill)
+i_s_dict_fill_sys_tablestats(THD* thd, dict_table_t *table,
+                             TABLE* table_to_fill)
 {
-	Field**		fields;
+  DBUG_ENTER("i_s_dict_fill_sys_tablestats");
 
-	DBUG_ENTER("i_s_dict_fill_sys_tablestats");
+  Field **fields= table_to_fill->field;
 
-	fields = table_to_fill->field;
+  {
+    table->stats_mutex_lock();
+    auto _ = make_scope_exit([table]() {
+      table->stats_mutex_unlock(); dict_sys.unlock(); });
 
-	OK(fields[SYS_TABLESTATS_ID]->store(longlong(table->id), TRUE));
+    OK(fields[SYS_TABLESTATS_ID]->store(longlong(table->id), TRUE));
 
-	OK(field_store_string(fields[SYS_TABLESTATS_NAME],
-			      table->name.m_name));
+    OK(field_store_string(fields[SYS_TABLESTATS_NAME],
+                          table->name.m_name));
+    OK(fields[SYS_TABLESTATS_INIT]->store(table->stat_initialized, true));
 
-	{
-		table->stats_mutex_lock();
-		auto _ = make_scope_exit([table]() {
-			table->stats_mutex_unlock(); });
+    if (table->stat_initialized)
+    {
+      OK(fields[SYS_TABLESTATS_NROW]->store(table->stat_n_rows, true));
 
-		OK(fields[SYS_TABLESTATS_INIT]->store(table->stat_initialized,
-						      true));
+      OK(fields[SYS_TABLESTATS_CLUST_SIZE]->
+         store(table->stat_clustered_index_size, true));
 
-		if (table->stat_initialized) {
-			OK(fields[SYS_TABLESTATS_NROW]->store(
-				   table->stat_n_rows, true));
+      OK(fields[SYS_TABLESTATS_INDEX_SIZE]->
+         store(table->stat_sum_of_other_index_sizes, true));
 
-			OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(
-				   table->stat_clustered_index_size, true));
+      OK(fields[SYS_TABLESTATS_MODIFIED]->
+         store(table->stat_modified_counter, true));
+    }
+    else
+    {
+      OK(fields[SYS_TABLESTATS_NROW]->store(0, true));
+      OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(0, true));
+      OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(0, true));
+      OK(fields[SYS_TABLESTATS_MODIFIED]->store(0, true));
+    }
 
-			OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(
-				   table->stat_sum_of_other_index_sizes,
-				   true));
+    OK(fields[SYS_TABLESTATS_AUTONINC]->store(table->autoinc, true));
 
-			OK(fields[SYS_TABLESTATS_MODIFIED]->store(
-				   table->stat_modified_counter, true));
-		} else {
-			OK(fields[SYS_TABLESTATS_NROW]->store(0, true));
+    OK(fields[SYS_TABLESTATS_TABLE_REF_COUNT]->
+       store(table->get_ref_count(), true));
+  }
 
-			OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(0, true));
-
-			OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(0, true));
-
-			OK(fields[SYS_TABLESTATS_MODIFIED]->store(0, true));
-		}
-	}
-
-	OK(fields[SYS_TABLESTATS_AUTONINC]->store(table->autoinc, true));
-
-	OK(fields[SYS_TABLESTATS_TABLE_REF_COUNT]->store(ref_count, true));
-
-	OK(schema_table_store_record(thd, table_to_fill));
-
-	DBUG_RETURN(0);
+  OK(schema_table_store_record(thd, table_to_fill));
+  DBUG_RETURN(0);
 }
 
 /*******************************************************************//**
@@ -5110,23 +5099,17 @@ i_s_sys_tables_fill_table_stats(
 
 	while (rec) {
 		const char*	err_msg;
-		dict_table_t*	table_rec= 0;
+		dict_table_t*	table_rec = nullptr;
 
 		mtr.commit();
 		/* Fetch the dict_table_t structure corresponding to
 		this SYS_TABLES record */
 		err_msg = i_s_sys_tables_rec(pcur, nullptr, nullptr,
-                                             &table_rec);
+					     &table_rec);
 
 		if (UNIV_LIKELY(!err_msg)) {
-			bool evictable = dict_sys.prevent_eviction(table_rec);
-			ulint ref_count = table_rec->get_ref_count();
-			dict_sys.unlock();
-			i_s_dict_fill_sys_tablestats(thd, table_rec, ref_count,
+			i_s_dict_fill_sys_tablestats(thd, table_rec,
 						     tables->table);
-			if (!evictable) {
-				table_rec = nullptr;
-			}
 		} else {
 			ut_ad(!table_rec);
 			dict_sys.unlock();
@@ -5138,9 +5121,6 @@ i_s_sys_tables_fill_table_stats(
 		/* Get the next record */
 		mtr.start();
 		dict_sys.lock(SRW_LOCK_CALL);
-		if (table_rec) {
-			dict_sys.allow_eviction(table_rec);
-		}
 
 		rec = dict_getnext_system(&pcur, &mtr);
 	}

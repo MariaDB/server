@@ -4513,10 +4513,7 @@ static bool fix_sql_log_bin_after_update(sys_var *self, THD *thd,
 {
   DBUG_ASSERT(type == OPT_SESSION);
 
-  if (thd->variables.sql_log_bin)
-    thd->variables.option_bits |= OPTION_BIN_LOG;
-  else
-    thd->variables.option_bits &= ~OPTION_BIN_LOG;
+  thd->set_binlog_bit();
 
   return FALSE;
 }

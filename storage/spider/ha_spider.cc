@@ -731,9 +731,6 @@ THR_LOCK_DATA **ha_spider::store_lock(
     case TL_READ_HIGH_PRIORITY:
       wide_handler->high_priority = TRUE;
       break;
-    case TL_WRITE_DELAYED:
-      wide_handler->insert_delayed = TRUE;
-      break;
     case TL_WRITE_LOW_PRIORITY:
       wide_handler->low_priority = TRUE;
       break;
@@ -833,7 +830,6 @@ THR_LOCK_DATA **ha_spider::store_lock(
         lock_type = TL_READ;
       if (
         lock_type >= TL_WRITE_CONCURRENT_INSERT && lock_type <= TL_WRITE &&
-        lock_type != TL_WRITE_DELAYED &&
         !thd->in_lock_tables && !thd_tablespace_op(thd)
       )
         lock_type = TL_WRITE_ALLOW_WRITE;
@@ -1025,7 +1021,6 @@ int ha_spider::reset()
     wide_handler->insert_with_update = FALSE;
     wide_handler->low_priority = FALSE;
     wide_handler->high_priority = FALSE;
-    wide_handler->insert_delayed = FALSE;
     wide_handler->lock_table_type = 0;
     wide_handler->semi_trx_isolation_chk = FALSE;
     wide_handler->semi_trx_chk = FALSE;
@@ -7818,7 +7813,6 @@ ulonglong ha_spider::table_flags() const
     HA_CAN_FULLTEXT |
     HA_CAN_SQL_HANDLER |
     HA_FILE_BASED |
-    HA_CAN_INSERT_DELAYED |
     HA_CAN_BIT_FIELD |
     HA_NO_COPY_ON_ALTER |
     HA_BINLOG_ROW_CAPABLE |

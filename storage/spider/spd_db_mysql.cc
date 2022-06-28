@@ -9593,7 +9593,6 @@ int spider_mbase_handler::append_insert(
   spider_string *str,
   int link_idx
 ) {
-  SPIDER_SHARE *share = spider->share;
   DBUG_ENTER("spider_mbase_handler::append_insert");
   direct_insert_kind = SPIDER_SQL_DIRECT_INSERT_KIND_INSERT;
   if (
@@ -9619,15 +9618,6 @@ int spider_mbase_handler::append_insert(
     if (str->reserve(SPIDER_SQL_LOW_PRIORITY_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     str->q_append(SPIDER_SQL_LOW_PRIORITY_STR, SPIDER_SQL_LOW_PRIORITY_LEN);
-  }
-  else if (spider->wide_handler->insert_delayed)
-  {
-    if (share->internal_delayed)
-    {
-      if (str->reserve(SPIDER_SQL_SQL_DELAYED_LEN))
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      str->q_append(SPIDER_SQL_SQL_DELAYED_STR, SPIDER_SQL_SQL_DELAYED_LEN);
-    }
   }
   else if (
     spider->wide_handler->lock_type >= TL_WRITE &&
@@ -16277,12 +16267,6 @@ int spider_mbase_copy_table::append_insert_str(
     if (sql.reserve(SPIDER_SQL_LOW_PRIORITY_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     sql.q_append(SPIDER_SQL_LOW_PRIORITY_STR, SPIDER_SQL_LOW_PRIORITY_LEN);
-  }
-  else if (insert_flg & SPIDER_DB_INSERT_DELAYED)
-  {
-    if (sql.reserve(SPIDER_SQL_SQL_DELAYED_LEN))
-      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-    sql.q_append(SPIDER_SQL_SQL_DELAYED_STR, SPIDER_SQL_SQL_DELAYED_LEN);
   }
   else if (insert_flg & SPIDER_DB_INSERT_HIGH_PRIORITY)
   {
