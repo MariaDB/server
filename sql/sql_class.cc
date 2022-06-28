@@ -1298,10 +1298,7 @@ void THD::init()
   wsrep_desynced_backup_stage= false;
 #endif /* WITH_WSREP */
 
-  if (variables.sql_log_bin)
-    variables.option_bits|= OPTION_BIN_LOG;
-  else
-    variables.option_bits&= ~OPTION_BIN_LOG;
+  set_binlog_bit();
 
   select_commands= update_commands= other_commands= 0;
   /* Set to handle counting of aborted connections */

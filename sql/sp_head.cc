@@ -411,6 +411,26 @@ Item *THD::sp_fix_func_item(Item **it_addr)
 
 
 /**
+  Prepare an Item for evaluation as an assignment source,
+  for assignment to the given target.
+
+  @param to        - the assignment target
+  @param it_addr   - a pointer on item refernce
+
+  @retval          -  NULL on error
+  @retval          -  a prepared item pointer on success
+*/
+Item *THD::sp_fix_func_item_for_assignment(const Field *to, Item **it_addr)
+{
+  DBUG_ENTER("THD::sp_fix_func_item_for_assignment");
+  Item *res= sp_fix_func_item(it_addr);
+  if (res && (!res->check_assignability_to(to)))
+    DBUG_RETURN(res);
+  DBUG_RETURN(NULL);
+}
+
+
+/**
   Evaluate an expression and store the result in the field.
 
   @param result_field           the field to store the result
@@ -4128,7 +4148,7 @@ sp_instr_jump_if_not::exec_core(THD *thd, uint *nextp)
   Item *it;
   int res;
 
-  it= thd->sp_prepare_func_item(&m_expr);
+  it= thd->sp_prepare_func_item(&m_expr, 1);
   if (! it)
   {
     res= -1;

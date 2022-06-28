@@ -829,6 +829,19 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   context->resolve_in_table_list_only(table_list);
   switch_to_nullable_trigger_fields(*values, table);
 
+  /*
+    Check assignability for the leftmost () in VALUES:
+      INSERT INTO t1 (a,b) VALUES (1,2), (3,4);
+    This checks if the values (1,2) can be assigned to fields (a,b).
+    The further values, e.g. (3,4) are not checked - they will be
+    checked during the execution time (when processing actual rows).
+    This is to preserve the "insert until the very first error"-style
+    behaviour for non-transactional tables.
+  */
+  if (values->elements &&
+      table_list->table->check_assignability_opt_fields(fields, *values))
+    goto abort;
+
   while ((values= its++))
   {
     thd->get_stmt_da()->inc_current_row_for_warning();
@@ -1688,7 +1701,15 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     {
       select_lex->no_wrap_view_item= TRUE;
       res= check_update_fields(thd, context->table_list, update_fields,
-                               update_values, false, &map);
+                               update_values, false, &map) ||
+           /*
+             Check that all col=expr pairs are compatible for assignment in
+             INSERT INTO t1 VALUES (...)
+               ON DUPLICATE KEY UPDATE col=expr [, col=expr];
+           */
+           TABLE::check_assignability_explicit_fields(update_fields,
+                                                      update_values);
+
       select_lex->no_wrap_view_item= FALSE;
     }
 
@@ -3883,6 +3904,16 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
         check_insert_fields(thd, table_list, *fields, values,
                             !insert_into_view, 1, &map));
 
+  if (!res)
+  {
+     /*
+        Check that all colN=exprN pairs are compatible for assignment, e.g.:
+          INSERT INTO t1 (col1, col2) VALUES (expr1, expr2);
+          INSERT INTO t1 SET col1=expr1, col2=expr2;
+     */
+     res= table_list->table->check_assignability_opt_fields(*fields, values);
+  }
+
   if (!res && fields->elements)
   {
     Abort_on_warning_instant_set aws(thd,
@@ -3936,7 +3967,14 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     }
 
     res= res || setup_fields(thd, Ref_ptr_array(), *info.update_values,
-                             MARK_COLUMNS_READ, 0, NULL, 0);
+                             MARK_COLUMNS_READ, 0, NULL, 0) ||
+                /*
+                  Check that all col=expr pairs are compatible for assignment in
+                    INSERT INTO t1 SELECT ... FROM t2
+                      ON DUPLICATE KEY UPDATE col=expr [, col=expr]
+                */
+                TABLE::check_assignability_explicit_fields(*info.update_fields,
+                                                           *info.update_values);
     if (!res)
     {
       /*

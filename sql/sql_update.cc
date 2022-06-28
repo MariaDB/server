@@ -523,6 +523,9 @@ int mysql_update(THD *thd,
     DBUG_RETURN(1);				/* purecov: inspected */
   }
 
+  if (table_list->table->check_assignability_explicit_fields(fields, values))
+    DBUG_RETURN(true);
+
   if (check_unique_table(thd, table_list))
     DBUG_RETURN(TRUE);
 
@@ -2082,7 +2085,8 @@ int multi_update::prepare(List<Item> &not_used_values,
   */
 
   int error= setup_fields(thd, Ref_ptr_array(),
-                          *values, MARK_COLUMNS_READ, 0, NULL, 0);
+                          *values, MARK_COLUMNS_READ, 0, NULL, 0) ||
+             TABLE::check_assignability_explicit_fields(*fields, *values);
 
   ti.rewind();
   while ((table_ref= ti++))

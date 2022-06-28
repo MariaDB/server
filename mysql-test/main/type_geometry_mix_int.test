@@ -1,0 +1,19 @@
+--echo #
+--echo # Start of 10.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-28918 Implicit cast from INET6 UNSIGNED works differently on UPDATE vs ALTER
+--echo #
+
+CREATE TABLE t1 (target GEOMETRY DEFAULT POINT(1,1), source INT DEFAULT 0);
+--source include/type_mix_incompatible.inc
+DROP TABLE t1;
+
+CREATE TABLE t1 (target INT DEFAULT 0, source GEOMETRY DEFAULT POINT(1,1));
+--source include/type_mix_incompatible.inc
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.7 tests
+--echo #

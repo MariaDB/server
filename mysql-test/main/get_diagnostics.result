@@ -1152,11 +1152,11 @@ SELECT @var62, @var63;
 @var62	@var63
 1	NULL
 INSERT INTO t1 SELECT id2, val2, p2 from t2;
-ERROR 22007: Incorrect double value: '\x00\x00\x00\x00\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x004@\x00\x00\x00\x00\x00\x00$@' for column `test`.`t1`.`d1` at row 1
+ERROR HY000: Illegal parameter data types double and point for operation 'SET'
 GET DIAGNOSTICS CONDITION 1 @var64= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var65= ROW_NUMBER;
 Warnings:
-Error	1366	Incorrect double value: '\x00\x00\x00\x00\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x004@\x00\x00\x00\x00\x00\x00$@' for column `test`.`t1`.`d1` at row 1
+Error	4078	Illegal parameter data types double and point for operation 'SET'
 Error	1758	Invalid condition number
 SELECT @var64, @var65;
 @var64	@var65
@@ -1396,11 +1396,11 @@ SELECT @var103, @var104;
 @var103	@var104
 1	NULL
 INSERT INTO t1 SELECT id2, val2, p2 from t2;
-ERROR 22007: Incorrect double value: '\x00\x00\x00\x00\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x004@\x00\x00\x00\x00\x00\x00$@' for column `test`.`t1`.`d1` at row 1
+ERROR HY000: Illegal parameter data types double and point for operation 'SET'
 GET DIAGNOSTICS CONDITION 1 @var105= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var106= ROW_NUMBER;
 Warnings:
-Error	1366	Incorrect double value: '\x00\x00\x00\x00\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x004@\x00\x00\x00\x00\x00\x00$@' for column `test`.`t1`.`d1` at row 1
+Error	4078	Illegal parameter data types double and point for operation 'SET'
 Error	1758	Invalid condition number
 SELECT @var105, @var106;
 @var105	@var106

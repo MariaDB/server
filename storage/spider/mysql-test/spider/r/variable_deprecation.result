@@ -211,6 +211,35 @@ Warnings:
 Warning	1287	The table parameter 'init_sql_alloc_size' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
+# MDEV-28829 Deprecate spider_semi_table_lock and spider_semi_table_lock_connection
+SET spider_semi_table_lock = 1;
+Warnings:
+Warning	1287	'@@spider_semi_table_lock' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_semi_table_lock";
+Variable_name	Value
+spider_semi_table_lock	1
+CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='stl "1"';
+Warnings:
+Warning	1287	The table parameter 'stl' is deprecated and will be removed in a future release
+CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='semi_table_lock "1"';
+Warnings:
+Warning	1287	The table parameter 'semi_table_lock' is deprecated and will be removed in a future release
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+SET spider_semi_table_lock_connection = 0;
+Warnings:
+Warning	1287	'@@spider_semi_table_lock_connection' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_semi_table_lock_connection";
+Variable_name	Value
+spider_semi_table_lock_connection	0
+CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='stc "0"';
+Warnings:
+Warning	1287	The table parameter 'stc' is deprecated and will be removed in a future release
+CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='semi_table_lock_connection "0"';
+Warnings:
+Warning	1287	The table parameter 'semi_table_lock_connection' is deprecated and will be removed in a future release
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
 DROP DATABASE auto_test_local;
 for master_1
 for child2
