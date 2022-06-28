@@ -102,6 +102,23 @@ eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='init_sql_alloc_size "1
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 
+--echo # MDEV-28829 Deprecate spider_semi_table_lock and spider_semi_table_lock_connection
+SET spider_semi_table_lock = 1;
+SHOW VARIABLES LIKE "spider_semi_table_lock";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='stl "1"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='semi_table_lock "1"';
+
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
+SET spider_semi_table_lock_connection = 0;
+SHOW VARIABLES LIKE "spider_semi_table_lock_connection";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='stc "0"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='semi_table_lock_connection "0"';
+
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
 DROP DATABASE auto_test_local;
 
 --disable_query_log
