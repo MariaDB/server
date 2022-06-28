@@ -76,8 +76,15 @@ disable_libfmt()
 
 architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
 
-CODENAME="$(lsb_release -sc)"
-case "${CODENAME}" in
+LSBID="$(lsb_release -si  | tr '[:upper:]' '[:lower:]')"
+LSBVERSION="$(lsb_release -sr | sed -e "s#\.##g")"
+LSBNAME="$(lsb_release -sc)"
+
+if [ -z "${LSBID}" ]
+then
+    LSBID="unknown"
+fi
+case "${LSBNAME}" in
   stretch)
     # MDEV-16525 libzstd-dev-1.1.3 minimum version
     sed -e '/libzstd-dev/d' \
@@ -136,7 +143,7 @@ case "${CODENAME}" in
     fi
     ;;
   *)
-    echo "Error - unknown release codename $CODENAME" >&2
+    echo "Error - unknown release codename $LSBNAME" >&2
     exit 1
 esac
 
@@ -153,9 +160,9 @@ UPSTREAM="${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.${MYSQL_VERSION_PATCH}${
 PATCHLEVEL="+maria"
 LOGSTRING="MariaDB build"
 EPOCH="1:"
-VERSION="${EPOCH}${UPSTREAM}${PATCHLEVEL}~${CODENAME}"
+VERSION="${EPOCH}${UPSTREAM}${PATCHLEVEL}~${LSBID:0:3}${LSBVERSION}"
 
-dch -b -D "${CODENAME}" -v "${VERSION}" "Automatic build with ${LOGSTRING}." --controlmaint
+dch -b -D ${LSBNAME} -v "${VERSION}" "Automatic build with ${LOGSTRING}." --controlmaint
 
 echo "Creating package version ${VERSION} ... "
 

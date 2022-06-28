@@ -905,6 +905,12 @@ public:
 
   bool is_unsigned() const { return flags & UNSIGNED_FLAG; }
 
+  bool check_assignability_from(const Type_handler *from) const;
+  bool check_assignability_from(const Field *from) const
+  {
+    return check_assignability_from(from->type_handler());
+  }
+
   /**
     Convenience definition of a copy function returned by
     Field::get_copy_func()

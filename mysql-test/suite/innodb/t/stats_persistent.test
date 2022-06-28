@@ -14,7 +14,8 @@ SET DEBUG_SYNC='dict_stats_update_persistent SIGNAL stop WAIT_FOR go';
 --connect(con1, localhost, root)
 SET DEBUG_SYNC='now WAIT_FOR stop';
 
-SELECT ENGINE,SUM(DATA_LENGTH+INDEX_LENGTH),COUNT(ENGINE),SUM(DATA_LENGTH),SUM(INDEX_LENGTH) FROM information_schema.TABLES WHERE ENGINE='InnoDB';
+--replace_column 1 SUM
+SELECT SUM(DATA_LENGTH+INDEX_LENGTH) FROM information_schema.TABLES WHERE ENGINE='InnoDB';
 
 SET DEBUG_SYNC='now SIGNAL go';
 --disconnect con1

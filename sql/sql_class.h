@@ -3277,6 +3277,13 @@ public:
     auto_inc_intervals_forced.empty(); // in case of multiple SET INSERT_ID
     auto_inc_intervals_forced.append(next_id, ULONGLONG_MAX, 0);
   }
+  inline void set_binlog_bit()
+  {
+    if (variables.sql_log_bin)
+      variables.option_bits |= OPTION_BIN_LOG;
+    else
+      variables.option_bits &= ~OPTION_BIN_LOG;
+  }
 
   ulonglong  limit_found_rows;
 
@@ -5509,7 +5516,8 @@ public:
   bool restore_from_local_lex_to_old_lex(LEX *oldlex);
 
   Item *sp_fix_func_item(Item **it_addr);
-  Item *sp_prepare_func_item(Item **it_addr, uint cols= 1);
+  Item *sp_fix_func_item_for_assignment(const Field *to, Item **it_addr);
+  Item *sp_prepare_func_item(Item **it_addr, uint cols);
   bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
 
   bool sql_parser(LEX *old_lex, LEX *lex,
