@@ -85,6 +85,12 @@ static inline void output_core_info()
     my_safe_printf_stderr("Core pattern: %.*s\n", (int) len, buff);
     my_close(fd, MYF(0));
   }
+  if ((fd= my_open("/proc/version", O_RDONLY, MYF(0))) >= 0)
+  {
+    len= my_read(fd, (uchar*)buff, sizeof(buff),  MYF(0));
+    my_safe_printf_stderr("Kernel version: %.*s\n", (int) len, buff);
+    my_close(fd, MYF(0));
+  }
 #endif
 #elif defined(__APPLE__) || defined(__FreeBSD__)
   char buff[PATH_MAX];
@@ -92,6 +98,10 @@ static inline void output_core_info()
   if (sysctlbyname("kern.corefile", buff, &len, NULL, 0) == 0)
   {
     my_safe_printf_stderr("Core pattern: %.*s\n", (int) len, buff);
+  }
+  if (sysctlbyname("kern.version", buff, &len, NULL, 0) == 0)
+  {
+    my_safe_printf_stderr("Kernel version: %.*s\n", (int) len, buff);
   }
 #else
   char buff[80];

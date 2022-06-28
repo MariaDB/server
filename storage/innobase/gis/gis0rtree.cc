@@ -986,6 +986,8 @@ func_start:
 			return nullptr;
 		}
 
+		*err = DB_SUCCESS;
+
 		ulint			n		= 0;
 		rec_t*			rec;
 		ulint			moved		= 0;

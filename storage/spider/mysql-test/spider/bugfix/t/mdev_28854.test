@@ -1,0 +1,36 @@
+--echo #
+--echo # MDEV-28854 Spider: Disallow INSERT DELAYED on Spider table
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection child2_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+CREATE TABLE tbl_a (id INT);
+
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+eval CREATE TABLE tbl_a (
+    id INT
+) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a", srv "s_2_1"';
+
+--connection master_1
+--error ER_DELAYED_NOT_SUPPORTED
+INSERT DELAYED INTO tbl_a VALUES (1);
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+
+--disable_query_log
+--disable_result_log
+--source ../t/test_deinit.inc
+--enable_query_log
+--enable_result_log

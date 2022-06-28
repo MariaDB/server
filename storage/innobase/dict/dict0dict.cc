@@ -1390,45 +1390,6 @@ dict_table_find_index_on_id(
 	return(NULL);
 }
 
-/**********************************************************************//**
-Looks for an index with the given id. NOTE that we do not acquire
-dict_sys.latch: this function is for emergency purposes like
-printing info of a corrupt database page!
-@return index or NULL if not found in cache */
-dict_index_t*
-dict_index_find_on_id_low(
-/*======================*/
-	index_id_t	id)	/*!< in: index id */
-{
-	if (!dict_sys.is_initialised()) return NULL;
-
-	dict_table_t*	table;
-
-	for (table = UT_LIST_GET_FIRST(dict_sys.table_LRU);
-	     table != NULL;
-	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
-
-		dict_index_t*	index = dict_table_find_index_on_id(table, id);
-
-		if (index != NULL) {
-			return(index);
-		}
-	}
-
-	for (table = UT_LIST_GET_FIRST(dict_sys.table_non_LRU);
-	     table != NULL;
-	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
-
-		dict_index_t*	index = dict_table_find_index_on_id(table, id);
-
-		if (index != NULL) {
-			return(index);
-		}
-	}
-
-	return(NULL);
-}
-
 /** Function object to remove a foreign key constraint from the
 referenced_set of the referenced table.  The foreign key object is
 also removed from the dictionary cache.  The foreign key constraint
@@ -3731,9 +3692,19 @@ dict_index_get_if_in_cache_low(
 /*===========================*/
 	index_id_t	index_id)	/*!< in: index id */
 {
-	ut_ad(dict_sys.frozen());
+  ut_ad(dict_sys.frozen());
 
-	return(dict_index_find_on_id_low(index_id));
+  for (dict_table_t *table= UT_LIST_GET_FIRST(dict_sys.table_LRU);
+       table; table= UT_LIST_GET_NEXT(table_LRU, table))
+    if (dict_index_t *index= dict_table_find_index_on_id(table, index_id))
+      return index;
+
+  for (dict_table_t *table = UT_LIST_GET_FIRST(dict_sys.table_non_LRU);
+       table; table= UT_LIST_GET_NEXT(table_LRU, table))
+    if (dict_index_t *index= dict_table_find_index_on_id(table, index_id))
+      return index;
+
+  return nullptr;
 }
 
 #ifdef UNIV_DEBUG

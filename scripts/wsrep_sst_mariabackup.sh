@@ -86,15 +86,12 @@ encrypt_threads=""
 encrypt_chunk=""
 
 readonly SECRET_TAG='secret'
+readonly TOTAL_TAG='total'
 
 # Required for backup locks
 # For backup locks it is 1 sent by joiner
 sst_ver=1
 
-if [ -n "$(commandex pv)" ] && pv --help | grep -qw -F -- '-F'; then
-    pvopts="$pvopts $pvformat"
-fi
-pcmd="pv $pvopts"
 declare -a RC
 
 BACKUP_BIN=$(commandex 'mariabackup')
@@ -121,18 +118,19 @@ timeit()
 
     if [ $ttime -eq 1 ]; then
         x1=$(date +%s)
-        wsrep_log_info "Evaluating $cmd"
-        eval "$cmd"
-        extcode=$?
+    fi
+
+    wsrep_log_info "Evaluating $cmd"
+    eval $cmd
+    extcode=$?
+
+    if [ $ttime -eq 1 ]; then
         x2=$(date +%s)
         took=$(( x2-x1 ))
         wsrep_log_info "NOTE: $stage took $took seconds"
         totime=$(( totime+took ))
-    else
-        wsrep_log_info "Evaluating $cmd"
-        eval "$cmd"
-        extcode=$?
     fi
+
     return $extcode
 }
 
@@ -220,6 +218,21 @@ get_keys()
     stagemsg="$stagemsg-XB-Encrypted"
 }
 
+get_socat_ver()
+{
+    [ -n "${SOCAT_VERSION+x}" ] && return
+    # Determine the socat version
+    SOCAT_VERSION=$(socat -V 2>&1 | \
+                    grep -m1 -owE '[0-9]+(\.[0-9]+)+' | \
+                    head -n1 || :)
+    if [ -z "$SOCAT_VERSION" ]; then
+        wsrep_log_error "******** FATAL ERROR ******************"
+        wsrep_log_error "* Cannot determine the socat version. *"
+        wsrep_log_error "***************************************"
+        exit 2
+    fi
+}
+
 get_transfer()
 {
     if [ "$tfmt" = 'nc' ]; then
@@ -285,7 +298,7 @@ get_transfer()
             # If sockopt contains 'pf=ip6' somewhere in the middle,
             # this will not interfere with socat, but exclude the trivial
             # cases when sockopt contains 'pf=ip6' as prefix or suffix:
-            if [ "$sockopt" = "${sockopt#,pf=ip6}" -a \
+            if [ "$sockopt" = "${sockopt#,pf=ip6,}" -a \
                  "$sockopt" = "${sockopt%,pf=ip6}" ]
             then
                 sockopt=",pf=ip6$sockopt"
@@ -312,22 +325,25 @@ get_transfer()
         if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
             tcmd="socat -u openssl-listen:$SST_PORT,reuseaddr"
         else
-            tcmd="socat -u stdio openssl-connect:$REMOTEIP:$SST_PORT"
+            local addr="$REMOTEIP:$SST_PORT"
+            tcmd="socat -u stdio openssl-connect:$addr"
             action='Encrypting'
+            get_socat_ver
+            if ! check_for_version "$SOCAT_VERSION" '1.7.4.1'; then
+                if check_for_version "$SOCAT_VERSION" '1.7.3.3'; then
+                    # Workaround for a bug known as 'Red Hat issue 1870279'
+                    # (connection reset by peer) in socat versions 1.7.3.3
+                    # to 1.7.4.0:
+                    tcmd="socat stdio openssl-connect:$addr,linger=10"
+                    wsrep_log_info \
+                        "Use workaround for socat $SOCAT_VERSION bug"
+                fi
+            fi
         fi
 
-        if [ "${sockopt#*,dhparam=}" != "$sockopt" ]; then
+        if [ "${sockopt#*,dhparam=}" = "$sockopt" ]; then
             if [ -z "$ssl_dhparams" ]; then
-                # Determine the socat version
-                SOCAT_VERSION=$(socat -V 2>&1 | \
-                                grep -m1 -owE '[0-9]+(\.[0-9]+)+' | \
-                                head -n1 || :)
-                if [ -z "$SOCAT_VERSION" ]; then
-                    wsrep_log_error "******** FATAL ERROR ******************"
-                    wsrep_log_error "* Cannot determine the socat version. *"
-                    wsrep_log_error "***************************************"
-                    exit 2
-                fi
+                get_socat_ver
                 if ! check_for_version "$SOCAT_VERSION" '1.7.3'; then
                     # socat versions < 1.7.3 will have 512-bit dhparams (too small)
                     # so create 2048-bit dhparams and send that as a parameter:
@@ -419,44 +435,90 @@ get_transfer()
 get_footprint()
 {
     cd "$DATA_DIR"
-    payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
-              -type f -print0 | du --files0-from=- --block-size=1 -c -s | \
-              awk 'END { print $1 }')
+    local payload_data=$(find . \
+        -regex '.*undo[0-9]+$\|.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
+        -type f -print0 | du --files0-from=- --block-size=1 -c -s | \
+        awk 'END { print $1 }')
+
+    local payload_undo=0
+    if [ -n "$ib_undo_dir" -a -d "$ib_undo_dir" ]; then
+        cd "$ib_undo_dir"
+        payload_undo=$(find . -regex '.*undo[0-9]+$' -type f -print0 | \
+            du --files0-from=- --block-size=1 -c -s | awk 'END { print $1 }')
+    fi
+    cd "$OLD_PWD"
+
+    wsrep_log_info \
+        "SST footprint estimate: data: $payload_data, undo: $payload_undo"
+
+    payload=$(( payload_data + payload_undo ))
+
     if [ "$compress" != 'none' ]; then
         # QuickLZ has around 50% compression ratio
         # When compression/compaction used, the progress is only an approximate.
         payload=$(( payload*1/2 ))
     fi
-    cd "$OLD_PWD"
-    pcmd="$pcmd -s $payload"
+
+    if [ $WSREP_SST_OPT_PROGRESS -eq 1 ]; then
+        # report to parent the total footprint of the SST
+        echo "$TOTAL_TAG $payload"
+    fi
+
     adjust_progress
 }
 
 adjust_progress()
 {
-    if [ -z "$(commandex pv)" ]; then
-        wsrep_log_error "pv not found in path: $PATH"
-        wsrep_log_error "Disabling all progress/rate-limiting"
-        pcmd=""
-        rlimit=""
-        progress=""
-        return
-    fi
+    pcmd=""
+    rcmd=""
 
-    if [ -n "$progress" -a "$progress" != '1' ]; then
-        if [ -e "$progress" ]; then
-            pcmd="$pcmd 2>>'$progress'"
-        else
-            pcmd="$pcmd 2>'$progress'"
-        fi
-    elif [ -z "$progress" -a -n "$rlimit" ]; then
-            # When rlimit is non-zero
-            pcmd='pv -q'
-    fi
+    [ "$progress" = 'none' ] && return
 
+    rlimitopts=""
     if [ -n "$rlimit" -a "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         wsrep_log_info "Rate-limiting SST to $rlimit"
-        pcmd="$pcmd -L \$rlimit"
+        rlimitopts=" -L $rlimit"
+    fi
+
+    if [ -n "$progress" ]; then
+
+        # Backward compatibility: user-configured progress output
+        pcmd="pv $pvopts$rlimitopts"
+
+        if [ -z "${PV_FORMAT+x}" ]; then
+           PV_FORMAT=0
+           pv --help | grep -qw -F -- '-F' && PV_FORMAT=1
+        fi
+        if [ $PV_FORMAT -eq 1 ]; then
+            pcmd="$pcmd $pvformat"
+        fi
+
+        if [ $payload -ne 0 ]; then
+            pcmd="$pcmd -s $payload"
+        fi
+
+        if [ "$progress" != '1' ]; then
+            if [ -e "$progress" ]; then
+                pcmd="$pcmd 2>>'$progress'"
+            else
+                pcmd="$pcmd 2>'$progress'"
+            fi
+        fi
+
+    elif [ $WSREP_SST_OPT_PROGRESS -eq 1 ]; then
+
+        # Default progress output parseable by parent
+        pcmd="pv -f -i 1 -n -b$rlimitopts"
+
+        # read progress data, add tag and post to stdout
+        # for the parent
+        rcmd="stdbuf -oL tr '\r' '\n' | xargs -n1 echo complete"
+
+    elif [ -n "$rlimitopts" ]; then
+
+        # Rate-limiting only, when rlimit is non-zero
+        pcmd="pv -q$rlimitopts"
+
     fi
 }
 
@@ -511,6 +573,10 @@ read_cnf()
     wsrep_log_info "SSL configuration: CA='$tcert', CAPATH='$tcap'," \
                    "CERT='$tpem', KEY='$tkey', MODE='$tmode'," \
                    "encrypt='$encrypt'"
+
+    if [ $encrypt -ge 2 ]; then
+        ssl_dhparams=$(parse_cnf "$encgroups" 'ssl-dhparams')
+    fi
 
     sockopt=$(parse_cnf sst sockopt "")
     progress=$(parse_cnf sst progress "")
@@ -765,18 +831,28 @@ recv_joiner()
             wsrep_log_info $(ls -l "$dir/"*)
             exit 32
         fi
-        # Select the "secret" tag whose value does not start
-        # with a slash symbol. All new tags must to start with
-        # the space and the slash symbol after the word "secret" -
-        # to be removed by older versions of the SST scripts:
-        SECRET=$(grep -m1 -E "^$SECRET_TAG[[:space:]]+[^/]" \
-                      -- "$MAGIC_FILE" || :)
-        # Check donor supplied secret:
-        SECRET=$(trim_string "${SECRET#$SECRET_TAG}")
-        if [ "$SECRET" != "$MY_SECRET" ]; then
-            wsrep_log_error "Donor does not know my secret!"
-            wsrep_log_info "Donor: '$SECRET', my: '$MY_SECRET'"
-            exit 32
+
+        if [ -n "$MY_SECRET" ]; then
+            # Check donor supplied secret:
+            SECRET=$(grep -m1 -E "^$SECRET_TAG[[:space:]]" "$MAGIC_FILE" || :)
+            SECRET=$(trim_string "${SECRET#$SECRET_TAG}")
+            if [ "$SECRET" != "$MY_SECRET" ]; then
+                wsrep_log_error "Donor does not know my secret!"
+                wsrep_log_info "Donor: '$SECRET', my: '$MY_SECRET'"
+                exit 32
+            fi
+        fi
+
+        if [ $WSREP_SST_OPT_PROGRESS -eq 1 ]; then
+            # check total SST footprint
+            payload=$(grep -m1 -E "^$TOTAL_TAG[[:space:]]" "$MAGIC_FILE" || :)
+            if [ -n "$payload" ]; then
+                payload=$(trim_string "${payload#$TOTAL_TAG}")
+                if [ $payload -ge 0 ]; then
+                    # report to parent
+                    echo "$TOTAL_TAG $payload"
+                fi
+            fi
         fi
     fi
 }
@@ -824,6 +900,14 @@ monitor_process()
 
 read_cnf
 setup_ports
+
+if [ "$progress" = 'none' ]; then
+    wsrep_log_info "All progress/rate-limiting disabled by configuration"
+elif [ -z "$(commandex pv)" ]; then
+    wsrep_log_info "Progress reporting tool pv not found in path: $PATH"
+    wsrep_log_info "Disabling all progress/rate-limiting"
+    progress='none'
+fi
 
 if "$BACKUP_BIN" --help 2>/dev/null | grep -qw -F -- '--version-check'; then
     disver=' --no-version-check'
@@ -980,6 +1064,14 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
         check_extra
 
+        if [ -n "$progress" -o $WSREP_SST_OPT_PROGRESS -eq 1 ]; then
+            wsrep_log_info "Estimating total transfer size"
+            get_footprint
+            wsrep_log_info "To transfer: $payload"
+        else
+            adjust_progress
+        fi
+
         wsrep_log_info "Streaming GTID file before SST"
 
         # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
@@ -989,6 +1081,11 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         if [ -n "$WSREP_SST_OPT_REMOTE_PSWD" ]; then
             # Let joiner know that we know its secret
             echo "$SECRET_TAG $WSREP_SST_OPT_REMOTE_PSWD" >> "$MAGIC_FILE"
+        fi
+
+        if [ $WSREP_SST_OPT_PROGRESS -eq 1 ]; then
+            # Tell joiner what to expect:
+            echo "$TOTAL_TAG $payload" >> "$MAGIC_FILE"
         fi
 
         ttcmd="$tcmd"
@@ -1007,12 +1104,14 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         # Restore the transport commmand to its original state
         tcmd="$ttcmd"
 
-        if [ -n "$progress" ]; then
-            get_footprint
-            tcmd="$pcmd | $tcmd"
-        elif [ -n "$rlimit" ]; then
-            adjust_progress
-            tcmd="$pcmd | $tcmd"
+        if [ -n "$pcmd" ]; then
+            if [ -n "$rcmd" ]; then
+                # redirect pv stderr to rcmd for tagging and output to parent
+                tcmd="{ $pcmd 2>&3 | $tcmd; } 3>&1 | $rcmd"
+            else
+                # use user-configured pv output
+                tcmd="$pcmd | $tcmd"
+            fi
         fi
 
         wsrep_log_info "Sleeping before data transfer for SST"
@@ -1214,13 +1313,6 @@ else # joiner
         MY_SECRET="" # for check down in recv_joiner()
     fi
 
-    trap cleanup_at_exit EXIT
-
-    if [ -n "$progress" ]; then
-        adjust_progress
-        tcmd="$tcmd | $pcmd"
-    fi
-
     get_keys
     if [ $encrypt -eq 1 ]; then
         strmcmd="$ecmd | $strmcmd"
@@ -1231,6 +1323,8 @@ else # joiner
     fi
 
     check_sockets_utils
+
+    trap cleanup_at_exit EXIT
 
     STATDIR="$(mktemp -d)"
     MAGIC_FILE="$STATDIR/$INFO_FILE"
@@ -1244,6 +1338,17 @@ else # joiner
     fi
 
     if [ ! -r "$STATDIR/$IST_FILE" ]; then
+
+        adjust_progress
+        if [ -n "$pcmd" ]; then
+            if [ -n "$rcmd" ]; then
+                # redirect pv stderr to rcmd for tagging and output to parent
+                strmcmd="{ $pcmd 2>&3 | $strmcmd; } 3>&1 | $rcmd"
+            else
+                # use user-configured pv output
+                strmcmd="$pcmd | $strmcmd"
+            fi
+        fi
 
         if [ -d "$DATA/.sst" ]; then
             wsrep_log_info \
@@ -1265,13 +1370,13 @@ else # joiner
             cd "$DATA"
             wsrep_log_info "Cleaning the old binary logs"
             # If there is a file with binlogs state, delete it:
-            [ -f "$binlog_base.state" ] && rm -f "$binlog_base.state" >&2
+            [ -f "$binlog_base.state" ] && rm "$binlog_base.state" >&2
             # Clean up the old binlog files and index:
             if [ -f "$binlog_index" ]; then
                 while read bin_file || [ -n "$bin_file" ]; do
                     rm -f "$bin_file" >&2 || :
                 done < "$binlog_index"
-                rm -f "$binlog_index" >&2
+                rm "$binlog_index" >&2
             fi
             if [ -n "$binlog_dir" -a "$binlog_dir" != '.' -a \
                  -d "$binlog_dir" ]
@@ -1335,16 +1440,14 @@ else # joiner
 
             dcmd="xargs -n 2 qpress -dT$nproc"
 
-            if [ -n "$progress" ] && \
+            if [ -n "$progress" -a "$progress" != 'none' ] && \
                pv --help | grep -qw -F -- '--line-mode'
             then
-                count=$(find "$DATA" -type f -name '*.qp' | wc -l)
+                count=$(find "$DATA" -maxdepth 1 -type f -name '*.qp' | wc -l)
                 count=$(( count*2 ))
-                pvopts="-f -s $count -l -N Decompression"
-                if pv --help | grep -qw -F -- '-F'; then
-                    pvopts="$pvopts -F '%N => Rate:%r Elapsed:%t %e Progress: [%b/$count]'"
-                fi
-                pcmd="pv $pvopts"
+                pvopts='-f -l -N Decompression'
+                pvformat="-F '%N => Rate:%r Elapsed:%t %e Progress: [%b/$count]'"
+                payload=$count
                 adjust_progress
                 dcmd="$pcmd | $dcmd"
             fi
@@ -1442,7 +1545,7 @@ else # joiner
     fi
 
     # Remove special tags from the magic file, and from the output:
-    coords=$(grep -v -E "^$SECRET_TAG[[:space:]]" -- "$MAGIC_FILE")
+    coords=$(head -n1 "$MAGIC_FILE")
     wsrep_log_info "Galera co-ords from recovery: $coords"
     echo "$coords" # Output : UUID:seqno wsrep_gtid_domain_id
 
