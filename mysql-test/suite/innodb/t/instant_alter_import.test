@@ -203,3 +203,27 @@ UNLOCK TABLES;
 ALTER TABLE t2 IMPORT TABLESPACE;
 
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-28919 Assertion `(((core_null) + 7) >> 3) ==
+--echo # oindex.n_core_null_bytes || !not_redundant()' failed
+--echo #
+call mtr.add_suppression(" InnoDB: Tablespace for table `test`.`t` is set as discarded");
+CREATE TABLE t (a INTEGER, b INTEGER as (a) VIRTUAL,
+                c INTEGER)engine=innodb;
+ALTER TABLE t DISCARD TABLESPACE;
+# Table does reload
+ALTER TABLE t DROP COLUMN b, algorithm=instant;
+ALTER TABLE t DROP COLUMN c, algorithm=instant;
+
+CREATE TABLE t1(a INTEGER)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+FLUSH TABLE t1 FOR EXPORT;
+--let $MYSQLD_DATADIR= `select @@datadir`
+--move_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t.cfg
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t.ibd
+unlock tables;
+ALTER TABLE t IMPORT tablespace;
+check table t;
+select * from t;
+DROP TABLE t, t1;

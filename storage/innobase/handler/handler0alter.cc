@@ -403,6 +403,15 @@ found_j:
 				goto found_nullable;
 			}
 		}
+
+		/* In case of discarded tablespace, InnoDB can't
+		read the root page. So assign the null bytes based
+		on nullabled fields */
+		if (!oindex.table->space) {
+			oindex.n_core_null_bytes= UT_BITS_IN_BYTES(
+				unsigned(oindex.n_nullable));
+		}
+
 		/* The n_core_null_bytes only matters for
 		ROW_FORMAT=COMPACT and ROW_FORMAT=DYNAMIC tables. */
 		ut_ad(UT_BITS_IN_BYTES(core_null) == oindex.n_core_null_bytes
