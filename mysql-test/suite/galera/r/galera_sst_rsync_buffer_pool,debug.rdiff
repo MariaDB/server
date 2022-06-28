@@ -1,5 +1,5 @@
---- r/galera_sst_rsync_data_dir.result
-+++ r/galera_sst_rsync_data_dir,debug.reject
+--- r/galera_sst_rsync_buffer_pool.result
++++ r/galera_sst_rsync_buffer_pool,debug.reject
 @@ -516,3 +516,187 @@
  1
  DROP TABLE t1;

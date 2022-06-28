@@ -1,0 +1,1 @@
+--innodb_data_home_dir=$MYSQLTEST_VARDIR/mysqld.1/innodb_data1 --innodb_undo_directrory=$MYSQLTEST_VARDIR/mysqld.1/innodb_undo1 --innodb-log-group-home-dir=--innodb_undo_directrory=$MYSQLTEST_VARDIR/mysqld.1/innodb_group1

@@ -11,7 +11,7 @@
 --source suite/galera/include/galera_st_shutdown_slave.inc
 --source suite/galera/include/galera_st_clean_slave.inc
 
---let $wsrep_recover_additional=$MYSQLTEST_VARDIR/mysqld.2/datadir2
+--let $wsrep_recover_additional=--innodb-data-home-dir=$MYSQLTEST_VARDIR/mysqld.2/innodb_data2 --innodb_undo_directrory=$MYSQLTEST_VARDIR/mysqld.2/innodb_undo2 --innodb-log-group-home-dir=--innodb_undo_directrory=$MYSQLTEST_VARDIR/mysqld.2/innodb_group2
 
 --source suite/galera/include/galera_st_kill_slave.inc
 --source suite/galera/include/galera_st_kill_slave_ddl.inc
