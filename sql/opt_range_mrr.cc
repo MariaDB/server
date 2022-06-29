@@ -340,6 +340,7 @@ walk_up_n_right:
   }
   seq->param->range_count++;
   seq->param->max_key_parts= MY_MAX(seq->param->max_key_parts, max_key_parts);
+  seq->param->table->curr_key_tree_part= key_tree->part;
   return 0;
 }
 

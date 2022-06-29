@@ -1244,6 +1244,7 @@ public:
   */
   ha_rows	quick_rows[MAX_KEY];
   uint          quick_key_parts[MAX_KEY];
+  uint16        curr_quick_cnt;
 
   double 	quick_costs[MAX_KEY];
   /*

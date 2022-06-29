@@ -3824,7 +3824,7 @@ double get_column_avg_frequency(Field * field)
  
   Column_statistics *col_stats= field->read_stats;
 
-  if (!col_stats)
+  if (!col_stats ||  col_stats->get_avg_frequency() == 0.0)
     res= (double)table->stat_records();
   else
     res= col_stats->get_avg_frequency();

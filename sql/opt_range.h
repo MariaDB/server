@@ -1729,7 +1729,8 @@ SQL_SELECT *make_select(TABLE *head, table_map const_tables,
                         SORT_INFO* filesort,
                         bool allow_null_cond,  int *error);
 
-bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond);
+bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table,
+                                          COND_EQUAL *cond_equl, Item **cond);
 
 bool eq_ranges_exceeds_limit(RANGE_SEQ_IF *seq, void *seq_init_param,
                              uint limit);

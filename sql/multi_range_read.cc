@@ -198,6 +198,9 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
     }
     total_rows += rows;
     total_touched_blocks+= new_touched_blocks;
+    KEY_PART_INFO *kp= table->key_info[keyno]->key_part +
+                       table->curr_key_tree_part;
+    kp->quick_cnt+= rows;
   }
   
   if (total_rows != HA_POS_ERROR)

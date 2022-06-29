@@ -5337,6 +5337,16 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
       s->table->cond_selectivity= 1.0;
 
+      /* Calculate expected number of distinct values for fields */
+      double table_records= (double)table->stat_records();
+      for (Field **field_ptr= s->table->field; *field_ptr; field_ptr++)
+      {
+        Field *table_field= *field_ptr;   
+        if (bitmap_is_set(s->table->read_set, table_field->field_index))
+          table_field->ndv= table_records /
+                            get_column_avg_frequency(table_field);
+      }
+
       /*
         Perform range analysis if there are keys it could use (1).
         Don't do range analysis for materialized subqueries (2).
@@ -5384,7 +5394,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           if (!sargable_cond)
             sargable_cond= get_sargable_cond(join, s->table);
           if (join->thd->variables.optimizer_use_condition_selectivity > 1)
-            calculate_cond_selectivity_for_table(join->thd, s->table,
+            calculate_cond_selectivity_for_table(join->thd, s->table, join->cond_equal,
                                                  sargable_cond);
           if (s->table->reginfo.impossible_range)
           {
@@ -5433,7 +5443,14 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           add_table_scan_values_to_trace(thd, s);
       }
       else
+      {
+        Item **sargable_cond= NULL;
+        sargable_cond= get_sargable_cond(join, s->table);
+        if (join->thd->variables.optimizer_use_condition_selectivity > 1)
+            calculate_cond_selectivity_for_table(join->thd, s->table, join->cond_equal,
+                                                 sargable_cond);
         add_table_scan_values_to_trace(thd, s);
+      }
     }
   }
 
@@ -5494,13 +5511,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     if (!(join->select_options & SELECT_DESCRIBE) &&
         unit->derived && unit->derived->is_materialized_derived())
     {
-      /*
-        Calculate estimated number of rows for materialized derived
-        table/view.
-      */
-      for (i= 0; i < join->table_count ; i++)
-        if (double rr= join->best_positions[i].records_read)
-          records= COST_MULT(records, rr);
+      records= join->join_record_count;
       ha_rows rows= records > HA_ROWS_MAX ? HA_ROWS_MAX : (ha_rows) records;
       set_if_smaller(rows, unit->select_limit_cnt);
       join->select_lex->increase_derived_records(rows);
@@ -5872,7 +5883,9 @@ add_key_field(JOIN *join,
       if (is_const)
       {
         stat[0].const_keys.merge(possible_keys);
-        bitmap_set_bit(&field->table->cond_set, field->field_index);
+        if (possible_keys.is_clear_all() &&
+            join->thd->variables.optimizer_use_condition_selectivity > 2)
+          bitmap_set_bit(&field->table->cond_set, field->field_index);
       }
       else if (!eq_func)
       {
@@ -7109,7 +7122,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
 
 inline
 double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
-                                     uint use_cond_selectivity)
+                                    uint use_cond_selectivity)
 {
   ha_rows records;
   double dbl_records;
@@ -7117,9 +7130,14 @@ double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
   if (use_cond_selectivity > 1)
   {
     TABLE *table= s->table;
-    double sel= table->cond_selectivity;
-    double table_records= (double)table->stat_records();
-    dbl_records= table_records * sel;
+    if (s->quick)
+      dbl_records= table->quick_condition_rows;
+    else
+    {
+      double sel= table->cond_selectivity;  
+      double table_records= (double)table->stat_records();
+      dbl_records= table_records * sel;
+    }
     return dbl_records;
   }
 
@@ -8862,115 +8880,88 @@ double JOIN::get_examined_rows()
 */
 
 static 
-double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
-                                       table_map rem_tables, uint keyparts,
-                                       uint16 *ref_keyuse_steps)
-{
+double table_multi_eq_cond_selectivity(JOIN *join, JOIN_TAB *s,
+                                       table_map rem_tables)
+{  
   double sel= 1.0;
+#if 1
+#else
   COND_EQUAL *cond_equal= join->cond_equal;
-
   if (!cond_equal || !cond_equal->current_level.elements)
-    return sel;
-
-   if (!s->keyuse)
     return sel;
 
   Item_equal *item_equal;
   List_iterator_fast<Item_equal> it(cond_equal->current_level);
   TABLE *table= s->table;
   table_map table_bit= table->map;
-  POSITION *pos= &join->positions[idx];
-  
+
   while ((item_equal= it++))
   { 
-    /* 
-      Check whether we need to take into account the selectivity of
-      multiple equality item_equal. If this is the case multiply
-      the current value of sel by this selectivity
-    */
     table_map used_tables= item_equal->used_tables();
     if (!(used_tables & table_bit))
+    {
+      /* Colums of table s are not used in this item_equal */
       continue;
+    }
     if (item_equal->get_const())
+    {
+      /* 
+        Selectivity of the equalities from item_equal have been already
+        taken into account as selectivity of range condititions
+      */
       continue;
-
-    bool adjust_sel= FALSE;
+    }
+    
+    double max_ndv= 0.0;
+    bool used_for_ref= false;
+    uint n= 0;
     Item_equal_fields_iterator fi(*item_equal);
-    while((fi++) && !adjust_sel)
+    while (fi++)
     {
       Field *fld= fi.get_curr_field();
       if (fld->table->map != table_bit)
         continue;
-      if (pos->key == 0)
-        adjust_sel= TRUE;
+      if (bitmap_is_set(&table->tmp_set, fld->field_index))
+        used_for_ref= true; 
       else
       {
-        uint i;
-        KEYUSE *keyuse= pos->key;
-        uint key= keyuse->key;
-        for (i= 0; i < keyparts; i++)
-	{
-          if (i > 0)
-            keyuse+= ref_keyuse_steps[i-1];
-          uint fldno;
-          if (is_hash_join_key_no(key))
-	    fldno= keyuse->keypart;
-          else
-            fldno= table->key_info[key].key_part[i].fieldnr - 1;        
-          if (fld->field_index == fldno)
-            break;
-        }
-        keyuse= pos->key;
-
-        if (i == keyparts)
-	{
-          /* 
-            Field fld is included in multiple equality item_equal
-            and is not a part of the ref key.
-            The selectivity of the multiple equality must be taken
-            into account unless one of the ref arguments is
-            equal to fld.  
-	  */
-          adjust_sel= TRUE;
-          for (uint j= 0; j < keyparts && adjust_sel; j++)
-	  {
-            if (j > 0)
-              keyuse+= ref_keyuse_steps[j-1];  
-            Item *ref_item= keyuse->val;
-	    if (ref_item->real_item()->type() == Item::FIELD_ITEM)
-	    {
-              Item_field *field_item= (Item_field *) (ref_item->real_item());
-              if (item_equal->contains(field_item->field))
-                adjust_sel= FALSE;              
-	    }
-          }
-        }          
+        set_if_bigger(max_ndv, fld->ndv);
+        n++;
       }
     }
-    if (adjust_sel)
+    /* 
+      n == number of fields of the multiple equality belonging to s that
+      are not accessed by ref in the currently evaluated partial plan
+    */
+    if (!used_for_ref)
     {
-      /* 
-        If ref == 0 and there are no fields in the multiple equality
-        item_equal that belong to the tables joined prior to s
-        then the selectivity of multiple equality will be set to 1.0.
-      */
-      double eq_fld_sel= 1.0;
-      fi.rewind();
-      while ((fi++))
-      {
-        double curr_eq_fld_sel;
-        Field *fld= fi.get_curr_field();
-        if (!(fld->table->map & ~(table_bit | rem_tables)))
-          continue;
-        curr_eq_fld_sel= get_column_avg_frequency(fld) /
-                         fld->table->stat_records();
-        if (curr_eq_fld_sel < 1.0)
-          set_if_bigger(eq_fld_sel, curr_eq_fld_sel);
-      }
-      sel*= eq_fld_sel;
+      /* no field of the multiple equality belonging to s is accessed by ref */   
+      n--;
     }
-  } 
-  return sel;
+    else
+    {
+      fi.rewind();
+      bool found= false;
+      while(fi++)
+      {
+	Field *fld= fi.get_curr_field();
+        if (fld->table->map & (rem_tables | table_bit))
+          continue;
+        found= true;
+        set_if_bigger(max_ndv, fld->ndv);
+      }
+      if (!found)
+        n--;
+    }
+    if (max_ndv != 0.0)    // max_ndv may be 0.0 if the table is empty
+    {
+      for ( ; n; n--)
+        sel/= max_ndv;     
+    }
+  }
+#endif       
+      
+  return sel;     
 }
 
 
@@ -8983,15 +8974,6 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   @param rem_tables The bitmap of tables to be joined later
 
   @detail
-    Get selectivity of conditions that can be applied when joining this table
-    with previous tables.
-
-    For quick selects and full table scans, selectivity of COND(this_table)
-    is accounted for in matching_candidates_in_table(). Here, we only count
-    selectivity of COND(this_table, previous_tables). 
-
-    For other access methods, we need to calculate selectivity of the whole
-    condition, "COND(this_table) AND COND(this_table, previous_tables)".
 
   @retval
     selectivity of the conditions imposed on the rows of s
@@ -9001,105 +8983,34 @@ static
 double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
                               table_map rem_tables)
 {
-  uint16 ref_keyuse_steps[MAX_REF_PARTS - 1];
-  Field *field;
   TABLE *table= s->table;
-  MY_BITMAP *read_set= table->read_set;
   double sel= s->table->cond_selectivity;
-  POSITION *pos= &join->positions[idx];
+  double table_records= table->stat_records();
   uint keyparts= 0;
   uint found_part_ref_or_null= 0;
+  POSITION *pos= &join->positions[idx];
 
-  if (pos->key != 0)
+  /* Discount the selectivity of the access method used to join table s */
+  if (s->quick && s->quick->index != MAX_KEY && pos->key == 0)
   {
     /* 
-      A ref access or hash join is used for this table. ref access is created
-      from
-
-        tbl.keypart1=expr1 AND tbl.keypart2=expr2 AND ...
-      
-      and it will only return rows for which this condition is satisified.
-      Suppose, certain expr{i} is a constant. Since ref access only returns
-      rows that satisfy
-        
-         tbl.keypart{i}=const       (*)
-
-      then selectivity of this equality should not be counted in return value 
-      of this function. This function uses the value of 
-       
-         table->cond_selectivity=selectivity(COND(tbl)) (**)
-      
-      as a starting point. This value includes selectivity of equality (*). We
-      should somehow discount it. 
-      
-      Looking at calculate_cond_selectivity_for_table(), one can see that that
-      the value is not necessarily a direct multiplicand in 
-      table->cond_selectivity
-
-      There are three possible ways to discount
-      1. There is a potential range access on t.keypart{i}=const. 
-         (an important special case: the used ref access has a const prefix for
-          which a range estimate is available)
-      
-      2. The field has a histogram. field[x]->cond_selectivity has the data.
-      
-      3. Use index stats on this index:
-         rec_per_key[key_part+1]/rec_per_key[key_part]
-
-      (TODO: more details about the "t.key=othertable.col" case)
+      A range access to the table s is used when joining s.
+      Discount the selectivity of the range from sel.
     */
-    KEYUSE *keyuse= pos->key;
-    KEYUSE *prev_ref_keyuse= keyuse;
-    uint key= keyuse->key;
-    bool used_range_selectivity= false;
-    
-    /*
-      Check if we have a prefix of key=const that matches a quick select.
-    */
-    if (!is_hash_join_key_no(key))
+    if (table_records > 0)
     {
-      key_part_map quick_key_map= (key_part_map(1) << table->quick_key_parts[key]) - 1;
-      if (table->quick_rows[key] && 
-          !(quick_key_map & ~table->const_key_parts[key]))
-      {
-        /* 
-          Ok, there is an equality for each of the key parts used by the
-          quick select. This means, quick select's estimate can be reused to
-          discount the selectivity of a prefix of a ref access.
-        */
-        for (; quick_key_map & 1 ; quick_key_map>>= 1)
-        {
-          while (keyuse->table == table && keyuse->key == key && 
-                 keyuse->keypart == keyparts)
-          {
-            keyuse++;
-          }
-          keyparts++;
-        }
-        /*
-          Here we discount selectivity of the constant range CR. To calculate
-          this selectivity we use elements from the quick_rows[] array.
-          If we have indexes i1,...,ik with the same prefix compatible
-          with CR any of the estimate quick_rows[i1], ... quick_rows[ik] could
-          be used for this calculation but here we don't know which one was
-          actually used. So sel could be greater than 1 and we have to cap it.
-          However if sel becomes greater than 2 then with high probability
-          something went wrong.
-	*/
-        sel /= (double)table->quick_rows[key] / (double) table->stat_records();
-        // MDEV-20595 FIXME: DBUG_ASSERT(sel > 0 && sel <= 2.0);
-        set_if_smaller(sel, 1.0);
-        used_range_selectivity= true;
-      }
+      if (sel < 1.0)
+        sel/= s->quick->records/table_records;
+      set_if_smaller(sel, 1.0);
     }
-    
-    /*
-      Go through the "keypart{N}=..." equalities and find those that were
-      already taken into account in table->cond_selectivity.
-    */
-    keyuse= pos->key;
-    keyparts=0;
-    while (keyuse->table == table && keyuse->key == key)
+  }
+  else if (pos->key != 0)
+  {
+    /* A ref access or hash join is used to join table */
+    bitmap_clear_all(&table->tmp_set);
+    KEYUSE *keyuse= pos->key;
+    uint key= keyuse->key;
+    do
     {
       if (!(keyuse->used_tables & (rem_tables | table->map)))
       {
@@ -9116,97 +9027,102 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
                 !((keyuse->val->used_tables()) & ~pos->ref_depend_map) &&
                 !(found_part_ref_or_null & keyuse->optimize))
 	    {
-              /* Found a KEYUSE object that will be used by ref access */
-              keyparts++;
               found_part_ref_or_null|= keyuse->optimize & ~KEY_OPTIMIZE_EQ;
             }
+            keyparts++;
           }
 
-          if (keyparts > keyuse->keypart)
+          if (keyparts - 1 == keyuse->keypart)
 	  {
-            /* Ok this is the keyuse that will be used for ref access */
-            if (!used_range_selectivity && keyuse->val->const_item())
-            { 
-              uint fldno;
-              if (is_hash_join_key_no(key))
-                fldno= keyuse->keypart;
-              else
-                fldno= table->key_info[key].key_part[keyparts-1].fieldnr - 1;
-
-              if (table->field[fldno]->cond_selectivity > 0)
-              {
-                sel /= table->field[fldno]->cond_selectivity;
-                // MDEV-20595 FIXME: DBUG_ASSERT(sel > 0 && sel <= 2.0);
-                set_if_smaller(sel, 1.0);
-              }
-              /* 
-               TODO: we could do better here:
-                 1. cond_selectivity might be =1 (the default) because quick 
-                    select on some index prevented us from analyzing 
-                    histogram for this column.
-                 2. we could get an estimate through this?
-                     rec_per_key[key_part-1] / rec_per_key[key_part]
-              */
-            }
-            if (keyparts > 1)
+            uint fldno;
+            if (is_hash_join_key_no(key))
+	      fldno= keyuse->keypart;
+            else
+              fldno= table->key_info[key].key_part[keyparts-1].fieldnr - 1;
+            if (keyuse->val->const_item())
 	    {
-              ref_keyuse_steps[keyparts-2]= (uint16)(keyuse - prev_ref_keyuse);
-              prev_ref_keyuse= keyuse;
+              DBUG_ASSERT(!is_hash_join_key_no(key));
+              if (table->field[fldno]->cond_selectivity < 1.0)
+	      {
+                /*
+                  The value of the field fld with number fldno of the table s 
+                  is calculated using a constant item: fld=c.
+                  We need to discount the selectivity of this conditition.
+                  Unfortunately this selectivity is not equal to the precomputed
+                  table->field[fldno]->cond_selectivity unless fld=c is the only
+                  condition imposed on fld. So we have to calculate the
+                  selectivity of fld=c somehow and discount it from sel.
+                  Currently we use rec_per_key values of index with number key
+                  to calculate this selectivity.
+	        */
+                double discount_sel;
+                KEY *key_info= table->key_info + key;
+                uint keypart= keyuse->keypart;
+                if (keypart == 0)
+		{ 
+                  double rec_per_key= key_info->actual_rec_per_key(0);
+                  if (rec_per_key == 0)
+                    rec_per_key= 1;
+                  discount_sel= rec_per_key  / table_records;
+                }
+                else
+		{
+                  discount_sel= key_info->actual_rec_per_key(keypart) /
+		                key_info->actual_rec_per_key(keypart - 1);
+                }
+                sel/= discount_sel;
+              }
+            }
+            else if (keyuse->val->real_item()->type() == Item::FIELD_ITEM)
+	    {
+              Field *start_field= table->field[fldno];
+              bitmap_set_bit(&table->tmp_set, fldno);
+              if (start_field->next_equal_field)
+	      {
+                Field *next_field;
+                bool need_discount= false;
+		Field *value_field=
+		  ((Item_field *) (keyuse->val->real_item()))->field;
+                for (next_field= start_field->next_equal_field;
+                     next_field != start_field;
+                     next_field= next_field->next_equal_field)
+		{
+                  if (next_field == value_field)
+		  {
+                    need_discount= true;
+                    break;
+                  }
+                }
+                /* 
+                  To join the table s ref access is used that employs
+                  the equality 
+		*/  
+                if (need_discount)
+		{
+                  next_field= start_field;
+                  do
+		  {
+                    if (next_field->table == start_field->table)
+                      sel/= next_field->cond_selectivity;
+		    next_field= next_field->next_equal_field;
+		  } while (next_field != start_field);
+                }
+              }
             }
           }
 	}
       }
       keyuse++;
-    }
+    } while (keyuse->table == table && keyuse->key == key);
   }
-  else
+  else 
   {
-    /*
-      The table is accessed with full table scan, or quick select.
-      Selectivity of COND(table) is already accounted for in 
-      matching_candidates_in_table().
-    */
     sel= 1;
   }
 
-  /* 
-    If the field f from the table is equal to a field from one the
-    earlier joined tables then the selectivity of the range conditions
-    over the field f must be discounted.
+  sel*= table_multi_eq_cond_selectivity(join, s, rem_tables);
 
-    We need to discount selectivity only if we're using ref-based 
-    access method (and have sel!=1).
-    If we use ALL/range/index_merge, then sel==1, and no need to discount.
-  */
-  if (pos->key != NULL)
-  {
-    for (Field **f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
-    {
-      if (!bitmap_is_set(read_set, field->field_index) ||
-          !field->next_equal_field)
-        continue; 
-      for (Field *next_field= field->next_equal_field; 
-           next_field != field; 
-           next_field= next_field->next_equal_field)
-      {
-        if (!(next_field->table->map & rem_tables) && next_field->table != table)
-        {
-          if (field->cond_selectivity > 0)
-          {
-            sel/= field->cond_selectivity;
-            // MDEV-20595 FIXME: DBUG_ASSERT(sel > 0 && sel <= 2.0);
-            set_if_smaller(sel, 1.0);
-          }
-          break;
-        }
-      }
-    }
-  }
-
-  sel*= table_multi_eq_cond_selectivity(join, idx, s, rem_tables,
-                                        keyparts, ref_keyuse_steps);
-
-  DBUG_ASSERT(0.0 < sel && sel <= 1.0);
+  DBUG_ASSERT(0.0 < sel && sel <= 1.0 + DBL_EPSILON);
   return sel;
 }
 

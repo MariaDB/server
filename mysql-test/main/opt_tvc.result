@@ -444,7 +444,7 @@ where b in (3,5)
 group by b
 ) as dr_table;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	12	100.00	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	6	100.00	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using temporary; Using filesort
 2	DERIVED	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 3	MATERIALIZED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
@@ -464,7 +464,7 @@ as tvc_0
 group by b
 ) as dr_table;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	12	100.00	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	6	100.00	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using temporary; Using filesort
 2	DERIVED	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 3	MATERIALIZED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	

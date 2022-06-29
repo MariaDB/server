@@ -191,11 +191,6 @@ explain select * from t1 where a=1 or b=1	{
                     "chosen": true
                   }
                 }
-              },
-              {
-                "selectivity_for_indexes": [],
-                "selectivity_for_columns": [],
-                "cond_selectivity": 0.002
               }
             ]
           },

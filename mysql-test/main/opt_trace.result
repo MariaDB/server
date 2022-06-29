@@ -104,16 +104,6 @@ select * from v1	{
           {
             "rows_estimation": [
               {
-                "selectivity_for_indexes": [],
-                "selectivity_for_columns": [
-                  {
-                    "column_name": "a",
-                    "selectivity_from_histogram": 0.5
-                  }
-                ],
-                "cond_selectivity": 0.5
-              },
-              {
                 "table": "t1",
                 "table_scan": {
                   "rows": 2,
@@ -249,16 +239,6 @@ select * from (select * from t1 where t1.a=1)q	{
           },
           {
             "rows_estimation": [
-              {
-                "selectivity_for_indexes": [],
-                "selectivity_for_columns": [
-                  {
-                    "column_name": "a",
-                    "selectivity_from_histogram": 0.5
-                  }
-                ],
-                "cond_selectivity": 0.5
-              },
               {
                 "table": "t1",
                 "table_scan": {
@@ -400,16 +380,6 @@ select * from v2	{
                 },
                 {
                   "rows_estimation": [
-                    {
-                      "selectivity_for_indexes": [],
-                      "selectivity_for_columns": [
-                        {
-                          "column_name": "a",
-                          "selectivity_from_histogram": 0.5
-                        }
-                      ],
-                      "cond_selectivity": 0.5
-                    },
                     {
                       "table": "t1",
                       "table_scan": {
@@ -1420,20 +1390,6 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                     "analyzing_index_merge_union": []
                   }
                 }
-              },
-              {
-                "selectivity_for_indexes": [],
-                "selectivity_for_columns": [
-                  {
-                    "column_name": "b",
-                    "selectivity_from_histogram": 0.2891
-                  },
-                  {
-                    "column_name": "c",
-                    "selectivity_from_histogram": 0.2891
-                  }
-                ],
-                "cond_selectivity": 0.0836
               }
             ]
           },
@@ -1631,11 +1587,6 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
                     "analyzing_index_merge_union": []
                   }
                 }
-              },
-              {
-                "selectivity_for_indexes": [],
-                "selectivity_for_columns": [],
-                "cond_selectivity": 1
               }
             ]
           },
@@ -1822,11 +1773,6 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
                     "analyzing_index_merge_union": []
                   }
                 }
-              },
-              {
-                "selectivity_for_indexes": [],
-                "selectivity_for_columns": [],
-                "cond_selectivity": 1
               }
             ]
           },
@@ -1933,7 +1879,7 @@ test.t1	analyze	status	OK
 set optimizer_trace='enabled=on';
 explain  select * from t1 where a=1 and b=2 order by c limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a_c,a_b	a_c	5	NULL	180	Using where
+1	SIMPLE	t1	ref	a_c,a_b	a_b	10	const,const	21	Using where; Using filesort
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain  select * from t1 where a=1 and b=2 order by c limit 1	{
@@ -2075,25 +2021,6 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                     "chosen": true
                   }
                 }
-              },
-              {
-                "selectivity_for_indexes": [
-                  {
-                    "index_name": "a_b",
-                    "selectivity_from_index": 0.021
-                  }
-                ],
-                "selectivity_for_columns": [
-                  {
-                    "column_name": "a",
-                    "selectivity_from_histogram": 0.1797
-                  },
-                  {
-                    "column_name": "b",
-                    "selectivity_from_histogram": 0.0156
-                  }
-                ],
-                "cond_selectivity": 0.021
               }
             ]
           },
@@ -2166,19 +2093,19 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                 {
                   "index": "a_a",
                   "can_resolve_order": true,
-                  "updated_limit": 47,
-                  "index_scan_time": 47,
+                  "updated_limit": 500,
+                  "index_scan_time": 500,
                   "usable": false,
                   "cause": "cost"
                 },
                 {
                   "index": "a_c",
                   "can_resolve_order": true,
-                  "updated_limit": 47,
-                  "range_scan_time": 4.324,
-                  "index_scan_time": 4.324,
-                  "records": 180,
-                  "chosen": true
+                  "updated_limit": 500,
+                  "range_scan_time": 46,
+                  "index_scan_time": 46,
+                  "usable": false,
+                  "cause": "cost"
                 },
                 {
                   "index": "a_b",
@@ -2186,66 +2113,6 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   "cause": "not usable index for the query"
                 }
               ]
-            }
-          },
-          {
-            "table": "t1",
-            "range_analysis": {
-              "table_scan": {
-                "rows": 1000,
-                "cost": 2e308
-              },
-              "potential_range_indexes": [
-                {
-                  "index": "a_a",
-                  "usable": false,
-                  "cause": "not applicable"
-                },
-                {
-                  "index": "a_c",
-                  "usable": true,
-                  "key_parts": ["a", "c"]
-                },
-                {
-                  "index": "a_b",
-                  "usable": false,
-                  "cause": "not applicable"
-                }
-              ],
-              "setup_range_conditions": [],
-              "group_index_range": {
-                "chosen": false,
-                "cause": "no group by or distinct"
-              },
-              "analyzing_range_alternatives": {
-                "range_scan_alternatives": [
-                  {
-                    "index": "a_c",
-                    "ranges": ["(1) <= (a) <= (1)"],
-                    "rowid_ordered": false,
-                    "using_mrr": false,
-                    "index_only": false,
-                    "rows": 180,
-                    "cost": 231.72,
-                    "chosen": true
-                  }
-                ],
-                "analyzing_roworder_intersect": {
-                  "cause": "too few roworder scans"
-                },
-                "analyzing_index_merge_union": []
-              },
-              "chosen_range_access_summary": {
-                "range_access_plan": {
-                  "type": "range_scan",
-                  "index": "a_c",
-                  "rows": 180,
-                  "ranges": ["(1) <= (a) <= (1)"]
-                },
-                "rows_for_plan": 180,
-                "cost_for_plan": 231.72,
-                "chosen": true
-              }
             }
           }
         ]
@@ -3283,25 +3150,6 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                     "chosen": true
                   }
                 }
-              },
-              {
-                "selectivity_for_indexes": [
-                  {
-                    "index_name": "pk_a_b",
-                    "selectivity_from_index": 0.1
-                  }
-                ],
-                "selectivity_for_columns": [
-                  {
-                    "column_name": "a",
-                    "selectivity_from_histogram": 0.1
-                  },
-                  {
-                    "column_name": "b",
-                    "selectivity_from_histogram": 0.1
-                  }
-                ],
-                "cond_selectivity": 0.1
               }
             ]
           },
@@ -3860,16 +3708,6 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                 }
               },
               {
-                "selectivity_for_indexes": [
-                  {
-                    "index_name": "a",
-                    "selectivity_from_index": 0.3
-                  }
-                ],
-                "selectivity_for_columns": [],
-                "cond_selectivity": 0.3
-              },
-              {
                 "table": "t1",
                 "range_analysis": {
                   "table_scan": {
@@ -3923,16 +3761,6 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                     "chosen": true
                   }
                 }
-              },
-              {
-                "selectivity_for_indexes": [
-                  {
-                    "index_name": "a",
-                    "selectivity_from_index": 0.3
-                  }
-                ],
-                "selectivity_for_columns": [],
-                "cond_selectivity": 0.3
               }
             ]
           },

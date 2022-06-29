@@ -3218,17 +3218,6 @@ double records_in_column_ranges(PARAM *param, uint idx,
     on the rows of 'table' in the processed query.
     The calculated selectivity is assigned to the field table->cond_selectivity.
     
-    Selectivity is calculated as a product of selectivities imposed by:
-
-    1. possible range accesses. (if multiple range accesses use the same
-       restrictions on the same field, we make adjustments for that)
-    2. Sargable conditions on fields for which we have column statistics (if 
-       a field is used in a possible range access, we assume that selectivity
-       is already provided by the range access' estimates)
-    3. Reading a few records from the table pages and checking the condition
-       selectivity (this is used for conditions like "column LIKE '%val%'" 
-       where approaches #1 and #2 do not provide selectivity data).
-
   NOTE
     Currently the selectivities of range conditions over different columns are
     considered independent. 
@@ -3238,7 +3227,8 @@ double records_in_column_ranges(PARAM *param, uint idx,
     TRUE   otherwise 
 */
 
-bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
+bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table,
+                                          COND_EQUAL *cond_equal, Item **cond)
 {
   uint keynr;
   uint max_quick_key_parts= 0;
@@ -3265,131 +3255,17 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   if (table->pos_in_table_list->schema_table)
     DBUG_RETURN(FALSE);
   
-  MY_BITMAP handled_columns;
-  my_bitmap_map* buf;
-  if (!(buf= (my_bitmap_map*)thd->alloc(table->s->column_bitmap_size)))
-    DBUG_RETURN(TRUE);
-  my_bitmap_init(&handled_columns, buf, table->s->fields, FALSE);
-
-  /*
-    Calculate the selectivity of the range conditions supported by indexes.
-
-    First, take into account possible range accesses. 
-    range access estimates are the most precise, we prefer them to any other
-    estimate sources.
-  */
-
-  Json_writer_object trace_wrapper(thd);
-  Json_writer_array selectivity_for_indexes(thd, "selectivity_for_indexes");
-
-  for (keynr= 0;  keynr < table->s->keys; keynr++)
-  {
-    if (table->quick_keys.is_set(keynr))
-      set_if_bigger(max_quick_key_parts, table->quick_key_parts[keynr]);
-  }
-
-  /* 
-    Walk through all indexes, indexes where range access uses more keyparts 
-    go first.
-  */
-  for (uint quick_key_parts= max_quick_key_parts;
-       quick_key_parts; quick_key_parts--)
-  {
-    for (keynr= 0;  keynr < table->s->keys; keynr++)
-    {
-      if (table->quick_keys.is_set(keynr) &&
-          table->quick_key_parts[keynr] == quick_key_parts)
-      {
-        uint i;
-        uint used_key_parts= table->quick_key_parts[keynr];
-        double quick_cond_selectivity= table->quick_rows[keynr] / 
-	                               table_records;
-        KEY *key_info= table->key_info + keynr;
-        KEY_PART_INFO* key_part= key_info->key_part;
-        /*
-          Suppose, there are range conditions on two keys
-            KEY1 (col1, col2)
-            KEY2 (col3, col2)
-          
-          we don't want to count selectivity of condition on col2 twice.
-          
-          First, find the longest key prefix that's made of columns whose
-          selectivity wasn't already accounted for.
-        */
-        for (i= 0; i < used_key_parts; i++, key_part++)
-        {
-          if (bitmap_is_set(&handled_columns, key_part->fieldnr-1))
-	    break; 
-          bitmap_set_bit(&handled_columns, key_part->fieldnr-1);
-        }
-        if (i)
-        {
-          double UNINIT_VAR(selectivity_mult);
-
-          /* 
-            There is at least 1-column prefix of columns whose selectivity has
-            not yet been accounted for.
-          */
-          table->cond_selectivity*= quick_cond_selectivity;
-          Json_writer_object selectivity_for_index(thd);
-          selectivity_for_index.add("index_name", key_info->name)
-                               .add("selectivity_from_index",
-                                    quick_cond_selectivity);
-          if (i != used_key_parts)
-	  {
-            /*
-              Range access got us estimate for #used_key_parts.
-              We need estimate for #(i-1) key parts.
-            */
-            double f1= key_info->actual_rec_per_key(i-1);
-            double f2= key_info->actual_rec_per_key(i);
-            if (f1 > 0 && f2 > 0)
-              selectivity_mult= f1 / f2;
-            else
-            {
-              /* 
-                No statistics available, assume the selectivity is proportional
-                to the number of key parts.
-                (i=0 means 1 keypart, i=1 means 2 keyparts, so use i+1)
-              */
-              selectivity_mult= ((double)(i+1)) / i;
-            }
-            table->cond_selectivity*= selectivity_mult;
-            selectivity_for_index.add("selectivity_multiplier",
-                                      selectivity_mult);
-          }
-          /*
-            We need to set selectivity for fields supported by indexes.
-            For single-component indexes and for some first components
-            of other indexes we do it here. For the remaining fields
-            we do it later in this function, in the same way as for the
-            fields not used in any indexes.
-	  */
-	  if (i == 1)
-	  {
-            uint fieldnr= key_info->key_part[0].fieldnr;
-            table->field[fieldnr-1]->cond_selectivity= quick_cond_selectivity;
-            if (i != used_key_parts)
-	      table->field[fieldnr-1]->cond_selectivity*= selectivity_mult;
-            bitmap_clear_bit(used_fields, fieldnr-1);
-	  }
-        }
-      }
-    }
-  }
-  selectivity_for_indexes.end();
-   
-  /* 
-    Second step: calculate the selectivity of the range conditions not 
-    supported by any index and selectivity of the range condition
-    over the fields whose selectivity has not been set yet.
-  */
-  Json_writer_array selectivity_for_columns(thd, "selectivity_for_columns");
+  if (thd->variables.use_stat_tables == 0 || !table->stats_is_read)
+    bitmap_clear_all(used_fields);
 
   if (thd->variables.optimizer_use_condition_selectivity > 2 &&
-      !bitmap_is_clear_all(used_fields) &&
-      thd->variables.use_stat_tables > 0 && table->stats_is_read)
+      !bitmap_is_clear_all(used_fields))
   {
+    /*
+      Calculate the selectivity of the range conditions not supported
+      by any index
+    */
+
     PARAM param;
     MEM_ROOT alloc;
     SEL_TREE *tree;
@@ -3402,7 +3278,6 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     param.mem_root= &alloc;
     param.old_root= thd->mem_root;
     param.table= table;
-    param.remove_false_where_parts= true;
 
     if (create_key_parts_for_pseudo_indexes(&param, used_fields))
       goto free_alloc;
@@ -3412,6 +3287,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     param.using_real_indexes= FALSE;
     param.real_keynr[0]= 0;
     param.alloced_sel_args= 0;
+    param.remove_false_where_parts= true;
 
     thd->no_errors=1;		    
 
@@ -3443,14 +3319,10 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
       SEL_ARG *key= tree->keys[idx];
       if (key)
       {
-        Json_writer_object selectivity_for_column(thd);
-        selectivity_for_column.add("column_name", key->field->field_name);
         if (key->type == SEL_ARG::IMPOSSIBLE)
         {
           rows= 0;
           table->reginfo.impossible_range= 1;
-          selectivity_for_column.add("selectivity_from_histogram", rows);
-          selectivity_for_column.add("cause", "impossible range");
           goto free_alloc;
         }          
         else
@@ -3459,8 +3331,6 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
           if (rows != DBL_MAX)
           {
             key->field->cond_selectivity= rows/table_records;
-            selectivity_for_column.add("selectivity_from_histogram",
-                                       key->field->cond_selectivity);
           }
         }
       }
@@ -3469,12 +3339,9 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     for (Field **field_ptr= table->field; *field_ptr; field_ptr++)
     {
       Field *table_field= *field_ptr;   
-      if (bitmap_is_set(used_fields, table_field->field_index) &&
+      if (bitmap_is_set(table->read_set, table_field->field_index) &&
           table_field->cond_selectivity < 1.0)
-      {
-        if (!bitmap_is_set(&handled_columns, table_field->field_index))
-          table->cond_selectivity*= table_field->cond_selectivity;
-      }
+        table->cond_selectivity*= table_field->cond_selectivity;
     }
 
   free_alloc:
@@ -3483,15 +3350,110 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     free_root(&alloc, MYF(0));
 
   }
-  selectivity_for_columns.end();
+
+  for (keynr= 0;  keynr < table->s->keys; keynr++)
+  {
+    if (table->quick_keys.is_set(keynr))
+      set_if_bigger(max_quick_key_parts, table->quick_key_parts[keynr]);
+  }
+
+  bool is_sel_added;
+  do
+  {
+    is_sel_added= false;
+    for (uint quick_key_parts= 1;
+         quick_key_parts <= max_quick_key_parts;
+         quick_key_parts++)
+    {
+      for (keynr= 0;  keynr < table->s->keys; keynr++)
+      {
+        uint used_key_parts= table->quick_key_parts[keynr];
+        if (!(table->quick_keys.is_set(keynr) &&
+              used_key_parts == quick_key_parts))
+          continue;
+        KEY *key_info= table->key_info + keynr;
+        KEY_PART_INFO* key_part= key_info->key_part;
+        if (bitmap_is_set(used_fields, key_part->fieldnr-1))
+          continue;
+        Field *first_kp_field= table->field[key_part->fieldnr-1];
+        double quick_cond_selectivity= table->quick_rows[keynr] /
+	                               table_records;
+        double selectivity_mult= 1.0;
+        uint i= 1;
+        for (key_part++; i < used_key_parts; i++, key_part++)
+	{
+	  if (!bitmap_is_set(used_fields, key_part->fieldnr-1))
+            break;
+          selectivity_mult/=
+            table->field[key_part->fieldnr-1]->cond_selectivity;
+	}
+        if (i != used_key_parts)
+          continue;
+        first_kp_field->cond_selectivity= quick_cond_selectivity *
+                                          selectivity_mult;
+        set_if_smaller(first_kp_field->cond_selectivity, 1.0);
+	table->cond_selectivity*= first_kp_field->cond_selectivity;
+        bitmap_set_bit(used_fields, first_kp_field->field_index);
+	is_sel_added= true;
+      }
+    }
+  } while (is_sel_added);
+
+  for (uint quick_key_parts= 1;
+       quick_key_parts <= max_quick_key_parts;
+       quick_key_parts++)
+  {
+    for (keynr= 0;  keynr < table->s->keys; keynr++)
+    {
+      uint used_key_parts= table->quick_key_parts[keynr];
+      if (!(table->quick_keys.is_set(keynr) &&
+            used_key_parts == quick_key_parts))
+        continue;
+      KEY *key_info= table->key_info + keynr;
+      KEY_PART_INFO* key_part= key_info->key_part;
+      if (bitmap_is_set(used_fields, key_part->fieldnr-1))
+	continue;
+      Field *first_kp_field= table->field[key_part->fieldnr-1];
+      double quick_cond_selectivity= table->quick_rows[keynr] /
+	                             table_records;
+      key_part+= used_key_parts - 1;
+      double selectivity_mult= 1.0;
+      for (uint i= used_key_parts - 1; i; i--, key_part--)
+      {
+	if (!bitmap_is_set(used_fields, key_part->fieldnr-1))
+	{
+          double field_selectivity;
+          double f1= key_info->actual_rec_per_key(i-1);
+          double f2= key_info->actual_rec_per_key(i);
+          if (f1 > 0 && f2 > 0)
+            field_selectivity= f2 / f1;
+          else
+	  {
+            /*
+              No statistics available, assume the field selectivity
+              is equal to 1
+            */
+            field_selectivity= 1;
+          }
+          table->cond_selectivity*=
+            table->field[i]->cond_selectivity= field_selectivity;
+          bitmap_set_bit(used_fields, table->field[i]->field_index);
+        }
+        selectivity_mult/= table->field[key_part->fieldnr-1]->cond_selectivity;
+      }
+      first_kp_field->cond_selectivity= quick_cond_selectivity *
+	                                selectivity_mult;
+      set_if_smaller(first_kp_field->cond_selectivity, 1.0);
+      table->cond_selectivity*= first_kp_field->cond_selectivity;
+      bitmap_set_bit(used_fields, first_kp_field->field_index);
+    }
+  }
 
   if (quick && (quick->get_type() == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
      quick->get_type() == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE))
   {
     table->cond_selectivity*= (quick->records/table_records);
   }
-
-  bitmap_union(used_fields, &handled_columns);
 
   /* Check if we can improve selectivity estimates by using sampling */
   ulong check_rows=
@@ -3552,13 +3514,64 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
             }
           }
         }
-
       }
       /* This list and its elements put to mem_root so should not be freed */
       table->cond_selectivity_sampling_explain= &dt->list;
     }
   }
-  trace_wrapper.add("cond_selectivity", table->cond_selectivity);
+
+  /* 
+    Take into account selectivity of the equalities between columns
+    of the table s and discount selectivities of range conditions
+    induced by these equalities
+  */
+  
+  if (cond_equal && cond_equal->current_level.elements)
+  {
+    Item_equal *item_equal;
+    List_iterator_fast<Item_equal> it(cond_equal->current_level);
+    table_map table_bit= table->map;
+    while ((item_equal= it++))
+    {
+      if (!(item_equal->used_tables() & table_bit))
+        continue;
+      uint eq_cnt= 0;
+      double max_ndv= 0.0;
+      Item_equal_fields_iterator fi(*item_equal);
+      bool found= false;
+      while (fi++)
+      {
+        Field *fld= fi.get_curr_field();
+        if (fld->table->map != table_bit)
+          continue;
+        set_if_bigger(max_ndv, fld->ndv);
+        if (!found)
+          found= true;
+        else
+	{
+          /* 
+            The field fld is equal to some other field of the table whose range
+            condition  selectivity has been already taken into accout. Discount
+            selectivit of the range condition for the field fld.
+	  */         
+          table->cond_selectivity/= fld->cond_selectivity;
+          eq_cnt++;
+        }
+      } 
+      if (eq_cnt)
+      {
+        /* 
+          There are equality predicates over fields of the table s. Their
+          selectivity has to be taken into account.
+	*/
+        for ( ; eq_cnt; eq_cnt--)
+          table->cond_selectivity/= max_ndv;               
+      }	
+    }
+  }     
+
+  set_if_smaller(table->cond_selectivity,1.0);
+
   DBUG_RETURN(FALSE);
 }
 

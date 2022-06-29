@@ -72,6 +72,7 @@ typedef struct st_key_part_info {	/* Info about a key part */
                                            NOT necessarily the original Field */
   uint  offset;                         /* Offset in record (from 0) */
   uint  null_offset;                    /* Offset to null_bit in record */
+  uint  quick_cnt;
   /* Length of key part in bytes, excluding NULL flag and length bytes */
   uint16 length;
   /* 

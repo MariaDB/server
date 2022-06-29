@@ -1235,6 +1235,78 @@ set optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
 
 drop table t1,t2,t3;
 
+
+--echo #
+--echo # MDEV-20743: selectivity of equality conditions 
+--echo #
+
+create table ta (a int);
+insert into ta select seq from seq_1_to_1000 order by rand(3);
+alter table ta add pk int primary key auto_increment;
+create table tb (b int);
+insert into tb select seq % 10 from seq_1_to_1000 order by rand(1009);
+alter table tb add pk int primary key auto_increment;
+create table tc (c int);
+insert into tc select seq % 10 from seq_1_to_1000 order by rand(2003);
+alter table tc add pk int primary key auto_increment;
+create table td (d int);
+insert into td select seq % 15 from seq_1_to_1000 order by rand(3019);
+alter table td add pk int primary key auto_increment;
+create table t1 (pk int primary key, a int, b int, c int, d int);
+insert into t1 
+select ta.pk, a, b, c, d from ta, tb, tc, td where
+  ta.pk=tb.pk and ta.pk=tc.pk and ta.pk=td.pk;
+
+create table te (e int);
+insert into te select seq from seq_1_to_500 order by rand(4001);
+alter table te add pk int primary key auto_increment;
+create table tf (f int);
+insert into tf select seq % 10 from seq_1_to_500 order by rand(4507);
+alter table tf add pk int primary key auto_increment;
+create table tg (g int);
+insert into tg select seq % 20 from seq_1_to_500 order by rand(5003);
+alter table tg add pk int primary key auto_increment;
+create table t2 (pk int primary key, e int, f int, g int);
+insert into t2 
+select te.pk, e, f, g from te, tf, tg where
+  te.pk=tf.pk and te.pk=tg.pk;
+
+select count(distinct a) from t1;
+select count(distinct b) from t1;
+select count(distinct c) from t1;
+select count(distinct d) from t1;
+select count(distinct e) from t2;
+select count(distinct f) from t2;
+select count(distinct g) from t2;
+
+set @@use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=3;
+
+analyze table t1 persistent for all;
+
+select * from t1 where t1.b=t1.c;
+explain extended
+select * from t1 where t1.b=t1.c;
+
+select * from t1 where t1.b=t1.d;
+explain extended
+select * from t1 where t1.b=t1.d;
+                                      
+select * from t1 where t1.b=t1.c and t1.c=t1.d;
+explain extended                                    
+select * from t1 where t1.b=t1.c and t1.c=t1.d;
+
+create index idx on t1(b);
+
+select * from t1,t2 where t1.b=t1.c and t1.c=t1.d and t2.f=t2.g and t2.g=t1.b;
+explain extended                                    
+select * from t1,t2 where t1.b=t1.c and t1.c=t1.d and t2.f=t2.g and t2.g=t1.b;
+
+set optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set use_stat_tables=@save_use_stat_tables;
+
+drop table ta,tb,tc,td,t1;  
+
 --echo # End of 10.1 tests
 
 #

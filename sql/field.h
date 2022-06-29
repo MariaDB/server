@@ -718,6 +718,8 @@ public:
   */
   double cond_selectivity;
 
+  double ndv;
+
   /* 
     The next field in the class of equal fields at the top AND level
     of the WHERE clause
