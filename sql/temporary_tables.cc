@@ -627,8 +627,7 @@ bool THD::drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table)
                           table->s->db.str, table->s->table_name.str));
 
   // close all handlers in case it is statement abort and some can be left
-  if (is_error())
-    table->file->ha_reset();
+  table->file->ha_reset();
 
   locked= lock_temporary_tables();
 
