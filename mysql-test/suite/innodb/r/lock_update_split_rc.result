@@ -1,0 +1,34 @@
+CREATE TABLE t (
+`a` INT NOT NULL,
+`b` INT NOT NULL,
+PRIMARY KEY (`a`)
+) ENGINE=InnoDB;
+SET GLOBAL innodb_limit_optimistic_insert_debug = 3;
+INSERT INTO t VALUES(10, 0);
+INSERT INTO t VALUES(20, 0);
+INSERT INTO t VALUES(30, 0);
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+XA START '1';
+REPLACE INTO t VALUES(10, 1);
+REPLACE INTO t VALUES(20, 1);
+SET DEBUG_SYNC= 'ib_after_row_insert SIGNAL inserted WAIT_FOR cont';
+REPLACE INTO t VALUES(30, 1);
+connect  con1,localhost,root;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+XA START '2';
+SET DEBUG_SYNC= 'now WAIT_FOR inserted';
+INSERT INTO t VALUES(40, 2);
+SET DEBUG_SYNC= 'now SIGNAL cont';
+connection default;
+XA END '1';
+XA PREPARE '1';
+connection default;
+XA COMMIT '1';
+connection con1;
+XA END '2';
+XA PREPARE '2';
+XA COMMIT '2';
+disconnect con1;
+connection default;
+SET DEBUG_SYNC= "RESET";
+DROP TABLE t;
