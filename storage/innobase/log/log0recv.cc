@@ -946,17 +946,13 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
                                                  (fil_space_t::zip_size(flags),
                                                   page), size);
       if (!space)
-      {
-        block->page.lock.x_unlock();
-        goto fail;
-      }
+        goto release_and_fail;
       space->free_limit= fsp_header_get_field(page, FSP_FREE_LIMIT);
       space->free_len= flst_get_len(FSP_HEADER_OFFSET + FSP_FREE + page);
-      block->page.lock.x_unlock();
       fil_node_t *node= UT_LIST_GET_FIRST(space->chain);
       node->deferred= true;
       if (!space->acquire())
-        goto fail;
+        goto release_and_fail;
       fil_names_dirty(space);
       const bool is_compressed= fil_space_t::is_compressed(flags);
 #ifdef _WIN32
@@ -973,14 +969,16 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
                             ~4095ULL, is_sparse))
       {
         space->release();
-        goto fail;
+        goto release_and_fail;
       }
       node->deferred= false;
       space->release();
       it->second.space= space;
+      block->page.lock.x_unlock();
       return false;
     }
 
+  release_and_fail:
     block->page.lock.x_unlock();
   }
 
