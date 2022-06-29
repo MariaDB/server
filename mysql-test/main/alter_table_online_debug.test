@@ -718,6 +718,39 @@ drop table t2;
 drop table t3;
 
 --echo #
+--echo # MDEV-28930 ALTER TABLE Deadlocks with parallel TL_WRITE
+--echo #
+create table t1(a int) engine=myisam select 1;
+
+set debug_sync='alter_table_online_before_lock SIGNAL ready WAIT_FOR go_for_locking';
+--send
+alter table t1 force;
+
+--connection con2
+set debug_sync='now WAIT_FOR ready';
+set debug_sync='thr_multi_lock_before_thr_lock SIGNAL go_for_locking';
+update t1 set a=2;
+
+--connection default
+--reap
+
+set debug_sync='alter_table_online_before_lock SIGNAL ready WAIT_FOR go_for_locking';
+--send
+alter table mysql.global_priv force;
+
+--connection con2
+set debug_sync='now WAIT_FOR ready';
+set debug_sync='thr_multi_lock_before_thr_lock SIGNAL go_for_locking';
+create user user1@localhost;
+
+--connection default
+--reap
+
+set debug_sync=reset;
+drop user user1@localhost;
+drop table t1;
+
+--echo #
 --echo # MDEV-28959 Online alter ignores strict table mode
 --echo #
 create table t1 (a int);
