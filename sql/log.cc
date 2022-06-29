@@ -275,13 +275,11 @@ void make_default_log_name(char **out, const char* log_ext, bool once)
   Helper classes to store non-transactional and transactional data
   before copying it to the binary log.
 */
-class binlog_cache_data: public Sql_alloc, public ilist_node<>
+class binlog_cache_data
 {
 public:
-  binlog_cache_data(): share(0), sv_list(0), m_pending(0), status(0),
-  before_stmt_pos(MY_OFF_T_UNDEF),
-  incident(FALSE),
-  saved_max_binlog_cache_size(0), ptr_binlog_cache_use(0),
+  binlog_cache_data(): before_stmt_pos(MY_OFF_T_UNDEF), m_pending(0), status(0),
+  incident(FALSE), saved_max_binlog_cache_size(0), ptr_binlog_cache_use(0),
   ptr_binlog_cache_disk_use(0)
   { }
   
@@ -361,11 +359,6 @@ public:
      before_stmt_pos= pos;
   }
   
-  void store_prev_position()
-  {
-    before_stmt_pos= my_b_write_tell(&cache_log);
-  }
-
   void restore_prev_position()
   {
     truncate(before_stmt_pos);
@@ -418,8 +411,12 @@ public:
   */
   IO_CACHE cache_log;
 
-  TABLE_SHARE *share; // for online alter table
-  SAVEPOINT *sv_list;
+protected:
+  /*
+    Binlog position before the start of the current statement.
+  */
+  my_off_t before_stmt_pos;
+
 private:
   /*
     Pending binrows event. This event is the event where the rows are currently
@@ -434,11 +431,6 @@ private:
   */
   uint32 status;
 
-  /*
-    Binlog position before the start of the current statement.
-  */
-  my_off_t before_stmt_pos;
- 
   /*
     This indicates that some events did not get into the cache and most likely
     it is corrupted.
@@ -505,6 +497,19 @@ private:
   binlog_cache_data(const binlog_cache_data& info);
 };
 
+
+class online_alter_cache_data: public Sql_alloc, public ilist_node<>,
+  public binlog_cache_data
+{
+public:
+  void store_prev_position()
+  {
+    before_stmt_pos= my_b_write_tell(&cache_log);
+  }
+
+  TABLE_SHARE *share;
+  SAVEPOINT *sv_list;
+};
 
 void Log_event_writer::add_status(enum_logged_status status)
 {
@@ -2227,8 +2232,35 @@ static int binlog_commit_flush_xa_prepare(THD *thd, bool all,
 }
 
 #ifdef HAVE_REPLICATION
+int binlog_log_row_online_alter(TABLE* table, const uchar *before_record,
+                                const uchar *after_record, Log_func *log_func)
+{
+  THD *thd= table->in_use;
+
+  if (!table->online_alter_cache)
+  {
+    table->online_alter_cache= online_alter_binlog_get_cache_data(thd, table);
+    trans_register_ha(thd, false, binlog_hton, 0);
+    if (thd->in_multi_stmt_transaction_mode())
+      trans_register_ha(thd, true, binlog_hton, 0);
+  }
+
+  // We need to log all columns for the case if alter table changes primary key
+  DBUG_ASSERT(!before_record || bitmap_is_set_all(table->read_set));
+  MY_BITMAP *old_rpl_write_set= table->rpl_write_set;
+  table->rpl_write_set= &table->s->all_set;
+
+  int error= (*log_func)(thd, table, table->s->online_alter_binlog,
+                         table->online_alter_cache, true,
+                         before_record, after_record);
+
+  table->rpl_write_set= old_rpl_write_set;
+
+  return unlikely(error) ? HA_ERR_RBR_LOGGING_FAILED : 0;
+}
+
 static void
-binlog_online_alter_cleanup(ilist<binlog_cache_data> &list, bool ending_trans)
+binlog_online_alter_cleanup(ilist<online_alter_cache_data> &list, bool ending_trans)
 {
   if (ending_trans)
   {
@@ -6311,9 +6343,9 @@ write_err:
 
 
 #ifdef HAVE_REPLICATION
-static binlog_cache_data *binlog_setup_cache_data(MEM_ROOT *root, TABLE_SHARE *share)
+static online_alter_cache_data *binlog_setup_cache_data(MEM_ROOT *root, TABLE_SHARE *share)
 {
-  auto cache= new (root) binlog_cache_data();
+  auto cache= new (root) online_alter_cache_data();
   if (!cache || open_cached_file(&cache->cache_log, mysql_tmpdir,
                          LOG_PREFIX, (size_t)binlog_cache_size, MYF(MY_WME)))
   {
@@ -6328,9 +6360,9 @@ static binlog_cache_data *binlog_setup_cache_data(MEM_ROOT *root, TABLE_SHARE *s
   return cache;
 }
 
-binlog_cache_data *online_alter_binlog_get_cache_data(THD *thd, TABLE *table)
+online_alter_cache_data *online_alter_binlog_get_cache_data(THD *thd, TABLE *table)
 {
-  ilist<binlog_cache_data> &list= thd->online_alter_cache_list;
+  ilist<online_alter_cache_data> &list= thd->online_alter_cache_list;
 
   /* we assume it's very rare to have more than one online ALTER running */
   for (auto &cache: list)

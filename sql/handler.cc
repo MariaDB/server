@@ -7027,39 +7027,6 @@ bool handler::check_table_binlog_row_based_internal()
                     mysql_bin_log.is_open()));
 }
 
-
-#ifdef HAVE_REPLICATION
-static int binlog_log_row_online_alter(TABLE* table,
-                                       const uchar *before_record,
-                                       const uchar *after_record,
-                                       Log_func *log_func)
-{
-  THD *thd= table->in_use;
-
-  if (!table->online_alter_cache)
-  {
-    table->online_alter_cache= online_alter_binlog_get_cache_data(thd, table);
-    trans_register_ha(thd, false, binlog_hton, 0);
-    if (thd->in_multi_stmt_transaction_mode())
-      trans_register_ha(thd, true, binlog_hton, 0);
-  }
-
-  // We need to log all columns for the case if alter table changes primary key
-  DBUG_ASSERT(!before_record || bitmap_is_set_all(table->read_set));
-  MY_BITMAP *old_rpl_write_set= table->rpl_write_set;
-  table->rpl_write_set= &table->s->all_set;
-
-  int error= (*log_func)(thd, table, table->s->online_alter_binlog,
-                         table->online_alter_cache, true,
-                         before_record, after_record);
-
-  table->rpl_write_set= old_rpl_write_set;
-
-  return unlikely(error) ? HA_ERR_RBR_LOGGING_FAILED : 0;
-}
-#endif // HAVE_REPLICATION
-
-
 static int binlog_log_row_to_binlog(TABLE* table,
                                     const uchar *before_record,
                                     const uchar *after_record,
