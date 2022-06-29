@@ -87,7 +87,6 @@ encrypt_chunk=""
 
 readonly SECRET_TAG='secret'
 readonly TOTAL_TAG='total'
-readonly TOTAL_TAG_SST="$SECRET_TAG /$TOTAL_TAG"
 
 # Required for backup locks
 # For backup locks it is 1 sent by joiner
@@ -452,7 +451,7 @@ get_footprint()
     wsrep_log_info \
         "SST footprint estimate: data: $payload_data, undo: $payload_undo"
 
-    payload=$(( $payload_data + $payload_undo ))
+    payload=$(( payload_data + payload_undo ))
 
     if [ "$compress" != 'none' ]; then
         # QuickLZ has around 50% compression ratio
@@ -505,6 +504,7 @@ adjust_progress()
                 pcmd="$pcmd 2>'$progress'"
             fi
         fi
+
     elif [ $WSREP_SST_OPT_PROGRESS -eq 1 ]; then
 
         # Default progress output parseable by parent
@@ -518,6 +518,7 @@ adjust_progress()
 
         # Rate-limiting only, when rlimit is non-zero
         pcmd="pv -q$rlimitopts"
+
     fi
 }
 
@@ -853,14 +854,6 @@ recv_joiner()
                 fi
             fi
         fi
-
-        # check total SST footprint
-        total=$(grep -F -- "$TOTAL_TAG " "$MAGIC_FILE" 2>/dev/null | cut -d ' ' -f 3)
-        if [ $total -ge 0 ]; then
-            # report to parent
-            echo "$TOTAL_TAG $total"
-        fi
-
     fi
 }
 
@@ -1084,9 +1077,6 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
         # (separated by a space).
         echo "$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID" > "$MAGIC_FILE"
-
-        # Tell joiner what to expect:
-        echo "$TOTAL_TAG_SST $payload" >> "$MAGIC_FILE"
 
         if [ -n "$WSREP_SST_OPT_REMOTE_PSWD" ]; then
             # Let joiner know that we know its secret
@@ -1330,17 +1320,6 @@ else # joiner
 
     if [ -n "$sdecomp" ]; then
         strmcmd="$sdecomp | $strmcmd"
-    fi
-
-    adjust_progress
-    if [ -n "$pcmd" ]; then
-        if [ -n "$rcmd" ]; then
-            # redirect pv stderr to rcmd for tagging and output to parent
-            strmcmd="{ $pcmd 2>&3 | $strmcmd; } 3>&1 | $rcmd"
-        else
-            # use user-configured pv output
-            strmcmd="$pcmd | $strmcmd"
-        fi
     fi
 
     check_sockets_utils

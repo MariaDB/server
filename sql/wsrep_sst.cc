@@ -1156,7 +1156,7 @@ static ssize_t sst_prepare_other (const char*  method,
                  method, addr_in, mysql_real_data_home,
                  wsrep_defaults_file,
                  (int)getpid(),
-                 0,
+                 wsrep_debug ? 1 : 0,
                  binlog_opt_val, binlog_index_opt_val);
 
   my_free(binlog_opt_val);
@@ -1970,7 +1970,7 @@ static int sst_donate_other (const char*        method,
                  "%s"
                  "%s",
                  method, addr, mysqld_port, mysqld_unix_port,
-                 0,
+                 wsrep_debug ? 1 : 0,
                  mysql_real_data_home,
                  wsrep_defaults_file,
                  uuid_oss.str().c_str(), gtid.seqno().get(), wsrep_gtid_server.domain_id,
