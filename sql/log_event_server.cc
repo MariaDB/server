@@ -5734,7 +5734,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     used in the transaction and proceed with execution of the actual
     event.
   */
-  if (!thd->lock)
+  if (!thd->open_tables)
   {
     /*
       Lock_tables() reads the contents of thd->lex, so they must be
