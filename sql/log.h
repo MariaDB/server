@@ -447,9 +447,10 @@ class Cache_flip_event_log: public Event_log, public Sql_alloc {
   IO_CACHE alt_buf;
   IO_CACHE *current, *alt;
 public:
+  std::atomic<long> ref_count;
 
   Cache_flip_event_log() : Event_log(), alt_buf{},
-                           current(&log_file), alt(&alt_buf) {}
+                           current(&log_file), alt(&alt_buf), ref_count(1) {}
   bool open(enum cache_type io_cache_type_arg)
   {
     log_file.dir= mysql_tmpdir;

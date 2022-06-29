@@ -358,7 +358,7 @@ public:
   {
      before_stmt_pos= pos;
   }
-  
+
   void restore_prev_position()
   {
     truncate(before_stmt_pos);
@@ -507,7 +507,6 @@ public:
     before_stmt_pos= my_b_write_tell(&cache_log);
   }
 
-  const char *db, *table_name;
   TABLE_SHARE *share;
   SAVEPOINT *sv_list;
 };
@@ -5954,8 +5953,6 @@ static online_alter_cache_data *binlog_setup_cache_data(MEM_ROOT *root, TABLE_SH
     return NULL;
   }
 
-  cache->db= strmake_root(root, share->db.str, share->db.length);
-  cache->table_name= strmake_root(root, share->table_name.str, share->table_name.length);
   cache->share= share;
   cache->set_binlog_cache_info(max_binlog_cache_size, &binlog_cache_use,
                                &binlog_cache_disk_use);
@@ -7637,20 +7634,8 @@ static int binlog_online_alter_end_trans(THD *thd, bool all, bool commit)
 
   for (auto &cache: thd->online_alter_cache_list)
   {
-    /*
-      cache.share wasn't protected, it could've been freed meanwhile
-      if ALTER TABLE failed. We need to validate the share here
-    */
-    auto *tdc_element= tdc_lock_share(thd, cache.db, cache.table_name);
-    if (!tdc_element)
-      continue;
-
-    auto *binlog= tdc_element->share->online_alter_binlog;
-    if (tdc_element->share != cache.share || !binlog)
-    {
-      tdc_unlock_share(tdc_element);
-      continue;
-    }
+    auto *binlog= cache.share->online_alter_binlog;
+    DBUG_ASSERT(binlog);
 
     bool do_commit= commit || !cache.share->db_type()->rollback ||
                     cache.share->db_type()->flags & HTON_NO_ROLLBACK; // Aria
@@ -7676,10 +7661,8 @@ static int binlog_online_alter_end_trans(THD *thd, bool all, bool commit)
                binlog->get_name(), errno);
       binlog_online_alter_cleanup(thd->online_alter_cache_list,
                                   is_ending_transaction);
-      tdc_unlock_share(tdc_element);
       DBUG_RETURN(error);
     }
-    tdc_unlock_share(tdc_element);
   }
 
   binlog_online_alter_cleanup(thd->online_alter_cache_list,
