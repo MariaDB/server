@@ -1630,7 +1630,7 @@ public:
   */
   Item *notnull_cond;
 
-  binlog_cache_data *online_alter_cache;
+  online_alter_cache_data *online_alter_cache;
 
   inline void reset() { bzero((void*)this, sizeof(*this)); }
   void init(THD *thd, TABLE_LIST *tl);
