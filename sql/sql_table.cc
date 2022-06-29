@@ -11998,6 +11998,11 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     // We restore bitmaps, because update event is going to mess up with them.
     to->default_column_bitmaps();
 
+    end_read_record(&info);
+    init_read_record_done= false;
+    mysql_unlock_tables(thd, thd->lock);
+    thd->lock= NULL;
+
     error= online_alter_read_from_binlog(thd, &rgi, binlog);
 
     DEBUG_SYNC(thd, "alter_table_online_before_lock");
