@@ -38,6 +38,9 @@ cleanup_joiner()
     local estatus=$?
     if [ $estatus -ne 0 ]; then
         wsrep_log_error "Cleanup after exit with status: $estatus"
+    elif [ -z "${coords:-}" ]; then
+        estatus=32
+        wsrep_log_error "Failed to get current position"
     fi
 
     local failure=0
@@ -408,7 +411,7 @@ EOF
         # (b) Cluster state ID & wsrep_gtid_domain_id to be written to the file, OR
         # (c) ERROR file, in case flush tables operation failed.
 
-        while [ ! -r "$FLUSHED" ] && \
+        while [ ! -r "$FLUSHED" ] || \
                 ! grep -q -F ':' -- "$FLUSHED"
         do
             # Check whether ERROR file exists.
@@ -538,7 +541,7 @@ FILTER="-f '- /lost+found'
         -f '+ /wsrep_sst_binlog.tar'
         -f '- $ib_home_dir/ib_lru_dump'
         -f '- $ib_home_dir/ibdata*'
-        -f '+ $ib_undo_dir/undo*'
+        -f '- $ib_undo_dir/undo*'
         -f '+ /*/'
         -f '- /*'"
 
@@ -598,6 +601,20 @@ FILTER="-f '- /lost+found'
         fi
 
         wsrep_log_info "Transfer of InnoDB and Aria log files done"
+
+        # third, we transfer InnoDB undo logs
+        rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+              --owner --group --perms --links --specials \
+              --ignore-times --inplace --dirs --delete --quiet \
+              $WHOLE_FILE_OPT -f '+ /undo*' -f '- **' "$ib_undo_dir/" \
+              "rsync://$WSREP_SST_OPT_ADDR-undo_dir" >&2 || RC=$?
+
+        if [ $RC -ne 0 ]; then
+            wsrep_log_error "rsync innodb_log_group_home_dir returned code $RC:"
+            exit 255 # unknown error
+        fi
+
+        wsrep_log_info "Transfer of InnoDB undo logs done"
 
         # then, we parallelize the transfer of database directories,
         # use '.' so that path concatenation works:
@@ -704,6 +721,8 @@ $SILENT
     path = $ib_log_dir
 [$MODULE-data_dir]
     path = $ib_home_dir
+[$MODULE-undo_dir]
+    path = $ib_undo_dir
 EOF
 
     # If the IP is local, listen only on it:
