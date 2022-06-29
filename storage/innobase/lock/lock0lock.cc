@@ -2291,50 +2291,53 @@ lock_rec_reset_and_release_wait(
 		&lock_sys.prdt_page_hash, block, PAGE_HEAP_NO_INFIMUM);
 }
 
-/*************************************************************//**
-Makes a record to inherit the locks (except LOCK_INSERT_INTENTION type)
+/** Makes a record to inherit the locks (except LOCK_INSERT_INTENTION type)
 of another record as gap type locks, but does not reset the lock bits of
 the other record. Also waiting lock requests on rec are inherited as
-GRANTED gap locks. */
-static
-void
-lock_rec_inherit_to_gap(
-/*====================*/
-	const buf_block_t*	heir_block,	/*!< in: block containing the
-						record which inherits */
-	const buf_block_t*	block,		/*!< in: block containing the
-						record from which inherited;
-						does NOT reset the locks on
-						this record */
-	ulint			heir_heap_no,	/*!< in: heap_no of the
-						inheriting record */
-	ulint			heap_no)	/*!< in: heap_no of the
-						donating record */
+GRANTED gap locks.
+@param heir_block   block containing the record which inherits
+@param block block  containing the record from which inherited; does NOT reset
+                    the locks on this record
+@param heir_heap_no heap_no of the inheriting record
+@param heap_no      heap_no of the donating record
+@tparam from_split  true if the function is invoked from
+                    lock_update_split_(left|right)(), in this case not-gap
+                    locks are not inherited to supremum if transaction
+                    isolation level less or equal to READ COMMITTED */
+template <bool from_split= false>
+static void lock_rec_inherit_to_gap(const buf_block_t *heir_block,
+                                    const buf_block_t *block,
+                                    ulint heir_heap_no, ulint heap_no)
 {
-	lock_t*	lock;
+  ut_ad(lock_mutex_own());
+  ut_ad(!from_split || heir_heap_no == PAGE_HEAP_NO_SUPREMUM);
 
-	ut_ad(lock_mutex_own());
+  /* At READ UNCOMMITTED or READ COMMITTED isolation level,
+  we do not want locks set
+  by an UPDATE or a DELETE to be inherited as gap type locks. But we
+  DO want S-locks/X-locks(taken for replace) set by a consistency
+  constraint to be inherited also then. */
 
-	/* At READ UNCOMMITTED or READ COMMITTED isolation level,
-	we do not want locks set
-	by an UPDATE or a DELETE to be inherited as gap type locks. But we
-	DO want S-locks/X-locks(taken for replace) set by a consistency
-	constraint to be inherited also then. */
+  for (lock_t *lock= lock_rec_get_first(&lock_sys.rec_hash, block, heap_no);
+       lock != NULL; lock= lock_rec_get_next(heap_no, lock))
+  {
 
-	for (lock = lock_rec_get_first(&lock_sys.rec_hash, block, heap_no);
-	     lock != NULL;
-	     lock = lock_rec_get_next(heap_no, lock)) {
-
-		if (!lock_rec_get_insert_intention(lock)
-		    && (lock->trx->isolation_level > TRX_ISO_READ_COMMITTED
-			|| lock_get_mode(lock) !=
-			(lock->trx->duplicates ? LOCK_S : LOCK_X))) {
-			lock_rec_add_to_queue(
-				LOCK_REC | LOCK_GAP | lock_get_mode(lock),
-				heir_block, heir_heap_no, lock->index,
-				lock->trx, FALSE);
-		}
-	}
+    if (!lock_rec_get_insert_intention(lock) &&
+        (lock->trx->isolation_level > TRX_ISO_READ_COMMITTED ||
+         /* When we are in a page split (not purge), then we don't set a lock
+         on supremum if the donor lock type is LOCK_REC_NOT_GAP. That is, do
+         not create bogus gap locks for non-gap locks for READ UNCOMMITTED and
+         READ COMMITTED isolation levels. LOCK_ORDINARY and
+         LOCK_GAP require a gap before the record to be locked, that is why
+         setting lock on supremmum is necessary. */
+         ((!from_split || !lock->is_record_not_gap()) &&
+          (lock_get_mode(lock) != (lock->trx->duplicates ? LOCK_S : LOCK_X)))))
+    {
+      lock_rec_add_to_queue(LOCK_REC | LOCK_GAP | lock_get_mode(lock),
+                            heir_block, heir_heap_no, lock->index, lock->trx,
+                            FALSE);
+    }
+  }
 }
 
 /*************************************************************//**
@@ -2943,7 +2946,7 @@ lock_update_split_right(
 	/* Inherit the locks to the supremum of left page from the successor
 	of the infimum on right page */
 
-	lock_rec_inherit_to_gap(left_block, right_block,
+	lock_rec_inherit_to_gap<true>(left_block, right_block,
 				PAGE_HEAP_NO_SUPREMUM, heap_no);
 
 	lock_mutex_exit();
@@ -3063,7 +3066,7 @@ lock_update_split_left(
 	/* Inherit the locks to the supremum of the left page from the
 	successor of the infimum on the right page */
 
-	lock_rec_inherit_to_gap(left_block, right_block,
+	lock_rec_inherit_to_gap<true>(left_block, right_block,
 				PAGE_HEAP_NO_SUPREMUM, heap_no);
 
 	lock_mutex_exit();
@@ -4251,6 +4254,11 @@ void lock_release_on_prepare(trx_t *trx)
       {
         ut_ad(trx->dict_operation ||
               lock->index->table->id >= DICT_HDR_FIRST_ID);
+        ut_ad(lock->trx->isolation_level > TRX_ISO_READ_COMMITTED ||
+              /* Insert-intention lock is valid for supremum for isolation
+              level > TRX_ISO_READ_COMMITTED */
+              lock_get_mode(lock) == LOCK_X ||
+              !lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM));
 retain_lock:
         lock= UT_LIST_GET_PREV(trx_locks, lock);
         continue;
