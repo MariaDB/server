@@ -275,7 +275,7 @@ void make_default_log_name(char **out, const char* log_ext, bool once)
   Helper classes to store non-transactional and transactional data
   before copying it to the binary log.
 */
-class binlog_cache_data: public ilist_node<>
+class binlog_cache_data: public Sql_alloc, public ilist_node<>
 {
 public:
   binlog_cache_data(): share(0), sv_list(0), m_pending(0), status(0),
@@ -6301,9 +6301,9 @@ bool THD::binlog_write_table_map(TABLE *table, bool with_annotate)
 
 
 #ifdef HAVE_REPLICATION
-binlog_cache_data *binlog_setup_cache_data(TABLE_SHARE *share)
+static binlog_cache_data *binlog_setup_cache_data(MEM_ROOT *root, TABLE_SHARE *share)
 {
-  auto cache= new binlog_cache_data();
+  auto cache= new (root) binlog_cache_data();
   if (!cache || open_cached_file(&cache->cache_log, mysql_tmpdir,
                          LOG_PREFIX, (size_t)binlog_cache_size, MYF(MY_WME)))
   {
@@ -6329,7 +6329,9 @@ binlog_cache_data *online_alter_binlog_get_cache_data(THD *thd, TABLE *table)
       return &cache;
   }
 
-  auto *new_cache_data= binlog_setup_cache_data(table->s);
+  MEM_ROOT *root= thd->in_multi_stmt_transaction_mode()
+                  ? &thd->transaction->mem_root : thd->mem_root;
+  auto *new_cache_data= binlog_setup_cache_data(root, table->s);
   list.push_back(*new_cache_data);
 
   return new_cache_data;
