@@ -54,3 +54,22 @@ c	c2	stamp
 5	5	0000-00-00 00:00:00
 drop table t;
 set sql_mode=default;
+#
+# MDEV-28944 XA assertions failing in binlog_rollback and binlog_commit
+#
+CREATE TABLE t (a INT) ENGINE=MyISAM;
+INSERT INTO t VALUES (1);
+connect  con1,localhost,root,,test;
+XA START 'xid';
+SELECT * FROM t;
+a
+1
+connection default;
+ALTER TABLE t NOWAIT ADD KEY (a);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+UPDATE t SET a = 2;
+XA END 'xid';
+XA COMMIT 'xid' ONE PHASE;
+DROP TABLE t;
+disconnect con1;
