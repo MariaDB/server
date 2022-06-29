@@ -626,9 +626,8 @@ bool THD::drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table)
   DBUG_PRINT("tmptable", ("Dropping table: '%s'.'%s'",
                           table->s->db.str, table->s->table_name.str));
 
-  // close all handlers in case it is statement abort and some can be left
-  if (is_error())
-    table->file->ha_reset();
+  // Close all internal handlers (lookup_handler, etc)
+  table->file->ha_reset();
 
   locked= lock_temporary_tables();
 
