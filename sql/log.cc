@@ -7636,6 +7636,8 @@ static int binlog_online_alter_end_trans(THD *thd, bool all, bool commit)
   {
     auto *binlog= cache.share->online_alter_binlog;
     DBUG_ASSERT(binlog);
+    if (binlog->error)
+      continue;
 
     bool do_commit= commit || !cache.share->db_type()->rollback ||
                     cache.share->db_type()->flags & HTON_NO_ROLLBACK; // Aria

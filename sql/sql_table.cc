@@ -10007,7 +10007,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
       Table is a shared table. Remove the .frm file. Discovery will create
       a new one if needed.
     */
-    table->s->tdc->flushed= 1;         // Force close of all instances
+    table->s->tdc->flush_unused(true);         // Force close of all instances
     if (thd->mdl_context.upgrade_shared_lock(mdl_ticket, MDL_EXCLUSIVE,
                                              thd->variables.lock_wait_timeout))
       DBUG_RETURN(1);
@@ -11651,6 +11651,11 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 #ifdef HAVE_REPLICATION
     if (online)
     {
+      if (from->s->online_alter_binlog)
+      {
+        DBUG_ASSERT(from->s->online_alter_binlog->error);
+        from->s->online_alter_binlog->cleanup();
+      }
       from->s->online_alter_binlog= new (&from->s->mem_root) Cache_flip_event_log();
       if (!from->s->online_alter_binlog)
         DBUG_RETURN(1);
@@ -11875,8 +11880,16 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     if (error)
       from->s->tdc->flush_unused(1); // to free the binlog
   }
-  else if (online) // error was on copy stage
+
+  if (online && error > 0) // error was on copy stage
   {
+    /*
+       We can't free the resources properly now, as we can still be in
+       non-exclusive state. So this s->online_alter_binlog will be used
+       until all transactions will release it.
+       Once the transaction commits, it can release online_alter_binlog.
+     */
+    from->s->online_alter_binlog->error= true;
     from->s->tdc->flush_unused(1); // to free the binlog
   }
 #endif

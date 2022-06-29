@@ -7515,7 +7515,7 @@ void TABLE::mark_columns_needed_for_delete()
     need_signal= true;
   }
 #ifdef HAVE_REPLICATION
-  if (s->online_alter_binlog)
+  if (s->online_alter_binlog && !s->online_alter_binlog->error)
   {
     /*
       For online alter we have to read all columns, because we need PK columns
@@ -7613,7 +7613,7 @@ void TABLE::mark_columns_needed_for_update()
     need_signal= true;
   }
 #ifdef HAVE_REPLICATION
-  if (s->online_alter_binlog)
+  if (s->online_alter_binlog && !s->online_alter_binlog->error)
   {
     /*
       For online alter we have to read all columns, because we need PK columns

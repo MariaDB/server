@@ -7059,7 +7059,8 @@ int handler::binlog_log_row(const uchar *before_record,
                                     log_func, row_logging_has_trans);
 
 #ifdef HAVE_REPLICATION
-  if (unlikely(!error && table->s->online_alter_binlog))
+  if (unlikely(!error && table->s->online_alter_binlog
+               && !table->s->online_alter_binlog->error))
     error= binlog_log_row_online_alter(table, before_record, after_record,
                                        log_func);
 #endif // HAVE_REPLICATION
