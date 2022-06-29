@@ -11870,7 +11870,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
   else if (online) // error was on copy stage
   {
-    from->s->tdc->flushed= 1; // to free the binlog
+    from->s->tdc->flush_unused(1); // to free the binlog
   }
 #endif
 
