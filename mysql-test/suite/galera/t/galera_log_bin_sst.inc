@@ -37,28 +37,11 @@ ALTER TABLE t1 ADD COLUMN f2 INTEGER;
 --let $MASTER_MYPORT=$NODE_MYPORT_1
 --source include/show_binlog_events.inc
 
---connection node_2
-
 #--connection node_2
 #--source suite/galera/include/galera_stop_replication.inc
 
---echo Shutting down server ...
---source include/shutdown_mysqld.inc
-
---connection node_1
---let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
---source include/wait_condition.inc
-
-#
-# Force SST
-#
---echo Cleaning var directory ...
---remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
---remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mtr
---remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/performance_schema
---remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/test
---remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mysql
---remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data
+--connection node_2
+--source galera_force_sst.inc
 
 --connection node_2
 

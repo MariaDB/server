@@ -1,6 +1,7 @@
 --source include/big_test.inc
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_mariabackup.inc
 
 # Save original auto_increment_offset values.
 --let $node_1=node_1
@@ -10,12 +11,12 @@
 --source suite/galera/include/galera_st_shutdown_slave.inc
 --source suite/galera/include/galera_st_clean_slave.inc
 
---let CHECK_HOME_1=$MYSQLTEST_VARDIR/mysqld.1/datadir1
---let CHECK_HOME_2=$MYSQLTEST_VARDIR/mysqld.2/datadir2
---let CHECK_REDO_1=$MYSQLTEST_VARDIR/mysqld.1/datadir1
---let CHECK_REDO_2=$MYSQLTEST_VARDIR/mysqld.2/datadir2
---let CHECK_UNDO_1=$MYSQLTEST_VARDIR/mysqld.1/datadir1
---let CHECK_UNDO_2=$MYSQLTEST_VARDIR/mysqld.2/datadir2
+--let CHECK_HOME_1=$MYSQLTEST_VARDIR/mysqld.1/data/innodb_data1
+--let CHECK_HOME_2=$MYSQLTEST_VARDIR/mysqld.2/data/innodb_data2
+--let CHECK_REDO_1=$MYSQLTEST_VARDIR/mysqld.1/data/innodb_group1
+--let CHECK_REDO_2=$MYSQLTEST_VARDIR/mysqld.2/data/innodb_group2
+--let CHECK_UNDO_1=$MYSQLTEST_VARDIR/mysqld.1/data/innodb_undo1
+--let CHECK_UNDO_2=$MYSQLTEST_VARDIR/mysqld.2/data/innodb_undo2
 --let CHECK_BP_1=ib_buffer_pool
 --let CHECK_BP_2=ib_buffer_pool
 
@@ -30,3 +31,5 @@
 --source include/auto_increment_offset_restore.inc
 
 --source galera_sst_dir_check.inc
+
+--source include/galera_end.inc
