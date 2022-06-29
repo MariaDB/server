@@ -77,16 +77,14 @@ stage/sql/table lock	NULL	NULL
 stage/sql/After create	NULL	NULL
 stage/sql/copy to tmp table	5	5
 stage/sql/Enabling keys	NULL	NULL
+stage/sql/Unlocking tables	NULL	NULL
+stage/sql/Enabling keys	NULL	NULL
 stage/sql/Apply log event	NULL	NULL
 stage/sql/After apply log event	NULL	NULL
-stage/sql/Rename result table	NULL	NULL
-stage/sql/Unlocking tables	NULL	NULL
 stage/sql/Rename result table	NULL	NULL
 stage/sql/End of update loop	NULL	NULL
 stage/sql/Query end	NULL	NULL
 stage/sql/Commit	NULL	NULL
-stage/sql/closing tables	NULL	NULL
-stage/sql/Unlocking tables	NULL	NULL
 stage/sql/closing tables	NULL	NULL
 stage/sql/Commit implicit	NULL	NULL
 stage/sql/Starting cleanup	NULL	NULL
