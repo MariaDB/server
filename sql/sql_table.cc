@@ -11416,12 +11416,6 @@ public:
 static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
                                          Cache_flip_event_log *log)
 {
-  MEM_ROOT event_mem_root;
-  Query_arena backup_arena;
-  Query_arena event_arena(&event_mem_root, Query_arena::STMT_INITIALIZED);
-  init_sql_alloc(key_memory_gdl, &event_mem_root,
-                 MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
-
   int error= 0;
 
   IO_CACHE *log_file= log->flip();
@@ -11438,13 +11432,9 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
       break;
 
     ev->thd= thd;
-    thd->set_n_backup_active_arena(&event_arena, &backup_arena);
     error= ev->apply_event(rgi);
-    thd->restore_active_arena(&event_arena, &backup_arena);
     if (thd->is_error())
       error= 1;
-    event_arena.free_items();
-    free_root(&event_mem_root, MYF(MY_KEEP_PREALLOC));
     if (ev != rgi->rli->relay_log.description_event_for_exec)
       delete ev;
     thd_progress_report(thd, my_b_tell(log_file), thd->progress.max_counter);
@@ -11854,8 +11844,11 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
     // We'll be filling from->record[0] from row events
     bitmap_set_all(from->write_set);
-    // We restore bitmaps, because update event is going to mess up with them.
+    // Use all columns. UPDATE/DELETE events reset read_set and write_set to
+    // def_*_set after each row operation, so using all_set won't work.
     to->default_column_bitmaps();
+    bitmap_set_all(&to->def_read_set);
+    bitmap_set_all(&to->def_write_set);
 
     end_read_record(&info);
     init_read_record_done= false;
