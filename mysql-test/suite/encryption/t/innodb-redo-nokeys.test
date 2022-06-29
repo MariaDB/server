@@ -10,6 +10,9 @@ call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error\\.");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
 call mtr.add_suppression("InnoDB: Cannot apply log to \\[page id: space=[1-9][0-9]*, page number=0\\] of corrupted file '.*test.t[1-5]\\.ibd'");
+call mtr.add_suppression("InnoDB: Failed to read page .* from file '.*'");
+call mtr.add_suppression("InnoDB: OPT_PAGE_CHECKSUM mismatch");
+call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore corruption");
 
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 -- source include/restart_mysqld.inc
