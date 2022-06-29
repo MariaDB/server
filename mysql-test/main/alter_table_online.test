@@ -33,3 +33,25 @@ alter table t modify c date;
 select * from t;
 drop table t;
 set sql_mode=default;
+
+--echo #
+--echo # MDEV-28944 XA assertions failing in binlog_rollback and binlog_commit
+--echo #
+CREATE TABLE t (a INT) ENGINE=MyISAM;
+INSERT INTO t VALUES (1);
+
+--connect (con1,localhost,root,,test)
+XA START 'xid';
+SELECT * FROM t;
+
+--connection default
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE t NOWAIT ADD KEY (a);
+
+--connection con1
+UPDATE t SET a = 2;
+XA END 'xid';
+XA COMMIT 'xid' ONE PHASE;
+
+DROP TABLE t;
+--disconnect con1
