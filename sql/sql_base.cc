@@ -4678,10 +4678,11 @@ restart:
 
         if (unlikely(error))
         {
+          /* F.ex. deadlock happened */
           if (ot_ctx.can_recover_from_failed_open())
           {
-            // FIXME: is this really used?
-            DBUG_ASSERT(0);
+            DBUG_ASSERT(ot_ctx.get_action() !=
+                        Open_table_context::OT_ADD_HISTORY_PARTITION);
             close_tables_for_reopen(thd, start,
                                     ot_ctx.start_of_statement_svp());
             if (ot_ctx.recover_from_failed_open())
