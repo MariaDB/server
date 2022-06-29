@@ -5729,12 +5729,12 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   DBUG_ASSERT(rgi->thd == thd);
 
   /*
-    If there is no locks taken, this is the first binrow event seen
+    If there are no tables open, this is the first binrow event seen
     after the table map events.  We should then lock all the tables
     used in the transaction and proceed with execution of the actual
     event.
   */
-  if (!thd->lock)
+  if (!thd->open_tables)
   {
     /*
       Lock_tables() reads the contents of thd->lex, so they must be

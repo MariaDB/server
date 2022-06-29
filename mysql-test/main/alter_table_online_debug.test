@@ -720,3 +720,47 @@ set debug_sync= 'reset';
 drop table t1;
 drop table t2;
 drop table t3;
+
+
+--echo #
+--echo # MDEV-28930 ALTER TABLE Deadlocks with parallel TL_WRITE
+--echo #
+create table t1(a int) engine=myisam select 1;
+
+set debug_sync='alter_table_online_before_lock SIGNAL ready WAIT_FOR go_for_locking';
+--send
+alter table t1 force;
+
+--connection con2
+--echo # Avoid long hang.
+set lock_wait_timeout= 1;
+set debug_sync='now WAIT_FOR ready';
+set debug_sync='thr_multi_lock_before_thr_lock SIGNAL go_for_locking';
+update t1 set a=2;
+set lock_wait_timeout= default;
+
+--connection default
+--reap
+
+
+set debug_sync='alter_table_online_before_lock SIGNAL ready WAIT_FOR go_for_locking';
+--echo # Avoid long hang.
+set lock_wait_timeout= 1;
+--send
+alter table mysql.global_priv force;
+
+--connection con2
+set debug_sync='now WAIT_FOR ready';
+set debug_sync='thr_multi_lock_before_thr_lock SIGNAL go_for_locking';
+create user user1@localhost;
+
+--connection default
+--reap
+
+--echo #
+--echo # Cleanup
+set lock_wait_timeout= default;
+set debug_sync=reset;
+drop user user1@localhost;
+drop table t1;
+
