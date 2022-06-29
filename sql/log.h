@@ -443,11 +443,11 @@ public:
 
   TODO should be unnecessary after MDEV-24676 is done
  */
-class Cache_flip_event_log: public Event_log, public Sql_alloc {
+class Cache_flip_event_log: public Event_log {
   IO_CACHE alt_buf;
   IO_CACHE *current, *alt;
-public:
   std::atomic<long> ref_count;
+public:
   bool error;
 
   Cache_flip_event_log() : Event_log(), alt_buf{},
@@ -494,6 +494,24 @@ public:
     return current;
   }
 
+  void acquire()
+  {
+    auto prev= ref_count.fetch_add(1);
+    DBUG_ASSERT(prev != 0);
+  }
+
+  void release()
+  {
+    auto prev= ref_count.fetch_add(-1);
+
+    if (prev == 1)
+    {
+      cleanup();
+      delete this;
+    }
+  }
+
+private:
   void cleanup()
   {
     end_io_cache(&alt_buf);
