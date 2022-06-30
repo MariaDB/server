@@ -4,6 +4,8 @@
 # because of a pair of slow Solaris Sparc machines in pb2,
 # this test is marked as big:
 --source include/big_test.inc
+# This test often times out with MSAN
+--source include/not_msan.inc
 
 # MyISAM tables should be used
 #
