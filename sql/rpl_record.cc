@@ -144,6 +144,34 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
 #endif
 
 
+#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
+/**
+  Fills @c table->record[0] with computed values of extra  persistent  column
+  which are present on slave but not on master.
+
+  @param table         Table whose record[0] buffer is prepared.
+  @param master_cols   No of columns on master
+  @returns 0 on        success
+ */
+static int fill_extra_persistent_columns(TABLE *table, int master_cols)
+{
+  int error= 0;
+
+  if (!table->vfield)
+    return 0;
+  for (Field **vfield_ptr= table->vfield; *vfield_ptr; ++vfield_ptr)
+  {
+    Field *vfield= *vfield_ptr;
+    if (vfield->field_index >= master_cols && vfield->stored_in_db())
+    {
+      bitmap_set_bit(table->write_set, vfield->field_index);
+      error= vfield->vcol_info->expr->save_in_field(vfield,0);
+    }
+  }
+  return error;
+}
+
+
 /**
    Unpack a row into @c table->record[0].
 
@@ -188,10 +216,7 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
    @retval HA_ERR_CORRUPT_EVENT
    Found error when trying to unpack fields.
  */
-#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-int
-unpack_row(rpl_group_info *rgi,
-           TABLE *table, uint const colcnt,
+int unpack_row(rpl_group_info *rgi, TABLE *table, uint const colcnt,
            uchar const *const row_data, MY_BITMAP const *cols,
            uchar const **const current_row_end, ulong *const master_reclength,
            uchar const *const row_end)
@@ -495,31 +520,5 @@ int prepare_record(TABLE *const table, const uint skip, const bool check)
   }
 
   DBUG_RETURN(0);
-}
-/**
-  Fills @c table->record[0] with computed values of extra  persistent  column
-  which are present on slave but not on master.
-
-  @param table         Table whose record[0] buffer is prepared.
-  @param master_cols   No of columns on master 
-  @returns 0 on        success
- */
-int fill_extra_persistent_columns(TABLE *table, int master_cols)
-{
-  int error= 0;
-  Field **vfield_ptr, *vfield;
-
-  if (!table->vfield)
-    return 0;
-  for (vfield_ptr= table->vfield; *vfield_ptr; ++vfield_ptr)
-  {
-    vfield= *vfield_ptr;
-    if (vfield->field_index >= master_cols && vfield->stored_in_db())
-    {
-      bitmap_set_bit(table->write_set, vfield->field_index);
-      error= vfield->vcol_info->expr->save_in_field(vfield,0);
-    }
-  }
-  return error;
 }
 #endif // HAVE_REPLICATION
