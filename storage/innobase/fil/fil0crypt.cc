@@ -1342,7 +1342,7 @@ inline bool fil_space_t::acquire_if_not_stopped()
     return true;
   if (UNIV_UNLIKELY(n & STOPPING))
     return false;
-  return UNIV_LIKELY(!(n & CLOSING)) || prepare(true);
+  return UNIV_LIKELY(!(n & CLOSING)) || prepare_acquired();
 }
 
 bool fil_crypt_must_default_encrypt()
@@ -1458,7 +1458,7 @@ space_list_t::iterator fil_space_t::next(space_list_t::iterator space,
       const uint32_t n= space->acquire_low();
       if (UNIV_LIKELY(!(n & (STOPPING | CLOSING))))
         break;
-      if (!(n & STOPPING) && space->prepare(true))
+      if (!(n & STOPPING) && space->prepare_acquired())
         break;
     }
   }
