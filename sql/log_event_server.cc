@@ -8192,6 +8192,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
   TABLE *table= m_table;
   int error= 0;
   bool is_table_scan= false, is_index_scan= false;
+  Check_level_instant_set clis(table->in_use, CHECK_FIELD_IGNORE);
 
   /*
     rpl_row_tabledefs.test specifies that
