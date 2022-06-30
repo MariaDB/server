@@ -28,7 +28,8 @@ const LEX_CSTRING filesort_names[]=
   { STRING_WITH_LEN("priority_queue with addon fields")},
   { STRING_WITH_LEN("priority_queue with row lookup")},
   { STRING_WITH_LEN("merge_sort with addon fields")},
-  { STRING_WITH_LEN("merge_sort with row lookup)")}
+  { STRING_WITH_LEN("merge_sort with row lookup)")},
+  { STRING_WITH_LEN("Error while computing filesort cost")}
 };
 
 /*
@@ -447,7 +448,7 @@ double cost_of_filesort(TABLE *table, ORDER *order_by, ha_rows rows_to_read,
   for (ORDER *ptr= order_by; ptr ; ptr= ptr->next)
   {
     Item_field *field= (Item_field*) (*ptr->item)->real_item();
-    size_t length= get_sort_length(table->in_use, field);
+    size_t length= get_sort_length(thd, field);
     set_if_smaller(length, thd->variables.max_sort_length);
     sort_len+= (uint) length;
   }

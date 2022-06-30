@@ -77,9 +77,8 @@ enum sort_type
   MERGE_SORT_ALL_FIELDS,
   MERGE_SORT_ORDER_BY_FIELDS,
 
-  FINAL_SORT_TYPE,
-
-  NO_SORT_POSSIBLE_OUT_OF_MEM,
+  NO_SORT_POSSIBLE_OUT_OF_MEM,                  /* In case of errors */
+  FINAL_SORT_TYPE= NO_SORT_POSSIBLE_OUT_OF_MEM
 };
 
 struct Sort_costs
