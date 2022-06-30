@@ -349,8 +349,15 @@ order by first_name, last_name
 offset 1 rows
 fetch first 3 rows with ties;
 
+--source include/analyze-format.inc
+analyze FORMAT=JSON
 select * from t1
-order by first_name, last_name
+order by first_name, last_name, score
+offset 2 rows
+fetch first 3 rows only;
+
+select * from t1
+order by first_name, last_name, score
 offset 2 rows
 fetch first 3 rows only;
 
@@ -360,7 +367,7 @@ offset 2 rows
 fetch first 3 rows with ties;
 
 select * from t1
-order by first_name, last_name
+order by first_name, last_name, score
 offset 3 rows
 fetch first 3 rows only;
 
