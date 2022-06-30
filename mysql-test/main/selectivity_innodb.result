@@ -334,7 +334,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	customer	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.orders.o_custkey	1	100.00	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	dbt3_s001.orders.o_orderkey	1	100.00	
 1	PRIMARY	lineitem	ref	PRIMARY,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey_quantity	4	dbt3_s001.orders.o_orderkey	4	100.00	Using index
-2	MATERIALIZED	lineitem	index	NULL	PRIMARY	8	NULL	6005	100.00	
+2	MATERIALIZED	lineitem	index	NULL	i_l_orderkey_quantity	13	NULL	6005	100.00	Using index
 Warnings:
 Note	1003	/* select#1 */ select `dbt3_s001`.`customer`.`c_name` AS `c_name`,`dbt3_s001`.`customer`.`c_custkey` AS `c_custkey`,`dbt3_s001`.`orders`.`o_orderkey` AS `o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE` AS `o_orderdate`,`dbt3_s001`.`orders`.`o_totalprice` AS `o_totalprice`,sum(`dbt3_s001`.`lineitem`.`l_quantity`) AS `sum(l_quantity)` from  <materialize> (/* select#2 */ select `dbt3_s001`.`lineitem`.`l_orderkey` from `dbt3_s001`.`lineitem` group by `dbt3_s001`.`lineitem`.`l_orderkey` having sum(`dbt3_s001`.`lineitem`.`l_quantity`) > 250) join `dbt3_s001`.`customer` join `dbt3_s001`.`orders` join `dbt3_s001`.`lineitem` where `dbt3_s001`.`customer`.`c_custkey` = `dbt3_s001`.`orders`.`o_custkey` and `<subquery2>`.`l_orderkey` = `dbt3_s001`.`orders`.`o_orderkey` and `dbt3_s001`.`lineitem`.`l_orderkey` = `dbt3_s001`.`orders`.`o_orderkey` group by `dbt3_s001`.`customer`.`c_name`,`dbt3_s001`.`customer`.`c_custkey`,`dbt3_s001`.`orders`.`o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE`,`dbt3_s001`.`orders`.`o_totalprice` order by `dbt3_s001`.`orders`.`o_totalprice` desc,`dbt3_s001`.`orders`.`o_orderDATE`
 select 
@@ -368,7 +368,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	customer	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.orders.o_custkey	1	100.00	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	dbt3_s001.orders.o_orderkey	1	100.00	
 1	PRIMARY	lineitem	ref	PRIMARY,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey_quantity	4	dbt3_s001.orders.o_orderkey	4	100.00	Using index
-2	MATERIALIZED	lineitem	index	NULL	PRIMARY	8	NULL	6005	100.00	
+2	MATERIALIZED	lineitem	index	NULL	i_l_orderkey_quantity	13	NULL	6005	100.00	Using index
 Warnings:
 Note	1003	/* select#1 */ select `dbt3_s001`.`customer`.`c_name` AS `c_name`,`dbt3_s001`.`customer`.`c_custkey` AS `c_custkey`,`dbt3_s001`.`orders`.`o_orderkey` AS `o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE` AS `o_orderdate`,`dbt3_s001`.`orders`.`o_totalprice` AS `o_totalprice`,sum(`dbt3_s001`.`lineitem`.`l_quantity`) AS `sum(l_quantity)` from  <materialize> (/* select#2 */ select `dbt3_s001`.`lineitem`.`l_orderkey` from `dbt3_s001`.`lineitem` group by `dbt3_s001`.`lineitem`.`l_orderkey` having sum(`dbt3_s001`.`lineitem`.`l_quantity`) > 250) join `dbt3_s001`.`customer` join `dbt3_s001`.`orders` join `dbt3_s001`.`lineitem` where `dbt3_s001`.`customer`.`c_custkey` = `dbt3_s001`.`orders`.`o_custkey` and `<subquery2>`.`l_orderkey` = `dbt3_s001`.`orders`.`o_orderkey` and `dbt3_s001`.`lineitem`.`l_orderkey` = `dbt3_s001`.`orders`.`o_orderkey` group by `dbt3_s001`.`customer`.`c_name`,`dbt3_s001`.`customer`.`c_custkey`,`dbt3_s001`.`orders`.`o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE`,`dbt3_s001`.`orders`.`o_totalprice` order by `dbt3_s001`.`orders`.`o_totalprice` desc,`dbt3_s001`.`orders`.`o_orderDATE`
 select 
