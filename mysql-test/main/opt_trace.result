@@ -1607,17 +1607,19 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
           {
             "reconsidering_access_paths_for_index_ordering": {
               "clause": "GROUP BY",
-              "fanout": 1,
-              "read_time": 2.084226263,
               "table": "t1",
-              "rows_estimation": 7,
+              "rows_estimation": 1,
+              "read_cost": 2.147624763,
+              "filesort_cost": 0.0633985,
+              "filesort_type": "priority_queue with addon fields",
+              "fanout": 1,
               "possible_keys": [
                 {
                   "index": "a",
                   "can_resolve_order": true,
-                  "updated_limit": 7,
-                  "index_scan_cost": 2.084226263,
-                  "rows": 7,
+                  "rows_to_examine": 7,
+                  "range_scan": false,
+                  "scan_cost": 2.084226263,
                   "chosen": true
                 }
               ]
@@ -2049,7 +2051,7 @@ a int,
 b int,
 c int,
 filler char(100),
-KEY a_a(c),
+KEY c(c),
 KEY a_c(a,c),
 KEY a_b(a,b)
 );
@@ -2062,6 +2064,10 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 set optimizer_trace='enabled=on';
+explain  select * from t1 where a=1 and b=2 order by c limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a_c,a_b	a_b	10	const,const	21	Using where; Using filesort
+update t1 set b=2 where pk between 20 and 40;
 explain  select * from t1 where a=1 and b=2 order by c limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a_c,a_b	a_c	5	NULL	180	Using where
@@ -2146,7 +2152,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   },
                   "potential_range_indexes": [
                     {
-                      "index": "a_a",
+                      "index": "c",
                       "usable": false,
                       "cause": "not applicable"
                     },
@@ -2180,8 +2186,8 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                         "rowid_ordered": true,
                         "using_mrr": false,
                         "index_only": false,
-                        "rows": 21,
-                        "cost": 16.28742739,
+                        "rows": 41,
+                        "cost": 31.3040249,
                         "chosen": true
                       }
                     ],
@@ -2198,11 +2204,11 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                     "range_access_plan": {
                       "type": "range_scan",
                       "index": "a_b",
-                      "rows": 21,
+                      "rows": 41,
                       "ranges": ["(1,2) <= (a,b) <= (1,2)"]
                     },
-                    "rows_for_plan": 21,
-                    "cost_for_plan": 16.28742739,
+                    "rows_for_plan": 41,
+                    "cost_for_plan": 31.3040249,
                     "chosen": true
                   }
                 }
@@ -2212,8 +2218,8 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                 "rowid_filters": [
                   {
                     "key": "a_b",
-                    "build_cost": 1.127362357,
-                    "rows": 21
+                    "build_cost": 1.752281351,
+                    "rows": 41
                   },
                   {
                     "key": "a_c",
@@ -2226,7 +2232,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                 "selectivity_for_indexes": [
                   {
                     "index_name": "a_b",
-                    "selectivity_from_index": 0.021
+                    "selectivity_from_index": 0.041
                   }
                 ],
                 "selectivity_for_columns": [
@@ -2241,7 +2247,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                     "selectivity_from_histogram": 0.015625
                   }
                 ],
-                "cond_selectivity": 0.021
+                "cond_selectivity": 0.041
               }
             ]
           },
@@ -2267,8 +2273,8 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                       "access_type": "ref",
                       "index": "a_b",
                       "used_range_estimates": true,
-                      "rows": 21,
-                      "cost": 16.26742739,
+                      "rows": 41,
+                      "cost": 31.2840249,
                       "chosen": true
                     },
                     {
@@ -2279,21 +2285,21 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   ],
                   "chosen_access_method": {
                     "type": "ref",
-                    "records_read": 21,
-                    "records_out": 21,
-                    "cost": 16.26742739,
+                    "records_read": 41,
+                    "records_out": 41,
+                    "cost": 31.2840249,
                     "uses_join_buffering": false
                   }
                 },
-                "rows_for_plan": 21,
-                "cost_for_plan": 16.26742739
+                "rows_for_plan": 41,
+                "cost_for_plan": 31.2840249
               }
             ]
           },
           {
             "best_join_order": ["t1"],
-            "rows": 21,
-            "cost": 16.26742739
+            "rows": 41,
+            "cost": 31.2840249
           },
           {
             "substitute_best_equal": {
@@ -2315,26 +2321,27 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
           {
             "reconsidering_access_paths_for_index_ordering": {
               "clause": "ORDER BY",
-              "fanout": 1,
-              "read_time": 16.26742739,
               "table": "t1",
-              "rows_estimation": 21,
+              "rows_estimation": 41,
+              "read_cost": 32.58369415,
+              "filesort_cost": 1.299669251,
+              "filesort_type": "priority_queue with addon fields",
+              "fanout": 1,
               "possible_keys": [
                 {
-                  "index": "a_a",
+                  "index": "c",
                   "can_resolve_order": true,
-                  "updated_limit": 47,
-                  "index_scan_cost": 35.77753234,
-                  "usable": false,
-                  "cause": "cost"
+                  "rows_to_examine": 24,
+                  "range_scan": false,
+                  "scan_cost": 18.51405907,
+                  "chosen": true
                 },
                 {
                   "index": "a_c",
                   "can_resolve_order": true,
-                  "updated_limit": 47,
-                  "index_scan_cost": 35.78900415,
-                  "range_scan_cost": 6.375520747,
-                  "rows": 180,
+                  "rows_to_examine": 4,
+                  "range_scan": true,
+                  "scan_cost": 10.5218905,
                   "chosen": true
                 },
                 {
@@ -2354,7 +2361,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
               },
               "potential_range_indexes": [
                 {
-                  "index": "a_a",
+                  "index": "c",
                   "usable": false,
                   "cause": "not applicable"
                 },
