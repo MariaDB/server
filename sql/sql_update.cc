@@ -821,9 +821,9 @@ int mysql_update(THD *thd,
         table->use_all_columns();
 
       /*
-	We are doing a search on a key that is updated. In this case
-	we go trough the matching rows, save a pointer to them and
-	update these in a separate loop based on the pointer.
+        We are doing a search on a key that is updated. In this case
+        we go trough the matching rows, save a pointer to them and
+        update these in a separate loop based on the pointer.
       */
       explain->buf_tracker.on_scan_init();
       IO_CACHE tempfile;

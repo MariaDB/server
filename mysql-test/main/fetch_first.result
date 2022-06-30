@@ -436,13 +436,13 @@ id	first_name	last_name	score
 2	John	Doe	6
 6	John	Elton	8.1
 select * from t1
-order by first_name, last_name
+order by first_name, last_name, score
 offset 2 rows
 fetch first 3 rows only;
 id	first_name	last_name	score
 2	John	Doe	6
 6	John	Elton	8.1
-5	John	Smith	7
+3	John	Smith	6
 select * from t1
 order by first_name, last_name
 offset 2 rows

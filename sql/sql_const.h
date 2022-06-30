@@ -239,6 +239,12 @@ static inline double cache_hit_ratio(uint ratio)
 #define ROW_LOOKUP_COST      ((double) 1.0)
 
 /*
+   These constants impact the cost of QSORT and priority queue sorting,
+   scaling the "n * log(n)" operations cost proportionally.
+*/
+#define QSORT_SORT_SLOWNESS_CORRECTION_FACTOR    (1.0)
+#define PQ_SORT_SLOWNESS_CORRECTION_FACTOR       (1.0)
+/*
   Cost of finding and copying keys from the storage engine index cache to
   an internal cache as part of an index scan.
   Used in handler::keyread_time()

@@ -63,10 +63,6 @@ static Addon_fields *get_addon_fields(TABLE *table, uint sortlength,
                                       uint *addon_length,
                                       uint *m_packable_length);
 
-static bool check_if_pq_applicable(Sort_param *param, SORT_INFO *info,
-                                   TABLE *table,
-                                   ha_rows records, size_t memory_available);
-
 static void store_key_part_length(uint32 num, uchar *to, uint bytes)
 {
   switch(bytes) {
@@ -127,6 +123,7 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
   }
   rec_length= sort_length + addon_length;
   limit_rows= maxrows;
+  sort_form= table;
 }
 
 
@@ -160,6 +157,7 @@ void Sort_param::try_to_pack_addons(ulong max_length_for_sort_data)
   res_length+= sz;
   rec_length+= sz;
 }
+
 
 /**
   Sort a table.
@@ -269,16 +267,49 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   // If number of rows is not known, use as much of sort buffer as possible. 
   num_rows= table->file->estimate_rows_upper_bound();
 
-  if (check_if_pq_applicable(&param, sort,
-                             table, num_rows, memory_available))
+  Sort_costs costs;
+  costs.compute_sort_costs(&param, num_rows, memory_available);
+
+  if (costs.fastest_sort == NO_SORT_POSSIBLE_OUT_OF_MEM)
   {
-    DBUG_PRINT("info", ("filesort PQ is applicable"));
+    my_error(ER_OUT_OF_SORTMEMORY,MYF(ME_ERROR_LOG + ME_FATAL));
+    goto err;
+  }
+
+  if (costs.fastest_sort == PQ_SORT_ALL_FIELDS ||
+      costs.fastest_sort == PQ_SORT_ORDER_BY_FIELDS)
+  {
+    /* We are going to use priorty queue */
     thd->query_plan_flags|= QPLAN_FILESORT_PRIORITY_QUEUE;
     status_var_increment(thd->status_var.filesort_pq_sorts_);
     tracker->incr_pq_used();
     param.using_pq= true;
     const size_t compare_length= param.sort_length;
     DBUG_ASSERT(param.using_packed_sortkeys() == false);
+
+    if (costs.fastest_sort == PQ_SORT_ORDER_BY_FIELDS && sort->addon_fields)
+    {
+      /*
+        Upper code have addon_fields enabled, which we have decided to
+        not use. Let's delete them.
+      */
+      my_free(sort->addon_fields);
+      sort->addon_fields= NULL;
+      param.addon_fields= NULL;
+      param.res_length= param.ref_length;
+      /*
+        Add the ref (rowid which is stored last in the sort key) to the sort,
+        as we want to retrive rows in id order, if possible.
+      */
+      param.sort_length+= param.ref_length;
+      param.rec_length= param.sort_length;
+    }
+
+    /* Priority queues needs one extra element for doing INSERT */
+    param.max_keys_per_buffer= param.limit_rows + 1;
+    if (!sort->alloc_sort_buffer(param.max_keys_per_buffer, param.rec_length))
+      goto err;
+
     /*
       For PQ queries (with limit) we know exactly how many pointers/records
       we have in the buffer, so to simplify things, we initialize
@@ -312,9 +343,10 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     tracker->report_sort_keys_format(param.using_packed_sortkeys());
     param.using_pq= false;
 
+    /* Allocate sort buffer. Use as much memory as possible. */
     size_t min_sort_memory= MY_MAX(MIN_SORT_MEMORY,
                                    param.sort_length*MERGEBUFF2);
-    set_if_bigger(min_sort_memory, sizeof(Merge_chunk*)*MERGEBUFF2);
+    set_if_bigger(min_sort_memory, sizeof(Merge_chunk*) * MERGEBUFF2);
     while (memory_available >= min_sort_memory)
     {
       ulonglong keys= memory_available / (param.rec_length + sizeof(char*));
@@ -350,14 +382,13 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
                        DISK_CHUNK_SIZE, MYF(MY_WME)))
     goto err;
 
-  param.sort_form= table;
   param.local_sortorder=
     Bounds_checked_array<SORT_FIELD>(filesort->sortorder, s_length);
 
   num_rows= find_all_keys(thd, &param, select,
                           sort,
                           &buffpek_pointers,
-                          &tempfile, 
+                          &tempfile,
                           pq.is_initialized() ? &pq : NULL,
                           &sort->found_rows);
   if (num_rows == HA_POS_ERROR)
@@ -398,7 +429,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     buffpek= (Merge_chunk *) sort->buffpek.str;
     close_cached_file(&buffpek_pointers);
     /* Open cached file if it isn't open */
-    if (! my_b_inited(outfile) &&
+    if (!my_b_inited(outfile) &&
         open_cached_file(outfile, mysql_tmpdir, TEMP_PREFIX, DISK_CHUNK_SIZE,
                          MYF(MY_WME)))
       goto err;
@@ -416,11 +447,11 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     maxbuffer--;				// Offset from 0
 
     if (merge_many_buff(&param, sort->get_raw_buf(),
-                        buffpek,&maxbuffer,
-	                      &tempfile))
+                        buffpek, &maxbuffer,
+                        &tempfile))
       goto err;
     if (flush_io_cache(&tempfile) ||
-	reinit_io_cache(&tempfile,READ_CACHE,0L,0,0))
+        reinit_io_cache(&tempfile, READ_CACHE, 0L,0,0))
       goto err;
     if (merge_index(&param,
                     sort->get_raw_buf(),
@@ -809,7 +840,7 @@ static void dbug_print_record(TABLE *table, bool print_rowid)
        {
          if (no free space in sort_keys buffers)
          {
-           sort sort_keys buffer;
+           qsort sort_keys buffer;
            dump sorted sequence to 'tempfile';
            dump BUFFPEK describing sequence location into 'buffpek_pointers';
          }
@@ -836,7 +867,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
                              ha_rows *found_rows)
 {
   int error, quick_select;
-  uint idx, indexpos;
+  uint num_elements_in_buffer, indexpos;
   uchar *ref_pos, *next_pos, ref_buff[MAX_REFLENGTH];
   TABLE *sort_form;
   handler *file;
@@ -851,15 +882,14 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
                      (select ? select->quick ? "ranges" : "where":
                       "every row")));
 
-  idx=indexpos=0;
-  error=quick_select=0;
-  sort_form=param->sort_form;
-  file=sort_form->file;
-  ref_pos= ref_buff;
-  quick_select=select && select->quick;
+  num_elements_in_buffer= indexpos= 0;
+  error= 0;
   *found_rows= 0;
-  ref_pos= &file->ref[0];
-  next_pos=ref_pos;
+  sort_form= param->sort_form;
+  file= sort_form->file;
+  ref_pos= ref_buff;
+  quick_select= select && select->quick;
+  next_pos= ref_pos= &file->ref[0];
 
   DBUG_EXECUTE_IF("show_explain_in_find_all_keys", 
                   dbug_serve_apcs(thd, 1);
@@ -867,7 +897,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
 
   if (!quick_select)
   {
-    next_pos=(uchar*) 0;			/* Find records in sequence */
+    next_pos= (uchar*) 0;  /* Find records in sequence */
     DBUG_EXECUTE_IF("bug14365043_1",
                     DBUG_SET("+d,ha_rnd_init_fail"););
     if (unlikely(file->ha_rnd_init_with_error(1)))
@@ -966,12 +996,13 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
       {
         if (fs_info->isfull())
         {
-          if (write_keys(param, fs_info, idx, buffpek_pointers, tempfile))
+          if (write_keys(param, fs_info, num_elements_in_buffer,
+                         buffpek_pointers, tempfile))
             goto err;
-          idx= 0;
+          num_elements_in_buffer= 0;
           indexpos++;
         }
-        if (idx == 0)
+        if (num_elements_in_buffer == 0)
           fs_info->init_next_record_pointer();
         uchar *start_of_rec= fs_info->get_next_record_pointer();
 
@@ -979,7 +1010,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
                                         ref_pos, using_packed_sortkeys);
         if (packed_format && rec_sz != param->rec_length)
           fs_info->adjust_next_record_pointer(rec_sz);
-        idx++;
+        num_elements_in_buffer++;
       }
       num_records++;
       (*param->accepted_rows)++;
@@ -1015,8 +1046,9 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
     file->print_error(error,MYF(ME_ERROR_LOG));
     DBUG_RETURN(HA_POS_ERROR);
   }
-  if (indexpos && idx &&
-      write_keys(param, fs_info, idx, buffpek_pointers, tempfile))
+  if (indexpos && num_elements_in_buffer &&
+      write_keys(param, fs_info, num_elements_in_buffer, buffpek_pointers,
+                 tempfile))
     DBUG_RETURN(HA_POS_ERROR);			/* purecov: inspected */
 
   (*found_rows)= num_records;
@@ -1525,115 +1557,6 @@ static bool save_index(Sort_param *param, uint count,
     false - PQ will be slower than merge-sort, or there is not enough memory.
 */
 
-static bool check_if_pq_applicable(Sort_param *param,
-                            SORT_INFO *filesort_info,
-                            TABLE *table, ha_rows num_rows,
-                            size_t memory_available)
-{
-  DBUG_ENTER("check_if_pq_applicable");
-
-  /*
-    How much Priority Queue sort is slower than qsort.
-    Measurements (see unit test) indicate that PQ is roughly 3 times slower.
-  */
-  const double PQ_slowness= 3.0;
-
-  if (param->limit_rows == HA_POS_ERROR)
-  {
-    DBUG_PRINT("info", ("No LIMIT"));
-    DBUG_RETURN(false);
-  }
-
-  if (param->limit_rows + 2 >= UINT_MAX)
-  {
-    DBUG_PRINT("info", ("Too large LIMIT"));
-    DBUG_RETURN(false);
-  }
-
-  size_t num_available_keys=
-    memory_available / (param->rec_length + sizeof(char*));
-  // We need 1 extra record in the buffer, when using PQ.
-  param->max_keys_per_buffer= (uint) param->limit_rows + 1;
-
-  if (num_rows < num_available_keys)
-  {
-    // The whole source set fits into memory.
-    if (param->limit_rows < num_rows/PQ_slowness )
-    {
-      filesort_info->alloc_sort_buffer(param->max_keys_per_buffer,
-                                       param->rec_length);
-      DBUG_RETURN(filesort_info->sort_buffer_size() != 0);
-    }
-    else
-    {
-      // PQ will be slower.
-      DBUG_RETURN(false);
-    }
-  }
-
-  // Do we have space for LIMIT rows in memory?
-  if (param->max_keys_per_buffer < num_available_keys)
-  {
-    filesort_info->alloc_sort_buffer(param->max_keys_per_buffer,
-                                     param->rec_length);
-    DBUG_RETURN(filesort_info->sort_buffer_size() != 0);
-  }
-
-  // Try to strip off addon fields.
-  if (param->addon_fields)
-  {
-    const size_t row_length=
-      param->sort_length + param->ref_length + sizeof(char*);
-    num_available_keys= memory_available / row_length;
-
-    // Can we fit all the keys in memory?
-    if (param->max_keys_per_buffer < num_available_keys)
-    {
-      /*
-        Get cost of merge sort. Note that this does not include
-        scanning the table and comparing the rows with the where clause!
-      */
-      const double sort_merge_cost=
-        get_merge_many_buffs_cost_fast(num_rows,
-                                       num_available_keys,
-                                       (uint)row_length,
-                                       ROWID_COMPARE_COST_THD(table->in_use));
-      /*
-        PQ has cost:
-        (insert + qsort) * log(queue size) * WHERE_COMPARE_COST
-        cost of rowid lookup of the original row to find the addon fields.
-      */
-      const double pq_cpu_cost= 
-        (PQ_slowness * num_rows + param->max_keys_per_buffer) *
-        log((double) param->max_keys_per_buffer) *
-        ROWID_COMPARE_COST_THD(table->in_use);
-      const double pq_io_cost= table->file->ha_rndpos_time(param->limit_rows);
-      const double pq_cost= pq_cpu_cost + pq_io_cost;
-
-      if (sort_merge_cost < pq_cost)
-        DBUG_RETURN(false);
-
-      filesort_info->alloc_sort_buffer(param->max_keys_per_buffer,
-                                       param->sort_length + param->ref_length);
-
-      if (filesort_info->sort_buffer_size() > 0)
-      {
-        /* Make attached data to be references instead of fields. */
-        my_free(filesort_info->addon_fields);
-        filesort_info->addon_fields= NULL;
-        param->addon_fields= NULL;
-
-        param->res_length= param->ref_length;
-        param->sort_length+= param->ref_length;
-        param->rec_length= param->sort_length;
-
-        DBUG_RETURN(true);
-      }
-    }
-  }
-  DBUG_RETURN(false);
-}
-
 
 /** Merge buffers to make < MERGEBUFF2 buffers. */
 
@@ -1646,28 +1569,28 @@ int merge_many_buff(Sort_param *param, Sort_buffer sort_buffer,
   DBUG_ENTER("merge_many_buff");
 
   if (*maxbuffer < MERGEBUFF2)
-    DBUG_RETURN(0);				/* purecov: inspected */
+    DBUG_RETURN(0);                             /* purecov: inspected */
   if (flush_io_cache(t_file) ||
       open_cached_file(&t_file2, mysql_tmpdir, TEMP_PREFIX, DISK_CHUNK_SIZE,
                        MYF(MY_WME)))
     DBUG_RETURN(1);				/* purecov: inspected */
 
-  from_file= t_file ; to_file= &t_file2;
+  from_file= t_file; to_file= &t_file2;
   while (*maxbuffer >= MERGEBUFF2)
   {
-    if (reinit_io_cache(from_file,READ_CACHE,0L,0,0))
+    if (reinit_io_cache(from_file, READ_CACHE, 0L, 0, 0))
       goto cleanup;
-    if (reinit_io_cache(to_file,WRITE_CACHE,0L,0,0))
+    if (reinit_io_cache(to_file, WRITE_CACHE,0L, 0, 0))
       goto cleanup;
     lastbuff=buffpek;
-    for (i=0 ; i <= *maxbuffer-MERGEBUFF*3/2 ; i+=MERGEBUFF)
+    for (i= 0; i <= *maxbuffer - MERGEBUFF * 3 / 2 ; i+= MERGEBUFF)
     {
-      if (merge_buffers(param,from_file,to_file,sort_buffer, lastbuff++,
-			buffpek+i,buffpek+i+MERGEBUFF-1,0))
+      if (merge_buffers(param, from_file, to_file, sort_buffer, lastbuff++,
+                        buffpek + i, buffpek + i + MERGEBUFF - 1, 0))
       goto cleanup;
     }
-    if (merge_buffers(param,from_file,to_file,sort_buffer, lastbuff++,
-		      buffpek+i,buffpek+ *maxbuffer,0))
+    if (merge_buffers(param, from_file, to_file, sort_buffer, lastbuff++,
+                      buffpek + i, buffpek + *maxbuffer, 0))
       break;					/* purecov: inspected */
     if (flush_io_cache(to_file))
       break;					/* purecov: inspected */
@@ -1879,17 +1802,17 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
     first_cmp_arg= param->get_compare_argument(&sort_length);
   }
   if (unlikely(init_queue(&queue, (uint) (Tb-Fb)+1,
-                         offsetof(Merge_chunk,m_current_key), 0,
+                          offsetof(Merge_chunk,m_current_key), 0,
                           (queue_compare) cmp, first_cmp_arg, 0, 0)))
     DBUG_RETURN(1);                                /* purecov: inspected */
-  const size_t chunk_sz = (sort_buffer.size()/((uint) (Tb-Fb) +1));
-  for (buffpek= Fb ; buffpek <= Tb ; buffpek++)
+  const size_t chunk_sz= (sort_buffer.size()/((uint) (Tb-Fb) +1));
+  for (buffpek= Fb; buffpek <= Tb; buffpek++)
   {
     buffpek->set_buffer(strpos, strpos + chunk_sz);
     buffpek->set_max_keys(maxcount);
     bytes_read= read_to_buffer(from_file, buffpek, param, packed_format);
     if (unlikely(bytes_read == (ulong) -1))
-      goto err;					/* purecov: inspected */
+      goto err;                 /* purecov: inspected */
     strpos+= chunk_sz;
     // If less data in buffers than expected
     buffpek->set_max_keys(buffpek->mem_count());
@@ -1971,11 +1894,11 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
         */
         if (!check_dupl_count || dupl_count >= min_dupl_count)
         {
-          if(my_b_write(to_file,
-                        src + (offset_for_packing ?
-                               rec_length - res_length :  // sort length
-                               wr_offset),
-                        bytes_to_write))
+          if (my_b_write(to_file,
+                         src + (offset_for_packing ?
+                                rec_length - res_length :  // sort length
+                                wr_offset),
+                         bytes_to_write))
             goto err;                           /* purecov: inspected */
         }
         if (cmp)

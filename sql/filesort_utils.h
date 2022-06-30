@@ -16,9 +16,13 @@
 #ifndef FILESORT_UTILS_INCLUDED
 #define FILESORT_UTILS_INCLUDED
 
+#include "my_global.h"
 #include "my_base.h"
 #include "sql_array.h"
 
+#include <utility>
+
+class TABLE;
 class Sort_param;
 
 /**
@@ -42,17 +46,70 @@ class Sort_param;
 */
 double get_merge_many_buffs_cost_fast(ha_rows num_rows,
                                       ha_rows num_keys_per_buffer,
-                                      uint    elem_size,
-                                      double  key_compare_cost);
+                                      size_t elem_size,
+                                      double compare_cost,
+                                      bool with_addon_fields);
 
+
+
+/*
+Merge Sort -> Without addon Fields, with fixed length
+Merge Sort -> Without addon Fields, with dynamic length
+Merge Sort -> With addon Fields, with fixed length
+Merge Sort -> With addon Fields, with dynamic length
+
+Priority queue -> Without addon fields
+Priority queue -> With addon fields
+*/
+
+enum sort_type
+{
+  PQ_SORT_ALL_FIELDS= 0,
+  PQ_SORT_ORDER_BY_FIELDS,
+  MERGE_SORT_ALL_FIELDS_FIXED_LENGTH,
+  MERGE_SORT_ALL_FIELDS_DYNAMIC_LENGTH,
+  MERGE_SORT_ORDER_BY_FIELDS_FIXED_LENGTH,
+  MERGE_SORT_ORDER_BY_FIELDS_DYNAMIC_LENGTH,
+
+  FINAL_SORT_TYPE,
+
+  NO_SORT_POSSIBLE_OUT_OF_MEM,
+};
+
+struct Sort_costs
+{
+  Sort_costs() :
+    fastest_sort(NO_SORT_POSSIBLE_OUT_OF_MEM), lowest_cost(DBL_MAX) {}
+
+  void compute_sort_costs(Sort_param *param, ha_rows num_rows,
+                          size_t memory_available);
+
+  /* Cache value for fastest_sort. */
+  enum sort_type fastest_sort;
+  /* Cache value for lowest cost. */
+  double lowest_cost;
+private:
+  /*
+    Array to hold all computed costs.
+    TODO(cvicentiu) This array is only useful for debugging. If it's not
+    used in debugging code, it can be removed to reduce memory usage.
+  */
+  double costs[FINAL_SORT_TYPE];
+
+  void compute_pq_sort_costs(Sort_param *param, ha_rows num_rows,
+                             size_t memory_available);
+  void compute_merge_sort_costs(Sort_param *param, ha_rows num_rows,
+                                size_t memory_available);
+  void compute_fastest_sort();
+};
 
 /**
   A wrapper class around the buffer used by filesort().
   The sort buffer is a contiguous chunk of memory,
   containing both records to be sorted, and pointers to said records:
 
-  <start of buffer       | still unused   |                     end of buffer>
-  |rec 0|record 1 |rec 2|  ............  |ptr to rec2|ptr to rec1|ptr to rec0|
+  <start of buffer     |  still unused  |                      end of buffer>
+  | rec0 | rec1 | rec2 |  ............  |ptr to rec2|ptr to rec1|ptr to rec0|
 
   Records will be inserted "left-to-right". Records are not necessarily
   fixed-size, they can be packed and stored without any "gaps".
@@ -284,5 +341,4 @@ private:
 int compare_packed_sort_keys(void *sort_keys, unsigned char **a,
                              unsigned char **b);
 qsort2_cmp get_packed_keys_compare_ptr();
-
 #endif  // FILESORT_UTILS_INCLUDED
