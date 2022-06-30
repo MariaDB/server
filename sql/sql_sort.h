@@ -548,7 +548,7 @@ public:
   uint res_length;            // Length of records in final sorted file/buffer.
   uint max_keys_per_buffer;   // Max keys / buffer.
   uint min_dupl_count;
-  ha_rows max_rows;           // Select limit, or HA_POS_ERROR if unlimited.
+  ha_rows limit_rows;         // Select limit, or HA_POS_ERROR if unlimited.
   ha_rows examined_rows;      // Number of examined rows.
   TABLE *sort_form;           // For quicker make_sortkey.
   /**
