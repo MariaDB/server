@@ -28,9 +28,8 @@ insert t1 values (5), (5);
 connection con2;
 set debug_sync= 'now WAIT_FOR ended';
 connection default;
-set session lock_wait_timeout=1;
 set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
-alter table t1 add unique (a), algorithm= copy, lock= none;
+alter table t1 nowait add unique (a), algorithm= copy, lock= none;
 connection con2;
 start transaction;
 insert into t1 values (123), (456), (789);
@@ -51,7 +50,6 @@ a
 select variable_value-@otd from information_schema.session_status where variable_name='Opened_table_definitions';
 variable_value-@otd
 1
-set session lock_wait_timeout=default;
 # long transaction and add column
 create or replace table t1 (a int);
 insert t1 values (5);
@@ -59,8 +57,7 @@ connection con2;
 set debug_sync= 'now WAIT_FOR ended';
 connection default;
 set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
-set session lock_wait_timeout=1;
-alter table t1 add b int NULL, algorithm= copy, lock= none;
+alter table t1 nowait add b int NULL, algorithm= copy, lock= none;
 connection con2;
 start transaction;
 insert into t1 values (123), (456), (789);
@@ -70,7 +67,6 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 select * from t1;
 a
 5
-set session lock_wait_timeout=default;
 connection con2;
 rollback;
 connection default;
