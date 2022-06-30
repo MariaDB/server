@@ -290,16 +290,24 @@ static bool backup_block_ddl(THD *thd)
 
 #ifdef WITH_WSREP
   /*
-    We desync the node for BACKUP STAGE because applier threads
+    if user is specifically choosing to allow BF aborting for BACKUP STAGE BLOCK_DDL lock
+    holder, then do not desync and pause the node from cluster replication.
+    e.g. mariabackup uses BACKUP STATE BLOCK_DDL; and will be abortable by this.
+    But, If node is processing as SST donor or WSREP_MODE_BF_MARIABACKUP mode is not set,
+    we desync the node for BACKUP STAGE because applier threads
     bypass backup MDL locks (see MDL_lock::can_grant_lock)
   */
-  if (WSREP_NNULL(thd) && !wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP))
+  if (WSREP_NNULL(thd))
   {
     Wsrep_server_state &server_state= Wsrep_server_state::instance();
-    if (server_state.desync_and_pause().is_undefined()) {
-      DBUG_RETURN(1);
+    if (!wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP) ||
+        server_state.state() == Wsrep_server_state::s_donor)
+    {
+      if (server_state.desync_and_pause().is_undefined()) {
+        DBUG_RETURN(1);
+      }
+      thd->wsrep_desynced_backup_stage= true;
     }
-    thd->wsrep_desynced_backup_stage= true;
   }
 #endif /* WITH_WSREP */
 
