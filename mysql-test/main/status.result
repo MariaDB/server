@@ -173,7 +173,7 @@ a	a
 1	1
 SHOW SESSION STATUS LIKE 'Last_query_cost';
 Variable_name	Value
-Last_query_cost	4.003418
+Last_query_cost	3.953418
 DROP TABLE t1;
 connect  con1,localhost,root,,;
 show status like 'com_show_status';
