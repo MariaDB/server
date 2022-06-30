@@ -76,6 +76,13 @@ static inline double cache_hit_ratio(uint ratio)
 #define ROW_COPY_COST_THD(THD)    ((THD)->variables.optimizer_row_copy_cost)
 
 /*
+  Creating a record from the join cache is faster than getting a row from
+  the engine. JOIN_CACHE_ROW_COPY_COST_FACTOR is the factor used to
+  take this into account. This is multiplied with ROW_COPY_COST.
+*/
+#define JOIN_CACHE_ROW_COPY_COST_FACTOR 0.75
+
+/*
   Cost of finding the next key during index scan and copying it to
   'table->record'
 
