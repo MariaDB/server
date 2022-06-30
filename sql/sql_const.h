@@ -119,14 +119,13 @@
 #define CREATE_MODE	0			/* Default mode on new files */
 #define NAMES_SEP_CHAR	255			/* Char to sep. names */
 
-#define READ_RECORD_BUFFER	(uint) (IO_SIZE*8) /* Pointer_buffer_size */
-#define DISK_BUFFER_SIZE	(uint) (IO_SIZE*16) /* Size of diskbuffer */
-
 /*
-  When reading big blocks, assume that each block of this size is
-  is of simlar cost as key lookup (1)
+   This is used when reading large blocks, sequential read.
+   We assume that reading this much will be the same cost as 1 seek / fetching
+   one row from the storage engine.
 */
-#define DISK_FAST_READ_SIZE     ((uint) (IO_SIZE*16))
+#define DISK_CHUNK_SIZE	(uint) (65536) /* Size of diskbuffer for tmpfiles */
+#define TMPFILE_CREATE_COST        2.0  /* Creating and deleting tmp file */
 
 #define FRM_VER_TRUE_VARCHAR (FRM_VER+4) /* 10 */
 #define FRM_VER_EXPRESSSIONS (FRM_VER+5) /* 11 */
