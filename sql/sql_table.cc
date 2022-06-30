@@ -11566,7 +11566,6 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
 
   thd_progress_report(thd, 0, my_b_write_tell(log_file));
 
-  Abort_on_warning_instant_set old_abort_on_warning(thd, 0);
   Has_default_error_handler hdeh;
   thd->push_internal_handler(&hdeh);
   do
@@ -11580,7 +11579,8 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
     thd->set_n_backup_active_arena(&event_arena, &backup_arena);
     error= ev->apply_event(rgi);
     thd->restore_active_arena(&event_arena, &backup_arena);
-
+    if (thd->is_error())
+      error= 1;
     event_arena.free_items();
     free_root(&event_mem_root, MYF(MY_KEEP_PREALLOC));
     if (ev != rgi->rli->relay_log.description_event_for_exec)
