@@ -721,7 +721,7 @@ bool Unique::merge(TABLE *table, uchar *buff, size_t buff_size,
     return 1;
 
   bzero((char*) &sort_param,sizeof(sort_param));
-  sort_param.max_rows= elements;
+  sort_param.limit_rows= elements;
   sort_param.sort_form= table;
   sort_param.rec_length= sort_param.sort_length= sort_param.ref_length=
    full_size;
