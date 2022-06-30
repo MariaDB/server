@@ -58,8 +58,9 @@ insert t1 values (5);
 connection con2;
 set debug_sync= 'now WAIT_FOR ended';
 connection default;
+set @old_dbug= @@debug_dbug;
+set debug_dbug= "+d,alter_table_online_timeout_fast";
 set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
-set session lock_wait_timeout=1;
 alter table t1 add b int NULL, algorithm= copy, lock= none;
 connection con2;
 start transaction;
@@ -70,6 +71,7 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 select * from t1;
 a
 5
+set debug_dbug= @old_dbug;
 set session lock_wait_timeout=default;
 connection con2;
 rollback;

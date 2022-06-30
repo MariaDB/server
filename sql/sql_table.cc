@@ -11866,9 +11866,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
     DEBUG_SYNC(thd, "alter_table_online_before_lock");
 
-    int lock_error=
-        thd->mdl_context.upgrade_shared_lock(from->mdl_ticket, MDL_EXCLUSIVE,
-                                     (double)thd->variables.lock_wait_timeout);
+    double lock_wait_timeout= (double)thd->variables.lock_wait_timeout;
+    DBUG_EXECUTE_IF("alter_table_online_timeout_fast",
+                    lock_wait_timeout= 0.001;);
+
+
+    int lock_error= thd->mdl_context.upgrade_shared_lock(from->mdl_ticket,
+                                                         MDL_EXCLUSIVE,
+                                                         lock_wait_timeout);
     if (!error)
       error= lock_error;
 
