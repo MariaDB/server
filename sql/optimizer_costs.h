@@ -55,6 +55,20 @@ static inline double cache_hit_ratio(uint ratio)
 #define ROW_LOOKUP_COST      ((double) 1.0)
 
 /*
+   These constants impact the cost of QSORT and priority queue sorting,
+   scaling the "n * log(n)" operations cost proportionally.
+   These factors are < 1.0 to scale down the sorting cost to be comparable
+   to 'read a row' = 1.0, (or 0.55 with default caching).
+   A factor of 0.1 makes the cost of get_pq_sort_cost(10, 10, false) =0.52
+   (Reading 10 rows into a priority queue of 10 elements).
+
+   One consenquence if this factor is too high is that priority_queue will
+   not use addon fields (to solve the sort without having to do an extra
+   re-read of rows) even if the number of LIMIT is low.
+*/
+#define QSORT_SORT_SLOWNESS_CORRECTION_FACTOR    (0.1)
+#define PQ_SORT_SLOWNESS_CORRECTION_FACTOR       (0.1)
+/*
   Cost of finding and copying keys from the storage engine index cache to
   an internal cache as part of an index scan.
   Used in handler::keyread_time()

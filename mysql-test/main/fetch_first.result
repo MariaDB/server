@@ -435,14 +435,57 @@ id	first_name	last_name	score
 7	Bob	Trasc	9
 2	John	Doe	6
 6	John	Elton	8.1
+analyze FORMAT=JSON
 select * from t1
-order by first_name, last_name
+order by first_name, last_name, score
+offset 2 rows
+fetch first 3 rows only;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "r_rows": 5,
+          "filesort": {
+            "sort_key": "t1.first_name, t1.last_name, t1.score",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_limit": 5,
+            "r_used_priority_queue": true,
+            "r_output_rows": 6,
+            "r_sort_mode": "sort_key,addon_fields",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 8,
+              "r_rows": 8,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+select * from t1
+order by first_name, last_name, score
 offset 2 rows
 fetch first 3 rows only;
 id	first_name	last_name	score
 2	John	Doe	6
 6	John	Elton	8.1
-5	John	Smith	7
+4	John	Smith	6
 select * from t1
 order by first_name, last_name
 offset 2 rows
@@ -454,7 +497,7 @@ id	first_name	last_name	score
 4	John	Smith	6
 5	John	Smith	7
 select * from t1
-order by first_name, last_name
+order by first_name, last_name, score
 offset 3 rows
 fetch first 3 rows only;
 id	first_name	last_name	score
