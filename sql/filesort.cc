@@ -1594,9 +1594,10 @@ static bool check_if_pq_applicable(Sort_param *param,
         scanning the table and comparing the rows with the where clause!
       */
       const double sort_merge_cost=
-        get_merge_many_buffs_cost_fast(table->in_use, num_rows,
+        get_merge_many_buffs_cost_fast(num_rows,
                                        num_available_keys,
-                                       (uint)row_length);
+                                       (uint)row_length,
+                                       ROWID_COMPARE_COST_THD(table->in_use));
       /*
         PQ has cost:
         (insert + qsort) * log(queue size) * ROWID_COMPARE_COST
