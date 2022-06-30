@@ -172,7 +172,7 @@ static inline double cache_hit_ratio(uint ratio)
 #define HEAP_TEMPTABLE_LOOKUP_COST 0.05
 #define HEAP_TEMPTABLE_CREATE_COST 1.0
 #define DISK_TEMPTABLE_LOOKUP_COST 1.0
-#define DISK_TEMPTABLE_CREATE_COST 4.0 /* Creating and deleting 2 temp tables */
+#define DISK_TEMPTABLE_CREATE_COST TMPFILE_CREATE_COST*2 /* 2 tmp tables */
 #define DISK_TEMPTABLE_BLOCK_SIZE  8192
 
 #define SORT_INDEX_CMP_COST 0.02
