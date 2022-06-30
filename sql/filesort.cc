@@ -346,8 +346,8 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   if (param.tmp_buffer.alloc(param.sort_length))
     goto err;
 
-  if (open_cached_file(&buffpek_pointers,mysql_tmpdir,TEMP_PREFIX,
-		       DISK_BUFFER_SIZE, MYF(MY_WME)))
+  if (open_cached_file(&buffpek_pointers, mysql_tmpdir, TEMP_PREFIX,
+                       DISK_CHUNK_SIZE, MYF(MY_WME)))
     goto err;
 
   param.sort_form= table;
@@ -397,10 +397,10 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     sort->buffpek.length= maxbuffer;
     buffpek= (Merge_chunk *) sort->buffpek.str;
     close_cached_file(&buffpek_pointers);
-	/* Open cached file if it isn't open */
+    /* Open cached file if it isn't open */
     if (! my_b_inited(outfile) &&
-	open_cached_file(outfile,mysql_tmpdir,TEMP_PREFIX,READ_RECORD_BUFFER,
-			  MYF(MY_WME)))
+        open_cached_file(outfile, mysql_tmpdir, TEMP_PREFIX, DISK_CHUNK_SIZE,
+                         MYF(MY_WME)))
       goto err;
     if (reinit_io_cache(outfile,WRITE_CACHE,0L,0,0))
       goto err;
@@ -1065,7 +1065,7 @@ write_keys(Sort_param *param,  SORT_INFO *fs_info, uint count,
   fs_info->sort_buffer(param, count);
 
   if (!my_b_inited(tempfile) &&
-      open_cached_file(tempfile, mysql_tmpdir, TEMP_PREFIX, DISK_BUFFER_SIZE,
+      open_cached_file(tempfile, mysql_tmpdir, TEMP_PREFIX, DISK_CHUNK_SIZE,
                        MYF(MY_WME)))
     DBUG_RETURN(1);                                /* purecov: inspected */
   /* check we won't have more buffpeks than we can possibly keep in memory */
@@ -1647,8 +1647,8 @@ int merge_many_buff(Sort_param *param, Sort_buffer sort_buffer,
   if (*maxbuffer < MERGEBUFF2)
     DBUG_RETURN(0);				/* purecov: inspected */
   if (flush_io_cache(t_file) ||
-      open_cached_file(&t_file2,mysql_tmpdir,TEMP_PREFIX,DISK_BUFFER_SIZE,
-			MYF(MY_WME)))
+      open_cached_file(&t_file2, mysql_tmpdir, TEMP_PREFIX, DISK_CHUNK_SIZE,
+                       MYF(MY_WME)))
     DBUG_RETURN(1);				/* purecov: inspected */
 
   from_file= t_file ; to_file= &t_file2;

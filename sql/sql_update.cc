@@ -828,8 +828,8 @@ int mysql_update(THD *thd,
       explain->buf_tracker.on_scan_init();
       IO_CACHE tempfile;
       if (open_cached_file(&tempfile, mysql_tmpdir,TEMP_PREFIX,
-			   DISK_BUFFER_SIZE, MYF(MY_WME)))
-	goto err;
+                           DISK_CHUNK_SIZE, MYF(MY_WME)))
+        goto err;
 
       /* If quick select is used, initialize it before retrieving rows. */
       if (select && select->quick && select->quick->reset())
