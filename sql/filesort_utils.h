@@ -20,12 +20,14 @@
 #include "sql_array.h"
 
 class Sort_param;
-/*
+
+/**
   Calculate cost of merge sort
 
     @param num_rows            Total number of rows.
     @param num_keys_per_buffer Number of keys per buffer.
     @param elem_size           Size of each element.
+    @param key_compare_cost    Cost to compare two keys during QSort & merge
 
     Calculates cost of merge sort by simulating call to merge_many_buff().
 
@@ -38,10 +40,10 @@ class Sort_param;
 
     See also comments get_merge_many_buffs_cost().
 */
-
-double get_merge_many_buffs_cost_fast(THD *thd, ha_rows num_rows,
+double get_merge_many_buffs_cost_fast(ha_rows num_rows,
                                       ha_rows num_keys_per_buffer,
-                                      uint    elem_size);
+                                      uint    elem_size,
+                                      double  key_compare_cost);
 
 
 /**
