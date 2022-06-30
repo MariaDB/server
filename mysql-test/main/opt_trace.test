@@ -148,7 +148,7 @@ create table t1  (
   b int,
   c int,
   filler char(100),
-  KEY a_a(c),
+  KEY c(c),
   KEY a_c(a,c),
   KEY a_b(a,b)
 );
@@ -159,6 +159,9 @@ update t1 set a=1 where pk between 0 and 180;
 update t1 set b=2 where pk between 0 and 20;
 analyze table t1;
 set optimizer_trace='enabled=on';
+explain  select * from t1 where a=1 and b=2 order by c limit 1;
+
+update t1 set b=2 where pk between 20 and 40;
 explain  select * from t1 where a=1 and b=2 order by c limit 1;
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 drop table t1,ten,one_k;
