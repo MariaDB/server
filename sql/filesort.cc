@@ -126,7 +126,7 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
     sort_length+= ref_length;
   }
   rec_length= sort_length + addon_length;
-  max_rows= maxrows;
+  limit_rows= maxrows;
 }
 
 
@@ -204,7 +204,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   bool allow_packing_for_sortkeys;
   Bounded_queue<uchar, uchar> pq;
   SQL_SELECT *const select= filesort->select;
-  ha_rows max_rows= filesort->limit;
+  ha_rows limit_rows= filesort->limit;
   uint s_length= 0, sort_len;
   Sort_keys *sort_keys;
   DBUG_ENTER("filesort");
@@ -249,7 +249,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
 
   param.sort_keys= sort_keys;
   sort_len= sortlength(thd, sort_keys, &allow_packing_for_sortkeys);
-  param.init_for_filesort(sort_len, table, max_rows, filesort);
+  param.init_for_filesort(sort_len, table, limit_rows, filesort);
   if (!param.accepted_rows)
     param.accepted_rows= &not_used;
 
@@ -264,7 +264,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   else
     thd->inc_status_sort_scan();
   thd->query_plan_flags|= QPLAN_FILESORT;
-  tracker->report_use(thd, max_rows);
+  tracker->report_use(thd, limit_rows);
 
   // If number of rows is not known, use as much of sort buffer as possible. 
   num_rows= table->file->estimate_rows_upper_bound();
@@ -286,7 +286,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
       point in doing lazy initialization).
     */
     sort->init_record_pointers();
-    if (pq.init(param.max_rows,
+    if (pq.init(param.limit_rows,
                 true,                           // max_at_top
                 NULL,                           // compare_function
                 compare_length,
@@ -431,10 +431,10 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
       goto err;
   }
 
-  if (num_rows > param.max_rows)
+  if (num_rows > param.limit_rows)
   {
     // If find_all_keys() produced more results than the query LIMIT.
-    num_rows= param.max_rows;
+    num_rows= param.limit_rows;
   }
   error= 0;
 
@@ -1073,8 +1073,8 @@ write_keys(Sort_param *param,  SORT_INFO *fs_info, uint count,
     DBUG_RETURN(1);
 
   buffpek.set_file_position(my_b_tell(tempfile));
-  if ((ha_rows) count > param->max_rows)
-    count=(uint) param->max_rows;               /* purecov: inspected */
+  if ((ha_rows) count > param->limit_rows)
+    count=(uint) param->limit_rows;               /* purecov: inspected */
   buffpek.set_rowcount(static_cast<ha_rows>(count));
 
   for (uint ix= 0; ix < count; ++ix)
@@ -1538,13 +1538,13 @@ static bool check_if_pq_applicable(Sort_param *param,
   */
   const double PQ_slowness= 3.0;
 
-  if (param->max_rows == HA_POS_ERROR)
+  if (param->limit_rows == HA_POS_ERROR)
   {
     DBUG_PRINT("info", ("No LIMIT"));
     DBUG_RETURN(false);
   }
 
-  if (param->max_rows >= UINT_MAX - 2)
+  if (param->limit_rows >= UINT_MAX - 2)
   {
     DBUG_PRINT("info", ("Too large LIMIT"));
     DBUG_RETURN(false);
@@ -1553,12 +1553,12 @@ static bool check_if_pq_applicable(Sort_param *param,
   size_t num_available_keys=
     memory_available / (param->rec_length + sizeof(char*));
   // We need 1 extra record in the buffer, when using PQ.
-  param->max_keys_per_buffer= (uint) param->max_rows + 1;
+  param->max_keys_per_buffer= (uint) param->limit_rows + 1;
 
   if (num_rows < num_available_keys)
   {
     // The whole source set fits into memory.
-    if (param->max_rows < num_rows/PQ_slowness )
+    if (param->limit_rows < num_rows/PQ_slowness )
     {
       filesort_info->alloc_sort_buffer(param->max_keys_per_buffer,
                                        param->rec_length);
@@ -1606,7 +1606,7 @@ static bool check_if_pq_applicable(Sort_param *param,
         (PQ_slowness * num_rows + param->max_keys_per_buffer) *
         log((double) param->max_keys_per_buffer) *
         ROWID_COMPARE_COST_THD(table->in_use);
-      const double pq_io_cost= table->file->ha_rndpos_time(param->max_rows);
+      const double pq_io_cost= table->file->ha_rndpos_time(param->limit_rows);
       const double pq_cost= pq_cpu_cost + pq_io_cost;
 
       if (sort_merge_cost < pq_cost)
@@ -1863,7 +1863,7 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
   maxcount= (ulong) (param->max_keys_per_buffer/((uint) (Tb-Fb) +1));
   to_start_filepos= my_b_tell(to_file);
   strpos= sort_buffer.array();
-  org_max_rows=max_rows= param->max_rows;
+  org_max_rows= max_rows= param->limit_rows;
   
   set_if_bigger(maxcount, 1);
   
@@ -2084,7 +2084,7 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
          bytes_read != 0);
 
 end:
-  lastbuff->set_rowcount(MY_MIN(org_max_rows-max_rows, param->max_rows));
+  lastbuff->set_rowcount(MY_MIN(org_max_rows - max_rows, param->limit_rows));
   lastbuff->set_file_position(to_start_filepos);
 
 cleanup:
