@@ -906,13 +906,23 @@ CREATE TABLE t1 (
 INSERT INTO t1 VALUES (1, 10), (2, NULL);
 
 --echo # Must use ref-or-null on the a_c index
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON
+SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
 EXPLAIN
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
+
 --echo # Must return 1 row
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
 
+--echo # With more rows "filesort" is removed
+INSERT INTO t1 select seq,seq from seq_1_to_2;
+EXPLAIN
+SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
+SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
+
 --echo # With more rows "range" changes to "ref_or_null"
-INSERT INTO t1 select seq,seq from seq_1_to_10;
+INSERT INTO t1 select seq,seq from seq_3_to_10;
 EXPLAIN
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
 
