@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1456,7 +1456,7 @@ inline bool fil_space_t::acquire_if_not_stopped()
     return true;
   if (UNIV_UNLIKELY(n & STOPPING))
     return false;
-  return UNIV_LIKELY(!(n & CLOSING)) || prepare(true);
+  return UNIV_LIKELY(!(n & CLOSING)) || prepare_acquired();
 }
 
 bool fil_crypt_must_default_encrypt()
@@ -1567,7 +1567,7 @@ inline fil_space_t *fil_space_t::next(fil_space_t *space, bool recheck,
       const uint32_t n= space->acquire_low();
       if (UNIV_LIKELY(!(n & (STOPPING | CLOSING))))
         break;
-      if (!(n & STOPPING) && space->prepare(true))
+      if (!(n & STOPPING) && space->prepare_acquired())
         break;
     }
   }

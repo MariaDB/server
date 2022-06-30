@@ -665,11 +665,9 @@ fil_space_extend_must_retry(
 }
 
 /** @return whether the file is usable for io() */
-ATTRIBUTE_COLD bool fil_space_t::prepare(bool have_mutex)
+ATTRIBUTE_COLD bool fil_space_t::prepare_acquired()
 {
   ut_ad(referenced());
-  if (!have_mutex)
-    mutex_enter(&fil_system.mutex);
   ut_ad(mutex_own(&fil_system.mutex));
   fil_node_t *node= UT_LIST_GET_LAST(chain);
   ut_ad(!id || purpose == FIL_TYPE_TEMPORARY ||
@@ -714,8 +712,16 @@ ATTRIBUTE_COLD bool fil_space_t::prepare(bool have_mutex)
 clear:
    n_pending.fetch_and(~CLOSING, std::memory_order_relaxed);
 
-  if (!have_mutex)
-    mutex_exit(&fil_system.mutex);
+  return is_open;
+}
+
+/** @return whether the file is usable for io() */
+ATTRIBUTE_COLD bool fil_space_t::acquire_and_prepare()
+{
+  mutex_enter(&fil_system.mutex);
+  const auto flags= acquire_low() & (STOPPING | CLOSING);
+  const bool is_open= !flags || (flags == CLOSING && prepare_acquired());
+  mutex_exit(&fil_system.mutex);
   return is_open;
 }
 
@@ -1488,13 +1494,13 @@ fil_space_t *fil_space_t::get(ulint id)
   mutex_enter(&fil_system.mutex);
   fil_space_t *space= fil_space_get_by_id(id);
   const uint32_t n= space ? space->acquire_low() : 0;
-  mutex_exit(&fil_system.mutex);
 
   if (n & STOPPING)
     space= nullptr;
-  else if ((n & CLOSING) && !space->prepare())
+  else if ((n & CLOSING) && !space->prepare_acquired())
     space= nullptr;
 
+  mutex_exit(&fil_system.mutex);
   return space;
 }
 
