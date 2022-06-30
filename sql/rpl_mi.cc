@@ -43,7 +43,8 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
    gtid_reconnect_event_skip_count(0), gtid_event_seen(false),
    in_start_all_slaves(0), in_stop_all_slaves(0), in_flush_all_relay_logs(0),
    users(0), killed(0),
-   total_ddl_groups(0), total_non_trans_groups(0), total_trans_groups(0)
+   total_ddl_groups(0), total_non_trans_groups(0), total_trans_groups(0),
+   do_accept_own_server_id(false)
 {
   char *tmp;
   host[0] = 0; user[0] = 0; password[0] = 0;

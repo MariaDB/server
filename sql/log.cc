@@ -6463,11 +6463,13 @@ MYSQL_BIN_LOG::bump_seq_no_counter_if_needed(uint32 domain_id, uint64 seq_no)
 bool
 MYSQL_BIN_LOG::check_strict_gtid_sequence(uint32 domain_id,
                                           uint32 server_id_arg,
-                                          uint64 seq_no)
+                                          uint64 seq_no,
+                                          bool no_error)
 {
   return rpl_global_gtid_binlog_state.check_strict_sequence(domain_id,
                                                             server_id_arg,
-                                                            seq_no);
+                                                            seq_no,
+                                                            no_error);
 }
 
 

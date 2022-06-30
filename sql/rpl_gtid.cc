@@ -1734,7 +1734,7 @@ rpl_binlog_state::alloc_element_nolock(const rpl_gtid *gtid)
 */
 bool
 rpl_binlog_state::check_strict_sequence(uint32 domain_id, uint32 server_id,
-                                        uint64 seq_no)
+                                        uint64 seq_no, bool no_error)
 {
   element *elem;
   bool res= 0;
@@ -1744,9 +1744,10 @@ rpl_binlog_state::check_strict_sequence(uint32 domain_id, uint32 server_id,
                                        (const uchar *)(&domain_id), 0)) &&
       elem->last_gtid && elem->last_gtid->seq_no >= seq_no)
   {
-    my_error(ER_GTID_STRICT_OUT_OF_ORDER, MYF(0), domain_id, server_id, seq_no,
-             elem->last_gtid->domain_id, elem->last_gtid->server_id,
-             elem->last_gtid->seq_no);
+    if (!no_error)
+      my_error(ER_GTID_STRICT_OUT_OF_ORDER, MYF(0), domain_id, server_id, seq_no,
+               elem->last_gtid->domain_id, elem->last_gtid->server_id,
+               elem->last_gtid->seq_no);
     res= 1;
   }
   mysql_mutex_unlock(&LOCK_binlog_state);

@@ -2030,7 +2030,10 @@ Sys_gtid_strict_mode(
        "gtid_strict_mode",
        "Enforce strict seq_no ordering of events in the binary log. Slave "
        "stops with an error if it encounters an event that would cause it to "
-       "generate an out-of-order binlog if executed.",
+       "generate an out-of-order binlog if executed. "
+       "When ON the same server-id semisync-replicated transactions that "
+       "duplicate exising ones in binlog are ignored without error "
+       "and slave interruption.",
        GLOBAL_VAR(opt_gtid_strict_mode),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 

@@ -352,6 +352,20 @@ class Master_info : public Slave_reporting_capability
     ACK from slave, or if delay_master is enabled.
   */
   int semi_ack;
+  /*
+    The flag has replicate_same_server_id semantics and is raised to accept
+    a same-server-id event group by the gtid strict mode semisync slave.
+    Own server-id events can normally appear as result of EITHER
+    A. this server semisync (failover to) slave crash-recovery:
+       the transaction was created on this server then being master,
+       got replicated elsewhere right before the crash before commit,
+       and finally at recovery the transaction gets evicted from the
+       server's binlog and its gtid (slave) state; OR
+    B. in a general circular configuration and then when a recieved (returned
+       to slave) gtid exists in the server's binlog. Then, in gtid strict mode,
+       it must be ignored similarly to the replicate-same-server-id rule.
+ */
+  bool do_accept_own_server_id;
 };
 
 int init_master_info(Master_info* mi, const char* master_info_fname,

@@ -1,12 +1,9 @@
 include/master-slave.inc
 [connection master]
-# Master server_1 and Slave server_2 initialiation ...
+# Master server_1 and Slave server_2 initialization ...
 connection server_2;
 include/stop_slave.inc
 connection server_1;
-set @@sql_log_bin = off;
-call mtr.add_suppression("Slave: An attempt was made to binlog GTID 10-1-1 which would create an out-of-order sequence number with existing GTID");
-set @@sql_log_bin = on;
 RESET MASTER;
 set @@session.gtid_domain_id=10;
 set @@global.rpl_semi_sync_master_enabled = 1;
@@ -22,39 +19,36 @@ Warnings:
 Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-1. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 CHANGE MASTER TO master_use_gtid= slave_pos;
 include/start_slave.inc
-# ... server_1 -> server_2 is set up
+# server_1 -> server_2 semisync link is set up.
 connection server_1;
-CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=Innodb;
-INSERT INTO t1 VALUES (1);
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT default 0) ENGINE=Innodb;
+INSERT INTO t1(a) VALUES (1);
+include/save_master_gtid.inc
 connection server_2;
-# Circular configuration server_2 -> server_1 initialiation ...
+include/sync_with_master_gtid.inc
+# Circular configuration server_1 -> server_2 -> server_1 ...
 connection server_1;
-# A. ... first when server_1 is in gtid strict mode...
 set @@global.gtid_strict_mode = true;
 set @@global.rpl_semi_sync_slave_enabled = 1;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_use_gtid=SLAVE_POS;
-# ...  only for it to fail 'cos if its inconsistent (empty) slave's gtid state:
-SELECT @@global.gtid_slave_pos;
-@@global.gtid_slave_pos
-
-START SLAVE;
-include/wait_for_slave_sql_error.inc [errno=1950]
-# B. ... Resume on the circular setup with the server_id now in the non-strict mode ...
-set @@global.gtid_strict_mode = false;
 include/start_slave.inc
-# ... to have succeeded.
+... is done.
+## A. no out-of-order gtid error for own transaction made round trip
 connection server_2;
-INSERT INTO t1 VALUES (2);
+set @@global.gtid_strict_mode = true;
+set @@global.rpl_semi_sync_master_enabled = 1;
+INSERT INTO t1(a) VALUES (2);
+include/save_master_gtid.inc
 connection server_1;
-INSERT INTO t1 VALUES (3);
+#
+# the successful sync is a required proof
+#
+include/sync_with_master_gtid.inc
+update t1 set b=b+1 where a=2;
+include/save_master_gtid.inc
 connection server_2;
-# The gtid states on server_2 must be equal to ...
-SHOW VARIABLES LIKE 'gtid_binlog_pos';
-Variable_name	Value
-gtid_binlog_pos	0-2-1,10-1-3,20-2-1
-SHOW VARIABLES LIKE 'gtid_slave_pos';
-Variable_name	Value
-gtid_slave_pos	0-2-1,10-1-3,20-2-1
+include/sync_with_master_gtid.inc
+# Post-execution state check on both servers synchronized with each other
 connection server_1;
 # ... the gtid states on server_1
 SHOW VARIABLES LIKE 'gtid_slave_pos';
@@ -63,14 +57,107 @@ gtid_slave_pos	0-2-1,10-1-3,20-2-1
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
 Variable_name	Value
 gtid_binlog_pos	0-2-1,10-1-3,20-2-1
+SELECT * from t1;
+a	b
+1	0
+2	1
+connection server_2;
+# The gtid states on server_2 must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-2-1,10-1-3,20-2-1
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-2-1,10-1-3,20-2-1
+SELECT * from t1;
+a	b
+1	0
+2	1
+## B. out-of-order gtid error for a "foreign" server-id transaction
+connection server_1;
+set statement sql_log_bin=0 for call mtr.add_suppression("Slave: An attempt was made to binlog GTID 10-2-4");
+set @@session.server_id=2;
+INSERT INTO t1(a) VALUES (3);
+set @@session.server_id=default;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+INSERT INTO t1(a) VALUES (4);
+include/save_master_gtid.inc
+connection server_1;
+include/wait_for_slave_sql_error.inc [errno=1950]
+set sql_slave_skip_counter=1;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+connection server_2;
+set statement sql_log_bin=0 for call mtr.add_suppression("Slave: An attempt was made to binlog GTID 20-1-3");
+set @@session.server_id=1;
+INSERT INTO t1(a) VALUES (5);
+set @@session.server_id=default;
+include/save_master_gtid.inc
+connection server_1;
+include/sync_with_master_gtid.inc
+INSERT INTO t1(a) VALUES (6);
+include/save_master_gtid.inc
+connection server_2;
+include/wait_for_slave_sql_error.inc [errno=1950]
+set sql_slave_skip_counter=1;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+# Post-execution state check on both servers synchronized with each other
+connection server_1;
+# ... the gtid states on server_1
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-2-1,10-1-5,20-1-3
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-2-1,10-1-5,20-1-3
+SELECT * from t1;
+a	b
+1	0
+2	1
+3	0
+4	0
+5	0
+6	0
+connection server_2;
+include/sync_with_master_gtid.inc
+# The gtid states on server_2 must be equal to ...
+SHOW VARIABLES LIKE 'gtid_binlog_pos';
+Variable_name	Value
+gtid_binlog_pos	0-2-1,10-1-5,20-1-3
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-2-1,10-1-5,20-1-3
+SELECT * from t1;
+a	b
+1	0
+2	1
+3	0
+4	0
+5	0
+6	0
+#
 # Cleanup
+#
+connection server_1;
+DROP TABLE t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 connection server_1;
 include/stop_slave.inc
 set @@global.rpl_semi_sync_master_enabled = default;
 set @@global.rpl_semi_sync_slave_enabled = default;
 set @@global.rpl_semi_sync_master_wait_point=default;
-DROP TABLE t1;
+set @@global.gtid_ignore_duplicates = default;
+set @@global.gtid_strict_mode = default;
 connection server_2;
+include/stop_slave.inc
+set @@global.gtid_ignore_duplicates = default;
 set @@global.rpl_semi_sync_master_enabled = default;
 set @@global.rpl_semi_sync_slave_enabled = default;
+set @@global.gtid_strict_mode = default;
+include/start_slave.inc
 include/rpl_end.inc
