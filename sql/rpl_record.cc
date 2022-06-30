@@ -155,8 +155,6 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
  */
 static int fill_extra_persistent_columns(TABLE *table, int master_cols)
 {
-  int error= 0;
-
   if (!table->vfield)
     return 0;
   for (Field **vfield_ptr= table->vfield; *vfield_ptr; ++vfield_ptr)
@@ -165,10 +163,11 @@ static int fill_extra_persistent_columns(TABLE *table, int master_cols)
     if (vfield->field_index >= master_cols && vfield->stored_in_db())
     {
       bitmap_set_bit(table->write_set, vfield->field_index);
-      error= vfield->vcol_info->expr->save_in_field(vfield,0);
+      if (vfield->vcol_info->expr->save_in_field(vfield,0) < 0)
+        return 1;
     }
   }
-  return error;
+  return 0;
 }
 
 
