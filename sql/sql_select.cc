@@ -8737,7 +8737,8 @@ best_access_path(JOIN      *join,
       row combinations, only a HASH_FANOUT (10%) rows in the cache.
     */
     cmp_time= (rnd_records * record_count * HASH_FANOUT *
-               WHERE_COST_THD(thd));
+               (ROW_COPY_COST_THD(thd) * JOIN_CACHE_ROW_COPY_COST_FACTOR +
+                WHERE_COST_THD(thd)));
     tmp= COST_ADD(tmp, cmp_time);
 
     best_cost= tmp;
@@ -8969,7 +8970,8 @@ best_access_path(JOIN      *join,
           row.
         */
         cmp_time= (rnd_records * record_count *
-                   (ROW_COPY_COST_THD(thd) * (idx - join->const_tables) +
+                   (ROW_COPY_COST_THD(thd) * (idx - join->const_tables) *
+                    JOIN_CACHE_ROW_COPY_COST_FACTOR +
                     WHERE_COST_THD(thd)));
         tmp= COST_ADD(tmp, cmp_time);
       }
