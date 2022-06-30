@@ -7190,7 +7190,8 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
 {
   DBUG_ENTER("Rows_log_event::find_row");
 
-  DBUG_ASSERT(m_table && m_table->in_use != NULL);
+  DBUG_ASSERT(m_table);
+  DBUG_ASSERT(m_table->in_use != NULL);
 
   TABLE *table= m_table;
   int error= 0;
@@ -7247,7 +7248,6 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
                                  table->s->reclength) == 0);
 
     */
-    int error;
     DBUG_PRINT("info",("locating record using primary key (position)"));
 
     error= table->file->ha_rnd_pos_by_record(table->record[0]);
@@ -7309,10 +7309,9 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
       table->record[0][table->s->null_bytes - 1]|=
         256U - (1U << table->s->last_null_bit_pos);
 
-    if (unlikely((error= table->file->ha_index_read_map(table->record[0],
-                                                        m_key,
-                                                        HA_WHOLE_KEY,
-                                                        HA_READ_KEY_EXACT))))
+    error= table->file->ha_index_read_map(table->record[0], m_key, HA_WHOLE_KEY,
+                                          HA_READ_KEY_EXACT);
+    if (unlikely(error))
     {
       DBUG_PRINT("info",("no record matching the key found in the table"));
       if (error == HA_ERR_KEY_NOT_FOUND)
@@ -7418,9 +7417,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     /* Continue until we find the right record or have made a full loop */
     do
     {
-      error= table->file->ha_rnd_next(table->record[0]);
-
-      if (unlikely(error))
+      if (unlikely((error= table->file->ha_rnd_next(table->record[0]))))
         DBUG_PRINT("info", ("error: %s", HA_ERR(error)));
       switch (error) {
 
