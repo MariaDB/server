@@ -541,11 +541,22 @@ to be fixed later
 
 class Sort_param {
 public:
-  uint rec_length;            // Length of sorted records.
-  uint sort_length;           // Length of sorted columns.
+  // Length of sorted records. ALWAYS equal to sort_length + addon_length
+  uint rec_length;
+  /*
+    Length of what we need to sort: Sorted columns + ref_length if not
+    addon fields are used
+  */
+  uint sort_length;
+  /* Length of the reference to the row (rowid or primary key etc */
   uint ref_length;            // Length of record ref.
+  /* Length of all addon fields. 0 if no addon fields */
   uint addon_length;          // Length of addon_fields
-  uint res_length;            // Length of records in final sorted file/buffer.
+  /*
+    The length of the 'result' we are going to return to the caller for
+    each sort element. Also the length of data in final sorted file/buffer.
+  */
+  uint res_length;
   uint max_keys_per_buffer;   // Max keys / buffer.
   uint min_dupl_count;
   ha_rows limit_rows;         // Select limit, or HA_POS_ERROR if unlimited.
