@@ -130,3 +130,32 @@ UNLOCK TABLES;
 ALTER TABLE t2 IMPORT TABLESPACE;
 ERROR HY000: Index for table 't2' is corrupt; try to repair it
 DROP TABLE t1, t2;
+#
+# MDEV-28919 Assertion `(((core_null) + 7) >> 3) ==
+# oindex.n_core_null_bytes || !not_redundant()' failed
+#
+call mtr.add_suppression(" InnoDB: Tablespace for table `test`.`t` is set as discarded");
+CREATE TABLE t (a INTEGER, b INTEGER as (a) VIRTUAL,
+c INTEGER)engine=innodb;
+ALTER TABLE t DISCARD TABLESPACE;
+FLUSH TABLES;
+ALTER TABLE t DROP COLUMN b, algorithm=instant;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t`
+ALTER TABLE t DROP COLUMN c, algorithm=instant;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t`
+CREATE TABLE t1(a INTEGER)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+FLUSH TABLE t1 FOR EXPORT;
+unlock tables;
+ALTER TABLE t IMPORT tablespace;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t`
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select * from t;
+a
+1
+DROP TABLE t, t1;

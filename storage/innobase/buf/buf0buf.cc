@@ -813,7 +813,10 @@ void buf_page_print(const byte *read_buf, ulint zip_size)
     byte row[64];
 
     for (byte *r= row; r != &row[64]; r+= 2, read_buf++)
-      r[0]= hex_to_ascii(*read_buf >> 4), r[1]= hex_to_ascii(*read_buf & 15);
+    {
+      r[0]= hex_to_ascii(byte(*read_buf >> 4));
+      r[1]= hex_to_ascii(*read_buf & 15);
+    }
 
     sql_print_information("InnoDB: %.*s", 64, row);
   }

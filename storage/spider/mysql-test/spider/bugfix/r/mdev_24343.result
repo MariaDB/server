@@ -1,0 +1,75 @@
+#
+# MDEV-24343 Spider Left join failed Unknown column 't0.ID' in 'on clause'
+#
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+CREATE TABLE tbl_a (
+`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+`first_name` varchar(255) DEFAULT NULL,
+PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+INSERT INTO `tbl_a` VALUES (1,'RICHARD'), (2,'STEPHANE'), (3,'ALAIN');
+CREATE TABLE `tbl_b` (
+`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+`last_name` varchar(255) DEFAULT NULL,
+PRIMARY KEY (`ID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+INSERT INTO `tbl_b` VALUES (1,'DEMONGEOT'),(2,'VAROQUI');
+CREATE TABLE `tbl_c` (
+`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+`surname` varchar(255) DEFAULT NULL,
+PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+INSERT INTO `tbl_c` VALUES (1,'CON'),(2,'MOYEN'),(3,'MOYEN2');
+SELECT * from tbl_b JOIN tbl_c ON tbl_b.id = tbl_c.id LEFT OUTER JOIN tbl_a ON tbl_a.id = tbl_b.id;
+id	last_name	id	surname	id	first_name
+1	DEMONGEOT	1	CON	1	RICHARD
+2	VAROQUI	2	MOYEN	2	STEPHANE
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+CREATE TABLE tbl_a (
+`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+`first_name` varchar(255) DEFAULT NULL,
+PRIMARY KEY (`id`)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a"'
+PARTITION BY LIST COLUMNS(`id`) (
+PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
+);
+CREATE TABLE `tbl_b` (
+`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+`last_name` varchar(255) DEFAULT NULL,
+PRIMARY KEY (`id`)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_b"'
+PARTITION BY LIST COLUMNS(`id`) (
+PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
+);
+CREATE TABLE `tbl_c` (
+`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+`surname` varchar(255) DEFAULT NULL,
+PRIMARY KEY (`id`)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_c"'
+PARTITION BY LIST COLUMNS(`id`) (
+PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
+);
+SELECT * from tbl_b JOIN tbl_c ON tbl_b.id = tbl_c.id LEFT OUTER JOIN tbl_a ON tbl_a.id = tbl_b.id;
+id	last_name	id	surname	id	first_name
+1	DEMONGEOT	1	CON	1	RICHARD
+2	VAROQUI	2	MOYEN	2	STEPHANE
+connection master_1;
+DROP DATABASE auto_test_local;
+connection child2_1;
+DROP DATABASE auto_test_remote;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3

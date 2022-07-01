@@ -1,0 +1,84 @@
+--echo #
+--echo # MDEV-24343 Spider Left join failed Unknown column 't0.ID' in 'on clause'
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection child2_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+eval CREATE TABLE tbl_a (
+    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+    `first_name` varchar(255) DEFAULT NULL,
+    PRIMARY KEY (`id`)
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+
+INSERT INTO `tbl_a` VALUES (1,'RICHARD'), (2,'STEPHANE'), (3,'ALAIN');
+
+eval CREATE TABLE `tbl_b` (
+    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+    `last_name` varchar(255) DEFAULT NULL,
+    PRIMARY KEY (`ID`)
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+
+INSERT INTO `tbl_b` VALUES (1,'DEMONGEOT'),(2,'VAROQUI');
+
+eval CREATE TABLE `tbl_c` (
+    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+    `surname` varchar(255) DEFAULT NULL,
+    PRIMARY KEY (`id`)
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+
+INSERT INTO `tbl_c` VALUES (1,'CON'),(2,'MOYEN'),(3,'MOYEN2');
+
+SELECT * from tbl_b JOIN tbl_c ON tbl_b.id = tbl_c.id LEFT OUTER JOIN tbl_a ON tbl_a.id = tbl_b.id;
+
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+eval CREATE TABLE tbl_a (
+    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+    `first_name` varchar(255) DEFAULT NULL,
+    PRIMARY KEY (`id`)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a"'
+PARTITION BY LIST COLUMNS(`id`) (
+    PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
+);
+
+eval CREATE TABLE `tbl_b` (
+    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+    `last_name` varchar(255) DEFAULT NULL,
+    PRIMARY KEY (`id`)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_b"'
+PARTITION BY LIST COLUMNS(`id`) (
+    PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
+);
+
+eval CREATE TABLE `tbl_c` (
+    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+    `surname` varchar(255) DEFAULT NULL,
+    PRIMARY KEY (`id`)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_c"'
+PARTITION BY LIST COLUMNS(`id`) (
+    PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
+);
+
+SELECT * from tbl_b JOIN tbl_c ON tbl_b.id = tbl_c.id LEFT OUTER JOIN tbl_a ON tbl_a.id = tbl_b.id;
+
+--connection master_1
+DROP DATABASE auto_test_local;
+
+--connection child2_1
+DROP DATABASE auto_test_remote;
+
+--disable_query_log
+--disable_result_log
+--source ../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
