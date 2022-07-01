@@ -362,7 +362,6 @@ inline void PageBulk::finishPage()
   ut_ad((fmt != REDUNDANT) == m_is_comp);
 
   ulint count= 0;
-  ulint n_recs= 0;
   byte *slot= my_assume_aligned<2>(m_page + srv_page_size -
                                    (PAGE_DIR + PAGE_DIR_SLOT_SIZE));
   const page_dir_slot_t *const slot0 = slot;
@@ -378,7 +377,6 @@ inline void PageBulk::finishPage()
       ut_ad(offset >= PAGE_NEW_SUPREMUM);
       ut_ad(offset < page_offset(slot));
       count++;
-      n_recs++;
 
       if (count == (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2)
       {
@@ -432,7 +430,6 @@ inline void PageBulk::finishPage()
     while (insert_rec != m_page + PAGE_OLD_SUPREMUM)
     {
       count++;
-      n_recs++;
 
       if (count == (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2)
       {

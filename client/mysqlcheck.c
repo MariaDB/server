@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2001, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB
+   Copyright (c) 2010, 2012, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1006,7 +1006,6 @@ static void print_result()
   char prev[(NAME_LEN+9)*3+2];
   char prev_alter[MAX_ALTER_STR_SIZE];
   size_t length_of_db= strlen(sock->db);
-  uint i;
   my_bool found_error=0, table_rebuild=0;
   DYNAMIC_ARRAY *array4repair= &tables4repair;
   DBUG_ENTER("print_result");
@@ -1015,7 +1014,7 @@ static void print_result()
 
   prev[0] = '\0';
   prev_alter[0]= 0;
-  for (i = 0; (row = mysql_fetch_row(res)); i++)
+  while ((row = mysql_fetch_row(res)))
   {
     int changed = strcmp(prev, row[0]);
     my_bool status = !strcmp(row[2], "status");

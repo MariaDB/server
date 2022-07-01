@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -227,7 +227,7 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 	If that is the case, the instant ALTER TABLE would keep
 	the InnoDB table in its current format. */
 
-	const dict_index_t& oindex = *old.indexes.start;
+	dict_index_t& oindex = *old.indexes.start;
 	dict_index_t& index = *indexes.start;
 	first_alter_pos = 0;
 
@@ -373,6 +373,15 @@ found_j:
 				goto found_nullable;
 			}
 		}
+
+		/* In case of discarded tablespace, InnoDB can't
+		read the root page. So assign the null bytes based
+		on nullabled fields */
+		if (!oindex.table->space) {
+			oindex.n_core_null_bytes = static_cast<uint8_t>(
+				UT_BITS_IN_BYTES(unsigned(oindex.n_nullable)));
+		}
+
 		/* The n_core_null_bytes only matters for
 		ROW_FORMAT=COMPACT and ROW_FORMAT=DYNAMIC tables. */
 		ut_ad(UT_BITS_IN_BYTES(core_null) == oindex.n_core_null_bytes
@@ -9208,16 +9217,14 @@ innobase_rename_columns_try(
 	const char*		table_name)
 {
 	uint	i = 0;
-	ulint	num_v = 0;
 
 	DBUG_ASSERT(ctx->need_rebuild());
 	DBUG_ASSERT(ha_alter_info->handler_flags
 		    & ALTER_COLUMN_NAME);
 
 	for (Field** fp = table->field; *fp; fp++, i++) {
-		const bool is_virtual = !(*fp)->stored_in_db();
 		if (!((*fp)->flags & FIELD_IS_RENAMED)) {
-			goto processed_field;
+			continue;
 		}
 
 		for (const Create_field& cf :
@@ -9235,10 +9242,6 @@ innobase_rename_columns_try(
 
 		ut_error;
 processed_field:
-		if (is_virtual) {
-			num_v++;
-		}
-
 		continue;
 	}
 

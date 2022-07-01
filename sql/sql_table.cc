@@ -2235,7 +2235,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
   char path[FN_REFLEN + 1];
   LEX_CSTRING alias= null_clex_str;
   StringBuffer<160> unknown_tables(system_charset_info);
-  uint not_found_errors= 0;
   int error= 0;
   int non_temp_tables_count= 0;
   bool trans_tmp_table_deleted= 0, non_trans_tmp_table_deleted= 0;
@@ -2355,7 +2354,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       unknown_tables.append(&table_name);
       unknown_tables.append(',');
       error= ENOENT;
-      not_found_errors++;
       continue;
     }
 
@@ -2437,7 +2435,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       unknown_tables.append(&table_name);
       unknown_tables.append(',');
       error= ENOENT;
-      not_found_errors++;
       continue;
     }
 
@@ -2635,7 +2632,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       }
       else
       {
-        not_found_errors++;
         if (unknown_tables.append(tbl_name) || unknown_tables.append(','))
         {
           error= 1;
@@ -3791,7 +3787,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
   List_iterator<Key> key_iterator(alter_info->key_list);
   List_iterator<Key> key_iterator2(alter_info->key_list);
-  uint key_parts=0, fk_key_count=0;
+  uint key_parts=0;
   bool primary_key=0,unique_key=0;
   Key *key, *key2;
   uint tmp, key_number;
@@ -3807,7 +3803,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                         "(none)" , key->type));
     if (key->type == Key::FOREIGN_KEY)
     {
-      fk_key_count++;
       Foreign_key *fk_key= (Foreign_key*) key;
       if (fk_key->validate(alter_info->create_list))
         DBUG_RETURN(TRUE);

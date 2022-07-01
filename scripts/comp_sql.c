@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2010, Oracle and/or its affiliates. 
-   Copyright (c) 2012, 2014, Monty Program Ab
+   Copyright (c) 2012, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -84,7 +84,7 @@ static void print_query(FILE *out, const char *query)
   fprintf(out, "\"");
   while (*ptr)
   {
-    if(column >= MAX_COLUMN)
+    if (column >= MAX_COLUMN)
     {
       /* Wrap to the next line, tabulated. */
       fprintf(out, "\"\n  \"");

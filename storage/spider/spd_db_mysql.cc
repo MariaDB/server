@@ -7228,25 +7228,13 @@ int spider_db_mbase_util::append_table(
     } else if (*current_pos > 0 && !first)
     {
       DBUG_PRINT("info",("spider no condition"));
-      if (top_down)
+      if (str)
       {
-        if (str)
+        if (str->reserve(SPIDER_SQL_JOIN_LEN))
         {
-          if (str->reserve(SPIDER_SQL_JOIN_LEN))
-          {
-            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          }
-          str->q_append(SPIDER_SQL_JOIN_STR, SPIDER_SQL_JOIN_LEN);
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         }
-      } else {
-        if (str)
-        {
-          if (str->reserve(SPIDER_SQL_COMMA_LEN))
-          {
-            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          }
-          str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
-        }
+        str->q_append(SPIDER_SQL_JOIN_STR, SPIDER_SQL_JOIN_LEN);
       }
     }
 
