@@ -176,7 +176,7 @@ void log_t::attach(log_file_t file, os_offset_t size)
 #ifdef HAVE_PMEM
   ut_ad(!buf);
   ut_ad(!flush_buf);
-  if (size && !(size_t(size) & 4095))
+  if (size && !(size_t(size) & 4095) && srv_operation != SRV_OPERATION_BACKUP)
   {
     void *ptr=
       my_mmap(0, size_t(size),
