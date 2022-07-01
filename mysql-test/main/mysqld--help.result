@@ -1198,6 +1198,11 @@ The following specify which files/extra groups are read (specified before remain
  --slave-max-allowed-packet=# 
  The maximum packet length to sent successfully from the
  master to slave.
+ --slave-max-statement-time=# 
+ A query that has taken more than slave_max_statement_time
+ seconds to run on the slave will be aborted. The argument
+ will be treated as a decimal value with microsecond
+ precision. A value of 0 (default) means no timeout
  --slave-net-timeout=# 
  Number of seconds to wait for more data from any
  master/slave connection before aborting the read
@@ -1771,6 +1776,7 @@ slave-ddl-exec-mode IDEMPOTENT
 slave-domain-parallel-threads 0
 slave-exec-mode STRICT
 slave-max-allowed-packet 1073741824
+slave-max-statement-time 0
 slave-net-timeout 60
 slave-parallel-max-queued 131072
 slave-parallel-mode conservative
