@@ -1,4 +1,5 @@
 --source include/not_msan.inc
+--source include/have_innodb.inc
 
 --echo #
 --echo # MDEV-23836: Assertion `! is_set() || m_can_overwrite_status' in
@@ -26,4 +27,35 @@ SET SESSION max_session_mem_used = @max_session_mem_used_save;
 UNLOCK TABLES;
 DROP TABLE t1;
 
+--echo #
 --echo # End of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-28943 Online alter fails under LOCK TABLE with ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+--echo #
+
+# test that any lock=xxx works under LOCK TABLES
+# and that it is ignored, does not actually downgrade the lock
+create table t1 (f int) engine=innodb;
+insert t1 values (1);
+lock table t1 write;
+connect con1, localhost, root;
+--send select count(*) as 'must be 0' from t1
+--connection default
+alter table t1 force, algorithm=copy, lock=none;
+alter table t1 force, algorithm=inplace, lock=none;
+alter table t1 force, algorithm=copy, lock=shared;
+alter table t1 force, algorithm=inplace, lock=shared;
+alter table t1 force, algorithm=copy, lock=exclusive;
+alter table t1 force, algorithm=inplace, lock=exclusive;
+delete from t1;
+unlock tables;
+--connection con1
+--reap
+--connection default
+drop table t1;
+
+--echo #
+--echo # End of 10.10 tests
+--echo #

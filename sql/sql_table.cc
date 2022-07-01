@@ -10035,13 +10035,16 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     set of tables from the old table or to open a new TABLE object for
     an extended list and verify that they belong to locked tables.
   */
-  if ((thd->locked_tables_mode == LTM_LOCK_TABLES ||
-       thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES) &&
-      (create_info->used_fields & HA_CREATE_USED_UNION) &&
-      (table->s->tmp_table == NO_TMP_TABLE))
+  if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
+       thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
   {
-    my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
-    DBUG_RETURN(true);
+    if ((create_info->used_fields & HA_CREATE_USED_UNION) &&
+        (table->s->tmp_table == NO_TMP_TABLE))
+    {
+      my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
+      DBUG_RETURN(true);
+    }
+    alter_info->requested_lock= Alter_info::ALTER_TABLE_LOCK_DEFAULT;
   }
 
   /* Check that we are not trying to rename to an existing table */
