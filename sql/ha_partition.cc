@@ -2353,7 +2353,6 @@ uint ha_partition::del_ren_table(const char *from, const char *to)
   char *name_buffer_ptr;
   const char *from_path;
   const char *to_path= NULL;
-  uint i;
   handler **file, **abort_file;
   DBUG_ENTER("ha_partition::del_ren_table");
 
@@ -2382,7 +2381,6 @@ uint ha_partition::del_ren_table(const char *from, const char *to)
   from_path= get_canonical_filename(*file, from, from_lc_buff);
   if (to != NULL)
     to_path= get_canonical_filename(*file, to, to_lc_buff);
-  i= 0;
   do
   {
     if (unlikely((error= create_partition_name(from_buff, sizeof(from_buff),
@@ -2407,7 +2405,6 @@ uint ha_partition::del_ren_table(const char *from, const char *to)
     name_buffer_ptr= strend(name_buffer_ptr) + 1;
     if (unlikely(error))
       save_error= error;
-    i++;
   } while (*(++file));
   if (to != NULL)
   {

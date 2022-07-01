@@ -1849,6 +1849,7 @@ dict_load_columns(
 			if (table->fts == NULL) {
 				table->fts = fts_create(table);
 				table->fts->cache = fts_cache_create(table);
+				DICT_TF2_FLAG_SET(table, DICT_TF2_FTS_AUX_HEX_NAME);
 				fts_optimize_add_table(table);
 			}
 
@@ -2599,8 +2600,11 @@ next_rec:
 	ut_ad(table->fts_doc_id_index == NULL);
 
 	if (table->fts != NULL) {
-		table->fts_doc_id_index = dict_table_get_index_on_name(
+		dict_index_t *idx = dict_table_get_index_on_name(
 			table, FTS_DOC_ID_INDEX_NAME);
+		if (idx && dict_index_is_unique(idx)) {
+			table->fts_doc_id_index = idx;
+		}
 	}
 
 	/* If the table contains FTS indexes, populate table->fts->indexes */

@@ -301,7 +301,6 @@ PageBulk::finish()
 #endif
 
 	ulint	count = 0;
-	ulint	n_recs = 0;
 	ulint	slot_index = 0;
 	rec_t*	insert_rec = page_rec_get_next(page_get_infimum_rec(m_page));
 	page_dir_slot_t* slot = NULL;
@@ -309,7 +308,6 @@ PageBulk::finish()
 	/* Set owner & dir. */
 	while (!page_rec_is_supremum(insert_rec)) {
 		count++;
-		n_recs++;
 
 		if (count == (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2) {
 
