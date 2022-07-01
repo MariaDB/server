@@ -11723,7 +11723,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 #ifdef HAVE_REPLICATION
     if (online)
     {
-      from->s->online_alter_binlog= new (&from->s->mem_root) Cache_flip_event_log();
+      from->s->online_alter_binlog= new Cache_flip_event_log();
       if (!from->s->online_alter_binlog)
         DBUG_RETURN(1);
       from->s->online_alter_binlog->init_pthread_objects();
@@ -11731,7 +11731,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
       if (error)
       {
-        from->s->online_alter_binlog->cleanup();
+        from->s->online_alter_binlog->release();
         from->s->online_alter_binlog= NULL;
         goto err;
       }
@@ -11942,6 +11942,19 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
   else if (online) // error was on copy stage
   {
+    /*
+       We can't free the resources properly now, as we can still be in
+       non-exclusive state. So this s->online_alter_binlog will be used
+       until all transactions will release it.
+       Once the transaction commits, it can release online_alter_binlog
+       by decreasing ref_count.
+
+       online_alter_binlog->ref_count can be reached 0 only once.
+       Proof:
+       If share exists, we'll always have ref_count >= 1.
+       Once it reaches destroy(), nobody can acquire it again,
+       therefore, only release() is possible at this moment.
+    */
     from->s->tdc->flush_unused(1); // to free the binlog
   }
 #endif

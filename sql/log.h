@@ -442,13 +442,14 @@ public:
 
   TODO should be unnecessary after MDEV-24676 is done
  */
-class Cache_flip_event_log: public Event_log, public Sql_alloc {
+class Cache_flip_event_log: public Event_log {
   IO_CACHE alt_buf;
   IO_CACHE *current, *alt;
+  std::atomic<uint> ref_count;
 public:
 
   Cache_flip_event_log() : Event_log(), alt_buf{},
-                           current(&log_file), alt(&alt_buf) {}
+                           current(&log_file), alt(&alt_buf), ref_count(1) {}
   bool open(enum cache_type io_cache_type_arg)
   {
     log_file.dir= mysql_tmpdir;
@@ -490,6 +491,24 @@ public:
     return current;
   }
 
+  void acquire()
+  {
+    auto prev= ref_count.fetch_add(1);
+    DBUG_ASSERT(prev != 0);
+  }
+
+  void release()
+  {
+    auto prev= ref_count.fetch_add(-1);
+
+    if (prev == 1)
+    {
+      cleanup();
+      delete this;
+    }
+  }
+
+private:
   void cleanup()
   {
     end_io_cache(&alt_buf);
