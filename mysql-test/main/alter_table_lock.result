@@ -14,4 +14,31 @@ ALTER TABLE t1 CHANGE COLUMN IF EXISTS b c INT;
 SET SESSION max_session_mem_used = @max_session_mem_used_save;
 UNLOCK TABLES;
 DROP TABLE t1;
+#
 # End of 10.5 tests
+#
+#
+# MDEV-28943 Online alter fails under LOCK TABLE with ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+#
+create table t1 (f int) engine=innodb;
+insert t1 values (1);
+lock table t1 write;
+connect con1, localhost, root;
+select count(*) as 'must be 0' from t1;
+connection default;
+alter table t1 force, algorithm=copy, lock=none;
+alter table t1 force, algorithm=inplace, lock=none;
+alter table t1 force, algorithm=copy, lock=shared;
+alter table t1 force, algorithm=inplace, lock=shared;
+alter table t1 force, algorithm=copy, lock=exclusive;
+alter table t1 force, algorithm=inplace, lock=exclusive;
+delete from t1;
+unlock tables;
+connection con1;
+must be 0
+0
+connection default;
+drop table t1;
+#
+# End of 10.10 tests
+#
