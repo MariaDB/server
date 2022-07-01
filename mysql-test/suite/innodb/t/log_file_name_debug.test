@@ -2,6 +2,7 @@
 # Embedded server does not support restarting
 --source include/not_embedded.inc
 --source include/have_debug.inc
+--source include/no_valgrind_without_big.inc
 
 --echo #
 --echo # Bug#19685095 DO NOT CARE ABOUT UNRESOLVED MLOG_FILE_NAME

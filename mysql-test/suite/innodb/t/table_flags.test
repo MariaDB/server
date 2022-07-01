@@ -2,6 +2,7 @@
 # Embedded server tests do not support restarting
 --source include/not_embedded.inc
 --source include/maybe_debug.inc
+--source include/no_valgrind_without_big.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Table `mysql`\\.`innodb_table_stats` not found");
