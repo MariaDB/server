@@ -507,7 +507,8 @@ public:
     before_stmt_pos= my_b_write_tell(&cache_log);
   }
 
-  TABLE_SHARE *share;
+  handlerton *hton;
+  Cache_flip_event_log *sink_log;
   SAVEPOINT *sv_list;
 };
 
@@ -2274,6 +2275,7 @@ binlog_online_alter_cleanup(ilist<online_alter_cache_data> &list, bool ending_tr
     while (it != list.end())
     {
       auto &cache= *it++;
+      cache.sink_log->release();
       cache.reset();
       delete &cache;
     }
@@ -6343,12 +6345,15 @@ static online_alter_cache_data *binlog_setup_cache_data(MEM_ROOT *root, TABLE_SH
     return NULL;
   }
 
-  cache->share= share;
+  share->online_alter_binlog->acquire();
+  cache->hton= share->db_type();
+  cache->sink_log= share->online_alter_binlog;
   cache->set_binlog_cache_info(max_binlog_cache_size, &binlog_cache_use,
                                &binlog_cache_disk_use);
   cache->store_prev_position();
   return cache;
 }
+
 
 online_alter_cache_data *online_alter_binlog_get_cache_data(THD *thd, TABLE *table)
 {
@@ -6357,7 +6362,7 @@ online_alter_cache_data *online_alter_binlog_get_cache_data(THD *thd, TABLE *tab
   /* we assume it's very rare to have more than one online ALTER running */
   for (auto &cache: list)
   {
-    if (cache.share == table->s)
+    if (cache.sink_log == table->s->online_alter_binlog)
       return &cache;
   }
 
@@ -7636,11 +7641,11 @@ static int binlog_online_alter_end_trans(THD *thd, bool all, bool commit)
 
   for (auto &cache: thd->online_alter_cache_list)
   {
-    auto *binlog= cache.share->online_alter_binlog;
+    auto *binlog= cache.sink_log;
     DBUG_ASSERT(binlog);
 
-    bool do_commit= commit || !cache.share->db_type()->rollback ||
-                    cache.share->db_type()->flags & HTON_NO_ROLLBACK; // Aria
+    bool do_commit= commit || !cache.hton->rollback ||
+                    cache.hton->flags & HTON_NO_ROLLBACK; // Aria
     if (do_commit)
     {
       // do not set STMT_END for last event to leave table open in altering thd
@@ -7695,7 +7700,7 @@ int online_alter_savepoint_set(THD *thd, LEX_CSTRING name)
 
   for (auto &cache: thd->online_alter_cache_list)
   {
-    if (cache.share->db_type()->savepoint_set == NULL)
+    if (cache.hton->savepoint_set == NULL)
       continue;
 
     SAVEPOINT *sv= savepoint_add(thd, name, &cache.sv_list, NULL);
@@ -7717,7 +7722,7 @@ int online_alter_savepoint_rollback(THD *thd, LEX_CSTRING name)
 #ifdef HAVE_REPLICATION
   for (auto &cache: thd->online_alter_cache_list)
   {
-    if (cache.share->db_type()->savepoint_set == NULL)
+    if (cache.hton->savepoint_set == NULL)
       continue;
 
     SAVEPOINT **sv= find_savepoint_in_list(thd, name, &cache.sv_list);
