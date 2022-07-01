@@ -699,11 +699,9 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     if (lex->view_list.elements)
     {
       List_iterator_fast<LEX_CSTRING> names(lex->view_list);
-      LEX_CSTRING *name;
-      int i;
-      
+
       buff.append('(');
-      for (i= 0; (name= names++); i++)
+      while (LEX_CSTRING *name= names++)
       {
         append_identifier(thd, &buff, name);
         buff.append(", ", 2);

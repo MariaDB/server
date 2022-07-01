@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1526,7 +1526,6 @@ bool partition_info::set_up_charset_field_preps(THD *thd)
   uchar **char_ptrs;
   unsigned i;
   size_t size;
-  uint tot_fields= 0;
   uint tot_part_fields= 0;
   uint tot_subpart_fields= 0;
   DBUG_ENTER("set_up_charset_field_preps");
@@ -1538,13 +1537,8 @@ bool partition_info::set_up_charset_field_preps(THD *thd)
     ptr= part_field_array;
     /* Set up arrays and buffers for those fields */
     while ((field= *(ptr++)))
-    {
       if (field_is_partition_charset(field))
-      {
         tot_part_fields++;
-        tot_fields++;
-      }
-    }
     size= tot_part_fields * sizeof(char*);
     if (!(char_ptrs= (uchar**)thd->calloc(size)))
       goto error;
@@ -1578,13 +1572,8 @@ bool partition_info::set_up_charset_field_preps(THD *thd)
     /* Set up arrays and buffers for those fields */
     ptr= subpart_field_array;
     while ((field= *(ptr++)))
-    {
       if (field_is_partition_charset(field))
-      {
         tot_subpart_fields++;
-        tot_fields++;
-      }
-    }
     size= tot_subpart_fields * sizeof(char*);
     if (!(char_ptrs= (uchar**) thd->calloc(size)))
       goto error;
