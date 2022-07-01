@@ -11991,6 +11991,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     rli.relay_log.description_event_for_exec=
                                             new Format_description_log_event(4);
 
+    // We'll be filling from->record[0] from row events
+    bitmap_set_all(from->write_set);
     // We restore bitmaps, because update event is going to mess up with them.
     to->default_column_bitmaps();
 
