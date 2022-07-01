@@ -2720,6 +2720,10 @@ row_rename_table_for_mysql(
 		}
 
 		pars_info_add_str_literal(info, "new_table_utf8", new_table_name);
+		pars_info_add_int4_literal(info, "old_is_tmp",
+					   (fk == RENAME_FK) && old_is_tmp);
+		pars_info_add_int4_literal(info, "new_is_tmp",
+					   (fk == RENAME_FK) && new_is_tmp);
 
 		err = que_eval_sql(
 			info,
@@ -2727,6 +2731,7 @@ row_rename_table_for_mysql(
 			"gen_constr_prefix CHAR;\n"
 			"new_db_name CHAR;\n"
 			"foreign_id CHAR;\n"
+			"foreign_id2 CHAR;\n"
 			"new_foreign_id CHAR;\n"
 			"old_db_name_len INT;\n"
 			"old_t_name_len INT;\n"
@@ -2757,6 +2762,15 @@ row_rename_table_for_mysql(
 			"        SET FOR_NAME = :new_table_name\n"
 			"         WHERE ID = foreign_id;\n"
 			"        id_len := LENGTH(foreign_id);\n"
+			"        foreign_id2 := foreign_id;\n"
+			"        IF (:old_is_tmp > 0 AND\n"
+			"            (SUBSTR(foreign_id, 0, 5) = '#tmp-' OR\n"
+			"             SUBSTR(foreign_id, 0, 5) = '#bak-'))\n"
+			"        THEN\n"
+			"          id_len := id_len - 5;\n"
+			"          foreign_id := SUBSTR(foreign_id2, 5,\n"
+			"                               id_len);\n"
+			"        END IF;\n"
 			"        IF (INSTR(foreign_id, '/') > 0) THEN\n"
 			"               IF (INSTR(foreign_id,\n"
 			"                         gen_constr_prefix) > 0)\n"
@@ -2772,13 +2786,17 @@ row_rename_table_for_mysql(
 			"                SUBSTR(foreign_id,\n"
 			"                       old_db_name_len,\n"
 			"                       id_len - old_db_name_len));\n"
+			"                IF (:new_is_tmp > 0) THEN\n"
+			"                  new_foreign_id := CONCAT('#bak-',\n"
+			"                                           new_foreign_id);\n"
+			"                END IF;\n"
 			"               END IF;\n"
 			"               UPDATE SYS_FOREIGN\n"
 			"                SET ID = new_foreign_id\n"
-			"                WHERE ID = foreign_id;\n"
+			"                WHERE ID = foreign_id2;\n"
 			"               UPDATE SYS_FOREIGN_COLS\n"
 			"                SET ID = new_foreign_id\n"
-			"                WHERE ID = foreign_id;\n"
+			"                WHERE ID = foreign_id2;\n"
 			"        END IF;\n"
 			"       END IF;\n"
 			"END LOOP;\n"

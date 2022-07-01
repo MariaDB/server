@@ -12372,6 +12372,9 @@ create_table_info_t::create_foreign_keys()
 
 		if (fk->constraint_name.str) {
 			ulint db_len;
+			const bool tmp= m_create_info->is_atomic_replace();
+			const char *tmp_prefix= "#tmp-";
+			static const size_t tmp_prefix_len= strlen(tmp_prefix);
 
 			/* Catenate 'databasename/' to the constraint name
 			specified by the user: we conceive the constraint as
@@ -12382,12 +12385,17 @@ create_table_info_t::create_foreign_keys()
 
 			foreign->id = static_cast<char*>(mem_heap_alloc(
 				foreign->heap,
+				(tmp ? tmp_prefix_len : 0) +
 				db_len + fk->constraint_name.length + 2));
-
-			memcpy(foreign->id, table->name.m_name, db_len);
-			foreign->id[db_len] = '/';
-			strcpy(foreign->id + db_len + 1,
-			       fk->constraint_name.str);
+			char *pos = foreign->id;
+			if (tmp) {
+				memcpy(pos, tmp_prefix, tmp_prefix_len);
+				pos += tmp_prefix_len;
+			}
+			memcpy(pos, table->name.m_name, db_len);
+			pos += db_len;
+			*(pos++) = '/';
+			strcpy(pos, fk->constraint_name.str);
 		}
 
 		if (foreign->id == NULL) {

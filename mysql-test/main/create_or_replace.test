@@ -655,3 +655,44 @@ select * from t2;
 unlock tables;
 
 drop tables t2, t1;
+
+--echo #
+--echo # MDEV-28933 CREATE OR REPLACE fails to recreate same constraint name
+--echo #
+create database `#sql-test`;
+use `#sql-test`;
+create table t (a int primary key) engine=innodb;
+create or replace table u (
+  a int primary key,
+  constraint c foreign key d (a) references t (a)) engine=innodb;
+
+create database `#bak-test`;
+use `#bak-test`;
+create table t (a int primary key) engine=innodb;
+create or replace table u (
+  a int primary key,
+  constraint c foreign key d (a) references t (a)) engine=innodb;
+
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+
+use test;
+create table t (a int primary key) engine=innodb;
+create or replace table u (
+  a int primary key,
+  constraint c foreign key d (a) references t (a)) engine=innodb;
+
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+
+create or replace table u (
+  a int primary key,
+  constraint c foreign key d (a) references t (a)) engine=innodb;
+
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+drop tables u, t;
+drop database `#bak-test`;
+drop database `#sql-test`;
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
