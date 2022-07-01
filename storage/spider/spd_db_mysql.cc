@@ -4039,6 +4039,7 @@ int spider_db_mbase_util::open_item_func(
   int error_num;
   Item *item, **item_list = item_func->arguments();
   Field *field;
+  spider_string tmp_str;
   uint roop_count, item_count = item_func->argument_count(), start_item = 0;
   const char *func_name = SPIDER_SQL_NULL_CHAR_STR,
     *separator_str = SPIDER_SQL_NULL_CHAR_STR,
@@ -4491,10 +4492,11 @@ int spider_db_mbase_util::open_item_func(
 
           if (str)
           {
-            char tmp_buf[MAX_FIELD_WIDTH], *tmp_ptr, *tmp_ptr2;
-            spider_string tmp_str(tmp_buf, MAX_FIELD_WIDTH, str->charset());
+            char *tmp_ptr, *tmp_ptr2;
+            DBUG_ASSERT(tmp_str.length() == 0);
+            tmp_str.set_charset(str->charset());
             tmp_str.init_calc_mem(123);
-            tmp_str.length(0);
+            tmp_str.reserve(MAX_FIELD_WIDTH);
             str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
             if (!merge_func)
             {
@@ -4625,10 +4627,11 @@ int spider_db_mbase_util::open_item_func(
 
           if (str)
           {
-            char tmp_buf[MAX_FIELD_WIDTH], *tmp_ptr, *tmp_ptr2;
-            spider_string tmp_str(tmp_buf, MAX_FIELD_WIDTH, str->charset());
+            char *tmp_ptr, *tmp_ptr2;
+            DBUG_ASSERT(tmp_str.length() == 0);
+            tmp_str.set_charset(str->charset());
             tmp_str.init_calc_mem(124);
-            tmp_str.length(0);
+            tmp_str.reserve(MAX_FIELD_WIDTH);
             str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
             if (!merge_func)
             {
@@ -4779,10 +4782,11 @@ int spider_db_mbase_util::open_item_func(
 
         if (str)
         {
-          char tmp_buf[MAX_FIELD_WIDTH], *tmp_ptr, *tmp_ptr2;
-          spider_string tmp_str(tmp_buf, MAX_FIELD_WIDTH, str->charset());
+          char *tmp_ptr, *tmp_ptr2;
+          DBUG_ASSERT(tmp_str.length() == 0);
+          tmp_str.set_charset(str->charset());
           tmp_str.init_calc_mem(125);
-          tmp_str.length(0);
+          tmp_str.reserve(MAX_FIELD_WIDTH);
           str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
           if (!merge_func)
           {
