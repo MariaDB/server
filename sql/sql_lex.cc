@@ -2191,7 +2191,6 @@ int Lex_input_stream::scan_ident_delimited(THD *thd,
                                            Lex_ident_cli_st *str)
 {
   CHARSET_INFO *const cs= thd->charset();
-  uint double_quotes= 0;
   uchar c, quote_char= m_tok_start[0];
   DBUG_ASSERT(m_ptr == m_tok_start + 1);
 
@@ -2216,7 +2215,6 @@ int Lex_input_stream::scan_ident_delimited(THD *thd,
         if (yyPeek() != quote_char)
           break;
         c= yyGet();
-        double_quotes++;
         continue;
       }
     }

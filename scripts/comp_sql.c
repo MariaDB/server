@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2010, Oracle and/or its affiliates. 
-   Copyright (c) 2012, 2014, Monty Program Ab
+   Copyright (c) 2012, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -77,7 +77,6 @@ char *fgets_fn(char *buffer, size_t size, fgets_input_t input, int *error)
 static void print_query(FILE *out, const char *query)
 {
   const char *ptr= query;
-  int column= 0;
 
   fprintf(out, "\"");
   while (*ptr)
@@ -90,21 +89,18 @@ static void print_query(FILE *out, const char *query)
         and wrap to the next line, tabulated.
       */
       fprintf(out, "\\n\"\n  \"");
-      column= 2;
       break;
     case '\r':
       /* Skipped */
       break;
     case '\"':
       fprintf(out, "\\\"");
-      column++;
       break;
     case '\\':
       fprintf(out, "\\\\");
       break;
     default:
       putc(*ptr, out);
-      column++;
       break;
     }
     ptr++;

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3591,7 +3591,6 @@ print_table_data(MYSQL_RES *result)
 {
   String separator(256);
   MYSQL_ROW	cur;
-  MYSQL_FIELD	*field;
   bool		*num_flag;
 
   num_flag=(bool*) my_alloca(sizeof(bool)*mysql_num_fields(result));
@@ -3603,7 +3602,7 @@ print_table_data(MYSQL_RES *result)
     mysql_field_seek(result,0);
   }
   separator.copy("+",1,charset_info);
-  while ((field = mysql_fetch_field(result)))
+  while (MYSQL_FIELD *field= mysql_fetch_field(result))
   {
     uint length= column_names ? field->name_length : 0;
     if (quick)
@@ -3625,7 +3624,7 @@ print_table_data(MYSQL_RES *result)
   {
     mysql_field_seek(result,0);
     (void) tee_fputs("|", PAGER);
-    for (uint off=0; (field = mysql_fetch_field(result)) ; off++)
+    while (MYSQL_FIELD *field= mysql_fetch_field(result))
     {
       size_t name_length= (uint) strlen(field->name);
       size_t numcells= charset_info->cset->numcells(charset_info,
@@ -3668,7 +3667,7 @@ print_table_data(MYSQL_RES *result)
         data_length= (uint) lengths[off];
       }
 
-      field= mysql_fetch_field(result);
+      MYSQL_FIELD *field= mysql_fetch_field(result);
       field_max_length= field->max_length;
 
       /* 

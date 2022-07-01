@@ -126,7 +126,6 @@ public:
 		rec_offs*	ins_offsets = NULL;
 		dberr_t		error = DB_SUCCESS;
 		dtuple_t*	dtuple;
-		ulint		count = 0;
 		const ulint	flag = BTR_NO_UNDO_LOG_FLAG
 				       | BTR_NO_LOCKING_FLAG
 				       | BTR_KEEP_SYS_FLAG | BTR_CREATE_FLAG;
@@ -234,7 +233,6 @@ public:
 			mtr_commit(&mtr);
 
 			rtr_clean_rtr_info(&rtr_info, true);
-			count++;
 		}
 
 		m_dtuple_vec->clear();
