@@ -628,5 +628,21 @@ connection default;
 drop table t1;
 set debug_sync= reset;
 #
+# MDEV-28967 Assertion `marked_for_write_or_computed()' failed in Field_new_decimal::store_value / online_alter_read_from_binlog`
+#
+create  table t1 (a decimal(8,2), b varchar(8)) engine=innodb;
+insert into t1 (b) values ('x');
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t1 force, algorithm=copy, lock=none;
+connection default;
+insert t1 (b) values ('k');
+insert t1 (b) values ('m');
+set debug_sync= 'now signal goforit';
+connection con2;
+drop table t1;
+set debug_sync= reset;
+#
 # End of 10.10 tests
 #
