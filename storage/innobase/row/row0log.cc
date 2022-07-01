@@ -4061,6 +4061,11 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
     {
       if (is_update)
       {
+        /* Ignore the index if the update doesn't affect the index */
+        if (!row_upd_changes_ord_field_binary(index, update,
+                                              nullptr,
+                                              row, new_ext))
+          goto next_index;
         dtuple_t *old_entry= row_build_index_entry_low(
           old_row, old_ext, index, heap, ROW_BUILD_NORMAL);
 
@@ -4080,6 +4085,7 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
         success= row_log_online_op(index, old_entry, 0);
       }
     }
+next_index:
     index->lock.s_unlock();
     if (!success)
     {

@@ -536,15 +536,16 @@ public:
 
 private:
   MY_ATTRIBUTE((warn_unused_result))
-  /** Try to acquire a tablespace reference.
-  @return the old reference count (if STOPPING is set, it was not acquired) */
-  uint32_t acquire_low()
+  /** Try to acquire a tablespace reference (increment referenced()).
+  @param avoid   when these flags are set, nothing will be acquired
+  @return the old reference count */
+  uint32_t acquire_low(uint32_t avoid= STOPPING)
   {
     uint32_t n= 0;
     while (!n_pending.compare_exchange_strong(n, n + 1,
                                               std::memory_order_acquire,
                                               std::memory_order_relaxed) &&
-           !(n & STOPPING));
+           !(n & avoid));
     return n;
   }
 public:
@@ -558,10 +559,8 @@ public:
   @return whether the file is usable */
   bool acquire()
   {
-    uint32_t n= acquire_low();
-    if (UNIV_LIKELY(!(n & (STOPPING | CLOSING))))
-      return true;
-    return UNIV_LIKELY(!(n & STOPPING)) && prepare();
+    const auto flags= acquire_low(STOPPING | CLOSING) & (STOPPING | CLOSING);
+    return UNIV_LIKELY(!flags) || (flags == CLOSING && acquire_and_prepare());
   }
 
   /** Acquire another tablespace reference for I/O. */
@@ -1031,7 +1030,9 @@ public:
 
 private:
   /** @return whether the file is usable for io() */
-  ATTRIBUTE_COLD bool prepare(bool have_mutex= false);
+  ATTRIBUTE_COLD bool prepare_acquired();
+  /** @return whether the file is usable for io() */
+  ATTRIBUTE_COLD bool acquire_and_prepare();
 #endif /*!UNIV_INNOCHECKSUM */
 };
 

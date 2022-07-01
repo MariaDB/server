@@ -7,9 +7,7 @@
 #include <my_sys.h>
 #include <my_pthread.h>
 
-int main (argc, argv)
-int argc;
-char *argv[];
+int main (int argc, char **argv)
 {
   register int result, ix;
   extern int factorial(int);

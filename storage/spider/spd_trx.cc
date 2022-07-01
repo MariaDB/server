@@ -93,43 +93,51 @@ uchar *spider_trx_ha_get_key(
   DBUG_RETURN((uchar*) trx_ha->table_name);
 }
 
-int spider_free_trx_conn(
-  SPIDER_TRX *trx,
-  bool trx_free
-) {
-  int roop_count;
+/*
+  Try to free the connections held by the given transaction.
+*/
+int spider_free_trx_conn(SPIDER_TRX *trx, bool trx_free)
+{
+  int loop_count= 0;
   SPIDER_CONN *conn;
+  HASH *conn_hash= &trx->trx_conn_hash;
+
   DBUG_ENTER("spider_free_trx_conn");
-  roop_count = 0;
-  if (
-    trx_free ||
-    spider_param_conn_recycle_mode(trx->thd) != 2
-  ) {
-    while ((conn = (SPIDER_CONN*) my_hash_element(&trx->trx_conn_hash,
-      roop_count)))
+  DBUG_ASSERT(!trx_free || !trx->locked_connections);
+
+  /* Clear the connection queues in any case. */
+  while ((conn= (SPIDER_CONN *) my_hash_element(conn_hash, loop_count)))
+  {
+    spider_conn_clear_queue_at_commit(conn);
+    loop_count++;
+  }
+
+  if (trx_free || spider_param_conn_recycle_mode(trx->thd) != 2)
+  {
+    /* Free connections only when no connection is locked. */
+    if (!trx->locked_connections)
     {
-      spider_conn_clear_queue_at_commit(conn);
-      if (conn->table_lock)
+      loop_count= 0;
+      while ((conn= (SPIDER_CONN *) my_hash_element(conn_hash, loop_count)))
       {
-        DBUG_ASSERT(!trx_free);
-        roop_count++;
-      } else
-        spider_free_conn_from_trx(trx, conn, FALSE, trx_free, &roop_count);
+        spider_free_conn_from_trx(trx, conn, FALSE, trx_free, &loop_count);
+      }
     }
     trx->trx_conn_adjustment++;
-  } else {
-    while ((conn = (SPIDER_CONN*) my_hash_element(&trx->trx_conn_hash,
-      roop_count)))
-    {
-      spider_conn_clear_queue_at_commit(conn);
-      if (conn->table_lock)
-      {
-        DBUG_ASSERT(!trx_free);
-      } else
-        conn->error_mode = 1;
-      roop_count++;
-    }
+
+    DBUG_RETURN(0);
   }
+
+  loop_count= 0;
+  while ((conn= (SPIDER_CONN *) my_hash_element(conn_hash, loop_count)))
+  {
+    if (!conn->table_lock)
+    {
+      conn->error_mode= 1;
+    }
+    loop_count++;
+  }
+
   DBUG_RETURN(0);
 }
 
@@ -3278,6 +3286,12 @@ int spider_commit(
   trx->bulk_access_conn_first = NULL;
 #endif
 
+  /*
+    We do (almost) nothing if the following two conditions are both met:
+
+    * This is just the end of a statement, not an explicit commit.
+    * The autocommit is OFF or we are in an explicit transaction.
+  */
   if (all || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)))
   {
     if (trx->trx_start)
