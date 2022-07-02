@@ -19,10 +19,8 @@
 #include "my_global.h"
 #include "my_base.h"
 #include "sql_array.h"
+#include "handler.h"
 
-#include <utility>
-
-class TABLE;
 class Sort_param;
 
 /**
@@ -52,24 +50,32 @@ double get_merge_many_buffs_cost_fast(ha_rows num_rows,
 
 
 
-/*
-Merge Sort -> Without addon Fields, with fixed length
-Merge Sort -> Without addon Fields, with dynamic length
-Merge Sort -> With addon Fields, with fixed length
-Merge Sort -> With addon Fields, with dynamic length
+/**
+  These are the current sorting algorithms we compute cost for:
 
-Priority queue -> Without addon fields
-Priority queue -> With addon fields
+  PQ_SORT_ALL_FIELDS      Sort via priority queue, with addon fields.
+  PQ_SORT_ORDER_BY_FIELDS Sort via priority queue, without addon fields.
+
+  MERGE_SORT_ALL_FIELDS      Sort via merge sort, with addon fields.
+  MERGE_SORT_ORDER_BY_FIELDS Sort via merge sort, without addon fields.
+
+  Note:
+  There is the possibility to do merge-sorting with dynamic length fields.
+  This is more expensive than if there are only fixed length fields,
+  however we do not (yet) account for that extra cost. We can extend the
+  cost computation in the future to cover that case as well.
+
+  Effectively there are 4 possible combinations for merge sort:
+    With/without addon fields
+    With/without dynamic length fields.
 */
 
 enum sort_type
 {
   PQ_SORT_ALL_FIELDS= 0,
   PQ_SORT_ORDER_BY_FIELDS,
-  MERGE_SORT_ALL_FIELDS_FIXED_LENGTH,
-  MERGE_SORT_ALL_FIELDS_DYNAMIC_LENGTH,
-  MERGE_SORT_ORDER_BY_FIELDS_FIXED_LENGTH,
-  MERGE_SORT_ORDER_BY_FIELDS_DYNAMIC_LENGTH,
+  MERGE_SORT_ALL_FIELDS,
+  MERGE_SORT_ORDER_BY_FIELDS,
 
   FINAL_SORT_TYPE,
 
@@ -82,7 +88,8 @@ struct Sort_costs
     fastest_sort(NO_SORT_POSSIBLE_OUT_OF_MEM), lowest_cost(DBL_MAX) {}
 
   void compute_sort_costs(Sort_param *param, ha_rows num_rows,
-                          size_t memory_available);
+                          size_t memory_available,
+                          bool with_addon_fields);
 
   /* Cache value for fastest_sort. */
   enum sort_type fastest_sort;
@@ -97,9 +104,11 @@ private:
   double costs[FINAL_SORT_TYPE];
 
   void compute_pq_sort_costs(Sort_param *param, ha_rows num_rows,
-                             size_t memory_available);
+                             size_t memory_available,
+                             bool with_addon_fields);
   void compute_merge_sort_costs(Sort_param *param, ha_rows num_rows,
-                                size_t memory_available);
+                                size_t memory_available,
+                                bool with_addon_fields);
   void compute_fastest_sort();
 };
 
@@ -337,6 +346,8 @@ private:
   */
   longlong m_idx;
 };
+
+double cost_for_order_by(TABLE *table, ORDER *order_by);
 
 int compare_packed_sort_keys(void *sort_keys, unsigned char **a,
                              unsigned char **b);

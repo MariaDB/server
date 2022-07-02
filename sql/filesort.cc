@@ -280,7 +280,8 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   num_rows= table->file->estimate_rows_upper_bound();
 
   Sort_costs costs;
-  costs.compute_sort_costs(&param, num_rows, memory_available);
+  costs.compute_sort_costs(&param, num_rows, memory_available,
+                           param.using_addon_fields());
 
   if (costs.fastest_sort == NO_SORT_POSSIBLE_OUT_OF_MEM)
   {

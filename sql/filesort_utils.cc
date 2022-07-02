@@ -198,7 +198,8 @@ void Sort_costs::compute_fastest_sort()
 */
 
 void Sort_costs::compute_pq_sort_costs(Sort_param *param, ha_rows num_rows,
-                                       size_t memory_available)
+                                       size_t memory_available,
+                                       bool with_addon_fields)
 {
   /*
     Implementation detail of PQ. To be able to keep a PQ of size N we need
@@ -233,7 +234,7 @@ void Sort_costs::compute_pq_sort_costs(Sort_param *param, ha_rows num_rows,
   }
 
   /* Calculate cost with addon fields */
-  if (param->using_addon_fields())
+  if (with_addon_fields)
   {
     row_length=         param->rec_length + sizeof(char *);
     num_available_keys= memory_available / row_length;
@@ -250,31 +251,30 @@ void Sort_costs::compute_pq_sort_costs(Sort_param *param, ha_rows num_rows,
 
 void Sort_costs::compute_merge_sort_costs(Sort_param *param,
                                           ha_rows num_rows,
-                                          size_t memory_available)
+                                          size_t memory_available,
+                                          bool with_addon_fields)
 {
   size_t row_length= param->sort_length + param->ref_length + sizeof(char *);
   size_t num_available_keys= memory_available / row_length;
 
-  costs[MERGE_SORT_ALL_FIELDS_FIXED_LENGTH]= DBL_MAX;
-  costs[MERGE_SORT_ALL_FIELDS_DYNAMIC_LENGTH]= DBL_MAX;
-  costs[MERGE_SORT_ORDER_BY_FIELDS_FIXED_LENGTH]= DBL_MAX;
-  costs[MERGE_SORT_ORDER_BY_FIELDS_DYNAMIC_LENGTH]= DBL_MAX;
+  costs[MERGE_SORT_ALL_FIELDS]= DBL_MAX;
+  costs[MERGE_SORT_ORDER_BY_FIELDS]= DBL_MAX;
 
   if (num_available_keys)
-    costs[MERGE_SORT_ORDER_BY_FIELDS_FIXED_LENGTH]=
+    costs[MERGE_SORT_ORDER_BY_FIELDS]=
       get_merge_many_buffs_cost_fast(num_rows, num_available_keys,
                                      row_length,
                                      DEFAULT_KEY_COMPARE_COST,
                                      false);
 
-  if (param->using_addon_fields())
+  if (with_addon_fields)
   {
     /* Compute cost of merge sort *if* we strip addon fields. */
     num_available_keys= memory_available / row_length;
     row_length= param->rec_length + sizeof(char *);
 
     if (num_available_keys)
-      costs[MERGE_SORT_ALL_FIELDS_FIXED_LENGTH]=
+      costs[MERGE_SORT_ALL_FIELDS]=
         get_merge_many_buffs_cost_fast(num_rows, num_available_keys, row_length,
                                        DEFAULT_KEY_COMPARE_COST,
                                        true);
@@ -288,10 +288,13 @@ void Sort_costs::compute_merge_sort_costs(Sort_param *param,
 }
 
 void Sort_costs::compute_sort_costs(Sort_param *param, ha_rows num_rows,
-                                              size_t memory_available)
+                                              size_t memory_available,
+                                              bool with_addon_fields)
 {
-  compute_pq_sort_costs(param, num_rows, memory_available);
-  compute_merge_sort_costs(param, num_rows, memory_available);
+  compute_pq_sort_costs(param, num_rows, memory_available,
+                        with_addon_fields);
+  compute_merge_sort_costs(param, num_rows, memory_available,
+                           with_addon_fields);
   compute_fastest_sort();
 }
 
@@ -392,4 +395,50 @@ void Filesort_buffer::sort_buffer(const Sort_param *param, uint count)
   my_qsort2(m_sort_keys, count, sizeof(uchar*),
             param->get_compare_function(),
             param->get_compare_argument(&size));
+}
+
+
+static
+size_t get_sort_length(THD *thd, Item *item)
+{
+  SORT_FIELD_ATTR sort_attr;
+  item->type_handler()->sort_length(thd, item, &sort_attr);
+
+  return sort_attr.length + (item->maybe_null() ? 1 : 0);
+}
+
+
+double cost_for_order_by(TABLE *table, ORDER *order_by, ha_rows limit_rows)
+{
+  size_t memory_available= static_cast<size_t>(
+      table->in_use->variables.sortbuff_size);
+  size_t sort_len= 0;
+  ha_rows num_rows= table->file->estimate_rows_upper_bound();
+  bool with_addon_fields;
+  Sort_costs costs;
+  Sort_param param;
+  uint addon_field_length, num_addon_fields, num_nullable_fields,
+       packable_length;
+
+
+  /* Fill in the Sort_param structure so we can compute the sort costs. */
+  for (ORDER *ptr= order_by; ptr != nullptr; ptr= ptr->next)
+  {
+    //TODO(cvicentiu) do we need to take thd->variables.max_sort_length into
+    //account?
+    sort_len+= get_sort_length(table->in_use, ptr->item_ptr);
+  }
+
+  with_addon_fields=
+    filesort_use_addons(table, sort_len, &addon_field_length,
+                        &num_addon_fields, &num_nullable_fields,
+                        &packable_length);
+
+  param.setup_lengths_and_limit(table, sort_len, with_addon_fields,
+                                addon_field_length, limit_rows);
+
+  costs.compute_sort_costs(&param, num_rows, memory_available,
+                           with_addon_fields);
+
+  return costs.fastest_sort;
 }
