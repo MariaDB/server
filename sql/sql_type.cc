@@ -4271,7 +4271,7 @@ Column_definition_set_attributes(THD *thd,
                                  column_definition_type_t type) const
 {
   Type_handler::Column_definition_set_attributes(thd, def, attr, cs, type);
-  if (!opt_explicit_defaults_for_timestamp)
+  if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
     def->flags|= NOT_NULL_FLAG;
   return false;
 }
