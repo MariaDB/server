@@ -19,10 +19,8 @@
 #include "my_global.h"
 #include "my_base.h"
 #include "sql_array.h"
+#include "handler.h"
 
-#include <utility>
-
-class TABLE;
 class Sort_param;
 
 /**
@@ -348,6 +346,12 @@ private:
   */
   longlong m_idx;
 };
+
+/* Names for sort_type */
+extern const LEX_CSTRING filesort_names[];
+
+double cost_of_filesort(TABLE *table, ORDER *order_by, ha_rows rows_to_read,
+                        ha_rows limit_rows, enum sort_type *used_sort_type);
 
 int compare_packed_sort_keys(void *sort_keys, unsigned char **a,
                              unsigned char **b);
