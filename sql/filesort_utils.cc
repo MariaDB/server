@@ -173,7 +173,7 @@ void Filesort_buffer::sort_buffer(const Sort_param *param, uint count)
 
   uchar **buffer= NULL;
   if (!param->using_packed_sortkeys() &&
-      radixsort_is_appliccable(count, param->sort_length) &&
+      radixsort_is_applicable(count, param->sort_length) &&
       (buffer= (uchar**) my_malloc(PSI_INSTRUMENT_ME, count*sizeof(char*),
                                    MYF(MY_THREAD_SPECIFIC))))
   {
