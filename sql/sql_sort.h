@@ -590,10 +590,14 @@ public:
     */
     tmp_buffer.set_charset(&my_charset_bin);
   }
-  void init_for_filesort(uint sortlen, TABLE *table,
-                         ha_rows maxrows, Filesort *filesort);
 
-   void  (*unpack)(TABLE *);
+  void init_for_filesort(TABLE *table, Filesort *filesort,
+                         uint sortlen, ha_rows limit_rows_arg);
+  void setup_lengths_and_limit(TABLE *table,
+                               uint sortlen,
+                               uint addon_length,
+                               ha_rows limit_rows_arg);
+  void  (*unpack)(TABLE *);
   /// Enables the packing of addons if possible.
   void try_to_pack_addons(ulong max_length_for_sort_data);
 
