@@ -1,3 +1,4 @@
+set @@explicit_defaults_for_timestamp=1;
 CREATE TABLE t1 (a TIMESTAMP);
 SHOW CREATE TABLE t1;
 Table	Create Table
