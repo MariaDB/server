@@ -23,6 +23,13 @@
 
 PSI_memory_key key_memory_Filesort_buffer_sort_keys;
 
+const LEX_CSTRING filesort_names[]=
+{
+  STRING_WITH_LEN("priority_queue with addon fields"),
+  STRING_WITH_LEN("priority_queue with row lookup"),
+  STRING_WITH_LEN("merge_sort with addon fields"),
+  STRING_WITH_LEN("merge_sort with row lookup)")
+};
 
 /*
  Different ways to do sorting:
@@ -396,4 +403,65 @@ void Filesort_buffer::sort_buffer(const Sort_param *param, uint count)
   my_qsort2(m_sort_keys, count, sizeof(uchar*),
             param->get_compare_function(),
             param->get_compare_argument(&size));
+}
+
+
+static
+size_t get_sort_length(THD *thd, Item *item)
+{
+  SORT_FIELD_ATTR sort_attr;
+  item->type_handler()->sort_length(thd, item, &sort_attr);
+
+  return sort_attr.length + (item->maybe_null() ? 1 : 0);
+}
+
+
+/**
+   Calculate the cost of doing a filesort
+
+   @param table           Table to sort
+   @param Order_by        Fields to sort
+   @param rows_to_read    Number of rows to be sorted
+   @param limit_rows      Number of rows in result (when using limit)
+   @param used_sort_type  Set to the sort algorithm used
+
+   @result cost of sorting
+*/
+
+
+double cost_of_filesort(TABLE *table, ORDER *order_by, ha_rows rows_to_read,
+                        ha_rows limit_rows, enum sort_type *used_sort_type)
+{
+  THD *thd= table->in_use;
+  Sort_costs costs;
+  Sort_param param;
+  size_t memory_available= (size_t) thd->variables.sortbuff_size;
+  size_t sort_len= 0;
+  uint addon_field_length, num_addon_fields, num_nullable_fields,
+       packable_length;
+  bool with_addon_fields;
+
+
+  for (ORDER *ptr= order_by; ptr != nullptr; ptr= ptr->next)
+  {
+    size_t length= get_sort_length(table->in_use, ptr->item_ptr);
+    set_if_smaller(length, thd->variables.max_sort_length);
+
+    sort_len+= get_sort_length(table->in_use, ptr->item_ptr);
+  }
+
+  with_addon_fields=
+    filesort_use_addons(table, sort_len, &addon_field_length,
+                        &num_addon_fields, &num_nullable_fields,
+                        &packable_length);
+
+  /* Fill in the Sort_param structure so we can compute the sort costs */
+  param.setup_lengths_and_limit(table, sort_len, addon_field_length,
+                                limit_rows);
+
+  costs.compute_sort_costs(&param, rows_to_read, memory_available,
+                           with_addon_fields);
+
+  *used_sort_type= costs.fastest_sort;
+  return costs.lowest_cost;
 }
