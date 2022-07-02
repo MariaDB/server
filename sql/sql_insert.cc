@@ -4499,7 +4499,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   tmp_table.maybe_null= 0;
   tmp_table.in_use= thd;
 
-  if (!opt_explicit_defaults_for_timestamp)
+  if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
     promote_first_timestamp_column(&alter_info->create_list);
 
   if (create_info->fix_create_fields(thd, alter_info, *create_table))

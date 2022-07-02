@@ -3652,7 +3652,7 @@ without_overlaps_err:
         !sql_field->has_default_function() &&
         (sql_field->flags & NOT_NULL_FLAG) &&
         (!sql_field->is_timestamp_type() ||
-         opt_explicit_defaults_for_timestamp)&&
+         (thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))&&
         !sql_field->vers_sys_field())
     {
       sql_field->flags|= NO_DEFAULT_VALUE_FLAG;
@@ -3663,7 +3663,7 @@ without_overlaps_err:
         !sql_field->default_value && !sql_field->vcol_info &&
         !sql_field->vers_sys_field() &&
         sql_field->is_timestamp_type() &&
-        !opt_explicit_defaults_for_timestamp &&
+        !(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP) &&
         (sql_field->flags & NOT_NULL_FLAG) &&
         (type == Field::NONE || type == Field::TIMESTAMP_UN_FIELD))
     {
@@ -4800,7 +4800,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   else
     create_table_mode= C_ASSISTED_DISCOVERY;
 
-  if (!opt_explicit_defaults_for_timestamp)
+  if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
     promote_first_timestamp_column(&alter_info->create_list);
 
   /* We can abort create table for any table type */
@@ -10359,7 +10359,7 @@ do_continue:;
       create_info->fix_period_fields(thd, alter_info))
     DBUG_RETURN(true);
 
-  if (!opt_explicit_defaults_for_timestamp)
+  if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
     promote_first_timestamp_column(&alter_info->create_list);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
