@@ -221,6 +221,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   bool allow_packing_for_sortkeys;
   Bounded_queue<uchar, uchar> pq;
   SQL_SELECT *const select= filesort->select;
+  Sort_costs costs;
   ha_rows limit_rows= filesort->limit;
   uint s_length= 0, sort_len;
   Sort_keys *sort_keys;
@@ -266,7 +267,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
 
   param.sort_keys= sort_keys;
   sort_len= sortlength(thd, sort_keys, &allow_packing_for_sortkeys);
-  param.init_for_filesort(sort_len, table, limit_rows, filesort);
+  param.init_for_filesort(table, filesort, sort_len, limit_rows);
   if (!param.accepted_rows)
     param.accepted_rows= &not_used;
 
@@ -286,7 +287,6 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   // If number of rows is not known, use as much of sort buffer as possible. 
   num_rows= table->file->estimate_rows_upper_bound();
 
-  Sort_costs costs;
   costs.compute_sort_costs(&param, num_rows, memory_available,
                            param.using_addon_fields());
 
