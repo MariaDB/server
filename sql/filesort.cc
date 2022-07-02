@@ -87,30 +87,19 @@ static uint32 read_keypart_length(const uchar *from, uint bytes)
 }
 
 
-// @param sortlen  [Maximum] length of the sort key
-void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
-                                   ha_rows maxrows, Filesort *filesort)
+void Sort_param::setup_lengths_and_limit(TABLE *table,
+                                         uint sortlen,
+                                         bool using_addon_fields,
+                                         uint addon_length_arg,
+                                         ha_rows limit_rows_arg)
 {
-  DBUG_ASSERT(addon_fields == NULL);
-
   sort_length= sortlen;
   ref_length= table->file->ref_length;
-  accepted_rows= filesort->accepted_rows;
 
-  if (!(table->file->ha_table_flags() & HA_FAST_KEY_READ) &&
-      !table->fulltext_searched && !filesort->sort_positions)
+  if (using_addon_fields)
   {
-    /* 
-      Get the descriptors of all fields whose values are appended 
-      to sorted fields and get its total length in addon_buf.length
-    */
-    addon_fields= get_addon_fields(table, sort_length, &addon_length,
-                                   &m_packable_length);
-  }
-  if (using_addon_fields())
-  {
-    DBUG_ASSERT(addon_length < UINT_MAX32);
-    res_length= addon_length;
+    DBUG_ASSERT(addon_length_arg < UINT_MAX32);
+    res_length= addon_length_arg;
   }
   else
   {
@@ -121,9 +110,32 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
     */
     sort_length+= ref_length;
   }
-  rec_length= sort_length + addon_length;
-  limit_rows= maxrows;
+  rec_length= sort_length + addon_length_arg;
+  limit_rows= limit_rows_arg;
+
   sort_form= table;
+}
+
+// @param sortlen  [Maximum] length of the sort key
+void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
+                                   ha_rows maxrows, Filesort *filesort)
+{
+  DBUG_ASSERT(addon_fields == NULL);
+
+  if (!(table->file->ha_table_flags() & HA_FAST_KEY_READ) &&
+      !table->fulltext_searched && !filesort->sort_positions)
+  {
+    /*
+      Get the descriptors of all fields whose values are appended
+      to sorted fields and get its total length in addon_buf.length
+    */
+    addon_fields= get_addon_fields(table, sortlen, &addon_length,
+                                   &m_packable_length);
+  }
+
+  setup_lengths_and_limit(table, sortlen, using_addon_fields(),
+                          addon_length, maxrows);
+  accepted_rows= filesort->accepted_rows;
 }
 
 

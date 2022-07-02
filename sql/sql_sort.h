@@ -590,6 +590,13 @@ public:
     */
     tmp_buffer.set_charset(&my_charset_bin);
   }
+
+  void setup_lengths_and_limit(TABLE *table,
+                               uint sortlen,
+                               bool using_addon_fields,
+                               uint addon_length,
+                               ha_rows limit_rows_arg);
+
   void init_for_filesort(uint sortlen, TABLE *table,
                          ha_rows maxrows, Filesort *filesort);
 
