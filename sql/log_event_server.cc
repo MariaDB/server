@@ -1289,7 +1289,7 @@ bool Query_log_event::write()
     }
   }
 
-  if (thd && thd->query_start_sec_part_used)
+  if (thd && (thd->used & THD::QUERY_START_SEC_PART_USED))
   {
     *start++= Q_HRNOW;
     get_time();
@@ -1415,8 +1415,8 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
 				 bool direct, bool suppress_use, int errcode)
 
   :Log_event(thd_arg,
-             (thd_arg->thread_specific_used ? LOG_EVENT_THREAD_SPECIFIC_F :
-              0) |
+             ((thd_arg->used & THD::THREAD_SPECIFIC_USED)
+              ? LOG_EVENT_THREAD_SPECIFIC_F : 0) |
              (suppress_use ? LOG_EVENT_SUPPRESS_USE_F : 0),
 	     using_trans),
    data_buf(0), query(query_arg), catalog(thd_arg->catalog),
@@ -1502,7 +1502,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
   int2store(charset, thd_arg->variables.character_set_client->number);
   int2store(charset+2, thd_arg->variables.collation_connection->number);
   int2store(charset+4, thd_arg->variables.collation_server->number);
-  if (thd_arg->time_zone_used)
+  if (thd_arg->used & THD::TIME_ZONE_USED)
   {
     /*
       Note that our event becomes dependent on the Time_zone object
@@ -2949,7 +2949,8 @@ Load_log_event::Load_log_event(THD *thd_arg, const sql_exchange *ex,
 			       enum enum_duplicates handle_dup,
 			       bool ignore, bool using_trans)
   :Log_event(thd_arg,
-             thd_arg->thread_specific_used ? LOG_EVENT_THREAD_SPECIFIC_F : 0,
+             (thd_arg->used & THD::THREAD_SPECIFIC_USED)
+              ? LOG_EVENT_THREAD_SPECIFIC_F : 0,
              using_trans),
    thread_id(thd_arg->thread_id),
    slave_proxy_id((ulong)thd_arg->variables.pseudo_thread_id),
