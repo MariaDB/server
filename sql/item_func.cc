@@ -775,7 +775,7 @@ bool Item_func_connection_id::fix_fields(THD *thd, Item **ref)
 {
   if (Item_int_func::fix_fields(thd, ref))
     return TRUE;
-  thd->thread_specific_used= TRUE;
+  thd->used|= THD::THREAD_SPECIFIC_USED;
   value= thd->variables.pseudo_thread_id;
   return FALSE;
 }
@@ -2818,9 +2818,9 @@ bool Item_func_rand::fix_fields(THD *thd,Item **ref)
       Once events are forwarded rather than recreated,
       the following can be skipped if inside the slave thread
     */
-    if (!thd->rand_used)
+    if (!(thd->used & THD::RAND_USED))
     {
-      thd->rand_used= 1;
+      thd->used|= THD::RAND_USED;
       thd->rand_saved_seed1= thd->rand.seed1;
       thd->rand_saved_seed2= thd->rand.seed2;
     }

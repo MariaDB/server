@@ -2272,7 +2272,8 @@ public:
   ulong start_time_sec_part;
   sql_mode_t sql_mode;
   bool auto_increment_field_not_null;
-  bool ignore, log_query, query_start_sec_part_used;
+  bool ignore, log_query;
+  THD::used_t query_start_sec_part_used;
   bool stmt_depends_on_first_successful_insert_id_in_prev_stmt;
   ulonglong first_successful_insert_id_in_prev_stmt;
   ulonglong forced_insert_id;
@@ -2930,7 +2931,7 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
 
   row->start_time=                thd->start_time;
   row->start_time_sec_part=       thd->start_time_sec_part;
-  row->query_start_sec_part_used= thd->query_start_sec_part_used;
+  row->query_start_sec_part_used= thd->used & THD::QUERY_START_SEC_PART_USED;
   /*
     those are for the binlog: LAST_INSERT_ID() has been evaluated at this
     time, so record does not need it, but statement-based binlogging of the
@@ -2947,7 +2948,7 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
      So we can get time_zone object from thread which handling delayed statement.
      See the comment of my_tz_find() for detail.
   */
-  if (thd->time_zone_used)
+  if (thd->used & THD::TIME_ZONE_USED)
   {
     row->time_zone = thd->variables.time_zone;
   }
@@ -3561,7 +3562,7 @@ bool Delayed_insert::handle_inserts(void)
 
     thd.start_time=row->start_time;
     thd.start_time_sec_part=row->start_time_sec_part;
-    thd.query_start_sec_part_used=row->query_start_sec_part_used;
+    thd.used= row->query_start_sec_part_used;
     /*
       To get the exact auto_inc interval to store in the binlog we must not
       use values from the previous interval (of the previous rows).

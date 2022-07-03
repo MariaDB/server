@@ -2906,6 +2906,12 @@ public:
   */
   uint32 binlog_unsafe_warning_flags;
 
+  typedef uint used_t;
+  enum { RAND_USED=1, TIME_ZONE_USED=2, QUERY_START_SEC_PART_USED=4,
+         THREAD_SPECIFIC_USED=8 };
+
+  used_t used;
+
 #ifndef MYSQL_CLIENT
   binlog_cache_mngr *  binlog_setup_trx_data();
   /*
@@ -3590,15 +3596,11 @@ public:
     Reset to FALSE when we leave the sub-statement mode.
   */
   bool       is_fatal_sub_stmt_error;
-  bool	     rand_used, time_zone_used;
-  bool       query_start_sec_part_used;
   /* for IS NULL => = last_insert_id() fix in remove_eq_conds() */
   bool       substitute_null_with_insert_id;
   bool	     in_lock_tables;
   bool       bootstrap, cleanup_done, free_connection_done;
 
-  /**  is set if some thread specific value(s) used in a statement. */
-  bool       thread_specific_used;
   /**  
     is set if a statement accesses a temporary table created through
     CREATE TEMPORARY TABLE. 
@@ -3906,7 +3908,7 @@ public:
                          ulong sec_part, date_mode_t fuzzydate);
   inline my_time_t query_start() { return start_time; }
   inline ulong query_start_sec_part()
-  { query_start_sec_part_used=1; return start_time_sec_part; }
+  { used|= QUERY_START_SEC_PART_USED; return start_time_sec_part; }
   MYSQL_TIME query_start_TIME();
   time_round_mode_t temporal_round_mode() const
   {
