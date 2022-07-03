@@ -44,6 +44,7 @@
 #include "rpl_filter.h"
 #include "rpl_record.h"
 #include "transaction.h"
+#include <my_sys.h>
 #include <my_dir.h>
 #include "sql_show.h"    // append_identifier
 #include "debug_sync.h"  // debug_sync
@@ -62,7 +63,7 @@
 
 
 #define log_cs  &my_charset_latin1
-
+ulonglong opt_apply_binlog_speed_limit = 0;
 
 #if defined(HAVE_REPLICATION)
 static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD* thd);
@@ -3094,6 +3095,8 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
   Relay_log_info const *rli= rgi->rli;
   Rpl_filter *rpl_filter= rli->mi->rpl_filter;
   DBUG_ENTER("Load_log_event::do_apply_event");
+  ulonglong lastchecktime= my_hrtime().val;
+
 
   DBUG_ASSERT(thd->query() == 0);
   set_thd_db(thd, rpl_filter, db, db_len);
@@ -3348,6 +3351,35 @@ Error '%s' running LOAD DATA INFILE on table '%s'. Default database: '%s'",
     rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, rgi->gtid_info(),
                 ER_THD(thd, ER_SLAVE_FATAL_ERROR), buf);
     DBUG_RETURN(1);
+  }
+  /* Control the binlog apply speed of master when apply_binlog_speed_limit is
+   * non-zero
+   */
+  ulonglong apply_binlog_speed_limit= opt_apply_binlog_speed_limit;
+  if (apply_binlog_speed_limit)
+  {
+    if (tokenamount > apply_binlog_speed_limit * 1024 * 2)
+    {
+      lastchecktime= my_hrtime().val;
+      tokenamount= apply_binlog_speed_limit * 1024 * 2;
+    }
+
+    do
+    {
+      ulonglong currenttime= my_hrtime().val;
+      tokenamount+= (currenttime - lastchecktime) * apply_binlog_speed_limit *
+                    1024 / 1000;
+      lastchecktime= currenttime;
+      if (tokenamount < event_len)
+      {
+        ulonglong micro_sleeptime= 1000 * 1000 * (event_len - tokenamount) /
+                                   (apply_binlog_speed_limit * 1024);
+        my_sleep(micro_sleeptime > 1000
+                     ? micro_sleeptime
+                     : 1000); 
+      }
+    } while (tokenamount < event_len);
+    tokenamount-= event_len;
   }
 
   DBUG_RETURN( use_rli_only_for_errors ? 0 : Log_event::do_apply_event(rgi) );

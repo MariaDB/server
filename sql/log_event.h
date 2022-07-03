@@ -751,6 +751,8 @@ enum Log_event_type
   nothing else important. This is stored by cache.
 */
 
+extern ulonglong opt_apply_binlog_speed_limit;
+
 enum enum_logged_status
 {
   LOGGED_TABLE_MAP= 1,
