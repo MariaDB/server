@@ -834,14 +834,13 @@ bool Log_to_csv_event_handler::
   uint field_index;
   Silence_log_table_errors error_handler;
   Open_tables_backup open_tables_backup;
-  bool save_time_zone_used;
+  THD::used_t save_time_zone_used= thd->used & THD::TIME_ZONE_USED;
   DBUG_ENTER("log_general");
 
   /*
     CSV uses TIME_to_timestamp() internally if table needs to be repaired
-    which will set thd->time_zone_used
+    which will set TIME_ZONE_USED
   */
-  save_time_zone_used= thd->time_zone_used;
 
   table_list.init_one_table(&MYSQL_SCHEMA_NAME, &GENERAL_LOG_NAME, 0,
                             TL_WRITE_CONCURRENT_INSERT);
@@ -942,7 +941,7 @@ err:
   if (need_close)
     close_log_table(thd, &open_tables_backup);
 
-  thd->time_zone_used= save_time_zone_used;
+  thd->used= (thd->used & ~THD::TIME_ZONE_USED) | save_time_zone_used;
   DBUG_RETURN(result);
 }
 
@@ -989,7 +988,7 @@ bool Log_to_csv_event_handler::
   Silence_log_table_errors error_handler;
   Open_tables_backup open_tables_backup;
   CHARSET_INFO *client_cs= thd->variables.character_set_client;
-  bool save_time_zone_used;
+  THD::used_t save_time_zone_used= thd->used & THD::TIME_ZONE_USED;
   ulong query_time= (ulong) MY_MIN(query_utime/1000000, TIME_MAX_VALUE_SECONDS);
   ulong lock_time=  (ulong) MY_MIN(lock_utime/1000000, TIME_MAX_VALUE_SECONDS);
   ulong query_time_micro= (ulong) (query_utime % 1000000);
@@ -997,11 +996,6 @@ bool Log_to_csv_event_handler::
   DBUG_ENTER("Log_to_csv_event_handler::log_slow");
 
   thd->push_internal_handler(& error_handler);
-  /*
-    CSV uses TIME_to_timestamp() internally if table needs to be repaired
-    which will set thd->time_zone_used
-  */
-  save_time_zone_used= thd->time_zone_used;
 
   table_list.init_one_table(&MYSQL_SCHEMA_NAME, &SLOW_LOG_NAME, 0,
                             TL_WRITE_CONCURRENT_INSERT);
@@ -1129,7 +1123,7 @@ err:
   }
   if (need_close)
     close_log_table(thd, &open_tables_backup);
-  thd->time_zone_used= save_time_zone_used;
+  thd->used= (thd->used & ~THD::TIME_ZONE_USED) | save_time_zone_used;
   DBUG_RETURN(result);
 }
 
@@ -6853,7 +6847,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
           if (write_event(&e, cache_data, file))
             goto err;
         }
-        if (thd->rand_used)
+        if (thd->used & THD::RAND_USED)
         {
           Rand_log_event e(thd,thd->rand_saved_seed1,thd->rand_saved_seed2,
                            using_trans, direct);

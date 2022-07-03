@@ -1816,7 +1816,7 @@ report_error:
                          table->table ?  table->table->s :  NULL));
   }
   DEBUG_SYNC(thd, "rm_table_no_locks_before_binlog");
-  thd->thread_specific_used= TRUE;
+  thd->used|= THD::THREAD_SPECIFIC_USED;
   error= 0;
 
 err:
@@ -4616,7 +4616,7 @@ int create_table_impl(THD *thd,
     if (is_trans != NULL)
       *is_trans= table->file->has_transactions();
 
-    thd->thread_specific_used= TRUE;
+    thd->used|= THD::THREAD_SPECIFIC_USED;
     create_info->table= table;                  // Store pointer to table
   }
 
@@ -4807,11 +4807,9 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   thd->abort_on_warning= thd->is_strict_mode();
 
   if (mysql_create_table_no_lock(thd, &ddl_log_state_create, &ddl_log_state_rm,
-                                 &create_table->db,
-                                 &create_table->table_name, create_info,
-                                 alter_info,
-                                 &is_trans, create_table_mode,
-                                 create_table) > 0)
+                                 &create_table->db, &create_table->table_name,
+                                 create_info, alter_info, &is_trans,
+                                 create_table_mode, create_table) > 0)
   {
     result= 1;
     goto err;

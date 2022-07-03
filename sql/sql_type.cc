@@ -1064,7 +1064,7 @@ Datetime::Datetime(THD *thd, const timeval &tv)
 {
   thd->variables.time_zone->gmt_sec_to_TIME(this, tv.tv_sec);
   second_part= tv.tv_usec;
-  thd->time_zone_used= 1;
+  thd->used|= THD::TIME_ZONE_USED;
   DBUG_ASSERT(is_valid_value_slow());
 }
 
