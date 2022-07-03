@@ -635,7 +635,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    protocol_text(this), protocol_binary(this), initial_status_var(0),
    m_current_stage_key(0), m_psi(0),
    in_sub_stmt(0), log_all_errors(0),
-   binlog_unsafe_warning_flags(0),
+   binlog_unsafe_warning_flags(0), used(0),
    current_stmt_binlog_format(BINLOG_FORMAT_MIXED),
    bulk_param(0),
    table_map_for_update(0),
@@ -655,8 +655,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    is_fatal_error(0),
    transaction_rollback_request(0),
    is_fatal_sub_stmt_error(false),
-   rand_used(0),
-   time_zone_used(0),
    in_lock_tables(0),
    bootstrap(0),
    derived_tables_processing(FALSE),
@@ -769,11 +767,10 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   security_ctx= &main_security_ctx;
   no_errors= 0;
   password= 0;
-  query_start_sec_part_used= 0;
   count_cuted_fields= CHECK_FIELD_IGNORE;
   killed= NOT_KILLED;
   killed_err= 0;
-  is_slave_error= thread_specific_used= FALSE;
+  is_slave_error= FALSE;
   my_hash_clear(&handler_tables_hash);
   my_hash_clear(&ull_hash);
   tmp_table=0;
@@ -2232,13 +2229,13 @@ void THD::cleanup_after_query()
   thd_progress_end(this);
 
   /*
-    Reset rand_used so that detection of calls to rand() will save random 
+    Reset RAND_USED so that detection of calls to rand() will save random
     seeds if needed by the slave.
 
-    Do not reset rand_used if inside a stored function or trigger because 
+    Do not reset RAND_USED if inside a stored function or trigger because
     only the call to these operations is logged. Thus only the calling 
     statement needs to detect rand() calls made by its substatements. These
-    substatements must not set rand_used to 0 because it would remove the
+    substatements must not set RAND_USED to 0 because it would remove the
     detection of rand() by the calling statement. 
   */
   if (!in_sub_stmt) /* stored functions and triggers are a special case */
@@ -2246,7 +2243,7 @@ void THD::cleanup_after_query()
     /* Forget those values, for next binlogger: */
     stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
     auto_inc_intervals_in_cur_stmt_for_binlog.empty();
-    rand_used= 0;
+    used&= ~THD::RAND_USED;
 #ifndef EMBEDDED_LIBRARY
     /*
       Clean possible unused INSERT_ID events by current statement.
@@ -7537,7 +7534,7 @@ MYSQL_TIME THD::query_start_TIME()
   MYSQL_TIME res;
   variables.time_zone->gmt_sec_to_TIME(&res, query_start());
   res.second_part= query_start_sec_part();
-  time_zone_used= 1;
+  used|= TIME_ZONE_USED;
   return res;
 }
 
@@ -8276,7 +8273,7 @@ Query_arena_stmt::~Query_arena_stmt()
 bool THD::timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
                             ulong sec_part, date_mode_t fuzzydate)
 {
-  time_zone_used= 1;
+  used|= TIME_ZONE_USED;
   if (ts == 0 && sec_part == 0)
   {
     if (fuzzydate & TIME_NO_ZERO_DATE)
