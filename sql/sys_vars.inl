@@ -2241,7 +2241,7 @@ public:
       timezone). If it's the global value which was used we can't replicate
       (binlog code stores session value only).
     */
-    thd->time_zone_used= 1;
+    thd->used|= THD::TIME_ZONE_USED;
     return valptr(thd, session_var(thd, Time_zone *));
   }
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const

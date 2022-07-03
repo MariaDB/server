@@ -7575,8 +7575,8 @@ void THD::reset_for_next_command(bool do_clear_error)
   }
 #endif /* WITH_WSREP */
 
-  query_start_sec_part_used= 0;
-  is_fatal_error= time_zone_used= 0;
+  used= 0;
+  is_fatal_error= 0;
   variables.option_bits&= ~OPTION_BINLOG_THIS_STMT;
 
   /*
@@ -7595,14 +7595,12 @@ void THD::reset_for_next_command(bool do_clear_error)
     transaction->all.reset();
   }
   DBUG_ASSERT(security_ctx== &main_security_ctx);
-  thread_specific_used= FALSE;
 
   if (opt_bin_log)
     reset_dynamic(&user_var_events);
   DBUG_ASSERT(user_var_events_alloc == &main_mem_root);
   enable_slow_log= true;
   get_stmt_da()->reset_for_next_command();
-  rand_used= 0;
   m_sent_row_count= m_examined_row_count= 0;
   accessed_rows_and_keys= 0;
 

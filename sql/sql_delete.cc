@@ -1640,7 +1640,7 @@ bool multi_delete::send_eof()
         thd->clear_error();
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
-      thd->thread_specific_used= TRUE;
+      thd->used|= THD::THREAD_SPECIFIC_USED;
       StatementBinlog stmt_binlog(thd, thd->binlog_need_stmt_format(transactional_tables));
       if (unlikely(thd->binlog_query(THD::ROW_QUERY_TYPE,
                                      thd->query(), thd->query_length(),
