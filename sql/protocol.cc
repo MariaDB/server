@@ -906,7 +906,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
   for (uint pos= 0; (item=it++); pos++)
   {
     prot.prepare_for_resend();
-    if (prot.store_field_metadata(thd, item, pos))
+    if (prot.store_item_metadata(thd, item, pos))
       goto err;
     if (prot.write())
       DBUG_RETURN(1);
@@ -986,7 +986,7 @@ bool Protocol::write()
 #endif /* EMBEDDED_LIBRARY */
 
 
-bool Protocol_text::store_field_metadata(THD *thd, Item *item, uint pos)
+bool Protocol_text::store_item_metadata(THD *thd, Item *item, uint pos)
 {
   Send_field field(thd, item);
   return store_field_metadata(thd, field, item->charset_for_protocol(), pos);

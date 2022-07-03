@@ -201,7 +201,7 @@ public:
   bool store_field_metadata(const THD *thd, const Send_field &field,
                             CHARSET_INFO *charset_for_protocol,
                             uint pos);
-  bool store_field_metadata(THD *thd, Item *item, uint pos);
+  bool store_item_metadata(THD *thd, Item *item, uint pos);
   bool store_field_metadata_for_list_fields(const THD *thd, Field *field,
                                             const TABLE_LIST *table_list,
                                             uint pos);
