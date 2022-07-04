@@ -500,12 +500,14 @@ sub main {
     foreach my $pid (keys %children)
     {
       my $ret_pid= waitpid($pid, 0);
-      if ($ret_pid != $pid){
-        mtr_report("Unknown process $ret_pid exited");
+      if ($ret_pid == -1) {
+        # Child was automatically reaped. Probably not possible
+        # unless you $SIG{CHLD}= 'IGNORE'
+        mtr_report("Child ${pid} was automatically reaped (this should never happend)");
+      } elsif ($ret_pid != $pid) {
+        confess("Unexpected PID ${ret_pid} instead of expected ${pid}");
       }
-      else {
-        delete $children{$ret_pid};
-      }
+      delete $children{$ret_pid};
     }
   }
 
