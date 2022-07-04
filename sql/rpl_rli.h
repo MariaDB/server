@@ -669,6 +669,23 @@ struct start_alter_info
   mysql_cond_t start_alter_cond;
 };
 
+struct Rpl_table_data
+{
+  const table_def *tabledef;
+  TABLE *conv_table;
+  const Copy_field *copy_fields;
+  const Copy_field *copy_fields_end;
+  Rpl_table_data& operator =(const RPL_TABLE_LIST &rpl_table_list)
+  {
+    tabledef= &rpl_table_list.m_tabledef;
+    conv_table= rpl_table_list.m_conv_table;
+    copy_fields= rpl_table_list.m_online_alter_copy_fields;
+    copy_fields_end= rpl_table_list.m_online_alter_copy_fields_end;
+    return *this;
+  }
+  bool is_online_alter() const { return copy_fields != NULL; }
+};
+
 /*
   This is data for various state needed to be kept for the processing of
   one event group (transaction) during replication.
@@ -941,24 +958,20 @@ struct rpl_group_info
     }
   }
 
-  bool get_table_data(TABLE *table_arg, table_def **tabledef_var,
-          TABLE **conv_table_var,
-          const Copy_field *copy[], const Copy_field **copy_end) const
+  bool get_table_data(const TABLE *table_arg, Rpl_table_data *table_data) const
   {
-    DBUG_ASSERT(tabledef_var && conv_table_var);
+    DBUG_ASSERT(table_data);
     for (TABLE_LIST *ptr= tables_to_lock ; ptr != NULL ; ptr= ptr->next_global)
       if (ptr->table == table_arg)
       {
         auto *rpl_table_list= static_cast<RPL_TABLE_LIST*>(ptr);
         DBUG_ASSERT(rpl_table_list->m_tabledef_valid);
-        *tabledef_var= &rpl_table_list->m_tabledef;
-        *conv_table_var= rpl_table_list->m_conv_table;
-        *copy= rpl_table_list->m_online_alter_copy_fields;
-        *copy_end= rpl_table_list->m_online_alter_copy_fields_end;
+        *table_data= *rpl_table_list;
+
         DBUG_PRINT("debug", ("Fetching table data for table %s.%s:"
                              " tabledef: %p, conv_table: %p",
                              table_arg->s->db.str, table_arg->s->table_name.str,
-                             *tabledef_var, *conv_table_var));
+                             table_data->tabledef, table_data->conv_table));
         return true;
       }
     return false;
