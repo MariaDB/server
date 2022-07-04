@@ -250,12 +250,10 @@ int unpack_row(rpl_group_info *rgi, TABLE *table, uint const colcnt,
   // The "current" null bits
   unsigned int null_bits= *null_ptr++;
   uint i= 0;
-  table_def *tabledef= NULL;
-  TABLE *conv_table= NULL;
-  const Copy_field *copy_fields;
-  const Copy_field *copy_fields_end;
-  bool table_found= rgi && rgi->get_table_data(table, &tabledef, &conv_table,
-                                               &copy_fields, &copy_fields_end);
+  Rpl_table_data rpl_data{};
+  bool table_found= rgi && rgi->get_table_data(table, &rpl_data);
+  const table_def *tabledef= rpl_data.tabledef;
+  const TABLE *conv_table= rpl_data.conv_table;
   DBUG_PRINT("debug", ("Table data: table_found: %d, tabldef: %p, conv_table: %p",
                        table_found, tabledef, conv_table));
   DBUG_ASSERT(table_found);
@@ -374,7 +372,7 @@ int unpack_row(rpl_group_info *rgi, TABLE *table, uint const colcnt,
         If copy_fields is set, it means we are doing an online alter table,
         and will use copy_fields set up in copy_data_between_tables
       */
-      if (conv_field && !copy_fields)
+      if (conv_field && !rpl_data.copy_fields)
       {
         Copy_field copy;
 #ifndef DBUG_OFF
@@ -406,9 +404,10 @@ int unpack_row(rpl_group_info *rgi, TABLE *table, uint const colcnt,
     i++;
   }
 
-  if (copy_fields)
+  if (rpl_data.copy_fields)
   {
-    for (auto *copy=copy_fields; copy != copy_fields_end; copy++)
+    for (const auto *copy=rpl_data.copy_fields;
+         copy != rpl_data.copy_fields_end; copy++)
     {
       copy->do_copy(copy);
     }
