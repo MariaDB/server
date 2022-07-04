@@ -1899,5 +1899,75 @@ DROP TABLE t1, t2, t3, t4;
 set @@default_storage_engine=@save_default_storage_engine;
 
 --echo #
+--echo # MDEV-29022: add_slave destroy child list and has dead code
+--echo # (test added to be sure that ordering by several subqueries works)
+--echo #
+
+create table t1 (aa int);
+
+insert into t1 values (-1),(0),(1),(2),(3),(4),(5),(6),(98),(99),(100),(102);
+
+
+create table t2 (a int, b int);
+
+insert into t2 values (2,2),(2,3),(3,4),(3,5);
+
+
+select a as a, b as b,
+       (select max(aa) from t1 where aa < t2.a) as c,
+       (select max(aa) from t1 where aa < t2.b) as d
+  from t2
+union select 0 as a, 100 as b,
+       (select max(aa) from t1 where aa < 0) as c,
+       (select max(aa) from t1 where aa < 100) as d
+union select 0 as a, 99 as b,
+       (select max(aa) from t1 where aa < 0) as c,
+       (select max(aa) from t1 where aa < 99) as d
+  order by (select max(aa) from t1 where aa < a),
+           (select max(aa) from t1 where aa < b);
+
+select a as a, b as b,
+       (select max(aa) from t1 where aa < t2.a) as c,
+       (select 200 - max(aa) from t1 where aa < t2.b) as d
+  from t2
+union select 0 as a, 100 as b,
+       (select max(aa) from t1 where aa < 0) as c,
+       (select 200 - max(aa) from t1 where aa < 100) as d
+union select 0 as a, 99 as b,
+       (select max(aa) from t1 where aa < 0) as c,
+       (select 200 - max(aa) from t1 where aa < 99) as d
+  order by (select max(aa) from t1 where aa < a),
+           (select 200 - max(aa) from t1 where aa < b);
+
+
+(select a as a, b as b,
+       (select max(aa) from t1 where aa < t2.a) as c,
+       (select max(aa) from t1 where aa < t2.b) as d
+  from t2)
+union (select 0 as a, 100 as b,
+       (select max(aa) from t1 where aa < 0) as c,
+       (select max(aa) from t1 where aa < 100) as d)
+union (select 0 as a, 99 as b,
+       (select max(aa) from t1 where aa < 0) as c,
+       (select max(aa) from t1 where aa < 99) as d)
+  order by (select max(aa) from t1 where aa < a),
+           (select max(aa) from t1 where aa < b);
+
+(select a as a, b as b,
+       (select max(aa) from t1 where aa < t2.a) as c,
+       (select 200 - max(aa) from t1 where aa < t2.b) as d
+  from t2)
+union (select 0 as a, 100 as b,
+       (select max(aa) from t1 where aa < 0) as c,
+       (select 200 - max(aa) from t1 where aa < 100) as d)
+union (select 0 as a, 99 as b,
+       (select max(aa) from t1 where aa < 0) as c,
+       (select 200 - max(aa) from t1 where aa < 99) as d)
+  order by (select max(aa) from t1 where aa < a),
+           (select 200 - max(aa) from t1 where aa < b);
+
+drop table t1,t2;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

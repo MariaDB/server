@@ -12910,11 +12910,16 @@ order_clause:
                */
                DBUG_ASSERT(sel->master_unit()->fake_select_lex);
                lex->current_select= sel->master_unit()->fake_select_lex;
+               lex->push_context(&sel->master_unit()->fake_select_lex->context, thd->mem_root);
              }
           }
           order_list
           {
-
+            if (Lex->current_select ==
+                Lex->current_select->master_unit()->fake_select_lex)
+            {
+              Lex->pop_context();
+            }
           }
          ;
 

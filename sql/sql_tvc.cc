@@ -708,7 +708,7 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
     Attach the select used of TVC as the only slave to the unit for
     the derived table tvc_x of the transformation
   */
-  derived_unit->add_slave(tvc_sl);
+  derived_unit->attach_single(tvc_sl);
   tvc_sl->linkage= DERIVED_TABLE_TYPE;
 
   /*
