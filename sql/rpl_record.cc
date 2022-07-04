@@ -146,33 +146,6 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 /**
-  Fills @c table->record[0] with computed values of extra  persistent  column
-  which are present on slave but not on master.
-
-  @param table         Table whose record[0] buffer is prepared.
-  @param master_cols   No of columns on master
-  @returns 0 on        success
- */
-static int fill_extra_persistent_columns(TABLE *table, int master_cols)
-{
-  int error= 0;
-
-  if (!table->vfield)
-    return 0;
-  for (Field **vfield_ptr= table->vfield; *vfield_ptr; ++vfield_ptr)
-  {
-    Field *vfield= *vfield_ptr;
-    if (vfield->field_index >= master_cols && vfield->stored_in_db())
-    {
-      bitmap_set_bit(table->write_set, vfield->field_index);
-      error= vfield->vcol_info->expr->save_in_field(vfield,0);
-    }
-  }
-  return error;
-}
-
-
-/**
    Unpack a row into @c table->record[0].
 
    The function will always unpack into the @c table->record[0]
@@ -411,10 +384,23 @@ int unpack_row(rpl_group_info *rgi, TABLE *table, uint const colcnt,
 
   if (copy_fields)
   {
-    for (auto *copy=copy_fields; copy != copy_fields_end; copy++)
+    for (const auto *copy=copy_fields; copy != copy_fields_end; copy++)
     {
       copy->do_copy(copy);
     }
+  }
+
+  if (table->default_field)
+  {
+    error= table->update_default_fields(table->in_use->lex->ignore);
+    if (unlikely(error))
+      DBUG_RETURN(error);
+  }
+  if (table->vfield)
+  {
+    error= table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
+    if (unlikely(error))
+      DBUG_RETURN(error);
   }
 
   /*
@@ -441,12 +427,6 @@ int unpack_row(rpl_group_info *rgi, TABLE *table, uint const colcnt,
       null_mask <<= 1;
     }
   }
-
-  /*
-    Add Extra slave persistent columns
-  */
-  if (unlikely(error= fill_extra_persistent_columns(table, cols->n_bits)))
-    DBUG_RETURN(error);
 
   /*
     We should now have read all the null bytes, otherwise something is
