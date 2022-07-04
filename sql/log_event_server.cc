@@ -6045,9 +6045,12 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       extra columns on the slave. In that case, do not force
       MODE_NO_AUTO_VALUE_ON_ZERO.
     */
+    Rpl_table_data rpl_data{};
+    if (rgi) rgi->get_table_data(table, &rpl_data);
     sql_mode_t saved_sql_mode= thd->variables.sql_mode;
     if (!is_auto_inc_in_extra_columns())
-      thd->variables.sql_mode= MODE_NO_AUTO_VALUE_ON_ZERO;
+      thd->variables.sql_mode= (rpl_data.copy_fields ? saved_sql_mode : 0)
+                               | MODE_NO_AUTO_VALUE_ON_ZERO;
 
     // row processing loop
 
