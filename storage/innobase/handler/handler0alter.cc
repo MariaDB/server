@@ -2345,7 +2345,16 @@ innodb_instant_alter_column_allowed_reason:
 
 			if (new_field->field) {
 				/* This is an existing column. */
-				continue;
+
+				if (new_field->field->charset()
+				    == key_part->field->charset()) {
+					continue;
+				}
+
+				ha_alter_info->unsupported_reason =
+					"Collation change on"
+					" an indexed column";
+				DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 			}
 
 			/* This is an added column. */

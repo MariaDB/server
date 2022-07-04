@@ -1,0 +1,19 @@
+#
+# MDEV-26294 Duplicate entries in unique index not detected when
+#	changing collation with INPLACE algorithm
+#
+SET NAMES utf8;
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_swedish_ci UNIQUE
+) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1, 'aaa');
+INSERT INTO t1 VALUES (2, 'ååå');
+ALTER TABLE t1
+MODIFY msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_unicode_ci,
+ALGORITHM=NOCOPY;
+ERROR 0A000: ALGORITHM=NOCOPY is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
+ALTER TABLE t1 DROP INDEX msg,
+MODIFY msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_unicode_ci,
+ALGORITHM=NOCOPY;
+DROP TABLE t1;
