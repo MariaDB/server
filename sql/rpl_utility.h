@@ -253,9 +253,9 @@ struct RPL_TABLE_LIST
   : public TABLE_LIST
 {
   bool m_tabledef_valid;
+  bool master_had_triggers;
   table_def m_tabledef;
   TABLE *m_conv_table;
-  bool master_had_triggers;
   const Copy_field *m_online_alter_copy_fields;
   const Copy_field *m_online_alter_copy_fields_end;
 
@@ -263,8 +263,8 @@ struct RPL_TABLE_LIST
                  thr_lock_type thr_lock_type,
                  table_def &&tabledef, bool master_had_trigers)
     : TABLE_LIST(db_arg, table_name_arg, NULL, thr_lock_type),
-      m_tabledef_valid(true), m_tabledef(std::move(tabledef)),
-      m_conv_table(NULL), master_had_triggers(master_had_trigers),
+      m_tabledef_valid(true), master_had_triggers(master_had_trigers),
+      m_tabledef(std::move(tabledef)), m_conv_table(NULL),
       m_online_alter_copy_fields(NULL),
       m_online_alter_copy_fields_end(NULL)
   {}
@@ -275,8 +275,9 @@ struct RPL_TABLE_LIST
                  const Copy_field *online_alter_copy_fields_end)
     :  TABLE_LIST(table, lock_type),
        m_tabledef_valid(true),
+       master_had_triggers(false),
        m_tabledef(std::move(tabledef)),
-       m_conv_table(conv_table), master_had_triggers(false),
+       m_conv_table(conv_table),
        m_online_alter_copy_fields(online_alter_copy_fields),
        m_online_alter_copy_fields_end(online_alter_copy_fields_end)
   {}
