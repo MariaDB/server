@@ -708,6 +708,24 @@ connection default;
 drop table t1;
 set debug_sync= reset;
 #
+# DELETE with added virtual column
+#
+CREATE TABLE t1 (a CHAR(3), b CHAR(3) AS (a)) ENGINE=InnoDB;
+INSERT INTO t1 (a) VALUES ('foo'),('bar');
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+ALTER TABLE t1 ADD c INT, ALGORITHM=COPY, LOCK=NONE;
+connection default;
+DELETE FROM t1;
+set debug_sync= 'now signal goforit';
+connection con2;
+select * from t1;
+a	b	c
+connection default;
+DROP TABLE t1;
+set debug_sync= reset;
+#
 # Do not ignore sql_mode when replicating
 #
 create table t1 (a int);
