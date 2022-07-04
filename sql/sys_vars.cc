@@ -725,7 +725,7 @@ static Sys_var_bit Sys_explicit_defaults_for_timestamp(
        "as NULL with DEFAULT NULL attribute, Without this option, "
        "TIMESTAMP columns are NOT NULL and have implicit DEFAULT clauses.",
        SESSION_VAR(option_bits), CMD_LINE(OPT_ARG),
-       OPTION_EXPLICIT_DEF_TIMESTAMP, DEFAULT(FALSE));
+       OPTION_EXPLICIT_DEF_TIMESTAMP, DEFAULT(FALSE), NO_MUTEX_GUARD, IN_BINLOG);
 
 static Sys_var_ulonglong Sys_bulk_insert_buff_size(
        "bulk_insert_buffer_size", "Size of tree cache used in bulk "

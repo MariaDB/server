@@ -522,13 +522,13 @@ class String;
   either, as the manual says (because a too big in-memory temp table
   is automatically written to disk).
 */
-#define OPTIONS_WRITTEN_TO_BIN_LOG \
-  (OPTION_AUTO_IS_NULL | OPTION_NO_FOREIGN_KEY_CHECKS |  \
+#define OPTIONS_WRITTEN_TO_BIN_LOG (OPTION_EXPLICIT_DEF_TIMESTAMP |\
+   OPTION_AUTO_IS_NULL | OPTION_NO_FOREIGN_KEY_CHECKS |  \
    OPTION_RELAXED_UNIQUE_CHECKS | OPTION_NOT_AUTOCOMMIT | OPTION_IF_EXISTS)
 
 /* Shouldn't be defined before */
 #define EXPECTED_OPTIONS \
-  ((1ULL << 14) | (1ULL << 26) | (1ULL << 27) | (1ULL << 19) | (1ULL << 28))
+  ((1ULL << 14) | (1ULL << 26) | (1ULL << 27) | (1ULL << 19) | (1ULL << 24) | (1ULL << 28))
 
 #if OPTIONS_WRITTEN_TO_BIN_LOG != EXPECTED_OPTIONS
 #error OPTIONS_WRITTEN_TO_BIN_LOG must NOT change their values!
