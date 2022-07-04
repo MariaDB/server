@@ -1,0 +1,24 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-26294 Duplicate entries in unique index not detected when
+--echo #	changing collation with INPLACE algorithm
+--echo #
+
+# Detect the duplicate entry after collation change of column
+
+SET NAMES utf8;
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_swedish_ci UNIQUE
+) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1, 'aaa');
+INSERT INTO t1 VALUES (2, 'ååå');
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1
+MODIFY msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_unicode_ci,
+ALGORITHM=NOCOPY;
+ALTER TABLE t1 DROP INDEX msg,
+MODIFY msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_unicode_ci,
+ALGORITHM=NOCOPY;
+DROP TABLE t1;

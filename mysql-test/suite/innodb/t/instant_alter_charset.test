@@ -227,9 +227,18 @@ create table key_part_bug (
   a varchar(150) charset utf8mb3 unique key
 ) engine=innodb;
 
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table key_part_bug
   modify a varchar(150) charset utf8mb4,
   algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table key_part_bug
+  modify a varchar(150) charset utf8mb4,
+  algorithm=nocopy;
+alter table key_part_bug
+  drop index a,
+  modify a varchar(150) charset utf8mb4,
+  algorithm=nocopy;
 
 drop table key_part_bug;
 
@@ -347,10 +356,13 @@ check table t;
 alter table t modify c char(100) collate utf8mb4_general_ci, algorithm=instant;
 check table t;
 
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t modify aa char(10) collate utf8mb4_general_ci, algorithm=instant;
 check table t;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t modify bb char(70) collate utf8mb4_general_ci, algorithm=instant;
 check table t;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t modify cc char(100) collate utf8mb4_general_ci, algorithm=instant;
 check table t;
 
@@ -442,9 +454,14 @@ while ($counter <= $data_size) {
 
   insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
 
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
   eval alter table tmp
     change a a varchar(50) charset $to_charset collate $to_collate,
     modify b varchar(50) charset $to_charset collate $to_collate,
+    algorithm=instant;
+
+  eval alter table tmp
+    change a a varchar(50) charset $to_charset collate $to_collate,
     algorithm=instant;
 
   check table tmp;
@@ -685,7 +702,10 @@ alter table t modify a char(10) collate latin1_general_cs, algorithm=inplace;
 
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t modify b char(10) collate latin1_general_cs, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t modify b char(10) collate latin1_general_cs, algorithm=nocopy;
+alter table t modify b char(10) collate latin1_general_cs,
+drop index b_key, algorithm=nocopy;
 check table t;
 
 alter table t modify c char(10) collate latin1_general_cs, algorithm=instant;
@@ -708,7 +728,10 @@ alter table t modify a varchar(10) collate latin1_general_cs, algorithm=inplace;
 
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t modify b varchar(10) collate latin1_general_cs, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t modify b varchar(10) collate latin1_general_cs, algorithm=nocopy;
+alter table t modify b varchar(10) collate latin1_general_cs,
+drop index b_key, algorithm=nocopy;
 check table t;
 
 alter table t modify c varchar(10) collate latin1_general_cs, algorithm=instant;

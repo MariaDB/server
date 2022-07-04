@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2310,7 +2310,16 @@ innodb_instant_alter_column_allowed_reason:
 
 			if (new_field->field) {
 				/* This is an existing column. */
-				continue;
+
+				if (new_field->field->charset()
+				    == key_part->field->charset()) {
+					continue;
+				}
+
+				ha_alter_info->unsupported_reason =
+					"Collation change on"
+					" an indexed column";
+				DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 			}
 
 			/* This is an added column. */
