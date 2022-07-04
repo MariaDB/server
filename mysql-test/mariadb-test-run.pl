@@ -77,6 +77,7 @@ BEGIN {
 use lib "lib";
 
 use Cwd ;
+use POSIX ":sys_wait_h";
 use Getopt::Long qw(:config bundling);
 use My::File::Path; # Patched version of File::Path
 use File::Basename;
@@ -488,7 +489,7 @@ sub main {
   mark_time_used('init');
 
   my ($prefix, $fail, $completed, $extra_warnings)=
-    run_test_server($server, $tests, $opt_parallel);
+    run_test_server($server, $tests, \%children);
 
   exit(0) if $opt_start_exit;
 
@@ -503,10 +504,12 @@ sub main {
       if ($ret_pid == -1) {
         # Child was automatically reaped. Probably not possible
         # unless you $SIG{CHLD}= 'IGNORE'
-        mtr_report("Child ${pid} was automatically reaped (this should never happend)");
+        mtr_warning("Child ${pid} was automatically reaped (this should never happen)");
       } elsif ($ret_pid != $pid) {
         confess("Unexpected PID ${ret_pid} instead of expected ${pid}");
       }
+      my $exit_status= ($? >> 8);
+      mtr_verbose2("Child ${pid} exited with status ${exit_status}");
       delete $children{$ret_pid};
     }
   }
@@ -572,7 +575,7 @@ sub main {
 
 
 sub run_test_server ($$$) {
-  my ($server, $tests, $childs) = @_;
+  my ($server, $tests, $children) = @_;
 
   my $num_saved_datadir= 0;  # Number of datadirs saved in vardir/log/ so far.
   my $num_failed_test= 0; # Number of tests failed so far
@@ -587,6 +590,7 @@ sub run_test_server ($$$) {
   my $suite_timeout= start_timer(suite_timeout());
 
   my $s= IO::Select->new();
+  my $childs= 0;
   $s->add($server);
   while (1) {
     if ($opt_stop_file)
@@ -600,12 +604,14 @@ sub run_test_server ($$$) {
 
     mark_time_used('admin');
     my @ready = $s->can_read(1); # Wake up once every second
+    mtr_debug("Got ". (0 + @ready). " connection(s)");
     mark_time_idle();
     foreach my $sock (@ready) {
       if ($sock == $server) {
 	# New client connected
+        ++$childs;
 	my $child= $sock->accept();
-	mtr_verbose2("Client connected");
+        mtr_verbose2("Client connected (got ${childs} childs)");
 	$s->add($child);
 	print $child "HELLO\n";
       }
@@ -613,12 +619,10 @@ sub run_test_server ($$$) {
 	my $line= <$sock>;
 	if (!defined $line) {
 	  # Client disconnected
-	  mtr_verbose2("Child closed socket");
+	  --$childs;
+	  mtr_verbose2("Child closed socket (left ${childs} childs)");
 	  $s->remove($sock);
 	  $sock->close;
-	  if (--$childs == 0){
-	    return ("Completed", $test_failure, $completed, $extra_warnings);
-	  }
 	  next;
 	}
 	chomp($line);
@@ -859,6 +863,33 @@ sub run_test_server ($$$) {
 	  print $sock "BYE\n";
 	}
       }
+    }
+
+    if (!IS_WINDOWS) {
+      foreach my $pid (keys %$children)
+      {
+        my $res= waitpid($pid, WNOHANG);
+        if ($res == $pid || $res == -1) {
+          if ($res == -1) {
+            # Child was automatically reaped. Probably not possible
+            # unless you $SIG{CHLD}= 'IGNORE'
+            mtr_warning("Child ${pid} was automatically reaped (this should never happen)");
+          }
+          my $exit_status= ($? >> 8);
+          mtr_verbose2("Child ${pid} exited with status ${exit_status}");
+          delete $children->{$pid};
+          if (!%$children && $childs) {
+            mtr_verbose2("${childs} children didn't close socket before dying!");
+            $childs= 0;
+          }
+        } elsif ($res != 0) {
+          confess("Unexpected result ${res} on waitpid(${pid}, WNOHANG)");
+        }
+      }
+    }
+
+    if ($childs == 0){
+      return ("Completed", $test_failure, $completed, $extra_warnings);
     }
 
     # ----------------------------------------------------
