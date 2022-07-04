@@ -6032,6 +6032,14 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
                              &m_cols_ai : &m_cols);
     bitmap_intersect(table->write_set, after_image);
 
+    /* Mark extra replica columns for write */
+    for (Field **field_ptr= table->field; *field_ptr; ++field_ptr)
+    {
+      Field *field= *field_ptr;
+      if (field->field_index >= m_cols.n_bits && field->stored_in_db())
+        bitmap_set_bit(table->write_set, field->field_index);
+    }
+
     this->slave_exec_mode= slave_exec_mode_options; // fix the mode
 
     // Do event specific preparations 
