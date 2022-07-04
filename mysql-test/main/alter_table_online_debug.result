@@ -626,6 +626,7 @@ a
 3
 NULL
 NULL
+set sql_mode=default;
 connection default;
 drop table t1;
 set debug_sync= reset;
@@ -703,6 +704,25 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` blob DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+connection default;
+drop table t1;
+set debug_sync= reset;
+#
+# Do not ignore sql_mode when replicating
+#
+create table t1 (a int);
+insert into t1 values (1);
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set sql_mode='STRICT_ALL_TABLES,ERROR_FOR_DIVISION_BY_ZERO';
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t1 add b int as (1/a) stored, algorithm=copy, lock=none;
+connection default;
+update t1 set a= 0 where a=1;
+set debug_sync= 'now signal goforit';
+connection con2;
+ERROR 22012: Division by 0
+set sql_mode= default;
 connection default;
 drop table t1;
 set debug_sync= reset;
