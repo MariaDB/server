@@ -1,4 +1,4 @@
-@@ -288,7 +288,6 @@
+@@ -279,7 +279,6 @@
  alter table boundary_255
  modify a varchar(70) charset utf8mb4,
  algorithm=instant;
@@ -6,7 +6,7 @@
  drop table boundary_255;
  create table t (
  a char(10) collate utf8mb3_general_ci,
-@@ -306,35 +305,21 @@
+@@ -297,32 +296,21 @@
  repeat('a', 10), repeat('a', 10)
  );
  alter table t modify a char(10) collate utf8mb4_general_ci, algorithm=instant;
@@ -25,19 +25,16 @@
 -test.t	check	status	OK
 +ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
  alter table t modify aa char(10) collate utf8mb4_general_ci, algorithm=instant;
--ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
 -check table t;
 -Table	Op	Msg_type	Msg_text
 -test.t	check	status	OK
 +ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
  alter table t modify bb char(70) collate utf8mb4_general_ci, algorithm=instant;
--ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
 -check table t;
 -Table	Op	Msg_type	Msg_text
 -test.t	check	status	OK
 +ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
  alter table t modify cc char(100) collate utf8mb4_general_ci, algorithm=instant;
--ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
 -check table t;
 -Table	Op	Msg_type	Msg_text
 -test.t	check	status	OK
@@ -45,10 +42,17 @@
  alter table t modify d char(10) collate utf8mb4_spanish_ci, algorithm=instant;
 +ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
  alter table t modify dd char(10) collate utf8mb4_spanish_ci, algorithm=instant;
--ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
+-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 +ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
  select * from t;
  a	b	c	aa	bb	cc	d	dd
  aaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaa	aaaaaaaaaa
-
-mysqltest: Result length mismatch
+@@ -2066,7 +2054,7 @@
+ ALTER TABLE t1
+ CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci,
+ ADD UNIQUE INDEX test_key (a);
+-ERROR 23000: Duplicate entry 'NULL' for key 'test_key'
++ERROR 23000: Duplicate entry 'a1' for key 'test_key'
+ ALTER TABLE t1 CONVERT TO CHARACTER SET UTF8MB4 COLLATE UTF8MB4_UNICODE_520_CI;
+ CHECK TABLE t1;
+ Table	Op	Msg_type	Msg_text

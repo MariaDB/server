@@ -3877,6 +3877,23 @@ static void row_log_mark_other_online_index_abort(dict_table_t *table)
   table->drop_aborted= TRUE;
 }
 
+void dtype_t::assign(const dict_col_t &col)
+{
+  prtype= col.prtype;
+  mtype= col.mtype;
+  len= col.len;
+  mbminlen= col.mbminlen;
+  mbmaxlen= col.mbmaxlen;
+}
+
+inline void dtuple_t::copy_field_types(const dict_index_t &index)
+{
+  ut_ad(index.n_fields == n_fields);
+  if (UNIV_LIKELY_NULL(index.change_col_info))
+    for (ulint i= 0; i < n_fields; i++)
+      fields[i].type.assign(*index.fields[i].col);
+}
+
 void UndorecApplier::log_insert(const dtuple_t &tuple,
                                 dict_index_t *clust_index)
 {
@@ -3943,7 +3960,8 @@ void UndorecApplier::log_insert(const dtuple_t &tuple,
       {
         dtuple_t *entry= row_build_index_entry_low(row, ext, index,
                                                    heap, ROW_BUILD_NORMAL);
-        success= row_log_online_op(index, entry, trx_id);
+        entry->copy_field_types(*index);
+	success= row_log_online_op(index, entry, trx_id);
       }
 
       index->lock.s_unlock();
@@ -4069,10 +4087,14 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
         dtuple_t *old_entry= row_build_index_entry_low(
           old_row, old_ext, index, heap, ROW_BUILD_NORMAL);
 
-        success= row_log_online_op(index, old_entry, 0);
+        old_entry->copy_field_types(*index);
+
+	success= row_log_online_op(index, old_entry, 0);
 
 	dtuple_t *new_entry= row_build_index_entry_low(
           row, new_ext, index, heap, ROW_BUILD_NORMAL);
+
+        new_entry->copy_field_types(*index);
 
 	if (success)
 	  success= row_log_online_op(index, new_entry, trx_id);
@@ -4081,6 +4103,8 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
       {
         dtuple_t *old_entry= row_build_index_entry_low(
           row, new_ext, index, heap, ROW_BUILD_NORMAL);
+
+        old_entry->copy_field_types(*index);
 
         success= row_log_online_op(index, old_entry, 0);
       }

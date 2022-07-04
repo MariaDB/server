@@ -199,15 +199,6 @@ a varchar(150) charset utf8mb3 unique key
 alter table key_part_bug
 modify a varchar(150) charset utf8mb4,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table key_part_bug
-modify a varchar(150) charset utf8mb4,
-algorithm=nocopy;
-ERROR 0A000: ALGORITHM=NOCOPY is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table key_part_bug
-drop index a,
-modify a varchar(150) charset utf8mb4,
-algorithm=nocopy;
 drop table key_part_bug;
 create table latin1_swedish_special_case (
 copy1 varchar(150) charset ascii collate ascii_general_ci,
@@ -318,23 +309,20 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 alter table t modify aa char(10) collate utf8mb4_general_ci, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 alter table t modify bb char(70) collate utf8mb4_general_ci, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 alter table t modify cc char(100) collate utf8mb4_general_ci, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 alter table t modify d char(10) collate utf8mb4_spanish_ci, algorithm=instant;
 alter table t modify dd char(10) collate utf8mb4_spanish_ci, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 select * from t;
 a	b	c	aa	bb	cc	d	dd
 aaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaa	aaaaaaaaaa
@@ -390,10 +378,6 @@ alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_general_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_general_ci,
-algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
@@ -406,10 +390,6 @@ insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
 alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_bin,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_bin,
-algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_bin,
 algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
@@ -424,10 +404,6 @@ alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_unicode_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_unicode_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_unicode_ci,
-algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
@@ -440,10 +416,6 @@ insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
 alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_icelandic_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_icelandic_ci,
-algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_icelandic_ci,
 algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
@@ -458,10 +430,6 @@ alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_latvian_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_latvian_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_latvian_ci,
-algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
@@ -474,10 +442,6 @@ insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
 alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_romanian_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_romanian_ci,
-algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_romanian_ci,
 algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
@@ -492,10 +456,6 @@ alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_slovenian_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_slovenian_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_slovenian_ci,
-algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
@@ -508,10 +468,6 @@ insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
 alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_polish_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_polish_ci,
-algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_polish_ci,
 algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
@@ -526,10 +482,6 @@ alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_estonian_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_estonian_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_estonian_ci,
-algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
@@ -542,10 +494,6 @@ insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
 alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_spanish_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_spanish_ci,
-algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_spanish_ci,
 algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
@@ -560,10 +508,6 @@ alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_swedish_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_swedish_ci,
-algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
@@ -576,10 +520,6 @@ insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
 alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_turkish_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_turkish_ci,
-algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_turkish_ci,
 algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
@@ -594,10 +534,6 @@ alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_czech_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_czech_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_czech_ci,
-algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
@@ -610,10 +546,6 @@ insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
 alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_danish_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_danish_ci,
-algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_danish_ci,
 algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
@@ -628,10 +560,6 @@ alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_lithuanian_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_lithuanian_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_lithuanian_ci,
-algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
@@ -644,10 +572,6 @@ insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
 alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_slovak_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_slovak_ci,
-algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_slovak_ci,
 algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
@@ -662,10 +586,6 @@ alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_spanish2_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_spanish2_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_spanish2_ci,
-algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
@@ -678,10 +598,6 @@ insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
 alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_roman_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_roman_ci,
-algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_roman_ci,
 algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
@@ -696,10 +612,6 @@ alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_persian_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_persian_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_persian_ci,
-algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
@@ -712,10 +624,6 @@ insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
 alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_esperanto_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_esperanto_ci,
-algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_esperanto_ci,
 algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
@@ -730,10 +638,6 @@ alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_hungarian_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_hungarian_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_hungarian_ci,
-algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
@@ -746,10 +650,6 @@ insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
 alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_sinhala_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_sinhala_ci,
-algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_sinhala_ci,
 algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
@@ -764,10 +664,6 @@ alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_german2_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_german2_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_german2_ci,
-algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
@@ -780,10 +676,6 @@ insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
 alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_croatian_mysql561_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_croatian_mysql561_ci,
-algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_croatian_mysql561_ci,
 algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
@@ -798,10 +690,6 @@ alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_unicode_520_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_unicode_520_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_unicode_520_ci,
-algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
@@ -814,10 +702,6 @@ insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
 alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
-algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
@@ -832,10 +716,6 @@ alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_croatian_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_croatian_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_croatian_ci,
-algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
@@ -848,10 +728,6 @@ insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
 alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_myanmar_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_myanmar_ci,
-algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_myanmar_ci,
 algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
@@ -866,10 +742,6 @@ alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_thai_520_w2,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_thai_520_w2,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_thai_520_w2,
-algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
@@ -882,10 +754,6 @@ insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
 alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_general_nopad_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_general_nopad_ci,
-algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_general_nopad_ci,
 algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
@@ -900,10 +768,6 @@ alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_nopad_bin,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_nopad_bin,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_nopad_bin,
-algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
@@ -917,10 +781,6 @@ alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_unicode_nopad_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_unicode_nopad_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_unicode_nopad_ci,
-algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
@@ -933,10 +793,6 @@ insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
 alter table tmp
 change a a varchar(50) charset utf8mb4 collate utf8mb4_unicode_520_nopad_ci,
 modify b varchar(50) charset utf8mb4 collate utf8mb4_unicode_520_nopad_ci,
-algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table tmp
-change a a varchar(50) charset utf8mb4 collate utf8mb4_unicode_520_nopad_ci,
 algorithm=instant;
 check table tmp;
 Table	Op	Msg_type	Msg_text
@@ -974,7 +830,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
@@ -991,7 +847,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
@@ -1008,7 +864,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
@@ -1025,7 +881,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
@@ -1042,7 +898,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset ascii collate ascii_bin,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset ascii collate ascii_bin,
 algorithm=instant;
@@ -1059,7 +915,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb3 collate utf8mb3_lithuanian_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf8mb3 collate utf8mb3_lithuanian_ci,
 algorithm=instant;
@@ -1076,7 +932,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_persian_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_persian_ci,
 algorithm=instant;
@@ -1093,7 +949,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_german2_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_german2_ci,
 algorithm=instant;
@@ -1110,7 +966,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb3 collate utf8mb3_unicode_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf8mb3 collate utf8mb3_unicode_ci,
 algorithm=instant;
@@ -1127,7 +983,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset latin1 collate latin1_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset latin1 collate latin1_general_ci,
 algorithm=instant;
@@ -1144,7 +1000,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf16 collate utf16_german2_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf16 collate utf16_german2_ci,
 algorithm=instant;
@@ -2031,11 +1887,8 @@ insert into t values
 alter table t modify a char(10) collate latin1_general_cs, algorithm=inplace;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table t modify b char(10) collate latin1_general_cs, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table t modify b char(10) collate latin1_general_cs, algorithm=nocopy;
-ERROR 0A000: ALGORITHM=NOCOPY is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table t modify b char(10) collate latin1_general_cs,
-drop index b_key, algorithm=nocopy;
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -2055,11 +1908,8 @@ insert into t values
 alter table t modify a varchar(10) collate latin1_general_cs, algorithm=inplace;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table t modify b varchar(10) collate latin1_general_cs, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table t modify b varchar(10) collate latin1_general_cs, algorithm=nocopy;
-ERROR 0A000: ALGORITHM=NOCOPY is not supported. Reason: Collation change on an indexed column. Try ALGORITHM=COPY
-alter table t modify b varchar(10) collate latin1_general_cs,
-drop index b_key, algorithm=nocopy;
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -2201,7 +2051,7 @@ INSERT INTO t1 VALUES (1, 'a1'), (2, 'a1');
 ALTER TABLE t1
 CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci,
 ADD UNIQUE INDEX test_key (a);
-ERROR 23000: Duplicate entry 'a1' for key 'test_key'
+ERROR 23000: Duplicate entry 'NULL' for key 'test_key'
 ALTER TABLE t1 CONVERT TO CHARACTER SET UTF8MB4 COLLATE UTF8MB4_UNICODE_520_CI;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -2216,7 +2066,7 @@ INSERT INTO t1 VALUES (1, 'a1'), (2, 'a1');
 ALTER TABLE t1
 CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci,
 ADD UNIQUE INDEX test_key (a);
-ERROR 23000: Duplicate entry 'a1' for key 'test_key'
+ERROR 23000: Duplicate entry 'NULL' for key 'test_key'
 ALTER TABLE t1 CONVERT TO CHARACTER SET UTF8MB4 COLLATE UTF8MB4_UNICODE_520_CI;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text

@@ -1,4 +1,8 @@
 --source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--source include/count_sessions.inc
 
 --echo #
 --echo # MDEV-26294 Duplicate entries in unique index not detected when
@@ -14,11 +18,108 @@ CREATE TABLE t1 (
 ) ENGINE=INNODB;
 INSERT INTO t1 VALUES (1, 'aaa');
 INSERT INTO t1 VALUES (2, 'ååå');
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-ALTER TABLE t1
-MODIFY msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_unicode_ci,
-ALGORITHM=NOCOPY;
-ALTER TABLE t1 DROP INDEX msg,
-MODIFY msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_unicode_ci,
-ALGORITHM=NOCOPY;
+--error ER_DUP_ENTRY
+ALTER TABLE t1 MODIFY msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_unicode_ci, ALGORITHM=inplace;
 DROP TABLE t1;
+
+# PageBulk insert shouldn't fail like records are not in ascending order
+
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_bin,
+  id_2 INT not null,
+  unique index(msg, id_2)
+) ENGINE=INNODB;
+
+INSERT INTO t1 VALUES (1, 'aaa', 2);
+INSERT INTO t1 VALUES (2, 'AAA', 3);
+
+ALTER TABLE t1 MODIFY msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_unicode_ci, ALGORITHM=inplace;
+
+DROP TABLE t1;
+
+# Detect the duplicate entry from concurrent DML
+
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_bin,
+  unique index(msg)
+) ENGINE=INNODB;
+
+INSERT INTO t1 VALUES (1, 'aaa');
+INSERT INTO t1 VALUES (2, 'bbb');
+INSERT INTO t1 VALUES (3, 'ccc');
+
+SET DEBUG_SYNC = 'RESET';
+SET DEBUG_SYNC = 'row_log_apply_before SIGNAL before_apply WAIT_FOR go_ahead';
+--send
+ALTER TABLE t1 MODIFY msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_unicode_ci, ALGORITHM=NOCOPY;
+
+connect (con1,localhost,root,,);
+connection con1;
+
+SET DEBUG_SYNC = 'now WAIT_FOR before_apply';
+INSERT INTO t1 VALUES (4, 'AAA');
+UPDATE t1 set msg = "ddd" where id = 2;
+DELETE FROM t1 WHERE id= 3;
+SET DEBUG_SYNC = 'now SIGNAL go_ahead';
+SET DEBUG_SYNC = 'RESET';
+
+connection default;
+
+--error ER_DUP_ENTRY
+reap;
+
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# InnoDB should store the changed collation column into
+# change_col_info in index when rollback of alter happens
+
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_bin,
+  unique index(msg)
+) ENGINE=INNODB;
+
+INSERT INTO t1 VALUES (1, 'aaa');
+SET DEBUG_DBUG="+d,create_index_fail";
+SET DEBUG_SYNC="innodb_inplace_alter_table_enter SIGNAL con1_go WAIT_FOR alter_signal";
+--send
+ALTER TABLE t1 MODIFY msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_unicode_ci, ALGORITHM=NOCOPY;
+
+connection con1;
+SET DEBUG_SYNC="now WAIT_FOR con1_go";
+BEGIN;
+SELECT * FROM t1;
+SET DEBUG_SYNC="now SIGNAL alter_signal";
+connection default;
+--error ER_DUP_ENTRY
+reap;
+connection con1;
+rollback;
+INSERT INTO t1 VALUES(2, 'bbb');
+disconnect con1;
+connection default;
+SET DEBUG_SYNC=reset;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES(3, 'ccc');
+DROP TABLE t1;
+
+# Inplace Collation change is not supported for virtual column
+# and stored column
+
+CREATE TABLE t1(id INT PRIMARY KEY, msg VARCHAR(100),
+		msg_1 VARCHAR(100) AS (msg) VIRTUAL,
+		msg_2 VARCHAR(100) AS (msg) STORED,
+		UNIQUE(msg), UNIQUE(msg_1),
+		UNIQUE(msg_2))ENGINE=InnoDB;
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
+ALTER TABLE t1 MODIFY msg_1 VARCHAR(100) CHARACTER SET utf8
+		COLLATE utf8_unicode_ci, ALGORITHM=inplace;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 MODIFY msg_2 VARCHAR(100) CHARACTER SET utf8
+                COLLATE utf8_unicode_ci, ALGORITHM=inplace;
+DROP TABLE t1;
+
+--source include/wait_until_count_sessions.inc
