@@ -804,7 +804,7 @@ set debug_sync= reset;
 --echo #
 --echo # MDEV-29021 ALTER TABLE fails when a stored virtual column is dropped and added
 --echo #
-create table t1 (a char(9), b char(9) as (a) stored) engine=InnoDB;
+create table t1 (a char(9), b char(9) as (a) stored);
 insert into t1(a) values ('foobar');
 
 --send set debug_sync= 'now wait_for downgraded'
@@ -873,6 +873,32 @@ show create table t1;
 # Cleanup
 --connection default
 drop table t1;
+set debug_sync= reset;
+
+--echo #
+--echo # DELETE with added virtual column
+--echo #
+CREATE TABLE t1 (a CHAR(3), b CHAR(3) AS (a));
+INSERT INTO t1 (a) VALUES ('foo'),('bar');
+--send
+set debug_sync= 'now wait_for downgraded';
+
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+ALTER TABLE t1 ADD c INT, ALGORITHM=COPY, LOCK=NONE;
+
+--connection default
+--reap
+DELETE FROM t1;
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--reap
+select * from t1;
+
+--connection default
+DROP TABLE t1;
 set debug_sync= reset;
 
 --echo #
