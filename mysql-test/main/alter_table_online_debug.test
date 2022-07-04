@@ -901,5 +901,59 @@ drop table t1;
 set debug_sync= reset;
 
 --echo #
+--echo # MDEV-29013 ER_KEY_NOT_FOUND/lock timeout upon online alter
+--echo # with long unique indexes
+--echo #
+create table t1 (b text not null, unique(b));
+insert into t1 values ('foo'),('bar');
+--send
+set debug_sync= 'now wait_for downgraded';
+
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t1 add c int, algorithm=copy, lock=none;
+
+--connection default
+--reap
+delete from t1;
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--reap
+
+--connection default
+drop table t1;
+set debug_sync= reset;
+
+--echo ###
+
+create table t1 (a text, unique(a)) engine=innodb;
+create table t2 (b text, unique(b)) engine=innodb;
+insert into t2 values (null),(null);
+--send
+set debug_sync= 'now wait_for downgraded';
+
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t2 add column c int, algorithm=copy, lock=none;
+
+--connection default
+--reap
+delete from t2;
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--reap
+
+--connection default
+alter table t2 force;
+alter table t1 force;
+
+drop table t1, t2;
+set debug_sync= reset;
+
+--echo #
 --echo # End of 10.10 tests
 --echo #

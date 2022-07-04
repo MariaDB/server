@@ -6007,34 +6007,41 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
      if (m_width == table->s->fields && bitmap_is_set_all(&m_cols))
       set_flags(COMPLETE_ROWS_F);
 
-    /* 
-      Set tables write and read sets.
-      
-      Read_set contains all slave columns (in case we are going to fetch
-      a complete record from slave)
-      
-      Write_set equals the m_cols bitmap sent from master but it can be 
-      longer if slave has extra columns. 
-     */ 
+    Rpl_table_data rpl_data{};
+    if (rgi) rgi->get_table_data(table, &rpl_data);
 
-    DBUG_PRINT_BITSET("debug", "Setting table's read_set from: %s", &m_cols);
-    
-    bitmap_set_all(table->read_set);
-    if (get_general_type_code() == DELETE_ROWS_EVENT ||
-        get_general_type_code() == UPDATE_ROWS_EVENT)
-      bitmap_intersect(table->read_set,&m_cols);
+    if (!rpl_data.copy_fields)
+    {
+      /*
+        Set tables write and read sets.
 
-    bitmap_set_all(table->write_set);
+        Read_set contains all slave columns (in case we are going to fetch
+        a complete record from slave)
+
+        Write_set equals the m_cols bitmap sent from master but it can be
+        longer if slave has extra columns.
+       */
+
+      DBUG_PRINT_BITSET("debug", "Setting table's read_set from: %s", &m_cols);
+
+      bitmap_set_all(table->read_set);
+      if (get_general_type_code() == DELETE_ROWS_EVENT ||
+          get_general_type_code() == UPDATE_ROWS_EVENT)
+        bitmap_intersect(table->read_set, &m_cols);
+
+      bitmap_set_all(table->write_set);
+
+      /* WRITE ROWS EVENTS store the bitmap in m_cols instead of m_cols_ai */
+      MY_BITMAP *after_image= ((get_general_type_code() == UPDATE_ROWS_EVENT) ?
+                               &m_cols_ai : &m_cols);
+      bitmap_intersect(table->write_set, after_image);
+
+      this->slave_exec_mode= slave_exec_mode_options; // fix the mode
+    }
+
     table->rpl_write_set= table->write_set;
 
-    /* WRITE ROWS EVENTS store the bitmap in m_cols instead of m_cols_ai */
-    MY_BITMAP *after_image= ((get_general_type_code() == UPDATE_ROWS_EVENT) ?
-                             &m_cols_ai : &m_cols);
-    bitmap_intersect(table->write_set, after_image);
-
-    this->slave_exec_mode= slave_exec_mode_options; // fix the mode
-
-    // Do event specific preparations 
+    // Do event specific preparations
     error= do_before_row_operations(rli);
 
     /*
@@ -6045,8 +6052,6 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       extra columns on the slave. In that case, do not force
       MODE_NO_AUTO_VALUE_ON_ZERO.
     */
-    Rpl_table_data rpl_data{};
-    if (rgi) rgi->get_table_data(table, &rpl_data);
     sql_mode_t saved_sql_mode= thd->variables.sql_mode;
     if (!is_auto_inc_in_extra_columns())
       thd->variables.sql_mode= (rpl_data.copy_fields ? saved_sql_mode : 0)

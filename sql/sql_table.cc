@@ -11011,6 +11011,9 @@ do_continue:;
                    !(table->file->ha_table_flags() & HA_REUSES_FILE_NAMES) &&
                    !(new_table->file->ha_table_flags() &
                      HA_REUSES_FILE_NAMES));
+
+  // Close lookup_handler.
+  new_table->file->ha_reset();
   /*
     Close the intermediate table that will be the new table, but do
     not delete it! Even though MERGE tables do not have their children
@@ -11854,8 +11857,11 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
     // We'll be filling from->record[0] from row events
     bitmap_set_all(from->write_set);
-    // We restore bitmaps, because update event is going to mess up with them.
+    // Use all columns. UPDATE/DELETE events reset read_set and write_set to
+    // def_*_set after each row operation, so using all_set won't work.
     to->default_column_bitmaps();
+    bitmap_set_all(&to->def_read_set);
+    bitmap_set_all(&to->def_write_set);
 
     end_read_record(&info);
     init_read_record_done= false;

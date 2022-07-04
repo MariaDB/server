@@ -3212,7 +3212,7 @@ int handler::create_lookup_handler()
   handler *tmp;
   if (lookup_handler != this)
     return 0;
-  if (!(tmp= clone(table->s->normalized_path.str, table->in_use->mem_root)))
+  if (!(tmp= clone(table->s->normalized_path.str, &table->mem_root)))
     return 1;
   lookup_handler= tmp;
   return lookup_handler->ha_external_lock(table->in_use, F_RDLCK);
