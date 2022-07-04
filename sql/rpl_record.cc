@@ -412,6 +412,26 @@ int unpack_row(rpl_group_info *rgi, TABLE *table, uint const colcnt,
     {
       copy->do_copy(copy);
     }
+    if (table->default_field)
+    {
+      error= table->update_default_fields(table->in_use->lex->ignore);
+      if (unlikely(error))
+        DBUG_RETURN(error);
+    }
+    if (table->vfield)
+    {
+      error= table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
+      if (unlikely(error))
+        DBUG_RETURN(error);
+    }
+  }
+  else
+  {
+    /*
+      Add Extra slave persistent columns
+    */
+    if (unlikely(error= fill_extra_persistent_columns(table, cols->n_bits)))
+      DBUG_RETURN(error);
   }
 
   /*
@@ -438,12 +458,6 @@ int unpack_row(rpl_group_info *rgi, TABLE *table, uint const colcnt,
       null_mask <<= 1;
     }
   }
-
-  /*
-    Add Extra slave persistent columns
-  */
-  if (unlikely(error= fill_extra_persistent_columns(table, cols->n_bits)))
-    DBUG_RETURN(error);
 
   /*
     We should now have read all the null bytes, otherwise something is
