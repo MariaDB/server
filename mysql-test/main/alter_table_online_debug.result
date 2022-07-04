@@ -643,6 +643,67 @@ insert t1 (b) values ('k');
 insert t1 (b) values ('m');
 set debug_sync= 'now signal goforit';
 connection con2;
+connection default;
+drop table t1;
+set debug_sync= reset;
+#
+# MDEV-29021 ALTER TABLE fails when a stored virtual column is dropped and added
+#
+create table t1 (a char(9), b char(9) as (a) stored) engine=InnoDB;
+insert into t1(a) values ('foobar');
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter ignore table t1 drop b, add b char(3) as (a) stored, algorithm=copy, lock=none;
+connection default;
+update t1 set a = 'foobarqux';
+set debug_sync= 'now signal goforit';
+connection con2;
+Warnings:
+Warning	1265	Data truncated for column 'b' at row 1
+Warning	1265	Data truncated for column 'b' at row 2
+connection default;
+drop table t1;
+set debug_sync= reset;
+# (duplicate) MDEV-29007 Assertion `marked_for_write_or_computed()'
+# failed upon online ADD COLUMN .. FIRST
+create table t (a int);
+insert into t values (1),(2);
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t add c int first, algorithm=copy, lock=none;
+connection default;
+insert into t values (3);
+set debug_sync= 'now signal goforit';
+connection con2;
+connection default;
+drop table t;
+set debug_sync= reset;
+# UNIQUE blob duplicates are not ignored.
+create table t1 (b blob);
+insert into t1 values ('foo'),('bar');
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t1 add unique(b), algorithm=copy, lock=none;
+connection default;
+insert into t1 values ('qux'),('foo');
+set debug_sync= 'now signal goforit';
+connection con2;
+ERROR 23000: Duplicate entry 'foo' for key 'b'
+select * from t1;
+b
+foo
+bar
+qux
+foo
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b` blob DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+connection default;
 drop table t1;
 set debug_sync= reset;
 #

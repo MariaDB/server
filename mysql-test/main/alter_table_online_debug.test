@@ -796,7 +796,81 @@ set debug_sync= 'now signal goforit';
 
 --connection con2
 --reap
+--connection default
+drop table t1;
+set debug_sync= reset;
 
+--echo #
+--echo # MDEV-29021 ALTER TABLE fails when a stored virtual column is dropped and added
+--echo #
+create table t1 (a char(9), b char(9) as (a) stored) engine=InnoDB;
+insert into t1(a) values ('foobar');
+
+--send set debug_sync= 'now wait_for downgraded'
+
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send alter ignore table t1 drop b, add b char(3) as (a) stored, algorithm=copy, lock=none
+
+--connection default
+--reap
+update t1 set a = 'foobarqux';
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--reap
+--connection default
+drop table t1;
+set debug_sync= reset;
+
+--echo # (duplicate) MDEV-29007 Assertion `marked_for_write_or_computed()'
+--echo # failed upon online ADD COLUMN .. FIRST
+create table t (a int);
+insert into t values (1),(2);
+--send
+set debug_sync= 'now wait_for downgraded';
+
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t add c int first, algorithm=copy, lock=none;
+
+--connection default
+--reap
+insert into t values (3);
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--reap
+--connection default
+drop table t;
+set debug_sync= reset;
+
+--echo # UNIQUE blob duplicates are not ignored.
+
+create table t1 (b blob);
+insert into t1 values ('foo'),('bar');
+--send
+set debug_sync= 'now wait_for downgraded';
+
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t1 add unique(b), algorithm=copy, lock=none;
+
+--connection default
+--reap
+insert into t1 values ('qux'),('foo');
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--error ER_DUP_ENTRY
+--reap
+select * from t1;
+show create table t1;
+
+# Cleanup
+--connection default
 drop table t1;
 set debug_sync= reset;
 
