@@ -397,6 +397,11 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("random_bytes")};
     return name;
   }
+  bool check_vcol_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(func_name(), "()", arg,
+                                     VCOL_NON_DETERMINISTIC | VCOL_NOT_VIRTUAL);
+  }
   Item *get_copy(THD *thd) override
   {
     return get_item_copy<Item_func_random_bytes>(thd, this);
