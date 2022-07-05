@@ -3725,7 +3725,7 @@ int spider_db_free_result(
   SPIDER_RESULT *result;
   SPIDER_RESULT *prev;
   SPIDER_SHARE *share = spider->share;
-  SPIDER_TRX *trx = spider->wide_handler->trx;
+  THD *thd= current_thd;
   SPIDER_POSITION *position;
   int roop_count, error_num;
   DBUG_ENTER("spider_db_free_result");
@@ -3761,12 +3761,11 @@ int spider_db_free_result(
   }
 #endif
 
-  if (
-    final ||
-    spider_param_reset_sql_alloc(trx->thd, share->reset_sql_alloc) == 1
-  ) {
-    int alloc_size = final ? 0 :
-      (spider_param_init_sql_alloc_size(trx->thd, share->init_sql_alloc_size));
+  if (final || spider_param_reset_sql_alloc(thd, share->reset_sql_alloc) == 1)
+  {
+    int alloc_size= final ? 0
+                          : (spider_param_init_sql_alloc_size(
+                                thd, share->init_sql_alloc_size));
     while (result)
     {
       position = result->first_position;
@@ -3808,8 +3807,8 @@ int spider_db_free_result(
     if (!final)
     {
       ulong realloced = 0;
-      int init_sql_alloc_size =
-        spider_param_init_sql_alloc_size(trx->thd, share->init_sql_alloc_size);
+      int init_sql_alloc_size=
+          spider_param_init_sql_alloc_size(thd, share->init_sql_alloc_size);
       for (roop_count = 0; roop_count < (int) share->use_dbton_count;
         roop_count++)
       {
@@ -3884,7 +3883,9 @@ int spider_db_free_result(
         }
       }
     }
-  } else {
+  }
+  else
+  {
     while (result)
     {
       position = result->first_position;
