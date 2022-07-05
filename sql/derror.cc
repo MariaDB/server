@@ -176,6 +176,7 @@ void free_error_messages()
       errors_per_range[i]= 0;
     }
   }
+  original_error_messages= 0;
 }
 
 

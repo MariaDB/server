@@ -56,6 +56,9 @@ ELSE()
 ENDIF()
 TARGET_LINK_LIBRARIES(mariadb-client-test-embedded mysqlserver)
 
+ADD_EXECUTABLE(embtest test.cc)
+TARGET_LINK_LIBRARIES(embtest mysqlserver)
+
 IF(UNIX)
 SET_TARGET_PROPERTIES(mariadb-embedded PROPERTIES ENABLE_EXPORTS TRUE)
 SET_TARGET_PROPERTIES(mariadb-test-embedded PROPERTIES ENABLE_EXPORTS TRUE)

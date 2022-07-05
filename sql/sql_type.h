@@ -3654,7 +3654,13 @@ public:
   static const Name & version_mysql56();
   static const Name & version_mariadb53();
 
-  void set_name(Name n) { DBUG_ASSERT(!m_name.ptr()); m_name= n; }
+  void set_name(Name n)
+  {
+#ifndef EMBEDDED_LIBRARY
+    DBUG_ASSERT(!m_name.ptr());
+#endif
+    m_name= n;
+  }
   const Name name() const { return m_name; }
   virtual const Name version() const;
   virtual const Name &default_value() const= 0;
