@@ -7358,7 +7358,7 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
 */
 bool THD::binlog_for_noop_dml(bool transactional_table)
 {
-  if (log_current_statement())
+  if (mysql_bin_log.is_open() && log_current_statement())
   {
     reset_unsafe_warnings();
     if (binlog_query(THD::STMT_QUERY_TYPE, query(), query_length(),
