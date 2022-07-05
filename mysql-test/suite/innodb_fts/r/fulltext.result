@@ -732,4 +732,32 @@ ALTER TABLE t1 DROP KEY `ftidx` ;
 INSERT INTO t1 (col_int, col_text) VALUES ( 1255, NULL);
 DROP TABLE t1;
 SET @@global.innodb_file_per_table = @save;
+#
+# MDEV-20797  FULLTEXT search with apostrophe,
+#		and mandatory words
+#
+CREATE TABLE t1(f1 TINYTEXT NOT NULL, FULLTEXT(f1))ENGINE=InnoDB;
+INSERT INTO t1 VALUES('O''Brien'), ('O Brien'), ('Ö''Brien');
+INSERT INTO t1 VALUES('Brien'), ('O ''Brien'), ('O'' Brien');
+INSERT INTO t1 VALUES('Doh''nuts');
+SELECT * FROM t1 WHERE MATCH (f1) AGAINST ("+O'Brien" IN BOOLEAN MODE);
+f1
+O'Brien
+O Brien
+Ö'Brien
+Brien
+O 'Brien
+O' Brien
+SELECT * FROM t1 WHERE MATCH (f1) AGAINST ("+Doh'nuts" IN BOOLEAN MODE);
+f1
+Doh'nuts
+SELECT * FROM t1 WHERE MATCH (f1) AGAINST ("+Ö''Brien" IN BOOLEAN MODE);
+f1
+O'Brien
+O Brien
+Ö'Brien
+Brien
+O 'Brien
+O' Brien
+DROP TABLE t1;
 # End of 10.3 tests
