@@ -5003,6 +5003,7 @@ Create_func_random_bytes Create_func_random_bytes::s_singleton;
 Item *Create_func_random_bytes::create_1_arg(THD *thd, Item *arg1)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+  thd->lex->uncacheable(UNCACHEABLE_RAND);
   return new (thd->mem_root) Item_func_random_bytes(thd, arg1);
 }
 
