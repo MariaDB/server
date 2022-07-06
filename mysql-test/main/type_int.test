@@ -299,5 +299,29 @@ SELECT 9223372036854775807=CAST(0x7FFFFFFFFFFFFFFF AS UNSIGNED);
 
 
 --echo #
+--echo # MDEV-25492 BETWEEN clause returns incorrect results on quoted 64-bit ints
+--echo #
+
+CREATE TABLE betweentest
+(
+  id int(11) unsigned NOT NULL AUTO_INCREMENT,
+  range1 bigint(20) DEFAULT NULL,
+  range2 bigint(20) DEFAULT NULL,
+  PRIMARY KEY (id)
+);
+
+INSERT INTO betweentest VALUES
+  (1,2739499741191602369,2739499741191602369),
+  (2,2739499741191602192,2739499741191602192),
+  (3,2739138623713574912,2739138623730352127);
+
+SELECT * FROM betweentest WHERE '2739499741191602192' BETWEEN range1 AND range2;
+
+SELECT * FROM betweentest WHERE 2739499741191602192 BETWEEN range1 AND range2;
+
+DROP TABLE betweentest;
+
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
