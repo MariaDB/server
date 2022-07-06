@@ -759,3 +759,22 @@ drop table t1, t11, t12, t13, t2;
 --echo #
 --echo # End of MDEV-26278: Table elimination does not work across derived tables
 --echo #
+
+--echo #
+--echo # MDEV-28881: Server crashes in Dep_analysis_context::create_table_value/
+--echo #                                check_func_dependency
+--echo #
+
+CREATE TABLE t1 (a1 int, a2 int);
+INSERT INTO t1 VALUES (0,276),(5,277),(NULL,278);
+
+CREATE TABLE t2 ( a1 int, a2 int, KEY a2 (a2));
+INSERT INTO t2 VALUES (11,NULL),(185,0);
+
+SELECT t1.* FROM t1 LEFT JOIN
+ ( SELECT * FROM (SELECT t2.a1 AS a1, min(t2.a2) AS a2 FROM t2
+    WHERE t2.a2 <> NULL
+    GROUP BY t2.a1) dt
+ ) dt2 ON dt2.a2 = t1.a2;
+
+DROP TABLE t1, t2;

@@ -1720,9 +1720,14 @@ void Dep_analysis_context::create_unique_pseudo_key_if_needed(
 
   /*
     GROUP BY expression is considered as a unique pseudo-key
-    for the derived table. Add this pseudo key as a dependency
+    for the derived table. Add this pseudo key as a dependency.
+
+    first_select->join is NULL for degenerate derived tables
+    which are known to have just one row and so were already materialized
+    by the optimizer, check this here
   */
-  if (first_select && first_select->group_list.elements > 0)
+  if (first_select && first_select->join &&
+      first_select->group_list.elements > 0)
   {
     bool valid= true;
     std::set<field_index_t> exposed_fields_indexes;
