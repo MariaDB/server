@@ -426,9 +426,7 @@ SELECT b DIV 900 y FROM t1 GROUP BY y;
 y
 0
 Warnings:
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'str1'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'str2'
 SELECT c DIV 900 y FROM t1 GROUP BY y;
 y
