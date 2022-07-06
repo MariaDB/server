@@ -3881,8 +3881,8 @@ ORDER BY t2.v;
 MAX(t1.i)
 NULL
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'x'
-Warning	1292	Truncated incorrect DOUBLE value: 'y'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'y'
 
 EXPLAIN
 SELECT MAX(t1.i) 

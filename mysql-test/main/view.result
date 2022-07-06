@@ -6141,11 +6141,11 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 SELECT * FROM t1 WHERE a <> 0 AND a = ' 1';
 a
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '`1'
+Warning	1292	Truncated incorrect DECIMAL value: '`1'
 SELECT * FROM v1 WHERE a <> 0 AND a = ' 1';
 a
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '`1'
+Warning	1292	Truncated incorrect DECIMAL value: '`1'
 DROP VIEW v1;
 DROP TABLE t1;
 CREATE TABLE t1 (a ENUM('5','6'));
@@ -6168,11 +6168,11 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 SELECT * FROM t1 WHERE a <> 0 AND a = ' 1';
 a
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '`1'
+Warning	1292	Truncated incorrect DECIMAL value: '`1'
 SELECT * FROM v1 WHERE a <> 0 AND a = ' 1';
 a
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '`1'
+Warning	1292	Truncated incorrect DECIMAL value: '`1'
 DROP VIEW v1;
 DROP TABLE t1;
 CREATE TABLE t1 (a ENUM('5','6'));

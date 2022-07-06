@@ -1724,7 +1724,7 @@ min(timestampadd(month, 1>'', from_days('%Z')))
 NULL
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: '%Z'
-Warning	1292	Truncated incorrect DOUBLE value: ''
+Warning	1292	Truncated incorrect DECIMAL value: ''
 Warning	1292	Incorrect datetime value: '0000-00-00'
 SET timestamp=UNIX_TIMESTAMP('2001-01-01 00:00:00');
 create table t1(a time);

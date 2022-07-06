@@ -774,28 +774,28 @@ SELECT 'a' IN ('a',2);
 1
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (longblob)
-Note	1105	DBUG: [1] arg=2 handler=1 (double)
+Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT 'a' IN ('a',2,NULL);
 'a' IN ('a',2,NULL)
 1
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (longblob)
-Note	1105	DBUG: [1] arg=2 handler=1 (double)
+Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT 'a' NOT IN ('a',2);
 'a' NOT IN ('a',2)
 0
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (longblob)
-Note	1105	DBUG: [1] arg=2 handler=1 (double)
+Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT 'a' NOT IN ('a',2,NULL);
 'a' NOT IN ('a',2,NULL)
 0
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (longblob)
-Note	1105	DBUG: [1] arg=2 handler=1 (double)
+Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT TIME'10:20:30' IN (1,TIME'10:20:30');
 TIME'10:20:30' IN (1,TIME'10:20:30')
@@ -999,25 +999,25 @@ SELECT a IN (1,'1') FROM t1;
 a IN (1,'1')
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
-Note	1105	DBUG: [1] arg=2 handler=1 (double)
+Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT a IN (1,'1',NULL) FROM t1;
 a IN (1,'1',NULL)
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
-Note	1105	DBUG: [1] arg=2 handler=1 (double)
+Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT a NOT IN (1,'1') FROM t1;
 a NOT IN (1,'1')
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
-Note	1105	DBUG: [1] arg=2 handler=1 (double)
+Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT a NOT IN (1,'1',NULL) FROM t1;
 a NOT IN (1,'1',NULL)
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
-Note	1105	DBUG: [1] arg=2 handler=1 (double)
+Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT a IN (1,TIME'10:20:30') FROM t1;
 a IN (1,TIME'10:20:30')
@@ -1197,7 +1197,7 @@ SELECT a IN ('a',1) FROM t1;
 a IN ('a',1)
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (longblob)
-Note	1105	DBUG: [1] arg=2 handler=1 (double)
+Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT a IN ('a',TIME'10:20:30') FROM t1;
 a IN ('a',TIME'10:20:30')
@@ -1209,7 +1209,7 @@ SELECT a NOT IN ('a',1) FROM t1;
 a NOT IN ('a',1)
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (longblob)
-Note	1105	DBUG: [1] arg=2 handler=1 (double)
+Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT a NOT IN ('a',TIME'10:20:30') FROM t1;
 a NOT IN ('a',TIME'10:20:30')
@@ -1577,7 +1577,7 @@ A	NULL
 B	NULL
 Warnings:
 Note	1105	DBUG: [0] arg=2 handler=0 (longblob)
-Note	1105	DBUG: [1] arg=3 handler=1 (double)
+Note	1105	DBUG: [1] arg=3 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT a,NULL AS b FROM t1 GROUP BY a HAVING 'A' IN ('A',b,10);
 a	b
@@ -1585,24 +1585,24 @@ A	NULL
 B	NULL
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (longblob)
-Note	1105	DBUG: [1] arg=3 handler=1 (double)
+Note	1105	DBUG: [1] arg=3 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT a,NULL AS b FROM t1 GROUP BY a HAVING 'A' IN (b,a,10);
 a	b
 A	NULL
 Warnings:
 Note	1105	DBUG: [0] arg=2 handler=0 (longblob)
-Note	1105	DBUG: [1] arg=3 handler=1 (double)
+Note	1105	DBUG: [1] arg=3 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
-Warning	1292	Truncated incorrect DOUBLE value: 'A'
+Warning	1292	Truncated incorrect DECIMAL value: 'A'
 SELECT a,NULL AS b FROM t1 GROUP BY a HAVING 'A' IN (a,b,10);
 a	b
 A	NULL
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (longblob)
-Note	1105	DBUG: [1] arg=3 handler=1 (double)
+Note	1105	DBUG: [1] arg=3 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
-Warning	1292	Truncated incorrect DOUBLE value: 'A'
+Warning	1292	Truncated incorrect DECIMAL value: 'A'
 DROP TABLE t1;
 #
 # MDEV-11497 Wrong result for (int_expr IN (mixture of signed and unsigned expressions))

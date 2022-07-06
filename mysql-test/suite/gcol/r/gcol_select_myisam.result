@@ -1069,10 +1069,10 @@ ORDER BY field1, alias1.col_date_key, field1 ASC, field1 DESC,
 alias1.col_time_key ASC, field1;
 field1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'c'
-Warning	1292	Truncated incorrect DOUBLE value: 't'
-Warning	1292	Truncated incorrect DOUBLE value: 'm'
-Warning	1292	Truncated incorrect DOUBLE value: 'd'
+Warning	1292	Truncated incorrect DECIMAL value: 'c'
+Warning	1292	Truncated incorrect DECIMAL value: 't'
+Warning	1292	Truncated incorrect DECIMAL value: 'm'
+Warning	1292	Truncated incorrect DECIMAL value: 'd'
 DROP TABLE cc;
 SET sql_mode=@save_old_sql_mode;
 #
@@ -1171,13 +1171,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'cccc'
-Warning	1292	Truncated incorrect DOUBLE value: 'cccc'
+Warning	1292	Truncated incorrect DECIMAL value: 'cccc'
 SELECT /*+ bka() */ 1 AS c FROM t AS b RIGHT JOIN t AS c ON b.a > c.c
 WHERE b.b>c.a;
 c
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'cccc'
-Warning	1292	Truncated incorrect DOUBLE value: 'cccc'
+Warning	1292	Truncated incorrect DECIMAL value: 'cccc'
 DROP TABLE t;
 set @optimizer_switch_save = @@optimizer_switch;
 set optimizer_switch='mrr_cost_based=off';

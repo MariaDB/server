@@ -158,8 +158,8 @@ test.t1	optimize	status	OK
 connection default;
 DELETE FROM t2 WHERE c < 1;
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
-Warning	1292	Truncated incorrect DOUBLE value: 'b'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
 connection con1;
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text

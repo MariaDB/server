@@ -497,8 +497,8 @@ SELECT 5 = a FROM t1;
 0
 0
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 's'
-Warning	1292	Truncated incorrect DOUBLE value: ''
+Warning	1292	Truncated incorrect DECIMAL value: 's'
+Warning	1292	Truncated incorrect DECIMAL value: ''
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(16));
 INSERT INTO t1 VALUES ('5'), ('s'), ('');
@@ -508,8 +508,8 @@ SELECT 5 = a FROM t1;
 0
 0
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 's               '
-Warning	1292	Truncated incorrect DOUBLE value: '                '
+Warning	1292	Truncated incorrect DECIMAL value: 's               '
+Warning	1292	Truncated incorrect DECIMAL value: '                '
 DROP TABLE t1;
 #
 # MDEV-13530 VARBINARY doesn't convert to to BLOB for sizes 65533, 65534 and 65535

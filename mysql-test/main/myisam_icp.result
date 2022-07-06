@@ -958,10 +958,10 @@ c	c	b
 c	NULL	NULL
 c	NULL	NULL
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'c'
-Warning	1292	Truncated incorrect DOUBLE value: 'c'
-Warning	1292	Truncated incorrect DOUBLE value: 'c'
-Warning	1292	Truncated incorrect DOUBLE value: 'c'
+Warning	1292	Truncated incorrect DECIMAL value: 'c'
+Warning	1292	Truncated incorrect DECIMAL value: 'c'
+Warning	1292	Truncated incorrect DECIMAL value: 'c'
+Warning	1292	Truncated incorrect DECIMAL value: 'c'
 SET optimizer_switch=@save_optimizer_switch;
 DROP TABLE t1,t2,t3,t4;
 #

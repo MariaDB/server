@@ -1716,15 +1716,15 @@ x
 m
 c
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'x'
-Warning	1292	Truncated incorrect DOUBLE value: 'm'
-Warning	1292	Truncated incorrect DOUBLE value: 'c'
-Warning	1292	Truncated incorrect DOUBLE value: 'x'
-Warning	1292	Truncated incorrect DOUBLE value: 'm'
-Warning	1292	Truncated incorrect DOUBLE value: 'c'
-Warning	1292	Truncated incorrect DOUBLE value: 'x'
-Warning	1292	Truncated incorrect DOUBLE value: 'm'
-Warning	1292	Truncated incorrect DOUBLE value: 'c'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'm'
+Warning	1292	Truncated incorrect DECIMAL value: 'c'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'm'
+Warning	1292	Truncated incorrect DECIMAL value: 'c'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'm'
+Warning	1292	Truncated incorrect DECIMAL value: 'c'
 drop table t1,t2,t3,t4;
 #
 # BUG#751484: Valgrind warning / sporadic crash in evaluate_join_record sql_select.cc:14099 with semijoin
@@ -2111,8 +2111,8 @@ f1	f2	f3	f3
 4	0	0	0
 0	NULL	NULL	NULL
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'foo'
-Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+Warning	1292	Truncated incorrect DECIMAL value: 'foo'
+Warning	1292	Truncated incorrect DECIMAL value: 'foo'
 DROP TABLE t1, t2, t3, t4;
 set @tmp803457=@@optimizer_switch;
 #
@@ -2305,13 +2305,13 @@ PREPARE st1 FROM "SELECT * FROM t2 LEFT JOIN t1 ON t2.a != 0 AND ('j','r') IN ( 
 EXECUTE st1;
 a	a
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'j'
-Warning	1292	Truncated incorrect DOUBLE value: 'r'
+Warning	1292	Truncated incorrect DECIMAL value: 'j'
+Warning	1292	Truncated incorrect DECIMAL value: 'r'
 EXECUTE st1;
 a	a
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'j'
-Warning	1292	Truncated incorrect DOUBLE value: 'r'
+Warning	1292	Truncated incorrect DECIMAL value: 'j'
+Warning	1292	Truncated incorrect DECIMAL value: 'r'
 DROP TABLE t1, t2, t3;
 #
 # BUG#849776: Wrong result with semijoin + "Impossible where"

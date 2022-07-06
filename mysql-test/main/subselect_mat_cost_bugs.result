@@ -209,8 +209,8 @@ WHERE t1.f1 AND alias2.f10
 ORDER BY field1 ;
 field1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'f'
-Warning	1292	Truncated incorrect DOUBLE value: 'd'
+Warning	1292	Truncated incorrect DECIMAL value: 'f'
+Warning	1292	Truncated incorrect DECIMAL value: 'd'
 set optimizer_switch=@tmp_optimizer_switch;
 drop table t1,t2;
 #
@@ -273,8 +273,8 @@ WHERE alias1.f11 OR alias1.f3 = 50 AND alias1.f10
 );
 f12	f13
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'f'
-Warning	1292	Truncated incorrect DOUBLE value: 'd'
+Warning	1292	Truncated incorrect DECIMAL value: 'f'
+Warning	1292	Truncated incorrect DECIMAL value: 'd'
 EXPLAIN
 SELECT * FROM t2
 WHERE ( f12 ) IN (
@@ -292,8 +292,8 @@ FROM t1 AS alias1, t1 AS alias2
 WHERE (alias2.f10 = alias1.f11) AND (alias1.f11 OR alias1.f3 = 50 AND alias1.f10));
 f12	f13
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'f'
-Warning	1292	Truncated incorrect DOUBLE value: 'd'
+Warning	1292	Truncated incorrect DECIMAL value: 'f'
+Warning	1292	Truncated incorrect DECIMAL value: 'd'
 set @@optimizer_switch=@save_optimizer_switch;
 drop table t1, t2;
 #

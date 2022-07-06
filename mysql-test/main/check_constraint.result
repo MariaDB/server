@@ -161,32 +161,32 @@ EmployeeID SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
 FirstName VARCHAR(30) NOT NULL CHECK (CHAR_LENGTH(FirstName > 2))
 );
 INSERT INTO t1 VALUES (NULL, 'Ken');
-ERROR 22007: Truncated incorrect DOUBLE value: 'Ken'
+ERROR 22007: Truncated incorrect DECIMAL value: 'Ken'
 SHOW WARNINGS;
 Level	Code	Message
-Error	1292	Truncated incorrect DOUBLE value: 'Ken'
+Error	1292	Truncated incorrect DECIMAL value: 'Ken'
 Error	4025	CONSTRAINT `t1.FirstName` failed for `test`.`t1`
 INSERT INTO t1 VALUES (NULL, 'Ken'),(NULL, 'Brian');
-ERROR 22007: Truncated incorrect DOUBLE value: 'Ken'
+ERROR 22007: Truncated incorrect DECIMAL value: 'Ken'
 SHOW WARNINGS;
 Level	Code	Message
-Error	1292	Truncated incorrect DOUBLE value: 'Ken'
+Error	1292	Truncated incorrect DECIMAL value: 'Ken'
 Error	4025	CONSTRAINT `t1.FirstName` failed for `test`.`t1`
 INSERT IGNORE INTO t1 VALUES (NULL, 'Ken');
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'Ken'
+Warning	1292	Truncated incorrect DECIMAL value: 'Ken'
 INSERT IGNORE INTO t1 VALUES (NULL, 'Ken'),(NULL, 'Brian');
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'Ken'
-Warning	1292	Truncated incorrect DOUBLE value: 'Brian'
+Warning	1292	Truncated incorrect DECIMAL value: 'Ken'
+Warning	1292	Truncated incorrect DECIMAL value: 'Brian'
 set sql_mode="";
 INSERT INTO t1 VALUES (NULL, 'Ken');
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'Ken'
+Warning	1292	Truncated incorrect DECIMAL value: 'Ken'
 INSERT INTO t1 VALUES (NULL, 'Ken'),(NULL, 'Brian');
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'Ken'
-Warning	1292	Truncated incorrect DOUBLE value: 'Brian'
+Warning	1292	Truncated incorrect DECIMAL value: 'Ken'
+Warning	1292	Truncated incorrect DECIMAL value: 'Brian'
 set sql_mode=default;
 select * from t1;
 EmployeeID	FirstName

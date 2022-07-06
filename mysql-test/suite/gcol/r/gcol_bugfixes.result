@@ -250,7 +250,7 @@ HAVING x > '2000-02-06'
 ORDER BY col_time_nokey, pk;
 x
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '2000-02-06'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-06'
 DROP TABLE c;
 # Bug#21341044: Conditional jump at sort_param::make_sort_key
 CREATE TABLE t1 (

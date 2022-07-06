@@ -1119,8 +1119,8 @@ SELECT 1 FROM g1 WHERE a >= ANY
 (SELECT 1 FROM g1 WHERE a = ST_geomfromtext('') OR a) ;
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
 DROP TABLE g1;
 End of 5.5 tests
 DROP DATABASE IF EXISTS gis_ogs;

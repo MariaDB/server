@@ -566,9 +566,9 @@ select * from t1 group by (a1 in (select col from columns));
 a1	a2
 1 - 00	2 - 00
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '1 - 00'
-Warning	1292	Truncated incorrect DOUBLE value: '1 - 01'
-Warning	1292	Truncated incorrect DOUBLE value: '1 - 02'
+Warning	1292	Truncated incorrect DECIMAL value: '1 - 00'
+Warning	1292	Truncated incorrect DECIMAL value: '1 - 01'
+Warning	1292	Truncated incorrect DECIMAL value: '1 - 02'
 /* ORDER BY clause */
 explain extended
 select * from t1 order by (select col from columns limit 1);
