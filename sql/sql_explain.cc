@@ -44,9 +44,10 @@ static void append_item_to_str(String *out, Item *item, bool no_tmp_tbl);
 
 Explain_query::Explain_query(THD *thd_arg, MEM_ROOT *root) : 
   mem_root(root), upd_del_plan(nullptr),  insert_plan(nullptr),
-  unions(root), selects(root),  stmt_thd(thd_arg), apc_enabled(false),
+  unions(root), selects(root), stmt_thd(thd_arg), apc_enabled(false),
   operations(0)
 {
+  query_optimization_total_time_tracker.start_tracking(stmt_thd);
 }
 
 static void print_json_array(Json_writer *writer,
@@ -154,6 +155,8 @@ void Explain_query::add_upd_del_plan(Explain_update *upd_del_plan_arg)
 
 void Explain_query::query_plan_ready()
 {
+  query_optimization_total_time_tracker.stop_tracking(stmt_thd);
+
   if (!apc_enabled)
     stmt_thd->apc_target.enable();
   apc_enabled= true;
@@ -256,44 +259,74 @@ int Explain_query::print_explain_json(select_result_sink *output,
 #endif
 
   writer.start_object();
-  if (is_analyze && query_time_in_progress_ms > 0)
-    writer.add_member("r_query_time_in_progress_ms").
-           add_ull(query_time_in_progress_ms);
-
+  
   /*
     If we are printing ANALYZE FORMAT=JSON output, take into account that
     query's temporary tables have already been freed. See sql_explain.h,
     sql_explain.h:ExplainDataStructureLifetime for details.
   */
   if (is_analyze)
-    is_show_cmd= true;
-
-  if (upd_del_plan)
-    upd_del_plan->print_explain_json(this, &writer, is_analyze, is_show_cmd);
-  else if (insert_plan)
-    insert_plan->print_explain_json(this, &writer, is_analyze, is_show_cmd);
-  else
   {
-    /* Start printing from node with id=1 */
-    Explain_node *node= get_node(1);
-    if (!node)
-      return 1; /* No query plan */
-    node->print_explain_json(this, &writer, is_analyze, is_show_cmd);
+    if (query_time_in_progress_ms > 0){
+      writer.add_member("r_query_time_in_progress_ms").
+            add_ull(query_time_in_progress_ms);
+    }
+
+    print_query_optimization_json(&writer);
+    is_show_cmd = true;
+  }
+
+  if( print_query_blocks_json(&writer, is_analyze, is_show_cmd) ){
+    return 1;
   }
 
   writer.end_object();
 
+  send_explain_json_to_output(&writer, output);
+  return 0;
+}
+
+void Explain_query::print_query_optimization_json(Json_writer *writer)
+{
+  if (query_optimization_total_time_tracker.has_timed_statistics())
+  {
+    // if more timers are added, move the query_optimization member to outside the if
+    writer->add_member("query_optimization").start_object();
+    writer->add_member("r_total_time_ms").
+            add_double(query_optimization_total_time_tracker.get_time_ms());
+    writer->end_object(); 
+  }
+}
+
+int Explain_query::print_query_blocks_json(Json_writer *writer, const bool is_analyze, const bool is_show_cmd)
+{
+  if (upd_del_plan)
+    upd_del_plan->print_explain_json(this, writer, is_analyze, is_show_cmd);
+  else if (insert_plan)
+    insert_plan->print_explain_json(this, writer, is_analyze, is_show_cmd);
+  else
+  {
+    /* Start printing from root node with id=1 */
+    Explain_node *node= get_node(1);
+    if (!node)
+      return 1; /* No query plan */
+    node->print_explain_json(this, writer, is_analyze, is_show_cmd);
+  }
+
+  return 0;
+}
+
+void Explain_query::send_explain_json_to_output(Json_writer *writer, select_result_sink *output)
+{
   CHARSET_INFO *cs= system_charset_info;
   List<Item> item_list;
-  const String *buf= writer.output.get_string();
+  const String *buf= writer->output.get_string();
   THD *thd= output->thd;
   item_list.push_back(new (thd->mem_root)
                       Item_string(thd, buf->ptr(), buf->length(), cs),
                       thd->mem_root);
   output->send_data(item_list);
-  return 0;
-}
-
+} 
 
 bool print_explain_for_slow_log(LEX *lex, THD *thd, String *str)
 {
