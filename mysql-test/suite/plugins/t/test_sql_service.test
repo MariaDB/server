@@ -11,6 +11,7 @@ source include/wait_until_count_sessions.inc;
 
 install plugin test_sql_service soname 'test_sql_service';
 show status like 'test_sql_service_passed';
+reset master;
 
 set global test_sql_service_execute_sql_global= 'create table test.t1 select 1 as a, @@SQL_LOG_BIN';
 set global test_sql_service_execute_sql_local=  'insert into test.t1 select 2 as a, @@SQL_LOG_BIN';
@@ -74,8 +75,8 @@ drop table t1;
 uninstall plugin test_sql_service;
 
 # Check that statements were executed/binlogged in correct order.
-source include/show_binlog_events.inc;
+--source include/show_binlog_events.inc
 # --replace_column 2 # 5 #
 # --replace_regex /xid=[0-9]+/xid=XX/ /GTID [0-9]+-[0-9]+-[0-9]+/GTID #-#-#/
-# SHOW BINLOG EVENTS LIMIT 3,100;
+# SHOW BINLOG EVENTS LIMIT 3,5;
 
