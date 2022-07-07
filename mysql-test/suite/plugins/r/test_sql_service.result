@@ -2,6 +2,7 @@ install plugin test_sql_service soname 'test_sql_service';
 show status like 'test_sql_service_passed';
 Variable_name	Value
 Test_sql_service_passed	1
+reset master;
 set global test_sql_service_execute_sql_global= 'create table test.t1 select 1 as a, @@SQL_LOG_BIN';
 set global test_sql_service_execute_sql_local=  'insert into test.t1 select 2 as a, @@SQL_LOG_BIN';
 set global test_sql_service_execute_sql_global= 'SET SQL_LOG_BIN=1';
