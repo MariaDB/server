@@ -3338,6 +3338,19 @@ ERROR HY000: Illegal parameter data types geometry and int for operation '='
 EXECUTE stmt;
 ERROR HY000: Illegal parameter data types geometry and int for operation '='
 DROP TABLE t1, t2;
+#
+# MDEV-28871: Assert ... failed in JOIN::dbug_verify_sj_inner_tables with low optimizer_search_depth
+#
+set @tmp_28871=@@optimizer_search_depth;
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t1 VALUES (3),(4);
+SET optimizer_search_depth= 1;
+SELECT * FROM t1 WHERE a IN (SELECT b FROM t2 JOIN t1);
+a
+DROP TABLE t1, t2;
+set optimizer_search_depth= @tmp_28871;
 set optimizer_switch=@subselect_sj_tmp;
 #
 # BUG#49129: Wrong result with IN-subquery with join_cache_level=6 and firstmatch=off

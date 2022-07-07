@@ -8210,7 +8210,8 @@ greedy_search(JOIN      *join,
       picked semi-join operation is in best_pos->...picker, but we need to
       update the global state in the JOIN object, too.
     */
-    update_sj_state(join, best_table, idx, remaining_tables);
+    if (!join->emb_sjm_nest)
+      update_sj_state(join, best_table, idx, remaining_tables);
 
     /* find the position of 'best_table' in 'join->best_ref' */
     best_idx= idx;
