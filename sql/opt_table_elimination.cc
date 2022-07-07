@@ -33,7 +33,6 @@
 #include "sql_select.h"
 #include "opt_trace.h"
 #include "my_json_writer.h"
-#include <set>
 
 /*
   OVERVIEW
@@ -473,10 +472,11 @@ class Dep_module_pseudo_key : public Dep_module
 {
 public:
   Dep_module_pseudo_key(Dep_value_table *table_arg,
-                        std::set<field_index_t>&& field_indexes)
-      : table(table_arg), derived_table_field_indexes(field_indexes)
+                        MY_BITMAP *exposed_fields,
+                        uint exposed_fields_num)
+      : table(table_arg), exposed_fields_map(exposed_fields)
   {
-    unbound_args= static_cast<uint>(field_indexes.size());
+    unbound_args= exposed_fields_num;
   }
 
   Dep_value_table *table;
@@ -492,15 +492,15 @@ public:
 
 private:
   /*
-    Set of field numbers (indexes) in the derived table's SELECT list
+    Bitmap of field numbers in the derived table's SELECT list
     which are included in the GROUP BY expression.
     For example, unique pseudo-key for SQL
     "SELECT count(*), b, a FROM t1 GROUP BY a, b"
     will include two elements: {2} and {1}, since "a" and "b" are on the
-    GROUP BY list and also are present on the SELECT list with indexes 2 and 1
+    GROUP BY list and also are present on the SELECT list with numbers 2 and 1
     (numeration starts from 0).
   */
-  std::set<field_index_t> derived_table_field_indexes;
+  MY_BITMAP *exposed_fields_map;
 
   class Value_iter
   {
@@ -577,7 +577,7 @@ public:
     to see if expression equality_mods[expr_no] depends on the given field.
   */
   MY_BITMAP expr_deps;
-  
+
   Dep_value_table *create_table_value(TABLE_LIST *table_list);
   Dep_value_field *get_field_value(Field *field);
 
@@ -1729,8 +1729,19 @@ void Dep_analysis_context::create_unique_pseudo_key_if_needed(
   if (first_select && first_select->join &&
       first_select->group_list.elements > 0)
   {
+    auto max_possible_elements= first_select->join->fields_list.elements;
+    void *buf;
+    MY_BITMAP *exposed_fields= (MY_BITMAP*)
+        current_thd->alloc(sizeof(MY_BITMAP));
+    if (!(buf= current_thd->alloc(bitmap_buffer_size(max_possible_elements))) ||
+        my_bitmap_init(exposed_fields, (my_bitmap_map*)buf,
+                       max_possible_elements))
+      // Memory allocation failed
+      return;
+    bitmap_clear_all(exposed_fields);
+    uint exposed_fields_count= 0;
+
     bool valid= true;
-    std::set<field_index_t> exposed_fields_indexes;
     for (auto cur_group= first_select->group_list.first;
          cur_group;
          cur_group= cur_group->next)
@@ -1745,8 +1756,8 @@ void Dep_analysis_context::create_unique_pseudo_key_if_needed(
         valid= false;
         break;
       }
-      auto field_idx= find_field_in_list(first_select->join->fields_list, elem);
-      if (field_idx == -1)
+      auto field_no= find_field_in_list(first_select->join->fields_list, elem);
+      if (field_no == -1)
       {
         /*
           This GROUP BY element is not present in the select list. This is a
@@ -1759,13 +1770,14 @@ void Dep_analysis_context::create_unique_pseudo_key_if_needed(
         valid= false;
         break;
       }
-      exposed_fields_indexes.insert(field_idx);
+      bitmap_set_bit(exposed_fields, field_no);
+      exposed_fields_count++;
     }
     if (valid)
     {
       Dep_module_pseudo_key *pseudo_key;
-      pseudo_key= new Dep_module_pseudo_key(tbl_dep,
-                                            std::move(exposed_fields_indexes));
+      pseudo_key= new Dep_module_pseudo_key(tbl_dep, exposed_fields,
+                                            exposed_fields_count);
       tbl_dep->pseudo_key= pseudo_key;
     }
   }
@@ -1950,12 +1962,12 @@ Dep_module_pseudo_key::get_next_unbound_value(Dep_analysis_context *dac,
 
 
 /*
-  Check if column number field_index is covered by the pseudo-key.
+  Check if column number field_no is covered by the pseudo-key.
 */
 
-bool Dep_module_pseudo_key::covers_field(int field_index)
+bool Dep_module_pseudo_key::covers_field(int field_no)
 {
-  return derived_table_field_indexes.count(field_index) > 0;
+  return bitmap_is_set(exposed_fields_map, field_no) > 0;
 }
 
 
