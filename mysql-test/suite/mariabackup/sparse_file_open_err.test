@@ -1,0 +1,61 @@
+#
+# Testing the error messages written to log; e.g., [ERROR] InnoDB: Cannot open datafile for read-only: './test/t2.ibd' OS error: 71
+#
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+
+let targetdir=$MYSQLTEST_VARDIR/tmp/backup1;
+
+CREATE TABLE t1 (a INT) ENGINE=INNODB;
+INSERT t1 VALUES (10);
+
+CREATE TABLE t2 (a INT) ENGINE=INNODB;
+INSERT t2 VALUES (12);
+
+# Do the sparse backup while the transaction is going on. Only include subset of tables in the sparse
+# backup from the tables that participate in the transaction. In this case only t1, t2 is not
+# included in the sparse backup.
+
+start transaction;
+
+INSERT INTO t1 VALUES(1);
+INSERT INTO t2 VALUES(1);
+
+echo "# Do the sparse backup before transaction completes ...";
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --tables=t1;
+
+# Finish the transaction
+commit;
+
+# do the prepare
+echo "# Prepare the backup with --export ...";
+exec $XTRABACKUP --prepare --export --target-dir=$targetdir ;
+
+echo "# Select all should include 10 and 1";
+SELECT * FROM t1;
+
+echo "# Remove t1 from the running DB and prepare to import t1 from the backup ...";
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT) ENGINE=INNODB;
+ALTER TABLE test.t1 DISCARD TABLESPACE;
+
+echo "# Import the table ....";
+# import the table from the backup.
+--move_file $targetdir/test/t1.cfg $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.cfg
+--move_file $targetdir/test/t1.frm $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm
+--move_file $targetdir/test/t1.ibd $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.ibd
+
+--chmod 0660 $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.cfg
+--chmod 0660 $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm
+--chmod 0660 $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.ibd
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+echo "# Select all should include only 10";
+SELECT * FROM t1;
+
+echo "# Cleanup ...";
+DROP TABLE t1;
+DROP TABLE t2;
+rmdir $targetdir;
+

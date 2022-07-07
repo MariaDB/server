@@ -1,0 +1,28 @@
+CREATE TABLE t1 (a INT) ENGINE=INNODB;
+INSERT t1 VALUES (10);
+CREATE TABLE t2 (a INT) ENGINE=INNODB;
+INSERT t2 VALUES (12);
+start transaction;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t2 VALUES(1);
+"# Do the sparse backup before transaction completes ..."
+commit;
+"# Prepare the backup with --export ..."
+"# Select all should include 10 and 1"
+SELECT * FROM t1;
+a
+10
+1
+"# Remove t1 from the running DB and prepare to import t1 from the backup ..."
+DROP TABLE t1;
+CREATE TABLE t1 (a INT) ENGINE=INNODB;
+ALTER TABLE test.t1 DISCARD TABLESPACE;
+"# Import the table ...."
+ALTER TABLE t1 IMPORT TABLESPACE;
+"# Select all should include only 10"
+SELECT * FROM t1;
+a
+10
+"# Cleanup ..."
+DROP TABLE t1;
+DROP TABLE t2;

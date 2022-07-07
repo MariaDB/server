@@ -736,7 +736,8 @@ dberr_t trx_lists_init_at_db_start()
 	ut_a(srv_is_being_started);
 	ut_ad(!srv_was_started);
 
-	if (srv_operation == SRV_OPERATION_RESTORE) {
+	if ((srv_operation == SRV_OPERATION_RESTORE) ||
+        (srv_operation == SRV_OPERATION_RESTORE_EXPORT)) {
 		/* mariabackup --prepare only deals with
 		the redo log and the data files, not with
 		transactions or the data dictionary. */
