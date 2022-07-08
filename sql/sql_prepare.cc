@@ -5490,7 +5490,8 @@ static char *dup_str_aux(MEM_ROOT *root, const LEX_CSTRING &from,
 static char *dup_str_aux(MEM_ROOT *root, const char *from,
                          CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {
-  return dup_str_aux(root, from, from ? strlen(from) : 0 , fromcs, tocs);
+  return dup_str_aux(root, from, (uint) (from ? strlen(from) : 0),
+         fromcs, tocs);
 }
 
 
