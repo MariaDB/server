@@ -1746,7 +1746,7 @@ Type_handler_time_common::type_handler_for_native_format() const
 
 const Type_handler *Type_handler_typelib::type_handler_for_item_field() const
 {
-  return &type_handler_string;
+  return &type_handler_varchar;
 }
 
 
