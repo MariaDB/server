@@ -55,7 +55,7 @@ XA ROLLBACK 'test1';
 
 --echo # xtrabackup prepare for export and rollback prepared XA
 --disable_result_log
-exec $XTRABACKUP  --prepare --rollback_xa --export --target-dir=$targetdir3;
+exec $XTRABACKUP  --prepare --rollback_xa --target-dir=$targetdir3;
 --let $targetdir = $targetdir3
 --source include/restart_and_restore.inc
 --enable_result_log
