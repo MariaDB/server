@@ -3584,9 +3584,17 @@ extern void fil_aio_callback(const IORequest &request);
 
 static void io_callback(tpool::aiocb* cb)
 {
-  ut_a(cb->m_err == DB_SUCCESS);
   const IORequest request(*static_cast<const IORequest*>
                           (static_cast<const void*>(cb->m_userdata)));
+  if (cb->m_err != DB_SUCCESS)
+  {
+    ib::fatal() << "IO Error: " << cb->m_err << " during " <<
+      (request.is_async() ? "async " : "sync ") <<
+      (request.is_LRU() ? "lru " : "") <<
+      (cb->m_opcode == tpool::aio_opcode::AIO_PREAD ? "read" : "write") <<
+      " of " << cb->m_len << " bytes, for file " << cb->m_fh << ", returned " <<
+      cb->m_ret_len;
+  }
   /* Return cb back to cache*/
   if (cb->m_opcode == tpool::aio_opcode::AIO_PREAD)
   {
