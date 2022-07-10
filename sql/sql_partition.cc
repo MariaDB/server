@@ -6083,8 +6083,6 @@ err:
 
 class Alter_partition_logger
 {
-  char path_buf[FN_REFLEN + 1];
-
 protected:
   const char *path;
   uint from_name_type; /* NORMAL_PART_NAME, TEMP_PART_NAME, RENAMED_PART_NAME */
@@ -6114,7 +6112,7 @@ public:
   } phase;
 
   Alter_partition_logger(ALTER_PARTITION_PARAM_TYPE *lpt) :
-    path(NULL), from_name_type(SKIP_PART_NAME),
+    path(lpt->path), from_name_type(SKIP_PART_NAME),
     to_name_type(SKIP_PART_NAME),
     lpt(lpt), table(lpt->table), part_info(lpt->part_info),
     rollback_chain(&lpt->rollback_chain),
@@ -6122,9 +6120,6 @@ public:
     hp((ha_partition *) table->file)
   {
     DBUG_ASSERT(table->file->ht->db_type == DB_TYPE_PARTITION_DB);
-    build_table_filename(path_buf, sizeof(path_buf) - 1, lpt->db.str,
-                         lpt->table_name.str, "", 0);
-    path= path_buf;
   }
 
   virtual ~Alter_partition_logger() {}
@@ -6949,6 +6944,9 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   lpt->db= alter_ctx->db;
   lpt->table_name= alter_ctx->table_name;
   lpt->org_tabledef_version= table->s->tabledef_version;
+  DBUG_ASSERT(sizeof(lpt->path) >= table->s->normalized_path.length + 1);
+  memcpy(lpt->path, table->s->normalized_path.str,
+          table->s->normalized_path.length + 1);
 
   DDL_LOG_STATE *rollback_chain= &lpt->rollback_chain;
   DDL_LOG_STATE *cleanup_chain= &lpt->cleanup_chain;

@@ -72,6 +72,7 @@ typedef struct st_lock_param_type
   partition_info *part_info;
   DDL_LOG_STATE rollback_chain;
   DDL_LOG_STATE cleanup_chain;
+  char path[FN_REFLEN + 1];
 
   st_lock_param_type()
   {
