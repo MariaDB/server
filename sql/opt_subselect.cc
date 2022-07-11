@@ -30,6 +30,8 @@
 #include "sql_base.h"
 #include "sql_const.h"
 #include "sql_select.h"
+#include "sql_update.h"  // class Sql_cmd_update
+#include "sql_delete.h"  // class Sql_cmd_delete
 #include "filesort.h"
 #include "opt_subselect.h"
 #include "sql_test.h"
@@ -532,6 +534,48 @@ bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
   return FALSE;
 }
 
+/**
+  @brief Check whether an IN subquery must be excluded from conversion to SJ
+
+  @param thd  global context the processed statement
+  @returns true if the IN subquery must be excluded from conversion to SJ
+
+  @note
+  Currently a top level IN subquery of an delete statement is not converted
+  to SJ if the statement contains ORDER BY ... LIMIT  or contains RETURNING.
+
+  @todo
+    The disjunctive members
+      !((Sql_cmd_update *) cmd)->is_multitable()
+      !((Sql_cmd_delete *) cmd)->is_multitable()
+    will be removed when conversions of IN predicands to semi-joins are
+    fully supported for single-table UPDATE/DELETE statements.
+*/
+
+bool SELECT_LEX::is_sj_conversion_prohibited(THD *thd)
+{
+  DBUG_ASSERT(master_unit()->item->substype() == Item_subselect::IN_SUBS);
+
+  SELECT_LEX *outer_sl= outer_select();
+  if (outer_sl->outer_select())
+    return false;
+
+  Sql_cmd *cmd= thd->lex->m_sql_cmd;
+
+  switch (thd->lex->sql_command) {
+  case SQLCOM_UPDATE:
+    return
+      !((Sql_cmd_update *) cmd)->is_multitable() ||
+      ((Sql_cmd_update *) cmd)->processing_as_multitable_update_prohibited(thd);
+  case SQLCOM_DELETE:
+    return
+      !((Sql_cmd_delete *) cmd)->is_multitable() ||
+      ((Sql_cmd_delete *) cmd)->processing_as_multitable_delete_prohibited(thd);
+  default:
+    return false;
+  }
+}
+
 
 /*
   Check if we need JOIN::prepare()-phase subquery rewrites and if yes, do them
@@ -686,9 +730,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         3. Subquery does not have GROUP BY or ORDER BY
         4. Subquery does not use aggregate functions or HAVING
         5. Subquery predicate is at the AND-top-level of ON/WHERE clause
-        6. We are not in a subquery of a single table UPDATE/DELETE that 
-             doesn't have a JOIN (TODO: We should handle this at some
-             point by switching to multi-table UPDATE/DELETE)
+        6. We are not in a subquery of a single-table UPDATE/DELETE that
+           does not allow conversion to multi-table UPDATE/DELETE
         7. We're not in a table-less subquery like "SELECT 1"
         8. No execution method was already chosen (by a prepared statement)
         9. Parent select is not a table-less select
@@ -706,9 +749,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         !select_lex->group_list.elements && !join->order &&           // 3
         !join->having && !select_lex->with_sum_func &&                // 4
         in_subs->emb_on_expr_nest &&                                  // 5
-        select_lex->outer_select()->join &&                           // 6
-        (!thd->lex->m_sql_cmd ||
-	 thd->lex->m_sql_cmd->sql_command_code() == SQLCOM_UPDATE_MULTI) &&
+        !select_lex->is_sj_conversion_prohibited(thd) &&              // 6
         parent_unit->first_select()->leaf_tables.elements &&          // 7
         !in_subs->has_strategy() &&                                   // 8
         select_lex->outer_select()->table_list.first &&               // 9
@@ -769,7 +810,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
       */
       if (in_subs && !in_subs->has_strategy())
       {
-        if (is_materialization_applicable(thd, in_subs, select_lex))
+        if (!select_lex->is_sj_conversion_prohibited(thd) &&
+            is_materialization_applicable(thd, in_subs, select_lex))
         {
           in_subs->add_strategy(SUBS_MATERIALIZATION);
 
