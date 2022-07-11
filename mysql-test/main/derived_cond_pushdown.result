@@ -11908,7 +11908,7 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (f1 text, f2 int);
 INSERT INTO t1 VALUES ('x',1), ('y',2);
-CREATE VIEW v1 AS SELECT f2 FROM ( SELECT f2 FROM t1 ) AS t;
+CREATE VIEW v1 AS SELECT f2 FROM ( SELECT f2 FROM t1 GROUP BY f2) AS t;
 UPDATE v1, t1 SET t1.f1 = 'z' WHERE v1.f2 < 2 AND t1.f2 = v1.f2;
 EXPLAIN FORMAT=JSON UPDATE v1, t1 SET t1.f1 = 'z' WHERE v1.f2 < 2 AND t1.f2 = v1.f2;
 EXPLAIN
@@ -11939,17 +11939,22 @@ EXPLAIN
           "materialized": {
             "query_block": {
               "select_id": 3,
-              "nested_loop": [
-                {
-                  "table": {
-                    "table_name": "t1",
-                    "access_type": "ALL",
-                    "rows": 2,
-                    "filtered": 100,
-                    "attached_condition": "t1.f2 < 2"
-                  }
+              "filesort": {
+                "sort_key": "t1.f2",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 2,
+                        "filtered": 100,
+                        "attached_condition": "t1.f2 < 2"
+                      }
+                    }
+                  ]
                 }
-              ]
+              }
             }
           }
         }

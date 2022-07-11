@@ -37,6 +37,8 @@
 #include "sql_partition.h"
 #include "sql_partition_admin.h"               // Sql_cmd_alter_table_*_part
 #include "event_parse_data.h"
+#include "sql_update.h"                        // class Sql_cmd_update
+#include "sql_delete.h"                        // class Sql_cmd_delete
 
 void LEX::parse_error(uint err_number)
 {
@@ -4037,9 +4039,8 @@ bool LEX::can_use_merged()
   SYNOPSIS
     LEX::can_not_use_merged()
 
-  @param no_update_or_delete Set to 1 if we can't use merge with multiple-table
-                             updates, like when used from
-                             TALE_LIST::init_derived()
+  @param forced_no_merge_for_update_delete Set to 1 if we can't use merge with
+                                           multiple-table updates/deletes
 
   DESCRIPTION
     Temporary table algorithm will be used on all SELECT levels for queries
@@ -4050,7 +4051,7 @@ bool LEX::can_use_merged()
     TRUE  - VIEWs with MERGE algorithms can be used
 */
 
-bool LEX::can_not_use_merged(bool no_update_or_delete)
+bool LEX::can_not_use_merged(bool forced_no_merge_for_update_delete)
 {
   switch (sql_command) {
   case SQLCOM_CREATE_VIEW:
@@ -4064,17 +4065,28 @@ bool LEX::can_not_use_merged(bool no_update_or_delete)
     return TRUE;
 
   case SQLCOM_UPDATE_MULTI:
-  case SQLCOM_DELETE_MULTI:
-    if (no_update_or_delete)
+    if (forced_no_merge_for_update_delete)
       return TRUE;
     /* Fall through */
 
   case SQLCOM_UPDATE:
-    if (no_update_or_delete && m_sql_cmd &&
-        (m_sql_cmd->sql_command_code() == SQLCOM_UPDATE_MULTI ||
+    if (forced_no_merge_for_update_delete &&
+        (((Sql_cmd_update *) m_sql_cmd)->is_multitable() ||
          query_tables->is_multitable()))
       return TRUE;
+    return FALSE;
+
+  case SQLCOM_DELETE_MULTI:
+    if (forced_no_merge_for_update_delete)
+      return TRUE;
     /* Fall through */
+
+  case SQLCOM_DELETE:
+    if (forced_no_merge_for_update_delete &&
+        (((Sql_cmd_delete *) m_sql_cmd)->is_multitable() ||
+         query_tables->is_multitable()))
+      return TRUE;
+    return FALSE;
 
   default:
     return FALSE;

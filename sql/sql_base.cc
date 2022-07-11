@@ -47,6 +47,8 @@
 #include "sql_prepare.h"
 #include "sql_statistics.h"
 #include "sql_cte.h"
+#include "sql_update.h"  // class Sql_cmd_update
+#include "sql_delete.h"  // class Sql_cmd_delete
 #include <m_ctype.h>
 #include <my_dir.h>
 #include <hash.h>
@@ -1175,16 +1177,42 @@ retry:
       We come here for queries of type:
       INSERT INTO t1 (SELECT tmp.a FROM (select * FROM t1) as tmp);
 
-      Try to fix by materializing the derived table
+      Try to fix by materializing the derived table if one can't do without it.
     */
     TABLE_LIST *derived=  res->belong_to_derived;
     if (derived->is_merged_derived() && !derived->derived->is_excluded())
     {
-      DBUG_PRINT("info",
+      bool materialize= true;
+      if (thd->lex->sql_command == SQLCOM_UPDATE)
+      {
+        Sql_cmd_update *cmd= (Sql_cmd_update *) (thd->lex->m_sql_cmd);
+        if (cmd->is_multitable())
+          materialize= false;
+        else if (!cmd->processing_as_multitable_update_prohibited(thd))
+	{
+          cmd->set_as_multitable();
+          materialize= false;
+        }
+      }
+      else if (thd->lex->sql_command == SQLCOM_DELETE)
+      {
+        Sql_cmd_delete *cmd= (Sql_cmd_delete *) (thd->lex->m_sql_cmd);
+        if (cmd->is_multitable())
+          materialize= false;
+        if (!cmd->processing_as_multitable_delete_prohibited(thd))
+	{
+          cmd->set_as_multitable();
+          materialize= false;
+        }
+      }
+      if (materialize)
+      {
+        DBUG_PRINT("info",
                  ("convert merged to materialization to resolve the conflict"));
-      derived->change_refs_to_fields();
-      derived->set_materialized_derived();
-      goto retry;
+        derived->change_refs_to_fields();
+        derived->set_materialized_derived();
+        goto retry;
+      }
     }
   }
   DBUG_RETURN(res);
