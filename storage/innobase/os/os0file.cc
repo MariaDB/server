@@ -5304,8 +5304,6 @@ os_file_set_size(
 
 fallback:
 #else
-	struct stat statbuf;
-
 	if (is_sparse) {
 		bool success = !ftruncate(file, size);
 		if (!success) {
@@ -5319,17 +5317,18 @@ fallback:
 # ifdef HAVE_POSIX_FALLOCATE
 	int err;
 	do {
-		if (fstat(file, &statbuf)) {
+		os_offset_t current_size = my_seek(file, 0L, MY_SEEK_END, MYF(MY_WME));
+		if (current_size == MY_FILEPOS_ERROR) {
 			err = errno;
-		} else {
-			os_offset_t current_size = statbuf.st_size;
-			if (current_size >= size) {
-				return true;
-			}
-			current_size &= ~4095ULL;
-			err = posix_fallocate(file, current_size,
-					      size - current_size);
+			break;
 		}
+		if (current_size >= size) {
+			return true;
+		}
+		current_size &= ~4095ULL;
+		err = posix_fallocate(file, current_size,
+				      size - current_size);
+
 	} while (err == EINTR
 		 && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
 
@@ -5363,10 +5362,11 @@ fallback:
 		}
 	}
 #else
-	if (fstat(file, &statbuf)) {
+	os_offset_t current_size = my_seek(file, 0L, MY_SEEK_END, MYF(MY_WME));
+	if (current_size == MY_FILEPOS_ERROR)
 		return false;
-	}
-	os_offset_t current_size = statbuf.st_size & ~4095ULL;
+
+	current_size &= ~4095ULL;
 #endif
 	if (current_size >= size) {
 		return true;
