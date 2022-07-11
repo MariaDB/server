@@ -441,12 +441,10 @@ create table t1 (col1 int);
 create table t2 (col1 int);
 update t1,t2 set t1.col1 = (select max(col1) from t1) where t1.col1 = t2.col1;
 delete t1 from t1,t2 where t1.col1 < (select max(col1) from t1) and t1.col1 = t2.col1;
-ERROR HY000: Table 't1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 drop table t1,t2;
 create table t1(a int);
 create table t2(a int);
 delete from t1,t2 using t1,t2 where t1.a=(select a from t1);
-ERROR HY000: Table 't1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 drop table t1, t2;
 create table t1 (a int, b int);
 insert into t1 values (1, 2), (2, 3), (3, 4);

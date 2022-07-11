@@ -2812,6 +2812,23 @@ bool multi_update::send_eof()
 
 
 /**
+  @brief Check whether conversion to multi-table update is prohibited
+
+  @param thd  global context the processed statement
+  @returns true if conversion is prohibited, false otherwise
+
+  @todo
+  Introduce handler level flag for storage engines that would prohibit
+  such conversion for any single-table update.
+*/
+
+bool Sql_cmd_update::processing_as_multitable_update_prohibited(THD *thd)
+{
+  return false;
+}
+
+
+/**
   @brief Perform precheck of table privileges for update statements
 
   @param thd  global context the processed statement
@@ -2894,7 +2911,9 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
                  "updating and querying the same temporal periods table");
         DBUG_RETURN(TRUE);
       }
-      multitable= true;
+      if (!table_list->is_multitable() &&
+          !processing_as_multitable_update_prohibited(thd))
+        multitable= true;
     }
   }
 

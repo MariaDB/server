@@ -2219,7 +2219,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (f1 text, f2 int);
 INSERT INTO t1 VALUES ('x',1), ('y',2);
 
-CREATE VIEW v1 AS SELECT f2 FROM ( SELECT f2 FROM t1 ) AS t;
+CREATE VIEW v1 AS SELECT f2 FROM ( SELECT f2 FROM t1 GROUP BY f2) AS t;
 let $q1 =
 UPDATE v1, t1 SET t1.f1 = 'z' WHERE v1.f2 < 2 AND t1.f2 = v1.f2;
 eval $q1;
