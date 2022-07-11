@@ -1111,6 +1111,8 @@ multi_delete::~multi_delete()
        table_being_deleted= table_being_deleted->next_local)
   {
     TABLE *table= table_being_deleted->table;
+    if (!table)
+      continue;
     table->no_keyread=0;
     table->no_cache= 0;
   }
@@ -1442,6 +1444,34 @@ bool multi_delete::send_eof()
 }
 
 
+/**
+  @brief Check whether processing to multi-table delete is prohibited
+
+  @param thd  global context the processed statement
+  @returns true if processing as multitable is prohibited, false otherwise
+
+  @todo
+  Introduce handler level flag for storage engines that would prohibit
+  such conversion for any single-table delete.
+*/
+
+bool Sql_cmd_delete::processing_as_multitable_delete_prohibited(THD *thd)
+{
+  SELECT_LEX *const select_lex = thd->lex->first_select_lex();
+  return
+    ((select_lex->order_list.elements &&
+      select_lex->limit_params.select_limit) ||
+     thd->lex->has_returning());
+}
+
+
+/**
+  @brief Perform precheck of table privileges for delete statements
+
+  @param thd  global context the processed statement
+  @returns false on success, true on error
+*/
+
 bool Sql_cmd_delete::precheck(THD *thd)
 {
   if (!multitable)
@@ -1545,6 +1575,20 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
       DBUG_RETURN(true);
     }
 
+    if (!multitable)
+    {
+      TABLE_LIST *update_source_table= 0;
+      if (((update_source_table=unique_table(thd, table_list,
+                                             table_list->next_global, 0)) ||
+          table_list->is_multitable()))
+      {
+        DBUG_ASSERT(update_source_table || table_list->view != 0);
+        if (!table_list->is_multitable() &&
+            !processing_as_multitable_delete_prohibited(thd))
+          multitable= true;
+      }
+    }
+
     if (table_list->has_period())
     {
       if (table_list->is_view_or_derived())
@@ -1629,25 +1673,6 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
       }
     }
 
-    for (target_tbl= (TABLE_LIST*) aux_tables;
-         target_tbl;
-         target_tbl= target_tbl->next_local)
-    {
-      /*
-        Check that table from which we delete is not used somewhere
-        inside subqueries/view.
-      */
-      {
-        TABLE_LIST *duplicate;
-        if ((duplicate= unique_table(thd, target_tbl->correspondent_table,
-                                     lex->query_tables, 0)))
-        {
-          update_non_unique_table_error(target_tbl->correspondent_table,
-                                        "DELETE", duplicate);
-          DBUG_RETURN(TRUE);
-        }
-      }
-    }
     /*
       Reset the exclude flag to false so it doesn't interfare
       with further calls to unique_table
