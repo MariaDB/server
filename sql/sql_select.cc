@@ -952,6 +952,7 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
   {
     DBUG_ASSERT(type == SYSTEM_TIME_AS_OF);
     Datetime dt(in.unix_time, in.second_part, thd->variables.time_zone);
+    thd->used|= THD::TIME_ZONE_USED;
 
     start.item= new (thd->mem_root)
         Item_datetime_literal(thd, &dt, TIME_SECOND_PART_DIGITS);

@@ -1934,4 +1934,43 @@ set global query_cache_type= @qcache;
 
 --echo # End of 10.10 tests
 
+--echo #
+--echo # MDEV-29076 Query_cache stored identical select queries
+--echo #
+
+set @qcache= @@global.query_cache_type;
+set global query_cache_type= 1;
+set query_cache_type= 1;
+
+set @save_time_zone=@@time_zone;
+set local time_zone = SYSTEM;
+reset query cache;
+flush status;
+
+create table t1 (i int not null);
+insert into t1 (i) values (1);
+
+select * from t1 order by i;
+select from_unixtime(i), i from t1 order by i;
+select * from information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME in ('Qcache_hits','Qcache_inserts','Qcache_not_cached','Qcache_queries_in_cache') ORDER BY VARIABLE_NAME;
+
+set time_zone = "+9:00";
+select * from t1 order by i;
+select from_unixtime(i), i from t1 order by i;
+select * from information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME in ('Qcache_hits','Qcache_inserts','Qcache_not_cached','Qcache_queries_in_cache') ORDER BY VARIABLE_NAME;
+
+set time_zone = "+10:00";
+select * from t1 order by i;
+select from_unixtime(i), i from t1 order by i;
+select * from information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME in ('Qcache_hits','Qcache_inserts','Qcache_not_cached','Qcache_queries_in_cache') ORDER BY VARIABLE_NAME;
+
+drop table t1;
+set time_zone=@save_time_zone;
+
+set global query_cache_type= @qcache;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
+
 --enable_ps2_protocol
