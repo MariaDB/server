@@ -46,18 +46,24 @@ class Sql_cmd_update final : public Sql_cmd_dml
 {
 public:
   Sql_cmd_update(bool multitable_arg)
-      : multitable(multitable_arg)
-  { }
+    : orig_multitable(multitable_arg), multitable(multitable_arg)
+  {}
 
   enum_sql_command sql_command_code() const override
   {
-    return multitable ? SQLCOM_UPDATE_MULTI : SQLCOM_UPDATE;
+    return orig_multitable ? SQLCOM_UPDATE_MULTI : SQLCOM_UPDATE;
   }
 
   DML_prelocking_strategy *get_dml_prelocking_strategy()
   {
     return &multiupdate_prelocking_strategy;
   }
+
+  bool processing_as_multitable_update_prohibited(THD *thd);
+
+  bool is_multitable() { return multitable; }
+
+  void set_as_multitable() { multitable= true; }
 
 protected:
   /**
@@ -82,6 +88,9 @@ private:
   */
   bool update_single_table(THD *thd);
 
+  /* Original value of the 'multitable' flag set by constructor */
+  const bool orig_multitable;
+
   /*
     True if the statement is a multi-table update or converted to such.
     For a single-table update this flag is set to true if the statement
@@ -95,7 +104,6 @@ private:
  public:
   /* The list of the updating expressions used in the set clause */
   List<Item> *update_value_list;
-
 };
 
 #endif /* SQL_UPDATE_INCLUDED */
