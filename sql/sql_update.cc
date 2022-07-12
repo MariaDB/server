@@ -365,7 +365,7 @@ int mysql_update(THD *thd,
     DBUG_ASSERT(update_source_table || table_list->view != 0);
     DBUG_PRINT("info", ("Switch to multi-update"));
     /* pass counter value */
-    thd->lex->table_count= table_count;
+    thd->lex->table_count_update= table_count;
     /* convert to multiupdate */
     DBUG_RETURN(2);
   }
@@ -1710,7 +1710,7 @@ int mysql_multi_update_prepare(THD *thd)
   TABLE_LIST *table_list= lex->query_tables;
   TABLE_LIST *tl;
   Multiupdate_prelocking_strategy prelocking_strategy;
-  uint table_count= lex->table_count;
+  uint table_count= lex->table_count_update;
   DBUG_ENTER("mysql_multi_update_prepare");
 
   /*
