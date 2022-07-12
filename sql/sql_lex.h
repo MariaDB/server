@@ -738,7 +738,6 @@ public:
   }
 
   inline st_select_lex_node* get_master() { return master; }
-  inline st_select_lex_node* get_slave() { return slave; }
   void include_down(st_select_lex_node *upper);
   void add_slave(st_select_lex_node *slave_arg);
   void include_neighbour(st_select_lex_node *before);
