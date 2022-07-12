@@ -1,0 +1,156 @@
+set global general_log = 'ON';
+set global slow_query_log = 'ON';
+set global log_output = 'TABLE';
+show global variables where variable_name like 'general_log';
+Variable_name	Value
+general_log	ON
+show global variables where variable_name like 'slow_query_log';
+Variable_name	Value
+slow_query_log	ON
+show global variables where variable_name like 'log_output';
+Variable_name	Value
+log_output	TABLE
+create table t1
+(
+a int primary key,
+b char(10)
+);
+insert into t1 values (1,'one');
+insert into t1 values (2,'two');
+show open tables from mysql;
+Database	Table	In_use	Name_locked
+mysql	servers	0	0
+mysql	procs_priv	0	0
+mysql	table_stats	0	0
+mysql	index_stats	0	0
+mysql	plugin	0	0
+mysql	time_zone_transition	0	0
+mysql	time_zone_leap_second	0	0
+mysql	time_zone	0	0
+mysql	help_category	0	0
+mysql	general_log	0	0
+mysql	user	0	0
+mysql	roles_mapping	0	0
+mysql	time_zone_transition_type	0	0
+mysql	proxies_priv	0	0
+mysql	event	0	0
+mysql	columns_priv	0	0
+mysql	proc	0	0
+mysql	help_keyword	0	0
+mysql	func	0	0
+mysql	time_zone_name	0	0
+mysql	db	0	0
+mysql	slow_log	0	0
+mysql	column_stats	0	0
+mysql	help_topic	0	0
+mysql	help_relation	0	0
+mysql	global_priv	0	0
+mysql	tables_priv	0	0
+mysql	gtid_slave_pos	0	0
+set global slow_query_log = OFF;
+show global variables where variable_name like 'general_log';
+Variable_name	Value
+general_log	ON
+show global variables where variable_name like 'slow_query_log';
+Variable_name	Value
+slow_query_log	OFF
+show open tables from mysql;
+Database	Table	In_use	Name_locked
+mysql	servers	0	0
+mysql	procs_priv	0	0
+mysql	table_stats	0	0
+mysql	index_stats	0	0
+mysql	plugin	0	0
+mysql	time_zone_transition	0	0
+mysql	time_zone_leap_second	0	0
+mysql	time_zone	0	0
+mysql	help_category	0	0
+mysql	general_log	0	0
+mysql	user	0	0
+mysql	roles_mapping	0	0
+mysql	time_zone_transition_type	0	0
+mysql	proxies_priv	0	0
+mysql	event	0	0
+mysql	columns_priv	0	0
+mysql	proc	0	0
+mysql	help_keyword	0	0
+mysql	func	0	0
+mysql	time_zone_name	0	0
+mysql	db	0	0
+mysql	column_stats	0	0
+mysql	help_topic	0	0
+mysql	help_relation	0	0
+mysql	global_priv	0	0
+mysql	tables_priv	0	0
+mysql	gtid_slave_pos	0	0
+set global log_output = 'FILE';
+show global variables where variable_name like 'general_log';
+Variable_name	Value
+general_log	ON
+show global variables where variable_name like 'slow_query_log';
+Variable_name	Value
+slow_query_log	OFF
+show open tables from mysql;
+Database	Table	In_use	Name_locked
+mysql	servers	0	0
+mysql	procs_priv	0	0
+mysql	table_stats	0	0
+mysql	index_stats	0	0
+mysql	plugin	0	0
+mysql	time_zone_transition	0	0
+mysql	time_zone_leap_second	0	0
+mysql	time_zone	0	0
+mysql	help_category	0	0
+mysql	user	0	0
+mysql	roles_mapping	0	0
+mysql	time_zone_transition_type	0	0
+mysql	proxies_priv	0	0
+mysql	event	0	0
+mysql	columns_priv	0	0
+mysql	proc	0	0
+mysql	help_keyword	0	0
+mysql	func	0	0
+mysql	time_zone_name	0	0
+mysql	db	0	0
+mysql	column_stats	0	0
+mysql	help_topic	0	0
+mysql	help_relation	0	0
+mysql	global_priv	0	0
+mysql	tables_priv	0	0
+mysql	gtid_slave_pos	0	0
+set global log_output = 'TABLE';
+show global variables where variable_name like 'general_log';
+Variable_name	Value
+general_log	ON
+show global variables where variable_name like 'slow_query_log';
+Variable_name	Value
+slow_query_log	OFF
+show open tables from mysql;
+Database	Table	In_use	Name_locked
+mysql	servers	0	0
+mysql	procs_priv	0	0
+mysql	table_stats	0	0
+mysql	index_stats	0	0
+mysql	plugin	0	0
+mysql	time_zone_transition	0	0
+mysql	time_zone_leap_second	0	0
+mysql	time_zone	0	0
+mysql	help_category	0	0
+mysql	general_log	0	0
+mysql	user	0	0
+mysql	roles_mapping	0	0
+mysql	time_zone_transition_type	0	0
+mysql	proxies_priv	0	0
+mysql	event	0	0
+mysql	columns_priv	0	0
+mysql	proc	0	0
+mysql	help_keyword	0	0
+mysql	func	0	0
+mysql	time_zone_name	0	0
+mysql	db	0	0
+mysql	column_stats	0	0
+mysql	help_topic	0	0
+mysql	help_relation	0	0
+mysql	global_priv	0	0
+mysql	tables_priv	0	0
+mysql	gtid_slave_pos	0	0

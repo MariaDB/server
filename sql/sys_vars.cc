@@ -5266,6 +5266,12 @@ static bool fix_log_output(sys_var *self, THD *thd, enum_var_type type)
   logger.lock_exclusive();
   logger.init_slow_log(log_output_options);
   logger.init_general_log(log_output_options);
+  switch(log_output_options){
+  case LOG_FILE:
+  case LOG_NONE:
+    close_log_table_and_cache(thd, QUERY_LOG_GENERAL);
+    close_log_table_and_cache(thd, QUERY_LOG_SLOW);
+  }
   logger.unlock();
   return false;
 }

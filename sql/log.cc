@@ -1691,6 +1691,7 @@ void LOGGER::deactivate_log_handler(THD *thd, uint log_type)
   lock_exclusive();
   file_log->close(0);
   *tmp_opt= FALSE;
+  close_log_table_and_cache(thd, log_type);
   unlock();
 }
 

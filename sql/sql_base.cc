@@ -9516,6 +9516,25 @@ void close_log_table(THD *thd, Open_tables_backup *backup)
   thd->restore_backup_open_tables_state(backup);
 }
 
+/**
+  Close a log table and remove the related table cache.
+  @param thd The current thread
+  @param log_table_type The log table type
+**/  
+void close_log_table_and_cache(THD *thd, uint log_table_type)
+{
+  LEX_CSTRING *UNINIT_VAR(log_name);
+  Open_tables_backup open_tables_backup;
+  thd->reset_n_backup_open_tables_state(&open_tables_backup);
+  if (log_table_type == QUERY_LOG_GENERAL)
+    log_name= &GENERAL_LOG_NAME;
+  else
+    log_name= &SLOW_LOG_NAME;
+  close_log_table(thd, &open_tables_backup);
+  tdc_remove_table(thd, MYSQL_SCHEMA_NAME.str, log_name->str);
+  DBUG_PRINT("info", ("close the log table: %s", log_name->str));
+}
+
 
 /**
   @brief

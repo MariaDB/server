@@ -1,0 +1,35 @@
+set global general_log = 'ON';
+set global slow_query_log = 'ON';
+set global log_output = 'TABLE';
+show global variables where variable_name like 'general_log';
+show global variables where variable_name like 'slow_query_log';
+show global variables where variable_name like 'log_output';
+
+
+create table t1
+(
+  a int primary key,
+  b char(10)
+);
+insert into t1 values (1,'one');
+insert into t1 values (2,'two');
+
+show open tables from mysql;
+
+set global slow_query_log = OFF;
+show global variables where variable_name like 'general_log';
+show global variables where variable_name like 'slow_query_log';
+#show open tables from mysql LIKE '%_log';
+show open tables from mysql;
+
+set global log_output = 'FILE';
+show global variables where variable_name like 'general_log';
+show global variables where variable_name like 'slow_query_log';
+#show open tables from mysql LIKE '%_log';
+show open tables from mysql;
+
+set global log_output = 'TABLE';
+show global variables where variable_name like 'general_log';
+show global variables where variable_name like 'slow_query_log';
+#show open tables from mysql LIKE '%_log';
+show open tables from mysql;
