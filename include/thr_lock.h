@@ -173,8 +173,6 @@ void thr_print_locks(void);		/* For debugging */
 my_bool thr_upgrade_write_delay_lock(THR_LOCK_DATA *data,
                                      enum thr_lock_type new_lock_type,
                                      ulong lock_wait_timeout);
-void    thr_downgrade_write_lock(THR_LOCK_DATA *data,
-                                 enum thr_lock_type new_lock_type);
 my_bool thr_reschedule_write_lock(THR_LOCK_DATA *data,
                                   ulong lock_wait_timeout);
 void thr_set_lock_wait_callback(void (*before_wait)(void),
