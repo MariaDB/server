@@ -5,6 +5,9 @@ INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 analyze format=json select * from t0 where a<3;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -38,6 +41,9 @@ analyze format=json
 select * from t0, t1 where t1.a=t0.a and t0.a > 9;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -85,6 +91,9 @@ analyze format=json
 select * from t0, t1 where t1.a=t0.a and t1.b<4;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -135,6 +144,9 @@ analyze format=json
 select * from t1 tbl1, t1 tbl2 where tbl1.b<20 and tbl2.b<60;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -181,6 +193,9 @@ analyze format=json
 select * from t1 tbl1, t1 tbl2 where tbl1.b<20 and tbl2.b<60 and tbl1.c > tbl2.c;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -236,6 +251,9 @@ insert into t2 values (0),(1);
 analyze format=json select * from t1 straight_join t2 force index(a) where t2.a=t1.a;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -294,6 +312,9 @@ NULL
 analyze format=json select * from test.t1 where t1.a<5;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -334,6 +355,9 @@ analyze format=json
 update t1 set b=pk;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -352,6 +376,9 @@ analyze format=json
 select * from t1 where pk < 10 and b > 4;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -383,6 +410,9 @@ analyze format=json
 delete from t1 where pk < 10 and b > 4;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -426,6 +456,9 @@ select * from t1, t2 where (t2.key1 between t1.lb1 and t1.rb1) and
 (t2.key3=t1.c1  OR t2.key4=t1.c2);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -485,6 +518,9 @@ INSERT INTO t1 select * from t0;
 analyze format=json (select * from t1 tbl1 where a<5) union (select * from t1 tbl2 where a in (2,3));
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "table_name": "<union1,2>",
@@ -561,6 +597,9 @@ insert into t2 select A.a*1000 + B.a, A.a*1000 + B.a from t0 A, t1 B;
 analyze format=json select a, max(b) as TOP from t2 group by a having TOP > a;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -598,6 +637,9 @@ ANALYZE
 analyze format=json select a, max(b) as TOP from t2 group by a having 1<>2;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -634,6 +676,9 @@ ANALYZE
 analyze format=json select a, max(b) as TOP from t2 group by a having 1=2;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "table": {
@@ -645,6 +690,9 @@ ANALYZE
 analyze format=json select a, max(b) as TOP from t2 group by a;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -688,6 +736,9 @@ INSERT INTO t2 VALUES (3),(4);
 ANALYZE FORMAT=JSON SELECT STRAIGHT_JOIN * FROM t1, t2 WHERE b IN ( SELECT a FROM t1 );
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -771,6 +822,9 @@ WHERE f3 IN ( 1, 2 )
 GROUP BY sq ORDER BY gc;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -888,6 +942,9 @@ create table t2 as select * from t1;
 analyze format=json select a, (select t2.b from t2 where t2.a<t1.a order by t2.c limit 1) from t1 where t1.a<0;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
