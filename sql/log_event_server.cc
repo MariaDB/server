@@ -7595,12 +7595,11 @@ is_duplicate_key_error(int errcode)
   @c ha_update_row() or first deleted and then new record written.
 */ 
 
-int
-Rows_log_event::write_row(rpl_group_info *rgi,
-                          const bool overwrite)
+int Rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
 {
   DBUG_ENTER("write_row");
-  DBUG_ASSERT(m_table != NULL && thd != NULL);
+  DBUG_ASSERT(m_table != NULL);
+  DBUG_ASSERT(thd != NULL);
 
   TABLE *table= m_table;  // pointer to event's table
   int error;
