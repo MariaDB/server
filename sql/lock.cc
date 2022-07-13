@@ -816,9 +816,8 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
     enum thr_lock_type lock_type;
     THR_LOCK_DATA **locks_start;
 
-    if (!((likely(!table->s->tmp_table) ||
-           (table->s->tmp_table == TRANSACTIONAL_TMP_TABLE)) &&
-          (!(flags & GET_LOCK_SKIP_SEQUENCES) || table->s->sequence == 0)))
+    if ((table->s->tmp_table && table->s->tmp_table != TRANSACTIONAL_TMP_TABLE)
+       || (flags & GET_LOCK_SKIP_SEQUENCES && table->s->sequence != NULL))
       continue;
     lock_type= table->reginfo.lock_type;
     DBUG_ASSERT(lock_type != TL_WRITE_DEFAULT && lock_type != TL_READ_DEFAULT);
