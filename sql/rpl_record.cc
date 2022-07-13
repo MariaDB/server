@@ -217,9 +217,9 @@ static int fill_extra_persistent_columns(TABLE *table, int master_cols)
    Found error when trying to unpack fields.
  */
 int unpack_row(rpl_group_info *rgi, TABLE *table, uint const colcnt,
-           uchar const *const row_data, MY_BITMAP const *cols,
-           uchar const **const current_row_end, ulong *const master_reclength,
-           uchar const *const row_end)
+               uchar const *const row_data, MY_BITMAP const *cols,
+               uchar const **const current_row_end,
+               ulong *const master_reclength, uchar const *const row_end)
 {
   int error;
   DBUG_ENTER("unpack_row");
