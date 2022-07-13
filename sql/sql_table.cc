@@ -10024,8 +10024,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   */
   table_list->required_type= TABLE_TYPE_NORMAL;
 
-  if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_SHARED
-      || alter_info->requested_lock > Alter_info::ALTER_TABLE_LOCK_NONE
+  if (alter_info->requested_lock > Alter_info::ALTER_TABLE_LOCK_NONE
       || alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING
       || thd->lex->sql_command == SQLCOM_OPTIMIZE
       || alter_info->algorithm(thd) > Alter_info::ALTER_TABLE_ALGORITHM_COPY)
@@ -11596,9 +11595,9 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
 
 static int
 copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
-			 List<Create_field> &create, bool ignore,
-			 uint order_num, ORDER *order,
-			 ha_rows *copied, ha_rows *deleted,
+                         List<Create_field> &create, bool ignore,
+                         uint order_num, ORDER *order,
+                         ha_rows *copied, ha_rows *deleted,
                          Alter_info::enum_enable_or_disable keys_onoff,
                          Alter_table_ctx *alter_ctx, bool online)
 {
