@@ -1,0 +1,19 @@
+--echo #
+--echo # Start of 10.10 tests
+--echo #
+
+--echo #
+--echo # MDEV-23287 The INET4 data type
+--echo #
+
+CREATE TABLE t1 (target INET4 DEFAULT '0.0.0.0', source YEAR DEFAULT 0);
+--source include/type_mix_incompatible.inc
+DROP TABLE t1;
+
+CREATE TABLE t1 (target YEAR DEFAULT 0, source INET4 DEFAULT '0.0.0.0');
+--source include/type_mix_incompatible.inc
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.10 tests
+--echo #

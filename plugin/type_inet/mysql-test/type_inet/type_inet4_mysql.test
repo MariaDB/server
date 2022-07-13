@@ -1,0 +1,18 @@
+-- source include/have_working_dns.inc
+-- source include/not_embedded.inc
+
+--echo #
+--echo # Start of 10.10 tests
+--echo #
+
+--echo #
+--echo # MDEV-23287 The INET4 data type
+--echo #
+
+CREATE TABLE t1 (a INET4);
+--exec $MYSQL -t test --column-type-info -e "SELECT a, CAST('0.0.0.0' AS INET4) AS b, COALESCE(a) AS c FROM t1" 2>&1 
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.10 tests
+--echo #

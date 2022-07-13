@@ -1,0 +1,41 @@
+--source include/have_csv.inc
+
+--echo #
+--echo # Start of 10.10 tests
+--echo #
+
+--echo #
+--echo # MDEV-23287 The INET4 data type
+--echo #
+
+SET default_storage_engine=CSV;
+
+CREATE TABLE t1 (a INET4 NOT NULL);
+SHOW CREATE TABLE t1;
+
+DELIMITER $$;
+FOR i IN 0..255
+DO
+  INSERT INTO t1 VALUES (CONCAT('0.0.0.', i));
+END FOR
+$$
+DELIMITER ;$$
+
+SELECT * FROM t1 WHERE a='0.0.0.255';
+
+SELECT * FROM t1 WHERE a>='0.0.0.254' ORDER BY a;
+
+SELECT * FROM t1 WHERE a IN ('0.0.0.128','0.0.0.160','0.0.0.240') ORDER BY a;
+
+SELECT * FROM t1 WHERE a BETWEEN '0.0.0.128' AND '0.0.0.129' ORDER BY a;
+
+SELECT * FROM t1 WHERE a=CAST('0.0.0.255' AS INET4);
+
+UPDATE t1 SET a=CONCAT('12', a) WHERE a LIKE '0.0.0.14_';
+SELECT * FROM t1 WHERE a LIKE '12%' ORDER BY a;
+
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.10 tests
+--echo #
