@@ -4512,8 +4512,7 @@ public:
     than lock_count() claimed. This can happen when the MERGE children
     are not attached when this is called from another thread.
   */
-  virtual THR_LOCK_DATA **store_lock(THD *thd,
-				     THR_LOCK_DATA **to,
+  virtual THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
 				     enum thr_lock_type lock_type)=0;
 
   /** Type of table for caching query */
