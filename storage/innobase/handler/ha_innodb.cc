@@ -3801,8 +3801,6 @@ static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
       if (t.second.is_bulk_insert())
       {
         ut_ad(trx->bulk_insert);
-        ut_ad(!trx->check_unique_secondary);
-        ut_ad(!trx->check_foreigns);
         if (t.second.write_bulk(t.first, trx))
           return ULONGLONG_MAX;
       }
