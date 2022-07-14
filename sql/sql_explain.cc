@@ -276,13 +276,14 @@ int Explain_query::print_explain_json(select_result_sink *output,
     is_show_cmd = true;
   }
 
-  if( print_query_blocks_json(&writer, is_analyze, is_show_cmd) ){
-    return 1;
-  }
+  bool were_query_plans_found = print_query_blocks_json(&writer, is_analyze, is_show_cmd);
 
   writer.end_object();
 
-  send_explain_json_to_output(&writer, output);
+  if(were_query_plans_found){
+    send_explain_json_to_output(&writer, output);
+  }
+  
   return 0;
 }
 
@@ -298,7 +299,7 @@ void Explain_query::print_query_optimization_json(Json_writer *writer)
   }
 }
 
-int Explain_query::print_query_blocks_json(Json_writer *writer, const bool is_analyze, const bool is_show_cmd)
+bool Explain_query::print_query_blocks_json(Json_writer *writer, const bool is_analyze, const bool is_show_cmd)
 {
   if (upd_del_plan)
     upd_del_plan->print_explain_json(this, writer, is_analyze, is_show_cmd);
@@ -309,11 +310,11 @@ int Explain_query::print_query_blocks_json(Json_writer *writer, const bool is_an
     /* Start printing from root node with id=1 */
     Explain_node *node= get_node(1);
     if (!node)
-      return 1; /* No query plan */
+      return false; /* No query plan */
     node->print_explain_json(this, writer, is_analyze, is_show_cmd);
   }
 
-  return 0;
+  return true;
 }
 
 void Explain_query::send_explain_json_to_output(Json_writer *writer, select_result_sink *output)
