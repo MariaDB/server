@@ -1195,7 +1195,9 @@ CREATE FUNCTION f() RETURNS INT RETURN 1;
 
 --connection default
 set debug_sync= 'now wait_for s1';
+--disable_result_log
 SELECT * FROM ( SELECT * FROM v1 ) sq;
+--enable_result_log
 # T@6
 # Good1: Seized:   test/v1 (MDL_SHARED_READ)
 # Good1-2: continue T@8 above
