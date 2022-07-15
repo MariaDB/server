@@ -1,4 +1,11 @@
 #
+# alter ignore cannot be done online
+#
+create table t (a int);
+alter ignore table t add primary key (a), algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+drop table t;
+#
 # MDEV-28771 Assertion `table->in_use&&tdc->flushed' failed after ALTER
 #
 create table t (a char(1));
