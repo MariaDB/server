@@ -2,6 +2,14 @@
 --source include/have_innodb.inc
 
 --echo #
+--echo # alter ignore cannot be done online
+--echo #
+create table t (a int);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter ignore table t add primary key (a), algorithm=copy, lock=none;
+drop table t;
+
+--echo #
 --echo # MDEV-28771 Assertion `table->in_use&&tdc->flushed' failed after ALTER
 --echo #
 
