@@ -9904,6 +9904,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
       || alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING
       || thd->locked_tables_mode == LTM_LOCK_TABLES
       || thd->lex->sql_command == SQLCOM_OPTIMIZE
+      || ignore
       || alter_info->algorithm(thd) > Alter_info::ALTER_TABLE_ALGORITHM_COPY)
     online= false;
 
