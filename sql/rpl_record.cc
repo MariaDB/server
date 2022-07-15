@@ -400,6 +400,15 @@ int unpack_row(rpl_group_info *rgi, TABLE *table, uint const colcnt,
     if (unlikely(error))
       DBUG_RETURN(error);
   }
+  if (rpl_data.is_online_alter())
+  {
+    /* we only check constraints for ALTER TABLE */
+    DBUG_ASSERT(table->in_use->lex->ignore == FALSE);
+    error= table->verify_constraints(false);
+    DBUG_ASSERT(error != VIEW_CHECK_SKIP);
+    if (error)
+      DBUG_RETURN(HA_ERR_GENERIC);
+  }
 
   /*
     throw away master's extra fields

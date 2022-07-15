@@ -578,6 +578,39 @@ set debug_sync= 'reset';
 drop table t1;
 drop table t2;
 drop table t3;
+create table t1 (a char(6), b int) engine=innodb;
+insert t1 values ('abcde1',1),('abcde2',2);
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set sql_mode='';
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t1 modify a char(4), algorithm=copy, lock=none;
+connection default;
+update t1 set b=b+10 where a='abcde2';
+select * from t1;
+a	b
+abcde1	1
+abcde2	12
+set debug_sync= 'now signal goforit';
+connection con2;
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+Warning	1265	Data truncated for column 'a' at row 2
+Warning	1265	Data truncated for column 'a' at row 3
+set sql_mode=default;
+connection default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(4) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+select * from t1;
+a	b
+abcd	1
+abcd	12
+drop table t1;
+set debug_sync= 'reset';
 #
 # MDEV-28930 ALTER TABLE Deadlocks with parallel TL_WRITE
 #
@@ -746,6 +779,136 @@ set sql_mode= default;
 connection default;
 drop table t1;
 set debug_sync= reset;
+#
+# MDEV-29067 Online alter ignores check constraint violation
+#
+## CHECK, INSERT
+create table t1 (a int);
+insert t1 values (1),(2);
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t1 add check (a<10), algorithm=copy, lock=none;
+connection default;
+insert t1 values (11),(12);
+set debug_sync= 'now signal goforit';
+connection con2;
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+connection default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+select * from t1;
+a
+1
+2
+11
+12
+drop table t1;
+## DEFAULT, INSERT
+create table t1 (a int);
+insert t1 values (1),(2);
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t1 add b int default(a+10), algorithm=copy, lock=none;
+connection default;
+insert t1 values (11),(12);
+set debug_sync= 'now signal goforit';
+connection con2;
+connection default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT (`a` + 10)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+select * from t1;
+a	b
+1	11
+2	12
+11	21
+12	22
+drop table t1;
+set debug_sync= 'reset';
+## CHECK, UPDATE
+create table t1 (a int) engine=innodb;
+insert t1 values (1),(2),(3),(4);
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t1 add check (a<10), algorithm=copy, lock=none;
+connection default;
+update t1 set a=a+10 where a > 2;
+set debug_sync= 'now signal goforit';
+connection con2;
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+connection default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+select * from t1;
+a
+1
+2
+13
+14
+drop table t1;
+## DEFAULT, UPDATE
+create table t1 (a int) engine=innodb;
+insert t1 values (1),(2),(3),(4);
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t1 add b int default(a+10), algorithm=copy, lock=none;
+connection default;
+update t1 set a=a+10 where a > 2;
+set debug_sync= 'now signal goforit';
+connection con2;
+connection default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT (`a` + 10)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+select * from t1;
+a	b
+1	11
+2	12
+13	23
+14	24
+drop table t1;
+## CHECK, INSERT, DEFAULT
+create table t1 (a int);
+insert t1 values (1),(2);
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t1 add b int default (a+10), add check (b<20), algorithm=copy, lock=none;
+connection default;
+insert t1 values (11),(12);
+set debug_sync= 'now signal goforit';
+connection con2;
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+connection default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+select * from t1;
+a
+1
+2
+11
+12
+drop table t1;
+set debug_sync= 'reset';
 #
 # End of 10.10 tests
 #
