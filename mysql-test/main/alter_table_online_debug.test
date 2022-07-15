@@ -810,8 +810,9 @@ insert into t1(a) values ('foobar');
 --send set debug_sync= 'now wait_for downgraded'
 
 --connection con2
+set sql_mode='';
 set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
---send alter ignore table t1 drop b, add b char(3) as (a) stored, algorithm=copy, lock=none
+--send alter table t1 drop b, add b char(3) as (a) stored, algorithm=copy, lock=none
 
 --connection default
 --reap
@@ -820,6 +821,7 @@ set debug_sync= 'now signal goforit';
 
 --connection con2
 --reap
+set sql_mode=default;
 --connection default
 drop table t1;
 set debug_sync= reset;
