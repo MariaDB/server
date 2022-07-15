@@ -654,8 +654,9 @@ create table t1 (a char(9), b char(9) as (a) stored);
 insert into t1(a) values ('foobar');
 set debug_sync= 'now wait_for downgraded';
 connection con2;
+set sql_mode='';
 set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
-alter ignore table t1 drop b, add b char(3) as (a) stored, algorithm=copy, lock=none;
+alter table t1 drop b, add b char(3) as (a) stored, algorithm=copy, lock=none;
 connection default;
 update t1 set a = 'foobarqux';
 set debug_sync= 'now signal goforit';
@@ -663,6 +664,7 @@ connection con2;
 Warnings:
 Warning	1265	Data truncated for column 'b' at row 1
 Warning	1265	Data truncated for column 'b' at row 2
+set sql_mode=default;
 connection default;
 drop table t1;
 set debug_sync= reset;
