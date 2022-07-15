@@ -717,6 +717,30 @@ drop table t1;
 drop table t2;
 drop table t3;
 
+#
+# Lossy alter, Update_row_log_event cannot find 'abcde2' in the new table
+#
+create table t1 (a char(6), b int) engine=innodb;
+insert t1 values ('abcde1',1),('abcde2',2);
+--send set debug_sync= 'now wait_for downgraded'
+--connection con2
+set sql_mode='';
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send alter table t1 modify a char(4), algorithm=copy, lock=none
+--connection default
+--reap
+update t1 set b=b+10 where a='abcde2';
+select * from t1;
+set debug_sync= 'now signal goforit';
+--connection con2
+--reap
+set sql_mode=default;
+--connection default
+show create table t1;
+select * from t1;
+drop table t1;
+set debug_sync= 'reset';
+
 --echo #
 --echo # MDEV-28930 ALTER TABLE Deadlocks with parallel TL_WRITE
 --echo #
@@ -929,6 +953,86 @@ set sql_mode= default;
 --connection default
 drop table t1;
 set debug_sync= reset;
+
+--echo #
+--echo # MDEV-29067 Online alter ignores check constraint violation
+--echo #
+
+--echo ## CHECK, INSERT
+create table t1 (a int);
+insert t1 values (1),(2);
+--send set debug_sync= 'now wait_for downgraded'
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send alter table t1 add check (a<10), algorithm=copy, lock=none
+--connection default
+--reap
+insert t1 values (11),(12);
+set debug_sync= 'now signal goforit';
+--connection con2
+--error ER_CONSTRAINT_FAILED
+--reap
+--connection default
+show create table t1;
+select * from t1;
+drop table t1;
+
+--echo ## DEFAULT, INSERT
+create table t1 (a int);
+insert t1 values (1),(2);
+--send set debug_sync= 'now wait_for downgraded'
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send alter table t1 add b int default(a+10), algorithm=copy, lock=none
+--connection default
+--reap
+insert t1 values (11),(12);
+set debug_sync= 'now signal goforit';
+--connection con2
+--reap
+--connection default
+show create table t1;
+select * from t1;
+drop table t1;
+set debug_sync= 'reset';
+
+--echo ## CHECK, UPDATE
+create table t1 (a int) engine=innodb;
+insert t1 values (1),(2),(3),(4);
+--send set debug_sync= 'now wait_for downgraded'
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send alter table t1 add check (a<10), algorithm=copy, lock=none
+--connection default
+--reap
+update t1 set a=a+10 where a > 2;
+set debug_sync= 'now signal goforit';
+--connection con2
+--error ER_CONSTRAINT_FAILED
+--reap
+--connection default
+show create table t1;
+select * from t1;
+drop table t1;
+
+--echo ## DEFAULT, UPDATE
+create table t1 (a int) engine=innodb;
+insert t1 values (1),(2),(3),(4);
+--send set debug_sync= 'now wait_for downgraded'
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send alter table t1 add b int default(a+10), algorithm=copy, lock=none
+--connection default
+--reap
+update t1 set a=a+10 where a > 2;
+set debug_sync= 'now signal goforit';
+--connection con2
+--reap
+--connection default
+show create table t1;
+select * from t1;
+drop table t1;
+set debug_sync= 'reset';
 
 --echo #
 --echo # End of 10.10 tests
