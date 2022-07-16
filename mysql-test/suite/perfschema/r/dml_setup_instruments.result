@@ -54,7 +54,7 @@ select * from performance_schema.setup_instruments
 where enabled='YES';
 insert into performance_schema.setup_instruments
 set name='FOO', enabled='YES', timed='YES';
-ERROR 42000: INSERT command denied to user 'root'@'localhost' for table 'setup_instruments'
+ERROR 42000: INSERT command denied to user 'root'@'localhost' for table `performance_schema`.`setup_instruments`
 update performance_schema.setup_instruments
 set name='FOO';
 ERROR HY000: Invalid performance_schema usage
@@ -66,10 +66,10 @@ select * from performance_schema.setup_instruments;
 update performance_schema.setup_instruments
 set enabled='YES', timed='YES';
 delete from performance_schema.setup_instruments;
-ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'setup_instruments'
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`setup_instruments`
 delete from performance_schema.setup_instruments
 where name like 'Wait/Synch/%';
-ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'setup_instruments'
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`setup_instruments`
 LOCK TABLES performance_schema.setup_instruments READ;
 UNLOCK TABLES;
 LOCK TABLES performance_schema.setup_instruments WRITE;

@@ -302,7 +302,8 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
       {
         my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
                  "ANY", thd->security_ctx->priv_user,
-                 thd->security_ctx->priv_host, tbl->table_name.str);
+                 thd->security_ctx->priv_host,
+                 tbl->db.str, tbl->table_name.str);
         goto err;
       }
       /*

@@ -135,4 +135,76 @@ SHOW GRANTS FOR 'test-user';
 DROP ROLE `r``o'l"e`;
 DROP USER 'test-user';
 
+--echo #
+--echo # MDEV-28548: ER_TABLEACCESS_DENIED_ERROR is missing information about DB
+--echo #
+
+create database db1;
+create user foo@localhost;
+grant create on db1.* to foo@localhost;
+
+--connect (con1,localhost,foo,,db1)
+create table t(t int);
+--error ER_TABLEACCESS_DENIED_ERROR
+show columns in t;
+--error ER_TABLEACCESS_DENIED_ERROR
+show columns in db1.t;
+# CREATE_VIEW_ACL needed
+--error ER_TABLEACCESS_DENIED_ERROR
+create view t_v as select * from t; 
+# show create view needs to have SELECT_ACL and SHOW_VIEW_ACL
+--error ER_TABLEACCESS_DENIED_ERROR
+show create view t_v;
+
+create table t2(id int primary key, b int);
+
+# Reference non existing DB with wrong DB name
+--error ER_WRONG_DB_NAME
+create table t3(a int, b int,  CONSTRAINT `fk_db2_db1_t1`
+                                  FOREIGN KEY (a)
+                                  REFERENCES `db1 `.t1 (a)
+                                  ON DELETE CASCADE
+                                  ON UPDATE RESTRICT);
+
+# Reference non-existing DB (with qualified DB name)
+--error ER_TABLEACCESS_DENIED_ERROR
+create table t3(a int, b int,  CONSTRAINT `fk_db2_db3_t1`
+                                  FOREIGN KEY (a)
+                                  REFERENCES db3.t1 (a)
+                                  ON DELETE CASCADE
+                                  ON UPDATE RESTRICT);
+
+# Reference DB (with not qualified DB name)
+--error ER_TABLEACCESS_DENIED_ERROR
+create table t1(a int, b int,  CONSTRAINT `fk_db2_db3_t1`
+                                  FOREIGN KEY (a)
+                                  REFERENCES t2 (id)
+                                  ON DELETE CASCADE
+                                  ON UPDATE RESTRICT);
+
+--connection default
+--disconnect con1
+# Add CREATE_VIEW_ACL and SELECT_ACL
+grant create view, select on db1.* to foo@localhost;
+
+--connect (con1,localhost,foo,,db1)
+create view t_v as select * from t;
+show grants;
+--error ER_TABLEACCESS_DENIED_ERROR
+show create view t_v;
+
+--connection default
+--disconnect con1
+# Add SHOW_VIEW_ACL
+grant show view on db1.* to foo@localhost;
+
+--connect (con1,localhost,foo,,db1)
+show grants;
+show create view t_v;
+
+--connection default
+--disconnect con1
+drop database db1;
+drop user foo@localhost;
+
 --echo # End of 10.3 tests
