@@ -3682,6 +3682,55 @@ static void print_long_unique_table(TABLE *table)
 }
 #endif
 
+bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
+{
+  TABLE_SHARE *share= outparam->s;
+  if (share->key_parts)
+  {
+    KEY	*key_info, *key_info_end;
+    KEY_PART_INFO *key_part;
+
+    if (!multi_alloc_root(root, &key_info, share->keys*sizeof(KEY),
+                          &key_part, share->ext_key_parts*sizeof(KEY_PART_INFO),
+                          NullS))
+      return 1;
+
+    outparam->key_info= key_info;
+
+    memcpy(key_info, share->key_info, sizeof(*key_info)*share->keys);
+    memcpy(key_part, key_info->key_part, sizeof(*key_part)*share->ext_key_parts);
+
+    my_ptrdiff_t adjust_ptrs= PTR_BYTE_DIFF(key_part, key_info->key_part);
+    for (key_info_end= key_info + share->keys ;
+         key_info < key_info_end ;
+         key_info++)
+    {
+      key_info->table= outparam;
+      key_info->key_part= reinterpret_cast<KEY_PART_INFO*>
+        (reinterpret_cast<char*>(key_info->key_part) + adjust_ptrs);
+      if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
+        key_info->flags&= ~HA_NOSAME;
+    }
+    for (KEY_PART_INFO *key_part_end= key_part+share->ext_key_parts;
+         key_part < key_part_end;
+         key_part++)
+    {
+      Field *field= key_part->field= outparam->field[key_part->fieldnr - 1];
+      if (field->key_length() != key_part->length &&
+          !(field->flags & BLOB_FLAG))
+      {
+        /*
+          We are using only a prefix of the column as a key:
+          Create a new field for the key part that matches the index
+        */
+        field= key_part->field=field->make_new_field(root, outparam, 0);
+        field->field_length= key_part->length;
+      }
+    }
+  }
+  return 0;
+}
+
 /*
   Open a table based on a TABLE_SHARE
 

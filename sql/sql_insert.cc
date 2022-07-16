@@ -1288,6 +1288,10 @@ values_loop_end:
     thd->lex->current_select->first_cond_optimization= 0;
   }
   
+#ifndef EMBEDDED_LIBRARY
+  if (lock_type == TL_WRITE_DELAYED && table->expr_arena)
+    table->expr_arena->free_items();
+#endif
   DBUG_RETURN(FALSE);
 
 abort:
@@ -1304,6 +1308,8 @@ abort:
     */
     for (Field **ptr= table_list->table->field ; *ptr ; ptr++)
       (*ptr)->free();
+    if (table_list->table->expr_arena)
+      table_list->table->expr_arena->free_items();
   }
 #endif
   if (table != NULL)
@@ -2663,6 +2669,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     (*field)->invisible= (*org_field)->invisible;
     (*field)->orig_table= copy;			// Remove connection
     (*field)->move_field_offset(adjust_ptrs);	// Point at copy->record[0]
+    (*field)->flags|= ((*org_field)->flags & LONG_UNIQUE_HASH_FIELD);
     memdup_vcol(client_thd, (*field)->vcol_info);
     memdup_vcol(client_thd, (*field)->default_value);
     memdup_vcol(client_thd, (*field)->check_constraint);
@@ -2670,6 +2677,10 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
       (*field)->table->found_next_number_field= *field;
   }
   *field=0;
+
+  if (copy_keys_from_share(copy, client_thd->mem_root))
+    goto error;
+
 
   if (share->virtual_fields || share->default_expressions ||
       share->default_fields)
