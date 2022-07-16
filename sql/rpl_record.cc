@@ -266,6 +266,7 @@ int unpack_row(rpl_group_info *rgi, TABLE *table, uint const colcnt,
      */
     if (bitmap_is_set(cols, (uint)(field_ptr -  begin_ptr)))
     {
+      (*field_ptr)->set_has_explicit_value();
       if ((null_mask & 0xFF) == 0)
       {
         DBUG_ASSERT(null_ptr < row_data + master_null_byte_count);
