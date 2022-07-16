@@ -61,6 +61,37 @@ create table t (b int);
 create table b(a int);
 create temporary table b (a int);
 call sys.create_synonym_db('db','db_copy');
-ERROR HY000: Table`db`.`b`shadows base table. View cannot be created! Terminating!
+summary
+Created 2 views in the `db_copy` database
+use db_copy;
+show tables;
+Tables_in_db_copy
+a
+t
 drop database db;
 drop database db_copy;
+# MDEV-28343: sys.create_synonym_db fails with ER_VIEW_SELECT_TMPTABLE
+#             when schema contains temporary tables
+#
+create database mytestdb;
+use mytestdb;
+create table t (b int);
+create temporary table tmp (a int);
+call sys.create_synonym_db('mytestdb','db_syn1');
+summary
+Created 1 view in the `db_syn1` database
+use db_syn1;
+show tables;
+Tables_in_db_syn1
+t
+drop database db_syn1;
+use mytestdb;
+create temporary table t (b int);
+call sys.create_synonym_db('mytestdb','db_syn1');
+summary
+Created 0 views in the `db_syn1` database
+use db_syn1;
+show tables;
+Tables_in_db_syn1
+drop database mytestdb;
+drop database db_syn1;
