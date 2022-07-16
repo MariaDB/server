@@ -535,25 +535,25 @@ show create database mysqltest;
 Database	Create Database
 mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
 drop table t1;
-ERROR 42000: DROP command denied to user 'mysqltest_1'@'localhost' for table 't1'
+ERROR 42000: DROP command denied to user 'mysqltest_1'@'localhost' for table `mysqltest`.`t1`
 drop database mysqltest;
 ERROR 42000: Access denied for user 'mysqltest_1'@'localhost' to database 'mysqltest'
 disconnect con1;
 connect  con2,localhost,mysqltest_2,,test;
 connection con2;
 select * from mysqltest.t1;
-ERROR 42000: SELECT command denied to user 'mysqltest_2'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'mysqltest_2'@'localhost' for table `mysqltest`.`t1`
 show create database mysqltest;
 ERROR 42000: Access denied for user 'mysqltest_2'@'localhost' to database 'mysqltest'
 drop table mysqltest.t1;
-ERROR 42000: DROP command denied to user 'mysqltest_2'@'localhost' for table 't1'
+ERROR 42000: DROP command denied to user 'mysqltest_2'@'localhost' for table `mysqltest`.`t1`
 drop database mysqltest;
 ERROR 42000: Access denied for user 'mysqltest_2'@'localhost' to database 'mysqltest'
 disconnect con2;
 connect  con3,localhost,mysqltest_3,,test;
 connection con3;
 select * from mysqltest.t1;
-ERROR 42000: SELECT command denied to user 'mysqltest_3'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'mysqltest_3'@'localhost' for table `mysqltest`.`t1`
 show create database mysqltest;
 Database	Create Database
 mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */

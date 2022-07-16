@@ -1172,7 +1172,8 @@ public:
       my_snprintf(m_view_access_denied_message, MYSQL_ERRMSG_SIZE,
                   ER_THD(thd, ER_TABLEACCESS_DENIED_ERROR), "SHOW VIEW",
                   m_sctx->priv_user,
-                  m_sctx->host_or_ip, m_top_view->get_table_name());
+                  m_sctx->host_or_ip,
+                  m_top_view->get_db_name(), m_top_view->get_table_name());
     }
     return m_view_access_denied_message_ptr;
   }
@@ -1264,7 +1265,8 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
       DBUG_PRINT("debug", ("check_table_access failed"));
       my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
               "SHOW", thd->security_ctx->priv_user,
-              thd->security_ctx->host_or_ip, table_list->alias.str);
+              thd->security_ctx->host_or_ip,
+              table_list->db.str, table_list->alias.str);
       goto exit;
     }
     DBUG_PRINT("debug", ("check_table_access succeeded"));
@@ -1293,7 +1295,8 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
     {
       my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
               "SHOW", thd->security_ctx->priv_user,
-              thd->security_ctx->host_or_ip, table_list->alias.str);
+              thd->security_ctx->host_or_ip,
+              table_list->db.str, table_list->alias.str);
       goto exit;
     }
   }

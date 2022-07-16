@@ -31,7 +31,7 @@ GRANT USAGE ON *.* TO `foo`@`localhost`
 FLUSH TABLES;
 ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
 SELECT * FROM mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 SHOW TABLES FROM test1;
 ERROR 42000: Access denied for user 'foo'@'localhost' to database 'test1'
 SET ROLE role1;
@@ -49,7 +49,7 @@ a	b
 1	2
 3	4
 SELECT * FROM test1.t2;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `test1`.`t2`
 SELECT a FROM test1.t2;
 a
 5
@@ -67,7 +67,7 @@ GRANT USAGE ON *.* TO `foo`@`localhost`
 FLUSH TABLES;
 ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
 SELECT * FROM mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 SHOW TABLES FROM test1;
 ERROR 42000: Access denied for user 'foo'@'localhost' to database 'test1'
 SET ROLE role1;
@@ -85,7 +85,7 @@ a	b
 1	2
 3	4
 SELECT * FROM test1.t2;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `test1`.`t2`
 SELECT a FROM test1.t2;
 a
 5
@@ -122,11 +122,11 @@ DROP ROLE role1;
 connection foo_node_1;
 FLUSH TABLES;
 SELECT * FROM mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 SELECT * FROM test1.t1;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `test1`.`t1`
 SELECT a FROM test1.t2;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `test1`.`t2`
 SHOW GRANTS;
 Grants for foo@localhost
 GRANT USAGE ON *.* TO `foo`@`localhost`
@@ -144,11 +144,11 @@ role1
 connection foo_node_2;
 FLUSH TABLES;
 SELECT * FROM mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 SELECT * FROM test1.t1;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `test1`.`t1`
 SELECT a FROM test1.t2;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `test1`.`t2`
 SHOW GRANTS;
 Grants for foo@localhost
 GRANT USAGE ON *.* TO `foo`@`localhost`

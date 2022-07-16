@@ -7158,7 +7158,6 @@ bool check_fk_parent_table_access(THD *thd,
     if (key->type == Key::FOREIGN_KEY)
     {
       TABLE_LIST parent_table;
-      bool is_qualified_table_name;
       Foreign_key *fk_key= (Foreign_key *)key;
       LEX_CSTRING db_name;
       LEX_CSTRING table_name= { fk_key->ref_table.str,
@@ -7176,7 +7175,6 @@ bool check_fk_parent_table_access(THD *thd,
 
       if (fk_key->ref_db.str)
       {
-        is_qualified_table_name= true;
         if (!(db_name.str= (char *) thd->memdup(fk_key->ref_db.str,
                                                 fk_key->ref_db.length+1)))
           return true;
@@ -7198,7 +7196,6 @@ bool check_fk_parent_table_access(THD *thd,
           if (!(db_name.str= (char *) thd->memdup(create_db,
                                                   db_name.length+1)))
             return true;
-          is_qualified_table_name= true;
 
           if (check_db_name((LEX_STRING*) &db_name))
           {
@@ -7210,8 +7207,6 @@ bool check_fk_parent_table_access(THD *thd,
         {
           if (thd->lex->copy_db_to(&db_name))
             return true;
-          else
-           is_qualified_table_name= false;
         }
       }
 
@@ -7237,22 +7232,11 @@ bool check_fk_parent_table_access(THD *thd,
       if (check_some_access(thd, privileges, &parent_table) ||
           parent_table.grant.want_privilege)
       {
-        if (is_qualified_table_name)
-        {
-          const size_t qualified_table_name_len= NAME_LEN + 1 + NAME_LEN + 1;
-          char *qualified_table_name= (char *) thd->alloc(qualified_table_name_len);
-
-          my_snprintf(qualified_table_name, qualified_table_name_len, "%s.%s",
-                      db_name.str, table_name.str);
-          table_name.str= qualified_table_name;
-        }
-
         my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
-                 "REFERENCES",
-                 thd->security_ctx->priv_user,
-                 thd->security_ctx->host_or_ip,
-                 table_name.str);
-
+                "REFERENCES",
+                thd->security_ctx->priv_user,
+                thd->security_ctx->host_or_ip,
+                db_name.str, table_name.str);
         return true;
       }
     }

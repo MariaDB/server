@@ -16,7 +16,7 @@ Host	Db	User	Table_name	Grantor	Timestamp	Table_priv	Column_priv
 	some_db	r_select_column	t1	root@localhost	0000-00-00 00:00:00		Select
 connect  con1, localhost, foo,,;
 insert into some_db.t1(a) values (1);
-ERROR 42000: INSERT command denied to user 'foo'@'localhost' for table 't1'
+ERROR 42000: INSERT command denied to user 'foo'@'localhost' for table `some_db`.`t1`
 set role r_active_column;
 insert into some_db.t1(a) values (1);
 disconnect con1;
@@ -24,10 +24,10 @@ connection default;
 revoke insert(a) on some_db.t1 from r_active_column;
 connect  con1, localhost, foo,,;
 insert into some_db.t1(a) values (1);
-ERROR 42000: INSERT command denied to user 'foo'@'localhost' for table 't1'
+ERROR 42000: INSERT command denied to user 'foo'@'localhost' for table `some_db`.`t1`
 set role r_active_column;
 insert into some_db.t1(a) values (1);
-ERROR 42000: INSERT command denied to user 'foo'@'localhost' for table 't1'
+ERROR 42000: INSERT command denied to user 'foo'@'localhost' for table `some_db`.`t1`
 disconnect con1;
 connection default;
 drop role r_select_column;
