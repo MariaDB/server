@@ -397,8 +397,7 @@ sync_slave_with_master;
   STOP SLAVE;
   --source include/reset_slave.inc
   eval CREATE TABLE t9 (a INT KEY, b BLOB, c CHAR(5),
-                        d TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP 
-                          ON UPDATE CURRENT_TIMESTAMP,
+                        d TIMESTAMP NOT NULL DEFAULT 0,
                         e INT NOT NULL,
                         f text not null,
                         g text,
