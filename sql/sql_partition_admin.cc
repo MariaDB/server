@@ -256,6 +256,11 @@ static bool compare_table_with_partition(THD *thd, TABLE *table,
     DBUG_RETURN(TRUE);
   }
 
+  if (table->s->stored_fields != part_table->s->stored_fields) {
+    my_error(ER_TABLES_DIFFERENT_METADATA, MYF(0));
+    DBUG_RETURN(TRUE);
+  }
+
   DBUG_ASSERT(table->s->db_options_in_use ==
               part_table->s->db_options_in_use);
 

@@ -554,3 +554,34 @@ ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 
 # Cleanup
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-28127 SIGSEGV in row_mysql_store_col_in_innobase_format, and Assertion  
+--echo # `pos < table->n_v_def' failed in dict_table_get_nth_v_col, and Assertion
+--echo # `table->s->db_options_in_use == part_table->s->db_options_in_use' failed 
+--echo # in compare_table_with_partition
+--echo #
+SET sql_mode='';
+CREATE TABLE t1 (a INT,KEY(a)) ENGINE=InnoDB PARTITION BY RANGE (a) (PARTITION p VALUES LESS THAN (1));
+CREATE TABLE t2 (a INT GENERATED ALWAYS AS (1) VIRTUAL,KEY(a)) ENGINE=InnoDB;
+--error ER_TABLES_DIFFERENT_METADATA
+ALTER TABLE t1 EXCHANGE PARTITION p WITH TABLE t2;
+INSERT INTO t2 VALUES (1);
+# Cleanup
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (a INT,KEY(a)) ENGINE=MyISAM PARTITION BY RANGE (a) (PARTITION p VALUES LESS THAN (1));
+CREATE TABLE t2 (a INT GENERATED ALWAYS AS (1) VIRTUAL,KEY(a)) ENGINE=MyISAM;
+--error ER_TABLES_DIFFERENT_METADATA
+ALTER TABLE t1 EXCHANGE PARTITION p WITH TABLE t2;
+INSERT INTO t2 VALUES (1);
+# Cleanup
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (a INT) ENGINE=Aria PARTITION BY RANGE (a) (PARTITION p VALUES LESS THAN (1));
+CREATE TABLE t2 (a INT GENERATED ALWAYS AS (1) VIRTUAL) ENGINE=Aria;
+--error ER_TABLES_DIFFERENT_METADATA
+ALTER TABLE t1 EXCHANGE PARTITION p WITH TABLE t2;
+INSERT INTO t2 VALUES (1);
+# Cleanup
+DROP TABLE t1, t2;

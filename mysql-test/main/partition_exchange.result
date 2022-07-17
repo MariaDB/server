@@ -1321,3 +1321,34 @@ CREATE TABLE t2 (a INT, PRIMARY KEY(a)) CHECKSUM=1, ENGINE=InnoDB;
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Tables have different definitions
 DROP TABLE t1, t2;
+#
+# MDEV-28127 SIGSEGV in row_mysql_store_col_in_innobase_format, and Assertion  
+# `pos < table->n_v_def' failed in dict_table_get_nth_v_col, and Assertion
+# `table->s->db_options_in_use == part_table->s->db_options_in_use' failed 
+# in compare_table_with_partition
+#
+SET sql_mode='';
+CREATE TABLE t1 (a INT,KEY(a)) ENGINE=InnoDB PARTITION BY RANGE (a) (PARTITION p VALUES LESS THAN (1));
+CREATE TABLE t2 (a INT GENERATED ALWAYS AS (1) VIRTUAL,KEY(a)) ENGINE=InnoDB;
+ALTER TABLE t1 EXCHANGE PARTITION p WITH TABLE t2;
+ERROR HY000: Tables have different definitions
+INSERT INTO t2 VALUES (1);
+Warnings:
+Warning	1906	The value specified for generated column 'a' in table 't2' has been ignored
+DROP TABLE t1, t2;
+CREATE TABLE t1 (a INT,KEY(a)) ENGINE=MyISAM PARTITION BY RANGE (a) (PARTITION p VALUES LESS THAN (1));
+CREATE TABLE t2 (a INT GENERATED ALWAYS AS (1) VIRTUAL,KEY(a)) ENGINE=MyISAM;
+ALTER TABLE t1 EXCHANGE PARTITION p WITH TABLE t2;
+ERROR HY000: Tables have different definitions
+INSERT INTO t2 VALUES (1);
+Warnings:
+Warning	1906	The value specified for generated column 'a' in table 't2' has been ignored
+DROP TABLE t1, t2;
+CREATE TABLE t1 (a INT) ENGINE=Aria PARTITION BY RANGE (a) (PARTITION p VALUES LESS THAN (1));
+CREATE TABLE t2 (a INT GENERATED ALWAYS AS (1) VIRTUAL) ENGINE=Aria;
+ALTER TABLE t1 EXCHANGE PARTITION p WITH TABLE t2;
+ERROR HY000: Tables have different definitions
+INSERT INTO t2 VALUES (1);
+Warnings:
+Warning	1906	The value specified for generated column 'a' in table 't2' has been ignored
+DROP TABLE t1, t2;
