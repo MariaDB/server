@@ -1346,7 +1346,8 @@ sub command_line_setup {
              'skip-test-list=s'         => \@opt_skip_test_list,
              'xml-report=s'             => \$opt_xml_report,
 
-             My::Debugger::options()
+             My::Debugger::options(),
+             My::CoreDump::options()
            );
 
   # fix options (that take an optional argument and *only* after = sign
@@ -1761,6 +1762,8 @@ sub command_line_setup {
     $opt_debug= 1;
     $debug_d= "d,query,info,error,enter,exit";
   }
+
+  My::CoreDump::pre_setup();
 }
 
 
@@ -5764,7 +5767,7 @@ sub usage ($) {
 
   local $"= ','; # for @DEFAULT_SUITES below
 
-  print <<HERE . My::Debugger::help() . <<HERE;
+  print <<HERE . My::Debugger::help() . My::CoreDump::help() . <<HERE;
 
 $0 [ OPTIONS ] [ TESTCASE ]
 
