@@ -47,7 +47,7 @@ Explain_query::Explain_query(THD *thd_arg, MEM_ROOT *root) :
   unions(root), selects(root), stmt_thd(thd_arg), apc_enabled(false),
   operations(0)
 {
-  query_optimization_total_time_tracker.start_tracking(stmt_thd);
+  optimization_time_tracker.start_tracking(stmt_thd);
 }
 
 static void print_json_array(Json_writer *writer,
@@ -155,7 +155,7 @@ void Explain_query::add_upd_del_plan(Explain_update *upd_del_plan_arg)
 
 void Explain_query::query_plan_ready()
 {
-  query_optimization_total_time_tracker.stop_tracking(stmt_thd);
+  optimization_time_tracker.stop_tracking(stmt_thd);
 
   if (!apc_enabled)
     stmt_thd->apc_target.enable();
@@ -276,11 +276,12 @@ int Explain_query::print_explain_json(select_result_sink *output,
     is_show_cmd = true;
   }
 
-  bool were_query_plans_found = print_query_blocks_json(&writer, is_analyze, is_show_cmd);
+  bool plan_found = print_query_blocks_json(&writer, is_analyze, is_show_cmd);
 
   writer.end_object();
 
-  if(were_query_plans_found){
+  if( plan_found )
+  {
     send_explain_json_to_output(&writer, output);
   }
   
@@ -289,17 +290,20 @@ int Explain_query::print_explain_json(select_result_sink *output,
 
 void Explain_query::print_query_optimization_json(Json_writer *writer)
 {
-  if (query_optimization_total_time_tracker.has_timed_statistics())
+  if (optimization_time_tracker.has_timed_statistics())
   {
-    // if more timers are added, move the query_optimization member to outside the if
+    // if more timers are added, move the query_optimization member 
+    // outside the if statement
     writer->add_member("query_optimization").start_object();
     writer->add_member("r_total_time_ms").
-            add_double(query_optimization_total_time_tracker.get_time_ms());
+            add_double(optimization_time_tracker.get_time_ms());
     writer->end_object(); 
   }
 }
 
-bool Explain_query::print_query_blocks_json(Json_writer *writer, const bool is_analyze, const bool is_show_cmd)
+bool Explain_query::print_query_blocks_json(Json_writer *writer, 
+                                              const bool is_analyze, 
+                                              const bool is_show_cmd)
 {
   if (upd_del_plan)
     upd_del_plan->print_explain_json(this, writer, is_analyze, is_show_cmd);
@@ -317,7 +321,8 @@ bool Explain_query::print_query_blocks_json(Json_writer *writer, const bool is_a
   return true;
 }
 
-void Explain_query::send_explain_json_to_output(Json_writer *writer, select_result_sink *output)
+void Explain_query::send_explain_json_to_output(Json_writer *writer, 
+                                                select_result_sink *output)
 {
   CHARSET_INFO *cs= system_charset_info;
   List<Item> item_list;

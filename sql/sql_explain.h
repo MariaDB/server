@@ -538,7 +538,7 @@ private:
   bool can_print_json= false;
 #endif
 
-  Exec_time_tracker query_optimization_total_time_tracker;
+  Exec_time_tracker optimization_time_tracker;
 };
 
 
