@@ -1665,6 +1665,9 @@ analyze format=json
 values (1,2);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "query_specifications": [
@@ -1711,6 +1714,9 @@ union
 values (1,2),(3,4);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "table_name": "<union1,2>",
@@ -1745,6 +1751,9 @@ union
 select 1,2;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "table_name": "<union1,2>",
@@ -1779,6 +1788,9 @@ union
 values (1,2),(3,4);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "table_name": "<union1,2>",
@@ -1826,6 +1838,9 @@ union
 values (1,2);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "table_name": "<union1,2,3>",
@@ -1892,6 +1907,9 @@ union all
 select 1,2;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "query_specifications": [
@@ -1922,6 +1940,9 @@ union
 values (1,2),(3,4);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "table_name": "<union1,2>",
@@ -1956,6 +1977,9 @@ union all
 values (1,2),(3,4);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "query_specifications": [
@@ -1998,6 +2022,9 @@ union all
 values (1,2);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "query_specifications": [
