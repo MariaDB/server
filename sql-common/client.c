@@ -38,6 +38,7 @@
 #include <my_default.h>
 #include "mysql.h"
 #include "hash.h"
+#include "my_dbug.h"
 
 /* Remove client convenience wrappers */
 #undef max_allowed_packet
@@ -1951,9 +1952,51 @@ mysql_autodetect_character_set(MYSQL *mysql)
 static void
 mysql_set_character_set_with_default_collation(MYSQL *mysql)
 {
-  const char *save= charsets_dir;
+  const char *save;
+#ifdef ENABLED_DEBUG_SYNC
+
+  static int32 pause_mutual_excluder= 0;
+  int32 my_addition=-1;
+
+  DBUG_EXECUTE_IF("set_charset_default_collation", {
+    /*
+      multi_charset_dir_use_after_free.test will have three connection threads
+    */
+    my_addition= my_atomic_add32(&pause_mutual_excluder, 1);
+
+    /*
+      Two threads should wait to save charsets_dir until it has been updated
+      by the third thread with its local charsets_dir
+    */
+    if (my_addition < 1)
+      sleep(1);
+  };);
+#endif
+  save= charsets_dir;
+
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("set_charset_default_collation", {
+    /*
+      Now the two threads have saved the charsets_dir which is local to the
+      third thread (bug case). Wait again for the third thread to free it
+      before going on
+    */
+    if (my_addition < 1)
+      sleep(2);
+  };);
+#endif
+
   if (mysql->options.charset_dir)
     charsets_dir=mysql->options.charset_dir;
+
+  DBUG_EXECUTE_IF("set_charset_default_collation", {
+    /*
+      We have set the global charsets_dir value to that from our local
+      connection. Sleep to allow the other two threads time to read it.
+    */
+    if (my_addition == 1)
+      sleep(2);
+  };);
 
   if ((mysql->charset= get_charset_by_csname(mysql->options.charset_name,
                                              MY_CS_PRIMARY, MYF(MY_WME))))

@@ -1,0 +1,36 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--connect (server_1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--connect (server_2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+--connect (server_3,127.0.0.1,root,,,$SERVER_MYPORT_3)
+
+--connection server_3
+--disable_warnings
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval change master 'm1' to master_port=$SERVER_MYPORT_1 , master_host='127.0.0.1', master_user='root';
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval change master  to master_port=$SERVER_MYPORT_2 , master_host='127.0.0.1', master_user='root';
+
+SET @save_dbug= @@GLOBAL.debug_dbug;
+SET @@global.debug_dbug='+d,set_charset_default_collation';
+
+
+
+start all slaves;
+set default_master_connection = 'm1';
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+--source include/wait_for_slave_to_start.inc
+
+
+stop all slaves;
+SET default_master_connection = "m1";
+--source include/wait_for_slave_to_stop.inc
+SET default_master_connection = "";
+--source include/wait_for_slave_to_stop.inc
+
+--connection server_3
+SET @@global.debug_dbug= @save_dbug;
