@@ -3530,7 +3530,7 @@ int vers_get_partition_id(partition_info *part_info, uint32 *part_id,
   {
     longlong *range_value= part_info->range_int_array;
     uint max_hist_id= part_info->num_parts - 2;
-    uint min_hist_id= 0, loc_hist_id= vers_info->hist_part->id;
+    uint min_hist_id= 0, loc_hist_id= 0;
     ulong unused;
     my_time_t ts;
 

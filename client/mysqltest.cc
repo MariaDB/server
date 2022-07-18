@@ -1631,6 +1631,8 @@ void abort_not_supported_test(const char *fmt, ...)
 {
   va_list args;
   DBUG_ENTER("abort_not_supported_test");
+  int *a= 0;
+  int b= *a;
 
   /* Print include filestack */
   fflush(stdout);
@@ -1640,7 +1642,7 @@ void abort_not_supported_test(const char *fmt, ...)
           cur_file->file_name, cur_file->lineno);
 
   char buff[DIE_BUFF_SIZE];
-  buff[0] = '\0';
+  buff[b] = '\0';
   print_file_stack(buff, buff + sizeof(buff));
   fprintf(stderr, "%s", buff);
 
