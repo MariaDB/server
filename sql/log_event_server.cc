@@ -7025,11 +7025,12 @@ record_compare_differ:
 bool Rows_log_event::is_key_usable(const KEY *key) const
 {
   RPL_TABLE_LIST *tl= (RPL_TABLE_LIST*)m_table->pos_in_table_list;
+  const bool online_alter= tl->m_online_alter_copy_fields;
 
   if (!m_table->s->keys_in_use.is_set(key - m_table->key_info))
     return false;
 
-  if (!tl->m_online_alter_copy_fields)
+  if (!online_alter)
   {
     if (m_cols.n_bits >= m_table->s->fields)
       return true;
@@ -7044,8 +7045,17 @@ bool Rows_log_event::is_key_usable(const KEY *key) const
 
   for (uint p= 0; p < key->user_defined_key_parts; p++)
   {
-    uint field_idx= key->key_part[p].fieldnr - 1;
-    if (!bitmap_is_set(&m_table->has_value_set, field_idx))
+    Field *f= key->key_part[p].field;
+    /*
+      in the online alter case (but not in replication) we don't have
+      to reject an index if it includes new columns, as long as
+      their values are deterministic.
+    */
+    bool non_deterministic_default= f->default_value &&
+                     f->default_value->flags & VCOL_NOT_STRICTLY_DETERMINISTIC;
+    bool next_number_field= f == f->table->next_number_field;
+    if (!bitmap_is_set(&m_table->has_value_set, f->field_index) &&
+        (!online_alter || non_deterministic_default || next_number_field))
       return false;
   }
   return true;
