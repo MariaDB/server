@@ -114,6 +114,9 @@ EXPLAIN
 ANALYZE format=json (select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "table_name": "<intersect1,2,3>",
@@ -196,6 +199,9 @@ ANALYZE
 ANALYZE format=json select * from ((select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3)) a;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -419,6 +425,9 @@ EXPLAIN
 ANALYZE format=json (select a,b from t1) intersect all (select c,e from t2,t3);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "table_name": "<intersect1,2>",
@@ -497,6 +506,9 @@ ANALYZE
 ANALYZE format=json select * from ((select a,b from t1) intersect all (select c,e from t2,t3)) a;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,

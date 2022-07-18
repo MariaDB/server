@@ -39,6 +39,9 @@ show analyze format=JSON for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -69,6 +72,9 @@ show analyze format=json for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -100,6 +106,9 @@ show analyze format=json for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -138,6 +147,9 @@ show analyze FORMAT= json for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "table_name": "<union1,2>",
@@ -204,6 +216,9 @@ show analyze format=JSON for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "table_name": "<union1,2>",
@@ -271,6 +286,9 @@ show analyze format=json for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "table_name": "<union1,2>",
@@ -340,6 +358,9 @@ show analyze FORMAT=JSON for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "table_name": "<union1,2>",
@@ -415,6 +436,9 @@ show analyze format=json for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -472,6 +496,9 @@ show analyze format=json for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -535,6 +562,9 @@ show analyze format=json for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "nested_loop": [
@@ -594,6 +624,9 @@ show analyze format=json for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -655,6 +688,9 @@ show analyze format=json for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -737,6 +773,9 @@ show analyze FORMAT=JSON for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "table": {
@@ -777,6 +816,9 @@ show analyze FORMAT=JSON for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "table": {
@@ -829,6 +871,9 @@ show analyze FORMAT=JSON for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "table": {
@@ -869,6 +914,9 @@ show analyze FORMAT=JSON for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "table": {
@@ -921,6 +969,9 @@ show analyze format=json for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -970,6 +1021,9 @@ show analyze format=json for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -1020,6 +1074,9 @@ show analyze format=json for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -1084,6 +1141,9 @@ show analyze format=JSON for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -1140,6 +1200,9 @@ show analyze format=json for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -1186,6 +1249,9 @@ show analyze format=json for $thr2;
 SHOW ANALYZE
 {
   "r_query_time_in_progress_ms": "REPLACED",
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
