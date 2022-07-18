@@ -1073,8 +1073,8 @@ update t set a = a + 1 where a = 10;
 set debug_sync= 'now signal goforit';
 connection default;
 Warnings:
-Note	1105	Key chosen: -1
-Note	1105	Key chosen: -1
+Note	1105	Key chosen: 0
+Note	1105	Key chosen: 0
 select a from t;
 a
 11
@@ -1093,8 +1093,8 @@ update t set a = a + 1 where a = 10;
 set debug_sync= 'now signal goforit';
 connection default;
 Warnings:
-Note	1105	Key chosen: -1
-Note	1105	Key chosen: -1
+Note	1105	Key chosen: 0
+Note	1105	Key chosen: 0
 #
 # Add key for old row
 #
