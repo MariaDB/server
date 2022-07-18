@@ -329,6 +329,7 @@ explain
 select * from t1;
 explain format=json
 select * from t1;
+--source include/analyze-format.inc
 analyze format=json 
 select * from t1;
 drop table t1;
