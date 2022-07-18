@@ -952,5 +952,32 @@ alter table t1 force;
 drop table t1, t2;
 set debug_sync= reset;
 #
+# MDEV-29038 XA assertions failing in binlog_rollback and binlog_commit
+#
+create table t (a int) engine=innodb;
+insert into t values (1);
+xa begin 'xid';
+set debug_sync= 'now wait_for downgraded';
+connect  con1,localhost,root,,test;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t force, algorithm=copy, lock=none;
+connection default;
+insert into t values (2);
+set debug_sync= 'now signal goforit';
+xa end 'xid';
+xa rollback 'xid';
+xa begin 'xid';
+connection con1;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t force, algorithm=copy, lock=none;
+connection default;
+set debug_sync= 'now wait_for downgraded';
+insert into t values (3);
+set debug_sync= 'now signal goforit';
+xa end 'xid';
+xa commit 'xid' one phase;
+drop table t;
+set debug_sync= reset;
+#
 # End of 10.10 tests
 #
