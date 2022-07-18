@@ -1159,3 +1159,13 @@ SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR CREATE TABLE t1 AS SELECT 
 SHOW CREATE TABLE t1;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-29074 GET_BIT variables crash in SET STATEMENT
+--echo #
+set statement log_queries_not_using_indexes=1 for select @@log_queries_not_using_indexes;
+select @@log_queries_not_using_indexes;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
