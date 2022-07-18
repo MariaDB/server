@@ -1004,7 +1004,7 @@ a
 create or replace table t (a int);
 insert into t values (10),(20),(30);
 set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
-alter table t add b int default (a+1), add primary key(b, a),
+alter table t add b int default (1), add primary key(b, a),
 algorithm=copy, lock=none;
 connection con2;
 set debug_sync= 'now wait_for downgraded';
@@ -1013,8 +1013,7 @@ update t set a = a + 1 where a = 10;
 set debug_sync= 'now signal goforit';
 connection default;
 Warnings:
-Note	1105	Key chosen: -1
-Note	1105	Key chosen: -1
+Note	1105	Key chosen: 0
 select a from t;
 a
 11
@@ -1033,8 +1032,8 @@ update t set a = a + 1 where a = 10;
 set debug_sync= 'now signal goforit';
 connection default;
 Warnings:
-Note	1105	Key chosen: -1
-Note	1105	Key chosen: -1
+Note	1105	Key chosen: 0
+Note	1105	Key chosen: 0
 #
 # Add key for old row
 #
