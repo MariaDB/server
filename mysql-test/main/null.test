@@ -1174,3 +1174,28 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # MDEV-29206 DEFAULT NULL for NOT NULL columns is not always detected
+--echo #
+
+--error ER_INVALID_DEFAULT
+create table t1 (a int not null default null auto_increment primary key);
+--error ER_INVALID_DEFAULT
+create table t1 (a int default null auto_increment primary key);
+--error ER_INVALID_DEFAULT
+create table t1 (a int default null auto_increment, index(a));
+--error ER_INVALID_DEFAULT
+create table t1 (a int default null, primary key(a));
+
+# also in prepared statements:
+prepare stmt from 'create or replace table t1 (a int not null default null)';
+--error ER_INVALID_DEFAULT
+execute stmt;
+prepare stmt from 'create or replace table t1 (a int default null, primary key (a))';
+--error ER_INVALID_DEFAULT
+execute stmt;
+
+--echo #
+--echo # End of 10.10 tests
+--echo #

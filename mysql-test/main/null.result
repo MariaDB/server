@@ -1894,3 +1894,23 @@ DROP TABLE t1;
 #
 # End of 10.1 tests
 #
+#
+# MDEV-29206 DEFAULT NULL for NOT NULL columns is not always detected
+#
+create table t1 (a int not null default null auto_increment primary key);
+ERROR 42000: Invalid default value for 'a'
+create table t1 (a int default null auto_increment primary key);
+ERROR 42000: Invalid default value for 'a'
+create table t1 (a int default null auto_increment, index(a));
+ERROR 42000: Invalid default value for 'a'
+create table t1 (a int default null, primary key(a));
+ERROR 42000: Invalid default value for 'a'
+prepare stmt from 'create or replace table t1 (a int not null default null)';
+execute stmt;
+ERROR 42000: Invalid default value for 'a'
+prepare stmt from 'create or replace table t1 (a int default null, primary key (a))';
+execute stmt;
+ERROR 42000: Invalid default value for 'a'
+#
+# End of 10.10 tests
+#

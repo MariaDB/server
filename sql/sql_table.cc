@@ -2307,13 +2307,15 @@ bool Column_definition::prepare_stage2(handler *file,
 
 void promote_first_timestamp_column(List<Create_field> *column_definitions)
 {
+  bool first= true;
   for (Create_field &column_definition : *column_definitions)
   {
     if (column_definition.is_timestamp_type() ||    // TIMESTAMP
         column_definition.unireg_check == Field::TIMESTAMP_OLD_FIELD) // Legacy
     {
       DBUG_PRINT("info", ("field-ptr:%p", column_definition.field));
-      if ((column_definition.flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
+      if (first &&
+          (column_definition.flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
           column_definition.default_value == NULL &&   // no constant default,
           column_definition.unireg_check == Field::NONE && // no function default
           column_definition.vcol_info == NULL &&
@@ -2327,7 +2329,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
                             ));
         column_definition.unireg_check= Field::TIMESTAMP_DNUN_FIELD;
       }
-      return;
+      first= false;
     }
   }
 }
@@ -2783,18 +2785,12 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   max_key_length= file->max_key_length();
 
   /* Handle creation of sequences */
-  if (create_info->sequence)
+  if (create_info->sequence &&
+      !(file->ha_table_flags() & HA_CAN_TABLES_WITHOUT_ROLLBACK))
   {
-    if (!(file->ha_table_flags() & HA_CAN_TABLES_WITHOUT_ROLLBACK))
-    {
-      my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), file->table_type(),
-               SEQUENCE_clex_str.str);
-      DBUG_RETURN(TRUE);
-    }
-
-    /* The user specified fields: check that structure is ok */
-    if (check_sequence_fields(thd->lex, &alter_info->create_list))
-      DBUG_RETURN(TRUE);
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), file->table_type(),
+             SEQUENCE_clex_str.str);
+    DBUG_RETURN(TRUE);
   }
 
   for (field_no=0; (sql_field=it++) ; field_no++)
@@ -3643,6 +3639,15 @@ without_overlaps_err:
   {
     Field::utype type= (Field::utype) MTYP_TYPENR(sql_field->unireg_check);
 
+    if (sql_field->default_value &&
+        sql_field->default_value->expr->type() == Item::NULL_ITEM &&
+        sql_field->flags & NOT_NULL_FLAG &&
+        !(sql_field->flags & AUTO_INCREMENT_FLAG))
+    {
+      my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name.str);
+      DBUG_RETURN(TRUE);
+    }
+
     /*
       Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
       it is NOT NULL, not an AUTO_INCREMENT field, not a TIMESTAMP and not
@@ -3724,6 +3729,10 @@ without_overlaps_err:
       }
     }
   }
+
+  if (create_info->sequence &&
+      check_sequence_fields(thd->lex, &alter_info->create_list))
+    DBUG_RETURN(TRUE);
 
   /* Check table level constraints */
   create_info->check_constraint_list= &alter_info->check_constraint_list;
@@ -8312,7 +8321,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       flag to allow ALTER TABLE only if the table to be altered is empty.
     */
     if (!alter_ctx->implicit_default_value_error_field && !def->field &&
-        !(~def->flags & (NO_DEFAULT_VALUE_FLAG | NOT_NULL_FLAG)) &&
+        !def->default_value && def->flags & NOT_NULL_FLAG &&
         def->type_handler()->validate_implicit_default_value(thd, *def))
     {
         alter_ctx->implicit_default_value_error_field= def;

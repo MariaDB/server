@@ -10649,41 +10649,30 @@ bool Column_definition::check(THD *thd)
     if (check_expression(default_value, &field_name, VCOL_DEFAULT))
       DBUG_RETURN(TRUE);
 
-    /* Constant's are stored in the 'empty_record', except for blobs */
-    if (def_expr->basic_const_item())
+    if (def_expr->type() != Item::NULL_ITEM)
     {
-      if (def_expr->type() == Item::NULL_ITEM)
+      if (flags & AUTO_INCREMENT_FLAG)
       {
-        default_value= 0;
-        if ((flags & (NOT_NULL_FLAG | AUTO_INCREMENT_FLAG)) == NOT_NULL_FLAG)
+        my_error(ER_INVALID_DEFAULT, MYF(0), field_name.str);
+        DBUG_RETURN(1);
+      }
+
+      if (!default_value->expr->basic_const_item() &&
+          mysql_timestamp_type() == MYSQL_TIMESTAMP_DATETIME &&
+          default_value->expr->type() == Item::FUNC_ITEM)
+      {
+        /*
+          Special case: NOW() for TIMESTAMP and DATETIME fields are handled
+          as in MariaDB 10.1 by marking them in unireg_check.
+        */
+        Item_func *fn= static_cast<Item_func*>(default_value->expr);
+        if (fn->functype() == Item_func::NOW_FUNC &&
+            (fn->decimals == 0 || fn->decimals >= length))
         {
-          my_error(ER_INVALID_DEFAULT, MYF(0), field_name.str);
-          DBUG_RETURN(1);
+          default_value= 0;
+          unireg_check= Field::TIMESTAMP_DN_FIELD;
         }
       }
-    }
-  }
-
-  if (default_value && (flags & AUTO_INCREMENT_FLAG))
-  {
-    my_error(ER_INVALID_DEFAULT, MYF(0), field_name.str);
-    DBUG_RETURN(1);
-  }
-
-  if (default_value && !default_value->expr->basic_const_item() &&
-      mysql_timestamp_type() == MYSQL_TIMESTAMP_DATETIME &&
-      default_value->expr->type() == Item::FUNC_ITEM)
-  {
-    /*
-      Special case: NOW() for TIMESTAMP and DATETIME fields are handled
-      as in MariaDB 10.1 by marking them in unireg_check.
-    */
-    Item_func *fn= static_cast<Item_func*>(default_value->expr);
-    if (fn->functype() == Item_func::NOW_FUNC &&
-        (fn->decimals == 0 || fn->decimals >= length))
-    {
-      default_value= 0;
-      unireg_check= Field::TIMESTAMP_DN_FIELD;
     }
   }
 
@@ -10706,26 +10695,6 @@ bool Column_definition::check(THD *thd)
 
   /* Remember the value of length */
   char_length= (uint)length;
-
-  /*
-    Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
-    it is NOT NULL, not an AUTO_INCREMENT field.
-    We need to do this check here and in mysql_create_prepare_table() as
-    sp_head::fill_field_definition() calls this function.
-  */
-  if (!default_value && unireg_check == Field::NONE && (flags & NOT_NULL_FLAG))
-  {
-    /*
-      TIMESTAMP columns get implicit DEFAULT value when
-      explicit_defaults_for_timestamp is not set.
-    */
-    if (((thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP) ||
-        !is_timestamp_type()) && !vers_sys_field())
-    {
-      flags|= NO_DEFAULT_VALUE_FLAG;
-    }
-  }
-
 
   if ((flags & AUTO_INCREMENT_FLAG) &&
       !type_handler()->type_can_have_auto_increment_attribute())
