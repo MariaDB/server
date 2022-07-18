@@ -8048,9 +8048,16 @@ bool Rows_log_event::key_suits_event(const KEY *key) const
   uint master_columns= m_online_alter ? 0 : m_cols.n_bits;
   for (uint p= 0; p < key->ext_key_parts; p++)
   {
-    uint field_idx= key->key_part[p].fieldnr - 1;
-    if (field_idx >= master_columns
-        && !bitmap_is_set(&m_table->has_value_set, field_idx))
+    Field *f= key->key_part[p].field;
+    uint non_deterministic_default= f->default_value &&
+                     f->default_value->flags | VCOL_NOT_STRICTLY_DETERMINISTIC;
+
+    int next_number_field= f->table->next_number_field ?
+                           f->table->next_number_field->field_index : -1;
+
+    if (f->field_index >= master_columns
+        && !bitmap_is_set(&m_table->has_value_set, f->field_index)
+        && (non_deterministic_default || next_number_field == f->field_index))
       return false;
   }
   return true;

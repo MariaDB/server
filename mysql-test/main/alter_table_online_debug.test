@@ -1171,7 +1171,7 @@ insert into t values (10),(20),(30);
 
 set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
 --send
-alter table t add b int default (a+1), add primary key(b, a),
+alter table t add b int default (1), add primary key(b, a),
               algorithm=copy, lock=none;
 --connection con2
 set debug_sync= 'now wait_for downgraded';
