@@ -46,7 +46,7 @@ sub mtr_ping_port ($);
 sub mtr_ping_port ($) {
   my $port= shift;
 
-  mtr_verbose("mtr_ping_port: $port");
+  mtr_verbose2("mtr_ping_port: $port");
 
   if (IS_WINDOWS && USE_NETPING)
   {
@@ -56,12 +56,12 @@ sub mtr_ping_port ($) {
     $ping->port_number($port);
     if ($ping->ping("localhost",0.1))
     {
-      mtr_verbose("USED");
+      mtr_verbose2("USED");
       return 1;
     }
     else
     {
-      mtr_verbose("FREE");
+      mtr_verbose2("FREE");
       return 0;
     }
   }
@@ -84,12 +84,12 @@ sub mtr_ping_port ($) {
   if ( connect(SOCK, $paddr) )
   {
     close(SOCK);                        # FIXME check error?
-    mtr_verbose("USED");
+    mtr_verbose2("USED");
     return 1;
   }
   else
   {
-    mtr_verbose("FREE");
+    mtr_verbose2("FREE");
     return 0;
   }
 }

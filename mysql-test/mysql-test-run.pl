@@ -78,7 +78,7 @@ use lib "lib";
 
 use Cwd ;
 use Cwd 'realpath';
-use Getopt::Long;
+use Getopt::Long qw(:config bundling);
 use My::File::Path; # Patched version of File::Path
 use File::Basename;
 use File::Copy;
@@ -758,7 +758,7 @@ sub run_test_server ($$$) {
       if ($sock == $server) {
 	# New client connected
 	my $child= $sock->accept();
-	mtr_verbose("Client connected");
+	mtr_verbose2("Client connected");
 	$s->add($child);
 	print $child "HELLO\n";
       }
@@ -766,7 +766,7 @@ sub run_test_server ($$$) {
 	my $line= <$sock>;
 	if (!defined $line) {
 	  # Client disconnected
-	  mtr_verbose("Child closed socket");
+	  mtr_verbose2("Child closed socket");
 	  $s->remove($sock);
 	  $sock->close;
 	  if (--$childs == 0){
@@ -1311,7 +1311,7 @@ sub command_line_setup {
 	     'force-restart'            => \$opt_force_restart,
              'reorder!'                 => \$opt_reorder,
              'enable-disabled'          => \&collect_option,
-             'verbose+'                 => \$opt_verbose,
+             'verbose|v+'               => \$opt_verbose,
              'verbose-restart'          => \&report_option,
              'sleep=i'                  => \$opt_sleep,
              'start-dirty'              => \$opt_start_dirty,
