@@ -294,14 +294,14 @@ if ($USE_CHILD_GROUP2)
 --disable_query_log
 echo CREATE TABLE ta_l (
   a int(11) NOT NULL DEFAULT '0',
-  b char(1) DEFAULT NULL,
-  c datetime DEFAULT NULL,
+  b char(1),
+  c datetime,
   PRIMARY KEY (a, b, c)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT5_2_1;
 eval CREATE TABLE ta_l (
   a int(11) NOT NULL DEFAULT '0',
-  b char(1) DEFAULT NULL,
-  c datetime DEFAULT NULL,
+  b char(1),
+  c datetime,
   PRIMARY KEY (a, b, c)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT5_2_1;
 --enable_query_log

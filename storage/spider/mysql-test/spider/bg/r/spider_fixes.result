@@ -93,8 +93,8 @@ DROP TABLE IF EXISTS ta_l;
 connection master_1;
 CREATE TABLE ta_l (
 a int(11) NOT NULL DEFAULT '0',
-b char(1) DEFAULT NULL,
-c datetime DEFAULT NULL,
+b char(1),
+c datetime,
 PRIMARY KEY (a, b, c)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT5_2_1
 INSERT INTO ta_l SELECT a, b, c FROM tb_l;

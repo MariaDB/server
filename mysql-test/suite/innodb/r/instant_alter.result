@@ -545,7 +545,7 @@ ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_co
 ALTER TABLE t1 MODIFY a INT DEFAULT 0;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+ALTER TABLE t1 MODIFY a INT, ALGORITHM=INSTANT;
 ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
 ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
@@ -567,7 +567,7 @@ ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_co
 ALTER TABLE t1 MODIFY a INT DEFAULT 0;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+ALTER TABLE t1 MODIFY a INT, ALGORITHM=INSTANT;
 DROP TABLE t1;
 SET GLOBAL innodb_instant_alter_column_allowed = DEFAULT;
 CREATE TABLE t1 (a INT, b INT UNIQUE) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
@@ -1479,7 +1479,7 @@ ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_co
 ALTER TABLE t1 MODIFY a INT DEFAULT 0;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+ALTER TABLE t1 MODIFY a INT, ALGORITHM=INSTANT;
 ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
 ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
@@ -1501,7 +1501,7 @@ ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_co
 ALTER TABLE t1 MODIFY a INT DEFAULT 0;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+ALTER TABLE t1 MODIFY a INT, ALGORITHM=INSTANT;
 DROP TABLE t1;
 SET GLOBAL innodb_instant_alter_column_allowed = DEFAULT;
 CREATE TABLE t1 (a INT, b INT UNIQUE) ENGINE=InnoDB ROW_FORMAT=COMPACT;
@@ -2413,7 +2413,7 @@ ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_co
 ALTER TABLE t1 MODIFY a INT DEFAULT 0;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+ALTER TABLE t1 MODIFY a INT, ALGORITHM=INSTANT;
 ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
 ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
@@ -2435,7 +2435,7 @@ ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_co
 ALTER TABLE t1 MODIFY a INT DEFAULT 0;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+ALTER TABLE t1 MODIFY a INT, ALGORITHM=INSTANT;
 DROP TABLE t1;
 SET GLOBAL innodb_instant_alter_column_allowed = DEFAULT;
 CREATE TABLE t1 (a INT, b INT UNIQUE) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
