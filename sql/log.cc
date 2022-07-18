@@ -2408,7 +2408,7 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
   if (!cache_mngr)
   {
     DBUG_ASSERT(WSREP(thd) || rollback_online);
-    DBUG_ASSERT(thd->lex->sql_command != SQLCOM_XA_ROLLBACK);
+    DBUG_ASSERT(thd->lex->sql_command != SQLCOM_XA_ROLLBACK || rollback_online);
 
     DBUG_RETURN(0);
   }
