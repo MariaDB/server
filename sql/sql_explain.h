@@ -523,6 +523,10 @@ public:
 
   Explain_update *get_upd_del_plan() { return upd_del_plan; }
 private:
+  bool print_query_blocks_json(Json_writer *writer, const bool is_analyze, const bool is_show_cmd);
+  void print_query_optimization_json(Json_writer *writer);
+  void send_explain_json_to_output(Json_writer *writer, select_result_sink *output);
+ 
   /* Explain_delete inherits from Explain_update */
   Explain_update *upd_del_plan;
 
@@ -544,6 +548,8 @@ private:
 #ifndef DBUG_OFF
   bool can_print_json= false;
 #endif
+
+  Exec_time_tracker optimization_time_tracker;
 };
 
 

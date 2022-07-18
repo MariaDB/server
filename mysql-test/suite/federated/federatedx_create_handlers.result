@@ -117,6 +117,9 @@ ANALYZE FORMAT=JSON
 SELECT id FROM federated.t1 WHERE id < 5;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "table": {
@@ -223,6 +226,9 @@ FROM federated.t2 GROUP BY name)) t
 WHERE federated.t3.name=t.name;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
