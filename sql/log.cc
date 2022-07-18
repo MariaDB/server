@@ -2329,6 +2329,8 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
   PSI_stage_info org_stage;
   DBUG_ENTER("binlog_commit");
 
+  IF_DBUG(bool commit_online= !thd->online_alter_cache_list.empty(),);
+
   bool is_ending_transaction= ending_trans(thd, all);
   error= binlog_online_alter_end_trans(thd, all, true);
   if (error)
@@ -2340,7 +2342,7 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
   */
   if (!cache_mngr)
   {
-    DBUG_ASSERT(WSREP(thd) ||
+    DBUG_ASSERT(WSREP(thd) || commit_online ||
                 (thd->lex->sql_command != SQLCOM_XA_PREPARE &&
                 !(thd->lex->sql_command == SQLCOM_XA_COMMIT &&
                   thd->lex->xa_opt == XA_ONE_PHASE)));
@@ -2448,7 +2450,7 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
   if (!cache_mngr)
   {
     DBUG_ASSERT(WSREP(thd) || rollback_online);
-    DBUG_ASSERT(thd->lex->sql_command != SQLCOM_XA_ROLLBACK);
+    DBUG_ASSERT(thd->lex->sql_command != SQLCOM_XA_ROLLBACK || rollback_online);
 
     DBUG_RETURN(0);
   }
