@@ -2248,5 +2248,17 @@ SELECT random_bytes('res');
 SELECT random_bytes('test');
 
 --echo #
+--echo # MDEV-29108: RANDOM_BYTES - assertion in Create_tmp_table::finalize
+--echo #
+
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+--error 1690
+SELECT RANDOM_BYTES(-10) f1, IFNULL(a,1) f2 FROM t GROUP BY f1, f2;
+
+# Cleanup
+DROP TABLE t;
+
+--echo #
 --echo # End of 10.10 tests
 --echo #

@@ -5319,5 +5319,13 @@ ERROR 22003: length value is out of range in 'random_bytes('res')'
 SELECT random_bytes('test');
 ERROR 22003: length value is out of range in 'random_bytes('test')'
 #
+# MDEV-29108: RANDOM_BYTES - assertion in Create_tmp_table::finalize
+#
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+SELECT RANDOM_BYTES(-10) f1, IFNULL(a,1) f2 FROM t GROUP BY f1, f2;
+ERROR 22003: length value is out of range in 'random_bytes(-10)'
+DROP TABLE t;
+#
 # End of 10.10 tests
 #

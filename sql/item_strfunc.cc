@@ -1478,15 +1478,17 @@ String *Item_func_sformat::val_str(String *res)
 #include <openssl/rand.h>
 #include <openssl/err.h>
 
+static const int MAX_RANDOM_BYTES= 1024;
+
 bool Item_func_random_bytes::fix_length_and_dec(THD *thd)
 {
   used_tables_cache|= RAND_TABLE_BIT;
   if (args[0]->can_eval_in_optimize())
   {
-    max_length= MY_MIN((int32) args[0]->val_int(), MAX_BLOB_WIDTH);
+    max_length= MY_MAX(0, MY_MIN((int32) args[0]->val_int(), MAX_RANDOM_BYTES));
     return false;
   }
-  max_length= MAX_BLOB_WIDTH;
+  max_length= MAX_RANDOM_BYTES;
   return false;
 }
 
@@ -1506,7 +1508,7 @@ String *Item_func_random_bytes::val_str(String *str)
     goto err;
   null_value= 0;
 
-  if (count < 1 || count > 1024)
+  if (count < 1 || count > MAX_RANDOM_BYTES)
   {
     char buf[256];
     String msg(buf, sizeof(buf), system_charset_info);
@@ -1531,7 +1533,7 @@ String *Item_func_random_bytes::val_str(String *str)
     }
     return make_empty_result(str);
   }
-  
+
   return str;
 
 err:
