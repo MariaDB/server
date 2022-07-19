@@ -159,7 +159,7 @@ int JDBCDEF::ParseURL(PGLOBAL g, char *url, bool b)
 
 		// get_server_by_name() clones the server if exists
 		if (!(server= get_server_by_name(current_thd->mem_root, url, &server_buffer))) {
-			sprintf(g->Message, "Server %s does not exist!", url);
+			snprintf(g->Message, sizeof(g->Message), "Server %s does not exist!", url);
 			return RC_FX;
 		} // endif server
 
@@ -224,7 +224,7 @@ bool JDBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 		Url = GetStringCatInfo(g, "Url", NULL);
 
 		if (!Url) {
-			sprintf(g->Message, "Missing URL for JDBC table %s", Name);
+			snprintf(g->Message, sizeof(g->Message), "Missing URL for JDBC table %s", Name);
 			return true;
 		} // endif Url
 
@@ -232,7 +232,7 @@ bool JDBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
 	if (Url)
 		if ((rc = ParseURL(g, Url)) == RC_FX) {
-			sprintf(g->Message, "Wrong JDBC URL %s", Url);
+			snprintf(g->Message, sizeof(g->Message), "Wrong JDBC URL %s", Url);
 			return true;
 		} // endif rc
 
@@ -648,7 +648,7 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 				if ((n = Jcp->GetResultSize(Query->GetStr(), Cnp)) < 0) {
 					char* msg = PlugDup(g, g->Message);
 
-					sprintf(g->Message, "Get result size: %s (rc=%d)", msg, n);
+					snprintf(g->Message, sizeof(g->Message), "Get result size: %s (rc=%d)", msg, n);
 					return true;
 				} else if (n) {
 					Jcp->m_Rows = n;
@@ -694,7 +694,7 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 	} else if (Mode == MODE_UPDATE || Mode == MODE_DELETE) {
 		rc = false;  // wait for CheckCond before calling MakeCommand(g);
 	} else
-		sprintf(g->Message, "Invalid mode %d", Mode);
+		snprintf(g->Message, sizeof(g->Message), "Invalid mode %d", Mode);
 
 	if (rc) {
 		Jcp->Close();
@@ -951,7 +951,7 @@ int TDBJDBC::DeleteDB(PGLOBAL g, int irc)
 		// Send the DELETE (all) command to the remote table
 		if (Jcp->ExecuteUpdate(Query->GetStr()) == RC_OK) {
 			AftRows = Jcp->m_Aff;
-			sprintf(g->Message, "%s: %d affected rows", TableName, AftRows);
+			snprintf(g->Message, sizeof(g->Message), "%s: %d affected rows", TableName, AftRows);
 
 			if (trace(1))
 				htrc("%s\n", g->Message);
@@ -979,7 +979,7 @@ void TDBJDBC::CloseDB(PGLOBAL g)
 
 	if (!Werr && 
 		(Mode == MODE_INSERT || Mode == MODE_UPDATE || Mode == MODE_DELETE)) {
-		sprintf(g->Message, "%s: %d affected rows", TableName, AftRows);
+		snprintf(g->Message, sizeof(g->Message), "%s: %d affected rows", TableName, AftRows);
 
 		if (trace(1))
 			htrc("%s\n", g->Message);

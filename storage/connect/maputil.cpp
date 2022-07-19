@@ -50,7 +50,7 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR filename,
       disposition = OPEN_ALWAYS;
       break;
     default:
-      sprintf(g->Message, MSG(BAD_FUNC_MODE), "CreateFileMap", mode);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_FUNC_MODE), "CreateFileMap", mode);
       return INVALID_HANDLE_VALUE;
     } // endswitch
 
@@ -69,11 +69,11 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR filename,
         DWORD ler = GetLastError();
       
         if (ler && ler != 1006) {
-          sprintf(g->Message, MSG(FILE_MAP_ERROR), filename, ler);
+          snprintf(g->Message, sizeof(g->Message), MSG(FILE_MAP_ERROR), filename, ler);
           CloseHandle(hFile);
           return INVALID_HANDLE_VALUE;
         } else {
-          sprintf(g->Message, MSG(FILE_IS_EMPTY), filename);
+          snprintf(g->Message, sizeof(g->Message), MSG(FILE_IS_EMPTY), filename);
           return hFile;
         } // endif ler
       
@@ -84,7 +84,7 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR filename,
       if (!(mm->memory = MapViewOfFile(hFileMap, access, 0, 0, 0))) {
         DWORD ler = GetLastError();
       
-        sprintf(g->Message, "Error %ld in MapViewOfFile %s", 
+        snprintf(g->Message, sizeof(g->Message), "Error %ld in MapViewOfFile %s", 
                 ler, filename);
         CloseHandle(hFile);
         return INVALID_HANDLE_VALUE;
@@ -149,7 +149,7 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR fileName,
       protmode = PROT_WRITE;
       break;
      default:
-      sprintf(g->Message, MSG(BAD_FUNC_MODE), "CreateFileMap", mode);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_FUNC_MODE), "CreateFileMap", mode);
       return INVALID_HANDLE_VALUE;
    } // endswitch
 
@@ -159,7 +159,7 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR fileName,
   if (fd != INVALID_HANDLE_VALUE && mode != MODE_INSERT) {
     /* We must know about the size of the file. */
     if (fstat(fd, &st)) {
-      sprintf(g->Message, MSG(FILE_MAP_ERROR), fileName, errno);
+      snprintf(g->Message, sizeof(g->Message), MSG(FILE_MAP_ERROR), fileName, errno);
       close(fd);
       return INVALID_HANDLE_VALUE;
       }  // endif fstat

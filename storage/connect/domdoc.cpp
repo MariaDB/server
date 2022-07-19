@@ -33,7 +33,7 @@ using namespace MSXML2;
 inline bool TestHr(PGLOBAL g, HRESULT hr)
   {
   if FAILED(hr) {
-    sprintf(g->Message, "%s, hr=%d", MSG(COM_ERROR), hr);
+    snprintf(g->Message, sizeof(g->Message), "%s, hr=%d", MSG(COM_ERROR), hr);
     return true;
   } else
     return false;
@@ -65,7 +65,7 @@ void CloseXMLFile(PGLOBAL g, PFBLOCK fp, bool all)
 
     } catch(_com_error e)  {
 			char *p = _com_util::ConvertBSTRToString(e.Description());
-      sprintf(g->Message, "%s %s", MSG(COM_ERROR), p);
+      snprintf(g->Message, sizeof(g->Message), "%s %s", MSG(COM_ERROR), p);
 			delete[] p;
     } catch(...) {}
 
@@ -242,7 +242,7 @@ int DOMDOC::DumpDoc(PGLOBAL g, char *ofn)
   try {
     Docp->save(ofn);
   } catch(_com_error e)  {
-    sprintf(g->Message, "%s: %s", MSG(COM_ERROR), 
+    snprintf(g->Message, sizeof(g->Message), "%s: %s", MSG(COM_ERROR), 
             _com_util::ConvertBSTRToString(e.Description()));
     rc = -1;
   }  catch(...) {}
@@ -332,16 +332,16 @@ RCODE DOMNODE::GetContent(PGLOBAL g, char *buf, int len)
       switch (lsr) {
         case 0:
         case ERROR_INSUFFICIENT_BUFFER:      // 122L
-          sprintf(g->Message, "Truncated %s content", GetName(g));
+          snprintf(g->Message, sizeof(g->Message), "Truncated %s content", GetName(g));
           rc = RC_INFO;
           break;
         case ERROR_NO_UNICODE_TRANSLATION:   // 1113L
-          sprintf(g->Message, "Invalid character(s) in %s content",
+          snprintf(g->Message, sizeof(g->Message), "Invalid character(s) in %s content",
                               GetName(g));
           rc = RC_INFO;
           break;
         default:
-          sprintf(g->Message, "System error getting %s content",
+          snprintf(g->Message, sizeof(g->Message), "System error getting %s content",
                               GetName(g));
           rc = RC_FX;
           break;
@@ -370,7 +370,7 @@ bool DOMNODE::SetContent(PGLOBAL g, char *txtp, int len)
 
   if (!MultiByteToWideChar(CP_UTF8, 0, txtp, strlen(txtp) + 1,
                                        Ws, Len + 1)) {
-    sprintf(g->Message, MSG(WS_CONV_ERR), txtp);
+    snprintf(g->Message, sizeof(g->Message), MSG(WS_CONV_ERR), txtp);
     return true;
     } // endif
 
@@ -451,7 +451,7 @@ PXNODE DOMNODE::SelectSingleNode(PGLOBAL g, char *xp, PXNODE np)
       } // endif dnp
 
   } catch(_com_error e) {
-    sprintf(g->Message, "%s: %s", MSG(COM_ERROR), 
+    snprintf(g->Message, sizeof(g->Message), "%s: %s", MSG(COM_ERROR), 
             _com_util::ConvertBSTRToString(e.Description()));
   } catch(...) {}
 
@@ -710,16 +710,16 @@ RCODE DOMATTR::GetText(PGLOBAL g, char *buf, int len)
     switch (lsr) {
       case 0:
       case ERROR_INSUFFICIENT_BUFFER:      // 122L
-        sprintf(g->Message, "Truncated %s content", GetName(g));
+        snprintf(g->Message, sizeof(g->Message), "Truncated %s content", GetName(g));
         rc = RC_INFO;
         break;
       case ERROR_NO_UNICODE_TRANSLATION:   // 1113L
-        sprintf(g->Message, "Invalid character(s) in %s content",
+        snprintf(g->Message, sizeof(g->Message), "Invalid character(s) in %s content",
                             GetName(g));
         rc = RC_INFO;
         break;
       default:
-        sprintf(g->Message, "System error getting %s content",
+        snprintf(g->Message, sizeof(g->Message), "System error getting %s content",
                             GetName(g));
         rc = RC_FX;
         break;
@@ -745,7 +745,7 @@ bool DOMATTR::SetText(PGLOBAL g, char *txtp, int len)
 
   if (!MultiByteToWideChar(CP_UTF8, 0, txtp, strlen(txtp) + 1,
                                        Ws, Len + 1)) {
-    sprintf(g->Message, MSG(WS_CONV_ERR), txtp);
+    snprintf(g->Message, sizeof(g->Message), MSG(WS_CONV_ERR), txtp);
     return true;
     } // endif
 
