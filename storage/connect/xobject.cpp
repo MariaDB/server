@@ -162,7 +162,7 @@ bool CONSTANT::Rephrase(PGLOBAL g, PSZ work)
       sprintf(work + strlen(work), "%d", Value->GetTinyValue());
       break;
     default:
-      sprintf(g->Message, MSG(BAD_CONST_TYPE), Value->GetType());
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_CONST_TYPE), Value->GetType());
       return false;
     } // endswitch
 

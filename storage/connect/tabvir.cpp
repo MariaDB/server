@@ -251,7 +251,7 @@ int TDBVIR::ReadDB(PGLOBAL)
 /***********************************************************************/
 int TDBVIR::WriteDB(PGLOBAL g)
   {
-  sprintf(g->Message, MSG(VIR_READ_ONLY), To_Def->GetType());
+  snprintf(g->Message, sizeof(g->Message), MSG(VIR_READ_ONLY), To_Def->GetType());
   return RC_FX;
   } // end of WriteDB
 
@@ -260,7 +260,7 @@ int TDBVIR::WriteDB(PGLOBAL g)
 /***********************************************************************/
 int TDBVIR::DeleteDB(PGLOBAL g, int)
   {
-  sprintf(g->Message, MSG(VIR_NO_DELETE), To_Def->GetType());
+  snprintf(g->Message, sizeof(g->Message), MSG(VIR_NO_DELETE), To_Def->GetType());
   return RC_FX;
   } // end of DeleteDB
 
@@ -288,7 +288,7 @@ VIRCOL::VIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ)
 void VIRCOL::ReadColumn(PGLOBAL g)
   {
   // This should never be called
-  sprintf(g->Message, "ReadColumn: Column %s is not virtual", Name);
+  snprintf(g->Message, sizeof(g->Message), "ReadColumn: Column %s is not virtual", Name);
 	throw (int)TYPE_COLBLK;
 } // end of ReadColumn
 

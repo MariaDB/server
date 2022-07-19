@@ -163,7 +163,7 @@ class DllExport TDBFMT : public TDBCSV {
 
  protected:
   virtual bool PrepareWriting(PGLOBAL g) 
-       {sprintf(g->Message, MSG(TABLE_READ_ONLY), "FMT"); return true;}
+       {snprintf(g->Message, sizeof(g->Message), MSG(TABLE_READ_ONLY), "FMT"); return true;}
 
   // Members
   PSZ  *FldFormat;                      // Field read format

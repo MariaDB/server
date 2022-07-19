@@ -100,7 +100,7 @@ PCOL TDBMAC::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 void TDBMAC::MakeErrorMsg(PGLOBAL g, DWORD drc)
   {
   if (drc == ERROR_BUFFER_OVERFLOW)
-    sprintf(g->Message, 
+    snprintf(g->Message, sizeof(g->Message),
       "GetAdaptersInfo: Buffer Overflow buflen=%d maxsize=%d",
       Buflen, MaxSize);
   else if (drc == ERROR_INVALID_PARAMETER)
@@ -111,7 +111,7 @@ void TDBMAC::MakeErrorMsg(PGLOBAL g, DWORD drc)
   else if (drc == ERROR_NOT_SUPPORTED)
     strcpy(g->Message, "GetAdaptersInfo is not supported");
   else
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | 
+    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS, NULL, GetLastError(),
                   0, g->Message, sizeof(g->Message), NULL);
 
@@ -159,7 +159,7 @@ bool TDBMAC::GetFixedInfo(PGLOBAL g)
     } // endif drc
 
   if (drc != ERROR_SUCCESS) {
-    sprintf(g->Message,  "GetNetworkParams failed. Rc=%08x\n", drc);
+    snprintf(g->Message, sizeof(g->Message),  "GetNetworkParams failed. Rc=%08x\n", drc);
     return true;
     } // endif drc
 

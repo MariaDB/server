@@ -135,7 +135,7 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng)
           break;
         } // endif pretty
 
-        sprintf(g->Message, "Unexpected ',' (pretty=%d)", pretty);
+        snprintf(g->Message, sizeof(g->Message), "Unexpected ',' (pretty=%d)", pretty);
         throw 3;
       case '(':
         b = true;
@@ -159,7 +159,7 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng)
       }; // endswitch s[i]
 
     if (bvp->Type == TYPE_UNKNOWN)
-      sprintf(g->Message, "Invalid Json string '%.*s'", MY_MIN((int)len, 50), s);
+      snprintf(g->Message, sizeof(g->Message), "Invalid Json string '%.*s'", MY_MIN((int)len, 50), s);
     else if (pretty == 3) {
       for (i = 0; i < 3; i++)
         if (pty[i]) {
@@ -606,7 +606,7 @@ PSZ BDOC::Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty)
       b = pretty == 1;
     } else {
       if (!(fs = fopen(fn, "wb"))) {
-        sprintf(g->Message, MSG(OPEN_MODE_ERROR),
+        snprintf(g->Message, sizeof(g->Message), MSG(OPEN_MODE_ERROR),
           "w", (int)errno, fn);
         strcat(strcat(g->Message, ": "), strerror(errno));
         throw 2;

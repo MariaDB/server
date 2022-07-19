@@ -691,7 +691,7 @@ bool TDBTBM::OpenTables(PGLOBAL g)
 //    pthread_attr_setdetachstate(&tp->attr, PTHREAD_CREATE_JOINABLE);
 
       if ((k = pthread_create(&tp->Tid, &tp->attr, ThreadOpen, tp))) {
-        sprintf(g->Message, "pthread_create error %d", k);
+        snprintf(g->Message, sizeof(g->Message), "pthread_create error %d", k);
         Nbc++;
         continue;
         } // endif k

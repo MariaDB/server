@@ -207,7 +207,7 @@ PCOL TDB::InsertSpcBlk(PGLOBAL g, PCOLDEF cdp)
 		!stricmp(name, "FPATH") || !stricmp(name, "FNAME") ||
 		!stricmp(name, "FTYPE") || !stricmp(name, "SERVID")) {
 		if (!To_Def || !(To_Def->GetPseudo() & 2)) {
-			sprintf(g->Message, MSG(BAD_SPEC_COLUMN));
+			snprintf(g->Message, sizeof(g->Message), MSG(BAD_SPEC_COLUMN));
 			return NULL;
 		} // endif Pseudo
 
@@ -235,12 +235,12 @@ PCOL TDB::InsertSpcBlk(PGLOBAL g, PCOLDEF cdp)
 	} else if (!stricmp(name, "ROWNUM")) {
 		colp = new(g)RIDBLK(cp, true);
 	} else {
-		sprintf(g->Message, MSG(BAD_SPECIAL_COL), name);
+		snprintf(g->Message, sizeof(g->Message), MSG(BAD_SPECIAL_COL), name);
 		return NULL;
 	} // endif's name
 
 	if (!(colp = InsertSpecialColumn(colp))) {
-		sprintf(g->Message, MSG(BAD_SPECIAL_COL), name);
+		snprintf(g->Message, sizeof(g->Message), MSG(BAD_SPECIAL_COL), name);
 		return NULL;
 	} // endif Insert
 
@@ -266,7 +266,7 @@ void TDB::MarkDB(PGLOBAL, PTDB tdb2)
 /***********************************************************************/
 int TDB::RowNumber(PGLOBAL g, bool)
   {
-  sprintf(g->Message, MSG(ROWID_NOT_IMPL), GetAmName(g, GetAmType()));
+  snprintf(g->Message, sizeof(g->Message), MSG(ROWID_NOT_IMPL), GetAmName(g, GetAmType()));
   return 0;
   } // end of RowNumber
 
@@ -495,7 +495,7 @@ PCOL TDBASE::InsertSpcBlk(PGLOBAL g, PCOLDEF cdp)
       !stricmp(name, "FPATH")  || !stricmp(name, "FNAME") ||
       !stricmp(name, "FTYPE")  || !stricmp(name, "SERVID")) {
     if (!To_Def || !(To_Def->GetPseudo() & 2)) {
-      sprintf(g->Message, MSG(BAD_SPEC_COLUMN));
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_SPEC_COLUMN));
       return NULL;
       } // endif Pseudo
 
@@ -523,12 +523,12 @@ PCOL TDBASE::InsertSpcBlk(PGLOBAL g, PCOLDEF cdp)
   } else if (!stricmp(name, "ROWNUM")) {
       colp = new(g) RIDBLK(cp, true);
   } else {
-    sprintf(g->Message, MSG(BAD_SPECIAL_COL), name);
+    snprintf(g->Message, sizeof(g->Message), MSG(BAD_SPECIAL_COL), name);
     return NULL;
   } // endif's name
 
   if (!(colp = InsertSpecialColumn(colp))) {
-    sprintf(g->Message, MSG(BAD_SPECIAL_COL), name);
+    snprintf(g->Message, sizeof(g->Message), MSG(BAD_SPECIAL_COL), name);
     return NULL;
     } // endif Insert
 
@@ -642,12 +642,12 @@ bool TDBCAT::Initialize(PGLOBAL g)
     return true;
 
   if (Qrp->Truncated) {
-    sprintf(g->Message, "Result limited to %d lines", Qrp->Maxres);
+    snprintf(g->Message, sizeof(g->Message), "Result limited to %d lines", Qrp->Maxres);
     PushWarning(g, this);
     } // endif Truncated
 
   if (Qrp->BadLines) {
-    sprintf(g->Message, "%d bad lines in result", Qrp->BadLines);
+    snprintf(g->Message, sizeof(g->Message), "%d bad lines in result", Qrp->BadLines);
     PushWarning(g, this);
     } // endif Badlines
 
@@ -720,7 +720,7 @@ bool TDBCAT::InitCol(PGLOBAL g)
 
 
     if (!colp->Crp /*&& !colp->GetValue()->IsConstant()*/) {
-      sprintf(g->Message, "Invalid flag %d for column %s",
+      snprintf(g->Message, sizeof(g->Message), "Invalid flag %d for column %s",
                           colp->Flag, colp->Name);
       return true;
 		} else if (crp->Fld == FLD_SCALE || crp->Fld == FLD_RADIX)
