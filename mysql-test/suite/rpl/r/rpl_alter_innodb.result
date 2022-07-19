@@ -63,4 +63,19 @@ id	c2	c3	c4	c5	c6
 3	3	1970-01-01 03:16:40	1970-01-01 03:16:40	03:16:40	1970-01-01
 connection master;
 drop table t4;
+#
+# MDEV-29056 Replica thread reports error on ALTER ONLINE
+# after LOCK WRITE
+#
+CREATE TABLE BB (
+col_varchar_key VARCHAR(1),
+KEY (col_varchar_key)
+) ENGINE=InnoDB;
+INSERT INTO BB ( col_varchar_key ) VALUES ('g') ;
+ALTER TABLE `BB` ADD FULLTEXT KEY(`col_varchar_key`), ALGORITHM=INPLACE;
+LOCK TABLE `BB` WRITE;
+ALTER ONLINE TABLE `BB` ADD COLUMN IF NOT EXISTS scol8 BLOB NOT NULL, ALGORITHM=INPLACE;
+DROP TABLE `BB`;
+connection slave;
+connection master;
 include/rpl_end.inc

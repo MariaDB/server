@@ -1236,6 +1236,11 @@ bool Query_log_event::write()
     int4store(start, master_data_written);
     start+= 4;
   }
+  if (thd->locked_tables_mode)
+  {
+    *start++= Q_LTM;
+    *start++= thd->locked_tables_mode;
+  }
 
   if (thd && thd->need_binlog_invoker())
   {
@@ -1930,6 +1935,8 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     thd->db_charset= db_options.default_table_charset;
   thd->variables.auto_increment_increment= auto_increment_increment;
   thd->variables.auto_increment_offset=    auto_increment_offset;
+
+  thd->master_locked_tables_mode= (enum_locked_tables_mode)master_ltm;
 
   DBUG_PRINT("info", ("log_pos: %lu", (ulong) log_pos));
 

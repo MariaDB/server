@@ -47,4 +47,25 @@ select * from t4;
 connection master;
 drop table t4;
 
+--echo #
+--echo # MDEV-29056 Replica thread reports error on ALTER ONLINE
+--echo # after LOCK WRITE
+--echo #
+CREATE TABLE BB (
+  col_varchar_key VARCHAR(1),
+  KEY (col_varchar_key)
+) ENGINE=InnoDB;
+
+INSERT INTO BB ( col_varchar_key ) VALUES ('g') ;
+
+ALTER TABLE `BB` ADD FULLTEXT KEY(`col_varchar_key`), ALGORITHM=INPLACE;
+
+LOCK TABLE `BB` WRITE;
+
+ALTER ONLINE TABLE `BB` ADD COLUMN IF NOT EXISTS scol8 BLOB NOT NULL, ALGORITHM=INPLACE;
+
+DROP TABLE `BB`;
+sync_slave_with_master;
+connection master;
+
 --source include/rpl_end.inc

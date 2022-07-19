@@ -10034,7 +10034,10 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     an extended list and verify that they belong to locked tables.
   */
   if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
-       thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
+       thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES ||
+       (thd->slave_thread &&
+         (thd->master_locked_tables_mode == LTM_LOCK_TABLES ||
+          thd->master_locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)))
   {
     if ((create_info->used_fields & HA_CREATE_USED_UNION) &&
         (table->s->tmp_table == NO_TMP_TABLE))

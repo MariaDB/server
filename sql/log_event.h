@@ -319,6 +319,8 @@ class String;
 
 #define Q_INVOKER 11
 
+#define Q_LTM 12
+
 #define Q_HRNOW 128
 #define Q_XID   129
 
@@ -1286,6 +1288,7 @@ public:
   uint16 flags;
 
   enum_event_cache_type cache_type;
+  uchar master_ltm;
 
   /**
     A storage to cache the global system variable's value.
