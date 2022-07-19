@@ -1329,6 +1329,13 @@ public:
   */
   table_map cur_sj_inner_tables;
 
+  /* A copy of thd->variables.optimizer_prune_level */
+  uint prune_level;
+  /*
+    If true, do extra heuristic pruning (enabled based on
+    optimizer_extra_pruning_depth)
+  */
+  bool extra_heuristic_pruning;
 #ifndef DBUG_OFF
   void dbug_verify_sj_inner_tables(uint n_positions) const;
 #endif

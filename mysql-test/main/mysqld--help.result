@@ -699,6 +699,10 @@ The following specify which files/extra groups are read (specified before remain
  max_connections*5 or max_connections + table_cache*2
  (whichever is larger) number of file descriptors
  (Automatically configured unless set explicitly)
+ --optimizer-extra-pruning-depth=# 
+ If the optimizer needs to enumerate join prefix of this
+ size or larger, then it will try agressively prune away
+ the search space.
  --optimizer-max-sel-arg-weight=# 
  The maximum weight of the SEL_ARG graph. Set to 0 for no
  limit
@@ -1662,6 +1666,7 @@ old-alter-table DEFAULT
 old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE
+optimizer-extra-pruning-depth 8
 optimizer-max-sel-arg-weight 32000
 optimizer-prune-level 2
 optimizer-search-depth 62
