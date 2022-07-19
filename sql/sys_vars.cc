@@ -2781,6 +2781,13 @@ static Sys_var_ulong Sys_optimizer_search_depth(
        SESSION_VAR(optimizer_search_depth), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, MAX_TABLES+1), DEFAULT(MAX_TABLES+1), BLOCK_SIZE(1));
 
+static Sys_var_ulong Sys_optimizer_extra_pruning_depth(
+       "optimizer_extra_pruning_depth",
+       "If the optimizer needs to enumerate join prefix of this size or "
+       "larger, then it will try agressively prune away the search space.",
+       SESSION_VAR(optimizer_extra_pruning_depth), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, MAX_TABLES+1), DEFAULT(8), BLOCK_SIZE(1));
+
 /* this is used in the sigsegv handler */
 export const char *optimizer_switch_names[]=
 {

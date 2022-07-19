@@ -109,8 +109,7 @@ static ha_rows get_quick_record_count(THD *thd, SQL_SELECT *select,
 				      const key_map *keys,ha_rows limit);
 static void optimize_straight_join(JOIN *join, table_map join_tables);
 static bool greedy_search(JOIN *join, table_map remaining_tables,
-                          uint depth, uint prune_level,
-                          uint use_cond_selectivity);
+                          uint depth, uint use_cond_selectivity);
 
 enum enum_best_search {
   SEARCH_ABORT= -2,
@@ -124,7 +123,6 @@ best_extension_by_limited_search(JOIN *join,
                                  table_map remaining_tables,
                                  uint idx, double record_count,
                                  double read_time, uint depth,
-                                 uint prune_level,
                                  uint use_cond_selectivity,
                                  table_map *processed_eq_ref_tables);
 static uint determine_search_depth(JOIN* join);
@@ -8778,7 +8776,6 @@ bool
 choose_plan(JOIN *join, table_map join_tables)
 {
   uint search_depth= join->thd->variables.optimizer_search_depth;
-  uint prune_level=  join->thd->variables.optimizer_prune_level;
   uint use_cond_selectivity= 
          join->thd->variables.optimizer_use_condition_selectivity;
   bool straight_join= MY_TEST(join->select_options & SELECT_STRAIGHT_JOIN);
@@ -8786,6 +8783,9 @@ choose_plan(JOIN *join, table_map join_tables)
   DBUG_ENTER("choose_plan");
 
   join->cur_embedding_map= 0;
+  join->extra_heuristic_pruning= false;
+  join->prune_level= join->thd->variables.optimizer_prune_level;
+
   reset_nj_counters(join, join->join_list);
   qsort2_cmp jtab_sort_func;
 
@@ -8842,8 +8842,14 @@ choose_plan(JOIN *join, table_map join_tables)
     if (search_depth == 0)
       /* Automatically determine a reasonable value for 'search_depth' */
       search_depth= determine_search_depth(join);
-    if (greedy_search(join, join_tables, search_depth, prune_level,
-                      use_cond_selectivity))
+
+    if (join->prune_level >= 1 &&
+        search_depth >= thd->variables.optimizer_extra_pruning_depth)
+    {
+      join->extra_heuristic_pruning= true;
+    }
+
+    if (greedy_search(join, join_tables, search_depth, use_cond_selectivity))
       DBUG_RETURN(TRUE);
   }
 
@@ -9231,8 +9237,6 @@ optimize_straight_join(JOIN *join, table_map remaining_tables)
                           for the query
   @param remaining_tables set of tables not included into the partial plan yet
   @param search_depth     controlls the exhaustiveness of the search
-  @param prune_level      the pruning heuristics that should be applied during
-                          search
   @param use_cond_selectivity  specifies how the selectivity of the conditions
                           pushed to a table should be taken into account
 
@@ -9246,7 +9250,6 @@ static bool
 greedy_search(JOIN      *join,
               table_map remaining_tables,
               uint      search_depth,
-              uint      prune_level,
               uint      use_cond_selectivity)
 {
   double    record_count= 1.0;
@@ -9280,7 +9283,6 @@ greedy_search(JOIN      *join,
     if ((int) best_extension_by_limited_search(join, remaining_tables, idx,
                                                record_count,
                                                read_time, search_depth,
-                                               prune_level,
                                                use_cond_selectivity,
                                                &eq_ref_tables) <
         (int) SEARCH_OK)
@@ -10159,8 +10161,7 @@ get_costs_for_tables(JOIN *join, table_map remaining_tables, uint idx,
     When 'best_extension_by_limited_search' is called for the first time,
     'join->best_read' must be set to the largest possible value (e.g. DBL_MAX).
     The actual implementation provides a way to optionally use pruning
-    heuristic (controlled by the parameter 'prune_level') to reduce the search
-    space by skipping some partial plans.
+    heuristic to reduce the search space by skipping some partial plans.
 
   @note
     The parameter 'search_depth' provides control over the recursion
@@ -10179,8 +10180,6 @@ get_costs_for_tables(JOIN *join, table_map remaining_tables, uint idx,
   @param search_depth     maximum depth of the recursion and thus size of the
                           found optimal plan
                           (0 < search_depth <= join->tables+1).
-  @param prune_level      pruning heuristics that should be applied during
-                          optimization
                           (values: 0 = EXHAUSTIVE, 1 = PRUNE_BY_TIME_OR_ROWS)
   @param use_cond_selectivity  specifies how the selectivity of the conditions
                           pushed to a table should be taken into account
@@ -10203,7 +10202,6 @@ best_extension_by_limited_search(JOIN      *join,
                                  double    record_count,
                                  double    read_time,
                                  uint      search_depth,
-                                 uint      prune_level,
                                  uint      use_cond_selectivity,
                                  table_map *processed_eq_ref_tables)
 {
@@ -10270,7 +10268,7 @@ best_extension_by_limited_search(JOIN      *join,
 
     Json_writer_array arr(thd, "get_costs_for_tables");
 
-    if (idx > join->const_tables && prune_level >= 2 &&
+    if (idx > join->const_tables && join->prune_level >= 2 &&
         join->positions[idx-1].type == JT_EQ_REF &&
         (join->eq_ref_tables & allowed_current_tables))
     {
@@ -10312,6 +10310,12 @@ best_extension_by_limited_search(JOIN      *join,
               join->sort_positions + join->sort_space);
 
   accepted_tables= 0;
+  double min_rec_count= DBL_MAX;
+  double min_rec_count_read_time= DBL_MAX;
+
+  double min_cost= DBL_MAX;
+  double min_cost_record_count= DBL_MAX;
+
   for (SORT_POSITION *pos= sort ; pos < sort_end ; pos++)
   {
     s= *pos->join_tab;
@@ -10375,8 +10379,31 @@ best_extension_by_limited_search(JOIN      *join,
         Prune some less promising partial plans. This heuristic may miss
         the optimal QEPs, thus it results in a non-exhaustive search.
       */
-      if (prune_level >= 1)
+      if (join->prune_level >= 1)
       {
+        // Collect the members with min_cost and min_read_time.
+        bool min_rec_hit= false;
+        bool min_cost_hit= false;
+
+        if (join->extra_heuristic_pruning &&
+            (!(position->key_dependent & allowed_tables) ||
+             position->records_read < 2.0))
+        {
+          if (current_record_count < min_rec_count)
+          {
+            min_rec_count= current_record_count;
+            min_rec_count_read_time= current_read_time;
+            min_rec_hit= true;
+          }
+
+          if (current_read_time < min_cost)
+          {
+            min_cost_record_count= current_record_count;
+            min_cost= current_read_time;
+            min_cost_hit= true;
+          }
+        }
+
         if (best_record_count > current_record_count ||
             best_read_time > current_read_time ||
             (idx == join->const_tables &&  // 's' is the first table in the QEP
@@ -10401,12 +10428,38 @@ best_extension_by_limited_search(JOIN      *join,
         }
         else
         {
+          /*
+             Typically, we get here if:
+               best_record_count < current_record_count &&
+               best_read_time < current_read_time
+             That is, both record_count and read_time are worse than the best_
+             ones. This plan doesn't look promising, prune it away.
+          */
           DBUG_EXECUTE("opt", print_plan(join, idx+1,
                                          current_record_count,
                                          read_time,
                                          current_read_time,
                                          "pruned_by_heuristic"););
           trace_one_table.add("pruned_by_heuristic", true);
+          restore_prev_nj_state(s);
+          restore_prev_sj_state(remaining_tables, s, idx);
+          continue;
+        }
+
+        const char* prune_reason= NULL;
+        if (!min_rec_hit &&
+            current_record_count >= min_rec_count &&
+            current_read_time >= min_rec_count_read_time)
+          prune_reason= "min_record_count";
+
+        if (!min_cost_hit &&
+            current_record_count >= min_cost_record_count &&
+            current_read_time >= min_cost)
+          prune_reason= "min_read_time";
+
+        if (prune_reason)
+        {
+          trace_one_table.add("pruned_by_heuristic", prune_reason);
           restore_prev_nj_state(s);
           restore_prev_sj_state(remaining_tables, s, idx);
           continue;
@@ -10448,7 +10501,6 @@ best_extension_by_limited_search(JOIN      *join,
                                            partial_join_cardinality,
                                            current_read_time,
                                            search_depth - 1,
-                                           prune_level,
                                            use_cond_selectivity,
                                            &found_eq_ref_tables);
         swap_variables(JOIN_TAB*, join->best_ref[idx], *pos->join_tab);
