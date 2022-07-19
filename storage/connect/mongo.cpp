@@ -152,14 +152,14 @@ PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info)
 #if defined(CMGO_SUPPORT)
 		cmgd = new(g) CMGDISC(g, (int*)length);
 #else
-		sprintf(g->Message, "Mongo %s Driver not available", "C");
+		snprintf(g->Message, sizeof(g->Message), "Mongo %s Driver not available", "C");
 		goto err;
 #endif
 	} else if (drv && toupper(*drv) == 'J') {
 #if defined(JAVA_SUPPORT)
 		cmgd = new(g) JMGDISC(g, (int*)length);
 #else
-		sprintf(g->Message, "Mongo %s Driver not available", "Java");
+		snprintf(g->Message, sizeof(g->Message), "Mongo %s Driver not available", "Java");
 		goto err;
 #endif
 	} else {						 // Driver not specified
@@ -421,7 +421,7 @@ PTDB MGODEF::GetTable(PGLOBAL g, MODE m)
 		else
 			return new(g) TDBCMG(this);
 #else
-		sprintf(g->Message, "Mongo %s Driver not available", "C");
+		snprintf(g->Message, sizeof(g->Message), "Mongo %s Driver not available", "C");
 		return NULL;
 #endif
 	} else if (Driver && toupper(*Driver) == 'J') {
@@ -431,7 +431,7 @@ PTDB MGODEF::GetTable(PGLOBAL g, MODE m)
 		else
 			return new(g) TDBJMG(this);
 #else
-		sprintf(g->Message, "Mongo %s Driver not available", "Java");
+		snprintf(g->Message, sizeof(g->Message), "Mongo %s Driver not available", "Java");
 		return NULL;
 #endif
 	} else {						 // Driver not specified

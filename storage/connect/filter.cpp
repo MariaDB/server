@@ -83,7 +83,7 @@ BYTE OpBmp(PGLOBAL g, OPVAL opc)
     case OP_LE: bt = 0x04; break;
     case OP_EXIST: bt = 0x00; break;
     default:
-      sprintf(g->Message, MSG(BAD_FILTER_OP), opc);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_FILTER_OP), opc);
 			throw (int)TYPE_FILTER;
 	} // endswitch opc
 
@@ -1021,7 +1021,7 @@ bool FILTER::Convert(PGLOBAL g, bool having)
     // Special case of the LIKE operator.
     if (Opc == OP_LIKE) {
       if (!IsTypeChar((int)Test[i].B_T)) {
-        sprintf(g->Message, MSG(BAD_TYPE_LIKE), i, Test[i].B_T);
+        snprintf(g->Message, sizeof(g->Message), MSG(BAD_TYPE_LIKE), i, Test[i].B_T);
         return TRUE;
         } // endif
 
@@ -1129,11 +1129,11 @@ bool FILTER::Convert(PGLOBAL g, bool having)
 
   //  Last check to be sure all is correct.
   if (Test[0].B_T != Test[1].B_T) {
-    sprintf(g->Message, MSG(BAD_FILTER_CONV), Test[0].B_T, Test[1].B_T);
+    snprintf(g->Message, sizeof(g->Message), MSG(BAD_FILTER_CONV), Test[0].B_T, Test[1].B_T);
     return TRUE;
 //} else if (Test[0].B_T == TYPE_LIST &&
 //          ((LSTVAL*)Val(0))->GetN() != ((LSTVAL*)Val(1))->GetN()) {
-//  sprintf(g->Message, MSG(ROW_ARGNB_ERR),
+//  snprintf(g->Message, sizeof(g->Message), MSG(ROW_ARGNB_ERR),
 //          ((LSTVAL*)Val(0))->GetN(), ((LSTVAL*)Val(1))->GetN());
 //  return TRUE;
   } // endif's B_T
@@ -1367,7 +1367,7 @@ bool FILTER::Eval(PGLOBAL g)
   return FALSE;
 
  FilterError:
-  sprintf(g->Message, MSG(BAD_FILTER),
+  snprintf(g->Message, sizeof(g->Message), MSG(BAD_FILTER),
           Opc, Test[0].B_T, Test[1].B_T, GetArgType(0), GetArgType(1));
   return TRUE;
   } // end of Eval

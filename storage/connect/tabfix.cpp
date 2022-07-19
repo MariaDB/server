@@ -258,7 +258,7 @@ int TDBFIX::RowNumber(PGLOBAL g, bool b)
       /*  Don't know how to retrieve Rows from DBF file address        */
       /*  because of eventual deleted lines still in the file.         */
       /*****************************************************************/
-      sprintf(g->Message, MSG(NO_ROWID_FOR_AM),
+      snprintf(g->Message, sizeof(g->Message), MSG(NO_ROWID_FOR_AM),
                           GetAmName(g, Txfp->GetAmType()));
       return 0;
       } // endif To_Kindex
@@ -410,7 +410,7 @@ BINCOL::BINCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PCSZ am)
       case 'F': M = sizeof(float);    break;
       case 'D': M = sizeof(double);   break;
       default:
-        sprintf(g->Message, MSG(BAD_BIN_FMT), Fmt, Name);
+        snprintf(g->Message, sizeof(g->Message), MSG(BAD_BIN_FMT), Fmt, Name);
 				throw 11;
 		} // endswitch Fmt
 
@@ -484,7 +484,7 @@ void BINCOL::ReadColumn(PGLOBAL g)
   if (!tdbp->IsRead())
     if ((rc = tdbp->ReadBuffer(g)) != RC_OK) {
       if (rc == RC_EF)
-        sprintf(g->Message, MSG(INV_DEF_READ), rc);
+        snprintf(g->Message, sizeof(g->Message), MSG(INV_DEF_READ), rc);
 
 			throw 11;
 		} // endif
@@ -537,14 +537,14 @@ void BINCOL::ReadColumn(PGLOBAL g)
       break;
     case 'C':                 // Text
       if (Value->SetValue_char(p, Long)) {
-        sprintf(g->Message, "Out of range value for column %s at row %d",
+        snprintf(g->Message, sizeof(g->Message), "Out of range value for column %s at row %d",
                 Name, tdbp->RowNumber(g));
         PushWarning(g, tdbp);
         } // endif SetValue_char
 
       break;
     default:
-      sprintf(g->Message, MSG(BAD_BIN_FMT), Fmt, Name);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_BIN_FMT), Fmt, Name);
 			throw 11;
 	} // endswitch Fmt
 
@@ -593,7 +593,7 @@ void BINCOL::WriteColumn(PGLOBAL g)
 				if (Status)
 					Value->GetValueNonAligned<longlong>(p, Value->GetBigintValue());
 			} else if (Value->GetBinValue(p, Long, Status)) {
-        sprintf(g->Message, MSG(BIN_F_TOO_LONG),
+        snprintf(g->Message, sizeof(g->Message), MSG(BIN_F_TOO_LONG),
                             Name, Value->GetSize(), Long);
 				throw 31;
 			} // endif p
@@ -603,7 +603,7 @@ void BINCOL::WriteColumn(PGLOBAL g)
       n = Value->GetBigintValue();
 
       if (n > 32767LL || n < -32768LL) {
-        sprintf(g->Message, MSG(VALUE_TOO_BIG), n, Name);
+        snprintf(g->Message, sizeof(g->Message), MSG(VALUE_TOO_BIG), n, Name);
 				throw 31;
 			} else if (Status)
 				Value->GetValueNonAligned<short>(p, (short)n);
@@ -613,7 +613,7 @@ void BINCOL::WriteColumn(PGLOBAL g)
       n = Value->GetBigintValue();
 
       if (n > 255LL || n < -256LL) {
-        sprintf(g->Message, MSG(VALUE_TOO_BIG), n, Name);
+        snprintf(g->Message, sizeof(g->Message), MSG(VALUE_TOO_BIG), n, Name);
 				throw 31;
 			} else if (Status)
         *p = (char)n;
@@ -623,7 +623,7 @@ void BINCOL::WriteColumn(PGLOBAL g)
       n = Value->GetBigintValue();
 
       if (n > INT_MAX || n < INT_MIN) {
-        sprintf(g->Message, MSG(VALUE_TOO_BIG), n, Name);
+        snprintf(g->Message, sizeof(g->Message), MSG(VALUE_TOO_BIG), n, Name);
 				throw 31;
 			} else if (Status)
 				Value->GetValueNonAligned<int>(p, (int)n);
@@ -647,7 +647,7 @@ void BINCOL::WriteColumn(PGLOBAL g)
       break;
     case 'C':                 // Characters
       if ((n = (signed)strlen(Value->GetCharString(Buf))) > Long) {
-        sprintf(g->Message, MSG(BIN_F_TOO_LONG), Name, (int) n, Long);
+        snprintf(g->Message, sizeof(g->Message), MSG(BIN_F_TOO_LONG), Name, (int) n, Long);
 				throw 31;
 			} // endif n
 
@@ -659,7 +659,7 @@ void BINCOL::WriteColumn(PGLOBAL g)
 
       break;
     default:
-      sprintf(g->Message, MSG(BAD_BIN_FMT), Fmt, Name);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_BIN_FMT), Fmt, Name);
 			throw 31;
 	} // endswitch Fmt
 

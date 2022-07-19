@@ -361,7 +361,7 @@ bool TDBOCCUR::MakeColumnList(PGLOBAL g)
 	for (i = 0, pn = Colist; i < Mult; i++, pn += (strlen(pn) + 1)) {
 		if (!(Col[i] = Tdbp->ColDB(g, pn, 0))) {
 		  // Column not found in table                                       
-		  sprintf(g->Message, MSG(COL_ISNOT_TABLE), pn, Tabname);
+		  snprintf(g->Message, sizeof(g->Message), MSG(COL_ISNOT_TABLE), pn, Tabname);
 			return true;
 			} // endif Col
 
@@ -409,7 +409,7 @@ bool TDBOCCUR::ViewColumnList(PGLOBAL g)
 	for (i = 0, pn = Colist; i < Mult; i++, pn += (strlen(pn) + 1))
 		if (!(Col[i] = tdbp->MakeFieldColumn(g, pn))) {
 		  // Column not found in table                                       
-		  sprintf(g->Message, MSG(COL_ISNOT_TABLE), pn, Tabname);
+		  snprintf(g->Message, sizeof(g->Message), MSG(COL_ISNOT_TABLE), pn, Tabname);
 			return true;
 			} // endif Col
 

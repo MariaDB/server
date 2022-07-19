@@ -89,7 +89,7 @@ PARRAY MakeValueArray(PGLOBAL g, PPARM pp)
   /*********************************************************************/
   for (n = 0, parmp = pp; parmp; n++, parmp = parmp->Next)
     if (parmp->Type != valtyp) {
-      sprintf(g->Message, MSG(BAD_PARAM_TYPE), "MakeValueArray", parmp->Type);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_PARAM_TYPE), "MakeValueArray", parmp->Type);
       return NULL;
     } else if (valtyp == TYPE_STRING)
       len = MY_MAX(len, strlen((char*)parmp->Value));
@@ -176,7 +176,7 @@ ARRAY::ARRAY(PGLOBAL g, int type, int size, int length, int prec)
       break;
 #endif // 0
     default:  // This is illegal an causes an ill formed array building
-      sprintf(g->Message, MSG(BAD_ARRAY_TYPE), type);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_ARRAY_TYPE), type);
       Type = TYPE_ERROR;
       return;
     } // endswitch type
@@ -224,7 +224,7 @@ ARRAY::ARRAY(PGLOBAL g, PQUERY qryp) : CSORT(false)
 //    Value = qryp->GetColValue(0);
 //    break;
     default:  // This is illegal an causes an ill formed array building
-      sprintf(g->Message, MSG(BAD_ARRAY_TYPE), Type);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_ARRAY_TYPE), Type);
       Type = TYPE_ERROR;
     } // endswitch type
 
@@ -285,7 +285,7 @@ void ARRAY::Empty(void)
 bool ARRAY::AddValue(PGLOBAL g, PSZ strp)
 {
   if (Type != TYPE_STRING) {
-    sprintf(g->Message, MSG(ADD_BAD_TYPE), GetTypeName(Type), "CHAR");
+    snprintf(g->Message, sizeof(g->Message), MSG(ADD_BAD_TYPE), GetTypeName(Type), "CHAR");
     return true;
   } // endif Type
 
@@ -300,7 +300,7 @@ bool ARRAY::AddValue(PGLOBAL g, PSZ strp)
 bool ARRAY::AddValue(PGLOBAL g, void *p)
 {
   if (Type != TYPE_PCHAR) {
-    sprintf(g->Message, MSG(ADD_BAD_TYPE), GetTypeName(Type), "PCHAR");
+    snprintf(g->Message, sizeof(g->Message), MSG(ADD_BAD_TYPE), GetTypeName(Type), "PCHAR");
     return true;
   } // endif Type
 
@@ -315,7 +315,7 @@ bool ARRAY::AddValue(PGLOBAL g, void *p)
 bool ARRAY::AddValue(PGLOBAL g, short n)
 {
   if (Type != TYPE_SHORT) {
-    sprintf(g->Message, MSG(ADD_BAD_TYPE), GetTypeName(Type), "SHORT");
+    snprintf(g->Message, sizeof(g->Message), MSG(ADD_BAD_TYPE), GetTypeName(Type), "SHORT");
     return true;
   } // endif Type
 
@@ -330,7 +330,7 @@ bool ARRAY::AddValue(PGLOBAL g, short n)
 bool ARRAY::AddValue(PGLOBAL g, int n)
 {
   if (Type != TYPE_INT) {
-    sprintf(g->Message, MSG(ADD_BAD_TYPE), GetTypeName(Type), "INTEGER");
+    snprintf(g->Message, sizeof(g->Message), MSG(ADD_BAD_TYPE), GetTypeName(Type), "INTEGER");
     return true;
   } // endif Type
 
@@ -345,7 +345,7 @@ bool ARRAY::AddValue(PGLOBAL g, int n)
 bool ARRAY::AddValue(PGLOBAL g, double d)
 {
   if (Type != TYPE_DOUBLE) {
-    sprintf(g->Message, MSG(ADD_BAD_TYPE), GetTypeName(Type), "DOUBLE");
+    snprintf(g->Message, sizeof(g->Message), MSG(ADD_BAD_TYPE), GetTypeName(Type), "DOUBLE");
     return true;
   } // endif Type
 
@@ -361,7 +361,7 @@ bool ARRAY::AddValue(PGLOBAL g, double d)
 bool ARRAY::AddValue(PGLOBAL g, PXOB xp)
 {
 	if (Type != xp->GetResultType()) {
-		sprintf(g->Message, MSG(ADD_BAD_TYPE),
+		snprintf(g->Message, sizeof(g->Message), MSG(ADD_BAD_TYPE),
 			GetTypeName(xp->GetResultType()), GetTypeName(Type));
 		return true;
 	} // endif Type
@@ -377,7 +377,7 @@ bool ARRAY::AddValue(PGLOBAL g, PXOB xp)
 bool ARRAY::AddValue(PGLOBAL g, PVAL vp)
 {
   if (Type != vp->GetType()) {
-    sprintf(g->Message, MSG(ADD_BAD_TYPE),
+    snprintf(g->Message, sizeof(g->Message), MSG(ADD_BAD_TYPE),
             GetTypeName(vp->GetType()), GetTypeName(Type));
     return true;
   } // endif Type
@@ -404,7 +404,7 @@ bool ARRAY::GetSubValue(PGLOBAL g, PVAL valp, int *kp)
   PVBLK vblp;
 
   if (Type != TYPE_LIST) {
-    sprintf(g->Message, MSG(NO_SUB_VAL), Type);
+    snprintf(g->Message, sizeof(g->Message), MSG(NO_SUB_VAL), Type);
     return true;
     } // endif Type
 
@@ -500,7 +500,7 @@ bool ARRAY::FilTest(PGLOBAL g, PVAL valp, OPVAL opc, int opm)
       vp = valp;
 
   } else if (opc != OP_EXIST) {
-		sprintf(g->Message, MSG(MISSING_ARG), opc);
+		snprintf(g->Message, sizeof(g->Message), MSG(MISSING_ARG), opc);
 		throw (int)TYPE_ARRAY;
   } else    // OP_EXIST
     return Nval > 0;
@@ -581,7 +581,7 @@ int ARRAY::Convert(PGLOBAL g, int k, PVAL vp)
       Len = 1;
       break;
     default:
-      sprintf(g->Message, MSG(BAD_CONV_TYPE), Type);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_CONV_TYPE), Type);
       return TYPE_ERROR;
     } // endswitch k
 
