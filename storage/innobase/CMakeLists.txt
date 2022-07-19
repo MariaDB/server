@@ -187,6 +187,7 @@ IF(MSVC)
 ENDIF()
 
 ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/extra/mariabackup ${CMAKE_BINARY_DIR}/extra/mariabackup)
+ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/extra/redo-log-reader ${CMAKE_BINARY_DIR}/extra/redo-log-reader)
 
 IF(TARGET innobase)
   ADD_DEPENDENCIES(innobase GenError)
