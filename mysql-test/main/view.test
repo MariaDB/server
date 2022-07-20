@@ -6654,5 +6654,23 @@ Drop View v4;
 Drop table t1;
 
 --echo #
+--echo # MDEV-26456: SIGSEGV in flush_tables_with_read_lock on FLUSH TABLE
+--echo #
+
+CREATE FUNCTION f() RETURNS INT RETURN (SELECT 1 FROM t);
+CREATE VIEW v AS SELECT f();
+--error ER_VIEW_INVALID
+SELECT * FROM v;
+FLUSH TABLE v WITH READ LOCK;
+UNLOCK TABLES;
+FLUSH TABLES v FOR EXPORT;
+UNLOCK TABLES;
+--error ER_VIEW_INVALID
+SELECT * FROM v;
+
+DROP VIEW v;
+DROP FUNCTION f;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

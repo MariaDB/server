@@ -601,6 +601,7 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
       if (table_list->is_view_or_derived())
         continue;
       if (thd->lex->type & REFRESH_FOR_EXPORT &&
+          table_list->table &&
           !(table_list->table->file->ha_table_flags() & HA_CAN_EXPORT))
       {
         my_error(ER_ILLEGAL_HA, MYF(0),table_list->table->file->table_type(),
@@ -608,6 +609,7 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
         goto error_reset_bits;
       }
       if (thd->lex->type & REFRESH_READ_LOCK &&
+          table_list->table &&
           table_list->table->file->extra(HA_EXTRA_FLUSH))
         goto error_reset_bits;
     }

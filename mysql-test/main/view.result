@@ -6920,5 +6920,20 @@ Drop View v3;
 Drop View v4;
 Drop table t1;
 #
+# MDEV-26456: SIGSEGV in flush_tables_with_read_lock on FLUSH TABLE
+#
+CREATE FUNCTION f() RETURNS INT RETURN (SELECT 1 FROM t);
+CREATE VIEW v AS SELECT f();
+SELECT * FROM v;
+ERROR HY000: View 'test.v' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+FLUSH TABLE v WITH READ LOCK;
+UNLOCK TABLES;
+FLUSH TABLES v FOR EXPORT;
+UNLOCK TABLES;
+SELECT * FROM v;
+ERROR HY000: View 'test.v' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+DROP VIEW v;
+DROP FUNCTION f;
+#
 # End of 10.6 tests
 #
