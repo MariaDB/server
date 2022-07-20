@@ -2313,6 +2313,8 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
     if (column_definition.is_timestamp_type() ||    // TIMESTAMP
         column_definition.unireg_check == Field::TIMESTAMP_OLD_FIELD) // Legacy
     {
+      if (!column_definition.explicitly_nullable)
+        column_definition.flags|= NOT_NULL_FLAG;
       DBUG_PRINT("info", ("field-ptr:%p", column_definition.field));
       if (first &&
           (column_definition.flags & NOT_NULL_FLAG) != 0 && // NOT NULL,

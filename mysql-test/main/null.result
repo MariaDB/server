@@ -1905,12 +1905,48 @@ create table t1 (a int default null auto_increment, index(a));
 ERROR 42000: Invalid default value for 'a'
 create table t1 (a int default null, primary key(a));
 ERROR 42000: Invalid default value for 'a'
+set explicit_defaults_for_timestamp=1;
+create table t1 (a timestamp default null);
+drop table t1;
+set explicit_defaults_for_timestamp=0;
+create table t1 (a timestamp default null);
+ERROR 42000: Invalid default value for 'a'
 prepare stmt from 'create or replace table t1 (a int not null default null)';
 execute stmt;
 ERROR 42000: Invalid default value for 'a'
 prepare stmt from 'create or replace table t1 (a int default null, primary key (a))';
 execute stmt;
 ERROR 42000: Invalid default value for 'a'
+set explicit_defaults_for_timestamp=0;
+prepare stmt from 'create or replace table t1 (a timestamp default null)';
+set explicit_defaults_for_timestamp=1;
+prepare stmt from 'create or replace table t1 (a timestamp default null)';
+execute stmt;
+set explicit_defaults_for_timestamp=0;
+execute stmt;
+ERROR 42000: Invalid default value for 'a'
+prepare stmt from 'create or replace table t1 (a timestamp)';
+execute stmt;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set explicit_defaults_for_timestamp=1;
+execute stmt;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set explicit_defaults_for_timestamp=0;
+execute stmt;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
 #
 # End of 10.10 tests
 #

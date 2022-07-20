@@ -110,3 +110,23 @@ SELECT * FROM t1;
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 SET timestamp=DEFAULT;
+
+--echo #
+--echo # MDEV-29075 Changing explicit_defaults_for_timestamp within stored procedure works inconsistently
+--echo #
+set statement explicit_defaults_for_timestamp=1-@@explicit_defaults_for_timestamp for create table t1 (ts timestamp);
+show create table t1;
+drop table t1;
+
+--delimiter $
+create procedure pr()
+begin
+  set explicit_defaults_for_timestamp= 1-@@explicit_defaults_for_timestamp;
+  create table t1 (ts timestamp);
+end $
+--delimiter ;
+
+call pr();
+show create table t1;
+drop procedure pr;
+drop table t1;

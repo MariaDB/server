@@ -1188,6 +1188,13 @@ create table t1 (a int default null auto_increment, index(a));
 --error ER_INVALID_DEFAULT
 create table t1 (a int default null, primary key(a));
 
+set explicit_defaults_for_timestamp=1;
+create table t1 (a timestamp default null);
+drop table t1;
+set explicit_defaults_for_timestamp=0;
+--error ER_INVALID_DEFAULT
+create table t1 (a timestamp default null);
+
 # also in prepared statements:
 prepare stmt from 'create or replace table t1 (a int not null default null)';
 --error ER_INVALID_DEFAULT
@@ -1195,6 +1202,25 @@ execute stmt;
 prepare stmt from 'create or replace table t1 (a int default null, primary key (a))';
 --error ER_INVALID_DEFAULT
 execute stmt;
+
+set explicit_defaults_for_timestamp=0;
+prepare stmt from 'create or replace table t1 (a timestamp default null)';
+set explicit_defaults_for_timestamp=1;
+prepare stmt from 'create or replace table t1 (a timestamp default null)';
+execute stmt;
+set explicit_defaults_for_timestamp=0;
+--error ER_INVALID_DEFAULT
+execute stmt;
+prepare stmt from 'create or replace table t1 (a timestamp)';
+execute stmt;
+show create table t1;
+set explicit_defaults_for_timestamp=1;
+execute stmt;
+show create table t1;
+set explicit_defaults_for_timestamp=0;
+execute stmt;
+show create table t1;
+drop table t1;
 
 --echo #
 --echo # End of 10.10 tests
