@@ -2720,7 +2720,7 @@ dict_index_build_internal_fts(
 {
 	dict_index_t*	new_index;
 
-	ut_ad(index->type == DICT_FTS);
+	ut_ad(index->type & DICT_FTS);
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	/* Create a new index */

@@ -770,4 +770,24 @@ SELECT * FROM t1 WHERE MATCH (f1) AGAINST ("+Doh'nuts" IN BOOLEAN MODE);
 SELECT * FROM t1 WHERE MATCH (f1) AGAINST ("+Ö''Brien" IN BOOLEAN MODE);
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-29058  Assertion `index->type == 32' failed
+--echo #	in dict_index_build_internal_fts
+--echo #
+call mtr.add_suppression("InnoDB: Index `f` of table `test`.`t2` is corrupted");
+call mtr.add_suppression("InnoDB: Skip adjustment of root pages for index `f`.");
+let $MYSQLD_DATADIR = `SELECT @@datadir`;
+CREATE TABLE t1 (f CHAR(8), FULLTEXT KEY (f)) ENGINE=InnoDB;
+CREATE TABLE t2 LIKE t1;
+ALTER TABLE t2 DISCARD TABLESPACE;
+--disable_warnings
+FLUSH TABLES t1 FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+UNLOCK TABLES;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t2 IMPORT TABLESPACE;
+--enable_warnings
+DROP TABLE t2, t1;
+
 --echo # End of 10.3 tests

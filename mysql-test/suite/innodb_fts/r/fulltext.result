@@ -760,4 +760,18 @@ Brien
 O 'Brien
 O' Brien
 DROP TABLE t1;
+#
+# MDEV-29058  Assertion `index->type == 32' failed
+#	in dict_index_build_internal_fts
+#
+call mtr.add_suppression("InnoDB: Index `f` of table `test`.`t2` is corrupted");
+call mtr.add_suppression("InnoDB: Skip adjustment of root pages for index `f`.");
+CREATE TABLE t1 (f CHAR(8), FULLTEXT KEY (f)) ENGINE=InnoDB;
+CREATE TABLE t2 LIKE t1;
+ALTER TABLE t2 DISCARD TABLESPACE;
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t2 IMPORT TABLESPACE;
+DROP TABLE t2, t1;
 # End of 10.3 tests
