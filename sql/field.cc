@@ -10824,6 +10824,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   comment=    old_field->comment;
   vcol_info=  old_field->vcol_info;
   option_list= old_field->option_list;
+  explicitly_nullable= !(old_field->flags & NOT_NULL_FLAG);
   compression_method_ptr= 0;
   versioning= VERSIONING_NOT_SET;
   invisible= old_field->invisible;

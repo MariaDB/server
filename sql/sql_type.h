@@ -6655,11 +6655,6 @@ public:
   bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*,
                                   MYSQL_TIME *, date_mode_t fuzzydate)
                                   const override;
-  bool Column_definition_set_attributes(THD *thd,
-                                        Column_definition *def,
-                                        const Lex_field_type_st &attr,
-                                        column_definition_type_t type)
-                                        const override;
 };
 
 
