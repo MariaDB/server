@@ -43,12 +43,15 @@ Created 4/20/1996 Heikki Tuuri
 #include "buf0lru.h"
 #include "fts0fts.h"
 #include "fts0types.h"
+#include "ha_innodb.h"
 #ifdef BTR_CUR_HASH_ADAPT
 # include "btr0sea.h"
 #endif
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
 #endif /* WITH_WSREP */
+
+#include "scope.h"
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -978,6 +981,107 @@ dberr_t wsrep_append_foreign_key(trx_t *trx,
 			       Wsrep_service_key_type	key_type);
 #endif /* WITH_WSREP */
 
+
+int sql_log_cascade_update(TABLE *table);
+int sql_log_cascade_delete(TABLE *table);
+
+static bool row_ins_store_row_in_mysql(dtuple_t *row,
+                                       row_prebuilt_t *prebuilt,
+                                       uchar *mysql_rec)
+{
+  mysql_row_templ_t *templ= prebuilt->mysql_template;
+  for (uint i = 0; i < prebuilt->n_template; i++)
+  {
+    const dfield_t* df= dtuple_get_nth_field(row, i);
+    byte null_mask= static_cast<byte>(templ->mysql_null_bit_mask);
+
+    if (dfield_is_null(df))
+    {
+      mysql_rec[templ->mysql_null_byte_offset]|= null_mask;
+    }
+    else
+    {
+      if (templ->mysql_null_bit_mask)
+        mysql_rec[templ->mysql_null_byte_offset]&= (uchar)~null_mask;
+
+      byte *data= static_cast<byte*>(df->data);
+      ulint len= df->len;
+
+      if (dfield_is_ext(df))
+      {
+        data= btr_copy_externally_stored_field(&len, data,
+                                            prebuilt->table->space->zip_size(),
+                                            len, prebuilt->blob_heap);
+        if (UNIV_UNLIKELY(data == NULL))
+          return false;
+      }
+
+      row_sel_field_store_in_mysql_format(mysql_rec + templ->mysql_col_offset,
+                                          templ, prebuilt->index,
+                                          templ->clust_rec_field_no,
+                                          data, len);
+    }
+
+    templ++;
+  }
+  return true;
+}
+
+static dberr_t report_row_update(upd_node_t *cascade,
+                                 dict_index_t* clust_index)
+{
+  row_prebuilt_t *prebuilt= cascade->prebuilt;
+  prebuilt->index= clust_index;
+  TABLE *maria_table= prebuilt->m_mysql_table;
+
+  ulint n_ext= dtuple_get_n_ext(cascade->row)
+               + (cascade->is_delete ? 0 : dtuple_get_n_ext(cascade->upd_row));
+
+  auto _= make_scope_exit([cascade, prebuilt, n_ext](){
+
+    cascade->row= NULL;
+    cascade->ext= NULL;
+    cascade->upd_row= NULL;
+    cascade->upd_ext= NULL;
+    mem_heap_empty(cascade->heap);
+    if (n_ext && prebuilt->blob_heap)
+    {
+      mem_heap_free(prebuilt->blob_heap);
+      prebuilt->blob_heap= NULL;
+    }
+  });
+
+  if (n_ext)
+  {
+    if (UNIV_UNLIKELY(prebuilt->blob_heap != NULL))
+      mem_heap_empty(prebuilt->blob_heap);
+    prebuilt->blob_heap= mem_heap_create(srv_page_size);
+
+    if (UNIV_UNLIKELY(prebuilt->blob_heap == NULL))
+      return DB_OUT_OF_MEMORY;
+  }
+
+  if (UNIV_UNLIKELY(!row_ins_store_row_in_mysql(cascade->row, prebuilt,
+                                                maria_table->record[0])))
+    return DB_OUT_OF_MEMORY;
+
+  if (cascade->is_delete)
+  {
+    if (UNIV_UNLIKELY(sql_log_cascade_delete(maria_table)))
+      return DB_ERROR;
+  }
+  else
+  {
+    if (UNIV_UNLIKELY(!row_ins_store_row_in_mysql(cascade->upd_row, prebuilt,
+                                                  maria_table->record[1])))
+      return DB_OUT_OF_MEMORY;
+    if (UNIV_UNLIKELY(sql_log_cascade_update(maria_table)))
+      return DB_ERROR;
+  }
+
+  return DB_SUCCESS;
+}
+
 /*********************************************************************//**
 Perform referential actions or checks when a parent row is deleted or updated
 and the constraint had an ON DELETE or ON UPDATE condition which was not
@@ -1351,6 +1455,10 @@ row_ins_foreign_check_on_constraint(
 
 	err = row_update_cascade_for_mysql(thr, cascade,
 					   foreign->foreign_table);
+
+	if (UNIV_UNLIKELY(prebuilt->m_mysql_table->is_online_alter())
+	    && UNIV_LIKELY(!err))
+		err = report_row_update(cascade, clust_index);
 
 	mtr_start(mtr);
 

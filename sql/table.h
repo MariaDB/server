@@ -1567,6 +1567,15 @@ public:
 
   online_alter_cache_data *online_alter_cache;
 
+  bool is_online_alter() const
+  {
+#ifdef HAVE_REPLICATION
+    return s->online_alter_binlog != NULL;
+#else
+    return false;
+#endif
+  }
+
   inline void reset() { bzero((void*)this, sizeof(*this)); }
   void init(THD *thd, TABLE_LIST *tl);
   bool fill_item_list(List<Item> *item_list) const;

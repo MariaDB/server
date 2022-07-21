@@ -7809,6 +7809,9 @@ btr_copy_externally_stored_field(
 
 	buf = (byte*) mem_heap_alloc(heap, local_len + extern_len);
 
+	if (UNIV_UNLIKELY(buf == NULL))
+		return NULL;
+
 	memcpy(buf, data, local_len);
 	*len = local_len
 		+ btr_copy_externally_stored_field_prefix_low(buf + local_len,

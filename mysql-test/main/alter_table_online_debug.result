@@ -1072,5 +1072,331 @@ xa rollback 'xid';
 drop table t;
 set debug_sync= reset;
 #
+# MDEV-29068 Cascade foreign key updates do not apply in online alter
+#
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+create table t2 (b int, foreign key (b) references t1 (a) on delete cascade on update cascade)
+engine=innodb;
+insert into t2 values (1),(2),(3);
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t2 add c int default(b), algorithm=copy, lock=none;
+connection default;
+update t1 set a = 22 where a = 2;
+set debug_sync= 'now signal goforit';
+connection con2;
+select * from t2;
+b	c
+1	1
+22	22
+3	3
+connection default;
+drop table t2, t1;
+set debug_sync= reset;
+#
+# Big BLOB
+#
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+create table t2 (a int, b text,
+foreign key (a) references t1 (a) on delete cascade on update cascade)
+engine=innodb ROW_FORMAT=COMPRESSED;
+insert into t2 values (1, NULL),(2, REPEAT('a', 65535)),(3, 'xyz');
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t2 add c int default(a), algorithm=copy, lock=none;
+connection default;
+update t1 set a = 22 where a = 2;
+delete from t1 where a = 3;
+set debug_sync= 'now signal goforit';
+connection con2;
+select a, if(b = REPEAT('a', 65535), 1, b) from t2;
+a	if(b = REPEAT('a', 65535), 1, b)
+1	NULL
+22	1
+connection default;
+drop table t2, t1;
+set debug_sync= reset;
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+create table t2 (a int, b text,
+foreign key (a) references t1 (a) on delete cascade on update cascade)
+engine=innodb ROW_FORMAT=DYNAMIC;
+insert into t2 values (1, NULL),(2, REPEAT('a', 65535)),(3, 'xyz');
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t2 add c int default(a), algorithm=copy, lock=none;
+connection default;
+update t1 set a = 22 where a = 2;
+delete from t1 where a = 3;
+set debug_sync= 'now signal goforit';
+connection con2;
+select a, if(b = REPEAT('a', 65535), 1, b) from t2;
+a	if(b = REPEAT('a', 65535), 1, b)
+1	NULL
+22	1
+connection default;
+drop table t2, t1;
+set debug_sync= reset;
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+create table t2 (a int, b text,
+foreign key (a) references t1 (a) on delete cascade on update cascade)
+engine=innodb ROW_FORMAT=COMPACT;
+insert into t2 values (1, NULL),(2, REPEAT('a', 65535)),(3, 'xyz');
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t2 add c int default(a), algorithm=copy, lock=none;
+connection default;
+update t1 set a = 22 where a = 2;
+delete from t1 where a = 3;
+set debug_sync= 'now signal goforit';
+connection con2;
+select a, if(b = REPEAT('a', 65535), 1, b) from t2;
+a	if(b = REPEAT('a', 65535), 1, b)
+1	NULL
+22	1
+connection default;
+drop table t2, t1;
+set debug_sync= reset;
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+create table t2 (a int, b text,
+foreign key (a) references t1 (a) on delete cascade on update cascade)
+engine=innodb ROW_FORMAT=REDUNDANT;
+insert into t2 values (1, NULL),(2, REPEAT('a', 65535)),(3, 'xyz');
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t2 add c int default(a), algorithm=copy, lock=none;
+connection default;
+update t1 set a = 22 where a = 2;
+delete from t1 where a = 3;
+set debug_sync= 'now signal goforit';
+connection con2;
+select a, if(b = REPEAT('a', 65535), 1, b) from t2;
+a	if(b = REPEAT('a', 65535), 1, b)
+1	NULL
+22	1
+connection default;
+drop table t2, t1;
+set debug_sync= reset;
+#
+# VCOLs
+#
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+create table t2 (a int, b text as (REPEAT('a', 65535)), key(b(20)),
+foreign key (a) references t1 (a) on delete cascade on update cascade)
+engine=innodb;
+insert into t2(a) values (1),(2),(3);
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t2 add c int default(a), algorithm=copy, lock=none;
+connection default;
+update t1 set a = 22 where a = 2;
+set debug_sync= 'now signal goforit';
+connection con2;
+select a, if(length(b) > 1, b = REPEAT('a', 65535), b) from t2;
+a	if(length(b) > 1, b = REPEAT('a', 65535), b)
+1	1
+22	1
+3	1
+connection default;
+drop table t2, t1;
+set debug_sync= reset;
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+create table t2 (a int, b text, c text as (b),
+foreign key (a) references t1 (a) on delete cascade on update cascade)
+engine=innodb;
+insert into t2(a, b) values (1, NULL),(2, REPEAT('a', 65535)),(3, 'x');
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t2 add d char DEFAULT(SUBSTR(b, 1, 1)), algorithm=copy, lock=none;
+connection default;
+update t1 set a = 22 where a = 2;
+delete from t1 where a = 3;
+set debug_sync= 'now signal goforit';
+connection con2;
+select a, if(length(b) > 1, b = REPEAT('a', 65535), b), c = b, d from t2;
+a	if(length(b) > 1, b = REPEAT('a', 65535), b)	c = b	d
+1	NULL	NULL	NULL
+22	1	1	a
+connection default;
+drop table t2, t1;
+set debug_sync= reset;
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+create table t2 (b int, foreign key (b) references t1 (a) on delete set null on update set null)
+engine=innodb;
+insert into t2 values (1),(2),(3);
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t2 add c int default(b), algorithm=copy, lock=none;
+connection default;
+update t1 set a = 22 where a = 2;
+set debug_sync= 'now signal goforit';
+connection con2;
+select * from t2;
+b	c
+1	1
+NULL	NULL
+3	3
+connection default;
+drop table t2, t1;
+set debug_sync= reset;
+#
+# Big BLOB
+#
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+create table t2 (a int, b text,
+foreign key (a) references t1 (a) on delete set null on update set null)
+engine=innodb ROW_FORMAT=COMPRESSED;
+insert into t2 values (1, NULL),(2, REPEAT('a', 65535)),(3, 'xyz');
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t2 add c int default(a), algorithm=copy, lock=none;
+connection default;
+update t1 set a = 22 where a = 2;
+delete from t1 where a = 3;
+set debug_sync= 'now signal goforit';
+connection con2;
+select a, if(b = REPEAT('a', 65535), 1, b) from t2;
+a	if(b = REPEAT('a', 65535), 1, b)
+1	NULL
+NULL	1
+NULL	xyz
+connection default;
+drop table t2, t1;
+set debug_sync= reset;
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+create table t2 (a int, b text,
+foreign key (a) references t1 (a) on delete set null on update set null)
+engine=innodb ROW_FORMAT=DYNAMIC;
+insert into t2 values (1, NULL),(2, REPEAT('a', 65535)),(3, 'xyz');
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t2 add c int default(a), algorithm=copy, lock=none;
+connection default;
+update t1 set a = 22 where a = 2;
+delete from t1 where a = 3;
+set debug_sync= 'now signal goforit';
+connection con2;
+select a, if(b = REPEAT('a', 65535), 1, b) from t2;
+a	if(b = REPEAT('a', 65535), 1, b)
+1	NULL
+NULL	1
+NULL	xyz
+connection default;
+drop table t2, t1;
+set debug_sync= reset;
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+create table t2 (a int, b text,
+foreign key (a) references t1 (a) on delete set null on update set null)
+engine=innodb ROW_FORMAT=COMPACT;
+insert into t2 values (1, NULL),(2, REPEAT('a', 65535)),(3, 'xyz');
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t2 add c int default(a), algorithm=copy, lock=none;
+connection default;
+update t1 set a = 22 where a = 2;
+delete from t1 where a = 3;
+set debug_sync= 'now signal goforit';
+connection con2;
+select a, if(b = REPEAT('a', 65535), 1, b) from t2;
+a	if(b = REPEAT('a', 65535), 1, b)
+1	NULL
+NULL	1
+NULL	xyz
+connection default;
+drop table t2, t1;
+set debug_sync= reset;
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+create table t2 (a int, b text,
+foreign key (a) references t1 (a) on delete set null on update set null)
+engine=innodb ROW_FORMAT=REDUNDANT;
+insert into t2 values (1, NULL),(2, REPEAT('a', 65535)),(3, 'xyz');
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t2 add c int default(a), algorithm=copy, lock=none;
+connection default;
+update t1 set a = 22 where a = 2;
+delete from t1 where a = 3;
+set debug_sync= 'now signal goforit';
+connection con2;
+select a, if(b = REPEAT('a', 65535), 1, b) from t2;
+a	if(b = REPEAT('a', 65535), 1, b)
+1	NULL
+NULL	1
+NULL	xyz
+connection default;
+drop table t2, t1;
+set debug_sync= reset;
+#
+# VCOLs
+#
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+create table t2 (a int, b text as (REPEAT('a', 65535)), key(b(20)),
+foreign key (a) references t1 (a) on delete set null on update set null)
+engine=innodb;
+insert into t2(a) values (1),(2),(3);
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t2 add c int default(a), algorithm=copy, lock=none;
+connection default;
+update t1 set a = 22 where a = 2;
+set debug_sync= 'now signal goforit';
+connection con2;
+select a, if(length(b) > 1, b = REPEAT('a', 65535), b) from t2;
+a	if(length(b) > 1, b = REPEAT('a', 65535), b)
+1	1
+NULL	1
+3	1
+connection default;
+drop table t2, t1;
+set debug_sync= reset;
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+create table t2 (a int, b text, c text as (b),
+foreign key (a) references t1 (a) on delete set null on update set null)
+engine=innodb;
+insert into t2(a, b) values (1, NULL),(2, REPEAT('a', 65535)),(3, 'x');
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t2 add d char DEFAULT(SUBSTR(b, 1, 1)), algorithm=copy, lock=none;
+connection default;
+update t1 set a = 22 where a = 2;
+delete from t1 where a = 3;
+set debug_sync= 'now signal goforit';
+connection con2;
+select a, if(length(b) > 1, b = REPEAT('a', 65535), b), c = b, d from t2;
+a	if(length(b) > 1, b = REPEAT('a', 65535), b)	c = b	d
+1	NULL	NULL	NULL
+NULL	1	1	a
+NULL	x	1	x
+connection default;
+drop table t2, t1;
+set debug_sync= reset;
+#
 # End of 10.10 tests
 #

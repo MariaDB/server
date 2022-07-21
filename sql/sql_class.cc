@@ -2234,10 +2234,10 @@ void THD::cleanup_after_query()
   thd_progress_end(this);
 
   /*
-    Reset rand_used so that detection of calls to rand() will save random 
+    Reset rand_used so that detection of calls to rand() will save random
     seeds if needed by the slave.
 
-    Do not reset rand_used if inside a stored function or trigger because 
+    Do not reset rand_used if inside a stored function or trigger because
     only the call to these operations is logged. Thus only the calling 
     statement needs to detect rand() calls made by its substatements. These
     substatements must not set rand_used to 0 because it would remove the
@@ -8166,4 +8166,33 @@ THD::charset_collation_context_alter_table(const TABLE_SHARE *s)
 {
   return Charset_collation_context(get_default_db_collation(this, s->db.str),
                                    s->table_charset);
+}
+
+
+int sql_log_cascade_update(TABLE *table)
+{
+#ifdef HAVE_REPLICATION
+  DBUG_ASSERT(table->s->online_alter_binlog);
+  Log_func *log_func= Update_rows_log_event::binlog_row_logging_function;
+  bitmap_set_all(&table->def_read_set);
+  return binlog_log_row_online_alter(table, table->record[0], table->record[1],
+                                     log_func);
+#else
+  DBUG_ASSERT(0);
+  return 1; // Will report corruption in innodb
+#endif
+}
+
+
+int sql_log_cascade_delete(TABLE *table)
+{
+#ifdef HAVE_REPLICATION
+  DBUG_ASSERT(table->s->online_alter_binlog);
+  Log_func *log_func= Delete_rows_log_event::binlog_row_logging_function;
+  bitmap_set_all(&table->def_read_set);
+  return binlog_log_row_online_alter(table, table->record[0], NULL, log_func);
+#else
+  DBUG_ASSERT(0);
+  return 1; // Will report corruption in innodb
+#endif
 }
