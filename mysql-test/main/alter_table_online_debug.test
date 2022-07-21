@@ -1251,6 +1251,172 @@ xa rollback 'xid';
 drop table t;
 set debug_sync= reset;
 
+
+--echo #
+--echo # MDEV-29068 Cascade foreign key updates do not apply in online alter
+--echo #
+
+--let $cascade_rule= on delete cascade on update cascade
+
+--let $i=2
+
+--while ($i) {
+
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+eval create table t2 (b int, foreign key (b) references t1 (a) $cascade_rule)
+     engine=innodb;
+insert into t2 values (1),(2),(3);
+--send
+set debug_sync= 'now wait_for downgraded';
+
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t2 add c int default(b), algorithm=copy, lock=none;
+
+--connection default
+--reap
+update t1 set a = 22 where a = 2;
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--reap
+select * from t2;
+
+# Cleanup
+--connection default
+drop table t2, t1;
+set debug_sync= reset;
+
+--echo #
+--echo # Big BLOB
+--echo #
+--let $j = 4
+--while($j){
+--let $jj=$j
+--dec $jj
+--if (!$jj){
+--let $row_format=REDUNDANT
+--}
+--dec $jj
+--if (!$jj){
+--let $row_format=COMPACT
+--}
+--dec $jj
+--if (!$jj){
+--let $row_format=DYNAMIC
+--}
+--dec $jj
+--if (!$jj){
+--let $row_format=COMPRESSED
+--}
+
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+eval create table t2 (a int, b text,
+                      foreign key (a) references t1 (a) $cascade_rule)
+                      engine=innodb ROW_FORMAT=$row_format;
+insert into t2 values (1, NULL),(2, REPEAT('a', 65535)),(3, 'xyz');
+--send
+set debug_sync= 'now wait_for downgraded';
+
+--connection con2
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t2 add c int default(a), algorithm=copy, lock=none;
+
+--connection default
+--reap
+update t1 set a = 22 where a = 2;
+delete from t1 where a = 3;
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--reap
+select a, if(b = REPEAT('a', 65535), 1, b) from t2;
+
+# Cleanup
+--connection default
+drop table t2, t1;
+set debug_sync= reset;
+
+--dec $j
+# End while($j)
+--}
+
+
+--echo #
+--echo # VCOLs
+--echo #
+
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+eval create table t2 (a int, b text as (REPEAT('a', 65535)), key(b(20)),
+                      foreign key (a) references t1 (a) $cascade_rule)
+                      engine=innodb;
+insert into t2(a) values (1),(2),(3);
+--send
+set debug_sync= 'now wait_for downgraded';
+
+--connection con2
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t2 add c int default(a), algorithm=copy, lock=none;
+
+--connection default
+--reap
+update t1 set a = 22 where a = 2;
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--reap
+select a, if(length(b) > 1, b = REPEAT('a', 65535), b) from t2;
+
+# Cleanup
+--connection default
+drop table t2, t1;
+set debug_sync= reset;
+
+
+create table t1 (a int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+eval create table t2 (a int, b text, c text as (b),
+                      foreign key (a) references t1 (a) $cascade_rule)
+                      engine=innodb;
+insert into t2(a, b) values (1, NULL),(2, REPEAT('a', 65535)),(3, 'x');
+--send
+set debug_sync= 'now wait_for downgraded';
+
+--connection con2
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t2 add d char DEFAULT(SUBSTR(b, 1, 1)), algorithm=copy, lock=none;
+
+--connection default
+--reap
+update t1 set a = 22 where a = 2;
+delete from t1 where a = 3;
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--reap
+select a, if(length(b) > 1, b = REPEAT('a', 65535), b), c = b, d from t2;
+
+# Cleanup
+--connection default
+drop table t2, t1;
+set debug_sync= reset;
+
+--let $cascade_rule= on delete set null on update set null
+--dec $i
+# End while ($i)
+--}
+
+
 --echo #
 --echo # End of 10.10 tests
 --echo #

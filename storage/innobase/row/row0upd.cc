@@ -2854,9 +2854,14 @@ row_upd(
 
 	ut_ad(err == DB_SUCCESS);
 
-	/* Do some cleanup */
+	/* Do some cleanup.
+	If it is a cascade update/delete during ONLINE ALTER TABLE,
+	this row data will be used later for reporting row changes to sql.
+	See report_row_update(). */
 
-	if (node->row != NULL) {
+	if (node->row != NULL
+	    && !(node->foreign
+		 && node->prebuilt->m_mysql_table->is_online_alter())) {
 		node->row = NULL;
 		node->ext = NULL;
 		node->upd_row = NULL;

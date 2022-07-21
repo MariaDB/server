@@ -8180,3 +8180,32 @@ void Charset_loader_server::raise_not_applicable_error(const char *cs,
 {
   my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0), cl, cs);
 }
+
+
+int sql_log_cascade_update(TABLE *table)
+{
+#ifdef HAVE_REPLICATION
+  DBUG_ASSERT(table->s->online_alter_binlog);
+  Log_func *log_func= Update_rows_log_event::binlog_row_logging_function;
+  bitmap_set_all(&table->def_read_set);
+  return binlog_log_row_online_alter(table, table->record[0], table->record[1],
+                                     log_func);
+#else
+  DBUG_ASSERT(0);
+  return 1; // Will report corruption in innodb
+#endif
+}
+
+
+int sql_log_cascade_delete(TABLE *table)
+{
+#ifdef HAVE_REPLICATION
+  DBUG_ASSERT(table->s->online_alter_binlog);
+  Log_func *log_func= Delete_rows_log_event::binlog_row_logging_function;
+  bitmap_set_all(&table->def_read_set);
+  return binlog_log_row_online_alter(table, table->record[0], NULL, log_func);
+#else
+  DBUG_ASSERT(0);
+  return 1; // Will report corruption in innodb
+#endif
+}
