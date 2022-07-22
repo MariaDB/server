@@ -1672,8 +1672,31 @@ group_by_handler *spider_create_group_by_handler(
   } while ((from = from->next_local));
 #endif
 
-  table_idx = 0;
   from = query->from;
+  if ((from && from->next_local && !from->next_local->next_local) &&
+      (from->table->const_table || from->next_local->table->const_table))
+  {
+    /*
+      Spider's GROUP BY handler does not support this case yet. However, this
+      wouldn't be a big problem.
+
+      Only two table is involved in the query->from table list and one of them
+      is const table. Then, Spider only need to scan a single table.
+    */
+    DBUG_RETURN(nullptr);
+  }
+
+  if (!from->embedding &&
+      (from->outer_join || from->on_expr || from->join_using_fields))
+  {
+    /*
+      Spider's GROUP BY handler does not support this case yet too.
+    */
+    DBUG_RETURN(nullptr);
+  }
+
+  table_idx= 0;
+  from= query->from;
   while (from && from->table->const_table)
   {
     from = from->next_local;

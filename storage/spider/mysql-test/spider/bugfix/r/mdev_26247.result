@@ -1,0 +1,55 @@
+#
+# MDEV-26247 Spider: Valid LEFT JOIN results in ERROR 1064
+#
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+CREATE TABLE tbl_a (
+a int,
+primary key (a)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+CREATE TABLE tbl_b (
+c int,
+d int,
+primary key (c, d)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+INSERT INTO tbl_a VALUES (1), (2), (3);
+INSERT INTO tbl_b VALUES (1, 11), (2, 22), (3, 33);
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+CREATE TABLE tbl_a (
+a int,
+primary key (a)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='srv "s_2_1", table "tbl_a"';
+CREATE TABLE tbl_b (
+c int,
+d int,
+primary key (c, d)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='srv "s_2_1", table "tbl_b"';
+SELECT d FROM tbl_a LEFT JOIN tbl_b ON a = c WHERE a IN (1);
+d
+11
+SELECT d FROM tbl_b RIGHT JOIN tbl_a ON c = a WHERE a IN (1);
+d
+11
+SELECT d FROM tbl_b RIGHT JOIN tbl_a ON c = a WHERE a IN (1,2);
+d
+11
+22
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
