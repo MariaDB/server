@@ -406,6 +406,7 @@ public:
   {
     return get_item_copy<Item_func_random_bytes>(thd, this);
   }
+  static const int MAX_RANDOM_BYTES= 1024;
 };
 
 

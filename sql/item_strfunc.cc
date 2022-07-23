@@ -1478,14 +1478,13 @@ String *Item_func_sformat::val_str(String *res)
 #include <openssl/rand.h>
 #include <openssl/err.h>
 
-static const int MAX_RANDOM_BYTES= 1024;
-
 bool Item_func_random_bytes::fix_length_and_dec(THD *thd)
 {
   used_tables_cache|= RAND_TABLE_BIT;
   if (args[0]->can_eval_in_optimize())
   {
-    max_length= MY_MAX(0, MY_MIN((int32) args[0]->val_int(), MAX_RANDOM_BYTES));
+    int32 v= (int32) args[0]->val_int();
+    max_length= MY_MAX(0, MY_MIN(v, MAX_RANDOM_BYTES));
     return false;
   }
   max_length= MAX_RANDOM_BYTES;

@@ -2260,5 +2260,12 @@ SELECT RANDOM_BYTES(-10) f1, IFNULL(a,1) f2 FROM t GROUP BY f1, f2;
 DROP TABLE t;
 
 --echo #
+--echo # MDEV-29154: Excessive warnings upon a call to RANDOM_BYTES
+--echo #
+
+select length(random_bytes(cast('x' as unsigned)+1));
+select repeat('.', cast('x' as unsigned)+1);
+
+--echo #
 --echo # End of 10.10 tests
 --echo #

@@ -5327,5 +5327,20 @@ SELECT RANDOM_BYTES(-10) f1, IFNULL(a,1) f2 FROM t GROUP BY f1, f2;
 ERROR 22003: length value is out of range in 'random_bytes(-10)'
 DROP TABLE t;
 #
+# MDEV-29154: Excessive warnings upon a call to RANDOM_BYTES
+#
+select length(random_bytes(cast('x' as unsigned)+1));
+length(random_bytes(cast('x' as unsigned)+1))
+1
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'x'
+Warning	1292	Truncated incorrect INTEGER value: 'x'
+select repeat('.', cast('x' as unsigned)+1);
+repeat('.', cast('x' as unsigned)+1)
+.
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'x'
+Warning	1292	Truncated incorrect INTEGER value: 'x'
+#
 # End of 10.10 tests
 #
