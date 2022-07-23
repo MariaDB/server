@@ -1477,7 +1477,7 @@ void CONNECT::close_with_error(uint sql_errno,
   if (thd)
   {
     if (sql_errno)
-      net_send_error(thd, sql_errno, message, NULL);
+      thd->protocol->net_send_error(thd, sql_errno, message, NULL);
     close_connection(thd, close_error);
     delete thd;
     set_current_thd(0);

@@ -1064,11 +1064,6 @@ unsigned int STDCALL mysql_field_count(MYSQL *mysql)
   return mysql->field_count;
 }
 
-my_ulonglong STDCALL mysql_affected_rows(MYSQL *mysql)
-{
-  return mysql->affected_rows;
-}
-
 my_ulonglong STDCALL mysql_insert_id(MYSQL *mysql)
 {
   return mysql->insert_id;
