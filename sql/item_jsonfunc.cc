@@ -20,7 +20,6 @@
 #include "item.h"
 #include "sql_parse.h" // For check_stack_overrun
 
-
 /*
   Compare ASCII string against the string with the specified
   character set.
@@ -136,9 +135,11 @@ int json_path_parts_compare(
 {
   int res, res2;
 
+  long arbitrary_var;
+  long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {alloca(my_thread_stack_size-(STACK_MIN_SIZE));});
-  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, NULL))
+                  {alloca(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return 1;
   while (a <= a_end)
   {
@@ -1135,6 +1136,12 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
 {
   json_engine_t loc_js;
   bool set_js;
+  long arbitrary_var;
+  long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+  DBUG_EXECUTE_IF("json_check_min_stack_requirement",
+                  {alloca(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return 1;
 
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
                   {alloca(my_thread_stack_size-(STACK_MIN_SIZE));});
@@ -2030,10 +2037,12 @@ err_return:
 static int do_merge(String *str, json_engine_t *je1, json_engine_t *je2)
 {
 
+  long arbitrary_var;
+  long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {alloca(my_thread_stack_size-(STACK_MIN_SIZE));});
-  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, NULL))
-   return 1;
+                  {alloca(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return 1;
 
   if (json_read_value(je1) || json_read_value(je2))
     return 1;
@@ -2367,9 +2376,11 @@ static int copy_value_patch(String *str, json_engine_t *je)
 static int do_merge_patch(String *str, json_engine_t *je1, json_engine_t *je2,
                           bool *empty_result)
 {
+  long arbitrary_var;
+  long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {alloca(my_thread_stack_size-(STACK_MIN_SIZE));});
-  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, NULL))
+                  {alloca(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return 1;
 
   if (json_read_value(je1) || json_read_value(je2))
