@@ -1,0 +1,40 @@
+#
+# MDEV-29078 For old binary logs explicit_defaults_for_timestamp presumed to be OFF, server value ignored
+#
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+connection master;
+flush binary logs;
+connection slave;
+set global explicit_defaults_for_timestamp=0;
+reset slave;
+include/start_slave.inc
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `f2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select * from t1;
+f1	f2
+2022-07-23 16:24:48	2022-07-23 16:24:48
+2022-07-23 16:25:35	0000-00-00 00:00:00
+drop table t1;
+include/stop_slave.inc
+set global explicit_defaults_for_timestamp=1;
+reset slave;
+include/start_slave.inc
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` timestamp NULL DEFAULT NULL,
+  `f2` timestamp NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select * from t1;
+f1	f2
+NULL	NULL
+NULL	NULL
+drop table t1;
+include/rpl_end.inc

@@ -1970,7 +1970,9 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
           OPTIONS_WRITTEN_TO_BIN_LOG must take their value from
           flags2.
         */
-        thd->variables.option_bits= flags2|(thd->variables.option_bits & ~OPTIONS_WRITTEN_TO_BIN_LOG);
+        ulonglong mask= ~(ulonglong)rli->relay_log.description_event_for_exec->options_written_to_bin_log;
+        DBUG_ASSERT((flags2 & mask) == 0);
+        thd->variables.option_bits= flags2|(thd->variables.option_bits & mask);
       }
       /*
         else, we are in a 3.23/4.0 binlog; we previously received a
