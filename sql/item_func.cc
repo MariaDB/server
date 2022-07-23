@@ -7321,3 +7321,47 @@ void fix_rownum_pointers(THD *thd, SELECT_LEX *select_lex, ha_rows *ptr)
       ((Item_func_rownum*) item)->store_pointer_to_row_counter(ptr);
   }
 }
+
+
+#include <mysql/plugin_function.h>
+#include <mysql/plugin_password_validation.h> 
+
+struct validate_password_strength_helper_struct
+{
+  LEX_CSTRING *password;
+  LEX_CSTRING *host;
+  int success_count;
+  int total_count;
+};
+
+static my_bool validate_foreach_function(THD *thd, plugin_ref plugin, void *level)
+{
+  auto ps= (validate_password_strength_helper_struct *) level;
+  ps->total_count++;
+  struct st_mariadb_password_validation *handler=
+      (st_mariadb_password_validation *) plugin_decl(plugin)->info;
+  auto res=
+      handler->validate_password(&current_user, ps->password, ps->host);
+  if (res == 0)
+    ps->success_count++;
+  return FALSE;
+}
+
+longlong Item_func_validate_password_strength::val_int()
+{
+  auto p= args[0]->val_str();
+  LEX_CSTRING password{p->ptr(), p->length()};
+  LEX_CSTRING host= {STRING_WITH_LEN(my_localhost)};
+
+  if (password.length < 4)
+    return 0;
+
+  validate_password_strength_helper_struct ps= {&password, &host};
+  plugin_foreach(current_thd, validate_foreach_function,
+                 MariaDB_PASSWORD_VALIDATION_PLUGIN, &ps);
+
+  if (ps.total_count == 0)
+    return 0;
+
+  return (ps.success_count * 100) / ps.total_count;
+}

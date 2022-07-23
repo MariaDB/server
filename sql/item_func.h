@@ -4208,6 +4208,36 @@ public:
 };
 
 
+class Item_func_validate_password_strength : public Item_long_func
+{
+public:
+  Item_func_validate_password_strength(THD *thd, Item *arg1)
+      : Item_long_func(thd, arg1)
+  {
+  }
+  bool fix_length_and_dec() override
+  {
+    max_length= 3;
+    return 0;
+  }
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("validate_password_strength")};
+    return name;
+  }
+  Item *get_copy(THD *thd) override
+  {
+    return get_item_copy<Item_func_validate_password_strength>(thd, this);
+  }
+  bool check_vcol_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(
+        func_name(), "()", arg, VCOL_NON_DETERMINISTIC);
+  }
+};
+
+
 Item *get_system_var(THD *thd, enum_var_type var_type,
                      const LEX_CSTRING *name, const LEX_CSTRING *component);
 extern bool check_reserved_words(const LEX_CSTRING *name);
