@@ -1,0 +1,92 @@
+#
+# MDEV-29078 For old binary logs explicit_defaults_for_timestamp presumed to be OFF, server value ignored
+#
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+connection master;
+flush binary logs;
+create table t2 (a timestamp);
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+ROLLBACK/*!*/;
+use `test`/*!*/;
+SET TIMESTAMP=1658586280/*!*/;
+SET @@session.pseudo_thread_id=999999999/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
+SET @@session.sql_mode=1411383296/*!*/;
+SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
+/*!\C utf8mb3 *//*!*/;
+SET @@session.character_set_client=33,@@session.collation_connection=33,@@session.collation_server=8/*!*/;
+SET @@session.lc_time_names=0/*!*/;
+SET @@session.collation_database=DEFAULT/*!*/;
+create table t1 (f1 timestamp, f2 timestamp)
+/*!*/;
+START TRANSACTION
+/*!*/;
+SET TIMESTAMP=1658586288/*!*/;
+insert t1 values (NULL, NULL)
+/*!*/;
+SET TIMESTAMP=1658586288/*!*/;
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+SET TIMESTAMP=1658586335/*!*/;
+insert t1 () values ()
+/*!*/;
+SET TIMESTAMP=1658586335/*!*/;
+COMMIT
+/*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+connection slave;
+set global explicit_defaults_for_timestamp=0;
+reset slave;
+include/start_slave.inc
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `f2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set time_zone='+2:00';
+select * from t1;
+f1	f2
+2022-07-23 16:24:48	2022-07-23 16:24:48
+2022-07-23 16:25:35	0000-00-00 00:00:00
+drop table t1;
+include/stop_slave.inc
+set global explicit_defaults_for_timestamp=1;
+reset slave;
+include/start_slave.inc
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` timestamp NULL DEFAULT NULL,
+  `f2` timestamp NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` timestamp NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select * from t1;
+f1	f2
+NULL	NULL
+NULL	NULL
+drop table t1;
+connection master;
+drop table t2;
+include/rpl_end.inc
