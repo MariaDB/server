@@ -521,32 +521,15 @@ class String;
   be written to the binlog. OPTIONS_WRITTEN_TO_BIN_LOG could be
   written into the Format_description_log_event, so that if later we
   don't want to replicate a variable we did replicate, or the
-  contrary, it's doable. But it should not be too hard to decide once
-  for all of what we replicate and what we don't, among the fixed 32
-  bits of thd->options.
+  contrary, it's doable. But it should not be too hard to deduct
+  the value of OPTIONS_WRITTEN_TO_BIN_LOG from the master's version.
 
-  I (Guilhem) have read through every option's usage, and it looks
-  like OPTION_AUTO_IS_NULL and OPTION_NO_FOREIGN_KEYS are the only
-  ones which alter how the query modifies the table. It's good to
-  replicate OPTION_RELAXED_UNIQUE_CHECKS too because otherwise, the
-  slave may insert data slower than the master, in InnoDB.
-  OPTION_BIG_SELECTS is not needed (the slave thread runs with
-  max_join_size=HA_POS_ERROR) and OPTION_BIG_TABLES is not needed
-  either, as the manual says (because a too big in-memory temp table
-  is automatically written to disk).
+  This is done in deduct_options_written_to_bin_log().
+  You *must* update it, when changing the definition below.
 */
 #define OPTIONS_WRITTEN_TO_BIN_LOG (OPTION_EXPLICIT_DEF_TIMESTAMP |\
    OPTION_AUTO_IS_NULL | OPTION_NO_FOREIGN_KEY_CHECKS |  \
    OPTION_RELAXED_UNIQUE_CHECKS | OPTION_NOT_AUTOCOMMIT | OPTION_IF_EXISTS)
-
-/* Shouldn't be defined before */
-#define EXPECTED_OPTIONS \
-  ((1ULL << 14) | (1ULL << 26) | (1ULL << 27) | (1ULL << 19) | (1ULL << 24) | (1ULL << 28))
-
-#if OPTIONS_WRITTEN_TO_BIN_LOG != EXPECTED_OPTIONS
-#error OPTIONS_WRITTEN_TO_BIN_LOG must NOT change their values!
-#endif
-#undef EXPECTED_OPTIONS         /* You shouldn't use this one */
 
 #define CHECKSUM_CRC32_SIGNATURE_LEN 4
 /**
@@ -1886,10 +1869,7 @@ protected:
     <td>The flags in @c thd->options, binary AND-ed with @c
     OPTIONS_WRITTEN_TO_BIN_LOG.  The @c thd->options bitfield contains
     options for "SELECT".  @c OPTIONS_WRITTEN identifies those options
-    that need to be written to the binlog (not all do).  Specifically,
-    @c OPTIONS_WRITTEN_TO_BIN_LOG equals (@c OPTION_AUTO_IS_NULL | @c
-    OPTION_NO_FOREIGN_KEY_CHECKS | @c OPTION_RELAXED_UNIQUE_CHECKS |
-    @c OPTION_NOT_AUTOCOMMIT), or 0x0c084000 in hex.
+    that need to be written to the binlog (not all do).
 
     These flags correspond to the SQL variables SQL_AUTO_IS_NULL,
     FOREIGN_KEY_CHECKS, UNIQUE_CHECKS, and AUTOCOMMIT, documented in
@@ -2896,6 +2876,7 @@ public:
   };
   master_version_split server_version_split;
   const uint8 *event_type_permutation;
+  uint32 options_written_to_bin_log;
 
   Format_description_log_event(uint8 binlog_ver, const char* server_ver=0);
   Format_description_log_event(const uchar *buf, uint event_len,
@@ -2943,6 +2924,7 @@ public:
   }
 
   void calc_server_version_split();
+  void deduct_options_written_to_bin_log();
   static bool is_version_before_checksum(const master_version_split *version_split);
 protected:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
