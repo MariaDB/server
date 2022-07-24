@@ -5111,7 +5111,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
                              ignored_error_code(actual_error) : 0);
 
 #ifdef WITH_WSREP
-        if (WSREP(thd) && wsrep_ignored_error_code(this, actual_error))
+        if (WSREP(thd) && wsrep_thd_is_applying(thd) &&
+            wsrep_ignored_error_code(this, actual_error))
         {
           idempotent_error= true;
           thd->wsrep_has_ignored_error= true;
