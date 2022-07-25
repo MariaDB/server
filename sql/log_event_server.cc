@@ -18,6 +18,7 @@
 
 #include "mariadb.h"
 #include "sql_priv.h"
+#include "scope.h"
 
 #ifdef MYSQL_CLIENT
 #error MYSQL_CLIENT must not be defined here
@@ -5017,7 +5018,9 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     Rpl_table_data rpl_data{};
     if (rgi) rgi->get_table_data(table, &rpl_data);
 
-    if (!rpl_data.is_online_alter())
+    m_online_alter= rpl_data.is_online_alter();
+
+    if (!m_online_alter)
     {
       /*
         Set tables write and read sets.
@@ -5063,7 +5066,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     table->rpl_write_set= table->write_set;
 
     // Do event specific preparations
-    error= do_before_row_operations(rli);
+    error= do_before_row_operations(rgi);
 
     /*
       Bug#56662 Assertion failed: next_insert_id == 0, file handler.cc
@@ -5075,7 +5078,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     */
     sql_mode_t saved_sql_mode= thd->variables.sql_mode;
     if (!is_auto_inc_in_extra_columns())
-      thd->variables.sql_mode= (rpl_data.is_online_alter() ? saved_sql_mode :0)
+      thd->variables.sql_mode= (m_online_alter ? saved_sql_mode :0)
                                | MODE_NO_AUTO_VALUE_ON_ZERO;
 
     // row processing loop
@@ -6422,7 +6425,7 @@ bool Write_rows_compressed_log_event::write()
 
 #if defined(HAVE_REPLICATION)
 int 
-Write_rows_log_event::do_before_row_operations(const Slave_reporting_capability *const)
+Write_rows_log_event::do_before_row_operations(const rpl_group_info *)
 {
   int error= 0;
 
@@ -6968,14 +6971,35 @@ uint8 Write_rows_log_event::get_trg_event_map()
 **************************************************************************/
 
 #if defined(HAVE_REPLICATION)
-/*
-  Compares table->record[0] and table->record[1]
+/**
+  @brief Compares table->record[0] and table->record[1]
 
-  Returns TRUE if different.
+  @param masrter_columns  a number of columns on the source replica,
+                          0 if ONLINE ALTER TABLE
+
+  @returns true if different.
 */
-static bool record_compare(TABLE *table)
+static bool record_compare(TABLE *table, uint master_columns)
 {
-  bool result= FALSE;
+  bool result= false;
+
+  /*
+    Determine if the optimized check is possible (and we can
+    goto record_compare_exit).
+    We should ensure that all extra columns (i.e. fieldnr > master_columns)
+    have explicit values. If not, we will exclude them from comparison,
+    as they can contain non-deterministic values.
+
+    master_columns == 0 case is optimization for ONLINE ALTER to check
+    all columns fast.
+   */
+  bool all_values_set= master_columns == 0
+                       && bitmap_is_set_all(&table->has_value_set);
+  for (uint i = master_columns; all_values_set && i < table->s->fields; i++)
+  {
+    all_values_set= bitmap_is_set(&table->has_value_set, i);
+  }
+
   /**
     Compare full record only if:
     - there are no blob fields (otherwise we would also need 
@@ -6988,40 +7012,43 @@ static bool record_compare(TABLE *table)
     */
   if ((table->s->blob_fields + 
        table->s->varchar_fields + 
-       table->s->null_fields) == 0)
+       table->s->null_fields) == 0
+      && all_values_set)
   {
     result= cmp_record(table,record[1]);
     goto record_compare_exit;
   }
 
   /* Compare null bits */
-  if (memcmp(table->null_flags,
-	     table->null_flags+table->s->rec_buff_length,
-	     table->s->null_bytes))
+  if (all_values_set && memcmp(table->null_flags,
+                               table->null_flags+table->s->rec_buff_length,
+                               table->s->null_bytes))
   {
-    result= TRUE;				// Diff in NULL value
+    result= true;				// Diff in NULL value
     goto record_compare_exit;
   }
 
   /* Compare fields */
   for (Field **ptr=table->field ; *ptr ; ptr++)
   {
+    Field *f= *ptr;
     if (table->versioned() && (*ptr)->vers_sys_field())
     {
       continue;
     }
-    /**
-      We only compare field contents that are not null.
-      NULL fields (i.e., their null bits) were compared 
-      earlier.
-    */
-    if (!(*(ptr))->is_null())
+    /*
+      We only compare fields that exist on the source (or in ONLINE
+      ALTER case, that were in the original table). For reference,
+      replica tables can also contain extra fields.
+     */
+    if (f->field_index > master_columns && !f->has_explicit_value())
+      continue;
+
+    if (f->is_null() != f->is_null(table->s->rec_buff_length)
+        || f->cmp_binary_offset(table->s->rec_buff_length))
     {
-      if ((*ptr)->cmp_binary_offset(table->s->rec_buff_length))
-      {
-        result= TRUE;
-        goto record_compare_exit;
-      }
+      result= true;
+      goto record_compare_exit;
     }
   }
 
@@ -7029,6 +7056,24 @@ record_compare_exit:
   return result;
 }
 
+/**
+  Newly added fields with non-deterministic defaults (i.e. DEFAULT(RANDOM()),
+  CURRENT_TIMESTAMP, AUTO_INCREMENT) should be excluded from key search.
+  Basically we exclude all the default-filled fields based on
+  has_explicit_value bitmap.
+ */
+bool Rows_log_event::key_suits_event(const KEY *key) const
+{
+  uint master_columns= m_online_alter ? 0 : m_cols.n_bits;
+  for (uint p= 0; p < key->ext_key_parts; p++)
+  {
+    uint field_idx= key->key_part[p].fieldnr - 1;
+    if (field_idx >= master_columns
+        && !bitmap_is_set(&m_table->has_value_set, field_idx))
+      return false;
+  }
+  return true;
+}
 
 /**
   Find the best key to use when locating the row in @c find_row().
@@ -7049,6 +7094,18 @@ int Rows_log_event::find_key()
   DBUG_ENTER("Rows_log_event::find_key");
   DBUG_ASSERT(m_table);
 
+  #ifdef DBUG_TRACE
+  auto _ = make_scope_exit([this]() {
+    DBUG_EXECUTE_IF("rpl_report_chosen_key",
+                    push_warning_printf(m_table->in_use,
+                                        Sql_condition::WARN_LEVEL_NOTE,
+                                        ER_UNKNOWN_ERROR, "Key chosen: %d",
+                                        m_key_nr == MAX_KEY ?
+                                        -1 : m_key_nr););
+  });
+  #endif
+
+  m_key_nr= MAX_KEY;
   best_key_nr= MAX_KEY;
 
   /*
@@ -7059,6 +7116,8 @@ int Rows_log_event::find_key()
   for (i= 0, key= m_table->key_info; i < m_table->s->keys; i++, key++)
   {
     if (!m_table->s->keys_in_use.is_set(i))
+      continue;
+    if (!key_suits_event(key))
       continue;
     /*
       We cannot use a unique key with NULL-able columns to uniquely identify
@@ -7103,7 +7162,7 @@ int Rows_log_event::find_key()
   m_key_info= best_key;
   m_key_nr= best_key_nr;
 
-  DBUG_RETURN(0);;
+  DBUG_RETURN(0);
 }
 
 
@@ -7237,7 +7296,8 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
   DBUG_DUMP("record[0]", table->record[0], table->s->reclength);
 
   if ((table->file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_POSITION) &&
-      table->s->primary_key < MAX_KEY)
+      table->s->primary_key < MAX_KEY &&
+      m_key_nr == table->s->primary_key)
   {
     /*
       Use a more efficient method to fetch the record given by
@@ -7403,7 +7463,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     /* We use this to test that the correct key is used in test cases. */
     DBUG_EXECUTE_IF("slave_crash_if_index_scan", abort(););
 
-    while (record_compare(table))
+    while (record_compare(table, get_master_cols()))
     {
       while ((error= table->file->ha_index_next(table->record[0])))
       {
@@ -7454,7 +7514,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
         goto end;
       }
     }
-    while (record_compare(table));
+    while (record_compare(table, get_master_cols()));
     
     /* 
       Note: above record_compare will take into accout all record fields 
@@ -7502,7 +7562,7 @@ bool Delete_rows_compressed_log_event::write()
 #if defined(HAVE_REPLICATION)
 
 int 
-Delete_rows_log_event::do_before_row_operations(const Slave_reporting_capability *const)
+Delete_rows_log_event::do_before_row_operations(const rpl_group_info *rgi)
 {
   /*
     Increment the global status delete count variable
@@ -7510,12 +7570,18 @@ Delete_rows_log_event::do_before_row_operations(const Slave_reporting_capability
   if (get_flags(STMT_END_F))
     status_var_increment(thd->status_var.com_stat[SQLCOM_DELETE]);
 
+  const uchar *curr_row_end= m_curr_row_end;
+  unpack_row(rgi, m_table, m_width, m_curr_row, &m_cols,
+             &curr_row_end, &m_master_reclength, m_rows_end);
+
   if ((m_table->file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_POSITION) &&
-      m_table->s->primary_key < MAX_KEY)
+      m_table->s->primary_key < MAX_KEY
+      && key_suits_event(&m_table->key_info[m_table->s->primary_key]))
   {
     /*
       We don't need to allocate any memory for m_key since it is not used.
     */
+    m_key_nr= m_table->s->primary_key;
     return 0;
   }
   if (do_invoke_trigger())
@@ -7665,7 +7731,7 @@ void Update_rows_log_event::init(MY_BITMAP const *cols)
 #if defined(HAVE_REPLICATION)
 
 int 
-Update_rows_log_event::do_before_row_operations(const Slave_reporting_capability *const)
+Update_rows_log_event::do_before_row_operations(const rpl_group_info *rgi)
 {
   /*
     Increment the global status update count variable

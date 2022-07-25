@@ -4731,6 +4731,9 @@ protected:
                                 /* If non null, first byte is length */
 
   bool m_vers_from_plain;
+  bool m_online_alter;
+
+  uint get_master_cols() const { return m_online_alter ? 0 : m_cols.n_bits; }
 
 
   /* helper functions */
@@ -4743,6 +4746,8 @@ protected:
   KEY      *m_key_info; /* Pointer to KEY info for m_key_nr */
   uint      m_key_nr;   /* Key number */
   bool master_had_triggers;     /* set after tables opening */
+
+  bool key_suits_event(const KEY *key) const;
 
   int find_key(); // Find a best key to use in find_row()
   int find_row(rpl_group_info *);
@@ -4811,7 +4816,7 @@ private:
       error code otherwise.
   */
   virtual 
-  int do_before_row_operations(const Slave_reporting_capability *const log) = 0;
+  int do_before_row_operations(const rpl_group_info *rgi) = 0;
 
   /*
     Primitive to clean up after a sequence of row executions.
@@ -4900,7 +4905,7 @@ private:
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_before_row_operations(const Slave_reporting_capability *const);
+  virtual int do_before_row_operations(const rpl_group_info *);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
   virtual int do_exec_row(rpl_group_info *);
 #endif
@@ -4990,7 +4995,7 @@ protected:
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_before_row_operations(const Slave_reporting_capability *const);
+  virtual int do_before_row_operations(const rpl_group_info *rgi);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
   virtual int do_exec_row(rpl_group_info *);
 #endif /* defined(MYSQL_SERVER) && defined(HAVE_REPLICATION) */
@@ -5077,7 +5082,7 @@ protected:
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_before_row_operations(const Slave_reporting_capability *const);
+  virtual int do_before_row_operations(const rpl_group_info *rgi);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
   virtual int do_exec_row(rpl_group_info *);
 #endif
