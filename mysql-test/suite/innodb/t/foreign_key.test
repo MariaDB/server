@@ -881,4 +881,33 @@ let SEARCH_PATTERN= InnoDB: Cannot delete/update rows with cascading foreign key
 
 --echo # End of 10.2 tests
 
+--echo #
+--echo # MDEV-28980 InnoDB: Failing assertion: len <= MAX_TABLE_NAME_LEN
+--echo #
+
+SET NAMES utf8;
+CREATE TABLE t (a INT PRIMARY KEY) ENGINE=InnoDB;
+# The maximum identifier length is 64 characters.
+# my_charset_filename will expand some characters to 5 characters,
+# e.g., # to @0023.
+# Many operating systems (such as Linux) or file systems
+# limit the path component length to 255 bytes, such as 51*5 characters.
+# The bug was repeated with a shorter length, which we will use here,
+# to avoid exceeding MAX_PATH on Microsoft Windows.
+let $db=##########################;
+--replace_result $db db
+eval CREATE DATABASE `$db`;
+--replace_result $db db
+eval CREATE TABLE `$db`.u (
+  a INT PRIMARY KEY,
+  CONSTRAINT `††††††††††††††††††††††††††††††††††††††††††††††††††††††††††††††††`
+  FOREIGN KEY (a) REFERENCES test.t (a)) ENGINE=InnoDB;
+--replace_result $db db
+eval DROP TABLE `$db`.u;
+--replace_result $db db
+eval DROP DATABASE `$db`;
+DROP TABLE t;
+
+--echo # End of 10.3 tests
+
 --source include/wait_until_count_sessions.inc

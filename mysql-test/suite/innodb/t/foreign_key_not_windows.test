@@ -1,0 +1,41 @@
+--source include/have_innodb.inc
+--source include/not_windows.inc
+
+--echo #
+--echo # MDEV-28980 InnoDB: Failing assertion: len <= MAX_TABLE_NAME_LEN
+--echo #
+
+# The main test is innodb.foreign_key. This is an additional test that
+# the maximum length cannot be exceeded for implicitly created
+# constraint names. On Microsoft Windows, MAX_PATH is a much stricter
+# limit than the 255-byte maximum path component length on many other systems,
+# including Linux and IBM AIX.
+
+CREATE TABLE t (a INT PRIMARY KEY) ENGINE=InnoDB;
+
+# The maximum identifier length is 64 characters.
+# my_charset_filename will expand some characters to 5 characters,
+# e.g., # to @0023.
+# Many operating systems (such as Linux) or file systems
+# limit the path component length to 255 bytes,
+# corresponding to the 51 characters below: 5*51=255.
+let $d255=###################################################;
+let $d250=##################################################;
+--replace_result $d255 d255
+eval CREATE DATABASE `$d255`;
+--replace_result $d255 d255
+--error ER_IDENT_CAUSES_TOO_LONG_PATH
+eval CREATE TABLE `$d255`.`$d255`
+(a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
+--replace_result $d255 d255
+--error ER_IDENT_CAUSES_TOO_LONG_PATH
+eval CREATE TABLE `$d255`.`_$d250`
+(a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
+--replace_result $d255 d255
+eval CREATE TABLE `$d255`.`$d250`
+(a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
+--replace_result $d255 d255
+eval DROP DATABASE `$d255`;
+DROP TABLE t;
+
+--echo # End of 10.3 tests

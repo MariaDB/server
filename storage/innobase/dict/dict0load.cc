@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3651,11 +3651,14 @@ loop:
 
 	/* Copy the string because the page may be modified or evicted
 	after mtr_commit() below. */
-	char	fk_id[MAX_TABLE_NAME_LEN + 1];
-
-	ut_a(len <= MAX_TABLE_NAME_LEN);
-	memcpy(fk_id, field, len);
-	fk_id[len] = '\0';
+	char	fk_id[MAX_TABLE_NAME_LEN + NAME_LEN + 1];
+	err = DB_SUCCESS;
+	if (UNIV_LIKELY(len < sizeof fk_id)) {
+		memcpy(fk_id, field, len);
+		fk_id[len] = '\0';
+	} else {
+		err = DB_CORRUPTION;
+	}
 
 	btr_pcur_store_position(&pcur, &mtr);
 
@@ -3663,9 +3666,11 @@ loop:
 
 	/* Load the foreign constraint definition to the dictionary cache */
 
-	err = dict_load_foreign(fk_id, col_names,
-				check_recursive, check_charsets, ignore_err,
-				fk_tables);
+	if (err == DB_SUCCESS) {
+		err = dict_load_foreign(fk_id, col_names,
+					check_recursive, check_charsets,
+					ignore_err, fk_tables);
+	}
 
 	if (err != DB_SUCCESS) {
 		btr_pcur_close(&pcur);

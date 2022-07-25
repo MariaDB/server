@@ -858,3 +858,17 @@ Error	1296	Got error 193 '`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) 
 DROP TABLE t1;
 FOUND 1 /InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15.*/ in mysqld.1.err
 # End of 10.2 tests
+#
+# MDEV-28980 InnoDB: Failing assertion: len <= MAX_TABLE_NAME_LEN
+#
+SET NAMES utf8;
+CREATE TABLE t (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE DATABASE `db`;
+CREATE TABLE `db`.u (
+a INT PRIMARY KEY,
+CONSTRAINT `††††††††††††††††††††††††††††††††††††††††††††††††††††††††††††††††`
+  FOREIGN KEY (a) REFERENCES test.t (a)) ENGINE=InnoDB;
+DROP TABLE `db`.u;
+DROP DATABASE `db`;
+DROP TABLE t;
+# End of 10.3 tests
