@@ -4368,7 +4368,7 @@ lock_print_info_summary(
 		? (purge_sys.running() ? "running"
 		   : purge_sys.paused() ? "stopped" : "running but idle")
 		: "disabled",
-		trx_sys.history_size());
+		trx_sys.history_size_approx());
 
 #ifdef PRINT_NUM_OF_LOCK_STRUCTS
 	fprintf(file,
