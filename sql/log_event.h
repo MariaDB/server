@@ -4742,6 +4742,7 @@ protected:
   uchar    *m_key;      /* Buffer to keep key value during searches */
   KEY      *m_key_info; /* Pointer to KEY info for m_key_nr */
   uint      m_key_nr;   /* Key number */
+  uint      m_usable_key_parts; /* A number of key_parts suited to lookup */
   bool master_had_triggers;     /* set after tables opening */
 
   /*
@@ -4790,7 +4791,7 @@ protected:
   };
 
   int find_key(const rpl_group_info *); // Find a best key to use in find_row()
-  bool is_key_usable(const KEY *key) const;
+  uint find_key_parts(const KEY *key) const;
   bool use_pk_position() const;
   int find_row(rpl_group_info *);
   int write_row(rpl_group_info *, const bool);
