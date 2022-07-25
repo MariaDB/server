@@ -8043,10 +8043,11 @@ record_compare_exit:
   Basically we exclude all the default-filled fields based on
   has_explicit_value bitmap.
  */
-bool Rows_log_event::key_suits_event(const KEY *key) const
+uint Rows_log_event::key_parts_suit_event(const KEY *key) const
 {
   uint master_columns= m_online_alter ? 0 : m_cols.n_bits;
-  for (uint p= 0; p < key->ext_key_parts; p++)
+  uint p= 0;
+  for (;p < key->ext_key_parts; p++)
   {
     Field *f= key->key_part[p].field;
     uint non_deterministic_default= f->default_value &&
@@ -8058,9 +8059,9 @@ bool Rows_log_event::key_suits_event(const KEY *key) const
     if (f->field_index >= master_columns
         && !bitmap_is_set(&m_table->has_value_set, f->field_index)
         && (non_deterministic_default || next_number_field == f->field_index))
-      return false;
+      break;
   }
-  return true;
+  return p;
 }
 
 /**
@@ -8076,7 +8077,7 @@ bool Rows_log_event::key_suits_event(const KEY *key) const
 */
 int Rows_log_event::find_key()
 {
-  uint i, best_key_nr, last_part;
+  uint i, best_key_nr;
   KEY *key, *UNINIT_VAR(best_key);
   ulong UNINIT_VAR(best_rec_per_key), tmp;
   DBUG_ENTER("Rows_log_event::find_key");
@@ -8095,6 +8096,7 @@ int Rows_log_event::find_key()
 
   m_key_nr= MAX_KEY;
   best_key_nr= MAX_KEY;
+  uint parts_suit= 0;
 
   /*
     Keys are sorted so that any primary key is first, followed by unique keys,
@@ -8105,35 +8107,38 @@ int Rows_log_event::find_key()
   {
     if (!m_table->s->keys_in_use.is_set(i))
       continue;
-    if (!key_suits_event(key))
+    parts_suit= key_parts_suit_event(key);
+    if (!parts_suit)
       continue;
     /*
       We cannot use a unique key with NULL-able columns to uniquely identify
       a row (but we can still select it for range scan below if nothing better
       is available).
     */
-    if ((key->flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME)
+    if ((key->flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME &&
+        parts_suit == key->user_defined_key_parts)
     {
       best_key_nr= i;
       best_key= key;
+      m_key_parts_suit= parts_suit;
       break;
     }
     /*
       We can only use a non-unique key if it allows range scans (ie. skip
       FULLTEXT indexes and such).
     */
-    last_part= key->user_defined_key_parts - 1;
     DBUG_PRINT("info", ("Index %s rec_per_key[%u]= %lu",
-                        key->name.str, last_part, key->rec_per_key[last_part]));
-    if (!(m_table->file->index_flags(i, last_part, 1) & HA_READ_NEXT))
+                        key->name.str, parts_suit, key->rec_per_key[parts_suit]));
+    if (!(m_table->file->index_flags(i, parts_suit, 1) & HA_READ_NEXT))
       continue;
 
-    tmp= key->rec_per_key[last_part];
+    tmp= key->rec_per_key[parts_suit - 1];
     if (best_key_nr == MAX_KEY || (tmp > 0 && tmp < best_rec_per_key))
     {
       best_key_nr= i;
       best_key= key;
       best_rec_per_key= tmp;
+      m_key_parts_suit= parts_suit;
     }
   }
 
@@ -8288,7 +8293,8 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
 
   if ((table->file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_POSITION) &&
       table->s->primary_key < MAX_KEY &&
-      m_key_nr == table->s->primary_key)
+      m_key_nr == table->s->primary_key &&
+      m_key_parts_suit == table->key_info[table->s->primary_key].ext_key_parts)
   {
     /*
       Use a more efficient method to fetch the record given by
@@ -8376,7 +8382,8 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
       table->record[0][table->s->null_bytes - 1]|=
         256U - (1U << table->s->last_null_bit_pos);
 
-    error= table->file->ha_index_read_map(table->record[0], m_key, HA_WHOLE_KEY,
+    error= table->file->ha_index_read_map(table->record[0], m_key,
+                                          make_keypart_map(m_key_parts_suit),
                                           HA_READ_KEY_EXACT);
     if (unlikely(error))
     {
@@ -8565,14 +8572,16 @@ Delete_rows_log_event::do_before_row_operations(const rpl_group_info *rgi)
   unpack_row(rgi, m_table, m_width, m_curr_row, &m_cols,
              &curr_row_end, &m_master_reclength, m_rows_end);
 
+  KEY *pk_info= m_table->key_info + m_table->s->primary_key;
   if ((m_table->file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_POSITION) &&
-      m_table->s->primary_key < MAX_KEY
-      && key_suits_event(&m_table->key_info[m_table->s->primary_key]))
+      m_table->s->primary_key < MAX_KEY &&
+      key_parts_suit_event(pk_info) == pk_info->ext_key_parts)
   {
     /*
       We don't need to allocate any memory for m_key since it is not used.
     */
     m_key_nr= m_table->s->primary_key;
+    m_key_parts_suit= pk_info->ext_key_parts;
     return 0;
   }
   if (do_invoke_trigger())
