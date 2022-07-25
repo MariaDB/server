@@ -8040,7 +8040,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
 	 tables=tables->next_local)
     {
       if (!my_strcasecmp(table_alias_charset, alias_str, tables->alias) &&
-	  !strcmp(ptr->db, tables->db))
+	  !strcmp(safe_str(ptr->db), safe_str(tables->db)))
       {
 	my_error(ER_NONUNIQ_TABLE, MYF(0), alias_str); /* purecov: tested */
 	DBUG_RETURN(0);				/* purecov: tested */
@@ -8624,6 +8624,7 @@ bool st_select_lex::add_window_def(THD *thd,
     fields_in_window_functions+= win_part_list_ptr->elements +
                                  win_order_list_ptr->elements;
   }
+  win_def->win_spec_number= window_specs.elements;
   return (win_def == NULL || window_specs.push_back(win_def));
 }
 
@@ -8651,6 +8652,7 @@ bool st_select_lex::add_window_spec(THD *thd,
                                  win_order_list_ptr->elements;
   }
   thd->lex->win_spec= win_spec;
+  win_spec->win_spec_number= window_specs.elements;
   return (win_spec == NULL || window_specs.push_back(win_spec));
 }
 
@@ -9117,15 +9119,17 @@ void sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
   }
 #endif /* WITH_WSREP */
-  if (!(error= kill_threads_for_user(thd, user, state, &rows)))
-    my_ok(thd, rows);
-  else
+  switch (error= kill_threads_for_user(thd, user, state, &rows))
   {
-    /*
-      This is probably ER_OUT_OF_RESOURCES, but in the future we may
-      want to write the name of the user we tried to kill
-    */
-    my_error(error, MYF(0), user->host.str, user->user.str);
+  case 0:
+    my_ok(thd, rows);
+    break;
+  case ER_KILL_DENIED_ERROR:
+    my_error(error, MYF(0), (long long) thd->thread_id);
+    break;
+  case ER_OUT_OF_RESOURCES:
+  default:
+    my_error(error, MYF(0));
   }
 #ifdef WITH_WSREP
   return;

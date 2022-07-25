@@ -351,6 +351,7 @@ ADD_CUSTOM_TARGET(
         GenServerSource
         DEPENDS ${GEN_SOURCES}
 )
+ADD_DEPENDENCIES(sql GenServerSource)
 
 #Need this only for embedded
 SET_TARGET_PROPERTIES(GenServerSource PROPERTIES EXCLUDE_FROM_ALL TRUE)

@@ -646,6 +646,6 @@ page is updated */
 	trx_sys->mutex.exit();				\
 } while (0)
 
-#include "trx0sys.ic"
+#include "trx0sys.inl"
 
 #endif

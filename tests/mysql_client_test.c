@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19962,6 +19962,91 @@ static void test_mdev_26145()
   myquery(rc);
 }
 
+static void test_mdev24827()
+{
+  int rc;
+  MYSQL_STMT *stmt;
+  unsigned long cursor = CURSOR_TYPE_READ_ONLY;
+  const char* query=
+    "SELECT t2.c1 AS c1 FROM t1 LEFT JOIN t2 ON t1.c1 = t2.c1 "
+    "WHERE EXISTS (SELECT 1 FROM t1 WHERE c2 = -1) ORDER BY c1";
+
+  myheader("test_mdev24827");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t2");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t2 (c1 INT PRIMARY KEY, c2 INT, "
+                  "KEY idx_c2(c2))");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "INSERT INTO t1 (c1, c2) "
+                  "SELECT seq, seq FROM seq_1_to_10000");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "INSERT INTO t2 (c1, c2) "
+                  "SELECT seq, seq FROM seq_1_to_20000");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+
+  rc= mysql_stmt_prepare(stmt, query, strlen(query));
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_attr_set(stmt, STMT_ATTR_CURSOR_TYPE, &cursor);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "DROP TABLE t2");
+  myquery(rc);
+}
+
+static void test_mdev_20516()
+{
+  MYSQL_STMT *stmt;
+  int        rc;
+  unsigned long cursor= CURSOR_TYPE_READ_ONLY;
+  const char* query=
+    "CREATE VIEW v1 AS SELECT * FROM t1";
+
+  myheader("test_mdev_20516");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t1(a INT)");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+
+  rc= mysql_stmt_prepare(stmt, query, strlen(query));
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_attr_set(stmt, STMT_ATTR_CURSOR_TYPE, &cursor);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+
 #ifndef EMBEDDED_LIBRARY
 #define MDEV19838_MAX_PARAM_COUNT 32
 #define MDEV19838_FIELDS_COUNT 17
@@ -20112,6 +20197,8 @@ static void test_mdev19838()
 #endif // EMBEDDED_LIBRARY
 
 static struct my_tests_st my_tests[]= {
+  { "test_mdev_20516", test_mdev_20516 },
+  { "test_mdev24827", test_mdev24827 },
   { "test_mdev_26145", test_mdev_26145 },
   { "disable_query_logs", disable_query_logs },
   { "test_view_sp_list_fields", test_view_sp_list_fields },

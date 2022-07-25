@@ -3404,4 +3404,31 @@ ERROR 01000: Expression for field `a` is referring to uninitialized field `a`
 show warnings;
 Level	Code	Message
 Error	4029	Expression for field `a` is referring to uninitialized field `a`
+#
+# MDEV-26423: MariaDB server crash in Create_tmp_table::finalize
+#
+CREATE TABLE t1 (pk varchar(36) DEFAULT uuid());
+INSERT INTO t1 VALUES (),();
+SELECT 1 FROM t1 GROUP BY DEFAULT(pk);
+1
+1
+DROP TABLE t1;
+#
+# MDEV-28402: ASAN heap-use-after-free in create_tmp_table,
+# Assertion `l_offset >= 0 && table->s->rec_buff_length - l_offset > 0'
+#
+CREATE TABLE t (a INT, KEY (a));
+INSERT INTO t VALUES (1),(2);
+SELECT DISTINCT DEFAULT(a), CASE a WHEN 0 THEN 1 ELSE 2 END FROM t GROUP BY a WITH ROLLUP;
+DEFAULT(a)	CASE a WHEN 0 THEN 1 ELSE 2 END
+NULL	2
+DROP TABLE t;
+CREATE TABLE t (a INT, KEY (a));
+INSERT INTO t VALUES (1),(2);
+CREATE ALGORITHM=TEMPTABLE VIEW v AS SELECT * FROM t;
+SELECT DISTINCT DEFAULT(a), CASE a WHEN 0 THEN 1 ELSE 2 END FROM v GROUP BY a WITH ROLLUP;
+DEFAULT(a)	CASE a WHEN 0 THEN 1 ELSE 2 END
+NULL	2
+DROP TABLE t;
+DROP VIEW v;
 # end of 10.2 test

@@ -34,7 +34,7 @@
 #include "sql_plugin.h"                         // Includes my_global.h
 #include "sql_priv.h"
 #include "sql_class.h"                          // set_var.h: THD
-#include "sys_vars.ic"
+#include "sys_vars.inl"
 
 #include "events.h"
 #include <thr_alarm.h>
@@ -5719,7 +5719,7 @@ static Sys_var_ulong Sys_log_tc_size(
        BLOCK_SIZE(my_getpagesize()));
 #endif
 
-static Sys_var_ulonglong Sys_max_thread_mem(
+static Sys_var_ulonglong Sys_max_session_mem_used(
        "max_session_mem_used", "Amount of memory a single user session "
        "is allowed to allocate. This limits the value of the "
        "session variable MEM_USED", SESSION_VAR(max_mem_used),

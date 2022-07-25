@@ -256,8 +256,9 @@ static int ptr_cmp(void **a, void **b)
 #define add_to_purgatory(PINS, ADDR)                                    \
   do                                                                    \
   {                                                                     \
-    *(void **)((char *)(ADDR)+(PINS)->pinbox->free_ptr_offset)=         \
-      (PINS)->purgatory;                                                \
+    my_atomic_storeptr_explicit(                                        \
+      (void **)((char *)(ADDR)+(PINS)->pinbox->free_ptr_offset),        \
+      (PINS)->purgatory, MY_MEMORY_ORDER_RELEASE);                      \
     (PINS)->purgatory= (ADDR);                                          \
     (PINS)->purgatory_count++;                                          \
   } while (0)

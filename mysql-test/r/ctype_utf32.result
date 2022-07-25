@@ -2890,5 +2890,53 @@ HEX(c1)
 0000006100000063
 DROP TABLE t1;
 #
+# MDEV-23210 Assertion `(length % 4) == 0' failed in my_lengthsp_utf32 on ALTER TABLE, SELECT and INSERT
+#
+CREATE TABLE t1 (a CHAR(1));
+SET COLLATION_CONNECTION=utf32_general_ci, CHARACTER_SET_CLIENT=binary;
+ALTER TABLE t1 CHANGE a a ENUM('a','a') CHARACTER SET utf32;
+ERROR HY000: Column 'a' has duplicated value 'a' in ENUM
+ALTER TABLE t1 CHANGE a a ENUM('aaa') CHARACTER SET utf32;
+ERROR HY000: Invalid utf32 character string: '\x00aaa'
+ALTER TABLE t1 CHANGE a a ENUM('aa') CHARACTER SET utf32;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` enum('慡') CHARACTER SET utf32 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ALTER TABLE t1 CHANGE a a ENUM('a','b') CHARACTER SET utf32;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` enum('a','b') CHARACTER SET utf32 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET NAMES utf8;
+#
+# MDEV-28078 Garbage on multiple equal ENUMs with tricky character sets
+#
+CREATE TABLE t1 (
+c1 ENUM ('a','b') CHARACTER SET utf32 DEFAULT 'a',
+c2 ENUM ('a','b') CHARACTER SET utf32 DEFAULT 'a'
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` enum('a','b') CHARACTER SET utf32 DEFAULT 'a',
+  `c2` enum('a','b') CHARACTER SET utf32 DEFAULT 'a'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 ENUM ('00000061','00000062') DEFAULT '00000061' COLLATE latin1_bin,
+c2 ENUM ('a','b') DEFAULT 'a' COLLATE utf32_general_ci
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` enum('00000061','00000062') CHARACTER SET latin1 COLLATE latin1_bin DEFAULT '00000061',
+  `c2` enum('a','b') CHARACTER SET utf32 DEFAULT 'a'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #

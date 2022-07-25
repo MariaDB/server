@@ -1,0 +1,86 @@
+#
+# "mariabackup --slave-info" tests that can be run without
+# actually starting the replication.
+#
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-21037 mariabackup does not detect multi-source replication slave
+--echo #
+
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
+--let $XTRABACKUP_ARGS=--defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group-suffix=.2 --slave-info --backup --databases=test --target-dir=$targetdir
+--let $XTRABACKUP_OUT=$MYSQLTEST_VARDIR/tmp/xtrabackup_out
+
+# Should be empty by default
+SELECT @@global.gtid_slave_pos;
+
+--echo
+--echo # Without any masters the file xtrabackup_slave_info is not created
+
+--disable_result_log
+exec $XTRABACKUP $XTRABACKUP_ARGS >$XTRABACKUP_OUT;
+--enable_result_log
+--error 1
+--file_exists $targetdir/xtrabackup_slave_info
+--source include/show_xtrabackup_slave_info_out.inc
+--remove_file $XTRABACKUP_OUT
+rmdir $targetdir;
+
+--echo
+CHANGE MASTER TO MASTER_HOST='localhost', MASTER_PORT=10000;
+--disable_result_log
+exec $XTRABACKUP $XTRABACKUP_ARGS >$XTRABACKUP_OUT;
+--enable_result_log
+--source include/show_xtrabackup_slave_info.inc
+--source include/show_xtrabackup_slave_info_out.inc
+--remove_file $XTRABACKUP_OUT
+rmdir $targetdir;
+
+--echo
+CHANGE MASTER 'master2' TO MASTER_HOST='localhost', MASTER_PORT=10002;
+--disable_result_log
+exec $XTRABACKUP $XTRABACKUP_ARGS >$XTRABACKUP_OUT;
+--enable_result_log
+--source include/show_xtrabackup_slave_info.inc
+--source include/show_xtrabackup_slave_info_out.inc
+--remove_file $XTRABACKUP_OUT
+rmdir $targetdir;
+
+--echo
+SET GLOBAL gtid_slave_pos='1-1-1,2-2-2';
+CHANGE MASTER 'master3' TO MASTER_HOST='localhost', MASTER_PORT=10003, MASTER_USE_GTID=slave_pos;
+CHANGE MASTER 'master4' TO MASTER_HOST='localhost', MASTER_PORT=10004, MASTER_USE_GTID=no;
+CHANGE MASTER 'master5' TO MASTER_HOST='localhost', MASTER_PORT=10005, MASTER_USE_GTID=slave_pos;
+
+--disable_result_log
+exec $XTRABACKUP $XTRABACKUP_ARGS >$XTRABACKUP_OUT;
+--enable_result_log
+--source include/show_xtrabackup_slave_info.inc
+--source include/show_xtrabackup_slave_info_out.inc
+--remove_file $XTRABACKUP_OUT
+rmdir $targetdir;
+
+--echo
+CHANGE MASTER TO MASTER_HOST='localhost', MASTER_PORT=10000, MASTER_USE_GTID=slave_pos;
+--disable_result_log
+exec $XTRABACKUP $XTRABACKUP_ARGS >$XTRABACKUP_OUT;
+--enable_result_log
+--source include/show_xtrabackup_slave_info.inc
+--source include/show_xtrabackup_slave_info_out.inc
+--remove_file $XTRABACKUP_OUT
+rmdir $targetdir;
+
+RESET SLAVE ALL;
+RESET SLAVE 'master2' ALL;
+RESET SLAVE 'master3' ALL;
+RESET SLAVE 'master4' ALL;
+RESET SLAVE 'master5' ALL;
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

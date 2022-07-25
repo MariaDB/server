@@ -252,6 +252,6 @@ row_log_estimate_work(
 	const dict_index_t*	index);
 #endif /* HAVE_PSI_STAGE_INTERFACE */
 
-#include "row0log.ic"
+#include "row0log.inl"
 
 #endif /* row0log.h */

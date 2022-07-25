@@ -27,7 +27,7 @@ SET(CPACK_COMPONENT_BACKUP_GROUP "backup")
 
 SET(CPACK_COMPONENTS_ALL Server ManPagesServer IniFiles Server_Scripts
                          SupportFiles Development ManPagesDevelopment
-                         ManPagesTest Readme ManPagesClient Test 
+                         ManPagesTest Readme ManPagesClient Test
                          Common Client SharedLibraries ClientPlugins
                          backup
 )
@@ -61,13 +61,26 @@ conditions of the GNU General Public License Version 2 (http://www.gnu.org/licen
 MariaDB documentation can be found at https://mariadb.com/kb
 MariaDB bug reports should be submitted through https://jira.mariadb.org")
 
+# mariabackup
+SET(CPACK_RPM_backup_PACKAGE_SUMMARY "Backup tool for MariaDB server")
+SET(CPACK_RPM_backup_PACKAGE_DESCRIPTION "Mariabackup is an open source tool provided by MariaDB
+for performing physical online backups of InnoDB, Aria and MyISAM tables.
+For InnoDB, “hot online” backups are possible.
+It was originally forked from Percona XtraBackup 2.3.8.")
+
 # Packages with default description
 SET(CPACK_RPM_client_PACKAGE_SUMMARY "MariaDB database client binaries")
+SET(CPACK_RPM_client_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
 SET(CPACK_RPM_common_PACKAGE_SUMMARY "MariaDB database common files (e.g. /etc/mysql/conf.d/mariadb.cnf)")
+SET(CPACK_RPM_common_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
 SET(CPACK_RPM_compat_PACKAGE_SUMMARY "MariaDB database client library MySQL compat package")
+SET(CPACK_RPM_compat_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
 SET(CPACK_RPM_devel_PACKAGE_SUMMARY "MariaDB database development files")
+SET(CPACK_RPM_devel_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
 SET(CPACK_RPM_server_PACKAGE_SUMMARY "MariaDB database server binaries")
+SET(CPACK_RPM_server_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
 SET(CPACK_RPM_test_PACKAGE_SUMMARY "MariaDB database regression test suite")
+SET(CPACK_RPM_test_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
 
 # libmariadb3
 SET(CPACK_RPM_shared_PACKAGE_SUMMARY "LGPL MariaDB database client library")
@@ -79,51 +92,6 @@ and PHP's mysqlnd extension.
 
 This product includes PHP software, freely available from
 http://www.php.net/software/")
-
-# Summary and descriptions per package
-SET(CPACK_RPM_backup_PACKAGE_SUMMARY "Backup tool for MariaDB server")
-SET(CPACK_RPM_backup_PACKAGE_DESCRIPTION "Mariabackup is an open source tool provided by MariaDB
-for performing physical online backups of InnoDB, Aria and MyISAM tables.
-For InnoDB, “hot online” backups are possible.
-It was originally forked from Percona XtraBackup 2.3.8.")
-
-SET(CPACK_RPM_cassandra-engine_PACKAGE_SUMMARY "Cassandra storage engine for MariaDB")
-SET(CPACK_RPM_cassandra-engine_PACKAGE_DESCRIPTION "The Cassandra Storage Engine allows access to data in a Cassandra cluster from
-MariaDB, combining the best of SQL and no-SQL worlds. Cassandra SE (storage
-engine) makes Cassandra's column family appear as a table in MariaDB that you
-can insert to, update, and select from. You can write joins against this table,
-it is possible to join data that's stored in MariaDB with data that's stored in
-Cassandra.")
-
-SET(CPACK_RPM_connect-engine_PACKAGE_SUMMARY "Connect storage engine for MariaDB")
-SET(CPACK_RPM_connect-engine_PACKAGE_DESCRIPTION "Connect engine supports a number of file formats (dbf, xml, txt, bin, etc),
-connections to ODBC tables and remote MySQL tables, as well as a number of
-other interesting features.")
-
-SET(CPACK_RPM_cracklib-password-check_PACKAGE_SUMMARY "CrackLib Password Validation Plugin for MariaDB")
-SET(CPACK_RPM_cracklib-password-check_PACKAGE_DESCRIPTION "This password validation plugin uses cracklib to allow only
-sufficiently secure (as defined by cracklib) user passwords in MariaDB.")
-
-SET(CPACK_RPM_gssapi-server_PACKAGE_SUMMARY "GSSAPI authentication plugin for MariaDB server")
-SET(CPACK_RPM_gssapi-server_PACKAGE_DESCRIPTION "The gssapi authentication plugin allows the user to authenticate with services
-that use the Generic Security Services Application Program Interface (GSSAPI).
-The gssapi authentication plugin is most often used for authenticating with Microsoft Active Directory.")
-
-SET(CPACK_RPM_oqgraph-engine_PACKAGE_SUMMARY "OQGraph storage engine for MariaDB")
-SET(CPACK_RPM_oqgraph-engine_PACKAGE_DESCRIPTION "The Open Query GRAPH computation engine, or OQGRAPH as the engine itself is called,
-allows you to handle hierarchies (tree structures) and complex graphs
-(nodes having many connections in several directions).
-It is intended to be used for retrieving hierarchical information, such as those used for graphs,
-routes or social relationships, in plain SQL.")
-
-SET(CPACK_RPM_rocksdb-engine_PACKAGE_SUMMARY "RocksDB storage engine for MariaDB")
-SET(CPACK_RPM_rocksdb-engine_PACKAGE_DESCRIPTION "The RocksDB storage engine is a high performance storage engine, aimed
-at maximising storage efficiency while maintaining InnoDB-like performance.")
-
-SET(CPACK_RPM_tokudb-engine_PACKAGE_SUMMARY "TokuDB storage engine for MariaDB")
-SET(CPACK_RPM_tokudb-engine_PACKAGE_DESCRIPTION "The TokuDB storage engine is for use in high-performance and write-intensive
-environments, offering increased compression and better performance based
-on fractal indexes.")
 
 SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %define mysql_vendor ${CPACK_PACKAGE_VENDOR}
@@ -176,6 +144,7 @@ SET(ignored
   "%ignore ${CMAKE_INSTALL_PREFIX}/lib/systemd/system"
   "%ignore ${CMAKE_INSTALL_PREFIX}/lib/tmpfiles.d"
   "%ignore ${CMAKE_INSTALL_PREFIX}/lib64"
+  "%ignore ${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig"
   "%ignore ${CMAKE_INSTALL_PREFIX}/sbin"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/aclocal"
@@ -217,6 +186,8 @@ SETA(CPACK_RPM_devel_PACKAGE_OBSOLETES
   "MySQL-devel")
 SETA(CPACK_RPM_devel_PACKAGE_PROVIDES
   "MySQL-devel")
+SETA(CPACK_RPM_devel_PACKAGE_REQUIRES
+  "MariaDB-shared >= 10.2.42")
 
 SETA(CPACK_RPM_server_PACKAGE_OBSOLETES
   "MariaDB"
@@ -365,6 +336,7 @@ ENDMACRO()
 ADDIF(CMAKE_BUILD_TYPE)
 ADDIF(BUILD_CONFIG)
 ADDIF(WITH_SSL)
+ADDIF(WITH_JEMALLOC)
 
 ENDIF()
 ENDIF(RPM)

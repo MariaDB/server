@@ -17,7 +17,33 @@
 
 # This is a common command line parser to be sourced by other SST scripts
 
-set -u
+set -ue
+
+# Setting the path for some utilities on CentOS
+export PATH="$PATH:/usr/sbin:/usr/bin:/sbin:/bin"
+
+trim_string()
+{
+    if [ -n "$BASH_VERSION" ]; then
+        local pattern="[![:space:]${2:-}]"
+        local x="${1#*$pattern}"
+        local z=${#1}
+        x=${#x}
+        if [ $x -ne $z ]; then
+            local y="${1%$pattern*}"
+            y=${#y}
+            x=$(( z-x-1 ))
+            y=$(( y-x+1 ))
+            printf '%s' "${1:$x:$y}"
+        else
+            printf ''
+        fi
+    else
+        local pattern="[[:space:]${2:-}]"
+        echo "$1" | sed -E "s/^$pattern+|$pattern+\$//g"
+    fi
+}
+
 
 WSREP_SST_OPT_BYPASS=0
 WSREP_SST_OPT_BINLOG=""
@@ -40,10 +66,10 @@ WSREP_SST_OPT_ADDR=""
 WSREP_SST_OPT_ADDR_PORT=""
 WSREP_SST_OPT_HOST=""
 WSREP_SST_OPT_HOST_UNESCAPED=""
-WSREP_SST_OPT_HOST_ESCAPED=""
 INNODB_DATA_HOME_DIR="${INNODB_DATA_HOME_DIR:-}"
 INNODB_LOG_GROUP_HOME="${INNODB_LOG_GROUP_HOME:-}"
 INNODB_UNDO_DIR="${INNODB_UNDO_DIR:-}"
+INNODB_FORCE_RECOVERY=""
 INNOEXTRA=""
 
 while [ $# -gt 0 ]; do
@@ -62,20 +88,22 @@ case "$1" in
             # without square brackets:
             readonly WSREP_SST_OPT_HOST_UNESCAPED="${addr_no_bracket%%\]*}"
             # Square brackets are needed in most cases:
-            readonly WSREP_SST_OPT_HOST="[${WSREP_SST_OPT_HOST_UNESCAPED}]"
-            readonly WSREP_SST_OPT_HOST_ESCAPED="\\[${WSREP_SST_OPT_HOST_UNESCAPED}\\]"
+            readonly WSREP_SST_OPT_HOST="[$WSREP_SST_OPT_HOST_UNESCAPED]"
             # Mark this address as IPv6:
             readonly WSREP_SST_OPT_HOST_IPv6=1
+            # Let's remove the leading part that contains the host address:
+            remain="${WSREP_SST_OPT_ADDR#*\]}"
             ;;
         *)
             readonly WSREP_SST_OPT_HOST="${WSREP_SST_OPT_ADDR%%[:/]*}"
             readonly WSREP_SST_OPT_HOST_UNESCAPED="$WSREP_SST_OPT_HOST"
-            readonly WSREP_SST_OPT_HOST_ESCAPED="$WSREP_SST_OPT_HOST"
             readonly WSREP_SST_OPT_HOST_IPv6=0
+            # Let's remove the leading part that contains the host address:
+            remain="${WSREP_SST_OPT_ADDR#*[:/]}"
             ;;
         esac
-        # Let's remove the leading part that contains the host address:
-        remain="${WSREP_SST_OPT_ADDR#$WSREP_SST_OPT_HOST_ESCAPED}"
+        # If there is nothing but the address, then the remainder is empty:
+        [ "$remain" = "$WSREP_SST_OPT_ADDR" ] && remain=""
         # Let's remove the ":" character that separates the port number
         # from the hostname:
         remain="${remain#:}"
@@ -83,39 +111,32 @@ case "$1" in
         # up to "/" (if present):
         WSREP_SST_OPT_ADDR_PORT="${remain%%/*}"
         # If the "/" character is present, then the path is not empty:
-        if [ "${remain#*/}" != "$remain" ]; then
+        if [ "$WSREP_SST_OPT_ADDR_PORT" != "$remain" ]; then
             # This operation removes everything up to the "/" character,
             # effectively removing the port number from the string:
             readonly WSREP_SST_OPT_PATH="${remain#*/}"
         else
             readonly WSREP_SST_OPT_PATH=""
         fi
-        # The rest of the string is the same as the path (for now):
-        remain="$WSREP_SST_OPT_PATH"
-        # If there is one more "/" in the string, then everything before
-        # it will be the module name, otherwise the module name is empty:
-        if [ "${remain%%/*}" != "$remain" ]; then
-            # This operation removes the tail after the very first
-            # occurrence of the "/" character (inclusively):
-            readonly WSREP_SST_OPT_MODULE="${remain%%/*}"
-        else
-            readonly WSREP_SST_OPT_MODULE=""
-        fi
         # Remove the module name part from the string, which ends with "/":
         remain="${WSREP_SST_OPT_PATH#*/}"
-        # If the rest of the string does not match the original, then there
-        # was something else besides the module name:
+        # This operation removes the tail after the very first occurrence
+        # of the "/" character, inclusively:
+        readonly WSREP_SST_OPT_MODULE="${WSREP_SST_OPT_PATH%%/*}"
+        # If there is one more "/" in the string, then everything before
+        # it will be the LSN, otherwise the LSN is empty:
         if [ "$remain" != "$WSREP_SST_OPT_PATH" ]; then
             # Extract the part that matches the LSN by removing all
             # characters starting from the very first "/":
             readonly WSREP_SST_OPT_LSN="${remain%%/*}"
             # Exctract everything after the first occurrence of
             # the "/" character in the string:
+            source="$remain"
             remain="${remain#*/}"
             # If the remainder does not match the original string,
             # then there is something else (the version number in
             # our case):
-            if [ "$remain" != "$WSREP_SST_OPT_LSN" ]; then
+            if [ "$remain" != "$source" ]; then
                 # Let's extract the version number by removing the tail
                 # after the very first occurence of the "/" character
                 # (inclusively):
@@ -178,14 +199,12 @@ case "$1" in
             readonly WSREP_SST_OPT_HOST_UNESCAPED="${addr_no_bracket%%\]*}"
             # Square brackets are needed in most cases:
             readonly WSREP_SST_OPT_HOST="[${WSREP_SST_OPT_HOST_UNESCAPED}]"
-            readonly WSREP_SST_OPT_HOST_ESCAPED="\\[${WSREP_SST_OPT_HOST_UNESCAPED}\\]"
             # Mark this address as IPv6:
             readonly WSREP_SST_OPT_HOST_IPv6=1
             ;;
         *)
             readonly WSREP_SST_OPT_HOST="$2"
             readonly WSREP_SST_OPT_HOST_UNESCAPED="$2"
-            readonly WSREP_SST_OPT_HOST_ESCAPED="$2"
             readonly WSREP_SST_OPT_HOST_IPv6=0
             ;;
         esac
@@ -229,7 +248,7 @@ case "$1" in
         shift
         ;;
     '--binlog-index'|'--log-bin-index')
-        readonly WSREP_SST_OPT_BINLOG_INDEX="$2"
+        WSREP_SST_OPT_BINLOG_INDEX="$2"
         shift
         ;;
     '--log-basename')
@@ -275,7 +294,7 @@ case "$1" in
                        else
                            # If it's not bash, then we need to use slow
                            # external utilities:
-                           option=$(echo "$options" | cut -c1-1)
+                           option=$(echo "$options" | cut -c1)
                        fi
                        # And the subsequent characters consider option value:
                        value=""
@@ -382,21 +401,27 @@ case "$1" in
                        fi
                        skip_mysqld_arg=1
                        ;;
+                   '--innodb-force-recovery')
+                       if [ -n "$value" -a "$value" != "0" ]; then
+                           INNODB_FORCE_RECOVERY=$(trim_string "$value")
+                       fi
+                       skip_mysqld_arg=1
+                       ;;
                    '--log-bin')
                        if [ -z "$WSREP_SST_OPT_BINLOG" ]; then
-                           MYSQLD_OPT_LOG_BIN="$value"
+                           MYSQLD_OPT_LOG_BIN=$(trim_string "$value")
                        fi
                        skip_mysqld_arg=1
                        ;;
                    '--log-bin-index')
                        if [ -z "$WSREP_SST_OPT_BINLOG_INDEX" ]; then
-                           MYSQLD_OPT_LOG_BIN_INDEX="$value"
+                           MYSQLD_OPT_LOG_BIN_INDEX=$(trim_string "$value")
                        fi
                        skip_mysqld_arg=1
                        ;;
                    '--log-basename')
                        if [ -z "$WSREP_SST_OPT_LOG_BASENAME" ]; then
-                           MYSQLD_OPT_LOG_BASENAME="$value"
+                           MYSQLD_OPT_LOG_BASENAME=$(trim_string "$value")
                        fi
                        skip_mysqld_arg=1
                        ;;
@@ -444,7 +469,7 @@ if [ -n "${MYSQLD_OPT_LOG_BIN:-}" -a \
 fi
 if [ -n "${MYSQLD_OPT_LOG_BIN_INDEX:-}" -a \
      -z "$WSREP_SST_OPT_BINLOG_INDEX" ]; then
-    readonly WSREP_SST_OPT_BINLOG_INDEX="$MYSQLD_OPT_LOG_BIN_INDEX"
+    WSREP_SST_OPT_BINLOG_INDEX="$MYSQLD_OPT_LOG_BIN_INDEX"
 fi
 if [ -n "${MYSQLD_OPT_DATADIR:-}" -a \
      -z "$WSREP_SST_OPT_DATA" ]; then
@@ -499,6 +524,7 @@ if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
     fi
 fi
 
+readonly INNODB_FORCE_RECOVERY
 readonly WSREP_SST_OPT_MYSQLD
 
 get_binlog()
@@ -553,6 +579,16 @@ get_binlog()
                 # is already defined above):
                 readonly WSREP_SST_OPT_BINLOG_INDEX="$WSREP_SST_OPT_BINLOG.index"
             fi
+        else
+            # Remove all directories from the index file path:
+            local filename="${WSREP_SST_OPT_BINLOG_INDEX##*/}"
+            # Check if the index file name contains the extension:
+            if [ "${filename%.*}" = "$filename" ]; then
+                # Let's add the default extension (".index"):
+                readonly WSREP_SST_OPT_BINLOG_INDEX="$WSREP_SST_OPT_BINLOG_INDEX.index"
+            else
+                readonly WSREP_SST_OPT_BINLOG_INDEX
+            fi
         fi
     fi
 }
@@ -564,7 +600,8 @@ get_binlog()
 if [ -n "$WSREP_SST_OPT_ADDR_PORT" ]; then
     if [ -n "$WSREP_SST_OPT_PORT" ]; then
         if [ "$WSREP_SST_OPT_PORT" != "$WSREP_SST_OPT_ADDR_PORT" ]; then
-            echo "WSREP_SST: [ERROR] port in --port=$WSREP_SST_OPT_PORT differs from port in --address=$WSREP_SST_OPT_ADDR" >&2
+            echo "WSREP_SST: [ERROR] port in --port=$WSREP_SST_OPT_PORT" \
+                 "differs from port in --address=$WSREP_SST_OPT_ADDR" >&2
             exit 2
         fi
     else
@@ -572,32 +609,34 @@ if [ -n "$WSREP_SST_OPT_ADDR_PORT" ]; then
         # the corresponding variable:
         readonly WSREP_SST_OPT_PORT="$WSREP_SST_OPT_ADDR_PORT"
     fi
-elif [ -n "$WSREP_SST_OPT_ADDR" ]; then
+else
     # If the port is missing, take the default port:
     if [ -z "$WSREP_SST_OPT_PORT" ]; then
         readonly WSREP_SST_OPT_PORT=4444
     fi
     WSREP_SST_OPT_ADDR_PORT="$WSREP_SST_OPT_PORT"
-    # Let's remove the leading part that contains the host address:
-    remain="${WSREP_SST_OPT_ADDR#$WSREP_SST_OPT_HOST_ESCAPED}"
-    # Let's remove the ":" character that separates the port number
-    # from the hostname:
-    remain="${remain#:}"
-    # Let's remove all characters upto first "/" character that
-    # separates the hostname with port number from the path:
-    remain="${remain#/}"
-    # Let's construct a new value for the address with the port:
-    WSREP_SST_OPT_ADDR="$WSREP_SST_OPT_HOST:$WSREP_SST_OPT_PORT"
-    if [ -n "$remain" ]; then
-        WSREP_SST_OPT_ADDR="$WSREP_SST_OPT_ADDR/$remain"
-    fi
 fi
+
+# Let's construct a new value for the address with the port:
+sst_path="${WSREP_SST_OPT_PATH:+/}$WSREP_SST_OPT_PATH"
+WSREP_SST_OPT_ADDR="$WSREP_SST_OPT_HOST:$WSREP_SST_OPT_PORT$sst_path"
 
 readonly WSREP_SST_OPT_ADDR
 readonly WSREP_SST_OPT_ADDR_PORT
 
-# try to use my_print_defaults, mysql and mysqldump that come with the sources
-# (for MTR suite)
+commandex()
+{
+    if [ -n "$BASH_VERSION" ]; then
+        command -v "$1" || :
+    elif [ -x "$1" ]; then
+        echo "$1"
+    else
+        which "$1" || :
+    fi
+}
+
+# try to use my_print_defaults, mysql and mysqldump that come
+# with the sources (for MTR suite):
 script_binary=$(dirname "$0")
 SCRIPTS_DIR=$(cd "$script_binary"; pwd -P)
 EXTRA_DIR="$SCRIPTS_DIR/../extra"
@@ -606,13 +645,13 @@ CLIENT_DIR="$SCRIPTS_DIR/../client"
 if [ -x "$CLIENT_DIR/mysql" ]; then
     MYSQL_CLIENT="$CLIENT_DIR/mysql"
 else
-    MYSQL_CLIENT="$(command -v mysql)"
+    MYSQL_CLIENT=$(commandex 'mysql')
 fi
 
 if [ -x "$CLIENT_DIR/mysqldump" ]; then
     MYSQLDUMP="$CLIENT_DIR/mysqldump"
 else
-    MYSQLDUMP="$(command -v mysqldump)"
+    MYSQLDUMP=$(commandex 'mysqldump')
 fi
 
 wsrep_log()
@@ -643,7 +682,7 @@ if [ -x "$SCRIPTS_DIR/my_print_defaults" ]; then
 elif [ -x "$EXTRA_DIR/my_print_defaults" ]; then
     MY_PRINT_DEFAULTS="$EXTRA_DIR/my_print_defaults"
 else
-    MY_PRINT_DEFAULTS="$(command -v my_print_defaults)"
+    MY_PRINT_DEFAULTS=$(commandex 'my_print_defaults')
     if [ -z "$MY_PRINT_DEFAULTS" ]; then
         wsrep_log_error "my_print_defaults not found in path"
         exit 2
@@ -653,16 +692,16 @@ fi
 readonly MY_PRINT_DEFAULTS
 
 wsrep_defaults="$WSREP_SST_OPT_DEFAULTS"
-wsrep_defaults="$wsrep_defaults${wsrep_defaults:+ }$WSREP_SST_OPT_EXTRA_DEFAULTS"
-wsrep_defaults="$wsrep_defaults${wsrep_defaults:+ }$WSREP_SST_OPT_SUFFIX_DEFAULT"
+wsrep_defaults="$wsrep_defaults${WSREP_SST_OPT_EXTRA_DEFAULTS:+ }$WSREP_SST_OPT_EXTRA_DEFAULTS"
+wsrep_defaults="$wsrep_defaults${WSREP_SST_OPT_SUFFIX_DEFAULT:+ }$WSREP_SST_OPT_SUFFIX_DEFAULT"
 
-readonly WSREP_SST_OPT_CONF="$wsrep_defaults"
+readonly WSREP_SST_OPT_CONF="${wsrep_defaults:+ }$wsrep_defaults"
 
 wsrep_defaults="$WSREP_SST_OPT_DEFAULT"
-wsrep_defaults="$wsrep_defaults${wsrep_defaults:+ }$WSREP_SST_OPT_EXTRA_DEFAULT"
-wsrep_defaults="$wsrep_defaults${wsrep_defaults:+ }$WSREP_SST_OPT_SUFFIX_DEFAULT"
+wsrep_defaults="$wsrep_defaults${WSREP_SST_OPT_EXTRA_DEFAULT:+ }$WSREP_SST_OPT_EXTRA_DEFAULT"
+wsrep_defaults="$wsrep_defaults${WSREP_SST_OPT_SUFFIX_DEFAULT:+ }$WSREP_SST_OPT_SUFFIX_DEFAULT"
 
-readonly WSREP_SST_OPT_CONF_UNQUOTED="$wsrep_defaults"
+readonly WSREP_SST_OPT_CONF_UNQUOTED="${wsrep_defaults:+ }$wsrep_defaults"
 
 #
 # User can specify mariabackup specific settings that will be used during sst
@@ -692,8 +731,11 @@ parse_cnf()
         local group="${groups%%\|*}"
         # Remove the remainder (the group name) from the rest
         # of the groups list (as if it were a prefix):
-        groups="${groups#$group}"
-        groups="${groups#\|}"
+        if [ "$group" != "$groups" ]; then
+            groups="${groups#*\|}"
+        else
+            groups=""
+        fi
         # If the group name is the same as the "mysqld" without "--" prefix,
         # then try to use it together with the group suffix:
         if [ "$group" = 'mysqld' -a -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
@@ -718,9 +760,11 @@ parse_cnf()
     done
 
     # Use default if we haven't found a value:
-    if [ -z "$reval" ]; then
-        [ -n "${3:-}" ] && reval="$3"
-    fi
+    [ -z "$reval" ] && reval="${3:-}"
+
+    # Truncate spaces:
+    [ -n "$reval" ] && reval=$(trim_string "$reval")
+
     echo "$reval"
 }
 
@@ -747,8 +791,11 @@ in_config()
         local group="${groups%%\|*}"
         # Remove the remainder (the group name) from the rest
         # of the groups list (as if it were a prefix):
-        groups="${groups#$group}"
-        groups="${groups#\|}"
+        if [ "$group" != "$groups" ]; then
+            groups="${groups#*\|}"
+        else
+            groups=""
+        fi
         # If the group name is the same as the "mysqld" without "--" prefix,
         # then try to use it together with the group suffix:
         if [ "$group" = 'mysqld' -a -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
@@ -799,8 +846,7 @@ if wsrep_auth_not_set; then
 fi
 
 # Splitting WSREP_SST_OPT_AUTH as "user:password" pair:
-if ! wsrep_auth_not_set
-then
+if ! wsrep_auth_not_set; then
     # Extract username as shortest prefix up to first ':' character:
     WSREP_SST_OPT_AUTH_USER="${WSREP_SST_OPT_AUTH%%:*}"
     if [ -z "$WSREP_SST_OPT_USER" ]; then
@@ -828,8 +874,7 @@ readonly WSREP_SST_OPT_USER
 readonly WSREP_SST_OPT_PSWD
 readonly WSREP_SST_OPT_AUTH
 
-if [ -n "$WSREP_SST_OPT_REMOTE_AUTH" ]
-then
+if [ -n "$WSREP_SST_OPT_REMOTE_AUTH" ]; then
     # Split auth string at the last ':'
     readonly WSREP_SST_OPT_REMOTE_USER="${WSREP_SST_OPT_REMOTE_AUTH%%:*}"
     readonly WSREP_SST_OPT_REMOTE_PSWD="${WSREP_SST_OPT_REMOTE_AUTH#*:}"
@@ -840,8 +885,7 @@ fi
 
 readonly WSREP_SST_OPT_REMOTE_AUTH
 
-if [ -n "$WSREP_SST_OPT_DATA" ]
-then
+if [ -n "$WSREP_SST_OPT_DATA" ]; then
     SST_PROGRESS_FILE="$WSREP_SST_OPT_DATA/sst_in_progress"
 else
     SST_PROGRESS_FILE=""
@@ -849,14 +893,15 @@ fi
 
 wsrep_cleanup_progress_file()
 {
-    [ -n "$SST_PROGRESS_FILE" -a \
-      -f "$SST_PROGRESS_FILE" ] && rm -f "$SST_PROGRESS_FILE" 2>/dev/null || true
+    if [ -n "$SST_PROGRESS_FILE" -a -f "$SST_PROGRESS_FILE" ]; then
+        rm -f "$SST_PROGRESS_FILE" 2>/dev/null || :
+    fi
 }
 
 wsrep_check_program()
 {
     local prog="$1"
-    local cmd=$(command -v "$prog")
+    local cmd=$(commandex "$prog")
     if [ -z "$cmd" ]; then
         echo "'$prog' not found in PATH"
         return 2 # no such file or directory
@@ -866,21 +911,18 @@ wsrep_check_program()
 wsrep_check_programs()
 {
     local ret=0
-
-    while [ $# -gt 0 ]
-    do
+    while [ $# -gt 0 ]; do
         wsrep_check_program "$1" || ret=$?
         shift
     done
-
     return $ret
 }
 
 wsrep_check_datadir()
 {
-    if [ -z "$WSREP_SST_OPT_DATA" ]
-    then
-        wsrep_log_error "The '--datadir' parameter must be passed to the SST script"
+    if [ -z "$WSREP_SST_OPT_DATA" ]; then
+        wsrep_log_error \
+            "The '--datadir' parameter must be passed to the SST script"
         exit 2
     fi
 }
@@ -892,10 +934,10 @@ get_openssl()
         return
     fi
     # Let's look for openssl:
-    OPENSSL_BINARY="$(command -v openssl)"
+    OPENSSL_BINARY=$(commandex 'openssl')
     if [ -z "$OPENSSL_BINARY" ]; then
         OPENSSL_BINARY='/usr/bin/openssl'
-        if [ -z "$OPENSSL_BINARY" ]; then
+        if [ ! -x "$OPENSSL_BINARY" ]; then
             OPENSSL_BINARY=""
         fi
     fi
@@ -908,13 +950,12 @@ get_openssl()
 wsrep_gen_secret()
 {
     get_openssl
-    if [ -n "$OPENSSL_BINARY" ]
-    then
+    if [ -n "$OPENSSL_BINARY" ]; then
         echo $("$OPENSSL_BINARY" rand -hex 16)
     else
         printf "%04x%04x%04x%04x%04x%04x%04x%04x" \
-                $RANDOM $RANDOM $RANDOM $RANDOM   \
-                $RANDOM $RANDOM $RANDOM $RANDOM
+               $RANDOM $RANDOM $RANDOM $RANDOM \
+               $RANDOM $RANDOM $RANDOM $RANDOM
     fi
 }
 
@@ -948,14 +989,14 @@ is_local_ip()
     fi
     # Now let's check if the given address is assigned to
     # one of the network cards:
-    local ip_util="$(command -v ip)"
+    local ip_util=$(commandex 'ip')
     if [ -n "$ip_util" ]; then
         # ip address show ouput format is " inet[6] <address>/<mask>":
         "$ip_util" address show \
              | grep -E "^[[:space:]]*inet.? [^[:space:]]+/" -o \
              | grep -F " $1/" >/dev/null && return 0
     else
-        local ifconfig_util="$(command -v ifconfig)"
+        local ifconfig_util=$(commandex 'ifconfig')
         if [ -n "$ifconfig_util" ]; then
             # ifconfig output format is " inet[6] <address> ...":
             "$ifconfig_util" \
@@ -972,15 +1013,15 @@ check_sockets_utils()
     sockstat_available=0
     ss_available=0
 
-    [ -n "$(command -v lsof)" ] && lsof_available=1
-    [ -n "$(command -v sockstat)" ] && sockstat_available=1
-    [ -n "$(command -v ss)" ] && ss_available=1
+    [ -n "$(commandex lsof)" ] && lsof_available=1
+    [ -n "$(commandex sockstat)" ] && sockstat_available=1
+    [ -n "$(commandex ss)" ] && ss_available=1
 
     if [ $lsof_available -eq 0 -a \
          $sockstat_available -eq 0 -a \
          $ss_available -eq 0 ]
     then
-        wsrep_log_error "Neither lsof, nor sockstat or ss tool was found in " \
+        wsrep_log_error "Neither lsof, nor sockstat or ss tool was found in" \
                         "the PATH. Make sure you have it installed."
         exit 2 # ENOENT
     fi
@@ -998,11 +1039,11 @@ check_sockets_utils()
 #
 check_port()
 {
-    local pid="$1"
+    local pid="${1:-0}"
     local port="$2"
     local utils="$3"
 
-    [ -z "$pid" ] || [ $pid -eq 0 ] && pid='[0-9]+'
+    [ $pid -le 0 ] && pid='[0-9]+'
 
     local rc=1
 
@@ -1040,14 +1081,20 @@ check_for_dhparams()
     if [ ! -r "$ssl_dhparams" ]; then
         get_openssl
         if [ -n "$OPENSSL_BINARY" ]; then
-            wsrep_log_info "Could not find dhparams file, creating $ssl_dhparams"
-            if ! "$OPENSSL_BINARY" dhparam -out "$ssl_dhparams" 2048 >/dev/null 2>&1
-            then
+            wsrep_log_info \
+                "Could not find dhparams file, creating $ssl_dhparams"
+            local bug=0
+            local errmsg
+            errmsg=$("$OPENSSL_BINARY" \
+                         dhparam -out "$ssl_dhparams" 2048 2>&1) || bug=1
+            if [ $bug -ne 0 ]; then
+                wsrep_log_info "run: \"$OPENSSL_BINARY\" dhparam -out \"$ssl_dhparams\" 2048"
+                wsrep_log_info "output: $errmsg"
                 wsrep_log_error "******** ERROR *****************************************"
                 wsrep_log_error "* Could not create the dhparams.pem file with OpenSSL. *"
                 wsrep_log_error "********************************************************"
                 ssl_dhparams=""
-             fi
+            fi
         else
             # Rollback: if openssl is not installed, then use
             # the default parameters:
@@ -1065,26 +1112,38 @@ check_for_dhparams()
 #
 verify_ca_matches_cert()
 {
-    local ca="$1"
-    local cert="$2"
-    local path=${3:-0}
+    local cert="$1"
+    local ca="$2"
+    local cap="$3"
+
+    local readable=1; [ ! -r "$cert" ] && readable=0
+         [ -n "$ca"  -a ! -r "$ca"   ] && readable=0
+         [ -n "$cap" -a ! -r "$cap"  ] && readable=0
+
+    if [ $readable -eq 0 ]; then
+        wsrep_log_error \
+            "Both PEM file and CA file (or path) must be readable"
+        exit 22
+    fi
 
     # If the openssl utility is not installed, then
     # we will not do this certificate check:
     get_openssl
     if [ -z "$OPENSSL_BINARY" ]; then
+        wsrep_log_info "openssl utility not found"
         return
     fi
 
     local not_match=0
-
-    if [ $path -eq 0 ]; then
-        "$OPENSSL_BINARY" verify -verbose -CAfile "$ca" "$cert" >/dev/null 2>&1 || not_match=1
-    else
-        "$OPENSSL_BINARY" verify -verbose -CApath "$ca" "$cert" >/dev/null 2>&1 || not_match=1
-    fi
+    local errmsg
+    errmsg=$("$OPENSSL_BINARY" verify -verbose \
+                 ${ca:+ -CAfile} ${ca:+ "$ca"} \
+                 ${cap:+ -CApath} ${cap:+ "$cap"} \
+                 "$cert" 2>&1) || not_match=1
 
     if [ $not_match -eq 1 ]; then
+        wsrep_log_info "run: \"$OPENSSL_BINARY\" verify -verbose${ca:+ -CAfile \"$ca\"}${cap:+ -CApath \"$cap\"} \"$cert\""
+        wsrep_log_info "output: $errmsg"
         wsrep_log_error "******** FATAL ERROR ********************************************"
         wsrep_log_error "* The certifcate and CA (certificate authority) do not match.   *"
         wsrep_log_error "* It does not appear that the certificate was issued by the CA. *"
@@ -1104,12 +1163,19 @@ verify_ca_matches_cert()
 #
 verify_cert_matches_key()
 {
-    local cert_path="$1"
-    local key_path="$2"
+    local cert="$1"
+    local key="$2"
+
+    if [ ! -r "$key" -o ! -r "$cert" ]; then
+        wsrep_log_error "Both the certificate file and the key file" \
+                        "must be readable"
+        exit 22
+    fi
 
     # If the diff utility is not installed, then
     # we will not do this certificate check:
-    if [ -z "$(command -v diff)" ]; then
+    if [ -z "$(commandex diff)" ]; then
+        wsrep_log_info "diff utility not found"
         return
     fi
 
@@ -1117,18 +1183,19 @@ verify_cert_matches_key()
     # we will not do this certificate check:
     get_openssl
     if [ -z "$OPENSSL_BINARY" ]; then
+        wsrep_log_info "openssl utility not found"
         return
     fi
 
     # Generate the public key from the cert and the key.
     # They should match (otherwise we can't create an SSL connection).
-    if ! diff <("$OPENSSL_BINARY" x509 -in "$cert_path" -pubkey -noout 2>/dev/null) \
-              <("$OPENSSL_BINARY" pkey -in "$key_path" -pubout 2>/dev/null) >/dev/null 2>&1
+    if ! diff <("$OPENSSL_BINARY" x509 -in "$cert" -pubkey -noout 2>/dev/null) \
+              <("$OPENSSL_BINARY" pkey -in "$key" -pubout 2>/dev/null) >/dev/null 2>&1
     then
-        wsrep_log_error "******************* FATAL ERROR ****************"
-        wsrep_log_error "* The certifcate and private key do not match. *"
-        wsrep_log_error "* Please check your certificate and key files. *"
-        wsrep_log_error "************************************************"
+        wsrep_log_error "******************* FATAL ERROR *****************"
+        wsrep_log_error "* The certificate and private key do not match. *"
+        wsrep_log_error "* Please check your certificate and key files.  *"
+        wsrep_log_error "*************************************************"
         exit 22
     fi
 }
@@ -1167,28 +1234,6 @@ check_for_version()
     return 0
 }
 
-trim_string()
-{
-    if [ -n "$BASH_VERSION" ]; then
-        local pattern="[![:space:]${2:-}]"
-        local x="${1#*$pattern}"
-        local z=${#1}
-        x=${#x}
-        if [ $x -ne $z ]; then
-            local y="${1%$pattern*}"
-            y=${#y}
-            x=$(( z-x-1 ))
-            y=$(( y-x+1 ))
-            printf '%s' "${1:$x:$y}"
-        else
-            printf ''
-        fi
-    else
-        local pattern="[[:space:]${2:-}]"
-        echo "$1" | sed -E "s/^$pattern+|$pattern+\$//g"
-    fi
-}
-
 #
 # Check whether process is still running.
 # The first parameter contains the name of the PID file.
@@ -1205,18 +1250,18 @@ check_pid()
 {
     local pid_file="$1"
     if [ -r "$pid_file" ]; then
-        local pid=$(cat "$pid_file" 2>/dev/null)
+        local pid=$(cat "$pid_file" 2>/dev/null || :)
         if [ -n "$pid" ]; then
-            if [ $pid -ne 0 ]; then
-                if ps -p "$pid" >/dev/null 2>&1; then
+            if [ $pid -gt 0 ]; then
+                if ps -p $pid >/dev/null 2>&1; then
                     CHECK_PID=$pid
                     return 0
                 fi
             fi
         fi
         local remove=${2:-0}
-        if [ $remove -eq 1 ]; then
-            rm -f "$pid_file"
+        if [ $remove -ne 0 ]; then
+            rm -f "$pid_file" || :
         fi
     fi
     CHECK_PID=0
@@ -1241,25 +1286,25 @@ cleanup_pid()
     local pid_file="${2:-}"
     local config="${3:-}"
 
-    if [ $pid -ne 0 ]; then
+    if [ $pid -gt 0 ]; then
         if ps -p $pid >/dev/null 2>&1; then
             if kill $pid >/dev/null 2>&1; then
                 sleep 0.5
                 local round=0
                 local force=0
                 while ps -p $pid >/dev/null 2>&1; do
-                   sleep 1
-                   round=$(( round+1 ))
-                   if [ $round -eq 16 ]; then
-                       if [ $force -eq 0 ]; then
-                           round=8
-                           force=1
-                           kill -9 $pid >/dev/null 2>&1
-                           sleep 0.5
-                       else
-                           return 1
-                       fi
-                   fi
+                    sleep 1
+                    round=$(( round+1 ))
+                    if [ $round -eq 16 ]; then
+                        if [ $force -eq 0 ]; then
+                            round=8
+                            force=1
+                            kill -9 $pid >/dev/null 2>&1 || :
+                            sleep 0.5
+                        else
+                            return 1
+                        fi
+                    fi
                 done
             elif ps -p $pid >/dev/null 2>&1; then
                 wsrep_log_warning "Unable to kill PID=$pid ($pid_file)"
@@ -1268,8 +1313,8 @@ cleanup_pid()
         fi
     fi
 
-    [ -n "$pid_file" ] && [ -f "$pid_file" ] && rm -f "$pid_file"
-    [ -n "$config" ]   && [ -f "$config" ]   && rm -f "$config"
+    [ -n "$pid_file" -a -f "$pid_file" ] && rm -f "$pid_file" || :
+    [ -n "$config" -a -f "$config" ] && rm -f "$config" || :
 
     return 0
 }
@@ -1285,9 +1330,48 @@ get_proc()
         elif [ "$OS" = 'Darwin' -o "$OS" = 'FreeBSD' ]; then
             nproc=$(sysctl -n hw.ncpu)
         fi
+        set -e
         if [ -z "$nproc" ] || [ $nproc -eq 0 ]; then
             nproc=1
         fi
-        set -e
+    fi
+}
+
+check_server_ssl_config()
+{
+    # backward-compatible behavior:
+    tcert=$(parse_cnf 'sst' 'tca')
+    tcap=$(parse_cnf 'sst' 'tcapath')
+    tpem=$(parse_cnf 'sst' 'tcert')
+    tkey=$(parse_cnf 'sst' 'tkey')
+    # reading new ssl configuration options:
+    local tcert2=$(parse_cnf "$encgroups" 'ssl-ca')
+    local tcap2=$(parse_cnf "$encgroups" 'ssl-capath')
+    local tpem2=$(parse_cnf "$encgroups" 'ssl-cert')
+    local tkey2=$(parse_cnf "$encgroups" 'ssl-key')
+    # if there are no old options, then we take new ones:
+    if [ -z "$tcert" -a -z "$tcap" -a -z "$tpem" -a -z "$tkey" ]; then
+        tcert="$tcert2"
+        tcap="$tcap2"
+        tpem="$tpem2"
+        tkey="$tkey2"
+    # checking for presence of the new-style SSL configuration:
+    elif [ -n "$tcert2" -o -n "$tcap2" -o -n "$tpem2" -o -n "$tkey2" ]; then
+        if [ "$tcert" != "$tcert2" -o \
+             "$tcap"  != "$tcap2"  -o \
+             "$tpem"  != "$tpem2"  -o \
+             "$tkey"  != "$tkey2" ]
+        then
+            wsrep_log_info \
+               "new ssl configuration options (ssl-ca[path], ssl-cert" \
+               "and ssl-key) are ignored by SST due to presence" \
+               "of the tca[path], tcert and/or tkey in the [sst] section"
+        fi
+    fi
+    if [ -n "$tcert" ]; then
+        if [ "${tcert%/}" != "$tcert" -o -d "$tcert" ]; then
+            tcap="$tcert"
+            tcert=""
+        fi
     fi
 }

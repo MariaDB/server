@@ -47,7 +47,7 @@
 #define IS_MB1_CHAR(x)        ((uchar) (x) < 0x80)
 #define IS_MB2_CHAR(x,y)      (isgbkhead(x) && isgbktail(y))
 #define DEFINE_ASIAN_ROUTINES
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 
 
 static const uchar ctype_gbk[257] =
@@ -10616,13 +10616,13 @@ my_mb_wc_gbk(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_MB1(x)        (sort_order_gbk[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (gbksortorder(gbkcode(x,y)))
 #define DEFINE_STRNXFRM
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _gbk_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (gbkcode(x,y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -10630,14 +10630,14 @@ my_mb_wc_gbk(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_MB1(x)        (sort_order_gbk[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (gbksortorder(gbkcode(x,y)))
 #define DEFINE_STRNXFRM
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _gbk_nopad_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (gbkcode(x,y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 static MY_COLLATION_HANDLER my_collation_handler_gbk_chinese_ci=

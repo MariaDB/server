@@ -264,6 +264,16 @@ if ($USE_CHILD_GROUP2)
 }
 
 
+--echo #
+--echo # MDEV-28225 Disallow user to create Spider temporary table
+--echo #
+--connection master_1
+--error ER_ILLEGAL_HA_CREATE_OPTION
+CREATE TEMPORARY TABLE t1 (
+  a INT
+) ENGINE=Spider;
+
+
 --echo
 --echo deinit
 --disable_warnings

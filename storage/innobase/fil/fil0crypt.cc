@@ -668,16 +668,14 @@ fil_space_encrypt(
 @param[in]	tmp_frame		Temporary buffer
 @param[in]	page_size		Page size
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	err			DB_SUCCESS or DB_DECRYPTION_FAILED
-@return true if page decrypted, false if not.*/
+@return DB_SUCCESS or error */
 UNIV_INTERN
-bool
+dberr_t
 fil_space_decrypt(
 	fil_space_crypt_t*	crypt_data,
 	byte*			tmp_frame,
 	const page_size_t&	page_size,
-	byte*			src_frame,
-	dberr_t*		err)
+	byte*			src_frame)
 {
 	ulint page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 	uint key_version = mach_read_from_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
@@ -686,12 +684,7 @@ fil_space_decrypt(
 	uint space = mach_read_from_4(src_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	ib_uint64_t lsn = mach_read_from_8(src_frame + FIL_PAGE_LSN);
 
-	*err = DB_SUCCESS;
-
-	if (key_version == ENCRYPTION_KEY_NOT_ENCRYPTED) {
-		return false;
-	}
-
+	ut_a(key_version != ENCRYPTION_KEY_NOT_ENCRYPTED);
 	ut_a(crypt_data != NULL && crypt_data->is_encrypted());
 
 	/* read space & lsn */
@@ -722,8 +715,7 @@ fil_space_decrypt(
 	if (! ((rc == MY_AES_OK) && ((ulint) dstlen == srclen))) {
 
 		if (rc == -1) {
-			*err = DB_DECRYPTION_FAILED;
-			return false;
+			return DB_DECRYPTION_FAILED;
 		}
 
 		ib::fatal() << "Unable to decrypt data-block "
@@ -748,7 +740,7 @@ fil_space_decrypt(
 
 	srv_stats.pages_decrypted.inc();
 
-	return true; /* page was decrypted */
+	return DB_SUCCESS; /* page was decrypted */
 }
 
 /**
@@ -765,27 +757,21 @@ fil_space_decrypt(
 	byte*		tmp_frame,
 	byte*		src_frame)
 {
-	dberr_t err = DB_SUCCESS;
-	byte* res = NULL;
 	const page_size_t page_size(space->flags);
 
 	ut_ad(space->crypt_data != NULL && space->crypt_data->is_encrypted());
 	ut_ad(space->n_pending_ios > 0);
 
-	bool encrypted = fil_space_decrypt(space->crypt_data, tmp_frame,
-					   page_size, src_frame, &err);
-
-	if (err == DB_SUCCESS) {
-		if (encrypted) {
-			/* Copy the decrypted page back to page buffer, not
-			really any other options. */
-			memcpy(src_frame, tmp_frame, page_size.physical());
-		}
-
-		res = src_frame;
+	if (DB_SUCCESS != fil_space_decrypt(space->crypt_data, tmp_frame,
+					    page_size, src_frame)) {
+		return NULL;
 	}
 
-	return res;
+	/* Copy the decrypted page back to page buffer, not
+	really any other options. */
+	memcpy(src_frame, tmp_frame, page_size.physical());
+
+	return src_frame;
 }
 
 /******************************************************************
@@ -2484,6 +2470,10 @@ void
 fil_crypt_set_encrypt_tables(
 	uint val)
 {
+	if (!fil_crypt_threads_inited) {
+		return;
+	}
+
 	mutex_enter(&fil_system->mutex);
 
 	srv_encrypt_tables = val;

@@ -520,6 +520,6 @@ struct hash_table_t {
 #endif /* UNIV_DEBUG */
 };
 
-#include "hash0hash.ic"
+#include "hash0hash.inl"
 
 #endif

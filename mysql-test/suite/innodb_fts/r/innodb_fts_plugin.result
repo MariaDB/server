@@ -161,6 +161,7 @@ id	title	body
 SELECT COUNT(*) FROM articles;
 COUNT(*)
 5
+INSERT INTO articles (title, body) VALUES ('111', '1234 1234 1234');
 DROP TABLE articles;
 # Test Part 5: Test Uninstall Plugin After Index is Built
 CREATE TABLE articles (

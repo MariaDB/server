@@ -453,6 +453,6 @@ buf_flush_batch(
 					counts  */
 
 
-#include "buf0flu.ic"
+#include "buf0flu.inl"
 
 #endif

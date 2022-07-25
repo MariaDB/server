@@ -940,5 +940,23 @@ SELECT JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' );
 JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' )
 ["x"]
 #
+# MDEV-18284 JSON casting using JSON_COMPACT doesn't always work
+#            with values from subqueries
+#
+CREATE TABLE json_test(a JSON, b JSON);
+INSERT INTO json_test VALUES ("[1,2,3]", '{"a":"foo"}');
+SELECT * FROM json_test;
+a	b
+[1,2,3]	{"a":"foo"}
+SELECT json_object("a", json_compact(a), "b", b)
+FROM (SELECT * FROM json_test) AS json_test_values;
+json_object("a", json_compact(a), "b", b)
+{"a": [1,2,3], "b": "{\"a\":\"foo\"}"}
+SELECT json_object("a", json_compact(a), "b", json_compact(b))
+FROM (SELECT * FROM json_test) AS json_test_values;
+json_object("a", json_compact(a), "b", json_compact(b))
+{"a": [1,2,3], "b": {"a":"foo"}}
+DROP TABLE json_test;
+#
 # End of 10.2 tests
 #

@@ -1035,10 +1035,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 98 shift/reduce conflicts.
+  Currently there are 119 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 115
+%expect 119
 
 /*
    Comments for TOKENS.
@@ -1258,6 +1258,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  FOLLOWS_SYM                   /* MYSQL trigger*/
 %token  FOLLOWING_SYM                 /* SQL-2011-N */
 %token  FORCE_SYM
+%token  FORCE_LOOKAHEAD               /* INTERNAL never returned by the lexer */
 %token  FOREIGN                       /* SQL-2003-R */
 %token  FOR_SYM                       /* SQL-2003-R */
 %token  FORMAT_SYM
@@ -1916,6 +1917,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <charset>
         opt_collate
+        collate
         charset_name
         charset_or_alias
         charset_name_or_default
@@ -2709,6 +2711,9 @@ server_option:
           }
         ;
 
+/* this rule is used to force look-ahead in the parser */
+force_lookahead: {} | FORCE_LOOKAHEAD {} ;
+
 event_tail:
           remember_name EVENT_SYM opt_if_not_exists sp_name
           {
@@ -2853,7 +2858,7 @@ ev_sql_stmt:
             lex->sp_chistics.suid= SP_IS_SUID;  //always the definer!
             lex->sphead->set_body_start(thd, lip->get_cpp_ptr());
           }
-          sp_proc_stmt
+          sp_proc_stmt force_lookahead
           {
             LEX *lex= thd->lex;
 
@@ -4869,6 +4874,10 @@ create_like:
 opt_create_select:
           /* empty */ {}
         | opt_duplicate opt_as create_select_query_expression
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         ;
 
 create_select_query_expression:
@@ -4877,16 +4886,12 @@ create_select_query_expression:
           { 
             Select->set_braces(0);
             Select->set_with_clause($1);
-            if (Lex->check_cte_dependencies_and_resolve_references())
-              MYSQL_YYABORT;
           }
           union_clause
         | opt_with_clause SELECT_SYM create_select_part2 
           create_select_part3_union_not_ready create_select_part4
           {
             Select->set_with_clause($1);
-            if (Lex->check_cte_dependencies_and_resolve_references())
-              MYSQL_YYABORT;
           }
         | '(' create_select_query_specification ')'
         | '(' create_select_query_specification ')'
@@ -6776,10 +6781,7 @@ charset_or_alias:
           }
         ;
 
-collate: COLLATE_SYM collation_name_or_default
-         {
-           Lex->charset= Lex->last_field->charset= $2;
-         }
+collate: COLLATE_SYM collation_name_or_default { $$= $2; }
        ;
 
 opt_binary:
@@ -6790,11 +6792,17 @@ opt_binary:
         | BINARY charset_or_alias { bincmp_collation($2, true); }
         | charset_or_alias collate
           {
-            if (!my_charset_same(Lex->charset, $1))
-              my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-                                Lex->charset->name, $1->csname));
+            if (!$2)
+              Lex->charset= $1; // CHARACTER SET cs COLLATE DEFAULT
+            else
+            {
+              if (!my_charset_same($2, $1))
+                my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),
+                                  $2->name, $1->csname));
+              Lex->charset= $2;
+            }
           }
-        | collate { }
+        | collate { Lex->charset= $1; }
         ;
 
 opt_bin_mod:
@@ -10557,9 +10565,6 @@ window_func:
           simple_window_func
         |
           sum_expr
-          {
-            ((Item_sum *) $1)->mark_as_window_func_sum_expr();
-          }
         ;
 
 simple_window_func:
@@ -12668,6 +12673,10 @@ delete:
             lex->select_lex.init_order();
           }
           opt_delete_options single_multi
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         ;
 
 single_multi:
@@ -14570,14 +14579,8 @@ TEXT_STRING_sys:
 TEXT_STRING_literal:
           TEXT_STRING
           {
-            if (thd->charset_is_collation_connection)
-              $$= $1;
-            else
-            {
-              if (thd->convert_string(&$$, thd->variables.collation_connection,
-                                  $1.str, $1.length, thd->charset()))
-                MYSQL_YYABORT;
-            } 
+            if (thd->make_text_string_connection(&$$, &$1))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -16839,8 +16842,8 @@ trigger_tail:
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
-          sp_proc_stmt /* $20 */
-          { /* $21 */
+          sp_proc_stmt force_lookahead
+          {
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
 
@@ -16940,7 +16943,7 @@ sf_tail:
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
-          sp_proc_stmt_in_returns_clause /* $15 */
+          sp_proc_stmt_in_returns_clause /* $15 */ force_lookahead
           {
             LEX *lex= thd->lex;
             sp_head *sp= lex->sphead;
@@ -17021,7 +17024,7 @@ sp_tail:
           {
             Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
-          sp_proc_stmt
+          sp_proc_stmt force_lookahead
           {
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;

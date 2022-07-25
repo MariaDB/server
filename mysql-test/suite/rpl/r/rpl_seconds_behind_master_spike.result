@@ -1,0 +1,41 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+SET @save_dbug= @@GLOBAL.debug_dbug;
+SET @@global.debug_dbug="+d,pause_sql_thread_on_fde";
+include/start_slave.inc
+# Future events must be logged at least 2 seconds after
+# the slave starts
+connection master;
+# Write events to ensure slave will be consistent with master
+create table t1 (a int);
+insert into t1 values (1);
+# Flush logs on master forces slave to generate a Format description
+# event in its relay log
+flush logs;
+connection slave;
+# Ignore FDEs that happen before the CREATE/INSERT commands
+SET DEBUG_SYNC='now WAIT_FOR paused_on_fde';
+SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
+SET DEBUG_SYNC='now WAIT_FOR paused_on_fde';
+SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
+# On the next FDE, the slave should have the master CREATE/INSERT events
+SET DEBUG_SYNC='now WAIT_FOR paused_on_fde';
+select count(*)=1 from t1;
+count(*)=1
+1
+# The relay log FDE has been processed - here we check to ensure it was
+# not considered in Seconds_Behind_Master calculation
+connection slave1;
+# Safely resume slave SQL thread
+# Prove SQL thread is in state "debug sync point: now"
+SET @@global.debug_dbug="-d,pause_sql_thread_on_fde";
+SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
+# Wait for SQL thread to continue into normal execution
+SET DEBUG_SYNC='RESET';
+connection master;
+DROP TABLE t1;
+connection slave;
+SET @@global.debug_dbug=$save_dbug;
+include/rpl_end.inc

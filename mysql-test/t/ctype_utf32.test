@@ -1048,6 +1048,44 @@ INSERT INTO t1 (c1) VALUES (1),(2),(3);
 SELECT HEX(c1) FROM t1 ORDER BY c1;
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-23210 Assertion `(length % 4) == 0' failed in my_lengthsp_utf32 on ALTER TABLE, SELECT and INSERT
+--echo #
+
+CREATE TABLE t1 (a CHAR(1));
+SET COLLATION_CONNECTION=utf32_general_ci, CHARACTER_SET_CLIENT=binary;
+--error ER_DUPLICATED_VALUE_IN_TYPE
+ALTER TABLE t1 CHANGE a a ENUM('a','a') CHARACTER SET utf32;
+--error ER_INVALID_CHARACTER_STRING
+ALTER TABLE t1 CHANGE a a ENUM('aaa') CHARACTER SET utf32;
+ALTER TABLE t1 CHANGE a a ENUM('aa') CHARACTER SET utf32;
+SHOW CREATE TABLE t1;
+ALTER TABLE t1 CHANGE a a ENUM('a','b') CHARACTER SET utf32;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET NAMES utf8;
+
+
+--echo #
+--echo # MDEV-28078 Garbage on multiple equal ENUMs with tricky character sets
+--echo #
+
+CREATE TABLE t1 (
+  c1 ENUM ('a','b') CHARACTER SET utf32 DEFAULT 'a',
+  c2 ENUM ('a','b') CHARACTER SET utf32 DEFAULT 'a'
+);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  c1 ENUM ('00000061','00000062') DEFAULT '00000061' COLLATE latin1_bin,
+  c2 ENUM ('a','b') DEFAULT 'a' COLLATE utf32_general_ci
+);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
 --echo #
 --echo # End of 10.2 tests
 --echo #

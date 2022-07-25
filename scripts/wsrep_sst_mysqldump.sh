@@ -1,4 +1,7 @@
-#!/bin/bash -ue
+#!/usr/bin/env bash
+
+set -ue
+
 # Copyright (C) 2009-2015 Codership Oy
 # Copyright (C) 2017-2021 MariaDB
 #
@@ -19,7 +22,6 @@
 # This is a reference script for mysqldump-based state snapshot tansfer
 
 . $(dirname "$0")/wsrep_sst_common
-PATH=$PATH:/usr/sbin:/usr/bin:/sbin:/bin
 
 EINVAL=22
 
@@ -93,8 +95,7 @@ DROP PREPARE stmt;"
 SET_START_POSITION="SET GLOBAL wsrep_start_position='$WSREP_SST_OPT_GTID';"
 
 SET_WSREP_GTID_DOMAIN_ID=""
-if [ -n $WSREP_SST_OPT_GTID_DOMAIN_ID ]
-then
+if [ -n $WSREP_SST_OPT_GTID_DOMAIN_ID ]; then
     SET_WSREP_GTID_DOMAIN_ID="
     SET @val = (SELECT GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME = 'WSREP_GTID_STRICT_MODE' AND GLOBAL_VALUE > 0);
     SET @stmt = IF (@val IS NOT NULL, 'SET GLOBAL WSREP_GTID_DOMAIN_ID=$WSREP_SST_OPT_GTID_DOMAIN_ID', 'SET @dummy = 0');
@@ -103,7 +104,7 @@ then
     DROP PREPARE stmt;"
 fi
 
-MYSQL="$MYSQL_CLIENT $WSREP_SST_OPT_CONF_UNQUOTED "\
+MYSQL="$MYSQL_CLIENT$WSREP_SST_OPT_CONF_UNQUOTED "\
 "$AUTH -h$WSREP_SST_OPT_HOST_UNESCAPED "\
 "-P$WSREP_SST_OPT_PORT --disable-reconnect --connect_timeout=10"
 
@@ -125,8 +126,7 @@ SET_GTID_BINLOG_STATE=""
 SQL_LOG_BIN_OFF=""
 
 # Safety check
-if [ ${SERVER_VERSION%%.*} -gt 5 ]
-then
+if [ ${SERVER_VERSION%%.*} -gt 5 ]; then
     # If binary logging is enabled on the joiner node, we need to copy donor's
     # gtid_binlog_state to joiner. In order to do that, a RESET MASTER must be
     # executed to erase binary logs (if any). Binary logging should also be
@@ -140,7 +140,7 @@ then
 fi
 
 # NOTE: we don't use --routines here because we're dumping mysql.proc table
-MYSQLDUMP="$MYSQLDUMP $WSREP_SST_OPT_CONF_UNQUOTED $AUTH -S$WSREP_SST_OPT_SOCKET \
+MYSQLDUMP="$MYSQLDUMP$WSREP_SST_OPT_CONF_UNQUOTED $AUTH -S$WSREP_SST_OPT_SOCKET \
 --add-drop-database --add-drop-table --skip-add-locks --create-options \
 --disable-keys --extended-insert --skip-lock-tables --quick --set-charset \
 --skip-comments --flush-privileges --all-databases --events"

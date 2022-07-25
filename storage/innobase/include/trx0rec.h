@@ -341,6 +341,6 @@ record */
 					storage fields: used by purge to
 					free the external storage */
 
-#include "trx0rec.ic"
+#include "trx0rec.inl"
 
 #endif /* trx0rec_h */

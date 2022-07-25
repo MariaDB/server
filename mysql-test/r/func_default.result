@@ -29,6 +29,9 @@ INSERT INTO t1 VALUES (1, 'one'), (2, 'two'), (3, 'three');
 SELECT s, 32 AS mi FROM t1 GROUP BY s HAVING DEFAULT(mi) IS NULL;
 ERROR HY000: Field 'mi' doesn't have a default value
 DROP TABLE t1;
+#
+# Start of 10.2 tests
+#
 set timestamp=unix_timestamp('2001-01-01 10:20:30.123456');
 create table t1 (a int default 1, b int default (a+1),
 c varchar(100) default 'foo', d text default 'bar',
@@ -40,3 +43,177 @@ default(a)	default(b)	default(c)	default(d)	default(e)	default(f)
 1	2	foo	bar	2001-01-01 10:20:30	2001-01-01 10:20:30.120000
 1	11	foo	bar	2001-01-01 10:20:30	2001-01-01 10:20:30.120000
 drop table t1;
+#
+# MDEV-21639 DEFAULT(col) evaluates to a bad value in WHERE clause
+#
+CREATE TABLE t1 (a BIGINT NOT NULL DEFAULT (IF(false,UNIX_TIMESTAMP(),10)));
+INSERT INTO t1 VALUES (10000);
+SELECT
+a,
+DEFAULT(a),
+CASE WHEN a THEN DEFAULT(a) END AS c,
+CASE WHEN a THEN DEFAULT(a) END = 10 AS ce
+FROM t1;
+a	DEFAULT(a)	c	ce
+10000	10	10	1
+SELECT a FROM t1 WHERE CASE WHEN a THEN DEFAULT(a) END=10;
+a
+10000
+DROP TABLE t1;
+CREATE TABLE t1 (a DOUBLE NOT NULL DEFAULT (IF(false,UNIX_TIMESTAMP(),10)));
+INSERT INTO t1 VALUES (10000);
+SELECT
+a,
+DEFAULT(a),
+CASE WHEN a THEN DEFAULT(a) END AS c,
+CASE WHEN a THEN DEFAULT(a) END = 10 AS ce
+FROM t1;
+a	DEFAULT(a)	c	ce
+10000	10	10	1
+SELECT a FROM t1 WHERE CASE WHEN a THEN DEFAULT(a) END=10;
+a
+10000
+DROP TABLE t1;
+CREATE TABLE t1 (a DECIMAL(10,0) NOT NULL DEFAULT (IF(false,UNIX_TIMESTAMP(),10)));
+INSERT INTO t1 VALUES (10000);
+SELECT
+a,
+DEFAULT(a),
+CASE WHEN a THEN DEFAULT(a) END AS c,
+CASE WHEN a THEN DEFAULT(a) END = 10 AS ce
+FROM t1;
+a	DEFAULT(a)	c	ce
+10000	10	10	1
+SELECT a FROM t1 WHERE CASE WHEN a THEN DEFAULT(a) END=10;
+a
+10000
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(32) NOT NULL DEFAULT (IF(false,UNIX_TIMESTAMP(),10)));
+INSERT INTO t1 VALUES (10000);
+SELECT
+a,
+DEFAULT(a),
+CASE WHEN a THEN DEFAULT(a) END AS c,
+CASE WHEN a THEN DEFAULT(a) END = '10' AS ce
+FROM t1;
+a	DEFAULT(a)	c	ce
+10000	10	10	1
+SELECT a FROM t1 WHERE CASE WHEN a THEN DEFAULT(a) END='10';
+a
+10000
+DROP TABLE t1;
+CREATE TABLE t1 (a DATE NOT NULL DEFAULT (IF(false,UNIX_TIMESTAMP()%10,DATE'2001-01-01')));
+INSERT INTO t1 VALUES ('2000-01-01');
+SELECT
+a,
+DEFAULT(a),
+CASE WHEN a THEN DEFAULT(a) END AS c,
+CASE WHEN a THEN DEFAULT(a) END = '2001-01-01' AS ce
+FROM t1;
+a	DEFAULT(a)	c	ce
+2000-01-01	2001-01-01	2001-01-01	1
+SELECT a FROM t1 WHERE CASE WHEN a THEN DEFAULT(a) END='2001-01-01';
+a
+2000-01-01
+DROP TABLE t1;
+CREATE TABLE t1 (a TIME NOT NULL DEFAULT (IF(false,UNIX_TIMESTAMP()%10,TIME'10:20:30')));
+INSERT INTO t1 VALUES ('10:00:00');
+SELECT
+a,
+DEFAULT(a),
+CASE WHEN a THEN DEFAULT(a) END AS c,
+CASE WHEN a THEN DEFAULT(a) END = '10:20:30' AS ce
+FROM t1;
+a	DEFAULT(a)	c	ce
+10:00:00	10:20:30	10:20:30	1
+SELECT a FROM t1 WHERE CASE WHEN a THEN DEFAULT(a) END='10:20:30';
+a
+10:00:00
+DROP TABLE t1;
+CREATE TABLE t1 (a DATETIME NOT NULL DEFAULT (IF(false,UNIX_TIMESTAMP(),TIMESTAMP'2001-01-01 10:20:30')));
+INSERT INTO t1 VALUES ('2000-01-01 10:00:00');
+SELECT
+a,
+DEFAULT(a),
+CASE WHEN a THEN DEFAULT(a) END AS c,
+CASE WHEN a THEN DEFAULT(a) END = '2001-01-01 10:20:30' AS ce
+FROM t1;
+a	DEFAULT(a)	c	ce
+2000-01-01 10:00:00	2001-01-01 10:20:30	2001-01-01 10:20:30	1
+SELECT a FROM t1 WHERE CASE WHEN a THEN DEFAULT(a) END='2001-01-01 10:20:30';
+a
+2000-01-01 10:00:00
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL DEFAULT (IF(false,UNIX_TIMESTAMP(),FALSE)));
+INSERT INTO t1 VALUES (10);
+SELECT
+a,
+DEFAULT(a),
+CASE WHEN a THEN DEFAULT(a) END AS c,
+CASE WHEN a THEN DEFAULT(a) END IS FALSE AS ce
+FROM t1;
+a	DEFAULT(a)	c	ce
+10	0	0	1
+SELECT a FROM t1 WHERE CASE WHEN a THEN DEFAULT(a) END IS FALSE;
+a
+10
+DROP TABLE t1;
+#
+# MDEV-21028 Server crashes in Query_arena::set_query_arena upon SELECT from view
+#
+create table t1 (a datetime default current_timestamp);
+insert into t1 () values (),();
+create algorithm=temptable view v1 as select * from t1;
+create algorithm=merge     view v2 as select * from t1;
+select default(a) = now() from v1;
+default(a) = now()
+1
+1
+select default(a) = now() from v2;
+default(a) = now()
+1
+1
+select table_name,is_updatable from information_schema.views;
+table_name	is_updatable
+v1	NO
+v2	YES
+drop view v1, v2;
+drop table t1;
+create table t1 (v1 timestamp) select 'x';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `v1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `x` varchar(1) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select default(v1) from (select v1 from t1) dt;
+default(v1)
+2001-01-01 10:20:30
+select default(v1) from (select v1 from t1 group by v1) dt;
+default(v1)
+2001-01-01 10:20:30
+drop table t1;
+create table t1 (a text default '');
+create algorithm=temptable view v1 as select * from t1;
+insert into t1 values ('a');
+select default(a) from v1;
+default(a)
+
+drop view v1;
+drop table t1;
+#
+# MDEV-28403 ASAN heap-use-after-free in String::copy / get_field_default_value
+#
+create table t (a blob default 'x');
+create view v as select * from t;
+insert into t () values ();
+update t set a = default;
+select table_name,column_name,column_default from information_schema.columns where table_name = 'v';
+table_name	v
+column_name	a
+column_default	'x'
+drop view v;
+drop table t;
+#
+# End of 10.2 tests
+#

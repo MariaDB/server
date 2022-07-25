@@ -97,6 +97,6 @@ struct row_ext_t{
 	ulint		len[1];	/*!< prefix lengths; 0 if not cached */
 };
 
-#include "row0ext.ic"
+#include "row0ext.inl"
 
 #endif

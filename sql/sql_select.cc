@@ -2989,14 +2989,11 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   tmp_table_param.using_outer_summary_function=
     tab->tmp_table_param->using_outer_summary_function;
   tab->join= this;
-  DBUG_ASSERT(tab > tab->join->join_tab || !top_join_tab_count || !tables_list);
+  DBUG_ASSERT(tab > tab->join->join_tab || !top_join_tab_count ||
+              !tables_list);
+  tab->table= table;
   if (tab > join_tab)
     (tab - 1)->next_select= sub_select_postjoin_aggr;
-  tab->aggr= new (thd->mem_root) AGGR_OP(tab);
-  if (!tab->aggr)
-    goto err;
-  tab->table= table;
-  table->reginfo.join_tab= tab;
 
   /* if group or order on first table, sort first */
   if ((group_list && simple_group) ||
@@ -3047,12 +3044,15 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
       order= NULL;
     }
   }
-
+  if (!(tab->aggr= new (thd->mem_root) AGGR_OP(tab)))
+    goto err;
+  table->reginfo.join_tab= tab;
   DBUG_RETURN(false);
 
 err:
   if (table != NULL)
     free_tmp_table(thd, table);
+  tab->table= NULL;
   DBUG_RETURN(true);
 }
 
@@ -4504,7 +4504,13 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         if (*s->on_expr_ref)
           *s->on_expr_ref= select->cond;
         else
+	{
           join->conds= select->cond;
+          if (join->conds && join->conds->type() == Item::COND_ITEM &&
+              ((Item_cond*) (join->conds))->functype() ==
+              Item_func::COND_AND_FUNC)
+            join->cond_equal= &((Item_cond_and*) (join->conds))->m_cond_equal;
+        }
 
         s->quick=select->quick;
         s->needed_reg=select->needed_reg;
@@ -12413,6 +12419,7 @@ void JOIN::cleanup(bool full)
           if (curr_tab->aggr)
           {
             free_tmp_table(thd, curr_tab->table);
+            curr_tab->table= NULL;
             delete curr_tab->tmp_table_param;
             curr_tab->tmp_table_param= NULL;
             curr_tab->aggr= NULL;
@@ -12908,8 +12915,6 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
     DBUG_RETURN(0);
   }
 
-  join->join_free();
-
   if (send_row)
   {
     /*
@@ -12956,6 +12961,14 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
     if (!send_error)
       result->send_eof();				// Should be safe
   }
+  /*
+    JOIN::join_free() must be called after the virtual method
+    select::send_result_set_metadata() returned control since
+    implementation of this method could use data strutcures
+    that are released by the method JOIN::join_free().
+  */
+  join->join_free();
+
   DBUG_RETURN(0);
 }
 
@@ -16887,6 +16900,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   table->intersect_keys.init();
   table->keys_in_use_for_query.init();
   table->no_rows_with_nulls= param->force_not_null_cols;
+  table->expr_arena= thd;
 
   table->s= share;
   init_tmp_table_share(thd, share, "", 0, "(temporary)", tmpname);
@@ -17550,7 +17564,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
 
   // Make empty record so random data is not written to disk
   empty_record(table);
-
+  table->status= STATUS_NO_RECORD;
   thd->mem_root= mem_root_save;
 
   DBUG_RETURN(table);
@@ -18551,6 +18565,7 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
       return TRUE;
     // Make empty record so random data is not written to disk
     empty_record(table);
+    table->status= STATUS_NO_RECORD;
   }
   if (open_tmp_table(table))
     return TRUE;
@@ -19139,11 +19154,8 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
       */
       if (shortcut_for_distinct && found_records != join->found_records)
         DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
-    }
-    else
-    {
-      join->thd->get_stmt_da()->inc_current_row_for_warning();
-      join_tab->read_record.unlock_row(join_tab);
+
+      DBUG_RETURN(NESTED_LOOP_OK);
     }
   }
   else
@@ -19153,9 +19165,11 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
       with the beginning coinciding with the current partial join.
     */
     join->join_examined_rows++;
-    join->thd->get_stmt_da()->inc_current_row_for_warning();
-    join_tab->read_record.unlock_row(join_tab);
   }
+
+  join->thd->get_stmt_da()->inc_current_row_for_warning();
+  join_tab->read_record.unlock_row(join_tab);
+
   DBUG_RETURN(NESTED_LOOP_OK);
 }
 
@@ -21980,7 +21994,15 @@ check_reverse_order:
       }
     }
     else if (select && select->quick)
+    {
+      /* Cancel "Range checked for each record" */
+      if (tab->use_quick == 2)
+      {
+        tab->use_quick= 1;
+        tab->read_first_record= join_init_read_record;
+      }
       select->quick->need_sorted_output();
+    }
 
     tab->read_record.unlock_row= (tab->type == JT_EQ_REF) ?
                                  join_read_key_unlock_row : rr_unlock_row;
@@ -22776,7 +22798,9 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
       an ORDER BY clause
     */
 
-    if (for_union && (*order->item)->with_sum_func)
+    if (for_union &&
+        ((*order->item)->with_sum_func ||
+         (*order->item)->with_window_func))
     {
       my_error(ER_AGGREGATE_ORDER_FOR_UNION, MYF(0), number);
       return 1;
@@ -23703,12 +23727,14 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   for (uint i= 0; (item= it++); i++)
   {
     Field *field;
-    if ((item->with_sum_func && item->type() != Item::SUM_FUNC_ITEM) ||
+    enum Item::Type item_type= item->type();
+    if ((item->with_sum_func && item_type != Item::SUM_FUNC_ITEM) ||
        item->with_window_func)
       item_field= item;
-    else if (item->type() == Item::FIELD_ITEM)
+    else if (item_type == Item::FIELD_ITEM ||
+             item_type == Item::DEFAULT_VALUE_ITEM)
       item_field= item->get_tmp_table_item(thd);
-    else if (item->type() == Item::FUNC_ITEM &&
+    else if (item_type == Item::FUNC_ITEM &&
              ((Item_func*)item)->functype() == Item_func::SUSERVAR_FUNC)
     {
       field= item->get_tmp_table_field();
@@ -25378,14 +25404,20 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
 
   if (unit->is_union() || unit->fake_select_lex)
   {
+    ulonglong save_options= 0;
+
     if (unit->union_needs_tmp_table() && unit->fake_select_lex)
     {
+      save_options= unit->fake_select_lex->options;
       unit->fake_select_lex->select_number= FAKE_SELECT_LEX_ID; // just for initialization
       unit->fake_select_lex->type= "UNION RESULT";
       unit->fake_select_lex->options|= SELECT_DESCRIBE;
     }
     if (!(res= unit->prepare(thd, result, SELECT_NO_UNLOCK | SELECT_DESCRIBE)))
       res= unit->exec();
+
+    if (unit->union_needs_tmp_table() && unit->fake_select_lex)
+      unit->fake_select_lex->options= save_options;
   }
   else
   {
@@ -25465,7 +25497,7 @@ static void print_table_array(THD *thd,
      too)
 */
 
-static bool is_eliminated_table(table_map eliminated_tables, TABLE_LIST *tbl)
+bool is_eliminated_table(table_map eliminated_tables, TABLE_LIST *tbl)
 {
   return eliminated_tables &&
     ((tbl->table && (tbl->table->map & eliminated_tables)) ||
@@ -26930,6 +26962,12 @@ AGGR_OP::end_send()
   table->reginfo.lock_type= TL_UNLOCK;
 
   bool in_first_read= true;
+
+  /*
+     Reset the counter before copying rows from internal temporary table to
+     INSERT table.
+  */
+  join_tab->join->thd->get_stmt_da()->reset_current_row_for_warning();
   while (rc == NESTED_LOOP_OK)
   {
     int error;

@@ -63,7 +63,7 @@ void Expression_cache_tmptable::disable_cache()
   cache_table= NULL;
   update_tracker();
   if (tracker)
-    tracker->cache= NULL;
+    tracker->detach_from_cache();
 }
 
 
@@ -188,6 +188,8 @@ Expression_cache_tmptable::~Expression_cache_tmptable()
   else
   {
     update_tracker();
+    if (tracker)
+      tracker->detach_from_cache();
     tracker= NULL;
   }
 }

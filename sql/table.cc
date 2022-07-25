@@ -47,17 +47,6 @@
 #define MYSQL57_GENERATED_FIELD 128
 #define MYSQL57_GCOL_HEADER_SIZE 4
 
-class Table_arena: public Query_arena
-{
-public:
-  Table_arena(MEM_ROOT *mem_root, enum enum_state state_arg) :
-          Query_arena(mem_root, state_arg){}
-  virtual Type type() const
-  {
-    return TABLE_ARENA;
-  }
-};
-
 static Virtual_column_info * unpack_vcol_info_from_frm(THD *, MEM_ROOT *,
               TABLE *, String *, Virtual_column_info **, bool *);
 static bool check_vcol_forward_refs(Field *, Virtual_column_info *);
@@ -1031,8 +1020,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     We need to use CONVENTIONAL_EXECUTION here to ensure that
     any new items created by fix_fields() are not reverted.
   */
-  table->expr_arena= new (alloc_root(mem_root, sizeof(Table_arena)))
-                        Table_arena(mem_root, 
+  table->expr_arena= new (alloc_root(mem_root, sizeof(Query_arena)))
+                        Query_arena(mem_root,
                                     Query_arena::STMT_CONVENTIONAL_EXECUTION);
   if (!table->expr_arena)
     DBUG_RETURN(1);
@@ -1229,6 +1218,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   plugin_ref se_plugin= 0;
   MEM_ROOT *old_root= thd->mem_root;
   Virtual_column_info **table_check_constraints;
+  bool *interval_unescaped= NULL;
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
 
   keyinfo= &first_keyinfo;
@@ -1686,6 +1676,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     goto err;
 
+  if (interval_count)
+  {
+    if (!(interval_unescaped= (bool*) my_alloca(interval_count * sizeof(bool))))
+      goto err;
+    bzero(interval_unescaped, interval_count * sizeof(bool));
+  }
+
   field_ptr= share->field;
   table_check_constraints= share->check_constraints;
   read_length=(uint) (share->fields * field_pack_length +
@@ -1956,11 +1953,17 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (share->mysql_version < 100200)
       pack_flag&= ~FIELDFLAG_LONG_DECIMAL;
 
-    if (interval_nr && charset->mbminlen > 1)
+    if (interval_nr && charset->mbminlen > 1 &&
+        !interval_unescaped[interval_nr - 1])
     {
-      /* Unescape UCS2 intervals from HEX notation */
+      /*
+        Unescape UCS2/UTF16/UTF32 intervals from HEX notation.
+        Note, ENUM/SET columns with equal value list share a single
+        copy of TYPELIB. Unescape every TYPELIB only once.
+      */
       TYPELIB *interval= share->intervals + interval_nr - 1;
       unhex_type2(interval);
+      interval_unescaped[interval_nr - 1]= true;
     }
 
 #ifndef TO_BE_DELETED_ON_PRODUCTION
@@ -2610,6 +2613,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->error= OPEN_FRM_OK;
   thd->status_var.opened_shares++;
   thd->mem_root= old_root;
+  my_afree(interval_unescaped);
   DBUG_RETURN(0);
 
  err:
@@ -2623,6 +2627,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     open_table_error(share, OPEN_FRM_CORRUPTED, share->open_errno);
 
   thd->mem_root= old_root;
+  my_afree(interval_unescaped);
   DBUG_RETURN(HA_ERR_NOT_A_TABLE);
 }
 
@@ -3088,6 +3093,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   outparam->s= share;
   outparam->db_stat= db_stat;
   outparam->write_row_record= NULL;
+  outparam->status= STATUS_NO_RECORD;
 
   if (share->incompatible_version &&
       !(ha_open_flags & (HA_OPEN_FOR_ALTER | HA_OPEN_FOR_REPAIR)))
@@ -5978,7 +5984,7 @@ Item *Field_iterator_view::create_item(THD *thd)
 Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
                         const char *name)
 {
-  bool save_wrapper= thd->lex->select_lex.no_wrap_view_item;
+  bool save_wrapper= thd->lex->current_select->no_wrap_view_item;
   Item *field= *field_ref;
   DBUG_ENTER("create_view_field");
 
@@ -8232,6 +8238,24 @@ void TABLE_LIST::wrap_into_nested_join(List<TABLE_LIST> &join_list)
 
 
 /**
+  Check whether optimization has been performed and a derived table either
+  been merged to upper select level or materialized.
+
+  @param table  a TABLE_LIST object containing a derived table
+
+  @return true in case the derived table has been merged to surrounding select,
+          false otherwise
+*/
+
+static inline bool derived_table_optimization_done(TABLE_LIST *table)
+{
+  return table->derived &&
+      (table->derived->is_excluded() ||
+       table->is_materialized_derived());
+}
+
+
+/**
   @brief
   Initialize this derived table/view
 
@@ -8267,13 +8291,15 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
     set_multitable();
 
   unit->derived= this;
-  if (init_view && !view)
+  if (init_view && !view &&
+      !derived_table_optimization_done(this))
   {
     /* This is all what we can do for a derived table for now. */
     set_derived();
   }
 
-  if (!is_view())
+  if (!is_view() &&
+      !derived_table_optimization_done(this))
   {
     /* A subquery might be forced to be materialized due to a side-effect. */
     if (!is_materialized_derived() && first_select->is_mergeable() &&

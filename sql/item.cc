@@ -61,12 +61,11 @@ bool cmp_items(Item *a, Item *b)
 /**
   Set max_sum_func_level if it is needed
 */
-inline void set_max_sum_func_level(SELECT_LEX *select)
+inline void set_max_sum_func_level(THD *thd, SELECT_LEX *select)
 {
-  LEX *lex_s= select->parent_lex;
-  if (lex_s->in_sum_func &&
-      lex_s->in_sum_func->nest_level >= select->nest_level)
-    set_if_bigger(lex_s->in_sum_func->max_sum_func_level,
+  if (thd->lex->in_sum_func &&
+      thd->lex->in_sum_func->nest_level >= select->nest_level)
+    set_if_bigger(thd->lex->in_sum_func->max_sum_func_level,
                   select->nest_level - 1);
 }
 
@@ -781,7 +780,6 @@ Item_ident::Item_ident(THD *thd, Name_resolution_context *context_arg,
 {
   name = (char*) field_name_arg;
   name_length= name ? strlen(name) : 0;
-  DBUG_ASSERT(!context || context->select_lex);
 }
 
 
@@ -796,7 +794,6 @@ Item_ident::Item_ident(THD *thd, TABLE_LIST *view_arg, const char *field_name_ar
 {
   name = (char*) field_name_arg;
   name_length= name ? strlen(name) : 0;
-  DBUG_ASSERT(!context || context->select_lex);
 }
 
 
@@ -818,9 +815,7 @@ Item_ident::Item_ident(THD *thd, Item_ident *item)
    cached_table(item->cached_table),
    depended_from(item->depended_from),
    can_be_depended(item->can_be_depended)
-{
-  DBUG_ASSERT(!context || context->select_lex);
-}
+{}
 
 void Item_ident::cleanup()
 {
@@ -1060,8 +1055,7 @@ bool Item_field::check_field_expression_processor(void *arg)
           (!field->vcol_info && !org_field->vcol_info)) &&
          field->field_index >= org_field->field_index))
     {
-      my_error(ER_EXPRESSION_REFERS_TO_UNINIT_FIELD,
-               MYF(0),
+      my_error(ER_EXPRESSION_REFERS_TO_UNINIT_FIELD, MYF(0),
                org_field->field_name, field->field_name);
       return 1;
     }
@@ -5162,14 +5156,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   */
   Name_resolution_context *last_checked_context= context;
   Item **ref= (Item **) not_found_item;
-  /*
-    There are cases when name resolution context is absent (when we are not
-    doing name resolution), but here the name resolution context should
-    be present because we are doing name resolution
-  */
-  DBUG_ASSERT(context);
-  SELECT_LEX *current_sel=  context->select_lex;
-  LEX *lex_s= context->select_lex->parent_lex;
+  SELECT_LEX *current_sel= thd->lex->current_select;
   Name_resolution_context *outer_context= 0;
   SELECT_LEX *select= 0;
   /* Currently derived tables cannot be correlated */
@@ -5270,18 +5257,19 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
               return -1;
             thd->change_item_tree(reference, rf);
             select->inner_refs_list.push_back(rf, thd->mem_root);
-            rf->in_sum_func= lex_s->in_sum_func;
+            rf->in_sum_func= thd->lex->in_sum_func;
           }
           /*
             A reference is resolved to a nest level that's outer or the same as
             the nest level of the enclosing set function : adjust the value of
             max_arg_level for the function if it's needed.
           */
-          if (lex_s->in_sum_func &&
-              lex_s->in_sum_func->nest_level >= select->nest_level)
+          if (thd->lex->in_sum_func &&
+              thd->lex == context->select_lex->parent_lex &&
+              thd->lex->in_sum_func->nest_level >= select->nest_level)
           {
             Item::Type ref_type= (*reference)->type();
-            set_if_bigger(lex_s->in_sum_func->max_arg_level,
+            set_if_bigger(thd->lex->in_sum_func->max_arg_level,
                           select->nest_level);
             set_field(*from_field);
             fixed= 1;
@@ -5302,10 +5290,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
                             ((ref_type == REF_ITEM || ref_type == FIELD_ITEM) ?
                              (Item_ident*) (*reference) :
                              0), false);
-          if (lex_s->in_sum_func &&
-              lex_s->in_sum_func->nest_level >= select->nest_level)
+          if (thd->lex->in_sum_func &&
+              thd->lex == context->select_lex->parent_lex &&
+              thd->lex->in_sum_func->nest_level >= select->nest_level)
           {
-            set_if_bigger(lex_s->in_sum_func->max_arg_level,
+            set_if_bigger(thd->lex->in_sum_func->max_arg_level,
                           select->nest_level);
           }
           /*
@@ -5397,7 +5386,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     {
       outer_context->select_lex->inner_refs_list.push_back((Item_outer_ref*)rf,
                                                            thd->mem_root);
-      ((Item_outer_ref*)rf)->in_sum_func= lex_s->in_sum_func;
+      ((Item_outer_ref*)rf)->in_sum_func= thd->lex->in_sum_func;
     }
     thd->change_item_tree(reference, rf);
     /*
@@ -5412,7 +5401,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       We can not "move" aggregate function in the place where
       its arguments are not defined.
     */
-    set_max_sum_func_level(select);
+    set_max_sum_func_level(thd, select);
     mark_as_dependent(thd, last_checked_context->select_lex,
                       context->select_lex, rf,
                       rf, false);
@@ -5425,7 +5414,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       We can not "move" aggregate function in the place where
       its arguments are not defined.
     */
-    set_max_sum_func_level(select);
+    set_max_sum_func_level(thd, select);
     mark_as_dependent(thd, last_checked_context->select_lex,
                       context->select_lex,
                       this, (Item_ident*)*reference, false);
@@ -5502,20 +5491,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   DBUG_ASSERT(fixed == 0);
   Field *from_field= (Field *)not_found_field;
   bool outer_fixed= false;
-  SELECT_LEX *select;
-  LEX *lex_s;
-  if (context)
-  {
-    select= context->select_lex;
-    lex_s= context->select_lex->parent_lex;
-  }
-  else
-  {
-    // No real name resolution, used somewhere in SP
-    DBUG_ASSERT(field);
-    select= NULL;
-    lex_s= NULL;
-  }
+  SELECT_LEX *select= thd->lex->current_select;
 
   if (!field)					// If field is not checked
   {
@@ -5576,7 +5552,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
               We can not "move" aggregate function in the place where
               its arguments are not defined.
             */
-            set_max_sum_func_level(select);
+            set_max_sum_func_level(thd, select);
             set_field(new_field);
             depended_from= (*((Item_field**)res))->depended_from;
             return 0;
@@ -5605,7 +5581,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
               We can not "move" aggregate function in the place where
               its arguments are not defined.
             */
-            set_max_sum_func_level(select);
+            set_max_sum_func_level(thd, select);
             return FALSE;
           }
         }
@@ -5642,11 +5618,12 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
         goto mark_non_agg_field;
     }
 
-    if (lex_s &&
-        lex_s->in_sum_func &&
-        lex_s->in_sum_func->nest_level ==
+    if (!thd->lex->current_select->no_wrap_view_item &&
+        thd->lex->in_sum_func &&
+        thd->lex == select->parent_lex &&
+        thd->lex->in_sum_func->nest_level == 
         select->nest_level)
-      set_if_bigger(lex_s->in_sum_func->max_arg_level,
+      set_if_bigger(thd->lex->in_sum_func->max_arg_level,
                     select->nest_level);
     /*
       if it is not expression from merged VIEW we will set this field.
@@ -5712,9 +5689,8 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   if (field->vcol_info)
     fix_session_vcol_expr_for_read(thd, field, field->vcol_info);
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
-      !outer_fixed &&
+      !outer_fixed && !thd->lex->in_sum_func &&
       select &&
-      !lex_s->in_sum_func &&
       select->cur_pos_in_select_list != UNDEF_POS &&
       select->join)
   {
@@ -5749,13 +5725,13 @@ mark_non_agg_field:
       */
       select_lex= context->select_lex;
     }
-    if (!lex_s || !lex_s->in_sum_func)
+    if (!thd->lex->in_sum_func)
       select_lex->set_non_agg_field_used(true);
     else
     {
       if (outer_fixed)
-        lex_s->in_sum_func->outer_fields.push_back(this, thd->mem_root);
-      else if (lex_s->in_sum_func->nest_level !=
+        thd->lex->in_sum_func->outer_fields.push_back(this, thd->mem_root);
+      else if (thd->lex->in_sum_func->nest_level !=
           select->nest_level)
         select_lex->set_non_agg_field_used(true);
     }
@@ -7248,12 +7224,6 @@ Item *get_field_item_for_having(THD *thd, Item *item, st_select_lex *sel)
   return NULL; 
 }
 
-Item *Item_ident::derived_field_transformer_for_having(THD *thd, uchar *arg)
-{
-  st_select_lex *sel= (st_select_lex *)arg;
-  context= &sel->context;
-  return this;
-}
 
 Item *Item_field::derived_field_transformer_for_having(THD *thd, uchar *arg)
 {
@@ -7273,13 +7243,12 @@ Item *Item_field::derived_field_transformer_for_having(THD *thd, uchar *arg)
 Item *Item_direct_view_ref::derived_field_transformer_for_having(THD *thd,
                                                                  uchar *arg)
 {
-  st_select_lex *sel= (st_select_lex *)arg;
-  context= &sel->context;
   if ((*ref)->marker & SUBSTITUTION_FL)
   {
     this->marker|= SUBSTITUTION_FL;
     return this;
   }
+  st_select_lex *sel= (st_select_lex *)arg;
   table_map tab_map= sel->master_unit()->derived->table->map;
   if ((item_equal && !(item_equal->used_tables() & tab_map)) ||
       !item_equal)
@@ -7575,9 +7544,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
 {
   enum_parsing_place place= NO_MATTER;
   DBUG_ASSERT(fixed == 0);
-
-  SELECT_LEX *current_sel= context->select_lex;
-  LEX *lex_s= context->select_lex->parent_lex;
+  SELECT_LEX *current_sel= thd->lex->current_select;
 
   if (set_properties_only)
   {
@@ -7738,10 +7705,11 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
           the nest level of the enclosing set function : adjust the value of
           max_arg_level for the function if it's needed.
         */
-        if (lex_s->in_sum_func &&
-            lex_s->in_sum_func->nest_level >=
+        if (thd->lex->in_sum_func &&
+            thd->lex == context->select_lex->parent_lex &&
+            thd->lex->in_sum_func->nest_level >= 
             last_checked_context->select_lex->nest_level)
-          set_if_bigger(lex_s->in_sum_func->max_arg_level,
+          set_if_bigger(thd->lex->in_sum_func->max_arg_level,
                         last_checked_context->select_lex->nest_level);
         return FALSE;
       }
@@ -7761,10 +7729,11 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
         the nest level of the enclosing set function : adjust the value of
         max_arg_level for the function if it's needed.
       */
-      if (lex_s->in_sum_func &&
-          lex_s->in_sum_func->nest_level >=
+      if (thd->lex->in_sum_func &&
+          thd->lex == context->select_lex->parent_lex &&
+          thd->lex->in_sum_func->nest_level >= 
           last_checked_context->select_lex->nest_level)
-        set_if_bigger(lex_s->in_sum_func->max_arg_level,
+        set_if_bigger(thd->lex->in_sum_func->max_arg_level,
                       last_checked_context->select_lex->nest_level);
     }
   }
@@ -9006,6 +8975,12 @@ bool Item_default_value::eq(const Item *item, bool binary_cmp) const
 }
 
 
+bool Item_default_value::check_field_expression_processor(void *)
+{
+  field->default_value= ((Item_field *)(arg->real_item()))->field->default_value;
+  return 0;
+}
+
 bool Item_default_value::fix_fields(THD *thd, Item **items)
 {
   Item *real_arg;
@@ -9048,7 +9023,6 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   }
   if (!(def_field= (Field*) thd->alloc(field_arg->field->size_of())))
     goto error;
-  cached_field= def_field;
   memcpy((void *)def_field, (void *)field_arg->field,
          field_arg->field->size_of());
   def_field->reset_fields();
@@ -9087,8 +9061,7 @@ bool Item_default_value::enchant_default_with_arg_processor(void *proc_arg)
 
 void Item_default_value::cleanup()
 {
-  delete cached_field;                        // Free cached blob data
-  cached_field= 0;
+  delete field;                        // Free cached blob data
   Item_field::cleanup();
 }
 
@@ -9163,6 +9136,48 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
 
   return field_arg->save_in_field_default_value(context->error_processor ==
                                                 &view_error_processor);
+}
+
+double Item_default_value::val_result()
+{
+  calculate();
+  return Item_field::val_result();
+}
+
+longlong Item_default_value::val_int_result()
+{
+  calculate();
+  return Item_field::val_int_result();
+}
+
+String *Item_default_value::str_result(String* tmp)
+{
+  calculate();
+  return Item_field::str_result(tmp);
+}
+
+bool Item_default_value::val_bool_result()
+{
+  calculate();
+  return Item_field::val_bool_result();
+}
+
+bool Item_default_value::is_null_result()
+{
+  calculate();
+  return Item_field::is_null_result();
+}
+
+my_decimal *Item_default_value::val_decimal_result(my_decimal *decimal_value)
+{
+  calculate();
+  return Item_field::val_decimal_result(decimal_value);
+}
+
+bool Item_default_value::get_date_result(MYSQL_TIME *ltime,ulonglong fuzzydate)
+{
+  calculate();
+  return Item_field::get_date_result(ltime, fuzzydate);
 }
 
 table_map Item_default_value::used_tables() const

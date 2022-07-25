@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, 2020, MariaDB Corporation.
+Copyright (c) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -376,6 +376,7 @@ rtr_update_mbr_field(
 
 		if (!rtr_update_mbr_field_in_place(index, rec,
 						   offsets, mbr, mtr)) {
+			mem_heap_free(heap);
 			return(false);
 		}
 
@@ -1261,15 +1262,6 @@ after_insert:
 
 	page_zip = buf_block_get_page_zip(root_block);
 	page_set_ssn_id(root_block, page_zip, next_ssn, mtr);
-
-	/* Insert fit on the page: update the free bits for the
-	left and right pages in the same mtr */
-
-	if (page_is_leaf(page)) {
-		ibuf_update_free_bits_for_two_pages_low(
-			block, new_block, mtr);
-	}
-
 
 	/* If the new res insert fail, we need to do another split
 	 again. */

@@ -95,6 +95,12 @@ struct fil_addr_t;
 #define MAX_PAGE_HASH_LOCKS	1024	/*!< The maximum number of
 					page_hash locks */
 
+/** If LRU list of a buf_pool is less than this size then LRU eviction
+should not happen. This is because when we do LRU flushing we also put
+the blocks on free list. If LRU list is very small then we can end up
+in thrashing. */
+#define BUF_LRU_MIN_LEN		256
+
 extern	buf_pool_t*	buf_pool_ptr;	/*!< The buffer pools
 					of the database */
 
@@ -1373,7 +1379,6 @@ buf_get_nth_chunk_block(
 if needed.
 @param[in]	size	size in bytes
 @return	aligned size */
-UNIV_INLINE
 ulint
 buf_pool_size_align(
 	ulint	size);
@@ -2408,7 +2413,7 @@ struct	CheckUnzipLRUAndLRUList {
 };
 #endif /* UNIV_DEBUG || defined UNIV_BUF_DEBUG */
 
-#include "buf0buf.ic"
+#include "buf0buf.inl"
 
 #endif /* !UNIV_INNOCHECKSUM */
 

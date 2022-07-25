@@ -1321,14 +1321,6 @@ uncompressed:
 			m_table->flags, m_flags, msg);
 
 		return(DB_ERROR);
-	} else if (m_table->n_cols != m_n_cols) {
-		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
-			"Number of columns don't match, table has %u "
-			"columns but the tablespace meta-data file has "
-			ULINTPF " columns",
-			m_table->n_cols, m_n_cols);
-
-		return(DB_ERROR);
 	} else if (UT_LIST_GET_LEN(m_table->indexes) != m_n_indexes) {
 
 		/* If the number of indexes don't match then it is better
@@ -3502,9 +3494,12 @@ page_corrupted:
     if (!fil_space_verify_crypt_checksum(readptr, get_page_size()))
       goto page_corrupted;
 
-    if (!fil_space_decrypt(iter.crypt_data, readptr,
-                           get_page_size(), readptr, &err) ||
-        err != DB_SUCCESS)
+    if (ENCRYPTION_KEY_NOT_ENCRYPTED ==
+        mach_read_from_4(readptr + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION))
+      goto page_corrupted;
+
+    if ((err = fil_space_decrypt(iter.crypt_data, readptr,
+				 get_page_size(), readptr)))
       goto func_exit;
   }
 
@@ -3647,7 +3642,6 @@ page_corrupted:
 			} else if (!mach_read_from_4(
 					   FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
 					   + src)) {
-not_encrypted:
 				if (block->page.id.page_no() == 0
 				    && block->page.zip.data) {
 					block->page.zip.data = src;
@@ -3666,18 +3660,13 @@ not_encrypted:
 					goto page_corrupted;
 				}
 
-				decrypted = fil_space_decrypt(
+				if ((err = fil_space_decrypt(
 					iter.crypt_data, dst,
-					callback.get_page_size(), src, &err);
-
-				if (err != DB_SUCCESS) {
+					callback.get_page_size(), src))) {
 					goto func_exit;
 				}
 
-				if (!decrypted) {
-					goto not_encrypted;
-				}
-
+				decrypted = true;
 				updated = true;
 			}
 

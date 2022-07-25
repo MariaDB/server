@@ -613,8 +613,10 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
         if (!in_prepare)
         {
           MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
-          (void) item->save_in_field(key_part->field, 1);
+          int res= item->save_in_field(key_part->field, 1);
           dbug_tmp_restore_column_map(&table->write_set, old_map);
+          if (res)
+            return 1;
         }
         key_len+= key_part->store_length;
         keypart_map= (keypart_map << 1) | 1;

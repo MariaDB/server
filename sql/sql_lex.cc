@@ -193,7 +193,6 @@ init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
     return TRUE;
   context->resolve_in_table_list_only(table_list);
   lex->use_only_table_context= TRUE;
-  lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VCOL_EXPR;
   select_lex->cur_pos_in_select_list= UNDEF_POS;
   table->map= 1; //To ensure correct calculation of const item
   table_list->table= table;
@@ -1664,8 +1663,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
           c = lip->yyGet();                     // Skip sign
 	if (!my_isdigit(cs,c))
 	{				// No digit after sign
-	  state= MY_LEX_CHAR;
-	  break;
+	  return (ABORT_SYM);
 	}
         while (my_isdigit(cs,lip->yyGet())) ;
         yylval->lex_str=get_token(lip, 0, lip->yyLength());
@@ -3899,7 +3897,21 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
       }
       if (empty_union_result)
         subquery_predicate->no_rows_in_result();
-      if (!is_correlated_unit)
+
+      if (is_correlated_unit)
+      {
+        /*
+          Some parts of UNION are not correlated. This means we will need to
+          re-execute the whole UNION every time. Mark all parts of the UNION
+          as correlated so that they are prepared to be executed multiple
+          times (if we don't do that, some part of the UNION may free its
+          execution data at the end of first execution and crash on the second
+          execution)
+        */
+        for (SELECT_LEX *sl= un->first_select(); sl; sl= sl->next_select())
+          sl->uncacheable |= UNCACHEABLE_DEPENDENT;
+      }
+      else
         un->uncacheable&= ~UNCACHEABLE_DEPENDENT;
       subquery_predicate->is_correlated= is_correlated_unit;
     }
@@ -4207,17 +4219,21 @@ void SELECT_LEX::update_used_tables()
   while ((tl= ti++))
   {
     TABLE_LIST *embedding= tl;
-    do
+    if (!is_eliminated_table(join->eliminated_tables, tl))
     {
-      bool maybe_null;
-      if ((maybe_null= MY_TEST(embedding->outer_join)))
+      do
       {
-	tl->table->maybe_null= maybe_null;
-        break;
+        bool maybe_null;
+        if ((maybe_null= MY_TEST(embedding->outer_join)))
+        {
+          tl->table->maybe_null= maybe_null;
+          break;
+        }
       }
+      while ((embedding= embedding->embedding));
     }
-    while ((embedding= embedding->embedding));
-    if (tl->on_expr)
+
+    if (tl->on_expr && !is_eliminated_table(join->eliminated_tables, tl))
     {
       tl->on_expr->update_used_tables();
       tl->on_expr->walk(&Item::eval_not_null_tables, 0, NULL);
@@ -4241,8 +4257,11 @@ void SELECT_LEX::update_used_tables()
       if (embedding->on_expr && 
           embedding->nested_join->join_list.head() == tl)
       {
-        embedding->on_expr->update_used_tables();
-        embedding->on_expr->walk(&Item::eval_not_null_tables, 0, NULL);
+        if (!is_eliminated_table(join->eliminated_tables, embedding))
+        {
+          embedding->on_expr->update_used_tables();
+          embedding->on_expr->walk(&Item::eval_not_null_tables, 0, NULL);
+        }
       }
       tl= embedding;
       embedding= tl->embedding;
@@ -4767,18 +4786,19 @@ void LEX::free_arena_for_set_stmt()
   DBUG_VOID_RETURN;
 }
 
-void LEX::restore_set_statement_var()
+bool LEX::restore_set_statement_var()
 {
+  bool err= false;
   DBUG_ENTER("LEX::restore_set_statement_var");
   if (!old_var_list.is_empty())
   {
     DBUG_PRINT("info", ("vars: %d", old_var_list.elements));
-    sql_set_variables(thd, &old_var_list, false);
+    err= sql_set_variables(thd, &old_var_list, false);
     old_var_list.empty();
     free_arena_for_set_stmt();
   }
   DBUG_ASSERT(!is_arena_for_set_stmt());
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(err);
 }
 
 /*

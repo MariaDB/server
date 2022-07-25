@@ -176,3 +176,39 @@ select * from t1 where a is null;
 --error ER_CONSTRAINT_FAILED
 insert t1 (b) values (1);
 drop table t1;
+
+--echo #
+--echo # MDEV-25638 Assertion `!result' failed in convert_const_to_int
+--echo #
+
+--enable_prepare_warnings
+create table t1 (v1 bigint check (v1 not in ('x' , 'x111'))) ;
+select * from t1;
+select v1 from t1;
+select * from t1;
+prepare stmt from "select * from t1";
+execute stmt;
+execute stmt;
+flush tables;
+select * from t1;
+select * from t1;
+deallocate prepare stmt;
+drop table t1;
+--disable_prepare_warnings
+
+--echo #
+--echo # MDEV-26061 MariaDB server crash at Field::set_default
+--echo #
+
+create table t1 (v2 date check (v1 like default (v1)), v1 date default (from_days ('x')));
+insert ignore into t1 values ( 'x' , 'x' ) ;
+drop table t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+# 10.3 test
+#create table t1 (d timestamp check (default (d) is true)) as select 1;
+#show create table t1;
+#drop table t1;

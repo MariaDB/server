@@ -201,9 +201,17 @@ INSERT INTO t1 VALUES (0, 1);
 # execution of format_description event will not wait infinitely
 # for a commit of the incomplete group that never happens.
 
+# Apart from the suppression, MDEV-27697 refinement to the original test needs
+# an allowance to one time accept malformed event group.
+set @@sql_log_bin=0;
+call mtr.add_suppression("Unexpected break of being relay-logged GTID 1-1-32 event group by the current GTID event 0-1-4");
+set @@sql_log_bin=1;
+set @@global.debug_dbug="+d,slave_discard_xid_for_gtid_0_x_1000";
+
 --source include/start_slave.inc
 #--sync_with_master
 --source include/sync_with_master_gtid.inc
+set @@global.debug_dbug="";
 
 SELECT * FROM t1 ORDER BY a;
 SHOW STATUS LIKE 'Slave_open_temp_tables';

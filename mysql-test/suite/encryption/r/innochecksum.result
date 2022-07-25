@@ -14,7 +14,7 @@ CREATE TABLE t6 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
 # to redo apply the pages of t1.ibd at the time of recovery.
 # We want SQL to initiate the first access to t1.ibd.
 # Wait until disconnected.
-# Run innochecksum on t1
+# Run innochecksum on t1, check -S does not cause crash for encrypted file
 # Run innochecksum on t2
 # Run innochecksum on t3
 # Run innochecksum on t4

@@ -401,6 +401,6 @@ mach_read_ulint(
 	mlog_id_t	type)
 	MY_ATTRIBUTE((warn_unused_result));
 
-#include "mach0data.ic"
+#include "mach0data.inl"
 
 #endif

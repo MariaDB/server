@@ -215,7 +215,7 @@ static struct
 
 /* support for Services */
 
-#include "sql_plugin_services.ic"
+#include "sql_plugin_services.inl"
 
 /*
   A mutex LOCK_plugin must be acquired before accessing the
@@ -372,7 +372,8 @@ bool check_valid_path(const char *path, size_t len)
 static void fix_dl_name(MEM_ROOT *root, LEX_STRING *dl)
 {
   const size_t so_ext_len= sizeof(SO_EXT) - 1;
-  if (my_strcasecmp(&my_charset_latin1, dl->str + dl->length - so_ext_len,
+  if (dl->length < so_ext_len ||
+      my_strcasecmp(&my_charset_latin1, dl->str + dl->length - so_ext_len,
                     SO_EXT))
   {
     char *s= (char*)alloc_root(root, dl->length + so_ext_len + 1);

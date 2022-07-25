@@ -806,9 +806,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
                (my_hash_get_key) get_var_key,
                (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
 
-  sp_proc_cache= NULL;
-  sp_func_cache= NULL;
-
   /* For user vars replication*/
   if (opt_bin_log)
     my_init_dynamic_array(&user_var_events,
@@ -1353,8 +1350,7 @@ void THD::change_user(void)
   my_hash_init(&user_vars, system_charset_info, USER_VARS_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_var_key,
                (my_hash_free_key) free_user_var, 0);
-  sp_cache_clear(&sp_proc_cache);
-  sp_cache_clear(&sp_func_cache);
+  sp_caches_clear();
 }
 
 
@@ -1410,8 +1406,7 @@ void THD::cleanup(void)
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
   my_hash_free(&user_vars);
-  sp_cache_clear(&sp_proc_cache);
-  sp_cache_clear(&sp_func_cache);
+  sp_caches_clear();
   auto_inc_intervals_forced.empty();
   auto_inc_intervals_in_cur_stmt_for_binlog.empty();
 
@@ -2148,7 +2143,7 @@ void THD::cleanup_after_query()
 */
 
 bool THD::convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
-			 const char *from, uint from_length,
+			 const char *from, size_t from_length,
 			 CHARSET_INFO *from_cs)
 {
   DBUG_ENTER("THD::convert_string");
@@ -2167,6 +2162,58 @@ bool THD::convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
     DBUG_RETURN(true);
   }
   DBUG_RETURN(false);
+}
+
+
+/*
+  Reinterpret a binary string to a character string
+
+  @param[OUT] to    The result will be written here,
+                    either the original string as is,
+                    or a newly alloced fixed string with
+                    some zero bytes prepended.
+  @param cs         The destination character set
+  @param str        The binary string
+  @param length     The length of the binary string
+
+  @return           false on success
+  @return           true on error
+*/
+
+bool THD::reinterpret_string_from_binary(LEX_CSTRING *to, CHARSET_INFO *cs,
+                                         const char *str, size_t length)
+{
+  /*
+    When reinterpreting from binary to tricky character sets like
+    UCS2, UTF16, UTF32, we may need to prepend some zero bytes.
+    This is possible in scenarios like this:
+      SET COLLATION_CONNECTION=utf32_general_ci, CHARACTER_SET_CLIENT=binary;
+    This code is similar to String::copy_aligned().
+  */
+  size_t incomplete= length % cs->mbminlen; // Bytes in an incomplete character
+  if (incomplete)
+  {
+    size_t zeros= cs->mbminlen - incomplete;
+    size_t aligned_length= zeros + length;
+    char *dst= (char*) alloc(aligned_length + 1);
+    if (!dst)
+    {
+      to->str= NULL; // Safety
+      to->length= 0;
+      return true;
+    }
+    bzero(dst, zeros);
+    memcpy(dst + zeros, str, length);
+    dst[aligned_length]= '\0';
+    to->str= dst;
+    to->length= aligned_length;
+  }
+  else
+  {
+    to->str= str;
+    to->length= length;
+  }
+  return check_string_for_wellformedness(to->str, to->length, cs);
 }
 
 
@@ -2271,6 +2318,21 @@ bool THD::convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs)
   }
   s->swap(convert_buffer);
   return FALSE;
+}
+
+
+bool THD::check_string_for_wellformedness(const char *str,
+                                          size_t length,
+                                          CHARSET_INFO *cs) const
+{
+  size_t wlen= Well_formed_prefix(cs, str, length).length();
+  if (wlen < length)
+  {
+    ErrConvString err(str, length, &my_charset_bin);
+    my_error(ER_INVALID_CHARACTER_STRING, MYF(0), cs->csname, err.ptr());
+    return true;
+  }
+  return false;
 }
 
 
@@ -3394,7 +3456,7 @@ int select_max_min_finder_subselect::send_data(List<Item> &items)
     if (!cache)
     {
       cache= Item_cache::get_cache(thd, val_item);
-      switch (val_item->result_type()) {
+      switch (val_item->cmp_type()) {
       case REAL_RESULT:
 	op= &select_max_min_finder_subselect::cmp_real;
 	break;
@@ -3407,8 +3469,13 @@ int select_max_min_finder_subselect::send_data(List<Item> &items)
       case DECIMAL_RESULT:
         op= &select_max_min_finder_subselect::cmp_decimal;
         break;
-      case ROW_RESULT:
       case TIME_RESULT:
+        if (val_item->field_type() == MYSQL_TYPE_TIME)
+          op= &select_max_min_finder_subselect::cmp_time;
+        else
+          op= &select_max_min_finder_subselect::cmp_str;
+        break;
+      case ROW_RESULT:
         // This case should never be choosen
 	DBUG_ASSERT(0);
 	op= 0;
@@ -3453,6 +3520,22 @@ bool select_max_min_finder_subselect::cmp_int()
   return (val1 < val2);
 }
 
+bool select_max_min_finder_subselect::cmp_time()
+{
+  Item *maxmin= ((Item_singlerow_subselect *)item)->element_index(0);
+  longlong val1= cache->val_time_packed(), val2= maxmin->val_time_packed();
+
+  /* Ignore NULLs for ANY and keep them for ALL subqueries */
+  if (cache->null_value)
+    return (is_all && !maxmin->null_value) || (!is_all && maxmin->null_value);
+  if (maxmin->null_value)
+    return !is_all;
+
+  if (fmax)
+    return(val1 > val2);
+  return (val1 < val2);
+}
+
 bool select_max_min_finder_subselect::cmp_decimal()
 {
   Item *maxmin= ((Item_singlerow_subselect *)item)->element_index(0);
@@ -3479,7 +3562,7 @@ bool select_max_min_finder_subselect::cmp_str()
     but added for safety
   */
   val1= cache->val_str(&buf1);
-  val2= maxmin->val_str(&buf1);
+  val2= maxmin->val_str(&buf2);
 
   /* Ignore NULLs for ANY and keep them for ALL subqueries */
   if (cache->null_value)
@@ -6202,47 +6285,84 @@ int THD::decide_logging_format(TABLE_LIST *tables)
   DBUG_RETURN(0);
 }
 
-int THD::decide_logging_format_low(TABLE *table)
+
+/*
+  Reconsider logging format in case of INSERT...ON DUPLICATE KEY UPDATE
+  for tables with more than one unique keys in case of MIXED binlog format.
+
+  Unsafe means that a master could execute the statement differently than
+  the slave.
+  This could can happen in the following cases:
+  - The unique check are done in different order on master or slave
+    (different engine or different key order).
+  - There is a conflict on another key than the first and before the
+    statement is committed, another connection commits a row that conflicts
+    on an earlier unique key. Example follows:
+
+    Below a and b are unique keys, the table has a row (1,1,0)
+    connection 1:
+    INSERT INTO t1 set a=2,b=1,c=0 ON DUPLICATE KEY UPDATE c=1;
+    connection 2:
+    INSERT INTO t1 set a=2,b=2,c=0;
+
+    If 2 commits after 1 has been executed but before 1 has committed
+    (and are thus put before the other in the binary log), one will
+    get different data on the slave:
+    (1,1,1),(2,2,1) instead of (1,1,1),(2,2,0)
+*/
+
+void THD::reconsider_logging_format_for_iodup(TABLE *table)
 {
-  /*
-   INSERT...ON DUPLICATE KEY UPDATE on a table with more than one unique keys
-   can be unsafe.
-   */
-  if(wsrep_binlog_format() <= BINLOG_FORMAT_STMT &&
-       !is_current_stmt_binlog_format_row() &&
-       !lex->is_stmt_unsafe() &&
-       lex->sql_command == SQLCOM_INSERT &&
-       lex->duplicates == DUP_UPDATE)
+  DBUG_ENTER("reconsider_logging_format_for_iodup");
+  enum_binlog_format bf= (enum_binlog_format) wsrep_binlog_format();
+
+  DBUG_ASSERT(lex->duplicates == DUP_UPDATE);
+
+  if (bf <= BINLOG_FORMAT_STMT &&
+      !is_current_stmt_binlog_format_row())
   {
+    KEY *end= table->s->key_info + table->s->keys;
     uint unique_keys= 0;
-    uint keys= table->s->keys, i= 0;
-    Field *field;
-    for (KEY* keyinfo= table->s->key_info;
-             i < keys && unique_keys <= 1; i++, keyinfo++)
-      if (keyinfo->flags & HA_NOSAME &&
-         !(keyinfo->key_part->field->flags & AUTO_INCREMENT_FLAG &&
-             //User given auto inc can be unsafe
-             !keyinfo->key_part->field->val_int()))
+
+    for (KEY *keyinfo= table->s->key_info; keyinfo < end ; keyinfo++)
+    {
+      if (keyinfo->flags & HA_NOSAME)
       {
+        /*
+          We assume that the following cases will guarantee that the
+          key is unique if a key part is not set:
+          - The key part is an autoincrement (autogenerated)
+          - The key part has a default value that is null and it not
+            a virtual field that will be calculated later.
+        */
         for (uint j= 0; j < keyinfo->user_defined_key_parts; j++)
         {
-          field= keyinfo->key_part[j].field;
-          if(!bitmap_is_set(table->write_set,field->field_index))
-            goto exit;
+          Field *field= keyinfo->key_part[j].field;
+          if (!bitmap_is_set(table->write_set, field->field_index))
+          {
+            /* Check auto_increment */
+            if (field == table->next_number_field)
+              goto exit;
+            if (field->is_real_null() && !field->default_value)
+              goto exit;
+          }
         }
-        unique_keys++;
+        if (unique_keys++)
+          break;
 exit:;
       }
-
+    }
     if (unique_keys > 1)
     {
-      lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_INSERT_TWO_KEYS);
-      binlog_unsafe_warning_flags|= lex->get_stmt_unsafe_flags();
+      if (bf == BINLOG_FORMAT_STMT && !lex->is_stmt_unsafe())
+      {
+        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_INSERT_TWO_KEYS);
+        binlog_unsafe_warning_flags|= lex->get_stmt_unsafe_flags();
+      }
       set_current_stmt_binlog_format_row_if_mixed();
-      return 1;
     }
   }
-  return 0;
+  DBUG_VOID_RETURN;
 }
 
 /*

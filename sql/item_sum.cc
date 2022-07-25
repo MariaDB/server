@@ -68,7 +68,6 @@ size_t Item_sum::ram_limitation(THD *thd)
 bool Item_sum::init_sum_func_check(THD *thd)
 {
   SELECT_LEX *curr_sel= thd->lex->current_select;
-  LEX *lex_s= (curr_sel ? curr_sel->parent_lex : thd->lex);
   if (curr_sel && !curr_sel->name_visibility_map)
   {
     for (SELECT_LEX *sl= curr_sel; sl; sl= sl->context.outer_select())
@@ -83,9 +82,9 @@ bool Item_sum::init_sum_func_check(THD *thd)
     return TRUE;
   }
   /* Set a reference to the nesting set function if there is  any */
-  in_sum_func= lex_s->in_sum_func;
+  in_sum_func= thd->lex->in_sum_func;
   /* Save a pointer to object to be used in items for nested set functions */
-  lex_s->in_sum_func= this;
+  thd->lex->in_sum_func= this;
   nest_level= thd->lex->current_select->nest_level;
   ref_by= 0;
   aggr_level= -1;
@@ -152,7 +151,6 @@ bool Item_sum::init_sum_func_check(THD *thd)
 bool Item_sum::check_sum_func(THD *thd, Item **ref)
 {
   SELECT_LEX *curr_sel= thd->lex->current_select;
-  LEX *lex_s= curr_sel->parent_lex;
   nesting_map allow_sum_func= (thd->lex->allow_sum_func &
                                curr_sel->name_visibility_map);
   bool invalid= FALSE;
@@ -312,7 +310,7 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
   }
   aggr_sel->set_agg_func_used(true);
   update_used_tables();
-  lex_s->in_sum_func= in_sum_func;
+  thd->lex->in_sum_func= in_sum_func;
   return FALSE;
 }
 
@@ -1348,6 +1346,8 @@ bool Item_sum_sum::fix_length_and_dec()
   {
     /* SUM result can't be longer than length(arg) + length(MAX_ROWS) */
     int precision= args[0]->decimal_precision() + DECIMAL_LONGLONG_DIGITS;
+    decimals= MY_MIN(decimals, DECIMAL_MAX_SCALE);
+    precision= MY_MIN(precision, DECIMAL_MAX_PRECISION);
     max_length= my_decimal_precision_to_length_no_truncation(precision,
                                                              decimals,
                                                              unsigned_flag);
@@ -1675,12 +1675,12 @@ bool Item_sum_avg::fix_length_and_dec()
   if (Item_sum_avg::result_type() == DECIMAL_RESULT)
   {
     int precision= args[0]->decimal_precision() + prec_increment;
-    decimals= MY_MIN(args[0]->decimals + prec_increment, DECIMAL_MAX_SCALE);
+    decimals= MY_MIN(args[0]->decimal_scale() + prec_increment, DECIMAL_MAX_SCALE);
     max_length= my_decimal_precision_to_length_no_truncation(precision,
                                                              decimals,
                                                              unsigned_flag);
     f_precision= MY_MIN(precision+DECIMAL_LONGLONG_DIGITS, DECIMAL_MAX_PRECISION);
-    f_scale=  args[0]->decimals;
+    f_scale= args[0]->decimal_scale();
     dec_bin_size= my_decimal_get_binary_size(f_precision, f_scale);
   }
   else

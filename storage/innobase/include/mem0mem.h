@@ -339,5 +339,5 @@ struct mem_block_info_t {
 #define MEM_BLOCK_HEADER_SIZE	UT_CALC_ALIGN(sizeof(mem_block_info_t),\
 					      UNIV_MEM_ALIGNMENT)
 
-#include "mem0mem.ic"
+#include "mem0mem.inl"
 #endif

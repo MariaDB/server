@@ -281,7 +281,7 @@ public:
   }
   ~partition_info() {}
 
-  partition_info *get_clone(THD *thd);
+  partition_info *get_clone(THD *thd, bool empty_data_and_index_file= FALSE);
   bool set_named_partition_bitmap(const char *part_name, uint length);
   bool set_partition_bitmaps(TABLE_LIST *table_list);
   /* Answers the question if subpartitioning is used for a certain table */

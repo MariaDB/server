@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -100,10 +100,6 @@ struct LatchDebug {
 
 	/** Comparator for the ThreadMap. */
 	struct os_thread_id_less
-		: public std::binary_function<
-		  os_thread_id_t,
-		  os_thread_id_t,
-		  bool>
 	{
 		/** @return true if lhs < rhs */
 		bool operator()(
@@ -389,10 +385,6 @@ private:
 private:
 	/** Comparator for the Levels . */
 	struct latch_level_less
-		: public std::binary_function<
-		  latch_level_t,
-		  latch_level_t,
-		  bool>
 	{
 		/** @return true if lhs < rhs */
 		bool operator()(

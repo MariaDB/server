@@ -66,6 +66,7 @@ COMMIT;
 --source include/wait_condition.inc
 
 --echo Cleaning var directory ...
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mtr
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/performance_schema
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/test

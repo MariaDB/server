@@ -2630,7 +2630,6 @@ public:
     Collect outer references
   */
   virtual bool collect_outer_ref_processor(void *arg);
-  Item *derived_field_transformer_for_having(THD *thd, uchar *arg);
   friend bool insert_fields(THD *thd, Name_resolution_context *context,
                             const char *db_name,
                             const char *table_name, List_iterator<Item> *it,
@@ -4565,6 +4564,7 @@ public:
   {
     return ref ? (*ref)->real_item() : this;
   }
+  bool is_json_type() { return (*ref)->is_json_type(); }
   bool walk(Item_processor processor, bool walk_subquery, void *arg)
   { 
     if (ref && *ref)
@@ -5455,18 +5455,17 @@ protected:
   Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a)
           :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                       (const char *)NULL),
-           arg(a), cached_field(NULL) {}
+           arg(a) {}
 public:
   Item *arg;
-  Field *cached_field;
   Item_default_value(THD *thd, Name_resolution_context *context_arg)
     :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                (const char *)NULL),
-    arg(NULL), cached_field(NULL) {}
+    arg(NULL) {}
   Item_default_value(THD *thd, Name_resolution_context *context_arg, Field *a)
     :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                 (const char *)NULL),
-    arg(NULL),cached_field(NULL) {}
+    arg(NULL) {}
   enum Type type() const { return DEFAULT_VALUE_ITEM; }
   bool vcol_assignment_allowed_value() const { return true; }
   bool eq(const Item *item, bool binary_cmp) const;
@@ -5478,6 +5477,16 @@ public:
   longlong val_int();
   my_decimal *val_decimal(my_decimal *decimal_value);
   bool get_date(MYSQL_TIME *ltime,ulonglong fuzzydate);
+
+  /* Result variants */
+  double val_result();
+  longlong val_int_result();
+  String *str_result(String* tmp);
+  my_decimal *val_decimal_result(my_decimal *val);
+  bool val_bool_result();
+  bool is_null_result();
+  bool get_date_result(MYSQL_TIME *ltime,ulonglong fuzzydate);
+
   bool send(Protocol *protocol, String *buffer);
   int save_in_field(Field *field_arg, bool no_conversions);
   bool save_in_param(THD *thd, Item_param *param)
@@ -5488,15 +5497,15 @@ public:
     return false;
   }
   table_map used_tables() const;
-  virtual void update_used_tables()
+  void update_used_tables()
   {
     if (field && field->default_value)
       field->default_value->expr->update_used_tables();
   }
-  Field *get_tmp_table_field() { return 0; }
   Item *get_tmp_table_item(THD *thd) { return this; }
   Item_field *field_for_view_update() { return 0; }
   bool update_vcol_processor(void *arg) { return 0; }
+  bool check_field_expression_processor(void *arg);
   bool check_func_default_processor(void *arg) { return true; }
   bool enchant_default_with_arg_processor(void *arg);
 
@@ -5798,10 +5807,18 @@ public:
     }
     return mark_unsupported_function("cache", arg, VCOL_IMPOSSIBLE);
   }
+  bool fix_fields(THD *thd, Item **ref)
+  {
+    fixed= 1;
+    if (example && !example->fixed)
+      return example->fix_fields(thd, ref);
+    return 0;
+  }
   void cleanup()
   {
     clear();
     Item_basic_constant::cleanup();
+    fixed= 0;
   }
   /**
      Check if saved item has a non-NULL value.

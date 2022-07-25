@@ -32,6 +32,23 @@
 
 --exec $MYSQL_TZINFO_TO_SQL --leap $MYSQLTEST_VARDIR/zoneinfo/GMT 2>&1
 
+--echo #
+--echo # MDEV-28263: mariadb-tzinfo-to-sql improve wsrep and binlog cases
+--echo #
+
+--echo #
+--echo # Testing --skip-write-binlog
+--echo #
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog $MYSQLTEST_VARDIR/zoneinfo/GMT XXX 2>&1
+
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog --leap $MYSQLTEST_VARDIR/zoneinfo/GMT 2>&1
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
 #
 # Cleanup
 #

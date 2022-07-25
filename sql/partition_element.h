@@ -132,7 +132,9 @@ public:
     connect_string(null_lex_str),
     part_state(part_elem->part_state),
     nodegroup_id(part_elem->nodegroup_id),
-    has_null_value(FALSE)
+    has_null_value(FALSE),
+    signed_flag(part_elem->signed_flag),
+    max_value(part_elem->max_value)
   {
   }
   ~partition_element() {}
