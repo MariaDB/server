@@ -103,13 +103,163 @@ start slave;
 
 --source include/wait_for_slave_sql_to_start.inc
 
---connection master 
+--connection master
 --sync_slave_with_master
 select * from t1 order by a;
 
 --connection master
 select * from t1 order by a;
 drop table t1;
+--sync_slave_with_master
+--connection master
+
+set binlog_row_image=minimal;
+
+create table t1(a int primary key auto_increment, b int unique);
+insert into t1 values(1, 1);
+insert into t1 values(2, 2);
+insert into t1 values(3, 3);
+insert into t1 values(4, 4);
+insert into t1 values(5, 5);
+
+--sync_slave_with_master
+alter table t1 add column d1 int default (b),
+               add column z1 int as (b+1) virtual,
+               add column z2 int as (b+2) persistent;
+--connection master
+
+insert into t1 values(6, 6);
+update t1 set a = 11 where a = 1;
+update t1 set b = 12 where b = 2;
+
+delete from t1 where a = 3;
+delete from t1 where b = 5;
+
+update t1 set b = 16 where a = 6;
+
+--sync_slave_with_master
+select * from t1;
+
+--echo # Cleanup
+--connection master
+drop table t1;
+--sync_slave_with_master
+--connection master
+
+
+set binlog_row_image=minimal;
+
+--echo #
+--echo # MDEV-29069 ER_KEY_NOT_FOUND upon online autoinc addition and
+--echo # concurrent DELETE
+--echo #
+
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+--sync_slave_with_master
+alter table t add pk int auto_increment primary key;
+
+--connection master
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+--sync_slave_with_master
+select * from t;
+--connection master
+
+--echo #
+--echo # Add clumsy DEFAULT
+--echo #
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+--sync_slave_with_master
+alter table t add b int default(RAND() * 20), add key(b),
+              algorithm=copy, lock=none;
+--connection master
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+--sync_slave_with_master
+select a from t;
+--connection master
+
+--echo # CURRENT_TIMESTAMP
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+--sync_slave_with_master
+alter table t add b timestamp default CURRENT_TIMESTAMP, add key(b);
+--connection master
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+--sync_slave_with_master
+select a from t;
+--connection master
+
+--echo # CURRENT_TIMESTAMP, mixed key
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+--sync_slave_with_master
+alter table t add b timestamp default CURRENT_TIMESTAMP, add key(a, b);
+--connection master
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+
+--sync_slave_with_master
+select a from t;
+--connection master
+
+--echo # Mixed primary key
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+--sync_slave_with_master
+alter table t add b int default (1), add primary key(b, a);
+--connection master
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+
+--sync_slave_with_master
+select a from t;
+--connection master
+
+--echo #
+--echo # Normal row, could be used as a key
+--echo #
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+--sync_slave_with_master
+alter table t add b int as (a * 10) unique;
+--connection master
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+
+--sync_slave_with_master
+select * from t;
+--connection master
+
+--echo #
+--echo # Add key for old row
+--echo #
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+--sync_slave_with_master
+alter table t add unique(a);
+--connection master
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+
+--sync_slave_with_master
+select * from t;
+
+--echo # Cleanup
+--connection master
+--sync_slave_with_master
+--connection master
+drop table t;
 
 create table t1(a int primary key, b int unique);
 insert into t1 values(1, 1);
