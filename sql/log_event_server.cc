@@ -7104,28 +7104,29 @@ record_compare_differ:
   Basically we exclude all the default-filled fields based on
   has_explicit_value bitmap.
 */
-bool Rows_log_event::is_key_usable(const KEY *key) const
+uint Rows_log_event::find_key_parts(const KEY *key) const
 {
   RPL_TABLE_LIST *tl= (RPL_TABLE_LIST*)m_table->pos_in_table_list;
   const bool online_alter= tl->m_online_alter_copy_fields;
+  uint p;
 
   if (!m_table->s->keys_in_use.is_set(uint(key - m_table->key_info)))
-    return false;
+    return 0;
 
   if (!online_alter)
   {
     if (m_cols.n_bits >= m_table->s->fields)
-      return true;
+      return key->user_defined_key_parts;
     if (m_table->s->virtual_fields + m_table->s->stored_fields == 0)
     {
-      for (uint p= 0; p < key->user_defined_key_parts; p++)
+      for (p= 0; p < key->user_defined_key_parts; p++)
         if (key->key_part[p].fieldnr > m_cols.n_bits)
-          return false;
-      return true;
+          break;
+      return p;
     }
   }
 
-  for (uint p= 0; p < key->user_defined_key_parts; p++)
+  for (p= 0; p < key->user_defined_key_parts; p++)
   {
     Field *f= key->key_part[p].field;
     /*
@@ -7138,9 +7139,9 @@ bool Rows_log_event::is_key_usable(const KEY *key) const
     bool next_number_field= f == f->table->next_number_field;
     if (!bitmap_is_set(&m_table->has_value_set, f->field_index) &&
         (!online_alter || non_deterministic_default || next_number_field))
-      return false;
+      break;
   }
-  return true;
+  return p;
 }
 
 
@@ -7150,8 +7151,8 @@ bool Rows_log_event::is_key_usable(const KEY *key) const
   A primary key is preferred if it exists; otherwise a unique index is
   preferred. Else we pick the index with the smalles rec_per_key value.
 
-  If a suitable key is found, set @c m_key, @c m_key_nr and @c m_key_info
-  member fields appropriately.
+  If a suitable key is found, set @c m_key, @c m_key_nr, @c m_key_info,
+  and @c m_usable_key_parts member fields appropriately.
 
   @returns Error code on failure, 0 on success.
 */
@@ -7159,13 +7160,16 @@ int Rows_log_event::find_key(const rpl_group_info *rgi)
 {
   DBUG_ASSERT(m_table);
   RPL_TABLE_LIST *tl= (RPL_TABLE_LIST*)m_table->pos_in_table_list;
-  uint i, best_key_nr;
+  uint i, best_key_nr= 0, best_usable_key_parts= 0;
   KEY *key;
   ulong UNINIT_VAR(best_rec_per_key), tmp;
   DBUG_ENTER("Rows_log_event::find_key");
 
   if ((best_key_nr= tl->cached_key_nr) != ~0U)
+  {
     DBUG_ASSERT(best_key_nr <= MAX_KEY); // use the cached value
+    best_usable_key_parts= tl->cached_usable_key_parts;
+  }
   else
   {
     best_key_nr= MAX_KEY;
@@ -7206,23 +7210,26 @@ int Rows_log_event::find_key(const rpl_group_info *rgi)
     */
     for (i= 0, key= m_table->key_info; i < m_table->s->keys; i++, key++)
     {
-      if (!is_key_usable(key))
+      uint usable_key_parts= find_key_parts(key);
+      if (usable_key_parts == 0)
         continue;
       /*
         We cannot use a unique key with NULL-able columns to uniquely identify
         a row (but we can still select it for range scan below if nothing better
         is available).
       */
-      if ((key->flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME)
+      if ((key->flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME &&
+           usable_key_parts == key->user_defined_key_parts)
       {
         best_key_nr= i;
+        best_usable_key_parts= usable_key_parts;
         break;
       }
       /*
         We can only use a non-unique key if it allows range scans (ie. skip
         FULLTEXT indexes and such).
       */
-      uint last_part= key->user_defined_key_parts - 1;
+      uint last_part= usable_key_parts - 1;
       DBUG_PRINT("info", ("Index %s rec_per_key[%u]= %lu",
                           key->name.str, last_part, key->rec_per_key[last_part]));
       if (!(m_table->file->index_flags(i, last_part, 1) & HA_READ_NEXT))
@@ -7232,13 +7239,16 @@ int Rows_log_event::find_key(const rpl_group_info *rgi)
       if (best_key_nr == MAX_KEY || (tmp > 0 && tmp < best_rec_per_key))
       {
         best_key_nr= i;
+        best_usable_key_parts= usable_key_parts;
         best_rec_per_key= tmp;
       }
     }
     tl->cached_key_nr= best_key_nr;
+    tl->cached_usable_key_parts= best_usable_key_parts;
   }
 
   m_key_nr= best_key_nr;
+  m_usable_key_parts= best_usable_key_parts;
   if (best_key_nr == MAX_KEY)
     m_key_info= NULL;
   else
@@ -7326,7 +7336,8 @@ bool Rows_log_event::use_pk_position() const
 {
   return m_table->file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_POSITION
       && m_table->s->primary_key < MAX_KEY
-      && m_key_nr == m_table->s->primary_key;
+      && m_key_nr == m_table->s->primary_key
+      && m_usable_key_parts == m_table->key_info->user_defined_key_parts;
 }
 
 /**
@@ -7483,8 +7494,12 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
       table->record[0][table->s->null_bytes - 1]|=
         256U - (1U << table->s->last_null_bit_pos);
 
-    error= table->file->ha_index_read_map(table->record[0], m_key, HA_WHOLE_KEY,
-                                          HA_READ_KEY_EXACT);
+    const enum ha_rkey_function find_flag=
+      m_usable_key_parts == m_key_info->user_defined_key_parts
+      ? HA_READ_KEY_EXACT : HA_READ_KEY_OR_NEXT;
+    error= table->file->ha_index_read_map(table->record[0], m_key,
+                                          make_keypart_map(m_usable_key_parts),
+                                          find_flag);
     if (unlikely(error))
     {
       DBUG_PRINT("info",("no record matching the key found in the table"));
@@ -7517,7 +7532,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
       found.  I can see no scenario where it would be incorrect to
       chose the row to change only using a PK or an UNNI.
     */
-    if (table->key_info->flags & HA_NOSAME)
+    if (find_flag == HA_READ_KEY_EXACT && table->key_info->flags & HA_NOSAME)
     {
       /* Unique does not have non nullable part */
       if (!(table->key_info->flags & HA_NULL_PART_KEY))
