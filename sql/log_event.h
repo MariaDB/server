@@ -5054,7 +5054,7 @@ public:
   typedef uint16 flag_set;
 
   /* Special constants representing sets of flags */
-  enum 
+  enum
   {
       RLE_NO_FLAGS = 0U
   };
@@ -5096,7 +5096,7 @@ public:
 #ifdef MYSQL_SERVER
   int add_row_data(uchar *data, size_t length)
   {
-    return do_add_row_data(data,length); 
+    return do_add_row_data(data,length);
   }
 #endif
 
