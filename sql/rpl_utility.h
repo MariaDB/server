@@ -256,6 +256,7 @@ struct RPL_TABLE_LIST : public TABLE_LIST
   const Copy_field *m_online_alter_copy_fields;
   const Copy_field *m_online_alter_copy_fields_end;
   uint cached_key_nr;                  // [0..MAX_KEY] if set, ~0U if unset
+  uint cached_usable_key_parts;
   bool m_tabledef_valid;
   bool master_had_triggers;
 
