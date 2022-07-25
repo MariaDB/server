@@ -21,6 +21,22 @@
 #include "sql_parse.h" // For check_stack_overrun
 
 /*
+  Allocating memory and *also* using it (reading and
+  writing from it) because some build instructions cause
+  compiler to optimize out stack_used_up. Since alloca()
+  here depends on stack_used_up, it doesnt get executed
+  correctly and causes json_debug_nonembedded to fail
+  ( --error ER_STACK_OVERRUN_NEED_MORE does not occur).
+*/
+#define ALLOCATE_MEM_ON_STACK(A) do \
+                              { \
+                                uchar *array= (uchar*)alloca(A); \
+                                array[0]= 1; \
+                                array[0]++; \
+                                array[0] ? array[0]++ : array[0]--; \
+                              } while(0)
+
+/*
   Compare ASCII string against the string with the specified
   character set.
   Only compares the equality, case insencitive.
@@ -138,9 +154,10 @@ int json_path_parts_compare(
   long arbitrary_var;
   long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {alloca(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
+                  {ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return 1;
+
   while (a <= a_end)
   {
     if (b > b_end)
@@ -1139,14 +1156,9 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
   long arbitrary_var;
   long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {alloca(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
+                  {ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return 1;
-
-  DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {alloca(my_thread_stack_size-(STACK_MIN_SIZE));});
-  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, NULL))
-   return 0;
 
   switch (js->value_type)
   {
@@ -2040,7 +2052,7 @@ static int do_merge(String *str, json_engine_t *je1, json_engine_t *je2)
   long arbitrary_var;
   long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {alloca(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
+                  {ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return 1;
 
@@ -2379,7 +2391,7 @@ static int do_merge_patch(String *str, json_engine_t *je1, json_engine_t *je2,
   long arbitrary_var;
   long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {alloca(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
+                  {ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return 1;
 
