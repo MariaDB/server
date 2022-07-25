@@ -3246,7 +3246,7 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
     , m_curr_row(NULL), m_curr_row_end(NULL),
     m_key(NULL), m_key_info(NULL), m_key_nr(0),
-    master_had_triggers(0)
+    m_key_parts_suit(0), master_had_triggers(0)
 #endif
 {
   DBUG_ENTER("Rows_log_event::Rows_log_event(const char*,...)");
