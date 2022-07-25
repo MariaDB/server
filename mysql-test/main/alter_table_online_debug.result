@@ -919,5 +919,142 @@ alter table t1 force;
 drop table t1, t2;
 set debug_sync= reset;
 #
+# MDEV-29069 ER_KEY_NOT_FOUND upon online autoinc addition and
+# concurrent DELETE
+#
+set @old_dbug=@@debug_dbug;
+set debug_dbug="+d,rpl_report_chosen_key";
+create table t (a int);
+insert into t values (10),(20),(30);
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t add pk int auto_increment primary key, algorithm=copy, lock=none;
+connection con2;
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+connection default;
+Warnings:
+Note	1105	Key chosen: -1
+Note	1105	Key chosen: -1
+select * from t;
+a	pk
+11	1
+30	3
+#
+# Add clumsy DEFAULT
+#
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t add b int default(RAND() * 20), add key(b),
+algorithm=copy, lock=none;
+connection con2;
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+connection default;
+Warnings:
+Note	1105	Key chosen: -1
+Note	1105	Key chosen: -1
+select a from t;
+a
+11
+30
+# CURRENT_TIMESTAMP
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t add b timestamp default CURRENT_TIMESTAMP, add key(b),
+algorithm=copy, lock=none;
+connection con2;
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+connection default;
+Warnings:
+Note	1105	Key chosen: -1
+Note	1105	Key chosen: -1
+select a from t;
+a
+11
+30
+# CURRENT_TIMESTAMP, mixed key
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t add b timestamp default CURRENT_TIMESTAMP, add key(a, b),
+algorithm=copy, lock=none;
+connection con2;
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+connection default;
+Warnings:
+Note	1105	Key chosen: -1
+Note	1105	Key chosen: -1
+select a from t;
+a
+11
+30
+# Mixed primary key
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t add b int default (a+1), add primary key(b, a),
+algorithm=copy, lock=none;
+connection con2;
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+connection default;
+Warnings:
+Note	1105	Key chosen: -1
+Note	1105	Key chosen: -1
+select a from t;
+a
+11
+30
+#
+# Normal row, could be used as a key
+#
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t add b int as (a * 10) unique, algorithm=copy, lock=none;
+connection con2;
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+connection default;
+Warnings:
+Note	1105	Key chosen: -1
+Note	1105	Key chosen: -1
+#
+# Add key for old row
+#
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t add unique(a), algorithm=copy, lock=none;
+connection con2;
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+connection default;
+Warnings:
+Note	1105	Key chosen: 0
+Note	1105	Key chosen: 0
+drop table t;
+set debug_sync= reset;
+set debug_dbug= @old_debug;
+connection default;
+#
 # End of 10.10 tests
 #
