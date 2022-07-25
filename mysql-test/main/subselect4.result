@@ -2917,9 +2917,6 @@ SELECT DISTINCT
 FROM t1;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,

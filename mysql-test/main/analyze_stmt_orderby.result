@@ -35,9 +35,6 @@ analyze format=json
 update t2 set b=b+1 order by b limit 5;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -92,9 +89,6 @@ analyze format=json
 update t2 set a=a+1 where a<10;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -143,9 +137,6 @@ analyze format=json
 delete from t2 order by b limit 5;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -217,9 +208,6 @@ analyze format=json
 select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -320,9 +308,6 @@ analyze format=json
 select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -391,9 +376,6 @@ analyze format=json
 select MAX(b) from t2 where mod(a,2)=0 group by c;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -454,9 +436,6 @@ analyze format=json
 select distinct max(t3.b) Q from t0, t3 where t0.a=t3.a group by t0.a order by null;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -521,9 +500,6 @@ where t5.a=t6.a and t6.b > 0 and t5.a <= 5
 group by t5.a order by sum limit 1;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -659,9 +635,6 @@ analyze format=json
 select col1 f1, col2 f2, col1 f3 from t2 group by f1;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,

@@ -72,9 +72,6 @@ EXPLAIN
 ANALYZE format=json (select a,b from t1) except (select c,d from t2);
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "union_result": {
       "table_name": "<except1,2>",
@@ -134,9 +131,6 @@ ANALYZE
 ANALYZE format=json select * from ((select a,b from t1) except (select c,d from t2)) a;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -342,9 +336,6 @@ EXPLAIN
 ANALYZE format=json (select a,b,e,f from t1,t3) except (select c,d,g,h from t2,t4);
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "union_result": {
       "table_name": "<except1,2>",
@@ -443,9 +434,6 @@ ANALYZE format=json select * from ((select a,b,e,f from t1,t3) except
 (select c,d,g,h from t2,t4)) a;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,

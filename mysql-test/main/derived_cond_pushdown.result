@@ -19643,9 +19643,6 @@ CREATE VIEW v1 AS SELECT a FROM t1 UNION VALUES (3),(4);
 ANALYZE FORMAT=JSON SELECT * from v1 WHERE a=3;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,

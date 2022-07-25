@@ -2455,9 +2455,6 @@ select counter+1 from src where counter<10
 ) select * from src;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -3864,9 +3861,6 @@ where (dt.a1) in (with recursive cte as (select a2 from t2 where a2='2'
 select a2 from cte);
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -4126,9 +4120,6 @@ select t1.* from t1, r_cte as r where t1.c = r.a )
 select 0 as b FROM dual union all select b FROM r_cte as t;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "union_result": {
       "query_specifications": [
@@ -4294,9 +4285,6 @@ select 0 as b FROM dual union all select b FROM r_cte as t)
 select * from t1 as tt;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,

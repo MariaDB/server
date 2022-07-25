@@ -400,9 +400,6 @@ ANALYZE format=json
 SELECT 1 FROM t1 GROUP BY convert_tz('1969-12-31 22:00:00',a,'+10:00');
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,

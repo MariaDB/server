@@ -3396,9 +3396,6 @@ INSERT INTO t1 SELECT seq,seq from seq_1_to_100;
 ANALYZE FORMAT=JSON SELECT * FROM t1 ORDER BY a LIMIT 5;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -3753,9 +3750,6 @@ insert into t1 select seq, seq, seq  from seq_1_to_100;
 ANALYZE FORMAT=JSON select * from t1 order by a,b,c;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -3919,9 +3913,6 @@ analyze format=json
 select a, substr(b, @save_max_sort_length+1) from t1 order by b desc;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -3968,9 +3959,6 @@ insert into t1 values ('def', 4, 4) , ('efg', 5, 5), ('fgh', 6, 6);
 ANALYZE FORMAT=JSON select a, b, c from t1 order by a, b;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -4023,9 +4011,6 @@ Warning	1292	Truncated incorrect max_sort_length value: '5'
 ANALYZE FORMAT=JSON select a, b, c from t1 order by a, b;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -4092,9 +4077,6 @@ a	b
 analyze format=json select * from t1 order by a;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -4274,9 +4256,6 @@ ANALYZE FORMAT=JSON
 SELECT (SELECT sum(t2.b) FROM t2 WHERE t1.b=t2.b GROUP BY t2.a) FROM t1;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,

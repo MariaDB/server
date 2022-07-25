@@ -1148,9 +1148,6 @@ EXPLAIN
 analyze format=json select count(distinct b) from t1 group by a;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -1449,9 +1446,6 @@ analyze format=json
 select * from t1;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "table": {
@@ -1503,9 +1497,6 @@ analyze format=json
 select * from t1 left join t2 on t2.pk > 10 and t2.pk < 0;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -1585,9 +1576,6 @@ analyze format=json
 select * from t1 left join t2 on t2.pk=t1.a where  t2.pk is null;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -1676,9 +1664,6 @@ analyze format=json
 select distinct t1.a from t1 join t2 on t2.pk=t1.a;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -1785,9 +1770,6 @@ analyze format=json
 select * from t3,t4 where t3.a=t4.a and (t4.b+1 <= t3.b+1);
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,

@@ -29,9 +29,6 @@ EXPLAIN
 analyze format=json select * from t1 where a in (2,3,4);
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -58,9 +55,6 @@ ANALYZE
 analyze format=json update t1 set a=a+10 where a in (2,3,4);
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -82,9 +76,6 @@ ANALYZE
 analyze format=json delete from t1 where a in (20,30,40);
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",

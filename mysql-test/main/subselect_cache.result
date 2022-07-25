@@ -44,9 +44,6 @@ analyze format=json
 select a, (select d from t2 where b=c) from t1;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -101,9 +98,6 @@ analyze format=json
 select a, (select d from t2 where b=c), (select d from t2 where b=c union select 1 order by 1 limit 1) from t1;
 ANALYZE
 {
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
