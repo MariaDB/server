@@ -2339,6 +2339,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_STR("bke", bka_engine);
           SPIDER_PARAM_INT_WITH_MAX("bkm", bka_mode, 0, 2);
           SPIDER_PARAM_INT("bsz", bulk_size, 0);
+          SPIDER_PARAM_DEPRECATED_WARNING("btt");
           SPIDER_PARAM_LONG_LIST_WITH_MAX("btt", bka_table_name_types,
             0, 1);
           SPIDER_PARAM_INT_WITH_MAX("bum", bulk_update_mode, 0, 2);
@@ -2700,6 +2701,7 @@ int spider_parse_connect_info(
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
           SPIDER_PARAM_LONGLONG("hs_result_free_size", hs_result_free_size, 0);
 #endif
+          SPIDER_PARAM_DEPRECATED_WARNING("bka_table_name_type");
           SPIDER_PARAM_LONG_LIST_WITH_MAX("bka_table_name_type",
             bka_table_name_types, 0, 1);
           SPIDER_PARAM_INT_WITH_MAX(
