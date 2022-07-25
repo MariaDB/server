@@ -4745,9 +4745,10 @@ protected:
   uchar    *m_key;      /* Buffer to keep key value during searches */
   KEY      *m_key_info; /* Pointer to KEY info for m_key_nr */
   uint      m_key_nr;   /* Key number */
+  uint      m_usable_key_parts; /* A number of key_parts suited to lookup */
   bool master_had_triggers;     /* set after tables opening */
 
-  bool key_suits_event(const KEY *key) const;
+  uint key_parts_suit_event(const KEY *key) const;
 
   int find_key(); // Find a best key to use in find_row()
   int find_row(rpl_group_info *);
