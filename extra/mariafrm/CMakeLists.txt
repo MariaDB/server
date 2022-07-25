@@ -18,6 +18,7 @@ INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_SOURCE_DIR}/sql
   ${CMAKE_SOURCE_DIR}/strings
+  ${CMAKE_SOURCE_DIR}/mysys_ssl
   ${CMAKE_CURRENT_BINARY_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}
 )
@@ -26,8 +27,13 @@ MYSQL_ADD_EXECUTABLE(mariadb-frm mariafrm.cc)
 
 SET_TARGET_PROPERTIES (mariadb-frm PROPERTIES HAS_CXX TRUE)
 
-IF(MSVC OR CMAKE_SYSTEM_NAME MATCHES AIX)
-  TARGET_LINK_LIBRARIES(mariadb-frm server)
-ELSE()
-  TARGET_LINK_LIBRARIES(mariadb-frm LINK_PRIVATE sql sql_builtins)
-ENDIF()
+TARGET_LINK_LIBRARIES(mariadb-frm sql sql_builtins)
+
+#IF(MSVC OR CMAKE_SYSTEM_NAME MATCHES AIX)
+#  TARGET_LINK_LIBRARIES(mariadb-frm server)
+#ELSE()
+#  TARGET_LINK_LIBRARIES(mariadb-frm LINK_PRIVATE sql sql_builtins)
+#ENDIF()
+
+#ADD_DEPENDENCIES(mariadb-frm server)
+ADD_DEPENDENCIES(mariadb-frm sql sql_builtins)
