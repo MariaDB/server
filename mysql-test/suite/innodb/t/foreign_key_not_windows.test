@@ -1,5 +1,9 @@
 --source include/have_innodb.inc
+# On Microsoft Windows, there is an additional limit of MAX_PATH
 --source include/not_windows.inc
+# The embedded server prepends --datadir or --innodb-data-home-dir
+# to the path names, which reduces the maximum length of names further.
+--source include/not_embedded.inc
 
 --echo #
 --echo # MDEV-28980 InnoDB: Failing assertion: len <= MAX_TABLE_NAME_LEN
