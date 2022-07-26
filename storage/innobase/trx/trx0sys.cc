@@ -196,9 +196,8 @@ size_t trx_sys_t::history_size()
   {
     rseg.latch.rd_lock(SRW_LOCK_CALL);
     size+= rseg.history_size;
-  }
-  for (auto &rseg : rseg_array)
     rseg.latch.rd_unlock();
+  }
   return size;
 }
 
@@ -207,20 +206,17 @@ bool trx_sys_t::history_exceeds(size_t threshold)
   ut_ad(is_initialised());
   size_t size= 0;
   bool exceeds= false;
-  size_t i;
-  for (i= 0; i < array_elements(rseg_array); i++)
+  for (auto &rseg : rseg_array)
   {
-    rseg_array[i].latch.rd_lock(SRW_LOCK_CALL);
-    size+= rseg_array[i].history_size;
+    rseg.latch.rd_lock(SRW_LOCK_CALL);
+    size+= rseg.history_size;
+    rseg.latch.rd_unlock();
     if (size > threshold)
     {
       exceeds= true;
-      i++;
       break;
     }
   }
-  while (i)
-    rseg_array[--i].latch.rd_unlock();
   return exceeds;
 }
 
