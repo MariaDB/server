@@ -1265,7 +1265,7 @@ row_merge_read(
 	if (success && log_tmp_is_encrypted()) {
 		if (!log_tmp_block_decrypt(buf, srv_sort_buf_size,
 					   crypt_buf, ofs)) {
-			return (FALSE);
+			DBUG_RETURN(FALSE);
 		}
 
 		srv_stats.n_merge_blocks_decrypted.inc();
@@ -1312,7 +1312,7 @@ row_merge_write(
 					   buf_len,
 					   static_cast<byte*>(crypt_buf),
 					   ofs)) {
-			return false;
+			DBUG_RETURN(false);
 		}
 
 		srv_stats.n_merge_blocks_encrypted.inc();
@@ -5068,6 +5068,16 @@ dberr_t row_merge_bulk_t::alloc_block()
              3 * srv_sort_buf_size, &m_block_pfx);
   if (m_block == nullptr)
     return DB_OUT_OF_MEMORY;
+
+  m_crypt_pfx.m_size= 0;
+  TRASH_ALLOC(&m_crypt_pfx, sizeof m_crypt_pfx);
+  if (log_tmp_is_encrypted())
+  {
+    m_crypt_block= static_cast<row_merge_block_t*>(
+       m_alloc.allocate_large(3 * srv_sort_buf_size, &m_crypt_pfx));
+    if (!m_crypt_block)
+      return DB_OUT_OF_MEMORY;
+  }
   return DB_SUCCESS;
 }
 
@@ -5128,6 +5138,9 @@ row_merge_bulk_t::~row_merge_bulk_t()
 
   if (m_block)
     m_alloc.deallocate_large(m_block, &m_block_pfx);
+
+  if (m_crypt_block)
+    m_alloc.deallocate_large(m_crypt_block, &m_crypt_pfx);
 }
 
 void row_merge_bulk_t::init_tmp_file()
@@ -5187,7 +5200,7 @@ dberr_t row_merge_bulk_t::write_to_tmp_file(ulint index_no)
     return err;
 
   if (!row_merge_write(file->fd, file->offset++,
-                       m_block, nullptr,
+                       m_block, m_crypt_block,
                        buf->index->table->space->id))
     return DB_TEMP_FILE_WRITE_FAIL;
   MEM_UNDEFINED(&m_block[0], srv_sort_buf_size);
@@ -5308,13 +5321,13 @@ dberr_t row_merge_bulk_t::write_to_index(ulint index_no, trx_t *trx)
 
   err= row_merge_sort(trx, &dup, file,
                       m_block, &m_tmpfd, true, 0, 0,
-                      nullptr, table->space_id, nullptr);
+                      m_crypt_block, table->space_id, nullptr);
   if (err != DB_SUCCESS)
     goto func_exit;
 
   err= row_merge_insert_index_tuples(
         index, table, file->fd, m_block, nullptr,
-        &btr_bulk, 0, 0, 0, nullptr, table->space_id,
+        &btr_bulk, 0, 0, 0, m_crypt_block, table->space_id,
         nullptr, &m_blob_file);
 
 func_exit:

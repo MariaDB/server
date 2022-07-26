@@ -429,6 +429,10 @@ class row_merge_bulk_t
   ut_new_pfx_t m_block_pfx;
   /** Temporary file to store the blob */
   merge_file_t m_blob_file;
+  /** Storage for description for the crypt_block */
+  ut_new_pfx_t m_crypt_pfx;
+  /** Block for encryption */
+  row_merge_block_t *m_crypt_block= nullptr;
 public:
   /** Constructor.
   Create all merge files, merge buffer for all the table indexes
