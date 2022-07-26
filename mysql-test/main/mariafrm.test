@@ -1,0 +1,50 @@
+let $datadir=`select @@datadir`;
+
+CREATE TABLE t1 (a int, b varchar(100)) engine=MyISAM;
+
+CREATE TABLE employees (
+    emp_no      INT             NOT NULL,
+    birth_date  DATE            NOT NULL,
+    first_name  VARCHAR(14)     NOT NULL,
+    last_name   VARCHAR(16)     NOT NULL,
+    gender      ENUM ('M','F')  NOT NULL,
+    hire_date   DATE            NOT NULL,
+    PRIMARY KEY (emp_no)                 
+);
+
+CREATE TABLE departments (
+    dept_no     CHAR(4)         NOT NULL,
+    dept_name   VARCHAR(40)     NOT NULL,
+    PRIMARY KEY (dept_no),
+    UNIQUE  KEY (dept_name)
+);
+
+--echo 
+--echo # Table t1
+--echo 
+
+SHOW CREATE TABLE t1;
+--echo
+-- exec $MARIAFRM $datadir/test/t1.frm
+
+--echo 
+--echo # Table employees
+--echo 
+
+SHOW CREATE TABLE employees;
+--echo
+-- exec $MARIAFRM $datadir/test/employees.frm
+
+--echo 
+--echo # Table departments
+--echo 
+
+SHOW CREATE TABLE departments;
+--echo
+-- exec $MARIAFRM $datadir/test/departments.frm
+
+--echo
+
+DROP TABLE t1;
+DROP TABLE employees;
+DROP TABLE departments;

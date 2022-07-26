@@ -13,9 +13,7 @@
 
 #include <sql_type.h>
 #include <field.h>
-
 #include <table.h>
-
 
 #include "mariafrm.h"
 
@@ -98,7 +96,7 @@ int get_charset(frm_file_data *ffd, uint cs_number)
 int parse(frm_file_data *ffd, const uchar *frm, size_t len)
 {
   size_t current_pos, end;
-  size_t t, comment_pos, extra_info_pos;
+  size_t t, comment_pos; //, extra_info_pos;
   ffd->connect_string= {NULL, 0};
   ffd->engine_name= {NULL, 0};
   ffd->magic_number= uint2korr(frm);
@@ -136,7 +134,6 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
   ffd->max_rows= uint4korr(frm + 18);
   ffd->avg_row_length= uint4korr(frm + 34);
   ffd->row_format= frm[40];
-  // ffd->rtype= static_cast<row_type>(frm[40]);
   ffd->rtype= (enum row_type)(uint) ffd->row_format;
   ffd->key_block_size= uint2korr(frm + 62);
   ffd->handler_option= uint2korr(frm + 30);
@@ -167,15 +164,14 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
              ffd->partition_info_str_len + 1);
       current_pos+= (ffd->partition_info_str_len + 1);
     }
-    extra_info_pos= current_pos;
+    //extra_info_pos= current_pos;
   }
   ffd->legacy_db_type_1= (enum legacy_db_type)(uint) frm[3];
   ffd->legacy_db_type_2= (enum legacy_db_type)(uint) frm[61];
-  //---READ COLUMN INFORMATION---
+  //---READ COLUMN NAMES---
   ffd->columns= new column[ffd->column_count];
   current_pos= ffd->metadata_offset + ffd->metadata_length;
   end= current_pos + ffd->names_length;
-  //printf("current post: %lld\n", current_pos);                //current pos previously printed here
   current_pos+= 1;
   for (uint i= 0; i < ffd->column_count; i++)
   {
@@ -185,11 +181,11 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
     size_t len= current_pos - start;
     ffd->columns[i].name.length= len;
     char *ts= c_malloc(len + 1);
-    memcpy(ts, frm + start, len);
-    ts[len]= '\0';
+    memcpy(ts, frm + start, len - 1);
+    ts[len-1]= '\0';
     ffd->columns[i].name.str= ts;
   }
-  //------READ LABEL INFORMATION
+  //---READ LABEL INFORMATION---
   current_pos= end;
   end= current_pos + ffd->labels_length;
   ffd->labels= new label[ffd->column_count];
@@ -202,9 +198,8 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
       ;
     size_t len= current_pos - start;
     char *ts= c_malloc(len + 1);
-    memcpy(ts, frm + start, len);
-    ts[len]= '\0';
-    //ffd->labels[i].add_name(ts,len);
+    memcpy(ts, frm + start, len - 1);
+    ts[len-1]= '\0';
     ffd->labels[i].names.push_back({ts, len});
     if (frm[current_pos] == 0)
     {
@@ -212,8 +207,7 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
       current_pos+= 2;
     } 
   }
-  
-  //------END LABEL
+  //---READ MORE COLUMN INFO---
   current_pos= ffd->metadata_offset;
   end= current_pos + ffd->metadata_length;
   for (uint i= 0; i < ffd->column_count; i++)
@@ -231,7 +225,7 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
     ffd->columns[i].label_id= (uint) frm[current_pos + 12] - 1;
     current_pos+= 17;
   }
-  //Read defaults
+  //---READ DEFAULTS---
   ffd->null_bit= 1;
   if (ffd->handler_option & HA_PACK_RECORD)
     ffd->null_bit= 0;
@@ -284,11 +278,10 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
     while (frm[current_pos++] != 255)
       ;
     size_t len= current_pos - start;
-    //ffd->keys[i].name.length= len+1;
     ffd->keys[i].name.length= len-1;
     char *ts= c_malloc(len);
     memcpy(ts, frm + start, len-1);
-    //ts[len]= '\0';
+    //ts[len-1]= '\0';
     ffd->keys[i].name.str= ts;
   }
   ffd->key_comment_offset= (uint)current_pos;
@@ -298,7 +291,7 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
   {
     ffd->keys[i].flags= uint2korr(frm + current_pos) ^ HA_NOSAME;
     current_pos+= 2;
-    uint2korr(frm + current_pos); // length, not used
+    //uint2korr(frm + current_pos); // length, not used
     ffd->keys[i].parts_count= frm[current_pos++];
     ffd->keys[i].algorithm= (enum ha_key_alg)(uint) frm[current_pos++];
     ffd->keys[i].key_block_size= uint2korr(frm + current_pos);
@@ -332,7 +325,7 @@ void print_column(frm_file_data *ffd, int c_id)
 {
   enum_field_types ftype= ffd->columns[c_id].type;
   uint length= ffd->columns[c_id].length;
-  uint label_id= ffd->columns[c_id].label_id;
+  int label_id= ffd->columns[c_id].label_id;
   const Type_handler *handler= Type_handler::get_handler_by_real_type(ftype);
   Name type_name= handler->name();
   if (is_temporal_type_with_date(ftype) || ftype == MYSQL_TYPE_NEWDATE)
@@ -340,7 +333,7 @@ void print_column(frm_file_data *ffd, int c_id)
   else if (ftype == MYSQL_TYPE_ENUM || ftype == MYSQL_TYPE_SET)
   {
     printf("%s(", type_name.ptr());
-    for (int j=0;j<ffd->labels[label_id].names.size() - 1;j++)
+    for (uint j=0;j<ffd->labels[label_id].names.size() - 1;j++)
     {
       LEX_CSTRING ts= ffd->labels[label_id].names.at(j);
       printf("'%s',", ts.str);

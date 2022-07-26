@@ -2253,6 +2253,11 @@ sub environment_setup {
 
   $ENV{INNOBACKUPEX}= "$exe_mariabackup --innobackupex";
 
+  my $exe_mariafrm= mtr_exe_maybe_exists(
+      "$bindir/extra/mariafrm/$multiconfig/mariadb-frm",
+      "$path_client_bindir/mariadb-frm");
+  $ENV{'MARIAFRM'}= native_path($exe_mariafrm) if $exe_mariafrm;
+
   # Add dir of this perl to aid mysqltest in finding perl
   my $perldir= dirname($^X);
   my $pathsep= ":";

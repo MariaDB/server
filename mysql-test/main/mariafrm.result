@@ -1,0 +1,76 @@
+CREATE TABLE t1 (a int, b varchar(100)) engine=MyISAM;
+CREATE TABLE employees (
+emp_no      INT             NOT NULL,
+birth_date  DATE            NOT NULL,
+first_name  VARCHAR(14)     NOT NULL,
+last_name   VARCHAR(16)     NOT NULL,
+gender      ENUM ('M','F')  NOT NULL,
+hire_date   DATE            NOT NULL,
+PRIMARY KEY (emp_no)                 
+);
+CREATE TABLE departments (
+dept_no     CHAR(4)         NOT NULL,
+dept_name   VARCHAR(40)     NOT NULL,
+PRIMARY KEY (dept_no),
+UNIQUE  KEY (dept_name)
+);
+
+# Table t1
+
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(100) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(100) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+# Table employees
+
+SHOW CREATE TABLE employees;
+Table	Create Table
+employees	CREATE TABLE `employees` (
+  `emp_no` int(11) NOT NULL,
+  `birth_date` date NOT NULL,
+  `first_name` varchar(14) NOT NULL,
+  `last_name` varchar(16) NOT NULL,
+  `gender` enum('M','F') NOT NULL,
+  `hire_date` date NOT NULL,
+  PRIMARY KEY (`emp_no`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE `employees` (
+  `emp_no` int(11) NOT NULL,
+  `birth_date` date NOT NULL,
+  `first_name` varchar(14) NOT NULL,
+  `last_name` varchar(16) NOT NULL,
+  `gender` enum('M','F') NOT NULL,
+  `hire_date` date NOT NULL,
+  PRIMARY KEY (`emp_no`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+# Table departments
+
+SHOW CREATE TABLE departments;
+Table	Create Table
+departments	CREATE TABLE `departments` (
+  `dept_no` char(4) NOT NULL,
+  `dept_name` varchar(40) NOT NULL,
+  PRIMARY KEY (`dept_no`),
+  UNIQUE KEY `dept_name` (`dept_name`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE `departments` (
+  `dept_no` char(4) NOT NULL,
+  `dept_name` varchar(40) NOT NULL,
+  PRIMARY KEY (`dept_no`),
+  UNIQUE KEY `dept_name` (`dept_name`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+DROP TABLE t1;
+DROP TABLE employees;
+DROP TABLE departments;

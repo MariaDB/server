@@ -1,4 +1,4 @@
-#include<vector>
+#include <vector>
 #include <unordered_set>
 
 #define TABLE_TYPE 510		//Magic number for table.frm files
@@ -27,7 +27,7 @@ struct column
   uint defaults_offset;
   uint null_byte;
   LEX_CSTRING default_value;
-  uint label_id;
+  int label_id;
 };
 
 struct key
