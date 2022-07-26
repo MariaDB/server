@@ -31,9 +31,8 @@
 #define ALLOCATE_MEM_ON_STACK(A) do \
                               { \
                                 uchar *array= (uchar*)alloca(A); \
-                                array[0]= 1; \
-                                array[0]++; \
-                                array[0] ? array[0]++ : array[0]--; \
+                                bzero(array, A); \
+                                my_checksum(0, array, A); \
                               } while(0)
 
 /*
