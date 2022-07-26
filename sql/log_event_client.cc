@@ -1898,10 +1898,15 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
                            "@@session.autocommit", &need_comma) ||
           print_set_option(file, tmp, OPTION_NO_CHECK_CONSTRAINT_CHECKS, ~flags2,
                            "@@session.check_constraint_checks", &need_comma) ||
-          print_set_option(file, tmp, OPTION_IF_EXISTS, flags2,
-                           "@@session.sql_if_exists", &need_comma)||
-          print_set_option(file, tmp, OPTION_EXPLICIT_DEF_TIMESTAMP, flags2,
-                           "@@session.explicit_defaults_for_timestamp", &need_comma)||
+          (likely(glob_description_event->options_written_to_bin_log &
+            OPTION_IF_EXISTS) &&
+           print_set_option(file, tmp, OPTION_IF_EXISTS, flags2,
+                            "@@session.sql_if_exists", &need_comma)) ||
+          (likely(glob_description_event->options_written_to_bin_log &
+                  OPTION_EXPLICIT_DEF_TIMESTAMP) &&
+           print_set_option(file, tmp, OPTION_EXPLICIT_DEF_TIMESTAMP, flags2,
+                            "@@session.explicit_defaults_for_timestamp",
+                            &need_comma)) ||
           my_b_printf(file,"%s\n", print_event_info->delimiter))
         goto err;
       print_event_info->flags2= flags2;

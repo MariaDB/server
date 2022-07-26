@@ -24,6 +24,7 @@ reset slave;
 --source include/start_slave.inc
 --sync_with_master
 show create table t1;
+set time_zone='+2:00';
 select * from t1;
 drop table t1;
 --source include/stop_slave.inc
