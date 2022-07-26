@@ -5016,20 +5016,18 @@ prepare_inplace_add_virtual(
 {
 	ha_innobase_inplace_ctx*	ctx;
 	ulint				i = 0;
-	ulint				j = 0;
 
 	ctx = static_cast<ha_innobase_inplace_ctx*>
 		(ha_alter_info->handler_ctx);
 
-	ctx->num_to_add_vcol = altered_table->s->virtual_fields
-		+ ctx->num_to_drop_vcol - table->s->virtual_fields;
+	ulint j = altered_table->s->virtual_fields + ctx->num_to_drop_vcol;
 
 	ctx->add_vcol = static_cast<dict_v_col_t*>(
-		 mem_heap_zalloc(ctx->heap, ctx->num_to_add_vcol
-				 * sizeof *ctx->add_vcol));
+		 mem_heap_zalloc(ctx->heap, j * sizeof *ctx->add_vcol));
 	ctx->add_vcol_name = static_cast<const char**>(
-		 mem_heap_alloc(ctx->heap, ctx->num_to_add_vcol
-				* sizeof *ctx->add_vcol_name));
+		 mem_heap_alloc(ctx->heap, j * sizeof *ctx->add_vcol_name));
+
+	j = 0;
 
 	for (const Create_field& new_field :
 	     ha_alter_info->alter_info->create_list) {
@@ -5110,6 +5108,7 @@ prepare_inplace_add_virtual(
 		j++;
 	}
 
+	ctx->num_to_add_vcol = j;
 	return(false);
 }
 
