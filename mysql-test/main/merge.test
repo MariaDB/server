@@ -2860,10 +2860,6 @@ set global default_storage_engine=@save_default_storage_engine;
 --source include/wait_until_count_sessions.inc
 
 --echo #
---echo # End of 10.0 tests
---echo #
-
---echo #
 --echo # MDEV-27407 Different ASC/DESC index attributes on MERGE and underlying table can cause wrong results
 --echo #
 create table t (a int, key(a desc)) engine=myisam;
@@ -2886,3 +2882,15 @@ drop table tm, t;
 --echo #
 --echo # End of 10.8 tests
 --echo #
+
+--echo #
+--echo # MDEV-29174: UPDATE of view that uses MERGE table
+--echo #
+
+CREATE TABLE t1 (a int) ENGINE=MERGE;
+CREATE VIEW v1 AS SELECT a FROM t1;
+UPDATE v1 SET a=0;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo # End of 10.10 tests
