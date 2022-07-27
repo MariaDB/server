@@ -5279,9 +5279,14 @@ drop table t1;
 select count(*) from seq_17_to_1024 where random_bytes(seq) <=> random_bytes(seq);
 count(*)
 0
-select (count(*) = 1024) from seq_1_to_1024 where length(random_bytes(seq)) = seq;
-(count(*) = 1024)
-1
+select count(*) from seq_1_to_1024 where length(random_bytes(seq)) = seq;
+count(*)
+1024
+select random_bytes(`0`),`1` from (values (0,1),(null,2),(0,3)) t1;
+random_bytes(`0`)	1
+	1
+NULL	2
+	3
 #
 # Test NULL output for NULL input
 #
@@ -5289,42 +5294,68 @@ SELECT random_bytes(NULL);
 random_bytes(NULL)
 NULL
 #
-# Test For values outside range from 1 to 1024, an error occurs
+# Test For values outside range from 1 to 1024 return NULL
 #
 SELECT random_bytes(0);
-ERROR 22003: length value is out of range in 'random_bytes(0)'
+random_bytes(0)
+
 SELECT random_bytes(-1);
-ERROR 22003: length value is out of range in 'random_bytes(-1)'
+random_bytes(-1)
+NULL
 SELECT random_bytes(-100);
-ERROR 22003: length value is out of range in 'random_bytes(-100)'
+random_bytes(-100)
+NULL
 SELECT random_bytes(-26);
-ERROR 22003: length value is out of range in 'random_bytes(-26)'
+random_bytes(-26)
+NULL
 SELECT random_bytes(-132);
-ERROR 22003: length value is out of range in 'random_bytes(-132)'
+random_bytes(-132)
+NULL
 SELECT random_bytes(1025);
-ERROR 22003: length value is out of range in 'random_bytes(1025)'
+random_bytes(1025)
+NULL
 SELECT random_bytes(11111);
-ERROR 22003: length value is out of range in 'random_bytes(11111)'
+random_bytes(11111)
+NULL
 SELECT random_bytes(2056);
-ERROR 22003: length value is out of range in 'random_bytes(2056)'
+random_bytes(2056)
+NULL
 #
-# Test For invalid argument, an error occurs
+# Test For invalid argument return NULL
 #
 SELECT random_bytes('s');
-ERROR 22003: length value is out of range in 'random_bytes('s')'
+random_bytes('s')
+
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 's'
+Warning	1292	Truncated incorrect INTEGER value: 's'
 SELECT random_bytes('r');
-ERROR 22003: length value is out of range in 'random_bytes('r')'
+random_bytes('r')
+
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'r'
+Warning	1292	Truncated incorrect INTEGER value: 'r'
 SELECT random_bytes('res');
-ERROR 22003: length value is out of range in 'random_bytes('res')'
+random_bytes('res')
+
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'res'
+Warning	1292	Truncated incorrect INTEGER value: 'res'
 SELECT random_bytes('test');
-ERROR 22003: length value is out of range in 'random_bytes('test')'
+random_bytes('test')
+
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'test'
+Warning	1292	Truncated incorrect INTEGER value: 'test'
 #
 # MDEV-29108: RANDOM_BYTES - assertion in Create_tmp_table::finalize
 #
 CREATE TABLE t (a INT);
 INSERT INTO t VALUES (1),(2);
 SELECT RANDOM_BYTES(-10) f1, IFNULL(a,1) f2 FROM t GROUP BY f1, f2;
-ERROR 22003: length value is out of range in 'random_bytes(-10)'
+f1	f2
+NULL	1
+NULL	2
 DROP TABLE t;
 #
 # MDEV-29154: Excessive warnings upon a call to RANDOM_BYTES

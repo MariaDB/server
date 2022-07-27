@@ -2206,7 +2206,9 @@ drop table t1;
 --echo # The sequence starts at 17 so that the probability of test failure is small enough (about 2^(-136))
 select count(*) from seq_17_to_1024 where random_bytes(seq) <=> random_bytes(seq);
 
-select (count(*) = 1024) from seq_1_to_1024 where length(random_bytes(seq)) = seq;
+select count(*) from seq_1_to_1024 where length(random_bytes(seq)) = seq;
+
+select random_bytes(`0`),`1` from (values (0,1),(null,2),(0,3)) t1;
 
 --echo #
 --echo # Test NULL output for NULL input
@@ -2215,36 +2217,24 @@ select (count(*) = 1024) from seq_1_to_1024 where length(random_bytes(seq)) = se
 SELECT random_bytes(NULL);
 
 --echo #
---echo # Test For values outside range from 1 to 1024, an error occurs
+--echo # Test For values outside range from 1 to 1024 return NULL
 --echo #
 
---error 1690
 SELECT random_bytes(0);
---error 1690
 SELECT random_bytes(-1);
---error 1690
 SELECT random_bytes(-100);
---error 1690
 SELECT random_bytes(-26);
---error 1690
 SELECT random_bytes(-132);
---error 1690
 SELECT random_bytes(1025);
---error 1690
 SELECT random_bytes(11111);
---error 1690
 SELECT random_bytes(2056);
 
 --echo #
---echo # Test For invalid argument, an error occurs
+--echo # Test For invalid argument return NULL
 --echo #
---error 1690
 SELECT random_bytes('s');
---error 1690
 SELECT random_bytes('r');
---error 1690
 SELECT random_bytes('res');
---error 1690
 SELECT random_bytes('test');
 
 --echo #
@@ -2253,7 +2243,6 @@ SELECT random_bytes('test');
 
 CREATE TABLE t (a INT);
 INSERT INTO t VALUES (1),(2);
---error 1690
 SELECT RANDOM_BYTES(-10) f1, IFNULL(a,1) f2 FROM t GROUP BY f1, f2;
 
 # Cleanup

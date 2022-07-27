@@ -1507,15 +1507,11 @@ String *Item_func_random_bytes::val_str(String *str)
     goto err;
   null_value= 0;
 
-  if (count < 1 || count > MAX_RANDOM_BYTES)
-  {
-    char buf[256];
-    String msg(buf, sizeof(buf), system_charset_info);
-    msg.length(0);
-    print(&msg, QT_NO_DATA_EXPANSION);
-    my_error(ER_DATA_OUT_OF_RANGE, MYF(0), "length", msg.c_ptr_safe());
+  if (count < 0 || count > MAX_RANDOM_BYTES)
+    goto err;
+
+  if (count == 0)
     return make_empty_result(str);
-  }
 
   if (str->alloc((uint) count))
     goto err;
@@ -1530,7 +1526,7 @@ String *Item_func_random_bytes::val_str(String *str)
       ERR_error_string_n(ssl_err, buf, sizeof(buf));
       sql_print_warning("SSL error: %s", buf);
     }
-    return make_empty_result(str);
+    goto err;
   }
 
   return str;
