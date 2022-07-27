@@ -1242,6 +1242,18 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+# MDEV-29074 GET_BIT variables crash in SET STATEMENT
+#
+set statement log_queries_not_using_indexes=1 for select @@log_queries_not_using_indexes;
+@@log_queries_not_using_indexes
+1
+select @@log_queries_not_using_indexes;
+@@log_queries_not_using_indexes
+0
+#
+# End of 10.3 tests
+#
 create table t (a int);
 SET sql_mode=ORACLE;
 SET STATEMENT myisam_sort_buffer_size=800000 FOR OPTIMIZE TABLE t;

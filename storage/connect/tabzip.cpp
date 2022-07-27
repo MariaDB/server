@@ -85,7 +85,7 @@ bool TDBZIP::open(PGLOBAL g, const char *fn)
 	PlugSetPath(filename, fn, GetPath());
 
 	if (!zipfile && !(zipfile = unzOpen64(filename)))
-		sprintf(g->Message, "Zipfile open error");
+		snprintf(g->Message, sizeof(g->Message), "Zipfile open error");
 
 	return (zipfile == NULL);
 }	// end of open
@@ -155,7 +155,7 @@ int TDBZIP::ReadDB(PGLOBAL g)
 	if (nexterr == UNZ_END_OF_LIST_OF_FILE)
 		return RC_EF;
 	else if (nexterr != UNZ_OK) {
-		sprintf(g->Message, "unzGoToNextFile error %d", nexterr);
+		snprintf(g->Message, sizeof(g->Message), "unzGoToNextFile error %d", nexterr);
 		return RC_FX;
 	}	// endif nexterr
 
@@ -163,7 +163,7 @@ int TDBZIP::ReadDB(PGLOBAL g)
 		sizeof(fn), NULL, 0, NULL, 0);
 
 	if (err != UNZ_OK) {
-		sprintf(g->Message, "unzGetCurrentFileInfo64 error %d", err);
+		snprintf(g->Message, sizeof(g->Message), "unzGetCurrentFileInfo64 error %d", err);
 		return RC_FX;
 	}	// endif err
 

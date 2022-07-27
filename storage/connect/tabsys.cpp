@@ -318,7 +318,7 @@ int TDBINI::DeleteDB(PGLOBAL g, int irc)
     case RC_FX:
       while (ReadDB(g) == RC_OK)
         if (!WritePrivateProfileString(Section, NULL, NULL, Ifile)) {
-          sprintf(g->Message, "Error %d accessing %s", 
+          snprintf(g->Message, sizeof(g->Message), "Error %d accessing %s",
                               GetLastError(), Ifile);
           return RC_FX;
           } // endif
@@ -330,7 +330,7 @@ int TDBINI::DeleteDB(PGLOBAL g, int irc)
         return RC_FX;
       } else
         if (!WritePrivateProfileString(Section, NULL, NULL, Ifile)) {
-          sprintf(g->Message, "Error %d accessing %s", 
+          snprintf(g->Message, sizeof(g->Message), "Error %d accessing %s",
                               GetLastError(), Ifile);
           return RC_FX;
           } // endif rc
@@ -401,7 +401,7 @@ void INICOL::AllocBuf(PGLOBAL g)
 bool INICOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
   {
   if (!(To_Val = value)) {
-    sprintf(g->Message, MSG(VALUE_ERROR), Name);
+    snprintf(g->Message, sizeof(g->Message), MSG(VALUE_ERROR), Name);
     return true;
   } else if (Buf_Type == value->GetType()) {
     // Values are of the (good) column type
@@ -420,7 +420,7 @@ bool INICOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
   } else {
     // Values are not of the (good) column type
     if (check) {
-      sprintf(g->Message, MSG(TYPE_VALUE_ERR), Name,
+      snprintf(g->Message, sizeof(g->Message), MSG(TYPE_VALUE_ERR), Name,
               GetTypeName(Buf_Type), GetTypeName(value->GetType()));
       return true;
       } // endif check
@@ -510,7 +510,7 @@ void INICOL::WriteColumn(PGLOBAL g)
   p = Value->GetCharString(Valbuf);
 
   if (strlen(p) > (unsigned)Long) {
-    sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, Long);
+    snprintf(g->Message, sizeof(g->Message), MSG(VALUE_TOO_LONG), p, Name, Long);
 		throw 31;
 	} else if (Flag == 1) {
     if (tdbp->Mode == MODE_UPDATE) {
@@ -534,7 +534,7 @@ void INICOL::WriteColumn(PGLOBAL g)
     rc = WritePrivateProfileString(tdbp->Section, Name, p, tdbp->Ifile);
     
     if (!rc) {
-      sprintf(g->Message, "Error %d writing to %s", 
+      snprintf(g->Message, sizeof(g->Message), "Error %d writing to %s", 
                           GetLastError(), tdbp->Ifile);
 			throw 31;
 		} // endif rc
@@ -746,7 +746,7 @@ int TDBXIN::DeleteDB(PGLOBAL g, int irc)
   } else if (irc == RC_FX) {
     for (Section = Seclist; *Section; Section += (strlen(Section) + 1))
       if (!WritePrivateProfileString(Section, NULL, NULL, Ifile)) {
-        sprintf(g->Message, "Error %d accessing %s", 
+        snprintf(g->Message, sizeof(g->Message), "Error %d accessing %s", 
                             GetLastError(), Ifile);
         return RC_FX;
         } // endif
@@ -756,7 +756,7 @@ int TDBXIN::DeleteDB(PGLOBAL g, int irc)
     return RC_FX;
   } else
     if (!WritePrivateProfileString(Section, Keycur, NULL, Ifile)) {
-      sprintf(g->Message, "Error %d accessing %s", 
+      snprintf(g->Message, sizeof(g->Message), "Error %d accessing %s", 
                           GetLastError(), Ifile);
       return RC_FX;
       } // endif
@@ -836,7 +836,7 @@ void XINCOL::WriteColumn(PGLOBAL g)
   p = Value->GetCharString(Valbuf);
 
   if (strlen(p) > (unsigned)Long) {
-    sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, Long);
+    snprintf(g->Message, sizeof(g->Message), MSG(VALUE_TOO_LONG), p, Name, Long);
 		throw 31;
 	} else if (Flag == 1) {
     if (tdbp->Mode == MODE_UPDATE) {
@@ -870,7 +870,7 @@ void XINCOL::WriteColumn(PGLOBAL g)
     rc = WritePrivateProfileString(tdbp->Section, tdbp->Keycur, p, tdbp->Ifile);
     
     if (!rc) {
-      sprintf(g->Message, "Error %d writing to %s", 
+      snprintf(g->Message, sizeof(g->Message), "Error %d writing to %s", 
                           GetLastError(), tdbp->Ifile);
 			throw 31;
 		} // endif rc

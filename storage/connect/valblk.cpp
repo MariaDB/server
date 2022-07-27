@@ -105,7 +105,7 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
       blkp = new(g) PTRBLK(g, mp, nval);
       break;
     default:
-      sprintf(g->Message, MSG(BAD_VALBLK_TYPE), type);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_VALBLK_TYPE), type);
       return NULL;
     } // endswitch Type
 
@@ -138,7 +138,7 @@ PSZ VALBLK::GetCharValue(int)
   PGLOBAL& g = Global;
 
   assert(g);
-  sprintf(g->Message, MSG(NO_CHAR_FROM), Type);
+  snprintf(g->Message, sizeof(g->Message), MSG(NO_CHAR_FROM), Type);
 	throw Type;
 	return NULL;
   } // end of GetCharValue
@@ -148,7 +148,7 @@ PSZ VALBLK::GetCharValue(int)
 /***********************************************************************/
 bool VALBLK::SetFormat(PGLOBAL g, PCSZ, int, int)
   {
-  sprintf(g->Message, MSG(NO_DATE_FMT), Type);
+  snprintf(g->Message, sizeof(g->Message), MSG(NO_DATE_FMT), Type);
   return true;
   } // end of SetFormat
 
@@ -191,7 +191,7 @@ bool VALBLK::AllocBuff(PGLOBAL g, size_t size)
   Mblk.Size = size;
 
   if (!(Blkp = PlgDBalloc(g, NULL, Mblk))) {
-    sprintf(g->Message, MSG(MEM_ALLOC_ERR), "Blkp", (int) Mblk.Size);
+    snprintf(g->Message, sizeof(g->Message), MSG(MEM_ALLOC_ERR), "Blkp", (int) Mblk.Size);
     fprintf(stderr, "%s\n", g->Message);
     return true;
     } // endif Blkp
@@ -1380,7 +1380,7 @@ PVBLK MBVALS::Allocate(PGLOBAL g, int type, int len, int prec,
   Mblk.Size = n * GetTypeSize(type, len);
 
   if (!PlgDBalloc(g, NULL, Mblk)) {
-    sprintf(g->Message, MSG(ALLOC_ERROR), "MBVALS::Allocate");
+    snprintf(g->Message, sizeof(g->Message), MSG(ALLOC_ERROR), "MBVALS::Allocate");
     return NULL;
   } else
     Vblk = AllocValBlock(g, Mblk.Memp, type, n, len, prec, 
@@ -1395,7 +1395,7 @@ PVBLK MBVALS::Allocate(PGLOBAL g, int type, int len, int prec,
 bool MBVALS::ReAllocate(PGLOBAL g, int n)
   {
   if (!PlgDBrealloc(g, NULL, Mblk, n * Vblk->GetVlen())) {
-    sprintf(g->Message, MSG(ALLOC_ERROR), "MBVALS::ReAllocate");
+    snprintf(g->Message, sizeof(g->Message), MSG(ALLOC_ERROR), "MBVALS::ReAllocate");
     return TRUE;
   } else
     Vblk->ReAlloc(Mblk.Memp, n);

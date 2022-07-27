@@ -829,11 +829,11 @@ set sql_mode='';
 SELECT a FROM t1 HAVING 'a' > 1;
 a
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
 SELECT a FROM t1 HAVING "a" > 1;
 a
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
 SELECT a FROM t1 HAVING `a` > 1;
 a
 2
@@ -2334,17 +2334,17 @@ field1	field2
 2004-10-11 18:13:00	1
 2009-02-19 02:05:00	5
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'g'
-Warning	1292	Truncated incorrect DOUBLE value: 'o'
-Warning	1292	Truncated incorrect DOUBLE value: 'v'
+Warning	1292	Truncated incorrect DECIMAL value: 'g'
+Warning	1292	Truncated incorrect DECIMAL value: 'o'
+Warning	1292	Truncated incorrect DECIMAL value: 'v'
 SELECT alias2.f3 AS field1 , alias2.f1 AS field2 FROM t1 AS alias1 JOIN t1 AS alias2 ON alias2.f1 = alias1.f2 AND alias2.f1 != alias1.f4 GROUP BY field1 , field2 ;
 field1	field2
 2004-10-11 18:13:00	1
 2009-02-19 02:05:00	5
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'g'
-Warning	1292	Truncated incorrect DOUBLE value: 'o'
-Warning	1292	Truncated incorrect DOUBLE value: 'v'
+Warning	1292	Truncated incorrect DECIMAL value: 'g'
+Warning	1292	Truncated incorrect DECIMAL value: 'o'
+Warning	1292	Truncated incorrect DECIMAL value: 'v'
 SET SESSION SQL_MODE=default;
 drop table t1;
 #

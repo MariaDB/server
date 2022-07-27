@@ -846,7 +846,6 @@ static void backup_file_op(uint32_t space_id, int type,
 	case FILE_MODIFY:
 		ddl_tracker.insert_defer_id(
 			space_id, filename_to_spacename(name, len));
-		msg("DDL tracking : modify %u \"%.*s\"", space_id, int(len), name);
 		break;
 	case FILE_RENAME:
 	{
@@ -896,7 +895,6 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 				filename_to_spacename(name, len).c_str());
 		break;
 	case FILE_MODIFY:
-		msg("DDL tracking : modify %u \"%.*s\"", space_id, int(len), name);
 		break;
 	case FILE_RENAME:
 		msg("DDL tracking : rename %u \"%.*s\",\"%.*s\"",

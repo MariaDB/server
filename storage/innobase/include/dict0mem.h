@@ -966,6 +966,26 @@ const char innobase_index_reserve_name[] = "GEN_CLUST_INDEX";
 /** Data structure for an index.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_index_create(). */
 struct dict_index_t {
+  /** Columns whose character-set collation is being changed */
+  struct col_info
+  {
+    /** number of columns whose charset-collation is being changed */
+    unsigned n_cols;
+    /** columns with changed charset-collation */
+    dict_col_t *cols;
+
+    /** Add a column with changed collation. */
+    dict_col_t *add(mem_heap_t *heap, const dict_col_t &col, unsigned offset)
+    {
+      ut_ad(offset < n_cols);
+      if (!cols)
+        cols= static_cast<dict_col_t*>
+          (mem_heap_alloc(heap, n_cols * sizeof col));
+      new (&cols[offset]) dict_col_t(col);
+      return &cols[offset];
+    }
+  };
+
   /** Maximum number of fields */
   static constexpr unsigned MAX_N_FIELDS= (1U << 10) - 1;
 
@@ -1051,6 +1071,16 @@ struct dict_index_t {
 	It should use heap from dict_index_t. It should be freed
 	while removing the index from table. */
 	dict_add_v_col_info* new_vcol_info;
+
+	/** During ALTER TABLE, columns that a being-added index depends on
+	and whose encoding or collation is being changed to something
+	that is compatible with the clustered index.
+	Allocated from dict_index_t::heap.
+
+	@see rollback_inplace_alter_table()
+	@see ha_innobase_inplace_ctx::col_collations */
+	col_info* change_col_info;
+
 	UT_LIST_NODE_T(dict_index_t)
 			indexes;/*!< list of indexes of the table */
 #ifdef BTR_CUR_ADAPT
@@ -1145,6 +1175,7 @@ public:
 	{
 		ut_ad(!to_be_dropped);
 		ut_ad(committed || !(type & DICT_CLUSTERED));
+		ut_ad(!committed || !change_col_info);
 		uncommitted = !committed;
 	}
 
@@ -1309,6 +1340,16 @@ public:
   /* @return number of newly added virtual column */
   ulint get_new_n_vcol() const
   { return new_vcol_info ? new_vcol_info->n_v_col : 0; }
+
+  /** Assign the number of collation change fields as a part of the index
+  @param  n_cols   number of columns whose collation is changing */
+  void init_change_cols(unsigned n_cols)
+  {
+    ut_ad(n_fields > n_cols);
+    change_col_info= static_cast<col_info*>
+      (mem_heap_zalloc(heap, sizeof(col_info)));
+    change_col_info->n_cols= n_cols;
+  }
 
   /** Reconstruct the clustered index fields.
   @return whether metadata is incorrect */

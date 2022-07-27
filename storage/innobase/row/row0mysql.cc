@@ -823,6 +823,10 @@ row_create_prebuilt(
 		DBUG_EXECUTE_IF("innodb_srch_key_buffer_max_value",
 			ut_a(temp_index->n_user_defined_cols
 						== MAX_REF_PARTS););
+		if (temp_index->is_corrupted()) {
+			continue;
+		}
+
 		uint temp_len = 0;
 		for (uint i = 0; i < temp_index->n_uniq; i++) {
 			ulint type = temp_index->fields[i].col->mtype;

@@ -595,3 +595,16 @@ CREATE TABLE t1(c text, PRIMARY KEY (c(293)))
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
 INSERT INTO t1 VALUES(REPEAT('A',512)),(REPEAT('B',512));
 DROP TABLE t1;
+#
+# MDEV-28950 Assertion `*err == DB_SUCCESS' in btr_page_split_and_insert
+#
+CREATE TABLE t1(c CHAR(255) NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('');
+ALTER TABLE t1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
+INSERT INTO t1 VALUES (''),(''),('');
+SET @save_innodb_compression_level= @@innodb_compression_level;
+SET GLOBAL innodb_compression_level=0;
+INSERT INTO t1 VALUES ('');
+SET GLOBAL innodb_compression_level= @save_innodb_compression_level;
+DROP TABLE t1;
+# End of 10.6 tests

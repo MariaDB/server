@@ -2706,7 +2706,7 @@ dict_index_build_internal_fts(
 {
 	dict_index_t*	new_index;
 
-	ut_ad(index->type == DICT_FTS);
+	ut_ad(index->type & DICT_FTS);
 	ut_ad(dict_sys.locked());
 
 	/* Create a new index */
