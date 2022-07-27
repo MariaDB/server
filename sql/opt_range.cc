@@ -9855,12 +9855,14 @@ and_all_keys(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2,
       return key2;
     key1->right= key1->left= &null_element;
     key1->next= key1->prev= 0;
+    key1->weight= 1 + (key1->next_key_part? key1->next_key_part->weight: 0);
   }
 
   for (next=key1->first(); next ; next=next->next)
   {
     if (next->next_key_part)
     {
+      uint old_weight= next->next_key_part->weight;
       SEL_ARG *tmp= key_and(param, next->next_key_part, key2, clone_flag);
       if (tmp && tmp->type == SEL_ARG::IMPOSSIBLE)
       {
@@ -9868,20 +9870,21 @@ and_all_keys(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2,
 	continue;
       }
       next->next_key_part=tmp;
+      key1->weight+= (tmp? tmp->weight: 0) - old_weight;
       if (use_count)
 	next->increment_use_count(use_count);
       if (param->alloced_sel_args > SEL_ARG::MAX_SEL_ARGS)
         break;
     }
     else
+    {
       next->next_key_part=key2;
+      key1->weight += key2->weight;
+    }
   }
   if (!key1)
     return &null_element;			// Impossible ranges
   key1->use_count++;
-
-  /* Re-compute the result tree's weight. */
-  key1->update_weight_locally();
 
   key1->max_part_no= MY_MAX(key2->max_part_no, key2->part+1);
   return key1;
@@ -10044,29 +10047,6 @@ get_range(SEL_ARG **e1,SEL_ARG **e2,SEL_ARG *root1)
     }
   }
   return 0;
-}
-
-/*
-  @brief
-    Update the tree weight.
-
-  @detail
-    Utility function to be called on a SEL_ARG tree root after doing local
-    modifications concerning changes at this key part.
-    Assumes that the weight of the graphs connected via next_key_part is
-    up to dayte.
-*/
-void SEL_ARG::update_weight_locally()
-{
-  uint new_weight= 0;
-  const SEL_ARG *sl;
-  for (sl= first(); sl ; sl= sl->next)
-  {
-    new_weight++;
-    if (sl->next_key_part)
-      new_weight += sl->next_key_part->weight;
-  }
-  weight= new_weight;
 }
 
 
@@ -10827,9 +10807,6 @@ end:
     key2=next;
   }
   key1->use_count++;
-
-  /* Re-compute the result tree's weight. */
-  key1->update_weight_locally();
 
   key1->max_part_no= max_part_no;
   return key1;
