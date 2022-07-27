@@ -4766,7 +4766,6 @@ restart:
     if (tbl->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE)
     {
       /* MERGE tables need to access parent and child TABLE_LISTs. */
-      DBUG_ASSERT(tbl->pos_in_table_list == tables);
       if (tbl->file->extra(HA_EXTRA_ATTACH_CHILDREN))
       {
         error= TRUE;
