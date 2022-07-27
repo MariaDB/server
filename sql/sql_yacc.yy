@@ -2464,6 +2464,7 @@ create:
           {
             if (Lex->main_select_push())
               MYSQL_YYABORT;
+            Lex->inc_select_stack_outer_barrier();
             if (Lex->add_create_view(thd, $1 | $5,
                                      DTYPE_ALGORITHM_UNDEFINED, $3, $6))
               MYSQL_YYABORT;
@@ -2479,6 +2480,7 @@ create:
               MYSQL_YYABORT;
             if (Lex->main_select_push())
               MYSQL_YYABORT;
+            Lex->inc_select_stack_outer_barrier();
           }
           view_list_opt AS view_select
           {

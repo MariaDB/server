@@ -1871,7 +1871,7 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
 
 void THD::awake_no_mutex(killed_state state_to_set)
 {
-  DBUG_ENTER("THD::awake");
+  DBUG_ENTER("THD::awake_no_mutex");
   DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
                        this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);

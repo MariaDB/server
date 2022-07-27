@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2015, 2021, MariaDB
+   Copyright (c) 2015, 2022, MariaDB
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -1957,6 +1957,9 @@ Type_collection_std::aggregate_for_comparison(const Type_handler *ha,
       return ha;
     }
   }
+  if ((a == INT_RESULT && b == STRING_RESULT) ||
+      (b == INT_RESULT && a == STRING_RESULT))
+    return &type_handler_newdecimal;
   if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
       (b == INT_RESULT || b == DECIMAL_RESULT))
     return &type_handler_newdecimal;

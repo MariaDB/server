@@ -371,3 +371,18 @@ drop table _t1;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo #  MDEV-22001: Server crashes in st_select_lex_unit::exclude_level upon execution of SP
+--echo #
+--delimiter $
+BEGIN NOT ATOMIC DECLARE a INT DEFAULT 0 IN ( SELECT 1 ) OR 2 ; END $
+BEGIN NOT ATOMIC DECLARE a INT DEFAULT 0 IN ( SELECT 1 ) OR (SELECT 2) ; END $
+--delimiter ;
+
+--error ER_NO_SUCH_THREAD
+KILL  (('x' IN ( SELECT 1)) MOD 44);
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

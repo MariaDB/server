@@ -1340,8 +1340,12 @@ values_loop_end:
     thd->lex->current_select->save_leaf_tables(thd);
     thd->lex->current_select->first_cond_optimization= 0;
   }
-  if (readbuff)
-    my_free(readbuff);
+
+  my_free(readbuff);
+#ifndef EMBEDDED_LIBRARY
+  if (lock_type == TL_WRITE_DELAYED && table->expr_arena)
+    table->expr_arena->free_items();
+#endif
   DBUG_RETURN(FALSE);
 
 abort:
@@ -1358,6 +1362,8 @@ abort:
     */
     for (Field **ptr= table_list->table->field ; *ptr ; ptr++)
       (*ptr)->free();
+    if (table_list->table->expr_arena)
+      table_list->table->expr_arena->free_items();
   }
 #endif
   if (table != NULL)
@@ -1536,8 +1542,7 @@ static bool mysql_prepare_insert_check_table(THD *thd, TABLE_LIST *table_list,
   if (insert_into_view && !fields.elements)
   {
     thd->lex->empty_field_list_on_rset= 1;
-    if (!thd->lex->first_select_lex()->leaf_tables.head()->table ||
-        table_list->is_multitable())
+    if (!table_list->table || table_list->is_multitable())
     {
       my_error(ER_VIEW_NO_INSERT_FIELD_LIST, MYF(0),
                table_list->view_db.str, table_list->view_name.str);
@@ -3778,7 +3783,6 @@ int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
   if (sel_res)
     sel_res->prepare(lex->returning()->item_list, NULL);
 
-  DBUG_ASSERT(select_lex->leaf_tables.elements != 0);
   List_iterator<TABLE_LIST> ti(select_lex->leaf_tables);
   TABLE_LIST *table;
   uint insert_tables;

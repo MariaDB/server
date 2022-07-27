@@ -80,7 +80,7 @@ sub mtr_timer_start($$$) {
     if ( $tpid )
     {
       # Parent, record the information
-      mtr_verbose("Starting timer for '$name',",
+      mtr_verbose2("Starting timer for '$name',",
 		  "duration: $duration, pid: $tpid");
       $timers->{'timers'}->{$name}->{'pid'}= $tpid;
       $timers->{'timers'}->{$name}->{'duration'}= $duration;
@@ -96,13 +96,13 @@ sub mtr_timer_start($$$) {
       $SIG{INT}= 'DEFAULT';
 
       $SIG{TERM}= sub {
-	mtr_verbose("timer $$ woke up, exiting!");
+	mtr_verbose2("timer $$ woke up, exiting!");
 	exit(0);
       };
 
       $0= "mtr_timer(timers,$name,$duration)";
       sleep($duration);
-      mtr_verbose("timer $$ expired after $duration seconds");
+      mtr_verbose2("timer $$ expired after $duration seconds");
       exit(0);
     }
   }

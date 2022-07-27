@@ -3389,6 +3389,7 @@ bool run_set_statement_if_requested(THD *thd, LEX *lex)
       {
         switch (v->var->option.var_type & GET_TYPE_MASK)
         {
+          case GET_BIT:
           case GET_BOOL:
           case GET_INT:
           case GET_LONG:
@@ -4915,7 +4916,7 @@ mysql_execute_command(THD *thd)
     if (likely(!thd->is_fatal_error))
     {
       result= new (thd->mem_root) multi_delete(thd, aux_tables,
-                                               lex->table_count);
+                                               lex->table_count_update);
       if (likely(result))
       {
         if (unlikely(select_lex->vers_setup_conds(thd, aux_tables)))
@@ -9813,12 +9814,12 @@ bool multi_delete_set_locks_and_link_aux_tables(LEX *lex)
   TABLE_LIST *target_tbl;
   DBUG_ENTER("multi_delete_set_locks_and_link_aux_tables");
 
-  lex->table_count= 0;
+  lex->table_count_update= 0;
 
   for (target_tbl= lex->auxiliary_table_list.first;
        target_tbl; target_tbl= target_tbl->next_local)
   {
-    lex->table_count++;
+    lex->table_count_update++;
     /* All tables in aux_tables must be found in FROM PART */
     TABLE_LIST *walk= multi_delete_table_match(lex, target_tbl, tables);
     if (!walk)

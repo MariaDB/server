@@ -1399,7 +1399,7 @@ static int mysql_test_update(Prepared_statement *stmt,
     DBUG_ASSERT(update_source_table || table_list->view != 0);
     DBUG_PRINT("info", ("Switch to multi-update"));
     /* pass counter value */
-    thd->lex->table_count= table_count;
+    thd->lex->table_count_update= table_count;
     /* convert to multiupdate */
     DBUG_RETURN(2);
   }

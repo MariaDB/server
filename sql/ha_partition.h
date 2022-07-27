@@ -1365,7 +1365,7 @@ public:
   void release_auto_increment() override;
 private:
   int reset_auto_increment(ulonglong value) override;
-  void update_next_auto_inc_val();
+  int update_next_auto_inc_val();
   virtual void lock_auto_increment()
   {
     /* lock already taken */

@@ -510,3 +510,12 @@ a	b
 2	2
 3	3
 drop table t1;
+#
+# MDEV-26546 SIGSEGV's in spider_db_connect on SHOW TABLE and
+# spider_db_mbase::connect (and SIGSEGV's in check_vcol_forward_refs
+# and inline_mysql_mutex_lock)
+#
+CREATE TABLE t1 (c0 INT,UNIQUE (c0) USING HASH) ENGINE=MYISAM;
+INSERT DELAYED INTO t1 VALUES (0);
+INSERT DELAYED INTO t1 VALUES (0);
+DROP TABLE t1;

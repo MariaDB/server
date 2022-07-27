@@ -520,7 +520,7 @@ PTABDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
       // fall through
 #endif   // JAVA_SUPPORT || CMGO_SUPPORT
     default:
-      sprintf(g->Message, MSG(BAD_TABLE_TYPE), am, name);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_TABLE_TYPE), am, name);
     } // endswitch
 
   // Do make the table/view definition

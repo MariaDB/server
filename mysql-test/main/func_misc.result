@@ -303,7 +303,7 @@ SELECT COALESCE(a) = COALESCE(b) FROM t1;
 COALESCE(a) = COALESCE(b)
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: ''
+Warning	1292	Truncated incorrect DECIMAL value: ''
 DROP TABLE t1;
 #
 # Bug #54461: crash with longblob and union or update with subquery

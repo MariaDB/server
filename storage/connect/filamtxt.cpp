@@ -211,7 +211,7 @@ int TXTFAM::GetFileLength(PGLOBAL g)
 
   } else {
     if ((len = _filelength(h)) < 0)
-      sprintf(g->Message, MSG(FILELEN_ERROR), "_filelength", filename);
+      snprintf(g->Message, sizeof(g->Message), MSG(FILELEN_ERROR), "_filelength", filename);
 
     if (Eof && len)
       len--;              // Do not count the EOF character
@@ -240,13 +240,13 @@ int TXTFAM::Cardinality(PGLOBAL g)
         if (!(len % Blksize))
           card = (len / Blksize) * Nrec;
         else
-          sprintf(g->Message, MSG(NOT_FIXED_LEN), To_File, len, Lrecl);
+          snprintf(g->Message, sizeof(g->Message), MSG(NOT_FIXED_LEN), To_File, len, Lrecl);
 
       } else {
         if (!(len % Lrecl))
           card = len / (int)Lrecl;           // Fixed length file
         else
-          sprintf(g->Message, MSG(NOT_FIXED_LEN), To_File, len, Lrecl);
+          snprintf(g->Message, sizeof(g->Message), MSG(NOT_FIXED_LEN), To_File, len, Lrecl);
 
       } // endif Padded
 
@@ -511,7 +511,7 @@ int DOSFAM::GetFileLength(PGLOBAL g)
     len = TXTFAM::GetFileLength(g);
   else
     if ((len = _filelength(_fileno(Stream))) < 0)
-      sprintf(g->Message, MSG(FILELEN_ERROR), "_filelength", To_File);
+      snprintf(g->Message, sizeof(g->Message), MSG(FILELEN_ERROR), "_filelength", To_File);
 
   if (trace(1))
     htrc("File length=%d\n", len);
@@ -588,7 +588,7 @@ bool DOSFAM::OpenTableFile(PGLOBAL g)
       strcpy(opmode, "a+");
       break;
     default:
-      sprintf(g->Message, MSG(BAD_OPEN_MODE), mode);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_OPEN_MODE), mode);
       return true;
     } // endswitch Mode
 
@@ -682,7 +682,7 @@ bool DOSFAM::SetPos(PGLOBAL g, int pos)
   Fpos = pos;
 
   if (fseek(Stream, Fpos, SEEK_SET)) {
-    sprintf(g->Message, MSG(FSETPOS_ERROR), Fpos);
+    snprintf(g->Message, sizeof(g->Message), MSG(FSETPOS_ERROR), Fpos);
     return true;
     } // endif
 
@@ -696,7 +696,7 @@ bool DOSFAM::SetPos(PGLOBAL g, int pos)
 bool DOSFAM::RecordPos(PGLOBAL g)
   {
   if ((Fpos = ftell(Stream)) < 0) {
-    sprintf(g->Message, MSG(FTELL_ERROR), 0, strerror(errno));
+    snprintf(g->Message, sizeof(g->Message), MSG(FTELL_ERROR), 0, strerror(errno));
 //  strcat(g->Message, " (possible wrong ENDING option value)");
     return true;
     } // endif Fpos
@@ -712,7 +712,7 @@ int DOSFAM::InitDelete(PGLOBAL g, int fpos, int spos)
   Fpos = fpos;
 
   if (fseek(Stream, spos, SEEK_SET)) {
-    sprintf(g->Message, MSG(FSETPOS_ERROR), Fpos);
+    snprintf(g->Message, sizeof(g->Message), MSG(FSETPOS_ERROR), Fpos);
     return RC_FX;
     } // endif
 
@@ -732,9 +732,9 @@ int DOSFAM::SkipRecord(PGLOBAL g, bool header)
       return RC_EF;
 
 #if defined(_WIN32)
-    sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
+    snprintf(g->Message, sizeof(g->Message), MSG(READ_ERROR), To_File, _strerror(NULL));
 #else
-    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(0));
+    snprintf(g->Message, sizeof(g->Message), MSG(READ_ERROR), To_File, strerror(0));
 #endif
     return RC_FX;
     } // endif fgets
@@ -849,9 +849,9 @@ int DOSFAM::ReadBuffer(PGLOBAL g)
     rc = RC_EF;
   } else {
 #if defined(_WIN32)
-    sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
+    snprintf(g->Message, sizeof(g->Message), MSG(READ_ERROR), To_File, _strerror(NULL));
 #else
-    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(0));
+    snprintf(g->Message, sizeof(g->Message), MSG(READ_ERROR), To_File, strerror(0));
 #endif
 
     if (trace(1))
@@ -913,7 +913,7 @@ int DOSFAM::WriteBuffer(PGLOBAL g)
       // Update is directly written back into the file,
       //   with this (fast) method, record size cannot change.
       if (fseek(Stream, Fpos, SEEK_SET)) {
-        sprintf(g->Message, MSG(FSETPOS_ERROR), 0);
+        snprintf(g->Message, sizeof(g->Message), MSG(FSETPOS_ERROR), 0);
         return RC_FX;
         } // endif
 
@@ -928,13 +928,13 @@ int DOSFAM::WriteBuffer(PGLOBAL g)
   /*  Now start the writing process.                                   */
   /*********************************************************************/
   if ((fputs(To_Buf, T_Stream)) == EOF) {
-    sprintf(g->Message, MSG(FPUTS_ERROR), strerror(errno));
+    snprintf(g->Message, sizeof(g->Message), MSG(FPUTS_ERROR), strerror(errno));
     return RC_FX;
     } // endif EOF
 
   if (Tdbp->Mode == MODE_UPDATE && moved)
     if (fseek(Stream, curpos, SEEK_SET)) {
-      sprintf(g->Message, MSG(FSEEK_ERROR), strerror(errno));
+      snprintf(g->Message, sizeof(g->Message), MSG(FSEEK_ERROR), strerror(errno));
       return RC_FX;
       } // endif
 
@@ -1010,7 +1010,7 @@ int DOSFAM::DeleteRecords(PGLOBAL g, int irc)
     /*******************************************************************/
     if (!UseTemp || moved)
       if (fseek(Stream, curpos, SEEK_SET)) {
-        sprintf(g->Message, MSG(FSETPOS_ERROR), 0);
+        snprintf(g->Message, sizeof(g->Message), MSG(FSETPOS_ERROR), 0);
         return RC_FX;
         } // endif
 
@@ -1045,13 +1045,13 @@ int DOSFAM::DeleteRecords(PGLOBAL g, int irc)
       /*****************************************************************/
 #if defined(_WIN32)
       if (chsize(h, Tpos)) {
-        sprintf(g->Message, MSG(CHSIZE_ERROR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(CHSIZE_ERROR), strerror(errno));
         close(h);
         return RC_FX;
         } // endif
 #else
       if (ftruncate(h, (off_t)Tpos)) {
-        sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(TRUNCATE_ERROR), strerror(errno));
         close(h);
         return RC_FX;
         } // endif
@@ -1106,7 +1106,7 @@ bool DOSFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
   for (*b = false, n = Fpos - Spos; n > 0; n -= req) {
     if (!UseTemp || !*b)
       if (fseek(Stream, Spos, SEEK_SET)) {
-        sprintf(g->Message, MSG(READ_SEEK_ERROR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(READ_SEEK_ERROR), strerror(errno));
         return true;
         } // endif
 
@@ -1117,18 +1117,18 @@ bool DOSFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
       htrc("after read req=%d len=%d\n", req, len);
 
     if (len != req) {
-      sprintf(g->Message, MSG(DEL_READ_ERROR), (int) req, (int) len);
+      snprintf(g->Message, sizeof(g->Message), MSG(DEL_READ_ERROR), (int) req, (int) len);
       return true;
       } // endif len
 
     if (!UseTemp)
       if (fseek(T_Stream, Tpos, SEEK_SET)) {
-        sprintf(g->Message, MSG(WRITE_SEEK_ERR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(WRITE_SEEK_ERR), strerror(errno));
         return true;
         } // endif
 
     if ((len = fwrite(DelBuf, 1, req, T_Stream)) != req) {
-      sprintf(g->Message, MSG(DEL_WRITE_ERROR), strerror(errno));
+      snprintf(g->Message, sizeof(g->Message), MSG(DEL_WRITE_ERROR), strerror(errno));
       return true;
       } // endif
 
@@ -1174,16 +1174,16 @@ int DOSFAM::RenameTempFile(PGLOBAL g)
     remove(filetemp);   // May still be there from previous error
 
     if (rename(filename, filetemp)) {    // Save file for security
-      snprintf(g->Message, MAX_STR, MSG(RENAME_ERROR),
+      snprintf(g->Message, sizeof(g->Message), MSG(RENAME_ERROR),
               filename, filetemp, strerror(errno));
 			throw 51;
 		} else if (rename(tempname, filename)) {
-      snprintf(g->Message, MAX_STR, MSG(RENAME_ERROR),
+      snprintf(g->Message, sizeof(g->Message), MSG(RENAME_ERROR),
               tempname, filename, strerror(errno));
       rc = rename(filetemp, filename);   // Restore saved file
 			throw 52;
 		} else if (remove(filetemp)) {
-      sprintf(g->Message, MSG(REMOVE_ERROR),
+      snprintf(g->Message, sizeof(g->Message), MSG(REMOVE_ERROR),
               filetemp, strerror(errno));
       rc = RC_INFO;                      // Acceptable
     } // endif's
@@ -1447,7 +1447,7 @@ int BLKFAM::ReadBuffer(PGLOBAL g)
   // fseek is required only in non sequential reading
   if (CurBlk != OldBlk + 1)
     if (fseek(Stream, BlkPos[CurBlk], SEEK_SET)) {
-      sprintf(g->Message, MSG(FSETPOS_ERROR), BlkPos[CurBlk]);
+      snprintf(g->Message, sizeof(g->Message), MSG(FSETPOS_ERROR), BlkPos[CurBlk]);
       return RC_FX;
       } // endif fseek
 
@@ -1483,9 +1483,9 @@ int BLKFAM::ReadBuffer(PGLOBAL g)
     rc = RC_EF;
   } else {
 #if defined(_WIN32)
-    sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
+    snprintf(g->Message, sizeof(g->Message), MSG(READ_ERROR), To_File, _strerror(NULL));
 #else
-    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
+    snprintf(g->Message, sizeof(g->Message), MSG(READ_ERROR), To_File, strerror(errno));
 #endif
 
     if (trace(1))
@@ -1529,7 +1529,7 @@ int BLKFAM::WriteBuffer(PGLOBAL g)
     BlkLen = (int)(NxtLine - To_Buf);
 
     if (fwrite(To_Buf, 1, BlkLen, Stream) != (size_t)BlkLen) {
-      sprintf(g->Message, MSG(FWRITE_ERROR), strerror(errno));
+      snprintf(g->Message, sizeof(g->Message), MSG(FWRITE_ERROR), strerror(errno));
       Closing = true;      // To tell CloseDB about a Write error
       return RC_FX;
       } // endif size
@@ -1577,7 +1577,7 @@ int BLKFAM::WriteBuffer(PGLOBAL g)
       len = strlen(OutBuf);
     } else {
       if (fseek(Stream, Fpos, SEEK_SET)) {   // Fpos is last position
-        sprintf(g->Message, MSG(FSETPOS_ERROR), 0);
+        snprintf(g->Message, sizeof(g->Message), MSG(FSETPOS_ERROR), 0);
         return RC_FX;
         } // endif fseek
 
@@ -1588,13 +1588,13 @@ int BLKFAM::WriteBuffer(PGLOBAL g)
     } // endif UseTemp
 
     if (fwrite(OutBuf, 1, len, T_Stream) != (size_t)len) {
-      sprintf(g->Message, MSG(FWRITE_ERROR), strerror(errno));
+      snprintf(g->Message, sizeof(g->Message), MSG(FWRITE_ERROR), strerror(errno));
       return RC_FX;
       } // endif fwrite
 
     if (moved)
       if (fseek(Stream, curpos, SEEK_SET)) {
-        sprintf(g->Message, MSG(FSEEK_ERROR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(FSEEK_ERROR), strerror(errno));
         return RC_FX;
         } // endif
 
@@ -1678,7 +1678,7 @@ int BINFAM::GetFileLength(PGLOBAL g)
 		len = TXTFAM::GetFileLength(g);
 	else
 		if ((len = _filelength(_fileno(Stream))) < 0)
-			sprintf(g->Message, MSG(FILELEN_ERROR), "_filelength", To_File);
+			snprintf(g->Message, sizeof(g->Message), MSG(FILELEN_ERROR), "_filelength", To_File);
 
 	xtrc(1, "File length=%d\n", len);
 	return len;
@@ -1710,7 +1710,7 @@ bool BINFAM::OpenTableFile(PGLOBAL g) {
 		strcpy(opmode, "wb");
 		break;
 	default:
-		sprintf(g->Message, MSG(BAD_OPEN_MODE), mode);
+		snprintf(g->Message, sizeof(g->Message), MSG(BAD_OPEN_MODE), mode);
 		return true;
 	} // endswitch Mode
 
@@ -1802,7 +1802,7 @@ bool BINFAM::SetPos(PGLOBAL g, int pos) {
 	Fpos = pos;
 
 	if (fseek(Stream, Fpos, SEEK_SET)) {
-		sprintf(g->Message, MSG(FSETPOS_ERROR), Fpos);
+		snprintf(g->Message, sizeof(g->Message), MSG(FSETPOS_ERROR), Fpos);
 		return true;
 	} // endif
 
@@ -1815,7 +1815,7 @@ bool BINFAM::SetPos(PGLOBAL g, int pos) {
 /***********************************************************************/
 bool BINFAM::RecordPos(PGLOBAL g) {
 	if ((Fpos = ftell(Stream)) < 0) {
-		sprintf(g->Message, MSG(FTELL_ERROR), 0, strerror(errno));
+		snprintf(g->Message, sizeof(g->Message), MSG(FTELL_ERROR), 0, strerror(errno));
 		//  strcat(g->Message, " (possible wrong ENDING option value)");
 		return true;
 	} // endif Fpos
@@ -1861,7 +1861,7 @@ int BINFAM::ReadBuffer(PGLOBAL g)
 			return RC_EF;
 
 	} else if (Recsize > (unsigned)Buflen) {
-		sprintf(g->Message, "Record too big (Recsize=%zd Buflen=%d)\n", Recsize, Buflen);
+		snprintf(g->Message, sizeof(g->Message), "Record too big (Recsize=%zd Buflen=%d)\n", Recsize, Buflen);
 		return RC_FX;
 	}	// endif Recsize
 
@@ -1873,9 +1873,9 @@ int BINFAM::ReadBuffer(PGLOBAL g)
 		rc = RC_EF;
 	} else {
 #if defined(_WIN32)
-		sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
+		snprintf(g->Message, sizeof(g->Message), MSG(READ_ERROR), To_File, _strerror(NULL));
 #else
-		sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(0));
+		snprintf(g->Message, sizeof(g->Message), MSG(READ_ERROR), To_File, strerror(0));
 #endif
 		xtrc(2, "%s\n", g->Message);
 		rc = RC_FX;
@@ -1932,7 +1932,7 @@ int BINFAM::WriteBuffer(PGLOBAL g)
       // Update is directly written back into the file,
       //   with this (fast) method, record size cannot change.
       if (fseek(Stream, Fpos, SEEK_SET)) {
-        sprintf(g->Message, MSG(FSETPOS_ERROR), 0);
+        snprintf(g->Message, sizeof(g->Message), MSG(FSETPOS_ERROR), 0);
         return RC_FX;
       } // endif
 
@@ -1947,18 +1947,18 @@ int BINFAM::WriteBuffer(PGLOBAL g)
 	/*  Now start the writing process.                                   */
 	/*********************************************************************/
 	if (fwrite(&Recsize, sizeof(size_t), 1, T_Stream) != 1) {
-		sprintf(g->Message, "Error %d writing prefix to %s",
+		snprintf(g->Message, sizeof(g->Message), "Error %d writing prefix to %s",
 			errno, To_File);
 		return RC_FX;
 	} else if (fwrite(To_Buf, Recsize, 1, T_Stream) != 1) {
-		sprintf(g->Message, "Error %d writing %zd bytes to %s",
+		snprintf(g->Message, sizeof(g->Message), "Error %d writing %zd bytes to %s",
 			errno, Recsize, To_File);
 		return RC_FX;
 	} // endif fwrite
 
   if (Tdbp->GetMode() == MODE_UPDATE && moved)
     if (fseek(Stream, curpos, SEEK_SET)) {
-      sprintf(g->Message, MSG(FSEEK_ERROR), strerror(errno));
+      snprintf(g->Message, sizeof(g->Message), MSG(FSEEK_ERROR), strerror(errno));
       return RC_FX;
     } // endif
 
@@ -2033,7 +2033,7 @@ int DOSFAM::DeleteRecords(PGLOBAL g, int irc)
     /*******************************************************************/
     if (!UseTemp || moved)
       if (fseek(Stream, curpos, SEEK_SET)) {
-        sprintf(g->Message, MSG(FSETPOS_ERROR), 0);
+        snprintf(g->Message, sizeof(g->Message), MSG(FSETPOS_ERROR), 0);
         return RC_FX;
       } // endif
 
@@ -2068,13 +2068,13 @@ int DOSFAM::DeleteRecords(PGLOBAL g, int irc)
       /*****************************************************************/
 #if defined(_WIN32)
       if (chsize(h, Tpos)) {
-        sprintf(g->Message, MSG(CHSIZE_ERROR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(CHSIZE_ERROR), strerror(errno));
         close(h);
         return RC_FX;
       } // endif
 #else
       if (ftruncate(h, (off_t)Tpos)) {
-        sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(TRUNCATE_ERROR), strerror(errno));
         close(h);
         return RC_FX;
       } // endif

@@ -193,7 +193,7 @@ bool JMgoConn::Connect(PJPARM sop)
 	env->DeleteLocalRef(parms);				 	// Not used anymore
 
 	if (err) {
-		sprintf(g->Message, "Connecting: %s rc=%d", Msg, (int)rc);
+		snprintf(g->Message, sizeof(g->Message), "Connecting: %s rc=%d", Msg, (int)rc);
 		return true;
 	}	// endif Msg
 
@@ -208,7 +208,7 @@ bool JMgoConn::Connect(PJPARM sop)
 	env->DeleteLocalRef(cln);
 
 	if (Check(brc ? -1 : 0)) {
-		sprintf(g->Message, "GetCollection: %s", Msg);
+		snprintf(g->Message, sizeof(g->Message), "GetCollection: %s", Msg);
 		return true;
 	}	// endif Msg
 
@@ -429,7 +429,7 @@ bool JMgoConn::FindCollection(PCSZ query, PCSZ proj)
 		if (!Check(brc ? -1 : 0)) {
 			rc = false;
 		} else
-			sprintf(g->Message, "FindColl: %s", Msg);
+			snprintf(g->Message, sizeof(g->Message), "FindColl: %s", Msg);
 
 		if (query)
 			env->DeleteLocalRef(qry);
@@ -461,7 +461,7 @@ bool JMgoConn::AggregateCollection(PCSZ pipeline)
 		if (!Check(brc ? -1 : 0)) {
 			rc = false;
 		} else
-			sprintf(g->Message, "AggregateColl: %s", Msg);
+			snprintf(g->Message, sizeof(g->Message), "AggregateColl: %s", Msg);
 
 		env->DeleteLocalRef(pip);
 	} // endif acollid
@@ -506,7 +506,7 @@ int JMgoConn::Fetch(int pos)
 			rc = MY_MIN(rc, 1);
 			m_Rows += rc;
 		} else
-			sprintf(g->Message, "Fetch: %s", Msg);
+			snprintf(g->Message, sizeof(g->Message), "Fetch: %s", Msg);
 
 	//} // endif pos
 
@@ -633,13 +633,13 @@ jobject JMgoConn::MakeObject(PGLOBAL g, PCOL colp, bool&error )
 				val = env->NewObject(cls, cns, valp->GetFloatValue());
 				break;
 			default:
-				sprintf(g->Message, "Cannot make object from %d type", valp->GetType());
+				snprintf(g->Message, sizeof(g->Message), "Cannot make object from %d type", valp->GetType());
 				error = true;
 				break;
 		}	// endswitch Type
 
 	} catch (...) {
-		sprintf(g->Message, "Cannot make object from %s value", colp->GetName());
+		snprintf(g->Message, sizeof(g->Message), "Cannot make object from %s value", colp->GetName());
 		error = true;
 	}	// end try/catch
 
@@ -723,9 +723,9 @@ jobject JMgoConn::MakeDoc(PGLOBAL g, PJNCOL jcp)
 
 			} else if (env->CallBooleanMethod(job, araddid, parent, kp->N, val, j)) {
 				if (Check(-1))
-					sprintf(g->Message, "ArrayAdd: %s", Msg);
+					snprintf(g->Message, sizeof(g->Message), "ArrayAdd: %s", Msg);
 				else
-					sprintf(g->Message, "ArrayAdd: unknown error");
+					snprintf(g->Message, sizeof(g->Message), "ArrayAdd: unknown error");
 
 				return NULL;
 			}	// endif ArrayAdd
@@ -766,9 +766,9 @@ int JMgoConn::DocWrite(PGLOBAL g, PCSZ line)
 
 	if (env->CallBooleanMethod(job, insertid, doc)) {
 		if (Check(-1))
-			sprintf(g->Message, "CollInsert: %s", Msg);
+			snprintf(g->Message, sizeof(g->Message), "CollInsert: %s", Msg);
 		else
-			sprintf(g->Message, "CollInsert: unknown error");
+			snprintf(g->Message, sizeof(g->Message), "CollInsert: unknown error");
 
 		rc = RC_FX;
 	} // endif Insert
@@ -823,7 +823,7 @@ int JMgoConn::DocUpdate(PGLOBAL g, PTDB tdbp)
 		htrc("DocUpdate: ar = %ld\n", ar);
 
 	if (Check((int)ar)) {
-		sprintf(g->Message, "CollUpdate: %s", Msg);
+		snprintf(g->Message, sizeof(g->Message), "CollUpdate: %s", Msg);
 		rc = RC_FX;
 	} // endif ar
 
@@ -842,7 +842,7 @@ int JMgoConn::DocDelete(PGLOBAL g, bool all)
 		htrc("DocDelete: ar = %ld\n", ar);
 
 	if (Check((int)ar)) {
-		sprintf(g->Message, "CollDelete: %s", Msg);
+		snprintf(g->Message, sizeof(g->Message), "CollDelete: %s", Msg);
 		rc = RC_FX;
 	} // endif ar
 
@@ -867,7 +867,7 @@ PSZ JMgoConn::GetColumnValue(PSZ path)
 	jstring  fn, jn = nullptr;
 
 	if (!path || (jn = env->NewStringUTF(path)) == nullptr) {
-		sprintf(g->Message, "Fail to allocate jstring %s", SVP(path));
+		snprintf(g->Message, sizeof(g->Message), "Fail to allocate jstring %s", SVP(path));
 		throw (int)TYPE_AM_MGO;
 	}	// endif name
 

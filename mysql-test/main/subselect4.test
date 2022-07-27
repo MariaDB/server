@@ -2440,6 +2440,45 @@ DROP TABLE t1;
 
 --echo # End of 10.2 tests
 
+
+--echo #
+--echo # MDEV-29139: Redundannt subquery in GROUP BY clause of ANY/ALL subquery
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (1), (2);
+create table t2 (b int not null);
+insert into t2 values (4), (2);
+create table t3 (c int);
+insert into t3 values (7), (1);
+
+let $q1=
+select a from t1
+  where a >= any (select b from t2 group by (select c from t3 where c = 1));
+
+eval explain extended $q1;
+eval $q1;
+
+eval prepare stmt from "$q1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q2=
+select a from t1
+  where a <= all (select b from t2 group by (select c from t3 where c = 1));
+
+eval explain extended $q2;
+eval $q2;
+
+let $q3=
+select a from t1
+  where a >= any (select b from t2 group by 1 + (select c from t3 where c = 1));
+eval explain extended $q3;
+eval $q3;
+
+drop table t1,t2,t3;
+
 --echo # End of 10.3 tests
 
 --echo #

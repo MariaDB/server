@@ -6,7 +6,7 @@
 --source include/have_innodb.inc
 --source include/have_log_bin.inc
 --source include/have_binlog_format_row.inc
-
+call mtr.add_suppression("Write to binary log failed: Multi-statement transaction required more than .max_binlog_cache_size.*");
 SET AUTOCOMMIT=0;
 
 # Create 1st table

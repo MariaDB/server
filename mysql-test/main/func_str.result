@@ -377,7 +377,7 @@ select position("0" in "baaa" in (1)),position("0" in "1" in (1,2,3)),position("
 position("0" in "baaa" in (1))	position("0" in "1" in (1,2,3))	position("sql" in ("mysql"))
 1	0	3
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'baaa'
+Warning	1292	Truncated incorrect DECIMAL value: 'baaa'
 select position(("1" in (1,2,3)) in "01");
 position(("1" in (1,2,3)) in "01")
 2
@@ -1189,12 +1189,12 @@ SELECT * FROM t1, t2 WHERE num=str;
 str	num
 notnumber	0
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'notnumber'
+Warning	1292	Truncated incorrect DECIMAL value: 'notnumber'
 SELECT * FROM t1, t2 WHERE num=substring(str from 1 for 6);
 str	num
 notnumber	0
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'notnum'
+Warning	1292	Truncated incorrect DECIMAL value: 'notnum'
 DROP TABLE t1,t2;
 CREATE TABLE t1(
 id int(11) NOT NULL auto_increment,
