@@ -78,7 +78,8 @@ use lib "lib";
 
 use Cwd ;
 use Cwd 'realpath';
-use Getopt::Long;
+use POSIX ":sys_wait_h";
+use Getopt::Long qw(:config bundling);
 use My::File::Path; # Patched version of File::Path
 use File::Basename;
 use File::Copy;
@@ -142,6 +143,7 @@ my $opt_start_dirty;
 my $opt_start_exit;
 my $start_only;
 my $file_wsrep_provider;
+my $num_saved_cores= 0;  # Number of core files saved in vardir/log/ so far.
 
 our @global_suppressions;
 
@@ -481,7 +483,7 @@ sub main {
   mark_time_used('init');
 
   my ($prefix, $fail, $completed, $extra_warnings)=
-    run_test_server($server, $tests, $opt_parallel);
+    run_test_server($server, $tests, \%children);
 
   exit(0) if $opt_start_exit;
 
@@ -493,12 +495,16 @@ sub main {
     foreach my $pid (keys %children)
     {
       my $ret_pid= waitpid($pid, 0);
-      if ($ret_pid != $pid){
-        mtr_report("Unknown process $ret_pid exited");
+      if ($ret_pid == -1) {
+        # Child was automatically reaped. Probably not possible
+        # unless you $SIG{CHLD}= 'IGNORE'
+        mtr_warning("Child ${pid} was automatically reaped (this should never happen)");
+      } elsif ($ret_pid != $pid) {
+        confess("Unexpected PID ${ret_pid} instead of expected ${pid}");
       }
-      else {
-        delete $children{$ret_pid};
-      }
+      my $exit_status= ($? >> 8);
+      mtr_verbose2("Child ${pid} exited with status ${exit_status}");
+      delete $children{$ret_pid};
     }
   }
 
@@ -557,9 +563,8 @@ sub main {
 
 
 sub run_test_server ($$$) {
-  my ($server, $tests, $childs) = @_;
+  my ($server, $tests, $children) = @_;
 
-  my $num_saved_cores= 0;  # Number of core files saved in vardir/log/ so far.
   my $num_saved_datadir= 0;  # Number of datadirs saved in vardir/log/ so far.
   my $num_failed_test= 0; # Number of tests failed so far
   my $test_failure= 0;    # Set true if test suite failed
@@ -573,6 +578,7 @@ sub run_test_server ($$$) {
   my $suite_timeout= start_timer(suite_timeout());
 
   my $s= IO::Select->new();
+  my $childs= 0;
   $s->add($server);
   while (1) {
     if ($opt_stop_file)
@@ -586,12 +592,14 @@ sub run_test_server ($$$) {
 
     mark_time_used('admin');
     my @ready = $s->can_read(1); # Wake up once every second
+    mtr_debug("Got ". (0 + @ready). " connection(s)");
     mark_time_idle();
     foreach my $sock (@ready) {
       if ($sock == $server) {
 	# New client connected
+        ++$childs;
 	my $child= $sock->accept();
-	mtr_verbose("Client connected");
+        mtr_verbose2("Client connected (got ${childs} childs)");
 	$s->add($child);
 	print $child "HELLO\n";
       }
@@ -599,12 +607,10 @@ sub run_test_server ($$$) {
 	my $line= <$sock>;
 	if (!defined $line) {
 	  # Client disconnected
-	  mtr_verbose("Child closed socket");
+	  --$childs;
+	  mtr_verbose2("Child closed socket (left ${childs} childs)");
 	  $s->remove($sock);
 	  $sock->close;
-	  if (--$childs == 0){
-	    return ("Completed", $test_failure, $completed, $extra_warnings);
-	  }
 	  next;
 	}
 	chomp($line);
@@ -634,32 +640,10 @@ sub run_test_server ($$$) {
               no_chdir => 1,
               wanted => sub
               {
-                my $core_file= $File::Find::name;
-                my $core_name= basename($core_file);
-
-                # Name beginning with core, not ending in .gz
-                if (($core_name =~ /^core/ and $core_name !~ /\.gz$/)
-                    or (IS_WINDOWS and $core_name =~ /\.dmp$/))
-                {
-                  # Ending with .dmp
-                  mtr_report(" - found '$core_name'",
-                             "($num_saved_cores/$opt_max_save_core)");
-
-                  My::CoreDump->show($core_file, $exe_mysqld, $opt_parallel);
-
-                  # Limit number of core files saved
-                  if ($num_saved_cores >= $opt_max_save_core)
-                  {
-                    mtr_report(" - deleting it, already saved",
-                               "$opt_max_save_core");
-                    unlink("$core_file");
-                  }
-                  else
-                  {
-                    mtr_compress_file($core_file) unless @opt_cases;
-                    ++$num_saved_cores;
-                  }
-                }
+                My::CoreDump::core_wanted(\$num_saved_cores,
+                                          $opt_max_save_core,
+                                          @opt_cases == 0,
+                                          $exe_mysqld, $opt_parallel);
               }
             },
             $worker_savedir);
@@ -867,6 +851,33 @@ sub run_test_server ($$$) {
 	  print $sock "BYE\n";
 	}
       }
+    }
+
+    if (!IS_WINDOWS) {
+      foreach my $pid (keys %$children)
+      {
+        my $res= waitpid($pid, WNOHANG);
+        if ($res == $pid || $res == -1) {
+          if ($res == -1) {
+            # Child was automatically reaped. Probably not possible
+            # unless you $SIG{CHLD}= 'IGNORE'
+            mtr_warning("Child ${pid} was automatically reaped (this should never happen)");
+          }
+          my $exit_status= ($? >> 8);
+          mtr_verbose2("Child ${pid} exited with status ${exit_status}");
+          delete $children->{$pid};
+          if (!%$children && $childs) {
+            mtr_verbose2("${childs} children didn't close socket before dying!");
+            $childs= 0;
+          }
+        } elsif ($res != 0) {
+          confess("Unexpected result ${res} on waitpid(${pid}, WNOHANG)");
+        }
+      }
+    }
+
+    if ($childs == 0){
+      return ("Completed", $test_failure, $completed, $extra_warnings);
     }
 
     # ----------------------------------------------------
@@ -1144,7 +1155,7 @@ sub command_line_setup {
 	     'force-restart'            => \$opt_force_restart,
              'reorder!'                 => \$opt_reorder,
              'enable-disabled'          => \&collect_option,
-             'verbose+'                 => \$opt_verbose,
+             'verbose|v+'               => \$opt_verbose,
              'verbose-restart'          => \&report_option,
              'sleep=i'                  => \$opt_sleep,
              'start-dirty'              => \$opt_start_dirty,
@@ -1179,7 +1190,8 @@ sub command_line_setup {
              'skip-test-list=s'         => \@opt_skip_test_list,
              'xml-report=s'             => \$opt_xml_report,
 
-             My::Debugger::options()
+             My::Debugger::options(),
+             My::CoreDump::options()
            );
 
   # fix options (that take an optional argument and *only* after = sign
@@ -1594,6 +1606,8 @@ sub command_line_setup {
     $opt_debug= 1;
     $debug_d= "d,query,info,error,enter,exit";
   }
+
+  My::CoreDump::pre_setup();
 }
 
 
@@ -3123,6 +3137,19 @@ sub mysql_install_db {
 	verbose       => $opt_verbose,
        ) != 0)
   {
+    find(
+    {
+      no_chdir => 1,
+      wanted => sub
+      {
+        My::CoreDump::core_wanted(\$num_saved_cores,
+                                  $opt_max_save_core,
+                                  @opt_cases == 0,
+                                  $exe_mysqld_bootstrap, $opt_parallel);
+      }
+    },
+    $install_datadir);
+
     my $data= mtr_grab_file($path_bootstrap_log);
     mtr_error("Error executing mysqld --bootstrap\n" .
               "Could not install system database from $bootstrap_sql_file\n" .
@@ -5633,7 +5660,7 @@ sub usage ($) {
 
   local $"= ','; # for @DEFAULT_SUITES below
 
-  print <<HERE . My::Debugger::help() . <<HERE;
+  print <<HERE . My::Debugger::help() . My::CoreDump::help() . <<HERE;
 
 $0 [ OPTIONS ] [ TESTCASE ]
 

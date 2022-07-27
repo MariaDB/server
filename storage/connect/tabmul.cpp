@@ -724,7 +724,7 @@ int TDBDIR::GetMaxSize(PGLOBAL g)
 				FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
 					            FORMAT_MESSAGE_IGNORE_INSERTS,
 					NULL, GetLastError(), 0, (LPTSTR)&buf, sizeof(buf), NULL);
-				sprintf(g->Message, MSG(BAD_FILE_HANDLE), buf);
+				snprintf(g->Message, sizeof(g->Message), MSG(BAD_FILE_HANDLE), buf);
 				return -1;
 			} // endif rc
 
@@ -739,7 +739,7 @@ int TDBDIR::GetMaxSize(PGLOBAL g)
 				rc = GetLastError();
 
 				if (rc != ERROR_NO_MORE_FILES) {
-					sprintf(g->Message, MSG(NEXT_FILE_ERROR), rc);
+					snprintf(g->Message, sizeof(g->Message), MSG(NEXT_FILE_ERROR), rc);
 					FindClose(hSearch);
 					return -1;
 				} // endif rc
@@ -756,7 +756,7 @@ int TDBDIR::GetMaxSize(PGLOBAL g)
 
     // Start searching files in the target directory.
     if (!(Dir = opendir(Direc))) {
-      sprintf(g->Message, MSG(BAD_DIRECTORY), Direc, strerror(errno));
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_DIRECTORY), Direc, strerror(errno));
       return -1;
       } // endif dir
 
@@ -764,7 +764,7 @@ int TDBDIR::GetMaxSize(PGLOBAL g)
       strcat(strcpy(Fpath, Direc), Entry->d_name);
 
       if (lstat(Fpath, &Fileinfo) < 0) {
-        sprintf(g->Message, "%s: %s", Fpath, strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), "%s: %s", Fpath, strerror(errno));
         return -1;
       } else if (S_ISREG(Fileinfo.st_mode))
         // Test whether the file name matches the table name filter
@@ -852,7 +852,7 @@ int TDBDIR::ReadDB(PGLOBAL g)
   if (!Dir)
     // Start searching files in the target directory.
     if (!(Dir = opendir(Direc))) {
-      sprintf(g->Message, MSG(BAD_DIRECTORY), Direc, strerror(errno));
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_DIRECTORY), Direc, strerror(errno));
       rc = RC_FX;
       } // endif dir
 
@@ -862,7 +862,7 @@ int TDBDIR::ReadDB(PGLOBAL g)
       strcat(strcpy(Fpath, Direc), Entry->d_name);
 
       if (lstat(Fpath, &Fileinfo) < 0) {
-        sprintf(g->Message, "%s: %s", Fpath, strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), "%s: %s", Fpath, strerror(errno));
         rc = RC_FX;
       } else if (S_ISREG(Fileinfo.st_mode))
         // Test whether the file name matches the table name filter
@@ -1016,7 +1016,7 @@ void DIRCOL::ReadColumn(PGLOBAL g)
     case 10: Value->SetValue((int)Tdbp->Fileinfo.st_gid);   break;
 #endif  // !_WIN32
     default:
-      sprintf(g->Message, MSG(INV_DIRCOL_OFST), N);
+      snprintf(g->Message, sizeof(g->Message), MSG(INV_DIRCOL_OFST), N);
 			throw GetAmType();
 	} // endswitch N
 
@@ -1067,7 +1067,7 @@ int TDBSDR::FindInDir(PGLOBAL g)
 			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
 				FORMAT_MESSAGE_IGNORE_INSERTS,
 				NULL, GetLastError(), 0, (LPTSTR)&buf, sizeof(buf), NULL);
-			sprintf(g->Message, MSG(BAD_FILE_HANDLE), buf);
+			snprintf(g->Message, sizeof(g->Message), MSG(BAD_FILE_HANDLE), buf);
 			return -1;
 		} // endif rc
 
@@ -1088,7 +1088,7 @@ int TDBSDR::FindInDir(PGLOBAL g)
 			rc = GetLastError();
 
 			if (rc != ERROR_NO_MORE_FILES) {
-				sprintf(g->Message, MSG(NEXT_FILE_ERROR), rc);
+				snprintf(g->Message, sizeof(g->Message), MSG(NEXT_FILE_ERROR), rc);
 				FindClose(h);
 				return -1;
 			} // endif rc
@@ -1109,7 +1109,7 @@ int TDBSDR::FindInDir(PGLOBAL g)
 			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
 				FORMAT_MESSAGE_IGNORE_INSERTS,
 				NULL, GetLastError(), 0, (LPTSTR)&buf, sizeof(buf), NULL);
-			sprintf(g->Message, MSG(BAD_FILE_HANDLE), buf);
+			snprintf(g->Message, sizeof(g->Message), MSG(BAD_FILE_HANDLE), buf);
 			return -1;
 		} // endif rc
 
@@ -1123,7 +1123,7 @@ int TDBSDR::FindInDir(PGLOBAL g)
 			rc = GetLastError();
 
 			if (rc != ERROR_NO_MORE_FILES) {
-				sprintf(g->Message, MSG(NEXT_FILE_ERROR), rc);
+				snprintf(g->Message, sizeof(g->Message), MSG(NEXT_FILE_ERROR), rc);
 				FindClose(h);
 				return -1;
 			} // endif rc
@@ -1162,7 +1162,7 @@ int TDBSDR::FindInDir(PGLOBAL g)
   DIR *dir = opendir(Direc);
 
   if (!dir) {
-    sprintf(g->Message, MSG(BAD_DIRECTORY), Direc, strerror(errno));
+    snprintf(g->Message, sizeof(g->Message), MSG(BAD_DIRECTORY), Direc, strerror(errno));
     return -1;
     } // endif dir
 
@@ -1170,7 +1170,7 @@ int TDBSDR::FindInDir(PGLOBAL g)
     strcat(strcpy(Fpath, Direc), Entry->d_name);
 
     if (lstat(Fpath, &Fileinfo) < 0) {
-      sprintf(g->Message, "%s: %s", Fpath, strerror(errno));
+      snprintf(g->Message, sizeof(g->Message), "%s: %s", Fpath, strerror(errno));
       return -1;
     } else if (S_ISDIR(Fileinfo.st_mode) && *Entry->d_name != '.') {
       // Look in the name sub-directory
@@ -1289,7 +1289,7 @@ int TDBSDR::ReadDB(PGLOBAL g)
   if (!Sub->D)
     // Start searching files in the target directory.
     if (!(Sub->D = opendir(Direc))) {
-      sprintf(g->Message, MSG(BAD_DIRECTORY), Direc, strerror(errno));
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_DIRECTORY), Direc, strerror(errno));
       rc = RC_FX;
       } // endif dir
 
@@ -1299,7 +1299,7 @@ int TDBSDR::ReadDB(PGLOBAL g)
       strcat(strcpy(Fpath, Direc), Entry->d_name);
 
       if (lstat(Fpath, &Fileinfo) < 0) {
-        sprintf(g->Message, "%s: %s", Fpath, strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), "%s: %s", Fpath, strerror(errno));
         rc = RC_FX;
       } else if (S_ISDIR(Fileinfo.st_mode) && strcmp(Entry->d_name, ".")
 			                                     && strcmp(Entry->d_name, "..")) {
@@ -1420,7 +1420,7 @@ int TDBDHR::GetMaxSize(PGLOBAL g)
                         FORMAT_MESSAGE_IGNORE_INSERTS,
                         NULL, rc, 0,
                         (LPTSTR)&filename, sizeof(filename), NULL);
-          sprintf(g->Message, MSG(BAD_FILE_HANDLE), filename);
+          snprintf(g->Message, sizeof(g->Message), MSG(BAD_FILE_HANDLE), filename);
         } // endswitch rc
 
     } else {
@@ -1429,7 +1429,7 @@ int TDBDHR::GetMaxSize(PGLOBAL g)
           rc = GetLastError();
 
           if (rc != ERROR_NO_MORE_FILES) {
-            sprintf(g->Message, MSG(NEXT_FILE_ERROR), rc);
+            snprintf(g->Message, sizeof(g->Message), MSG(NEXT_FILE_ERROR), rc);
             n = -1;
             } // endif rc
 
@@ -1471,7 +1471,7 @@ bool TDBDHR::OpenDB(PGLOBAL g)
   /*********************************************************************/
   if (NeedIndexing(g)) {
     // Direct access of DHR tables is not implemented yet
-    sprintf(g->Message, MSG(NO_DIR_INDX_RD), "DHR");
+    snprintf(g->Message, sizeof(g->Message), MSG(NO_DIR_INDX_RD), "DHR");
     return true;
     } // endif NeedIndexing
 
@@ -1512,7 +1512,7 @@ int TDBDHR::ReadDB(PGLOBAL g)
                       FORMAT_MESSAGE_IGNORE_INSERTS,
                       NULL, erc,  0,
                       (LPTSTR)&filename, sizeof(filename), NULL);
-        sprintf(g->Message, MSG(BAD_FILE_HANDLE), filename);
+        snprintf(g->Message, sizeof(g->Message), MSG(BAD_FILE_HANDLE), filename);
         rc = RC_FX;
       } // endswitch erc
 
@@ -1521,7 +1521,7 @@ int TDBDHR::ReadDB(PGLOBAL g)
       DWORD erc = GetLastError();
 
       if (erc != ERROR_NO_MORE_FILES) {
-        sprintf(g->Message, MSG(NEXT_FILE_ERROR), erc);
+        snprintf(g->Message, sizeof(g->Message), MSG(NEXT_FILE_ERROR), erc);
         FindClose(Hsearch);
         rc = RC_FX;
       } else

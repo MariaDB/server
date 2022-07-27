@@ -1,0 +1,40 @@
+--echo #
+--echo # MDEV-29011 Server crash in spider_db_open_item_cond with XOR operator
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection child2_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+eval CREATE TABLE tbl_a (
+    a INT,
+    b INT
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+INSERT INTO tbl_a VALUES (0, 0), (0, 1), (1, 0), (1, 1);
+
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+eval CREATE TABLE tbl_a (
+    a INT,
+    b INT
+) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a", srv "s_2_1"';
+
+SELECT a XOR b AS f FROM tbl_a;
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+
+--disable_query_log
+--disable_result_log
+--source ../t/test_deinit.inc
+--enable_query_log
+--enable_result_log

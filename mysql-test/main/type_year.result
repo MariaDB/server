@@ -210,11 +210,11 @@ SELECT * FROM t2 WHERE yy = 'test';
 yy	c2
 00	2000
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'test'
+Warning	1292	Truncated incorrect DECIMAL value: 'test'
 SELECT * FROM t4 WHERE yyyy = 'test';
 yyyy	c4
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'test'
+Warning	1292	Truncated incorrect DECIMAL value: 'test'
 SELECT * FROM t2 WHERE yy = '1999';
 yy	c2
 99	1999

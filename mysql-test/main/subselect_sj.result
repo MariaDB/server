@@ -1705,15 +1705,15 @@ x
 m
 c
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'x'
-Warning	1292	Truncated incorrect DOUBLE value: 'm'
-Warning	1292	Truncated incorrect DOUBLE value: 'c'
-Warning	1292	Truncated incorrect DOUBLE value: 'x'
-Warning	1292	Truncated incorrect DOUBLE value: 'm'
-Warning	1292	Truncated incorrect DOUBLE value: 'c'
-Warning	1292	Truncated incorrect DOUBLE value: 'x'
-Warning	1292	Truncated incorrect DOUBLE value: 'm'
-Warning	1292	Truncated incorrect DOUBLE value: 'c'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'm'
+Warning	1292	Truncated incorrect DECIMAL value: 'c'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'm'
+Warning	1292	Truncated incorrect DECIMAL value: 'c'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'm'
+Warning	1292	Truncated incorrect DECIMAL value: 'c'
 drop table t1,t2,t3,t4;
 #
 # BUG#751484: Valgrind warning / sporadic crash in evaluate_join_record sql_select.cc:14099 with semijoin
@@ -2100,8 +2100,8 @@ f1	f2	f3	f3
 4	0	0	0
 0	NULL	NULL	NULL
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'foo'
-Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+Warning	1292	Truncated incorrect DECIMAL value: 'foo'
+Warning	1292	Truncated incorrect DECIMAL value: 'foo'
 DROP TABLE t1, t2, t3, t4;
 set @tmp803457=@@optimizer_switch;
 #
@@ -2294,13 +2294,13 @@ PREPARE st1 FROM "SELECT * FROM t2 LEFT JOIN t1 ON t2.a != 0 AND ('j','r') IN ( 
 EXECUTE st1;
 a	a
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'j'
-Warning	1292	Truncated incorrect DOUBLE value: 'r'
+Warning	1292	Truncated incorrect DECIMAL value: 'j'
+Warning	1292	Truncated incorrect DECIMAL value: 'r'
 EXECUTE st1;
 a	a
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'j'
-Warning	1292	Truncated incorrect DOUBLE value: 'r'
+Warning	1292	Truncated incorrect DECIMAL value: 'j'
+Warning	1292	Truncated incorrect DECIMAL value: 'r'
 DROP TABLE t1, t2, t3;
 #
 # BUG#849776: Wrong result with semijoin + "Impossible where"
@@ -3336,4 +3336,17 @@ ERROR HY000: Illegal parameter data types geometry and int for operation '='
 EXECUTE stmt;
 ERROR HY000: Illegal parameter data types geometry and int for operation '='
 DROP TABLE t1, t2;
+#
+# MDEV-28871: Assert ... failed in JOIN::dbug_verify_sj_inner_tables with low optimizer_search_depth
+#
+set @tmp_28871=@@optimizer_search_depth;
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t1 VALUES (3),(4);
+SET optimizer_search_depth= 1;
+SELECT * FROM t1 WHERE a IN (SELECT b FROM t2 JOIN t1);
+a
+DROP TABLE t1, t2;
+set optimizer_search_depth= @tmp_28871;
 set optimizer_switch=@subselect_sj_tmp;

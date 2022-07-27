@@ -661,7 +661,7 @@ xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
 
       if (xmlXPathRegisterNs(Ctxp, BAD_CAST nsp->Prefix,
                                    BAD_CAST nsp->Uri)) {
-        sprintf(g->Message, MSG(REGISTER_ERR), nsp->Prefix, nsp->Uri);
+        snprintf(g->Message, sizeof(g->Message), MSG(REGISTER_ERR), nsp->Prefix, nsp->Uri);
 
         if (trace(1))
           htrc("Ns error: %-.256s\n", g->Message);
@@ -703,7 +703,7 @@ xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
 
   // Evaluate table xpath
   if (!(Xop = xmlXPathEval(BAD_CAST xp, Ctxp))) {
-    sprintf(g->Message, MSG(XPATH_EVAL_ERR), xp);
+    snprintf(g->Message, sizeof(g->Message), MSG(XPATH_EVAL_ERR), xp);
 
     if (trace(1))
       htrc("Path error: %-.256s\n", g->Message);
@@ -882,7 +882,7 @@ RCODE XML2NODE::GetContent(PGLOBAL g, char *buf, int len)
         } // endif p1
 
       } else {
-        sprintf(g->Message, "Truncated %-.256s content", Nodep->name);
+        snprintf(g->Message, sizeof(g->Message), "Truncated %-.256s content", Nodep->name);
         rc = RC_INFO;
       } // endif len
 
@@ -1260,7 +1260,7 @@ RCODE XML2ATTR::GetText(PGLOBAL g, char *buf, int len)
     if (strlen((char*)txt) >= (unsigned)len) {
       memcpy(buf, txt, len - 1);
       buf[len - 1] = 0;
-      sprintf(g->Message, "Truncated %-.256s content", Atrp->name);
+      snprintf(g->Message, sizeof(g->Message), "Truncated %-.256s content", Atrp->name);
       rc = RC_INFO;
     } else
       strcpy(buf, (const char*)txt);

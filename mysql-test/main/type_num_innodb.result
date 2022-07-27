@@ -46,39 +46,22 @@ ALTER TABLE t1 MODIFY a DECIMAL(10,0);
 SELECT * FROM t1,t2 WHERE a=d;
 a	b	c	pk	d	e
 Warnings:
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'd'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'd'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'f'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'f'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'g'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'k'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'm'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'm'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'm'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'o'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'q'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'r'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'u'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'w'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'x'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'x'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 'y'
 ALTER TABLE t1 MODIFY a DOUBLE;
 SELECT * FROM t1,t2 WHERE a=d;

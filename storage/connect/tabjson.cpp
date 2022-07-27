@@ -239,7 +239,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
       (tdp->Version == 2) ? "Mongo2Interface" : "Mongo3Interface");
     tdp->Pretty = 0;
 #else   // !MONGO_SUPPORT
-    sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
+    snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "MONGO");
     return 0;
 #endif  // !MONGO_SUPPORT
   } // endif Uri
@@ -249,7 +249,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 #if defined(ZIP_SUPPORT)
       tjsp = new(g) TDBJSON(tdp, new(g) UNZFAM(tdp));
 #else   // !ZIP_SUPPORT
-      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+      snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "ZIP");
       return 0;
 #endif  // !ZIP_SUPPORT
     } else
@@ -263,7 +263,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
     if (!(tdp->Lrecl = GetIntegerTableOption(g, topt, "Lrecl", 0)))
     {
       if (!mgo && !tdp->Uri) {
-        sprintf(g->Message, "LRECL must be specified for pretty=%d", tdp->Pretty);
+        snprintf(g->Message, sizeof(g->Message), "LRECL must be specified for pretty=%d", tdp->Pretty);
         return 0;
       } else
         tdp->Lrecl = 8192;       // Should be enough
@@ -275,7 +275,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 #if defined(ZIP_SUPPORT)
       tjnp = new(g)TDBJSN(tdp, new(g) UNZFAM(tdp));
 #else   // !ZIP_SUPPORT
-      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+      snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "ZIP");
       return NULL;
 #endif  // !ZIP_SUPPORT
     } else if (tdp->Uri) {
@@ -283,14 +283,14 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 #if defined(CMGO_SUPPORT)
         tjnp = new(g) TDBJSN(tdp, new(g) CMGFAM(tdp));
 #else
-        sprintf(g->Message, "Mongo %s Driver not available", "C");
+        snprintf(g->Message, sizeof(g->Message), "Mongo %s Driver not available", "C");
         return 0;
 #endif
       } else if (tdp->Driver && toupper(*tdp->Driver) == 'J') {
 #if defined(JAVA_SUPPORT)
         tjnp = new(g) TDBJSN(tdp, new(g) JMGFAM(tdp));
 #else
-        sprintf(g->Message, "Mongo %s Driver not available", "Java");
+        snprintf(g->Message, sizeof(g->Message), "Mongo %s Driver not available", "Java");
         return 0;
 #endif
       } else {             // Driver not specified
@@ -299,7 +299,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 #elif defined(JAVA_SUPPORT)
         tjnp = new(g) TDBJSN(tdp, new(g) JMGFAM(tdp));
 #else
-        sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
+        snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "MONGO");
         return 0;
 #endif
       } // endif Driver
@@ -513,7 +513,7 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
 
         return false;
       default:
-        sprintf(g->Message, "Logical error after %s", fmt);
+        snprintf(g->Message, sizeof(g->Message), "Logical error after %s", fmt);
         return true;
     } // endswitch Type
 
@@ -671,7 +671,7 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
       Wrapname = GetStringCatInfo(g, "Wrapper", "Mongo3Interface");
 #endif   // JAVA_SUPPORT
 #else   // !MONGO_SUPPORT
-    sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
+    snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "MONGO");
     return true;
 #endif  // !MONGO_SUPPORT
   } // endif Uri
@@ -706,14 +706,14 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 #if defined(CMGO_SUPPORT)
       txfp = new(g) CMGFAM(this);
 #else
-      sprintf(g->Message, "Mongo %s Driver not available", "C");
+      snprintf(g->Message, sizeof(g->Message), "Mongo %s Driver not available", "C");
       return NULL;
 #endif
       } else if (Driver && toupper(*Driver) == 'J') {
 #if defined(JAVA_SUPPORT)
         txfp = new(g) JMGFAM(this);
 #else
-        sprintf(g->Message, "Mongo %s Driver not available", "Java");
+        snprintf(g->Message, sizeof(g->Message), "Mongo %s Driver not available", "Java");
         return NULL;
 #endif
       } else {             // Driver not specified
@@ -722,7 +722,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 #elif defined(JAVA_SUPPORT)
         txfp = new(g) JMGFAM(this);
 #else   // !MONGO_SUPPORT
-        sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
+        snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "MONGO");
         return NULL;
 #endif  // !MONGO_SUPPORT
       } // endif Driver
@@ -739,7 +739,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
         return NULL;
       } // endif's m
 #else   // !ZIP_SUPPORT
-      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+      snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "ZIP");
       return NULL;
 #endif  // !ZIP_SUPPORT
     } else if (Compressed) {
@@ -749,7 +749,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
       else
         txfp = new(g) ZLBFAM(this);
 #else   // !GZ_SUPPORT
-      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
+      snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "GZ");
       return NULL;
 #endif  // !GZ_SUPPORT
     } else if (map)
@@ -792,7 +792,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
         return NULL;
       } // endif's m
 #else   // !ZIP_SUPPORT
-      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+      snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "ZIP");
       return NULL;
 #endif  // !ZIP_SUPPORT
     } else
@@ -980,7 +980,7 @@ PJSON TDBJSN::FindRow(PGLOBAL g)
     } else {
       if (bp || *objpath == '[') {
         if (objpath[strlen(objpath) - 1] != ']') {
-          sprintf(g->Message, "Invalid Table path %s", Objname);
+          snprintf(g->Message, sizeof(g->Message), "Invalid Table path %s", Objname);
           return NULL;
         } else if (!bp)
           objpath++;
@@ -1031,7 +1031,7 @@ bool TDBJSN::OpenDB(PGLOBAL g)
         case MODE_ARRAY:  Row = new(g) JARRAY;  break;
         case MODE_VALUE:  Row = new(g) JVALUE;  break;
         default:
-          sprintf(g->Message, "Invalid Jmode %d", Jmode);
+          snprintf(g->Message, sizeof(g->Message), "Invalid Jmode %d", Jmode);
           return true;
         } // endswitch Jmode
 
@@ -1210,7 +1210,7 @@ bool TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
           if (bp || *objpath == '[') {
             // Old style
             if (objpath[strlen(objpath) - 1] != ']') {
-              sprintf(g->Message, "Invalid Table path %s", Objname);
+              snprintf(g->Message, sizeof(g->Message), "Invalid Table path %s", Objname);
               return true;
             } else if (!bp)
               objpath++;
@@ -1259,7 +1259,7 @@ bool TDBJSN::PrepareWriting(PGLOBAL g)
 
     if ((signed)strlen(s) > Lrecl) {
       strncpy(To_Line, s, Lrecl);
-      sprintf(g->Message, "Line truncated (lrecl=%d)", Lrecl);
+      snprintf(g->Message, sizeof(g->Message), "Line truncated (lrecl=%d)", Lrecl);
       return PushWarning(g, this);
     } else
       strcpy(To_Line, s);
@@ -1443,7 +1443,7 @@ bool JSONCOL::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
 
         break;
       default:
-        sprintf(g->Message,
+        snprintf(g->Message, sizeof(g->Message),
           "Invalid function specification %c for %s", *p, Name);
         return true;
     } // endswitch *p
@@ -1459,7 +1459,7 @@ bool JSONCOL::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
     } // endif n
 
   } else {
-    sprintf(g->Message, "Wrong array specification for %s", Name);
+    snprintf(g->Message, sizeof(g->Message), "Wrong array specification for %s", Name);
     return true;
   } // endif's
 
@@ -1528,7 +1528,7 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
         goto fin;
       } // endif Name
 
-    sprintf(g->Message, "Cannot parse updated column %s", Name);
+    snprintf(g->Message, sizeof(g->Message), "Cannot parse updated column %s", Name);
     return true;
   } // endif To_Orig
 
@@ -1744,7 +1744,7 @@ PJVAL JSONCOL::GetRowValue(PGLOBAL g, PJSON row, int i)
         val = (PJVAL)row;
         break;
       default:
-        sprintf(g->Message, "Invalid row JSON type %d", row->GetType());
+        snprintf(g->Message, sizeof(g->Message), "Invalid row JSON type %d", row->GetType());
         val = NULL;
     } // endswitch Type
 
@@ -1806,7 +1806,7 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL jvp)
 
           break;
         default:
-					sprintf(g->Message, "Unsupported column type %d\n", vp->GetType());
+					snprintf(g->Message, sizeof(g->Message), "Unsupported column type %d\n", vp->GetType());
 					throw 888;
 				} // endswitch Type
 
@@ -1907,7 +1907,7 @@ PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
         val = (PJVAL)row;
         break;
       default:
-        sprintf(g->Message, "Invalid row JSON type %d", row->GetType());
+        snprintf(g->Message, sizeof(g->Message), "Invalid row JSON type %d", row->GetType());
         val = NULL;
       } // endswitch Type
 
@@ -2102,7 +2102,7 @@ PJSON JSONCOL::GetRow(PGLOBAL g)
         val = (PJVAL)row;
         break;
       default:
-        sprintf(g->Message, "Invalid row JSON type %d", row->GetType());
+        snprintf(g->Message, sizeof(g->Message), "Invalid row JSON type %d", row->GetType());
         val = NULL;
       } // endswitch Type
 
@@ -2229,7 +2229,7 @@ void JSONCOL::WriteColumn(PGLOBAL g)
 
       break;
     default:                  // ??????????
-      sprintf(g->Message, "Invalid column type %d", Buf_Type);
+      snprintf(g->Message, sizeof(g->Message), "Invalid column type %d", Buf_Type);
     } // endswitch Type
 
 } // end of WriteColumn
@@ -2375,7 +2375,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
         val = objp->GetKeyValue(key);
 
         if (!val || !(jsp = val->GetJson())) {
-          sprintf(g->Message, "Cannot find object key %s", key);
+          snprintf(g->Message, sizeof(g->Message), "Cannot find object key %s", key);
           return RC_FX;
         } // endif val
 
@@ -2383,7 +2383,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
         if (*p == '[') {
           // Old style
           if (p[strlen(p) - 1] != ']') {
-            sprintf(g->Message, "Invalid Table path near %s", p);
+            snprintf(g->Message, sizeof(g->Message), "Invalid Table path near %s", p);
             return RC_FX;
           } else
             p++;
@@ -2401,7 +2401,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
         val = arp->GetArrayValue(i);
 
         if (!val) {
-          sprintf(g->Message, "Cannot find array value %d", i);
+          snprintf(g->Message, sizeof(g->Message), "Cannot find array value %d", i);
           return RC_FX;
         } // endif val
 
@@ -2565,7 +2565,7 @@ bool TDBJSON::OpenDB(PGLOBAL g)
       case MODE_ARRAY:  Row = new(g) JARRAY;  break;
       case MODE_VALUE:  Row = new(g) JVALUE;  break;
       default:
-        sprintf(g->Message, "Invalid Jmode %d", Jmode);
+        snprintf(g->Message, sizeof(g->Message), "Invalid Jmode %d", Jmode);
         return true;
       } // endswitch Jmode
 
@@ -2649,7 +2649,7 @@ int TDBJSON::DeleteDB(PGLOBAL g, int irc)
   if (irc == RC_OK) {
     // Deleted current row
     if (Doc->DeleteValue(Fpos)) {
-      sprintf(g->Message, "Value %d does not exist", Fpos + 1);
+      snprintf(g->Message, sizeof(g->Message), "Value %d does not exist", Fpos + 1);
       return RC_FX;
       } // endif Delete
 

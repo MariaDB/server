@@ -109,7 +109,7 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
     if (thd->is_error())
       thd->clear_error();  // Avoid stopping info commands
 
-    sprintf(g->Message, "Error %d opening share\n", s->error);
+    snprintf(g->Message, sizeof(g->Message), "Error %d opening share\n", s->error);
     free_table_share(s);
     return NULL;
   } // endif open_table_def
@@ -204,19 +204,19 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
     if ((type = MYSQLtoPLG(fp->type(), &v)) == TYPE_ERROR) {
       if (v == 'K') {
         // Skip this column
-        sprintf(g->Message, "Column %s skipped (unsupported type)", colname);
+        snprintf(g->Message, sizeof(g->Message), "Column %s skipped (unsupported type)", colname);
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
         continue;
         } // endif v
 
-      sprintf(g->Message, "Column %s unsupported type", colname);
+      snprintf(g->Message, sizeof(g->Message), "Column %s unsupported type", colname);
       qrp = NULL;
       break;
       } // endif type
 
       if (v == 'X') {
         len = zconv;
-        sprintf(g->Message, "Column %s converted to varchar(%d)",
+        snprintf(g->Message, sizeof(g->Message), "Column %s converted to varchar(%d)",
                 colname, len);
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
         } // endif v
@@ -411,7 +411,7 @@ PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
     cdb = (tp->Schema) ? tp->Schema : curdb;
 
     if (!stricmp(name, tp->Name) && !stricmp(db, cdb)) {
-      sprintf(g->Message, "Table %s.%s pointing on itself", db, name);
+      snprintf(g->Message, sizeof(g->Message), "Table %s.%s pointing on itself", db, name);
       return NULL;
       } // endif
 
@@ -441,7 +441,7 @@ PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
       char buf[MAX_STR];
 
       strcpy(buf, g->Message);
-      snprintf(g->Message, MAX_STR, "Error accessing %s.%s: %s", db, name, buf);
+      snprintf(g->Message, sizeof(g->Message), "Error accessing %s.%s: %s", db, name, buf);
       hc->tshp = NULL;
       goto err;
       } // endif Define
@@ -578,7 +578,7 @@ bool TDBPRX::OpenDB(PGLOBAL g)
     PTDB utp;
 
     if (!(utp= Tdbp->Duplicate(g))) {
-      sprintf(g->Message, MSG(INV_UPDT_TABLE), Tdbp->GetName());
+      snprintf(g->Message, sizeof(g->Message), MSG(INV_UPDT_TABLE), Tdbp->GetName());
       return true;
       } // endif tp
 
@@ -721,7 +721,7 @@ bool PRXCOL::Init(PGLOBAL g, PTDB tp)
     // this may be needed by some tables (which?)
     Colp->SetColUse(ColUse);
   } else {
-    sprintf(g->Message, MSG(NO_MATCHING_COL), Name, tp->GetName());
+    snprintf(g->Message, sizeof(g->Message), MSG(NO_MATCHING_COL), Name, tp->GetName());
     return true;
   } // endif Colp
 

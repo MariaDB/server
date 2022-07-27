@@ -722,7 +722,7 @@ a
 1
 0
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: ''
+Warning	1292	Truncated incorrect DECIMAL value: ''
 drop table t1;
 #
 # End of 10.4 tests

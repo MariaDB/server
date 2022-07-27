@@ -141,7 +141,7 @@ SELECT (SELECT 1.5,'c','a') = ROW(1.5,2,'a');
 (SELECT 1.5,'c','a') = ROW(1.5,2,'a')
 0
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'c'
+Warning	1292	Truncated incorrect DECIMAL value: 'c'
 SELECT (SELECT * FROM (SELECT 'test' a,'test' b) a);
 ERROR 21000: Operand should contain 1 column(s)
 SELECT 1 as a,(SELECT a+a) b,(SELECT b);
@@ -4684,7 +4684,7 @@ SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 2.0 FROM t2);
 SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 'a' FROM t2);
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
 SELECT 1 FROM t1 WHERE 1 < SOME (SELECT a1 FROM t2);
 1
 1
@@ -5969,7 +5969,7 @@ SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 2.0 FROM t2);
 SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 'a' FROM t2);
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
 SELECT 1 FROM t1 WHERE 1 < SOME (SELECT a1 FROM t2);
 1
 1
@@ -6350,10 +6350,10 @@ ORDER BY b
 );
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
-Warning	1292	Truncated incorrect DOUBLE value: 'b'
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
-Warning	1292	Truncated incorrect DOUBLE value: 'b'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
 SELECT 1 FROM t1 WHERE a = 
 (SELECT 1 FROM t2 WHERE b = 
 (SELECT 1 FROM t1 t11 WHERE c = 1 OR t1.a = 1 AND 1 = 2)
@@ -6361,10 +6361,10 @@ GROUP BY b
 );
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
-Warning	1292	Truncated incorrect DOUBLE value: 'b'
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
-Warning	1292	Truncated incorrect DOUBLE value: 'b'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
 DROP TABLE t1, t2;
 #
 # BUG#12616253 - WRONG RESULT WITH EXISTS(SUBQUERY) (MISSING ROWS)

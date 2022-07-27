@@ -87,7 +87,7 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 		CloseHandle(pi.hProcess);
 		CloseHandle(pi.hThread);
 	} else {
-		sprintf(g->Message, "CreateProcess curl failed (%d)", GetLastError());
+		snprintf(g->Message, sizeof(g->Message), "CreateProcess curl failed (%d)", GetLastError());
 		rc = 1;
 	}	// endif CreateProcess
 #else   // !_WIN32
@@ -159,7 +159,7 @@ XGETREST GetRestFunction(PGLOBAL g)
 		char  buf[256];
 		DWORD rc = GetLastError();
 
-		sprintf(g->Message, MSG(DLL_LOAD_ERROR), rc, soname);
+		snprintf(g->Message, sizeof(g->Message), MSG(DLL_LOAD_ERROR), rc, soname);
 		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
 			FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
 			(LPTSTR)buf, sizeof(buf), NULL);
@@ -172,7 +172,7 @@ XGETREST GetRestFunction(PGLOBAL g)
 		char  buf[256];
 		DWORD rc = GetLastError();
 
-		sprintf(g->Message, MSG(PROCADD_ERROR), rc, "restGetFile");
+		snprintf(g->Message, sizeof(g->Message), MSG(PROCADD_ERROR), rc, "restGetFile");
 		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
 			FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
 			(LPTSTR)buf, sizeof(buf), NULL);
@@ -188,14 +188,14 @@ XGETREST GetRestFunction(PGLOBAL g)
 	// Load the desired shared library
 	if (!(Hso = dlopen(soname, RTLD_LAZY))) {
 		error = dlerror();
-		sprintf(g->Message, MSG(SHARED_LIB_ERR), soname, SVP(error));
+		snprintf(g->Message, sizeof(g->Message), MSG(SHARED_LIB_ERR), soname, SVP(error));
 		return NULL;
 	} // endif Hdll
 
 // Get the function returning an instance of the external DEF class
 	if (!(getRestFnc = (XGETREST)dlsym(Hso, "restGetFile"))) {
 		error = dlerror();
-		sprintf(g->Message, MSG(GET_FUNC_ERR), "restGetFile", SVP(error));
+		snprintf(g->Message, sizeof(g->Message), MSG(GET_FUNC_ERR), "restGetFile", SVP(error));
 		dlclose(Hso);
 		return NULL;
 	} // endif getdef
@@ -239,7 +239,7 @@ PQRYRES RESTColumns(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
 
 		fn = filename;
 		tp->subtype = PlugDup(g, fn);
-		sprintf(g->Message, "No file name. Table will use %s", fn);
+		snprintf(g->Message, sizeof(g->Message), "No file name. Table will use %s", fn);
 		PUSH_WARNING(g->Message);
 	}	// endif fn
 
@@ -265,7 +265,7 @@ PQRYRES RESTColumns(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
 		qrp = XMLColumns(g, db, tab, tp, info);
 #endif   // XML_SUPPORT
 	else
-    sprintf(g->Message, "Usupported file type %s", ftype);
+    snprintf(g->Message, sizeof(g->Message), "Usupported file type %s", ftype);
 
   return qrp;
 } // end of RESTColumns
@@ -300,7 +300,7 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
   if (n == 0) {
     htrc("DefineAM: Unsupported REST table type %s\n", ftype);
-    sprintf(g->Message, "Unsupported REST table type %s", ftype);
+    snprintf(g->Message, sizeof(g->Message), "Unsupported REST table type %s", ftype);
     return true;
   } // endif n
 

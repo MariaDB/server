@@ -87,7 +87,7 @@ sub init_pattern {
     # separator betwen suite and testname), make the pattern match
     # beginning of string
     $from= "^$from";
-    mtr_verbose("$what='$from'");
+    mtr_verbose2("$what='$from'");
   }
   # Check that pattern is a valid regex
   eval { "" =~/$from/; 1 } or
@@ -293,7 +293,7 @@ sub combinations_from_file($$)
     return () if @::opt_combinations or not -f $filename;
     return () if ::using_extern();
     # Read combinations file in my.cnf format
-    mtr_verbose("Read combinations file $filename");
+    mtr_verbose2("Read combinations file $filename");
     my $config= My::Config->new($filename);
     foreach my $group ($config->option_groups()) {
       my $comb= { name => $group->name(), comb_opt => [] };
@@ -427,9 +427,9 @@ sub collect_suite_name($$)
 sub collect_one_suite {
   my ($opt_cases, $suitename, $over, $suitedir, @overlays) = @_;
 
-  mtr_verbose("Collecting: $suitename");
-  mtr_verbose("suitedir: $suitedir");
-  mtr_verbose("overlays: @overlays") if @overlays;
+  mtr_verbose2("Collecting: $suitename");
+  mtr_verbose2("suitedir: $suitedir");
+  mtr_verbose2("overlays: @overlays") if @overlays;
 
   # we always need to process the parent suite, even if we won't use any
   # test from it.
@@ -501,8 +501,8 @@ sub process_suite {
       $suite->{rdir} = -d $rdir ? $rdir : $suite->{tdir};
     }
 
-    mtr_verbose("testdir: " . $suite->{tdir});
-    mtr_verbose( "resdir: " . $suite->{rdir});
+    mtr_verbose2("testdir: " . $suite->{tdir});
+    mtr_verbose2( "resdir: " . $suite->{rdir});
 
     # disabled.def
     parse_disabled($suite->{dir} .'/disabled.def', $suitename);
@@ -512,7 +512,7 @@ sub process_suite {
     if (@::opt_combinations)
     {
       # take the combination from command-line
-      mtr_verbose("Take the combination from command line");
+      mtr_verbose2("Take the combination from command line");
       foreach my $combination (@::opt_combinations) {
 	my $comb= {};
 	$comb->{name}= $combination;

@@ -504,13 +504,7 @@ static bool fil_node_open_file(fil_node_t* node)
 	    || (space->purpose == FIL_TYPE_TABLESPACE
 		&& node == UT_LIST_GET_FIRST(space->chain)
 		&& srv_startup_is_before_trx_rollback_phase)) {
-		/* We do not know the size of the file yet. First we
-		open the file in the normal mode, no async I/O here,
-		for simplicity. Then do some checks, and close the
-		file again.  NOTE that we could not use the simple
-		file read function os_file_read() in Windows to read
-		from a file opened for async I/O! */
-
+		/* We do not know the size of the file yet. */
 retry:
 		node->handle = os_file_create(
 			innodb_data_file_key, node->name,

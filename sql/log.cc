@@ -2095,7 +2095,8 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
     error= binlog_commit_flush_stmt_cache(thd, all, cache_mngr);
   }
 
-  if (cache_mngr->trx_cache.empty())
+
+  if (!cache_mngr->trx_cache.has_incident() && cache_mngr->trx_cache.empty())
   {
     /*
       we're here because cache_log was flushed in MYSQL_BIN_LOG::log_xid()
@@ -5794,17 +5795,23 @@ binlog_start_consistent_snapshot(handlerton *hton, THD *thd)
 }
 
 /**
-  This function writes a table map to the binary log. 
+  This function writes a table map to the binary log.
   Note that in order to keep the signature uniform with related methods,
   we use a redundant parameter to indicate whether a transactional table
   was changed or not.
 
   If with_annotate != NULL and
   *with_annotate = TRUE write also Annotate_rows before the table map.
- 
+
+  If an error occurs while writing events and rollback is not possible, e.g.
+  due to the statement modifying a non-transactional table, an incident event
+  is logged.
+
   @param table             a pointer to the table.
   @param is_transactional  @c true indicates a transactional table,
                            otherwise @c false a non-transactional.
+  @param with_annotate     @c true to write an annotate event before writing
+                           the table_map event, @c false otherwise.
   @return
     nonzero if an error pops up when writing the table map event.
 */
@@ -5845,17 +5852,35 @@ int THD::binlog_write_table_map(TABLE *table, bool is_transactional,
     /* Annotate event should be written not more than once */
     *with_annotate= 0;
     if (unlikely((error= writer.write(&anno))))
-    {
-      if (my_errno == EFBIG)
-        cache_data->set_incident();
-      DBUG_RETURN(error);
-    }
+      goto write_err;
   }
-  if (unlikely((error= writer.write(&the_event))))
-    DBUG_RETURN(error);
+  DBUG_EXECUTE_IF("table_map_write_error",
+    {
+      if (is_transactional)
+      {
+        my_errno= EFBIG;
+        error= 1;
+        goto write_err;
+      }
+    });
+  if ((error= writer.write(&the_event)))
+    goto write_err;
 
-  binlog_table_maps++;
-  DBUG_RETURN(0);
+	binlog_table_maps++;
+	DBUG_RETURN(0);
+
+write_err:
+  mysql_bin_log.set_write_error(this, is_transactional);
+  /*
+    For non-transactional engine or multi statement transaction with mixed
+    engines, data is written to table but writing to binary log failed. In
+    these scenarios rollback is not possible. Hence report an incident.
+  */
+  if (mysql_bin_log.check_write_error(this) && cache_data &&
+      lex->stmt_accessed_table(LEX::STMT_WRITES_NON_TRANS_TABLE) &&
+      table->current_lock == F_WRLCK)
+    cache_data->set_incident();
+  DBUG_RETURN(error);
 }
 
 /**
@@ -7287,7 +7312,9 @@ bool MYSQL_BIN_LOG::write_incident(THD *thd)
   if (likely(is_open()))
   {
     prev_binlog_id= current_binlog_id;
-    if (likely(!(error= write_incident_already_locked(thd))) &&
+    if (likely(
+            !(error= DBUG_EVALUATE_IF("incident_event_write_error", 1,
+                                      write_incident_already_locked(thd)))) &&
         likely(!(error= flush_and_sync(0))))
     {
       update_binlog_end_pos();
@@ -7314,6 +7341,22 @@ bool MYSQL_BIN_LOG::write_incident(THD *thd)
   else
   {
     mysql_mutex_unlock(&LOCK_log);
+  }
+
+  /*
+    Upon writing incident event, check for thd->error() and print the
+    relevant error message in the error log.
+  */
+  if (thd->is_error())
+  {
+    sql_print_error("Write to binary log failed: "
+                    "%s. An incident event is written to binary log "
+                    "and slave will be stopped.\n",
+                    thd->get_stmt_da()->message());
+  }
+  if (error)
+  {
+    sql_print_error("Incident event write to the binary log file failed.");
   }
 
   DBUG_RETURN(error);

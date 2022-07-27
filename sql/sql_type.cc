@@ -1711,6 +1711,11 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
         m_type_handler= &type_handler_datetime;
     }
   }
+  else if ((a == INT_RESULT && b == STRING_RESULT) ||
+           (b == INT_RESULT && a == STRING_RESULT))
+  {
+    m_type_handler= &type_handler_newdecimal;
+  }
   else if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
            (b == INT_RESULT || b == DECIMAL_RESULT))
   {

@@ -613,7 +613,7 @@ bool TDBEXT::MakeCommand(PGLOBAL g)
 			strcat(stmt, body);
 
 	} else {
-		sprintf(g->Message, "Cannot use this %s command",
+		snprintf(g->Message, sizeof(g->Message), "Cannot use this %s command",
 			(Mode == MODE_UPDATE) ? "UPDATE" : "DELETE");
 		return true;
 	} // endif p
@@ -724,7 +724,7 @@ EXTCOL::EXTCOL(PEXTCOL col1, PTDB tdbp) : COLBLK(col1, tdbp)
 bool EXTCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
 {
 	if (!(To_Val = value)) {
-		sprintf(g->Message, MSG(VALUE_ERROR), Name);
+		snprintf(g->Message, sizeof(g->Message), MSG(VALUE_ERROR), Name);
 		return true;
 	} else if (Buf_Type == value->GetType()) {
 		// Values are of the (good) column type
@@ -743,7 +743,7 @@ bool EXTCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
 	} else {
 		// Values are not of the (good) column type
 		if (check) {
-			sprintf(g->Message, MSG(TYPE_VALUE_ERR), Name,
+			snprintf(g->Message, sizeof(g->Message), MSG(TYPE_VALUE_ERR), Name,
 				GetTypeName(Buf_Type), GetTypeName(value->GetType()));
 			return true;
 		} // endif check

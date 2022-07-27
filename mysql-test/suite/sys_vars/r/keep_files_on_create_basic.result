@@ -23,13 +23,13 @@ SELECT @@global.keep_files_on_create = 'OFF';
 @@global.keep_files_on_create = 'OFF'
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'OFF'
+Warning	1292	Truncated incorrect DECIMAL value: 'OFF'
 SET @@session.keep_files_on_create = DEFAULT;
 SELECT @@session.keep_files_on_create = 'OFF';
 @@session.keep_files_on_create = 'OFF'
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'OFF'
+Warning	1292	Truncated incorrect DECIMAL value: 'OFF'
 '#--------------------FN_DYNVARS_054_03-------------------------#'
 SET @@global.keep_files_on_create = ON;
 SELECT @@global.keep_files_on_create;

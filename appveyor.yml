@@ -25,6 +25,6 @@ test_script:
   - set PATH=C:\Strawberry\perl\bin;%PATH%;C:\Program Files (x86)\Windows Kits\10\Debuggers\x64
   - cd %APPVEYOR_BUILD_FOLDER%\_build\mysql-test
   - set /A parallel=4*%NUMBER_OF_PROCESSORS%
-  - perl mysql-test-run.pl --force --max-test-fail=10 --retry=2 -parallel=%parallel% --testcase-timeout=4 --suite=main  --skip-test-list=unstable-tests --mysqld=--loose-innodb-flush-log-at-trx-commit=2
+  - perl mysql-test-run.pl --force --max-test-fail=10 --retry=2 --parallel=%parallel% --testcase-timeout=4 --suite=main  --skip-test-list=unstable-tests --mysqld=--loose-innodb-flush-log-at-trx-commit=2
 
 image: Visual Studio 2022

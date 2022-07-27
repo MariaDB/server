@@ -152,7 +152,7 @@ int VCTFAM::GetFileLength(PGLOBAL g)
     To_File = filename;
 
     for (i = 0; i < Ncol; i++) {
-      sprintf(filename, Colfn, i+1);
+      snprintf(filename, _MAX_PATH, Colfn, i+1);
       len += TXTFAM::GetFileLength(g);
       } // endfor i
 
@@ -184,7 +184,7 @@ int VCTFAM::GetBlockInfo(PGLOBAL g)
   VECHEADER vh;
 
   if (Header < 1 || Header > 3 || !MaxBlk) {
-    sprintf(g->Message, "Invalid header value %d", Header);
+    snprintf(g->Message, sizeof(g->Message), "Invalid header value %d", Header);
     return -1;
   } else
     n = (Header == 1) ? (int)sizeof(VECHEADER) : 0;
@@ -192,7 +192,10 @@ int VCTFAM::GetBlockInfo(PGLOBAL g)
   PlugSetPath(filename, To_File, Tdbp->GetPath());
 
   if (Header == 2)
-    strcat(PlugRemoveType(filename, filename), ".blk");
+  {
+    PlugRemoveType(filename, filename);
+    strncat(filename, ".blk", _MAX_PATH - strlen(filename));
+  }
 
   if ((h = global_open(g, MSGID_CANNOT_OPEN, filename, O_RDONLY)) == -1
       || !_filelength(h)) {
@@ -208,10 +211,10 @@ int VCTFAM::GetBlockInfo(PGLOBAL g)
     k = lseek(h, -(int)sizeof(VECHEADER), SEEK_END);
 
   if ((k = read(h, &vh, sizeof(vh))) != sizeof(vh)) {
-    sprintf(g->Message, "Error reading header file %s", filename);
+    snprintf(g->Message, sizeof(g->Message), "Error reading header file %s", filename);
     n = -1;
   } else if (MaxBlk * Nrec != vh.MaxRec) {
-    sprintf(g->Message, "MaxRec=%d doesn't match MaxBlk=%d Nrec=%d",
+    snprintf(g->Message, sizeof(g->Message), "MaxRec=%d doesn't match MaxBlk=%d Nrec=%d",
                         vh.MaxRec, MaxBlk, Nrec);
     n = -1;
   } else {
@@ -247,12 +250,13 @@ bool VCTFAM::SetBlockInfo(PGLOBAL g)
       s= global_fopen(g, MSGID_CANNOT_OPEN, filename, "r+b");
 
   } else {      // Header == 2
-    strcat(PlugRemoveType(filename, filename), ".blk");
+    PlugRemoveType(filename, filename);
+    strncat(filename, ".blk", _MAX_PATH - strlen(filename));
     s= global_fopen(g, MSGID_CANNOT_OPEN, filename, "wb");
   } // endif Header
 
   if (!s) {
-    sprintf(g->Message, "Error opening header file %s", filename);
+    snprintf(g->Message, sizeof(g->Message), "Error opening header file %s", filename);
     return true;
   } else if (Header == 3)
     /*k =*/ fseek(s, -(int)sizeof(VECHEADER), SEEK_END);
@@ -261,7 +265,7 @@ bool VCTFAM::SetBlockInfo(PGLOBAL g)
   vh.NumRec = (Block - 1) * Nrec + Last;
 
   if ((n = fwrite(&vh, sizeof(vh), 1, s)) != 1) {
-    sprintf(g->Message, "Error writing header file %s", filename);
+    snprintf(g->Message, sizeof(g->Message), "Error writing header file %s", filename);
     rc = true;
     } // endif fread
 
@@ -321,7 +325,7 @@ int VCTFAM::Cardinality(PGLOBAL g)
 
       // Use the first column file to calculate the cardinality
       clen = cdp->GetClen();
-      sprintf(filename, Colfn, 1);
+      snprintf(filename, _MAX_PATH, Colfn, 1);
       To_File = filename;
       len = TXTFAM::GetFileLength(g);
       To_File = savfn;
@@ -330,7 +334,7 @@ int VCTFAM::Cardinality(PGLOBAL g)
         if (!(len % clen))
           card = len / clen;           // Fixed length file
         else
-          sprintf(g->Message, MSG(NOT_FIXED_LEN), To_File, len, clen);
+          snprintf(g->Message, sizeof(g->Message), MSG(NOT_FIXED_LEN), To_File, len, clen);
 
       if (trace(1))
         htrc(" Computed max_K=%d Filen=%d Clen=%d\n", card, len, clen);
@@ -394,7 +398,7 @@ bool VCTFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
   return false;
   
  err:
-  sprintf(g->Message, MSG(MAKE_EMPTY_FILE), To_File, strerror(errno));
+  snprintf(g->Message, sizeof(g->Message), MSG(MAKE_EMPTY_FILE), To_File, strerror(errno));
   close(h);
   return true;
   } // end of MakeEmptyFile
@@ -455,7 +459,7 @@ bool VCTFAM::OpenTableFile(PGLOBAL g)
 
       break;
     default:
-      sprintf(g->Message, MSG(BAD_OPEN_MODE), mode);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_OPEN_MODE), mode);
       return true;
     } // endswitch Mode
 
@@ -583,7 +587,7 @@ bool VCTFAM::InitInsert(PGLOBAL g)
 				htrc("Exception %d: %s\n", n, g->Message);
 			rc = true;
 		} catch (const char *msg) {
-			strcpy(g->Message, msg);
+			strncpy(g->Message, msg, sizeof(g->Message));
 			rc = true;
 		} // end catch
 
@@ -688,7 +692,7 @@ int VCTFAM::WriteBuffer(PGLOBAL g)
   } else {
     // Mode Insert
     if (MaxBlk && CurBlk == MaxBlk) {
-      strcpy(g->Message, MSG(TRUNC_BY_ESTIM));
+      strncpy(g->Message, MSG(TRUNC_BY_ESTIM), sizeof(g->Message));
       return RC_EF;       // Too many lines for vector formatted table
       } // endif MaxBlk
 
@@ -727,7 +731,7 @@ int VCTFAM::WriteBuffer(PGLOBAL g)
 
         if ((size_t)Nrec !=
              fwrite(NewBlock, (size_t)Lrecl, (size_t)Nrec, Stream)) {
-          sprintf(g->Message, MSG(WRITE_STRERROR), To_File, strerror(errno));
+          snprintf(g->Message, sizeof(g->Message), MSG(WRITE_STRERROR), To_File, strerror(errno));
           return RC_FX;
           } // endif
 
@@ -840,13 +844,13 @@ int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
         /***************************************************************/
 #if defined(UNIX)
         if (ftruncate(h, (off_t)(Headlen + Block * Blksize))) {
-          sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
+          snprintf(g->Message, sizeof(g->Message), MSG(TRUNCATE_ERROR), strerror(errno));
           close(h);
           return RC_FX;
           } // endif
 #else
         if (chsize(h, Headlen + Block * Blksize)) {
-          sprintf(g->Message, MSG(CHSIZE_ERROR), strerror(errno));
+          snprintf(g->Message, sizeof(g->Message), MSG(CHSIZE_ERROR), strerror(errno));
           close(h);
           return RC_FX;
           } // endif
@@ -886,7 +890,8 @@ bool VCTFAM::OpenTempFile(PGLOBAL g)
   /*  Open the temporary file, Spos is at the beginning of file.       */
   /*********************************************************************/
   PlugSetPath(tempname, To_File, Tdbp->GetPath());
-  strcat(PlugRemoveType(tempname, tempname), ".t");
+  PlugRemoveType(tempname, tempname);
+  strncat(tempname, ".t", _MAX_PATH - strlen(tempname));
 
   if (MaxBlk) {
     if (MakeEmptyFile(g, tempname))
@@ -939,7 +944,7 @@ bool VCTFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
       } // endif MaxBlk
 
       if (fseek(Stream, dep + off, SEEK_SET)) {
-        sprintf(g->Message, MSG(READ_SEEK_ERROR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(READ_SEEK_ERROR), strerror(errno));
         return true;
         } // endif
 
@@ -949,7 +954,7 @@ bool VCTFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
         htrc("after read req=%d len=%d\n", req, len);
 
       if (len != req) {
-        sprintf(g->Message, MSG(DEL_READ_ERROR), (int) req, (int) len);
+        snprintf(g->Message, sizeof(g->Message), MSG(DEL_READ_ERROR), (int) req, (int) len);
         return true;
         } // endif len
 
@@ -963,12 +968,12 @@ bool VCTFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
         } // endif MaxBlk
 
         if (fseek(T_Stream, dep + off, SEEK_SET)) {
-          sprintf(g->Message, MSG(WRITE_SEEK_ERR), strerror(errno));
+          snprintf(g->Message, sizeof(g->Message), MSG(WRITE_SEEK_ERR), strerror(errno));
           return true;
           } // endif
 
         if ((len = fwrite(To_Buf, Clens[i], req, T_Stream)) != req) {
-          sprintf(g->Message, MSG(DEL_WRITE_ERROR), strerror(errno));
+          snprintf(g->Message, sizeof(g->Message), MSG(DEL_WRITE_ERROR), strerror(errno));
           return true;
           } // endif
 
@@ -996,7 +1001,7 @@ bool VCTFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
       len = (size_t)Blksize;
 
       if (fwrite(NewBlock, 1, len, T_Stream) != len) {
-        sprintf(g->Message, MSG(DEL_WRITE_ERROR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(DEL_WRITE_ERROR), strerror(errno));
         return true;
         } // endif
 
@@ -1038,12 +1043,12 @@ bool VCTFAM::CleanUnusedSpace(PGLOBAL g)
       memset(To_Buf, (Isnum[i]) ? 0 : ' ', n * Clens[i]);
 
       if (fseek(Stream, dep + Deplac[i] + Last * Clens[i], SEEK_SET)) {
-        sprintf(g->Message, MSG(WRITE_SEEK_ERR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(WRITE_SEEK_ERR), strerror(errno));
         return true;
         } // endif
 
       if ((len = fwrite(To_Buf, Clens[i], req, Stream)) != req) {
-        sprintf(g->Message, MSG(DEL_WRITE_ERROR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(DEL_WRITE_ERROR), strerror(errno));
         return true;
         } // endif
 
@@ -1060,12 +1065,12 @@ bool VCTFAM::CleanUnusedSpace(PGLOBAL g)
 
     for (i = 0; i < Ncol; i++) {
       if (fseek(T_Stream, Deplac[i] + Tpos * Clens[i], SEEK_SET)) {
-        sprintf(g->Message, MSG(WRITE_SEEK_ERR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(WRITE_SEEK_ERR), strerror(errno));
         return true;
         } // endif
 
       if ((len = fwrite(To_Buf, Clens[i], req, T_Stream)) != req) {
-        sprintf(g->Message, MSG(DEL_WRITE_ERROR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(DEL_WRITE_ERROR), strerror(errno));
         return true;
         } // endif
 
@@ -1171,7 +1176,7 @@ bool VCTFAM::ResetTableSize(PGLOBAL g, int block, int last)
 
       if (!defp->SetIntCatInfo("Blocks", Block) ||
           !defp->SetIntCatInfo("Last", Last)) {
-        sprintf(g->Message, MSG(UPDATE_ERROR), "Header");
+        snprintf(g->Message, sizeof(g->Message), MSG(UPDATE_ERROR), "Header");
         rc = true;
         } // endif
 
@@ -1220,7 +1225,7 @@ bool VCTFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
           len, Nrec, colp->Deplac, Lrecl, CurBlk, MaxBlk);
 
   if (fseek(Stream, len, SEEK_SET)) {
-    sprintf(g->Message, MSG(FSEEK_ERROR), strerror(errno));
+    snprintf(g->Message, sizeof(g->Message), MSG(FSEEK_ERROR), strerror(errno));
     return true;
     } // endif
 
@@ -1229,9 +1234,9 @@ bool VCTFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
 
   if (n != (size_t)Nrec) {
     if (errno == NO_ERROR)
-      sprintf(g->Message, MSG(BAD_READ_NUMBER), (int) n, To_File);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_READ_NUMBER), (int) n, To_File);
     else
-      sprintf(g->Message, MSG(READ_ERROR),
+      snprintf(g->Message, sizeof(g->Message), MSG(READ_ERROR),
               To_File, strerror(errno));
 
     if (trace(1))
@@ -1271,7 +1276,7 @@ bool VCTFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
           Modif, len, Nrec, colp->Deplac, Lrecl, colp->ColBlk);
 
   if (fseek(T_Stream, len, SEEK_SET)) {
-    sprintf(g->Message, MSG(FSEEK_ERROR), strerror(errno));
+    snprintf(g->Message, sizeof(g->Message), MSG(FSEEK_ERROR), strerror(errno));
     return true;
     } // endif
 
@@ -1282,7 +1287,7 @@ bool VCTFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
 
   if (n != fwrite(colp->Blk->GetValPointer(),
                             (size_t)colp->Clen, n, T_Stream)) {
-    sprintf(g->Message, MSG(WRITE_STRERROR),
+    snprintf(g->Message, sizeof(g->Message), MSG(WRITE_STRERROR),
             (UseTemp) ? To_Fbt->Fname : To_File, strerror(errno));
 
     if (trace(1))
@@ -1387,7 +1392,7 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
         // Inserting will be like updating the file
         mapmode = MODE_UPDATE;
       } else {
-        strcpy(g->Message, "MAP Insert is for VEC Estimate tables only");
+        strncpy(g->Message, "MAP Insert is for VEC Estimate tables only", sizeof(g->Message));
         return true;
       } // endif MaxBlk
 
@@ -1411,7 +1416,7 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
       DWORD rc = GetLastError();
 
       if (!(*g->Message))
-        sprintf(g->Message, MSG(OPEN_MODE_ERROR),
+        snprintf(g->Message, sizeof(g->Message), MSG(OPEN_MODE_ERROR),
                 "map", (int) rc, filename);
 
       if (trace(1))
@@ -1439,7 +1444,7 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
 
     if (!Memory) {
       CloseFileHandle(hFile);
-      sprintf(g->Message, MSG(MAP_VIEW_ERROR),
+      snprintf(g->Message, sizeof(g->Message), MSG(MAP_VIEW_ERROR),
                           filename, GetLastError());
       return true;
       } // endif Memory
@@ -1558,7 +1563,7 @@ bool VCMFAM::InitInsert(PGLOBAL g)
 		  htrc("Exception %d: %s\n", n, g->Message);
 		rc = true;
   } catch (const char *msg) {
-	  strcpy(g->Message, msg);
+	  strncpy(g->Message, msg, sizeof(g->Message));
 		rc = true;
   } // end catch
 
@@ -1577,7 +1582,7 @@ int VCMFAM::WriteBuffer(PGLOBAL g)
   // Mode Update being done in ReadDB we process here Insert mode only.
   if (Tdbp->GetMode() == MODE_INSERT) {
     if (CurBlk == MaxBlk) {
-      strcpy(g->Message, MSG(TRUNC_BY_ESTIM));
+      strncpy(g->Message, MSG(TRUNC_BY_ESTIM), sizeof(g->Message));
       return RC_EF;       // Too many lines for vector formatted table
       } // endif MaxBlk
 
@@ -1677,7 +1682,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
       DWORD drc = SetFilePointer(fp->Handle, n, NULL, FILE_BEGIN);
 
       if (drc == 0xFFFFFFFF) {
-        sprintf(g->Message, MSG(FUNCTION_ERROR),
+        snprintf(g->Message, sizeof(g->Message), MSG(FUNCTION_ERROR),
                             "SetFilePointer", GetLastError());
         CloseHandle(fp->Handle);
         return RC_FX;
@@ -1687,7 +1692,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
         htrc("done, Tpos=%p newsize=%d drc=%d\n", Tpos, n, drc);
 
       if (!SetEndOfFile(fp->Handle)) {
-        sprintf(g->Message, MSG(FUNCTION_ERROR),
+        snprintf(g->Message, sizeof(g->Message), MSG(FUNCTION_ERROR),
                             "SetEndOfFile", GetLastError());
         CloseHandle(fp->Handle);
         return RC_FX;
@@ -1696,7 +1701,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
       CloseHandle(fp->Handle);
 #else    // UNIX
       if (ftruncate(fp->Handle, (off_t)n)) {
-        sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(TRUNCATE_ERROR), strerror(errno));
         close(fp->Handle);
         return RC_FX;
         } // endif
@@ -1931,7 +1936,7 @@ bool VECFAM::OpenTableFile(PGLOBAL g)
       strcpy(opmode, "ab");
       break;
     default:
-      sprintf(g->Message, MSG(BAD_OPEN_MODE), mode);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_OPEN_MODE), mode);
       return true;
     } // endswitch Mode
 
@@ -2008,7 +2013,7 @@ bool VECFAM::OpenColumnFile(PGLOBAL g, PCSZ opmode, int i)
   char    filename[_MAX_PATH];
   PDBUSER dup = PlgGetUser(g);
 
-  sprintf(filename, Colfn, i+1);
+  snprintf(filename, _MAX_PATH, Colfn, i+1);
 
   if (!(Streams[i] = PlugOpenFile(g, filename, opmode))) {
     if (trace(1))
@@ -2080,7 +2085,8 @@ bool VECFAM::AllocateBuffer(PGLOBAL g)
         Tempat = (char*)PlugSubAlloc(g, NULL, _MAX_PATH);
         strcpy(Tempat, Colfn);
         PlugSetPath(Tempat, Tempat, Tdbp->GetPath());
-        strcat(PlugRemoveType(Tempat, Tempat), ".t");
+        PlugRemoveType(Tempat, Tempat);
+        strncat(Tempat, ".t", _MAX_PATH - strlen(Tempat));
         T_Fbs = (PFBLOCK *)PlugSubAlloc(g, NULL, Ncol * sizeof(PFBLOCK));
         } // endif UseTemp
 
@@ -2179,7 +2185,7 @@ int VECFAM::WriteBuffer(PGLOBAL g)
 
       for (i = 0; i < Ncol; i++)
         if (n != fwrite(To_Bufs[i], (size_t)Clens[i], n, Streams[i])) {
-          sprintf(g->Message, MSG(WRITE_STRERROR), To_File, strerror(errno));
+          snprintf(g->Message, sizeof(g->Message), MSG(WRITE_STRERROR), To_File, strerror(errno));
           return RC_FX;
           } // endif
 
@@ -2273,7 +2279,7 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
       int  h;                            // File handle, return code
 
       for (int i = 0; i < Ncol; i++) {
-        sprintf(filename, Colfn, i + 1);
+        snprintf(filename, _MAX_PATH, Colfn, i + 1);
         /*rc =*/ PlugCloseFile(g, To_Fbs[i]);
 
         if ((h= global_open(g, MSGID_OPEN_STRERROR, filename, O_WRONLY)) <= 0)
@@ -2284,13 +2290,13 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
         /***************************************************************/
 #if defined(UNIX)
         if (ftruncate(h, (off_t)(Tpos * Clens[i]))) {
-          sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
+          snprintf(g->Message, sizeof(g->Message), MSG(TRUNCATE_ERROR), strerror(errno));
           close(h);
           return RC_FX;
           } // endif
 #else
         if (chsize(h, Tpos * Clens[i])) {
-          sprintf(g->Message, MSG(CHSIZE_ERROR), strerror(errno));
+          snprintf(g->Message, sizeof(g->Message), MSG(CHSIZE_ERROR), strerror(errno));
           close(h);
           return RC_FX;
           } // endif
@@ -2333,7 +2339,7 @@ bool VECFAM::OpenTempFile(PGLOBAL g)
       /*****************************************************************/
       /*  Open the temporary file, Spos is at the beginning of file.   */
       /*****************************************************************/
-      sprintf(tempname, Tempat, i+1);
+      snprintf(tempname, _MAX_PATH, Tempat, i+1);
 
       if (!(T_Streams[i] = PlugOpenFile(g, tempname, "wb"))) {
         if (trace(1))
@@ -2389,7 +2395,7 @@ bool VECFAM::MoveIntermediateLines(PGLOBAL g, bool *)
 
       if (!UseTemp || !b)
         if (fseek(Streams[i], Spos * Clens[i], SEEK_SET)) {
-          sprintf(g->Message, MSG(READ_SEEK_ERROR), strerror(errno));
+          snprintf(g->Message, sizeof(g->Message), MSG(READ_SEEK_ERROR), strerror(errno));
           return true;
           } // endif
 
@@ -2399,18 +2405,18 @@ bool VECFAM::MoveIntermediateLines(PGLOBAL g, bool *)
         htrc("after read req=%d len=%d\n", req, len);
 
       if (len != req) {
-        sprintf(g->Message, MSG(DEL_READ_ERROR), (int) req, (int) len);
+        snprintf(g->Message, sizeof(g->Message), MSG(DEL_READ_ERROR), (int) req, (int) len);
         return true;
         } // endif len
 
       if (!UseTemp)
         if (fseek(T_Streams[i], Tpos * Clens[i], SEEK_SET)) {
-          sprintf(g->Message, MSG(WRITE_SEEK_ERR), strerror(errno));
+          snprintf(g->Message, sizeof(g->Message), MSG(WRITE_SEEK_ERR), strerror(errno));
           return true;
           } // endif
 
       if ((len = fwrite(To_Buf, Clens[i], req, T_Streams[i])) != req) {
-        sprintf(g->Message, MSG(DEL_WRITE_ERROR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(DEL_WRITE_ERROR), strerror(errno));
         return true;
         } // endif
 
@@ -2452,22 +2458,23 @@ int VECFAM::RenameTempFile(PGLOBAL g)
     tempname = (char*)T_Fbs[i]->Fname;
 
     if (!Abort) {
-      sprintf(filename, Colfn, i+1);
+      snprintf(filename, _MAX_PATH, Colfn, i+1);
       PlugSetPath(filename, filename, Tdbp->GetPath());
-      strcat(PlugRemoveType(filetemp, filename), ".ttt");
+      PlugRemoveType(filetemp, filename);
+      strncat(filetemp, ".ttt", _MAX_PATH - strlen(filetemp));
       remove(filetemp);   // May still be there from previous error
   
       if (rename(filename, filetemp)) {    // Save file for security
-        snprintf(g->Message, MAX_STR, MSG(RENAME_ERROR),
+        snprintf(g->Message, sizeof(g->Message), MSG(RENAME_ERROR),
                 filename, filetemp, strerror(errno));
         rc = RC_FX;
       } else if (rename(tempname, filename)) {
-        snprintf(g->Message, MAX_STR, MSG(RENAME_ERROR),
+        snprintf(g->Message, sizeof(g->Message), MSG(RENAME_ERROR),
                 tempname, filename, strerror(errno));
         rc = rename(filetemp, filename);   // Restore saved file
         rc = RC_FX;
       } else if (remove(filetemp)) {
-        sprintf(g->Message, MSG(REMOVE_ERROR),
+        snprintf(g->Message, sizeof(g->Message), MSG(REMOVE_ERROR),
                 filetemp, strerror(errno));
         rc = RC_INFO;                      // Acceptable
       } // endif's
@@ -2569,7 +2576,7 @@ bool VECFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
           len, i, Nrec, colp->Deplac, Lrecl, CurBlk);
 
   if (fseek(Streams[i], len, SEEK_SET)) {
-    sprintf(g->Message, MSG(FSEEK_ERROR), strerror(errno));
+    snprintf(g->Message, sizeof(g->Message), MSG(FSEEK_ERROR), strerror(errno));
     return true;
     } // endif
 
@@ -2579,15 +2586,15 @@ bool VECFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
   if (n != (size_t)Nrec && (CurBlk+1 != Block || n != (size_t)Last)) {
     char fn[_MAX_PATH];
 
-    sprintf(fn, Colfn, colp->Index);
+    snprintf(fn, _MAX_PATH, Colfn, colp->Index);
 #if defined(_WIN32)
     if (feof(Streams[i]))
 #else   // !_WIN32
     if (errno == NO_ERROR)
 #endif  // !_WIN32
-      sprintf(g->Message, MSG(BAD_READ_NUMBER), (int) n, fn);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_READ_NUMBER), (int) n, fn);
     else
-      sprintf(g->Message, MSG(READ_ERROR),
+      snprintf(g->Message, sizeof(g->Message), MSG(READ_ERROR),
               fn, strerror(errno));
 
     if (trace(1))
@@ -2625,7 +2632,7 @@ bool VECFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
 
   if (Tdbp->GetMode() == MODE_UPDATE && !UseTemp)
     if (fseek(T_Streams[i], len, SEEK_SET)) {
-      sprintf(g->Message, MSG(FSEEK_ERROR), strerror(errno));
+      snprintf(g->Message, sizeof(g->Message), MSG(FSEEK_ERROR), strerror(errno));
       return true;
       } // endif
 
@@ -2639,8 +2646,8 @@ bool VECFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
                             (size_t)colp->Clen, n, T_Streams[i])) {
     char fn[_MAX_PATH];
 
-    sprintf(fn, (UseTemp) ? Tempat : Colfn, colp->Index);
-    sprintf(g->Message, MSG(WRITE_STRERROR), fn, strerror(errno));
+    snprintf(fn, _MAX_PATH, (UseTemp) ? Tempat : Colfn, colp->Index);
+    snprintf(g->Message, sizeof(g->Message), MSG(WRITE_STRERROR), fn, strerror(errno));
 
     if (trace(1))
       htrc("Write error: %s\n", strerror(errno));
@@ -2773,7 +2780,7 @@ bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
   PFBLOCK fp;
   PDBUSER dup = PlgGetUser(g);
 
-  sprintf(filename, Colfn, i+1);
+  snprintf(filename, _MAX_PATH, Colfn, i+1);
 
   /*********************************************************************/
   /*  The whole file will be mapped so we can use it as                */
@@ -2809,7 +2816,7 @@ bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
       DWORD rc = GetLastError();
 
       if (!(*g->Message))
-        sprintf(g->Message, MSG(OPEN_MODE_ERROR),
+        snprintf(g->Message, sizeof(g->Message), MSG(OPEN_MODE_ERROR),
                 "map", (int) rc, filename);
       if (trace(1))
         htrc("%s\n", g->Message);
@@ -2836,7 +2843,7 @@ bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
 
     if (!Memcol[i]) {
       CloseFileHandle(hFile);
-      sprintf(g->Message, MSG(MAP_VIEW_ERROR),
+      snprintf(g->Message, sizeof(g->Message), MSG(MAP_VIEW_ERROR),
                           filename, GetLastError());
       return true;
       } // endif Memory
@@ -2984,7 +2991,7 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
       DWORD drc = SetFilePointer(fp->Handle, n, NULL, FILE_BEGIN);
 
       if (drc == 0xFFFFFFFF) {
-        sprintf(g->Message, MSG(FUNCTION_ERROR),
+        snprintf(g->Message, sizeof(g->Message), MSG(FUNCTION_ERROR),
                             "SetFilePointer", GetLastError());
         CloseHandle(fp->Handle);
         return RC_FX;
@@ -2994,7 +3001,7 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
         htrc("done, Tpos=%p newsize=%d drc=%d\n", Tpos, n, drc);
 
       if (!SetEndOfFile(fp->Handle)) {
-        sprintf(g->Message, MSG(FUNCTION_ERROR),
+        snprintf(g->Message, sizeof(g->Message), MSG(FUNCTION_ERROR),
                             "SetEndOfFile", GetLastError());
         CloseHandle(fp->Handle);
         return RC_FX;
@@ -3003,7 +3010,7 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
       CloseHandle(fp->Handle);
 #else    // UNIX
       if (ftruncate(fp->Handle, (off_t)n)) {
-        sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(TRUNCATE_ERROR), strerror(errno));
         close(fp->Handle);
         return RC_FX;
         } // endif
@@ -3073,12 +3080,12 @@ bool BGVFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, bool b)
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS, NULL, drc, 0,
                   (LPTSTR)buf, sizeof(buf), NULL);
-    sprintf(g->Message, MSG(SFP_ERROR), buf);
+    snprintf(g->Message, sizeof(g->Message), MSG(SFP_ERROR), buf);
     return true;
     } // endif
 #else   // !_WIN32
   if (lseek64(h, pos, (b) ? SEEK_END : SEEK_SET) < 0) {
-    sprintf(g->Message, MSG(ERROR_IN_LSK), errno);
+    snprintf(g->Message, sizeof(g->Message), MSG(ERROR_IN_LSK), errno);
     return true;
     } // endif
 #endif  // !_WIN32
@@ -3104,7 +3111,7 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
     char buf[256];  // , *fn = (h == Hfile) ? To_File : "Tempfile";
 
     if (brc)
-      strcpy(buf, MSG(BAD_BYTE_READ));
+      strncpy(buf, MSG(BAD_BYTE_READ), 256);
     else {
       drc = GetLastError();
       FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
@@ -3112,7 +3119,7 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
                     (LPTSTR)buf, sizeof(buf), NULL);
       } // endelse brc
 
-    sprintf(g->Message, MSG(READ_ERROR), To_File, buf);
+    snprintf(g->Message, sizeof(g->Message), MSG(READ_ERROR), To_File, buf);
 
     if (trace(1))
       htrc("BIGREAD: %s\n", g->Message);
@@ -3126,7 +3133,7 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
   if (nbr != (ssize_t)len) {
     const char *fn = (h == Hfile) ? To_File : "Tempfile";
 
-    sprintf(g->Message, MSG(READ_ERROR), fn, strerror(errno));
+    snprintf(g->Message, sizeof(g->Message), MSG(READ_ERROR), fn, strerror(errno));
 
     if (trace(1))
       htrc("BIGREAD: nbr=%d len=%d errno=%d %s\n",
@@ -3158,7 +3165,7 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
 		PCSZ fn = (h == Hfile) ? To_File : "Tempfile";
 
     if (brc)
-      strcpy(buf, MSG(BAD_BYTE_NUM));
+      strncpy(buf, MSG(BAD_BYTE_NUM), 256);
     else {
       drc = GetLastError();
       FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
@@ -3166,7 +3173,7 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
                     (LPTSTR)buf, sizeof(buf), NULL);
       } // endelse brc
 
-    sprintf(g->Message, MSG(WRITE_STRERROR), fn, buf);
+    snprintf(g->Message, sizeof(g->Message), MSG(WRITE_STRERROR), fn, buf);
 
     if (trace(1))
       htrc("BIGWRITE: nbw=%d len=%d errno=%d %s\n",
@@ -3181,7 +3188,7 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
   if (nbw != (ssize_t)len) {
     const char *fn = (h == Hfile) ? To_File : "Tempfile";
 
-    sprintf(g->Message, MSG(WRITE_STRERROR), fn, strerror(errno));
+    snprintf(g->Message, sizeof(g->Message), MSG(WRITE_STRERROR), fn, strerror(errno));
 
     if (trace(1))
       htrc("BIGWRITE: nbw=%d len=%d errno=%d %s\n",
@@ -3205,7 +3212,7 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
   HANDLE    h;
 
   if (Header < 1 || Header > 3 || !MaxBlk) {
-    sprintf(g->Message, "Invalid header value %d", Header);
+    snprintf(g->Message, sizeof(g->Message), "Invalid header value %d", Header);
     return -1;
   } else
     n = (Header == 1) ? (int)sizeof(VECHEADER) : 0;
@@ -3213,7 +3220,10 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
   PlugSetPath(filename, To_File, Tdbp->GetPath());
 
   if (Header == 2)
-    strcat(PlugRemoveType(filename, filename), ".blk");
+  {
+    PlugRemoveType(filename, filename);
+    strncat(filename, ".blk", _MAX_PATH - strlen(filename));
+  }
 
 #if defined(_WIN32)
   LARGE_INTEGER len;
@@ -3247,10 +3257,10 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
     /*b = */ BigSeek(g, h, -(BIGINT)sizeof(vh), true);
 
   if (BigRead(g, h, &vh, sizeof(vh))) {
-    sprintf(g->Message, "Error reading header file %s", filename);
+    snprintf(g->Message, sizeof(g->Message), "Error reading header file %s", filename);
     n = -1;
   } else if (MaxBlk * Nrec != vh.MaxRec) {
-    sprintf(g->Message, "MaxRec=%d doesn't match MaxBlk=%d Nrec=%d",
+    snprintf(g->Message, sizeof(g->Message), "MaxRec=%d doesn't match MaxBlk=%d Nrec=%d",
                         vh.MaxRec, MaxBlk, Nrec);
     n = -1;
   } else {
@@ -3289,7 +3299,10 @@ bool BGVFAM::SetBlockInfo(PGLOBAL g)
       b = true;
 
   } else       // Header == 2
-    strcat(PlugRemoveType(filename, filename), ".blk");
+  {
+    PlugRemoveType(filename, filename);
+    strncat(filename, ".blk", _MAX_PATH - strlen(filename));
+  }
 
   if (h == INVALID_HANDLE_VALUE) {
 #if defined(_WIN32)
@@ -3305,7 +3318,7 @@ bool BGVFAM::SetBlockInfo(PGLOBAL g)
 #endif  // !_WIN32
 
     if (h == INVALID_HANDLE_VALUE) {
-      sprintf(g->Message, "Error opening header file %s", filename);
+      snprintf(g->Message, sizeof(g->Message), "Error opening header file %s", filename);
       return true;
       } // endif h
 
@@ -3318,7 +3331,7 @@ bool BGVFAM::SetBlockInfo(PGLOBAL g)
   vh.NumRec = (Block - 1) * Nrec + Last;
 
   if (BigWrite(g, h, &vh, sizeof(vh))) {
-    sprintf(g->Message, "Error writing header file %s", filename);
+    snprintf(g->Message, sizeof(g->Message), "Error writing header file %s", filename);
     rc = true;
     } // endif fread
 
@@ -3382,11 +3395,11 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
 
  err:
   rc = GetLastError();
-  sprintf(g->Message, MSG(EMPTY_FILE), p, filename);
+  snprintf(g->Message, sizeof(g->Message), MSG(EMPTY_FILE), p, filename);
   FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                 FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                 (LPTSTR)filename, sizeof(filename), NULL);
-  strcat(g->Message, filename);
+  strncat(g->Message, filename, sizeof(g->Message) - strlen(g->Message));
 
   if (h != INVALID_HANDLE_VALUE)
     CloseHandle(h);
@@ -3418,7 +3431,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
   return false;
   
  err:
-  sprintf(g->Message, MSG(MAKE_EMPTY_FILE), To_File, strerror(errno));
+  snprintf(g->Message, sizeof(g->Message), MSG(MAKE_EMPTY_FILE), To_File, strerror(errno));
   close(h);
   return true;
 #endif  // !_WIN32
@@ -3435,7 +3448,7 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
   PDBUSER dbuserp = PlgGetUser(g);
 
   if ((To_Fb && To_Fb->Count) || Hfile != INVALID_HANDLE_VALUE) {
-    sprintf(g->Message, MSG(FILE_OPEN_YET), To_File);
+    snprintf(g->Message, sizeof(g->Message), MSG(FILE_OPEN_YET), To_File);
     return true;
     } // endif
 
@@ -3506,7 +3519,7 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
       creation = OPEN_EXISTING;
       break;
     default:
-      sprintf(g->Message, MSG(BAD_OPEN_MODE), mode);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_OPEN_MODE), mode);
       return true;
     } // endswitch
 
@@ -3518,11 +3531,11 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
 
   if (Hfile == INVALID_HANDLE_VALUE) {
     rc = GetLastError();
-    sprintf(g->Message, MSG(OPEN_ERROR), rc, mode, filename);
+    snprintf(g->Message, sizeof(g->Message), MSG(OPEN_ERROR), rc, mode, filename);
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                   (LPTSTR)filename, sizeof(filename), NULL);
-    strcat(g->Message, filename);
+    strncat(g->Message, filename, sizeof(g->Message) - strlen(g->Message));
     } // endif Hfile
 
   if (trace(1))
@@ -3541,7 +3554,7 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
 
     if (of.LowPart == INVALID_SET_FILE_POINTER &&
        (rc = GetLastError()) != NO_ERROR) {
-      sprintf(g->Message, MSG(ERROR_IN_SFP), rc);
+      snprintf(g->Message, sizeof(g->Message), MSG(ERROR_IN_SFP), rc);
       CloseHandle(Hfile);
       Hfile = INVALID_HANDLE_VALUE;
       } // endif
@@ -3591,7 +3604,7 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
         // This will delete the whole file and provoque ReadDB to
         // return immediately.
         oflag = O_RDWR | O_TRUNC;
-        strcpy(g->Message, MSG(NO_VCT_DELETE));
+        strncpy(g->Message, MSG(NO_VCT_DELETE), sizeof(g->Message));
         break;
         } // endif
 
@@ -3602,7 +3615,7 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
       oflag = (UseTemp) ? O_RDONLY : O_RDWR;
       break;
     default:
-      sprintf(g->Message, MSG(BAD_OPEN_MODE), mode);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_OPEN_MODE), mode);
       return true;
     } // endswitch
 
@@ -3610,8 +3623,8 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
 
   if (Hfile == INVALID_HANDLE_VALUE) {
     rc = errno;
-    sprintf(g->Message, MSG(OPEN_ERROR), rc, mode, filename);
-    strcat(g->Message, strerror(errno));
+    snprintf(g->Message, sizeof(g->Message), MSG(OPEN_ERROR), rc, mode, filename);
+    strncat(g->Message, strerror(errno), sizeof(g->Message) - strlen(g->Message));
     } // endif Hfile
 
   if (trace(1))
@@ -3766,7 +3779,7 @@ int BGVFAM::WriteBuffer(PGLOBAL g)
   } else {
     // Mode Insert
     if (MaxBlk && CurBlk == MaxBlk) {
-      strcpy(g->Message, MSG(TRUNC_BY_ESTIM));
+      strncpy(g->Message, MSG(TRUNC_BY_ESTIM), sizeof(g->Message));
       return RC_EF;       // Too many lines for a Vector formatted table
       } // endif MaxBlk
 
@@ -3916,12 +3929,12 @@ int BGVFAM::DeleteRecords(PGLOBAL g, int irc)
         if (!SetEndOfFile(Hfile)) {
           DWORD drc = GetLastError();
 
-          sprintf(g->Message, MSG(SETEOF_ERROR), drc);
+          snprintf(g->Message, sizeof(g->Message), MSG(SETEOF_ERROR), drc);
           return RC_FX;
           } // endif error
 #else   // !_WIN32
         if (ftruncate64(Hfile, (BIGINT)(Tpos * Lrecl))) {
-          sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
+          snprintf(g->Message, sizeof(g->Message), MSG(TRUNCATE_ERROR), strerror(errno));
           return RC_FX;
           } // endif
 #endif  // !_WIN32
@@ -3954,7 +3967,8 @@ bool BGVFAM::OpenTempFile(PGLOBAL g)
   /*********************************************************************/
   tempname = (char*)PlugSubAlloc(g, NULL, _MAX_PATH);
   PlugSetPath(tempname, To_File, Tdbp->GetPath());
-  strcat(PlugRemoveType(tempname, tempname), ".t");
+  PlugRemoveType(tempname, tempname);
+  strncat(tempname, ".t", _MAX_PATH - strlen(tempname));
 
   if (!MaxBlk)
     remove(tempname);       // Be sure it does not exist yet
@@ -3969,11 +3983,11 @@ bool BGVFAM::OpenTempFile(PGLOBAL g)
 
   if (Tfile == INVALID_HANDLE_VALUE) {
     DWORD rc = GetLastError();
-    sprintf(g->Message, MSG(OPEN_ERROR), rc, MODE_DELETE, tempname);
+    snprintf(g->Message, sizeof(g->Message), MSG(OPEN_ERROR), rc, MODE_DELETE, tempname);
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
               FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
               (LPTSTR)tempname, _MAX_PATH, NULL);
-    strcat(g->Message, tempname);
+    strncat(g->Message, tempname, sizeof(g->Message) - strlen(g->Message));
     return true;
     } // endif Tfile
 #else    // UNIX
@@ -3983,8 +3997,8 @@ bool BGVFAM::OpenTempFile(PGLOBAL g)
 
   if (Tfile == INVALID_HANDLE_VALUE) {
     int rc = errno;
-    sprintf(g->Message, MSG(OPEN_ERROR), rc, MODE_INSERT, tempname);
-    strcat(g->Message, strerror(errno));
+    snprintf(g->Message, sizeof(g->Message), MSG(OPEN_ERROR), rc, MODE_INSERT, tempname);
+    strncat(g->Message, strerror(errno), sizeof(g->Message) - strlen(g->Message));
     return true;
     } //endif Tfile
 #endif   // UNIX

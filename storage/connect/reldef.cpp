@@ -114,7 +114,7 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char* tab, char* db, bool info)
 		char  buf[256];
 		DWORD rc = GetLastError();
 
-		sprintf(g->Message, MSG(DLL_LOAD_ERROR), rc, soname);
+		snprintf(g->Message, sizeof(g->Message), MSG(DLL_LOAD_ERROR), rc, soname);
 		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
 			FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
 			(LPTSTR)buf, sizeof(buf), NULL);
@@ -124,7 +124,7 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char* tab, char* db, bool info)
 
 // Get the function returning an instance of the external DEF class
 	if (!(coldef = (XCOLDEF)GetProcAddress((HINSTANCE)hdll, getname))) {
-		sprintf(g->Message, MSG(PROCADD_ERROR), GetLastError(), getname);
+		snprintf(g->Message, sizeof(g->Message), MSG(PROCADD_ERROR), GetLastError(), getname);
 		FreeLibrary((HMODULE)hdll);
 		return NULL;
 	} // endif coldef
@@ -134,21 +134,21 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char* tab, char* db, bool info)
 	// Load the desired shared library
 	if (!(hdll = dlopen(soname, RTLD_LAZY))) {
 		error = dlerror();
-		sprintf(g->Message, MSG(SHARED_LIB_ERR), soname, SVP(error));
+		snprintf(g->Message, sizeof(g->Message), MSG(SHARED_LIB_ERR), soname, SVP(error));
 		return NULL;
 	} // endif Hdll
 
 // Get the function returning an instance of the external DEF class
 	if (!(coldef = (XCOLDEF)dlsym(hdll, getname))) {
 		error = dlerror();
-		sprintf(g->Message, MSG(GET_FUNC_ERR), getname, SVP(error));
+		snprintf(g->Message, sizeof(g->Message), MSG(GET_FUNC_ERR), getname, SVP(error));
 		dlclose(hdll);
 		return NULL;
 	} // endif coldef
 #endif  // !_WIN32
 
 	// Just in case the external Get function does not set error messages
-	sprintf(g->Message, "Error getting column info from %s", subtype);
+	snprintf(g->Message, sizeof(g->Message), "Error getting column info from %s", subtype);
 
 	// Get the table column definition
 	qrp = coldef(g, topt, tab, db, info);
@@ -519,7 +519,7 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
             case 'T': nof = sizeof(char);     break;
             case 'G': nof = sizeof(longlong); break;
             default:  /* Wrong format */
-              sprintf(g->Message, "Invalid format %c", fty);
+              snprintf(g->Message, sizeof(g->Message), "Invalid format %c", fty);
               return -1;
             } // endswitch fty
 
@@ -637,7 +637,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
       char  buf[256];
       DWORD rc = GetLastError();
 
-      sprintf(g->Message, MSG(DLL_LOAD_ERROR), rc, soname);
+      snprintf(g->Message, sizeof(g->Message), MSG(DLL_LOAD_ERROR), rc, soname);
       FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                     FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                     (LPTSTR)buf, sizeof(buf), NULL);
@@ -657,7 +657,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     char  buf[256];
     DWORD rc = GetLastError();
 
-    sprintf(g->Message, MSG(PROCADD_ERROR), rc, getname);
+    snprintf(g->Message, sizeof(g->Message), MSG(PROCADD_ERROR), rc, getname);
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
       FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
       (LPTSTR)buf, sizeof(buf), NULL);
@@ -675,13 +675,13 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
   if (dladdr(&connect_hton, &dl_info)) {
     if (dlopen(dl_info.dli_fname, RTLD_NOLOAD | RTLD_NOW | RTLD_GLOBAL) == 0) {
       error = dlerror();
-      sprintf(g->Message, "dlopen failed: %s, OEM not supported", SVP(error));
+      snprintf(g->Message, sizeof(g->Message), "dlopen failed: %s, OEM not supported", SVP(error));
       return NULL;
       } // endif dlopen
 
   } else {
     error = dlerror();
-    sprintf(g->Message, "dladdr failed: %s, OEM not supported", SVP(error));
+    snprintf(g->Message, sizeof(g->Message), "dladdr failed: %s, OEM not supported", SVP(error));
     return NULL;
   } // endif dladdr
 #endif // 0
@@ -689,7 +689,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
   // Load the desired shared library
   if (!Hdll && !(Hdll = dlopen(soname, RTLD_LAZY))) {
     error = dlerror();
-    sprintf(g->Message, MSG(SHARED_LIB_ERR), soname, SVP(error));
+    snprintf(g->Message, sizeof(g->Message), MSG(SHARED_LIB_ERR), soname, SVP(error));
     return NULL;
     } // endif Hdll
 
@@ -703,14 +703,14 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
   // Get the function returning an instance of the external DEF class
   if (!(getdef = (XGETDEF)dlsym(Hdll, getname))) {
     error = dlerror();
-    sprintf(g->Message, MSG(GET_FUNC_ERR), getname, SVP(error));
+    snprintf(g->Message, sizeof(g->Message), MSG(GET_FUNC_ERR), getname, SVP(error));
     dlclose(Hdll);
     return NULL;
     } // endif getdef
 #endif  // !_WIN32
 
   // Just in case the external Get function does not set error messages
-  sprintf(g->Message, MSG(DEF_ALLOC_ERROR), Subtype);
+  snprintf(g->Message, sizeof(g->Message), MSG(DEF_ALLOC_ERROR), Subtype);
 
   // Get the table definition block
   if (!(xdefp = getdef(g, NULL)))
@@ -920,7 +920,7 @@ int COLDEF::Define(PGLOBAL g, void *, PCOLINFO cfp, int poff)
     Buf_Type = cfp->Type;
 
     if ((Clen = GetTypeSize(Buf_Type, cfp->Length)) < 0) {
-      sprintf(g->Message, MSG(BAD_COL_TYPE), GetTypeName(Buf_Type), Name);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_COL_TYPE), GetTypeName(Buf_Type), Name);
       return -1;
       } // endswitch
 

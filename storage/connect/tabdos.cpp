@@ -199,7 +199,7 @@ bool DOSDEF::GetOptFileName(PGLOBAL g, char *filename)
 		case RECFM_CSV: ftype = ".cop"; break;
 		case RECFM_DBF: ftype = ".dbp"; break;
     default:
-      sprintf(g->Message, MSG(INVALID_FTYPE), Recfm);
+      snprintf(g->Message, sizeof(g->Message), MSG(INVALID_FTYPE), Recfm);
       return true;
     } // endswitch Ftype
 
@@ -270,7 +270,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
 		case RECFM_CSV: ftype = ".cnx"; break;
 		case RECFM_DBF: ftype = ".dbx"; break;
     default:
-      sprintf(g->Message, MSG(BAD_RECFM_VAL), Recfm);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_RECFM_VAL), Recfm);
       return true;
     } // endswitch Ftype
 
@@ -323,7 +323,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
   } // endif sep
 
   if (rc)
-    sprintf(g->Message, MSG(DEL_FILE_ERR), filename);
+    snprintf(g->Message, sizeof(g->Message), MSG(DEL_FILE_ERR), filename);
 
   return rc;                        // Return true if error
   } // end of DeleteIndexFile
@@ -405,7 +405,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 		} // endif Recfm
 
 #else   // !ZIP_SUPPORT
-		sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+		snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "ZIP");
 		return NULL;
 #endif  // !ZIP_SUPPORT
   } else if (Recfm != RECFM_VAR && Compressed < 2) {
@@ -417,7 +417,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 #if defined(GZ_SUPPORT)
       txfp = new(g) GZXFAM(this);
 #else   // !GZ_SUPPORT
-      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
+      snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "GZ");
       return NULL;
 #endif  // !GZ_SUPPORT
     } else
@@ -433,7 +433,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
         txfp = new(g) ZLBFAM(this);
 
 #else   // !GZ_SUPPORT
-      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
+      snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "GZ");
       return NULL;
 #endif  // !GZ_SUPPORT
     } else if (map)
@@ -468,7 +468,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
             ((PZLBFAM)txfp)->SetOptimized(To_Pos != NULL);
             } // endelse
 #else
-          sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
+          snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "GZ");
           return NULL;
 #endif
         } else
@@ -910,7 +910,7 @@ bool TDBDOS::SaveBlockValues(PGLOBAL g)
     return true;
 
   if (!(opfile = fopen(filename, "wb"))) {
-    sprintf(g->Message, MSG(OPEN_MODE_ERROR),
+    snprintf(g->Message, sizeof(g->Message), MSG(OPEN_MODE_ERROR),
             "wb", (int)errno, filename);
     strcat(strcat(g->Message, ": "), strerror(errno));
 
@@ -931,12 +931,12 @@ bool TDBDOS::SaveBlockValues(PGLOBAL g)
     n[0] = Txfp->Last; n[1] = lg; n[2] = Txfp->Nrec; n[3] = Txfp->Block;
 
     if (fwrite(n, sizeof(int), NZ, opfile) != NZ) {
-      sprintf(g->Message, MSG(OPT_HEAD_WR_ERR), strerror(errno));
+      snprintf(g->Message, sizeof(g->Message), MSG(OPT_HEAD_WR_ERR), strerror(errno));
       rc = true;
       } // endif size
 
     if (fwrite(Txfp->BlkPos, lg, block, opfile) != block) {
-      sprintf(g->Message, MSG(OPTBLK_WR_ERR), strerror(errno));
+      snprintf(g->Message, sizeof(g->Message), MSG(OPTBLK_WR_ERR), strerror(errno));
       rc = true;
       } // endif size
 
@@ -959,17 +959,17 @@ bool TDBDOS::SaveBlockValues(PGLOBAL g)
       n[4] = ndv; n[5] = nbm;
 
       if (fwrite(n, sizeof(int), NZ + 2, opfile) != NZ + 2) {
-        sprintf(g->Message, MSG(OPT_HEAD_WR_ERR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(OPT_HEAD_WR_ERR), strerror(errno));
         rc = true;
         } // endif size
 
       if (fwrite(colp->Dval->GetValPointer(), lg, ndv, opfile) != ndv) {
-        sprintf(g->Message, MSG(OPT_DVAL_WR_ERR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(OPT_DVAL_WR_ERR), strerror(errno));
         rc = true;
         } // endif size
 
       if (fwrite(colp->Bmap->GetValPointer(), sizeof(int), nbk, opfile) != nbk) {
-        sprintf(g->Message, MSG(OPT_BMAP_WR_ERR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(OPT_BMAP_WR_ERR), strerror(errno));
         rc = true;
         } // endif size
 
@@ -977,17 +977,17 @@ bool TDBDOS::SaveBlockValues(PGLOBAL g)
       n[0] = colp->Index; n[1] = lg; n[2] = Txfp->Nrec; n[3] = block;
 
       if (fwrite(n, sizeof(int), NZ, opfile) != NZ) {
-        sprintf(g->Message, MSG(OPT_HEAD_WR_ERR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(OPT_HEAD_WR_ERR), strerror(errno));
         rc = true;
         } // endif size
 
       if (fwrite(colp->Min->GetValPointer(), lg, block, opfile) != block) {
-        sprintf(g->Message, MSG(OPT_MIN_WR_ERR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(OPT_MIN_WR_ERR), strerror(errno));
         rc = true;
         } // endif size
 
       if (fwrite(colp->Max->GetValPointer(), lg, block, opfile) != block) {
-        sprintf(g->Message, MSG(OPT_MAX_WR_ERR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(OPT_MAX_WR_ERR), strerror(errno));
         rc = true;
         } // endif size
 
@@ -1093,12 +1093,12 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
     lg = sizeof(int);
 
     if (fread(n, sizeof(int), NZ, opfile) != NZ) {
-      sprintf(g->Message, MSG(OPT_HEAD_RD_ERR), strerror(errno));
+      snprintf(g->Message, sizeof(g->Message), MSG(OPT_HEAD_RD_ERR), strerror(errno));
       goto err;
       } // endif size
 
     if (n[1] != lg || n[2] != nrec) {
-      sprintf(g->Message, MSG(OPT_NOT_MATCH), filename);
+      snprintf(g->Message, sizeof(g->Message), MSG(OPT_NOT_MATCH), filename);
       goto err;
       } // endif
 
@@ -1109,7 +1109,7 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
     defp->To_Pos = (int*)PlugSubAlloc(g, NULL, blk * lg);
 
     if (fread(defp->To_Pos, lg, blk, opfile) != blk) {
-      sprintf(g->Message, MSG(OPTBLK_RD_ERR), strerror(errno));
+      snprintf(g->Message, sizeof(g->Message), MSG(OPTBLK_RD_ERR), strerror(errno));
       goto err;
       } // endif size
 
@@ -1125,19 +1125,19 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
 
       //  Now start the reading process.
       if (fread(n, sizeof(int), NZ, opfile) != NZ) {
-        sprintf(g->Message, MSG(OPT_HEAD_RD_ERR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(OPT_HEAD_RD_ERR), strerror(errno));
         goto err;
         } // endif size
 
       if (n[0] == -i) {
         // Read the XDB2 opt values from the opt file
         if (n[1] != lg || n[2] != nrec || n[3] != block) {
-          sprintf(g->Message, MSG(OPT_NOT_MATCH), filename);
+          snprintf(g->Message, sizeof(g->Message), MSG(OPT_NOT_MATCH), filename);
           goto err;
           } // endif
 
         if (fread(n, sizeof(int), 2, opfile) != 2) {
-          sprintf(g->Message, MSG(OPT_HEAD_RD_ERR), strerror(errno));
+          snprintf(g->Message, sizeof(g->Message), MSG(OPT_HEAD_RD_ERR), strerror(errno));
           goto err;
           } // endif fread
 
@@ -1149,7 +1149,7 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
         cdp->SetNdv((int)ndv);
 
         if (fread(cdp->GetDval(), lg, ndv, opfile) != ndv) {
-          sprintf(g->Message, MSG(OPT_DVAL_RD_ERR), strerror(errno));
+          snprintf(g->Message, sizeof(g->Message), MSG(OPT_DVAL_RD_ERR), strerror(errno));
           goto err;
           } // endif size
 
@@ -1159,7 +1159,7 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
         cdp->SetNbm((int)nbm);
 
         if (fread(cdp->GetBmap(), sizeof(int), nbk, opfile) != nbk) {
-          sprintf(g->Message, MSG(OPT_BMAP_RD_ERR), strerror(errno));
+          snprintf(g->Message, sizeof(g->Message), MSG(OPT_BMAP_RD_ERR), strerror(errno));
           goto err;
           } // endif size
 
@@ -1167,7 +1167,7 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
       } else {
         // Read the Min/Max values from the opt file
         if (n[0] != i || n[1] != lg || n[2] != nrec || n[3] != block) {
-          sprintf(g->Message, MSG(OPT_NOT_MATCH), filename);
+          snprintf(g->Message, sizeof(g->Message), MSG(OPT_NOT_MATCH), filename);
           goto err;
           } // endif
 
@@ -1175,7 +1175,7 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
           cdp->SetMin(PlugSubAlloc(g, NULL, blk * lg));
 
         if (fread(cdp->GetMin(), lg, blk, opfile) != blk) {
-          sprintf(g->Message, MSG(OPT_MIN_RD_ERR), strerror(errno));
+          snprintf(g->Message, sizeof(g->Message), MSG(OPT_MIN_RD_ERR), strerror(errno));
           goto err;
           } // endif size
 
@@ -1183,7 +1183,7 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
           cdp->SetMax(PlugSubAlloc(g, NULL, blk * lg));
 
         if (fread(cdp->GetMax(), lg, blk, opfile) != blk) {
-          sprintf(g->Message, MSG(OPT_MAX_RD_ERR), strerror(errno));
+          snprintf(g->Message, sizeof(g->Message), MSG(OPT_MAX_RD_ERR), strerror(errno));
           goto err;
           } // endif size
 
@@ -1485,7 +1485,7 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
     if (conv) {
       // The constant has not the good type and will not match
       // the block min/max values. Warn and abort.
-      sprintf(g->Message, "Block opt: %s", MSG(VALTYPE_NOMATCH));
+      snprintf(g->Message, sizeof(g->Message), "Block opt: %s", MSG(VALTYPE_NOMATCH));
       PushWarning(g, this);
       return NULL;
       } // endif Conv
@@ -1690,7 +1690,7 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
     if (add && dfp->GetIndx()) {
       for (sxp = dfp->GetIndx(); sxp; sxp = sxp->GetNext())
         if (!stricmp(sxp->GetName(), pxdf->GetName())) {
-          sprintf(g->Message, MSG(INDEX_YET_ON), pxdf->GetName(), Name);
+          snprintf(g->Message, sizeof(g->Message), MSG(INDEX_YET_ON), pxdf->GetName(), Name);
           return RC_FX;
         } else if (!sxp->GetNext())
           break;
@@ -1711,10 +1711,10 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
 		for (n = 0, xdp = pxdf; xdp; xdp = xdp->GetNext())
 			for (kdp = xdp->GetToKeyParts(); kdp; kdp = kdp->GetNext()) {
 				if (!(colp = ColDB(g, kdp->GetName(), 0))) {
-					sprintf(g->Message, MSG(INDX_COL_NOTIN), kdp->GetName(), Name);
+					snprintf(g->Message, sizeof(g->Message), MSG(INDX_COL_NOTIN), kdp->GetName(), Name);
 					goto err;
 				} else if (colp->GetResultType() == TYPE_DECIM) {
-					sprintf(g->Message, "Decimal columns are not indexable yet");
+					snprintf(g->Message, sizeof(g->Message), "Decimal columns are not indexable yet");
 					goto err;
 				} // endif Type
 
@@ -1842,14 +1842,14 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
   // Get the key column description list
   for (k = 0, kdp = xdp->GetToKeyParts(); kdp; kdp = kdp->GetNext())
     if (!(colp = ColDB(g, kdp->GetName(), 0)) || colp->InitValue(g)) {
-      sprintf(g->Message, "Wrong column %s", kdp->GetName());
+      snprintf(g->Message, sizeof(g->Message), "Wrong column %s", kdp->GetName());
       return true;
     } else
       To_Key_Col[k++] = colp;
 
 #if defined(_DEBUG)
   if (k != Knum) {
-    sprintf(g->Message, "Key part number mismatch for %s",
+    snprintf(g->Message, sizeof(g->Message), "Key part number mismatch for %s",
                         xdp->GetName());
     return 0;
     } // endif k
@@ -1950,7 +1950,7 @@ int TDBDOS::RowNumber(PGLOBAL g, bool)
     /*******************************************************************/
     /*  Don't know how to retrieve RowID from file address.            */
     /*******************************************************************/
-    sprintf(g->Message, MSG(NO_ROWID_FOR_AM),
+    snprintf(g->Message, sizeof(g->Message), MSG(NO_ROWID_FOR_AM),
                         GetAmName(g, Txfp->GetAmType()));
     return 0;
   } else
@@ -2476,7 +2476,7 @@ bool DOSCOL::VarSize(void)
 bool DOSCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
   {
   if (!(To_Val = value)) {
-    sprintf(g->Message, MSG(VALUE_ERROR), Name);
+    snprintf(g->Message, sizeof(g->Message), MSG(VALUE_ERROR), Name);
     return true;
   } else if (Buf_Type == value->GetType()) {
     // Values are of the (good) column type
@@ -2495,7 +2495,7 @@ bool DOSCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
   } else {
     // Values are not of the (good) column type
     if (check) {
-      sprintf(g->Message, MSG(TYPE_VALUE_ERR), Name,
+      snprintf(g->Message, sizeof(g->Message), MSG(TYPE_VALUE_ERR), Name,
               GetTypeName(Buf_Type), GetTypeName(value->GetType()));
       return true;
       } // endif check
@@ -2547,7 +2547,7 @@ void DOSCOL::ReadColumn(PGLOBAL g)
   if (!tdbp->IsRead())
     if ((rc = tdbp->ReadBuffer(g)) != RC_OK) {
       if (rc == RC_EF)
-        sprintf(g->Message, MSG(INV_DEF_READ), rc);
+        snprintf(g->Message, sizeof(g->Message), MSG(INV_DEF_READ), rc);
 
 			throw 11;
 		} // endif
@@ -2612,12 +2612,12 @@ void DOSCOL::ReadColumn(PGLOBAL g)
 
       break;
     default:
-      sprintf(g->Message, MSG(BAD_RECFM), tdbp->Ftype);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_RECFM), tdbp->Ftype);
 			throw 34;
 	} // endswitch Ftype
 
   if (err) {
-    sprintf(g->Message, "Out of range value for column %s at row %d",
+    snprintf(g->Message, sizeof(g->Message), "Out of range value for column %s at row %d",
       Name, tdbp->RowNumber(g));
     PushWarning(g, tdbp);
   } // endif err
@@ -2727,7 +2727,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
           len = strlen(Buf);
           break;
         default:
-          sprintf(g->Message, "Invalid field format for column %s", Name);
+          snprintf(g->Message, sizeof(g->Message), "Invalid field format for column %s", Name);
 					throw 31;
 			} // endswitch BufType
 
@@ -2741,7 +2741,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
     if ((len = n) > field) {
 			char *p = Value->GetCharString(Buf);
 
-      sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, field);
+      snprintf(g->Message, sizeof(g->Message), MSG(VALUE_TOO_LONG), p, Name, field);
 			throw 31;
 		} else if (Dsp)
       for (i = 0; i < len; i++)
@@ -2769,7 +2769,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
     /*  Updating to be done only during the second pass (Status=true)  */
     /*******************************************************************/
     if (Value->GetBinValue(p, Long, Status)) {
-      sprintf(g->Message, MSG(BIN_F_TOO_LONG),
+      snprintf(g->Message, sizeof(g->Message), MSG(BIN_F_TOO_LONG),
                           Name, Value->GetSize(), Long);
       throw 31;
     } // endif
@@ -2829,11 +2829,11 @@ bool DOSCOL::SetBitMap(PGLOBAL g)
   if ((i = Dval->Find(Value)) < 0) {
     char buf[32];
 
-    sprintf(g->Message, MSG(DVAL_NOTIN_LIST),
+    snprintf(g->Message, sizeof(g->Message), MSG(DVAL_NOTIN_LIST),
       Value->GetCharString(buf), Name);
     return true;
   } else if (i >= dup->Maxbmp) {
-    sprintf(g->Message, MSG(OPT_LOGIC_ERR), i);
+    snprintf(g->Message, sizeof(g->Message), MSG(OPT_LOGIC_ERR), i);
     return true;
   } else {
     m = i / MAXBMP;
@@ -2857,7 +2857,7 @@ bool DOSCOL::CheckSorted(PGLOBAL g)
       // Verify whether this column is sorted all right
       if (OldVal->CompareValue(Value) > 0) {
         // Column is no more in ascending order
-        sprintf(g->Message, MSG(COL_NOT_SORTED), Name, To_Tdb->GetName());
+        snprintf(g->Message, sizeof(g->Message), MSG(COL_NOT_SORTED), Name, To_Tdb->GetName());
         Sorted = false;
         return true;
       } else
@@ -2898,7 +2898,7 @@ bool DOSCOL::AddDistinctValue(PGLOBAL g)
     // Check whether we have room for an additional value
     if (Ndv == Freq) {
       // Too many values because of wrong Freq setting
-      sprintf(g->Message, MSG(BAD_FREQ_SET), Name);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_FREQ_SET), Name);
       return true;
       } // endif Ndv
 

@@ -709,7 +709,9 @@ longlong SEQUENCE::next_value(TABLE *table, bool second_round, int *error)
 {
   longlong res_value, org_reserved_until, add_to;
   bool out_of_values;
+  THD *thd= table->in_use;
   DBUG_ENTER("SEQUENCE::next_value");
+  DBUG_ASSERT(thd);
 
   *error= 0;
   if (!second_round)
@@ -774,7 +776,8 @@ longlong SEQUENCE::next_value(TABLE *table, bool second_round, int *error)
     DBUG_RETURN(next_value(table, 1, error));
   }
 
-  if (unlikely((*error= write(table, 0))))
+  if (unlikely((*error= write(table, thd->variables.binlog_row_image !=
+                                         BINLOG_ROW_IMAGE_MINIMAL))))
   {
     reserved_until= org_reserved_until;
     next_free_value= res_value;
@@ -841,7 +844,9 @@ int SEQUENCE::set_value(TABLE *table, longlong next_val, ulonglong next_round,
   longlong org_reserved_until=  reserved_until;
   longlong org_next_free_value= next_free_value;
   ulonglong org_round= round;
+  THD *thd= table->in_use;
   DBUG_ENTER("SEQUENCE::set_value");
+  DBUG_ASSERT(thd);
 
   write_lock(table);
   if (is_used)
@@ -880,7 +885,8 @@ int SEQUENCE::set_value(TABLE *table, longlong next_val, ulonglong next_round,
       needs_to_be_stored)
   {
     reserved_until= next_free_value;
-    if (write(table, 0))
+    if (write(table,
+              thd->variables.binlog_row_image != BINLOG_ROW_IMAGE_MINIMAL))
     {
       reserved_until=  org_reserved_until;
       next_free_value= org_next_free_value;
