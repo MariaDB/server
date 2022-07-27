@@ -2229,6 +2229,29 @@ SELECT random_bytes(1025);
 SELECT random_bytes(11111);
 SELECT random_bytes(2056);
 
+SELECT length(random_bytes(10.0));
+SELECT length(random_bytes(10.1));
+SELECT length(random_bytes(+1e1));
+SELECT length(random_bytes(time("00:01")));
+SELECT length(random_bytes("10.0"));
+SELECT length(random_bytes("10.1"));
+SELECT length(random_bytes("+1e1"));
+SELECT length(random_bytes("10.0bunnies"));
+SELECT length(random_bytes("10.1chickens"));
+SELECT length(random_bytes("+1e1rabbits"));
+
+--delimiter |
+create procedure p1()
+begin
+  declare r ROW (c1 INT);
+  set r.c1= 10;
+  select random_bytes(r);
+end|
+--delimiter ;
+--error 1241
+call p1();
+drop procedure p1;
+
 --echo #
 --echo # Test For invalid argument return NULL
 --echo #

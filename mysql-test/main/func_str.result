@@ -5320,6 +5320,63 @@ NULL
 SELECT random_bytes(2056);
 random_bytes(2056)
 NULL
+SELECT length(random_bytes(10.0));
+length(random_bytes(10.0))
+10
+SELECT length(random_bytes(10.1));
+length(random_bytes(10.1))
+10
+SELECT length(random_bytes(+1e1));
+length(random_bytes(+1e1))
+10
+SELECT length(random_bytes(time("00:01")));
+length(random_bytes(time("00:01")))
+100
+SELECT length(random_bytes("10.0"));
+length(random_bytes("10.0"))
+10
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '10.0'
+Warning	1292	Truncated incorrect INTEGER value: '10.0'
+SELECT length(random_bytes("10.1"));
+length(random_bytes("10.1"))
+10
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '10.1'
+Warning	1292	Truncated incorrect INTEGER value: '10.1'
+SELECT length(random_bytes("+1e1"));
+length(random_bytes("+1e1"))
+1
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '+1e1'
+Warning	1292	Truncated incorrect INTEGER value: '+1e1'
+SELECT length(random_bytes("10.0bunnies"));
+length(random_bytes("10.0bunnies"))
+10
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '10.0bunnies'
+Warning	1292	Truncated incorrect INTEGER value: '10.0bunnies'
+SELECT length(random_bytes("10.1chickens"));
+length(random_bytes("10.1chickens"))
+10
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '10.1chickens'
+Warning	1292	Truncated incorrect INTEGER value: '10.1chickens'
+SELECT length(random_bytes("+1e1rabbits"));
+length(random_bytes("+1e1rabbits"))
+1
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '+1e1rabbits'
+Warning	1292	Truncated incorrect INTEGER value: '+1e1rabbits'
+create procedure p1()
+begin
+declare r ROW (c1 INT);
+set r.c1= 10;
+select random_bytes(r);
+end|
+call p1();
+ERROR 21000: Operand should contain 1 column(s)
+drop procedure p1;
 #
 # Test For invalid argument return NULL
 #
