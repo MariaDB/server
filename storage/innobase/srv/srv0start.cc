@@ -481,7 +481,9 @@ create_log_files(
 
 	log_sys.log.create(srv_n_log_files);
 
-	fil_open_log_and_system_tablespace_files();
+	if (dberr_t err = fil_open_log_and_system_tablespace_files()) {
+		return err;
+	}
 
 	/* Create a log checkpoint. */
 	log_mutex_enter();
@@ -568,8 +570,9 @@ create_log_files_rename(
 	DBUG_EXECUTE_IF("innodb_log_abort_10", err = DB_ERROR;);
 
 	if (err == DB_SUCCESS) {
-		fil_open_log_and_system_tablespace_files();
+		err = fil_open_log_and_system_tablespace_files();
 		ib::info() << "New log files created, LSN=" << lsn;
+		ut_a(err == DB_SUCCESS);
 	}
 
 	return(err);
@@ -1889,10 +1892,12 @@ files_checked:
 	tablespace: we keep them open until database
 	shutdown */
 
-	fil_open_log_and_system_tablespace_files();
+	err = fil_open_log_and_system_tablespace_files();
 	ut_d(fil_system.sys_space->recv_size = srv_sys_space_size_debug);
 
-	err = srv_undo_tablespaces_init(create_new_db);
+	if (err == DB_SUCCESS) {
+		err = srv_undo_tablespaces_init(create_new_db);
+	}
 
 	/* If the force recovery is set very high then we carry on regardless
 	of all errors. Basically this is fingers crossed mode. */
