@@ -1722,3 +1722,26 @@ EXPLAIN
 SELECT DISTINCT owner_id FROM t1 WHERE foo = true GROUP BY owner_id HAVING (COUNT(*) = 1);
 SELECT DISTINCT owner_id FROM t1 WHERE foo = true GROUP BY owner_id HAVING (COUNT(*) = 1);
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-24819 Wrong result or ASAN use-after-poison errors upon SELECT with GROUP BY
+--echo # 
+--echo # Firstly test MyISAM engine:
+CREATE TABLE t1 (a INT, b VARCHAR(1), KEY (a), KEY(b,a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (4,'n'),(1,'h'),(NULL,'w');
+--echo # Make sure "Using index for group-by" is chosen:
+EXPLAIN SELECT b, a FROM t1 WHERE b <> 'p' OR a = 4 GROUP BY b, a HAVING a <= 7;
+SELECT b, a FROM t1 WHERE b <> 'p' OR a = 4 GROUP BY b, a HAVING a <= 7;
+DROP TABLE t1;
+--echo # Test the same for InnoDB engine:
+CREATE TABLE t1 (a INT, b VARCHAR(1), KEY (a), KEY(b,a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (4,'n'),(1,'h'),(NULL,'w');
+EXPLAIN SELECT b, a FROM t1 WHERE b <> 'p' OR a = 4 GROUP BY b, a HAVING a <= 7;
+SELECT b, a FROM t1 WHERE b <> 'p' OR a = 4 GROUP BY b, a HAVING a <= 7;
+DROP TABLE t1;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,3),(2,6),(3,9),(4,NULL),(5,NULL);
+SELECT a, pk FROM t1 WHERE pk != 0 AND (a < 0 OR pk <= 0) GROUP BY a, pk;
+DROP TABLE t1;

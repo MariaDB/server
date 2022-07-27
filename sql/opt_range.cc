@@ -13754,13 +13754,9 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
   double best_read_cost= DBL_MAX;
   ha_rows best_records= 0;
   SEL_ARG *best_index_tree= NULL;
-  ha_rows best_quick_prefix_records= 0;
+  ha_rows best_quick_prefix_records= HA_POS_ERROR;
   uint best_param_idx= 0;
-
   const uint pk= param->table->s->primary_key;
-  uint max_key_part;  
-  SEL_ARG *cur_index_tree= NULL;
-  ha_rows cur_quick_prefix_records= 0;
 
   // We go through allowed indexes
   Json_writer_array trace_indexes(thd, "potential_group_range_indexes");
@@ -13789,6 +13785,9 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     uint cur_key_infix_len= 0;
     uchar cur_key_infix[MAX_KEY_LENGTH];
     uint cur_used_key_parts;
+    ha_rows cur_quick_prefix_records= HA_POS_ERROR;
+    SEL_ARG *cur_index_tree= NULL;
+    uint max_key_part= 0;
     
     /*
       Check (B1) - if current index is covering.
@@ -13846,7 +13845,6 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
 
     trace_idx.add("covering", true);
 
-    max_key_part= 0;
     used_key_parts_map.clear_all();
 
     /*
@@ -14089,22 +14087,26 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
                      (first_non_infix_part - first_non_group_part) : 0;
     cur_used_key_parts= cur_group_key_parts + key_infix_parts;
 
-    /* Compute the cost of using this index. */
-    if (tree)
+    /*
+      Consider using this index for constructing QUICK_RANGE_SELECT object
+      in TRP_GROUP_MIN_MAX.
+      Initially the index is considered not applicable:
+    */
+    cur_quick_prefix_records= HA_POS_ERROR;
+    if (tree && ((cur_index_tree= tree->keys[cur_param_idx]) != nullptr))
     {
-      if ((cur_index_tree= tree->keys[cur_param_idx]))
+      if (param->table->opt_range_keys.is_set(cur_index))
+        /* Current index is applicable for QUICK_RANGE_SELECT object */
+        cur_quick_prefix_records= param->table->opt_range[cur_index].rows;
+      if (unlikely(thd->trace_started()))
       {
-        cur_quick_prefix_records= param->quick_rows[cur_index];
-        if (unlikely(cur_index_tree && thd->trace_started()))
-        {
-          Json_writer_array trace_range(thd, "ranges");
-          trace_ranges(&trace_range, param, cur_param_idx,
-                       cur_index_tree, cur_index_info->key_part);
-        }
+        Json_writer_array trace_range(thd, "ranges");
+        trace_ranges(&trace_range, param, cur_param_idx, cur_index_tree,
+                      cur_index_info->key_part);
       }
-      else
-        cur_quick_prefix_records= HA_POS_ERROR;
     }
+
+    /* Compute the cost of using this index. */
     cost_group_min_max(table, cur_index_info, cur_used_key_parts,
                        cur_group_key_parts, tree, cur_index_tree,
                        cur_quick_prefix_records, have_min, have_max,
