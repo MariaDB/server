@@ -178,11 +178,11 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
     size_t start= current_pos;
     while (frm[current_pos++] != 255)
       ;
-    size_t len= current_pos - start;
+    size_t len= current_pos - start - 1;
     ffd->columns[i].name.length= len;
     char *ts= c_malloc(len + 1);
-    memcpy(ts, frm + start, len - 1);
-    ts[len-1]= '\0';
+    memcpy(ts, frm + start, len);
+    ts[len]= '\0';
     ffd->columns[i].name.str= ts;
   }
   //---READ LABEL INFORMATION---
@@ -196,10 +196,10 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
     size_t start= current_pos;
     while (frm[current_pos++] != 255)
       ;
-    size_t len= current_pos - start;
+    size_t len= current_pos - start - 1;
     char *ts= c_malloc(len + 1);
-    memcpy(ts, frm + start, len - 1);
-    ts[len-1]= '\0';
+    memcpy(ts, frm + start, len);
+    ts[len]= '\0';
     ffd->labels[i].names.push_back({ts, len});
     if (frm[current_pos] == 0)
     {
@@ -277,11 +277,11 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
     size_t start= current_pos;
     while (frm[current_pos++] != 255)
       ;
-    size_t len= current_pos - start;
-    ffd->keys[i].name.length= len-1;
-    char *ts= c_malloc(len);
-    memcpy(ts, frm + start, len-1);
-    //ts[len-1]= '\0';
+    size_t len= current_pos - start - 1;
+    ffd->keys[i].name.length= len;
+    char *ts= c_malloc(len+1);
+    memcpy(ts, frm + start, len);
+    ts[len]= '\0';
     ffd->keys[i].name.str= ts;
   }
   ffd->key_comment_offset= (uint)current_pos;
