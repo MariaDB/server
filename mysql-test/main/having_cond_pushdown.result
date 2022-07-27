@@ -4933,11 +4933,11 @@ i
 SELECT * FROM t1 GROUP BY i HAVING i IN ( i IS NULL AND 'x' = 0);
 i
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'
 SELECT * FROM t1 GROUP BY i HAVING i='1' IN ( i IS NULL AND 'x' = 0);
 i
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'
 DROP TABLE t1;
 #
 # MDEV-28080: HAVING with NOT EXIST predicate in an equality

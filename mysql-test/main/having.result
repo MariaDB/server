@@ -524,7 +524,7 @@ ORDER BY t1.f2;
 MAX(t2.f2)
 NULL
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'd'
+Warning	1292	Truncated incorrect DECIMAL value: 'd'
 DROP TABLE t1,t2;
 End of 5.0 tests
 #
@@ -860,13 +860,13 @@ bar
 SELECT DEFAULT(f) AS h FROM t1 HAVING h > 5;
 h
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'A'
+Warning	1292	Truncated incorrect DECIMAL value: 'A'
 SELECT DEFAULT(f) AS h FROM t1 HAVING h >= 0;
 h
 A
 A
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'A'
+Warning	1292	Truncated incorrect DECIMAL value: 'A'
 SELECT DEFAULT(f) AS h FROM t1 HAVING h >= 'A';
 h
 A
@@ -894,7 +894,7 @@ HAVING t.f != 112 AND t.f = 'x' AND t.f != 'a';
 f
 x
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'
 DROP TABLE t1,t2;
 #
 # MDEV-20200: AddressSanitizer: use-after-poison in

@@ -1,0 +1,23 @@
+#
+# MDEV-26544 Assertion `part_share->auto_inc_initialized' failed in ha_partition::get_auto_increment on INSERT
+#
+for master_1
+for child2
+for child3
+connection master_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+CREATE TABLE `tbl_a` (
+`a` INT AUTO_INCREMENT, KEY(`a`)
+) ENGINE=Spider DEFAULT CHARSET=utf8
+PARTITION BY LIST COLUMNS (`a`) (
+PARTITION `pt1` DEFAULT
+);
+INSERT INTO tbl_a (a) VALUES (0);
+ERROR HY000: Unable to connect to foreign data source: localhost
+INSERT INTO tbl_a () VALUES ();
+ERROR HY000: Unable to connect to foreign data source: localhost
+DROP DATABASE IF EXISTS auto_test_remote;
+for master_1
+for child2
+for child3
