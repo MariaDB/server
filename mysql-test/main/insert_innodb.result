@@ -43,3 +43,15 @@ INSERT IGNORE INTO t2 VALUES('abc', 2) ON DUPLICATE KEY UPDATE fld1= 'def';
 Warnings:
 Warning	1452	Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk` FOREIGN KEY (`fld2`) REFERENCES `t1` (`fld1`))
 DROP TABLE t2, t1;
+#
+# MDEV-26433: assertion: table->get_ref_count() == 0 in dict0dict.cc
+# line 1915
+#
+CREATE TEMPORARY TABLE v0 ( v1 TEXT ( 15 ) CHAR SET BINARY NOT NULL NOT NULL UNIQUE CHECK ( v1 ) ) REPLACE SELECT NULL AS v3 , 74 AS v2 ;
+ERROR HY000: Field 'v1' doesn't have a default value
+CREATE TEMPORARY TABLE t1 (i TEXT(15) NOT NULL DEFAULT '' UNIQUE CHECK (i)) engine=innodb
+REPLACE SELECT NULL AS a;
+ERROR HY000: Field 'DB_ROW_HASH_1' doesn't have a default value
+#
+# End of 10.5 tests
+#

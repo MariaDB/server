@@ -1,3 +1,4 @@
+--source include/have_debug.inc
 --source include/have_innodb.inc
 --source include/not_embedded.inc
 --source include/not_windows.inc
@@ -6,12 +7,18 @@
 
 ########################################################################################
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
-call mtr.add_suppression("Slave SQL: The incident LOST_EVENTS occurred on the master. .*");
+call mtr.add_suppression("Slave SQL: The incident LOST_EVENTS occured on the master. .*");
+call mtr.add_suppression("Write to binary log failed: Multi-row statements required more than .max_binlog_stmt_cache_size.* ");
+call mtr.add_suppression("Write to binary log failed: Multi-statement transaction required more than .max_binlog_cache_size.* ");
+call mtr.add_suppression("Incident event write to the binary log file failed");
+call mtr.add_suppression("handlerton rollback failed");
 
 let $old_max_binlog_cache_size= query_get_value(SHOW VARIABLES LIKE "max_binlog_cache_size", Value, 1);
 let $old_binlog_cache_size= query_get_value(SHOW VARIABLES LIKE "binlog_cache_size", Value, 1);
 let $old_max_binlog_stmt_cache_size= query_get_value(SHOW VARIABLES LIKE "max_binlog_stmt_cache_size", Value, 1);
 let $old_binlog_stmt_cache_size= query_get_value(SHOW VARIABLES LIKE "binlog_stmt_cache_size", Value, 1);
+
+--echo "*********** Annotate Event write failure **************"
 
 SET GLOBAL max_binlog_cache_size = 4096;
 SET GLOBAL binlog_cache_size = 4096;
@@ -26,19 +33,162 @@ let $data = `select concat('"', repeat('a',2000), '"')`;
 
 connection master;
 
+# Insert a huge row into MyISAM table. The row will be inserted in engine and a
+# request to write to binary log will be initiated. Since row annotations are
+# enabled the size of the annotate event itself will exceed the
+# "max_binlog_stmt_cache_size". This will result in ER_STMT_CACHE_FULL error
+# and an incident event will be written to the binary log as row update in
+# engine cannot be undone.
+
+--echo "#######################################################################"
+--echo "# Test Case1: Annotate event write failure for MyISAM                 #"
+--echo "#######################################################################"
+
 --disable_query_log
---error ER_BINLOG_ROW_LOGGING_FAILED
+--let $old_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+--error ER_STMT_CACHE_FULL
 eval INSERT INTO t1 (a, data) VALUES (2,
        CONCAT($data, $data, $data, $data, $data, $data));
 --enable_query_log
+
+--let $new_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+--echo # Validating update was not binlogged..
+if(`SELECT strcmp("$old_gtid_binlog_pos","$new_gtid_binlog_pos") != 0`)
+{
+  --die Binlog GTID position should have been unchanged after failed update
+}
+--echo # ..success
+
+--echo # Validating that the inserted data was saved on the master..
+if(`SELECT COUNT(*)!=1 FROM t1`)
+{
+  --die The insertion should have saved on a non-transactional table
+}
+--echo # ..success
+
+--connection slave
+# Incident event
+# 1590=ER_SLAVE_INCIDENT
+--let $slave_sql_errno= 1590
+--source include/wait_for_slave_sql_error_and_skip.inc
+
+--echo # Validating that the insert was not replicated to the slave..
+if(`SELECT COUNT(*) FROM t1`)
+{
+  --die The insertion should not have replicated to the slave
+}
+--echo # ..success
+
+# MDEV-21087
+# Insert two huge rows in to transaction cache. Have data such that first row
+# fits inside the binary log cache. While writing the annotate event for the
+# second row the binary log cache size will exceed "max_binlog_cache_size".
+# Hence this statement cannot be written to binary log. As DMLs in Innodb can
+# be safely rolled back only an error will be reported. Slave will continue to
+# work.
+
+--echo "#######################################################################"
+--echo "# Test Case2: Annotate event write failure for INNODB                 #"
+--echo "#######################################################################"
+
+--connection master
+CREATE TABLE t2(a INT PRIMARY KEY, data VARCHAR(30000)) ENGINE=INNODB;
+--disable_query_log
+--let $old_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+BEGIN;
+eval INSERT INTO t2 (a, data) VALUES (1, CONCAT($data, $data));
+--error ER_TRANS_CACHE_FULL
+eval INSERT INTO t2 (a, data) VALUES (2, CONCAT($data, $data));
+COMMIT;
+--enable_query_log
+
+--let $new_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+--echo # Validating binlog GTID position progressed from first insert..
+if(`SELECT strcmp("$old_gtid_binlog_pos","$new_gtid_binlog_pos") = 0`)
+{
+  --die Binlog GTID position should have updated
+}
+--echo # ..success
+
+--echo # Validating that only the first insert into t2 saved..
+if(`SELECT COUNT(*)!=1 FROM t2`)
+{
+  --die Only one row should exist in t2 from the first insert, the second should have rolled back
+}
+--echo # ..success
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--echo # Validating the first insert into t2 replicated to slave..
+--let $diff_tables= master:test.t2,slave:test.t2
+--source include/diff_tables.inc
+--echo # ..success
+
+# Testing mixed engine UPDATE statement scenario. In the following multi
+# update query 'ha_update_row' will be invoked for t1 (myisam) table. This
+# intern invokes binlog_write_table_map() function call. While writing a huge
+# annotate event binary log cache size will exceed max_binlog_cache_size.
+# Writing to binary log fails. Since non transactional changes cannot be
+# rolled back incident event will be written to binary log.
+
+--echo "#######################################################################"
+--echo "# Test Case3: Annotate event write failure for mixed engine UPDATE    #"
+--echo "#######################################################################"
+
+--connection master
+let $new_data = `select concat('"', repeat('b',2000), '"')`;
+--let $old_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+--disable_query_log
+--error ER_STMT_CACHE_FULL
+eval UPDATE t1,t2 SET t1.data="Hello", t2.data=CONCAT($new_data,$new_data,$new_data,$new_data,$new_data);
+--enable_query_log
+
+--let $new_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+--echo # Validating update was not binlogged..
+if(`SELECT strcmp("$old_gtid_binlog_pos","$new_gtid_binlog_pos") != 0`)
+{
+  --die Binlog GTID position should have been unchanged after failed update
+}
+--echo # ..success
+
+--echo # Validating non-transactional part of update saved..
+if(`SELECT COUNT(*)!=1 from t1 where data="Hello"`)
+{
+  --die Non-transactional part of update should have saved
+}
+--echo # ..success
+
+--echo # Validating transactional part of update was rolled back..
+if(`SELECT COUNT(*) from t2 where data LIKE "b%"`)
+{
+  --die Transactional part of update should have been rolled back
+}
+--echo # ..success
+
+--source include/save_master_gtid.inc
+
+--connection slave
 
 # Incident event
 # 1590=ER_SLAVE_INCIDENT
 --let $slave_sql_errno= 1590
 --source include/wait_for_slave_sql_error_and_skip.inc
 
-connection master;
+--echo # Validating the rolled-back multi-engine update did not replicate to slave at all..
+if(`SELECT COUNT(*) from t1 where data="Hello"`)
+{
+  --die Non-transactional part of update should not have replicated
+}
+if(`SELECT COUNT(*) from t2 where data LIKE "b%"`)
+{
+  --die Transactional part of update should not have replicated
+}
+--echo # ..success
 
+--connection master
+
+--echo "****** Clean up *******"
 --replace_result $old_max_binlog_cache_size ORIGINAL_VALUE
 --eval SET GLOBAL max_binlog_cache_size= $old_max_binlog_cache_size
 --replace_result $old_binlog_cache_size ORIGINAL_VALUE
@@ -48,6 +198,346 @@ connection master;
 --replace_result $old_binlog_stmt_cache_size ORIGINAL_VALUE
 --eval SET GLOBAL binlog_stmt_cache_size= $old_binlog_stmt_cache_size
 
-DROP TABLE t1;
+DROP TABLE t1,t2;
+
+--echo "*********** TABLE MAP Event write failure **************"
+
+--let $debug_save= `SELECT @@GLOBAL.debug_dbug`
+CREATE TABLE tm (f INT) ENGINE=MYISAM;
+CREATE TABLE ti (f INT) ENGINE=INNODB;
+INSERT INTO tm VALUES (10);
+INSERT INTO ti VALUES (20);
+--sync_slave_with_master
+
+--echo "#######################################################################"
+--echo "# Test Case4: Table_map event write failure for trans engine UPDATE   #"
+--echo "#######################################################################"
+--echo # Transaction should be rolled back without writing incident event
+--connection master
+--let $old_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+SET debug_dbug="+d,table_map_write_error";
+--error ER_TRANS_CACHE_FULL
+UPDATE ti, tm set ti.f=30;
+
+--let $new_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+--echo # Validating update was not binlogged..
+if(`SELECT strcmp("$old_gtid_binlog_pos","$new_gtid_binlog_pos") != 0`)
+{
+  --die Binlog GTID position should have been unchanged after failed update
+}
+--echo # ..success
+
+--echo # Validating update was rolled back from storage engines..
+if(`SELECT COUNT(*) FROM ti WHERE f=130`)
+{
+  --die Update for InnoDB table should not have saved
+}
+--echo # ..success
+
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--echo "#######################################################################"
+--echo "# Test Case5: Table_map event write failure for mixed engine UPDATE   #"
+--echo "#######################################################################"
+--connection master
+--let $old_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+--echo # In case of mixed engines if non trans table is updated write INCIDENT event
+--error ER_TRANS_CACHE_FULL
+UPDATE ti,tm SET tm.f=88, ti.f=120;
+
+--let $new_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+--echo # Validating update was not binlogged..
+if(`SELECT strcmp("$old_gtid_binlog_pos","$new_gtid_binlog_pos") != 0`)
+{
+  --die Binlog GTID position should have been unchanged after failed update
+}
+--echo # ..success
+
+--echo # Validating that only the non-transactional update saved on master..
+if(`SELECT COUNT(*)!=1 FROM tm WHERE f=88`)
+{
+  --die Update for MyISAM table should have saved
+}
+if(`SELECT COUNT(*) FROM ti WHERE f=120`)
+{
+  --die Update for InnoDB table should not have saved
+}
+--echo # ..success
+
+
+--connection slave
+# Incident event
+# 1590=ER_SLAVE_INCIDENT
+--let $slave_sql_errno= 1590
+--source include/wait_for_slave_sql_error_and_skip.inc
+
+--echo # Validating that neither of the updates replicated to slave..
+if(`SELECT COUNT(*) FROM tm WHERE f=88`)
+{
+  --die Update for MyISAM table should not have replicated to slave
+}
+if(`SELECT COUNT(*) FROM ti WHERE f=120`)
+{
+  --die Update for InnoDB table should not have replicated to slave
+}
+--echo # ..success
+
+--echo "#######################################################################"
+--echo "# Test Case6: Committing a transaction consisting of two updates:
+--echo "#   S1) Update transactional table
+--echo "#   S2) Update transactional table
+--echo "# with a table_map event write failure on the second event should
+--echo "# roll-back only the second update without incident
+--echo "#######################################################################"
+--connection master
+--let $old_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+
+SET debug_dbug="";
+BEGIN;
+# successful update
+UPDATE ti, tm set ti.f=40;
+SET debug_dbug="+d,table_map_write_error";
+--error ER_TRANS_CACHE_FULL
+UPDATE ti, tm set ti.f=50;
+COMMIT;
+
+--let $new_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+--echo # Validating binlog GTID position progressed from first update..
+if(`SELECT strcmp("$old_gtid_binlog_pos","$new_gtid_binlog_pos") = 0`)
+{
+  --die Binlog GTID position should have updated
+}
+--echo # ..success
+
+--echo # Validating the first update saved..
+if(`SELECT COUNT(*)!=1 FROM ti WHERE f=40`)
+{
+  --die The first update should have saved because it was transactional
+}
+--echo # ..and that the second update did not save..
+if(`SELECT COUNT(*) FROM ti WHERE f=50`)
+{
+  --die The second update should have rolled back because it failed
+}
+--echo # ..success
+
+--echo # Validating that only the first update replicated to slave without incident
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $diff_tables= master:test.ti,slave:test.ti
+--source include/diff_tables.inc
+
+
+--echo "#######################################################################"
+--echo "# Test Case7: Rolling back a transaction consisting of two updates:
+--echo "#   S1) Update transactional table
+--echo "#   S2) Update transactional table
+--echo "# with a table_map event write failure on the second event should
+--echo "# roll-back both updates without incident
+--echo "#######################################################################"
+--connection master
+--let $old_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+
+SET debug_dbug="";
+BEGIN;
+# successful update
+UPDATE ti, tm set ti.f=60;
+SET debug_dbug="+d,table_map_write_error";
+--error ER_TRANS_CACHE_FULL
+UPDATE ti, tm set ti.f=70;
+ROLLBACK;
+
+--let $new_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+--echo # Validating update was not binlogged..
+if(`SELECT strcmp("$old_gtid_binlog_pos","$new_gtid_binlog_pos") != 0`)
+{
+  --die Binlog GTID position should have been unchanged after failed update
+}
+--echo # ..success
+
+--echo # Validating that neither update saved on master..
+if(`SELECT COUNT(*) FROM ti WHERE f=60`)
+{
+  --die The first update should not have saved
+}
+if(`SELECT COUNT(*) FROM ti WHERE f=70`)
+{
+  --die The second update should not have saved
+}
+--echo # ..success
+
+--echo # Validating the transaction did not replicate to the slave
+--connection master
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $diff_tables= master:test.ti,slave:test.ti
+--source include/diff_tables.inc
+
+
+--echo "#######################################################################"
+--echo "# Test Case8: Committing a transaction consisting of two updates:
+--echo "#   S1) Update transactional table
+--echo "#   S2) Update mixed trans/non-trans tables
+--echo "# with a table_map event write failure on the second event should
+--echo "# roll-back only the second update with incident
+--echo "#######################################################################"
+--connection master
+--let $old_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+
+BEGIN;
+# successful update
+SET debug_dbug="";
+UPDATE ti, tm set ti.f=80;
+SET debug_dbug="+d,table_map_write_error";
+--error ER_TRANS_CACHE_FULL
+UPDATE ti, tm set ti.f=90,tm.f=99;
+COMMIT;
+
+--let $new_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+--echo # Validating binlog GTID position progressed from first update..
+if(`SELECT strcmp("$old_gtid_binlog_pos","$new_gtid_binlog_pos") = 0`)
+{
+  --die Binlog GTID position should have updated
+}
+--echo # ..success
+
+--echo # Validating the first update saved..
+if(`SELECT COUNT(*)!=1 FROM ti WHERE f=80`)
+{
+  --die The first update should have saved because it was transactional
+}
+--echo # ..and the transactional part of the second update did not save..
+if(`SELECT COUNT(*) FROM ti WHERE f=90`)
+{
+  --die The transactional part of the second update should have rolled back because it failed
+}
+--echo # ..whereas the non-trans part of the second update did save..
+if(`SELECT COUNT(*)!=1 FROM tm WHERE f=99`)
+{
+  --die The non-trans part from the second update should have saved
+}
+--echo # ..success
+
+--echo # Validating that the incident propagated to the slave
+--connection slave
+# Incident event
+# 1590=ER_SLAVE_INCIDENT
+--let $slave_sql_errno= 1590
+--source include/wait_for_slave_sql_error_and_skip.inc
+
+--echo # Validating that the first update replicated to the slave..
+if(`SELECT COUNT(*)!=1 FROM ti WHERE f=80`)
+{
+  --die The first update should have replicated because it was transactional
+}
+--echo # ..and neither part of the second update replicated..
+if(`SELECT COUNT(*) FROM ti WHERE f=90`)
+{
+  --die The trans part from the second update should not have replicated because it was rolled back
+}
+if(`SELECT COUNT(*) FROM tm WHERE f=99`)
+{
+  --die The non-trans part from the second update should not have replicated because it was not binlogged
+}
+--echo # ..success
+
+
+--echo "#######################################################################"
+--echo "# Test Case9: Rolling back a transaction consisting of two updates:
+--echo "#   S1) Update transactional table
+--echo "#   S2) Update mixed trans/non-trans tables
+--echo "# with a table_map event write failure on the second event should
+--echo "# roll-back both transactional updates, preserve the non-transactional
+--echo "# update on the master (only), and write an incident event
+--echo "#######################################################################"
+--connection master
+--let $old_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+
+SET debug_dbug="";
+BEGIN;
+# successful update
+UPDATE ti, tm set ti.f=100;
+SET debug_dbug="+d,table_map_write_error";
+--error ER_TRANS_CACHE_FULL
+UPDATE ti, tm set ti.f=110,tm.f=111;
+ROLLBACK;
+
+--let $new_gtid_binlog_pos= query_get_value(SHOW VARIABLES LIKE 'gtid_binlog_pos', Value, 1)
+--echo # Validating update was not binlogged..
+if(`SELECT strcmp("$old_gtid_binlog_pos","$new_gtid_binlog_pos") != 0`)
+{
+  --die Binlog GTID position should have been unchanged after failed update
+}
+--echo # ..success
+
+--echo # Validating trans updates rollback, but the non-trans update stays..
+if(`SELECT COUNT(*) FROM ti WHERE f=100`)
+{
+  --die The first update should not have saved
+}
+if(`SELECT COUNT(*) FROM ti WHERE f=110`)
+{
+  --die The transactional part of the second update should not have saved
+}
+if(`SELECT COUNT(*)!=1 FROM tm WHERE f=111`)
+{
+  --die The non-trans part of the second update should have saved
+}
+--echo # ..success
+
+--echo # Validating that the incident propagated to the slave
+--connection slave
+# Incident event
+# 1590=ER_SLAVE_INCIDENT
+--let $slave_sql_errno= 1590
+--source include/wait_for_slave_sql_error_and_skip.inc
+
+--echo # Validating that none of the updates replicated to the slave
+--let $diff_tables= master:test.ti,slave:test.ti
+--source include/diff_tables.inc
+if(`SELECT COUNT(*) FROM tm WHERE f=111`)
+{
+  --die The non-trans part from the second update should not have replicated because it was not binlogged
+}
+--echo # ..success
+
+
+--echo "#######################################################################"
+--echo "# Test Case10: If an incident event fails to write, a specific error
+--echo "# should be logged
+--echo "#
+--echo "# Note: This test case is the same as test case 5, with the caveat of
+--echo "# the incident event failing to write.
+--echo "#######################################################################"
+
+--connection master
+SET debug_dbug="d,table_map_write_error,incident_event_write_error";
+--error ER_TRANS_CACHE_FULL
+UPDATE ti, tm set ti.f=120, tm.f=122;
+
+--echo # Validate error message indicating incident event failed to write
+let $log_error_= `SELECT @@GLOBAL.log_error`;
+if(!$log_error_)
+{
+    # MySQL Server on windows is started with --console and thus
+    # does not know the location of its .err log, use default location
+    let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.1.err;
+}
+--let SEARCH_PATTERN= Incident event write to the binary log file failed
+--let SEARCH_FILE= $log_error_
+--source include/search_pattern_in_file.inc
+
+
+--connection master
+--echo "******** Clean Up **********"
+--eval SET GLOBAL debug_dbug = '$debug_save'
+DROP TABLE tm,ti;
 
 --source include/rpl_end.inc

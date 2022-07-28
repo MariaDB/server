@@ -841,7 +841,6 @@ static void backup_file_op(uint32_t space_id, int type,
 	case FILE_MODIFY:
 		ddl_tracker.insert_defer_id(
 			space_id, filename_to_spacename(name, len));
-		msg("DDL tracking : modify %u \"%.*s\"", space_id, int(len), name);
 		break;
 	case FILE_RENAME:
 	{
@@ -890,7 +889,6 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 				filename_to_spacename(name, len).c_str());
 		break;
 	case FILE_MODIFY:
-		msg("DDL tracking : modify %u \"%.*s\"", space_id, int(len), name);
 		break;
 	case FILE_RENAME:
 		msg("DDL tracking : rename %u \"%.*s\",\"%.*s\"",
@@ -2992,14 +2990,8 @@ static bool xtrabackup_copy_logfile()
   const size_t sequence_offset{log_sys.is_encrypted() ? 8U + 5U : 5U};
   const size_t block_size_1{log_sys.get_block_size() - 1};
 
-#ifdef HAVE_PMEM
-  if (log_sys.is_pmem())
-  {
-    recv_sys.offset= size_t(log_sys.calc_lsn_offset(recv_sys.lsn));
-    recv_sys.len= size_t(log_sys.file_size);
-  }
-  else
-#endif
+  ut_ad(!log_sys.is_pmem());
+
   {
     recv_sys.offset= size_t(recv_sys.lsn - log_sys.get_first_lsn()) &
       block_size_1;
@@ -3011,87 +3003,6 @@ static bool xtrabackup_copy_logfile()
     recv_sys_t::parse_mtr_result r;
     size_t start_offset{recv_sys.offset};
 
-#ifdef HAVE_PMEM
-    if (log_sys.is_pmem())
-    {
-      if ((ut_d(r=) recv_sys.parse_pmem(STORE_NO)) != recv_sys_t::OK)
-      {
-        ut_ad(r == recv_sys_t::GOT_EOF);
-        goto retry;
-      }
-
-      retry_count= 0;
-
-      do
-      {
-        const byte seq{log_sys.get_sequence_bit(recv_sys.lsn -
-                                                sequence_offset)};
-        ut_ad(recv_sys.offset >= log_sys.START_OFFSET);
-        ut_ad(recv_sys.offset < recv_sys.len);
-        ut_ad(log_sys.buf[recv_sys.offset
-                          >= log_sys.START_OFFSET + sequence_offset
-                          ? recv_sys.offset - sequence_offset
-                          : recv_sys.len - sequence_offset +
-                          recv_sys.offset - log_sys.START_OFFSET] ==
-              seq);
-        static const byte seq_1{1};
-        if (UNIV_UNLIKELY(start_offset > recv_sys.offset))
-        {
-          const ssize_t so(recv_sys.offset - (log_sys.START_OFFSET +
-                                              sequence_offset));
-          if (so <= 0)
-          {
-            if (ds_write(dst_log_file, log_sys.buf + start_offset,
-                         recv_sys.len - start_offset + so) ||
-                ds_write(dst_log_file, &seq_1, 1))
-              goto write_error;
-            if (so < -1 &&
-                ds_write(dst_log_file, log_sys.buf + recv_sys.len + (1 + so),
-                         -(1 + so)))
-              goto write_error;
-            if (ds_write(dst_log_file, log_sys.buf + log_sys.START_OFFSET,
-                         recv_sys.offset - log_sys.START_OFFSET))
-              goto write_error;
-          }
-          else
-          {
-            if (ds_write(dst_log_file, log_sys.buf + start_offset,
-                         recv_sys.len - start_offset))
-              goto write_error;
-            if (ds_write(dst_log_file, log_sys.buf + log_sys.START_OFFSET, so))
-              goto write_error;
-            if (ds_write(dst_log_file, &seq_1, 1))
-              goto write_error;
-            if (so > 1 &&
-                ds_write(dst_log_file, log_sys.buf + recv_sys.offset -
-                         (so - 1), so - 1))
-              goto write_error;
-          }
-        }
-        else if (seq == 1)
-        {
-          if (ds_write(dst_log_file, log_sys.buf + start_offset,
-                       recv_sys.offset - start_offset))
-            goto write_error;
-        }
-        else if (ds_write(dst_log_file, log_sys.buf + start_offset,
-                          recv_sys.offset - start_offset - sequence_offset) ||
-                 ds_write(dst_log_file, &seq_1, 1) ||
-                 ds_write(dst_log_file, log_sys.buf +
-                          recv_sys.offset - sequence_offset + 1,
-                          sequence_offset - 1))
-          goto write_error;
-
-        start_offset= recv_sys.offset;
-      }
-      while ((ut_d(r=)recv_sys.parse_pmem(STORE_NO)) == recv_sys_t::OK);
-
-      ut_ad(r == recv_sys_t::GOT_EOF);
-      pthread_cond_broadcast(&scanned_lsn_cond);
-      break;
-    }
-    else
-#endif
     {
       {
         auto source_offset=
@@ -3135,9 +3046,6 @@ static bool xtrabackup_copy_logfile()
         if (ds_write(dst_log_file, log_sys.buf + start_offset,
                      recv_sys.offset - start_offset))
         {
-#ifdef HAVE_PMEM
-        write_error:
-#endif
           msg("Error: write to ib_logfile0 failed");
           return true;
         }
@@ -3167,9 +3075,6 @@ static bool xtrabackup_copy_logfile()
       else
       {
         recv_sys.len= recv_sys.offset & ~block_size_1;
-#ifdef HAVE_PMEM
-      retry:
-#endif
         if (retry_count == 100)
           break;
 

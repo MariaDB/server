@@ -2214,6 +2214,34 @@ id	name
 DROP TABLE divisions;
 DROP TABLE companies;
 #
+# MDEV-27015 Assertion `!is_null()' failed in FixedBinTypeBundle<FbtImpl>::Fbt FixedBinTypeBundle<FbtImpl>::Field_fbt::to_fbt()
+#
+CREATE TABLE t1 (id int NOT NULL PRIMARY KEY, a INET6(6) DEFAULT '::10');
+INSERT INTO t1(id) VALUES (1), (2), (3), (4);
+INSERT INTO t1 VALUES (5,'::5'), (6,'::6');
+SELECT * FROM t1 ORDER BY a;
+id	a
+5	::5
+6	::6
+1	::10
+2	::10
+3	::10
+4	::10
+CREATE VIEW v1(a, m) AS SELECT a, MIN(id) FROM t1 GROUP BY a;
+CREATE TABLE t2 SELECT * FROM v1;
+SELECT * FROM v1 ORDER BY a;
+a	m
+::5	5
+::6	6
+::10	1
+SELECT * FROM t2 ORDER BY a;
+a	m
+::5	5
+::6	6
+::10	1
+DROP VIEW v1;
+DROP TABLE t1, t2;
+#
 # MDEV-22256 Assertion `length == pack_length()' failed in Field_timestamp_with_dec::sort_string
 #
 SET sql_mode='';
@@ -2246,3 +2274,4 @@ f
 f::f
 DROP TABLE t1;
 SET max_sort_length=DEFAULT;
+# End of 10.8 tests

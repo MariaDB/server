@@ -1,5 +1,3 @@
---- instant_alter_charset.result	2019-06-17 14:36:02.311515062 +0300
-+++ instant_alter_charset,redundant.result	2019-06-17 14:50:11.888705725 +0300
 @@ -279,7 +279,6 @@
  alter table boundary_255
  modify a varchar(70) charset utf8mb4,
@@ -49,3 +47,12 @@
  select * from t;
  a	b	c	aa	bb	cc	d	dd
  aaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaa	aaaaaaaaaa
+@@ -2066,7 +2054,7 @@
+ ALTER TABLE t1
+ CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci,
+ ADD UNIQUE INDEX test_key (a);
+-ERROR 23000: Duplicate entry 'NULL' for key 'test_key'
++ERROR 23000: Duplicate entry 'a1' for key 'test_key'
+ ALTER TABLE t1 CONVERT TO CHARACTER SET UTF8MB4 COLLATE UTF8MB4_UNICODE_520_CI;
+ CHECK TABLE t1;
+ Table	Op	Msg_type	Msg_text

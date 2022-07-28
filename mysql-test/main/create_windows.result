@@ -1,0 +1,2 @@
+create table `...................................................`(i int);
+ERROR HY000: Can't create table `test`.`...................................................` (errno: 38 "Filename too long")

@@ -1354,6 +1354,7 @@ dict_load_columns(
 			if (table->fts == NULL) {
 				table->fts = fts_create(table);
 				table->fts->cache = fts_cache_create(table);
+				DICT_TF2_FLAG_SET(table, DICT_TF2_FTS_AUX_HEX_NAME);
 			}
 
 			ut_a(table->fts->doc_col == ULINT_UNDEFINED);
@@ -2101,8 +2102,11 @@ next_rec:
 	ut_ad(table->fts_doc_id_index == NULL);
 
 	if (table->fts != NULL) {
-		table->fts_doc_id_index = dict_table_get_index_on_name(
+		dict_index_t *idx = dict_table_get_index_on_name(
 			table, FTS_DOC_ID_INDEX_NAME);
+		if (idx && dict_index_is_unique(idx)) {
+			table->fts_doc_id_index = idx;
+		}
 	}
 
 	/* If the table contains FTS indexes, populate table->fts->indexes */
@@ -3086,10 +3090,11 @@ loop:
 
 	/* Copy the string because the page may be modified or evicted
 	after mtr.commit() below. */
-	char	fk_id[MAX_TABLE_NAME_LEN + 1];
-
-	ut_a(len <= MAX_TABLE_NAME_LEN);
-	memcpy(fk_id, field, len);
+	char	fk_id[MAX_TABLE_NAME_LEN + NAME_LEN];
+	err = DB_SUCCESS;
+	if (UNIV_LIKELY(len < sizeof fk_id)) {
+		memcpy(fk_id, field, len);
+	}
 
 	btr_pcur_store_position(&pcur, &mtr);
 
@@ -3097,9 +3102,11 @@ loop:
 
 	/* Load the foreign constraint definition to the dictionary cache */
 
-	err = dict_load_foreign(table_name, col_names, trx_id,
-				check_recursive, check_charsets,
-				{fk_id, len}, ignore_err, fk_tables);
+	err = len < sizeof fk_id
+		? dict_load_foreign(table_name, col_names, trx_id,
+				    check_recursive, check_charsets,
+				    {fk_id, len}, ignore_err, fk_tables)
+		: DB_CORRUPTION;
 
 	switch (err) {
 	case DB_SUCCESS:

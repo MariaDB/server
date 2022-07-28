@@ -240,6 +240,21 @@ Warnings:
 Warning	1287	The table parameter 'semi_table_lock_connection' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
+# MDEV-28795 Deprecate spider_bka_table_name_type
+SET spider_bka_table_name_type = 1;
+Warnings:
+Warning	1287	'@@spider_bka_table_name_type' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_bka_table_name_type";
+Variable_name	Value
+spider_bka_table_name_type	1
+CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='btt "1"';
+Warnings:
+Warning	1287	The table parameter 'btt' is deprecated and will be removed in a future release
+CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='bka_table_name_type "1"';
+Warnings:
+Warning	1287	The table parameter 'bka_table_name_type' is deprecated and will be removed in a future release
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
 DROP DATABASE auto_test_local;
 for master_1
 for child2

@@ -1,5 +1,6 @@
 --source include/maybe_debug.inc
 --source include/innodb_page_size_small.inc
+--source include/no_valgrind_without_big.inc
 
 --echo #
 --echo # Bug #16963396 INNODB: USE OF LARGE EXTERNALLY-STORED FIELDS MAKES

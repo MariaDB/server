@@ -92,7 +92,7 @@ int PlgMakeIndex(PGLOBAL g, PSZ name, PIXDEF pxdf, bool add)
   if (!(tdbp = cat->GetTable(g, tablep)))
     rc = RC_NF;
   else if (!tdbp->GetDef()->Indexable()) {
-    sprintf(g->Message, MSG(TABLE_NO_INDEX), name);
+    snprintf(g->Message, sizeof(g->Message), MSG(TABLE_NO_INDEX), name);
     rc = RC_NF;
   } else if ((rc = ((PTDBASE)tdbp)->MakeIndex(g, pxdf, add)) == RC_INFO)
     rc = RC_OK;            // No or remote index
@@ -351,7 +351,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   Record.Size = n * sizeof(int);
 
   if (!PlgDBalloc(g, NULL, Record)) {
-    sprintf(g->Message, MSG(MEM_ALLOC_ERR), "index", n);
+    snprintf(g->Message, sizeof(g->Message), MSG(MEM_ALLOC_ERR), "index", n);
     goto err;    // Error
     } // endif
 
@@ -362,7 +362,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
     colp = To_Cols[k];
 
     if (!kdfp) {
-      sprintf(g->Message, MSG(INT_COL_ERROR),
+      snprintf(g->Message, sizeof(g->Message), MSG(INT_COL_ERROR),
                           (colp) ? colp->GetName() : "???");
       goto err;    // Error
       } // endif kdfp
@@ -470,7 +470,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
       case RC_EF:
         goto end_of_file;
       default:
-        sprintf(g->Message, MSG(RC_READING), rc, Tdbp->Name);
+        snprintf(g->Message, sizeof(g->Message), MSG(RC_READING), rc, Tdbp->Name);
         goto err;
       } // endswitch rc
 
@@ -479,7 +479,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
     /*  future direct access.                                          */
     /*******************************************************************/
     if (nkey == n) {
-      sprintf(g->Message, MSG(TOO_MANY_KEYS), nkey);
+      snprintf(g->Message, sizeof(g->Message), MSG(TOO_MANY_KEYS), nkey);
       return true;
     } else
       To_Rec[nkey] = Tdbp->GetRecpos();
@@ -534,14 +534,14 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   Index.Size = Num_K * sizeof(int);
 
   if (!PlgDBalloc(g, NULL, Index)) {
-    sprintf(g->Message, MSG(MEM_ALLOC_ERR), "index", Num_K);
+    snprintf(g->Message, sizeof(g->Message), MSG(MEM_ALLOC_ERR), "index", Num_K);
     goto err;    // Error
     } // endif alloc
 
   Offset.Size = (Num_K + 1) * sizeof(int);
 
   if (!PlgDBalloc(g, NULL, Offset)) {
-    sprintf(g->Message, MSG(MEM_ALLOC_ERR), "offset", Num_K + 1);
+    snprintf(g->Message, sizeof(g->Message), MSG(MEM_ALLOC_ERR), "offset", Num_K + 1);
     goto err;    // Error
     } // endif alloc
 
@@ -842,7 +842,7 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
 		case RECFM_CSV: ftype = ".cnx"; break;
 		case RECFM_DBF: ftype = ".dbx"; break;
     default:
-      sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
+      snprintf(g->Message, sizeof(g->Message), MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
     } // endswitch Ftype
 
@@ -996,7 +996,7 @@ bool XINDEX::Init(PGLOBAL g)
 		case RECFM_CSV: ftype = ".cnx"; break;
 		case RECFM_DBF: ftype = ".dbx"; break;
     default:
-      sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
+      snprintf(g->Message, sizeof(g->Message), MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
     } // endswitch Ftype
 
@@ -1050,7 +1050,7 @@ bool XINDEX::Init(PGLOBAL g)
   // The test on ID was suppressed because MariaDB can change an index ID
   // when other indexes are added or deleted
   if (/*nv[0] != ID ||*/ nv[1] != Nk) {
-    sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
+    snprintf(g->Message, sizeof(g->Message), MSG(BAD_INDEX_FILE), fn);
 
     if (trace(1))
       htrc("nv[0]=%d ID=%d nv[1]=%d Nk=%d\n", nv[0], ID, nv[1], Nk);
@@ -1066,7 +1066,7 @@ bool XINDEX::Init(PGLOBAL g)
     Offset.Size = Ndif * sizeof(int);
 
     if (!PlgDBalloc(g, NULL, Offset)) {
-      sprintf(g->Message, MSG(MEM_ALLOC_ERR), "offset", Ndif);
+      snprintf(g->Message, sizeof(g->Message), MSG(MEM_ALLOC_ERR), "offset", Ndif);
       goto err;
       } // endif
 
@@ -1083,7 +1083,7 @@ bool XINDEX::Init(PGLOBAL g)
     n = nv[3];              // n was just an evaluated max value
 
   if (nv[3] != n) {
-    sprintf(g->Message, MSG(OPT_NOT_MATCH), fn);
+    snprintf(g->Message, sizeof(g->Message), MSG(OPT_NOT_MATCH), fn);
     goto err;
     } // endif
 
@@ -1099,7 +1099,7 @@ bool XINDEX::Init(PGLOBAL g)
     Record.Size = Num_K * sizeof(int);
 
     if (!PlgDBalloc(g, NULL, Record)) {
-      sprintf(g->Message, MSG(MEM_ALLOC_ERR), "index", Num_K);
+      snprintf(g->Message, sizeof(g->Message), MSG(MEM_ALLOC_ERR), "index", Num_K);
       goto err;
       } // endif
 
@@ -1123,7 +1123,7 @@ bool XINDEX::Init(PGLOBAL g)
 
     if (nv[4] != colp->GetResultType() || !colp->GetValue() ||
        (nv[3] != colp->GetValue()->GetClen() && nv[4] != TYPE_STRING)) {
-      sprintf(g->Message, MSG(XCOL_MISMATCH), colp->GetName());
+      snprintf(g->Message, sizeof(g->Message), MSG(XCOL_MISMATCH), colp->GetName());
       goto err;    // Error
       } // endif GetKey
 
@@ -1249,7 +1249,7 @@ bool XINDEX::MapInit(PGLOBAL g)
 		case RECFM_CSV: ftype = ".cnx"; break;
 		case RECFM_DBF: ftype = ".dbx"; break;
     default:
-      sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
+      snprintf(g->Message, sizeof(g->Message), MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
     } // endswitch Ftype
 
@@ -1312,7 +1312,7 @@ bool XINDEX::MapInit(PGLOBAL g)
   // when other indexes are added or deleted
   if (/*nv0 != ID ||*/ nv[1] != Nk) {
     // Not this index
-    sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
+    snprintf(g->Message, sizeof(g->Message), MSG(BAD_INDEX_FILE), fn);
 
     if (trace(1))
       htrc("nv0=%d ID=%d nv[1]=%d Nk=%d\n", nv0, ID, nv[1], Nk);
@@ -1337,7 +1337,7 @@ bool XINDEX::MapInit(PGLOBAL g)
     n = nv[3];              // n was just an evaluated max value
 
   if (nv[3] != n) {
-    sprintf(g->Message, MSG(OPT_NOT_MATCH), fn);
+    snprintf(g->Message, sizeof(g->Message), MSG(OPT_NOT_MATCH), fn);
     goto err;
     } // endif
 
@@ -1371,7 +1371,7 @@ bool XINDEX::MapInit(PGLOBAL g)
 
     if (nv[4] != colp->GetResultType() || !colp->GetValue() ||
        (nv[3] != colp->GetValue()->GetClen() && nv[4] != TYPE_STRING)) {
-      sprintf(g->Message, MSG(XCOL_MISMATCH), colp->GetName());
+      snprintf(g->Message, sizeof(g->Message), MSG(XCOL_MISMATCH), colp->GetName());
       goto err;    // Error
       } // endif GetKey
 
@@ -1464,7 +1464,7 @@ bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
 		case RECFM_CSV: ftype = ".cnx"; break;
 		case RECFM_DBF: ftype = ".dbx"; break;
     default:
-      sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
+      snprintf(g->Message, sizeof(g->Message), MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
     } // endswitch Ftype
 
@@ -1511,7 +1511,7 @@ bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
   // The test on ID was suppressed because MariaDB can change an index ID
   // when other indexes are added or deleted
   if (/*nv[0] != ID ||*/ nv[1] != Nk) {
-    sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
+    snprintf(g->Message, sizeof(g->Message), MSG(BAD_INDEX_FILE), fn);
 
     if (trace(1))
       htrc("nv[0]=%d ID=%d nv[1]=%d Nk=%d\n", nv[0], ID, nv[1], Nk);
@@ -1532,7 +1532,7 @@ bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
     n = nv[3];              // n was just an evaluated max value
 
   if (nv[3] != n) {
-    sprintf(g->Message, MSG(OPT_NOT_MATCH), fn);
+    snprintf(g->Message, sizeof(g->Message), MSG(OPT_NOT_MATCH), fn);
     goto err;
     } // endif
 #endif // 0
@@ -1554,7 +1554,7 @@ bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
 
     if (nv[4] != colp->GetResultType()  ||
        (nv[3] != colp->GetValue()->GetClen() && nv[4] != TYPE_STRING)) {
-      sprintf(g->Message, MSG(XCOL_MISMATCH), colp->GetName());
+      snprintf(g->Message, sizeof(g->Message), MSG(XCOL_MISMATCH), colp->GetName());
       goto err;    // Error
       } // endif GetKey
 
@@ -2338,7 +2338,7 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     case MODE_WRITE:  pmod = "wb"; break;
     case MODE_INSERT: pmod = "ab"; break;
     default:
-      sprintf(g->Message, MSG(BAD_FUNC_MODE), "Xopen", mode);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_FUNC_MODE), "Xopen", mode);
       return true;
     } // endswitch mode
 
@@ -2354,7 +2354,7 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     /* Position the cursor at end of file so ftell returns file size.  */
     /*******************************************************************/
     if (fseek(Xfile, 0, SEEK_END)) {
-      sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Xseek");
+      snprintf(g->Message, sizeof(g->Message), MSG(FUNC_ERRNO), errno, "Xseek");
       return true;
       } // endif
 
@@ -2379,7 +2379,7 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   } else if (mode == MODE_READ && id >= 0) {
     // Get offset from the header
     if (fread(noff, sizeof(IOFF), MAX_INDX, Xfile) != MAX_INDX) {
-      sprintf(g->Message, MSG(XFILE_READERR), errno);
+      snprintf(g->Message, sizeof(g->Message), MSG(XFILE_READERR), errno);
       return true;
       } // endif MAX_INDX
 
@@ -2388,7 +2388,7 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
 
     // Position the cursor at the offset of this index
     if (fseek(Xfile, noff[id].v.Low, SEEK_SET)) {
-      sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Xseek");
+      snprintf(g->Message, sizeof(g->Message), MSG(FUNC_ERRNO), errno, "Xseek");
       return true;
       } // endif
 
@@ -2408,7 +2408,7 @@ bool XFILE::Seek(PGLOBAL g, int low, int high __attribute__((unused)),
 #endif  // !_DEBUG
 
   if (fseek(Xfile, low, origin)) {
-    sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Xseek");
+    snprintf(g->Message, sizeof(g->Message), MSG(FUNC_ERRNO), errno, "Xseek");
     return true;
     } // endif
 
@@ -2421,7 +2421,7 @@ bool XFILE::Seek(PGLOBAL g, int low, int high __attribute__((unused)),
 bool XFILE::Read(PGLOBAL g, void *buf, int n, int size)
   {
   if (fread(buf, size, n, Xfile) != (size_t)n) {
-    sprintf(g->Message, MSG(XFILE_READERR), errno);
+    snprintf(g->Message, sizeof(g->Message), MSG(XFILE_READERR), errno);
     return true;
     } // endif size
 
@@ -2436,7 +2436,7 @@ int XFILE::Write(PGLOBAL g, void *buf, int n, int size, bool& rc)
   int niw = (int)fwrite(buf, size, n, Xfile);
 
   if (niw != n) {
-    sprintf(g->Message, MSG(XFILE_WRITERR), strerror(errno));
+    snprintf(g->Message, sizeof(g->Message), MSG(XFILE_WRITERR), strerror(errno));
     rc = true;
     } // endif size
 
@@ -2512,7 +2512,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   IOFF noff[MAX_INDX];
 
   if (Hfile != INVALID_HANDLE_VALUE) {
-    sprintf(g->Message, MSG(FILE_OPEN_YET), filename);
+    snprintf(g->Message, sizeof(g->Message), MSG(FILE_OPEN_YET), filename);
     return true;
     } // endif
 
@@ -2543,7 +2543,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       creation = OPEN_EXISTING;
       break;
     default:
-      sprintf(g->Message, MSG(BAD_FUNC_MODE), "Xopen", mode);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_FUNC_MODE), "Xopen", mode);
       return true;
     } // endswitch
 
@@ -2552,7 +2552,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
 
   if (Hfile == INVALID_HANDLE_VALUE) {
     rc = GetLastError();
-    sprintf(g->Message, MSG(OPEN_ERROR), rc, mode, filename);
+    snprintf(g->Message, sizeof(g->Message), MSG(OPEN_ERROR), rc, mode, filename);
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                   (LPTSTR)filename, sizeof(filename), NULL);
@@ -2571,7 +2571,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     rc = SetFilePointer(Hfile, 0, &high, FILE_END);
 
     if (rc == INVALID_SET_FILE_POINTER && (drc = GetLastError()) != NO_ERROR) {
-      sprintf(g->Message, MSG(ERROR_IN_SFP), drc);
+      snprintf(g->Message, sizeof(g->Message), MSG(ERROR_IN_SFP), drc);
       CloseHandle(Hfile);
       Hfile = INVALID_HANDLE_VALUE;
       return true;
@@ -2592,7 +2592,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     rc = ReadFile(Hfile, noff, sizeof(noff), &drc, NULL);
 
     if (!rc) {
-      sprintf(g->Message, MSG(XFILE_READERR), GetLastError());
+      snprintf(g->Message, sizeof(g->Message), MSG(XFILE_READERR), GetLastError());
       return true;
       } // endif rc
 
@@ -2601,7 +2601,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
                        (PLONG)&noff[id].v.High, FILE_BEGIN);
 
     if (rc == INVALID_SET_FILE_POINTER) {
-      sprintf(g->Message, MSG(FUNC_ERRNO), GetLastError(), "SetFilePointer");
+      snprintf(g->Message, sizeof(g->Message), MSG(FUNC_ERRNO), GetLastError(), "SetFilePointer");
       return true;
       } // endif
 
@@ -2626,7 +2626,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       oflag |= (O_WRONLY | O_APPEND);
       break;
     default:
-      sprintf(g->Message, MSG(BAD_FUNC_MODE), "Xopen", mode);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_FUNC_MODE), "Xopen", mode);
       return true;
     } // endswitch
 
@@ -2649,7 +2649,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     /* Position the cursor at end of file so ftell returns file size.  */
     /*******************************************************************/
     if (!(NewOff.Val = (longlong)lseek64(Hfile, 0LL, SEEK_END))) {
-      sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Seek");
+      snprintf(g->Message, sizeof(g->Message), MSG(FUNC_ERRNO), errno, "Seek");
       return true;
       } // endif
 
@@ -2669,7 +2669,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   } else if (mode == MODE_READ && id >= 0) {
     // Get offset from the header
     if (read(Hfile, noff, sizeof(noff)) != sizeof(noff)) {
-      sprintf(g->Message, MSG(READ_ERROR), "Index file", strerror(errno));
+      snprintf(g->Message, sizeof(g->Message), MSG(READ_ERROR), "Index file", strerror(errno));
       return true;
       } // endif read
       
@@ -2678,9 +2678,9 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
 
     // Position the cursor at the offset of this index
     if (lseek64(Hfile, noff[id].Val, SEEK_SET) < 0) {
-      sprintf(g->Message, "(XHUGE)lseek64: %s (%lld)", strerror(errno), noff[id].Val);
+      snprintf(g->Message, sizeof(g->Message), "(XHUGE)lseek64: %s (%lld)", strerror(errno), noff[id].Val);
       printf("%s\n", g->Message);
-//    sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Hseek");
+//    snprintf(g->Message, sizeof(g->Message), MSG(FUNC_ERRNO), errno, "Hseek");
       return true;
       } // endif lseek64
 
@@ -2700,7 +2700,7 @@ bool XHUGE::Seek(PGLOBAL g, int low, int high, int origin)
   DWORD rc = SetFilePointer(Hfile, low, &hi, origin);
 
   if (rc == INVALID_SET_FILE_POINTER && GetLastError() != NO_ERROR) {
-    sprintf(g->Message, MSG(FUNC_ERROR), "Xseek");
+    snprintf(g->Message, sizeof(g->Message), MSG(FUNC_ERROR), "Xseek");
     return true;
     } // endif
 
@@ -2709,7 +2709,7 @@ bool XHUGE::Seek(PGLOBAL g, int low, int high, int origin)
               + (off64_t)high * ((off64_t)0x100 * (off64_t)0x1000000);
 
   if (lseek64(Hfile, pos, origin) < 0) {
-    sprintf(g->Message, MSG(ERROR_IN_LSK), errno);
+    snprintf(g->Message, sizeof(g->Message), MSG(ERROR_IN_LSK), errno);
 
     if (trace(1))
       htrc("lseek64 error %d\n", errno);
@@ -2750,7 +2750,7 @@ bool XHUGE::Read(PGLOBAL g, void *buf, int n, int size)
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS, NULL, drc, 0,
                   (LPTSTR)buf, sizeof(buf), NULL);
-    sprintf(g->Message, MSG(READ_ERROR), "index file", buf);
+    snprintf(g->Message, sizeof(g->Message), MSG(READ_ERROR), "index file", buf);
     rc = true;
   } // endif brc
 #else    // UNIX
@@ -2760,7 +2760,7 @@ bool XHUGE::Read(PGLOBAL g, void *buf, int n, int size)
     htrc("Hfile=%d n=%d size=%d count=%d\n", Hfile, n, size, count);
 
   if (read(Hfile, buf, count) != count) {
-    sprintf(g->Message, MSG(READ_ERROR), "Index file", strerror(errno));
+    snprintf(g->Message, sizeof(g->Message), MSG(READ_ERROR), "Index file", strerror(errno));
 
     if (trace(1))
       htrc("read error %d\n", errno);
@@ -2790,7 +2790,7 @@ int XHUGE::Write(PGLOBAL g, void *buf, int n, int size, bool& rc)
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS, NULL, drc, 0,
                   (LPTSTR)msg, sizeof(msg), NULL);
-    sprintf(g->Message, MSG(WRITING_ERROR), "index file", msg);
+    snprintf(g->Message, sizeof(g->Message), MSG(WRITING_ERROR), "index file", msg);
     rc = true;
     } // endif size
 
@@ -2802,7 +2802,7 @@ int XHUGE::Write(PGLOBAL g, void *buf, int n, int size, bool& rc)
   nbw = write(Hfile, buf, count);
 
   if (nbw != (signed)count) {
-    sprintf(g->Message, MSG(WRITING_ERROR),
+    snprintf(g->Message, sizeof(g->Message), MSG(WRITING_ERROR),
                         "index file", strerror(errno));
     rc = true;
     } // endif nbw
@@ -3019,7 +3019,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
 
   // Currently no indexing on NULL columns
   if (colp->IsNullable() && kln) {
-    sprintf(g->Message, "Cannot index nullable column %s", colp->GetName());
+    snprintf(g->Message, sizeof(g->Message), "Cannot index nullable column %s", colp->GetName());
     return true;
     } // endif nullable
 
@@ -3042,7 +3042,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
   Keys.Size = (size_t)n * (size_t)Klen;
 
   if (!PlgDBalloc(g, NULL, Keys)) {
-    sprintf(g->Message, MSG(KEY_ALLOC_ERROR), Klen, n);
+    snprintf(g->Message, sizeof(g->Message), MSG(KEY_ALLOC_ERROR), Klen, n);
     return true;    // Error
     } // endif
 
@@ -3160,7 +3160,7 @@ bool KXYCOL::MakeBlockArray(PGLOBAL g, int nb, int size)
 
   // Allocate the required memory
   if (!PlgDBalloc(g, NULL, Bkeys)) {
-    sprintf(g->Message, MSG(KEY_ALLOC_ERROR), Klen, nb);
+    snprintf(g->Message, sizeof(g->Message), MSG(KEY_ALLOC_ERROR), Klen, nb);
     return true;    // Error
     } // endif
 

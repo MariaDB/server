@@ -478,7 +478,7 @@ bool AllocSarea(PGLOBAL g, size_t size)
 		g->Sarea = malloc(size);
 
 	if (!g->Sarea) {
-		sprintf(g->Message, MSG(MALLOC_ERROR), "malloc");
+		snprintf(g->Message, sizeof(g->Message), MSG(MALLOC_ERROR), "malloc");
 		g->Sarea_Size = 0;
 	}	else {
     g->Sarea_Size = size;
@@ -574,7 +574,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
   if (size > pph->FreeBlk) {   /* Not enough memory left in pool */
     PCSZ pname = "Work";
 
-    sprintf(g->Message,
+    snprintf(g->Message, sizeof(g->Message),
       "Not enough memory in %-.256s area for request of %zu (used=%zu free=%zu)",
                           pname, size, pph->To_Free, pph->FreeBlk);
 

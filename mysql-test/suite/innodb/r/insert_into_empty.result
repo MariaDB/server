@@ -281,3 +281,18 @@ c
 SELECT * FROM t2;
 c
 DROP TABLE t2, t1;
+#
+#  MDEV-28242  Assertion `!check_foreigns' failed in
+#                trx_t::check_bulk_buffer
+#
+CREATE TABLE t1 (c INT)ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 VALUES(1), (1);
+SET SESSION foreign_key_checks=TRUE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+CREATE TABLE t2(d INT)ENGINE=InnoDB;
+DROP TABLE t2, t1;

@@ -1161,6 +1161,16 @@ SHOW CREATE TABLE t1;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-29074 GET_BIT variables crash in SET STATEMENT
+--echo #
+set statement log_queries_not_using_indexes=1 for select @@log_queries_not_using_indexes;
+select @@log_queries_not_using_indexes;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
 create table t (a int);
 SET sql_mode=ORACLE;
 SET STATEMENT myisam_sort_buffer_size=800000 FOR OPTIMIZE TABLE t;

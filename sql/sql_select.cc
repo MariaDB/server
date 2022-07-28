@@ -812,7 +812,22 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
         Here SUBQ cannot be removed.
       */
       if (!ord->in_field_list)
+      {
         (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
+        /*
+          Remove from the JOIN::all_fields list any reference to the elements
+          of the eliminated GROUP BY list unless it is 'in_field_list'.
+          This is needed in order not to confuse JOIN::make_aggr_tables_info()
+          when it constructs different structure for execution phase.
+	*/
+        List_iterator<Item> li(subq_select_lex->join->all_fields);
+	Item *item;
+        while ((item= li++))
+	{
+          if (item == *ord->item)
+	    li.remove();
+	}
+      }
     }
     subq_select_lex->join->group_list= NULL;
     subq_select_lex->group_list.empty();
@@ -2037,7 +2052,6 @@ JOIN::optimize_inner()
     /* Merge all mergeable derived tables/views in this SELECT. */
     if (select_lex->handle_derived(thd->lex, DT_MERGE))
       DBUG_RETURN(TRUE);  
-    table_count= select_lex->leaf_tables.elements;
   }
 
   if (select_lex->first_cond_optimization &&
@@ -2084,8 +2098,6 @@ JOIN::optimize_inner()
   }
   
   eval_select_list_used_tables();
-
-  table_count= select_lex->leaf_tables.elements;
 
   if (select_lex->options & OPTION_SCHEMA_TABLE &&
       optimize_schema_tables_memory_usage(select_lex->leaf_tables))
@@ -9236,7 +9248,8 @@ greedy_search(JOIN      *join,
       picked semi-join operation is in best_pos->...picker, but we need to
       update the global state in the JOIN object, too.
     */
-    update_sj_state(join, best_table, idx, remaining_tables);
+    if (!join->emb_sjm_nest)
+      update_sj_state(join, best_table, idx, remaining_tables);
 
     /* find the position of 'best_table' in 'join->best_ref' */
     best_idx= idx;
@@ -14417,7 +14430,6 @@ void JOIN::cleanup(bool full)
     /* Free the original optimized join created for the group_by_handler */
     join_tab= original_join_tab;
     original_join_tab= 0;
-    table_count= original_table_count;
   }
 
   if (join_tab)

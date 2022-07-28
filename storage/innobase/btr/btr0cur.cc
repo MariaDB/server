@@ -153,17 +153,6 @@ btr_cur_unmark_extern_fields(
 	dict_index_t*	index,	/*!< in: index of the page */
 	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
 	mtr_t*		mtr);	/*!< in: mtr, or NULL if not logged */
-/*******************************************************************//**
-Adds path information to the cursor for the current page, for which
-the binary search has been performed. */
-static
-void
-btr_cur_add_path_info(
-/*==================*/
-	btr_cur_t*	cursor,		/*!< in: cursor positioned on a page */
-	ulint		height,		/*!< in: height of the page in tree;
-					0 means leaf node */
-	ulint		root_height);	/*!< in: root node height in tree */
 /***********************************************************//**
 Frees the externally stored fields for a record, if the field is mentioned
 in the update vector. */
@@ -1222,7 +1211,7 @@ btr_cur_search_to_nth_level_func(
 				PAGE_CUR_LE to search the position! */
 	ulint		latch_mode, /*!< in: BTR_SEARCH_LEAF, ..., ORed with
 				at most one of BTR_INSERT, BTR_DELETE_MARK,
-				BTR_DELETE, or BTR_ESTIMATE;
+				BTR_DELETE;
 				cursor->left_block is used to store a pointer
 				to the left neighbor page, in the cases
 				BTR_SEARCH_PREV and BTR_MODIFY_PREV;
@@ -1251,7 +1240,6 @@ btr_cur_search_to_nth_level_func(
 	page_cur_mode_t	page_mode;
 	page_cur_mode_t	search_mode = PAGE_CUR_UNSUPP;
 	ulint		buf_mode;
-	ulint		estimate;
 	ulint		node_ptr_max_size = srv_page_size / 2;
 	page_cur_t*	page_cursor;
 	btr_op_t	btr_op;
@@ -1346,8 +1334,6 @@ btr_cur_search_to_nth_level_func(
 	/* Operation on the spatial index cannot be buffered. */
 	ut_ad(btr_op == BTR_NO_OP || !dict_index_is_spatial(index));
 
-	estimate = latch_mode & BTR_ESTIMATE;
-
 	lock_intention = btr_cur_get_and_clear_intention(&latch_mode);
 
 	modify_external = latch_mode & BTR_MODIFY_EXTERNAL;
@@ -1384,7 +1370,6 @@ btr_cur_search_to_nth_level_func(
 # endif
 	if (!btr_search_enabled) {
 	} else if (autoinc == 0
-	    && !estimate
 	    && latch_mode <= BTR_MODIFY_LEAF
 	    && !modify_external
 	    /* If !ahi_latch, we do a dirty read of
@@ -1944,10 +1929,6 @@ retry_page_get:
 			need_path ? cursor->rtr_info : NULL);
 	}
 
-	if (estimate) {
-		btr_cur_add_path_info(cursor, height, root_height);
-	}
-
 	/* If this is the desired level, leave the loop */
 
 	ut_ad(height == btr_page_get_level(page_cur_get_page(page_cursor)));
@@ -2475,9 +2456,7 @@ btr_cur_open_at_index_side(
 	page_cur_t*	page_cursor;
 	ulint		node_ptr_max_size = srv_page_size / 2;
 	ulint		height;
-	ulint		root_height = 0; /* remove warning */
 	rec_t*		node_ptr;
-	ulint		estimate;
 	btr_intention_t	lock_intention;
 	buf_block_t*	tree_blocks[BTR_MAX_LEVELS];
 	ulint		tree_savepoints[BTR_MAX_LEVELS];
@@ -2489,9 +2468,6 @@ btr_cur_open_at_index_side(
 	dberr_t		err;
 
 	rec_offs_init(offsets_);
-
-	estimate = latch_mode & BTR_ESTIMATE;
-	latch_mode &= ulint(~BTR_ESTIMATE);
 
 	ut_ad(level != ULINT_UNDEFINED);
 
@@ -2621,7 +2597,6 @@ btr_cur_open_at_index_side(
 			/* We are in the root node */
 
 			height = btr_page_get_level(page);
-			root_height = height;
 			ut_a(height >= level);
 		} else {
 			/* TODO: flag the index corrupted if this fails */
@@ -2695,11 +2670,6 @@ btr_cur_open_at_index_side(
 		}
 
 		if (height == level) {
-			if (estimate) {
-				btr_cur_add_path_info(cursor, height,
-						      root_height);
-			}
-
 			break;
 		}
 
@@ -2712,10 +2682,6 @@ btr_cur_open_at_index_side(
 				err = DB_CORRUPTION;
 				goto exit_loop;
 			}
-		}
-
-		if (estimate) {
-			btr_cur_add_path_info(cursor, height, root_height);
 		}
 
 		height--;
@@ -5903,589 +5869,641 @@ dberr_t btr_cur_node_ptr_delete(btr_cur_t* parent, mtr_t* mtr)
 	return err;
 }
 
-/*******************************************************************//**
-Adds path information to the cursor for the current page, for which
-the binary search has been performed. */
-static
-void
-btr_cur_add_path_info(
-/*==================*/
-	btr_cur_t*	cursor,		/*!< in: cursor positioned on a page */
-	ulint		height,		/*!< in: height of the page in tree;
-					0 means leaf node */
-	ulint		root_height)	/*!< in: root node height in tree */
+/** Represents the cursor for the number of rows estimation. The
+content is used for level-by-level diving and estimation the number of rows
+on each level. */
+class btr_est_cur_t
 {
-	btr_path_t*	slot;
+  /* Assume a page like:
+  records:             (inf, a, b, c, d, sup)
+  index of the record:    0, 1, 2, 3, 4, 5
+  */
 
-	ut_a(cursor->path_arr);
+  /** Index of the record where the page cursor stopped on this level
+  (index in alphabetical order). In the above example, if the search stopped on
+  record 'c', then nth_rec will be 3. */
+  ulint m_nth_rec;
 
-	if (root_height >= BTR_PATH_ARRAY_N_SLOTS - 1) {
-		/* Do nothing; return empty path */
+  /** Number of the records on the page, not counting inf and sup.
+  In the above example n_recs will be 4. */
+  ulint m_n_recs;
 
-		slot = cursor->path_arr;
-		slot->nth_rec = ULINT_UNDEFINED;
+  /** Search tuple */
+  const dtuple_t &m_tuple;
+  /** Cursor search mode */
+  page_cur_mode_t m_mode;
+  /** Page cursor which is used for search */
+  page_cur_t m_page_cur;
+  /** Page id of the page to get on level down, can differ from
+  m_block->page.id at the moment when the child's page id is already found, but
+  the child's block has not fetched yet */
+  page_id_t m_page_id;
+  /** Current block */
+  buf_block_t *m_block;
+  /** mtr savepoint of the current block */
+  ulint m_savepoint;
+  /** Page search mode, can differ from m_mode for non-leaf pages, see c-tor
+  comments for details */
+  page_cur_mode_t m_page_mode;
 
-		return;
-	}
+  /** Matched fields and bytes which are used for on-page search, see
+  btr_cur_t::(up|low)_(match|bytes) comments for details */
+  ulint m_up_match= 0;
+  ulint m_up_bytes= 0;
+  ulint m_low_match= 0;
+  ulint m_low_bytes= 0;
 
-	if (height == 0) {
-		/* Mark end of slots for path */
-		slot = cursor->path_arr + root_height + 1;
-		slot->nth_rec = ULINT_UNDEFINED;
-	}
+public:
+  btr_est_cur_t(dict_index_t *index, const dtuple_t &tuple,
+                page_cur_mode_t mode)
+      : m_tuple(tuple), m_mode(mode),
+        m_page_id(index->table->space_id, index->page), m_block(nullptr)
+  {
 
-	slot = cursor->path_arr + (root_height - height);
+    ut_ad(dict_index_check_search_tuple(index, &tuple));
+    ut_ad(dtuple_check_typed(&tuple));
 
-	const buf_block_t* block = btr_cur_get_block(cursor);
+    m_page_cur.index = index;
+    /* We use these modified search modes on non-leaf levels of the B-tree.
+    These let us end up in the right B-tree leaf. In that leaf we use the
+    original search mode. */
+    switch (mode) {
+    case PAGE_CUR_GE:
+      m_page_mode= PAGE_CUR_L;
+      break;
+    case PAGE_CUR_G:
+      m_page_mode= PAGE_CUR_LE;
+      break;
+    default:
+#ifdef PAGE_CUR_LE_OR_EXTENDS
+      ut_ad(mode == PAGE_CUR_L || mode == PAGE_CUR_LE ||
+            mode == PAGE_CUR_LE_OR_EXTENDS);
+#else  /* PAGE_CUR_LE_OR_EXTENDS */
+      ut_ad(mode == PAGE_CUR_L || mode == PAGE_CUR_LE);
+#endif /* PAGE_CUR_LE_OR_EXTENDS */
+      m_page_mode= mode;
+      break;
+    }
+  }
 
-	slot->nth_rec = page_rec_get_n_recs_before(btr_cur_get_rec(cursor));
-	slot->n_recs = page_get_n_recs(block->page.frame);
-	slot->page_no = block->page.id().page_no();
-	slot->page_level = btr_page_get_level(block->page.frame);
-}
+  /** Retrieve block with m_page_id, release the previously gotten block
+  if necessary. If this is a left border block cursor and both left and right
+  border blocks have the same parent, don't unlatch the parent, as it must be
+  latched to get the right block, and will be unlatched after the right block
+  is fetched.
+  @param  level distance from the leaf page level; ULINT_UNDEFINED when
+          fetching the root page
+  @param  mtr mtr
+  @param  right_parent right border block parent, nullptr if the function
+          is called for the right block itself
+  @return true on success or false otherwise. */
+  bool fetch_child(ulint level, mtr_t &mtr, const buf_block_t *right_parent)
+  {
+    buf_block_t *parent_block= m_block;
+    ulint parent_savepoint= m_savepoint;
 
-/*******************************************************************//**
-Estimate the number of rows between slot1 and slot2 for any level on a
-B-tree. This function starts from slot1->page and reads a few pages to
-the right, counting their records. If we reach slot2->page quickly then
-we know exactly how many records there are between slot1 and slot2 and
-we set is_n_rows_exact to TRUE. If we cannot reach slot2->page quickly
-then we calculate the average number of records in the pages scanned
-so far and assume that all pages that we did not scan up to slot2->page
-contain the same number of records, then we multiply that average to
-the number of pages between slot1->page and slot2->page (which is
-n_rows_on_prev_level). In this case we set is_n_rows_exact to FALSE.
-@return number of rows, not including the borders (exact or estimated) */
-static
-ha_rows
-btr_estimate_n_rows_in_range_on_level(
-/*==================================*/
-	dict_index_t*	index,			/*!< in: index */
-	btr_path_t*	slot1,			/*!< in: left border */
-	btr_path_t*	slot2,			/*!< in: right border */
-	ha_rows		n_rows_on_prev_level,	/*!< in: number of rows
-						on the previous level for the
-						same descend paths; used to
-						determine the number of pages
-						on this level */
-	bool*		is_n_rows_exact)	/*!< out: TRUE if the returned
-						value is exact i.e. not an
-						estimation */
+    m_savepoint= mtr_set_savepoint(&mtr);
+    m_block= btr_block_get(*index(), m_page_id.page_no(), RW_S_LATCH, !level,
+                           &mtr, nullptr);
+
+    if (parent_block && parent_block != right_parent)
+      mtr_release_block_at_savepoint(&mtr, parent_savepoint, parent_block);
+
+    return m_block &&
+           (level == ULINT_UNDEFINED ||
+            btr_page_get_level(buf_block_get_frame(m_block)) == level);
+  }
+
+  /** Sets page mode for leaves */
+  void set_page_mode_for_leaves() { m_page_mode= m_mode; }
+
+  /** Does search on the current page. If there is no border in m_tuple, then
+  just move the cursor to the most left or right record.
+  @param level current level on tree.
+  @param root_height root height
+  @param left true if this is left border, false otherwise.
+  @return true on success, false otherwise. */
+  bool search_on_page(ulint level, ulint root_height, bool left)
+  {
+    if (level != btr_page_get_level(m_block->page.frame))
+      return false;
+
+    m_n_recs= page_get_n_recs(m_block->page.frame);
+
+    if (dtuple_get_n_fields(&m_tuple) > 0)
+    {
+      m_up_bytes= m_low_bytes= 0;
+      page_cur_search_with_match(m_block, index(), &m_tuple, m_page_mode,
+                                 &m_up_match, &m_low_match, &m_page_cur,
+                                 nullptr);
+      m_nth_rec= page_rec_get_n_recs_before(page_cur_get_rec(&m_page_cur));
+    }
+    else if (left)
+    {
+      page_cur_set_before_first(m_block, &m_page_cur);
+      if (level)
+      {
+        page_cur_move_to_next(&m_page_cur);
+        m_nth_rec= 1;
+      }
+      else
+        m_nth_rec= 0;
+    }
+    else
+    {
+      m_nth_rec= m_n_recs;
+      if (!level)
+      {
+        page_cur_set_after_last(m_block, &m_page_cur);
+        ++m_nth_rec;
+      }
+      else
+      {
+        m_page_cur.block= m_block;
+        m_page_cur.rec= page_rec_get_nth(m_block->page.frame, m_nth_rec);
+      }
+    }
+
+    return true;
+  }
+
+  /** Gets page id of the current record child.
+  @param offsets offsets array.
+  @param heap heap for offsets array */
+  void get_child(rec_offs **offsets, mem_heap_t **heap)
+  {
+    const rec_t *node_ptr= page_cur_get_rec(&m_page_cur);
+
+    /* FIXME: get the child page number directly without computing offsets */
+    *offsets= rec_get_offsets(node_ptr, index(), *offsets, 0, ULINT_UNDEFINED,
+                              heap);
+
+    /* Go to the child node */
+    m_page_id.set_page_no(btr_node_ptr_get_child_page_no(node_ptr, *offsets));
+  }
+
+  /** @return true if left border should be counted */
+  bool should_count_the_left_border() const
+  {
+    if (dtuple_get_n_fields(&m_tuple) > 0)
+    {
+      ut_ad(!page_rec_is_infimum(page_cur_get_rec(&m_page_cur)));
+      return !page_rec_is_supremum(page_cur_get_rec(&m_page_cur));
+    }
+    ut_ad(page_rec_is_infimum(page_cur_get_rec(&m_page_cur)));
+    return false;
+  }
+
+  /** @return true if right border should be counted */
+  bool should_count_the_right_border() const
+  {
+    if (dtuple_get_n_fields(&m_tuple) > 0)
+    {
+      const rec_t *rec= page_cur_get_rec(&m_page_cur);
+      ut_ad(!(m_mode == PAGE_CUR_L && page_rec_is_supremum(rec)));
+
+      return (m_mode == PAGE_CUR_LE /* if the range is '<=' */
+              /* and the record was found */
+              && m_low_match >= dtuple_get_n_fields(&m_tuple)) ||
+             (m_mode == PAGE_CUR_L /* or if the range is '<' */
+              /* and there are any records to match the criteria, i.e. if the
+              minimum record on the tree is 5 and x < 7 is specified then the
+              cursor will be positioned at 5 and we should count the border,
+              but if x < 2 is specified, then the cursor will be positioned at
+              'inf' and we should not count the border */
+              && !page_rec_is_infimum(rec));
+      /* Notice that for "WHERE col <= 'foo'" the server passes to
+      ha_innobase::records_in_range(): min_key=NULL (left-unbounded) which is
+      expected max_key='foo' flag=HA_READ_AFTER_KEY (PAGE_CUR_G), which is
+      unexpected - one would expect flag=HA_READ_KEY_OR_PREV (PAGE_CUR_LE). In
+      this case the cursor will be positioned on the first record to the right
+      of the requested one (can also be positioned on the 'sup') and we should
+      not count the right border. */
+    }
+    ut_ad(page_rec_is_supremum(page_cur_get_rec(&m_page_cur)));
+
+    /* The range specified is wihout a right border, just 'x > 123' or 'x >=
+    123' and btr_cur_open_at_index_side() positioned the cursor on the
+    supremum record on the rightmost page, which must not be counted. */
+    return false;
+  }
+
+  /** @return index */
+  const dict_index_t *index() const { return m_page_cur.index; }
+
+  /** @return current block */
+  const buf_block_t *block() const { return m_block; }
+
+  /** @return current page id */
+  page_id_t page_id() const { return m_page_id; }
+
+  /** Copies block pointer and savepoint from another btr_est_cur_t in the case
+  if both left and right border cursors point to the same block.
+  @param o reference to the other btr_est_cur_t object. */
+  void set_block(const btr_est_cur_t &o)
+  {
+    m_block= o.m_block;
+    m_savepoint= o.m_savepoint;
+  }
+
+  /** @return current record number. */
+  ulint nth_rec() const { return m_nth_rec; }
+
+  /** @return number of records in the current page. */
+  ulint n_recs() const { return m_n_recs; }
+};
+
+/** Estimate the number of rows between the left record of the path and the
+right one(non-inclusive) for the certain level on a B-tree. This function
+starts from the page next to the left page and reads a few pages to the right,
+counting their records. If we reach the right page quickly then we know exactly
+how many records there are between left and right records and we set
+is_n_rows_exact to true. After some page is latched, the previous page is
+unlatched. If we cannot reach the right page quickly then we calculate the
+average number of records in the pages scanned so far and assume that all pages
+that we did not scan up to the right page contain the same number of records,
+then we multiply that average to the number of pages between right and left
+records (which is n_rows_on_prev_level). In this case we set is_n_rows_exact to
+false.
+@param level current level.
+@param left_cur the cursor of the left page.
+@param right_page_no right page number.
+@param n_rows_on_prev_level number of rows on the previous level.
+@param[out] is_n_rows_exact true if exact rows number is returned.
+@param[in,out] mtr mtr,
+@return number of rows, not including the borders (exact or estimated). */
+static ha_rows btr_estimate_n_rows_in_range_on_level(
+    ulint level, btr_est_cur_t &left_cur, uint32_t right_page_no,
+    ha_rows n_rows_on_prev_level, bool &is_n_rows_exact, mtr_t &mtr)
 {
-	ha_rows		n_rows = 0;
-	uint		n_pages_read = 0;
-	ulint		level;
+  ha_rows n_rows= 0;
+  uint n_pages_read= 0;
+  /* Do not read more than this number of pages in order not to hurt
+  performance with this code which is just an estimation. If we read this many
+  pages before reaching right_page_no, then we estimate the average from the
+  pages scanned so far. */
+  static constexpr uint n_pages_read_limit= 9;
+  ulint savepoint= 0;
+  buf_block_t *block= nullptr;
+  const dict_index_t *index= left_cur.index();
 
-	/* Assume by default that we will scan all pages between
-	slot1->page_no and slot2->page_no. */
-	*is_n_rows_exact = true;
+  /* Assume by default that we will scan all pages between left and right(non
+  inclusive) pages */
+  is_n_rows_exact= true;
 
-	/* Add records from slot1->page_no which are to the right of
-	the record which serves as a left border of the range, if any
-	(we don't include the record itself in this count). */
-	if (slot1->nth_rec <= slot1->n_recs) {
-		n_rows += slot1->n_recs - slot1->nth_rec;
-	}
+  /* Add records from the left page which are to the right of the record which
+  serves as a left border of the range, if any (we don't include the record
+  itself in this count). */
+  if (left_cur.nth_rec() <= left_cur.n_recs())
+  {
+    n_rows+= left_cur.n_recs() - left_cur.nth_rec();
+  }
 
-	/* Add records from slot2->page_no which are to the left of
-	the record which servers as a right border of the range, if any
-	(we don't include the record itself in this count). */
-	if (slot2->nth_rec > 1) {
-		n_rows += slot2->nth_rec - 1;
-	}
+  /* Count the records in the pages between left and right (non inclusive)
+  pages */
 
-	/* Count the records in the pages between slot1->page_no and
-	slot2->page_no (non inclusive), if any. */
+  const fil_space_t *space= index->table->space;
+  page_id_t page_id(space->id,
+                    btr_page_get_next(buf_block_get_frame(left_cur.block())));
 
-	/* Do not read more than this number of pages in order not to hurt
-	performance with this code which is just an estimation. If we read
-	this many pages before reaching slot2->page_no then we estimate the
-	average from the pages scanned so far. */
-#	define N_PAGES_READ_LIMIT	10
+  if (page_id.page_no() == FIL_NULL)
+    goto inexact;
 
-	const fil_space_t*	space = index->table->space;
-	page_id_t		page_id(space->id, slot1->page_no);
-	const ulint		zip_size = space->zip_size();
+  do
+  {
+    page_t *page;
+    buf_block_t *prev_block= block;
+    ulint prev_savepoint= savepoint;
 
-	level = slot1->page_level;
+    savepoint= mtr_set_savepoint(&mtr);
 
-	do {
-		mtr_t		mtr;
-		page_t*		page;
-		buf_block_t*	block;
-		dberr_t		err;
+    /* Fetch the page. */
+    block= btr_block_get(*index, page_id.page_no(), RW_S_LATCH, !level, &mtr,
+                         nullptr);
 
-		mtr_start(&mtr);
+    if (prev_block)
+      mtr_release_block_at_savepoint(&mtr, prev_savepoint, prev_block);
 
-		/* Fetch the page. Because we are not holding the
-		index->lock, the tree may have changed and we may be
-		attempting to read a page that is no longer part of
-		the B-tree. We pass BUF_GET_POSSIBLY_FREED in order to
-		silence a debug assertion about this. */
-		block = buf_page_get_gen(page_id, zip_size, RW_S_LATCH,
-					 NULL, BUF_GET_POSSIBLY_FREED,
-					 &mtr, &err);
+    if (!block || btr_page_get_level(buf_block_get_frame(block)) != level)
+      goto inexact;
 
-		ut_ad((block != NULL) == (err == DB_SUCCESS));
+    page= buf_block_get_frame(block);
 
-		if (!block) {
-			if (err == DB_DECRYPTION_FAILED) {
-				btr_decryption_failed(*index);
-			}
+    /* It is possible but highly unlikely that the page was originally written
+    by an old version of InnoDB that did not initialize FIL_PAGE_TYPE on other
+    than B-tree pages. For example, this could be an almost-empty BLOB page
+    that happens to contain the magic values in the fields
+    that we checked above. */
 
-			mtr_commit(&mtr);
-			goto inexact;
-		}
+    n_pages_read++;
 
-		page = buf_block_get_frame(block);
+    n_rows+= page_get_n_recs(page);
 
-		/* It is possible that the tree has been reorganized in the
-		meantime and this is a different page. If this happens the
-		calculated estimate will be bogus, which is not fatal as
-		this is only an estimate. We are sure that a page with
-		page_no exists because InnoDB never frees pages, only
-		reuses them. */
-		if (!fil_page_index_page_check(page)
-		    || btr_page_get_index_id(page) != index->id
-		    || btr_page_get_level(page) != level) {
+    page_id.set_page_no(btr_page_get_next(page));
 
-			/* The page got reused for something else */
-			mtr_commit(&mtr);
-			goto inexact;
-		}
+    if (n_pages_read == n_pages_read_limit)
+    {
+      /* We read too many pages or we reached the end of the level
+      without passing through right_page_no. */
+      goto inexact;
+    }
 
-		/* It is possible but highly unlikely that the page was
-		originally written by an old version of InnoDB that did
-		not initialize FIL_PAGE_TYPE on other than B-tree pages.
-		For example, this could be an almost-empty BLOB page
-		that happens to contain the magic values in the fields
-		that we checked above. */
+  } while (page_id.page_no() != right_page_no);
 
-		n_pages_read++;
+  if (block)
+    mtr_release_block_at_savepoint(&mtr, savepoint, block);
 
-		if (page_id.page_no() != slot1->page_no) {
-			/* Do not count the records on slot1->page_no,
-			we already counted them before this loop. */
-			n_rows += page_get_n_recs(page);
-		}
-
-		page_id.set_page_no(btr_page_get_next(page));
-
-		mtr_commit(&mtr);
-
-		if (n_pages_read == N_PAGES_READ_LIMIT
-		    || page_id.page_no() == FIL_NULL) {
-			/* Either we read too many pages or
-			we reached the end of the level without passing
-			through slot2->page_no, the tree must have changed
-			in the meantime */
-			goto inexact;
-		}
-
-	} while (page_id.page_no() != slot2->page_no);
-
-	return(n_rows);
+  return (n_rows);
 
 inexact:
 
-	*is_n_rows_exact = false;
+  if (block)
+    mtr_release_block_at_savepoint(&mtr, savepoint, block);
 
-	/* We did interrupt before reaching slot2->page */
+  is_n_rows_exact= false;
 
-	if (n_pages_read > 0) {
-		/* The number of pages on this level is
-		n_rows_on_prev_level, multiply it by the
-		average number of recs per page so far */
-		n_rows = n_rows_on_prev_level * n_rows / n_pages_read;
-	} else {
-		/* The tree changed before we could even
-		start with slot1->page_no */
-		n_rows = 10;
-	}
+  /* We did interrupt before reaching right page */
 
-	return(n_rows);
+  if (n_pages_read > 0)
+  {
+    /* The number of pages on this level is
+    n_rows_on_prev_level, multiply it by the
+    average number of recs per page so far */
+    n_rows= n_rows_on_prev_level * n_rows / n_pages_read;
+  }
+  else
+  {
+    n_rows= 10;
+  }
+
+  return (n_rows);
 }
 
-/** If the tree gets changed too much between the two dives for the left
-and right boundary then btr_estimate_n_rows_in_range_low() will retry
-that many times before giving up and returning the value stored in
-rows_in_range_arbitrary_ret_val. */
-static const unsigned	rows_in_range_max_retries = 4;
-
-/** We pretend that a range has that many records if the tree keeps changing
-for rows_in_range_max_retries retries while we try to estimate the records
-in a given range. */
-static const ha_rows	rows_in_range_arbitrary_ret_val = 10;
-
-/** Estimates the number of rows in a given index range.
-@param[in]	index		index
-@param[in]	tuple1		range start
-@param[in]	tuple2		range end
-@param[in]	nth_attempt	if the tree gets modified too much while
-we are trying to analyze it, then we will retry (this function will call
-itself, incrementing this parameter)
-@return estimated number of rows; if after rows_in_range_max_retries
-retries the tree keeps changing, then we will just return
-rows_in_range_arbitrary_ret_val as a result (if
-nth_attempt >= rows_in_range_max_retries and the tree is modified between
-the two dives). */
-static
-ha_rows
-btr_estimate_n_rows_in_range_low(
-	dict_index_t*	index,
-	btr_pos_t*	tuple1,
-	btr_pos_t*	tuple2,
-	unsigned	nth_attempt)
+/** Estimates the number of rows in a given index range. Do search in the left
+page, then if there are pages between left and right ones, read a few pages to
+the right, if the right page is reached, count the exact number of rows without
+fetching the right page, the right page will be fetched in the caller of this
+function and the amount of its rows will be added. If the right page is not
+reached, count the estimated(see btr_estimate_n_rows_in_range_on_level() for
+details) rows number, and fetch the right page. If leaves are reached, unlatch
+non-leaf pages except the right leaf parent. After the right leaf page is
+fetched, commit mtr.
+@param[in]  index index
+@param[in]  range_start range start
+@param[in]  range_end   range end
+@return estimated number of rows; */
+ha_rows btr_estimate_n_rows_in_range(dict_index_t *index,
+                                     btr_pos_t *range_start,
+                                     btr_pos_t *range_end)
 {
-	btr_path_t	path1[BTR_PATH_ARRAY_N_SLOTS];
-	btr_path_t	path2[BTR_PATH_ARRAY_N_SLOTS];
-	btr_cur_t	cursor;
-	btr_path_t*	slot1;
-	btr_path_t*	slot2;
-	bool		diverged;
-	bool		diverged_lot;
-	ulint		divergence_level;
-	ha_rows		n_rows;
-	bool		is_n_rows_exact;
-	ulint		i;
-	mtr_t		mtr;
-	ha_rows		table_n_rows;
-        page_cur_mode_t mode2= tuple2->mode;
-
-	table_n_rows = dict_table_get_n_rows(index->table);
-
-	/* Below we dive to the two records specified by tuple1 and tuple2 and
-	we remember the entire dive paths from the tree root. The place where
-	the tuple1 path ends on the leaf level we call "left border" of our
-	interval and the place where the tuple2 path ends on the leaf level -
-	"right border". We take care to either include or exclude the interval
-	boundaries depending on whether <, <=, > or >= was specified. For
-	example if "5 < x AND x <= 10" then we should not include the left
-	boundary, but should include the right one. */
-
-	mtr.start();
-
-	cursor.path_arr = path1;
-
-	bool should_count_the_left_border =
-		 dtuple_get_n_fields(tuple1->tuple) > 0;
-
-	if (should_count_the_left_border) {
-		if (btr_cur_search_to_nth_level(index, 0, tuple1->tuple,
-						tuple1->mode,
-						BTR_SEARCH_LEAF | BTR_ESTIMATE,
-						&cursor, 0, &mtr)
-		    != DB_SUCCESS) {
-corrupted:
-			mtr.commit();
-			return 0;
-		}
-
-		ut_ad(!page_rec_is_infimum(btr_cur_get_rec(&cursor)));
-
-		/* We should count the border if there are any records to
-		match the criteria, i.e. if the maximum record on the tree is
-		5 and x > 3 is specified then the cursor will be positioned at
-		5 and we should count the border, but if x > 7 is specified,
-		then the cursor will be positioned at 'sup' on the rightmost
-		leaf page in the tree and we should not count the border. */
-		should_count_the_left_border
-			= !page_rec_is_supremum(btr_cur_get_rec(&cursor));
-	} else {
-		if (btr_cur_open_at_index_side(true, index,
-                                               BTR_SEARCH_LEAF | BTR_ESTIMATE,
-                                               &cursor, 0, &mtr)
-                    != DB_SUCCESS) {
-			goto corrupted;
-		}
-
-		ut_ad(page_rec_is_infimum(btr_cur_get_rec(&cursor)));
-
-		/* The range specified is wihout a left border, just
-		'x < 123' or 'x <= 123' and btr_cur_open_at_index_side()
-		positioned the cursor on the infimum record on the leftmost
-		page, which must not be counted. */
-	}
-
-        tuple1->page_id= cursor.page_cur.block->page.id();
-
-	mtr.commit();
-
-	mtr.start();
-
-	cursor.path_arr = path2;
-
-	bool should_count_the_right_border =
-		dtuple_get_n_fields(tuple2->tuple) > 0;
-
-	if (should_count_the_right_border) {
-		if (btr_cur_search_to_nth_level(index, 0, tuple2->tuple,
-						mode2,
-						BTR_SEARCH_LEAF | BTR_ESTIMATE,
-						&cursor, 0, &mtr)
-		    != DB_SUCCESS) {
-			goto corrupted;
-		}
-
-		const rec_t*	rec = btr_cur_get_rec(&cursor);
-
-		ut_ad(!(mode2 == PAGE_CUR_L && page_rec_is_supremum(rec)));
-
-		should_count_the_right_border
-			= (mode2 == PAGE_CUR_LE /* if the range is '<=' */
-			   /* and the record was found */
-			   && cursor.low_match >= dtuple_get_n_fields(tuple2->tuple))
-			|| (mode2 == PAGE_CUR_L /* or if the range is '<' */
-			    /* and there are any records to match the criteria,
-			    i.e. if the minimum record on the tree is 5 and
-			    x < 7 is specified then the cursor will be
-			    positioned at 5 and we should count the border, but
-			    if x < 2 is specified, then the cursor will be
-			    positioned at 'inf' and we should not count the
-			    border */
-			    && !page_rec_is_infimum(rec));
-		/* Notice that for "WHERE col <= 'foo'" MySQL passes to
-		ha_innobase::records_in_range():
-		min_key=NULL (left-unbounded) which is expected
-		max_key='foo' flag=HA_READ_AFTER_KEY (PAGE_CUR_G), which is
-		unexpected - one would expect
-		flag=HA_READ_KEY_OR_PREV (PAGE_CUR_LE). In this case the
-		cursor will be positioned on the first record to the right of
-		the requested one (can also be positioned on the 'sup') and
-		we should not count the right border. */
-	} else {
-		if (btr_cur_open_at_index_side(false, index,
-					       BTR_SEARCH_LEAF | BTR_ESTIMATE,
-					       &cursor, 0, &mtr)
-		    != DB_SUCCESS) {
-			goto corrupted;
-		}
-
-		ut_ad(page_rec_is_supremum(btr_cur_get_rec(&cursor)));
-
-		/* The range specified is wihout a right border, just
-		'x > 123' or 'x >= 123' and btr_cur_open_at_index_side()
-		positioned the cursor on the supremum record on the rightmost
-		page, which must not be counted. */
-	}
-
-        tuple2->page_id= cursor.page_cur.block->page.id();
-
-	mtr.commit();
-
-	/* We have the path information for the range in path1 and path2 */
-
-	n_rows = 0;
-	is_n_rows_exact = true;
-
-	/* This becomes true when the two paths do not pass through the
-	same pages anymore. */
-	diverged = false;
-
-	/* This becomes true when the paths are not the same or adjacent
-	any more. This means that they pass through the same or
-	neighboring-on-the-same-level pages only. */
-	diverged_lot = false;
-
-	/* This is the level where paths diverged a lot. */
-	divergence_level = 1000000;
-
-	for (i = 0; ; i++) {
-		ut_ad(i < BTR_PATH_ARRAY_N_SLOTS);
-
-		slot1 = path1 + i;
-		slot2 = path2 + i;
-
-		if (slot1->nth_rec == ULINT_UNDEFINED
-		    || slot2->nth_rec == ULINT_UNDEFINED) {
-
-			/* Here none of the borders were counted. For example,
-			if on the leaf level we descended to:
-			(inf, a, b, c, d, e, f, sup)
-			         ^        ^
-			       path1    path2
-			then n_rows will be 2 (c and d). */
-
-			if (is_n_rows_exact) {
-				/* Only fiddle to adjust this off-by-one
-				if the number is exact, otherwise we do
-				much grosser adjustments below. */
-
-				btr_path_t*	last1 = &path1[i - 1];
-				btr_path_t*	last2 = &path2[i - 1];
-
-				/* If both paths end up on the same record on
-				the leaf level. */
-				if (last1->page_no == last2->page_no
-				    && last1->nth_rec == last2->nth_rec) {
-
-					/* n_rows can be > 0 here if the paths
-					were first different and then converged
-					to the same record on the leaf level.
-					For example:
-					SELECT ... LIKE 'wait/synch/rwlock%'
-					mode1=PAGE_CUR_GE,
-					tuple1="wait/synch/rwlock"
-					path1[0]={nth_rec=58, n_recs=58,
-						  page_no=3, page_level=1}
-					path1[1]={nth_rec=56, n_recs=55,
-						  page_no=119, page_level=0}
-
-					mode2=PAGE_CUR_G
-					tuple2="wait/synch/rwlock"
-					path2[0]={nth_rec=57, n_recs=57,
-						  page_no=3, page_level=1}
-					path2[1]={nth_rec=56, n_recs=55,
-						  page_no=119, page_level=0} */
-
-					/* If the range is such that we should
-					count both borders, then avoid
-					counting that record twice - once as a
-					left border and once as a right
-					border. */
-					if (should_count_the_left_border
-					    && should_count_the_right_border) {
-
-						n_rows = 1;
-					} else {
-						/* Some of the borders should
-						not be counted, e.g. [3,3). */
-						n_rows = 0;
-					}
-				} else {
-					if (should_count_the_left_border) {
-						n_rows++;
-					}
-
-					if (should_count_the_right_border) {
-						n_rows++;
-					}
-				}
-			}
-
-			if (i > divergence_level + 1 && !is_n_rows_exact) {
-				/* In trees whose height is > 1 our algorithm
-				tends to underestimate: multiply the estimate
-				by 2: */
-
-				n_rows = n_rows * 2;
-			}
-
-			DBUG_EXECUTE_IF("bug14007649", return(n_rows););
-
-			/* Do not estimate the number of rows in the range
-			to over 1 / 2 of the estimated rows in the whole
-			table */
-
-			if (n_rows > table_n_rows / 2 && !is_n_rows_exact) {
-
-				n_rows = table_n_rows / 2;
-
-				/* If there are just 0 or 1 rows in the table,
-				then we estimate all rows are in the range */
-
-				if (n_rows == 0) {
-					n_rows = table_n_rows;
-				}
-			}
-
-			return(n_rows);
-		}
-
-		if (!diverged && slot1->nth_rec != slot2->nth_rec) {
-
-			/* If both slots do not point to the same page,
-			this means that the tree must have changed between
-			the dive for slot1 and the dive for slot2 at the
-			beginning of this function. */
-			if (slot1->page_no != slot2->page_no
-			    || slot1->page_level != slot2->page_level) {
-
-				/* If the tree keeps changing even after a
-				few attempts, then just return some arbitrary
-				number. */
-				if (nth_attempt >= rows_in_range_max_retries) {
-					return(rows_in_range_arbitrary_ret_val);
-				}
-
-				return btr_estimate_n_rows_in_range_low(
-                                       index, tuple1, tuple2,
-                                       nth_attempt + 1);
-			}
-
-			diverged = true;
-
-			if (slot1->nth_rec < slot2->nth_rec) {
-				/* We do not count the borders (nor the left
-				nor the right one), thus "- 1". */
-				n_rows = slot2->nth_rec - slot1->nth_rec - 1;
-
-				if (n_rows > 0) {
-					/* There is at least one row between
-					the two borders pointed to by slot1
-					and slot2, so on the level below the
-					slots will point to non-adjacent
-					pages. */
-					diverged_lot = true;
-					divergence_level = i;
-				}
-			} else {
-				/* It is possible that
-				slot1->nth_rec >= slot2->nth_rec
-				if, for example, we have a single page
-				tree which contains (inf, 5, 6, supr)
-				and we select where x > 20 and x < 30;
-				in this case slot1->nth_rec will point
-				to the supr record and slot2->nth_rec
-				will point to 6. */
-				n_rows = 0;
-				should_count_the_left_border = false;
-				should_count_the_right_border = false;
-			}
-
-		} else if (diverged && !diverged_lot) {
-
-			if (slot1->nth_rec < slot1->n_recs
-			    || slot2->nth_rec > 1) {
-
-				diverged_lot = true;
-				divergence_level = i;
-
-				n_rows = 0;
-
-				if (slot1->nth_rec < slot1->n_recs) {
-					n_rows += slot1->n_recs
-						- slot1->nth_rec;
-				}
-
-				if (slot2->nth_rec > 1) {
-					n_rows += slot2->nth_rec - 1;
-				}
-			}
-		} else if (diverged_lot) {
-
-			n_rows = btr_estimate_n_rows_in_range_on_level(
-				index, slot1, slot2, n_rows,
-				&is_n_rows_exact);
-		}
-	}
-}
-
-/** Estimates the number of rows in a given index range.
-@param[in]	index	index
-@param[in]	tuple1	range start, may also be empty tuple
-@param[in]	mode1	search mode for range start
-@param[in]	tuple2	range end, may also be empty tuple
-@param[in]	mode2	search mode for range end
-@return estimated number of rows */
-ha_rows
-btr_estimate_n_rows_in_range(
-	dict_index_t*	index,
-        btr_pos_t       *tuple1,
-        btr_pos_t       *tuple2)
-{
-	return btr_estimate_n_rows_in_range_low(
-		index, tuple1, tuple2, 1);
+  DBUG_ENTER("btr_estimate_n_rows_in_range");
+
+  if (UNIV_UNLIKELY(index->page == FIL_NULL || index->is_corrupted()))
+    DBUG_RETURN(0);
+
+  ut_ad(index->is_btree());
+
+  btr_est_cur_t p1(index, *range_start->tuple, range_start->mode);
+  btr_est_cur_t p2(index, *range_end->tuple, range_end->mode);
+  mtr_t mtr;
+
+  ulint height;
+  ulint root_height= 0; /* remove warning */
+
+  mem_heap_t *heap= NULL;
+  rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+  rec_offs *offsets= offsets_;
+  rec_offs_init(offsets_);
+
+  mtr.start();
+
+  /* Store the position of the tree latch we push to mtr so that we
+  know how to release it when we have latched leaf node(s) */
+  ulint savepoint= mtr_set_savepoint(&mtr);
+  mtr_s_lock_index(index, &mtr);
+
+  ha_rows table_n_rows= dict_table_get_n_rows(index->table);
+
+  height= ULINT_UNDEFINED;
+
+  /* This becomes true when the two paths do not pass through the same pages
+  anymore. */
+  bool diverged= false;
+  /* This is the height, i.e. the number of levels from the root, where paths
+   are not the same or adjacent any more. */
+  ulint divergence_height= ULINT_UNDEFINED;
+  bool should_count_the_left_border= true;
+  bool should_count_the_right_border= true;
+  bool is_n_rows_exact= true;
+  ha_rows n_rows= 0;
+
+  /* Loop and search until we arrive at the desired level. */
+search_loop:
+  if (!p1.fetch_child(height, mtr, p2.block()))
+    goto error;
+
+  if (height == ULINT_UNDEFINED)
+  {
+    /* We are in the root node */
+    height= btr_page_get_level(buf_block_get_frame(p1.block()));
+    root_height= height;
+  }
+
+  if (!height)
+  {
+    p1.set_page_mode_for_leaves();
+    p2.set_page_mode_for_leaves();
+  }
+
+  if (p1.page_id() == p2.page_id())
+    p2.set_block(p1);
+  else
+  {
+    ut_ad(diverged);
+    if (divergence_height != ULINT_UNDEFINED) {
+      /* We need to call p1.search_on_page() here as
+      btr_estimate_n_rows_in_range_on_level() uses p1.m_n_recs and
+      p1.m_nth_rec. */
+      if (!p1.search_on_page(height, root_height, true))
+        goto error;
+      n_rows= btr_estimate_n_rows_in_range_on_level(
+          height, p1, p2.page_id().page_no(), n_rows, is_n_rows_exact, mtr);
+    }
+    if (!p2.fetch_child(height, mtr, nullptr))
+      goto error;
+  }
+
+  if (height == 0)
+    /* There is no need to unlach non-leaf pages here as they must already be
+    unlatched in btr_est_cur_t::fetch_child(). Try to search on pages after
+    index->lock unlatching to decrease contention. */
+    mtr_release_s_latch_at_savepoint(&mtr, savepoint, &index->lock);
+
+  /* There is no need to search on left page if
+  divergence_height != ULINT_UNDEFINED, as it was already searched before
+  btr_estimate_n_rows_in_range_on_level() call */
+  if (divergence_height == ULINT_UNDEFINED &&
+      !p1.search_on_page(height, root_height, true))
+    goto error;
+
+  if (!p2.search_on_page(height, root_height, false))
+    goto error;
+
+  if (!diverged && (p1.nth_rec() != p2.nth_rec()))
+  {
+    ut_ad(p1.page_id() == p2.page_id());
+    diverged= true;
+    if (p1.nth_rec() < p2.nth_rec())
+    {
+      /* We do not count the borders (nor the left nor the right one), thus
+      "- 1". */
+      n_rows= p2.nth_rec() - p1.nth_rec() - 1;
+
+      if (n_rows > 0)
+      {
+        /* There is at least one row between the two borders pointed to by p1
+        and p2, so on the level below the slots will point to non-adjacent
+        pages. */
+        divergence_height= root_height - height;
+      }
+    }
+    else
+    {
+      /* It is possible that p1->nth_rec > p2->nth_rec if, for example, we have
+      a single page tree which contains (inf, 5, 6, supr) and we select where x
+      > 20 and x < 30; in this case p1->nth_rec will point to the supr record
+      and p2->nth_rec will point to 6. */
+      n_rows= 0;
+      should_count_the_left_border= false;
+      should_count_the_right_border= false;
+    }
+  }
+  else if (diverged && divergence_height == ULINT_UNDEFINED)
+  {
+
+    if (p1.nth_rec() < p1.n_recs() || p2.nth_rec() > 1)
+    {
+      ut_ad(p1.page_id() != p2.page_id());
+      divergence_height= root_height - height;
+
+      n_rows= 0;
+
+      if (p1.nth_rec() < p1.n_recs())
+      {
+        n_rows+= p1.n_recs() - p1.nth_rec();
+      }
+
+      if (p2.nth_rec() > 1)
+      {
+        n_rows+= p2.nth_rec() - 1;
+      }
+    }
+  }
+  else if (divergence_height != ULINT_UNDEFINED)
+  {
+    /* All records before the right page was already counted. Add records from
+    p2->page_no which are to the left of the record which servers as a right
+    border of the range, if any (we don't include the record itself in this
+    count). */
+    if (p2.nth_rec() > 1)
+      n_rows+= p2.nth_rec() - 1;
+  }
+
+  if (height)
+  {
+    ut_ad(height > 0);
+    height--;
+    p1.get_child(&offsets, &heap);
+    p2.get_child(&offsets, &heap);
+    goto search_loop;
+  }
+
+  should_count_the_left_border=
+      should_count_the_left_border && p1.should_count_the_left_border();
+  should_count_the_right_border=
+      should_count_the_right_border && p2.should_count_the_right_border();
+
+  mtr.commit();
+  if (UNIV_LIKELY_NULL(heap))
+    mem_heap_free(heap);
+
+
+  range_start->page_id= p1.page_id();
+  range_end->page_id= p2.page_id();
+
+  /* Here none of the borders were counted. For example, if on the leaf level
+  we descended to:
+  (inf, a, b, c, d, e, f, sup)
+           ^        ^
+         path1    path2
+  then n_rows will be 2 (c and d). */
+
+  if (is_n_rows_exact)
+  {
+    /* Only fiddle to adjust this off-by-one if the number is exact, otherwise
+    we do much grosser adjustments below. */
+
+    /* If both paths end up on the same record on the leaf level. */
+    if (p1.page_id() == p2.page_id() && p1.nth_rec() == p2.nth_rec())
+    {
+
+      /* n_rows can be > 0 here if the paths were first different and then
+      converged to the same record on the leaf level.
+      For example:
+      SELECT ... LIKE 'wait/synch/rwlock%'
+      mode1=PAGE_CUR_GE,
+      tuple1="wait/synch/rwlock"
+      path1[0]={nth_rec=58, n_recs=58,
+                page_no=3, page_level=1}
+      path1[1]={nth_rec=56, n_recs=55,
+                page_no=119, page_level=0}
+
+      mode2=PAGE_CUR_G
+      tuple2="wait/synch/rwlock"
+      path2[0]={nth_rec=57, n_recs=57,
+                page_no=3, page_level=1}
+      path2[1]={nth_rec=56, n_recs=55,
+                page_no=119, page_level=0} */
+
+      /* If the range is such that we should count both borders, then avoid
+      counting that record twice - once as a left border and once as a right
+      border. Some of the borders should not be counted, e.g. [3,3). */
+      n_rows= should_count_the_left_border && should_count_the_right_border;
+    }
+    else
+      n_rows+= should_count_the_left_border + should_count_the_right_border;
+  }
+
+  if (root_height > divergence_height && !is_n_rows_exact)
+    /* In trees whose height is > 1 our algorithm tends to underestimate:
+    multiply the estimate by 2: */
+    n_rows*= 2;
+
+  DBUG_EXECUTE_IF("bug14007649", DBUG_RETURN(n_rows););
+
+  /* Do not estimate the number of rows in the range to over 1 / 2 of the
+  estimated rows in the whole table */
+
+  if (n_rows > table_n_rows / 2 && !is_n_rows_exact)
+  {
+
+    n_rows= table_n_rows / 2;
+
+    /* If there are just 0 or 1 rows in the table, then we estimate all rows
+    are in the range */
+
+    if (n_rows == 0)
+      n_rows= table_n_rows;
+  }
+
+  DBUG_RETURN(n_rows);
+
+error:
+  mtr.commit();
+  if (UNIV_LIKELY_NULL(heap))
+    mem_heap_free(heap);
+
+  DBUG_RETURN(0);
 }
 
 /*================== EXTERNAL STORAGE OF BIG FIELDS ===================*/
