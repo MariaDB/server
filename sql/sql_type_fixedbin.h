@@ -1190,7 +1190,6 @@ public:
     bool val_native(Native *to) override
     {
       DBUG_ASSERT(marked_for_read());
-      DBUG_ASSERT(!is_null());
       if (to->alloc(FbtImpl::binary_length()))
         return true;
       to->length(FbtImpl::binary_length());
@@ -1201,7 +1200,6 @@ public:
     Fbt to_fbt() const
     {
       DBUG_ASSERT(marked_for_read());
-      DBUG_ASSERT(!is_null());
       return Fbt::record_to_memory((const char*) ptr);
     }
 

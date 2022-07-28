@@ -333,7 +333,8 @@ struct rpl_binlog_state
   int update_with_next_gtid(uint32 domain_id, uint32 server_id,
                              rpl_gtid *gtid);
   int alloc_element_nolock(const rpl_gtid *gtid);
-  bool check_strict_sequence(uint32 domain_id, uint32 server_id, uint64 seq_no);
+  bool check_strict_sequence(uint32 domain_id, uint32 server_id, uint64 seq_no,
+                             bool no_error= false);
   int bump_seq_no_if_needed(uint32 domain_id, uint64 seq_no);
   int write_to_iocache(IO_CACHE *dest);
   int read_from_iocache(IO_CACHE *src);

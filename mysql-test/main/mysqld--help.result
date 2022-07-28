@@ -363,7 +363,9 @@ The following specify which files/extra groups are read (specified before remain
  --gtid-strict-mode  Enforce strict seq_no ordering of events in the binary
  log. Slave stops with an error if it encounters an event
  that would cause it to generate an out-of-order binlog if
- executed.
+ executed. When ON the same server-id semisync-replicated
+ transactions that duplicate exising ones in binlog are
+ ignored without error and slave interruption.
  -?, --help          Display this help and exit.
  --histogram-size=#  Number of bytes used for a histogram. If set to 0, no
  histograms are created by ANALYZE.

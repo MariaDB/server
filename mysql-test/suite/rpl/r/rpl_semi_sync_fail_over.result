@@ -70,6 +70,9 @@ INSERT INTO t1 VALUES (3, 'dummy3');
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
 Variable_name	Value
 gtid_binlog_pos	0-2-5
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-1-4,0-2-5
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 Variable_name	Value
 gtid_slave_pos	0-1-4
@@ -84,12 +87,15 @@ gtid_slave_pos	0-2-5
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
 Variable_name	Value
 gtid_binlog_pos	0-2-5
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-1-4,0-2-5
 connection server_2;
 #
 #  Case:2
 #
 # CRASH the new master, and FAILOVER back to the original
-# INSERT INTO t1 VALUES (4, REPEAT("x", 4100))
+# SET STATEMENT server_id=1 FOR INSERT INTO t1 VALUES (4, REPEAT("x", 4100))
 # INSERT INTO t1 VALUES (5, REPEAT("x", 4100))
 # Rows 4 and 5 will be in master's binlog but not committed, they get
 # replicated to slave and applied. On crash master should have 3 rows
@@ -98,14 +104,14 @@ connection server_2;
 # Expected State post crash:
 #=================================================================
 # Master                |  Slave                                 |
-# 0-2-6 (Not commited)  |  0-2-6 (Received through semi-sync     |
+# 0-1-6 (Not commited)  |  0-1-6 (Received through semi-sync     |
 #                       |         replication and applied)       |
 # 0-2-7 (Not commited)  |  0-2-7 (Received through semi-sync     |
 #                       |         replication and applied)       |
 #=================================================================
 connect  conn_client,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
 SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con1_ready WAIT_FOR con1_go";
-INSERT INTO t1 VALUES (4, REPEAT("x", 4100));
+SET STATEMENT server_id=1 FOR INSERT INTO t1 VALUES (4, REPEAT("x", 4100));
 connect  conn_client_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
 SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
 SET GLOBAL debug_dbug="d,Notify_binlog_EOF";
@@ -123,7 +129,7 @@ SELECT @@GLOBAL.gtid_current_pos;
 # restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1
 connection server_2;
 include/assert.inc [Table t1 should have 3 rows.]
-FOUND 1 /truncated binlog file:.*slave.*000002/ in mysqld.2.err
+FOUND 1 /truncated binlog file:.*slave.*000002.* to remove transactions starting from GTID 0-1-6/ in mysqld.2.err
 disconnect conn_client;
 connection server_1;
 set global rpl_semi_sync_master_enabled = 1;
@@ -134,7 +140,7 @@ set global rpl_semi_sync_slave_enabled = 1;
 set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
 include/start_slave.inc
 #
-# Server_1 promoted as master will send 0-2-6  and 0-2-7 to slave Server_2
+# Server_1 promoted as master will send 0-1-6  and 0-2-7 to slave Server_2
 #
 connection server_1;
 INSERT INTO t1 VALUES (6, 'dummy6');
@@ -142,6 +148,9 @@ INSERT INTO t1 VALUES (6, 'dummy6');
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
 Variable_name	Value
 gtid_binlog_pos	0-1-8
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-2-7,0-1-8
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 Variable_name	Value
 gtid_slave_pos	0-2-7
@@ -156,6 +165,9 @@ gtid_slave_pos	0-1-8
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
 Variable_name	Value
 gtid_binlog_pos	0-1-8
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-2-7,0-1-8
 include/diff_tables.inc [server_1:t1, server_2:t1]
 connection server_1;
 #
@@ -196,7 +208,7 @@ SELECT @@GLOBAL.gtid_current_pos;
 # restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1
 connection server_1;
 include/assert.inc [Table t1 should have 6 rows.]
-NOT FOUND /truncated binlog file:.*master.*000003/ in mysqld.1.err
+FOUND 1 /truncated binlog file:.*master.*000002.* to remove transactions starting from GTID 0-1-9/ in mysqld.1.err
 disconnect conn_client;
 connection server_2;
 set global rpl_semi_sync_master_enabled = 1;
@@ -216,6 +228,9 @@ include/save_master_gtid.inc
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
 Variable_name	Value
 gtid_binlog_pos	0-2-10
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-1-9,0-2-10
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 Variable_name	Value
 gtid_slave_pos	0-1-9
@@ -231,6 +246,9 @@ gtid_slave_pos	0-2-10
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
 Variable_name	Value
 gtid_binlog_pos	0-2-10
+SHOW VARIABLES LIKE 'gtid_binlog_state';
+Variable_name	Value
+gtid_binlog_state	0-1-9,0-2-10
 #
 # Cleanup
 #

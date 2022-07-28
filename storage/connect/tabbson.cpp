@@ -233,7 +233,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
       (tdp->Version == 2) ? "Mongo2Interface" : "Mongo3Interface");
     tdp->Pretty = 0;
 #else   // !MONGO_SUPPORT
-    sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
+    snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "MONGO");
     return 0;
 #endif  // !MONGO_SUPPORT
   } // endif Uri
@@ -245,7 +245,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 #if defined(ZIP_SUPPORT)
       tjsp = new(g) TDBBSON(g, tdp, new(g) UNZFAM(tdp));
 #else   // !ZIP_SUPPORT
-      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+      snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "ZIP");
       return 0;
 #endif  // !ZIP_SUPPORT
     } else
@@ -261,7 +261,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
   } else {
     if (!((tdp->Lrecl = GetIntegerTableOption(g, topt, "Lrecl", 0)))) {
       if (!mgo) {
-        sprintf(g->Message, "LRECL must be specified for pretty=%d", tdp->Pretty);
+        snprintf(g->Message, sizeof(g->Message), "LRECL must be specified for pretty=%d", tdp->Pretty);
         return 0;
       } else
         tdp->Lrecl = 8192;       // Should be enough
@@ -276,7 +276,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 #if defined(ZIP_SUPPORT)
       tjnp = new(g)TDBBSN(g, tdp, new(g) UNZFAM(tdp));
 #else   // !ZIP_SUPPORT
-      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+      snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "ZIP");
       return NULL;
 #endif  // !ZIP_SUPPORT
     } else if (tdp->Uri) {
@@ -284,14 +284,14 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 #if defined(CMGO_SUPPORT)
         tjnp = new(g) TDBBSN(g, tdp, new(g) CMGFAM(tdp));
 #else
-        sprintf(g->Message, "Mongo %s Driver not available", "C");
+        snprintf(g->Message, sizeof(g->Message), "Mongo %s Driver not available", "C");
         return 0;
 #endif
       } else if (tdp->Driver && toupper(*tdp->Driver) == 'J') {
 #if defined(JAVA_SUPPORT)
         tjnp = new(g) TDBBSN(g, tdp, new(g) JMGFAM(tdp));
 #else
-        sprintf(g->Message, "Mongo %s Driver not available", "Java");
+        snprintf(g->Message, sizeof(g->Message), "Mongo %s Driver not available", "Java");
         return 0;
 #endif
       } else {             // Driver not specified
@@ -300,7 +300,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 #elif defined(JAVA_SUPPORT)
         tjnp = new(g) TDBBSN(g, tdp, new(g) JMGFAM(tdp));
 #else
-        sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
+        snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "MONGO");
         return 0;
 #endif
       } // endif Driver
@@ -503,7 +503,7 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
 
       return false;
     default:
-      sprintf(g->Message, "Logical error after %s", fmt);
+      snprintf(g->Message, sizeof(g->Message), "Logical error after %s", fmt);
       return true;
     } // endswitch Type
 
@@ -626,7 +626,7 @@ PBVAL BTUTIL::FindRow(PGLOBAL g)
     } else {
       if (bp || *objpath == '[') {                   // Old style
         if (objpath[strlen(objpath) - 1] != ']') {
-          sprintf(g->Message, "Invalid Table path %s", Tp->Objname);
+          snprintf(g->Message, sizeof(g->Message), "Invalid Table path %s", Tp->Objname);
           return NULL;
         } else if (!bp)
           objpath++;
@@ -706,7 +706,7 @@ PBVAL BTUTIL::MakeTopTree(PGLOBAL g, int type)
           if (bp || *objpath == '[') {
             // Old style
             if (objpath[strlen(objpath) - 1] != ']') {
-              sprintf(g->Message, "Invalid Table path %s", Tp->Objname);
+              snprintf(g->Message, sizeof(g->Message), "Invalid Table path %s", Tp->Objname);
               return NULL;
             } else if (!bp)
               objpath++;
@@ -918,7 +918,7 @@ PBVAL BCUTIL::GetRowValue(PGLOBAL g, PBVAL row, int i)
       bvp = row;
       break;
     default:
-      sprintf(g->Message, "Invalid row JSON type %d", row->Type);
+      snprintf(g->Message, sizeof(g->Message), "Invalid row JSON type %d", row->Type);
       bvp = NULL;
     } // endswitch Type
 
@@ -1122,7 +1122,7 @@ PBVAL BCUTIL::GetRow(PGLOBAL g)
       val = row;
       break;
     default:
-      sprintf(g->Message, "Invalid row JSON type %d", row->Type);
+      snprintf(g->Message, sizeof(g->Message), "Invalid row JSON type %d", row->Type);
       val = NULL;
     } // endswitch Type
 
@@ -1222,7 +1222,7 @@ bool BSONDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
       Wrapname = GetStringCatInfo(g, "Wrapper", "Mongo3Interface");
 #endif   // JAVA_SUPPORT
 #else   // !MONGO_SUPPORT
-    sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
+    snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "MONGO");
     return true;
 #endif  // !MONGO_SUPPORT
   } // endif Uri
@@ -1266,14 +1266,14 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
 #if defined(CMGO_SUPPORT)
         txfp = new(g) CMGFAM(this);
 #else
-        sprintf(g->Message, "Mongo %s Driver not available", "C");
+        snprintf(g->Message, sizeof(g->Message), "Mongo %s Driver not available", "C");
         return NULL;
 #endif
       } else if (Driver && toupper(*Driver) == 'J') {
 #if defined(JAVA_SUPPORT)
         txfp = new(g) JMGFAM(this);
 #else
-        sprintf(g->Message, "Mongo %s Driver not available", "Java");
+        snprintf(g->Message, sizeof(g->Message), "Mongo %s Driver not available", "Java");
         return NULL;
 #endif
       } else {             // Driver not specified
@@ -1282,7 +1282,7 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
 #elif defined(JAVA_SUPPORT)
         txfp = new(g) JMGFAM(this);
 #else   // !MONGO_SUPPORT
-        sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
+        snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "MONGO");
         return NULL;
 #endif  // !MONGO_SUPPORT
       } // endif Driver
@@ -1299,7 +1299,7 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
         return NULL;
       } // endif's m
 #else   // !ZIP_SUPPORT
-      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+      snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "ZIP");
       return NULL;
 #endif  // !ZIP_SUPPORT
     } else if (Compressed) {
@@ -1309,7 +1309,7 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
       else
         txfp = new(g) ZLBFAM(this);
 #else   // !GZ_SUPPORT
-      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
+      snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "GZ");
       return NULL;
 #endif  // !GZ_SUPPORT
     } else if (map) {
@@ -1332,7 +1332,7 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
         return NULL;
       } // endif's m
 #else   // !ZIP_SUPPORT
-      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+      snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "ZIP");
       return NULL;
 #endif  // !ZIP_SUPPORT
     } else
@@ -1554,7 +1554,7 @@ bool TDBBSN::OpenDB(PGLOBAL g)
       case MODE_ARRAY:  type = TYPE_JAR;  break;
       case MODE_VALUE:  type = TYPE_JVAL; break;
       default:
-        sprintf(g->Message, "Invalid Jmode %d", Jmode);
+        snprintf(g->Message, sizeof(g->Message), "Invalid Jmode %d", Jmode);
         return true;
     } // endswitch Jmode
 
@@ -1662,7 +1662,7 @@ bool TDBBSN::PrepareWriting(PGLOBAL g)
 
       if ((signed)strlen(s) > Lrecl) {
         strncpy(To_Line, s, Lrecl);
-        sprintf(g->Message, "Line truncated (lrecl=%d)", Lrecl);
+        snprintf(g->Message, sizeof(g->Message), "Line truncated (lrecl=%d)", Lrecl);
         return PushWarning(g, this);
       } else
         strcpy(To_Line, s);
@@ -1847,7 +1847,7 @@ bool BSONCOL::SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm)
 
       break;
     default:
-      sprintf(g->Message,
+      snprintf(g->Message, sizeof(g->Message),
         "Invalid function specification %c for %s", *p, Name);
       return true;
     } // endswitch *p
@@ -1863,7 +1863,7 @@ bool BSONCOL::SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm)
     } // endif n
 
   } else {
-    sprintf(g->Message, "Wrong array specification for %s", Name);
+    snprintf(g->Message, sizeof(g->Message), "Wrong array specification for %s", Name);
     return true;
   } // endif's
 
@@ -1932,7 +1932,7 @@ bool BSONCOL::ParseJpath(PGLOBAL g)
         goto fin;
       } // endif Name
 
-    sprintf(g->Message, "Cannot parse updated column %s", Name);
+    snprintf(g->Message, sizeof(g->Message), "Cannot parse updated column %s", Name);
     return true;
   } // endif To_Orig
 
@@ -2174,7 +2174,7 @@ void BSONCOL::WriteColumn(PGLOBAL g)
 
     break;
   default:                  // ??????????
-    sprintf(g->Message, "Invalid column type %d", Buf_Type);
+    snprintf(g->Message, sizeof(g->Message), "Invalid column type %d", Buf_Type);
   } // endswitch Type
 
 } // end of WriteColumn
@@ -2324,7 +2324,7 @@ int TDBBSON::MakeDocument(PGLOBAL g)
         val = Bp->GetKeyValue(objp, key);
 
         if (!val || !(jsp = Bp->GetBson(val))) {
-          sprintf(g->Message, "Cannot find object key %s", key);
+          snprintf(g->Message, sizeof(g->Message), "Cannot find object key %s", key);
           return RC_FX;
         } // endif val
 
@@ -2332,7 +2332,7 @@ int TDBBSON::MakeDocument(PGLOBAL g)
         if (*p == '[') {
           // Old style
           if (p[strlen(p) - 1] != ']') {
-            sprintf(g->Message, "Invalid Table path near %s", p);
+            snprintf(g->Message, sizeof(g->Message), "Invalid Table path near %s", p);
             return RC_FX;
           } else
             p++;
@@ -2350,7 +2350,7 @@ int TDBBSON::MakeDocument(PGLOBAL g)
         val = Bp->GetArrayValue(arp, i);
 
         if (!val) {
-          sprintf(g->Message, "Cannot find array value %d", i);
+          snprintf(g->Message, sizeof(g->Message), "Cannot find array value %d", i);
           return RC_FX;
         } // endif val
 
@@ -2515,7 +2515,7 @@ bool TDBBSON::OpenDB(PGLOBAL g)
     case MODE_ARRAY:  Row = Bp->NewVal(TYPE_JAR);  break;
     case MODE_VALUE:  Row = Bp->NewVal(TYPE_JVAL); break;
     default:
-      sprintf(g->Message, "Invalid Jmode %d", Jmode);
+      snprintf(g->Message, sizeof(g->Message), "Invalid Jmode %d", Jmode);
       return true;
     } // endswitch Jmode
 

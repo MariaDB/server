@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2011, Oracle and/or its affiliates.
-# Copyright (c) 2009, 2020, MariaDB Corporation
+# Copyright (c) 2009, 2022, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -153,6 +153,7 @@ ENDIF()
 IF(TARGET libfmt)
   ADD_DEPENDENCIES(sql_embedded libfmt)
 ENDIF()
+TARGET_LINK_LIBRARIES(sql_embedded LINK_PRIVATE tpool ${CRC32_LIBRARY})
 
 # On Windows, static embedded server library is called mysqlserver.lib
 # On Unix, it is libmysqld.a

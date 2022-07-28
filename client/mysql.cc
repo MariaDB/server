@@ -42,7 +42,7 @@
 #include <violite.h>
 #include <my_sys.h>
 #include <source_revision.h>
-#if defined(USE_LIBEDIT_INTERFACE) && defined(HAVE_LOCALE_H)
+#if defined(HAVE_LOCALE_H)
 #include <locale.h>
 #endif
 
@@ -2857,6 +2857,9 @@ static void initialize_readline ()
   /* Allow conditional parsing of the ~/.inputrc file. */
   rl_readline_name= (char *) "mysql";
   rl_terminal_name= getenv("TERM");
+#ifdef HAVE_SETLOCALE
+  setlocale(LC_ALL,"");
+#endif
 
   /* Tell the completer that we want a crack first. */
 #if defined(USE_NEW_READLINE_INTERFACE)
@@ -2865,9 +2868,6 @@ static void initialize_readline ()
 
   rl_add_defun("magic-space", (rl_command_func_t *)&fake_magic_space, -1);
 #elif defined(USE_LIBEDIT_INTERFACE)
-#ifdef HAVE_LOCALE_H
-  setlocale(LC_ALL,""); /* so as libedit use isprint */
-#endif
   rl_attempted_completion_function= (CPPFunction*)&new_mysql_completion;
   rl_completion_entry_function= &no_completion;
   rl_add_defun("magic-space", (Function*)&fake_magic_space, -1);

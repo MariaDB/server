@@ -54,14 +54,11 @@ page_zip_des_t*
 page_cur_get_page_zip(
 /*==================*/
 	page_cur_t*	cur);	/*!< in: page cursor */
-/*********************************************************//**
-Gets the record where the cursor is positioned.
+/* Gets the record where the cursor is positioned.
+@param cur page cursor
 @return record */
 UNIV_INLINE
-rec_t*
-page_cur_get_rec(
-/*=============*/
-	page_cur_t*	cur);	/*!< in: page cursor */
+rec_t *page_cur_get_rec(const page_cur_t *cur);
 #else /* UNIV_DEBUG */
 # define page_cur_get_page(cur)		page_align((cur)->rec)
 # define page_cur_get_block(cur)	(cur)->block

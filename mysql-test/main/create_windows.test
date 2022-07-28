@@ -1,0 +1,10 @@
+--source include/windows.inc
+
+# MDEV-28746 Wrong error code ER_BAD_DB_ERROR for long filenames
+
+# There are 51 dots in the table name below, with every dot encoded with 5
+# bytes in "mysql file name encoding", making the filename length 255 byte.
+# Adding drive and extension makes it exceed MAX_PATH= 260 bytes
+let $t = `SELECT(REPEAT('.',51))`;
+--error ER_CANT_CREATE_TABLE
+eval create table `$t`(i int);

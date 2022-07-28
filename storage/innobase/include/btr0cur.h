@@ -165,7 +165,7 @@ btr_cur_search_to_nth_level_func(
 				search the position! */
 	ulint		latch_mode, /*!< in: BTR_SEARCH_LEAF, ..., ORed with
 				at most one of BTR_INSERT, BTR_DELETE_MARK,
-				BTR_DELETE, or BTR_ESTIMATE;
+				BTR_DELETE;
 				cursor->left_block is used to store a pointer
 				to the left neighbor page, in the cases
 				BTR_SEARCH_PREV and BTR_MODIFY_PREV;
@@ -531,16 +531,20 @@ struct btr_pos_t
   page_id_t       page_id;     /* Out: Page where we found the tuple */
 };
 
-/** Estimates the number of rows in a given index range.
-@param[in]	index	index
-@param[in/out]	range_start
-@param[in/out]	range_ end
-@return estimated number of rows */
-ha_rows
-btr_estimate_n_rows_in_range(
-	dict_index_t*	index,
-        btr_pos_t*      range_start,
-        btr_pos_t*      range_end);
+/** Estimates the number of rows in a given index range. Do search in the
+left page, then if there are pages between left and right ones, read a few
+pages to the right, if the right page is reached, fetch it and count the exact
+number of rows, otherwise count the estimated(see
+btr_estimate_n_rows_in_range_on_level() for details) number if rows, and
+fetch the right page. If leaves are reached, unlatch non-leaf pages except
+the right leaf parent. After the right leaf page is fetched, commit mtr.
+@param[in]  index index
+@param[in]  range_start range start
+@param[in]  range_end   range end
+@return estimated number of rows; */
+ha_rows btr_estimate_n_rows_in_range(dict_index_t *index,
+                                     btr_pos_t *range_start,
+                                     btr_pos_t *range_end);
 
 /** Gets the externally stored size of a record, in units of a database page.
 @param[in]	rec	record

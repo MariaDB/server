@@ -143,6 +143,15 @@ eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='semi_table_lock_connec
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 
+--echo # MDEV-28795 Deprecate spider_bka_table_name_type
+SET spider_bka_table_name_type = 1;
+SHOW VARIABLES LIKE "spider_bka_table_name_type";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='btt "1"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='bka_table_name_type "1"';
+
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
 DROP DATABASE auto_test_local;
 
 --disable_query_log

@@ -308,26 +308,13 @@ private:
   os_offset_t m_offset;
 };
 
-#undef USE_FILE_LOCK
-#ifndef _WIN32
-/* On Windows, mandatory locking is used */
-# define USE_FILE_LOCK
-#endif
-#ifdef USE_FILE_LOCK
+#ifndef _WIN32 /* On Microsoft Windows, mandatory locking is used */
 /** Obtain an exclusive lock on a file.
-@param[in]	fd		file descriptor
-@param[in]	name		file name
+@param fd      file descriptor
+@param name    file name
 @return 0 on success */
-static
-int
-os_file_lock(
-	int		fd,
-	const char*	name)
+int os_file_lock(int fd, const char *name)
 {
-	if (my_disable_locking) {
-		return 0;
-	}
-
 	struct flock lk;
 
 	lk.l_type = F_WRLCK;
@@ -353,7 +340,7 @@ os_file_lock(
 
 	return(0);
 }
-#endif /* USE_FILE_LOCK */
+#endif /* !_WIN32 */
 
 
 /** Create a temporary file. This function is like tmpfile(3), but
@@ -1064,17 +1051,18 @@ os_file_create_simple_func(
 		}
 	}
 
-#ifdef USE_FILE_LOCK
+#ifndef _WIN32
 	if (!read_only
 	    && *success
-	    && (access_type == OS_FILE_READ_WRITE)
+	    && access_type == OS_FILE_READ_WRITE
+	    && !my_disable_locking
 	    && os_file_lock(file, name)) {
 
 		*success = false;
 		close(file);
 		file = -1;
 	}
-#endif /* USE_FILE_LOCK */
+#endif /* !_WIN32 */
 
 	return(file);
 }
@@ -1310,9 +1298,12 @@ skip_o_direct:
 # endif
 #endif
 
-#ifdef USE_FILE_LOCK
+#ifndef _WIN32
 	if (!read_only
-	    && create_mode != OS_FILE_OPEN_RAW && os_file_lock(file, name)) {
+	    && create_mode != OS_FILE_OPEN_RAW
+	    && !my_disable_locking
+	    && os_file_lock(file, name)) {
+
 		if (create_mode == OS_FILE_OPEN_RETRY) {
 			ib::info()
 				<< "Retrying to lock the first data file";
@@ -1335,7 +1326,7 @@ skip_o_direct:
 		close(file);
 		file = -1;
 	}
-#endif /* USE_FILE_LOCK */
+#endif /* !_WIN32 */
 
 	return(file);
 }
@@ -1408,10 +1399,11 @@ os_file_create_simple_no_error_handling_func(
 
 	*success = (file != -1);
 
-#ifdef USE_FILE_LOCK
+#ifndef _WIN32
 	if (!read_only
 	    && *success
 	    && access_type == OS_FILE_READ_WRITE
+	    && !my_disable_locking
 	    && os_file_lock(file, name)) {
 
 		*success = false;
@@ -1419,7 +1411,7 @@ os_file_create_simple_no_error_handling_func(
 		file = -1;
 
 	}
-#endif /* USE_FILE_LOCK */
+#endif /* !_WIN32 */
 
 	return(file);
 }
@@ -3500,10 +3492,17 @@ extern void fil_aio_callback(const IORequest &request);
 
 static void io_callback(tpool::aiocb *cb)
 {
-  ut_a(cb->m_err == DB_SUCCESS);
   const IORequest &request= *static_cast<const IORequest*>
     (static_cast<const void*>(cb->m_userdata));
-
+  if (cb->m_err != DB_SUCCESS)
+  {
+    ib::fatal() << "IO Error: " << cb->m_err << " during " <<
+      (request.is_async() ? "async " : "sync ") <<
+      (request.is_LRU() ? "lru " : "") <<
+      (cb->m_opcode == tpool::aio_opcode::AIO_PREAD ? "read" : "write") <<
+      " of " << cb->m_len << " bytes, for file " << cb->m_fh << ", returned " <<
+      cb->m_ret_len;
+  }
   /* Return cb back to cache*/
   if (cb->m_opcode == tpool::aio_opcode::AIO_PREAD)
   {

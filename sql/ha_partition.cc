@@ -4514,15 +4514,15 @@ int ha_partition::write_row(const uchar * buf)
   if (have_auto_increment)
   {
     if (!table_share->next_number_keypart)
-      update_next_auto_inc_val();
-    error= update_auto_increment();
+      if (unlikely(error= update_next_auto_inc_val()))
+        goto exit;
 
     /*
       If we have failed to set the auto-increment value for this row,
       it is highly likely that we will not be able to insert it into
       the correct partition. We must check and fail if necessary.
     */
-    if (unlikely(error))
+    if (unlikely(error= update_auto_increment()))
       goto exit;
 
     /*
@@ -8480,6 +8480,7 @@ int ha_partition::compare_number_of_records(ha_partition *me,
 
 int ha_partition::info(uint flag)
 {
+  int error;
   uint no_lock_flag= flag & HA_STATUS_NO_LOCK;
   uint extra_var_flag= flag & HA_STATUS_VARIABLE_EXTRA;
   DBUG_ENTER("ha_partition::info");
@@ -8532,7 +8533,11 @@ int ha_partition::info(uint flag)
             break;
           }
           file= *file_array;
-          file->info(HA_STATUS_AUTO | no_lock_flag);
+          if ((error= file->info(HA_STATUS_AUTO | no_lock_flag)))
+          {
+            unlock_auto_increment();
+            DBUG_RETURN(error);
+          }
           set_if_bigger(auto_increment_value,
                         file->stats.auto_increment_value);
         } while (*(++file_array));
@@ -8589,7 +8594,8 @@ int ha_partition::info(uint flag)
          i= bitmap_get_next_set(&m_part_info->read_partitions, i))
     {
       file= m_file[i];
-      file->info(HA_STATUS_VARIABLE | no_lock_flag | extra_var_flag);
+      if ((error= file->info(HA_STATUS_VARIABLE | no_lock_flag | extra_var_flag)))
+        DBUG_RETURN(error);
       stats.records+= file->stats.records;
       stats.deleted+= file->stats.deleted;
       stats.data_file_length+= file->stats.data_file_length;
@@ -8678,7 +8684,8 @@ int ha_partition::info(uint flag)
         if (!(flag & HA_STATUS_VARIABLE) ||
             !bitmap_is_set(&(m_part_info->read_partitions),
                            (uint) (file_array - m_file)))
-          file->info(HA_STATUS_VARIABLE | no_lock_flag | extra_var_flag);
+          if ((error= file->info(HA_STATUS_VARIABLE | no_lock_flag | extra_var_flag)))
+            DBUG_RETURN(error);
         if (file->stats.records > max_records || !handler_instance_set)
         {
           handler_instance_set= 1;
@@ -8699,7 +8706,8 @@ int ha_partition::info(uint flag)
               this);
 
     file= m_file[handler_instance];
-    file->info(HA_STATUS_CONST | no_lock_flag);
+    if ((error= file->info(HA_STATUS_CONST | no_lock_flag)))
+      DBUG_RETURN(error);
     stats.block_size= file->stats.block_size;
     stats.create_time= file->stats.create_time;
     ref_length= m_ref_length;
@@ -8715,7 +8723,8 @@ int ha_partition::info(uint flag)
       Note: all engines does not support HA_STATUS_ERRKEY, so set errkey.
     */
     file->errkey= errkey;
-    file->info(HA_STATUS_ERRKEY | no_lock_flag);
+    if ((error= file->info(HA_STATUS_ERRKEY | no_lock_flag)))
+      DBUG_RETURN(error);
     errkey= file->errkey;
   }
   if (flag & HA_STATUS_TIME)
@@ -8732,7 +8741,8 @@ int ha_partition::info(uint flag)
     do
     {
       file= *file_array;
-      file->info(HA_STATUS_TIME | no_lock_flag);
+      if ((error= file->info(HA_STATUS_TIME | no_lock_flag)))
+        DBUG_RETURN(error);
       if (file->stats.update_time > stats.update_time)
 	stats.update_time= file->stats.update_time;
     } while (*(++file_array));
@@ -10750,11 +10760,11 @@ int ha_partition::cmp_ref(const uchar *ref1, const uchar *ref2)
    the underlying partitions require that the value should be re-calculated
 */
 
-void ha_partition::update_next_auto_inc_val()
+int ha_partition::update_next_auto_inc_val()
 {
-  if (!part_share->auto_inc_initialized ||
-      need_info_for_auto_inc())
-    info(HA_STATUS_AUTO);
+  if (!part_share->auto_inc_initialized || need_info_for_auto_inc())
+    return info(HA_STATUS_AUTO);
+  return 0;
 }
 
 

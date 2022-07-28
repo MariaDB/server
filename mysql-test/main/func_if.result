@@ -63,7 +63,7 @@ select nullif(1,'test');
 nullif(1,'test')
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'test'
+Warning	1292	Truncated incorrect DECIMAL value: 'test'
 select NULLIF(NULL,NULL), NULLIF(NULL,1), NULLIF(NULL,1.0), NULLIF(NULL,"test");
 NULLIF(NULL,NULL)	NULLIF(NULL,1)	NULLIF(NULL,1.0)	NULLIF(NULL,"test")
 NULL	NULL	NULL	NULL

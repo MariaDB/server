@@ -156,6 +156,10 @@ INSERT INTO global_suppressions VALUES
  ("InnoDB: Error: table `test`.`t[123]` .*does not exist in the InnoDB internal"),
  ("InnoDB: Warning: semaphore wait:"),
 
+ /* MDEV-28976: Tests that kill the server do not ensure that the
+ old process has terminated before starting a new one */
+ ("InnoDB: Unable to lock"),
+
  /*
    BUG#32080 - Excessive warnings on Solaris: setrlimit could not
    change the size of core files

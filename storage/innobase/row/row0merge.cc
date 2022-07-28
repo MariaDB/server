@@ -546,6 +546,7 @@ static ulint row_merge_bulk_buf_add(row_merge_buf_t* buf,
 @param[in,out]	v_heap		heap memory to process data for virtual column
 @param[in,out]	my_table	mysql table object
 @param[in]	trx		transaction object
+@param[in]	col_collate	columns whose collations changed, or nullptr
 @return number of rows added, 0 if out of space */
 static
 ulint
@@ -562,7 +563,8 @@ row_merge_buf_add(
 	dberr_t*		err,
 	mem_heap_t**		v_heap,
 	TABLE*			my_table,
-	trx_t*			trx)
+	trx_t*			trx,
+	const col_collations*	col_collate)
 {
 	ulint			i;
 	const dict_index_t*	index;
@@ -576,6 +578,7 @@ row_merge_buf_add(
 	doc_id_t		write_doc_id;
 	ulint			n_row_added = 0;
 	VCOL_STORAGE		vcol_storage;
+
 	DBUG_ENTER("row_merge_buf_add");
 
 	if (buf->n_tuples >= buf->max_tuples) {
@@ -667,8 +670,17 @@ error:
 				row_field = dtuple_get_nth_field(row,
 								 col->ind);
 				dfield_copy(field, row_field);
-			}
 
+				/* Copy the column collation to the
+				tuple field */
+				if (col_collate) {
+					auto it = col_collate->find(col->ind);
+					if (it != col_collate->end()) {
+						field->type
+							.assign(*it->second);
+					}
+				}
+			}
 
 			/* Tokenize and process data for FTS */
 			if (index->type & DICT_FTS) {
@@ -1265,7 +1277,7 @@ row_merge_read(
 	if (success && srv_encrypt_log) {
 		if (!log_tmp_block_decrypt(buf, srv_sort_buf_size,
 					   crypt_buf, ofs)) {
-			return (FALSE);
+			DBUG_RETURN(false);
 		}
 
 		srv_stats.n_merge_blocks_decrypted.inc();
@@ -1312,7 +1324,7 @@ row_merge_write(
 					   buf_len,
 					   static_cast<byte*>(crypt_buf),
 					   ofs)) {
-			return false;
+			DBUG_RETURN(false);
 		}
 
 		srv_stats.n_merge_blocks_encrypted.inc();
@@ -1827,6 +1839,7 @@ stage->inc() will be called for each page read.
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
 @param[in]	allow_not_null	allow null to not-null conversion
+@param[in]	col_collate	columns whose collations changed, or nullptr
 @return DB_SUCCESS or error */
 static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
@@ -1854,7 +1867,8 @@ row_merge_read_clustered_index(
 	double 			pct_cost,
 	row_merge_block_t*	crypt_block,
 	struct TABLE*		eval_table,
-	bool			allow_not_null)
+	bool			allow_not_null,
+	const col_collations*	col_collate)
 {
 	dict_index_t*		clust_index;	/* Clustered index */
 	mem_heap_t*		row_heap = NULL;/* Heap memory to create
@@ -2561,7 +2575,8 @@ write_buffers:
 					buf, fts_index, old_table, new_table,
 					psort_info, row, ext, &doc_id,
 					conv_heap, &err,
-					&v_heap, eval_table, trx)))) {
+					&v_heap, eval_table, trx,
+					col_collate)))) {
 
 				/* If we are creating FTS index,
 				a single row can generate more
@@ -2892,7 +2907,8 @@ write_buffers:
 						buf, fts_index, old_table,
 						new_table, psort_info, row, ext,
 						&doc_id, conv_heap,
-						&err, &v_heap, eval_table, trx)))) {
+						&err, &v_heap, eval_table,
+						trx, col_collate)))) {
                                         /* An empty buffer should have enough
                                         room for at least one record. */
 					ut_ad(err == DB_COMPUTE_VALUE_FAILED
@@ -4627,6 +4643,7 @@ this function and it will be passed to other functions for further accounting.
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
 @param[in]	allow_not_null	allow the conversion from null to not-null
+@param[in]	col_collate	columns whose collations changed, or nullptr
 @return DB_SUCCESS or error code */
 dberr_t
 row_merge_build_indexes(
@@ -4646,7 +4663,8 @@ row_merge_build_indexes(
 	ut_stage_alter_t*	stage,
 	const dict_add_v_col_t*	add_v,
 	struct TABLE*		eval_table,
-	bool			allow_not_null)
+	bool			allow_not_null,
+	const col_collations*	col_collate)
 {
 	merge_file_t*		merge_files;
 	row_merge_block_t*	block;
@@ -4796,7 +4814,8 @@ row_merge_build_indexes(
 		fts_sort_idx, psort_info, merge_files, key_numbers,
 		n_indexes, defaults, add_v, col_map, add_autoinc,
 		sequence, block, skip_pk_sort, &tmpfd, stage,
-		pct_cost, crypt_block, eval_table, allow_not_null);
+		pct_cost, crypt_block, eval_table, allow_not_null,
+		col_collate);
 
 	stage->end_phase_read_pk();
 
@@ -5068,6 +5087,16 @@ dberr_t row_merge_bulk_t::alloc_block()
              3 * srv_sort_buf_size, &m_block_pfx);
   if (m_block == nullptr)
     return DB_OUT_OF_MEMORY;
+
+  m_crypt_pfx.m_size= 0;
+  TRASH_ALLOC(&m_crypt_pfx, sizeof m_crypt_pfx);
+  if (srv_encrypt_log)
+  {
+    m_crypt_block= static_cast<row_merge_block_t*>(
+       m_alloc.allocate_large(3 * srv_sort_buf_size, &m_crypt_pfx));
+    if (!m_crypt_block)
+      return DB_OUT_OF_MEMORY;
+  }
   return DB_SUCCESS;
 }
 
@@ -5128,6 +5157,9 @@ row_merge_bulk_t::~row_merge_bulk_t()
 
   if (m_block)
     m_alloc.deallocate_large(m_block, &m_block_pfx);
+
+  if (m_crypt_block)
+    m_alloc.deallocate_large(m_crypt_block, &m_crypt_pfx);
 }
 
 void row_merge_bulk_t::init_tmp_file()
@@ -5187,7 +5219,7 @@ dberr_t row_merge_bulk_t::write_to_tmp_file(ulint index_no)
     return err;
 
   if (!row_merge_write(file->fd, file->offset++,
-                       m_block, nullptr,
+                       m_block, m_crypt_block,
                        buf->index->table->space->id))
     return DB_TEMP_FILE_WRITE_FAIL;
   MEM_UNDEFINED(&m_block[0], srv_sort_buf_size);
@@ -5308,13 +5340,13 @@ dberr_t row_merge_bulk_t::write_to_index(ulint index_no, trx_t *trx)
 
   err= row_merge_sort(trx, &dup, file,
                       m_block, &m_tmpfd, true, 0, 0,
-                      nullptr, table->space_id, nullptr);
+                      m_crypt_block, table->space_id, nullptr);
   if (err != DB_SUCCESS)
     goto func_exit;
 
   err= row_merge_insert_index_tuples(
         index, table, file->fd, m_block, nullptr,
-        &btr_bulk, 0, 0, 0, nullptr, table->space_id,
+        &btr_bulk, 0, 0, 0, m_crypt_block, table->space_id,
         nullptr, &m_blob_file);
 
 func_exit:

@@ -193,7 +193,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 				*pcrp = crp->Next;
 			} else if (!stricmp(Picol, crp->Name)) {
 				if (crp->Nulls) {
-					sprintf(g->Message, "Pivot column %s cannot be nullable", Picol);
+					snprintf(g->Message, sizeof(g->Message), "Pivot column %s cannot be nullable", Picol);
 					goto err;
 				} // endif Nulls
 
@@ -549,14 +549,14 @@ bool TDBPIVOT::MakePivotColumns(PGLOBAL g)
     // Now it is time to allocate the pivot and function columns
     if (!(Fcolp = Tdbp->ColDB(g, Fncol, 0))) {
       // Function column not found in table                                       
-      sprintf(g->Message, MSG(COL_ISNOT_TABLE), Fncol, Tabname);
+      snprintf(g->Message, sizeof(g->Message), MSG(COL_ISNOT_TABLE), Fncol, Tabname);
       return true;
     } else if (Fcolp->InitValue(g))
       return true;
 
     if (!(Xcolp = Tdbp->ColDB(g, Picol, 0))) {
       // Pivot column not found in table                                       
-      sprintf(g->Message, MSG(COL_ISNOT_TABLE), Picol, Tabname);
+      snprintf(g->Message, sizeof(g->Message), MSG(COL_ISNOT_TABLE), Picol, Tabname);
       return true;
     } else if (Xcolp->InitValue(g))
       return true;
@@ -670,7 +670,7 @@ bool TDBPIVOT::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /* Currently PIVOT tables cannot be modified.                      */
     /*******************************************************************/
-    sprintf(g->Message, MSG(TABLE_READ_ONLY), "PIVOT");
+    snprintf(g->Message, sizeof(g->Message), MSG(TABLE_READ_ONLY), "PIVOT");
     return TRUE;
     } // endif Mode
 
@@ -799,7 +799,7 @@ int TDBPIVOT::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBPIVOT::WriteDB(PGLOBAL g)
   {
-  sprintf(g->Message, MSG(TABLE_READ_ONLY), "PIVOT");
+  snprintf(g->Message, sizeof(g->Message), MSG(TABLE_READ_ONLY), "PIVOT");
   return RC_FX;
   } // end of WriteDB
 
@@ -808,7 +808,7 @@ int TDBPIVOT::WriteDB(PGLOBAL g)
 /***********************************************************************/
 int TDBPIVOT::DeleteDB(PGLOBAL g, int)
   {
-  sprintf(g->Message, MSG(NO_TABLE_DEL), "PIVOT");
+  snprintf(g->Message, sizeof(g->Message), MSG(NO_TABLE_DEL), "PIVOT");
   return RC_FX;
   } // end of DeleteDB
 

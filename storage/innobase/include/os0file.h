@@ -385,6 +385,14 @@ os_file_set_nocache(
 	const char*	operation_name);
 #endif
 
+#ifndef _WIN32 /* On Microsoft Windows, mandatory locking is used */
+/** Obtain an exclusive lock on a file.
+@param fd      file descriptor
+@param name    file name
+@return 0 on success */
+int os_file_lock(int fd, const char *name);
+#endif
+
 /** NOTE! Use the corresponding macro os_file_create(), not directly
 this function!
 Opens an existing file or creates a new.

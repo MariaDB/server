@@ -2964,7 +2964,7 @@ int spider_param_delete_all_rows_type(
  */
 static MYSQL_THDVAR_INT(
   bka_table_name_type, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "The type of temporary table name for bka", /* comment */
   NULL, /* check */
   spider_var_deprecated_int, /* update */
