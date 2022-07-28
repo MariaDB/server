@@ -6126,6 +6126,7 @@ namespace Deadlock
       for (trx_t *next= cycle;;)
       {
         next= next->lock.wait_trx;
+        l++;
         const undo_no_t next_weight= TRX_WEIGHT(next) |
           (next->mysql_thd &&
 #ifdef WITH_WSREP
