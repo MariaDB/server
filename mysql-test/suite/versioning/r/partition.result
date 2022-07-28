@@ -3257,4 +3257,13 @@ delete from t partition (px);
 ERROR HY000: Unknown partition 'px' in table 't'
 unlock tables;
 drop table t;
+#
+# MDEV-28978 Assertion failure in THD::binlog_query or unexpected
+#            ER_ERROR_ON_WRITE with auto-partitioning
+#
+create table t (a int) with system versioning partition by system_time limit 6 auto;
+insert into t () values (),(),(),(),(),();
+update t set a = 1;
+update t set a = 2 limit 0;
+drop table t;
 set global innodb_stats_persistent= @save_persistent;

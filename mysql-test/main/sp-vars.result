@@ -1307,7 +1307,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" char(1) DEFAULT NULL
+  "var" varchar(1) DEFAULT NULL
 )
 DROP TABLE t1;
 #

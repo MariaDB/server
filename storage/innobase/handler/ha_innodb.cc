@@ -3732,8 +3732,6 @@ static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
       if (t.second.is_bulk_insert())
       {
         ut_ad(trx->bulk_insert);
-        ut_ad(!trx->check_unique_secondary);
-        ut_ad(!trx->check_foreigns);
         if (t.second.write_bulk(t.first, trx))
           return ULONGLONG_MAX;
       }
@@ -6576,7 +6574,8 @@ innobase_mysql_fts_get_token(
 
 	ulint	mwc = 0;
 	ulint	length = 0;
-
+	bool	reset_token_str = false;
+reset:
 	token->f_str = const_cast<byte*>(doc);
 
 	while (doc < end) {
@@ -6586,6 +6585,9 @@ innobase_mysql_fts_get_token(
 		mbl = cs->ctype(&ctype, (uchar*) doc, (uchar*) end);
 		if (true_word_char(ctype, *doc)) {
 			mwc = 0;
+		} else if (*doc == '\'' && length == 1) {
+			/* Could be apostrophe */
+			reset_token_str = true;
 		} else if (!misc_word_char(*doc) || mwc) {
 			break;
 		} else {
@@ -6595,6 +6597,14 @@ innobase_mysql_fts_get_token(
 		++length;
 
 		doc += mbl > 0 ? mbl : (mbl < 0 ? -mbl : 1);
+		if (reset_token_str) {
+			/* Reset the token if the single character
+			followed by apostrophe */
+			mwc = 0;
+			length = 0;
+			reset_token_str = false;
+			goto reset;
+		}
 	}
 
 	token->f_len = (uint) (doc - token->f_str) - mwc;

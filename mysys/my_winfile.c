@@ -265,13 +265,12 @@ File my_win_sopen(const char *path, int oflag, int shflag, int pmode)
   if ((osfh= CreateFile(path, fileaccess, fileshare,my_win_file_secattr(),
     filecreate, fileattrib, NULL)) == INVALID_HANDLE_VALUE)
   {
-    /*
-       OS call to open/create file failed! map the error, release
-       the lock, and return -1. note that it's not necessary to
-       call _free_osfhnd (it hasn't been used yet).
-    */
-    my_osmaperr(GetLastError());     /* map error */
-    DBUG_RETURN(-1);                 /* return error to caller */
+    DWORD last_error= GetLastError();
+    if (last_error == ERROR_PATH_NOT_FOUND && strlen(path) >= MAX_PATH)
+      errno= ENAMETOOLONG;
+    else
+      my_osmaperr(last_error);     /* map error */
+    DBUG_RETURN(-1);
   }
 
   if ((fh= my_open_osfhandle(osfh, 

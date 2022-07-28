@@ -1205,7 +1205,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	GTID_STRICT_MODE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Enforce strict seq_no ordering of events in the binary log. Slave stops with an error if it encounters an event that would cause it to generate an out-of-order binlog if executed.
+VARIABLE_COMMENT	Enforce strict seq_no ordering of events in the binary log. Slave stops with an error if it encounters an event that would cause it to generate an out-of-order binlog if executed. When ON the same server-id semisync-replicated transactions that duplicate exising ones in binlog are ignored without error and slave interruption.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL

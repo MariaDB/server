@@ -1,0 +1,40 @@
+#
+# MDEV-29011 Server crash in spider_db_open_item_cond with XOR operator
+#
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+CREATE TABLE tbl_a (
+a INT,
+b INT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+INSERT INTO tbl_a VALUES (0, 0), (0, 1), (1, 0), (1, 1);
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+CREATE TABLE tbl_a (
+a INT,
+b INT
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+SELECT a XOR b AS f FROM tbl_a;
+f
+0
+1
+1
+0
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3

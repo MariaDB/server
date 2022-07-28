@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -42,7 +42,7 @@
 #include <violite.h>
 #include <my_sys.h>
 #include <source_revision.h>
-#if defined(USE_LIBEDIT_INTERFACE) && defined(HAVE_LOCALE_H)
+#if defined(HAVE_LOCALE_H)
 #include <locale.h>
 #endif
 
@@ -2857,6 +2857,9 @@ static void initialize_readline ()
   /* Allow conditional parsing of the ~/.inputrc file. */
   rl_readline_name= (char *) "mysql";
   rl_terminal_name= getenv("TERM");
+#ifdef HAVE_SETLOCALE
+  setlocale(LC_ALL,"");
+#endif
 
   /* Tell the completer that we want a crack first. */
 #if defined(USE_NEW_READLINE_INTERFACE)
@@ -2865,9 +2868,6 @@ static void initialize_readline ()
 
   rl_add_defun("magic-space", (rl_command_func_t *)&fake_magic_space, -1);
 #elif defined(USE_LIBEDIT_INTERFACE)
-#ifdef HAVE_LOCALE_H
-  setlocale(LC_ALL,""); /* so as libedit use isprint */
-#endif
   rl_attempted_completion_function= (CPPFunction*)&new_mysql_completion;
   rl_completion_entry_function= &no_completion;
   rl_add_defun("magic-space", (Function*)&fake_magic_space, -1);
@@ -3791,7 +3791,6 @@ print_table_data(MYSQL_RES *result)
 {
   String separator(256);
   MYSQL_ROW	cur;
-  MYSQL_FIELD	*field;
   bool		*num_flag;
 
   num_flag=(bool*) my_alloca(sizeof(bool)*mysql_num_fields(result));
@@ -3803,7 +3802,7 @@ print_table_data(MYSQL_RES *result)
     mysql_field_seek(result,0);
   }
   separator.copy("+",1,charset_info);
-  while ((field = mysql_fetch_field(result)))
+  while (MYSQL_FIELD *field= mysql_fetch_field(result))
   {
     uint length= column_names ? field->name_length : 0;
     if (quick)
@@ -3825,7 +3824,7 @@ print_table_data(MYSQL_RES *result)
   {
     mysql_field_seek(result,0);
     (void) tee_fputs("|", PAGER);
-    for (uint off=0; (field = mysql_fetch_field(result)) ; off++)
+    while (MYSQL_FIELD *field= mysql_fetch_field(result))
     {
       size_t name_length= (uint) strlen(field->name);
       size_t numcells= charset_info->numcells(field->name,
@@ -3867,7 +3866,7 @@ print_table_data(MYSQL_RES *result)
         data_length= (uint) lengths[off];
       }
 
-      field= mysql_fetch_field(result);
+      MYSQL_FIELD *field= mysql_fetch_field(result);
       field_max_length= field->max_length;
 
       /* 

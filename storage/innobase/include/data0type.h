@@ -488,6 +488,8 @@ dtype_print(
 	const dtype_t*	type);
 #endif /* UNIV_DEBUG */
 
+struct dict_col_t;
+
 /* Structure for an SQL data type.
 If you add fields to this structure, be sure to initialize them everywhere.
 This structure is initialized in the following functions:
@@ -543,6 +545,10 @@ struct dtype_t{
 		mbminlen = 0;
 		mbmaxlen = 0;
 	}
+
+	/** Copy the type information from a column.
+	@param col column type to be copied */
+	void assign(const dict_col_t &col);
 };
 
 /** The DB_TRX_ID,DB_ROLL_PTR values for "no history is available" */

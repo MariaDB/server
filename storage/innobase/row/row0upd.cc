@@ -1261,9 +1261,6 @@ row_upd_changes_ord_field_binary_func(
 	ulint			i;
 	const dict_index_t*	clust_index;
 
-	ut_ad(thr);
-	ut_ad(thr->graph);
-	ut_ad(thr->graph->trx);
 	ut_ad(!index->table->skip_alter_undo);
 
 	n_unique = dict_index_get_n_unique(index);
@@ -1463,9 +1460,11 @@ row_upd_changes_ord_field_binary_func(
 					trx_rollback_recovered()
 					when the server had crashed before
 					storing the field. */
-					ut_ad(thr->graph->trx->is_recovered);
-					ut_ad(thr->graph->trx
-					      == trx_roll_crash_recv_trx);
+					ut_ad(!thr
+					      || thr->graph->trx->is_recovered);
+					ut_ad(!thr
+					      || thr->graph->trx
+					         == trx_roll_crash_recv_trx);
 					return(TRUE);
 				}
 

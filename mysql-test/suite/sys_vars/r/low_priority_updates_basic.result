@@ -23,13 +23,13 @@ SELECT @@global.low_priority_updates = 'FALSE';
 @@global.low_priority_updates = 'FALSE'
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'FALSE'
+Warning	1292	Truncated incorrect DECIMAL value: 'FALSE'
 SET @@session.low_priority_updates = DEFAULT;
 SELECT @@session.low_priority_updates = 'FALSE';
 @@session.low_priority_updates = 'FALSE'
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'FALSE'
+Warning	1292	Truncated incorrect DECIMAL value: 'FALSE'
 '#--------------------FN_DYNVARS_069_03-------------------------#'
 SET @@global.low_priority_updates = ON;
 SELECT @@global.low_priority_updates;

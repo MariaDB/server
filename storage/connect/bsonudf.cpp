@@ -240,7 +240,7 @@ my_bool BJNX::SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm)
 		jnp->Rank = atoi(p) - B;
 		jnp->Op = OP_EQ;
 	} else if (Wr) {
-		sprintf(g->Message, "Invalid specification %s in a write path", p);
+		snprintf(g->Message, sizeof(g->Message), "Invalid specification %s in a write path", p);
 		return true;
 	} else if (n == 1) {
 		// Set the Op value;
@@ -253,7 +253,7 @@ my_bool BJNX::SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm)
 		case '#': jnp->Op = OP_NUM;  break;
 		case '*': jnp->Op = OP_EXP;  break;
 		default:
-			sprintf(g->Message, "Invalid function specification %c", *p);
+			snprintf(g->Message, sizeof(g->Message), "Invalid function specification %c", *p);
 			return true;
 		} // endswitch *p
 
@@ -345,7 +345,7 @@ my_bool BJNX::ParseJpath(PGLOBAL g)
 
 		} else if (*p == '*') {
 			if (Wr) {
-				sprintf(g->Message, "Invalid specification %c in a write path", *p);
+				snprintf(g->Message, sizeof(g->Message), "Invalid specification %c in a write path", *p);
 				return true;
 			} else     			// Return JSON
 				Nodes[i].Op = OP_XX;
@@ -598,7 +598,7 @@ PBVAL BJNX::GetRowValue(PGLOBAL g, PBVAL row, int i)
 			vlp = row;
 			break;
 		default:
-			sprintf(g->Message, "Invalid row JSON type %d", row->Type);
+			snprintf(g->Message, sizeof(g->Message), "Invalid row JSON type %d", row->Type);
 			vlp = NULL;
 		} // endswitch Type
 
@@ -843,7 +843,7 @@ PBVAL BJNX::GetRow(PGLOBAL g)
 			val = MVP(row->To_Val);
 			break;
 		default:
-			sprintf(g->Message, "Invalid row JSON type %d", row->Type);
+			snprintf(g->Message, sizeof(g->Message), "Invalid row JSON type %d", row->Type);
 			val = NULL;
 		} // endswitch Type
 
@@ -1035,7 +1035,7 @@ my_bool BJNX::CheckPath(PGLOBAL g)
 				val = row;
 				break;
 			default:
-				sprintf(g->Message, "Invalid row JSON type %d", row->Type);
+				snprintf(g->Message, sizeof(g->Message), "Invalid row JSON type %d", row->Type);
 		} // endswitch Type
 
 		if (i < Nod-1)
@@ -1064,7 +1064,7 @@ my_bool BJNX::CheckPath(PGLOBAL g, UDF_ARGS *args, PBVAL jsp, PBVAL& jvp, int n)
 					return true;
 
 				if (!(jvp = GetJson(g))) {
-					sprintf(g->Message, "No sub-item at '%s'", path);
+					snprintf(g->Message, sizeof(g->Message), "No sub-item at '%s'", path);
 					return true;
 				} else
 					return false;
@@ -1632,7 +1632,7 @@ PBVAL BJNX::ParseJsonFile(PGLOBAL g, char *fn, int& pty, size_t& len)
 		DWORD rc = GetLastError();
 
 		if (!(*g->Message))
-			sprintf(g->Message, MSG(OPEN_MODE_ERROR), "map", (int)rc, fn);
+			snprintf(g->Message, sizeof(g->Message), MSG(OPEN_MODE_ERROR), "map", (int)rc, fn);
 
 		return NULL;
 	} // endif hFile
@@ -1652,7 +1652,7 @@ PBVAL BJNX::ParseJsonFile(PGLOBAL g, char *fn, int& pty, size_t& len)
 
 	if (!memory) {
 		CloseFileHandle(hFile);
-		sprintf(g->Message, MSG(MAP_VIEW_ERROR), fn, GetLastError());
+		snprintf(g->Message, sizeof(g->Message), MSG(MAP_VIEW_ERROR), fn, GetLastError());
 		return NULL;
 	} // endif Memory
 
@@ -3047,7 +3047,7 @@ my_bool bson_test_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 
 char* bson_test(UDF_INIT* initid, UDF_ARGS* args, char* result,
 	unsigned long* res_length, char* is_null, char* error) {
-	char* str = NULL, * fn = NULL;
+	char* str = NULL, *fn = NULL;
 	int     pretty = 1;
 	PBVAL   bvp;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -4767,7 +4767,7 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 					if (!fgets(buf, lrecl, fin)) {
 						if (!feof(fin)) {
-							sprintf(g->Message, "Error %d reading %zd bytes from %s",
+							snprintf(g->Message, sizeof(g->Message), "Error %d reading %zu bytes from %s",
 								errno, lrecl, fn);
 							str = strcpy(result, g->Message);
 						}	else
@@ -4779,11 +4779,11 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 							binszp = newloc - (size_t)jsp;
 
 							if (fwrite(&binszp, sizeof(binszp), 1, fout) != 1) {
-								sprintf(g->Message, "Error %d writing %zd bytes to %s", 
+								snprintf(g->Message, sizeof(g->Message), "Error %d writing %zu bytes to %s",
 									errno, sizeof(binszp), ofn);
 								str = strcpy(result, g->Message);
 							} else if (fwrite(jsp, binszp, 1, fout) != 1) {
-								sprintf(g->Message, "Error %d writing %zd bytes to %s", 
+								snprintf(g->Message, sizeof(g->Message), "Error %d writing %zu bytes to %s",
 									errno, binszp, ofn);
 								str = strcpy(result, g->Message);
 							} else
@@ -5669,7 +5669,6 @@ char *bbin_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if (g->Xchk) {
 		bsp = (PBSON)g->Xchk;
 	} else if (!CheckMemory(g, initid, args, 1, true, true)) {
-                // char *path = MakePSZ(g, args, 1);
 		BJNX  bnx(g, NULL, TYPE_STRING, initid->max_length);
 		PBVAL top, jvp = NULL;
 		PBVAL jsp = bnx.MakeValue(args, 0, true, &top);

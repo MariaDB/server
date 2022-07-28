@@ -1811,14 +1811,14 @@ val2
 val4
 DELETE FROM t WHERE a = 100;
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'val1'
-Warning	1292	Truncated incorrect DOUBLE value: 'val2'
-Warning	1292	Truncated incorrect DOUBLE value: 'val4'
+Warning	1292	Truncated incorrect DECIMAL value: 'val1'
+Warning	1292	Truncated incorrect DECIMAL value: 'val2'
+Warning	1292	Truncated incorrect DECIMAL value: 'val4'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1292	Truncated incorrect DOUBLE value: 'val1'
-Warning	1292	Truncated incorrect DOUBLE value: 'val2'
-Warning	1292	Truncated incorrect DOUBLE value: 'val4'
+Warning	1292	Truncated incorrect DECIMAL value: 'val1'
+Warning	1292	Truncated incorrect DECIMAL value: 'val2'
+Warning	1292	Truncated incorrect DECIMAL value: 'val4'
 GET DIAGNOSTICS CONDITION 3 @n = ROW_NUMBER;
 SELECT @n;
 @n

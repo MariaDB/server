@@ -289,7 +289,7 @@ public:
 					new query step is started */
   /** latest completed checkpoint (protected by latch.wr_lock()) */
   Atomic_relaxed<lsn_t> last_checkpoint_lsn;
-  /** next checkpoint LSN (protected by log_sys.mutex) */
+  /** next checkpoint LSN (protected by log_sys.latch) */
   lsn_t next_checkpoint_lsn;
   /** next checkpoint number (protected by latch.wr_lock()) */
   ulint next_checkpoint_no;

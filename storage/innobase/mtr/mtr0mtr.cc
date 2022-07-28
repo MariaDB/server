@@ -997,7 +997,7 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
 /** Commit a mini-transaction that did not modify any pages,
 but generated some redo log on a higher level, such as
 FILE_MODIFY records and an optional FILE_CHECKPOINT marker.
-The caller must hold log_sys.mutex.
+The caller must hold exclusive log_sys.latch.
 This is to be used at log_checkpoint().
 @param checkpoint_lsn   the log sequence number of a checkpoint, or 0
 @return current LSN */

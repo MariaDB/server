@@ -1861,7 +1861,7 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
 extern std::atomic<my_thread_id> shutdown_thread_id;
 void THD::awake_no_mutex(killed_state state_to_set)
 {
-  DBUG_ENTER("THD::awake");
+  DBUG_ENTER("THD::awake_no_mutex");
   DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
                        this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
@@ -7358,7 +7358,7 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
 */
 bool THD::binlog_for_noop_dml(bool transactional_table)
 {
-  if (log_current_statement())
+  if (mysql_bin_log.is_open() && log_current_statement())
   {
     reset_unsafe_warnings();
     if (binlog_query(THD::STMT_QUERY_TYPE, query(), query_length(),
