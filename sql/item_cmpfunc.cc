@@ -795,7 +795,9 @@ int Arg_comparator::compare_e_string()
 {
   String *res1,*res2;
   res1= (*a)->val_str(&value1);
+  DBUG_ASSERT((res1 == NULL) == (*a)->null_value);
   res2= (*b)->val_str(&value2);
+  DBUG_ASSERT((res2 == NULL) == (*b)->null_value);
   if (!res1 || !res2)
     return MY_TEST(res1 == res2);
   return MY_TEST(sortcmp(res1, res2, compare_collation()) == 0);
@@ -832,10 +834,12 @@ int Arg_comparator::compare_decimal()
 {
   my_decimal decimal1;
   my_decimal *val1= (*a)->val_decimal(&decimal1);
+  DBUG_ASSERT((val1 == NULL) == (*a)->null_value);
   if (!(*a)->null_value)
   {
     my_decimal decimal2;
     my_decimal *val2= (*b)->val_decimal(&decimal2);
+    DBUG_ASSERT((val2 == NULL) == (*b)->null_value);
     if (!(*b)->null_value)
     {
       if (set_null)
