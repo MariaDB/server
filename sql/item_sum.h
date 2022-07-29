@@ -959,7 +959,6 @@ public:
   void clear() override;
   bool add() override;
   void cleanup() override;
-  // void remove() override;
   enum Sumfunctype sum_func () const override
   {
     return REGR_COUNT_FUNC;
@@ -979,7 +978,11 @@ public:
   Item *copy_or_same(THD* thd) override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_sum_regr_count>(thd, this); }
-
+  bool supports_removal() const override
+  {
+    return true;
+  }
+  void remove() override;
 };
 
 
@@ -1080,6 +1083,7 @@ public:
   {
     return (uint32) (sizeof(double) * 2 + sizeof(ulonglong));
   };
+  void remove(double nr);
 };
 
 
@@ -1119,6 +1123,7 @@ public:
   {
     return (uint32) (sizeof(Stddev) * 2 + sizeof(double) * 3 + sizeof(ulonglong));
   };
+  void remove(double nr_y, double nr_x);
 
 };
 
@@ -1236,6 +1241,11 @@ public:
   }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_sum_regr_sxx>(thd, this); }
+  bool supports_removal() const override
+  {
+    return true;
+  }
+  void remove() override;
 };
 
 class Item_sum_regr_syy :public Item_sum_regr_sxx

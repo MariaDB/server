@@ -2183,6 +2183,25 @@ void Stddev::recurrence_next(double nr)
   }
 }
 
+void Stddev::remove(double nr)
+{
+  if (m_count > 1)
+  {
+    /*
+      We need to calculate m_s here, because it is used in
+      Regression_result::remove().
+    */
+    double diff = (nr - m_m) * (double) m_count / (double) (m_count - 1); 
+    double m_kminusone= m_m - diff / (double) m_count;
+    m_s= m_s - diff * (nr - m_m);
+    m_m= m_kminusone;
+  } else
+  {
+    m_m= 0;
+    m_s= 0;
+  }
+  m_count--;
+}
 
 double Stddev::result(bool is_sample_variance)
 {
@@ -2218,6 +2237,27 @@ void Regression_result::recurrence_next(double nr_y, double nr_x)
   }
 }
 
+void Regression_result::remove(double nr_y, double nr_x)
+{
+  if (N > 0)
+  {
+    sx-= nr_x;
+    sy-= nr_y;
+    sxx.remove(nr_x);
+    double diff = nr_x - sxx.get_m();
+    sxy= sxy - diff * (nr_y - syy.get_m());
+    syy.remove(nr_y);
+    N--;
+  }
+  // else
+  // {
+  //   sx= 0;
+  //   sy= 0;
+  //   sxx.remove(nr_x);
+  //   syy.remove(nr_y);
+  // }
+}
+
 Item *Item_sum_regr_count::copy_or_same(THD* thd)
 {
   DBUG_ENTER("Item_sum_regr_count::copy_or_same");
@@ -2248,6 +2288,17 @@ longlong Item_sum_regr_count::val_int()
   // if (aggr)
   //   aggr->endup();
   DBUG_RETURN((longlong)count);
+}
+
+void Item_sum_regr_count::remove()
+{
+  DBUG_ENTER("Item_sum_regr_count::remove");
+  if (!aggr->arg_is_null(true))
+  {
+    if (count > 0)
+      count--;
+  }
+  DBUG_VOID_RETURN;
 }
 
 void Item_sum_regr_count::cleanup()
@@ -2414,6 +2465,18 @@ bool Item_sum_regr_sxx::fix_length_and_dec(THD *thd)
 Item *Item_sum_regr_sxx::result_item(THD *thd, Field *field)
 {
   return new (thd->mem_root) Item_regr_sxx_field(thd, this);
+}
+
+void Item_sum_regr_sxx::remove()
+{
+  double nr_y= args[0]->val_real();
+  double nr_x= args[1]->val_real();
+  
+  if (!aggr->arg_is_null(true))
+  {
+    if (regr_result.count() > 0)
+      regr_result.remove(nr_y, nr_x);
+  }
 }
 
 Item *Item_sum_regr_syy::copy_or_same(THD* thd)
