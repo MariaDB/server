@@ -14,7 +14,13 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 CREATE TABLE t1 (a TIMESTAMP DEFAULT NULL);
-ERROR 42000: Invalid default value for 'a'
+INSERT t1 () VALUES ();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
 CREATE TABLE t1 (a TIMESTAMP DEFAULT '0000-00-00 00:00:00');
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -187,3 +193,48 @@ a
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 SET timestamp=DEFAULT;
+#
+# MDEV-29075 Changing explicit_defaults_for_timestamp within stored procedure works inconsistently
+#
+set statement explicit_defaults_for_timestamp=1-@@explicit_defaults_for_timestamp for create table t1 (ts timestamp);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `ts` timestamp NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create procedure pr()
+begin
+set explicit_defaults_for_timestamp= 1-@@explicit_defaults_for_timestamp;
+create table t1 (ts timestamp);
+end $
+call pr();
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `ts` timestamp NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop procedure pr;
+drop table t1;
+prepare stmt from 'create or replace table t1 (a timestamp)';
+execute stmt;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set explicit_defaults_for_timestamp=1-@@explicit_defaults_for_timestamp;
+execute stmt;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set explicit_defaults_for_timestamp=1-@@explicit_defaults_for_timestamp;
+execute stmt;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
