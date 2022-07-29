@@ -5,6 +5,7 @@ include/master-slave.inc
 [connection master]
 connection slave;
 include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=No;
 connection master;
 flush binary logs;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
@@ -47,7 +48,9 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
 connection slave;
 set global explicit_defaults_for_timestamp=0;
-reset slave;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 include/start_slave.inc
 show create table t1;
 Table	Create Table
@@ -63,7 +66,9 @@ f1	f2
 drop table t1;
 include/stop_slave.inc
 set global explicit_defaults_for_timestamp=1;
-reset slave;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 include/start_slave.inc
 show create table t1;
 Table	Create Table

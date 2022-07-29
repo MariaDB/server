@@ -7,6 +7,8 @@
 
 --connection slave
 --source include/stop_slave.inc
+--let $master_use_gtid_option=No
+eval CHANGE MASTER TO MASTER_USE_GTID=$master_use_gtid_option;
 
 --connection master
 --let $datadir= `SELECT @@datadir`
@@ -22,7 +24,7 @@ flush binary logs;
 --connection slave
 
 set global explicit_defaults_for_timestamp=0;
-reset slave;
+--source include/reset_slave.inc
 --source include/start_slave.inc
 --sync_with_master
 show create table t1;
@@ -32,7 +34,7 @@ drop table t1;
 --source include/stop_slave.inc
 
 set global explicit_defaults_for_timestamp=1;
-reset slave;
+--source include/reset_slave.inc
 --source include/start_slave.inc
 --sync_with_master
 show create table t1;
