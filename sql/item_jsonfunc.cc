@@ -150,10 +150,12 @@ int json_path_parts_compare(
 {
   int res, res2;
 
-  long arbitrary_var;
-  long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return 1;
 
@@ -1154,10 +1156,12 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
 {
   json_engine_t loc_js;
   bool set_js;
-  long arbitrary_var;
-  long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return 1;
 
@@ -2050,10 +2054,12 @@ err_return:
 static int do_merge(String *str, json_engine_t *je1, json_engine_t *je2)
 {
 
-  long arbitrary_var;
-  long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return 1;
 
@@ -2389,10 +2395,12 @@ static int copy_value_patch(String *str, json_engine_t *je)
 static int do_merge_patch(String *str, json_engine_t *je1, json_engine_t *je2,
                           bool *empty_result)
 {
-  long arbitrary_var;
-  long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return 1;
 
