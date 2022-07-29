@@ -734,3 +734,41 @@ UPDATE t1,t2 SET t1.i1 = -39 WHERE t2.d1 <> t1.i1 AND t2.d1 = t1.d2;
 ERROR 22007: Incorrect datetime value: '19' for column `test`.`t1`.`i1` at row 1
 DROP TABLE t1,t2;
 # End of MariaDB 10.2 tests
+#
+# MDEV-29189: Second execution of SF using UPDATE?DELETE
+#             after reported error by the first execution
+#
+CREATE TABLE t1 (c int);
+CREATE FUNCTION f1() RETURNS int
+BEGIN
+UPDATE t1 SET c=c+1;
+RETURN 1;
+END;//
+CREATE FUNCTION f2() RETURNS int
+BEGIN
+DELETE FROM t1 WHERE c < 7;
+RETURN 1;
+END;//
+INSERT INTO t1 VALUES (3), (7), (1);
+SELECT * FROM t1 WHERE f1() = 1;
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
+SELECT f1();
+f1()
+1
+SELECT * FROM t1;
+c
+4
+8
+2
+SELECT * FROM t1 WHERE f2() = 1;
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
+SELECT f2();
+f2()
+1
+SELECT * FROM t1;
+c
+8
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP TABLE t1;
+# End of MariaDB 10.10 tests
