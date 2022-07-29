@@ -2310,13 +2310,17 @@ bool Column_definition::prepare_stage2(handler *file,
 
 void promote_first_timestamp_column(List<Create_field> *column_definitions)
 {
+  bool first= true;
   for (Create_field &column_definition : *column_definitions)
   {
     if (column_definition.is_timestamp_type() ||    // TIMESTAMP
         column_definition.unireg_check == Field::TIMESTAMP_OLD_FIELD) // Legacy
     {
+      if (!column_definition.explicitly_nullable)
+        column_definition.flags|= NOT_NULL_FLAG;
       DBUG_PRINT("info", ("field-ptr:%p", column_definition.field));
-      if ((column_definition.flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
+      if (first &&
+          (column_definition.flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
           column_definition.default_value == NULL &&   // no constant default,
           column_definition.unireg_check == Field::NONE && // no function default
           column_definition.vcol_info == NULL &&
@@ -2330,7 +2334,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
                             ));
         column_definition.unireg_check= Field::TIMESTAMP_DNUN_FIELD;
       }
-      return;
+      first= false;
     }
   }
 }
