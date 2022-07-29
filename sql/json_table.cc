@@ -118,10 +118,12 @@ int get_disallowed_table_deps_for_list(MEM_ROOT *mem_root,
   NESTED_JOIN *nested_join;
   List_iterator<TABLE_LIST> li(*join_list);
 
-  long arbitrary_var;
-  long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return 1;
 
@@ -1329,10 +1331,12 @@ static void add_extra_deps(List<TABLE_LIST> *join_list, table_map deps)
   TABLE_LIST *table;
   List_iterator<TABLE_LIST> li(*join_list);
 
-  long arbitrary_var;
-  long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return;
 
@@ -1424,10 +1428,12 @@ table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
   table_map res= 0;
   List_iterator<TABLE_LIST> li(*join_list);
 
-  long arbitrary_var;
-  long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);});
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
   if ((res=check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL)))
     return res;
 
