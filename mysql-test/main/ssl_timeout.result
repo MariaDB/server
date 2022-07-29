@@ -5,6 +5,6 @@ SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS
 have_ssl
 1
 SELECT SLEEP(600);
-ERROR HY000: Lost connection to MySQL server during query
+Got one of the listed errors
 connection default;
 disconnect ssl_con;
