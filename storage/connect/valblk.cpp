@@ -604,7 +604,7 @@ int TYPBLK<TYPE>::GetMaxLength(void)
   int i, n, m;
 
   for (i = n = 0; i < Nval; i++) {
-    m = sprintf(buf, Fmt, UnalignedRead(i));
+    m = snprintf(buf, sizeof(buf), Fmt, UnalignedRead(i));
     n = MY_MAX(n, m);
     } // endfor i
 

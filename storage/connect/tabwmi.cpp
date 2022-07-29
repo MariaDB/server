@@ -810,7 +810,7 @@ void WMICOL::ReadColumn(PGLOBAL g)
           char       buf[24];
           int        rc = VariantTimeToSystemTime(Prop.date, &stm);
 
-          sprintf(buf, "%02d/%02d/%d %02d:%02d:%02d", 
+          snprintf(buf, sizeof(buf), "%02d/%02d/%d %02d:%02d:%02d", 
                        stm.wDay, stm.wMonth, stm.wYear,
                        stm.wHour, stm.wMinute, stm.wSecond);
           Value->SetValue_psz(buf);

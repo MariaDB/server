@@ -908,7 +908,7 @@ my_bool JSNX::LocateArray(PGLOBAL g, PJAR jarp)
 
 	for (int i = 0; i < jarp->size() && !Found; i++) {
 		Jp->N = m;
-		sprintf(s, "[%d]", i + B);
+		snprintf(s, sizeof(s), "[%d]", i + B);
 
 		if (Jp->WriteStr(s))
 			return true;
@@ -1189,7 +1189,7 @@ my_bool JSNX::AddPath(void) {
 
 	for (int i = 0; i <= I; i++) {
 		if (Jpnp[i].Type == TYPE_JAR) {
-			sprintf(s, "[%d]", Jpnp[i].N + B);
+			snprintf(s, sizeof(s), "[%d]", Jpnp[i].N + B);
 
 			if (Jp->WriteStr(s))
 				return true;
