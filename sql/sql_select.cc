@@ -30677,6 +30677,8 @@ err:
   MYSQL_DML_DONE(thd, 1);
   THD_STAGE_INFO(thd, stage_end);
   (void)unit->cleanup();
+  if (is_prepared())
+    unprepare(thd);
 
   return thd->is_error();
 }
