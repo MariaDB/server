@@ -145,7 +145,9 @@ static TYPELIB opt_system_types=
 static ulonglong opt_system= 0ULL;
 static my_bool insert_pat_inited= 0, debug_info_flag= 0, debug_check_flag= 0,
                select_field_names_inited= 0;
-static ulong opt_max_allowed_packet, opt_net_buffer_length;
+static ulong opt_max_allowed_packet;
+static double opt_max_statement_time= 0.0;
+static ulong opt_net_buffer_length;
 static MYSQL mysql_connection,*mysql=0;
 static DYNAMIC_STRING insert_pat, select_field_names;
 static char  *opt_password=0,*current_user=0,
@@ -162,6 +164,7 @@ static my_bool server_supports_switching_charsets= TRUE;
 static ulong opt_compatible_mode= 0;
 #define MYSQL_OPT_MASTER_DATA_EFFECTIVE_SQL 1
 #define MYSQL_OPT_MASTER_DATA_COMMENTED_SQL 2
+#define MYSQL_OPT_MAX_STATEMENT_TIME 0
 #define MYSQL_OPT_SLAVE_DATA_EFFECTIVE_SQL 1
 #define MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL 2
 static uint opt_mysql_port= 0, opt_master_data;
@@ -464,6 +467,10 @@ static struct my_option my_long_options[] =
     &opt_max_allowed_packet, &opt_max_allowed_packet, 0,
     GET_ULONG, REQUIRED_ARG, 24*1024*1024, 4096,
    (longlong) 2L*1024L*1024L*1024L, MALLOC_OVERHEAD, 1024, 0},
+  {"max-statement-time", MYSQL_OPT_MAX_STATEMENT_TIME,
+   "Max statement execution time. If unset, overrides server default with 0.",
+   &opt_max_statement_time, &opt_max_statement_time, 0, GET_DOUBLE,
+   REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"net_buffer_length", OPT_NET_BUFFER_LENGTH, 
    "The buffer size for TCP/IP and socket communication.",
     &opt_net_buffer_length, &opt_net_buffer_length, 0,
@@ -6856,6 +6863,14 @@ int main(int argc, char **argv)
   }
   if (!path)
     write_header(md_result_file, *argv);
+
+  /* Set MAX_STATEMENT_TIME to 0 unless set in client */
+  char query[48];
+  my_snprintf(query, sizeof(query), "/*!100100 SET @@MAX_STATEMENT_TIME=%f */", opt_max_statement_time);
+  mysql_query(mysql, query);
+
+  /* Set server side timeout between client commands to server compiled-in default */
+  mysql_query(mysql, "/*!100100 SET WAIT_TIMEOUT=DEFAULT */");
 
   /* Check if the server support multi source */
   if (mysql_get_server_version(mysql) >= 100000)
