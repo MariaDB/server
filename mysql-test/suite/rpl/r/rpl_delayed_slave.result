@@ -158,7 +158,7 @@ include/start_slave.inc
 include/stop_slave.inc
 include/reset_slave.inc
 Warnings:
-Note	4190	RESET SLAVE is changing the current value of Using_Gtid from 'No' to its default value of 'Slave_Pos'
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 [on master]
 connection master;
 RESET MASTER;
