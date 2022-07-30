@@ -2068,11 +2068,9 @@ DROP TABLE IF EXISTS `v2`;
 /*!50001 DROP VIEW IF EXISTS `v2`*/;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v2` (
-  `a` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v2` AS SELECT
+ 1 AS `a` */;
 SET character_set_client = @saved_cs_client;
-/*!50001 DROP TABLE IF EXISTS `v2`*/;
 /*!50001 DROP VIEW IF EXISTS `v2`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
@@ -2162,11 +2160,9 @@ DROP TABLE IF EXISTS `v1`;
 /*!50001 DROP VIEW IF EXISTS `v1`*/;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v1` (
-  `a` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v1` AS SELECT
+ 1 AS `a` */;
 SET character_set_client = @saved_cs_client;
-/*!50001 DROP TABLE IF EXISTS `v1`*/;
 /*!50001 DROP VIEW IF EXISTS `v1`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
@@ -2236,11 +2232,9 @@ DROP TABLE IF EXISTS `v2`;
 /*!50001 DROP VIEW IF EXISTS `v2`*/;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v2` (
-  `a` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v2` AS SELECT
+ 1 AS `a` */;
 SET character_set_client = @saved_cs_client;
-/*!50001 DROP TABLE IF EXISTS `v2`*/;
 /*!50001 DROP VIEW IF EXISTS `v2`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
@@ -2350,31 +2344,27 @@ DROP TABLE IF EXISTS `v1`;
 /*!50001 DROP VIEW IF EXISTS `v1`*/;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v1` (
-  `a` tinyint NOT NULL,
-  `b` tinyint NOT NULL,
-  `c` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v1` AS SELECT
+ 1 AS `a`,
+  1 AS `b`,
+  1 AS `c` */;
 SET character_set_client = @saved_cs_client;
 DROP TABLE IF EXISTS `v2`;
 /*!50001 DROP VIEW IF EXISTS `v2`*/;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v2` (
-  `a` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v2` AS SELECT
+ 1 AS `a` */;
 SET character_set_client = @saved_cs_client;
 DROP TABLE IF EXISTS `v3`;
 /*!50001 DROP VIEW IF EXISTS `v3`*/;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v3` (
-  `a` tinyint NOT NULL,
-  `b` tinyint NOT NULL,
-  `c` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v3` AS SELECT
+ 1 AS `a`,
+  1 AS `b`,
+  1 AS `c` */;
 SET character_set_client = @saved_cs_client;
-/*!50001 DROP TABLE IF EXISTS `v1`*/;
 /*!50001 DROP VIEW IF EXISTS `v1`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
@@ -2388,7 +2378,6 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
-/*!50001 DROP TABLE IF EXISTS `v2`*/;
 /*!50001 DROP VIEW IF EXISTS `v2`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
@@ -2402,7 +2391,6 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
-/*!50001 DROP TABLE IF EXISTS `v3`*/;
 /*!50001 DROP VIEW IF EXISTS `v3`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
@@ -3107,35 +3095,31 @@ DROP TABLE IF EXISTS `v0`;
 /*!50001 DROP VIEW IF EXISTS `v0`*/;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v0` (
-  `a` tinyint NOT NULL,
-  `b` tinyint NOT NULL,
-  `c` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v0` AS SELECT
+ 1 AS `a`,
+  1 AS `b`,
+  1 AS `c` */;
 SET character_set_client = @saved_cs_client;
 DROP TABLE IF EXISTS `v1`;
 /*!50001 DROP VIEW IF EXISTS `v1`*/;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v1` (
-  `a` tinyint NOT NULL,
-  `b` tinyint NOT NULL,
-  `c` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v1` AS SELECT
+ 1 AS `a`,
+  1 AS `b`,
+  1 AS `c` */;
 SET character_set_client = @saved_cs_client;
 DROP TABLE IF EXISTS `v2`;
 /*!50001 DROP VIEW IF EXISTS `v2`*/;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v2` (
-  `a` tinyint NOT NULL,
-  `b` tinyint NOT NULL,
-  `c` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v2` AS SELECT
+ 1 AS `a`,
+  1 AS `b`,
+  1 AS `c` */;
 SET character_set_client = @saved_cs_client;
 
 USE `test`;
-/*!50001 DROP TABLE IF EXISTS `v0`*/;
 /*!50001 DROP VIEW IF EXISTS `v0`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
@@ -3149,7 +3133,6 @@ USE `test`;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
-/*!50001 DROP TABLE IF EXISTS `v1`*/;
 /*!50001 DROP VIEW IF EXISTS `v1`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
@@ -3163,7 +3146,6 @@ USE `test`;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
-/*!50001 DROP TABLE IF EXISTS `v2`*/;
 /*!50001 DROP VIEW IF EXISTS `v2`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
@@ -3401,7 +3383,7 @@ insert into t values(5, 51);
 create view v1 as select qty, price, qty*price as value from t;
 create view v2 as select qty from v1;
 mysqldump {
-/*!50001 DROP TABLE IF EXISTS `v1`*/;
+/*!50001 DROP VIEW IF EXISTS `v1`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
@@ -3416,7 +3398,7 @@ mysqldump {
 /*!50001 SET collation_connection      = @saved_col_connection */;
 
 } mysqldump {
-/*!50001 DROP TABLE IF EXISTS `v2`*/;
+/*!50001 DROP VIEW IF EXISTS `v2`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
@@ -3509,13 +3491,11 @@ DROP TABLE IF EXISTS `v1`;
 /*!50001 DROP VIEW IF EXISTS `v1`*/;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v1` (
-  `id` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v1` AS SELECT
+ 1 AS `id` */;
 SET character_set_client = @saved_cs_client;
 
 USE `mysqldump_test_db`;
-/*!50001 DROP TABLE IF EXISTS `v1`*/;
 /*!50001 DROP VIEW IF EXISTS `v1`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
@@ -3569,15 +3549,14 @@ CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqldump_views` /*!40100 DEFAULT CHAR
 USE `mysqldump_views`;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `nasishnasifu` (
-  `id` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `nasishnasifu` AS SELECT
+ 1 AS `id` */;
 SET character_set_client = @saved_cs_client;
 
 USE `mysqldump_tables`;
 
 USE `mysqldump_views`;
-/*!50001 DROP TABLE IF EXISTS `nasishnasifu`*/;
+/*!50001 DROP VIEW IF EXISTS `nasishnasifu`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
@@ -3978,11 +3957,9 @@ DROP TABLE IF EXISTS `v2`;
 /*!50001 DROP VIEW IF EXISTS `v2`*/;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v2` (
-  `c` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v2` AS SELECT
+ 1 AS `c` */;
 SET character_set_client = @saved_cs_client;
-/*!50001 DROP TABLE IF EXISTS `v2`*/;
 /*!50001 DROP VIEW IF EXISTS `v2`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
@@ -4400,13 +4377,11 @@ DROP TABLE IF EXISTS `v1`;
 /*!50001 DROP VIEW IF EXISTS `v1`*/;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v1` (
-  `id` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v1` AS SELECT
+ 1 AS `id` */;
 SET character_set_client = @saved_cs_client;
 
 USE `mysqldump_test_db`;
-/*!50001 DROP TABLE IF EXISTS `v1`*/;
 /*!50001 DROP VIEW IF EXISTS `v1`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
@@ -5494,9 +5469,8 @@ CREATE TABLE `nonunique_table_name` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `nonunique_table_view_name` (
-  `1` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `nonunique_table_view_name` AS SELECT
+ 1 AS `1` */;
 SET character_set_client = @saved_cs_client;
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db2` /*!40100 DEFAULT CHARACTER SET utf8 */;
@@ -5519,7 +5493,7 @@ CREATE TABLE `nonunique_table_view_name` (
 INSERT INTO `nonunique_table_view_name` VALUES (3),(4);
 
 USE `db1`;
-/*!50001 DROP TABLE IF EXISTS `nonunique_table_view_name`*/;
+/*!50001 DROP VIEW IF EXISTS `nonunique_table_view_name`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
@@ -5595,15 +5569,14 @@ CREATE TABLE `nonunique_table_name` (
 INSERT INTO `nonunique_table_name` VALUES (5),(6);
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `nonunique_table_view_name` (
-  `1` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `nonunique_table_view_name` AS SELECT
+ 1 AS `1` */;
 SET character_set_client = @saved_cs_client;
 
 USE `db2`;
 
 USE `db1`;
-/*!50001 DROP TABLE IF EXISTS `nonunique_table_view_name`*/;
+/*!50001 DROP VIEW IF EXISTS `nonunique_table_view_name`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
