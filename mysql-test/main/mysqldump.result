@@ -2070,7 +2070,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `v2` (
   `a` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 /*!50001 DROP TABLE IF EXISTS `v2`*/;
 /*!50001 DROP VIEW IF EXISTS `v2`*/;
@@ -2164,7 +2164,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `v1` (
   `a` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 /*!50001 DROP TABLE IF EXISTS `v1`*/;
 /*!50001 DROP VIEW IF EXISTS `v1`*/;
@@ -2238,7 +2238,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `v2` (
   `a` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 /*!50001 DROP TABLE IF EXISTS `v2`*/;
 /*!50001 DROP VIEW IF EXISTS `v2`*/;
@@ -2354,7 +2354,7 @@ SET character_set_client = utf8;
   `a` tinyint NOT NULL,
   `b` tinyint NOT NULL,
   `c` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 DROP TABLE IF EXISTS `v2`;
 /*!50001 DROP VIEW IF EXISTS `v2`*/;
@@ -2362,7 +2362,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `v2` (
   `a` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 DROP TABLE IF EXISTS `v3`;
 /*!50001 DROP VIEW IF EXISTS `v3`*/;
@@ -2372,7 +2372,7 @@ SET character_set_client = utf8;
   `a` tinyint NOT NULL,
   `b` tinyint NOT NULL,
   `c` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 /*!50001 DROP TABLE IF EXISTS `v1`*/;
 /*!50001 DROP VIEW IF EXISTS `v1`*/;
@@ -3113,7 +3113,7 @@ SET character_set_client = utf8;
   `a` tinyint NOT NULL,
   `b` tinyint NOT NULL,
   `c` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 DROP TABLE IF EXISTS `v1`;
 /*!50001 DROP VIEW IF EXISTS `v1`*/;
@@ -3123,7 +3123,7 @@ SET character_set_client = utf8;
   `a` tinyint NOT NULL,
   `b` tinyint NOT NULL,
   `c` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 DROP TABLE IF EXISTS `v2`;
 /*!50001 DROP VIEW IF EXISTS `v2`*/;
@@ -3133,7 +3133,7 @@ SET character_set_client = utf8;
   `a` tinyint NOT NULL,
   `b` tinyint NOT NULL,
   `c` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 
 USE `test`;
@@ -3513,7 +3513,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `v1` (
   `id` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 
 USE `mysqldump_test_db`;
@@ -3573,7 +3573,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `nasishnasifu` (
   `id` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 
 USE `mysqldump_tables`;
@@ -3982,7 +3982,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `v2` (
   `c` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 /*!50001 DROP TABLE IF EXISTS `v2`*/;
 /*!50001 DROP VIEW IF EXISTS `v2`*/;
@@ -4404,7 +4404,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `v1` (
   `id` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 
 USE `mysqldump_test_db`;
@@ -5498,7 +5498,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `nonunique_table_view_name` (
   `1` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db2` /*!40100 DEFAULT CHARACTER SET utf8 */;
@@ -5599,7 +5599,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `nonunique_table_view_name` (
   `1` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 
 USE `db2`;

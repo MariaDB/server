@@ -34,7 +34,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `v2` (
   `a` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest3` /*!40100 DEFAULT CHARACTER SET latin1 */;
@@ -44,31 +44,31 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `v3` (
   `a` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `v3i` (
   `a` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `v3is` (
   `schema_name` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `v3nt` (
   `1` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `v3ps` (
   `user` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 
 USE `mysqltest1`;
@@ -245,7 +245,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `v1` (
   `id` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 /*!50001 DROP TABLE IF EXISTS `v1`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;

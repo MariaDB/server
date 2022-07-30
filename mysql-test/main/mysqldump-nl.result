@@ -57,7 +57,7 @@ SET character_set_client = utf8;
 1v` (
   `foobar
 raboof` tinyint NOT NULL
-) ENGINE=MyISAM */;
+) ENGINE=Aria */;
 SET character_set_client = @saved_cs_client;
 
 --

@@ -3160,13 +3160,13 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
           }
 
           /*
-            Stand-in tables are always MyISAM tables as the default
+            Stand-in tables are always Aria tables as the default
             engine might have a column-limit that's lower than the
-            number of columns in the view, and MyISAM support is
+            number of columns in the view, and Aria support is
             guaranteed to be in the server anyway.
           */
           fprintf(sql_file,
-                  "\n) ENGINE=MyISAM */;\n"
+                  "\n) ENGINE=Aria */;\n"
                   "SET character_set_client = @saved_cs_client;\n");
 
           check_io(sql_file);
