@@ -4351,7 +4351,7 @@ bool json_compare_arr_and_obj(json_engine_t *js, json_engine_t *value)
         return TRUE;
       *value= loc_val;
     }
-    if (!json_value_scalar(js))
+    if (js->value_type == JSON_VALUE_ARRAY)
       json_skip_level(js);
   }
   return FALSE;
@@ -4437,76 +4437,131 @@ int json_find_overlap_with_array(json_engine_t *js, json_engine_t *value,
 }
 
 
+int compare_nested_object(json_engine_t *js, json_engine_t *value)
+{
+  int result= 0;
+  const char *value_begin= (const char*)value->s.c_str-1;
+  const char *js_begin= (const char*)js->s.c_str-1;
+  json_skip_level(value);
+  json_skip_level(js);
+  const char *value_end= (const char*)value->s.c_str;
+  const char *js_end= (const char*)js->s.c_str;
+
+  String a(value_begin, value_end-value_begin,value->s.cs);
+  String b(js_begin, js_end-js_begin, js->s.cs);
+
+  DYNAMIC_STRING a_res, b_res;
+  if (init_dynamic_string(&a_res, NULL, 4096, 1024) ||
+      init_dynamic_string(&b_res, NULL, 4096, 1024))
+  { 
+    goto error;
+  }
+  if (json_normalize(&a_res, a.ptr(), a.length(), value->s.cs) ||
+      json_normalize(&b_res, b.ptr(), b.length(), value->s.cs))
+  {
+    goto error;
+  }
+
+  result= strcmp(a_res.str, b_res.str) ? 0 : 1;
+
+  error:
+  dynstr_free(&a_res);
+  dynstr_free(&b_res);
+
+  return MY_TEST(result);
+}
 int json_find_overlap_with_object(json_engine_t *js, json_engine_t *value,
                                   bool compare_whole)
 {
   if (value->value_type == JSON_VALUE_OBJECT)
   {
-    /* Find at least one common key-value pair */
-    json_string_t key_name;
-    bool found_key= false, found_value= false;
-    json_engine_t loc_js= *js;
-    const uchar *k_start, *k_end;
-
-    json_string_set_cs(&key_name, value->s.cs);
-
-    while (json_scan_next(value) == 0 && value->state == JST_KEY)
+    if (compare_whole)
     {
-      k_start= value->s.c_str;
-      do
+      return compare_nested_object(js, value);
+    }
+    else
+    {
+      /* Find at least one common key-value pair */
+      json_string_t key_name;
+      bool found_key= false, found_value= false;
+      json_engine_t loc_js= *js;
+      const uchar *k_start, *k_end;
+
+      json_string_set_cs(&key_name, value->s.cs);
+
+      while (json_scan_next(value) == 0 && value->state == JST_KEY)
       {
-        k_end= value->s.c_str;
-      } while (json_read_keyname_chr(value) == 0);
+        k_start= value->s.c_str;
+        do
+        {
+          k_end= value->s.c_str;
+        } while (json_read_keyname_chr(value) == 0);
 
-      if (unlikely(value->s.error))
-        return FALSE;
-
-      json_string_set_str(&key_name, k_start, k_end);
-      found_key= find_key_in_object(js, &key_name);
-      found_value= 0;
-
-      if (found_key)
-      {
-        if (json_read_value(js) || json_read_value(value))
+        if (unlikely(value->s.error))
           return FALSE;
 
-        /*
-          The value of key-value pair can be an be anything. If it is an object
-          then we need to compare the whole value and if it is an array then
-          we need to compare the elements in that order. So set compare_whole
-          to true.
-        */
-        if (js->value_type == value->value_type)
-          found_value= check_overlaps(js, value, true);
-        if (found_value)
+        json_string_set_str(&key_name, k_start, k_end);
+        found_key= find_key_in_object(js, &key_name);
+        found_value= 0;
+
+        if (found_key)
         {
-          if (!compare_whole)
+          if (json_read_value(js) || json_read_value(value))
+            return FALSE;
+
+          /*
+            The value of key-value pair can be an be anything. If it is an object
+            then we need to compare the whole value and if it is an array then
+            we need to compare the elements in that order. So set compare_whole
+            to true.
+          */
+          if (js->value_type == value->value_type)
+            found_value= check_overlaps(js, value, true);
+          if (found_value)
+          {
+            /*
+             We have found at least one common key-value pair now.
+             No need to check for more key-value pairs. So skip remaining
+             jsons and return TRUE.
+            */
+            json_skip_current_level(js, value);
             return TRUE;
-          *js= loc_js;
+          }
+          else
+          {
+            /*
+              Key is found but value is not found. We have already
+              exhausted both values for current key. Hence "reset"
+              only js (first argument i.e json document) and
+              continue.
+            */
+            *js= loc_js;
+            continue;
+          }
         }
         else
         {
-          if (compare_whole)
-          {
-            json_skip_current_level(js, value);
+          /*
+            key is not found. So no need to check for value for that key.
+            Read the value anyway so we get the "type" of json value.
+            If is is non-scalar then skip the entire value
+            (scalar values get exhausted while reading so no need to skip them).
+            Then reset the json doc again.
+          */
+          if (json_read_value(value))
             return FALSE;
-          }
+          if (!json_value_scalar(value))
+            json_skip_level(value);
           *js= loc_js;
         }
       }
-      else
-      {
-        if (compare_whole)
-        {
-          json_skip_current_level(js, value);
-          return FALSE;
-        }
-        json_skip_key(value);
-        *js= loc_js;
-      }
+      /*
+        At this point we have already returned true if any intersection exists.
+        So skip jsons if not exhausted and return false.
+      */
+      json_skip_current_level(js, value);
+      return FALSE;
     }
-    json_skip_current_level(js, value);
-    return compare_whole ? TRUE : FALSE;
   }
   else if (value->value_type == JSON_VALUE_ARRAY)
   {

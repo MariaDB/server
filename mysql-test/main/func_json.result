@@ -2284,5 +2284,16 @@ SELECT * FROM JSON_TABLE('{"foo":["bar","qux"]}','$**.*[0]' COLUMNS(col1 CHAR(8)
 col1
 bar
 #
+# MDEV-29212: json_overlaps() does not check nested key-value pair correctly
+#
+SET @json1 = '{"kk":{"k1":"v1","k2":"v2"}}';
+SET @json2 = '{"kk":{"k1":"v1","k2":"v2","k3":"v3"}}';
+SELECT JSON_OVERLAPS(@json2, @json1);
+JSON_OVERLAPS(@json2, @json1)
+0
+SELECT JSON_OVERLAPS(@json1, @json2);
+JSON_OVERLAPS(@json1, @json2)
+0
+#
 # End of 10.9 Test
 #
