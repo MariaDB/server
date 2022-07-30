@@ -3323,6 +3323,7 @@ bool run_set_statement_if_requested(THD *thd, LEX *lex)
       {
         switch (v->var->option.var_type & GET_TYPE_MASK)
         {
+          case GET_BIT:
           case GET_BOOL:
           case GET_INT:
           case GET_LONG:
