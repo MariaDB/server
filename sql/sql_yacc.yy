@@ -5795,6 +5795,7 @@ field_type_or_serial:
             Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG
                                      | UNSIGNED_FLAG | UNIQUE_KEY_FLAG;
             Lex->alter_info.flags|= ALTER_ADD_INDEX;
+            Lex->last_field->explicit_nullability= true;
           }
           opt_serial_attribute
         ;
@@ -6315,7 +6316,7 @@ attribute:
           NULL_SYM
           {
             Lex->last_field->flags&= ~NOT_NULL_FLAG;
-            Lex->last_field->explicitly_nullable= true;
+            Lex->last_field->explicit_nullability= true;
             $$.init();
           }
         | DEFAULT column_default_expr { Lex->last_field->default_value= $2; $$.init(); }
@@ -6327,12 +6328,18 @@ attribute:
             Lex->last_field->on_update= item;
             $$.init();
           }
-        | AUTO_INC { Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG; $$.init(); }
+        | AUTO_INC
+          {
+            Lex->last_field->explicit_nullability= true;
+            Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG;
+            $$.init();
+          }
         | SERIAL_SYM DEFAULT VALUE_SYM
           {
             LEX *lex=Lex;
             lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG | UNIQUE_KEY_FLAG;
             lex->alter_info.flags|= ALTER_ADD_INDEX;
+            Lex->last_field->explicit_nullability= true;
             $$.init();
           }
         | COLLATE_SYM collation_name
@@ -6386,12 +6393,14 @@ asrow_attribute:
           not NULL_SYM opt_enable
           {
             Lex->last_field->flags|= NOT_NULL_FLAG;
+            Lex->last_field->explicit_nullability= true;
           }
         | opt_primary KEY_SYM
           {
             LEX *lex=Lex;
             lex->last_field->flags|= PRI_KEY_FLAG | NOT_NULL_FLAG;
             lex->alter_info.flags|= ALTER_ADD_INDEX;
+            Lex->last_field->explicit_nullability= true;
           }
         | vcol_attribute
         ;
