@@ -3072,9 +3072,8 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       if (strcmp(field->name, "View") == 0)
       {
         char *scv_buff= NULL;
-        my_ulonglong n_cols;
 
-        verbose_msg("-- It's a view, create dummy table for view\n");
+        verbose_msg("-- It's a view, create dummy view for view\n");
 
         /* save "show create" statement for later */
         if ((row= mysql_fetch_row(result)) && (scv_buff=row[1]))
@@ -3083,9 +3082,9 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
         mysql_free_result(result);
 
         /*
-          Create a table with the same name as the view and with columns of
+          Create a view with the same name as the view and with columns of
           the same name in order to satisfy views that depend on this view.
-          The table will be removed when the actual view is created.
+          The view will be removed when the actual view is created.
 
           The properties of each column, are not preserved in this temporary
           table, because they are not necessary.
@@ -3117,23 +3116,9 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
         else
           my_free(scv_buff);
 
-        n_cols= mysql_num_rows(result);
-        if (0 != n_cols)
+        if (mysql_num_rows(result) != 0)
         {
 
-          /*
-            The actual formula is based on the column names and how the .FRM
-            files are stored and is too volatile to be repeated here.
-            Thus we simply warn the user if the columns exceed a limit we
-            know works most of the time.
-          */
-          if (n_cols >= 1000)
-            fprintf(stderr,
-                    "-- Warning: Creating a stand-in table for view %s may"
-                    " fail when replaying the dump file produced because "
-                    "of the number of columns exceeding 1000. Exercise "
-                    "caution when replaying the produced dump file.\n", 
-                    table);
           if (opt_drop)
           {
             /*
@@ -3149,7 +3134,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
           fprintf(sql_file,
                   "SET @saved_cs_client     = @@character_set_client;\n"
                   "SET character_set_client = utf8;\n"
-                  "/*!50001 CREATE TABLE %s (\n",
+                  "/*!50001 CREATE VIEW %s AS SELECT\n",
                   result_table);
 
           /*
@@ -3161,28 +3146,21 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
           row= mysql_fetch_row(result);
 
           /*
-            The actual column type doesn't matter anyway, since the table will
+            The actual column value doesn't matter anyway, since the view will
             be dropped at run time.
-            We do tinyint to avoid hitting the row size limit.
           */
-          fprintf(sql_file, "  %s tinyint NOT NULL",
+          fprintf(sql_file, " 1 AS %s",
                   quote_name(row[0], name_buff, 0));
 
           while((row= mysql_fetch_row(result)))
           {
             /* col name, col type */
-            fprintf(sql_file, ",\n  %s tinyint NOT NULL",
+            fprintf(sql_file, ",\n  1 AS %s",
                     quote_name(row[0], name_buff, 0));
           }
 
-          /*
-            Stand-in tables are always MyISAM tables as the default
-            engine might have a column-limit that's lower than the
-            number of columns in the view, and MyISAM support is
-            guaranteed to be in the server anyway.
-          */
           fprintf(sql_file,
-                  "\n) ENGINE=MyISAM */;\n"
+                  " */;\n"
                   "SET character_set_client = @saved_cs_client;\n");
 
           check_io(sql_file);
@@ -6642,15 +6620,8 @@ static my_bool get_view_structure(char *table, char* db)
                 "\n--\n-- Final view structure for view %s\n--\n\n",
                 fix_for_comment(result_table));
 
-  /* Table might not exist if this view was dumped with --tab. */
-  fprintf(sql_file, "/*!50001 DROP TABLE IF EXISTS %s*/;\n", opt_quoted_table);
-  if (opt_drop)
-  {
-    fprintf(sql_file, "/*!50001 DROP VIEW IF EXISTS %s*/;\n",
-            opt_quoted_table);
-    check_io(sql_file);
-  }
-
+  /* View might not exist if this view was dumped with --tab. */
+  fprintf(sql_file, "/*!50001 DROP VIEW IF EXISTS %s*/;\n", opt_quoted_table);
 
   my_snprintf(query, sizeof(query),
               "SELECT CHECK_OPTION, DEFINER, SECURITY_TYPE, "
