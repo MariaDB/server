@@ -2343,14 +2343,21 @@ void Format_description_log_event::deduct_options_written_to_bin_log()
               OPTION_NO_FOREIGN_KEY_CHECKS | OPTION_RELAXED_UNIQUE_CHECKS;
   if (!server_version_split.version_is_valid() ||
       server_version_split.kind == master_version_split::KIND_MYSQL ||
-      server_version_split < Version(10,5,2))
+      server_version_split < Version(10,3,0))
     return;
-  options_written_to_bin_log|= OPTION_IF_EXISTS;
-  if (server_version_split < Version(10,10,0))
-    return;
+  if (server_version_split >= Version(10,5,2))
+    options_written_to_bin_log|= OPTION_IF_EXISTS;
+  if (server_version_split[0] == 10)
+  {
+    const static char v[10]={99,99,99,36,26,17,9,5,4,2};
+    if (server_version_split[1] < 10 &&
+        server_version_split[2] < v[server_version_split[1]])
+      return;
+  }
   options_written_to_bin_log|= OPTION_EXPLICIT_DEF_TIMESTAMP;
 
-  DBUG_ASSERT(options_written_to_bin_log == OPTIONS_WRITTEN_TO_BIN_LOG);
+  DBUG_ASSERT(server_version_split < Version(10,5,2) ||
+              options_written_to_bin_log == OPTIONS_WRITTEN_TO_BIN_LOG);
 }
 
 /**
