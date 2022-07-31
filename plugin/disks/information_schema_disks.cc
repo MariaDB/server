@@ -73,7 +73,7 @@ int disks_table_add_row(THD* pThd, TABLE* pTable, const char* zDisk, const char*
 
     struct statvfs info;
 
-    if (statvfs(zPath, &info) == 0) // We ignore failures.
+    if (statvfs(zPath, &info) == 0 && info.f_blocks) // We ignore failures. and 0 byte filesystems
     {
         rv = disks_table_add_row(pThd, pTable, zDisk, zPath, info);
     }
@@ -106,9 +106,15 @@ int disks_fill_table(THD* pThd, TABLE_LIST* pTables, Item* pCond)
 
             while ((rv == 0) && (pEnt = getmntent_r(pFile, &ent, pBuffer, BUFFER_SIZE)))
             {
-                // We only report the ones that refer to physical disks.
-                if (pEnt->mnt_fsname[0] == '/')
+                // Try to keep to real storage by excluding
+                // read only mounts, and mount point that aren't directories
+                if (hasmntopt(pEnt, MNTOPT_RO) == NULL)
                 {
+                    struct stat f;
+                    if (stat(pEnt->mnt_dir, &f))
+                        continue;
+                    if (!S_ISDIR(f.st_mode))
+                        continue;
                     rv = disks_table_add_row(pThd, pTable, pEnt->mnt_fsname, pEnt->mnt_dir);
                 }
             }
