@@ -397,5 +397,32 @@ update t1,t2 set v1 = v2 , v5 = 0;
 drop table t1, t2;
 
 --echo #
+--echo # MDEV-21540 Initialization of already inited long unique index on reorganize partition
+--echo #
+create table t1 (x int, a blob)
+partition by range (x) (
+  partition p1 values less than (50),
+  partition pn values less than maxvalue);
+
+insert into t1 values (1, 1), (100, 1);
+
+# a little bit of additional checks
+--error ER_DUP_ENTRY
+alter table t1 add unique key (a);
+
+update t1 set a= x;
+alter table t1 add unique key (a);
+--error ER_DUP_ENTRY
+update t1 set a= 1;
+update t1 set a= x + 1;
+
+# bug failure
+alter table t1 reorganize partition p1 into (
+  partition n0 values less than (10),
+  partition n1 values less than (50));
+
+drop table t1;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

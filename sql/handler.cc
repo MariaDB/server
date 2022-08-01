@@ -6782,7 +6782,18 @@ int handler::ha_write_row(const uchar *buf)
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
 
-  if (table->s->long_unique_table)
+  /*
+    NOTE: this != table->file is true in 3 cases:
+
+    1. under copy_partitions() (REORGANIZE PARTITION): that does not
+       require long unique check as it does not introduce new rows or new index.
+    2. under partition's ha_write_row() (INSERT): check_duplicate_long_entries()
+       was already done by ha_partition::ha_write_row(), no need to check it
+       again for each single partition.
+    3. under ha_mroonga::wrapper_write_row()
+  */
+
+  if (table->s->long_unique_table && this == table->file)
   {
     if (this->inited == RND)
       table->clone_handler_for_update();
@@ -6830,8 +6841,17 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_update_count);
-  if (table->s->long_unique_table &&
-          (error= check_duplicate_long_entries_update(table, table->file, (uchar *)new_data)))
+
+  /*
+    NOTE: this != table->file is true under partition's ha_update_row():
+    check_duplicate_long_entries_update() was already done by
+    ha_partition::ha_update_row(), no need to check it again for each single
+    partition. Same applies to ha_mroonga wrapper.
+  */
+
+  if (table->s->long_unique_table && this == table->file &&
+      (error= check_duplicate_long_entries_update(table, table->file,
+                                                  (uchar *)new_data)))
   {
     return error;
   }
