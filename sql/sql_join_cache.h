@@ -531,6 +531,22 @@ protected:
   /* Check matching to a partial join record from the join buffer */
   bool check_match(uchar *rec_ptr);
 
+  /*
+    Determine whether it is enough to check only the first match for
+    the table and skip other possible matches. This is used for semi-joins
+    and 'not exists' optimization.
+
+    NOTE: 'not exists' optimization is not yet implemented for linked
+    join buffers so is not applicable if prev_cache is not NULL
+  */
+  bool check_only_first_match(JOIN_TAB *tab)
+  {
+    return tab->is_inner_table_of_semi_join_with_first_match() ||
+           (tab->is_inner_table_of_outer_join() &&
+            tab->table->reginfo.not_exists_optimize &&
+            !prev_cache);
+  }
+
   /* 
     This constructor creates an unlinked join cache. The cache is to be
     used to join table 'tab' to the result of joining the previous tables 

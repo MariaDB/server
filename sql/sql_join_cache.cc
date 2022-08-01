@@ -2055,7 +2055,7 @@ bool JOIN_CACHE::skip_if_not_needed_match()
   if (prev_cache)
     offset+= prev_cache->get_size_of_rec_offset();
 
-  if (!join_tab->check_only_first_match())
+  if (!check_only_first_match(join_tab))
     return FALSE;
 
   match_fl= get_match_flag_by_pos(pos+offset);
@@ -2287,8 +2287,8 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
   int error;
   enum_nested_loop_state rc= NESTED_LOOP_OK;
   join_tab->table->null_row= 0;
-  bool check_only_first_match=
-    join_tab->check_only_first_match() &&
+  bool check_only_first_match_actually=
+    check_only_first_match(join_tab) &&
     (!join_tab->first_inner ||                            // semi-join case
      join_tab->first_inner == join_tab->first_unmatched); // outer join case
   bool outer_join_first_inner= join_tab->is_first_inner_for_outer_join();
@@ -2357,7 +2357,7 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
         Also those records that must be null complemented are not considered
         as candidates for matches.
       */
-      if ((!check_only_first_match && !outer_join_first_inner) ||
+      if ((!check_only_first_match_actually && !outer_join_first_inner) ||
           !skip_next_candidate_for_match(rec_ptr))
       {
 	read_next_candidate_for_match(rec_ptr);
@@ -2535,7 +2535,7 @@ inline bool JOIN_CACHE::check_match(uchar *rec_ptr)
   do
   {
     set_match_flag_if_none(first_inner, rec_ptr);
-    if (first_inner->check_only_first_match() &&
+    if (check_only_first_match(first_inner) &&
         !join_tab->first_inner)
       DBUG_RETURN(TRUE);
     /* 
@@ -3821,7 +3821,7 @@ uchar *JOIN_CACHE_BNLH::get_next_candidate_for_match()
 
 bool JOIN_CACHE_BNLH::skip_next_candidate_for_match(uchar *rec_ptr)
 {
- return  join_tab->check_only_first_match() &&
+  return check_only_first_match(join_tab) &&
           (get_match_flag_by_pos(rec_ptr) == MATCH_FOUND);
 }
 
@@ -4241,7 +4241,7 @@ RETURN VALUE
 
 bool JOIN_CACHE_BKA::skip_next_candidate_for_match(uchar *rec_ptr)
 {
-  return join_tab->check_only_first_match() &&
+  return check_only_first_match(join_tab) &&
     (get_match_flag_by_pos(rec_ptr) == MATCH_FOUND);
 }
 
@@ -4297,12 +4297,11 @@ RETURN VALUE
 int JOIN_CACHE_BKA::init(bool for_explain)
 {
   int res;
-  bool check_only_first_match= join_tab->check_only_first_match();
 
   RANGE_SEQ_IF rs_funcs= { bka_range_seq_key_info,
     bka_range_seq_init,
     bka_range_seq_next,
-    check_only_first_match ?  bka_range_seq_skip_record : 0,
+    check_only_first_match(join_tab) ? bka_range_seq_skip_record : 0,
     bka_skip_index_tuple };
 
   DBUG_ENTER("JOIN_CACHE_BKA::init");
@@ -4689,16 +4688,15 @@ bool JOIN_CACHE_BKAH::prepare_look_for_matches(bool skip_last)
 
 int JOIN_CACHE_BKAH::init(bool for_explain)
 {
-  bool check_only_first_match= join_tab->check_only_first_match();
-
   no_association= MY_TEST(mrr_mode & HA_MRR_NO_ASSOCIATION);
 
-  RANGE_SEQ_IF rs_funcs= { bka_range_seq_key_info,
-                           bkah_range_seq_init,
-                           bkah_range_seq_next,
-                           check_only_first_match && !no_association ?
-                             bkah_range_seq_skip_record : 0,
-                           bkah_skip_index_tuple };
+  RANGE_SEQ_IF rs_funcs= {
+    bka_range_seq_key_info,
+    bkah_range_seq_init,
+    bkah_range_seq_next,
+    check_only_first_match(join_tab) && !no_association ?
+      bkah_range_seq_skip_record : 0,
+    bkah_skip_index_tuple };
 
   DBUG_ENTER("JOIN_CACHE_BKAH::init");
 

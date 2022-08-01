@@ -572,12 +572,6 @@ typedef struct st_join_table {
   {
     return is_first_inner_for_outer_join() || first_sj_inner_tab == this ; 
   }
-  bool check_only_first_match()
-  {
-    return is_inner_table_of_semi_join_with_first_match() ||
-           (is_inner_table_of_outer_join() &&
-            table->reginfo.not_exists_optimize);
-  }
   bool is_last_inner_table()
   {
     return (first_inner && first_inner->last_inner == this) ||
