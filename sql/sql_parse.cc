@@ -1046,9 +1046,9 @@ int bootstrap(MYSQL_FILE *file)
         break;
 
       case READ_BOOTSTRAP_QUERY_SIZE:
-        my_printf_error(ER_UNKNOWN_ERROR, "Boostrap file error. Query size "
+        my_printf_error(ER_UNKNOWN_ERROR, "Bootstrap file error. Query size "
                         "exceeded %d bytes near '%s'.", MYF(0),
-                        MAX_BOOTSTRAP_LINE_SIZE, err_ptr);
+                        MAX_BOOTSTRAP_QUERY_SIZE, err_ptr);
         break;
 
       default:
