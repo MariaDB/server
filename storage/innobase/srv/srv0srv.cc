@@ -1085,7 +1085,7 @@ srv_export_innodb_status(void)
 		- UT_LIST_GET_LEN(buf_pool.free);
 
 	export_vars.innodb_max_trx_id = trx_sys.get_max_trx_id();
-	export_vars.innodb_history_list_length = trx_sys.history_size();
+	export_vars.innodb_history_list_length = trx_sys.history_size_approx();
 
 	export_vars.innodb_log_waits = srv_stats.log_waits;
 

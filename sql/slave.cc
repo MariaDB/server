@@ -5047,6 +5047,7 @@ err_during_init:
   mi->abort_slave= 0;
   mi->slave_running= MYSQL_SLAVE_NOT_RUN;
   mi->io_thd= 0;
+  mi->do_accept_own_server_id= false;
   /*
     Note: the order of the two following calls (first broadcast, then unlock)
     is important. Otherwise a killer_thread can execute between the calls and
@@ -6186,15 +6187,6 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   bool is_malloc = false;
   bool is_rows_event= false;
   /*
-    The flag has replicate_same_server_id semantics and is raised to accept
-    a same-server-id event group by the gtid strict mode semisync slave.
-    Own server-id events can appear as result of this server crash-recovery:
-    the transaction was created on this server then being master, got replicated
-    elsewhere right before the crash before commit;
-    finally at recovery the transaction gets evicted from the server's binlog.
- */
-  bool do_accept_own_server_id;
-  /*
     FD_q must have been prepared for the first R_a event
     inside get_master_version_and_clock()
     Show-up of FD:s affects checksum_alg at once because
@@ -6783,6 +6775,19 @@ dbug_gtid_accept:
 
     ++mi->events_queued_since_last_gtid;
     inc_pos= event_len;
+
+    /*
+      To compute `true` is normal for this *now* semisync slave server when
+      it has passed its crash-recovery as a former master.
+    */
+    mi->do_accept_own_server_id=
+      (s_id == global_system_variables.server_id &&
+       rpl_semi_sync_slave_enabled && opt_gtid_strict_mode &&
+       mi->using_gtid != Master_info::USE_GTID_NO &&
+        !mysql_bin_log.check_strict_gtid_sequence(event_gtid.domain_id,
+                                                  event_gtid.server_id,
+                                                  event_gtid.seq_no,
+                                                  true));
     // ...} eof else_likely
   }
   break;
@@ -6965,10 +6970,6 @@ dbug_gtid_accept:
     break;
   }
 
-  do_accept_own_server_id= (s_id == global_system_variables.server_id
-    && rpl_semi_sync_slave_enabled && opt_gtid_strict_mode
-    && mi->using_gtid != Master_info::USE_GTID_NO);
-
   /*
     Integrity of Rows- event group check.
     A sequence of Rows- events must end with STMT_END_F flagged one.
@@ -7059,7 +7060,7 @@ dbug_gtid_accept:
   else
   if ((s_id == global_system_variables.server_id &&
        !(mi->rli.replicate_same_server_id ||
-         do_accept_own_server_id)) ||
+         mi->do_accept_own_server_id)) ||
       event_that_should_be_ignored(buf) ||
       /*
         the following conjunction deals with IGNORE_SERVER_IDS, if set
@@ -7119,7 +7120,7 @@ dbug_gtid_accept:
   }
   else
   {
-    if (do_accept_own_server_id)
+    if (mi->do_accept_own_server_id)
     {
       int2store(const_cast<uchar*>(buf + FLAGS_OFFSET),
                 uint2korr(buf + FLAGS_OFFSET) | LOG_EVENT_ACCEPT_OWN_F);

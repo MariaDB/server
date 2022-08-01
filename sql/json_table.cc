@@ -29,6 +29,22 @@
 
 #define HA_ERR_JSON_TABLE (HA_ERR_LAST+1)
 
+/*
+  Allocating memory and *also* using it (reading and
+  writing from it) because some build instructions cause
+  compiler to optimize out stack_used_up. Since alloca()
+  here depends on stack_used_up, it doesnt get executed
+  correctly and causes json_debug_nonembedded to fail
+  ( --error ER_STACK_OVERRUN_NEED_MORE does not occur).
+*/
+#define ALLOCATE_MEM_ON_STACK(A) do \
+                              { \
+                                uchar *array= (uchar*)alloca(A); \
+                                array[0]= 1; \
+                                array[0]++; \
+                                array[0] ? array[0]++ : array[0]--; \
+                              } while(0)
+
 class table_function_handlerton
 {
 public:
@@ -103,9 +119,14 @@ int get_disallowed_table_deps_for_list(MEM_ROOT *mem_root,
   List_iterator<TABLE_LIST> li(*join_list);
 
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {alloca(my_thread_stack_size-(STACK_MIN_SIZE));});
-  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, NULL))
-   return 1;
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return 1;
+
   while ((table= li++))
   {
     if ((nested_join= table->nested_join))
@@ -1311,9 +1332,14 @@ static void add_extra_deps(List<TABLE_LIST> *join_list, table_map deps)
   List_iterator<TABLE_LIST> li(*join_list);
 
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {alloca(my_thread_stack_size-(STACK_MIN_SIZE));});
-  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, NULL))
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return;
+
   while ((table= li++))
   {
     table->dep_tables |= deps;
@@ -1403,9 +1429,13 @@ table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
   List_iterator<TABLE_LIST> li(*join_list);
 
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {alloca(my_thread_stack_size-(STACK_MIN_SIZE));});
-  if ((res= check_stack_overrun(current_thd, STACK_MIN_SIZE, NULL)))
-   return res;
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
+  if ((res=check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL)))
+    return res;
 
   // Recursively compute extra dependencies
   while ((table= li++))

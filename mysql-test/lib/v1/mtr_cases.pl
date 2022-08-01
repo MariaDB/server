@@ -126,19 +126,19 @@ sub collect_test_cases ($) {
       {
 	my $base_name= $1;
 	my $idx= $2;
-	mtr_verbose("$test_name =>  $base_name idx=$idx");
+	mtr_verbose2("$test_name =>  $base_name idx=$idx");
 	if ( $idx > 1 )
 	{
 	  $idx-= 1;
 	  $base_name= "$base_name$idx";
-	  mtr_verbose("New basename $base_name");
+	  mtr_verbose2("New basename $base_name");
 	}
 
 	foreach my $tinfo2 (@$cases)
 	{
 	  if ( $tinfo2->{'name'} eq $base_name )
 	  {
-	    mtr_verbose("found dependent test $tinfo2->{'name'}");
+	    mtr_verbose2("found dependent test $tinfo2->{'name'}");
 	    $depend_on_test_name=$base_name;
 	  }
 	}
@@ -146,7 +146,7 @@ sub collect_test_cases ($) {
 
       if ( defined $depend_on_test_name )
       {
-	mtr_verbose("Giving $test_name same critera as $depend_on_test_name");
+	mtr_verbose2("Giving $test_name same critera as $depend_on_test_name");
 	$sort_criteria{$test_name} = $sort_criteria{$depend_on_test_name};
       }
       else
@@ -224,14 +224,14 @@ sub collect_one_suite($)
   my $suite= shift;  # Test suite name
   my @cases;  # Array of hash
 
-  mtr_verbose("Collecting: $suite");
+  mtr_verbose2("Collecting: $suite");
 
   my $suitedir= "$::glob_mysql_test_dir"; # Default
   if ( $suite ne "main" )
   {
     $suitedir= mtr_path_exists("$suitedir/suite/$suite",
 			       "$suitedir/$suite");
-    mtr_verbose("suitedir: $suitedir");
+    mtr_verbose2("suitedir: $suitedir");
   }
 
   my $testdir= "$suitedir/t";
@@ -363,7 +363,7 @@ sub collect_one_suite($)
     if (@::opt_combinations)
     {
       # take the combination from command-line
-      mtr_verbose("Take the combination from command line");
+      mtr_verbose2("Take the combination from command line");
       foreach my $combination (@::opt_combinations) {
 	my $comb= {};
 	$comb->{name}= $combination;
@@ -374,7 +374,7 @@ sub collect_one_suite($)
     elsif (-f $combination_file )
     {
       # Read combinations file in my.cnf format
-      mtr_verbose("Read combinations file");
+      mtr_verbose2("Read combinations file");
       my $config= My::Config->new($combination_file);
 
       foreach my $group ($config->groups()) {
@@ -605,7 +605,7 @@ sub collect_one_test_case($$$$$$$$$) {
   # Add suite opts
   foreach my $opt ( @$suite_opts )
   {
-    mtr_verbose($opt);
+    mtr_verbose2($opt);
     push(@{$tinfo->{'master_opt'}}, $opt);
     push(@{$tinfo->{'slave_opt'}}, $opt);
   }

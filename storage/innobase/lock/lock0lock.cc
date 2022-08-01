@@ -4368,7 +4368,7 @@ lock_print_info_summary(
 		? (purge_sys.running() ? "running"
 		   : purge_sys.paused() ? "stopped" : "running but idle")
 		: "disabled",
-		trx_sys.history_size());
+		trx_sys.history_size_approx());
 
 #ifdef PRINT_NUM_OF_LOCK_STRUCTS
 	fprintf(file,
@@ -6126,6 +6126,7 @@ namespace Deadlock
       for (trx_t *next= cycle;;)
       {
         next= next->lock.wait_trx;
+        l++;
         const undo_no_t next_weight= TRX_WEIGHT(next) |
           (next->mysql_thd &&
 #ifdef WITH_WSREP

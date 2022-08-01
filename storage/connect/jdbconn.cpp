@@ -689,17 +689,17 @@ bool JDBConn::SetUUID(PGLOBAL g, PTDBJDBC tjp)
 		ncol = env->CallIntMethod(job, catid, parms);
 
 		if (Check(ncol)) {
-			sprintf(g->Message, "%s: %s", fnc, Msg);
+			snprintf(g->Message, sizeof(g->Message), "%s: %s", fnc, Msg);
 			goto err;
 		}	// endif Check
 
 		rc = env->CallBooleanMethod(job, readid);
 
 		if (Check(rc)) {
-			sprintf(g->Message, "ReadNext: %s", Msg);
+			snprintf(g->Message, sizeof(g->Message), "ReadNext: %s", Msg);
 			goto err;
 		} else if (rc == 0) {
-			sprintf(g->Message, "table %s does not exist", tjp->TableName);
+			snprintf(g->Message, sizeof(g->Message), "table %s does not exist", tjp->TableName);
 			goto err;
 		}	// endif rc
 
@@ -707,7 +707,7 @@ bool JDBConn::SetUUID(PGLOBAL g, PTDBJDBC tjp)
 		ctyp = (int)env->CallIntMethod(job, intfldid, 5, nullptr);
 
 		//if (Check((ctyp == 666) ? -1 : 1)) {
-		//	sprintf(g->Message, "Getting ctyp: %s", Msg);
+		//	snprintf(g->Message, sizeof(g->Message), "Getting ctyp: %s", Msg);
 		//	goto err;
 		//} // endif ctyp
 
@@ -813,7 +813,7 @@ bool JDBConn::Connect(PJPARM sop)
 	env->DeleteLocalRef(parms);				 	// Not used anymore
 
 	if (err) {
-		sprintf(g->Message, "Connecting: %s rc=%d", Msg, (int)rc);
+		snprintf(g->Message, sizeof(g->Message), "Connecting: %s rc=%d", Msg, (int)rc);
 		return true;
 	}	// endif Msg
 
@@ -861,14 +861,14 @@ int JDBConn::ExecuteCommand(PCSZ sql)
 	env->DeleteLocalRef(qry);
 
 	if (Check(n)) {
-		sprintf(g->Message, "Execute: %s", Msg);
+		snprintf(g->Message, sizeof(g->Message), "Execute: %s", Msg);
 		return RC_FX;
 	} // endif n
 
 	m_Ncol = env->CallIntMethod(job, grs);
 
 	if (Check(m_Ncol)) {
-		sprintf(g->Message, "GetResult: %s", Msg);
+		snprintf(g->Message, sizeof(g->Message), "GetResult: %s", Msg);
 		rc = RC_FX;
 	} else if (m_Ncol) {
 		strcpy(g->Message, "Result set column number");
@@ -917,7 +917,7 @@ int JDBConn::Fetch(int pos)
 
 			m_Rows += (int)rc;
 		} else
-			sprintf(g->Message, "Fetch: %s", Msg);
+			snprintf(g->Message, sizeof(g->Message), "Fetch: %s", Msg);
 
 	} // endif pos
 
@@ -959,7 +959,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 
 	if (rank == 0)
 		if (!name || (jn = env->NewStringUTF(name)) == nullptr) {
-			sprintf(g->Message, "Fail to allocate jstring %s", SVP(name));
+			snprintf(g->Message, sizeof(g->Message), "Fail to allocate jstring %s", SVP(name));
 			throw (int)TYPE_AM_JDBC;
 		}	// endif name
 
@@ -967,7 +967,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 	ctyp = env->CallIntMethod(job, typid, rank, jn);
 
 	if (Check((ctyp == 666) ? -1 : 1)) {
-		sprintf(g->Message, "Getting ctyp: %s", Msg);
+		snprintf(g->Message, sizeof(g->Message), "Getting ctyp: %s", Msg);
 		throw (int)TYPE_AM_JDBC;
 	} // endif Check
 
@@ -976,7 +976,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 			jb = env->CallObjectMethod(job, objfldid, (jint)rank, jn);
 
 			if (Check(0)) {
-				sprintf(g->Message, "Getting jp: %s", Msg);
+				snprintf(g->Message, sizeof(g->Message), "Getting jp: %s", Msg);
 				throw (int)TYPE_AM_JDBC;
 			} // endif Check
 
@@ -1096,7 +1096,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 		if (rank == 0)
 			env->DeleteLocalRef(jn);
 
-		sprintf(g->Message, "SetColumnValue: %s rank=%d ctyp=%d", Msg, rank, (int)ctyp);
+		snprintf(g->Message, sizeof(g->Message), "SetColumnValue: %s rank=%d ctyp=%d", Msg, rank, (int)ctyp);
 		throw (int)TYPE_AM_JDBC;
 	} // endif Check
 
@@ -1118,7 +1118,7 @@ bool JDBConn::PrepareSQL(PCSZ sql)
 		jstring qry = env->NewStringUTF(sql);
 
 		if (Check(env->CallBooleanMethod(job, prepid, qry)))
-			sprintf(g->Message, "CreatePrepStmt: %s", Msg);
+			snprintf(g->Message, sizeof(g->Message), "CreatePrepStmt: %s", Msg);
 		else
 			b = false;
 
@@ -1148,7 +1148,7 @@ int JDBConn::ExecuteQuery(PCSZ sql)
 			m_Aff = 0;			  // Affected rows
 			rc = RC_OK;
 		} else
-			sprintf(g->Message, "ExecuteQuery: %s", Msg);
+			snprintf(g->Message, sizeof(g->Message), "ExecuteQuery: %s", Msg);
 
 		env->DeleteLocalRef(qry);
 	} // endif xqid
@@ -1176,7 +1176,7 @@ int JDBConn::ExecuteUpdate(PCSZ sql)
 			m_Aff = (int)n;			  // Affected rows
 			rc = RC_OK;
 		} else
-			sprintf(g->Message, "ExecuteUpdate: %s n=%d", Msg, n);
+			snprintf(g->Message, sizeof(g->Message), "ExecuteUpdate: %s n=%d", Msg, n);
 
 		env->DeleteLocalRef(qry);
 	} // endif xuid
@@ -1226,7 +1226,7 @@ int JDBConn::ExecuteSQL(void)
 		if (n == -3)
 			strcpy(g->Message, "SQL statement is not prepared");
 		else if (Check(n))
-			sprintf(g->Message, "ExecutePrep: %s", Msg);
+			snprintf(g->Message, sizeof(g->Message), "ExecutePrep: %s", Msg);
 		else {
 			m_Aff = (int)n;
 			rc = RC_OK;
@@ -1325,12 +1325,12 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 			env->CallVoidMethod(job, setid, i, datobj);
 			break;
 		default:
-			sprintf(g->Message, "Parm type %d not supported", val->GetType());
+			snprintf(g->Message, sizeof(g->Message), "Parm type %d not supported", val->GetType());
 			return true;
 		}	// endswitch Type
 
 	if (Check(jrc)) {
-		sprintf(g->Message, "SetParam: col=%s msg=%s", colp->GetName(), Msg);
+		snprintf(g->Message, sizeof(g->Message), "SetParam: col=%s msg=%s", colp->GetName(), Msg);
 		rc = true;
 	} // endif msg
 
@@ -1453,7 +1453,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		for (i = 0; i < m_Ncol; i++) {
 			if (!(label = (jstring)env->CallObjectMethod(job, colid, i + 1, val))) {
 				if (Check())
-					sprintf(g->Message, "ColumnDesc: %s", Msg);
+					snprintf(g->Message, sizeof(g->Message), "ColumnDesc: %s", Msg);
 				else
 					strcpy(g->Message, "No result metadata");
 
@@ -1535,7 +1535,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 			break;
 #endif // 0
 		default:
-			sprintf(g->Message, "Invalid SQL function id");
+			snprintf(g->Message, sizeof(g->Message), "Invalid SQL function id");
 			return -1;
 		} // endswitch infotype
 
@@ -1546,7 +1546,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		ncol = env->CallIntMethod(job, catid, parms);
 
 		if (Check(ncol)) {
-			sprintf(g->Message, "%s: %s", fnc, Msg);
+			snprintf(g->Message, sizeof(g->Message), "%s: %s", fnc, Msg);
 			env->DeleteLocalRef(parms);
 			return -1;
 		}	// endif Check
@@ -1571,7 +1571,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		// Prepare retrieving column values
 		for (n = 0, crp = qrp->Colresp; crp; crp = crp->Next) {
 			if (!(tp = GetJDBCType(crp->Type))) {
-				sprintf(g->Message, MSG(INV_COLUMN_TYPE), crp->Type, crp->Name);
+				snprintf(g->Message, sizeof(g->Message), MSG(INV_COLUMN_TYPE), crp->Type, crp->Name);
 				return -1;
 			} // endif tp
 
@@ -1596,7 +1596,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		// Now fetch the result
 		for (i = 0; i < qrp->Maxres; i++) {
 			if (Check(rc = Fetch(0))) {
-				sprintf(g->Message, "Fetch: %s", Msg);
+				snprintf(g->Message, sizeof(g->Message), "Fetch: %s", Msg);
 				return -1;
 			} if (rc == 0) {
         if (trace(1))
@@ -1665,7 +1665,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 
 				if (!(crp->Kdata = AllocValBlock(g, NULL, crp->Type, m_Rows,
 					crp->Clen, 0, FALSE, TRUE, uns))) {
-					sprintf(g->Message, MSG(INV_RESULT_TYPE),
+					snprintf(g->Message, sizeof(g->Message), MSG(INV_RESULT_TYPE),
 						GetFormatType(crp->Type));
 					return NULL;
 				} // endif Kdata

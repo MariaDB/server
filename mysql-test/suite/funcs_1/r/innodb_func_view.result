@@ -3411,11 +3411,8 @@ NULL	NULL	1
 -1.00	-1	5
 -3333.33	-3333.3333	29
 Warnings:
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ''
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
@@ -3431,11 +3428,8 @@ NULL	NULL	1
 -1.00	-1	5
 -3333.33	-3333.3333	29
 Warnings:
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ''
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 DROP VIEW v1;
 
@@ -3453,11 +3447,8 @@ NULL	NULL	1
 -1.00	-1	5
 -3333.33	-3333.3333	28
 Warnings:
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: '<--------30 characters------->'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- \x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 Warning	1292	Truncated incorrect DECIMAL value: '-1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 Warning	1292	Truncated incorrect DECIMAL value: '-3333.3333\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
@@ -3475,11 +3466,8 @@ NULL	NULL	1
 -1.00	-1                            	5
 -3333.33	-3333.3333                    	28
 Warnings:
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: '<--------30 characters------->'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- \x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 Warning	1292	Truncated incorrect DECIMAL value: '-1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 Warning	1292	Truncated incorrect DECIMAL value: '-3333.3333\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
@@ -3499,11 +3487,8 @@ NULL	NULL	1
 -1.00	-1	5
 -3333.33	-3333.3333	27
 Warnings:
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ''
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ' ---äÖüß@µ*$-- '
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
@@ -3519,11 +3504,8 @@ NULL	NULL	1
 -1.00	-1	5
 -3333.33	-3333.3333	27
 Warnings:
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ''
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ' ---äÖüß@µ*$-- '
 DROP VIEW v1;
 
@@ -3541,11 +3523,8 @@ NULL	NULL	1
 -1.00	-1	5
 -3333.33	-3333.3333	26
 Warnings:
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: '                              '
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: '<--------30 characters------->'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ' ---äÖüß@µ*$--           '
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
@@ -3561,11 +3540,8 @@ NULL	NULL	1
 -1.00	-1	5
 -3333.33	-3333.3333	26
 Warnings:
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: '                              '
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: '<--------30 characters------->'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: ' ---äÖüß@µ*$--           '
 DROP VIEW v1;
 

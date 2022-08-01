@@ -3032,6 +3032,7 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
 void update_sj_state(JOIN *join, const JOIN_TAB *new_tab,
                      uint idx, table_map remaining_tables)
 {
+  DBUG_ASSERT(!join->emb_sjm_nest);
   if (TABLE_LIST *emb_sj_nest= new_tab->emb_sj_nest)
   {
     join->cur_sj_inner_tables |= emb_sj_nest->sj_inner_tables;

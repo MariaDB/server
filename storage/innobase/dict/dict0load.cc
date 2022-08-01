@@ -3092,10 +3092,11 @@ loop:
 
 	/* Copy the string because the page may be modified or evicted
 	after mtr.commit() below. */
-	char	fk_id[MAX_TABLE_NAME_LEN + 1];
-
-	ut_a(len <= MAX_TABLE_NAME_LEN);
-	memcpy(fk_id, field, len);
+	char	fk_id[MAX_TABLE_NAME_LEN + NAME_LEN];
+	err = DB_SUCCESS;
+	if (UNIV_LIKELY(len < sizeof fk_id)) {
+		memcpy(fk_id, field, len);
+	}
 
 	btr_pcur_store_position(&pcur, &mtr);
 
@@ -3103,9 +3104,11 @@ loop:
 
 	/* Load the foreign constraint definition to the dictionary cache */
 
-	err = dict_load_foreign(table_name, col_names, trx_id,
-				check_recursive, check_charsets,
-				{fk_id, len}, ignore_err, fk_tables);
+	err = len < sizeof fk_id
+		? dict_load_foreign(table_name, col_names, trx_id,
+				    check_recursive, check_charsets,
+				    {fk_id, len}, ignore_err, fk_tables)
+		: DB_CORRUPTION;
 
 	switch (err) {
 	case DB_SUCCESS:
