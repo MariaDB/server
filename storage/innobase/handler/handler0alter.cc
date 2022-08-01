@@ -6119,10 +6119,13 @@ func_exit:
 			&offsets, &offsets_heap, ctx->heap,
 			&big_rec, update, UPD_NODE_NO_ORD_CHANGE,
 			thr, trx->id, &mtr);
+		if (err == DB_SUCCESS) {
+			offsets = rec_get_offsets(
+				btr_pcur_get_rec(&pcur), index, offsets,
+				index->n_core_fields, ULINT_UNDEFINED,
+				&offsets_heap);
+		}
 
-		offsets = rec_get_offsets(
-			btr_pcur_get_rec(&pcur), index, offsets,
-			index->n_core_fields, ULINT_UNDEFINED, &offsets_heap);
 		if (big_rec) {
 			if (err == DB_SUCCESS) {
 				err = btr_store_big_rec_extern_fields(

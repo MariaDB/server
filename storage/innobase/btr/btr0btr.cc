@@ -1246,8 +1246,6 @@ btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
 static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
                                        mtr_t *mtr)
 {
-  const mtr_log_t log_mode= mtr->set_log_mode(MTR_LOG_NO_REDO);
-
   buf_block_t *const block= cursor->block;
 
   ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
@@ -1271,6 +1269,8 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
   memcpy_aligned<UNIV_PAGE_SIZE_MIN>(old->page.frame, block->page.frame,
                                      srv_page_size);
 
+  const mtr_log_t log_mode= mtr->set_log_mode(MTR_LOG_NO_REDO);
+
   page_create(block, mtr, index->table->not_redundant());
   if (index->is_spatial())
     block->page.frame[FIL_PAGE_TYPE + 1]= byte(FIL_PAGE_RTREE);
@@ -1281,10 +1281,13 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
   /* Copy the records from the temporary space to the recreated page;
   do not copy the lock bits yet */
 
-  if (dberr_t err=
-      page_copy_rec_list_end_no_locks(block, old,
-                                      page_get_infimum_rec(old->page.frame),
-                                      index, mtr))
+  dberr_t err=
+    page_copy_rec_list_end_no_locks(block, old,
+                                    page_get_infimum_rec(old->page.frame),
+                                    index, mtr);
+  mtr->set_log_mode(log_mode);
+
+  if (UNIV_UNLIKELY(err != DB_SUCCESS))
     return err;
 
   /* Copy the PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC. */
@@ -1328,8 +1331,6 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
     ut_ad(cursor->rec == page_get_infimum_rec(block->page.frame));
   else if (!(cursor->rec= page_rec_get_nth(block->page.frame, pos)))
     return DB_CORRUPTION;
-
-  mtr->set_log_mode(log_mode);
 
   if (block->page.id().page_no() != index->page ||
       fil_page_get_type(old->page.frame) != FIL_PAGE_TYPE_INSTANT)
