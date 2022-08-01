@@ -257,19 +257,17 @@ public:
 	}
 
 	/** Position the cursor on the first user record. */
-	void	open(buf_block_t* block) UNIV_NOTHROW
+	rec_t* open(buf_block_t* block) noexcept
+		MY_ATTRIBUTE((warn_unused_result))
 	{
 		page_cur_set_before_first(block, &m_cur);
-
-		if (!end()) {
-			next();
-		}
+		return next();
 	}
 
 	/** Move to the next record. */
-	void	next() UNIV_NOTHROW
+	rec_t* next() noexcept MY_ATTRIBUTE((warn_unused_result))
 	{
-		page_cur_move_to_next(&m_cur);
+		return page_cur_move_to_next(&m_cur);
 	}
 
 	/**
@@ -1532,6 +1530,8 @@ inline bool IndexPurge::open() noexcept
     return false;
 
   rec_t *rec= page_rec_get_next(btr_pcur_get_rec(&m_pcur));
+  if (!rec)
+    return false;
   if (rec_is_metadata(rec, *m_index))
     /* Skip the metadata pseudo-record. */
     btr_pcur_get_page_cur(&m_pcur)->rec= rec;
@@ -1543,7 +1543,9 @@ Position the cursor on the next record.
 @return DB_SUCCESS or error code */
 dberr_t IndexPurge::next() noexcept
 {
-	btr_pcur_move_to_next_on_page(&m_pcur);
+	if (UNIV_UNLIKELY(!btr_pcur_move_to_next_on_page(&m_pcur))) {
+		return DB_CORRUPTION;
+	}
 
 	/* When switching pages, commit the mini-transaction
 	in order to release the latch on the old page. */
@@ -1581,8 +1583,8 @@ dberr_t IndexPurge::next() noexcept
 								     &m_mtr)) {
 				return err;
 			}
-		} else {
-			btr_pcur_move_to_next_on_page(&m_pcur);
+		} else if (!btr_pcur_move_to_next_on_page(&m_pcur)) {
+			return DB_CORRUPTION;
 		}
 	} while (!btr_pcur_is_on_user_rec(&m_pcur));
 
@@ -1799,7 +1801,9 @@ PageConverter::update_records(
 
 	/* This will also position the cursor on the first user record. */
 
-	m_rec_iter.open(block);
+	if (!m_rec_iter.open(block)) {
+		return DB_CORRUPTION;
+	}
 
 	while (!m_rec_iter.end()) {
 		rec_t*	rec = m_rec_iter.current();
@@ -1830,17 +1834,19 @@ PageConverter::update_records(
 		optimistic delete. */
 
 		if (deleted) {
+			++m_index->m_stats.m_n_deleted;
 			/* A successful purge will move the cursor to the
 			next record. */
 
-			if (!purge()) {
-				m_rec_iter.next();
+			if (purge()) {
+				continue;
 			}
-
-			++m_index->m_stats.m_n_deleted;
 		} else {
 			++m_index->m_stats.m_n_rows;
-			m_rec_iter.next();
+		}
+
+		if (!m_rec_iter.next()) {
+			return DB_CORRUPTION;
 		}
 	}
 
@@ -3181,6 +3187,8 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
     while (btr_page_get_level(page.get()) != 0)
     {
       const rec_t *rec= page_rec_get_next(page_get_infimum_rec(page.get()));
+      if (!rec)
+        return DB_CORRUPTION;
 
       /* Relax the assertion in rec_init_offsets(). */
       ut_ad(!index->in_instant_init);
@@ -3205,17 +3213,21 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
         return err;
     }
 
-    const auto *rec= page_rec_get_next(page_get_infimum_rec(page.get()));
+    const auto *rec= page_rec_get_next_const(page_get_infimum_rec(page.get()));
     const auto comp= dict_table_is_comp(index->table);
-    const auto info_bits= rec_get_info_bits(rec, comp);
 
-    if (page_rec_is_supremum(rec) || !(info_bits & REC_INFO_MIN_REC_FLAG))
+    if (!rec || page_rec_is_supremum(rec))
     {
+    corrupted_metadata:
       ib::error() << "Table " << index->table->name
                   << " is missing instant ALTER metadata";
       index->table->corrupted= true;
       return DB_CORRUPTION;
     }
+
+    const auto info_bits= rec_get_info_bits(rec, comp);
+    if (!(info_bits & REC_INFO_MIN_REC_FLAG))
+      goto corrupted_metadata;
 
     if ((info_bits & ~REC_INFO_DELETED_FLAG) != REC_INFO_MIN_REC_FLAG ||
         (comp && rec_get_status(rec) != REC_STATUS_INSTANT))

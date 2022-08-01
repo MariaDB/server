@@ -1239,7 +1239,7 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 		const ulint n_core = page_is_leaf(page)
 			? index->n_core_fields : 0;
 
-		if (!page_rec_is_supremum(rec)) {
+		if (rec && !page_rec_is_supremum(rec)) {
 			not_empty_flag = 1;
 			offsets_rec = rec_get_offsets(rec, index, offsets_rec,
 						      n_core,
@@ -1254,7 +1254,7 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 		while (!page_rec_is_supremum(rec)) {
 			ulint	matched_fields;
 			rec_t*	next_rec = page_rec_get_next(rec);
-			if (page_rec_is_supremum(next_rec)) {
+			if (!next_rec || page_rec_is_supremum(next_rec)) {
 				total_external_size +=
 					btr_rec_get_externally_stored_len(
 						rec, offsets_rec);
@@ -1630,11 +1630,10 @@ dict_stats_analyze_index_level(
 
 	if (btr_pcur_open_at_index_side(
 		    true, index, BTR_SEARCH_TREE_ALREADY_S_LATCHED,
-		    &pcur, true, level, mtr) != DB_SUCCESS) {
+		    &pcur, true, level, mtr) != DB_SUCCESS
+	    || !btr_pcur_move_to_next_on_page(&pcur)) {
 		goto func_exit;
 	}
-
-	btr_pcur_move_to_next_on_page(&pcur);
 
 	page = btr_pcur_get_page(&pcur);
 
@@ -1877,6 +1876,36 @@ func_exit:
 	mem_heap_free(heap);
 }
 
+
+/************************************************************//**
+Gets the pointer to the next non delete-marked record on the page.
+If all subsequent records are delete-marked, then this function
+will return the supremum record.
+@return pointer to next non delete-marked record or pointer to supremum */
+static
+const rec_t*
+page_rec_get_next_non_del_marked(
+/*=============================*/
+	const rec_t*	rec)	/*!< in: pointer to record */
+{
+  const page_t *const page= page_align(rec);
+
+  if (page_is_comp(page))
+  {
+    for (rec= page_rec_get_next_low(rec, TRUE);
+         rec && rec_get_deleted_flag(rec, TRUE);
+         rec= page_rec_get_next_low(rec, TRUE));
+    return rec ? rec : page + PAGE_NEW_SUPREMUM;
+  }
+  else
+  {
+    for (rec= page_rec_get_next_low(rec, FALSE);
+         rec && rec_get_deleted_flag(rec, FALSE);
+         rec= page_rec_get_next_low(rec, FALSE));
+    return rec ? rec : page + PAGE_OLD_SUPREMUM;
+  }
+}
+
 /** Scan a page, reading records from left to right and counting the number
 of distinct records (looking only at the first n_prefix
 columns) and the number of external pages pointed by records from this page.
@@ -1934,7 +1963,7 @@ dict_stats_scan_page(
 
 	rec = get_next(page_get_infimum_rec(page));
 
-	if (page_rec_is_supremum(rec)) {
+	if (!rec || page_rec_is_supremum(rec)) {
 		/* the page is empty or contains only delete-marked records */
 		*n_diff = 0;
 		*out_rec = NULL;
@@ -1953,7 +1982,7 @@ dict_stats_scan_page(
 
 	*n_diff = 1;
 
-	while (!page_rec_is_supremum(next_rec)) {
+	while (next_rec && !page_rec_is_supremum(next_rec)) {
 
 		ulint	matched_fields;
 
@@ -2242,11 +2271,10 @@ dict_stats_analyze_index_for_n_prefix(
 	if (btr_pcur_open_at_index_side(true, index,
 					BTR_SEARCH_TREE_ALREADY_S_LATCHED,
 					&pcur, true, n_diff_data->level, mtr)
-	    != DB_SUCCESS) {
+	    != DB_SUCCESS
+	    || !btr_pcur_move_to_next_on_page(&pcur)) {
 		return;
 	}
-
-	btr_pcur_move_to_next_on_page(&pcur);
 
 	page = btr_pcur_get_page(&pcur);
 

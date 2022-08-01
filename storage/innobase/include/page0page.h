@@ -534,7 +534,8 @@ inline void page_header_reset_last_insert(buf_block_t *block, mtr_t *mtr)
 /************************************************************//**
 Returns the nth record of the record list.
 This is the inverse function of page_rec_get_n_recs_before().
-@return nth record */
+@return nth record
+@retval nullptr on corrupted page */
 const rec_t*
 page_rec_get_nth_const(
 /*===================*/
@@ -544,14 +545,12 @@ page_rec_get_nth_const(
 /************************************************************//**
 Returns the nth record of the record list.
 This is the inverse function of page_rec_get_n_recs_before().
-@return nth record */
-UNIV_INLINE
-rec_t*
-page_rec_get_nth(
-/*=============*/
-	page_t*	page,	/*< in: page */
-	ulint	nth)	/*!< in: nth record */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+@return nth record
+@retval nullptr on corrupted page */
+inline rec_t *page_rec_get_nth(page_t* page, ulint nth)
+{
+  return const_cast<rec_t*>(page_rec_get_nth_const(page, nth));
+}
 
 /************************************************************//**
 Returns the middle record of the records on the page. If there is an
@@ -592,15 +591,11 @@ page_get_n_recs(
 /*============*/
 	const page_t*	page);	/*!< in: index page */
 
-/***************************************************************//**
-Returns the number of records before the given record in chain.
-The number includes infimum and supremum records.
-This is the inverse function of page_rec_get_nth().
-@return number of records */
-ulint
-page_rec_get_n_recs_before(
-/*=======================*/
-	const rec_t*	rec);	/*!< in: the physical record */
+/** Return the number of preceding records in an index page.
+@param rec index record
+@return number of preceding records, including the infimum pseudo-record
+@retval ULINT_UNDEFINED on corrupted page */
+ulint page_rec_get_n_recs_before(const rec_t *rec);
 /*************************************************************//**
 Gets the number of records in the heap.
 @return number of user records */
@@ -649,6 +644,23 @@ inline const rec_t *page_dir_slot_get_rec(const page_dir_slot_t *slot)
 {
   return page_dir_slot_get_rec(const_cast<rec_t*>(slot));
 }
+
+inline rec_t *page_dir_slot_get_rec_validate(page_dir_slot_t *slot)
+{
+  const size_t s= mach_read_from_2(my_assume_aligned<2>(slot));
+  page_t *page= page_align(slot);
+
+  return UNIV_LIKELY(s >= PAGE_NEW_INFIMUM &&
+                     s <= page_header_get_field(page, PAGE_HEAP_TOP))
+    ? page + s
+    : nullptr;
+}
+inline const rec_t *page_dir_slot_get_rec_validate(const page_dir_slot_t *slot)
+{
+  return page_dir_slot_get_rec_validate(const_cast<rec_t*>(slot));
+}
+
+
 /***************************************************************//**
 Gets the number of records owned by a directory slot.
 @return number of records */
@@ -753,20 +765,9 @@ page_rec_get_next_const(
 /*====================*/
 	const rec_t*	rec);	/*!< in: pointer to record */
 /************************************************************//**
-Gets the pointer to the next non delete-marked record on the page.
-If all subsequent records are delete-marked, then this function
-will return the supremum record.
-@return pointer to next non delete-marked record or pointer to supremum */
-UNIV_INLINE
-const rec_t*
-page_rec_get_next_non_del_marked(
-/*=============================*/
-	const rec_t*	rec);	/*!< in: pointer to record */
-/************************************************************//**
 Gets the pointer to the previous record.
 @return pointer to previous record
 @retval nullptr on error */
-UNIV_INLINE
 const rec_t*
 page_rec_get_prev_const(
 /*====================*/
@@ -813,22 +814,6 @@ page_rec_is_last(
 /*=============*/
 	const rec_t*	rec,	/*!< in: record */
 	const page_t*	page)	/*!< in: page */
-	MY_ATTRIBUTE((warn_unused_result));
-
-/************************************************************//**
-true if distance between the records (measured in number of times we have to
-move to the next record) is at most the specified value
-@param[in]	left_rec	lefter record
-@param[in]	right_rec	righter record
-@param[in]	val		specified value to compare
-@return true if the distance is smaller than the value */
-UNIV_INLINE
-bool
-page_rec_distance_is_at_most(
-/*=========================*/
-	const rec_t*	left_rec,
-	const rec_t*	right_rec,
-	ulint		val)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /************************************************************//**
@@ -1129,9 +1114,7 @@ page_find_rec_with_heap_no(
 @param[in]	page	index tree leaf page
 @return the last record, not delete-marked
 @retval infimum record if all records are delete-marked */
-const rec_t*
-page_find_rec_max_not_deleted(
-	const page_t*	page);
+const rec_t *page_find_rec_max_not_deleted(const page_t *page);
 
 #endif /* !UNIV_INNOCHECKSUM */
 

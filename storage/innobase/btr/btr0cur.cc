@@ -403,15 +403,13 @@ unreadable:
 	ut_ad(page_cur_is_before_first(&cur.page_cur));
 	ut_ad(page_is_leaf(cur.page_cur.block->page.frame));
 
-	page_cur_move_to_next(&cur.page_cur);
-
-	const rec_t* rec = cur.page_cur.rec;
+	const rec_t* rec = page_cur_move_to_next(&cur.page_cur);
 	const ulint comp = dict_table_is_comp(index->table);
-	const ulint info_bits = rec_get_info_bits(rec, comp);
+	const ulint info_bits = rec ? rec_get_info_bits(rec, comp) : 0;
 
 	if (page_rec_is_supremum(rec)
 	    || !(info_bits & REC_INFO_MIN_REC_FLAG)) {
-		if (!index->is_instant()) {
+		if (rec && !index->is_instant()) {
 			/* The FIL_PAGE_TYPE_INSTANT and PAGE_INSTANT may be
 			assigned even if instant ADD COLUMN was not
 			committed. Changes to these page header fields are not
@@ -882,6 +880,21 @@ btr_cur_latch_for_root_leaf(
 
 	MY_ASSERT_UNREACHABLE();
 	return(RW_NO_LATCH); /* avoid compiler warnings */
+}
+
+/** @return whether the distance between two records is at most the
+specified value */
+static bool
+page_rec_distance_is_at_most(const rec_t *left, const rec_t *right, ulint val)
+{
+  do
+  {
+    if (left == right)
+      return true;
+    left= page_rec_get_next_const(left);
+  }
+  while (left && val--);
+  return false;
 }
 
 /** Detects whether the modifying record might need a modifying tree structure.
@@ -1914,22 +1927,28 @@ retry_page_get:
 #ifdef BTR_CUR_HASH_ADAPT
 	} else if (height == 0 && btr_search_enabled
 		   && !(tuple->info_bits & REC_INFO_MIN_REC_FLAG)
-		   && !dict_index_is_spatial(index)) {
+		   && index->is_btree()) {
 		/* The adaptive hash index is only used when searching
 		for leaf pages (height==0), but not in r-trees.
 		We only need the byte prefix comparison for the purpose
 		of updating the adaptive hash index. */
-		page_cur_search_with_match_bytes(
+		if (page_cur_search_with_match_bytes(
 			block, index, tuple, page_mode, &up_match, &up_bytes,
-			&low_match, &low_bytes, page_cursor);
+			&low_match, &low_bytes, page_cursor)) {
+			err = DB_CORRUPTION;
+			goto func_exit;
+		}
 #endif /* BTR_CUR_HASH_ADAPT */
 	} else {
 		/* Search for complete index fields. */
 		up_bytes = low_bytes = 0;
-		page_cur_search_with_match(
+		if (page_cur_search_with_match(
 			block, index, tuple, page_mode, &up_match,
 			&low_match, page_cursor,
-			need_path ? cursor->rtr_info : NULL);
+			need_path ? cursor->rtr_info : nullptr)) {
+			err = DB_CORRUPTION;
+			goto func_exit;
+		}
 	}
 
 	/* If this is the desired level, leave the loop */
@@ -2097,6 +2116,11 @@ need_opposite_intention:
 
 			ut_ad(upper_rw_latch == RW_X_LATCH);
 
+			if (UNIV_UNLIKELY(!first_rec)) {
+			corrupted:
+				err = DB_CORRUPTION;
+				goto func_exit;
+			}
 			if (node_ptr == first_rec
 			    || page_rec_is_last(node_ptr, page)) {
 				detected_same_key_root = true;
@@ -2131,8 +2155,7 @@ need_opposite_intention:
 						detected_same_key_root = true;
 					}
 				} else {
-					err = DB_CORRUPTION;
-					goto func_exit;
+					goto corrupted;
 				}
 			}
 		}
@@ -2241,11 +2264,14 @@ need_opposite_intention:
 					? cursor->rtr_info : NULL;
 
 				for (ulint i = 0; i < n_blocks; i++) {
-					page_cur_search_with_match(
+					if (page_cur_search_with_match(
 						tree_blocks[i], index, tuple,
 						page_mode, &up_match,
 						&low_match, page_cursor,
-						rtr_info);
+						rtr_info)) {
+						err = DB_CORRUPTION;
+						goto func_exit;
+					}
 				}
 
 				goto search_loop;
@@ -2678,13 +2704,11 @@ btr_cur_open_at_index_side(
 
 		ut_ad(height > 0);
 
-		if (from_left) {
-			page_cur_move_to_next(page_cursor);
-		} else {
-			if (!page_cur_move_to_prev(page_cursor)) {
-				err = DB_CORRUPTION;
-				goto exit_loop;
-			}
+		if (from_left
+		    ? !page_cur_move_to_next(page_cursor)
+		    : !page_cur_move_to_prev(page_cursor)) {
+			err = DB_CORRUPTION;
+			goto exit_loop;
 		}
 
 		height--;
@@ -3117,7 +3141,7 @@ btr_cur_insert_if_possible(
 
 /*************************************************************//**
 For an insert, checks the locks and does the undo logging if desired.
-@return DB_SUCCESS, DB_WAIT_LOCK, DB_FAIL, or error number */
+@return DB_SUCCESS, DB_LOCK_WAIT, DB_FAIL, or error number */
 UNIV_INLINE MY_ATTRIBUTE((warn_unused_result, nonnull(2,3,5,6)))
 dberr_t
 btr_cur_ins_lock_and_undo(
@@ -3268,7 +3292,7 @@ It is assumed that mtr holds an x-latch on the page. The operation does
 not succeed if there is too little space on the page. If there is just
 one record on the page, the insert will always succeed; this is to
 prevent trying to split a page with just one record.
-@return DB_SUCCESS, DB_WAIT_LOCK, DB_FAIL, or error number */
+@return DB_SUCCESS, DB_LOCK_WAIT, DB_FAIL, or error number */
 dberr_t
 btr_cur_optimistic_insert(
 /*======================*/
@@ -3736,7 +3760,7 @@ func_exit:
 
 /*************************************************************//**
 For an update, checks the locks and does the undo logging.
-@return DB_SUCCESS, DB_WAIT_LOCK, or error number */
+@return DB_SUCCESS, DB_LOCK_WAIT, or error number */
 UNIV_INLINE MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 btr_cur_upd_lock_and_undo(
@@ -4682,8 +4706,7 @@ any_extern:
 	rec = btr_cur_insert_if_possible(cursor, new_entry, offsets, heap,
 					 0/*n_ext*/, mtr);
 	if (UNIV_UNLIKELY(!rec)) {
-		err = DB_CORRUPTION;
-		goto func_exit;
+		goto corrupted;
 	}
 
 	if (UNIV_UNLIKELY(update->is_metadata())) {
@@ -4701,8 +4724,11 @@ any_extern:
 						   block->page.id());
 	}
 
-	page_cur_move_to_next(page_cursor);
 	ut_ad(err == DB_SUCCESS);
+	if (!page_cur_move_to_next(page_cursor)) {
+corrupted:
+		err = DB_CORRUPTION;
+	}
 
 func_exit:
 	if (!(flags & BTR_KEEP_IBUF_BITMAP)
@@ -5454,6 +5480,10 @@ btr_cur_optimistic_delete(
 		dict_index_t* index = cursor->index;
 		const rec_t* first_rec = page_rec_get_next_const(
 			page_get_infimum_rec(block->page.frame));
+		if (UNIV_UNLIKELY(!first_rec)) {
+			err = DB_CORRUPTION;
+			goto func_exit;
+		}
 		ut_ad(!index->is_instant()
 		      || rec_is_metadata(first_rec, *index));
 		const bool is_metadata = rec_is_metadata(rec, *index);
@@ -5683,6 +5713,10 @@ btr_cur_pessimistic_delete(
 
 			const rec_t* first_rec = page_rec_get_next_const(
 				page_get_infimum_rec(page));
+			if (UNIV_UNLIKELY(!first_rec)) {
+				*err = DB_CORRUPTION;
+				goto err_exit;
+			}
 			ut_ad(!index->is_instant()
 			      || rec_is_metadata(first_rec, *index));
 			if (is_metadata || !index->is_instant()
@@ -5729,7 +5763,11 @@ discard_page:
 			goto return_after_reservations;
 		}
 
-		next_rec = page_rec_get_next(rec);
+		if (UNIV_UNLIKELY(!(next_rec = page_rec_get_next(rec)))) {
+			ut_ad(!ret);
+			*err = DB_CORRUPTION;
+			goto err_exit;
+		}
 
 		if (!page_has_prev(page)) {
 			/* If we delete the leftmost node pointer on a
@@ -5996,9 +6034,10 @@ public:
     if (dtuple_get_n_fields(&m_tuple) > 0)
     {
       m_up_bytes= m_low_bytes= 0;
-      page_cur_search_with_match(m_block, index(), &m_tuple, m_page_mode,
-                                 &m_up_match, &m_low_match, &m_page_cur,
-                                 nullptr);
+      if (page_cur_search_with_match(m_block, index(), &m_tuple, m_page_mode,
+                                     &m_up_match, &m_low_match, &m_page_cur,
+                                     nullptr))
+        return false;
       m_nth_rec= page_rec_get_n_recs_before(page_cur_get_rec(&m_page_cur));
     }
     else if (left)
@@ -6006,7 +6045,8 @@ public:
       page_cur_set_before_first(m_block, &m_page_cur);
       if (level)
       {
-        page_cur_move_to_next(&m_page_cur);
+        if (!page_cur_move_to_next(&m_page_cur))
+          return false;
         m_nth_rec= 1;
       }
       else
