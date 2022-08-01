@@ -1016,5 +1016,32 @@ j
 {"ID": "4", "Name": "Betty", "Age": 19}
 drop table t1;
 #
+# MDEV-27151: JSON_VALUE() does not parse NULL properties properly
+#
+#
+# It is correct for JSON_EXTRACT() to give null instead of "NULL" because
+# it returns the json literal that is put inside json.
+# Hence it should return null as in 'null' string and not SQL NULL.
+# JSON_VALUE() returns the "VALUE" so it is correct for it to return SQl NULL
+#
+SELECT NULL;
+NULL
+NULL
+SELECT JSON_VALUE('{"nulltest": null}', '$.nulltest');
+JSON_VALUE('{"nulltest": null}', '$.nulltest')
+NULL
+SELECT 1 + NULL;
+1 + NULL
+NULL
+SELECT 1 + JSON_VALUE('{"nulltest": null}', '$.nulltest');
+1 + JSON_VALUE('{"nulltest": null}', '$.nulltest')
+NULL
+SELECT NULL;
+NULL
+NULL
+SELECT JSON_EXTRACT('{"a":null, "b":10, "c":"null"}', '$.a');
+JSON_EXTRACT('{"a":null, "b":10, "c":"null"}', '$.a')
+null
+#
 # End of 10.3 tests
 #
