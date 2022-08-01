@@ -176,10 +176,16 @@ before_first:
 	} else if (page_rec_is_infimum_low(offs)) {
 		rec = page_rec_get_next(rec);
 
+		if (UNIV_UNLIKELY(!rec)) {
+			ut_ad("corrupted page" == 0);
+			goto before_first;
+		}
+
 		if (rec_is_metadata(rec, *index)) {
 			ut_ad(!page_has_prev(block->page.frame));
 			rec = page_rec_get_next(rec);
-			if (page_rec_is_supremum(rec)) {
+			ut_ad(rec);
+			if (!rec || page_rec_is_supremum(rec)) {
 				goto before_first;
 			}
 		}

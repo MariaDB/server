@@ -2132,11 +2132,14 @@ non_empty:
     return false;
   }
   rec= page_rec_get_next(btr_pcur_get_rec(&pcur));
+  if (UNIV_UNLIKELY(!rec))
+    goto non_empty;
   if (rec_is_metadata(rec, *clust_index))
     btr_pcur_get_page_cur(&pcur)->rec= rec;
 scan_leaf:
   cur= btr_pcur_get_page_cur(&pcur);
-  page_cur_move_to_next(cur);
+  if (UNIV_UNLIKELY(!page_cur_move_to_next(cur)))
+    goto non_empty;
 next_page:
   if (next_page)
   {
@@ -2154,7 +2157,8 @@ next_page:
       goto non_empty;
     btr_leaf_page_release(page_cur_get_block(cur), BTR_SEARCH_LEAF, &mtr);
     page_cur_set_before_first(block, cur);
-    page_cur_move_to_next(cur);
+    if (UNIV_UNLIKELY(!page_cur_move_to_next(cur)))
+      goto non_empty;
   }
 
   rec= page_cur_get_rec(cur);
@@ -6029,13 +6033,17 @@ func_exit:
 		return false;
 	}
 	ut_ad(btr_pcur_is_before_first_on_page(&pcur));
-	btr_pcur_move_to_next_on_page(&pcur);
 
 	buf_block_t* block = btr_pcur_get_block(&pcur);
 	ut_ad(page_is_leaf(block->page.frame));
 	ut_ad(!page_has_prev(block->page.frame));
 	ut_ad(!buf_block_get_page_zip(block));
-	const rec_t* rec = btr_pcur_get_rec(&pcur);
+	const rec_t* rec = btr_pcur_move_to_next_on_page(&pcur);
+	if (UNIV_UNLIKELY(!rec)) {
+		err = DB_CORRUPTION;
+		goto func_exit;
+	}
+
 	que_thr_t* thr = pars_complete_graph_for_exec(
 		NULL, trx, ctx->heap, NULL);
 	const bool is_root = block->page.id().page_no() == index->page;
