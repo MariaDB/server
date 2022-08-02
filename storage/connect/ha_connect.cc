@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @file ha_connect.cc
@@ -266,7 +266,7 @@ bool    Force_Bson(void);
 size_t  GetWorkSize(void);
 void    SetWorkSize(size_t);
 extern "C" const char *msglang(void);
-
+static char *strz(PGLOBAL g, LEX_CSTRING &ls);
 static void PopUser(PCONNECT xp);
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
 static PGLOBAL  GetPlug(THD *thd, PCONNECT& lxp);
@@ -1301,10 +1301,10 @@ PCSZ GetStringTableOption(PGLOBAL g, PTOS options, PCSZ opname, PCSZ sdef)
 		opval= options->filter;
 	else if (!stricmp(opname, "Data_charset"))
     opval= options->data_charset;
-	else if (!stricmp(opname, "Http") || !stricmp(opname, "URL"))
-		opval= options->http;
-	else if (!stricmp(opname, "Uri"))
-		opval= options->uri;
+  else if (!stricmp(opname, "Http") || !stricmp(opname, "URL"))
+    opval= options->http;
+  else if (!stricmp(opname, "Uri"))
+    opval= options->uri;
 
   if (!opval && options->oplist)
     opval= GetListOption(g, opname, options->oplist);
@@ -5644,7 +5644,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   String   sql(buf, sizeof(buf), system_charset_info);
 
   sql.copy(STRING_WITH_LEN("CREATE TABLE whatever ("), system_charset_info);
-	user= host= pwd= tbl= src= col= ocl= pic= fcl= skc= rnk= zfn= NULL;
+  user= host= pwd= tbl= src= col= ocl= pic= fcl= skc= rnk= zfn= NULL;
 	dsn= url= NULL;
 
   // Get the useful create options
@@ -5696,7 +5696,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(ZIP_SUPPORT)
 		zfn= GetListOption(g, "Zipfile", topt->oplist, NULL);
 #endif   // ZIP_SUPPORT
-	} else {
+  } else {
     host= "localhost";
     user= ((ttp == TAB_ODBC || ttp == TAB_JDBC) ? NULL : "root");
   } // endif option_list
@@ -5833,17 +5833,17 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					PJDBCDEF jdef= new(g) JDBCDEF();
 
 					jdef->SetName(create_info->alias.str);
-					sjp = (PJPARM)PlugSubAlloc(g, NULL, sizeof(JDBCPARM));
-					sjp->Driver = driver;
-					//		sjp->Properties = prop;
-					sjp->Fsize = 0;
-					sjp->Scrollable = false;
+					sjp= (PJPARM)PlugSubAlloc(g, NULL, sizeof(JDBCPARM));
+					sjp->Driver= driver;
+					//		sjp->Properties= prop;
+					sjp->Fsize= 0;
+					sjp->Scrollable= false;
 
-					if ((rc = jdef->ParseURL(g, url, false)) == RC_OK) {
-						sjp->Url = url;
-						sjp->User = (char*)user;
-						sjp->Pwd = (char*)pwd;
-						ok = true;
+					if ((rc= jdef->ParseURL(g, url, false)) == RC_OK) {
+						sjp->Url= url;
+						sjp->User= (char*)user;
+						sjp->Pwd= (char*)pwd;
+						ok= true;
 					} else if (rc == RC_NF) {
 						if (jdef->GetTabname())
 							tab= (char*)jdef->GetTabname();
@@ -5958,11 +5958,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				break;
 #endif   // JAVA_SUPPORT
 #if defined(REST_SUPPORT)
-			case TAB_REST:
-				if (!topt->http)
-					strcpy(g->Message, "Missing REST HTTP option");
-				else
-					ok = true;
+      case TAB_REST:
+        if (!topt->http)
+          sprintf(g->Message, "Missing %s HTTP address", topt->type);
+        else
+          ok= true;
 
 				break;
 #endif   // REST_SUPPORT
@@ -6126,11 +6126,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					break;
 #endif   // LIBXML2_SUPPORT  ||         DOMDOC_SUPPORT
 #if defined(REST_SUPPORT)
-				case TAB_REST:
-					qrp = RESTColumns(g, topt, tab, (char *)db, fnc == FNC_COL);
-					break;
+         case TAB_REST:
+           qrp= RESTColumns(g, topt, tab, (char *)db, fnc == FNC_COL);
+           break;
 #endif   // REST_SUPPORT
-				case TAB_OEM:
+        case TAB_OEM:
 					qrp= OEMColumns(g, topt, tab, (char*)db, fnc == FNC_COL);
 					break;
 				default:
@@ -6447,7 +6447,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   TABTYPE type;
   TABLE  *st= table;                       // Probably unuseful
   THD    *thd= ha_thd();
-  LEX_CSTRING cnc = table_arg->s->connect_string;
+  LEX_CSTRING cnc= table_arg->s->connect_string;
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
   partition_info *part_info= table_arg->part_info;
 #else		// !WITH_PARTITION_STORAGE_ENGINE

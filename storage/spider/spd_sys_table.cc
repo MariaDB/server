@@ -2807,11 +2807,11 @@ int spider_get_sys_link_mon_key(
     DBUG_RETURN(ER_SPIDER_SYS_TABLE_VERSION_NUM);
   }
 
-  if (
-    !(db_name = get_field(mem_root, table->field[0])) ||
-    !(table_name = get_field(mem_root, table->field[1])) ||
-    !(link_id = get_field(mem_root, table->field[2]))
-  )
+  if (!(db_name = get_field(mem_root, table->field[0])))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  if (!(table_name = get_field(mem_root, table->field[1])))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  if (!(link_id = get_field(mem_root, table->field[2])))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
   db_name_length = strlen(db_name);

@@ -2047,7 +2047,12 @@ static my_bool do_validate(THD *, plugin_ref plugin, void *arg)
   struct validation_data *data= (struct validation_data *)arg;
   struct st_mariadb_password_validation *handler=
     (st_mariadb_password_validation *)plugin_decl(plugin)->info;
-  return handler->validate_password(data->user, data->password);
+  if (handler->validate_password(data->user, data->password))
+  {
+    my_error(ER_NOT_VALID_PASSWORD, MYF(0), plugin_ref_to_int(plugin)->name.str);
+    return true;
+  }
+  return false;
 }
 
 
@@ -2061,7 +2066,6 @@ static bool validate_password(THD *thd, const LEX_CSTRING &user,
     if (plugin_foreach(NULL, do_validate,
                        MariaDB_PASSWORD_VALIDATION_PLUGIN, &data))
     {
-      my_error(ER_NOT_VALID_PASSWORD, MYF(0));
       return true;
     }
   }
@@ -10589,24 +10593,21 @@ static int handle_grant_data(THD *thd, Grant_tables& tables, bool drop,
   }
 
   /* Handle roles_mapping table. */
-  if (tables.roles_mapping_table().table_exists())
+  if (tables.roles_mapping_table().table_exists() &&
+      (found= handle_grant_table(thd, tables.roles_mapping_table(),
+                         ROLES_MAPPING_TABLE, drop, user_from, user_to)) < 0)
   {
-    if ((found= handle_grant_table(thd, tables.roles_mapping_table(),
-                                   ROLES_MAPPING_TABLE, drop,
-                                   user_from, user_to)) < 0)
-    {
-      /* Handle of table failed, don't touch the in-memory array. */
-      result= -1;
-    }
-    else
-    {
-      /* Handle acl_roles_mappings array */
-      if ((handle_grant_struct(ROLES_MAPPINGS_HASH, drop, user_from, user_to) || found)
-          && ! result)
-        result= 1; /* At least one record/element found */
-      if (search_only)
-        goto end;
-    }
+    /* Handle of table failed, don't touch the in-memory array. */
+    result= -1;
+  }
+  else
+  {
+    /* Handle acl_roles_mappings array */
+    if ((handle_grant_struct(ROLES_MAPPINGS_HASH, drop, user_from, user_to) || found)
+        && ! result)
+      result= 1; /* At least one record/element found */
+    if (search_only)
+      goto end;
   }
 
   /* Handle user table. */

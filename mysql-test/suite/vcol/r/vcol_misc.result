@@ -553,3 +553,19 @@ drop table t1;
 #
 # End of 10.2 tests
 #
+#
+# RAND is session func
+#
+create table t1 (a int, b float default rand(1));
+insert into t1 (a) values (1);
+insert into t1 (a) values (2);
+insert into t1 (a) values (3);
+select * from t1;
+a	b
+1	0.405404
+2	0.405404
+3	0.405404
+drop table t1;
+#
+# End of 10.3 tests
+#
