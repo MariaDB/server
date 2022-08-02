@@ -727,7 +727,7 @@ static struct
   @param id   tablespace id
   @return tablespace whose creation was deferred
   @retval nullptr if no such tablespace was found */
-  const item *find(uint32_t id)
+  item *find(uint32_t id)
   {
     mysql_mutex_assert_owner(&recv_sys.mutex);
     auto it= defers.find(id);
@@ -1181,11 +1181,11 @@ inline size_t recv_sys_t::files_size()
 @param[in]	name		file name
 @param[in]	len		length of the file name
 @param[in]	space_id	the tablespace ID
-@param[in]	deleted		whether this is a FILE_DELETE record
+@param[in]	ftype		FILE_MODIFY, FILE_DELETE, or FILE_RENAME
 @param[in]	lsn		lsn of the redo log
 @param[in]	store		whether the redo log has to be stored */
 static void fil_name_process(const char *name, ulint len, uint32_t space_id,
-                             bool deleted, lsn_t lsn, store_t store)
+                             mfile_type_t ftype, lsn_t lsn, store_t store)
 {
 	if (srv_operation == SRV_OPERATION_BACKUP
 	    || srv_operation == SRV_OPERATION_BACKUP_NO_DEFER) {
@@ -1200,6 +1200,7 @@ static void fil_name_process(const char *name, ulint len, uint32_t space_id,
 	further checks can ensure that a FILE_MODIFY record was
 	scanned before applying any page records for the space_id. */
 
+	const bool deleted{ftype == FILE_DELETE};
 	const file_name_t fname(std::string(name, len), deleted);
 	std::pair<recv_spaces_t::iterator,bool> p = recv_spaces.emplace(
 		space_id, fname);
@@ -1211,6 +1212,9 @@ static void fil_name_process(const char *name, ulint len, uint32_t space_id,
 		if (deleted) {
 			d->deleted = true;
 			goto got_deleted;
+		}
+		if (ftype == FILE_RENAME) {
+			d->file_name= fname.name;
 		}
 		goto reload;
 	}
@@ -2806,11 +2810,9 @@ inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
           continue;
 
         fil_name_process(fn, fnend - fn, space_id,
-                         (b & 0xf0) == FILE_DELETE, start_lsn,
-                         store);
-        if (fn2)
-          fil_name_process(fn2, fn2end - fn2, space_id,
-                           false, start_lsn, store);
+                         (b & 0xf0) == FILE_DELETE ? FILE_DELETE : FILE_MODIFY,
+                         start_lsn, store);
+
         if ((b & 0xf0) < FILE_CHECKPOINT && log_file_op)
           log_file_op(space_id, b & 0xf0,
                       reinterpret_cast<const byte*>(fn),
@@ -2818,13 +2820,19 @@ inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
                       reinterpret_cast<const byte*>(fn2),
                       fn2 ? static_cast<ulint>(fn2end - fn2) : 0);
 
-        if (fn2 && file_checkpoint)
+        if (fn2)
         {
-          const size_t len= fn2end - fn2;
-          auto r= renamed_spaces.emplace(space_id, std::string{fn2, len});
-          if (!r.second)
-            r.first->second= std::string{fn2, len};
+          fil_name_process(fn2, fn2end - fn2, space_id,
+                           FILE_RENAME, start_lsn, store);
+          if (file_checkpoint)
+          {
+            const size_t len= fn2end - fn2;
+            auto r= renamed_spaces.emplace(space_id, std::string{fn2, len});
+            if (!r.second)
+              r.first->second= std::string{fn2, len};
+          }
         }
+
         if (is_corrupt_fs())
           return GOT_EOF;
       }
