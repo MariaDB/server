@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -38,6 +38,11 @@
 
 THR_LOCK table_ets_by_user_by_event_name::m_table_lock;
 
+PFS_engine_table_share_state
+table_ets_by_user_by_event_name::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_ets_by_user_by_event_name::m_share=
 {
@@ -67,7 +72,9 @@ table_ets_by_user_by_event_name::m_share=
   "MIN_TIMER_READ_ONLY BIGINT unsigned not null comment 'The minimum wait time of only READ ONLY transaction events.',"
   "AVG_TIMER_READ_ONLY BIGINT unsigned not null comment 'The average wait time of only READ ONLY transaction events.',"
   "MAX_TIMER_READ_ONLY BIGINT unsigned not null comment 'The maximum wait time of only READ ONLY transaction events.')")},
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table*

@@ -1,4 +1,4 @@
-# Copyright (c) 2009, 2021, Oracle and/or its affiliates.
+# Copyright (c) 2009, 2022, Oracle and/or its affiliates.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License, version 2.0,
@@ -92,6 +92,7 @@ table_esms_by_host_by_event_name.h
 table_esms_by_digest.h
 table_esms_by_program.h
 table_prepared_stmt_instances.h
+#table_processlist.h
 table_esms_by_thread_by_event_name.h
 table_esms_by_user_by_event_name.h
 table_esms_global_by_event_name.h
@@ -208,6 +209,7 @@ table_esms_by_host_by_event_name.cc
 table_esms_by_digest.cc
 table_esms_by_program.cc
 table_prepared_stmt_instances.cc
+#table_processlist.cc
 table_esms_by_thread_by_event_name.cc
 table_esms_by_user_by_event_name.cc
 table_esms_global_by_event_name.cc

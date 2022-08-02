@@ -55,3 +55,13 @@ show_misc: todo
 show_plugin: todo
 
 status_reprepare:why P_S filters out Com_* variables?
+
+processlist: todo
+processlist_acl: todo
+processlist_port: todo
+processlist_no_pfs: todo
+ddl_processlist: todo
+dml_processlist: todo
+processlist_57: todo
+processlist_anonymous: todo
+processlist_reg_user: todo

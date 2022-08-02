@@ -1,5 +1,5 @@
 /*
-      Copyright (c) 2013, 2021, Oracle and/or its affiliates.
+      Copyright (c) 2013, 2022, Oracle and/or its affiliates.
 
       This program is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License, version 2.0,
@@ -42,6 +42,11 @@
 #ifdef HAVE_REPLICATION
 THR_LOCK table_replication_connection_configuration::m_table_lock;
 
+PFS_engine_table_share_state
+table_replication_connection_configuration::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_replication_connection_configuration::m_share=
 {
@@ -73,7 +78,9 @@ table_replication_connection_configuration::m_share=
   "CONNECTION_RETRY_COUNT BIGINT unsigned not null comment 'The number of times the replica can attempt to reconnect to the source in the event of a lost connection.',"
   "HEARTBEAT_INTERVAL DOUBLE(10,3) unsigned not null COMMENT 'Number of seconds after which a heartbeat will be sent.',"
   "TLS_VERSION VARCHAR(255) not null comment 'Not implemented, always blank.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 

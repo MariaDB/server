@@ -1,5 +1,5 @@
 /*
-      Copyright (c) 2013, 2021, Oracle and/or its affiliates.
+      Copyright (c) 2013, 2022, Oracle and/or its affiliates.
 
       This program is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License, version 2.0,
@@ -43,6 +43,11 @@
 
 THR_LOCK table_replication_applier_status_by_coordinator::m_table_lock;
 
+PFS_engine_table_share_state
+table_replication_applier_status_by_coordinator::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_replication_applier_status_by_coordinator::m_share=
 {
@@ -61,7 +66,9 @@ table_replication_applier_status_by_coordinator::m_share=
   "LAST_ERROR_NUMBER INTEGER not null comment 'Last error number that caused the SQL/coordinator thread to stop.',"
   "LAST_ERROR_MESSAGE VARCHAR(1024) not null comment 'Last error message that caused the SQL/coordinator thread to stop.',"
   "LAST_ERROR_TIMESTAMP TIMESTAMP(0) not null comment 'Timestamp that shows when the most recent SQL/coordinator error occured.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_replication_applier_status_by_coordinator::create(void)
