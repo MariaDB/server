@@ -964,7 +964,8 @@ Type_handler::aggregate_for_result_traditional(const Type_handler *a,
 }
 
 
-bool Field::check_assignability_from(const Type_handler *from) const
+bool Field::check_assignability_from(const Type_handler *from,
+                                     bool ignore) const
 {
   /*
     Using type_handler_for_item_field() here to get the data type handler
@@ -982,9 +983,26 @@ bool Field::check_assignability_from(const Type_handler *from) const
                                       type_handler_for_item_field());
   if (th.aggregate_for_result(from->type_handler_for_item_field()))
   {
-    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
-             type_handler()->name().ptr(), from->name().ptr(), "SET");
-    return true;
+    bool error= !ignore && get_thd()->is_strict_mode();
+    /*
+      Display fully qualified column name for table columns.
+      Display non-qualified names for other things,
+      e.g. SP variables, SP return values, SP and CURSOR parameters.
+    */
+    if (table->s->db.str && table->s->table_name.str)
+      my_printf_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION,
+                      "Cannot cast '%s' as '%s' in assignment of %`s.%`s.%`s",
+                      MYF(error ? 0 : ME_WARNING),
+                      from->name().ptr(), type_handler()->name().ptr(),
+                      table->s->db.str, table->s->table_name.str,
+                      field_name.str);
+    else
+      my_printf_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION,
+                      "Cannot cast '%s' as '%s' in assignment of %`s",
+                      MYF(error ? 0 : ME_WARNING),
+                      from->name().ptr(), type_handler()->name().ptr(),
+                      field_name.str);
+    return error;
   }
   return false;
 }

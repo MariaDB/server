@@ -1287,7 +1287,8 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
                                      List<List_item> &values_list,
                                      List<Item> &update_fields,
                                      List<Item> &update_values,
-                                     enum_duplicates duplic)
+                                     enum_duplicates duplic,
+                                     bool ignore)
 {
   THD *thd= stmt->thd;
   List_iterator_fast<List_item> its(values_list);
@@ -1324,7 +1325,8 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
     }
 
     if (mysql_prepare_insert(thd, table_list, fields, values, update_fields,
-                             update_values, duplic, &unused_conds, FALSE))
+                             update_values, duplic, ignore,
+                             &unused_conds, FALSE))
       goto error;
 
     value_count= values->elements;
@@ -1377,7 +1379,7 @@ static bool mysql_test_insert(Prepared_statement *stmt,
                               List<List_item> &values_list,
                               List<Item> &update_fields,
                               List<Item> &update_values,
-                              enum_duplicates duplic)
+                              enum_duplicates duplic, bool ignore)
 {
   THD *thd= stmt->thd;
 
@@ -1393,7 +1395,7 @@ static bool mysql_test_insert(Prepared_statement *stmt,
   }
 
   return mysql_test_insert_common(stmt, table_list, fields, values_list,
-                                  update_fields, update_values, duplic);
+                                  update_fields, update_values, duplic, ignore);
 }
 
 
@@ -2471,14 +2473,14 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     res= mysql_test_insert(stmt, tables, lex->field_list,
                            lex->many_values,
                            lex->update_list, lex->value_list,
-                           lex->duplicates);
+                           lex->duplicates, lex->ignore);
     break;
 
   case SQLCOM_LOAD:
     res= mysql_test_insert_common(stmt, tables, lex->field_list,
                                   lex->many_values,
                                   lex->update_list, lex->value_list,
-                                  lex->duplicates);
+                                  lex->duplicates, lex->ignore);
     break;
 
   case SQLCOM_UPDATE:

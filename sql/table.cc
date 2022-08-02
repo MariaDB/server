@@ -9250,7 +9250,8 @@ bool TABLE::validate_default_values_of_unset_fields(THD *thd) const
     INSERT INTO t1 (a,b) VALUES (1,2);
 */
 bool TABLE::check_assignability_explicit_fields(List<Item> fields,
-                                                List<Item> values)
+                                                List<Item> values,
+                                                bool ignore)
 {
   DBUG_ENTER("TABLE::check_assignability_explicit_fields");
   DBUG_ASSERT(fields.elements == values.elements);
@@ -9270,7 +9271,7 @@ bool TABLE::check_assignability_explicit_fields(List<Item> fields,
       */
       continue;
     }
-    if (value->check_assignability_to(item_field->field))
+    if (value->check_assignability_to(item_field->field, ignore))
       DBUG_RETURN(true);
   }
   DBUG_RETURN(false);
@@ -9282,7 +9283,8 @@ bool TABLE::check_assignability_explicit_fields(List<Item> fields,
   all visible fields of the table, e.g.
     INSERT INTO t1 VALUES (1,2);
 */
-bool TABLE::check_assignability_all_visible_fields(List<Item> &values) const
+bool TABLE::check_assignability_all_visible_fields(List<Item> &values,
+                                                   bool ignore) const
 {
   DBUG_ENTER("TABLE::check_assignability_all_visible_fields");
   DBUG_ASSERT(s->visible_fields == values.elements);
@@ -9291,7 +9293,7 @@ bool TABLE::check_assignability_all_visible_fields(List<Item> &values) const
   for (uint i= 0; i < s->fields; i++)
   {
     if (!field[i]->invisible &&
-        (vi++)->check_assignability_to(field[i]))
+        (vi++)->check_assignability_to(field[i], ignore))
       DBUG_RETURN(true);
   }
   DBUG_RETURN(false);

@@ -905,10 +905,10 @@ public:
 
   bool is_unsigned() const { return flags & UNSIGNED_FLAG; }
 
-  bool check_assignability_from(const Type_handler *from) const;
-  bool check_assignability_from(const Field *from) const
+  bool check_assignability_from(const Type_handler *from, bool ignore) const;
+  bool check_assignability_from(const Field *from, bool ignore) const
   {
-    return check_assignability_from(from->type_handler());
+    return check_assignability_from(from->type_handler(), ignore);
   }
 
   /**

@@ -192,9 +192,9 @@ CREATE TABLE t1 (a INET6);
 INSERT INTO t1 VALUES ('x');
 ERROR 22007: Incorrect inet6 value: 'x' for column `test`.`t1`.`a` at row 1
 INSERT INTO t1 VALUES (1);
-ERROR HY000: Illegal parameter data types inet6 and int for operation 'SET'
+ERROR HY000: Cannot cast 'int' as 'inet6' in assignment of `test`.`t1`.`a`
 INSERT INTO t1 VALUES (TIME'10:20:30');
-ERROR HY000: Illegal parameter data types inet6 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet6' in assignment of `test`.`t1`.`a`
 INSERT INTO t1 VALUES (0x00);
 ERROR 22007: Incorrect inet6 value: '\x00' for column `test`.`t1`.`a` at row 1
 DROP TABLE t1;
@@ -820,15 +820,15 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (CAST('::' AS INET6));
-ERROR HY000: Illegal parameter data types int and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'int' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 CREATE TABLE t1 (a DOUBLE);
 INSERT INTO t1 VALUES (CAST('::' AS INET6));
-ERROR HY000: Illegal parameter data types double and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'double' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(32,0));
 INSERT INTO t1 VALUES (CAST('::' AS INET6));
-ERROR HY000: Illegal parameter data types decimal and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'decimal' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(64));
 INSERT INTO t1 VALUES (CAST('::' AS INET6));
@@ -1606,7 +1606,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b INT);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types int and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'int' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1614,7 +1614,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b DOUBLE);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types double and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'double' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1622,7 +1622,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b DECIMAL(32,0));
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types decimal and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'decimal' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1630,7 +1630,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b YEAR);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types year and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'year' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1641,7 +1641,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INET6);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types inet6 and int for operation 'SET'
+ERROR HY000: Cannot cast 'int' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1649,7 +1649,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DOUBLE, b INET6);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types inet6 and double for operation 'SET'
+ERROR HY000: Cannot cast 'double' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1657,7 +1657,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(32,0), b INET6);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types inet6 and decimal for operation 'SET'
+ERROR HY000: Cannot cast 'decimal' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1665,7 +1665,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a YEAR, b INET6);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types inet6 and year for operation 'SET'
+ERROR HY000: Cannot cast 'year' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1676,7 +1676,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b TIME);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types time and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'time' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1684,7 +1684,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b DATE);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types date and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'date' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1692,7 +1692,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b DATETIME);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types datetime and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'datetime' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1700,7 +1700,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b TIMESTAMP NULL DEFAULT NULL);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types timestamp and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'timestamp' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1711,7 +1711,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a TIME, b INET6);
 INSERT INTO t1 VALUES ('00:00:00', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types inet6 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1719,7 +1719,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DATE, b INET6);
 INSERT INTO t1 VALUES ('2001-01:01', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types inet6 and date for operation 'SET'
+ERROR HY000: Cannot cast 'date' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1727,7 +1727,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME, b INET6);
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types inet6 and datetime for operation 'SET'
+ERROR HY000: Cannot cast 'datetime' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1735,7 +1735,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a TIMESTAMP, b INET6);
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types inet6 and timestamp for operation 'SET'
+ERROR HY000: Cannot cast 'timestamp' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1922,7 +1922,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b INT);
 INSERT INTO t1 (a) VALUES ('::');
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types int and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'int' in assignment of `test`.`t1`.`b`
 SELECT * FROM t1;
 a	b
 ::	NULL
@@ -1931,7 +1931,7 @@ SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
 CREATE TABLE t1 (a INET6, b TIMESTAMP);
 INSERT INTO t1 (a) VALUES ('::');
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types timestamp and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'timestamp' in assignment of `test`.`t1`.`b`
 SELECT * FROM t1;
 a	b
 ::	2001-01-01 10:20:30
@@ -1940,7 +1940,7 @@ SET timestamp=DEFAULT;
 CREATE OR REPLACE TABLE t1 (a INET6);
 INSERT INTO t1 (a) VALUES ('::');
 ALTER TABLE t1 MODIFY a DATE;
-ERROR HY000: Illegal parameter data types date and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'date' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 #
 # MDEV-20818 ER_CRASHED_ON_USAGE or Assertion `length <= column->length' failed in write_block_record on temporary table

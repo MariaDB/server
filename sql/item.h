@@ -1819,14 +1819,14 @@ public:
   */
   virtual bool is_evaluable_expression() const { return true; }
 
-  virtual bool check_assignability_to(const Field *to) const
+  virtual bool check_assignability_to(const Field *to, bool ignore) const
   {
     /*
       "this" must be neither DEFAULT/IGNORE,
       nor Item_param bound to DEFAULT/IGNORE.
     */
     DBUG_ASSERT(is_evaluable_expression());
-    return to->check_assignability_from(type_handler());
+    return to->check_assignability_from(type_handler(), ignore);
   }
 
   /**
@@ -4101,7 +4101,7 @@ class Item_param :public Item_basic_value,
   const String *value_query_val_str(THD *thd, String* str) const;
   Item *value_clone_item(THD *thd);
   bool is_evaluable_expression() const override;
-  bool check_assignability_to(const Field *field) const override;
+  bool check_assignability_to(const Field *field, bool ignore) const override;
   bool can_return_value() const;
 
 public:
@@ -6777,7 +6777,7 @@ public:
   {
     str->append(STRING_WITH_LEN("default"));
   }
-  bool check_assignability_to(const Field *to) const override
+  bool check_assignability_to(const Field *to, bool ignore) const override
   {
     return false;
   }
@@ -6814,7 +6814,7 @@ public:
   {
     str->append(STRING_WITH_LEN("ignore"));
   }
-  bool check_assignability_to(const Field *to) const override
+  bool check_assignability_to(const Field *to, bool ignore) const override
   {
     return false;
   }
