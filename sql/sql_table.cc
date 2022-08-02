@@ -11084,7 +11084,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       if (!(*ptr)->vcol_info)
       {
         bitmap_set_bit(from->read_set, def->field->field_index);
-        if ((*ptr)->check_assignability_from(def->field))
+        if ((*ptr)->check_assignability_from(def->field, ignore))
           goto err;
         (copy_end++)->set(*ptr,def->field,0);
       }

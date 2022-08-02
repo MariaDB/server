@@ -768,7 +768,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   value_count= values->elements;
 
   if ((res= mysql_prepare_insert(thd, table_list, fields, values,
-                                 update_fields, update_values, duplic,
+                                 update_fields, update_values, duplic, ignore,
                                  &unused_conds, FALSE)))
   {
     retval= thd->is_error();
@@ -839,7 +839,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     behaviour for non-transactional tables.
   */
   if (values->elements &&
-      table_list->table->check_assignability_opt_fields(fields, *values))
+      table_list->table->check_assignability_opt_fields(fields, *values,
+                                                        ignore))
     goto abort;
 
   while ((values= its++))
@@ -1638,7 +1639,8 @@ static void prepare_for_positional_update(TABLE *table, TABLE_LIST *tables)
 int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                          List<Item> &fields, List_item *values,
                          List<Item> &update_fields, List<Item> &update_values,
-                         enum_duplicates duplic, COND **where,
+                         enum_duplicates duplic, bool ignore,
+                         COND **where,
                          bool select_insert)
 {
   SELECT_LEX *select_lex= thd->lex->first_select_lex();
@@ -1713,7 +1715,8 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                ON DUPLICATE KEY UPDATE col=expr [, col=expr];
            */
            TABLE::check_assignability_explicit_fields(update_fields,
-                                                      update_values);
+                                                      update_values,
+                                                      ignore);
 
       select_lex->no_wrap_view_item= FALSE;
     }
@@ -3814,7 +3817,7 @@ int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
 
   if ((res= mysql_prepare_insert(thd, lex->query_tables, lex->field_list, 0,
                                  lex->update_list, lex->value_list,
-                                 lex->duplicates,
+                                 lex->duplicates, lex->ignore,
                                  &select_lex->where, TRUE)))
     DBUG_RETURN(res);
 
@@ -3915,7 +3918,8 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
           INSERT INTO t1 (col1, col2) VALUES (expr1, expr2);
           INSERT INTO t1 SET col1=expr1, col2=expr2;
      */
-     res= table_list->table->check_assignability_opt_fields(*fields, values);
+     res= table_list->table->check_assignability_opt_fields(*fields, values,
+                                                            lex->ignore);
   }
 
   if (!res && fields->elements)
@@ -3978,7 +3982,8 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
                       ON DUPLICATE KEY UPDATE col=expr [, col=expr]
                 */
                 TABLE::check_assignability_explicit_fields(*info.update_fields,
-                                                           *info.update_values);
+                                                           *info.update_values,
+                                                           lex->ignore);
     if (!res)
     {
       /*
