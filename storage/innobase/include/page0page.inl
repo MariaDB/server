@@ -202,10 +202,10 @@ page_rec_is_second(
 	const rec_t*	rec,	/*!< in: record */
 	const page_t*	page)	/*!< in: page */
 {
-	ut_ad(page_get_n_recs(page) > 1);
-
-	return(page_rec_get_next_const(
-		page_rec_get_next_const(page_get_infimum_rec(page))) == rec);
+  ut_ad(page_get_n_recs(page) > 1);
+  if (const rec_t *first= page_rec_get_next_const(page_get_infimum_rec(page)))
+    return page_rec_get_next_const(first) == rec;
+  return false;
 }
 
 /************************************************************//**
@@ -224,26 +224,6 @@ page_rec_is_last(
 }
 
 /************************************************************//**
-true if distance between the records (measured in number of times we have to
-move to the next record) is at most the specified value */
-UNIV_INLINE
-bool
-page_rec_distance_is_at_most(
-/*=========================*/
-	const rec_t*	left_rec,
-	const rec_t*	right_rec,
-	ulint		val)
-{
-	for (ulint i = 0; i <= val; i++) {
-		if (left_rec == right_rec) {
-			return (true);
-		}
-		left_rec = page_rec_get_next_const(left_rec);
-	}
-	return (false);
-}
-
-/************************************************************//**
 true if the record is the second last user record on a page.
 @return true if the second last user record */
 UNIV_INLINE
@@ -253,25 +233,12 @@ page_rec_is_second_last(
 	const rec_t*	rec,	/*!< in: record */
 	const page_t*	page)	/*!< in: page */
 {
-	ut_ad(page_get_n_recs(page) > 1);
-	ut_ad(!page_rec_is_last(rec, page));
+  ut_ad(page_get_n_recs(page) > 1);
+  ut_ad(!page_rec_is_last(rec, page));
 
-	return(page_rec_get_next_const(
-		page_rec_get_next_const(rec)) == page_get_supremum_rec(page));
-}
-
-/************************************************************//**
-Returns the nth record of the record list.
-This is the inverse function of page_rec_get_n_recs_before().
-@return nth record */
-UNIV_INLINE
-rec_t*
-page_rec_get_nth(
-/*=============*/
-	page_t*	page,	/*!< in: page */
-	ulint	nth)	/*!< in: nth record */
-{
-	return((rec_t*) page_rec_get_nth_const(page, nth));
+  if (const rec_t *next= page_rec_get_next_const(rec))
+    return page_rec_is_supremum(page_rec_get_next_const(next));
+  return false;
 }
 
 /************************************************************//**
@@ -421,36 +388,19 @@ page_rec_get_next_low(
 	const rec_t*	rec,	/*!< in: pointer to record */
 	ulint		comp)	/*!< in: nonzero=compact page layout */
 {
-	ulint		offs;
-	const page_t*	page;
-
-	ut_ad(page_rec_check(rec));
-
-	page = page_align(rec);
-
-	offs = rec_get_next_offs(rec, comp);
-
-	if (offs >= srv_page_size) {
-		fprintf(stderr,
-			"InnoDB: Next record offset is nonsensical %lu"
-			" in record at offset %lu\n"
-			"InnoDB: rec address %p, space id %lu, page %lu\n",
-			(ulong) offs, (ulong) page_offset(rec),
-			(void*) rec,
-			(ulong) page_get_space_id(page),
-			(ulong) page_get_page_no(page));
-		ut_error;
-	} else if (offs == 0) {
-
-		return(NULL);
-	}
-
-	ut_ad(page_rec_is_infimum(rec)
-	      || (!page_is_leaf(page) && !page_has_prev(page))
-	      || !(rec_get_info_bits(page + offs, comp)
-		   & REC_INFO_MIN_REC_FLAG));
-
-	return(page + offs);
+  const page_t *page= page_align(rec);
+  ut_ad(page_rec_check(rec));
+  ulint offs= rec_get_next_offs(rec, comp);
+  if (!offs)
+    return nullptr;
+  if (UNIV_UNLIKELY(offs < (comp ? PAGE_NEW_SUPREMUM : PAGE_OLD_SUPREMUM)))
+    return nullptr;
+  if (UNIV_UNLIKELY(offs > page_header_get_field(page, PAGE_HEAP_TOP)))
+    return nullptr;
+  ut_ad(page_rec_is_infimum(rec) ||
+        (!page_is_leaf(page) && !page_has_prev(page)) ||
+        !(rec_get_info_bits(page + offs, comp) & REC_INFO_MIN_REC_FLAG));
+  return page + offs;
 }
 
 /************************************************************//**
@@ -475,78 +425,6 @@ page_rec_get_next_const(
 	const rec_t*	rec)	/*!< in: pointer to record */
 {
 	return(page_rec_get_next_low(rec, page_rec_is_comp(rec)));
-}
-
-/************************************************************//**
-Gets the pointer to the next non delete-marked record on the page.
-If all subsequent records are delete-marked, then this function
-will return the supremum record.
-@return pointer to next non delete-marked record or pointer to supremum */
-UNIV_INLINE
-const rec_t*
-page_rec_get_next_non_del_marked(
-/*=============================*/
-	const rec_t*	rec)	/*!< in: pointer to record */
-{
-	const rec_t*	r;
-	ulint		page_is_compact = page_rec_is_comp(rec);
-
-	for (r = page_rec_get_next_const(rec);
-	     !page_rec_is_supremum(r)
-	     && rec_get_deleted_flag(r, page_is_compact);
-	     r = page_rec_get_next_const(r)) {
-		/* noop */
-	}
-
-	return(r);
-}
-
-/************************************************************//**
-Gets the pointer to the previous record.
-@return pointer to previous record
-@retval nullptr on error */
-UNIV_INLINE
-const rec_t*
-page_rec_get_prev_const(
-/*====================*/
-	const rec_t*	rec)	/*!< in: pointer to record, must not be page
-				infimum */
-{
-	const page_dir_slot_t*	slot;
-	ulint			slot_no;
-	const rec_t*		rec2;
-	const rec_t*		prev_rec = NULL;
-	const page_t*		page;
-
-	ut_ad(page_rec_check(rec));
-
-	page = page_align(rec);
-
-	ut_ad(!page_rec_is_infimum(rec));
-
-	slot_no = page_dir_find_owner_slot(rec);
-
-	if (UNIV_UNLIKELY(!slot_no || slot_no == ULINT_UNDEFINED)) {
-		return nullptr;
-	}
-
-	slot = page_dir_get_nth_slot(page, slot_no - 1);
-
-	rec2 = page_dir_slot_get_rec(slot);
-
-	if (page_is_comp(page)) {
-		while (rec2 && rec != rec2) {
-			prev_rec = rec2;
-			rec2 = page_rec_get_next_low(rec2, TRUE);
-		}
-	} else {
-		while (rec2 && rec != rec2) {
-			prev_rec = rec2;
-			rec2 = page_rec_get_next_low(rec2, FALSE);
-		}
-	}
-
-	return(prev_rec);
 }
 #endif /* UNIV_INNOCHECKSUM */
 

@@ -929,7 +929,7 @@ ibuf_page_low(
 			zip_size, RW_NO_LATCH, nullptr, BUF_GET, &local_mtr);
 
 		ret = block
-                        && ibuf_bitmap_page_get_bits_low(
+			&& ibuf_bitmap_page_get_bits_low(
 			block->page.frame, page_id, zip_size,
 			MTR_MEMO_BUF_FIX, &local_mtr, IBUF_BITMAP_IBUF);
 
@@ -2047,7 +2047,7 @@ corruption:
 
 	if (page_rec_is_infimum(rec)) {
 		rec = page_rec_get_next_const(rec);
-		if (page_rec_is_supremum(rec)) {
+		if (!rec || page_rec_is_supremum(rec)) {
 			return 0;
 		}
 	}
@@ -2101,7 +2101,7 @@ corruption:
 	sum_volumes = 0;
 	volume_for_page = 0;
 
-	while (*n_stored < limit) {
+	while (*n_stored < limit && rec) {
 		if (page_rec_is_supremum(rec)) {
 			/* When no more records available, mark this with
 			another 'impossible' pair of space id, page no */
@@ -2861,10 +2861,10 @@ corruption:
 	static_assert(FIL_PAGE_NEXT % 4 == 0, "alignment");
 	static_assert(FIL_PAGE_OFFSET % 4 == 0, "alignment");
 
-        if (UNIV_UNLIKELY(memcmp_aligned<4>(prev_page + FIL_PAGE_NEXT,
-                                            page + FIL_PAGE_OFFSET, 4))) {
+	if (UNIV_UNLIKELY(memcmp_aligned<4>(prev_page + FIL_PAGE_NEXT,
+					    page + FIL_PAGE_OFFSET, 4))) {
 		return srv_page_size;
-        }
+	}
 
 	rec = page_rec_get_prev_const(page_get_supremum_rec(prev_page));
 
@@ -2908,6 +2908,9 @@ count_later:
 
 	for (; !page_rec_is_supremum(rec);
 	     rec = page_rec_get_next_const(rec)) {
+		if (UNIV_UNLIKELY(!rec)) {
+			return srv_page_size;
+		}
 		if (page_no != ibuf_rec_get_page_no(mtr, rec)
 		    || space != ibuf_rec_get_space(mtr, rec)) {
 
@@ -2940,23 +2943,21 @@ count_later:
 	static_assert(FIL_PAGE_PREV % 4 == 0, "alignment");
 	static_assert(FIL_PAGE_OFFSET % 4 == 0, "alignment");
 
-        if (UNIV_UNLIKELY(memcmp_aligned<4>(next_page + FIL_PAGE_PREV,
-                                            page + FIL_PAGE_OFFSET, 4))) {
+	if (UNIV_UNLIKELY(memcmp_aligned<4>(next_page + FIL_PAGE_PREV,
+					    page + FIL_PAGE_OFFSET, 4))) {
 		return 0;
-        }
+	}
 
 	rec = page_get_infimum_rec(next_page);
 	rec = page_rec_get_next_const(rec);
 
-	for (;; rec = page_rec_get_next_const(rec)) {
-		ut_ad(page_align(rec) == next_page);
-
-		if (page_rec_is_supremum(rec)) {
-
+	for (; ; rec = page_rec_get_next_const(rec)) {
+		if (!rec || page_rec_is_supremum(rec)) {
 			/* We give up */
-
 			return(srv_page_size);
 		}
+
+		ut_ad(page_align(rec) == next_page);
 
 		if (page_no != ibuf_rec_get_page_no(mtr, rec)
 		    || space != ibuf_rec_get_space(mtr, rec)) {
@@ -3697,7 +3698,6 @@ ibuf_insert_to_index_page(
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	page_cur_t	page_cur;
-	ulint		low_match;
 	page_t*		page		= buf_block_get_frame(block);
 	rec_t*		rec;
 	rec_offs*	offsets;
@@ -3726,7 +3726,7 @@ ibuf_insert_to_index_page(
 
 	rec = page_rec_get_next(page_get_infimum_rec(page));
 
-	if (page_rec_is_supremum(rec)) {
+	if (!rec || page_rec_is_supremum(rec)) {
 		return DB_CORRUPTION;
 	}
 
@@ -3734,8 +3734,15 @@ ibuf_insert_to_index_page(
 		return DB_CORRUPTION;
 	}
 
+	ulint up_match = 0, low_match = 0;
+
+	if (page_cur_search_with_match(block, index, entry, PAGE_CUR_LE,
+				       &up_match, &low_match, &page_cur,
+				       nullptr)) {
+		return DB_CORRUPTION;
+	}
+
 	dberr_t err = DB_SUCCESS;
-	low_match = page_cur_search(block, index, entry, &page_cur);
 
 	heap = mem_heap_create(
 		sizeof(upd_t)
@@ -3824,7 +3831,7 @@ ibuf_insert_to_index_page(
 		}
 	} else {
 		offsets = NULL;
-        }
+	}
 
 	err = ibuf_insert_to_index_page_low(entry, block, index,
 					    &offsets, heap, mtr, &page_cur);
@@ -3847,14 +3854,15 @@ ibuf_set_del_mark(
 	mtr_t*			mtr)	/*!< in: mtr */
 {
 	page_cur_t	page_cur;
-	ulint		low_match;
+	ulint		up_match = 0, low_match = 0;
 
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(dtuple_check_typed(entry));
 
-	low_match = page_cur_search(block, index, entry, &page_cur);
-
-	if (low_match == dtuple_get_n_fields(entry)) {
+	if (!page_cur_search_with_match(block, index, entry, PAGE_CUR_LE,
+					&up_match, &low_match, &page_cur,
+					nullptr)
+	    && low_match == dtuple_get_n_fields(entry)) {
 		rec_t* rec = page_cur_get_rec(&page_cur);
 
 		/* Delete mark the old index record. According to a
@@ -3903,16 +3911,17 @@ ibuf_delete(
 				before latching any further pages */
 {
 	page_cur_t	page_cur;
-	ulint		low_match;
+	ulint		up_match = 0, low_match = 0;
 
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(dtuple_check_typed(entry));
 	ut_ad(!index->is_spatial());
 	ut_ad(!index->is_clust());
 
-	low_match = page_cur_search(block, index, entry, &page_cur);
-
-	if (low_match == dtuple_get_n_fields(entry)) {
+	if (!page_cur_search_with_match(block, index, entry, PAGE_CUR_LE,
+					&up_match, &low_match, &page_cur,
+					nullptr)
+	    && low_match == dtuple_get_n_fields(entry)) {
 		page_zip_des_t*	page_zip= buf_block_get_page_zip(block);
 		page_t*		page	= buf_block_get_frame(block);
 		rec_t*		rec	= page_cur_get_rec(&page_cur);
@@ -3976,8 +3985,6 @@ ibuf_delete(
 		if (UNIV_LIKELY_NULL(heap)) {
 			mem_heap_free(heap);
 		}
-	} else {
-		/* The record must have been purged already. */
 	}
 }
 
@@ -4016,9 +4023,6 @@ ibuf_restore_pos(
 		rec_print_old(stderr, btr_pcur_get_rec(pcur));
 		rec_print_old(stderr, pcur->old_rec);
 		dtuple_print(stderr, search_tuple);
-
-		rec_print_old(stderr,
-			      page_rec_get_next(btr_pcur_get_rec(pcur)));
 	}
 
 	ibuf_btr_pcur_commit_specify_mtr(pcur, mtr);
@@ -4644,7 +4648,7 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 				buf_block_t* block = buf_page_get(
 					page_id_t(space->id, curr_page),
 					zip_size, RW_S_LATCH, &mtr);
-	                        page_t*	page = buf_block_get_frame(block);
+				page_t*	page = buf_block_get_frame(block);
 				ut_ad(buf_is_zeroes(span<const byte>(
 							    page,
 							    physical_size)));

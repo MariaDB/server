@@ -788,8 +788,20 @@ btr_search_check_guess(
 
 	rec = btr_cur_get_rec(cursor);
 
-	ut_ad(page_rec_is_user_rec(rec));
-	ut_ad(page_rec_is_leaf(rec));
+	if (UNIV_UNLIKELY(!page_rec_is_user_rec(rec)
+			  || !page_rec_is_leaf(rec))) {
+		ut_ad("corrupted index" == 0);
+		return false;
+	} else if (cursor->index->table->not_redundant()) {
+		switch (rec_get_status(rec)) {
+		case REC_STATUS_INSTANT:
+		case REC_STATUS_ORDINARY:
+			break;
+		default:
+			ut_ad("corrupted index" == 0);
+			return false;
+		}
+	}
 
 	match = 0;
 
@@ -847,6 +859,17 @@ btr_search_check_guess(
 			goto exit_func;
 		}
 
+		if (cursor->index->table->not_redundant()) {
+			switch (rec_get_status(prev_rec)) {
+			case REC_STATUS_INSTANT:
+			case REC_STATUS_ORDINARY:
+				break;
+			default:
+				ut_ad("corrupted index" == 0);
+				goto exit_func;
+			}
+		}
+
 		offsets = rec_get_offsets(prev_rec, cursor->index, offsets,
 					  cursor->index->n_core_fields,
 					  n_unique, &heap);
@@ -862,13 +885,29 @@ btr_search_check_guess(
 
 		const rec_t* next_rec = page_rec_get_next(rec);
 
+		if (UNIV_UNLIKELY(!next_rec)) {
+			ut_ad("corrupted index" == 0);
+			goto exit_func;
+		}
+
 		if (page_rec_is_supremum(next_rec)) {
 			if (!page_has_next(page_align(next_rec))) {
 				cursor->up_match = 0;
-				success = TRUE;
+				success = true;
 			}
 
 			goto exit_func;
+		}
+
+		if (cursor->index->table->not_redundant()) {
+			switch (rec_get_status(next_rec)) {
+			case REC_STATUS_INSTANT:
+			case REC_STATUS_ORDINARY:
+				break;
+			default:
+				ut_ad("corrupted index" == 0);
+				goto exit_func;
+			}
 		}
 
 		offsets = rec_get_offsets(next_rec, cursor->index, offsets,
@@ -1245,14 +1284,7 @@ void btr_search_drop_page_hash_index(buf_block_t* block)
 {
 	ulint			n_fields;
 	ulint			n_bytes;
-	const page_t*		page;
 	const rec_t*		rec;
-	ulint			fold;
-	ulint			prev_fold;
-	ulint			n_cached;
-	ulint			n_recs;
-	ulint*			folds;
-	ulint			i;
 	mem_heap_t*		heap;
 	rec_offs*		offsets;
 
@@ -1323,33 +1355,50 @@ retry:
 
 	ut_a(n_fields > 0 || n_bytes > 0);
 
-	page = block->page.frame;
-	n_recs = page_get_n_recs(page);
+	const page_t* const page = block->page.frame;
+	ulint n_recs = page_get_n_recs(page);
+	if (!n_recs) {
+		ut_ad("corrupted adaptive hash index" == 0);
+		return;
+	}
 
 	/* Calculate and cache fold values into an array for fast deletion
 	from the hash index */
 
-	folds = (ulint*) ut_malloc_nokey(n_recs * sizeof(ulint));
-
-	n_cached = 0;
-
 	rec = page_get_infimum_rec(page);
 	rec = page_rec_get_next_low(rec, page_is_comp(page));
-	if (rec_is_metadata(rec, *index)) {
+
+	ulint* folds;
+	ulint n_cached = 0;
+	ulint prev_fold = 0;
+
+	if (rec && rec_is_metadata(rec, *index)) {
 		rec = page_rec_get_next_low(rec, page_is_comp(page));
+		if (!--n_recs) {
+			/* The page only contains the hidden metadata record
+			for instant ALTER TABLE that the adaptive hash index
+			never points to. */
+			folds = nullptr;
+			goto all_deleted;
+		}
 	}
 
-	prev_fold = 0;
+	folds = (ulint*) ut_malloc_nokey(n_recs * sizeof(ulint));
+	heap = nullptr;
+	offsets = nullptr;
 
-	heap = NULL;
-	offsets = NULL;
-
-	while (!page_rec_is_supremum(rec)) {
+	while (rec) {
+		if (n_cached >= n_recs) {
+			ut_ad(page_rec_is_supremum(rec));
+			break;
+		}
+		ut_ad(page_rec_is_user_rec(rec));
 		offsets = rec_get_offsets(
 			rec, index, offsets, index->n_core_fields,
 			btr_search_get_n_fields(n_fields, n_bytes),
 			&heap);
-		fold = rec_fold(rec, offsets, n_fields, n_bytes, index_id);
+		const ulint fold = rec_fold(rec, offsets, n_fields, n_bytes,
+					    index_id);
 
 		if (fold == prev_fold && prev_fold != 0) {
 
@@ -1358,11 +1407,13 @@ retry:
 
 		/* Remove all hash nodes pointing to this page from the
 		hash chain */
+		folds[n_cached++] = fold;
 
-		folds[n_cached] = fold;
-		n_cached++;
 next_rec:
 		rec = page_rec_get_next_low(rec, page_rec_is_comp(rec));
+		if (!rec || page_rec_is_supremum(rec)) {
+			break;
+		}
 		prev_fold = fold;
 	}
 
@@ -1370,6 +1421,7 @@ next_rec:
 		mem_heap_free(heap);
 	}
 
+all_deleted:
 	if (!is_freed) {
 		part->latch.wr_lock(SRW_LOCK_CALL);
 
@@ -1394,7 +1446,7 @@ next_rec:
 		goto retry;
 	}
 
-	for (i = 0; i < n_cached; i++) {
+	for (ulint i = 0; i < n_cached; i++) {
 		ha_remove_all_nodes_to_page(&part->table, part->heap,
 					    folds[i], page);
 	}
@@ -1408,7 +1460,7 @@ next_rec:
 		}
 	}
 
-	block->index = NULL;
+	block->index = nullptr;
 
 	MONITOR_INC(MONITOR_ADAPTIVE_HASH_PAGE_REMOVED);
 	MONITOR_INC_VALUE(MONITOR_ADAPTIVE_HASH_ROW_REMOVED, n_cached);
@@ -1472,7 +1524,6 @@ btr_search_build_page_hash_index(
 	bool		left_side)
 {
 	const rec_t*	rec;
-	const rec_t*	next_rec;
 	ulint		fold;
 	ulint		next_fold;
 	ulint		n_cached;
@@ -1538,10 +1589,11 @@ btr_search_build_page_hash_index(
 	}
 
 	rec = page_rec_get_next_const(page_get_infimum_rec(page));
+        if (!rec) return;
 
 	if (rec_is_metadata(rec, *index)) {
 		rec = page_rec_get_next_const(rec);
-		if (!--n_recs) return;
+		if (!rec || !--n_recs) return;
 	}
 
 	/* Calculate and cache fold values and corresponding records into
@@ -1571,9 +1623,7 @@ btr_search_build_page_hash_index(
 		n_cached++;
 	}
 
-	for (;;) {
-		next_rec = page_rec_get_next_const(rec);
-
+	while (const rec_t* next_rec = page_rec_get_next_const(rec)) {
 		if (page_rec_is_supremum(next_rec)) {
 
 			if (!left_side) {
@@ -1906,12 +1956,15 @@ void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
 	    && (cursor->n_fields == block->curr_n_fields)
 	    && (cursor->n_bytes == block->curr_n_bytes)
 	    && !block->curr_left_side) {
-
-		if (ha_search_and_update_if_found(
-			&btr_search_sys.get_part(*cursor->index)->table,
-			cursor->fold, rec, block,
-			page_rec_get_next(rec))) {
-			MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_UPDATED);
+		if (const rec_t *new_rec = page_rec_get_next_const(rec)) {
+			if (ha_search_and_update_if_found(
+				&btr_search_sys.get_part(*cursor->index)
+				->table,
+				cursor->fold, rec, block, new_rec)) {
+				MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_UPDATED);
+			}
+		} else {
+			ut_ad("corrupted page" == 0);
 		}
 
 func_exit:
@@ -1976,6 +2029,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor,
 
 	if (index != cursor->index) {
 		ut_ad(index->id == cursor->index->id);
+drop:
 		btr_search_drop_page_hash_index(block);
 		return;
 	}
@@ -1988,7 +2042,9 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor,
 	const bool left_side = block->curr_left_side;
 
 	ins_rec = page_rec_get_next_const(rec);
+	if (UNIV_UNLIKELY(!ins_rec)) goto drop;
 	next_rec = page_rec_get_next_const(ins_rec);
+	if (UNIV_UNLIKELY(!next_rec)) goto drop;
 
 	offsets = rec_get_offsets(ins_rec, index, offsets,
 				  index->n_core_fields,

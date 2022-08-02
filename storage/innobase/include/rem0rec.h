@@ -141,28 +141,7 @@ constexpr rec_offs REC_OFFS_EXTERNAL= REC_OFFS_COMPACT >> 1;
 /** Default value flag in offsets returned by rec_get_offsets() */
 constexpr rec_offs REC_OFFS_DEFAULT= REC_OFFS_COMPACT >> 2;
 constexpr rec_offs REC_OFFS_MASK= REC_OFFS_DEFAULT - 1;
-/******************************************************//**
-The following function is used to get the pointer of the next chained record
-on the same page.
-@return pointer to the next chained record, or NULL if none */
-UNIV_INLINE
-const rec_t*
-rec_get_next_ptr_const(
-/*===================*/
-	const rec_t*	rec,	/*!< in: physical record */
-	ulint		comp)	/*!< in: nonzero=compact page format */
-	MY_ATTRIBUTE((warn_unused_result));
-/******************************************************//**
-The following function is used to get the pointer of the next chained record
-on the same page.
-@return pointer to the next chained record, or NULL if none */
-UNIV_INLINE
-rec_t*
-rec_get_next_ptr(
-/*=============*/
-	rec_t*	rec,	/*!< in: physical record */
-	ulint	comp)	/*!< in: nonzero=compact page format */
-	MY_ATTRIBUTE((warn_unused_result));
+
 /******************************************************//**
 The following function is used to get the offset of the
 next chained record on the same page.
