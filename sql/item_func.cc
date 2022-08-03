@@ -6081,6 +6081,8 @@ bool Item_func_match::init_search(THD *thd, bool no_order)
 
   ft_handler= table->file->ft_init_ext(flags, key, ft_tmp);
 
+  if (!ft_handler)
+    DBUG_RETURN(1);
   if (join_key)
     table->file->ft_handler=ft_handler;
 

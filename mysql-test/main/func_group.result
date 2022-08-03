@@ -2524,5 +2524,30 @@ DROP TABLE t2;
 DROP VIEW v1;
 DROP TABLE t1;
 #
+# MDEV-23809: Server crash in JOIN_CACHE::free or ...
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT DISTINCT CASE CONVERT(EXPORT_SET(0, COLLATION(BENCHMARK(1, BIT_OR(0))),0),TIME) WHEN a THEN 1 END AS f FROM t1;
+f
+NULL
+Warnings:
+Warning	1292	Truncated incorrect time value: '0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0'
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(8) NULL, b BIGINT);
+INSERT INTO t1 (a,b) VALUES (NULL,NULL),('foo',NULL);
+SELECT DISTINCT STRCMP((b > COLLATION(STDDEV_SAMP(15750))), a) AS f FROM t1;
+f
+NULL
+DROP TABLE t1;
+CREATE TABLE t1 (a BIGINT) AS SELECT 1 AS v3 UNION SELECT FALSE ;
+SELECT DISTINCT a IN ( COLLATION (AVG ('x'))) FROM t1 ;
+a IN ( COLLATION (AVG ('x')))
+NULL
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+DROP TABLE t1;
+#
 # End of 10.3 tests
 #
