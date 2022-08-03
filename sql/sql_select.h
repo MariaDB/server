@@ -1203,6 +1203,7 @@ public:
   */
   table_map cur_sj_inner_tables;
   
+  uint dbug_join_tab_array_size;
   /* We also maintain a stack of join optimization states in * join->positions[] */
 /******* Join optimization state members end *******/
 
