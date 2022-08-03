@@ -316,6 +316,25 @@ update t1,t2 set v1 = v2 , v5 = 0;
 ERROR 23000: Duplicate entry '-128' for key 'v1'
 drop table t1, t2;
 #
+# MDEV-21540 Initialization of already inited long unique index on reorganize partition
+#
+create table t1 (x int, a blob)
+partition by range (x) (
+partition p1 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (1, 1), (100, 1);
+alter table t1 add unique key (a);
+ERROR 23000: Duplicate entry '1' for key 'a'
+update t1 set a= x;
+alter table t1 add unique key (a);
+update t1 set a= 1;
+ERROR 23000: Duplicate entry '1' for key 'a'
+update t1 set a= x + 1;
+alter table t1 reorganize partition p1 into (
+partition n0 values less than (10),
+partition n1 values less than (50));
+drop table t1;
+#
 # End of 10.4 tests
 #
 #

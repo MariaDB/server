@@ -1005,6 +1005,17 @@ JSON_VALID('{"admin\\"": null}')	{"admin\"": null}
 1	{"\"admin": null}
 1	{"\"": null}
 #
+# MDEV-29188: Crash in JSON_EXTRACT
+#
+CREATE TABLE t1 (j JSON);
+INSERT INTO t1 VALUES
+('{"ID": "4", "Name": "Betty", "Age": 19}'),
+('[10, 20, [30, 40]]');
+SELECT * FROM t1 WHERE JSON_EXTRACT(j, '$.Age')=19;
+j
+{"ID": "4", "Name": "Betty", "Age": 19}
+drop table t1;
+#
 # End of 10.3 tests
 #
 #

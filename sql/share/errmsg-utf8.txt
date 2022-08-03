@@ -7727,8 +7727,8 @@ ER_INVALID_YEAR_COLUMN_LENGTH
         rus "Тип YEAR(%lu) более не поддерживается, вместо него будет создана колонка с типом YEAR(4)"
 
 ER_NOT_VALID_PASSWORD
-        chi "您的密码不满足当前的政策要求"
-        eng "Your password does not satisfy the current policy requirements"
+        eng "Your password does not satisfy the current policy requirements (%s)"
+        ukr "Ваш пароль не відповідає поточним правилам (%s)"
 
 ER_MUST_CHANGE_PASSWORD
         bgn "Трябва първо да си смените паролата със SET PASSWORD за да можете да изпълните тази команда"
