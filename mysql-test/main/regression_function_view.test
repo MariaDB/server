@@ -1,0 +1,59 @@
+CREATE TABLE t1 (
+  id INTEGER,
+  age INTEGER,
+  weight INTEGER
+);
+
+INSERT INTO t1 (id, age, weight) VALUES (1, 1, 1), (2, 2, 1), (3, 3, 1), (4, 4, 4);
+INSERT INTO t1 (id, age, weight) VALUES (5, 5, 1), (6, 6, 1), (7, 7, 1), (8, 8, 4);
+
+CREATE TABLE t2 (count INTEGER, avgx FLOAT, avgy FLOAT, sxx FLOAT, syy FLOAT, sxy FLOAT, 
+  slope FLOAT, intercept FLOAT, r2 FLOAT)
+  SELECT
+    REGR_COUNT(age, weight) OVER(ORDER BY id rows between 2 preceding and 2 following) as count,
+    REGR_AVGX(age, weight) OVER(ORDER BY id rows between 2 preceding and 2 following) as avgx,
+    REGR_AVGY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as avgy,
+    REGR_SXX(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as sxx,
+    REGR_SYY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as syy,
+    REGR_SXY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as sxy,
+    REGR_SLOPE(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as slope,
+    REGR_INTERCEPT(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as intercept,
+    REGR_R2(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as r2
+  FROM t1;
+
+SELECT * FROM t2;
+DROP TABLE t2;
+
+
+CREATE TEMPORARY TABLE t2 (count INTEGER, avgx FLOAT, avgy FLOAT, sxx FLOAT, syy FLOAT, sxy FLOAT, 
+  slope FLOAT, intercept FLOAT, r2 FLOAT)
+  SELECT
+    REGR_COUNT(age, weight) OVER(ORDER BY id rows between 2 preceding and 2 following) as count,
+    REGR_AVGX(age, weight) OVER(ORDER BY id rows between 2 preceding and 2 following) as avgx,
+    REGR_AVGY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as avgy,
+    REGR_SXX(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as sxx,
+    REGR_SYY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as syy,
+    REGR_SXY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as sxy,
+    REGR_SLOPE(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as slope,
+    REGR_INTERCEPT(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as intercept,
+    REGR_R2(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as r2
+  FROM t1;
+
+SELECT * FROM t2;
+DROP TABLE t2;
+
+CREATE VIEW t2 AS
+  SELECT
+    REGR_COUNT(age, weight) OVER(ORDER BY id rows between 2 preceding and 2 following) as count,
+    REGR_AVGX(age, weight) OVER(ORDER BY id rows between 2 preceding and 2 following) as avgx,
+    REGR_AVGY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as avgy,
+    REGR_SXX(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as sxx,
+    REGR_SYY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as syy,
+    REGR_SXY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as sxy,
+    REGR_SLOPE(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as slope,
+    REGR_INTERCEPT(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as intercept,
+    REGR_R2(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as r2
+  FROM t1;
+
+SELECT * FROM t2;
+DROP VIEW t2;

@@ -1,0 +1,78 @@
+CREATE TABLE t1 (
+id INTEGER,
+age INTEGER,
+weight INTEGER
+);
+INSERT INTO t1 (id, age, weight) VALUES (1, 1, 1), (2, 2, 1), (3, 3, 1), (4, 4, 4);
+INSERT INTO t1 (id, age, weight) VALUES (5, 5, 1), (6, 6, 1), (7, 7, 1), (8, 8, 4);
+CREATE TABLE t2 (count INTEGER, avgx FLOAT, avgy FLOAT, sxx FLOAT, syy FLOAT, sxy FLOAT, 
+slope FLOAT, intercept FLOAT, r2 FLOAT)
+SELECT
+REGR_COUNT(age, weight) OVER(ORDER BY id rows between 2 preceding and 2 following) as count,
+REGR_AVGX(age, weight) OVER(ORDER BY id rows between 2 preceding and 2 following) as avgx,
+REGR_AVGY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as avgy,
+REGR_SXX(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as sxx,
+REGR_SYY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as syy,
+REGR_SXY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as sxy,
+REGR_SLOPE(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as slope,
+REGR_INTERCEPT(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as intercept,
+REGR_R2(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as r2
+FROM t1;
+SELECT * FROM t2;
+count	avgx	avgy	sxx	syy	sxy	slope	intercept	r2
+3	1	2	0	2	0	NULL	NULL	NULL
+4	1.75	2.5	6.75	5	4.5	0.6667	1.3333	0.6
+5	1.6	3	7.2	10	3	0.4167	2.3333	0.125
+5	1.6	4	7.2	10	0	0	4	0
+5	1.6	5	7.2	10	-3	-0.4167	5.6667	0.125
+5	2.2	6	10.8	10	0	0	6	0
+4	1.75	6.5	6.75	5	4.5	0.6667	5.3333	0.6
+3	2	7	6	2	3	0.5	6	0.75
+DROP TABLE t2;
+CREATE TEMPORARY TABLE t2 (count INTEGER, avgx FLOAT, avgy FLOAT, sxx FLOAT, syy FLOAT, sxy FLOAT, 
+slope FLOAT, intercept FLOAT, r2 FLOAT)
+SELECT
+REGR_COUNT(age, weight) OVER(ORDER BY id rows between 2 preceding and 2 following) as count,
+REGR_AVGX(age, weight) OVER(ORDER BY id rows between 2 preceding and 2 following) as avgx,
+REGR_AVGY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as avgy,
+REGR_SXX(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as sxx,
+REGR_SYY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as syy,
+REGR_SXY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as sxy,
+REGR_SLOPE(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as slope,
+REGR_INTERCEPT(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as intercept,
+REGR_R2(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as r2
+FROM t1;
+SELECT * FROM t2;
+count	avgx	avgy	sxx	syy	sxy	slope	intercept	r2
+3	1	2	0	2	0	NULL	NULL	NULL
+4	1.75	2.5	6.75	5	4.5	0.6667	1.3333	0.6
+5	1.6	3	7.2	10	3	0.4167	2.3333	0.125
+5	1.6	4	7.2	10	0	0	4	0
+5	1.6	5	7.2	10	-3	-0.4167	5.6667	0.125
+5	2.2	6	10.8	10	0	0	6	0
+4	1.75	6.5	6.75	5	4.5	0.6667	5.3333	0.6
+3	2	7	6	2	3	0.5	6	0.75
+DROP TABLE t2;
+CREATE VIEW t2 AS
+SELECT
+REGR_COUNT(age, weight) OVER(ORDER BY id rows between 2 preceding and 2 following) as count,
+REGR_AVGX(age, weight) OVER(ORDER BY id rows between 2 preceding and 2 following) as avgx,
+REGR_AVGY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as avgy,
+REGR_SXX(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as sxx,
+REGR_SYY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as syy,
+REGR_SXY(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as sxy,
+REGR_SLOPE(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as slope,
+REGR_INTERCEPT(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as intercept,
+REGR_R2(age, weight)  OVER(ORDER BY id rows between 2 preceding and 2 following) as r2
+FROM t1;
+SELECT * FROM t2;
+count	avgx	avgy	sxx	syy	sxy	slope	intercept	r2
+3	1.0000	2.0000	0.0000	2.0000	0.0000	NULL	NULL	NULL
+4	1.7500	2.5000	6.7500	5.0000	4.5000	0.6667	1.3333	0.6000
+5	1.6000	3.0000	7.2000	10.0000	3.0000	0.4167	2.3333	0.1250
+5	1.6000	4.0000	7.2000	10.0000	0.0000	0.0000	4.0000	0.0000
+5	1.6000	5.0000	7.2000	10.0000	-3.0000	-0.4167	5.6667	0.1250
+5	2.2000	6.0000	10.8000	10.0000	0.0000	0.0000	6.0000	0.0000
+4	1.7500	6.5000	6.7500	5.0000	4.5000	0.6667	5.3333	0.6000
+3	2.0000	7.0000	6.0000	2.0000	3.0000	0.5000	6.0000	0.7500
+DROP VIEW t2;
