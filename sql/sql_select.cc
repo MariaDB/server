@@ -9780,6 +9780,23 @@ bool JOIN::get_best_combination()
 
   if (aggr_tables > 2)
     aggr_tables= 2;
+
+#ifndef DBUG_OFF
+  dbug_join_tab_array_size= top_join_tab_count + aggr_tables;
+#endif
+  /*
+    NOTE: The above computation of aggr_tables can produce wrong result because some
+    of the variables it uses may change their values after we leave this function.
+    Known examples:
+     - Dangerous: using_outer_summary_function=false at this point. Added
+       DBUG_ASSERT below to demonstrate. Can this cause us to allocate less
+       space than we would need?
+     - Not dangerous: select_distinct can be true here but be assigned false
+       afterwards.
+  */
+  aggr_tables= 2;
+  DBUG_ASSERT(!tmp_table_param.using_outer_summary_function);
+
   if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB)*
                                         (top_join_tab_count + aggr_tables))))
     DBUG_RETURN(TRUE);
@@ -9788,10 +9805,6 @@ bool JOIN::get_best_combination()
   hash_join= FALSE;
 
   fix_semijoin_strategies_for_picked_join_order(this);
-
-#ifndef DBUG_OFF
-  dbug_join_tab_array_size= top_join_tab_count + aggr_tables;
-#endif
 
   if (inject_splitting_cond_for_all_tables_with_split_opt())
     DBUG_RETURN(TRUE);
