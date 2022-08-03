@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -39,6 +39,11 @@
 
 THR_LOCK table_events_transactions_current::m_table_lock;
 
+PFS_engine_table_share_state
+table_events_transactions_current::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_events_transactions_current::m_share=
 {
@@ -75,10 +80,17 @@ table_events_transactions_current::m_share=
   "OBJECT_INSTANCE_BEGIN BIGINT unsigned comment 'Unused.',"
   "NESTING_EVENT_ID BIGINT unsigned comment 'The EVENT_ID value of the event within which this event is nested.',"
   "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'The nesting event type.')")},
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 THR_LOCK table_events_transactions_history::m_table_lock;
+
+PFS_engine_table_share_state
+table_events_transactions_history::m_share_state = {
+  false /* m_checked */
+};
 
 PFS_engine_table_share
 table_events_transactions_history::m_share=
@@ -116,10 +128,17 @@ table_events_transactions_history::m_share=
   "OBJECT_INSTANCE_BEGIN BIGINT unsigned comment 'Unused.',"
   "NESTING_EVENT_ID BIGINT unsigned comment 'The EVENT_ID value of the event within which this event is nested.',"
   "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'The nesting event type.')")},
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 THR_LOCK table_events_transactions_history_long::m_table_lock;
+
+PFS_engine_table_share_state
+table_events_transactions_history_long::m_share_state = {
+  false /* m_checked */
+};
 
 PFS_engine_table_share
 table_events_transactions_history_long::m_share=
@@ -157,7 +176,9 @@ table_events_transactions_history_long::m_share=
   "OBJECT_INSTANCE_BEGIN BIGINT unsigned comment 'Unused.',"
   "NESTING_EVENT_ID BIGINT unsigned comment 'The EVENT_ID value of the event within which this event is nested.',"
   "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'The nesting event type.')")},
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 table_events_transactions_common::table_events_transactions_common

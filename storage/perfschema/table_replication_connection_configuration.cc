@@ -1,5 +1,5 @@
 /*
-      Copyright (c) 2013, 2021, Oracle and/or its affiliates.
+      Copyright (c) 2013, 2022, Oracle and/or its affiliates.
 
       This program is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License, version 2.0,
@@ -42,6 +42,11 @@
 #ifdef HAVE_REPLICATION
 THR_LOCK table_replication_connection_configuration::m_table_lock;
 
+PFS_engine_table_share_state
+table_replication_connection_configuration::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_replication_connection_configuration::m_share=
 {
@@ -74,7 +79,9 @@ table_replication_connection_configuration::m_share=
   "IGNORE_SERVER_IDS LONGTEXT not null comment 'Binary log events from servers (ids) to ignore.',"
   "REPL_DO_DOMAIN_IDS LONGTEXT not null comment 'Only apply binary logs from these domain ids.',"
   "REPL_IGNORE_DOMAIN_IDS LONGTEXT not null comment 'Binary log events from domains to ignore.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 static char *convert_array_to_str(DYNAMIC_ARRAY *ids)

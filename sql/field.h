@@ -5263,7 +5263,7 @@ public:
   uint  flags, pack_length;
   List<String> interval_list;
   engine_option_value *option_list;
-
+  bool explicitly_nullable;
 
   /*
     This is additinal data provided for any computed(virtual) field.
@@ -5285,7 +5285,7 @@ public:
     comment(null_clex_str),
     on_update(NULL), invisible(VISIBLE), char_length(0),
     flags(0), pack_length(0),
-    option_list(NULL),
+    option_list(NULL), explicitly_nullable(false),
     vcol_info(0), default_value(0), check_constraint(0),
     versioning(VERSIONING_NOT_SET), period(NULL)
   {

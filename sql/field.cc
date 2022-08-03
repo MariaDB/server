@@ -10681,7 +10681,7 @@ bool Column_definition::check(THD *thd)
       TIMESTAMP columns get implicit DEFAULT value when
       explicit_defaults_for_timestamp is not set.
     */
-    if ((opt_explicit_defaults_for_timestamp ||
+    if (((thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP) ||
         !is_timestamp_type()) && !vers_sys_field())
     {
       flags|= NO_DEFAULT_VALUE_FLAG;
@@ -10816,6 +10816,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   comment=    old_field->comment;
   vcol_info=  old_field->vcol_info;
   option_list= old_field->option_list;
+  explicitly_nullable= !(old_field->flags & NOT_NULL_FLAG);
   compression_method_ptr= 0;
   versioning= VERSIONING_NOT_SET;
   invisible= old_field->invisible;

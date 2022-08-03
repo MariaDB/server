@@ -780,7 +780,9 @@ int Arg_comparator::compare_e_string()
 {
   String *res1,*res2;
   res1= (*a)->val_str(&value1);
+  DBUG_ASSERT((res1 == NULL) == (*a)->null_value);
   res2= (*b)->val_str(&value2);
+  DBUG_ASSERT((res2 == NULL) == (*b)->null_value);
   if (!res1 || !res2)
     return MY_TEST(res1 == res2);
   return MY_TEST(sortcmp(res1, res2, compare_collation()) == 0);

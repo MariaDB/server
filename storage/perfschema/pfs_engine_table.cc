@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -48,6 +48,7 @@
 #include "table_file_summary_by_instance.h"
 #include "table_file_summary_by_event_name.h"
 #include "table_threads.h"
+//#include "table_processlist.h"
 
 #include "table_ews_by_host_by_event_name.h"
 #include "table_ews_by_user_by_event_name.h"
@@ -333,8 +334,26 @@ static PFS_engine_table_share *all_shares[]=
   //&table_global_variables::m_share,
   //&table_session_variables::m_share,
 
+  //&table_processlist::m_share,
+
   NULL
 };
+
+/** Error reporting for schema integrity checks. */
+class PFS_silent_check_intact : public Table_check_intact
+{
+protected:
+  virtual void report_error(uint code, const char *fmt, ...) {}
+
+public:
+  PFS_silent_check_intact()
+  {}
+
+  ~PFS_silent_check_intact()
+  {}
+};
+
+
 
 /** Initialize all the table share locks. */
 void PFS_engine_table_share::init_all_locks(void)
@@ -767,6 +786,33 @@ PFS_readonly_world_acl::check(privilege_t want_access, privilege_t *save_priv) c
     if (want_access == SELECT_ACL)
       res= ACL_INTERNAL_ACCESS_GRANTED;
   }
+  return res;
+}
+
+PFS_readonly_processlist_acl pfs_readonly_processlist_acl;
+
+ACL_internal_access_result PFS_readonly_processlist_acl::check(
+    privilege_t want_access, privilege_t *save_priv) const {
+  ACL_internal_access_result res =
+      PFS_readonly_acl::check(want_access, save_priv);
+
+  if ((res == ACL_INTERNAL_ACCESS_CHECK_GRANT) && (want_access == SELECT_ACL)) {
+    THD *thd = current_thd;
+    if (thd != NULL) {
+      if (thd->lex->sql_command == SQLCOM_SHOW_PROCESSLIST ||
+          thd->lex->sql_command == SQLCOM_SELECT) {
+        /*
+          For compatibility with the historical
+          SHOW PROCESSLIST command,
+          SHOW PROCESSLIST does not require a
+          SELECT privilege on table performance_schema.processlist,
+          when rewriting the query using table processlist.
+        */
+        return ACL_INTERNAL_ACCESS_GRANTED;
+      }
+    }
+  }
+
   return res;
 }
 
