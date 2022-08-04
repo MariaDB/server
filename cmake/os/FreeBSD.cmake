@@ -28,3 +28,9 @@ SET(EXECINFO_ROOT /usr/local CACHE INTERNAL "Where to find execinfo library and 
 INCLUDE_DIRECTORIES(${EXECINFO_ROOT}/include)
 SET(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES} ${EXECINFO_ROOT}/include)
 SET(ENV{LIB} "$ENV{LIB}:${EXECINFO_ROOT}/lib")
+
+# BSD has their own implementation of strlcat(...) and strlcpy(...) built-in versions
+# See https://www.freebsd.org/cgi/man.cgi?query=strlcpy&manpath=FreeBSD+13.1-stable
+# We want BSD to use their native implementation of these functions
+ADD_DEFINITIONS(-DHAVE_STRLCAT)
+ADD_DEFINITIONS(-DHAVE_STRLCPY)

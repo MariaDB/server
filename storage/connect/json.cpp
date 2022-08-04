@@ -10,6 +10,7 @@
 /*  Include relevant sections of the MariaDB header file.              */
 /***********************************************************************/
 #include <my_global.h>
+#include <m_string.h>
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -163,7 +164,7 @@ PJSON ParseJson(PGLOBAL g, char* s, size_t len, int* ptyp, bool* comma)
     htrc("ParseJson: s=%.10s len=%zd\n", s, len);
 
   if (!s || !len) {
-    strcpy(g->Message, "Void JSON object");
+    strlcpy(g->Message, "Void JSON object", sizeof(g->Message));
     return NULL;
   } else if (comma)
     *comma = false;
@@ -246,7 +247,7 @@ PJSON ParseJson(PGLOBAL g, char* s, size_t len, int* ptyp, bool* comma)
       htrc("Exception %d: %s\n", n, g->Message);
     jsp = NULL;
   } catch (const char* msg) {
-    strcpy(g->Message, msg);
+    strlcpy(g->Message, msg, sizeof(g->Message));
     jsp = NULL;
   } // end catch
 
@@ -270,7 +271,7 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char* fn, int pretty) {
     jdp->dfp = GetDefaultPrec();
 
     if (!jsp) {
-      strcpy(g->Message, "Null json tree");
+      strlcpy(g->Message, "Null json tree", sizeof(g->Message));
       throw 1;
     } else if (!fn) {
       // Serialize to a string
@@ -280,7 +281,8 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char* fn, int pretty) {
       if (!(fs = fopen(fn, "wb"))) {
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
           "w", (int)errno, fn);
-        strcat(strcat(g->Message, ": "), strerror(errno));
+        strlcat(g->Message, ": ", sizeof(g->Message));
+        strlcat(g->Message, strerror(errno), sizeof(g->Message));
         throw 2;
       } else if (pretty >= 2) {
         // Serialize to a pretty file
@@ -307,20 +309,26 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char* fn, int pretty) {
       err = jdp->SerializeValue((PJVAL)jsp);
       break;
     default:
-      strcpy(g->Message, "Invalid json tree");
+      strlcpy(g->Message, "Invalid json tree", sizeof(g->Message));
     } // endswitch Type
 
     if (fs) {
       fputs(EL, fs);
       fclose(fs);
-      str = (err) ? NULL : strcpy(g->Message, "Ok");
+      if(err) {
+        str = NULL;
+      }
+      else {
+        strlcpy(g->Message, "Ok", sizeof(g->Message));
+        str = g->Message;
+      }
     } else if (!err) {
       str = ((JOUTSTR*)jp)->Strp;
       jp->WriteChr('\0');
       PlugSubAlloc(g, NULL, ((JOUTSTR*)jp)->N);
     } else {
       if (!g->Message[0])
-        strcpy(g->Message, "Error in Serialize");
+        strlcpy(g->Message, "Error in Serialize", sizeof(g->Message));
 
     } // endif's
 
@@ -329,7 +337,7 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char* fn, int pretty) {
       htrc("Exception %d: %s\n", n, g->Message);
     str = NULL;
   } catch (const char* msg) {
-    strcpy(g->Message, msg);
+    strlcpy(g->Message, msg, sizeof(g->Message));
     str = NULL;
   } // end catch
 
@@ -553,7 +561,7 @@ PJAR JDOC::ParseAsArray(PGLOBAL g, int& i, int pretty, int *ptyp)
 
     return jsp;
   } else
-    strcpy(g->Message, "More than one item in file");
+    strlcpy(g->Message, "More than one item in file", sizeof(g->Message));
 
   return NULL;
 } // end of ParseAsArray
@@ -672,7 +680,7 @@ PJOB JDOC::ParseObject(PGLOBAL g, int& i)
         throw 2;
     }; // endswitch s[i]
 
-  strcpy(g->Message, "Unexpected EOF in Object");
+  strlcpy(g->Message, "Unexpected EOF in Object", sizeof(g->Message));
   throw 2;
 } // end of ParseObject
 
@@ -1037,7 +1045,7 @@ bool JDOC::SerializeValue(PJVAL jvp)
       return js->WriteStr("???");   // TODO
   } // endswitch Type
 
-  strcpy(js->g->Message, "Unrecognized value");
+  strlcpy(js->g->Message, "Unrecognized value", sizeof(js->g->Message));
   return true;
 } // end of SerializeValue
 
@@ -1179,7 +1187,7 @@ PSZ JOBJECT::GetText(PGLOBAL g, PSTRG text)
 bool JOBJECT::Merge(PGLOBAL g, PJSON jsp)
 {
   if (jsp->GetType() != TYPE_JOB) {
-    strcpy(g->Message, "Second argument is not an object");
+    strlcpy(g->Message, "Second argument is not an object", sizeof(g->Message));
     return true;
   } // endif Type
 
@@ -1353,7 +1361,7 @@ PJVAL JARRAY::AddArrayValue(PGLOBAL g, PJVAL jvp, int *x)
 bool JARRAY::Merge(PGLOBAL g, PJSON jsp)
 {
   if (jsp->GetType() != TYPE_JAR) {
-    strcpy(g->Message, "Second argument is not an array");
+    strlcpy(g->Message, "Second argument is not an array", sizeof(g->Message));
     return true;
   } // endif Type
 
