@@ -318,7 +318,18 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
       field_item->field_type() != MYSQL_TYPE_YEAR)
     return 1;
 
-  if ((*item)->can_eval_in_optimize())
+  /*
+    Replace (*item) with its value if the item can be computed.
+
+    Do not replace items that contain aggregate functions:
+    There can be such items that are constants, e.g. COLLATION(AVG(123)),
+    but this function is called at Name Resolution phase.
+    Removing aggregate functions may confuse query plan generation code, e.g.
+    the optimizer might conclude that the query doesn't need to do grouping
+    at all.
+  */
+  if ((*item)->can_eval_in_optimize() &&
+      !(*item)->with_sum_func())
   {
     TABLE *table= field->table;
     MY_BITMAP *old_maps[2] = { NULL, NULL };

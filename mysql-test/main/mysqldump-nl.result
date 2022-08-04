@@ -53,11 +53,10 @@ raboof` int(11) DEFAULT NULL
 
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v1
-1v` (
-  `foobar
-raboof` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v1
+1v` AS SELECT
+ 1 AS `foobar
+raboof` */;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -95,7 +94,7 @@ USE `mysqltest1
 -- 1v`
 --
 
-/*!50001 DROP TABLE IF EXISTS `v1
+/*!50001 DROP VIEW IF EXISTS `v1
 1v`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;

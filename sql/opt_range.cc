@@ -1901,7 +1901,9 @@ inline void SEL_ARG::make_root()
   left=right= &null_element;
   color=BLACK;
   next=prev=0;
-  use_count=0; elements=1;
+  use_count=0;
+  elements=1;
+  weight= 1 + (next_key_part? next_key_part->weight : 0);
 }
 
 SEL_ARG::SEL_ARG(Field *f,const uchar *min_value_arg,
@@ -16162,6 +16164,7 @@ const char *dbug_print_sel_arg(SEL_ARG *sel_arg)
     out.append(STRING_WITH_LEN("+inf"));
   else
   {
+    buf.length(0);
     print_sel_arg_key(sel_arg->field, sel_arg->max_value, &buf);
     out.append(buf);
   }
