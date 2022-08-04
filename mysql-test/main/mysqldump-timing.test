@@ -1,4 +1,4 @@
-
+--source include/not_embedded.inc
 
 --echo #
 --echo # MDEV-18702 mysqldump should use max_statement_time=0 and/or allow setting one
