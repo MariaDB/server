@@ -4748,15 +4748,15 @@ static int init_common_variables()
   /* check log options and issue warnings if needed */
   if (opt_log && opt_logname && *opt_logname &&
       !(log_output_options & (LOG_FILE | LOG_NONE)))
-    sql_print_warning("Although a path was specified for the "
-                      "--log option, log tables are used. "
+    sql_print_warning("Although a general log file was specified, "
+                      "log tables are used. "
                       "To enable logging to files use the --log-output option.");
 
   if (global_system_variables.sql_log_slow && opt_slow_logname &&
       *opt_slow_logname &&
       !(log_output_options & (LOG_FILE | LOG_NONE)))
-    sql_print_warning("Although a path was specified for the "
-                      "--log-slow-queries option, log tables are used. "
+    sql_print_warning("Although a slow query log file was specified, "
+                      "log tables are used. "
                       "To enable logging to files use the --log-output=file option.");
 
   if (!opt_logname || !*opt_logname)
