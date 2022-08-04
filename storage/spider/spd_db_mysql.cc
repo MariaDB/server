@@ -5912,7 +5912,7 @@ int spider_db_mbase_util::open_item_func(
           {
             const char *interval_str;
             uint interval_len;
-            switch (item_func_timestamp_diff->int_type)
+            switch (item_func_timestamp_diff->get_int_type())
             {
               case INTERVAL_YEAR:
                 interval_str = SPIDER_SQL_YEAR_STR;
