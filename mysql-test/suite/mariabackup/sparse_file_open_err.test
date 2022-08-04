@@ -52,7 +52,7 @@ echo "# Import the table ....";
 
 ALTER TABLE t1 IMPORT TABLESPACE;
 echo "# Select all should include only 10";
-SELECT * FROM t1;
+SELECT * FROM t1 ORDER BY a;
 
 echo "# Cleanup ...";
 DROP TABLE t1;

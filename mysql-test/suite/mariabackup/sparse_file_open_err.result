@@ -20,7 +20,7 @@ ALTER TABLE test.t1 DISCARD TABLESPACE;
 "# Import the table ...."
 ALTER TABLE t1 IMPORT TABLESPACE;
 "# Select all should include only 10"
-SELECT * FROM t1;
+SELECT * FROM t1 ORDER BY a;
 a
 10
 "# Cleanup ..."
