@@ -1289,7 +1289,7 @@ public:
 
 #ifndef DBUG_OFF
   void dbug_verify_sj_inner_tables(uint n_positions) const;
-  uint dbug_join_tab_array_size;
+  int dbug_join_tab_array_size;
 #endif
 
   /* We also maintain a stack of join optimization states in * join->positions[] */
