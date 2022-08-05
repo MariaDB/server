@@ -941,7 +941,8 @@ try_again:
 		table_id, false, DICT_TABLE_OP_NORMAL, node->purge_thd,
 		&node->mdl_ticket);
 
-	if (!node->table && purge_sys.must_wait_FTS()) {
+	if (node->table == reinterpret_cast<dict_table_t*>(-1)) {
+		/* purge stop signal */
 		goto try_again;
 	}
 
