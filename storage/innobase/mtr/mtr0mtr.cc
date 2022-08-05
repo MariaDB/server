@@ -1282,18 +1282,14 @@ void mtr_t::defer_drop_ahi(buf_block_t *block, mtr_memo_type_t fix_type)
     /* Temporarily release our S-latch. */
     block->page.lock.s_unlock();
     block->page.lock.x_lock();
-    if (dict_index_t *index= block->index)
-      if (index->freed())
-        btr_search_drop_page_hash_index(block);
+    btr_search_drop_page_hash_index(block, true);
     block->page.lock.x_unlock();
     block->page.lock.s_lock();
     ut_ad(!block->page.is_read_fixed());
     break;
   case MTR_MEMO_PAGE_SX_FIX:
     block->page.lock.u_x_upgrade();
-    if (dict_index_t *index= block->index)
-      if (index->freed())
-        btr_search_drop_page_hash_index(block);
+    btr_search_drop_page_hash_index(block, true);
     block->page.lock.x_u_downgrade();
     break;
   case MTR_MEMO_PAGE_X_FIX:
@@ -1383,9 +1379,8 @@ void mtr_t::page_lock(buf_block_t *block, ulint rw_latch)
   }
 
 #ifdef BTR_CUR_HASH_ADAPT
-  if (dict_index_t *index= block->index)
-    if (index->freed())
-      defer_drop_ahi(block, fix_type);
+  if (block->index)
+    defer_drop_ahi(block, fix_type);
 #endif /* BTR_CUR_HASH_ADAPT */
 
 done:
