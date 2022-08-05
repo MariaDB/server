@@ -41,6 +41,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "os0file.h"
 #include "srv0start.h"
 #include "srv0srv.h"
+#include "log.h"
 
 /** If there are buf_pool.curr_size per the number below pending reads, then
 read-ahead is not done: this is to prevent flooding the buffer pool with
@@ -712,11 +713,12 @@ void buf_read_recv_pages(ulint space_id, const uint32_t* page_nos, ulint n)
 				  true);
 
 		if (err != DB_SUCCESS) {
-			ib::error() << "Recovery failed to read "
-				<< cur_page_id;
+			sql_print_error("InnoDB: Recovery failed to read page "
+					UINT32PF " from %s",
+					cur_page_id.page_no(),
+					space->chain.start->name);
 		}
 	}
-
 
         DBUG_PRINT("ib_buf", ("recovery read (%u pages) for %s", n,
 			      space->chain.start->name));
