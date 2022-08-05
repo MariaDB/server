@@ -3165,4 +3165,47 @@ SELECT * FROM cte;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-12325 Unexpected data type and truncation when using CTE
+--echo #
+
+CREATE TABLE t1
+(
+  id INT, mid INT, name TEXT
+);
+INSERT INTO t1 VALUES (0,NULL,'Name'),(1,0,'Name1'),(2,0,'Name2'),(11,1,'Name11'),(12,1,'Name12');
+
+let $query=
+WITH RECURSIVE
+cteReports (level, id, mid, name) AS
+(
+  SELECT 1, id, mid, name FROM t1 WHERE mid IS NULL
+  UNION ALL
+  SELECT r.level + 1, e.id, e.mid + 1000000000000, e.name FROM t1 e
+  INNER JOIN cteReports r ON e.mid = r.id
+)
+SELECT
+  level, id, mid, name,
+  (SELECT name FROM t1 WHERE id= cteReports.mid) AS mname
+FROM cteReports ORDER BY level, mid;
+
+--error ER_WARN_DATA_OUT_OF_RANGE
+--eval $query
+--error ER_WARN_DATA_OUT_OF_RANGE
+--eval create table t2 as $query;
+--eval create table t2 ignore as $query;
+show create table t2;
+--error ER_WARN_DATA_OUT_OF_RANGE
+--eval insert into t2 $query;
+--eval insert ignore into t2 $query;
+drop table t2;
+set @@sql_mode="";
+--eval $query
+--eval create table t2 as $query;
+show create table t2;
+set @@sql_mode=default;
+drop table t1,t2;
+
+--echo #
 --echo # End of 10.3 tests
+--echo #

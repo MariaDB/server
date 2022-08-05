@@ -4873,4 +4873,149 @@ a
 0
 NULL
 DROP TABLE t1;
+#
+# MDEV-12325 Unexpected data type and truncation when using CTE
+#
+CREATE TABLE t1
+(
+id INT, mid INT, name TEXT
+);
+INSERT INTO t1 VALUES (0,NULL,'Name'),(1,0,'Name1'),(2,0,'Name2'),(11,1,'Name11'),(12,1,'Name12');
+WITH RECURSIVE
+cteReports (level, id, mid, name) AS
+(
+SELECT 1, id, mid, name FROM t1 WHERE mid IS NULL
+UNION ALL
+SELECT r.level + 1, e.id, e.mid + 1000000000000, e.name FROM t1 e
+INNER JOIN cteReports r ON e.mid = r.id
+)
+SELECT
+level, id, mid, name,
+(SELECT name FROM t1 WHERE id= cteReports.mid) AS mname
+FROM cteReports ORDER BY level, mid;
+ERROR 22003: Out of range value for column 'mid' at row 2
+create table t2 as WITH RECURSIVE
+cteReports (level, id, mid, name) AS
+(
+SELECT 1, id, mid, name FROM t1 WHERE mid IS NULL
+UNION ALL
+SELECT r.level + 1, e.id, e.mid + 1000000000000, e.name FROM t1 e
+INNER JOIN cteReports r ON e.mid = r.id
+)
+SELECT
+level, id, mid, name,
+(SELECT name FROM t1 WHERE id= cteReports.mid) AS mname
+FROM cteReports ORDER BY level, mid;;
+ERROR 22003: Out of range value for column 'mid' at row 2
+create table t2 ignore as WITH RECURSIVE
+cteReports (level, id, mid, name) AS
+(
+SELECT 1, id, mid, name FROM t1 WHERE mid IS NULL
+UNION ALL
+SELECT r.level + 1, e.id, e.mid + 1000000000000, e.name FROM t1 e
+INNER JOIN cteReports r ON e.mid = r.id
+)
+SELECT
+level, id, mid, name,
+(SELECT name FROM t1 WHERE id= cteReports.mid) AS mname
+FROM cteReports ORDER BY level, mid;;
+Warnings:
+Warning	1264	Out of range value for column 'mid' at row 2
+Warning	1264	Out of range value for column 'mid' at row 3
+Warning	1264	Out of range value for column 'mid' at row 4
+Warning	1264	Out of range value for column 'mid' at row 5
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `level` int(1) DEFAULT NULL,
+  `id` int(11) DEFAULT NULL,
+  `mid` int(11) DEFAULT NULL,
+  `name` text DEFAULT NULL,
+  `mname` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t2 WITH RECURSIVE
+cteReports (level, id, mid, name) AS
+(
+SELECT 1, id, mid, name FROM t1 WHERE mid IS NULL
+UNION ALL
+SELECT r.level + 1, e.id, e.mid + 1000000000000, e.name FROM t1 e
+INNER JOIN cteReports r ON e.mid = r.id
+)
+SELECT
+level, id, mid, name,
+(SELECT name FROM t1 WHERE id= cteReports.mid) AS mname
+FROM cteReports ORDER BY level, mid;;
+ERROR 22003: Out of range value for column 'mid' at row 2
+insert ignore into t2 WITH RECURSIVE
+cteReports (level, id, mid, name) AS
+(
+SELECT 1, id, mid, name FROM t1 WHERE mid IS NULL
+UNION ALL
+SELECT r.level + 1, e.id, e.mid + 1000000000000, e.name FROM t1 e
+INNER JOIN cteReports r ON e.mid = r.id
+)
+SELECT
+level, id, mid, name,
+(SELECT name FROM t1 WHERE id= cteReports.mid) AS mname
+FROM cteReports ORDER BY level, mid;;
+Warnings:
+Warning	1264	Out of range value for column 'mid' at row 2
+Warning	1264	Out of range value for column 'mid' at row 3
+Warning	1264	Out of range value for column 'mid' at row 4
+Warning	1264	Out of range value for column 'mid' at row 5
+drop table t2;
+set @@sql_mode="";
+WITH RECURSIVE
+cteReports (level, id, mid, name) AS
+(
+SELECT 1, id, mid, name FROM t1 WHERE mid IS NULL
+UNION ALL
+SELECT r.level + 1, e.id, e.mid + 1000000000000, e.name FROM t1 e
+INNER JOIN cteReports r ON e.mid = r.id
+)
+SELECT
+level, id, mid, name,
+(SELECT name FROM t1 WHERE id= cteReports.mid) AS mname
+FROM cteReports ORDER BY level, mid;
+level	id	mid	name	mname
+1	0	NULL	Name	NULL
+2	1	2147483647	Name1	NULL
+2	2	2147483647	Name2	NULL
+3	11	2147483647	Name11	NULL
+3	12	2147483647	Name12	NULL
+Warnings:
+Warning	1264	Out of range value for column 'mid' at row 2
+Warning	1264	Out of range value for column 'mid' at row 3
+Warning	1264	Out of range value for column 'mid' at row 4
+Warning	1264	Out of range value for column 'mid' at row 5
+create table t2 as WITH RECURSIVE
+cteReports (level, id, mid, name) AS
+(
+SELECT 1, id, mid, name FROM t1 WHERE mid IS NULL
+UNION ALL
+SELECT r.level + 1, e.id, e.mid + 1000000000000, e.name FROM t1 e
+INNER JOIN cteReports r ON e.mid = r.id
+)
+SELECT
+level, id, mid, name,
+(SELECT name FROM t1 WHERE id= cteReports.mid) AS mname
+FROM cteReports ORDER BY level, mid;;
+Warnings:
+Warning	1264	Out of range value for column 'mid' at row 2
+Warning	1264	Out of range value for column 'mid' at row 3
+Warning	1264	Out of range value for column 'mid' at row 4
+Warning	1264	Out of range value for column 'mid' at row 5
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `level` int(1) DEFAULT NULL,
+  `id` int(11) DEFAULT NULL,
+  `mid` int(11) DEFAULT NULL,
+  `name` text DEFAULT NULL,
+  `mname` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set @@sql_mode=default;
+drop table t1,t2;
+#
 # End of 10.3 tests
+#
