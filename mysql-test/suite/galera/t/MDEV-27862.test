@@ -1,0 +1,67 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+# Report WARNING when SEQUENCE is created without `NOCACHE`
+
+CREATE SEQUENCE seq_nocache ENGINE=InnoDB;
+DROP SEQUENCE seq_nocache;
+
+CALL mtr.add_suppression("SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
+
+--connection node_2
+
+CALL mtr.add_suppression("SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
+
+# NEXTVAL
+
+--connection node_1
+
+CREATE SEQUENCE seq NOCACHE ENGINE=InnoDB;
+
+SELECT NEXTVAL(seq) = 1;
+
+--connection node_2
+
+SELECT NEXTVAL(seq) = 2;
+
+--connection node_1
+
+SELECT NEXTVAL(seq) = 3;
+
+
+# SETVAL
+
+SELECT SETVAL(seq, 100);
+
+--connection node_2
+
+SELECT NEXTVAL(seq) = 101;
+
+--connection node_1
+
+SELECT NEXTVAL(seq) = 102;
+
+DROP SEQUENCE seq;
+
+# TRANSACTIONS
+
+CREATE TABLE t1(f1 INT);
+CREATE SEQUENCE seq_transaction NOCACHE ENGINE=InnoDB;
+
+START TRANSACTION;
+INSERT INTO t1 VALUES (0);
+SELECT NEXTVAL(seq_transaction);
+INSERT INTO t1 VALUES (NEXTVAL(seq_transaction));
+COMMIT;
+
+--connection node_2
+
+SELECT COUNT(*) = 2 FROM t1;
+SELECT NEXTVAL(seq_transaction) = 3;
+
+--connection node_1
+SELECT NEXTVAL(seq_transaction) = 4;
+
+DROP SEQUENCE seq_transaction;
+DROP TABLE t1;
+

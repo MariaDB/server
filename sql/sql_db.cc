@@ -943,6 +943,7 @@ exit:
 int mysql_create_db(THD *thd, const LEX_CSTRING *db, DDL_options_st options,
                     const Schema_specification_st *create_info)
 {
+  DBUG_ASSERT(create_info->default_table_charset);
   /*
     As mysql_create_db_internal() may modify Db_create_info structure passed
     to it, we need to use a copy to make execution prepared statement- safe.
@@ -958,6 +959,7 @@ int mysql_create_db(THD *thd, const LEX_CSTRING *db, DDL_options_st options,
 bool mysql_alter_db(THD *thd, const LEX_CSTRING *db,
                     const Schema_specification_st *create_info)
 {
+  DBUG_ASSERT(create_info->default_table_charset);
   /*
     As mysql_alter_db_internal() may modify Db_create_info structure passed
     to it, we need to use a copy to make execution prepared statement- safe.

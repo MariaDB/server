@@ -460,3 +460,19 @@ from mysql.column_stats where table_name='t1' and db_name=database();
 
 drop table t1;
 
+--echo #
+--echo # MDEV-28882: Assertion `tmp >= 0' failed in best_access_path
+--echo #
+
+CREATE TABLE t1 (a varchar(1));
+
+INSERT INTO t1 VALUES ('o'),('s'),('j'),('s'),('y'),('s'),('l'),
+  ('q'),('x'),('m'),('t'),('d'),('v'),('j'),('p'),('t'),('b'),('q');
+
+set histogram_type=json_hb;
+analyze table t1 persistent for all;
+--echo # filtered must not be negative:
+explain format=json select * from t1 where a > 'y';
+
+drop table t1;
+

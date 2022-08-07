@@ -1609,14 +1609,14 @@ def					ifnull___a_a	253	10	1	Y	0	39	8
 def					least____a_a	253	10	1	Y	0	39	8
 def					greatest_a_a	253	10	1	Y	0	39	8
 def	test	t1	t1	b	___________b	254	1	1	Y	256	0	8
-def					case_______b	254	1	1	Y	0	39	8
-def					case_____b_b	254	1	1	Y	0	39	8
-def					coalesce___b	254	1	1	Y	0	39	8
-def					coalesce_b_b	254	1	1	Y	0	39	8
-def					if_______b_b	254	1	1	Y	0	39	8
-def					ifnull___b_b	254	1	1	Y	0	39	8
-def					least____b_b	254	1	1	Y	0	39	8
-def					greatest_b_b	254	1	1	Y	0	39	8
+def					case_______b	253	1	1	Y	0	39	8
+def					case_____b_b	253	1	1	Y	0	39	8
+def					coalesce___b	253	1	1	Y	0	39	8
+def					coalesce_b_b	253	1	1	Y	0	39	8
+def					if_______b_b	253	1	1	Y	0	39	8
+def					ifnull___b_b	253	1	1	Y	0	39	8
+def					least____b_b	253	1	1	Y	0	39	8
+def					greatest_b_b	253	1	1	Y	0	39	8
 ___________a	a
 case_______a	a
 case_____a_a	a

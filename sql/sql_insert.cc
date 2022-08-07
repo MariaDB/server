@@ -829,6 +829,19 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   context->resolve_in_table_list_only(table_list);
   switch_to_nullable_trigger_fields(*values, table);
 
+  /*
+    Check assignability for the leftmost () in VALUES:
+      INSERT INTO t1 (a,b) VALUES (1,2), (3,4);
+    This checks if the values (1,2) can be assigned to fields (a,b).
+    The further values, e.g. (3,4) are not checked - they will be
+    checked during the execution time (when processing actual rows).
+    This is to preserve the "insert until the very first error"-style
+    behaviour for non-transactional tables.
+  */
+  if (values->elements &&
+      table_list->table->check_assignability_opt_fields(fields, *values))
+    goto abort;
+
   while ((values= its++))
   {
     thd->get_stmt_da()->inc_current_row_for_warning();
@@ -1355,8 +1368,12 @@ values_loop_end:
     thd->lex->current_select->save_leaf_tables(thd);
     thd->lex->current_select->first_cond_optimization= 0;
   }
-  if (readbuff)
-    my_free(readbuff);
+
+  my_free(readbuff);
+#ifndef EMBEDDED_LIBRARY
+  if (lock_type == TL_WRITE_DELAYED && table->expr_arena)
+    table->expr_arena->free_items();
+#endif
   DBUG_RETURN(FALSE);
 
 abort:
@@ -1373,6 +1390,8 @@ abort:
     */
     for (Field **ptr= table_list->table->field ; *ptr ; ptr++)
       (*ptr)->free();
+    if (table_list->table->expr_arena)
+      table_list->table->expr_arena->free_items();
   }
 #endif
   if (table != NULL)
@@ -1551,8 +1570,7 @@ static bool mysql_prepare_insert_check_table(THD *thd, TABLE_LIST *table_list,
   if (insert_into_view && !fields.elements)
   {
     thd->lex->empty_field_list_on_rset= 1;
-    if (!thd->lex->first_select_lex()->leaf_tables.head()->table ||
-        table_list->is_multitable())
+    if (!table_list->table || table_list->is_multitable())
     {
       my_error(ER_VIEW_NO_INSERT_FIELD_LIST, MYF(0),
                table_list->view_db.str, table_list->view_name.str);
@@ -1689,7 +1707,15 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     {
       select_lex->no_wrap_view_item= TRUE;
       res= check_update_fields(thd, context->table_list, update_fields,
-                               update_values, false, &map);
+                               update_values, false, &map) ||
+           /*
+             Check that all col=expr pairs are compatible for assignment in
+             INSERT INTO t1 VALUES (...)
+               ON DUPLICATE KEY UPDATE col=expr [, col=expr];
+           */
+           TABLE::check_assignability_explicit_fields(update_fields,
+                                                      update_values);
+
       select_lex->no_wrap_view_item= FALSE;
     }
 
@@ -3800,7 +3826,6 @@ int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
   if (sel_res)
     sel_res->prepare(lex->returning()->item_list, NULL);
 
-  DBUG_ASSERT(select_lex->leaf_tables.elements != 0);
   List_iterator<TABLE_LIST> ti(select_lex->leaf_tables);
   TABLE_LIST *table;
   uint insert_tables;
@@ -3884,6 +3909,16 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
         check_insert_fields(thd, table_list, *fields, values,
                             !insert_into_view, 1, &map));
 
+  if (!res)
+  {
+     /*
+        Check that all colN=exprN pairs are compatible for assignment, e.g.:
+          INSERT INTO t1 (col1, col2) VALUES (expr1, expr2);
+          INSERT INTO t1 SET col1=expr1, col2=expr2;
+     */
+     res= table_list->table->check_assignability_opt_fields(*fields, values);
+  }
+
   if (!res && fields->elements)
   {
     Abort_on_warning_instant_set aws(thd,
@@ -3937,7 +3972,14 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     }
 
     res= res || setup_fields(thd, Ref_ptr_array(), *info.update_values,
-                             MARK_COLUMNS_READ, 0, NULL, 0);
+                             MARK_COLUMNS_READ, 0, NULL, 0) ||
+                /*
+                  Check that all col=expr pairs are compatible for assignment in
+                    INSERT INTO t1 SELECT ... FROM t2
+                      ON DUPLICATE KEY UPDATE col=expr [, col=expr]
+                */
+                TABLE::check_assignability_explicit_fields(*info.update_fields,
+                                                           *info.update_values);
     if (!res)
     {
       /*

@@ -401,16 +401,15 @@ static void my_win_init(void)
 
   _tzset();
 
-  /*
-   We do not want text translation (LF->CRLF)
-   when stdout is console/terminal, it is buggy
-  */
-  if (fileno(stdout) >= 0 && isatty(fileno(stdout)))
-    (void)setmode(fileno(stdout), O_BINARY);
-
-  if (fileno(stderr) >= 0 && isatty(fileno(stderr)))
-    (void) setmode(fileno(stderr), O_BINARY);
-
+  /* Disable automatic LF->CRLF translation. */
+  FILE* stdf[]= {stdin, stdout, stderr};
+  for (int i= 0; i < array_elements(stdf); i++)
+  {
+    int fd= fileno(stdf[i]);
+    if (fd >= 0)
+      (void) _setmode(fd, O_BINARY);
+  }
+  _set_fmode(O_BINARY);
   setup_codepages();
   DBUG_VOID_RETURN;
 }

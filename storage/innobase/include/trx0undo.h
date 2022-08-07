@@ -96,22 +96,6 @@ inline roll_ptr_t trx_read_roll_ptr(const byte* ptr)
 	return mach_read_from_7(ptr);
 }
 
-/** Gets an undo log page and x-latches it.
-@param[in]	page_id		page id
-@param[in,out]	mtr		mini-transaction
-@return pointer to page x-latched */
-UNIV_INLINE
-buf_block_t*
-trx_undo_page_get(const page_id_t page_id, mtr_t* mtr);
-
-/** Gets an undo log page and s-latches it.
-@param[in]	page_id		page id
-@param[in,out]	mtr		mini-transaction
-@return pointer to page s-latched */
-UNIV_INLINE
-buf_block_t*
-trx_undo_page_get_s_latched(const page_id_t page_id, mtr_t* mtr);
-
 /** Get the next record in an undo log.
 @param[in]      undo_page       undo log page
 @param[in]      rec             undo record offset in the page
@@ -140,8 +124,8 @@ trx_undo_get_prev_rec(buf_block_t *&block, uint16_t rec, uint32_t page_no,
 @param[in,out]  mtr     mini-transaction
 @return undo log record, the page latched, NULL if none */
 trx_undo_rec_t*
-trx_undo_get_next_rec(buf_block_t *&block, uint16_t rec, uint32_t page_no,
-                      uint16_t offset, mtr_t *mtr);
+trx_undo_get_next_rec(const buf_block_t *&block, uint16_t rec,
+                      uint32_t page_no, uint16_t offset, mtr_t *mtr);
 
 /** Get the first record in an undo log.
 @param[in]      space   undo log header space
@@ -150,11 +134,13 @@ trx_undo_get_next_rec(buf_block_t *&block, uint16_t rec, uint32_t page_no,
 @param[in]      mode    latching mode: RW_S_LATCH or RW_X_LATCH
 @param[out]     block   undo log page
 @param[in,out]  mtr     mini-transaction
-@return undo log record, the page latched, NULL if none */
+@param[out]     err     error code
+@return undo log record, the page latched
+@retval nullptr if none */
 trx_undo_rec_t*
 trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
-                       uint16_t offset, ulint mode, buf_block_t*& block,
-                       mtr_t *mtr);
+                       uint16_t offset, ulint mode, const buf_block_t*& block,
+                       mtr_t *mtr, dberr_t *err);
 
 /** Initialize an undo log page.
 NOTE: This corresponds to a redo log record and must not be changed!
@@ -165,24 +151,24 @@ void trx_undo_page_init(const buf_block_t &block);
 /** Allocate an undo log page.
 @param[in,out]	undo	undo log
 @param[in,out]	mtr	mini-transaction that does not hold any page latch
+@param[out]	err	error code
 @return	X-latched block if success
-@retval	NULL	on failure */
-buf_block_t* trx_undo_add_page(trx_undo_t* undo, mtr_t* mtr)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+@retval	nullptr	on failure */
+buf_block_t *trx_undo_add_page(trx_undo_t *undo, mtr_t *mtr, dberr_t *err)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Free the last undo log page. The caller must hold the rseg mutex.
 @param[in,out]	undo	undo log
 @param[in,out]	mtr	mini-transaction that does not hold any undo log page
-			or that has allocated the undo log page */
-void
-trx_undo_free_last_page(trx_undo_t* undo, mtr_t* mtr)
-	MY_ATTRIBUTE((nonnull));
+			or that has allocated the undo log page
+@return error code */
+dberr_t trx_undo_free_last_page(trx_undo_t *undo, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/** Truncate the tail of an undo log during rollback.
-@param[in,out]	undo	undo log
-@param[in]	limit	all undo logs after this limit will be discarded
-@param[in]	is_temp	whether this is temporary undo log */
-void trx_undo_truncate_end(trx_undo_t& undo, undo_no_t limit, bool is_temp);
+/** Try to truncate the undo logs.
+@param trx transaction
+@return error code */
+dberr_t trx_undo_try_truncate(const trx_t &trx);
 
 /** Truncate the head of an undo log.
 NOTE that only whole pages are freed; the header page is not
@@ -191,13 +177,15 @@ freed, but emptied, if all the records there are below the limit.
 @param[in]	hdr_page_no	header page number
 @param[in]	hdr_offset	header offset on the page
 @param[in]	limit		first undo number to preserve
-(everything below the limit will be truncated) */
-void
+(everything below the limit will be truncated)
+@return error code */
+dberr_t
 trx_undo_truncate_start(
 	trx_rseg_t*	rseg,
 	uint32_t	hdr_page_no,
 	uint16_t	hdr_offset,
-	undo_no_t	limit);
+	undo_no_t	limit)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Mark that an undo log header belongs to a data dictionary transaction.
 @param[in]	trx	dictionary transaction
 @param[in,out]	undo	undo log
@@ -335,7 +323,7 @@ class UndorecApplier
   /** Undo log block page id */
   page_id_t page_id;
   /** Undo log record pointer */
-  trx_undo_rec_t *undo_rec;
+  const trx_undo_rec_t *undo_rec;
   /** Offset of the undo log record within the block */
   uint16_t offset;
   /** Transaction id of the undo log */
@@ -372,7 +360,7 @@ public:
   page_id_t get_page_id() const { return page_id; }
 
   /** Handle the DML undo log and apply it on online indexes */
-  void apply_undo_rec();
+  inline void apply_undo_rec();
 
   ~UndorecApplier()
   {

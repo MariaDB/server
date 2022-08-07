@@ -17,7 +17,13 @@ SET DEBUG_SYNC='now WAIT_FOR c';
 --source include/restart_mysqld.inc
 disconnect wait;
 
+SET @save_frequency=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+--source include/wait_all_purged.inc
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;
+
 --replace_result 2 0
 SELECT COUNT(*) FROM t1;
 TRUNCATE TABLE t1;
 DROP TABLE t1;
+

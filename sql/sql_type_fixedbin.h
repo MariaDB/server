@@ -1190,7 +1190,6 @@ public:
     bool val_native(Native *to) override
     {
       DBUG_ASSERT(marked_for_read());
-      DBUG_ASSERT(!is_null());
       if (to->alloc(FbtImpl::binary_length()))
         return true;
       to->length(FbtImpl::binary_length());
@@ -1201,7 +1200,6 @@ public:
     Fbt to_fbt() const
     {
       DBUG_ASSERT(marked_for_read());
-      DBUG_ASSERT(!is_null());
       return Fbt::record_to_memory((const char*) ptr);
     }
 
@@ -1589,8 +1587,9 @@ public:
       if (!example)
         return false;
       value_cached= true;
-      null_value= example->val_native_with_conversion_result(current_thd,
-                                                 &m_value, type_handler());
+      null_value_inside= null_value=
+        example->val_native_with_conversion_result(current_thd,
+                                                   &m_value, type_handler());
       return true;
     }
     String* val_str(String *to)

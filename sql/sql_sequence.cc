@@ -309,6 +309,11 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
       DBUG_RETURN(TRUE);
   }
 
+#ifdef WITH_WSREP
+  if (WSREP_ON && seq->cache != 0)
+    WSREP_WARN("CREATE SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
+#endif
+
   /* If not temporary table */
   if (!temporary_table)
   {
@@ -701,7 +706,9 @@ longlong SEQUENCE::next_value(TABLE *table, bool second_round, int *error)
 {
   longlong res_value, org_reserved_until, add_to;
   bool out_of_values;
+  THD *thd= table->in_use;
   DBUG_ENTER("SEQUENCE::next_value");
+  DBUG_ASSERT(thd);
 
   *error= 0;
   if (!second_round)
@@ -766,7 +773,8 @@ longlong SEQUENCE::next_value(TABLE *table, bool second_round, int *error)
     DBUG_RETURN(next_value(table, 1, error));
   }
 
-  if (unlikely((*error= write(table, 0))))
+  if (unlikely((*error= write(table, thd->variables.binlog_row_image !=
+                                         BINLOG_ROW_IMAGE_MINIMAL))))
   {
     reserved_until= org_reserved_until;
     next_free_value= res_value;
@@ -833,7 +841,9 @@ int SEQUENCE::set_value(TABLE *table, longlong next_val, ulonglong next_round,
   longlong org_reserved_until=  reserved_until;
   longlong org_next_free_value= next_free_value;
   ulonglong org_round= round;
+  THD *thd= table->in_use;
   DBUG_ENTER("SEQUENCE::set_value");
+  DBUG_ASSERT(thd);
 
   write_lock(table);
   if (is_used)
@@ -872,7 +882,8 @@ int SEQUENCE::set_value(TABLE *table, longlong next_val, ulonglong next_round,
       needs_to_be_stored)
   {
     reserved_until= next_free_value;
-    if (write(table, 0))
+    if (write(table,
+              thd->variables.binlog_row_image != BINLOG_ROW_IMAGE_MINIMAL))
     {
       reserved_until=  org_reserved_until;
       next_free_value= org_next_free_value;
@@ -901,11 +912,17 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   No_such_table_error_handler no_such_table_handler;
   DBUG_ENTER("Sql_cmd_alter_sequence::execute");
 
+
   if (check_access(thd, ALTER_ACL, first_table->db.str,
                    &first_table->grant.privilege,
                    &first_table->grant.m_internal,
                    0, 0))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
+
+#ifdef WITH_WSREP
+  if (WSREP_ON && new_seq->cache != 0)
+    WSREP_WARN("ALTER SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
+#endif
 
   if (check_grant(thd, ALTER_ACL, first_table, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */

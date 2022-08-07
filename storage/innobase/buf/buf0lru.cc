@@ -1202,8 +1202,10 @@ evict_zip:
 }
 
 /** Release and evict a corrupted page.
-@param bpage    page that was being read */
-ATTRIBUTE_COLD void buf_pool_t::corrupted_evict(buf_page_t *bpage)
+@param bpage    x-latched page that was found corrupted
+@param state    expected current state of the page */
+ATTRIBUTE_COLD
+void buf_pool_t::corrupted_evict(buf_page_t *bpage, uint32_t state)
 {
   const page_id_t id{bpage->id()};
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(id.fold());
@@ -1214,14 +1216,14 @@ ATTRIBUTE_COLD void buf_pool_t::corrupted_evict(buf_page_t *bpage)
 
   ut_ad(!bpage->oldest_modification());
   bpage->set_corrupt_id();
-  constexpr auto read_unfix= buf_page_t::READ_FIX - buf_page_t::UNFIXED;
-  auto s= bpage->zip.fix.fetch_sub(read_unfix) - read_unfix;
+  auto unfix= state - buf_page_t::FREED;
+  auto s= bpage->zip.fix.fetch_sub(unfix) - unfix;
   bpage->lock.x_unlock(true);
 
-  while (s != buf_page_t::UNFIXED)
+  while (s != buf_page_t::FREED || bpage->lock.is_locked_or_waiting())
   {
-    ut_ad(s > buf_page_t::UNFIXED);
-    ut_ad(s < buf_page_t::READ_FIX);
+    ut_ad(s >= buf_page_t::FREED);
+    ut_ad(s < buf_page_t::UNFIXED);
     /* Wait for other threads to release the fix count
     before releasing the bpage from LRU list. */
     (void) LF_BACKOFF();
@@ -1234,8 +1236,7 @@ ATTRIBUTE_COLD void buf_pool_t::corrupted_evict(buf_page_t *bpage)
 
   mysql_mutex_unlock(&mutex);
 
-  ut_d(auto n=) n_pend_reads--;
-  ut_ad(n > 0);
+  recv_sys.free_corrupted_page(id);
 }
 
 /** Update buf_pool.LRU_old_ratio.

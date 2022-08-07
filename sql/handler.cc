@@ -7921,24 +7921,6 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
 #endif /* WITH_WSREP */
 
 
-bool HA_CREATE_INFO::check_conflicting_charset_declarations(CHARSET_INFO *cs)
-{
-  if ((used_fields & HA_CREATE_USED_DEFAULT_CHARSET) &&
-      /* DEFAULT vs explicit, or explicit vs DEFAULT */
-      (((default_table_charset == NULL) != (cs == NULL)) ||
-      /* Two different explicit character sets */
-       (default_table_charset && cs &&
-        !my_charset_same(default_table_charset, cs))))
-  {
-    my_error(ER_CONFLICTING_DECLARATIONS, MYF(0),
-             "CHARACTER SET ", default_table_charset ?
-                               default_table_charset->cs_name.str : "DEFAULT",
-             "CHARACTER SET ", cs ? cs->cs_name.str : "DEFAULT");
-    return true;
-  }
-  return false;
-}
-
 /* Remove all indexes for a given table from global index statistics */
 
 static

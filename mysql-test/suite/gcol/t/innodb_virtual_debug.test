@@ -312,4 +312,30 @@ SELECT * FROM t1;
 CHECK TABLE t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-28806 Assertion `flag == 1' failure in
+--echo # row_build_index_entry_low upon concurrent ALTER and UPDATE
+--echo #
+
+CREATE TABLE t1(a CHAR(8), b INT, c INT AS (b), KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1(b) VALUES (1),(2);
+
+--connect (con1,localhost,root,,test)
+SET DEBUG_SYNC="alter_table_inplace_before_lock_upgrade SIGNAL dml_start WAIT_FOR dml_commit";
+send ALTER TABLE t1 ADD KEY ind (c);
+
+--connection default
+SET DEBUG_SYNC="now WAIT_FOR dml_start";
+UPDATE t1 SET a ='foo';
+SET DEBUG_SYNC="now SIGNAL dml_commit";
+
+# Cleanup
+--connection con1
+--reap
+CHECK TABLE t1;
+DROP TABLE t1;
+--disconnect con1
+connection default;
+SET DEBUG_SYNC=RESET;
+
 --source include/wait_until_count_sessions.inc

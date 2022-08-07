@@ -920,7 +920,7 @@ public:
   bool lookup_domain_in_binlog_state(uint32 domain_id, rpl_gtid *out_gtid);
   int bump_seq_no_counter_if_needed(uint32 domain_id, uint64 seq_no);
   bool check_strict_gtid_sequence(uint32 domain_id, uint32 server_id,
-                                  uint64 seq_no);
+                                  uint64 seq_no, bool no_error= false);
 
   /**
    * used when opening new file, and binlog_end_pos moves backwards
@@ -1253,7 +1253,7 @@ static inline TC_LOG *get_tc_log_implementation()
 }
 
 #ifdef WITH_WSREP
-IO_CACHE* wsrep_get_trans_cache(THD *);
+IO_CACHE* wsrep_get_cache(THD *, bool);
 void wsrep_thd_binlog_trx_reset(THD * thd);
 void wsrep_thd_binlog_stmt_rollback(THD * thd);
 #endif /* WITH_WSREP */

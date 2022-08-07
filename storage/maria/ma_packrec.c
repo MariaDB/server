@@ -194,7 +194,7 @@ static my_bool _ma_read_pack_info(MARIA_SHARE *share, File file,
   /* Only the first three bytes of magic number are independent of version. */
   if (memcmp(header, maria_pack_file_magic, 3))
   {
-    _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+    _ma_set_fatal_error_with_share(share, HA_ERR_WRONG_IN_RECORD);
     goto err0;
   }
   share->pack.version= header[3]; /* fourth uchar of magic number */
@@ -331,7 +331,7 @@ static my_bool _ma_read_pack_info(MARIA_SHARE *share, File file,
   DBUG_RETURN(0);
 
 err3:
-  _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+  _ma_set_fatal_error_with_share(share, HA_ERR_WRONG_IN_RECORD);
 err2:
   my_free(share->decode_tables);
 err1:
@@ -762,7 +762,7 @@ int _ma_read_pack_record(MARIA_HA *info, uchar *buf, MARIA_RECORD_POS filepos)
   DBUG_RETURN(_ma_pack_rec_unpack(info,&info->bit_buff, buf,
                                   info->rec_buff, block_info.rec_len));
 panic:
-  _ma_set_fatal_error(info->s, HA_ERR_WRONG_IN_RECORD);
+  _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
 err:
   DBUG_RETURN(my_errno);
 }
@@ -797,7 +797,7 @@ int _ma_pack_rec_unpack(register MARIA_HA *info, MARIA_BIT_BUFF *bit_buff,
       bit_buff->pos - bit_buff->bits / 8 == bit_buff->end)
     DBUG_RETURN(0);
   info->update&= ~HA_STATE_AKTIV;
-  _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+  _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
   DBUG_RETURN(HA_ERR_WRONG_IN_RECORD);
 } /* _ma_pack_rec_unpack */
 
@@ -1375,7 +1375,7 @@ int _ma_read_rnd_pack_record(MARIA_HA *info,
 #ifndef DBUG_OFF
   if (block_info.rec_len > share->max_pack_length)
   {
-    _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+    _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
     goto err;
   }
 #endif
@@ -1655,7 +1655,7 @@ static int _ma_read_rnd_mempack_record(MARIA_HA *info,
 #ifndef DBUG_OFF
   if (block_info.rec_len > info->s->max_pack_length)
   {
-    _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+    _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
     goto err;
   }
 #endif

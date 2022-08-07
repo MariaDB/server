@@ -195,9 +195,9 @@ CREATE TABLE t1 (a UUID);
 INSERT INTO t1 VALUES ('x');
 ERROR 22007: Incorrect uuid value: 'x' for column `test`.`t1`.`a` at row 1
 INSERT INTO t1 VALUES (1);
-ERROR 22007: Incorrect uuid value: '1' for column `test`.`t1`.`a` at row 1
+ERROR HY000: Illegal parameter data types uuid and int for operation 'SET'
 INSERT INTO t1 VALUES (TIME'10:20:30');
-ERROR 22007: Incorrect uuid value: '10:20:30' for column `test`.`t1`.`a` at row 1
+ERROR HY000: Illegal parameter data types uuid and time for operation 'SET'
 INSERT INTO t1 VALUES (0x00);
 ERROR 22007: Incorrect uuid value: '\x00' for column `test`.`t1`.`a` at row 1
 DROP TABLE t1;
@@ -1931,15 +1931,15 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (CAST('00000000-0000-0000-0000-000000000000' AS UUID));
-ERROR 01000: Data truncated for column 'a' at row 1
+ERROR HY000: Illegal parameter data types int and uuid for operation 'SET'
 DROP TABLE t1;
 CREATE TABLE t1 (a DOUBLE);
 INSERT INTO t1 VALUES (CAST('00000000-0000-0000-0000-000000000000' AS UUID));
-ERROR 01000: Data truncated for column 'a' at row 1
+ERROR HY000: Illegal parameter data types double and uuid for operation 'SET'
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(32,0));
 INSERT INTO t1 VALUES (CAST('00000000-0000-0000-0000-000000000000' AS UUID));
-ERROR 01000: Data truncated for column 'a' at row 1
+ERROR HY000: Illegal parameter data types decimal and uuid for operation 'SET'
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(64));
 INSERT INTO t1 VALUES (CAST('00000000-0000-0000-0000-000000000000' AS UUID));
@@ -2762,7 +2762,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a UUID, b INT);
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect integer value: 'ffffffff-ffff-ffff-ffff-ffffffffffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types int and uuid for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -2770,7 +2770,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a UUID, b DOUBLE);
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect double value: 'ffffffff-ffff-ffff-ffff-ffffffffffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types double and uuid for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -2778,7 +2778,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a UUID, b DECIMAL(32,0));
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect decimal value: 'ffffffff-ffff-ffff-ffff-ffffffffffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types decimal and uuid for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -2786,7 +2786,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a UUID, b YEAR);
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect integer value: 'ffffffff-ffff-ffff-ffff-ffffffffffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types year and uuid for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -2797,7 +2797,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT, b UUID);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect uuid value: '1' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types uuid and int for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -2805,7 +2805,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DOUBLE, b UUID);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect uuid value: '1' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types uuid and double for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -2813,7 +2813,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(32,0), b UUID);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect uuid value: '1' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types uuid and decimal for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -2821,7 +2821,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a YEAR, b UUID);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect uuid value: '2001' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types uuid and year for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -2832,7 +2832,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a UUID, b TIME);
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect time value: 'ffffffff-ffff-ffff-ffff-ffffffffffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types time and uuid for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -2840,7 +2840,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a UUID, b DATE);
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect date value: 'ffffffff-ffff-ffff-ffff-ffffffffffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types date and uuid for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -2848,7 +2848,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a UUID, b DATETIME);
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect datetime value: 'ffffffff-ffff-ffff-ffff-ffffffffffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types datetime and uuid for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -2856,7 +2856,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a UUID, b TIMESTAMP NULL DEFAULT NULL);
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect datetime value: 'ffffffff-ffff-ffff-ffff-ffffffffffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types timestamp and uuid for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -2867,7 +2867,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a TIME, b UUID);
 INSERT INTO t1 VALUES ('00:00:00', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect uuid value: '00:00:00' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types uuid and time for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -2875,7 +2875,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DATE, b UUID);
 INSERT INTO t1 VALUES ('2001-01:01', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect uuid value: '2001-01-01' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types uuid and date for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -2883,7 +2883,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME, b UUID);
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect uuid value: '2001-01-01 10:20:30' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types uuid and datetime for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -2891,7 +2891,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a TIMESTAMP, b UUID);
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect uuid value: '2001-01-01 10:20:30' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types uuid and timestamp for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -3152,3 +3152,22 @@ f	var_pop('x')
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'x'
 Warning	1292	Incorrect uuid value: ''
+#
+# MDEV-28491 Uuid. "UPDATE/DELETE" not working "WHERE id IN (SELECT id FROM ..)"
+#
+CREATE TABLE companies (id uuid, name varchar(10));
+INSERT INTO companies (id) values ('7bc95b06-cc6c-11ec-96c5-0242ac130002');
+CREATE TABLE divisions (company_id uuid);
+INSERT INTO divisions (company_id) values ('7bc95b06-cc6c-11ec-96c5-0242ac130002');
+SELECT * FROM companies WHERE id IN (SELECT company_id FROM divisions);
+id	name
+7bc95b06-cc6c-11ec-96c5-0242ac130002	NULL
+UPDATE companies SET name = 'value' WHERE id IN (SELECT company_id FROM divisions);
+SELECT * FROM companies;
+id	name
+7bc95b06-cc6c-11ec-96c5-0242ac130002	value
+DELETE FROM companies WHERE id IN (SELECT company_id FROM divisions);
+SELECT * FROM companies;
+id	name
+DROP TABLE divisions;
+DROP TABLE companies;

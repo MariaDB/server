@@ -4,6 +4,7 @@
 --echo # MDEV-25347 DML events for auto-partitioned tables are written into binary log twice
 --echo #
 flush binary logs;
+--source include/wait_for_binlog_checkpoint.inc
 create table t1 (a int) with system versioning
 partition by system_time limit 1 auto;
 

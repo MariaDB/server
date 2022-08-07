@@ -2785,7 +2785,6 @@ int Lex_input_stream::scan_ident_delimited(THD *thd,
                                            uchar quote_char)
 {
   CHARSET_INFO *const cs= thd->charset();
-  uint double_quotes= 0;
   uchar c;
   DBUG_ASSERT(m_ptr == m_tok_start + 1);
 
@@ -2810,7 +2809,6 @@ int Lex_input_stream::scan_ident_delimited(THD *thd,
         if (yyPeek() != quote_char)
           break;
         c= yyGet();
-        double_quotes++;
         continue;
       }
     }
@@ -10505,11 +10503,13 @@ void LEX::relink_hack(st_select_lex *select_lex)
 {
   if (!select_stack_top) // Statements of the second type
   {
-    if (!select_lex->get_master()->get_master())
-      ((st_select_lex *) select_lex->get_master())->
-        set_master(&builtin_select);
-    if (!builtin_select.get_slave())
-      builtin_select.set_slave(select_lex->get_master());
+    if (!select_lex->outer_select() &&
+        !builtin_select.first_inner_unit())
+    {
+      builtin_select.register_unit(select_lex->master_unit(),
+                                   &builtin_select.context);
+      builtin_select.add_statistics(select_lex->master_unit());
+    }
   }
 }
 
@@ -11871,6 +11871,21 @@ bool LEX::sp_create_set_password_instr(THD *thd,
   if (sphead)
     sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
   return sp_create_assignment_instr(thd, no_lookahead);
+}
+
+
+bool LEX::set_names(const char *pos,
+                    const Lex_exact_charset_opt_extended_collate &cscl,
+                    bool no_lookahead)
+{
+  if (sp_create_assignment_lex(thd, pos))
+    return true;
+  CHARSET_INFO *ci= cscl.collation().charset_info();
+  set_var_collation_client *var;
+  var= new (thd->mem_root) set_var_collation_client(ci, ci, ci);
+  return unlikely(var == NULL) ||
+         unlikely(thd->lex->var_list.push_back(var, thd->mem_root)) ||
+         unlikely(sp_create_assignment_instr(thd, no_lookahead));
 }
 
 

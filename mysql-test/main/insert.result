@@ -726,7 +726,7 @@ SET sql_mode= 'STRICT_ALL_TABLES';
 CREATE TABLE t1 (f1 INT DEFAULT 0, f2 INT);
 CREATE ALGORITHM = MERGE VIEW v1 AS SELECT f1, f2 FROM t1 WHERE f1 = 'x' WITH CHECK OPTION;
 REPLACE INTO v1 SET f2 = 1;
-ERROR 22007: Truncated incorrect DOUBLE value: 'x'
+ERROR 22007: Truncated incorrect DECIMAL value: 'x'
 SELECT * from t1;
 f1	f2
 drop view v1;
@@ -739,7 +739,7 @@ drop view v1;
 SELECT 0,0 INTO OUTFILE 't1.txt';
 CREATE ALGORITHM = MERGE VIEW v1 AS SELECT f1, f2 FROM t1 WHERE f1 = 'x' WITH CHECK OPTION;
 LOAD DATA INFILE 't1.txt' INTO TABLE v1;
-ERROR 22007: Truncated incorrect DOUBLE value: 'x'
+ERROR 22007: Truncated incorrect DECIMAL value: 'x'
 SELECT * from t1;
 f1	f2
 drop view v1;
@@ -751,7 +751,7 @@ SET @@sql_mode= @save_mode;
 CREATE TABLE t1 (f INT);
 CREATE VIEW v1 AS SELECT * FROM t1 WHERE f <=> 'foo' WITH CHECK OPTION;
 REPLACE INTO v1 SET f = NULL;
-ERROR 22007: Truncated incorrect DOUBLE value: 'foo'
+ERROR 22007: Truncated incorrect DECIMAL value: 'foo'
 DROP VIEW v1;
 DROP TABLE t1;
 #

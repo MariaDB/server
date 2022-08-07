@@ -743,4 +743,53 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 --enable_warnings
 
+--echo #
+--echo # MDEV-25257 SEGV in fts_get_next_doc_id upon some INSERT
+--echo #
+SET @save = @@global.innodb_file_per_table;
+SET @@global.innodb_file_per_table = 0;
+
+CREATE TABLE t1 (
+   col_int INTEGER, col_text TEXT,
+   col_int_g INTEGER GENERATED ALWAYS AS (col_int)
+) ENGINE = InnoDB ROW_FORMAT = Redundant ;
+ALTER TABLE t1 ADD FULLTEXT KEY `ftidx` ( col_text ) ;
+ALTER TABLE t1 DROP KEY `ftidx` ;
+INSERT INTO t1 (col_int, col_text) VALUES ( 1255, NULL);
+DROP TABLE t1;
+SET @@global.innodb_file_per_table = @save;
+
+--echo #
+--echo # MDEV-20797  FULLTEXT search with apostrophe,
+--echo #		and mandatory words
+--echo #
+CREATE TABLE t1(f1 TINYTEXT NOT NULL, FULLTEXT(f1))ENGINE=InnoDB;
+INSERT INTO t1 VALUES('O''Brien'), ('O Brien'), ('Ö''Brien');
+INSERT INTO t1 VALUES('Brien'), ('O ''Brien'), ('O'' Brien');
+INSERT INTO t1 VALUES('Doh''nuts');
+SELECT * FROM t1 WHERE MATCH (f1) AGAINST ("+O'Brien" IN BOOLEAN MODE);
+SELECT * FROM t1 WHERE MATCH (f1) AGAINST ("+Doh'nuts" IN BOOLEAN MODE);
+SELECT * FROM t1 WHERE MATCH (f1) AGAINST ("+Ö''Brien" IN BOOLEAN MODE);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-29058  Assertion `index->type == 32' failed
+--echo #	in dict_index_build_internal_fts
+--echo #
+call mtr.add_suppression("InnoDB: Index `f` of table `test`.`t2` is corrupted");
+call mtr.add_suppression("InnoDB: Skip adjustment of root pages for index `f`.");
+let $MYSQLD_DATADIR = `SELECT @@datadir`;
+CREATE TABLE t1 (f CHAR(8), FULLTEXT KEY (f)) ENGINE=InnoDB;
+CREATE TABLE t2 LIKE t1;
+ALTER TABLE t2 DISCARD TABLESPACE;
+--disable_warnings
+FLUSH TABLES t1 FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+UNLOCK TABLES;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t2 IMPORT TABLESPACE;
+--enable_warnings
+DROP TABLE t2, t1;
+
 --echo # End of 10.3 tests

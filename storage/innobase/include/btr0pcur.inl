@@ -124,16 +124,8 @@ btr_pcur_is_on_user_rec(
 /*====================*/
 	const btr_pcur_t*	cursor)	/*!< in: persistent cursor */
 {
-	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
-	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
-
-	if (btr_pcur_is_before_first_on_page(cursor)
-	    || btr_pcur_is_after_last_on_page(cursor)) {
-
-		return(FALSE);
-	}
-
-	return(TRUE);
+  return !btr_pcur_is_before_first_on_page(cursor) &&
+    !btr_pcur_is_after_last_on_page(cursor);
 }
 
 /*********************************************************//**
@@ -179,17 +171,16 @@ btr_pcur_move_to_next_on_page(
 /*********************************************************//**
 Moves the persistent cursor to the previous record on the same page. */
 UNIV_INLINE
-void
+rec_t*
 btr_pcur_move_to_prev_on_page(
 /*==========================*/
 	btr_pcur_t*	cursor)	/*!< in/out: persistent cursor */
 {
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
-
-	page_cur_move_to_prev(btr_pcur_get_page_cur(cursor));
-
 	cursor->old_stored = false;
+
+	return page_cur_move_to_prev(btr_pcur_get_page_cur(cursor));
 }
 
 /*********************************************************//**
@@ -209,11 +200,10 @@ btr_pcur_move_to_next_user_rec(
 	cursor->old_stored = false;
 loop:
 	if (btr_pcur_is_after_last_on_page(cursor)) {
-		if (btr_pcur_is_after_last_in_tree(cursor)) {
+		if (btr_pcur_is_after_last_in_tree(cursor)
+		    || btr_pcur_move_to_next_page(cursor, mtr) != DB_SUCCESS) {
 			return(FALSE);
 		}
-
-		btr_pcur_move_to_next_page(cursor, mtr);
 	} else {
 		btr_pcur_move_to_next_on_page(cursor);
 	}
@@ -244,15 +234,13 @@ btr_pcur_move_to_next(
 	cursor->old_stored = false;
 
 	if (btr_pcur_is_after_last_on_page(cursor)) {
-		if (btr_pcur_is_after_last_in_tree(cursor)) {
+		if (btr_pcur_is_after_last_in_tree(cursor)
+		    || btr_pcur_move_to_next_page(cursor, mtr) != DB_SUCCESS) {
 			return(FALSE);
 		}
-
-		btr_pcur_move_to_next_page(cursor, mtr);
-		return(TRUE);
+	} else {
+		btr_pcur_move_to_next_on_page(cursor);
 	}
-
-	btr_pcur_move_to_next_on_page(cursor);
 	return(TRUE);
 }
 
@@ -330,7 +318,7 @@ btr_pcur_free(
 
 /**************************************************************//**
 Initializes and opens a persistent cursor to an index tree. */
-UNIV_INLINE
+inline
 dberr_t
 btr_pcur_open_low(
 /*==============*/
@@ -349,42 +337,18 @@ btr_pcur_open_low(
 				(0 if none) */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	btr_cur_t*	btr_cursor;
-	dberr_t err = DB_SUCCESS;
-
-	/* Initialize the cursor */
-
-	btr_pcur_init(cursor);
-
-	cursor->latch_mode = BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
-	cursor->search_mode = mode;
-
-	/* Search with the tree cursor */
-
-	btr_cursor = btr_pcur_get_btr_cur(cursor);
-
-	ut_ad(!dict_index_is_spatial(index));
-
-	err = btr_cur_search_to_nth_level_func(
-		index, level, tuple, mode, latch_mode, btr_cursor,
+  ut_ad(!index->is_spatial());
+  btr_pcur_init(cursor);
+  cursor->latch_mode= BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
+  cursor->search_mode= mode;
+  cursor->pos_state= BTR_PCUR_IS_POSITIONED;
+  cursor->trx_if_known= nullptr;
+  return btr_cur_search_to_nth_level_func(index, level, tuple, mode, latch_mode,
+                                          btr_pcur_get_btr_cur(cursor),
 #ifdef BTR_CUR_HASH_ADAPT
-		NULL,
-#endif /* BTR_CUR_HASH_ADAPT */
-		mtr, autoinc);
-
-	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
-		ib::warn() << "btr_pcur_open_low"
-			   << " level: " << level
-			   << " table: " << index->table->name
-			   << " index: " << index->name
-			   << " error: " << err;
-	}
-
-	cursor->pos_state = BTR_PCUR_IS_POSITIONED;
-
-	cursor->trx_if_known = NULL;
-
-	return(err);
+                                          nullptr,
+#endif
+                                          mtr, autoinc);
 }
 
 /**************************************************************//**
@@ -474,38 +438,6 @@ btr_pcur_open_at_index_side(
 	pcur->trx_if_known = NULL;
 
 	return (err);
-}
-
-/**********************************************************************//**
-Positions a cursor at a randomly chosen position within a B-tree.
-@return true if the index is available and we have put the cursor, false
-if the index is unavailable */
-UNIV_INLINE
-bool
-btr_pcur_open_at_rnd_pos(
-	dict_index_t*	index,		/*!< in: index */
-	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
-	btr_pcur_t*	cursor,		/*!< in/out: B-tree pcur */
-	mtr_t*		mtr)		/*!< in: mtr */
-{
-	/* Initialize the cursor */
-
-	cursor->latch_mode = latch_mode;
-	cursor->search_mode = PAGE_CUR_G;
-
-	btr_pcur_init(cursor);
-
-	bool	available;
-
-	available = btr_cur_open_at_rnd_pos(index, latch_mode,
-					    btr_pcur_get_btr_cur(cursor),
-					    mtr);
-	cursor->pos_state = BTR_PCUR_IS_POSITIONED;
-	cursor->old_stored = false;
-
-	cursor->trx_if_known = NULL;
-
-	return(available);
 }
 
 /**************************************************************//**

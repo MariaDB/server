@@ -212,7 +212,7 @@ close_and_exit:
 	ut_ad(row_get_rec_trx_id(rec, index, offsets));
 
 	if (mode == BTR_MODIFY_LEAF) {
-		success = btr_cur_optimistic_delete(
+		success = DB_FAIL != btr_cur_optimistic_delete(
 			btr_pcur_get_btr_cur(&node->pcur), 0, &mtr);
 	} else {
 		dberr_t	err;
@@ -220,16 +220,7 @@ close_and_exit:
 		btr_cur_pessimistic_delete(
 			&err, FALSE, btr_pcur_get_btr_cur(&node->pcur), 0,
 			false, &mtr);
-
-		switch (err) {
-		case DB_SUCCESS:
-			break;
-		case DB_OUT_OF_FILE_SPACE:
-			success = false;
-			break;
-		default:
-			ut_error;
-		}
+		success = err == DB_SUCCESS;
 	}
 
 func_exit:
@@ -503,8 +494,9 @@ row_purge_remove_sec_if_poss_leaf(
 					<< rec_index_print(
 						btr_cur_get_rec(btr_cur),
 						index);
-				ut_ad(0);
-				goto func_exit;
+				mtr.commit();
+				dict_set_corrupted(index, "purge");
+				goto cleanup;
 			}
 
 			if (index->is_spatial()) {
@@ -533,11 +525,8 @@ row_purge_remove_sec_if_poss_leaf(
 				}
 			}
 
-			if (!btr_cur_optimistic_delete(btr_cur, 0, &mtr)) {
-
-				/* The index entry could not be deleted. */
-				success = false;
-			}
+			success = btr_cur_optimistic_delete(btr_cur, 0, &mtr)
+				!= DB_FAIL;
 		}
 
 		/* (The index entry is still needed,
@@ -551,6 +540,7 @@ row_purge_remove_sec_if_poss_leaf(
 		/* The index entry does not exist, nothing to do. */
 func_exit:
 		mtr.commit();
+cleanup:
 		btr_pcur_close(&pcur); // FIXME: do we need these? when is btr_cur->rtr_info set?
 		return(success);
 	}
@@ -603,25 +593,6 @@ retry:
 	ut_a(success);
 }
 
-/** Skip uncommitted virtual indexes on newly added virtual column.
-@param[in,out]	index	dict index object */
-static
-inline
-void
-row_purge_skip_uncommitted_virtual_index(
-	dict_index_t*&	index)
-{
-	/* We need to skip virtual indexes which is not
-	committed yet. It's safe because these indexes are
-	newly created by alter table, and because we do
-	not support LOCK=NONE when adding an index on newly
-	added virtual column.*/
-	while (index != NULL && dict_index_has_virtual(index)
-	       && !index->is_committed() && index->has_new_v_col()) {
-		index = dict_table_get_next_index(index);
-	}
-}
-
 /***********************************************************//**
 Purges a delete marking of a record.
 @retval true if the row was not found, or it was successfully removed
@@ -633,34 +604,30 @@ row_purge_del_mark(
 /*===============*/
 	purge_node_t*	node)	/*!< in/out: row purge node */
 {
-	mem_heap_t*	heap;
+  if (node->index)
+  {
+    mem_heap_t *heap= mem_heap_create(1024);
 
-	heap = mem_heap_create(1024);
+    do
+    {
+      const auto type= node->index->type;
+      if (type & (DICT_FTS | DICT_CORRUPT))
+        continue;
+      if (UNIV_UNLIKELY(DICT_VIRTUAL & type) && !node->index->is_committed() &&
+          node->index->has_new_v_col())
+        continue;
+      dtuple_t* entry= row_build_index_entry_low(node->row, nullptr,
+                                                 node->index, heap,
+                                                 ROW_BUILD_FOR_PURGE);
+      row_purge_remove_sec_if_poss(node, node->index, entry);
+      mem_heap_empty(heap);
+    }
+    while ((node->index= dict_table_get_next_index(node->index)));
 
-	while (node->index != NULL) {
-		/* skip corrupted secondary index */
-		dict_table_skip_corrupt_index(node->index);
+    mem_heap_free(heap);
+  }
 
-		row_purge_skip_uncommitted_virtual_index(node->index);
-
-		if (!node->index) {
-			break;
-		}
-
-		if (node->index->type != DICT_FTS) {
-			dtuple_t*	entry = row_build_index_entry_low(
-				node->row, NULL, node->index,
-				heap, ROW_BUILD_FOR_PURGE);
-			row_purge_remove_sec_if_poss(node, node->index, entry);
-			mem_heap_empty(heap);
-		}
-
-		node->index = dict_table_get_next_index(node->index);
-	}
-
-	mem_heap_free(heap);
-
-	return(row_purge_remove_clust_if_poss(node));
+  return row_purge_remove_clust_if_poss(node);
 }
 
 void purge_sys_t::wait_SYS()
@@ -777,20 +744,25 @@ row_purge_upd_exist_or_extern_func(
 	ut_ad(!node->table->skip_alter_undo);
 
 	if (node->rec_type == TRX_UNDO_UPD_DEL_REC
-	    || (node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {
+	    || (node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)
+	    || !node->index) {
 
 		goto skip_secondaries;
 	}
 
 	heap = mem_heap_create(1024);
 
-	while (node->index != NULL) {
-		dict_table_skip_corrupt_index(node->index);
+	do {
+		const auto type = node->index->type;
 
-		row_purge_skip_uncommitted_virtual_index(node->index);
+		if (type & (DICT_FTS | DICT_CORRUPT)) {
+			continue;
+		}
 
-		if (!node->index) {
-			break;
+		if (UNIV_UNLIKELY(DICT_VIRTUAL & type)
+		    && !node->index->is_committed()
+		    && node->index->has_new_v_col()) {
+			continue;
 		}
 
 		if (row_upd_changes_ord_field_binary(node->index, node->update,
@@ -805,9 +777,7 @@ row_purge_upd_exist_or_extern_func(
 
 			mem_heap_empty(heap);
 		}
-
-		node->index = dict_table_get_next_index(node->index);
-	}
+	} while ((node->index = dict_table_get_next_index(node->index)));
 
 	mem_heap_free(heap);
 
@@ -821,8 +791,6 @@ skip_secondaries:
 			= upd_get_nth_field(node->update, i);
 
 		if (dfield_is_ext(&ufield->new_val)) {
-			buf_block_t*	block;
-			byte*		data_field;
 			bool		is_insert;
 			ulint		rseg_id;
 			uint32_t	page_no;
@@ -866,22 +834,26 @@ skip_secondaries:
 			latching order if we would only later latch the
 			root page of such a tree! */
 
-			btr_root_block_get(index, RW_SX_LATCH, &mtr);
+			dberr_t err;
+			if (!btr_root_block_get(index, RW_SX_LATCH, &mtr,
+						&err)) {
+			} else if (buf_block_t* block =
+				   buf_page_get(page_id_t(rseg.space->id,
+							  page_no),
+						0, RW_X_LATCH, &mtr)) {
+				byte* data_field = block->page.frame
+					+ offset + internal_offset;
 
-			block = buf_page_get(
-				page_id_t(rseg.space->id, page_no),
-				0, RW_X_LATCH, &mtr);
+				ut_a(dfield_get_len(&ufield->new_val)
+				     >= BTR_EXTERN_FIELD_REF_SIZE);
+				btr_free_externally_stored_field(
+					index,
+					data_field
+					+ dfield_get_len(&ufield->new_val)
+					- BTR_EXTERN_FIELD_REF_SIZE,
+					NULL, NULL, block, 0, false, &mtr);
+			}
 
-			data_field = buf_block_get_frame(block)
-				+ offset + internal_offset;
-
-			ut_a(dfield_get_len(&ufield->new_val)
-			     >= BTR_EXTERN_FIELD_REF_SIZE);
-			btr_free_externally_stored_field(
-				index,
-				data_field + dfield_get_len(&ufield->new_val)
-				- BTR_EXTERN_FIELD_REF_SIZE,
-				NULL, NULL, block, 0, false, &mtr);
 			mtr.commit();
 		}
 	}
@@ -897,6 +869,7 @@ skip_secondaries:
 	row_purge_upd_exist_or_extern_func(node,undo_rec)
 #endif /* UNIV_DEBUG */
 
+MY_ATTRIBUTE((nonnull,warn_unused_result))
 /** Parses the row reference and other info in a modify undo log record.
 @param[in]	node		row undo node
 @param[in]	undo_rec	record to purge
@@ -913,17 +886,13 @@ row_purge_parse_undo_rec(
 	bool*			updated_extern)
 {
 	dict_index_t*	clust_index;
-	byte*		ptr;
 	undo_no_t	undo_no;
 	table_id_t	table_id;
 	roll_ptr_t	roll_ptr;
 	byte		info_bits;
 	ulint		type;
 
-	ut_ad(node != NULL);
-	ut_ad(thr != NULL);
-
-	ptr = trx_undo_rec_get_pars(
+	const byte* ptr = trx_undo_rec_get_pars(
 		undo_rec, &type, &node->cmpl_info,
 		updated_extern, &undo_no, &table_id);
 
@@ -1077,16 +1046,14 @@ row_purge_record_func(
 #endif /* UNIV_DEBUG || WITH_WSREP */
 	bool		updated_extern)
 {
-	dict_index_t*	clust_index;
-	bool		purged		= true;
-
 	ut_ad(!node->found_clust);
 	ut_ad(!node->table->skip_alter_undo);
-
-	clust_index = dict_table_get_first_index(node->table);
-
-	node->index = dict_table_get_next_index(clust_index);
 	ut_ad(!trx_undo_roll_ptr_is_insert(node->roll_ptr));
+
+	node->index = dict_table_get_next_index(
+		dict_table_get_first_index(node->table));
+
+	bool purged = true;
 
 	switch (node->rec_type) {
 	case TRX_UNDO_EMPTY:
@@ -1120,8 +1087,8 @@ row_purge_record_func(
 	}
 
 	if (node->found_clust) {
+		node->found_clust = false;
 		btr_pcur_close(&node->pcur);
-		node->found_clust = FALSE;
 	}
 
 	return(purged);
@@ -1147,7 +1114,7 @@ row_purge(
 	trx_undo_rec_t*	undo_rec,	/*!< in: record to purge */
 	que_thr_t*	thr)		/*!< in: query thread */
 {
-	if (undo_rec != &trx_purge_dummy_rec) {
+	if (undo_rec != reinterpret_cast<trx_undo_rec_t*>(-1)) {
 		bool	updated_extern;
 
 		while (row_purge_parse_undo_rec(

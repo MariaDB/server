@@ -56,6 +56,7 @@
 #include "sp_rcontext.h"
 #include "sp_cache.h"
 #include "sql_show.h"                           // append_identifier
+#include "sql_db.h"                             // get_default_db_collation
 #include "transaction.h"
 #include "sql_select.h" /* declares create_tmp_table() */
 #include "debug_sync.h"
@@ -1298,10 +1299,7 @@ void THD::init()
   wsrep_desynced_backup_stage= false;
 #endif /* WITH_WSREP */
 
-  if (variables.sql_log_bin)
-    variables.option_bits|= OPTION_BIN_LOG;
-  else
-    variables.option_bits&= ~OPTION_BIN_LOG;
+  set_binlog_bit();
 
   select_commands= update_commands= other_commands= 0;
   /* Set to handle counting of aborted connections */
@@ -1863,7 +1861,7 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
 extern std::atomic<my_thread_id> shutdown_thread_id;
 void THD::awake_no_mutex(killed_state state_to_set)
 {
-  DBUG_ENTER("THD::awake");
+  DBUG_ENTER("THD::awake_no_mutex");
   DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
                        this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
@@ -7360,7 +7358,7 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
 */
 bool THD::binlog_for_noop_dml(bool transactional_table)
 {
-  if (log_current_statement())
+  if (mysql_bin_log.is_open() && log_current_statement())
   {
     reset_unsafe_warnings();
     if (binlog_query(THD::STMT_QUERY_TYPE, query(), query_length(),
@@ -8295,4 +8293,28 @@ bool THD::timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
 THD_list_iterator *THD_list_iterator::iterator()
 {
   return &server_threads;
+}
+
+
+Charset_collation_context
+THD::charset_collation_context_alter_db(const char *db)
+{
+  return Charset_collation_context(variables.collation_server,
+                                   get_default_db_collation(this, db));
+}
+
+
+Charset_collation_context
+THD::charset_collation_context_create_table_in_db(const char *db)
+{
+  CHARSET_INFO *cs= get_default_db_collation(this, db);
+  return Charset_collation_context(cs, cs);
+}
+
+
+Charset_collation_context
+THD::charset_collation_context_alter_table(const TABLE_SHARE *s)
+{
+  return Charset_collation_context(get_default_db_collation(this, s->db.str),
+                                   s->table_charset);
 }

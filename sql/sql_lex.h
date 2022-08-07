@@ -765,7 +765,6 @@ public:
   }
 
   inline st_select_lex_node* get_master() { return master; }
-  inline st_select_lex_node* get_slave() { return slave; }
   void include_down(st_select_lex_node *upper);
   void add_slave(st_select_lex_node *slave_arg);
   void include_neighbour(st_select_lex_node *before);
@@ -1743,15 +1742,6 @@ public:
   SQL_I_List<Sroutine_hash_entry> sroutines_list;
   Sroutine_hash_entry **sroutines_list_own_last;
   uint sroutines_list_own_elements;
-
-  /**
-    Number of tables which were open by open_tables() and to be locked
-    by lock_tables().
-    Note that we set this member only in some cases, when this value
-    needs to be passed from open_tables() to lock_tables() which are
-    separated by some amount of code.
-  */
-  uint table_count;
 
    /*
     These constructor and destructor serve for creation/destruction
@@ -3447,7 +3437,7 @@ public:
     stores total number of tables. For LEX representing multi-delete
     holds number of tables from which we will delete records.
   */
-  uint table_count;
+  uint table_count_update;
 
   uint8 describe;
   /*
@@ -3833,6 +3823,9 @@ public:
 
   int case_stmt_action_then();
   bool setup_select_in_parentheses();
+  bool set_names(const char *pos,
+                 const Lex_exact_charset_opt_extended_collate &cs,
+                 bool no_lookahead);
   bool set_trigger_new_row(const LEX_CSTRING *name, Item *val);
   bool set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
                          Item *val);
@@ -4405,6 +4398,23 @@ public:
   bool add_alter_list(LEX_CSTRING par_name, Virtual_column_info *expr,
                       bool par_exists);
   bool add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name, bool exists);
+  bool add_alter_list_item_convert_to_charset(CHARSET_INFO *cs)
+  {
+    if (create_info.add_table_option_convert_charset(cs))
+      return true;
+    alter_info.flags|= ALTER_CONVERT_TO;
+    return false;
+  }
+  bool
+  add_alter_list_item_convert_to_charset(CHARSET_INFO *cs,
+                                         const Lex_extended_collation_st &cl)
+  {
+    if (create_info.add_table_option_convert_charset(cs) ||
+        create_info.add_table_option_convert_collation(cl))
+      return true;
+    alter_info.flags|= ALTER_CONVERT_TO;
+    return false;
+  }
   void set_command(enum_sql_command command,
                    DDL_options_st options)
   {

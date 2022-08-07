@@ -1477,6 +1477,7 @@ int ha_maria::repair(THD * thd, HA_CHECK_OPT *check_opt)
   maria_chk_init(param);
   param->thd= thd;
   param->op_name= "repair";
+  file->error_count=0;
 
   /*
     The following can only be true if the table was marked as STATE_MOVED

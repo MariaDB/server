@@ -634,3 +634,6 @@ drop table t1;
 # MDEV-15538 '-N' Produce html output wrong
 #
 <TABLE BORDER=1><TR><TD>1</TD></TR></TABLE>
+WARNING: option '--enable-cleartext-plugin' is obsolete.
+1
+1

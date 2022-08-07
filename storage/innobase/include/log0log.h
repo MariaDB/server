@@ -260,6 +260,16 @@ public:
   uint32_t format;
   /** Log file */
   log_file_t log;
+#if defined __linux__ || defined _WIN32
+  /** whether file system caching is enabled for the log */
+  my_bool log_buffered;
+# ifdef _WIN32
+  static constexpr bool log_maybe_unbuffered= true;
+# else
+  /** whether file system caching may be disabled */
+  bool log_maybe_unbuffered;
+# endif
+#endif
 
 	/** Fields involved in checkpoints @{ */
 	lsn_t		log_capacity;	/*!< capacity of the log; if
@@ -279,7 +289,7 @@ public:
 					new query step is started */
   /** latest completed checkpoint (protected by latch.wr_lock()) */
   Atomic_relaxed<lsn_t> last_checkpoint_lsn;
-  /** next checkpoint LSN (protected by log_sys.mutex) */
+  /** next checkpoint LSN (protected by log_sys.latch) */
   lsn_t next_checkpoint_lsn;
   /** next checkpoint number (protected by latch.wr_lock()) */
   ulint next_checkpoint_no;
@@ -341,6 +351,11 @@ public:
   /** @return end of resize_buf */
   inline const byte *resize_buf_end() const noexcept
   { return resize_buf + resize_target; }
+#endif
+
+#if defined __linux__ || defined _WIN32
+  /** Try to enable or disable file system caching (update log_buffered) */
+  void set_buffered(bool buffered);
 #endif
 
   void attach(log_file_t file, os_offset_t size);

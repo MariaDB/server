@@ -427,7 +427,7 @@ int mysql_update(THD *thd,
     DBUG_ASSERT(update_source_table || table_list->view != 0);
     DBUG_PRINT("info", ("Switch to multi-update"));
     /* pass counter value */
-    thd->lex->table_count= table_count;
+    thd->lex->table_count_update= table_count;
     if (thd->lex->period_conditions.is_set())
     {
       my_error(ER_NOT_SUPPORTED_YET, MYF(0),
@@ -522,6 +522,9 @@ int mysql_update(THD *thd,
     free_underlaid_joins(thd, select_lex);
     DBUG_RETURN(1);				/* purecov: inspected */
   }
+
+  if (table_list->table->check_assignability_explicit_fields(fields, values))
+    DBUG_RETURN(true);
 
   if (check_unique_table(thd, table_list))
     DBUG_RETURN(TRUE);
@@ -1865,7 +1868,7 @@ int mysql_multi_update_prepare(THD *thd)
   TABLE_LIST *table_list= lex->query_tables;
   TABLE_LIST *tl;
   Multiupdate_prelocking_strategy prelocking_strategy;
-  uint table_count= lex->table_count;
+  uint table_count= lex->table_count_update;
   DBUG_ENTER("mysql_multi_update_prepare");
 
   /*
@@ -2089,7 +2092,8 @@ int multi_update::prepare(List<Item> &not_used_values,
   */
 
   int error= setup_fields(thd, Ref_ptr_array(),
-                          *values, MARK_COLUMNS_READ, 0, NULL, 0);
+                          *values, MARK_COLUMNS_READ, 0, NULL, 0) ||
+             TABLE::check_assignability_explicit_fields(*fields, *values);
 
   ti.rewind();
   while ((table_ref= ti++))
@@ -2130,10 +2134,9 @@ int multi_update::prepare(List<Item> &not_used_values,
       if (!tl)
 	DBUG_RETURN(1);
       update.link_in_list(tl, &tl->next_local);
-      tl->shared= table_count++;
+      table_ref->shared= tl->shared= table_count++;
       table->no_keyread=1;
       table->covering_keys.clear_all();
-      table->pos_in_table_list= tl;
       table->prepare_triggers_for_update_stmt_or_event();
       table->reset_default_fields();
     }

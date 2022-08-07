@@ -453,13 +453,11 @@ SELECT * FROM
 SELECT * FROM
   JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT NULL ON ERROR)) jt;
 
-# The DEFAULT value must be a string on JSON format for now.
---error 1064
 SELECT * FROM
   JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT 0 ON EMPTY)) jt;
---error 1064
 SELECT * FROM
   JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT 0 ON ERROR)) jt;
+# We don't accept dates in DEFAULT
 --error 1064
 SELECT * FROM
   JSON_TABLE('{}', '$' COLUMNS (x DATE

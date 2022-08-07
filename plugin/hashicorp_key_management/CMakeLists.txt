@@ -14,7 +14,8 @@ MYSQL_ADD_PLUGIN(HASHICORP_KEY_MANAGEMENT
   hashicorp_key_management_plugin.cc
   LINK_LIBRARIES ${CURL_LIBRARIES}
   CONFIG hashicorp_key_management.cnf
-  COMPONENT hashicorp-key-management)
+  COMPONENT hashicorp-key-management
+  MODULE_ONLY)
 
 ADD_FEATURE_INFO(HASHICORP_KEY_MANAGEMENT "ON" "Hashicorp Key Management Plugin")
 

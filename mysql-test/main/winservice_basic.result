@@ -1,4 +1,3 @@
-# Kill the server
 # run mysql_install_db with --service parameter
 # Start service
 # Connect with root user password=password

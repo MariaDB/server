@@ -105,7 +105,6 @@ INSERT INTO global_suppressions VALUES
  */
 
  ("Got error [0-9]* when reading table"),
- ("Incorrect definition of table"),
  ("Incorrect information in file"),
  ("InnoDB: Warning: we did not need to do crash recovery"),
  /*("Invalid \\(old\\?\\) table or database name"),*/
@@ -156,6 +155,10 @@ INSERT INTO global_suppressions VALUES
  ("InnoDB: Error: in RENAME TABLE table `test`.`t1`"),
  ("InnoDB: Error: table `test`.`t[123]` .*does not exist in the InnoDB internal"),
  ("InnoDB: Warning: semaphore wait:"),
+
+ /* MDEV-28976: Tests that kill the server do not ensure that the
+ old process has terminated before starting a new one */
+ ("InnoDB: Unable to lock"),
 
  /*
    BUG#32080 - Excessive warnings on Solaris: setrlimit could not

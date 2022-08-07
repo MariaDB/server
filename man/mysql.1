@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQL\FR" "1" "15 May 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\FBMARIADB\FR" "1" "15 May 2020" "MariaDB 10\&.9" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -18,7 +18,7 @@
 .\" SQL scripts
 .\" batch SQL files
 .SH "NAME"
-mysql \- the MariaDB command\-line tool
+mariadb \- the MariaDB command\-line tool (mysql is now a symlink to mariadb)
 .SH "SYNOPSIS"
 .HP \w'\fBmysql\ [\fR\fB\fIoptions\fR\fR\fB]\ \fR\fB\fIdb_name\fR\fR\ 'u
 \fBmysql [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR
@@ -497,6 +497,21 @@ starts with this option
 \fIenabled\fR
 by default\&. However, even with this option, long\-format commands still work from the first line\&. See
 the section called \(lqMYSQL COMMANDS\(rq\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql: enable cleartext plugin option
+.\" enable cleartext plugin option: mysql
+\fB\-\-enable\-cleartext\-plugin\fR
+.sp
+Obsolete option\&. Exists only for MySQL compatibility\&.
 .RE
 .sp
 .RS 4

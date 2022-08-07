@@ -67,6 +67,7 @@ support cross-platform development and expose comonly used SQL names. */
 
 #include <my_global.h>
 #include "my_counter.h"
+#include "aligned.h"
 #include <m_string.h>
 #include <mysqld_error.h>
 
@@ -190,9 +191,6 @@ using the call command. */
 #define FTS_INTERNAL_DIAG_PRINT                 /* FTS internal debugging
                                                 info output */
 #endif
-
-#define UNIV_BTR_DEBUG				/* check B-tree links */
-#define UNIV_LIGHT_MEM_DEBUG			/* light memory debugging */
 
 // #define UNIV_SQL_DEBUG
 

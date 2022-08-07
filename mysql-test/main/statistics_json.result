@@ -8322,3 +8322,34 @@ histogram
   ]
 }
 drop table t1;
+#
+# MDEV-28882: Assertion `tmp >= 0' failed in best_access_path
+#
+CREATE TABLE t1 (a varchar(1));
+INSERT INTO t1 VALUES ('o'),('s'),('j'),('s'),('y'),('s'),('l'),
+('q'),('x'),('m'),('t'),('d'),('v'),('j'),('p'),('t'),('b'),('q');
+set histogram_type=json_hb;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+# filtered must not be negative:
+explain format=json select * from t1 where a > 'y';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 18,
+          "filtered": 5.555555344,
+          "attached_condition": "t1.a > 'y'"
+        }
+      }
+    ]
+  }
+}
+drop table t1;

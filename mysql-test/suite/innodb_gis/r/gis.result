@@ -661,9 +661,9 @@ object_id	ST_geometrytype(geo)	ST_ISSIMPLE(GEO)	ST_ASTEXT(ST_centroid(geo))
 drop table t1;
 create table t1 (fl geometry not null);
 insert into t1 values (1);
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+ERROR HY000: Illegal parameter data types geometry and int for operation 'SET'
 insert into t1 values (1.11);
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+ERROR HY000: Illegal parameter data types geometry and decimal for operation 'SET'
 insert into t1 values ("qwerty");
 ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 insert into t1 values (ST_pointfromtext('point(1,1)'));
@@ -1120,8 +1120,8 @@ SELECT 1 FROM g1 WHERE a >= ANY
 (SELECT 1 FROM g1 WHERE a = ST_geomfromtext('') OR a) ;
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
 DROP TABLE g1;
 End of 5.5 tests
 DROP DATABASE IF EXISTS gis_ogs;

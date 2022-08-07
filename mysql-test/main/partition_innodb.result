@@ -946,7 +946,7 @@ Warnings:
 Warning	1366	Incorrect integer value: 'three' for column `test`.`t2`.`b` at row 2
 UPDATE v SET a = NULL;
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+Warning	1292	Truncated incorrect DECIMAL value: 'foo'
 DROP view v;
 DROP TABLE t1, t2;
 SET @save_isp=@@innodb_stats_persistent;

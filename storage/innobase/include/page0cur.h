@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -54,14 +54,11 @@ page_zip_des_t*
 page_cur_get_page_zip(
 /*==================*/
 	page_cur_t*	cur);	/*!< in: page cursor */
-/*********************************************************//**
-Gets the record where the cursor is positioned.
+/* Gets the record where the cursor is positioned.
+@param cur page cursor
 @return record */
 UNIV_INLINE
-rec_t*
-page_cur_get_rec(
-/*=============*/
-	page_cur_t*	cur);	/*!< in: page cursor */
+rec_t *page_cur_get_rec(const page_cur_t *cur);
 #else /* UNIV_DEBUG */
 # define page_cur_get_page(cur)		page_align((cur)->rec)
 # define page_cur_get_block(cur)	(cur)->block
@@ -120,10 +117,11 @@ void
 page_cur_move_to_next(
 /*==================*/
 	page_cur_t*	cur);	/*!< in/out: cursor; must not be after last */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /**********************************************************//**
 Moves the cursor to the previous record on page. */
 UNIV_INLINE
-void
+rec_t*
 page_cur_move_to_prev(
 /*==================*/
 	page_cur_t*	cur);	/*!< in/out: cursor; not before first */
@@ -154,9 +152,8 @@ page_cur_tuple_insert(
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /***********************************************************//**
 Inserts a record next to page cursor on an uncompressed page.
-Returns pointer to inserted record if succeed, i.e., enough
-space available, NULL otherwise. The cursor stays at the same position.
-@return pointer to record if succeed, NULL otherwise */
+@return pointer to record
+@retval nullptr if not enough space was available */
 rec_t*
 page_cur_insert_rec_low(
 /*====================*/

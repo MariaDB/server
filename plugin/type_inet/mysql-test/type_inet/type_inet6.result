@@ -192,9 +192,9 @@ CREATE TABLE t1 (a INET6);
 INSERT INTO t1 VALUES ('x');
 ERROR 22007: Incorrect inet6 value: 'x' for column `test`.`t1`.`a` at row 1
 INSERT INTO t1 VALUES (1);
-ERROR 22007: Incorrect inet6 value: '1' for column `test`.`t1`.`a` at row 1
+ERROR HY000: Illegal parameter data types inet6 and int for operation 'SET'
 INSERT INTO t1 VALUES (TIME'10:20:30');
-ERROR 22007: Incorrect inet6 value: '10:20:30' for column `test`.`t1`.`a` at row 1
+ERROR HY000: Illegal parameter data types inet6 and time for operation 'SET'
 INSERT INTO t1 VALUES (0x00);
 ERROR 22007: Incorrect inet6 value: '\x00' for column `test`.`t1`.`a` at row 1
 DROP TABLE t1;
@@ -820,15 +820,15 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (CAST('::' AS INET6));
-ERROR 22007: Incorrect integer value: '::' for column `test`.`t1`.`a` at row 1
+ERROR HY000: Illegal parameter data types int and inet6 for operation 'SET'
 DROP TABLE t1;
 CREATE TABLE t1 (a DOUBLE);
 INSERT INTO t1 VALUES (CAST('::' AS INET6));
-ERROR 22007: Incorrect double value: '::' for column `test`.`t1`.`a` at row 1
+ERROR HY000: Illegal parameter data types double and inet6 for operation 'SET'
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(32,0));
 INSERT INTO t1 VALUES (CAST('::' AS INET6));
-ERROR 22007: Incorrect decimal value: '::' for column `test`.`t1`.`a` at row 1
+ERROR HY000: Illegal parameter data types decimal and inet6 for operation 'SET'
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(64));
 INSERT INTO t1 VALUES (CAST('::' AS INET6));
@@ -1606,7 +1606,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b INT);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect integer value: 'ffff::ffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types int and inet6 for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -1614,7 +1614,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b DOUBLE);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect double value: 'ffff::ffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types double and inet6 for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -1622,7 +1622,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b DECIMAL(32,0));
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect decimal value: 'ffff::ffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types decimal and inet6 for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -1630,7 +1630,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b YEAR);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect integer value: 'ffff::ffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types year and inet6 for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -1641,7 +1641,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INET6);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect inet6 value: '1' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types inet6 and int for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -1649,7 +1649,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DOUBLE, b INET6);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect inet6 value: '1' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types inet6 and double for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -1657,7 +1657,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(32,0), b INET6);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect inet6 value: '1' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types inet6 and decimal for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -1665,7 +1665,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a YEAR, b INET6);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect inet6 value: '2001' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types inet6 and year for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -1676,7 +1676,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b TIME);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect time value: 'ffff::ffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types time and inet6 for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -1684,7 +1684,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b DATE);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect date value: 'ffff::ffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types date and inet6 for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -1692,7 +1692,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b DATETIME);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect datetime value: 'ffff::ffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types datetime and inet6 for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -1700,7 +1700,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b TIMESTAMP NULL DEFAULT NULL);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect datetime value: 'ffff::ffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types timestamp and inet6 for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -1711,7 +1711,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a TIME, b INET6);
 INSERT INTO t1 VALUES ('00:00:00', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect inet6 value: '00:00:00' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types inet6 and time for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -1719,7 +1719,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DATE, b INET6);
 INSERT INTO t1 VALUES ('2001-01:01', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect inet6 value: '2001-01-01' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types inet6 and date for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -1727,7 +1727,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME, b INET6);
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect inet6 value: '2001-01-01 10:20:30' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types inet6 and datetime for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -1735,7 +1735,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a TIMESTAMP, b INET6);
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect inet6 value: '2001-01-01 10:20:30' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types inet6 and timestamp for operation 'SET'
 SELECT b FROM t1;
 b
 NULL
@@ -1922,7 +1922,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b INT);
 INSERT INTO t1 (a) VALUES ('::');
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect integer value: '::' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types int and inet6 for operation 'SET'
 SELECT * FROM t1;
 a	b
 ::	NULL
@@ -1931,7 +1931,7 @@ SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
 CREATE TABLE t1 (a INET6, b TIMESTAMP);
 INSERT INTO t1 (a) VALUES ('::');
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect datetime value: '::' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Illegal parameter data types timestamp and inet6 for operation 'SET'
 SELECT * FROM t1;
 a	b
 ::	2001-01-01 10:20:30
@@ -1940,7 +1940,7 @@ SET timestamp=DEFAULT;
 CREATE OR REPLACE TABLE t1 (a INET6);
 INSERT INTO t1 (a) VALUES ('::');
 ALTER TABLE t1 MODIFY a DATE;
-ERROR 22007: Incorrect date value: '::' for column `test`.`t1`.`a` at row 1
+ERROR HY000: Illegal parameter data types date and inet6 for operation 'SET'
 DROP TABLE t1;
 #
 # MDEV-20818 ER_CRASHED_ON_USAGE or Assertion `length <= column->length' failed in write_block_record on temporary table
@@ -2195,6 +2195,53 @@ f
 ::
 DROP TABLE t1;
 #
+# MDEV-28491 Uuid. "UPDATE/DELETE" not working "WHERE id IN (SELECT id FROM ..)"
+#
+CREATE TABLE companies (id INET6, name varchar(10));
+INSERT INTO companies (id) values ('00::01');
+CREATE TABLE divisions (company_id INET6);
+INSERT INTO divisions (company_id) values ('00::01');
+SELECT * FROM companies WHERE id IN (SELECT company_id FROM divisions);
+id	name
+::1	NULL
+UPDATE companies SET name = 'value' WHERE id IN (SELECT company_id FROM divisions);
+SELECT * FROM companies;
+id	name
+::1	value
+DELETE FROM companies WHERE id IN (SELECT company_id FROM divisions);
+SELECT * FROM companies;
+id	name
+DROP TABLE divisions;
+DROP TABLE companies;
+#
+# MDEV-27015 Assertion `!is_null()' failed in FixedBinTypeBundle<FbtImpl>::Fbt FixedBinTypeBundle<FbtImpl>::Field_fbt::to_fbt()
+#
+CREATE TABLE t1 (id int NOT NULL PRIMARY KEY, a INET6(6) DEFAULT '::10');
+INSERT INTO t1(id) VALUES (1), (2), (3), (4);
+INSERT INTO t1 VALUES (5,'::5'), (6,'::6');
+SELECT * FROM t1 ORDER BY a;
+id	a
+5	::5
+6	::6
+1	::10
+2	::10
+3	::10
+4	::10
+CREATE VIEW v1(a, m) AS SELECT a, MIN(id) FROM t1 GROUP BY a;
+CREATE TABLE t2 SELECT * FROM v1;
+SELECT * FROM v1 ORDER BY a;
+a	m
+::5	5
+::6	6
+::10	1
+SELECT * FROM t2 ORDER BY a;
+a	m
+::5	5
+::6	6
+::10	1
+DROP VIEW v1;
+DROP TABLE t1, t2;
+#
 # MDEV-22256 Assertion `length == pack_length()' failed in Field_timestamp_with_dec::sort_string
 #
 SET sql_mode='';
@@ -2203,8 +2250,8 @@ Warnings:
 Warning	1292	Truncated incorrect max_sort_length value: '4'
 CREATE TEMPORARY TABLE t1(c INET6,d DATE);
 INSERT INTO t1 VALUES(0,0);
-Warnings:
-Warning	1292	Incorrect inet6 value: '0' for column `test`.`t1`.`c` at row 1
+ERROR HY000: Illegal parameter data types inet6 and int for operation 'SET'
+INSERT INTO t1 VALUES('::',0);
 SELECT c FROM t1 ORDER BY c;
 c
 ::
@@ -2227,3 +2274,4 @@ f
 f::f
 DROP TABLE t1;
 SET max_sort_length=DEFAULT;
+# End of 10.8 tests

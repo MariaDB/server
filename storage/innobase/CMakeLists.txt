@@ -128,7 +128,6 @@ SET(INNOBASE_SOURCES
 	include/fil0crypt.h
 	include/fil0crypt.inl
 	include/fil0fil.h
-	include/fil0fil.inl
 	include/fil0pagecompress.h
 	include/fsp0file.h
 	include/fsp0fsp.h
@@ -148,7 +147,6 @@ SET(INNOBASE_SOURCES
 	include/fts0types.h
 	include/fts0types.inl
 	include/fts0vlc.h
-	include/fut0fut.h
 	include/fut0lst.h
 	include/gis0geo.h
 	include/gis0rtree.h
@@ -236,10 +234,8 @@ SET(INNOBASE_SOURCES
 	include/trx0i_s.h
 	include/trx0purge.h
 	include/trx0rec.h
-	include/trx0rec.inl
 	include/trx0roll.h
 	include/trx0rseg.h
-	include/trx0rseg.inl
 	include/trx0sys.h
 	include/trx0trx.h
 	include/trx0trx.inl

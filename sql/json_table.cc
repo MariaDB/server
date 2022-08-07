@@ -19,13 +19,31 @@
 #include "sql_priv.h"
 #include "sql_class.h" /* TMP_TABLE_PARAM */
 #include "table.h"
+#include "sql_type_json.h"
 #include "item_jsonfunc.h"
 #include "json_table.h"
 #include "sql_show.h"
 #include "sql_select.h"
 #include "create_tmp_table.h"
+#include "sql_parse.h"
 
 #define HA_ERR_JSON_TABLE (HA_ERR_LAST+1)
+
+/*
+  Allocating memory and *also* using it (reading and
+  writing from it) because some build instructions cause
+  compiler to optimize out stack_used_up. Since alloca()
+  here depends on stack_used_up, it doesnt get executed
+  correctly and causes json_debug_nonembedded to fail
+  ( --error ER_STACK_OVERRUN_NEED_MORE does not occur).
+*/
+#define ALLOCATE_MEM_ON_STACK(A) do \
+                              { \
+                                uchar *array= (uchar*)alloca(A); \
+                                array[0]= 1; \
+                                array[0]++; \
+                                array[0] ? array[0]++ : array[0]--; \
+                              } while(0)
 
 class table_function_handlerton
 {
@@ -99,6 +117,15 @@ int get_disallowed_table_deps_for_list(MEM_ROOT *mem_root,
   TABLE_LIST *table;
   NESTED_JOIN *nested_join;
   List_iterator<TABLE_LIST> li(*join_list);
+
+  DBUG_EXECUTE_IF("json_check_min_stack_requirement",
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return 1;
 
   while ((table= li++))
   {
@@ -378,6 +405,25 @@ static void store_json_in_field(Field *f, const json_engine_t *je)
 }
 
 
+static int store_json_in_json(Field *f, json_engine_t *je)
+{
+  const uchar *from= je->value_begin;
+  const uchar *to;
+
+  if (json_value_scalar(je))
+    to= je->value_end;
+  else
+  {
+    int error;
+    if ((error= json_skip_level(je)))
+      return error;
+    to= je->s.c_str;
+  }
+  f->store((const char *) from, (uint32) (to - from), je->s.cs);
+  return 0;
+}
+
+
 bool Json_table_nested_path::check_error(const char *str)
 {
   if (m_engine.s.error)
@@ -542,7 +588,12 @@ int ha_json_table::fill_column_values(THD *thd, uchar * buf, uchar *pos)
           }
           else
           {
-            if (!(error= !json_value_scalar(&je)))
+            if (jc->m_format_json)
+            {
+              if (!(error= store_json_in_json(*f, &je)))
+                error= er_handler.errors;
+            }
+            else if (!(error= !json_value_scalar(&je)))
             {
               store_json_in_field(*f, &je);
               error= er_handler.errors;
@@ -869,12 +920,16 @@ int Json_table_column::set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
     anctual content. Not sure though if we should.
   */
   m_path.s.c_str= (const uchar *) path.str;
+
+  if (ctype == PATH)
+    m_format_json= m_field->type_handler() == &type_handler_long_blob_json;
+
   return 0;
 }
 
 
 int Json_table_column::set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
-                           const Lex_charset_collation_st &cl)
+                           const Lex_column_charset_collation_attrs_st &cl)
 {
   if (cl.is_empty() || cl.is_contextually_typed_collate_default())
     return set(thd, ctype, path, nullptr);
@@ -1290,6 +1345,15 @@ static void add_extra_deps(List<TABLE_LIST> *join_list, table_map deps)
 {
   TABLE_LIST *table;
   List_iterator<TABLE_LIST> li(*join_list);
+
+  DBUG_EXECUTE_IF("json_check_min_stack_requirement",
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return;
   while ((table= li++))
   {
     table->dep_tables |= deps;
@@ -1377,6 +1441,15 @@ table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
   TABLE_LIST *table;
   table_map res= 0;
   List_iterator<TABLE_LIST> li(*join_list);
+
+  DBUG_EXECUTE_IF("json_check_min_stack_requirement",
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
+  if ((res=check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL)))
+    return res;
 
   // Recursively compute extra dependencies
   while ((table= li++))

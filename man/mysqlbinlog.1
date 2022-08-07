@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQLBINLOG\FR" "1" "14 April 2021" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\FBMARIADB-BINLOG\FR" "1" "14 April 2021" "MariaDB 10\&.9" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -13,7 +13,7 @@
 .\" -----------------------------------------------------------------
 .\" mysqlbinlog
 .SH "NAME"
-mysqlbinlog \- utility for processing binary log files
+mariadb-binlog \- utility for processing binary log files (mysqlbinlog is now a symlink to mariadb-binlog)
 .SH "SYNOPSIS"
 .HP \w'\fBmysqlbinlog\ [\fR\fBoptions\fR\fB]\ \fR\fB\fIlog_file\fR\fR\fB\ \&.\&.\&.\fR\ 'u
 \fBmysqlbinlog [\fR\fBoptions\fR\fB] \fR\fB\fIlog_file\fR\fR\fB \&.\&.\&.\fR
@@ -882,78 +882,11 @@ quote the value (e.g. \fB--rewrite-db="oldname->newname"\fR\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: ignore-domain-ids option
-.\" ignore-domain-ids option: mysqlbinlog
-\fB\-\-ignore\-domain\-ids=\fR\fB\fIIDs\fR\fR
-.sp
-Hide events which are a part of any stream identified by the domain ID
-list \fIIDs\fR\&. Cannot be used with \-\-do\-domain\-ids\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysqlbinlog: do-domain-ids option
-.\" do-domain-ids option: mysqlbinlog
-\fB\-\-do\-domain\-ids=\fR\fB\fIIDs\fR\fR
-.sp
-Display only the events which exist in a stream identified by \fIIDs\fR\&.
-Cannot be used with \-\-ignore\-domain\-ids\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysqlbinlog: ignore-server-ids option
-.\" ignore-server-ids option: mysqlbinlog
-\fB\-\-ignore\-server\-ids=\fR\fB\fIIDs\fR\fR
-.sp
-Hide events which originated from any server whose ID is specified in
-\fIIDs\fR\&. Cannot be used with \-\-do\-server\-ids\ or \-\-server\-id\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysqlbinlog: do-server-ids option
-.\" do-server-ids option: mysqlbinlog
-\fB\-\-do\-server\-ids=\fR\fB\fIIDs\fR\fR
-.sp
-Display only the events that originated from a server identified in
-\fIIDs\fR\&. Cannot be used with \-\-ignore\-server\-ids, and
-is an alias for \-\-server\-id\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
 .\" mysqlbinlog: server-id option
 .\" server-id option: mysqlbinlog
 \fB\-\-server\-id=\fR\fB\fIid\fR\fR
 .sp
 Display only those events created by the server having the given server ID\&.
-Cannot be used with \-\-ignore\-server\-ids, and is an alias for
-\-\-do\-server\-ids\&.
 .RE
 .sp
 .RS 4

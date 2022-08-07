@@ -789,7 +789,9 @@ static bool check_charset(sys_var *self, THD *thd, set_var *var)
   else // INT_RESULT
   {
     int csno= (int)var->value->val_int();
-    if (!(var->save_result.ptr= get_charset(csno, MYF(0))))
+    CHARSET_INFO *cs;
+    if (!(var->save_result.ptr= cs= get_charset(csno, MYF(0))) ||
+        !(cs->state & MY_CS_PRIMARY))
     {
       my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), llstr(csno, buff));
       return true;
@@ -2047,7 +2049,10 @@ Sys_gtid_strict_mode(
        "gtid_strict_mode",
        "Enforce strict seq_no ordering of events in the binary log. Slave "
        "stops with an error if it encounters an event that would cause it to "
-       "generate an out-of-order binlog if executed.",
+       "generate an out-of-order binlog if executed. "
+       "When ON the same server-id semisync-replicated transactions that "
+       "duplicate exising ones in binlog are ignored without error "
+       "and slave interruption.",
        GLOBAL_VAR(opt_gtid_strict_mode),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
@@ -4511,10 +4516,7 @@ static bool fix_sql_log_bin_after_update(sys_var *self, THD *thd,
 {
   DBUG_ASSERT(type == OPT_SESSION);
 
-  if (thd->variables.sql_log_bin)
-    thd->variables.option_bits |= OPTION_BIN_LOG;
-  else
-    thd->variables.option_bits &= ~OPTION_BIN_LOG;
+  thd->set_binlog_bit();
 
   return FALSE;
 }

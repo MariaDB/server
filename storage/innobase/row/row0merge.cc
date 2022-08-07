@@ -121,7 +121,6 @@ public:
 		rec_offs*	ins_offsets = NULL;
 		dberr_t		error = DB_SUCCESS;
 		dtuple_t*	dtuple;
-		ulint		count = 0;
 		const ulint	flag = BTR_NO_UNDO_LOG_FLAG
 				       | BTR_NO_LOCKING_FLAG
 				       | BTR_KEEP_SYS_FLAG | BTR_CREATE_FLAG;
@@ -139,7 +138,10 @@ public:
 
 			if (log_sys.check_flush_or_checkpoint()) {
 				if (mtr_started) {
-					btr_pcur_move_to_prev_on_page(pcur);
+					if (!btr_pcur_move_to_prev_on_page(pcur)) {
+						error = DB_CORRUPTION;
+						break;
+					}
 					btr_pcur_store_position(pcur, scan_mtr);
 					scan_mtr->commit();
 					mtr_started = false;
@@ -156,14 +158,13 @@ public:
 					  false);
 			rtr_info_update_btr(&ins_cur, &rtr_info);
 
-			btr_cur_search_to_nth_level(m_index, 0, dtuple,
-						    PAGE_CUR_RTREE_INSERT,
-						    BTR_MODIFY_LEAF, &ins_cur,
-						    0, &mtr);
+			error = btr_cur_search_to_nth_level(
+				m_index, 0, dtuple, PAGE_CUR_RTREE_INSERT,
+				BTR_MODIFY_LEAF, &ins_cur, 0, &mtr);
 
 			/* It need to update MBR in parent entry,
 			so change search mode to BTR_MODIFY_TREE */
-			if (rtr_info.mbr_adj) {
+			if (error == DB_SUCCESS && rtr_info.mbr_adj) {
 				mtr_commit(&mtr);
 				rtr_clean_rtr_info(&rtr_info, true);
 				rtr_init_rtr_info(&rtr_info, false, &ins_cur,
@@ -171,18 +172,22 @@ public:
 				rtr_info_update_btr(&ins_cur, &rtr_info);
 				mtr_start(&mtr);
 				m_index->set_modified(mtr);
-				btr_cur_search_to_nth_level(
+				error = btr_cur_search_to_nth_level(
 					m_index, 0, dtuple,
 					PAGE_CUR_RTREE_INSERT,
 					BTR_MODIFY_TREE, &ins_cur, 0, &mtr);
 			}
 
-			error = btr_cur_optimistic_insert(
-				flag, &ins_cur, &ins_offsets, &row_heap,
-				dtuple, &rec, &big_rec, 0, NULL, &mtr);
+			if (error == DB_SUCCESS) {
+				error = btr_cur_optimistic_insert(
+					flag, &ins_cur, &ins_offsets,
+					&row_heap, dtuple, &rec, &big_rec,
+					0, NULL, &mtr);
+			}
+
+			ut_ad(!big_rec);
 
 			if (error == DB_FAIL) {
-				ut_ad(!big_rec);
 				mtr.commit();
 				mtr.start();
 				m_index->set_modified(mtr);
@@ -192,17 +197,21 @@ public:
 						  &ins_cur, m_index, false);
 
 				rtr_info_update_btr(&ins_cur, &rtr_info);
-				btr_cur_search_to_nth_level(
+				error = btr_cur_search_to_nth_level(
 					m_index, 0, dtuple,
 					PAGE_CUR_RTREE_INSERT,
 					BTR_MODIFY_TREE,
 					&ins_cur, 0, &mtr);
 
-				error = btr_cur_pessimistic_insert(
+				if (error == DB_SUCCESS) {
+					error = btr_cur_pessimistic_insert(
 						flag, &ins_cur, &ins_offsets,
 						&row_heap, dtuple, &rec,
 						&big_rec, 0, NULL, &mtr);
+				}
 			}
+
+			ut_ad(!big_rec);
 
 			DBUG_EXECUTE_IF(
 				"row_merge_ins_spatial_fail",
@@ -226,7 +235,6 @@ public:
 			mtr_commit(&mtr);
 
 			rtr_clean_rtr_info(&rtr_info, true);
-			count++;
 		}
 
 		m_dtuple_vec->clear();
@@ -538,6 +546,7 @@ static ulint row_merge_bulk_buf_add(row_merge_buf_t* buf,
 @param[in,out]	v_heap		heap memory to process data for virtual column
 @param[in,out]	my_table	mysql table object
 @param[in]	trx		transaction object
+@param[in]	col_collate	columns whose collations changed, or nullptr
 @return number of rows added, 0 if out of space */
 static
 ulint
@@ -554,7 +563,8 @@ row_merge_buf_add(
 	dberr_t*		err,
 	mem_heap_t**		v_heap,
 	TABLE*			my_table,
-	trx_t*			trx)
+	trx_t*			trx,
+	const col_collations*	col_collate)
 {
 	ulint			i;
 	const dict_index_t*	index;
@@ -568,6 +578,7 @@ row_merge_buf_add(
 	doc_id_t		write_doc_id;
 	ulint			n_row_added = 0;
 	VCOL_STORAGE		vcol_storage;
+
 	DBUG_ENTER("row_merge_buf_add");
 
 	if (buf->n_tuples >= buf->max_tuples) {
@@ -659,8 +670,17 @@ error:
 				row_field = dtuple_get_nth_field(row,
 								 col->ind);
 				dfield_copy(field, row_field);
-			}
 
+				/* Copy the column collation to the
+				tuple field */
+				if (col_collate) {
+					auto it = col_collate->find(col->ind);
+					if (it != col_collate->end()) {
+						field->type
+							.assign(*it->second);
+					}
+				}
+			}
 
 			/* Tokenize and process data for FTS */
 			if (index->type & DICT_FTS) {
@@ -1257,7 +1277,7 @@ row_merge_read(
 	if (success && srv_encrypt_log) {
 		if (!log_tmp_block_decrypt(buf, srv_sort_buf_size,
 					   crypt_buf, ofs)) {
-			return (FALSE);
+			DBUG_RETURN(false);
 		}
 
 		srv_stats.n_merge_blocks_decrypted.inc();
@@ -1304,7 +1324,7 @@ row_merge_write(
 					   buf_len,
 					   static_cast<byte*>(crypt_buf),
 					   ofs)) {
-			return false;
+			DBUG_RETURN(false);
 		}
 
 		srv_stats.n_merge_blocks_encrypted.inc();
@@ -1819,6 +1839,7 @@ stage->inc() will be called for each page read.
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
 @param[in]	allow_not_null	allow null to not-null conversion
+@param[in]	col_collate	columns whose collations changed, or nullptr
 @return DB_SUCCESS or error */
 static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
@@ -1846,7 +1867,8 @@ row_merge_read_clustered_index(
 	double 			pct_cost,
 	row_merge_block_t*	crypt_block,
 	struct TABLE*		eval_table,
-	bool			allow_not_null)
+	bool			allow_not_null,
+	const col_collations*	col_collate)
 {
 	dict_index_t*		clust_index;	/* Clustered index */
 	mem_heap_t*		row_heap = NULL;/* Heap memory to create
@@ -1994,20 +2016,36 @@ row_merge_read_clustered_index(
 	      == (DATA_ROLL_PTR | DATA_NOT_NULL));
 	const ulint new_trx_id_col = col_map
 		? col_map[old_trx_id_col] : old_trx_id_col;
-
-	btr_pcur_open_at_index_side(
-		true, clust_index, BTR_SEARCH_LEAF, &pcur, true, 0, &mtr);
-	mtr_started = true;
-	btr_pcur_move_to_next_user_rec(&pcur, &mtr);
-	if (rec_is_metadata(btr_pcur_get_rec(&pcur), *clust_index)) {
-		ut_ad(btr_pcur_is_on_user_rec(&pcur));
-		/* Skip the metadata pseudo-record. */
-	} else {
-		ut_ad(!clust_index->is_instant());
-		btr_pcur_move_to_prev_on_page(&pcur);
-	}
-
 	uint64_t n_rows = 0;
+
+	err = btr_pcur_open_at_index_side(true, clust_index, BTR_SEARCH_LEAF,
+					  &pcur, true, 0, &mtr);
+	if (err != DB_SUCCESS) {
+err_exit:
+		trx->error_key_num = 0;
+		goto func_exit;
+	} else {
+		rec_t* rec = page_rec_get_next(btr_pcur_get_rec(&pcur));
+		if (!rec) {
+corrupted_metadata:
+			err = DB_CORRUPTION;
+			goto err_exit;
+		}
+		if (rec_get_info_bits(rec, page_rec_is_comp(rec))
+		    & REC_INFO_MIN_REC_FLAG) {
+			if (!clust_index->is_instant()) {
+				goto corrupted_metadata;
+			}
+			if (page_rec_is_comp(rec)
+			    && rec_get_status(rec) != REC_STATUS_INSTANT) {
+				goto corrupted_metadata;
+			}
+			/* Skip the metadata pseudo-record. */
+			btr_pcur_get_page_cur(&pcur)->rec = rec;
+		} else if (clust_index->is_instant()) {
+			goto corrupted_metadata;
+		}
+	}
 
 	/* Check if the table is supposed to be empty for our read view.
 
@@ -2091,8 +2129,7 @@ row_merge_read_clustered_index(
 		/* Do not continue if table pages are still encrypted */
 		if (!old_table->is_readable() || !new_table->is_readable()) {
 			err = DB_DECRYPTION_FAILED;
-			trx->error_key_num = 0;
-			goto func_exit;
+			goto err_exit;
 		}
 
 		const rec_t*	rec;
@@ -2114,15 +2151,13 @@ row_merge_read_clustered_index(
 
 			if (UNIV_UNLIKELY(trx_is_interrupted(trx))) {
 				err = DB_INTERRUPTED;
-				trx->error_key_num = 0;
-				goto func_exit;
+				goto err_exit;
 			}
 
 			if (online && old_table != new_table) {
 				err = row_log_table_get_error(clust_index);
 				if (err != DB_SUCCESS) {
-					trx->error_key_num = 0;
-					goto func_exit;
+					goto err_exit;
 				}
 			}
 
@@ -2149,13 +2184,16 @@ row_merge_read_clustered_index(
 
 				/* Store the cursor position on the last user
 				record on the page. */
-				btr_pcur_move_to_prev_on_page(&pcur);
+				if (!btr_pcur_move_to_prev_on_page(&pcur)) {
+					goto corrupted_index;
+				}
 				/* Leaf pages must never be empty, unless
 				this is the only page in the index tree. */
-				ut_ad(btr_pcur_is_on_user_rec(&pcur)
-				      || btr_pcur_get_block(
-					      &pcur)->page.id().page_no()
-				      == clust_index->page);
+				if (!btr_pcur_is_on_user_rec(&pcur)
+				    && btr_pcur_get_block(&pcur)->page.id()
+				    .page_no() != clust_index->page) {
+					goto corrupted_index;
+				}
 
 				btr_pcur_store_position(&pcur, &mtr);
 				mtr.commit();
@@ -2171,8 +2209,13 @@ scan_next:
 				/* Restore position on the record, or its
 				predecessor if the record was purged
 				meanwhile. */
-				pcur.restore_position(
-					BTR_SEARCH_LEAF, &mtr);
+				if (pcur.restore_position(BTR_SEARCH_LEAF,
+							  &mtr)
+				    == btr_pcur_t::CORRUPTED) {
+corrupted_index:
+					err = DB_CORRUPTION;
+					goto func_exit;
+                                }
 				/* Move to the successor of the
 				original record. */
 				if (!btr_pcur_move_to_next_user_rec(
@@ -2195,10 +2238,15 @@ end_of_index:
 					goto end_of_index;
 				}
 
-				buf_block_t* block = btr_block_get(
-					*clust_index, next_page_no,
-					RW_S_LATCH, false, &mtr);
-
+				buf_block_t* block = buf_page_get_gen(
+					page_id_t(old_table->space->id,
+						  next_page_no),
+					old_table->space->zip_size(),
+					RW_S_LATCH, nullptr, BUF_GET, &mtr,
+					&err, false);
+				if (!block) {
+					goto err_exit;
+				}
 				btr_leaf_page_release(page_cur_get_block(cur),
 						      BTR_SEARCH_LEAF, &mtr);
 				page_cur_set_before_first(block, cur);
@@ -2351,8 +2399,7 @@ end_of_index:
 
 				if (!allow_not_null) {
 					err = DB_INVALID_NULL;
-					trx->error_key_num = 0;
-					goto func_exit;
+					goto err_exit;
 				}
 
 				const dfield_t& default_field
@@ -2433,13 +2480,10 @@ end_of_index:
 			byte*	b = static_cast<byte*>(dfield_get_data(dfield));
 
 			if (sequence.eof()) {
-				err = DB_ERROR;
-				trx->error_key_num = 0;
-
 				ib_errf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 					ER_AUTOINC_READ_FAILED, "[NULL]");
-
-				goto func_exit;
+				err = DB_ERROR;
+				goto err_exit;
 			}
 
 			ulonglong	value = sequence++;
@@ -2531,7 +2575,8 @@ write_buffers:
 					buf, fts_index, old_table, new_table,
 					psort_info, row, ext, &doc_id,
 					conv_heap, &err,
-					&v_heap, eval_table, trx)))) {
+					&v_heap, eval_table, trx,
+					col_collate)))) {
 
 				/* If we are creating FTS index,
 				a single row can generate more
@@ -2652,8 +2697,10 @@ write_buffers:
 						we must reread it on the next
 						loop iteration. */
 						if (mtr_started) {
-							btr_pcur_move_to_prev_on_page(
-								&pcur);
+							if (!btr_pcur_move_to_prev_on_page(&pcur)) {
+								err = DB_CORRUPTION;
+								goto func_exit;
+							}
 							btr_pcur_store_position(
 								&pcur, &mtr);
 
@@ -2715,8 +2762,11 @@ write_buffers:
 						overflow). */
 						mtr.start();
 						mtr_started = true;
-						pcur.restore_position(
-							BTR_SEARCH_LEAF, &mtr);
+						if (pcur.restore_position(
+							BTR_SEARCH_LEAF, &mtr)
+						    == btr_pcur_t::CORRUPTED) {
+							goto corrupted_index;
+						}
 						buf = row_merge_buf_empty(buf);
 						merge_buf[i] = buf;
 						/* Restart the outer loop on the
@@ -2857,7 +2907,8 @@ write_buffers:
 						buf, fts_index, old_table,
 						new_table, psort_info, row, ext,
 						&doc_id, conv_heap,
-						&err, &v_heap, eval_table, trx)))) {
+						&err, &v_heap, eval_table,
+						trx, col_collate)))) {
                                         /* An empty buffer should have enough
                                         room for at least one record. */
 					ut_ad(err == DB_COMPUTE_VALUE_FAILED
@@ -4592,6 +4643,7 @@ this function and it will be passed to other functions for further accounting.
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
 @param[in]	allow_not_null	allow the conversion from null to not-null
+@param[in]	col_collate	columns whose collations changed, or nullptr
 @return DB_SUCCESS or error code */
 dberr_t
 row_merge_build_indexes(
@@ -4611,7 +4663,8 @@ row_merge_build_indexes(
 	ut_stage_alter_t*	stage,
 	const dict_add_v_col_t*	add_v,
 	struct TABLE*		eval_table,
-	bool			allow_not_null)
+	bool			allow_not_null,
+	const col_collations*	col_collate)
 {
 	merge_file_t*		merge_files;
 	row_merge_block_t*	block;
@@ -4761,7 +4814,8 @@ row_merge_build_indexes(
 		fts_sort_idx, psort_info, merge_files, key_numbers,
 		n_indexes, defaults, add_v, col_map, add_autoinc,
 		sequence, block, skip_pk_sort, &tmpfd, stage,
-		pct_cost, crypt_block, eval_table, allow_not_null);
+		pct_cost, crypt_block, eval_table, allow_not_null,
+		col_collate);
 
 	stage->end_phase_read_pk();
 
@@ -5033,6 +5087,16 @@ dberr_t row_merge_bulk_t::alloc_block()
              3 * srv_sort_buf_size, &m_block_pfx);
   if (m_block == nullptr)
     return DB_OUT_OF_MEMORY;
+
+  m_crypt_pfx.m_size= 0;
+  TRASH_ALLOC(&m_crypt_pfx, sizeof m_crypt_pfx);
+  if (srv_encrypt_log)
+  {
+    m_crypt_block= static_cast<row_merge_block_t*>(
+       m_alloc.allocate_large(3 * srv_sort_buf_size, &m_crypt_pfx));
+    if (!m_crypt_block)
+      return DB_OUT_OF_MEMORY;
+  }
   return DB_SUCCESS;
 }
 
@@ -5093,6 +5157,9 @@ row_merge_bulk_t::~row_merge_bulk_t()
 
   if (m_block)
     m_alloc.deallocate_large(m_block, &m_block_pfx);
+
+  if (m_crypt_block)
+    m_alloc.deallocate_large(m_crypt_block, &m_crypt_pfx);
 }
 
 void row_merge_bulk_t::init_tmp_file()
@@ -5152,7 +5219,7 @@ dberr_t row_merge_bulk_t::write_to_tmp_file(ulint index_no)
     return err;
 
   if (!row_merge_write(file->fd, file->offset++,
-                       m_block, nullptr,
+                       m_block, m_crypt_block,
                        buf->index->table->space->id))
     return DB_TEMP_FILE_WRITE_FAIL;
   MEM_UNDEFINED(&m_block[0], srv_sort_buf_size);
@@ -5273,13 +5340,13 @@ dberr_t row_merge_bulk_t::write_to_index(ulint index_no, trx_t *trx)
 
   err= row_merge_sort(trx, &dup, file,
                       m_block, &m_tmpfd, true, 0, 0,
-                      nullptr, table->space_id, nullptr);
+                      m_crypt_block, table->space_id, nullptr);
   if (err != DB_SUCCESS)
     goto func_exit;
 
   err= row_merge_insert_index_tuples(
         index, table, file->fd, m_block, nullptr,
-        &btr_bulk, 0, 0, 0, nullptr, table->space_id,
+        &btr_bulk, 0, 0, 0, m_crypt_block, table->space_id,
         nullptr, &m_blob_file);
 
 func_exit:

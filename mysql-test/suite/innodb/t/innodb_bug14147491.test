@@ -12,6 +12,7 @@ call mtr.add_suppression("InnoDB: Table `test`\\.`t1` is corrupted\\. Please dro
 call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed read of file '.*test.t1\\.ibd' page");
 call mtr.add_suppression("InnoDB: We detected index corruption in an InnoDB type table");
 call mtr.add_suppression("Index for table 't1' is corrupt; try to repair it");
+call mtr.add_suppression("InnoDB: File '.*test/t1\\.ibd' is corrupted");
 --enable_query_log
 
 --echo # Ensure that purge will not crash on the table after we corrupt it.
@@ -70,13 +71,13 @@ EOF
 
 --echo # Now t1 is corrupted but we should not crash
 
---error 1030,1712,1932
+--error ER_GET_ERRNO,ER_NOT_KEYFILE,ER_INDEX_CORRUPT,ER_NO_SUCH_TABLE_IN_ENGINE
 SELECT * FROM t1;
 
---error 126,1030,1034,1712,1932
+--error 126,ER_GET_ERRNO,ER_NOT_KEYFILE,ER_INDEX_CORRUPT,ER_NO_SUCH_TABLE_IN_ENGINE
 INSERT INTO t1(b) VALUES('abcdef');
 
---error 1030,1712,1932
+--error ER_GET_ERRNO,ER_NOT_KEYFILE,ER_INDEX_CORRUPT,ER_NO_SUCH_TABLE_IN_ENGINE
 UPDATE t1 set b = 'deadbeef' where a = 1;
 
 --echo # Cleanup, this must be possible

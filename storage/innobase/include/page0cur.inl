@@ -63,14 +63,11 @@ page_cur_get_page_zip(
 	return(buf_block_get_page_zip(page_cur_get_block(cur)));
 }
 
-/*********************************************************//**
-Gets the record where the cursor is positioned.
+/* Gets the record where the cursor is positioned.
+@param cur page cursor
 @return record */
 UNIV_INLINE
-rec_t*
-page_cur_get_rec(
-/*=============*/
-	page_cur_t*	cur)	/*!< in: page cursor */
+rec_t *page_cur_get_rec(const page_cur_t *cur)
 {
   ut_ad(cur);
   ut_ad(!cur->rec || page_align(cur->rec) == cur->block->page.frame);
@@ -168,14 +165,14 @@ page_cur_move_to_next(
 /**********************************************************//**
 Moves the cursor to the previous record on page. */
 UNIV_INLINE
-void
+rec_t*
 page_cur_move_to_prev(
 /*==================*/
 	page_cur_t*	cur)	/*!< in/out: page cursor, not before first */
 {
 	ut_ad(!page_cur_is_before_first(cur));
 
-	cur->rec = page_rec_get_prev(cur->rec);
+	return cur->rec = page_rec_get_prev(cur->rec);
 }
 
 /** Search the right position for a page cursor.

@@ -61,9 +61,11 @@ let SEARCH_PATTERN=page id mismatch;
 --source include/search_pattern_in_file.inc
 
 --remove_file $resultlog
-# prevent purge from crashing on page ID mismatch
-let $restart_parameters=--innodb-force-recovery=2;
+let $restart_parameters=--innodb-force-recovery=1;
 --source include/start_mysqld.inc
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+--source include/wait_all_purged.inc
 drop table t1;
+call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*test/t1\\.ibd': Page read from tablespace is corrupted\\.");
 let $restart_parameters=;
 --source include/restart_mysqld.inc

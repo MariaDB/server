@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2015, 2021, MariaDB
+   Copyright (c) 2015, 2022, MariaDB
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -1746,7 +1746,7 @@ Type_handler_time_common::type_handler_for_native_format() const
 
 const Type_handler *Type_handler_typelib::type_handler_for_item_field() const
 {
-  return &type_handler_string;
+  return &type_handler_varchar;
 }
 
 
@@ -1959,6 +1959,9 @@ Type_collection_std::aggregate_for_comparison(const Type_handler *ha,
       return ha;
     }
   }
+  if ((a == INT_RESULT && b == STRING_RESULT) ||
+      (b == INT_RESULT && a == STRING_RESULT))
+    return &type_handler_newdecimal;
   if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
       (b == INT_RESULT || b == DECIMAL_RESULT))
     return &type_handler_newdecimal;
@@ -2715,7 +2718,7 @@ Type_handler::Column_definition_set_attributes(THD *thd,
                                                column_definition_type_t type)
                                                const
 {
-  def->set_lex_charset_collation(attr.lex_charset_collation());
+  def->set_charset_collation_attrs(attr.charset_collation_attrs());
   def->set_length_and_dec(attr);
   return false;
 }

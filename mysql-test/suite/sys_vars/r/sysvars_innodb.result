@@ -5,6 +5,7 @@ variable_name not in (
 'innodb_numa_interleave',           # only available WITH_NUMA
 'innodb_evict_tables_on_commit_debug', # one may want to override this
 'innodb_use_native_aio',            # default value depends on OS
+'innodb_log_file_buffering',        # only available on Linux and Windows
 'innodb_buffer_pool_load_pages_abort')            # debug build only, and is only for testing
 order by variable_name;
 VARIABLE_NAME	INNODB_ADAPTIVE_FLUSHING
@@ -1020,7 +1021,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Path to InnoDB log files.
+VARIABLE_COMMENT	Path to ib_logfile0
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL

@@ -514,7 +514,7 @@ static srv_sys_t	srv_sys;
 struct purge_coordinator_state
 {
   /** Snapshot of the last history length before the purge call.*/
-  uint32 m_history_length;
+  size_t m_history_length;
   Atomic_counter<int> m_running;
 private:
   ulint count;
@@ -1068,7 +1068,7 @@ srv_export_innodb_status(void)
 		- UT_LIST_GET_LEN(buf_pool.free);
 
 	export_vars.innodb_max_trx_id = trx_sys.get_max_trx_id();
-	export_vars.innodb_history_list_length = trx_sys.history_size();
+	export_vars.innodb_history_list_length = trx_sys.history_size_approx();
 
 	mysql_mutex_lock(&lock_sys.wait_mutex);
 	export_vars.innodb_row_lock_waits = lock_sys.get_wait_cumulative();
@@ -1586,7 +1586,7 @@ static bool srv_purge_should_exit()
     return true;
 
   /* Slow shutdown was requested. */
-  const uint32_t history_size= trx_sys.history_size();
+  const size_t history_size= trx_sys.history_size();
   if (history_size)
   {
     static time_t progress_time;
@@ -1596,9 +1596,9 @@ static bool srv_purge_should_exit()
       progress_time= now;
 #if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
       service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-				     "InnoDB: to purge %u transactions",
+				     "InnoDB: to purge %zu transactions",
 				     history_size);
-      ib::info() << "to purge " << history_size << " transactions";
+      sql_print_information("InnoDB: to purge %zu transactions", history_size);
 #endif
     }
     return false;

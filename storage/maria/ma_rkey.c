@@ -94,7 +94,7 @@ int maria_rkey(MARIA_HA *info, uchar *buf, int inx, const uchar *key_data,
   case HA_KEY_ALG_RTREE:
     if (maria_rtree_find_first(info, &key, nextflag) < 0)
     {
-      _ma_set_fatal_error(share, HA_ERR_CRASHED);
+      _ma_set_fatal_error(info, HA_ERR_CRASHED);
       info->cur_row.lastpos= HA_OFFSET_ERROR;
     }
     break;

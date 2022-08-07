@@ -1261,9 +1261,6 @@ row_upd_changes_ord_field_binary_func(
 	ulint			i;
 	const dict_index_t*	clust_index;
 
-	ut_ad(thr);
-	ut_ad(thr->graph);
-	ut_ad(thr->graph->trx);
 	ut_ad(!index->table->skip_alter_undo);
 
 	n_unique = dict_index_get_n_unique(index);
@@ -1463,9 +1460,11 @@ row_upd_changes_ord_field_binary_func(
 					trx_rollback_recovered()
 					when the server had crashed before
 					storing the field. */
-					ut_ad(thr->graph->trx->is_recovered);
-					ut_ad(thr->graph->trx
-					      == trx_roll_crash_recv_trx);
+					ut_ad(!thr
+					      || thr->graph->trx->is_recovered);
+					ut_ad(!thr
+					      || thr->graph->trx
+					         == trx_roll_crash_recv_trx);
 					return(TRUE);
 				}
 
@@ -1887,9 +1886,7 @@ row_upd_sec_index_entry(
 	ut_ad(trx->id != 0);
 
 	index = node->index;
-	if (!index->is_committed()) {
-		return DB_SUCCESS;
-	}
+	ut_ad(index->is_committed());
 
 	/* For secondary indexes, index->online_status==ONLINE_INDEX_COMPLETE
 	if index->is_committed(). */
@@ -2594,6 +2591,10 @@ row_upd_clust_step(
 
 	index = dict_table_get_first_index(node->table);
 
+	if (index->is_corrupted()) {
+		return DB_TABLE_CORRUPT;
+	}
+
 	const bool referenced = row_upd_index_is_referenced(index, trx);
 #ifdef WITH_WSREP
 	const bool foreign = wsrep_row_upd_index_is_foreign(index, trx);
@@ -2808,14 +2809,11 @@ row_upd(
 	DBUG_EXECUTE_IF("row_upd_skip_sec", node->index = NULL;);
 
 	do {
-		/* Skip corrupted index */
-		dict_table_skip_corrupt_index(node->index);
-
 		if (!node->index) {
 			break;
 		}
 
-		if (!(node->index->type & DICT_FTS)
+		if (!(node->index->type & (DICT_FTS | DICT_CORRUPT))
 		    && node->index->is_committed()) {
 			err = row_upd_sec_step(node, thr);
 

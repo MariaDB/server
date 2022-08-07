@@ -1,7 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1699,6 +1699,27 @@ public:
   Field **field_to_fill();
   bool validate_default_values_of_unset_fields(THD *thd) const;
 
+  // Check if the value list is assignable to the explicit field list
+  static bool check_assignability_explicit_fields(List<Item> fields,
+                                                  List<Item> values);
+  // Check if the value list is assignable to all visible fields
+  bool check_assignability_all_visible_fields(List<Item> &values) const;
+  /*
+    Check if the value list is assignable to:
+    - The explicit field list if fields.elements > 0, e.g.
+        INSERT INTO t1 (a,b) VALUES (1,2);
+    - All visible fields, if fields.elements==0, e.g.
+        INSERT INTO t1 VALUES (1,2);
+  */
+  bool check_assignability_opt_fields(List<Item> fields,
+                                      List<Item> values) const
+  {
+    DBUG_ASSERT(values.elements);
+    return fields.elements ?
+           check_assignability_explicit_fields(fields, values) :
+           check_assignability_all_visible_fields(values);
+  }
+
   bool insert_all_rows_into_tmp_table(THD *thd, 
                                       TABLE *tmp_table,
                                       TMP_TABLE_PARAM *tmp_table_param,
@@ -3207,9 +3228,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                        bool is_create_table,
                        List<String> *partitions_to_open= NULL);
 bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root);
-bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol);
-bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
-                                    Virtual_column_info *vcol);
 bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
                      bool *error_reported, vcol_init_mode expr);
 TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,

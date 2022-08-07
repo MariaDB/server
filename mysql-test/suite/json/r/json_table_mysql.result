@@ -40,7 +40,7 @@ id	jpath	jsn_path	jexst
 2	2	2	0
 3	33	{"x":33}	1
 4	0	0	0
-5	66	NULL	0
+5	66	[1,2]	0
 select * from
 json_table(
 '[{"a":"3"},{"a":2},{"b":1},{"a":0.33},{"a":"asd"}]',
@@ -55,11 +55,11 @@ jsn_path json path '$.a' default '{"x":33}' on empty,
 jexst int exists path '$.b')
 ) as tt;
 id	jpath_i	jpath_r	jsn_path	jexst
-1	3	3	3	0
+1	3	3	"3"	0
 2	2	2	2	0
 3	33	33.3	{"x":33}	1
 4	0	0.33	0.33	0
-5	0	0	asd	0
+5	0	0	"asd"	0
 Warnings:
 Warning	1366	Incorrect integer value: 'asd' for column ``.`(temporary)`.`jpath_i` at row 5
 Warning	1366	Incorrect double value: 'asd' for column ``.`(temporary)`.`jpath_r` at row 5
@@ -78,7 +78,7 @@ id	jpath	jsn_path	jexst
 2	2	2	0
 3	33	{"x":33}	1
 4	0	0	0
-5	66	NULL	0
+5	66	[1,2]	0
 select * from
 json_table(
 '[{"a":"3"},{"a":2},{"b":1},{"a":0}]',
@@ -88,7 +88,7 @@ json_path json path '$.a',
 jexst int exists path '$.b')
 ) as tt;
 id	jpath	json_path	jexst
-1	3	3	0
+1	3	"3"	0
 2	2	2	0
 3	NULL	NULL	1
 4	0	0	0
@@ -319,24 +319,24 @@ id1	jpath	jexst	id2	id3	jpath_3	id4	jpath_4
 1	3	0	2	1	a1	NULL	NULL
 1	3	0	2	2	a2	NULL	NULL
 1	3	0	3	1	c	NULL	NULL
-1	3	0	NULL	NULL	NULL	1	NULL
-1	3	0	NULL	NULL	NULL	2	NULL
-1	3	0	NULL	NULL	NULL	3	NULL
+1	3	0	NULL	NULL	NULL	1	{"ll":["b1","b2","b3"]}
+1	3	0	NULL	NULL	NULL	2	{"ll": ["a1","a2"]}
+1	3	0	NULL	NULL	NULL	3	{"ll":["c"]}
 2	2	0	1	1	1	NULL	NULL
 2	2	0	1	2	11	NULL	NULL
 2	2	0	1	3	111	NULL	NULL
 2	2	0	2	1	2	NULL	NULL
-2	2	0	NULL	NULL	NULL	1	NULL
-2	2	0	NULL	NULL	NULL	2	NULL
+2	2	0	NULL	NULL	NULL	1	{"ll":[1,11,111]}
+2	2	0	NULL	NULL	NULL	2	{"ll":[2]}
 3	NULL	1	1	1	zzz	NULL	NULL
-3	NULL	1	NULL	NULL	NULL	1	NULL
+3	NULL	1	NULL	NULL	NULL	1	{"ll":["zzz"]}
 4	0	0	1	1	0.1	NULL	NULL
 4	0	0	1	2	0.01	NULL	NULL
 4	0	0	2	1	0.02	NULL	NULL
 4	0	0	2	2	0.002	NULL	NULL
 4	0	0	2	3	0.0002	NULL	NULL
-4	0	0	NULL	NULL	NULL	1	NULL
-4	0	0	NULL	NULL	NULL	2	NULL
+4	0	0	NULL	NULL	NULL	1	{"ll":[0.1,0.01]}
+4	0	0	NULL	NULL	NULL	2	{"ll":[0.02,0.002,0.0002]}
 ord should be 1,1,1,2, which tells that first two values of 'l' are
 from the same object, and next two are from different objects
 SELECT *
@@ -555,10 +555,12 @@ JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT NULL ON ERROR)) jt;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL ON ERROR)) jt' at line 2
 SELECT * FROM
 JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT 0 ON EMPTY)) jt;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '0 ON EMPTY)) jt' at line 2
+x
+0
 SELECT * FROM
 JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT 0 ON ERROR)) jt;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '0 ON ERROR)) jt' at line 2
+x
+NULL
 SELECT * FROM
 JSON_TABLE('{}', '$' COLUMNS (x DATE
 PATH '$.x'
@@ -608,7 +610,7 @@ SELECT * FROM JSON_TABLE('{"a":"1"}',
 o FOR ORDINALITY)) AS jt
 WHERE o = 1;
 jpath	o
-1	1
+"1"	1
 #
 # Bug#25427982: ASSERTION `DERIVED' FAILED IN SQL/TABLE.H
 #

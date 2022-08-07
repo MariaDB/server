@@ -2265,7 +2265,13 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
 
   thd->backup_stage(&org_stage);
   THD_STAGE_INFO(thd, stage_binlog_write);
+#ifdef WITH_WSREP
+  // DON'T clear stmt cache in case we are in transaction
+  if (!cache_mngr->stmt_cache.empty() &&
+      (!wsrep_on(thd) || ending_trans(thd, all)))
+#else
   if (!cache_mngr->stmt_cache.empty())
+#endif
   {
     error= binlog_commit_flush_stmt_cache(thd, all, cache_mngr);
   }
@@ -2358,7 +2364,7 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
     error |= binlog_commit_flush_stmt_cache(thd, all, cache_mngr);
   }
 
-  if (cache_mngr->trx_cache.empty() &&
+  if (!cache_mngr->trx_cache.has_incident() && cache_mngr->trx_cache.empty() &&
       thd->transaction->xid_state.get_state_code() != XA_PREPARED)
   {
     /*
@@ -6081,7 +6087,6 @@ void THD::binlog_prepare_for_row_logging()
 
 bool THD::binlog_write_annotated_row(Log_event_writer *writer)
 {
-  int error;
   DBUG_ENTER("THD::binlog_write_annotated_row");
 
   if (!(IF_WSREP(!wsrep_fragments_certified_for_stmt(this), true) &&
@@ -6090,13 +6095,7 @@ bool THD::binlog_write_annotated_row(Log_event_writer *writer)
     DBUG_RETURN(0);
 
   Annotate_rows_log_event anno(this, 0, false);
-  if (unlikely((error= writer->write(&anno))))
-  {
-    if (my_errno == EFBIG)
-      writer->set_incident();
-    DBUG_RETURN(error);
-  }
-  DBUG_RETURN(0);
+  DBUG_RETURN(writer->write(&anno));
 }
 
 
@@ -6169,21 +6168,22 @@ bool THD::binlog_write_table_maps()
 
 
 /**
-  This function writes a table map to the binary log. 
-  Note that in order to keep the signature uniform with related methods,
-  we use a redundant parameter to indicate whether a transactional table
-  was changed or not.
+  This function writes a table map to the binary log.
+
+  If an error occurs while writing events and rollback is not possible, e.g.
+  due to the statement modifying a non-transactional table, an incident event
+  is logged.
 
   @param table             a pointer to the table.
-  @param with_annotate  If true call binlog_write_annotated_row()
-
+  @param with_annotate     @c true to write an annotate event before writing
+                           the table_map event, @c false otherwise.
   @return
     nonzero if an error pops up when writing the table map event.
 */
 
 bool THD::binlog_write_table_map(TABLE *table, bool with_annotate)
 {
-  int error;
+  int error= 1;
   bool is_transactional= table->file->row_logging_has_trans;
   DBUG_ENTER("THD::binlog_write_table_map");
   DBUG_PRINT("enter", ("table: %p  (%s: #%lu)",
@@ -6209,12 +6209,34 @@ bool THD::binlog_write_table_map(TABLE *table, bool with_annotate)
 
   if (with_annotate)
     if (binlog_write_annotated_row(&writer))
-      DBUG_RETURN(1);
+      goto write_err;
+
+  DBUG_EXECUTE_IF("table_map_write_error",
+  {
+    if (is_transactional)
+    {
+      my_errno= EFBIG;
+      goto write_err;
+    }
+  });
 
   if (unlikely((error= writer.write(&the_event))))
-    DBUG_RETURN(error);
+    goto write_err;
 
   DBUG_RETURN(0);
+
+write_err:
+  mysql_bin_log.set_write_error(this, is_transactional);
+  /*
+    For non-transactional engine or multi statement transaction with mixed
+    engines, data is written to table but writing to binary log failed. In
+    these scenarios rollback is not possible. Hence report an incident.
+  */
+  if (mysql_bin_log.check_write_error(this) && cache_data &&
+      lex->stmt_accessed_table(LEX::STMT_WRITES_NON_TRANS_TABLE) &&
+      table->current_lock == F_WRLCK)
+    cache_data->set_incident();
+  DBUG_RETURN(error);
 }
 
 
@@ -6617,11 +6639,13 @@ MYSQL_BIN_LOG::bump_seq_no_counter_if_needed(uint32 domain_id, uint64 seq_no)
 bool
 MYSQL_BIN_LOG::check_strict_gtid_sequence(uint32 domain_id,
                                           uint32 server_id_arg,
-                                          uint64 seq_no)
+                                          uint64 seq_no,
+                                          bool no_error)
 {
   return rpl_global_gtid_binlog_state.check_strict_sequence(domain_id,
                                                             server_id_arg,
-                                                            seq_no);
+                                                            seq_no,
+                                                            no_error);
 }
 
 
@@ -7650,7 +7674,9 @@ bool MYSQL_BIN_LOG::write_incident(THD *thd)
   if (likely(is_open()))
   {
     prev_binlog_id= current_binlog_id;
-    if (likely(!(error= write_incident_already_locked(thd))) &&
+    if (likely(!(error= DBUG_IF("incident_event_write_error")
+                            ? 1
+                            : write_incident_already_locked(thd))) &&
         likely(!(error= flush_and_sync(0))))
     {
       update_binlog_end_pos();
@@ -7677,6 +7703,22 @@ bool MYSQL_BIN_LOG::write_incident(THD *thd)
   else
   {
     mysql_mutex_unlock(&LOCK_log);
+  }
+
+  /*
+    Upon writing incident event, check for thd->error() and print the
+    relevant error message in the error log.
+  */
+  if (thd->is_error())
+  {
+    sql_print_error("Write to binary log failed: "
+                    "%s. An incident event is written to binary log "
+                    "and slave will be stopped.\n",
+                    thd->get_stmt_da()->message());
+  }
+  if (error)
+  {
+    sql_print_error("Incident event write to the binary log file failed.");
   }
 
   DBUG_RETURN(error);
@@ -9139,8 +9181,9 @@ void sql_perror(const char *message)
 */
 bool reopen_fstreams(const char *filename, FILE *outstream, FILE *errstream)
 {
-  if ((outstream && !my_freopen(filename, "a", outstream)) ||
-      (errstream && !my_freopen(filename, "a", errstream)))
+  static constexpr const char *mode= "a" IF_WIN("t", );
+  if ((outstream && !my_freopen(filename, mode, outstream)) ||
+      (errstream && !my_freopen(filename, mode, errstream)))
   {
     my_error(ER_CANT_CREATE_FILE, MYF(0), filename, errno);
     return TRUE;
@@ -11928,13 +11971,13 @@ maria_declare_plugin_end;
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
 
-IO_CACHE *wsrep_get_trans_cache(THD * thd)
+IO_CACHE *wsrep_get_cache(THD * thd, bool is_transactional)
 {
   DBUG_ASSERT(binlog_hton->slot != HA_SLOT_UNDEF);
   binlog_cache_mngr *cache_mngr = (binlog_cache_mngr*)
     thd_get_ha_data(thd, binlog_hton);
   if (cache_mngr)
-    return cache_mngr->get_binlog_cache_log(true);
+    return cache_mngr->get_binlog_cache_log(is_transactional);
 
   WSREP_DEBUG("binlog cache not initialized, conn: %llu",
 	      thd->thread_id);

@@ -80,7 +80,7 @@ Warnings:
 Warning	1287	'@@spider_internal_limit' is deprecated and will be removed in a future release
 SHOW VARIABLES LIKE "spider_internal_limit";
 Variable_name	Value
-spider_internal_limit	9223372032559808513
+spider_internal_limit	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='ilm "1"';
 Warnings:
 Warning	1287	The table parameter 'ilm' is deprecated and will be removed in a future release
@@ -179,6 +179,80 @@ Warning	1287	The table parameter 'cwg' is deprecated and will be removed in a fu
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='crd_weight "1"';
 Warnings:
 Warning	1287	The table parameter 'crd_weight' is deprecated and will be removed in a future release
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+# MDEV-28560 Deprecate spider_buffer_size
+SET spider_buffer_size = 1;
+Warnings:
+Warning	1287	'@@spider_buffer_size' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_buffer_size";
+Variable_name	Value
+spider_buffer_size	1
+CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='bfz "1"';
+Warnings:
+Warning	1287	The table parameter 'bfz' is deprecated and will be removed in a future release
+CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='buffer_size "1"';
+Warnings:
+Warning	1287	The table parameter 'buffer_size' is deprecated and will be removed in a future release
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+# MDEV-27926 Deprecate spider_init_sql_alloc_size
+SET spider_init_sql_alloc_size = 1;
+Warnings:
+Warning	1287	'@@spider_init_sql_alloc_size' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_init_sql_alloc_size";
+Variable_name	Value
+spider_init_sql_alloc_size	1
+CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='isa "1"';
+Warnings:
+Warning	1287	The table parameter 'isa' is deprecated and will be removed in a future release
+CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='init_sql_alloc_size "1"';
+Warnings:
+Warning	1287	The table parameter 'init_sql_alloc_size' is deprecated and will be removed in a future release
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+# MDEV-28829 Deprecate spider_semi_table_lock and spider_semi_table_lock_connection
+SET spider_semi_table_lock = 1;
+Warnings:
+Warning	1287	'@@spider_semi_table_lock' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_semi_table_lock";
+Variable_name	Value
+spider_semi_table_lock	1
+CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='stl "1"';
+Warnings:
+Warning	1287	The table parameter 'stl' is deprecated and will be removed in a future release
+CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='semi_table_lock "1"';
+Warnings:
+Warning	1287	The table parameter 'semi_table_lock' is deprecated and will be removed in a future release
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+SET spider_semi_table_lock_connection = 0;
+Warnings:
+Warning	1287	'@@spider_semi_table_lock_connection' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_semi_table_lock_connection";
+Variable_name	Value
+spider_semi_table_lock_connection	0
+CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='stc "0"';
+Warnings:
+Warning	1287	The table parameter 'stc' is deprecated and will be removed in a future release
+CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='semi_table_lock_connection "0"';
+Warnings:
+Warning	1287	The table parameter 'semi_table_lock_connection' is deprecated and will be removed in a future release
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+# MDEV-28795 Deprecate spider_bka_table_name_type
+SET spider_bka_table_name_type = 1;
+Warnings:
+Warning	1287	'@@spider_bka_table_name_type' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_bka_table_name_type";
+Variable_name	Value
+spider_bka_table_name_type	1
+CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='btt "1"';
+Warnings:
+Warning	1287	The table parameter 'btt' is deprecated and will be removed in a future release
+CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='bka_table_name_type "1"';
+Warnings:
+Warning	1287	The table parameter 'bka_table_name_type' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 DROP DATABASE auto_test_local;

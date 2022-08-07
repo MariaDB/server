@@ -213,7 +213,9 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   Lex_length_and_dec_st Lex_length_and_dec;
   Lex_cast_type_st Lex_cast_type;
   Lex_field_type_st Lex_field_type;
-  Lex_charset_collation_st Lex_charset_collation;
+  Lex_exact_charset_extended_collation_attrs_st
+                    Lex_exact_charset_extended_collation_attrs;
+  Lex_extended_collation_st Lex_extended_collation;
   Lex_dyncol_type_st Lex_dyncol_type;
   Lex_for_loop_st for_loop;
   Lex_for_loop_bounds_st for_loop_bounds;
@@ -1308,6 +1310,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         TEXT_STRING
         NCHAR_STRING
         json_text_literal
+        json_text_literal_or_num
 
 %type <lex_str_ptr>
         opt_table_alias_clause
@@ -1378,13 +1381,17 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         field_type_misc
         json_table_field_type
 
-%type <Lex_charset_collation>
+%type <Lex_exact_charset_extended_collation_attrs>
         binary
         opt_binary
         opt_binary_and_compression
         attribute
         attribute_list
         field_def
+
+%type <Lex_extended_collation>
+        collation_name
+        collation_name_or_default
 
 
 %type <Lex_dyncol_type> opt_dyncol_type dyncol_type
@@ -1578,14 +1585,11 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
                   text_or_password
 
 %type <charset>
-        opt_collate_or_default
         charset_name
         charset_or_alias
         charset_name_or_default
         old_or_new_charset_name
         old_or_new_charset_name_or_default
-        collation_name
-        collation_name_or_default
         opt_load_data_charset
         UNDERSCORE_CHARSET
 
@@ -2366,7 +2370,6 @@ create:
               If the table exists, we should either not create it or replace it
             */
             lex->query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
-            lex->create_info.default_table_charset= NULL;
             lex->name= null_clex_str;
             lex->create_last_non_select_table= lex->last_table();
             lex->inc_select_stack_outer_barrier();
@@ -2509,9 +2512,7 @@ create:
           }
         | create_or_replace DATABASE opt_if_not_exists ident
           {
-            Lex->create_info.default_table_charset= NULL;
-            Lex->create_info.schema_comment= NULL;
-            Lex->create_info.used_fields= 0;
+            Lex->create_info.init();
           }
           opt_create_database_options
           {
@@ -2526,6 +2527,7 @@ create:
           {
             if (Lex->main_select_push())
               MYSQL_YYABORT;
+            Lex->inc_select_stack_outer_barrier();
             if (Lex->add_create_view(thd, $1 | $5,
                                      DTYPE_ALGORITHM_UNDEFINED, $3, $6))
               MYSQL_YYABORT;
@@ -2541,6 +2543,7 @@ create:
               MYSQL_YYABORT;
             if (Lex->main_select_push())
               MYSQL_YYABORT;
+            Lex->inc_select_stack_outer_barrier();
           }
           view_list_opt AS view_select
           {
@@ -5530,15 +5533,9 @@ default_charset:
 default_collation:
           opt_default COLLATE_SYM opt_equal collation_name_or_default
           {
-            HA_CREATE_INFO *cinfo= &Lex->create_info;
-            if (unlikely((cinfo->used_fields & HA_CREATE_USED_DEFAULT_CHARSET) &&
-                         cinfo->default_table_charset && $4 &&
-                         !($4= merge_charset_and_collation(cinfo->default_table_charset,
-                                                           $4))))
+            Table_specification_st *cinfo= &Lex->create_info;
+            if (unlikely(cinfo->add_table_option_default_collation($4)))
               MYSQL_YYABORT;
-
-            Lex->create_info.default_table_charset= $4;
-            Lex->create_info.used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
           }
         ;
 
@@ -5789,10 +5786,10 @@ field_type_or_serial:
           }
           field_def
           {
-            Lex_charset_collation tmp= $1.lex_charset_collation();
-            if (tmp.merge_charset_clause_and_collate_clause($3))
+            auto tmp= $1.charset_collation_attrs();
+            if (tmp.merge_column_charset_clause_and_collate_clause($3))
               MYSQL_YYABORT;
-            Lex->last_field->set_lex_charset_collation(tmp);
+            Lex->last_field->set_charset_collation_attrs(tmp);
           }
         | SERIAL_SYM
           {
@@ -5830,7 +5827,7 @@ field_def:
         | attribute_list compressed_deprecated_column_attribute { $$= $1; }
         | attribute_list compressed_deprecated_column_attribute attribute_list
           {
-            if (($$= $1).merge_collate_clause_and_collate_clause($3))
+            if (($$= $1).merge_column_collate_clause_and_collate_clause($3))
               MYSQL_YYABORT;
           }
         | opt_generated_always AS virtual_column_func
@@ -6079,7 +6076,7 @@ field_type_string:
         | nchar opt_field_length opt_bin_mod
           {
             $$.set(&type_handler_string, $2,
-                   Lex_charset_collation::national($3));
+                   Lex_exact_charset_extended_collation_attrs::national($3));
           }
         | BINARY opt_field_length
           {
@@ -6096,7 +6093,7 @@ field_type_string:
         | nvarchar opt_field_length opt_compressed opt_bin_mod
           {
             $$.set(&type_handler_varchar, $2,
-                   Lex_charset_collation::national($4));
+                   Lex_exact_charset_extended_collation_attrs::national($4));
           }
         | VARBINARY opt_field_length opt_compressed
           {
@@ -6311,7 +6308,7 @@ opt_precision:
 attribute_list:
           attribute_list attribute
           {
-             if (($$= $1).merge_collate_clause_and_collate_clause($2))
+             if (($$= $1).merge_column_collate_clause_and_collate_clause($2))
                MYSQL_YYABORT;
           }
         | attribute
@@ -6338,7 +6335,7 @@ attribute:
           }
         | COLLATE_SYM collation_name
           {
-            $$.set_collate_exact($2);
+            $$= Lex_exact_charset_extended_collation_attrs($2);
           }
         | serial_attribute { $$.init(); }
         ;
@@ -6478,20 +6475,17 @@ old_or_new_charset_name_or_default:
 collation_name:
           ident_or_text
           {
-            if (unlikely(!($$= mysqld_collation_get_by_name($1.str,
+            CHARSET_INFO *cs;
+            if (unlikely(!(cs= mysqld_collation_get_by_name($1.str,
                                                             thd->get_utf8_flag()))))
               MYSQL_YYABORT;
+            $$= Lex_extended_collation(Lex_exact_collation(cs));
           }
-        ;
-
-opt_collate_or_default:
-          /* empty */ { $$=NULL; }
-        | COLLATE_SYM collation_name_or_default { $$=$2; }
         ;
 
 collation_name_or_default:
           collation_name { $$=$1; }
-        | DEFAULT    { $$=NULL; }
+        | DEFAULT        { $$.set_collate_default(); }
         ;
 
 opt_default:
@@ -6515,30 +6509,43 @@ opt_binary:
         ;
 
 binary:
-          BYTE_SYM                     { $$.set_charset(&my_charset_bin); }
-        | charset_or_alias             { $$.set_charset($1); }
+          BYTE_SYM
+          {
+            $$.set_charset(Lex_exact_charset(&my_charset_bin));
+          }
+        | charset_or_alias
+          {
+            $$.set_charset(Lex_exact_charset($1));
+          }
         | charset_or_alias BINARY
           {
-            if ($$.set_charset_collate_binary($1))
+            if ($$.set_charset_collate_binary(Lex_exact_charset($1)))
               MYSQL_YYABORT;
           }
         | BINARY { $$.set_contextually_typed_binary_style(); }
         | BINARY charset_or_alias
           {
-            if ($$.set_charset_collate_binary($2))
+            if ($$.set_charset_collate_binary(Lex_exact_charset($2)))
               MYSQL_YYABORT;
           }
         | charset_or_alias COLLATE_SYM DEFAULT
           {
-            $$.set_charset_collate_default($1);
+            $$.set_charset_collate_default(Lex_exact_charset($1));
           }
         | charset_or_alias COLLATE_SYM collation_name
           {
-            if ($$.set_charset_collate_exact($1, $3))
+            if ($3.merge_exact_charset(Lex_exact_charset($1)))
               MYSQL_YYABORT;
+            $$= Lex_exact_charset_extended_collation_attrs($3);
           }
-        | COLLATE_SYM collation_name  { $$.set_collate_exact($2); }
-        | COLLATE_SYM DEFAULT         { $$.set_collate_default(); }
+        | COLLATE_SYM collation_name
+          {
+            $$= Lex_exact_charset_extended_collation_attrs($2);
+          }
+        | COLLATE_SYM DEFAULT
+          {
+            $$.set_collate_default();
+          }
         ;
 
 opt_bin_mod:
@@ -6946,9 +6953,7 @@ alter:
           }
         | ALTER DATABASE ident_or_empty
           {
-            Lex->create_info.default_table_charset= NULL;
-            Lex->create_info.schema_comment= NULL;
-            Lex->create_info.used_fields= 0;
+            Lex->create_info.init();
             if (Lex->main_select_push(true))
               MYSQL_YYABORT;
           }
@@ -6964,8 +6969,7 @@ alter:
           }
         | ALTER DATABASE COMMENT_SYM opt_equal TEXT_STRING_sys
           {
-            Lex->create_info.default_table_charset= NULL;
-            Lex->create_info.used_fields= 0;
+            Lex->create_info.init();
             Lex->create_info.schema_comment= thd->make_clex_string($5);
             Lex->create_info.used_fields|= HA_CREATE_USED_COMMENT;
           }
@@ -7609,19 +7613,15 @@ alter_list_item:
             lex->alter_info.flags|= ALTER_RENAME_INDEX;
           }
         | CONVERT_SYM TO_SYM charset charset_name_or_default
-                             opt_collate_or_default
           {
-            if (!$4)
-            {
-              $4= thd->variables.collation_database;
-            }
-            $5= $5 ? $5 : $4;
-            if (unlikely(!my_charset_same($4,$5)))
-              my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-                                $5->coll_name.str, $4->cs_name.str));
-            if (unlikely(Lex->create_info.add_alter_list_item_convert_to_charset($5)))
+            if (Lex->add_alter_list_item_convert_to_charset($4))
               MYSQL_YYABORT;
-            Lex->alter_info.flags|= ALTER_CONVERT_TO;
+          }
+        | CONVERT_SYM TO_SYM charset charset_name_or_default
+                             COLLATE_SYM collation_name_or_default
+          {
+            if (Lex->add_alter_list_item_convert_to_charset($4, $6))
+              MYSQL_YYABORT;
           }
         | create_table_options_space_separated
           {
@@ -9738,7 +9738,9 @@ string_factor_expr:
           primary_expr
         | string_factor_expr COLLATE_SYM collation_name
           {
-            if (unlikely(!($$= new (thd->mem_root) Item_func_set_collation(thd, $1, $3))))
+            if (unlikely(!($$= new (thd->mem_root)
+                               Item_func_set_collation(thd, $1,
+                                                       $3.charset_info()))))
               MYSQL_YYABORT;
           }
         ;
@@ -11282,6 +11284,26 @@ json_text_literal:
           }
         ;
 
+json_text_literal_or_num:
+          json_text_literal
+        | NUM
+          {
+            Lex->json_table->m_text_literal_cs= NULL;
+          }
+        | LONG_NUM
+          {
+            Lex->json_table->m_text_literal_cs= NULL;
+          }
+        | DECIMAL_NUM
+          {
+            Lex->json_table->m_text_literal_cs= NULL;
+          }
+        | FLOAT_NUM
+          {
+            Lex->json_table->m_text_literal_cs= NULL;
+          }
+        ;
+
 join_table_list:
           derived_table_list { MYSQL_YYABORT_UNLESS($$=$1); }
         ;
@@ -11358,7 +11380,7 @@ json_table_column_type:
                                             COLUMN_DEFINITION_TABLE_FIELD);
             if (Lex->json_table->m_cur_json_table_column->
                   set(thd, Json_table_column::PATH, $3,
-                      $1.lex_charset_collation()))
+                      $1.charset_collation_attrs()))
             {
               MYSQL_YYABORT;
             }
@@ -11369,7 +11391,7 @@ json_table_column_type:
                                             COLUMN_DEFINITION_TABLE_FIELD);
             if (Lex->json_table->m_cur_json_table_column->
                   set(thd, Json_table_column::EXISTS_PATH, $4,
-                      $1.lex_charset_collation()))
+                      $1.charset_collation_attrs()))
                MYSQL_YYABORT;
           }
         ;
@@ -11399,7 +11421,7 @@ json_on_response:
           {
             $$.m_response= Json_table_column::RESPONSE_NULL;
           }
-        | DEFAULT json_text_literal
+        | DEFAULT json_text_literal_or_num
           {
             $$.m_response= Json_table_column::RESPONSE_DEFAULT;
             $$.m_default= $2;
@@ -16580,26 +16602,20 @@ option_value_no_option_type:
               thd->parse_error();
             MYSQL_YYABORT;
           }
-        | NAMES_SYM charset_name_or_default opt_collate_or_default
+        | NAMES_SYM charset_name_or_default
           {
-            if (sp_create_assignment_lex(thd, $1.pos()))
+            CHARSET_INFO *def= global_system_variables.character_set_client;
+            Lex_exact_charset_opt_extended_collate tmp($2 ? $2 : def, false);
+            if (Lex->set_names($1.pos(), tmp, yychar == YYEMPTY))
               MYSQL_YYABORT;
-            LEX *lex= Lex;
-            CHARSET_INFO *cs2;
-            CHARSET_INFO *cs3;
-            cs2= $2 ? $2 : global_system_variables.character_set_client;
-            cs3= $3 ? $3 : cs2;
-            if (unlikely(!my_charset_same(cs2, cs3)))
-            {
-              my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-                       cs3->coll_name.str, cs2->cs_name.str);
-              MYSQL_YYABORT;
-            }
-            set_var_collation_client *var;
-            var= new (thd->mem_root) set_var_collation_client(cs3, cs3, cs3);
-            if (unlikely(var == NULL) ||
-                unlikely(lex->var_list.push_back(var, thd->mem_root)) ||
-                unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
+          }
+        | NAMES_SYM charset_name_or_default
+                    COLLATE_SYM collation_name_or_default
+          {
+            CHARSET_INFO *def= global_system_variables.character_set_client;
+            Lex_exact_charset_opt_extended_collate tmp($2 ? $2 : def, false);
+            if (tmp.merge_collation($4) ||
+                Lex->set_names($1.pos(), tmp, yychar == YYEMPTY))
               MYSQL_YYABORT;
           }
         | DEFAULT ROLE_SYM grant_role

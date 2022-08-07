@@ -25,9 +25,8 @@
 #include <my_sys.h>
 #include <pfs_global.h>
 #include <string.h>
-#ifdef HAVE_MEMALIGN
-# include <malloc.h>
-#endif
+#include "aligned.h"
+#include "assume_aligned.h"
 
 bool pfs_initialized= false;
 size_t pfs_allocated_memory_size= 0;
@@ -49,19 +48,10 @@ void *pfs_malloc(PFS_builtin_memory_class *klass, size_t size, myf)
   if (--stub_alloc_fails_after_count <= 0)
     return NULL;
 
-#ifndef PFS_ALIGNEMENT
-  void *ptr= malloc(size);
-#elif defined HAVE_MEMALIGN
-  void *ptr= memalign(PFS_ALIGNEMENT, size);
-#elif defined HAVE_ALIGNED_MALLOC
-  void *ptr= _aligned_malloc(size, PFS_ALIGNEMENT);
-#else
-  void *ptr;
-  if (posix_memalign(&ptr, PFS_ALIGNEMENT, size))
-    ptr= NULL;
-#endif
+  size= MY_ALIGN(size, CPU_LEVEL1_DCACHE_LINESIZE);
+  void *ptr= aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
   if (ptr != NULL)
-    memset(ptr, 0, size);
+    memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(ptr, 0, size);
   return ptr;
 }
 

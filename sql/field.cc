@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -964,6 +964,32 @@ Type_handler::aggregate_for_result_traditional(const Type_handler *a,
 }
 
 
+bool Field::check_assignability_from(const Type_handler *from) const
+{
+  /*
+    Using type_handler_for_item_field() here to get the data type handler
+    on both sides. This is needed to make sure aggregation for Field
+    works the same way with how Item_field aggregates for UNION or CASE,
+    so these statements:
+      SELECT a FROM t1 UNION SELECT b FROM t1; // Item_field vs Item_field
+      UPDATE t1 SET a=b;                       // Field      vs Item_field
+    either both return "Illegal parameter data types" or both pass
+    the data type compatibility test.
+    For MariaDB standard data types, using type_handler_for_item_field()
+    turns ENUM/SET into just CHAR.
+  */
+  Type_handler_hybrid_field_type th(type_handler()->
+                                      type_handler_for_item_field());
+  if (th.aggregate_for_result(from->type_handler_for_item_field()))
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+             type_handler()->name().ptr(), from->name().ptr(), "SET");
+    return true;
+  }
+  return false;
+}
+
+
 /*
   Test if the given string contains important data:
   not spaces for character string,
@@ -1445,7 +1471,7 @@ bool Field::sp_prepare_and_store_item(THD *thd, Item **value)
 
   Item *expr_item;
 
-  if (!(expr_item= thd->sp_prepare_func_item(value, 1)))
+  if (!(expr_item= thd->sp_fix_func_item_for_assignment(this, value)))
     goto error;
 
   /*
@@ -7547,7 +7573,7 @@ my_decimal *Field_string::val_decimal(my_decimal *decimal_value)
   THD *thd= get_thd();
   Converter_str2my_decimal_with_warn(thd,
                                      Warn_filter_string(thd, this),
-                                     E_DEC_FATAL_ERROR,
+                                     E_DEC_FATAL_ERROR & ~E_DEC_BAD_NUM,
                                      Field_string::charset(),
                                      (const char *) ptr,
                                      field_length, decimal_value);
@@ -7908,7 +7934,7 @@ my_decimal *Field_varstring::val_decimal(my_decimal *decimal_value)
   DBUG_ASSERT(marked_for_read());
   THD *thd= get_thd();
   Converter_str2my_decimal_with_warn(thd, Warn_filter(thd),
-                                     E_DEC_FATAL_ERROR,
+                                     E_DEC_FATAL_ERROR & ~E_DEC_BAD_NUM,
                                      Field_varstring::charset(),
                                      (const char *) get_data(),
                                      get_length(), decimal_value);
@@ -8754,7 +8780,7 @@ my_decimal *Field_blob::val_decimal(my_decimal *decimal_value)
 
   THD *thd= get_thd();
   Converter_str2my_decimal_with_warn(thd, Warn_filter(thd),
-                                     E_DEC_FATAL_ERROR,
+                                     E_DEC_FATAL_ERROR & ~E_DEC_BAD_NUM,
                                      Field_blob::charset(),
                                      blob, length, decimal_value);
   return decimal_value;
@@ -9985,7 +10011,7 @@ int Field_bit::cmp_prefix(const uchar *a, const uchar *b,
 }
 
 
-int Field_bit::key_cmp(const uchar *str, uint length) const
+int Field_bit::key_cmp(const uchar *str, uint) const
 {
   if (bit_len)
   {
@@ -9994,7 +10020,6 @@ int Field_bit::key_cmp(const uchar *str, uint length) const
     if ((flag= (int) (bits - *str)))
       return flag;
     str++;
-    length--;
   }
   return memcmp(ptr, str, bytes_in_rec);
 }

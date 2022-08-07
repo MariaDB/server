@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -922,7 +922,7 @@ bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
 bool vers_create_partitions(THD *thd, TABLE_LIST* tl, uint num_parts)
 {
   bool result= true;
-  HA_CREATE_INFO create_info;
+  Table_specification_st create_info;
   Alter_info alter_info;
   partition_info *save_part_info= thd->work_part_info;
   Query_tables_list save_query_tables;
@@ -1049,10 +1049,12 @@ void partition_info::vers_check_limit(THD *thd)
     bitmap_set_all(), but this is not optimal since there can be quite a number
     of partitions.
   */
+#ifndef DBUG_OFF
   const uint32 sub_factor= num_subparts ? num_subparts : 1;
   uint32 part_id= vers_info->hist_part->id * sub_factor;
-  const uint32 part_id_end= part_id + sub_factor;
+  const uint32 part_id_end __attribute__((unused)) = part_id + sub_factor;
   DBUG_ASSERT(part_id_end <= num_parts * sub_factor);
+#endif
 
   ha_partition *hp= (ha_partition*)(table->file);
   ha_rows hist_rows= hp->part_records(vers_info->hist_part);
@@ -1686,7 +1688,6 @@ bool partition_info::set_up_charset_field_preps(THD *thd)
   uchar **char_ptrs;
   unsigned i;
   size_t size;
-  uint tot_fields= 0;
   uint tot_part_fields= 0;
   uint tot_subpart_fields= 0;
   DBUG_ENTER("set_up_charset_field_preps");
@@ -1698,13 +1699,8 @@ bool partition_info::set_up_charset_field_preps(THD *thd)
     ptr= part_field_array;
     /* Set up arrays and buffers for those fields */
     while ((field= *(ptr++)))
-    {
       if (field_is_partition_charset(field))
-      {
         tot_part_fields++;
-        tot_fields++;
-      }
-    }
     size= tot_part_fields * sizeof(char*);
     if (!(char_ptrs= (uchar**)thd->calloc(size)))
       goto error;
@@ -1738,13 +1734,8 @@ bool partition_info::set_up_charset_field_preps(THD *thd)
     /* Set up arrays and buffers for those fields */
     ptr= subpart_field_array;
     while ((field= *(ptr++)))
-    {
       if (field_is_partition_charset(field))
-      {
         tot_subpart_fields++;
-        tot_fields++;
-      }
-    }
     size= tot_subpart_fields * sizeof(char*);
     if (!(char_ptrs= (uchar**) thd->calloc(size)))
       goto error;
