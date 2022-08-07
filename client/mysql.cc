@@ -1454,7 +1454,7 @@ sig_handler mysql_end(int sig)
  User, password, and database are UTF8 encoded, prior to the function,
  this needs to be fixed, in case they contain non-ASCIIs.
 
- Mostly a workaround, to allow existng users with non-ASCII password
+ Mostly a workaround, to allow existing users with non-ASCII password
  to survive upgrade without losing connectivity.
 */
 static void maybe_convert_charset(const char **user, const char **password,
@@ -2506,7 +2506,7 @@ static bool add_line(String &buffer, char *line, size_t line_length,
         !(*in_string &&
           (mysql.server_status & SERVER_STATUS_NO_BACKSLASH_ESCAPES)))
     {
-      // Found possbile one character command like \c
+      // Found possible one character command like \c
 
       /*
         The null-terminating character (ASCII '\0') marks the end of user

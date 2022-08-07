@@ -197,7 +197,7 @@ enum Exit_status {
 
 /**
   Pointer to the last read Annotate_rows_log_event. Having read an
-  Annotate_rows event, we should not print it immediatedly because all
+  Annotate_rows event, we should not print it immediately because all
   subsequent rbr events can be filtered away, and have to keep it for a while.
   Also because of that when reading a remote Annotate event we have to keep
   its binary log representation in a separately allocated buffer.
@@ -1855,7 +1855,7 @@ static struct my_option my_options[] =
   {"gtid-strict-mode", 0, "Process binlog according to gtid-strict-mode "
    "specification. The start, stop positions are verified to satisfy  "
    "start < stop comparison condition. Sequence numbers of any gtid domain "
-   "must comprise monotically growing sequence",
+   "must comprise monotonically growing sequence",
    &opt_gtid_strict_mode, &opt_gtid_strict_mode, 0,
    GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"stop-datetime", OPT_STOP_DATETIME,
@@ -2398,7 +2398,7 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
     const char* key= argument;  // db-from
     const char* val;            // db-to
 
-    // Skipp pre-space in key
+    // Skip pre-space in key
     while (*key && my_isspace(&my_charset_latin1, *key))
       key++;
 
@@ -2421,7 +2421,7 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
     }
     key= strmake_root(&glob_root, key, (size_t) (ptr-key));
 
-    /* Skipp pre space in value */
+    /* Skip pre space in value */
     while (*val && my_isspace(&my_charset_latin1, *val))
       val++;
 
