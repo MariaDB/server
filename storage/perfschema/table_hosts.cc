@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2011, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -34,6 +34,11 @@
 
 THR_LOCK table_hosts::m_table_lock;
 
+PFS_engine_table_share_state
+table_hosts::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_hosts::m_share=
 {
@@ -49,7 +54,9 @@ table_hosts::m_share=
                       "HOST CHAR(" STRINGIFY_ARG(HOSTNAME_LENGTH) ") collate utf8_bin default null comment 'Host name used by the client to connect, NULL for internal threads or user sessions that failed to authenticate.',"
                       "CURRENT_CONNECTIONS bigint not null comment 'Current number of the host''s connections.',"
                       "TOTAL_CONNECTIONS bigint not null comment 'Total number of the host''s connections')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_hosts::create()

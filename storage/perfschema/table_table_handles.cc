@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2012, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -38,6 +38,11 @@
 
 THR_LOCK table_table_handles::m_table_lock;
 
+PFS_engine_table_share_state
+table_table_handles::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_table_handles::m_share=
 {
@@ -58,7 +63,9 @@ table_table_handles::m_share=
   "OWNER_EVENT_ID BIGINT unsigned comment 'The event which caused the table handle to be opened.',"
   "INTERNAL_LOCK VARCHAR(64) comment 'The table lock used at the SQL level.',"
   "EXTERNAL_LOCK VARCHAR(64) comment 'The table lock used at the storage engine level.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table*

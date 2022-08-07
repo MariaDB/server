@@ -2292,13 +2292,17 @@ bool Column_definition::prepare_stage2(handler *file,
 
 void promote_first_timestamp_column(List<Create_field> *column_definitions)
 {
+  bool first= true;
   for (Create_field &column_definition : *column_definitions)
   {
     if (column_definition.is_timestamp_type() ||    // TIMESTAMP
         column_definition.unireg_check == Field::TIMESTAMP_OLD_FIELD) // Legacy
     {
+      if (!column_definition.explicitly_nullable)
+        column_definition.flags|= NOT_NULL_FLAG;
       DBUG_PRINT("info", ("field-ptr:%p", column_definition.field));
-      if ((column_definition.flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
+      if (first &&
+          (column_definition.flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
           column_definition.default_value == NULL &&   // no constant default,
           column_definition.unireg_check == Field::NONE && // no function default
           column_definition.vcol_info == NULL &&
@@ -2312,7 +2316,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
                             ));
         column_definition.unireg_check= Field::TIMESTAMP_DNUN_FIELD;
       }
-      return;
+      first= false;
     }
   }
 }
@@ -3637,7 +3641,7 @@ without_overlaps_err:
         !sql_field->has_default_function() &&
         (sql_field->flags & NOT_NULL_FLAG) &&
         (!sql_field->is_timestamp_type() ||
-         opt_explicit_defaults_for_timestamp)&&
+         (thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))&&
         !sql_field->vers_sys_field())
     {
       sql_field->flags|= NO_DEFAULT_VALUE_FLAG;
@@ -3648,7 +3652,7 @@ without_overlaps_err:
         !sql_field->default_value && !sql_field->vcol_info &&
         !sql_field->vers_sys_field() &&
         sql_field->is_timestamp_type() &&
-        !opt_explicit_defaults_for_timestamp &&
+        !(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP) &&
         (sql_field->flags & NOT_NULL_FLAG) &&
         (type == Field::NONE || type == Field::TIMESTAMP_UN_FIELD))
     {
@@ -4811,7 +4815,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   else
     create_table_mode= C_ASSISTED_DISCOVERY;
 
-  if (!opt_explicit_defaults_for_timestamp)
+  if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
     promote_first_timestamp_column(&alter_info->create_list);
 
   /* We can abort create table for any table type */
@@ -10358,7 +10362,7 @@ do_continue:;
       create_info->fix_period_fields(thd, alter_info))
     DBUG_RETURN(true);
 
-  if (!opt_explicit_defaults_for_timestamp)
+  if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
     promote_first_timestamp_column(&alter_info->create_list);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -11461,7 +11465,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       if (!(*ptr)->vcol_info)
       {
         bitmap_set_bit(from->read_set, def->field->field_index);
-        if ((*ptr)->check_assignability_from(def->field))
+        if ((*ptr)->check_assignability_from(def->field, ignore))
           goto err;
         (copy_end++)->set(*ptr,def->field,0);
       }

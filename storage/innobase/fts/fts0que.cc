@@ -1203,6 +1203,14 @@ fts_query_difference(
 	return(query->error);
 }
 
+/* Free the query intersection
+@param	query	query instance */
+static void fts_query_free_intersection(fts_query_t* query)
+{
+  fts_query_free_doc_ids(query, query->intersection);
+  query->intersection = NULL;
+}
+
 /*****************************************************************//**
 Intersect the token doc ids with the current set.
 @return DB_SUCCESS if all go well */
@@ -1301,6 +1309,7 @@ fts_query_intersect(
 		/* error is passed by 'query->error' */
 		if (query->error != DB_SUCCESS) {
 			ut_ad(query->error == DB_FTS_EXCEED_RESULT_CACHE_LIMIT);
+			fts_query_free_intersection(query);
 			return(query->error);
 		}
 
@@ -1329,6 +1338,8 @@ fts_query_intersect(
 
 			ut_a(!query->multi_exist || (query->multi_exist
 			     && rbt_size(query->doc_ids) <= n_doc_ids));
+		} else if (query->intersection) {
+			fts_query_free_intersection(query);
 		}
 	}
 
@@ -1547,6 +1558,10 @@ fts_merge_doc_ids(
 				query, ranking->doc_id, ranking->rank);
 
 		if (query->error != DB_SUCCESS) {
+			if (query->intersection) {
+				ut_a(query->oper == FTS_EXIST);
+				fts_query_free_intersection(query);
+			}
 			DBUG_RETURN(query->error);
 		}
 

@@ -9,7 +9,7 @@ mysql --ssl -e "call test.have_ssl()"
 have_ssl
 no
 mysql --ssl-ca=cacert.pem --ssl-verify-server-cert -e "call test.have_ssl()"
-ERROR 2026 (HY000): SSL connection error: SSL is required, but the server does not support it
+ERROR 2026 (HY000): TLS/SSL error: SSL is required, but the server does not support it
 mysql --ssl --ssl-verify-server-cert -e "call test.have_ssl()"
-ERROR 2026 (HY000): SSL connection error: SSL is required, but the server does not support it
+ERROR 2026 (HY000): TLS/SSL error: SSL is required, but the server does not support it
 drop procedure have_ssl;

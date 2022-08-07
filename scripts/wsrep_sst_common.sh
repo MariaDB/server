@@ -104,6 +104,7 @@ WSREP_SST_OPT_HOST_UNESCAPED=""
 INNODB_DATA_HOME_DIR=$(trim_dir "${INNODB_DATA_HOME_DIR:-}")
 INNODB_LOG_GROUP_HOME=$(trim_dir "${INNODB_LOG_GROUP_HOME:-}")
 INNODB_UNDO_DIR=$(trim_dir "${INNODB_UNDO_DIR:-}")
+INNODB_BUFFER_POOL=""
 INNODB_FORCE_RECOVERY=""
 INNOEXTRA=""
 
@@ -210,6 +211,10 @@ case "$1" in
     '--innodb-undo-directory')
         # Let's remove the trailing slash:
         readonly INNODB_UNDO_DIR=$(trim_dir "$2")
+        shift
+        ;;
+    '--innodb-buffer-pool-filename')
+        readonly INNODB_BUFFER_POOL=$(trim_string "$2")
         shift
         ;;
     '--defaults-file')
@@ -471,6 +476,12 @@ case "$1" in
                        fi
                        skip_mysqld_arg=1
                        ;;
+                   '--innodb-buffer-pool-filename')
+                       if [ -z "$INNODB_BUFFER_POOL" ]; then
+                           MYSQLD_OPT_INNODB_BUFFER_POOL=$(trim_string "$value")
+                       fi
+                       skip_mysqld_arg=1
+                       ;;
                    '--innodb-force-recovery')
                        if [ -n "$value" -a "$value" != "0" ]; then
                            INNODB_FORCE_RECOVERY=$(trim_string "$value")
@@ -552,6 +563,10 @@ if [ -n "${MYSQLD_OPT_INNODB_UNDO_DIR:-}" -a \
      -z "$INNODB_UNDO_DIR" ]; then
     readonly INNODB_UNDO_DIR="$MYSQLD_OPT_INNODB_UNDO_DIR"
 fi
+if [ -n "${MYSQLD_OPT_INNODB_BUFFER_POOL:-}" -a \
+     -z "$INNODB_BUFFER_POOL" ]; then
+    readonly INNODB_BUFFER_POOL="$MYSQLD_OPT_INNODB_BUFFER_POOL"
+fi
 if [ -n "${MYSQLD_OPT_LOG_BIN:-}" -a \
      -z "$WSREP_SST_OPT_BINLOG" ]; then
     readonly WSREP_SST_OPT_BINLOG="$MYSQLD_OPT_LOG_BIN"
@@ -601,6 +616,9 @@ if [ -n "$INNODB_LOG_GROUP_HOME" ]; then
 fi
 if [ -n "$INNODB_UNDO_DIR" ]; then
     INNOEXTRA="$INNOEXTRA --innodb-undo-directory='$INNODB_UNDO_DIR'"
+fi
+if [ -n "$INNODB_BUFFER_POOL" ]; then
+    INNOEXTRA="$INNOEXTRA --innodb-buffer-pool-filename='$INNODB_BUFFER_POOL'"
 fi
 if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
     INNOEXTRA="$INNOEXTRA --log-bin='$WSREP_SST_OPT_BINLOG'"

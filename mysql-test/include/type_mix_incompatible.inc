@@ -1,5 +1,9 @@
 --echo # Start of type_store_assignment_incompatible.inc
 
+--disable_abort_on_error
+
+SET @sql_mode_save= @@sql_mode;
+
 SET @source_type= (SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
                    WHERE COLUMN_NAME='source'
                    AND TABLE_NAME='t1'
@@ -10,8 +14,15 @@ SET @target_type= (SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
                    AND TABLE_NAME='t1'
                    AND TABLE_SCHEMA='test');
 
+# 'IGNORE' -> ' IGNORE'
+SET @ignore= CASE WHEN @ignore IS NULL OR @ignore = '' THEN ''
+                  WHEN @ignore NOT LIKE ' %' THEN CONCAT(' ',@ignore)
+                  ELSE @ignore
+             END;
+
 let $source_type= `(SELECT @source_type)`;
 let $target_type= `(SELECT @target_type)`;
+let $ignore=`(SELECT @ignore)`;
 
 CREATE TABLE t2 LIKE t1;
 ALTER TABLE t2 ADD id INT NOT NULL PRIMARY KEY FIRST;
@@ -23,8 +34,7 @@ SHOW CREATE TABLE t2;
 #
 
 CREATE TABLE t3 LIKE t2;
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-INSERT INTO t3 VALUES
+eval INSERT$ignore INTO t3 VALUES
   (1,
    (SELECT source FROM t2 ORDER BY id LIMIT 1),
    (SELECT source FROM t2 ORDER BY id LIMIT 1));
@@ -52,8 +62,7 @@ EXECUTE IMMEDIATE
          IF(@source_type='geometry','AsText(source)','source'), ' AS source ',
          ' FROM t3');
 
---error 0,ER_CANT_CREATE_GEOMETRY_OBJECT
-INSERT INTO t3 VALUES
+eval INSERT$ignore INTO t3 VALUES
   (1,
    (SELECT target FROM t2 ORDER BY id LIMIT 1),
    (SELECT source FROM t2 ORDER BY id LIMIT 1)),
@@ -64,8 +73,7 @@ SELECT * FROM v3;
 TRUNCATE TABLE t3;
 
 SET sql_mode=STRICT_ALL_TABLES;
---error ER_TRUNCATED_WRONG_VALUE, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, WARN_DATA_TRUNCATED, ER_CANT_CREATE_GEOMETRY_OBJECT
-INSERT INTO t3 VALUES
+eval INSERT$ignore INTO t3 VALUES
   (1,
    (SELECT target FROM t2 ORDER BY id LIMIT 1),
    (SELECT source FROM t2 ORDER BY id LIMIT 1)),
@@ -74,7 +82,7 @@ INSERT INTO t3 VALUES
    (SELECT source FROM t2 ORDER BY id LIMIT 1));
 SELECT * FROM v3;
 TRUNCATE TABLE t3;
-SET sql_mode=DEFAULT;
+SET sql_mode=@sql_mode_save;
 DROP TABLE t3;
 DROP VIEW v3;
 
@@ -83,55 +91,46 @@ DROP VIEW v3;
 #
 
 CREATE TABLE t3 LIKE t2;
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-INSERT INTO t3 SELECT id,source,source FROM t2;
+eval INSERT$ignore INTO t3 SELECT id,source,source FROM t2;
 
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-INSERT INTO t3 (id,target,source) SELECT id,source,source FROM t2;
+eval INSERT$ignore INTO t3 (id,target,source) SELECT id,source,source FROM t2;
 
 #
 # INSERT .. VALUES .. ON DUPLICATE KEY UPDATE target=source
 #
 
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-INSERT INTO t3 VALUES (1,DEFAULT,DEFAULT) ON DUPLICATE KEY UPDATE target=source;
+eval INSERT$ignore INTO t3 VALUES (1,DEFAULT,DEFAULT) ON DUPLICATE KEY UPDATE target=source;
 
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-INSERT INTO t3 (id,target,source) VALUES (1,DEFAULT,DEFAULT) ON DUPLICATE KEY UPDATE target=source;
+eval INSERT$ignore INTO t3 (id,target,source) VALUES (1,DEFAULT,DEFAULT) ON DUPLICATE KEY UPDATE target=source;
 
 #
 # INSERT .. SELECT .. ON DUPLICATE KEY UPDATE target=source
 #
 
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-INSERT INTO t3 SELECT 1,DEFAULT(t2.target),DEFAULT(t2.source) FROM t2 ON DUPLICATE KEY UPDATE t3.target=t2.source;
+eval INSERT$ignore INTO t3 SELECT 1,DEFAULT(t2.target),DEFAULT(t2.source) FROM t2 ON DUPLICATE KEY UPDATE t3.target=t2.source;
 
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-INSERT INTO t3 (id,target,source) SELECT 1,DEFAULT(t2.target),DEFAULT(t2.source) FROM t2 ON DUPLICATE KEY UPDATE t3.target=t2.source;
+eval INSERT$ignore INTO t3 (id,target,source) SELECT 1,DEFAULT(t2.target),DEFAULT(t2.source) FROM t2 ON DUPLICATE KEY UPDATE t3.target=t2.source;
 
 
 #
 # UPDATE
 #
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-UPDATE t3 SET target=source;
+eval UPDATE$ignore t3 SET target=source;
 
 
 #
 # UPDATE, multi-table
 #
 
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-UPDATE t2, t3 SET t3.target=t2.source WHERE t2.id=t3.id;
+eval UPDATE$ignore t2, t3 SET t3.target=t2.source WHERE t2.id=t3.id;
 
 
 #
 # ALTER
 #
 
-SET @alter=CONCAT('ALTER TABLE t3 MODIFY target ', @source_type);
+SET @alter=CONCAT('ALTER', @ignore, ' TABLE t3 MODIFY target ', @source_type);
 SELECT @alter;
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 EXECUTE IMMEDIATE @alter;
 
 
@@ -154,7 +153,6 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 CALL p1;
 DROP PROCEDURE p1;
 
@@ -163,12 +161,10 @@ DROP PROCEDURE p1;
 #
 
 --eval CREATE FUNCTION f1(a $target_type) RETURNS INT RETURN NULL;
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 SELECT f1((SELECT source FROM t1 ORDER BY source LIMIT 1));
 DROP FUNCTION f1;
 
 --eval CREATE PROCEDURE p1(a $target_type) BEGIN END;
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 CALL p1((SELECT source FROM t1 ORDER BY source LIMIT 1));
 DROP PROCEDURE p1;
 
@@ -190,7 +186,6 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 CALL p2();
 SHOW WARNINGS;
 DROP PROCEDURE p2;
@@ -209,7 +204,6 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 SELECT f1();
 DROP FUNCTION f1;
 
@@ -227,7 +221,6 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 CALL p1();
 DROP PROCEDURE p1;
 
@@ -249,10 +242,11 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 CALL p1();
 DROP PROCEDURE p1;
 
 DROP TABLE t2;
+
+--enable_abort_on_error
 
 --echo # End of type_store_assignment_incompatible.inc

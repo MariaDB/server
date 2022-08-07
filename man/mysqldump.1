@@ -1377,6 +1377,21 @@ Sets the maximum packet length to send to or receive from server\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqldump: max-statement-time option
+.\" max-statement-time option: mysqldump
+\fB\-\-max\-statement\-time=\fR\fB\fIseconds\fR\fR
+.sp
+Sets the maximum time any statement can run before being timed out by the server. (Default value is 0 (no limit))\&
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysqldump: net-buffer-length option
 .\" net-buffer-length option: mysqldump
 \fB\-\-net\-buffer\-length=\fR\fB\fIlength\fR\fR
@@ -2627,6 +2642,21 @@ syntax:
 max_allowed_packet
 .sp
 The maximum size of the buffer for client/server communication\&. The maximum is 1GB\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+max_statement_time
+.sp
+A query that has taken more than max_statement_time seconds will be aborted and the backup will
+fail\&. The argument will be treated as a decimal value with microsecond precision\&. A value
+of 0 (default) means no timeout\&. The maximum timeout is 31536000 seconds\&.
 .RE
 .sp
 .RS 4
