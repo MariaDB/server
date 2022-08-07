@@ -5,19 +5,10 @@ CREATE TABLE t1 (a TIMESTAMP NULL);
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
-
-if (`SELECT @@explicit_defaults_for_timestamp=0`)
-{
-  --error ER_INVALID_DEFAULT
-  CREATE TABLE t1 (a TIMESTAMP DEFAULT NULL);
-}
-
-if (`SELECT @@explicit_defaults_for_timestamp=1`)
-{
-  CREATE TABLE t1 (a TIMESTAMP DEFAULT NULL);
-  SHOW CREATE TABLE t1;
-  DROP TABLE t1;
-}
+CREATE TABLE t1 (a TIMESTAMP DEFAULT NULL);
+INSERT t1 () VALUES ();
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
 
 CREATE TABLE t1 (a TIMESTAMP DEFAULT '0000-00-00 00:00:00');
 SHOW CREATE TABLE t1;
@@ -110,3 +101,34 @@ SELECT * FROM t1;
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 SET timestamp=DEFAULT;
+
+--echo #
+--echo # MDEV-29075 Changing explicit_defaults_for_timestamp within stored procedure works inconsistently
+--echo #
+set statement explicit_defaults_for_timestamp=1-@@explicit_defaults_for_timestamp for create table t1 (ts timestamp);
+show create table t1;
+drop table t1;
+
+--delimiter $
+create procedure pr()
+begin
+  set explicit_defaults_for_timestamp= 1-@@explicit_defaults_for_timestamp;
+  create table t1 (ts timestamp);
+end $
+--delimiter ;
+
+call pr();
+show create table t1;
+drop procedure pr;
+drop table t1;
+
+prepare stmt from 'create or replace table t1 (a timestamp)';
+execute stmt;
+show create table t1;
+set explicit_defaults_for_timestamp=1-@@explicit_defaults_for_timestamp;
+execute stmt;
+show create table t1;
+set explicit_defaults_for_timestamp=1-@@explicit_defaults_for_timestamp;
+execute stmt;
+show create table t1;
+drop table t1;

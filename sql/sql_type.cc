@@ -4261,18 +4261,6 @@ void Type_handler_temporal_with_date::Item_update_null_value(Item *item) const
   (void) item->get_date(thd, &ltime, Datetime::Options(thd));
 }
 
-bool
-Type_handler_timestamp_common::
-Column_definition_set_attributes(THD *thd,
-                                 Column_definition *def,
-                                 const Lex_field_type_st &attr,
-                                 column_definition_type_t type) const
-{
-  Type_handler::Column_definition_set_attributes(thd, def, attr, type);
-  if (!opt_explicit_defaults_for_timestamp)
-    def->flags|= NOT_NULL_FLAG;
-  return false;
-}
 
 void Type_handler_string_result::Item_update_null_value(Item *item) const
 {

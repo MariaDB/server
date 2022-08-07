@@ -1,17 +1,29 @@
-/* Copyright (c) 2011, 2016, Oracle and/or its affiliates.
+/* Copyright (c) 2011, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
+
+  Without limiting anything contained in the foregoing, this file,
+  which is part of C Driver for MySQL (Connector/C), is also subject to the
+  Universal FOSS Exception, version 1.0, a copy of which can be found at
+  http://oss.oracle.com/licenses/universal-foss-exception.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
 
 /*
   Always provide the noop performance interface, for plugins.
@@ -262,6 +274,11 @@ static void set_thread_noop(PSI_thread* thread NNN)
   return;
 }
 
+static void set_thread_peer_port_noop(PSI_thread * thread NNN, uint port NNN)
+{
+  return;
+}
+
 static void delete_current_thread_noop(void)
 {
   return;
@@ -481,7 +498,7 @@ static void end_file_rename_wait_noop(PSI_file_locker *locker NNN,
 
 static PSI_stage_progress*
 start_stage_noop(PSI_stage_key key NNN,
-                             const char *src_file NNN, int src_line NNN)
+                 const char *src_file NNN, int src_line NNN)
 {
   return NULL;
 }
@@ -776,9 +793,9 @@ digest_end_noop(PSI_digest_locker *locker NNN,
 }
 
 static int
-set_thread_connect_attrs_noop(const char *buffer NNN,
-                             uint length  NNN,
-                             const void *from_cs NNN)
+set_thread_connect_attrs_noop(const char *buffer __attribute__ ((unused)),
+                             uint length __attribute__ ((unused)),
+                             const void *from_cs __attribute__ ((unused)))
 {
   return 0;
 }
@@ -1025,7 +1042,9 @@ static PSI PSI_noop=
   set_metadata_lock_status_noop,
   destroy_metadata_lock_noop,
   start_metadata_wait_noop,
-  end_metadata_wait_noop
+  end_metadata_wait_noop,
+
+  set_thread_peer_port_noop
 };
 
 /**

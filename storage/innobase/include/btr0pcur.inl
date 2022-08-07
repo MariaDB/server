@@ -155,7 +155,7 @@ static inline bool btr_pcur_is_after_last_in_tree(btr_pcur_t* cursor)
 /*********************************************************//**
 Moves the persistent cursor to the next record on the same page. */
 UNIV_INLINE
-void
+rec_t*
 btr_pcur_move_to_next_on_page(
 /*==========================*/
 	btr_pcur_t*	cursor)	/*!< in/out: persistent cursor */
@@ -163,9 +163,8 @@ btr_pcur_move_to_next_on_page(
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 
-	page_cur_move_to_next(btr_pcur_get_page_cur(cursor));
-
 	cursor->old_stored = false;
+	return page_cur_move_to_next(btr_pcur_get_page_cur(cursor));
 }
 
 /*********************************************************//**
@@ -204,8 +203,8 @@ loop:
 		    || btr_pcur_move_to_next_page(cursor, mtr) != DB_SUCCESS) {
 			return(FALSE);
 		}
-	} else {
-		btr_pcur_move_to_next_on_page(cursor);
+	} else if (UNIV_UNLIKELY(!btr_pcur_move_to_next_on_page(cursor))) {
+		return false;
 	}
 
 	if (btr_pcur_is_on_user_rec(cursor)) {
@@ -228,20 +227,16 @@ btr_pcur_move_to_next(
 				function may release the page latch */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
-	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
+  ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
+  ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 
-	cursor->old_stored = false;
+  cursor->old_stored= false;
 
-	if (btr_pcur_is_after_last_on_page(cursor)) {
-		if (btr_pcur_is_after_last_in_tree(cursor)
-		    || btr_pcur_move_to_next_page(cursor, mtr) != DB_SUCCESS) {
-			return(FALSE);
-		}
-	} else {
-		btr_pcur_move_to_next_on_page(cursor);
-	}
-	return(TRUE);
+  if (btr_pcur_is_after_last_on_page(cursor))
+    return !btr_pcur_is_after_last_in_tree(cursor) &&
+      btr_pcur_move_to_next_page(cursor, mtr) == DB_SUCCESS;
+  else
+    return !!btr_pcur_move_to_next_on_page(cursor);
 }
 
 /**************************************************************//**

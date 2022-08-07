@@ -695,7 +695,7 @@ public:
 
       Note that if arg_length == Alloced_length then we don't allocate.
       This ensures we don't do any extra allocations in protocol and String:int,
-      but the string will not be atomically null terminated if c_ptr() is not
+      but the string will not be automatically null terminated if c_ptr() is not
       called.
     */
     if (arg_length <= Alloced_length && Alloced_length)

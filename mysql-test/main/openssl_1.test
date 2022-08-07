@@ -70,7 +70,7 @@ drop table t1;
 #
 --exec echo "this query should not execute;" > $MYSQLTEST_VARDIR/tmp/test.sql
 # Handle that openssl gives different error messages from YaSSL.
---replace_regex /2026 SSL connection error.*/2026 SSL connection error: xxxx/
+--replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/
 --error 1
 --exec $MYSQL_TEST --ssl-verify-server-cert --ssl-ca=$MYSQL_TEST_DIR/std_data/untrusted-cacert.pem --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 --echo
@@ -79,7 +79,7 @@ drop table t1;
 # Test that we can't open connection to server if we are using
 # a blank ca
 #
---replace_regex /2026 SSL connection error.*/2026 SSL connection error: xxxx/
+--replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/
 --error 1
 --exec $MYSQL_TEST --ssl-ca= --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 --echo
@@ -88,7 +88,7 @@ drop table t1;
 # Test that we can't open connection to server if we are using
 # a nonexistent ca file
 #
---replace_regex /2026 SSL connection error.*/2026 SSL connection error: xxxx/
+--replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/
 --error 1
 --exec $MYSQL_TEST --ssl-ca=nonexisting_file.pem --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 --echo
@@ -97,7 +97,7 @@ drop table t1;
 # Test that we can't open connection to server if we are using
 # a blank client-key
 #
---replace_regex /2026 SSL connection error.*/2026 SSL connection error: xxxx/
+--replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/
 --error 1
 --exec $MYSQL_TEST --ssl-key= --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 --echo
@@ -106,7 +106,7 @@ drop table t1;
 # Test that we can't open connection to server if we are using
 # a blank client-cert
 #
---replace_regex /2026 SSL connection error.*/2026 SSL connection error: xxxx/
+--replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/
 --error 1
 --exec $MYSQL_TEST --ssl-cert= --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 --echo
@@ -175,7 +175,7 @@ INSERT INTO t1 VALUES (1), (2);
 
 # With wrong parameters
 --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR mysqldump.exe mysqldump
---replace_regex /SSL connection error.*/SSL connection error: xxxx/
+--replace_regex /TLS\/SSL error.*/TLS\/SSL error: xxxx/
 --error 2
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-create-options --skip-comments --ssl --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem test 2>&1
 --echo
@@ -201,7 +201,7 @@ set global sql_mode=default;
 # MDEV-9605 mysqlbinlog does not accept ssl-ca option as expected.
 #
 
---replace_regex /SSL connection error:.*/SSL connection error/
+--replace_regex /TLS\/SSL error:.*/TLS\/SSL error/
 --error 1
 --exec $MYSQL_BINLOG --read-from-remote-server --ssl-ca --user=root --host=localhost nobinlog.111111 2>&1
 

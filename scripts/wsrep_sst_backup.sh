@@ -71,7 +71,7 @@ then
         # (b) Cluster state ID & wsrep_gtid_domain_id to be written to the file, OR
         # (c) ERROR file, in case flush tables operation failed.
 
-        while [ ! -r "$FLUSHED" ] && \
+        while [ ! -r "$FLUSHED" ] || \
                 ! grep -q -F ':' -- "$FLUSHED"
         do
             # Check whether ERROR file exists.
