@@ -1,6 +1,8 @@
 call mtr.add_suppression("InnoDB: New log files created");
+SET GLOBAL innodb_file_per_table=0;
 CREATE TABLE t(a varchar(40) PRIMARY KEY, b varchar(40), c varchar(40), d varchar(40), index(b,c,d)) ENGINE INNODB;
 # Create full backup , modify table, then create incremental/differential backup
+SET debug_dbug='+d,skip_page_checksum',foreign_key_checks=0,unique_checks=0;
 BEGIN;
 INSERT INTO t select uuid(), uuid(), uuid(), uuid() from seq_1_to_100000;
 COMMIT;

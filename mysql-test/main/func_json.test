@@ -614,6 +614,20 @@ SELECT JSON_VALID('{"admin\\"": null}'), '{"admin\\"": null}'
       SELECT JSON_VALID('{"\\"": null}'), '{"\\"": null}';
 
 --echo #
+--echo # MDEV-29188: Crash in JSON_EXTRACT
+--echo #
+
+CREATE TABLE t1 (j JSON);
+
+INSERT INTO t1 VALUES
+  ('{"ID": "4", "Name": "Betty", "Age": 19}'),
+  ('[10, 20, [30, 40]]');
+
+SELECT * FROM t1 WHERE JSON_EXTRACT(j, '$.Age')=19;
+
+drop table t1;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
 

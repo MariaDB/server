@@ -2117,8 +2117,7 @@ public:
   void cleanup() override { first_eval= TRUE; Item_real_func::cleanup(); }
   bool check_vcol_func_processor(void *arg) override
   {
-    return mark_unsupported_function(func_name(), "()", arg,
-                                     VCOL_NON_DETERMINISTIC);
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
   }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_rand>(thd, this); }

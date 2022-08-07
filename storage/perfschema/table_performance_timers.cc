@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -34,6 +34,11 @@
 
 THR_LOCK table_performance_timers::m_table_lock;
 
+PFS_engine_table_share_state
+table_performance_timers::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_performance_timers::m_share=
 {
@@ -50,7 +55,9 @@ table_performance_timers::m_share=
                       "TIMER_FREQUENCY BIGINT comment 'Number of timer units per second. Dependent on the processor speed.',"
                       "TIMER_RESOLUTION BIGINT comment 'Number of timer units by which timed values increase each time.',"
                       "TIMER_OVERHEAD BIGINT comment 'Minimum timer overhead, determined during initialization by calling the timer 20 times and selecting the smallest value. Total overhead will be at least double this, as the timer is called at the beginning and end of each timed event.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_performance_timers::create(void)
