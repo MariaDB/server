@@ -61,7 +61,7 @@ connection default;
 # When the connection is closed in this way, the error code should
 # be consistent see Bug#2845 for an explanation
 # depending on platform/client, either errno 2006 or 2013 can occur below
---error 2006,2013
+--error 2006,2013,5014
 SELECT 2;
 --echo --enable_reconnect;
 --enable_reconnect
@@ -113,7 +113,7 @@ connection con1;
 # When the connection is closed in this way, the error code should
 # be consistent see Bug#2845 for an explanation
 # depending on platform/client, either errno 2006 or 2013 can occur below
---error 2006,2013
+--error 2006,2013,5014
 SELECT 2;
 --echo --enable_reconnect;
 --enable_reconnect

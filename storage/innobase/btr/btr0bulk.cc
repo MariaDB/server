@@ -1199,6 +1199,9 @@ err_exit:
 
 		first_rec = page_rec_get_next(
 			page_get_infimum_rec(last_block->page.frame));
+		/* Because this index tree is being created by this thread,
+		we assume that it cannot be corrupted. */
+		ut_ad(first_rec);
 		ut_ad(page_rec_is_user_rec(first_rec));
 
 		/* Copy last page to root page. */

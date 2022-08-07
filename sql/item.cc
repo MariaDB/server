@@ -4520,13 +4520,13 @@ bool Item_param::is_evaluable_expression() const
 }
 
 
-bool Item_param::check_assignability_to(const Field *to) const
+bool Item_param::check_assignability_to(const Field *to, bool ignore) const
 {
   switch (state) {
   case SHORT_DATA_VALUE:
   case LONG_DATA_VALUE:
   case NULL_VALUE:
-    return to->check_assignability_from(type_handler());
+    return to->check_assignability_from(type_handler(), ignore);
   case NO_VALUE:
   case IGNORE_VALUE:
   case DEFAULT_VALUE:

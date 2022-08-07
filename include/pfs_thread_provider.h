@@ -99,6 +99,8 @@ void pfs_set_thread_info_v1(const char* info, uint info_len);
 
 void pfs_set_thread_v1(PSI_thread* thread);
 
+void pfs_set_thread_peer_port_v1(PSI_thread *thread, uint port);
+
 void pfs_delete_current_thread_v1(void);
 
 void pfs_delete_thread_v1(PSI_thread *thread);

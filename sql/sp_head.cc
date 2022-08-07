@@ -425,7 +425,7 @@ Item *THD::sp_fix_func_item_for_assignment(const Field *to, Item **it_addr)
 {
   DBUG_ENTER("THD::sp_fix_func_item_for_assignment");
   Item *res= sp_fix_func_item(it_addr);
-  if (res && (!res->check_assignability_to(to)))
+  if (res && (!res->check_assignability_to(to, false)))
     DBUG_RETURN(res);
   DBUG_RETURN(NULL);
 }

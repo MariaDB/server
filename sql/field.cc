@@ -964,7 +964,8 @@ Type_handler::aggregate_for_result_traditional(const Type_handler *a,
 }
 
 
-bool Field::check_assignability_from(const Type_handler *from) const
+bool Field::check_assignability_from(const Type_handler *from,
+                                     bool ignore) const
 {
   /*
     Using type_handler_for_item_field() here to get the data type handler
@@ -982,9 +983,26 @@ bool Field::check_assignability_from(const Type_handler *from) const
                                       type_handler_for_item_field());
   if (th.aggregate_for_result(from->type_handler_for_item_field()))
   {
-    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
-             type_handler()->name().ptr(), from->name().ptr(), "SET");
-    return true;
+    bool error= !ignore && get_thd()->is_strict_mode();
+    /*
+      Display fully qualified column name for table columns.
+      Display non-qualified names for other things,
+      e.g. SP variables, SP return values, SP and CURSOR parameters.
+    */
+    if (table->s->db.str && table->s->table_name.str)
+      my_printf_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION,
+                      "Cannot cast '%s' as '%s' in assignment of %`s.%`s.%`s",
+                      MYF(error ? 0 : ME_WARNING),
+                      from->name().ptr(), type_handler()->name().ptr(),
+                      table->s->db.str, table->s->table_name.str,
+                      field_name.str);
+    else
+      my_printf_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION,
+                      "Cannot cast '%s' as '%s' in assignment of %`s",
+                      MYF(error ? 0 : ME_WARNING),
+                      from->name().ptr(), type_handler()->name().ptr(),
+                      field_name.str);
+    return error;
   }
   return false;
 }
@@ -10719,7 +10737,7 @@ bool Column_definition::check(THD *thd)
       TIMESTAMP columns get implicit DEFAULT value when
       explicit_defaults_for_timestamp is not set.
     */
-    if ((opt_explicit_defaults_for_timestamp ||
+    if (((thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP) ||
         !is_timestamp_type()) && !vers_sys_field())
     {
       flags|= NO_DEFAULT_VALUE_FLAG;
@@ -10854,6 +10872,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   comment=    old_field->comment;
   vcol_info=  old_field->vcol_info;
   option_list= old_field->option_list;
+  explicitly_nullable= !(old_field->flags & NOT_NULL_FLAG);
   compression_method_ptr= 0;
   versioning= VERSIONING_NOT_SET;
   invisible= old_field->invisible;

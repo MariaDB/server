@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -201,76 +201,6 @@ rec_set_bit_field_2(
 	mach_write_to_2(rec - offs,
 			(mach_read_from_2(rec - offs) & ~mask)
 			| (val << shift));
-}
-
-/******************************************************//**
-The following function is used to get the pointer of the next chained record
-on the same page.
-@return pointer to the next chained record, or NULL if none */
-UNIV_INLINE
-const rec_t*
-rec_get_next_ptr_const(
-/*===================*/
-	const rec_t*	rec,	/*!< in: physical record */
-	ulint		comp)	/*!< in: nonzero=compact page format */
-{
-	ulint	field_value;
-
-	compile_time_assert(REC_NEXT_MASK == 0xFFFFUL);
-	compile_time_assert(REC_NEXT_SHIFT == 0);
-
-	field_value = mach_read_from_2(rec - REC_NEXT);
-
-	if (field_value == 0) {
-
-		return(NULL);
-	}
-
-	if (comp) {
-#if UNIV_PAGE_SIZE_MAX <= 32768
-		/* Note that for 64 KiB pages, field_value can 'wrap around'
-		and the debug assertion is not valid */
-
-		/* In the following assertion, field_value is interpreted
-		as signed 16-bit integer in 2's complement arithmetics.
-		If all platforms defined int16_t in the standard headers,
-		the expression could be written simpler as
-		(int16_t) field_value + ut_align_offset(...) < srv_page_size
-		*/
-		ut_ad((field_value >= 32768
-		       ? field_value - 65536
-		       : field_value)
-		      + ut_align_offset(rec, srv_page_size)
-		      < srv_page_size);
-#endif
-		/* There must be at least REC_N_NEW_EXTRA_BYTES + 1
-		between each record. */
-		ut_ad((field_value > REC_N_NEW_EXTRA_BYTES
-		       && field_value < 32768)
-		      || field_value < (uint16) -REC_N_NEW_EXTRA_BYTES);
-
-		return((byte*) ut_align_down(rec, srv_page_size)
-		       + ut_align_offset(rec + field_value, srv_page_size));
-	} else {
-		ut_ad(field_value < srv_page_size);
-
-		return((byte*) ut_align_down(rec, srv_page_size)
-		       + field_value);
-	}
-}
-
-/******************************************************//**
-The following function is used to get the pointer of the next chained record
-on the same page.
-@return pointer to the next chained record, or NULL if none */
-UNIV_INLINE
-rec_t*
-rec_get_next_ptr(
-/*=============*/
-	rec_t*	rec,	/*!< in: physical record */
-	ulint	comp)	/*!< in: nonzero=compact page format */
-{
-	return(const_cast<rec_t*>(rec_get_next_ptr_const(rec, comp)));
 }
 
 /******************************************************//**

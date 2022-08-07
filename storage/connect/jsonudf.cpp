@@ -1816,7 +1816,7 @@ static PCSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 			} // endif *s
 
 			if (n < 1)
-                                return (PCSZ) "Key";
+        return (PCSZ) "Key";
 
 			if (!b) {
 				if ((p = (PSZ)PlgDBSubAlloc(g, NULL, n + 1))) {
@@ -1830,7 +1830,7 @@ static PCSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 
 		} // endif s
 
-		return (char*) s;
+		return s;
 	} // endif count
 
   return (PCSZ) "Key";
