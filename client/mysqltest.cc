@@ -563,10 +563,10 @@ char builtin_echo[FN_REFLEN];
 
 struct st_replace_regex
 {
-DYNAMIC_ARRAY regex_arr; /* stores a list of st_regex subsitutions */
+DYNAMIC_ARRAY regex_arr; /* stores a list of st_regex substitutions */
 
 /*
-Temporary storage areas for substitutions. To reduce unnessary copying
+Temporary storage areas for substitutions. To reduce unnecessary copying
 and memory freeing/allocation, we pre-allocate two buffers, and alternate
 their use, one for input/one for output, the roles changing on the next
 st_regex substitution. At the end of substitutions  buf points to the
@@ -1932,7 +1932,7 @@ void show_diff(DYNAMIC_STRING* ds,
      needs special processing due to return values
      on that OS
      This test is only done on Windows since it's only needed there
-     in order to correctly detect non-availibility of 'diff', and
+     in order to correctly detect non-availability of 'diff', and
      the way it's implemented does not work with default 'diff' on Solaris.
   */
 #ifdef _WIN32
@@ -2311,7 +2311,7 @@ static int strip_surrounding(char* str, char c1, char c2)
     /* Replace it with a space */
     *ptr= ' ';
 
-    /* Last non space charecter should be c2 */
+    /* Last non space character should be c2 */
     ptr= strend(str)-1;
     while(*ptr && my_isspace(charset_info, *ptr))
       ptr--;
@@ -3080,7 +3080,7 @@ void open_file(const char *name)
       if overlay-dir is specified, and the file is located somewhere
       under overlay-dir or under suite-dir, the search works as follows:
 
-      0.let suffix be current file dirname relative to siute-dir or overlay-dir
+      0.let suffix be current file dirname relative to suite-dir or overlay-dir
       1.try in overlay-dir/suffix
       2.try in suite-dir/suffix
       3.try in overlay-dir
@@ -5593,7 +5593,7 @@ void do_close_connection(struct st_command *command)
   con->stmt= 0;
 #ifdef EMBEDDED_LIBRARY
   /*
-    As query could be still executed in a separate theread
+    As query could be still executed in a separate thread
     we need to check if the query's thread was finished and probably wait
     (embedded-server specific)
   */
@@ -5888,7 +5888,7 @@ void do_connect(struct st_command *command)
     { "connection name", ARG_STRING, TRUE, &ds_connection_name, "Name of the connection" },
     { "host", ARG_STRING, TRUE, &ds_host, "Host to connect to" },
     { "user", ARG_STRING, FALSE, &ds_user, "User to connect as" },
-    { "passsword", ARG_STRING, FALSE, &ds_password, "Password used when connecting" },
+    { "password", ARG_STRING, FALSE, &ds_password, "Password used when connecting" },
     { "database", ARG_STRING, FALSE, &ds_database, "Database to select after connect" },
     { "port", ARG_STRING, FALSE, &ds_port, "Port to connect to" },
     { "socket", ARG_STRING, FALSE, &ds_sock, "Socket to connect with" },
@@ -6392,7 +6392,7 @@ void do_block(enum block_cmd cmd, struct st_command* command)
   } else
   {
     if (*expr_start != '`' && ! my_isdigit(charset_info, *expr_start))
-      die("Expression in if/while must beging with $, ` or a number");
+      die("Expression in if/while must begin with $, ` or a number");
     eval_expr(&v, expr_start, &expr_end);
   }
 
@@ -8236,7 +8236,7 @@ void handle_no_error(struct st_command *command)
 /*
   Run query using prepared statement C API
 
-  SYNPOSIS
+  SYNOPSIS
   run_query_stmt
   mysql - mysql handle
   command - current command pointer
@@ -8471,6 +8471,7 @@ end:
     }
   }
 
+
   DBUG_VOID_RETURN;
 }
 
@@ -8517,7 +8518,7 @@ int util_query(MYSQL* org_mysql, const char* query){
 /*
   Run query
 
-  SYNPOSIS
+  SYNOPSIS
     run_query()
      mysql	mysql handle
      command	current command pointer
@@ -10244,7 +10245,7 @@ err:
 /*
   Execute all substitutions on val.
 
-  Returns: true if substituition was made, false otherwise
+  Returns: true if substitution was made, false otherwise
   Side-effect: Sets r->buf to be the buffer with all substitutions done.
 
   IN:
@@ -10338,7 +10339,7 @@ void free_replace_regex()
 
 
 /*
-  auxiluary macro used by reg_replace
+  auxiliary macro used by reg_replace
   makes sure the result buffer has sufficient length
 */
 #define SECURE_REG_BUF   if (buf_len < need_buf_len)                    \
@@ -10877,7 +10878,7 @@ int init_sets(REP_SETS *sets,uint states)
   return 0;
 }
 
-/* Make help sets invisible for nicer codeing */
+/* Make help sets invisible for nicer coding */
 
 void make_sets_invisible(REP_SETS *sets)
 {

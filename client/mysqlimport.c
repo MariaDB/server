@@ -579,7 +579,7 @@ static char *add_load_option(char *ptr, const char *object,
 /*
 ** Allow the user to specify field terminator strings like:
 ** "'", "\", "\\" (escaped backslash), "\t" (tab), "\n" (newline)
-** This is done by doubleing ' and add a end -\ if needed to avoid
+** This is done by doubling ' and add a end -\ if needed to avoid
 ** syntax errors from the SQL parser.
 */ 
 
