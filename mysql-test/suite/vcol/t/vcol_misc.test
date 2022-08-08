@@ -514,3 +514,17 @@ drop table t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # RAND is session func
+--echo #
+create table t1 (a int, b float default rand(1));
+insert into t1 (a) values (1);
+insert into t1 (a) values (2);
+insert into t1 (a) values (3);
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

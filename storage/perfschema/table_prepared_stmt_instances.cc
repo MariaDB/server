@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2014, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -40,6 +40,11 @@
 #include "field.h"
 
 THR_LOCK table_prepared_stmt_instances::m_table_lock;
+
+PFS_engine_table_share_state
+table_prepared_stmt_instances::m_share_state = {
+  false /* m_checked */
+};
 
 PFS_engine_table_share
 table_prepared_stmt_instances::m_share=
@@ -88,7 +93,9 @@ table_prepared_stmt_instances::m_share=
   "SUM_SORT_SCAN bigint(20) unsigned NOT NULL comment 'The total number of sorts that were done by scanning the table by the prepared statements.',"
   "SUM_NO_INDEX_USED bigint(20) unsigned NOT NULL comment 'The total number of statements that performed a table scan without using an index.',"
   "SUM_NO_GOOD_INDEX_USED bigint(20) unsigned NOT NULL comment 'The total number of statements where no good index was found.')")},
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table*

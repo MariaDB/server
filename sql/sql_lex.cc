@@ -3158,6 +3158,7 @@ void st_select_lex_node::fast_exclude()
   for (; slave; slave= slave->next)
     slave->fast_exclude();
 
+  prev= NULL; // to ensure correct behavior of st_select_lex_unit::is_excluded()
 }
 
 
@@ -3232,9 +3233,7 @@ void st_select_lex_node::exclude_from_tree()
 */
 void st_select_lex_node::exclude()
 {
-  /* exclude from global list */
-  fast_exclude();
-  /* exclude from other structures */
+  /* exclude the node from the tree  */
   exclude_from_tree();
   /* 
      We do not need following statements, because prev pointer of first 
@@ -3242,6 +3241,8 @@ void st_select_lex_node::exclude()
      if (master->slave == this)
        master->slave= next;
   */
+  /* exclude all nodes under this excluded node */
+  fast_exclude();
 }
 
 

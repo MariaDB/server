@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -37,6 +37,11 @@
 
 THR_LOCK table_socket_instances::m_table_lock;
 
+PFS_engine_table_share_state
+table_socket_instances::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_socket_instances::m_share=
 {
@@ -56,7 +61,9 @@ table_socket_instances::m_share=
                       "IP VARCHAR(64) not null comment 'Client IP address. Blank for Unix socket file, otherwise an IPv4 or IPv6 address. Together with the PORT identifies the connection.',"
                       "PORT INTEGER not null comment 'TCP/IP port number, from 0 to 65535. Together with the IP identifies the connection.',"
                       "STATE ENUM('IDLE','ACTIVE') not null comment 'Socket status, either IDLE if waiting to receive a request from a client, or ACTIVE')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_socket_instances::create(void)

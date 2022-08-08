@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2015, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -35,6 +35,11 @@
 
 THR_LOCK table_status_by_thread::m_table_lock;
 
+PFS_engine_table_share_state
+table_status_by_thread::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_status_by_thread::m_share=
 {
@@ -50,7 +55,9 @@ table_status_by_thread::m_share=
   "THREAD_ID BIGINT unsigned not null comment 'The thread identifier of the session in which the status variable is defined.',"
   "VARIABLE_NAME VARCHAR(64) not null comment 'Status variable name.',"
   "VARIABLE_VALUE VARCHAR(1024) comment 'Aggregated status variable value.' )") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table*
@@ -61,7 +68,7 @@ table_status_by_thread::create(void)
 
 int table_status_by_thread::delete_all_rows(void)
 {
-  /* Lock required to aggregate to global_status_vars. */
+  /* Lock required to aggregate to global_status_var. */
   mysql_mutex_lock(&LOCK_status);
 
   reset_status_by_thread();
