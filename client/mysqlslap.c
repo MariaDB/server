@@ -2130,7 +2130,7 @@ parse_option(const char *origin, option_string **stmt, char delm)
     char *origin_ptr;
 
     /*
-      Return an error if the length of the any of the comma separated value
+      Return an error if the length of any of the comma separated values
       exceeds HUGE_STRING_LENGTH.
     */
     if (strlen(ptr) > HUGE_STRING_LENGTH)
