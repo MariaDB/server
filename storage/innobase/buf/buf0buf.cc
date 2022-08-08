@@ -757,6 +757,7 @@ in the event that you want all of the memory to be dumped
 to a core file.
 
 Returns number of errors found in madvise calls. */
+MY_ATTRIBUTE((used))
 int
 buf_madvise_do_dump()
 {

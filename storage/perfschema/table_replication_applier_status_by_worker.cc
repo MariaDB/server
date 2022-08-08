@@ -1,5 +1,5 @@
 /*
-      Copyright (c) 2013, 2021, Oracle and/or its affiliates.
+      Copyright (c) 2013, 2022, Oracle and/or its affiliates.
 
       This program is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License, version 2.0,
@@ -40,6 +40,11 @@
 
 THR_LOCK table_replication_applier_status_by_worker::m_table_lock;
 
+PFS_engine_table_share_state
+table_replication_applier_status_by_worker::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_replication_applier_status_by_worker::m_share=
 {
@@ -61,7 +66,9 @@ table_replication_applier_status_by_worker::m_share=
   "LAST_ERROR_TIMESTAMP TIMESTAMP(0) not null comment 'Time stamp of last error.',"
   "WORKER_IDLE_TIME BIGINT UNSIGNED not null comment 'Total idle time in seconds that the worker thread has spent waiting for work from SQL thread.',"
   "LAST_TRANS_RETRY_COUNT INTEGER not null comment 'Total number of retries attempted by last transaction.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_replication_applier_status_by_worker::create(void)

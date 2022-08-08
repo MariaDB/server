@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2011, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -39,6 +39,11 @@
 
 THR_LOCK table_mems_by_host_by_event_name::m_table_lock;
 
+PFS_engine_table_share_state
+table_mems_by_host_by_event_name::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_mems_by_host_by_event_name::m_share=
 {
@@ -63,7 +68,9 @@ table_mems_by_host_by_event_name::m_share=
   "LOW_NUMBER_OF_BYTES_USED BIGINT not null comment 'Lowest number of bytes used.',"
   "CURRENT_NUMBER_OF_BYTES_USED BIGINT not null comment 'Current number of bytes used (total allocated minus total freed).',"
   "HIGH_NUMBER_OF_BYTES_USED BIGINT not null comment 'Highest number of bytes used.')")},
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_mems_by_host_by_event_name::create(void)

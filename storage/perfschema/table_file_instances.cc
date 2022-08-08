@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -36,6 +36,10 @@
 #include "field.h"
 
 THR_LOCK table_file_instances::m_table_lock;
+PFS_engine_table_share_state
+table_file_instances::m_share_state = {
+  false /* m_checked */
+};
 
 PFS_engine_table_share
 table_file_instances::m_share=
@@ -52,7 +56,9 @@ table_file_instances::m_share=
                       "FILE_NAME VARCHAR(512) not null comment 'File name.',"
                       "EVENT_NAME VARCHAR(128) not null comment 'Instrument name associated with the file.',"
                       "OPEN_COUNT INTEGER unsigned not null comment 'Open handles on the file. A value of greater than zero means that the file is currently open.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_file_instances::create(void)

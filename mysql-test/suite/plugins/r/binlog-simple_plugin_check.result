@@ -8,7 +8,7 @@ simple_password_check
 #
 CREATE USER user1@localhost IDENTIFIED BY 'BsG9#9.cem#!85';
 CREATE USER user2@localhost IDENTIFIED BY 'bsg9#d.cem#!85';
-ERROR HY000: Your password does not satisfy the current policy requirements
+ERROR HY000: Your password does not satisfy the current policy requirements (simple_password_check)
 DROP USER user1@localhost;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -39,6 +39,11 @@
 
 THR_LOCK table_esms_by_host_by_event_name::m_table_lock;
 
+PFS_engine_table_share_state
+table_esms_by_host_by_event_name::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_esms_by_host_by_event_name::m_share=
 {
@@ -77,7 +82,9 @@ table_esms_by_host_by_event_name::m_share=
                       "SUM_SORT_SCAN BIGINT unsigned not null comment 'Sum of the SORT_SCAN column in the events_statements_current table.',"
                       "SUM_NO_INDEX_USED BIGINT unsigned not null comment 'Sum of the NO_INDEX_USED column in the events_statements_current table.',"
                       "SUM_NO_GOOD_INDEX_USED BIGINT unsigned not null comment 'Sum of the NO_GOOD_INDEX_USED column in the events_statements_current table.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table*

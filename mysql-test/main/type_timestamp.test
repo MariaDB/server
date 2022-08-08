@@ -874,7 +874,23 @@ SELECT CASE WHEN a THEN DEFAULT(a) END FROM t1;
 DROP TABLE t1;
 SET timestamp=DEFAULT;
 
-
 --echo #
 --echo # End of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-29225 make explicit_defaults_for_timestamps SESSION variable
+--echo #
+
+set explicit_defaults_for_timestamp=OFF;
+create table t1 (f1 timestamp, f2 timestamp);
+show create table t1;
+drop table t1;
+set explicit_defaults_for_timestamp=ON;
+create table t1 (f1 timestamp, f2 timestamp);
+show create table t1;
+drop table t1;
+
+--echo #
+--echo # End of 10.10 tests
 --echo #

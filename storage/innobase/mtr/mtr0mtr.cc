@@ -1128,10 +1128,14 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
 	ulint	len	= m_log.size();
 	ut_ad(len > 0);
 
-#ifdef UNIV_DEBUG
+#ifndef DBUG_OFF
 	if (m_log_mode == MTR_LOG_ALL) {
-		m_memo.for_each_block(CIterate<WriteOPT_PAGE_CHECKSUM>(*this));
-		len = m_log.size();
+		do {
+			DBUG_EXECUTE_IF("skip_page_checksum", continue;);
+			m_memo.for_each_block(CIterate<WriteOPT_PAGE_CHECKSUM>
+					      (*this));
+			len = m_log.size();
+		} while (0);
 	}
 #endif
 
