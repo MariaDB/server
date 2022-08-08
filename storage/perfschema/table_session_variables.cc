@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2015, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -35,6 +35,11 @@
 
 THR_LOCK table_session_variables::m_table_lock;
 
+PFS_engine_table_share_state
+table_session_variables::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_session_variables::m_share=
 {
@@ -49,7 +54,8 @@ table_session_variables::m_share=
   { C_STRING_WITH_LEN("CREATE TABLE session_variables("
   "VARIABLE_NAME VARCHAR(64) not null,"
   "VARIABLE_VALUE VARCHAR(1024))") },
-  true   /* perpetual */
+  true, /* m_perpetual */
+  &m_share_state
 };
 
 PFS_engine_table*

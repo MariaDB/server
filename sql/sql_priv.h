@@ -136,8 +136,7 @@
 #define OPTION_QUICK            (1ULL << 22)    // SELECT (for DELETE)
 #define OPTION_KEEP_LOG         (1ULL << 23)    // THD, user
 
-/* The following is used to detect a conflict with DISTINCT */
-#define SELECT_ALL              (1ULL << 24)    // SELECT, user, parser
+#define OPTION_EXPLICIT_DEF_TIMESTAMP   (1ULL << 24) // THD, user
 #define OPTION_GTID_BEGIN       (1ULL << 25)    // GTID BEGIN found in log
 
 /** The following can be set when importing tables in a 'wrong order'
@@ -180,10 +179,11 @@
 #define OPTION_NO_QUERY_CACHE           (1ULL << 39) // SELECT, user
 #define OPTION_PROCEDURE_CLAUSE         (1ULL << 40) // Internal usage
 #define SELECT_NO_UNLOCK                (1ULL << 41) // SELECT, intern
-#define SELECT_NO_UNLOCK                (1ULL << 41) // SELECT, intern
 #define OPTION_BIN_TMP_LOG_OFF          (1ULL << 42) // disable binlog, intern
 /* Disable commit of binlog. Used to combine many DDL's and DML's as one */
 #define OPTION_BIN_COMMIT_OFF           (1ULL << 43)
+/* The following is used to detect a conflict with DISTINCT */
+#define SELECT_ALL              (1ULL << 44)    // SELECT, user, parser
 
 #define OPTION_LEX_FOUND_COMMENT        (1ULL << 0) //  intern, parser
 

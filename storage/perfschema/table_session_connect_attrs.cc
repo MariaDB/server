@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -25,6 +25,11 @@
 
 THR_LOCK table_session_connect_attrs::m_table_lock;
 
+PFS_engine_table_share_state
+table_session_connect_attrs::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_session_connect_attrs::m_share=
 {
@@ -42,7 +47,9 @@ table_session_connect_attrs::m_share=
                       "ATTR_VALUE VARCHAR(1024) comment 'Attribute value.',"
                       "ORDINAL_POSITION INT comment 'Order in which attribute was added to the connection attributes.'"
                       ") CHARACTER SET utf8 COLLATE utf8_bin") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_session_connect_attrs::create()

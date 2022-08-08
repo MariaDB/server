@@ -248,3 +248,12 @@ WHERE
 (help_topic_id < '2' OR help_topic_id != 8 OR help_topic_id < 1) AND
 help_keyword_id = help_topic_id;
 help_topic_id	help_keyword_id
+#
+# MDEV-29242: Assertion `computed_weight == weight' failed SEL_ARG::verify_weight
+#
+CREATE TABLE t1 (id INT, KEY (id));
+INSERT INTO t1 VALUES (1),(5);
+SELECT id FROM t1 WHERE id IS NULL OR id NOT BETWEEN 1 AND 4;
+id
+5
+DROP TABLE t1;
