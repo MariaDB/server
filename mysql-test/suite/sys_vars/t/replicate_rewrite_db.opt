@@ -1,0 +1,3 @@
+"--replicate-rewrite-db=test->rewrite"
+"--replicate-rewrite-db=  mysqltest1  ->  test"
+"--replicate-rewrite-db=a ->    b"

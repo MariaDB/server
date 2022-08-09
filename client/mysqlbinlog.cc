@@ -2394,48 +2394,11 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
   case OPT_REWRITE_DB:    // db_from->db_to
   {
     /* See also handling of OPT_REPLICATE_REWRITE_DB in sql/mysqld.cc */
-    const char* ptr;
-    const char* key= argument;  // db-from
-    const char* val;            // db-to
-
-    // Skipp pre-space in key
-    while (*key && my_isspace(&my_charset_latin1, *key))
-      key++;
-
-    // Where val begins
-    if (!(ptr= strstr(key, "->")))
+    if (binlog_filter->add_rewrite_db(argument))
     {
-      sql_print_error("Bad syntax in rewrite-db: missing '->'\n");
+      sql_print_error("Bad syntax in rewrite-db. Expected syntax is FROM->TO.");
       return 1;
     }
-    val= ptr + 2;
-
-    // Skip blanks at the end of key
-    while (ptr > key && my_isspace(&my_charset_latin1, ptr[-1]))
-      ptr--;
-
-    if (ptr == key)
-    {
-      sql_print_error("Bad syntax in rewrite-db: empty FROM db\n");
-      return 1;
-    }
-    key= strmake_root(&glob_root, key, (size_t) (ptr-key));
-
-    /* Skipp pre space in value */
-    while (*val && my_isspace(&my_charset_latin1, *val))
-      val++;
-
-    // Value ends with \0 or space
-    for (ptr= val; *ptr && !my_isspace(&my_charset_latin1, *ptr) ; ptr++)
-    {}
-    if (ptr == val)
-    {
-      sql_print_error("Bad syntax in rewrite-db: empty TO db\n");
-      return 1;
-    }
-    val= strmake_root(&glob_root, val, (size_t) (ptr-val));
-
-    binlog_filter->add_db_rewrite(key, val);
     break;
   }
   case OPT_PRINT_ROW_COUNT:
