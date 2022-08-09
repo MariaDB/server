@@ -514,3 +514,85 @@ DROP TABLE t1, t2;
 DROP PROCEDURE p1;
 
 --echo # End of 10.2 test
+
+--echo #
+--echo # MDEV-28617: INSERT ... SELECT with redundant IN subquery in GROUP BY
+--echo #             list that uses mergeable derived table containing
+--echo #             reference to target table
+--echo #
+
+create table t1 (a int);
+create table t2 (b int);
+create table t3 (c int);
+
+insert into t1 values (3), (1);
+insert into t2 values (3), (2);
+insert into t3 values (4), (2);
+
+insert into t1
+select b from t2
+  where b in (select c from t3
+              group by (select * from (select a from t1) dt where a = 1));
+select * from t1;
+
+delete from t1;
+insert into t1 values (3), (1);
+
+insert into t1
+select b from t2
+  where b >= any (select c from t3
+                  group by (select * from (select a from t1) dt where a = 1));
+select * from t1;
+
+delete from t1;
+insert into t1 values (3), (1);
+
+insert into t1
+select b from t2
+  where b <= all (select c from t3
+                  group by (select * from (select a from t1) dt where a = 1));
+select * from t1;
+
+delete from t1;
+insert into t1 values (3), (1);
+
+insert into t1
+select b from t2
+  where exists (select c from t3
+                group by (select * from (select a from t1) dt where a = 1));
+select * from t1;
+
+delete from t1;
+insert into t1 values (3), (1);
+
+prepare stmt from "
+insert into t1
+select b from t2
+  where b in (select c from t3
+              group by (select * from (select a from t1) dt where a = 1));
+";
+
+execute stmt;
+select * from t1;
+
+delete from t1;
+insert into t1 values (3), (1);
+
+execute stmt;
+select * from t1;
+
+delete from t1;
+insert into t1 values (3), (1);
+
+delete from t1
+  where exists (select b from t2
+                  where b in (select c from t3
+                              group by (select * from (select a from t1) dt
+                                           where a = 1)));
+select * from t1;
+
+deallocate prepare stmt;
+
+drop table t1,t2,t3;
+
+--echo # End of 10.3 test

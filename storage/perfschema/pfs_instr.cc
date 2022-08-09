@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
   Copyright (c) 2022, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
@@ -576,6 +576,8 @@ PFS_thread* create_thread(PFS_thread_class *klass, const void *identity,
     pfs->m_user= NULL;
     pfs->m_account= NULL;
     set_thread_account(pfs);
+
+    pfs->m_peer_port = 0;
 
     /*
       For child waits, by default,

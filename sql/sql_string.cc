@@ -398,7 +398,7 @@ bool String::copy_aligned(const char *str, size_t arg_length, size_t offset,
   DBUG_ASSERT(offset && offset != cs->mbminlen);
 
   size_t aligned_length= arg_length + offset;
-  if (alloc(aligned_length))
+  if (alloc(aligned_length+1))
     return TRUE;
   
   /*

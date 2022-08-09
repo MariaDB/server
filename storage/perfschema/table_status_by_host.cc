@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2015, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -36,6 +36,11 @@
 
 THR_LOCK table_status_by_host::m_table_lock;
 
+PFS_engine_table_share_state
+table_status_by_host::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_status_by_host::m_share=
 {
@@ -51,7 +56,9 @@ table_status_by_host::m_share=
   "HOST CHAR(60) collate utf8_bin default null comment 'Host for which the status variable is reported.',"
   "VARIABLE_NAME VARCHAR(64) not null comment 'Status variable name.',"
   "VARIABLE_VALUE VARCHAR(1024) comment 'Aggregated status variable value.' )") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table*

@@ -40,9 +40,9 @@ INSERT INTO t1 VALUES (4, 'AAA');
 UPDATE t1 set msg = "ddd" where id = 2;
 DELETE FROM t1 WHERE id= 3;
 SET DEBUG_SYNC = 'now SIGNAL go_ahead';
-SET DEBUG_SYNC = 'RESET';
 connection default;
 ERROR 23000: Duplicate entry 'NULL' for key 'msg'
+SET DEBUG_SYNC = 'RESET';
 SELECT * FROM t1;
 id	msg
 4	AAA

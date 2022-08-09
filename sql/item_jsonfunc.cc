@@ -151,6 +151,15 @@ int json_path_parts_compare(
   int res, res2;
   const json_path_step_t *temp_b= b;
 
+  DBUG_EXECUTE_IF("json_check_min_stack_requirement",
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return 1;
+
   while (a <= a_end)
   {
     if (b > b_end)
@@ -1199,13 +1208,15 @@ my_decimal *Item_func_json_extract::val_decimal(my_decimal *to)
       case JSON_VALUE_OBJECT:
       case JSON_VALUE_ARRAY:
       case JSON_VALUE_FALSE:
-      case JSON_VALUE_NULL:
       case JSON_VALUE_UNINITIALIZED:
-      break;
+      // TODO: fix: NULL should be NULL
+      case JSON_VALUE_NULL:
+        int2my_decimal(E_DEC_FATAL_ERROR, 0, false/*unsigned_flag*/, to);
+        return to;
     };
   }
-  int2my_decimal(E_DEC_FATAL_ERROR, 0, false/*unsigned_flag*/, to);
-  return to;
+  DBUG_ASSERT(null_value);
+  return 0;
 }
 
 
