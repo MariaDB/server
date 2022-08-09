@@ -10662,6 +10662,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
   thd->store_globals();
   thd->security_ctx->skip_grants();
   thd->set_command(COM_DAEMON);
+  THD_count::count--;
 
   /*
     Load the slave replication GTID state from the mysql.gtid_slave_pos
@@ -10751,6 +10752,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
   THD_STAGE_INFO(thd, stage_binlog_stopping_background_thread);
 
   /* No need to use mutex as thd is not linked into other threads */
+  THD_count::count++;
   delete thd;
 
   my_thread_end();
