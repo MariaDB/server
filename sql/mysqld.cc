@@ -1781,7 +1781,6 @@ static void close_connections(void)
 
   Events::deinit();
   slave_prepare_for_shutdown();
-  mysql_bin_log.stop_background_thread();
   ack_receiver.stop();
 
   /*
@@ -1965,6 +1964,7 @@ static void clean_up(bool print_message)
   logger.cleanup_base();
 
   injector::free_instance();
+  mysql_bin_log.stop_background_thread();
   mysql_bin_log.cleanup();
 
   my_tz_free();
