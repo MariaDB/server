@@ -2250,10 +2250,13 @@ Warnings:
 Warning	1292	Truncated incorrect max_sort_length value: '4'
 CREATE TEMPORARY TABLE t1(c INET6,d DATE);
 INSERT INTO t1 VALUES(0,0);
-ERROR HY000: Illegal parameter data types inet6 and int for operation 'SET'
+Warnings:
+Warning	4078	Cannot cast 'int' as 'inet6' in assignment of `test`.`t1`.`c`
+Warning	1292	Incorrect inet6 value: '0' for column `test`.`t1`.`c` at row 1
 INSERT INTO t1 VALUES('::',0);
 SELECT c FROM t1 ORDER BY c;
 c
+::
 ::
 DROP TABLE t1;
 SET max_sort_length=DEFAULT;
