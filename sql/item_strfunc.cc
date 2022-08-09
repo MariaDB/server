@@ -1517,6 +1517,7 @@ String *Item_func_random_bytes::val_str(String *str)
     goto err;
 
   str->length(count);
+  str->set_charset(&my_charset_bin);
   if (my_random_bytes((unsigned char *) str->ptr(), (int32) count))
   {
     ulong ssl_err;

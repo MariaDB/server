@@ -1,4 +1,3 @@
-drop table if exists t1,t2;
 set @save_max_allowed_packet=@@global.max_allowed_packet;
 set global max_allowed_packet=1048576;
 connect  conn1,localhost,root,,;
@@ -5405,7 +5404,7 @@ Warnings:
 Warning	1292	Truncated incorrect INTEGER value: 'test'
 Warning	1292	Truncated incorrect INTEGER value: 'test'
 #
-# MDEV-29108: RANDOM_BYTES - assertion in Create_tmp_table::finalize
+# MDEV-29108 RANDOM_BYTES - assertion in Create_tmp_table::finalize
 #
 CREATE TABLE t (a INT);
 INSERT INTO t VALUES (1),(2);
@@ -5415,7 +5414,7 @@ NULL	1
 NULL	2
 DROP TABLE t;
 #
-# MDEV-29154: Excessive warnings upon a call to RANDOM_BYTES
+# MDEV-29154 Excessive warnings upon a call to RANDOM_BYTES
 #
 select length(random_bytes(cast('x' as unsigned)+1));
 length(random_bytes(cast('x' as unsigned)+1))
@@ -5429,6 +5428,14 @@ repeat('.', cast('x' as unsigned)+1)
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: 'x'
 Warning	1292	Truncated incorrect INTEGER value: 'x'
+#
+# MDEV-23149 Server crashes in my_convert / ErrConvString::ptr / Item_char_typecast::check_truncation_with_warn
+#
+select "a" in ("abc", (convert(random_bytes(8) ,binary(2))));
+"a" in ("abc", (convert(random_bytes(8) ,binary(2))))
+0
+Warnings:
+Warning	1292	Truncated incorrect BINARY(2) value: '...random bytes...'
 #
 # End of 10.10 tests
 #
