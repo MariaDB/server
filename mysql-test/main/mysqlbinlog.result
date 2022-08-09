@@ -1276,13 +1276,8 @@ CREATE TABLE t1 (a int);
 INSERT INTO t1 values(1);
 DROP TABLE t1;
 FLUSH LOGS;
-ERROR: Bad syntax in rewrite-db: missing '->'
-
-ERROR: Bad syntax in rewrite-db: empty TO db
-
-ERROR: Bad syntax in rewrite-db: empty TO db
-
-ERROR: Bad syntax in rewrite-db: empty FROM db
-
-ERROR: Bad syntax in rewrite-db: empty FROM db
-
+ERROR: Bad syntax in rewrite-db. Expected syntax is FROM->TO.
+ERROR: Bad syntax in rewrite-db. Expected syntax is FROM->TO.
+ERROR: Bad syntax in rewrite-db. Expected syntax is FROM->TO.
+ERROR: Bad syntax in rewrite-db. Expected syntax is FROM->TO.
+ERROR: Bad syntax in rewrite-db. Expected syntax is FROM->TO.

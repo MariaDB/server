@@ -32,6 +32,7 @@ Relay_Log_Pos	<relay_log_pos>
 Relay_Master_Log_File	master-bin.000001
 Slave_IO_Running	Yes
 Slave_SQL_Running	Yes
+Replicate_Rewrite_DB	
 Replicate_Do_DB	
 Replicate_Ignore_DB	
 Replicate_Do_Table	
@@ -93,6 +94,7 @@ Relay_Log_Pos	<relay_log_pos>
 Relay_Master_Log_File	master-bin.000001
 Slave_IO_Running	Yes
 Slave_SQL_Running	Yes
+Replicate_Rewrite_DB	
 Replicate_Do_DB	
 Replicate_Ignore_DB	
 Replicate_Do_Table	
@@ -219,6 +221,7 @@ Relay_Log_Pos	<relay_log_pos>
 Relay_Master_Log_File	master-bin.000001
 Slave_IO_Running	No
 Slave_SQL_Running	No
+Replicate_Rewrite_DB	
 Replicate_Do_DB	
 Replicate_Ignore_DB	
 Replicate_Do_Table	
@@ -276,6 +279,7 @@ Relay_Log_Pos	<relay_log_pos>
 Relay_Master_Log_File	
 Slave_IO_Running	No
 Slave_SQL_Running	No
+Replicate_Rewrite_DB	
 Replicate_Do_DB	
 Replicate_Ignore_DB	
 Replicate_Do_Table	
@@ -337,6 +341,7 @@ Relay_Log_Pos	<relay_log_pos>
 Relay_Master_Log_File	master-bin.000001
 Slave_IO_Running	Yes
 Slave_SQL_Running	Yes
+Replicate_Rewrite_DB	
 Replicate_Do_DB	
 Replicate_Ignore_DB	
 Replicate_Do_Table	
@@ -400,6 +405,7 @@ Relay_Log_Pos	<relay_log_pos>
 Relay_Master_Log_File	master-bin.000001
 Slave_IO_Running	Yes
 Slave_SQL_Running	Yes
+Replicate_Rewrite_DB	
 Replicate_Do_DB	
 Replicate_Ignore_DB	
 Replicate_Do_Table	
@@ -465,6 +471,7 @@ Relay_Log_Pos	<relay_log_pos>
 Relay_Master_Log_File	master-bin.000001
 Slave_IO_Running	No
 Slave_SQL_Running	No
+Replicate_Rewrite_DB	
 Replicate_Do_DB	
 Replicate_Ignore_DB	
 Replicate_Do_Table	
