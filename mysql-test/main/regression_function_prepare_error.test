@@ -1,0 +1,70 @@
+CREATE TABLE t1 (
+  id INTEGER,
+  age INTEGER,
+  weight INTEGER
+);
+
+INSERT INTO t1 (id, age, weight) VALUES (1, 1, 1), (2, 2, 1), (3, 3, 1), (4, 4, 4);
+INSERT INTO t1 (id, age, weight) VALUES (5, 5, 1), (6, 6, 1), (7, 7, 1), (8, 8, 4);
+
+PREPARE count_all FROM  "
+  SELECT
+    REGR_COUNT(?, ?)
+  FROM t1";
+
+PREPARE avgx FROM  "
+  SELECT
+    REGR_AVGX(?, ?)
+  FROM t1";
+
+PREPARE avgx FROM  "
+  SELECT
+    REGR_AVGX(?, ?)
+  FROM t1";
+
+PREPARE avgy FROM  "
+  SELECT
+    REGR_AVGY(age, weight)
+  FROM t1";
+
+PREPARE sxx FROM  "
+  SELECT
+    REGR_SXX(?, ?)
+  FROM t1";
+
+PREPARE syy FROM  "
+  SELECT
+    REGR_SYY(?, ?)
+  FROM t1";
+
+PREPARE sxy FROM  "
+  SELECT
+    REGR_SXY(?, ?)
+  FROM t1";
+
+PREPARE slope FROM  "
+  SELECT
+    REGR_SLOPE(?, ?)
+  FROM t1";
+
+PREPARE intercept FROM  "
+  SELECT
+    REGR_INTERCEPT(?, ?)
+  FROM t1";
+
+PREPARE r2 FROM  "
+  SELECT
+    REGR_R2(?, ?)
+  FROM t1";
+
+SET @col1 =age, @col2 = weight;
+
+EXECUTE count USING @col1, @col2;
+EXECUTE avgx USING @col1, @col2;
+EXECUTE avgy USING @col1, @col2;
+EXECUTE sxx USING @col1, @col2;
+EXECUTE syy USING @col1, @col2;
+EXECUTE sxy USING @col1, @col2;
+EXECUTE slope USING @col1, @col2;
+EXECUTE intercept USING @col1, @col2;
+EXECUTE r2 USING @col1, @col2;

@@ -1,0 +1,74 @@
+CREATE TABLE t1 (
+id INTEGER,
+age INTEGER,
+weight INTEGER
+);
+INSERT INTO t1 (id, age, weight) VALUES (1, 1, 1), (2, 2, 1), (3, 3, 1), (4, 4, 4);
+INSERT INTO t1 (id, age, weight) VALUES (5, 5, 1), (6, 6, 1), (7, 7, 1), (8, 8, 4);
+PREPARE count_all FROM  "
+  SELECT
+    REGR_COUNT(age, weight)
+  FROM t1";
+PREPARE avgx FROM  "
+  SELECT
+    REGR_AVGX(age, weight)
+  FROM t1";
+PREPARE avgx FROM  "
+  SELECT
+    REGR_AVGX(age, weight)
+  FROM t1";
+PREPARE avgy FROM  "
+  SELECT
+    REGR_AVGY(age, weight)
+  FROM t1";
+PREPARE sxx FROM  "
+  SELECT
+    REGR_SXX(age, weight)
+  FROM t1";
+PREPARE syy FROM  "
+  SELECT
+    REGR_SYY(age, weight)
+  FROM t1";
+PREPARE sxy FROM  "
+  SELECT
+    REGR_SXY(age, weight)
+  FROM t1";
+PREPARE slope FROM  "
+  SELECT
+    REGR_SLOPE(age, weight)
+  FROM t1";
+PREPARE intercept FROM  "
+  SELECT
+    REGR_INTERCEPT(age, weight)
+  FROM t1";
+PREPARE r2 FROM  "
+  SELECT
+    REGR_R2(age, weight)
+  FROM t1";
+EXECUTE count_all;
+REGR_COUNT(age, weight)
+8
+EXECUTE avgx;
+REGR_AVGX(age, weight)
+1.7500
+EXECUTE avgy;
+REGR_AVGY(age, weight)
+4.5000
+EXECUTE sxx;
+REGR_SXX(age, weight)
+13.5000
+EXECUTE syy;
+REGR_SYY(age, weight)
+42.0000
+EXECUTE sxy;
+REGR_SXY(age, weight)
+9.0000
+EXECUTE slope;
+REGR_SLOPE(age, weight)
+0.6667
+EXECUTE intercept;
+REGR_INTERCEPT(age, weight)
+3.3333
+EXECUTE r2;
+REGR_R2(age, weight)
+0.1429
