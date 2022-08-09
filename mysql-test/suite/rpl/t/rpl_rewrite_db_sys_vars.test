@@ -1,0 +1,60 @@
+-- source include/have_binlog_format_mixed.inc
+-- source include/master-slave.inc
+
+--echo #
+--echo # MDEV-15530 Variable replicate_rewrite_db cannot be found
+--echo #            in "show global variables"
+--echo #
+
+--echo # Verify that slave has to be stopped before setting sys var
+
+connection slave;
+--error ER_SLAVE_MUST_STOP
+SET @@GLOBAL.replicate_rewrite_db="test_master->test_replica";
+
+--echo # Set replica to rewrite DB
+connection slave;
+source include/stop_slave.inc;
+SET @save_replicate_rewrite_db = @@GLOBAL.replicate_rewrite_db;
+SELECT @@GLOBAL.replicate_rewrite_db;
+SET @@GLOBAL.replicate_rewrite_db="test_master->test_replica";
+SELECT @@GLOBAL.replicate_rewrite_db;
+source include/start_slave.inc;
+
+--echo # Create DB and tables on primary
+connection master;
+--enable_warnings
+create database test_master;
+use test_master;
+create table my_table (t int);
+insert into my_table values (1),(3);
+#--source include/save_master_gtid.inc
+sync_slave_with_master;
+
+--echo # Ensure that the replica receives all of the primary's events without
+--echo # error
+#connection slave;
+#--source include/sync_with_master_gtid.inc
+let $error= query_get_value(SHOW SLAVE STATUS, Last_SQL_Error, 1);
+--echo Last_SQL_Error = $error
+let $errno= query_get_value(SHOW SLAVE STATUS, Last_SQL_Errno, 1);
+--echo Last_SQL_Errno = $errno
+
+SELECT @@GLOBAL.replicate_rewrite_db;
+# get replica database table <DB> not recognized
+select * from test_replica.my_table;
+
+--echo # Cleanup
+connection master;
+drop database test_master;
+#--source include/save_master_gtid.inc
+--source include/rpl_end.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+source include/stop_slave.inc;
+SET @@GLOBAL.replicate_rewrite_db = @replicate_rewrite_db;
+source include/start_slave.inc;
+
+--source include/rpl_end.inc
+# end of 10.11 tests
