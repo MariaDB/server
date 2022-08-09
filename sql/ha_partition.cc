@@ -2143,9 +2143,11 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
   }
   DBUG_ASSERT(m_new_file == 0);
   m_new_file= new_file_array;
-  (*m_new_file)->extra(HA_EXTRA_BEGIN_ALTER_COPY);
+  for (i= 0; i < part_count; i++)
+    m_added_file[i]->extra(HA_EXTRA_BEGIN_ALTER_COPY);
   error= copy_partitions(copied, deleted);
-  (*m_new_file)->extra(HA_EXTRA_END_ALTER_COPY);
+  for (i= 0; i < part_count; i++)
+    m_added_file[i]->extra(HA_EXTRA_END_ALTER_COPY);
   if (unlikely(error))
   {
     /*
