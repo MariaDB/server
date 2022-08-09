@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -38,6 +38,10 @@
 #include "field.h"
 
 THR_LOCK table_setup_objects::m_table_lock;
+PFS_engine_table_share_state
+table_setup_objects::m_share_state = {
+  false /* m_checked */
+};
 
 PFS_engine_table_share
 table_setup_objects::m_share=
@@ -56,7 +60,9 @@ table_setup_objects::m_share=
                       "OBJECT_NAME VARCHAR(64) not null default '%' comment 'Name of the instrumented object, either the literal or % for any object.',"
                       "ENABLED ENUM ('YES', 'NO') not null default 'YES' comment 'Whether the object''s events are instrumented or not. Can be disabled, in which case monitoring is not enabled for those objects.',"
                       "TIMED ENUM ('YES', 'NO') not null default 'YES' comment 'Whether the object''s events are timed or not. Can be modified.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 int update_derived_flags()

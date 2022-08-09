@@ -1338,6 +1338,7 @@ public:
   bool extra_heuristic_pruning;
 #ifndef DBUG_OFF
   void dbug_verify_sj_inner_tables(uint n_positions) const;
+  int dbug_join_tab_array_size;
 #endif
 
   /* We also maintain a stack of join optimization states in * join->positions[] */

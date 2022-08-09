@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -38,6 +38,11 @@
 #include "pfs_buffer_container.h"
 
 THR_LOCK table_events_statements_current::m_table_lock;
+
+PFS_engine_table_share_state
+table_events_statements_current::m_share_state = {
+  false /* m_checked */
+};
 
 PFS_engine_table_share
 table_events_statements_current::m_share=
@@ -92,10 +97,17 @@ table_events_statements_current::m_share=
                       "NESTING_EVENT_ID BIGINT unsigned comment 'NULL for top level statements. The parent statement event id for nested statements (stored programs).',"
                       "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'NULL for top level statements. The parent statement event type for nested statements (stored programs).',"
                       "NESTING_EVENT_LEVEL INT comment '0 for top level statements. The parent statement level plus 1 for nested statements (stored programs).')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 THR_LOCK table_events_statements_history::m_table_lock;
+
+PFS_engine_table_share_state
+table_events_statements_history::m_share_state = {
+  false /* m_checked */
+};
 
 PFS_engine_table_share
 table_events_statements_history::m_share=
@@ -150,10 +162,17 @@ table_events_statements_history::m_share=
                       "NESTING_EVENT_ID BIGINT unsigned comment 'NULL for top level statements. The parent statement event id for nested statements (stored programs).',"
                       "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'NULL for top level statements. The parent statement event type for nested statements (stored programs).',"
                       "NESTING_EVENT_LEVEL INT comment '0 for top level statements. The parent statement level plus 1 for nested statements (stored programs).')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 THR_LOCK table_events_statements_history_long::m_table_lock;
+
+PFS_engine_table_share_state
+table_events_statements_history_long::m_share_state = {
+  false /* m_checked */
+};
 
 PFS_engine_table_share
 table_events_statements_history_long::m_share=
@@ -208,7 +227,9 @@ table_events_statements_history_long::m_share=
                       "NESTING_EVENT_ID BIGINT unsigned comment 'NULL for top level statements. The parent statement event id for nested statements (stored programs).',"
                       "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'NULL for top level statements. The parent statement event type for nested statements (stored programs).',"
                       "NESTING_EVENT_LEVEL INT comment '0 for top level statements. The parent statement level plus 1 for nested statements (stored programs).')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 table_events_statements_common::table_events_statements_common

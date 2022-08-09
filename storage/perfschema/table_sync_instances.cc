@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -38,6 +38,11 @@
 
 THR_LOCK table_mutex_instances::m_table_lock;
 
+PFS_engine_table_share_state
+table_mutex_instances::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_mutex_instances::m_share=
 {
@@ -53,7 +58,9 @@ table_mutex_instances::m_share=
                       "NAME VARCHAR(128) not null comment 'Instrument name associated with the mutex.',"
                       "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Memory address of the instrumented mutex.',"
                       "LOCKED_BY_THREAD_ID BIGINT unsigned comment 'The THREAD_ID of the locking thread if a thread has a mutex locked, otherwise NULL.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_mutex_instances::create(void)
@@ -186,6 +193,11 @@ int table_mutex_instances::read_row_values(TABLE *table,
 
 THR_LOCK table_rwlock_instances::m_table_lock;
 
+PFS_engine_table_share_state
+table_rwlock_instances::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_rwlock_instances::m_share=
 {
@@ -202,7 +214,9 @@ table_rwlock_instances::m_share=
                       "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Address in memory of the instrumented lock',"
                       "WRITE_LOCKED_BY_THREAD_ID BIGINT unsigned comment 'THREAD_ID of the locking thread if locked in write (exclusive) mode, otherwise NULL.',"
                       "READ_LOCKED_BY_COUNT INTEGER unsigned not null comment 'Count of current read locks held')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_rwlock_instances::create(void)
@@ -342,6 +356,11 @@ int table_rwlock_instances::read_row_values(TABLE *table,
 
 THR_LOCK table_cond_instances::m_table_lock;
 
+PFS_engine_table_share_state
+table_cond_instances::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_cond_instances::m_share=
 {
@@ -356,7 +375,9 @@ table_cond_instances::m_share=
   { C_STRING_WITH_LEN("CREATE TABLE cond_instances("
                       "NAME VARCHAR(128) not null comment 'Client user name for the connection, or NULL if an internal thread.',"
                       "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Address in memory of the instrumented condition.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_cond_instances::create(void)

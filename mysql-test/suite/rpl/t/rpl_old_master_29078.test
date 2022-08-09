@@ -1,0 +1,53 @@
+--echo #
+--echo # MDEV-29078 For old binary logs explicit_defaults_for_timestamp presumed to be OFF, server value ignored
+--echo #
+
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+--let $datadir= `SELECT @@datadir`
+
+flush binary logs;
+create table t2 (a timestamp);
+
+--save_master_pos
+
+--remove_file $datadir/master-bin.000001
+--copy_file $MYSQL_TEST_DIR/std_data/mdev29078-mysql-bin.000001 $datadir/master-bin.000001
+
+--exec $MYSQL_BINLOG --short-form $datadir/master-bin.000001
+
+--connection slave
+
+set global explicit_defaults_for_timestamp=1;
+--let $master_use_gtid_option= No
+--source include/reset_slave.inc
+
+--source include/start_slave.inc
+--sync_with_master
+show create table t1;
+show create table t2;
+set time_zone='+2:00';
+select * from t1;
+drop table t1;
+--source include/stop_slave.inc
+
+set global explicit_defaults_for_timestamp=0;
+--let $master_use_gtid_option= No
+--source include/reset_slave.inc
+
+--source include/start_slave.inc
+--sync_with_master
+show create table t1;
+show create table t2;
+select * from t1;
+drop table t1;
+
+--connection master
+drop table t2;
+
+--source include/rpl_end.inc

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -29,6 +29,11 @@
 
 THR_LOCK table_threads::m_table_lock;
 
+PFS_engine_table_share_state
+table_threads::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_threads::m_share=
 {
@@ -58,7 +63,9 @@ table_threads::m_share=
                       "HISTORY ENUM ('YES', 'NO') not null comment 'Whether to log historical events for the thread.',"
                       "CONNECTION_TYPE VARCHAR(16) comment 'The protocol used to establish the connection, or NULL for background threads.',"
                       "THREAD_OS_ID BIGINT unsigned comment 'The thread or task identifier as defined by the underlying operating system, if there is one.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_threads::create()

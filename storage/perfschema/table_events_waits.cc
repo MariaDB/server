@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -39,6 +39,11 @@
 
 THR_LOCK table_events_waits_current::m_table_lock;
 
+PFS_engine_table_share_state
+table_events_waits_current::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_events_waits_current::m_share=
 {
@@ -70,10 +75,17 @@ table_events_waits_current::m_share=
                       "OPERATION VARCHAR(32) not null comment 'Operation type, for example read, write or lock',"
                       "NUMBER_OF_BYTES BIGINT comment 'Number of bytes that the operation read or wrote, or NULL for table I/O waits.',"
                       "FLAGS INTEGER unsigned comment 'Reserved for use in the future.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 THR_LOCK table_events_waits_history::m_table_lock;
+
+PFS_engine_table_share_state
+table_events_waits_history::m_share_state = {
+  false /* m_checked */
+};
 
 PFS_engine_table_share
 table_events_waits_history::m_share=
@@ -106,10 +118,17 @@ table_events_waits_history::m_share=
                       "OPERATION VARCHAR(32) not null comment 'Operation type, for example read, write or lock',"
                       "NUMBER_OF_BYTES BIGINT comment 'Number of bytes that the operation read or wrote, or NULL for table I/O waits.',"
                       "FLAGS INTEGER unsigned comment 'Reserved for use in the future.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 THR_LOCK table_events_waits_history_long::m_table_lock;
+
+PFS_engine_table_share_state
+table_events_waits_history_long::m_share_state = {
+  false /* m_checked */
+};
 
 PFS_engine_table_share
 table_events_waits_history_long::m_share=
@@ -142,7 +161,9 @@ table_events_waits_history_long::m_share=
                       "OPERATION VARCHAR(32) not null comment 'Operation type, for example read, write or lock',"
                       "NUMBER_OF_BYTES BIGINT comment 'Number of bytes that the operation read or wrote, or NULL for table I/O waits.',"
                       "FLAGS INTEGER unsigned comment 'Reserved for use in the future.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 table_events_waits_common::table_events_waits_common

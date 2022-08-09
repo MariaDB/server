@@ -2141,9 +2141,13 @@ corrupted_metadata:
 
 		mem_heap_empty(row_heap);
 
-		page_cur_move_to_next(cur);
-
 		stage->n_pk_recs_inc();
+
+		if (!page_cur_move_to_next(cur)) {
+corrupted_rec:
+			err = DB_CORRUPTION;
+			goto err_exit;
+		}
 
 		if (page_cur_is_after_last(cur)) {
 
@@ -2250,9 +2254,10 @@ end_of_index:
 				btr_leaf_page_release(page_cur_get_block(cur),
 						      BTR_SEARCH_LEAF, &mtr);
 				page_cur_set_before_first(block, cur);
-				page_cur_move_to_next(cur);
-
-				ut_ad(!page_cur_is_after_last(cur));
+				if (!page_cur_move_to_next(cur)
+				    || page_cur_is_after_last(cur)) {
+					goto corrupted_rec;
+				}
 			}
 		}
 

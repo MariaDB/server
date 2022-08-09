@@ -9,7 +9,7 @@ let $counter= 600;
 let $mysql_errno= 0;
 while (!$mysql_errno)
 {
-  --error 0,ER_SERVER_SHUTDOWN,ER_CONNECTION_KILLED,2002,2006,2013
+  --error 0,ER_SERVER_SHUTDOWN,ER_CONNECTION_KILLED,2002,2006,2026,2013,5014
   show status;
 
   dec $counter;

@@ -5838,7 +5838,6 @@ field_def:
         | opt_generated_always AS virtual_column_func
          {
            Lex->last_field->vcol_info= $3;
-           Lex->last_field->flags&= ~NOT_NULL_FLAG; // undo automatic NOT NULL for timestamps
          }
           vcol_opt_specifier vcol_opt_attribute
           {
@@ -6320,8 +6319,17 @@ attribute_list:
         ;
 
 attribute:
-          NULL_SYM { Lex->last_field->flags&= ~ NOT_NULL_FLAG; $$.init(); }
-        | DEFAULT column_default_expr { Lex->last_field->default_value= $2; $$.init(); }
+          NULL_SYM
+          {
+            Lex->last_field->flags&= ~NOT_NULL_FLAG;
+            Lex->last_field->explicitly_nullable= true;
+            $$.init();
+          }
+        | DEFAULT column_default_expr
+          {
+            Lex->last_field->default_value= $2;
+            $$.init();
+          }
         | ON UPDATE_SYM NOW_SYM opt_default_time_precision
           {
             Item *item= new (thd->mem_root) Item_func_now_local(thd, $4);

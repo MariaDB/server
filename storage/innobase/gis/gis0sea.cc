@@ -301,18 +301,17 @@ rtr_pcur_getnext_from_path(
 		page_cursor->rec = NULL;
 
 		if (mode == PAGE_CUR_RTREE_LOCATE) {
-			if (level == target_level && level == 0) {
-				ulint	low_match;
+			if (target_level == 0 && level == 0) {
+				ulint	low_match = 0, up_match = 0;
 
 				found = false;
 
-				low_match = page_cur_search(
-					block, index, tuple,
-					PAGE_CUR_LE,
-					btr_cur_get_page_cur(btr_cur));
-
-				if (low_match == dtuple_get_n_fields_cmp(
-							tuple)) {
+				if (!page_cur_search_with_match(
+					block, index, tuple, PAGE_CUR_LE,
+					&up_match, &low_match,
+					btr_cur_get_page_cur(btr_cur), nullptr)
+				    && low_match
+				    == dtuple_get_n_fields_cmp(tuple)) {
 					rec_t*	rec = btr_cur_get_rec(btr_cur);
 
 					if (!rec_get_deleted_flag(rec,
@@ -803,6 +802,9 @@ rtr_page_get_father_block(
 {
 	rec_t*  rec = page_rec_get_next(
 		page_get_infimum_rec(buf_block_get_frame(block)));
+	if (!rec) {
+		return nullptr;
+	}
 	btr_cur_position(index, rec, block, cursor);
 
 	return(rtr_page_get_father_node_ptr(offsets, heap, sea_cur,
@@ -1238,11 +1240,14 @@ rtr_cur_restore_position(
 	ut_ad(r_cursor == node->cursor);
 
 search_again:
+	ulint up_match = 0, low_match = 0;
+
 	block = buf_page_get_gen(
 		page_id_t(index->table->space_id, page_no),
 		zip_size, RW_X_LATCH, NULL, BUF_GET, mtr);
 
 	if (!block) {
+corrupted:
 		ret = false;
 		goto func_exit;
 	}
@@ -1251,8 +1256,13 @@ search_again:
 	page = buf_block_get_frame(block);
 	page_ssn = page_get_ssn_id(page);
 
-	if (page_cur_search(block, index, tuple, PAGE_CUR_LE, page_cursor)
-	    == r_cursor->old_n_fields) {
+	if (page_cur_search_with_match(block, index, tuple, PAGE_CUR_LE,
+				       &up_match, &low_match, page_cursor,
+				       nullptr)) {
+		goto corrupted;
+	}
+
+	if (low_match == r_cursor->old_n_fields) {
 		const rec_t*	rec;
 		const rec_offs*	offsets1;
 		const rec_offs*	offsets2;
@@ -1609,13 +1619,20 @@ rtr_cur_search_with_match(
 		mode = PAGE_CUR_WITHIN;
 	}
 
-	rec = page_dir_slot_get_rec(page_dir_get_nth_slot(page, 0));
+	rec = page_dir_slot_get_rec_validate(page_dir_get_nth_slot(page, 0));
+
+	if (UNIV_UNLIKELY(!rec)) {
+		return false;
+	}
 
 	last_rec = rec;
 	best_rec = rec;
 
 	if (page_rec_is_infimum(rec)) {
 		rec = page_rec_get_next_const(rec);
+		if (UNIV_UNLIKELY(!rec)) {
+			return false;
+		}
 	}
 
 	/* Check insert tuple size is larger than first rec, and try to
@@ -1813,7 +1830,7 @@ rtr_cur_search_with_match(
 	}
 
 	/* All records on page are searched */
-	if (page_rec_is_supremum(rec)) {
+	if (rec && page_rec_is_supremum(rec)) {
 		if (!n_core) {
 			if (!found) {
 				/* No match case, if it is for insertion,

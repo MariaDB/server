@@ -6,7 +6,7 @@
 # ==== Usage ====
 #
 # [--let $master_use_gtid_option= NO]
-# --source include/rpl_reset_slave.inc
+# --source include/reset_slave.inc
 #
 # Parameters:
 #   $master_use_gtid_option

@@ -222,7 +222,7 @@ It is assumed that mtr holds an x-latch on the page. The operation does
 not succeed if there is too little space on the page. If there is just
 one record on the page, the insert will always succeed; this is to
 prevent trying to split a page with just one record.
-@return DB_SUCCESS, DB_WAIT_LOCK, DB_FAIL, or error number */
+@return DB_SUCCESS, DB_LOCK_WAIT, DB_FAIL, or error number */
 dberr_t
 btr_cur_optimistic_insert(
 /*======================*/
