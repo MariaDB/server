@@ -2955,6 +2955,9 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                         Item_empty_string(thd, "Slave_SQL_Running", 3),
                         mem_root);
   field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Replicate_Rewrite_DB", 23),
+                        mem_root);
+  field_list->push_back(new (mem_root)
                         Item_empty_string(thd, "Replicate_Do_DB", 20),
                         mem_root);
   field_list->push_back(new (mem_root)
@@ -3209,6 +3212,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
                     &my_charset_bin);
     protocol->store(&slave_running[mi->slave_running], &my_charset_bin);
     protocol->store(mi->rli.slave_running ? &msg_yes : &msg_no, &my_charset_bin);
+    protocol->store(rpl_filter->get_rewrite_db());
     protocol->store(rpl_filter->get_do_db());
     protocol->store(rpl_filter->get_ignore_db());
 

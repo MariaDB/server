@@ -1024,10 +1024,12 @@ void copy_filter_setting(Rpl_filter* dst_filter, Rpl_filter* src_filter)
       dst_filter->set_wild_ignore_table(tmp.ptr());
   }
 
-  if (dst_filter->rewrite_db_is_empty())
+  dst_filter->get_rewrite_db(&tmp);
+  if (tmp.is_empty())
   {
-    if (!src_filter->rewrite_db_is_empty())
-      dst_filter->copy_rewrite_db(src_filter);
+    src_filter->get_rewrite_db(&tmp);
+    if (!tmp.is_empty())
+      dst_filter->set_rewrite_db(tmp.ptr());
   }
 }
 
