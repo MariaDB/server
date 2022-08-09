@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -131,6 +131,11 @@ static row_setup_consumers all_setup_consumers_data[COUNT_SETUP_CONSUMERS]=
 
 THR_LOCK table_setup_consumers::m_table_lock;
 
+PFS_engine_table_share_state
+table_setup_consumers::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_setup_consumers::m_share=
 {
@@ -145,7 +150,9 @@ table_setup_consumers::m_share=
   { C_STRING_WITH_LEN("CREATE TABLE setup_consumers("
                       "NAME VARCHAR(64) not null comment 'Consumer name',"
                       "ENABLED ENUM ('YES', 'NO') not null comment 'YES or NO for whether or not the consumer is enabled. You can modify this column to ensure that event information is added, or is not added.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_setup_consumers::create(void)

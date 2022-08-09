@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -37,6 +37,11 @@
 
 THR_LOCK table_socket_summary_by_event_name::m_table_lock;
 
+PFS_engine_table_share_state
+table_socket_summary_by_event_name::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_socket_summary_by_event_name::m_share=
 {
@@ -72,7 +77,9 @@ table_socket_summary_by_event_name::m_share=
                       "MIN_TIMER_MISC BIGINT unsigned not null comment 'Minimum wait time of all miscellaneous operations that are timed.',"
                       "AVG_TIMER_MISC BIGINT unsigned not null comment 'Average wait time of all miscellaneous operations that are timed.',"
                       "MAX_TIMER_MISC BIGINT unsigned not null comment 'Maximum wait time of all miscellaneous operations that are timed.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_socket_summary_by_event_name::create(void)

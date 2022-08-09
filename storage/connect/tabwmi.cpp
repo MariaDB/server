@@ -771,7 +771,7 @@ void WMICOL::ReadColumn(PGLOBAL g)
       break;
     case VT_I4:
     case VT_UI4:
-      Value->SetValue(Prop.lVal);
+      Value->SetValue((long long)Prop.lVal);
       break;
     case VT_I2:
     case VT_UI2:
