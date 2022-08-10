@@ -835,7 +835,7 @@ EX:\fC
 Unlocks DBUG_FILE stream, that was locked with a DBUG_LOCK_FILE.
 .LI DBUG_ASSERT\ 
 This macro just does a regular assert(). The difference is that it will be
-disabled by DBUG_OFF togeher with the
+disabled by DBUG_OFF together with the
 .I dbug
 library. So there will be no need to disable asserts separately with NDEBUG.
 .SP 1
@@ -1103,7 +1103,7 @@ will usually have problems using the standard
 package.
 The most common problem is multiply allocated memory.
 .SP 2
-.\" .DE nroff dident like this. davida 900108
+.\" .DE nroff didn't like this. davida 900108
 .CS
 
 .\" vim:filetype=nroff

@@ -146,7 +146,7 @@ IF(UNIX)
   # FIND_PROC and CHECK_PID are used by mysqld_safe
 IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
   SET (FIND_PROC
-    "ps wwwp $PID | grep -vE mariadbd-safe -vE mysqld_safe | grep -- $MYSQLD > /dev/null")
+    "ps wwwp $PID | grep -v mariadbd-safe | grep -v mysqld_safe | grep -- $MYSQLD > /dev/null")
 ENDIF()
 IF(NOT FIND_PROC AND CMAKE_SYSTEM_NAME MATCHES "SunOS")
   SET (FIND_PROC

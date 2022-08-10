@@ -4568,6 +4568,7 @@ String *Item_func_compress::val_str(String *str)
   }
 
   str->length((uint32)new_size + 4);
+  str->set_charset(&my_charset_bin);
   return str;
 }
 

@@ -1172,8 +1172,8 @@ static int get_options(int *argc, char ***argv)
 
 
   /*
-    Dumping under --system=stats with --replace or --inser-ignore is safe and will not
-    retult into race condition. Otherwise dump only structure and ignore data by default
+    Dumping under --system=stats with --replace or --insert-ignore is safe and will not
+    result into race condition. Otherwise dump only structure and ignore data by default
     while dumping.
   */
   if (!(opt_system & OPT_SYSTEM_STATS) && !(opt_ignore || opt_replace_into))
@@ -2990,7 +2990,7 @@ static inline my_bool general_log_or_slow_log_tables(const char *db,
            !my_strcasecmp(charset_info, table, "transaction_registry"));
 }
 /*
-  get_sequence_structure-- retrievs sequence structure, prints out corresponding
+  get_sequence_structure-- retrieves sequence structure, prints out corresponding
   CREATE statement
   ARGS
     seq         - sequence name
@@ -3052,7 +3052,7 @@ static void get_sequence_structure(const char *seq, const char *db)
   DBUG_VOID_RETURN;
 }
 /*
-  get_table_structure -- retrievs database structure, prints out corresponding
+  get_table_structure -- retrieves database structure, prints out corresponding
   CREATE statement and fills out insert_pat if the table is the type we will
   be dumping.
 
@@ -4735,7 +4735,7 @@ static int dump_all_users_roles_and_grants()
       echo "$dosomethingspecial"
      ) | mysql -h $host
 
-     doesn't end up with a suprise that the $dosomethingspecial cannot
+     doesn't end up with a surprise that the $dosomethingspecial cannot
      be done because `special_role` isn't active.
 
      We create a new role for importing that becomes the default admin for new
@@ -4744,8 +4744,8 @@ static int dump_all_users_roles_and_grants()
      create new admins for the created role.
 
      At the end of the import the mariadb_dump_import_role is be dropped,
-     which implictly drops all its admin aspects of the dropped role.
-     This is significiantly easlier than revoking the ADMIN of each role
+     which implicitly drops all its admin aspects of the dropped role.
+     This is significantly easier than revoking the ADMIN of each role
      from the current user.
   */
   fputs("SELECT COALESCE(CURRENT_ROLE(),'NONE') into @current_role;\n"
@@ -7176,7 +7176,7 @@ int main(int argc, char **argv)
   if (opt_system & OPT_SYSTEM_SERVERS)
     dump_all_servers();
 
-  /* These must be last as they explictly change the current database to mysql */
+  /* These must be last as they explicitly change the current database to mysql */
   if (opt_system & OPT_SYSTEM_STATS)
     dump_all_stats();
 

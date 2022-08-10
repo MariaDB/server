@@ -4638,7 +4638,7 @@ sub check_warnings ($) {
 	$tinfo->{comment}.=
 	  "Could not execute 'check-warnings' for ".
 	    "testcase '$tname' (res: $res) server: '".
-              $mysqld->name() .":\n";
+              $mysqld->name() ."':\n";
 	$tinfo->{comment}.= $report;
 
 	$result= 2;
