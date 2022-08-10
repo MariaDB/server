@@ -6497,10 +6497,12 @@ class select_union_recursive :public select_unit
     or for the unit specifying a CTE that mutually recursive with this CTE.
   */
   uint cleanup_count;
+  long row_counter;
 
   select_union_recursive(THD *thd_arg):
     select_unit(thd_arg),
-    incr_table(0), first_rec_table_to_update(0), cleanup_count(0)
+      incr_table(0), first_rec_table_to_update(0), cleanup_count(0),
+      row_counter(0)
   { incr_table_param.init(); };
 
   int send_data(List<Item> &items);
