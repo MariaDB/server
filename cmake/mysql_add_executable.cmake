@@ -22,7 +22,7 @@
 # - instruct CPack to install executable under ${CMAKE_INSTALL_PREFIX}/bin directory
 # On Windows :
 # - add version resource
-# - instruct CPack to do autenticode signing if SIGNCODE is set
+# - instruct CPack to do authenticode signing if SIGNCODE is set
 
 INCLUDE(CMakeParseArguments)
 
