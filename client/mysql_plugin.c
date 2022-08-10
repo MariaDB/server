@@ -281,7 +281,7 @@ static char *convert_path(const char *argument)
 
   @param[in]  path  The Windows path to examine.
 
-  @returns string containing excaped quotes if spaces found in path
+  @returns string containing escaped quotes if spaces found in path
 */
 static char *add_quotes(const char *path)
 {

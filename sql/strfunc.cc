@@ -72,7 +72,7 @@ ulonglong find_set(const TYPELIB *lib,
           if ((mblen= cs->mb_wc(&wc, (const uchar *) pos,
                                      (const uchar *) end)) < 1)
             mblen= 1; // Not to hang on a wrong multibyte sequence
-          if (wc == (my_wc_t) field_separator)
+          else if (wc == (my_wc_t) field_separator)
             break;
         }
       }

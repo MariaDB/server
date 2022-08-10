@@ -23,7 +23,7 @@
   then reporting the timing of each stage.
 
   MySQL slap runs three stages:
-  1) Create schema,table, and optionally any SP or data you want to beign
+  1) Create schema,table, and optionally any SP or data you want to begin
      the test with. (single client)
   2) Load test (many clients)
   3) Cleanup (disconnection, drop table if specified, single client)
@@ -2022,7 +2022,7 @@ parse_option(const char *origin, option_string **stmt, char delm)
     char *buffer_ptr;
 
     /*
-      Return an error if the length of the any of the comma seprated value
+      Return an error if the length of the comma separated values
       exceeds HUGE_STRING_LENGTH.
     */
     if ((size_t)(retstr - ptr) > HUGE_STRING_LENGTH)
@@ -2068,7 +2068,7 @@ parse_option(const char *origin, option_string **stmt, char delm)
     char *origin_ptr;
 
     /*
-      Return an error if the length of the any of the comma seprated value
+      Return an error if the length of any of the comma separated values
       exceeds HUGE_STRING_LENGTH.
     */
     if (strlen(ptr) > HUGE_STRING_LENGTH)
