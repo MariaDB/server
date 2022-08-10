@@ -74,22 +74,6 @@ bool TABLE::init_expr_arena(MEM_ROOT *mem_root)
   return expr_arena == NULL;
 }
 
-struct extra2_fields
-{
-  LEX_CUSTRING version;
-  LEX_CUSTRING options;
-  Lex_ident_engine engine;
-  LEX_CUSTRING gis;
-  LEX_CUSTRING field_flags;
-  LEX_CUSTRING system_period;
-  LEX_CUSTRING application_period;
-  LEX_CUSTRING field_data_type_info;
-  LEX_CUSTRING without_overlaps;
-  LEX_CUSTRING index_flags;
-  void reset()
-  { bzero((void*)this, sizeof(*this)); }
-};
-
 static Virtual_column_info * unpack_vcol_info_from_frm(THD *,
               TABLE *, String *, Virtual_column_info **, bool *);
 

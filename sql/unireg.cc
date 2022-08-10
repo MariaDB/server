@@ -51,36 +51,7 @@ static size_t packed_fields_length(List<Create_field> &);
 static bool make_empty_rec(THD *, uchar *, uint, List<Create_field> &, uint,
                            ulong);
 
-/*
-  write the length as
-  if (  0 < length <= 255)      one byte
-  if (256 < length <= 65535)    zero byte, then two bytes, low-endian
-*/
-static uchar *extra2_write_len(uchar *pos, size_t len)
-{
-  DBUG_ASSERT(len);
-  if (len <= 255)
-    *pos++= (uchar)len;
-  else
-  {
-    /*
-      At the moment we support options_len up to 64K.
-      We can easily extend it in the future, if the need arises.
-    */
-    DBUG_ASSERT(len <= 65535);
-    int2store(pos + 1, len);
-    pos+= 3;
-  }
-  return pos;
-}
-
-static uchar* extra2_write_str(uchar *pos, const LEX_CSTRING &str)
-{
-  pos= extra2_write_len(pos, str.length);
-  memcpy(pos, str.str, str.length);
-  return pos + str.length;
-}
-
+inline
 static uchar* extra2_write_str(uchar *pos, const Binary_string *str)
 {
   pos= extra2_write_len(pos, str->length());
@@ -88,21 +59,8 @@ static uchar* extra2_write_str(uchar *pos, const Binary_string *str)
   return pos + str->length();
 }
 
-static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
-                           const LEX_CSTRING &str)
-{
-  *pos++ = type;
-  return extra2_write_str(pos, str);
-}
-
-static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
-                           const LEX_CUSTRING &str)
-{
-  return extra2_write(pos, type, *reinterpret_cast<const LEX_CSTRING*>(&str));
-}
-
-static uchar *extra2_write_field_properties(uchar *pos,
-                   List<Create_field> &create_fields)
+uchar *
+extra2_write_field_properties(uchar *pos, List<Create_field> &create_fields)
 {
   List_iterator<Create_field> it(create_fields);
   *pos++= EXTRA2_FIELD_FLAGS;
@@ -120,6 +78,7 @@ static uchar *extra2_write_field_properties(uchar *pos,
   return pos;
 }
 
+inline
 static uchar *extra2_write_index_properties(uchar *pos, const KEY *keyinfo,
                                             uint keys)
 {

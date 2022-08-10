@@ -414,7 +414,6 @@ enum __attribute__((packed)) field_visibility_t {
   INVISIBLE_FULL
 };
 
-#define INVISIBLE_MAX_BITS              3
 #define HA_HASH_FIELD_LENGTH            8
 #define HA_HASH_KEY_LENGTH_WITHOUT_NULL 8
 #define HA_HASH_KEY_LENGTH_WITH_NULL    9
