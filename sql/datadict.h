@@ -73,6 +73,11 @@ enum extra2_index_flags
   EXTRA2_IGNORED_KEY
 };
 
+#define FRM_HEADER_SIZE 64
+#define FRM_FORMINFO_SIZE 288
+#define FRM_MAX_SIZE (1024*1024)
+
+
 inline size_t extra2_read_len(const uchar **pos, const uchar *end)
 {
   size_t length= *(*pos)++;
@@ -91,10 +96,10 @@ inline size_t extra2_read_len(const uchar **pos, const uchar *end)
 /*
   write the length as
   if (  0 < length <= 255)      one byte
-  if (256 < length <= 65535)    zero byte, then two bytes, low-endian
+  if (256 < length < ~65535)    zero byte, then two bytes, low-endian
 */
-inline
-uchar *extra2_write_len(uchar *pos, size_t len)
+inline uchar *
+extra2_write_len(uchar *pos, size_t len)
 {
   DBUG_ASSERT(len);
   if (len <= 255)
@@ -104,10 +109,19 @@ uchar *extra2_write_len(uchar *pos, size_t len)
     /*
       At the moment we support options_len up to 64K.
       We can easily extend it in the future, if the need arises.
+
+      See build_frm_image():
+
+        int2store(frm_header + 6, frm.length);
+
+      frm.length includes FRM_HEADER_SIZE + extra2_size + 4
+      and it must be 2 bytes, therefore extra2_size cannot be more than
+      0xFFFF - FRM_HEADER_SIZE - 4.
     */
-    DBUG_ASSERT(len <= 65535);
-    int2store(pos + 1, len);
-    pos+= 3;
+    DBUG_ASSERT(len <= 0xffff - FRM_HEADER_SIZE - 4);
+    *pos++= 0;
+    int2store(pos, len);
+    pos+= 2;
   }
   return pos;
 }
