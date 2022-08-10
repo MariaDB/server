@@ -2681,10 +2681,8 @@ String *Item_func_json_merge_patch::val_str(String *str)
       if (json_read_value(&je2))
         goto error_return;
       if (je2.value_type == JSON_VALUE_OBJECT)
-      {
-        merge_to_null= true;
         goto cont_point;
-      }
+
       merge_to_null= false;
       str->set(js2->ptr(), js2->length(), js2->charset());
       goto cont_point;

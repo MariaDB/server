@@ -15,7 +15,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
-/* maintaince of mysql databases */
+/* maintenance of mysql databases */
 
 #include "client_priv.h"
 #include <signal.h>
