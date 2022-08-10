@@ -168,10 +168,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
                              List<Create_field> &create_fields,
                              uint keys, KEY *key_info, handler *db_file);
 
-#define FRM_HEADER_SIZE 64
-#define FRM_FORMINFO_SIZE 288
-#define FRM_MAX_SIZE (1024*1024)
-
 static inline bool is_binary_frm_header(const uchar *head)
 {
   return head[0] == 254
