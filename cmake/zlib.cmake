@@ -26,7 +26,7 @@ ENDMACRO()
 #
 # Provides the following configure options:
 # WITH_ZLIB_BUNDLED
-# If this is set,we use bindled zlib
+# If this is set,we use bundled zlib
 # If this is not set,search for system zlib. 
 # if system zlib is not found, use bundled copy
 # ZLIB_LIBRARIES, ZLIB_INCLUDE_DIR and ZLIB_SOURCES

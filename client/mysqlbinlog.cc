@@ -197,7 +197,7 @@ enum Exit_status {
 
 /**
   Pointer to the last read Annotate_rows_log_event. Having read an
-  Annotate_rows event, we should not print it immediatedly because all
+  Annotate_rows event, we should not print it immediately because all
   subsequent rbr events can be filtered away, and have to keep it for a while.
   Also because of that when reading a remote Annotate event we have to keep
   its binary log representation in a separately allocated buffer.
