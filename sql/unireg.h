@@ -162,58 +162,6 @@
 #include "sql_list.h"                           /* List<> */
 #include "field.h"                              /* Create_field */
 
-/*
-  Types of values in the MariaDB extra2 frm segment.
-  Each value is written as
-    type:       1 byte
-    length:     1 byte  (1..255) or \0 and 2 bytes.
-    binary value of the 'length' bytes.
-
-  Older MariaDB servers can ignore values of unknown types if
-  the type code is less than 128 (EXTRA2_ENGINE_IMPORTANT).
-  Otherwise older (but newer than 10.0.1) servers are required
-  to report an error.
-*/
-enum extra2_frm_value_type {
-  EXTRA2_TABLEDEF_VERSION=0,
-  EXTRA2_DEFAULT_PART_ENGINE=1,
-  EXTRA2_GIS=2,
-  EXTRA2_APPLICATION_TIME_PERIOD=3,
-  EXTRA2_PERIOD_FOR_SYSTEM_TIME=4,
-  EXTRA2_INDEX_FLAGS=5,
-
-#define EXTRA2_ENGINE_IMPORTANT 128
-
-  EXTRA2_ENGINE_TABLEOPTS=128,
-  EXTRA2_FIELD_FLAGS=129,
-  EXTRA2_FIELD_DATA_TYPE_INFO=130,
-  EXTRA2_PERIOD_WITHOUT_OVERLAPS=131,
-};
-
-enum extra2_field_flags {
-  VERS_OPTIMIZED_UPDATE= 1 << INVISIBLE_MAX_BITS,
-};
-
-enum extra2_index_flags {
-  EXTRA2_DEFAULT_INDEX_FLAGS,
-  EXTRA2_IGNORED_KEY
-};
-
-
-static inline size_t extra2_read_len(const uchar **extra2, const uchar *end)
-{
-  size_t length= *(*extra2)++;
-  if (length)
-    return length;
-
-  if ((*extra2) + 2 >= end)
-    return 0;
-  length= uint2korr(*extra2);
-  (*extra2)+= 2;
-  if (length < 256 || *extra2 + length > end)
-    return 0;
-  return length;
-}
 
 LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
                              HA_CREATE_INFO *create_info,
