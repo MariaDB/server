@@ -10489,7 +10489,7 @@ static int handle_grant_table(THD *thd, const Grant_table_base& grant_table,
         if (which_table != PROXIES_PRIV_TABLE)
         {
           DBUG_PRINT("loop",("scan fields: '%s'@'%s' '%s' '%s' '%s'",
-                             user, host,
+                             user_from->user.str, user_from->host.str,
                              get_field(thd->mem_root, table->field[1]) /*db*/,
                              get_field(thd->mem_root, table->field[3]) /*table*/,
                              get_field(thd->mem_root,
