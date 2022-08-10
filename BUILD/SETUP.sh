@@ -121,7 +121,7 @@ get_make_parallel_flag
 
 # SSL library to use.--with-ssl will select our bundled yaSSL
 # implementation of SSL. --with-ssl=yes will first try system library
-# then the boundled one  --with-ssl=system will use the system library.
+# then the bundled one  --with-ssl=system will use the system library.
 # We use bundled by default as this is guaranteed to work with Galera
 SSL_LIBRARY=--with-ssl
 

@@ -914,7 +914,7 @@ static int handle_request_for_tables(char *tables, size_t length,
   case DO_ANALYZE:
     if (view)
     {
-      printf("%-50s %s\n", tables, "Can't run anaylyze on a view");
+      printf("%-50s %s\n", tables, "Can't run analyze on a view");
       DBUG_RETURN(1);
     }
     DBUG_ASSERT(!view);

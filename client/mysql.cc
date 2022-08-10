@@ -2331,7 +2331,7 @@ static bool add_line(String &buffer, char *line, size_t line_length,
         !(*in_string &&
           (mysql.server_status & SERVER_STATUS_NO_BACKSLASH_ESCAPES)))
     {
-      // Found possbile one character command like \c
+      // Found possible one character command like \c
 
       /*
         The null-terminating character (ASCII '\0') marks the end of user

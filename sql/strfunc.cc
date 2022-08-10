@@ -70,7 +70,7 @@ ulonglong find_set(TYPELIB *lib, const char *str, size_t length, CHARSET_INFO *c
           if ((mblen= cs->cset->mb_wc(cs, &wc, (const uchar *) pos, 
                                                (const uchar *) end)) < 1)
             mblen= 1; // Not to hang on a wrong multibyte sequence
-          if (wc == (my_wc_t) field_separator)
+          else if (wc == (my_wc_t) field_separator)
             break;
         }
       }

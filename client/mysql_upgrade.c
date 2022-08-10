@@ -696,7 +696,7 @@ static char upgrade_info_file[FN_REFLEN]= {0};
   Open or create mysql_upgrade_info file in servers data dir.
 
   Take a lock to ensure there cannot be any other mysql_upgrades
-  runninc concurrently
+  running concurrently
 */
 
 const char *create_error_message=
@@ -757,7 +757,7 @@ static void open_mysql_upgrade_file()
 /**
   Place holder for versions that require a major upgrade
 
-  @return 0  upgrade has alredy been run on this version
+  @return 0  upgrade has already been run on this version
   @return 1  upgrade has to be run
 
 */
@@ -781,7 +781,7 @@ static int faulty_server_versions(const char *version)
   file it's always better to report that the upgrade hasn't
   been performed.
 
-  @return 0   Upgrade has alredy been run on this version
+  @return 0   Upgrade has already been run on this version
   @return > 0 Upgrade has to be run
 */
 

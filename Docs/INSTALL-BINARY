@@ -44,8 +44,8 @@ However most documentation at www.mysql.com also applies.
 shell> groupadd mysql
 shell> useradd -g mysql mysql
 shell> cd /usr/local
-shell> gunzip < /path/to/mysql-VERSION-OS.tar.gz | tar xvf -
-shell> ln -s full-path-to-mysql-VERSION-OS mysql
+shell> gunzip < /path/to/mariadb-VERSION-OS.tar.gz | tar xvf -
+shell> ln -s full-path-to-mariadb-VERSION-OS mysql
 shell> cd mysql
 shell> chown -R mysql .
 shell> chgrp -R mysql .
@@ -88,16 +88,16 @@ shell> cd /usr/local
 
     4. Unpack the distribution, which creates the installation
        directory. Then create a symbolic link to that directory:
-shell> gunzip < /path/to/mysql-VERSION-OS.tar.gz | tar xvf -
-shell> ln -s full-path-to-mysql-VERSION-OS mysql
-       The tar command creates a directory named mysql-VERSION-OS.
+shell> gunzip < /path/to/mariadb-VERSION-OS.tar.gz | tar xvf -
+shell> ln -s full-path-to-mariadb-VERSION-OS mysql
+       The tar command creates a directory named mariadb-VERSION-OS.
        The ln command makes a symbolic link to that directory. This
        lets you refer more easily to the installation directory as
        /usr/local/mysql.
        With GNU tar, no separate invocation of gunzip is necessary.
        You can replace the first line with the following alternative
        command to uncompress and extract the distribution:
-shell> tar zxvf /path/to/mysql-VERSION-OS.tar.gz
+shell> tar zxvf /path/to/mariadb-VERSION-OS.tar.gz
 
     5. Change location into the installation directory:
 shell> cd mysql

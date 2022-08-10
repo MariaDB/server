@@ -1205,7 +1205,7 @@ void Query_cache::end_of_result(THD *thd)
     BLOCK_LOCK_WR(query_block);
     Query_cache_query *header= query_block->query();
     Query_cache_block *last_result_block;
-    size_t allign_size;
+    size_t align_size;
     size_t len;
 
     if (header->result() == 0)
@@ -1223,8 +1223,8 @@ void Query_cache::end_of_result(THD *thd)
       DBUG_VOID_RETURN;
     }
     last_result_block= header->result()->prev;
-    allign_size= ALIGN_SIZE(last_result_block->used);
-    len= MY_MAX(query_cache.min_allocation_unit, allign_size);
+    align_size= ALIGN_SIZE(last_result_block->used);
+    len= MY_MAX(query_cache.min_allocation_unit, align_size);
     if (last_result_block->length >= query_cache.min_allocation_unit + len)
       query_cache.split_block(last_result_block,len);
 
