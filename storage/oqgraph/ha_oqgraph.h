@@ -74,9 +74,10 @@ public:
   const char **bas_ext() const;
   uint max_supported_keys()          const { return MAX_KEY; }
   uint max_supported_key_part_length() const { return MAX_KEY_LENGTH; }
-  double scan_time() { return (double) 1000000000; }
-  double read_time(uint index, uint ranges, ha_rows rows)
-  { return 1; }
+  IO_AND_CPU_COST scan_time()
+  { return { (double) 1000000000, (double) 1000000000 }; }
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows)
+  { return { (double) rows, (double) rows }; }
 
   // Doesn't make sense to change the engine on a virtual table.
   virtual bool can_switch_engines() { return false; }

@@ -53,8 +53,9 @@
 #include "debug_sync.h"                         // DEBUG_SYNC
 #include "sql_show.h"
 #include "opt_trace_context.h"
-
 #include "log_event.h"
+#include "optimizer_defaults.h"
+
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 #include "../storage/perfschema/pfs_server.h"
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
@@ -6977,68 +6978,111 @@ static Sys_var_ulong Sys_optimizer_max_sel_arg_weight(
        SESSION_VAR(optimizer_max_sel_arg_weight), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, ULONG_MAX), DEFAULT(SEL_ARG::MAX_WEIGHT), BLOCK_SIZE(1));
 
-/*
-  We don't allow 100 for optimizer_cache_cost as there is always a small
-  cost of finding the key, on cached pages, that we have to take into account.
-*/
 
-static bool update_optimizer_cache_hit_ratio(sys_var *self, THD *thd,
-                                            enum_var_type type)
-{
-  if (type == OPT_SESSION)
-    thd->optimizer_cache_hit_ratio=
-      cache_hit_ratio(thd->variables.optimizer_cache_hit_ratio);
-  return 0;
-}
+static Sys_var_engine_optimizer_cost Sys_optimizer_disk_read_ratio(
+  "optimizer_disk_read_ratio",
+  "Chance that we have to do a disk read to find a row or index entry from "
+  "the engine cache (cache_misses/total_cache_requests).  0.0 means that "
+  "everything is cached and 1.0 means that nothing is expected to be in the "
+  "engine cache.",
+  COST_VAR(disk_read_ratio),
+  CMD_LINE(REQUIRED_ARG, OPT_COSTS_DISK_READ_RATIO),
+  VALID_RANGE(0.0, 1.0), DEFAULT(DEFAULT_DISK_READ_RATIO), COST_ADJUST(1));
 
-static Sys_var_uint Sys_optimizer_cache_hit_ratio(
-  "optimizer_cache_hit_ratio",
-  "Expected hit rate of the row and index cache in storage engines. "
-  "The value should be an integer between 0 and 99, where 0 means cache is "
-  "empty and 99 means that value is almost always in the cache.",
-  SESSION_VAR(optimizer_cache_hit_ratio), CMD_LINE(REQUIRED_ARG),
-  VALID_RANGE(0, 99), DEFAULT(DEFAULT_CACHE_HIT_RATIO), 1, NO_MUTEX_GUARD,
-  NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_optimizer_cache_hit_ratio));
+static Sys_var_engine_optimizer_cost Sys_optimizer_key_lookup_cost(
+  "optimizer_key_lookup_cost",
+  "Cost for finding a key based on a key value",
+  COST_VAR(key_lookup_cost),
+  CMD_LINE(REQUIRED_ARG, OPT_COSTS_KEY_LOOKUP_COST),
+  VALID_RANGE(0, 1000), DEFAULT(DEFAULT_KEY_LOOKUP_COST), COST_ADJUST(1000));
 
-static Sys_var_double Sys_optimizer_key_copy_cost(
+static Sys_var_engine_optimizer_cost Sys_optimizer_row_lookup_cost(
+  "optimizer_row_lookup_cost",
+  "Cost of finding a row based on a rowid or a clustered key.",
+  COST_VAR(row_lookup_cost),
+  CMD_LINE(REQUIRED_ARG, OPT_COSTS_ROW_LOOKUP_COST),
+  VALID_RANGE(0, 1000), DEFAULT(DEFAULT_ROW_LOOKUP_COST), COST_ADJUST(1000));
+
+static Sys_var_engine_optimizer_cost Sys_optimizer_disk_read_cost(
+  "optimizer_disk_read_cost",
+  "Cost of reading a block of IO_SIZE (4096) from a disk (in usec).",
+  COST_VAR(disk_read_cost),
+  CMD_LINE(REQUIRED_ARG, OPT_COSTS_DISK_READ_COST),
+  VALID_RANGE(0, 10000), DEFAULT(DEFAULT_DISK_READ_COST), COST_ADJUST(1000));
+
+static Sys_var_engine_optimizer_cost Sys_optimizer_key_copy_cost(
   "optimizer_key_copy_cost",
-  "Cost of finding the next key in the engine and copying it to the SQL layer.",
-  SESSION_VAR(optimizer_key_copy_cost), CMD_LINE(REQUIRED_ARG),
-  VALID_RANGE(0, 1), DEFAULT(DEFAULT_KEY_COPY_COST), NO_MUTEX_GUARD,
-  NOT_IN_BINLOG);
+  "Cost of finding the next key in the engine and copying it to the SQL "
+  "layer.",
+  COST_VAR(key_copy_cost),
+  CMD_LINE(REQUIRED_ARG, OPT_COSTS_KEY_COPY_COST),
+  VALID_RANGE(0, 1000), DEFAULT(DEFAULT_KEY_COPY_COST), COST_ADJUST(1000));
 
-static Sys_var_double Sys_optimizer_index_block_copy_cost(
+static Sys_var_engine_optimizer_cost Sys_optimizer_index_block_copy_cost(
   "optimizer_index_block_copy_cost",
-  "Cost of copying a key block from the cache to intern storage as part of an "
-  "index scan.",
-  SESSION_VAR(optimizer_index_block_copy_cost), CMD_LINE(REQUIRED_ARG),
-  VALID_RANGE(0, 1), DEFAULT(DEFAULT_INDEX_BLOCK_COPY_COST), NO_MUTEX_GUARD,
-  NOT_IN_BINLOG);
+  "Cost of copying a key block from the cache to intern storage as part of "
+  "an index scan.",
+  COST_VAR(index_block_copy_cost),
+  CMD_LINE(REQUIRED_ARG, OPT_COSTS_INDEX_BLOCK_COPY_COST),
+  VALID_RANGE(0, 1000), DEFAULT(DEFAULT_INDEX_BLOCK_COPY_COST), COST_ADJUST(1000));
 
-static Sys_var_double Sys_optimizer_key_next_find_cost(
+static Sys_var_engine_optimizer_cost Sys_optimizer_row_next_find_cost(
+  "optimizer_row_next_find_cost",
+  "Cost of finding the next row when scanning the table.",
+  COST_VAR(row_next_find_cost),
+  CMD_LINE(REQUIRED_ARG, OPT_COSTS_ROW_NEXT_FIND_COST),
+  VALID_RANGE(0, 1000), DEFAULT(DEFAULT_ROW_NEXT_FIND_COST), COST_ADJUST(1000));
+
+static Sys_var_engine_optimizer_cost Sys_optimizer_key_next_find_cost(
   "optimizer_key_next_find_cost",
   "Cost of finding the next key and rowid when using filters.",
-  SESSION_VAR(optimizer_key_next_find_cost), CMD_LINE(REQUIRED_ARG),
-  VALID_RANGE(0, 1), DEFAULT(DEFAULT_KEY_NEXT_FIND_COST), NO_MUTEX_GUARD,
-  NOT_IN_BINLOG);
+  COST_VAR(key_next_find_cost),
+  CMD_LINE(REQUIRED_ARG, OPT_COSTS_KEY_NEXT_FIND_COST),
+  VALID_RANGE(0, 1000), DEFAULT(DEFAULT_KEY_NEXT_FIND_COST), COST_ADJUST(1000));
 
-static Sys_var_double Sys_optimizer_row_copy_cost(
+static Sys_var_engine_optimizer_cost Sys_optimizer_row_copy_cost(
   "optimizer_row_copy_cost",
   "Cost of copying a row from the engine or the join cache to the SQL layer.",
-  SESSION_VAR(optimizer_row_copy_cost), CMD_LINE(REQUIRED_ARG),
-  VALID_RANGE(0, 1), DEFAULT(DEFAULT_ROW_COPY_COST), NO_MUTEX_GUARD,
-  NOT_IN_BINLOG);
+  COST_VAR(row_copy_cost),
+  CMD_LINE(REQUIRED_ARG, OPT_COSTS_ROW_COPY_COST),
+  VALID_RANGE(0, 1000), DEFAULT(DEFAULT_ROW_COPY_COST), COST_ADJUST(1000));
 
-static Sys_var_double Sys_optimizer_where_cost(
-  "optimizer_where_cost",
-  "Cost of checking the row against the WHERE clause.",
-  SESSION_VAR(optimizer_where_cost), CMD_LINE(REQUIRED_ARG),
-  VALID_RANGE(0, 1), DEFAULT(DEFAULT_WHERE_COST), NO_MUTEX_GUARD,
-  NOT_IN_BINLOG);
-
-static Sys_var_double Sys_optimizer_key_cmp_cost(
+static Sys_var_engine_optimizer_cost Sys_optimizer_key_cmp_cost(
   "optimizer_key_compare_cost",
   "Cost of checking a key against the end key condition.",
-  SESSION_VAR(optimizer_key_cmp_cost), CMD_LINE(REQUIRED_ARG),
-  VALID_RANGE(0, 1), DEFAULT(DEFAULT_KEY_COMPARE_COST), NO_MUTEX_GUARD,
-  NOT_IN_BINLOG);
+  COST_VAR(key_cmp_cost),
+  CMD_LINE(REQUIRED_ARG, OPT_COSTS_KEY_CMP_COST),
+  VALID_RANGE(0, 1000), DEFAULT(DEFAULT_KEY_COMPARE_COST), COST_ADJUST(1000));
+
+static Sys_var_engine_optimizer_cost Sys_optimizer_rowid_cmp_cost(
+  "optimizer_rowid_compare_cost",
+  "Cost of comparing two rowid's",
+  COST_VAR(rowid_cmp_cost),
+  CMD_LINE(REQUIRED_ARG, OPT_COSTS_ROWID_CMP_COST),
+  VALID_RANGE(0, 1000), DEFAULT(DEFAULT_ROWID_COMPARE_COST), COST_ADJUST(1000));
+
+static Sys_var_engine_optimizer_cost Sys_optimizer_rowid_copy_cost(
+  "optimizer_rowid_copy_cost",
+  "Cost of copying a rowid",
+  COST_VAR(rowid_copy_cost),
+  CMD_LINE(REQUIRED_ARG, OPT_COSTS_ROWID_COPY_COST),
+  VALID_RANGE(0, 1000), DEFAULT(DEFAULT_ROWID_COPY_COST), COST_ADJUST(1000));
+
+/* The following costs are stored in THD and handler */
+
+static Sys_var_optimizer_cost Sys_optimizer_where_cost(
+  "optimizer_where_cost",
+  "Cost of checking the row against the WHERE clause. Increasing this will "
+  "have the optimizer to prefer plans with less row combinations.",
+  SESSION_VAR(optimizer_where_cost),
+  CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(0, 100000), DEFAULT(DEFAULT_WHERE_COST), COST_ADJUST(1000));
+
+static Sys_var_optimizer_cost Sys_optimizer_scan_cost(
+  "optimizer_scan_setup_cost",
+  "Extra cost added to TABLE and INDEX scans to get optimizer to prefer "
+  "index lookups.",
+  SESSION_VAR(optimizer_scan_setup_cost),
+  CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(0, 100000000), DEFAULT(DEFAULT_TABLE_SCAN_SETUP_COST),
+  COST_ADJUST(1000));

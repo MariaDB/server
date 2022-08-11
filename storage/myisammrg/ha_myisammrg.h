@@ -102,9 +102,17 @@ public:
   uint max_supported_keys()          const { return MI_MAX_KEY; }
   uint max_supported_key_length()    const { return HA_MAX_KEY_LENGTH; }
   uint max_supported_key_part_length() const { return HA_MAX_KEY_LENGTH; }
-  double scan_time()
-  { return ulonglong2double(stats.data_file_length) / IO_SIZE + file->tables; }
-
+  IO_AND_CPU_COST scan_time() override
+  {
+    IO_AND_CPU_COST cost;
+    cost.io= (ulonglong2double(stats.data_file_length) / IO_SIZE +
+              file->tables) * avg_io_cost();
+    cost.cpu= records() * ROW_NEXT_FIND_COST;
+    return cost;
+  }
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override;
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                                ulonglong blocks) override;
   int open(const char *name, int mode, uint test_if_locked);
   int add_children_list(void);
   int attach_children(void);

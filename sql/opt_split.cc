@@ -188,6 +188,7 @@
 #include "mariadb.h"
 #include "sql_select.h"
 #include "opt_trace.h"
+#include "optimizer_defaults.h"
 
 /* Info on a splitting field */
 struct SplM_field_info
@@ -665,6 +666,8 @@ add_ext_keyuses_for_splitting_field(Dynamic_array<KEYUSE_EXT> *ext_keyuses,
 /*
   @brief
     Cost of the post join operation used in specification of splittable table
+    This does not include the cost of creating the temporary table as this
+    operation can be executed many times for the same temporary table.
 */
 
 static
@@ -673,13 +676,18 @@ double spl_postjoin_oper_cost(THD *thd, double join_record_count, uint rec_len)
   double cost;
   TMPTABLE_COSTS tmp_cost= get_tmp_table_costs(thd, join_record_count,
                                                rec_len, 0, 1);
-  // cost to fill tmp table
-  cost= tmp_cost.create + tmp_cost.write * join_record_count;
-   // cost to perform post join operation used here
+  /* cost to fill tmp table */
+  cost= tmp_cost.write * join_record_count;
+  /* cost to perform post join operation used here */
   cost+= tmp_cost.lookup * join_record_count;
-  cost+= (join_record_count == 0 ? 0 :
-          join_record_count * log2 (join_record_count)) *
-         SORT_INDEX_CMP_COST;             // cost to perform  sorting
+  /* cost to preform sorting */
+  /* QQQ
+     We should use cost_of_filesort() for computing sort.
+     Do we always preform sorting ? If not, this should be done conditionally
+  */
+  cost+= ((join_record_count == 0 ? 0 :
+           join_record_count * log2 (join_record_count)) *
+          SORT_INDEX_CMP_COST);
   return cost;
 }
 
@@ -873,7 +881,7 @@ void reset_validity_vars_for_keyuses(KEYUSE_EXT *key_keyuse_ext_start,
     splitting the function set it as the true plan of materialization
     of the table T.
     The function caches the found plans for materialization of table T
-    together if the info what key was used for splitting. Next time when
+    together with the info what key was used for splitting. Next time when
     the optimizer prefers to use the same key the plan is taken from
     the cache of plans
 
@@ -1004,12 +1012,11 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
                             spl_opt_info->unsplit_card : 1); 
 
       uint rec_len= table->s->rec_buff_length;
-
       double split_card= spl_opt_info->unsplit_card * spl_plan->split_sel;
-      double oper_cost= split_card *
-                        spl_postjoin_oper_cost(thd, split_card, rec_len);
-      spl_plan->cost= join->best_positions[join->table_count-1].read_time +
-                      + oper_cost;
+      double oper_cost= (split_card *
+                         spl_postjoin_oper_cost(thd, split_card, rec_len));
+      spl_plan->cost= (join->best_positions[join->table_count-1].read_time +
+                       oper_cost);
 
       if (unlikely(thd->trace_started()))
       {
@@ -1030,7 +1037,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
     }
     if (spl_plan)
     {
-      if(record_count * spl_plan->cost < spl_opt_info->unsplit_cost - 0.01)
+      if (record_count * spl_plan->cost + COST_EPS < spl_opt_info->unsplit_cost)
       {
         /*
           The best plan that employs splitting is cheaper than
@@ -1054,7 +1061,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
       trace.
         add("startup_cost", startup_cost).
         add("splitting_cost", spl_plan->cost).
-        add("records", records);
+        add("rows", records);
     }
   }
   else

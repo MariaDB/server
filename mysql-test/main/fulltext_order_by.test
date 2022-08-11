@@ -36,6 +36,7 @@ SELECT IF(a=7,'match',IF(a=4,'match', 'no-match')), MATCH (message) AGAINST ('st
 # for fulltext searches too
 #
 alter table t1 add key m (message);
+show create table t1;
 explain SELECT message FROM t1 WHERE MATCH (message) AGAINST ('steve') ORDER BY message;
 SELECT message FROM t1 WHERE MATCH (message) AGAINST ('steve') ORDER BY message desc;
 
