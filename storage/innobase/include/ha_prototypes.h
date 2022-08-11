@@ -37,6 +37,9 @@ simple headers.
 /* Forward declarations */
 class THD;
 class Field;
+struct TABLE;
+struct dict_table_t;
+struct row_prebuilt_t;
 
 // JAN: TODO missing features:
 #undef MYSQL_FT_INIT_EXT
@@ -461,6 +464,10 @@ void destroy_background_thd(MYSQL_THD thd);
 @param[in]	thd	MYSQL_THD to reset */
 void
 innobase_reset_background_thd(MYSQL_THD);
+
+TABLE* innodb_purge_get_table_for_vc(THD* thd, const dict_table_t* table);
+
+row_prebuilt_t *maria_table_to_prebuilt(TABLE *maria_table);
 
 #ifdef WITH_WSREP
 /** Append table-level exclusive key.

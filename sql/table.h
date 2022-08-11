@@ -1865,6 +1865,39 @@ typedef struct st_foreign_key_info
   Lex_ident *referenced_key_name;
   List<Lex_ident> foreign_fields;
   List<Lex_ident> referenced_fields;
+  TABLE_LIST *table_list;
+
+  bool operator ==(const char *id) const
+  { return my_strcasecmp(system_charset_info, id, foreign_id->str) == 0; }
+
+  bool spec_matches(const st_foreign_key_info &other) const
+  {
+    bool match= foreign_id->streq(*other.foreign_id) &&
+                foreign_db->streq(*other.foreign_db) &&
+                foreign_table->streq(*other.foreign_table) &&
+                referenced_db->streq(*other.referenced_db) &&
+                referenced_table->streq(*other.referenced_table) &&
+                referenced_key_name->streq(*other.referenced_key_name) &&
+                update_method == other.update_method &&
+                delete_method == other.delete_method &&
+                foreign_fields.elements == other.foreign_fields.elements &&
+                referenced_fields.elements == other.referenced_fields.elements;
+    if (!match)
+      return false;
+
+    for(auto it= foreign_fields.begin(), other_it= other.foreign_fields.begin();
+        match && it != foreign_fields.end(); ++it, ++other_it)
+      if (!it->streq(*other_it))
+        return false;
+
+    for(auto it= referenced_fields.begin(),
+        other_it= other.referenced_fields.begin();
+        it != referenced_fields.end(); ++it, ++other_it)
+      if (!it->streq(*other_it))
+        return false;
+
+    return true;
+  }
 } FOREIGN_KEY_INFO;
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);
@@ -2674,6 +2707,8 @@ struct TABLE_LIST
   /* List to carry partition names from PARTITION (...) clause in statement */
   List<String> *partition_names;
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
+
+  List<FOREIGN_KEY_INFO> *fk_ref_list;
 
   void calc_md5(char *buffer);
   int view_check_option(THD *thd, bool ignore_failure);

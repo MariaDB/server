@@ -99,3 +99,60 @@ drop table t;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-29181 Potential corruption on FK update on a table with vcol index
+#
+connect  con2, localhost, root,,;
+connection default;
+create table t1 (a int primary key);
+insert into t1(a) select * from seq_1_to_2048;
+create table t2 (a int,  b int as (a), key(b), foreign key (a) references t1 (a)
+on update cascade);
+insert into t2(a) select * from seq_1_to_2048;
+update t1 set a = a - 100000 where a < 1024;
+connection con2;
+set lock_wait_timeout =1;
+update t1 set a= a + 1000000 where a > 1024;
+connection default;
+# LOAD DATA + VIEW
+create view v1 as select a as va from t1;
+select * into outfile 't1_out' from t1 where a = 1000000 + 2000;
+load data infile 't1_out' replace into table v1;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`) ON UPDATE CASCADE)
+drop view v1;
+drop table t2, t1;
+disconnect con2;
+# DROP FOREIGN KEY while concurrent prelocking is not finished
+create table t1 (pk int primary key, a int, key(a)) engine=innodb;
+create table t2 (pk int, b int references t1(a)
+on delete cascade on update cascade) engine=innodb;
+create table t3 (c int, foreign key(c) references t1(a)) engine=innodb;
+insert into t1 values (1, 1), (2, 1), (3, 1);
+insert into t2 values (1, 1);
+connect  con1,localhost,root,,test;
+update t1 set a = 6;
+connection default;
+alter table t2 add key(pk), drop foreign key t2_ibfk_1,
+algorithm=inplace, lock=none;
+connection con1;
+connection default;
+drop table t2, t3, t1;
+# UPDATE is started, but FK is ADDed concurrently
+create table t1 (pk int primary key, a int, key(a)) engine=innodb;
+create table t2 (b int) engine=innodb;
+insert into t1 select *, 1 from seq_1_to_300;
+insert into t2 values (1);
+connection con1;
+update t1 set a = 6;
+connection default;
+set foreign_key_checks=off;
+alter table t2 add foreign key(b) references t1(a)
+on delete cascade on update cascade,
+algorithm=inplace, lock=none;
+connection con1;
+connection default;
+disconnect con1;
+drop table t2, t1;
+#
+# End of 10.5 tests
+#

@@ -499,6 +499,12 @@ struct upd_node_t{
 	sym_node_t*	table_sym;/* table node in symbol table */
 	que_node_t*	col_assign_list;
 				/* column assignment list */
+	const row_prebuilt_t* prebuilt;
+			/* prebuilt used to access referenced prebuilts.
+			The field is mainly set up in
+			row_create_update_node_for_mysql and is then used in
+			row_upd_check_references_constraints to access
+			referenced sql-side table list. */
 	ulint		magic_n;
 
 private:

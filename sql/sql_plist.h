@@ -162,6 +162,9 @@ public:
   friend class I_P_List_iterator<T, Base>;
   friend class I_P_List_iterator<const T, Base>;
 #endif
+
+  Iterator begin() const { return Iterator(*this); }
+  Iterator end() const { return Iterator(*this, NULL); }
 };
 
 
@@ -201,6 +204,10 @@ public:
   inline T* operator++()
   {
     current= *L::Adapter::next_ptr(current);
+    return current;
+  }
+  inline T* operator*()
+  {
     return current;
   }
   inline void rewind()

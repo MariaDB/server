@@ -7264,6 +7264,81 @@ static bool notify_tabledef_changed(TABLE_LIST *table_list)
 }
 
 
+static int mdl_add_request_to_list(MDL_request_list *mdl_requests,
+                                   const LEX_CSTRING &ref_db,
+                                   const LEX_CSTRING &ref_table,
+                                   MEM_ROOT *mem_root,
+                                   enum_mdl_type mdl_type)
+{
+  bool found= false;
+  MDL_request_list::Iterator mdl_it(*mdl_requests);
+  MDL_request *mdl_elem;
+
+  while (!found && (mdl_elem= mdl_it++))
+    found= mdl_elem->belongs_to(ref_db, ref_table);
+
+  if (!found)
+  {
+    MDL_request *req= new (mem_root) MDL_request;
+    if (!req)
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return 1;
+    }
+    MDL_REQUEST_INIT(req, MDL_key::TABLE, ref_db.str, ref_table.str,
+                     mdl_type, MDL_TRANSACTION);
+    mdl_requests->push_front(req);
+  }
+  return 0;
+}
+
+
+static int fk_acquire_mdl_locks(THD *thd, TABLE *table,
+                                const Alter_info *alter_info,
+                                const Alter_table_ctx *alter_ctx,
+                                enum_mdl_type mdl_type)
+{
+  DBUG_ENTER("fk_acquire_mdl_locks");
+  MDL_request_list mdl_requests;
+
+  if (alter_info->flags & ALTER_ADD_FOREIGN_KEY)
+  {
+    for (const Key &key: alter_info->key_list)
+    {
+      if (key.type != Key::FOREIGN_KEY || key.old)
+        continue;
+
+      const Foreign_key *fk= static_cast<const Foreign_key*>(&key);
+      char dbuf[NAME_LEN];
+      char tbuf[NAME_LEN];
+
+      LEX_CSTRING ref_db= fk->ref_db.str ? fk->ref_db : alter_ctx->new_db;
+      LEX_CSTRING ref_table= fk->ref_table;
+
+      if (lower_case_table_names)
+      {
+        strmake_buf(dbuf, ref_db.str);
+        my_casedn_str(system_charset_info, dbuf);
+        strmake_buf(tbuf, ref_table.str);
+        my_casedn_str(system_charset_info, tbuf);
+        ref_db.str= dbuf;
+        ref_table.str= tbuf;
+      }
+
+      if (mdl_add_request_to_list(&mdl_requests, ref_db, ref_table,
+                                  thd->mem_root, mdl_type))
+        DBUG_RETURN(1);
+    }
+
+    if (thd->mdl_context.acquire_locks(&mdl_requests,
+                                      (double)thd->variables.lock_wait_timeout))
+      DBUG_RETURN(1);
+  }
+
+  DBUG_RETURN(0);
+}
+
+
 /**
   Perform in-place alter table.
 
@@ -7497,6 +7572,9 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   DEBUG_SYNC(thd, "alter_table_inplace_before_commit");
   THD_STAGE_INFO(thd, stage_alter_inplace_commit);
+
+  res= fk_acquire_mdl_locks(thd, table, alter_info, alter_ctx,
+                            MDL_SHARED_NO_WRITE);
 
   DBUG_EXECUTE_IF("alter_table_rollback_new_index", {
       table->file->ha_commit_inplace_alter_table(altered_table,
@@ -9144,43 +9222,10 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     table is not locked yet (it's a temporary table). So, we have to
     lock FK parents explicitly.
   */
-  if (alter_info->flags & ALTER_ADD_FOREIGN_KEY)
-  {
-    List_iterator<Key> fk_list_it(alter_info->key_list);
+  int result= fk_acquire_mdl_locks(thd, table, alter_info, alter_ctx,
+                                   MDL_EXCLUSIVE);
 
-    while (Key *key= fk_list_it++)
-    {
-      if (key->type != Key::FOREIGN_KEY || key->old)
-        continue;
-
-      Foreign_key *fk= static_cast<Foreign_key*>(key);
-      char dbuf[NAME_LEN];
-      char tbuf[NAME_LEN];
-      const char *ref_db= (fk->ref_db.str ?
-                           fk->ref_db.str :
-                           alter_ctx->new_db.str);
-      const char *ref_table= fk->ref_table.str;
-      MDL_request mdl_request;
-
-      if (lower_case_table_names)
-      {
-        strmake_buf(dbuf, ref_db);
-        my_casedn_str(system_charset_info, dbuf);
-        strmake_buf(tbuf, ref_table);
-        my_casedn_str(system_charset_info, tbuf);
-        ref_db= dbuf;
-        ref_table= tbuf;
-      }
-
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, ref_db, ref_table,
-                       MDL_SHARED_NO_WRITE, MDL_TRANSACTION);
-      if (thd->mdl_context.acquire_lock(&mdl_request,
-                                        thd->variables.lock_wait_timeout))
-        DBUG_RETURN(true);
-    }
-  }
-
-  DBUG_RETURN(false);
+  DBUG_RETURN(result);
 }
 
 /**

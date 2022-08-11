@@ -312,7 +312,7 @@ row_sel_sec_rec_is_for_clust_rec(
 
 			byte *record = vc.record(thr_get_trx(thr)->mysql_thd,
 						 clust_index,
-						 &thr->prebuilt->m_mysql_table);
+						 thr->prebuilt->m_mysql_table);
 
 			v_col = reinterpret_cast<const dict_v_col_t*>(col);
 
@@ -6106,7 +6106,7 @@ static dberr_t row_check_index_match(row_prebuilt_t *prebuilt,
       /* Virtual column values must be reconstructed from the base columns. */
       row_ext_t *ext;
       byte *record= vc.record(prebuilt->trx->mysql_thd, clust_index,
-                              &prebuilt->m_mysql_table);
+                              prebuilt->m_mysql_table);
       const dict_v_col_t *v_col= reinterpret_cast<const dict_v_col_t*>
         (ifield.col);
       dtuple_t *row= row_build(ROW_COPY_POINTERS,

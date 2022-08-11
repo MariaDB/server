@@ -890,7 +890,7 @@ row_ins_foreign_fill_virtual(
 	const rec_offs*	offsets =
 		rec_get_offsets(rec, index, offsets_, index->n_core_fields,
 				ULINT_UNDEFINED, &cascade->heap);
-	TABLE*		mysql_table= NULL;
+	TABLE*		mysql_table= cascade->prebuilt->m_mysql_table;
 	upd_t*		update = cascade->update;
 	ulint		n_v_fld = index->table->n_v_def;
 	ulint		n_diff;
@@ -905,7 +905,7 @@ row_ins_foreign_fill_virtual(
 	ut_ad(index->table->vc_templ != NULL);
 
 	ib_vcol_row vc(NULL);
-	uchar *record = vc.record(thd, index, &mysql_table);
+	uchar *record = vc.record(thd, index, mysql_table);
 	if (!record) {
 		return DB_OUT_OF_MEMORY;
 	}
@@ -983,7 +983,7 @@ Perform referential actions or checks when a parent row is deleted or updated
 and the constraint had an ON DELETE or ON UPDATE condition which was not
 RESTRICT.
 @return DB_SUCCESS, DB_LOCK_WAIT, or error code */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull(1,2,3,4,6), warn_unused_result))
 dberr_t
 row_ins_foreign_check_on_constraint(
 /*================================*/
@@ -994,6 +994,8 @@ row_ins_foreign_check_on_constraint(
 	btr_pcur_t*	pcur,		/*!< in: cursor placed on a matching
 					index record in the child table */
 	dtuple_t*	entry,		/*!< in: index entry in the parent
+					table */
+	row_prebuilt_t* prebuilt,	/*!< in: referenced prebuilt for this
 					table */
 	mtr_t*		mtr)		/*!< in: mtr holding the latch of pcur
 					page */
@@ -1052,16 +1054,19 @@ row_ins_foreign_check_on_constraint(
 		DBUG_RETURN(DB_ROW_IS_REFERENCED);
 	}
 
+	ut_ad(prebuilt != NULL);
+
 	if (node->cascade_node == NULL) {
 		node->cascade_heap = mem_heap_create(128);
 		node->cascade_node = row_create_update_node_for_mysql(
-			table, node->cascade_heap);
+			table, node->cascade_heap, prebuilt);
 		que_node_set_parent(node->cascade_node, node);
 
 	}
 	cascade = node->cascade_node;
 	cascade->table = table;
 	cascade->foreign = foreign;
+	cascade->prebuilt = prebuilt;
 
 	if (node->is_delete
 	    && (foreign->type & DICT_FOREIGN_ON_DELETE_CASCADE)) {
@@ -1464,6 +1469,9 @@ row_ins_check_foreign_constraint(
 	dict_table_t*	table,	/*!< in: if check_ref is TRUE, then the foreign
 				table, else the referenced table */
 	dtuple_t*	entry,	/*!< in: index entry for index */
+	row_prebuilt_t* prebuilt,
+				/*!< in: referenced prebuilt for this table.
+				NULL if check_ref is TRUE */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	upd_node_t*	upd_node;
@@ -1743,7 +1751,7 @@ row_ins_check_foreign_constraint(
 
 					err = row_ins_foreign_check_on_constraint(
 						thr, foreign, &pcur, entry,
-						&mtr);
+						prebuilt, &mtr);
 					if (err != DB_SUCCESS) {
 						/* Since reporting a plain
 						"duplicate key" error
@@ -1950,7 +1958,7 @@ row_ins_check_foreign_constraints(
 			}
 
 			err = row_ins_check_foreign_constraint(
-				TRUE, foreign, table, ref_tuple, thr);
+				TRUE, foreign, table, ref_tuple, NULL, thr);
 
 			if (ref_table) {
 				dict_table_close(ref_table);

@@ -118,8 +118,6 @@ extern "C" void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all);
 unsigned long long thd_get_query_id(const MYSQL_THD thd);
 void thd_clear_error(MYSQL_THD thd);
 
-TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
-			  const char *table, size_t table_len);
 MYSQL_THD create_background_thd();
 void reset_thd(MYSQL_THD thd);
 TABLE *get_purge_table(THD *thd);
@@ -15497,7 +15495,7 @@ get_foreign_key_info(
 	memcpy(tmp_buff, foreign->referenced_table_name, len);
 	tmp_buff[len] = 0;
 
-	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff));
+	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff), 1);
 	f_key_info.referenced_db = Lex_ident::make(thd, name_buff, len);
 
 	/* Referenced (parent) table name */
@@ -15511,7 +15509,7 @@ get_foreign_key_info(
 	memcpy(tmp_buff, foreign->foreign_table_name, len);
 	tmp_buff[len] = 0;
 
-	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff));
+	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff), 1);
 	f_key_info.foreign_db = Lex_ident::make(thd, name_buff, len);
 
 	/* Dependent (child) table name */
@@ -20000,47 +19998,28 @@ ha_innobase::multi_range_read_explain_info(
 	return m_ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
 }
 
-/** Find or open a table handle for the virtual column template
-@param[in]	thd	thread handle
+/** Retrieve or open a MariaDB table handle for the virtual column template for
+  purge thread
+@param[in]	thd	MariaDB thread handle
 @param[in,out]	table	InnoDB table whose virtual column template
 			is to be updated
-@return table handle
+@return MariaDB table handle
 @retval NULL if the table is dropped, unaccessible or corrupted
-for purge thread */
-static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
+*/
+TABLE *innodb_purge_get_table_for_vc(THD *thd, const dict_table_t *table)
 {
-	TABLE *mysql_table;
-	const bool  bg_thread = THDVAR(thd, background_thread);
+  ut_ad(THDVAR(thd, background_thread));
 
-	if (bg_thread) {
-		if ((mysql_table = get_purge_table(thd))) {
-			return mysql_table;
-		}
-	} else {
-		if (table->vc_templ->mysql_table_query_id
-		    == thd_get_query_id(thd)) {
-			return table->vc_templ->mysql_table;
-		}
-	}
+  if (TABLE *mysql_table = get_purge_table(thd))
+    return mysql_table;
 
-	char	db_buf[NAME_LEN + 1];
-	char	tbl_buf[NAME_LEN + 1];
-	ulint	db_buf_len, tbl_buf_len;
+  char db_buf[NAME_LEN + 1], tbl_buf[NAME_LEN + 1];
+  ulint db_buf_len, tbl_buf_len;
 
-	if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
-		return NULL;
-	}
+  if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len))
+    return NULL;
 
-	if (bg_thread) {
-		return open_purge_table(thd, db_buf, db_buf_len,
-					tbl_buf, tbl_buf_len);
-	}
-
-	mysql_table = find_fk_open_table(thd, db_buf, db_buf_len,
-					 tbl_buf, tbl_buf_len);
-	table->vc_templ->mysql_table = mysql_table;
-	table->vc_templ->mysql_table_query_id = thd_get_query_id(thd);
-	return mysql_table;
+  return open_purge_table(thd, db_buf, db_buf_len, tbl_buf, tbl_buf_len);
 }
 
 /** Change dbname and table name in table->vc_templ.
@@ -20099,22 +20078,14 @@ innobase_rename_vc_templ(
 */
 
 bool innobase_allocate_row_for_vcol(THD *thd, const dict_index_t *index,
-                                    mem_heap_t **heap, TABLE **table,
+                                    mem_heap_t **heap, TABLE *maria_table,
                                     VCOL_STORAGE *storage)
 {
-  TABLE *maria_table;
   String *blob_value_storage;
-  if (!*table)
-    *table = innodb_find_table_for_vc(thd, index->table);
-
-  /* For purge thread, there is a possiblity that table could have
-     dropped, corrupted or unaccessible. */
-  if (!*table)
-    return false;
-  maria_table = *table;
   if (!*heap && !(*heap = mem_heap_create(srv_page_size)))
     return false;
 
+  ut_ad(maria_table);
   uchar *record = static_cast<byte *>(mem_heap_alloc(*heap,
                                                     maria_table->s->reclength));
 
@@ -21264,4 +21235,16 @@ buf_pool_size_align(
   } else {
     return (ulint)((size / m + 1) * m);
   }
+}
+
+/** Retreive prebuilt that was constructed on ha_innobase::open for this MariaDB
+table.
+@param[in] maria_table MariaDB table
+@return prebuilt for this table */
+row_prebuilt_t *maria_table_to_prebuilt(TABLE *maria_table)
+{
+  ut_ad(maria_table);
+  ha_innobase *handler= static_cast<ha_innobase*>(maria_table->file);
+  handler->build_template(true);
+  return handler->get_prebuilt();
 }

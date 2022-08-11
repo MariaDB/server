@@ -114,7 +114,7 @@ SET lock_wait_timeout=0;
 UPDATE t2 SET pk=10 WHERE pk=1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 PREPARE stmt FROM 'UPDATE t2 SET pk=10 WHERE pk=1';
-DEALLOCATE PREPARE stmt;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SET debug_sync='now SIGNAL go';
 connection default;
 disconnect con1;
@@ -122,7 +122,6 @@ connection default;
 SET debug_sync='reset';
 SHOW OPEN TABLES FROM test;
 Database	Table	In_use	Name_locked
-test	t2	0	0
 DROP TABLE t1, t2;
 create table t1 (a int primary key, b int) engine=innodb;
 create table t2 (c int primary key, d int,

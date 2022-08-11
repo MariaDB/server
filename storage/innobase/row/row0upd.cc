@@ -52,6 +52,7 @@ Created 12/27/1996 Heikki Tuuri
 #include <algorithm>
 #include <mysql/plugin.h>
 #include <mysql/service_wsrep.h>
+#include "ha_innodb.h"
 #ifdef WITH_WSREP
 #include "log.h"
 #include "wsrep.h"
@@ -176,6 +177,7 @@ wsrep_row_upd_index_is_foreign(
 }
 #endif /* WITH_WSREP */
 
+
 /*********************************************************************//**
 Checks if possible foreign key constraints hold after a delete of the record
 under pcur.
@@ -202,6 +204,7 @@ row_upd_check_references_constraints(
 	dtuple_t*	entry;
 	const rec_t*	rec;
 	dberr_t		err;
+	const row_prebuilt_t* prebuilt = node->prebuilt;
 
 	DBUG_ENTER("row_upd_check_references_constraints");
 
@@ -225,6 +228,11 @@ row_upd_check_references_constraints(
 	DEBUG_SYNC_C_IF_THD(thr_get_trx(thr)->mysql_thd,
 			    "foreign_constraint_check_for_insert");
 
+	TABLE_LIST *maria_table= prebuilt->m_mysql_table->pos_in_table_list;
+	ut_ad(maria_table->fk_ref_list);
+	ut_ad(maria_table->fk_ref_list->elements
+		== table->referenced_set.size());
+	auto ref_table_it= maria_table->fk_ref_list->begin();
 	for (dict_foreign_set::iterator it = table->referenced_set.begin();
 	     it != table->referenced_set.end();
 	     ++it) {
@@ -249,8 +257,17 @@ row_upd_check_references_constraints(
 					false, DICT_ERR_IGNORE_NONE);
 			}
 
-			err = row_ins_check_foreign_constraint(
-				FALSE, foreign, table, entry, thr);
+			row_prebuilt_t *ref_prebuilt = NULL;
+			TABLE *sql_ref_table= ref_table_it->table_list->table;
+			/* This lock type is chosen for cascade changes,
+			See prepare_fk_prelocking_list */
+			if (ref_table_it->table_list->lock_type // First write
+							>= TL_WRITE_ALLOW_WRITE)
+				ref_prebuilt=
+					maria_table_to_prebuilt(sql_ref_table);
+
+			err = row_ins_check_foreign_constraint(FALSE,
+				foreign, table, entry, ref_prebuilt, thr);
 
 			if (ref_table) {
 				dict_table_close(ref_table);
@@ -260,6 +277,7 @@ row_upd_check_references_constraints(
 				goto func_exit;
 			}
 		}
+		++ref_table_it;
 	}
 
 	err = DB_SUCCESS;
@@ -335,7 +353,7 @@ wsrep_row_upd_check_foreign_constraints(
 			}
 
 			err = row_ins_check_foreign_constraint(
-				TRUE, foreign, table, entry, thr);
+				TRUE, foreign, table, entry, NULL, thr);
 
 			if (opened) {
 				dict_table_close(opened);
@@ -641,7 +659,8 @@ row_upd_build_difference_binary(
 		ut_ad(!update->old_vrow);
 
 		ib_vcol_row vc(NULL);
-		uchar *record = vc.record(thd, index, &mysql_table);
+		ut_ad(mysql_table);
+		uchar *record = vc.record(thd, index, mysql_table);
 
 		for (uint16_t i = 0; i < n_v_fld; i++) {
 			const dict_v_col_t*     col
@@ -1721,8 +1740,9 @@ row_upd_store_v_row(
 						dfield_dup(dfield, node->heap);
 					}
 				} else {
+					ut_ad(mysql_table);
 					uchar *record = vc.record(thd, index,
-								  &mysql_table);
+								  mysql_table);
 					/* Need to compute, this happens when
 					deleting row */
 					dfield_t* vfield =
@@ -2501,9 +2521,8 @@ row_upd_del_mark_clust_rec(
 	/* Store row because we have to build also the secondary index
 	entries */
 
-	if (!row_upd_store_row(node, trx->mysql_thd,
-			  thr->prebuilt  && thr->prebuilt->table == node->table
-			  ? thr->prebuilt->m_mysql_table : NULL)) {
+	if (!row_upd_store_row(node, trx->mysql_thd, node->prebuilt
+			       ? node->prebuilt->m_mysql_table : NULL)) {
 		return DB_COMPUTE_VALUE_FAILED;
 	}
 
@@ -2680,8 +2699,8 @@ row_upd_clust_step(
 		goto exit_func;
 	}
 
-	if (!row_upd_store_row(node, trx->mysql_thd, thr->prebuilt
-			       ? thr->prebuilt->m_mysql_table : NULL)) {
+	if (!row_upd_store_row(node, trx->mysql_thd, node->prebuilt
+			       ? node->prebuilt->m_mysql_table : NULL)) {
 		err = DB_COMPUTE_VALUE_FAILED;
 		goto exit_func;
 	}

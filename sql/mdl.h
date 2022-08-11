@@ -449,6 +449,12 @@ public:
     return (m_length == rhs->m_length &&
             memcmp(m_ptr, rhs->m_ptr, m_length) == 0);
   }
+  bool is_equal(const LEX_CSTRING &db, const LEX_CSTRING &table_name) const
+  {
+    return table_name.length == name_length() && db.length == db_name_length()
+           && memcmp(db_name(), db.str, db.length) == 0
+           && memcmp(name(), table_name.str, table_name.length) == 0;
+  }
   /**
     Compare two MDL keys lexicographically.
   */
@@ -615,6 +621,11 @@ public:
     ticket(NULL),
     key(&rhs->key)
   {}
+
+  bool belongs_to(const LEX_CSTRING &db, const LEX_CSTRING &table_name) const
+  {
+    return key.is_equal(db, table_name);
+  }
 };
 
 

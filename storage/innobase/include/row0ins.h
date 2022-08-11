@@ -51,8 +51,11 @@ row_ins_check_foreign_constraint(
 	dict_table_t*	table,	/*!< in: if check_ref is TRUE, then the foreign
 				table, else the referenced table */
 	dtuple_t*	entry,	/*!< in: index entry for index */
+	row_prebuilt_t* prebuilt,
+				/*!< in: referenced prebuilt for this table.
+				NULL if check_ref is TRUE */
 	que_thr_t*	thr)	/*!< in: query thread */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull(2,3,4,6), warn_unused_result));
 
 /*********************************************************************//**
 Sets a new row to insert for an INS_DIRECT node. This function is only used

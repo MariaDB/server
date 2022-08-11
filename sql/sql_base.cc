@@ -63,6 +63,8 @@
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
 
+#include <algorithm>
+
 
 bool
 No_such_table_error_handler::handle_condition(THD *,
@@ -1822,6 +1824,13 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     {
       table= best_table;
       table->query_id= thd->query_id;
+
+      if (thd->locked_tables_mode >= LTM_PRELOCKED
+          && table->file->referenced_by_foreign_key())
+      {
+        table_list->fk_ref_list= table->pos_in_table_list->fk_ref_list;
+      }
+
       table->init(thd, table_list);
       DBUG_PRINT("info",("Using locked table"));
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -4506,6 +4515,40 @@ restart:
         tbl->reginfo.lock_type= tables->lock_type;
       tbl->reginfo.skip_locked= tables->skip_locked;
     }
+
+    if (tables->fk_ref_list)
+    {
+      /*
+        Protect from concurrent DROP FOREIGN KEY. FK can be dropped after adding
+        to fk_ref_list, but before locking. This will de-synchronize it with
+        referenced_set of innodb. Handle it here to restore the matching.
+
+        Note that we can't rely on the order of the list filled by
+        get_parent_foreign_key_list, because internal referenced_set is a
+        dynamic hash, and therefore it could be rehashed, if too many elements
+        were removed.
+      */
+      DBUG_ASSERT(tbl->pos_in_table_list == tables);
+      List<FOREIGN_KEY_INFO> fk_list;
+      tbl->file->get_parent_foreign_key_list(thd, &fk_list);
+      if (fk_list.elements == 0)
+      {
+        tables->fk_ref_list= NULL;
+      }
+      else if (fk_list.elements != tables->fk_ref_list->elements)
+      {
+        for (FOREIGN_KEY_INFO &fk: fk_list)
+        {
+          auto fk_table_it= std::find(tables->fk_ref_list->begin(),
+                                      tables->fk_ref_list->end(),
+                                      fk.foreign_id->str);
+          DBUG_ASSERT(fk_table_it != tables->fk_ref_list->end());
+          DBUG_ASSERT(fk_table_it->spec_matches(fk));
+          fk.table_list= fk_table_it->table_list;
+        }
+        tables->fk_ref_list->swap(fk_list);
+      }
+    }
 #ifdef WITH_WSREP
     /*
        At this point we have SE associated with table so we can check wsrep_mode
@@ -4626,18 +4669,17 @@ bool DML_prelocking_strategy::handle_routine(THD *thd,
   @note this can be changed to use a hash, instead of scanning the linked
   list, if the performance of this function will ever become an issue
 */
-bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
-                                LEX_CSTRING *table, thr_lock_type lock_type)
+TABLE_LIST *find_fk_prelocked_table(TABLE_LIST *tl, Lex_ident *db,
+                                    Lex_ident *table, thr_lock_type lock_type)
 {
   for (; tl; tl= tl->next_global )
   {
     if (tl->lock_type >= lock_type &&
         tl->prelocking_placeholder == TABLE_LIST::PRELOCK_FK &&
-        strcmp(tl->db.str, db->str) == 0 &&
-        strcmp(tl->table_name.str, table->str) == 0)
-      return true;
+        db->streq(tl->db) && table->streq(tl->table_name))
+      return tl;
   }
-  return false;
+  return NULL;
 }
 
 
@@ -4719,15 +4761,14 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
                            uint8 op)
 {
   DBUG_ENTER("prepare_fk_prelocking_list");
-  List <FOREIGN_KEY_INFO> fk_list;
-  List_iterator<FOREIGN_KEY_INFO> fk_list_it(fk_list);
   FOREIGN_KEY_INFO *fk;
   Query_arena *arena, backup;
   TABLE *table= table_list->table;
 
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
-  table->file->get_parent_foreign_key_list(thd, &fk_list);
+  table_list->fk_ref_list= new(thd->mem_root) List<FOREIGN_KEY_INFO>();
+  table->file->get_parent_foreign_key_list(thd, table_list->fk_ref_list);
   if (unlikely(thd->is_error()))
   {
     if (arena)
@@ -4736,7 +4777,9 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
   }
 
   *need_prelocking= TRUE;
+  DEBUG_SYNC(thd, "prelocking_fk");
 
+  List_iterator<FOREIGN_KEY_INFO> fk_list_it(*table_list->fk_ref_list);
   while ((fk= fk_list_it++))
   {
     // FK_OPTION_RESTRICT and FK_OPTION_NO_ACTION only need read access
@@ -4748,19 +4791,22 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
     else
       lock_type= TL_READ;
 
-    if (table_already_fk_prelocked(prelocking_ctx->query_tables,
-          fk->foreign_db, fk->foreign_table,
-          lock_type))
-      continue;
+    TABLE_LIST *tl= find_fk_prelocked_table(prelocking_ctx->query_tables,
+                                            fk->foreign_db, fk->foreign_table,
+                                            lock_type);
+    if (tl == NULL)
+    {
+      tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+      tl->init_one_table_for_prelocking(fk->foreign_db,
+          fk->foreign_table,
+          NULL, lock_type,
+          TABLE_LIST::PRELOCK_FK,
+          table_list->belong_to_view, op,
+          &prelocking_ctx->query_tables_last,
+          table_list->for_insert_data);
+    }
 
-    TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
-    tl->init_one_table_for_prelocking(fk->foreign_db,
-        fk->foreign_table,
-        NULL, lock_type,
-        TABLE_LIST::PRELOCK_FK,
-        table_list->belong_to_view, op,
-        &prelocking_ctx->query_tables_last,
-        table_list->for_insert_data);
+    fk->table_list= tl;
   }
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -7889,7 +7935,11 @@ bool setup_table_attributes(THD *thd, TABLE_LIST *table_list,
 {
   TABLE *table= table_list->table;
   if (table)
+  {
+    if (table->pos_in_table_list != NULL)
+      table_list->fk_ref_list= table->pos_in_table_list->fk_ref_list;
     table->pos_in_table_list= table_list;
+  }
   if (first_select_table && table_list->top_table() == first_select_table)
   {
     /* new counting for SELECT of INSERT ... SELECT command */

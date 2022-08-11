@@ -438,6 +438,14 @@ public:
 			  const KEY_PART_INFO& old_part,
 			  const KEY_PART_INFO& new_part) const override;
 
+	/** Builds a 'template' to the prebuilt struct.
+
+	The template is used in fast retrieval of just those column
+	values MariaDB needs in its processing.
+	@param whole_row true if access is needed to a whole row,
+	false if accessing individual fields is enough */
+	void build_template(bool whole_row);
+
 protected:
 	bool
 	can_convert_string(const Field_string* field,
@@ -479,13 +487,6 @@ protected:
 		const uchar* record0,
 		const uchar* record1);
 #endif
-	/** Builds a 'template' to the prebuilt struct.
-
-	The template is used in fast retrieval of just those column
-	values MySQL needs in its processing.
-	@param whole_row true if access is needed to a whole row,
-	false if accessing individual fields is enough */
-	void build_template(bool whole_row);
 
 	int info_low(uint, bool);
 
@@ -521,6 +522,8 @@ protected:
 
         /** If mysql has locked with external_lock() */
         bool                    m_mysql_has_locked;
+public:
+	row_prebuilt_t *get_prebuilt() const { return m_prebuilt; }
 };
 
 

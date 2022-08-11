@@ -4983,27 +4983,6 @@ TABLE *get_purge_table(THD *thd)
   return thd->open_tables;
 }
 
-/** Find an open table in the list of prelocked tabled
-
-  Used for foreign key actions, for example, in UPDATE t1 SET a=1;
-  where a child table t2 has a KB on t1.a.
-
-  But only when virtual columns are involved, otherwise InnoDB
-  does not need an open TABLE.
-*/
-TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
-                       const char *table, size_t table_len)
-{
-  for (TABLE *t= thd->open_tables; t; t= t->next)
-  {
-    if (t->s->db.length == db_len && t->s->table_name.length == table_len &&
-        !strcmp(t->s->db.str, db) && !strcmp(t->s->table_name.str, table) &&
-        t->pos_in_table_list->prelocking_placeholder == TABLE_LIST::PRELOCK_FK)
-      return t;
-  }
-  return NULL;
-}
-
 /* the following three functions are used in background purge threads */
 
 MYSQL_THD create_thd()

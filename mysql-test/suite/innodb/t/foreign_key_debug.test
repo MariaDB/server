@@ -57,8 +57,8 @@ SET debug_sync='now WAIT_FOR ready';
 SET lock_wait_timeout=0;
 --error ER_LOCK_WAIT_TIMEOUT
 UPDATE t2 SET pk=10 WHERE pk=1;
+--error ER_LOCK_WAIT_TIMEOUT
 PREPARE stmt FROM 'UPDATE t2 SET pk=10 WHERE pk=1';
-DEALLOCATE PREPARE stmt;
 SET debug_sync='now SIGNAL go';
 
 connection default;
