@@ -52,6 +52,7 @@
 #include "sql_expression_cache.h" // subquery_cache_miss, subquery_cache_hit
 #include "sys_vars_shared.h"
 #include "ddl_log.h"
+#include "optimizer_defaults.h"
 
 #include <m_ctype.h>
 #include <my_dir.h>
@@ -732,7 +733,7 @@ mysql_mutex_t LOCK_prepared_stmt_count;
 #ifdef HAVE_OPENSSL
 mysql_mutex_t LOCK_des_key_file;
 #endif
-mysql_mutex_t LOCK_backup_log;
+mysql_mutex_t LOCK_backup_log, LOCK_optimizer_costs;
 mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
 mysql_rwlock_t LOCK_ssl_refresh;
 mysql_rwlock_t LOCK_all_status_vars;
@@ -902,7 +903,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_crypt, key_LOCK_delayed_create,
   key_LOCK_delayed_insert, key_LOCK_delayed_status, key_LOCK_error_log,
   key_LOCK_gdl, key_LOCK_global_system_variables,
-  key_LOCK_manager, key_LOCK_backup_log,
+  key_LOCK_manager, key_LOCK_backup_log, key_LOCK_optimizer_costs,
   key_LOCK_prepared_stmt_count,
   key_LOCK_rpl_status, key_LOCK_server_started,
   key_LOCK_status, key_LOCK_temp_pool,
@@ -965,6 +966,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_hash_filo_lock, "hash_filo::lock", 0},
   { &key_LOCK_active_mi, "LOCK_active_mi", PSI_FLAG_GLOBAL},
   { &key_LOCK_backup_log, "LOCK_backup_log", PSI_FLAG_GLOBAL},
+  { &key_LOCK_optimizer_costs, "LOCK_optimizer_costs", PSI_FLAG_GLOBAL},
   { &key_LOCK_temp_pool, "LOCK_temp_pool", PSI_FLAG_GLOBAL},
   { &key_LOCK_thread_id, "LOCK_thread_id", PSI_FLAG_GLOBAL},
   { &key_LOCK_crypt, "LOCK_crypt", PSI_FLAG_GLOBAL},
@@ -2005,6 +2007,7 @@ static void clean_up(bool print_message)
   mdl_destroy();
   dflt_key_cache= 0;
   key_caches.delete_elements(free_key_cache);
+  free_all_optimizer_costs();
   wt_end();
   multi_keycache_free();
   sp_cache_end();
@@ -2127,6 +2130,7 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_active_mi);
   mysql_rwlock_destroy(&LOCK_ssl_refresh);
   mysql_mutex_destroy(&LOCK_backup_log);
+  mysql_mutex_destroy(&LOCK_optimizer_costs);
   mysql_mutex_destroy(&LOCK_temp_pool);
   mysql_rwlock_destroy(&LOCK_sys_init_connect);
   mysql_rwlock_destroy(&LOCK_sys_init_slave);
@@ -4516,6 +4520,8 @@ static int init_thread_environment()
   mysql_mutex_init(key_LOCK_commit_ordered, &LOCK_commit_ordered,
                    MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_backup_log, &LOCK_backup_log, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_optimizer_costs, &LOCK_optimizer_costs,
+                   MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_temp_pool, &LOCK_temp_pool, MY_MUTEX_INIT_FAST);
 
 #ifdef HAVE_OPENSSL
@@ -5004,10 +5010,10 @@ static int init_server_components()
   /* need to configure logging before initializing storage engines */
   if (!opt_bin_log_used && !WSREP_ON)
   {
-    if (opt_log_slave_updates)
+    if (opt_log_slave_updates && (global_system_variables.log_warnings > 1))
       sql_print_warning("You need to use --log-bin to make "
                         "--log-slave-updates work.");
-    if (binlog_format_used)
+    if (binlog_format_used && (global_system_variables.log_warnings > 1))
       sql_print_warning("You need to use --log-bin to make "
                         "--binlog-format work.");
   }
@@ -5434,6 +5440,7 @@ static int init_server_components()
     unireg_abort(1);
   }
 #endif
+  copy_tmptable_optimizer_costs();
 
 #ifdef WITH_WSREP
   /*
@@ -5492,7 +5499,7 @@ static int init_server_components()
   }
   else
   {
-    if (binlog_expire_logs_seconds)
+    if (binlog_expire_logs_seconds && (global_system_variables.log_warnings > 1))
       sql_print_warning("You need to use --log-bin to make --expire-logs-days "
                         "or --binlog-expire-logs-seconds work.");
   }
@@ -7825,10 +7832,15 @@ static int mysql_init_variables(void)
   strnmov(server_version, MYSQL_SERVER_VERSION, sizeof(server_version)-1);
   thread_cache.init();
   key_caches.empty();
-  if (!(dflt_key_cache= get_or_create_key_cache(default_key_cache_base.str,
-                                                default_key_cache_base.length)))
+  if (!(dflt_key_cache= get_or_create_key_cache(default_base.str,
+                                                default_base.length)))
   {
     sql_print_error("Cannot allocate the keycache");
+    return 1;
+  }
+  if (create_default_optimizer_costs())
+  {
+    sql_print_error("Cannot allocate optimizer_costs");
     return 1;
   }
 
@@ -8411,11 +8423,14 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
 }
 
 
-/** Handle arguments for multiple key caches. */
+/**
+   Handle arguments for multiple key caches, replication_options and
+    optimizer_costs
+ */
 
 C_MODE_START
 
-static void*
+static void *
 mysql_getopt_value(const char *name, uint length,
 		   const struct my_option *option, int *error)
 {
@@ -8453,6 +8468,7 @@ mysql_getopt_value(const char *name, uint length,
   }
   /* We return in all cases above. Let us silence -Wimplicit-fallthrough */
   DBUG_ASSERT(0);
+  break;
 #ifdef HAVE_REPLICATION
   /* fall through */
   case OPT_REPLICATE_DO_DB:
@@ -8480,10 +8496,86 @@ mysql_getopt_value(const char *name, uint length,
     }
     return 0;
   }
+  break;
 #endif
+  case OPT_COSTS_DISK_READ_COST:
+  case OPT_COSTS_INDEX_BLOCK_COPY_COST:
+  case OPT_COSTS_KEY_CMP_COST:
+  case OPT_COSTS_KEY_COPY_COST:
+  case OPT_COSTS_KEY_LOOKUP_COST:
+  case OPT_COSTS_KEY_NEXT_FIND_COST:
+  case OPT_COSTS_DISK_READ_RATIO:
+  case OPT_COSTS_ROW_COPY_COST:
+  case OPT_COSTS_ROW_LOOKUP_COST:
+  case OPT_COSTS_ROW_NEXT_FIND_COST:
+  case OPT_COSTS_ROWID_CMP_COST:
+  case OPT_COSTS_ROWID_COPY_COST:
+  {
+    OPTIMIZER_COSTS *costs;
+    if (unlikely(!(costs= get_or_create_optimizer_costs(name, length))))
+    {
+      if (error)
+        *error= EXIT_OUT_OF_MEMORY;
+      return 0;
+    }
+    switch (option->id) {
+    case OPT_COSTS_DISK_READ_COST:
+      return &costs->disk_read_cost;
+    case OPT_COSTS_INDEX_BLOCK_COPY_COST:
+      return &costs->index_block_copy_cost;
+    case OPT_COSTS_KEY_CMP_COST:
+      return &costs->key_cmp_cost;
+    case OPT_COSTS_KEY_COPY_COST:
+      return &costs->key_copy_cost;
+    case OPT_COSTS_KEY_LOOKUP_COST:
+      return &costs->key_lookup_cost;
+    case OPT_COSTS_KEY_NEXT_FIND_COST:
+      return &costs->key_next_find_cost;
+    case OPT_COSTS_DISK_READ_RATIO:
+      return &costs->disk_read_ratio;
+    case OPT_COSTS_ROW_COPY_COST:
+      return &costs->row_copy_cost;
+    case OPT_COSTS_ROW_LOOKUP_COST:
+      return &costs->row_lookup_cost;
+    case OPT_COSTS_ROW_NEXT_FIND_COST:
+      return &costs->row_next_find_cost;
+    case OPT_COSTS_ROWID_CMP_COST:
+      return &costs->rowid_cmp_cost;
+    case OPT_COSTS_ROWID_COPY_COST:
+      return &costs->rowid_copy_cost;
+    default:
+      DBUG_ASSERT(0);
+    }
+  }
   }
   return option->value;
 }
+
+
+static void
+mariadb_getopt_adjust_value(const struct my_option *option, void *value)
+{
+  switch (option->id) {
+  case OPT_COSTS_DISK_READ_COST:
+  case OPT_COSTS_INDEX_BLOCK_COPY_COST:
+  case OPT_COSTS_KEY_CMP_COST:
+  case OPT_COSTS_KEY_COPY_COST:
+  case OPT_COSTS_KEY_LOOKUP_COST:
+  case OPT_COSTS_KEY_NEXT_FIND_COST:
+  case OPT_COSTS_DISK_READ_RATIO:
+  case OPT_COSTS_ROW_COPY_COST:
+  case OPT_COSTS_ROW_LOOKUP_COST:
+  case OPT_COSTS_ROW_NEXT_FIND_COST:
+  case OPT_COSTS_ROWID_CMP_COST:
+  case OPT_COSTS_ROWID_COPY_COST:
+    /* Value from command is line given in usec. Convert to ms */
+    *(double*) value= *(double*) value/1000.0;
+    break;
+  default:
+    break;
+  }
+}
+
 
 static void option_error_reporter(enum loglevel level, const char *format, ...)
 {
@@ -8523,6 +8615,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 
   my_getopt_get_addr= mysql_getopt_value;
   my_getopt_error_reporter= option_error_reporter;
+  my_getopt_adjust_value= mariadb_getopt_adjust_value;
 
   /* prepare all_options array */
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &all_options, sizeof(my_option),

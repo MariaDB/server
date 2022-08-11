@@ -143,20 +143,6 @@ class SQL_SELECT;
 class Rowid_filter_container;
 class Range_rowid_filter_cost_info;
 
-/*
-  Cost to write rowid into array. Assume inserting 1000 row id's into the
-  array has same cost as a 'disk io' or key fetch
-*/
-#define ARRAY_WRITE_COST      0.001
-/*
-  Factor used to calculate cost of sorting rowids in array
-  This is multiplied by 'elements * log(elements)', so this factor
-  has a very high cost weight!
-  A value of 0.001 will have 200 rows have a cost of 1.05 and
-  1000 rows a cost of 6.90.
-*/
-#define ARRAY_SORT_C          0.001
-
 typedef enum
 {
   SORTED_ARRAY_CONTAINER,
@@ -406,7 +392,8 @@ class Range_rowid_filter_cost_info final: public Sql_alloc
   /* The index whose range scan would be used to build the range filter */
   uint key_no;
   double cost_of_building_range_filter;
-  double where_cost, key_next_find_cost;
+  double where_cost, base_lookup_cost, rowid_compare_cost;
+
   /*
      (gain*row_combinations)-cost_of_building_range_filter yields the gain of
      the filter for 'row_combinations' key tuples of the index key_no

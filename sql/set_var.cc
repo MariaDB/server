@@ -310,7 +310,13 @@ do {                                                \
     case SHOW_HA_ROWS:  do_num_val (ha_rows,CMD);
 
 #define case_for_double(CMD)                        \
-    case SHOW_DOUBLE:   do_num_val (double,CMD)
+    case SHOW_DOUBLE:   do_num_val (double,CMD);    \
+    case SHOW_OPTIMIZER_COST:                       \
+    {                                               \
+      double val= ((*(double*) value) == OPTIMIZER_COST_UNDEF ? OPTIMIZER_COST_UNDEF : \
+                   (*(double*) value) * 1000);      \
+      CMD;                                          \
+    } while (0)
 
 #define case_get_string_as_lex_string               \
     case SHOW_CHAR:                                 \
