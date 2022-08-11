@@ -787,12 +787,10 @@ public:
 #endif
   int delete_all_rows();
   int truncate();
-  double scan_time();
-  double read_time(
-    uint index,
-    uint ranges,
-    ha_rows rows
-  );
+  IO_AND_CPU_COST scan_time();
+  IO_AND_CPU_COST rndpos_time(ha_rows rows);
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                               ulonglong blocks);
 #ifdef HA_CAN_BULK_ACCESS
   void bulk_req_exec();
 #endif

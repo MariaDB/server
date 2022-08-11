@@ -32,6 +32,8 @@
 
 static handlerton *sequence_hton;
 
+#define SEQUENCE_SCAN_COST 1.53e-05  // See optimizer_costs.txt
+
 class Sequence_share : public Handler_share {
 public:
   const char *name;
@@ -100,9 +102,17 @@ public:
   int index_last(uchar *buf);
   ha_rows records_in_range(uint inx, const key_range *start_key,
                            const key_range *end_key, page_range *pages);
-  double scan_time() { return (double)nvalues(); }
-  double read_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
-  double keyread_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
+  IO_AND_CPU_COST scan_time()
+  {
+    return {0, (double) nvalues() * SEQUENCE_SCAN_COST };
+  }
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                               ulonglong blocks)
+  {
+    return {0, rows * SEQUENCE_SCAN_COST };   // Very low value/row
+  }
+  /* 0 for avg_io_cost ensures that there are no read-block calculations */
+  double avg_io_cost() { return 0.0; }
 
 private:
   void set(uchar *buf);

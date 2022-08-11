@@ -125,7 +125,7 @@ void Range_rowid_filter_cost_info::init(Rowid_filter_container_type cont_type,
   key_no= idx;
   est_elements= (ulonglong) table->opt_range[key_no].rows;
   cost_of_building_range_filter= build_cost(container_type);
-  where_cmp_cost= tab->in_use->variables.optimizer_where_cmp_cost;
+  where_cmp_cost= tab->in_use->variables.optimizer_where_cost;
   index_next_find_cost= tab->in_use->variables.optimizer_index_next_find_cost;
   selectivity= est_elements/((double) table->stat_records());
   gain= avg_access_and_eval_gain_per_row(container_type,
@@ -534,7 +534,7 @@ TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
     new_cost= (cost_of_accepted_rows + cost_of_rejected_rows +
                records * filter->lookup_cost());
     new_total_cost= ((new_cost + new_records *
-                      in_use->variables.optimizer_where_cmp_cost) *
+                      in_use->variables.optimizer_where_cost) *
                      prev_records + filter->get_setup_cost());
 
     if (best_filter_gain > new_total_cost)

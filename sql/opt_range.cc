@@ -5059,7 +5059,7 @@ static void dbug_print_singlepoint_range(SEL_ARG **start, uint num)
     get_sweep_read_cost()
       param                 Parameter from test_quick_select
       records               # of records to be retrieved
-      add_time_for_compare  If set, add cost of WHERE clause (WHERE_COMPARE_COST)
+      add_time_for_compare  If set, add cost of WHERE clause (WHERE_COST)
   RETURN
     cost of sweep
 */
@@ -5071,7 +5071,7 @@ static double get_sweep_read_cost(const PARAM *param, ha_rows records,
 #ifndef OLD_SWEEP_COST
   double cost= (param->table->file->ha_rndpos_time(records) +
                 (add_time_for_compare ?
-                 records * param->thd->variables.optimizer_where_cmp_cost : 0));
+                 records * param->thd->variables.optimizer_where_cost : 0));
   DBUG_PRINT("return", ("cost: %g", cost));
   DBUG_RETURN(cost);
 #else
@@ -5123,7 +5123,7 @@ static double get_sweep_read_cost(const PARAM *param, ha_rows records,
       */
       result= busy_blocks;
     }
-    result+= rows2double(n_rows) * ROW_COPY_COST_THD(param->table->thd);
+    result+= rows2double(n_rows) * param->table->file->ROW_COPY_COST);
   }
   DBUG_PRINT("return",("cost: %g", result));
   DBUG_RETURN(result);
@@ -5345,7 +5345,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
 
   /* Calculate cost(rowid_to_row_scan) */
   {
-    /* imerge_cost already includes WHERE_COMPARE_COST */
+    /* imerge_cost already includes WHERE_COST */
     double sweep_cost= get_sweep_read_cost(param, non_cpk_scan_records, 0);
     imerge_cost+= sweep_cost;
     trace_best_disjunct.
@@ -5379,7 +5379,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   }
 
   {
-    const double dup_removal_cost= Unique::get_use_cost(
+    const double dup_removal_cost= Unique::get_use_cost(thd,
                            param->imerge_cost_buff, (uint)non_cpk_scan_records,
                            param->table->file->ref_length,
                            (size_t)param->thd->variables.sortbuff_size,
@@ -5454,9 +5454,7 @@ skip_to_ror_scan:
     if ((*cur_child)->is_ror)
     {
       /* Ok, we have index_only cost, now get full rows scan cost */
-      cost= param->table->file->
-        ha_read_and_compare_time(param->real_keynr[(*cur_child)->key_idx], 1,
-                                 (*cur_child)->records);
+      cost= param->table->file->ha_rndpos_and_compare_time((*cur_child)->records);
     }
     else
       cost= read_time;
@@ -6314,7 +6312,8 @@ double get_cpk_filter_cost(ha_rows filtered_records,
 */
 
 static
-bool check_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
+bool check_index_intersect_extension(THD *thd,
+                                     PARTIAL_INDEX_INTERSECT_INFO *curr,
                                      INDEX_SCAN_INFO *ext_index_scan,
                                      PARTIAL_INDEX_INTERSECT_INFO *next)
 {
@@ -6361,7 +6360,7 @@ bool check_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
     size_t max_memory_size= common_info->max_memory_size; 
     
     records_sent_to_unique+= ext_index_scan_records;
-    cost= Unique::get_use_cost(buff_elems, (size_t) records_sent_to_unique,
+    cost= Unique::get_use_cost(thd, buff_elems, (size_t) records_sent_to_unique,
                                key_size,
                                max_memory_size, compare_factor, TRUE,
                                &next->in_memory);
@@ -6372,7 +6371,7 @@ bool check_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
       double cost2;
       bool in_memory2;
       ha_rows records2= records_sent_to_unique-records_filtered_out_by_cpk;
-      cost2=  Unique::get_use_cost(buff_elems, (size_t) records2, key_size,
+      cost2=  Unique::get_use_cost(thd, buff_elems, (size_t) records2, key_size,
                                    max_memory_size, compare_factor, TRUE,
                                    &in_memory2);
       cost2+= get_cpk_filter_cost(ext_index_scan_records, common_info->cpk_scan,
@@ -6432,7 +6431,8 @@ bool check_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
 */
 
 static 
-void find_index_intersect_best_extension(PARTIAL_INDEX_INTERSECT_INFO *curr)
+void find_index_intersect_best_extension(THD *thd,
+                                         PARTIAL_INDEX_INTERSECT_INFO *curr)
 {
   PARTIAL_INDEX_INTERSECT_INFO next;
   COMMON_INDEX_INTERSECT_INFO *common_info= curr->common_info;
@@ -6465,8 +6465,9 @@ void find_index_intersect_best_extension(PARTIAL_INDEX_INTERSECT_INFO *curr)
   {
     *rem_first_index_scan_ptr= *index_scan_ptr;
     *index_scan_ptr= rem_first_index_scan;
-    if (check_index_intersect_extension(curr, *rem_first_index_scan_ptr, &next))
-      find_index_intersect_best_extension(&next);
+    if (check_index_intersect_extension(thd, curr, *rem_first_index_scan_ptr,
+                                        &next))
+      find_index_intersect_best_extension(thd, &next);
     *index_scan_ptr= *rem_first_index_scan_ptr;
     *rem_first_index_scan_ptr= rem_first_index_scan;
   }
@@ -6518,7 +6519,7 @@ TRP_INDEX_INTERSECT *get_best_index_intersect(PARAM *param, SEL_TREE *tree,
                                           read_time))
     DBUG_RETURN(NULL);
 
-  find_index_intersect_best_extension(&init);
+  find_index_intersect_best_extension(thd, &init);
 
   if (common.best_length <= 1 && !common.best_uses_cpk)
     DBUG_RETURN(NULL);
@@ -7358,7 +7359,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     Adjust row count and add the cost of comparing the final rows to the
     WHERE clause
   */
-  cmp_cost= intersect_best->out_rows * thd->variables.optimizer_where_cmp_cost;
+  cmp_cost= intersect_best->out_rows * thd->variables.optimizer_where_cost;
 
   /* Ok, return ROR-intersect plan if we have found one */
   TRP_ROR_INTERSECT *trp= NULL;
@@ -15058,7 +15059,7 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
 
   const double cpu_cost= (num_groups *
                           (tree_traversal_cost +
-                           thd->variables.optimizer_where_cmp_cost));
+                           thd->variables.optimizer_where_cost));
 
   *read_cost= io_cost + cpu_cost;
   *records= num_groups;

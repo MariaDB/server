@@ -230,6 +230,49 @@ void ha_heap::update_key_stats()
 }
 
 
+void ha_heap::optimizer_costs_updated()
+{
+  /*
+    Heap doesn't need optimizer_cache_cost as everything is in memory and
+    it supports all needed _time() functions
+  */
+  optimizer_cache_cost= 1.0;
+  optimizer_scan_lookup_cost= 1;
+  optimizer_index_next_find_cost= 0;
+}
+
+#define HEAP_SCAN_TIME  9.376e-06              // See optimizer_costs.txt
+#define BTREE_SCAN_TIME 5.171e-05              // See optimizer_costs.txt
+#define HEAP_LOOKUP_TIME 1.91e-4               // See optimizer_costs.txt
+
+
+IO_AND_CPU_COST ha_heap::keyread_time(uint index, ulong ranges, ha_rows rows,
+                                      ulonglong blocks)
+{
+  KEY *key=table->key_info+index;
+  if (key->algorithm == HA_KEY_ALG_BTREE)
+    return {0, (double) (rows + ranges + 1) * BTREE_SCAN_TIME };
+  else
+  {
+    return {0, (double) ranges * HEAP_LOOKUP_TIME + (rows-1) * BTREE_SCAN_TIME };
+  }
+}
+
+IO_AND_CPU_COST ha_heap::scan_time()
+{
+  return {0, (double) (stats.records+stats.deleted) * HEAP_SCAN_TIME};
+}
+
+IO_AND_CPU_COST ha_heap::rndpos_time(ha_rows rows)
+{
+  /*
+    The row pointer is a direct pointer to the block. Thus almost instant
+    in practice.
+    Note that ha_rndpos_time() will add ROW_COPY_COST to this result
+  */
+  return { 0, 0 };
+}
+
 int ha_heap::write_row(const uchar * buf)
 {
   int res;

@@ -846,12 +846,14 @@ ha_federatedx::ha_federatedx(handlerton *hton,
 }
 
 /*
-  Federated doesn't need optimizer_cache_cost as everything is one a remote server and
-  nothing is cached locally
+  Federated doesn't need optimizer_cache_cost as everything is one a remote
+  server and nothing is cached locally
 */
 
 void ha_federatedx::set_optimizer_cache_cost(double cost)
-{}
+{
+  optimizer_cache_cost= 1.0;
+}
 
 /*
   Convert MySQL result set row to handler internal format

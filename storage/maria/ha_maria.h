@@ -77,7 +77,7 @@ public:
   { return max_supported_key_length(); }
   enum row_type get_row_type() const override final;
   void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share) override final;
-  virtual double scan_time() override final;
+  virtual IO_AND_CPU_COST scan_time() override final;
 
   int open(const char *name, int mode, uint test_if_locked) override;
   int close(void) override final;
@@ -114,6 +114,7 @@ public:
   int remember_rnd_pos() override final;
   int restart_rnd_next(uchar * buf) override final;
   void position(const uchar * record) override final;
+  void optimizer_costs_updated();
   int info(uint) override final;
   int info(uint, my_bool);
   int extra(enum ha_extra_function operation) override final;

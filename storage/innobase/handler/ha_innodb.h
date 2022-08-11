@@ -105,11 +105,25 @@ public:
 
 	int close(void) override;
 
-	double scan_time() override;
+	IO_AND_CPU_COST scan_time() override;
 
+#ifdef NOT_USED
 	double read_time(uint index, uint ranges, ha_rows rows) override;
-
         double rndpos_time(ha_rows rows) override;
+#endif
+
+        void optimizer_costs_updated()
+        {
+#ifdef QQQ
+          /*
+            The following number was found by check_costs.pl when using 1M rows
+            and all rows are cached
+          */
+          optimizer_row_lookup_cost*= 2.2;
+#endif
+          /* Accessing a row has the same cost as doing an index read */
+          optimizer_row_lookup_cost= optimizer_index_lookup_cost;
+        }
 
 	int write_row(const uchar * buf) override;
 

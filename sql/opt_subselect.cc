@@ -1455,8 +1455,8 @@ void get_delayed_table_estimates(TABLE *table,
                               hash_sj_engine->tmp_table->s->reclength);
 
   /* Do like in handler::ha_scan_and_compare_time, but ignore the where cost */
-  *scan_time= ((data_size/table->file->stats.block_size+2) *
-               table->file->avg_io_cost()) + *out_rows * file->ROW_COPY_COST;
+  *scan_time= ((data_size/IO_SIZE *  table->file->avg_io_cost()) +
+               *out_rows * file->ROW_COPY_COST);
 }
 
 
@@ -2573,19 +2573,17 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
           consider doing sjm-scan). See ha_scan_time() for the basics of
           the calculations.
           We don't need to check the where clause for each row, so no
-          WHERE_COMPARE_COST is needed.
+          WHERE_COST is needed.
         */
-        scan_cost= (TABLE_SCAN_SETUP_COST +
-                    (cost.block_size == 0 ? 0 :
-                     ((rowlen * (double) sjm->rows) / cost.block_size +
-                      TABLE_SCAN_SETUP_COST)));
+        scan_cost= (rowlen * (double) sjm->rows) / cost.block_size;
         total_cost= (scan_cost * cost.cache_hit_ratio * cost.avg_io_cost +
+                     TABLE_SCAN_SETUP_COST +
                      row_copy_cost * sjm->rows);
         sjm->scan_cost.convert_from_cost(total_cost);
 
         /* When reading a row, we have also to check the where clause */
         sjm->lookup_cost.convert_from_cost(cost.lookup +
-                                           WHERE_COMPARE_COST_THD(thd));
+                                           WHERE_COST_THD(thd));
         sj_nest->sj_mat_info= sjm;
         DBUG_EXECUTE("opt", print_sjm(sjm););
       }
@@ -2690,8 +2688,12 @@ get_tmp_table_costs(THD *thd, double row_count, uint row_size, bool blobs_used,
       blobs_used)
   {
     /* Disk based table */
-    cost.lookup=          ((DISK_TEMPTABLE_LOOKUP_COST *
+    cost.lookup=          ((DISK_TEMPTABLE_LOOKUP_COST(thd) *
                             thd->optimizer_cache_hit_ratio)) + row_copy_cost;
+    /*
+      On write we have to first copy the row to the record buffer and then
+      to the storage engine, so 2 copies.
+    */
     cost.write=           cost.lookup + row_copy_cost;
     cost.create=          DISK_TEMPTABLE_CREATE_COST;
     cost.block_size=      DISK_TEMPTABLE_BLOCK_SIZE;
@@ -2704,8 +2706,8 @@ get_tmp_table_costs(THD *thd, double row_count, uint row_size, bool blobs_used,
     cost.lookup=          HEAP_TEMPTABLE_LOOKUP_COST + row_copy_cost;
     cost.write=           cost.lookup + row_copy_cost;
     cost.create=          HEAP_TEMPTABLE_CREATE_COST;
-    cost.block_size=      0;
-    cost.avg_io_cost=     HEAP_TEMPTABLE_LOOKUP_COST;
+    cost.block_size=      1;
+    cost.avg_io_cost=     0;
     cost.cache_hit_ratio= 1.0;
   }
   return cost;
@@ -6731,7 +6733,7 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
     double materialization_cost=
       COST_ADD(cost.create,
                COST_ADD(inner_read_time_1,
-                        COST_MULT((cost.write + WHERE_COMPARE_COST_THD(thd)),
+                        COST_MULT((cost.write + WHERE_COST_THD(thd)),
                                   inner_record_count_1)));
 
     materialize_strategy_cost=

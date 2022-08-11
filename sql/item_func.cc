@@ -5911,6 +5911,7 @@ bool Item_func_get_system_var::fix_length_and_dec()
       decimals=0;
       break;
     case SHOW_DOUBLE:
+    case SHOW_OPTIMIZER_COST:
       decimals= 6;
       collation= DTCollation_numeric();
       fix_char_length(DBL_DIG + 6);
@@ -5968,6 +5969,7 @@ const Type_handler *Item_func_get_system_var::type_handler() const
     case SHOW_CHAR_PTR: 
     case SHOW_LEX_STRING:
       return &type_handler_varchar;
+    case SHOW_OPTIMIZER_COST:
     case SHOW_DOUBLE:
       return &type_handler_double;
     default:

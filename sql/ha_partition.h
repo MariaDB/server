@@ -1031,16 +1031,14 @@ public:
   /*
     Called in test_quick_select to determine if indexes should be used.
   */
-  double scan_time() override;
+  IO_AND_CPU_COST scan_time() override;
 
-  double key_scan_time(uint inx) override;
+  IO_AND_CPU_COST key_scan_time(uint inx) override;
 
-  double keyread_time(uint inx, uint ranges, ha_rows rows) override;
+  IO_AND_CPU_COST keyread_time(uint inx, ulong ranges, ha_rows rows,
+                               ulonglong blocks) override;
+  IO_AND_CPU_COST rndpos_time(ha_rows rows) override;
 
-  /*
-    The next method will never be called if you do not implement indexes.
-  */
-  double read_time(uint index, uint ranges, ha_rows rows) override;
   /*
     For the given range how many records are estimated to be in this range.
     Used by optimiser to calculate cost of using a particular index.

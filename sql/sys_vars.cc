@@ -6817,6 +6817,25 @@ static Sys_var_ulong Sys_optimizer_max_sel_arg_weight(
        SESSION_VAR(optimizer_max_sel_arg_weight), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, ULONG_MAX), DEFAULT(SEL_ARG::MAX_WEIGHT), BLOCK_SIZE(1));
 
+
+static ulonglong optimizer_cost_version;
+
+/*
+  Ensure that if we have an unique id if we are changing costs
+  This will ensure that handler::set_optimizer_costs() is called
+  for each new table.
+*/
+
+static bool update_optimizer_cost_version(sys_var *self, THD *thd,
+                                          enum_var_type type)
+{
+  if (type == OPT_GLOBAL)
+    global_system_variables.optimizer_cost_version= ++optimizer_cost_version;
+  else
+    thd->variables.optimizer_cost_version= ++optimizer_cost_version;
+  return 0;
+}
+
 /*
   We don't allow 100 for optimizer_cache_cost as there is always a small
   cost of finding the key, on cached pages, that we have to take into account.
@@ -6828,57 +6847,94 @@ static bool update_optimizer_cache_hit_ratio(sys_var *self, THD *thd,
   if (type == OPT_SESSION)
     thd->optimizer_cache_hit_ratio=
       cache_hit_ratio(thd->variables.optimizer_cache_hit_ratio);
+  update_optimizer_cost_version(self, thd, type);
   return 0;
 }
 
-static Sys_var_uint Sys_optimizer_cache_hit_ratio(
+
+static Sys_var_double Sys_optimizer_cache_hit_ratio(
   "optimizer_cache_hit_ratio",
   "Expected hit rate of the row and index cache in storage engines. "
-  "The value should be an integer between 0 and 99, where 0 means cache is "
-  "empty and 99 means that value is almost always in the cache",
+  "The value should be an integer between 0 and 100, where 0 means cache is "
+  "empty and 100 means that value is almost always in the cache",
   SESSION_VAR(optimizer_cache_hit_ratio), CMD_LINE(REQUIRED_ARG),
-  VALID_RANGE(0, 99), DEFAULT(DEFAULT_CACHE_HIT_RATIO), 1, NO_MUTEX_GUARD,
+  VALID_RANGE(0, 100), DEFAULT(DEFAULT_CACHE_HIT_RATIO), NO_MUTEX_GUARD,
   NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_optimizer_cache_hit_ratio));
 
-static Sys_var_double Sys_optimizer_key_copy_cost(
+static Sys_var_double Sys_optimizer_scan_lookup_cost(
+  "optimizer_scan_lookup_cost",
+  "Cost modifier for reading a block when scanning a table",
+  SESSION_VAR(optimizer_scan_lookup_cost), CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(0, 10), DEFAULT(DEFAULT_SCAN_LOOKUP_COST), NO_MUTEX_GUARD,
+  NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_optimizer_cost_version));
+
+static Sys_var_optimizer_cost Sys_optimizer_row_lookup_cost(
+  "optimizer_row_lookup_cost",
+  "Cost of fiding a row based on a rowid or a clustered key",
+  SESSION_VAR(optimizer_row_lookup_cost), CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(0, 10), DEFAULT(DEFAULT_ROW_LOOKUP_COST), NO_MUTEX_GUARD,
+  NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_optimizer_cost_version));
+
+static Sys_var_optimizer_cost Sys_optimizer_index_lookup_cost(
+  "optimizer_index_lookup_cost",
+  "Cost modifier for finding a row based on not clustered key",
+  SESSION_VAR(optimizer_index_lookup_cost), CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(0, 10), DEFAULT(DEFAULT_INDEX_LOOKUP_COST), NO_MUTEX_GUARD,
+  NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_optimizer_cost_version));
+
+static Sys_var_optimizer_cost Sys_optimizer_disk_read_cost(
+  "optimizer_disk_read_cost",
+  "Cost of reading a block of IO_SIZE from an disk (ms 4096 bytes)",
+  SESSION_VAR(optimizer_disk_read_cost), CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(0, 10), DEFAULT(DEFAULT_DISK_READ_COST), NO_MUTEX_GUARD,
+  NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_optimizer_cost_version));
+
+static Sys_var_optimizer_cost Sys_optimizer_key_copy_cost(
   "optimizer_key_copy_cost",
   "Cost of finding the next key in the engine and copying it to the SQL layer",
   SESSION_VAR(optimizer_key_copy_cost), CMD_LINE(REQUIRED_ARG),
   VALID_RANGE(0, 1), DEFAULT(DEFAULT_KEY_COPY_COST), NO_MUTEX_GUARD,
-  NOT_IN_BINLOG);
+  NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_optimizer_cost_version));
 
-static Sys_var_double Sys_optimizer_index_block_copy_cost(
+static Sys_var_optimizer_cost Sys_optimizer_index_block_copy_cost(
   "optimizer_index_block_copy_cost",
   "Cost of copying a key block from the cache to intern storage as part of an "
   "index scan",
   SESSION_VAR(optimizer_index_block_copy_cost), CMD_LINE(REQUIRED_ARG),
   VALID_RANGE(0, 1), DEFAULT(DEFAULT_INDEX_BLOCK_COPY_COST), NO_MUTEX_GUARD,
-  NOT_IN_BINLOG);
+  NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_optimizer_cost_version));
 
-static Sys_var_double Sys_optimizer_index_next_find_cost(
+static Sys_var_optimizer_cost Sys_optimizer_row_next_find_cost(
+  "optimizer_row_next_find_cost",
+  "Cost of finding the next row when scanning the table",
+  SESSION_VAR(optimizer_index_next_find_cost), CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(0, 1), DEFAULT(DEFAULT_ROW_NEXT_FIND_COST), NO_MUTEX_GUARD,
+  NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_optimizer_cost_version));
+
+static Sys_var_optimizer_cost Sys_optimizer_index_next_find_cost(
   "optimizer_index_next_find_cost",
   "Cost of finding the next key and rowid when using filters",
   SESSION_VAR(optimizer_index_next_find_cost), CMD_LINE(REQUIRED_ARG),
   VALID_RANGE(0, 1), DEFAULT(DEFAULT_INDEX_NEXT_FIND_COST), NO_MUTEX_GUARD,
-  NOT_IN_BINLOG);
+  NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_optimizer_cost_version));
 
-static Sys_var_double Sys_optimizer_row_copy_cost(
+static Sys_var_optimizer_cost Sys_optimizer_row_copy_cost(
   "optimizer_row_copy_cost",
   "Cost of copying a row from the engine or the join cache to the SQL layer.",
   SESSION_VAR(optimizer_row_copy_cost), CMD_LINE(REQUIRED_ARG),
   VALID_RANGE(0, 1), DEFAULT(DEFAULT_ROW_COPY_COST), NO_MUTEX_GUARD,
-  NOT_IN_BINLOG);
+  NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_optimizer_cost_version));
 
-static Sys_var_double Sys_optimizer_where_cmp_cost(
-  "optimizer_where_compare_cost",
+static Sys_var_optimizer_cost Sys_optimizer_where_cost(
+  "optimizer_where_cost",
   "Cost of checking the row against the WHERE clause",
-  SESSION_VAR(optimizer_where_cmp_cost), CMD_LINE(REQUIRED_ARG),
-  VALID_RANGE(0, 1), DEFAULT(DEFAULT_WHERE_COMPARE_COST), NO_MUTEX_GUARD,
-  NOT_IN_BINLOG);
+  SESSION_VAR(optimizer_where_cost), CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(0, 1), DEFAULT(DEFAULT_WHERE_COST), NO_MUTEX_GUARD,
+  NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_optimizer_cost_version));
 
-static Sys_var_double Sys_optimizer_key_cmp_cost(
+static Sys_var_optimizer_cost Sys_optimizer_key_cmp_cost(
   "optimizer_key_compare_cost",
   "Cost of checking a key aginst the end key condition",
   SESSION_VAR(optimizer_key_cmp_cost), CMD_LINE(REQUIRED_ARG),
   VALID_RANGE(0, 1), DEFAULT(DEFAULT_KEY_COMPARE_COST), NO_MUTEX_GUARD,
-  NOT_IN_BINLOG);
+  NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_optimizer_cost_version));

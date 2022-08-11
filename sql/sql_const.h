@@ -121,8 +121,9 @@
 
 /*
    This is used when reading large blocks, sequential read.
-   We assume that reading this much will be the same cost as 1 seek / fetching
-   one row from the storage engine.
+   We assume that reading this much will be roughly the same cost as 1
+   seek / fetching one row from the storage engine.
+   Cost of one read of DISK_CHUNK_SIZE is DISK_SEEK_BASE_COST (ms).
 */
 #define DISK_CHUNK_SIZE	(uint) (65536) /* Size of diskbuffer for tmpfiles */
 #define TMPFILE_CREATE_COST        2.0  /* Creating and deleting tmp file */
@@ -219,24 +220,34 @@
 
   Note that avg_io_cost() is multipled with this constant!
 */
-#define DEFAULT_CACHE_HIT_RATIO 50
+#define DEFAULT_CACHE_HIT_RATIO 80
 
 /* Convert ratio to cost */
 
-static inline double cache_hit_ratio(uint ratio)
+static inline double cache_hit_ratio(double ratio)
 {
-  return (((double) (100 - ratio)) / 100.0);
+  return ((100.0 - ratio) / 100.0);
 }
 
 /*
-  Base cost for finding keys and rows from the engine is 1.0
-  All other costs should be proportional to these
+  All costs should be based on milliseconds (1 cost = 1 ms)
 */
 
 /* Cost for finding the first key in a key scan */
-#define INDEX_LOOKUP_COST      ((double) 1.0)
+#define DEFAULT_INDEX_LOOKUP_COST    ((double) 0.0005)
+/* Modifier for reading a block when doing a table scan */
+#define DEFAULT_SCAN_LOOKUP_COST     ((double) 1.0)
+
 /* Cost of finding a key from a row_ID (not used for clustered keys) */
-#define ROW_LOOKUP_COST      ((double) 1.0)
+#define DEFAULT_ROW_LOOKUP_COST      ((double) 0.0005)
+#define ROW_LOOKUP_COST_THD(thd)     ((thd)->variables.optimizer_row_lookup_cost)
+
+#define INDEX_LOOKUP_COST optimizer_index_lookup_cost
+#define ROW_LOOKUP_COST   optimizer_row_lookup_cost
+#define SCAN_LOOKUP_COST  optimizer_scan_lookup_cost
+
+/* Default fill factor of an (b-tree) index block */
+#define INDEX_BLOCK_FILL_FACTOR 0.75
 
 /*
    These constants impact the cost of QSORT and priority queue sorting,
@@ -252,13 +263,23 @@ static inline double cache_hit_ratio(uint ratio)
 */
 #define QSORT_SORT_SLOWNESS_CORRECTION_FACTOR    (0.1)
 #define PQ_SORT_SLOWNESS_CORRECTION_FACTOR       (0.1)
+
+/*
+  Creating a record from the join cache is faster than getting a row from
+  the engine. JOIN_CACHE_ROW_COPY_COST_FACTOR is the factor used to
+  take this into account. This is multiplied with ROW_COPY_COST.
+*/
+#define JOIN_CACHE_ROW_COPY_COST_FACTOR(thd) (0.75 * ROW_LOOKUP_COST_THD(thd))
+
 /*
   Cost of finding and copying keys from the storage engine index cache to
-  an internal cache as part of an index scan.
-  Used in handler::keyread_time()
+  an internal cache as part of an index scan. This includes all mutexes
+  that needs to be taken to get exclusive access to a page.
+  The number is taken from accessing an existing blocks from Aria page cache.
+  Used in handler::scan_time() and handler::keyread_time()
 */
-#define DEFAULT_INDEX_BLOCK_COPY_COST  ((double) 1 / 5.0)
-#define INDEX_BLOCK_COPY_COST(THD) ((THD)->variables.optimizer_index_block_copy_cost)
+#define DEFAULT_INDEX_BLOCK_COPY_COST  ((double) 3.56e-05)
+#define INDEX_BLOCK_COPY_COST           optimizer_index_block_copy_cost
 
 /*
   Cost of finding the next row during table scan and copying it to
@@ -269,16 +290,9 @@ static inline double cache_hit_ratio(uint ratio)
   too big then MariaDB will used key lookup even when table scan is
   better.
 */
-#define DEFAULT_ROW_COPY_COST     ((double) 1.0 / 20.0)
+#define DEFAULT_ROW_COPY_COST     ((double)  2.334e-06)
 #define ROW_COPY_COST             optimizer_row_copy_cost
 #define ROW_COPY_COST_THD(THD)    ((THD)->variables.optimizer_row_copy_cost)
-
-/*
-  Creating a record from the join cache is faster than getting a row from
-  the engine. JOIN_CACHE_ROW_COPY_COST_FACTOR is the factor used to
-  take this into account. This is multiplied with ROW_COPY_COST.
-*/
-#define JOIN_CACHE_ROW_COPY_COST_FACTOR 0.75
 
 /*
   Cost of finding the next key during index scan and copying it to
@@ -288,7 +302,7 @@ static inline double cache_hit_ratio(uint ratio)
   as with table scans there are no key read (INDEX_LOOKUP_COST) and
   fewer disk reads.
 */
-#define DEFAULT_KEY_COPY_COST     ((double) 1.0 / 40.0)
+#define DEFAULT_KEY_COPY_COST     DEFAULT_ROW_COPY_COST/5
 #define KEY_COPY_COST             optimizer_key_copy_cost
 #define KEY_COPY_COST_THD(THD)    ((THD)->variables.optimizer_key_copy_cost)
 
@@ -297,34 +311,38 @@ static inline double cache_hit_ratio(uint ratio)
   This cost is very low as it's done inside the storage engine.
   Should be smaller than KEY_COPY_COST.
  */
-#define DEFAULT_INDEX_NEXT_FIND_COST ((double) 1.0 / 80.0)
-#define INDEX_NEXT_FIND_COST         optimizer_next_find_cost
+#define DEFAULT_INDEX_NEXT_FIND_COST DEFAULT_KEY_COPY_COST/10
+#define INDEX_NEXT_FIND_COST         optimizer_index_next_find_cost
 
+/* Cost of finding the next row when scanning a table */
+#define DEFAULT_ROW_NEXT_FIND_COST   DEFAULT_INDEX_NEXT_FIND_COST
+#define ROW_NEXT_FIND_COST           optimizer_row_next_find_cost
 
 /**
   The following is used to decide if MariaDB should use table scanning
   instead of reading with keys.  The number says how many evaluation of the
   WHERE clause is comparable to reading one extra row from a table.
 */
-#define DEFAULT_WHERE_COMPARE_COST      (1 / 5.0)
-#define WHERE_COMPARE_COST              optimizer_where_cmp_cost
-#define WHERE_COMPARE_COST_THD(THD)     ((THD)->variables.optimizer_where_cmp_cost)
+#define DEFAULT_WHERE_COST             ((double) 3.2e-05)
+#define WHERE_COST                      optimizer_where_cost
+#define WHERE_COST_THD(THD)            ((THD)->variables.optimizer_where_cost)
 
-#define DEFAULT_KEY_COMPARE_COST        (1 / 20.0)
+/* The cost of comparing a key when using range access */
+#define DEFAULT_KEY_COMPARE_COST        DEFAULT_WHERE_COST/4
 #define KEY_COMPARE_COST                optimizer_key_cmp_cost
 
 /*
-  Cost of comparing two rowids. This is set relative to WHERE_COMPARE_COST
+  Cost of comparing two rowids. This is set relative to KEY_COMPARE_COST
 */
-#define ROWID_COMPARE_COST          (WHERE_COMPARE_COST / 100.0)
-#define ROWID_COMPARE_COST_THD(THD) ((THD)->variables.optimizer_where_cmp_cost / 100.0)
+#define ROWID_COMPARE_COST          (KEY_COMPARE_COST/2)
+#define ROWID_COMPARE_COST_THD(THD) ((THD)->variables.optimizer_key_cmp_cost)
 
 /*
   Setup cost for different operations
 */
 
 /* Extra cost for doing a range scan. Used to prefer 'ref' over range */
-#define MULTI_RANGE_READ_SETUP_COST (double) (1.0 / 50.0)
+#define MULTI_RANGE_READ_SETUP_COST ((double) 0.2)
 
 /*
   These costs are mainly to handle small tables, like the one we have in the
@@ -348,21 +366,27 @@ static inline double cache_hit_ratio(uint ratio)
   test suite would vary depending on floating point calculations done
   in different paths.
  */
-#define COST_EPS  0.0001
+#define COST_EPS  0.0000001
 
 /*
-  For sequential disk seeks the cost formula is:
+  Average disk seek time on a hard disk is 8-10 ms, which is also
+  about the time to read a IO_SIZE (8192) block.
+
+  A medium ssd is about 400MB/second, which gives us the time for
+  reading an IO_SIZE block to IO_SIZE/400000000 = 0.0000204 sec= 0.02 ms.
+
+  For sequential hard disk seeks the cost formula is:
     DISK_SEEK_BASE_COST + DISK_SEEK_PROP_COST * #blocks_to_skip  
   
   The cost of average seek 
-    DISK_SEEK_BASE_COST + DISK_SEEK_PROP_COST*BLOCKS_IN_AVG_SEEK =1.0.
+    DISK_SEEK_BASE_COST + DISK_SEEK_PROP_COST*BLOCKS_IN_AVG_SEEK = 10.
 */
-#define DISK_SEEK_BASE_COST ((double)0.9)
 
-#define BLOCKS_IN_AVG_SEEK  128
-
-#define DISK_SEEK_PROP_COST ((double)0.1/BLOCKS_IN_AVG_SEEK)
-
+#define DEFAULT_DISK_READ_COST ((double) IO_SIZE / 400000000.0 * 1000)
+#define DISK_READ_COST          optimizer_disk_read_cost
+#define DISK_READ_COST_THD(thd) (thd)->variables.DISK_READ_COST
+#define BLOCKS_IN_AVG_SEEK  1
+/* #define DISK_SEEK_PROP_COST ((double)1/BLOCKS_IN_AVG_SEEK) */
 
 /**
   Number of rows in a reference table when refereed through a not unique key.
@@ -375,11 +399,11 @@ static inline double cache_hit_ratio(uint ratio)
   Subquery materialization-related constants
 */
 /* This should match ha_heap::read_time() */
-#define HEAP_TEMPTABLE_LOOKUP_COST 0.05
+#define HEAP_TEMPTABLE_LOOKUP_COST 1.91e-4   /* see ha_heap.h */
 #define HEAP_TEMPTABLE_CREATE_COST 1.0
-#define DISK_TEMPTABLE_LOOKUP_COST 1.0
+#define DISK_TEMPTABLE_LOOKUP_COST(thd) DISK_READ_COST_THD(thd)
 #define DISK_TEMPTABLE_CREATE_COST TMPFILE_CREATE_COST*2 /* 2 tmp tables */
-#define DISK_TEMPTABLE_BLOCK_SIZE  8192
+#define DISK_TEMPTABLE_BLOCK_SIZE  IO_SIZE
 
 #define SORT_INDEX_CMP_COST 0.02
 

@@ -683,9 +683,13 @@ typedef struct system_variables
   ulonglong slave_skip_counter;
   ulonglong max_relay_log_size;
 
-  double optimizer_index_block_copy_cost, optimizer_index_next_find_cost;
+  double optimizer_cache_hit_ratio;  // Stored in handler::optimizer_cache_cost
+  double optimizer_index_block_copy_cost;
+  double optimizer_row_next_find_cost, optimizer_index_next_find_cost;
   double optimizer_row_copy_cost, optimizer_key_copy_cost;
-  double optimizer_where_cmp_cost, optimizer_key_cmp_cost;
+  double optimizer_where_cost, optimizer_key_cmp_cost;
+  double optimizer_row_lookup_cost, optimizer_index_lookup_cost;
+  double optimizer_scan_lookup_cost,optimizer_disk_read_cost;
   double long_query_time_double, max_statement_time_double;
   double sample_percentage;
 
@@ -783,7 +787,6 @@ typedef struct system_variables
 
   uint group_concat_max_len;
   uint eq_range_index_dive_limit;
-  uint optimizer_cache_hit_ratio;  // Stored in handler::optimizer_cache_cost
   uint idle_transaction_timeout;
   uint idle_readonly_transaction_timeout;
   uint idle_write_transaction_timeout;
@@ -857,6 +860,7 @@ typedef struct system_variables
   uint    wsrep_sync_wait;
 
   vers_asof_timestamp_t vers_asof_timestamp;
+  uint64 optimizer_cost_version;
 } SV;
 
 /**

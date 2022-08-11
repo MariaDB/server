@@ -106,12 +106,13 @@ double get_pq_sort_cost(size_t num_rows, size_t queue_size,
 
 static
 double get_merge_cost(ha_rows num_elements, ha_rows num_buffers,
-                      size_t elem_size, double compare_cost)
+                      size_t elem_size, double compare_cost,
+                      double disk_read_cost)
 {
   /* 2 -> 1 read + 1 write */
   const double io_cost= (2.0 * (num_elements * elem_size +
                                 DISK_CHUNK_SIZE - 1) /
-                         DISK_CHUNK_SIZE);
+                         DISK_CHUNK_SIZE) * disk_read_cost;
   /* 2 -> 1 insert, 1 pop for the priority queue used to merge the buffers. */
   const double cpu_cost= (2.0 * num_elements * log2(1.0 + num_buffers) *
                           compare_cost) * PQ_SORT_SLOWNESS_CORRECTION_FACTOR;
@@ -131,6 +132,7 @@ double get_merge_many_buffs_cost_fast(ha_rows num_rows,
                                       ha_rows num_keys_per_buffer,
                                       size_t elem_size,
                                       double key_compare_cost,
+                                      double disk_read_cost,
                                       bool with_addon_fields)
 {
   DBUG_ASSERT(num_keys_per_buffer != 0);
@@ -162,7 +164,7 @@ double get_merge_many_buffs_cost_fast(ha_rows num_rows,
     total_cost+=
       num_merge_calls *
       get_merge_cost(num_keys_per_buffer * MERGEBUFF, MERGEBUFF, elem_size,
-                     key_compare_cost);
+                     key_compare_cost, disk_read_cost);
 
     // # of records in remaining buffers.
     last_n_elems+= num_remaining_buffs * num_keys_per_buffer;
@@ -170,7 +172,7 @@ double get_merge_many_buffs_cost_fast(ha_rows num_rows,
     // Cost of merge sort of remaining buffers.
     total_cost+=
       get_merge_cost(last_n_elems, 1 + num_remaining_buffs, elem_size,
-                     key_compare_cost);
+                     key_compare_cost, disk_read_cost);
 
     num_buffers= num_merge_calls;
     num_keys_per_buffer*= MERGEBUFF;
@@ -179,7 +181,7 @@ double get_merge_many_buffs_cost_fast(ha_rows num_rows,
   // Simulate final merge_buff call.
   last_n_elems+= num_keys_per_buffer * num_buffers;
   total_cost+= get_merge_cost(last_n_elems, 1 + num_buffers, elem_size,
-                              key_compare_cost);
+                              key_compare_cost, disk_read_cost);
   return total_cost;
 }
 
@@ -264,6 +266,7 @@ void Sort_costs::compute_merge_sort_costs(Sort_param *param,
 {
   size_t row_length= param->sort_length + param->ref_length + sizeof(char *);
   size_t num_available_keys= memory_available / row_length;
+  THD *thd= param->sort_form->in_use;
 
   costs[MERGE_SORT_ALL_FIELDS]= DBL_MAX;
   costs[MERGE_SORT_ORDER_BY_FIELDS]= DBL_MAX;
@@ -272,6 +275,7 @@ void Sort_costs::compute_merge_sort_costs(Sort_param *param,
     costs[MERGE_SORT_ORDER_BY_FIELDS]=
       get_merge_many_buffs_cost_fast(num_rows, num_available_keys,
                                      row_length, DEFAULT_KEY_COMPARE_COST,
+                                     DISK_READ_COST_THD(thd),
                                      false) +
       param->sort_form->file->ha_rndpos_time(MY_MIN(param->limit_rows,
                                                     num_rows));
@@ -286,6 +290,7 @@ void Sort_costs::compute_merge_sort_costs(Sort_param *param,
       costs[MERGE_SORT_ALL_FIELDS]=
         get_merge_many_buffs_cost_fast(num_rows, num_available_keys,
                                        row_length, DEFAULT_KEY_COMPARE_COST,
+                                       DISK_READ_COST_THD(thd),
                                        true);
   }
 

@@ -14416,7 +14416,7 @@ comparable to the number returned by records_in_range so that we can
 decide if we should scan the table or use keys.
 @return estimated time measured in disk seeks */
 
-double
+IO_AND_CPU_COST
 ha_innobase::scan_time()
 /*====================*/
 {
@@ -14436,17 +14436,19 @@ ha_innobase::scan_time()
 		TODO: This will be further improved to return some approximate
 		estimate but that would also needs pre-population of stats
 		structure. As of now approach is in sync with MyISAM. */
-		return(ulonglong2double(stats.data_file_length) / IO_SIZE + 2);
+          return { (ulonglong2double(stats.data_file_length) / IO_SIZE * avg_io_cost()), 0.0 };
 	}
 
 	ulint	stat_clustered_index_size;
-
+        IO_AND_CPU_COST cost;
 	ut_a(m_prebuilt->table->stat_initialized);
 
 	stat_clustered_index_size =
 		m_prebuilt->table->stat_clustered_index_size;
 
-	return((double) stat_clustered_index_size);
+        cost.io= (double) stat_clustered_index_size * avg_io_cost();
+        cost.cpu= 0;
+	return(cost);
 }
 
 /******************************************************************//**
@@ -14454,6 +14456,7 @@ Calculate the time it takes to read a set of ranges through an index
 This enables us to optimise reads for clustered indexes.
 @return estimated time measured in disk seeks */
 
+#ifdef NOT_USED
 double
 ha_innobase::read_time(
 /*===================*/
@@ -14478,14 +14481,13 @@ ha_innobase::read_time(
 		return(time_for_scan);
 	}
 
-	return(ranges + (double) rows / (double) total_rows * time_for_scan);
+	return(ranges * INDEX_LOOKUP_COST + (double) rows / (double) total_rows * time_for_scan);
 }
 
 /******************************************************************//**
 Calculate the time it takes to read a set of rows with primary key.
 */
 
-double
 ha_innobase::rndpos_time(ha_rows rows)
 {
 	ha_rows total_rows;
@@ -14502,6 +14504,7 @@ ha_innobase::rndpos_time(ha_rows rows)
 
 	return((double) rows + (double) rows / (double) total_rows * time_for_scan);
 }
+#endif
 
 /*********************************************************************//**
 Calculates the key number used inside MySQL for an Innobase index.

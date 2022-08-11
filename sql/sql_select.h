@@ -309,6 +309,7 @@ typedef struct st_join_table {
   Table_access_tracker *tracker;
 
   Table_access_tracker *jbuf_tracker;
+  Time_and_counter_tracker *jbuf_unpack_tracker;
 
   //  READ_RECORD::Setup_func materialize_table;
   READ_RECORD::Setup_func read_first_record;
@@ -356,7 +357,6 @@ typedef struct st_join_table {
   double        partial_join_cardinality;
 
   /* set by estimate_scan_time() */
-  double        cached_scan_time;
   double        cached_scan_and_compare_time;
 
   /*

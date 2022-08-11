@@ -1100,13 +1100,36 @@ ulong ha_maria::index_flags(uint inx, uint part, bool all_parts) const
 }
 
 
-double ha_maria::scan_time()
+IO_AND_CPU_COST ha_maria::scan_time()
 {
-  if (file->s->data_file_type == BLOCK_RECORD)
-    return (ulonglong2double(stats.data_file_length - file->s->block_size) /
-            file->s->block_size) + 2;
   return handler::scan_time();
 }
+
+void ha_maria::optimizer_costs_updated()
+{
+  /*
+    The following numbers where found by check_costs.pl when using 1M rows
+    and all rows are cached. See optimzier_costs.txt
+  */
+  if (file->s->data_file_type == BLOCK_RECORD)
+  {
+    /*
+      Aria row lookup is fast for BLOCK_RECORDS as the row data is cached
+      and we know exactly on which block a row is.
+    */
+    optimizer_row_copy_cost= 0.000118;
+    optimizer_row_lookup_cost= 0.52;
+  }
+  else
+  {
+    /*
+      MyISAM format row lookup costs are slow as the row data is on a not cached
+      file.
+    */
+    optimizer_row_lookup_cost*= 3;
+  }
+}
+
 
 /*
   We need to be able to store at least 2 keys on an index page as the

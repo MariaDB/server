@@ -159,7 +159,7 @@ inline double log2_n_fact(double x)
       total_buf_elems* log2(n_buffers) * ROWID_COMPARE_COST;
 */
 
-static double get_merge_buffers_cost(uint *buff_elems, uint elem_size,
+static double get_merge_buffers_cost(THD *thd, uint *buff_elems, uint elem_size,
                                      uint *first, uint *last,
                                      double compare_factor)
 {
@@ -171,7 +171,8 @@ static double get_merge_buffers_cost(uint *buff_elems, uint elem_size,
   size_t n_buffers= last - first + 1;
 
   /* Using log2(n)=log(n)/log(2) formula */
-  return (2*((double)total_buf_elems*elem_size) / IO_SIZE +
+  return (2*((double)total_buf_elems*elem_size) / IO_SIZE *
+          thd->variables.optimizer_disk_read_cost +
           total_buf_elems*log((double) n_buffers) * compare_factor / M_LN2);
 }
 
@@ -185,6 +186,7 @@ static double get_merge_buffers_cost(uint *buff_elems, uint elem_size,
 
   SYNOPSIS
     get_merge_many_buffs_cost()
+      thd           THD, used to get disk_read_cost
       buffer        buffer space for temporary data, at least
                     Unique::get_cost_calc_buff_size bytes
       maxbuffer     # of full buffers
@@ -203,7 +205,8 @@ static double get_merge_buffers_cost(uint *buff_elems, uint elem_size,
     Cost of merge in disk seeks.
 */
 
-static double get_merge_many_buffs_cost(uint *buffer,
+static double get_merge_many_buffs_cost(THD *thd,
+                                        uint *buffer,
                                         uint maxbuffer, uint max_n_elems,
                                         uint last_n_elems, int elem_size,
                                         double compare_factor)
@@ -231,13 +234,13 @@ static double get_merge_many_buffs_cost(uint *buffer,
       uint lastbuff= 0;
       for (i = 0; i <= (int) maxbuffer - MERGEBUFF*3/2; i += MERGEBUFF)
       {
-        total_cost+=get_merge_buffers_cost(buff_elems, elem_size,
+        total_cost+=get_merge_buffers_cost(thd, buff_elems, elem_size,
                                            buff_elems + i,
                                            buff_elems + i + MERGEBUFF-1,
                                            compare_factor);
 	lastbuff++;
       }
-      total_cost+=get_merge_buffers_cost(buff_elems, elem_size,
+      total_cost+=get_merge_buffers_cost(thd, buff_elems, elem_size,
                                          buff_elems + i,
                                          buff_elems + maxbuffer,
                                          compare_factor);
@@ -246,7 +249,7 @@ static double get_merge_many_buffs_cost(uint *buffer,
   }
 
   /* Simulate final merge_buff call. */
-  total_cost += get_merge_buffers_cost(buff_elems, elem_size,
+  total_cost += get_merge_buffers_cost(thd, buff_elems, elem_size,
                                        buff_elems, buff_elems + maxbuffer,
                                        compare_factor);
   return total_cost;
@@ -304,7 +307,7 @@ static double get_merge_many_buffs_cost(uint *buffer,
       these will be random seeks.
 */
 
-double Unique::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
+double Unique::get_use_cost(THD *thd, uint *buffer, size_t nkeys, uint key_size,
                             size_t max_in_memory_size,
                             double compare_factor,
                             bool intersect_fl, bool *in_memory)
@@ -312,7 +315,7 @@ double Unique::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
   size_t max_elements_in_tree;
   size_t last_tree_elems;
   size_t   n_full_trees; /* number of trees in unique - 1 */
-  double result;
+  double result, disk_read_cost;
 
   max_elements_in_tree= ((size_t) max_in_memory_size /
                          ALIGN_SIZE(sizeof(TREE_ELEMENT)+key_size));
@@ -345,14 +348,15 @@ double Unique::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
     First, add cost of writing all trees to disk, assuming that all disk
     writes are sequential.
   */
-  result += DISK_SEEK_BASE_COST * n_full_trees *
-              ceil(((double) key_size)*max_elements_in_tree / IO_SIZE);
-  result += DISK_SEEK_BASE_COST * ceil(((double) key_size)*last_tree_elems / IO_SIZE);
+  disk_read_cost= DISK_READ_COST_THD(thd);
+  result += disk_read_cost * n_full_trees *
+              ceil(((double) key_size)*max_elements_in_tree / DISK_CHUNK_SIZE);
+  result += disk_read_cost * ceil(((double) key_size)*last_tree_elems / DISK_CHUNK_SIZE);
 
   /* Cost of merge */
   if (intersect_fl)
     key_size+= sizeof(element_count);
-  double merge_cost= get_merge_many_buffs_cost(buffer, (uint)n_full_trees,
+  double merge_cost= get_merge_many_buffs_cost(thd, buffer, (uint)n_full_trees,
                                                (uint)max_elements_in_tree,
                                                (uint)last_tree_elems, key_size,
                                                compare_factor);

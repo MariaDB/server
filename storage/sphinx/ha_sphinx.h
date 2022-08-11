@@ -72,14 +72,30 @@ public:
 	uint			max_supported_key_length () const		{ return MAX_KEY_LENGTH; }
 	uint			max_supported_key_part_length () const	{ return MAX_KEY_LENGTH; }
 
-	#if MYSQL_VERSION_ID>50100
-	virtual double	scan_time ()	{ return (double)( stats.records+stats.deleted )/20.0 + 10; }	///< called in test_quick_select to determine if indexes should be used
-	#else
-	virtual double	scan_time ()	{ return (double)( records+deleted )/20.0 + 10; }				///< called in test_quick_select to determine if indexes should be used
-	#endif
+	IO_AND_CPU_COST	scan_time ()
+	{
+          IO_AND_CPU_COST cost;
+          cost.io= 0;
+          cost.cpu= (double) (stats.records+stats.deleted) * avg_io_cost();
+          return cost;
+        }
+        IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                                    ulonglong blocks)
+	{
+          IO_AND_CPU_COST cost;
+          cost.io= ranges;
+          cost.cpu= (double) rows * DEFAULT_ROW_LOOKUP_COST;
+          return cost;
+        }
+        IO_AND_CPU_COST rndpos_time(ha_rows rows)
+	{
+          IO_AND_CPU_COST cost;
+          cost.io= 0;
+          cost.cpu= (double) rows * DEFAULT_ROW_LOOKUP_COST;
+          return cost;
+        }
 
-        virtual double read_time(uint index, uint ranges, ha_rows rows)
-	{ return ranges + (double)rows/20.0 + 1; }					///< index read time estimate
+
 
 public:
 	int				open ( const char * name, int mode, uint test_if_locked );

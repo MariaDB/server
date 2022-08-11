@@ -1,0 +1,383 @@
+This file is intended to explain some of the optimizer cost variables
+in MariaDB 10.11.
+
+Timings made on:
+CPU:    Intel(R) Xeon(R) W-2295 CPU @ 3.00GHz
+Memory: 256G
+Disk:   Samsum SSD 860 (not really relevant in this case)
+
+Rows in test: 1M
+
+Most timings has come from running:
+
+perl check_costs.pl --skip-drop --engine=heap --user=monty --rows=1000000 --socket=/tmp/mysql-dbug.sock --init-query="set @@optimizer_where_compare_cost=0.01,@@optimizer_row_copy_cost=0.1,@@optimizer_key_copy_cost=0.025,@@optimizer_index_block_copy_cost=0.2,@@optimizer_index_next_find_cost=0.0125,@@optimizer_key_compare_cost=0.005" --comment --aria-pagecache-buffer-size="10G --innodb-buffer_pool_size=10G --key_buffer-size=1G --max-heap-table-size=10G
+
+- All costs are changed to be milliseconds for the engine operations + calculation
+  of the WHERE clause. This is a big change from before the patch that
+  added this file where the basic cost was a disk seek and one index read.
+- I am using Aria as the 'base' cost. This is because it caches all data,
+  which most engines would do.
+- MyISAM cannot be used as it does not cache row data (which gives a high
+  overhead when doing row lookups).
+- Heap is in memory and a bit too special (no caching).
+- InnoDB is a clustered engine where secondary indexes has to use
+  the clustered index to find a row (not common case among engines).
+
+The assumption in the optimzer has 'always' been that 1 cost = 1 seek = 0.10ms.
+However this has not been reflected in most cost.
+This document is the base of changing things so that 1 cost = 1ms.
+
+--------
+
+optimizer_where_cost:
+
+MariaDB [test]> select benchmark(100000000,l_commitDate >= '2000-01-01' and l_tax >= 0.0) from test.check_costs limit 1;
++--------------------------------------------------------------------+
+| benchmark(100000000,l_commitDate >= '2000-01-01' and l_tax >= 0.0) |
++--------------------------------------------------------------------+
+|                                                                  0 |
++--------------------------------------------------------------------+
+1 row in set (3.198 sec)
+
+Time of where in seconds: 3.198 / 100000000  (100,000,000)
+
+Verification:
+
+select sum(1) from seq_1_to_100000000 where seq>=0.0 and seq>=-1.0;
++-----------+
+| sum(1)    |
++-----------+
+| 100000000 |
++-----------+
+1 row in set (8.564 sec)
+
+MariaDB [test]> select sum(1) from seq_1_to_100000000;
++-----------+
+| sum(1)    |
++-----------+
+| 100000000 |
++-----------+
+1 row in set (5.162 sec)
+
+
+Time of where= (8.564-5.162)/100000000 = 3.402/100000000 (100,000,000)
+(ok, as sligthly different computations)
+
+check_costs.pl comes provides the numbers when using heap tables and 1M rows:
+
+simple where:  118.689 ms
+complex where: 138.474 ms
+no where:       83.699 ms
+
+Which gives for simple where:
+(118.689-83.699)/1000 = 0.034990000000000007 ms
+Which is in the same ballpark.
+
+We use the result from the select benchmark run as this has least overhead
+and is easiest to repeat and verify in a test.
+Which gives optimizer_where_cost= 0.032 ms / where.
+
+----------------------------
+
+HEAP_SCAN_TIME & ROW_COPY_COST
+
+We start with heap as all rows are in memory and we don't have to take
+disk reads into account.
+
+select sum(l_partkey) from test.check_costs
+table_scan  ms: 11.72391252
+rows: 1000000
+
+Cost should be 11.72391252 (scan cost) + 32 (where cost)
+
+cost= scan_time() * optimizer_cache_cost * SCAN_LOOKUP_COST +
+     TABLE_SCAN_SETUP_COST * avg_io_cost() +
+     records * (ROW_COPY_COST + WHERE_COMPARE_COST);
+
+=>
+We are ignoring TABLE_SCAN_SETUP which is just to prefer index scans.
+We can also ignore records * WHERE_COMPARE_COST as we don't have that
+in the above 'ms'
+  
+cost= scan_time() * 1 * 1 +
+     1000000.0 * row_copy_cost
+=>
+cost= time_per_row*1000000+ row_copy_cost * 1000000;
+=>
+time_per_row+row_copy_cost= cost/1000000
+
+Let's assume that for heap, finding the next row is 80 % of the time and
+copying the row (a memcmp) to upper level is then 20 %.
+
+time_per_row=  11.72/1000000*0.8 = 9.3760000000000014e-06
+row_copy_cost= 11.72/1000000*0.2 = 2.3340000000000001e-06
+
+Conclusion:
+heap_scan_time= 9.376e-06
+row_copy_cost=  2.334e-06
+
+I set key_copy_cost as row_copy_cost/5 to promote key scan.
+
+----------------------------
+HEAP_RANGE_TIME
+
+select sum(l_orderkey) from test.check_costs force index(commitdate) where l_commitDate >= '2000-01-01' and l_tax >= 0.0
+range_scan  ms: 54.04171921
+
+This is doing a scan through a binary tree and then finding the row
+and copying it.
+The cost of copying the record is is same as above (row_copy_cost).
+Which means that he cost of finding a row through an index scan is:
+
+expected_cost/1000000.0 - row_copy_cost
+54.04171921/1000000.0 - 2.3344e-06 = 5.1707319209999997e-05
+
+--------------------------
+
+SEQUENCE SCAN:
+
+analyze format=json select sum(seq+1) from seq_1_to_1000000;
+r_table_time_ms: 15.78074764
+
+Taking key_copy_cost into account:
+
+scan_cost/row= (15.78074764 - key_copy_cost)/10000000 =
+
+(15.78074764 -  2.334e-06/5*1000000.0)/1000000= 1.531394764e-05
+
+---------------------
+
+HEAP_KEY_LOOKUP
+
+We can use this code to check the cost of a index read in a table:
+
+analyze format=json select straight_join count(*) from seq_1_to_1000000,check_costs where seq=l_orderkey
+
+"query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": 420.5083447,
+    "table": {
+      "table_name": "seq_1_to_1000000",
+      "access_type": "index",
+      "possible_keys": ["PRIMARY"],
+      "key": "PRIMARY",
+      "key_length": "8",
+      "used_key_parts": ["seq"],
+      "r_loops": 1,
+      "rows": 1000000,
+      "r_rows": 1000000,
+      "r_table_time_ms": 12.47830611,
+      "r_other_time_ms": 44.0671283,
+      "filtered": 100,
+      "r_filtered": 100,
+      "using_index": true
+    },
+    "table": {
+      "table_name": "check_costs",
+      "access_type": "eq_ref",
+      "possible_keys": ["PRIMARY"],
+      "key": "PRIMARY",
+      "key_length": "4",
+      "used_key_parts": ["l_orderkey"],
+      "ref": ["test.seq_1_to_1000000.seq"],
+      "r_loops": 1000000,
+      "rows": 1,
+      "r_rows": 1,
+      "r_table_time_ms": 193.8698744,
+      "r_other_time_ms": 143.4234354,
+      "filtered": 100,
+      "r_filtered": 100,
+      "attached_condition": "seq_1_to_1000000.seq = check_costs.l_orderkey"
+    }
+  }
+
+This gives the time for a key lookup on hash key as:
+193.869874/10000000 - row_copy_cost =
+193.869874/1000000.0 - 2.3344e-06 = 0.000191535474 ~=  1.91e-4
+
+--------------------
+
+ARIA TABLE SCAN
+(When all rows are cached)
+
+table_scan  ms: 119.4276553
+
+Cost is calcualated as:
+
+blocks= stats.data_file_length / stats.block_size) = 125681664/8192= 15342
+
+cost= blocks * DISK_SEEK_BASE_COST * avg_io_cost() *
+      optimizer_cache_cost * SCAN_LOOKUP_COST +
+      blocks * INDEX_BLOCK_COPY_COST +
+      TABLE_SCAN_SETUP_COST +
+      records * (ROW_COPY_COST + WHERE_COST));
+
+When all is in memory (optimizer_cache_cost= 0) we get:
+
+
+cost= blocks * INDEX_BLOCK_COPY_COST +
+      TABLE_SCAN_SETUP_COST +
+      records * (ROW_COPY_COST + WHERE_COST));
+
+To calculate INDEX_BLOCK_COPY_COST I added a temporary tracker in
+ma_pagecache.cc::pagecache_read() and did run the same query.
+I got the data:
+{counter = 17755, sum = 1890559}
+Which give me the time for copying a block to:
+1000.0*1890559/sys_timer_info.cycles.frequency/17755 = 3.558138826971332e-05 ms
+
+And thus INDEX_BLOCK_COPY_COST = 3.56e-05
+
+
+
+Replacing known constants (and ignoring WHERE as it's not part of the table
+scan):
+
+cost= 119.49 = 15342 * 3.56e-5 + 1 + 1000000 * row_copy_cost;
+
+row_copy_cost= (119.49 - (15342 * 3.56e-5 + 1))/100000 = 0.000118
+
+
+-------------------
+
+
+Finding out cost of reading X keys from an index (no row lookup) in Aria.
+
+From check_costs.pl for range scan of 1M rows:
+select sum(l_discount) from test.check_costs force index(commitdate) where l_commitDate > '2000-01-01' and l_discount >= 0.0
+
+Index scan for Aria: index_scan  sec: 0.1039406005  cost: 49664
+
+key_read_time()= rows * index_length / INDEX_BLOCK_FILL_FACTOR / block_size *
+               (avg_io_cost + INDEX_BLOCK_COPY_COST / optimizer_cache_cost);
+
+index_scan_cost= key_read_time() * optmizer_cache_cost +
+                 rows * (INDEX_NEXT_FIND_COST + KEY_COPY_COST + WHERE_COMPARE_COST) 
+
+avg_io_size() = 1  (constant)
+INDEX_BLOCK_COPY_COST= 0.75 (constant)
+optimizer_cache_cost= 0.5 (default)
+block_size= 8192  (aria default)
+index_length=19   (from test case)
+INDEX_BLOCK_COPY_COST= 0.2
+
+Where time should be 0.03499 (as seem from above calculation of scan time)
+Note that is is not part of the times below but is part of the cost calculation!
+
+key_read_time= rows * (19 / 0.75 / 8193 * (1.0 + 0.2 / 0.5)) =
+               3092 (blocks) *(1+1.4) = 4328
+
+index_scan_cost= 4328 + 
+                 rows * (INDEX_NEXT_FIND_COST + KEY_COPY_COST + WHERE_COMPARE_COST);
+
+The above should cover the cost of 0.1167679423 seconds (read) + 0.03499 (where)
+= 0.1517579423 sec
+
+Which means that the cost for the above scan 0.1517579423 should have
+been 151.  However everything is in memory for this test, so reading
+the 3092 blocks takes no time instead of 3 seconds if they would not
+be in the cache.
+
+Running with optimizer_cache_hit_ratio of 99 (almost all rows in cache), gives us
+ha_key_scan_time()= 649 * records()* INDEX_NEXT_FIND_POS;
+
+To calculate INDEX_BLOCK_COPY_COST I added a temporary tracker in
+ma_pagecache.cc::pagecache_read() and did run the same query.
+I got the data:
+{counter = 17755, sum = 1890559}
+Which give me the time for copying a block to:
+1000.0*1890559/sys_timer_info.cycles.frequency/17755 = 3.558138826971332e-05 ms
+And thus INDEX_BLOCK_COPY_COST = 3.56e-03
+WHERE_COMPARE_COSTS =  0.03499 / 1000000 * 100 = 3.5e-06
+
+Aria      sec: 0.1167679423  cost: 37164.449327
+InnoDB    sec: 0.1270633150  cost: 49847.613142
+MyISAM    sec: 0.1502838113  cost: 39328.370352
+heap      sec: 0.0675109278  cost: 295587.370000
+
+
+--------------------------------------------
+
+Finding the cost of reading X rows through and index
+
+
+Aria      sec: 0.3594678257  cost: 477749.469327
+InnoDB    sec: 1.1580623840  cost: 724847.613142
+MyISAM    sec: 1.3118995710  cost: 482999.390352
+heap      sec: 0.0593971533  cost: 295587.370000
+
+row_lookup_cost= rows*(ROW_LOOKUP_COST + INDEX_LOOKUP_COST) * avg_io_cost() * optimizer_cache_cost + INDEX_NEXT_FIND_COST + ROW_COPY_COST + WHERE_COMPARE_COST)
+
+Assuming ROW_LOOKUP_COST=0.5 INDEX_LOOKUP_COST=1
+
+For Aria:
+
+rows * (1 + 0.5) * 0.5 + INDEX_NEXT_FIND_COST + ROW_COPY_COST + WHERE_COMPARE_COST)
+
+
+
+---------------------------
+
+Finding out table scan costs:
+
+scan cost=
+        file_size / block_size * io_cost (1.0) * optimizer_cache_cost (0.5) *
+        scan_lookup_cost (1.0) + table_scan_setup_cost (1.0) * io_cost(1.0) +
+        rows (1000000) * (ROW_COPY_COST + WHERE_COMPARE_COST);
+
+=       file_size / block_size * 0.5 + 1.0 + 
+        1000000 * (ROW_COPY_COST + WHERE_COMPARE_COST);
+
+analyze format=json select sum(1) from seq_1_to_100000000;
+r_table_time_ms": 1189.239022 
+
+From check_costs.pl
+
+Aria:   table_scan  sec: 0.1125753767  cost: 117672.5000
+InnoDB: table_scan  sec: 0.1327371202  cost: 113766.4600
+MyISAM: table_scan  sec: 0.1495176535  cost: 123697.2632
+heap:   table_scan  sec: 0.0123179988  cost: 143334.3833
+
+
+---------------------
+
+
+I tried to use performance schema to get costs, but I was not successfull
+as all timingss I got for tables showed the total time executing the
+statement, not the timing for doing the actual reads.
+
+---------------------
+
+With --performance-schema=on
+
+MariaDB [test]> select sum(1) from seq_1_to_100000000;
++-----------+
+| sum(1)    |
++-----------+
+| 100000000 |
++-----------+
+1 row in set (4.950 sec)
+
+Performance schema overhead: 30.1%
+
+With:
+UPDATE performance_schema.setup_consumers SET ENABLED = 'YES';
+UPDATE performance_schema.setup_instruments SET ENABLED = 'YES', TIMED = 'YES';
+
+Flush with:
+CALL sys.ps_truncate_all_tables(FALSE);
+
+Performance schema overhead now: 32.9%
+
+Timings from:
+select * from events_statements_current where thread_id=80;
+
+MariaDB [test]> select 885402302809000-884884140290000;
++---------------------------------+
+| 885402302809000-884884140290000 |
++---------------------------------+
+|                    518162519000 |
++---------------------------------+
+-> Need to divide by 1000000000000.0 to get seconds
+

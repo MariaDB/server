@@ -62,27 +62,13 @@ public:
   const key_map *keys_to_use_for_scanning() { return &btree_keys; }
   uint max_supported_keys()          const { return MAX_KEY; }
   uint max_supported_key_part_length() const { return MAX_KEY_LENGTH; }
-  double scan_time()
-  { return (double) (stats.records+stats.deleted) / 20.0+10; }
-  double read_time(uint index, uint ranges, ha_rows rows)
-  { return (double) (rows +1)/ 20.0; }
-  double keyread_time(uint index, uint ranges, ha_rows rows)
-  { return (double) (rows + ranges) / 20.0 ; }
-  double rndpos_time(ha_rows rows)
-  {
-    return (double) rows/ 20.0;
-  }
-  double avg_io_cost()
-  { return 0.05; }                              /* 1/20 */
-
-  /*
-    Heap doesn't need optimizer_cache_cost as everything is in memory and
-    it supports all needed _time() functions
-  */
-  void set_optimizer_cache_cost(double cost)
-  {
-    optimizer_cache_cost= 1.0;
-  }
+  IO_AND_CPU_COST scan_time();
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                               ulonglong blocks);
+  IO_AND_CPU_COST rndpos_time(ha_rows rows);
+  /* 0 for avg_io_cost ensures that there are no read-block calculations */
+  double avg_io_cost() { return 0.0; }
+  void optimizer_costs_updated();
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
   void set_keys_for_scanning(void);

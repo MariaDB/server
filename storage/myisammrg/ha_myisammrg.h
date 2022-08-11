@@ -102,8 +102,14 @@ public:
   uint max_supported_keys()          const { return MI_MAX_KEY; }
   uint max_supported_key_length()    const { return HA_MAX_KEY_LENGTH; }
   uint max_supported_key_part_length() const { return HA_MAX_KEY_LENGTH; }
-  double scan_time()
-  { return ulonglong2double(stats.data_file_length) / IO_SIZE + file->tables; }
+  IO_AND_CPU_COST scan_time()
+  {
+    IO_AND_CPU_COST cost;
+    cost.io= (ulonglong2double(stats.data_file_length) / IO_SIZE * avg_io_cost()+
+              file->tables);
+    cost.cpu= records() * ROW_NEXT_FIND_COST;
+    return cost;
+  }
 
   int open(const char *name, int mode, uint test_if_locked);
   int add_children_list(void);

@@ -102,6 +102,17 @@ class ha_myisam final : public handler
   int remember_rnd_pos();
   int restart_rnd_next(uchar *buf);
   void position(const uchar *record);
+  void optimizer_costs_updated()
+  {
+#ifdef QQQQ
+    /*
+      MyISAM row lookup costs are slow as the row data is on a not cached file.
+      The following number was found by check_costs.pl when using 1M rows
+      and all rows are cached
+    */
+    optimizer_row_lookup_cost*= 3.0;
+#endif
+  }
   int info(uint);
   int extra(enum ha_extra_function operation);
   int extra_opt(enum ha_extra_function operation, ulong cache_size);

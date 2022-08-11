@@ -1228,6 +1228,50 @@ public:
   { var->save_result.double_value= getopt_ulonglong2double(option.def_value); }
 };
 
+
+/*
+  Optimizer costs
+  Stored as cost factor (1 cost = 1 ms).
+  Given and displayed as microsconds (as most values are very small)
+*/
+
+class Sys_var_optimizer_cost: public Sys_var_double
+{
+public:
+  Sys_var_optimizer_cost(const char *name_arg,
+          const char *comment, int flag_args, ptrdiff_t off, size_t size,
+          CMD_LINE getopt,
+          double min_val, double max_val, double def_val, PolyLock *lock=0,
+          enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
+          on_check_function on_check_func=0,
+          on_update_function on_update_func=0,
+          const char *substitute=0)
+    :Sys_var_double(name_arg, comment, flag_args, off, size, getopt,
+                   min_val, max_val, def_val, lock,
+                   binlog_status_arg,
+                   on_check_func,
+                   on_update_func,
+                   substitute)
+  {
+    show_val_type= SHOW_OPTIMIZER_COST;
+    global_var(double)= (double)option.def_value/1000; // To us
+  }
+  bool session_update(THD *thd, set_var *var)
+  {
+    session_var(thd, double)= var->save_result.double_value/1000;
+    return false;
+  }
+  bool global_update(THD *thd, set_var *var)
+  {
+    global_var(double)= var->save_result.double_value/1000;
+    return false;
+  }
+  void global_save_default(THD *thd, set_var *var)
+  {
+    var->save_result.double_value= getopt_ulonglong2double(option.def_value)*1000; }
+};
+
+
 /**
   The class for the @max_user_connections.
   It's derived from Sys_var_uint, but non-standard session value

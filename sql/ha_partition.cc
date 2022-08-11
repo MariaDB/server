@@ -9707,24 +9707,27 @@ uint ha_partition::get_biggest_used_partition(uint *part_index)
     time for scan
 */
 
-double ha_partition::scan_time()
+IO_AND_CPU_COST ha_partition::scan_time()
 {
-  double scan_time= 0;
+  IO_AND_CPU_COST scan_time= {0,0};
   uint i;
   DBUG_ENTER("ha_partition::scan_time");
 
   for (i= bitmap_get_first_set(&m_part_info->read_partitions);
        i < m_tot_parts;
        i= bitmap_get_next_set(&m_part_info->read_partitions, i))
-    scan_time+= m_file[i]->scan_time();
+  {
+    IO_AND_CPU_COST cost= m_file[i]->scan_time();
+    scan_time.io+= cost.io;
+    scan_time.cpu= cost.cpu;
+  }
   if (m_tot_parts)
   {
     /*
       Add TABLE_SCAN_SETUP_COST for partitions to make cost similar to
       in ha_scan_time()
     */
-    scan_time+= (TABLE_SCAN_SETUP_COST * avg_io_cost() * (m_tot_parts - 1) /
-                 optimizer_cache_cost);
+    scan_time.cpu= TABLE_SCAN_SETUP_COST * (m_tot_parts - 1);
   }
   DBUG_RETURN(scan_time);
 }
@@ -9739,31 +9742,65 @@ double ha_partition::scan_time()
   @return time for scanning index inx
 */
 
-double ha_partition::key_scan_time(uint inx)
+IO_AND_CPU_COST ha_partition::key_scan_time(uint inx)
 {
-  double scan_time= 0;
+  IO_AND_CPU_COST scan_time= {0,0};
   uint i;
   DBUG_ENTER("ha_partition::key_scan_time");
   for (i= bitmap_get_first_set(&m_part_info->read_partitions);
        i < m_tot_parts;
        i= bitmap_get_next_set(&m_part_info->read_partitions, i))
-    scan_time+= m_file[i]->key_scan_time(inx);
+  {
+    IO_AND_CPU_COST cost= m_file[i]->key_scan_time(inx);
+    scan_time.io+= cost.io;
+    scan_time.cpu= cost.cpu;
+  }
   DBUG_RETURN(scan_time);
 }
 
 
-double ha_partition::keyread_time(uint inx, uint ranges, ha_rows rows)
+IO_AND_CPU_COST ha_partition::keyread_time(uint inx, ulong ranges, ha_rows rows,
+                                           ulonglong blocks)
 {
-  double read_time= 0;
+  IO_AND_CPU_COST read_time= {0,0};
   uint i;
+  uint partitions= bitmap_bits_set(&m_part_info->read_partitions);
   DBUG_ENTER("ha_partition::keyread_time");
-  if (!ranges)
-    DBUG_RETURN(handler::keyread_time(inx, ranges, rows));
+  if (partitions == 0)
+    DBUG_RETURN(read_time);
+
+  uint rows_per_part= (rows + partitions - 1)/partitions;
   for (i= bitmap_get_first_set(&m_part_info->read_partitions);
        i < m_tot_parts;
        i= bitmap_get_next_set(&m_part_info->read_partitions, i))
-    read_time+= m_file[i]->keyread_time(inx, ranges, rows);
+  {
+    IO_AND_CPU_COST cost= m_file[i]->keyread_time(inx, ranges, rows_per_part,
+                                                  blocks);
+    read_time.io+= cost.io;
+    read_time.cpu= cost.cpu;
+  }
   DBUG_RETURN(read_time);
+}
+
+
+IO_AND_CPU_COST ha_partition::rndpos_time(ha_rows rows)
+{
+  IO_AND_CPU_COST read_time= {0,0};
+  uint i;
+  uint partitions= bitmap_bits_set(&m_part_info->read_partitions);
+  if (partitions == 0)
+    return read_time;
+
+  uint rows_per_part= (rows + partitions - 1)/partitions;
+  for (i= bitmap_get_first_set(&m_part_info->read_partitions);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+  {
+    IO_AND_CPU_COST cost= m_file[i]->rndpos_time(rows_per_part);
+    read_time.io+= cost.io;
+    read_time.cpu= cost.cpu;
+  }
+  return read_time;
 }
 
 
@@ -9863,33 +9900,6 @@ ha_rows ha_partition::estimate_rows_upper_bound()
     }
   } while (*(++file));
   DBUG_RETURN(tot_rows);
-}
-
-
-/*
-  Get time to read
-
-  SYNOPSIS
-    read_time()
-    index                Index number used
-    ranges               Number of ranges
-    rows                 Number of rows
-
-  RETURN VALUE
-    time for read
-
-  DESCRIPTION
-    This will be optimised later to include whether or not the index can
-    be used with partitioning. To achieve we need to add another parameter
-    that specifies how many of the index fields that are bound in the ranges.
-    Possibly added as a new call to handlers.
-*/
-
-double ha_partition::read_time(uint index, uint ranges, ha_rows rows)
-{
-  DBUG_ENTER("ha_partition::read_time");
-
-  DBUG_RETURN(get_open_file_sample()->read_time(index, ranges, rows));
 }
 
 
