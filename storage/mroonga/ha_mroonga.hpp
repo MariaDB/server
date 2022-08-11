@@ -531,8 +531,9 @@ public:
   int end_bulk_insert() mrn_override;
   int delete_all_rows() mrn_override;
   int truncate() mrn_override;
-  double scan_time() mrn_override;
-  double read_time(uint index, uint ranges, ha_rows rows) mrn_override;
+  IO_AND_CPU_COST scan_time() mrn_override;
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows) mrn_override;
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows, ulonglong blocks) mrn_override;
 #ifdef MRN_HANDLER_HAVE_KEYS_TO_USE_FOR_SCANNING
   const key_map *keys_to_use_for_scanning() mrn_override;
 #endif
@@ -1106,10 +1107,12 @@ private:
   int wrapper_truncate_index();
   int storage_truncate();
   int storage_truncate_index();
-  double wrapper_scan_time();
-  double storage_scan_time();
-  double wrapper_read_time(uint index, uint ranges, ha_rows rows);
-  double storage_read_time(uint index, uint ranges, ha_rows rows);
+  IO_AND_CPU_COST wrapper_scan_time();
+  IO_AND_CPU_COST storage_scan_time();
+  IO_AND_CPU_COST wrapper_rnd_pos_time(ha_rows rows);
+  IO_AND_CPU_COST storage_rnd_pos_time(ha_rows rows);
+  IO_AND_CPU_COST wrapper_keyread_time(uint index, ulong ranges, ha_rows rows, ulonglong blocks);
+  IO_AND_CPU_COST storage_keyread_time(uint index, ulong ranges, ha_rows rows, ulonglong blocks);
 #ifdef MRN_HANDLER_HAVE_KEYS_TO_USE_FOR_SCANNING
   const key_map *wrapper_keys_to_use_for_scanning();
   const key_map *storage_keys_to_use_for_scanning();

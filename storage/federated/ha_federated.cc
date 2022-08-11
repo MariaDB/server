@@ -460,6 +460,20 @@ static void init_federated_psi_keys(void)
 #endif /* HAVE_PSI_INTERFACE */
 
 /*
+  Federated doesn't need costs.disk_read_ratio as everything is one a
+  remote server and nothing is cached locally
+*/
+
+static void federated_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  /*
+    Setting disk_read_ratios to 1.0, ensures we are using the costs
+    from rnd_pos_time() and scan_time()
+  */
+  costs->disk_read_ratio= 1.0;
+}
+
+/*
   Initialize the federated handler.
 
   SYNOPSIS
@@ -485,6 +499,7 @@ int federated_db_init(void *p)
   federated_hton->rollback= federated_rollback;
   federated_hton->create= federated_create_handler;
   federated_hton->drop_table= [](handlerton *, const char*) { return -1; };
+  federated_hton->update_optimizer_costs= federated_update_optimizer_costs;
   federated_hton->flags= HTON_ALTER_NOT_SUPPORTED | HTON_NO_PARTITION;
 
   /*
@@ -905,18 +920,9 @@ ha_federated::ha_federated(handlerton *hton,
   :handler(hton, table_arg),
   mysql(0), stored_result(0)
 {
-  optimizer_cache_cost= 1;
   trx_next= 0;
   bzero(&bulk_insert, sizeof(bulk_insert));
 }
-
-/*
-  Federated doesn't need optimizer_cache_cost as everything is one a
-  remote server and nothing is cached locally
-*/
-
-void ha_federated::set_optimizer_cache_cost(double cost)
-{}
 
 /*
   Convert MySQL result set row to handler internal format

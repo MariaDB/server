@@ -104,8 +104,10 @@ public:
   ha_rows estimate_rows_upper_bound(void)
   { return HA_POS_ERROR; }
 
-  double scan_time(void)
-  { return 1.0; }
+  IO_AND_CPU_COST scan_time(void)
+  {
+    return {0.0, 1.0};
+  }
 
   /**
     Open a performance schema table.
