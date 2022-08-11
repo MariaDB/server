@@ -150,15 +150,40 @@ public:
   uint max_supported_key_length()    const { return 0; }
 
   /** @brief
-    Called in test_quick_select to determine if indexes should be used.
+    Called in test_quick_select to determine cost of table scan
   */
-  virtual double scan_time() { return (double) (stats.records+stats.deleted) / 20.0+10; }
+  virtual IO_AND_CPU_COST scan_time()
+  {
+    IO_AND_CPU_COST cost;
+    /* 0 blocks,  0.001 ms / row */
+    cost.io= (double) (stats.records+stats.deleted) * avg_io_cost();
+    cost.cpu= 0;
+    return cost;
+  }
 
   /** @brief
     This method will never be called if you do not implement indexes.
   */
-  virtual double read_time(uint, uint, ha_rows rows)
-  { return (double) rows /  20.0+1; }
+  virtual IO_AND_CPU_COST keyread_time(uint, ulong, ha_rows rows,
+                                       ulonglong blocks)
+  {
+    IO_AND_CPU_COST cost;
+    cost.io= blocks * avg_io_cost();
+    cost.cpu= (double) rows * 0.001;
+    return cost;
+  }
+
+  /** @brief
+    Cost of fetching 'rows' records through rnd_pos()
+  */
+  virtual IO_AND_CPU_COST rnd_pos_time(ha_rows rows)
+  {
+   IO_AND_CPU_COST cost;
+    /* 0 blocks,  0.001 ms / row */
+    cost.io= 0;
+    cost.cpu= (double) rows * avg_io_cost();
+    return cost;
+  }
 
   /*
     Everything below are methods that we implement in ha_example.cc.

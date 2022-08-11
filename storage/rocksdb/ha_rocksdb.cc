@@ -14627,15 +14627,18 @@ bool ha_rocksdb::use_read_free_rpl() const {
 }
 #endif // MARIAROCKS_NOT_YET
 
-double ha_rocksdb::read_time(uint index, uint ranges, ha_rows rows) {
+IO_AND_CPU_COST ha_rocksdb::keyread_time(uint index, ulong ranges,
+                                         ha_rows rows,
+                                         ulonglong blocks) {
   DBUG_ENTER_FUNC();
 
   if (index != table->s->primary_key) {
     /* Non covering index range scan */
-    DBUG_RETURN(handler::read_time(index, ranges, rows));
+    DBUG_RETURN(handler::keyread_time(index, ranges, rows, blocks));
   }
 
-  DBUG_RETURN((rows / 20.0) + 1);
+  IO_AND_CPU_COST cost= {0, (rows / 20.0) + ranges };
+  DBUG_RETURN(cost);
 }
 
 void ha_rocksdb::print_error(int error, myf errflag) {

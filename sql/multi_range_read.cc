@@ -20,6 +20,7 @@
 #include "key.h"
 #include "sql_statistics.h"
 #include "rowid_filter.h"
+#include "optimizer_defaults.h"
 
 /****************************************************************************
  * Default MRR implementation (MRR to non-MRR converter)
@@ -302,46 +303,37 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
 
   if (total_rows != HA_POS_ERROR)
   {
-    double io_cost= avg_io_cost();
-    double range_lookup_cost= (io_cost * KEY_LOOKUP_COST *
-                               optimizer_cache_cost);
+    double key_cost;
     set_if_smaller(total_rows, max_rows);
 
     /* The following calculation is the same as in multi_range_read_info(): */
     *flags |= HA_MRR_USE_DEFAULT_IMPL;
     cost->reset();
-    cost->avg_io_cost= cost->idx_avg_io_cost= io_cost;
+    cost->avg_io_cost= cost->idx_avg_io_cost= 0; // Not used!
 
     if (!is_clustering_key(keyno))
     {
-      cost->idx_io_count= (double) io_blocks;
+      key_cost= ha_keyread_time(keyno, n_ranges, total_rows, io_blocks);
+      cost->idx_cpu_cost= key_cost;
+
       if (!(*flags & HA_MRR_INDEX_ONLY))
       {
-        cost->idx_cpu_cost= (ha_keyread_time(keyno, 1, total_rows) +
-                             (n_ranges-1) * range_lookup_cost);
-        cost->cpu_cost= ha_read_time(keyno, 0, total_rows);
-        cost->copy_cost= rows2double(total_rows) * ROW_COPY_COST;
+        /* ha_rnd_pos_time includes ROW_COPY_COST */
+        cost->cpu_cost=     ha_rnd_pos_time(total_rows);
       }
       else
       {
         /* Index only read */
-        cost->idx_cpu_cost= (ha_keyread_time(keyno, 1, total_rows) +
-                             (n_ranges-1) * range_lookup_cost);
-        cost->copy_cost= rows2double(total_rows) * KEY_COPY_COST;
+        cost->copy_cost=    rows2double(total_rows) * KEY_COPY_COST;
       }
     }
     else
     {
-      /*
-        Clustered index
-        If all index dives are to a few blocks, then limit the
-        ranges used by read_time to the number of dives.
-      */
+      /* Clustered index */
       io_blocks+= unassigned_single_point_ranges;
-      uint limited_ranges= (uint) MY_MIN((ulonglong) n_ranges, io_blocks);
-      cost->idx_cpu_cost= limited_ranges * range_lookup_cost;
-      cost->cpu_cost= ha_read_time(keyno, 0, total_rows);
-      cost->copy_cost= rows2double(total_rows) * ROW_COPY_COST;
+      key_cost= ha_keyread_time(keyno, n_ranges, total_rows, io_blocks);
+      cost->idx_cpu_cost= key_cost;
+      cost->copy_cost=    rows2double(total_rows) * ROW_COPY_COST;
     }
     cost->comp_cost= (rows2double(total_rows) * WHERE_COST +
                       MULTI_RANGE_READ_SETUP_COST);
@@ -378,7 +370,7 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   @param keyno           Index number
   @param n_ranges        Estimated number of ranges (i.e. intervals) in the
                          range sequence.
-  @param n_rows          Estimated total number of records contained within all
+  @param total_rows      Estimated total number of records contained within all
                          of the ranges
   @param bufsz    INOUT  IN:  Size of the buffer available for use
                          OUT: Size of the buffer that will be actually used, or
@@ -393,7 +385,7 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
     other Error or can't perform the requested scan
 */
 
-ha_rows handler::multi_range_read_info(uint keyno, uint n_ranges, uint n_rows,
+ha_rows handler::multi_range_read_info(uint keyno, uint n_ranges, uint total_rows,
                                        uint key_parts, uint *bufsz,
                                        uint *flags, Cost_estimate *cost)
 {
@@ -410,38 +402,27 @@ ha_rows handler::multi_range_read_info(uint keyno, uint n_ranges, uint n_rows,
   /* Produce the same cost as non-MRR code does */
   if (!is_clustering_key(keyno))
   {
-    double range_lookup_cost= (avg_io_cost() * KEY_LOOKUP_COST *
-                               optimizer_cache_cost);
-    /*
-      idx_io_count could potentially be increased with the number of
-      index leaf blocks we have to read for finding n_rows.
-    */
-    cost->idx_io_count=  n_ranges;
+    double key_cost= ha_keyread_time(keyno, n_ranges, total_rows, 0);
+    cost->idx_cpu_cost= key_cost;
+
     if (!(*flags & HA_MRR_INDEX_ONLY))
     {
-      cost->idx_cpu_cost= (keyread_time(keyno, 1, n_rows) +
-                           (n_ranges-1) * range_lookup_cost);
-      cost->cpu_cost= read_time(keyno, 0, n_rows);
-      cost->copy_cost= rows2double(n_rows) * ROW_COPY_COST;
+      /* ha_rnd_pos_time includes ROW_COPY_COST */
+      cost->cpu_cost=     ha_rnd_pos_time(total_rows);
     }
     else
     {
-      /*
-        Same as above, but take into account copying the key to the upper
-        level.
-      */
-      cost->idx_cpu_cost= (keyread_time(keyno, 1, n_rows) +
-                           (n_ranges-1) * range_lookup_cost);
-      cost->copy_cost= rows2double(n_rows) * KEY_COPY_COST;
+      /* Index only read */
+      cost->copy_cost= rows2double(total_rows) * KEY_COPY_COST;
     }
   }
   else
   {
     /* Clustering key */
-    cost->cpu_cost= read_time(keyno, n_ranges, n_rows);
-    cost->copy_cost= rows2double(n_rows) * ROW_COPY_COST;
+    cost->cpu_cost= ha_keyread_time(keyno, n_ranges, total_rows, 0);
+    cost->copy_cost= rows2double(total_rows) * ROW_COPY_COST;
   }
-  cost->comp_cost= rows2double(n_rows) * WHERE_COST;
+  cost->comp_cost= rows2double(total_rows) * WHERE_COST;
   return 0;
 }
 
@@ -2043,7 +2024,7 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
     cost->mem_cost= (double)rows_in_last_step * elem_size;
   
   /* Total cost of all index accesses */
-  index_read_cost= primary_file->ha_keyread_and_copy_time(keynr, 1, rows);
+  index_read_cost= primary_file->ha_keyread_and_copy_time(keynr, 1, rows, 0);
   cost->add_io(index_read_cost, 1 /* Random seeks */);
   return FALSE;
 }
@@ -2081,42 +2062,6 @@ void get_sort_and_sweep_cost(TABLE *table, ha_rows nrows, Cost_estimate *cost)
 /**
   Get cost of reading nrows table records in a "disk sweep"
 
-  A disk sweep read is a sequence of handler->rnd_pos(rowid) calls that made
-  for an ordered sequence of rowids.
-
-  We assume hard disk IO. The read is performed as follows:
-
-   1. The disk head is moved to the needed cylinder
-   2. The controller waits for the plate to rotate
-   3. The data is transferred
-
-  Time to do #3 is insignificant compared to #2+#1.
-
-  Time to move the disk head is proportional to head travel distance.
-
-  Time to wait for the plate to rotate depends on whether the disk head
-  was moved or not. 
-
-  If disk head wasn't moved, the wait time is proportional to distance
-  between the previous block and the block we're reading.
-
-  If the head was moved, we don't know how much we'll need to wait for the
-  plate to rotate. We assume the wait time to be a variate with a mean of
-  0.5 of full rotation time.
-
-  Our cost units are "random disk seeks". The cost of random disk seek is
-  actually not a constant, it depends one range of cylinders we're going
-  to access. We make it constant by introducing a fuzzy concept of "typical 
-  datafile length" (it's fuzzy as it's hard to tell whether it should
-  include index file, temp.tables etc). Then random seek cost is:
-
-    1 = half_rotation_cost + move_cost * 1/3 * typical_data_file_length
-
-  We define half_rotation_cost as DISK_SEEK_BASE_COST=0.9.
-
-  If handler::avg_io_cost() < 1.0, then we will trust the handler
-  when it comes to the average cost (this is for example true for HEAP).
-
   @param table             Table to be accessed
   @param nrows             Number of rows to retrieve
   @param interrupted       TRUE <=> Assume that the disk sweep will be
@@ -2131,8 +2076,7 @@ void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted,
 
   cost->reset();
 #ifndef OLD_SWEEP_COST
-  cost->cpu_cost= table->file->ha_rnd_pos_time(nrows);
-  cost->avg_io_cost= table->file->avg_io_cost();
+  cost->cpu_cost= table->file->ha_rnd_pos_call_time(nrows);
 #else
   if (table->file->pk_is_clustering_key(table->s->primary_key))
   {

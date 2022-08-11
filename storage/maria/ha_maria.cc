@@ -1100,13 +1100,43 @@ ulong ha_maria::index_flags(uint inx, uint part, bool all_parts) const
 }
 
 
-double ha_maria::scan_time()
+/*
+  Update costs that are unique for this TABLE instance
+*/
+
+void ha_maria::update_optimizer_costs(OPTIMIZER_COSTS *costs)
 {
-  if (file->s->data_file_type == BLOCK_RECORD)
-    return (ulonglong2double(stats.data_file_length - file->s->block_size) /
-            file->s->block_size) + 2;
-  return handler::scan_time();
+  /*
+    Default costs for Aria with BLOCK_FORMAT is the same as MariaDB default
+    costs.
+  */
+  if (file->s->data_file_type != BLOCK_RECORD)
+  {
+    /*
+      MyISAM format row lookup costs are slow as the row data is on a not
+      cached file. Costs taken from ha_myisam.cc
+    */
+    costs->row_next_find_cost= 0.000063539;
+    costs->row_lookup_cost=    0.001014818;
+  }
 }
+
+
+IO_AND_CPU_COST ha_maria::rnd_pos_time(ha_rows rows)
+{
+  IO_AND_CPU_COST cost= handler::rnd_pos_time(rows);
+  /* file may be 0 if this is an internal temporary file that is not yet opened */
+  if (file && file->s->data_file_type != BLOCK_RECORD)
+  {
+    /*
+      Row data is not cached. costs.row_lookup_cost includes the cost of
+      the reading the row from system (probably cached by the OS).
+    */
+    cost.io= 0;
+  }
+  return cost;
+}
+
 
 /*
   We need to be able to store at least 2 keys on an index page as the
@@ -3788,6 +3818,12 @@ bool ha_maria::is_changed() const
   return file->state->changed;
 }
 
+static void aria_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  costs->rowid_copy_cost=      0.000001;        // Just a short memcopy
+  costs->rowid_cmp_cost=       0.000001;        // Just a short memcmp
+}
+
 
 static int ha_maria_init(void *p)
 {
@@ -3820,6 +3856,7 @@ static int ha_maria_init(void *p)
   maria_hton->show_status= maria_show_status;
   maria_hton->prepare_for_backup= maria_prepare_for_backup;
   maria_hton->end_backup= maria_end_backup;
+  maria_hton->update_optimizer_costs= aria_update_optimizer_costs;
 
   /* TODO: decide if we support Maria being used for log tables */
   maria_hton->flags= (HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES |

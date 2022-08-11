@@ -51,13 +51,13 @@ SHOW EXPLAIN
       {
         "table": {
           "table_name": "t1",
-          "access_type": "index",
+          "access_type": "range",
           "possible_keys": ["a"],
           "key": "a",
           "key_length": "5",
           "used_key_parts": ["a"],
-          "rows": 1000,
-          "filtered": 99.90000153,
+          "rows": 999,
+          "filtered": 100,
           "attached_condition": "t1.a < 100000",
           "using_index": true
         }
