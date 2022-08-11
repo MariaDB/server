@@ -5679,6 +5679,8 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
 
   restore_record(this, s->default_values);
 
+  DBUG_ASSERT(online_alter_cache == NULL);
+
   /* Tables may be reused in a sub statement. */
   DBUG_ASSERT(!file->extra(HA_EXTRA_IS_ATTACHED_CHILDREN));
 }

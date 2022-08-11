@@ -1445,7 +1445,9 @@ upd_node_t*
 row_create_update_node_for_mysql(
 /*=============================*/
 	dict_table_t*	table,	/*!< in: table to update */
-	mem_heap_t*	heap)	/*!< in: mem heap from which allocated */
+	mem_heap_t*	heap,	/*!< in: mem heap from which allocated */
+	row_prebuilt_t* prebuilt)
+				/*!< in: prebult for this table  */
 {
 	upd_node_t*	node;
 
@@ -1475,6 +1477,7 @@ row_create_update_node_for_mysql(
 
 	node->table_sym = NULL;
 	node->col_assign_list = NULL;
+	node->prebuilt = prebuilt;
 
 	DBUG_RETURN(node);
 }
@@ -1496,7 +1499,7 @@ row_get_prebuilt_update_vector(
 		and query graph to the prebuilt struct */
 
 		prebuilt->upd_node = row_create_update_node_for_mysql(
-			prebuilt->table, prebuilt->heap);
+			prebuilt->table, prebuilt->heap, prebuilt);
 
 		prebuilt->upd_graph = static_cast<que_fork_t*>(
 			que_node_get_parent(

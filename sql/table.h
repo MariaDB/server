@@ -1894,6 +1894,7 @@ typedef struct st_foreign_key_info
   LEX_CSTRING *referenced_key_name;
   List<LEX_CSTRING> foreign_fields;
   List<LEX_CSTRING> referenced_fields;
+  TABLE_LIST *table_list;
 } FOREIGN_KEY_INFO;
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);
@@ -2707,6 +2708,8 @@ struct TABLE_LIST
   /* List to carry partition names from PARTITION (...) clause in statement */
   List<String> *partition_names;
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
+
+  List<FOREIGN_KEY_INFO> *fk_ref_list;
 
   void calc_md5(char *buffer);
   int view_check_option(THD *thd, bool ignore_failure);

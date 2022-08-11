@@ -504,6 +504,7 @@ struct upd_node_t{
 	sym_node_t*	table_sym;/* table node in symbol table */
 	que_node_t*	col_assign_list;
 				/* column assignment list */
+	row_prebuilt_t* prebuilt; /* prebuilt used to access referenced prebuilts */
 	ulint		magic_n;
 
 private:
