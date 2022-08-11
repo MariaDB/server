@@ -6510,6 +6510,25 @@ int spider_panic(
   DBUG_RETURN(0);
 }
 
+static void spider_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  /* Assume 1 Gigabyte network */
+  costs->disk_read_cost=       IO_SIZE/(1000000000/8)*1000.00000;
+  costs->index_block_copy_cost= 0;              // Not used
+
+  /*
+    The following costs are copied from ha_innodb.cc
+    The assumption is that the default storage engine used with Spider is
+    InnoDB.
+   */
+  costs->row_next_find_cost= 0.00007013;
+  costs->row_lookup_cost=    0.00076597;
+  costs->key_next_find_cost= 0.00009900;
+  costs->key_lookup_cost=    0.00079112;
+  costs->row_copy_cost=      0.00006087;
+}
+
+
 int spider_db_init(
   void *p
 ) {
@@ -6553,6 +6572,7 @@ int spider_db_init(
   spider_hton->show_status = spider_show_status;
   spider_hton->create_group_by = spider_create_group_by_handler;
   spider_hton->table_options= spider_table_option_list;
+  spider_hton->update_optimizer_costs= spider_update_optimizer_costs;
 
   if (my_gethwaddr((uchar *) addr))
   {

@@ -32,7 +32,7 @@ lookup_cost(Rowid_filter_container_type cont_type)
 {
   switch (cont_type) {
   case SORTED_ARRAY_CONTAINER:
-    return log(est_elements)*0.01+key_next_find_cost;
+    return log(est_elements) * rowid_compare_cost + base_lookup_cost;
   default:
     DBUG_ASSERT(0);
     return 0;
@@ -125,11 +125,13 @@ void Range_rowid_filter_cost_info::init(Rowid_filter_container_type cont_type,
   key_no= idx;
   est_elements= (ulonglong) table->opt_range[key_no].rows;
   cost_of_building_range_filter= build_cost(container_type);
+
   where_cost= tab->in_use->variables.optimizer_where_cost;
-  key_next_find_cost= tab->in_use->variables.optimizer_key_next_find_cost;
+  base_lookup_cost= tab->file->ROW_NEXT_FIND_COST;
+  rowid_compare_cost= tab->file->ROWID_COMPARE_COST;
   selectivity= est_elements/((double) table->stat_records());
   gain= avg_access_and_eval_gain_per_row(container_type,
-                                         tab->file->optimizer_cache_cost);
+                                         tab->file->ROW_LOOKUP_COST);
   if (gain > 0)
     cross_x= cost_of_building_range_filter/gain;
   else
@@ -147,15 +149,18 @@ double
 Range_rowid_filter_cost_info::build_cost(Rowid_filter_container_type cont_type)
 {
   double cost;
+  OPTIMIZER_COSTS *costs= &table->s->optimizer_costs;
   DBUG_ASSERT(table->opt_range_keys.is_set(key_no));
 
-  cost= table->opt_range[key_no].index_only_fetch_cost(table->in_use);
+  /* Cost of fetching keys */
+  cost= table->opt_range[key_no].index_only_fetch_cost(table);
 
   switch (cont_type) {
-
   case SORTED_ARRAY_CONTAINER:
-    cost+= ARRAY_WRITE_COST * est_elements; /* cost filling the container */
-    cost+= ARRAY_SORT_C * est_elements * log(est_elements); /* sorting cost */
+    /* Add cost of filling container and cost of sorting */
+    cost= (est_elements *
+           (costs->rowid_copy_cost +                      // Copying rowid
+            costs->rowid_cmp_cost * log2(est_elements))); // Sort
     break;
   default:
     DBUG_ASSERT(0);

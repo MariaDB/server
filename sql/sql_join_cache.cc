@@ -1600,6 +1600,7 @@ bool JOIN_CACHE::put_record()
 bool JOIN_CACHE::get_record()
 { 
   bool res;
+  ANALYZE_START_TRACKING(thd(), join_tab->jbuf_unpack_tracker);
   uchar *prev_rec_ptr= 0;
   if (with_length)
     pos+= size_of_rec_len;
@@ -1615,6 +1616,7 @@ bool JOIN_CACHE::get_record()
     if (prev_cache)
       prev_cache->get_record_by_pos(prev_rec_ptr);
   } 
+  ANALYZE_STOP_TRACKING(thd(), join_tab->jbuf_unpack_tracker);
   return res; 
 }
 

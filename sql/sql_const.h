@@ -121,11 +121,11 @@
 
 /*
    This is used when reading large blocks, sequential read.
-   We assume that reading this much will be the same cost as 1 seek / fetching
-   one row from the storage engine.
+   We assume that reading this much will be roughly the same cost as 1
+   seek / fetching one row from the storage engine.
+   Cost of one read of DISK_CHUNK_SIZE is DISK_SEEK_BASE_COST (ms).
 */
 #define DISK_CHUNK_SIZE	(uint) (65536) /* Size of diskbuffer for tmpfiles */
-#define TMPFILE_CREATE_COST        2.0  /* Creating and deleting tmp file */
 
 #define FRM_VER_TRUE_VARCHAR (FRM_VER+4) /* 10 */
 #define FRM_VER_EXPRESSSIONS (FRM_VER+5) /* 11 */
@@ -204,8 +204,14 @@
 #define MIN_ROWS_TO_USE_TABLE_CACHE	 100
 #define MIN_ROWS_TO_USE_BULK_INSERT	 100
 
+/*
+  The lower bound of accepted rows when using filter.
+  This is used to ensure that filters are not too agressive.
+*/
+#define MIN_ROWS_AFTER_FILTERING 1.0
+
 /**
-  Number of rows in a reference table when refereed through a not unique key.
+  Number of rows in a reference table when refered through a not unique key.
   This value is only used when we don't know anything about the key
   distribution.
 */
