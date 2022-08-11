@@ -41,6 +41,7 @@ Created 2/6/1997 Heikki Tuuri
 #include "rem0cmp.h"
 #include "lock0lock.h"
 #include "row0mysql.h"
+#include "ha_innodb.h"
 
 /** Check whether all non-virtual index fields are equal.
 @param[in]	index	the secondary index
@@ -451,16 +452,16 @@ row_vers_build_clust_v_col(
 	dict_index_t*		index,
 	mem_heap_t*		heap)
 {
-	THD*		thd= current_thd;
-	TABLE*		maria_table= 0;
-
 	ut_ad(dict_index_has_virtual(index));
 	ut_ad(index->table == clust_index->table);
 
 	DEBUG_SYNC(current_thd, "ib_clust_v_col_before_row_allocated");
 
+	THD* thd= current_thd;
+	TABLE* maria_table= innodb_find_table_for_vc(thd, index->table);
 	ib_vcol_row vc(nullptr);
-	byte *record = vc.record(thd, index, &maria_table);
+        ut_ad(maria_table);
+	byte *record = vc.record(thd, index, maria_table);
 
 	ut_ad(maria_table);
 

@@ -317,7 +317,7 @@ row_sel_sec_rec_is_for_clust_rec(
 
 			byte *record = vc.record(thr_get_trx(thr)->mysql_thd,
 						 clust_index,
-						 &thr->prebuilt->m_mysql_table);
+						 thr->prebuilt->m_mysql_table);
 
 			v_col = reinterpret_cast<const dict_v_col_t*>(col);
 

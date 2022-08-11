@@ -648,7 +648,7 @@ error:
                                 if (!vcol_storage.innobase_record &&
                                     !innobase_allocate_row_for_vcol(
 						trx->mysql_thd, clust_index,
-						v_heap, &my_table,
+						v_heap, my_table,
 						&vcol_storage)) {
 					*err = DB_OUT_OF_MEMORY;
 					goto error;
