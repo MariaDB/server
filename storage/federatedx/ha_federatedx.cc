@@ -411,6 +411,20 @@ static select_handler*
 create_federatedx_select_handler(THD* thd, SELECT_LEX *sel);
 
 /*
+  Federated doesn't need costs.disk_read_ratio as everything is one a remote
+  server and nothing is cached locally
+*/
+
+static void federatedx_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  /*
+    Setting disk_read_ratios to 1.0, ensures we are using the costs
+    from rnd_pos_time() and scan_time()
+  */
+  costs->disk_read_ratio= 0.0;
+}
+
+/*
   Initialize the federatedx handler.
 
   SYNOPSIS
@@ -442,6 +456,7 @@ int federatedx_db_init(void *p)
   federatedx_hton->flags= HTON_ALTER_NOT_SUPPORTED;
   federatedx_hton->create_derived= create_federatedx_derived_handler;
   federatedx_hton->create_select= create_federatedx_select_handler;
+  federatedx_hton->update_optimizer_costs= federatedx_update_optimizer_costs;
 
   if (mysql_mutex_init(fe_key_mutex_federatedx,
                        &federatedx_mutex, MY_MUTEX_INIT_FAST))
@@ -841,17 +856,9 @@ ha_federatedx::ha_federatedx(handlerton *hton,
   :handler(hton, table_arg),
    txn(0), io(0), stored_result(0)
 {
-  optimizer_cache_cost= 1;
   bzero(&bulk_insert, sizeof(bulk_insert));
 }
 
-/*
-  Federated doesn't need optimizer_cache_cost as everything is one a remote server and
-  nothing is cached locally
-*/
-
-void ha_federatedx::set_optimizer_cache_cost(double cost)
-{}
 
 /*
   Convert MySQL result set row to handler internal format

@@ -32,6 +32,7 @@
 #include "rpl_mi.h" // For Multi-Source Replication
 #include "debug_sync.h"
 #include "sql_acl.h"    // check_global_access()
+#include "optimizer_defaults.h"   // create_optimizer_costs
 
 /*
   a set of mostly trivial (as in f(X)=X) defines below to make system variable
@@ -40,6 +41,7 @@
 #define VALID_RANGE(X,Y) X,Y
 #define DEFAULT(X) X
 #define BLOCK_SIZE(X) X
+#define COST_ADJUST(X) X
 #define GLOBAL_VAR(X) sys_var::GLOBAL, (((char*)&(X))-(char*)&global_system_variables), sizeof(X)
 #define SESSION_VAR(X) sys_var::SESSION, offsetof(SV, X), sizeof(((SV *)0)->X)
 #define SESSION_ONLY(X) sys_var::ONLY_SESSION, offsetof(SV, X), sizeof(((SV *)0)->X)
@@ -1048,7 +1050,7 @@ public:
 
     /* If no basename, assume it's for the key cache named 'default' */
     if (!base_name->length)
-      base_name= &default_key_cache_base;
+      base_name= &default_base;
 
     key_cache= get_key_cache(base_name);
 
@@ -1227,6 +1229,143 @@ public:
   void global_save_default(THD *thd, set_var *var)
   { var->save_result.double_value= getopt_ulonglong2double(option.def_value); }
 };
+
+
+/*
+  Optimizer costs
+  Stored as cost factor (1 cost = 1 ms).
+  Given and displayed as microsconds (as most values are very small)
+*/
+
+class Sys_var_optimizer_cost: public Sys_var_double
+{
+public:
+  double cost_adjust;
+  Sys_var_optimizer_cost(const char *name_arg,
+          const char *comment, int flag_args, ptrdiff_t off, size_t size,
+          CMD_LINE getopt,
+          double min_val, double max_val, double def_val,
+          ulong arg_cost_adjust, PolyLock *lock=0,
+          enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
+          on_check_function on_check_func=0,
+          on_update_function on_update_func=0,
+          const char *substitute=0)
+    :Sys_var_double(name_arg, comment, flag_args, off, size, getopt,
+                   min_val, max_val, def_val, lock,
+                   binlog_status_arg,
+                   on_check_func,
+                   on_update_func,
+                   substitute)
+  {
+    if (arg_cost_adjust == 1000)
+    {
+      show_val_type= SHOW_OPTIMIZER_COST;     // For select @@var
+      option.var_type|= GET_ADJUST_VALUE;
+    }
+    cost_adjust= (double) arg_cost_adjust;
+    global_var(double)= (double)option.def_value/cost_adjust; // To usec
+  }
+  bool session_update(THD *thd, set_var *var)
+  {
+    session_var(thd, double)= var->save_result.double_value/cost_adjust;
+    return false;
+  }
+  bool global_update(THD *thd, set_var *var)
+  {
+    global_var(double)= var->save_result.double_value/cost_adjust;
+    return false;
+  }
+  void session_save_default(THD *thd, set_var *var)
+  { var->save_result.double_value= global_var(double) * cost_adjust; }
+
+  void global_save_default(THD *thd, set_var *var)
+  {
+    var->save_result.double_value= getopt_ulonglong2double(option.def_value)*
+      cost_adjust;
+  }
+};
+
+
+/*
+   The class for optimzer costs with structured names, unique for each engine.
+   Used as 'engine.variable_name'
+
+   Class specific constructor arguments:
+   everything derived from Sys_var_optimizer_cost
+
+  Backing store: double
+
+  @note these variables can be only GLOBAL
+*/
+
+#define COST_VAR(X) GLOBAL_VAR(default_optimizer_costs.X)
+#define cost_var_ptr(KC, OFF) (((uchar*)(KC))+(OFF))
+#define cost_var(KC, OFF) (*(double*)cost_var_ptr(KC, OFF))
+typedef bool (*cost_update_function)(THD *, OPTIMIZER_COSTS *, ptrdiff_t,
+                                     double, double);
+
+static bool update_cost(THD *thd, OPTIMIZER_COSTS *key_cache,
+                        ptrdiff_t offset, double new_value, double cost_adjust)
+{
+  cost_var(key_cache, offset)= new_value / cost_adjust;
+  return 0;
+}
+
+
+class Sys_var_engine_optimizer_cost: public Sys_var_optimizer_cost
+{
+  cost_update_function cost_update;
+  public:
+  Sys_var_engine_optimizer_cost(const char *name_arg,
+          const char *comment, int flag_args, ptrdiff_t off, size_t size,
+          CMD_LINE getopt,
+          double min_val, double max_val, double def_val,
+          long cost_adjust, PolyLock *lock= 0,
+          cost_update_function on_update_func= update_cost,
+          const char *substitute=0)
+    : Sys_var_optimizer_cost(name_arg, comment, flag_args, off, size,
+                             getopt, min_val, max_val, def_val, cost_adjust,
+                             lock, VARIABLE_NOT_IN_BINLOG, 0,
+                             0, substitute),
+     cost_update(on_update_func)
+  {
+    option.var_type|= GET_ASK_ADDR;
+    option.value= (uchar**)1; // crash me, please
+    // fix an offset from global_system_variables to be an offset in KEY_CACHE
+    offset= global_var_ptr() - (uchar*) &default_optimizer_costs;
+    SYSVAR_ASSERT(scope() == GLOBAL);
+  }
+  bool global_update(THD *thd, set_var *var)
+  {
+    double new_value= var->save_result.double_value;
+    LEX_CSTRING *base_name= &var->base;
+    OPTIMIZER_COSTS *optimizer_costs;
+    bool res;
+
+    /* If no basename, assume it's for the default costs */
+    if (!base_name->length)
+      base_name= &default_base;
+
+    mysql_mutex_lock(&LOCK_optimizer_costs);
+    if (!(optimizer_costs= get_or_create_optimizer_costs(base_name->str,
+                                                         base_name->length)))
+    {
+      mysql_mutex_unlock(&LOCK_optimizer_costs);
+      return true;
+    }
+    res= cost_update(thd, optimizer_costs, offset, new_value, cost_adjust);
+    mysql_mutex_unlock(&LOCK_optimizer_costs);
+    return res;
+  }
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  {
+    OPTIMIZER_COSTS *optimizer_costs= get_optimizer_costs(base);
+    if (!optimizer_costs)
+      optimizer_costs= &default_optimizer_costs;
+    return cost_var_ptr(optimizer_costs, offset);
+  }
+};
+
 
 /**
   The class for the @max_user_connections.

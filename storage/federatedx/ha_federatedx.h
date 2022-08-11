@@ -368,20 +368,24 @@ public:
     The reason for "records * 1000" is that such a large number forces
     this to use indexes "
   */
-  double scan_time()
+  IO_AND_CPU_COST scan_time()
   {
     DBUG_PRINT("info", ("records %lu", (ulong) stats.records));
-    return (double)(stats.records*1000);
+    return
+    {
+      (double) (stats.mean_rec_length * stats.records)/8192 * avg_io_cost(),
+        0
+    };
   }
-  double read_time(uint index, uint ranges, ha_rows rows)
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                               ulonglong blocks)
   {
-    return rows2double(rows) + rows2double(ranges);
+    return { (double) (ranges + rows) * avg_io_cost(), 0 };
   }
-  virtual double rnd_pos_time(ha_rows rows)
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows)
   {
-    return rows2double(rows);
+    return { (double) rows * avg_io_cost(), 0 };
   }
-  virtual void set_optimizer_cache_cost(double cost);
 
   const key_map *keys_to_use_for_scanning() { return &key_map_full; }
   /*

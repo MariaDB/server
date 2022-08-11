@@ -6376,6 +6376,7 @@ corrupted:
 
 			DBUG_EXECUTE_IF("bug14007649", return(n_rows););
 
+#ifdef NOT_USED
 			/* Do not estimate the number of rows in the range
 			to over 1 / 2 of the estimated rows in the whole
 			table */
@@ -6391,7 +6392,10 @@ corrupted:
 					n_rows = table_n_rows;
 				}
 			}
-
+#else
+                        if (n_rows > table_n_rows)
+                          n_rows= table_n_rows;
+#endif
 			return(n_rows);
 		}
 

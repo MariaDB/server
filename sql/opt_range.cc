@@ -2735,7 +2735,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   table_info.add_table_name(head);
 
   Json_writer_object trace_range(thd, "range_analysis");
-  if (unlikely(thd->trace_started()))
+  if (unlikely(thd->trace_started()) && read_time != DBL_MAX)
   {
     Json_writer_object table_rec(thd, "table_scan");
     table_rec.add("rows", records).add("cost", read_time);
@@ -2862,10 +2862,11 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 
     thd->mem_root= &alloc;
     /* Calculate cost of full index read for the shortest covering index */
-    if (!force_quick_range && !head->covering_keys.is_clear_all())
+    if (!force_quick_range && !head->covering_keys.is_clear_all() &&
+        !head->no_keyread)
     {
-      int key_for_use= find_shortest_key(head, &head->covering_keys);
       double key_read_time;
+      uint key_for_use= find_shortest_key(head, &head->covering_keys);
       key_read_time= head->file->ha_key_scan_and_compare_time(key_for_use,
                                                               records);
       DBUG_PRINT("info",  ("'all'+'using index' scan will be using key %d, "
@@ -3052,7 +3053,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         param.table->set_opt_range_condition_rows(group_trp->records);
         DBUG_PRINT("info", ("table_rows: %llu  opt_range_condition_rows: %llu  "
                             "group_trp->records: %ull",
-                            table_records, param.table->opt_range_condition_rows,
+                            table_records,
+                            param.table->opt_range_condition_rows,
                             group_trp->records));
 
         Json_writer_object grp_summary(thd, "best_group_range_summary");
@@ -5069,7 +5071,7 @@ static double get_sweep_read_cost(const PARAM *param, ha_rows records,
 {
   DBUG_ENTER("get_sweep_read_cost");
 #ifndef OLD_SWEEP_COST
-  double cost= (param->table->file->ha_rnd_pos_time(records) +
+  double cost= (param->table->file->ha_rnd_pos_call_time(records) +
                 (add_time_for_compare ?
                  records * param->thd->variables.optimizer_where_cost : 0));
   DBUG_PRINT("return", ("cost: %g", cost));
@@ -5085,7 +5087,7 @@ static double get_sweep_read_cost(const PARAM *param, ha_rows records,
       We are using the primary key to find the rows.
       Calculate the cost for this.
     */
-    result= table->file->ha_rnd_pos_time(records);
+    result= table->file->ha_rnd_pos_call_time(records);
   }
   else
   {
@@ -5123,7 +5125,7 @@ static double get_sweep_read_cost(const PARAM *param, ha_rows records,
       */
       result= busy_blocks;
     }
-    result+= rows2double(n_rows) * ROW_COPY_COST_THD(param->table->thd);
+    result+= rows2double(n_rows) * param->table->file->ROW_COPY_COST);
   }
   DBUG_PRINT("return",("cost: %g", result));
   DBUG_RETURN(result);
@@ -5337,7 +5339,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
       is done in QUICK_RANGE_SELECT::row_in_ranges)
      */
     double rid_comp_cost= (rows2double(non_cpk_scan_records) *
-                           ROWID_COMPARE_COST_THD(param->thd));
+                           default_optimizer_costs.rowid_cmp_cost);
     imerge_cost+= rid_comp_cost;
     trace_best_disjunct.add("cost_of_mapping_rowid_in_non_clustered_pk_scan",
                             rid_comp_cost);
@@ -5349,7 +5351,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     double sweep_cost= get_sweep_read_cost(param, non_cpk_scan_records, 0);
     imerge_cost+= sweep_cost;
     trace_best_disjunct.
-      add("records", non_cpk_scan_records).
+      add("rows", non_cpk_scan_records).
       add("cost_sort_rowid_and_read_disk", sweep_cost).
       add("cost", imerge_cost);
   }
@@ -5379,7 +5381,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   }
 
   {
-    const double dup_removal_cost= Unique::get_use_cost(
+    const double dup_removal_cost= Unique::get_use_cost(thd,
                            param->imerge_cost_buff, (uint)non_cpk_scan_records,
                            param->table->file->ref_length,
                            (size_t)param->thd->variables.sortbuff_size,
@@ -5453,10 +5455,9 @@ skip_to_ror_scan:
     double cost;
     if ((*cur_child)->is_ror)
     {
-      /* Ok, we have index_only cost, now get full rows scan cost */
+      /* Ok, we have index_only cost, now get full rows lokoup cost */
       cost= param->table->file->
-        ha_read_and_compare_time(param->real_keynr[(*cur_child)->key_idx], 1,
-                                 (*cur_child)->records);
+        ha_rnd_pos_call_and_compare_time((*cur_child)->records);
     }
     else
       cost= read_time;
@@ -5925,7 +5926,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
       continue;
     }
 
-    cost= table->opt_range[(*index_scan)->keynr].index_only_fetch_cost(thd);
+    cost= table->opt_range[(*index_scan)->keynr].index_only_fetch_cost(table);
 
     idx_scan.add("cost", cost);
 
@@ -6031,7 +6032,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
         selected_idx.add("index", key_info->name);
         print_keyparts(thd, key_info, (*scan_ptr)->used_key_parts);
         selected_idx.
-          add("records", (*scan_ptr)->records).
+          add("rows", (*scan_ptr)->records).
           add("filtered_records", (*scan_ptr)->filtered_out);
       }
     }
@@ -6048,7 +6049,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
         selected_idx.add("index", key_info->name);
         print_keyparts(thd, key_info, (*scan_ptr)->used_key_parts);
         selected_idx.
-          add("records", (*scan_ptr)->records).
+          add("rows", (*scan_ptr)->records).
           add("filtered_records", (*scan_ptr)->filtered_out);
       }
     }
@@ -6314,7 +6315,8 @@ double get_cpk_filter_cost(ha_rows filtered_records,
 */
 
 static
-bool check_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
+bool check_index_intersect_extension(THD *thd,
+                                     PARTIAL_INDEX_INTERSECT_INFO *curr,
                                      INDEX_SCAN_INFO *ext_index_scan,
                                      PARTIAL_INDEX_INTERSECT_INFO *next)
 {
@@ -6361,7 +6363,7 @@ bool check_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
     size_t max_memory_size= common_info->max_memory_size; 
     
     records_sent_to_unique+= ext_index_scan_records;
-    cost= Unique::get_use_cost(buff_elems, (size_t) records_sent_to_unique,
+    cost= Unique::get_use_cost(thd, buff_elems, (size_t) records_sent_to_unique,
                                key_size,
                                max_memory_size, compare_factor, TRUE,
                                &next->in_memory);
@@ -6372,7 +6374,7 @@ bool check_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
       double cost2;
       bool in_memory2;
       ha_rows records2= records_sent_to_unique-records_filtered_out_by_cpk;
-      cost2=  Unique::get_use_cost(buff_elems, (size_t) records2, key_size,
+      cost2=  Unique::get_use_cost(thd, buff_elems, (size_t) records2, key_size,
                                    max_memory_size, compare_factor, TRUE,
                                    &in_memory2);
       cost2+= get_cpk_filter_cost(ext_index_scan_records, common_info->cpk_scan,
@@ -6432,7 +6434,8 @@ bool check_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
 */
 
 static 
-void find_index_intersect_best_extension(PARTIAL_INDEX_INTERSECT_INFO *curr)
+void find_index_intersect_best_extension(THD *thd,
+                                         PARTIAL_INDEX_INTERSECT_INFO *curr)
 {
   PARTIAL_INDEX_INTERSECT_INFO next;
   COMMON_INDEX_INTERSECT_INFO *common_info= curr->common_info;
@@ -6465,8 +6468,9 @@ void find_index_intersect_best_extension(PARTIAL_INDEX_INTERSECT_INFO *curr)
   {
     *rem_first_index_scan_ptr= *index_scan_ptr;
     *index_scan_ptr= rem_first_index_scan;
-    if (check_index_intersect_extension(curr, *rem_first_index_scan_ptr, &next))
-      find_index_intersect_best_extension(&next);
+    if (check_index_intersect_extension(thd, curr, *rem_first_index_scan_ptr,
+                                        &next))
+      find_index_intersect_best_extension(thd, &next);
     *index_scan_ptr= *rem_first_index_scan_ptr;
     *rem_first_index_scan_ptr= rem_first_index_scan;
   }
@@ -6518,7 +6522,7 @@ TRP_INDEX_INTERSECT *get_best_index_intersect(PARAM *param, SEL_TREE *tree,
                                           read_time))
     DBUG_RETURN(NULL);
 
-  find_index_intersect_best_extension(&init);
+  find_index_intersect_best_extension(thd, &init);
 
   if (common.best_length <= 1 && !common.best_uses_cpk)
     DBUG_RETURN(NULL);
@@ -6687,7 +6691,7 @@ ROR_SCAN_INFO *make_ror_scan(const PARAM *param, int idx, SEL_ARG *sel_arg)
   */
   ror_scan->index_read_cost=
     param->table->file->ha_keyread_and_copy_time(ror_scan->keynr, 1,
-                                                 ror_scan->records);
+                                                 ror_scan->records, 0);
   DBUG_RETURN(ror_scan);
 }
 
@@ -13843,10 +13847,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     cause= "not single_table";
   else if (join->select_lex->olap == ROLLUP_TYPE) /* Check (B3) for ROLLUP */
     cause= "rollup";
-  else if (table->s->keys == 0) /* There are no indexes to use. */
+  else if (table->s->keys == 0)  // There are no indexes to use.
     cause= "no index";
   else if (join->conds && join->conds->used_tables()
-          & OUTER_REF_TABLE_BIT) /* Cannot execute with correlated conditions. */
+          & OUTER_REF_TABLE_BIT) // Cannot execute with correlated conditions.
     cause= "correlated conditions";
 
   if (cause)
@@ -14040,7 +14044,8 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       does not qualify as covering in our case. If this is the case, below
       we check that all query fields are indeed covered by 'cur_index'.
     */
-    if (cur_index_info->user_defined_key_parts == table->actual_n_key_parts(cur_index_info)
+    if (cur_index_info->user_defined_key_parts ==
+        table->actual_n_key_parts(cur_index_info)
         && pk < MAX_KEY && cur_index != pk &&
         (table->file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX))
     {
@@ -14083,7 +14088,8 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
           first Item? If so, then why? What is the array for?
         */
         /* Above we already checked that all group items are fields. */
-        DBUG_ASSERT((*tmp_group->item)->real_item()->type() == Item::FIELD_ITEM);
+        DBUG_ASSERT((*tmp_group->item)->real_item()->type() ==
+                    Item::FIELD_ITEM);
         Item_field *group_field= (Item_field *) (*tmp_group->item)->real_item();
         if (group_field->field->eq(cur_part->field))
         {
@@ -14947,24 +14953,28 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
                         bool have_min, bool have_max,
                         double *read_cost, ha_rows *records)
 {
+  uint    keys_per_block, key_length;
   ha_rows table_records;
   ha_rows num_groups;
   ha_rows num_blocks;
-  uint    keys_per_block;
   ha_rows keys_per_group;
   ha_rows keys_per_subgroup; /* Average number of keys in sub-groups */
                           /* formed by a key infix. */
   double p_overlap; /* Probability that a sub-group overlaps two blocks. */
   double quick_prefix_selectivity;
   double io_cost;
+  handler *file= table->file;
   DBUG_ENTER("cost_group_min_max");
 
+  /* Same code as in handler::key_read_time() */
   table_records= table->stat_records();
-  /* Assume block is 75 % full */
-  keys_per_block= (uint) (table->file->stats.block_size * 3 / 4 /
-                          (index_info->key_length + table->file->ref_length)
-                          + 1);
-  num_blocks= (ha_rows)(table_records / keys_per_block) + 1;
+  key_length= (index_info->key_length + file->ref_length);
+  num_blocks= (table_records * key_length / INDEX_BLOCK_FILL_FACTOR_DIV *
+               INDEX_BLOCK_FILL_FACTOR_MUL) / file->stats.block_size + 1;
+  keys_per_block= (file->stats.block_size /
+                   (key_length * INDEX_BLOCK_FILL_FACTOR_MUL /
+                    INDEX_BLOCK_FILL_FACTOR_DIV) +
+                   1);
 
   /* Compute the number of keys in a group. */
   if (!group_key_parts)
@@ -14982,7 +14992,10 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
       keys_per_group= (table_records / 10) + 1;
     }
   }
-  num_groups= (table_records / keys_per_group) + 1;
+  if (keys_per_group > 1)
+    num_groups= (table_records / keys_per_group) + 1;
+  else
+    num_groups= table_records;
 
   /* Apply the selectivity of the quick select for group prefixes. */
   if (range_tree && (quick_prefix_records != HA_POS_ERROR))
@@ -15006,8 +15019,7 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
     /* There cannot be more groups than matched records */
     set_if_smaller(num_groups, quick_prefix_records);
   }
-  /* Ensure we don't have more groups than rows in table */
-  set_if_smaller(num_groups, table_records);
+  DBUG_ASSERT(num_groups <= table_records);
 
   if (used_key_parts > group_key_parts)
   {
@@ -15028,39 +15040,21 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
     io_cost= (double) MY_MIN(num_groups * (1 + p_overlap), num_blocks);
   }
   else
-    io_cost= (keys_per_group > keys_per_block) ?
-             (have_min && have_max) ? (double) (num_groups + 1) :
-                                      (double) num_groups :
-             (double) num_blocks;
+    io_cost= ((keys_per_group > keys_per_block) ?
+              (have_min && have_max) ? (double) (num_groups + 1) :
+              (double) num_groups :
+              (double) num_blocks);
 
   /*
     CPU cost must be comparable to that of an index scan as computed
     in SQL_SELECT::test_quick_select(). When the groups are small,
     e.g. for a unique index, using index scan will be cheaper since it
     reads the next record without having to re-position to it on every
-    group. To make the CPU cost reflect this, we estimate the CPU cost
-    as the sum of:
-    1. Cost for evaluating the condition for each num_group
-       KEY_COMPARE_COST (similarly as for index scan).
-    2. Cost for navigating the index structure (assuming a b-tree).
-       Note: We only add the cost for one index comparision per block. For a
-             b-tree the number of comparisons will be larger. However the cost
-             is low as all of the upper level b-tree blocks should be in
-             memory.
-       TODO: This cost should be provided by the storage engine.
-    3. Cost for comparing the row with the where clause
+    group.
+    Note that key number (0) is not used when we send in io_cost!
   */
-  const THD *thd= table->in_use;
-  const double tree_traversal_cost=
-    ceil(log(static_cast<double>(table_records))/
-         log(static_cast<double>(keys_per_block))) * 
-    thd->variables.optimizer_key_cmp_cost;
-
-  const double cpu_cost= (num_groups *
-                          (tree_traversal_cost +
-                           thd->variables.optimizer_where_cost));
-
-  *read_cost= io_cost + cpu_cost;
+  *read_cost= file->ha_keyread_and_compare_time(0, num_groups, num_groups,
+                                                io_cost);
   *records= num_groups;
 
   DBUG_PRINT("info",

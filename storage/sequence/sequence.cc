@@ -102,12 +102,7 @@ public:
   ha_rows records_in_range(uint inx, const key_range *start_key,
                            const key_range *end_key, page_range *pages)
     override;
-  double scan_time() override
-    { return (double)nvalues(); }
-  double read_time(uint index, uint ranges, ha_rows rows) override
-    { return (double)rows; }
-  double keyread_time(uint index, uint ranges, ha_rows rows) override
-    { return (double)rows; }
+  double avg_io_cost() override { return 0.0; }
 
 private:
   void set(uchar *buf);
@@ -498,6 +493,13 @@ int ha_seq_group_by_handler::next_row()
   DBUG_RETURN(0);
 }
 
+static void sequence_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  costs->disk_read_ratio= 0.0;                // No disk
+  costs->key_next_find_cost= costs->key_lookup_cost=
+    costs->key_copy_cost= costs->row_lookup_cost=
+      costs->row_copy_cost= 0.0000062391530550;
+}
 
 /*****************************************************************************
   Initialize the interface between the sequence engine and MariaDB
@@ -524,6 +526,7 @@ static int init(void *p)
   hton->savepoint_set= hton->savepoint_rollback= hton->savepoint_release=
     dummy_savepoint;
   hton->create_group_by= create_group_by_handler;
+  hton->update_optimizer_costs= sequence_update_optimizer_costs;
   return 0;
 }
 

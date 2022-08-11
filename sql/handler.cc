@@ -46,6 +46,7 @@
 #include "ha_sequence.h"
 #include "rowid_filter.h"
 #include "mysys_err.h"
+#include "optimizer_defaults.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -621,8 +622,44 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
 }
 
 
-const char *hton_no_exts[]= { 0 };
+/*
+  Get a pointer to the global engine optimizer costs (like
+  innodb.disk_read_cost) and store the pointer in the handlerton.
 
+  This is called once when a handlerton is created.
+  We also update the not set global costs with the default costs
+  to allow information_schema to print the real used values.
+*/
+
+static bool update_optimizer_costs(handlerton *hton)
+{
+  OPTIMIZER_COSTS costs= default_optimizer_costs;
+  LEX_CSTRING *name= hton_name(hton);
+
+  if (hton->update_optimizer_costs)
+    hton->update_optimizer_costs(&costs);
+
+  mysql_mutex_lock(&LOCK_optimizer_costs);
+  hton->optimizer_costs= get_or_create_optimizer_costs(name->str,
+                                                       name->length);
+  if (!hton->optimizer_costs)
+  {
+    mysql_mutex_unlock(&LOCK_optimizer_costs);
+    return 1;                                   // OOM
+  }
+
+  /* Update not set values from current default costs */
+  for (uint i=0 ; i < sizeof(OPTIMIZER_COSTS)/sizeof(double) ; i++)
+  {
+    double *var= ((double*) hton->optimizer_costs)+i;
+    if (*var == OPTIMIZER_COST_UNDEF)
+      *var= ((double*) &costs)[i];
+  }
+  mysql_mutex_unlock(&LOCK_optimizer_costs);
+  return 0;
+}
+
+const char *hton_no_exts[]= { 0 };
 
 int ha_initialize_handlerton(st_plugin_int *plugin)
 {
@@ -725,6 +762,12 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   hton->savepoint_offset= savepoint_alloc_size;
   savepoint_alloc_size+= tmp;
   hton2plugin[hton->slot]=plugin;
+
+  if (plugin->plugin->type == MYSQL_STORAGE_ENGINE_PLUGIN &&
+      !(hton->flags & HTON_HIDDEN) &&
+      update_optimizer_costs(hton))
+    goto err_deinit;
+
   if (hton->prepare)
   {
     total_ha_2pc++;
@@ -764,7 +807,6 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
 
   resolve_sysvar_table_options(hton);
   update_discovery_counters(hton, 1);
-
   DBUG_RETURN(0);
 
 err_deinit:
@@ -3222,57 +3264,93 @@ LEX_CSTRING *handler::engine_name()
   return hton_name(ht);
 }
 
-
 /*
-  It is assumed that the value of the parameter 'ranges' can be only 0 or 1.
-  If ranges == 1 then the function returns the cost of index only scan
-  by index 'keyno' of one range containing 'rows' key entries.
-  If ranges == 0 then the function returns only the cost of copying
-  those key entries into the engine buffers.
+  Calculate cost for an index scan for given index and number of records.
 
- This function doesn't take in account into copying the key to record
- (KEY_COPY_COST) or comparing the key to the where clause (WHERE_COST)
+  @param index   Index to use
+  @param ranges  Number of ranges (b-tree dives in case of b-tree).
+                 Used by partition engine
+  @param rows    Number of expected rows
+  @param blocks  Number of disk blocks to read (from range optimizer).
+                 0 if not known
+
+  This function does not take in account into looking up the key,
+  copying the key to record and finding the next key. These cost are
+  handled in ha_keyread_time()
 */
 
-double handler::keyread_time(uint index, uint ranges, ha_rows rows)
+IO_AND_CPU_COST handler::keyread_time(uint index, ulong ranges, ha_rows rows,
+                                      ulonglong blocks)
 {
-  size_t len;
-  double cost;
-  DBUG_ASSERT(ranges == 0 || ranges == 1);
-  len= table->key_info[index].key_length + ref_length;
-  if (table->file->is_clustering_key(index))
-    len= table->s->stored_rec_length;
+  IO_AND_CPU_COST cost;
+  ulonglong io_blocks= 0;
 
-  cost= ((double)rows*len/(stats.block_size+1) *
-         INDEX_BLOCK_COPY_COST(table->in_use));
-  /*
-    We divide the cost with optimizer_cache_cost as ha_keyread_time()
-    and ha_key_scan_time() will multiply the result value with
-    optimizer_cache_cost and we want to keep the above 'memory operation'
-    cost unaffected by this multiplication.
-  */
-  cost/= optimizer_cache_cost;
-  if (ranges)
+  /* memory engine has stats.block_size == 0 */
+  if (stats.block_size)
   {
-    uint keys_per_block= (uint) (stats.block_size*3/4/len+1);
-    /*
-      We let the cost grow slowly in proportion to number of rows to
-      promote indexes with less rows.
-      We do not calculate exact number of block reads as then index
-      only reads will be more costly than normal reads, especially
-      compared to InnoDB clustered keys.
-
-      KEY_LOOKUP_COST is the cost of finding the first key in the
-      range.  Finding the next key is usually a fast operation so we
-      don't count it here, it is taken into account in
-      ha_keyread_and_copy_time()
-    */
-    cost+= (((double) (rows / keys_per_block) + KEY_LOOKUP_COST) *
-            avg_io_cost());
+    if (!blocks)
+    {
+      /* Estimate length of index data */
+      if (rows <= 1)                              // EQ_REF optimization
+      {
+        blocks= 1;
+        io_blocks= (stats.block_size + IO_SIZE - 1)/ IO_SIZE;
+      }
+      else
+      {
+        size_t len= table->key_storage_length(index);
+        blocks= (rows * len / INDEX_BLOCK_FILL_FACTOR_DIV *
+                 INDEX_BLOCK_FILL_FACTOR_MUL) / stats.block_size + ranges;
+        io_blocks= blocks * stats.block_size / IO_SIZE;
+      }
+    }
+    else
+      io_blocks= blocks * stats.block_size / IO_SIZE;
   }
+  cost.io=  io_blocks * avg_io_cost();
+  cost.cpu= blocks * INDEX_BLOCK_COPY_COST;
   return cost;
 }
 
+
+/*
+  Cost of doing a set of range scans and finding the key position.
+  This function is used both with index scans (in which case there should be
+  an additional KEY_COPY_COST) and when normal index + fetch row scan,
+  in which case there should an additional rnd_pos_time() cost.
+*/
+
+double handler::ha_keyread_time(uint index, ulong ranges, ha_rows rows,
+                                ulonglong blocks)
+{
+  if (rows < ranges)
+    rows= ranges;
+  IO_AND_CPU_COST cost= keyread_time(index, ranges, rows, blocks);
+  return (cost.io * DISK_READ_RATIO +
+          cost.cpu + ranges * KEY_LOOKUP_COST +
+          (rows - ranges) * KEY_NEXT_FIND_COST);
+}
+
+
+/*
+  Read a row from a clustered index
+
+  Cost is similar to ha_rnd_pos_call_time() as a index_read() on a clusterd
+  key has identical code as rnd_pos() (At least in InnoDB:)
+*/
+
+double handler::ha_keyread_clustered_and_copy_time(uint index, ulong ranges,
+                                                   ha_rows rows,
+                                                   ulonglong blocks)
+{
+  if (rows < ranges)
+    rows= ranges;
+  IO_AND_CPU_COST cost= keyread_time(index, ranges, rows, blocks);
+  return (cost.io * DISK_READ_RATIO +
+          cost.cpu + ranges * ROW_LOOKUP_COST +
+          (rows - ranges) * ROW_NEXT_FIND_COST +
+          rows * ROW_COPY_COST);
+}
 
 THD *handler::ha_thd(void) const
 {
@@ -3346,7 +3424,7 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
               name, ht->db_type, table_arg->db_stat, mode,
               test_if_locked));
 
-  table= table_arg;
+  set_table(table_arg);
   DBUG_ASSERT(table->s == table_share);
   DBUG_ASSERT(m_lock_type == F_UNLCK);
   DBUG_PRINT("info", ("old m_lock_type: %d F_UNLCK %d", m_lock_type, F_UNLCK));
@@ -3396,14 +3474,15 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
     else
       dup_ref=ref+ALIGN_SIZE(ref_length);
     cached_table_flags= table_flags();
-
+    if (!table->s->optimizer_costs_inited)
+    {
+      table->s->optimizer_costs_inited=1;
+      /* Copy data from global 'engine'.optimizer_costs to TABLE_SHARE */
+      table->s->update_optimizer_costs(partition_ht());
+      /* Update costs depend on table structure */
+      update_optimizer_costs(&table->s->optimizer_costs);
+    }
     /* Copy current optimizer costs. Needed in case clone() is used */
-    set_optimizer_costs(table->in_use);
-    DBUG_ASSERT(optimizer_key_copy_cost >= 0.0);
-    DBUG_ASSERT(optimizer_key_next_find_cost >= 0.0);
-    DBUG_ASSERT(optimizer_row_copy_cost >= 0.0);
-    DBUG_ASSERT(optimizer_where_cost >= 0.0);
-    DBUG_ASSERT(optimizer_key_cmp_cost >= 0.0);
     reset_statistics();
   }
   internal_tmp_table= MY_TEST(test_if_locked & HA_OPEN_INTERNAL_TABLE);
@@ -3433,6 +3512,15 @@ int handler::ha_close(void)
   DBUG_ASSERT(m_lock_type == F_UNLCK);
   DBUG_ASSERT(inited == NONE);
   DBUG_RETURN(close());
+}
+
+void handler::change_table_ptr(TABLE *table_arg, TABLE_SHARE *share)
+{
+  DBUG_ASSERT(table_arg->s == share);
+  table= table_arg;
+  table_share= share;
+  costs= &share->optimizer_costs;
+  reset_statistics();
 }
 
 
@@ -8725,27 +8813,19 @@ Table_scope_and_contents_source_st::fix_period_fields(THD *thd,
 }
 
 /*
-  Copy common optimizer cost variables to the engine
+  Copy upper level cost to the engine as part of start statement
 
-  This is needed to provide fast acccess to these variables during
-  optimization (as we refer to them multiple times).
+  This is needed to provide fast access to these variables during
+  optimization (as we refer to them multiple times during one query).
 
-  The other option would be to access them from thd, but that
-  would require a function call (as we cannot access THD from
-  an inline handler function) and two extra memory accesses
-  for each variable.
-
-  index_block_copy_cost is not copied as it is used so seldom.
+  The other option would be to access them from THD, but that would
+  require a function call (as we cannot easily access THD from an
+  inline handler function) and two extra memory accesses for each
+  variable.
 */
-
 
 void handler::set_optimizer_costs(THD *thd)
 {
-  optimizer_key_copy_cost= thd->variables.optimizer_key_copy_cost;
-  optimizer_key_next_find_cost=
-    thd->variables.optimizer_key_next_find_cost;
-  optimizer_row_copy_cost= thd->variables.optimizer_row_copy_cost;
-  optimizer_where_cost= thd->variables.optimizer_where_cost;
-  optimizer_key_cmp_cost= thd->variables.optimizer_key_cmp_cost;
-  set_optimizer_cache_cost(thd->optimizer_cache_hit_ratio);
+  optimizer_where_cost=      thd->variables.optimizer_where_cost;
+  optimizer_scan_setup_cost= thd->variables.optimizer_scan_setup_cost;
 }

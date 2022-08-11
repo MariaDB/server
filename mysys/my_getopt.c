@@ -86,6 +86,7 @@ my_bool my_getopt_prefix_matching= 1;
 my_bool my_handle_options_init_variables = 1;
 
 my_getopt_value my_getopt_get_addr= 0;
+my_getopt_adjust my_getopt_adjust_value= 0;
 
 static void default_reporter(enum loglevel level, const char *format, ...)
 {
@@ -858,6 +859,8 @@ static int setval(const struct my_option *opts, void *value, char *argument,
       goto ret;
     };
   }
+  if (opts->var_type & GET_ADJUST_VALUE)
+    (*my_getopt_adjust_value)(opts, value);
   DBUG_RETURN(0);
 
 ret:

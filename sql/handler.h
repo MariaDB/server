@@ -26,9 +26,9 @@
 #endif
 
 #include "sql_const.h"
-#include "optimizer_costs.h"
 #include "sql_basic_types.h"
 #include "mysqld.h"                             /* server_id */
+#include "optimizer_costs.h"
 #include "sql_plugin.h"        /* plugin_ref, st_plugin_int, plugin */
 #include "thr_lock.h"          /* thr_lock_type, THR_LOCK_DATA */
 #include "sql_cache.h"
@@ -36,6 +36,7 @@
 #include "sql_array.h"          /* Dynamic_array<> */
 #include "mdl.h"
 #include "vers_string.h"
+#include "optimizer_costs.h"
 
 #include "sql_analyze_stmt.h" // for Exec_time_tracker 
 
@@ -1041,6 +1042,7 @@ enum enum_schema_tables
   SCH_KEY_CACHES,
   SCH_KEY_COLUMN_USAGE,
   SCH_OPEN_TABLES,
+  SCH_OPTIMIZER_COSTS,
   SCH_OPT_TRACE,
   SCH_PARAMETERS,
   SCH_PARTITIONS,
@@ -1490,6 +1492,10 @@ struct handlerton
 
   /* Called for all storage handlers after ddl recovery is done */
   void (*signal_ddl_recovery_done)(handlerton *hton);
+
+  /* Called at startup to update default engine costs */
+  void (*update_optimizer_costs)(OPTIMIZER_COSTS *costs);
+  void *optimizer_costs;                        /* Costs are stored here */
 
    /*
      Optional clauses in the CREATE/ALTER TABLE
@@ -3100,6 +3106,21 @@ enum class Compare_keys : uint32_t
   NotEqual
 };
 
+/* Cost for reading a row through an index */
+struct INDEX_READ_COST
+{
+  double read_cost;
+  double index_only_cost;
+};
+
+/* Separated costs for IO and CPU. For handler::keyread_time() */
+struct IO_AND_CPU_COST
+{
+  double io;
+  double cpu;
+};
+
+
 /**
   The handler class is the interface for dynamically loadable
   storage engines. Do not add ifdefs and take care when adding or
@@ -3160,9 +3181,10 @@ protected:
   ha_rows estimation_rows_to_insert;
   handler *lookup_handler;
 public:
-  handlerton *ht;                 /* storage engine of this handler */
-  uchar *ref;				/* Pointer to current row */
-  uchar *dup_ref;			/* Pointer to duplicate row */
+  handlerton *ht;               /* storage engine of this handler */
+  OPTIMIZER_COSTS *costs;       /* Points to table->share->costs */
+  uchar *ref;			/* Pointer to current row */
+  uchar *dup_ref;		/* Pointer to duplicate row */
   uchar *lookup_buffer;
 
   ha_statistics stats;
@@ -3235,15 +3257,6 @@ public:
   ulonglong rows_changed;
   /* One bigger than needed to avoid to test if key == MAX_KEY */
   ulonglong index_rows_read[MAX_KEY+1];
-  /*
-    Cost of using key/record cache:  (100-cache_hit_ratio)/100
-    Updated from THD in open_tables()
-   */
-  double optimizer_cache_cost;
-  double optimizer_key_next_find_cost;
-  double optimizer_row_copy_cost, optimizer_key_copy_cost;
-  double optimizer_where_cost, optimizer_key_cmp_cost;
-
   ha_copy_info copy_info;
 
 private:
@@ -3362,13 +3375,15 @@ private:
     For non partitioned handlers this is &TABLE_SHARE::ha_share.
   */
   Handler_share **ha_share;
+  double optimizer_where_cost;          // Copy of THD->...optimzer_where_cost
+  double optimizer_scan_setup_cost;     // Copy of THD->...optimzer_scan_...
 
 public:
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
     estimation_rows_to_insert(0),
     lookup_handler(this),
-    ht(ht_arg), ref(0), lookup_buffer(NULL), end_range(NULL),
+    ht(ht_arg), costs(0), ref(0), lookup_buffer(NULL), end_range(NULL),
     implicit_emptied(0),
     mark_trx_read_write_done(0),
     check_table_binlog_row_based_done(0),
@@ -3379,7 +3394,6 @@ public:
     ref_length(sizeof(my_off_t)),
     ft_handler(0), inited(NONE), pre_inited(NONE),
     pushed_cond(0), next_insert_id(0), insert_id_for_cur_row(0),
-    optimizer_cache_cost((100-DEFAULT_CACHE_HIT_RATIO)/100.0),
     tracker(NULL),
     pushed_idx_cond(NULL),
     pushed_idx_cond_keyno(MAX_KEY),
@@ -3393,12 +3407,19 @@ public:
     m_psi_numrows(0),
     m_psi_locker(NULL),
     row_logging(0), row_logging_init(0),
-    m_lock_type(F_UNLCK), ha_share(NULL)
+    m_lock_type(F_UNLCK), ha_share(NULL), optimizer_where_cost(0),
+    optimizer_scan_setup_cost(0)
   {
     DBUG_PRINT("info",
                ("handler created F_UNLCK %d F_RDLCK %d F_WRLCK %d",
                 F_UNLCK, F_RDLCK, F_WRLCK));
     reset_statistics();
+    /*
+      The following variables should be updated in set_optimizer_costs()
+      which is to be run as part of setting up the table for the query
+    */
+    MEM_UNDEFINED(&optimizer_where_cost, sizeof(optimizer_where_cost));
+    MEM_UNDEFINED(&optimizer_scan_setup_cost, sizeof(optimizer_scan_setup_cost));
   }
   virtual ~handler(void)
   {
@@ -3599,22 +3620,21 @@ public:
     bzero(&copy_info, sizeof(copy_info));
     reset_copy_info();
   }
-  virtual void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share)
-  {
-    table= table_arg;
-    table_share= share;
-    reset_statistics();
-  }
+  virtual void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share);
 
   /*
     Time for a full table data scan. To be overrided by engines, should not
     be used by the sql level.
   */
 protected:
-  virtual double scan_time()
+  virtual IO_AND_CPU_COST scan_time()
   {
-    return (((ulonglong2double(stats.data_file_length) / stats.block_size)) *
-            avg_io_cost());
+    IO_AND_CPU_COST cost;
+    ulonglong length= stats.data_file_length;
+    cost.io= (double) (length / IO_SIZE) * avg_io_cost();
+    cost.cpu= (!stats.block_size ? 0.0 :
+               (double) (length / stats.block_size) * INDEX_BLOCK_COPY_COST);
+    return cost;
   }
 public:
 
@@ -3630,147 +3650,149 @@ public:
      a few rows and the extra cost has no practical effect.
   */
 
-  inline double ha_scan_time()
+  inline double ha_scan_time(ha_rows rows)
   {
-    return (scan_time() * optimizer_cache_cost +
-            TABLE_SCAN_SETUP_COST * avg_io_cost());
+    IO_AND_CPU_COST cost= scan_time();
+    return (cost.io * DISK_READ_RATIO +
+            cost.cpu + TABLE_SCAN_SETUP_COST +
+            (double) rows * (ROW_NEXT_FIND_COST + ROW_COPY_COST));
   }
 
   /*
-     Time for a full table scan, fetching the rows from the table and comparing
-     the row with the where clause
+    Time for a full table scan, fetching the rows from the table and comparing
+    the row with the where clause
   */
-  inline double ha_scan_and_compare_time(ha_rows records)
+  inline double ha_scan_and_compare_time(ha_rows rows)
   {
-    return (ha_scan_time() +
-            (double) records * (ROW_COPY_COST + WHERE_COST));
+    return ha_scan_time(rows) + (double) rows * WHERE_COST;
   }
 
+  /* Cost of (random) reading a block of IO_SIZE */
   virtual double avg_io_cost()
   {
-   return 1.0;
+    return DISK_READ_COST;
   }
 
+  /*
+    Update table->share optimizer costs for this particular table.
+    Called once when table is opened the first time.
+  */
+  virtual void update_optimizer_costs(OPTIMIZER_COSTS *costs) {}
+
+  /*
+    Set handler optimizer cost variables.
+    Called for each table used by the statment
+    This is virtual mainly for the partition engine.
+  */
   virtual void set_optimizer_costs(THD *thd);
 
-  /*
-    Set cost for finding a row in the engine cache
-    This allows the handler to override the cost if there is no
-    caching of rows, like in heap or federatedx.
-  */
-  virtual void set_optimizer_cache_cost(double cost)
-  {
-    optimizer_cache_cost= cost;
-  }
-
-  /**
-     The cost of reading a set of ranges from the table using an index
-     to access it.
-     
-     @param index  The index number.
-     @param ranges The number of ranges to be read. If 0, it means that
-                   we calculate separately the cost of reading the key.
-     @param rows   Total number of rows to be read.
-     
-     This method can be used to calculate the total cost of scanning a table
-     using an index by calling it using read_time(index, 1, table_size).
-
-     This function is to be reimplemented by engines (if needed). The sql_level
-     should call ha_read_time(), ha_read_and_copy_time() or
-     ha_read_and_compare_time().
-  */
 protected:
-  virtual double read_time(uint index, uint ranges, ha_rows rows)
+  /*
+    Cost of reading 'rows' number of rows with a rowid
+  */
+  virtual IO_AND_CPU_COST rnd_pos_time(ha_rows rows)
   {
-    return ((rows2double(rows) * ROW_LOOKUP_COST +
-             rows2double(ranges) * KEY_LOOKUP_COST) * avg_io_cost());
+    double r= rows2double(rows);
+    return
+    {
+      r * avg_io_cost() * stats.block_size/IO_SIZE,    // Blocks read
+      r * INDEX_BLOCK_COPY_COST                        // Copy block from cache
+     };
   }
 public:
 
-  /* Same as above, but take into account CACHE_COST */
-  inline double ha_read_time(uint index, uint ranges, ha_rows rows)
-  {
-    return read_time(index, ranges, rows) * optimizer_cache_cost;
-  }
-
-  /* Same as above, but take into account also copying of the row to 'record' */
-  inline double ha_read_and_copy_time(uint index, uint ranges, ha_rows rows)
-  {
-    return (ha_read_time(index, ranges, rows) +
-            rows2double(rows) * ROW_COPY_COST);
-  }
-
-  /* Same as above, but take into account also copying and comparing the row */
-  inline double ha_read_and_compare_time(uint index, uint ranges, ha_rows rows)
-  {
-    return (ha_read_time(index, ranges, rows) +
-            rows2double(rows) * (ROW_COPY_COST + WHERE_COST));
-  }
-
-  /* Cost of reading a row with rowid */
-protected:
-  virtual double rnd_pos_time(ha_rows rows)
-  {
-    return rows2double(rows) * ROW_LOOKUP_COST * avg_io_cost();
-  }
-public:
   /*
-    Same as above, but take into account cache_cost and copying of the row
-    to 'record'.
-    Note that this should normally be same as ha_read_time(some_key, 0, rows)
+    Time for doing and internal rnd_pos() inside the engine.  For some
+    engine, this is more efficient than the SQL layer calling
+    rnd_pos() as there is no overhead in converting/checking the
+    rnd_pos_value.  This is used when calculating the cost of fetching
+    a key+row in one go (like when scanning an index and fetching the
+    row).
   */
+
   inline double ha_rnd_pos_time(ha_rows rows)
   {
-    return (rnd_pos_time(rows) * optimizer_cache_cost +
-            rows2double(rows) * ROW_COPY_COST);
+    IO_AND_CPU_COST cost= rnd_pos_time(rows);
+    return (cost.io * DISK_READ_RATIO +
+            cost.cpu + rows2double(rows) * (ROW_LOOKUP_COST + ROW_COPY_COST));
+  }
+
+  /*
+    This cost if when we are calling rnd_pos() explict in the call
+    For the moment this function is identical to ha_rnd_pos time,
+    but that may change in the future after we do more cost checks for
+    more engines.
+  */
+  inline double ha_rnd_pos_call_time(ha_rows rows)
+  {
+    IO_AND_CPU_COST cost= rnd_pos_time(rows);
+    return (cost.io * DISK_READ_RATIO +
+            cost.cpu + rows2double(rows) * (ROW_LOOKUP_COST + ROW_COPY_COST));
+  }
+
+  inline double ha_rnd_pos_call_and_compare_time(ha_rows rows)
+  {
+    return (ha_rnd_pos_call_time(rows) + rows2double(rows) * WHERE_COST);
   }
 
   /**
-    Calculate cost of 'index_only' scan for given index and number of records.
+    Calculate cost of 'index_only' scan for given index, a number of reanges
+    and number of records.
 
-     @param index   Index to read
-     @param flag    If flag  == 1 then the function returns the cost of
-                    index only scan by index 'index' of one range containing
-                    'rows' key entries.
-                    If flag == 0 then function returns only the cost of copying
-                    those key entries into the engine buffers.
-     @param rows    #of records to read
+    @param index   Index to read
+    @param rows    #of records to read
+    @param blocks  Number of IO blocks that needs to be accessed.
+                   0 if not known (in which case it's calculated)
   */
 protected:
-  virtual double keyread_time(uint index, uint flag, ha_rows rows);
+  virtual IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                                       ulonglong blocks);
 public:
 
   /*
     Calculate cost of 'keyread' scan for given index and number of records
     including fetching the key to the 'record' buffer.
   */
-
-  inline double ha_keyread_time(uint index, uint flag, ha_rows rows)
-  {
-    return (keyread_time(index, flag, rows) * optimizer_cache_cost);
-  }
+  double ha_keyread_time(uint index, ulong ranges, ha_rows rows,
+                         ulonglong blocks);
 
   /* Same as above, but take into account copying the key the the SQL layer */
-  inline double ha_keyread_and_copy_time(uint index, uint flag, ha_rows rows)
+  inline double ha_keyread_and_copy_time(uint index, ulong ranges,
+                                         ha_rows rows, ulonglong blocks)
   {
-    return ha_keyread_time(index, flag, rows) + (double) rows * KEY_COPY_COST;
+    return (ha_keyread_time(index, ranges, rows, blocks) +
+            (double) rows * KEY_COPY_COST);
   }
 
+  inline double ha_keyread_and_compare_time(uint index, ulong ranges,
+                                            ha_rows rows, ulonglong blocks)
+  {
+    return (ha_keyread_time(index, ranges, rows, blocks) +
+            (double) rows * (KEY_COPY_COST + WHERE_COST));
+  }
+
+  double ha_keyread_clustered_and_copy_time(uint index, ulong ranges,
+                                            ha_rows rows,
+                                            ulonglong blocks);
   /*
     Time for a full table index scan (without copy or compare cost).
     To be overrided by engines, sql level should use ha_key_scan_time().
+    Note that IO_AND_CPU_COST does not include avg_io_cost() !
   */
 protected:
-  virtual double key_scan_time(uint index)
+  virtual IO_AND_CPU_COST key_scan_time(uint index, ha_rows rows)
   {
-    return keyread_time(index, 1, records());
+    return keyread_time(index, 1, MY_MAX(rows, 1), 0);
   }
 public:
 
   /* Cost of doing a full index scan */
-  inline double ha_key_scan_time(uint index)
+  inline double ha_key_scan_time(uint index, ha_rows rows)
   {
-    return (key_scan_time(index) * optimizer_cache_cost);
+    IO_AND_CPU_COST cost= key_scan_time(index, rows);
+    return (cost.io * DISK_READ_RATIO +
+            cost.cpu + INDEX_SCAN_SETUP_COST + KEY_LOOKUP_COST +
+            (double) rows * (KEY_NEXT_FIND_COST + KEY_COPY_COST));
   }
 
   /*
@@ -3779,8 +3801,7 @@ public:
   */
   inline double ha_key_scan_and_compare_time(uint index, ha_rows rows)
   {
-    return (ha_key_scan_time(index) +
-            (double) rows * (KEY_COPY_COST + WHERE_COST));
+    return ha_key_scan_time(index, rows) + (double) rows * WHERE_COST;
   }
 
   virtual const key_map *keys_to_use_for_scanning() { return &key_map_empty; }
@@ -5231,7 +5252,7 @@ public:
     ha_share= arg_ha_share;
     return false;
   }
-  void set_table(TABLE* table_arg) { table= table_arg; }
+  inline void set_table(TABLE* table_arg);
   int get_lock_type() const { return m_lock_type; }
 public:
   /* XXX to be removed, see ha_partition::partition_ht() */
@@ -5315,7 +5336,7 @@ protected:
   void unlock_shared_ha_data();
 
   /*
-    Mroonga needs to call read_time() directly for it's internal handler
+    Mroonga needs to call some xxx_time() directly for it's internal handler
     methods
   */
   friend class ha_mroonga;

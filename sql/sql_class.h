@@ -683,9 +683,7 @@ typedef struct system_variables
   ulonglong slave_skip_counter;
   ulonglong max_relay_log_size;
 
-  double optimizer_index_block_copy_cost, optimizer_key_next_find_cost;
-  double optimizer_row_copy_cost, optimizer_key_copy_cost;
-  double optimizer_where_cost, optimizer_key_cmp_cost;
+  double optimizer_where_cost, optimizer_scan_setup_cost;
   double long_query_time_double, max_statement_time_double;
   double sample_percentage;
 
@@ -783,7 +781,6 @@ typedef struct system_variables
 
   uint group_concat_max_len;
   uint eq_range_index_dive_limit;
-  uint optimizer_cache_hit_ratio;  // Stored in handler::optimizer_cache_cost
   uint idle_transaction_timeout;
   uint idle_readonly_transaction_timeout;
   uint idle_write_transaction_timeout;
@@ -821,7 +818,6 @@ typedef struct system_variables
   my_bool session_track_user_variables;
 #endif // USER_VAR_TRACKING
   my_bool tcp_nodelay;
-
   plugin_ref table_plugin;
   plugin_ref tmp_table_plugin;
   plugin_ref enforced_table_plugin;
@@ -2672,7 +2668,6 @@ public:
   struct  system_status_var org_status_var; // For user statistics
   struct  system_status_var *initial_status_var; /* used by show status */
   THR_LOCK_INFO lock_info;              // Locking info of this thread
-  double optimizer_cache_hit_ratio;     // From optimizer_cache_hit_ratio
 
   /**
     Protects THD data accessed from other threads:
@@ -7355,6 +7350,13 @@ inline void handler::decrement_statistics(ulong SSV::*offset) const
   status_var_decrement(table->in_use->status_var.*offset);
 }
 
+/* Update references in the handler to the table */
+
+inline void handler::set_table(TABLE* table_arg)
+{
+  table= table_arg;
+  costs= &table_arg->s->optimizer_costs;
+}
 
 inline int handler::ha_ft_read(uchar *buf)
 {

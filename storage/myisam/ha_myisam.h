@@ -82,14 +82,14 @@ class ha_myisam final : public handler
   int index_first(uchar * buf) override;
   int index_last(uchar * buf) override;
   int index_next_same(uchar *buf, const uchar *key, uint keylen) override;
-  int ft_init()
+  int ft_init() override
   {
     if (!ft_handler)
       return 1;
     ft_handler->please->reinit_search(ft_handler);
     return 0;
   }
-  FT_INFO *ft_init_ext(uint flags, uint inx,String *key)
+  FT_INFO *ft_init_ext(uint flags, uint inx,String *key) override
   {
     return ft_init_search(flags,file,inx,
                           (uchar *)key->ptr(), key->length(), key->charset(),
@@ -101,6 +101,7 @@ class ha_myisam final : public handler
   int rnd_pos(uchar * buf, uchar *pos) override;
   int remember_rnd_pos() override;
   int restart_rnd_next(uchar *buf) override;
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override;
   void position(const uchar *record) override;
   int info(uint) override;
   int extra(enum ha_extra_function operation) override;

@@ -37,6 +37,7 @@ public:
     bzero(&m_hton, sizeof(m_hton));
     m_hton.tablefile_extensions= hton_no_exts;
     m_hton.slot= HA_SLOT_UNDEF;
+    m_hton.flags= HTON_HIDDEN;
   }
 };
 
@@ -219,6 +220,10 @@ public:
   int open(const char *name, int mode, uint test_if_locked) override
   { return 0; }
   int close(void) override { return 0; }
+  void update_optimizer_costs(OPTIMIZER_COSTS *costs)
+  {
+    memcpy(costs, &heap_optimizer_costs, sizeof(*costs));
+  }
   int rnd_init(bool scan) override;
   int rnd_next(uchar *buf) override;
   int rnd_pos(uchar * buf, uchar *pos) override;

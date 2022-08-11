@@ -11350,36 +11350,43 @@ void ha_spider::bulk_req_exec()
 }
 #endif
 
-double ha_spider::scan_time()
+IO_AND_CPU_COST ha_spider::scan_time()
 {
+  IO_AND_CPU_COST cost;
   DBUG_ENTER("ha_spider::scan_time");
   DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_PRINT("info",("spider scan_time = %.6f",
-    share->scan_rate * share->stat.records * share->stat.mean_rec_length + 2));
-  DBUG_RETURN(share->scan_rate * share->stat.records *
-    share->stat.mean_rec_length + 2);
+  cost.io=0;
+  cost.cpu= (share->scan_rate * share->stat.records *
+             share->stat.mean_rec_length);
+  DBUG_PRINT("info",("spider scan_time = %.6f", cost.cpu));
+  return cost;
 }
 
-double ha_spider::read_time(
-  uint index,
-  uint ranges,
-  ha_rows rows
-) {
-  DBUG_ENTER("ha_spider::read_time");
+IO_AND_CPU_COST ha_spider::rnd_pos_time(ha_rows rows)
+{
+  IO_AND_CPU_COST cost= { 0.0, 0.0};            // Row is in memory
+  return cost;
+}
+
+IO_AND_CPU_COST ha_spider::keyread_time(uint index, ulong ranges, ha_rows rows,
+                                        ulonglong blocks)
+{
+  IO_AND_CPU_COST cost;
+  DBUG_ENTER("ha_spider::keyread_time");
   DBUG_PRINT("info",("spider this=%p", this));
   if (wide_handler->keyread)
   {
-    DBUG_PRINT("info",("spider read_time(keyread) = %.6f",
-      share->read_rate * table->key_info[index].key_length *
-      rows / 2 + 2));
-    DBUG_RETURN(share->read_rate * table->key_info[index].key_length *
-      rows / 2 + 2);
+    cost.io= ranges;
+    cost.cpu= (share->read_rate * table->key_info[index].key_length * rows / 2
+               + 2);
   } else {
-    DBUG_PRINT("info",("spider read_time = %.6f",
-      share->read_rate * share->stat.mean_rec_length * rows + 2));
-    DBUG_RETURN(share->read_rate * share->stat.mean_rec_length * rows + 2);
+    cost.io= ranges;
+    cost.cpu= share->read_rate * share->stat.mean_rec_length * rows + 2;
   }
+  DBUG_PRINT("info",("spider scan_time(keyread) = %.6f", cost.cpu));
+  DBUG_RETURN(cost);
 }
+
 
 const key_map *ha_spider::keys_to_use_for_scanning()
 {

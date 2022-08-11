@@ -783,6 +783,7 @@ struct TABLE_SHARE
     return is_view   ? view_pseudo_hton :
            db_plugin ? plugin_hton(db_plugin) : NULL;
   }
+  OPTIMIZER_COSTS optimizer_costs;      /* Copy of get_optimizer_costs() */
   enum row_type row_type;		/* How rows are stored */
   enum Table_type table_type;
   enum tmp_table_type tmp_table;
@@ -858,6 +859,7 @@ struct TABLE_SHARE
   bool has_update_default_function;
   bool can_do_row_logging;              /* 1 if table supports RBR */
   bool long_unique_table;
+  bool optimizer_costs_inited;
 
   ulong table_map_id;                   /* for row-based replication */
 
@@ -1157,6 +1159,7 @@ struct TABLE_SHARE
   void set_overlapped_keys();
   void set_ignored_indexes();
   key_map usable_indexes(THD *thd);
+  void update_optimizer_costs(handlerton *hton);
 };
 
 /* not NULL, but cannot be dereferenced */
@@ -1383,7 +1386,7 @@ public:
       Cost of fetching keys with index only read and returning them to the
       sql level.
     */
-    double index_only_fetch_cost(THD *thd);
+    double index_only_fetch_cost(TABLE *table);
   } *opt_range;
   /* 
      Bitmaps of key parts that =const for the duration of join execution. If
@@ -1698,6 +1701,12 @@ public:
 
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
+  inline size_t key_storage_length(uint index)
+  {
+    if (file->is_clustering_key(index))
+      return s->stored_rec_length;
+    return key_info[index].key_length + file->ref_length;
+  }
   int update_virtual_field(Field *vf);
   int update_virtual_fields(handler *h, enum_vcol_update_mode update_mode);
   int update_default_fields(bool ignore_errors);

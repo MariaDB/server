@@ -8269,7 +8269,7 @@ assign_to_keycache_parts:
 
 key_cache_name:
           ident    { $$= $1; }
-        | DEFAULT  { $$ = default_key_cache_base; }
+        | DEFAULT  { $$ = default_base; }
         ;
 
 preload:

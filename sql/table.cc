@@ -2289,7 +2289,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       share->keynames.count != keys))
     goto err;
 
- /* Allocate handler */
+  /* Allocate handler */
   if (!(handler_file= get_new_handler(share, thd->mem_root,
                                       plugin_hton(se_plugin))))
     goto err;
@@ -2787,6 +2787,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     DBUG_ASSERT((null_pos + (null_bit_pos + 7) / 8) <= share->field[0]->ptr);
   }
 
+  share->primary_key= MAX_KEY;
+
   /* Fix key->name and key_part->field */
   if (key_parts)
   {
@@ -2917,6 +2919,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         }
       }   
     }
+
+    /* Primary key must be set early as engine may use it in index_flag() */
+    share->primary_key= (primary_key < MAX_KEY &&
+                         share->keys_in_use.is_set(primary_key) ?
+                         primary_key : MAX_KEY);
 
     key_first_info= keyinfo;
     for (uint key=0 ; key < keys ; key++,keyinfo++)
@@ -3160,7 +3167,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (primary_key < MAX_KEY &&
 	(share->keys_in_use.is_set(primary_key)))
     {
-      share->primary_key= primary_key;
+      DBUG_ASSERT(share->primary_key == primary_key);
       /*
 	If we are using an integer as the primary key then allow the user to
 	refer to it as '_rowid'
@@ -3177,10 +3184,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       }
     }
     else
-      share->primary_key = MAX_KEY; // we do not have a primary key
+    {
+      DBUG_ASSERT(share->primary_key == MAX_KEY);
+    }
   }
-  else
-    share->primary_key= MAX_KEY;
   if (new_field_pack_flag <= 1)
   {
     /* Old file format with default as not null */
@@ -3403,6 +3410,27 @@ err:
   thd->mem_root= old_root;
   my_afree(interval_unescaped);
   DBUG_RETURN(HA_ERR_NOT_A_TABLE);
+}
+
+
+/*
+  Make a copy of optimizer costs to be able to access these without any locks
+  and to allow the engine to update costs.
+*/
+
+void TABLE_SHARE::update_optimizer_costs(handlerton *hton)
+{
+  if (hton != view_pseudo_hton && !(hton->flags & HTON_HIDDEN))
+  {
+    mysql_mutex_lock(&LOCK_optimizer_costs);
+    memcpy(&optimizer_costs, hton->optimizer_costs, sizeof(optimizer_costs));
+    mysql_mutex_unlock(&LOCK_optimizer_costs);
+  }
+  else
+  {
+    bzero(&optimizer_costs, sizeof(optimizer_costs));
+    MEM_UNDEFINED(&optimizer_costs, sizeof(optimizer_costs));
+  }
 }
 
 
@@ -5630,7 +5658,6 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   opt_range_condition_rows=0;
   no_cache= false;
   initialize_opt_range_structures();
-
 
   /*
     Update optimizer_costs to ensure that a SET STATEMENT of the
@@ -10302,10 +10329,10 @@ inline void TABLE::initialize_opt_range_structures()
 }
 
 
-double TABLE::OPT_RANGE::index_only_fetch_cost(THD *thd)
+double TABLE::OPT_RANGE::index_only_fetch_cost(TABLE *table)
 {
-  return (index_only_cost + (double) rows *
-          thd->variables.optimizer_key_copy_cost);
+  return (index_only_cost +
+          (double) rows * table->s->optimizer_costs.key_copy_cost);
 }
 
 

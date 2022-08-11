@@ -270,12 +270,20 @@ public:
   {
     return buffer[0];
   }
-  uint bits_set()
+  uint bits_set() const
   {
     uint res= 0;
     for (size_t i= 0; i < ARRAY_ELEMENTS; i++)
-      res += my_count_bits(buffer[i]);
+      if (buffer[i])
+        res+= my_count_bits(buffer[i]);
     return res;
+  }
+  uint find_first_bit() const
+  {
+    for (size_t i= 0; i < ARRAY_ELEMENTS; i++)
+      if (buffer[i])
+        return i*BITS_PER_ELEMENT + my_find_first_bit(buffer[i]);
+    return width;
   }
   class Iterator
   {

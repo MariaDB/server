@@ -35,7 +35,7 @@ class NAMED_ILIST: public I_List<NAMED_ILINK>
 };
 
 /* For key cache */
-extern LEX_CSTRING default_key_cache_base;
+extern LEX_CSTRING default_base;
 extern KEY_CACHE zero_key_cache;
 extern NAMED_ILIST key_caches;
 
