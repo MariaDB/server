@@ -226,15 +226,17 @@ public:
       if (!(found_part & 1 ) && /* no usable ref access for 1st key part */
           s->table->covering_keys.is_set(key))
       {
+        double records, read_time;
         part1_conds_met= TRUE;
         DBUG_PRINT("info", ("Can use full index scan for LooseScan"));
         
         /* Calculate the cost of complete loose index scan.  */
-        double records= rows2double(s->table->file->stats.records);
+        records= rows2double(s->table->file->stats.records);
 
         /* The cost is entire index scan cost (divided by 2) */
-        double read_time= s->table->file->ha_keyread_and_copy_time(key, 1,
-                                                          (ha_rows) records);
+        read_time= s->table->file->ha_keyread_and_copy_time(key, 1,
+                                                            (ha_rows) records,
+                                                            0);
 
         /*
           Now find out how many different keys we will get (for now we

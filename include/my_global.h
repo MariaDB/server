@@ -679,6 +679,7 @@ typedef SOCKET_SIZE_TYPE size_socket;
   Io buffer size; Must be a power of 2 and a multiple of 512. May be
   smaller what the disk page size. This influences the speed of the
   isam btree library. eg to big to slow.
+  4096 is a common block size on SSDs.
 */
 #define IO_SIZE			4096U
 /*

@@ -2267,7 +2267,7 @@ outr.col_varchar_key IS NULL
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	outr	system	col_datetime_key	NULL	NULL	NULL	1	100.00	
-1	PRIMARY	innr	ref	col_int_key	col_int_key	4	const	2	100.00	Using where; FirstMatch(outr)
+1	PRIMARY	innr	ref	col_int_key	col_int_key	4	const	2	50.00	Using where; FirstMatch(outr)
 1	PRIMARY	outr2	index	col_time_key	col_time_key	4	NULL	20	100.00	Using where; Using index; Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select 1 AS `col_int_nokey` from `test`.`t3` `outr2` semi join (`test`.`t1` `innr`) where `test`.`innr`.`col_int_key` = 1 and `test`.`innr`.`pk` >= `test`.`innr`.`col_int_nokey` and `test`.`outr2`.`col_time_key` > '2001-11-04 19:07:55'

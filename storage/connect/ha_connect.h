@@ -308,13 +308,18 @@ public:
   /** @brief
     Called in test_quick_select to determine if indexes should be used.
   */
-  virtual double scan_time() { return (double) (stats.records+stats.deleted) / 20.0+10; }
+  virtual IO_AND_CPU_COST scan_time()
+  { return { 0, (double) (stats.records+stats.deleted) * avg_io_cost() }; };
 
   /** @brief
     This method will never be called if you do not implement indexes.
   */
-  virtual double read_time(uint, uint, ha_rows rows)
-    { return (double) rows /  20.0+1; }
+  virtual IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                                       ulonglong blocks)
+  {
+    return { 0, (double) rows * 0.001 };
+  }
+
 
   /*
     Everything below are methods that we implement in ha_connect.cc.

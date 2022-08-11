@@ -3876,7 +3876,7 @@ restart:
       {
         pagecache_pthread_mutex_unlock(&pagecache->cache_lock);
         DBUG_ASSERT(0);
-        return (uchar*) 0;
+        DBUG_RETURN((uchar*) 0);
       }
     }
     /*
