@@ -453,7 +453,8 @@ ANALYZE
                   "buffer_type": "flat",
                   "buffer_size": "256Kb",
                   "join_type": "BNL",
-                  "r_filtered": 100
+                  "r_filtered": 100,
+                  "r_unpack_time_ms": "REPLACED"
                 }
               }
             ]
@@ -548,7 +549,8 @@ ANALYZE
                             "buffer_type": "flat",
                             "buffer_size": "256Kb",
                             "join_type": "BNL",
-                            "r_filtered": 100
+                            "r_filtered": 100,
+                            "r_unpack_time_ms": "REPLACED"
                           }
                         }
                       ]

@@ -781,6 +781,17 @@ ulong ha_myisam::index_flags(uint inx, uint part, bool all_parts) const
   return flags;
 }
 
+IO_AND_CPU_COST ha_myisam::rnd_pos_time(ha_rows rows)
+{
+  IO_AND_CPU_COST cost= handler::rnd_pos_time(rows);
+  /*
+    Row data is not cached. costs.row_lookup_cost includes the cost of
+    the reading the row from system (probably cached by the OS).
+  */
+  cost.io= 0;
+  return cost;
+}
+
 
 /* Name is here without an extension */
 int ha_myisam::open(const char *name, int mode, uint test_if_locked)
@@ -2538,6 +2549,22 @@ static int myisam_drop_table(handlerton *hton, const char *path)
   return mi_delete_table(path);
 }
 
+
+void myisam_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  /*
+    MyISAM row lookup costs are slow as the row data is not cached
+    The following numbers where found by check_costs.pl when using 1M rows
+    and all rows are cached. See optimizer_costs.txt
+  */
+  costs->row_next_find_cost=   0.000063539;
+  costs->row_lookup_cost=      0.001014818;
+  costs->key_next_find_cost=   0.000090585;
+  costs->key_lookup_cost=      0.000550142;
+  costs->key_copy_cost=        0.000015685;
+}
+
+
 static int myisam_init(void *p)
 {
   handlerton *hton;
@@ -2557,6 +2584,7 @@ static int myisam_init(void *p)
   hton->create= myisam_create_handler;
   hton->drop_table= myisam_drop_table;
   hton->panic= myisam_panic;
+  hton->update_optimizer_costs= myisam_update_optimizer_costs;
   hton->flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES;
   hton->tablefile_extensions= ha_myisam_exts;
   mi_killed= mi_killed_in_mariadb;

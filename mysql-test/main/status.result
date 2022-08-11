@@ -71,10 +71,10 @@ a
 6
 show status like 'last_query_cost';
 Variable_name	Value
-Last_query_cost	13.542725
+Last_query_cost	0.017820
 show status like 'last_query_cost';
 Variable_name	Value
-Last_query_cost	13.542725
+Last_query_cost	0.017820
 select 1;
 1
 1
@@ -134,20 +134,20 @@ a
 1
 SHOW SESSION STATUS LIKE 'Last_query_cost';
 Variable_name	Value
-Last_query_cost	1.501709
+Last_query_cost	0.010313
 EXPLAIN SELECT a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
 SHOW SESSION STATUS LIKE 'Last_query_cost';
 Variable_name	Value
-Last_query_cost	1.501709
+Last_query_cost	0.010313
 SELECT a FROM t1 UNION SELECT a FROM t1 ORDER BY a;
 a
 1
 2
 SHOW SESSION STATUS LIKE 'Last_query_cost';
 Variable_name	Value
-Last_query_cost	0.000000
+Last_query_cost	0.010313
 EXPLAIN SELECT a FROM t1 UNION SELECT a FROM t1 ORDER BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
@@ -155,25 +155,25 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	Using filesort
 SHOW SESSION STATUS LIKE 'Last_query_cost';
 Variable_name	Value
-Last_query_cost	0.000000
+Last_query_cost	0.010313
 SELECT a IN (SELECT a FROM t1) FROM t1 LIMIT 1;
 a IN (SELECT a FROM t1)
 1
 SHOW SESSION STATUS LIKE 'Last_query_cost';
 Variable_name	Value
-Last_query_cost	0.000000
+Last_query_cost	0.010313
 SELECT (SELECT a FROM t1 LIMIT 1) x FROM t1 LIMIT 1;
 x
 1
 SHOW SESSION STATUS LIKE 'Last_query_cost';
 Variable_name	Value
-Last_query_cost	0.000000
+Last_query_cost	0.010313
 SELECT * FROM t1 a, t1 b LIMIT 1;
 a	a
 1	1
 SHOW SESSION STATUS LIKE 'Last_query_cost';
 Variable_name	Value
-Last_query_cost	3.953418
+Last_query_cost	0.021119
 DROP TABLE t1;
 connect  con1,localhost,root,,;
 show status like 'com_show_status';

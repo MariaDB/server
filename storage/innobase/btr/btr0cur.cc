@@ -6522,6 +6522,7 @@ search_loop:
 
   DBUG_EXECUTE_IF("bug14007649", DBUG_RETURN(n_rows););
 
+#ifdef NOT_USED
   /* Do not estimate the number of rows in the range to over 1 / 2 of the
   estimated rows in the whole table */
 
@@ -6536,6 +6537,10 @@ search_loop:
     if (n_rows == 0)
       n_rows= table_n_rows;
   }
+#else
+                        if (n_rows > table_n_rows)
+                          n_rows= table_n_rows;
+#endif
 
   DBUG_RETURN(n_rows);
 

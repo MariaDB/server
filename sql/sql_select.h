@@ -309,6 +309,7 @@ typedef struct st_join_table {
   Table_access_tracker *tracker;
 
   Table_access_tracker *jbuf_tracker;
+  Time_and_counter_tracker *jbuf_unpack_tracker;
 
   //  READ_RECORD::Setup_func materialize_table;
   READ_RECORD::Setup_func read_first_record;
@@ -341,6 +342,9 @@ typedef struct st_join_table {
   */
   double        read_time;
   
+  /* Copy of POSITION::records_init, set by get_best_combination() */
+  double        records_init;
+
   /* Copy of POSITION::records_read, set by get_best_combination() */
   double        records_read;
 
@@ -356,7 +360,6 @@ typedef struct st_join_table {
   double        partial_join_cardinality;
 
   /* set by estimate_scan_time() */
-  double        cached_scan_time;
   double        cached_scan_and_compare_time;
   double        cached_forced_index_cost;
 
@@ -959,21 +962,44 @@ public:
   /* The table that's put into join order */
   JOIN_TAB *table;
 
+  /* number of rows that will be read from the table */
+  double records_init;
+
   /*
-    The number of rows that will be read from the table
+    Number of rows left after filtering, calculated in best_access_path()
+    In case of use_cond_selectivity > 1 it contains rows after the used
+    rowid filter (if such one exists).
+    If use_cond_selectivity <= 1 it contains the minimum rows of any
+    rowid filtering or records_init if no filter exists.
+   */
+  double records_after_filter;
+
+  /*
+    Number of expected rows before applying the full WHERE clause. This
+    includes rowid filter and table->cond_selectivity if
+    use_cond_selectivity > 1. See matching_candidates_in_table().
+    Should normally not be used.
   */
   double records_read;
 
   /*
-    The "fanout": number of output rows that will be produced (after
+    The number of rows after applying the WHERE clause.
+
+    Same as the "fanout": number of output rows that will be produced (after
     pushed down selection condition is applied) per each row combination of
     previous tables.
 
-    This takes into account table->cond_selectivity, the WHERE clause
-    related to this table calculated in
-    calculate_cond_selectivity_for_table(), and the used rowid filter but
-    does not take into account the WHERE clause involving preceding tables
-    calculated in table_after_join_selectivity().
+    In best_access_path() it is set to the minum number of accepted rows
+    for any possible access method or filter:
+
+    records_out takes into account table->cond_selectivity, the WHERE clause
+    related to this table calculated in calculate_cond_selectivity_for_table(),
+    and the used rowid filter.
+
+    After best_access_path() records_out it does not yet take into
+    account the part of the WHERE clause involving preceding tables.
+    records_out is updated in best_extension_by_limited_search() to take these
+    tables into account by calling table_after_join_selectivity().
   */
   double records_out;
 

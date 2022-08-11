@@ -132,7 +132,8 @@ extern "C" PSI_file_key arch_key_file_data;
 static handler *archive_create_handler(handlerton *hton, 
                                        TABLE_SHARE *table, 
                                        MEM_ROOT *mem_root);
-int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share);
+static int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share);
+static void archive_update_optimizer_costs(OPTIMIZER_COSTS *costs);
 
 /*
   Number of rows that will force a bulk insert.
@@ -205,6 +206,7 @@ static const char *ha_archive_exts[] = {
   NullS
 };
 
+
 int archive_db_init(void *p)
 {
   DBUG_ENTER("archive_db_init");
@@ -217,10 +219,10 @@ int archive_db_init(void *p)
   archive_hton= (handlerton *)p;
   archive_hton->db_type= DB_TYPE_ARCHIVE_DB;
   archive_hton->create= archive_create_handler;
-  archive_hton->flags= HTON_NO_FLAGS;
   archive_hton->discover_table= archive_discover;
   archive_hton->tablefile_extensions= ha_archive_exts;
-
+  archive_hton->update_optimizer_costs= archive_update_optimizer_costs;
+  archive_hton->flags= HTON_NO_FLAGS;
   DBUG_RETURN(0);
 }
 
@@ -267,7 +269,7 @@ ha_archive::ha_archive(handlerton *hton, TABLE_SHARE *table_arg)
   archive_reader_open= FALSE;
 }
 
-int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share)
+static int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share)
 {
   DBUG_ENTER("archive_discover");
   DBUG_PRINT("archive_discover", ("db: '%s'  name: '%s'", share->db.str,
@@ -1092,6 +1094,54 @@ int ha_archive::index_init(uint keynr, bool sorted)
   DBUG_RETURN(0);
 }
 
+#define ARCHIVE_DECOMPRESS_TIME 0.081034543792841 // See optimizer_costs.txt
+
+static void archive_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  costs->disk_read_ratio= 0.20;     // Assume 80 % of data is cached by system
+  costs->row_lookup_cost= 0;        // See rnd_pos_time
+  costs->key_lookup_cost= 0;        // See key_read_time
+  costs->key_next_find_cost= 0;     // Only unique indexes
+  costs->index_block_copy_cost= 0;
+}
+
+
+IO_AND_CPU_COST ha_archive::scan_time()
+{
+  IO_AND_CPU_COST cost;
+  ulonglong blocks;
+  DBUG_ENTER("ha_archive::scan_time");
+
+  blocks= stats.data_file_length / IO_SIZE;
+  cost.io= 0;                                   // No cache
+  cost.cpu= (blocks * DISK_READ_COST * DISK_READ_RATIO +
+             blocks*  ARCHIVE_DECOMPRESS_TIME);
+  DBUG_RETURN(cost);
+}
+
+
+IO_AND_CPU_COST ha_archive::keyread_time(uint index, ulong ranges, ha_rows rows,
+                                         ulonglong blocks)
+{
+  IO_AND_CPU_COST cost= scan_time();
+  /*
+    As these is an unique indexe, assume that we have to scan half the file for
+    each range to find the row.
+  */
+  cost.cpu= cost.cpu * ranges / 2;
+  return cost;
+}
+
+
+IO_AND_CPU_COST ha_archive::rnd_pos_time(ha_rows rows)
+{
+  IO_AND_CPU_COST cost;
+  /* We have to do one azseek() for each row */
+  cost.io= rows;
+  cost.cpu= rows * (DISK_READ_COST * DISK_READ_RATIO + ARCHIVE_DECOMPRESS_TIME);
+  return cost;
+}
+
 
 /*
   No indexes, so if we get a request for an index search since we tell
@@ -1116,8 +1166,6 @@ int ha_archive::index_read_idx(uchar *buf, uint index, const uchar *key,
   current_k_offset= mkey->key_part->offset;
   current_key= key;
   current_key_len= key_len;
-
-
   DBUG_ENTER("ha_archive::index_read_idx");
 
   rc= rnd_init(TRUE);

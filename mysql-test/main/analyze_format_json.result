@@ -171,7 +171,8 @@ ANALYZE
           "buffer_type": "flat",
           "buffer_size": "1Kb",
           "join_type": "BNL",
-          "r_filtered": 100
+          "r_filtered": 100,
+          "r_unpack_time_ms": "REPLACED"
         }
       }
     ]
@@ -218,7 +219,8 @@ ANALYZE
           "buffer_size": "1Kb",
           "join_type": "BNL",
           "attached_condition": "tbl1.c > tbl2.c",
-          "r_filtered": 15.83333333
+          "r_filtered": 15.83333333,
+          "r_unpack_time_ms": "REPLACED"
         }
       }
     ]
@@ -718,13 +720,14 @@ ANALYZE
             "r_other_time_ms": "REPLACED",
             "filtered": 100,
             "r_filtered": 0,
-            "attached_condition": "<in_optimizer>(t2.b,t2.b in (subquery#2))"
+            "attached_condition": "<in_optimizer>(t2.b,<exists>(subquery#2))"
           },
           "buffer_type": "flat",
           "buffer_size": "65",
           "join_type": "BNL",
-          "attached_condition": "<in_optimizer>(t2.b,t2.b in (subquery#2))",
-          "r_filtered": null
+          "attached_condition": "<in_optimizer>(t2.b,<exists>(subquery#2))",
+          "r_filtered": null,
+          "r_unpack_time_ms": "REPLACED"
         }
       }
     ],
@@ -732,20 +735,21 @@ ANALYZE
       {
         "query_block": {
           "select_id": 2,
-          "r_loops": 1,
+          "r_loops": 2,
           "r_total_time_ms": "REPLACED",
           "nested_loop": [
             {
               "table": {
                 "table_name": "t1",
                 "access_type": "ALL",
-                "r_loops": 1,
+                "r_loops": 2,
                 "rows": 2,
                 "r_rows": 2,
                 "r_table_time_ms": "REPLACED",
                 "r_other_time_ms": "REPLACED",
                 "filtered": 100,
-                "r_filtered": 100
+                "r_filtered": 0,
+                "attached_condition": "4 = t1.a"
               }
             }
           ]
@@ -824,7 +828,8 @@ ANALYZE
                   "buffer_type": "flat",
                   "buffer_size": "1",
                   "join_type": "BNL",
-                  "r_filtered": null
+                  "r_filtered": null,
+                  "r_unpack_time_ms": "REPLACED"
                 }
               }
             ],
@@ -862,7 +867,8 @@ ANALYZE
                           "buffer_size": "65",
                           "join_type": "BNL",
                           "attached_condition": "t2.f2 = t3.f3",
-                          "r_filtered": null
+                          "r_filtered": null,
+                          "r_unpack_time_ms": "REPLACED"
                         }
                       }
                     ]

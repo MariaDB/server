@@ -1132,8 +1132,6 @@ write_keys(Sort_param *param,  SORT_INFO *fs_info, uint count,
   for (uint ix= 0; ix < count; ++ix)
   {
     uchar *record= fs_info->get_sorted_record(ix);
-
-
     if (my_b_write(tempfile, record, param->get_record_length(record)))
       DBUG_RETURN(1);                           /* purecov: inspected */
   }
@@ -1678,7 +1676,7 @@ ulong read_to_buffer(IO_CACHE *fromfile, Merge_chunk *buffpek,
       num_bytes_read= bytes_to_read;
 
     buffpek->init_current_key();
-    buffpek->advance_file_position(num_bytes_read);			/* New filepos */
+    buffpek->advance_file_position(num_bytes_read);    /* New filepos */
     buffpek->decrement_rowcount(count);
     buffpek->set_mem_count(count);
     return (ulong) num_bytes_read;

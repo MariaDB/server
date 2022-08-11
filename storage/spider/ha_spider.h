@@ -445,12 +445,10 @@ public:
   );
   int delete_all_rows();
   int truncate();
-  double scan_time();
-  double read_time(
-    uint index,
-    uint ranges,
-    ha_rows rows
-  );
+  IO_AND_CPU_COST scan_time();
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows);
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                               ulonglong blocks);
   const key_map *keys_to_use_for_scanning();
   ha_rows estimate_rows_upper_bound();
   void print_error(
