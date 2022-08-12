@@ -103,7 +103,6 @@ public:
                      int timeout_sec, bool *timed_out);
 
   void enqueue_request(Call_request *request_buff, Apc_call *call);
-  void unenqueue_request();
   int wait_for_completion(THD *caller_thd, Call_request *request,
                            int timeout_sec);
 
@@ -153,9 +152,10 @@ public:
     Call_request();
     ~Call_request();
   };
+  void dequeue_request(Call_request *qe);
 private:
   void enqueue_request(Call_request *qe);
-  void dequeue_request(Call_request *qe);
+
 
   /* return the first call request in queue, or NULL if there are none enqueued */
   Call_request *get_first_in_queue()

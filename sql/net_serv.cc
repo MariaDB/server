@@ -724,7 +724,10 @@ net_real_write(NET *net,const uchar *packet, size_t len)
     if ((long) (length= vio_write(net->vio,pos,(size_t) (end-pos))) <= 0)
     {
       my_bool interrupted = vio_should_retry(net->vio);
-#if !defined(_WIN32)
+#ifdef _WIN32
+      if (interrupted && !net->vio->shutdown_flag)
+        continue;
+#else
       if ((interrupted || length == 0) && !thr_alarm_in_use(&alarmed))
       {
         if (!thr_alarm(&alarmed, net->write_timeout, &alarm_buff))
@@ -957,17 +960,16 @@ my_real_read(NET *net, size_t *complen,
 {
   uchar *pos;
   size_t length;
-  uint i,retry_count=0;
+  uint i;
   ulong len=packet_error;
   my_bool expect_error_packet __attribute__((unused))= 0;
   thr_alarm_t alarmed;
 #ifndef NO_ALARM
   ALARM alarm_buff;
+  my_bool net_blocking= vio_is_blocking(net->vio);
 #endif
 
 retry:
-
-  my_bool net_blocking=vio_is_blocking(net->vio);
   uint32 remain= (net->compress ? NET_HEADER_SIZE+COMP_HEADER_SIZE :
 		  NET_HEADER_SIZE);
 #ifdef MYSQL_SERVER
@@ -1001,17 +1003,16 @@ retry:
     {
       while (remain > 0)
       {
-	/* First read is done with non blocking mode */
         if ((long) (length= vio_read(net->vio, pos, remain)) <= 0L)
         {
-          THD *thd = (THD*)net->thd;
-          if (likely(thd))
+          THD *thd= (THD *) net->thd;
+          if (thd)
             thd_net_process_apc_requests(thd);
-
-          my_bool interrupted = vio_should_retry(net->vio);
-
-	  DBUG_PRINT("info",("vio_read returned %ld  errno: %d",
-			     (long) length, vio_errno(net->vio)));
+#if !defined(_WIN32) || !defined(MYSQL_SERVER)
+          my_bool interrupted= vio_should_retry(net->vio);
+#endif
+          DBUG_PRINT("info", ("vio_read returned %ld  errno: %d",
+                              (long) length, vio_errno(net->vio)));
 
           if (i== 0 && unlikely(thd_net_is_killed((THD*) net->thd)))
           {
@@ -1022,18 +1023,17 @@ retry:
             MYSQL_SERVER_my_error(net->last_errno, MYF(0));
             goto end;
           }
-
-#if defined(MYSQL_SERVER)
+#if !defined(_WIN32) && defined(MYSQL_SERVER)
 	  /*
 	    We got an error that there was no data on the socket. We now set up
 	    an alarm to not 'read forever', change the socket to the blocking
 	    mode and try again
 	  */
+  	  ulong retry_count=0;
 	  if ((interrupted || length == 0) && !thr_alarm_in_use(&alarmed))
 	  {
 	    if (!thr_alarm(&alarmed,net->read_timeout,&alarm_buff)) /* Don't wait too long */
 	    {
-#ifndef WIN32
 	      my_bool old_mode;
 	      while (vio_blocking(net->vio, TRUE, &old_mode) < 0)
 	      {
@@ -1052,12 +1052,10 @@ retry:
 		MYSQL_SERVER_my_error(ER_NET_FCNTL_ERROR, MYF(0));
 		goto end;
 	      }
-#endif
 	      retry_count=0;
 	      continue;
 	    }
 	  }
-#endif /* (!defined(_WIN32) && defined(MYSQL_SERVER) */
 	  if (thr_alarm_in_use(&alarmed) && !thr_got_alarm(&alarmed) &&
 	      interrupted)
 	  {					/* Probably in MIT threads */
@@ -1066,8 +1064,10 @@ retry:
 	    EXTRA_DEBUG_fprintf(stderr, "%s: read looped with error %d, aborting thread\n",
 		    my_progname,vio_errno(net->vio));
 	  }
+#endif /* (!defined(_WIN32) && defined(MYSQL_SERVER) */
+
 #ifndef MYSQL_SERVER
-	  if (length != 0 && vio_errno(net->vio) == SOCKET_EINTR)
+	  if (length != 0 && interrupted)
 	  {
 	    DBUG_PRINT("warning",("Interrupted read. Retrying..."));
 	    continue;
@@ -1180,6 +1180,7 @@ retry:
     }
 
 end:
+#ifndef NO_ALARM
   if (thr_alarm_in_use(&alarmed))
   {
     my_bool old_mode;
@@ -1187,6 +1188,8 @@ end:
     if (!net_blocking)
       vio_blocking(net->vio, net_blocking, &old_mode);
   }
+#endif
+
   net->reading_or_writing=0;
 #ifdef DEBUG_DATA_PACKETS
   if (len != packet_error)

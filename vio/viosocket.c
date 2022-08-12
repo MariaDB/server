@@ -178,12 +178,7 @@ size_t vio_read(Vio *vio, uchar *buf, size_t size)
     if (error != SOCKET_EAGAIN && error != SOCKET_EWOULDBLOCK)
     {
       DBUG_PRINT("vio", ("recv returned error %d", error));
-#ifdef WIN32
-      // WSA BUG: recv can return WSA_IO_PENDING
-      // if vio_blocking called too frequently. This shouldn't normally happen.
-      DBUG_ASSERT(error != WSA_IO_PENDING);
-#endif
-        break;
+      break;
     }
 
     /* Wait for input data to become available. */
@@ -205,7 +200,6 @@ size_t vio_read(Vio *vio, uchar *buf, size_t size)
   DBUG_PRINT("exit", ("%d", (int) ret));
   DBUG_RETURN(ret);
 }
-
 
 /*
   Buffered read: if average read size is small it may
@@ -559,9 +553,14 @@ int vio_set_keepalive_options(Vio* vio, const struct vio_keepalive_opts *opts)
 my_bool
 vio_should_retry(Vio *vio)
 {
+  int verr= vio_errno(vio);
   DBUG_ENTER("vio_should_retry");
-  DBUG_PRINT("info", ("vio_errno: %d", vio_errno(vio)));
-  DBUG_RETURN(vio_errno(vio) == SOCKET_EINTR);
+  DBUG_PRINT("info", ("vio_errno: %d", verr));
+#ifdef _WIN32
+  if (verr == ERROR_OPERATION_ABORTED)
+    DBUG_RETURN(1);
+#endif
+  DBUG_RETURN(verr == SOCKET_EINTR);
 }
 
 
@@ -1027,12 +1026,13 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
 int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
 {
   int ret;
-  struct timeval tm;
-  my_socket fd= mysql_socket_getfd(vio->mysql_socket);
-  fd_set readfds, writefds, exceptfds;
   MYSQL_SOCKET_WAIT_VARIABLES(locker, state) /* no ';' */
   DBUG_ENTER("vio_io_wait");
 
+  /* Not read , e.g connect or write - use select() based wait */
+  struct timeval tm;
+  my_socket fd= mysql_socket_getfd(vio->mysql_socket);
+  fd_set readfds, writefds, exceptfds;
   /* Convert the timeout, in milliseconds, to seconds and microseconds. */
   if (timeout >= 0)
   {
@@ -1047,17 +1047,11 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   /* Always receive notification of exceptions. */
   FD_SET(fd, &exceptfds);
 
-  my_socket pipe_fd= threadlocal_get_self_pipe();
-
   switch (event)
   {
   case VIO_IO_EVENT_READ:
     /* Readiness for reading. */
     FD_SET(fd, &readfds);
-
-    // Add self-pipe read end. See also Thread_apc_context::setup_thread_apc.
-    if (likely(pipe_fd))
-      FD_SET(pipe_fd, &readfds);
     break;
   case VIO_IO_EVENT_WRITE:
   case VIO_IO_EVENT_CONNECT:
@@ -1076,17 +1070,6 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   if (ret == 0)
     WSASetLastError(SOCKET_ETIMEDOUT);
 
-  if (pipe_fd && FD_ISSET(pipe_fd, &readfds))
-  {
-    char buf[8];
-    // Read out all the data pending on pipe_fd
-    while (recv(pipe_fd, buf, sizeof buf, 0) == sizeof buf)
-    {
-    }
-    // Self-pipe trick fakes CancelIo
-    ret= -1;
-    WSASetLastError(SOCKET_EINTR);
-  }
 
   /* Error or timeout? */
   if (ret <= 0){

@@ -64,18 +64,9 @@ void Apc_target::enqueue_request(Call_request *qe)
   }
 }
 
-/* Removes most recently added request */
-void Apc_target::unenqueue_request()
-{
-  mysql_mutex_assert_owner(LOCK_thd_kill_ptr);
-  Call_request *last_apc_calls= apc_calls;
-  apc_calls= apc_calls->next;
-  last_apc_calls->next= NULL;
-}
 
 /* 
-  [internal] Remove request qe from the request queue. 
-  
+  Remove request qe from the request queue.
   The request is not necessarily first in the queue.
 */
 

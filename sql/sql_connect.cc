@@ -1399,83 +1399,15 @@ bool thd_is_connection_alive(THD *thd)
   return FALSE;
 }
 
+#if !defined(_WIN32)
 static void self_pipe_write();
-#ifndef _GNU_SOURCE
+#if !defined(_GNU_SOURCE)
 class Thread_apc_context;
 static thread_local Thread_apc_context *_THR_APC_CTX= NULL;
 #endif
 
 class Thread_apc_context
 {
-#ifdef WIN32
-#ifndef SOCKET_ERROR
-#define SOCKET_ERROR -1
-#endif
-  static int create_sock_pair(my_socket out[2])
-  {
-    my_socket listener= socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (listener == INVALID_SOCKET)
-    {
-      sql_print_error("Error creating socket: %d", socket_errno);
-      return 1;
-    }
-    int ret = 0;
-    sockaddr_in inaddr;
-
-    memset(&inaddr, 0, sizeof inaddr);
-    inaddr.sin_family= AF_INET;
-    inaddr.sin_addr.s_addr= htonl(INADDR_LOOPBACK);
-    inaddr.sin_port= 0;
-
-    if (unlikely(ret != 0))
-    {
-      sql_print_error("getaddrinfo returned error: %d", ret);
-      closesocket(listener);
-      return 1;
-    }
-    ret= bind(listener, (sockaddr*)&inaddr, sizeof inaddr);
-
-    if (likely(ret != SOCKET_ERROR))
-      ret= listen(listener, 1);
-
-    if (likely(ret != SOCKET_ERROR))
-      out[0] = WSASocketW(AF_INET, SOCK_STREAM, 0, NULL, 0, 0);
-
-    if (unlikely(out[0] == INVALID_SOCKET))
-      ret= SOCKET_ERROR;
-
-    sockaddr client_addr;
-    int len= sizeof client_addr;
-    if (likely(ret != SOCKET_ERROR))
-      ret= getsockname(listener, &client_addr, &len);
-
-    if (likely(ret != SOCKET_ERROR))
-      ret= connect(out[0], &client_addr, len);
-
-    if (likely(ret != SOCKET_ERROR))
-    {
-      ulong arg= 1;
-      ret= ioctlsocket(out[0], FIONBIO, &arg);
-    }
-
-    if (likely(ret != SOCKET_ERROR))
-      out[1] = accept(listener, NULL, NULL);
-
-
-    closesocket(listener);
-
-    if (unlikely(ret == SOCKET_ERROR || out[1] == INVALID_SOCKET))
-    {
-      sql_print_error("Error pairing socket: %d.", socket_errno);
-      closesocket(out[0]);
-      closesocket(out[1]);
-      WSACleanup();
-      return 1;
-    }
-
-    return 0;
-  }
-#endif
 public:
 #ifndef _GNU_SOURCE
   my_socket self_pipe[2]{};
@@ -1483,7 +1415,7 @@ public:
 
   bool setup_thread_apc()
   {
-#if !defined(WIN32) && defined(_GNU_SOURCE)
+#if defined(_GNU_SOURCE)
     struct sigaction act {};
     act.sa_handler= [](int) -> void {self_pipe_write();};
     act.sa_flags= 0;
@@ -1498,7 +1430,7 @@ public:
 
     ret|= pthread_sigmask(SIG_BLOCK, &signals, NULL);
     DBUG_ASSERT(ret == 0);
-#elif !defined(WIN32)
+#else
     // Self-pipe trick. Create a new pipe and store it thread-locally
     // It can be accessed from Vio later. See also vio_io_wait()
     // From the other end, it is accessed through a threadlocal
@@ -1509,14 +1441,9 @@ public:
     act.sa_handler= [](int) -> void { self_pipe_write(); };
     act.sa_flags= 0;
     ret|= sigaction(SIG_APC_NOTIFY, &act, NULL);
-#else
-    // Self-pipe trick for windows. Create a new pipe and store it thread-locally
-    // One can request APC that writes into this pipe to provoke guaranteed
-    // connection wakeup. It is used in vio_io_wait() on the other end.
-
-    int ret= create_sock_pair(self_pipe);
-#endif
     return ret == 0;
+#endif
+    return true;
   }
   bool inited;
   Thread_apc_context()
@@ -1558,21 +1485,19 @@ static void self_pipe_write()
   send(_THR_APC_CTX->self_pipe[1], buf, sizeof buf, 0);
 }
 #endif
+#endif /* !_WIN32 */
 
-bool thread_scheduler_notify_apc(THD *thd)
+bool thread_per_connection_notify_apc(THD *thd)
 {
 #ifdef WIN32
-  HANDLE hthread= OpenThread(THREAD_ALL_ACCESS, FALSE,
-                             thd->mysys_var->pthread_self);
-  if (hthread == NULL)
-    return false;
-  auto status= QueueUserAPC(
-      [](ULONG_PTR param){ self_pipe_write(); },
-      hthread, (ULONG_PTR)thd);
-  CloseHandle(hthread);
-  return status != 0;
+  auto vio= thd->net.vio;
+  HANDLE h=
+      (vio->type == VIO_TYPE_NAMEDPIPE) ? vio->hPipe : (HANDLE)vio->mysql_socket.fd;
+  return CancelIoEx(h, NULL);
 #else
-  return pthread_kill(thd->mysys_var->pthread_self, SIG_APC_NOTIFY) == 0;
+  bool ret =  pthread_kill(thd->mysys_var->pthread_self, SIG_APC_NOTIFY) == 0;
+  DBUG_ASSERT(ret || errno == EAGAIN);
+  return ret;
 #endif
 }
 
@@ -1586,6 +1511,7 @@ void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
     return;
   }
 
+#ifndef _WIN32
   Thread_apc_context apc_context;
   if (!apc_context.inited)
   {
@@ -1594,6 +1520,7 @@ void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
     delete thd;
     return;
   }
+#endif
 
   DBUG_EXECUTE_IF("CONNECT_wait",
   {

@@ -407,9 +407,9 @@ int io_poll_disassociate_fd(TP_file_handle pollfd, TP_file_handle fd)
     return -1; /* unexpected, we only support Windows 8.1+*/
   IO_STATUS_BLOCK iosb{};
   FILE_COMPLETION_INFORMATION fci{};
-  if (my_NtSetInformationFile(fd,&iosb,&fci,sizeof(fci),FileReplaceCompletionInformation))
-    return -1;
-  return 0;
+  NTSTATUS status=
+    my_NtSetInformationFile(fd,&iosb,&fci,sizeof(fci),FileReplaceCompletionInformation);
+  return status ? -1 : 0;
 }
 
 
@@ -433,6 +433,13 @@ int io_poll_wait(TP_file_handle pollfd, native_event *events, int maxevents,
     /* null userdata zero means shutdown (see PostQueuedCompletionStatus() usage*/
     if (c)
     {
+      // Figure out whether it is a wakeup interrupted with CancelIo
+      DWORD nbytes= ev->dwNumberOfBytesTransferred;
+      if (!nbytes && !GetOverlappedResult(c->fd, ev->lpOverlapped, &nbytes, FALSE))
+      {
+        if (GetLastError() == ERROR_OPERATION_ABORTED)
+          c->state= TP_STATE_INTERRUPTED;
+      }
       c->win_sock.end_read(ev->dwNumberOfBytesTransferred, 0);
     }
   }
@@ -1339,7 +1346,16 @@ void TP_pool_generic::resume(TP_connection* c)
 
 int TP_pool_generic::wake(TP_connection *c)
 {
+#ifdef _WIN32
+  TP_connection_generic *connection=(TP_connection_generic *)c;
+  if (CancelIoEx(connection->win_sock.m_handle, &connection->win_sock.m_overlapped))
+    return 0;
+  DBUG_ASSERT(GetLastError() == ERROR_NOT_FOUND);
+  return 1;
+#else
+  // todo support
   return 0;
+#endif
 }
 
 /**

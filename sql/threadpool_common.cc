@@ -55,9 +55,10 @@ TP_STATISTICS tp_stats;
 
 
 static void  threadpool_remove_connection(THD *thd);
-static dispatch_command_return threadpool_process_request(THD *thd);
+static dispatch_command_return threadpool_process_request(THD *thd, bool apc_only);
 static THD*  threadpool_add_connection(CONNECT *connect, TP_connection *c);
 
+extern void thd_net_process_apc_requests(THD *thd);
 
 static inline TP_connection *get_TP_connection(THD *thd)
 {
@@ -178,13 +179,14 @@ static bool tp_callback_run(TP_connection *c)
 {
   DBUG_ASSERT(c);
   THD *thd= c->thd;
-
+  bool apc_only= c->state == TP_STATE_INTERRUPTED;
   c->state = TP_STATE_RUNNING;
 
   if (unlikely(!thd))
   {
     /* No THD, need to login first. */
     DBUG_ASSERT(c->connect);
+    DBUG_ASSERT(!apc_only);
     thd= c->thd= threadpool_add_connection(c->connect, c);
     if (!thd)
     {
@@ -196,7 +198,7 @@ static bool tp_callback_run(TP_connection *c)
   else
   {
 retry:
-    switch(threadpool_process_request(thd))
+    switch(threadpool_process_request(thd, apc_only))
     {
       case DISPATCH_COMMAND_WOULDBLOCK:
         if (!thd->async_state.try_suspend())
@@ -372,20 +374,13 @@ static bool has_unread_data(THD* thd)
 /**
  Process a single client request or a single batch.
 */
-static dispatch_command_return threadpool_process_request(THD *thd)
+static dispatch_command_return threadpool_process_request(THD *thd, bool apc_only)
 {
   dispatch_command_return retval= DISPATCH_COMMAND_SUCCESS;
 
   thread_attach(thd);
   if(thd->async_state.m_state == thd_async_state::enum_async_state::RESUMED)
-  {
-    if (unlikely(thd->async_state.m_command == COM_SLEEP))
-      return DISPATCH_COMMAND_SUCCESS; // Special case for thread pool APC
-
     goto resume;
-  }
-
-  thd->apc_target.process_apc_requests();
 
   if (thd->killed >= KILL_CONNECTION)
   {
@@ -399,6 +394,11 @@ static dispatch_command_return threadpool_process_request(THD *thd)
     goto end;
   }
 
+  if (unlikely(apc_only))
+  {
+    thd_net_process_apc_requests(thd);
+    goto after_do_command;
+  }
 
   /*
     In the loop below, the flow is essentially the copy of
@@ -435,6 +435,7 @@ resume:
 
     set_thd_idle(thd);
 
+after_do_command:
     if (!has_unread_data(thd))
     {
       /* More info on this debug sync is in sql_parse.cc*/

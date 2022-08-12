@@ -4374,21 +4374,12 @@ my_bool thd_net_is_killed(THD *thd)
   return thd && thd->killed ? 1 : 0;
 }
 
+/* returns true if any APC was processed */
 void thd_net_process_apc_requests(THD *thd)
 {
-#ifdef WIN32
-  int last_error= GetLastError();
-#else
-  int save_errno= errno;
-#endif
   if (unlikely(thd->apc_target.have_apc_requests()))
     thd->apc_target.process_apc_requests();
   DEBUG_SYNC(thd, "net_after_apc");
-#ifdef WIN32
-  SetLastError(last_error);
-#else
-  errno= save_errno;
-#endif
 }
 
 
