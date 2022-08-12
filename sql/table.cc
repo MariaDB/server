@@ -1599,93 +1599,6 @@ bool TABLE_SHARE::init_period_from_extra2(period_info_t *period,
 }
 
 
-static
-bool read_extra2_section_once(const uchar *extra2, size_t len, LEX_CUSTRING *section)
-{
-  if (section->str)
-    return true;
-  *section= {extra2, len};
-  return false;
-}
-
-static
-bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
-{
-  const uchar *extra2= frm_image + 64;
-
-  DBUG_ENTER("read_extra2");
-
-  fields->reset();
-
-  if (*extra2 != '/')   // old frm had '/' there
-  {
-    const uchar *e2end= extra2 + len;
-    while (extra2 + 3 <= e2end)
-    {
-      extra2_frm_value_type type= (extra2_frm_value_type)*extra2++;
-      size_t length= extra2_read_len(&extra2, e2end);
-      if (!length)
-        DBUG_RETURN(true);
-
-      bool fail= false;
-      switch (type) {
-        case EXTRA2_TABLEDEF_VERSION:
-          if (fields->version.str) // see init_from_sql_statement_string()
-          {
-            if (length != fields->version.length)
-              DBUG_RETURN(true);
-          }
-          else
-          {
-            fields->version.str= extra2;
-            fields->version.length= length;
-          }
-          break;
-        case EXTRA2_ENGINE_TABLEOPTS:
-          fail= read_extra2_section_once(extra2, length, &fields->options);
-          break;
-        case EXTRA2_DEFAULT_PART_ENGINE:
-          fields->engine.set((const char*)extra2, length);
-          break;
-        case EXTRA2_GIS:
-          fail= read_extra2_section_once(extra2, length, &fields->gis);
-          break;
-        case EXTRA2_PERIOD_FOR_SYSTEM_TIME:
-          fail= read_extra2_section_once(extra2, length, &fields->system_period)
-                  || length != 2 * frm_fieldno_size;
-          break;
-        case EXTRA2_FIELD_FLAGS:
-          fail= read_extra2_section_once(extra2, length, &fields->field_flags);
-          break;
-        case EXTRA2_APPLICATION_TIME_PERIOD:
-          fail= read_extra2_section_once(extra2, length, &fields->application_period);
-          break;
-        case EXTRA2_PERIOD_WITHOUT_OVERLAPS:
-          fail= read_extra2_section_once(extra2, length, &fields->without_overlaps);
-          break;
-        case EXTRA2_FIELD_DATA_TYPE_INFO:
-          fail= read_extra2_section_once(extra2, length, &fields->field_data_type_info);
-          break;
-        case EXTRA2_INDEX_FLAGS:
-          fail= read_extra2_section_once(extra2, length, &fields->index_flags);
-          break;
-        default:
-          /* abort frm parsing if it's an unknown but important extra2 value */
-          if (type >= EXTRA2_ENGINE_IMPORTANT)
-            DBUG_RETURN(true);
-      }
-      if (fail)
-        DBUG_RETURN(true);
-
-      extra2+= length;
-    }
-    if (extra2 != e2end)
-      DBUG_RETURN(true);
-  }
-  DBUG_RETURN(false);
-}
-
-
 class Field_data_type_info_array
 {
 public:
@@ -1854,7 +1767,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   MEM_ROOT *old_root= thd->mem_root;
   Virtual_column_info **table_check_constraints;
   bool *interval_unescaped= NULL;
-  extra2_fields extra2;
+  Extra2_info extra2;
   bool extra_index_flags_present= FALSE;
   key_map sort_keys_in_use(0);
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
@@ -1894,10 +1807,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   new_frm_ver= (frm_image[2] - FRM_VER);
   field_pack_length= new_frm_ver < 2 ? 11 : 17;
 
-  /* Length of the MariaDB extra2 segment in the form file. */
-  len = uint2korr(frm_image+4);
-
-  if (read_extra2(frm_image, len, &extra2))
+  if (extra2.read(frm_image, frm_length))
     goto err;
 
   tabledef_version.length= extra2.version.length;
@@ -1918,8 +1828,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
 #endif
 
-  if (frm_length < FRM_HEADER_SIZE + len ||
-      !(pos= uint4korr(frm_image + FRM_HEADER_SIZE + len)))
+  if (frm_length < FRM_HEADER_SIZE + extra2.read_size ||
+      !(pos= uint4korr(frm_image + FRM_HEADER_SIZE + extra2.read_size)))
     goto err;
 
   forminfo= frm_image + pos;

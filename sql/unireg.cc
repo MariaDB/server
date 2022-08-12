@@ -343,6 +343,13 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
 
   prepare_frm_header(thd, reclength, frm_header, create_info, keys, key_info);
 
+  /*
+    TODO: here we write extra2 directly from create structures. There is also
+    Extra2_info::write() which writes extra2 from its data (previously read by
+    Extra2_info::read()). Extra2_info should be able to import create structures
+    so the below code will not be needed.
+  */
+
   /* one byte for a type, one or three for a length */
   size_t extra2_size= 1 + extra2_str_size(create_info->tabledef_version.length);
   if (options_len)
