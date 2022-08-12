@@ -169,7 +169,8 @@ static void vio_init(Vio *vio, enum enum_vio_type type,
   vio->shutdown         =vio_socket_shutdown;
   vio->timeout          =vio_socket_timeout;
   vio->has_data         = ((flags & VIO_BUFFERED_READ) ?
-                           vio_buff_has_data : has_no_data);
+    vio_buff_has_data : has_no_data);
+
   DBUG_VOID_RETURN;
 }
 

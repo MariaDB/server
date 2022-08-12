@@ -55,9 +55,10 @@ TP_STATISTICS tp_stats;
 
 
 static void  threadpool_remove_connection(THD *thd);
-static dispatch_command_return threadpool_process_request(THD *thd);
+static dispatch_command_return threadpool_process_request(THD *thd, bool apc_only);
 static THD*  threadpool_add_connection(CONNECT *connect, TP_connection *c);
 
+extern bool thd_net_process_apc_requests(THD *thd);
 
 static inline TP_connection *get_TP_connection(THD *thd)
 {
@@ -178,13 +179,14 @@ static bool tp_callback_run(TP_connection *c)
 {
   DBUG_ASSERT(c);
   THD *thd= c->thd;
-
+  bool apc_only= c->state == TP_STATE_INTERRUPTED;
   c->state = TP_STATE_RUNNING;
 
   if (unlikely(!thd))
   {
     /* No THD, need to login first. */
     DBUG_ASSERT(c->connect);
+    DBUG_ASSERT(!apc_only);
     thd= c->thd= threadpool_add_connection(c->connect, c);
     if (!thd)
     {
@@ -192,13 +194,11 @@ static bool tp_callback_run(TP_connection *c)
       return false;
     }
     c->connect= 0;
-    thd->apc_target.epoch.fetch_add(1, std::memory_order_release);
   }
   else
   {
-    thd->apc_target.epoch.fetch_add(1, std::memory_order_release);
 retry:
-    switch(threadpool_process_request(thd))
+    switch(threadpool_process_request(thd, apc_only))
     {
       case DISPATCH_COMMAND_WOULDBLOCK:
         if (!thd->async_state.try_suspend())
@@ -231,11 +231,6 @@ retry:
   /* Read next command from client. */
   c->set_io_timeout(thd->get_net_wait_timeout());
   c->state= TP_STATE_IDLE;
-
-  thd->apc_target.epoch.fetch_add(1, std::memory_order_acquire);
-  if (unlikely(thd->apc_target.have_apc_requests()))
-    thd->apc_target.process_apc_requests();
-
   int error= c->start_io();
 
   return error == 0;
@@ -381,20 +376,13 @@ static bool has_unread_data(THD* thd)
 /**
  Process a single client request or a single batch.
 */
-static dispatch_command_return threadpool_process_request(THD *thd)
+static dispatch_command_return threadpool_process_request(THD *thd, bool apc_only)
 {
   dispatch_command_return retval= DISPATCH_COMMAND_SUCCESS;
 
   thread_attach(thd);
   if(thd->async_state.m_state == thd_async_state::enum_async_state::RESUMED)
-  {
-    if (unlikely(thd->async_state.m_command == COM_SLEEP))
-      return DISPATCH_COMMAND_SUCCESS; // Special case for thread pool APC
-
     goto resume;
-  }
-
-  thd->apc_target.process_apc_requests();
 
   if (thd->killed >= KILL_CONNECTION)
   {
@@ -408,6 +396,12 @@ static dispatch_command_return threadpool_process_request(THD *thd)
     goto end;
   }
 
+  if (unlikely(apc_only))
+  {
+    if (!thd_net_process_apc_requests(thd))
+      DBUG_ASSERT(false); // expect some APC here
+    goto end;
+  }
 
   /*
     In the loop below, the flow is essentially the copy of
@@ -600,7 +594,6 @@ static void tp_resume(THD* thd)
 {
   DBUG_ASSERT(thd->async_state.m_state == thd_async_state::enum_async_state::SUSPENDED);
   thd->async_state.m_state = thd_async_state::enum_async_state::RESUMED;
-  thd->apc_target.epoch.fetch_add(1, std::memory_order_acquire);
   TP_connection* c = get_TP_connection(thd);
   pool->resume(c);
 }
@@ -609,60 +602,8 @@ static bool tp_notify_apc(THD *thd)
 {
   mysql_mutex_assert_owner(&thd->LOCK_thd_kill);
   TP_connection* c= get_TP_connection(thd);
-  longlong process_epoch= thd->apc_target.process_epoch;
-  longlong first_epoch= thd->apc_target.epoch;
-  while (1)
-  {
-    longlong epoch= thd->apc_target.epoch;
-    if (epoch & 1 || epoch != first_epoch)
-    {
-      // We are in the safe zone, where we can guarantee a processing.
-      break;
-    }
-    else
-    {
-
-      /*
-         Continue to the retry-loop.
-         We are either before APC request check, or after the check and before
-         run, or the run is skipped.
-       */
-
-      process_epoch= thd->apc_target.process_epoch;
-      if (process_epoch & 1)
-      {
-        // We are hanging on LOCK_thd_kill in process_apc_requests, or going to.
-        break;
-      }
-      else
-      {
-        // We are either before apc requests checked or processed, or after APC
-        // processed. We can't distinguish these states, so just flush the pool
-        // and then retry if failed.
-        int status= pool->wake(c);
-        if (likely(status == 0))
-        {
-          break;
-        }
-        else if (unlikely(status < 0))
-        {
-          return false;
-        }
-        else
-        {
-          /*
-             If the run is skipped and somebody else took connection out of the
-             poll, then we will wait until the epoch change, therefore, will wait
-             until the task will reach the worker by the queue, which can be
-             long.
-             So longer sleep here (1ms).
-           */
-          my_sleep(1000);
-        }
-      }
-    }
-  }
-  return true;
+  int status= pool->wake(c);
+  return status == 0;
 }
 
 static scheduler_functions tp_scheduler_functions=

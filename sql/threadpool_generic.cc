@@ -407,9 +407,9 @@ int io_poll_disassociate_fd(TP_file_handle pollfd, TP_file_handle fd)
     return -1; /* unexpected, we only support Windows 8.1+*/
   IO_STATUS_BLOCK iosb{};
   FILE_COMPLETION_INFORMATION fci{};
-  if (my_NtSetInformationFile(fd,&iosb,&fci,sizeof(fci),FileReplaceCompletionInformation))
-    return -1;
-  return 0;
+  NTSTATUS status=
+    my_NtSetInformationFile(fd,&iosb,&fci,sizeof(fci),FileReplaceCompletionInformation);
+  return status ? -1 : 0;
 }
 
 
@@ -433,6 +433,13 @@ int io_poll_wait(TP_file_handle pollfd, native_event *events, int maxevents,
     /* null userdata zero means shutdown (see PostQueuedCompletionStatus() usage*/
     if (c)
     {
+      // Figure out whether it is a wakeup interrupted with CancelIo
+      DWORD nbytes= ev->dwNumberOfBytesTransferred;
+      if (!nbytes && !GetOverlappedResult(c->fd, ev->lpOverlapped, &nbytes, FALSE))
+      {
+        if (GetLastError() == ERROR_OPERATION_ABORTED)
+          c->state= TP_STATE_INTERRUPTED;
+      }
       c->win_sock.end_read(ev->dwNumberOfBytesTransferred, 0);
     }
   }
@@ -1339,20 +1346,22 @@ void TP_pool_generic::resume(TP_connection* c)
 
 int TP_pool_generic::wake(TP_connection *c)
 {
+#ifdef _WIN32
+  TP_connection_generic *connection=(TP_connection_generic *)c;
+  if (CancelIoEx(connection->win_sock.m_handle, &connection->win_sock.m_overlapped))
+    return 0;
+  DBUG_ASSERT(GetLastError() == ERROR_NOT_FOUND);
+  return 1;
+#else
   int status= c->cancel_io();
   if (status == 0)
   {
-    THD *thd= c->thd;
-    /* Set custom async_state to handle later in threadpool_process_request().
-       This will avoid possible side effects of dry-running do_command() */
-    DBUG_ASSERT(thd->async_state.m_state == thd_async_state::enum_async_state::NONE);
-    DBUG_ASSERT(thd->async_state.m_command == COM_SLEEP);
-    thd->async_state.m_state= thd_async_state::enum_async_state::RESUMED;
-
-    /* Add c to the task queue */
-    resume(c);
+    c->state= TP_STATE_INTERRUPTED;
+    /* Add c to "ready" task queue */
+    add(c);
   }
   return status;
+#endif
 }
 
 /**
@@ -1545,6 +1554,7 @@ int TP_connection_generic::cancel_io()
   int ret = io_poll_disassociate_fd(thread_group->pollfd,fd);
   if (ret == 0)
   {
+    DBUG_ASSERT(io_poll_disassociate_fd(thread_group->pollfd, fd));
     // We have successfully disassociated fd. bound_to_poll_descriptor now will
     // not be accessed from another threads. bound_to_poll_descriptor changes
     // together with io_poll_associate_fd/io_poll_disassociate_fd pair
@@ -1552,9 +1562,10 @@ int TP_connection_generic::cancel_io()
     bound_to_poll_descriptor= false;
     return 0;
   }
-
-  // Hopefully, all POSIX implementations return ENOENT for the case in question
-  return errno == ENOENT ? 1 : -1;
+#ifdef __linux__
+  DBUG_ASSERT(errno == ENOENT);
+#endif
+  return 1;
 }
 
 

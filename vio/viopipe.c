@@ -53,8 +53,9 @@ static size_t wait_overlapped_result(Vio *vio, int timeout)
   }
   else
   {
+    DWORD last_error= GetLastError();
     /* Error or timeout, cancel the pending I/O operation. */
-    CancelIo(vio->hPipe);
+    CancelIoEx(vio->hPipe, &vio->overlapped);
 
     /*
       If the wait timed out, set error code to indicate a
@@ -63,6 +64,8 @@ static size_t wait_overlapped_result(Vio *vio, int timeout)
     */
     if (wait_status == WAIT_TIMEOUT)
       SetLastError(SOCKET_ETIMEDOUT);
+    else
+      SetLastError(last_error);
   }
 
   return ret;
