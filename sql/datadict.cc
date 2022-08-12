@@ -211,3 +211,135 @@ bool dd_recreate_table(THD *thd, const char *db, const char *table_name)
   DBUG_RETURN(ha_create_table(thd, path_buf, db, table_name, &create_info, 0, 0));
 }
 
+
+bool Extra2_info::read(const uchar *frm_image, size_t frm_size)
+{
+  DBUG_ASSERT(frm_size > FRM_HEADER_SIZE);
+
+  read_size= uint2korr(frm_image + 4);
+
+  if (read_size > frm_size - FRM_HEADER_SIZE)
+    return true;
+
+  const uchar *pos= frm_image + 64;
+
+  DBUG_ENTER("Extra2_info::read");
+
+  if (*pos == '/')   // old frm had '/' there
+    DBUG_RETURN(false);
+
+  const uchar *e2end= pos + read_size;
+  while (pos + 3 <= e2end)
+  {
+    extra2_frm_value_type type= (extra2_frm_value_type)*pos++;
+    size_t length= extra2_read_len(&pos, e2end);
+    if (!length)
+      DBUG_RETURN(true);
+
+    bool fail= false;
+    switch (type) {
+      case EXTRA2_TABLEDEF_VERSION:
+        if (version.str) // see init_from_sql_statement_string()
+        {
+          if (length != version.length)
+            DBUG_RETURN(true);
+        }
+        else
+        {
+          version.str= pos;
+          version.length= length;
+        }
+        break;
+      case EXTRA2_ENGINE_TABLEOPTS:
+        fail= read_once(&options, pos, length);
+        break;
+      case EXTRA2_DEFAULT_PART_ENGINE:
+        engine.set((const char*)pos, length);
+        break;
+      case EXTRA2_GIS:
+        fail= read_once(&gis, pos, length);
+        break;
+      case EXTRA2_PERIOD_FOR_SYSTEM_TIME:
+        fail= read_once(&system_period, pos, length)
+          || length != 2 * frm_fieldno_size;
+        break;
+      case EXTRA2_FIELD_FLAGS:
+        fail= read_once(&field_flags, pos, length);
+        break;
+      case EXTRA2_APPLICATION_TIME_PERIOD:
+        fail= read_once(&application_period, pos, length);
+        break;
+      case EXTRA2_FIELD_DATA_TYPE_INFO:
+        fail= read_once(&field_data_type_info, pos, length);
+        break;
+      case EXTRA2_PERIOD_WITHOUT_OVERLAPS:
+        fail= read_once(&without_overlaps, pos, length);
+        break;
+      case EXTRA2_INDEX_FLAGS:
+        fail= read_once(&index_flags, pos, length);
+        break;
+      default:
+        /* abort frm parsing if it's an unknown but important extra2 value */
+        if (type >= EXTRA2_ENGINE_IMPORTANT)
+          DBUG_RETURN(true);
+    }
+    if (fail)
+      DBUG_RETURN(true);
+
+    pos+= length;
+  }
+  if (pos != e2end)
+    DBUG_RETURN(true);
+
+  DBUG_ASSERT(store_size() <= read_size);
+  DBUG_RETURN(false);
+}
+
+
+uchar *
+Extra2_info::write(uchar *frm_image)
+{
+  /*
+    build_frm_image() appends a 4-byte key-info offset after the extra2
+    segment, and frm.length (FRM_HEADER_SIZE + store_size() + 4) is stored in
+    a 2-byte field, hence the "- 4".
+  */
+  DBUG_ASSERT(FRM_HEADER_SIZE + store_size() <= UINT_MAX16 - 4);
+  /* write the extra2 segment */
+  uchar *pos= frm_image + FRM_HEADER_SIZE;
+  compile_time_assert(EXTRA2_TABLEDEF_VERSION != '/');
+
+  if (version.length)
+    pos= extra2_write(pos, EXTRA2_TABLEDEF_VERSION, version);
+
+  if (engine.length)
+    pos= extra2_write(pos, EXTRA2_DEFAULT_PART_ENGINE, engine);
+
+  if (options.length)
+    pos= extra2_write(pos, EXTRA2_ENGINE_TABLEOPTS, options);
+
+  if (gis.length)
+    pos= extra2_write(pos, EXTRA2_GIS, gis);
+
+  if (field_data_type_info.length)
+    pos= extra2_write(pos, EXTRA2_FIELD_DATA_TYPE_INFO, field_data_type_info);
+
+  if (index_flags.length)
+    pos= extra2_write(pos, EXTRA2_INDEX_FLAGS, index_flags);
+
+  if (system_period.length)
+    pos= extra2_write(pos, EXTRA2_PERIOD_FOR_SYSTEM_TIME, system_period);
+
+  if (application_period.length)
+    pos= extra2_write(pos, EXTRA2_APPLICATION_TIME_PERIOD, application_period);
+
+  if (without_overlaps.length)
+    pos= extra2_write(pos, EXTRA2_PERIOD_WITHOUT_OVERLAPS, without_overlaps);
+
+  if (field_flags.length)
+    pos= extra2_write(pos, EXTRA2_FIELD_FLAGS, field_flags);
+
+  write_size= pos - frm_image - FRM_HEADER_SIZE;
+  DBUG_ASSERT(write_size == store_size());
+  return pos;
+}
