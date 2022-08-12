@@ -153,7 +153,7 @@ uchar *
 extra2_write_field_properties(uchar *pos, List<Create_field> &create_fields);
 
 
-struct extra2_fields
+struct Extra2_info
 {
   LEX_CUSTRING version;
   LEX_CUSTRING options;
@@ -165,8 +165,50 @@ struct extra2_fields
   LEX_CUSTRING field_data_type_info;
   LEX_CUSTRING without_overlaps;
   LEX_CUSTRING index_flags;
-  void reset()
-  { bzero((void*)this, sizeof(*this)); }
+
+  uint read_size;
+  size_t write_size;
+
+  Extra2_info()
+  {
+    bzero((void*)this, sizeof(*this));
+  }
+
+  template <class S>
+  size_t store_size(const S &f) const
+  {
+    if (f.length == 0)
+      return 0;
+    DBUG_ASSERT(f.length <= 65535);
+    // 1 byte is for type; 1 or 3 bytes for length
+    return f.length + (f.length <= 255 ? 2 : 4);
+  }
+  size_t store_size() const
+  {
+    return
+      store_size(version) +
+      store_size(options) +
+      store_size(engine) +
+      store_size(gis) +
+      store_size(field_flags) +
+      store_size(system_period) +
+      store_size(application_period) +
+      store_size(field_data_type_info) +
+      store_size(without_overlaps) +
+      store_size(index_flags);
+  }
+
+  bool read_once(LEX_CUSTRING *section, const uchar *pos, size_t len)
+  {
+    if (section->str)
+      return true;
+
+    *section= { pos, len };
+    return false;
+  }
+
+  bool read(const uchar* frm_image, size_t frm_size);
+  uchar * write(uchar* frm_image, size_t frm_size);
 };
 
 
