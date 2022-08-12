@@ -657,6 +657,20 @@ public:
     access_time= 0;
   }
 
+  void set_os_unused()
+  {
+    MEM_NOACCESS(frame, srv_page_size);
+#ifdef MADV_FREE
+    madvise(frame, srv_page_size, MADV_FREE);
+#elif defined(_WIN32)
+    DiscardVirtualMemory(frame, srv_page_size);
+#endif
+  }
+
+  void set_os_used() const
+  {
+    MEM_MAKE_ADDRESSABLE(frame, srv_page_size);
+  }
 public:
   const page_id_t &id() const { return id_; }
   uint32_t state() const { return zip.fix; }

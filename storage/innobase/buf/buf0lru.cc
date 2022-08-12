@@ -297,7 +297,7 @@ buf_block_t* buf_LRU_get_free_only()
 			assert_block_ahi_empty(block);
 
 			block->page.set_state(buf_page_t::MEMORY);
-			MEM_MAKE_ADDRESSABLE(block->page.frame, srv_page_size);
+			block->page.set_os_used();
 			break;
 		}
 
@@ -989,13 +989,6 @@ buf_LRU_block_free_non_file_page(
 	block->page.set_state(buf_page_t::NOT_USED);
 
 	MEM_UNDEFINED(block->page.frame, srv_page_size);
-	/* Wipe page_no and space_id */
-	static_assert(FIL_PAGE_OFFSET % 4 == 0, "alignment");
-	memset_aligned<4>(block->page.frame + FIL_PAGE_OFFSET, 0xfe, 4);
-	static_assert(FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID % 4 == 2,
-		      "not perfect alignment");
-	memset_aligned<2>(block->page.frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
-			  0xfe, 4);
 	data = block->page.zip.data;
 
 	if (data != NULL) {
@@ -1024,7 +1017,7 @@ buf_LRU_block_free_non_file_page(
 		pthread_cond_signal(&buf_pool.done_free);
 	}
 
-	MEM_NOACCESS(block->page.frame, srv_page_size);
+	block->page.set_os_unused();
 }
 
 /** Release a memory block to the buffer pool. */
