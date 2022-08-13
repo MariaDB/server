@@ -927,6 +927,17 @@ SELECT JSON_ARRAYAGG(a) AS f FROM v;
 DROP VIEW v;
 DROP TABLE t;
 
+
+--echo #
+--echo # MDEV-29264 JSON functions overflow error based ON LONGTEXT field
+--echo #
+CREATE TABLE t(l1 LONGTEXT, l2 LONGTEXT, l3 LONGTEXT, l4 LONGTEXT);
+INSERT INTO t VALUES('k1', 'v1', 'k2', 'v2');
+SELECT JSON_ARRAY(l1, l2, l3, l4), JSON_OBJECT(l1, l2, l3, l4) from t;
+SELECT JSON_ARRAY_APPEND(JSON_ARRAY(l1, l2, l3, l4), '$[0]', 'k3'), JSON_ARRAY_INSERT(JSON_ARRAY(l1, l2, l3, l4), '$[0]', 'k3') from t;
+SELECT JSON_INSERT(JSON_OBJECT(l1, l2, l3, l4), '$.k3', 'v3'),JSON_SET(JSON_OBJECT(l1, l2, l3, l4), '$.k2', 'new v2'),JSON_REPLACE(JSON_OBJECT(l1, l2, l3, l4), '$.k2', 'new v2') from t;
+DROP TABLE t;
+
 --echo #
 --echo # End of 10.5 tests
 --echo #
