@@ -175,7 +175,6 @@ int my_strnncollsp_simple(CHARSET_INFO * cs, const uchar *a, size_t a_length,
 {
   const uchar *map= cs->sort_order, *end;
   size_t length;
-  int res;
 
   end= a + (length= MY_MIN(a_length, b_length));
   while (a < end)
@@ -183,7 +182,6 @@ int my_strnncollsp_simple(CHARSET_INFO * cs, const uchar *a, size_t a_length,
     if (map[*a++] != map[*b++])
       return ((int) map[a[-1]] - (int) map[b[-1]]);
   }
-  res= 0;
   if (a_length != b_length)
   {
     int swap= 1;
@@ -197,15 +195,14 @@ int my_strnncollsp_simple(CHARSET_INFO * cs, const uchar *a, size_t a_length,
       a_length= b_length;
       a= b;
       swap= -1;                                 /* swap sign of result */
-      res= -res;
     }
     for (end= a + a_length-length; a < end ; a++)
     {
       if (map[*a] != map[' '])
-	return (map[*a] < map[' ']) ? -swap : swap;
+        return (map[*a] < map[' ']) ? -swap : swap;
     }
   }
-  return res;
+  return 0;
 }
 
 
