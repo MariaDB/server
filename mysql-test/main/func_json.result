@@ -822,7 +822,7 @@ CREATE TABLE t2 SELECT JSON_ARRAY_INSERT(fld, '$.[0]', '0') FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `JSON_ARRAY_INSERT(fld, '$.[0]', '0')` varchar(25) DEFAULT NULL
+  `JSON_ARRAY_INSERT(fld, '$.[0]', '0')` varchar(21) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1, t2;
 SET sql_mode=default;
@@ -1435,6 +1435,21 @@ SELECT JSON_ARRAYAGG(a) AS f FROM v;
 f
 ["foo","bar"]
 DROP VIEW v;
+DROP TABLE t;
+#
+# MDEV-29264 JSON functions overflow error based ON LONGTEXT field
+#
+CREATE TABLE t(l1 LONGTEXT, l2 LONGTEXT, l3 LONGTEXT, l4 LONGTEXT);
+INSERT INTO t VALUES('k1', 'v1', 'k2', 'v2');
+SELECT JSON_ARRAY(l1, l2, l3, l4), JSON_OBJECT(l1, l2, l3, l4) from t;
+JSON_ARRAY(l1, l2, l3, l4)	JSON_OBJECT(l1, l2, l3, l4)
+["k1", "v1", "k2", "v2"]	{"k1": "v1", "k2": "v2"}
+SELECT JSON_ARRAY_APPEND(JSON_ARRAY(l1, l2, l3, l4), '$[0]', 'k3'), JSON_ARRAY_INSERT(JSON_ARRAY(l1, l2, l3, l4), '$[0]', 'k3') from t;
+JSON_ARRAY_APPEND(JSON_ARRAY(l1, l2, l3, l4), '$[0]', 'k3')	JSON_ARRAY_INSERT(JSON_ARRAY(l1, l2, l3, l4), '$[0]', 'k3')
+[["k1", "k3"], "v1", "k2", "v2"]	["k3", "k1", "v1", "k2", "v2"]
+SELECT JSON_INSERT(JSON_OBJECT(l1, l2, l3, l4), '$.k3', 'v3'),JSON_SET(JSON_OBJECT(l1, l2, l3, l4), '$.k2', 'new v2'),JSON_REPLACE(JSON_OBJECT(l1, l2, l3, l4), '$.k2', 'new v2') from t;
+JSON_INSERT(JSON_OBJECT(l1, l2, l3, l4), '$.k3', 'v3')	JSON_SET(JSON_OBJECT(l1, l2, l3, l4), '$.k2', 'new v2')	JSON_REPLACE(JSON_OBJECT(l1, l2, l3, l4), '$.k2', 'new v2')
+{"k1": "v1", "k2": "v2", "k3": "v3"}	{"k1": "v1", "k2": "new v2"}	{"k1": "v1", "k2": "new v2"}
 DROP TABLE t;
 #
 # End of 10.5 tests
