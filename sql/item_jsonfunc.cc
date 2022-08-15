@@ -1738,7 +1738,7 @@ bool Item_func_json_array::fix_length_and_dec()
     return TRUE;
 
   for (n_arg=0 ; n_arg < arg_count ; n_arg++)
-    char_length+= args[n_arg]->max_char_length() + 4;
+    char_length+= static_cast<ulonglong>(args[n_arg]->max_char_length()) + 4;
 
   fix_char_length_ulonglong(char_length);
   tmp_val.set_charset(collation.collation);
@@ -1797,7 +1797,8 @@ bool Item_func_json_array_append::fix_length_and_dec()
   for (n_arg= 1; n_arg < arg_count; n_arg+= 2)
   {
     paths[n_arg/2].set_constant_flag(args[n_arg]->const_item());
-    char_length+= args[n_arg/2+1]->max_char_length() + 4;
+    char_length+=
+        static_cast<ulonglong>(args[n_arg+1]->max_char_length()) + 4;
   }
 
   fix_char_length_ulonglong(char_length);
@@ -2957,7 +2958,8 @@ bool Item_func_json_insert::fix_length_and_dec()
   for (n_arg= 1; n_arg < arg_count; n_arg+= 2)
   {
     paths[n_arg/2].set_constant_flag(args[n_arg]->const_item());
-    char_length+= args[n_arg/2+1]->max_char_length() + 4;
+    char_length+=
+        static_cast<ulonglong>(args[n_arg+1]->max_char_length()) + 4;
   }
 
   fix_char_length_ulonglong(char_length);
