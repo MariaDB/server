@@ -200,7 +200,7 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
                      err->get_sql_errno());
   }
 
-  if (ha_error != 0)
+  if (ha_error != 0 && !thd->killed)
     rli->report(level, errcode, rgi->gtid_info(),
                 "Could not execute %s event on table %s.%s;"
                 "%s handler error %s; "
@@ -1289,7 +1289,7 @@ bool Query_log_event::write()
     }
   }
 
-  if (thd && thd->query_start_sec_part_used)
+  if (thd && (thd->used & THD::QUERY_START_SEC_PART_USED))
   {
     *start++= Q_HRNOW;
     get_time();
@@ -1415,8 +1415,8 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
 				 bool direct, bool suppress_use, int errcode)
 
   :Log_event(thd_arg,
-             (thd_arg->thread_specific_used ? LOG_EVENT_THREAD_SPECIFIC_F :
-              0) |
+             ((thd_arg->used & THD::THREAD_SPECIFIC_USED)
+              ? LOG_EVENT_THREAD_SPECIFIC_F : 0) |
              (suppress_use ? LOG_EVENT_SUPPRESS_USE_F : 0),
 	     using_trans),
    data_buf(0), query(query_arg), catalog(thd_arg->catalog),
@@ -1502,7 +1502,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
   int2store(charset, thd_arg->variables.character_set_client->number);
   int2store(charset+2, thd_arg->variables.collation_connection->number);
   int2store(charset+4, thd_arg->variables.collation_server->number);
-  if (thd_arg->time_zone_used)
+  if (thd_arg->used & THD::TIME_ZONE_USED)
   {
     /*
       Note that our event becomes dependent on the Time_zone object
@@ -1970,7 +1970,9 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
           OPTIONS_WRITTEN_TO_BIN_LOG must take their value from
           flags2.
         */
-        thd->variables.option_bits= flags2|(thd->variables.option_bits & ~OPTIONS_WRITTEN_TO_BIN_LOG);
+        ulonglong mask= rli->relay_log.description_event_for_exec->options_written_to_bin_log;
+        thd->variables.option_bits= (flags2 & mask) |
+                                    (thd->variables.option_bits & ~mask);
       }
       /*
         else, we are in a 3.23/4.0 binlog; we previously received a
@@ -2949,7 +2951,8 @@ Load_log_event::Load_log_event(THD *thd_arg, const sql_exchange *ex,
 			       enum enum_duplicates handle_dup,
 			       bool ignore, bool using_trans)
   :Log_event(thd_arg,
-             thd_arg->thread_specific_used ? LOG_EVENT_THREAD_SPECIFIC_F : 0,
+             (thd_arg->used & THD::THREAD_SPECIFIC_USED)
+              ? LOG_EVENT_THREAD_SPECIFIC_F : 0,
              using_trans),
    thread_id(thd_arg->thread_id),
    slave_proxy_id((ulong)thd_arg->variables.pseudo_thread_id),
@@ -4590,7 +4593,9 @@ void User_var_log_event::pack_info(Protocol* protocol)
     case STRING_RESULT:
     {
       /* 15 is for 'COLLATE' and other chars */
-      char buf_mem[FN_REFLEN + 512 + 1 + 2*MY_CS_NAME_SIZE+15];
+      char buf_mem[FN_REFLEN + 512 + 1 + 15 +
+                   MY_CS_CHARACTER_SET_NAME_SIZE +
+                   MY_CS_COLLATION_NAME_SIZE];
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       CHARSET_INFO *cs;
       buf.length(0);
@@ -4610,7 +4615,7 @@ void User_var_log_event::pack_info(Protocol* protocol)
           return;
         old_len= buf.length();
         if (buf.reserve(old_len + val_len * 2 + 3 + sizeof(" COLLATE ") +
-                        MY_CS_NAME_SIZE))
+                        MY_CS_COLLATION_NAME_SIZE))
           return;
         beg= const_cast<char *>(buf.ptr()) + old_len;
         end= str_to_hex(beg, val, val_len);
@@ -5729,6 +5734,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   DBUG_ASSERT(rgi->thd == thd);
 
   /*
+    Where a Query_log_event can rely on the normal command execution logic to
+    set/reset the slave thread's timer; a Rows_log_event update needs to set
+    the timer itself
+  */
+  thd->set_query_timer();
+
+  /*
     If there is no locks taken, this is the first binrow event seen
     after the table map events.  We should then lock all the tables
     used in the transaction and proceed with execution of the actual
@@ -6120,6 +6132,12 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       if (likely(error == 0) && !transactional_table)
         thd->transaction->all.modified_non_trans_table=
           thd->transaction->stmt.modified_non_trans_table= TRUE;
+      if (likely(error == 0))
+      {
+        error= thd->killed_errno();
+        if (error && !thd->is_error())
+          my_error(error, MYF(0));
+      }
     } // row processing loop
     while (error == 0 && (m_curr_row != m_rows_end));
 
@@ -6189,11 +6207,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
   }
 
+  thd->reset_query_timer();
   DBUG_RETURN(error);
 
 err:
   restore_empty_query_table_list(thd->lex);
   rgi->slave_close_thread_tables(thd);
+  thd->reset_query_timer();
   DBUG_RETURN(error);
 }
 

@@ -193,9 +193,6 @@ DROP TABLE t1;
 # End of 10.1 tests
 #
 #
-# Start of 10.2 tests
-#
-#
 # MDEV-10134 Add full support for DEFAULT
 #
 CREATE TABLE t1 (a TEXT, b BLOB DEFAULT COMPRESS(a), bl INT DEFAULT UNCOMPRESSED_LENGTH(b), a1 TEXT DEFAULT UNCOMPRESS(b));
@@ -212,6 +209,14 @@ SELECT bl, a1 FROM t1;
 bl	a1
 100	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 DROP TABLE t1;
+#
+# MDEV-23149 Server crashes in my_convert / ErrConvString::ptr / Item_char_typecast::check_truncation_with_warn
+#
+select 'foo' in (cast(compress('bar') as char(4)), 'qux');
+'foo' in (cast(compress('bar') as char(4)), 'qux')
+0
+Warnings:
+Warning	1292	Truncated incorrect CHAR(4) value: '\x03\x00\x00\x00x\x9CKJ,\x02\x00\x02]\x016'
 #
 # End of 10.2 tests
 #

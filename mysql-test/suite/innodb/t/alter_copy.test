@@ -2,8 +2,7 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/not_embedded.inc
-# Valgrind gives leaks from the first shutdown which confuses mtr
-#--source include/not_valgrind.inc
+--source include/no_valgrind_without_big.inc
 
 --echo #
 --echo # MDEV-11415 AVOID INTERMEDIATE COMMIT WHILE DOING

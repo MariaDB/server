@@ -10,7 +10,7 @@ INSERT INTO t2 VALUES (3),(4);
 DROP TABLE t2;
 connection slave;
 include/stop_slave.inc
-RESET SLAVE;
+include/reset_slave.inc
 CHANGE MASTER TO MASTER_USER='root', MASTER_CONNECT_RETRY=1, MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_MYPORT;
 connection slave;
 START SLAVE UNTIL MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=master_pos_drop_t1;
@@ -52,7 +52,7 @@ START SLAVE UNTIL RELAY_LOG_FILE='slave-relay-bin.000002', MASTER_LOG_POS=MASTER
 ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
 START SLAVE UNTIL MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=MASTER_LOG_POS;
 include/stop_slave.inc
-RESET SLAVE;
+include/reset_slave.inc
 include/start_slave.inc
 include/rpl_reset.inc
 connection master;

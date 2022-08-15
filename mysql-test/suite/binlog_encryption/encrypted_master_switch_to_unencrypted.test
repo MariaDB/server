@@ -20,6 +20,13 @@
 --let $rpl_topology= 1->2
 --source include/rpl_init.inc
 
+--connection server_2
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+--source include/start_slave.inc
+
+--connection server_1
+
 --enable_connect_log
 
 # We stop replication because we want it to happen after the switch
@@ -132,7 +139,8 @@ SHOW TABLES;
 --disable_connect_log
 --source include/stop_slave.inc
 --enable_connect_log
-reset slave;
+--let $master_use_gtid_option= No
+--source include/reset_slave.inc
 
 --echo ##########
 --echo # Cleanup

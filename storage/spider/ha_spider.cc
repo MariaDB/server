@@ -834,10 +834,8 @@ int ha_spider::external_lock(
   backup_error_status();
 
   DBUG_ENTER("ha_spider::external_lock");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_PRINT("info",("spider lock_type=%x", lock_type));
-  DBUG_PRINT("info", ("spider sql_command=%d", thd_sql_command(thd)));
 
+  /* Beginning of wide_handler setup */
   if (wide_handler->stage == SPD_HND_STAGE_EXTERNAL_LOCK)
   {
     /* Only the stage executor deals with table locks. */
@@ -848,7 +846,7 @@ int ha_spider::external_lock(
   }
   else
   {
-    /* Update the stage executor when the stage changes */
+    /* Update the stage executor when the stage changes. */
     wide_handler->stage= SPD_HND_STAGE_EXTERNAL_LOCK;
     wide_handler->stage_executor= this;
   }
@@ -857,35 +855,30 @@ int ha_spider::external_lock(
   wide_handler->external_lock_type= lock_type;
   wide_handler->sql_command = thd_sql_command(thd);
 
-  /* We treat BEGIN as if UNLOCK TABLE. */
-  if (wide_handler->sql_command == SQLCOM_BEGIN)
-  {
-    wide_handler->sql_command = SQLCOM_UNLOCK_TABLES;
-  }
-  if (lock_type == F_UNLCK &&
-      wide_handler->sql_command != SQLCOM_UNLOCK_TABLES)
-  {
-    DBUG_RETURN(0);
-  }
-
-  trx = spider_get_trx(thd, TRUE, &error_num);
+  trx= spider_get_trx(thd, TRUE, &error_num);
   if (error_num)
   {
     DBUG_RETURN(error_num);
   }
-  wide_handler->trx = trx;
+  wide_handler->trx= trx;
+  /* End of wide_handler setup */
 
-  /* Question: Why the following if block is necessary? Why here? */
   if (store_error_num)
   {
     DBUG_RETURN(store_error_num);
   }
 
-  DBUG_ASSERT(wide_handler->sql_command != SQLCOM_RENAME_TABLE &&
-              wide_handler->sql_command != SQLCOM_DROP_DB);
+  /* We treat BEGIN as if UNLOCK TABLE. */
+  if (wide_handler->sql_command == SQLCOM_BEGIN)
+  {
+    wide_handler->sql_command = SQLCOM_UNLOCK_TABLES;
+  }
+  const uint sql_command= wide_handler->sql_command;
 
-  if (wide_handler->sql_command == SQLCOM_DROP_TABLE ||
-      wide_handler->sql_command == SQLCOM_ALTER_TABLE)
+  DBUG_ASSERT(sql_command != SQLCOM_RENAME_TABLE &&
+              sql_command != SQLCOM_DROP_DB);
+
+  if (sql_command == SQLCOM_DROP_TABLE || sql_command == SQLCOM_ALTER_TABLE)
   {
     if (trx->locked_connections)
     {
@@ -896,44 +889,41 @@ int ha_spider::external_lock(
     DBUG_RETURN(0);
   }
 
-  if (lock_type != F_UNLCK)
+  if (lock_type == F_UNLCK)
+  {
+    if (sql_command != SQLCOM_UNLOCK_TABLES)
+    {
+      DBUG_RETURN(0); /* Unlock remote tables only by UNLOCK TABLES. */
+    }
+    if (!trx->locked_connections)
+    {
+      DBUG_RETURN(0); /* No remote table actually locked by Spider */
+    }
+  }
+  else
   {
     if (unlikely((error_num= spider_internal_start_trx(this))))
     {
       DBUG_RETURN(error_num);
     }
-    if (wide_handler->sql_command != SQLCOM_SELECT &&
-        wide_handler->sql_command != SQLCOM_HA_READ)
+    if (sql_command != SQLCOM_SELECT && sql_command != SQLCOM_HA_READ)
     {
       trx->updated_in_this_trx= TRUE;
-      DBUG_PRINT("info", ("spider trx->updated_in_this_trx=TRUE"));
+    }
+    if (!wide_handler->lock_table_type)
+    {
+      DBUG_RETURN(0); /* No need to actually lock remote tables. */
     }
   }
 
-  if (wide_handler->lock_table_type > 0 ||
-    wide_handler->sql_command == SQLCOM_UNLOCK_TABLES)
+  if (!partition_handler || !partition_handler->handlers)
   {
-    if (wide_handler->sql_command == SQLCOM_UNLOCK_TABLES)
-    {
-      /* lock tables does not call reset() */
-      /* unlock tables does not call store_lock() */
-      wide_handler->lock_table_type = 0;
-    }
+    DBUG_RETURN(lock_tables()); /* Non-partitioned table */
+  }
 
-    /* lock/unlock tables */
-    if (partition_handler && partition_handler->handlers)
-    {
-      for (uint roop_count= 0; roop_count < partition_handler->no_parts;
-           ++roop_count)
-      {
-        if (unlikely((error_num =
-          partition_handler->handlers[roop_count]->lock_tables())))
-        {
-          DBUG_RETURN(error_num);
-        }
-      }
-    }
-    else if (unlikely((error_num= lock_tables())))
+  for (uint i= 0; i < partition_handler->no_parts; ++i)
+  {
+    if (unlikely((error_num= partition_handler->handlers[i]->lock_tables())))
     {
       DBUG_RETURN(error_num);
     }

@@ -647,11 +647,11 @@ set sql_mode="no_zero_date";
 create table t1(f1 int);
 alter table t1 add column f2 datetime not null, add column f21 date not null;
 insert into t1 values(1,'2000-01-01','2000-01-01');
---error 1292
+--error ER_TRUNCATED_WRONG_VALUE
 alter table t1 add column f3 datetime not null;
---error 1292
+--error ER_TRUNCATED_WRONG_VALUE
 alter table t1 add column f3 date not null;
---error 1292
+--error ER_TRUNCATED_WRONG_VALUE
 alter table t1 add column f4 datetime not null default '2002-02-02',
   add column f41 date not null;
 alter table t1 add column f4 datetime not null default '2002-02-02',

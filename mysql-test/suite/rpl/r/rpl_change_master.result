@@ -26,4 +26,9 @@ connection master;
 CHANGE MASTER TO MASTER_USER='root', MASTER_SSL=0, MASTER_SSL_CA='', MASTER_SSL_CERT='',
 MASTER_SSL_KEY='', MASTER_SSL_CRL='', MASTER_SSL_CRLPATH='';
 CHANGE MASTER TO MASTER_USER='root', MASTER_PASSWORD='', MASTER_SSL=0;
+"Usage of CURRENT_POS in CHANGE MASTER  MASTER_USE_GTID is dreprecated.
+CHANGE MASTER TO MASTER_USE_GTID=CURRENT_POS;
+Warnings:
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
+CHANGE MASTER TO MASTER_USE_GTID=SLAVE_POS;
 include/rpl_end.inc

@@ -96,7 +96,7 @@ bool JMGDISC::ColDesc(PGLOBAL g, jobject obj, char *pcn, char *pfmt,
 		n = Jcp->env->GetIntArrayElements(val, 0);
 
 		if (Jcp->Check(n[0])) {
-			sprintf(g->Message, "ColDesc: %s", Jcp->Msg);
+			snprintf(g->Message, sizeof(g->Message), "ColDesc: %s", Jcp->Msg);
 			goto err;
 		} else if (!n[0])
 			continue;
@@ -526,7 +526,7 @@ char *JMGCOL::Mini(PGLOBAL g, const bson_t *bson, bool b)
 	bson_free(str);
 
 	if (i >= Long) {
-		sprintf(g->Message, "Value too long for column %s", Name);
+		snprintf(g->Message, sizeof(g->Message), "Value too long for column %s", Name);
 		throw (int)TYPE_AM_MGO;
 	}	// endif i
 
@@ -596,7 +596,7 @@ bool JMGCOL::AddValue(PGLOBAL g, bson_t *doc, char *key, bool upd)
 			rc = BSON_APPEND_DATE_TIME(doc, key, Value->GetBigintValue() * 1000);
 			break;
 		default:
-			sprintf(g->Message, "Type %d not supported yet", Buf_Type);
+			snprintf(g->Message, sizeof(g->Message), "Type %d not supported yet", Buf_Type);
 			return true;
 	} // endswitch Buf_Type
 

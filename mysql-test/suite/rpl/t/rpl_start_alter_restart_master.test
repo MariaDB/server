@@ -9,6 +9,11 @@
 --source include/have_debug.inc
 
 --connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+--source include/start_slave.inc
+
+--connection slave
 SET @old_debug_slave= @@global.debug;
 stop slave;
 --let $gtid_strict_mode= `select @@gtid_strict_mode`

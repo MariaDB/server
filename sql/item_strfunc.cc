@@ -733,6 +733,17 @@ bool Item_func_concat::fix_length_and_dec(THD *thd)
     Encryption result is longer than original by formula:
   @code new_length= org_length + (8-(org_length % 8))+1 @endcode
 */
+bool Item_func_des_encrypt::fix_length_and_dec(THD *thd)
+{
+  set_maybe_null();
+  /* 9 = MAX ((8- (arg_len % 8)) + 1) */
+  max_length = args[0]->max_length + 9;
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_WARN_DEPRECATED_SYNTAX,
+                      ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
+                      func_name_cstring().str);
+  return FALSE;
+}
+
 
 String *Item_func_des_encrypt::val_str(String *str)
 {
@@ -830,6 +841,20 @@ error:
 #endif /* defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY) */
   null_value=1;
   return 0;
+}
+
+
+bool Item_func_des_decrypt::fix_length_and_dec(THD *thd)
+{
+  set_maybe_null();
+  /* 9 = MAX ((8- (arg_len % 8)) + 1) */
+  max_length= args[0]->max_length;
+  if (max_length >= 9U)
+    max_length-= 9U;
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_WARN_DEPRECATED_SYNTAX,
+                      ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
+                      func_name_cstring().str);
+  return FALSE;
 }
 
 
@@ -1448,6 +1473,70 @@ String *Item_func_sformat::val_str(String *res)
   delete [] vargs;
   return null_value ? NULL : res;
 }
+
+#include"my_global.h"
+#include <openssl/rand.h>
+#include <openssl/err.h>
+
+bool Item_func_random_bytes::fix_length_and_dec(THD *thd)
+{
+  used_tables_cache|= RAND_TABLE_BIT;
+  if (args[0]->can_eval_in_optimize())
+  {
+    int32 v= (int32) args[0]->val_int();
+    max_length= MY_MAX(0, MY_MIN(v, MAX_RANDOM_BYTES));
+    return false;
+  }
+  max_length= MAX_RANDOM_BYTES;
+  return false;
+}
+
+
+void Item_func_random_bytes::update_used_tables()
+{
+  Item_str_func::update_used_tables();
+  used_tables_cache|= RAND_TABLE_BIT;
+}
+
+
+String *Item_func_random_bytes::val_str(String *str)
+{
+  longlong count= args[0]->val_int();
+
+  if (args[0]->null_value)
+    goto err;
+  null_value= 0;
+
+  if (count < 0 || count > MAX_RANDOM_BYTES)
+    goto err;
+
+  if (count == 0)
+    return make_empty_result(str);
+
+  if (str->alloc((uint) count))
+    goto err;
+
+  str->length(count);
+  str->set_charset(&my_charset_bin);
+  if (my_random_bytes((unsigned char *) str->ptr(), (int32) count))
+  {
+    ulong ssl_err;
+    while ((ssl_err= ERR_get_error()))
+    {
+      char buf[256];
+      ERR_error_string_n(ssl_err, buf, sizeof(buf));
+      sql_print_warning("SSL error: %s", buf);
+    }
+    goto err;
+  }
+
+  return str;
+
+err:
+  null_value= 1;
+  return 0;
+}
+
 
 /*********************************************************************/
 bool Item_func_regexp_replace::fix_length_and_dec(THD *thd)
@@ -3728,14 +3817,10 @@ bool Item_func_set_collation::fix_length_and_dec(THD *thd)
 {
   if (agg_arg_charsets_for_string_result(collation, args, 1))
     return true;
-  if (!my_charset_same(collation.collation, m_set_collation))
-  {
-    my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-             m_set_collation->coll_name.str,
-             collation.collation->cs_name.str);
-    return TRUE;
-  }
-  collation.set(m_set_collation, DERIVATION_EXPLICIT,
+  Lex_exact_charset_opt_extended_collate cl(collation.collation, true);
+  if (cl.merge_collation_override(m_set_collation))
+    return true;
+  collation.set(cl.collation().charset_info(), DERIVATION_EXPLICIT,
                 args[0]->collation.repertoire);
   max_length= args[0]->max_length;
   return FALSE;
@@ -3753,7 +3838,7 @@ void Item_func_set_collation::print(String *str, enum_query_type query_type)
 {
   args[0]->print_parenthesised(str, query_type, precedence());
   str->append(STRING_WITH_LEN(" collate "));
-  str->append(m_set_collation->coll_name);
+  str->append(m_set_collation.collation_name_for_show());
 }
 
 String *Item_func_charset::val_str(String *str)
@@ -3785,7 +3870,7 @@ bool Item_func_weight_string::fix_length_and_dec(THD *thd)
 {
   CHARSET_INFO *cs= args[0]->collation.collation;
   collation.set(&my_charset_bin, args[0]->collation.derivation);
-  weigth_flags= my_strxfrm_flag_normalize(weigth_flags, cs->levels_for_order);
+  weigth_flags= my_strxfrm_flag_normalize(cs, weigth_flags);
   /* 
     Use result_length if it was given explicitly in constructor,
     otherwise calculate max_length using argument's max_length
@@ -3795,7 +3880,8 @@ bool Item_func_weight_string::fix_length_and_dec(THD *thd)
   {
     size_t char_length;
     char_length= ((cs->state & MY_CS_STRNXFRM_BAD_NWEIGHTS) || !nweights) ?
-                 args[0]->max_char_length() : nweights * cs->levels_for_order;
+                 args[0]->max_char_length() : nweights *
+                 my_count_bits_uint32(cs->levels_for_order);
     max_length= (uint32) cs->strnxfrmlen(char_length * cs->mbmaxlen);
   }
   set_maybe_null();
@@ -4480,6 +4566,7 @@ String *Item_func_compress::val_str(String *str)
   }
 
   str->length((uint32)new_size + 4);
+  str->set_charset(&my_charset_bin);
   return str;
 }
 

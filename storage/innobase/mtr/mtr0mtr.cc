@@ -997,7 +997,7 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
 /** Commit a mini-transaction that did not modify any pages,
 but generated some redo log on a higher level, such as
 FILE_MODIFY records and an optional FILE_CHECKPOINT marker.
-The caller must hold log_sys.mutex.
+The caller must hold exclusive log_sys.latch.
 This is to be used at log_checkpoint().
 @param checkpoint_lsn   the log sequence number of a checkpoint, or 0
 @return current LSN */
@@ -1348,11 +1348,17 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
   size_t len= m_log.size() + 5;
   ut_ad(len > 5);
 
-#ifdef UNIV_DEBUG
+#ifndef DBUG_OFF
   if (m_log_mode == MTR_LOG_ALL)
   {
     m_memo.for_each_block(CIterate<WriteOPT_PAGE_CHECKSUM>(*this));
-    len= m_log.size() + 5;
+    do
+    {
+      DBUG_EXECUTE_IF("skip_page_checksum", continue;);
+      m_memo.for_each_block(CIterate<WriteOPT_PAGE_CHECKSUM>(*this));
+      len= m_log.size() + 5;
+    }
+    while (0);
   }
 #endif
 

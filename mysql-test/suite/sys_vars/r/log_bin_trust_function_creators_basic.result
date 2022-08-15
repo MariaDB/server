@@ -14,7 +14,7 @@ SELECT @@global.log_bin_trust_function_creators = 'FALSE';
 @@global.log_bin_trust_function_creators = 'FALSE'
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'FALSE'
+Warning	1292	Truncated incorrect DECIMAL value: 'FALSE'
 '#--------------------FN_DYNVARS_063_03-------------------------#'
 SET @@global.log_bin_trust_function_creators = ON;
 SELECT @@global.log_bin_trust_function_creators;

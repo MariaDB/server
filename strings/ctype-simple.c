@@ -21,6 +21,7 @@
 #include <errno.h>
 
 #include "stdarg.h"
+#include "my_bit.h"
 
 /*
   Returns the number of bytes required for strnxfrm().
@@ -1940,13 +1941,27 @@ my_bool my_propagate_complex(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
+void my_ci_set_strength(struct charset_info_st *cs, uint strength)
+{
+  DBUG_ASSERT(strength > 0);
+  DBUG_ASSERT(strength <= MY_STRXFRM_NLEVELS);
+  cs->levels_for_order= ((1 << strength) - 1);
+}
+
+
+void my_ci_set_level_flags(struct charset_info_st *cs, uint flags)
+{
+  DBUG_ASSERT(flags < (1<<MY_STRXFRM_NLEVELS));
+  cs->levels_for_order= flags;
+}
+
 /*
   Normalize strxfrm flags
 
   SYNOPSIS:
     my_strxfrm_flag_normalize()
+    cs       - the CHARSET_INFO pointer
     flags    - non-normalized flags
-    nlevels  - number of levels
     
   NOTES:
     If levels are omitted, then 1-maximum is assumed.
@@ -1957,8 +1972,9 @@ my_bool my_propagate_complex(CHARSET_INFO *cs __attribute__((unused)),
     normalized flags
 */
 
-uint my_strxfrm_flag_normalize(uint flags, uint maximum)
+uint my_strxfrm_flag_normalize(CHARSET_INFO *cs, uint flags)
 {
+  uint maximum= my_bit_log2_uint32(cs->levels_for_order) + 1;
   DBUG_ASSERT(maximum >= 1 && maximum <= MY_STRXFRM_NLEVELS);
   
   /* If levels are omitted, then 1-maximum is assumed*/
@@ -2149,7 +2165,9 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler =
     my_hash_sort_simple,
     my_propagate_simple,
     my_min_str_8bit_simple,
-    my_max_str_8bit_simple
+    my_max_str_8bit_simple,
+    my_ci_get_id_generic,
+    my_ci_get_collation_name_generic
 };
 
 
@@ -2168,5 +2186,7 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_nopad_ci_handler =
     my_hash_sort_simple_nopad,
     my_propagate_simple,
     my_min_str_8bit_simple_nopad,
-    my_max_str_8bit_simple
+    my_max_str_8bit_simple,
+    my_ci_get_id_generic,
+    my_ci_get_collation_name_generic
 };

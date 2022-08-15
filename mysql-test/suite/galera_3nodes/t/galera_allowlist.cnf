@@ -1,0 +1,26 @@
+!include ../galera_3nodes.cnf
+
+[mysqld]
+wsrep_sst_method=rsync
+
+[mysqld.1]
+wsrep_allowlist="127.0.0.1,127.0.0.2,127.0.0.3"
+
+[mysqld.2]
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;gmcast.listen_addr=127.0.0.2;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S'
+
+# Variable is only used on bootstrap node, so this will be ignored
+wsrep_allowlist="127.0.0.1,127.0.0.2,127.0.0.3,127.0.0.4,127.0.0.5"
+
+wsrep_node_address=127.0.0.2
+wsrep_sst_receive_address=127.0.0.2:@mysqld.2.#sst_port
+wsrep_node_incoming_address=127.0.0.2:@mysqld.2.port
+wsrep_sst_receive_address='127.0.0.2:@mysqld.2.#sst_port'
+
+[mysqld.3]
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.3.#galera_port;gmcast.listen_addr=127.0.0.3;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.ignore_quorum=TRUE;pc.wait_prim=FALSE'
+
+wsrep_node_address=127.0.0.3
+wsrep_sst_receive_address=127.0.0.3:@mysqld.3.#sst_port
+wsrep_node_incoming_address=127.0.0.3:@mysqld.3.port
+wsrep_sst_receive_address='127.0.0.3:@mysqld.3.#sst_port'

@@ -446,12 +446,27 @@ SysTablespace::create_file(
 
 	case SRV_NOT_RAW:
 		err = file.open_or_create(
-			m_ignore_read_only ? false : srv_read_only_mode);
+			!m_ignore_read_only && srv_read_only_mode);
 		break;
 	}
 
+	if (err != DB_SUCCESS) {
+		return err;
+	}
 
-	if (err == DB_SUCCESS && file.m_type != SRV_OLD_RAW) {
+	switch (file.m_type) {
+	case SRV_OLD_RAW:
+		break;
+	case SRV_NOT_RAW:
+#ifndef _WIN32
+		if (!space_id() && my_disable_locking
+		    && os_file_lock(file.m_handle, file.m_filepath)) {
+			err = DB_ERROR;
+			break;
+		}
+#endif
+		/* fall through */
+	case SRV_NEW_RAW:
 		err = set_size(file);
 	}
 
@@ -492,7 +507,7 @@ SysTablespace::open_file(
 
 	case SRV_NOT_RAW:
 		err = file.open_or_create(
-			m_ignore_read_only ? false : srv_read_only_mode);
+			!m_ignore_read_only && srv_read_only_mode);
 
 		if (err != DB_SUCCESS) {
 			return(err);
@@ -507,6 +522,14 @@ SysTablespace::open_file(
 		break;
 
 	case SRV_NOT_RAW:
+#ifndef _WIN32
+		if (!space_id() && (m_ignore_read_only || !srv_read_only_mode)
+		    && my_disable_locking
+		    && os_file_lock(file.m_handle, file.m_filepath)) {
+			err = DB_ERROR;
+			break;
+		}
+#endif
 		/* Check file size for existing file. */
 		err = check_size(file);
 		break;

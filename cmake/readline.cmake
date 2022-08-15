@@ -59,7 +59,7 @@ MACRO (FIND_CURSES)
     remove CMakeCache.txt and rerun cmake.")
    IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
     SET(ERRORMSG ${ERRORMSG} 
-    "On Debian/Ubuntu, package name is libncurses5-dev, on Redhat and derivates " 
+    "On Debian/Ubuntu, package name is libncurses5-dev, on Redhat and derivatives " 
     "it is ncurses-devel.")
    ENDIF()
    MESSAGE(FATAL_ERROR ${ERRORMSG})

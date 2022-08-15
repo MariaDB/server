@@ -2785,7 +2785,6 @@ int Lex_input_stream::scan_ident_delimited(THD *thd,
                                            uchar quote_char)
 {
   CHARSET_INFO *const cs= thd->charset();
-  uint double_quotes= 0;
   uchar c;
   DBUG_ASSERT(m_ptr == m_tok_start + 1);
 
@@ -2810,7 +2809,6 @@ int Lex_input_stream::scan_ident_delimited(THD *thd,
         if (yyPeek() != quote_char)
           break;
         c= yyGet();
-        double_quotes++;
         continue;
       }
     }
@@ -3160,6 +3158,7 @@ void st_select_lex_node::fast_exclude()
   for (; slave; slave= slave->next)
     slave->fast_exclude();
 
+  prev= NULL; // to ensure correct behavior of st_select_lex_unit::is_excluded()
 }
 
 
@@ -3234,9 +3233,7 @@ void st_select_lex_node::exclude_from_tree()
 */
 void st_select_lex_node::exclude()
 {
-  /* exclude from global list */
-  fast_exclude();
-  /* exclude from other structures */
+  /* exclude the node from the tree  */
   exclude_from_tree();
   /* 
      We do not need following statements, because prev pointer of first 
@@ -3244,6 +3241,8 @@ void st_select_lex_node::exclude()
      if (master->slave == this)
        master->slave= next;
   */
+  /* exclude all nodes under this excluded node */
+  fast_exclude();
 }
 
 
@@ -3400,7 +3399,7 @@ bool st_select_lex::test_limit()
 
 
 
-st_select_lex* st_select_lex_unit::outer_select()
+st_select_lex* st_select_lex_unit::outer_select() const
 {
   return (st_select_lex*) master;
 }
@@ -10505,11 +10504,13 @@ void LEX::relink_hack(st_select_lex *select_lex)
 {
   if (!select_stack_top) // Statements of the second type
   {
-    if (!select_lex->get_master()->get_master())
-      ((st_select_lex *) select_lex->get_master())->
-        set_master(&builtin_select);
-    if (!builtin_select.get_slave())
-      builtin_select.set_slave(select_lex->get_master());
+    if (!select_lex->outer_select() &&
+        !builtin_select.first_inner_unit())
+    {
+      builtin_select.register_unit(select_lex->master_unit(),
+                                   &builtin_select.context);
+      builtin_select.add_statistics(select_lex->master_unit());
+    }
   }
 }
 
@@ -11917,15 +11918,24 @@ bool SELECT_LEX_UNIT::explainable() const
     EXPLAIN/ANALYZE unit, when:
     (1) if it's a subquery - it's not part of eliminated WHERE/ON clause.
     (2) if it's a CTE - it's not hanging (needed for execution)
-    (3) if it's a derived - it's not merged
+    (3) if it's a derived - it's not merged or eliminated
     if it's not 1/2/3 - it's some weird internal thing, ignore it
   */
+
   return item ?
            !item->eliminated :                        // (1)
            with_element ?
              derived && derived->derived_result &&
                !with_element->is_hanging_recursive(): // (2)
              derived ?
-               derived->is_materialized_derived() :   // (3)
+               derived->is_materialized_derived() && // (3)
+                 !is_derived_eliminated() :
                false;
+}
+
+bool SELECT_LEX_UNIT::is_derived_eliminated() const
+{
+  if (!derived)
+    return false;
+  return derived->table->map & outer_select()->join->eliminated_tables;
 }

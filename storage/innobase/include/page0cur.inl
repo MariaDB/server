@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -63,14 +63,11 @@ page_cur_get_page_zip(
 	return(buf_block_get_page_zip(page_cur_get_block(cur)));
 }
 
-/*********************************************************//**
-Gets the record where the cursor is positioned.
+/* Gets the record where the cursor is positioned.
+@param cur page cursor
 @return record */
 UNIV_INLINE
-rec_t*
-page_cur_get_rec(
-/*=============*/
-	page_cur_t*	cur)	/*!< in: page cursor */
+rec_t *page_cur_get_rec(const page_cur_t *cur)
 {
   ut_ad(cur);
   ut_ad(!cur->rec || page_align(cur->rec) == cur->block->page.frame);
@@ -150,75 +147,6 @@ page_cur_position(
 
 	cur->rec = (rec_t*) rec;
 	cur->block = (buf_block_t*) block;
-}
-
-/**********************************************************//**
-Moves the cursor to the next record on page. */
-UNIV_INLINE
-void
-page_cur_move_to_next(
-/*==================*/
-	page_cur_t*	cur)	/*!< in/out: cursor; must not be after last */
-{
-	ut_ad(!page_cur_is_after_last(cur));
-
-	cur->rec = page_rec_get_next(cur->rec);
-}
-
-/**********************************************************//**
-Moves the cursor to the previous record on page. */
-UNIV_INLINE
-rec_t*
-page_cur_move_to_prev(
-/*==================*/
-	page_cur_t*	cur)	/*!< in/out: page cursor, not before first */
-{
-	ut_ad(!page_cur_is_before_first(cur));
-
-	return cur->rec = page_rec_get_prev(cur->rec);
-}
-
-/** Search the right position for a page cursor.
-@param[in] block buffer block
-@param[in] index index tree
-@param[in] tuple data tuple
-@param[in] mode PAGE_CUR_L, PAGE_CUR_LE, PAGE_CUR_G, or PAGE_CUR_GE
-@param[out] cursor page cursor
-@return number of matched fields on the left */
-UNIV_INLINE
-ulint
-page_cur_search(
-	const buf_block_t*	block,
-	const dict_index_t*	index,
-	const dtuple_t*		tuple,
-	page_cur_mode_t		mode,
-	page_cur_t*		cursor)
-{
-	ulint		low_match = 0;
-	ulint		up_match = 0;
-
-	ut_ad(dtuple_check_typed(tuple));
-
-	page_cur_search_with_match(block, index, tuple, mode,
-				   &up_match, &low_match, cursor, NULL);
-	return(low_match);
-}
-
-/** Search the right position for a page cursor.
-@param[in] block buffer block
-@param[in] index index tree
-@param[in] tuple data tuple
-@param[out] cursor page cursor
-@return number of matched fields on the left */
-UNIV_INLINE
-ulint
-page_cur_search(
-	const buf_block_t*	block,
-	const dict_index_t*	index,
-	const dtuple_t*		tuple,
-	page_cur_t*		cursor)
-{
-	return(page_cur_search(block, index, tuple, PAGE_CUR_LE, cursor));
 }
 
 /***********************************************************//**

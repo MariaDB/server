@@ -1,0 +1,66 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+# Check that `wsrep_allowlist` variable is loaded
+SELECT COUNT(*) = 3 FROM mysql.wsrep_allowlist;
+
+--connection node_2
+# Check that non-bootstrap nodes doesn't populate `mysql.wsrep_allowlist`
+SELECT COUNT(*) = 3 FROM mysql.wsrep_allowlist;
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+--connection node_3
+# Desync and disconnect node 3 from the PC:
+SET @@global.wsrep_desync = 1;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+
+--connection node_1
+# Wait until node 3 disappears from the PC:
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+# Delete node ip (127.0.0.3) from allowlist
+DELETE FROM mysql.wsrep_allowlist WHERE ip LIKE '127.0.0.3';
+
+SELECT COUNT(*) = 2 FROM mysql.wsrep_allowlist;
+
+--connection node_2
+SELECT COUNT(*) = 2 FROM mysql.wsrep_allowlist;
+
+--connection node_3
+# Reconnect node 2 to the PC:
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+
+# We should reach Primary with cluster size = 1 because of `pc.ignore_quorum=TRUE and pc.wait_prim=FALSE` used in configuration
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+# Resync should pass:
+SET @@global.wsrep_desync = 0;
+
+# Shutdown node
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+# Allow node 3 could be reconnected to cluster
+INSERT INTO mysql.wsrep_allowlist(ip) VALUES ('127.0.0.3');
+
+--connection node_3
+--source include/start_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+CALL mtr.add_suppression('WSREP: Connection not allowed');
+
+--connection node_2
+CALL mtr.add_suppression('WSREP: Connection not allowed');
+
+--connection node_3
+CALL mtr.add_suppression('WSREP: Ignoring lack of quorum');

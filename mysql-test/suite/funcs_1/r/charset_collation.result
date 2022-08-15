@@ -31,11 +31,11 @@ AND (collation_name LIKE CONCAT(character_set_name,'_general_ci')
 OR
 collation_name LIKE CONCAT(character_set_name,'_bin'))
 ORDER BY collation_name, character_set_name;
-COLLATION_NAME	CHARACTER_SET_NAME
-latin1_bin	latin1
-latin1_general_ci	latin1
-utf8mb3_bin	utf8mb3
-utf8mb3_general_ci	utf8mb3
+COLLATION_NAME	CHARACTER_SET_NAME	FULL_COLLATION_NAME	ID	IS_DEFAULT
+latin1_bin	latin1	latin1_bin	47	
+latin1_general_ci	latin1	latin1_general_ci	48	
+utf8mb3_bin	utf8mb3	utf8mb3_bin	83	
+utf8mb3_general_ci	utf8mb3	utf8mb3_general_ci	33	Yes
 connection default;
 disconnect con;
 DROP USER dbdict_test@localhost;

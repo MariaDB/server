@@ -1,6 +1,6 @@
 --- partition.result
 +++ partition,heap.reject
-@@ -2120,85 +2120,6 @@
+@@ -2132,85 +2132,6 @@
  (PARTITION `p0` HISTORY ENGINE = X,
   PARTITION `pn` CURRENT ENGINE = X)
  drop tables t1, tp1;
@@ -33,7 +33,7 @@
 -Table	Create Table
 -tp1	CREATE TABLE `tp1` (
 -  `x` int(11) NOT NULL AUTO_INCREMENT,
--  `t` timestamp(6) NOT NULL DEFAULT '2001-11-11 11:11:11.000000',
+-  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
 -  `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
 -  `c` varchar(1033) CHARACTER SET utf8mb3 NOT NULL,
 -  `u` int(11) DEFAULT NULL,
@@ -58,7 +58,7 @@
 -Table	Create Table
 -t1	CREATE TABLE `t1` (
 -  `x` int(11) NOT NULL AUTO_INCREMENT,
--  `t` timestamp(6) NOT NULL DEFAULT '2001-11-11 11:11:11.000000',
+-  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
 -  `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
 -  `c` varchar(1033) CHARACTER SET utf8mb3 NOT NULL,
 -  `u` int(11) DEFAULT NULL,
@@ -86,7 +86,7 @@
  #
  # End of 10.7 tests
  #
-@@ -2753,134 +2674,6 @@
+@@ -2765,134 +2686,6 @@
  Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p0`) is out of INTERVAL, need more HISTORY partitions
  drop prepare s;
  affected rows: 0
@@ -119,7 +119,7 @@
 -Table	Create Table
 -t1	CREATE TABLE `t1` (
 -  `x` int(11) NOT NULL AUTO_INCREMENT,
--  `t` timestamp(6) NOT NULL DEFAULT '2001-11-11 11:11:11.000000',
+-  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
 -  `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
 -  `c` varchar(1033) CHARACTER SET utf8mb3 NOT NULL,
 -  `u` int(11) DEFAULT NULL,
@@ -156,7 +156,7 @@
 -Table	Create Table
 -t1	CREATE TABLE `t1` (
 -  `x` int(11) NOT NULL AUTO_INCREMENT,
--  `t` timestamp(6) NOT NULL DEFAULT '2001-11-11 11:11:11.000000',
+-  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
 -  `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
 -  `c` varchar(1033) CHARACTER SET utf8mb3 NOT NULL,
 -  `u` int(11) DEFAULT NULL,
@@ -191,7 +191,7 @@
 -Table	Create Table
 -t1	CREATE TABLE `t1` (
 -  `x` int(11) NOT NULL AUTO_INCREMENT,
--  `t` timestamp(6) NOT NULL DEFAULT '2001-11-11 11:11:11.000000',
+-  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
 -  `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
 -  `c` varchar(1033) CHARACTER SET utf8mb3 NOT NULL,
 -  `u` int(11) DEFAULT NULL,

@@ -326,10 +326,10 @@ SELECT table2 .`col_datetime_key`
 FROM t2 JOIN ( t1 table2 JOIN t2 table3 ON table3 .`col_varchar_key` < table2 .`col_varchar_key` ) ON table3 .`col_varchar_nokey` ;
 col_datetime_key
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'd'
-Warning	1292	Truncated incorrect DOUBLE value: 'd'
-Warning	1292	Truncated incorrect DOUBLE value: 'd'
-Warning	1292	Truncated incorrect DOUBLE value: 'd'
+Warning	1292	Truncated incorrect DECIMAL value: 'd'
+Warning	1292	Truncated incorrect DECIMAL value: 'd'
+Warning	1292	Truncated incorrect DECIMAL value: 'd'
+Warning	1292	Truncated incorrect DECIMAL value: 'd'
 drop table t1, t2;
 set join_cache_level=@save_join_cache_level;
 CREATE TABLE t1(

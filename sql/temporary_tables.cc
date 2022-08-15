@@ -427,7 +427,7 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
 #endif
 
   table->query_id= query_id;
-  thread_specific_used= true;
+  used|= THREAD_SPECIFIC_USED;
 
   /* It is neither a derived table nor non-updatable view. */
   tl->updatable= true;
@@ -625,6 +625,10 @@ bool THD::drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table)
   DBUG_ASSERT(table);
   DBUG_PRINT("tmptable", ("Dropping table: '%s'.'%s'",
                           table->s->db.str, table->s->table_name.str));
+
+  // close all handlers in case it is statement abort and some can be left
+  if (is_error())
+    table->file->ha_reset();
 
   locked= lock_temporary_tables();
 
@@ -1351,7 +1355,7 @@ bool THD::log_events_and_free_tmp_shares()
   {
     if (IS_USER_TABLE(share))
     {
-      bool save_thread_specific_used= thread_specific_used;
+      used_t save_thread_specific_used= used & THREAD_SPECIFIC_USED;
       my_thread_id save_pseudo_thread_id= variables.pseudo_thread_id;
       char db_buf[FN_REFLEN];
       String db(db_buf, sizeof(db_buf), system_charset_info);
@@ -1401,7 +1405,7 @@ bool THD::log_events_and_free_tmp_shares()
         clear_error();
         CHARSET_INFO *cs_save= variables.character_set_client;
         variables.character_set_client= system_charset_info;
-        thread_specific_used= true;
+        used|= THREAD_SPECIFIC_USED;
 
         Query_log_event qinfo(this, s_query.ptr(),
             s_query.length() - 1 /* to remove trailing ',' */,
@@ -1434,7 +1438,7 @@ bool THD::log_events_and_free_tmp_shares()
         get_stmt_da()->set_overwrite_status(false);
       }
       variables.pseudo_thread_id= save_pseudo_thread_id;
-      thread_specific_used= save_thread_specific_used;
+      used = (used & ~THREAD_SPECIFIC_USED) | save_thread_specific_used;
     }
     else
     {

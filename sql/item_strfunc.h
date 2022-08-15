@@ -384,6 +384,32 @@ public:
   { return get_item_copy<Item_func_concat_ws>(thd, this); }
 };
 
+
+class Item_func_random_bytes : public Item_str_func
+{
+public:
+  Item_func_random_bytes(THD *thd, Item *arg1) : Item_str_func(thd, arg1) {}
+  bool fix_length_and_dec(THD *thd) override;
+  void update_used_tables() override;
+  String *val_str(String *) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("random_bytes")};
+    return name;
+  }
+  bool check_vcol_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(func_name(), "()", arg,
+                                     VCOL_NON_DETERMINISTIC | VCOL_NOT_VIRTUAL);
+  }
+  Item *get_copy(THD *thd) override
+  {
+    return get_item_copy<Item_func_random_bytes>(thd, this);
+  }
+  static const int MAX_RANDOM_BYTES= 1024;
+};
+
+
 class Item_func_reverse :public Item_str_func
 {
   String tmp_value;
@@ -897,13 +923,7 @@ public:
   Item_func_des_encrypt(THD *thd, Item *a, Item *b)
    :Item_str_binary_checksum_func(thd, a, b) {}
   String *val_str(String *) override;
-  bool fix_length_and_dec(THD *thd) override
-  {
-    set_maybe_null();
-    /* 9 = MAX ((8- (arg_len % 8)) + 1) */
-    max_length = args[0]->max_length + 9;
-    return FALSE;
-  }
+  bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("des_encrypt") };
@@ -922,15 +942,7 @@ public:
   Item_func_des_decrypt(THD *thd, Item *a, Item *b)
    :Item_str_binary_checksum_func(thd, a, b) {}
   String *val_str(String *) override;
-  bool fix_length_and_dec(THD *thd) override
-  {
-    set_maybe_null();
-    /* 9 = MAX ((8- (arg_len % 8)) + 1) */
-    max_length= args[0]->max_length;
-    if (max_length >= 9U)
-      max_length-= 9U;
-    return FALSE;
-  }
+  bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("des_decrypt") };
@@ -1825,9 +1837,10 @@ public:
 
 class Item_func_set_collation :public Item_str_func
 {
-  CHARSET_INFO *m_set_collation;
+  Lex_extended_collation_st m_set_collation;
 public:
-  Item_func_set_collation(THD *thd, Item *a, CHARSET_INFO *set_collation):
+  Item_func_set_collation(THD *thd, Item *a,
+                          const Lex_extended_collation_st &set_collation):
     Item_str_func(thd, a), m_set_collation(set_collation) {}
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;

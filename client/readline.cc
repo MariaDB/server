@@ -64,13 +64,8 @@ char *batch_readline(LINE_BUFFER *line_buff, bool binary_mode)
     return 0;
   if (out_length && pos[out_length-1] == '\n')
   {
-    /*
-      On Windows platforms we also need to remove '\r', unconditionally.  On
-      Unix-like platforms we only remove it if we are not on binary mode.
-     */
-
     /* Remove '\n' */
-    if (--out_length && IF_WIN(1,!binary_mode) && pos[out_length-1] == '\r')
+    if (--out_length && !binary_mode && pos[out_length-1] == '\r')
       /* Remove '\r' */
       out_length--;                                 
   }

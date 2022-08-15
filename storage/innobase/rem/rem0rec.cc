@@ -864,19 +864,19 @@ rec_get_offsets_func(
 			ut_ad(!n_core);
 			n = dict_index_get_n_unique_in_tree_nonleaf(index) + 1;
 			break;
+		default:
+			ut_ad("corrupted record header" == 0);
+			/* fall through */
 		case REC_STATUS_INFIMUM:
 		case REC_STATUS_SUPREMUM:
 			/* infimum or supremum record */
 			ut_ad(rec_get_heap_no_new(rec)
 			      == ulint(rec_get_status(rec)
-                                       == REC_STATUS_INFIMUM
-                                       ? PAGE_HEAP_NO_INFIMUM
-                                       : PAGE_HEAP_NO_SUPREMUM));
+				       == REC_STATUS_INFIMUM
+				       ? PAGE_HEAP_NO_INFIMUM
+				       : PAGE_HEAP_NO_SUPREMUM));
 			n = 1;
 			break;
-		default:
-			ut_error;
-			return(NULL);
 		}
 	} else {
 		n = rec_get_n_fields_old(rec);

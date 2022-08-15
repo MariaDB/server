@@ -5,12 +5,8 @@
 -- echo #
 
 -- source include/have_innodb.inc
--- source include/have_innodb_max_16k.inc
 # restart does not work with embedded
 -- source include/not_embedded.inc
-# This test is slow on buildbot.
---source include/big_test.inc
---source include/have_sequence.inc
 
 CREATE TABLE t (a INT) ENGINE=INNODB STATS_PERSISTENT=0;
 
@@ -28,29 +24,10 @@ AND update_time IS NOT NULL;
 SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 't'
 AND TIMESTAMPDIFF(SECOND, update_time, NOW()) < 120;
 
-CREATE TEMPORARY TABLE big (a TEXT) ENGINE=INNODB;
-
-SELECT COUNT(*) FROM information_schema.innodb_buffer_page
-WHERE table_name = '`test`.`t`';
-
-# evict table 't' by inserting as much data as the BP size itself
-INSERT INTO big SELECT REPEAT('a', 1024) FROM seq_1_to_10240;
-
-# confirm that all pages for table 't' have been evicted
-SELECT COUNT(*) FROM information_schema.innodb_buffer_page
-WHERE table_name = '`test`.`t`';
-
-# The result from this query will change once update_time becomes persistent
-# (WL#6917).
-SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 't'
-AND update_time IS NOT NULL;
-
-DROP TEMPORARY TABLE big;
-
 -- echo # Test the behavior after restart with a prepared XA transaction
 
 XA START 'xatrx';
-INSERT INTO t VALUES (5);
+DELETE FROM t;
 XA END 'xatrx';
 XA PREPARE 'xatrx';
 

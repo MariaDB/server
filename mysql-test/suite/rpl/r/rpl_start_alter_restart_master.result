@@ -1,6 +1,10 @@
 include/master-slave.inc
 [connection master]
 connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
+connection slave;
 SET @old_debug_slave= @@global.debug;
 stop slave;
 SET GLOBAL slave_parallel_threads=4;

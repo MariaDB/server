@@ -114,8 +114,17 @@ void AIO_buffer_cache::clear()
   if (!m_base)
     return;
 
-  /* Check that all items are returned to the cache. */
-  DBUG_ASSERT(m_cache.size() == m_elements);
+  std::unique_lock<std::mutex> lk(m_mtx, std::defer_lock);
+  for(;;)
+  {
+    if (lk.try_lock())
+    {
+      if (m_cache.size() == m_elements)
+        break;
+      lk.unlock();
+    }
+    Sleep(100);
+  }
   VirtualFree(m_base, 0, MEM_RELEASE);
   m_cache.clear();
   m_base= 0;

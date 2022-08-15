@@ -255,7 +255,7 @@ return i+1|
 call sub1("sub1a", (select 7))|
 call sub1("sub1b", (select max(i) from t2))|
 call sub1("sub1c", (select i,d from t2 limit 1))|
-ERROR HY000: Illegal parameter data types int and row for operation 'SET'
+ERROR HY000: Cannot cast 'row' as 'int' in assignment of `x`
 call sub1("sub1d", (select 1 from (select 1) a))|
 call sub2("sub2")|
 select * from t1 order by id|
@@ -8697,11 +8697,11 @@ RETURN a = timestamp'2038-01-19 03:14:07.999999'
 END
 $$
 SELECT f1(e) FROM t1;
-ERROR 22007: Truncated incorrect DOUBLE value: '2001-01-01 10:20:30.000000'
+ERROR 22007: Truncated incorrect DECIMAL value: '2001-01-01 10:20:30.000000'
 SELECT f2(e) FROM t1;
-ERROR 22007: Truncated incorrect DOUBLE value: '2001-01-01 10:20:30.000000'
+ERROR 22007: Truncated incorrect DECIMAL value: '2001-01-01 10:20:30.000000'
 SELECT f3(e) FROM t1;
-ERROR 22007: Truncated incorrect DOUBLE value: '2001-01-01 10:20:30.000000'
+ERROR 22007: Truncated incorrect DECIMAL value: '2001-01-01 10:20:30.000000'
 DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP FUNCTION f3;
