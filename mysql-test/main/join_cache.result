@@ -2952,7 +2952,7 @@ metaid int  NOT NULL default '0',
 formatid int  NOT NULL default '0',
 status int default NULL,
 path varchar(100) NOT NULL default '',
-datemodified timestamp NOT NULL ,
+datemodified timestamp NOT NULL default now(),
 resourcetype int  NOT NULL default '1',
 parameters text,
 signature int  default NULL,
@@ -3887,8 +3887,8 @@ ORDER BY t2.v;
 MAX(t1.i)
 NULL
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'x'
-Warning	1292	Truncated incorrect DOUBLE value: 'y'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'y'
 
 EXPLAIN
 SELECT MAX(t1.i) 

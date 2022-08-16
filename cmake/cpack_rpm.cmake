@@ -271,7 +271,7 @@ ELSEIF(RPM MATCHES "fedora" OR RPM MATCHES "(rhel|centos)7")
   ALTERNATIVE_NAME("server" "mariadb-server")
   ALTERNATIVE_NAME("server" "mysql-compat-server")
   ALTERNATIVE_NAME("test"   "mariadb-test")
-ELSEIF(RPM MATCHES "(rhel|centos)8")
+ELSEIF(RPM MATCHES "(rhel|centos|rocky)[89]")
   SET(epoch 3:)
   ALTERNATIVE_NAME("backup" "mariadb-backup")
   ALTERNATIVE_NAME("client" "mariadb")
@@ -341,7 +341,7 @@ IF(compat53 AND compat101)
   # RHEL6/CentOS6 install Postfix by default, and it requires
   # libmysqlclient.so.16 that pulls in mysql-libs-5.1.x
   # And the latter conflicts with our rpms.
-  # Make sure that for these distribuions all our rpms require
+  # Make sure that for these distributions all our rpms require
   # MariaDB-compat, that will replace mysql-libs-5.1
   IF(RPM MATCHES "(rhel|centos)[67]")
     SET(CPACK_RPM_common_PACKAGE_REQUIRES "MariaDB-compat")

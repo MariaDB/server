@@ -1,6 +1,6 @@
 # If timestamping is used, it can (rarely) fail, when public timestamping service has issues.
 #
-# To handle the error gracefully and tranparently, we'll retry the signtool command,
+# To handle the error gracefully and transparently, we'll retry the signtool command,
 # second time without "/t URL" parameter
 SET(SIGNTOOL_PARAMETERS_NO_TIMESTAMP "@SIGNTOOL_PARAMETERS@")
 LIST(FIND SIGNTOOL_PARAMETERS_NO_TIMESTAMP /t idx)

@@ -18,3 +18,13 @@ LENGTH(CONCAT_WS(d, ' '))
 1
 1
 DROP TABLE t1;
+#
+# MDEV-28315 ASAN stack-buffer-overflow in String::copy_aligned
+#
+CREATE TABLE t1 (a VARBINARY(128)) CHARACTER SET utf32;
+INSERT INTO t1 VALUES ('South Carolina, Vermont, New Jersey, New Mexico, Wisconsin, Missouri, Delaware');
+CREATE TABLE t2 (b SET('South Carolina', 'Vermont', 'Texas', 'New Mexico', 'Wisconsin', 'Missouri', 'Delaware', 'Wyoming', 'New Jersey', 'Maryland', 'Illinois', 'New York')) CHARACTER SET utf32;
+INSERT INTO t2 SELECT * FROM t1;
+ERROR 01000: Data truncated for column 'b' at row 1
+DROP TABLE t1;
+DROP TABLE t2;

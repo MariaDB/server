@@ -963,14 +963,14 @@ ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	EXPLICIT_DEFAULTS_FOR_TIMESTAMP
-VARIABLE_SCOPE	GLOBAL
+VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
 VARIABLE_COMMENT	This option causes CREATE TABLE to create all TIMESTAMP columns as NULL with DEFAULT NULL attribute, Without this option, TIMESTAMP columns are NOT NULL and have implicit DEFAULT clauses.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
-READ_ONLY	YES
+READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	EXTERNAL_USER
 VARIABLE_SCOPE	SESSION ONLY
@@ -1205,7 +1205,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	GTID_STRICT_MODE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Enforce strict seq_no ordering of events in the binary log. Slave stops with an error if it encounters an event that would cause it to generate an out-of-order binlog if executed.
+VARIABLE_COMMENT	Enforce strict seq_no ordering of events in the binary log. Slave stops with an error if it encounters an event that would cause it to generate an out-of-order binlog if executed. When ON the same server-id semisync-replicated transactions that duplicate exising ones in binlog are ignored without error and slave interruption.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -2422,6 +2422,16 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_EXTRA_PRUNING_DEPTH
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	If the optimizer needs to enumerate join prefix of this size or larger, then it will try agressively prune away the search space.
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	62
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_MAX_SEL_ARG_WEIGHT
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
@@ -2435,9 +2445,9 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_PRUNE_LEVEL
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Controls the heuristic(s) applied during query optimization to prune less-promising partial plans from the optimizer search space. Meaning: 0 - do not apply any heuristic, thus perform exhaustive search; 1 - prune plans based on number of retrieved rows
+VARIABLE_COMMENT	Controls the heuristic(s) applied during query optimization to prune less-promising partial plans from the optimizer search space. Meaning: 0 - do not apply any heuristic, thus perform exhaustive search: 1 - prune plans based on cost and number of retrieved rows eq_ref: 2 - prune also if we find an eq_ref chain
 NUMERIC_MIN_VALUE	0
-NUMERIC_MAX_VALUE	1
+NUMERIC_MAX_VALUE	2
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
@@ -3709,6 +3719,16 @@ VARIABLE_COMMENT	The maximum packet length to sent successfully from the master 
 NUMERIC_MIN_VALUE	1024
 NUMERIC_MAX_VALUE	1073741824
 NUMERIC_BLOCK_SIZE	1024
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	SLAVE_MAX_STATEMENT_TIME
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	A query that has taken more than slave_max_statement_time seconds to run on the slave will be aborted. The argument will be treated as a decimal value with microsecond precision. A value of 0 (default) means no timeout
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	31536000
+NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED

@@ -53,7 +53,7 @@ MACINFO::MACINFO(bool adap, bool fix)
 void MACINFO::MakeErrorMsg(PGLOBAL g, DWORD drc)
   {
   if (drc == ERROR_BUFFER_OVERFLOW)
-    sprintf(g->Message,
+    snprintf(g->Message, sizeof(g->Message),
       "GetAdaptersInfo: Buffer Overflow buflen=%d nbofadap=%d",
       Buflen, N);
   else if (drc == ERROR_INVALID_PARAMETER)
@@ -146,7 +146,7 @@ bool MACINFO::GetFixedInfo(PGLOBAL g)
     } // endif drc
 
   if (drc != ERROR_SUCCESS) {
-    sprintf(g->Message, "GetNetworkParams failed. Rc=%08x\n", drc);
+    snprintf(g->Message, sizeof(g->Message), "GetNetworkParams failed. Rc=%08x\n", drc);
     return true;
     } // endif drc
 
@@ -305,7 +305,7 @@ bool MACINFO::GetOneInfo(PGLOBAL g, int flag, void *v, int lv)
       n = (int)Curp->LeaseExpires;
       break;
     default:
-      sprintf(g->Message, "Invalid flag value %d", flag);
+      snprintf(g->Message, sizeof(g->Message), "Invalid flag value %d", flag);
       return true;
     } // endswitch flag
 

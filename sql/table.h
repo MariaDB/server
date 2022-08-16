@@ -1701,9 +1701,11 @@ public:
 
   // Check if the value list is assignable to the explicit field list
   static bool check_assignability_explicit_fields(List<Item> fields,
-                                                  List<Item> values);
+                                                  List<Item> values,
+                                                  bool ignore);
   // Check if the value list is assignable to all visible fields
-  bool check_assignability_all_visible_fields(List<Item> &values) const;
+  bool check_assignability_all_visible_fields(List<Item> &values,
+                                              bool ignore) const;
   /*
     Check if the value list is assignable to:
     - The explicit field list if fields.elements > 0, e.g.
@@ -1712,12 +1714,13 @@ public:
         INSERT INTO t1 VALUES (1,2);
   */
   bool check_assignability_opt_fields(List<Item> fields,
-                                      List<Item> values) const
+                                      List<Item> values,
+                                      bool ignore) const
   {
     DBUG_ASSERT(values.elements);
     return fields.elements ?
-           check_assignability_explicit_fields(fields, values) :
-           check_assignability_all_visible_fields(values);
+           check_assignability_explicit_fields(fields, values, ignore) :
+           check_assignability_all_visible_fields(values, ignore);
   }
 
   bool insert_all_rows_into_tmp_table(THD *thd, 
@@ -3116,6 +3119,7 @@ typedef struct st_nested_join
   table_map         sj_depends_on;
   /* Outer non-trivially correlated tables */
   table_map         sj_corr_tables;
+  table_map         direct_children_map;
   List<Item_ptr>    sj_outer_expr_list;
   /**
      True if this join nest node is completely covered by the query execution

@@ -324,10 +324,11 @@ static inline bool btr_pcur_is_before_first_in_tree(btr_pcur_t* cursor);
 Checks if the persistent cursor is after the last user record in
 the index tree. */
 static inline bool btr_pcur_is_after_last_in_tree(btr_pcur_t* cursor);
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /*********************************************************//**
 Moves the persistent cursor to the next record on the same page. */
 UNIV_INLINE
-void
+rec_t*
 btr_pcur_move_to_next_on_page(
 /*==========================*/
 	btr_pcur_t*	cursor);/*!< in/out: persistent cursor */
@@ -513,8 +514,7 @@ btr_pcur_open_on_user_rec(
     return DB_SUCCESS;
   if (dberr_t err= btr_pcur_move_to_next_page(cursor, mtr))
     return err;
-  btr_pcur_move_to_next_on_page(cursor);
-  return DB_SUCCESS;
+  return btr_pcur_move_to_next_on_page(cursor) ? DB_SUCCESS : DB_CORRUPTION;
 }
 
 #include "btr0pcur.inl"

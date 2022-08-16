@@ -1145,7 +1145,7 @@ DROP TABLE t1;
 # MDEV-17972 Assertion `is_valid_value_slow()' failed in Datetime::Datetime
 #
 SET time_zone='+00:00';
-CREATE TABLE t1 (a TIMESTAMP(6)) ENGINE=MyISAM;
+CREATE TABLE t1 (a TIMESTAMP(6) NOT NULL) ENGINE=MyISAM;
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
 FLUSH TABLES;
 MYD
@@ -1321,4 +1321,28 @@ DROP TABLE t1;
 SET timestamp=DEFAULT;
 #
 # End of 10.4 tests
+#
+#
+# MDEV-29225 make explicit_defaults_for_timestamps SESSION variable
+#
+set explicit_defaults_for_timestamp=OFF;
+create table t1 (f1 timestamp, f2 timestamp);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `f2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+set explicit_defaults_for_timestamp=ON;
+create table t1 (f1 timestamp, f2 timestamp);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` timestamp NULL DEFAULT NULL,
+  `f2` timestamp NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+#
+# End of 10.10 tests
 #

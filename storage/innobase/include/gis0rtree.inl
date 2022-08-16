@@ -57,6 +57,9 @@ rtr_page_cal_mbr(
 	page = buf_block_get_frame(block);
 
 	rec = page_rec_get_next(page_get_infimum_rec(page));
+	if (UNIV_UNLIKELY(!rec)) {
+		return;
+	}
 	offsets = rec_get_offsets(rec, index, offsets, page_is_leaf(page)
 				  ? index->n_fields : 0,
 				  ULINT_UNDEFINED, &heap);

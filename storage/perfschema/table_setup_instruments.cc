@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -39,6 +39,11 @@
 
 THR_LOCK table_setup_instruments::m_table_lock;
 
+PFS_engine_table_share_state
+table_setup_instruments::m_share_state = {
+  false /* m_checked */
+};
+
 PFS_engine_table_share
 table_setup_instruments::m_share=
 {
@@ -54,7 +59,9 @@ table_setup_instruments::m_share=
                       "NAME VARCHAR(128) not null comment 'Instrument name',"
                       "ENABLED ENUM ('YES', 'NO') not null comment 'Whether or not the instrument is enabled. It can be disabled, and the instrument will produce no events.',"
                       "TIMED ENUM ('YES', 'NO') not null comment 'Whether or not the instrument is timed. It can be set, but if disabled, events produced by the instrument will have NULL values for the corresponding TIMER_START, TIMER_END, and TIMER_WAIT values.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_setup_instruments::create(void)

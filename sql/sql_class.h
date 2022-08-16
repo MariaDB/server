@@ -720,6 +720,7 @@ typedef struct system_variables
   ulong net_retry_count;
   ulong net_wait_timeout;
   ulong net_write_timeout;
+  ulong optimizer_extra_pruning_depth;
   ulong optimizer_prune_level;
   ulong optimizer_search_depth;
   ulong optimizer_selectivity_sampling_limit;
@@ -939,6 +940,7 @@ typedef struct system_status_var
   ulong filesort_rows_;
   ulong filesort_scan_count_;
   ulong filesort_pq_sorts_;
+  ulong optimizer_join_prefixes_check_calls;
 
   /* Features used */
   ulong feature_custom_aggregate_functions; /* +1 when custom aggregate
@@ -1057,33 +1059,6 @@ static inline void update_global_memory_status(int64 size)
   my_atomic_add64_explicit(ptr, size, MY_MEMORY_ORDER_RELAXED);
 }
 
-/**
-  Get collation by name, send error to client on failure.
-  @param name     Collation name
-  @param name_cs  Character set of the name string
-  @return
-  @retval         NULL on error
-  @retval         Pointter to CHARSET_INFO with the given name on success
-*/
-static inline CHARSET_INFO *
-mysqld_collation_get_by_name(const char *name, myf utf8_flag,
-                             CHARSET_INFO *name_cs= system_charset_info)
-{
-  CHARSET_INFO *cs;
-  MY_CHARSET_LOADER loader;
-  my_charset_loader_init_mysys(&loader);
-
-  if (!(cs= my_collation_get_by_name(&loader, name, MYF(utf8_flag))))
-  {
-    ErrConvString err(name, name_cs);
-    my_error(ER_UNKNOWN_COLLATION, MYF(0), err.ptr());
-    if (loader.error[0])
-      push_warning_printf(current_thd,
-                          Sql_condition::WARN_LEVEL_WARN,
-                          ER_UNKNOWN_COLLATION, "%s", loader.error);
-  }
-  return cs;
-}
 
 static inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 {
@@ -2906,6 +2881,12 @@ public:
   */
   uint32 binlog_unsafe_warning_flags;
 
+  typedef uint used_t;
+  enum { RAND_USED=1, TIME_ZONE_USED=2, QUERY_START_SEC_PART_USED=4,
+         THREAD_SPECIFIC_USED=8 };
+
+  used_t used;
+
 #ifndef MYSQL_CLIENT
   binlog_cache_mngr *  binlog_setup_trx_data();
   /*
@@ -3590,15 +3571,11 @@ public:
     Reset to FALSE when we leave the sub-statement mode.
   */
   bool       is_fatal_sub_stmt_error;
-  bool	     rand_used, time_zone_used;
-  bool       query_start_sec_part_used;
   /* for IS NULL => = last_insert_id() fix in remove_eq_conds() */
   bool       substitute_null_with_insert_id;
   bool	     in_lock_tables;
   bool       bootstrap, cleanup_done, free_connection_done;
 
-  /**  is set if some thread specific value(s) used in a statement. */
-  bool       thread_specific_used;
   /**  
     is set if a statement accesses a temporary table created through
     CREATE TEMPORARY TABLE. 
@@ -3906,7 +3883,7 @@ public:
                          ulong sec_part, date_mode_t fuzzydate);
   inline my_time_t query_start() { return start_time; }
   inline ulong query_start_sec_part()
-  { query_start_sec_part_used=1; return start_time_sec_part; }
+  { used|= QUERY_START_SEC_PART_USED; return start_time_sec_part; }
   MYSQL_TIME query_start_TIME();
   time_round_mode_t temporal_round_mode() const
   {
@@ -5430,23 +5407,28 @@ public:
   {
 #ifndef EMBEDDED_LIBRARY
     /*
+      Slave vs user threads have timeouts configured via different variables,
+      so pick the appropriate one to use.
+    */
+    ulonglong timeout_val=
+        slave_thread ? slave_max_statement_time : variables.max_statement_time;
+
+    /*
       Don't start a query timer if
       - If timeouts are not set
       - if we are in a stored procedure or sub statement
-      - If this is a slave thread
       - If we already have set a timeout (happens when running prepared
         statements that calls mysql_execute_command())
     */
-    if (!variables.max_statement_time || spcont  || in_sub_stmt ||
-        slave_thread || query_timer.expired == 0)
+    if (!timeout_val || spcont || in_sub_stmt || query_timer.expired == 0)
       return;
-    thr_timer_settime(&query_timer, variables.max_statement_time);
+    thr_timer_settime(&query_timer, timeout_val);
 #endif
   }
   void reset_query_timer()
   {
 #ifndef EMBEDDED_LIBRARY
-    if (spcont || in_sub_stmt || slave_thread)
+    if (spcont || in_sub_stmt)
       return;
     if (!query_timer.expired)
       thr_timer_end(&query_timer);
@@ -6527,10 +6509,12 @@ class select_union_recursive :public select_unit
     or for the unit specifying a CTE that mutually recursive with this CTE.
   */
   uint cleanup_count;
+  long row_counter;
 
   select_union_recursive(THD *thd_arg):
     select_unit(thd_arg),
-    incr_table(0), first_rec_table_to_update(0), cleanup_count(0)
+      incr_table(0), first_rec_table_to_update(0), cleanup_count(0),
+      row_counter(0)
   { incr_table_param.init(); };
 
   int send_data(List<Item> &items);

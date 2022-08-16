@@ -2378,10 +2378,12 @@ lock_move_reorganize_page(
 
 	lock_trx->mutex_unlock();
 
-        if (new_heap_no == PAGE_HEAP_NO_SUPREMUM)
+        if (!rec1 || !rec2)
         {
-           ut_ad(old_heap_no == PAGE_HEAP_NO_SUPREMUM);
-           break;
+          ut_ad(!rec1 == !rec2);
+          ut_ad(new_heap_no == PAGE_HEAP_NO_SUPREMUM);
+          ut_ad(old_heap_no == PAGE_HEAP_NO_SUPREMUM);
+          break;
         }
       }
 
@@ -2450,6 +2452,12 @@ lock_move_rec_list_end(
                                     FALSE);
       }
 
+      if (UNIV_UNLIKELY(!rec1 || !rec2))
+      {
+        ut_ad("corrupted page" == 0);
+        return;
+      }
+
       /* Copy lock requests on user records to new page and
       reset the lock bits on the old */
       for (;;)
@@ -2463,26 +2471,35 @@ lock_move_rec_list_end(
         if (comp)
         {
           rec1_heap_no= rec_get_heap_no_new(rec1);
-          if (rec1_heap_no == PAGE_HEAP_NO_SUPREMUM)
+          if (!(rec1= page_rec_get_next_low(rec1, TRUE)))
+          {
+            ut_ad(rec1_heap_no == PAGE_HEAP_NO_SUPREMUM);
             break;
-
+          }
           rec2_heap_no= rec_get_heap_no_new(rec2);
-          rec1= page_rec_get_next_low(rec1, TRUE);
           rec2= page_rec_get_next_low(rec2, TRUE);
         }
         else
         {
+          ut_d(const rec_t *old1= rec1);
           rec1_heap_no= rec_get_heap_no_old(rec1);
-
-          if (rec1_heap_no == PAGE_HEAP_NO_SUPREMUM)
+          if (!(rec1= page_rec_get_next_low(rec1, FALSE)))
+          {
+            ut_ad(rec1_heap_no == PAGE_HEAP_NO_SUPREMUM);
             break;
+          }
+
+          ut_ad(rec_get_data_size_old(old1) == rec_get_data_size_old(rec2));
+          ut_ad(!memcmp(old1, rec2, rec_get_data_size_old(old1)));
+
           rec2_heap_no= rec_get_heap_no_old(rec2);
-
-          ut_ad(rec_get_data_size_old(rec1) == rec_get_data_size_old(rec2));
-          ut_ad(!memcmp(rec1, rec2, rec_get_data_size_old(rec1)));
-
-          rec1= page_rec_get_next_low(rec1, FALSE);
           rec2= page_rec_get_next_low(rec2, FALSE);
+        }
+
+        if (UNIV_UNLIKELY(!rec2))
+        {
+          ut_ad("corrupted page" == 0);
+          return;
         }
 
         trx_t *lock_trx= lock->trx;
@@ -2577,6 +2594,12 @@ lock_move_rec_list_start(
 
       while (rec1 != rec)
       {
+        if (UNIV_UNLIKELY(!rec1 || !rec2))
+        {
+          ut_ad("corrupted page" == 0);
+          return;
+        }
+
         ut_ad(page_rec_is_metadata(rec1) == page_rec_is_metadata(rec2));
         ut_d(const rec_t* const prev= rec1);
 
@@ -2880,11 +2903,15 @@ void lock_update_merge_left(const buf_block_t& left, const rec_t *orig_pred,
   ut_ad(left.page.frame == page_align(orig_pred));
 
   const page_id_t l{left.page.id()};
+  const rec_t *left_next_rec= page_rec_get_next_const(orig_pred);
+  if (UNIV_UNLIKELY(!left_next_rec))
+  {
+    ut_ad("corrupted page" == 0);
+    return;
+  }
 
   /* This would likely be too large for a memory transaction. */
   LockMultiGuard g{lock_sys.rec_hash, l, right};
-  const rec_t *left_next_rec= page_rec_get_next_const(orig_pred);
-
   if (!page_rec_is_supremum(left_next_rec))
   {
     /* Inherit the locks on the supremum of the left page to the
@@ -3031,12 +3058,18 @@ lock_update_insert(
 
 	if (page_rec_is_comp(rec)) {
 		receiver_heap_no = rec_get_heap_no_new(rec);
-		donator_heap_no = rec_get_heap_no_new(
-			page_rec_get_next_low(rec, TRUE));
+		rec = page_rec_get_next_low(rec, TRUE);
+		if (UNIV_UNLIKELY(!rec)) {
+			return;
+		}
+		donator_heap_no = rec_get_heap_no_new(rec);
 	} else {
 		receiver_heap_no = rec_get_heap_no_old(rec);
-		donator_heap_no = rec_get_heap_no_old(
-			page_rec_get_next_low(rec, FALSE));
+		rec = page_rec_get_next_low(rec, FALSE);
+		if (UNIV_UNLIKELY(!rec)) {
+			return;
+		}
+		donator_heap_no = rec_get_heap_no_old(rec);
 	}
 
 	lock_rec_inherit_to_gap_if_gap_lock(
@@ -4368,7 +4401,7 @@ lock_print_info_summary(
 		? (purge_sys.running() ? "running"
 		   : purge_sys.paused() ? "stopped" : "running but idle")
 		: "disabled",
-		trx_sys.history_size());
+		trx_sys.history_size_approx());
 
 #ifdef PRINT_NUM_OF_LOCK_STRUCTS
 	fprintf(file,
@@ -4952,13 +4985,15 @@ lock_rec_insert_check_and_lock(
   ut_ad(page_is_leaf(block->page.frame));
   ut_ad(!index->table->is_temporary());
 
+  const rec_t *next_rec= page_rec_get_next_const(rec);
+  if (UNIV_UNLIKELY(!next_rec || rec_is_metadata(next_rec, *index)))
+    return DB_CORRUPTION;
+
   dberr_t err= DB_SUCCESS;
   bool inherit_in= *inherit;
   trx_t *trx= thr_get_trx(thr);
-  const rec_t *next_rec= page_rec_get_next_const(rec);
   ulint heap_no= page_rec_get_heap_no(next_rec);
   const page_id_t id{block->page.id()};
-  ut_ad(!rec_is_metadata(next_rec, *index));
 
   {
     LockGuard g{lock_sys.rec_hash, id};
@@ -6126,6 +6161,7 @@ namespace Deadlock
       for (trx_t *next= cycle;;)
       {
         next= next->lock.wait_trx;
+        l++;
         const undo_no_t next_weight= TRX_WEIGHT(next) |
           (next->mysql_thd &&
 #ifdef WITH_WSREP
@@ -6332,11 +6368,16 @@ void lock_update_split_and_merge(
 
   const page_id_t l{left_block->page.id()};
   const page_id_t r{right_block->page.id()};
+  const rec_t *left_next_rec= page_rec_get_next_const(orig_pred);
+  if (UNIV_UNLIKELY(!left_next_rec))
+  {
+    ut_ad("corrupted page" == 0);
+    return;
+  }
+  ut_ad(!page_rec_is_metadata(left_next_rec));
 
   /* This would likely be too large for a memory transaction. */
   LockMultiGuard g{lock_sys.rec_hash, l, r};
-  const rec_t *left_next_rec= page_rec_get_next_const(orig_pred);
-  ut_ad(!page_rec_is_metadata(left_next_rec));
 
   /* Inherit the locks on the supremum of the left page to the
   first record which was moved from the right page */

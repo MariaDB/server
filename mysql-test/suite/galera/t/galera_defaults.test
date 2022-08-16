@@ -13,12 +13,10 @@
 --source include/force_restart.inc
 
 # Make sure that the test is operating on the right version of galera library.
---let $galera_version=26.4.7
+--let $galera_version=26.4.11
 source ../wsrep/include/check_galera_version.inc;
 
 # Global Variables
-
-SELECT COUNT(*) `expect 50` FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE 'wsrep_%';
 
 SELECT VARIABLE_NAME, VARIABLE_VALUE
 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES

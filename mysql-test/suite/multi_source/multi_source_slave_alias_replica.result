@@ -64,7 +64,7 @@ Replicate_Ignore_Server_Ids
 Master_Server_Id	1
 Master_SSL_Crl	
 Master_SSL_Crlpath	
-Using_Gtid	No
+Using_Gtid	Slave_Pos
 Gtid_IO_Pos	
 Replicate_Do_Domain_Ids	
 Replicate_Ignore_Domain_Ids	
@@ -125,7 +125,7 @@ Replicate_Ignore_Server_Ids
 Master_Server_Id	2
 Master_SSL_Crl	
 Master_SSL_Crlpath	
-Using_Gtid	No
+Using_Gtid	Slave_Pos
 Gtid_IO_Pos	
 Replicate_Do_Domain_Ids	
 Replicate_Ignore_Domain_Ids	

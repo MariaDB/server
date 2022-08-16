@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation
+   Copyright (c) 2010, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -39,12 +39,11 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
    clock_diff_with_master(0),
    sync_counter(0), heartbeat_period(0), received_heartbeats(0),
    master_id(0), prev_master_id(0),
-   using_gtid(USE_GTID_NO), events_queued_since_last_gtid(0),
+   using_gtid(USE_GTID_SLAVE_POS), events_queued_since_last_gtid(0),
    gtid_reconnect_event_skip_count(0), gtid_event_seen(false),
    in_start_all_slaves(0), in_stop_all_slaves(0), in_flush_all_relay_logs(0),
    users(0), killed(0),
-   total_ddl_groups(0), total_non_trans_groups(0), total_trans_groups(0),
-   is_shutdown(false)
+   total_ddl_groups(0), total_non_trans_groups(0), total_trans_groups(0)
 {
   char *tmp;
   host[0] = 0; user[0] = 0; password[0] = 0;
@@ -211,7 +210,10 @@ void init_master_log_pos(Master_info* mi)
 
   mi->master_log_name[0] = 0;
   mi->master_log_pos = BIN_LOG_HEADER_SIZE;             // skip magic number
-  mi->using_gtid= Master_info::USE_GTID_NO;
+  if (mi->master_supports_gtid)
+  {
+    mi->using_gtid= Master_info::USE_GTID_SLAVE_POS;
+  }
   mi->gtid_current_pos.reset();
   mi->events_queued_since_last_gtid= 0;
   mi->gtid_reconnect_event_skip_count= 0;

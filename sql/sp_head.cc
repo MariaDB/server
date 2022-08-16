@@ -425,7 +425,7 @@ Item *THD::sp_fix_func_item_for_assignment(const Field *to, Item **it_addr)
 {
   DBUG_ENTER("THD::sp_fix_func_item_for_assignment");
   Item *res= sp_fix_func_item(it_addr);
-  if (res && (!res->check_assignability_to(to)))
+  if (res && (!res->check_assignability_to(to, false)))
     DBUG_RETURN(res);
   DBUG_RETURN(NULL);
 }
@@ -3079,17 +3079,17 @@ sp_head::show_create_routine_get_fields(THD *thd, const Sp_handler *sph,
 
   fields->push_back(new (mem_root)
                    Item_empty_string(thd, "character_set_client",
-                                     MY_CS_NAME_SIZE),
+                                     MY_CS_CHARACTER_SET_NAME_SIZE),
                    mem_root);
 
   fields->push_back(new (mem_root)
                    Item_empty_string(thd, "collation_connection",
-                                     MY_CS_NAME_SIZE),
+                                     MY_CS_COLLATION_NAME_SIZE),
                    mem_root);
 
   fields->push_back(new (mem_root)
                    Item_empty_string(thd, "Database Collation",
-                                     MY_CS_NAME_SIZE),
+                                     MY_CS_COLLATION_NAME_SIZE),
                    mem_root);
 }
 
@@ -3155,17 +3155,17 @@ sp_head::show_create_routine(THD *thd, const Sp_handler *sph)
 
   fields.push_back(new (mem_root)
                    Item_empty_string(thd, "character_set_client",
-                                     MY_CS_NAME_SIZE),
+                                     MY_CS_CHARACTER_SET_NAME_SIZE),
                    thd->mem_root);
 
   fields.push_back(new (mem_root)
                    Item_empty_string(thd, "collation_connection",
-                                     MY_CS_NAME_SIZE),
+                                     MY_CS_COLLATION_NAME_SIZE),
                    thd->mem_root);
 
   fields.push_back(new (mem_root)
                    Item_empty_string(thd, "Database Collation",
-                                     MY_CS_NAME_SIZE),
+                                     MY_CS_CHARACTER_SET_NAME_SIZE),
                    thd->mem_root);
 
   if (protocol->send_result_set_metadata(&fields,

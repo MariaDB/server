@@ -1,6 +1,9 @@
 include/master-slave.inc
 [connection master]
 connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
 create table t1 (n int);
 reset master;
 stop slave;

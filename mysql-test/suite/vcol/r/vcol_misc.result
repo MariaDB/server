@@ -403,7 +403,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` timestamp GENERATED ALWAYS AS (cast(`a` as datetime)) VIRTUAL,
-  `c` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+  `c` timestamp NULL DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #
@@ -549,4 +549,20 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 #
 # End of 10.2 tests
+#
+#
+# RAND is session func
+#
+create table t1 (a int, b float default rand(1));
+insert into t1 (a) values (1);
+insert into t1 (a) values (2);
+insert into t1 (a) values (3);
+select * from t1;
+a	b
+1	0.405404
+2	0.405404
+3	0.405404
+drop table t1;
+#
+# End of 10.3 tests
 #

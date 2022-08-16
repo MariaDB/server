@@ -936,6 +936,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  MASTER_USER_SYM
 %token  <kwd>  MASTER_USE_GTID_SYM
 %token  <kwd>  MASTER_HEARTBEAT_PERIOD_SYM
+%token  <kwd>  MASTER_DEMOTE_TO_SLAVE_SYM
 %token  <kwd>  MAX_CONNECTIONS_PER_HOUR
 %token  <kwd>  MAX_QUERIES_PER_HOUR
 %token  <kwd>  MAX_ROWS
@@ -2292,6 +2293,10 @@ master_file_def:
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MASTER_use_gtid"));
             Lex->mi.use_gtid_opt= LEX_MASTER_INFO::LEX_GTID_NO;
           }
+        | MASTER_DEMOTE_TO_SLAVE_SYM '=' bool
+          {
+            Lex->mi.is_demotion_opt= (bool) $3;
+          }
         ;
 
 optional_connection_name:
@@ -2527,6 +2532,7 @@ create:
           {
             if (Lex->main_select_push())
               MYSQL_YYABORT;
+            Lex->inc_select_stack_outer_barrier();
             if (Lex->add_create_view(thd, $1 | $5,
                                      DTYPE_ALGORITHM_UNDEFINED, $3, $6))
               MYSQL_YYABORT;
@@ -2542,6 +2548,7 @@ create:
               MYSQL_YYABORT;
             if (Lex->main_select_push())
               MYSQL_YYABORT;
+            Lex->inc_select_stack_outer_barrier();
           }
           view_list_opt AS view_select
           {
@@ -5831,7 +5838,6 @@ field_def:
         | opt_generated_always AS virtual_column_func
          {
            Lex->last_field->vcol_info= $3;
-           Lex->last_field->flags&= ~NOT_NULL_FLAG; // undo automatic NOT NULL for timestamps
          }
           vcol_opt_specifier vcol_opt_attribute
           {
@@ -6313,8 +6319,17 @@ attribute_list:
         ;
 
 attribute:
-          NULL_SYM { Lex->last_field->flags&= ~ NOT_NULL_FLAG; $$.init(); }
-        | DEFAULT column_default_expr { Lex->last_field->default_value= $2; $$.init(); }
+          NULL_SYM
+          {
+            Lex->last_field->flags&= ~NOT_NULL_FLAG;
+            Lex->last_field->explicitly_nullable= true;
+            $$.init();
+          }
+        | DEFAULT column_default_expr
+          {
+            Lex->last_field->default_value= $2;
+            $$.init();
+          }
         | ON UPDATE_SYM NOW_SYM opt_default_time_precision
           {
             Item *item= new (thd->mem_root) Item_func_now_local(thd, $4);
@@ -6473,11 +6488,8 @@ old_or_new_charset_name_or_default:
 collation_name:
           ident_or_text
           {
-            CHARSET_INFO *cs;
-            if (unlikely(!(cs= mysqld_collation_get_by_name($1.str,
-                                                            thd->get_utf8_flag()))))
+            if ($$.set_by_name($1.str, thd->get_utf8_flag()))
               MYSQL_YYABORT;
-            $$= Lex_extended_collation(Lex_exact_collation(cs));
           }
         ;
 
@@ -9737,8 +9749,7 @@ string_factor_expr:
         | string_factor_expr COLLATE_SYM collation_name
           {
             if (unlikely(!($$= new (thd->mem_root)
-                               Item_func_set_collation(thd, $1,
-                                                       $3.charset_info()))))
+                               Item_func_set_collation(thd, $1, $3))))
               MYSQL_YYABORT;
           }
         ;

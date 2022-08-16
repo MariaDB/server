@@ -353,3 +353,13 @@ drop table _t1;
 #
 # End of 10.3 tests
 #
+#
+#  MDEV-22001: Server crashes in st_select_lex_unit::exclude_level upon execution of SP
+#
+BEGIN NOT ATOMIC DECLARE a INT DEFAULT 0 IN ( SELECT 1 ) OR 2 ; END $
+BEGIN NOT ATOMIC DECLARE a INT DEFAULT 0 IN ( SELECT 1 ) OR (SELECT 2) ; END $
+KILL  (('x' IN ( SELECT 1)) MOD 44);
+ERROR HY000: Unknown thread id: 0
+#
+# End of 10.4 tests
+#

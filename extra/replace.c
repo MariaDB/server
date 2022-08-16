@@ -148,9 +148,7 @@ int main(int argc, char *argv[])
 	/* reads options */
 	/* Initiates DEBUG - but no debugging here ! */
 
-static int static_get_options(argc,argv)
-register int *argc;
-register char **argv[];
+static int static_get_options(int *argc, char***argv)
 {
   int help,version;
   char *pos;
@@ -218,10 +216,9 @@ register char **argv[];
 } /* static_get_options */
 
 
-static int get_replace_strings(argc,argv,from_array,to_array)
-register int *argc;
-register char **argv[];
-POINTER_ARRAY *from_array,*to_array;
+static int get_replace_strings(int *argc, char ***argv,
+                               POINTER_ARRAY *from_array,
+                               POINTER_ARRAY *to_array)
 {
   char *pos;
 
@@ -974,9 +971,7 @@ static void free_buffer()
   bytes read from disk.
 */
 
-static int fill_buffer_retaining(fd,n)
-File fd;
-int n;
+static int fill_buffer_retaining(File fd, int n)
 {
   int i;
 
@@ -1019,9 +1014,7 @@ int n;
 	/* Return 0 if convert is ok */
 	/* Global variable update is set if something was changed */
 
-static int convert_pipe(rep,in,out)
-REPLACE *rep;
-FILE *in,*out;
+static int convert_pipe(REPLACE *rep, FILE *in, FILE *out)
 {
   int retain,error;
   uint length;

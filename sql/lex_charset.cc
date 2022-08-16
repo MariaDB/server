@@ -45,7 +45,7 @@ raise_ER_CONFLICTING_DECLARATIONS(const char *clause1,
                                   const char *name2,
                                   bool reverse_order)
 {
-  char def[MY_CS_NAME_SIZE * 2];
+  char def[MY_CS_CHARACTER_SET_NAME_SIZE * 2];
   my_snprintf(def, sizeof(def), "%s (%s)", name1, name1_part2);
   raise_ER_CONFLICTING_DECLARATIONS(clause1, def,
                                     clause2, name2,
@@ -127,19 +127,43 @@ Lex_exact_collation::
   raise_if_conflicts_with_context_collation(const Lex_context_collation &cl,
                                             bool reverse_order) const
 {
-  if (cl.is_contextually_typed_collate_default() &&
-      !(m_ci->state & MY_CS_PRIMARY))
+  if (cl.is_contextually_typed_collate_default())
   {
-    raise_ER_CONFLICTING_DECLARATIONS("COLLATE ", m_ci->coll_name.str,
-                                      "COLLATE ", "DEFAULT", reverse_order);
-    return true;
+    if (!(m_ci->state & MY_CS_PRIMARY))
+    {
+      raise_ER_CONFLICTING_DECLARATIONS("COLLATE ", m_ci->coll_name.str,
+                                        "COLLATE ", "DEFAULT", reverse_order);
+      return true;
+    }
+    return false;
   }
 
-  if (cl.is_contextually_typed_binary_style() &&
-      !(m_ci->state & MY_CS_BINSORT))
+  if (cl.is_contextually_typed_binary_style())
   {
-    raise_ER_CONFLICTING_DECLARATIONS("COLLATE ", m_ci->coll_name.str,
-                                      "", "BINARY", reverse_order);
+    if (!(m_ci->state & MY_CS_BINSORT))
+    {
+      raise_ER_CONFLICTING_DECLARATIONS("COLLATE ", m_ci->coll_name.str,
+                                        "", "BINARY", reverse_order);
+      return true;
+    }
+    return false;
+  }
+
+  DBUG_ASSERT(!strncmp(cl.charset_info()->coll_name.str,
+               STRING_WITH_LEN("utf8mb4_uca1400_")));
+
+  Charset_loader_server loader;
+  CHARSET_INFO *ci= loader.get_exact_collation_by_context_name(
+                             m_ci,
+                             cl.collation_name_context_suffix().str,
+                             MYF(0));
+  if (m_ci != ci)
+  {
+    raise_ER_CONFLICTING_DECLARATIONS("COLLATE ",
+                                      m_ci->coll_name.str,
+                                      "COLLATE ",
+                                      cl.collation_name_for_show().str,
+                                      reverse_order);
     return true;
   }
   return false;
@@ -153,9 +177,16 @@ Lex_context_collation::raise_if_not_equal(const Lex_context_collation &cl) const
     Only equal context collations are possible here so far:
     - Column grammar only supports BINARY, but does not support COLLATE DEFAULT
     - DB/Table grammar only support COLLATE DEFAULT
-    But we'll have different collations here - uca140 is coming soon.
   */
-  DBUG_ASSERT(m_ci == cl.m_ci);
+  if (m_ci != cl.m_ci)
+  {
+    my_error(ER_CONFLICTING_DECLARATIONS, MYF(0),
+             is_contextually_typed_binary_style() ? "" : "COLLATE ",
+             collation_name_for_show().str,
+             cl.is_contextually_typed_binary_style() ? "" : "COLLATE ",
+             cl.collation_name_for_show().str);
+    return true;
+  }
   return false;
 }
 
@@ -193,12 +224,16 @@ bool Lex_exact_charset_opt_extended_collate::
     return false;
   }
 
-  /*
-    A non-binary and non-default contextually typed collation.
-    We don't have such yet - the parser cannot produce this.
-    But we have "uca1400_as_ci" coming soon.
-  */
-  DBUG_ASSERT(0);
+  DBUG_ASSERT(!strncmp(cl.charset_info()->coll_name.str,
+               STRING_WITH_LEN("utf8mb4_uca1400_")));
+
+  CHARSET_INFO *ci= Charset_loader_server().
+                      get_exact_collation_by_context_name_or_error(m_ci,
+                        cl.charset_info()->coll_name.str + 8, MYF(0));
+  if (!ci)
+    return true;
+  m_ci= ci;
+  m_with_collate= true;
   return false;
 }
 
@@ -244,7 +279,7 @@ bool Lex_extended_collation_st::
         CONTEXT + EXACT
         CHAR(10) COLLATE DEFAULT       .. COLLATE latin1_swedish_ci
         CHAR(10) BINARY                .. COLLATE latin1_bin
-        CHAR(10) COLLATE uca1400_as_ci .. COLLATE latin1_bin - coming soon
+        CHAR(10) COLLATE uca1400_as_ci .. COLLATE latin1_bin
       */
       if (rhs.raise_if_conflicts_with_context_collation(
                 Lex_context_collation(m_ci), true))
@@ -316,6 +351,38 @@ bool Lex_extended_collation_st::merge(const Lex_extended_collation_st &rhs)
              Lex_context_collation(rhs.m_ci));
   }
   DBUG_ASSERT(0);
+  return false;
+}
+
+
+LEX_CSTRING Lex_context_collation::collation_name_for_show() const
+{
+  if (is_contextually_typed_collate_default())
+    return LEX_CSTRING({STRING_WITH_LEN("DEFAULT")});
+  if (is_contextually_typed_binary_style())
+    return LEX_CSTRING({STRING_WITH_LEN("BINARY")});
+  return collation_name_context_suffix();
+}
+
+
+bool Lex_extended_collation_st::set_by_name(const char *name, myf my_flags)
+{
+  Charset_loader_server loader;
+  CHARSET_INFO *cs;
+
+  if (!strncasecmp(name, STRING_WITH_LEN("uca1400_")))
+  {
+    if (!(cs= loader.get_context_collation_or_error(name, my_flags)))
+      return true;
+
+    *this= Lex_extended_collation(Lex_context_collation(cs));
+    return false;
+  }
+
+  if (!(cs= loader.get_exact_collation_or_error(name, my_flags)))
+    return true;
+
+  *this= Lex_extended_collation(Lex_exact_collation(cs));
   return false;
 }
 
@@ -499,6 +566,14 @@ bool Lex_exact_charset_opt_extended_collate::
  // CHARACTER SET latin1 [COLLATE latin1_bin] .. COLLATE latin1_bin
   if (m_with_collate)
     return Lex_exact_collation(m_ci).raise_if_not_equal(cl);
+  return merge_exact_collation_override(cl);
+}
+
+
+bool Lex_exact_charset_opt_extended_collate::
+       merge_exact_collation_override(const Lex_exact_collation &cl)
+{
+ // CHARACTER SET latin1 [COLLATE latin1_bin] .. COLLATE latin1_bin
   if (raise_if_not_applicable(cl))
     return true;
   *this= Lex_exact_charset_opt_extended_collate(cl);

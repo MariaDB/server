@@ -136,7 +136,7 @@ select * from t1 partition (p0);
 pk
 1
 drop table t1;
-create or replace table t1 (pk int not null, x timestamp(6), unique u(pk, x)) engine innodb
+create or replace table t1 (pk int not null, x timestamp(6) not null, unique u(pk, x)) engine innodb
 partition by key() partitions 2;
 insert into t1 (pk, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
 # Same for NOT NULL UNIQUE KEY as this is actually primary key
@@ -147,7 +147,7 @@ select * from t1 partition (p0);
 pk
 1
 drop table t1;
-create or replace table t1 (pk int, x timestamp(6), primary key (pk)) engine innodb
+create or replace table t1 (pk int, x timestamp(6) not null, primary key (pk)) engine innodb
 partition by key(pk) partitions 2;
 insert into t1 (pk, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
 # Inplace for DROP PRIMARY KEY when partitioned by explicit field list is allowed

@@ -55,7 +55,7 @@ path=`dirname $0`
 . "$path/autorun.sh"
 
 # C options:
-# -apo          - auto-parallize for multiprocessors (implies -mp)
+# -apo          - auto-parallelize for multiprocessors (implies -mp)
 # -mp           - generate multiprocessor code
 # These two common optimization options apparently use 'sproc' model of
 # threading, which is not compatible with PTHREADS: don't add them unless you

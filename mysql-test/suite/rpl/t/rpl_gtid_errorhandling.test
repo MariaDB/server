@@ -5,6 +5,7 @@
 --echo *** Test that we check against incorrect table definition for mysql.gtid_slave_pos ***
 --connection master
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+call mtr.add_suppression("Incorrect definition of table mysql.gtid_slave_pos:.*");
 --sync_slave_with_master
 
 --connection slave

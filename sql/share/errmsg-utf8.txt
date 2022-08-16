@@ -8257,9 +8257,8 @@ ER_INVALID_YEAR_COLUMN_LENGTH
         spa "El tipo de columna YEAR(%lu) está obsoleto. Creando columna YEAR(4) en su lugar"
 
 ER_NOT_VALID_PASSWORD
-        chi "您的密码不满足当前的政策要求"
-        eng "Your password does not satisfy the current policy requirements"
-        spa "Su contraseña no satisface los requerimientos de la política en curso"
+        eng "Your password does not satisfy the current policy requirements (%s)"
+        ukr "Ваш пароль не відповідає поточним правилам (%s)"
 
 ER_MUST_CHANGE_PASSWORD
         bgn "Трябва първо да си смените паролата със SET PASSWORD за да можете да изпълните тази команда"
@@ -10074,3 +10073,9 @@ ER_INCONSISTENT_SLAVE_TEMP_TABLE
         eng "Replicated query '%s' table `%s.%s` can not be temporary"
 ER_VERS_HIST_PART_FAILED
         eng "Versioned table %`s.%`s: adding HISTORY partition(s) failed"
+WARN_OPTION_CHANGING
+        eng "%s is implicitly changing the value of '%s' from '%s' to '%s'"
+ER_CM_OPTION_MISSING_REQUIREMENT
+        eng "CHANGE MASTER TO option '%s=%s' is missing requirement %s"
+ER_SLAVE_STATEMENT_TIMEOUT 70100
+        eng "Slave log event execution was interrupted (slave_max_statement_time exceeded)"

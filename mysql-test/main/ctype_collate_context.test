@@ -9,7 +9,9 @@ INSERT INTO t0 VALUES
 ('COLLATE DEFAULT'),
 ('COLLATE utf8mb4_bin'),
 ('COLLATE latin1_swedish_ci'),
-('COLLATE latin1_bin');
+('COLLATE latin1_bin'),
+('COLLATE uca1400_ai_ci'),
+('COLLATE uca1400_as_ci');
 
 CREATE TABLE clauses
 (

@@ -161,32 +161,32 @@ EmployeeID SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
 FirstName VARCHAR(30) NOT NULL CHECK (CHAR_LENGTH(FirstName > 2))
 );
 INSERT INTO t1 VALUES (NULL, 'Ken');
-ERROR 22007: Truncated incorrect DOUBLE value: 'Ken'
+ERROR 22007: Truncated incorrect DECIMAL value: 'Ken'
 SHOW WARNINGS;
 Level	Code	Message
-Error	1292	Truncated incorrect DOUBLE value: 'Ken'
+Error	1292	Truncated incorrect DECIMAL value: 'Ken'
 Error	4025	CONSTRAINT `t1.FirstName` failed for `test`.`t1`
 INSERT INTO t1 VALUES (NULL, 'Ken'),(NULL, 'Brian');
-ERROR 22007: Truncated incorrect DOUBLE value: 'Ken'
+ERROR 22007: Truncated incorrect DECIMAL value: 'Ken'
 SHOW WARNINGS;
 Level	Code	Message
-Error	1292	Truncated incorrect DOUBLE value: 'Ken'
+Error	1292	Truncated incorrect DECIMAL value: 'Ken'
 Error	4025	CONSTRAINT `t1.FirstName` failed for `test`.`t1`
 INSERT IGNORE INTO t1 VALUES (NULL, 'Ken');
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'Ken'
+Warning	1292	Truncated incorrect DECIMAL value: 'Ken'
 INSERT IGNORE INTO t1 VALUES (NULL, 'Ken'),(NULL, 'Brian');
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'Ken'
-Warning	1292	Truncated incorrect DOUBLE value: 'Brian'
+Warning	1292	Truncated incorrect DECIMAL value: 'Ken'
+Warning	1292	Truncated incorrect DECIMAL value: 'Brian'
 set sql_mode="";
 INSERT INTO t1 VALUES (NULL, 'Ken');
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'Ken'
+Warning	1292	Truncated incorrect DECIMAL value: 'Ken'
 INSERT INTO t1 VALUES (NULL, 'Ken'),(NULL, 'Brian');
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'Ken'
-Warning	1292	Truncated incorrect DOUBLE value: 'Brian'
+Warning	1292	Truncated incorrect DECIMAL value: 'Ken'
+Warning	1292	Truncated incorrect DECIMAL value: 'Brian'
 set sql_mode=default;
 select * from t1;
 EmployeeID	FirstName
@@ -240,13 +240,13 @@ drop table t1;
 #
 create table t1 (v1 bigint check (v1 not in ('x' , 'x111'))) ;
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'x'
-Warning	1292	Truncated incorrect DOUBLE value: 'x111'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'x111'
 select * from t1;
 v1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'x'
-Warning	1292	Truncated incorrect DOUBLE value: 'x111'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'x111'
 select v1 from t1;
 v1
 select * from t1;
@@ -260,8 +260,8 @@ flush tables;
 select * from t1;
 v1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'x'
-Warning	1292	Truncated incorrect DOUBLE value: 'x111'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'x111'
 select * from t1;
 v1
 deallocate prepare stmt;
@@ -284,11 +284,11 @@ drop table t1;
 #
 # MDEV-26061 MariaDB server crash at Field::set_default
 #
-create table t1 (d timestamp check (default (d) is true)) as select 1;
+create table t1 (d timestamp not null default now() check (default (d) is true)) as select 1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `d` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp() CHECK (default(`d`) is true),
+  `d` timestamp NOT NULL DEFAULT current_timestamp() CHECK (default(`d`) is true),
   `1` int(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;

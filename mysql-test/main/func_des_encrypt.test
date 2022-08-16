@@ -57,4 +57,17 @@ INSERT t1 VALUES (1),(2);
 SELECT CHAR_LENGTH(a), DES_DECRYPT(a) FROM (SELECT _utf8 0xC2A2 AS a FROM t1) AS t2;
 DROP TABLE t1;
 
---Echo End of 10.5 tests
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-27104 deprecate DES_ENCRYPT/DECRYPT functions
+--echo #
+--echo # just show how to disable deprecation note
+set sql_notes=0;
+select hex(des_encrypt('a'));
+
+--echo #
+--echo # End of 10.10 tests
+--echo #

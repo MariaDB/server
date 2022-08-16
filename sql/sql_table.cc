@@ -1297,7 +1297,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
   StringBuffer<160> unknown_tables(system_charset_info);
   DDL_LOG_STATE local_ddl_log_state;
   const char *comment_start;
-  uint not_found_errors= 0, table_count= 0, non_temp_tables_count= 0;
+  uint table_count= 0, non_temp_tables_count= 0;
   int error= 0;
   uint32 comment_len;
   bool trans_tmp_table_deleted= 0, non_trans_tmp_table_deleted= 0;
@@ -1428,7 +1428,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       unknown_tables.append(&table_name);
       unknown_tables.append(',');
       error= ENOENT;
-      not_found_errors++;
       continue;
     }
 
@@ -1511,7 +1510,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       unknown_tables.append(&table_name);
       unknown_tables.append(',');
       error= ENOENT;
-      not_found_errors++;
       continue;
     }
 
@@ -1757,7 +1755,6 @@ report_error:
       }
       else
       {
-        not_found_errors++;
         if (unknown_tables.append(tbl_name) || unknown_tables.append(','))
         {
           error= 1;
@@ -1819,7 +1816,7 @@ report_error:
                          table->table ?  table->table->s :  NULL));
   }
   DEBUG_SYNC(thd, "rm_table_no_locks_before_binlog");
-  thd->thread_specific_used= TRUE;
+  thd->used|= THD::THREAD_SPECIFIC_USED;
   error= 0;
 
 err:
@@ -2310,13 +2307,17 @@ bool Column_definition::prepare_stage2(handler *file,
 
 void promote_first_timestamp_column(List<Create_field> *column_definitions)
 {
+  bool first= true;
   for (Create_field &column_definition : *column_definitions)
   {
     if (column_definition.is_timestamp_type() ||    // TIMESTAMP
         column_definition.unireg_check == Field::TIMESTAMP_OLD_FIELD) // Legacy
     {
+      if (!column_definition.explicitly_nullable)
+        column_definition.flags|= NOT_NULL_FLAG;
       DBUG_PRINT("info", ("field-ptr:%p", column_definition.field));
-      if ((column_definition.flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
+      if (first &&
+          (column_definition.flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
           column_definition.default_value == NULL &&   // no constant default,
           column_definition.unireg_check == Field::NONE && // no function default
           column_definition.vcol_info == NULL &&
@@ -2330,7 +2331,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
                             ));
         column_definition.unireg_check= Field::TIMESTAMP_DNUN_FIELD;
       }
-      return;
+      first= false;
     }
   }
 }
@@ -2962,7 +2963,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
   List_iterator<Key> key_iterator(alter_info->key_list);
   List_iterator<Key> key_iterator2(alter_info->key_list);
-  uint key_parts=0, fk_key_count=0;
+  uint key_parts=0;
   bool primary_key=0,unique_key=0;
   Key *key, *key2;
   uint tmp, key_number;
@@ -2978,7 +2979,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                         "(none)" , key->type));
     if (key->type == Key::FOREIGN_KEY)
     {
-      fk_key_count++;
       Foreign_key *fk_key= (Foreign_key*) key;
       if (fk_key->validate(alter_info->create_list))
         DBUG_RETURN(TRUE);
@@ -3656,7 +3656,7 @@ without_overlaps_err:
         !sql_field->has_default_function() &&
         (sql_field->flags & NOT_NULL_FLAG) &&
         (!sql_field->is_timestamp_type() ||
-         opt_explicit_defaults_for_timestamp)&&
+         (thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))&&
         !sql_field->vers_sys_field())
     {
       sql_field->flags|= NO_DEFAULT_VALUE_FLAG;
@@ -3667,7 +3667,7 @@ without_overlaps_err:
         !sql_field->default_value && !sql_field->vcol_info &&
         !sql_field->vers_sys_field() &&
         sql_field->is_timestamp_type() &&
-        !opt_explicit_defaults_for_timestamp &&
+        !(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP) &&
         (sql_field->flags & NOT_NULL_FLAG) &&
         (type == Field::NONE || type == Field::TIMESTAMP_UN_FIELD))
     {
@@ -4620,7 +4620,7 @@ int create_table_impl(THD *thd,
     if (is_trans != NULL)
       *is_trans= table->file->has_transactions();
 
-    thd->thread_specific_used= TRUE;
+    thd->used|= THD::THREAD_SPECIFIC_USED;
     create_info->table= table;                  // Store pointer to table
   }
 
@@ -4804,18 +4804,16 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   else
     create_table_mode= C_ASSISTED_DISCOVERY;
 
-  if (!opt_explicit_defaults_for_timestamp)
+  if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
     promote_first_timestamp_column(&alter_info->create_list);
 
   /* We can abort create table for any table type */
   thd->abort_on_warning= thd->is_strict_mode();
 
   if (mysql_create_table_no_lock(thd, &ddl_log_state_create, &ddl_log_state_rm,
-                                 &create_table->db,
-                                 &create_table->table_name, create_info,
-                                 alter_info,
-                                 &is_trans, create_table_mode,
-                                 create_table) > 0)
+                                 &create_table->db, &create_table->table_name,
+                                 create_info, alter_info, &is_trans,
+                                 create_table_mode, create_table) > 0)
   {
     result= 1;
     goto err;
@@ -10363,7 +10361,7 @@ do_continue:;
       create_info->fix_period_fields(thd, alter_info))
     DBUG_RETURN(true);
 
-  if (!opt_explicit_defaults_for_timestamp)
+  if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
     promote_first_timestamp_column(&alter_info->create_list);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -11466,7 +11464,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       if (!(*ptr)->vcol_info)
       {
         bitmap_set_bit(from->read_set, def->field->field_index);
-        if ((*ptr)->check_assignability_from(def->field))
+        if ((*ptr)->check_assignability_from(def->field, ignore))
           goto err;
         (copy_end++)->set(*ptr,def->field,0);
       }

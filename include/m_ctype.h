@@ -34,7 +34,9 @@ enum loglevel {
 extern "C" {
 #endif
 
-#define MY_CS_NAME_SIZE			32
+#define MY_CS_CHARACTER_SET_NAME_SIZE   32
+#define MY_CS_COLLATION_NAME_SIZE       64
+
 #define MY_CS_CTYPE_TABLE_SIZE		257
 #define MY_CS_TO_LOWER_TABLE_SIZE	256
 #define MY_CS_TO_UPPER_TABLE_SIZE	256
@@ -116,7 +118,7 @@ extern MY_UNICASE_INFO my_unicase_unicode520;
 */
 #define MY_UCA_MAX_WEIGHT_SIZE (8+1)               /* Including 0 terminator */
 #define MY_UCA_CONTRACTION_MAX_WEIGHT_SIZE (2*8+1) /* Including 0 terminator */
-#define MY_UCA_WEIGHT_LEVELS   2
+#define MY_UCA_WEIGHT_LEVELS   3
 
 typedef struct my_contraction_t
 {
@@ -139,6 +141,65 @@ const uint16 *my_uca_contraction2_weight(const MY_CONTRACTIONS *c,
                                          my_wc_t wc1, my_wc_t wc2);
 
 
+typedef struct my_uca_weight2_t
+{
+  uint16 weight[2];
+} MY_UCA_WEIGHT2;
+
+
+/*
+  In DUCET as of Unicode-14.0.0:
+  - All characters in the range U+0000..U+007F (i.e. using one byte in utf8)
+    have not more than two weights on all weight levels.
+  - All characters in the range U+0080..U+07FF (i.e. using two bytes in utf8)
+    have not more than four weights on all weight levels.
+  Therefore the limit of 4 weights should cover all byte pairs
+  (i.e. two ASCII characters or one 2-byte character)
+  that are a subject for the "process 2 bytes at a time" optimization.
+  If some collation reorders any character from the mentioned ranges
+  in the way that it produces more weights, such character will not
+  be optimized, but will be correctly processed the slower mb_wc-based
+  method (1 character at a time).
+*/
+#define MY_UCA_2BYTES_MAX_WEIGHT_SIZE (4+1) /* Including 0 terminator */
+
+typedef struct my_uca_2bytes_item_t
+{
+  uint16 weight[MY_UCA_2BYTES_MAX_WEIGHT_SIZE];
+} MY_UCA_2BYTES_ITEM;
+
+
+typedef struct my_uca_level_booster_t
+{
+  /*
+    A helper array to process 2 bytes at a time during string comparison.
+    It maps all 2-bytes sequences that make:
+    - two ASCII characters or
+    - one 2-byte character
+    to their weights. The weight length is limited to
+    MY_UCA_2BYTES_MAX_WEIGHT_SIZE-1 weights.
+    This array is used in the main loop optimization.
+  */
+  MY_UCA_2BYTES_ITEM weight_strings_2bytes[0x10000];
+  /*
+    A helper array to process 2bytes at a time during string comparison,
+    with an even more efficient way than the above one.
+    The weight size is limited to 2 weights, so it's used for the cases
+    when 2 input bytes produce 1 or 2 weights.
+    This limit makes the code using this array even simpler and faster.
+    This array is used for prefix optimization.
+  */
+  MY_UCA_WEIGHT2 weight_strings_2bytes_to_1_or_2_weights[0x10000];
+} MY_UCA_LEVEL_BOOSTER;
+
+
+typedef struct my_uca_contraction_hash_t
+{
+  size_t nitems_alloced;
+  MY_CONTRACTION *item;
+} MY_UCA_CONTRACTION_HASH;
+
+
 /* Collation weights on a single level (e.g. primary, secondary, tertiarty) */
 typedef struct my_uca_level_info_st
 {
@@ -147,6 +208,8 @@ typedef struct my_uca_level_info_st
   uint16  **weights;
   MY_CONTRACTIONS contractions;
   uint    levelno;
+  MY_UCA_CONTRACTION_HASH contraction_hash;
+  MY_UCA_LEVEL_BOOSTER *booster;
 } MY_UCA_WEIGHT_LEVEL;
 
 
@@ -167,6 +230,9 @@ typedef struct uca_info_st
   my_wc_t last_trailing;
   my_wc_t first_variable;
   my_wc_t last_variable;
+
+  /* Unicode version */
+  uint version;
 
 } MY_UCA_INFO;
 
@@ -235,6 +301,46 @@ typedef enum enum_repertoire_t
   MY_REPERTOIRE_EXTENDED=    2, /* Extended characters:  U+0080..U+FFFF */
   MY_REPERTOIRE_UNICODE30=   3  /* ASCII | EXTENDED:     U+0000..U+FFFF */
 } my_repertoire_t;
+
+
+/* ID compatibility */
+typedef enum enum_collation_id_type
+{
+  MY_COLLATION_ID_TYPE_PRECISE=          0,
+  MY_COLLATION_ID_TYPE_COMPAT_100800=    1
+} my_collation_id_type_t;
+
+
+/* Collation name display modes */
+typedef enum enum_collation_name_mode
+{
+  MY_COLLATION_NAME_MODE_FULL=                                 0,
+  MY_COLLATION_NAME_MODE_CONTEXT=                              1
+} my_collation_name_mode_t;
+
+
+/* Level flags */
+#define MY_CS_LEVEL_BIT_PRIMARY    0x00
+#define MY_CS_LEVEL_BIT_SECONDARY  0x01
+#define MY_CS_LEVEL_BIT_TERTIARY   0x02
+#define MY_CS_LEVEL_BIT_QUATERNARY 0x03
+
+#define MY_CS_COLL_LEVELS_S1       (1<<MY_CS_LEVEL_BIT_PRIMARY)
+
+#define MY_CS_COLL_LEVELS_AI_CS    (1<<MY_CS_LEVEL_BIT_PRIMARY)| \
+                                   (1<<MY_CS_LEVEL_BIT_TERTIARY)
+
+#define MY_CS_COLL_LEVELS_S2       (1<<MY_CS_LEVEL_BIT_PRIMARY)| \
+                                   (1<<MY_CS_LEVEL_BIT_SECONDARY)
+
+#define MY_CS_COLL_LEVELS_S3       (1<<MY_CS_LEVEL_BIT_PRIMARY)| \
+                                   (1<<MY_CS_LEVEL_BIT_SECONDARY) | \
+                                   (1<<MY_CS_LEVEL_BIT_TERTIARY)
+
+#define MY_CS_COLL_LEVELS_S4       (1<<MY_CS_LEVEL_BIT_PRIMARY)| \
+                                   (1<<MY_CS_LEVEL_BIT_SECONDARY) | \
+                                   (1<<MY_CS_LEVEL_BIT_TERTIARY)  | \
+                                   (1<<MY_CS_LEVEL_BIT_QUATERNARY)
 
 
 /* Flags for strxfrm */
@@ -437,7 +543,12 @@ struct my_collation_handler_st
   */
   size_t (*min_str)(CHARSET_INFO *cs, uchar *dst, size_t dstlen, size_t nchars);
   size_t (*max_str)(CHARSET_INFO *cs, uchar *dst, size_t dstlen, size_t nchars);
+
+  uint (*get_id)(CHARSET_INFO *cs, my_collation_id_type_t type);
+  LEX_CSTRING (*get_collation_name)(CHARSET_INFO *cs,
+                                    my_collation_name_mode_t mode);
 };
+
 
 extern MY_COLLATION_HANDLER my_collation_8bit_bin_handler;
 extern MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler;
@@ -840,6 +951,21 @@ struct charset_info_st
   }
 
   /* Collation routines */
+  uint default_flag() const
+  {
+    return state & MY_CS_PRIMARY;
+  }
+
+  uint binsort_flag() const
+  {
+    return state & MY_CS_BINSORT;
+  }
+
+  uint compiled_flag() const
+  {
+    return state & MY_CS_COMPILED;
+  }
+
   int strnncoll(const uchar *a, size_t alen,
                 const uchar *b, size_t blen, my_bool b_is_prefix= FALSE) const
   {
@@ -937,6 +1063,15 @@ struct charset_info_st
     return (coll->max_str)(this, dst, dstlen, nchars);
   }
 
+  uint get_id(my_collation_id_type_t type) const
+  {
+    return (coll->get_id)(this, type);
+  }
+
+  LEX_CSTRING get_collation_name(my_collation_name_mode_t mode) const
+  {
+    return (coll->get_collation_name)(this, mode);
+  }
 #endif /* __cplusplus */
 };
 
@@ -1517,6 +1652,9 @@ extern size_t my_strcspn(CHARSET_INFO *cs, const char *str, const char *end,
 my_bool my_propagate_simple(CHARSET_INFO *cs, const uchar *str, size_t len);
 my_bool my_propagate_complex(CHARSET_INFO *cs, const uchar *str, size_t len);
 
+uint my_ci_get_id_generic(CHARSET_INFO *cs, my_collation_id_type_t type);
+LEX_CSTRING my_ci_get_collation_name_generic(CHARSET_INFO *cs,
+                                             my_collation_name_mode_t mode);
 
 typedef struct 
 {
@@ -1531,7 +1669,7 @@ my_repertoire_t my_string_repertoire(CHARSET_INFO *cs,
 my_bool my_charset_is_ascii_based(CHARSET_INFO *cs);
 my_repertoire_t my_charset_repertoire(CHARSET_INFO *cs);
 
-uint my_strxfrm_flag_normalize(uint flags, uint nlevels);
+uint my_strxfrm_flag_normalize(CHARSET_INFO *cs, uint flags);
 void my_strxfrm_desc_and_reverse(uchar *str, uchar *strend,
                                  uint flags, uint level);
 size_t my_strxfrm_pad_desc_and_reverse(CHARSET_INFO *cs,

@@ -78,6 +78,45 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
     my_wc_t currwc= 0;
     const uint16 *cweight;
 
+#if MY_UCA_ASCII_OPTIMIZE && !defined(SCANNER_NEXT_NCHARS)
+    if (scanner->sbeg + 1 < scanner->send)
+    {
+      const MY_UCA_2BYTES_ITEM *ww;
+      ww= my_uca_level_booster_2bytes_item_addr_const(scanner->level->booster,
+                                                      scanner->sbeg[0],
+                                                      scanner->sbeg[1]);
+      if (my_uca_2bytes_item_is_applicable(ww))
+      {
+        /*
+          Byte pairs that make 2-byte head characters in previous
+          context pairs are marked as not applicable for optimization
+          during the collation initialization. So when we come here
+          sbeg[0] and sbeg[1] are:
+          - either two ASCII characters
+          - or one 2-byte character which IS NOT a previous context head
+          Just remember sbeg[1] as the previous character for simplicity.
+          This may erroneously interpret bytes 0x80..0x9F as previous context
+          head characters U+0080..U+009F. However, CLDR does not have any real
+          collations that use these characters as previous context heads.
+        */
+        scanner->page= 0;
+        scanner->code= (int) scanner->sbeg[1];
+        scanner->sbeg+= 2;
+        if ((weight= my_uca_scanner_set_weight(scanner, ww->weight)))
+        {
+          /*
+            TODO: add support for scanner_next_with_nchars and do this:
+            SCANNER_NEXT_RETURN(weight, ignorable_nchars + 1);
+          */
+          return weight;
+        }
+        continue; /* Ignorable character */
+      }
+      /* 2 byte optimization is not applicable, go the slow path */
+    }
+#endif
+
+
     /* Get next character */
 #if MY_UCA_ASCII_OPTIMIZE
     /* Get next ASCII character */

@@ -616,6 +616,8 @@ scripts/mariadb-setpermission
 sql/mariadbd
 sql/mariadb-tzinfo-to-sql
 storage/rocksdb/mariadb-ldb
+strings/ctype-uca1400data.h
+strings/uca-dump
 tests/mariadb-client-test
 versioninfo_dll.rc
 versioninfo_exe.rc

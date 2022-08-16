@@ -498,6 +498,7 @@ struct LEX_MASTER_INFO
   uint port, connect_retry;
   float heartbeat_period;
   int sql_delay;
+  bool is_demotion_opt;
   /*
     Enum is used for making it possible to detect if the user
     changed variable or if it should be left at old value
@@ -540,6 +541,7 @@ struct LEX_MASTER_INFO
     gtid_pos_str= null_clex_str;
     use_gtid_opt= LEX_GTID_UNCHANGED;
     sql_delay= -1;
+    is_demotion_opt= 0;
   }
 };
 
@@ -765,7 +767,6 @@ public:
   }
 
   inline st_select_lex_node* get_master() { return master; }
-  inline st_select_lex_node* get_slave() { return slave; }
   void include_down(st_select_lex_node *upper);
   void add_slave(st_select_lex_node *slave_arg);
   void include_neighbour(st_select_lex_node *before);
@@ -971,7 +972,7 @@ public:
   };
 
   void init_query();
-  st_select_lex* outer_select();
+  st_select_lex* outer_select() const;
   const st_select_lex* first_select() const
   {
     return reinterpret_cast<const st_select_lex*>(slave);
@@ -1039,6 +1040,9 @@ public:
   bool set_lock_to_the_last_select(Lex_select_lock l);
 
   friend class st_select_lex;
+
+private:
+  bool is_derived_eliminated() const;
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
@@ -1743,15 +1747,6 @@ public:
   SQL_I_List<Sroutine_hash_entry> sroutines_list;
   Sroutine_hash_entry **sroutines_list_own_last;
   uint sroutines_list_own_elements;
-
-  /**
-    Number of tables which were open by open_tables() and to be locked
-    by lock_tables().
-    Note that we set this member only in some cases, when this value
-    needs to be passed from open_tables() to lock_tables() which are
-    separated by some amount of code.
-  */
-  uint table_count;
 
    /*
     These constructor and destructor serve for creation/destruction
@@ -3447,7 +3442,7 @@ public:
     stores total number of tables. For LEX representing multi-delete
     holds number of tables from which we will delete records.
   */
-  uint table_count;
+  uint table_count_update;
 
   uint8 describe;
   /*

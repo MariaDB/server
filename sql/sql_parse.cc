@@ -1040,9 +1040,9 @@ int bootstrap(MYSQL_FILE *file)
         break;
 
       case READ_BOOTSTRAP_QUERY_SIZE:
-        my_printf_error(ER_UNKNOWN_ERROR, "Boostrap file error. Query size "
+        my_printf_error(ER_UNKNOWN_ERROR, "Bootstrap file error. Query size "
                         "exceeded %d bytes near '%s'.", MYF(0),
-                        MAX_BOOTSTRAP_LINE_SIZE, err_ptr);
+                        MAX_BOOTSTRAP_QUERY_SIZE, err_ptr);
         break;
 
       default:
@@ -3323,6 +3323,7 @@ bool run_set_statement_if_requested(THD *thd, LEX *lex)
       {
         switch (v->var->option.var_type & GET_TYPE_MASK)
         {
+          case GET_BIT:
           case GET_BOOL:
           case GET_INT:
           case GET_LONG:
@@ -4853,7 +4854,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if (likely(!thd->is_fatal_error))
     {
       result= new (thd->mem_root) multi_delete(thd, aux_tables,
-                                               lex->table_count);
+                                               lex->table_count_update);
       if (likely(result))
       {
         if (unlikely(select_lex->vers_setup_conds(thd, aux_tables)))
@@ -7574,8 +7575,8 @@ void THD::reset_for_next_command(bool do_clear_error)
   }
 #endif /* WITH_WSREP */
 
-  query_start_sec_part_used= 0;
-  is_fatal_error= time_zone_used= 0;
+  used= 0;
+  is_fatal_error= 0;
   variables.option_bits&= ~OPTION_BINLOG_THIS_STMT;
 
   /*
@@ -7594,14 +7595,12 @@ void THD::reset_for_next_command(bool do_clear_error)
     transaction->all.reset();
   }
   DBUG_ASSERT(security_ctx== &main_security_ctx);
-  thread_specific_used= FALSE;
 
   if (opt_bin_log)
     reset_dynamic(&user_var_events);
   DBUG_ASSERT(user_var_events_alloc == &main_mem_root);
   enable_slow_log= true;
   get_stmt_da()->reset_for_next_command();
-  rand_used= 0;
   m_sent_row_count= m_examined_row_count= 0;
   accessed_rows_and_keys= 0;
 
@@ -9757,12 +9756,12 @@ bool multi_delete_set_locks_and_link_aux_tables(LEX *lex)
   TABLE_LIST *target_tbl;
   DBUG_ENTER("multi_delete_set_locks_and_link_aux_tables");
 
-  lex->table_count= 0;
+  lex->table_count_update= 0;
 
   for (target_tbl= lex->auxiliary_table_list.first;
        target_tbl; target_tbl= target_tbl->next_local)
   {
-    lex->table_count++;
+    lex->table_count_update++;
     /* All tables in aux_tables must be found in FROM PART */
     TABLE_LIST *walk= multi_delete_table_match(lex, target_tbl, tables);
     if (!walk)

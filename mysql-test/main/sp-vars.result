@@ -1026,11 +1026,11 @@ BEGIN
 SELECT arg;
 END|
 CALL p1((1, 2));
-ERROR HY000: Illegal parameter data types tinyint and row for operation 'SET'
+ERROR 21000: Operand should contain 1 column(s)
 CALL p1((SELECT * FROM t1 LIMIT 1));
-ERROR HY000: Illegal parameter data types tinyint and row for operation 'SET'
+ERROR 21000: Operand should contain 1 column(s)
 CALL p1((SELECT col1, col2 FROM t1 LIMIT 1));
-ERROR HY000: Illegal parameter data types tinyint and row for operation 'SET'
+ERROR 21000: Operand should contain 1 column(s)
 DROP PROCEDURE p1;
 DROP TABLE t1;
 
@@ -1307,7 +1307,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" char(1) DEFAULT NULL
+  "var" varchar(1) DEFAULT NULL
 )
 DROP TABLE t1;
 #

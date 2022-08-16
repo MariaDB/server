@@ -768,7 +768,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   value_count= values->elements;
 
   if ((res= mysql_prepare_insert(thd, table_list, fields, values,
-                                 update_fields, update_values, duplic,
+                                 update_fields, update_values, duplic, ignore,
                                  &unused_conds, FALSE)))
   {
     retval= thd->is_error();
@@ -839,7 +839,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     behaviour for non-transactional tables.
   */
   if (values->elements &&
-      table_list->table->check_assignability_opt_fields(fields, *values))
+      table_list->table->check_assignability_opt_fields(fields, *values,
+                                                        ignore))
     goto abort;
 
   while ((values= its++))
@@ -1368,8 +1369,12 @@ values_loop_end:
     thd->lex->current_select->save_leaf_tables(thd);
     thd->lex->current_select->first_cond_optimization= 0;
   }
-  if (readbuff)
-    my_free(readbuff);
+
+  my_free(readbuff);
+#ifndef EMBEDDED_LIBRARY
+  if (lock_type == TL_WRITE_DELAYED && table->expr_arena)
+    table->expr_arena->free_items();
+#endif
   DBUG_RETURN(FALSE);
 
 abort:
@@ -1386,6 +1391,8 @@ abort:
     */
     for (Field **ptr= table_list->table->field ; *ptr ; ptr++)
       (*ptr)->free();
+    if (table_list->table->expr_arena)
+      table_list->table->expr_arena->free_items();
   }
 #endif
   if (table != NULL)
@@ -1564,8 +1571,7 @@ static bool mysql_prepare_insert_check_table(THD *thd, TABLE_LIST *table_list,
   if (insert_into_view && !fields.elements)
   {
     thd->lex->empty_field_list_on_rset= 1;
-    if (!thd->lex->first_select_lex()->leaf_tables.head()->table ||
-        table_list->is_multitable())
+    if (!table_list->table || table_list->is_multitable())
     {
       my_error(ER_VIEW_NO_INSERT_FIELD_LIST, MYF(0),
                table_list->view_db.str, table_list->view_name.str);
@@ -1634,7 +1640,8 @@ static void prepare_for_positional_update(TABLE *table, TABLE_LIST *tables)
 int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                          List<Item> &fields, List_item *values,
                          List<Item> &update_fields, List<Item> &update_values,
-                         enum_duplicates duplic, COND **where,
+                         enum_duplicates duplic, bool ignore,
+                         COND **where,
                          bool select_insert)
 {
   SELECT_LEX *select_lex= thd->lex->first_select_lex();
@@ -1709,7 +1716,8 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                ON DUPLICATE KEY UPDATE col=expr [, col=expr];
            */
            TABLE::check_assignability_explicit_fields(update_fields,
-                                                      update_values);
+                                                      update_values,
+                                                      ignore);
 
       select_lex->no_wrap_view_item= FALSE;
     }
@@ -2272,7 +2280,8 @@ public:
   ulong start_time_sec_part;
   sql_mode_t sql_mode;
   bool auto_increment_field_not_null;
-  bool ignore, log_query, query_start_sec_part_used;
+  bool ignore, log_query;
+  THD::used_t query_start_sec_part_used;
   bool stmt_depends_on_first_successful_insert_id_in_prev_stmt;
   ulonglong first_successful_insert_id_in_prev_stmt;
   ulonglong forced_insert_id;
@@ -2930,7 +2939,7 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
 
   row->start_time=                thd->start_time;
   row->start_time_sec_part=       thd->start_time_sec_part;
-  row->query_start_sec_part_used= thd->query_start_sec_part_used;
+  row->query_start_sec_part_used= thd->used & THD::QUERY_START_SEC_PART_USED;
   /*
     those are for the binlog: LAST_INSERT_ID() has been evaluated at this
     time, so record does not need it, but statement-based binlogging of the
@@ -2947,7 +2956,7 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
      So we can get time_zone object from thread which handling delayed statement.
      See the comment of my_tz_find() for detail.
   */
-  if (thd->time_zone_used)
+  if (thd->used & THD::TIME_ZONE_USED)
   {
     row->time_zone = thd->variables.time_zone;
   }
@@ -3561,7 +3570,7 @@ bool Delayed_insert::handle_inserts(void)
 
     thd.start_time=row->start_time;
     thd.start_time_sec_part=row->start_time_sec_part;
-    thd.query_start_sec_part_used=row->query_start_sec_part_used;
+    thd.used= row->query_start_sec_part_used;
     /*
       To get the exact auto_inc interval to store in the binlog we must not
       use values from the previous interval (of the previous rows).
@@ -3810,7 +3819,7 @@ int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
 
   if ((res= mysql_prepare_insert(thd, lex->query_tables, lex->field_list, 0,
                                  lex->update_list, lex->value_list,
-                                 lex->duplicates,
+                                 lex->duplicates, lex->ignore,
                                  &select_lex->where, TRUE)))
     DBUG_RETURN(res);
 
@@ -3821,7 +3830,6 @@ int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
   if (sel_res)
     sel_res->prepare(lex->returning()->item_list, NULL);
 
-  DBUG_ASSERT(select_lex->leaf_tables.elements != 0);
   List_iterator<TABLE_LIST> ti(select_lex->leaf_tables);
   TABLE_LIST *table;
   uint insert_tables;
@@ -3912,7 +3920,8 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
           INSERT INTO t1 (col1, col2) VALUES (expr1, expr2);
           INSERT INTO t1 SET col1=expr1, col2=expr2;
      */
-     res= table_list->table->check_assignability_opt_fields(*fields, values);
+     res= table_list->table->check_assignability_opt_fields(*fields, values,
+                                                            lex->ignore);
   }
 
   if (!res && fields->elements)
@@ -3975,7 +3984,8 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
                       ON DUPLICATE KEY UPDATE col=expr [, col=expr]
                 */
                 TABLE::check_assignability_explicit_fields(*info.update_fields,
-                                                           *info.update_values);
+                                                           *info.update_values,
+                                                           lex->ignore);
     if (!res)
     {
       /*
@@ -4495,7 +4505,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   tmp_table.maybe_null= 0;
   tmp_table.in_use= thd;
 
-  if (!opt_explicit_defaults_for_timestamp)
+  if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
     promote_first_timestamp_column(&alter_info->create_list);
 
   if (create_info->fix_create_fields(thd, alter_info, *create_table))

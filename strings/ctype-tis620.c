@@ -866,7 +866,9 @@ static MY_COLLATION_HANDLER my_collation_ci_handler =
     my_hash_sort_simple,
     my_propagate_simple,
     my_min_str_8bit_simple,
-    my_max_str_8bit_simple
+    my_max_str_8bit_simple,
+    my_ci_get_id_generic,
+    my_ci_get_collation_name_generic
 };
 
 static MY_COLLATION_HANDLER my_collation_nopad_ci_handler =
@@ -884,7 +886,9 @@ static MY_COLLATION_HANDLER my_collation_nopad_ci_handler =
     my_hash_sort_simple_nopad,
     my_propagate_simple,
     my_min_str_8bit_simple_nopad,
-    my_max_str_8bit_simple
+    my_max_str_8bit_simple,
+    my_ci_get_id_generic,
+    my_ci_get_collation_name_generic
 };
 
 static MY_CHARSET_HANDLER my_charset_handler=
@@ -949,7 +953,7 @@ struct charset_info_st my_charset_tis620_thai_ci=
     255,		/* max_sort_char */
     ' ',                /* pad char      */
     0,                  /* escape_with_backslash_is_dangerous */
-    1,                  /* levels_for_order   */
+    MY_CS_COLL_LEVELS_S1,
     &my_charset_handler,
     &my_collation_ci_handler
 };
@@ -981,7 +985,7 @@ struct charset_info_st my_charset_tis620_bin=
     255,		/* max_sort_char */
     ' ',                /* pad char      */
     0,                  /* escape_with_backslash_is_dangerous */
-    1,                  /* levels_for_order   */
+    MY_CS_COLL_LEVELS_S1,
     &my_charset_handler,
     &my_collation_8bit_bin_handler
 };
@@ -1014,7 +1018,7 @@ struct charset_info_st my_charset_tis620_thai_nopad_ci=
     255,                   /* max_sort_char    */
     ' ',                   /* pad char         */
     0,                     /* escape_with_backslash_is_dangerous */
-    1,                     /* levels_for_order */
+    MY_CS_COLL_LEVELS_S1,
     &my_charset_handler,
     &my_collation_nopad_ci_handler
 };
@@ -1047,7 +1051,7 @@ struct charset_info_st my_charset_tis620_nopad_bin=
     255,                   /* max_sort_char    */
     ' ',                   /* pad char         */
     0,                     /* escape_with_backslash_is_dangerous */
-    1,                     /* levels_for_order */
+    MY_CS_COLL_LEVELS_S1,
     &my_charset_handler,
     &my_collation_8bit_nopad_bin_handler
 };

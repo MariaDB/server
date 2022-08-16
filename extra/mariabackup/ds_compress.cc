@@ -35,6 +35,7 @@ typedef struct {
 	uint			num;
 	pthread_mutex_t		data_mutex;
 	pthread_cond_t  	data_cond;
+	pthread_cond_t  	done_cond;
 	my_bool			data_avail;
 	my_bool			cancelled;
 	const char 		*from;
@@ -229,25 +230,24 @@ compress_write(ds_file_t *file, const uchar *buf, size_t len)
 			thd = threads + i;
 
 			pthread_mutex_lock(&thd->data_mutex);
-			while (thd->data_avail == TRUE) {
-				pthread_cond_wait(&thd->data_cond,
+			while (!thd->to_len) {
+				pthread_cond_wait(&thd->done_cond,
 						  &thd->data_mutex);
 			}
-
-			xb_a(threads[i].to_len > 0);
 
 			bool fail = ds_write(dest_file, "NEWBNEWB", 8) ||
 				write_uint64_le(dest_file,
 						comp_file->bytes_processed);
-			comp_file->bytes_processed += threads[i].from_len;
+			comp_file->bytes_processed += thd->from_len;
 
 			if (!fail) {
-				fail = write_uint32_le(dest_file, threads[i].adler) ||
-					ds_write(dest_file, threads[i].to,
-						 threads[i].to_len);
+				fail = write_uint32_le(dest_file, thd->adler) ||
+					ds_write(dest_file, thd->to,
+						 thd->to_len);
 			}
 
-			pthread_mutex_unlock(&threads[i].data_mutex);
+			thd->to_len = 0;
+			pthread_mutex_unlock(&thd->data_mutex);
 
 			if (fail) {
 				msg("compress: write to the destination stream "
@@ -335,6 +335,7 @@ destroy_worker_thread(comp_thread_ctxt_t *thd)
 	pthread_join(thd->id, NULL);
 
 	pthread_cond_destroy(&thd->data_cond);
+	pthread_cond_destroy(&thd->done_cond);
 	pthread_mutex_destroy(&thd->data_mutex);
 
 	my_free(thd->to);
@@ -347,22 +348,24 @@ create_worker_threads(uint n)
 	comp_thread_ctxt_t	*threads;
 	uint 			i;
 
-	threads = (comp_thread_ctxt_t *) my_malloc(PSI_NOT_INSTRUMENTED,
-                                  sizeof(comp_thread_ctxt_t) * n, MYF(MY_FAE));
+	threads = static_cast<comp_thread_ctxt_t*>
+		(my_malloc(PSI_NOT_INSTRUMENTED, n * sizeof *threads,
+			   MYF(MY_ZEROFILL|MY_FAE)));
 
 	for (i = 0; i < n; i++) {
 		comp_thread_ctxt_t *thd = threads + i;
 
 		thd->num = i + 1;
-		thd->cancelled = FALSE;
-		thd->data_avail = FALSE;
-
-		thd->to = (char *) my_malloc(PSI_NOT_INSTRUMENTED,
-                  COMPRESS_CHUNK_SIZE + MY_QLZ_COMPRESS_OVERHEAD, MYF(MY_FAE));
+		thd->to = static_cast<char*>
+			(my_malloc(PSI_NOT_INSTRUMENTED,
+				   COMPRESS_CHUNK_SIZE +
+				   MY_QLZ_COMPRESS_OVERHEAD,
+				   MYF(MY_FAE)));
 
 		/* Initialize and data mutex and condition var */
 		if (pthread_mutex_init(&thd->data_mutex, NULL) ||
-		    pthread_cond_init(&thd->data_cond, NULL)) {
+		    pthread_cond_init(&thd->data_cond, NULL) ||
+		    pthread_cond_init(&thd->done_cond, NULL)) {
 			goto err;
 		}
 
@@ -413,7 +416,7 @@ compress_worker_thread_func(void *arg)
 
 		if (thd->cancelled)
 			break;
-
+		thd->data_avail = FALSE;
 		thd->to_len = qlz_compress(thd->from, thd->to, thd->from_len,
 					   &thd->state);
 
@@ -428,6 +431,7 @@ compress_worker_thread_func(void *arg)
 
 		thd->adler = adler32(0x00000001, (uchar *) thd->to,
 				     (uInt)thd->to_len);
+		pthread_cond_signal(&thd->done_cond);
 	}
 
 	pthread_mutex_unlock(&thd->data_mutex);

@@ -16,7 +16,7 @@
 
 /*
   echo is a replacement for the "echo" command builtin to cmd.exe
-  on Windows, to get a Unix eqvivalent behaviour when running commands
+  on Windows, to get a Unix equivalent behaviour when running commands
   like:
     $> echo "hello" | mysql
 

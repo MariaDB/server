@@ -9,7 +9,7 @@ File	Position	Binlog_Do_DB	Binlog_Ignore_DB
 master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
 connection slave;
 include/stop_slave.inc
-change master to master_log_pos=MASTER_LOG_POS;
+change master to master_log_pos=MASTER_LOG_POS, master_use_gtid=no;
 start slave;
 include/wait_for_slave_io_error.inc [errno=1236]
 Last_IO_Error = 'Got fatal error 1236 from master when reading data from binary log: 'binlog truncated in the middle of event; consider out of disk space on master; the first event 'master-bin.000001' at XXX, the last event read from 'master-bin.000001' at XXX, the last byte read from 'master-bin.000001' at XXX.''
@@ -23,7 +23,7 @@ drop table if exists t1;
 create table t1 (n int);
 insert into t1 values (1),(2),(3);
 connection slave;
-change master to master_log_pos=MASTER_LOG_POS;
+change master to master_log_pos=MASTER_LOG_POS, master_use_gtid=no;
 start slave;
 select * from t1 ORDER BY n;
 n

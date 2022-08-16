@@ -57,6 +57,7 @@ Created July 18, 2007 Vasil Dimov
 #include "dict0crea.h"
 #include "fts0vlc.h"
 #include "scope.h"
+#include "log.h"
 
 /** The latest successfully looked up innodb_fts_aux_table */
 table_id_t innodb_ft_aux_table_id;
@@ -168,19 +169,37 @@ time_t			MYSQL_TYPE_DATETIME
 ---------------------------------
 */
 
-/*******************************************************************//**
+/**
 Common function to fill any of the dynamic tables:
 INFORMATION_SCHEMA.innodb_trx
 INFORMATION_SCHEMA.innodb_locks
 INFORMATION_SCHEMA.innodb_lock_waits
-@return 0 on success */
-static
-int
-trx_i_s_common_fill_table(
-/*======================*/
-	THD*		thd,	/*!< in: thread */
-	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
-	Item*		);	/*!< in: condition (not used) */
+@retval false if access to the table is blocked
+@retval true  if something should be filled in */
+static bool trx_i_s_common_fill_table(THD *thd, TABLE_LIST *tables)
+{
+  DBUG_ENTER("trx_i_s_common_fill_table");
+
+  /* deny access to non-superusers */
+  if (check_global_access(thd, PROCESS_ACL))
+    DBUG_RETURN(false);
+
+  RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
+
+  /* update the cache */
+  trx_i_s_cache_start_write(trx_i_s_cache);
+  trx_i_s_possibly_fetch_data_into_cache(trx_i_s_cache);
+  trx_i_s_cache_end_write(trx_i_s_cache);
+
+  if (trx_i_s_cache_is_truncated(trx_i_s_cache))
+    sql_print_warning("InnoDB: Data in %.*s truncated due to memory limit"
+                      " of %u bytes",
+                      int(tables->schema_table_name.length),
+                      tables->schema_table_name.str,
+                      TRX_I_S_MEM_LIMIT);
+
+  DBUG_RETURN(true);
+}
 
 /*******************************************************************//**
 Unbind a dynamic INFORMATION_SCHEMA table.
@@ -343,26 +362,29 @@ static ST_FIELD_INFO innodb_trx_fields_info[]=
 /*******************************************************************//**
 Read data from cache buffer and fill the INFORMATION_SCHEMA.innodb_trx
 table with it.
-@return 0 on success */
-static
-int
-fill_innodb_trx_from_cache(
-/*=======================*/
-	trx_i_s_cache_t*	cache,	/*!< in: cache to read from */
-	THD*			thd,	/*!< in: used to call
-					schema_table_store_record() */
-	TABLE*			table)	/*!< in/out: fill this table */
+@retval 0 on success
+@retval 1 on failure */
+static int fill_innodb_trx_from_cache(THD *thd, TABLE_LIST *tables, Item*)
 {
-	Field**	fields;
 	ulint	rows_num;
 	char	lock_id[TRX_I_S_LOCK_ID_MAX_LEN + 1];
 	ulint	i;
 
 	DBUG_ENTER("fill_innodb_trx_from_cache");
 
-	fields = table->field;
+	if (!trx_i_s_common_fill_table(thd, tables)) {
+		DBUG_RETURN(0);
+	}
 
-	rows_num = trx_i_s_cache_get_rows_used(cache,
+	struct cache
+	{
+		cache() { trx_i_s_cache_start_read(trx_i_s_cache); }
+		~cache() { trx_i_s_cache_end_read(trx_i_s_cache); }
+	} c;
+
+	Field** fields = tables->table->field;
+
+	rows_num = trx_i_s_cache_get_rows_used(trx_i_s_cache,
 					       I_S_INNODB_TRX);
 
 	for (i = 0; i < rows_num; i++) {
@@ -371,7 +393,7 @@ fill_innodb_trx_from_cache(
 
 		row = (i_s_trx_row_t*)
 			trx_i_s_cache_get_nth_row(
-				cache, I_S_INNODB_TRX, i);
+				trx_i_s_cache, I_S_INNODB_TRX, i);
 
 		/* trx_id */
 		OK(fields[IDX_TRX_ID]->store(row->trx_id, true));
@@ -480,7 +502,7 @@ fill_innodb_trx_from_cache(
 		OK(fields[IDX_TRX_AUTOCOMMIT_NON_LOCKING]->store(
 			   row->trx_is_autocommit_non_locking, true));
 
-		OK(schema_table_store_record(thd, table));
+		OK(schema_table_store_record(thd, tables->table));
 	}
 
 	DBUG_RETURN(0);
@@ -502,7 +524,7 @@ innodb_trx_init(
 	schema = (ST_SCHEMA_TABLE*) p;
 
 	schema->fields_info = Show::innodb_trx_fields_info;
-	schema->fill_table = trx_i_s_common_fill_table;
+	schema->fill_table = fill_innodb_trx_from_cache;
 
 	DBUG_RETURN(0);
 }
@@ -621,20 +643,29 @@ static
 int
 fill_innodb_locks_from_cache(
 /*=========================*/
-	trx_i_s_cache_t*	cache,	/*!< in: cache to read from */
 	THD*			thd,	/*!< in: MySQL client connection */
-	TABLE*			table)	/*!< in/out: fill this table */
+	TABLE_LIST*		tables,	/*!< in/out: fill this table */
+	Item*)
 {
-	Field**	fields;
 	ulint	rows_num;
 	char	lock_id[TRX_I_S_LOCK_ID_MAX_LEN + 1];
 	ulint	i;
 
 	DBUG_ENTER("fill_innodb_locks_from_cache");
 
-	fields = table->field;
+	if (!trx_i_s_common_fill_table(thd, tables)) {
+		DBUG_RETURN(0);
+	}
 
-	rows_num = trx_i_s_cache_get_rows_used(cache,
+	struct cache
+	{
+		cache() { trx_i_s_cache_start_read(trx_i_s_cache); }
+		~cache() { trx_i_s_cache_end_read(trx_i_s_cache); }
+	} c;
+
+	Field** fields = tables->table->field;
+
+	rows_num = trx_i_s_cache_get_rows_used(trx_i_s_cache,
 					       I_S_INNODB_LOCKS);
 
 	for (i = 0; i < rows_num; i++) {
@@ -645,7 +676,7 @@ fill_innodb_locks_from_cache(
 
 		row = (i_s_locks_row_t*)
 			trx_i_s_cache_get_nth_row(
-				cache, I_S_INNODB_LOCKS, i);
+				trx_i_s_cache, I_S_INNODB_LOCKS, i);
 
 		/* lock_id */
 		trx_i_s_create_lock_id(row, lock_id, sizeof(lock_id));
@@ -692,7 +723,7 @@ fill_innodb_locks_from_cache(
 			fields[IDX_LOCK_DATA]->set_null();
 		}
 
-		OK(schema_table_store_record(thd, table));
+		OK(schema_table_store_record(thd, tables->table));
 	}
 
 	DBUG_RETURN(0);
@@ -714,7 +745,7 @@ innodb_locks_init(
 	schema = (ST_SCHEMA_TABLE*) p;
 
 	schema->fields_info = Show::innodb_locks_fields_info;
-	schema->fill_table = trx_i_s_common_fill_table;
+	schema->fill_table = fill_innodb_locks_from_cache;
 
 	DBUG_RETURN(0);
 }
@@ -785,12 +816,11 @@ static
 int
 fill_innodb_lock_waits_from_cache(
 /*==============================*/
-	trx_i_s_cache_t*	cache,	/*!< in: cache to read from */
 	THD*			thd,	/*!< in: used to call
 					schema_table_store_record() */
-	TABLE*			table)	/*!< in/out: fill this table */
+	TABLE_LIST*		tables,	/*!< in/out: fill this table */
+	Item*)
 {
-	Field**	fields;
 	ulint	rows_num;
 	char	requested_lock_id[TRX_I_S_LOCK_ID_MAX_LEN + 1];
 	char	blocking_lock_id[TRX_I_S_LOCK_ID_MAX_LEN + 1];
@@ -798,9 +828,19 @@ fill_innodb_lock_waits_from_cache(
 
 	DBUG_ENTER("fill_innodb_lock_waits_from_cache");
 
-	fields = table->field;
+	if (!trx_i_s_common_fill_table(thd, tables)) {
+		DBUG_RETURN(0);
+	}
 
-	rows_num = trx_i_s_cache_get_rows_used(cache,
+	struct cache
+	{
+		cache() { trx_i_s_cache_start_read(trx_i_s_cache); }
+		~cache() { trx_i_s_cache_end_read(trx_i_s_cache); }
+	} c;
+
+	Field** fields = tables->table->field;
+
+	rows_num = trx_i_s_cache_get_rows_used(trx_i_s_cache,
 					       I_S_INNODB_LOCK_WAITS);
 
 	for (i = 0; i < rows_num; i++) {
@@ -809,7 +849,7 @@ fill_innodb_lock_waits_from_cache(
 
 		row = (i_s_lock_waits_row_t*)
 			trx_i_s_cache_get_nth_row(
-				cache, I_S_INNODB_LOCK_WAITS, i);
+				trx_i_s_cache, I_S_INNODB_LOCK_WAITS, i);
 
 		/* requesting_trx_id */
 		OK(fields[IDX_REQUESTING_TRX_ID]->store(
@@ -835,7 +875,7 @@ fill_innodb_lock_waits_from_cache(
 				   blocking_lock_id,
 				   sizeof(blocking_lock_id))));
 
-		OK(schema_table_store_record(thd, table));
+		OK(schema_table_store_record(thd, tables->table));
 	}
 
 	DBUG_RETURN(0);
@@ -857,7 +897,7 @@ innodb_lock_waits_init(
 	schema = (ST_SCHEMA_TABLE*) p;
 
 	schema->fields_info = Show::innodb_lock_waits_fields_info;
-	schema->fill_table = trx_i_s_common_fill_table;
+	schema->fill_table = fill_innodb_lock_waits_from_cache;
 
 	DBUG_RETURN(0);
 }
@@ -899,105 +939,6 @@ struct st_maria_plugin	i_s_innodb_lock_waits =
 	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
 	MariaDB_PLUGIN_MATURITY_STABLE
 };
-
-/*******************************************************************//**
-Common function to fill any of the dynamic tables:
-INFORMATION_SCHEMA.innodb_trx
-INFORMATION_SCHEMA.innodb_locks
-INFORMATION_SCHEMA.innodb_lock_waits
-@return 0 on success */
-static
-int
-trx_i_s_common_fill_table(
-/*======================*/
-	THD*		thd,	/*!< in: thread */
-	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
-	Item*		)	/*!< in: condition (not used) */
-{
-	LEX_CSTRING		table_name;
-	int			ret;
-	trx_i_s_cache_t*	cache;
-
-	DBUG_ENTER("trx_i_s_common_fill_table");
-
-	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
-
-		DBUG_RETURN(0);
-	}
-
-	/* minimize the number of places where global variables are
-	referenced */
-	cache = trx_i_s_cache;
-
-	/* which table we have to fill? */
-	table_name = tables->schema_table_name;
-	/* or table_name = tables->schema_table->table_name; */
-
-	RETURN_IF_INNODB_NOT_STARTED(table_name.str);
-
-	/* update the cache */
-	trx_i_s_cache_start_write(cache);
-	trx_i_s_possibly_fetch_data_into_cache(cache);
-	trx_i_s_cache_end_write(cache);
-
-	if (trx_i_s_cache_is_truncated(cache)) {
-
-		ib::warn() << "Data in " << table_name.str << " truncated due to"
-			" memory limit of " << TRX_I_S_MEM_LIMIT << " bytes";
-	}
-
-	ret = 0;
-
-	trx_i_s_cache_start_read(cache);
-
-	if (innobase_strcasecmp(table_name.str, "innodb_trx") == 0) {
-
-		if (fill_innodb_trx_from_cache(
-			cache, thd, tables->table) != 0) {
-
-			ret = 1;
-		}
-
-	} else if (innobase_strcasecmp(table_name.str, "innodb_locks") == 0) {
-
-		if (fill_innodb_locks_from_cache(
-			cache, thd, tables->table) != 0) {
-
-			ret = 1;
-		}
-
-	} else if (innobase_strcasecmp(table_name.str, "innodb_lock_waits") == 0) {
-
-		if (fill_innodb_lock_waits_from_cache(
-			cache, thd, tables->table) != 0) {
-
-			ret = 1;
-		}
-
-	} else {
-		ib::error() << "trx_i_s_common_fill_table() was"
-			" called to fill unknown table: " << table_name.str << "."
-			" This function only knows how to fill"
-			" innodb_trx, innodb_locks and"
-			" innodb_lock_waits tables.";
-
-		ret = 1;
-	}
-
-	trx_i_s_cache_end_read(cache);
-
-#if 0
-	DBUG_RETURN(ret);
-#else
-	/* if this function returns something else than 0 then a
-	deadlock occurs between the mysqld server and mysql client,
-	see http://bugs.mysql.com/29900 ; when that bug is resolved
-	we can enable the DBUG_RETURN(ret) above */
-	ret++;  // silence a gcc46 warning
-	DBUG_RETURN(0);
-#endif
-}
 
 namespace Show {
 /* Fields of the dynamic table information_schema.innodb_cmp. */

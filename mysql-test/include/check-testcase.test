@@ -62,7 +62,7 @@ if ($tmp)
   --echo Master_Server_Id	#
   --echo Master_SSL_Crl	#
   --echo Master_SSL_Crlpath	#
-  --echo Using_Gtid	No
+  --echo Using_Gtid	Slave_Pos
   --echo Gtid_IO_Pos	#
   --echo Replicate_Do_Domain_Ids	
   --echo Replicate_Ignore_Domain_Ids	

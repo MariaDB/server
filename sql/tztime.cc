@@ -1798,7 +1798,7 @@ end:
   delete thd;
   if (org_thd)
     org_thd->store_globals();			/* purecov: inspected */
-  
+
   default_tz= default_tz_name ? global_system_variables.time_zone
                               : my_tz_SYSTEM;
 
@@ -1873,7 +1873,7 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
 #ifdef ABBR_ARE_USED
   char chars[MY_MAX(TZ_MAX_CHARS + 1, (2 * (MY_TZNAME_MAX + 1)))];
 #endif
-  /* 
+  /*
     Used as a temporary tz_info until we decide that we actually want to
     allocate and keep the tz info and tz name in tz_storage.
   */
@@ -2030,7 +2030,7 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
     mysql.time_zone_transition table. Here we additionally need records
     in ascending order by index scan also satisfies us.
   */
-  table= tz_tables->table; 
+  table= tz_tables->table;
   table->field[0]->store((longlong) tzid, TRUE);
   if (table->file->ha_index_init(0, 1))
     goto end;
@@ -2365,7 +2365,7 @@ my_tz_find(THD *thd, const String *name)
 /**
   Convert leap seconds into non-leap
 
-  This function will convert the leap seconds added by the OS to 
+  This function will convert the leap seconds added by the OS to
   non-leap seconds, e.g. 23:59:59, 23:59:60 -> 23:59:59, 00:00:01 ...
   This check is not checking for years on purpose : although it's not a
   complete check this way it doesn't require looking (and having installed)
@@ -2729,11 +2729,20 @@ static const char *trunc_tables_const=
   "TRUNCATE TABLE time_zone_name;\n"
   "TRUNCATE TABLE time_zone_transition;\n"
   "TRUNCATE TABLE time_zone_transition_type;\n";
+
+/*
+   These queries need to return FALSE/0 when the 'wsrep*' variables do not
+   exist at all.
+   Moving the WHERE clause into the sum(...) seems like the obvious solution
+   here, but it does not work in bootstrap mode (see MDEV-28782 and
+   0e4cf497ca11a7298e2bd896cb594bd52085a1d4).
+   Thus we use coalesce(..., 0) instead,
+*/
 static const char *wsrep_is_on=
-  "select sum(SESSION_VALUE='ON')"
+  "select coalesce(sum(SESSION_VALUE='ON'), 0)"
   " from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_on'";
 static const char *wsrep_cannot_replicate_tz=
-  "select sum(GLOBAL_VALUE NOT LIKE @replicate_opt)"
+  "select coalesce(sum(GLOBAL_VALUE NOT LIKE @replicate_opt), 0)"
   " from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_mode'";
 
 int
@@ -2774,7 +2783,7 @@ main(int argc, char **argv)
          " ORDER BY OPTION DESC;\n");
   printf("set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (%s);\n", wsrep_cannot_replicate_tz);
   if (opt_skip_write_binlog)
-    /* If turn off session wsrep if we cannot replicate using galera.
+    /* We turn off session wsrep if we cannot replicate using galera.
        Disable sql_log_bin as the name implies. */
     printf("execute immediate if(@wsrep_is_on, 'SET @save_wsrep_on=@@WSREP_ON, WSREP_ON=OFF', 'do 0');\n"
            "SET @save_sql_log_bin=@@SQL_LOG_BIN;\n"

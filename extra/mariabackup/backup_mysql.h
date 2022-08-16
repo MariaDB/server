@@ -24,6 +24,7 @@ extern time_t history_lock_time;
 extern bool sql_thread_started;
 extern char *mysql_slave_position;
 extern char *mysql_binlog_position;
+extern char *buffer_pool_filename;
 
 /** connection to mysql server */
 extern MYSQL *mysql_connection;
@@ -57,7 +58,10 @@ void
 unlock_all(MYSQL *connection);
 
 bool
-write_current_binlog_file(MYSQL *connection, bool write_binlogs);
+write_current_binlog_file(MYSQL *connection);
+
+bool
+write_binlog_info(MYSQL *connection);
 
 bool
 write_xtrabackup_info(MYSQL *connection, const char * filename, bool history,

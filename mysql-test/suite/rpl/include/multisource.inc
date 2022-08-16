@@ -159,7 +159,8 @@ set default_master_connection = '';
 eval change master to
 master_port=$SERVER_MYPORT_2,
 master_host='127.0.0.1',
-master_user='root';
+master_user='root',
+master_use_gtid=no;
 
 start slave;
 --source include/wait_for_slave_to_start.inc
