@@ -1547,6 +1547,8 @@ static my_bool kill_thread_phase_1(THD *thd, int *n_threads_awaiting_ack)
 
   if (DBUG_EVALUATE_IF("only_kill_system_threads", !thd->system_thread, 0))
     return 0;
+  if (DBUG_EVALUATE_IF("only_kill_system_threads_no_loop", !thd->system_thread, 0))
+    return 0;
 
   thd->set_killed(KILL_SERVER_HARD);
   MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (thd));
@@ -1771,7 +1773,6 @@ static void close_connections(void)
 
   Events::deinit();
   slave_prepare_for_shutdown();
-  mysql_bin_log.stop_background_thread();
   ack_receiver.stop();
 
   /*
@@ -1791,10 +1792,13 @@ static void close_connections(void)
   DBUG_PRINT("info", ("THD_count: %u", THD_count::value()));
 
   for (int i= 0; THD_count::connection_thd_count() - n_threads_awaiting_ack
-                 && i < 1000; i++)
+                 && i < 1000 &&
+                 DBUG_EVALUATE_IF("only_kill_system_threads_no_loop", 0, 1);
+                 i++)
     my_sleep(20000);
 
-  if (global_system_variables.log_warnings)
+  if (global_system_variables.log_warnings &&
+      DBUG_EVALUATE("only_kill_system_threads_no_loop", 0, 1))
     server_threads.iterate(warn_threads_active_after_phase_1);
 
 #ifdef WITH_WSREP
@@ -1809,7 +1813,8 @@ static void close_connections(void)
                       THD_count::value() - binlog_dump_thread_count -
                           n_threads_awaiting_ack));
 
-  while (THD_count::connection_thd_count() - n_threads_awaiting_ack)
+  while (THD_count::connection_thd_count() - n_threads_awaiting_ack &&
+         DBUG_EVALUATE_IF("only_kill_system_threads_no_loop", 0, 1))
     my_sleep(1000);
 
   /* Kill phase 2 */
