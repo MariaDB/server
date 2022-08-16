@@ -832,7 +832,7 @@ sp_instr_jump::opt_shortcut_jump(sp_head *sp, sp_instr *start)
 
 
 void
-sp_instr_jump::opt_move(uint dst, List<sp_instr> *bp)
+sp_instr_jump::opt_move(uint dst, List<sp_instr_opt_meta> *bp)
 {
   if (m_dest > m_ip)
     bp->push_back(this);      // Forward
@@ -921,7 +921,7 @@ sp_instr_jump_if_not::opt_mark(sp_head *sp, List<sp_instr> *leads)
 
 
 void
-sp_instr_jump_if_not::opt_move(uint dst, List<sp_instr> *bp)
+sp_instr_jump_if_not::opt_move(uint dst, List<sp_instr_opt_meta> *bp)
 {
   /*
     cont. destinations may point backwards after shortcutting jumps
@@ -1679,7 +1679,7 @@ sp_instr_set_case_expr::opt_mark(sp_head *sp, List<sp_instr> *leads)
 
 
 void
-sp_instr_set_case_expr::opt_move(uint dst, List<sp_instr> *bp)
+sp_instr_set_case_expr::opt_move(uint dst, List<sp_instr_opt_meta> *bp)
 {
   if (m_cont_dest > m_ip)
     bp->push_back(this);        // Forward

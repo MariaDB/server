@@ -3145,7 +3145,7 @@ bool sp_head::replace_instr_to_nop(THD *thd, uint ip)
 
 void sp_head::optimize()
 {
-  List<sp_instr> bp;
+  List<sp_instr_opt_meta> bp;
   sp_instr *i;
   uint src, dst;
 
@@ -3167,14 +3167,13 @@ void sp_head::optimize()
       if (src != dst)
       {
         /* Move the instruction and update prev. jumps */
-        sp_instr *ibp;
-        List_iterator_fast<sp_instr> li(bp);
+        sp_instr_opt_meta *ibp;
+        List_iterator_fast<sp_instr_opt_meta> li(bp);
 
         set_dynamic(&m_instr, (uchar*)&i, dst);
         while ((ibp= li++))
         {
-          sp_instr_opt_meta *im= static_cast<sp_instr_opt_meta *>(ibp);
-          im->set_destination(src, dst);
+          ibp->set_destination(src, dst);
         }
       }
       i->opt_move(dst, &bp);
