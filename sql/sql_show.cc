@@ -3581,6 +3581,7 @@ union Any_pointer {
   @param variable    [in]     Details of the variable.
   @param value_type  [in]     Variable type.
   @param show_type   [in]     Variable show type.
+  @param status_var  [in]     Status variable pointer
   @param charset     [out]    Character set of the value.
   @param buff        [in,out] Buffer to store the value.
                               (Needs to have enough memory
