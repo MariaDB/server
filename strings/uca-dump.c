@@ -762,7 +762,7 @@ int main(int ac, char **av)
   {
     char *comment;
     char *weight;
-    MY_DUCET_CHARS chr = {0};
+    MY_DUCET_CHARS chr = {{0,0,0,0,0,0}, 0};
 
     if (str[0] == '#')
       continue;
@@ -803,7 +803,9 @@ int main(int ac, char **av)
     }
     else
     {
-      MY_DUCET_WEIGHT weights= {0};
+      MY_DUCET_WEIGHT weights= {{{0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0},
+				 {0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0}},
+                                0};
       my_bool dummy;
       if (chr.length >= MY_UCA_MAX_CONTRACTION)
       {

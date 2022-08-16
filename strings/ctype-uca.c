@@ -31309,7 +31309,7 @@ my_uca1400_collation_definitions[MY_UCA1400_COLLATION_DEFINITION_COUNT]=
 
 static MY_UCA_INFO
 my_uca1400_info_tailored[MY_CS_ENCODING_LAST+1]
-                        [MY_UCA1400_COLLATION_DEFINITION_COUNT]= {0};
+                        [MY_UCA1400_COLLATION_DEFINITION_COUNT];
 
 
 /*
