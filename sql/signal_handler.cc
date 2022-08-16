@@ -186,6 +186,8 @@ extern "C" sig_handler handle_fatal_signal(int sig)
                           (uint) extra_max_connections);
 
   my_safe_printf_stderr("thread_count=%u\n", (uint) thread_count);
+  my_safe_printf_stderr("version_commit_hash=%s\n", server_version_commit_hash_ptr);
+  my_safe_printf_stderr("samurai_version=%s\n", server_samurai_version_string_ptr);
 
   if (dflt_key_cache && thread_scheduler)
   {

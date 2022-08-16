@@ -506,6 +506,9 @@ long opt_secure_timestamp;
 uint default_password_lifetime;
 my_bool disconnect_on_expired_password;
 
+char *server_version_commit_hash_ptr;
+char *server_samurai_version_string_ptr;
+
 /*
   Maximum length of parameter value which can be set through
   mysql_send_long_data() call.
