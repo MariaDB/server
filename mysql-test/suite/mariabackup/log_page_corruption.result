@@ -30,13 +30,13 @@ FOUND 1 /Database page corruption detected.*/ in backup.log
 FOUND 1 /completed OK!/ in backup.log
 --- "innodb_corrupted_pages" file content: ---
 test/t1_corrupted
-6 8 9
+4 6 7
 test/t2_corrupted
-7 8 10
+5 6 8
 test/t4_corrupted_new
 1
 test/t5_corrupted_to_rename_renamed
-6
+4
 test/t7_corrupted_to_alter
 3
 ------
@@ -46,19 +46,19 @@ INSERT INTO t3_inc VALUES (3), (4), (5), (6), (7), (8), (9);
 # Backup must not fail, but "innodb_corrupted_pages" file must be created due to --log-innodb-page-corruption option
 --- "innodb_corrupted_pages" file content: ---
 test/t1_corrupted
-6 8 9
+4 6 7
 test/t1_inc_corrupted
-6 8 9
+4 6 7
 test/t2_corrupted
-7 8 10
+5 6 8
 test/t2_inc_corrupted
-7 8 10
+5 6 8
 test/t4_inc_corrupted_new
 1
 test/t5_corrupted_to_rename_renamed
-6
+4
 test/t5_inc_corrupted_to_rename_renamed
-6
+4
 test/t7_inc_corrupted_to_alter
 3
 ------
@@ -82,15 +82,15 @@ DROP TABLE t7_inc_corrupted_to_alter;
 # Full backup with --log-innodb-page-corruption
 --- "innodb_corrupted_pages" file content: ---
 test/t3
-6 8
+4 6
 ------
 # Extend some tablespace and corrupt extended pages for incremental backup
 # Incremental backup --log-innodb-page-corruption
 --- "innodb_corrupted_pages" file content: ---
 test/t3
-6 8
+4 6
 test/t3_inc
-6 8
+4 6
 ------
 # Full backup prepare
 # "innodb_corrupted_pages" file must not exist after successful prepare
