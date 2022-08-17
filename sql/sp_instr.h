@@ -7,6 +7,7 @@
 #include "sql_class.h"    // THD, Query_arena
 #include "sql_lex.h"      // class sp_lex_local
 #include "sp_pcontext.h"  // class sp_pcontext
+#include "sp_head.h"      // class sp_head
 
 /*
   Sufficient max length of printed destinations and frame offsets (all uints).
@@ -21,14 +22,22 @@ public:
    :sp_lex_local(thd, oldlex),
     Query_arena(mem_root_arg, STMT_INITIALIZED_FOR_SP)
   { }
-  sp_lex_cursor(THD *thd, const LEX *oldlex);
+
+  sp_lex_cursor(THD *thd, const LEX *oldlex)
+   :sp_lex_local(thd, oldlex),
+    Query_arena(thd->lex->sphead->get_main_mem_root(), STMT_INITIALIZED_FOR_SP)
+  { }
+
   ~sp_lex_cursor()
   {
     free_items();
   }
+
   virtual bool cleanup_stmt(bool /*restore_set_statement_vars*/) override
   { return false; }
+
   Query_arena *query_arena() override { return this; }
+
   bool validate()
   {
     DBUG_ASSERT(sql_command == SQLCOM_SELECT);
@@ -76,6 +85,7 @@ public:
      m_lineno(0)
   {}
 
+
   virtual ~sp_instr()
   {
     free_items();
@@ -99,6 +109,7 @@ public:
 
   virtual int execute(THD *thd, uint *nextp) = 0;
 
+
   /**
     Execute <code>open_and_lock_tables()</code> for this statement.
     Open and lock the tables used by this statement, as a pre-requisite
@@ -108,13 +119,17 @@ public:
     @param tables the list of tables to open and lock
     @return zero on success, non zero on failure.
   */
+
   int exec_open_and_lock_tables(THD *thd, TABLE_LIST *tables);
+
 
   /**
     Get the continuation destination of this instruction.
     @return the continuation destination
   */
+
   virtual uint get_cont_dest() const;
+
 
   /*
     Execute core function of instruction after all preparations (e.g.
@@ -125,6 +140,7 @@ public:
     statements (thus having to have own LEX). Used in concert with
     sp_lex_keeper class and its descendants (there are none currently).
   */
+
   virtual int exec_core(THD *thd, uint *nextp);
 
   virtual void print(String *str) = 0;
@@ -132,16 +148,19 @@ public:
   virtual void backpatch(uint dest, sp_pcontext *dst_ctx)
   {}
 
+
   /**
     Mark this instruction as reachable during optimization and return the
     index to the next instruction. Jump instruction will add their
     destination to the leads list.
   */
+
   virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads)
   {
     marked= 1;
     return m_ip + 1;
   }
+
 
   /**
     Short-cut jumps to jumps during optimization. This is used by the
@@ -149,10 +168,12 @@ public:
     used to prevent the mark sweep from looping for ever. Return the
     end destination.
   */
+
   virtual uint opt_shortcut_jump(sp_head *sp, sp_instr *start)
   {
     return m_ip;
   }
+
 
   /**
     Inform the instruction that it has been moved during optimization.
@@ -160,10 +181,12 @@ public:
     must also take care of their destination pointers. Forward jumps get
     pushed to the backpatch list 'ibp'.
   */
+
   virtual void opt_move(uint dst, List<sp_instr_opt_meta> *ibp)
   {
     m_ip= dst;
   }
+
   virtual PSI_statement_info* get_psi_info() = 0;
 
 }; // class sp_instr : public Sql_alloc
@@ -196,6 +219,7 @@ public:
   {
     lex->sp_lex_in_use= true;
   }
+
   virtual ~sp_lex_keeper()
   {
     if (m_lex_resp)
@@ -214,6 +238,7 @@ public:
 
     @todo Conflicting comment in sp_head.cc
   */
+
   int reset_lex_and_exec_core(THD *thd, uint *nextp, bool open_tables,
                               sp_instr* instr);
 
@@ -261,19 +286,48 @@ private:
 
 
 /**
-  Call out to some prepared SQL statement.
+  The base class for any stored program instruction that need to get access
+  to a LEX object on execution.
 */
-class sp_instr_stmt : public sp_instr
+
+class sp_lex_instr : public sp_instr
+{
+public:
+  sp_lex_instr(uint ip, sp_pcontext *ctx, LEX *lex, bool is_lex_owner)
+  : sp_instr(ip, ctx), m_lex_keeper(lex, is_lex_owner)
+  {}
+
+  virtual bool is_invalid() const = 0;
+
+  virtual void invalidate() = 0;
+
+protected:
+  sp_lex_keeper m_lex_keeper;
+};
+
+
+/**
+  The class sp_instr_stmt represents almost all conventional SQL-statements.
+*/
+
+class sp_instr_stmt : public sp_lex_instr
 {
   sp_instr_stmt(const sp_instr_stmt &); /**< Prevent use of these */
   void operator=(sp_instr_stmt &);
+
+  /**
+    Flag to tell whether a metadata this instruction depends on
+    has been changed and a LEX object should be reinitialized.
+  */
+  bool m_valid;
 
 public:
 
   LEX_STRING m_query;           ///< For thd->query
 
   sp_instr_stmt(uint ip, sp_pcontext *ctx, LEX *lex)
-    : sp_instr(ip, ctx), m_lex_keeper(lex, true)
+    : sp_lex_instr(ip, ctx, lex, true),
+      m_valid(true)
   {
     m_query.str= 0;
     m_query.length= 0;
@@ -288,18 +342,24 @@ public:
 
   void print(String *str) override;
 
-private:
+  bool is_invalid() const override
+  {
+    return !m_valid;
+  }
 
-  sp_lex_keeper m_lex_keeper;
+  void invalidate() override
+  {
+    m_valid= false;
+  }
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 
-}; // class sp_instr_stmt : public sp_instr
+}; // class sp_instr_stmt : public sp_lex_instr
 
 
-class sp_instr_set : public sp_instr
+class sp_instr_set : public sp_lex_instr
 {
   sp_instr_set(const sp_instr_set &);   /**< Prevent use of these */
   void operator=(sp_instr_set &);
@@ -310,9 +370,8 @@ public:
                const Sp_rcontext_handler *rh,
                uint offset, Item *val,
                LEX *lex, bool lex_resp)
-    : sp_instr(ip, ctx),
-      m_rcontext_handler(rh), m_offset(offset), m_value(val),
-      m_lex_keeper(lex, lex_resp)
+    : sp_lex_instr(ip, ctx, lex, lex_resp),
+      m_rcontext_handler(rh), m_offset(offset), m_value(val)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -321,17 +380,26 @@ public:
 
   void print(String *str) override;
 
+  bool is_invalid() const override
+  {
+    return m_value == nullptr;
+  }
+
+  void invalidate() override
+  {
+    m_value= nullptr;
+  }
+
 protected:
   sp_rcontext *get_rcontext(THD *thd) const;
   const Sp_rcontext_handler *m_rcontext_handler;
   uint m_offset;                ///< Frame offset
   Item *m_value;
-  sp_lex_keeper m_lex_keeper;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
-}; // class sp_instr_set : public sp_instr
+}; // class sp_instr_set : public sp_lex_instr
 
 
 /*
@@ -339,6 +407,7 @@ public:
     DECLARE rec ROW (a INT,b INT);
     SET rec.a= 10;
 */
+
 class sp_instr_set_row_field : public sp_instr_set
 {
   sp_instr_set_row_field(const sp_instr_set_row_field &); // Prevent use of this
@@ -378,6 +447,7 @@ public:
   So sp_instr_set_row_field_by_name searches for ROW fields by name,
   while sp_instr_set_row_field (see above) searches for ROW fields by index.
 */
+
 class sp_instr_set_row_field_by_name : public sp_instr_set
 {
   // Prevent use of this
@@ -405,7 +475,8 @@ public:
 /**
   Set NEW/OLD row field value instruction. Used in triggers.
 */
-class sp_instr_set_trigger_field : public sp_instr
+
+class sp_instr_set_trigger_field : public sp_lex_instr
 {
   sp_instr_set_trigger_field(const sp_instr_set_trigger_field &);
   void operator=(sp_instr_set_trigger_field &);
@@ -415,9 +486,9 @@ public:
   sp_instr_set_trigger_field(uint ip, sp_pcontext *ctx,
                              Item_trigger_field *trg_fld,
                              Item *val, LEX *lex)
-    : sp_instr(ip, ctx),
+    : sp_lex_instr(ip, ctx, lex, true),
       trigger_field(trg_fld),
-      value(val), m_lex_keeper(lex, true)
+      value(val)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -426,15 +497,24 @@ public:
 
   void print(String *str) override;
 
+  bool is_invalid() const override
+  {
+    return value == nullptr;
+  }
+
+  void invalidate() override
+  {
+    value= nullptr;
+  }
+
 private:
   Item_trigger_field *trigger_field;
   Item *value;
-  sp_lex_keeper m_lex_keeper;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
-}; // class sp_instr_trigger_field : public sp_instr
+}; // class sp_instr_trigger_field : public sp_lex_instr
 
 
 /**
@@ -444,21 +524,16 @@ public:
   Even if not all subclasses will use both the normal destination and
   the continuation destination, we put them both here for simplicity.
 */
-class sp_instr_opt_meta : public sp_instr
+
+class sp_instr_opt_meta
 {
 public:
 
   uint m_dest;                  ///< Where we will go
   uint m_cont_dest;             ///< Where continue handlers will go
 
-  sp_instr_opt_meta(uint ip, sp_pcontext *ctx)
-    : sp_instr(ip, ctx),
-      m_dest(0), m_cont_dest(0), m_optdest(0), m_cont_optdest(0)
-  {}
-
-  sp_instr_opt_meta(uint ip, sp_pcontext *ctx, uint dest)
-    : sp_instr(ip, ctx),
-      m_dest(dest), m_cont_dest(0), m_optdest(0), m_cont_optdest(0)
+  explicit sp_instr_opt_meta(uint dest)
+    : m_dest(dest), m_cont_dest(0), m_optdest(0), m_cont_optdest(0)
   {}
 
   virtual ~sp_instr_opt_meta()
@@ -467,17 +542,15 @@ public:
   virtual void set_destination(uint old_dest, uint new_dest)
     = 0;
 
-  uint get_cont_dest() const override;
-
 protected:
 
   sp_instr *m_optdest;          ///< Used during optimization
   sp_instr *m_cont_optdest;     ///< Used during optimization
 
-}; // class sp_instr_opt_meta : public sp_instr
+}; // class sp_instr_opt_meta
 
 
-class sp_instr_jump : public sp_instr_opt_meta
+class sp_instr_jump : public sp_instr, public sp_instr_opt_meta
 {
   sp_instr_jump(const sp_instr_jump &); /**< Prevent use of these */
   void operator=(sp_instr_jump &);
@@ -485,11 +558,11 @@ class sp_instr_jump : public sp_instr_opt_meta
 public:
 
   sp_instr_jump(uint ip, sp_pcontext *ctx)
-    : sp_instr_opt_meta(ip, ctx)
+    : sp_instr(ip, ctx), sp_instr_opt_meta(0)
   {}
 
   sp_instr_jump(uint ip, sp_pcontext *ctx, uint dest)
-    : sp_instr_opt_meta(ip, ctx, dest)
+    : sp_instr(ip, ctx), sp_instr_opt_meta(dest)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -509,9 +582,16 @@ public:
     m_dest= dest;
   }
 
+  uint get_cont_dest() const override
+  {
+    return m_cont_dest;
+  }
+
+
   /**
     Update the destination; used by the optimizer.
   */
+
   void set_destination(uint old_dest, uint new_dest) override
   {
     if (m_dest == old_dest)
@@ -521,10 +601,10 @@ public:
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
-}; // class sp_instr_jump : public sp_instr_opt_meta
+}; // class sp_instr_jump : public sp_instr, public sp_instr_opt_meta
 
 
-class sp_instr_jump_if_not : public sp_instr_jump
+class sp_instr_jump_if_not : public sp_lex_instr, public sp_instr_opt_meta
 {
   sp_instr_jump_if_not(const sp_instr_jump_if_not &); /**< Prevent use of these */
   void operator=(sp_instr_jump_if_not &);
@@ -532,13 +612,15 @@ class sp_instr_jump_if_not : public sp_instr_jump
 public:
 
   sp_instr_jump_if_not(uint ip, sp_pcontext *ctx, Item *i, LEX *lex)
-    : sp_instr_jump(ip, ctx), m_expr(i),
-      m_lex_keeper(lex, true)
+    : sp_lex_instr(ip, ctx, lex, true),
+      sp_instr_opt_meta(0),
+      m_expr(i)
   {}
 
   sp_instr_jump_if_not(uint ip, sp_pcontext *ctx, Item *i, uint dest, LEX *lex)
-    : sp_instr_jump(ip, ctx, dest), m_expr(i),
-      m_lex_keeper(lex, true)
+    : sp_lex_instr(ip, ctx, lex, true),
+      sp_instr_opt_meta(dest),
+      m_expr(i)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -557,22 +639,44 @@ public:
 
   void opt_move(uint dst, List<sp_instr_opt_meta> *ibp) override;
 
+  uint get_cont_dest() const override
+  {
+    return m_cont_dest;
+  }
+
   void set_destination(uint old_dest, uint new_dest) override
   {
-    sp_instr_jump::set_destination(old_dest, new_dest);
+    if (m_dest == old_dest)
+      m_dest= new_dest;
     if (m_cont_dest == old_dest)
       m_cont_dest= new_dest;
+  }
+
+  void backpatch(uint dest, sp_pcontext *dst_ctx) override
+  {
+    /* Calling backpatch twice is a logic flaw in jump resolution. */
+    DBUG_ASSERT(m_dest == 0);
+    m_dest= dest;
+  }
+
+  bool is_invalid() const override
+  {
+    return m_expr == nullptr;
+  }
+
+  void invalidate() override
+  {
+    m_expr= nullptr;
   }
 
 private:
 
   Item *m_expr;                 ///< The condition
-  sp_lex_keeper m_lex_keeper;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
-}; // class sp_instr_jump_if_not : public sp_instr_jump
+}; // class sp_instr_jump_if_not : public sp_lex_instr, public sp_instr_opt_meta
 
 
 class sp_instr_preturn : public sp_instr
@@ -602,7 +706,7 @@ public:
 }; // class sp_instr_preturn : public sp_instr
 
 
-class sp_instr_freturn : public sp_instr
+class sp_instr_freturn : public sp_lex_instr
 {
   sp_instr_freturn(const sp_instr_freturn &);   /**< Prevent use of these */
   void operator=(sp_instr_freturn &);
@@ -611,8 +715,8 @@ public:
 
   sp_instr_freturn(uint ip, sp_pcontext *ctx,
                    Item *val, const Type_handler *handler, LEX *lex)
-    : sp_instr(ip, ctx), m_value(val), m_type_handler(handler),
-      m_lex_keeper(lex, true)
+    : sp_lex_instr(ip, ctx, lex, true),
+      m_value(val), m_type_handler(handler)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -631,12 +735,22 @@ protected:
 
   Item *m_value;
   const Type_handler *m_type_handler;
-  sp_lex_keeper m_lex_keeper;
 
+  bool is_invalid() const override
+  {
+    return m_value == nullptr;
+  }
+
+  void invalidate() override
+  {
+    /* TODO: be careful and check that the object referenced by m_value
+       is not leaked */
+    m_value= nullptr;
+  }
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
-}; // class sp_instr_freturn : public sp_instr
+}; // class sp_instr_freturn : public sp_lex_instr
 
 
 class sp_instr_hpush_jump : public sp_instr_jump
@@ -669,7 +783,11 @@ public:
 
   uint opt_mark(sp_head *sp, List<sp_instr> *leads) override;
 
-  /** Override sp_instr_jump's shortcut; we stop here. */
+
+  /**
+    Override sp_instr_jump's shortcut; we stop here.
+  */
+
   uint opt_shortcut_jump(sp_head *sp, sp_instr *start) override
   {
     return m_ip;
@@ -771,8 +889,11 @@ public:
 }; // class sp_instr_hreturn : public sp_instr_jump
 
 
-/** This is DECLARE CURSOR */
-class sp_instr_cpush : public sp_instr, public sp_cursor
+/**
+  This is DECLARE CURSOR
+*/
+
+class sp_instr_cpush : public sp_lex_instr, public sp_cursor
 {
   sp_instr_cpush(const sp_instr_cpush &); /**< Prevent use of these */
   void operator=(sp_instr_cpush &);
@@ -780,29 +901,52 @@ class sp_instr_cpush : public sp_instr, public sp_cursor
 public:
 
   sp_instr_cpush(uint ip, sp_pcontext *ctx, LEX *lex, uint offset)
-    : sp_instr(ip, ctx), m_lex_keeper(lex, true), m_cursor(offset)
+    : sp_lex_instr(ip, ctx, lex, true), m_cursor(offset),
+      m_metadata_changed(false)
   {}
 
   int execute(THD *thd, uint *nextp) override;
 
   void print(String *str) override;
 
+
   /**
     This call is used to cleanup the instruction when a sensitive
     cursor is closed. For now stored procedures always use materialized
     cursors and the call is not used.
   */
+
   bool cleanup_stmt(bool /*restore_set_statement_vars*/) override
   { return false; }
+
+  bool is_invalid() const override
+  {
+    return m_metadata_changed;
+  }
+
+  void invalidate() override
+  {
+    m_metadata_changed= true;
+  }
+
+  sp_lex_keeper *get_lex_keeper() override
+  {
+    return &m_lex_keeper;
+  }
 private:
 
-  sp_lex_keeper m_lex_keeper;
   uint m_cursor;                /**< Frame offset (for debugging) */
+
+  /**
+    Flag if a statement's metadata has been changed in result of running DDL
+    on depending database objects used in the statement.
+  */
+  bool m_metadata_changed;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
-}; // class sp_instr_cpush : public sp_instr
+}; // class sp_instr_cpush : public sp_lex_instr, public sp_cursor
 
 
 class sp_instr_cpop : public sp_instr
@@ -859,31 +1003,47 @@ private:
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
-}; // class sp_instr_copen : public sp_instr_stmt
+}; // class sp_instr_copen : public sp_instr
 
 
 /**
   Initialize the structure of a cursor%ROWTYPE variable
   from the LEX containing the cursor SELECT statement.
 */
-class sp_instr_cursor_copy_struct: public sp_instr
+
+class sp_instr_cursor_copy_struct: public sp_lex_instr
 {
   /**< Prevent use of these */
   sp_instr_cursor_copy_struct(const sp_instr_cursor_copy_struct &);
   void operator=(sp_instr_cursor_copy_struct &);
-  sp_lex_keeper m_lex_keeper;
   uint m_cursor;
   uint m_var;
+  /**
+    Flag to tell whether metadata has been changed and the LEX object should
+    be reinitialized.
+  */
+  bool m_valid;
 public:
   sp_instr_cursor_copy_struct(uint ip, sp_pcontext *ctx, uint coffs,
                               sp_lex_cursor *lex, uint voffs)
-    : sp_instr(ip, ctx), m_lex_keeper(lex, false),
+    : sp_lex_instr(ip, ctx, lex, false),
       m_cursor(coffs),
-      m_var(voffs)
+      m_var(voffs),
+      m_valid(true)
   {}
   int execute(THD *thd, uint *nextp) override;
   int exec_core(THD *thd, uint *nextp) override;
   void print(String *str) override;
+
+  bool is_invalid() const override
+  {
+    return !m_valid;
+  }
+
+  void invalidate() override
+  {
+    m_valid= true;
+  }
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
@@ -949,10 +1109,11 @@ public:
   static PSI_statement_info psi_info;
 }; // class sp_instr_cfetch : public sp_instr
 
+
 /*
-This class is created for the special fetch instruction
-FETCH GROUP NEXT ROW, used in the user-defined aggregate
-functions
+  This class is created for the special fetch instruction
+  FETCH GROUP NEXT ROW, used in the user-defined aggregate
+  functions
 */
 
 class sp_instr_agg_cfetch : public sp_instr
@@ -1006,15 +1167,14 @@ public:
 }; // class sp_instr_error : public sp_instr
 
 
-class sp_instr_set_case_expr : public sp_instr_opt_meta
+class sp_instr_set_case_expr : public sp_lex_instr, public sp_instr_opt_meta
 {
 public:
 
   sp_instr_set_case_expr(uint ip, sp_pcontext *ctx, uint case_expr_id,
                          Item *case_expr, LEX *lex)
-    : sp_instr_opt_meta(ip, ctx),
-      m_case_expr_id(case_expr_id), m_case_expr(case_expr),
-      m_lex_keeper(lex, true)
+    : sp_lex_instr(ip, ctx, lex, true), sp_instr_opt_meta(0),
+      m_case_expr_id(case_expr_id), m_case_expr(case_expr)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -1027,21 +1187,35 @@ public:
 
   void opt_move(uint dst, List<sp_instr_opt_meta> *ibp) override;
 
+  uint get_cont_dest() const override
+  {
+    return m_cont_dest;
+  }
+
   void set_destination(uint old_dest, uint new_dest) override
   {
     if (m_cont_dest == old_dest)
       m_cont_dest= new_dest;
   }
 
+  bool is_invalid() const override
+  {
+    return m_case_expr == nullptr;
+  }
+
+  void invalidate() override
+  {
+    m_case_expr= nullptr;
+  }
+
 private:
 
   uint m_case_expr_id;
   Item *m_case_expr;
-  sp_lex_keeper m_lex_keeper;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
-}; // class sp_instr_set_case_expr : public sp_instr_opt_meta
+}; // public sp_lex_instr, public sp_instr_opt_meta
 
 #endif
