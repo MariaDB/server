@@ -1691,7 +1691,6 @@ rpl-semi-sync-slave-enabled FALSE
 rpl-semi-sync-slave-kill-conn-timeout 5
 rpl-semi-sync-slave-trace-level 32
 safe-user-create FALSE
-samurai-version-string 10.4.20samurai0.2.99
 secure-auth TRUE
 secure-file-priv (No default value)
 secure-timestamp NO
