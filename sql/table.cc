@@ -8923,7 +8923,14 @@ int TABLE::update_virtual_field(Field *vf)
   DBUG_ENTER("TABLE::update_virtual_field");
   Query_arena backup_arena;
   Counting_error_handler count_errors;
+  Suppress_warnings_error_handler warnings_handler;
+  bool ignore_warnings= pos_in_table_list
+                        && pos_in_table_list->lock_type < TL_FIRST_WRITE;
+
   in_use->push_internal_handler(&count_errors);
+  if (ignore_warnings)
+    in_use->push_internal_handler(&warnings_handler);
+
   /*
     TODO: this may impose memory leak until table flush.
           See comment in
@@ -8936,6 +8943,9 @@ int TABLE::update_virtual_field(Field *vf)
   vf->vcol_info->expr->save_in_field(vf, 0);
   DBUG_RESTORE_WRITE_SET(vf);
   in_use->restore_active_arena(expr_arena, &backup_arena);
+
+  if (ignore_warnings)
+    in_use->pop_internal_handler();
   in_use->pop_internal_handler();
   DBUG_RETURN(count_errors.errors);
 }
