@@ -336,8 +336,10 @@ public:
 };
 
 
-int acl_setrole(THD *thd, const char *rolename, privilege_t access);
-int acl_check_setrole(THD *thd, const char *rolename, privilege_t *access);
+int acl_setrole(THD *thd, const char *rolename, privilege_t access,
+                PRIV_TYPE specified_denies);
+int acl_check_setrole(THD *thd, const char *rolename, privilege_t *access,
+                      PRIV_TYPE *specified_denies);
 int acl_check_set_default_role(THD *thd, const char *host, const char *user,
                                const char *role);
 int acl_set_default_role(THD *thd, const char *host, const char *user,

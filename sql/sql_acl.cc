@@ -801,7 +801,6 @@ public:
   static bool merge_hash(Hash_set<deny_entry> **sink,
                          const Hash_set<deny_entry> &source) 
   {
-    bool sink_was_empty= false;
     if (!*sink)
     {
       *sink= new Hash_set<deny_entry>(
@@ -812,16 +811,14 @@ public:
         return true;
     }
 
-    sink_was_empty= (*sink)->is_empty();
-
     for (size_t i= 0; i < source.size(); i++)
     {
       const deny_entry *entry= source.at(i); 
       deny_entry *sink_entry;
-      if (sink_was_empty || !(sink_entry= get_hash_entry(source, *entry)))
+      if (!(sink_entry= get_hash_entry(**sink, *entry)))
       {
         sink_entry= new deny_entry();
-        if (!entry)
+        if (!sink_entry) //OOM
           return true;
         sink_entry->first.str= my_strdup(PSI_INSTRUMENT_MEM,
                                          entry->first.str, MYF(0));
@@ -833,6 +830,7 @@ public:
         }
         sink_entry->first.length= entry->first.length;
         sink_entry->second= NO_ACL;
+        (*sink)->insert(sink_entry);
       }
       sink_entry->second|= entry->second;
     }
@@ -4919,7 +4917,9 @@ static ACL_USER *find_user_or_anon(const char *host, const char *user, const cha
 
 static int check_user_can_set_role(THD *thd, const char *user,
                                    const char *host, const char *ip,
-                                   const char *rolename, privilege_t *access)
+                                   const char *rolename,
+                                   privilege_t *access,
+                                   PRIV_TYPE *role_denies_active)
 {
   ACL_ROLE *role;
   ACL_USER_BASE *acl_user_base;
@@ -4930,6 +4930,8 @@ static int check_user_can_set_role(THD *thd, const char *user,
   /* clear role privileges */
   mysql_mutex_lock(&acl_cache->lock);
 
+   if (role_denies_active)
+     *role_denies_active= NO_PRIV;
   if (!strcasecmp(rolename, "NONE"))
   {
     /* have to clear the privileges */
@@ -4937,9 +4939,10 @@ static int check_user_can_set_role(THD *thd, const char *user,
     acl_user= find_user_wild(host, user, ip);
     if (acl_user == NULL)
       result= ER_INVALID_CURRENT_USER;
-    else if (access)
+    else
     {
-      *access= acl_user->access;
+      if (access)
+        *access= acl_user->access;
       if (acl_user->denies)
         *access&= ~acl_user->denies->get_global();
     }
@@ -4978,13 +4981,17 @@ static int check_user_can_set_role(THD *thd, const char *user,
   }
 
   if (access)
-  {
     *access = acl_user->access | role->access;
-    /* TODO(cvicentiu) IGNORE_DENIES_PRIV! */
-    if (acl_user->denies)
-      *access&= ~acl_user->denies->get_global();
-    if (role->denies)
-      *access&= ~role->denies->get_global();
+
+  /* TODO(cvicentiu) IGNORE_DENIES_PRIV! */
+  if (acl_user->denies)
+    *access&= ~acl_user->denies->get_global();
+
+  if (role->denies)
+  {
+    *access&= ~role->denies->get_global();
+    if (role_denies_active)
+      *role_denies_active= role->denies->get_specified_denies();
   }
 
 end:
@@ -5039,7 +5046,8 @@ end:
 }
 
 
-int acl_check_setrole(THD *thd, const char *rolename, privilege_t *access)
+int acl_check_setrole(THD *thd, const char *rolename,
+                      privilege_t *access, PRIV_TYPE *specified_denies)
 {
   if (!initialized)
   {
@@ -5048,11 +5056,13 @@ int acl_check_setrole(THD *thd, const char *rolename, privilege_t *access)
   }
 
   return check_user_can_set_role(thd, thd->security_ctx->priv_user,
-           thd->security_ctx->host, thd->security_ctx->ip, rolename, access);
+           thd->security_ctx->host, thd->security_ctx->ip, rolename, access,
+           specified_denies);
 }
 
 
-int acl_setrole(THD *thd, const char *rolename, privilege_t access)
+int acl_setrole(THD *thd, const char *rolename,
+                privilege_t access, PRIV_TYPE specified_denies)
 {
   /* merge the privileges */
   Security_context *sctx= thd->security_ctx;
@@ -5062,8 +5072,6 @@ int acl_setrole(THD *thd, const char *rolename, privilege_t access)
                                   which function needs to fetch master access
                                   and which one needs to set it.
                                   */
-  /* TODO(cvicentiu) denies with roles, need to get a hold of the role here to
-     update specified denies. */
   if (thd->db.str)
     sctx->db_access= acl_get(sctx->host, sctx->ip, sctx->user, thd->db.str, FALSE);
 
@@ -5078,15 +5086,12 @@ int acl_setrole(THD *thd, const char *rolename, privilege_t access)
     /* mark the current role */
     strmake_buf(thd->security_ctx->priv_role, rolename);
   }
-  /* TODO(cvicentiu)
-     Do this in check_setrole as we've already fetched the role
-     there.
+  /*
+    Important that this is set before we call acl_get_effective_deny_mask.
+    specified_denies contains all the deny types from both the user and role.
+    See acl_check_setrole for details how those values are initialized.
   */
-  mysql_mutex_lock(&acl_cache->lock);
-  ACL_ROLE *role= find_acl_role(sctx->priv_role);
-  if (role && role->denies)
-    sctx->set_role_denies(role->denies->get_specified_denies());
-  mysql_mutex_unlock(&acl_cache->lock);
+  sctx->set_role_denies(specified_denies);
   if (sctx->denies_active() & (GLOBAL_PRIV | DATABASE_PRIV))
     sctx->db_access&= ~acl_get_effective_deny_mask(sctx, thd->db);
   return 0;
@@ -5477,7 +5482,7 @@ privilege_t acl_get_effective_deny_mask_impl(const Security_context *ctx,
                                              const LEX_CSTRING &column_name,
                                              enum object_type type)
 {
-  privilege_t result;
+  privilege_t result= NO_ACL;
 
   /*
      Shortcut so we do not take a lock. We assume most connections will
@@ -6087,7 +6092,7 @@ int acl_check_set_default_role(THD *thd, const char *host, const char *user,
     DBUG_RETURN(0);
 #endif
   DBUG_RETURN(check_alter_user(thd, host, user) ||
-              check_user_can_set_role(thd, user, host, NULL, role, NULL));
+              check_user_can_set_role(thd, user, host, NULL, role, NULL, NULL));
 }
 
 int acl_set_default_role(THD *thd, const char *host, const char *user,
@@ -17332,10 +17337,13 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   */
   if (initialized && acl_user->default_rolename.length) {
     privilege_t access(NO_ACL);
+    PRIV_TYPE specified_denies= NO_PRIV;
     int result;
-    result= acl_check_setrole(thd, acl_user->default_rolename.str, &access);
+    result= acl_check_setrole(thd, acl_user->default_rolename.str, &access,
+                              &specified_denies);
     if (!result)
-      result= acl_setrole(thd, acl_user->default_rolename.str, access);
+      result= acl_setrole(thd, acl_user->default_rolename.str, access,
+                          specified_denies);
     if (result)
       thd->clear_error(); // even if the default role was not granted, do not
                           // close the connection
