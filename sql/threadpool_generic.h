@@ -71,6 +71,16 @@ typedef I_P_List<worker_thread_t, I_P_List_adapter<worker_thread_t,
 >
 worker_list_t;
 
+#if defined __linux__
+/*
+  On Linux (only), it is not possible to reliably disable file descriptor
+  monitoring (googling for EPOLL_CTL_DISABLE would give an extensive overview
+  over the problem). Thus, we employ a workarond, for Linux only.
+*/
+#include <atomic>
+#define HAVE_DISABLE_QUEUEING
+#endif
+
 struct TP_connection_generic :public TP_connection
 {
   TP_connection_generic(CONNECT* c);
@@ -96,6 +106,9 @@ struct TP_connection_generic :public TP_connection
   bool bound_to_poll_descriptor;
   int waiting;
   bool fix_group;
+#ifdef HAVE_DISABLE_QUEUEING
+  std::atomic<bool> disable_queue{false};
+#endif
 #ifdef _WIN32
   win_aiosocket win_sock{};
   void init_vio(st_vio *vio) override

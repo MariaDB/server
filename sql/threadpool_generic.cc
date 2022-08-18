@@ -501,6 +501,10 @@ static void queue_put(thread_group_t *thread_group, native_event *ev, int cnt)
   for(int i=0; i < cnt; i++)
   {
     TP_connection_generic *c = (TP_connection_generic *)native_event_get_userdata(&ev[i]);
+#ifdef HAVE_DISABLE_QUEUEING
+    if (c->disable_queue.exchange(true))
+      continue; /* connection already enqueued or being executed */
+#endif
     c->enqueue_time= now;
     thread_group->queues[c->priority].push_back(c);
   }
@@ -1124,6 +1128,11 @@ static void queue_put(thread_group_t *thread_group, TP_connection_generic *conne
 {
   DBUG_ENTER("queue_put");
 
+#ifdef HAVE_DISABLE_QUEUEING
+  if (connection->disable_queue.exchange(true))
+    DBUG_VOID_RETURN;
+#endif
+
   connection->enqueue_time= threadpool_exact_stats?microsecond_interval_timer():pool_timer.current_microtime;
   thread_group->queues[connection->priority].push_back(connection);
 
@@ -1346,8 +1355,12 @@ void TP_pool_generic::resume(TP_connection* c)
 
 int TP_pool_generic::wake(TP_connection *c)
 {
-#ifdef _WIN32
-  TP_connection_generic *connection=(TP_connection_generic *)c;
+#ifdef HAVE_DISABLE_QUEUEING
+  c->state= TP_STATE_INTERRUPTED;
+  add(c);
+  return 0;
+#elif defined(_WIN32)
+  TP_connection_generic *connection= (TP_connection_generic *) c;
   if (CancelIoEx(connection->win_sock.m_handle, &connection->win_sock.m_overlapped))
     return 0;
   DBUG_ASSERT(GetLastError() == ERROR_NOT_FOUND);
@@ -1535,17 +1548,33 @@ int TP_connection_generic::start_io()
         return -1;
     }
   }
+#ifdef HAVE_DISABLE_QUEUEING
+  DBUG_ASSERT(disable_queue);
+  disable_queue= 0;
+#endif
 
   /*
     Bind to poll descriptor if not yet done.
   */
+  int ret;
   if (unlikely(!bound_to_poll_descriptor))
   {
     bound_to_poll_descriptor= true;
-    return io_poll_associate_fd(thread_group->pollfd, fd, this, OPTIONAL_IO_POLL_READ_PARAM);
+    ret= io_poll_associate_fd(thread_group->pollfd, fd, this, OPTIONAL_IO_POLL_READ_PARAM);
   }
-
-  return io_poll_start_read(thread_group->pollfd, fd, this, OPTIONAL_IO_POLL_READ_PARAM);
+  else
+  {
+    ret= io_poll_start_read(thread_group->pollfd, fd, this,
+                            OPTIONAL_IO_POLL_READ_PARAM);
+  }
+#ifdef HAVE_DISABLE_QUEUEING
+  if (ret)
+  {
+    if (disable_queue.exchange(true))
+      ret= 0; /* someone other callback active, let it kill the connection*/
+  }
+#endif
+  return ret;
 }
 
 

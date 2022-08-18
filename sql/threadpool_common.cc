@@ -400,7 +400,7 @@ static dispatch_command_return threadpool_process_request(THD *thd, bool apc_onl
   {
     if (!thd_net_process_apc_requests(thd))
       DBUG_ASSERT(false); // expect some APC here
-    goto end;
+    goto after_do_command;
   }
 
   /*
@@ -438,6 +438,7 @@ resume:
 
     set_thd_idle(thd);
 
+after_do_command:
     if (!has_unread_data(thd))
     {
       /* More info on this debug sync is in sql_parse.cc*/
