@@ -2477,11 +2477,11 @@ xb_write_delta_metadata(const char *filename, const xb_delta_info_t *info)
 /* ================= backup ================= */
 void xtrabackup_io_throttling()
 {
-  if (!xtrabackup_backup)
+  if (!xtrabackup_backup || !xtrabackup_throttle)
     return;
 
   mysql_mutex_lock(&log_sys.mutex);
-  if (xtrabackup_throttle && (io_ticket--) < 0)
+  if (io_ticket-- < 0)
     mysql_cond_wait(&wait_throttle, &log_sys.mutex);
   mysql_mutex_unlock(&log_sys.mutex);
 }
