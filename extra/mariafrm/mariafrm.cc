@@ -1,3 +1,22 @@
+/*
+   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2019, MariaDB
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
+*/
+
+/* Utility to parse frm files and print their DDL */
 
 #define MARIAFRM_VERSION "1.0"
 
@@ -15,7 +34,68 @@
 #include <field.h>
 #include <table.h>
 
+#include <my_getopt.h>
+#include <welcome_copyright_notice.h>   /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
+
 #include "mariafrm.h"
+
+static uint opt_verbose= 0;
+
+static struct my_option my_long_options[]= {
+  {"help", '?', "Display this help and exit.", 0, 0, 0, GET_NO_ARG, NO_ARG,
+  0, 0, 0, 0, 0, 0},
+  {"verbose", 'v',
+  "More verbose output; you can use this multiple times to get even more "
+  "verbose output.",
+  0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"version", 'V', "Output version information and exit.", 0, 0, 0,
+  GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}};
+
+static void print_version(void)
+{
+  printf("%s  Ver %s Distrib %s, for %s (%s)\n", my_progname, MARIAFRM_VERSION,
+      MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
+}
+
+static void usage(void)
+{
+  print_version();
+  puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
+  puts("Generates the table DDL by parsing the FRM file. \n");
+  printf("Usage: %s [OPTIONS] [FILE] [DIRECTORY]\n", my_progname);
+  puts("");
+  my_print_help(my_long_options);
+  //my_print_variables(my_long_options);
+}
+
+static my_bool get_one_option(const struct my_option *opt,
+                              const char *argument, const char *filename)
+{
+  switch (opt->id)
+  {
+  case 'v':
+    opt_verbose++;
+    break;
+  case 'V':
+    print_version();
+    exit(0);
+    break;
+  case '?':
+  case 'I': /* Info */
+    usage();
+    exit(0);
+  }
+  return 0;
+}
+
+static void get_options(int *argc, char ***argv)
+{
+  int ho_error;
+  if ((ho_error= handle_options(argc, argv, my_long_options, get_one_option)))
+    exit(ho_error);
+  return;
+}
 
 int read_file(const char *path,const uchar **frm, size_t *len)
 {
@@ -85,7 +165,6 @@ err_end:
 
 int get_charset(frm_file_data *ffd, uint cs_number)
 {
-  cs_number= 5;
   CHARSET_INFO *c= get_charset(cs_number, MYF(0));
   ffd->table_cs_name= c->cs_name;
   ffd->table_coll_name= c->coll_name;
@@ -354,6 +433,8 @@ void print_column(frm_file_data *ffd, int c_id)
 
 void print_keys(frm_file_data *ffd, uint k_id) 
 {
+  if (ffd->keys[k_id].flags & HA_INVISIBLE_KEY)
+    return;
   bool is_primary=false;
   if (!strcmp("PRIMARY", ffd->keys[k_id].name.str))
   {
@@ -375,9 +456,9 @@ void print_keys(frm_file_data *ffd, uint k_id)
 }
 
 static std::unordered_set<uint> default_cs{
-    32, 11, 1,  63, 26, 51, 57, 59, 4,  40, 36, 95, 3, 97,
-    98, 19, 24, 28, 92, 25, 16, 6,  37, 7,  22, 8,  9, 30,
-    41, 38, 39, 13, 10, 18, 35, 12, 54, 56, 60, 33, 45};
+    1,  3,  4,  6,  7,  8,  9,  10, 11, 12, 13, 16, 18, 19,
+    22, 24, 25, 26, 28, 30, 32, 33, 35, 36, 37, 38, 39, 40,
+    41, 45, 51, 54, 56, 57, 59, 60, 63, 92, 95, 97, 98};
 
 void print_table_options(frm_file_data *ffd)
 {
@@ -416,10 +497,24 @@ int show_create_table(LEX_CSTRING table_name, frm_file_data *ffd)
   return 0;
 }
 
+void display_frm_mariadb_version(frm_file_data *ffd) 
+{
+  printf("%u\n", ffd->mysql_version);
+  uint major = ffd->mysql_version/10000;
+  uint minor= (ffd->mysql_version % 1000) / 100;
+  uint release= ffd->mysql_version % 100;
+  if (major == 0 && minor == 0 && release == 0)
+    printf("< 5.0");
+  else
+    printf("-- FRM created with MariaDB version: %u.%u.%u \n",
+        major, minor, release);
+}
+
 int main(int argc, char **argv)
 {
   MY_INIT(argv[0]);
-  for (int i= 1; i < argc; i++)
+  get_options(&argc, &argv);
+  for (int i= 0; i < argc; i++)
   {
     const char *path= argv[i];
     uchar *frm;
@@ -434,7 +529,10 @@ int main(int argc, char **argv)
     parse(ffd, frm, len);
     LEX_CSTRING table_name= {NULL, 0};
     get_tablename(path, (char**)&table_name.str, &table_name.length);
+    if (opt_verbose > 0)
+      display_frm_mariadb_version(ffd);
     show_create_table(table_name, ffd);
   }
+  my_end(0);
   return 0;
 }
