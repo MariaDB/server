@@ -530,7 +530,6 @@ public:
       entry->first.str= my_strdup(PSI_INSTRUMENT_MEM, key.c_ptr(), MYF(0));
       if (!entry->first.str)
       {
-        my_free(const_cast<char*>(entry->first.str));
         delete entry;
         // TODO(cvicentiu) returning true here doesn't set my_error, leading
         // to protocol error.
@@ -555,6 +554,7 @@ public:
     {
       if ((*hash)->insert(entry))
       {
+        my_free(const_cast<char*>(entry->first.str));
         delete entry;
         return true;
       }
@@ -3012,6 +3012,7 @@ static void free_acl_role(ACL_ROLE *role)
   delete_dynamic(&(role->role_grants));
   delete_dynamic(&(role->parent_grantee));
   free_acl_user_base(role);
+  delete role->initial_denies;
 }
 
 static my_bool check_if_exists(THD *, plugin_ref, void *)
