@@ -1543,7 +1543,7 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
   }
 
   if (!(result= new (thd->mem_root) multi_delete(thd, aux_tables,
-                                                 lex->table_count)))
+                                                 lex->table_count_update)))
   {
     DBUG_RETURN(TRUE);
   }
