@@ -1778,15 +1778,6 @@ public:
     return (lock_tables_state == LTS_LOCKED);
   }
 
-  /**
-    Number of tables which were open by open_tables() and to be locked
-    by lock_tables().
-    Note that we set this member only in some cases, when this value
-    needs to be passed from open_tables() to lock_tables() which are
-    separated by some amount of code.
-  */
-  uint table_count;
-
    /*
     These constructor and destructor serve for creation/destruction
     of Query_tables_list instances which are used as backup storage.
