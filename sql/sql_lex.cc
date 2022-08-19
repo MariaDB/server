@@ -1307,7 +1307,7 @@ void LEX::start(THD *thd_arg)
   wild= 0;
   exchange= 0;
 
-  table_count= 0;
+  table_count_update= 0;
 
   DBUG_VOID_RETURN;
 }
