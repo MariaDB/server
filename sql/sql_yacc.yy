@@ -13391,7 +13391,7 @@ delete_single_table:
               MYSQL_YYABORT;
             Select->table_list.save_and_clear(&Lex->auxiliary_table_list);
             /* Save the number of auxiliary tables */
-            Lex->table_count= 1;
+            Lex->table_count_update= 1;
 
             Lex->query_tables= 0;
             Lex->query_tables_last= &Lex->query_tables;
