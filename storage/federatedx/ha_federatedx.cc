@@ -408,8 +408,12 @@ handlerton* federatedx_hton;
 
 static derived_handler*
 create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived);
+
 static select_handler*
-create_federatedx_select_handler(THD* thd, SELECT_LEX *sel);
+create_federatedx_select_handler(THD *thd, SELECT_LEX *sel_lex,
+                                 SELECT_LEX_UNIT *sel_unit);
+static select_handler *
+create_federatedx_unit_handler(THD *thd, SELECT_LEX_UNIT *sel_unit);
 
 /*
   Federated doesn't need costs.disk_read_ratio as everything is one a remote
@@ -458,6 +462,7 @@ int federatedx_db_init(void *p)
   federatedx_hton->create_derived= create_federatedx_derived_handler;
   federatedx_hton->create_select= create_federatedx_select_handler;
   federatedx_hton->update_optimizer_costs= federatedx_update_optimizer_costs;
+  federatedx_hton->create_unit= create_federatedx_unit_handler;
 
   if (mysql_mutex_init(fe_key_mutex_federatedx,
                        &federatedx_mutex, MY_MUTEX_INIT_FAST))

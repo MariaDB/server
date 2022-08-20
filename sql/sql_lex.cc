@@ -5450,12 +5450,18 @@ void st_select_lex::set_explain_type(bool on_the_fly)
       using_materialization= TRUE;
   }
 
+  if (!on_the_fly)
+    options|= SELECT_DESCRIBE;
+
+  if (pushdown_select)
+  {
+    type= pushed_select_text;
+    return;
+  }
+
   if (master_unit()->thd->lex->first_select_lex() == this)
   {
-    if (pushdown_select)
-      type= pushed_select_text;
-    else
-      type= is_primary ? "PRIMARY" : "SIMPLE";
+    type= is_primary ? "PRIMARY" : "SIMPLE";
   }
   else
   {
@@ -5465,7 +5471,7 @@ void st_select_lex::set_explain_type(bool on_the_fly)
       if (linkage == DERIVED_TABLE_TYPE)
       {
         bool is_pushed_master_unit= master_unit()->derived &&
-	                            master_unit()->derived->pushdown_derived;
+                                    master_unit()->derived->pushdown_derived;
         if (is_pushed_master_unit)
           type= pushed_derived_text;
         else if (is_uncacheable & UNCACHEABLE_DEPENDENT)
@@ -5477,13 +5483,10 @@ void st_select_lex::set_explain_type(bool on_the_fly)
         type= "MATERIALIZED";
       else
       {
-         if (is_uncacheable & UNCACHEABLE_DEPENDENT)
-           type= "DEPENDENT SUBQUERY";
-         else
-         {
-           type= is_uncacheable? "UNCACHEABLE SUBQUERY" :
-                                 "SUBQUERY";
-         }
+        if (is_uncacheable & UNCACHEABLE_DEPENDENT)
+          type= "DEPENDENT SUBQUERY";
+        else
+          type= is_uncacheable ? "UNCACHEABLE SUBQUERY" : "SUBQUERY";
       }
     }
     else
@@ -5506,7 +5509,10 @@ void st_select_lex::set_explain_type(bool on_the_fly)
         {
           type= is_uncacheable ? "UNCACHEABLE UNION": "UNION";
           if (this == master_unit()->fake_select_lex)
-            type= unit_operation_text[master_unit()->common_op()];
+            type=
+                master_unit()->pushdown_unit
+                    ? pushed_unit_operation_text[master_unit()->common_op()]
+                    : unit_operation_text[master_unit()->common_op()];
           /*
             join below may be =NULL when this functions is called at an early
             stage. It will be later called again and we will set the correct
@@ -5524,7 +5530,7 @@ void st_select_lex::set_explain_type(bool on_the_fly)
                 pos_in_table_list=NULL for e.g. post-join aggregation JOIN_TABs.
               */
               if (!(tab->table && tab->table->pos_in_table_list))
-	        continue;
+                continue;
               TABLE_LIST *tbl= tab->table->pos_in_table_list;
               if (tbl->with && tbl->with->is_recursive &&
                   tbl->is_with_table_recursive_reference())
@@ -5541,9 +5547,6 @@ void st_select_lex::set_explain_type(bool on_the_fly)
       }
     }
   }
-
-  if (!on_the_fly)
-    options|= SELECT_DESCRIBE;
 }
 
 
@@ -5967,7 +5970,10 @@ int st_select_lex_unit::save_union_explain(Explain_query *output)
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
     eu->add_select(sl->select_number);
 
-  eu->fake_select_type= unit_operation_text[eu->operation= common_op()];
+  eu->is_pushed_down_to_engine= (pushdown_unit != nullptr);
+  eu->fake_select_type= pushdown_unit ?
+    pushed_unit_operation_text[eu->operation= common_op()] :
+    unit_operation_text[eu->operation= common_op()];
   eu->using_filesort= MY_TEST(global_parameters()->order_list.first);
   eu->using_tmp= union_needs_tmp_table();
 

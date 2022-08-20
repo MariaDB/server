@@ -71,6 +71,7 @@
 #include "derived_handler.h"
 #include "create_tmp_table.h"
 #include "optimizer_defaults.h"
+#include "derived_handler.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -1887,6 +1888,10 @@ int JOIN::optimize()
   join_optimization_state init_state= optimization_state;
   if (select_lex->pushdown_select)
   {
+    if (optimization_state == JOIN::OPTIMIZATION_DONE)
+      return 0;
+    DBUG_ASSERT(optimization_state == JOIN::NOT_OPTIMIZED);
+
     // Do same as JOIN::optimize_inner does:
     fields= &select_lex->item_list;
 
@@ -4980,9 +4985,20 @@ void JOIN::cleanup_item_list(List<Item> &items) const
 
 /**
   @brief
-    Look for provision of the select_handler interface by a foreign engine
+    Look for provision of the select_handler interface by a foreign engine.
+    Must not be called directly, use find_single_select_handler() or
+    find_partial_select_handler() instead.
 
-  @param thd   The thread handler
+  @param
+    thd             The thread handler
+    select_lex      SELECT_LEX object, must be passed in the cases of:
+                    - single select pushdown
+                    - partial pushdown (part of a UNION/EXCEPT/INTERSECT)
+                    Must be NULL in case of entire unit pushdown
+    select_lex_unit SELECT_LEX_UNIT object, must be passed in the cases of:
+                    - entire unit pushdown
+                    - partial pushdown (part of a UNION/EXCEPT/INTERSECT)
+                    Must be NULL in case of single select pushdown
 
   @details
     The function checks that this is an upper level select and if so looks
@@ -4990,18 +5006,21 @@ void JOIN::cleanup_item_list(List<Item> &items) const
     create_select call-back function. If the call of this function returns
     a select_handler interface object then the server will push the select
     query into this engine.
-    This is a responsibility of the create_select call-back function to
-    check whether the engine can execute the query.
+    This function does not check if the select has tables from
+    different engines. Such a check must be done inside each engine's
+    create_select function.
+    Also the engine's create_select function must perform other checks
+    to make sure the engine can execute the query.
 
   @retval the found select_handler if the search is successful
           0  otherwise
 */
 
-select_handler *find_select_handler(THD *thd,
-                                    SELECT_LEX* select_lex)
+static
+select_handler *find_select_handler_inner(THD *thd,
+                                    SELECT_LEX *select_lex,
+                                    SELECT_LEX_UNIT *select_lex_unit)
 {
-  if (select_lex->next_select())
-    return 0;
   if (select_lex->master_unit()->outer_select())
     return 0;
 
@@ -5028,10 +5047,44 @@ select_handler *find_select_handler(THD *thd,
     handlerton *ht= tbl->table->file->partition_ht();
     if (!ht->create_select)
       continue;
-    select_handler *sh= ht->create_select(thd, select_lex);
-    return sh;
+    select_handler *sh= ht->create_select(thd, select_lex, select_lex_unit);
+    if (sh)
+      return sh;
   }
   return 0;
+}
+
+
+/**
+  Wrapper for find_select_handler_inner() for the case of single select
+  pushdown. See more comments at the description of
+  find_select_handler_inner()
+
+*/
+select_handler *find_single_select_handler(THD *thd, SELECT_LEX *select_lex)
+{
+  return find_select_handler_inner(thd, select_lex, nullptr);
+}
+
+
+/**
+  Wrapper for find_select_handler_inner() for the case of partial select
+  pushdown. Partial pushdown means that a unit (i.e. multiple selects combined
+  with UNION/EXCEPT/INTERSECT operators) cannot be pushed down to
+  the storage engine as a whole but some particular selects of this unit can.
+  For example,
+    SELECT a FROM federated.t1  -- can be pushed down to Federated
+    UNION
+    SELECT b FROM local.t2      -- cannot be pushed down, executed locally
+
+  See more comments at the description of find_select_handler_inner()
+
+*/
+select_handler *
+find_partial_select_handler(THD *thd, SELECT_LEX *select_lex,
+                            SELECT_LEX_UNIT *select_lex_unit)
+{
+  return find_select_handler_inner(thd, select_lex, select_lex_unit);
 }
 
 
@@ -5144,7 +5197,7 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
 
   thd->get_stmt_da()->reset_current_row_for_warning(1);
   /* Look for a table owned by an engine with the select_handler interface */
-  select_lex->pushdown_select= find_select_handler(thd, select_lex);
+  select_lex->pushdown_select= find_single_select_handler(thd, select_lex);
 
   if ((err= join->optimize()))
   {
@@ -15723,6 +15776,11 @@ void JOIN_TAB::cleanup()
       }
       DBUG_VOID_RETURN;
     }
+    /*if (table->pos_in_table_list && table->pos_in_table_list->derived)
+    {
+      delete table->pos_in_table_list->derived->derived->dt_handler;
+    }*/
+
     /*
       We need to reset this for next select
       (Tested in part_of_refkey)
@@ -30163,7 +30221,6 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
   DBUG_ENTER("mysql_explain_union");
   bool res= 0;
   SELECT_LEX *first= unit->first_select();
-  bool is_pushed_union= unit->derived && unit->derived->pushdown_derived;
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
   {
@@ -30185,6 +30242,17 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
     if (!(res= unit->prepare(unit->derived, result,
                              SELECT_NO_UNLOCK | SELECT_DESCRIBE)))
     {
+      bool is_pushed_union=
+          (unit->derived && unit->derived->pushdown_derived) ||
+          unit->pushdown_unit;
+      if (unit->pushdown_unit)
+      {
+        create_explain_query_if_not_exists(thd->lex, thd->mem_root);
+        if (!unit->executed)
+          unit->save_union_explain(thd->lex->explain);
+        List<Item> items;
+        result->prepare(items, unit);
+      }
       if (!is_pushed_union)
         res= unit->exec();
     }
@@ -30744,7 +30812,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 
   bool top_level= is_query_topmost(thd);
   enum explainable_cmd_type sel_type= SELECT_CMD;
-  if (top_level)
+  if (top_level && !(query_type & QT_SELECT_ONLY))
     sel_type= get_explainable_cmd_type(thd);
 
   if (sel_type == INSERT_CMD || sel_type == REPLACE_CMD)

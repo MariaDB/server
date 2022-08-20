@@ -375,6 +375,267 @@ SELECT * FROM t10 LEFT JOIN
     WHERE id=2) dt2) dt
   ) ON t10.a=t11.a;
 
+--echo # MDEV-25080: Allow pushdown of queries involving UNIONs
+--echo #   in outer select to foreign engines
+--echo #
+
+connection master;
+
+TRUNCATE TABLE federated.t1;
+TRUNCATE TABLE federated.t2;
+
+INSERT INTO federated.t1 VALUES ('abc'), ('bcd'), ('cde');
+INSERT INTO federated.t2 VALUES ('abc'), ('bcd'), ('cde'), ('def'), ('efg');
+
+CREATE TABLE t3 (a varchar(30)) ENGINE=MyISAM;
+CREATE TABLE t4 (a varchar(30)) ENGINE=MyISAM;
+
+INSERT INTO t3 VALUES ('t3_myisam1'), ('t3_myisam2'), ('t3_myisam3');
+INSERT INTO t4 VALUES ('t4_myisam1'), ('t4_myisam2'), ('t4_myisam3');
+
+--echo # Pushdown of the whole UNION
+SELECT * from federated.t1 UNION SELECT * from federated.t2;
+EXPLAIN SELECT * from federated.t1 UNION SELECT * from federated.t2;
+
+--echo # Pushdown of a part of the UNION
+SELECT * from federated.t1 UNION SELECT * from t3;
+EXPLAIN SELECT * from federated.t1 UNION SELECT * from t3;
+
+SELECT * from federated.t1 UNION ALL SELECT * from federated.t2;
+EXPLAIN SELECT * from federated.t1 UNION ALL SELECT * from federated.t2;
+
+EXPLAIN FORMAT=JSON SELECT * from federated.t1 UNION ALL
+  SELECT * from federated.t2;
+
+ANALYZE SELECT * from federated.t1 UNION ALL SELECT * from federated.t2;
+
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON SELECT * from federated.t1 UNION ALL
+  SELECT * from federated.t2;
+
+SELECT * from federated.t1 EXCEPT SELECT * from federated.t2;
+
+EXPLAIN EXTENDED SELECT * from federated.t1 EXCEPT
+  SELECT * from federated.t2;
+
+EXPLAIN FORMAT=JSON SELECT * from federated.t1 EXCEPT
+  SELECT * from federated.t2;
+
+SELECT * from federated.t1 INTERSECT SELECT * from federated.t2;
+
+EXPLAIN PARTITIONS SELECT * from federated.t1 INTERSECT
+  SELECT * from federated.t2;
+
+EXPLAIN FORMAT=JSON SELECT * from federated.t1 INTERSECT
+  SELECT * from federated.t2;
+
+--echo # More than two SELECTs in a UNIT:
+SELECT * from federated.t1 INTERSECT
+  SELECT * from federated.t2 UNION ALL
+  SELECT * from federated.t2 EXCEPT
+  SELECT * from federated.t1;
+
+EXPLAIN
+  SELECT count(*) from federated.t1 INTERSECT
+  SELECT count(*) from federated.t2 UNION ALL
+  SELECT count(*)+20 from federated.t2 EXCEPT
+  SELECT count(*)+5 from federated.t1;
+  
+EXPLAIN FORMAT=JSON
+  SELECT count(*) from federated.t1 INTERSECT
+  SELECT count(*) from federated.t2 UNION ALL
+  SELECT count(*)+20 from federated.t2 EXCEPT
+  SELECT count(*)+5 from federated.t1;
+  
+ANALYZE
+  SELECT count(*) from federated.t1 INTERSECT
+  SELECT count(*) from federated.t2 UNION
+  SELECT count(*)+20 from federated.t2 EXCEPT
+  SELECT count(*)+5 from federated.t1;
+
+--echo # UNION inside a derived table: the whole derived table must be pushed
+SELECT * FROM 
+  (SELECT * FROM federated.t1 UNION ALL SELECT * FROM federated.t2) q;
+
+EXPLAIN 
+  SELECT * FROM 
+    (SELECT a FROM federated.t1 UNION ALL SELECT * FROM federated.t2) q;
+
+--echo # There is an uncacheable side effect due to fetch into @var,
+--echo # so the UNION cannot be pushed down as a whole.
+--echo # But separate SELECTs can be pushed, and the results are combined
+--echo # at the server side
+
+--disable_warnings
+
+SELECT count(*) FROM federated.t1 UNION
+  SELECT count(*) FROM federated.t1 EXCEPT
+  SELECT count(*)+1 FROM federated.t1
+  INTO @var;
+
+EXPLAIN SELECT count(*) FROM federated.t1 UNION
+  SELECT count(*) FROM federated.t2 EXCEPT
+  SELECT count(*)+1 FROM federated.t1
+  INTO @var;
+
+EXPLAIN FORMAT=JSON SELECT count(*) FROM federated.t1 UNION
+  SELECT count(*) FROM federated.t2 EXCEPT
+  SELECT count(*)+2 FROM federated.t2
+  INTO @var;
+
+--enable_warnings
+
+--echo # Prepared statements
+PREPARE stmt FROM "SELECT * from federated.t1 INTERSECT
+  SELECT * from federated.t2 UNION ALL
+  SELECT * from federated.t2 EXCEPT
+  SELECT * from federated.t1";
+
+EXECUTE stmt;
+EXECUTE stmt;
+EXECUTE stmt;
+
+PREPARE stmt FROM "EXPLAIN SELECT * from federated.t1 INTERSECT
+  SELECT * from federated.t2 UNION ALL
+  SELECT * from federated.t2 EXCEPT
+  SELECT * from federated.t1";
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+--echo # UNIONs of mixed Federated/MyISAM tables, pushing parts of UNIONs
+SELECT * FROM federated.t1 UNION SELECT * FROM t3;
+EXPLAIN SELECT * FROM federated.t1 UNION SELECT * FROM t3;
+
+SELECT * FROM federated.t1 UNION ALL
+  SELECT * FROM t3 EXCEPT
+  SELECT * FROM federated.t2;
+EXPLAIN SELECT * FROM federated.t1 UNION ALL
+  SELECT * FROM t3 EXCEPT
+  SELECT * FROM federated.t2;
+
+SELECT * FROM t3 UNION ALL
+  SELECT * FROM federated.t1 EXCEPT
+  SELECT * FROM t4 INTERSECT
+  SELECT * FROM federated.t2;
+EXPLAIN SELECT * FROM t3 UNION ALL
+  SELECT * FROM federated.t1 EXCEPT
+  SELECT * FROM t4 INTERSECT
+  SELECT * FROM federated.t2;
+
+SELECT * FROM federated.t2 UNION ALL
+  SELECT * FROM t3 EXCEPT
+  SELECT * FROM t4 INTERSECT
+  SELECT * FROM federated.t1;
+EXPLAIN SELECT * FROM federated.t2 UNION ALL
+  SELECT * FROM t3 EXCEPT
+  SELECT * FROM t4 INTERSECT
+  SELECT * FROM federated.t1;
+
+--echo # Parenthesis must not prevent the whole UNIONs pushdown
+EXPLAIN (SELECT * FROM federated.t1 UNION
+  SELECT * FROM federated.t2) UNION ALL
+  SELECT * FROM federated.t1;
+
+(SELECT * FROM federated.t1 UNION
+  SELECT * FROM federated.t2) UNION ALL
+  SELECT * FROM federated.t1;
+
+EXPLAIN (SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2)
+  UNION ALL (SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2);
+
+(SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2) UNION ALL
+  (SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2);
+  
+--echo # Union of tables containing different INT data types
+connection slave;
+CREATE TABLE federated.t11 (a smallint(6) NOT NULL);
+INSERT INTO federated.t11 VALUES (-32678), (-1), (0);
+
+CREATE TABLE federated.t12 (a int(10) UNSIGNED NOT NULL);
+INSERT INTO federated.t12 VALUES (0), (1), (32767);
+
+connection master;
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t11 (a smallint(6) NOT NULL)
+ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t11';
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t12 (a int(10) UNSIGNED NOT NULL)
+ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t12';
+
+--echo # Entire UNION pushdown
+SELECT a FROM federated.t12 UNION ALL SELECT a FROM federated.t11;
+EXPLAIN SELECT a FROM federated.t12 UNION ALL SELECT a FROM federated.t11;
+
+SELECT a FROM federated.t11 UNION SELECT a FROM federated.t12;
+
+--echo # Partial pushdown of SELECTs composing the UNION
+SELECT a FROM federated.t12 UNION SELECT a FROM federated.t11 UNION SELECT 123;
+EXPLAIN
+  SELECT a FROM federated.t12 UNION SELECT a FROM federated.t11
+  UNION SELECT 123;
+
+SELECT a FROM federated.t12 EXCEPT
+  SELECT 1 UNION ALL
+  SELECT a FROM federated.t11 EXCEPT
+  SELECT 0;
+
+--echo # Union of tables containing different string data types
+connection slave;
+CREATE TABLE federated.t13 (a CHAR(6));
+INSERT INTO federated.t13 VALUES ('t13abc'), ('t13xx'), ('common');
+
+CREATE TABLE federated.t14 (a VARCHAR(8));
+INSERT INTO federated.t14 VALUES ('t14abcde'), ('t14xyzzz'), ('common');
+
+connection master;
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t13 (a CHAR(6))
+ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t13';
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t14 (a VARCHAR(8))
+ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t14';
+
+SELECT * FROM federated.t13 UNION SELECT * FROM federated.t14;
+EXPLAIN SELECT * FROM federated.t13 UNION SELECT * FROM federated.t14;
+
+SELECT * FROM federated.t14 UNION ALL SELECT * FROM federated.t13;
+
+SELECT * FROM federated.t14 UNION
+  SELECT * FROM federated.t13 UNION
+  SELECT '123456789000';
+  
+EXPLAIN SELECT * FROM federated.t14 UNION
+  SELECT * FROM federated.t13 UNION
+  SELECT '123456789000';
+
+SELECT * FROM federated.t13 UNION
+  SELECT '123456789000' UNION
+  SELECT * FROM federated.t14;
+
+# Cleanup
+connection master;
+DROP TABLES federated.t1, federated.t2, t3, t4, federated.t11, federated.t12,
+  federated.t13, federated.t14;
+
+connection slave;
+DROP TABLES federated.t1, federated.t2, federated.t11, federated.t12,
+  federated.t13, federated.t14;
+
+connection default;
+
 set global federated_pushdown=0;
 
 source include/federated_cleanup.inc;
