@@ -901,22 +901,6 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     first_select->mark_as_belong_to_derived(derived);
 
   derived->dt_handler= derived->find_derived_handler(thd);
-  if (derived->dt_handler)
-  {
-    char query_buff[4096];
-    String derived_query(query_buff, sizeof(query_buff), thd->charset());
-    derived_query.length(0);
-    derived->derived->print(&derived_query,
-                            enum_query_type(QT_VIEW_INTERNAL | 
-                                            QT_ITEM_ORIGINAL_FUNC_NULLIF |
-                                            QT_PARSABLE));
-    if (!thd->make_lex_string(&derived->derived_spec,
-                              derived_query.ptr(), derived_query.length()))
-    {
-      delete derived->dt_handler;
-      derived->dt_handler= NULL;
-    }
-  }
 
 exit:
   /* Hide "Unknown column" or "Unknown function" error */

@@ -407,8 +407,11 @@ handlerton* federatedx_hton;
 
 static derived_handler*
 create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived);
+
 static select_handler*
-create_federatedx_select_handler(THD* thd, SELECT_LEX *sel);
+create_federatedx_select_handler(THD *thd, SELECT_LEX *sel_lex);
+static select_handler *
+create_federatedx_unit_handler(THD *thd, SELECT_LEX_UNIT *sel_unit);
 
 /*
   Initialize the federatedx handler.
@@ -442,6 +445,7 @@ int federatedx_db_init(void *p)
   federatedx_hton->flags= HTON_ALTER_NOT_SUPPORTED;
   federatedx_hton->create_derived= create_federatedx_derived_handler;
   federatedx_hton->create_select= create_federatedx_select_handler;
+  federatedx_hton->create_unit= create_federatedx_unit_handler;
 
   if (mysql_mutex_init(fe_key_mutex_federatedx,
                        &federatedx_mutex, MY_MUTEX_INIT_FAST))

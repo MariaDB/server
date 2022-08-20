@@ -36,9 +36,18 @@
 */
 
 
-select_handler::select_handler(THD *thd_arg, handlerton *ht_arg)
- : thd(thd_arg), ht(ht_arg), table(NULL),
-   is_analyze(thd_arg->lex->analyze_stmt)
+select_handler::select_handler(THD *thd_arg, handlerton *ht_arg,
+                               SELECT_LEX *sel_lex)
+  : select_lex(sel_lex), lex_unit(nullptr), table(nullptr),
+    thd(thd_arg), ht(ht_arg), result(sel_lex->join->result),
+    is_analyze(thd_arg->lex->analyze_stmt)
+{}
+
+select_handler::select_handler(THD *thd_arg, handlerton *ht_arg,
+                               SELECT_LEX_UNIT *sel_unit)
+  : select_lex(nullptr), lex_unit(sel_unit), table(nullptr),
+    thd(thd_arg), ht(ht_arg), result(sel_unit->result),
+    is_analyze(thd_arg->lex->analyze_stmt)
 {}
 
 
@@ -49,13 +58,17 @@ select_handler::~select_handler()
 }
 
 
-TABLE *select_handler::create_tmp_table(THD *thd, SELECT_LEX *select)
+TABLE *select_handler::create_tmp_table(THD *thd)
 {
   DBUG_ENTER("select_handler::create_tmp_table");
   List<Item> types;
   TMP_TABLE_PARAM tmp_table_param;
-  if (select->master_unit()->join_union_item_types(thd, types, 1))
+  
+  SELECT_LEX_UNIT *u= select_lex? select_lex->master_unit() : lex_unit;
+
+  if (u->join_union_item_types(thd, types, 1))
     DBUG_RETURN(NULL);
+
   tmp_table_param.init();
   tmp_table_param.field_count= types.elements;
 
@@ -74,7 +87,7 @@ bool select_handler::prepare()
     Some engines (e.g. XPand) initialize "table" on their own.
     So we need to create a temporary table only if "table" is NULL.
   */
-  if (!table && !(table= create_tmp_table(thd, select)))
+  if (!table && !(table= create_tmp_table(thd)))
     DBUG_RETURN(true);
   DBUG_RETURN(table->fill_item_list(&result_columns));
 }
@@ -91,22 +104,19 @@ bool select_handler::send_result_set_metadata()
     DBUG_RETURN(false);
   }
   #endif /* WITH_WSREP */
-  if (select->join->result->send_result_set_metadata(result_columns,
-                                         Protocol::SEND_NUM_ROWS |
-                                         Protocol::SEND_EOF))
-    DBUG_RETURN(true);
-
-  DBUG_RETURN(false);
+  
+  DBUG_RETURN(result->send_result_set_metadata(
+        result_columns, Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF));
 }
 
 
 bool select_handler::send_data()
 {
-  DBUG_ENTER("Pushdown_select::send_data");
-
-  if (select->join->result->send_data(result_columns))
+  DBUG_ENTER("select_handler::send_data");
+  int res= result->send_data(result_columns);
+  // "-1" means "duplicate when executing UNION"
+  if (res && res != -1)
     DBUG_RETURN(true);
-
   DBUG_RETURN(false);
 }
 
@@ -114,10 +124,7 @@ bool select_handler::send_data()
 bool select_handler::send_eof()
 {
   DBUG_ENTER("select_handler::send_eof");
-
-  if (select->join->result->send_eof())
-    DBUG_RETURN(true);
-  DBUG_RETURN(false);
+  DBUG_RETURN(result->send_eof());
 }
 
 

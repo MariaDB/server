@@ -30,25 +30,8 @@
 class select_handler
 {
  public:
-  THD *thd;
-  handlerton *ht;
-
-  SELECT_LEX *select;  // Select to be excuted
-
-  /*
-    Temporary table where all results should be stored in record[0]
-    The table has a field for every item from the select_lex::item_list.
-    The table is actually never filled. Only its record buffer is used.
-  */
-  TABLE *table;
-  List<Item> result_columns;
-
-  bool is_analyze;
-
-  bool send_result_set_metadata();
-  bool send_data();
-
-  select_handler(THD *thd_arg, handlerton *ht_arg);
+  select_handler(THD *thd_arg, handlerton *ht_arg, SELECT_LEX *sel_lex);
+  select_handler(THD *thd_arg, handlerton *ht_arg, SELECT_LEX_UNIT *sel_unit);
 
   virtual ~select_handler();
 
@@ -56,9 +39,26 @@ class select_handler
 
   virtual bool prepare();
 
-  static TABLE *create_tmp_table(THD *thd, SELECT_LEX *sel);
+  /*
+    Select_handler processes either a single SELECT or a UNIT
+    (multiple SELECTs combined with UNION/EXCEPT/INTERSECT).
+    Only one of the following two class members is initialized while another
+    one is strictly NULL. In case of a single SELECT select_lex is initialized
+    and lex_unit == NULL, in case of UNIT select_lex == NULL
+    and lex_unit is initialized
+  */
+  SELECT_LEX *select_lex;      // Single select to be executed
+  SELECT_LEX_UNIT *lex_unit;   // Unit to be executed
+
+  /*
+    Temporary table where all results should be stored in record[0]
+    The table has a field for every item from the select_lex::item_list.
+    The table is actually never filled. Only its record buffer is used.
+  */
+  TABLE *table;
 
 protected:
+
   /*
     Functions to scan the select result set.
     All these returns 0 if ok, error code in case of error.
@@ -80,7 +80,19 @@ protected:
   /* Report errors */
   virtual void print_error(int error, myf errflag);
 
+  bool send_result_set_metadata();
+  bool send_data();
   bool send_eof();
+
+  TABLE *create_tmp_table(THD *thd);
+
+  THD *thd;
+  handlerton *ht;
+
+  select_result *result;        // Object receiving the retrieved data
+  List<Item> result_columns;
+
+  bool is_analyze;
 };
 
 #endif /* SELECT_HANDLER_INCLUDED */

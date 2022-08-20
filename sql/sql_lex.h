@@ -37,6 +37,7 @@
 #include "json_table.h"               // Json_table_column
 #include "sql_schema.h"
 #include "table.h"
+#include "select_handler.h"
 
 /* Used for flags of nesting constructs */
 #define SELECT_NESTING_MAP_SIZE 64
@@ -871,7 +872,7 @@ public:
   st_select_lex_unit()
     : union_result(NULL), table(NULL),  result(NULL), fake_select_lex(NULL),
       last_procedure(NULL),cleaned(false), bag_set_op_optimized(false),
-      have_except_all_or_intersect_all(false)
+      have_except_all_or_intersect_all(false), pushdown_unit(NULL)
   {
   }
 
@@ -934,6 +935,10 @@ public:
   bool bag_set_op_optimized:1;
   bool optimize_started:1;
   bool have_except_all_or_intersect_all:1;
+
+  /* The object used to organize execution of the UNIT by a foreign engine */
+  select_handler *pushdown_unit;
+
   /**
      TRUE if the unit contained TVC at the top level that has been wrapped
      into SELECT:
@@ -1043,6 +1048,7 @@ public:
   friend class st_select_lex;
 
 private:
+  bool exec_inner();
   bool is_derived_eliminated() const;
 };
 
@@ -1138,8 +1144,6 @@ public:
   TABLE_LIST *embedding;          /* table embedding to the above list   */
   table_value_constr *tvc;
 
-  /* The interface employed to execute the select query by a foreign engine */
-  select_handler *select_h;
   /* The object used to organize execution of the query by a foreign engine */
   select_handler *pushdown_select;
   List<TABLE_LIST> *join_list;    /* list for the currently parsed join  */
@@ -1595,8 +1599,6 @@ public:
                                        Item_transformer transformer,
                                        uchar *arg);
   Item *pushdown_from_having_into_where(THD *thd, Item *having);
-
-  select_handler *find_select_handler(THD *thd);
 
   bool is_set_op()
   {

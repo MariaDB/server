@@ -334,6 +334,7 @@ public:
 /////////////////////////////////////////////////////////////////////////////
 
 extern const char *unit_operation_text[4];
+extern const char *pushed_unit_operation_text[4];
 extern const char *pushed_derived_text;
 extern const char *pushed_select_text;
 
@@ -348,7 +349,7 @@ class Explain_union : public Explain_node
 public:
   Explain_union(MEM_ROOT *root, bool is_analyze) : 
     Explain_node(root), union_members(PSI_INSTRUMENT_MEM),
-    is_recursive_cte(false),
+    is_recursive_cte(false), is_pushed_down_to_engine(false),
     fake_select_lex_explain(root, is_analyze)
   {}
 
@@ -379,13 +380,19 @@ public:
   }
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
-  void print_explain_json(Explain_query *query, Json_writer *writer, 
+  void print_explain_json(Explain_query *query, Json_writer *writer,
                           bool is_analyze, bool no_tmp_tbl);
+  void print_explain_json_regular(Explain_query *query, Json_writer *writer,
+                          bool is_analyze, bool no_tmp_tbl);
+  void print_explain_json_pushed_down(Explain_query *query,
+                                      Json_writer *writer, bool is_analyze,
+                                      bool no_tmp_tbl);
 
   const char *fake_select_type;
   bool using_filesort;
   bool using_tmp;
   bool is_recursive_cte;
+  bool is_pushed_down_to_engine;
   
   /*
     Explain data structure for "fake_select_lex" (i.e. for the degenerate
@@ -404,6 +411,10 @@ public:
   }
 private:
   uint make_union_table_name(char *buf);
+  int print_explain_regular(Explain_query *query, select_result_sink *output,
+                            uint8 explain_flags, bool is_analyze);
+  int print_explain_pushed_down(select_result_sink *output,
+                                uint8 explain_flags, bool is_analyze);
   
   Table_access_tracker fake_select_lex_tracker;
   /* This one is for reading after ORDER BY */
