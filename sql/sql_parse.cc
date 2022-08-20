@@ -8251,8 +8251,6 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   ptr->mdl_type= mdl_type;
   ptr->table_options= table_options;
   ptr->updating=    MY_TEST(table_options & TL_OPTION_UPDATING);
-  /* TODO: remove TL_OPTION_FORCE_INDEX as it looks like it's not used */
-  ptr->force_index= MY_TEST(table_options & TL_OPTION_FORCE_INDEX);
   ptr->ignore_leaves= MY_TEST(table_options & TL_OPTION_IGNORE_LEAVES);
   ptr->sequence=      MY_TEST(table_options & TL_OPTION_SEQUENCE);
   ptr->derived=	    table->sel;
