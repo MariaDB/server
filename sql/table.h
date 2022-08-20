@@ -1470,6 +1470,9 @@ public:
   */
   bool force_index;
 
+  /* Flag set when the statement contains FORCE INDEX FOR JOIN */
+  bool force_index_join;
+
   /**
     Flag set when the statement contains FORCE INDEX FOR ORDER BY
     See TABLE_LIST::process_index_hints().
@@ -2565,9 +2568,8 @@ struct TABLE_LIST
   uint		outer_join;		/* Which join type */
   uint		shared;			/* Used in multi-upd */
   bool          updatable;		/* VIEW/TABLE can be updated now */
-  bool		straight;		/* optimize with prev table */
+  bool          straight;		/* optimize with prev table */
   bool          updating;               /* for replicate-do/ignore table */
-  bool		force_index;		/* prefer index over table scan */
   bool          ignore_leaves;          /* preload only non-leaf nodes */
   bool          crashed;                /* Table was found crashed */
   bool          skip_locked;            /* Skip locked in view defination */

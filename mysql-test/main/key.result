@@ -644,7 +644,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	a	5	NULL	6	
 SHOW STATUS LIKE 'Last_query_cost';
 Variable_name	Value
-Last_query_cost	11.003515
+Last_query_cost	8.506592
 DROP TABLE t1;
 #
 # MDEV-21480: Unique key using ref access though eq_ref access can be used
@@ -688,3 +688,43 @@ c	c
 9	10
 10	11
 drop table t1,t2;
+#
+# Check some issues with FORCE INDEX and full index scans
+# (Does FORCE INDEX force an index scan)
+#
+create table t1 (a int primary key, b int, c int, d int,
+key k1 (b) using BTREE, key k2 (c,d) using btree) engine=heap;
+insert into t1 select seq as a, seq as b, seq as c, seq as d
+from seq_1_to_100;
+explain select sum(a+b) from t1 force index (k1) where b>0 and a=99;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	k1	k1	5	NULL	100	Using where
+explain select sum(a+b) from t1 force index (k1) where a>0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+explain select sum(a+b) from t1 force index (k1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
+explain select sum(a+b) from t1 force index for join (k1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
+explain select sum(a+b) from t1 force index for order by (k1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
+explain select sum(a+b) from t1 force index (k1,k2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
+select sum(a+b) from t1 force index (k1);
+sum(a+b)
+10100
+explain select sum(a+b) from t1 force index (primary);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
+select sum(a+b) from t1 force index (primary);
+sum(a+b)
+10100
+explain select straight_join sum(a+b) from seq_1_to_10 as s, t1 force index (k2) where t1.a=s.seq;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	s	index	PRIMARY	PRIMARY	8	NULL	10	Using index
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
+drop table t1;

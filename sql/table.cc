@@ -8584,17 +8584,18 @@ bool TABLE_LIST::process_index_hints(TABLE *tbl)
       index_group[INDEX_HINT_USE].merge(index_group[INDEX_HINT_FORCE]);
     }
 
-    /*
-      TODO: get rid of tbl->force_index (on if any FORCE INDEX is specified)
-      and create tbl->force_index_join instead.
-      Then use the correct force_index_XX instead of the global one.
-    */
-    if (!index_join[INDEX_HINT_FORCE].is_clear_all() ||
-        tbl->force_index_group || tbl->force_index_order)
+    if (!index_join[INDEX_HINT_FORCE].is_clear_all())
     {
-      tbl->force_index= TRUE;
+      tbl->force_index_join= TRUE;
       index_join[INDEX_HINT_USE].merge(index_join[INDEX_HINT_FORCE]);
     }
+
+    /*
+      TODO: get rid of tbl->force_index (on if any FORCE INDEX is specified)
+      Use the correct force_index_XX in all places instead of the global one.
+    */
+    tbl->force_index= (tbl->force_index_order | tbl->force_index_group |
+                       tbl->force_index_join);
 
     /* apply USE INDEX */
     if (!index_join[INDEX_HINT_USE].is_clear_all() || have_empty_use_join)

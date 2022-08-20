@@ -606,3 +606,24 @@ EXPLAIN SELECT t1.c, t2.c FROM t1, t2 WHERE t1.b=t2.a and t1.c=t2.b;
 SELECT t1.c, t2.c FROM t1, t2 WHERE t1.b=t2.a and t1.c=t2.b;
 
 drop table t1,t2;
+
+--echo #
+--echo # Check some issues with FORCE INDEX and full index scans
+--echo # (Does FORCE INDEX force an index scan)
+--echo #
+
+create table t1 (a int primary key, b int, c int, d int,
+key k1 (b) using BTREE, key k2 (c,d) using btree) engine=heap;
+insert into t1 select seq as a, seq as b, seq as c, seq as d
+from seq_1_to_100;
+explain select sum(a+b) from t1 force index (k1) where b>0 and a=99;
+explain select sum(a+b) from t1 force index (k1) where a>0;
+explain select sum(a+b) from t1 force index (k1);
+explain select sum(a+b) from t1 force index for join (k1);
+explain select sum(a+b) from t1 force index for order by (k1);
+explain select sum(a+b) from t1 force index (k1,k2);
+select sum(a+b) from t1 force index (k1);
+explain select sum(a+b) from t1 force index (primary);
+select sum(a+b) from t1 force index (primary);
+explain select straight_join sum(a+b) from seq_1_to_10 as s, t1 force index (k2) where t1.a=s.seq;
+drop table t1;
