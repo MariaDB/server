@@ -32,6 +32,9 @@
 #include "sql_cte.h"
 #include "item_windowfunc.h"
 
+select_handler *find_partial_select_handler(THD *thd, SELECT_LEX *select_lex,
+                                            SELECT_LEX_UNIT *lex_unit);
+
 bool mysql_union(THD *thd, LEX *lex, select_result *result,
                  SELECT_LEX_UNIT *unit, ulonglong setup_tables_done_option)
 {
@@ -1282,6 +1285,94 @@ bool init_item_int(THD* thd, Item_int* &item)
   return true;
 }
 
+/**
+  @brief
+    Recursive subroutine to be called from find_unit_handler() (see below).
+    Must not be called directly, only from find_unit_handler().
+*/
+static select_handler *find_unit_handler_for_lex(THD *thd,
+                                                 SELECT_LEX *sel_lex,
+                                                 SELECT_LEX_UNIT* unit)
+{
+  if (!(sel_lex->join))
+    return nullptr;
+  for (TABLE_LIST *tbl= sel_lex->join->tables_list; tbl; tbl= tbl->next_local)
+  {
+    if (!tbl->table)
+      continue;
+    if (tbl->derived)
+    {
+      /*
+        Skip derived table for now as they will be checked
+        in the subsequent loop
+      */
+      continue;
+    }
+    handlerton *ht= tbl->table->file->partition_ht();
+    if (!ht->create_unit)
+      continue;
+    select_handler *sh= ht->create_unit(thd, unit);
+    if (sh)
+      return sh;
+  }
+
+  for (SELECT_LEX_UNIT *un= sel_lex->first_inner_unit(); un;
+       un= un->next_unit())
+  {
+    for (SELECT_LEX *sl= un->first_select(); sl; sl= sl->next_select())
+    {
+      select_handler *uh= find_unit_handler_for_lex(thd, sl, unit);
+      if (uh)
+        return uh;
+    }
+  }
+  return nullptr;
+}
+
+
+/**
+  @brief
+    Look for provision of the select_handler interface by a foreign engine.
+    This interface must support processing UNITs (multiple SELECTs combined
+    with UNION/EXCEPT/INTERSECT operators)
+
+  @param
+    thd   The thread handler
+    unit  UNIT (one or more SELECTs combined with UNION/EXCEPT/INTERSECT
+
+  @details
+    The function checks that this is an upper level UNIT and if so looks
+    through its tables searching for one whose handlerton owns a
+    create_unit call-back function. If the call of this function returns
+    a select_handler interface object then the server will push the
+    query into this engine.
+    This is a responsibility of the create_unit call-back function to
+    check whether the engine can execute the query.
+
+    The function recursively scans subqueries (see find_unit_handler_for_lex())
+    to get down to real tables and process queries like this:
+      (SELECT a FROM t1 UNION SELECT b FROM t2) UNION
+        (SELECT c FROM t3 UNION select d FROM t4)
+
+  @retval the found select_handler if the search is successful
+          nullptr  otherwise
+*/
+
+static select_handler *find_unit_handler(THD *thd,
+                                         SELECT_LEX_UNIT *unit)
+{
+  if (unit->outer_select())
+    return nullptr;
+
+  for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
+  {
+    select_handler *uh= find_unit_handler_for_lex(thd, sl, unit);
+    if (uh)
+      return uh;
+  }
+  return nullptr;
+}
+
 
 bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
                                  select_result *sel_result,
@@ -1874,6 +1965,13 @@ cont:
     }
   }
 
+  pushdown_unit= find_unit_handler(thd, this);
+  if (pushdown_unit)
+  {
+    if (unlikely(pushdown_unit->prepare()))
+      DBUG_RETURN(TRUE);
+  }
+
   thd->lex->current_select= lex_select_save;
 
   DBUG_RETURN(saved_error || thd->is_fatal_error);
@@ -2133,6 +2231,15 @@ bool st_select_lex_unit::optimize()
           (lim.is_unlimited() || sl->braces) ?
           sl->options & ~OPTION_FOUND_ROWS : sl->options | found_rows_for_union;
 
+        if (!this->pushdown_unit)
+        {
+          /*
+            If the UNIT hasn't been pushed down to the engine as a whole,
+            try to push down partial SELECTs of this UNIT separately
+          */
+          sl->pushdown_select= find_partial_select_handler(thd, sl, this);
+        }
+
 	saved_error= sl->join->optimize();
       }
 
@@ -2152,16 +2259,30 @@ bool st_select_lex_unit::optimize()
 
 bool st_select_lex_unit::exec()
 {
+  DBUG_ENTER("st_select_lex_unit::exec");
+  if (executed && !uncacheable && !describe)
+    DBUG_RETURN(FALSE);
+
+  if (pushdown_unit)
+  {
+    create_explain_query_if_not_exists(thd->lex, thd->mem_root);
+    if (!executed)
+      save_union_explain(thd->lex->explain);
+    DBUG_RETURN(pushdown_unit->execute());
+  }
+  DBUG_RETURN(exec_inner());
+}
+
+
+bool st_select_lex_unit::exec_inner()
+{
   SELECT_LEX *lex_select_save= thd->lex->current_select;
   SELECT_LEX *select_cursor=first_select();
   ulonglong add_rows=0;
   ha_rows examined_rows= 0;
   bool first_execution= !executed;
   bool was_executed= executed;
-  DBUG_ENTER("st_select_lex_unit::exec");
 
-  if (executed && !uncacheable && !describe)
-    DBUG_RETURN(FALSE);
   executed= 1;
   if (!(uncacheable & ~UNCACHEABLE_EXPLAIN) && item &&
       !item->with_recursive_reference)
@@ -2175,7 +2296,7 @@ bool st_select_lex_unit::exec()
     save_union_explain(thd->lex->explain);
 
   if (unlikely(saved_error))
-    DBUG_RETURN(saved_error);
+    return saved_error;
 
   if (union_result)
   {
@@ -2192,6 +2313,7 @@ bool st_select_lex_unit::exec()
   {
     if (!fake_select_lex && !(with_element && with_element->is_recursive))
       union_result->cleanup();
+
     for (SELECT_LEX *sl= select_cursor; sl; sl= sl->next_select())
     {
       ha_rows records_at_start= 0;
@@ -2251,8 +2373,8 @@ bool st_select_lex_unit::exec()
 	{
           // This is UNION DISTINCT, so there should be a fake_select_lex
           DBUG_ASSERT(fake_select_lex != NULL);
-	  if (unlikely(table->file->ha_disable_indexes(HA_KEY_SWITCH_ALL)))
-	    DBUG_RETURN(TRUE);
+          if (unlikely(table->file->ha_disable_indexes(HA_KEY_SWITCH_ALL)))
+            return true;
 	  table->no_keyread=1;
 	}
 	if (likely(!saved_error))
@@ -2262,14 +2384,14 @@ bool st_select_lex_unit::exec()
 	  if (union_result->flush())
 	  {
 	    thd->lex->current_select= lex_select_save;
-	    DBUG_RETURN(1);
+	    return true;
 	  }
 	}
       }
       if (unlikely(saved_error))
       {
 	thd->lex->current_select= lex_select_save;
-	DBUG_RETURN(saved_error);
+	return saved_error;
       }
       if (fake_select_lex != NULL)
       {
@@ -2278,7 +2400,7 @@ bool st_select_lex_unit::exec()
         if (unlikely(error))
         {
           table->file->print_error(error, MYF(0));
-          DBUG_RETURN(1);
+          return true;
         }
       }
       if (found_rows_for_union && !sl->braces &&
@@ -2421,7 +2543,7 @@ bool st_select_lex_unit::exec()
   thd->lex->current_select= lex_select_save;
 err:
   thd->lex->set_limit_rows_examined();
-  DBUG_RETURN(saved_error);
+  return saved_error;
 }
 
 
@@ -2648,6 +2770,9 @@ bool st_select_lex_unit::cleanup()
     }
   }
 
+  delete pushdown_unit;
+  pushdown_unit= nullptr;
+
   DBUG_RETURN(error);
 }
 
@@ -2811,6 +2936,8 @@ bool st_select_lex::cleanup()
   inner_refs_list.empty();
   exclude_from_table_unique_test= FALSE;
   hidden_bit_fields= 0;
+  delete pushdown_select;
+  pushdown_select= nullptr;
   DBUG_RETURN(error);
 }
 

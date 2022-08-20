@@ -2540,8 +2540,6 @@ struct TABLE_LIST
   bool block_handle_derived;
   /* The interface employed to materialize the table by a foreign engine */
   derived_handler *dt_handler;
-  /* The text of the query specifying the derived table */
-  LEX_CSTRING derived_spec;
   /*
     The object used to organize execution of the query that specifies
     the derived table by a foreign engine

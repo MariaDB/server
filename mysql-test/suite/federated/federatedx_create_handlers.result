@@ -555,6 +555,491 @@ WHERE id=2) dt2) dt
 a	b	a	b	id	name
 1	1	NULL	NULL	NULL	NULL
 2	2	NULL	NULL	NULL	NULL
+# MDEV-25080: Allow pushdown of queries involving UNIONs
+#   in outer select to foreign engines
+#
+connection master;
+TRUNCATE TABLE federated.t1;
+TRUNCATE TABLE federated.t2;
+INSERT INTO federated.t1 VALUES ('abc'), ('bcd'), ('cde');
+INSERT INTO federated.t2 VALUES ('abc'), ('bcd'), ('cde'), ('def'), ('efg');
+CREATE TABLE t3 (a varchar(30)) ENGINE=MyISAM;
+CREATE TABLE t4 (a varchar(30)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES ('t3_myisam1'), ('t3_myisam2'), ('t3_myisam3');
+INSERT INTO t4 VALUES ('t4_myisam1'), ('t4_myisam2'), ('t4_myisam3');
+# Pushdown of the whole UNION
+SELECT * from federated.t1 UNION SELECT * from federated.t2;
+a
+abc
+bcd
+cde
+def
+efg
+EXPLAIN SELECT * from federated.t1 UNION SELECT * from federated.t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+NULL	PUSHED UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+# Pushdown of a part of the UNION
+SELECT * from federated.t1 UNION SELECT * from t3;
+a
+abc
+bcd
+cde
+t3_myisam1
+t3_myisam2
+t3_myisam3
+EXPLAIN SELECT * from federated.t1 UNION SELECT * from t3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+2	UNION	t3	ALL	NULL	NULL	NULL	NULL	3	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+SELECT * from federated.t1 UNION ALL SELECT * from federated.t2;
+a
+abc
+bcd
+cde
+abc
+bcd
+cde
+def
+efg
+EXPLAIN SELECT * from federated.t1 UNION ALL SELECT * from federated.t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+NULL	PUSHED UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+EXPLAIN FORMAT=JSON SELECT * from federated.t1 UNION ALL
+SELECT * from federated.t2;
+EXPLAIN
+{
+  "query_block": {
+    "union_result": {
+      "message": "PUSHED UNION"
+    }
+  }
+}
+ANALYZE SELECT * from federated.t1 UNION ALL SELECT * from federated.t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+NULL	PUSHED UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ANALYZE FORMAT=JSON SELECT * from federated.t1 UNION ALL
+SELECT * from federated.t2;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "union_result": {
+      "message": "PUSHED UNION"
+    }
+  }
+}
+SELECT * from federated.t1 EXCEPT SELECT * from federated.t2;
+a
+EXPLAIN EXTENDED SELECT * from federated.t1 EXCEPT
+SELECT * from federated.t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+NULL	PUSHED EXCEPT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+Warnings:
+Note	1003	/* select#1 */ select `federated`.`t1`.`a` AS `a` from `federated`.`t1` except /* select#2 */ select `federated`.`t2`.`a` AS `a` from `federated`.`t2`
+EXPLAIN FORMAT=JSON SELECT * from federated.t1 EXCEPT
+SELECT * from federated.t2;
+EXPLAIN
+{
+  "query_block": {
+    "union_result": {
+      "message": "PUSHED EXCEPT"
+    }
+  }
+}
+SELECT * from federated.t1 INTERSECT SELECT * from federated.t2;
+a
+abc
+bcd
+cde
+EXPLAIN PARTITIONS SELECT * from federated.t1 INTERSECT
+SELECT * from federated.t2;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+NULL	PUSHED INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+EXPLAIN FORMAT=JSON SELECT * from federated.t1 INTERSECT
+SELECT * from federated.t2;
+EXPLAIN
+{
+  "query_block": {
+    "union_result": {
+      "message": "PUSHED INTERSECT"
+    }
+  }
+}
+# More than two SELECTs in a UNIT:
+SELECT * from federated.t1 INTERSECT
+SELECT * from federated.t2 UNION ALL
+SELECT * from federated.t2 EXCEPT
+SELECT * from federated.t1;
+a
+def
+efg
+EXPLAIN
+SELECT count(*) from federated.t1 INTERSECT
+SELECT count(*) from federated.t2 UNION ALL
+SELECT count(*)+20 from federated.t2 EXCEPT
+SELECT count(*)+5 from federated.t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+NULL	PUSHED UNIT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+EXPLAIN FORMAT=JSON
+SELECT count(*) from federated.t1 INTERSECT
+SELECT count(*) from federated.t2 UNION ALL
+SELECT count(*)+20 from federated.t2 EXCEPT
+SELECT count(*)+5 from federated.t1;
+EXPLAIN
+{
+  "query_block": {
+    "union_result": {
+      "message": "PUSHED UNIT"
+    }
+  }
+}
+ANALYZE
+SELECT count(*) from federated.t1 INTERSECT
+SELECT count(*) from federated.t2 UNION
+SELECT count(*)+20 from federated.t2 EXCEPT
+SELECT count(*)+5 from federated.t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+NULL	PUSHED UNIT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+# UNION inside a derived table: the whole derived table must be pushed
+SELECT * FROM 
+(SELECT * FROM federated.t1 UNION ALL SELECT * FROM federated.t2) q;
+a
+abc
+bcd
+cde
+abc
+bcd
+cde
+def
+efg
+EXPLAIN 
+SELECT * FROM 
+(SELECT a FROM federated.t1 UNION ALL SELECT * FROM federated.t2) q;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+# There is an uncacheable side effect due to fetch into @var,
+# so the UNION cannot be pushed down as a whole.
+# But separate SELECTs can be pushed, and the results are combined
+# at the server side
+SELECT count(*) FROM federated.t1 UNION
+SELECT count(*) FROM federated.t1 EXCEPT
+SELECT count(*)+1 FROM federated.t1
+INTO @var;
+EXPLAIN SELECT count(*) FROM federated.t1 UNION
+SELECT count(*) FROM federated.t2 EXCEPT
+SELECT count(*)+1 FROM federated.t1
+INTO @var;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+2	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+3	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+NULL	UNIT RESULT	<unit1,2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+EXPLAIN FORMAT=JSON SELECT count(*) FROM federated.t1 UNION
+SELECT count(*) FROM federated.t2 EXCEPT
+SELECT count(*)+2 FROM federated.t2
+INTO @var;
+EXPLAIN
+{
+  "query_block": {
+    "union_result": {
+      "table_name": "<unit1,2,3>",
+      "access_type": "ALL",
+      "query_specifications": [
+        {
+          "query_block": {
+            "select_id": 1,
+            "table": {
+              "message": "Pushed select"
+            }
+          }
+        },
+        {
+          "query_block": {
+            "select_id": 2,
+            "operation": "UNION",
+            "table": {
+              "message": "Pushed select"
+            }
+          }
+        },
+        {
+          "query_block": {
+            "select_id": 3,
+            "operation": "EXCEPT",
+            "table": {
+              "message": "Pushed select"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+# Prepared statements
+PREPARE stmt FROM "SELECT * from federated.t1 INTERSECT
+  SELECT * from federated.t2 UNION ALL
+  SELECT * from federated.t2 EXCEPT
+  SELECT * from federated.t1";
+EXECUTE stmt;
+a
+def
+efg
+EXECUTE stmt;
+a
+def
+efg
+EXECUTE stmt;
+a
+def
+efg
+PREPARE stmt FROM "EXPLAIN SELECT * from federated.t1 INTERSECT
+  SELECT * from federated.t2 UNION ALL
+  SELECT * from federated.t2 EXCEPT
+  SELECT * from federated.t1";
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+NULL	PUSHED UNIT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+NULL	PUSHED UNIT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+# UNIONs of mixed Federated/MyISAM tables, pushing parts of UNIONs
+SELECT * FROM federated.t1 UNION SELECT * FROM t3;
+a
+abc
+bcd
+cde
+t3_myisam1
+t3_myisam2
+t3_myisam3
+EXPLAIN SELECT * FROM federated.t1 UNION SELECT * FROM t3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+2	UNION	t3	ALL	NULL	NULL	NULL	NULL	3	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+SELECT * FROM federated.t1 UNION ALL
+SELECT * FROM t3 EXCEPT
+SELECT * FROM federated.t2;
+a
+t3_myisam1
+t3_myisam2
+t3_myisam3
+EXPLAIN SELECT * FROM federated.t1 UNION ALL
+SELECT * FROM t3 EXCEPT
+SELECT * FROM federated.t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+2	UNION	t3	ALL	NULL	NULL	NULL	NULL	3	
+3	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+NULL	UNIT RESULT	<unit1,2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+SELECT * FROM t3 UNION ALL
+SELECT * FROM federated.t1 EXCEPT
+SELECT * FROM t4 INTERSECT
+SELECT * FROM federated.t2;
+a
+t3_myisam1
+t3_myisam2
+t3_myisam3
+abc
+bcd
+cde
+EXPLAIN SELECT * FROM t3 UNION ALL
+SELECT * FROM federated.t1 EXCEPT
+SELECT * FROM t4 INTERSECT
+SELECT * FROM federated.t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	
+2	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+5	EXCEPT	<derived3>	ALL	NULL	NULL	NULL	NULL	3	
+3	DERIVED	t4	ALL	NULL	NULL	NULL	NULL	3	
+4	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	5	
+NULL	INTERSECT RESULT	<intersect3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+NULL	UNIT RESULT	<unit1,2,5>	ALL	NULL	NULL	NULL	NULL	NULL	
+SELECT * FROM federated.t2 UNION ALL
+SELECT * FROM t3 EXCEPT
+SELECT * FROM t4 INTERSECT
+SELECT * FROM federated.t1;
+a
+abc
+bcd
+cde
+def
+efg
+t3_myisam1
+t3_myisam2
+t3_myisam3
+EXPLAIN SELECT * FROM federated.t2 UNION ALL
+SELECT * FROM t3 EXCEPT
+SELECT * FROM t4 INTERSECT
+SELECT * FROM federated.t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+2	UNION	t3	ALL	NULL	NULL	NULL	NULL	3	
+5	EXCEPT	<derived3>	ALL	NULL	NULL	NULL	NULL	3	
+3	DERIVED	t4	ALL	NULL	NULL	NULL	NULL	3	
+4	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	3	
+NULL	INTERSECT RESULT	<intersect3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+NULL	UNIT RESULT	<unit1,2,5>	ALL	NULL	NULL	NULL	NULL	NULL	
+# Parenthesis must not prevent the whole UNIONs pushdown
+EXPLAIN (SELECT * FROM federated.t1 UNION
+SELECT * FROM federated.t2) UNION ALL
+SELECT * FROM federated.t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+NULL	PUSHED UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+(SELECT * FROM federated.t1 UNION
+SELECT * FROM federated.t2) UNION ALL
+SELECT * FROM federated.t1;
+a
+abc
+bcd
+cde
+def
+efg
+abc
+bcd
+cde
+EXPLAIN (SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2)
+UNION ALL (SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+NULL	PUSHED UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+(SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2) UNION ALL
+(SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2);
+a
+abc
+bcd
+cde
+def
+efg
+abc
+bcd
+cde
+def
+efg
+# Union of tables containing different INT data types
+connection slave;
+CREATE TABLE federated.t11 (a smallint(6) NOT NULL);
+INSERT INTO federated.t11 VALUES (-32678), (-1), (0);
+CREATE TABLE federated.t12 (a int(10) UNSIGNED NOT NULL);
+INSERT INTO federated.t12 VALUES (0), (1), (32767);
+connection master;
+CREATE TABLE federated.t11 (a smallint(6) NOT NULL)
+ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t11';
+CREATE TABLE federated.t12 (a int(10) UNSIGNED NOT NULL)
+ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t12';
+# Entire UNION pushdown
+SELECT a FROM federated.t12 UNION ALL SELECT a FROM federated.t11;
+a
+0
+1
+32767
+-32678
+-1
+0
+EXPLAIN SELECT a FROM federated.t12 UNION ALL SELECT a FROM federated.t11;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+NULL	PUSHED UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+SELECT a FROM federated.t11 UNION SELECT a FROM federated.t12;
+a
+-32678
+-1
+0
+1
+32767
+# Partial pushdown of SELECTs composing the UNION
+SELECT a FROM federated.t12 UNION SELECT a FROM federated.t11 UNION SELECT 123;
+a
+0
+1
+32767
+-32678
+-1
+123
+EXPLAIN
+SELECT a FROM federated.t12 UNION SELECT a FROM federated.t11
+UNION SELECT 123;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+2	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+SELECT a FROM federated.t12 EXCEPT
+SELECT 1 UNION ALL
+SELECT a FROM federated.t11 EXCEPT
+SELECT 0;
+a
+-32678
+32767
+-1
+# Union of tables containing different string data types
+connection slave;
+CREATE TABLE federated.t13 (a CHAR(6));
+INSERT INTO federated.t13 VALUES ('t13abc'), ('t13xx'), ('common');
+CREATE TABLE federated.t14 (a VARCHAR(8));
+INSERT INTO federated.t14 VALUES ('t14abcde'), ('t14xyzzz'), ('common');
+connection master;
+CREATE TABLE federated.t13 (a CHAR(6))
+ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t13';
+CREATE TABLE federated.t14 (a VARCHAR(8))
+ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t14';
+SELECT * FROM federated.t13 UNION SELECT * FROM federated.t14;
+a
+t13abc
+t13xx
+common
+t14abcde
+t14xyzzz
+EXPLAIN SELECT * FROM federated.t13 UNION SELECT * FROM federated.t14;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+NULL	PUSHED UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+SELECT * FROM federated.t14 UNION ALL SELECT * FROM federated.t13;
+a
+t14abcde
+t14xyzzz
+common
+t13abc
+t13xx
+common
+SELECT * FROM federated.t14 UNION
+SELECT * FROM federated.t13 UNION
+SELECT '123456789000';
+a
+t14abcde
+t14xyzzz
+common
+t13abc
+t13xx
+123456789000
+EXPLAIN SELECT * FROM federated.t14 UNION
+SELECT * FROM federated.t13 UNION
+SELECT '123456789000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+2	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+SELECT * FROM federated.t13 UNION
+SELECT '123456789000' UNION
+SELECT * FROM federated.t14;
+a
+t13abc
+t13xx
+common
+123456789000
+t14abcde
+t14xyzzz
+connection master;
+DROP TABLES federated.t1, federated.t2, t3, t4, federated.t11, federated.t12,
+federated.t13, federated.t14;
+connection slave;
+DROP TABLES federated.t1, federated.t2, federated.t11, federated.t12,
+federated.t13, federated.t14;
+connection default;
 set global federated_pushdown=0;
 connection master;
 DROP TABLE IF EXISTS federated.t1;
