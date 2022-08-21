@@ -14,8 +14,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
-#ifdef HAVE_ALIGNED_ALLOC
-#elif defined __linux__
+#if defined __linux__
 # include <malloc.h>
 #endif
 
@@ -23,8 +22,6 @@ inline void *aligned_malloc(size_t size, size_t alignment)
 {
 #ifdef _WIN32
   return _aligned_malloc(size, alignment);
-#elif defined HAVE_ALIGNED_ALLOC
-  return aligned_alloc(alignment, size);
 #elif defined __linux__
   return memalign(alignment, size);
 #else
