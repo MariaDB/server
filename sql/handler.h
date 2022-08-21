@@ -26,6 +26,7 @@
 #endif
 
 #include "sql_const.h"
+#include "optimizer_costs.h"
 #include "sql_basic_types.h"
 #include "mysqld.h"                             /* server_id */
 #include "sql_plugin.h"        /* plugin_ref, st_plugin_int, plugin */
