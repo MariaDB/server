@@ -1,0 +1,39 @@
+--echo #
+--echo # MDEV-29008 Server crash or assertion `field' failed in spider_db_open_item_ident / group by handler
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection child2_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+eval CREATE TABLE tbl_a (
+    a INT,
+    b INT
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+INSERT INTO tbl_a VALUES (1,2),(3,4);
+
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+eval CREATE TABLE tbl_a (
+    a INT,
+    b INT
+) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a", srv "s_2_1"';
+
+SELECT MIN(t2.a) AS f1, t1.b AS f2 FROM tbl_a AS t1 JOIN tbl_a AS t2 GROUP BY f2 ORDER BY f1, f2;
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+
+--disable_query_log
+--disable_result_log
+--source ../t/test_deinit.inc
+--enable_query_log
+--enable_result_log

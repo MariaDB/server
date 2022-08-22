@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1676,6 +1676,7 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
 	fseg_inode_t*	inode;
 	ib_id_t		seg_id;
 	uint32_t	n_reserved;
+	bool		reserved_extent = false;
 
 	DBUG_ENTER("fseg_create");
 
@@ -1700,18 +1701,35 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
 		}
 	}
 
-	if (!has_done_reservation
-	    && !fsp_reserve_free_extents(&n_reserved, space, 2,
-					 FSP_NORMAL, mtr)) {
-		DBUG_RETURN(NULL);
-	}
-
 	buf_block_t* header = fsp_get_header(space, mtr);
 	buf_block_t* iblock;
 
+inode_alloc:
 	inode = fsp_alloc_seg_inode(space, header, &iblock, mtr);
 
 	if (inode == NULL) {
+reserve_extent:
+		if (!has_done_reservation && !reserved_extent) {
+
+			if (!fsp_reserve_free_extents(
+					&n_reserved, space, 2,
+					FSP_NORMAL, mtr)) {
+				DBUG_RETURN(NULL);
+			}
+
+			/* Extents reserved successfully. So
+			try allocating the page or inode */
+			reserved_extent = true;
+			if (inode) {
+				goto page_alloc;
+			}
+
+			goto inode_alloc;
+		}
+
+		if (inode) {
+			fsp_free_seg_inode(space, inode, iblock, mtr);
+		}
 		goto funct_exit;
 	}
 
@@ -1737,6 +1755,7 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
 		    FSEG_FRAG_SLOT_SIZE * FSEG_FRAG_ARR_N_SLOTS, 0xff);
 
 	if (!block) {
+page_alloc:
 		block = fseg_alloc_free_page_low(space,
 						 inode, iblock, 0, FSP_UP,
 #ifdef UNIV_DEBUG
@@ -1744,13 +1763,9 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
 #endif /* UNIV_DEBUG */
 						 mtr, mtr);
 
-		/* The allocation cannot fail if we have already reserved a
-		space for the page. */
-		ut_ad(!has_done_reservation || block != NULL);
-
-		if (block == NULL) {
-			fsp_free_seg_inode(space, inode, iblock, mtr);
-			goto funct_exit;
+		if (!block) {
+			ut_ad(!has_done_reservation);
+			goto reserve_extent;
 		}
 
 		ut_d(const auto x = rw_lock_get_x_lock_count(&block->lock));
@@ -1772,7 +1787,7 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
 				       + block->frame, space->id);
 
 funct_exit:
-	if (!has_done_reservation) {
+	if (!has_done_reservation && reserved_extent) {
 		space->release_free_extents(n_reserved);
 	}
 

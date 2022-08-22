@@ -1,4 +1,4 @@
-/* Copyright (c) 2016, 2021, MariaDB Corporation.
+/* Copyright (c) 2016, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -579,10 +579,6 @@ bool Item_func_json_query::fix_length_and_dec()
 }
 
 
-/*
-  Returns NULL, not an error if the found value
-  is not a scalar.
-*/
 bool Json_path_extractor::extract(String *str, Item *item_js, Item *item_jp,
                                   CHARSET_INFO *cs)
 {
@@ -613,6 +609,9 @@ continue_search:
     return true;
 
   if (json_read_value(&je))
+    return true;
+
+  if (je.value_type == JSON_VALUE_NULL)
     return true;
 
   if (unlikely(check_and_get_value(&je, str, &error)))
@@ -1099,7 +1098,6 @@ my_decimal *Item_func_json_extract::val_decimal(my_decimal *to)
       case JSON_VALUE_ARRAY:
       case JSON_VALUE_FALSE:
       case JSON_VALUE_UNINITALIZED:
-      // TODO: fix: NULL should be NULL
       case JSON_VALUE_NULL:
         int2my_decimal(E_DEC_FATAL_ERROR, 0, false/*unsigned_flag*/, to);
         return to;
