@@ -3915,18 +3915,14 @@ static void buf_defer_drop_ahi(buf_block_t *block, mtr_memo_type_t fix_type)
     /* Temporarily release our S-latch. */
     rw_lock_s_unlock(&block->lock);
     rw_lock_x_lock(&block->lock);
-    if (dict_index_t *index= block->index)
-      if (index->freed())
-        btr_search_drop_page_hash_index(block);
+    btr_search_drop_page_hash_index(block, true);
     rw_lock_x_unlock(&block->lock);
     rw_lock_s_lock(&block->lock);
     break;
   case MTR_MEMO_PAGE_SX_FIX:
     rw_lock_sx_unlock(&block->lock);
     rw_lock_x_lock(&block->lock);
-    if (dict_index_t *index= block->index)
-      if (index->freed())
-        btr_search_drop_page_hash_index(block);
+    btr_search_drop_page_hash_index(block, true);
     rw_lock_x_unlock(&block->lock);
     rw_lock_sx_lock(&block->lock);
     break;
@@ -3973,8 +3969,7 @@ static buf_block_t* buf_page_mtr_lock(buf_block_t *block,
 
 #ifdef BTR_CUR_HASH_ADAPT
   {
-    dict_index_t *index= block->index;
-    if (index && index->freed())
+    if (block->index)
       buf_defer_drop_ahi(block, fix_type);
   }
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -4899,7 +4894,7 @@ buf_page_get_known_nowait(
 
 # ifdef BTR_CUR_HASH_ADAPT
 		ut_ad(!block->page.file_page_was_freed
-		      || (block->index && block->index->freed()));
+		      || btr_search_check_marked_free_index(block));
 # else /* BTR_CUR_HASH_ADAPT */
 		ut_ad(!block->page.file_page_was_freed);
 # endif /* BTR_CUR_HASH_ADAPT */
