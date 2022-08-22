@@ -177,6 +177,10 @@ struct mtr_t {
   @param block  buffer pool block to search for */
   bool have_x_latch(const buf_block_t &block) const;
 
+  /** Check if we are holding a block latch in S or U mode
+  @param block  buffer pool block to search for */
+  bool have_u_or_x_latch(const buf_block_t &block) const;
+
 	/** Copy the tablespaces associated with the mini-transaction
 	(needed for generating FILE_MODIFY records)
 	@param[in]	mtr	mini-transaction that may modify
@@ -335,6 +339,15 @@ public:
   @param block    block to be latched
   @param rw_latch RW_S_LATCH, RW_SX_LATCH, RW_X_LATCH, RW_NO_LATCH */
   void page_lock(buf_block_t *block, ulint rw_latch);
+
+  /** Register a page latch on a buffer-fixed block was buffer-fixed.
+  @param latch   latch type */
+  void u_lock_register(ulint savepoint)
+  {
+    mtr_memo_slot_t *slot= m_memo.at<mtr_memo_slot_t*>(savepoint);
+    ut_ad(slot->type == MTR_MEMO_BUF_FIX);
+    slot->type= MTR_MEMO_PAGE_SX_FIX;
+  }
 
   /** Upgrade U locks on a block to X */
   void page_lock_upgrade(const buf_block_t &block);
