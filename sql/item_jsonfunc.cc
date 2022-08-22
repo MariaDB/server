@@ -613,6 +613,12 @@ continue_search:
   if (json_read_value(&je))
     goto err_return;
 
+  if (je.value_type == JSON_VALUE_NULL)
+  {
+    null_value= 1;
+    return NULL;
+  }
+
   if (unlikely(check_and_get_value(&je, str, &error)))
   {
     if (error)
@@ -1104,7 +1110,6 @@ my_decimal *Item_func_json_extract::val_decimal(my_decimal *to)
       case JSON_VALUE_ARRAY:
       case JSON_VALUE_FALSE:
       case JSON_VALUE_UNINITALIZED:
-      // TODO: fix: NULL should be NULL
       case JSON_VALUE_NULL:
         int2my_decimal(E_DEC_FATAL_ERROR, 0, false/*unsigned_flag*/, to);
         return to;
