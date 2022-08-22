@@ -3698,6 +3698,41 @@ void select_max_min_finder_subselect::cleanup()
 }
 
 
+void select_max_min_finder_subselect::set_op(const Type_handler *th)
+{
+  if (th->is_val_native_ready())
+  {
+    op= &select_max_min_finder_subselect::cmp_native;
+    return;
+  }
+
+  switch (th->cmp_type()) {
+  case REAL_RESULT:
+    op= &select_max_min_finder_subselect::cmp_real;
+    break;
+  case INT_RESULT:
+    op= &select_max_min_finder_subselect::cmp_int;
+    break;
+  case STRING_RESULT:
+    op= &select_max_min_finder_subselect::cmp_str;
+    break;
+  case DECIMAL_RESULT:
+    op= &select_max_min_finder_subselect::cmp_decimal;
+    break;
+  case TIME_RESULT:
+    if (th->field_type() == MYSQL_TYPE_TIME)
+      op= &select_max_min_finder_subselect::cmp_time;
+    else
+      op= &select_max_min_finder_subselect::cmp_str;
+    break;
+  case ROW_RESULT:
+    // This case should never be chosen
+    DBUG_ASSERT(0);
+    op= 0;
+  }
+}
+
+
 int select_max_min_finder_subselect::send_data(List<Item> &items)
 {
   DBUG_ENTER("select_max_min_finder_subselect::send_data");
@@ -3716,30 +3751,7 @@ int select_max_min_finder_subselect::send_data(List<Item> &items)
     if (!cache)
     {
       cache= val_item->get_cache(thd);
-      switch (val_item->cmp_type()) {
-      case REAL_RESULT:
-	op= &select_max_min_finder_subselect::cmp_real;
-	break;
-      case INT_RESULT:
-	op= &select_max_min_finder_subselect::cmp_int;
-	break;
-      case STRING_RESULT:
-	op= &select_max_min_finder_subselect::cmp_str;
-	break;
-      case DECIMAL_RESULT:
-        op= &select_max_min_finder_subselect::cmp_decimal;
-        break;
-      case TIME_RESULT:
-        if (val_item->field_type() == MYSQL_TYPE_TIME)
-          op= &select_max_min_finder_subselect::cmp_time;
-        else
-          op= &select_max_min_finder_subselect::cmp_str;
-        break;
-      case ROW_RESULT:
-        // This case should never be choosen
-	DBUG_ASSERT(0);
-	op= 0;
-      }
+      set_op(val_item->type_handler());
     }
     cache->store(val_item);
     it->store(0, cache);
@@ -3832,6 +3844,26 @@ bool select_max_min_finder_subselect::cmp_str()
     return (sortcmp(val1, val2, cache->collation.collation) > 0) ;
   return (sortcmp(val1, val2, cache->collation.collation) < 0);
 }
+
+
+bool select_max_min_finder_subselect::cmp_native()
+{
+  NativeBuffer<STRING_BUFFER_USUAL_SIZE> cvalue, mvalue;
+  Item *maxmin= ((Item_singlerow_subselect *)item)->element_index(0);
+  bool cvalue_is_null= cache->val_native(thd, &cvalue);
+  bool mvalue_is_null= maxmin->val_native(thd, &mvalue);
+
+  /* Ignore NULLs for ANY and keep them for ALL subqueries */
+  if (cvalue_is_null)
+    return (is_all && !mvalue_is_null) || (!is_all && mvalue_is_null);
+  if (mvalue_is_null)
+    return !is_all;
+
+  const Type_handler *th= cache->type_handler();
+  return fmax ? th->cmp_native(cvalue, mvalue) > 0 :
+                th->cmp_native(cvalue, mvalue) < 0;
+}
+
 
 int select_exists_subselect::send_data(List<Item> &items)
 {
