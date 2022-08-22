@@ -603,8 +603,8 @@ dberr_t btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
                       bool blob, bool space_latched)
 {
   ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
-#ifdef BTR_CUR_HASH_ADAPT
-  if (block->index && !block->index->freed())
+#if defined BTR_CUR_HASH_ADAPT && defined UNIV_DEBUG
+  if (btr_search_check_marked_free_index(block))
   {
     ut_ad(!blob);
     ut_ad(page_is_leaf(block->page.frame));
