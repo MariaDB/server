@@ -1,5 +1,5 @@
 /* Copyright (C) 2008-2019 Kentoku Shiba
-   Copyright (C) 2019, 2020, MariaDB Corporation.
+   Copyright (C) 2019, 2022, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -9875,8 +9875,6 @@ int spider_db_open_item_ident(
     } else {
       if (!use_fields)
       {
-        if (!(field = spider->field_exchange(field)))
-          DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
         if (str)
         {
           if ((error_num = share->dbton_share[dbton_id]->
@@ -9885,6 +9883,8 @@ int spider_db_open_item_ident(
             DBUG_RETURN(error_num);
         }
       } else {
+        if (!(field = spider->field_exchange(field)))
+          DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
         if (str)
         {
           SPIDER_FIELD_CHAIN *field_chain = fields->get_next_field_chain();
