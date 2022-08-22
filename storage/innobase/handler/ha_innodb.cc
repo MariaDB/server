@@ -14202,7 +14202,7 @@ been acquired by the caller who holds it for the calculation,
 @param[in]	space		tablespace object from fil_space_acquire()
 @return available space in KiB */
 static uintmax_t
-fsp_get_available_space_in_free_extents(const fil_space_t& space)
+fsp_get_available_space_in_free_extents(fil_space_t& space)
 {
 	ulint	size_in_header = space.size_in_header;
 	if (size_in_header < FSP_EXTENT_SIZE) {
@@ -14394,9 +14394,11 @@ ha_innobase::info_low(
 			stats.index_file_length
 				= ulonglong(stat_sum_of_other_index_sizes)
 				* size;
+			rw_lock_s_lock(&space->latch);
 			stats.delete_length = 1024
 				* fsp_get_available_space_in_free_extents(
 					*space);
+			rw_lock_s_unlock(&space->latch);
 		}
 		stats.check_time = 0;
 		stats.mrr_length_per_rec= (uint)ref_length +  8; // 8 = max(sizeof(void *));
