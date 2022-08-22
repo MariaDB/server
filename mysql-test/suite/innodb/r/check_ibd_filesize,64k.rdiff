@@ -1,18 +1,18 @@
---- check_ibd_filesize.result
-+++ check_ibd_filesize.result,64k
+--- mysql-test/suite/innodb/r/check_ibd_filesize.result	2022-08-16 17:28:06.462350465 +0530
++++ mysql-test/suite/innodb/r/check_ibd_filesize.reject	2022-08-16 17:30:28.957174270 +0530
 @@ -3,18 +3,12 @@
  # SPACE IN 5.7 THAN IN 5.6
  #
  CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
--# bytes: 98304
-+# bytes: 393216
+-# bytes: 65536
++# bytes: 262144
  INSERT INTO t1 SELECT * FROM seq_1_to_25000;
 -# bytes: 9437184
 +# bytes: 983040
  DROP TABLE t1;
  CREATE TABLE t1 (a INT PRIMARY KEY, b BLOB) ENGINE=InnoDB;
--# bytes: 98304
-+# bytes: 393216
+-# bytes: 65536
++# bytes: 262144
  INSERT INTO t1 SELECT seq,REPEAT('a',30000) FROM seq_1_to_20;
 -# bytes: 4194304
 -DROP TABLE t1;
