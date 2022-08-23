@@ -9877,6 +9877,8 @@ int spider_db_open_item_ident(
     } else {
       if (!use_fields)
       {
+        if (!(field = spider->field_exchange(field)))
+          DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
         if (str)
         {
           if ((error_num = share->dbton_share[dbton_id]->
@@ -9885,16 +9887,12 @@ int spider_db_open_item_ident(
             DBUG_RETURN(error_num);
         }
       } else {
-        if (!(field = spider->field_exchange(field)))
-          DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
         if (str)
         {
           SPIDER_FIELD_CHAIN *field_chain = fields->get_next_field_chain();
           SPIDER_FIELD_HOLDER *field_holder = field_chain->field_holder;
           spider = field_holder->spider;
           share = spider->share;
-          field = spider->field_exchange(field);
-          DBUG_ASSERT(field);
           if ((error_num = share->dbton_share[dbton_id]->
             append_column_name_with_alias(str, field->field_index,
             field_holder->alias->ptr(), field_holder->alias->length())))
