@@ -484,6 +484,11 @@ public:
     if (str.Alloced_length)
       Alloced_length= (uint32) (str.Alloced_length - offset);
   }
+  LEX_CSTRING to_lex_cstring() const
+  {
+    LEX_CSTRING tmp= {Ptr, str_length};
+    return tmp;
+  }
   inline LEX_CSTRING *get_value(LEX_CSTRING *res)
   {
     res->str=    Ptr;

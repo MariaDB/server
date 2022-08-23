@@ -1,4 +1,4 @@
-/* Copyright (c) 2019 MariaDB Corporation
+/* Copyright (c) 2019,2021 MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,14 +21,10 @@
 #include <mysql/plugin_data_type.h>
 #include <mysql/plugin_function.h>
 
-
-Type_handler_inet6 type_handler_inet6;
-
-
 static struct st_mariadb_data_type plugin_descriptor_type_inet6=
 {
   MariaDB_DATA_TYPE_INTERFACE_VERSION,
-  &type_handler_inet6
+  Inet6Bundle::type_handler_fbt()
 };
 
 
