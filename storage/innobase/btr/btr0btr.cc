@@ -513,9 +513,28 @@ btr_page_alloc_low(
 					page should be initialized. */
 	dberr_t*	err)		/*!< out: error code */
 {
-  buf_block_t *root= btr_root_block_get(index, RW_SX_LATCH, mtr, err);
+  const auto savepoint= mtr->get_savepoint();
+  buf_block_t *root= btr_root_block_get(index, RW_NO_LATCH, mtr, err);
   if (UNIV_UNLIKELY(!root))
     return root;
+
+  if (mtr->have_u_or_x_latch(*root))
+  {
+#ifdef BTR_CUR_HASH_ADAPT
+    ut_ad(!root->index || !root->index->freed());
+#endif
+    mtr->release_block_at_savepoint(savepoint, root);
+  }
+  else
+  {
+    mtr->u_lock_register(savepoint);
+    root->page.lock.u_lock();
+#ifdef BTR_CUR_HASH_ADAPT
+    if (root->index)
+      mtr_t::defer_drop_ahi(root, MTR_MEMO_PAGE_SX_FIX);
+#endif
+  }
+
   fseg_header_t *seg_header= root->page.frame +
     (level ? PAGE_HEADER + PAGE_BTR_SEG_TOP : PAGE_HEADER + PAGE_BTR_SEG_LEAF);
   return fseg_alloc_free_page_general(seg_header, hint_page_no, file_direction,
@@ -610,11 +629,30 @@ dberr_t btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
 
   fil_space_t *space= index->table->space;
   dberr_t err;
-  if (page_t* root = btr_root_get(index, mtr, &err))
+
+  const auto savepoint= mtr->get_savepoint();
+  if (buf_block_t *root= btr_root_block_get(index, RW_NO_LATCH, mtr, &err))
   {
-    err= fseg_free_page(&root[blob || page_is_leaf(block->page.frame)
-                              ? PAGE_HEADER + PAGE_BTR_SEG_LEAF
-                              : PAGE_HEADER + PAGE_BTR_SEG_TOP],
+    if (mtr->have_u_or_x_latch(*root))
+    {
+#ifdef BTR_CUR_HASH_ADAPT
+      ut_ad(!root->index || !root->index->freed());
+#endif
+      mtr->release_block_at_savepoint(savepoint, root);
+    }
+    else
+    {
+      mtr->u_lock_register(savepoint);
+      root->page.lock.u_lock();
+#ifdef BTR_CUR_HASH_ADAPT
+      if (root->index)
+        mtr_t::defer_drop_ahi(root, MTR_MEMO_PAGE_SX_FIX);
+#endif
+    }
+    err= fseg_free_page(&root->page.frame[blob ||
+                                          page_is_leaf(block->page.frame)
+                                          ? PAGE_HEADER + PAGE_BTR_SEG_LEAF
+                                          : PAGE_HEADER + PAGE_BTR_SEG_TOP],
                         space, page, mtr, space_latched);
   }
   if (err == DB_SUCCESS)
