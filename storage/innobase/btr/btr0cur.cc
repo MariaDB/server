@@ -283,7 +283,7 @@ latch_block:
 		block->page.fix();
 		block->page.lock.x_lock();
 #ifdef BTR_CUR_HASH_ADAPT
-		ut_ad(!block->index || !block->index->freed());
+		ut_ad(!btr_search_check_marked_free_index(block));
 #endif
 
 		if (UNIV_LIKELY_NULL(rtr_info)) {
@@ -7024,7 +7024,7 @@ btr_store_big_rec_extern_fields(
 			rec_block->page.fix();
 			rec_block->page.lock.x_lock();
 #ifdef BTR_CUR_HASH_ADAPT
-			ut_ad(!rec_block->index || !rec_block->index->freed());
+			ut_ad(!btr_search_check_marked_free_index(rec_block));
 #endif
 
 			uint32_t hint_prev = prev_page_no;
@@ -7401,7 +7401,7 @@ skip_free:
 		block->fix();
 		block->page.lock.x_lock();
 #ifdef BTR_CUR_HASH_ADAPT
-		ut_ad(!block->index || !block->index->freed());
+		ut_ad(!btr_search_check_marked_free_index(block));
 #endif
 
 		const page_t* page = buf_block_get_frame(ext_block);
