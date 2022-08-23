@@ -95,3 +95,17 @@ ALTER TABLE t1 MODIFY msg_2 VARCHAR(100) CHARACTER SET utf8
 COLLATE utf8_unicode_ci, ALGORITHM=inplace;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 DROP TABLE t1;
+#
+# MDEV-29314 Assertion `n_fields > n_cols' failed
+#	in dict_index_t::init_change_cols
+#
+CREATE TABLE t (a VARCHAR(16) COLLATE utf8_bin,
+FULLTEXT (a)) ENGINE=InnoDB COLLATE utf8_unicode_520_ci;
+ALTER TABLE t MODIFY COLUMN a VARCHAR(512);
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` varchar(512) COLLATE utf8mb3_unicode_520_ci DEFAULT NULL,
+  FULLTEXT KEY `a` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_520_ci
+DROP TABLE t;

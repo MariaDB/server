@@ -1345,7 +1345,7 @@ public:
   @param  n_cols   number of columns whose collation is changing */
   void init_change_cols(unsigned n_cols)
   {
-    ut_ad(n_fields > n_cols);
+    ut_ad(n_fields > n_cols || type & DICT_FTS);
     change_col_info= static_cast<col_info*>
       (mem_heap_zalloc(heap, sizeof(col_info)));
     change_col_info->n_cols= n_cols;
