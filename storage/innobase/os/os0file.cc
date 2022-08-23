@@ -83,8 +83,7 @@ private:
 	int m_max_aio;
 public:
 	io_slots(int max_submitted_io, int max_callback_concurrency) :
-		m_cache(max_submitted_io),
-		m_group(max_callback_concurrency),
+		m_cache(max_submitted_io), m_group(max_callback_concurrency, false),
 		m_max_aio(max_submitted_io)
 	{
 	}
@@ -105,6 +104,11 @@ public:
 	}
 
 	/* Wait for completions of all AIO operations */
+	void wait(std::unique_lock<std::mutex> &lk)
+	{
+		m_cache.wait(lk);
+	}
+
 	void wait()
 	{
 		m_cache.wait();
@@ -123,6 +127,24 @@ public:
 	~io_slots()
 	{
 		wait();
+	}
+
+	std::mutex& mutex()
+	{
+		return m_cache.mutex();
+	}
+
+	void resize(int max_submitted_io, int max_callback_concurrency, std::unique_lock<std::mutex> &lk)
+	{
+		ut_a(lk.owns_lock());
+		m_cache.resize(max_submitted_io);
+		m_group.set_max_tasks(max_callback_concurrency);
+		m_max_aio = max_submitted_io;
+	}
+
+	tpool::task_group& task_group()
+	{
+		return m_group;
 	}
 };
 
@@ -3690,6 +3712,58 @@ disable:
   return ret;
 }
 
+
+/**
+Change reader or writer thread parameter on a running server.
+This includes resizing  the io slots, as we calculate
+number of outstanding IOs based on the these variables.
+
+It is trickier with when Linux AIO is involved (io_context
+needs to be recreated to account for different number of
+max_events). With Linux AIO, depending on fs-max-aio number
+and user and system wide max-aio limitation, this can fail.
+
+Otherwise, we just resize the slots, and allow for
+more concurrent threads via thread_group setting.
+
+@param[in] n_reader_threads - max number of concurrently
+  executing read callbacks
+@param[in] n_writer_thread - max number of cuncurrently
+  executing write callbacks
+@return 0 for success, !=0 for error.
+*/
+int os_aio_resize(ulint n_reader_threads, ulint n_writer_threads)
+{
+  /* Lock the slots, and wait until all current IOs finish.*/
+  std::unique_lock<std::mutex> lk_read(read_slots->mutex());
+  std::unique_lock<std::mutex> lk_write(write_slots->mutex());
+
+  read_slots->wait(lk_read);
+  write_slots->wait(lk_write);
+
+  /* Now, all IOs have finished and no new ones can start, due to locks. */
+  int max_read_events= int(n_reader_threads * OS_AIO_N_PENDING_IOS_PER_THREAD);
+  int max_write_events= int(n_writer_threads * OS_AIO_N_PENDING_IOS_PER_THREAD);
+  int events= max_read_events + max_write_events;
+
+  /** Do the Linux AIO dance (this will try to create a new
+  io context with changed max_events ,etc*/
+
+  if (int ret= srv_thread_pool->reconfigure_aio(srv_use_native_aio, events))
+  {
+    /** Do the best effort. We can't change the parallel io number,
+    but we still can adjust the number of concurrent completion handlers.*/
+    read_slots->task_group().set_max_tasks(static_cast<int>(n_reader_threads));
+    write_slots->task_group().set_max_tasks(static_cast<int>(n_writer_threads));
+    return ret;
+  }
+
+  /* Allocation succeeded, resize the slots*/
+  read_slots->resize(max_read_events, static_cast<int>(n_reader_threads), lk_read);
+  write_slots->resize(max_write_events, static_cast<int>(n_writer_threads), lk_write);
+
+  return 0;
+}
 
 void os_aio_free()
 {
