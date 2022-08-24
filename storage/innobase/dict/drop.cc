@@ -245,7 +245,8 @@ void trx_t::commit(std::vector<pfs_os_file_t> &deleted)
     ut_ad(ib_vector_is_empty(autoinc_locks));
     mem_heap_empty(lock.lock_heap);
     lock.table_locks.clear();
-    lock.was_chosen_as_deadlock_victim= false;
+    /* commit_persist() already reset this. */
+    ut_ad(!lock.was_chosen_as_deadlock_victim);
     lock.n_rec_locks= 0;
     while (dict_table_t *table= UT_LIST_GET_FIRST(lock.evicted_tables))
     {
