@@ -14202,7 +14202,7 @@ been acquired by the caller who holds it for the calculation,
 @param[in]	space		tablespace object from fil_space_acquire()
 @return available space in KiB */
 static uintmax_t
-fsp_get_available_space_in_free_extents(fil_space_t& space)
+fsp_get_available_space_in_free_extents(const fil_space_t& space)
 {
 	ulint	size_in_header = space.size_in_header;
 	if (size_in_header < FSP_EXTENT_SIZE) {
