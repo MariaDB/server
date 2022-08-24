@@ -470,14 +470,6 @@ Rpl_filter::set_wild_ignore_table(const char* table_spec)
 }
 
 
-void
-Rpl_filter::add_db_rewrite(const char* from_db, const char* to_db)
-{
-  i_string_pair *db_pair = new i_string_pair(from_db, to_db);
-  rewrite_db.push_back(db_pair);
-}
-
-
 int 
 Rpl_filter::add_table_rule(HASH* h, const char* table_spec)
 {
@@ -553,7 +545,6 @@ Rpl_filter::add_string_pair_list(const char* spec)
   len= (size_t)(ptr - spec);
   if (! (from_db= (char *) my_malloc(PSI_NOT_INSTRUMENTED, len, MYF(0))))
   {
-    my_free(from_db);
     return 1;
   }
   memcpy(from_db, spec, len);
@@ -565,6 +556,7 @@ Rpl_filter::add_string_pair_list(const char* spec)
   if (!strlen(val_ptr))
   {
     // Bad syntax: Empty value \n"
+    my_free(from_db);
     return 1;
   }
 
@@ -573,12 +565,13 @@ Rpl_filter::add_string_pair_list(const char* spec)
   len= (size_t)(ptr - val_ptr);
   if(! (to_db= (char *) my_malloc(PSI_NOT_INSTRUMENTED, len, MYF(0))))
   {
-    my_free(to_db);
+    my_free(from_db);
     return 1;
   }
   memcpy(to_db, val_ptr, len);
   to_db[len]='\0';
-  add_db_rewrite(from_db, to_db);
+  i_string_pair *db_pair = new i_string_pair(from_db, to_db);
+  rewrite_db.push_back(db_pair);
   return false;
 }
 
@@ -747,16 +740,12 @@ Rpl_filter::free_string_list(I_List<i_string> *l)
 void
 Rpl_filter::free_string_pair_list(I_List<i_string_pair> *l)
 {
-  void *key;
-  void *val;
   i_string_pair *tmp;
 
   while ((tmp= l->get()))
   {
-    key= (void *) tmp->key;
-    my_free(key);
-    val= (void *) tmp->val;
-    my_free(val);
+    my_free((void *) tmp->key);
+    my_free((void *) tmp->val);
     delete tmp;
   }
 
@@ -896,18 +885,6 @@ Rpl_filter::get_rewrite_db(const char* db, size_t *new_len)
   return db;
 }
 
-
-void
-Rpl_filter::copy_rewrite_db(Rpl_filter *from)
-{
-  I_List_iterator<i_string_pair> it(from->rewrite_db);
-  i_string_pair* tmp;
-  DBUG_ASSERT(rewrite_db.is_empty());
-
-  /* TODO: Add memory checking here and in all add_xxxx functions ! */
-  while ((tmp=it++))
-    add_db_rewrite(tmp->key, tmp->val);
-}
 
 I_List<i_string>*
 Rpl_filter::get_do_db()

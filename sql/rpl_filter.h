@@ -89,8 +89,6 @@ public:
     return parallel_mode;
   }
 
-  void add_db_rewrite(const char* from_db, const char* to_db);
-
   /* Getters - to get information about current rules */
 
   void get_do_table(String* str);

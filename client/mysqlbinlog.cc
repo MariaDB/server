@@ -2435,7 +2435,8 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
     }
     val= strmake_root(&glob_root, val, (size_t) (ptr-val));
 
-    binlog_filter->add_db_rewrite(key, val);
+    //TODO(cvicentiu)
+    binlog_filter->add_rewrite_db(key);
     break;
   }
   case OPT_PRINT_ROW_COUNT:
