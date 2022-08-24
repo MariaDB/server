@@ -1055,7 +1055,7 @@ static bool show_role_grants(THD *, const char *,
                              ACL_USER_BASE *, char *, size_t);
 static bool show_default_role(THD *, ACL_USER *, char *, size_t);
 static bool show_global_privileges(THD *, ACL_USER_BASE *,
-                                   bool, char *, size_t, bool);
+                                   char *, size_t, bool);
 static bool show_database_privileges(THD *, ACL_USER_BASE *,
                                      char *, size_t, bool);
 static bool show_table_and_column_privileges(THD *, const char *, const char *,
@@ -11496,10 +11496,10 @@ static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
   if (show_role_grants(thd, "", role, buff, sizeof(buff)))
     return TRUE;
 
-  if (show_global_privileges(thd, role, TRUE, buff, sizeof(buff), false))
+  if (show_global_privileges(thd, role, buff, sizeof(buff), false))
     return TRUE;
 
-  if (show_global_privileges(thd, role, TRUE, buff, sizeof(buff), true))
+  if (show_global_privileges(thd, role, buff, sizeof(buff), true))
     return TRUE;
 
   if (show_database_privileges(thd, role, buff, sizeof(buff), false))
@@ -11775,10 +11775,10 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
       goto end;
 
     /* Add first global access grants */
-    if (show_global_privileges(thd, acl_user, FALSE, buff, sizeof(buff), false))
+    if (show_global_privileges(thd, acl_user, buff, sizeof(buff), false))
       goto end;
 
-    if (show_global_privileges(thd, acl_user, FALSE, buff, sizeof(buff), true))
+    if (show_global_privileges(thd, acl_user, buff, sizeof(buff), true))
       goto end;
 
     /* Add database access */
@@ -11938,7 +11938,6 @@ static bool show_role_grants(THD *thd, const char *hostname,
 }
 
 static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
-                                   bool handle_as_role,
                                    char *buff, size_t buffsize,
                                    bool deny)
 {
@@ -11951,7 +11950,7 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
   if (deny)
   {
     global.append(STRING_WITH_LEN("DENY "));
-    if (handle_as_role)
+    if (acl_entry->is_role())
       denies= static_cast<ACL_ROLE *>(acl_entry)->initial_denies;
     else
       denies= acl_entry->denies;
@@ -11965,7 +11964,7 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
   else
   {
     global.append(STRING_WITH_LEN("GRANT "));
-    if (handle_as_role)
+    if (acl_entry->is_role())
       want_access= static_cast<ACL_ROLE *>(acl_entry)->initial_role_access;
     else
       want_access= acl_entry->access;
@@ -11975,7 +11974,7 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
   global.append (STRING_WITH_LEN(" ON *.* TO "));
   append_identifier(thd, &global, acl_entry->user.str, acl_entry->user.length);
 
-  if (!handle_as_role)
+  if (!acl_entry->is_role())
     add_user_parameters(thd, &global, (ACL_USER *)acl_entry,
                         (want_access & GRANT_ACL));
 
@@ -11987,7 +11986,6 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
     return TRUE;
 
   return FALSE;
-
 }
 
 
