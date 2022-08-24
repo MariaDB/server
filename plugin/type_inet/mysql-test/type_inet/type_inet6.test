@@ -1631,6 +1631,17 @@ DROP TABLE divisions;
 DROP TABLE companies;
 
 --echo #
+--echo # MDEV-27099 Subquery using the ALL keyword on INET6 columns produces a wrong result
+--echo #
+
+CREATE TABLE t1 (d INET6);
+INSERT INTO t1 VALUES ('1::0'), ('12::0');
+SELECT * FROM t1 ORDER BY d;
+SELECT * FROM t1 WHERE d <= ALL (SELECT * FROM t1);
+SELECT * FROM t1 WHERE d >= ALL (SELECT * FROM t1);
+DROP TABLE t1;
+
+--echo #
 --echo # MDEV-27015 Assertion `!is_null()' failed in FixedBinTypeBundle<FbtImpl>::Fbt FixedBinTypeBundle<FbtImpl>::Field_fbt::to_fbt()
 --echo #
 

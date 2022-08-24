@@ -19,7 +19,6 @@
 /* Headers we may want to use. */
 #cmakedefine STDC_HEADERS 1
 #cmakedefine _GNU_SOURCE 1
-#cmakedefine HAVE_ALIGNED_ALLOC 1
 #cmakedefine HAVE_ALLOCA_H 1
 #cmakedefine HAVE_ARPA_INET_H 1
 #cmakedefine HAVE_ASM_TERMBITS_H 1

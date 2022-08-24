@@ -2758,11 +2758,7 @@ re_evict:
 			  && state < buf_page_t::WRITE_FIX));
 
 #ifdef BTR_CUR_HASH_ADAPT
-		if (dict_index_t* index = block->index) {
-			if (index->freed()) {
-				btr_search_drop_page_hash_index(block);
-			}
-		}
+		btr_search_drop_page_hash_index(block, true);
 #endif /* BTR_CUR_HASH_ADAPT */
 
 		dberr_t e;
@@ -2820,10 +2816,8 @@ get_latch:
 			}
 get_latch_valid:
 #ifdef BTR_CUR_HASH_ADAPT
-			if (dict_index_t* index = block->index) {
-				if (index->freed()) {
-					mtr_t::defer_drop_ahi(block, fix_type);
-				}
+			if (block->index) {
+				mtr_t::defer_drop_ahi(block, fix_type);
 			}
 #endif /* BTR_CUR_HASH_ADAPT */
 			mtr->memo_push(block, fix_type);
