@@ -1,53 +1,49 @@
---source include/not_embedded.inc
-
 create user foo;
 create database some_db;
 create database secret_db;
 create table some_db.t1 (a int, b char);
-
-#create procedure
-#create function
-#create package
-#create package body
-
 grant select,insert on *.* to foo;
 deny select, update on *.* to foo;
-
 grant select, delete on some_db.* to foo;
 deny insert, update on some_db.* to foo;
-
-#TODO(cvicentiu) Denying with grant option reads a bit strange.
-#                perhaps a different syntax is warranted, such as
-#                DENY ....   including grant option.
 deny all on secret_db.* to foo with grant option;
-
-#TODO(cvicentiu) Show denies where appropriate.
 show grants for foo;
-
---connect (con1,localhost,foo,,)
+Grants for foo@%
+GRANT SELECT, INSERT ON *.* TO `foo`@`%`
+DENY SELECT, UPDATE ON *.* TO `foo`@`%`
+GRANT SELECT, DELETE ON `some_db`.* TO `foo`@`%`
+connect  con1,localhost,foo,,;
 show grants;
+Grants for foo@%
+GRANT SELECT, INSERT ON *.* TO `foo`@`%`
+DENY SELECT, UPDATE ON *.* TO `foo`@`%`
+GRANT SELECT, DELETE ON `some_db`.* TO `foo`@`%`
 disconnect con1;
-
 connection default;
-
 create role bar;
 show grants for bar;
-
---echo #
---echo # Test role show grants
---echo #
+Grants for bar
+GRANT USAGE ON *.* TO `bar`
+#
+# Test role show grants
+#
 deny select on *.* to bar;
 deny insert on one_db.* to bar;
 deny update on one_db.t1 to bar;
 deny update (c1) on one_db.t1 to bar;
-
 grant bar to foo;
---connect (con1, localhost, foo,,)
+connect  con1, localhost, foo,,;
 set role bar;
 show grants;
+Grants for foo@%
+GRANT `bar` TO `foo`@`%`
+GRANT SELECT, INSERT ON *.* TO `foo`@`%`
+DENY SELECT, UPDATE ON *.* TO `foo`@`%`
+GRANT SELECT, DELETE ON `some_db`.* TO `foo`@`%`
+GRANT USAGE ON *.* TO `bar`
+DENY SELECT ON *.* TO `bar`
 disconnect con1;
 connection default;
-
 drop database some_db;
 drop database secret_db;
 drop user foo;
