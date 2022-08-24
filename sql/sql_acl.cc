@@ -218,9 +218,9 @@ class Deny_spec
   Hash_set<deny_entry> *package_body_denies;
   //Dynamic_array<std::pair<LEX_CSTRING, privilege_t>> db_denies_wild;
 
-  static uchar * pair_first_key(const deny_entry *elem,
-                                size_t *elem_size,
-                                my_bool unused __attribute__((unused)))
+  static uchar *pair_first_key(const deny_entry *elem,
+                               size_t *elem_size,
+                               my_bool unused __attribute__((unused)))
   {
     *elem_size= elem->first.length;
     return (uchar *)(elem->first.str);
