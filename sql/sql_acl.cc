@@ -4982,15 +4982,18 @@ static int check_user_can_set_role(THD *thd, const char *user,
   }
 
   if (access)
-    *access = acl_user->access | role->access;
+  {
+    *access= acl_user->access | role->access;
 
   /* TODO(cvicentiu) IGNORE_DENIES_PRIV! */
-  if (acl_user->denies)
-    *access&= ~acl_user->denies->get_global();
+    if (acl_user->denies)
+      *access&= ~acl_user->denies->get_global();
+  }
 
   if (role->denies)
   {
-    *access&= ~role->denies->get_global();
+    if (access)
+      *access&= ~role->denies->get_global();
     if (role_denies_active)
       *role_denies_active= role->denies->get_specified_denies();
   }
