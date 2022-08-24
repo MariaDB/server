@@ -598,3 +598,18 @@ SET time_zone=DEFAULT;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-27101 Subquery using the ALL keyword on TIMESTAMP columns produces a wrong result
+--echo #
+
+SET time_zone='Europe/Moscow';
+CREATE TABLE t1 (a TIMESTAMP NULL);
+SET timestamp=1288477526;      /* this is summer time, earlier */
+INSERT INTO t1 VALUES (NOW());
+SET timestamp=1288477526+3599; /* this is winter time, later */
+INSERT INTO t1 VALUES (NOW());
+SELECT a, UNIX_TIMESTAMP(a) FROM t1 ORDER BY a;
+SELECT a, UNIX_TIMESTAMP(a) FROM t1 WHERE a <= ALL (SELECT * FROM t1);
+SELECT a, UNIX_TIMESTAMP(a) FROM t1 WHERE a >= ALL (SELECT * FROM t1);
+DROP TABLE t1;

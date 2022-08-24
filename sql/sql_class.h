@@ -6709,6 +6709,7 @@ class select_max_min_finder_subselect :public select_subselect
   bool (select_max_min_finder_subselect::*op)();
   bool fmax;
   bool is_all;
+  void set_op(const Type_handler *ha);
 public:
   select_max_min_finder_subselect(THD *thd_arg, Item_subselect *item_arg,
                                   bool mx, bool all):
@@ -6721,6 +6722,7 @@ public:
   bool cmp_decimal();
   bool cmp_str();
   bool cmp_time();
+  bool cmp_native();
 };
 
 /* EXISTS subselect interface class */

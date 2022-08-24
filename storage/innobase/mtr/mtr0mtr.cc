@@ -1496,6 +1496,21 @@ struct FindBlockX
   }
 };
 
+/** Find out whether a block was not X or U latched by the mini-transaction */
+struct FindBlockUX
+{
+  const buf_block_t &block;
+
+  FindBlockUX(const buf_block_t &block): block(block) {}
+
+  /** @return whether the block was not found x-latched */
+  bool operator()(const mtr_memo_slot_t *slot) const
+  {
+    return slot->object != &block ||
+      !(slot->type & (MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX));
+  }
+};
+
 #ifdef UNIV_DEBUG
 /** Assert that the block is not present in the mini-transaction */
 struct FindNoBlock
@@ -1523,6 +1538,14 @@ bool mtr_t::have_x_latch(const buf_block_t &block) const
     return false;
   }
   ut_ad(block.page.lock.have_x());
+  return true;
+}
+
+bool mtr_t::have_u_or_x_latch(const buf_block_t &block) const
+{
+  if (m_memo.for_each_block(CIterate<FindBlockUX>(FindBlockUX(block))))
+    return false;
+  ut_ad(block.page.lock.have_u_or_x());
   return true;
 }
 
