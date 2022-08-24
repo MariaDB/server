@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1123,9 +1123,6 @@ void btr_search_drop_page_hash_index(buf_block_t* block,
 	rw_lock_t*		latch;
 
 retry:
-	/* This debug check uses a dirty read that could theoretically cause
-	false positives while buf_pool_clear_hash_index() is executing. */
-	assert_block_ahi_valid(block);
 	ut_ad(!btr_search_own_any(RW_LOCK_S));
 	ut_ad(!btr_search_own_any(RW_LOCK_X));
 
