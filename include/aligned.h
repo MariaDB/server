@@ -14,7 +14,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
-#if defined __linux__
+#if defined HAVE_MALLOC_H
 # include <malloc.h>
 #endif
 
@@ -22,13 +22,15 @@ inline void *aligned_malloc(size_t size, size_t alignment)
 {
 #ifdef _WIN32
   return _aligned_malloc(size, alignment);
-#elif defined __linux__
+#elif defined HAVE_MEMALIGN
   return memalign(alignment, size);
-#else
+#elif defined HAVE_POSIX_MEMALIGN
   void *result;
   if (posix_memalign(&result, alignment, size))
     result= NULL;
   return result;
+#else
+#error Unsupported aligned memory allocator
 #endif
 }
 

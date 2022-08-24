@@ -163,6 +163,7 @@
 #cmakedefine HAVE_LRAND48 1
 #cmakedefine HAVE_LOCALTIME_R 1
 #cmakedefine HAVE_LSTAT 1
+#cmakedefine HAVE_MEMALIGN 1
 /* #cmakedefine HAVE_MLOCK 1 see Bug#54662 */
 #cmakedefine HAVE_NL_LANGINFO 1
 #cmakedefine HAVE_MADVISE 1
@@ -181,6 +182,7 @@
 #cmakedefine HAVE_PERROR 1
 #cmakedefine HAVE_POLL 1
 #cmakedefine HAVE_POSIX_FALLOCATE 1
+#cmakedefine HAVE_POSIX_MEMALIGN 1
 #cmakedefine HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE 1
 #cmakedefine HAVE_PREAD 1
 #cmakedefine HAVE_READ_REAL_TIME 1
