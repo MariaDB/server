@@ -1,0 +1,45 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_1;
+show global status like 'wsrep_local_index';
+Variable_name	Value
+wsrep_local_index	0
+show global status like 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	3
+connection node_2;
+show global status like 'wsrep_local_index';
+Variable_name	Value
+wsrep_local_index	1
+show global status like 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	3
+connection node_3;
+show global status like 'wsrep_local_index';
+Variable_name	Value
+wsrep_local_index	2
+show global status like 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	3
+Shutting down server ...
+connection node_2;
+show global status like 'wsrep_local_index';
+Variable_name	Value
+wsrep_local_index	1
+show global status like 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	2
+connection node_3;
+Starting server ...
+# restart
+connection node_2;
+connection node_3;
+show global status like 'wsrep_local_index';
+Variable_name	Value
+wsrep_local_index	2
+show global status like 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	3

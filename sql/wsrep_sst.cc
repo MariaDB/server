@@ -348,6 +348,13 @@ static bool wsrep_sst_complete (THD*                thd,
     failed= true;
   }
 
+  // Update local cluster size and index variables
+  const wsrep::view& view= wsrep_config_state->get_view_info();
+  mysql_mutex_lock(&LOCK_status);
+  wsrep_cluster_size= view.members().size();
+  wsrep_local_index= view.own_index();
+  mysql_mutex_unlock(&LOCK_status);
+
   wsrep_joiner_monitor_end();
   return failed;
 }

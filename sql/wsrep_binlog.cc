@@ -155,10 +155,8 @@ static int wsrep_write_cache_inc(THD*      const thd,
         goto cleanup;
       cache->read_pos= cache->read_end;
     } while ((cache->file >= 0) && (length= my_b_fill(cache)));
-    if (ret == 0)
-    {
-      assert(total_length + thd->wsrep_sr().log_position() == saved_pos);
-    }
+
+    DBUG_ASSERT(total_length + thd->wsrep_sr().log_position() == saved_pos);
   }
 
 cleanup:
