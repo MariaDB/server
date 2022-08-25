@@ -1,5 +1,5 @@
 /* Copyright (C) 2008-2019 Kentoku Shiba
-   Copyright (C) 2019, 2020, MariaDB Corporation.
+   Copyright (C) 2019, 2022, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -9891,8 +9891,6 @@ int spider_db_open_item_ident(
           SPIDER_FIELD_HOLDER *field_holder = field_chain->field_holder;
           spider = field_holder->spider;
           share = spider->share;
-          field = spider->field_exchange(field);
-          DBUG_ASSERT(field);
           if ((error_num = share->dbton_share[dbton_id]->
             append_column_name_with_alias(str, field->field_index,
             field_holder->alias->ptr(), field_holder->alias->length())))

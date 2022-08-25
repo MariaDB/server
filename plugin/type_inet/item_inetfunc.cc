@@ -158,7 +158,7 @@ String *Item_func_inet6_aton::val_str(String *buffer)
     return buffer;
   }
 
-  Inet6_null ipv6(*tmp.string());
+  Inet6Bundle::Fbt_null ipv6(*tmp.string());
   if (!ipv6.is_null())
   {
     ipv6.to_binary(buffer);
@@ -197,7 +197,7 @@ String *Item_func_inet6_ntoa::val_str_ascii(String *buffer)
     return buffer;
   }
 
-  Inet6_null ipv6(static_cast<const Binary_string&>(*tmp.string()));
+  Inet6Bundle::Fbt_null ipv6(static_cast<const Binary_string&>(*tmp.string()));
   if (!ipv6.is_null())
   {
     ipv6.to_string(buffer);
@@ -221,6 +221,22 @@ longlong Item_func_is_ipv4::val_int()
   return !tmp.is_null() && !Inet4_null(*tmp.string()).is_null();
 }
 
+class IP6 : public Inet6Bundle::Fbt_null
+{
+public:
+  IP6(Item* arg) : Inet6Bundle::Fbt_null(arg) {}
+  bool is_v4compat() const
+  {
+    static_assert(sizeof(in6_addr) == IN6_ADDR_SIZE, "unexpected in6_addr size");
+    return IN6_IS_ADDR_V4COMPAT((struct in6_addr *) m_buffer);
+  }
+  bool is_v4mapped() const
+  {
+    static_assert(sizeof(in6_addr) == IN6_ADDR_SIZE, "unexpected in6_addr size");
+    return IN6_IS_ADDR_V4MAPPED((struct in6_addr *) m_buffer);
+  }
+};
+
 
 /**
   Checks if the passed string represents an IPv6-address.
@@ -230,9 +246,8 @@ longlong Item_func_is_ipv6::val_int()
 {
   DBUG_ASSERT(fixed());
   String_ptr_and_buffer<STRING_BUFFER_USUAL_SIZE> tmp(args[0]);
-  return !tmp.is_null() && !Inet6_null(*tmp.string()).is_null();
+  return !tmp.is_null() && !Inet6Bundle::Fbt_null(*tmp.string()).is_null();
 }
-
 
 /**
   Checks if the passed IPv6-address is an IPv4-compat IPv6-address.
@@ -240,7 +255,7 @@ longlong Item_func_is_ipv6::val_int()
 
 longlong Item_func_is_ipv4_compat::val_int()
 {
-  Inet6_null ip6(args[0]);
+  IP6 ip6(args[0]);
   return !ip6.is_null() && ip6.is_v4compat();
 }
 
@@ -251,6 +266,6 @@ longlong Item_func_is_ipv4_compat::val_int()
 
 longlong Item_func_is_ipv4_mapped::val_int()
 {
-  Inet6_null ip6(args[0]);
+  IP6 ip6(args[0]);
   return !ip6.is_null() && ip6.is_v4mapped();
 }
