@@ -2583,42 +2583,6 @@ buf_wait_for_read(
 	}
 }
 
-#ifdef BTR_CUR_HASH_ADAPT
-/** If a stale adaptive hash index exists on the block, drop it.
-Multiple executions of btr_search_drop_page_hash_index() on the
-same block must be prevented by exclusive page latch. */
-ATTRIBUTE_COLD
-static void buf_defer_drop_ahi(buf_block_t *block, mtr_memo_type_t fix_type)
-{
-  switch (fix_type) {
-  case MTR_MEMO_BUF_FIX:
-    /* We do not drop the adaptive hash index, because safely doing
-    so would require acquiring block->lock, and that is not safe
-    to acquire in some RW_NO_LATCH access paths. Those code paths
-    should have no business accessing the adaptive hash index anyway. */
-    break;
-  case MTR_MEMO_PAGE_S_FIX:
-    /* Temporarily release our S-latch. */
-    rw_lock_s_unlock(&block->lock);
-    rw_lock_x_lock(&block->lock);
-    btr_search_drop_page_hash_index(block, true);
-    rw_lock_x_unlock(&block->lock);
-    rw_lock_s_lock(&block->lock);
-    break;
-  case MTR_MEMO_PAGE_SX_FIX:
-    rw_lock_sx_unlock(&block->lock);
-    rw_lock_x_lock(&block->lock);
-    btr_search_drop_page_hash_index(block, true);
-    rw_lock_x_unlock(&block->lock);
-    rw_lock_sx_lock(&block->lock);
-    break;
-  default:
-    ut_ad(fix_type == MTR_MEMO_PAGE_X_FIX);
-    btr_search_drop_page_hash_index(block);
-  }
-}
-#endif /* BTR_CUR_HASH_ADAPT */
-
 /** Lock the page with the given latch type.
 @param[in,out]	block		block to be locked
 @param[in]	rw_latch	RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
@@ -2654,10 +2618,7 @@ static buf_block_t* buf_page_mtr_lock(buf_block_t *block,
   }
 
 #ifdef BTR_CUR_HASH_ADAPT
-  {
-    if (block->index)
-      buf_defer_drop_ahi(block, fix_type);
-  }
+  btr_search_drop_page_hash_index(block, true);
 #endif /* BTR_CUR_HASH_ADAPT */
 
 done:
