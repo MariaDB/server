@@ -349,11 +349,13 @@ static bool wsrep_sst_complete (THD*                thd,
   }
 
   // Update local cluster size and index variables
+  WSREP_INFO("JAN: sst_complete cluster_size %lu index %lu", wsrep_cluster_size, wsrep_local_index);
   const wsrep::view& view= wsrep_config_state->get_view_info();
   mysql_mutex_lock(&LOCK_status);
   wsrep_cluster_size= view.members().size();
   wsrep_local_index= view.own_index();
   mysql_mutex_unlock(&LOCK_status);
+  WSREP_INFO("JAN: sst_complete view updated cluster_size %lu index %lu", wsrep_cluster_size, wsrep_local_index);
 
   wsrep_joiner_monitor_end();
   return failed;
