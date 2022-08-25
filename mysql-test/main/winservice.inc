@@ -9,7 +9,7 @@ let $sc_exe= C:\Windows\System32\sc.exe;
 let $ddir= $MYSQLTEST_VARDIR/tmp/$datadir_name;
 let $service_name=$service_name_prefix$MASTER_MYPORT;
 
-
+use mysql;
 error 0,1;
 rmdir $ddir;
 
@@ -72,4 +72,3 @@ rmdir $ddir;
 #restart original server
 connection default;
 source include/start_mysqld.inc;
-
