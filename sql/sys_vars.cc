@@ -3913,6 +3913,18 @@ static Sys_var_ulong Sys_table_cache_size(
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_table_open_cache));
 
+static Sys_var_uint Sys_table_cache_k_queries_per_sec(
+       "table_open_cache_k_queries_per_sec",
+       "The expected throughput per instance in thousands of queries per second",
+       GLOBAL_VAR(tc_kqps), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 1000000), DEFAULT(100), BLOCK_SIZE(1));
+
+static Sys_var_uint Sys_table_cache_instance_threshold(
+       "table_open_cache_instance_threshold",
+       "The percent of mutex acquisitions that must be immediately served before it is considered contested.",
+      GLOBAL_VAR(tc_threshold), CMD_LINE(REQUIRED_ARG),
+      VALID_RANGE(10, 50), DEFAULT(20), BLOCK_SIZE(1));
+
 static Sys_var_uint Sys_table_cache_instances(
        "table_open_cache_instances", "Maximum number of table cache instances",
        READ_ONLY GLOBAL_VAR(tc_instances), CMD_LINE(REQUIRED_ARG),
