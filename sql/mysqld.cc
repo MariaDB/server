@@ -5389,12 +5389,12 @@ static int init_server_components()
     else // full wsrep initialization
     {
       // add basedir/bin to PATH to resolve wsrep script names
-      char* const tmp_path= (char*)my_alloca(strlen(mysql_home) +
-                                             strlen("/bin") + 1);
+      size_t tmp_path_sz = strlen(mysql_home) + strlen("/bin") + 1;
+      char* const tmp_path= (char*)my_alloca(tmp_path_sz);
       if (tmp_path)
       {
-        strcpy(tmp_path, mysql_home);
-        strcat(tmp_path, "/bin");
+        strlcpy(tmp_path, mysql_home, tmp_path_sz);
+        strlcat(tmp_path, "/bin", tmp_path_sz);
         wsrep_prepend_PATH(tmp_path);
       }
       else
@@ -6250,8 +6250,8 @@ int mysqld_main(int argc, char **argv)
     char real_server_version[2 * SERVER_VERSION_LENGTH + 10];
 
     set_server_version(real_server_version, sizeof(real_server_version));
-    strcat(real_server_version, "' as '");
-    strcat(real_server_version, server_version);
+    strlcat(real_server_version, "' as '", sizeof(real_server_version));
+    strlcat(real_server_version, server_version, sizeof(real_server_version));
 
     sql_print_information(ER_DEFAULT(ER_STARTUP), my_progname,
                           real_server_version,
@@ -9186,7 +9186,7 @@ static int mysql_init_variables(void)
     }
     else
       my_path(prg_dev, my_progname, "mysql/bin");
-    strcat(prg_dev,"/../");			// Remove 'bin' to get base dir
+    strlcat(prg_dev,"/../", sizeof(prg_dev));			// Remove 'bin' to get base dir
     cleanup_dirname(mysql_home,prg_dev);
   }
 #else

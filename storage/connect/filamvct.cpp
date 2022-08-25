@@ -191,8 +191,10 @@ int VCTFAM::GetBlockInfo(PGLOBAL g)
 
   PlugSetPath(filename, To_File, Tdbp->GetPath());
 
-  if (Header == 2)
-    strcat(PlugRemoveType(filename, filename), ".blk");
+  if (Header == 2) {
+    PlugRemoveType(filename, filename);
+    strlcat(filename, ".blk", sizeof(filename));
+  }
 
   if ((h = global_open(g, MSGID_CANNOT_OPEN, filename, O_RDONLY)) == -1
       || !_filelength(h)) {
@@ -247,7 +249,8 @@ bool VCTFAM::SetBlockInfo(PGLOBAL g)
       s= global_fopen(g, MSGID_CANNOT_OPEN, filename, "r+b");
 
   } else {      // Header == 2
-    strcat(PlugRemoveType(filename, filename), ".blk");
+    PlugRemoveType(filename, filename);
+    strlcat(filename, ".blk", sizeof(filename));
     s= global_fopen(g, MSGID_CANNOT_OPEN, filename, "wb");
   } // endif Header
 
@@ -422,7 +425,7 @@ bool VCTFAM::OpenTableFile(PGLOBAL g)
   /*********************************************************************/
   switch (mode) {
     case MODE_READ:
-      strcpy(opmode, "rb");
+      strlcpy(opmode, "rb", sizeof(opmode));
       break;
     case MODE_DELETE:
       if (!Tdbp->GetNext()) {
@@ -430,7 +433,7 @@ bool VCTFAM::OpenTableFile(PGLOBAL g)
         DelRows = Cardinality(g);
 
         // This will delete the whole file
-        strcpy(opmode, "wb");
+        strlcpy(opmode, "wb", sizeof(opmode));
         break;
         } // endif
 
@@ -438,7 +441,7 @@ bool VCTFAM::OpenTableFile(PGLOBAL g)
       /* fall through */
     case MODE_UPDATE:
       UseTemp = Tdbp->IsUsingTemp(g);
-      strcpy(opmode, (UseTemp) ? "rb" : "r+b");
+      strlcpy(opmode, (UseTemp) ? "rb" : "r+b", sizeof(opmode));
       break;
     case MODE_INSERT:
       if (MaxBlk) {
@@ -446,11 +449,11 @@ bool VCTFAM::OpenTableFile(PGLOBAL g)
           if (MakeEmptyFile(g, To_File))
             return true;
 
-        strcpy(opmode, "r+b");   // Required to update empty blocks
+        strlcpy(opmode, "r+b", sizeof(opmode));   // Required to update empty blocks
       } else if (!Block || Last == Nrec)
-        strcpy(opmode, "ab");
+        strlcpy(opmode, "ab", sizeof(opmode));
       else
-        strcpy(opmode, "r+b");   // Required to update the last block
+        strlcpy(opmode, "r+b", sizeof(opmode));   // Required to update the last block
 
       break;
     default:
@@ -582,7 +585,7 @@ bool VCTFAM::InitInsert(PGLOBAL g)
 				htrc("Exception %d: %s\n", n, g->Message);
 			rc = true;
 		} catch (const char *msg) {
-			strcpy(g->Message, msg);
+			strlcpy(g->Message, msg, sizeof(g->Message));
 			rc = true;
 		} // end catch
 
@@ -687,7 +690,7 @@ int VCTFAM::WriteBuffer(PGLOBAL g)
   } else {
     // Mode Insert
     if (MaxBlk && CurBlk == MaxBlk) {
-      strcpy(g->Message, MSG(TRUNC_BY_ESTIM));
+      strlcpy(g->Message, MSG(TRUNC_BY_ESTIM), sizeof(g->Message));
       return RC_EF;       // Too many lines for vector formatted table
       } // endif MaxBlk
 
@@ -885,7 +888,8 @@ bool VCTFAM::OpenTempFile(PGLOBAL g)
   /*  Open the temporary file, Spos is at the beginning of file.       */
   /*********************************************************************/
   PlugSetPath(tempname, To_File, Tdbp->GetPath());
-  strcat(PlugRemoveType(tempname, tempname), ".t");
+  PlugRemoveType(tempname, tempname);
+  strlcat(tempname, ".t", sizeof(tempname));
 
   if (MaxBlk) {
     if (MakeEmptyFile(g, tempname))
@@ -1386,7 +1390,7 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
         // Inserting will be like updating the file
         mapmode = MODE_UPDATE;
       } else {
-        strcpy(g->Message, "MAP Insert is for VEC Estimate tables only");
+        strlcpy(g->Message, "MAP Insert is for VEC Estimate tables only", sizeof(g->Message));
         return true;
       } // endif MaxBlk
 
@@ -1557,7 +1561,7 @@ bool VCMFAM::InitInsert(PGLOBAL g)
 		  htrc("Exception %d: %s\n", n, g->Message);
 		rc = true;
   } catch (const char *msg) {
-	  strcpy(g->Message, msg);
+	  strlcpy(g->Message, msg, sizeof(g->Message));
 		rc = true;
   } // end catch
 
@@ -1576,7 +1580,7 @@ int VCMFAM::WriteBuffer(PGLOBAL g)
   // Mode Update being done in ReadDB we process here Insert mode only.
   if (Tdbp->GetMode() == MODE_INSERT) {
     if (CurBlk == MaxBlk) {
-      strcpy(g->Message, MSG(TRUNC_BY_ESTIM));
+      strlcpy(g->Message, MSG(TRUNC_BY_ESTIM), sizeof(g->Message));
       return RC_EF;       // Too many lines for vector formatted table
       } // endif MaxBlk
 
@@ -1905,7 +1909,7 @@ bool VECFAM::OpenTableFile(PGLOBAL g)
   /*********************************************************************/
   switch (mode) {
     case MODE_READ:
-      strcpy(opmode, "rb");
+      strlcpy(opmode, "rb", sizeof(opmode));
       break;
     case MODE_DELETE:
       if (!Tdbp->GetNext()) {
@@ -1913,7 +1917,7 @@ bool VECFAM::OpenTableFile(PGLOBAL g)
         DelRows = Cardinality(g);
 
         // This will delete the whole file
-        strcpy(opmode, "wb");
+        strlcpy(opmode, "wb", sizeof(opmode));
 
         // This will stop the process by causing GetProgMax to return 0.
         ResetTableSize(g, 0, Nrec);
@@ -1924,10 +1928,10 @@ bool VECFAM::OpenTableFile(PGLOBAL g)
       /* fall through */
     case MODE_UPDATE:
       UseTemp = Tdbp->IsUsingTemp(g);
-      strcpy(opmode, (UseTemp) ? "rb": "r+b");
+      strlcpy(opmode, (UseTemp) ? "rb": "r+b", sizeof(opmode));
       break;
     case MODE_INSERT:
-      strcpy(opmode, "ab");
+      strlcpy(opmode, "ab", sizeof(opmode));
       break;
     default:
       sprintf(g->Message, MSG(BAD_OPEN_MODE), mode);
@@ -2077,9 +2081,10 @@ bool VECFAM::AllocateBuffer(PGLOBAL g)
       // Allocate all that is needed to move lines and make Temp
       if (UseTemp) {
         Tempat = (char*)PlugSubAlloc(g, NULL, _MAX_PATH);
-        strcpy(Tempat, Colfn);
+        strlcpy(Tempat, Colfn, _MAX_PATH);
         PlugSetPath(Tempat, Tempat, Tdbp->GetPath());
-        strcat(PlugRemoveType(Tempat, Tempat), ".t");
+        PlugRemoveType(Tempat, Tempat);
+        strlcat(Tempat, ".t", _MAX_PATH);
         T_Fbs = (PFBLOCK *)PlugSubAlloc(g, NULL, Ncol * sizeof(PFBLOCK));
         } // endif UseTemp
 
@@ -2453,7 +2458,8 @@ int VECFAM::RenameTempFile(PGLOBAL g)
     if (!Abort) {
       sprintf(filename, Colfn, i+1);
       PlugSetPath(filename, filename, Tdbp->GetPath());
-      strcat(PlugRemoveType(filetemp, filename), ".ttt");
+      PlugRemoveType(filetemp, filename);
+      strlcat(filetemp, ".ttt", sizeof(filetemp));
       remove(filetemp);   // May still be there from previous error
   
       if (rename(filename, filetemp)) {    // Save file for security
@@ -3103,7 +3109,7 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
     char buf[256];  // , *fn = (h == Hfile) ? To_File : "Tempfile";
 
     if (brc)
-      strcpy(buf, MSG(BAD_BYTE_READ));
+      strlcpy(buf, MSG(BAD_BYTE_READ), sizeof(buf));
     else {
       drc = GetLastError();
       FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
@@ -3157,7 +3163,7 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
 		PCSZ fn = (h == Hfile) ? To_File : "Tempfile";
 
     if (brc)
-      strcpy(buf, MSG(BAD_BYTE_NUM));
+      strlcpy(buf, MSG(BAD_BYTE_NUM), sizeof(buf));
     else {
       drc = GetLastError();
       FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
@@ -3211,8 +3217,10 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
 
   PlugSetPath(filename, To_File, Tdbp->GetPath());
 
-  if (Header == 2)
-    strcat(PlugRemoveType(filename, filename), ".blk");
+  if (Header == 2) {
+    PlugRemoveType(filename, filename);
+    strlcat(filename, ".blk", sizeof(filename));
+  }
 
 #if defined(_WIN32)
   LARGE_INTEGER len;
@@ -3287,8 +3295,10 @@ bool BGVFAM::SetBlockInfo(PGLOBAL g)
     } else
       b = true;
 
-  } else       // Header == 2
-    strcat(PlugRemoveType(filename, filename), ".blk");
+  } else {      // Header == 2
+    PlugRemoveType(filename, filename);
+    strlcat(filename, ".blk", sizeof(filename));
+  }
 
   if (h == INVALID_HANDLE_VALUE) {
 #if defined(_WIN32)
@@ -3385,7 +3395,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
   FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                 FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                 (LPTSTR)filename, sizeof(filename), NULL);
-  strcat(g->Message, filename);
+  strlcat(g->Message, filename, sizeof(g->Message));
 
   if (h != INVALID_HANDLE_VALUE)
     CloseHandle(h);
@@ -3521,7 +3531,7 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                   (LPTSTR)filename, sizeof(filename), NULL);
-    strcat(g->Message, filename);
+    strlcat(g->Message, filename, sizeof(g->Message));
     } // endif Hfile
 
   if (trace(1))
@@ -3590,7 +3600,7 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
         // This will delete the whole file and provoque ReadDB to
         // return immediately.
         oflag = O_RDWR | O_TRUNC;
-        strcpy(g->Message, MSG(NO_VCT_DELETE));
+        strlcpy(g->Message, MSG(NO_VCT_DELETE), sizeof(g->Message));
         break;
         } // endif
 
@@ -3610,7 +3620,7 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
   if (Hfile == INVALID_HANDLE_VALUE) {
     rc = errno;
     sprintf(g->Message, MSG(OPEN_ERROR), rc, mode, filename);
-    strcat(g->Message, strerror(errno));
+    strlcat(g->Message, strerror(errno), sizeof(g->Message));
     } // endif Hfile
 
   if (trace(1))
@@ -3765,7 +3775,7 @@ int BGVFAM::WriteBuffer(PGLOBAL g)
   } else {
     // Mode Insert
     if (MaxBlk && CurBlk == MaxBlk) {
-      strcpy(g->Message, MSG(TRUNC_BY_ESTIM));
+      strlcpy(g->Message, MSG(TRUNC_BY_ESTIM), sizeof(g->Message));
       return RC_EF;       // Too many lines for a Vector formatted table
       } // endif MaxBlk
 
@@ -3953,7 +3963,8 @@ bool BGVFAM::OpenTempFile(PGLOBAL g)
   /*********************************************************************/
   tempname = (char*)PlugSubAlloc(g, NULL, _MAX_PATH);
   PlugSetPath(tempname, To_File, Tdbp->GetPath());
-  strcat(PlugRemoveType(tempname, tempname), ".t");
+  PlugRemoveType(tempname, tempname);
+  strlcat(tempname, ".t", _MAX_PATH);
 
   if (!MaxBlk)
     remove(tempname);       // Be sure it does not exist yet
@@ -3972,7 +3983,7 @@ bool BGVFAM::OpenTempFile(PGLOBAL g)
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
               FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
               (LPTSTR)tempname, _MAX_PATH, NULL);
-    strcat(g->Message, tempname);
+    strlcat(g->Message, tempname, sizeof(g->Message));
     return true;
     } // endif Tfile
 #else    // UNIX
@@ -3983,7 +3994,7 @@ bool BGVFAM::OpenTempFile(PGLOBAL g)
   if (Tfile == INVALID_HANDLE_VALUE) {
     int rc = errno;
     sprintf(g->Message, MSG(OPEN_ERROR), rc, MODE_INSERT, tempname);
-    strcat(g->Message, strerror(errno));
+    strlcat(g->Message, strerror(errno), sizeof(g->Message));
     return true;
     } //endif Tfile
 #endif   // UNIX

@@ -1150,7 +1150,7 @@ int ODBConn::Open(PCSZ ConnectString, POPARM sop, DWORD options)
 
     if (!m_UseCnc) {
       if (DriverConnect(options)) {
-        strcpy(g->Message, MSG(CONNECT_CANCEL));
+        strlcpy(g->Message, MSG(CONNECT_CANCEL), sizeof(g->Message));
         return 0;
         } // endif
 
@@ -1474,7 +1474,7 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
         ThrowDBX(rc, "SQLNumResultCols", hstmt);
 
       if (ncol == 0) {
-        strcpy(g->Message, "This Srcdef does not return a result set");
+        strlcpy(g->Message, "This Srcdef does not return a result set", sizeof(g->Message));
         return -1;
         } // endif ncol
 
@@ -1583,7 +1583,7 @@ int ODBConn::GetResultSize(char *sql, ODBCCOL *colp)
       } // endfor n
 
   } catch(DBX *x) {
-    strcpy(m_G->Message, x->GetErrorMessage(0));
+    strlcpy(m_G->Message, x->GetErrorMessage(0), sizeof(m_G->Message));
     
     if (trace(1))
       for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
@@ -1771,7 +1771,7 @@ int ODBConn::ExecuteSQL(void)
 
     if (ncol) {
       // This should never happen while inserting
-      strcpy(g->Message, "Logical error while inserting");
+      strlcpy(g->Message, "Logical error while inserting", sizeof(g->Message));
     } else {
       // Insert, Update or Delete statement
       if (!Check(rc = SQLRowCount(m_hstmt, &afrw)))
@@ -1840,7 +1840,7 @@ bool ODBConn::BindParam(ODBCCOL *colp)
       ThrowDBX(rc, "SQLBindParameter", m_hstmt);
 
   } catch(DBX *x) {
-    strcpy(m_G->Message, x->GetErrorMessage(0));
+    strlcpy(m_G->Message, x->GetErrorMessage(0), sizeof(m_G->Message));
     SQLCancel(m_hstmt);
     rc = SQLFreeStmt(m_hstmt, SQL_DROP);
     m_hstmt = NULL;
@@ -1917,10 +1917,10 @@ bool ODBConn::ExecSQLcommand(char *sql)
         ThrowDBX(rc, "SQLRowCount", hstmt);
 
       m_Tdb->AftRows = (int)afrw;
-      strcpy(g->Message, "Affected rows");
+      strlcpy(g->Message, "Affected rows", sizeof(g->Message));
     } else {
       m_Tdb->AftRows = (int)ncol;
-      strcpy(g->Message, "Result set column number");
+      strlcpy(g->Message, "Result set column number", sizeof(g->Message));
     } // endif ncol
 
   } catch(DBX *x) {
@@ -2018,7 +2018,7 @@ PQRYRES ODBConn::GetMetaData(PGLOBAL g, PCSZ dsn, PCSZ src)
   } // end try/catch
 
   if (!ncol) {
-    strcpy(g->Message, "Invalid Srcdef");
+    strlcpy(g->Message, "Invalid Srcdef", sizeof(g->Message));
     goto err;
     } // endif ncol
 
@@ -2511,7 +2511,7 @@ PQRYRES ODBConn::AllocateResult(PGLOBAL g)
   PQRYRES      qrp;
 
   if (!m_Rows) {
-    strcpy(g->Message, "Void result");
+    strlcpy(g->Message, "Void result", sizeof(g->Message));
     return NULL;
     } // endif m_Res
 

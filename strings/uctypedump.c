@@ -120,7 +120,7 @@ int main(int ac, char ** av)
       }
       else
       {
-        strcpy(tok,s);
+        strlcpy(tok,s, sizeof(tok));
       }
       
       end=tok+strlen(tok);

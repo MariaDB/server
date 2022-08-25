@@ -91,7 +91,7 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng)
   xtrc(1, "BDOC::ParseJson: s=%.10s len=%zd\n", s, len);
 
   if (!s || !len) {
-    strcpy(g->Message, "Void JSON object");
+    strlcpy(g->Message, "Void JSON object", sizeof(g->Message));
     return NULL;
   } // endif s
 
@@ -175,7 +175,7 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng)
     GetMsg(g);
     bvp = NULL;
   } catch (const char* msg) {
-    strcpy(g->Message, msg);
+    strlcpy(g->Message, msg, sizeof(g->Message));
     bvp = NULL;
   } // end catch
 
@@ -194,7 +194,7 @@ OFFSET BDOC::ParseAsArray(size_t& i) {
 
     return jsp;
   } else
-    strcpy(G->Message, "More than one item in file");
+    strlcpy(G->Message, "More than one item in file", sizeof(G->Message));
 
   return 0;
 } // end of ParseAsArray
@@ -325,7 +325,7 @@ OFFSET BDOC::ParseObject(size_t& i)
       throw 2;
     }; // endswitch s[i]
 
-  strcpy(G->Message, "Unexpected EOF in Object");
+  strlcpy(G->Message, "Unexpected EOF in Object", sizeof(G->Message));
   throw 2;
 } // end of ParseObject
 
@@ -598,7 +598,7 @@ PSZ BDOC::Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty)
 
   try {
     if (!bvp) {
-      strcpy(g->Message, "Null json tree");
+      strlcpy(g->Message, "Null json tree", sizeof(g->Message));
       throw 1;
     } else if (!fn) {
       // Serialize to a string
@@ -608,7 +608,8 @@ PSZ BDOC::Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty)
       if (!(fs = fopen(fn, "wb"))) {
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
           "w", (int)errno, fn);
-        strcat(strcat(g->Message, ": "), strerror(errno));
+        strlcat(g->Message, ": ", sizeof(g->Message));
+		strlcat(g->Message, strerror(errno), sizeof(g->Message));
         throw 2;
       } else if (pretty >= 2) {
         // Serialize to a pretty file
@@ -639,13 +640,19 @@ PSZ BDOC::Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty)
     if (fs) {
       fputs(EL, fs);
       fclose(fs);
-      str = (err) ? NULL : strcpy(g->Message, "Ok");
+      if(err) {
+        str = NULL;
+      }
+      else {
+        strlcpy(g->Message, "Ok", sizeof(g->Message));
+		str = g->Message;
+	  }
     } else if (!err) {
       str = ((JOUTSTR*)jp)->Strp;
       jp->WriteChr('\0');
       PlugSubAlloc(g, NULL, ((JOUTSTR*)jp)->N);
     } else if (G->Message[0])
-        strcpy(g->Message, "Error in Serialize");
+        strlcpy(g->Message, "Error in Serialize", sizeof(g->Message));
       else
         GetMsg(g);
 
@@ -655,7 +662,7 @@ PSZ BDOC::Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty)
     GetMsg(g);
     str = NULL;
   } catch (const char* msg) {
-    strcpy(g->Message, msg);
+    strlcpy(g->Message, msg, sizeof(g->Message));
     str = NULL;
   } // end catch
 

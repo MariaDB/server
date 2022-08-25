@@ -19,6 +19,8 @@
 //#include "m_ctype.h"
 #include "reldef.h"
 
+#include "m_string.h"
+
 typedef class CMD *PCMD;
 typedef struct st_key_range key_range;
 
@@ -191,13 +193,13 @@ class DllExport TDBASE : public TDB {
 
   // Database routines
   virtual int  MakeIndex(PGLOBAL g, PIXDEF, bool)
-                {strcpy(g->Message, "Remote index"); return RC_INFO;}
+                {strlcpy(g->Message, "Remote index", sizeof(g->Message)); return RC_INFO;}
   virtual bool ReadKey(PGLOBAL, OPVAL, const key_range *)
                       {assert(false); return true;}
 
  protected:
-  virtual bool PrepareWriting(PGLOBAL g) {strcpy(g->Message,
-    "This function should not be called for this table"); return true;}
+  virtual bool PrepareWriting(PGLOBAL g) {strlcpy(g->Message,
+    "This function should not be called for this table", sizeof(g->Message)); return true;}
 
   // Members
   PXOB    *To_Link;           // Points to column of previous relations

@@ -148,7 +148,8 @@ static void global_open_error_msg(GLOBAL *g, int msgid, const char *path,
 
     case MSGID_OPEN_MODE_STRERROR:
       {char fmt[256];
-      strcat(strcpy(fmt, MSG(OPEN_MODE_ERROR)), ": %s");
+	  strlcpy(fmt, MSG(OPEN_MODE_ERROR), sizeof(fmt));
+      strlcat(fmt, ": %s", sizeof(fmt));
       len= snprintf(g->Message, sizeof(g->Message) - 1,
                     fmt, // Open(%s) error %d on %s: %s
                     mode, rno, path, errmsg);
@@ -297,7 +298,7 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
   	htrc("Exception %d: %s\n", n, g->Message);
 	  qrp = NULL;
   } catch (const char *msg) {
-  	strcpy(g->Message, msg);
+  	strlcpy(g->Message, msg, sizeof(g->Message));
 	  htrc("%s\n", g->Message);
 	  qrp = NULL;
   } // end catch
@@ -321,7 +322,7 @@ PDBUSER PlgMakeUser(PGLOBAL g)
   dbuserp->Maxbmp = MAXBMP;
 //dbuserp->UseTemp = TMP_AUTO;
   dbuserp->Check = CHK_ALL;
-  strcpy(dbuserp->Server, "CONNECT");
+  strlcpy(dbuserp->Server, "CONNECT", sizeof(dbuserp->Server));
   return dbuserp;
   } // end of PlgMakeUser
 
@@ -333,7 +334,7 @@ PDBUSER PlgGetUser(PGLOBAL g)
   PDBUSER dup = (PDBUSER)((g->Activityp) ? g->Activityp->Aptr : NULL);
 
   if (!dup)
-    strcpy(g->Message, MSG(APPL_NOT_INIT));
+    strlcpy(g->Message, MSG(APPL_NOT_INIT), sizeof(g->Message));
 
   return dup;
   } // end of PlgGetUser
@@ -348,7 +349,7 @@ PCATLG PlgGetCatalog(PGLOBAL g, bool jump)
 
   if (!cat && jump) {
     // Raise exception so caller doesn't have to check return value
-    strcpy(g->Message, MSG(NO_ACTIVE_DB));
+    strlcpy(g->Message, MSG(NO_ACTIVE_DB), sizeof(g->Message));
 		throw 1;
 	} // endif cat
 
@@ -381,7 +382,7 @@ char *SetPath(PGLOBAL g, const char *path)
 			return NULL;
 
 		if (PlugIsAbsolutePath(path)) {
-			strcpy(buf, path);
+			strlcpy(buf, path, len);
 			return buf;
 		} // endif path
 
@@ -391,9 +392,12 @@ char *SetPath(PGLOBAL g, const char *path)
 #else   // !_WIN32
 			const char *s = "/";
 #endif  // !_WIN32
-			strcat(strcat(strcat(strcpy(buf, "."), s), path), s);
+			strlcpy(buf, ".", len);
+			strlcat(buf, s, len);
+			strlcat(buf, path, len);
+			strlcat(buf, s, len);
 		} else
-			strcpy(buf, path);
+			strlcpy(buf, path, len);
 
 	} // endif path
 
@@ -437,7 +441,8 @@ static bool PlugCheckPattern(PGLOBAL g, LPCSTR string, LPCSTR pat)
     LPSTR name = g->Message + MAX_STR / 2;
 
     strlwr(strcpy(name, string));
-    strlwr(strcpy(g->Message, pat));         // Can be modified by Eval
+    strlcpy(g->Message, pat, sizeof(g->Message));
+    strlwr(g->Message);         // Can be modified by Eval
     return EvalLikePattern(name, g->Message);
   } else
     return true;
@@ -460,7 +465,7 @@ bool PlugEvalLike(PGLOBAL g, LPCSTR strg, LPCSTR pat, bool ci)
     if (strlen(pat) + strlen(strg) + 1 < MAX_STR)
       tp = g->Message;
     else if (!(tp = new char[strlen(pat) + strlen(strg) + 2])) {
-      strcpy(g->Message, MSG(NEW_RETURN_NULL));
+      strlcpy(g->Message, MSG(NEW_RETURN_NULL), sizeof(g->Message));
 			throw (int)OP_LIKE;
 		} /* endif tp */
     
@@ -471,7 +476,7 @@ bool PlugEvalLike(PGLOBAL g, LPCSTR strg, LPCSTR pat, bool ci)
     if (strlen(pat) < MAX_STR)    /* In most of the case for small pat */
       tp = g->Message;            /* Use this as temporary work space. */
     else if (!(tp = new char[strlen(pat) + 1])) {
-      strcpy(g->Message, MSG(NEW_RETURN_NULL));
+      strlcpy(g->Message, MSG(NEW_RETURN_NULL), sizeof(g->Message));
 			throw (int)OP_LIKE;
 		} /* endif tp */
     
@@ -1067,7 +1072,7 @@ DllExport PSZ GetIniString(PGLOBAL g, void *mp, LPCSTR sec, LPCSTR key,
   if (trace(1))
     htrc("GetIniString: sec=%s key=%s buf=%s\n", sec, key, buf);
 
-  strcpy(p, buf);
+  strlcpy(p, buf, n + 1);
 
   if (buf != buff)
     delete [] buf;
@@ -1084,35 +1089,35 @@ char *GetAmName(PGLOBAL g, AMT am, void *memp)
   char *amn= (char*)PlugSubAlloc(g, memp, 16);
 
   switch (am) {
-    case TYPE_AM_ERROR: strcpy(amn, "ERROR"); break;
-    case TYPE_AM_ROWID: strcpy(amn, "ROWID"); break;
-    case TYPE_AM_FILID: strcpy(amn, "FILID"); break;
-    case TYPE_AM_VIEW:  strcpy(amn, "VIEW");  break;
-    case TYPE_AM_COUNT: strcpy(amn, "COUNT"); break;
-    case TYPE_AM_DCD:   strcpy(amn, "DCD");   break;
-    case TYPE_AM_CMS:   strcpy(amn, "CMS");   break;
-    case TYPE_AM_MAP:   strcpy(amn, "MAP");   break;
-    case TYPE_AM_FMT:   strcpy(amn, "FMT");   break;
-    case TYPE_AM_CSV:   strcpy(amn, "CSV");   break;
-    case TYPE_AM_MCV:   strcpy(amn, "MCV");   break;
-    case TYPE_AM_DOS:   strcpy(amn, "DOS");   break;
-    case TYPE_AM_FIX:   strcpy(amn, "FIX");   break;
-    case TYPE_AM_BIN:   strcpy(amn, "BIN");   break;
-    case TYPE_AM_VCT:   strcpy(amn, "VEC");   break;
-    case TYPE_AM_VMP:   strcpy(amn, "VMP");   break;
-    case TYPE_AM_DBF:   strcpy(amn, "DBF");   break;
-    case TYPE_AM_QRY:   strcpy(amn, "QRY");   break;
-    case TYPE_AM_SQL:   strcpy(amn, "SQL");   break;
-    case TYPE_AM_PLG:   strcpy(amn, "PLG");   break;
-    case TYPE_AM_PLM:   strcpy(amn, "PLM");   break;
-    case TYPE_AM_DOM:   strcpy(amn, "DOM");   break;
-    case TYPE_AM_DIR:   strcpy(amn, "DIR");   break;
-    case TYPE_AM_ODBC:  strcpy(amn, "ODBC");  break;
-		case TYPE_AM_JDBC:  strcpy(amn, "JDBC");  break;
-		case TYPE_AM_MAC:   strcpy(amn, "MAC");   break;
-    case TYPE_AM_OEM:   strcpy(amn, "OEM");   break;
-    case TYPE_AM_OUT:   strcpy(amn, "OUT");   break;
-    default:           sprintf(amn, "OEM(%d)", am);
+    case TYPE_AM_ERROR: strlcpy(amn, "ERROR", 16);   break;
+    case TYPE_AM_ROWID: strlcpy(amn, "ROWID", 16);   break;
+    case TYPE_AM_FILID: strlcpy(amn, "FILID", 16);   break;
+    case TYPE_AM_VIEW:  strlcpy(amn, "VIEW",  16);   break;
+    case TYPE_AM_COUNT: strlcpy(amn, "COUNT", 16);   break;
+    case TYPE_AM_DCD:   strlcpy(amn, "DCD",   16);   break;
+    case TYPE_AM_CMS:   strlcpy(amn, "CMS",   16);   break;
+    case TYPE_AM_MAP:   strlcpy(amn, "MAP",   16);   break;
+    case TYPE_AM_FMT:   strlcpy(amn, "FMT",   16);   break;
+    case TYPE_AM_CSV:   strlcpy(amn, "CSV",   16);   break;
+    case TYPE_AM_MCV:   strlcpy(amn, "MCV",   16);   break;
+    case TYPE_AM_DOS:   strlcpy(amn, "DOS",   16);   break;
+    case TYPE_AM_FIX:   strlcpy(amn, "FIX",   16);   break;
+    case TYPE_AM_BIN:   strlcpy(amn, "BIN",   16);   break;
+    case TYPE_AM_VCT:   strlcpy(amn, "VEC",   16);   break;
+    case TYPE_AM_VMP:   strlcpy(amn, "VMP",   16);   break;
+    case TYPE_AM_DBF:   strlcpy(amn, "DBF",   16);   break;
+    case TYPE_AM_QRY:   strlcpy(amn, "QRY",   16);   break;
+    case TYPE_AM_SQL:   strlcpy(amn, "SQL",   16);   break;
+    case TYPE_AM_PLG:   strlcpy(amn, "PLG",   16);   break;
+    case TYPE_AM_PLM:   strlcpy(amn, "PLM",   16);   break;
+    case TYPE_AM_DOM:   strlcpy(amn, "DOM",   16);   break;
+    case TYPE_AM_DIR:   strlcpy(amn, "DIR",   16);   break;
+    case TYPE_AM_ODBC:  strlcpy(amn, "ODBC",  16);   break;
+    case TYPE_AM_JDBC:  strlcpy(amn, "JDBC",  16);   break;
+    case TYPE_AM_MAC:   strlcpy(amn, "MAC",   16);   break;
+    case TYPE_AM_OEM:   strlcpy(amn, "OEM",   16);   break;
+    case TYPE_AM_OUT:   strlcpy(amn, "OUT",   16);   break;
+    default:            sprintf(amn, "OEM(%d)", am);
     } // endswitch am
 
   return amn;
@@ -1429,7 +1434,7 @@ char *PlgDBDup(PGLOBAL g, const char *str)
     char *sm = (char*)PlgDBSubAlloc(g, NULL, strlen(str) + 1);
 
     if (sm)
-      strcpy(sm, str);
+      strlcpy(sm, str, strlen(str) + 1);
 
     return sm;
   } else
@@ -1564,7 +1569,8 @@ int FileComp(PGLOBAL g, char *file1, char *file2)
 //      if (errno != ENOENT) {
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
                 "rb", (int)errno, fn[i]);
-        strcat(strcat(g->Message, ": "), strerror(errno));
+		strlcat(g->Message, ": ", sizeof(g->Message));
+        strlcat(g->Message, strerror(errno), sizeof(g->Message));
 				throw 666;
 				//      } else
 //        len[i] = 0;          // File does not exist yet

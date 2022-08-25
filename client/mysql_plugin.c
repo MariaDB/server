@@ -575,8 +575,8 @@ static int search_dir(const char * base_path, const char *tool_name,
   char new_path[FN_REFLEN];
   char source_path[FN_REFLEN];
 
-  strcpy(source_path, base_path);
-  strcat(source_path, subdir);
+  strlcpy(source_path, base_path, sizeof(source_path));
+  strlcat(source_path, subdir, sizeof(source_path));
   fn_format(new_path, tool_name, source_path, "", MY_UNPACK_FILENAME);
   if (file_exists(new_path))
   {
@@ -683,7 +683,7 @@ static int load_plugin_data(char *plugin_name, char *config_file)
     if (i == -1) /* if first pass, read this line as so_name */
     {
       /* Add proper file extension for soname */
-      strcat(line, FN_SOEXT);
+      strlcat(line, FN_SOEXT, sizeof(line));
       /* save so_name */
       plugin_data.so_name= my_strdup(line, MYF(MY_WME|MY_ZEROFILL));
       i++;
@@ -741,7 +741,7 @@ static int check_options(int argc, char **argv, char *operation)
   const char *plugin_dir_prefix = "--plugin_dir=";
   size_t plugin_dir_len= strlen(plugin_dir_prefix);
 
-  strcpy(plugin_name, "");
+  strlcpy(plugin_name, "", sizeof(plugin_name));
   for (i = 0; i < argc && num_found < 5; i++)
   {
 
@@ -784,9 +784,9 @@ static int check_options(int argc, char **argv, char *operation)
         fprintf(stderr, "ERROR: argument is too long.\n");
         return 1;
       }
-      strcpy(plugin_name, argv[i]);
-      strcpy(config_file, argv[i]);
-      strcat(config_file, ".ini");
+      strlcpy(plugin_name, argv[i], sizeof(plugin_name));
+      strlcpy(config_file, argv[i], sizeof(config_file));
+      strlcat(config_file, ".ini", sizeof(config_file));
     }
   }
 

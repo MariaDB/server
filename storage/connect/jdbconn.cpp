@@ -873,11 +873,11 @@ int JDBConn::ExecuteCommand(PCSZ sql)
 		sprintf(g->Message, "GetResult: %s", Msg);
 		rc = RC_FX;
 	} else if (m_Ncol) {
-		strcpy(g->Message, "Result set column number");
+		strlcpy(g->Message, "Result set column number", sizeof(g->Message));
 		rc = RC_OK;						// A result set was returned
 	} else {
 		m_Aff = (int)n;			  // Affected rows
-		strcpy(g->Message, "Affected rows");
+		strlcpy(g->Message, "Affected rows", sizeof(g->Message));
 		rc = RC_NF;
 	} // endif ncol
 
@@ -897,7 +897,7 @@ int JDBConn::Fetch(int pos)
 
 	if (pos) {
 		if (!m_Scrollable) {
-			strcpy(g->Message, "Cannot fetch(pos) if FORWARD ONLY");
+			strlcpy(g->Message, "Cannot fetch(pos) if FORWARD ONLY", sizeof(g->Message));
 		  return rc;
 		} else if (gmID(m_G, fetchid, "Fetch", "(I)Z"))
 			return rc;
@@ -1226,7 +1226,7 @@ int JDBConn::ExecuteSQL(void)
 		jint n = env->CallIntMethod(job, xpid);
 
 		if (n == -3)
-			strcpy(g->Message, "SQL statement is not prepared");
+			strlcpy(g->Message, "SQL statement is not prepared", sizeof(g->Message));
 		else if (Check(n))
 			sprintf(g->Message, "ExecutePrep: %s", Msg);
 		else {
@@ -1309,17 +1309,17 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 			break;
 		case TYPE_DATE:
 			if ((dat = env->FindClass("java/sql/Timestamp")) == nullptr) {
-				strcpy(g->Message, "Cannot find Timestamp class");
+				strlcpy(g->Message, "Cannot find Timestamp class", sizeof(g->Message));
 				return true;
 			} else if (!(dtc = env->GetMethodID(dat, "<init>", "(J)V"))) {
-				strcpy(g->Message, "Cannot find Timestamp class constructor");
+				strlcpy(g->Message, "Cannot find Timestamp class constructor", sizeof(g->Message));
 				return true;
 			}	// endif's
 
 			lg = (jlong)val->GetBigintValue() * 1000;
 
 			if ((datobj = env->NewObject(dat, dtc, lg)) == nullptr) {
-				strcpy(g->Message, "Cannot make Timestamp object");
+				strlcpy(g->Message, "Cannot make Timestamp object", sizeof(g->Message));
 				return true;
 			} else if (gmID(g, setid, "SetTimestampParm", "(ILjava/sql/Timestamp;)V"))
 				return true;
@@ -1410,12 +1410,12 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		int     rc = ExecuteCommand(src);
 
 		if (rc == RC_NF) {
-			strcpy(g->Message, "Srcdef is not returning a result set");
+			strlcpy(g->Message, "Srcdef is not returning a result set", sizeof(g->Message));
 			return NULL;
 		} else if ((rc) == RC_FX) {
 			return NULL;
 		} else if (m_Ncol == 0) {
-			strcpy(g->Message, "Invalid Srcdef");
+			strlcpy(g->Message, "Invalid Srcdef", sizeof(g->Message));
 			return NULL;
 		} // endif's
 
@@ -1445,7 +1445,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		jintArray val = env->NewIntArray(4);
 
 		if (val == nullptr) {
-			strcpy(m_G->Message, "Cannot allocate jint array");
+			strlcpy(m_G->Message, "Cannot allocate jint array", sizeof(m_G->Message));
 			return NULL;
 		} // endif colid
 
@@ -1457,7 +1457,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 				if (Check())
 					sprintf(g->Message, "ColumnDesc: %s", Msg);
 				else
-					strcpy(g->Message, "No result metadata");
+					strlcpy(g->Message, "No result metadata", sizeof(g->Message));
 
 				env->ReleaseIntArrayElements(val, n, 0);
 				return NULL;
@@ -1562,7 +1562,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 
 		// n because we no more ignore the first column
 		if ((n = qrp->Nbcol) > (uint)ncol) {
-			strcpy(g->Message, MSG(COL_NUM_MISM));
+			strlcpy(g->Message, MSG(COL_NUM_MISM), sizeof(g->Message));
 			return -1;
 		} // endif n
 
@@ -1632,7 +1632,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		PQRYRES      qrp;
 
 		if (!m_Rows) {
-			strcpy(g->Message, "Void result");
+			strlcpy(g->Message, "Void result", sizeof(g->Message));
 			return NULL;
 		} // endif m_Rows
 

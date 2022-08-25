@@ -258,7 +258,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
   sep = GetBoolCatInfo("SepIndex", false);
 
   if (!sep && pxdf) {
-    strcpy(g->Message, MSG(NO_RECOV_SPACE));
+    strlcpy(g->Message, MSG(NO_RECOV_SPACE), sizeof(g->Message));
     return true;
     } // endif sep
 
@@ -293,7 +293,8 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
 
     for (; pxdf; pxdf = pxdf->GetNext()) {
       _splitpath(Ofn, drive, direc, fname, NULL);
-      strcat(strcat(fname, "_"), pxdf->GetName());
+	  strlcat(fname, "_", sizeof(fname));
+      strlcat(fname, pxdf->GetName(), sizeof(fname));
       _makepath(filename, drive, direc, fname, ftype);
       PlugSetPath(filename, filename, GetPath());
 #if defined(_WIN32)
@@ -312,7 +313,8 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
   } else {  // !sep
     // Drop all indexes, delete the common file
     PlugSetPath(filename, Ofn, GetPath());
-    strcat(PlugRemoveType(filename, filename), ftype);
+	PlugRemoveType(filename, filename);
+    strlcat(filename, ftype, sizeof(filename));
 #if defined(_WIN32)
     if (!DeleteFile(filename))
       rc = (GetLastError() != ERROR_FILE_NOT_FOUND);
@@ -365,7 +367,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 				if (mode == MODE_READ || mode == MODE_ANY || mode == MODE_ALTER) {
 					txfp = new(g) UZDFAM(this);
 				}	else {
-					strcpy(g->Message, "Zipped DBF tables are read only");
+					strlcpy(g->Message, "Zipped DBF tables are read only", sizeof(g->Message));
 					return NULL;
 				}	// endif's mode
 
@@ -386,7 +388,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 			} else if (mode == MODE_INSERT) {
 				txfp = new(g) ZIPFAM(this);
 			} else {
-				strcpy(g->Message, "UPDATE/DELETE not supported for ZIP");
+				strlcpy(g->Message, "UPDATE/DELETE not supported for ZIP", sizeof(g->Message));
 				return NULL;
 			}	// endif's mode
 
@@ -397,7 +399,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 			} else if (mode == MODE_INSERT) {
 				txfp = new(g) ZPXFAM(this);
 			} else {
-				strcpy(g->Message, "UPDATE/DELETE not supported for ZIP");
+				strlcpy(g->Message, "UPDATE/DELETE not supported for ZIP", sizeof(g->Message));
 				return NULL;
 			}	// endif's mode
 
@@ -656,7 +658,7 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
   if ((nrec = defp->GetElemt()) < 2) {
     if (!To_Def->Partitioned()) {
       // This may be wrong to do in some cases
-      strcpy(g->Message, MSG(TABLE_NOT_OPT));
+      strlcpy(g->Message, MSG(TABLE_NOT_OPT), sizeof(g->Message));
       return RC_INFO;                   // Not to be optimized
     } else
       return RC_OK;
@@ -676,7 +678,7 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
 	if ((block = (int)((MaxSize + (int)nrec - 1) / (int)nrec)) < 2) {
 		// This may be wrong to do in some cases
 		defp->RemoveOptValues(g);
-		strcpy(g->Message, MSG(TABLE_NOT_OPT));
+		strlcpy(g->Message, MSG(TABLE_NOT_OPT), sizeof(g->Message));
 		return RC_INFO;                   // Not to be optimized
 	}	// endif block
 
@@ -759,7 +761,7 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
 
   // No optimised columns. Still useful for blocked variable tables.
   if (!colp && defp->Recfm != RECFM_VAR) {
-    strcpy(g->Message, "No optimised columns");
+    strlcpy(g->Message, "No optimised columns", sizeof(g->Message));
     return RC_INFO;
     } // endif colp
 
@@ -789,7 +791,9 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
   /*********************************************************************/
   char   *p = (char *)PlugSubAlloc(g, NULL, 24 + strlen(Name));
 
-  dup->Step = strcat(strcpy(p, MSG(OPTIMIZING)), Name);
+  strlcpy(p, MSG(OPTIMIZING), 24 + strlen(Name));
+  strlcat(p, Name, 24 + strlen(Name));
+  dup->Step = p;
   dup->ProgMax = GetProgMax(g);
   dup->ProgCur = 0;
 #endif   // SOCKET_MODE  ||         THREAD
@@ -806,7 +810,7 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
     } else {
       if (++curnum >= nrec) {
         if (++curblk >= block) {
-          strcpy(g->Message, MSG(BAD_BLK_ESTIM));
+          strlcpy(g->Message, MSG(BAD_BLK_ESTIM), sizeof(g->Message));
           goto err;
         } else
           curnum = 0;
@@ -834,7 +838,7 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
 
 #if defined(PROG_INFO)
     if (!dup->Step) {
-      strcpy(g->Message, MSG(OPT_CANCELLED));
+      strlcpy(g->Message, MSG(OPT_CANCELLED), sizeof(g->Message));
       goto err;
     } else
       dup->ProgCur = GetProgCur();
@@ -914,7 +918,8 @@ bool TDBDOS::SaveBlockValues(PGLOBAL g)
   if (!(opfile = fopen(filename, "wb"))) {
     sprintf(g->Message, MSG(OPEN_MODE_ERROR),
             "wb", (int)errno, filename);
-    strcat(strcat(g->Message, ": "), strerror(errno));
+    strlcat(g->Message, ": ", sizeof(g->Message));
+    strlcat(g->Message, strerror(errno), sizeof(g->Message));
 
     if (trace(1))
       htrc("%s\n", g->Message);
@@ -1229,7 +1234,9 @@ bool TDBDOS::GetDistinctColumnValues(PGLOBAL g, int nrec)
   /*  Initialize progress information                                  */
   /*********************************************************************/
   p = (char *)PlugSubAlloc(g, NULL, 48 + strlen(Name));
-  dup->Step = strcat(strcpy(p, MSG(GET_DIST_VALS)), Name);
+  strlcpy(p, MSG(GET_DIST_VALS), 48 + strlen(Name));
+  strlcat(p, Name, 48 + strlen(Name));
+  dup->Step = p;
   dup->ProgMax = GetProgMax(g);
   dup->ProgCur = 0;
 
@@ -1241,12 +1248,12 @@ bool TDBDOS::GetDistinctColumnValues(PGLOBAL g, int nrec)
 
 #if defined(SOCKET_MODE)
     if (SendProgress(dup)) {
-      strcpy(g->Message, MSG(OPT_CANCELLED));
+      strlcpy(g->Message, MSG(OPT_CANCELLED), sizeof(g->Message));
       return true;
     } else
 #elif defined(THREAD)
     if (!dup->Step) {
-      strcpy(g->Message, MSG(OPT_CANCELLED));
+      strlcpy(g->Message, MSG(OPT_CANCELLED), sizeof(g->Message));
       return true;
     } else
 #endif     // THREAD
@@ -1528,7 +1535,7 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
   } else if (n == 8 || n == 14) {
     if (n == 8 && ctype != TYPE_LIST) {
       // Should never happen
-      strcpy(g->Message, "Block opt: bad constant");
+      strlcpy(g->Message, "Block opt: bad constant", sizeof(g->Message));
 			throw 99;
 		} // endif Conv
 
@@ -1686,7 +1693,7 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
   // Are we are called from CreateTable or CreateIndex?
   if (pxdf) {
     if (!add && dfp->GetIndx()) {
-      strcpy(g->Message, MSG(INDX_EXIST_YET));
+      strlcpy(g->Message, MSG(INDX_EXIST_YET), sizeof(g->Message));
       return RC_FX;
       } // endif To_Indx
 
@@ -1798,7 +1805,7 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
 			htrc("Exception %d: %s\n", n, g->Message);
 		rc = RC_FX;
 	} catch (const char *msg) {
-		strcpy(g->Message, msg);
+		strlcpy(g->Message, msg, sizeof(g->Message));
 		rc = RC_FX;
 	} // end catch
 
@@ -1832,7 +1839,7 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
   PKPDEF  kdp;
 
   if (!xdp && !(xdp = To_Xdp)) {
-    strcpy(g->Message, "NULL dynamic index");
+    strlcpy(g->Message, "NULL dynamic index", sizeof(g->Message));
     return true;
   } else
     dynamic = To_Filter && xdp->IsUnique() && xdp->IsDynamic();
@@ -1921,7 +1928,7 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
 			htrc("Exception %d: %s\n", n, g->Message);
 		brc = true;
 	} catch (const char *msg) {
-		strcpy(g->Message, msg);
+		strlcpy(g->Message, msg, sizeof(g->Message));
 		brc = true;
 	} // end catch
 
@@ -2682,38 +2689,38 @@ void DOSCOL::WriteColumn(PGLOBAL g)
     if (Ldz || Nod || Dcm >= 0) {
       switch (Buf_Type) {
         case TYPE_SHORT:
-          strcpy(fmt, (Ldz) ? "%0*hd" : "%*.hd");
+          strlcpy(fmt, (Ldz) ? "%0*hd" : "%*.hd", sizeof(fmt));
           i = 0;
 
           if (Nod)
             for (; i < Dcm; i++)
-              strcat(fmt, "0");
+              strlcat(fmt, "0", sizeof(fmt));
 
           len = sprintf(Buf, fmt, field - i, Value->GetShortValue());
           break;
         case TYPE_INT:
-          strcpy(fmt, (Ldz) ? "%0*d" : "%*.d");
+          strlcpy(fmt, (Ldz) ? "%0*d" : "%*.d", sizeof(fmt));
           i = 0;
 
           if (Nod)
             for (; i < Dcm; i++)
-              strcat(fmt, "0");
+              strlcat(fmt, "0", sizeof(fmt));
 
           len = sprintf(Buf, fmt, field - i, Value->GetIntValue());
           break;
         case TYPE_TINY:
-          strcpy(fmt, (Ldz) ? "%0*d" : "%*.d");
+          strlcpy(fmt, (Ldz) ? "%0*d" : "%*.d", sizeof(fmt));
           i = 0;
 
           if (Nod)
             for (; i < Dcm; i++)
-              strcat(fmt, "0");
+              strlcat(fmt, "0", sizeof(fmt));
 
           len = sprintf(Buf, fmt, field - i, Value->GetTinyValue());
           break;
         case TYPE_DOUBLE:
         case TYPE_DECIM:
-          strcpy(fmt, (Ldz) ? "%0*.*lf" : "%*.*lf");
+          strlcpy(fmt, (Ldz) ? "%0*.*lf" : "%*.*lf", sizeof(fmt));
 					len = field + ((Nod && Dcm) ? 1 : 0);
           snprintf(Buf, len + 1, fmt, len, Dcm, Value->GetFloatValue());
           len = strlen(Buf);

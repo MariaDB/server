@@ -40,11 +40,11 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   thd->system_thread_info.rpl_sql_info->rpl_filter = rli->mi->rpl_filter;
   ev->thd= thd;
 
-  strcpy(rgi->event_relay_log_name_buf, qev->event_relay_log_name);
+  strlcpy(rgi->event_relay_log_name_buf, qev->event_relay_log_name, sizeof(rgi->event_relay_log_name_buf));
   rgi->event_relay_log_name= rgi->event_relay_log_name_buf;
   rgi->event_relay_log_pos= qev->event_relay_log_pos;
   rgi->future_event_relay_log_pos= qev->future_event_relay_log_pos;
-  strcpy(rgi->future_event_master_log_name, qev->future_event_master_log_name);
+  strlcpy(rgi->future_event_master_log_name, qev->future_event_master_log_name, sizeof(rgi->future_event_master_log_name));
   if (!(ev->is_artificial_event() || ev->is_relay_log_event() ||
         (ev->when == 0)))
     rgi->last_master_timestamp= ev->when + (time_t)ev->exec_time;
@@ -95,7 +95,7 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
   cmp= compare_log_name(rli->group_master_log_name, qev->future_event_master_log_name);
   if (cmp < 0)
   {
-    strcpy(rli->group_master_log_name, qev->future_event_master_log_name);
+    strlcpy(rli->group_master_log_name, qev->future_event_master_log_name, sizeof(rli->group_master_log_name));
     rli->group_master_log_pos= qev->future_event_master_log_pos;
   }
   else if (cmp == 0
@@ -1799,10 +1799,10 @@ rpl_parallel_thread::get_qev(Log_event *ev, ulonglong event_size,
   queued_event *qev= get_qev_common(ev, event_size);
   if (!qev)
     return NULL;
-  strcpy(qev->event_relay_log_name, rli->event_relay_log_name);
+  strlcpy(qev->event_relay_log_name, rli->event_relay_log_name, sizeof(qev->event_relay_log_name));
   qev->event_relay_log_pos= rli->event_relay_log_pos;
   qev->future_event_relay_log_pos= rli->future_event_relay_log_pos;
-  strcpy(qev->future_event_master_log_name, rli->future_event_master_log_name);
+  strlcpy(qev->future_event_master_log_name, rli->future_event_master_log_name, sizeof(qev->future_event_master_log_name));
   return qev;
 }
 
@@ -1816,11 +1816,12 @@ rpl_parallel_thread::retry_get_qev(Log_event *ev, queued_event *orig_qev,
   if (!qev)
     return NULL;
   qev->rgi= orig_qev->rgi;
-  strcpy(qev->event_relay_log_name, relay_log_name);
+  strlcpy(qev->event_relay_log_name, relay_log_name, sizeof(qev->event_relay_log_name));
   qev->event_relay_log_pos= event_pos;
   qev->future_event_relay_log_pos= event_pos+event_size;
-  strcpy(qev->future_event_master_log_name,
-         orig_qev->future_event_master_log_name);
+  strlcpy(qev->future_event_master_log_name,
+         orig_qev->future_event_master_log_name,
+        sizeof(qev->future_event_master_log_name));
   return qev;
 }
 

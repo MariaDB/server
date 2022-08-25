@@ -169,7 +169,7 @@ PTDB TBLDEF::GetTable(PGLOBAL g, MODE)
 #if defined(DEVELOPMENT)
 		return new(g) TDBTBM(this);
 #else
-		strcpy(g->Message, "Option THREAD is no more supported");
+		strlcpy(g->Message, "Option THREAD is no more supported", sizeof(g->Message));
 		return NULL;
 #endif   // DEVELOPMENT
 	} else
@@ -311,7 +311,7 @@ bool TDBTBL::TestFil(PGLOBAL g, PCFIL filp, PTABLE tabp)
     return TRUE;               // ignore invalid filter
 
   if ((neg = !strcmp(op, "NOT")))
-    strcpy(op, "IN");
+    strlcpy(op, "IN", sizeof(op));
 
   if (!strcmp(op, "=")) {
     // Temporarily, filter must be "TABID = 'value'" only
@@ -501,7 +501,7 @@ int TDBTBL::ReadDB(PGLOBAL g)
     /*******************************************************************/
     /*  Reading is by an index table.                                  */
     /*******************************************************************/
-    strcpy(g->Message, MSG(NO_INDEX_READ));
+    strlcpy(g->Message, MSG(NO_INDEX_READ), sizeof(g->Message));
     rc = RC_FX;
   } else {
     /*******************************************************************/
@@ -540,8 +540,11 @@ int TDBTBL::ReadDB(PGLOBAL g)
         goto retry;
         } // endif iFile
 
-    } else if (rc == RC_FX)
-      strcat(strcat(strcat(g->Message, " ("), Tdbp->GetName()), ")");
+    } else if (rc == RC_FX) {
+      strlcat(g->Message, " (", sizeof(g->Message));
+      strlcat(g->Message, Tdbp->GetName(), sizeof(g->Message));
+      strlcat(g->Message, ")", sizeof(g->Message));
+	}
 
   } // endif To_Kindex
 
@@ -810,8 +813,11 @@ int TDBTBM::ReadDB(PGLOBAL g)
     if ((rc = ReadNextRemote(g)) == RC_OK)
       goto retry;
 
-  } else if (rc == RC_FX)
-    strcat(strcat(strcat(g->Message, " ("), Tdbp->GetName()), ")");
+  } else if (rc == RC_FX) {
+	strlcat(g->Message, " (", sizeof(g->Message));
+	strlcat(g->Message, Tdbp->GetName(), sizeof(g->Message));
+    strlcat(g->Message, ")", sizeof(g->Message));
+  }
 
   return rc;
   } // end of ReadDB

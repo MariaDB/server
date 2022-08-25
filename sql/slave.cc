@@ -5268,7 +5268,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   if (rli->alloc_inuse_relaylog(rli->group_relay_log_name))
     goto err_before_start;
 
-  strcpy(rli->future_event_master_log_name, rli->group_master_log_name);
+  strlcpy(rli->future_event_master_log_name, rli->group_master_log_name, sizeof(rli->future_event_master_log_name));
   THD_CHECK_SENTRY(thd);
 #ifndef DBUG_OFF
   {

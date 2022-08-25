@@ -1871,13 +1871,13 @@ dict_foreign_def_get(
 				foreign->foreign_col_names[i],
 				strlen(foreign->foreign_col_names[i]),
 				trx->mysql_thd);
-		strcat(fk_def, buf);
+		strlcat(fk_def, buf, 4*1024);
 		if (i < static_cast<unsigned>(foreign->n_fields-1)) {
-			strcat(fk_def, (char *)",");
+			strlcat(fk_def, (char *)",", 4*1024);
 		}
 	}
 
-	strcat(fk_def,(char *)") REFERENCES ");
+	strlcat(fk_def,(char *)") REFERENCES ", 4*1024);
 
 	bufend = innobase_convert_name(tablebuf, MAX_TABLE_NAME_LEN,
 	        	        foreign->referenced_table_name,
@@ -1885,8 +1885,8 @@ dict_foreign_def_get(
 			        trx->mysql_thd);
 	tablebuf[bufend - tablebuf] = '\0';
 
-	strcat(fk_def, tablebuf);
-	strcat(fk_def, " (");
+	strlcat(fk_def, tablebuf, 4*1024);
+	strlcat(fk_def, " (", 4*1024);
 
 	for(i = 0; i < foreign->n_fields; i++) {
 		char	buf[MAX_TABLE_NAME_LEN + 1] = "";
@@ -1895,12 +1895,12 @@ dict_foreign_def_get(
 				strlen(foreign->referenced_col_names[i]),
 				trx->mysql_thd);
 		buf[bufend - buf] = '\0';
-		strcat(fk_def, buf);
+		strlcat(fk_def, buf, 4*1024);
 		if (i < (uint)foreign->n_fields-1) {
-			strcat(fk_def, (char *)",");
+			strlcat(fk_def, (char *)",", 4*1024);
 		}
 	}
-	strcat(fk_def, (char *)")");
+	strlcat(fk_def, (char *)")", 4*1024);
 
 	return fk_def;
 }

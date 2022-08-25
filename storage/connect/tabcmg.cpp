@@ -72,7 +72,7 @@ bool CMGDISC::FindInDoc(PGLOBAL g, bson_iter_t *iter, const bson_t *doc,
 				n -= strlen(colname);
 				strncat(strncat(colname, "_", n), key, n - 1);
 			}	else
-				strcpy(colname, key);
+				strlcpy(colname, key, sizeof(colname));
 
 			if (pfmt) {
 				n = sizeof(fmt) - 1;
@@ -81,7 +81,7 @@ bool CMGDISC::FindInDoc(PGLOBAL g, bson_iter_t *iter, const bson_t *doc,
 				n -= strlen(fmt);
 				strncat(strncat(fmt, ".", n), key, n - 1);
 			} else
-				strcpy(fmt, key);
+				strlcpy(fmt, key, sizeof(fmt));
 
 			bcol.Cbn = false;
 
@@ -329,7 +329,7 @@ bool TDBCMG::OpenDB(PGLOBAL g)
 	/*  First opening.                                                   */
 	/*********************************************************************/
 	if (Pcg.Pipe && Mode != MODE_READ) {
-		strcpy(g->Message, "Pipeline tables are read only");
+		strlcpy(g->Message, "Pipeline tables are read only", sizeof(g->Message));
 		return true;
 	}	// endif Pipe
 
@@ -352,7 +352,7 @@ bool TDBCMG::OpenDB(PGLOBAL g)
 /***********************************************************************/
 bool TDBCMG::ReadKey(PGLOBAL g, OPVAL op, const key_range *kr)
 {
-	strcpy(g->Message, "MONGO tables are not indexable");
+	strlcpy(g->Message, "MONGO tables are not indexable", sizeof(g->Message));
 	return true;
 } // end of ReadKey
 

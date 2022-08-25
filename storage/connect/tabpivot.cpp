@@ -120,7 +120,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 			uint n = strlen(Skcol);
 
 			skc = (char*)PlugSubAlloc(g, NULL, n + 2);
-			strcpy(skc, Skcol);
+			strlcpy(skc, Skcol, n + 2);
 			skc[n + 1] = 0;
 
 			// Replace ; by nulls in skc
@@ -135,7 +135,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 			query = (char*)PlugSubAlloc(g, NULL, strlen(Tabname) + 26);
 			sprintf(query, "SELECT * FROM `%s` LIMIT 1", Tabname);
 		} else if (!Tabsrc) {
-			strcpy(g->Message, MSG(SRC_TABLE_UNDEF));
+			strlcpy(g->Message, MSG(SRC_TABLE_UNDEF), sizeof(g->Message));
 			goto err;
 		} else
 			query = (char*)Tabsrc;
@@ -167,7 +167,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 					Fncol = crp->Name;
 
 			if (!Fncol) {
-				strcpy(g->Message, MSG(NO_DEF_FNCCOL));
+				strlcpy(g->Message, MSG(NO_DEF_FNCCOL), sizeof(g->Message));
 				goto err;
 			} // endif Fncol
 
@@ -180,7 +180,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 					Picol = crp->Name;
 
 			if (!Picol) {
-				strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
+				strlcpy(g->Message, MSG(NO_DEF_PIVOTCOL), sizeof(g->Message));
 				goto err;
 			} // endif Picol
 
@@ -206,10 +206,10 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 				pcrp = &crp->Next;
 
 		if (!Rblkp) {
-			strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
+			strlcpy(g->Message, MSG(NO_DEF_PIVOTCOL), sizeof(g->Message));
 			goto err;
 		} else if (!fncrp) {
-			strcpy(g->Message, MSG(NO_DEF_FNCCOL));
+			strlcpy(g->Message, MSG(NO_DEF_FNCCOL), sizeof(g->Message));
 			goto err;
 		} // endif
 
@@ -302,7 +302,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
 	} catch (const char *msg) {
-		strcpy(g->Message, msg);
+		strlcpy(g->Message, msg, sizeof(g->Message));
 	} // end catch
 
 err:
@@ -443,7 +443,7 @@ bool TDBPIVOT::FindDefaultColumns(PGLOBAL g)
         Fncol = cdp->GetName();
   
     if (!Fncol) {
-      strcpy(g->Message, MSG(NO_DEF_FNCCOL));
+      strlcpy(g->Message, MSG(NO_DEF_FNCCOL), sizeof(g->Message));
       return true;
       } // endif Fncol
   
@@ -456,7 +456,7 @@ bool TDBPIVOT::FindDefaultColumns(PGLOBAL g)
         Picol = cdp->GetName();
   
     if (!Picol) {
-      strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
+      strlcpy(g->Message, MSG(NO_DEF_PIVOTCOL), sizeof(g->Message));
       return true;
       } // endif Picol
   
@@ -519,7 +519,7 @@ bool TDBPIVOT::GetSourceTable(PGLOBAL g)
       } // endif !GBdone
 
   } else if (!Tabsrc) {
-    strcpy(g->Message, MSG(SRC_TABLE_UNDEF));
+    strlcpy(g->Message, MSG(SRC_TABLE_UNDEF), sizeof(g->Message));
     return true;
   } // endif
 
@@ -588,18 +588,18 @@ bool TDBPIVOT::MakeViewColumns(PGLOBAL g)
     PTDBMY tdbp;
 
     if (Tdbp->GetAmType() != TYPE_AM_MYSQL) {
-      strcpy(g->Message, "View is not MySQL");
+      strlcpy(g->Message, "View is not MySQL", sizeof(g->Message));
       return true;
     } else
       tdbp = (PTDBMY)Tdbp;
 
     if (!Fncol && !(Fncol = tdbp->FindFieldColumn(Picol))) {
-      strcpy(g->Message, MSG(NO_DEF_FNCCOL));
+      strlcpy(g->Message, MSG(NO_DEF_FNCCOL), sizeof(g->Message));
       return true;
       } // endif Fncol
 
     if (!Picol && !(Picol = tdbp->FindFieldColumn(Fncol))) {
-      strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
+      strlcpy(g->Message, MSG(NO_DEF_PIVOTCOL), sizeof(g->Message));
       return true;
       } // endif Picol
 
@@ -679,7 +679,7 @@ bool TDBPIVOT::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /* Direct access of PIVOT tables is not implemented yet.           */
     /*******************************************************************/
-    strcpy(g->Message, MSG(NO_PIV_DIR_ACC));
+    strlcpy(g->Message, MSG(NO_PIV_DIR_ACC), sizeof(g->Message));
     return TRUE;
     } // endif To_Key_Col
 
@@ -777,7 +777,7 @@ int TDBPIVOT::ReadDB(PGLOBAL g)
 
     if (!colp && !(colp = Dcolp)) {
       if (!Accept) {
-        strcpy(g->Message, MSG(NO_MATCH_COL));
+        strlcpy(g->Message, MSG(NO_MATCH_COL), sizeof(g->Message));
         return RC_FX;
       } else
         continue;

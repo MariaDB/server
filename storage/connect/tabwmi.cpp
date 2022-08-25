@@ -49,7 +49,7 @@ PWMIUT InitWMI(PGLOBAL g, PCSZ nsp, PCSZ classname)
     else if (!stricmp(nsp, "root\\cli"))
       classname = "Msft_CliAlias";
     else {
-      strcpy(g->Message, "Missing class name");
+      strlcpy(g->Message, "Missing class name", sizeof(g->Message));
       return NULL;
       } // endif classname
 
@@ -112,9 +112,11 @@ PWMIUT InitWMI(PGLOBAL g, PCSZ nsp, PCSZ classname)
   p = (char*)PlugSubAlloc(g, NULL, strlen(classname) + 7);
 
   if (strchr(classname, '_'))
-    strcpy(p, classname);
-  else
-    strcat(strcpy(p, "Win32_"), classname);
+    strlcpy(p, classname, strlen(classname) + 7);
+  else {
+    strlcpy(p, "Win32_", strlen(classname) + 7);
+    strlcat(, classname, strlen(classname) + 7);
+  }
 
   res = wp->Svc->GetObject(bstr_t(p), 0, 0, &wp->Cobj, 0);
 
@@ -344,7 +346,9 @@ bool WMIDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     return true;
   } else if (!strchr(Wclass, '_')) {
     char *p = (char*)PlugSubAlloc(g, NULL, strlen(Wclass) + 7);
-    Wclass = strcat(strcpy(p, "Win32_"), Wclass);
+    strlcpy(p, "Win32_", strlen(classname) + 7);
+    strlcat(p, Wclass, strlen(classname) + 7);
+    Wclass = p;
   } // endif Wclass
 
   if (Catfunc == FNC_NO)
@@ -521,10 +525,12 @@ char *TDBWMI::MakeWQL(PGLOBAL g)
 
         if (colp->GetColUse(U_P | U_J_EXT) || noloc) {
           if (first) {
-            strcpy(colist, colp->GetName());
+            strlcpy(colist, colp->GetName(),(NAM_LEN + 4) * ncol);
             first = false;
-          } else
-            strcat(strcat(colist, ", "), colp->GetName());
+          } else {
+            strlcat(colist, ", ", (NAM_LEN + 4) * ncol);
+            strlcat(colist, colp->GetName(), (NAM_LEN + 4) * ncol);
+          }
       
           } // endif ColUse
 
@@ -534,18 +540,22 @@ char *TDBWMI::MakeWQL(PGLOBAL g)
     // ncol == 0 can occur for queries such that sql count(*) from...
     // for which we will count the rows from sql * from...
     colist = (char*)PlugSubAlloc(g, NULL, 2);
-    strcpy(colist, "*");
+    strlcpy(colist, "*", 2);
   } // endif ncol
 
   // Below 14 is length of 'select ' + length of ' from ' + 1
   len = (strlen(colist) + strlen(Wclass) + 14);
   len += (To_CondFil ? strlen(To_CondFil->Body) + 7 : 0);
   wql = (char*)PlugSubAlloc(g, NULL, len);
-  strcat(strcat(strcpy(wql, "SELECT "), colist), " FROM ");
-  strcat(wql, Wclass);
+  strlcpy(wql, "SELECT ", len);
+  strlcat(wql, colist, len);
+  strlcat(, " FROM ", len);
+  strlcat(wql, Wclass, len);
 
-  if (To_CondFil)
-    strcat(strcat(wql, " WHERE "), To_CondFil->Body);
+  if (To_CondFil) {
+	strlcat(wql, " WHERE ", len);
+    strlcat(wql, To_CondFil->Body, len);
+  }
 
   return wql;
   } // end of MakeWQL
@@ -654,14 +664,15 @@ bool TDBWMI::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /* WMI tables cannot be modified.                                  */
     /*******************************************************************/
-    strcpy(g->Message, "WMI tables are read only");
+    strlcpy(g->Message, "WMI tables are read only", sizeof(g->Message));
     return true;
     } // endif Mode
 
   if (!To_CondFil && !stricmp(Wclass, "CIM_Datafile")
                   && !stricmp(Nspace, "root\\cimv2")) {
-    strcpy(g->Message, 
-      "Would last forever when not filtered, use DIR table instead");
+    strlcpy(g->Message, 
+      "Would last forever when not filtered, use DIR table instead", 
+      sizeof(g->Message));
     return true;
   } else
     DoubleSlash(g);
@@ -697,7 +708,7 @@ int TDBWMI::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBWMI::WriteDB(PGLOBAL g)
   {
-  strcpy(g->Message, "WMI tables are read only");
+  strlcpy(g->Message, "WMI tables are read only", sizeof(g->Message));
   return RC_FX;
   } // end of WriteDB
 
@@ -706,7 +717,7 @@ int TDBWMI::WriteDB(PGLOBAL g)
 /***********************************************************************/
 int TDBWMI::DeleteDB(PGLOBAL g, int irc)
   {
-  strcpy(g->Message, "Delete not enabled for WMI tables");
+  strlcpy(g->Message, "Delete not enabled for WMI tables", sizeof(g->Message));
   return RC_FX;
   } // end of DeleteDB
 

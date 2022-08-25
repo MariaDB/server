@@ -365,13 +365,13 @@ int TXTFAM::UpdateSortedRows(PGLOBAL g)
 //  return RC_INFO;
     return RC_OK;         // Nothing to do
   } else if (!(Sosar = MakeValueArray(g, To_Sos))) {
-    strcpy(g->Message, "Start position array is null");
+    strlcpy(g->Message, "Start position array is null", sizeof(g->Message));
     goto err;
   } else if (!(Updar = MakeValueArray(g, To_Upd))) {
-    strcpy(g->Message, "Updated line array is null");
+    strlcpy(g->Message, "Updated line array is null", sizeof(g->Message));
     goto err;
   } else if (!(ix = (int*)Posar->GetSortIndex(g))) { 
-    strcpy(g->Message, "Error getting array sort index");
+    strlcpy(g->Message, "Error getting array sort index", sizeof(g->Message));
     goto err;
   } // endif's
 
@@ -417,10 +417,10 @@ int TXTFAM::DeleteSortedRows(PGLOBAL g)
 //  return RC_INFO;
     return RC_OK;             // Nothing to do
   } else if (!(Sosar = MakeValueArray(g, To_Sos))) {
-    strcpy(g->Message, "Start position array is null");
+    strlcpy(g->Message, "Start position array is null", sizeof(g->Message));
     goto err;
   } else if (!(ix = (int*)Posar->GetSortIndex(g))) { 
-    strcpy(g->Message, "Error getting array sort index");
+    strlcpy(g->Message, "Error getting array sort index", sizeof(g->Message));
     goto err;
   } // endif's
 
@@ -452,7 +452,7 @@ err:
 /***********************************************************************/
 int TXTFAM::InitDelete(PGLOBAL g, int, int)
   {
-  strcpy(g->Message, "InitDelete should not be used by this table type");
+  strlcpy(g->Message, "InitDelete should not be used by this table type", sizeof(g->Message));
   return RC_FX;
   } // end of InitDelete
 
@@ -554,7 +554,7 @@ bool DOSFAM::OpenTableFile(PGLOBAL g)
 
   switch (mode) {
     case MODE_READ:
-      strcpy(opmode, "r");
+      strlcpy(opmode, "r", sizeof(opmode));
       break;
     case MODE_DELETE:
       if (!Tdbp->Next) {
@@ -568,7 +568,7 @@ bool DOSFAM::OpenTableFile(PGLOBAL g)
           } // endif blocked
 
         // This will erase the entire file
-        strcpy(opmode, "w");
+        strlcpy(opmode, "w", sizeof(opmode));
         Tdbp->ResetSize();
         break;
         } // endif
@@ -578,14 +578,14 @@ bool DOSFAM::OpenTableFile(PGLOBAL g)
       /* fall through */
     case MODE_UPDATE:
       if ((UseTemp = Tdbp->IsUsingTemp(g))) {
-        strcpy(opmode, "r");
+        strlcpy(opmode, "r", sizeof(opmode));
         Bin = true;
       } else
-        strcpy(opmode, "r+");
+        strlcpy(opmode, "r+", sizeof(opmode));
 
       break;
     case MODE_INSERT:
-      strcpy(opmode, "a+");
+      strlcpy(opmode, "a+", sizeof(opmode));
       break;
     default:
       sprintf(g->Message, MSG(BAD_OPEN_MODE), mode);
@@ -593,7 +593,7 @@ bool DOSFAM::OpenTableFile(PGLOBAL g)
     } // endswitch Mode
 
   // For blocked I/O or for moving lines, open the table in binary
-  strcat(opmode, (Bin) ? "b" : "t");
+  strlcat(opmode, (Bin) ? "b" : "t", sizeof(opmode));
 
   // Now open the file stream
   PlugSetPath(filename, To_File, Tdbp->GetPath());
@@ -1081,7 +1081,8 @@ bool DOSFAM::OpenTempFile(PGLOBAL g)
   /*  Open the temporary file, Spos is at the beginning of file.       */
   /*********************************************************************/
   PlugSetPath(tempname, To_File, Tdbp->GetPath());
-  strcat(PlugRemoveType(tempname, tempname), ".t");
+  PlugRemoveType(tempname, tempname);
+  strlcat(tempname, ".t", sizeof(tempname));
 
   if (!(T_Stream = PlugOpenFile(g, tempname, "wb"))) {
     if (trace(1))
@@ -1170,7 +1171,8 @@ int DOSFAM::RenameTempFile(PGLOBAL g)
   
   if (!Abort) {
     PlugSetPath(filename, To_File, Tdbp->GetPath());
-    strcat(PlugRemoveType(filetemp, filename), ".ttt");
+    PlugRemoveType(filetemp, filename);
+    strlcat(filetemp, ".ttt", sizeof(filetemp));
     remove(filetemp);   // May still be there from previous error
 
     if (rename(filename, filetemp)) {    // Save file for security
@@ -1360,7 +1362,7 @@ int BLKFAM::GetNextPos(void)
 /***********************************************************************/
 bool BLKFAM::SetPos(PGLOBAL g, int)
   {
-  strcpy(g->Message, "Blocked variable tables cannot be used indexed");
+  strlcpy(g->Message, "Blocked variable tables cannot be used indexed", sizeof(g->Message));
   return true;
   } // end of SetPos
 
@@ -1703,10 +1705,10 @@ bool BINFAM::OpenTableFile(PGLOBAL g) {
 
 	switch (mode) {
 	case MODE_READ:
-		strcpy(opmode, "rb");
+		strlcpy(opmode, "rb", sizeof(opmode));
 		break;
 	case MODE_WRITE:
-		strcpy(opmode, "wb");
+		strlcpy(opmode, "wb", sizeof(opmode));
 		break;
 	default:
 		sprintf(g->Message, MSG(BAD_OPEN_MODE), mode);
@@ -1854,7 +1856,7 @@ int BINFAM::ReadBuffer(PGLOBAL g)
 	// Read the prefix giving the row length
 	if (!fread(&Recsize, sizeof(size_t), 1, Stream)) {
 		if (!feof(Stream)) {
-			strcpy(g->Message, "Error reading line prefix\n");
+			strlcpy(g->Message, "Error reading line prefix\n", sizeof(g->Message));
 			return RC_FX;
 		} else
 			return RC_EF;

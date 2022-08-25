@@ -68,7 +68,7 @@ static PBSON BbinAlloc(PGLOBAL g, ulong len, PBVAL jsp)
 	PBSON bsp = (PBSON)PlgDBSubAlloc(g, NULL, sizeof(BSON));
 
 	if (bsp) {
-		strcpy(bsp->Msg, "Binary Json");
+		strlcpy(bsp->Msg, "Binary Json", sizeof(bsp->Msg));
 		bsp->Msg[BMX] = 0;
 		bsp->Filename = NULL;
 		bsp->G = g;
@@ -270,7 +270,7 @@ my_bool BJNX::SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm)
 		} // endif n
 
 	} else {
-		strcpy(g->Message, "Wrong array specification");
+		strlcpy(g->Message, "Wrong array specification", sizeof(g->Message));
 		return true;
 	} // endif's
 
@@ -566,7 +566,7 @@ PBVAL BJNX::GetRowValue(PGLOBAL g, PBVAL row, int i)
 						vlp = row;  // DupVal(g, row) ???
 
 				} else {
-					strcpy(g->Message, "Unexpected object");
+					strlcpy(g->Message, "Unexpected object", sizeof(g->Message));
 					vlp = NULL;
 				} //endif Op
 
@@ -611,7 +611,7 @@ PBVAL BJNX::GetRowValue(PGLOBAL g, PBVAL row, int i)
 /*********************************************************************************/
 PVAL BJNX::ExpandArray(PGLOBAL g, PBVAL arp, int n)
 {
-	strcpy(g->Message, "Expand cannot be done by this function");
+	strlcpy(g->Message, "Expand cannot be done by this function", sizeof(g->Message));
 	return NULL;
 } // end of ExpandArray
 
@@ -792,7 +792,7 @@ PVAL BJNX::CalculateArray(PGLOBAL g, PBVAL bap, int n)
 		xtrc(1, "Exception %d: %s\n", n, g->Message);
 		PUSH_WARNING(g->Message);
 	} catch (const char* msg) {
-		strcpy(g->Message, msg);
+		strlcpy(g->Message, msg, sizeof(g->Message));
 	} // end catch
 
 	return vp;
@@ -861,7 +861,7 @@ PBVAL BJNX::GetRow(PGLOBAL g)
 				} else if (row->Type == TYPE_JAR) {
 					AddArrayValue(row, MOF(nwr));
 				} else {
-					strcpy(g->Message, "Wrong type when writing new row");
+					strlcpy(g->Message, "Wrong type when writing new row", sizeof(g->Message));
 					nwr = NULL;
 				} // endif's
 
@@ -894,7 +894,7 @@ my_bool BJNX::WriteValue(PGLOBAL g, PBVAL jvalp)
 	case TYPE_JAR:  arp = row;  break;
 	case TYPE_JVAL: jvp = MVP(row->To_Val);  break;
 	default:
-		strcpy(g->Message, "Invalid target type");
+		strlcpy(g->Message, "Invalid target type", sizeof(g->Message));
 		return true;
 	} // endswitch Type
 
@@ -1068,7 +1068,7 @@ my_bool BJNX::CheckPath(PGLOBAL g, UDF_ARGS *args, PBVAL jsp, PBVAL& jvp, int n)
 					return false;
 
 			} else {
-				strcpy(g->Message, "Path argument is null");
+				strlcpy(g->Message, "Path argument is null", sizeof(g->Message));
 				return true;
 			} // endif path
 
@@ -1089,7 +1089,7 @@ PSZ BJNX::Locate(PGLOBAL g, PBVAL jsp, PBVAL jvp, int k)
 	g->Message[0] = 0;
 
 	if (!jsp) {
-		strcpy(g->Message, "Null json tree");
+		strlcpy(g->Message, "Null json tree", sizeof(g->Message));
 		return NULL;
 	} // endif jsp
 
@@ -1116,7 +1116,7 @@ PSZ BJNX::Locate(PGLOBAL g, PBVAL jsp, PBVAL jvp, int k)
 
 		if (err) {
 			if (!g->Message[0])
-				strcpy(g->Message, "Invalid json tree");
+				strlcpy(g->Message, "Invalid json tree", sizeof(g->Message));
 
 		} else if (Found) {
 			Jp->WriteChr('\0');
@@ -1128,7 +1128,7 @@ PSZ BJNX::Locate(PGLOBAL g, PBVAL jsp, PBVAL jvp, int k)
 		xtrc(1, "Exception %d: %s\n", n, g->Message);
 		PUSH_WARNING(g->Message);
 	} catch (const char* msg) {
-		strcpy(g->Message, msg);
+		strlcpy(g->Message, msg, sizeof(g->Message));
 	} // end catch
 
 	return str;
@@ -1209,7 +1209,7 @@ PSZ BJNX::LocateAll(PGLOBAL g, PBVAL jsp, PBVAL bvp, int mx)
 	PJPN    jnp;
 
 	if (!jsp) {
-		strcpy(g->Message, "Null json tree");
+		strlcpy(g->Message, "Null json tree", sizeof(g->Message));
 		return NULL;
 	} // endif jsp
 
@@ -1248,13 +1248,13 @@ PSZ BJNX::LocateAll(PGLOBAL g, PBVAL jsp, PBVAL bvp, int mx)
 			PlugSubAlloc(g, NULL, Jp->N);
 			str = Jp->Strp;
 		} else if (!g->Message[0])
-			strcpy(g->Message, "Invalid json tree");
+			strlcpy(g->Message, "Invalid json tree", sizeof(g->Message));
 
 	} catch (int n) {
 		xtrc(1, "Exception %d: %s\n", n, g->Message);
 		PUSH_WARNING(g->Message);
 	} catch (const char* msg) {
-		strcpy(g->Message, msg);
+		strlcpy(g->Message, msg, sizeof(g->Message));
 	} // end catch
 
 	return str;
@@ -1745,7 +1745,7 @@ PBSON BJNX::MakeBinResult(UDF_ARGS *args, PBVAL top, ulong len, int n)
 	if ((bnp = BbinAlloc(G, len, top))) {
 		bnp->Filename = filename;
 		bnp->Pretty = pretty;
-		strcpy(bnp->Msg, "Json Binary item");
+		strlcpy(bnp->Msg, "Json Binary item", sizeof(bnp->Msg));
 	} //endif bnp
 
 	return bnp;
@@ -4740,8 +4740,8 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	BDOC    doc(g);
 
-	strcpy(fn, MakePSZ(g, args, 0));
-	strcpy(ofn, MakePSZ(g, args, 1));
+	strlcpy(fn, MakePSZ(g, args, 0), sizeof(fn));
+	strlcpy(ofn, MakePSZ(g, args, 1), sizeof(ofn));
 
 	if (args->arg_count == 3)
 		lrecl = (size_t)*(longlong*)args->args[2];
@@ -4909,7 +4909,7 @@ char *bbin_make_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			} // endfor i
 
 			if ((bsp = BbinAlloc(bnx.G, initid->max_length, arp))) {
-				strcat(bsp->Msg, " array");
+				strlcat(bsp->Msg, " array", sizeof(bsp->Msg));
 
 				// Keep result of constant function
 				g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5108,7 +5108,7 @@ char *bbin_array_grp(UDF_INIT *initid, UDF_ARGS *, char *result,
 
 	if (arp)
 		if ((bsp = BbinAlloc(g, initid->max_length, arp)))
-			strcat(bsp->Msg, " array");
+			strlcat(bsp->Msg, " array", sizeof(bsp->Msg));
 
 	if (!bsp) {
 		*res_length = 0;
@@ -5155,7 +5155,7 @@ char *bbin_object_grp(UDF_INIT *initid, UDF_ARGS *, char *result,
 
 	if (bop)
 		if ((bsp = BbinAlloc(g, initid->max_length, bop)))
-			strcat(bsp->Msg, " object");
+			strlcat(bsp->Msg, " object", sizeof(bsp->Msg));
 
 	if (!bsp) {
 		*res_length = 0;
@@ -5199,7 +5199,7 @@ char *bbin_make_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 					bnx.SetKeyValue(objp, bnx.MakeValue(args, i), bnx.MakeKey(args, i));
 
 				if ((bsp = BbinAlloc(bnx.G, initid->max_length, objp))) {
-					strcat(bsp->Msg, " object");
+					strlcat(bsp->Msg, " object", sizeof(bsp->Msg));
 
 					// Keep result of constant function
 					g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5254,7 +5254,7 @@ char *bbin_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
 						bnx.SetKeyValue(objp, jvp, bnx.MakeKey(args, i));
 
 				if ((bsp = BbinAlloc(bnx.G, initid->max_length, objp)))	{
-					strcat(bsp->Msg, " object");
+					strlcat(bsp->Msg, " object", sizeof(bsp->Msg));
 
 					// Keep result of constant function
 					g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5313,7 +5313,7 @@ char *bbin_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
 					bnx.SetKeyValue(objp, bnx.MakeValue(args, i + 1), MakePSZ(g, args, i));
 
 				if ((bsp = BbinAlloc(bnx.G, initid->max_length, objp))) {
-					strcat(bsp->Msg, " object");
+					strlcat(bsp->Msg, " object", sizeof(bsp->Msg));
 
 					// Keep result of constant function
 					g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -6077,7 +6077,7 @@ char *bbin_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 //		pretty = pty;
 
 	if ((bsp = BbinAlloc(bnx.G, len, jsp))) {
-		strcat(bsp->Msg, " file");
+		strlcat(bsp->Msg, " file", sizeof(bsp->Msg));
 		bsp->Filename = fn;
 		bsp->Pretty = pretty;
 	} else {
@@ -6198,7 +6198,7 @@ char* bbin_locate_all(UDF_INIT* initid, UDF_ARGS* args, char* result,
 		*error = 1;
 		path = NULL;
 	} catch (const char* msg) {
-		strcpy(g->Message, msg);
+		strlcpy(g->Message, msg, sizeof(g->Message));
 		PUSH_WARNING(g->Message);
 		*error = 1;
 		path = NULL;

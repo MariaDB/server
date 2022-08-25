@@ -470,8 +470,8 @@ void file_compress(file, mode)
 #if !defined(NO_snprintf) && !defined(NO_vsnprintf)
     snprintf(outfile, sizeof(outfile), "%s%s", file, GZ_SUFFIX);
 #else
-    strcpy(outfile, file);
-    strcat(outfile, GZ_SUFFIX);
+    strlcpy(outfile, file, sizeof(outfile));
+    strlcat(outfile, GZ_SUFFIX, sizeof(outfile));
 #endif
 
     in = fopen(file, "rb");
@@ -510,7 +510,7 @@ void file_uncompress(file)
 #if !defined(NO_snprintf) && !defined(NO_vsnprintf)
     snprintf(buf, sizeof(buf), "%s", file);
 #else
-    strcpy(buf, file);
+    strlcpy(buf, file, sizeof(buf));
 #endif
 
     if (len > SUFFIX_LEN && strcmp(file+len-SUFFIX_LEN, GZ_SUFFIX) == 0) {
@@ -565,7 +565,7 @@ int main(argc, argv)
 #if !defined(NO_snprintf) && !defined(NO_vsnprintf)
     snprintf(outmode, sizeof(outmode), "%s", "wb6 ");
 #else
-    strcpy(outmode, "wb6 ");
+    strlcpy(outmode, "wb6 ", sizeof(outmode));
 #endif
 
     prog = argv[0];

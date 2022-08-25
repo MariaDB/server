@@ -157,7 +157,7 @@ PTDB ODBCDEF::GetTable(PGLOBAL g, MODE m)
       if (Multiple == 1)
         tdbp = new(g) TDBMUL(tdbp);
       else if (Multiple == 2)
-        strcpy(g->Message, MSG(NO_ODBC_MUL));
+        strlcpy(g->Message, MSG(NO_ODBC_MUL), sizeof(g->Message));
   } // endswitch Catfunc
 
   return tdbp;
@@ -262,7 +262,8 @@ PCSZ TDBODBC::GetFile(PGLOBAL g)
       MulConn = (char*)PlugSubAlloc(g, NULL, strlen(Connect) - n + 3);
       memcpy(MulConn, Connect, p1 - Connect);
       MulConn[p1 - Connect] = '\0';
-      strcat(strcat(MulConn, "%s"), (p2) ? p2 : ";");
+	  strlcat(MulConn, "%s", strlen(Connect) - n + 3);
+      strlcat(MulConn, (p2) ? p2 : ";", strlen(Connect) - n + 3);
     } // endif p1
 
   } // endif Connect
@@ -306,7 +307,7 @@ bool TDBODBC::MakeInsert(PGLOBAL g)
 
   for (colp = Columns; colp; colp = colp->GetNext())
     if (colp->IsSpecial()) {
-      strcpy(g->Message, MSG(NO_ODBC_SPECOL));
+      strlcpy(g->Message, MSG(NO_ODBC_SPECOL), sizeof(g->Message));
       return true;
     } else {
 			// Column name can be encoded in UTF-8
@@ -385,7 +386,7 @@ bool TDBODBC::MakeInsert(PGLOBAL g)
 		Query->Append("?,");
 
 	if ((oom = Query->IsTruncated()))
-		strcpy(g->Message, "MakeInsert: Out of memory");
+		strlcpy(g->Message, "MakeInsert: Out of memory", sizeof(g->Message));
 	else
 		Query->RepLast(')');
 
@@ -418,7 +419,8 @@ char *TDBODBC::MakeUpdate(PGLOBAL g)
 {
   char *qc, *stmt = NULL, cmd[8], tab[96], end[1024];
 
-  stmt = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 64);
+  size_t stmt_sz = strlen(Qrystr) + 64;
+  stmt = (char*)PlugSubAlloc(g, NULL, stmt_sz);
   memset(end, 0, sizeof(end));
 
   if (sscanf(Qrystr, "%s `%[^`]`%1023c", cmd, tab, end) > 2 ||
@@ -427,18 +429,21 @@ char *TDBODBC::MakeUpdate(PGLOBAL g)
   else if (sscanf(Qrystr, "%s %s%1023c", cmd, tab, end) > 2)
     qc = (Quoted) ? Quote : "";
   else {
-    strcpy(g->Message, "Cannot use this UPDATE command");
+    strlcpy(g->Message, "Cannot use this UPDATE command"), sizeof(g->Message);
     return NULL;
   } // endif sscanf
 
   assert(!stricmp(cmd, "update"));
-  strcat(strcat(strcat(strcpy(stmt, "UPDATE "), qc), TableName), qc);
+  strlcpy(stmt, "UPDATE ", stmt_sz);
+  strlcat(stmt, qc, stmt_sz);
+  strlcat(stmt, TableName, stmt_sz);
+  strlcat(stmt, qc, stmt_sz);
 
   for (int i = 0; end[i]; i++)
     if (end[i] == '`')
       end[i] = *qc;
 
-  strcat(stmt, end);
+  strlcat(stmt, end, stmt_sz);
   return stmt;
 } // end of MakeUpdate
 
@@ -449,7 +454,8 @@ char *TDBODBC::MakeDelete(PGLOBAL g)
 {
 	char *qc, *stmt = NULL, cmd[8], from[8], tab[96], end[512];
 
-	stmt = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 64);
+	size_t stmt_sz = strlen(Qrystr) + 64;
+	stmt = (char*)PlugSubAlloc(g, NULL, stmt_sz);
 	memset(end, 0, sizeof(end));
 
 	if (sscanf(Qrystr, "%s %s `%[^`]`%511c", cmd, from, tab, end) > 2 ||
@@ -458,19 +464,22 @@ char *TDBODBC::MakeDelete(PGLOBAL g)
 	else if (sscanf(Qrystr, "%s %s %s%511c", cmd, from, tab, end) > 2)
 		qc = (Quoted) ? Quote : "";
 	else {
-		strcpy(g->Message, "Cannot use this DELETE command");
+		strlcpy(g->Message, "Cannot use this DELETE command"), sizeof(g->Message);
 		return NULL;
 	} // endif sscanf
 
 	assert(!stricmp(cmd, "delete") && !stricmp(from, "from"));
-	strcat(strcat(strcat(strcpy(stmt, "DELETE FROM "), qc), TableName), qc);
+	strlcpy(stmt, "DELETE FROM ", stmt_sz);
+	strlcat(stmt, qc, stmt_sz);
+	strlcat(stmt, TableName, stmt_sz);
+	strlcat(stmt, qc, stmt_sz);
 
 	if (*end) {
 		for (int i = 0; end[i]; i++)
 			if (end[i] == '`')
 				end[i] = *qc;
 
-		strcat(stmt, end);
+		strlcat(stmt, end, stmt_sz);
 	} // endif end
 
 	return stmt;
@@ -507,12 +516,15 @@ int TDBODBC::Cardinality(PGLOBAL g)
 
     // Table name can be encoded in UTF-8
     Decode(TableName, tbn, sizeof(tbn));
-    strcpy(qry, "SELECT COUNT(*) FROM ");
+    strlcpy(qry, "SELECT COUNT(*) FROM ", sizeof(qry));
 
-    if (Quote)
-      strcat(strcat(strcat(qry, Quote), tbn), Quote);
+    if (Quote) {
+      strlcat(qry, Quote, sizeof(qry));
+      strlcat(qry, tbn, sizeof(qry));
+      strlcat(qry, Quote, sizeof(qry));
+	}
     else
-      strcat(qry, tbn);
+      strlcat(qry, tbn, sizeof(qry));
 
     // Allocate a Count(*) column (must not use the default constructor)
     Cnp = new(g) ODBCCOL;
@@ -615,7 +627,7 @@ bool TDBODBC::OpenDB(PGLOBAL g)
 					if ((Qrp = Ocp->AllocateResult(g)))
 						Memory = 2;            // Must be filled
 					else {
-						strcpy(g->Message, "Result set memory allocation failed");
+						strlcpy(g->Message, "Result set memory allocation failed", sizeof(g->Message));
 						return true;
 					} // endif n
 
@@ -642,7 +654,7 @@ bool TDBODBC::OpenDB(PGLOBAL g)
   } else if (Mode == MODE_INSERT) {
     if (!(rc = MakeInsert(g))) {
       if (Nparm != Ocp->PrepareSQL(Query->GetStr())) {
-        strcpy(g->Message, MSG(PARM_CNT_MISS));
+        strlcpy(g->Message, MSG(PARM_CNT_MISS), sizeof(g->Message));
         rc = true;
       } else
         rc = BindParameters(g);
@@ -698,8 +710,9 @@ bool TDBODBC::SetRecpos(PGLOBAL g, int recpos)
     } // endif recpos
 
   } else {
-    strcpy(g->Message, 
-			"This action requires Memory setting or a scrollable cursor");
+    strlcpy(g->Message, 
+            "This action requires Memory setting or a scrollable cursor", 
+            sizeof(g->Message));
     return true;
   } // endif's
 
@@ -744,7 +757,7 @@ bool TDBODBC::ReadKey(PGLOBAL g, OPVAL op, const key_range *kr)
 
 			if (To_CondFil)
 				if (Query->Append(" AND ") || Query->Append(To_CondFil->Body)) {
-					strcpy(g->Message, "Readkey: Out of memory");
+					strlcpy(g->Message, "Readkey: Out of memory", sizeof(g->Message));
 					return true;
 				} // endif Append
 
@@ -1163,13 +1176,13 @@ PCMD TDBXDBC::MakeCMD(PGLOBAL g)
           (To_CondFil->Op == OP_EQ || To_CondFil->Op == OP_IN)) {
         xcmd = To_CondFil->Cmds;
       } else
-        strcpy(g->Message, "Invalid command specification filter");
+        strlcpy(g->Message, "Invalid command specification filter", sizeof(g->Message));
 
     } else
-      strcpy(g->Message, "No command column in select list");
+      strlcpy(g->Message, "No command column in select list", sizeof(g->Message));
 
   } else if (!Srcdef)
-    strcpy(g->Message, "No Srcdef default command");
+    strlcpy(g->Message, "No Srcdef default command", sizeof(g->Message));
   else
     xcmd = new(g) CMD(g, Srcdef);
 
@@ -1222,7 +1235,7 @@ bool TDBXDBC::OpenDB(PGLOBAL g)
             this, Tdb_No, Use, Mode);
 
   if (Use == USE_OPEN) {
-    strcpy(g->Message, "Multiple execution is not allowed");
+    strlcpy(g->Message, "Multiple execution is not allowed", sizeof(g->Message));
     return true;
   } // endif use
 
@@ -1244,7 +1257,7 @@ bool TDBXDBC::OpenDB(PGLOBAL g)
   Use = USE_OPEN;       // Do it now in case we are recursively called
 
   if (Mode != MODE_READ && Mode != MODE_READX) {
-    strcpy(g->Message, "No INSERT/DELETE/UPDATE of XDBC tables");
+    strlcpy(g->Message, "No INSERT/DELETE/UPDATE of XDBC tables", sizeof(g->Message));
     return true;
   } // endif Mode
 
@@ -1290,7 +1303,7 @@ int TDBXDBC::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBXDBC::WriteDB(PGLOBAL g)
 {
-  strcpy(g->Message, "Execsrc tables are read only");
+  strlcpy(g->Message, "Execsrc tables are read only", sizeof(g->Message));
   return RC_FX;
 } // end of DeleteDB
 
@@ -1299,7 +1312,7 @@ int TDBXDBC::WriteDB(PGLOBAL g)
 /***********************************************************************/
 int TDBXDBC::DeleteDB(PGLOBAL g, int irc)
 {
-  strcpy(g->Message, MSG(NO_ODBC_DELETE));
+  strlcpy(g->Message, MSG(NO_ODBC_DELETE), sizeof(g->Message));
   return RC_FX;
 } // end of DeleteDB
 

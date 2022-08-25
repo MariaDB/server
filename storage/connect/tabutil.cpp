@@ -91,7 +91,7 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
   key[++k] = 0;
 
 	if (!(s = alloc_table_share(db, name, key, ++k))) {
-    strcpy(g->Message, "Error allocating share\n");
+    strlcpy(g->Message, "Error allocating share\n", sizeof(g->Message));
     return NULL;
     } // endif s
 
@@ -156,7 +156,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
 		if (!(s = GetTableShare(g, thd, db, name, mysql))) {
       return NULL;
     } else if (s->is_view) {
-      strcpy(g->Message, "Use MYSQL type to see columns from a view");
+      strlcpy(g->Message, "Use MYSQL type to see columns from a view", sizeof(g->Message));
       info = true;       // To tell caller name is a view
       free_table_share(s);
       return NULL;
@@ -325,7 +325,7 @@ bool PRXDEF::DefineAM(PGLOBAL g, LPCSTR, int)
 
   if (!(tab = GetStringCatInfo(g, "Tabname", NULL))) {
     if (!def) {
-      strcpy(g->Message, "Missing object table definition");
+      strlcpy(g->Message, "Missing object table definition", sizeof(g->Message));
       return true;
     } else
       tab = PlugDup(g, "Noname");
@@ -440,7 +440,7 @@ PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
     if (!(tdbp= cat->GetTable(g, tabp, Mode, "MYPRX"))) {
       char buf[MAX_STR];
 
-      strcpy(buf, g->Message);
+      strlcpy(buf, g->Message, sizeof(buf));
       snprintf(g->Message, MAX_STR, "Error accessing %s.%s: %s", db, name, buf);
       hc->tshp = NULL;
       goto err;
@@ -558,7 +558,7 @@ bool TDBPRX::OpenDB(PGLOBAL g)
   if (InitTable(g))
     return true;
   else if (Mode != MODE_READ && (Read_Only || Tdbp->IsReadOnly())) {
-    strcpy(g->Message, "Cannot modify a read only table");
+    strlcpy(g->Message, "Cannot modify a read only table", sizeof(g->Message));
     return true;
     } // endif tp
   

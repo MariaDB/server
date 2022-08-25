@@ -85,7 +85,7 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
     } // endif info
 
   if (GetIntegerTableOption(g, topt, "Multiple", 0)) {
-    strcpy(g->Message, "Cannot find column definition for multiple table");
+    strlcpy(g->Message, "Cannot find column definition for multiple table", sizeof(g->Message));
     return NULL;
   } // endif Multiple
 
@@ -212,7 +212,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
   tdp->Uri = (dsn && *dsn ? dsn : NULL);
 
   if (!tdp->Fn && !tdp->Uri) {
-    strcpy(g->Message, MSG(MISSING_FNAME));
+    strlcpy(g->Message, MSG(MISSING_FNAME), sizeof(g->Message));
     return 0;
   } else
     topt->subtype = NULL;
@@ -320,7 +320,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 
     switch (tjnp->ReadDB(g)) {
     case RC_EF:
-      strcpy(g->Message, "Void json table");
+      strlcpy(g->Message, "Void json table", sizeof(g->Message));
     case RC_FX:
       goto err;
     default:
@@ -333,7 +333,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
   } // endif pretty
 
   if (!(row = (jsp) ? jsp->GetObject() : NULL)) {
-    strcpy(g->Message, "Can only retrieve columns from object rows");
+    strlcpy(g->Message, "Can only retrieve columns from object rows", sizeof(g->Message));
     goto err;
   } // endif row
 
@@ -417,7 +417,7 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
 
   if (jvp && jvp->DataType != TYPE_JSON) {
 		if (JsonAllPath() && !fmt[bf])                                  
-			strcat(fmt, colname);
+			strlcat(fmt, colname, sizeof(fmt));
 
 		jcol.Type = jvp->DataType;
 
@@ -450,7 +450,7 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
     jcol.Cbn = true;
   } else if (j < lvl && !Stringified(strfy, colname)) {
     if (!fmt[bf])
-      strcat(fmt, colname);
+      strlcat(fmt, colname, sizeof(fmt));
 
     p = fmt + strlen(fmt);
     jsp = jvp->GetJson();
@@ -520,11 +520,11 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
   } else if (lvl >= 0) {
     if (Stringified(strfy, colname)) {
 			if (!fmt[bf])
-				strcat(fmt, colname);
+				strlcat(fmt, colname, sizeof(fmt));
 
-			strcat(fmt, ".*");
+			strlcat(fmt, ".*", sizeof(fmt));
 		}	else if (JsonAllPath() && !fmt[bf])
-			strcat(fmt, colname);
+			strlcat(fmt, colname, sizeof(fmt));
 
 		jcol.Type = TYPE_STRG;
     jcol.Len = sz;
@@ -735,7 +735,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
       } else if (m == MODE_INSERT) {
         txfp = new(g) ZIPFAM(this);
       } else {
-        strcpy(g->Message, "UPDATE/DELETE not supported for ZIP");
+        strlcpy(g->Message, "UPDATE/DELETE not supported for ZIP", sizeof(g->Message));
         return NULL;
       } // endif's m
 #else   // !ZIP_SUPPORT
@@ -775,7 +775,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 #endif // 0
       ((TDBJSN*)tdbp)->G = PlugInit(NULL, (size_t)Lrecl * (Pretty >= 0 ? 12 : 4));
     } else {
-      strcpy(g->Message, "LRECL is not defined");
+      strlcpy(g->Message, "LRECL is not defined", sizeof(g->Message));
       return NULL;
     } // endif Lrecl
 
@@ -785,10 +785,10 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
       if (m == MODE_READ || m == MODE_ANY || m == MODE_ALTER) {
         txfp = new(g) UNZFAM(this);
       } else if (m == MODE_INSERT) {
-        strcpy(g->Message, "INSERT supported only for zipped JSON when pretty=0");
+        strlcpy(g->Message, "INSERT supported only for zipped JSON when pretty=0", sizeof(g->Message));
         return NULL;
       } else {
-        strcpy(g->Message, "UPDATE/DELETE not supported for ZIP");
+        strlcpy(g->Message, "UPDATE/DELETE not supported for ZIP", sizeof(g->Message));
         return NULL;
       } // endif's m
 #else   // !ZIP_SUPPORT
@@ -1145,7 +1145,7 @@ int TDBJSN::ReadDB(PGLOBAL g) {
 				M = 1;
 				rc = RC_OK;
 			} else if (Pretty != 1 || strcmp(To_Line, "]")) {
-				strcpy(g->Message, G->Message);
+				strlcpy(g->Message, G->Message, sizeof(g->Message));
 				rc = RC_FX;
 			} else
 				rc = RC_EF;
@@ -1360,7 +1360,7 @@ bool JSONCOL::CheckExpand(PGLOBAL g, int i, PSZ nm, bool b)
     Xpd = true;              // Expandable object
     Nodes[i].Op = OP_EXP;
   } else if (b) {
-    strcpy(g->Message, "Cannot expand more than one branch");
+    strlcpy(g->Message, "Cannot expand more than one branch", sizeof(g->Message));
     return true;
   } // endif Xcol
 
@@ -1571,7 +1571,7 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
       if (SetArrayOptions(g, p, i, Nodes[i - 1].Key))
         return true;
       else if (Xpd && Tjp->Mode == MODE_DELETE) {
-        strcpy(g->Message, "Cannot delete expanded columns");
+        strlcpy(g->Message, "Cannot delete expanded columns", sizeof(g->Message));
         return true;
       } // endif Xpd
 
@@ -1673,7 +1673,7 @@ PSZ JSONCOL::GetJpath(PGLOBAL g, bool proj)
 PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp, int n)
 {
   if (Value->IsTypeNum()) {
-    strcpy(g->Message, "Cannot make Json for a numeric column");
+    strlcpy(g->Message, "Cannot make Json for a numeric column", sizeof(g->Message));
 
     if (!Warned) {
       PushWarning(g, Tjp);
@@ -1691,7 +1691,7 @@ PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp, int n)
 			strcat(bsp->Msg, " column");
 			((BINVAL*)Value)->SetBinValue(bsp, sizeof(BSON));
 		} else {
-			strcpy(g->Message, "Column size too small");
+			strlcpy(g->Message, "Column size too small", sizeof(g->Message));
 			Value->SetValue_char(NULL, 0);
 		} // endif Clen
 #endif // 0
@@ -1935,7 +1935,7 @@ PVAL JSONCOL::ExpandArray(PGLOBAL g, PJAR arp, int n)
   } // endif ars
 
   if (!(jvp = arp->GetArrayValue((Nodes[n].Rx = Nodes[n].Nx)))) {
-    strcpy(g->Message, "Logical error expanding array");
+    strlcpy(g->Message, "Logical error expanding array", sizeof(g->Message));
     throw 666;
   } // endif jvp
 
@@ -2123,7 +2123,7 @@ PJSON JSONCOL::GetRow(PGLOBAL g)
           ((PJAR)row)->AddArrayValue(G, new(G) JVALUE(nwr));
           ((PJAR)row)->InitArray(G);
         } else {
-          strcpy(g->Message, "Wrong type when writing new row");
+          strlcpy(g->Message, "Wrong type when writing new row", sizeof(g->Message));
           nwr = NULL;
         } // endif's
 
@@ -2144,7 +2144,7 @@ PJSON JSONCOL::GetRow(PGLOBAL g)
 void JSONCOL::WriteColumn(PGLOBAL g)
 {
   if (Xpd && Tjp->Pretty < 2) {
-    strcpy(g->Message, "Cannot write expanded column when Pretty is not 2");
+    strlcpy(g->Message, "Cannot write expanded column when Pretty is not 2", sizeof(g->Message));
     throw 666;
   } // endif Xpd
 
@@ -2180,7 +2180,7 @@ void JSONCOL::WriteColumn(PGLOBAL g)
 
         if (s && *s) {
           if (!(jsp = ParseJson(G, s, strlen(s)))) {
-            strcpy(g->Message, s);
+            strlcpy(g->Message, s, sizeof(g->Message));
             throw 666;
           } // endif jsp
 
@@ -2363,7 +2363,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
       if (!a && *p && *p != '[' && !IsNum(p)) {
         // obj is a key
         if (jsp->GetType() != TYPE_JOB) {
-          strcpy(g->Message, "Table path does not match the json file");
+          strlcpy(g->Message, "Table path does not match the json file", sizeof(g->Message));
           return RC_FX;
         } // endif Type
 
@@ -2389,7 +2389,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
         } // endif p
 
         if (jsp->GetType() != TYPE_JAR) {
-          strcpy(g->Message, "Table path does not match the json file");
+          strlcpy(g->Message, "Table path does not match the json file", sizeof(g->Message));
           return RC_FX;
         } // endif Type
 
@@ -2485,7 +2485,7 @@ void TDBJSON::ResetSize(void)
 int TDBJSON::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool)
 {
   if (pxdf) {
-    strcpy(g->Message, "JSON not indexable when pretty = 2");
+    strlcpy(g->Message, "JSON not indexable when pretty = 2", sizeof(g->Message));
     return RC_FX;
   } else
     return RC_OK;

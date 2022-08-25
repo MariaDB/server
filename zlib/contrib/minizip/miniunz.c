@@ -153,7 +153,7 @@ static int makedir (newdir)
                 printf("Error allocating memory\n");
                 return UNZ_INTERNALERROR;
         }
-  strcpy(buffer,newdir);
+  strlcpy(buffer,newdir, len + 1);
 
   if (buffer[len-1] == '/') {
     buffer[len-1] = '\0';
@@ -617,7 +617,7 @@ int main(argc,argv)
 #        endif
         if (uf==NULL)
         {
-            strcat(filename_try,".zip");
+            strlcat(filename_try, ".zip", sizeof(filename_try));
 #            ifdef USEWIN32IOAPI
             uf = unzOpen2_64(filename_try,&ffunc);
 #            else

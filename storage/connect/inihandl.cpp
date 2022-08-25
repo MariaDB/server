@@ -34,6 +34,8 @@
 #include "global.h"
 #include "inihandl.h"
 
+#include "m_string.h"
+
 // The types and variables used locally
 //typedef int bool;
 typedef unsigned int uint;
@@ -1279,7 +1281,7 @@ BOOL WritePrivateProfileSection(LPCSTR section,
 
       while (*string) {
         LPSTR buf = (LPSTR)malloc(strlen(string) + 1);
-        strcpy(buf, string);
+        strlcpy(buf, string, strlen(string) + 1);
 
         if ((p = strchr(buf, '='))) {
           *p='\0';

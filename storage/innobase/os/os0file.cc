@@ -2861,7 +2861,7 @@ next_file:
 		goto next_file;
 	}
 
-	strcpy(info->name, ent->d_name);
+	strlcpy(info->name, ent->d_name, sizeof(info->name));
 
 	full_path = static_cast<char*>(
 		ut_malloc_nokey(strlen(dirname) + strlen(ent->d_name) + 10));

@@ -1010,7 +1010,7 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
     {
       if (cmp < 0)
       {
-        strcpy(group_master_log_name, rgi->future_event_master_log_name);
+        strlcpy(group_master_log_name, rgi->future_event_master_log_name, sizeof(group_master_log_name));
         group_master_log_pos= log_pos;
       }
       else if (group_master_log_pos < log_pos)

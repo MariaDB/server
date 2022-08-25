@@ -189,7 +189,7 @@ bool CMGFAM::OpenTableFile(PGLOBAL g)
 	Mode = Tdbp->GetMode();
 
 	if (Pcg.Pipe && Mode != MODE_READ) {
-		strcpy(g->Message, "Pipeline tables are read only");
+		strlcpy(g->Message, "Pipeline tables are read only", sizeof(g->Message));
 		return true;
 	}	// endif Pipe
 
@@ -244,7 +244,7 @@ bool CMGFAM::SetPos(PGLOBAL g, int pos)
 /***********************************************************************/
 bool CMGFAM::RecordPos(PGLOBAL g)
 {
-	strcpy(g->Message, "CMGFAM::RecordPos NIY");
+	strlcpy(g->Message, "CMGFAM::RecordPos NIY", sizeof(g->Message));
 	return true;
 } // end of RecordPos
 
@@ -253,7 +253,7 @@ bool CMGFAM::RecordPos(PGLOBAL g)
 /***********************************************************************/
 int CMGFAM::InitDelete(PGLOBAL g, int fpos, int spos)
 {
-	strcpy(g->Message, "CMGFAM::InitDelete NIY");
+	strlcpy(g->Message, "CMGFAM::InitDelete NIY", sizeof(g->Message));
 	return RC_FX;
 } // end of InitDelete
 

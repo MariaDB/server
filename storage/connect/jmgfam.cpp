@@ -222,7 +222,7 @@ bool JMGFAM::OpenTableFile(PGLOBAL g)
 	Mode = Tdbp->GetMode();
 
 	if (Pipe && Mode != MODE_READ) {
-		strcpy(g->Message, "Pipeline tables are read only");
+		strlcpy(g->Message, "Pipeline tables are read only", sizeof(g->Message));
 		return true;
 	}	// endif Pipe
 
@@ -289,7 +289,7 @@ bool JMGFAM::SetPos(PGLOBAL g, int pos)
 /***********************************************************************/
 bool JMGFAM::RecordPos(PGLOBAL g)
 {
-	strcpy(g->Message, "JMGFAM::RecordPos NIY");
+	strlcpy(g->Message, "JMGFAM::RecordPos NIY", sizeof(g->Message));
 	return true;
 } // end of RecordPos
 
@@ -298,7 +298,7 @@ bool JMGFAM::RecordPos(PGLOBAL g)
 /***********************************************************************/
 int JMGFAM::InitDelete(PGLOBAL g, int fpos, int spos)
 {
-	strcpy(g->Message, "JMGFAM::InitDelete NIY");
+	strlcpy(g->Message, "JMGFAM::InitDelete NIY", sizeof(g->Message));
 	return RC_FX;
 } // end of InitDelete
 
@@ -337,7 +337,7 @@ int JMGFAM::ReadBuffer(PGLOBAL g)
 			strncpy(Tdbp->GetLine(), str, Lrecl);
 			rc = RC_OK;
 		} else
-			strcpy(g->Message, "Null document");
+			strlcpy(g->Message, "Null document", sizeof(g->Message));
 
 	} else if (!Rbuf)
 		rc = RC_EF;

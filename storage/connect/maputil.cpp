@@ -14,6 +14,8 @@
 #include "plgdbsem.h"
 #include "maputil.h"
 
+#include "m_string.h"
+
 #ifdef _WIN32
 /***********************************************************************/
 /*  In Insert mode, just open the file for append. Otherwise           */
@@ -175,7 +177,7 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR fileName,
       mm->lenL = (mm->memory != 0) ? filesize : 0;
       mm->lenH = 0;
     } else {
-      strcpy(g->Message, "Memory mapping failed");
+      strlcpy(g->Message, "Memory mapping failed", sizeof(g->Message));
       close(fd);
       return INVALID_HANDLE_VALUE;
     } // endif memory

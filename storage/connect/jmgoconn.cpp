@@ -264,7 +264,7 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 		p = strrchr(Options, ']');
 
 		if (!p) {
-			strcpy(g->Message, "Missing ] in pipeline");
+			strlcpy(g->Message, "Missing ] in pipeline", sizeof(g->Message));
 			return true;
 		} else
 			*(char*)p = 0;
@@ -275,7 +275,7 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 			s->Append(",{\"$match\":");
 
 			if (MakeSelector(g, filp, s)) {
-				strcpy(g->Message, "Failed making selector");
+				strlcpy(g->Message, "Failed making selector", sizeof(g->Message));
 				return true;
 			} else
 				s->Append('}');
@@ -343,7 +343,7 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 					s->Append(',');
 
 				if (MakeSelector(g, filp, s)) {
-					strcpy(g->Message, "Failed making selector");
+					strlcpy(g->Message, "Failed making selector", sizeof(g->Message));
 					return true;
 				}	// endif Selector
 

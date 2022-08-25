@@ -158,7 +158,7 @@ end:
 void table_host_cache::make_row(Host_entry *entry, row_host_cache *row)
 {
   row->m_ip_length= (int)strlen(entry->ip_key);
-  strcpy(row->m_ip, entry->ip_key);
+  strlcpy(row->m_ip, entry->ip_key, sizeof(row->m_ip));
   row->m_hostname_length= entry->m_hostname_length;
   if (row->m_hostname_length > 0)
     strncpy(row->m_hostname, entry->m_hostname, row->m_hostname_length);

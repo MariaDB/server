@@ -81,9 +81,9 @@ int main(int argc, char** argv)
 
     echo_args.argv = myArgv;
    
-    strcpy(echo_args.argv[0], "echoclient");
-    strcpy(echo_args.argv[1], "input");
-    strcpy(echo_args.argv[2], "output");
+    strlcpy(echo_args.argv[0], "echoclient", sizeof(echo_args.argv[0]));
+    strlcpy(echo_args.argv[1], "input", sizeof(echo_args.argv[1]));
+    strlcpy(echo_args.argv[2], "output", sizeof(echo_args.argv[2]));
     remove("output");
 
             // make sure OK
@@ -93,7 +93,7 @@ int main(int argc, char** argv)
 
     // *** Echo quit yaSSL client server test ***
     echo_args.argc = 2;
-    strcpy(echo_args.argv[1], "quit");
+    strlcpy(echo_args.argv[1], "quit"), sizeof(echo_args.argv[1]);
 
     echoclient_test(&echo_args);
     assert(echo_args.return_code == 0);

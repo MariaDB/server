@@ -445,7 +445,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   for (i = nkey = 0; rc != RC_EF; i++) {
 #if 0
     if (!dup->Step) {
-      strcpy(g->Message, MSG(QUERY_CANCELLED));
+      strlcpy(g->Message, MSG(QUERY_CANCELLED), sizeof(g->Message));
 			throw 99;
 	} // endif Step
 #endif // 0
@@ -560,7 +560,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   // Check whether the unique index is unique indeed
   if (!Mul)
     if (Ndif < Num_K) {
-      strcpy(g->Message, MSG(INDEX_NOT_UNIQ));
+      strlcpy(g->Message, MSG(INDEX_NOT_UNIQ), sizeof(g->Message));
       brc = true;
       goto err;
     } else
@@ -855,12 +855,15 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
     char fname[_MAX_FNAME];
 
     _splitpath(defp->GetOfn(), drive, direc, fname, NULL);
-    strcat(strcat(fname, "_"), Xdp->GetName());
+	strlcat(fname, "_", sizeof(fname));
+    strlcat(fname, Xdp->GetName(), sizeof(fname));
     _makepath(fn, drive, direc, fname, ftype);
     sxp = NULL;
   } else {
     id = ID;
-    strcat(PlugRemoveType(fn, strcpy(fn, defp->GetOfn())), ftype);
+	strlcpy(fn, defp->GetOfn(), sizeof(fn));
+	PlugRemoveType(fn, fn);
+    strlcat(fn, ftype, sizeof(fn));
   } // endif sep
 
   PlugSetPath(fn, fn, Tdbp->GetPath());
@@ -981,7 +984,7 @@ bool XINDEX::Init(PGLOBAL g)
   /*  Get the first key column.                                        */
   /*********************************************************************/
   if (!Nk || !To_Cols || (!To_Vals && Op != OP_FIRST && Op != OP_FSTDIF)) {
-    strcpy(g->Message, MSG(NO_KEY_COL));
+    strlcpy(g->Message, MSG(NO_KEY_COL), sizeof(g->Message));
     return true;    // Error
   } else
     colp = To_Cols[0];
@@ -1009,11 +1012,14 @@ bool XINDEX::Init(PGLOBAL g)
     char fname[_MAX_FNAME];
 
     _splitpath(defp->GetOfn(), drive, direc, fname, NULL);
-    strcat(strcat(fname, "_"), Xdp->GetName());
+	strlcat(fname, "_", sizeof(fname));
+    strlcat(fname, Xdp->GetName(), sizeof(fname));
     _makepath(fn, drive, direc, fname, ftype);
   } else {
     id = ID;
-    strcat(PlugRemoveType(fn, strcpy(fn, defp->GetOfn())), ftype);
+	strlcpy(fn, defp->GetOfn(), sizeof(fn));
+	PlugRemoveType(fn, fn);
+    strlcat(fn, ftype, sizeof(fn));
   } // endif sep
 
   PlugSetPath(fn, fn, Tdbp->GetPath());
@@ -1235,7 +1241,7 @@ bool XINDEX::MapInit(PGLOBAL g)
   /*  Get the first key column.                                        */
   /*********************************************************************/
   if (!Nk || !To_Cols || (!To_Vals && Op != OP_FIRST && Op != OP_FSTDIF)) {
-    strcpy(g->Message, MSG(NO_KEY_COL));
+    strlcpy(g->Message, MSG(NO_KEY_COL), sizeof(g->Message));
     return true;    // Error
   } else
     colp = To_Cols[0];
@@ -1263,11 +1269,14 @@ bool XINDEX::MapInit(PGLOBAL g)
     char fname[_MAX_FNAME];
 
     _splitpath(defp->GetOfn(), drive, direc, fname, NULL);
-    strcat(strcat(fname, "_"), Xdp->GetName());
+	strlcat(fname, "_", sizeof(fname));
+    strlcat(fname, Xdp->GetName(), sizeof(fname));
     _makepath(fn, drive, direc, fname, ftype);
   } else {
     id = ID;
-    strcat(PlugRemoveType(fn, strcpy(fn, defp->GetOfn())), ftype);
+	strlcpy(fn, defp->GetOfn(), sizeof(fn));
+	PlugRemoveType(fn, fn);
+    strlcat(fn, ftype, sizeof(fn));
   } // endif SepIndex
 
   PlugSetPath(fn, fn, Tdbp->GetPath());
@@ -1450,7 +1459,7 @@ bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
   /*  Check the key part number.                                       */
   /*********************************************************************/
   if (!Nk) {
-    strcpy(g->Message, MSG(NO_KEY_COL));
+    strlcpy(g->Message, MSG(NO_KEY_COL), sizeof(g->Message));
     return true;    // Error
     } // endif Nk
 #endif // 0
@@ -1478,11 +1487,14 @@ bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
     char fname[_MAX_FNAME];
 
     _splitpath(defp->GetOfn(), drive, direc, fname, NULL);
-    strcat(strcat(fname, "_"), Xdp->GetName());
+	strlcat(fname, "_", sizeof(fname));
+    strlcat(fname, Xdp->GetName(), sizeof(fname));
     _makepath(fn, drive, direc, fname, ftype);
   } else {
     id = ID;
-    strcat(PlugRemoveType(fn, strcpy(fn, defp->GetOfn())), ftype);
+	strlcpy(fn, defp->GetOfn(), sizeof(fn));
+	PlugRemoveType(fn, fn);
+    strlcat(fn, ftype, sizeof(fn));
   } // endif sep
 
   PlugSetPath(fn, fn, Tdbp->GetPath());
@@ -1608,7 +1620,7 @@ int XINDEX::Range(PGLOBAL g, int limit, bool incl)
 //        n = (Mul) ? Pof[kp->Val_K + 1] - k : 1;
 
   } else {
-    strcpy(g->Message, MSG(RANGE_NO_JOIN));
+    strlcpy(g->Message, MSG(RANGE_NO_JOIN), sizeof(g->Message));
     n = -1;                        // Logical error
   } // endif'f Type
 
@@ -2049,7 +2061,7 @@ int XINDXS::Range(PGLOBAL g, int limit, bool incl)
         n = (Mul) ? Pof[kp->Val_K + 1] - k : 1;
 
   } else {
-    strcpy(g->Message, MSG(RANGE_NO_JOIN));
+    strlcpy(g->Message, MSG(RANGE_NO_JOIN), sizeof(g->Message));
     n = -1;                        // Logical error
   } // endif'f Type
 
@@ -2489,7 +2501,7 @@ void *XFILE::FileView(PGLOBAL g, char *fn)
 
   if (h == INVALID_HANDLE_VALUE || (!Mmp->lenH && !Mmp->lenL)) {
     if (!(*g->Message))
-      strcpy(g->Message, MSG(FILE_MAP_ERR));
+      strlcpy(g->Message, MSG(FILE_MAP_ERR), sizeof(g->Message));
 
     CloseFileHandle(h);                    // Not used anymore
     return NULL;               // No saved values
@@ -2554,7 +2566,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                   (LPTSTR)filename, sizeof(filename), NULL);
-    strcat(g->Message, filename);
+    strlcat(g->Message, filename, sizeof(g->Message));
     return true;
     } // endif Hfile
 
@@ -2737,7 +2749,7 @@ bool XHUGE::Read(PGLOBAL g, void *buf, int n, int size)
 
   if (brc) {
     if (nbr != count) {
-      strcpy(g->Message, MSG(EOF_INDEX_FILE));
+      strlcpy(g->Message, MSG(EOF_INDEX_FILE), sizeof(g->Message));
       rc = true;
       } // endif nbr
 
@@ -2859,7 +2871,7 @@ void XHUGE::Close(char *fn, int id)
 /***********************************************************************/
 void *XHUGE::FileView(PGLOBAL g, char *)
   {
-  strcpy(g->Message, MSG(NO_PART_MAP));
+  strlcpy(g->Message, MSG(NO_PART_MAP), sizeof(g->Message));
   return NULL;
   } // end of FileView
 #endif   // XMAP
@@ -2899,7 +2911,7 @@ bool XXROW::Init(PGLOBAL g)
     return true;
 
   if ((*Tdbp->GetLink())->GetResultType() != TYPE_INT) {
-    strcpy(g->Message, MSG(TYPE_MISMATCH));
+    strlcpy(g->Message, MSG(TYPE_MISMATCH), sizeof(g->Message));
     return true;
   } else
     Valp = (*Tdbp->GetLink())->GetValue();
@@ -3132,7 +3144,7 @@ int *KXYCOL::MakeOffset(PGLOBAL g, int n)
 
     // Allocate the required memory
     if (!PlgDBalloc(g, NULL, Koff)) {
-      strcpy(g->Message, MSG(KEY_ALLOC_ERR));
+      strlcpy(g->Message, MSG(KEY_ALLOC_ERR), sizeof(g->Message));
       return NULL;    // Error
      } // endif
 

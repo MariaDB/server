@@ -48,7 +48,7 @@ JMGDISC::JMGDISC(PGLOBAL g, int *lg) : MGODISC(g, lg)
 bool JMGDISC::Init(PGLOBAL g)
 {
 	if (!(Jcp = ((TDBJMG*)tmgp)->Jcp)) {
-		strcpy(g->Message, "Init: Jcp is NULL");
+		strlcpy(g->Message, "Init: Jcp is NULL", sizeof(g->Message));
 		return true;
 	}	else if (Jcp->gmID(g, columnid, "ColumnDesc",
 		                  "(Ljava/lang/Object;I[II)Ljava/lang/Object;"))
@@ -86,7 +86,7 @@ bool JMGDISC::ColDesc(PGLOBAL g, jobject obj, char *pcn, char *pfmt,
 	jintArray val = Jcp->env->NewIntArray(5);
 
 	if (val == nullptr) {
-		strcpy(g->Message, "Cannot allocate jint array");
+		strlcpy(g->Message, "Cannot allocate jint array", sizeof(g->Message));
 		return true;
 	} else if (!ncol)
 		n = Jcp->env->GetIntArrayElements(val, 0);
@@ -113,7 +113,7 @@ bool JMGDISC::ColDesc(PGLOBAL g, jobject obj, char *pcn, char *pfmt,
 			z = 65 - strlen(colname);
 			strncat(strncat(colname, "_", z), key, z - 1);
 		} else
-			strcpy(colname, key);
+			strlcpy(colname, key, sizeof(colname));
 
 		if (pfmt) {
 			strncpy(fmt, pfmt, 128);
@@ -121,7 +121,7 @@ bool JMGDISC::ColDesc(PGLOBAL g, jobject obj, char *pcn, char *pfmt,
 			z = 129 - strlen(fmt);
 			strncat(strncat(fmt, ".", z), key, z - 1);
 		} else
-			strcpy(fmt, key);
+			strlcpy(fmt, key, sizeof(fmt));
 
 		if (!jres) {
 			bcol.Type = n[0];
@@ -318,7 +318,7 @@ bool TDBJMG::OpenDB(PGLOBAL g)
 	/*  First opening.                                                   */
 	/*********************************************************************/
 	if (Pipe && Mode != MODE_READ) {
-		strcpy(g->Message, "Pipeline tables are read only");
+		strlcpy(g->Message, "Pipeline tables are read only", sizeof(g->Message));
 		return true;
 	}	// endif Pipe
 
@@ -353,7 +353,7 @@ bool TDBJMG::OpenDB(PGLOBAL g)
 /***********************************************************************/
 bool TDBJMG::ReadKey(PGLOBAL g, OPVAL op, const key_range *kr)
 {
-	strcpy(g->Message, "MONGO tables are not indexable");
+	strlcpy(g->Message, "MONGO tables are not indexable", sizeof(g->Message));
 	return true;
 } // end of ReadKey
 
@@ -601,7 +601,7 @@ bool JMGCOL::AddValue(PGLOBAL g, bson_t *doc, char *key, bool upd)
 	} // endswitch Buf_Type
 
 	if (!rc) {
-		strcpy(g->Message, "Adding value failed");
+		strlcpy(g->Message, "Adding value failed", sizeof(g->Message));
 		return true;
 	} else
 		return false;

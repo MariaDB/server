@@ -59,7 +59,7 @@
 #if defined(_DEBUG)
 #define CheckType(V)    if (Type != V->GetType()) { \
     PGLOBAL& g = Global; \
-    strcpy(g->Message, MSG(VALTYPE_NOMATCH)); \
+    strlcpy(g->Message, MSG(VALTYPE_NOMATCH), sizeof(g->Message)); \
     throw Type;
 #else
 #define CheckType(V)
@@ -450,7 +450,7 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
       p = (PSZ)PlugSubAlloc(g, NULL, 1 + valp->GetValLen());
 
       if ((sp = valp->GetCharString(p)) != p && sp)
-        strcpy(p, sp);
+        strlcpy(p, sp, 1 + valp->GetValLen());
 
       vp = new(g) TYPVAL<PSZ>(g, p, valp->GetValLen(), valp->GetValPrec());
       break;
@@ -556,7 +556,7 @@ BYTE VALUE::TestValue(PVAL vp)
 /***********************************************************************/
 bool VALUE::Compute(PGLOBAL g, PVAL *, int, OPVAL)
 {
-  strcpy(g->Message, "Compute not implemented for this value type");
+  strlcpy(g->Message, "Compute not implemented for this value type", sizeof(g->Message));
   return true;
 } // end of Compute
 
@@ -584,8 +584,10 @@ void VALUE::Prints(PGLOBAL g, char *ps, uint z)
 {
 	char *p, buf[64];
 
-	if (Null)
-		p = strcpy(buf, "<null>");
+	if (Null) {
+		strlcpy(buf, "<null>", sizeof(buf));
+		p = buf;
+	}
 	else
 		p = GetCharString(buf);
 
@@ -729,8 +731,10 @@ bool TYPVAL<TYPE>::SetValue_char(const char *p, int n)
 
   if (trace(2)) {
     char buf[64];
-    htrc(strcat(strcat(strcpy(buf, " setting %s to: "), Fmt), "\n"),
-                              GetTypeName(Type), Tval);
+    strlcpy(buf, " setting %s to: ", sizeof(buf));
+	strlcat(buf, Fmt, sizeof(buf));
+	strlcat(buf, "\n", sizeof(buf));
+    htrc(buf, GetTypeName(Type), Tval);
   } // endif trace
 
   Null = false;
@@ -1051,11 +1055,11 @@ TYPE TYPVAL<TYPE>::SafeAdd(TYPE n1, TYPE n2)
 
   if ((n2 > 0) && (n < n1)) {
     // Overflow
-    strcpy(g->Message, MSG(FIX_OVFLW_ADD));
+    strlcpy(g->Message, MSG(FIX_OVFLW_ADD), sizeof(g->Message));
 		throw 138;
 	} else if ((n2 < 0) && (n > n1)) {
     // Underflow
-    strcpy(g->Message, MSG(FIX_UNFLW_ADD));
+    strlcpy(g->Message, MSG(FIX_UNFLW_ADD), sizeof(g->Message));
 		throw 138;
 	} // endif's n2
 
@@ -1079,11 +1083,11 @@ TYPE TYPVAL<TYPE>::SafeMult(TYPE n1, TYPE n2)
 
   if (n > MinMaxVal(true)) {
     // Overflow
-    strcpy(g->Message, MSG(FIX_OVFLW_TIMES));
+    strlcpy(g->Message, MSG(FIX_OVFLW_TIMES), sizeof(g->Message));
 		throw 138;
 	} else if (n < MinMaxVal(false)) {
     // Underflow
-    strcpy(g->Message, MSG(FIX_UNFLW_TIMES));
+    strlcpy(g->Message, MSG(FIX_UNFLW_TIMES), sizeof(g->Message));
 		throw 138;
 	} // endif's n2
 
@@ -1119,7 +1123,7 @@ bool TYPVAL<TYPE>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       break;
     case OP_DIV:
       if (!val[1]) {
-        strcpy(g->Message, MSG(ZERO_DIVIDE));
+        strlcpy(g->Message, MSG(ZERO_DIVIDE), sizeof(g->Message));
         return true;
         } // endif
 
@@ -1173,7 +1177,7 @@ bool TYPVAL<TYPE>::Compall(PGLOBAL g, PVAL *vp, int np, OPVAL op)
     case OP_DIV:
       if (val[0]) {
         if (!val[1]) {
-          strcpy(g->Message, MSG(ZERO_DIVIDE));
+          strlcpy(g->Message, MSG(ZERO_DIVIDE), sizeof(g->Message));
           return true;
           } // endif
     
@@ -1190,7 +1194,7 @@ bool TYPVAL<TYPE>::Compall(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       break;
     default:
 //    sprintf(g->Message, MSG(BAD_EXP_OPER), op);
-      strcpy(g->Message, "Function not supported");
+      strlcpy(g->Message, "Function not supported", sizeof(g->Message));
       return true;
   } // endswitch op
 
@@ -1701,7 +1705,7 @@ bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
 			break;
 		default:
 			//    sprintf(g->Message, MSG(BAD_EXP_OPER), op);
-			strcpy(g->Message, "Function not supported");
+			strlcpy(g->Message, "Function not supported", sizeof(g->Message));
 			return true;
 	} // endswitch op
 
@@ -2615,7 +2619,7 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
   // Pass g to have an error return or NULL to set invalid dates to 0
   if (MakeTime(&datm))
     if (g) {
-      strcpy(g->Message, MSG(BAD_DATETIME));
+      strlcpy(g->Message, MSG(BAD_DATETIME), sizeof(g->Message));
       rc = true;
     } else
       Tval = 0;

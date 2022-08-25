@@ -85,7 +85,7 @@ FIXFAM::FIXFAM(PFIXFAM txfp) : BLKFAM(txfp)
 bool FIXFAM::SetPos(PGLOBAL g, int pos)
   {
   if (pos < 0) {
-    strcpy(g->Message, MSG(INV_REC_POS));
+    strlcpy(g->Message, MSG(INV_REC_POS), sizeof(g->Message));
     return true;
     } // endif recpos
 
@@ -120,7 +120,7 @@ bool FIXFAM::AllocateBuffer(PGLOBAL g)
 
   if (UseTemp || Tdbp->GetMode() == MODE_DELETE) {
     if (Padded) {
-      strcpy(g->Message, MSG(NO_MODE_PADDED));
+      strlcpy(g->Message, MSG(NO_MODE_PADDED), sizeof(g->Message));
       return true;
       } // endif Padded
 
@@ -765,7 +765,7 @@ bool BGXFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
 		PCSZ fn = (h == Hfile) ? To_File : "Tempfile";
 
     if (brc)
-      strcpy(buf, MSG(BAD_BYTE_NUM));
+      strlcpy(buf, MSG(BAD_BYTE_NUM), sizeof(buf));
     else {
       drc = GetLastError();
       FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
@@ -884,7 +884,7 @@ bool BGXFAM::OpenTableFile(PGLOBAL g)
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                   (LPTSTR)filename, sizeof(filename), NULL);
-    strcat(g->Message, filename);
+    strlcat(g->Message, filename, sizeof(g->Message));
   } else
     rc = 0;
 
@@ -1005,7 +1005,7 @@ int BGXFAM::Cardinality(PGLOBAL g)
           FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                         FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                         (LPTSTR)filename, sizeof(filename), NULL);
-          strcat(g->Message, filename);
+          strlcat(g->Message, filename, sizeof(g->Message));
           return -1;
         } else
           return 0;                     // File does not exist
@@ -1385,7 +1385,8 @@ bool BGXFAM::OpenTempFile(PGLOBAL g)
   /*********************************************************************/
   tempname = (char*)PlugSubAlloc(g, NULL, _MAX_PATH);
   PlugSetPath(tempname, To_File, Tdbp->GetPath());
-  strcat(PlugRemoveType(tempname, tempname), ".t");
+  PlugRemoveType(tempname, tempname);
+  strlcat(tempname, ".t", _MAX_PATH);
   remove(tempname);       // Be sure it does not exist yet
 
 #if defined(_WIN32)
@@ -1398,7 +1399,7 @@ bool BGXFAM::OpenTempFile(PGLOBAL g)
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
               FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
               (LPTSTR)tempname, _MAX_PATH, NULL);
-    strcat(g->Message, tempname);
+    strlcat(g->Message, tempname, sizeof(g->Message));
     return true;
     } // endif Tfile
 #else    // UNIX
@@ -1407,7 +1408,7 @@ bool BGXFAM::OpenTempFile(PGLOBAL g)
   if (Tfile == INVALID_HANDLE_VALUE) {
     int rc = errno;
     sprintf(g->Message, MSG(OPEN_ERROR), rc, MODE_INSERT, tempname);
-    strcat(g->Message, strerror(errno));
+    strlcat(g->Message, strerror(errno), sizeof(g->Message));
     return true;
     } //endif Tfile
 #endif   // UNIX

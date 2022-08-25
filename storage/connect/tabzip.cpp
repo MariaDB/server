@@ -176,7 +176,7 @@ int TDBZIP::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBZIP::WriteDB(PGLOBAL g)
 {
-	strcpy(g->Message, "ZIP tables are read only");
+	strlcpy(g->Message, "ZIP tables are read only", sizeof(g->Message));
 	return RC_FX;
 } // end of WriteDB
 
@@ -185,7 +185,7 @@ int TDBZIP::WriteDB(PGLOBAL g)
 /***********************************************************************/
 int TDBZIP::DeleteDB(PGLOBAL g, int irc)
 {
-	strcpy(g->Message, "Delete not enabled for ZIP tables");
+	strlcpy(g->Message, "Delete not enabled for ZIP tables", sizeof(g->Message));
 	return RC_FX;
 } // end of DeleteDB
 

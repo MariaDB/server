@@ -173,7 +173,7 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
       } // endif colpat
 
     if (b) {
-      strcpy(g->Message, "Out of memory");
+      strlcpy(g->Message, "Out of memory", sizeof(g->Message));
       return NULL;
       } // endif b
 
@@ -254,12 +254,12 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
 			} // endwhile
 
 			v = (len > 255) ? 'V' : 0;
-			strcpy(buf, "enum");
+			strlcpy(buf, "enum", sizeof(buf));
 			b = true;
 		} else if (!strnicmp(fld, "set", 3)) {
 			len = (int)strlen(fld) - 2;
 			v = 'V';
-			strcpy(buf, "set");
+			strlcpy(buf, "set", sizeof(buf));
 			b = true;
 		} else switch ((nf = sscanf(fld, "%[^(](%d,%d", buf, &len, &prec))) {
       case 3:
@@ -413,10 +413,10 @@ PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
 			sprintf(query, "%.*s1=1%s", (int) (p - srcdef), srcdef, p + 2); // dummy where clause
 		}
 		else 
-		  strcpy(query, srcdef);
+		  strlcpy(query, srcdef, strlen(srcdef) + 10);
 
 		if (!strnicmp(srcdef, "select ", 7))
-		  strcat(query, " LIMIT 0");
+		  strlcat(query, " LIMIT 0", strlen(srcdef) + 10);
 
 	} else
     query = (char *)srcdef;
@@ -482,7 +482,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
   m_DB = mysql_init(NULL);
 
   if (!m_DB) {
-    strcpy(g->Message, "mysql_init failed: no memory");
+    strlcpy(g->Message, "mysql_init failed: no memory", sizeof(g->Message));
     return RC_FX;
     } // endif m_DB
 
@@ -608,7 +608,7 @@ int MYSQLC::KillQuery(ulong id)
 int MYSQLC::PrepareSQL(PGLOBAL g, const char *stmt)
   {
   if (!m_DB) {
-    strcpy(g->Message, "MySQL not connected");
+    strlcpy(g->Message, "MySQL not connected", sizeof(g->Message));
     return -4;
   } else if (m_Stmt)
     return -1;              // should not append
@@ -625,7 +625,7 @@ int MYSQLC::PrepareSQL(PGLOBAL g, const char *stmt)
   return mysql_param_count(m_Stmt);
 #else   // !ALPHA
   if (!(m_Stmt = mysql_stmt_init(m_DB))) {
-    strcpy(g->Message, "mysql_stmt_init(), out of memory");
+    strlcpy(g->Message, "mysql_stmt_init(), out of memory", sizeof(g->Message));
     return -2;
     } // endif m_Stmt
 
@@ -646,7 +646,7 @@ int MYSQLC::PrepareSQL(PGLOBAL g, const char *stmt)
 int MYSQLC::BindParams(PGLOBAL g, MYSQL_BIND *bind)
   {
   if (!m_DB) {
-    strcpy(g->Message, "MySQL not connected");
+    strlcpy(g->Message, "MySQL not connected", sizeof(g->Message));
     return RC_FX;
   } else
     assert(m_Stmt);
@@ -671,7 +671,7 @@ int MYSQLC::BindParams(PGLOBAL g, MYSQL_BIND *bind)
 int MYSQLC::ExecStmt(PGLOBAL g)
   {
   if (!m_DB) {
-    strcpy(g->Message, "MySQL not connected");
+    strlcpy(g->Message, "MySQL not connected", sizeof(g->Message));
     return RC_FX;
     } // endif m_DB
 
@@ -707,7 +707,7 @@ int MYSQLC::ExecSQL(PGLOBAL g, const char *query, int *w)
   int rc = RC_OK;
 
   if (!m_DB) {
-    strcpy(g->Message, "MySQL not connected");
+    strlcpy(g->Message, "MySQL not connected", sizeof(g->Message));
     return RC_FX;
     } // endif m_DB
 
@@ -818,13 +818,13 @@ void MYSQLC::DataSeek(my_ulonglong row)
 int MYSQLC::Fetch(PGLOBAL g, int pos)
   {
   if (!m_DB) {
-    strcpy(g->Message, "MySQL not connected");
+    strlcpy(g->Message, "MySQL not connected", sizeof(g->Message));
     return RC_FX;
     } // endif m_DB
 
   if (!m_Res) {
     // Result set was not initialized
-    strcpy(g->Message, MSG(FETCH_NO_RES));
+    strlcpy(g->Message, MSG(FETCH_NO_RES), sizeof(g->Message));
     return RC_FX;
   } else
     N++;
@@ -922,7 +922,7 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
     crp->Ncol = ++qrp->Nbcol;
 
     name = (char*)PlugSubAlloc(g, NULL, fld->name_length + 1);
-    strcpy(name, fld->name);
+    strlcpy(name, fld->name, fld->name_length + 1);
 		crp->Name = name;
 
     if ((crp->Type = MYSQLtoPLG(fld->type, &v)) == TYPE_ERROR) {
@@ -1037,7 +1037,7 @@ int MYSQLC::ExecSQLcmd(PGLOBAL g, const char *query, int *w)
   int rc = RC_OK;
 
   if (!m_DB) {
-    strcpy(g->Message, "MySQL not connected");
+    strlcpy(g->Message, "MySQL not connected", sizeof(g->Message));
     return RC_FX;
   } else
     *w = 0;

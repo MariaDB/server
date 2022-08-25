@@ -54,7 +54,7 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 	int   rc = 0;
 
 	if (strchr(filename, '"')) {
-		strcpy(g->Message, "Invalid file name");
+		strlcpy(g->Message, "Invalid file name", sizeof(g->Message));
 		return 1;
 	} // endif filename
 
@@ -98,14 +98,14 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 	FILE *f= popen("command -v curl", "r");
 
 	if (!f) {
-			strcpy(g->Message, "Problem in allocating memory.");
+			strlcpy(g->Message, "Problem in allocating memory.", sizeof(g->Message));
 			return 1;
 	} else {
 		char   temp_buff[50];
 		size_t len = fread(temp_buff,1, 50, f);
 
 		if(!len) {
-			strcpy(g->Message, "Curl not installed.");
+			strlcpy(g->Message, "Curl not installed.", sizeof(g->Message));
 			return 1;
 		}	else
 			pclose(f);
@@ -124,11 +124,11 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 		execlp("curl", "curl", buf, fn, (char*)NULL);
 
 		// If execlp() is successful, we should not reach this next line.
-		strcpy(g->Message, "Unsuccessful execlp from vfork()");
+		strlcpy(g->Message, "Unsuccessful execlp from vfork()", sizeof(g->Message));
 		exit(1);
 	} else if (pID < 0) {
 		// failed to fork
-		strcpy(g->Message, "Failed to fork");
+		strlcpy(g->Message, "Failed to fork", sizeof(g->Message));
 		rc = 1;
 	} else {
 		// Parent process
@@ -163,7 +163,8 @@ XGETREST GetRestFunction(PGLOBAL g)
 		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
 			FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
 			(LPTSTR)buf, sizeof(buf), NULL);
-		strcat(strcat(g->Message, ": "), buf);
+		strlcat(g->Message, ": ", sizeof(g->Message));
+		strlcat(g->Message, buf, sizeof(g->Message));
 		return NULL;
 	} // endif Hdll
 
@@ -176,7 +177,8 @@ XGETREST GetRestFunction(PGLOBAL g)
 		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
 			FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
 			(LPTSTR)buf, sizeof(buf), NULL);
-		strcat(strcat(g->Message, ": "), buf);
+		strlcat(g->Message, ": ", sizeof(g->Message));
+		strlcat(g->Message, buf, sizeof(g->Message));
 		FreeLibrary((HMODULE)Hdll);
 		return NULL;
 	} // endif getRestFnc
@@ -230,7 +232,8 @@ PQRYRES RESTColumns(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
 	if (!fn) {
 		int n, m = strlen(ftype) + 1;
 
-		strcat(strcpy(filename, tab), ".");
+		strlcpy(filename, tab, sizeof(filename));
+		strlcat(filename, ".", sizeof(filename));
 		n = strlen(filename);
 
 		// Fold ftype to lower case
@@ -254,7 +257,7 @@ PQRYRES RESTColumns(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
 		rc = grf(g->Message, trace(515), http, uri, filename);
 
 	if (rc) {
-		strcpy(g->Message, "Cannot access to curl nor casablanca");
+		strlcpy(g->Message, "Cannot access to curl nor casablanca", sizeof(g->Message));
 		return NULL;
 	} else if (!stricmp(ftype, "JSON"))
     qrp = JSONColumns(g, db, NULL, tp, info);
@@ -353,7 +356,7 @@ PTDB RESTDEF::GetTable(PGLOBAL g, MODE m)
     htrc("REST GetTable mode=%d\n", m);
 
   if (m != MODE_READ && m != MODE_READX && m != MODE_ANY) {
-    strcpy(g->Message, "REST tables are currently read only");
+    strlcpy(g->Message, "REST tables are currently read only", sizeof(g->Message));
     return NULL;
   } // endif m
 

@@ -186,7 +186,7 @@ namespace mrn {
       DBUG_VOID_RETURN;
     }
 
-    strcpy(base_directory_buffer_, raw_path_prefix);
+    strlcpy(base_directory_buffer_, raw_path_prefix, sizeof(base_directory_buffer_));
     size_t raw_path_prefix_length = strlen(raw_path_prefix);
     size_t separator_position = raw_path_prefix_length;
     for (; separator_position > 0; separator_position--) {
@@ -200,7 +200,7 @@ namespace mrn {
     } else {
       base_directory_buffer_[separator_position] = '\0';
       base_directory_ = base_directory_buffer_;
-      strcpy(path_prefix_buffer_, raw_path_prefix + separator_position + 1);
+      strlcpy(path_prefix_buffer_, raw_path_prefix + separator_position + 1, sizeof(path_prefix_buffer_));
       path_prefix_ = path_prefix_buffer_;
       path_prefix_length_ = strlen(path_prefix_);
     }

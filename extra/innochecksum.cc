@@ -853,9 +853,9 @@ parse_page(
 
 	/* Check whether page is doublewrite buffer. */
 	if(skip_page) {
-		strcpy(str, "Double_write_buffer");
+		strlcpy(str, "Double_write_buffer", sizeof(str));
 	} else {
-		strcpy(str, "-");
+		strlcpy(str, "-", sizeof(str));
 	}
 
 	switch (mach_read_from_2(page + FIL_PAGE_TYPE)) {

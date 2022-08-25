@@ -196,7 +196,7 @@ int VCTDEF::MakeFnPattern(char *fpat)
 
   sprintf(pat, "%%0%dd", n);
   _splitpath(Fn, drive, direc, fname, ftype);
-  strcat(fname, pat);
+  strlcat(fname, pat, sizeof(fname));
   _makepath(fpat, drive, direc, fname, ftype);
   PlugSetPath(fpat, fpat, GetPath());
   return ncol;
@@ -220,7 +220,7 @@ PTDB VCTDEF::GetTable(PGLOBAL g, MODE mode)
   PTDB tdbp;
 
   if (Multiple) {
-    strcpy(g->Message, MSG(NO_MUL_VCT));
+    strlcpy(g->Message, MSG(NO_MUL_VCT), sizeof(g->Message));
     return NULL;
     } // endif Multiple
 
@@ -490,7 +490,7 @@ void VCTCOL::ReadBlock(PGLOBAL g)
 
 #if defined(_DEBUG)
   if (!Blk) {
-    strcpy(g->Message, MSG(TO_BLK_IS_NULL));
+    strlcpy(g->Message, MSG(TO_BLK_IS_NULL), sizeof(g->Message));
 		throw 58;
 	} // endif
 #endif
@@ -518,7 +518,7 @@ void VCTCOL::WriteBlock(PGLOBAL g)
 
 #if defined(_DEBUG)
     if (!Blk) {
-      strcpy(g->Message, MSG(BLK_IS_NULL));
+      strlcpy(g->Message, MSG(BLK_IS_NULL), sizeof(g->Message));
 			throw 56;
 		} // endif
 #endif

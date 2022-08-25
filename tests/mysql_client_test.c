@@ -10833,7 +10833,7 @@ static void test_bug3796()
     printf("Concat result: '%s'\n", out_buff);
   check_execute(stmt, rc);
   strmov(canonical_buff, concat_arg0);
-  strcat(canonical_buff, "ONE");
+  strlcat(canonical_buff, "ONE", sizeof(canonical_buff));
   DIE_UNLESS(strlen(canonical_buff) == out_length &&
          strncmp(out_buff, canonical_buff, out_length) == 0);
 
@@ -11813,8 +11813,8 @@ static void test_bug5194()
   /* setup a template for one row of parameters */
   sprintf(param_str, "(");
   for (i= 1; i < COLUMN_COUNT; ++i)
-    strcat(param_str, "?, ");
-  strcat(param_str, "?)");
+    strlcat(param_str, "?, ", COLUMN_COUNT * CHARS_PER_PARAM);
+  strlcat(param_str, "?)", COLUMN_COUNT * CHARS_PER_PARAM);
   param_str_length= strlen(param_str);
 
   /* setup bind array */
@@ -19864,7 +19864,7 @@ static void test_mdev14013()
   my_bind[0].buffer_type= MYSQL_TYPE_LONG;
   count= 100;
 
-  strcpy(str_data,"");
+  strlcpy(str_data,"", sizeof(str_data));
   my_bind[1].buffer_type= MYSQL_TYPE_STRING;
   my_bind[1].buffer= (char *) str_data;
   my_bind[1].buffer_length= strlen(str_data);

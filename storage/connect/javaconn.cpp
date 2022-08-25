@@ -101,7 +101,9 @@ JAVAConn::JAVAConn(PGLOBAL g, PCSZ wrapper)
 	if (!strchr(m_Wrap, '/')) {
 		// Add the wrapper package name
 		char *wn = (char*)PlugSubAlloc(g, NULL, strlen(m_Wrap) + 10);
-		m_Wrap = strcat(strcpy(wn, "wrappers/"), m_Wrap);
+		strlcpy(wn, "wrappers/", strlen(m_Wrap) + 10);
+		strlcat(wn, m_Wrap, strlen(m_Wrap) + 10);
+		m_Wrap = wn;
 	} // endif m_Wrap
 
 	fp = NULL;
@@ -165,7 +167,7 @@ bool JAVAConn::gmID(PGLOBAL g, jmethodID& mid, const char *name, const char *sig
 		mid = env->GetMethodID(jdi, name, sig);
 
 		if (Check()) {
-			strcpy(g->Message, Msg);
+			strlcpy(g->Message, Msg, sizeof(g->Message));
 			return true;
 		} else
 			return false;
@@ -231,15 +233,16 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 #if defined(_WIN32)
 		for (ntry = 0; !LibJvm && ntry < 3; ntry++) {
 			if (!ntry && JvmPath) {
-				strcat(strcpy(soname, JvmPath), "\\jvm.dll");
+				strlcpy(soname, JvmPath, sizeof(soname));
+				strlcat(soname, "\\jvm.dll", sizeof(soname));
 				ntry = 3;		 // No other try
 			} else if (ntry < 2 && getenv("JAVA_HOME")) {
-				strcpy(soname, getenv("JAVA_HOME"));
+				strlcpy(soname, getenv("JAVA_HOME"), sizeof(soname));
 
 				if (ntry == 1)
-					strcat(soname, "\\jre");
+					strlcat(soname, "\\jre", sizeof(soname));
 
-				strcat(soname, "\\bin\\client\\jvm.dll");
+				strlcat(soname, "\\bin\\client\\jvm.dll", sizeof(soname));
 			} else {
 				// Try to find it through the registry
 				char version[16];
@@ -247,11 +250,12 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 				LONG  rc;
 				DWORD BufferSize = 16;
 
-				strcpy(soname, "jvm.dll");		// In case it fails
+				strlcpy(soname, "jvm.dll", sizeof(soname));		// In case it fails
 
 				if ((rc = RegGetValue(HKEY_LOCAL_MACHINE, javaKey, "CurrentVersion",
 					RRF_RT_ANY, NULL, (PVOID)&version, &BufferSize)) == ERROR_SUCCESS) {
-					strcat(strcat(javaKey, "\\"), version);
+					strlcat(javaKey, "\\", sizeof(javaKey));
+					strlcat(javaKey, version, sizeof(javaKey));
 					BufferSize = sizeof(soname);
 
 					if ((rc = RegGetValue(HKEY_LOCAL_MACHINE, javaKey, "RuntimeLib",
@@ -276,7 +280,8 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
 										FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
 				            (LPTSTR)buf, sizeof(buf), NULL);
-			strcat(strcat(g->Message, ": "), buf);
+			strlcat(g->Message, ": ", sizeof(g->Message));
+			strlcat(g->Message, buf, sizeof(g->Message));
 		} else if (!(CreateJavaVM = (CRTJVM)GetProcAddress((HINSTANCE)LibJvm,
 			                                       "JNI_CreateJavaVM"))) {
 			sprintf(g->Message, MSG(PROCADD_ERROR), GetLastError(), "JNI_CreateJavaVM");
@@ -301,13 +306,15 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 
 		for (ntry = 0; !LibJvm && ntry < 2; ntry++) {
 			if (!ntry && JvmPath) {
-				strcat(strcpy(soname, JvmPath), "/libjvm.so");
+				strlcpy(soname, JvmPath, sizeof(soname));
+				strlcat(soname, "/libjvm.so", sizeof(soname));
 				ntry = 2;
 			} else if (!ntry && getenv("JAVA_HOME")) {
 				// TODO: Replace i386 by a better guess
-				strcat(strcpy(soname, getenv("JAVA_HOME")), "/jre/lib/i386/client/libjvm.so");
+				strlcpy(soname, getenv("JAVA_HOME"), sizeof(soname));
+				strlcat(soname, "/jre/lib/i386/client/libjvm.so", sizeof(soname));
 			} else {	 // Will need LD_LIBRARY_PATH to be set
-				strcpy(soname, "libjvm.so");
+				strlcpy(soname, "libjvm.so", sizeof(soname));
 				ntry = 2;
 			} // endelse
 
@@ -367,7 +374,7 @@ bool JAVAConn::Open(PGLOBAL g)
 		rc = jvm->AttachCurrentThread((void**)&env, nullptr);
 
 		if (rc != JNI_OK) {
-			strcpy(g->Message, "Cannot attach jvm to the current thread");
+			strlcpy(g->Message, "Cannot attach jvm to the current thread", sizeof(g->Message));
 			return true;
 		} // endif rc
 
@@ -451,26 +458,26 @@ bool JAVAConn::Open(PGLOBAL g)
 
 		switch (rc) {
 			case JNI_OK:
-				strcpy(g->Message, "VM successfully created");
+				strlcpy(g->Message, "VM successfully created", sizeof(g->Message));
 				brc = false;
 				break;
 			case JNI_ERR:
-				strcpy(g->Message, "Initialising JVM failed: unknown error");
+				strlcpy(g->Message, "Initialising JVM failed: unknown error", sizeof(g->Message));
 				break;
 			case JNI_EDETACHED:
-				strcpy(g->Message, "Thread detached from the VM");
+				strlcpy(g->Message, "Thread detached from the VM", sizeof(g->Message));
 				break;
 			case JNI_EVERSION:
-				strcpy(g->Message, "JNI version error");
+				strlcpy(g->Message, "JNI version error", sizeof(g->Message));
 				break;
 			case JNI_ENOMEM:
-				strcpy(g->Message, "Not enough memory");
+				strlcpy(g->Message, "Not enough memory", sizeof(g->Message));
 				break;
 			case JNI_EEXIST:
-				strcpy(g->Message, "VM already created");
+				strlcpy(g->Message, "VM already created", sizeof(g->Message));
 				break;
 			case JNI_EINVAL:
-				strcpy(g->Message, "Invalid arguments");
+				strlcpy(g->Message, "Invalid arguments", sizeof(g->Message));
 				break;
 			default:
 				sprintf(g->Message, "Unknown return code %d", (int)rc);
@@ -511,7 +518,7 @@ bool JAVAConn::Open(PGLOBAL g)
 			rc = env->CallStaticIntMethod(jdi, alp, path);
 
 			if ((msg = Check(rc))) {
-				strcpy(g->Message, msg);
+				strlcpy(g->Message, msg, sizeof(g->Message));
 				env->DeleteLocalRef(path);
 				return RC_FX;
 			} else switch (rc) {
@@ -523,7 +530,7 @@ bool JAVAConn::Open(PGLOBAL g)
 					break;
 				case JNI_ERR:
 				default:
-					strcpy(g->Message, "Error adding jpath");
+					strlcpy(g->Message, "Error adding jpath", sizeof(g->Message));
 					env->DeleteLocalRef(path);
 					return RC_FX;
 			}	// endswitch rc
@@ -554,7 +561,7 @@ bool JAVAConn::Open(PGLOBAL g)
 	errid = env->GetMethodID(jdi, "GetErrmsg", "()Ljava/lang/String;");
 
 	if (env->ExceptionCheck()) {
-		strcpy(g->Message, "ERROR: method GetErrmsg() not found!");
+		strlcpy(g->Message, "ERROR: method GetErrmsg() not found!", sizeof(g->Message));
 		env->ExceptionDescribe();
 		env->ExceptionClear();
 		return true;

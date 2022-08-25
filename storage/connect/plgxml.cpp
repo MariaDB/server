@@ -8,11 +8,13 @@
 #include "block.h"
 #include "plgxml.h"
 
+#include "m_string.h"
+
 #if !defined(DOMDOC_SUPPORT)
 PXDOC GetDomDoc(PGLOBAL g, char *nsl, char *nsdf, 
                                       char *enc, PFBLOCK fp)
   {
-  strcpy(g->Message, MSG(DOM_NOT_SUPP));
+  strlcpy(g->Message, MSG(DOM_NOT_SUPP), sizeof(g->Message));
   return NULL;
   } // end of GetDomDoc
 #endif   // !DOMDOC_SUPPORT
@@ -21,7 +23,7 @@ PXDOC GetDomDoc(PGLOBAL g, char *nsl, char *nsdf,
 PXDOC GetLibxmlDoc(PGLOBAL g, char *nsl, char *nsdf, 
                               char *enc, PFBLOCK fp)
   {
-  strcpy(g->Message, "libxml2 not supported");
+  strlcpy(g->Message, "libxml2 not supported", sizeof(g->Message));
   return NULL;
   } // end of GetLibxmlDoc
 #endif   // LIBXML2_SUPPORT
@@ -90,7 +92,7 @@ bool XMLDOCUMENT::MakeNSlist(PGLOBAL g)
     next = strchr(next, '=');
 
     if (next == NULL) {
-      strcpy(g->Message, MSG(BAS_NS_LIST));
+      strlcpy(g->Message, MSG(BAS_NS_LIST), sizeof(g->Message));
       return true;
       } // endif next
 

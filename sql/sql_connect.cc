@@ -981,7 +981,7 @@ static int check_connection(THD *thd)
                       /* See RFC 5737, 192.0.2.0/24 is reserved. */
                       const char* fake= "192.0.2.4";
                       inet_pton(AF_INET,fake, ip4);
-                      strcpy(ip, fake);
+                      strlcpy(ip, fake, sizeof(ip));
                       peer_rc= 0;
                     }
                     );
@@ -1011,7 +1011,7 @@ static int check_connection(THD *thd)
                       ip6->s6_addr[13] = 0x06;
                       ip6->s6_addr[14] = 0x00;
                       ip6->s6_addr[15] = 0x06;
-                      strcpy(ip, fake);
+                      strlcpy(ip, fake, sizeof(ip));
                       peer_rc= 0;
                     }
                     );

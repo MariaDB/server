@@ -134,7 +134,8 @@ _rl_copy_to_kill_ring (text, append)
   if (_rl_last_command_was_kill && rl_editing_mode != vi_mode)
     {
       old = rl_kill_ring[slot];
-      new = (char *)xmalloc (1 + strlen (old) + strlen (text));
+	  size_t new_sz = 1 + strlen (old) + strlen (text);
+      new = (char *)xmalloc (new_sz);
 
       if (append)
 	{

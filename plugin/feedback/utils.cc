@@ -103,7 +103,7 @@ static int uname(struct utsname *buf)
     return -1;
 
   buf->nodename[0]= 0;
-  strcpy(buf->sysname, "Windows");
+  strlcpy(buf->sysname, "Windows", sizeof(buf->sysname));
   sprintf(buf->release, "%d.%d", (int)ver.dwMajorVersion, (int)ver.dwMinorVersion);
 
   const char *version_str= get_os_version_name(&ver);
@@ -118,13 +118,13 @@ static int uname(struct utsname *buf)
   }
 
 #ifdef _WIN64
-  strcpy(buf->machine, "x64");
+  strlcpy(buf->machine, "x64", sizeof(buf->machine));
 #else
   BOOL isX64;
   if (IsWow64Process(GetCurrentProcess(), &isX64) && isX64)
-    strcpy(buf->machine, "x64");
+    strlcpy(buf->machine, "x64", sizeof(buf->machine));
   else
-    strcpy(buf->machine,"x86");
+    strlcpy(buf->machine,"x86", sizeof(buf->machine));
 #endif
   return 0;
 }

@@ -198,7 +198,7 @@ PCOL TDB::InsertSpcBlk(PGLOBAL g, PCOLDEF cdp)
 	cp = new(g)COLUMN(cdp->GetName());
 
 	if (!To_Table) {
-		strcpy(g->Message, "Cannot make special column: To_Table is NULL");
+		strlcpy(g->Message, "Cannot make special column: To_Table is NULL", sizeof(g->Message));
 		return NULL;
 	} else
 		cp->SetTo_Table(To_Table);
@@ -295,7 +295,7 @@ PTDB TDB::Copy(PTABS t)
 /***********************************************************************/
 bool TDB::SetRecpos(PGLOBAL g, int)
 {
-	strcpy(g->Message, MSG(SETRECPOS_NIY));
+	strlcpy(g->Message, MSG(SETRECPOS_NIY), sizeof(g->Message));
 	return true;
 } // end of SetRecpos
 
@@ -486,7 +486,7 @@ PCOL TDBASE::InsertSpcBlk(PGLOBAL g, PCOLDEF cdp)
   cp= new(g) COLUMN(cdp->GetName());
 
   if (! To_Table) {
-    strcpy(g->Message, "Cannot make special column: To_Table is NULL");
+    strlcpy(g->Message, "Cannot make special column: To_Table is NULL", sizeof(g->Message));
     return NULL;
   } else
     cp->SetTo_Table(To_Table);
@@ -541,7 +541,7 @@ PCOL TDBASE::InsertSpcBlk(PGLOBAL g, PCOLDEF cdp)
 /***********************************************************************/
 int TDBASE::ResetTableOpt(PGLOBAL g, bool, bool)
 {
-  strcpy(g->Message, "This table is not indexable");
+  strlcpy(g->Message, "This table is not indexable", sizeof(g->Message));
   return RC_INFO;
 } // end of ResetTableOpt
 
@@ -569,7 +569,7 @@ void TDBASE::ResetKindex(PGLOBAL g, PKXBASE kxp)
 /***********************************************************************/
 bool TDBASE::SetRecpos(PGLOBAL g, int)
   {
-  strcpy(g->Message, MSG(SETRECPOS_NIY));
+  strlcpy(g->Message, MSG(SETRECPOS_NIY), sizeof(g->Message));
   return true;
   } // end of SetRecpos
 #endif // 0
@@ -688,7 +688,7 @@ bool TDBCAT::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /* ODBC Info tables cannot be modified.                            */
     /*******************************************************************/
-    strcpy(g->Message, "CAT tables are read only");
+    strlcpy(g->Message, "CAT tables are read only", sizeof(g->Message));
     return true;
     } // endif Mode
 
@@ -753,7 +753,7 @@ int TDBCAT::ReadDB(PGLOBAL)
 /***********************************************************************/
 int TDBCAT::WriteDB(PGLOBAL g)
   {
-  strcpy(g->Message, "CAT tables are read only");
+  strlcpy(g->Message, "CAT tables are read only", sizeof(g->Message));
   return RC_FX;
   } // end of WriteDB
 
@@ -762,7 +762,7 @@ int TDBCAT::WriteDB(PGLOBAL g)
 /***********************************************************************/
 int TDBCAT::DeleteDB(PGLOBAL g, int)
   {
-  strcpy(g->Message, "Delete not enabled for CAT tables");
+  strlcpy(g->Message, "Delete not enabled for CAT tables", sizeof(g->Message));
   return RC_FX;
   } // end of DeleteDB
 

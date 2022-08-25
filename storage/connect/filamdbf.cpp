@@ -138,22 +138,22 @@ static int dbfhead(PGLOBAL g, FILE *file, PCSZ fn, DBFHEADER *buf)
 
   // Read the first 32 bytes into buffer
   if (fread(buf, HEADLEN, 1, file) != 1) {
-    strcpy(g->Message, MSG(NO_READ_32));
+    strlcpy(g->Message, MSG(NO_READ_32), sizeof(g->Message));
     return RC_NF;
   } // endif fread
 
   // Check first byte to be sure of .dbf type
   if ((buf->Version & 0x03) != DBFTYPE) {
-    strcpy(g->Message, MSG(NOT_A_DBF_FILE));
+    strlcpy(g->Message, MSG(NOT_A_DBF_FILE), sizeof(g->Message));
     rc = RC_INFO;
 
     if ((buf->Version & 0x30) == 0x30) {
-      strcpy(g->Message, MSG(FOXPRO_FILE));
+      strlcpy(g->Message, MSG(FOXPRO_FILE), sizeof(g->Message));
       dbc = 264;             // FoxPro database container
     } // endif Version
 
   } else
-    strcpy(g->Message, MSG(DBASE_FILE));
+    strlcpy(g->Message, MSG(DBASE_FILE), sizeof(g->Message));
 
   // Check last byte(s) of header
   if (fseek(file, buf->Headlen() - dbc, SEEK_SET) != 0) {
@@ -162,7 +162,7 @@ static int dbfhead(PGLOBAL g, FILE *file, PCSZ fn, DBFHEADER *buf)
   } // endif fseek
 
   if (fread(&endmark, 2, 1, file) != 1) {
-    strcpy(g->Message, MSG(BAD_HEAD_END));
+    strlcpy(g->Message, MSG(BAD_HEAD_END), sizeof(g->Message));
     return RC_FX;
   } // endif fread
 
@@ -198,16 +198,16 @@ static int dbfields(PGLOBAL g, DBFHEADER* hdrp)
 
 	// Check first byte to be sure of .dbf type
 	if ((hdrp->Version & 0x03) != DBFTYPE) {
-		strcpy(g->Message, MSG(NOT_A_DBF_FILE));
+		strlcpy(g->Message, MSG(NOT_A_DBF_FILE), sizeof(g->Message));
 		rc = RC_INFO;
 
 		if ((hdrp->Version & 0x30) == 0x30) {
-			strcpy(g->Message, MSG(FOXPRO_FILE));
+			strlcpy(g->Message, MSG(FOXPRO_FILE), sizeof(g->Message));
 			dbc = 264;             // FoxPro database container
 		} // endif Version
 
 	} else
-		strcpy(g->Message, MSG(DBASE_FILE));
+		strlcpy(g->Message, MSG(DBASE_FILE), sizeof(g->Message));
 
 	// Check last byte(s) of header
 	endmark = (char*)hdrp + hdrp->Headlen() - dbc;
@@ -256,7 +256,7 @@ PQRYRES DBFColumns(PGLOBAL g, PCSZ dp, PCSZ fn, PTOS topt, bool info)
 
   if (!info) {
     if (!fn) {
-      strcpy(g->Message, MSG(MISSING_FNAME));
+      strlcpy(g->Message, MSG(MISSING_FNAME), sizeof(g->Message));
       return NULL;
       } // endif fn
 
@@ -272,7 +272,7 @@ PQRYRES DBFColumns(PGLOBAL g, PCSZ dp, PCSZ fn, PTOS topt, bool info)
 			mul = GetBooleanTableOption(g, topt, "Mulentries", mul);
 
 			if (mul) {
-				strcpy(g->Message, "Cannot find column definition for multiple entries");
+				strlcpy(g->Message, "Cannot find column definition for multiple entries", sizeof(g->Message));
 				return NULL;
 			} // endif Multiple
 
@@ -442,7 +442,7 @@ PQRYRES DBFColumns(PGLOBAL g, PCSZ dp, PCSZ fn, PTOS topt, bool info)
       hp->Headlen, hp->Filedate[0], hp->Filedate[1],
       hp->Filedate[2]);
 
-    strcat(g->Message, buf);
+    strlcat(g->Message, buf, sizeof(g->Message));
     } // endif info
 #endif // 0
 
@@ -583,7 +583,7 @@ bool DBFFAM::OpenTableFile(PGLOBAL g)
 
   switch (mode) {
     case MODE_READ:
-      strcpy(opmode, "rb");
+      strlcpy(opmode, "rb", sizeof(opmode));
       break;
     case MODE_DELETE:
       if (!Tdbp->GetNext()) {
@@ -592,7 +592,7 @@ bool DBFFAM::OpenTableFile(PGLOBAL g)
 //      DelRows = Cardinality(g); no good because of soft deleted lines
 
         // This will erase the entire file
-        strcpy(opmode, "w");
+        strlcpy(opmode, "w", sizeof(opmode));
         Tdbp->ResetSize();
         Records = 0;
         break;
@@ -602,11 +602,11 @@ bool DBFFAM::OpenTableFile(PGLOBAL g)
       /* fall through */
     case MODE_UPDATE:
       UseTemp = Tdbp->IsUsingTemp(g);
-      strcpy(opmode, (UseTemp) ? "rb" : "r+b");
+      strlcpy(opmode, (UseTemp) ? "rb" : "r+b", sizeof(opmode));
       break;
     case MODE_INSERT:
       // Must be in text mode to remove an eventual EOF character
-      strcpy(opmode, "a+");
+      strlcpy(opmode, "a+", sizeof(opmode));
       break;
     default:
       sprintf(g->Message, MSG(BAD_OPEN_MODE), mode);
@@ -880,14 +880,14 @@ bool DBFFAM::CopyHeader(PGLOBAL g)
     int   pos = ftell(Stream);
 
     if (fseek(Stream, 0, SEEK_SET))
-      strcpy(g->Message, "Seek error in CopyHeader");
+      strlcpy(g->Message, "Seek error in CopyHeader", sizeof(g->Message));
     else if ((n = fread(hdr, 1, hlen, Stream)) != hlen)
       sprintf(g->Message, MSG(BAD_READ_NUMBER), (int) n, To_File);
     else if ((n = fwrite(hdr, 1, hlen, T_Stream)) != hlen)
       sprintf(g->Message, MSG(WRITE_STRERROR), To_Fbt->Fname
                                              , strerror(errno));
     else if (fseek(Stream, pos, SEEK_SET))
-      strcpy(g->Message, "Seek error in CopyHeader");
+      strlcpy(g->Message, "Seek error in CopyHeader", sizeof(g->Message));
     else
       rc = false;
 
@@ -908,7 +908,7 @@ int DBFFAM::InitDelete(PGLOBAL g, int fpos, int spos)
   size_t lrecl = (size_t)Lrecl;
 
   if (Nrec != 1)
-    strcpy(g->Message, "Cannot delete in block mode");
+    strlcpy(g->Message, "Cannot delete in block mode", sizeof(g->Message));
   else if (fseek(Stream, Headlen + fpos * Lrecl, SEEK_SET))
     sprintf(g->Message, MSG(FSETPOS_ERROR), 0);
   else if (fread(To_Buf, 1, lrecl, Stream) != lrecl)

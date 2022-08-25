@@ -271,7 +271,7 @@ bool MAPFAM::SetPos(PGLOBAL g, int pos)
   Fpos = Mempos = Memory + pos;
 
   if (Mempos >= Top || Mempos < Memory) {
-    strcpy(g->Message, MSG(INV_MAP_POS));
+    strlcpy(g->Message, MSG(INV_MAP_POS), sizeof(g->Message));
     return true;
     } // endif Mempos
 
@@ -392,7 +392,7 @@ int MAPFAM::WriteBuffer(PGLOBAL g __attribute__((unused)))
 #if defined(_DEBUG)
   // Insert mode is no more handled using file mapping
   if (Tdbp->GetMode() == MODE_INSERT) {
-    strcpy(g->Message, MSG(NO_MAP_INSERT));
+    strlcpy(g->Message, MSG(NO_MAP_INSERT), sizeof(g->Message));
     return RC_FX;
     } // endif
 #endif   // _DEBUG
@@ -693,7 +693,7 @@ int MPXFAM::GetPos(void)
 bool MPXFAM::SetPos(PGLOBAL g, int pos)
   {
   if (pos < 0) {
-    strcpy(g->Message, MSG(INV_REC_POS));
+    strlcpy(g->Message, MSG(INV_REC_POS), sizeof(g->Message));
     return true;
     } // endif recpos
 
@@ -776,7 +776,7 @@ int MPXFAM::WriteBuffer(PGLOBAL g __attribute__((unused)))
 #if defined(_DEBUG)
   // Insert mode is no more handled using file mapping
   if (Tdbp->GetMode() == MODE_INSERT) {
-    strcpy(g->Message, MSG(NO_MAP_INSERT));
+    strlcpy(g->Message, MSG(NO_MAP_INSERT), sizeof(g->Message));
     return RC_FX;
     } // endif
 #endif   // _DEBUG

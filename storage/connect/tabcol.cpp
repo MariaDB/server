@@ -127,7 +127,7 @@ COLUMN::COLUMN(LPCSTR name) : Name(name)
 /***********************************************************************/
 bool COLUMN::SetFormat(PGLOBAL g, FORMAT&)
   {
-  strcpy(g->Message, MSG(NO_FORMAT_COL));
+  strlcpy(g->Message, MSG(NO_FORMAT_COL), sizeof(g->Message));
   return true;
   } // end of SetFormat
 

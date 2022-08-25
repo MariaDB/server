@@ -46,7 +46,7 @@ class DllExport TDBMUL : public TDBASE {
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
-                {strcpy(g->Message, MSG(MUL_MAKECOL_ERR)); return NULL;}
+                {strlcpy(g->Message, MSG(MUL_MAKECOL_ERR), sizeof(g->Message)); return NULL;}
   virtual int  Cardinality(PGLOBAL g);
   virtual int  GetMaxSize(PGLOBAL g);
   virtual int  GetProgMax(PGLOBAL g);

@@ -137,7 +137,7 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
 			              ? strchr(tdp->Entry, '*') || strchr(tdp->Entry, '?')
 			              : GetBooleanTableOption(g, topt, "Mulentries", false);
 #else   // !ZIP_SUPPORT
-		strcpy(g->Message, "ZIP not supported by this version");
+		strlcpy(g->Message, "ZIP not supported by this version", sizeof(g->Message));
 		return NULL;
 #endif  // !ZIP_SUPPORT
 	} // endif // Zipped
@@ -145,7 +145,7 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
 	fn = tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);
 
 	if (!tdp->Fn) {
-		strcpy(g->Message, MSG(MISSING_FNAME));
+		strlcpy(g->Message, MSG(MISSING_FNAME), sizeof(g->Message));
 		return NULL;
 	} // endif Fn
 
@@ -472,7 +472,7 @@ bool CSVDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   if (Catfunc == FNC_NO)
     for (PCOLDEF cdp = To_Cols; cdp; cdp = cdp->GetNext())
       if (cdp->GetOffset() < 1 && !cdp->IsSpecial()) {
-        strcpy(g->Message, MSG(BAD_OFFSET_VAL));
+        strlcpy(g->Message, MSG(BAD_OFFSET_VAL), sizeof(g->Message));
         return true;
         } // endif Offset
 
@@ -528,11 +528,11 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
 			} else if (mode == MODE_INSERT) {
 				txfp = new(g) ZIPFAM(this);
 			} else {
-				strcpy(g->Message, "UPDATE/DELETE not supported for ZIP");
+				strlcpy(g->Message, "UPDATE/DELETE not supported for ZIP", sizeof(g->Message));
 				return NULL;
 			}	// endif's mode
 #else   // !ZIP_SUPPORT
-			strcpy(g->Message, "ZIP not supported");
+			strlcpy(g->Message, "ZIP not supported", sizeof(g->Message));
 			return NULL;
 #endif  // !ZIP_SUPPORT
 		} else if (map) {
@@ -546,7 +546,7 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
         txfp = new(g) ZLBFAM(this);
 
 #else   // !GZ_SUPPORT
-        strcpy(g->Message, "Compress not supported");
+        strlcpy(g->Message, "Compress not supported", sizeof(g->Message));
         return NULL;
 #endif  // !GZ_SUPPORT
     } else
@@ -1156,7 +1156,7 @@ int TDBCSV::CheckWrite(PGLOBAL g)
         } // endif
 
       if ((nlen += n) > maxlen) {
-        strcpy(g->Message, MSG(LINE_TOO_LONG));
+        strlcpy(g->Message, MSG(LINE_TOO_LONG), sizeof(g->Message));
         return -1;
         } // endif nlen
 

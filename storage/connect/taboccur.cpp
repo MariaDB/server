@@ -88,7 +88,7 @@ bool OcrColumns(PGLOBAL g, PQRYRES qrp, const char *col,
   PCOLRES crp;
 
   if (!col || !*col) {
-    strcpy(g->Message, "Missing colist");
+    strlcpy(g->Message, "Missing colist", sizeof(g->Message));
     return true;
     } // endif col
 
@@ -98,7 +98,7 @@ bool OcrColumns(PGLOBAL g, PQRYRES qrp, const char *col,
 
   if ((rk = (rank && *rank))) {
     if (m == 1) {
-      strcpy(g->Message, "Cannot handle one column colist and rank");
+      strlcpy(g->Message, "Cannot handle one column colist and rank", sizeof(g->Message));
       return true;
       } // endif m
 
@@ -161,7 +161,7 @@ bool OcrColumns(PGLOBAL g, PQRYRES qrp, const char *col,
 
   // Check whether all columns of the list where found
   if (c < m) {
-    strcpy(g->Message, "Some colist columns are not in the source table");
+    strlcpy(g->Message, "Some colist columns are not in the source table", sizeof(g->Message));
     return true;
     } // endif crp
 
@@ -185,7 +185,7 @@ bool OcrSrcCols(PGLOBAL g, PQRYRES qrp, const char *col,
   PCOLRES crp, rcrp, *pcrp;
 
   if (!col || !*col) {
-    strcpy(g->Message, "Missing colist");
+    strlcpy(g->Message, "Missing colist", sizeof(g->Message));
     return true;
     } // endif col
 
@@ -242,7 +242,7 @@ bool OcrSrcCols(PGLOBAL g, PQRYRES qrp, const char *col,
 
   // Check whether all columns of the list where found
   if (c < m) {
-    strcpy(g->Message, "Some colist columns are not in the source table");
+    strlcpy(g->Message, "Some colist columns are not in the source table", sizeof(g->Message));
     return true;
     } // endif crp
 
@@ -366,7 +366,7 @@ bool TDBOCCUR::MakeColumnList(PGLOBAL g)
 			} // endif Col
 
 		if (Col[i]->InitValue(g)) {
-	    strcpy(g->Message, "OCCUR InitValue failed");
+	    strlcpy(g->Message, "OCCUR InitValue failed", sizeof(g->Message));
 			return true;
 	    } // endif InitValue
 
@@ -389,7 +389,7 @@ bool TDBOCCUR::ViewColumnList(PGLOBAL g)
     return false;
 
   if (Tdbp->GetAmType() != TYPE_AM_MYSQL) {
-    strcpy(g->Message, "View is not MySQL");
+    strlcpy(g->Message, "View is not MySQL", sizeof(g->Message));
     return true;
   } else
     tdbp = (PTDBMY)Tdbp;
@@ -463,7 +463,7 @@ bool TDBOCCUR::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /* Currently OCCUR tables cannot be modified.                      */
     /*******************************************************************/
-    strcpy(g->Message, "OCCUR tables are read only");
+    strlcpy(g->Message, "OCCUR tables are read only", sizeof(g->Message));
     return TRUE;
     } // endif Mode
 
@@ -481,7 +481,7 @@ bool TDBOCCUR::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /* Direct access of OCCUR tables is not implemented yet.           */
     /*******************************************************************/
-    strcpy(g->Message, "No direct access to OCCUR tables");
+    strlcpy(g->Message, "No direct access to OCCUR tables", sizeof(g->Message));
     return TRUE;
     } // endif To_Key_Col
 

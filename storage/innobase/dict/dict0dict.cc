@@ -1395,7 +1395,7 @@ dict_table_rename_in_cache(
 
 	/* store the old/current name to an automatic variable */
 	ut_a(strlen(table->name.m_name) < sizeof old_name);
-	strcpy(old_name, table->name.m_name);
+	strlcpy(old_name, table->name.m_name, sizeof(old_name));
 
 	fold = ut_fold_string(new_name);
 
@@ -1601,7 +1601,7 @@ dict_table_rename_in_cache(
 			/* The old table name in my_charset_filename is stored
 			in old_name_cs_filename */
 
-			strcpy(old_name_cs_filename, old_name);
+			strlcpy(old_name_cs_filename, old_name, sizeof(old_name_cs_filename));
 			old_name_cs_filename[MAX_FULL_NAME_LEN] = '\0';
 			if (strstr(old_name, TEMP_TABLE_PATH_PREFIX) == NULL) {
 
@@ -1623,7 +1623,7 @@ dict_table_rename_in_cache(
 				} else {
 					/* Old name already in
 					my_charset_filename */
-					strcpy(old_name_cs_filename, old_name);
+					strlcpy(old_name_cs_filename, old_name, sizeof(old_name_cs_filename));
 					old_name_cs_filename[MAX_FULL_NAME_LEN]
 						= '\0';
 				}
@@ -3674,7 +3674,7 @@ dict_table_get_highest_foreign_id(
 		char    fkid[MAX_TABLE_NAME_LEN+20];
 		foreign = *it;
 
-		strcpy(fkid, foreign->id);
+		strlcpy(fkid, foreign->id, sizeof(fkid));
 		/* Convert foreign key identifier on dictionary memory
 		cache to filename charset. */
 		innobase_convert_to_filename_charset(

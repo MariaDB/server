@@ -104,12 +104,13 @@ void TDBMAC::MakeErrorMsg(PGLOBAL g, DWORD drc)
       "GetAdaptersInfo: Buffer Overflow buflen=%d maxsize=%d",
       Buflen, MaxSize);
   else if (drc == ERROR_INVALID_PARAMETER)
-    strcpy(g->Message, "GetAdaptersInfo: Invalid parameters");
+    strlcpy(g->Message, "GetAdaptersInfo: Invalid parameters", sizeof(g->Message));
   else if (drc == ERROR_NO_DATA)
-    strcpy(g->Message,
-           "No adapter information exists for the local computer");
+    strlcpy(g->Message,
+           "No adapter information exists for the local computer",
+           sizeof(g->Message));
   else if (drc == ERROR_NOT_SUPPORTED)
-    strcpy(g->Message, "GetAdaptersInfo is not supported");
+    strlcpy(g->Message, "GetAdaptersInfo is not supported", sizeof(g->Message));
   else
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | 
                   FORMAT_MESSAGE_IGNORE_INSERTS, NULL, GetLastError(),
@@ -226,7 +227,7 @@ bool TDBMAC::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /*  Table already open, this should not happen.                    */
     /*******************************************************************/
-    strcpy(g->Message, "TDBMAC should not be reopened");
+    strlcpy(g->Message, "TDBMAC should not be reopened", sizeof(g->Message));
     return true;
     } // endif use
 
@@ -234,7 +235,7 @@ bool TDBMAC::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /* MAC tables cannot be modified.                                  */
     /*******************************************************************/
-    strcpy(g->Message, "MAC tables are read only");
+    strlcpy(g->Message, "MAC tables are read only", sizeof(g->Message));
     return true;
   } else
     Use = USE_OPEN;
@@ -275,7 +276,7 @@ int TDBMAC::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBMAC::WriteDB(PGLOBAL g)
   {
-  strcpy(g->Message, "MAC tables are read only");
+  strlcpy(g->Message, "MAC tables are read only", sizeof(g->Message));
   return RC_FX;
   } // end of WriteDB
 
@@ -284,7 +285,7 @@ int TDBMAC::WriteDB(PGLOBAL g)
 /***********************************************************************/
 int TDBMAC::DeleteDB(PGLOBAL g, int irc)
   {
-  strcpy(g->Message, "Delete not enabled for MAC tables");
+  strlcpy(g->Message, "Delete not enabled for MAC tables", sizeof(g->Message));
   return RC_FX;
   } // end of DeleteDB
 

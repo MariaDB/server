@@ -6536,7 +6536,7 @@ ha_innobase::open_dict_table(
 			/* Check for the table using lower
 			case name, including the partition
 			separator "P" */
-			strcpy(par_case_name, norm_name);
+			strlcpy(par_case_name, norm_name, sizeof(par_case_name));
 			innobase_casedn_str(par_case_name);
 #else
 			/* On Windows platfrom, check
@@ -13275,7 +13275,7 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 			/* Check for the table using lower
 			case name, including the partition
 			separator "P" */
-			strcpy(par_case_name, norm_name);
+			strlcpy(par_case_name, norm_name, sizeof(par_case_name));
 			innobase_casedn_str(par_case_name);
 #else
 			/* On Windows platfrom, check
@@ -13334,7 +13334,7 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 			/* Check for the table using lower
 			case name, including the partition
 			separator "P" */
-			strcpy(par_case_name, norm_name);
+			strlcpy(par_case_name, norm_name, sizeof(par_case_name));
 			innobase_casedn_str(par_case_name);
 #else
 			/* On Windows platfrom, check
@@ -13535,7 +13535,7 @@ inline dberr_t innobase_rename_table(trx_t *trx, const char *from,
 				/* Check for the table using lower
 				case name, including the partition
 				separator "P" */
-				strcpy(par_case_name, norm_from);
+				strlcpy(par_case_name, norm_from, sizeof(par_case_name));
 				innobase_casedn_str(par_case_name);
 #else
 				/* On Windows platfrom, check
@@ -20899,8 +20899,8 @@ fail:
 		close_thread_tables(thd);
 	}
 
-	strcpy(tbl_buf, tbl_buf1);
-	strcpy(db_buf, db_buf1);
+	strlcpy(tbl_buf, tbl_buf1, sizeof(tbl_buf));
+	strlcpy(db_buf, db_buf1, sizeof(db_buf));
 	tbl_buf_len = tbl_buf1_len;
 	db_buf_len = db_buf1_len;
 	goto retry_mdl;

@@ -133,8 +133,7 @@ char *TGZfname (const char *arcname)
 {
   static char buffer[1024];
   int origlen,i;
-
-  strcpy(buffer,arcname);
+  strlcpy(buffer,arcname, sizeof(buffer));
   origlen = strlen(buffer);
 
   for (i=0; TGZsuffix[i]; i++)

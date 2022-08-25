@@ -1973,7 +1973,8 @@ rl_invoking_keyseqs_in_map (function, map)
 
 	    for (i = 0; seqs[i]; i++)
 	      {
-		char *keyname = (char *)xmalloc (6 + strlen (seqs[i]));
+		size_t keyname_sz = 6 + strlen (seqs[i]);
+		char *keyname = (char *)xmalloc (keyname_sz);
 
 		if (key == ESC)
 		  {

@@ -10,6 +10,8 @@
 #include "json.h"
 #include "xobject.h"
 
+#include "m_string.h"
+
 #if defined(_DEBUG)
 #define X  assert(false);
 #else
@@ -78,7 +80,7 @@ public:
 	void  SubSet(bool b = false);
 	void  MemSave(void) {G->Saved_Size = ((PPOOLHEADER)G->Sarea)->To_Free;}
 	void  MemSet(size_t size);
-	void  GetMsg(PGLOBAL g) { if (g != G) strcpy(g->Message, G->Message); }
+	void  GetMsg(PGLOBAL g) { if (g != G) strlcpy(g->Message, G->Message, sizeof(g->Message)); }
 
 	// SubAlloc functions
 	void* BsonSubAlloc(size_t size);

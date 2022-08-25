@@ -526,8 +526,8 @@ local int try(char *hex, char *id, int err)
     assert(prefix != NULL);
 
     /* first with inflate */
-    strcpy(prefix, id);
-    strcat(prefix, "-late");
+    strlcpy(prefix, id, strlen(id) + 6);
+    strlcat(prefix, "-late", strlen(id) + 6);
     mem_setup(&strm);
     strm.avail_in = 0;
     strm.next_in = Z_NULL;
@@ -552,8 +552,8 @@ local int try(char *hex, char *id, int err)
 
     /* then with inflateBack */
     if (err >= 0) {
-        strcpy(prefix, id);
-        strcat(prefix, "-back");
+        strlcpy(prefix, id, strlen(id) + 6);
+        strlcat(prefix, "-back", strlen(id) + 6);
         mem_setup(&strm);
         ret = inflateBackInit(&strm, 15, win);
         assert(ret == Z_OK);

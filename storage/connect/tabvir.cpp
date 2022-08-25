@@ -207,8 +207,9 @@ PCOL TDBVIR::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 
   if (cdp->IsVirtual()) {
     colp = new(g) VIRCOL(cdp, this, cprec, n);
-  } else strcpy(g->Message, 
-    "Virtual tables accept only special or virtual columns");
+  } else strlcpy(g->Message, 
+    "Virtual tables accept only special or virtual columns", 
+    sizeof(g->Message));
 
 	return colp;
 	} // end of MakeCol
@@ -225,7 +226,7 @@ bool TDBVIR::OpenDB(PGLOBAL g)
     } // endif use
 
   if (Mode != MODE_READ) {
-    strcpy(g->Message, "Virtual tables are read only");
+    strlcpy(g->Message, "Virtual tables are read only", sizeof(g->Message));
     return true;
     } // endif Mode
 

@@ -112,7 +112,7 @@ bool MYSQLDEF::GetServerInfo(PGLOBAL g, const char *server_name)
 
   if (!server_name || !strlen(server_name)) {
     DBUG_PRINT("info", ("server_name not defined!"));
-    strcpy(g->Message, "server_name not defined!");
+    strlcpy(g->Message, "server_name not defined!", sizeof(g->Message));
     DBUG_RETURN(true);
     } // endif server_name
 
@@ -121,7 +121,7 @@ bool MYSQLDEF::GetServerInfo(PGLOBAL g, const char *server_name)
   if (!(server= get_server_by_name(mem, server_name, &server_buffer))) {
     DBUG_PRINT("info", ("get_server_by_name returned > 0 error condition!"));
     /* need to come up with error handling */
-    strcpy(g->Message, "get_server_by_name returned > 0 error condition!");
+    strlcpy(g->Message, "get_server_by_name returned > 0 error condition!", sizeof(g->Message));
     DBUG_RETURN(true);
     } // endif server
 
@@ -214,21 +214,21 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
     char *sport, *scheme = url;
 
     if (!(Username = strstr(url, "://"))) {
-      strcpy(g->Message, "Connection is not an URL");
+      strlcpy(g->Message, "Connection is not an URL", sizeof(g->Message));
       return true;
       } // endif User
 
     scheme[Username - scheme] = 0;
 
     if (stricmp(scheme, "mysql")) {
-      strcpy(g->Message, "scheme must be mysql");
+      strlcpy(g->Message, "scheme must be mysql", sizeof(g->Message));
       return true;
       } // endif scheme
 
     Username += 3;
 
     if (!(Hostname = (char*)strchr(Username, '@'))) {
-      strcpy(g->Message, "No host specified in URL");
+      strlcpy(g->Message, "No host specified in URL", sizeof(g->Message));
       return true;
     } else {
       *Hostname++ = 0;                   // End Username
@@ -240,7 +240,7 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
 
       // Make sure there isn't an extra /
       if (strchr(pwd, '/')) {
-        strcpy(g->Message, "Syntax error in URL");
+        strlcpy(g->Message, "Syntax error in URL", sizeof(g->Message));
         return true;
         } // endif
 
@@ -256,7 +256,7 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
 
     // Make sure there isn't an extra / or @ */
     if ((strchr(Username, '/')) || (strchr(Hostname, '@'))) {
-      strcpy(g->Message, "Syntax error in URL");
+      strlcpy(g->Message, "Syntax error in URL", sizeof(g->Message));
       return true;
       } // endif
 
@@ -268,7 +268,7 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
 
         // Make sure there's not an extra /
         if ((strchr(tabn, '/'))) {
-          strcpy(g->Message, "Syntax error in URL");
+          strlcpy(g->Message, "Syntax error in URL", sizeof(g->Message));
           return true;
           } // endif /
 
@@ -574,7 +574,7 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g, bool mx)
     len += (mx ? 256 : 1);
 
   if (Query->IsTruncated() || Query->Resize(len)) {
-    strcpy(g->Message, "MakeSelect: Out of memory");
+    strlcpy(g->Message, "MakeSelect: Out of memory", sizeof(g->Message));
     return true;
   } // endif Query
 
@@ -599,7 +599,7 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
 
   if (Prep) {
 #if !defined(MYSQL_PREPARED_STATEMENTS)
-    strcpy(g->Message, "Prepared statements not used (not supported)");
+    strlcpy(g->Message, "Prepared statements not used (not supported)", sizeof(g->Message));
     PushWarning(g, this);
     Prep = false;
 #endif  // !MYSQL_PREPARED_STATEMENTS 
@@ -607,7 +607,7 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
 
   for (colp = Columns; colp; colp = colp->GetNext())
     if (colp->IsSpecial()) {
-      strcpy(g->Message, MSG(NO_SPEC_COL));
+      strlcpy(g->Message, MSG(NO_SPEC_COL), sizeof(g->Message));
       return true;
     } else {
       len += (strlen(colp->GetName()) + 4);
@@ -664,7 +664,7 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
 #endif  // MYSQL_PREPARED_STATEMENTS 
 
   if ((oom = Query->IsTruncated()))
-    strcpy(g->Message, "MakeInsert: Out of memory");
+    strlcpy(g->Message, "MakeInsert: Out of memory", sizeof(g->Message));
 
   return oom;
   } // end of MakeInsert
@@ -684,14 +684,20 @@ bool TDBMYSQL::MakeCommand(PGLOBAL g)
 
     // Make a lower case copy of the originale query
     qrystr = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 5);
-    strlwr(strcpy(qrystr, Qrystr));
+	strlcpy(qrystr, Qrystr, strlen(Qrystr) + 5);
+    strlwr(qrystr);
 
     // Check whether the table name is equal to a keyword
     // If so, it must be quoted in the original query
-    strlwr(strcat(strcat(strcpy(name, "`"), Name), "`"));
+	strlcpy(name, "`", sizeof(name));
+	strlcat(name, Name, sizeof(name));
+	strlcat(name, "`", sizeof(name));
+    strlwr(name);
 
-    if (!strstr("`update`delete`low_priority`ignore`quick`from`", name))
-      strlwr(strcpy(name, Name));     // Not a keyword
+    if (!strstr("`update`delete`low_priority`ignore`quick`from`", name)) {
+        strlcpy(name, Name, sizeof(name));
+        strlwr(name);     // Not a keyword
+      }
 
     if ((p = strstr(qrystr, name))) {
       Query->Set(Qrystr, (uint)(p - qrystr));
@@ -706,10 +712,12 @@ bool TDBMYSQL::MakeCommand(PGLOBAL g)
       Query->Append(Qrystr + (p - qrystr) + strlen(name));
 
       if (Query->IsTruncated()) {
-        strcpy(g->Message, "MakeCommand: Out of memory");
+        strlcpy(g->Message, "MakeCommand: Out of memory", sizeof(g->Message));
         return true;
-      } else
-        strlwr(strcpy(qrystr, Query->GetStr()));
+      } else {
+          strlcpy(qrystr, Query->GetStr(), strlen(Qrystr) + 5);
+          strlwr(qrystr);
+        }
 
     } else {
       sprintf(g->Message, "Cannot use this %s command",
@@ -742,13 +750,16 @@ int TDBMYSQL::MakeUpdate(PGLOBAL g)
                   && !stricmp(tab, Name))
     qc = (Quoted) ? "`" : "";
   else {
-    strcpy(g->Message, "Cannot use this UPDATE command");
+    strlcpy(g->Message, "Cannot use this UPDATE command", sizeof(g->Message));
     return RC_FX;
   } // endif sscanf
 
   assert(!stricmp(cmd, "update"));
-  strcat(strcat(strcat(strcpy(Query, "UPDATE "), qc), TableName), qc);
-  strcat(Query, end);
+  strlcpy(Query, "UPDATE ", strlen(Qrystr) + 64);
+  strlcat(Query, qc), strlen(Qrystr) + 64;
+  strlcat(Query, TableName), strlen(Qrystr) + 64;
+  strlcat(Query, qc), strlen(Qrystr) + 64;
+  strlcat(Query, end, strlen(Qrystr) + 64);
   return RC_OK;
   } // end of MakeUpdate
 
@@ -769,15 +780,18 @@ int TDBMYSQL::MakeDelete(PGLOBAL g)
   else if (sscanf(Qrystr, "%s %s %s%511c", cmd, from, tab, end) > 2)
     qc = (Quoted) ? "`" : "";
   else {
-    strcpy(g->Message, "Cannot use this DELETE command");
+    strlcpy(g->Message, "Cannot use this DELETE command", sizeof(g->Message));
     return RC_FX;
   } // endif sscanf
 
   assert(!stricmp(cmd, "delete") && !stricmp(from, "from"));
-  strcat(strcat(strcat(strcpy(Query, "DELETE FROM "), qc), TableName), qc);
+  strlcpy(Query, "DELETE FROM ", strlen(Qrystr) + 64);
+  strlcat(Query, qc, strlen(Qrystr) + 64);
+  strlcat(Query, TableName, strlen(Qrystr) + 64);
+  strlcat(Query, qc, strlen(Qrystr) + 64);
 
   if (*end)
-    strcat(Query, end);
+    strlcat(Query, end, strlen(Qrystr) + 64);
 
   return RC_OK;
   } // end of MakeDelete
@@ -799,12 +813,15 @@ int TDBMYSQL::Cardinality(PGLOBAL g)
     if (myc.Open(g, Host, Schema, User, Pwd, Port, csname))
       return -1;
 
-    strcpy(query, "SELECT COUNT(*) FROM ");
+    strlcpy(query, "SELECT COUNT(*) FROM ", sizeof(query));
 
-    if (Quoted > 0)
-      strcat(strcat(strcat(query, "`"), TableName), "`");
+    if (Quoted > 0) {
+      strlcat(query, "`", sizeof(query));
+	  strlcat(query, TableName, sizeof(query));
+      strlcat(query, "`", sizeof(query));
+	}
     else
-      strcat(query, TableName);
+      strlcat(query, TableName, sizeof(query));
 
     Cardinal = myc.GetTableSize(g, query);
     myc.Close();
@@ -934,7 +951,7 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
 
   } else if (Mode == MODE_INSERT) {
     if (Srcdef) {
-      strcpy(g->Message, "No insert into anonym views");
+      strlcpy(g->Message, "No insert into anonym views", sizeof(g->Message));
       Myc.Close();
       return true;
       } // endif Srcdef
@@ -946,7 +963,7 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
 
       if (Nparm != n) {
         if (n >= 0)          // Other errors return negative values
-          strcpy(g->Message, MSG(BAD_PARM_COUNT));
+          strlcpy(g->Message, MSG(BAD_PARM_COUNT), sizeof(g->Message));
 
       } else
 #endif   // MYSQL_PREPARED_STATEMENTS
@@ -1109,7 +1126,7 @@ bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const key_range *kr)
 
 			if (To_CondFil)
 				if (Query->Append(" AND ") || Query->Append(To_CondFil->Body)) {
-				  strcpy(g->Message, "Readkey: Out of memory");
+				  strlcpy(g->Message, "Readkey: Out of memory", sizeof(g->Message));
 					return true;
 					} // endif Append
 
@@ -1184,7 +1201,7 @@ int TDBMYSQL::WriteDB(PGLOBAL g)
     } // endfor colp
 
   if (unlikely(Query->IsTruncated())) {
-    strcpy(g->Message, "WriteDB: Out of memory");
+    strlcpy(g->Message, "WriteDB: Out of memory", sizeof(g->Message));
     rc = RC_FX;
   } else {
     Query->RepLast(')');
@@ -1412,9 +1429,12 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
       htrc("MySQL ReadColumn: name=%s buf=%s\n", Name, buf);
 
     // TODO: have a true way to differenciate temporal values
-    if (Buf_Type == TYPE_DATE && strlen(buf) == 8)
+    if (Buf_Type == TYPE_DATE && strlen(buf) == 8) {
       // This is a TIME value
-      p = strcat(strcpy(tim, "1970-01-01 "), buf);
+      strlcpy(tim, "1970-01-01 ", sizeof(tim));
+      strlcat(tim, buf, sizeof(tim));
+      p = tim;
+    }
     else
       p = buf;
 
@@ -1529,13 +1549,13 @@ PCMD TDBMYEXC::MakeCMD(PGLOBAL g)
           (To_CondFil->Op == OP_EQ || To_CondFil->Op == OP_IN)) {
         xcmd = To_CondFil->Cmds;
       } else
-        strcpy(g->Message, "Invalid command specification filter");
+        strlcpy(g->Message, "Invalid command specification filter", sizeof(g->Message));
 
     } else
-      strcpy(g->Message, "No command column in select list");
+      strlcpy(g->Message, "No command column in select list", sizeof(g->Message));
 
   } else if (!Srcdef)
-    strcpy(g->Message, "No Srcdef default command");
+    strlcpy(g->Message, "No Srcdef default command", sizeof(g->Message));
   else
     xcmd = new(g) CMD(g, Srcdef);
 
@@ -1560,7 +1580,7 @@ int TDBMYEXC::GetMaxSize(PGLOBAL)
 bool TDBMYEXC::OpenDB(PGLOBAL g)
   {
   if (Use == USE_OPEN) {
-    strcpy(g->Message, "Multiple execution is not allowed");
+    strlcpy(g->Message, "Multiple execution is not allowed", sizeof(g->Message));
     return true;
     } // endif use
 
@@ -1578,7 +1598,7 @@ bool TDBMYEXC::OpenDB(PGLOBAL g)
   Use = USE_OPEN;       // Do it now in case we are recursively called
 
   if (Mode != MODE_READ && Mode != MODE_READX) {
-    strcpy(g->Message, "No INSERT/DELETE/UPDATE of MYSQL EXEC tables");
+    strlcpy(g->Message, "No INSERT/DELETE/UPDATE of MYSQL EXEC tables", sizeof(g->Message));
     return true;
     } // endif Mode
 
@@ -1625,11 +1645,11 @@ int TDBMYEXC::ReadDB(PGLOBAL g)
       switch (rc = Myc.ExecSQLcmd(g, Query->GetStr(), &Warnings)) {
         case RC_NF:
           AftRows = Myc.m_Afrw;
-          strcpy(g->Message, "Affected rows");
+          strlcpy(g->Message, "Affected rows", sizeof(g->Message));
           break;
         case RC_OK:
           AftRows = Myc.m_Fields;
-          strcpy(g->Message, "Result set columns");
+          strlcpy(g->Message, "Result set columns", sizeof(g->Message));
           break;
         case RC_FX:
           AftRows = Myc.m_Afrw;
@@ -1659,7 +1679,7 @@ int TDBMYEXC::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBMYEXC::WriteDB(PGLOBAL g)
   {
-  strcpy(g->Message, "EXEC MYSQL tables are read only");
+  strlcpy(g->Message, "EXEC MYSQL tables are read only", sizeof(g->Message));
   return RC_FX;
   } // end of WriteDB
 

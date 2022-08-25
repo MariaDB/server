@@ -544,7 +544,7 @@ int LIBXMLDOC::DumpDoc(PGLOBAL g, char *ofn)
   // This function does not crash (
   if (xmlSaveFormatFileEnc((const char *)ofn, Docp, Encoding, 0) < 0) {
     xmlErrorPtr err = xmlGetLastError();
-    strcpy(g->Message, (err) ? err->message : "Error saving XML doc");
+    strlcpy(g->Message, (err) ? err->message : "Error saving XML doc", sizeof(g->Message));
     xmlResetError(Xerr);
     rc = -1;
     } // endif Save
@@ -645,7 +645,7 @@ xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
 
     // Create xpath evaluation context
     if (!(Ctxp = xmlXPathNewContext(Docp))) {
-      strcpy(g->Message, MSG(XPATH_CNTX_ERR));
+      strlcpy(g->Message, MSG(XPATH_CNTX_ERR), sizeof(g->Message));
 
       if (trace(1))
         htrc("Context error: %s\n", g->Message);
@@ -688,7 +688,7 @@ xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
       xmlXPathFreeObject(Xop);            // Caused node not found
 
     if ((Xerr = xmlGetLastError())) {
-      strcpy(g->Message, Xerr->message);
+      strlcpy(g->Message, Xerr->message, sizeof(g->Message));
       xmlResetError(Xerr);
       return NULL;
       } // endif Xerr

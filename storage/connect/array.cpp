@@ -665,14 +665,14 @@ int ARRAY::Qcompare(int *i1, int *i2)
 void ARRAY::SetPrecision(PGLOBAL g, int p)
   {
   if (Vblp == NULL) {
-    strcpy(g->Message, MSG(PREC_VBLP_NULL));
+    strlcpy(g->Message, MSG(PREC_VBLP_NULL), sizeof(g->Message));
 		throw (int)TYPE_ARRAY;
     } // endif Vblp
 
   bool was = Vblp->IsCi();
 
   if (was && !p) {
-    strcpy(g->Message, MSG(BAD_SET_CASE));
+    strlcpy(g->Message, MSG(BAD_SET_CASE), sizeof(g->Message));
 		throw (int)TYPE_ARRAY;
 	} // endif Vblp
 
@@ -975,13 +975,13 @@ PSZ ARRAY::MakeArrayList(PGLOBAL g)
 
   xtrc(1, "Arraylist: len=%d\n", len);
   p = (char *)PlugSubAlloc(g, NULL, len);
-  strcpy(p, "(");
+  strlcpy(p, "(", len);
 
   for (i = 0; i < Nval;) {
     Value->SetValue_pvblk(Vblp, i);
     Value->Prints(g, tp, z);
-    strcat(p, tp);
-    strcat(p, (++i == Nval) ? ")" : ",");
+    strlcat(p, tp, len);
+    strlcat(p, (++i == Nval) ? ")" : ",", len);
   } // enfor i
 
   xtrc(1, "Arraylist: newlen=%d\n", strlen(p));
@@ -1067,7 +1067,7 @@ bool MULAR::Sort(PGLOBAL g)
 
   for (n = 1; n < Narray; n++)
     if (Pars[n]->Nval != nval) {
-      strcpy(g->Message, MSG(BAD_ARRAY_VAL));
+      strlcpy(g->Message, MSG(BAD_ARRAY_VAL), sizeof(g->Message));
       return true;
       } // endif nval
 

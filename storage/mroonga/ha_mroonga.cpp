@@ -9032,13 +9032,13 @@ void ha_mroonga::push_warning_unsupported_spatial_index_search(enum ha_rkey_func
 {
   char search_name[MRN_BUFFER_SIZE];
   if (flag == HA_READ_MBR_INTERSECT) {
-    strcpy(search_name, "intersect");
+    strlcpy(search_name, "intersect", sizeof(search_name));
   } else if (flag == HA_READ_MBR_WITHIN) {
-    strcpy(search_name, "within");
+    strlcpy(search_name, "within", sizeof(search_name));
   } else if (flag & HA_READ_MBR_DISJOINT) {
-    strcpy(search_name, "disjoint");
+    strlcpy(search_name, "disjoint", sizeof(search_name));
   } else if (flag & HA_READ_MBR_EQUAL) {
-    strcpy(search_name, "equal");
+    strlcpy(search_name, "equal", sizeof(search_name));
   } else {
     sprintf(search_name, "unknown: %d", flag);
   }
@@ -9165,7 +9165,7 @@ int ha_mroonga::add_wrap_hton(const char *path, handlerton *wrap_handlerton)
   if (!wrap_hton)
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   wrap_hton->next = NULL;
-  strcpy(wrap_hton->path, path);
+  strlcpy(wrap_hton->path, path, sizeof(wrap_hton->path));
   wrap_hton->hton = wrap_handlerton;
   if (slot_data->first_wrap_hton)
   {

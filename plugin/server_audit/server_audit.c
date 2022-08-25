@@ -2523,7 +2523,7 @@ static int server_audit_init(void *p __attribute__((unused)))
   }
 
   if (gethostname(servhost, sizeof(servhost)))
-    strcpy(servhost, "unknown");
+    strlcpy(servhost, "unknown", sizeof(servhost));
 
   servhost_len= (uint)strlen(servhost);
 

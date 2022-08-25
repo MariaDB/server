@@ -221,7 +221,7 @@ PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
 		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
   } catch (const char *msg) {
-		strcpy(g->Message, msg);
+		strlcpy(g->Message, msg, sizeof(g->Message));
 	}	// end catch
 
   if (trace(1))
@@ -247,7 +247,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
     printf("CntOpenTable: tdbp=%p mode=%d\n", tdbp, mode);
 
   if (!tdbp) {
-    strcpy(g->Message, "Null tdbp");
+    strlcpy(g->Message, "Null tdbp", sizeof(g->Message));
     printf("CntOpenTable: %s\n", g->Message);
     return true;
     } // endif tdbp
@@ -358,7 +358,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
 	} catch (const char *msg) {
-		strcpy(g->Message, msg);
+		strlcpy(g->Message, msg, sizeof(g->Message));
 	} // end catch
 
   return rcop;
@@ -406,7 +406,7 @@ RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool reset, bool mrr)
 
 		rc = RC_FX;
 	} catch (const char *msg) {
-		strcpy(g->Message, msg);
+		strlcpy(g->Message, msg, sizeof(g->Message));
 		rc = RC_NF;
 	} // end catch
 
@@ -450,7 +450,7 @@ RCODE CntReadNext(PGLOBAL g, PTDB tdbp)
 	} catch (int) {
 	  rc = RC_FX;
   } catch (const char *msg) {
-	  strcpy(g->Message, msg);
+	  strlcpy(g->Message, msg, sizeof(g->Message));
 		rc = RC_FX;
   } // end catch
 
@@ -486,7 +486,7 @@ RCODE  CntWriteRow(PGLOBAL g, PTDB tdbp)
 		printf("Exception %d: %s\n", n, g->Message);
 		rc = RC_FX;
 	} catch (const char *msg) {
-		strcpy(g->Message, msg);
+		strlcpy(g->Message, msg, sizeof(g->Message));
 		rc = RC_FX;
 	} // end catch
 
@@ -602,7 +602,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
 	} catch (int) {
 		rc = RC_FX;
 	} catch (const char *msg) {
-		strcpy(g->Message, msg);
+		strlcpy(g->Message, msg, sizeof(g->Message));
 		rc = RC_FX;
 	} // end catch
 
@@ -807,7 +807,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
         n++;
         break;
       } else if (len < kp - (char*)kr->key) {
-        strcpy(g->Message, "Key buffer is too small");
+        strlcpy(g->Message, "Key buffer is too small", sizeof(g->Message));
         return RC_FX;
       } // endif len
 
@@ -936,7 +936,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
             n++;
             break;
           } else if (len[i] < (unsigned)(p - kp)) {
-            strcpy(g->Message, "Key buffer is too small");
+            strlcpy(g->Message, "Key buffer is too small", sizeof(g->Message));
             return -1;
           } // endif len
 

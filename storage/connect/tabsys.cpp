@@ -84,7 +84,7 @@ bool INIDEF::DefineAM(PGLOBAL g, LPCSTR, int)
     PlugSetPath(p, Fn, GetPath());
     Fn = p;
   } else {
-    strcpy(g->Message, MSG(MISSING_FNAME));
+    strlcpy(g->Message, MSG(MISSING_FNAME), sizeof(g->Message));
     return true;
   } // endif Fn
 
@@ -326,7 +326,7 @@ int TDBINI::DeleteDB(PGLOBAL g, int irc)
       break;
     default:
       if (!Section) {
-        strcpy(g->Message, MSG(NO_SECTION_NAME));
+        strlcpy(g->Message, MSG(NO_SECTION_NAME), sizeof(g->Message));
         return RC_FX;
       } else
         if (!WritePrivateProfileString(Section, NULL, NULL, Ifile)) {
@@ -514,7 +514,7 @@ void INICOL::WriteColumn(PGLOBAL g)
 		throw 31;
 	} else if (Flag == 1) {
     if (tdbp->Mode == MODE_UPDATE) {
-      strcpy(g->Message, MSG(NO_SEC_UPDATE));
+      strlcpy(g->Message, MSG(NO_SEC_UPDATE), sizeof(g->Message));
 			throw 31;
 		} else if (*p) {
       tdbp->Section = p;
@@ -523,7 +523,7 @@ void INICOL::WriteColumn(PGLOBAL g)
 
     return;
   } else if (!tdbp->Section) {
-    strcpy(g->Message, MSG(SEC_NAME_FIRST));
+    strlcpy(g->Message, MSG(SEC_NAME_FIRST), sizeof(g->Message));
 		throw 31;
 	} // endif's
 
@@ -752,7 +752,7 @@ int TDBXIN::DeleteDB(PGLOBAL g, int irc)
         } // endif
 
   } else if (!Section) {
-    strcpy(g->Message, MSG(NO_SECTION_NAME));
+    strlcpy(g->Message, MSG(NO_SECTION_NAME), sizeof(g->Message));
     return RC_FX;
   } else
     if (!WritePrivateProfileString(Section, Keycur, NULL, Ifile)) {
@@ -840,7 +840,7 @@ void XINCOL::WriteColumn(PGLOBAL g)
 		throw 31;
 	} else if (Flag == 1) {
     if (tdbp->Mode == MODE_UPDATE) {
-      strcpy(g->Message, MSG(NO_SEC_UPDATE));
+      strlcpy(g->Message, MSG(NO_SEC_UPDATE), sizeof(g->Message));
 			throw 31;
 		} else if (*p) {
       tdbp->Section = p;
@@ -850,7 +850,7 @@ void XINCOL::WriteColumn(PGLOBAL g)
     return;
   } else if (Flag == 2) {
     if (tdbp->Mode == MODE_UPDATE) {
-      strcpy(g->Message, MSG(NO_KEY_UPDATE));
+      strlcpy(g->Message, MSG(NO_KEY_UPDATE), sizeof(g->Message));
 			throw 31;
 		} else if (*p) {
       tdbp->Keycur = p;
@@ -859,7 +859,7 @@ void XINCOL::WriteColumn(PGLOBAL g)
 
     return;
   } else if (!tdbp->Section || !tdbp->Keycur) {
-    strcpy(g->Message, MSG(SEC_KEY_FIRST));
+    strlcpy(g->Message, MSG(SEC_KEY_FIRST), sizeof(g->Message));
 		throw 31;
 	} // endif's
 

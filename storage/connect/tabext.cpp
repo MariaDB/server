@@ -65,7 +65,7 @@ int CONDFIL::Init(PGLOBAL g, PHC hc)
 
 	while (alt) {
 		if (!(p = strchr(alt, '='))) {
-			strcpy(g->Message, "Invalid alias list");
+			strlcpy(g->Message, "Invalid alias list", sizeof(g->Message));
 			rc = RC_FX;
 			break;
 		}	// endif !p
@@ -126,8 +126,9 @@ EXTDEF::EXTDEF(void)
 bool EXTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 {
 	if (g->Createas) {
-		strcpy(g->Message,
-			"Multiple-table UPDATE/DELETE commands are not supported");
+		strlcpy(g->Message,
+			"Multiple-table UPDATE/DELETE commands are not supported",
+			sizeof(g->Message));
 		return true;
 	}	// endif multi
 
@@ -344,7 +345,7 @@ bool TDBEXT::MakeSrcdef(PGLOBAL g)
 		int n_placeholders = count_placeholders(Srcdef);
 		if (n_placeholders < 0)
 		{
-			strcpy(g->Message, "MakeSQL: Wrong place holders specification");
+			strlcpy(g->Message, "MakeSQL: Wrong place holders specification", sizeof(g->Message));
 			return true;
 		}
 
@@ -367,7 +368,7 @@ bool TDBEXT::MakeSrcdef(PGLOBAL g)
 			Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil1) + strlen(fil2));
 			Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil2, fil1));
 		} else {
-			strcpy(g->Message, "MakeSQL: Wrong place holders specification");
+			strlcpy(g->Message, "MakeSQL: Wrong place holders specification", sizeof(g->Message));
 			return true;
 		} // endif's ph
 
@@ -480,7 +481,7 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 		len += ((Mode == MODE_READX) ? 256 : 1);
 
 	if (Query->IsTruncated()) {
-		strcpy(g->Message, "MakeSQL: Out of memory");
+		strlcpy(g->Message, "MakeSQL: Out of memory", sizeof(g->Message));
 		return true;
 	} else
 		Query->Resize(len);
@@ -547,30 +548,40 @@ bool TDBEXT::MakeCommand(PGLOBAL g)
 		qrystr[i] = (Qrystr[i] == '`') ? q : tolower(Qrystr[i]);
 	} while (Qrystr[i++]);
 
+	size_t stmt_sz = 0;
 	if (To_CondFil && (p = strstr(qrystr, " where "))) {
 		p[7] = 0;           // Remove where clause
 		Qrystr[(p - qrystr) + 7] = 0;
 		body = To_CondFil->Body;
-		stmt = (char*)PlugSubAlloc(g, NULL, strlen(qrystr)
-			+ strlen(body) + 64);
-	} else
-		stmt = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 64);
+		stmt_sz = strlen(qrystr) + strlen(body) + 64;
+	} else {
+		stmt_sz = strlen(Qrystr) + 64;
+	}
+	stmt = (char*)PlugSubAlloc(g, NULL, stmt_sz);
 
 	// Check whether the table name is equal to a keyword
 	// If so, it must be quoted in the original query
-	strlwr(strcat(strcat(strcpy(name, " "), Name), " "));
+	strlcpy(name, " ", sizeof(name));
+	strlcat(name, Name, sizeof(name));
+	strlcat(name, " ", sizeof(name));
+	strlwr(name);
 
 	if (strstr(" update delete low_priority ignore quick from ", name)) {
 		if (Quote) {
-			strlwr(strcat(strcat(strcpy(name, Quote), Name), Quote));
+			strlcpy(name, Quote, sizeof(name));
+			strlcat(name, Name, sizeof(name));
+			strlcat(name, Quote, sizeof(name));
+			strlwr(name);
 			k += 2;
 		} else {
-			strcpy(g->Message, "Quoted must be specified");
+			strlcpy(g->Message, "Quoted must be specified", sizeof(g->Message));
 			return true;
 		}	// endif Quote
 
-	} else
-		strlwr(strcpy(name, Name));     // Not a keyword
+	} else {
+		strlcpy(name, Name, sizeof(name));
+		strlwr(name);     // Not a keyword
+	}
 
 	if ((p = strstr(qrystr, name))) {
 		for (i = 0; i < p - qrystr; i++)
@@ -584,21 +595,29 @@ bool TDBEXT::MakeCommand(PGLOBAL g)
 			schmp = Schema;
 
 		if (qtd && *(p - 1) == ' ') {
-			if (schmp)
-				strcat(strcat(stmt, schmp), ".");
+			if (schmp) {
+				strlcat(stmt, schmp, stmt_sz);
+				strlcat(stmt, ".", stmt_sz);
+			}
 
-			strcat(strcat(strcat(stmt, Quote), TableName), Quote);
+			strlcat(stmt, Quote, stmt_sz);
+			strlcat(stmt, TableName, stmt_sz);
+			strlcat(stmt, Quote, stmt_sz);
 		} else {
 			if (schmp) {
 				if (qtd && *(p - 1) != ' ') {
 					stmt[i - 1] = 0;
-					strcat(strcat(strcat(stmt, schmp), "."), Quote);
-				} else
-					strcat(strcat(stmt, schmp), ".");
+					strlcat(stmt, schmp, stmt_sz);
+					strlcat(stmt, ".", stmt_sz);
+					strlcat(stmt, Quote, stmt_sz);
+				} else {
+					strlcat(stmt, schmp, stmt_sz);
+					strlcat(stmt, ".", stmt_sz);
+				}
 
 			}	// endif schmp
 
-			strcat(stmt, TableName);
+			strlcat(stmt, TableName, stmt_sz);
 		} // endif's
 
 		i = (int)strlen(stmt);
@@ -610,7 +629,7 @@ bool TDBEXT::MakeCommand(PGLOBAL g)
 		RemoveConst(g, stmt);
 
 		if (body)
-			strcat(stmt, body);
+			strlcat(stmt, body, stmt_sz);
 
 	} else {
 		sprintf(g->Message, "Cannot use this %s command",

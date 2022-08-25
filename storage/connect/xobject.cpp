@@ -199,7 +199,7 @@ STRING::STRING(PGLOBAL g, uint n, PCSZ str)
 
   if ((Strp = (PSZ)PlgDBSubAlloc(g, NULL, MY_MAX(n, Length) + 1))) {
     if (str)
-      strcpy(Strp, str);
+      strlcpy(Strp, str, MY_MAX(n, Length) + 1);
     else
       *Strp = 0;
 
@@ -230,7 +230,7 @@ char *STRING::Realloc(uint len)
 
   if (!p) {
     // No more room in Sarea; this is very unlikely
-    strcpy(G->Message, "No more room in work area");
+    strlcpy(G->Message, "No more room in work area", sizeof(G->Message));
 		Trc = true;
     return NULL;
     } // endif p

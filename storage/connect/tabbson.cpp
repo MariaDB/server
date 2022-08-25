@@ -80,7 +80,7 @@ PQRYRES BSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
   } // endif info
 
   if (GetIntegerTableOption(g, topt, "Multiple", 0)) {
-    strcpy(g->Message, "Cannot find column definition for multiple table");
+    strlcpy(g->Message, "Cannot find column definition for multiple table", sizeof(g->Message));
     return NULL;
   } // endif Multiple
 
@@ -206,7 +206,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
   tdp->Uri = (dsn && *dsn ? dsn : NULL);
 
   if (!tdp->Fn && !tdp->Uri) {
-    strcpy(g->Message, MSG(MISSING_FNAME));
+    strlcpy(g->Message, MSG(MISSING_FNAME), sizeof(g->Message));
     return 0;
   } else
     topt->subtype = NULL;
@@ -318,7 +318,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 
     switch (tjnp->ReadDB(g)) {
     case RC_EF:
-      strcpy(g->Message, "Void json table");
+      strlcpy(g->Message, "Void json table", sizeof(g->Message));
     case RC_FX:
       goto err;
     default:
@@ -328,7 +328,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
   } // endif pretty
 
   if (!(row = (jsp) ? bp->GetObject(jsp) : NULL)) {
-    strcpy(g->Message, "Can only retrieve columns from object rows");
+    strlcpy(g->Message, "Can only retrieve columns from object rows", sizeof(g->Message));
     goto err;
   } // endif row
 
@@ -405,7 +405,7 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
 
   if (jvp && !bp->IsJson(jvp)) {
     if (JsonAllPath() && !fmt[bf])
-      strcat(fmt, colname);
+      strlcat(fmt, colname, sizeof(fmt));
 
     jcol.Type = (JTYP)jvp->Type;
 
@@ -439,7 +439,7 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
     jcol.Cbn = true;
   } else  if (j < lvl && !Stringified(strfy, colname)) {
     if (!fmt[bf])
-      strcat(fmt, colname);
+      strlcat(fmt, colname, sizeof(fmt));
 
     p = fmt + strlen(fmt);
     jsp = jvp;
@@ -510,11 +510,11 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
   } else if (lvl >= 0) {
     if (Stringified(strfy, colname)) {
       if (!fmt[bf])
-        strcat(fmt, colname);
+        strlcat(fmt, colname, sizeof(fmt));
 
-      strcat(fmt, ".*");
+      strlcat(fmt, ".*", sizeof(fmt));
     } else if (JsonAllPath() && !fmt[bf])
-      strcat(fmt, colname);
+      strlcat(fmt, colname, sizeof(fmt));
 
     jcol.Type = TYPE_STRG;
     jcol.Len = sz;
@@ -961,7 +961,7 @@ PVAL BCUTIL::ExpandArray(PGLOBAL g, PBVAL arp, int n)
   } // endif ars
 
   if (!(bvp = GetArrayValue(arp, (nodes[n].Rx = nodes[n].Nx)))) {
-    strcpy(g->Message, "Logical error expanding array");
+    strlcpy(g->Message, "Logical error expanding array", sizeof(g->Message));
     throw 666;
   } // endif jvp
 
@@ -1146,7 +1146,7 @@ PBVAL BCUTIL::GetRow(PGLOBAL g)
         } else if (row->Type == TYPE_JAR) {
           AddArrayValue(row, (nwr = NewVal(type)));
         } else {
-          strcpy(g->Message, "Wrong type when writing new row");
+          strlcpy(g->Message, "Wrong type when writing new row", sizeof(g->Message));
           nwr = NULL;
         } // endif's
 
@@ -1255,7 +1255,7 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
       // Allocate the parse work memory
       G = PlugInit(NULL, (size_t)Lrecl * (Pretty < 0 ? 3 : 5));
     } else {
-      strcpy(g->Message, "LRECL is not defined");
+      strlcpy(g->Message, "LRECL is not defined", sizeof(g->Message));
       return NULL;
     } // endif Lrecl
 
@@ -1295,7 +1295,7 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
       } else if (m == MODE_INSERT) {
         txfp = new(g) ZIPFAM(this);
       } else {
-        strcpy(g->Message, "UPDATE/DELETE not supported for ZIP");
+        strlcpy(g->Message, "UPDATE/DELETE not supported for ZIP", sizeof(g->Message));
         return NULL;
       } // endif's m
 #else   // !ZIP_SUPPORT
@@ -1325,10 +1325,10 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
       if (m == MODE_READ || m == MODE_ANY || m == MODE_ALTER) {
         txfp = new(g) UNZFAM(this);
       } else if (m == MODE_INSERT) {
-        strcpy(g->Message, "INSERT supported only for zipped JSON when pretty=0");
+        strlcpy(g->Message, "INSERT supported only for zipped JSON when pretty=0", sizeof(g->Message));
         return NULL;
       } else {
-        strcpy(g->Message, "UPDATE/DELETE not supported for ZIP");
+        strlcpy(g->Message, "UPDATE/DELETE not supported for ZIP", sizeof(g->Message));
         return NULL;
       } // endif's m
 #else   // !ZIP_SUPPORT
@@ -1764,7 +1764,7 @@ bool BSONCOL::CheckExpand(PGLOBAL g, int i, PSZ nm, bool b)
     Xpd = true;              // Expandable object
     Nodes[i].Op = OP_EXP;
   } else if (b) {
-    strcpy(g->Message, "Cannot expand more than one branch");
+    strlcpy(g->Message, "Cannot expand more than one branch", sizeof(g->Message));
     return true;
   } // endif Xcol
 
@@ -1975,7 +1975,7 @@ bool BSONCOL::ParseJpath(PGLOBAL g)
       if (SetArrayOptions(g, p, i, Nodes[i - 1].Key))
         return true;
       else if (Xpd && Tbp->Mode == MODE_DELETE) {
-        strcpy(g->Message, "Cannot delete expanded columns");
+        strlcpy(g->Message, "Cannot delete expanded columns", sizeof(g->Message));
         return true;
       } // endif Xpd
 
@@ -2096,7 +2096,7 @@ void BSONCOL::ReadColumn(PGLOBAL g)
 void BSONCOL::WriteColumn(PGLOBAL g)
 {
   if (Xpd && Tbp->Pretty < 2) {
-    strcpy(g->Message, "Cannot write expanded column when Pretty is not 2");
+    strlcpy(g->Message, "Cannot write expanded column when Pretty is not 2", sizeof(g->Message));
     throw 666;
   } // endif Xpd
 
@@ -2126,7 +2126,7 @@ void BSONCOL::WriteColumn(PGLOBAL g)
       char *s = Value->GetCharValue();
 
       if (!(jsp = Cp->ParseJson(g, s, strlen(s)))) {
-        strcpy(g->Message, s);
+        strlcpy(g->Message, s, sizeof(g->Message));
         throw 666;
       } // endif jsp
 
@@ -2312,7 +2312,7 @@ int TDBBSON::MakeDocument(PGLOBAL g)
       if (!a && *p && *p != '[' && !IsNum(p)) {
         // obj is a key
         if (jsp->Type != TYPE_JOB) {
-          strcpy(g->Message, "Table path does not match the json file");
+          strlcpy(g->Message, "Table path does not match the json file", sizeof(g->Message));
           return RC_FX;
         } // endif Type
 
@@ -2338,7 +2338,7 @@ int TDBBSON::MakeDocument(PGLOBAL g)
         } // endif p
 
         if (jsp->Type != TYPE_JAR) {
-          strcpy(g->Message, "Table path does not match the json file");
+          strlcpy(g->Message, "Table path does not match the json file", sizeof(g->Message));
           return RC_FX;
         } // endif Type
 
@@ -2432,7 +2432,7 @@ void TDBBSON::ResetSize(void)
 int TDBBSON::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool)
 {
   if (pxdf) {
-    strcpy(g->Message, "JSON not indexable when pretty = 2");
+    strlcpy(g->Message, "JSON not indexable when pretty = 2", sizeof(g->Message));
     return RC_FX;
   } else
     return RC_OK;

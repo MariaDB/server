@@ -378,7 +378,7 @@ int FILTER::CheckColumn(PGLOBAL g, PSQL sqlp, PXOB &p, int &ag)
       return k;
     } else if (k < 0) {
       if (!*errmsg)                        // Keep first error message
-        strcpy(errmsg, g->Message);
+        strlcpy(errmsg, g->Message, sizeof(errmsg));
 
     } else
       n += k;
@@ -386,7 +386,7 @@ int FILTER::CheckColumn(PGLOBAL g, PSQL sqlp, PXOB &p, int &ag)
     } // endfor i
 
   if (*errmsg) {
-    strcpy(g->Message, errmsg);
+    strlcpy(g->Message, errmsg, sizeof(g->Message));
     return -1;
   } else
     return n;
@@ -993,7 +993,7 @@ bool FILTER::Convert(PGLOBAL g, bool having)
         break;
       case TYPE_ARRAY:
         if ((Opc != OP_IN && !Opm) || i == 0) {
-          strcpy(g->Message, MSG(BAD_ARRAY_OPER));
+          strlcpy(g->Message, MSG(BAD_ARRAY_OPER), sizeof(g->Message));
           return TRUE;
           } // endif
 
@@ -1007,7 +1007,7 @@ bool FILTER::Convert(PGLOBAL g, bool having)
           goto TEST;             // Filter has only one argument
           } // endif i
 
-        strcpy(g->Message, MSG(VOID_FIRST_ARG));
+        strlcpy(g->Message, MSG(VOID_FIRST_ARG), sizeof(g->Message));
         return TRUE;
       } // endswitch
 
@@ -1052,7 +1052,7 @@ bool FILTER::Convert(PGLOBAL g, bool having)
     } // endif Opc
 
     if (comtype == TYPE_ERROR) {
-      strcpy(g->Message, MSG(ILL_FILTER_CONV));
+      strlcpy(g->Message, MSG(ILL_FILTER_CONV), sizeof(g->Message));
       return TRUE;
       } // endif
 
@@ -1101,7 +1101,7 @@ bool FILTER::Convert(PGLOBAL g, bool having)
 
           break;
         case TYPE_FILTER:
-          strcpy(g->Message, MSG(UNMATCH_FIL_ARG));
+          strlcpy(g->Message, MSG(UNMATCH_FIL_ARG), sizeof(g->Message));
           return TRUE;
         default:
           // Conversion from Column, Select/Func, Expr, Scalfnc...
@@ -1266,7 +1266,7 @@ bool FILTER::Eval(PGLOBAL g)
           ap = (PARRAY)Arg(1);
           break;
         default:
-          strcpy(g->Message, MSG(IN_WITHOUT_SUB));
+          strlcpy(g->Message, MSG(IN_WITHOUT_SUB), sizeof(g->Message));
           goto FilterError;
         } // endswitch Type
 
@@ -1533,7 +1533,7 @@ void FILTER::Prints(PGLOBAL g, char *ps, uint z)
               bcp->Cold[n+2] = bcp->Cold[n];
             bcp->Cold[0] = '^';
             bcp->Cold[1] = '(';
-            strcat(bcp->Cold, ")");
+            strlcat(bcp->Cold, ")", sizeof(bcp->Cold));
             break;
           default:
             for (n = MY_MIN((int)strlen(bcp->Cold), FLEN-4); n >= 0; n--)
@@ -1545,7 +1545,7 @@ void FILTER::Prints(PGLOBAL g, char *ps, uint z)
               default: bcp->Cold[1] = '?';
               } // endswitch
             bcp->Cold[2] = '(';
-            strcat(bcp->Cold, ")");
+            strlcat(bcp->Cold, ")", sizeof(bcp->Cold));
             bxp = bcp->Next;
             for (n = MY_MIN((int)strlen(bxp->Cold), FLEN-1); n >= 0; n--)
               bxp->Cold[n+1] = bxp->Cold[n];

@@ -91,11 +91,11 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char* tab, char* db, bool info)
 	/*  directories are used (to make this even remotely secure).        */
 	/*********************************************************************/
 	if (check_valid_path(module, strlen(module))) {
-		strcpy(g->Message, "Module cannot contain a path");
+		strlcpy(g->Message, "Module cannot contain a path", sizeof(g->Message));
 		return NULL;
 	}
 	else if (strlen(subtype)+1+3 >= sizeof(getname)) {
-		strcpy(g->Message, "Subtype string too long");
+		strlcpy(g->Message, "Subtype string too long", sizeof(g->Message));
 		return NULL;
 	}
 	else
@@ -118,7 +118,8 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char* tab, char* db, bool info)
 		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
 			FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
 			(LPTSTR)buf, sizeof(buf), NULL);
-		strcat(strcat(g->Message, ": "), buf);
+		strlcat(g->Message, ": ", sizeof(g->Message));
+		strlcat(g->Message, buf, sizeof(g->Message));
 		return NULL;
 	} // endif hDll
 
@@ -622,11 +623,12 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
   /*  directories are used (to make this even remotely secure).        */
   /*********************************************************************/
   if (check_valid_path(Module, strlen(Module))) {
-    strcpy(g->Message, "Module cannot contain a path");
+    strlcpy(g->Message, "Module cannot contain a path", sizeof(g->Message));
     return NULL;
   } else
 //  PlugSetPath(soname, Module, GetPluginDir());  // Crashes on Fedora
-    strncat(strcpy(soname, GetPluginDir()), Module,
+    strlcpy(soname, GetPluginDir(), sizeof(soname));
+    strncat(soname, Module,
 			sizeof(soname) - strlen(soname) - 1);
 
 #if defined(_WIN32)
@@ -641,7 +643,8 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
       FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                     FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                     (LPTSTR)buf, sizeof(buf), NULL);
-      strcat(strcat(g->Message, ": "), buf);
+	  strlcat(g->Message, ": ", sizeof(g->Message));
+      strlcat(g->Message, buf, sizeof(g->Message));
       return NULL;
       } // endif hDll
 
@@ -661,7 +664,8 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
       FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
       (LPTSTR)buf, sizeof(buf), NULL);
-    strcat(strcat(g->Message, ": "), buf);
+	strlcat(g->Message, ": ", sizeof(g->Message));
+    strlcat(g->Message, buf, sizeof(g->Message));
     FreeLibrary((HMODULE)Hdll);
     return NULL;
     } // endif getdef
@@ -810,7 +814,7 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
       else
         txfp = new(g) ZLBFAM(defp);
 #else   // !GZ_SUPPORT
-      strcpy(g->Message, "Compress not supported");
+      strlcpy(g->Message, "Compress not supported", sizeof(g->Message));
       return NULL;
 #endif  // !GZ_SUPPORT
     } else if (rfm == RECFM_VAR) {
@@ -833,7 +837,7 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
       else
         txfp = new(g) VCTFAM((PVCTDEF)defp);
 #else   // !VCT_SUPPORT
-      strcpy(g->Message, "VCT no more supported");
+      strlcpy(g->Message, "VCT no more supported", sizeof(g->Message));
       return NULL;
 #endif  // !VCT_SUPPORT
     } // endif's

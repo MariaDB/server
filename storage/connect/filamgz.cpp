@@ -86,7 +86,7 @@ int GZFAM::Zerror(PGLOBAL g)
   {
   int errnum;
 
-  strcpy(g->Message, gzerror(Zfile, &errnum));
+  strlcpy(g->Message, gzerror(Zfile, &errnum), sizeof(g->Message));
 
   if (errnum == Z_ERRNO)
 #if defined(_WIN32)
@@ -133,13 +133,13 @@ bool GZFAM::OpenTableFile(PGLOBAL g)
 
   switch (mode) {
     case MODE_READ:
-      strcpy(opmode, "r");
+      strlcpy(opmode, "r", sizeof(opmode));
       break;
     case MODE_UPDATE:
       /*****************************************************************/
       /* Updating GZ files not implemented yet.                        */
       /*****************************************************************/
-      strcpy(g->Message, MSG(UPD_ZIP_NOT_IMP));
+      strlcpy(g->Message, MSG(UPD_ZIP_NOT_IMP), sizeof(g->Message));
       return true;
     case MODE_DELETE:
       if (!Tdbp->GetNext()) {
@@ -147,7 +147,7 @@ bool GZFAM::OpenTableFile(PGLOBAL g)
         DelRows = Cardinality(g);
 
         // This will erase the entire file
-        strcpy(opmode, "w");
+        strlcpy(opmode, "w", sizeof(opmode));
 //      Block = 0;                // For ZBKFAM
 //      Last = Nrec;              // For ZBKFAM
         Tdbp->ResetSize();
@@ -158,7 +158,7 @@ bool GZFAM::OpenTableFile(PGLOBAL g)
 
       break;
     case MODE_INSERT:
-      strcpy(opmode, "a+");
+      strlcpy(opmode, "a+", sizeof(opmode));
       break;
     default:
       sprintf(g->Message, MSG(BAD_OPEN_MODE), mode);
@@ -170,13 +170,14 @@ bool GZFAM::OpenTableFile(PGLOBAL g)
   /*  Use specific zlib functions.                                     */
   /*  Treat files as binary.                                           */
   /*********************************************************************/
-  strcat(opmode, "b");
+  strlcat(opmode, "b", sizeof(opmode));
   Zfile = gzopen(PlugSetPath(filename, To_File, Tdbp->GetPath()), opmode);
 
   if (Zfile == NULL) {
     sprintf(g->Message, MSG(GZOPEN_ERROR),
             opmode, (int)errno, filename);
-    strcat(strcat(g->Message, ": "), strerror(errno));
+    strlcat(g->Message, ": ", sizeof(g->Message));
+    strlcat(g->Message, strerror(errno), sizeof(g->Message));
     return (mode == MODE_READ && errno == ENOENT)
             ? PushWarning(g, Tdbp) : true;
     } // endif Zfile
@@ -378,7 +379,7 @@ int GZFAM::WriteBuffer(PGLOBAL g)
 /***********************************************************************/
 int GZFAM::DeleteRecords(PGLOBAL g, int)
   {
-  strcpy(g->Message, MSG(NO_ZIP_DELETE));
+  strlcpy(g->Message, MSG(NO_ZIP_DELETE), sizeof(g->Message));
   return RC_FX;
   } // end of DeleteRecords
 
@@ -925,7 +926,7 @@ bool ZLBFAM::AllocateBuffer(PGLOBAL g)
 
 #if 0
   if (!Optimized && Tdbp->NeedIndexing(g)) {
-    strcpy(g->Message, MSG(NOP_ZLIB_INDEX));
+    strlcpy(g->Message, MSG(NOP_ZLIB_INDEX), sizeof(g->Message));
     return TRUE;
     } // endif indexing
 #endif // 0
@@ -992,7 +993,7 @@ bool ZLBFAM::AllocateBuffer(PGLOBAL g)
       CurBlk = Block - 1;
       CurNum = Last;
 
-      strcpy(g->Message, MSG(NO_PAR_BLK_INS));
+      strlcpy(g->Message, MSG(NO_PAR_BLK_INS), sizeof(g->Message));
       return TRUE;
     } // endif Last
 
@@ -1066,7 +1067,7 @@ bool ZLBFAM::SetPos(PGLOBAL g, int pos __attribute__((unused)))
   return true;
 #if 0 // All this must be checked
   if (pos < 0) {
-    strcpy(g->Message, MSG(INV_REC_POS));
+    strlcpy(g->Message, MSG(INV_REC_POS), sizeof(g->Message));
     return true;
     } // endif recpos
 
@@ -1154,7 +1155,7 @@ int ZLBFAM::ReadBuffer(PGLOBAL g)
     rdbuf = Zlenp;
   } else {                     // !Optimized
     if (CurBlk != OldBlk + 1) {
-      strcpy(g->Message, MSG(INV_RAND_ACC));
+      strlcpy(g->Message, MSG(INV_RAND_ACC), sizeof(g->Message));
       return RC_FX;
     } else
       Fpos = ftell(Stream);    // Used when optimizing
@@ -1274,7 +1275,7 @@ int ZLBFAM::WriteBuffer(PGLOBAL g)
 #if defined(_DEBUG)
     if (Tdbp->GetFtype() == RECFM_FIX &&
       (signed)strlen(CurLine) != Lrecl + (signed)strlen(CrLf)) {
-      strcpy(g->Message, MSG(BAD_LINE_LEN));
+      strlcpy(g->Message, MSG(BAD_LINE_LEN), sizeof(g->Message));
       Closing = TRUE;
       return RC_FX;
       } // endif Lrecl

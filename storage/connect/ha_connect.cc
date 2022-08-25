@@ -1878,7 +1878,7 @@ bool ha_connect::CheckVirtualIndex(TABLE_SHARE *s)
       rid= (fp->option_struct) ? fp->option_struct->special : NULL;
 
       if (!rid || (stricmp(rid, "ROWID") && stricmp(rid, "ROWNUM"))) {
-        strcpy(g->Message, "Invalid virtual index");
+        strlcpy(g->Message, "Invalid virtual index", sizeof(g->Message));
         return true;
         } // endif rowid
 
@@ -2024,7 +2024,7 @@ int ha_connect::OpenTable(PGLOBAL g, bool del)
       case MODE_INSERT:
       case MODE_UPDATE:
       case MODE_DELETE:
-        strcpy(g->Message, MSG(READ_ONLY));
+        strlcpy(g->Message, MSG(READ_ONLY), sizeof(g->Message));
         return HA_ERR_TABLE_READONLY;
       default:
         break;
@@ -2064,7 +2064,7 @@ int ha_connect::OpenTable(PGLOBAL g, bool del)
 
       for (field= table->field; fp= *field; field++)
         if (bitmap_is_set(map, fp->field_index)) {
-          strcpy(p, fp->field_name.str);
+          strlcpy(p, fp->field_name.str, n1);
           p+= (fp->field_name.length + 1);
           } // endif used field
 
@@ -2076,7 +2076,7 @@ int ha_connect::OpenTable(PGLOBAL g, bool del)
 
       for (field= table->field; fp= *field; field++)
         if (bitmap_is_set(ump, fp->field_index)) {
-          strcpy(p, fp->field_name.str);
+          strlcpy(p, fp->field_name.str, n1);
 
           if (part_id && bitmap_is_set(part_id, fp->field_index)) {
             // Trying to update a column used for partitioning
@@ -2151,7 +2151,7 @@ bool ha_connect::CheckColumnList(PGLOBAL g)
 			htrc("Exception %d: %s\n", n, g->Message);
 		brc= true;
 	} catch (const char *msg) {
-		strcpy(g->Message, msg);
+		strlcpy(g->Message, msg, sizeof(g->Message));
 		brc= true;
 	} // end catch
 
@@ -2521,7 +2521,7 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 	ranges[1]= (end_range && !eq_range) ? &save_end_range : NULL;
 
 	if (!ranges[0] && !ranges[1]) {
-		strcpy(g->Message, "MakeKeyWhere: No key");
+		strlcpy(g->Message, "MakeKeyWhere: No key", sizeof(g->Message));
 	  return true;
 	}	else
 		both= ranges[0] && ranges[1];
@@ -2620,7 +2620,7 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 	qry->Append(')');
 
   if ((oom= qry->IsTruncated()))
-    strcpy(g->Message, "Out of memory");
+    strlcpy(g->Message, "Out of memory", sizeof(g->Message));
 
 	dbug_tmp_restore_column_map(&table->write_set, old_map);
 	return oom;
@@ -3382,7 +3382,7 @@ const COND *ha_connect::cond_push(const COND *cond)
 			if (trace(1))
 				htrc("Exception %d: %s\n", n, g->Message);
 		} catch (const char *msg) {
-			strcpy(g->Message, msg);
+			strlcpy(g->Message, msg, sizeof(g->Message));
 		} // end catch
 
 	fin:;
@@ -3608,7 +3608,7 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT*)
 			htrc("Exception %d: %s\n", n, g->Message);
 		rc= HA_ERR_INTERNAL_ERROR;
 	} catch (const char *msg) {
-		strcpy(g->Message, msg);
+		strlcpy(g->Message, msg, sizeof(g->Message));
 		rc= HA_ERR_INTERNAL_ERROR;
 	} // end catch
 
@@ -4547,13 +4547,15 @@ static bool checkPrivileges(THD *thd, TABTYPE type, PTOS options,
 				if (!quick) {
 					char path[FN_REFLEN], dbpath[FN_REFLEN];
 
- 					strcpy(dbpath, mysql_real_data_home);
+ 					strlcpy(dbpath, mysql_real_data_home, sizeof(dbpath));
 
 					if (db)
 #if defined(_WIN32)
-						strcat(strcat(dbpath, db), "\\");
+						strlcat(dbpath, db, sizeof(dbpath));
+						strlcat(dbpath, "\\", sizeof(dbpath));
 #else   // !_WIN32
-						strcat(strcat(dbpath, db), "/");
+						strlcat(dbpath, db, sizeof(dbpath));
+						strlcat(dbpath, "/", sizeof(dbpath));
 #endif  // !_WIN32
 
 					(void)fn_format(path, options->filename, dbpath, "",
@@ -4706,7 +4708,7 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
 				break;
 			default:
         htrc("Unsupported sql_command=%d\n", thd_sql_command(thd));
-        strcpy(g->Message, "CONNECT Unsupported command");
+        strlcpy(g->Message, "CONNECT Unsupported command", sizeof(g->Message));
         my_message(ER_NOT_ALLOWED_COMMAND, g->Message, MYF(0));
         newmode= MODE_ERROR;
         break;
@@ -4764,7 +4766,7 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
         break;
       default:
         htrc("Unsupported sql_command=%d\n", thd_sql_command(thd));
-        strcpy(g->Message, "CONNECT Unsupported command");
+        strlcpy(g->Message, "CONNECT Unsupported command", sizeof(g->Message));
         my_message(ER_NOT_ALLOWED_COMMAND, g->Message, MYF(0));
         newmode= MODE_ERROR;
         break;
@@ -5019,7 +5021,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     xmod= MODE_ANY;              // For info commands
     DBUG_RETURN(rc);
 	} else if (check_privileges(thd, options, table->s->db.str)) {
-		strcpy(g->Message, "This operation requires the FILE privilege");
+		strlcpy(g->Message, "This operation requires the FILE privilege", sizeof(g->Message));
 		htrc("%s\n", g->Message);
 		DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 	} // endif check_privileges
@@ -5373,7 +5375,7 @@ bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, PCSZ host,
   else if (port && port != (signed)GetDefaultPort())
     return false;
 
-  strcpy(g->Message, "This MySQL table is defined on itself");
+  strlcpy(g->Message, "This MySQL table is defined on itself", sizeof(g->Message));
   return true;
 } // end of CheckSelf
 
@@ -5716,7 +5718,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 		} else if (topt->http) {
       if (ttp == TAB_UNDEF) {
         ttr= TAB_JSON;
-        strcpy(g->Message, "No table_type. Was set to JSON");
+        strlcpy(g->Message, "No table_type. Was set to JSON", sizeof(g->Message));
         push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, 0, g->Message);
       } else
         ttr= ttp;
@@ -5749,7 +5751,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
         case TAB_BSON:
 #endif   // BSON_SUPPORT
           if (checkPrivileges(thd, ttp, topt, db)) {
-            strcpy(g->Message, "This operation requires the FILE privilege");
+            strlcpy(g->Message, "This operation requires the FILE privilege", sizeof(g->Message));
             rc= HA_ERR_INTERNAL_ERROR;
             goto err;
           } // endif check_privileges
@@ -5765,7 +5767,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				char *p;
 
 				if (!tbl) {
-					strcpy(g->Message, "Missing table list");
+					strlcpy(g->Message, "Missing table list", sizeof(g->Message));
 					rc= HA_ERR_INTERNAL_ERROR;
 					goto err;
 				} // endif tbl
@@ -5823,7 +5825,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				if (fnc & FNC_DRIVER) {
 					ok= true;
 				} else if (!(url= strz(g, create_info->connect_string))) {
-					strcpy(g->Message, "Missing URL");
+					strlcpy(g->Message, "Missing URL", sizeof(g->Message));
 				} else {
 					// Store JDBC additional parameters
 					int      rc;
@@ -5926,7 +5928,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				if (topt->module && topt->subtype)
 					ok= true;
 				else
-					strcpy(g->Message, "Missing OEM module or subtype");
+					strlcpy(g->Message, "Missing OEM module or subtype", sizeof(g->Message));
 
 				break;
 #if defined(LIBXML2_SUPPORT) || defined(DOMDOC_SUPPORT)
@@ -5956,7 +5958,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(REST_SUPPORT)
 			case TAB_REST:
 				if (!topt->http)
-					strcpy(g->Message, "Missing REST HTTP option");
+					strlcpy(g->Message, "Missing REST HTTP option", sizeof(g->Message));
 				else
 					ok = true;
 
@@ -5978,7 +5980,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 		} // endif supfnc
 
 		if (src && fnc != FNC_NO) {
-			strcpy(g->Message, "Cannot make catalog table from srcdef");
+			strlcpy(g->Message, "Cannot make catalog table from srcdef", sizeof(g->Message));
 			ok= false;
 		} // endif src
 
@@ -6130,7 +6132,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					qrp= OEMColumns(g, topt, tab, (char*)db, fnc == FNC_COL);
 					break;
 				default:
-					strcpy(g->Message, "System error during assisted discovery");
+					strlcpy(g->Message, "System error during assisted discovery", sizeof(g->Message));
 					break;
 			} // endswitch ttp
 
@@ -6168,7 +6170,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					if (tab)
 						sprintf(g->Message, "Cannot get columns from %s", tab);
 					else
-						strcpy(g->Message, "Fail to retrieve columns");
+						strlcpy(g->Message, "Fail to retrieve columns", sizeof(g->Message));
 
 					rc= HA_ERR_INTERNAL_ERROR;
 					goto err;
@@ -6374,7 +6376,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			htrc("Exception %d: %s\n", n, g->Message);
 		rc= HA_ERR_INTERNAL_ERROR;
 	} catch (const char *msg) {
-		strcpy(g->Message, msg);
+		strlcpy(g->Message, msg, sizeof(g->Message));
 		rc= HA_ERR_INTERNAL_ERROR;
 	} // end catch
 
@@ -6400,7 +6402,7 @@ char *ha_connect::GetDBfromName(const char *name)
   if (*dbname) {
     assert(xp && xp->g);
     db= (char*)PlugSubAlloc(xp->g, NULL, strlen(dbname + 1));
-    strcpy(db, dbname);
+    strlcpy(db, dbname, strlen(dbname) + 1);
   } else
     db= NULL;
 
@@ -6532,7 +6534,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       case TAB_PIVOT:
       case TAB_OCCUR:
         if (options->srcdef) {
-          strcpy(g->Message, "Cannot check looping reference");
+          strlcpy(g->Message, "Cannot check looping reference", sizeof(g->Message));
           push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
         } else if (options->tabname) {
           if (!stricmp(options->tabname, create_info->alias.str) &&
@@ -6545,7 +6547,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
             } // endif tab
 
         } else {
-          strcpy(g->Message, "Missing object table name or definition");
+          strlcpy(g->Message, "Missing object table name or definition", sizeof(g->Message));
           my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
           DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
         } // endif tabname
@@ -6623,14 +6625,14 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
 #if !defined(DOMDOC_SUPPORT)
     if (dom) {
-      strcpy(g->Message, "MS-DOM not supported by this version");
+      strlcpy(g->Message, "MS-DOM not supported by this version", sizeof(g->Message));
       xsup= NULL;
       } // endif DomDoc
 #endif   // !DOMDOC_SUPPORT
 
 #if !defined(LIBXML2_SUPPORT)
     if (!dom) {
-      strcpy(g->Message, "libxml2 not supported by this version");
+      strlcpy(g->Message, "libxml2 not supported by this version", sizeof(g->Message));
       xsup= NULL;
       } // endif Libxml2
 #endif   // !LIBXML2_SUPPORT
@@ -6675,7 +6677,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       continue;            // This is a virtual column
 
     if (fp->flags & AUTO_INCREMENT_FLAG) {
-      strcpy(g->Message, "Auto_increment is not supported yet");
+      strlcpy(g->Message, "Auto_increment is not supported yet", sizeof(g->Message));
       my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
       rc= HA_ERR_INTERNAL_ERROR;
       DBUG_RETURN(rc);
@@ -6691,7 +6693,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
     if (type == TAB_VIR)
       if (!fp->option_struct || !fp->option_struct->special) {
-        strcpy(g->Message, "Virtual tables accept only special or virtual columns");
+        strlcpy(g->Message, "Virtual tables accept only special or virtual columns", sizeof(g->Message));
         my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
         rc= HA_ERR_INTERNAL_ERROR;
         DBUG_RETURN(rc);
@@ -6819,19 +6821,25 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     if (part_info) {
       char *p;
 
-      strcpy(dbpath, name);
+      strlcpy(dbpath, name, sizeof(dbpath));
       p= strrchr(dbpath, slash);
       strncpy(partname, ++p, sizeof(partname) - 1);
-      strcat(strcat(strcpy(buf, p), "."), lwt);
+      strlcpy(buf, p, sizeof(buf));
+	  strlcat(buf, ".", sizeof(buf));
+      strlcat(buf, lwt, sizeof(buf));
       *p= 0;
     } else {
-      strcat(strcat(strcpy(buf, GetTableName()), "."), lwt);
+      strlcpy(buf, GetTableName(), sizeof(buf));
+      strlcat(buf, ".", sizeof(buf));
+      strlcat(buf, lwt, sizeof(buf));
       sprintf(g->Message, "No file name. Table will use %s", buf);
   
       if (sqlcom == SQLCOM_CREATE_TABLE)
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
-  
-      strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
+	
+      strlcpy(dbpath, "./", sizeof(dbpath));
+	  strlcat(dbpath, table->s->db.str, sizeof(dbpath));
+      strlcat(dbpath, "/", sizeof(dbpath));
     } // endif part_info
 
     PlugSetPath(fn, buf, dbpath);
@@ -6867,8 +6875,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 			bool append= *a == '1' || *a == 'Y' || *a == 'y' || !stricmp(a, "ON");
 			PCSZ m= GetListOption(g, "Mulentries", options->oplist, "NO");
 			bool mul= *m == '1' || *m == 'Y' || *m == 'y' || !stricmp(m, "ON");
-
-			strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
+			strlcpy(dbpath, "./", sizeof(dbpath));
+			strlcat(dbpath, table->s->db.str, sizeof(dbpath));
+			strlcat(dbpath, "/", sizeof(dbpath));
 			PlugSetPath(zbuf, options->filename, dbpath);
 			PlugSetPath(buf, fn, dbpath);
 
@@ -6909,7 +6918,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         // This is an ALTER to CONNECT from another engine.
         // It cannot be accepted because the table data would be modified
         // except when the target file does not exist.
-        strcpy(g->Message, "Operation denied. Table data would be modified.");
+        strlcpy(g->Message, "Operation denied. Table data would be modified.", sizeof(g->Message));
         my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
         DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
       } // endif part_info
@@ -6919,11 +6928,11 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     // Get the index definitions
     if ((xdp= GetIndexInfo()) || sqlcom == SQLCOM_DROP_INDEX) {
       if (options->multiple) {
-        strcpy(g->Message, "Multiple tables are not indexable");
+        strlcpy(g->Message, "Multiple tables are not indexable", sizeof(g->Message));
         my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
         rc= HA_ERR_UNSUPPORTED;
       } else if (options->compressed) {
-        strcpy(g->Message, "Compressed tables are not indexable");
+        strlcpy(g->Message, "Compressed tables are not indexable", sizeof(g->Message));
         my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
         rc= HA_ERR_UNSUPPORTED;
       } else if (GetIndexType(type) == 1) {
@@ -7005,10 +7014,13 @@ bool ha_connect::FileExists(const char *fn, bool bf)
       // test on check_table_flags made in ha_partition::open
       // that can fail if some partition files are empty.
       b= true;
-    } else
-      strcpy(tfn, fn);
+    } else 
+      strlcpy(tfn, fn, sizeof(tfn));
 
-    strcat(strcat(strcat(strcpy(path, "."), s), table->s->db.str), s);
+    strlcpy(path, ".", sizeof(path));
+    strlcat(path, s, sizeof(path));
+    strlcat(path, table->s->db.str, sizeof(path));
+    strlcat(path, s, sizeof(path));
     PlugSetPath(filename, tfn, path);
     n= stat(filename, &info);
 
@@ -7204,11 +7216,11 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
       !SameString(altered_table, "optname") ||
       !SameBool(altered_table, "sepindex")) {
     if (newopt->multiple) {
-      strcpy(g->Message, "Multiple tables are not indexable");
+      strlcpy(g->Message, "Multiple tables are not indexable", sizeof(g->Message));
       my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
       DBUG_RETURN(HA_ALTER_ERROR);
     } else if (newopt->compressed) {
-      strcpy(g->Message, "Compressed tables are not indexable");
+      strlcpy(g->Message, "Compressed tables are not indexable", sizeof(g->Message));
       my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
       DBUG_RETURN(HA_ALTER_ERROR);
     } else if (GetIndexType(type) == 1) {
@@ -7259,7 +7271,7 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
       tshp= NULL;
 
       if (FileExists(fn, false)) {
-        strcpy(g->Message, "Operation denied. Table data would be lost.");
+        strlcpy(g->Message, "Operation denied. Table data would be lost.", sizeof(g->Message));
         my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
         DBUG_RETURN(HA_ALTER_ERROR);
       } else

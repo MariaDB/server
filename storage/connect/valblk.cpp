@@ -40,6 +40,8 @@
 #include "plgdbsem.h"
 #include "valblk.h"
 
+#include "m_string.h"
+
 #define CheckBlanks      assert(!Blanks);
 #define CheckParms(V, N) ChkIndx(N); ChkTyp(V);
 
@@ -207,7 +209,7 @@ void VALBLK::ChkIndx(int n)
   if (n < 0 || n >= Nval) {
     PGLOBAL& g = Global;
 		xtrc(1, "ChkIndx: n=%d Nval=%d\n", n, Nval);
-    strcpy(g->Message, MSG(BAD_VALBLK_INDX));
+    strlcpy(g->Message, MSG(BAD_VALBLK_INDX), sizeof(g->Message));
 		throw Type;
 	} // endif n
 
@@ -218,7 +220,7 @@ void VALBLK::ChkTyp(PVAL v)
   if (Check && (Type != v->GetType() || Unsigned != v->IsUnsigned())) {
     PGLOBAL& g = Global;
 		xtrc(1, "ChkTyp: Type=%d valType=%d\n", Type, v->GetType());
-		strcpy(g->Message, MSG(VALTYPE_NOMATCH));
+		strlcpy(g->Message, MSG(VALTYPE_NOMATCH), sizeof(g->Message));
 		throw Type;
 	} // endif Type
 
@@ -228,7 +230,7 @@ void VALBLK::ChkTyp(PVBLK vb)
   {
   if (Check && (Type != vb->GetType() || Unsigned != vb->IsUnsigned())) {
     PGLOBAL& g = Global;
-    strcpy(g->Message, MSG(VALTYPE_NOMATCH));
+    strlcpy(g->Message, MSG(VALTYPE_NOMATCH), sizeof(g->Message));
 		throw Type;
 	} // endif Type
 
@@ -344,7 +346,7 @@ void TYPBLK<TYPE>::SetValue(PCSZ p, int n)
 
   if (Check) {
     PGLOBAL& g = Global;
-    strcpy(g->Message, MSG(BAD_SET_STRING));
+    strlcpy(g->Message, MSG(BAD_SET_STRING), sizeof(g->Message));
 		throw Type;
 	} // endif Check
 
@@ -394,7 +396,7 @@ void TYPBLK<double>::SetValue(PCSZ p, int n)
 
   if (Check) {
     PGLOBAL& g = Global;
-    strcpy(g->Message, MSG(BAD_SET_STRING));
+    strlcpy(g->Message, MSG(BAD_SET_STRING), sizeof(g->Message));
 		throw Type;
 	} // endif Check
 
@@ -796,7 +798,7 @@ void CHRBLK::SetValue(const char *sp, uint len, int n)
 #if defined(_DEBUG)
   if (Check && (signed)len > Long) {
     PGLOBAL& g = Global;
-    strcpy(g->Message, MSG(SET_STR_TRUNC));
+    strlcpy(g->Message, MSG(SET_STR_TRUNC), sizeof(g->Message));
 		throw Type;
 	} // endif Check
 #endif   // _DEBUG
@@ -824,7 +826,7 @@ void CHRBLK::SetValue(PVBLK pv, int n1, int n2)
 
   if (Type != pv->GetType() || Long != ((CHRBLK*)pv)->Long) {
     PGLOBAL& g = Global;
-    strcpy(g->Message, MSG(BLKTYPLEN_MISM));
+    strlcpy(g->Message, MSG(BLKTYPLEN_MISM), sizeof(g->Message));
 		throw Type;
 	} // endif Type
 
@@ -875,7 +877,7 @@ void CHRBLK::SetValues(PVBLK pv, int k, int n)
 #if defined(_DEBUG)
   if (Type != pv->GetType() || Long != ((CHRBLK*)pv)->Long) {
     PGLOBAL& g = Global;
-    strcpy(g->Message, MSG(BLKTYPLEN_MISM));
+    strlcpy(g->Message, MSG(BLKTYPLEN_MISM), sizeof(g->Message));
 		throw Type;
 	} // endif Type
 #endif   // _DEBUG

@@ -90,6 +90,8 @@ extern char *msg_path;
 char *msglang(void);
 #endif   // XMSG
 
+#include "m_string.h"
+
 /***********************************************************************/
 /*                Local Definitions and static variables               */
 /***********************************************************************/
@@ -166,7 +168,7 @@ PGLOBAL PlugInit(LPCSTR Language, size_t worksize)
 	g->N = 0;
 	g->More = 0;
 	g->Saved_Size = 0;
-	strcpy(g->Message, "");
+	strlcpy(g->Message, "", sizeof(g->Message));
 
 	/*******************************************************************/
 	/*  Allocate the main work segment.                                */
@@ -174,7 +176,7 @@ PGLOBAL PlugInit(LPCSTR Language, size_t worksize)
 	if (worksize && AllocSarea(g, worksize)) {
 		char errmsg[MAX_STR];
 		snprintf(errmsg, sizeof(errmsg) - 1, MSG(WORK_AREA), g->Message);
-		strcpy(g->Message, errmsg);
+		strlcpy(g->Message, errmsg, sizeof(g->Message));
 	} // endif Sarea
 
 	g->jump_level = -1;   /* New setting to allow recursive call of Plug */
@@ -304,13 +306,13 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
   if (defpath) {
     char c = defpath[strlen(defpath) - 1];
 
-    strcpy(tmpdir, defpath);
+    strlcpy(tmpdir, defpath, sizeof(tmpdir));
 
     if (c != '/' && c != '\\')
-      strcat(tmpdir, "/");
+      strlcat(tmpdir, "/", sizeof(tmpdir));
 
   } else
-    strcpy(tmpdir, "./");
+    strlcpy(tmpdir, "./", sizeof(tmpdir));
 
   _splitpath(tmpdir, defdrv, defdir, NULL, NULL);
 
@@ -329,14 +331,15 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
 
   switch (*direc) {
     case '\0':
-      strcpy(direc, defdir);
+      strlcpy(direc, defdir, sizeof(direc));
       break;
     case '\\':
     case '/':
       break;
     default:
       // This supposes that defdir ends with a SLASH
-      strcpy(direc, strcat(defdir, direc));
+	  strlcat(defdir, direc, sizeof(defdir));
+      strlcpy(direc, defdir, sizeof(direc));
     } // endswitch
 
   _makepath(newname, drive, direc, fname, ftype);
@@ -367,7 +370,8 @@ char *PlugReadMessage(PGLOBAL g, int mid, char *m)
 //GetPrivateProfileString("Message", msglang, "Message\\english.msg",
 //                                   msgfile, _MAX_PATH, plgini);
 //strcat(strcat(strcpy(msgfile, msg_path), msglang()), ".msg");
-  strcat(strcpy(buff, msglang()), ".msg");
+  strlcpy(buff, msglang(), sizeof(buff));
+  strlcat(buff, ".msg", sizeof(buff));
   PlugSetPath(msgfile, NULL, buff, msg_path);
 
   if (!(mfile = fopen(msgfile, "rt"))) {
@@ -395,7 +399,7 @@ char *PlugReadMessage(PGLOBAL g, int mid, char *m)
 
   if (m && strcmp(m, msgid)) {
     // Message file is out of date
-    strcpy(stmsg, m);
+    strlcpy(stmsg, m, sizeof(stmsg));
     goto fin;
     } // endif m
 
@@ -606,7 +610,7 @@ char *PlugDup(PGLOBAL g, const char *str)
   if (str) {
     char *sm = (char*)PlugSubAlloc(g, NULL, strlen(str) + 1);
 
-    strcpy(sm, str);
+    strlcpy(sm, str, strlen(str) + 1);
     return sm;
   } else
     return NULL;

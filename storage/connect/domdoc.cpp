@@ -281,7 +281,7 @@ char *DOMNODE::GetName(PGLOBAL g)
   {
   if (!WideCharToMultiByte(CP_ACP, 0, Nodep->nodeName, -1,
                            Name, sizeof(Name), NULL, NULL)) {
-    strcpy(g->Message, MSG(NAME_CONV_ERR));
+    strlcpy(g->Message, MSG(NAME_CONV_ERR), sizeof(g->Message));
     return NULL;
     } // endif
 
@@ -642,7 +642,7 @@ bool DOMNODELIST::DropItem(PGLOBAL g, int n)
 	if (Listp == NULL || Listp->length < n)
 		return true;
 
-//Listp->item[n] = NULL;  La propriété n'a pas de méthode 'set'
+//Listp->item[n] = NULL;  La propriï¿½tï¿½ n'a pas de mï¿½thode 'set'
   return false;
 }  // end of DeleteItem
 
@@ -669,7 +669,7 @@ char *DOMATTR::GetName(PGLOBAL g)
   {
   if (!WideCharToMultiByte(CP_ACP, 0, Atrp->nodeName, -1,
                            Name, sizeof(Name), NULL, NULL)) {
-    strcpy(g->Message, MSG(NAME_CONV_ERR));
+    strlcpy(g->Message, MSG(NAME_CONV_ERR), sizeof(g->Message));
     return NULL;
     } // endif
 

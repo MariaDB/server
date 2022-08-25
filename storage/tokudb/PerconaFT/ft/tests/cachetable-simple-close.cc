@@ -194,14 +194,14 @@ static void test_multiple_cachefiles(bool use_same_hash) {
         toku_cachetable_create(&ct, test_limit, ZERO_LSN, nullptr);
 
         char fname1[strlen(TOKU_TEST_FILENAME) + sizeof("_1")];    
-        strcpy(fname1, TOKU_TEST_FILENAME);
-        strcat(fname1, "_1");
+        strlcpy(fname1, TOKU_TEST_FILENAME, sizeof(fname1));
+        strlcat(fname1, "_1", sizeof(fname1));
         char fname2[strlen(TOKU_TEST_FILENAME) + sizeof("_2")];    
-        strcpy(fname2, TOKU_TEST_FILENAME);
-        strcat(fname2, "_2");
+        strlcpy(fname2, TOKU_TEST_FILENAME, sizeof(fname2));
+        strlcat(fname2, "_2", sizeof(fname2));
         char fname3[strlen(TOKU_TEST_FILENAME) + sizeof("_3")];    
-        strcpy(fname3, TOKU_TEST_FILENAME);
-        strcat(fname3, "_3");
+        strlcpy(fname3, TOKU_TEST_FILENAME, sizeof(fname3));
+        strlcat(fname3, "_3", sizeof(fname3));
 
         unlink(fname1);
         unlink(fname2);

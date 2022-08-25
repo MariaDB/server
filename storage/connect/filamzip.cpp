@@ -151,7 +151,7 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 	/*********************************************************************/
 	/*  pat is a multiple file name with wildcard characters             */
 	/*********************************************************************/
-	strcpy(filename, pat);
+	strlcpy(filename, pat, sizeof(filename));
 
 #if defined(_WIN32)
 	int  rc;
@@ -173,7 +173,7 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 			sprintf(g->Message, MSG(BAD_FILE_HANDLE), filename);
 			return true;
 		} else {
-			strcpy(g->Message, "Cannot find any file to load");
+			strlcpy(g->Message, "Cannot find any file to load", sizeof(g->Message));
 			return true;
 		}	// endif rc
 
@@ -181,7 +181,9 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 
 	while (true) {
 		if (!(FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-			strcat(strcat(strcpy(filename, drive), direc), FileData.cFileName);
+			strlcpy(filename, drive, sizeof(filename));
+			strlcat(filename, direc, sizeof(filename));
+			strlcat(filename, FileData.cFileName, sizeof(filename));
 
 			if (ZipFile(g, zutp, filename, FileData.cFileName, buf)) {
 				FindClose(hSearch);
@@ -206,7 +208,7 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 
 	// Close the search handle.
 	if (!FindClose(hSearch)) {
-		strcpy(g->Message, MSG(SRCH_CLOSE_ERR));
+		strlcpy(g->Message, MSG(SRCH_CLOSE_ERR), sizeof(g->Message));
 		return true;
 	} // endif FindClose
 
@@ -217,7 +219,7 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 	struct dirent *entry;
 
 	_splitpath(filename, NULL, direc, pattern, ftype);
-	strcat(pattern, ftype);
+	strlcat(pattern, ftype, sizeof(pattern));
 
 	// Start searching files in the target directory.
 	if (!(dir = opendir(direc))) {
@@ -226,7 +228,8 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 	} // endif dir
 
 	while ((entry = readdir(dir))) {
-		strcat(strcpy(fn, direc), entry->d_name);
+		strlcpy(fn, direc, sizeof(fn));
+		strlcat(fn, entry->d_name, sizeof(fn));
 
 		if (lstat(fn, &fileinfo) < 0) {
 			sprintf(g->Message, "%s: %s", fn, strerror(errno));
@@ -239,8 +242,8 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 		/*******************************************************************/
 		if (fnmatch(pattern, entry->d_name, 0))
 			continue;      // Not a match
-
-		strcat(strcpy(filename, direc), entry->d_name);
+		strlcpy(filename, direc, sizeof(filename));
+		strlcat(filename, entry->d_name, sizeof(filename));
 
 		if (ZipFile(g, zutp, filename, entry->d_name, buf)) {
 			closedir(dir);
@@ -400,7 +403,7 @@ bool ZIPUTIL::OpenTable(PGLOBAL g, MODE mode, PCSZ fn, bool append)
 			return true;
 
 	} else {
-		strcpy(g->Message, "Only INSERT mode supported for ZIPPING files");
+		strlcpy(g->Message, "Only INSERT mode supported for ZIPPING files", sizeof(g->Message));
 		return true;
 	}	// endif mode
 
@@ -608,7 +611,7 @@ int UNZIPUTL::findEntry(PGLOBAL g, bool next)
 		next = true;
 	} while (true);
 
-	strcpy(g->Message, "FindNext logical error");
+	strlcpy(g->Message, "FindNext logical error", sizeof(g->Message));
 	return RC_FX;
 }	// end of FindEntry
 
@@ -701,7 +704,7 @@ bool UNZIPUTL::OpenTable(PGLOBAL g, MODE mode, PCSZ fn)
 			return true;
 
 	} else {
-		strcpy(g->Message, "Only READ mode supported for ZIPPED tables");
+		strlcpy(g->Message, "Only READ mode supported for ZIPPED tables", sizeof(g->Message));
 		return true;
 	}	// endif mode
 
@@ -753,7 +756,7 @@ bool UNZIPUTL::openEntry(PGLOBAL g)
 	try {
 		memory = new char[size + 1];
 	} catch (...) {
-		strcpy(g->Message, "Out of memory");
+		strlcpy(g->Message, "Out of memory", sizeof(g->Message));
 		return true;
 	} // end try/catch
 
@@ -1128,16 +1131,16 @@ int UZDFAM::dbfhead(PGLOBAL g, void* buf)
 
 	// Check first byte to be sure of .dbf type
 	if ((hdrp->Version & 0x03) != DBFTYPE) {
-		strcpy(g->Message, MSG(NOT_A_DBF_FILE));
+		strlcpy(g->Message, MSG(NOT_A_DBF_FILE), sizeof(g->Message));
 		rc = RC_INFO;
 
 		if ((hdrp->Version & 0x30) == 0x30) {
-			strcpy(g->Message, MSG(FOXPRO_FILE));
+			strlcpy(g->Message, MSG(FOXPRO_FILE), sizeof(g->Message));
 			dbc = 264;             // FoxPro database container
 		} // endif Version
 
 	} else
-		strcpy(g->Message, MSG(DBASE_FILE));
+		strlcpy(g->Message, MSG(DBASE_FILE), sizeof(g->Message));
 
 	// Check last byte(s) of header
 	endmark = (char*)hdrp + hdrp->Headlen() - dbc;
@@ -1302,13 +1305,13 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 	if (len < 0)
 		return true;
 	else if (!append && len > 0) {
-		strcpy(g->Message, "No insert into existing zip file");
+		strlcpy(g->Message, "No insert into existing zip file", sizeof(g->Message));
 		return true;
 	} else if (append && len > 0) {
 		UNZIPUTL *zutp = new(g) UNZIPUTL(target, NULL, false);
 
 		if (!zutp->IsInsertOk(g, filename)) {
-			strcpy(g->Message, "No insert into existing entry");
+			strlcpy(g->Message, "No insert into existing entry", sizeof(g->Message));
 			return true;
 		}	// endif Ok
 
@@ -1335,7 +1338,7 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 /***********************************************************************/
 int ZIPFAM::ReadBuffer(PGLOBAL g)
 {
-	strcpy(g->Message, "ReadBuffer should not been called when zipping");
+	strlcpy(g->Message, "ReadBuffer should not been called when zipping", sizeof(g->Message));
 	return RC_FX;
 } // end of ReadBuffer
 
@@ -1386,13 +1389,13 @@ bool ZPXFAM::OpenTableFile(PGLOBAL g)
 	if (len < 0)
 		return true;
 	else if (!append && len > 0) {
-		strcpy(g->Message, "No insert into existing zip file");
+		strlcpy(g->Message, "No insert into existing zip file", sizeof(g->Message));
 		return true;
 	} else if (append && len > 0) {
 		UNZIPUTL *zutp = new(g) UNZIPUTL(target, NULL, false);
 
 		if (!zutp->IsInsertOk(g, filename)) {
-			strcpy(g->Message, "No insert into existing entry");
+			strlcpy(g->Message, "No insert into existing entry", sizeof(g->Message));
 			return true;
 		}	// endif Ok
 

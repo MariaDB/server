@@ -4112,8 +4112,8 @@ row_merge_file_create_low(
 	static const char label[] = "/Innodb Merge Temp File";
 	char* name = static_cast<char*>(
 		ut_malloc_nokey(strlen(path) + sizeof label));
-	strcpy(name, path);
-	strcat(name, label);
+	strlcpy(name, path,strlen(path) + sizeof label);
+	strlcat(name, label, strlen(path) + sizeof label);
 
 	register_pfs_file_open_begin(
 		&state, locker, innodb_temp_file_key,
