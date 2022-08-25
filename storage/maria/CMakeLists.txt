@@ -132,7 +132,7 @@ SET(CPACK_RPM_s3-engine_PACKAGE_DESCRIPTION "The S3 storage engine allows one to
 
 IF(TARGET s3)
   MYSQL_ADD_EXECUTABLE(aria_s3_copy aria_s3_copy.cc ${S3_SOURCES} COMPONENT s3-engine)
-  TARGET_LINK_LIBRARIES(aria_s3_copy aria myisam mysys mysys_ssl curl z)
+  TARGET_LINK_LIBRARIES(aria_s3_copy aria myisam mysys mysys_ssl ${CURL_LIBRARIES} ${ZLIB_LIBRARY})
   INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/libmarias3)
   ADD_DEFINITIONS(-DWITH_S3_STORAGE_ENGINE)
 ENDIF()
