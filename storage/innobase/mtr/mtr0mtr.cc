@@ -1599,8 +1599,10 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
 
   if (is_logged())
   {
-    m_memo.for_each_block_in_reverse
-      (CIterate<MarkFreed>((MarkFreed{{space.id, offset}})));
+    CIterate<MarkFreed> mf{MarkFreed{{space.id, offset}}};
+    m_memo.for_each_block_in_reverse(mf);
+    if (mf.functor.freed && !m_made_dirty)
+      m_made_dirty= is_block_dirtied(mf.functor.freed);
     m_log.close(log_write<FREE_PAGE>({space.id, offset}, nullptr));
   }
 }
