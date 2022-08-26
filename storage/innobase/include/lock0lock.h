@@ -66,32 +66,35 @@ after an aborted CREATE INDEX operation.
 @param index   a stale index on which ADD INDEX operation was aborted */
 ATTRIBUTE_COLD void lock_discard_for_index(const dict_index_t &index);
 
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /*************************************************************//**
 Updates the lock table when we have reorganized a page. NOTE: we copy
 also the locks set on the infimum of the page; the infimum may carry
 locks if an update of a record is occurring on the page, and its locks
 were temporarily stored on the infimum. */
-void
+dberr_t
 lock_move_reorganize_page(
 /*======================*/
 	const buf_block_t*	block,	/*!< in: old index page, now
 					reorganized */
 	const buf_block_t*	oblock);/*!< in: copy of the old, not
 					reorganized page */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /*************************************************************//**
 Moves the explicit locks on user records to another page if a record
 list end is moved to another page. */
-void
+dberr_t
 lock_move_rec_list_end(
 /*===================*/
 	const buf_block_t*	new_block,	/*!< in: index page to move to */
 	const buf_block_t*	block,		/*!< in: index page */
 	const rec_t*		rec);		/*!< in: record on page: this
 						is the first record moved */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /*************************************************************//**
 Moves the explicit locks on user records to another page if a record
 list start is moved to another page. */
-void
+dberr_t
 lock_move_rec_list_start(
 /*=====================*/
 	const buf_block_t*	new_block,	/*!< in: index page to move to */
@@ -104,16 +107,18 @@ lock_move_rec_list_start(
 						record on new_page
 						before the records
 						were copied */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /*************************************************************//**
 Updates the lock table when a page is split to the right. */
-void
+dberr_t
 lock_update_split_right(
 /*====================*/
 	const buf_block_t*	right_block,	/*!< in: right page */
 	const buf_block_t*	left_block);	/*!< in: left page */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /*************************************************************//**
 Updates the lock table when a page is merged to the right. */
-void
+dberr_t
 lock_update_merge_right(
 /*====================*/
 	const buf_block_t*	right_block,	/*!< in: right page to
@@ -125,18 +130,22 @@ lock_update_merge_right(
 	const buf_block_t*	left_block);	/*!< in: merged index
 						page which will be
 						discarded */
+MY_ATTRIBUTE((warn_unused_result))
 /** Update locks when the root page is copied to another in
 btr_root_raise_and_insert(). Note that we leave lock structs on the
 root page, even though they do not make sense on other than leaf
 pages: the reason is that in a pessimistic update the infimum record
 of the root page will act as a dummy carrier of the locks of the record
 to be updated. */
-void lock_update_root_raise(const buf_block_t &block, const page_id_t root);
+dberr_t lock_update_root_raise(const buf_block_t &block, const page_id_t root);
+MY_ATTRIBUTE((warn_unused_result))
 /** Update the lock table when a page is copied to another.
 @param new_block  the target page
 @param old        old page (not index root page) */
-void lock_update_copy_and_discard(const buf_block_t &new_block, page_id_t old);
+dberr_t lock_update_copy_and_discard(const buf_block_t &new_block,
+                                     page_id_t old);
 
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /** Update gap locks between the last record of the left_block and the
 first record of the right_block when a record is about to be inserted
 at the start of the right_block, even though it should "naturally" be
@@ -169,25 +178,28 @@ insertion, and there's no correctness requirement to avoid waking them
 up too soon.
 @param left_block   left page
 @param right_block  right page */
-void lock_update_node_pointer(const buf_block_t *left_block,
-                              const buf_block_t *right_block);
+dberr_t lock_update_node_pointer(const buf_block_t *left_block,
+                                 const buf_block_t *right_block);
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /*************************************************************//**
 Updates the lock table when a page is split to the left. */
-void
+dberr_t
 lock_update_split_left(
 /*===================*/
 	const buf_block_t*	right_block,	/*!< in: right page */
 	const buf_block_t*	left_block);	/*!< in: left page */
+MY_ATTRIBUTE((warn_unused_result))
 /** Update the lock table when a page is merged to the left.
 @param left      left page
 @param orig_pred original predecessor of supremum on the left page before merge
 @param right     merged, to-be-discarded right page */
-void lock_update_merge_left(const buf_block_t& left, const rec_t *orig_pred,
-                            const page_id_t right);
+dberr_t lock_update_merge_left(const buf_block_t& left, const rec_t *orig_pred,
+                               const page_id_t right);
 
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /** Update the locks when a page is split and merged to two pages,
 in defragmentation. */
-void lock_update_split_and_merge(
+dberr_t lock_update_split_and_merge(
 	const buf_block_t* left_block,	/*!< in: left page to which merged */
 	const rec_t* orig_pred,		/*!< in: original predecessor of
 					supremum on the left page before merge*/
@@ -219,9 +231,10 @@ lock_update_discard(
 						which will inherit the locks */
 	const buf_block_t*	block);		/*!< in: index page
 						which will be discarded */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /*************************************************************//**
 Updates the lock table when a new user record is inserted. */
-void
+dberr_t
 lock_update_insert(
 /*===============*/
 	const buf_block_t*	block,	/*!< in: buffer block containing rec */
@@ -1223,6 +1236,7 @@ lock_rec_create_low(
 	trx_t*		trx,
 	bool		holds_trx_mutex);
 
+MY_ATTRIBUTE((nonnull(1,4,6,7), warn_unused_result))
 /** Enqueue a waiting request for a lock which cannot be granted immediately.
 Check for deadlocks.
 @param[in]	c_lock		conflicting lock
@@ -1240,7 +1254,8 @@ Check for deadlocks.
 @param[in,out]	thr		query thread
 @param[in]	prdt		minimum bounding box (spatial index)
 @retval	DB_LOCK_WAIT		if the waiting lock was enqueued
-@retval	DB_DEADLOCK		if this transaction was chosen as the victim */
+@retval	DB_DEADLOCK		if this transaction was chosen as the victim
+@retval DB_LOCK_TABLE_FULL      when running out of memory */
 dberr_t
 lock_rec_enqueue_waiting(
 	lock_t*			c_lock,
@@ -1251,10 +1266,11 @@ lock_rec_enqueue_waiting(
 	dict_index_t*		index,
 	que_thr_t*		thr,
 	lock_prdt_t*		prdt);
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /*************************************************************//**
 Moves the explicit locks on user records to another page if a record
 list start is moved to another page. */
-void
+dberr_t
 lock_rtr_move_rec_list(
 /*===================*/
 	const buf_block_t*	new_block,	/*!< in: index page to

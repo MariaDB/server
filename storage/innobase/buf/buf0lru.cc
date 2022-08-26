@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -326,17 +326,6 @@ static void buf_LRU_check_size_of_non_data_objects()
 
   const auto s= UT_LIST_GET_LEN(buf_pool.free) + UT_LIST_GET_LEN(buf_pool.LRU);
 
-  if (s < buf_pool.curr_size / 20)
-    ib::fatal() << "Over 95 percent of the buffer pool is"
-            " occupied by lock heaps"
-#ifdef BTR_CUR_HASH_ADAPT
-            " or the adaptive hash index"
-#endif /* BTR_CUR_HASH_ADAPT */
-            "! Check that your transactions do not set too many"
-            " row locks, or review if innodb_buffer_pool_size="
-                << (buf_pool.curr_size >> (20U - srv_page_size_shift))
-                << "M could be bigger.";
-
   if (s < buf_pool.curr_size / 3)
   {
     if (!buf_lru_switched_on_innodb_mon && srv_monitor_timer)
@@ -389,7 +378,8 @@ we put it to free list to be used.
   * scan LRU list even if buf_pool.try_LRU_scan is not set
 
 @param have_mutex  whether buf_pool.mutex is already being held
-@return the free control block, in state BUF_BLOCK_MEMORY */
+@return the free control block, in state BUF_BLOCK_MEMORY
+@retval nullptr if no block is available (buf_pool.mutex will be released) */
 buf_block_t *buf_LRU_get_free_block(bool have_mutex)
 {
 	ulint		n_iterations	= 0;
@@ -452,8 +442,10 @@ not_found:
 #endif
 	mysql_mutex_unlock(&buf_pool.mutex);
 
-	if (n_iterations > 20 && !buf_lru_free_blocks_error_printed
-	    && srv_buf_pool_old_size == srv_buf_pool_size) {
+	if (n_iterations <= 20) {
+	} else if (buf_lru_free_blocks_error_printed) {
+		return nullptr;
+	} else if (srv_buf_pool_old_size == srv_buf_pool_size) {
 
 		ib::warn() << "Difficult to find free blocks in the buffer pool"
 			" (" << n_iterations << " search iterations)! "

@@ -4406,10 +4406,14 @@ page_zip_reorganize(
 	MEM_CHECK_DEFINED(buf_block_get_page_zip(block)->data,
 			  page_zip_get_size(buf_block_get_page_zip(block)));
 
+	temp_block = buf_LRU_get_free_block(false);
+	if (UNIV_UNLIKELY(!temp_block)) {
+		return DB_OUT_OF_MEMORY;
+	}
+
 	/* Disable logging */
 	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
 
-	temp_block = buf_block_alloc();
 	btr_search_drop_page_hash_index(block);
 	temp_page = temp_block->page.frame;
 
@@ -4481,7 +4485,7 @@ page_zip_reorganize(
 
 		err = DB_FAIL;
 	} else {
-		lock_move_reorganize_page(block, temp_block);
+		err = lock_move_reorganize_page(block, temp_block);
 	}
 
 	buf_block_free(temp_block);

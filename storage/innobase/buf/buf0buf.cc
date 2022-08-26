@@ -2587,6 +2587,14 @@ ignore_block:
 		}
 
 		buf_block_t *new_block = buf_LRU_get_free_block(false);
+		if (UNIV_UNLIKELY(!new_block)) {
+			block->page.lock.x_unlock();
+			if (err) {
+				*err = DB_OUT_OF_MEMORY;
+			}
+			return nullptr;
+		}
+
 		buf_block_init_low(new_block);
 
 wait_for_unfix:
@@ -2891,15 +2899,10 @@ buf_page_get_gen(
 	dberr_t*		err,
 	bool			allow_ibuf_merge)
 {
-  if (buf_block_t *block= recv_sys.recover(page_id))
+  if (buf_block_t *block= recv_sys.recover(page_id, err))
   {
     if (UNIV_UNLIKELY(block == reinterpret_cast<buf_block_t*>(-1)))
-    {
-    corrupted:
-      if (err)
-        *err= DB_CORRUPTION;
       return nullptr;
-    }
     /* Recovery is a special case; we fix() before acquiring lock. */
     auto s= block->page.fix();
     ut_ad(s >= buf_page_t::FREED);
@@ -2915,7 +2918,9 @@ buf_page_get_gen(
     got_freed_page:
       ut_ad(mode == BUF_GET_POSSIBLY_FREED || mode == BUF_PEEK_IF_IN_POOL);
       block->page.unfix();
-      goto corrupted;
+      if (err)
+        *err= DB_CORRUPTION;
+      return nullptr;
     }
     else if (must_merge &&
              fil_page_get_type(block->page.frame) == FIL_PAGE_INDEX &&

@@ -1319,18 +1319,10 @@ sel_set_rec_lock(
 	que_thr_t*		thr,	/*!< in: query thread */
 	mtr_t*			mtr)	/*!< in: mtr */
 {
-	trx_t*			trx;
 	dberr_t			err = DB_SUCCESS;
 	const buf_block_t*	block;
 
 	block = btr_pcur_get_block(pcur);
-
-	trx = thr_get_trx(thr);
-
-	if (UT_LIST_GET_LEN(trx->lock.trx_locks) > 10000
-	    && buf_pool.running_out()) {
-		return DB_LOCK_TABLE_FULL;
-	}
 
 	if (dict_index_is_clust(index)) {
 		err = lock_clust_rec_read_check_and_lock(

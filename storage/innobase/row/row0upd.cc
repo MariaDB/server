@@ -2416,11 +2416,6 @@ row_upd_clust_rec(
 		goto func_exit;
 	}
 
-	if (buf_pool.running_out()) {
-		err = DB_LOCK_TABLE_FULL;
-		goto func_exit;
-	}
-
 	/* We may have to modify the tree structure: do a pessimistic descent
 	down the index tree */
 

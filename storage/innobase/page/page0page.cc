@@ -654,21 +654,24 @@ err_exit:
 	}
 
 	/* Update the lock table and possible hash index */
-
-	if (!index->has_locking()) {
-	} else if (UNIV_LIKELY_NULL(rec_move)) {
-		lock_rtr_move_rec_list(new_block, block, rec_move, num_moved);
-	} else {
-		lock_move_rec_list_end(new_block, block, rec);
-	}
-
-	if (UNIV_LIKELY_NULL(heap)) {
+	if (UNIV_LIKELY_NULL(heap) && UNIV_LIKELY(!rec_move)) {
 		mem_heap_free(heap);
 	}
 
-	btr_search_move_or_delete_hash_entries(new_block, block);
+	if (!index->has_locking()) {
+		return ret;
+	} else if (UNIV_LIKELY_NULL(rec_move)) {
+		*err = lock_rtr_move_rec_list(new_block, block, rec_move,
+					      num_moved);
+		if (UNIV_LIKELY_NULL(heap)) {
+			mem_heap_free(heap);
+		}
+	} else {
+		btr_search_move_or_delete_hash_entries(new_block, block);
+		*err = lock_move_rec_list_end(new_block, block, rec);
+	}
 
-	return(ret);
+	return *err == DB_SUCCESS ? ret : nullptr;
 }
 
 /*************************************************************//**
@@ -843,22 +846,22 @@ zip_reorganize:
 	}
 
 	/* Update the lock table and possible hash index */
-
-	if (!index->has_locking()) {
-	} else if (dict_index_is_spatial(index)) {
-		lock_rtr_move_rec_list(new_block, block, rec_move, num_moved);
-	} else {
-		lock_move_rec_list_start(new_block, block, rec, ret);
-	}
-
-	if (heap) {
+	if (UNIV_LIKELY_NULL(heap) && !index->is_spatial()) {
 		mem_heap_free(heap);
 	}
 
-	btr_search_move_or_delete_hash_entries(new_block, block);
+	if (!index->has_locking()) {
+		*err = DB_SUCCESS;
+		return ret;
+	} else if (index->is_spatial()) {
+		*err = lock_rtr_move_rec_list(new_block, block, rec_move, num_moved);
+		mem_heap_free(heap);
+	} else {
+		btr_search_move_or_delete_hash_entries(new_block, block);
+		*err = lock_move_rec_list_start(new_block, block, rec, ret);
+	}
 
-	*err = DB_SUCCESS;
-	return(ret);
+	return *err == DB_SUCCESS ? ret : nullptr;
 }
 
 /*************************************************************//**

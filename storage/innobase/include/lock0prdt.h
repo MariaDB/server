@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,7 +31,7 @@ Created 9/7/2013 Jimmy Yang
 /* Predicate lock data */
 typedef struct lock_prdt {
 	void*		data;		/* Predicate data */
-	uint16		op;		/* Predicate operator */
+	ulint		op;		/* Predicate operator */
 } lock_prdt_t;
 
 /*********************************************************************//**
@@ -61,16 +61,6 @@ lock_place_prdt_page_lock(
 	const page_id_t	page_id,	/*!< in: page identifier */
 	dict_index_t*	index,	/*!< in: secondary index */
 	que_thr_t*	thr);	/*!< in: query thread */
-
-/*********************************************************************//**
-Initiate a Predicate lock from a MBR */
-void
-lock_init_prdt_from_mbr(
-/*====================*/
-	lock_prdt_t*	prdt,	/*!< in/out: predicate to initialized */
-	rtr_mbr_t*	mbr,	/*!< in: Minimum Bounding Rectangle */
-	ulint		mode,	/*!< in: Search mode */
-	mem_heap_t*	heap);	/*!< in: heap for allocating memory */
 
 /*********************************************************************//**
 Get predicate lock's minimum bounding box
@@ -173,10 +163,11 @@ prdt_get_mbr_from_prdt(
 
 
 #endif
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /*************************************************************//**
 Moves the locks of a record to another record and resets the lock bits of
 the donating record. */
-void
+dberr_t
 lock_prdt_rec_move(
 /*===============*/
 	const buf_block_t*	receiver,	/*!< in: buffer block containing

@@ -241,11 +241,6 @@ row_ins_sec_index_entry_by_modify(
 		}
 	} else {
 		ut_a(mode == BTR_MODIFY_TREE);
-		if (buf_pool.running_out()) {
-
-			return(DB_LOCK_TABLE_FULL);
-		}
-
 		err = btr_cur_pessimistic_update(
 			flags | BTR_KEEP_SYS_FLAG, cursor,
 			offsets, &offsets_heap,
@@ -331,10 +326,6 @@ row_ins_clust_index_entry_by_modify(
 			break;
 		}
 	} else {
-		if (buf_pool.running_out()) {
-			return DB_LOCK_TABLE_FULL;
-		}
-
 		big_rec_t*	big_rec	= NULL;
 
 		err = btr_cur_pessimistic_update(
@@ -2754,11 +2745,6 @@ do_insert:
 				entry, &insert_rec, &big_rec,
 				n_ext, thr, &mtr);
 		} else {
-			if (buf_pool.running_out()) {
-				err = DB_LOCK_TABLE_FULL;
-				goto err_exit;
-			}
-
 			DEBUG_SYNC_C("before_insert_pessimitic_row_ins_clust");
 
 			err = btr_cur_optimistic_insert(
@@ -3040,11 +3026,6 @@ row_ins_sec_index_entry_low(
 			}
 		} else {
 			ut_ad(mode == BTR_MODIFY_TREE);
-			if (buf_pool.running_out()) {
-				err = DB_LOCK_TABLE_FULL;
-				goto func_exit;
-			}
-
 			err = btr_cur_optimistic_insert(
 				flags, &cursor,
 				&offsets, &offsets_heap,

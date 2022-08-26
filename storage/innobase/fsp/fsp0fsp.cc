@@ -504,6 +504,10 @@ dberr_t fsp_header_init(fil_space_t *space, uint32_t size, mtr_t *mtr)
 
 	buf_block_t *free_block = buf_LRU_get_free_block(false);
 
+	if (UNIV_UNLIKELY(!free_block)) {
+		return DB_OUT_OF_MEMORY;
+	}
+
 	mtr->x_lock_space(space);
 
 	buf_block_t* block = buf_page_create(space, 0, zip_size, mtr,
@@ -837,8 +841,11 @@ fsp_fill_free_list(
       if (i)
       {
         buf_block_t *f= buf_LRU_get_free_block(false);
+        if (UNIV_UNLIKELY(!f))
+          return DB_OUT_OF_MEMORY;
+
         buf_block_t *block= buf_page_create(space, static_cast<uint32_t>(i),
-                               zip_size, mtr, f);
+                                            zip_size, mtr, f);
         if (UNIV_UNLIKELY(block != f))
           buf_pool.free_block(f);
         fsp_init_file_page(space, block, mtr);
@@ -849,6 +856,8 @@ fsp_fill_free_list(
       if (space->purpose != FIL_TYPE_TEMPORARY)
       {
         buf_block_t *f= buf_LRU_get_free_block(false);
+        if (UNIV_UNLIKELY(!f))
+          return DB_OUT_OF_MEMORY;
         buf_block_t *block=
           buf_page_create(space,
                           static_cast<uint32_t>(i + FSP_IBUF_BITMAP_OFFSET),
@@ -1018,15 +1027,18 @@ fsp_alloc_from_free_frag(buf_block_t *header, buf_block_t *xdes, xdes_t *descr,
   return DB_SUCCESS;
 }
 
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /** Gets a buffer block for an allocated page.
 @param[in,out]	space		tablespace
 @param[in]	offset		page number of the allocated page
 @param[in,out]	mtr		mini-transaction
+@param[out]	err		error code
 @return block, initialized */
 static
-buf_block_t*
-fsp_page_create(fil_space_t *space, page_no_t offset, mtr_t *mtr)
+buf_block_t *fsp_page_create(fil_space_t *space, page_no_t offset, mtr_t *mtr,
+                             dberr_t *err)
 {
+  ut_ad(*err == DB_SUCCESS);
   buf_block_t *block, *free_block;
 
   if (UNIV_UNLIKELY(space->is_being_truncated))
@@ -1051,6 +1063,12 @@ fsp_page_create(fil_space_t *space, page_no_t offset, mtr_t *mtr)
   }
 
   free_block= buf_LRU_get_free_block(false);
+  if (UNIV_UNLIKELY(!free_block))
+  {
+    *err= DB_OUT_OF_MEMORY;
+    return nullptr;
+  }
+
 got_free_block:
   block= buf_page_create(space, static_cast<uint32_t>(offset),
                          space->zip_size(), mtr, free_block);
@@ -1165,7 +1183,7 @@ buf_block_t *fsp_alloc_free_page(fil_space_t *space, uint32_t hint,
   *err= fsp_alloc_from_free_frag(block, xdes, descr, free, mtr);
   if (UNIV_UNLIKELY(*err != DB_SUCCESS))
     goto corrupted;
-  return fsp_page_create(space, page_no, init_mtr);
+  return fsp_page_create(space, page_no, init_mtr, err);
 }
 
 MY_ATTRIBUTE((nonnull, warn_unused_result))
@@ -2220,7 +2238,7 @@ got_hinted_page:
 		}
 	}
 
-	return fsp_page_create(space, ret_page, init_mtr);
+	return fsp_page_create(space, ret_page, init_mtr, err);
 }
 
 /**********************************************************************//**

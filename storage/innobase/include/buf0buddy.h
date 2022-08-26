@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -52,13 +52,15 @@ buf_buddy_get_slot(ulint size)
 /** Allocate a ROW_FORMAT=COMPRESSED block.
 @param i      index of buf_pool.zip_free[] or BUF_BUDDY_SIZES
 @param lru    assigned to true if buf_pool.mutex was temporarily released
-@return allocated block, never NULL */
+@return allocated block
+@retval nullptr on failure */
 byte *buf_buddy_alloc_low(ulint i, bool *lru) MY_ATTRIBUTE((malloc));
 
 /** Allocate a ROW_FORMAT=COMPRESSED block.
 @param size   compressed page size in bytes
 @param lru    assigned to true if buf_pool.mutex was temporarily released
-@return allocated block, never NULL */
+@return allocated block
+@retval nullptr on failure */
 inline byte *buf_buddy_alloc(ulint size, bool *lru= nullptr)
 {
   return buf_buddy_alloc_low(buf_buddy_get_slot(size), lru);

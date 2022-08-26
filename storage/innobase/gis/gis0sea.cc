@@ -376,15 +376,22 @@ rtr_pcur_getnext_from_path(
 		    && mode != PAGE_CUR_RTREE_LOCATE
 		    && mode >= PAGE_CUR_CONTAIN
 		    && btr_cur->rtr_info->need_prdt_lock) {
-			lock_prdt_t	prdt;
+			lock_prdt_t prdt;
+			prdt.op = mode;
 
-			trx_t*		trx = thr_get_trx(
-						btr_cur->rtr_info->thr);
 			{
-				TMLockTrxGuard g{TMLockTrxArgs(*trx)};
-				lock_init_prdt_from_mbr(
-					&prdt, &btr_cur->rtr_info->mbr,
-					mode, trx->lock.lock_heap);
+				trx_t* trx = thr_get_trx(
+					btr_cur->rtr_info->thr);
+			        trx->mutex_lock();
+				prdt.data = mem_heap_dup(
+					trx->lock.lock_heap,
+					&btr_cur->rtr_info->mbr,
+					sizeof btr_cur->rtr_info->mbr);
+			        trx->mutex_unlock();
+			}
+
+			if (UNIV_UNLIKELY(!prdt.data)) {
+				return false; // FIXME: return an error
 			}
 
 			if (rw_latch == RW_NO_LATCH) {

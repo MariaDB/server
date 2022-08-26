@@ -749,6 +749,8 @@ static struct
 retry:
     bool fail= false;
     buf_block_t *free_block= buf_LRU_get_free_block(false);
+    if (UNIV_UNLIKELY(!free_block))
+      return true;
     mysql_mutex_lock(&recv_sys.mutex);
 
     for (auto d= defers.begin(); d != defers.end(); )
@@ -1478,7 +1480,8 @@ inline void *recv_sys_t::alloc(size_t len)
   if (UNIV_UNLIKELY(!block))
   {
 create_block:
-    block= buf_block_alloc();
+    block= buf_LRU_get_free_block(false);
+    ut_a(block);
     block->page.access_time= 1U << 16 |
       ut_calc_align<uint16_t>(static_cast<uint16_t>(len), ALIGNMENT);
     static_assert(ut_is_2pow(ALIGNMENT), "ALIGNMENT must be a power of 2");
@@ -3140,11 +3143,18 @@ inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
 
 /** Attempt to initialize a page based on redo log records.
 @param page_id  page identifier
+@param err      error code
 @return recovered block
-@retval nullptr if the page cannot be initialized based on log records */
-buf_block_t *recv_sys_t::recover_low(const page_id_t page_id)
+@retval -1      if the page cannot be recovered; *err will be set */
+buf_block_t *recv_sys_t::recover_low(const page_id_t page_id, dberr_t *err)
 {
   buf_block_t *free_block= buf_LRU_get_free_block(false);
+  if (UNIV_UNLIKELY(!free_block))
+  {
+    if (err)
+      *err= DB_OUT_OF_MEMORY;
+    return reinterpret_cast<buf_block_t*>(-1);
+  }
   buf_block_t *block= nullptr;
 
   mysql_mutex_lock(&mutex);
@@ -3154,8 +3164,13 @@ buf_block_t *recv_sys_t::recover_low(const page_id_t page_id)
   {
     mtr_t mtr;
     block= recover_low(page_id, p, mtr, free_block);
-    ut_ad(!block || block == reinterpret_cast<buf_block_t*>(-1) ||
-          block == free_block);
+    if (block == reinterpret_cast<buf_block_t*>(-1))
+    {
+      if (err)
+        *err= DB_CORRUPTION;
+    }
+    else
+      ut_ad(!block || block == free_block);
   }
 
   mysql_mutex_unlock(&mutex);

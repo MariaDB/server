@@ -85,17 +85,20 @@ then this function does nothing.
 Sets the io_fix flag to BUF_IO_READ and sets a non-recursive exclusive lock
 on the buffer frame. The io-handler must take care that the flag is cleared
 and the lock released later.
-@param[in]	mode			BUF_READ_IBUF_PAGES_ONLY, ...
-@param[in]	page_id			page id
-@param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	unzip			whether the uncompressed page is
-					requested (for ROW_FORMAT=COMPRESSED)
+@param mode     BUF_READ_IBUF_PAGES_ONLY, ...
+@param page_id  page identifier
+@param zip_size ROW_FORMAT=COMPRESSED page size, or 0
+@param unzip    whether the uncompressed page is requested
+                (for ROW_FORMAT=COMPRESSED)
+@param err      error code
 @return pointer to the block
-@retval	NULL	in case of an error */
+@retval	nullptr in case of an error */
 TRANSACTIONAL_TARGET
-static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
-                                          ulint zip_size, bool unzip)
+static buf_page_t *buf_page_init_for_read(ulint mode, const page_id_t page_id,
+                                          ulint zip_size, bool unzip,
+                                          dberr_t *err)
 {
+  ut_ad(*err == DB_SUCCESS);
   mtr_t mtr;
 
   if (mode == BUF_READ_IBUF_PAGES_ONLY)
@@ -113,22 +116,29 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
   else
     ut_ad(mode == BUF_READ_ANY_PAGE);
 
+  buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
+  buf_page_t *hash_page;
+
   buf_page_t *bpage= nullptr;
   buf_block_t *block= nullptr;
   if (!zip_size || unzip || recv_recovery_is_on())
   {
     block= buf_LRU_get_free_block(false);
+    if (UNIV_UNLIKELY(!block))
+    {
+      *err= DB_OUT_OF_MEMORY;
+      goto func_exit_no_mutex;
+    }
+
     block->initialise(page_id, zip_size, buf_page_t::READ_FIX);
     /* x_unlock() will be invoked
     in buf_page_t::read_complete() by the io-handler thread. */
     block->page.lock.x_lock(true);
   }
 
-  buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
-
   mysql_mutex_lock(&buf_pool.mutex);
 
-  buf_page_t *hash_page= buf_pool.page_hash.get(page_id, chain);
+  hash_page= buf_pool.page_hash.get(page_id, chain);
   if (hash_page && !buf_pool.watch_is_sentinel(*hash_page))
   {
     /* The page is already in the buffer pool. */
@@ -185,6 +195,11 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     uninitialized data. */
     bool lru= false;
     void *data= buf_buddy_alloc(zip_size, &lru);
+    if (UNIV_UNLIKELY(!data))
+    {
+      *err= DB_OUT_OF_MEMORY;
+      goto func_exit;
+    }
 
     /* If buf_buddy_alloc() allocated storage from the LRU list,
     it released and reacquired buf_pool.mutex.  Thus, we must
@@ -245,9 +260,7 @@ buffer buf_pool if it is not already there, in which case does nothing.
 Sets the io_fix flag and sets an exclusive lock on the buffer frame. The
 flag is cleared and the x-lock released by an i/o-handler thread.
 
-@param[out] err		DB_SUCCESS or DB_TABLESPACE_DELETED
-			if we are trying
-			to read from a non-existent tablespace
+@param[out] err		DB_SUCCESS, DB_TABLESPACE_DELETED, DB_OUT_OF_MEMORY
 @param[in,out] space	tablespace
 @param[in] sync		true if synchronous aio is desired
 @param[in] mode		BUF_READ_IBUF_PAGES_ONLY, ...,
@@ -297,7 +310,7 @@ nothing_read:
 	or is being dropped; if we succeed in initing the page in the buffer
 	pool for read, then DISCARD cannot proceed until the read has
 	completed */
-	bpage = buf_page_init_for_read(mode, page_id, zip_size, unzip);
+	bpage = buf_page_init_for_read(mode, page_id, zip_size, unzip, err);
 
 	if (bpage == NULL) {
 		goto nothing_read;

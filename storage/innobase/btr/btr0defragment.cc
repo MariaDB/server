@@ -410,10 +410,11 @@ btr_defragment_merge_pages(
 	} else if (n_recs_to_move == n_recs) {
 		/* The whole page is merged with the previous page,
 		free it. */
-		lock_update_merge_left(*to_block, orig_pred,
-				       from_block->page.id());
 		btr_search_drop_page_hash_index(from_block);
-		if (btr_level_list_remove(*from_block, *index, mtr)
+		if (lock_update_merge_left(*to_block, orig_pred,
+					   from_block->page.id())
+		    != DB_SUCCESS
+		    || btr_level_list_remove(*from_block, *index, mtr)
 		    != DB_SUCCESS
 		    || btr_cur_node_ptr_delete(&parent, mtr) != DB_SUCCESS
 		    || btr_page_free(index, from_block, mtr) != DB_SUCCESS) {
@@ -430,11 +431,12 @@ btr_defragment_merge_pages(
 			dtuple_t* node_ptr;
 			page_delete_rec_list_start(rec, from_block,
 						   index, mtr);
-			lock_update_split_and_merge(to_block,
-						    orig_pred,
-						    from_block);
 			// FIXME: reuse the node_ptr!
-			if (btr_cur_node_ptr_delete(&parent, mtr)
+			if (lock_update_split_and_merge(to_block,
+							orig_pred,
+							from_block)
+			    != DB_SUCCESS
+			    || btr_cur_node_ptr_delete(&parent, mtr)
 			    != DB_SUCCESS) {
 				return nullptr;
 			}

@@ -829,7 +829,10 @@ rtr_split_page_move_rec_list(
 	}
 
 	/* Update the lock table */
-	lock_rtr_move_rec_list(new_block, block, rec_move, moved);
+	if (dberr_t err = lock_rtr_move_rec_list(new_block, block,
+						 rec_move, moved)) {
+		return err;
+	}
 
 	/* Delete recs in second group from the old page. */
 	for (cur_split_node = node_array;
@@ -1053,7 +1056,11 @@ corrupted:
 		}
 
 		/* Update the lock table */
-		lock_rtr_move_rec_list(new_block, block, rec_move, moved);
+		*err = lock_rtr_move_rec_list(new_block, block, rec_move,
+					      moved);
+		if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
+			return nullptr;
+		}
 
 		const ulint n_core = page_level
 			? 0 : cursor->index->n_core_fields;

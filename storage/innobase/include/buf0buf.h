@@ -145,9 +145,6 @@ operator<<(
 #ifndef UNIV_INNOCHECKSUM
 # define buf_pool_get_curr_size() srv_buf_pool_curr_size
 
-/** Allocate a buffer block.
-@return own: the allocated block, state()==MEMORY */
-inline buf_block_t *buf_block_alloc();
 /********************************************************************//**
 Frees a buffer block which does not contain a file page. */
 UNIV_INLINE

@@ -1300,7 +1300,9 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
 
   btr_search_drop_page_hash_index(block);
 
-  buf_block_t *old= buf_block_alloc();
+  buf_block_t *old= buf_LRU_get_free_block(false);
+  if (UNIV_UNLIKELY(!old))
+    return DB_OUT_OF_MEMORY;
   /* Copy the old page to temporary space */
   memcpy_aligned<UNIV_PAGE_SIZE_MIN>(old->page.frame, block->page.frame,
                                      srv_page_size);
@@ -1411,7 +1413,7 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
                 PAGE_DATA - (PAGE_MAX_TRX_ID + PAGE_HEADER)));
 
   if (index->has_locking())
-    lock_move_reorganize_page(block, old);
+    err= lock_move_reorganize_page(block, old);
 
   /* Write log for the changes, if needed. */
   if (log_mode == MTR_LOG_ALL)
@@ -1538,7 +1540,7 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
 
   MONITOR_INC(MONITOR_INDEX_REORG_ATTEMPTS);
   MONITOR_INC(MONITOR_INDEX_REORG_SUCCESSFUL);
-  return DB_SUCCESS;
+  return err;
 }
 
 /*************************************************************//**
@@ -1895,17 +1897,20 @@ btr_root_raise_and_insert(
 
 		/* Update the lock table and possible hash index. */
 		if (index->has_locking()) {
-			lock_move_rec_list_end(
-				new_block, root,
-				page_get_infimum_rec(root->page.frame));
-		}
-
-		/* Move any existing predicate locks */
-		if (dict_index_is_spatial(index)) {
-			lock_prdt_rec_move(new_block, root_id);
-		} else {
 			btr_search_move_or_delete_hash_entries(
 				new_block, root);
+			*err = lock_move_rec_list_end(
+				new_block, root,
+				page_get_infimum_rec(root->page.frame));
+			if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
+				return nullptr;
+			}
+			if (index->is_spatial()) {
+				*err = lock_prdt_rec_move(new_block, root_id);
+				if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
+					return nullptr;
+				}
+			}
 		}
 	}
 
@@ -1947,7 +1952,10 @@ btr_root_raise_and_insert(
 	root page: we cannot discard the lock structs on the root page */
 
 	if (index->has_locking()) {
-		lock_update_root_raise(*new_block, root_id);
+		*err = lock_update_root_raise(*new_block, root_id);
+		if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
+			return nullptr;
+		}
 	}
 
 	/* Create a memory heap where the node pointer is stored */
@@ -2657,8 +2665,9 @@ btr_insert_into_right_sibling(
 	max_size = page_get_max_insert_size_after_reorganize(next_page, 1);
 
 	/* Extends gap lock for the next page */
-	if (is_leaf && cursor->index->has_locking()) {
-		lock_update_node_pointer(block, next_block);
+	if (is_leaf && cursor->index->has_locking()
+	    && lock_update_node_pointer(block, next_block) != DB_SUCCESS) {
+		return nullptr;
 	}
 
 	rec = page_cur_tuple_insert(
@@ -3077,13 +3086,15 @@ insert_empty:
 
 			/* Update the lock table and possible hash index. */
 			if (cursor->index->has_locking()) {
-				lock_move_rec_list_start(
+				btr_search_move_or_delete_hash_entries(
+					new_block, block);
+				*err = lock_move_rec_list_start(
 					new_block, block, move_limit,
 					new_page + PAGE_NEW_INFIMUM);
+				if (*err != DB_SUCCESS) {
+					return nullptr;
+				}
 			}
-
-			btr_search_move_or_delete_hash_entries(
-				new_block, block);
 
 			/* Delete the records from the source page. */
 
@@ -3095,7 +3106,7 @@ insert_empty:
 		right_block = block;
 
 		if (cursor->index->has_locking()) {
-			lock_update_split_left(right_block, left_block);
+			*err = lock_update_split_left(right_block, left_block);
 		}
 	} else {
 		/*		fputs("Split right\n", stderr); */
@@ -3126,12 +3137,14 @@ insert_empty:
 
 			/* Update the lock table and possible hash index. */
 			if (cursor->index->has_locking()) {
-				lock_move_rec_list_end(new_block, block,
-						       move_limit);
+				btr_search_move_or_delete_hash_entries(
+					new_block, block);
+				*err = lock_move_rec_list_end(new_block, block,
+							      move_limit);
+				if (*err != DB_FAIL) {
+					return nullptr;
+				}
 			}
-
-			btr_search_move_or_delete_hash_entries(
-				new_block, block);
 
 			/* Delete the records from the source page. */
 
@@ -3148,7 +3161,11 @@ insert_empty:
 		right_block = new_block;
 
 		if (cursor->index->has_locking()) {
-			lock_update_split_right(right_block, left_block);
+			*err = lock_update_split_right(right_block,
+						       left_block);
+			if (*err != DB_SUCCESS) {
+				return nullptr;
+			}
 		}
 	}
 
@@ -3462,16 +3479,20 @@ btr_lift_page_up(
 		/* Update the lock table and possible hash index. */
 
 		if (index->has_locking()) {
-			lock_move_rec_list_end(father_block, block,
-					       page_get_infimum_rec(page));
-		}
-
-		/* Also update the predicate locks */
-		if (dict_index_is_spatial(index)) {
-			lock_prdt_rec_move(father_block, block->page.id());
-		} else {
 			btr_search_move_or_delete_hash_entries(
 				father_block, block);
+			*err = lock_move_rec_list_end(
+				father_block, block, page + PAGE_NEW_INFIMUM);
+			if (*err != DB_SUCCESS) {
+				return nullptr;
+			}
+			if (index->is_spatial()) {
+				*err = lock_prdt_rec_move(father_block,
+							  block->page.id());
+				if (*err != DB_SUCCESS) {
+					return nullptr;
+				}
+			}
 		}
 	}
 
@@ -3481,7 +3502,10 @@ btr_lift_page_up(
 		if (index->is_spatial()) {
 			lock_sys.prdt_page_free_from_discard(id);
 		} else {
-			lock_update_copy_and_discard(*father_block, id);
+			*err = lock_update_copy_and_discard(*father_block, id);
+			if (*err != DB_SUCCESS) {
+				return nullptr;
+			}
 		}
 	}
 
@@ -3737,8 +3761,11 @@ cannot_merge:
 				goto err_exit;
 			}
 			if (index->has_locking()) {
-				lock_update_merge_left(
+				err = lock_update_merge_left(
 					*merge_block, orig_pred, id);
+				if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+					goto err_exit;
+				}
 			}
 		}
 
@@ -3893,7 +3920,9 @@ cannot_merge:
 								&cursor2,
 								BTR_CREATE_FLAG,
 								false, mtr);
-			ut_a(err == DB_SUCCESS);
+			if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+				goto err_exit;
+			}
 
 			if (!compressed) {
 				btr_cur_compress_if_useful(&cursor2, false,
@@ -3901,8 +3930,11 @@ cannot_merge:
 			}
 
 			if (index->has_locking()) {
-				lock_update_merge_right(
+				err = lock_update_merge_right(
 					merge_block, orig_succ, block);
+				if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+					goto err_exit;
+				}
 			}
 		}
 	}

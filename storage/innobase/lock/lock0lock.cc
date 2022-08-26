@@ -1185,6 +1185,11 @@ lock_rec_create_low(
 		}
 	}
 
+	if (UT_LIST_GET_LEN(trx->lock.trx_locks) > 10000
+	    && buf_pool.running_out()) {
+		return nullptr;
+	}
+
 	if (!holds_trx_mutex) {
 		trx->mutex_lock();
 	}
@@ -1296,6 +1301,10 @@ lock_rec_enqueue_waiting(
 		c_lock,
 		type_mode | LOCK_WAIT, id, page, heap_no, index, trx, true);
 
+	if (UNIV_UNLIKELY(!lock)) {
+		return DB_LOCK_TABLE_FULL;
+	}
+
 	if (prdt && type_mode & LOCK_PREDICATE) {
 		lock_prdt_set_prdt(lock, prdt);
 	}
@@ -1355,12 +1364,14 @@ which does NOT check for deadlocks or lock compatibility!
 @param[in] heap_no heap number of the record
 @param[in] index index of record
 @param[in,out] trx transaction
-@param[in] caller_owns_trx_mutex TRUE if caller owns the transaction mutex */
-TRANSACTIONAL_TARGET
-static void lock_rec_add_to_queue(unsigned type_mode, hash_cell_t &cell,
-                                  const page_id_t id, const page_t *page,
-                                  ulint heap_no, dict_index_t *index,
-                                  trx_t *trx, bool caller_owns_trx_mutex)
+@param[in] caller_owns_trx_mutex TRUE if caller owns the transaction mutex
+@return the lock
+@retval nullptr if we ran out of memory */
+TRANSACTIONAL_TARGET MY_ATTRIBUTE((warn_unused_result))
+static lock_t *lock_rec_add_to_queue(unsigned type_mode, hash_cell_t &cell,
+                                     const page_id_t id, const page_t *page,
+                                     ulint heap_no, dict_index_t *index,
+                                     trx_t *trx, bool caller_owns_trx_mutex)
 {
 	ut_d(lock_sys.hash_get(type_mode).assert_locked(id));
 	ut_ad(xtest() || caller_owns_trx_mutex == trx->mutex_is_owner());
@@ -1444,7 +1455,7 @@ static void lock_rec_add_to_queue(unsigned type_mode, hash_cell_t &cell,
 			if (caller_owns_trx_mutex) {
 				trx->mutex_lock();
 			}
-			return;
+			return lock;
 		}
 	}
 
@@ -1453,9 +1464,9 @@ create:
 	because we should be moving an existing waiting lock request. */
 	ut_ad(!(type_mode & LOCK_WAIT) || trx->lock.wait_trx);
 
-	lock_rec_create_low(nullptr,
-			    type_mode, id, page, heap_no, index, trx,
-			    caller_owns_trx_mutex);
+	return lock_rec_create_low(nullptr,
+				   type_mode, id, page, heap_no, index, trx,
+				   caller_owns_trx_mutex);
 }
 
 /*********************************************************************//**
@@ -1542,9 +1553,10 @@ lock_rec_lock(
         else if (!impl)
         {
           /* Set the requested lock on the record. */
-          lock_rec_add_to_queue(mode, g.cell(), id, block->page.frame, heap_no,
-                                index, trx, true);
-          err= DB_SUCCESS_LOCKED_REC;
+          err= lock_rec_add_to_queue(mode, g.cell(), id, block->page.frame,
+                                     heap_no, index, trx, true)
+            ? DB_SUCCESS_LOCKED_REC
+            : DB_LOCK_TABLE_FULL;
         }
       }
     }
@@ -1565,9 +1577,9 @@ lock_rec_lock(
   }
 
   /* Simplified and faster path for the most common cases */
-  if (!impl)
-    lock_rec_create_low(nullptr, mode, id, block->page.frame, heap_no, index,
-                        trx, false);
+  if (!impl && !lock_rec_create_low(nullptr, mode, id, block->page.frame,
+                                    heap_no, index, trx, false))
+    return DB_LOCK_TABLE_FULL;
 
   return DB_SUCCESS_LOCKED_REC;
 }
@@ -2124,7 +2136,7 @@ of another record as gap type locks, but does not reset the lock bits of
 the other record. Also waiting lock requests on rec are inherited as
 GRANTED gap locks. */
 static
-void
+dberr_t
 lock_rec_inherit_to_gap(
 /*====================*/
 	hash_cell_t&		heir_cell,	/*!< heir hash table cell */
@@ -2141,34 +2153,36 @@ lock_rec_inherit_to_gap(
 	ulint			heap_no)	/*!< in: heap_no of the
 						donating record */
 {
-	/* At READ UNCOMMITTED or READ COMMITTED isolation level,
-	we do not want locks set
-	by an UPDATE or a DELETE to be inherited as gap type locks. But we
-	DO want S-locks/X-locks(taken for replace) set by a consistency
-	constraint to be inherited also then. */
+  /* At READ UNCOMMITTED or READ COMMITTED isolation level,
+  we do not want locks set
+  by an UPDATE or a DELETE to be inherited as gap type locks.
+  But we DO want S-locks/X-locks(taken for replace) set by a consistency
+  constraint to be inherited also then. */
 
-	for (lock_t* lock= lock_sys_t::get_first(donor_cell, donor, heap_no);
-	     lock;
-	     lock = lock_rec_get_next(heap_no, lock)) {
-		trx_t* lock_trx = lock->trx;
-		if (!lock->is_insert_intention()
-		    && (lock_trx->isolation_level > TRX_ISO_READ_COMMITTED
-			|| lock->mode() !=
-			(lock_trx->duplicates ? LOCK_S : LOCK_X))) {
-			lock_rec_add_to_queue(LOCK_GAP | lock->mode(),
-					      heir_cell, heir, heir_page,
-					      heir_heap_no,
-					      lock->index, lock_trx, false);
-		}
-	}
+  for (lock_t *lock= lock_sys_t::get_first(donor_cell, donor, heap_no);
+       lock;
+       lock= lock_rec_get_next(heap_no, lock))
+  {
+    trx_t* lock_trx= lock->trx;
+    if (!lock->is_insert_intention() &&
+        (lock_trx->isolation_level > TRX_ISO_READ_COMMITTED ||
+         lock->mode() != (lock_trx->duplicates ? LOCK_S : LOCK_X)))
+      if (!lock_rec_add_to_queue(LOCK_GAP | lock->mode(),
+                                 heir_cell, heir, heir_page,
+                                 heir_heap_no,
+                                 lock->index, lock_trx, false))
+        return DB_LOCK_TABLE_FULL;
+  }
+  return DB_SUCCESS;
 }
 
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /*************************************************************//**
 Makes a record to inherit the gap locks (except LOCK_INSERT_INTENTION type)
 of another record as gap type locks, but does not reset the lock bits of the
 other record. Also waiting lock requests are inherited as GRANTED gap locks. */
 static
-void
+dberr_t
 lock_rec_inherit_to_gap_if_gap_lock(
 /*================================*/
 	const buf_block_t*	block,		/*!< in: buffer block */
@@ -2187,9 +2201,11 @@ lock_rec_inherit_to_gap_if_gap_lock(
      if (!lock->is_insert_intention() && (heap_no == PAGE_HEAP_NO_SUPREMUM ||
                                           !lock->is_record_not_gap()) &&
          !lock_table_has(lock->trx, lock->index->table, LOCK_X))
-       lock_rec_add_to_queue(LOCK_GAP | lock->mode(),
-                             g.cell(), id, block->page.frame,
-                             heir_heap_no, lock->index, lock->trx, false);
+       if (!lock_rec_add_to_queue(LOCK_GAP | lock->mode(), g.cell(), id,
+                                  block->page.frame, heir_heap_no, lock->index,
+                                  lock->trx, false))
+         return DB_LOCK_TABLE_FULL;
+  return DB_SUCCESS;
 }
 
 /*************************************************************//**
@@ -2197,7 +2213,7 @@ Moves the locks of a record to another record and resets the lock bits of
 the donating record. */
 TRANSACTIONAL_TARGET
 static
-void
+dberr_t
 lock_rec_move(
 	hash_cell_t&		receiver_cell,	/*!< in: hash table cell */
 	const buf_block_t&	receiver,	/*!< in: buffer block containing
@@ -2216,6 +2232,8 @@ lock_rec_move(
 	ut_ad(!lock_sys_t::get_first(receiver_cell,
 				     receiver_id, receiver_heap_no));
 
+	dberr_t err = DB_SUCCESS;
+
 	for (lock_t *lock = lock_sys_t::get_first(donator_cell, donator_id,
 						  donator_heap_no);
 	     lock != NULL;
@@ -2233,15 +2251,19 @@ lock_rec_move(
 		/* Note that we FIRST reset the bit, and then set the lock:
 		the function works also if donator_id == receiver_id */
 
-		lock_rec_add_to_queue(type_mode, receiver_cell,
-				      receiver_id, receiver.page.frame,
-				      receiver_heap_no,
-				      lock->index, lock_trx, true);
+		if (!lock_rec_add_to_queue(type_mode, receiver_cell,
+					   receiver_id, receiver.page.frame,
+					   receiver_heap_no,
+					   lock->index, lock_trx, true)) {
+			err = DB_LOCK_TABLE_FULL;
+		}
 		lock_trx->mutex_unlock();
 	}
 
 	ut_ad(!lock_sys_t::get_first(donator_cell, donator_id,
 				     donator_heap_no));
+
+	return err;
 }
 
 /** Move all the granted locks to the front of the given lock list.
@@ -2283,7 +2305,7 @@ also the locks set on the infimum of the page; the infimum may carry
 locks if an update of a record is occurring on the page, and its locks
 were temporarily stored on the infimum. */
 TRANSACTIONAL_TARGET
-void
+dberr_t
 lock_move_reorganize_page(
 /*======================*/
 	const buf_block_t*	block,	/*!< in: old index page, now
@@ -2292,6 +2314,7 @@ lock_move_reorganize_page(
 					reorganized page */
 {
   mem_heap_t *heap;
+  dberr_t err= DB_SUCCESS;
 
   {
     UT_LIST_BASE_NODE_T(lock_t) old_locks;
@@ -2302,7 +2325,7 @@ lock_move_reorganize_page(
     {
       TMLockGuard g{lock_sys.rec_hash, id};
       if (!lock_sys_t::get_first(g.cell(), id))
-        return;
+        return DB_SUCCESS;
     }
 
     /* We will modify arbitrary trx->lock.trx_locks.
@@ -2317,7 +2340,7 @@ lock_move_reorganize_page(
     lock_t *lock= lock_sys_t::get_first(cell, id);
 
     if (!lock)
-      return;
+      return DB_SUCCESS;
 
     heap= mem_heap_create(256);
 
@@ -2390,21 +2413,23 @@ lock_move_reorganize_page(
         }
 
         trx_t *lock_trx= lock->trx;
-	lock_trx->mutex_lock();
+        lock_trx->mutex_lock();
 
-	/* Clear the bit in old_lock. */
-	if (old_heap_no < lock->un_member.rec_lock.n_bits &&
+        /* Clear the bit in old_lock. */
+        if (old_heap_no < lock->un_member.rec_lock.n_bits &&
             lock_rec_reset_nth_bit(lock, old_heap_no))
         {
           ut_ad(!page_rec_is_metadata(orec));
 
           /* NOTE that the old lock bitmap could be too
           small for the new heap number! */
-          lock_rec_add_to_queue(lock->type_mode, cell, id, block->page.frame,
-                                new_heap_no, lock->index, lock_trx, true);
+          if (!lock_rec_add_to_queue(lock->type_mode, cell, id,
+                                     block->page.frame, new_heap_no,
+                                     lock->index, lock_trx, true))
+            err= DB_LOCK_TABLE_FULL;
         }
 
-	lock_trx->mutex_unlock();
+        lock_trx->mutex_unlock();
 
         if (!rec1 || !rec2)
         {
@@ -2428,13 +2453,15 @@ lock_move_reorganize_page(
     space->release();
   }
 #endif
+
+  return err;
 }
 
 /*************************************************************//**
 Moves the explicit locks on user records to another page if a record
 list end is moved to another page. */
 TRANSACTIONAL_TARGET
-void
+dberr_t
 lock_move_rec_list_end(
 /*===================*/
 	const buf_block_t*	new_block,	/*!< in: index page to move to */
@@ -2449,6 +2476,7 @@ lock_move_rec_list_end(
 
   const page_id_t id{block->page.id()};
   const page_id_t new_id{new_block->page.id()};
+  dberr_t err= DB_SUCCESS;
   {
     /* This would likely be too large for a memory transaction. */
     LockMultiGuard g{lock_sys.rec_hash, id, new_id};
@@ -2483,7 +2511,7 @@ lock_move_rec_list_end(
       if (UNIV_UNLIKELY(!rec1 || !rec2))
       {
         ut_ad("corrupted page" == 0);
-        return;
+        return DB_CORRUPTION;
       }
 
       /* Copy lock requests on user records to new page and
@@ -2527,7 +2555,7 @@ lock_move_rec_list_end(
         if (UNIV_UNLIKELY(!rec2))
         {
           ut_ad("corrupted page" == 0);
-          return;
+          return DB_CORRUPTION;
         }
 
         trx_t *lock_trx= lock->trx;
@@ -2544,9 +2572,11 @@ lock_move_rec_list_end(
             lock->type_mode&= ~LOCK_WAIT;
           }
 
-          lock_rec_add_to_queue(type_mode, g.cell2(), new_id,
-                                new_block->page.frame,
-                                rec2_heap_no, lock->index, lock_trx, true);
+          if (!lock_rec_add_to_queue(type_mode, g.cell2(), new_id,
+                                     new_block->page.frame,
+                                     rec2_heap_no, lock->index, lock_trx,
+                                     true))
+            err= DB_LOCK_TABLE_FULL;
         }
 
         lock_trx->mutex_unlock();
@@ -2563,13 +2593,14 @@ lock_move_rec_list_end(
     space->release();
   }
 #endif
+  return err;
 }
 
 /*************************************************************//**
 Moves the explicit locks on user records to another page if a record
 list start is moved to another page. */
 TRANSACTIONAL_TARGET
-void
+dberr_t
 lock_move_rec_list_start(
 /*=====================*/
 	const buf_block_t*	new_block,	/*!< in: index page to
@@ -2592,6 +2623,7 @@ lock_move_rec_list_start(
   ut_ad(!page_rec_is_metadata(rec));
   const page_id_t id{block->page.id()};
   const page_id_t new_id{new_block->page.id()};
+  dberr_t err= DB_SUCCESS;
 
   {
     /* This would likely be too large for a memory transaction. */
@@ -2625,7 +2657,7 @@ lock_move_rec_list_start(
         if (UNIV_UNLIKELY(!rec1 || !rec2))
         {
           ut_ad("corrupted page" == 0);
-          return;
+          return DB_CORRUPTION;
         }
 
         ut_ad(page_rec_is_metadata(rec1) == page_rec_is_metadata(rec2));
@@ -2667,9 +2699,11 @@ lock_move_rec_list_start(
             lock->type_mode&= ~LOCK_WAIT;
           }
 
-          lock_rec_add_to_queue(type_mode, g.cell2(), new_id,
-                                new_block->page.frame,
-                                rec2_heap_no, lock->index, lock_trx, true);
+          if (!lock_rec_add_to_queue(type_mode, g.cell2(), new_id,
+                                     new_block->page.frame,
+                                     rec2_heap_no, lock->index, lock_trx,
+                                     true))
+            err= DB_LOCK_TABLE_FULL;
         }
 
         lock_trx->mutex_unlock();
@@ -2686,13 +2720,14 @@ lock_move_rec_list_start(
 #ifdef UNIV_DEBUG_LOCK_VALIDATE
   ut_ad(lock_rec_validate_page(block));
 #endif
+  return err;
 }
 
 /*************************************************************//**
 Moves the explicit locks on user records to another page if a record
 list start is moved to another page. */
 TRANSACTIONAL_TARGET
-void
+dberr_t
 lock_rtr_move_rec_list(
 /*===================*/
 	const buf_block_t*	new_block,	/*!< in: index page to
@@ -2703,7 +2738,7 @@ lock_rtr_move_rec_list(
 	ulint			num_move)       /*!< in: num of rec to move */
 {
   if (!num_move)
-    return;
+    return DB_SUCCESS;
 
   const ulint comp= page_rec_is_comp(rec_move[0].old_rec);
 
@@ -2712,6 +2747,7 @@ lock_rtr_move_rec_list(
   ut_ad(comp == page_rec_is_comp(rec_move[0].new_rec));
   const page_id_t id{block->page.id()};
   const page_id_t new_id{new_block->page.id()};
+  dberr_t err= DB_SUCCESS;
 
   {
     /* This would likely be too large for a memory transaction. */
@@ -2762,9 +2798,11 @@ lock_rtr_move_rec_list(
             lock->type_mode&= ~LOCK_WAIT;
           }
 
-          lock_rec_add_to_queue(type_mode, g.cell2(), new_id,
-                                new_block->page.frame,
-                                rec2_heap_no, lock->index, lock_trx, true);
+          if (!lock_rec_add_to_queue(type_mode, g.cell2(), new_id,
+                                     new_block->page.frame,
+                                     rec2_heap_no, lock->index,
+                                     lock_trx, true))
+            err= DB_LOCK_TABLE_FULL;
 
           rec_move[moved].moved= true;
         }
@@ -2777,10 +2815,11 @@ lock_rtr_move_rec_list(
 #ifdef UNIV_DEBUG_LOCK_VALIDATE
   ut_ad(lock_rec_validate_page(block));
 #endif
+  return err;
 }
 /*************************************************************//**
 Updates the lock table when a page is split to the right. */
-void
+dberr_t
 lock_update_split_right(
 /*====================*/
 	const buf_block_t*	right_block,	/*!< in: right page */
@@ -2796,25 +2835,28 @@ lock_update_split_right(
   /* Move the locks on the supremum of the left page to the supremum
   of the right page */
 
-  lock_rec_move(g.cell2(), *right_block, r, g.cell1(), l,
-                PAGE_HEAP_NO_SUPREMUM, PAGE_HEAP_NO_SUPREMUM);
+  if (dberr_t err= lock_rec_move(g.cell2(), *right_block, r, g.cell1(), l,
+                                 PAGE_HEAP_NO_SUPREMUM, PAGE_HEAP_NO_SUPREMUM))
+    return err;
 
   /* Inherit the locks to the supremum of left page from the successor
   of the infimum on right page */
-  lock_rec_inherit_to_gap(g.cell1(), l, g.cell2(), r, left_block->page.frame,
-                          PAGE_HEAP_NO_SUPREMUM, h);
+  return lock_rec_inherit_to_gap(g.cell1(), l, g.cell2(), r,
+                                 left_block->page.frame,
+                                 PAGE_HEAP_NO_SUPREMUM, h);
 }
 
-void lock_update_node_pointer(const buf_block_t *left_block,
-                              const buf_block_t *right_block)
+dberr_t lock_update_node_pointer(const buf_block_t *left_block,
+                                 const buf_block_t *right_block)
 {
   const ulint h= lock_get_min_heap_no(right_block);
   const page_id_t l{left_block->page.id()};
   const page_id_t r{right_block->page.id()};
   LockMultiGuard g{lock_sys.rec_hash, l, r};
 
-  lock_rec_inherit_to_gap(g.cell2(), r, g.cell1(), l, right_block->page.frame,
-                          h, PAGE_HEAP_NO_SUPREMUM);
+  return lock_rec_inherit_to_gap(g.cell2(), r, g.cell1(), l,
+                                 right_block->page.frame,
+                                 h, PAGE_HEAP_NO_SUPREMUM);
 }
 
 #ifdef UNIV_DEBUG
@@ -2838,7 +2880,7 @@ static void lock_assert_no_spatial(const page_id_t id)
 
 /*************************************************************//**
 Updates the lock table when a page is merged to the right. */
-void
+dberr_t
 lock_update_merge_right(
 /*====================*/
 	const buf_block_t*	right_block,	/*!< in: right page to
@@ -2861,9 +2903,11 @@ lock_update_merge_right(
   /* Inherit the locks from the supremum of the left page to the
   original successor of infimum on the right page, to which the left
   page was merged */
-  lock_rec_inherit_to_gap(g.cell2(), r, g.cell1(), l, right_block->page.frame,
-                          page_rec_get_heap_no(orig_succ),
-                          PAGE_HEAP_NO_SUPREMUM);
+  if (dberr_t err= lock_rec_inherit_to_gap(g.cell2(), r, g.cell1(), l,
+                                           right_block->page.frame,
+                                           page_rec_get_heap_no(orig_succ),
+                                           PAGE_HEAP_NO_SUPREMUM))
+    return err;
 
   /* Reset the locks on the supremum of the left page, releasing
   waiting transactions */
@@ -2871,6 +2915,7 @@ lock_update_merge_right(
   lock_rec_free_all_from_discard_page(l, g.cell1(), lock_sys.rec_hash);
 
   ut_d(lock_assert_no_spatial(l));
+  return DB_SUCCESS;
 }
 
 /** Update locks when the root page is copied to another in
@@ -2879,33 +2924,36 @@ root page, even though they do not make sense on other than leaf
 pages: the reason is that in a pessimistic update the infimum record
 of the root page will act as a dummy carrier of the locks of the record
 to be updated. */
-void lock_update_root_raise(const buf_block_t &block, const page_id_t root)
+dberr_t lock_update_root_raise(const buf_block_t &block, const page_id_t root)
 {
   const page_id_t id{block.page.id()};
   /* This would likely be too large for a memory transaction. */
   LockMultiGuard g{lock_sys.rec_hash, id, root};
   /* Move the locks on the supremum of the root to the supremum of block */
-  lock_rec_move(g.cell1(), block, id, g.cell2(), root,
-                PAGE_HEAP_NO_SUPREMUM, PAGE_HEAP_NO_SUPREMUM);
+  return lock_rec_move(g.cell1(), block, id, g.cell2(), root,
+                       PAGE_HEAP_NO_SUPREMUM, PAGE_HEAP_NO_SUPREMUM);
 }
 
 /** Update the lock table when a page is copied to another.
 @param new_block  the target page
 @param old        old page (not index root page) */
-void lock_update_copy_and_discard(const buf_block_t &new_block, page_id_t old)
+dberr_t lock_update_copy_and_discard(const buf_block_t &new_block,
+                                     page_id_t old)
 {
   const page_id_t id{new_block.page.id()};
   /* This would likely be too large for a memory transaction. */
   LockMultiGuard g{lock_sys.rec_hash, id, old};
   /* Move the locks on the supremum of the old page to the supremum of new */
-  lock_rec_move(g.cell1(), new_block, id, g.cell2(), old,
-                PAGE_HEAP_NO_SUPREMUM, PAGE_HEAP_NO_SUPREMUM);
+  if (dberr_t err= lock_rec_move(g.cell1(), new_block, id, g.cell2(), old,
+                                 PAGE_HEAP_NO_SUPREMUM, PAGE_HEAP_NO_SUPREMUM))
+    return err;
   lock_rec_free_all_from_discard_page(old, g.cell2(), lock_sys.rec_hash);
+  return DB_SUCCESS;
 }
 
 /*************************************************************//**
 Updates the lock table when a page is split to the left. */
-void
+dberr_t
 lock_update_split_left(
 /*===================*/
 	const buf_block_t*	right_block,	/*!< in: right page */
@@ -2917,16 +2965,17 @@ lock_update_split_left(
   LockMultiGuard g{lock_sys.rec_hash, l, r};
   /* Inherit the locks to the supremum of the left page from the
   successor of the infimum on the right page */
-  lock_rec_inherit_to_gap(g.cell1(), l, g.cell2(), r, left_block->page.frame,
-                          PAGE_HEAP_NO_SUPREMUM, h);
+  return lock_rec_inherit_to_gap(g.cell1(), l, g.cell2(), r,
+                                 left_block->page.frame, PAGE_HEAP_NO_SUPREMUM,
+                                 h);
 }
 
 /** Update the lock table when a page is merged to the left.
 @param left      left page
 @param orig_pred original predecessor of supremum on the left page before merge
 @param right     merged, to-be-discarded right page */
-void lock_update_merge_left(const buf_block_t& left, const rec_t *orig_pred,
-                            const page_id_t right)
+dberr_t lock_update_merge_left(const buf_block_t& left, const rec_t *orig_pred,
+                               const page_id_t right)
 {
   ut_ad(left.page.frame == page_align(orig_pred));
 
@@ -2935,7 +2984,7 @@ void lock_update_merge_left(const buf_block_t& left, const rec_t *orig_pred,
   if (UNIV_UNLIKELY(!left_next_rec))
   {
     ut_ad("corrupted page" == 0);
-    return;
+    return DB_CORRUPTION;
   }
 
   /* This would likely be too large for a memory transaction. */
@@ -2944,9 +2993,11 @@ void lock_update_merge_left(const buf_block_t& left, const rec_t *orig_pred,
   {
     /* Inherit the locks on the supremum of the left page to the
     first record which was moved from the right page */
-    lock_rec_inherit_to_gap(g.cell1(), l, g.cell1(), l, left.page.frame,
-                            page_rec_get_heap_no(left_next_rec),
-                            PAGE_HEAP_NO_SUPREMUM);
+    if (dberr_t err=
+        lock_rec_inherit_to_gap(g.cell1(), l, g.cell1(), l, left.page.frame,
+                                page_rec_get_heap_no(left_next_rec),
+                                PAGE_HEAP_NO_SUPREMUM))
+      return err;
 
     /* Reset the locks on the supremum of the left page,
     releasing waiting transactions */
@@ -2955,13 +3006,16 @@ void lock_update_merge_left(const buf_block_t& left, const rec_t *orig_pred,
 
   /* Move the locks from the supremum of right page to the supremum
   of the left page */
-  lock_rec_move(g.cell1(), left, l, g.cell2(), right,
-                PAGE_HEAP_NO_SUPREMUM, PAGE_HEAP_NO_SUPREMUM);
+  if (dberr_t err=
+      lock_rec_move(g.cell1(), left, l, g.cell2(), right,
+                    PAGE_HEAP_NO_SUPREMUM, PAGE_HEAP_NO_SUPREMUM))
+    return err;
   lock_rec_free_all_from_discard_page(right, g.cell2(), lock_sys.rec_hash);
 
   /* there should exist no page lock on the right page,
   otherwise, it will be blocked from merge */
   ut_d(lock_assert_no_spatial(right));
+  return DB_SUCCESS;
 }
 
 /*************************************************************//**
@@ -3069,7 +3123,7 @@ lock_update_discard(
 
 /*************************************************************//**
 Updates the lock table when a new user record is inserted. */
-void
+dberr_t
 lock_update_insert(
 /*===============*/
 	const buf_block_t*	block,	/*!< in: buffer block containing rec */
@@ -3088,19 +3142,19 @@ lock_update_insert(
 		receiver_heap_no = rec_get_heap_no_new(rec);
 		rec = page_rec_get_next_low(rec, TRUE);
 		if (UNIV_UNLIKELY(!rec)) {
-			return;
+			return DB_CORRUPTION;
 		}
 		donator_heap_no = rec_get_heap_no_new(rec);
 	} else {
 		receiver_heap_no = rec_get_heap_no_old(rec);
 		rec = page_rec_get_next_low(rec, FALSE);
 		if (UNIV_UNLIKELY(!rec)) {
-			return;
+			return DB_CORRUPTION;
 		}
 		donator_heap_no = rec_get_heap_no_old(rec);
 	}
 
-	lock_rec_inherit_to_gap_if_gap_lock(
+	return lock_rec_inherit_to_gap_if_gap_lock(
 		block, receiver_heap_no, donator_heap_no);
 }
 
@@ -5100,13 +5154,14 @@ lock_rec_insert_check_and_lock(
   return err;
 }
 
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /*********************************************************************//**
 Creates an explicit record lock for a running transaction that currently only
 has an implicit lock on the record. The transaction instance must have a
 reference count > 0 so that it can't be committed and freed before this
 function has completed. */
 static
-void
+dberr_t
 lock_rec_convert_impl_to_expl_for_trx(
 /*==================================*/
 	const page_id_t		id,	/*!< in: page identifier */
@@ -5120,6 +5175,7 @@ lock_rec_convert_impl_to_expl_for_trx(
   ut_ad(!rec_is_metadata(rec, *index));
 
   DEBUG_SYNC_C("before_lock_rec_convert_impl_to_expl_for_trx");
+  dberr_t err= DB_SUCCESS;
   {
     LockGuard g{lock_sys.rec_hash, id};
     trx->mutex_lock();
@@ -5128,14 +5184,16 @@ lock_rec_convert_impl_to_expl_for_trx(
     if (!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY) &&
         !lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP, g.cell(), id, heap_no,
                            trx))
-      lock_rec_add_to_queue(LOCK_X | LOCK_REC_NOT_GAP, g.cell(), id,
-                            page_align(rec), heap_no, index, trx, true);
+      if (!lock_rec_add_to_queue(LOCK_X | LOCK_REC_NOT_GAP, g.cell(), id,
+                                 page_align(rec), heap_no, index, trx, true))
+        err= DB_LOCK_TABLE_FULL;
   }
 
   trx->mutex_unlock();
   trx->release_reference();
 
   DEBUG_SYNC_C("after_lock_rec_convert_impl_to_expl_for_trx");
+  return err;
 }
 
 
@@ -5210,6 +5268,7 @@ static void lock_rec_other_trx_holds_expl(trx_t *caller_trx, trx_t *trx,
 #endif /* UNIV_DEBUG */
 
 
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /** If an implicit x-lock exists on a record, convert it to an explicit one.
 
 Often, this is called by a transaction that is about to enter a lock wait
@@ -5226,9 +5285,11 @@ should be created.
 @param[in]	rec		record on the leaf page
 @param[in]	index		the index of the record
 @param[in]	offsets		rec_get_offsets(rec,index)
-@return	whether caller_trx already holds an exclusive lock on rec */
+@return error code
+@retval DB_SUCCESS_LOCKED_REC if caller_trx already held rec exclusively
+@retval DB_LOCK_TABLE_FULL    if a lock cannot be created */
 static
-bool
+dberr_t
 lock_rec_convert_impl_to_expl(
 	trx_t*			caller_trx,
 	page_id_t		id,
@@ -5251,10 +5312,10 @@ lock_rec_convert_impl_to_expl(
 		trx_id = lock_clust_rec_some_has_impl(rec, index, offsets);
 
 		if (trx_id == 0) {
-			return false;
+			return DB_SUCCESS;
 		}
 		if (UNIV_UNLIKELY(trx_id == caller_trx->id)) {
-			return true;
+			return DB_SUCCESS_LOCKED_REC;
 		}
 
 		trx = trx_sys.find(caller_trx, trx_id);
@@ -5265,26 +5326,24 @@ lock_rec_convert_impl_to_expl(
 						 offsets);
 		if (trx == caller_trx) {
 			trx->release_reference();
-			return true;
+			return DB_SUCCESS_LOCKED_REC;
 		}
 
 		ut_d(lock_rec_other_trx_holds_expl(caller_trx, trx, rec, id));
 	}
 
 	if (trx) {
-		ulint	heap_no = page_rec_get_heap_no(rec);
-
 		ut_ad(trx->is_referenced());
 
 		/* If the transaction is still active and has no
 		explicit x-lock set on the record, set one for it.
 		trx cannot be committed until the ref count is zero. */
 
-		lock_rec_convert_impl_to_expl_for_trx(
-			id, rec, index, trx, heap_no);
+		return lock_rec_convert_impl_to_expl_for_trx(
+			id, rec, index, trx, page_rec_get_heap_no(rec));
 	}
 
-	return false;
+	return DB_SUCCESS;
 }
 
 /*********************************************************************//**
@@ -5323,10 +5382,17 @@ lock_clust_rec_modify_check_and_lock(
 	/* If a transaction has no explicit x-lock set on the record, set one
 	for it */
 
-	if (lock_rec_convert_impl_to_expl(thr_get_trx(thr), block->page.id(),
-					  rec, index, offsets)) {
+	err = lock_rec_convert_impl_to_expl(thr_get_trx(thr), block->page.id(),
+					    rec, index, offsets);
+	switch (err) {
+	case DB_SUCCESS:
+		break;
+	case DB_SUCCESS_LOCKED_REC:
 		/* We already hold an implicit exclusive lock. */
-		return DB_SUCCESS;
+		err = DB_SUCCESS;
+		/* fall through */
+	default:
+		return err;
 	}
 
 	err = lock_rec_lock(true, LOCK_X | LOCK_REC_NOT_GAP,
@@ -5570,11 +5636,22 @@ lock_clust_rec_read_check_and_lock(
 
 	trx_t *trx = thr_get_trx(thr);
 	if (!lock_table_has(trx, index->table, LOCK_X)
-	    && heap_no != PAGE_HEAP_NO_SUPREMUM
-	    && lock_rec_convert_impl_to_expl(trx, id, rec, index, offsets)
-	    && gap_mode == LOCK_REC_NOT_GAP) {
-		/* We already hold an implicit exclusive lock. */
-		return DB_SUCCESS;
+	    && heap_no != PAGE_HEAP_NO_SUPREMUM) {
+		switch (dberr_t err = lock_rec_convert_impl_to_expl(trx, id,
+								    rec, index,
+								    offsets)) {
+		case DB_SUCCESS:
+			break;
+		case DB_SUCCESS_LOCKED_REC:
+			if (gap_mode != LOCK_REC_NOT_GAP) {
+				break;
+			}
+			/* We already hold an implicit exclusive lock. */
+			err = DB_SUCCESS;
+			/* fall through */
+		default:
+			return err;
+		}
 	}
 
 	dberr_t err = lock_rec_lock(false, gap_mode | mode,
@@ -6389,7 +6466,7 @@ void lock_sys_t::deadlock_check()
 
 /** Update the locks when a page is split and merged to two pages,
 in defragmentation. */
-void lock_update_split_and_merge(
+dberr_t lock_update_split_and_merge(
 	const buf_block_t* left_block,	/*!< in: left page to which merged */
 	const rec_t* orig_pred,		/*!< in: original predecessor of
 					supremum on the left page before merge*/
@@ -6405,7 +6482,7 @@ void lock_update_split_and_merge(
   if (UNIV_UNLIKELY(!left_next_rec))
   {
     ut_ad("corrupted page" == 0);
-    return;
+    return DB_CORRUPTION;
   }
   ut_ad(!page_rec_is_metadata(left_next_rec));
 
@@ -6414,9 +6491,12 @@ void lock_update_split_and_merge(
 
   /* Inherit the locks on the supremum of the left page to the
   first record which was moved from the right page */
-  lock_rec_inherit_to_gap(g.cell1(), l, g.cell1(), l, left_block->page.frame,
-                          page_rec_get_heap_no(left_next_rec),
-                          PAGE_HEAP_NO_SUPREMUM);
+  if (dberr_t err=
+      lock_rec_inherit_to_gap(g.cell1(), l, g.cell1(), l,
+                              left_block->page.frame,
+                              page_rec_get_heap_no(left_next_rec),
+                              PAGE_HEAP_NO_SUPREMUM))
+    return err;
 
   /* Reset the locks on the supremum of the left page,
   releasing waiting transactions */
@@ -6424,7 +6504,8 @@ void lock_update_split_and_merge(
 
   /* Inherit the locks to the supremum of the left page from the
   successor of the infimum on the right page */
-  lock_rec_inherit_to_gap(g.cell1(), l, g.cell2(), r, left_block->page.frame,
-                          PAGE_HEAP_NO_SUPREMUM,
-                          lock_get_min_heap_no(right_block));
+  return lock_rec_inherit_to_gap(g.cell1(), l, g.cell2(), r,
+                                 left_block->page.frame,
+                                 PAGE_HEAP_NO_SUPREMUM,
+                                 lock_get_min_heap_no(right_block));
 }

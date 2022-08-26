@@ -530,11 +530,13 @@ lock_prdt_insert_check_and_lock(
       if (c_lock)
       {
         rtr_mbr_t *mbr= prdt_get_mbr_from_prdt(prdt);
+        prdt->op= 0;
         trx->mutex_lock();
-        /* Allocate MBR on the lock heap */
-        lock_init_prdt_from_mbr(prdt, mbr, 0, trx->lock.lock_heap);
-        err= lock_rec_enqueue_waiting(c_lock, mode, id, block->page.frame,
-                                      PRDT_HEAPNO, index, thr, prdt);
+        prdt->data= mem_heap_dup(trx->lock.lock_heap, mbr, sizeof *mbr);
+        err= UNIV_UNLIKELY(!prdt->data)
+          ? DB_LOCK_TABLE_FULL
+          : lock_rec_enqueue_waiting(c_lock, mode, id, block->page.frame,
+                                     PRDT_HEAPNO, index, thr, prdt);
         trx->mutex_unlock();
       }
     }
@@ -666,27 +668,6 @@ lock_prdt_update_split(
 
 	lock_prdt_update_split_low(new_block, NULL, NULL,
 				   page_id, LOCK_PRDT_PAGE);
-}
-
-/*********************************************************************//**
-Initiate a Predicate Lock from a MBR */
-void
-lock_init_prdt_from_mbr(
-/*====================*/
-	lock_prdt_t*	prdt,	/*!< in/out: predicate to initialized */
-	rtr_mbr_t*	mbr,	/*!< in: Minimum Bounding Rectangle */
-	ulint		mode,	/*!< in: Search mode */
-	mem_heap_t*	heap)	/*!< in: heap for allocating memory */
-{
-	memset(prdt, 0, sizeof(*prdt));
-
-	if (heap != NULL) {
-		prdt->data = mem_heap_dup(heap, mbr, sizeof *mbr);
-	} else {
-		prdt->data = static_cast<void*>(mbr);
-	}
-
-	prdt->op = static_cast<uint16>(mode);
 }
 
 /*********************************************************************//**
@@ -850,32 +831,33 @@ bool lock_test_prdt_page_lock(const trx_t *trx, const page_id_t page_id)
 /*************************************************************//**
 Moves the locks of a page to another page and resets the lock bits of
 the donating records. */
-void
+dberr_t
 lock_prdt_rec_move(
 /*===============*/
 	const buf_block_t*	receiver,	/*!< in: buffer block containing
 						the receiving record */
 	const page_id_t		donator)	/*!< in: target page */
 {
-	LockMultiGuard g{lock_sys.prdt_hash, receiver->page.id(), donator};
+  dberr_t err= DB_SUCCESS;
+  LockMultiGuard g{lock_sys.prdt_hash, receiver->page.id(), donator};
 
-	for (lock_t *lock = lock_sys_t::get_first(g.cell2(), donator,
-						  PRDT_HEAPNO);
-	     lock;
-	     lock = lock_rec_get_next(PRDT_HEAPNO, lock)) {
+  for (lock_t *lock= lock_sys_t::get_first(g.cell2(), donator, PRDT_HEAPNO);
+       lock; lock= lock_rec_get_next(PRDT_HEAPNO, lock))
+  {
+    const auto type_mode= lock->type_mode;
+    lock_prdt_t *lock_prdt= lock_get_prdt_from_lock(lock);
 
-		const auto type_mode = lock->type_mode;
-		lock_prdt_t*	lock_prdt = lock_get_prdt_from_lock(lock);
-
-		lock_rec_reset_nth_bit(lock, PRDT_HEAPNO);
-		if (type_mode & LOCK_WAIT) {
-			ut_ad(lock->trx->lock.wait_lock == lock);
-			lock->type_mode &= ~LOCK_WAIT;
-		}
-		lock_prdt_add_to_queue(
-			type_mode, receiver, lock->index, lock->trx,
-			lock_prdt, false);
-	}
+    lock_rec_reset_nth_bit(lock, PRDT_HEAPNO);
+    if (type_mode & LOCK_WAIT)
+    {
+      ut_ad(lock->trx->lock.wait_lock == lock);
+      lock->type_mode&= ~LOCK_WAIT;
+    }
+    if (!lock_prdt_add_to_queue(type_mode, receiver, lock->index, lock->trx,
+                                lock_prdt, false))
+      err= DB_LOCK_TABLE_FULL;
+  }
+  return err;
 }
 
 /** Remove locks on a discarded SPATIAL INDEX page.

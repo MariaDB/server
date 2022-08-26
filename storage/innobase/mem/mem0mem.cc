@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -285,13 +285,12 @@ mem_heap_create_block_func(
 
 			buf_block = static_cast<buf_block_t*>(heap->free_block);
 			heap->free_block = NULL;
-
-			if (UNIV_UNLIKELY(!buf_block)) {
-
-				return(NULL);
-			}
 		} else {
-			buf_block = buf_block_alloc();
+			buf_block = buf_LRU_get_free_block(false);
+		}
+
+		if (UNIV_UNLIKELY(!buf_block)) {
+			return NULL;
 		}
 
 		block = (mem_block_t*) buf_block->page.frame;

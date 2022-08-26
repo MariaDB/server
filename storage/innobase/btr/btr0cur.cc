@@ -1962,14 +1962,20 @@ retry_page_get:
 	    && mode != PAGE_CUR_RTREE_INSERT
 	    && mode != PAGE_CUR_RTREE_LOCATE
 	    && mode >= PAGE_CUR_CONTAIN) {
-		lock_prdt_t	prdt;
+		lock_prdt_t prdt;
+		prdt.op = mode;
 
 		{
 			trx_t* trx = thr_get_trx(cursor->thr);
-			TMLockTrxGuard g{TMLockTrxArgs(*trx)};
-			lock_init_prdt_from_mbr(
-				&prdt, &cursor->rtr_info->mbr, mode,
-				trx->lock.lock_heap);
+		        trx->mutex_lock();
+			prdt.data = mem_heap_dup(trx->lock.lock_heap,
+						 &cursor->rtr_info->mbr,
+						 sizeof cursor->rtr_info->mbr);
+		        trx->mutex_unlock();
+		}
+
+		if (UNIV_UNLIKELY(!prdt.data)) {
+			return DB_LOCK_TABLE_FULL;
 		}
 
 		if (rw_latch == RW_NO_LATCH && height != 0) {
@@ -3179,7 +3185,6 @@ btr_cur_ins_lock_and_undo(
 	if (!(flags & BTR_NO_LOCKING_FLAG)) {
 		const unsigned type = index->type;
 		if (UNIV_UNLIKELY(type & DICT_SPATIAL)) {
-			lock_prdt_t	prdt;
 			rtr_mbr_t	mbr;
 
 			rtr_get_mbr_from_tuple(entry, &mbr);
@@ -3187,7 +3192,7 @@ btr_cur_ins_lock_and_undo(
 			/* Use on stack MBR variable to test if a lock is
 			needed. If so, the predicate (MBR) will be allocated
 			from lock heap in lock_prdt_insert_check_and_lock() */
-			lock_init_prdt_from_mbr(&prdt, &mbr, 0, nullptr);
+			lock_prdt_t prdt{static_cast<void*>(&mbr), 0};
 
 			if (dberr_t err = lock_prdt_insert_check_and_lock(
 				    rec, btr_cur_get_block(cursor),
@@ -3552,7 +3557,10 @@ fail_err:
 
 	if (!(flags & BTR_NO_LOCKING_FLAG) && inherit) {
 
-		lock_update_insert(block, *rec);
+		err = lock_update_insert(block, *rec);
+		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+			goto fail_err;
+		}
 	}
 
 	if (leaf
@@ -3727,6 +3735,8 @@ btr_cur_pessimistic_insert(
 		}
 	}
 
+	err = DB_SUCCESS;
+
 	if (!page_is_leaf(btr_cur_get_page(cursor))) {
 		ut_ad(!big_rec_vec);
 	} else {
@@ -3744,11 +3754,11 @@ btr_cur_pessimistic_insert(
 #endif /* BTR_CUR_HASH_ADAPT */
 		if (inherit && !(flags & BTR_NO_LOCKING_FLAG)) {
 
-			lock_update_insert(btr_cur_get_block(cursor), *rec);
+			err = lock_update_insert(btr_cur_get_block(cursor),
+						 *rec);
 		}
 	}
 
-	err = DB_SUCCESS;
 func_exit:
 	index->table->space->release_free_extents(n_reserved);
 	*big_rec = big_rec_vec;

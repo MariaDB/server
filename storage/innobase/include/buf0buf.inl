@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -84,13 +84,6 @@ inline bool buf_page_peek_if_too_old(const buf_page_t *bpage)
 	} else {
 		return !buf_page_peek_if_young(bpage);
 	}
-}
-
-/** Allocate a buffer block.
-@return own: the allocated block, in state BUF_BLOCK_MEMORY */
-inline buf_block_t *buf_block_alloc()
-{
-  return buf_LRU_get_free_block(false);
 }
 
 /********************************************************************//**

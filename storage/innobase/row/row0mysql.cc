@@ -694,6 +694,7 @@ handle_new_error:
 
 	case DB_DEADLOCK:
 	case DB_LOCK_TABLE_FULL:
+	case DB_OUT_OF_MEMORY:
 	rollback:
 		/* Roll back the whole transaction; this resolution was added
 		to version 3.23.43 */

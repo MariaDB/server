@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -429,7 +429,8 @@ buf_buddy_alloc_from(void* buf, ulint i, ulint j)
 /** Allocate a ROW_FORMAT=COMPRESSED block.
 @param i      index of buf_pool.zip_free[] or BUF_BUDDY_SIZES
 @param lru    assigned to true if buf_pool.mutex was temporarily released
-@return allocated block, never NULL */
+@return allocated block
+@retval nullptr on failure */
 byte *buf_buddy_alloc_low(ulint i, bool *lru)
 {
 	buf_block_t*	block;
@@ -455,6 +456,10 @@ byte *buf_buddy_alloc_low(ulint i, bool *lru)
 
 	/* Try replacing an uncompressed page in the buffer pool. */
 	block = buf_LRU_get_free_block(true);
+	if (UNIV_UNLIKELY(!block)) {
+		return nullptr;
+	}
+
 	if (lru) {
 		*lru = true;
 	}

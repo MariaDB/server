@@ -304,10 +304,11 @@ private:
                                   mtr_t &mtr, buf_block_t *b);
   /** Attempt to initialize a page based on redo log records.
   @param page_id  page identifier
+  @param err      error code
   @return the recovered block
   @retval nullptr if the page cannot be initialized based on log records
-  @retval -1      if the page cannot be recovered due to corruption */
-  buf_block_t *recover_low(const page_id_t page_id);
+  @retval -1      if the page cannot be recovered; *err will be set */
+  buf_block_t *recover_low(const page_id_t page_id, dberr_t *err);
 
   /** All found log files (multiple ones are possible if we are upgrading
   from before MariaDB Server 10.5.1) */
@@ -407,12 +408,13 @@ public:
 
   /** Attempt to initialize a page based on redo log records.
   @param page_id  page identifier
+  @param err      error code
   @return the recovered block
   @retval nullptr if the page cannot be initialized based on log records
-  @retval -1      if the page cannot be recovered due to corruption */
-  buf_block_t *recover(const page_id_t page_id)
+  @retval -1      if the page cannot be recovered; *err will be set */
+  buf_block_t *recover(const page_id_t page_id, dberr_t *err)
   {
-    return UNIV_UNLIKELY(recovery_on) ? recover_low(page_id) : nullptr;
+    return UNIV_UNLIKELY(recovery_on) ? recover_low(page_id, err) : nullptr;
   }
 
   /** Try to recover a tablespace that was not readable earlier
