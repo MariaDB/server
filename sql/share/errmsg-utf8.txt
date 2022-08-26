@@ -6469,7 +6469,7 @@ ER_BINLOG_UNSAFE_NONTRANS_AFTER_TRANS
   eng "Statement is unsafe because it accesses a non-transactional table after accessing a transactional table within the same transaction"
 
 ER_MESSAGE_AND_STATEMENT
-  eng "%s Statement: %s"
+  eng "%s. Statement: %s"
 
 ER_SLAVE_CONVERSION_FAILED
   eng "Column %d of table '%-.192s.%-.192s' cannot be converted from type '%-.50s' to type '%-.50s'"
