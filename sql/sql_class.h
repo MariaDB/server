@@ -5574,6 +5574,39 @@ public:
   {
     lex= backup_lex;
   }
+
+  bool vers_insert_history(const Field *field) const
+  {
+    if (!field->vers_sys_field())
+      return false;
+    DBUG_ASSERT(field->table->versioned());
+    if (field->table->versioned(VERS_TRX_ID))
+      return false;
+    if (!(variables.option_bits & OPTION_INSERT_HISTORY))
+      return false;
+    if (lex->sql_command != SQLCOM_INSERT &&
+        lex->sql_command != SQLCOM_INSERT_SELECT &&
+        lex->sql_command != SQLCOM_REPLACE &&
+        lex->sql_command != SQLCOM_REPLACE_SELECT &&
+        lex->sql_command != SQLCOM_LOAD)
+      return false;
+    switch (opt_secure_timestamp)
+    {
+      case SECTIME_NO:
+        return true;
+      case SECTIME_SUPER:
+        if (security_ctx->master_access & SUPER_ACL)
+          return true;
+        return false;
+      case SECTIME_REPL:
+        if (slave_thread)
+          return true;
+        return false;
+      case SECTIME_YES:
+        return false;
+    }
+    return false;
+  }
 };
 
 

@@ -9995,9 +9995,8 @@ ER_UNKNOWN_DATA_TYPE
 ER_UNKNOWN_OPERATOR
         eng "Operator does not exists: '%-.128s'"
         spa "El operador no existe: '%-.128s'"
-ER_WARN_HISTORY_ROW_START_TIME
-        eng "Table `%s.%s` history row start '%s' is later than row end '%s'"
-        spa "En la historia de la tabla `%s.%s` el inicio de fila '%s' es posterior al fin de fila '%s'"
+ER_UNUSED_29
+	eng "You should never see it"
 ER_PART_STARTS_BEYOND_INTERVAL
         eng "%`s: STARTS is later than query time, first history partition may exceed INTERVAL value"
         spa "%`s: STARTS es posterior al momento de consulta (query), la primera partición de historia puede exceder el valor INTERVAL"

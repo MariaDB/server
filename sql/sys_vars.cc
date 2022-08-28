@@ -6954,3 +6954,10 @@ static Sys_var_ulonglong Sys_max_rowid_filter_size(
        SESSION_VAR(max_rowid_filter_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1024, (ulonglong)~(intptr)0), DEFAULT(128*1024),
        BLOCK_SIZE(1));
+
+static Sys_var_bit Sys_system_versioning_insert_history(
+       "system_versioning_insert_history",
+       "Allows direct inserts into ROW_START and ROW_END columns",
+       SESSION_VAR(option_bits), CMD_LINE(OPT_ARG),
+       OPTION_INSERT_HISTORY, DEFAULT(FALSE),
+       NO_MUTEX_GUARD, IN_BINLOG);

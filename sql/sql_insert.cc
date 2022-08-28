@@ -373,6 +373,7 @@ static int check_update_fields(THD *thd, TABLE_LIST *insert_table_list,
 {
   TABLE *table= insert_table_list->table;
   my_bool UNINIT_VAR(autoinc_mark);
+  enum_sql_command sql_command_save= thd->lex->sql_command;
 
   table->next_number_field_updated= FALSE;
 
@@ -387,10 +388,17 @@ static int check_update_fields(THD *thd, TABLE_LIST *insert_table_list,
                                         field_index);
   }
 
+  thd->lex->sql_command= SQLCOM_UPDATE;
+
   /* Check the fields we are going to modify */
   if (setup_fields(thd, Ref_ptr_array(),
                    update_fields, MARK_COLUMNS_WRITE, 0, NULL, 0))
+  {
+    thd->lex->sql_command= sql_command_save;
     return -1;
+  }
+
+  thd->lex->sql_command= sql_command_save;
 
   if (insert_table_list->is_view() &&
       insert_table_list->is_merged_derived() &&
@@ -1735,11 +1743,17 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
   if (check_duplic_insert_without_overlaps(thd, table, duplic) != 0)
     DBUG_RETURN(true);
 
-  if (table->versioned(VERS_TIMESTAMP) && duplic == DUP_REPLACE)
+  if (table->versioned(VERS_TIMESTAMP))
   {
     // Additional memory may be required to create historical items.
-    if (table_list->set_insert_values(thd->mem_root))
+    if (duplic == DUP_REPLACE && table_list->set_insert_values(thd->mem_root))
       DBUG_RETURN(1);
+
+  Field *row_start= table->vers_start_field();
+  Field *row_end= table->vers_end_field();
+    if (!fields.elements && !(row_start->invisible && row_end->invisible) &&
+        thd->vers_insert_history(row_start))
+      table->vers_write= false;
   }
 
   if (!select_insert)
@@ -1802,8 +1816,7 @@ static int last_uniq_key(TABLE *table,uint keynr)
 int vers_insert_history_row(TABLE *table)
 {
   DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
-  if (!table->vers_write)
-    return 0;
+  DBUG_ASSERT(table->vers_write);
   restore_record(table,record[1]);
 
   // Set Sys_end to now()
@@ -2102,6 +2115,7 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
         {
           if (table->versioned(VERS_TRX_ID))
           {
+            DBUG_ASSERT(table->vers_write);
             bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
             table->file->column_bitmaps_signal();
             table->vers_start_field()->store(0, false);
@@ -2115,7 +2129,7 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
             info->deleted++;
             if (!table->file->has_transactions())
               thd->transaction->stmt.modified_non_trans_table= TRUE;
-            if (table->versioned(VERS_TIMESTAMP))
+            if (table->versioned(VERS_TIMESTAMP) && table->vers_write)
             {
               store_record(table, record[2]);
               error= vers_insert_history_row(table);
@@ -4191,7 +4205,6 @@ int select_insert::send_data(List<Item> &values)
     DBUG_RETURN(1);
   }
 
-  table->vers_write= table->versioned();
   if (table_list)                               // Not CREATE ... SELECT
   {
     switch (table_list->view_check_option(thd, info.ignore)) {
@@ -4203,7 +4216,6 @@ int select_insert::send_data(List<Item> &values)
   }
 
   error= write_record(thd, table, &info, sel_result);
-  table->vers_write= table->versioned();
   table->auto_increment_field_not_null= FALSE;
 
   if (likely(!error))

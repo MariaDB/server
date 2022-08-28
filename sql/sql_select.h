@@ -2086,7 +2086,7 @@ int join_read_key2(THD *thd, struct st_join_table *tab, TABLE *table,
                    struct st_table_ref *table_ref);
 
 bool handle_select(THD *thd, LEX *lex, select_result *result,
-                   ulong setup_tables_done_option);
+                   ulonglong setup_tables_done_option);
 bool mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &list,
                   COND *conds, uint og_num, ORDER *order, ORDER *group,
                   Item *having, ORDER *proc_param, ulonglong select_type, 

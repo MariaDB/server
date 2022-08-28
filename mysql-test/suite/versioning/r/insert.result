@@ -112,3 +112,192 @@ x	y
 9	9001
 drop table t1;
 drop table t2;
+#
+# MDEV-16546 System versioning setting to allow history modification
+#
+set @@session.time_zone='+00:00';
+create table t1(x int primary key) with system versioning;
+create table t2(y int primary key,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time (row_start, row_end))
+with system versioning;
+create table t3(z int primary key,
+row_start timestamp(6) as row start,
+row_end timestamp(6) as row end,
+period for system_time (row_start, row_end))
+with system versioning;
+insert into t1(x, row_start, row_end) values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+ERROR 42S22: Unknown column 'row_start' in 'field list'
+insert into t2(y, row_start, row_end) values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+ERROR HY000: The value specified for generated column 'row_start' in table 't2' has been ignored
+set @@system_versioning_insert_history= 1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+insert into t1(x, row_start, row_end) values (3, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+insert into t2(y, row_start, row_end) values (4, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+insert into t3 values (5, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+select x, row_start, row_end from t1 for system_time all;
+x	row_start	row_end
+3	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
+select y, row_start, row_end from t2 for system_time all;
+y	row_start	row_end
+4	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
+select z, row_start, row_end from t3 for system_time all;
+z	row_start	row_end
+5	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
+insert into t1(x) values (1);
+insert into t2(y) values (1);
+update t1 set x= x + 1;
+update t1 set row_start= '1971-01-01 00:00:00';
+ERROR 42S22: Unknown column 'row_start' in 'field list'
+update t2 set row_start= '1971-01-01 00:00:00';
+ERROR HY000: The value specified for generated column 'row_start' in table 't2' has been ignored
+insert t1 (x) values (2) on duplicate key update x= 3, row_end= '1970-01-01 00:00:00';
+ERROR 42S22: Unknown column 'row_end' in 'field list'
+insert t2 (y) values (1) on duplicate key update y= 3, row_end= '1970-01-01 00:00:00';
+ERROR HY000: The value specified for generated column 'row_end' in table 't2' has been ignored
+insert into t1 values (4);
+insert into t1 set x= 5, row_start= '1980-01-01 00:00:00', row_end= '1980-01-01 00:00:01';
+insert into t1(x, row_start, row_end) values (6, '1980-01-01 00:00:01', '1980-01-01 00:00:00');
+ERROR HY000: Incorrect row_start value: '1980-01-01 00:00:01.000000'
+insert into t1(x, row_start, row_end) values (7, '1980-01-01 00:00:11', '1980-01-01 00:00:11');
+ERROR HY000: Incorrect row_start value: '1980-01-01 00:00:11.000000'
+insert into t1(x, row_start) values (8, '1980-01-01 00:00:22');
+ERROR HY000: Incorrect row_start value: '1980-01-01 00:00:22.000000'
+insert into t1(x, row_end) values (9, '1980-01-01 00:00:33');
+ERROR HY000: Incorrect row_start value: '0000-00-00 00:00:00.000000'
+insert into t1(x, row_end) values (10, TIMESTAMP'2038-01-19 03:14:07.999999');
+ERROR HY000: Incorrect row_start value: '0000-00-00 00:00:00.000000'
+select x, check_row_ts(row_start, row_end) from t1 for system_time all order by x;
+x	check_row_ts(row_start, row_end)
+1	HISTORICAL ROW
+2	CURRENT ROW
+3	HISTORICAL ROW
+4	CURRENT ROW
+5	HISTORICAL ROW
+select x, row_start, row_end from t1 for system_time all
+where x > 1 and row_end < TIMESTAMP'2038-01-19 03:14:07.999999' order by x, row_start, row_end;
+x	row_start	row_end
+3	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
+5	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
+# Direct insert is not possible for TRX_ID versioning
+create or replace table t2(y int primary key,
+row_start bigint unsigned as row start,
+row_end bigint unsigned as row end,
+period for system_time (row_start, row_end))
+with system versioning engine innodb;
+insert into t2(y, row_start, row_end) values (0, 1, 2);
+ERROR HY000: The value specified for generated column 'row_start' in table 't2' has been ignored
+set @@system_versioning_insert_history= 0;
+## INSERT..SELECT
+create or replace table t2 like t1;
+set @@system_versioning_insert_history= 1;
+insert into t2 (x, row_start, row_end) select x, row_start, row_end from t1 for system_time all;
+select x, check_row_ts(row_start, row_end) from t2 for system_time all order by x;
+x	check_row_ts(row_start, row_end)
+1	HISTORICAL ROW
+2	CURRENT ROW
+3	HISTORICAL ROW
+4	CURRENT ROW
+5	HISTORICAL ROW
+select x, row_start, row_end from t2 for system_time all
+where x > 1 and row_end < TIMESTAMP'2038-01-19 03:14:07.999999' order by x, row_start, row_end;
+x	row_start	row_end
+3	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
+5	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
+set @@system_versioning_insert_history= 0;
+# REPLACE / REPLACE .. SELECT
+create or replace table t2(a int primary key,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time (row_start, row_end))
+with system versioning;
+replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+ERROR HY000: The value specified for generated column 'row_start' in table 't2' has been ignored
+replace into t2 (a, row_start, row_end) select x, row_start, row_end from t1;
+ERROR HY000: The value specified for generated column 'row_start' in table 't2' has been ignored
+create or replace table t2 (a int primary key) with system versioning;
+replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+ERROR 42S22: Unknown column 'row_start' in 'field list'
+replace into t2 (a, row_start, row_end) select x, row_start, row_end from t1;
+ERROR 42S22: Unknown column 'row_start' in 'field list'
+set @@system_versioning_insert_history= 1;
+replace into t2 (a, row_start) values (1, '1980-01-01 00:00:00');
+ERROR HY000: Incorrect row_start value: '1980-01-01 00:00:00.000000'
+replace into t2 (a, row_end) values (0, '1980-01-01 00:00:00');
+ERROR HY000: Incorrect row_start value: '0000-00-00 00:00:00.000000'
+replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
+a	row_start	row_end
+1	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
+# Changing row_end via REPLACE is NOT possible, we just insert new row:
+replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1990-01-01 00:00:01');
+select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
+a	row_start	row_end
+1	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
+1	1980-01-01 00:00:00.000000	1990-01-01 00:00:01.000000
+# But changing row_start via REPLACE is possible:
+replace into t2 (a, row_start, row_end) values (1, '1971-01-01 00:00:00', '1980-01-01 00:00:01');
+select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
+a	row_start	row_end
+1	1971-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
+1	1980-01-01 00:00:00.000000	1990-01-01 00:00:01.000000
+replace into t2 (a, row_start, row_end) select x, row_start, row_end from t1 for system_time all
+where x > 1 and row_end < TIMESTAMP'2038-01-19 03:14:07.999999';
+select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
+a	row_start	row_end
+1	1971-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
+1	1980-01-01 00:00:00.000000	1990-01-01 00:00:01.000000
+3	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
+5	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
+# LOAD DATA
+select x, row_start, row_end into outfile 'DATAFILE' from t1 for system_time all;
+create or replace table t3 like t1;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+set @@system_versioning_insert_history= 1;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+load data infile 'DATAFILE' into table t3 (x, row_start, row_end);
+select x, check_row_ts(row_start, row_end) from t3 for system_time all order by x;
+x	check_row_ts(row_start, row_end)
+1	HISTORICAL ROW
+2	CURRENT ROW
+3	HISTORICAL ROW
+4	CURRENT ROW
+5	HISTORICAL ROW
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t3 for system_time all where x = 3;
+row_start = '1980-01-01 00:00:00'	row_end = '1980-01-01 00:00:01'
+1	1
+# Honor secure_timestamp option
+# restart: --secure-timestamp=YES
+set @@system_versioning_insert_history= 1;
+insert into t1(x, row_start, row_end) values (8, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+ERROR 42S22: Unknown column 'row_start' in 'field list'
+# restart: --secure-timestamp=REPLICATION
+set @@system_versioning_insert_history= 1;
+insert into t1(x, row_start, row_end) values (9, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+ERROR 42S22: Unknown column 'row_start' in 'field list'
+# restart: --secure-timestamp=SUPER
+set @@system_versioning_insert_history= 1;
+insert into t1(x, row_start, row_end) values (10, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+create user nobody;
+use test;
+insert into t1(x, row_start, row_end) values (7, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+ERROR 42S22: Unknown column 'row_start' in 'field list'
+use test;
+# restart: --secure-timestamp=NO
+drop tables t1, t2, t3;

@@ -1,6 +1,7 @@
 include/master-slave.inc
 [connection master]
 connection slave;
+set @@session.time_zone='+00:00';
 connection master;
 CREATE TABLE t1 (x int) with system versioning;
 insert into t1 values (1);
@@ -384,4 +385,55 @@ connection slave;
 connection master;
 drop tables t, t2;
 set timestamp= default;
+#
+# MDEV-16546 System versioning setting to allow history modification
+#
+create table t1(x int) with system versioning;
+insert into t1(x) values (1);
+insert into t1(x, row_start, row_end) values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+ERROR 42S22: Unknown column 'row_start' in 'field list'
+set @@system_versioning_insert_history= 1;
+insert into t1(x, row_start, row_end) values (3, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+update t1 set x= x + 1;
+connection slave;
+set @@session.time_zone='+00:00';
+select x, check_row_ts(row_start, row_end) from t1 for system_time all order by x;
+x	check_row_ts(row_start, row_end)
+1	HISTORICAL ROW
+2	CURRENT ROW
+3	HISTORICAL ROW
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t1 for system_time all where x = 3;
+row_start = '1980-01-01 00:00:00'	row_end = '1980-01-01 00:00:01'
+1	1
+## INSERT..SELECT
+connection master;
+create or replace table t2 like t1;
+set @@system_versioning_insert_history= 1;
+insert into t2 (x, row_start, row_end) select x, row_start, row_end from t1 for system_time all;
+connection slave;
+select x, check_row_ts(row_start, row_end) from t2 for system_time all order by x;
+x	check_row_ts(row_start, row_end)
+1	HISTORICAL ROW
+2	CURRENT ROW
+3	HISTORICAL ROW
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t2 for system_time all where x = 3;
+row_start = '1980-01-01 00:00:00'	row_end = '1980-01-01 00:00:01'
+1	1
+# LOAD DATA
+connection master;
+select x, row_start, row_end into outfile 'DATAFILE' from t1 for system_time all;
+create or replace table t3 like t1;
+set @@system_versioning_insert_history= 1;
+load data infile 'DATAFILE' into table t3 (x, row_start, row_end);
+connection slave;
+select x, check_row_ts(row_start, row_end) from t3 for system_time all order by x;
+x	check_row_ts(row_start, row_end)
+1	HISTORICAL ROW
+2	CURRENT ROW
+3	HISTORICAL ROW
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t3 for system_time all where x = 3;
+row_start = '1980-01-01 00:00:00'	row_end = '1980-01-01 00:00:01'
+1	1
+connection master;
+drop tables t1, t2, t3;
 include/rpl_end.inc
