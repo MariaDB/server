@@ -1,6 +1,7 @@
 --source suite/versioning/engines.inc
 --source include/have_partition.inc
 --source include/master-slave.inc
+--source suite/versioning/common.inc
 
 #BUG#12662190 - COM_COMMIT IS NOT INCREMENTED FROM THE BINARY LOGS ON SLAVE, COM_BEGIN IS
 #Testing command counters -BEFORE.
@@ -10,6 +11,7 @@ let $slave_com_commit_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_commi
 let $slave_com_insert_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_insert', Value, 1);
 let $slave_com_delete_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_delete', Value, 1);
 let $slave_com_update_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_update', Value, 1);
+set @@session.time_zone='+00:00';
 
 connection master;
 CREATE TABLE t1 (x int) with system versioning;
@@ -296,4 +298,46 @@ alter table t drop partition p0;
 drop tables t, t2;
 set timestamp= default;
 
+--echo #
+--echo # MDEV-16546 System versioning setting to allow history modification
+--echo #
+create table t1(x int) with system versioning;
+insert into t1(x) values (1);
+--error ER_BAD_FIELD_ERROR
+insert into t1(x, row_start, row_end) values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+set @@system_versioning_insert_history= 1;
+insert into t1(x, row_start, row_end) values (3, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+update t1 set x= x + 1;
+sync_slave_with_master;
+set @@session.time_zone='+00:00';
+select x, check_row_ts(row_start, row_end) from t1 for system_time all order by x;
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t1 for system_time all where x = 3;
+
+--echo ## INSERT..SELECT
+connection master;
+create or replace table t2 like t1;
+set @@system_versioning_insert_history= 1;
+insert into t2 (x, row_start, row_end) select x, row_start, row_end from t1 for system_time all;
+sync_slave_with_master;
+select x, check_row_ts(row_start, row_end) from t2 for system_time all order by x;
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t2 for system_time all where x = 3;
+
+--echo # LOAD DATA
+connection master;
+--let DATAFILE= $MYSQLTEST_VARDIR/tmp/test_versioning_t3.data
+--replace_result $DATAFILE DATAFILE
+eval select x, row_start, row_end into outfile '$DATAFILE' from t1 for system_time all;
+create or replace table t3 like t1;
+set @@system_versioning_insert_history= 1;
+--replace_result $DATAFILE DATAFILE
+eval load data infile '$DATAFILE' into table t3 (x, row_start, row_end);
+sync_slave_with_master;
+select x, check_row_ts(row_start, row_end) from t3 for system_time all order by x;
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t3 for system_time all where x = 3;
+--remove_file $DATAFILE
+
+connection master;
+drop tables t1, t2, t3;
+
+--source suite/versioning/common_finish.inc
 --source include/rpl_end.inc

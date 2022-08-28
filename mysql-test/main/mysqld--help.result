@@ -1369,6 +1369,8 @@ The following specify which files/extra groups are read (specified before remain
  Versioning ALTER TABLE mode. ERROR: Fail ALTER with
  error; KEEP: Keep historical system rows and subject them
  to ALTER
+ --system-versioning-insert-history 
+ Allows direct inserts into ROW_START and ROW_END columns
  --table-cache=#     Deprecated; use --table-open-cache instead.
  --table-definition-cache=# 
  The number of cached table definitions
@@ -1838,6 +1840,7 @@ sync-relay-log 10000
 sync-relay-log-info 10000
 sysdate-is-now FALSE
 system-versioning-alter-history ERROR
+system-versioning-insert-history FALSE
 table-definition-cache 400
 tc-heuristic-recover OFF
 tcp-keepalive-interval 0

@@ -7569,6 +7569,30 @@ int handler::ha_write_row(const uchar *buf)
       DBUG_RETURN(error);
   }
 
+  if (table->versioned() && !table->vers_write)
+  {
+    Field *row_start= table->vers_start_field();
+    Field *row_end= table->vers_end_field();
+    MYSQL_TIME ltime;
+
+    bitmap_set_bit(table->read_set, row_start->field_index);
+    bitmap_set_bit(table->read_set, row_end->field_index);
+
+    /*
+       Inserting the history row directly, check ROW_START <= ROW_END and
+       ROW_START is non-zero.
+    */
+    if ((row_start->cmp(row_start->ptr, row_end->ptr) >= 0) ||
+         row_start->get_date(&ltime, Datetime::Options(
+           TIME_NO_ZERO_DATE, time_round_mode_t(time_round_mode_t::FRAC_NONE))))
+    {
+      String val;
+      row_start->val_str(&val);
+      my_error(ER_WRONG_VALUE, MYF(0), row_start->field_name.str, val.ptr());
+      DBUG_RETURN(HA_ERR_GENERIC);
+    }
+  }
+
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);

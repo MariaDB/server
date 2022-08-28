@@ -560,7 +560,7 @@ static void trace_table_dependencies(THD *thd,
 */
 
 bool handle_select(THD *thd, LEX *lex, select_result *result,
-                   ulong setup_tables_done_option)
+                   ulonglong setup_tables_done_option)
 {
   bool res;
   SELECT_LEX *select_lex= lex->first_select_lex();

@@ -33,7 +33,7 @@
 #include "item_windowfunc.h"
 
 bool mysql_union(THD *thd, LEX *lex, select_result *result,
-                 SELECT_LEX_UNIT *unit, ulong setup_tables_done_option)
+                 SELECT_LEX_UNIT *unit, ulonglong setup_tables_done_option)
 {
   DBUG_ENTER("mysql_union");
   bool res;

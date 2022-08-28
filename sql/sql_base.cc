@@ -6309,7 +6309,8 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
 
     if (field->invisible == INVISIBLE_SYSTEM &&
         thd->column_usage != MARK_COLUMNS_READ &&
-        thd->column_usage != COLUMNS_READ)
+        thd->column_usage != COLUMNS_READ &&
+        !thd->vers_insert_history(field))
       DBUG_RETURN((Field*)0);
   }
   else
@@ -8890,7 +8891,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     if (table->next_number_field &&
         rfield->field_index ==  table->next_number_field->field_index)
       table->auto_increment_field_not_null= TRUE;
-    const bool skip_sys_field= rfield->vers_sys_field(); // TODO: && !thd->vers_modify_history() [MDEV-16546]
+    const bool skip_sys_field= rfield->vers_sys_field() &&
+      (update || !thd->vers_insert_history(rfield));
     if ((rfield->vcol_info || skip_sys_field) &&
         !value->vcol_assignment_allowed_value() &&
         table->s->table_category != TABLE_CATEGORY_TEMPORARY)
@@ -9175,7 +9177,10 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
 
     if (field->field_index == autoinc_index)
       table->auto_increment_field_not_null= TRUE;
-    if ((unlikely(field->vcol_info) || (vers_sys_field && !ignore_errors)) &&
+    if ((unlikely(field->vcol_info) ||
+         (vers_sys_field &&
+          !ignore_errors &&
+          !thd->vers_insert_history(field))) &&
         !value->vcol_assignment_allowed_value() &&
         table->s->table_category != TABLE_CATEGORY_TEMPORARY)
     {

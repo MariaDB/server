@@ -2357,6 +2357,9 @@ void Format_description_log_event::deduct_options_written_to_bin_log()
       return;
   }
   options_written_to_bin_log|= OPTION_EXPLICIT_DEF_TIMESTAMP;
+  if (server_version_split < Version(10, 11, 0))
+    return;
+  options_written_to_bin_log|= OPTION_INSERT_HISTORY;
 
   DBUG_ASSERT(options_written_to_bin_log == OPTIONS_WRITTEN_TO_BIN_LOG);
 }
