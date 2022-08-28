@@ -4432,6 +4432,7 @@ void Security_context::init()
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   db_access= NO_ACL;
 #endif
+  user_denies_active= role_denies_active= NO_PRIV;
 }
 
 

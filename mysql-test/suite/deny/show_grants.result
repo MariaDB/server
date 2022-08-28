@@ -12,12 +12,16 @@ Grants for foo@%
 GRANT SELECT, INSERT ON *.* TO `foo`@`%`
 DENY SELECT, UPDATE ON *.* TO `foo`@`%`
 GRANT SELECT, DELETE ON `some_db`.* TO `foo`@`%`
+DENY ALL PRIVILEGES ON `secret_db`.* TO `foo`@`%` WITH GRANT OPTION
+DENY INSERT, UPDATE ON `some_db`.* TO `foo`@`%`
 connect  con1,localhost,foo,,;
 show grants;
 Grants for foo@%
 GRANT SELECT, INSERT ON *.* TO `foo`@`%`
 DENY SELECT, UPDATE ON *.* TO `foo`@`%`
 GRANT SELECT, DELETE ON `some_db`.* TO `foo`@`%`
+DENY ALL PRIVILEGES ON `secret_db`.* TO `foo`@`%` WITH GRANT OPTION
+DENY INSERT, UPDATE ON `some_db`.* TO `foo`@`%`
 disconnect con1;
 connection default;
 create role bar;
@@ -40,8 +44,11 @@ GRANT `bar` TO `foo`@`%`
 GRANT SELECT, INSERT ON *.* TO `foo`@`%`
 DENY SELECT, UPDATE ON *.* TO `foo`@`%`
 GRANT SELECT, DELETE ON `some_db`.* TO `foo`@`%`
+DENY ALL PRIVILEGES ON `secret_db`.* TO `foo`@`%` WITH GRANT OPTION
+DENY INSERT, UPDATE ON `some_db`.* TO `foo`@`%`
 GRANT USAGE ON *.* TO `bar`
 DENY SELECT ON *.* TO `bar`
+DENY INSERT ON `one_db`.* TO `bar`
 disconnect con1;
 connection default;
 drop database some_db;
