@@ -343,6 +343,7 @@ Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
 DENY SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT INSERT ON `mysql`.* TO `foo`@`%`
+DENY SELECT, INSERT ON `mysql`.* TO `foo`@`%`
 grant update on mysql.* to foo;
 connect  con1,localhost,foo,,;
 #
@@ -368,6 +369,7 @@ Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
 DENY SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
+DENY SELECT, INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
 show databases;
 Database
 information_schema
@@ -388,6 +390,7 @@ Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
 DENY SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
+DENY SELECT, INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
 GRANT INSERT ON `mysql`.`t1` TO `foo`@`%`
 connect  con1,localhost,foo,,;
 show databases;
@@ -405,6 +408,7 @@ Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
 DENY SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
+DENY SELECT, INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
 GRANT INSERT, DELETE ON `mysql`.`t1` TO `foo`@`%`
 connect  con1,localhost,foo,,;
 #
@@ -440,6 +444,7 @@ Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
 DENY SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
+DENY SELECT, INSERT, UPDATE, DELETE ON `mysql`.* TO `foo`@`%`
 GRANT INSERT, DELETE, REFERENCES (a) ON `mysql`.`t1` TO `foo`@`%`
 connect  con1,localhost,foo,,;
 show databases;
@@ -458,6 +463,7 @@ Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
 DENY SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
+DENY SELECT, INSERT, UPDATE, DELETE, REFERENCES ON `mysql`.* TO `foo`@`%`
 GRANT INSERT, DELETE, REFERENCES (a) ON `mysql`.`t1` TO `foo`@`%`
 connect  con1,localhost,foo,,;
 show databases;
@@ -527,6 +533,7 @@ Grants for foo@%
 GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
 DENY SHOW DATABASES ON *.* TO `foo`@`%`
 GRANT INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
+DENY SELECT, INSERT, UPDATE, DELETE, REFERENCES, EXECUTE ON `mysql`.* TO `foo`@`%`
 GRANT INSERT, DELETE, REFERENCES (a) ON `mysql`.`t1` TO `foo`@`%`
 GRANT EXECUTE ON PROCEDURE `mysql`.`proc_1` TO `foo`@`%`
 GRANT EXECUTE ON FUNCTION `mysql`.`func_1` TO `foo`@`%`

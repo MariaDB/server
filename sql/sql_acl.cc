@@ -204,9 +204,14 @@ enum object_type {
   PACKAGE_BODY_TYPE
 };
 
+class ACL_USER_BASE;
+
 class Deny_spec
 {
+public:
   typedef std::pair<LEX_CSTRING, privilege_t> deny_entry;
+private:
+
   PRIV_TYPE specified_denies;
   privilege_t global_denies;
   Hash_set<deny_entry> *db_denies;
@@ -251,21 +256,205 @@ class Deny_spec
                                    const LEX_CSTRING &column={nullptr, 0})
   {
     // TODO(cvicentiu): Check if this is proper identifier quoting.
-    // Perhaps use a version of 'append_identifier' function.
-    s->append('`');
+    // Perhaps use a version of 'append_identifier' function, however those
+    // require THD and we are only using this for internal representation.
     s->append(db);
     if (table.length)
     {
-      s->append(STRING_WITH_LEN("`.`"));
+      s->append('\0');
       s->append(table);
       if (column.length)
       {
-        s->append(STRING_WITH_LEN("`.`"));
+        s->append('\0');
         s->append(column);
       }
     }
-    s->append('`');
   }
+
+  /*
+    Map a json (on disk representation of a deny name) to the in-memory
+    representation that we use for faster lookups.
+  */
+  static
+  LEX_CSTRING construct_identifier_from_json_name(const LEX_CSTRING &json)
+  {
+    bool in_quote=false;
+    String s;
+    const char *result;
+
+    for (size_t i= 0; i < json.length; i++)
+    {
+      if (!in_quote)
+      {
+        DBUG_ASSERT(json.str[i] == '`' || json.str[i] == '.');
+        if (json.str[i] == '`') {
+          in_quote= true;
+          continue;
+        }
+        if (json.str[i] != '.') {
+          return {nullptr, 0}; // Invalid name.
+        }
+        continue;
+      }
+
+      DBUG_ASSERT(in_quote);
+      if (json.str[i] == '`')
+      {
+        if (i == json.length - 1) // End of identifier.
+          break;
+
+        // Look ahead to see if this is not an escaped '`'
+        if (json.str[i + 1] == '`') // Double `` -> escaped `
+        {
+          s.append('`');
+          i += 1; // Skip the doubled '`' character.
+          continue;
+        }
+        in_quote = false;
+        s.append('\0');
+        continue;
+      }
+      s.append(json.str[i]);
+    }
+
+    result= my_strndup(PSI_INSTRUMENT_MEM, s.c_ptr(), s.length(), MYF(0));
+    if (!result)
+      return {nullptr, 0}; // OOM
+    return {result, s.length()};
+  }
+
+  static privilege_t get_hash_value(const Hash_set<deny_entry> *hash,
+                                    const LEX_CSTRING &db,
+                                    const LEX_CSTRING &object={nullptr, 0},
+                                    const LEX_CSTRING &column={nullptr, 0})
+  {
+    deny_entry *res= nullptr;
+    if (hash && db.length)
+    {
+      String key;
+      construct_identifier(&key, db, object, column);
+      res= hash->find(key.c_ptr(), key.length());
+    }
+    if (!res)
+      return NO_ACL;
+    return res->second;
+  }
+
+  static void construct_json_identifier(const LEX_CSTRING &entry, String *res)
+  {
+    res->append('`');
+    for (size_t i= 0; i < entry.length; i++)
+    {
+      if (entry.str[i] == '\0')
+        res->append(STRING_WITH_LEN("`.`"));
+      else
+        res->append(entry.str[i]);
+    }
+    res->append('`');
+  }
+
+
+  static bool print_hash_table(String *s, Hash_set<deny_entry> *hash)
+  {
+    char v[FLOATING_POINT_BUFFER + 1];
+    size_t vlen;
+    for (size_t i= 0; i < hash->size(); i++)
+    {
+      const deny_entry *entry= hash->at(i);
+      vlen= longlong10_to_str(entry->second, v, -10) - v;
+      s->append(STRING_WITH_LEN("{\"name\":\""));
+
+      String identifier;
+      construct_json_identifier(entry->first, &identifier);
+
+      char buf[1500]; //TODO(cvicentiu) size...
+      int blen= json_escape(system_charset_info,
+                            (const uchar*) identifier.c_ptr(),
+                            (const uchar*) identifier.end(),
+                            system_charset_info, // TODO(cvicentiu) table charset..
+                            (uchar*)buf, (uchar*)buf+sizeof(buf));
+      if (blen < 0)
+        return true;
+      s->append(buf, blen);
+      s->append(STRING_WITH_LEN("\",\"access\":"));
+      s->append(v, vlen);
+      if (i != hash->size() - 1)
+        s->append(STRING_WITH_LEN("},"));
+      else
+        s->append(STRING_WITH_LEN("}"));
+    }
+    return false;
+  }
+
+
+  static bool update_hash(Hash_set<deny_entry> **hash,
+                          privilege_t access, bool revoke,
+                          const LEX_CSTRING &db, const LEX_CSTRING &table,
+                          const LEX_CSTRING &column={nullptr, 0})
+  {
+    deny_entry *entry= nullptr;
+    String key;
+    construct_identifier(&key, db, table, column);
+    if (!*hash)
+    {
+      *hash= new Hash_set<deny_entry>(
+            PSI_INSTRUMENT_MEM, &my_charset_bin, 10, 0, 0,
+            (my_hash_get_key)pair_first_key,
+            free_deny_entry, HASH_UNIQUE);
+      if (!*hash)
+        return true;
+    }
+    else
+    {
+      entry= get_hash_entry(**hash, key);
+    }
+    bool entry_exists= entry != nullptr;
+    if (!entry) /* No previous entry */
+    {
+      /* Shortcut, revoking a non-existing entry does nothing to the
+         hash table. */
+      if (revoke)
+        return false;
+
+      entry= new deny_entry();
+      if (!entry)
+        return true;
+      entry->first.str= my_strndup(PSI_INSTRUMENT_MEM,
+                                   key.c_ptr(), key.length(), MYF(0));
+      if (!entry->first.str)
+      {
+        delete entry;
+        // TODO(cvicentiu) returning true here doesn't set my_error, leading
+        // to protocol error.
+        return true;
+      }
+      entry->first.length= key.length();
+    }
+
+    if (revoke)
+      entry->second&= ~access;
+    else
+      entry->second|= access;
+
+    /* A no privilege entry should be removed from the hash. */
+    if (entry_exists && !entry->second)
+    {
+      (*hash)->remove(entry);
+      return false;
+    }
+
+    if (!entry_exists)
+    {
+      if ((*hash)->insert(entry))
+      {
+        my_free(const_cast<char*>(entry->first.str));
+        delete entry;
+        return true;
+      }
+    }
+    return false;
+  }
+
   // TODO(cvicentiu) proxy denies.
 public:
   Deny_spec() : specified_denies{NO_PRIV}, global_denies{NO_ACL},
@@ -282,6 +471,30 @@ public:
     delete function_denies;
     delete package_spec_denies;
     delete package_body_denies;
+  }
+
+  static void deconstruct_identifier(const LEX_CSTRING &identifier,
+                                     LEX_CSTRING *database,
+                                     LEX_CSTRING *table= nullptr,
+                                     LEX_CSTRING *column= nullptr)
+  {
+    // TODO(cvicentiu) test this with "evil identifiers like:
+    // `some_db.`.`some_tabl.e`
+    LEX_CSTRING *refs[3] = {database, table, column};
+    int ref_index= 0;
+    const char *pos= identifier.str;
+    for (size_t i= 0; i < identifier.length; i++)
+    {
+      if (identifier.str[i] == '\0')
+      {
+        DBUG_ASSERT(refs[ref_index] != nullptr);
+        refs[ref_index]->str= pos;
+        pos= identifier.str + i;
+        ref_index++;
+      }
+    }
+    refs[ref_index]->str= pos;
+    refs[ref_index]->length= identifier.length - (pos - identifier.str);
   }
 
   privilege_t get_global() const { return global_denies; }
@@ -329,50 +542,32 @@ public:
     return get_hash_value(package_body_denies, db, package_body);
   }
 
-  static privilege_t get_hash_value(const Hash_set<deny_entry> *hash,
-                                    const LEX_CSTRING &db,
-                                    const LEX_CSTRING &object={nullptr, 0},
-                                    const LEX_CSTRING &column={nullptr, 0})
+  size_t get_hash_size(PRIV_TYPE hash_type) const
   {
-    deny_entry *res= nullptr;
-    if (hash && db.length)
+    switch (hash_type)
     {
-      String key;
-      construct_identifier(&key, db, object, column);
-      res= hash->find(key.c_ptr(), key.length());
+      case DATABASE_PRIV:
+        return db_denies ? db_denies->size() : 0;
+      default:
+        DBUG_ASSERT(0);
+        return 0;
     }
-    if (!res)
-      return NO_ACL;
-    return res->second;
   }
 
-  static bool print_hash_table(String *s, Hash_set<deny_entry> *hash)
+  const deny_entry *get_hash_entry(PRIV_TYPE hash_type, size_t idx) const
   {
-    char v[FLOATING_POINT_BUFFER + 1];
-    size_t vlen;
-    for (size_t i= 0; i < hash->size(); i++)
+    const Hash_set<deny_entry> *hash= nullptr;
+    switch (hash_type)
     {
-      const deny_entry *entry= hash->at(i);
-      vlen= longlong10_to_str(entry->second, v, -10) - v;
-      s->append(STRING_WITH_LEN("{\"name\":\""));
-
-      char buf[1500]; //TODO(cvicentiu) size...
-      int blen= json_escape(system_charset_info,
-                            (const uchar*)entry->first.str,
-                            (const uchar*)entry->first.str + entry->first.length,
-                            system_charset_info, // TODO(cvicentiu) table charset..
-                            (uchar*)buf, (uchar*)buf+sizeof(buf));
-      if (blen < 0)
-        return true;
-      s->append(buf, blen);
-      s->append(STRING_WITH_LEN("\",\"access\":"));
-      s->append(v, vlen);
-      if (i != hash->size() - 1)
-        s->append(STRING_WITH_LEN("},"));
-      else
-        s->append(STRING_WITH_LEN("}"));
+      case DATABASE_PRIV:
+        hash= db_denies;
+        break;
+      default:
+        DBUG_ASSERT(0);
+        return nullptr;
     }
-    return false;
+    DBUG_ASSERT(hash->size() > idx);
+    return hash->at(idx);
   }
 
     /*
@@ -495,72 +690,6 @@ public:
     return false;
   }
 
-  static bool update_hash(Hash_set<deny_entry> **hash,
-                          privilege_t access, bool revoke,
-                          const LEX_CSTRING &db, const LEX_CSTRING &table,
-                          const LEX_CSTRING &column={nullptr, 0})
-  {
-    deny_entry *entry= nullptr;
-    String key;
-    construct_identifier(&key, db, table, column);
-    if (!*hash)
-    {
-      *hash= new Hash_set<deny_entry>(
-            PSI_INSTRUMENT_MEM, &my_charset_bin, 10, 0, 0,
-            (my_hash_get_key)pair_first_key,
-            free_deny_entry, HASH_UNIQUE);
-      if (!*hash)
-        return true;
-    }
-    else
-    {
-      entry= get_hash_entry(**hash, key);
-    }
-    bool entry_exists= entry != nullptr;
-    if (!entry) /* No previous entry */
-    {
-      /* Shortcut, revoking a non-existing entry does nothing to the
-         hash table. */
-      if (revoke)
-        return false;
-
-      entry= new deny_entry();
-      if (!entry)
-        return true;
-      entry->first.str= my_strdup(PSI_INSTRUMENT_MEM, key.c_ptr(), MYF(0));
-      if (!entry->first.str)
-      {
-        delete entry;
-        // TODO(cvicentiu) returning true here doesn't set my_error, leading
-        // to protocol error.
-        return true;
-      }
-      entry->first.length= key.length();
-    }
-
-    if (revoke)
-      entry->second&= ~access;
-    else
-      entry->second|= access;
-
-    /* A no privilege entry should be removed from the hash. */
-    if (entry_exists && !entry->second)
-    {
-      (*hash)->remove(entry);
-      return false;
-    }
-
-    if (!entry_exists)
-    {
-      if ((*hash)->insert(entry))
-      {
-        my_free(const_cast<char*>(entry->first.str));
-        delete entry;
-        return true;
-      }
-    }
-    return false;
-  }
 
   bool update_deny(const Priv_spec &priv_spec)
   {
@@ -728,14 +857,13 @@ public:
       if (!entry)
         return true;
 
-      entry->first.str= my_strndup(PSI_INSTRUMENT_MEM, name_start,
-                                   static_cast<size_t>(name_len), MYF(0));
-      if (!entry->first.str)
+      entry->first= construct_identifier_from_json_name(
+                      {name_start, static_cast<size_t>(name_len)});
+      if (!entry->first.length)
       {
         delete entry;
         return true;
       }
-      entry->first.length= static_cast<size_t>(name_len);
       entry->second= denied_priv;
 
       (*hash)->insert(entry);
@@ -820,8 +948,9 @@ public:
         sink_entry= new deny_entry();
         if (!sink_entry) //OOM
           return true;
-        sink_entry->first.str= my_strdup(PSI_INSTRUMENT_MEM,
-                                         entry->first.str, MYF(0));
+        sink_entry->first.str= my_strndup(PSI_INSTRUMENT_MEM,
+                                          entry->first.str, entry->first.length,
+                                          MYF(0));
         if (!sink_entry->first.str)
         {
           my_free(const_cast<char*>(sink_entry->first.str));
@@ -4982,6 +5111,9 @@ static int check_user_can_set_role(THD *thd, const char *user,
     if (acl_user->denies)
       *access&= ~acl_user->denies->get_global();
   }
+
+  if (role_denies_active)
+    *role_denies_active= NO_PRIV;
 
   if (role->denies)
   {
@@ -12066,7 +12198,28 @@ static bool show_database_privileges(THD *thd,
 
   if (deny)
   {
-    (void) denies; /* TODO(cvicentiu) make denies produce an iterator. */
+    if (!denies)
+      return false;
+
+    size_t num_entries= denies->get_hash_size(DATABASE_PRIV);
+    for (size_t i= 0; i < num_entries; i++)
+    {
+      LEX_CSTRING database;
+      const Deny_spec::deny_entry *entry= denies->get_hash_entry(DATABASE_PRIV, i);
+      Deny_spec::deconstruct_identifier(entry->first, &database);
+
+      //TODO(cvicentiu) this needs to selectively print based on what the
+      //user can see.
+      db.length(0);
+      print_grant_for_db(thd, &db, entry->second, hostname,
+                         acl_entry->user.str, database.str,
+                         !acl_entry->is_role(),
+                         true);
+      protocol->prepare_for_resend();
+      protocol->store(db.ptr(),db.length(),db.charset());
+      if (protocol->write())
+        return true;
+    }
     return false;
   }
 

@@ -50,6 +50,7 @@ connect  con1,localhost,foo,,;
 show grants;
 Grants for foo@%
 GRANT USAGE ON *.* TO `foo`@`%`
+DENY SELECT ON `deny_db`.* TO `foo`@`%`
 GRANT SELECT (a), INSERT (a), UPDATE (a), DELETE ON `deny_db`.`t1` TO `foo`@`%`
 update deny_db.t1 set a=a*10 where a = 1;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'a' in table 't1'

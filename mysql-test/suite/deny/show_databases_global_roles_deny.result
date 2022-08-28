@@ -1,0 +1,61 @@
+create user foo;
+create role bar;
+grant bar to foo;
+create database some_db;
+create table some_db.t1 (a int, secret int);
+show databases;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+some_db
+sys
+test
+grant select on *.* to foo;
+show grants for foo;
+Grants for foo@%
+GRANT `bar` TO `foo`@`%`
+GRANT SELECT ON *.* TO `foo`@`%`
+#############################
+# Test global level denies. #
+#############################
+#
+# Test masking global level denies.
+#
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+some_db
+sys
+test
+disconnect con1;
+connection default;
+#
+# Mask all rigths.
+#
+deny select on *.* to bar;
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+some_db
+sys
+test
+set role bar;
+show databases;
+Database
+information_schema
+test
+disconnect con1;
+connection default;
+drop user foo;
+drop role bar;
+drop database some_db;
