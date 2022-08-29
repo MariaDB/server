@@ -159,7 +159,7 @@ public:
   Priv_spec(privilege_t access, bool revoke, bool deny=false):
     revoke{revoke}, deny{deny}, access{access},
     spec_type{PRIV_TYPE::GLOBAL_PRIV},
-    db({.str=nullptr, .length=0}), table({.str=nullptr, .length=0}),
+    db({nullptr, 0}), table({nullptr, 0}),
     columns{nullptr}
   {}
 
@@ -167,7 +167,7 @@ public:
     revoke{revoke}, deny{deny}, access{access},
     spec_type{PRIV_TYPE::DATABASE_PRIV},
     db({db.str, db.length}),
-    table({.str=nullptr, .length=0}),
+    table({nullptr, 0}),
     columns{nullptr}
   {
     /* TODO(cvicentiu) hack */
