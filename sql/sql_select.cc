@@ -10263,6 +10263,27 @@ void JOIN_TAB::calc_used_field_length(bool max_fl)
   MY_BITMAP *read_set= table->read_set;
 
   uneven_bit_fields= null_fields= blobs= fields= rec_length=0;
+
+  /* Take into account that DuplicateElimination may need to store rowid */
+  uint rowid_add_size= 0;
+
+  if (keep_current_rowid)
+  {
+    rowid_add_size= table->file->ref_length;
+    rec_length += rowid_add_size;
+    fields++;
+  }
+
+  if (bush_children)
+  {
+    /*
+      This JOIN_TAB represents an SJ-Materialization nest. The table is
+      the materialized temptable. For such tables, we may need their rowid
+      (taken care of above). We don't need any columns.
+    */
+    goto save_and_exit;
+  }
+
   for (f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
   {
     if (bitmap_is_set(read_set, field->field_index))
@@ -10284,14 +10305,6 @@ void JOIN_TAB::calc_used_field_length(bool max_fl)
   if (table->maybe_null)
     rec_length+=sizeof(my_bool);
 
-  /* Take into account that DuplicateElimination may need to store rowid */
-  uint rowid_add_size= 0;
-  if (keep_current_rowid)
-  {
-    rowid_add_size= table->file->ref_length; 
-    rec_length += rowid_add_size;
-    fields++;
-  }
 
   if (max_fl)
   {
@@ -10308,7 +10321,8 @@ void JOIN_TAB::calc_used_field_length(bool max_fl)
   } 
   else if (table->file->stats.mean_rec_length)
     set_if_smaller(rec_length, table->file->stats.mean_rec_length + rowid_add_size);
-      
+
+save_and_exit:
   used_fields=fields;
   used_fieldlength=rec_length;
   used_blobs=blobs;

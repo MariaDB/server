@@ -728,4 +728,72 @@ drop table t1;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-29382: Query returns wrong number of records
+#
+create table t1     (parentid int, value1 int) engine=innodb;
+create table t2      (parentid int, childid int) engine=innodb;
+create index ix_childindex on t2 (parentid);
+insert into t1 (parentid, value1)
+values(1, 1),
+(2, null),
+(3, 3),
+(4, null),
+(5, 5),
+(6, 6),
+(7, 1);
+insert into t2 (parentid, childid)
+values(1, 11),
+(2, 21),
+(2, 22),
+(3, 31),
+(3, 32),
+(3, 33),
+(4, 41),
+(4, 42),
+(4, 43),
+(4, 44),
+(6, 61),
+(6, 62),
+(6, 63),
+(6, 64),
+(6, 65),
+(6, 66),
+(7, 77);
+select
+count(p_1.parentid)
+from
+t1 p_2
+inner join t2 c_1 on p_2.parentid = c_1.parentid
+inner join t1 p   on p_2.parentid = p.parentid
+inner join t1 p_1 on p_2.parentid = p_1.parentid
+inner join t2 c4   on c4.parentid = p_1.parentid
+where
+exists ( select *
+from t1 p_3
+where
+exists ( select *
+from t2 c_2
+where
+c_2.parentid > 1
+and c_2.parentid = p_3.parentid
+)
+and p_3.parentid = p_1.parentid )
+and c4.parentid % 2 = 0
+and exists ( select *
+from t2 c_3
+where
+c_3.parentid > 1
+and c_3.parentid = p.parentid
+)
+and c_1.parentid > 1
+and exists ( select *
+from t2 c_4
+where
+c_4.parentid > 1
+and c_4.parentid = p_2.parentid
+);
+count(p_1.parentid)
+56
+drop table t1,t2;
 SET GLOBAL innodb_stats_persistent = @saved_stats_persistent;

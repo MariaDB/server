@@ -219,8 +219,10 @@ void JOIN_CACHE::calc_record_fields()
   /*
     The following loop will get inside SJM nests, because data may be unpacked
     to sjm-inner tables.
+    We also cover SJM roots (aka bush roots), as their rowids may need to be
+    saved and restored.
   */
-  for (; tab != join_tab ; tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
+  for (; tab != join_tab ; tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
   {	    
     tab->calc_used_field_length(FALSE);
     flag_fields+= MY_TEST(tab->used_null_fields || tab->used_uneven_bit_fields);
@@ -585,7 +587,7 @@ void JOIN_CACHE::create_remaining_fields()
   CACHE_FIELD **copy_ptr= blob_ptr+data_field_ptr_count;
 
   for (tab= start_tab; tab != join_tab; 
-       tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
+       tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
   {
     MY_BITMAP *rem_field_set;
     TABLE *table= tab->table;
@@ -599,10 +601,21 @@ void JOIN_CACHE::create_remaining_fields()
       rem_field_set= &table->tmp_set;
     }  
 
-    length+= add_table_data_fields_to_join_cache(tab, rem_field_set,
-                                                 &data_field_count, &copy,
-                                                 &data_field_ptr_count,
-                                                 &copy_ptr);
+    /*
+      Do not add columns for SJM nests:
+       - for SJ-Materialization-Scan, the columns are unpacked to the
+         source tables.
+       - for SJ-Materialization-Lookup, equality substitution should
+         make sure all references are made to the source of data for
+         making the lookup.
+    */
+    if (!tab->bush_children)
+    {
+      length+= add_table_data_fields_to_join_cache(tab, rem_field_set,
+                                                   &data_field_count, &copy,
+                                                   &data_field_ptr_count,
+                                                   &copy_ptr);
+    }
   
     /* SemiJoinDuplicateElimination: allocate space for rowid if needed */
     if (tab->keep_current_rowid)
