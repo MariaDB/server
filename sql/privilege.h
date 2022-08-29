@@ -771,6 +771,12 @@ enum PRIV_TYPE: unsigned long long
   PROXY_PRIV        = (1 << 8)
 };
 
+
+static inline constexpr PRIV_TYPE operator~(PRIV_TYPE access)
+{
+  return static_cast<PRIV_TYPE>(~static_cast<ulonglong>(access));
+}
+
 static inline constexpr PRIV_TYPE operator|(PRIV_TYPE a, PRIV_TYPE b)
 {
   return static_cast<PRIV_TYPE>(static_cast<ulonglong>(a) |
@@ -779,8 +785,12 @@ static inline constexpr PRIV_TYPE operator|(PRIV_TYPE a, PRIV_TYPE b)
 
 static inline constexpr PRIV_TYPE operator|(PRIV_TYPE a, ulonglong b)
 {
-  return static_cast<PRIV_TYPE>(static_cast<ulonglong>(a) |
-                                static_cast<ulonglong>(b));
+  return static_cast<PRIV_TYPE>(static_cast<ulonglong>(a) | b);
+}
+
+static inline constexpr PRIV_TYPE operator|(ulonglong a, PRIV_TYPE b)
+{
+  return static_cast<PRIV_TYPE>(a | static_cast<ulonglong>(b));
 }
 
 static inline constexpr PRIV_TYPE operator&(PRIV_TYPE a, PRIV_TYPE b)
@@ -803,7 +813,6 @@ static inline PRIV_TYPE& operator|=(PRIV_TYPE &a, PRIV_TYPE b)
 {
   return a= a | b;
 }
-
 
 static inline PRIV_TYPE& operator&=(PRIV_TYPE &a, ulonglong b)
 {
