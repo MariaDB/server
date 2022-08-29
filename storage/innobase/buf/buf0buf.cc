@@ -2529,6 +2529,9 @@ ignore_block:
 			return nullptr;
 		}
 
+		if (state != buf_page_t::READ_FIX + 1 && !block->page.frame) {
+			goto wait_for_unzip;
+		}
 		/* A read-fix is released after block->page.lock
 		in buf_page_t::read_complete() or
 		buf_pool_t::corrupted_evict(), or
@@ -2559,7 +2562,7 @@ ignore_block:
 		mysql_mutex_lock(&buf_pool.mutex);
 		block->unfix();
 
-			if (!buf_LRU_free_page(&block->page, true)) {
+		if (!buf_LRU_free_page(&block->page, true)) {
 			ut_ad(0);
 		}
 
@@ -2577,6 +2580,7 @@ ignore_block:
 
 	if (UNIV_UNLIKELY(!block->page.frame)) {
 		if (!block->page.lock.x_lock_try()) {
+wait_for_unzip:
 			/* The page is being read or written, or
 			another thread is executing buf_zip_decompress()
 			in buf_page_get_low() on it. */
