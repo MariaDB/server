@@ -829,7 +829,29 @@ processed:
     fil_space_t *space= fil_space_t::create(it->first, flags,
                                             FIL_TYPE_TABLESPACE, crypt_data);
     ut_ad(space);
-    space->add(name.c_str(), OS_FILE_CLOSED, size, false, false);
+    const char *filename= name.c_str();
+    if (srv_operation == SRV_OPERATION_RESTORE)
+    {
+      const char* tbl_name = strrchr(filename, '/');
+#ifdef _WIN32
+      if (const char *last = strrchr(filename, '\\'))
+      {
+        if (last > tbl_name)
+          tbl_name = last;
+      }
+#endif
+      if (tbl_name)
+      {
+        while (--tbl_name > filename &&
+#ifdef _WIN32
+               *tbl_name != '\\' &&
+#endif
+               *tbl_name != '/');
+        if (tbl_name > filename)
+          filename= tbl_name + 1;
+      }
+    }
+    space->add(filename, OS_FILE_CLOSED, size, false, false);
     space->recv_size= it->second.size;
     space->size_in_header= size;
     return space;
@@ -1212,9 +1234,6 @@ static void fil_name_process(const char *name, ulint len, uint32_t space_id,
 		if (deleted) {
 			d->deleted = true;
 			goto got_deleted;
-		}
-		if (ftype == FILE_RENAME) {
-			d->file_name= fname.name;
 		}
 		goto reload;
 	}

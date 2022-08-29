@@ -12,6 +12,10 @@ INSERT INTO t VALUES(2);
 
 echo # xtrabackup prepare;
 --disable_result_log
+# Because MDEV-24626 in 10.6 optimized file creation, we could end up with
+# t.new.qp instead of t.ibd.qp unless a log checkpoint happened to be
+# triggered between CREATE TABLE and the backup run.
+--replace_result t.new t.ibd
 list_files  $targetdir/test *.qp;
 exec $XTRABACKUP --decompress --remove-original --target-dir=$targetdir;
 list_files  $targetdir/test *.qp;
