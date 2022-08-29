@@ -822,7 +822,7 @@ CREATE TABLE t2 SELECT JSON_ARRAY_INSERT(fld, '$.[0]', '0') FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `JSON_ARRAY_INSERT(fld, '$.[0]', '0')` varchar(25) DEFAULT NULL
+  `JSON_ARRAY_INSERT(fld, '$.[0]', '0')` varchar(21) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1, t2;
 SET sql_mode=default;
@@ -1015,6 +1015,33 @@ SELECT * FROM t1 WHERE JSON_EXTRACT(j, '$.Age')=19;
 j
 {"ID": "4", "Name": "Betty", "Age": 19}
 drop table t1;
+#
+# MDEV-27151: JSON_VALUE() does not parse NULL properties properly
+#
+#
+# It is correct for JSON_EXTRACT() to give null instead of "NULL" because
+# it returns the json literal that is put inside json.
+# Hence it should return null as in 'null' string and not SQL NULL.
+# JSON_VALUE() returns the "VALUE" so it is correct for it to return SQl NULL
+#
+SELECT NULL;
+NULL
+NULL
+SELECT JSON_VALUE('{"nulltest": null}', '$.nulltest');
+JSON_VALUE('{"nulltest": null}', '$.nulltest')
+NULL
+SELECT 1 + NULL;
+1 + NULL
+NULL
+SELECT 1 + JSON_VALUE('{"nulltest": null}', '$.nulltest');
+1 + JSON_VALUE('{"nulltest": null}', '$.nulltest')
+NULL
+SELECT NULL;
+NULL
+NULL
+SELECT JSON_EXTRACT('{"a":null, "b":10, "c":"null"}', '$.a');
+JSON_EXTRACT('{"a":null, "b":10, "c":"null"}', '$.a')
+null
 #
 # End of 10.3 tests
 #
@@ -1435,6 +1462,21 @@ SELECT JSON_ARRAYAGG(a) AS f FROM v;
 f
 ["foo","bar"]
 DROP VIEW v;
+DROP TABLE t;
+#
+# MDEV-29264 JSON functions overflow error based ON LONGTEXT field
+#
+CREATE TABLE t(l1 LONGTEXT, l2 LONGTEXT, l3 LONGTEXT, l4 LONGTEXT);
+INSERT INTO t VALUES('k1', 'v1', 'k2', 'v2');
+SELECT JSON_ARRAY(l1, l2, l3, l4), JSON_OBJECT(l1, l2, l3, l4) from t;
+JSON_ARRAY(l1, l2, l3, l4)	JSON_OBJECT(l1, l2, l3, l4)
+["k1", "v1", "k2", "v2"]	{"k1": "v1", "k2": "v2"}
+SELECT JSON_ARRAY_APPEND(JSON_ARRAY(l1, l2, l3, l4), '$[0]', 'k3'), JSON_ARRAY_INSERT(JSON_ARRAY(l1, l2, l3, l4), '$[0]', 'k3') from t;
+JSON_ARRAY_APPEND(JSON_ARRAY(l1, l2, l3, l4), '$[0]', 'k3')	JSON_ARRAY_INSERT(JSON_ARRAY(l1, l2, l3, l4), '$[0]', 'k3')
+[["k1", "k3"], "v1", "k2", "v2"]	["k3", "k1", "v1", "k2", "v2"]
+SELECT JSON_INSERT(JSON_OBJECT(l1, l2, l3, l4), '$.k3', 'v3'),JSON_SET(JSON_OBJECT(l1, l2, l3, l4), '$.k2', 'new v2'),JSON_REPLACE(JSON_OBJECT(l1, l2, l3, l4), '$.k2', 'new v2') from t;
+JSON_INSERT(JSON_OBJECT(l1, l2, l3, l4), '$.k3', 'v3')	JSON_SET(JSON_OBJECT(l1, l2, l3, l4), '$.k2', 'new v2')	JSON_REPLACE(JSON_OBJECT(l1, l2, l3, l4), '$.k2', 'new v2')
+{"k1": "v1", "k2": "v2", "k3": "v3"}	{"k1": "v1", "k2": "new v2"}	{"k1": "v1", "k2": "new v2"}
 DROP TABLE t;
 #
 # End of 10.5 tests

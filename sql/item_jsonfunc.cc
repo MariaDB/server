@@ -677,10 +677,6 @@ bool Item_func_json_query::fix_length_and_dec(THD *thd)
 }
 
 
-/*
-  Returns NULL, not an error if the found value
-  is not a scalar.
-*/
 bool Json_path_extractor::extract(String *str, Item *item_js, Item *item_jp,
                                   CHARSET_INFO *cs)
 {
@@ -711,6 +707,9 @@ continue_search:
     return true;
 
   if (json_read_value(&je))
+    return true;
+
+  if (je.value_type == JSON_VALUE_NULL)
     return true;
 
   if (unlikely(check_and_get_value(&je, str, &error)))
@@ -1209,7 +1208,6 @@ my_decimal *Item_func_json_extract::val_decimal(my_decimal *to)
       case JSON_VALUE_ARRAY:
       case JSON_VALUE_FALSE:
       case JSON_VALUE_UNINITIALIZED:
-      // TODO: fix: NULL should be NULL
       case JSON_VALUE_NULL:
         int2my_decimal(E_DEC_FATAL_ERROR, 0, false/*unsigned_flag*/, to);
         return to;
@@ -1854,7 +1852,7 @@ bool Item_func_json_array::fix_length_and_dec(THD *thd)
     return TRUE;
 
   for (n_arg=0 ; n_arg < arg_count ; n_arg++)
-    char_length+= args[n_arg]->max_char_length() + 4;
+    char_length+= static_cast<ulonglong>(args[n_arg]->max_char_length()) + 4;
 
   fix_char_length_ulonglong(char_length);
   tmp_val.set_charset(collation.collation);
@@ -1913,7 +1911,8 @@ bool Item_func_json_array_append::fix_length_and_dec(THD *thd)
   for (n_arg= 1; n_arg < arg_count; n_arg+= 2)
   {
     paths[n_arg/2].set_constant_flag(args[n_arg]->const_item());
-    char_length+= args[n_arg/2+1]->max_char_length() + 4;
+    char_length+=
+        static_cast<ulonglong>(args[n_arg+1]->max_char_length()) + 4;
   }
 
   fix_char_length_ulonglong(char_length);
@@ -3082,7 +3081,8 @@ bool Item_func_json_insert::fix_length_and_dec(THD *thd)
   for (n_arg= 1; n_arg < arg_count; n_arg+= 2)
   {
     paths[n_arg/2].set_constant_flag(args[n_arg]->const_item());
-    char_length+= args[n_arg/2+1]->max_char_length() + 4;
+    char_length+=
+        static_cast<ulonglong>(args[n_arg+1]->max_char_length()) + 4;
   }
 
   fix_char_length_ulonglong(char_length);

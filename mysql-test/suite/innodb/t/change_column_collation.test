@@ -122,4 +122,14 @@ ALTER TABLE t1 MODIFY msg_2 VARCHAR(100) CHARACTER SET utf8
                 COLLATE utf8_unicode_ci, ALGORITHM=inplace;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-29314 Assertion `n_fields > n_cols' failed
+--echo #	in dict_index_t::init_change_cols
+--echo #
+CREATE TABLE t (a VARCHAR(16) COLLATE utf8_bin,
+		FULLTEXT (a)) ENGINE=InnoDB COLLATE utf8_unicode_520_ci;
+ALTER TABLE t MODIFY COLUMN a VARCHAR(512);
+SHOW CREATE TABLE t;
+DROP TABLE t;
+
 --source include/wait_until_count_sessions.inc
