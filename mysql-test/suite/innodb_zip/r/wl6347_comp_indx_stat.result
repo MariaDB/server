@@ -1024,7 +1024,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 122880
+The size of the tab5.ibd file: 106496
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
@@ -1331,7 +1331,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 245760
+The size of the tab5.ibd file: 212992
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
@@ -2637,7 +2637,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 122880
+The size of the tab5.ibd file: 106496
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
@@ -2946,7 +2946,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 245760
+The size of the tab5.ibd file: 212992
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
@@ -4151,7 +4151,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 122880
+The size of the tab5.ibd file: 106496
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
@@ -4439,7 +4439,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 245760
+The size of the tab5.ibd file: 212992
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
@@ -5697,7 +5697,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 122880
+The size of the tab5.ibd file: 106496
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
@@ -6004,7 +6004,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 245760
+The size of the tab5.ibd file: 212992
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
@@ -7288,7 +7288,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 122880
+The size of the tab5.ibd file: 106496
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
@@ -7595,7 +7595,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 245760
+The size of the tab5.ibd file: 212992
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
