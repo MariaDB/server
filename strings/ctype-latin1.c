@@ -499,19 +499,19 @@ struct charset_info_st my_charset_latin1_nopad=
  *
  * The modern sort order is used, where:
  *
- * 'ä'  ->  "ae"
- * 'ö'  ->  "oe"
- * 'ü'  ->  "ue"
- * 'ß'  ->  "ss"
+ * 'Ã¤'  ->  "ae"
+ * 'Ã¶'  ->  "oe"
+ * 'Ã¼'  ->  "ue"
+ * 'ÃŸ'  ->  "ss"
  */
 
 
 /*
  * This is a simple latin1 mapping table, which maps all accented
  * characters to their non-accented equivalents.  Note: in this
- * table, 'ä' is mapped to 'A', 'ÿ' is mapped to 'Y', etc. - all
+ * table, 'Ã¤' is mapped to 'A', 'Ã¿' is mapped to 'Y', etc. - all
  * accented characters except the following are treated the same way.
- * Ü, ü, Ö, ö, Ä, ä
+ * Ãœ, Ã¼, Ã–, Ã¶, Ã„, Ã¤
  */
 
 static const uchar sort_order_latin1_de[] = {
@@ -577,7 +577,7 @@ static const uchar combo2map[]={
   my_strnxfrm_latin_de() on both strings and compared the result strings.
 
   This means that:
-  Ä must also matches ÁE and Aè, because my_strxn_frm_latin_de() will convert
+  Ã„ must also matches ÃE and AÃ¨, because my_strxn_frm_latin_de() will convert
   both to AE.
 
   The other option would be to not do any accent removal in
@@ -703,7 +703,7 @@ void my_hash_sort_latin1_de(CHARSET_INFO *cs __attribute__((unused)),
     
   /*
     Remove end space. We have to do this to be able to compare
-    'AE' and 'Ä' as identical
+    'AE' and 'Ã„' as identical
   */
   end= skip_trailing_space(key, len);
 
