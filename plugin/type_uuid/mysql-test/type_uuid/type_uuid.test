@@ -1670,3 +1670,15 @@ DELETE FROM companies WHERE id IN (SELECT company_id FROM divisions);
 SELECT * FROM companies;
 DROP TABLE divisions;
 DROP TABLE companies;
+
+
+--echo #
+--echo # MDEV-27100 Subquery using the ALL keyword on UUID columns produces a wrong result
+--echo #
+
+CREATE TABLE t1 (d UUID);
+INSERT INTO t1 VALUES ('00000000-0000-0000-0000-111111111111'), ('11111111-0000-0000-0000-000000000000');
+SELECT * FROM t1 ORDER BY d;
+SELECT * FROM t1 WHERE d <= ALL (SELECT * FROM t1);
+SELECT * FROM t1 WHERE d >= ALL (SELECT * FROM t1);
+DROP TABLE t1;
