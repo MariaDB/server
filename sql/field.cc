@@ -983,7 +983,8 @@ bool Field::check_assignability_from(const Type_handler *from,
                                       type_handler_for_item_field());
   if (th.aggregate_for_result(from->type_handler_for_item_field()))
   {
-    bool error= !ignore && get_thd()->is_strict_mode();
+    bool error= (!ignore && get_thd()->is_strict_mode()) ||
+                (type_handler()->is_scalar_type() != from->is_scalar_type());
     /*
       Display fully qualified column name for table columns.
       Display non-qualified names for other things,
@@ -1491,15 +1492,6 @@ bool Field::sp_prepare_and_store_item(THD *thd, Item **value)
 
   if (!(expr_item= thd->sp_fix_func_item_for_assignment(this, value)))
     goto error;
-
-  /*
-    expr_item is now fixed, it's safe to call cmp_type()
-  */
-  if (expr_item->cmp_type() == ROW_RESULT)
-  {
-    my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
-    goto error;
-  }
 
   /* Save the value in the field. Convert the value if needed. */
 

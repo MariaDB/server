@@ -278,10 +278,10 @@ latch_block:
 			latch_leaves->blocks[1] = block;
 		}
 
-		mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
-
 		block->page.fix();
 		block->page.lock.x_lock();
+
+		mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
 #ifdef BTR_CUR_HASH_ADAPT
 		ut_ad(!btr_search_check_marked_free_index(block));
 #endif
@@ -7015,10 +7015,11 @@ btr_store_big_rec_extern_fields(
 			mtr.start();
 			index->set_modified(mtr);
 			mtr.set_log_mode_sub(*btr_mtr);
-			mtr.memo_push(rec_block, MTR_MEMO_PAGE_X_FIX);
 
 			rec_block->page.fix();
 			rec_block->page.lock.x_lock();
+
+			mtr.memo_push(rec_block, MTR_MEMO_PAGE_X_FIX);
 #ifdef BTR_CUR_HASH_ADAPT
 			ut_ad(!btr_search_check_marked_free_index(rec_block));
 #endif
@@ -7394,9 +7395,10 @@ skip_free:
 		/* The buffer pool block containing the BLOB pointer is
 		exclusively latched by local_mtr. To satisfy some design
 		constraints, we must recursively latch it in mtr as well. */
-		mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
 		block->fix();
 		block->page.lock.x_lock();
+
+		mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
 #ifdef BTR_CUR_HASH_ADAPT
 		ut_ad(!btr_search_check_marked_free_index(block));
 #endif

@@ -16,19 +16,19 @@ SET DEBUG_SYNC = 'innodb_row_search_for_mysql_exit SIGNAL first_del_row_search_m
 --connect(con_ins_1,localhost,root,,)
 SET DEBUG_SYNC = 'now WAIT_FOR first_del_row_search_mvcc_finished';
 # It's supposed the following INSERT will be suspended just after
-# lock_wait_suspend_thread_enter syncpoint, and will be awaken
+# lock_wait_start syncpoint, and will be awaken
 # after the previous DELETE commits. ib_after_row_insert will be executed
 # after the INSERT is woken up. The previous DELETE will wait for
 # first_del_cont signal before commit, and this signal will be sent later.
 # So it's safe to use two signals in a row here, it's guaranted the first
 # signal will be received before the second signal is sent.
-SET DEBUG_SYNC = 'lock_wait_suspend_thread_enter SIGNAL first_ins_locked';
+SET DEBUG_SYNC = 'lock_wait_start SIGNAL first_ins_locked';
 SET DEBUG_SYNC = 'ib_after_row_insert SIGNAL first_ins_row_inserted WAIT_FOR first_ins_cont';
 --send INSERT INTO t VALUES(10, 20)
 
 --connect(con_del_2,localhost,root,,)
 SET DEBUG_SYNC = 'now WAIT_FOR first_ins_locked';
-SET DEBUG_SYNC = 'lock_wait_suspend_thread_enter SIGNAL second_del_locked';
+SET DEBUG_SYNC = 'lock_wait_start SIGNAL second_del_locked';
 ###############################################################################
 # This DELETE is locked by the previous DELETE, after that DELETE is
 # committed, it will still be locked by the next INSERT on delete-marked
