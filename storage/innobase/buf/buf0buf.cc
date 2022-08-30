@@ -2815,12 +2815,10 @@ get_latch:
 				goto page_id_mismatch;
 			}
 get_latch_valid:
-#ifdef BTR_CUR_HASH_ADAPT
-			if (block->index) {
-				mtr_t::defer_drop_ahi(block, fix_type);
-			}
-#endif /* BTR_CUR_HASH_ADAPT */
 			mtr->memo_push(block, fix_type);
+#ifdef BTR_CUR_HASH_ADAPT
+			btr_search_drop_page_hash_index(block, true);
+#endif /* BTR_CUR_HASH_ADAPT */
 			break;
 		case RW_SX_LATCH:
 			fix_type = MTR_MEMO_PAGE_SX_FIX;
