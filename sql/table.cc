@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4197,7 +4197,8 @@ void update_create_info_from_table(HA_CREATE_INFO *create_info, TABLE *table)
 int
 rename_file_ext(const char * from,const char * to,const char * ext)
 {
-  char from_b[FN_REFLEN],to_b[FN_REFLEN];
+  /* Reserve space for ./databasename/tablename.frm + NUL byte */
+  char from_b[2 + FN_REFLEN + 4 + 1], to_b[2 + FN_REFLEN + 4 + 1];
   (void) strxmov(from_b,from,ext,NullS);
   (void) strxmov(to_b,to,ext,NullS);
   return mysql_file_rename(key_file_frm, from_b, to_b, MYF(0));

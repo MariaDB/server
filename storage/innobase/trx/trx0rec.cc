@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1867,9 +1867,9 @@ trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
 	byte* start = block->frame + first_free;
 	size_t len = strlen(table->name.m_name);
 	const size_t fixed = 2 + 1 + 11 + 11 + 2;
-	ut_ad(len <= NAME_LEN * 2 + 1);
+	ut_ad(len <= NAME_CHAR_LEN * 5 * 2 + 1);
 	/* The -10 is used in trx_undo_left() */
-	compile_time_assert((NAME_LEN * 1) * 2 + fixed
+	compile_time_assert(NAME_CHAR_LEN * 5 * 2 + fixed
 			    + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE
 			    < UNIV_PAGE_SIZE_MIN - 10 - FIL_PAGE_DATA_END);
 
