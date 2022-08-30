@@ -1370,9 +1370,8 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
     wsrep= false;
     wsrep_commit_ordered(mysql_thd);
   }
-  ut_ad(!(lock.was_chosen_as_deadlock_victim & byte(~2U)));
-  lock.was_chosen_as_deadlock_victim= false;
 #endif /* WITH_WSREP */
+  lock.was_chosen_as_deadlock_victim= false;
 }
 
 void trx_t::commit_cleanup()

@@ -623,12 +623,6 @@ public:
     PAGE_FLUSH_SYNC
   };
 
-#ifdef BTR_CUR_HASH_ADAPT
-  /** If a stale adaptive hash index exists on the block, drop it. */
-  ATTRIBUTE_COLD
-  static void defer_drop_ahi(buf_block_t *block, mtr_memo_type_t fix_type);
-#endif
-
 private:
   /** Handle any pages that were freed during the mini-transaction. */
   void process_freed_pages();

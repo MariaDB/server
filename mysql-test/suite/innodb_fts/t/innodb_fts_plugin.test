@@ -6,6 +6,9 @@
 # Install fts parser plugin
 INSTALL PLUGIN simple_parser SONAME 'mypluglib';
 
+# Flush the table mysql.plugin in case the server shutdown would time out.
+FLUSH TABLES;
+
 -- echo # Test Part 1: Grammar Test
 # Create a myisam table and alter it to innodb table
 CREATE TABLE articles (
@@ -52,7 +55,7 @@ INSERT INTO articles (title, body) VALUES
 
 # Simple term search
 SELECT * FROM articles WHERE
-	MATCH(title, body) AGAINST('mysql');
+	MATCH(title, body) AGAINST('mysql') ORDER BY id;
 
 # Test stopword and word len less than fts_min_token_size
 SELECT * FROM articles WHERE
@@ -90,7 +93,7 @@ ALTER TABLE articles ADD FULLTEXT INDEX (title, body) WITH PARSER simple_parser;
 
 # Simple term search
 SELECT * FROM articles WHERE
-	MATCH(title, body) AGAINST('mysql');
+	MATCH(title, body) AGAINST('mysql') ORDER BY id;
 
 # Test stopword and word len less than fts_min_token_size
 SELECT * FROM articles WHERE
@@ -105,10 +108,12 @@ SELECT * FROM articles WHERE
 
 # Test query expansion
 SELECT * FROM articles WHERE
-	MATCH(title, body) AGAINST('full-text' WITH QUERY EXPANSION);
+	MATCH(title, body) AGAINST('full-text' WITH QUERY EXPANSION)
+	ORDER BY id;
 
 SELECT * FROM articles WHERE
-	MATCH(title, body) AGAINST('full text' WITH QUERY EXPANSION);
+	MATCH(title, body) AGAINST('full text' WITH QUERY EXPANSION)
+	ORDER BY id;
 
 # No result here, we get '"mysql' 'database"' by simple parser
 SELECT * FROM articles WHERE
@@ -152,13 +157,13 @@ INSERT INTO articles (title, body) VALUES
 --source include/restart_mysqld.inc
 
 SELECT * FROM articles WHERE
-         MATCH(title, body) AGAINST('MySQL');
+         MATCH(title, body) AGAINST('MySQL') ORDER BY id;
 SELECT * FROM articles WHERE
-         MATCH(title, body) AGAINST('tutorial');
+         MATCH(title, body) AGAINST('tutorial') ORDER BY id;
 SELECT * FROM articles WHERE
-         MATCH(title, body) AGAINST('Tricks');
+         MATCH(title, body) AGAINST('Tricks') ORDER BY id;
 SELECT * FROM articles WHERE
-         MATCH(title, body) AGAINST('full text search');
+         MATCH(title, body) AGAINST('full text search') ORDER BY id;
 SELECT COUNT(*) FROM articles;
 
 INSERT INTO articles (title, body) VALUES ('111', '1234 1234 1234');
@@ -195,7 +200,8 @@ UNINSTALL PLUGIN simple_parser;
 
 # Simple term search
 SELECT * FROM articles WHERE
-	MATCH(title, body) AGAINST('mysql');
+	MATCH(title, body) AGAINST('mysql')
+	ORDER BY id;
 
 # Test stopword and word len less than fts_min_token_size
 SELECT * FROM articles WHERE

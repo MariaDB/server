@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1937,10 +1937,17 @@ class Grant_tables
  public:
   Grant_tables() : p_user_table(&m_user_table_json) { }
 
-  int open_and_lock(THD *thd, int which_tables, enum thr_lock_type lock_type)
+  /**
+    An auxiliary to build a list of involved tables.
+
+    @retval  0 Success
+    @retval -1 A my_error reported error
+   */
+  int build_table_list(THD *thd, TABLE_LIST** ptr_first,
+                       int which_tables, enum thr_lock_type lock_type,
+                       TABLE_LIST *tables)
   {
-    DBUG_ENTER("Grant_tables::open_and_lock");
-    TABLE_LIST tables[USER_TABLE+1], *first= NULL;
+    DBUG_ENTER("Grant_tables::build_table_list");
 
     DBUG_ASSERT(which_tables); /* At least one table must be opened. */
     /*
@@ -1965,12 +1972,23 @@ class Grant_tables
         tl->updating= lock_type >= TL_FIRST_WRITE;
         if (i >= FIRST_OPTIONAL_TABLE)
           tl->open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
-        tl->next_global= tl->next_local= first;
-        first= tl;
+        tl->next_global= tl->next_local= *ptr_first;
+        *ptr_first= tl;
       }
       else
         tl->table= NULL;
     }
+    DBUG_RETURN(0);
+  }
+
+  int open_and_lock(THD *thd, int which_tables, enum thr_lock_type lock_type)
+  {
+    DBUG_ENTER("Grant_tables::open_and_lock");
+
+    TABLE_LIST tables[USER_TABLE+1], *first= NULL;
+
+    if (build_table_list(thd, &first, which_tables, lock_type, tables))
+      DBUG_RETURN(-1);
 
     uint counter;
     int res= really_open(thd, first, &counter);
@@ -2041,6 +2059,48 @@ class Grant_tables
   inline const Roles_mapping_table& roles_mapping_table() const
   { return m_roles_mapping_table; }
 
+#ifdef HAVE_REPLICATION
+  /**
+    Checks if the tables targeted by a grant command should be ignored because
+    of the configured replication filters
+
+    @retval 1 Tables are excluded for replication
+    @retval 0 tables are included for replication
+  */
+  int rpl_ignore_tables(THD *thd, TABLE_LIST* tables, int which_tables= 0,
+                        enum thr_lock_type lock_type= TL_IGNORE)
+  {
+    DBUG_ENTER("Grant_tables::rpl_ignore_tables");
+
+    if (!(thd->slave_thread && !thd->spcont))
+      DBUG_RETURN(0);
+
+    TABLE_LIST all_tables[USER_TABLE+1];
+
+    if (!tables)
+    {
+      int rc __attribute__((unused))=
+        build_table_list(thd, &tables, which_tables, lock_type, all_tables);
+
+      DBUG_ASSERT(!rc);  // Grant_tables must be already initialized
+      DBUG_ASSERT(tables);
+    }
+
+    if (tables->lock_type >= TL_FIRST_WRITE)
+    {
+      /*
+        GRANT and REVOKE are applied the slave in/exclusion rules as they are
+        some kind of updates to the mysql.% tables.
+      */
+      Rpl_filter *rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
+
+      if (rpl_filter->is_on() && !rpl_filter->tables_ok(0, tables))
+        DBUG_RETURN(1);
+    }
+    DBUG_RETURN(0);
+  }
+#endif
+
  private:
 
   /* Before any operation is possible on grant tables, they must be opened.
@@ -2054,16 +2114,9 @@ class Grant_tables
   {
     DBUG_ENTER("Grant_tables::really_open:");
 #ifdef HAVE_REPLICATION
-    if (tables->lock_type >= TL_FIRST_WRITE &&
-        thd->slave_thread && !thd->spcont)
+    if (rpl_ignore_tables(thd, tables))
     {
-      /*
-        GRANT and REVOKE are applied the slave in/exclusion rules as they are
-        some kind of updates to the mysql.% tables.
-      */
-      Rpl_filter *rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
-      if (rpl_filter->is_on() && !rpl_filter->tables_ok(0, tables))
-        DBUG_RETURN(1);
+      DBUG_RETURN(1);
     }
 #endif
     if (open_tables(thd, &tables, counter, MYSQL_LOCK_IGNORE_TIMEOUT))
@@ -4080,6 +4133,17 @@ int acl_check_set_default_role(THD *thd, const char *host, const char *user,
                                const char *role)
 {
   DBUG_ENTER("acl_check_set_default_role");
+#ifdef HAVE_REPLICATION
+  /*
+    If the roles_mapping table is excluded by the replication filter, we return
+    successful without validating the user/role data because the command will
+    be ignored in a later call to `acl_set_default_role()` for a graceful exit.
+  */
+  Grant_tables tables;
+  TABLE_LIST* first= NULL;
+  if (tables.rpl_ignore_tables(thd, first, Table_roles_mapping, TL_WRITE))
+    DBUG_RETURN(0);
+#endif
   DBUG_RETURN(check_alter_user(thd, host, user) ||
               check_user_can_set_role(thd, user, host, NULL, role, NULL));
 }
