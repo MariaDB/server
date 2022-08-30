@@ -399,11 +399,11 @@ static dberr_t trx_purge_free_segment(trx_rseg_t *rseg, fil_addr_t hdr_addr)
       mtr.commit();
       mtr.start();
       mtr.flag_modified();
-      mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_FIX);
-      mtr.memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
       rseg->latch.wr_lock(SRW_LOCK_CALL);
       rseg_hdr->page.lock.x_lock();
       block->page.lock.x_lock();
+      mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_FIX);
+      mtr.memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
     }
 
     /* The page list may now be inconsistent, but the length field
