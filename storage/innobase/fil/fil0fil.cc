@@ -2002,7 +2002,7 @@ fil_op_write_log(
 	case MLOG_FILE_RENAME2:
 		ut_ad(strchr(new_path, OS_PATH_SEPARATOR) != NULL);
 		len = strlen(new_path) + 1;
-		log_ptr = mlog_open(mtr, 2 + len);
+		log_ptr = mlog_open(mtr, 2);
 		ut_a(log_ptr);
 		mach_write_to_2(log_ptr, len);
 		log_ptr += 2;
