@@ -290,6 +290,11 @@ bool trx_rseg_read_wsrep_checkpoint(XID& xid)
 
 buf_block_t *trx_rseg_t::get(mtr_t *mtr, dberr_t *err) const
 {
+  if (!space)
+  {
+    if (err) *err= DB_TABLESPACE_NOT_FOUND;
+    return nullptr;
+  }
   return buf_page_get_gen(page_id(), 0, RW_X_LATCH, nullptr,
                           BUF_GET, mtr, err);
 }
@@ -435,6 +440,8 @@ static dberr_t trx_undo_lists_init(trx_rseg_t *rseg, trx_id_t &max_trx_id,
 static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, trx_id_t &max_trx_id,
                                     mtr_t *mtr)
 {
+  if (!rseg->space)
+    return DB_TABLESPACE_NOT_FOUND;
   dberr_t err;
   const buf_block_t *rseg_hdr=
     buf_page_get_gen(rseg->page_id(), 0, RW_S_LATCH, nullptr, BUF_GET, mtr,

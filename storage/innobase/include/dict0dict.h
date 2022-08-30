@@ -132,7 +132,7 @@ enum dict_table_op_t {
 @param[in]      table_op        operation to perform when opening
 @return table object after locking MDL shared
 @retval NULL if the table is not readable, or if trylock && MDL blocked */
-template<bool trylock>
+template<bool trylock, bool purge_thd= false>
 dict_table_t*
 dict_acquire_mdl_shared(dict_table_t *table,
                         THD *thd,
