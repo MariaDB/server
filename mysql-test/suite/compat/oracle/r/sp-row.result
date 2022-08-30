@@ -24,7 +24,7 @@ RETURN a;
 END;
 $$
 SELECT f1(ROW(10,20));
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Cannot cast 'row' as 'int' in assignment of `f1(ROW(10,20))`
 DROP FUNCTION f1;
 #
 # ROW as an SP parameter
@@ -261,7 +261,7 @@ SELECT f1(a);
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Cannot cast 'row' as 'int' in assignment of `a`
 DROP PROCEDURE p1;
 DROP FUNCTION f1;
 CREATE FUNCTION f1(a INT) RETURN INT
@@ -278,7 +278,7 @@ SELECT f1(a);
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Cannot cast 'row' as 'int' in assignment of `a`
 DROP PROCEDURE p1;
 DROP FUNCTION f1;
 #
@@ -332,7 +332,7 @@ RETURN rec;
 END;
 $$
 SELECT f1(10);
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Cannot cast 'row' as 'int' in assignment of `f1(10)`
 DROP FUNCTION f1;
 #
 # Using the entire ROW in SELECT..CREATE

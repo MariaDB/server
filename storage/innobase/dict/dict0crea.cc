@@ -1101,7 +1101,7 @@ dict_create_table_step(
 	}
 
 	if (node->state == TABLE_ADD_TO_CACHE) {
-		node->table->can_be_evicted = true;
+		node->table->can_be_evicted = !node->table->fts;
 		node->table->add_to_cache();
 
 		err = DB_SUCCESS;
