@@ -38,8 +38,40 @@ eval CREATE TABLE `$d255`.`_$d250`
 --replace_result $d255 d255
 eval CREATE TABLE `$d255`.`$d250`
 (a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
+
+--echo #
+--echo # MDEV-29258 Failing assertion for name length on RENAME TABLE
+--echo #
+
+let $d245=-------------------------------------------------;
+--replace_result $d245 d245 $d255 d255
+eval CREATE TABLE `$d255`.`$d245` (x INT) ENGINE=InnoDB;
+--replace_result $d250 d250 $d255 d255
+eval DROP TABLE `$d255`.`$d250`;
+
+--replace_result $d245 d245 $d250 d250 d255 d255
+eval RENAME TABLE `$d255`.`$d245` TO `$d255`.`$d250`;
+--replace_result $d250 d250 $d255 d255
+eval RENAME TABLE `$d255`.`$d250` TO a;
+--replace_result $d255 d255
+DROP TABLE a,t;
+
+--echo #
+--echo # MDEV-29409 Buffer overflow in my_wc_mb_filename() on RENAME TABLE
+--echo #
+
+let $d225=#############################################;
+let $d320=################################################################;
+
+--replace_result $d255 d255
+eval CREATE TABLE `$d255`.t(a INT PRIMARY KEY)ENGINE=InnoDB;
+--replace_result $d255 d255 $d320 d320
+eval CREATE TABLE `$d255`.u(a INT PRIMARY KEY,
+CONSTRAINT `$d320` FOREIGN KEY (a) REFERENCES `$d255`.t (a)) ENGINE=InnoDB;
+--replace_result $d255 d255
+eval RENAME TABLE `$d255`.u TO u;
+DROP TABLE u;
 --replace_result $d255 d255
 eval DROP DATABASE `$d255`;
-DROP TABLE t;
 
 --echo # End of 10.3 tests

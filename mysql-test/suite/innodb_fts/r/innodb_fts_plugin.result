@@ -1,4 +1,5 @@
 INSTALL PLUGIN simple_parser SONAME 'mypluglib';
+FLUSH TABLES;
 # Test Part 1: Grammar Test
 CREATE TABLE articles (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
@@ -31,7 +32,7 @@ INSERT INTO articles (title, body) VALUES
 ('1001 MySQL Tricks','How to use full-text search engine'),
 ('Go MySQL Tricks','How to use full text search engine');
 SELECT * FROM articles WHERE
-MATCH(title, body) AGAINST('mysql');
+MATCH(title, body) AGAINST('mysql') ORDER BY id;
 id	title	body
 1	MySQL Tutorial	DBMS stands for MySQL DataBase ...
 2	How To Use MySQL Well	After you went through a ...
@@ -68,7 +69,7 @@ INSERT INTO articles (title, body) VALUES
 ('Go MySQL Tricks','How to use full text search engine');
 ALTER TABLE articles ADD FULLTEXT INDEX (title, body) WITH PARSER simple_parser;
 SELECT * FROM articles WHERE
-MATCH(title, body) AGAINST('mysql');
+MATCH(title, body) AGAINST('mysql') ORDER BY id;
 id	title	body
 1	MySQL Tutorial	DBMS stands for MySQL DataBase ...
 2	How To Use MySQL Well	After you went through a ...
@@ -88,21 +89,23 @@ MATCH(title, body) AGAINST('full text');
 id	title	body
 5	Go MySQL Tricks	How to use full text search engine
 SELECT * FROM articles WHERE
-MATCH(title, body) AGAINST('full-text' WITH QUERY EXPANSION);
+MATCH(title, body) AGAINST('full-text' WITH QUERY EXPANSION)
+ORDER BY id;
 id	title	body
+1	MySQL Tutorial	DBMS stands for MySQL DataBase ...
+2	How To Use MySQL Well	After you went through a ...
+3	Optimizing MySQL	In this tutorial we will show ...
 4	1001 MySQL Tricks	How to use full-text search engine
 5	Go MySQL Tricks	How to use full text search engine
-2	How To Use MySQL Well	After you went through a ...
-1	MySQL Tutorial	DBMS stands for MySQL DataBase ...
-3	Optimizing MySQL	In this tutorial we will show ...
 SELECT * FROM articles WHERE
-MATCH(title, body) AGAINST('full text' WITH QUERY EXPANSION);
+MATCH(title, body) AGAINST('full text' WITH QUERY EXPANSION)
+ORDER BY id;
 id	title	body
-5	Go MySQL Tricks	How to use full text search engine
-4	1001 MySQL Tricks	How to use full-text search engine
-2	How To Use MySQL Well	After you went through a ...
 1	MySQL Tutorial	DBMS stands for MySQL DataBase ...
+2	How To Use MySQL Well	After you went through a ...
 3	Optimizing MySQL	In this tutorial we will show ...
+4	1001 MySQL Tricks	How to use full-text search engine
+5	Go MySQL Tricks	How to use full text search engine
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('"mysql database"' IN BOOLEAN MODE);
 id	title	body
@@ -137,27 +140,27 @@ INSERT INTO articles (title, body) VALUES
 ('Go MariaDB Tricks','How to use full text search engine');
 # restart
 SELECT * FROM articles WHERE
-MATCH(title, body) AGAINST('MySQL');
+MATCH(title, body) AGAINST('MySQL') ORDER BY id;
 id	title	body
 6	MySQL Tutorial	DBMS stands for MySQL DataBase ...
 7	How To Use MySQL Well	After you went through a ...
 8	Optimizing MySQL	In this tutorial we will show ...
 9	1001 MySQL Tricks	How to use full-text search engine
 SELECT * FROM articles WHERE
-MATCH(title, body) AGAINST('tutorial');
+MATCH(title, body) AGAINST('tutorial') ORDER BY id;
 id	title	body
 6	MySQL Tutorial	DBMS stands for MySQL DataBase ...
 8	Optimizing MySQL	In this tutorial we will show ...
 SELECT * FROM articles WHERE
-MATCH(title, body) AGAINST('Tricks');
+MATCH(title, body) AGAINST('Tricks') ORDER BY id;
 id	title	body
 9	1001 MySQL Tricks	How to use full-text search engine
 10	Go MariaDB Tricks	How to use full text search engine
 SELECT * FROM articles WHERE
-MATCH(title, body) AGAINST('full text search');
+MATCH(title, body) AGAINST('full text search') ORDER BY id;
 id	title	body
-10	Go MariaDB Tricks	How to use full text search engine
 9	1001 MySQL Tricks	How to use full-text search engine
+10	Go MariaDB Tricks	How to use full text search engine
 SELECT COUNT(*) FROM articles;
 COUNT(*)
 5
@@ -185,7 +188,8 @@ UNINSTALL PLUGIN simple_parser;
 Warnings:
 Warning	1620	Plugin is busy and will be uninstalled on shutdown
 SELECT * FROM articles WHERE
-MATCH(title, body) AGAINST('mysql');
+MATCH(title, body) AGAINST('mysql')
+ORDER BY id;
 id	title	body
 1	MySQL Tutorial	DBMS stands for MySQL DataBase ...
 2	How To Use MySQL Well	After you went through a ...

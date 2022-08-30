@@ -1682,7 +1682,7 @@ dict_table_rename_in_cache(
 			in UTF-8 charset.  The variable fkid here is used
 			to store foreign key constraint name in charset
 			my_charset_filename for comparison further below. */
-			char    fkid[MAX_TABLE_NAME_LEN+20];
+			char    fkid[MAX_TABLE_NAME_LEN * 2 + 20];
 			ibool	on_tmp = FALSE;
 
 			/* The old table name in my_charset_filename is stored
@@ -1716,7 +1716,8 @@ dict_table_rename_in_cache(
 				}
 			}
 
-			strncpy(fkid, foreign->id, MAX_TABLE_NAME_LEN);
+			strncpy(fkid, foreign->id, (sizeof fkid) - 1);
+			fkid[(sizeof fkid) - 1] = '\0';
 
 			if (strstr(fkid, TEMP_TABLE_PATH_PREFIX) == NULL) {
 				innobase_convert_to_filename_charset(
@@ -3555,10 +3556,11 @@ dict_table_get_highest_foreign_id(
 	for (dict_foreign_set::iterator it = table->foreign_set.begin();
 	     it != table->foreign_set.end();
 	     ++it) {
-		char    fkid[MAX_TABLE_NAME_LEN+20];
+		char    fkid[MAX_TABLE_NAME_LEN * 2 + 20];
 		foreign = *it;
 
-		strcpy(fkid, foreign->id);
+		strncpy(fkid, foreign->id, (sizeof fkid) - 1);
+		fkid[(sizeof fkid) - 1] = '\0';
 		/* Convert foreign key identifier on dictionary memory
 		cache to filename charset. */
 		innobase_convert_to_filename_charset(
