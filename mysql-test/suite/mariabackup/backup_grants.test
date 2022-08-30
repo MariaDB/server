@@ -25,7 +25,62 @@ GRANT RELOAD, PROCESS on *.* to backup@localhost;
 --disable_result_log
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup -ubackup --target-dir=$targetdir;
 --enable_result_log
+rmdir $targetdir;
+
+# MDEV-23607 Warning: missing required privilege REPLICATION CLIENT
+# --slave-info and galera info require REPLICA MONITOR
+--disable_result_log
+error 1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --slave-info  --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log;
+--enable_result_log
+rmdir $targetdir;
+
+--let SEARCH_PATTERN=  missing required privilege REPLICA MONITOR
+--source include/search_pattern_in_file.inc
+
+GRANT REPLICA MONITOR ON *.* TO backup@localhost;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --slave-info --target-dir=$targetdir;
+--enable_result_log
+rmdir $targetdir;
+REVOKE REPLICA MONITOR ON *.* FROM backup@localhost;
+
+# TODO need a query that would delay a BACKUP STAGE START/ BACKUP STAGE BLOCK_COMMIT longer than the kill-long-queries-timeout
+#--send SELECT SLEEP(9) kill_me
+## kill-long-query-type=(not empty) requires CONNECTION ADMIN
+#--disable_result_log
+#error 1;
+#--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup  --kill-long-query-type=all --kill-long-queries-timeout=4 --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log;
+#--reap
+#--enable_result_log
+#rmdir $targetdir;
+#
+#--let SEARCH_PATTERN=  missing required privilege CONNECTION ADMIN
+#--source include/search_pattern_in_file.inc
+
+GRANT CONNECTION ADMIN ON *.* TO backup@localhost;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup  --kill-long-query-type=all --kill-long-queries-timeout=1 --target-dir=$targetdir;
+--enable_result_log
+rmdir $targetdir;
+
+# --safe-slave-backup requires REPLICATION SLAVE ADMIN, and REPLICA MONITOR
+--disable_result_log
+error 1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --safe-slave-backup --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log;
+--enable_result_log
+rmdir $targetdir;
+
+--let SEARCH_PATTERN=  missing required privilege REPLICATION SLAVE ADMIN
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=  missing required privilege REPLICA MONITOR
+--source include/search_pattern_in_file.inc
+
+GRANT REPLICATION SLAVE ADMIN ON *.* TO backup@localhost;
+GRANT REPLICA MONITOR ON *.* TO backup@localhost;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --safe-slave-backup --target-dir=$targetdir;
+--enable_result_log
+rmdir $targetdir;
 
 DROP USER backup@localhost;
-# Cleanup
-rmdir $targetdir;

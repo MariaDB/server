@@ -44,6 +44,7 @@ Created 5/7/1996 Heikki Tuuri
 #include "row0vers.h"
 #include "pars0pars.h"
 #include "srv0mon.h"
+#include "scope.h"
 
 #include <set>
 
@@ -1275,6 +1276,14 @@ lock_rec_enqueue_waiting(
 	trx_t* trx = thr_get_trx(thr);
 	ut_ad(xtest() || trx->mutex_is_owner());
 	ut_ad(!trx->dict_operation_lock_mode);
+        /* Apart from Galera, only transactions that have waiting lock can be
+        chosen as deadlock victim. Only one lock can be waited for at a time,
+        and a transaction is associated with a single thread. That is why there
+        must not be waiting lock requests if the transaction is deadlock victim
+        and it is not WSREP. Galera transaction abort can be invoked from MDL
+        acquisition code when the transaction does not have waiting record
+        lock, that's why we check only deadlock victim bit here. */
+        ut_ad(!(trx->lock.was_chosen_as_deadlock_victim & 1));
 
 	if (trx->mysql_thd && thd_lock_wait_timeout(trx->mysql_thd) == 0) {
 		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
@@ -1292,7 +1301,6 @@ lock_rec_enqueue_waiting(
 	}
 
 	trx->lock.wait_thr = thr;
-	trx->lock.clear_deadlock_victim();
 
 	DBUG_LOG("ib_lock", "trx " << ib::hex(trx->id)
 		 << " waits for lock in index " << index->name
@@ -1475,7 +1483,14 @@ lock_rec_lock(
 	que_thr_t*		thr)	/*!< in: query thread */
 {
   trx_t *trx= thr_get_trx(thr);
-
+  /* There must not be lock requests for reads or updates if transaction was
+  chosen as deadlock victim. Apart from Galera, only transactions that have
+  waiting lock may be chosen as deadlock victims. Only one lock can be waited
+  for at a time, and a transaction is associated with a single thread. Galera
+  transaction abort can be invoked from MDL acquisition code when the
+  transaction does not have waiting lock, that's why we check only deadlock
+  victim bit here. */
+  ut_ad(!(trx->lock.was_chosen_as_deadlock_victim & 1));
   ut_ad(!srv_read_only_mode);
   ut_ad(((LOCK_MODE_MASK | LOCK_TABLE) & mode) == LOCK_S ||
         ((LOCK_MODE_MASK | LOCK_TABLE) & mode) == LOCK_X);
@@ -1627,7 +1642,9 @@ void lock_sys_t::wait_resume(THD *thd, my_hrtime_t start, my_hrtime_t now)
 
 #ifdef HAVE_REPLICATION
 ATTRIBUTE_NOINLINE MY_ATTRIBUTE((nonnull))
-/** Report lock waits to parallel replication.
+/** Report lock waits to parallel replication. Sets
+trx->error_state= DB_DEADLOCK if trx->lock.was_chosen_as_deadlock_victim was
+set when lock_sys.wait_mutex was unlocked.
 @param trx       transaction that may be waiting for a lock
 @param wait_lock lock that is being waited for */
 static void lock_wait_rpl_report(trx_t *trx)
@@ -1642,7 +1659,8 @@ static void lock_wait_rpl_report(trx_t *trx)
   ut_ad(!(wait_lock->type_mode & LOCK_AUTO_INC));
   /* This would likely be too large to attempt to use a memory transaction,
   even for wait_lock->is_table(). */
-  if (!lock_sys.wr_lock_try())
+  const bool nowait=  lock_sys.wr_lock_try();
+  if (!nowait)
   {
     mysql_mutex_unlock(&lock_sys.wait_mutex);
     lock_sys.wr_lock(SRW_LOCK_CALL);
@@ -1652,6 +1670,10 @@ static void lock_wait_rpl_report(trx_t *trx)
     {
 func_exit:
       lock_sys.wr_unlock();
+      /* trx->lock.was_chosen_as_deadlock_victim can be set when
+      lock_sys.wait_mutex was unlocked, let's check it. */
+      if (!nowait && trx->lock.was_chosen_as_deadlock_victim)
+        trx->error_state= DB_DEADLOCK;
       return;
     }
     ut_ad(wait_lock->is_waiting());
@@ -1700,7 +1722,13 @@ dberr_t lock_wait(que_thr_t *thr)
   trx_t *trx= thr_get_trx(thr);
 
   if (trx->mysql_thd)
-    DEBUG_SYNC_C("lock_wait_suspend_thread_enter");
+    DEBUG_SYNC_C("lock_wait_start");
+
+  /* Create the sync point for any quit from the function. */
+  ut_d(SCOPE_EXIT([trx]() {
+    if (trx->mysql_thd)
+      DEBUG_SYNC_C("lock_wait_end");
+  }));
 
   /* InnoDB system transactions may use the global value of
   innodb_lock_wait_timeout, because trx->mysql_thd == NULL. */
@@ -1731,11 +1759,8 @@ dberr_t lock_wait(que_thr_t *thr)
   {
     /* The lock has already been released or this transaction
     was chosen as a deadlock victim: no need to wait */
-    if (trx->lock.was_chosen_as_deadlock_victim.fetch_and(byte(~1)))
-      trx->error_state= DB_DEADLOCK;
-    else
-      trx->error_state= DB_SUCCESS;
-
+    trx->error_state=
+        trx->lock.was_chosen_as_deadlock_victim ? DB_DEADLOCK : DB_SUCCESS;
     return trx->error_state;
   }
 
@@ -1770,7 +1795,7 @@ dberr_t lock_wait(que_thr_t *thr)
      wait_lock->un_member.tab_lock.table->id <= DICT_FIELDS_ID);
   thd_wait_begin(trx->mysql_thd, (type_mode & LOCK_TABLE)
                  ? THD_WAIT_TABLE_LOCK : THD_WAIT_ROW_LOCK);
-  dberr_t error_state= DB_SUCCESS;
+  trx->error_state= DB_SUCCESS;
 
   mysql_mutex_lock(&lock_sys.wait_mutex);
   if (trx->lock.wait_lock)
@@ -1778,22 +1803,27 @@ dberr_t lock_wait(que_thr_t *thr)
     if (Deadlock::check_and_resolve(trx))
     {
       ut_ad(!trx->lock.wait_lock);
-      error_state= DB_DEADLOCK;
+      trx->error_state= DB_DEADLOCK;
       goto end_wait;
     }
   }
   else
+  {
+    /* trx->lock.was_chosen_as_deadlock_victim can be changed before
+    lock_sys.wait_mutex is acquired, so let's check it once more. */
+    trx->error_state=
+        trx->lock.was_chosen_as_deadlock_victim ? DB_DEADLOCK : DB_SUCCESS;
     goto end_wait;
-
+  }
   if (row_lock_wait)
     lock_sys.wait_start();
+
+  trx->error_state= DB_SUCCESS;
 
 #ifdef HAVE_REPLICATION
   if (rpl)
     lock_wait_rpl_report(trx);
 #endif
-
-  trx->error_state= DB_SUCCESS;
 
   while (trx->lock.wait_lock)
   {
@@ -1807,20 +1837,19 @@ dberr_t lock_wait(que_thr_t *thr)
     else
       err= my_cond_timedwait(&trx->lock.cond, &lock_sys.wait_mutex.m_mutex,
                              &abstime);
-    error_state= trx->error_state;
-    switch (error_state) {
+    switch (trx->error_state) {
     case DB_DEADLOCK:
     case DB_INTERRUPTED:
       break;
     default:
-      ut_ad(error_state != DB_LOCK_WAIT_TIMEOUT);
+      ut_ad(trx->error_state != DB_LOCK_WAIT_TIMEOUT);
       /* Dictionary transactions must ignore KILL, because they could
       be executed as part of a multi-transaction DDL operation,
       such as rollback_inplace_alter_table() or ha_innobase::delete_table(). */
       if (!trx->dict_operation && trx_is_interrupted(trx))
         /* innobase_kill_query() can only set trx->error_state=DB_INTERRUPTED
         for any transaction that is attached to a connection. */
-        error_state= DB_INTERRUPTED;
+        trx->error_state= DB_INTERRUPTED;
       else if (!err)
         continue;
 #ifdef WITH_WSREP
@@ -1828,7 +1857,7 @@ dberr_t lock_wait(que_thr_t *thr)
 #endif
       else
       {
-        error_state= DB_LOCK_WAIT_TIMEOUT;
+        trx->error_state= DB_LOCK_WAIT_TIMEOUT;
         lock_sys.timeouts++;
       }
     }
@@ -1848,8 +1877,7 @@ end_wait:
   mysql_mutex_unlock(&lock_sys.wait_mutex);
   thd_wait_end(trx->mysql_thd);
 
-  trx->error_state= error_state;
-  return error_state;
+  return trx->error_state;
 }
 
 
@@ -1862,7 +1890,7 @@ static void lock_wait_end(trx_t *trx)
   ut_ad(state == TRX_STATE_ACTIVE || state == TRX_STATE_PREPARED);
   ut_ad(trx->lock.wait_thr);
 
-  if (trx->lock.was_chosen_as_deadlock_victim.fetch_and(byte(~1)))
+  if (trx->lock.was_chosen_as_deadlock_victim)
   {
     ut_ad(state == TRX_STATE_ACTIVE);
     trx->error_state= DB_DEADLOCK;
@@ -3401,17 +3429,18 @@ lock_table_enqueue_waiting(
 	ut_ad(trx->mutex_is_owner());
 	ut_ad(!trx->dict_operation_lock_mode);
 
-#ifdef WITH_WSREP
-	if (trx->is_wsrep() && trx->lock.was_chosen_as_deadlock_victim) {
-		return(DB_DEADLOCK);
-	}
-#endif /* WITH_WSREP */
-
 	/* Enqueue the lock request that will wait to be granted */
 	lock_table_create(table, mode | LOCK_WAIT, trx, c_lock);
 
 	trx->lock.wait_thr = thr;
-	trx->lock.clear_deadlock_victim();
+        /* Apart from Galera, only transactions that have waiting lock
+        may be chosen as deadlock victims. Only one lock can be waited for at a
+        time, and a transaction is associated with a single thread. That is why
+        there must not be waiting lock requests if the transaction is deadlock
+        victim and it is not WSREP. Galera transaction abort can be invoked
+        from MDL acquisition code when the transaction does not have waiting
+        lock, that's why we check only deadlock victim bit here. */
+        ut_ad(!(trx->lock.was_chosen_as_deadlock_victim & 1));
 
 	MONITOR_INC(MONITOR_TABLELOCK_WAIT);
 	return(DB_LOCK_WAIT);
@@ -3949,7 +3978,6 @@ released:
     mysql_mutex_unlock(&lock_sys.wait_mutex);
   }
 
-  trx->lock.was_chosen_as_deadlock_victim= false;
   trx->lock.n_rec_locks= 0;
 
 #ifdef UNIV_DEBUG
@@ -5718,10 +5746,12 @@ dberr_t lock_sys_t::cancel(trx_t *trx, lock_t *lock)
       lock_sys.rd_lock(SRW_LOCK_CALL);
       mysql_mutex_lock(&lock_sys.wait_mutex);
       lock= trx->lock.wait_lock;
-      if (!lock);
-      else if (check_victim && trx->lock.was_chosen_as_deadlock_victim)
+      /* Even if waiting lock was cancelled while lock_sys.wait_mutex was
+      unlocked, we need to return deadlock error if transaction was chosen
+      as deadlock victim to rollback it */
+      if (check_victim && trx->lock.was_chosen_as_deadlock_victim)
         err= DB_DEADLOCK;
-      else
+      else if (lock)
         goto resolve_table_lock;
     }
     else
@@ -5769,10 +5799,12 @@ retreat:
       lock_sys.wr_lock(SRW_LOCK_CALL);
       mysql_mutex_lock(&lock_sys.wait_mutex);
       lock= trx->lock.wait_lock;
-      if (!lock);
-      else if (check_victim && trx->lock.was_chosen_as_deadlock_victim)
+      /* Even if waiting lock was cancelled while lock_sys.wait_mutex was
+      unlocked, we need to return deadlock error if transaction was chosen
+      as deadlock victim to rollback it */
+      if (check_victim && trx->lock.was_chosen_as_deadlock_victim)
         err= DB_DEADLOCK;
-      else
+      else if (lock)
         goto resolve_record_lock;
     }
     else
@@ -5850,6 +5882,7 @@ while holding a clustered index leaf page latch.
                      lock request was released */
 dberr_t lock_trx_handle_wait(trx_t *trx)
 {
+  DEBUG_SYNC_C("lock_trx_handle_wait_enter");
   if (trx->lock.was_chosen_as_deadlock_victim)
     return DB_DEADLOCK;
   if (!trx->lock.wait_lock)

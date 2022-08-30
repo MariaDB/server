@@ -1,0 +1,83 @@
+#
+# Purpose:
+#   This test ensures that the SET DEFAULT ROLE and SET PASSWORD commands can
+# be ignored by replica filter rules. MDEV-28294 exposed a bug in which
+# SET DEFAULT ROLE would check for the existence of the given roles/user even
+# when the targeted tables are ignored, resulting in errors if the targeted
+# data does not exist. More specifically, when previously issued
+# CREATE USER/ROLE commands are ignored by the replica because of the
+# replication filtering rules, SET DEFAULT ROLE would result in an error
+# because the targeted data does not exist.
+#
+# Methodology:
+#   Using a replica configured with replicate_wild_ignore_table="mysql.%",
+# execute SET DEFAULT ROLE and SET PASSWORD on the primary and ensure that the
+# replica neither errors nor executes the commands which the primary sends.
+#
+# References:
+#   MDEV-28294: set default role bypasses Replicate_Wild_Ignore_Table: mysql.%
+#
+
+source include/master-slave.inc;
+source include/have_binlog_format_mixed.inc;
+
+--echo #
+--echo # Set replica to ignore system mysql tables
+connection slave;
+let $old_filter= query_get_value(SHOW SLAVE STATUS, Replicate_Wild_Ignore_Table, 1);
+source include/stop_slave.inc;
+SET @@GLOBAL.replicate_wild_ignore_table="mysql.%";
+source include/start_slave.inc;
+
+--echo #
+--echo # Execute grant-based commands on primary which modify mysql system
+--echo # tables
+connection master;
+CREATE ROLE journalist;
+CREATE USER testuser@localhost IDENTIFIED by '';
+GRANT journalist to testuser@localhost;
+
+--echo #
+--echo # Execute SET commands which use the previous user/role data
+SET DEFAULT ROLE journalist for testuser@localhost;
+SET PASSWORD for testuser@localhost= PASSWORD('123');
+--source include/save_master_gtid.inc
+
+--echo #
+--echo # Verify primary's grant tables have the correct user/role data
+select count(*)=1 from mysql.user where User='testuser';
+select count(*)=1 from mysql.roles_mapping where User='testuser';
+
+--echo #
+--echo # Ensure that the replica receives all of the primary's events without
+--echo # error
+connection slave;
+--source include/sync_with_master_gtid.inc
+let $error= query_get_value(SHOW SLAVE STATUS, Last_SQL_Error, 1);
+--echo Last_SQL_Error = $error
+let $errno= query_get_value(SHOW SLAVE STATUS, Last_SQL_Errno, 1);
+--echo Last_SQL_Errno = $errno
+
+--echo #
+--echo # Verify that the replica did not execute the master's commands
+select count(*)=0 from mysql.user where User='testuser';
+select count(*)=0 from mysql.roles_mapping where User='testuser';
+
+--echo #
+--echo # Clean up
+
+# The master has to drop the role/user combination while the slave still has
+# its filters active; otherwise, the slave would try to drop users/roles that
+# were never replicated.
+--connection master
+DROP ROLE journalist;
+DROP USER testuser@localhost;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+source include/stop_slave.inc;
+--eval SET @@GLOBAL.replicate_wild_ignore_table="$old_filter"
+source include/start_slave.inc;
+
+--source include/rpl_end.inc

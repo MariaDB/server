@@ -1293,10 +1293,6 @@ void btr_search_drop_page_hash_index(buf_block_t* block,
 	rec_offs*		offsets;
 
 retry:
-	/* This debug check uses a dirty read that could theoretically cause
-	false positives while buf_pool.clear_hash_index() is executing. */
-	assert_block_ahi_valid(block);
-
 	if (!block->index) {
 		return;
 	}

@@ -112,7 +112,7 @@ public:
 
 	size_t pending_io_count()
 	{
-		return (size_t)m_max_aio - m_cache.size();
+		return m_cache.pos();
 	}
 
 	tpool::task_group* get_task_group()
