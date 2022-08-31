@@ -41,6 +41,7 @@
 
 class Item;				/* Needed by ORDER */
 typedef Item (*Item_ptr);
+class Item_change_list;
 class Item_subselect;
 class Item_field;
 class GRANT_TABLE;
@@ -1511,6 +1512,7 @@ public:
   bool get_fields_in_item_tree;      /* Signal to fix_field */
   List<Virtual_column_info> vcol_refix_list;
 private:
+  Item_change_list *saved_change_list;
   bool m_needs_reopen;
   bool created;    /* For tmp tables. TRUE <=> tmp table was actually created.*/
 public:

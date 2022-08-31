@@ -602,6 +602,12 @@ create or replace table t1 (old int);
 --error ER_TRG_DOES_NOT_EXIST
 show create trigger a;
 drop table t1;
+--echo # PS: check thd->change_list sanity
+create table t1 (a int not null, b char(10) as (concat('', dayname('2020-02-02'))))  collate utf8_bin;
+prepare stmt from 'insert into t1 (b) values (2)';
+create or replace table t1 (x int);
+drop table t1;
+drop prepare stmt;
 --echo # Foreign keys
 --list_files $MYSQLD_DATADIR/test *sql*
 create table t1 (x int primary key, y int) engine innodb;
