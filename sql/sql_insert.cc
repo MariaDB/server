@@ -4484,8 +4484,7 @@ Field *Item::create_field_for_create_select(MEM_ROOT *root, TABLE *table)
 */
 
 TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
-                                              MYSQL_LOCK **lock,
-                                              TABLEOP_HOOKS *hooks)
+                                              MYSQL_LOCK **lock)
 {
   TABLE tmp_table;		// Used during 'Create_field()'
   TABLE_SHARE share;
@@ -4650,7 +4649,6 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   DEBUG_SYNC(thd,"create_table_select_before_lock");
 
   table->reginfo.lock_type=TL_WRITE;
-  hooks->prelock(&table, 1);                    // Call prelock hooks
 
   /*
     Ensure that decide_logging_format(), called by mysql_lock_tables(), works
@@ -4665,7 +4663,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     the table) and thus can't get aborted.
   */
   if (unlikely(!((*lock)= mysql_lock_tables(thd, &table, 1, 0)) ||
-               hooks->postlock(&table, 1)))
+               postlock(thd, &table)))
   {
     /* purecov: begin tested */
     /*
@@ -4704,71 +4702,52 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
 }
 
 
+/*
+  For row-based replication, the CREATE-SELECT statement is written
+  in two pieces: the first one contain the CREATE TABLE statement
+  necessary to create the table and the second part contain the rows
+  that should go into the table.
+
+  For non-temporary tables, the start of the CREATE-SELECT
+  implicitly commits the previous transaction, and all events
+  forming the statement will be stored the transaction cache. At end
+  of the statement, the entire statement is committed as a
+  transaction, and all events are written to the binary log.
+
+  On the master, the table is locked for the duration of the
+  statement, but since the CREATE part is replicated as a simple
+  statement, there is no way to lock the table for accesses on the
+  slave.  Hence, we have to hold on to the CREATE part of the
+  statement until the statement has finished.
+*/
+int select_create::postlock(THD *thd, TABLE **tables)
+{
+  /*
+    NOTE: for row format CREATE TABLE must be logged before row data.
+  */
+  int error;
+  TABLE_LIST *save_next_global= create_table->next_global;
+  create_table->next_global= select_tables;
+  error= thd->decide_logging_format(create_table);
+  create_table->next_global= save_next_global;
+
+  if (unlikely(error))
+    return error;
+
+  TABLE const *const table = *tables;
+  if (thd->is_current_stmt_binlog_format_row() &&
+      !table->s->tmp_table)
+    return binlog_show_create_table(thd, *tables, create_info);
+  return 0;
+}
+
+
 int
 select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
 {
   List<Item> values(_values, thd->mem_root);
   MYSQL_LOCK *extra_lock= NULL;
   DBUG_ENTER("select_create::prepare");
-
-  TABLEOP_HOOKS *hook_ptr= NULL;
-  /*
-    For row-based replication, the CREATE-SELECT statement is written
-    in two pieces: the first one contain the CREATE TABLE statement
-    necessary to create the table and the second part contain the rows
-    that should go into the table.
-
-    For non-temporary tables, the start of the CREATE-SELECT
-    implicitly commits the previous transaction, and all events
-    forming the statement will be stored the transaction cache. At end
-    of the statement, the entire statement is committed as a
-    transaction, and all events are written to the binary log.
-
-    On the master, the table is locked for the duration of the
-    statement, but since the CREATE part is replicated as a simple
-    statement, there is no way to lock the table for accesses on the
-    slave.  Hence, we have to hold on to the CREATE part of the
-    statement until the statement has finished.
-   */
-  class MY_HOOKS : public TABLEOP_HOOKS {
-  public:
-    MY_HOOKS(select_create *x, TABLE_LIST *create_table_arg,
-             TABLE_LIST *select_tables_arg)
-      : ptr(x),
-        create_table(create_table_arg),
-        select_tables(select_tables_arg)
-      {
-      }
-
-  private:
-    virtual int do_postlock(TABLE **tables, uint count)
-    {
-      int error;
-      THD *thd= const_cast<THD*>(ptr->get_thd());
-      TABLE_LIST *save_next_global= create_table->next_global;
-
-      create_table->next_global= select_tables;
-
-      error= thd->decide_logging_format(create_table);
-
-      create_table->next_global= save_next_global;
-
-      if (unlikely(error))
-        return error;
-
-      TABLE const *const table = *tables;
-      if (thd->is_current_stmt_binlog_format_row() &&
-          !table->s->tmp_table)
-        return binlog_show_create_table(thd, *tables, ptr->create_info);
-      return 0;
-    }
-    select_create *ptr;
-    TABLE_LIST *create_table;
-    TABLE_LIST *select_tables;
-  };
-
-  MY_HOOKS hooks(this, create_table, select_tables);
-  hook_ptr= &hooks;
 
   unit= u;
 
@@ -4784,7 +4763,7 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
     thd->binlog_start_trans_and_stmt();
   }
 
-  if (!(table= create_table_from_items(thd, &values, &extra_lock, hook_ptr)))
+  if (!(table= create_table_from_items(thd, &values, &extra_lock)))
   {
     if (create_info->or_replace())
     {
