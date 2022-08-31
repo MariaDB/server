@@ -64,7 +64,7 @@ private:
 
 public:
   ha_maria(handlerton *hton, TABLE_SHARE * table_arg);
-  ~ha_maria() {}
+  ~ha_maria() = default;
   handler *clone(const char *name, MEM_ROOT *mem_root) override final;
   const char *index_type(uint key_number) override final;
   ulonglong table_flags() const override final
@@ -95,7 +95,8 @@ public:
   int index_prev(uchar * buf) override final;
   int index_first(uchar * buf) override final;
   int index_last(uchar * buf) override final;
-  int index_next_same(uchar * buf, const uchar * key, uint keylen) override final;
+  int index_next_same(uchar * buf, const uchar * key, uint keylen)
+    override final;
   int ft_init() override final
   {
     if (!ft_handler)
@@ -115,9 +116,9 @@ public:
   int restart_rnd_next(uchar * buf) override final;
   void position(const uchar * record) override final;
   int info(uint) override final;
-  int info(uint, my_bool);
   int extra(enum ha_extra_function operation) override final;
-  int extra_opt(enum ha_extra_function operation, ulong cache_size) override final;
+  int extra_opt(enum ha_extra_function operation, ulong cache_size)
+    override final;
   int reset(void) override final;
   int external_lock(THD * thd, int lock_type) override;
   int start_stmt(THD *thd, thr_lock_type lock_type) override final;
@@ -131,13 +132,14 @@ public:
                            const key_range *max_key,
                            page_range *pages) override final;
   void update_create_info(HA_CREATE_INFO * create_info) override final;
-  int create(const char *name, TABLE * form, HA_CREATE_INFO * create_info) override;
+  int create(const char *name, TABLE * form, HA_CREATE_INFO * create_info)
+    override;
   THR_LOCK_DATA **store_lock(THD * thd, THR_LOCK_DATA ** to,
                              enum thr_lock_type lock_type) override final;
-  virtual void get_auto_increment(ulonglong offset, ulonglong increment,
-                                  ulonglong nb_desired_values,
-                                  ulonglong *first_value,
-                                  ulonglong *nb_reserved_values) override final;
+  void get_auto_increment(ulonglong offset, ulonglong increment,
+                          ulonglong nb_desired_values,
+                          ulonglong *first_value,
+                          ulonglong *nb_reserved_values) override final;
   int rename_table(const char *from, const char *to) override;
   int delete_table(const char *name) override;
   void drop_table(const char *name) override;
@@ -152,7 +154,8 @@ public:
   int optimize(THD * thd, HA_CHECK_OPT * check_opt) override final;
   int assign_to_keycache(THD * thd, HA_CHECK_OPT * check_opt) override final;
   int preload_keys(THD * thd, HA_CHECK_OPT * check_opt) override;
-  bool check_if_incompatible_data(HA_CREATE_INFO * info, uint table_changes) override final;
+  bool check_if_incompatible_data(HA_CREATE_INFO * info, uint table_changes)
+    override final;
 #ifdef HAVE_QUERY_CACHE
   my_bool register_query_cache_table(THD *thd, const char *table_key,
                                      uint key_length,
@@ -170,16 +173,20 @@ public:
    * Multi Range Read interface
    */
   int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
-                            uint n_ranges, uint mode, HANDLER_BUFFER *buf) override final;
+                            uint n_ranges, uint mode, HANDLER_BUFFER *buf)
+    override final;
   int multi_range_read_next(range_id_t *range_info) override final;
   ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                       void *seq_init_param,
                                       uint n_ranges, uint *bufsz,
-                                      uint *flags, Cost_estimate *cost) override final;
+                                      uint *flags, Cost_estimate *cost)
+    override final;
   ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
                                 uint key_parts, uint *bufsz,
-                                uint *flags, Cost_estimate *cost) override final;
-  int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size) override final;
+                                uint *flags, Cost_estimate *cost)
+    override final;
+  int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size)
+    override final;
 
   /* Index condition pushdown implementation */
   Item *idx_cond_push(uint keyno, Item* idx_cond) override final;

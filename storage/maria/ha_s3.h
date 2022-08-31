@@ -28,7 +28,7 @@ class ha_s3 final :public ha_maria
 
 public:
   ha_s3(handlerton *hton, TABLE_SHARE * table_arg);
-  ~ha_s3() {}
+  ~ha_s3() = default;
 
   int create(const char *name, TABLE *table_arg,
              HA_CREATE_INFO *ha_create_info) override;
