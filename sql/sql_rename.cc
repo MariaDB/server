@@ -281,7 +281,7 @@ rename_check_preconditions(THD *thd, rename_param *param,
 
   if (!ha_table_exists(thd, &ren_table->db, &param->old_alias,
                        &param->old_version, NULL,
-                       &param->from_table_hton) ||
+                       &param->from_table_hton, NULL, 0) ||
       !param->from_table_hton)
   {
     my_error(ER_NO_SUCH_TABLE, MYF(if_exists ? ME_NOTE : 0),
@@ -301,7 +301,7 @@ rename_check_preconditions(THD *thd, rename_param *param,
     DBUG_RETURN(-1);
   }
 
-  if (ha_table_exists(thd, new_db, &param->new_alias, NULL, NULL, 0))
+  if (ha_table_exists(thd, new_db, &param->new_alias, NULL, NULL, NULL, NULL, 0))
   {
     my_error(ER_TABLE_EXISTS_ERROR, MYF(0), param->new_alias.str);
     DBUG_RETURN(1);                     // This can't be skipped
