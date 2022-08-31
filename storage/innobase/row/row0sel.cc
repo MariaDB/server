@@ -985,8 +985,7 @@ row_sel_get_clust_rec(
 	index = dict_table_get_first_index(plan->table);
 
 	btr_pcur_open_with_no_init(index, plan->clust_ref, PAGE_CUR_LE,
-				   BTR_SEARCH_LEAF, &plan->clust_pcur,
-				   0, mtr);
+				   BTR_SEARCH_LEAF, &plan->clust_pcur, mtr);
 
 	clust_rec = btr_pcur_get_rec(&(plan->clust_pcur));
 
@@ -1394,8 +1393,7 @@ row_sel_open_pcur(
 		/* Open pcur to the index */
 
 		btr_pcur_open_with_no_init(index, plan->tuple, plan->mode,
-					   BTR_SEARCH_LEAF, &plan->pcur,
-					   NULL, mtr);
+					   BTR_SEARCH_LEAF, &plan->pcur, mtr);
 	} else {
 		/* Open the cursor to the start or the end of the index
 		(FALSE: no init) */
@@ -3369,7 +3367,7 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 
 	btr_pcur_open_with_no_init(clust_index, prebuilt->clust_ref,
 				   PAGE_CUR_LE, BTR_SEARCH_LEAF,
-				   prebuilt->clust_pcur, 0, mtr);
+				   prebuilt->clust_pcur, mtr);
 
 	clust_rec = btr_pcur_get_rec(prebuilt->clust_pcur);
 
@@ -3952,15 +3950,12 @@ row_sel_try_search_shortcut_for_mysql(
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(!prebuilt->templ_contains_blob);
 
-	rw_lock_t* ahi_latch = btr_get_search_latch(index);
-	rw_lock_s_lock(ahi_latch);
 	btr_pcur_open_with_no_init(index, search_tuple, PAGE_CUR_GE,
-				   BTR_SEARCH_LEAF, pcur, ahi_latch, mtr);
+				   BTR_SEARCH_LEAF, pcur, mtr);
 	rec = btr_pcur_get_rec(pcur);
 
 	if (!page_rec_is_user_rec(rec) || rec_is_metadata(rec, index)) {
 retry:
-		rw_lock_s_unlock(ahi_latch);
 		return(SEL_RETRY);
 	}
 
@@ -3970,7 +3965,6 @@ retry:
 
 	if (btr_pcur_get_up_match(pcur) < dtuple_get_n_fields(search_tuple)) {
 exhausted:
-		rw_lock_s_unlock(ahi_latch);
 		return(SEL_EXHAUSTED);
 	}
 
@@ -3994,7 +3988,6 @@ exhausted:
 
 	*out_rec = rec;
 
-	rw_lock_s_unlock(ahi_latch);
 	return(SEL_FOUND);
 }
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -4728,8 +4721,7 @@ wait_table_again:
 		}
 
 		err = btr_pcur_open_with_no_init(index, search_tuple, mode,
-					   	 BTR_SEARCH_LEAF,
-					   	 pcur, 0, &mtr);
+						 BTR_SEARCH_LEAF, pcur, &mtr);
 
 		if (err != DB_SUCCESS) {
 			rec = NULL;

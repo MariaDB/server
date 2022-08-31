@@ -3354,7 +3354,7 @@ row_log_apply_op_low(
 				    has_index_lock
 				    ? BTR_MODIFY_TREE
 				    : BTR_MODIFY_LEAF,
-				    &cursor, 0, __FILE__, __LINE__,
+				    &cursor, __FILE__, __LINE__,
 				    &mtr);
 
 	ut_ad(dict_index_get_n_unique(index) > 0);
@@ -3403,7 +3403,7 @@ row_log_apply_op_low(
 				index->set_modified(mtr);
 				btr_cur_search_to_nth_level(
 					index, 0, entry, PAGE_CUR_LE,
-					BTR_MODIFY_TREE, &cursor, 0,
+					BTR_MODIFY_TREE, &cursor,
 					__FILE__, __LINE__, &mtr);
 
 				/* No other thread than the current one
@@ -3506,7 +3506,7 @@ insert_the_rec:
 				index->set_modified(mtr);
 				btr_cur_search_to_nth_level(
 					index, 0, entry, PAGE_CUR_LE,
-					BTR_MODIFY_TREE, &cursor, 0,
+					BTR_MODIFY_TREE, &cursor,
 					__FILE__, __LINE__, &mtr);
 			}
 
