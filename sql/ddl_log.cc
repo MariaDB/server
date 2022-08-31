@@ -3041,7 +3041,7 @@ static bool ddl_log_write(DDL_LOG_STATE *ddl_state,
 
   mysql_mutex_lock(&LOCK_gdl);
   error= ((ddl_log_write_entry(ddl_log_entry, &log_entry)) ||
-          ddl_log_write_execute_entry(log_entry->entry_pos,
+          ddl_log_write_execute_entry(log_entry->entry_pos, 0,
                                       &ddl_state->execute_entry));
   mysql_mutex_unlock(&LOCK_gdl);
   if (error)
@@ -3060,7 +3060,7 @@ static bool ddl_log_write(DDL_LOG_STATE *ddl_state,
    Logging of rename table
 */
 
-bool ddl_log_rename_table(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_rename_table(DDL_LOG_STATE *ddl_state,
                           handlerton *hton,
                           const LEX_CSTRING *org_db,
                           const LEX_CSTRING *org_alias,
@@ -3089,7 +3089,7 @@ bool ddl_log_rename_table(THD *thd, DDL_LOG_STATE *ddl_state,
   Logging of rename view
 */
 
-bool ddl_log_rename_view(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_rename_view(DDL_LOG_STATE *ddl_state,
                          const LEX_CSTRING *org_db,
                          const LEX_CSTRING *org_alias,
                          const LEX_CSTRING *new_db,
@@ -3120,7 +3120,7 @@ bool ddl_log_rename_view(THD *thd, DDL_LOG_STATE *ddl_state,
    is in original delete order.
 */
 
-static bool ddl_log_drop_init(THD *thd, DDL_LOG_STATE *ddl_state,
+static bool ddl_log_drop_init(DDL_LOG_STATE *ddl_state,
                               ddl_log_action_code action_code,
                               const LEX_CSTRING *db,
                               const LEX_CSTRING *comment)
@@ -3138,18 +3138,18 @@ static bool ddl_log_drop_init(THD *thd, DDL_LOG_STATE *ddl_state,
 }
 
 
-bool ddl_log_drop_table_init(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_drop_table_init(DDL_LOG_STATE *ddl_state,
                              const LEX_CSTRING *db,
                              const LEX_CSTRING *comment)
 {
-  return ddl_log_drop_init(thd, ddl_state, DDL_LOG_DROP_INIT_ACTION,
+  return ddl_log_drop_init(ddl_state, DDL_LOG_DROP_INIT_ACTION,
                            db, comment);
 }
 
-bool ddl_log_drop_view_init(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_drop_view_init(DDL_LOG_STATE *ddl_state,
                             const LEX_CSTRING *db)
 {
-  return ddl_log_drop_init(thd, ddl_state, DDL_LOG_DROP_INIT_ACTION,
+  return ddl_log_drop_init(ddl_state, DDL_LOG_DROP_INIT_ACTION,
                            db, &empty_clex_str);
 }
 
@@ -3163,7 +3163,7 @@ bool ddl_log_drop_view_init(THD *thd, DDL_LOG_STATE *ddl_state,
    See also comment before ddl_log_drop_init().
 */
 
-static bool ddl_log_drop(THD *thd, DDL_LOG_STATE *ddl_state,
+static bool ddl_log_drop(DDL_LOG_STATE *ddl_state,
                          ddl_log_action_code action_code,
                          uint phase,
                          handlerton *hton,
@@ -3209,32 +3209,32 @@ error:
 }
 
 
-bool ddl_log_drop_table(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_drop_table(DDL_LOG_STATE *ddl_state,
                         handlerton *hton,
                         const LEX_CSTRING *path,
                         const LEX_CSTRING *db,
                         const LEX_CSTRING *table)
 {
   DBUG_ENTER("ddl_log_drop_table");
-  DBUG_RETURN(ddl_log_drop(thd, ddl_state,
+  DBUG_RETURN(ddl_log_drop(ddl_state,
                            DDL_LOG_DROP_TABLE_ACTION, DDL_DROP_PHASE_TABLE,
                            hton, path, db, table));
 }
 
 
-bool ddl_log_drop_view(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_drop_view(DDL_LOG_STATE *ddl_state,
                         const LEX_CSTRING *path,
                         const LEX_CSTRING *db,
                         const LEX_CSTRING *table)
 {
   DBUG_ENTER("ddl_log_drop_view");
-  DBUG_RETURN(ddl_log_drop(thd, ddl_state,
+  DBUG_RETURN(ddl_log_drop(ddl_state,
                            DDL_LOG_DROP_VIEW_ACTION, 0,
                            (handlerton*) 0, path, db, table));
 }
 
 
-bool ddl_log_drop_trigger(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_drop_trigger(DDL_LOG_STATE *ddl_state,
                           const LEX_CSTRING *db,
                           const LEX_CSTRING *table,
                           const LEX_CSTRING *trigger_name,
@@ -3284,7 +3284,7 @@ bool ddl_log_drop_trigger(THD *thd, DDL_LOG_STATE *ddl_state,
    link to the previous entries (not setting ddl_log_entry.next_entry)
 */
 
-bool ddl_log_drop_db(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_drop_db(DDL_LOG_STATE *ddl_state,
                      const LEX_CSTRING *db, const LEX_CSTRING *path)
 {
   DDL_LOG_ENTRY ddl_log_entry;
@@ -3305,7 +3305,7 @@ bool ddl_log_drop_db(THD *thd, DDL_LOG_STATE *ddl_state,
                     example when deleting a table that was discovered.
 */
 
-bool ddl_log_create_table(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_create_table(DDL_LOG_STATE *ddl_state,
                           handlerton *hton,
                           const LEX_CSTRING *path,
                           const LEX_CSTRING *db,
@@ -3333,7 +3333,7 @@ bool ddl_log_create_table(THD *thd, DDL_LOG_STATE *ddl_state,
    Log CREATE VIEW
 */
 
-bool ddl_log_create_view(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_create_view(DDL_LOG_STATE *ddl_state,
                          const LEX_CSTRING *path,
                          enum_ddl_log_create_view_phase phase)
 {
@@ -3351,14 +3351,13 @@ bool ddl_log_create_view(THD *thd, DDL_LOG_STATE *ddl_state,
 /**
   Log creation of temporary file that should be deleted during recovery
 
-  @param thd             Thread handler
   @param ddl_log_state   ddl_state
   @param path            Path to file to be deleted
   @param depending_state If not NULL, then do not delete the temp file if this
                          entry exists and is active.
 */
 
-bool ddl_log_delete_tmp_file(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_delete_tmp_file(DDL_LOG_STATE *ddl_state,
                              const LEX_CSTRING *path,
                              DDL_LOG_STATE *depending_state)
 {
@@ -3379,7 +3378,7 @@ bool ddl_log_delete_tmp_file(THD *thd, DDL_LOG_STATE *ddl_state,
    Log CREATE TRIGGER
 */
 
-bool ddl_log_create_trigger(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_create_trigger(DDL_LOG_STATE *ddl_state,
                             const LEX_CSTRING *db, const LEX_CSTRING *table,
                             const LEX_CSTRING *trigger_name,
                             enum_ddl_log_create_trigger_phase phase)
@@ -3404,7 +3403,7 @@ bool ddl_log_create_trigger(THD *thd, DDL_LOG_STATE *ddl_state,
                         this is the final table name
 */
 
-bool ddl_log_alter_table(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_alter_table(DDL_LOG_STATE *ddl_state,
                          handlerton *org_hton,
                          const LEX_CSTRING *db, const LEX_CSTRING *table,
                          handlerton *new_hton,
