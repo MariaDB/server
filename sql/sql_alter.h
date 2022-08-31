@@ -98,6 +98,7 @@ public:
   List<Alter_rename_key>        alter_rename_key_list;
   // List of columns, used by both CREATE and ALTER TABLE.
   List<Create_field>            create_list;
+  uint                          select_field_count;
   // Indexes whose ignorability needs to be changed.
   List<Alter_index_ignorability>  alter_index_ignorability_list;
   List<Virtual_column_info>     check_constraint_list;
@@ -198,6 +199,7 @@ public:
 
 
   Alter_info() :
+  select_field_count(0),
   flags(0), partition_flags(0),
     keys_onoff(LEAVE_AS_IS),
     original_table(0),
@@ -219,6 +221,7 @@ public:
     drop_stat_indexes.empty();
     rename_stat_fields.empty();
     rename_stat_indexes.empty();
+    select_field_count= 0;
     flags= 0;
     partition_flags= 0;
     keys_onoff= LEAVE_AS_IS;
@@ -327,6 +330,11 @@ public:
 
   bool add_alter_list(THD *thd, LEX_CSTRING name, LEX_CSTRING new_name,
                       bool exists);
+
+  uint field_count() const
+  {
+    return create_list.elements - select_field_count;
+  }
 
 private:
   Alter_info &operator=(const Alter_info &rhs); // not implemented
