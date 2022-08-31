@@ -5414,7 +5414,8 @@ bool select_create::send_eof()
     mysql_unlock_tables(thd, lock);
   }
   else if (atomic_replace && create_info->pos_in_locked_tables &&
-           create_info->finalize_locked_tables(thd))
+           /* send_eof() is done on success, passing false here */
+           create_info->finalize_locked_tables(thd, false))
     DBUG_RETURN(true);
 
   send_ok_packet();
@@ -5526,6 +5527,7 @@ void select_create::abort_result_set()
     thd->locked_tables_list.unlock_locked_table(thd, create_info->mdl_ticket);
   }
   else if (atomic_replace && create_info->pos_in_locked_tables)
-    (void) create_info->finalize_locked_tables(thd);
+    /* abort_result_set() is done on error, passing true here */
+    (void) create_info->finalize_locked_tables(thd, true);
   DBUG_VOID_RETURN;
 }
