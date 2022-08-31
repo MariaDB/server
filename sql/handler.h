@@ -2336,8 +2336,7 @@ struct Table_scope_and_contents_source_st:
   bool fix_period_fields(THD *thd, Alter_info *alter_info);
   bool check_fields(THD *thd, Alter_info *alter_info,
                     const Lex_ident_table &table_name,
-                    const Lex_ident_db &db,
-                    int select_count= 0);
+                    const Lex_ident_db &db);
   bool check_period_fields(THD *thd, Alter_info *alter_info);
 
   void vers_check_native();
@@ -2346,8 +2345,7 @@ struct Table_scope_and_contents_source_st:
 
   bool vers_check_system_fields(THD *thd, Alter_info *alter_info,
                                 const Lex_ident_table &table_name,
-                                const Lex_ident_db &db,
-                                int select_count= 0);
+                                const Lex_ident_db &db);
 };
 
 
@@ -5834,8 +5832,7 @@ inline void Cost_estimate::reset(handler *file)
   avg_io_cost= file->DISK_READ_COST * file->DISK_READ_RATIO;
 }
 
-int get_select_field_pos(Alter_info *alter_info, int select_field_count,
-                         bool versioned);
+int get_select_field_pos(Alter_info *alter_info, bool versioned);
 
 #ifndef DBUG_OFF
 const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names= true);
