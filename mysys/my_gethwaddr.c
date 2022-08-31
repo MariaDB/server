@@ -111,7 +111,7 @@ my_bool my_gethwaddr(uchar *to)
     for (i= 0; res && i < ifc.ifc_len / sizeof(ifr[0]); i++)
     {
 #if !defined(_AIX) || !defined(__linux__)
-#if defined(__linux___)
+#if defined(__linux__)
 #define HWADDR_DATA ifr[i].ifr_hwaddr.sa_data
 #else
 #define HWADDR_DATA ifr[i].ifr_hwaddr
