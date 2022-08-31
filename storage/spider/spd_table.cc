@@ -110,14 +110,6 @@ inline void spider_destroy_thd(MYSQL_THD thd)
   delete thd;
 }
 
-#ifdef SPIDER_XID_USES_xid_cache_iterate
-#else
-#ifdef XID_CACHE_IS_SPLITTED
-uint *spd_db_att_xid_cache_split_num;
-#endif
-pthread_mutex_t *spd_db_att_LOCK_xid_cache;
-HASH *spd_db_att_xid_cache;
-#endif
 struct charset_info_st *spd_charset_utf8mb3_bin;
 const char **spd_defaults_extra_file;
 const char **spd_defaults_file;
@@ -6593,17 +6585,6 @@ int spider_db_init(
 
 #ifndef SPIDER_HAS_NEXT_THREAD_ID
   spd_db_att_thread_id = &thread_id;
-#endif
-#ifdef SPIDER_XID_USES_xid_cache_iterate
-#else
-#ifdef XID_CACHE_IS_SPLITTED
-  spd_db_att_xid_cache_split_num = &opt_xid_cache_split_num;
-  spd_db_att_LOCK_xid_cache = LOCK_xid_cache;
-  spd_db_att_xid_cache = xid_cache;
-#else
-  spd_db_att_LOCK_xid_cache = &LOCK_xid_cache;
-  spd_db_att_xid_cache = &xid_cache;
-#endif
 #endif
   spd_charset_utf8mb3_bin = &my_charset_utf8mb3_bin;
   spd_defaults_extra_file = &my_defaults_extra_file;

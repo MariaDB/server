@@ -36,14 +36,6 @@
 #include "spd_ping_table.h"
 #include "spd_malloc.h"
 
-#ifdef SPIDER_XID_USES_xid_cache_iterate
-#else
-#ifdef XID_CACHE_IS_SPLITTED
-extern uint *spd_db_att_xid_cache_split_num;
-#endif
-extern pthread_mutex_t *spd_db_att_LOCK_xid_cache;
-extern HASH *spd_db_att_xid_cache;
-#endif
 extern struct charset_info_st *spd_charset_utf8mb3_bin;
 
 extern handlerton *spider_hton_ptr;
@@ -1600,62 +1592,17 @@ static int spider_xa_lock(
   int error_num;
   const char *old_proc_info;
   DBUG_ENTER("spider_xa_lock");
-#ifdef SPIDER_XID_USES_xid_cache_iterate
-#else
-  my_hash_value_type hash_value = my_calc_hash(spd_db_att_xid_cache,
-    (uchar*) xid_state->xid.key(), xid_state->xid.key_length());
-#ifdef XID_CACHE_IS_SPLITTED
-  uint idx = hash_value % *spd_db_att_xid_cache_split_num;
-#endif
-#endif
   old_proc_info = thd_proc_info(thd, "Locking xid by Spider");
-#ifdef SPIDER_XID_USES_xid_cache_iterate
   if (xid_cache_insert(thd, xid_state, xid))
   {
     error_num = (spider_stmt_da_sql_errno(thd) == ER_XAER_DUPID ?
       ER_SPIDER_XA_LOCKED_NUM : HA_ERR_OUT_OF_MEM);
     goto error;
   }
-#else
-#ifdef XID_CACHE_IS_SPLITTED
-  pthread_mutex_lock(&spd_db_att_LOCK_xid_cache[idx]);
-#else
-  pthread_mutex_lock(spd_db_att_LOCK_xid_cache);
-#endif
-#ifdef XID_CACHE_IS_SPLITTED
-  if (my_hash_search_using_hash_value(&spd_db_att_xid_cache[idx], hash_value,
-    xid_state->xid.key(), xid_state->xid.key_length()))
-#else
-  if (my_hash_search_using_hash_value(spd_db_att_xid_cache, hash_value,
-    xid_state->xid.key(), xid_state->xid.key_length()))
-#endif
-  {
-    error_num = ER_SPIDER_XA_LOCKED_NUM;
-    goto error;
-  }
-  if (my_hash_insert(spd_db_att_xid_cache, (uchar*)xid_state))
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
-    goto error;
-  }
-#ifdef XID_CACHE_IS_SPLITTED
-  pthread_mutex_unlock(&spd_db_att_LOCK_xid_cache[idx]);
-#else
-  pthread_mutex_unlock(spd_db_att_LOCK_xid_cache);
-#endif
-#endif
   thd_proc_info(thd, old_proc_info);
   DBUG_RETURN(0);
 
 error:
-#ifdef SPIDER_XID_USES_xid_cache_iterate
-#else
-#ifdef XID_CACHE_IS_SPLITTED
-  pthread_mutex_unlock(&spd_db_att_LOCK_xid_cache[idx]);
-#else
-  pthread_mutex_unlock(spd_db_att_LOCK_xid_cache);
-#endif
-#endif
   thd_proc_info(thd, old_proc_info);
   DBUG_RETURN(error_num);
 }
@@ -1666,25 +1613,8 @@ static int spider_xa_unlock(
   THD *thd = current_thd;
   const char *old_proc_info;
   DBUG_ENTER("spider_xa_unlock");
-#ifdef SPIDER_XID_USES_xid_cache_iterate
-#else
-#endif
   old_proc_info = thd_proc_info(thd, "Unlocking xid by Spider");
-#ifdef SPIDER_XID_USES_xid_cache_iterate
   xid_cache_delete(thd, xid_state);
-#else
-#ifdef XID_CACHE_IS_SPLITTED
-  pthread_mutex_lock(&spd_db_att_LOCK_xid_cache[idx]);
-#else
-  pthread_mutex_lock(spd_db_att_LOCK_xid_cache);
-#endif
-  my_hash_delete(spd_db_att_xid_cache, (uchar *)xid_state);
-#ifdef XID_CACHE_IS_SPLITTED
-  pthread_mutex_unlock(&spd_db_att_LOCK_xid_cache[idx]);
-#else
-  pthread_mutex_unlock(spd_db_att_LOCK_xid_cache);
-#endif
-#endif
   thd_proc_info(thd, old_proc_info);
   DBUG_RETURN(0);
 }
