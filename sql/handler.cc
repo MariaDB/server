@@ -8838,11 +8838,10 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
 }
 
 
-int get_select_field_pos(Alter_info *alter_info, int select_field_count,
-                         bool versioned)
+int get_select_field_pos(Alter_info *alter_info, bool versioned)
 {
-  int select_field_pos= alter_info->create_list.elements - select_field_count;
-  if (select_field_count && versioned &&
+  int select_field_pos= alter_info->field_count();
+  if (alter_info->select_field_count && versioned &&
       /*
         ALTER_PARSER_ADD_COLUMN indicates system fields was created implicitly,
         select_field_count guarantees it's not ALTER TABLE
@@ -8855,7 +8854,7 @@ int get_select_field_pos(Alter_info *alter_info, int select_field_count,
 
 bool Table_scope_and_contents_source_st::vers_check_system_fields(
         THD *thd, Alter_info *alter_info, const Lex_ident_table &table_name,
-        const Lex_ident_db &db, int select_count)
+        const Lex_ident_db &db)
 {
   if (!(options & HA_VERSIONED_TABLE))
     return false;
@@ -8866,8 +8865,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
   {
     uint fieldnr= 0;
     List_iterator<Create_field> field_it(alter_info->create_list);
-    uint select_field_pos= (uint) get_select_field_pos(alter_info, select_count,
-                                                       true);
+    uint select_field_pos= (uint) get_select_field_pos(alter_info, true);
     while (Create_field *f= field_it++)
     {
       /*
@@ -9304,10 +9302,9 @@ bool Table_period_info::check_field(const Create_field* f,
 
 bool Table_scope_and_contents_source_st::check_fields(
   THD *thd, Alter_info *alter_info,
-  const Lex_ident_table &table_name, const Lex_ident_db &db, int select_count)
+  const Lex_ident_table &table_name, const Lex_ident_db &db)
 {
-  return vers_check_system_fields(thd, alter_info,
-                                  table_name, db, select_count) ||
+  return vers_check_system_fields(thd, alter_info, table_name, db) ||
     check_period_fields(thd, alter_info);
 }
 
