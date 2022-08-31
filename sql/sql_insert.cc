@@ -4706,7 +4706,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   TABLE tmp_table;		// Used during 'Create_field()'
   TABLE_SHARE share;
   TABLE *table= 0;
-  uint select_field_count= items->elements;
+  alter_info->select_field_count= items->elements;
   /* Add selected items to field list */
   List_iterator_fast<Item> it(*items);
   Item *item;
@@ -4773,8 +4773,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
 
   if (create_info->check_fields(thd, alter_info,
                                 table_list->table_name,
-                                table_list->db,
-                                select_field_count))
+                                table_list->db))
     DBUG_RETURN(NULL);
 
   DEBUG_SYNC(thd,"create_table_select_before_create");
@@ -4808,7 +4807,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
 
   if (!mysql_create_table_no_lock(thd, &ddl_log_state_create, &ddl_log_state_rm,
                                   create_info, alter_info, NULL,
-                                  select_field_count, table_list))
+                                  C_ORDINARY_CREATE, table_list))
   {
     DEBUG_SYNC(thd,"create_table_select_before_open");
 
