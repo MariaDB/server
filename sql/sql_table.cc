@@ -3225,7 +3225,6 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
   List_iterator_fast<Create_field> it(alter_info->create_list);
   List_iterator<Create_field> it2(alter_info->create_list);
   uint total_uneven_bit_length= 0;
-  int select_field_count= C_CREATE_SELECT(create_table_mode);
   bool tmp_table= create_table_mode == C_ALTER_TABLE;
   const bool create_simple= thd->lex->create_simple();
   const CHARSET_INFO *scs= system_charset_info;
@@ -3241,8 +3240,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     DBUG_RETURN(TRUE);
   }
 
-  select_field_pos= get_select_field_pos(alter_info, select_field_count,
-                                         create_info->versioned());
+  select_field_pos= get_select_field_pos(alter_info, create_info->versioned());
   null_fields= 0;
   create_info->varchar= 0;
 
@@ -3401,7 +3399,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
    from the select tables. This order may differ on master and slave. We
    therefore mark it as unsafe.
   */
-  if (select_field_count > 0 && auto_increment)
+  if (alter_info->select_field_count > 0 && auto_increment)
     thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_CREATE_SELECT_AUTOINC);
 
   /* Create keys */

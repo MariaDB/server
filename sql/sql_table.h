@@ -128,7 +128,6 @@ bool add_keyword_to_query(THD *thd, String *result, const LEX_CSTRING *keyword,
   (which should be the number of fields in the SELECT ... part), and other
   cases use constants as defined below.
 */
-#define C_CREATE_SELECT(X)        ((X) > 0 ? (X) : 0)
 #define C_ORDINARY_CREATE         0
 #define C_ASSISTED_DISCOVERY     -1
 #define C_ALTER_TABLE            -2
