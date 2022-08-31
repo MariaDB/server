@@ -1129,7 +1129,7 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
     debug_crash_here("ddl_log_drop_after_drop_tables");
 
     LEX_CSTRING cpath{ path, path_length};
-    ddl_log_drop_db(thd, &ddl_log_state, &rm_db, &cpath);
+    ddl_log_drop_db(&ddl_log_state, &rm_db, &cpath);
 
     drop_database_objects(thd, &cpath, &rm_db, rm_mysql_schema);
 
@@ -1236,7 +1236,8 @@ update_binlog:
       char quoted_name[FN_REFLEN+3];
 
       // Only write drop table to the binlog for tables that no longer exist.
-      if (ha_table_exists(thd, &tbl->db, &tbl->table_name))
+      if (ha_table_exists(thd, &tbl->db, &tbl->table_name,
+                          NULL, NULL, NULL, NULL, 0))
         continue;
 
       tbl_name_len= my_snprintf(quoted_name, sizeof(quoted_name), "%`s",

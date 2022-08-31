@@ -35,6 +35,7 @@
 #include "sql_array.h"          /* Dynamic_array<> */
 #include "mdl.h"
 #include "vers_string.h"
+#include "backup.h"
 
 #include "sql_analyze_stmt.h" // for Exec_time_tracker 
 
@@ -1780,6 +1781,12 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 */
 #define HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT (1 << 20)
 
+/*
+  Indicates that rename table is expensive operation.
+  When set atomic CREATE OR REPLACE TABLE is not used.
+*/
+#define HTON_EXPENSIVE_RENAME (1 << 21)
+
 class Ha_trx_info;
 
 struct THD_TRANS
@@ -2225,6 +2232,11 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
   {
     bzero(this, sizeof(*this));
   }
+  /*
+    NOTE: share->tmp_table (tmp_table_type) is superset of this
+    HA_LEX_CREATE_TMP_TABLE which means TEMPORARY keyword in
+    CREATE TEMPORARY TABLE statement.
+  */
   bool tmp_table() const { return options & HA_LEX_CREATE_TMP_TABLE; }
   void use_default_db_type(THD *thd)
   {
@@ -2257,8 +2269,7 @@ struct Table_scope_and_contents_source_st:
   bool fix_period_fields(THD *thd, Alter_info *alter_info);
   bool check_fields(THD *thd, Alter_info *alter_info,
                     const Lex_table_name &table_name,
-                    const Lex_table_name &db,
-                    int select_count= 0);
+                    const Lex_table_name &db);
   bool check_period_fields(THD *thd, Alter_info *alter_info);
 
   bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
@@ -2266,10 +2277,72 @@ struct Table_scope_and_contents_source_st:
 
   bool vers_check_system_fields(THD *thd, Alter_info *alter_info,
                                 const Lex_table_name &table_name,
-                                const Lex_table_name &db,
-                                int select_count= 0);
-
+                                const Lex_table_name &db);
 };
+
+typedef struct st_ddl_log_state DDL_LOG_STATE;
+
+struct Atomic_info
+{
+  Table_name tmp_name;
+  Table_name backup_name;
+  DDL_LOG_STATE *ddl_log_state_create;
+  DDL_LOG_STATE *ddl_log_state_rm;
+  handlerton *old_hton;
+  backup_log_info drop_entry;
+
+  Atomic_info()
+  {
+    bzero(this, sizeof(*this));
+  }
+
+  Atomic_info(DDL_LOG_STATE *ddl_log_state_rm)
+  {
+    bzero(this, sizeof(*this));
+    Atomic_info::ddl_log_state_rm= ddl_log_state_rm;
+  }
+
+  bool is_atomic_replace() const
+  {
+    return tmp_name.table_name.str != NULL;
+  }
+};
+
+
+/*
+  mysql_create_table_no_lock can be called in one of the following
+  mutually exclusive situations:
+
+  - Just a normal ordinary CREATE TABLE statement that explicitly
+    defines the table structure.
+
+  - CREATE TABLE ... SELECT. It is special, because only in this case,
+    the list of fields is allowed to have duplicates, as long as one of the
+    duplicates comes from the select list, and the other doesn't. For
+    example in
+
+       CREATE TABLE t1 (a int(5) NOT NUL) SELECT b+10 as a FROM t2;
+
+    the list in alter_info->create_list will have two fields `a`.
+
+  - ALTER TABLE, that creates a temporary table #sql-xxx, which will be later
+    renamed to replace the original table.
+
+  - ALTER TABLE as above, but which only modifies the frm file, it only
+    creates an frm file for the #sql-xxx, the table in the engine is not
+    created.
+
+  - Assisted discovery, CREATE TABLE statement without the table structure.
+
+  These situations are distinguished by the following "create table mode"
+  values, except CREATE ... SELECT which is denoted by non-zero
+  Alter_info::select_field_count.
+*/
+
+#define C_ORDINARY_CREATE         0
+#define C_ALTER_TABLE             1
+#define C_ALTER_TABLE_FRM_ONLY    2
+#define C_ASSISTED_DISCOVERY      4
 
 
 /**
@@ -2278,7 +2351,8 @@ struct Table_scope_and_contents_source_st:
   parts are handled on the SQL level and are not needed on the handler level.
 */
 struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
-                       public Schema_specification_st
+                       public Schema_specification_st,
+                       public Atomic_info
 {
   /* TODO: remove after MDEV-20865 */
   Alter_info *alter_info;
@@ -2300,6 +2374,17 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
                   const Lex_table_charset_collation_attrs_st &default_cscl,
                   const Lex_table_charset_collation_attrs_st &convert_cscl,
                   const Charset_collation_context &ctx);
+  bool is_atomic_replace_usable() const
+  {
+    return !tmp_table() && !sequence &&
+           !(db_type->flags & HTON_EXPENSIVE_RENAME) &&
+           !DBUG_IF("ddl_log_expensive_rename");
+  }
+  bool finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table);
+  void finalize_ddl(THD *thd, bool roll_back);
+  bool finalize_locked_tables(THD *thd, bool operation_failed);
+  bool make_tmp_table_list(THD *thd, TABLE_LIST **create_table,
+                           int *create_table_mode);
 };
 
 
@@ -2378,6 +2463,11 @@ struct Table_specification_st: public HA_CREATE_INFO,
                                                   default_charset_collation,
                                                   convert_charset_collation,
                                                   ctx);
+  }
+  bool is_atomic_replace() const
+  {
+    return or_replace() && !or_replace_slave_generated() &&
+           is_atomic_replace_usable();
   }
 };
 
@@ -2659,56 +2749,6 @@ typedef struct st_key_create_information
   bool is_ignored;
 } KEY_CREATE_INFO;
 
-
-/*
-  Class for maintaining hooks used inside operations on tables such
-  as: create table functions, delete table functions, and alter table
-  functions.
-
-  Class is using the Template Method pattern to separate the public
-  usage interface from the private inheritance interface.  This
-  imposes no overhead, since the public non-virtual function is small
-  enough to be inlined.
-
-  The hooks are usually used for functions that does several things,
-  e.g., create_table_from_items(), which both create a table and lock
-  it.
- */
-class TABLEOP_HOOKS
-{
-public:
-  TABLEOP_HOOKS() {}
-  virtual ~TABLEOP_HOOKS() {}
-
-  inline void prelock(TABLE **tables, uint count)
-  {
-    do_prelock(tables, count);
-  }
-
-  inline int postlock(TABLE **tables, uint count)
-  {
-    return do_postlock(tables, count);
-  }
-private:
-  /* Function primitive that is called prior to locking tables */
-  virtual void do_prelock(TABLE **tables, uint count)
-  {
-    /* Default is to do nothing */
-  }
-
-  /**
-     Primitive called after tables are locked.
-
-     If an error is returned, the tables will be unlocked and error
-     handling start.
-
-     @return Error code or zero.
-   */
-  virtual int do_postlock(TABLE **tables, uint count)
-  {
-    return 0;                           /* Default is to do nothing */
-  }
-};
 
 typedef struct st_savepoint SAVEPOINT;
 extern ulong savepoint_alloc_size;
@@ -5291,9 +5331,10 @@ int ha_discover_table_names(THD *thd, LEX_CSTRING *db, MY_DIR *dirp,
                             Discovered_table_list *result, bool reusable);
 bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
                      const LEX_CSTRING *table_name,
-                     LEX_CUSTRING *table_version= 0,
-                     LEX_CSTRING *partition_engine_name= 0,
-                     handlerton **hton= 0, bool *is_sequence= 0);
+                     LEX_CUSTRING *table_version,
+                     LEX_CSTRING *partition_engine_name,
+                     handlerton **hton, bool *is_sequence,
+                     uint flags);
 bool ha_check_if_updates_are_ignored(THD *thd, handlerton *hton,
                                      const char *op);
 #endif /* MYSQL_SERVER */

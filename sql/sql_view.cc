@@ -724,7 +724,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     if (backup_file_name[0])
     {
       LEX_CSTRING cpath= {backup_file_name, strlen(backup_file_name) };
-      ddl_log_delete_tmp_file(thd, &ddl_log_state_tmp_file, &cpath,
+      ddl_log_delete_tmp_file(&ddl_log_state_tmp_file, &cpath,
                               &ddl_log_state);
     }
     debug_crash_here("ddl_log_create_before_binlog");
@@ -1091,7 +1091,8 @@ loop_out:
     fn_format(path_buff, file.str, dir.str, "", MY_UNPACK_FILENAME);
     path.length= strlen(path_buff);
 
-    if (ha_table_exists(thd, &view->db, &view->table_name))
+    if (ha_table_exists(thd, &view->db, &view->table_name,
+                        NULL, NULL, NULL, NULL, 0))
     {
       old_view_exists= 1;
       if (lex->create_info.if_not_exists())
@@ -1189,7 +1190,7 @@ loop_out:
     goto err;
   }
 
-  ddl_log_create_view(thd, ddl_log_state, &path, old_view_exists ?
+  ddl_log_create_view(ddl_log_state, &path, old_view_exists ?
                       DDL_CREATE_VIEW_PHASE_DELETE_VIEW_COPY :
                       DDL_CREATE_VIEW_PHASE_NO_OLD_VIEW);
 
@@ -1939,10 +1940,10 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     }
     if (!view_count++)
     {
-      if (ddl_log_drop_view_init(thd, &ddl_log_state, &thd->db))
+      if (ddl_log_drop_view_init(&ddl_log_state, &thd->db))
         DBUG_RETURN(TRUE);
     }
-    if (ddl_log_drop_view(thd, &ddl_log_state, &cpath, &view->db,
+    if (ddl_log_drop_view(&ddl_log_state, &cpath, &view->db,
                           &view->table_name))
       DBUG_RETURN(TRUE);
     debug_crash_here("ddl_log_drop_before_delete_view");
