@@ -2128,7 +2128,7 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
     btr_search_drop_page_hash_index(block);
 #endif /* BTR_CUR_HASH_ADAPT */
   block->page.set_freed(block->page.state());
-  mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
+  mtr->memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
 }
 
 /** Get read access to a compressed page (usually of type

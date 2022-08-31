@@ -2949,7 +2949,13 @@ ATTRIBUTE_COLD void recv_sys_t::free_corrupted_page(page_id_t page_id)
     p->second.log.clear();
     pages.erase(p);
     if (!srv_force_recovery)
+    {
       set_corrupt_fs();
+      ib::error() << "Unable to apply log to corrupted page " << page_id
+                  << "; set innodb_force_recovery to ignore";
+    }
+    else
+      ib::warn() << "Discarding log for corrupted page " << page_id;
   }
 
   if (pages.empty())

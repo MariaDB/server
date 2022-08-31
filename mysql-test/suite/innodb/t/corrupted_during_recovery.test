@@ -6,6 +6,7 @@ call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
 call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed read of file '.*test.t1\\.ibd' page");
 call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*test.t1\\.ibd': Page read from tablespace is corrupted.");
+call mtr.add_suppression("InnoDB: (Unable to apply log to|Discarding log for) corrupted page .*, page number=3\\]");
 call mtr.add_suppression("InnoDB: Table `test`.`t1` is corrupted. Please drop the table and recreate.");
 call mtr.add_suppression("InnoDB: File '.*test/t1\\.ibd' is corrupted");
 call mtr.add_suppression("InnoDB: A long wait .* was observed for dict_sys");

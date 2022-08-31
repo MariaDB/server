@@ -48,13 +48,13 @@ mtr_t::memo_push(void* object, mtr_memo_type_t type)
 	ut_ad(type <= MTR_MEMO_SPACE_S_LOCK);
 	ut_ad(type == MTR_MEMO_PAGE_X_MODIFY || ut_is_2pow(type));
 
-	/* If this mtr has x-fixed a clean page then we set
-	the made_dirty flag. This tells us if we need to
+	/* If this mtr has U or X latched a clean page then we set
+	the m_made_dirty flag. This tells us if we need to
 	grab log_sys.flush_order_mutex at mtr_t::commit() so that we
-	can insert the dirtied page into the flush list. */
+	can insert the dirtied page into the buf_pool.flush_list. */
 
 	if (!m_made_dirty
-            && (type == MTR_MEMO_PAGE_X_FIX || type == MTR_MEMO_PAGE_SX_FIX)) {
+	    && (type & (MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX))) {
 
 		m_made_dirty = is_block_dirtied(
 			reinterpret_cast<const buf_block_t*>(object));

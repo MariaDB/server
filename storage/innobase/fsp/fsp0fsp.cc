@@ -2593,7 +2593,6 @@ corrupted:
 		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			return err;
 		}
-		return err;
 	}
 
 	mtr->free(*space, static_cast<uint32_t>(offset));
