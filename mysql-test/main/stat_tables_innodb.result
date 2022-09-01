@@ -624,7 +624,7 @@ explain
 SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.user;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	PROFILING	ALL	NULL	NULL	NULL	NULL	NULL	
-1	SIMPLE	global_priv	ALL	PRIMARY	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	global_priv	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
 set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 set use_stat_tables=@save_use_stat_tables;
 #

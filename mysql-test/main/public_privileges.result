@@ -241,3 +241,6 @@ connection default;
 disconnect testuser;
 drop user testuser;
 drop database testdb1;
+# clean up
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;

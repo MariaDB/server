@@ -8,7 +8,7 @@ Acl_package_spec_grants	0
 Acl_package_body_grants	0
 Acl_proxy_users	2
 Acl_role_grants	0
-Acl_roles	1
+Acl_roles	0
 Acl_table_grants	1
 Acl_users	5
 SELECT count(*) COLUMN_GRANTS from mysql.columns_priv;
@@ -73,7 +73,7 @@ Acl_package_spec_grants	0
 Acl_package_body_grants	0
 Acl_proxy_users	3
 Acl_role_grants	4
-Acl_roles	3
+Acl_roles	2
 Acl_table_grants	3
 Acl_users	6
 SELECT count(*) COLUMN_GRANTS from mysql.columns_priv;

@@ -2903,6 +2903,8 @@ bool acl_reload(THD *thd)
   int result;
   DBUG_ENTER("acl_reload");
 
+  acl_public= NULL;
+
   Grant_tables tables;
   /*
     To avoid deadlocks we should obtain table locks before
@@ -3588,6 +3590,8 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
 static void acl_insert_role(const char *rolename, privilege_t privileges)
 {
   ACL_ROLE *entry;
+  DBUG_ENTER("acl_insert_role");
+  DBUG_PRINT("enter", ("Role: '%s'", rolename));
 
   mysql_mutex_assert_owner(&acl_cache->lock);
   entry= new (&acl_memroot) ACL_ROLE(rolename, privileges, &acl_memroot);
@@ -3599,6 +3603,8 @@ static void acl_insert_role(const char *rolename, privilege_t privileges)
   my_hash_insert(&acl_roles, (uchar *)entry);
   if (strcasecmp(rolename, public_name.str) == 0)
     acl_public= entry;
+
+  DBUG_VOID_RETURN;
 }
 
 
@@ -5950,6 +5956,10 @@ static int replace_table_table(THD *thd, GRANT_TABLE *grant_table,
   privilege_t store_table_rights(NO_ACL), store_col_rights(NO_ACL);
   uchar user_key[MAX_KEY_LENGTH];
   DBUG_ENTER("replace_table_table");
+  DBUG_PRINT("eneter", ("User: '%s'  Host: '%s'  Revoke:'%d'",
+                        (combo.user.length ? combo.user.str : ""),
+                        (combo.host.length ? combo.host.str : ""),
+                        (int) revoke_grant));
 
   get_grantor(thd, grantor);
   /*

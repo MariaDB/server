@@ -91,3 +91,7 @@ SET DEFAULT ROLE XXXXXX;
 --echo # following should fail with the same error as above
 --error ER_INVALID_ROLE
 SET DEFAULT ROLE PUBLIC;
+
+-- echo # clean up
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;

@@ -92,3 +92,6 @@ ERROR OP000: Invalid role specification `XXXXXX`
 # following should fail with the same error as above
 SET DEFAULT ROLE PUBLIC;
 ERROR OP000: Invalid role specification `PUBLIC`
+# clean up
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
