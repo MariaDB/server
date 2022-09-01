@@ -4552,6 +4552,7 @@ sub extract_warning_lines ($$) {
     );
 
   my $matched_lines= [];
+  my $san_count= 0;
   LINE: foreach my $line ( @lines )
   {
     PAT: foreach my $pat ( @patterns )
@@ -4562,10 +4563,22 @@ sub extract_warning_lines ($$) {
         {
           next LINE if $line =~ $apat;
         }
-	print $Fwarn $line;
-        push @$matched_lines, $line;
-	last PAT;
+        if ( $pat =~ qr/Sanitizer/ || $pat =~ qr/runtime error:/)
+        {
+          $san_count++;
+        }
+        else
+        {
+          print $Fwarn $line;
+          push @$matched_lines, $line;
+          last PAT;
+        }
       }
+    }
+    if ($san_count > 0 )
+    {
+      print $Fwarn $line;
+      push @$matched_lines, $line;
     }
   }
   $Fwarn = undef; # Close file
