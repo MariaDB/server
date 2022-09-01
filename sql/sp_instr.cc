@@ -204,6 +204,115 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
 }
 
 
+void sp_lex_keeper::free_lex(THD *thd)
+{
+  if (!m_lex_resp || !m_lex) return;
+
+  /* Prevent endless recursion. */
+  m_lex->sphead= nullptr;
+  lex_end(m_lex);
+
+  delete (st_lex_local *)m_lex;
+
+  /*
+    Set thd->lex to the null value in case it points to a LEX object
+    we just deleted in order to avoid dangling pointer problem
+  */
+  if (thd->lex == m_lex)
+    thd->lex= nullptr;
+
+  m_lex= nullptr;
+  m_lex_resp= false;
+  lex_query_tables_own_last= nullptr;
+}
+
+
+void sp_lex_keeper::set_lex(LEX *lex, bool is_lex_owner)
+{
+  m_lex= lex;
+  m_lex_resp= is_lex_owner;
+
+  if (m_lex)
+    m_lex->sp_lex_in_use= true;
+}
+
+
+int sp_lex_keeper::validate_lex_and_exec_core(THD *thd, uint *nextp,
+                                              bool open_tables,
+                                              sp_lex_instr* instr)
+{
+  Reprepare_observer reprepare_observer;
+
+  while (true)
+  {
+    if (instr->is_invalid())
+    {
+      thd->clear_error();
+      free_lex(thd);
+      LEX *lex= instr->parse_expr(thd, thd->spcont->m_sp);
+
+      if (!lex) return true;
+
+      set_lex(lex, true);
+
+      m_first_execution= true;
+    }
+
+    Reprepare_observer *stmt_reprepare_observer= nullptr;
+
+    if (!m_first_execution &&
+        ((sql_command_flags[m_lex->sql_command] & CF_REEXECUTION_FRAGILE) ||
+         m_lex->sql_command == SQLCOM_END))
+    {
+      reprepare_observer.reset_reprepare_observer();
+      stmt_reprepare_observer= &reprepare_observer;
+    }
+
+    Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
+    thd->m_reprepare_observer= stmt_reprepare_observer;
+
+    bool rc= reset_lex_and_exec_core(thd, nextp, open_tables, instr);
+
+    thd->m_reprepare_observer= save_reprepare_observer;
+
+    m_first_execution= false;
+
+    if (!rc)
+      break;
+
+    /*
+      Raise the error upper level in case:
+        - we got an error and Reprepare_observer is not set
+        - a fatal error has been got
+        - the current execution thread has been killed
+        - an error different from ER_NEED_REPREPARE has been got.
+    */
+    if (stmt_reprepare_observer == nullptr ||
+        thd->is_fatal_error ||
+        thd->killed ||
+        thd->get_stmt_da()->get_sql_errno() != ER_NEED_REPREPARE)
+      return 1;
+
+    if (!stmt_reprepare_observer->can_retry())
+    {
+      /*
+        Reprepare_observer sets error status in DA but Sql_condition is not
+        added. Please check Reprepare_observer::report_error(). Pushing
+        Sql_condition for ER_NEED_REPREPARE here.
+      */
+      Diagnostics_area *da= thd->get_stmt_da();
+      da->push_warning(thd, da->get_sql_errno(), da->get_sqlstate(),
+                       Sql_state_errno_level::WARN_LEVEL_ERROR, da->message());
+      return 1;
+    }
+
+    instr->invalidate();
+  }
+
+  return 0;
+}
+
+
 int sp_lex_keeper::cursor_reset_lex_and_exec_core(THD *thd, uint *nextp,
                                                   bool open_tables,
                                                   sp_instr *instr)
@@ -221,7 +330,6 @@ int sp_lex_keeper::cursor_reset_lex_and_exec_core(THD *thd, uint *nextp,
   thd->stmt_arena= old_arena;
   return res;
 }
-
 
 /*
   sp_instr class functions
@@ -437,7 +545,149 @@ void sp_lex_instr::get_query(String *sql_query) const
     return;
 
   sql_query->append(C_STRING_WITH_LEN("SELECT "));
-  sql_query->append(expr_query.str, expr_query.length);
+  sql_query->append(expr_query);
+}
+
+
+void sp_lex_instr::cleanup_before_parsing()
+{
+  Item *current= free_list;
+
+  while (current)
+  {
+    Item *next= current->next;
+    current->delete_self();
+    current= next;
+  }
+
+  free_list= nullptr;
+}
+
+
+/**
+  Set up field object for every NEW/OLD item of the trigger.
+
+  @param thd  current thread
+  @param sp   sp_head object of the trigger
+*/
+
+static void setup_table_fields_for_trigger(THD *thd, sp_head *sp)
+{
+  Trigger *trigger= sp->m_trg_list->find_trigger(&sp->m_name, false);
+
+  DBUG_ASSERT(trigger);
+
+  for (Item_trigger_field *trg_field= sp->m_trg_table_fields.first;
+      trg_field;
+      trg_field= trg_field->next_trg_field)
+  {
+    trg_field->setup_field(thd, sp->m_trg_list->get_subject_table(),
+                           &trigger->subject_table_grants);
+  }
+}
+
+
+LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp)
+{
+  String sql_query;
+
+  get_query(&sql_query);
+
+  if (sql_query.length() == 0)
+  {
+    /**
+      The instruction has returned zero-length query string. That means, the
+      re-preparation of the instruction is not possible. We should not come
+      here in the normal case.
+    */
+    assert(false);
+    my_error(ER_UNKNOWN_ERROR, MYF(0));
+    return nullptr;
+  }
+
+  cleanup_before_parsing();
+
+  Parser_state parser_state;
+
+  if (parser_state.init(thd, sql_query.c_ptr(), sql_query.length()))
+    return nullptr;
+
+  // Create a new LEX and initialize it.
+
+  LEX *lex_saved= thd->lex;
+
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+
+  /*
+    Back up the current free_list pointer and reset it to nullptr.
+    In that way any items created on parsing a statement of the current
+    instruction is placed on its own free_list that later assigned to
+    the current sp_instr. We use the separate free list for every instruction
+    since at least at one place in the source code (the function subst_spvars()
+    to be accurate) we iterate along the list sp_instr->free_list
+    on executing of every instruction.
+  */
+  Item *execution_free_list= thd->free_list;
+  thd->free_list= nullptr;
+
+  thd->lex= new (thd->mem_root) st_lex_local;
+
+  lex_start(thd);
+
+  thd->lex->sphead= sp;
+  thd->lex->spcont= m_ctx;
+
+  sql_digest_state *parent_digest= thd->m_digest;
+  PSI_statement_locker *parent_locker= thd->m_statement_psi;
+
+  thd->m_digest= nullptr;
+  thd->m_statement_psi= nullptr;
+
+  /*
+    sp_head::m_tmp_query is set by parser on parsing every statement of
+    a stored routine. Since here we re-parse failed statement outside stored
+    routine context, this data member isn't set. In result, the assert
+      DBUG_ASSERT(sphead->m_tmp_query <= start)
+    is fired in the constructor of the class Query_fragment.
+    To fix the assert failure, reset this data member to point to beginning of
+    the current statement being parsed.
+  */
+  const char *m_tmp_query_bak= sp->m_tmp_query;
+  sp->m_tmp_query= sql_query.c_ptr();
+
+  bool parsing_failed= parse_sql(thd, &parser_state, nullptr);
+
+  sp->m_tmp_query= m_tmp_query_bak;
+  thd->m_digest= parent_digest;
+  thd->m_statement_psi= parent_locker;
+
+  if (!parsing_failed)
+  {
+    thd->lex->set_trg_event_type_for_tables();
+    if (sp->m_handler->type() == SP_TYPE_TRIGGER)
+      setup_table_fields_for_trigger(thd, sp);
+
+    adjust_sql_command(thd->lex);
+    parsing_failed= on_after_expr_parsing(thd);
+    /*
+      Assign the list of items created on parsing to the current
+      stored routine instruction.
+    */
+    free_list= thd->free_list;
+  }
+
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+
+  thd->free_list= execution_free_list;
+
+  thd->lex->sphead= nullptr;
+  thd->lex->spcont= nullptr;
+  LEX *expr_lex= thd->lex;
+  thd->lex= lex_saved;
+
+  return parsing_failed ? nullptr : expr_lex;
 }
 
 
@@ -481,7 +731,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
                                           thd->query_length()) <= 0)
     {
       thd->reset_slow_query_state();
-      res= m_lex_keeper.reset_lex_and_exec_core(thd, nextp, false, this);
+      res= m_lex_keeper.validate_lex_and_exec_core(thd, nextp, false, this);
       bool log_slow= !res && thd->enable_slow_log;
 
       /* Finalize server status flags after executing a statement. */
@@ -595,7 +845,7 @@ sp_instr_set::execute(THD *thd, uint *nextp)
   DBUG_ENTER("sp_instr_set::execute");
   DBUG_PRINT("info", ("offset: %u", m_offset));
 
-  DBUG_RETURN(m_lex_keeper.reset_lex_and_exec_core(thd, nextp, true, this));
+  DBUG_RETURN(m_lex_keeper.validate_lex_and_exec_core(thd, nextp, true, this));
 }
 
 
@@ -748,7 +998,7 @@ sp_instr_set_trigger_field::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_set_trigger_field::execute");
   thd->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
-  DBUG_RETURN(m_lex_keeper.reset_lex_and_exec_core(thd, nextp, true, this));
+  DBUG_RETURN(m_lex_keeper.validate_lex_and_exec_core(thd, nextp, true, this));
 }
 
 
@@ -860,7 +1110,7 @@ sp_instr_jump_if_not::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_jump_if_not::execute");
   DBUG_PRINT("info", ("destination: %u", m_dest));
-  DBUG_RETURN(m_lex_keeper.reset_lex_and_exec_core(thd, nextp, true, this));
+  DBUG_RETURN(m_lex_keeper.validate_lex_and_exec_core(thd, nextp, true, this));
 }
 
 
@@ -965,7 +1215,7 @@ int
 sp_instr_freturn::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_freturn::execute");
-  DBUG_RETURN(m_lex_keeper.reset_lex_and_exec_core(thd, nextp, true, this));
+  DBUG_RETURN(m_lex_keeper.validate_lex_and_exec_core(thd, nextp, true, this));
 }
 
 
@@ -1628,7 +1878,7 @@ sp_instr_set_case_expr::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_set_case_expr::execute");
 
-  DBUG_RETURN(m_lex_keeper.reset_lex_and_exec_core(thd, nextp, true, this));
+  DBUG_RETURN(m_lex_keeper.validate_lex_and_exec_core(thd, nextp, true, this));
 }
 
 

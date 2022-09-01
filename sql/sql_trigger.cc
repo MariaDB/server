@@ -1645,7 +1645,12 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
 
         bool parse_error= parse_sql(thd, & parser_state, creation_ctx);
         thd->pop_internal_handler();
-        DBUG_ASSERT(!parse_error || lex.sphead == 0);
+
+        if (parse_error)
+        {
+          sp_head::destroy(lex.sphead);
+          lex.sphead= nullptr;
+        }
 
         /*
           Not strictly necessary to invoke this method here, since we know
@@ -1803,6 +1808,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
                                  &trigger->subject_table_grants);
         }
 
+        sp->m_trg_list= trigger_list;
         lex_end(&lex);
       }
       thd->reset_db(&save_db);
