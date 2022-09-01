@@ -491,8 +491,7 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, trx_id_t &max_trx_id,
 		}
 	}
 
-	if ((srv_operation == SRV_OPERATION_RESTORE) ||
-        (srv_operation == SRV_OPERATION_RESTORE_EXPORT)) {
+	if (srv_operation == SRV_OPERATION_RESTORE) {
 		/* mariabackup --prepare only deals with
 		the redo log and the data files, not with
 		transactions or the data dictionary. */

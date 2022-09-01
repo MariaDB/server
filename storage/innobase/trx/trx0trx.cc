@@ -51,6 +51,7 @@ Created 3/26/1996 Heikki Tuuri
 
 #include <set>
 #include <new>
+#include <dict0load.h>
 
 /** The bit pattern corresponding to TRX_ID_MAX */
 const byte trx_id_max_bytes[8] = {
@@ -623,11 +624,52 @@ trx_resurrect_table_locks(
 		trx_undo_rec_get_pars(
 			undo_rec, &type, &cmpl_info,
 			&updated_extern, &undo_no, &table_id);
-		tables.insert(table_id);
+              /**
+               * If we are doing a restore, export, then it is not guaranteed that all the tables
+               * will be present in the backup. However, we also need to rollback uncommitted
+               * transactions from the existing tables. Therefore, we collect only the tables
+               * that exists in the data directory when going through undo log records.
+               * Undo log records are applied only to the exported tables.
+               * See MDEV-29050 for more details.
+               */
+              // is this restore export ? -- then, add table only if it exists in the data directory ...
+              if ((srv_operation == SRV_OPERATION_RESTORE_EXPORT) &&
+                      srv_file_per_table) {
 
-		undo_rec = trx_undo_get_prev_rec(
-			undo_rec, undo->hdr_page_no,
-			undo->hdr_offset, false, &mtr);
+                     char *table_name = NULL;
+
+                     // find the table name for the given table id ...
+                     mutex_enter(&dict_sys.mutex);
+                     dict_find_table_name_from_id(table_id, &table_name);
+                     mutex_exit(&dict_sys.mutex);
+
+                     // if table name is not null and if the table is exported to the backup
+                     // then add it to the table list ...
+                     if (table_name != NULL) {
+                            // given table name, find the ibd file path ...
+                            char *ibd_file_path = fil_make_filepath(NULL, table_name, IBD, false);
+                            if (ibd_file_path != NULL) {
+                                   // see whether we can load the file ...
+                                   Datafile file;
+                                   file.set_filepath(ibd_file_path);
+                                   file.open_read_only(false);
+
+                                   if (file.is_open()) {
+                                          tables.insert(table_id);
+                                          file.close();
+                                   }
+
+                                   ut_free(ibd_file_path);
+                            }
+
+                            ut_free(table_name);
+                     }
+              } else
+                     tables.insert(table_id);
+
+              undo_rec = trx_undo_get_prev_rec(
+                      undo_rec, undo->hdr_page_no,
+                      undo->hdr_offset, false, &mtr);
 	} while (undo_rec);
 
 	mtr_commit(&mtr);
@@ -736,8 +778,7 @@ dberr_t trx_lists_init_at_db_start()
 	ut_a(srv_is_being_started);
 	ut_ad(!srv_was_started);
 
-	if ((srv_operation == SRV_OPERATION_RESTORE) ||
-        (srv_operation == SRV_OPERATION_RESTORE_EXPORT)) {
+	if (srv_operation == SRV_OPERATION_RESTORE) {
 		/* mariabackup --prepare only deals with
 		the redo log and the data files, not with
 		transactions or the data dictionary. */

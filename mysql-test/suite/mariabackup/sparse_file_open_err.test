@@ -17,9 +17,16 @@ INSERT t2 VALUES (12);
 # included in the sparse backup.
 
 start transaction;
-
-INSERT INTO t1 VALUES(1);
-INSERT INTO t2 VALUES(1);
+--disable_query_log
+--disable_result_log
+let $n=100;
+while ($n) {
+eval INSERT t1 VALUES(101-$n);
+eval INSERT t2 VALUES(101-$n);
+dec $n;
+}
+--enable_query_log
+--enable_result_log
 
 echo "# Do the sparse backup before transaction completes ...";
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --tables=t1;
@@ -31,7 +38,7 @@ commit;
 echo "# Prepare the backup with --export ...";
 exec $XTRABACKUP --prepare --export --target-dir=$targetdir ;
 
-echo "# Select all should include 10 and 1";
+echo "# Select all should include 10 and 1 to 100 (inclusive)";
 SELECT * FROM t1;
 
 echo "# Remove t1 from the running DB and prepare to import t1 from the backup ...";
@@ -51,7 +58,7 @@ echo "# Import the table ....";
 --chmod 0660 $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.ibd
 
 ALTER TABLE t1 IMPORT TABLESPACE;
-echo "# Select all should include only 10";
+echo "# Select all should include only 10, 1-100 should not be in t1 (because the ongoing tx was rollback during prepare --export)";
 SELECT * FROM t1 ORDER BY a;
 
 echo "# Cleanup ...";
