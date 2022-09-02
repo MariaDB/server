@@ -14,11 +14,7 @@
 /***********************************************************************/
 /*  DB Constant definitions.                                           */
 /***********************************************************************/
-#if defined(FRENCH)
-#define DEFAULT_LOCALE  "French"
-#else   // !FRENCH
 #define DEFAULT_LOCALE  "English"
-#endif  // !FRENCH
 
 #define DOS_MAX_PATH    144   /* Must be the same across systems       */
 #define DOS_BUFF_LEN    100   /* Number of lines in binary file buffer */
