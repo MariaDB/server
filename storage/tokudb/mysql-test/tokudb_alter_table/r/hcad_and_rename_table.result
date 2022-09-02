@@ -5,7 +5,7 @@ SHOW CREATE TABLE s;
 Table	Create Table
 s	CREATE TABLE `s` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SET tokudb_disable_slow_alter=1;
 ALTER TABLE s RENAME TO t, ADD COLUMN b INT;
 SHOW CREATE TABLE t;
@@ -13,5 +13,5 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t;

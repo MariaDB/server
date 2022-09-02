@@ -203,7 +203,7 @@ t1	CREATE TABLE `t1` (
   `b` blob DEFAULT compress(`a`),
   `bl` int(11) DEFAULT uncompressed_length(`b`),
   `a1` text DEFAULT uncompress(`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 (a) VALUES (REPEAT('a',100));
 SELECT bl, a1 FROM t1;
 bl	a1

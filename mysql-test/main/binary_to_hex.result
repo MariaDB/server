@@ -21,7 +21,7 @@ t1	CREATE TABLE `t1` (
   `c7` binary(1) DEFAULT NULL,
   `c8` varbinary(10) DEFAULT NULL,
   `c9` geometry DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=binary
+) ENGINE=MyISAM DEFAULT CHARSET=binary COLLATE=binary
 INSERT INTO t1 VALUES ('tinyblob-text readable', 'blob-text readable',
 'mediumblob-text readable', 'longblob-text readable',
 'text readable', b'1', 'c', 'variable',
@@ -33,7 +33,7 @@ t2	CREATE TABLE `t2` (
   `id` int(11) DEFAULT NULL,
   `col1` binary(10) DEFAULT NULL,
   `col2` blob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t2 VALUES (1, X'AB1234', X'123ABC'), (2, X'DE1234', X'123DEF');
 #Print the table contents when binary-as-hex option is off.
 SELECT * FROM t1;

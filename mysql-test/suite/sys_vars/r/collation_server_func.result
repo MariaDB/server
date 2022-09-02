@@ -30,7 +30,7 @@ CREATE TABLE t1(a CHAR(20));
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` char(20) COLLATE latin1_german1_ci DEFAULT NULL
+  `a` char(20) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_german1_ci
 '---check if updating collation_server effects new table/column---'
 SET @@session.collation_server = latin1_swedish_ci;
@@ -38,7 +38,7 @@ CREATE TABLE t2(a CHAR(10));
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` char(10) COLLATE latin1_german1_ci DEFAULT NULL
+  `a` char(10) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_german1_ci
 INSERT INTO t1 VALUES('Muffler'),('Müller'),('MX Systems');
 '---check if collation_server effects results sort order---'

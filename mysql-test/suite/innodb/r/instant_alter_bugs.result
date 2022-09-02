@@ -145,7 +145,7 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL,
   `f3` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -155,7 +155,7 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`f1`),
   KEY `idx1` (`f2`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t2 CHANGE status status VARCHAR(20) DEFAULT NULL;
 DROP TABLE t2, t1;
 #
@@ -196,7 +196,7 @@ t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` int(11) NOT NULL,
   `c3` int(11) DEFAULT 10
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t1;
 c1	c2	c3
 1	0	10

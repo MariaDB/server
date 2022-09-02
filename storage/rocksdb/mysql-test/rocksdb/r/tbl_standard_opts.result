@@ -10,7 +10,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` char(8) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8 COMMENT='standard table options'
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='standard table options'
 ALTER TABLE t1 COMMENT = 'table altered';
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -18,7 +18,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` char(8) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8 COMMENT='table altered'
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='table altered'
 ALTER TABLE t1 ENGINE=MEMORY;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -26,7 +26,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` char(8) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MEMORY DEFAULT CHARSET=utf8 COMMENT='table altered'
+) ENGINE=MEMORY DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='table altered'
 ALTER TABLE t1 ENGINE=rocksdb;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -34,13 +34,13 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` char(8) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8 COMMENT='table altered'
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='table altered'
 ALTER TABLE t1 CHARACTER SET = latin1 COLLATE = latin1_swedish_ci;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
-  `b` char(8) CHARACTER SET utf8 DEFAULT NULL,
+  `b` char(8) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COMMENT='table altered'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='table altered'
 DROP TABLE t1;

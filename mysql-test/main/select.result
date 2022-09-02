@@ -3786,7 +3786,7 @@ t1	CREATE TABLE `t1` (
   `i` decimal(19,0) NOT NULL,
   `c` decimal(19,0) NOT NULL,
   `co` decimal(19,0) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 select 
 if(1, cast(1111111111111111111 as unsigned), 1) i,

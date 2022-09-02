@@ -1250,7 +1250,7 @@ tab	CREATE TABLE `tab` (
   `c1` point NOT NULL,
   SPATIAL KEY `idx1` (`c1`),
   CONSTRAINT `tab_const` CHECK (cast(`c1` as char charset binary) > 0)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW INDEX FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 tab	1	idx1	1	c1	A	NULL	32	NULL		SPATIAL		

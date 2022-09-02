@@ -6,7 +6,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` char(8) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES	MUL	NULL	
@@ -90,7 +90,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` char(8) DEFAULT NULL,
   KEY `b` (`b`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -171,7 +171,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` char(8) DEFAULT NULL
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -254,7 +254,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` char(8) DEFAULT NULL
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -344,7 +344,7 @@ t1	CREATE TABLE `t1` (
   `b` char(8) DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES	MUL	NULL	
@@ -427,7 +427,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` char(8) DEFAULT NULL,
   KEY `a` (`a`,`b`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES	MUL	NULL	
@@ -511,7 +511,7 @@ t1	CREATE TABLE `t1` (
   `b` char(8) DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES	MUL	NULL	
@@ -628,7 +628,7 @@ t1	CREATE TABLE `t1` (
   KEY `kab` (`a`,`b`),
   KEY `kbc` (`b`,`c`),
   KEY `kabc` (`a`,`b`,`c`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES	MUL	NULL	
@@ -690,7 +690,7 @@ t1	CREATE TABLE `t1` (
   KEY `ka` (`a`) COMMENT 'rev:cf1',
   KEY `kb` (`b`) COMMENT 'rev:cf1',
   KEY `kab` (`a`,`b`) COMMENT 'rev:cf2'
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES	MUL	NULL	
@@ -787,11 +787,11 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) NOT NULL AUTO_INCREMENT,
   KEY `i` (`i`)
-) ENGINE=ROCKSDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1
+) ENGINE=ROCKSDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) NOT NULL AUTO_INCREMENT,
   KEY `i` (`i`)
-) ENGINE=ROCKSDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1
+) ENGINE=ROCKSDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;

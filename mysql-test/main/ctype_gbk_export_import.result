@@ -49,10 +49,10 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `a1` text NOT NULL,
-  `a2` text CHARACTER SET utf8 NOT NULL,
+  `a2` text CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL,
   `b1` blob NOT NULL,
   `eol` text NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=gbk
+) ENGINE=MyISAM DEFAULT CHARSET=gbk COLLATE=gbk_chinese_ci
 #
 # Dump using SELECT INTO OUTFILE
 #

@@ -1107,12 +1107,12 @@ show create table mysqltest.t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 show create table mysqltest.t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `test` varchar(4) CHARACTER SET latin1 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+  `test` varchar(4) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 drop table mysqltest.t1;
 drop table mysqltest.t2;
 alter database mysqltest character set latin1;
@@ -1122,12 +1122,12 @@ show create table mysqltest.t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table mysqltest.t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `test` varchar(4) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop database mysqltest;
 deallocate prepare stmt1;
 deallocate prepare stmt2;
@@ -1690,7 +1690,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`i`)
-) ENGINE=MyISAM AUTO_INCREMENT=100 DEFAULT CHARSET=latin1 COMMENT='comment for table t1'
+) ENGINE=MyISAM AUTO_INCREMENT=100 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='comment for table t1'
 flush tables;
 select * from t2;
 i	j	k
@@ -1700,7 +1700,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`i`)
-) ENGINE=MyISAM AUTO_INCREMENT=100 DEFAULT CHARSET=latin1 COMMENT='comment for table t1'
+) ENGINE=MyISAM AUTO_INCREMENT=100 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='comment for table t1'
 deallocate prepare stmt;
 drop table t1, t2;
 set @old_character_set_server= @@character_set_server;
@@ -1709,13 +1709,13 @@ prepare stmt from "create database mysqltest_1";
 execute stmt;
 show create database mysqltest_1;
 Database	Create Database
-mysqltest_1	CREATE DATABASE `mysqltest_1` /*!40100 DEFAULT CHARACTER SET latin1 */
+mysqltest_1	CREATE DATABASE `mysqltest_1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
 drop database mysqltest_1;
 set @@character_set_server= utf8;
 execute stmt;
 show create database mysqltest_1;
 Database	Create Database
-mysqltest_1	CREATE DATABASE `mysqltest_1` /*!40100 DEFAULT CHARACTER SET utf8 */
+mysqltest_1	CREATE DATABASE `mysqltest_1` /*!40100 DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci */
 drop database mysqltest_1;
 deallocate prepare stmt;
 set @@character_set_server= @old_character_set_server;
@@ -1742,7 +1742,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `?` decimal(2,1) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 drop table if exists t1;
 create table t1 (a bigint unsigned, b bigint(20) unsigned);
@@ -2485,21 +2485,21 @@ tab1	CREATE TABLE `tab1` (
   `a` int(11) NOT NULL,
   `b` char(1) NOT NULL,
   PRIMARY KEY (`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 call proc_1();
 Table	Create Table
 tab1	CREATE TABLE `tab1` (
   `a` int(11) NOT NULL,
   `b` char(1) NOT NULL,
   PRIMARY KEY (`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 call proc_1();
 Table	Create Table
 tab1	CREATE TABLE `tab1` (
   `a` int(11) NOT NULL,
   `b` char(1) NOT NULL,
   PRIMARY KEY (`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop procedure proc_1;
 create function func_1() returns int begin show create table tab1; return 1; end|
 ERROR 0A000: Not allowed to return a result set from a function
@@ -2514,21 +2514,21 @@ tab1	CREATE TABLE `tab1` (
   `a` int(11) NOT NULL,
   `b` char(1) NOT NULL,
   PRIMARY KEY (`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 execute abc;
 Table	Create Table
 tab1	CREATE TABLE `tab1` (
   `a` int(11) NOT NULL,
   `b` char(1) NOT NULL,
   PRIMARY KEY (`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 execute abc;
 Table	Create Table
 tab1	CREATE TABLE `tab1` (
   `a` int(11) NOT NULL,
   `b` char(1) NOT NULL,
   PRIMARY KEY (`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 deallocate prepare abc;
 drop table tab1;
 drop view if exists v1;
@@ -2962,17 +2962,17 @@ execute stmt;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` char(100) CHARACTER SET utf8 DEFAULT NULL,
+  `c` char(100) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
   KEY `c` (`c`(10))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 execute stmt;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` char(100) CHARACTER SET utf8 DEFAULT NULL,
+  `c` char(100) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
   KEY `c` (`c`(10))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 drop table if exists t1, t2;
 create table t1 (a int, b int);
@@ -3308,7 +3308,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = 127;
 @a	@a = 127
 127	1
@@ -3326,7 +3326,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = 32767;
 @a	@a = 32767
 32767	1
@@ -3344,7 +3344,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = 8388607;
 @a	@a = 8388607
 8388607	1
@@ -3362,7 +3362,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = 2147483647;
 @a	@a = 2147483647
 2147483647	1
@@ -3380,7 +3380,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = 9223372036854775807;
 @a	@a = 9223372036854775807
 9223372036854775807	1
@@ -3398,7 +3398,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` bigint(20) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = b'10100100101';
 @a	@a = b'10100100101'
 1317	1
@@ -3416,7 +3416,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = '2007-11-18 15:01:02';
 @a	@a = '2007-11-18 15:01:02'
 2007-11-18 15:01:02	1
@@ -3434,7 +3434,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = '1234-11-12 12:34:59';
 @a	@a = '1234-11-12 12:34:59'
 1234-11-12 12:34:59	1
@@ -3452,7 +3452,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = '123:45:01';
 @a	@a = '123:45:01'
 123:45:01	1
@@ -3470,7 +3470,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = '1234-11-12';
 @a	@a = '1234-11-12'
 1234-11-12	1
@@ -3488,7 +3488,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` bigint(20) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = 2010;
 @a	@a = 2010
 2010	1
@@ -3506,7 +3506,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` double DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a - 123.4567 < 0.00001;
 @a	@a - 123.4567 < 0.00001
 123.45670318603516	1
@@ -3524,7 +3524,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` double DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a - 123.45678 < 0.000001;
 @a	@a - 123.45678 < 0.000001
 123.45678	1
@@ -3542,7 +3542,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` decimal(65,38) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = 123.456789;
 @a	@a = 123.456789
 123.456789	1
@@ -3560,7 +3560,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = REPEAT('a', 16);
 @a	@a = REPEAT('a', 16)
 aaaaaaaaaaaaaaaa	1
@@ -3578,7 +3578,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = REPEAT('b', 16);
 @a	@a = REPEAT('b', 16)
 bbbbbbbbbbbbbbbb	1
@@ -3596,7 +3596,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = REPEAT('c', 16);
 @a	@a = REPEAT('c', 16)
 cccccccccccccccc	1
@@ -3614,7 +3614,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = REPEAT('d', 16);
 @a	@a = REPEAT('d', 16)
 dddddddddddddddd	1
@@ -3632,7 +3632,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = REPEAT('e', 16);
 @a	@a = REPEAT('e', 16)
 eeeeeeeeeeeeeeee	1
@@ -3650,7 +3650,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = REPEAT('f', 16);
 @a	@a = REPEAT('f', 16)
 ffffffffffffffff	1
@@ -3668,7 +3668,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = REPEAT('g', 32);
 @a	@a = REPEAT('g', 32)
 gggggggggggggggggggggggggggggggg	1
@@ -3686,7 +3686,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = REPEAT('h', 16);
 @a	@a = REPEAT('h', 16)
 hhhhhhhhhhhhhhhh	1
@@ -3704,7 +3704,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = REPEAT('i', 16);
 @a	@a = REPEAT('i', 16)
 iiiiiiiiiiiiiiii	1
@@ -3722,7 +3722,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = REPEAT('j', 16);
 @a	@a = REPEAT('j', 16)
 jjjjjjjjjjjjjjjj	1
@@ -3740,7 +3740,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = REPEAT('k', 16);
 @a	@a = REPEAT('k', 16)
 kkkkkkkkkkkkkkkk	1
@@ -3758,7 +3758,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = REPEAT('l', 16);
 @a	@a = REPEAT('l', 16)
 llllllllllllllll	1
@@ -3776,7 +3776,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = 'aaa';
 @a	@a = 'aaa'
 aaa	1
@@ -3794,7 +3794,7 @@ SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
   `c1` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT @a, @a = 'aaa';
 @a	@a = 'aaa'
 aaa	1
@@ -4554,70 +4554,70 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(2) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXECUTE stmt USING 10.123;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(5,3) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXECUTE stmt USING 10.123e0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_DATE;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` date NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIMESTAMP;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` datetime NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIMESTAMP(3);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` datetime(3) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIMESTAMP(6);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` datetime(6) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIME;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` time NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIME(3);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` time(3) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIME(6);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` time(6) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DEALLOCATE PREPARE stmt;
 #
@@ -4738,7 +4738,7 @@ EXECUTE IMMEDIATE 'SHOW CREATE TABLE t1';
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 EXECUTE IMMEDIATE 'DROP TABLE t1';
 SET @stmt= 'CREATE TABLE t1 (a INT)';
 EXECUTE IMMEDIATE @stmt;
@@ -4747,7 +4747,7 @@ EXECUTE IMMEDIATE @stmt;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SET @stmt= 'DROP TABLE t1';
 EXECUTE IMMEDIATE @stmt;
 #
@@ -4764,7 +4764,7 @@ t1	CREATE TABLE `t1` (
   `b` decimal(3,1) NOT NULL,
   `c` double NOT NULL,
   `d` tinytext NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXECUTE IMMEDIATE
 'CREATE TABLE t1 AS SELECT ? AS a,? AS b,? AS c,? AS d'
@@ -4776,7 +4776,7 @@ t1	CREATE TABLE `t1` (
   `b` decimal(3,1) NOT NULL,
   `c` double NOT NULL,
   `d` varchar(3) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXECUTE IMMEDIATE
 'CREATE TABLE t1 AS SELECT ? AS t1,? AS t2, ? AS d1,? AS dt1, ? AS dt2'
@@ -4793,7 +4793,7 @@ t1	CREATE TABLE `t1` (
   `d1` date NOT NULL,
   `dt1` datetime NOT NULL,
   `dt2` datetime(3) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
 # Using a user variable as an EXECUTE IMMEDIATE..USING out parameter
@@ -5186,7 +5186,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bigint(20) unsigned DEFAULT NULL,
   `b` bigint(20) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1(OUT v YEAR) SET v = 2010;
@@ -5200,7 +5200,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bigint(20) unsigned DEFAULT NULL,
   `b` bigint(20) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1(OUT v BIT(16)) SET v = 2010;
@@ -5214,7 +5214,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bigint(20) unsigned DEFAULT NULL,
   `b` bigint(20) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP PROCEDURE p1;
 #
@@ -5256,8 +5256,8 @@ CREATE TABLE t1 AS SELECT @a AS c1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext CHARACTER SET utf8 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `c1` longtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP PROCEDURE p1;
 #
@@ -5294,7 +5294,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(1) NOT NULL,
   `b` int(1) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 AS SELECT 10 AS a,? AS b' USING 10;
 SHOW CREATE TABLE t1;
@@ -5302,7 +5302,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(2) NOT NULL,
   `b` int(2) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 AS SELECT 999999999 AS a,? AS b' USING 999999999;
 SHOW CREATE TABLE t1;
@@ -5310,7 +5310,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(9) NOT NULL,
   `b` int(9) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 AS SELECT 2147483647 AS a,? AS b' USING 2147483647;
 SHOW CREATE TABLE t1;
@@ -5318,7 +5318,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bigint(10) NOT NULL,
   `b` bigint(10) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
 # MDEV-14603 signal 11 with short stacktrace

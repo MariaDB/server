@@ -273,7 +273,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT (`a` like '%f\\_'),
   `c` int(11) DEFAULT (`a` like '%f\\_' escape ''),
   `d` int(11) DEFAULT (`a` like '%f\\_' escape '\\')
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert t1 (a) values ('1 f_'), ('1 f\\_');
 set sql_mode=no_backslash_escapes;
 insert t1 (a) values ('2 f_'), ('2 f\_');

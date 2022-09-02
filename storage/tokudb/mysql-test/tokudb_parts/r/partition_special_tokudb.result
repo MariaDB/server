@@ -12,7 +12,7 @@ t1	CREATE TABLE `t1` (
   `c` varchar(50) NOT NULL,
   `d` enum('m','w') NOT NULL,
   PRIMARY KEY (`a`,`b`,`c`,`d`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`,`b`,`c`,`d`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = TokuDB,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = TokuDB,
@@ -54,7 +54,7 @@ t1	CREATE TABLE `t1` (
   `h` tinyint(4) NOT NULL,
   `i` char(255) DEFAULT NULL,
   PRIMARY KEY (`a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = TokuDB,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = TokuDB,
@@ -104,7 +104,7 @@ t1	CREATE TABLE `t1` (
   `h1` tinyint(4) NOT NULL,
   `i` char(255) DEFAULT NULL,
   PRIMARY KEY (`a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`,`a1`,`b1`,`c1`,`d1`,`e1`,`f1`,`g1`,`h1`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`,`a1`,`b1`,`c1`,`d1`,`e1`,`f1`,`g1`,`h1`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = TokuDB,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = TokuDB,
@@ -184,7 +184,7 @@ t1	CREATE TABLE `t1` (
   `h3` tinyint(4) NOT NULL,
   `i` char(255) DEFAULT NULL,
   PRIMARY KEY (`a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`,`a1`,`b1`,`c1`,`d1`,`e1`,`f1`,`g1`,`h1`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = TokuDB,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = TokuDB,

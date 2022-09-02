@@ -12,7 +12,7 @@ SELECT SETVAL(`x1`, 1, 0);
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 KEY_BLOCK_SIZE=1024;
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci KEY_BLOCK_SIZE=1024;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `t1` VALUES (1),(2);
 # dump by tables order 1
@@ -25,7 +25,7 @@ SELECT SETVAL(`x1`, 1, 0);
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 KEY_BLOCK_SIZE=1024;
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci KEY_BLOCK_SIZE=1024;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `t1` VALUES (1),(2);
 # dump by tables order 2
@@ -38,7 +38,7 @@ SELECT SETVAL(`x1`, 1, 0);
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 KEY_BLOCK_SIZE=1024;
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci KEY_BLOCK_SIZE=1024;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `t1` VALUES (1),(2);
 # dump by tables only tables
@@ -47,7 +47,7 @@ INSERT INTO `t1` VALUES (1),(2);
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 KEY_BLOCK_SIZE=1024;
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci KEY_BLOCK_SIZE=1024;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `t1` VALUES (1),(2);
 # dump by tables only sequences

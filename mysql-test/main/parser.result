@@ -1312,7 +1312,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   UNIQUE KEY `id` (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create or replace view v1 as select 1 between (2 between 3 and 4) and 5;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';

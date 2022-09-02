@@ -70,7 +70,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`c1`)
 (PARTITION `p0` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,
  PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB)
@@ -83,7 +83,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`c1`)
 (PARTITION `p0` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = MyISAM,
  PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = MyISAM)
@@ -111,7 +111,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`c1`)
 (PARTITION `p0` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,
  PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB)
@@ -159,7 +159,7 @@ t1	CREATE TABLE `t1` (
   `myid` int(11) NOT NULL,
   `myval` varchar(10) DEFAULT NULL,
   PRIMARY KEY (`myid`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`myid`)
 (PARTITION `p0001` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,
  PARTITION `p0002` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,
@@ -196,7 +196,7 @@ t1	CREATE TABLE `t1` (
   `myid` int(11) NOT NULL,
   `myval` varchar(10) DEFAULT NULL,
   PRIMARY KEY (`myid`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`myid`)
 (PARTITION `p0001` VALUES LESS THAN (50) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-idx-dir' ENGINE = InnoDB,
  PARTITION `p0002` VALUES LESS THAN (150) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,
@@ -208,7 +208,7 @@ t2	CREATE TABLE `t2` (
   `myid` int(11) NOT NULL,
   `myval` varchar(10) DEFAULT NULL,
   PRIMARY KEY (`myid`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 DATA DIRECTORY='MYSQLTEST_VARDIR/mysql-test-data-dir/'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci DATA DIRECTORY='MYSQLTEST_VARDIR/mysql-test-data-dir/'
 select * from t1;
 myid	myval
 2	two
@@ -248,7 +248,7 @@ t1	CREATE TABLE `t1` (
   `myid` int(11) NOT NULL,
   `myval` varchar(10) DEFAULT NULL,
   PRIMARY KEY (`myid`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`myid`)
 (PARTITION `p0001` VALUES LESS THAN (50) ENGINE = InnoDB,
  PARTITION `p0002` VALUES LESS THAN (150) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,
@@ -260,7 +260,7 @@ t2	CREATE TABLE `t2` (
   `myid` int(11) NOT NULL,
   `myval` varchar(10) DEFAULT NULL,
   PRIMARY KEY (`myid`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 DATA DIRECTORY='MYSQLTEST_VARDIR/mysql-test-data-dir/'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci DATA DIRECTORY='MYSQLTEST_VARDIR/mysql-test-data-dir/'
 select * from t1;
 myid	myval
 2	two
@@ -300,7 +300,7 @@ t1	CREATE TABLE `t1` (
   `myid` int(11) NOT NULL,
   `myval` varchar(10) DEFAULT NULL,
   PRIMARY KEY (`myid`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`myid`)
 (PARTITION `p0001` VALUES LESS THAN (50) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-idx-dir' ENGINE = InnoDB,
  PARTITION `p0002` VALUES LESS THAN (150) ENGINE = InnoDB,
@@ -312,7 +312,7 @@ t2	CREATE TABLE `t2` (
   `myid` int(11) NOT NULL,
   `myval` varchar(10) DEFAULT NULL,
   PRIMARY KEY (`myid`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from t1;
 myid	myval
 2	two

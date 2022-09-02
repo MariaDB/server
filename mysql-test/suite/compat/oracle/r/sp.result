@@ -1706,7 +1706,7 @@ t2	CREATE TABLE "t2" (
   "dc209" decimal(20,9) DEFAULT NULL,
   "cc" char(10) DEFAULT NULL,
   "cv" varchar(10) DEFAULT NULL,
-  "cvu" varchar(10) CHARACTER SET utf8 DEFAULT NULL,
+  "cvu" varchar(10) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
   "t1" tinytext DEFAULT NULL,
   "t2" text DEFAULT NULL,
   "t3" mediumtext DEFAULT NULL,
@@ -1868,7 +1868,7 @@ t2	CREATE TABLE "t2" (
   "dc209" decimal(20,9) DEFAULT NULL,
   "cc" char(10) DEFAULT NULL,
   "cv" varchar(10) DEFAULT NULL,
-  "cvu" varchar(10) CHARACTER SET utf8 DEFAULT NULL,
+  "cvu" varchar(10) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
   "t1" tinytext DEFAULT NULL,
   "t2" text DEFAULT NULL,
   "t3" mediumtext DEFAULT NULL,
@@ -2069,9 +2069,9 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "tables_table_name" varchar(64) CHARACTER SET utf8 DEFAULT NULL,
+  "tables_table_name" varchar(64) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
   "tables_table_rows" bigint(21) unsigned DEFAULT NULL,
-  "processlist_info" longtext CHARACTER SET utf8 DEFAULT NULL,
+  "processlist_info" longtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
   "processlist_info_binary" blob(65535) DEFAULT NULL
 )
 DROP TABLE t1;

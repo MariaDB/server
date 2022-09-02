@@ -26,7 +26,7 @@ t1	CREATE TABLE `t1` (
   `mdb_date` date DEFAULT NULL,
   `ora_date` datetime DEFAULT NULL,
   `max_date` date DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SET sql_mode=ORACLE;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -60,7 +60,7 @@ t1	CREATE TABLE `t1` (
   `mdb_date` date DEFAULT NULL,
   `ora_date` datetime DEFAULT NULL,
   `max_date` date DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
 # ALTER..MODIFY and ALTER..CHANGE understand qualifiers 
