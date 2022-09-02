@@ -31312,6 +31312,13 @@ my_uca1400_info_tailored[MY_CS_ENCODING_LAST+1]
                         [MY_UCA1400_COLLATION_DEFINITION_COUNT];
 
 
+typedef struct my_uca_scanner_param_st
+{
+  const MY_UCA_WEIGHT_LEVEL *level;
+  CHARSET_INFO *cs;
+} my_uca_scanner_param;
+
+
 /*
   Unicode Collation Algorithm:
   Collation element (weight) scanner, 
@@ -31323,11 +31330,9 @@ typedef struct my_uca_scanner_st
   const uint16 *wbeg;	/* Beginning of the current weight string */
   const uchar  *sbeg;	/* Beginning of the input string          */
   const uchar  *send;	/* End of the input string                */
-  const MY_UCA_WEIGHT_LEVEL *level;
   uint16 implicit[2];
   int page;
   int code;
-  CHARSET_INFO *cs;
 } my_uca_scanner;
 
 
@@ -31870,6 +31875,7 @@ my_uca_contraction_find(const MY_CONTRACTIONS *list, my_wc_t *wc, size_t len)
 
 static const MY_CONTRACTION *
 my_uca_scanner_contraction_hash_find(my_uca_scanner *scanner,
+                                     const my_uca_scanner_param *param,
                                      my_wc_t currwc,
                                      size_t max_char_length)
 {
@@ -31887,10 +31893,10 @@ my_uca_scanner_contraction_hash_find(my_uca_scanner *scanner,
        flag<<= 1)
   {
     int mblen;
-    if ((mblen= my_ci_mb_wc(scanner->cs, &wc[clen], s, scanner->send)) <= 0)
+    if ((mblen= my_ci_mb_wc(param->cs, &wc[clen], s, scanner->send)) <= 0)
       break;
     beg[clen]= s= s + mblen;
-    if (!my_uca_can_be_contraction_part(&scanner->level->contractions,
+    if (!my_uca_can_be_contraction_part(&param->level->contractions,
                                         wc[clen++], flag))
       break;
   }
@@ -31899,9 +31905,9 @@ my_uca_scanner_contraction_hash_find(my_uca_scanner *scanner,
   for ( ; clen > 1; clen--)
   {
     const MY_CONTRACTION *cnt;
-    if (my_uca_can_be_contraction_tail(&scanner->level->contractions,
+    if (my_uca_can_be_contraction_tail(&param->level->contractions,
                                        wc[clen - 1]) &&
-        (cnt= my_uca_contraction_hash_find(&scanner->level->contraction_hash,
+        (cnt= my_uca_contraction_hash_find(&param->level->contraction_hash,
                                            wc, clen)))
     {
       scanner->sbeg= beg[clen - 1];
@@ -31959,12 +31965,14 @@ my_uca_previous_context_find(const MY_CONTRACTIONS *list,
   @retval          non null pointer - the address of MY_CONTRACTION found
 */
 static inline const MY_CONTRACTION *
-my_uca_context_weight_find(my_uca_scanner *scanner, my_wc_t currwc,
+my_uca_context_weight_find(my_uca_scanner *scanner,
+                           const my_uca_scanner_param *param,
+                           my_wc_t currwc,
                            size_t max_char_length)
 {
   const MY_CONTRACTION *cnt;
   my_wc_t prevwc;
-  DBUG_ASSERT(scanner->level->contractions.nitems);
+  DBUG_ASSERT(param->level->contractions.nitems);
   /*
     If we have scanned a character which can have previous context,
     and there were some more characters already before,
@@ -31974,23 +31982,23 @@ my_uca_context_weight_find(my_uca_scanner *scanner, my_wc_t currwc,
     Note, we support only 2-character long sequences with previous
     context at the moment. CLDR does not have longer sequences.
   */
-  if (my_uca_can_be_previous_context_tail(&scanner->level->contractions,
+  if (my_uca_can_be_previous_context_tail(&param->level->contractions,
                                           currwc) &&
       scanner->wbeg != nochar &&     /* if not the very first character */
-      my_uca_can_be_previous_context_head(&scanner->level->contractions,
+      my_uca_can_be_previous_context_head(&param->level->contractions,
                                           (prevwc= ((scanner->page << 8) +
                                                     scanner->code))) &&
-      (cnt= my_uca_previous_context_find(&scanner->level->contractions,
+      (cnt= my_uca_previous_context_find(&param->level->contractions,
                                          prevwc, currwc)))
   {
     scanner->page= scanner->code= 0; /* Clear for the next character */
     return cnt;
   }
-  else if (my_uca_can_be_contraction_head(&scanner->level->contractions,
+  else if (my_uca_can_be_contraction_head(&param->level->contractions,
                                           currwc))
   {
     /* Check if w[0] starts a contraction */
-    if ((cnt= my_uca_scanner_contraction_hash_find(scanner, currwc,
+    if ((cnt= my_uca_scanner_contraction_hash_find(scanner, param, currwc,
                                                    max_char_length)))
       return cnt;
   }
@@ -32026,10 +32034,11 @@ my_uca_implicit_weight_put(uint16 *to, const MY_UCA_INFO *src_uca,
 */
 
 static inline int
-my_uca_scanner_next_implicit_primary(my_uca_scanner *scanner)
+my_uca_scanner_next_implicit_primary(my_uca_scanner *scanner,
+                                     const my_uca_scanner_param *param)
 {
   my_wc_t wc= (scanner->page << 8) + scanner->code;
-  uint version= scanner->cs->uca->version;
+  uint version= param->cs->uca->version;
   MY_UCA_IMPLICIT_WEIGHT weight= my_uca_implicit_weight_primary(version, wc);
   scanner->implicit[0]= weight.weight[1]; /* The second weight */
   scanner->implicit[1]= 0;                /* 0 terminator      */
@@ -32040,14 +32049,15 @@ my_uca_scanner_next_implicit_primary(my_uca_scanner *scanner)
 
 /**
   Return an implicit weight for the current level
-  (according to scanner->level->levelno).
+  (according to param->level->levelno).
 
 */
 static inline int
-my_uca_scanner_next_implicit(my_uca_scanner *scanner)
+my_uca_scanner_next_implicit(my_uca_scanner *scanner,
+                             const my_uca_scanner_param *param)
 {
-  switch (scanner->level->levelno) {
-  case 0: return my_uca_scanner_next_implicit_primary(scanner);/* Primary level*/
+  switch (param->level->levelno) {
+  case 0: return my_uca_scanner_next_implicit_primary(scanner, param);/* Primary level*/
   case 1: scanner->wbeg= nochar; return 0x0020; /* Secondary level */
   case 2: scanner->wbeg= nochar; return 0x0002; /* Tertiary level  */
   default: scanner->wbeg= nochar; break;
@@ -32056,21 +32066,28 @@ my_uca_scanner_next_implicit(my_uca_scanner *scanner)
   return 0;
 }
 
+
+static void
+my_uca_scanner_param_init(my_uca_scanner_param *param,
+                          CHARSET_INFO *cs,
+                          const MY_UCA_WEIGHT_LEVEL *level)
+{
+  param->cs= cs;
+  param->level= level;
+}
+
+
 /*
   The same two functions for any character set
 */
 static void
 my_uca_scanner_init_any(my_uca_scanner *scanner,
-                        CHARSET_INFO *cs,
-                        const MY_UCA_WEIGHT_LEVEL *level,
                         const uchar *str, size_t length)
 {
   /* Note, no needs to initialize scanner->wbeg */
   scanner->sbeg= str;
   scanner->send= str + length;
   scanner->wbeg= nochar; 
-  scanner->level= level;
-  scanner->cs= cs;
 }
 
 
@@ -34648,7 +34665,7 @@ static void my_uca_handler_map(struct charset_info_st *cs,
   instead of generic.
 */
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _generic
-#define MY_MB_WC(scanner, wc, beg, end) (my_ci_mb_wc(scanner->cs, wc, beg, end))
+#define MY_MB_WC(scanner, param, wc, beg, end) (my_ci_mb_wc(param->cs, wc, beg, end))
 #define MY_LIKE_RANGE my_like_range_generic
 #define MY_UCA_ASCII_OPTIMIZE 0
 #define MY_UCA_COMPILE_CONTRACTIONS 1
@@ -34813,7 +34830,7 @@ ex:
 
 #include "ctype-ucs2.h"
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _ucs2
-#define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_ucs2_quick(wc, beg, end))
+#define MY_MB_WC(scanner, param, wc, beg, end) (my_mb_wc_ucs2_quick(wc, beg, end))
 #define MY_LIKE_RANGE my_like_range_generic
 #define MY_UCA_ASCII_OPTIMIZE 0
 #define MY_UCA_COMPILE_CONTRACTIONS 1
@@ -35775,7 +35792,7 @@ my_uca_coll_init_utf8mb3(struct charset_info_st *cs, MY_CHARSET_LOADER *loader);
 
 #include "ctype-utf8.h"
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _utf8mb3
-#define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf8mb3_quick(wc, beg, end))
+#define MY_MB_WC(scanner, param, wc, beg, end) (my_mb_wc_utf8mb3_quick(wc, beg, end))
 #define MY_LIKE_RANGE my_like_range_mb
 #define MY_UCA_ASCII_OPTIMIZE 1
 #define MY_UCA_COMPILE_CONTRACTIONS 1
@@ -35783,7 +35800,7 @@ my_uca_coll_init_utf8mb3(struct charset_info_st *cs, MY_CHARSET_LOADER *loader);
 #include "ctype-uca.inl"
 
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _no_contractions_utf8mb3
-#define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf8mb3_quick(wc, beg, end))
+#define MY_MB_WC(scanner, param, wc, beg, end) (my_mb_wc_utf8mb3_quick(wc, beg, end))
 #define MY_LIKE_RANGE my_like_range_mb
 #define MY_UCA_ASCII_OPTIMIZE 1
 #define MY_UCA_COMPILE_CONTRACTIONS 0
@@ -36780,7 +36797,7 @@ my_uca_coll_init_utf8mb4(struct charset_info_st *cs, MY_CHARSET_LOADER *loader);
 
 
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _utf8mb4
-#define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf8mb4_quick(wc, beg, end))
+#define MY_MB_WC(scanner, param, wc, beg, end) (my_mb_wc_utf8mb4_quick(wc, beg, end))
 #define MY_LIKE_RANGE my_like_range_mb
 #define MY_UCA_ASCII_OPTIMIZE 1
 #define MY_UCA_COMPILE_CONTRACTIONS 1
@@ -36788,7 +36805,7 @@ my_uca_coll_init_utf8mb4(struct charset_info_st *cs, MY_CHARSET_LOADER *loader);
 #include "ctype-uca.inl"
 
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _no_contractions_utf8mb4
-#define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf8mb4_quick(wc, beg, end))
+#define MY_MB_WC(scanner, param, wc, beg, end) (my_mb_wc_utf8mb4_quick(wc, beg, end))
 #define MY_LIKE_RANGE my_like_range_mb
 #define MY_UCA_ASCII_OPTIMIZE 1
 #define MY_UCA_COMPILE_CONTRACTIONS 0
@@ -37756,7 +37773,7 @@ struct charset_info_st my_charset_utf8mb4_unicode_520_nopad_ci=
 
 #include "ctype-utf32.h"
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _utf32
-#define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf32_quick(wc, beg, end))
+#define MY_MB_WC(scanner, param, wc, beg, end) (my_mb_wc_utf32_quick(wc, beg, end))
 #define MY_LIKE_RANGE my_like_range_generic
 #define MY_UCA_ASCII_OPTIMIZE 0
 #define MY_UCA_COMPILE_CONTRACTIONS 1
@@ -38713,7 +38730,7 @@ struct charset_info_st my_charset_utf32_unicode_520_nopad_ci=
 
 #include "ctype-utf16.h"
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _utf16
-#define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf16_quick(wc, beg, end))
+#define MY_MB_WC(scanner, param, wc, beg, end) (my_mb_wc_utf16_quick(wc, beg, end))
 #define MY_LIKE_RANGE my_like_range_generic
 #define MY_UCA_ASCII_OPTIMIZE 0
 #define MY_UCA_COMPILE_CONTRACTIONS 1
